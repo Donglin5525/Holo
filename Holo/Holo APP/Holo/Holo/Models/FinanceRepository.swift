@@ -118,23 +118,41 @@ class FinanceRepository {
         return try context.fetch(request)
     }
     
+    /// 获取一级分类（parentId == nil）
+    func getTopLevelCategories(by type: TransactionType) async throws -> [Category] {
+        let request = Category.fetchRequest()
+        request.predicate = NSPredicate(format: "type == %@ AND parentId == nil", type.rawValue)
+        request.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: true)]
+        return try context.fetch(request)
+    }
+    
+    /// 获取指定父分类下的二级子分类
+    func getSubCategories(parentId: UUID) async throws -> [Category] {
+        let request = Category.fetchRequest()
+        request.predicate = NSPredicate(format: "parentId == %@", parentId as CVarArg)
+        request.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: true)]
+        return try context.fetch(request)
+    }
+    
     @discardableResult
     func addCategory(
         name: String,
         icon: String,
         color: String,
         type: TransactionType,
-        isDefault: Bool = false
+        isDefault: Bool = false,
+        parentId: UUID? = nil
     ) async throws -> Category {
-        let count = (try? context.count(for: Category.fetchRequest())) ?? 0
-        let category = Category(context: context)
-        category.id = UUID()
-        category.name = name
-        category.icon = icon
-        category.color = color
-        category.type = type.rawValue
-        category.isDefault = isDefault
-        category.sortOrder = Int16(count)
+        let category = Category.create(
+            in: context,
+            name: name,
+            icon: icon,
+            color: color,
+            type: type.rawValue,
+            isDefault: isDefault,
+            sortOrder: Int16((try? context.count(for: Category.fetchRequest())) ?? 0),
+            parentId: parentId
+        )
         try context.save()
         return category
     }

@@ -21,7 +21,7 @@ struct HomeView: View {
     @State private var userName: String = "东林"
     
     /// 当前日程提醒
-    @State private var currentSchedule: String = "10:00 AM • Team Sync"
+    @State private var currentSchedule: String = "10:00 • 团队同步会议"
     
     /// 当前选中的导航标签
     @State private var selectedTab: BottomNavBar.TabItem = .ai
@@ -96,12 +96,12 @@ struct HomeView: View {
         HStack {
             // 左侧问候语
             VStack(alignment: .leading, spacing: 4) {
-                Text("Organic Intelligence")
+                Text("有机智能")
                     .font(.holoLabel)
                     .foregroundColor(.holoTextSecondary)
                     .kerning(1.2)
                 
-                Text("Hello, \(userName)")
+                Text("你好，\(userName)")
                     .font(.holoHeading)
                     .foregroundColor(.holoTextPrimary)
             }

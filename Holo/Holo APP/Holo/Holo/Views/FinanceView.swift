@@ -2,20 +2,211 @@
 //  FinanceView.swift
 //  Holo
 //
-//  记账功能首页 - 交易列表视图
-//  显示所有交易记录，支持添加、编辑、删除操作
+//  记账功能首页 - 包含底部导航栏（统计/账本/设置）
+//  从首页 fullScreenCover 进入，顶部有返回按钮
 //
 
 import SwiftUI
 import UIKit
 
-/// 记账功能首页视图
+// MARK: - Finance Tab 枚举
+
+/// 财务模块底部 Tab 枚举
+enum FinanceTab: String, CaseIterable {
+    case analysis = "统计"
+    case ledger = "账本"
+    case settings = "设置"
+    
+    /// 对应的 SF Symbol 图标名
+    var icon: String {
+        switch self {
+        case .analysis: return "chart.pie.fill"
+        case .ledger: return "wallet.pass.fill"
+        case .settings: return "gearshape.fill"
+        }
+    }
+}
+
+// MARK: - FinanceView
+
+/// 记账功能首页视图（容器）
+/// 管理三个子 Tab：统计分析、账本列表、设置
 struct FinanceView: View {
     
     // MARK: - Properties
     
-    /// 环境变量：dismiss
+    /// 环境变量：dismiss（关闭 fullScreenCover）
     @Environment(\.dismiss) var dismiss
+    
+    /// 当前选中的 Tab
+    @State private var selectedTab: FinanceTab = .ledger
+    
+    /// 是否显示添加交易页面
+    @State private var showAddTransaction: Bool = false
+    
+    // MARK: - Body
+    
+    var body: some View {
+        ZStack {
+            Color.holoBackground.ignoresSafeArea()
+            
+            Group {
+                switch selectedTab {
+                case .analysis:
+                    FinanceAnalysisView(onBack: { dismiss() })
+                case .ledger:
+                    FinanceLedgerView(
+                        onBack: { dismiss() },
+                        showAddTransaction: $showAddTransaction
+                    )
+                case .settings:
+                    FinanceSettingsView(onBack: { dismiss() })
+                }
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            financeTabBarOnly
+        }
+        .sheet(isPresented: $showAddTransaction) {
+            AddTransactionSheet(editingTransaction: nil) {
+                // 保存后刷新账本列表（通过 Notification 或 @State 传递）
+                NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+            }
+        }
+    }
+    
+    // MARK: - 底部 Tab 栏（fixed bottom-0 left-0 w-full，无浮动圆角）
+    
+    /// 底部导航栏：吸底全宽，中间为「账本」与「+」合一
+    private var financeTabBarOnly: some View {
+        GeometryReader { geo in
+            let bottomInset = max(geo.safeAreaInsets.bottom, 20)
+            HStack(spacing: 0) {
+                financeTabButton(.analysis)
+                // 中间：在记账页展示 +，在统计/设置页展示账本
+                financeCenterTabButton
+                financeTabButton(.settings)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 8)
+            .padding(.bottom, bottomInset)
+            .background(
+                Color.white
+                    .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: -2)
+                    .ignoresSafeArea(edges: .bottom)
+            )
+        }
+        .frame(height: 88)
+        .frame(maxWidth: .infinity)
+        .background(Color.white.ignoresSafeArea(edges: .bottom))
+        .zIndex(40)
+    }
+    
+    /// 中间 Tab：在账本页显示 +（记一笔），在统计/设置页显示账本（切回账本）
+    private var financeCenterTabButton: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                if selectedTab == .ledger {
+                    showAddTransaction = true
+                } else {
+                    selectedTab = .ledger
+                }
+            }
+        } label: {
+            VStack(spacing: 4) {
+                Circle()
+                    .fill(selectedTab == .ledger ? Color.holoPrimary : Color.clear)
+                    .frame(width: 4, height: 4)
+                
+                Group {
+                    if selectedTab == .ledger {
+                        Image(systemName: "plus")
+                            .font(.system(size: 24, weight: .semibold))
+                            .foregroundColor(.white)
+                            .frame(width: 44, height: 44)
+                            .background(Color.holoPrimary)
+                            .clipShape(Circle())
+                    } else {
+                        Image(systemName: FinanceTab.ledger.icon)
+                            .font(.system(size: 22, weight: .medium))
+                            .foregroundColor(.holoTextSecondary)
+                    }
+                }
+                
+                Text(selectedTab == .ledger ? "记一笔" : "账本")
+                    .font(.holoTinyLabel)
+                    .fontWeight(selectedTab == .ledger ? .bold : .medium)
+                    .foregroundColor(selectedTab == .ledger ? .holoPrimary : .holoTextSecondary)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+    
+    /// 单个 Tab 按钮（统计 / 设置）
+    private func financeTabButton(_ tab: FinanceTab) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                selectedTab = tab
+            }
+        } label: {
+            VStack(spacing: 4) {
+                Circle()
+                    .fill(selectedTab == tab ? Color.holoPrimary : Color.clear)
+                    .frame(width: 4, height: 4)
+                
+                Image(systemName: tab.icon)
+                    .font(.system(size: 22, weight: .medium))
+                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
+                
+                Text(tab.rawValue)
+                    .font(.holoTinyLabel)
+                    .fontWeight(selectedTab == tab ? .bold : .medium)
+                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
+            }
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+}
+
+// MARK: - 圆角辅助（仅指定部分角）
+
+/// 支持只圆化指定角的 Shape
+struct RoundedCorner: Shape {
+    var radius: CGFloat = 0
+    var corners: UIRectCorner = .allCorners
+    
+    func path(in rect: CGRect) -> Path {
+        let path = UIBezierPath(
+            roundedRect: rect,
+            byRoundingCorners: corners,
+            cornerRadii: CGSize(width: radius, height: radius)
+        )
+        return Path(path.cgPath)
+    }
+}
+
+// MARK: - Notification Name
+
+extension Notification.Name {
+    /// 财务数据发生变化时发送此通知，账本列表监听后刷新
+    static let financeDataDidChange = Notification.Name("financeDataDidChange")
+}
+
+// MARK: - Finance Ledger View（账本列表 — 原 FinanceView 主体）
+
+/// 账本列表视图（原 FinanceView 的主内容）
+struct FinanceLedgerView: View {
+    
+    // MARK: - Properties
+    
+    /// 返回回调（关闭 fullScreenCover）
+    let onBack: () -> Void
+    
+    /// 是否显示添加交易（由父视图绑定）
+    @Binding var showAddTransaction: Bool
     
     /// 数据仓库
     private let repository = FinanceRepository.shared
@@ -25,8 +216,8 @@ struct FinanceView: View {
     /// 所有交易记录
     @State private var transactions: [Transaction] = []
     
-    /// 是否显示添加交易页面
-    @State private var showAddTransaction: Bool = false
+    /// 正在编辑的交易（nil 表示新增模式）
+    @State private var editingTransaction: Transaction? = nil
     
     /// 是否正在加载
     @State private var isLoading: Bool = false
@@ -37,84 +228,193 @@ struct FinanceView: View {
     // MARK: - Body
     
     var body: some View {
-        NavigationStack {
-            Group {
-                if transactions.isEmpty && !isLoading {
-                    // 空状态
-                    EmptyStateView()
-                } else {
-                    // 交易列表
-                    transactionList
-                }
+        VStack(spacing: 0) {
+            // 顶部导航栏（贴近安全区）
+            headerView
+            
+            // 收支概览卡片
+            summaryCards
+            
+            // 交易记录区域：占满剩余高度并可滚动
+            ScrollView {
+                transactionListView
+                    .padding(.bottom, HoloSpacing.lg)
             }
-            .navigationTitle("记账")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 16, weight: .semibold))
-                            Text("返回")
-                                .font(.holoLabel)
-                        }
-                        .foregroundColor(.holoTextPrimary)
-                    }
-                }
+            .frame(maxHeight: .infinity)
+        }
+        .background(Color.holoBackground)
+        .sheet(item: $editingTransaction) { transaction in
+            AddTransactionSheet(editingTransaction: transaction) {
+                Task { await loadTransactions() }
+            }
+        }
+        .task {
+            await loadTransactions()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .financeDataDidChange)) { _ in
+            Task { await loadTransactions() }
+        }
+    }
+    
+    // MARK: - Header View
+    
+    /// 顶部导航栏
+    private var headerView: some View {
+        HStack {
+            // 左侧：返回按钮
+            Button {
+                onBack()
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.holoTextPrimary)
+                    .frame(width: 36, height: 36)
+                    .background(Color.white)
+                    .clipShape(Circle())
+                    .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+            }
+            
+            // 中间：日期和标题
+            VStack(spacing: 2) {
+                Text(formattedDateString)
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary)
                 
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        showAddTransaction = true
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 22, weight: .semibold))
-                            .foregroundColor(.holoPrimary)
-                    }
-                }
+                Text("今日账本")
+                    .font(.holoTitle)
+                    .foregroundColor(.holoTextPrimary)
             }
-            .background(Color.holoBackground)
-            .sheet(isPresented: $showAddTransaction) {
-                AddTransactionView()
+            .frame(maxWidth: .infinity)
+            
+            // 右侧：日历按钮
+            Button {
+                // TODO: 月份选择器
+            } label: {
+                Image(systemName: "calendar")
+                    .font(.system(size: 20, weight: .medium))
+                    .foregroundColor(.holoTextSecondary)
+                    .frame(width: 36, height: 36)
+                    .background(Color.white)
+                    .clipShape(Circle())
+                    .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
             }
-            .onChange(of: showAddTransaction) { _, isShowing in
-                // 关闭添加记账 sheet 后重新加载列表，使刚保存的记录立即显示
-                if !isShowing {
-                    Task { await loadTransactions() }
-                }
-            }
-            .task {
-                await loadTransactions()
-            }
+        }
+        .padding(.horizontal, HoloSpacing.lg)
+        .padding(.top, 0) // 无多余 pt/mt，日期与标题紧贴灵动岛下方（安全区由系统预留）
+        .padding(.bottom, HoloSpacing.md)
+        .background(Color.holoBackground)
+    }
+    
+    /// 格式化日期字符串
+    private var formattedDateString: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy年M月d日 EEEE"
+        formatter.locale = Locale(identifier: "zh_CN")
+        return formatter.string(from: Date())
+    }
+    
+    // MARK: - Summary Cards
+    
+    /// 收支概览卡片
+    private var summaryCards: some View {
+        HStack(spacing: HoloSpacing.md) {
+            ExpenseCard(amount: todayExpense)
+            IncomeCard(amount: todayIncome)
+        }
+        .padding(.horizontal, HoloSpacing.lg)
+        .padding(.vertical, HoloSpacing.md)
+    }
+    
+    /// 今日支出
+    private var todayExpense: Decimal {
+        todayTransactions
+            .filter { $0.transactionType == .expense }
+            .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+    }
+    
+    /// 今日收入
+    private var todayIncome: Decimal {
+        todayTransactions
+            .filter { $0.transactionType == .income }
+            .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+    }
+    
+    /// 今日交易
+    private var todayTransactions: [Transaction] {
+        transactions.filter { Calendar.current.isDateInToday($0.date) }
+    }
+    
+    /// 昨日交易
+    private var yesterdayTransactions: [Transaction] {
+        transactions.filter { Calendar.current.isDateInYesterday($0.date) }
+    }
+    
+    /// 更早的交易
+    private var olderTransactions: [Transaction] {
+        transactions.filter {
+            !Calendar.current.isDateInToday($0.date) && !Calendar.current.isDateInYesterday($0.date)
         }
     }
     
     // MARK: - Transaction List
     
-    /// 交易列表
-    private var transactionList: some View {
-        ScrollView {
-            VStack(spacing: HoloSpacing.lg) {
-                // 月度概览
-                MonthSummaryView(
-                    transactions: transactions,
-                    month: selectedMonth
-                )
-                .padding(.horizontal, HoloSpacing.lg)
+    /// 交易列表视图
+    private var transactionListView: some View {
+        VStack(spacing: 0) {
+            // 标题栏
+            HStack {
+                Text("交易记录")
+                    .font(.holoHeading)
+                    .foregroundColor(.holoTextPrimary)
                 
-                // 交易列表
-                VStack(spacing: 0) {
-                    ForEach(groupTransactionsByDate(transactions), id: \.key) { date, transactions in
-                        TransactionSection(
-                            date: date,
-                            transactions: transactions
-                        )
+                Spacer()
+                
+                Button {
+                    // 查看全部
+                } label: {
+                    Text("查看全部")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoPrimary)
+                }
+            }
+            .padding(.horizontal, HoloSpacing.lg)
+            .padding(.vertical, HoloSpacing.md)
+            
+            // 交易列表
+            VStack(spacing: HoloSpacing.sm) {
+                ForEach(todayTransactions, id: \.self) { transaction in
+                    TransactionRowView(transaction: transaction) {
+                        editingTransaction = transaction
                     }
                 }
-                .padding(.horizontal, HoloSpacing.lg)
+                
+                if !yesterdayTransactions.isEmpty {
+                    DateDivider(title: "昨天")
+                    
+                    ForEach(yesterdayTransactions, id: \.self) { transaction in
+                        TransactionRowView(transaction: transaction) {
+                            editingTransaction = transaction
+                        }
+                    }
+                }
+                
+                if !olderTransactions.isEmpty {
+                    DateDivider(title: "更早")
+                    
+                    ForEach(olderTransactions, id: \.self) { transaction in
+                        TransactionRowView(transaction: transaction) {
+                            editingTransaction = transaction
+                        }
+                    }
+                }
+                
+                // 空状态
+                if transactions.isEmpty && !isLoading {
+                    EmptyStateView()
+                        .padding(.top, 60)
+                }
             }
-            .padding(.vertical, HoloSpacing.lg)
+            .padding(.horizontal, HoloSpacing.lg)
         }
     }
     
@@ -133,238 +433,305 @@ struct FinanceView: View {
         
         isLoading = false
     }
-    
-    /// 按日期分组交易记录
-    private func groupTransactionsByDate(_ transactions: [Transaction]) -> [(key: Date, value: [Transaction])] {
-        let grouped = Dictionary(grouping: transactions) { transaction -> Date in
-            Calendar.current.startOfDay(for: transaction.date)
-        }
-        
-        return grouped.sorted { $0.key > $1.key }
-    }
 }
 
-// MARK: - Month Summary View
+// MARK: - Finance Analysis View（统计分析 — 占位）
 
-/// 月度概览视图
-struct MonthSummaryView: View {
-    
-    // MARK: - Properties
-    
-    /// 交易记录
-    let transactions: [Transaction]
-    
-    /// 月份
-    let month: Date
-    
-    // MARK: - Computed Properties
-    
-    /// 总支出
-    private var totalExpense: Decimal {
-        transactions
-            .filter { $0.transactionType == .expense }
-            .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
-    }
-    
-    /// 总收入
-    private var totalIncome: Decimal {
-        transactions
-            .filter { $0.transactionType == .income }
-            .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
-    }
-    
-    /// 格式化月份
-    private var formattedMonth: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy 年 MM 月"
-        formatter.locale = Locale(identifier: "zh_CN")
-        return formatter.string(from: month)
-    }
-    
-    // MARK: - Body
+/// 统计分析视图（当前为占位，后续迭代实现）
+struct FinanceAnalysisView: View {
+    let onBack: () -> Void
     
     var body: some View {
-        VStack(spacing: HoloSpacing.md) {
-            // 月份标题
-            Text(formattedMonth)
-                .font(.holoHeading)
-                .foregroundColor(.holoTextPrimary)
-            
-            // 收支概览
-            HStack(spacing: HoloSpacing.lg) {
-                // 支出
-                VStack(spacing: 4) {
-                    Text("支出")
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
-                    
-                    Text(NumberFormatter.currency.string(from: totalExpense as NSDecimalNumber) ?? "0.00")
-                        .font(.holoHeading)
-                        .foregroundColor(.holoPrimary)
+        VStack(spacing: 0) {
+            // 顶部栏
+            HStack {
+                Button {
+                    onBack()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.holoTextPrimary)
+                        .frame(width: 36, height: 36)
+                        .background(Color.white)
+                        .clipShape(Circle())
+                        .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
                 }
                 
-                Divider()
-                    .frame(height: 40)
+                Spacer()
                 
-                // 收入
-                VStack(spacing: 4) {
-                    Text("收入")
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
-                    
-                    Text(NumberFormatter.currency.string(from: totalIncome as NSDecimalNumber) ?? "0.00")
-                        .font(.holoHeading)
-                        .foregroundColor(.holoSuccess)
-                }
-            }
-            .frame(maxWidth: .infinity)
-            .padding(HoloSpacing.md)
-            .background(
-                RoundedRectangle(cornerRadius: HoloRadius.md)
-                    .fill(Color.white)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: HoloRadius.md)
-                            .stroke(Color.holoBorder, lineWidth: 1)
-                    )
-            )
-        }
-        .padding(HoloSpacing.md)
-    }
-}
-
-// MARK: - Transaction Section
-
-/// 交易分组
-struct TransactionSection: View {
-    
-    // MARK: - Properties
-    
-    /// 日期
-    let date: Date
-    
-    /// 交易记录
-    let transactions: [Transaction]
-    
-    // MARK: - Computed Properties
-    
-    /// 格式化日期标题
-    private var dateTitle: String {
-        let calendar = Calendar.current
-        if calendar.isDateInToday(date) {
-            return "今天"
-        } else if calendar.isDateInYesterday(date) {
-            return "昨天"
-        } else {
-            let formatter = DateFormatter()
-            formatter.dateFormat = "MM 月 dd 日 EEEE"
-            formatter.locale = Locale(identifier: "zh_CN")
-            return formatter.string(from: date)
-        }
-    }
-    
-    // MARK: - Body
-    
-    var body: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            // 日期标题
-            Text(dateTitle)
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
-                .padding(.vertical, HoloSpacing.sm)
-            
-            // 交易列表
-            VStack(spacing: HoloSpacing.sm) {
-                ForEach(transactions, id: \.self) { transaction in
-                    TransactionRow(transaction: transaction)
-                }
-            }
-        }
-    }
-}
-
-// MARK: - 分类图标辅助（Asset 运行时检测，兼容命名空间与短名）
-
-@ViewBuilder
-private func transactionCategoryIcon(_ category: Category, size: CGFloat, systemFontSize: CGFloat) -> some View {
-    let name = category.icon
-    let withNamespace = "CategoryIcons/\(name)"
-    let loaded = UIImage(named: withNamespace) ?? UIImage(named: name)
-    if let img = loaded, name.hasPrefix("icon_") {
-        Image(uiImage: img)
-            .renderingMode(.template)
-            .resizable()
-            .scaledToFit()
-            .frame(width: size, height: size)
-            .foregroundColor(category.swiftUIColor)
-    } else {
-        Image(systemName: name.hasPrefix("icon_") ? "tag.fill" : name)
-            .font(.system(size: systemFontSize, weight: .medium))
-            .foregroundColor(category.swiftUIColor)
-    }
-}
-
-// MARK: - Transaction Row
-
-/// 交易记录行
-struct TransactionRow: View {
-    
-    // MARK: - Properties
-    
-    /// 交易记录
-    let transaction: Transaction
-    
-    // MARK: - Body
-    
-    var body: some View {
-        HStack(spacing: HoloSpacing.md) {
-            // 分类图标（运行时检测 Asset 是否存在，兼容 CategoryIcons/xxx 与 xxx 两种命名）
-            ZStack {
-                Circle()
-                    .fill(transaction.category.swiftUIColor.opacity(0.1))
-                    .frame(width: 44, height: 44)
-                
-                transactionCategoryIcon(transaction.category, size: 40, systemFontSize: 36)
-            }
-            
-            // 交易信息
-            VStack(alignment: .leading, spacing: 4) {
-                Text(transaction.category.name)
-                    .font(.holoBody)
+                Text("统计分析")
+                    .font(.holoTitle)
                     .foregroundColor(.holoTextPrimary)
                 
-                if let note = transaction.note {
-                    Text(note)
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
+                Spacer()
+                
+                // 占位保持对称
+                Color.clear.frame(width: 36, height: 36)
+            }
+            .padding(.horizontal, HoloSpacing.lg)
+            .padding(.top, 0)
+            .padding(.bottom, HoloSpacing.md)
+            
+            Spacer()
+            
+            VStack(spacing: 20) {
+                Image(systemName: "chart.pie.fill")
+                    .font(.system(size: 60, weight: .light))
+                    .foregroundColor(.holoPrimary.opacity(0.4))
+                
+                Text("统计分析")
+                    .font(.holoTitle)
+                    .foregroundColor(.holoTextPrimary)
+                
+                Text("功能开发中...")
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextSecondary)
+            }
+            
+            Spacer()
+        }
+        .background(Color.holoBackground)
+    }
+}
+
+// MARK: - Finance Settings View（设置 — 占位）
+
+/// 财务设置视图（当前为占位，后续迭代实现）
+struct FinanceSettingsView: View {
+    let onBack: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // 顶部栏
+            HStack {
+                Button {
+                    onBack()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.holoTextPrimary)
+                        .frame(width: 36, height: 36)
+                        .background(Color.white)
+                        .clipShape(Circle())
+                        .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
                 }
+                
+                Spacer()
+                
+                Text("设置")
+                    .font(.holoTitle)
+                    .foregroundColor(.holoTextPrimary)
+                
+                Spacer()
+                
+                Color.clear.frame(width: 36, height: 36)
+            }
+            .padding(.horizontal, HoloSpacing.lg)
+            .padding(.top, 0)
+            .padding(.bottom, HoloSpacing.md)
+            
+            Spacer()
+            
+            VStack(spacing: 20) {
+                Image(systemName: "gearshape.fill")
+                    .font(.system(size: 60, weight: .light))
+                    .foregroundColor(.holoPrimary.opacity(0.4))
+                
+                Text("设置")
+                    .font(.holoTitle)
+                    .foregroundColor(.holoTextPrimary)
+                
+                Text("功能开发中...")
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextSecondary)
+            }
+            
+            Spacer()
+        }
+        .background(Color.holoBackground)
+    }
+}
+
+// MARK: - Expense Card
+
+/// 支出卡片
+struct ExpenseCard: View {
+    let amount: Decimal
+    
+    var body: some View {
+        SummaryCard(
+            title: "支出",
+            amount: amount,
+            iconName: "arrow.down.right",
+            iconColor: .holoError,
+            iconBgColor: .holoErrorLight,
+            decorationColor: .holoErrorLight
+        )
+    }
+}
+
+// MARK: - Income Card
+
+/// 收入卡片
+struct IncomeCard: View {
+    let amount: Decimal
+    
+    var body: some View {
+        SummaryCard(
+            title: "收入",
+            amount: amount,
+            iconName: "arrow.up.right",
+            iconColor: .holoSuccess,
+            iconBgColor: .holoSuccessLight,
+            decorationColor: .holoSuccessLight
+        )
+    }
+}
+
+// MARK: - Summary Card
+
+/// 收支概览卡片
+struct SummaryCard: View {
+    let title: String
+    let amount: Decimal
+    let iconName: String
+    let iconColor: Color
+    let iconBgColor: Color
+    let decorationColor: Color
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // 顶部：图标和标题
+            HStack(spacing: HoloSpacing.sm) {
+                ZStack {
+                    Circle()
+                        .fill(iconBgColor)
+                        .frame(width: 32, height: 32)
+                    
+                    Image(systemName: iconName)
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(iconColor)
+                }
+                
+                Text(title)
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary)
             }
             
             Spacer()
             
-            // 金额
-            VStack(alignment: .trailing, spacing: 4) {
-                Text(transaction.formattedAmountWithSign)
-                    .font(.holoBody)
-                    .foregroundColor(
-                        transaction.transactionType == .expense
-                            ? .holoPrimary
-                            : .holoSuccess
-                    )
-                
-                Text(transaction.account.name)
-                    .font(.holoTinyLabel)
-                    .foregroundColor(.holoTextSecondary)
+            // 底部：金额（NumberFormatter 已包含 ¥ 前缀，不再手动拼接）
+            Text(NumberFormatter.currency.string(from: amount as NSDecimalNumber) ?? "¥0.00")
+                .font(.holoHeading)
+                .foregroundColor(.holoTextPrimary)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(height: 128)
+        .padding(HoloSpacing.md)
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 2)
+        .overlay(
+            Circle()
+                .fill(decorationColor)
+                .frame(width: 80, height: 80)
+                .offset(x: 20, y: -20),
+            alignment: .topTrailing
+        )
+        .clipped()
+    }
+}
+
+// MARK: - Date Divider
+
+/// 日期分隔线
+struct DateDivider: View {
+    let title: String
+    
+    var body: some View {
+        HStack {
+            VStack {
+                Divider()
+                    .background(Color.holoDivider)
+            }
+            
+            Text(title)
+                .font(.holoLabel)
+                .foregroundColor(.holoTextSecondary)
+                .padding(.horizontal, HoloSpacing.md)
+                .background(Color.holoBackground)
+            
+            VStack {
+                Divider()
+                    .background(Color.holoDivider)
             }
         }
-        .padding(HoloSpacing.md)
-        .background(
-            RoundedRectangle(cornerRadius: HoloRadius.md)
-                .fill(Color.white)
-                .overlay(
-                    RoundedRectangle(cornerRadius: HoloRadius.md)
-                        .stroke(Color.holoBorder, lineWidth: 1)
-                )
-        )
+        .padding(.vertical, HoloSpacing.md)
+    }
+}
+
+// MARK: - Transaction Row View
+
+/// 交易行视图
+struct TransactionRowView: View {
+    let transaction: Transaction
+    let onTap: () -> Void
+    
+    var body: some View {
+        Button(action: onTap) {
+            // 等价 flex justify-between items-center：左侧分类信息，右侧金额严格对齐
+            HStack(alignment: .center, spacing: HoloSpacing.md) {
+                // 分类图标 + 名称/备注
+                categoryIcon
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(transaction.note ?? transaction.category.name)
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+                        .lineLimit(1)
+                    
+                    HStack(spacing: HoloSpacing.sm) {
+                        Text(transaction.category.name)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.holoTextSecondary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(Color.holoBackground)
+                            .clipShape(Capsule())
+                        
+                        Text(transaction.date, style: .time)
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoTextSecondary)
+                    }
+                }
+                
+                Spacer(minLength: 0)
+                
+                // 金额：右侧严格对齐，不压缩
+                Text(transaction.formattedAmountWithSign)
+                    .font(.holoBody)
+                    .foregroundColor(transaction.transactionType == .expense ? .holoTextPrimary : .holoSuccess)
+                    .fixedSize(horizontal: true, vertical: false)
+                    .frame(alignment: .trailing)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(HoloSpacing.md)
+            .background(Color.white)
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+            .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+    
+    /// 分类图标
+    private var categoryIcon: some View {
+        ZStack {
+            Circle()
+                .fill(transaction.category.swiftUIColor.opacity(0.1))
+                .frame(width: 48, height: 48)
+            
+            transactionCategoryIcon(transaction.category, size: 24)
+        }
     }
 }
 
@@ -378,13 +745,14 @@ struct EmptyStateView: View {
                 .font(.system(size: 64, weight: .light))
                 .foregroundColor(.holoTextSecondary.opacity(0.3))
             
-            Text("还没有交易记录")
+            Text("暂无交易记录")
                 .font(.holoBody)
                 .foregroundColor(.holoTextSecondary)
             
-            Text("点击右上角添加第一笔记账")
+            Text("点击 + 按钮记录第一笔交易")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary.opacity(0.7))
+                .multilineTextAlignment(.center)
         }
     }
 }

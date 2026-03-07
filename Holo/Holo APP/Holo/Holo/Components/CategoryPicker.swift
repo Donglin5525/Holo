@@ -31,6 +31,9 @@ struct CategoryPicker: View {
     /// 当前下钻查看的一级分类（nil 表示处于一级分类总览视图）
     @State private var drillDownParent: Category?
     
+    /// 是否显示分类管理页面
+    @State private var showCategoryManagement = false
+    
     /// 4 列网格布局
     private let gridColumns = Array(
         repeating: GridItem(.flexible()),
@@ -62,6 +65,19 @@ struct CategoryPicker: View {
     
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            // --- 管理分类入口 ---
+            Button {
+                showCategoryManagement = true
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "gearshape")
+                        .font(.system(size: 14))
+                    Text("管理分类")
+                        .font(.holoCaption)
+                }
+                .foregroundColor(.holoPrimary)
+            }
+            
             // --- 收入/支出 Tab 栏 ---
             typeTabBar
             
@@ -87,6 +103,14 @@ struct CategoryPicker: View {
         }
         .padding(HoloSpacing.md)
         .animation(.easeInOut(duration: 0.25), value: drillDownParent?.objectID)
+        .sheet(isPresented: $showCategoryManagement) {
+            CategoryManagementView()
+        }
+        .onChange(of: showCategoryManagement) { _, isShowing in
+            if !isShowing {
+                Task { await loadCategories() }
+            }
+        }
         .task {
             await loadCategories()
         }
@@ -125,7 +149,7 @@ struct CategoryPicker: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: HoloSpacing.md) {
                     ForEach(recentCategories, id: \.objectID) { category in
-                        CategoryButton(
+                        PickerCategoryButton(
                             category: category,
                             isSelected: selectedCategory?.objectID == category.objectID
                         ) {
@@ -147,7 +171,7 @@ struct CategoryPicker: View {
             
             LazyVGrid(columns: gridColumns, spacing: HoloSpacing.md) {
                 ForEach(topLevelCategories, id: \.objectID) { category in
-                    CategoryButton(
+                    PickerCategoryButton(
                         category: category,
                         isSelected: false
                     ) {
@@ -180,7 +204,7 @@ struct CategoryPicker: View {
             
             LazyVGrid(columns: gridColumns, spacing: HoloSpacing.md) {
                 ForEach(childCategories, id: \.objectID) { category in
-                    CategoryButton(
+                    PickerCategoryButton(
                         category: category,
                         isSelected: selectedCategory?.objectID == category.objectID
                     ) {
@@ -255,10 +279,10 @@ private struct TypeTabButton: View {
     }
 }
 
-// MARK: - 分类按钮
+// MARK: - 分类按钮（仅本文件使用）
 
 /// 分类按钮组件（复用于一级和二级分类）
-struct CategoryButton: View {
+private struct PickerCategoryButton: View {
     
     let category: Category
     let isSelected: Bool

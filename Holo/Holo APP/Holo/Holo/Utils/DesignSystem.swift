@@ -21,27 +21,69 @@ extension Color {
     
     // MARK: - 背景色
     /// 主背景色 - 米白色调
-    static let holoBackground = Color(red: 253/255, green: 251/255, blue: 247/255)  // #FDFBF7
+    static let holoBackground = Color(red: 253/255, green: 252/255, blue: 248/255)  // #FDFCF8
+    /// 卡片背景色
+    static let holoCardBackground = Color.white
     
     // MARK: - 文字颜色
     /// 主文字颜色 - 深灰色
     static let holoTextPrimary = Color(red: 51/255, green: 51/255, blue: 51/255)  // #333333
     /// 次要文字颜色 - 中灰色
     static let holoTextSecondary = Color(red: 142/255, green: 142/255, blue: 147/255)  // #8E8E93
+    /// 占位符文字
+    static let holoTextPlaceholder = Color(red: 156/255, green: 163/255, blue: 175/255)  // #9CA3AF
     
     // MARK: - 功能性颜色
-    /// 成功状态 - 绿色圆点指示
+    /// 成功状态 - 绿色
     static let holoSuccess = Color(red: 34/255, green: 197/255, blue: 94/255)  // #22C55E
+    /// 成功状态浅色背景
+    static let holoSuccessLight = Color(red: 209/255, green: 250/255, blue: 229/255)  // #D1FAE5
+    /// 错误/支出状态 - 红色
+    static let holoError = Color(red: 239/255, green: 68/255, blue: 68/255)  // #EF4444
+    /// 错误状态浅色背景
+    static let holoErrorLight = Color(red: 254/255, green: 226/255, blue: 226/255)  // #FEE2E2
     /// 信息提示 - 蓝色
     static let holoInfo = Color(red: 96/255, green: 165/255, blue: 250/255)  // #60A5FA
     /// 紫色装饰
     static let holoPurple = Color(red: 192/255, green: 132/255, blue: 252/255)  // #C084FC
     
+    // MARK: - 图表颜色
+    /// 图表颜色系列
+    static let holoChart1 = Color(red: 19/255, green: 164/255, blue: 236/255)  // #13A4EC
+    static let holoChart2 = Color(red: 245/255, green: 158/255, blue: 11/255)  // #F59E0B
+    static let holoChart3 = Color(red: 139/255, green: 92/255, blue: 246/255)  // #8B5CF6
+    static let holoChart4 = Color(red: 236/255, green: 72/255, blue: 153/255)  // #EC4899
+    static let holoChart5 = Color(red: 16/255, green: 185/255, blue: 129/255)  // #10B981
+    
     // MARK: - 卡片/按钮背景
     /// 毛玻璃背景色
     static let holoGlassBackground = Color.white.opacity(0.7)
     /// 边框颜色
-    static let holoBorder = Color.white.opacity(0.2)
+    static let holoBorder = Color(white: 240/255)  // #F0F0F0
+    /// 分隔线颜色
+    static let holoDivider = Color(white: 241/255)  // #F1F5F9
+    
+    // MARK: - 分类颜色（与前端原型对齐）
+    /// 餐饮 - 橙色
+    static let holoCategoryDining = Color(red: 249/255, green: 115/255, blue: 22/255)  // #F97316
+    /// 交通 - 绿色
+    static let holoCategoryTransport = Color(red: 16/255, green: 185/255, blue: 129/255)  // #10B981
+    /// 购物 - 靛蓝色
+    static let holoCategoryShopping = Color(red: 99/255, green: 102/255, blue: 241/255)  // #6366F1
+    /// 咖啡 - 橙色
+    static let holoCategoryCoffee = Color(red: 251/255, green: 146/255, blue: 60/255)  // #FB923C
+    /// 日用 - 绿色
+    static let holoCategoryGrocery = Color(red: 34/255, green: 197/255, blue: 94/255)  // #22C55E
+    /// 公用事业 - 蓝色
+    static let holoCategoryUtilities = Color(red: 59/255, green: 130/255, blue: 246/255)  // #3B82F6
+    /// 娱乐 - 粉色
+    static let holoCategoryEntertain = Color(red: 236/255, green: 72/255, blue: 153/255)  // #EC4899
+    /// 居住 - 靛蓝色
+    static let holoCategoryHousing = Color(red: 79/255, green: 70/255, blue: 229/255)  // #4F46E5
+    /// 工资 - 绿色
+    static let holoCategorySalary = Color(red: 34/255, green: 197/255, blue: 94/255)  // #22C55E
+    /// 奖金 - 绿色
+    static let holoCategoryBonus = Color(red: 22/255, green: 163/255, blue: 74/255)  // #16A34A
 }
 
 // MARK: - 字体系统
@@ -49,6 +91,9 @@ extension Color {
 /// Holo 应用字体系统
 /// 统一管理字体大小和样式
 extension Font {
+    /// 超大标题 - 36pt Bold，用于金额显示
+    static let holoAmount = Font.system(size: 36, weight: Font.Weight.bold)
+    
     /// 大标题 - 28pt Bold，用于主要标题
     static let holoTitle = Font.system(size: 28, weight: Font.Weight.bold)
     
@@ -91,14 +136,14 @@ struct HoloSpacing {
 
 /// Holo 应用圆角常量
 struct HoloRadius {
-    /// 小圆角 - 12pt，用于小元素
-    static let sm: CGFloat = 12
-    /// 中等圆角 - 20pt，用于卡片
-    static let md: CGFloat = 20
-    /// 大圆角 - 32pt，用于按钮
-    static let lg: CGFloat = 32
-    /// 超大圆角 - 48pt，用于底部导航
-    static let xl: CGFloat = 48
+    /// 小圆角 - 8pt，用于小元素
+    static let sm: CGFloat = 8
+    /// 中等圆角 - 12pt，用于按钮
+    static let md: CGFloat = 12
+    /// 大圆角 - 16pt，用于卡片
+    static let lg: CGFloat = 16
+    /// 超大圆角 - 24pt，用于弹窗
+    static let xl: CGFloat = 24
     /// 圆形 - 用于头像等
     static let full: CGFloat = 9999
 }
@@ -113,8 +158,11 @@ struct HoloShadow {
     }
     
     /// 卡片阴影 - 轻微投影
-    static let card = Color.black.opacity(0.05)
+    static let card = Color.black.opacity(0.04)
     
     /// 按钮阴影 - 中等投影
     static let button = Color.black.opacity(0.1)
+    
+    /// 浮动按钮阴影
+    static let float = Color.holoPrimary.opacity(0.3)
 }
