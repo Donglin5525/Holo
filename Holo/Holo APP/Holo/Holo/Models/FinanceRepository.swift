@@ -139,6 +139,64 @@ class FinanceRepository {
         return category
     }
     
+    /**
+     获取最近常用的二级子分类
+     
+     统计规则：
+     1. 查询最近 N 天内的交易记录
+     2. 按分类出现频次降序排列
+     3. 只返回二级子分类（parentId 非 nil）
+     4. 最多返回 limit 个
+     
+     - Parameters:
+       - type: 交易类型（收入/支出）
+       - limit: 返回数量上限，默认 8
+       - days: 统计的天数窗口，默认 30 天
+     - Returns: 按使用频次排序的二级分类数组
+     */
+    func getRecentCategories(
+        type: TransactionType,
+        limit: Int = 8,
+        days: Int = 30
+    ) async throws -> [Category] {
+        // 计算时间窗口起点
+        let cutoffDate = Calendar.current.date(
+            byAdding: .day,
+            value: -days,
+            to: Date()
+        ) ?? Date()
+        
+        // 查询指定类型、指定时间范围内的所有交易
+        let request = Transaction.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "date >= %@ AND category.type == %@",
+            cutoffDate as NSDate,
+            type.rawValue
+        )
+        
+        let transactions = try context.fetch(request)
+        
+        // 统计每个分类的使用次数（仅统计二级子分类）
+        var frequencyMap: [NSManagedObjectID: Int] = [:]
+        var categoryMap: [NSManagedObjectID: Category] = [:]
+        
+        for tx in transactions {
+            let cat = tx.category
+            guard cat.isSubCategory else { continue }
+            let oid = cat.objectID
+            frequencyMap[oid, default: 0] += 1
+            categoryMap[oid] = cat
+        }
+        
+        // 按频次降序取前 limit 个
+        let sorted = frequencyMap
+            .sorted { $0.value > $1.value }
+            .prefix(limit)
+            .compactMap { categoryMap[$0.key] }
+        
+        return Array(sorted)
+    }
+    
     func updateCategory(_ category: Category, updates: CategoryUpdates) async throws {
         if let name = updates.name { category.name = name }
         if let icon = updates.icon { category.icon = icon }

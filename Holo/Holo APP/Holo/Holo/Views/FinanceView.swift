@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 /// 记账功能首页视图
 struct FinanceView: View {
@@ -281,6 +282,27 @@ struct TransactionSection: View {
     }
 }
 
+// MARK: - 分类图标辅助（Asset 运行时检测，兼容命名空间与短名）
+
+@ViewBuilder
+private func transactionCategoryIcon(_ category: Category, size: CGFloat, systemFontSize: CGFloat) -> some View {
+    let name = category.icon
+    let withNamespace = "CategoryIcons/\(name)"
+    let loaded = UIImage(named: withNamespace) ?? UIImage(named: name)
+    if let img = loaded, name.hasPrefix("icon_") {
+        Image(uiImage: img)
+            .renderingMode(.template)
+            .resizable()
+            .scaledToFit()
+            .frame(width: size, height: size)
+            .foregroundColor(category.swiftUIColor)
+    } else {
+        Image(systemName: name.hasPrefix("icon_") ? "tag.fill" : name)
+            .font(.system(size: systemFontSize, weight: .medium))
+            .foregroundColor(category.swiftUIColor)
+    }
+}
+
 // MARK: - Transaction Row
 
 /// 交易记录行
@@ -295,15 +317,13 @@ struct TransactionRow: View {
     
     var body: some View {
         HStack(spacing: HoloSpacing.md) {
-            // 分类图标
+            // 分类图标（运行时检测 Asset 是否存在，兼容 CategoryIcons/xxx 与 xxx 两种命名）
             ZStack {
                 Circle()
                     .fill(transaction.category.swiftUIColor.opacity(0.1))
                     .frame(width: 44, height: 44)
                 
-                Image(systemName: transaction.category.icon)
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(transaction.category.swiftUIColor)
+                transactionCategoryIcon(transaction.category, size: 40, systemFontSize: 36)
             }
             
             // 交易信息

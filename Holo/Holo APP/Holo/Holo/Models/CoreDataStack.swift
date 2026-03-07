@@ -31,6 +31,10 @@ class CoreDataStack {
             // 使用 SQLite 存储
             description.url = URL.documentsDirectory.appendingPathComponent("HoloDataModel.sqlite")
             
+            // 启用轻量级迁移（支持新增 parentId 字段等 schema 变更）
+            description.setOption(true as NSNumber, forKey: NSMigratePersistentStoresAutomaticallyOption)
+            description.setOption(true as NSNumber, forKey: NSInferMappingModelAutomaticallyOption)
+            
             // 启用历史追踪（用于增量同步）
             description.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
             
@@ -186,6 +190,15 @@ class CoreDataStack {
         sortOrder.isOptional = false
         sortOrder.isIndexed = true
         categoryAttributes.append(sortOrder)
+        
+        // 父分类 ID（用于二级分类层级关系）
+        // 一级分类的 parentId 为 nil，二级分类通过此字段指向其一级分类
+        let parentId = NSAttributeDescription()
+        parentId.name = "parentId"
+        parentId.attributeType = .UUIDAttributeType
+        parentId.isOptional = true
+        parentId.isIndexed = true
+        categoryAttributes.append(parentId)
         
         categoryEntity.properties = categoryAttributes
         

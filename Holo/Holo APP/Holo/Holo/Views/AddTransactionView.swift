@@ -73,10 +73,10 @@ struct AddTransactionView: View {
                     
                     // 表单内容
                     VStack(spacing: 0) {
-                        // 分类选择
+                        // 分类选择（Binding 联动收入/支出类型切换）
                         CategoryPicker(
                             selectedCategory: $selectedCategory,
-                            transactionType: transactionType
+                            transactionType: $transactionType
                         )
                         .background(Color.white)
                         

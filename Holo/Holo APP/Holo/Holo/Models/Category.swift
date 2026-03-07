@@ -22,6 +22,8 @@ public class Category: NSManagedObject {
     @NSManaged public var type: String
     @NSManaged public var isDefault: Bool
     @NSManaged public var sortOrder: Int16
+    /// 父分类 ID：nil 表示一级分类，非 nil 指向所属一级分类
+    @NSManaged public var parentId: UUID?
     
     // MARK: - Computed Properties
     
@@ -34,6 +36,12 @@ public class Category: NSManagedObject {
     var transactionType: TransactionType {
         TransactionType(rawValue: type) ?? .expense
     }
+    
+    /// 是否为一级分类（没有父分类）
+    var isTopLevel: Bool { parentId == nil }
+    
+    /// 是否为二级子分类（有父分类）
+    var isSubCategory: Bool { parentId != nil }
     
     // MARK: - Methods
     

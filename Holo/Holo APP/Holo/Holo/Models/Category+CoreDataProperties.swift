@@ -2,7 +2,8 @@
 //  Category+CoreDataProperties.swift
 //  Holo
 //
-//  分类扩展 - 静态方法和预设数据
+//  分类扩展 - 静态方法和预设层级数据
+//  支持一级分类（parentId = nil）和二级子分类（parentId 指向父分类）
 //
 
 import Foundation
@@ -17,7 +18,19 @@ extension Category {
     
     // MARK: - Factory Methods
     
-    /// 创建新的分类
+    /**
+     创建新的分类实体
+     - Parameters:
+       - context: Core Data 上下文
+       - name: 分类名称
+       - icon: 图标资源名（Asset Catalog 中的 imageset 名称）
+       - color: 十六进制颜色字符串
+       - type: 交易类型（expense / income）
+       - isDefault: 是否为系统预设分类
+       - sortOrder: 排序权重，值越小越靠前
+       - parentId: 父分类 ID，nil 表示一级分类
+     - Returns: 创建好的 Category 实例
+     */
     static func create(
         in context: NSManagedObjectContext,
         name: String,
@@ -25,7 +38,8 @@ extension Category {
         color: String,
         type: String,
         isDefault: Bool = false,
-        sortOrder: Int16 = 0
+        sortOrder: Int16 = 0,
+        parentId: UUID? = nil
     ) -> Category {
         let category = Category(context: context)
         category.id = UUID()
@@ -35,74 +49,224 @@ extension Category {
         category.type = type
         category.isDefault = isDefault
         category.sortOrder = sortOrder
+        category.parentId = parentId
         
         return category
     }
     
-    // MARK: - Default Categories
+    // MARK: - 层级分类数据结构
     
-    /// 预设分类列表（基于常见记账场景）
-    /// 支出分类
-    static let defaultExpenseCategories = [
-        (name: "餐饮", icon: "fork.knife", color: "#FF6B6B"),
-        (name: "交通", icon: "car.fill", color: "#4ECDC4"),
-        (name: "购物", icon: "bag.fill", color: "#45B7D1"),
-        (name: "娱乐", icon: "gamecontroller.fill", color: "#96CEB4"),
-        (name: "居住", icon: "house.fill", color: "#FFEAA7"),
-        (name: "医疗", icon: "cross.fill", color: "#DDA0DD"),
-        (name: "教育", icon: "book.fill", color: "#98D8C8"),
-        (name: "通讯", icon: "phone.fill", color: "#F7DC6F"),
-        (name: "人情", icon: "gift.fill", color: "#F8B739"),
-        (name: "其他", icon: "ellipsis.circle.fill", color: "#AEB6BF")
+    /// 二级子分类定义
+    typealias SubCategoryDef = (name: String, icon: String)
+    
+    /// 一级分类定义（包含子分类列表）
+    typealias CategoryGroupDef = (
+        name: String,
+        color: String,
+        children: [SubCategoryDef]
+    )
+    
+    // MARK: - 支出分类层级（8 个一级 + 55 个二级）
+    
+    /// 支出分类体系
+    /// 按 Figma 设计稿的图标分组排列，每组颜色与设计一致
+    static let expenseHierarchy: [CategoryGroupDef] = [
+        // ━━━━━━━━━━ 1. 餐饮（蓝色系 #13A4EC）━━━━━━━━━━
+        (name: "餐饮", color: "#13A4EC", children: [
+            (name: "早餐", icon: "icon_breakfast"),
+            (name: "午餐", icon: "icon_lunch"),
+            (name: "晚餐", icon: "icon_dinner"),
+            (name: "夜宵", icon: "icon_late_snack"),
+            (name: "零食", icon: "icon_snack"),
+            (name: "咖啡", icon: "icon_coffee"),
+            (name: "外卖", icon: "icon_takeout"),
+        ]),
+        // ━━━━━━━━━━ 2. 交通（绿色系 #10B981）━━━━━━━━━━
+        (name: "交通", color: "#10B981", children: [
+            (name: "地铁", icon: "icon_metro"),
+            (name: "打车", icon: "icon_taxi"),
+            (name: "单车", icon: "icon_bike_share"),
+            (name: "加油", icon: "icon_fuel"),
+            (name: "停车", icon: "icon_parking"),
+            (name: "旅行", icon: "icon_travel"),
+            (name: "过路费", icon: "icon_toll"),
+        ]),
+        // ━━━━━━━━━━ 3. 购物（橙色系 #F97316）━━━━━━━━━━
+        (name: "购物", color: "#F97316", children: [
+            (name: "服饰", icon: "icon_clothes"),
+            (name: "数码", icon: "icon_digital"),
+            (name: "日用", icon: "icon_groceries"),
+            (name: "美妆", icon: "icon_beauty"),
+            (name: "家具", icon: "icon_furniture"),
+            (name: "书籍", icon: "icon_book"),
+            (name: "运动", icon: "icon_sport"),
+            (name: "礼物", icon: "icon_present"),
+        ]),
+        // ━━━━━━━━━━ 4. 娱乐（粉色系 #EC4899）━━━━━━━━━━
+        (name: "娱乐", color: "#EC4899", children: [
+            (name: "电影", icon: "icon_cinema"),
+            (name: "游戏", icon: "icon_gaming"),
+            (name: "视频", icon: "icon_video"),
+            (name: "音乐", icon: "icon_music"),
+            (name: "KTV", icon: "icon_ktv"),
+            (name: "旅游", icon: "icon_trip"),
+            (name: "健身", icon: "icon_fitness"),
+        ]),
+        // ━━━━━━━━━━ 5. 居住（靛蓝色系 #6366F1）━━━━━━━━━━
+        (name: "居住", color: "#6366F1", children: [
+            (name: "房租", icon: "icon_rent"),
+            (name: "水费", icon: "icon_water"),
+            (name: "电费", icon: "icon_electricity"),
+            (name: "燃气", icon: "icon_gas"),
+            (name: "物业", icon: "icon_property"),
+            (name: "网费", icon: "icon_internet"),
+        ]),
+        // ━━━━━━━━━━ 6. 医疗（玫红色系 #F43F5E）━━━━━━━━━━
+        (name: "医疗", color: "#F43F5E", children: [
+            (name: "就医", icon: "icon_medical"),
+            (name: "药品", icon: "icon_medicine"),
+            (name: "体检", icon: "icon_checkup"),
+            (name: "健身房", icon: "icon_gym"),
+            (name: "保健品", icon: "icon_supplement"),
+        ]),
+        // ━━━━━━━━━━ 7. 学习（青色系 #06B6D4）━━━━━━━━━━
+        (name: "学习", color: "#06B6D4", children: [
+            (name: "课程", icon: "icon_course"),
+            (name: "教材", icon: "icon_textbook"),
+            (name: "考试", icon: "icon_exam"),
+            (name: "文具", icon: "icon_stationery"),
+            (name: "订阅", icon: "icon_subscription"),
+        ]),
+        // ━━━━━━━━━━ 8. 其他（灰色系 #64748B）━━━━━━━━━━
+        (name: "其他", color: "#64748B", children: [
+            (name: "社交", icon: "icon_social"),
+            (name: "宠物", icon: "icon_pet"),
+            (name: "理发", icon: "icon_barber"),
+            (name: "洗衣", icon: "icon_laundry"),
+            (name: "维修", icon: "icon_repair"),
+            (name: "保险", icon: "icon_insurance"),
+            (name: "还款", icon: "icon_repayment"),
+            (name: "转账", icon: "icon_transfer_out"),
+            (name: "捐赠", icon: "icon_donation"),
+            (name: "其他", icon: "icon_other_exp"),
+        ]),
     ]
     
-    /// 收入分类
-    static let defaultIncomeCategories = [
-        (name: "工资", icon: "banknote.fill", color: "#74B9FF"),
-        (name: "理财", icon: "chart.line.fill", color: "#A29BFE"),
-        (name: "兼职", icon: "briefcase.fill", color: "#FDCB6E"),
-        (name: "奖金", icon: "star.fill", color: "#FFEAA7"),
-        (name: "其他", icon: "plus.circle.fill", color: "#55E6C1")
+    // MARK: - 收入分类层级（4 个一级 + 16 个二级）
+    
+    /// 收入分类体系
+    static let incomeHierarchy: [CategoryGroupDef] = [
+        // ━━━━━━━━━━ 1. 投资理财（蓝色系 #3B82F6）━━━━━━━━━━
+        (name: "投资理财", color: "#3B82F6", children: [
+            (name: "利息", icon: "icon_interest"),
+            (name: "股票", icon: "icon_stock"),
+            (name: "房租收入", icon: "icon_rent_income"),
+            (name: "其他投资", icon: "icon_invest_other"),
+        ]),
+        // ━━━━━━━━━━ 2. 工资收入（绿色系 #22C55E）━━━━━━━━━━
+        (name: "工资收入", color: "#22C55E", children: [
+            (name: "工资", icon: "icon_salary"),
+            (name: "奖金", icon: "icon_bonus"),
+            (name: "兼职", icon: "icon_parttime"),
+            (name: "退款", icon: "icon_refund"),
+        ]),
+        // ━━━━━━━━━━ 3. 人情来往（红色系 #EF4444）━━━━━━━━━━
+        (name: "人情来往", color: "#EF4444", children: [
+            (name: "红包", icon: "icon_red_packet"),
+            (name: "礼物", icon: "icon_gift"),
+            (name: "中奖", icon: "icon_winning"),
+            (name: "转入", icon: "icon_transfer_in"),
+        ]),
+        // ━━━━━━━━━━ 4. 其他收入（紫色系 #A855F7）━━━━━━━━━━
+        (name: "其他收入", color: "#A855F7", children: [
+            (name: "借入", icon: "icon_loan_in"),
+            (name: "还款收入", icon: "icon_repay_in"),
+            (name: "退货", icon: "icon_return"),
+            (name: "其他", icon: "icon_other_inc"),
+        ]),
     ]
     
-    /// 初始化默认分类数据
-    /// 在首次启动时调用，确保用户有可用的分类
+    // MARK: - Seed 初始化
+    
+    /**
+     初始化默认分类数据（首次启动时调用）
+     
+     处理逻辑：
+     1. 若已有二级分类（存在 parentId != nil），说明已是层级数据，跳过
+     2. 若无任何分类，或仅有旧版扁平分类（全部 parentId == nil），则创建完整层级
+     3. 先创建一级分类（parentId = nil），再创建二级子分类（parentId 指向父级 id）
+     
+     兼容旧数据：设备上已有 15 个扁平分类时，会补种 12+71 个层级分类，不删除旧数据
+     */
     static func seedDefaultCategories(in context: NSManagedObjectContext) {
-        // 检查是否已存在分类
-        let fetchRequest = Category.fetchRequest()
-        fetchRequest.fetchLimit = 1
+        let request = Category.fetchRequest()
+        request.includesSubentities = false
+        guard let all = try? context.fetch(request) else { return }
         
-        if (try? context.count(for: fetchRequest)) ?? 0 > 0 {
-            return // 已有分类，跳过初始化
+        // 若已有任意二级分类，说明层级数据已存在，不再重复 seed
+        let hasSubCategory = all.contains { $0.parentId != nil }
+        if hasSubCategory {
+            return
         }
         
-        // 创建支出分类
-        for (index, category) in defaultExpenseCategories.enumerated() {
-            _ = create(
-                in: context,
-                name: category.name,
-                icon: category.icon,
-                color: category.color,
-                type: TransactionType.expense.rawValue,
-                isDefault: true,
-                sortOrder: Int16(index)
-            )
-        }
+        // 无分类或仅有旧版扁平分类：补种完整层级（不删旧数据，旧交易仍指向旧分类）
+        // --- 创建支出分类层级 ---
+        seedHierarchy(
+            expenseHierarchy,
+            type: TransactionType.expense.rawValue,
+            in: context
+        )
         
-        // 创建收入分类
-        for (index, category) in defaultIncomeCategories.enumerated() {
-            _ = create(
-                in: context,
-                name: category.name,
-                icon: category.icon,
-                color: category.color,
-                type: TransactionType.income.rawValue,
-                isDefault: true,
-                sortOrder: Int16(index)
-            )
-        }
+        // --- 创建收入分类层级 ---
+        seedHierarchy(
+            incomeHierarchy,
+            type: TransactionType.income.rawValue,
+            in: context
+        )
         
-        // 保存上下文
         try? context.save()
+    }
+    
+    /**
+     根据层级定义批量创建一级 + 二级分类
+     - Parameters:
+       - hierarchy: 层级分类定义数组
+       - type: 交易类型 rawValue
+       - context: Core Data 上下文
+     */
+    private static func seedHierarchy(
+        _ hierarchy: [CategoryGroupDef],
+        type: String,
+        in context: NSManagedObjectContext
+    ) {
+        for (groupIndex, group) in hierarchy.enumerated() {
+            // 一级分类图标：暂用其第一个子分类的图标
+            let parentIcon = group.children.first?.icon ?? "questionmark.circle"
+            
+            let parent = create(
+                in: context,
+                name: group.name,
+                icon: parentIcon,
+                color: group.color,
+                type: type,
+                isDefault: true,
+                sortOrder: Int16(groupIndex),
+                parentId: nil
+            )
+            
+            // 创建该一级分类下的所有二级子分类
+            for (childIndex, child) in group.children.enumerated() {
+                _ = create(
+                    in: context,
+                    name: child.name,
+                    icon: child.icon,
+                    color: group.color,
+                    type: type,
+                    isDefault: true,
+                    sortOrder: Int16(childIndex),
+                    parentId: parent.id
+                )
+            }
+        }
     }
 }

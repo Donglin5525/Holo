@@ -7,53 +7,42 @@
 //
 
 import SwiftUI
+import UIKit
 
 /// 快速记账模板视图
 struct QuickTemplateView: View {
     
     // MARK: - Properties
     
-    /// 数据仓库
     private let repository = FinanceRepository.shared
     
     /// 选中的账户
     @Binding var selectedAccount: Account?
     
-    /// 快速记账回调
+    /// 快速记账回调（金额、交易类型、选中的二级分类）
     let onQuickAdd: (Decimal, TransactionType, Category) -> Void
     
-    /// 所有分类
+    /// 所有分类（含一级和二级）
     @State private var categories: [Category] = []
     
-    /// 常用模板
-    private let templates: [(amount: Decimal, categoryIndex: Int, type: TransactionType)] = [
-        // 早餐 - 15 元
-        (amount: 15, categoryIndex: 0, type: .expense),
-        // 午餐 - 30 元
-        (amount: 30, categoryIndex: 0, type: .expense),
-        // 晚餐 - 40 元
-        (amount: 40, categoryIndex: 0, type: .expense),
-        // 地铁 - 5 元
-        (amount: 5, categoryIndex: 1, type: .expense),
-        // 打车 - 25 元
-        (amount: 25, categoryIndex: 1, type: .expense),
-        // 超市 - 100 元
-        (amount: 100, categoryIndex: 2, type: .expense),
-        // 网购 - 200 元
-        (amount: 200, categoryIndex: 2, type: .expense),
-        // 电影 - 50 元
-        (amount: 50, categoryIndex: 3, type: .expense),
-        // 工资 - 8000 元
-        (amount: 8000, categoryIndex: 0, type: .income),
-        // 奖金 - 1000 元
-        (amount: 1000, categoryIndex: 3, type: .income)
+    /// 模板定义：每项通过分类名称匹配对应的二级子分类
+    private let templates: [(amount: Decimal, categoryName: String, type: TransactionType)] = [
+        (amount: 15,   categoryName: "早餐", type: .expense),
+        (amount: 30,   categoryName: "午餐", type: .expense),
+        (amount: 40,   categoryName: "晚餐", type: .expense),
+        (amount: 5,    categoryName: "地铁", type: .expense),
+        (amount: 25,   categoryName: "打车", type: .expense),
+        (amount: 100,  categoryName: "日用", type: .expense),
+        (amount: 200,  categoryName: "服饰", type: .expense),
+        (amount: 50,   categoryName: "电影", type: .expense),
+        (amount: 8000, categoryName: "工资", type: .income),
+        (amount: 1000, categoryName: "奖金", type: .income),
     ]
     
     // MARK: - Body
     
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            // 标题
             HStack {
                 Text("快速记账")
                     .font(.holoBody)
@@ -67,7 +56,6 @@ struct QuickTemplateView: View {
                     .foregroundColor(.holoTextSecondary)
             }
             
-            // 模板网格（只有在有分类数据时才展示）
             if !categories.isEmpty {
                 LazyVGrid(
                     columns: [
@@ -79,7 +67,7 @@ struct QuickTemplateView: View {
                 ) {
                     ForEach(templates.indices, id: \.self) { index in
                         let template = templates[index]
-                        if let category = getCategory(for: template) {
+                        if let category = findCategory(named: template.categoryName, type: template.type) {
                             QuickTemplateButton(
                                 amount: template.amount,
                                 category: category,
@@ -101,7 +89,6 @@ struct QuickTemplateView: View {
     
     // MARK: - Methods
     
-    /// 加载分类数据
     @MainActor
     private func loadCategories() async {
         do {
@@ -111,51 +98,56 @@ struct QuickTemplateView: View {
         }
     }
     
-    /// 获取分类
-    /// 当目标类型下没有任何分类时，返回 nil，调用方自行跳过该模板，避免越界崩溃
-    private func getCategory(for template: (amount: Decimal, categoryIndex: Int, type: TransactionType)) -> Category? {
-        let filteredCategories = categories.filter { $0.transactionType == template.type }
-        guard !filteredCategories.isEmpty else {
-            return nil
+    /// 按名称和类型查找二级子分类
+    /// 优先匹配二级分类，找不到时回退到一级分类，仍找不到返回 nil
+    private func findCategory(named name: String, type: TransactionType) -> Category? {
+        let subCategory = categories.first {
+            $0.name == name && $0.transactionType == type && $0.isSubCategory
         }
-        let index = template.categoryIndex % filteredCategories.count
-        return filteredCategories[index]
+        if let found = subCategory { return found }
+        
+        return categories.first {
+            $0.name == name && $0.transactionType == type
+        }
+    }
+}
+
+/// 快速模板中的分类图标（运行时检测 Asset，兼容 CategoryIcons/xxx 与 xxx）
+@ViewBuilder
+private func quickTemplateCategoryIcon(_ category: Category, size: CGFloat) -> some View {
+    let name = category.icon
+    let withNamespace = "CategoryIcons/\(name)"
+    let loaded = UIImage(named: withNamespace) ?? UIImage(named: name)
+    if let img = loaded, name.hasPrefix("icon_") {
+        Image(uiImage: img)
+            .renderingMode(.template)
+            .resizable()
+            .scaledToFit()
+            .frame(width: size, height: size)
+    } else {
+        Image(systemName: name.hasPrefix("icon_") ? "tag.fill" : name)
+            .font(.system(size: size, weight: .medium))
     }
 }
 
 /// 快速模板按钮
 struct QuickTemplateButton: View {
     
-    // MARK: - Properties
-    
-    /// 金额
     let amount: Decimal
-    
-    /// 分类
     let category: Category
-    
-    /// 交易类型
     let type: TransactionType
-    
-    /// 点击回调
     let action: () -> Void
-    
-    // MARK: - Body
     
     var body: some View {
         Button(action: action) {
             VStack(spacing: 6) {
-                // 金额
                 Text("¥\(NSDecimalNumber(decimal: amount).intValue)")
                     .font(.holoBody)
                     .fontWeight(.semibold)
                     .foregroundColor(type == .expense ? .holoPrimary : .holoSuccess)
                 
-                // 分类
                 HStack(spacing: 4) {
-                    Image(systemName: category.icon)
-                        .font(.system(size: 10, weight: .medium))
-                    
+                    quickTemplateCategoryIcon(category, size: 20)
                     Text(category.name)
                         .font(.holoTinyLabel)
                 }
