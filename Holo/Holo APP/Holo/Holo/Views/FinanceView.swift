@@ -554,7 +554,7 @@ struct FinanceSettingsView: View {
 
 // MARK: - Expense Card
 
-/// 支出卡片
+/// 支出卡片（去边框 / 微观渐变 / 负空间 / 毛玻璃）
 struct ExpenseCard: View {
     let amount: Decimal
     
@@ -564,15 +564,16 @@ struct ExpenseCard: View {
             amount: amount,
             iconName: "arrow.down.right",
             iconColor: .holoError,
-            iconBgColor: .holoErrorLight,
-            decorationColor: .holoErrorLight
+            gradientStart: Color.holoErrorLight.opacity(0.5),
+            gradientEnd: Color.white.opacity(0.2),
+            strokeColor: Color.holoError.opacity(0.12)
         )
     }
 }
 
 // MARK: - Income Card
 
-/// 收入卡片
+/// 收入卡片（去边框 / 微观渐变 / 负空间 / 毛玻璃）
 struct IncomeCard: View {
     let amount: Decimal
     
@@ -582,8 +583,9 @@ struct IncomeCard: View {
             amount: amount,
             iconName: "arrow.up.right",
             iconColor: .holoSuccess,
-            iconBgColor: .holoSuccessLight,
-            decorationColor: .holoSuccessLight
+            gradientStart: Color.holoSuccessLight.opacity(0.5),
+            gradientEnd: Color.white.opacity(0.2),
+            strokeColor: Color.holoSuccess.opacity(0.12)
         )
     }
 }
@@ -591,54 +593,62 @@ struct IncomeCard: View {
 // MARK: - Summary Card
 
 /// 收支概览卡片
+/// 设计原则：去边框化、微观渐变、负空间平衡、毛玻璃
 struct SummaryCard: View {
     let title: String
     let amount: Decimal
     let iconName: String
     let iconColor: Color
-    let iconBgColor: Color
-    let decorationColor: Color
+    let gradientStart: Color
+    let gradientEnd: Color
+    let strokeColor: Color
     
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // 顶部：图标和标题
+            // 图标 + 标题，留白充足
             HStack(spacing: HoloSpacing.sm) {
                 ZStack {
                     Circle()
-                        .fill(iconBgColor)
-                        .frame(width: 32, height: 32)
-                    
+                        .fill(iconColor.opacity(0.08))
+                        .frame(width: 36, height: 36)
                     Image(systemName: iconName)
                         .font(.system(size: 16, weight: .medium))
                         .foregroundColor(iconColor)
                 }
-                
                 Text(title)
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)
             }
             
-            Spacer()
+            Spacer(minLength: 16)
             
-            // 底部：金额（NumberFormatter 已包含 ¥ 前缀，不再手动拼接）
+            // 金额，留白呼吸
             Text(NumberFormatter.currency.string(from: amount as NSDecimalNumber) ?? "¥0.00")
                 .font(.holoHeading)
                 .foregroundColor(.holoTextPrimary)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .frame(height: 128)
-        .padding(HoloSpacing.md)
-        .background(Color.white)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
-        .shadow(color: Color.black.opacity(0.04), radius: 8, x: 0, y: 2)
+        .frame(height: 136)
+        .padding(HoloSpacing.lg) // 负空间：更大内边距
+        .background {
+            ZStack {
+                // 毛玻璃：半透明模糊层增加深度
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                // 微观渐变：浅色系薄层叠在毛玻璃上，不盖住模糊
+                LinearGradient(
+                    colors: [gradientStart, gradientEnd],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+                .opacity(0.6)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.xl))
         .overlay(
-            Circle()
-                .fill(decorationColor)
-                .frame(width: 80, height: 80)
-                .offset(x: 20, y: -20),
-            alignment: .topTrailing
+            RoundedRectangle(cornerRadius: HoloRadius.xl)
+                .stroke(strokeColor, lineWidth: 0.5) // 0.5px 半透明描边，去厚重边框
         )
-        .clipped()
     }
 }
 
