@@ -717,8 +717,8 @@ struct TransactionRowView: View {
                 
                 Spacer(minLength: 0)
                 
-                // 金额：右侧严格对齐，不压缩
-                Text(transaction.formattedAmountWithSign)
+                // 金额：右侧严格对齐，不压缩（不显示正负号，类型通过颜色区分）
+                Text(transaction.formattedAmount)
                     .font(.holoBody)
                     .foregroundColor(transaction.transactionType == .expense ? .holoTextPrimary : .holoSuccess)
                     .fixedSize(horizontal: true, vertical: false)

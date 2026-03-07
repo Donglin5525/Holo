@@ -51,9 +51,26 @@ struct AddTransactionSheet: View {
     /// 光标闪烁动画
     @State private var cursorOpacity: Double = 1.0
     
+    /// 是否显示数字键盘（默认显示，新开页面时弹出）
+    @State private var showNumericKeypad: Bool = true
+    
+    /// 备注输入框是否获得焦点（用于控制键盘切换）
+    @FocusState private var isNoteFocused: Bool
+    
     /// 是否为编辑模式
     private var isEditMode: Bool {
         editingTransaction != nil
+    }
+    
+    /// 用于显示的金额字符串（取绝对值，去除开头的负号）
+    /// 无论收入还是支出，前端显示都不带正负号
+    /// 注意：不减号作为运算符时保留，只移除结果前的负号
+    private var displayAmountString: String {
+        // 如果字符串以 "-" 开头（表示负数结果），移除开头的负号
+        if amountString.hasPrefix("-") {
+            return String(amountString.dropFirst())
+        }
+        return amountString
     }
     
     // MARK: - Initialization
@@ -93,8 +110,10 @@ struct AddTransactionSheet: View {
                     }
                     .frame(maxHeight: .infinity)
                     
-                    // 数字键盘
-                    numericKeypad
+                    // 数字键盘（仅在显示时渲染）
+                    if showNumericKeypad {
+                        numericKeypad
+                    }
                     
                     // 编辑模式下显示删除按钮
                     if isEditMode {
@@ -117,6 +136,12 @@ struct AddTransactionSheet: View {
                 populateFromTransaction(transaction)
             }
             startCursorAnimation()
+        }
+        .onChange(of: isNoteFocused) { _, newValue in
+            // 备注输入框获得焦点时，隐藏数字键盘（让系统键盘显示）
+            if newValue {
+                showNumericKeypad = false
+            }
         }
     }
     
@@ -197,8 +222,8 @@ struct AddTransactionSheet: View {
                     .foregroundColor(.holoTextSecondary)
                 
                 HStack(spacing: 0) {
-                    // 金额显示
-                    Text(amountString)
+                    // 金额显示（取绝对值，不显示正负号）
+                    Text(displayAmountString)
                         .font(.system(size: 40, weight: .bold))
                         .foregroundColor(.holoTextPrimary)
                     
@@ -213,6 +238,11 @@ struct AddTransactionSheet: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, HoloSpacing.lg)
         .background(Color.white)
+        .onTapGesture {
+            // 点击金额区域时：收起备注输入焦点（系统键盘），显示数字键盘
+            isNoteFocused = false
+            showNumericKeypad = true
+        }
     }
     
     // MARK: - Category Section
@@ -237,6 +267,7 @@ struct AddTransactionSheet: View {
             TextField("添加备注（选填）...", text: $note)
                 .font(.holoBody)
                 .foregroundColor(.holoTextPrimary)
+                .focused($isNoteFocused)  // 绑定焦点状态，用于控制键盘切换
         }
         .padding(HoloSpacing.md)
         .background(Color.white)
@@ -264,12 +295,15 @@ struct AddTransactionSheet: View {
         .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: -4)
     }
     
-    /// 键盘布局
+    /// 键盘布局（5行4列，支持四则运算）
+    /// 设计说明：顶行运算符，中间数字，右侧功能键，底部确认
+    /// ÷×-+=四则运算, ⌫=删除, AC=清空, ↩︎=预留(置灰), 00=双零, ✓=保存
     private let keypadLayout: [[String]] = [
-        ["7", "8", "9", "AC"],
-        ["4", "5", "6", "+"],
-        ["1", "2", "3", "-"],
-        [".", "0", "⌫", "✓"]
+        ["÷", "×", "-", "+"],
+        ["7", "8", "9", "⌫"],
+        ["4", "5", "6", "AC"],
+        ["1", "2", "3", "↩︎"],
+        [".", "0", "00", "✓"]
     ]
     
     // MARK: - Methods
@@ -277,7 +311,9 @@ struct AddTransactionSheet: View {
     /// 从交易填充数据（编辑模式）
     private func populateFromTransaction(_ transaction: Transaction) {
         transactionType = transaction.transactionType
-        amountString = String(describing: transaction.amount.decimalValue)
+        // 取绝对值显示（去除负号），因为数据库可能存储负数表示支出
+        let absoluteAmount = abs(transaction.amount.decimalValue)
+        amountString = String(describing: absoluteAmount)
         selectedCategory = transaction.category
         note = transaction.note ?? ""
     }
@@ -293,11 +329,11 @@ struct AddTransactionSheet: View {
     private func handleKeypadPress(_ key: String) {
         switch key {
         case "AC":
-            // 清空
+            // 清空金额
             amountString = "0"
             
         case "⌫":
-            // 删除
+            // 删除最后一个字符
             if amountString.count > 1 {
                 amountString.removeLast()
             } else {
@@ -305,42 +341,247 @@ struct AddTransactionSheet: View {
             }
             
         case "✓":
-            // 确认保存
+            // 确认保存（如果当前是表达式，先计算结果）
+            calculateExpression()
             saveTransaction()
             
-        case "+", "-":
-            // 加减运算（暂不支持，直接追加）
-            if amountString != "0" {
-                amountString += key
-            }
+        case "+", "-", "×", "÷":
+            // 四则运算符：追加到表达式末尾
+            handleOperator(key)
+            
+        case "↩︎":
+            // 预留功能，暂不处理（置灰状态）
+            break
             
         case ".":
-            // 小数点
-            if !amountString.contains(".") {
-                amountString += "."
-            }
+            // 小数点：确保当前数字段没有小数点
+            handleDecimalPoint()
+            
+        case "00":
+            // 双零输入
+            handleDigit("0")
+            handleDigit("0")
             
         default:
-            // 数字
-            if amountString == "0" {
-                amountString = key
-            } else {
-                // 限制小数位数
-                if let dotIndex = amountString.firstIndex(of: ".") {
-                    let decimalPart = amountString[amountString.index(after: dotIndex)...]
-                    if decimalPart.count >= 2 {
-                        return // 最多两位小数
-                    }
-                }
-                amountString += key
+            // 数字输入
+            handleDigit(key)
+        }
+    }
+    
+    // MARK: - 计算逻辑辅助方法
+    
+    /// 处理运算符输入
+    private func handleOperator(_ op: String) {
+        // 如果当前是 "0"，不能直接加运算符
+        if amountString == "0" {
+            return
+        }
+        
+        // 获取最后一个字符
+        let lastChar = amountString.last
+        
+        // 如果最后一个字符已经是运算符，替换为新运算符
+        if ["+", "-", "×", "÷"].contains(lastChar) {
+            amountString.removeLast()
+        }
+        
+        // 追加运算符
+        amountString += op
+    }
+    
+    /// 处理小数点输入
+    private func handleDecimalPoint() {
+        // 找到当前正在输入的数字段（最后一个运算符之后的部分）
+        let operators = ["+", "-", "×", "÷"]
+        if let lastOperatorIndex = amountString.lastIndex(where: { operators.contains(String($0)) }) {
+            // 存在运算符，检查最后一个数字段
+            let startIndex = amountString.index(after: lastOperatorIndex)
+            let lastNumberPart = String(amountString[startIndex...])
+            if lastNumberPart.contains(".") {
+                return  // 当前数字段已有小数点
+            }
+        } else {
+            // 没有运算符，检查整个字符串
+            if amountString.contains(".") {
+                return
             }
         }
+        
+        // 追加小数点
+        amountString += "."
+    }
+    
+    /// 处理数字输入
+    private func handleDigit(_ digit: String) {
+        // 如果当前是 "0" 且没有运算符，替换为输入的数字
+        if amountString == "0" {
+            amountString = digit
+            return
+        }
+        
+        // 检查当前数字段的小数位数限制
+        let operators = ["+", "-", "×", "÷"]
+        var currentNumberPart = amountString
+        
+        if let lastOperatorIndex = amountString.lastIndex(where: { operators.contains(String($0)) }) {
+            let startIndex = amountString.index(after: lastOperatorIndex)
+            currentNumberPart = String(amountString[startIndex...])
+        }
+        
+        // 限制小数位数为2位
+        if let dotIndex = currentNumberPart.firstIndex(of: ".") {
+            let decimalPart = currentNumberPart[currentNumberPart.index(after: dotIndex)...]
+            if decimalPart.count >= 2 {
+                return
+            }
+        }
+        
+        // 追加数字
+        amountString += digit
+    }
+    
+    /// 计算表达式结果
+    /// 支持四则运算：+、-、×、÷，遵循运算优先级（先乘除后加减）
+    private func calculateExpression() {
+        // 如果不包含运算符，直接返回
+        let operators = ["×", "÷", "+", "-"]
+        var hasOperator = false
+        for op in operators {
+            if amountString.contains(op) {
+                hasOperator = true
+                break
+            }
+        }
+        
+        if !hasOperator {
+            return
+        }
+        
+        // 将表达式转换为可计算的格式
+        var expression = amountString
+        expression = expression.replacingOccurrences(of: "×", with: "*")
+        expression = expression.replacingOccurrences(of: "÷", with: "/")
+        
+        // 使用 Double 进行精确的浮点数计算
+        // 先解析表达式，然后按运算优先级计算
+        if let result = evaluateExpression(expression) {
+            // 格式化结果：保留最多2位小数
+            let formatted = formatAmount(Decimal(result))
+            amountString = formatted
+        } else {
+            print("表达式计算失败: \(expression)")
+        }
+    }
+    
+    /// 解析并计算表达式（支持四则运算，遵循优先级）
+    /// - Parameter expression: 表达式字符串（如 "23/32" 或 "10+5*2"）
+    /// - Returns: 计算结果，失败返回 nil
+    private func evaluateExpression(_ expression: String) -> Double? {
+        // 将表达式拆分为数字和运算符
+        var tokens: [String] = []
+        var currentToken = ""
+        
+        for char in expression {
+            if "+-*/".contains(char) {
+                if !currentToken.isEmpty {
+                    tokens.append(currentToken)
+                    currentToken = ""
+                }
+                tokens.append(String(char))
+            } else {
+                currentToken.append(char)
+            }
+        }
+        if !currentToken.isEmpty {
+            tokens.append(currentToken)
+        }
+        
+        // 如果没有有效的 token，返回 nil
+        if tokens.isEmpty {
+            return nil
+        }
+        
+        // 第一遍：处理乘除
+        var processedTokens = tokens
+        var i = 0
+        while i < processedTokens.count {
+            let token = processedTokens[i]
+            if token == "*" || token == "/" {
+                // 获取左右操作数
+                guard i > 0, i < processedTokens.count - 1 else { return nil }
+                guard let left = Double(processedTokens[i - 1]),
+                      let right = Double(processedTokens[i + 1]) else { return nil }
+                
+                // 计算结果
+                let result: Double
+                if token == "*" {
+                    result = left * right
+                } else {
+                    guard right != 0 else { return nil } // 防止除以零
+                    result = left / right
+                }
+                
+                // 替换三个 token 为计算结果
+                processedTokens.replaceSubrange(i - 1...i + 1, with: [String(result)])
+                // 不增加 i，因为当前索引现在是下一个待处理的 token
+            } else {
+                i += 1
+            }
+        }
+        
+        // 第二遍：处理加减
+        var finalResult = Double(processedTokens[0]) ?? 0
+        i = 1
+        while i < processedTokens.count {
+            let token = processedTokens[i]
+            if token == "+" || token == "-" {
+                guard i < processedTokens.count - 1 else { break }
+                guard let right = Double(processedTokens[i + 1]) else { break }
+                
+                if token == "+" {
+                    finalResult += right
+                } else {
+                    finalResult -= right
+                }
+                i += 2
+            } else {
+                i += 1
+            }
+        }
+        
+        return finalResult
+    }
+    
+    /// 格式化金额：保留最多2位小数，去除尾部多余的0
+    private func formatAmount(_ amount: Decimal) -> String {
+        // 四舍五入到2位小数
+        let rounded = (amount as NSDecimalNumber).rounding(accordingToBehavior: NSDecimalNumberHandler(roundingMode: .plain, scale: 2, raiseOnExactness: false, raiseOnOverflow: false, raiseOnUnderflow: false, raiseOnDivideByZero: false))
+        
+        // 转换为字符串
+        var result = rounded.stringValue
+        
+        // 去除尾部多余的0（如 "12.50" -> "12.5"，"12.00" -> "12"）
+        if result.contains(".") {
+            while result.last == "0" {
+                result.removeLast()
+            }
+            if result.last == "." {
+                result.removeLast()
+            }
+        }
+        
+        return result
     }
     
     /// 保存交易
     private func saveTransaction() {
-        guard let amount = Decimal(string: amountString), amount > 0,
-        amountString != "0" else {
+        // 保存前先计算表达式（如果有）
+        calculateExpression()
+        
+        // 获取金额（取绝对值，因为类型由 transactionType 决定）
+        let absoluteAmountString = displayAmountString
+        guard let amount = Decimal(string: absoluteAmountString), amount > 0,
+              absoluteAmountString != "0" else {
             // 金额无效，不保存
             return
         }
@@ -372,7 +613,7 @@ struct AddTransactionSheet: View {
                 } else {
                     // 新增模式：添加交易
                     _ = try await repository.addTransaction(
-                        amount: Decimal(string: amountString)!,
+                        amount: amount,
                         type: transactionType,
                         category: category,
                         account: defaultAccount,
@@ -439,10 +680,23 @@ struct KeypadButton: View {
                         .font(.system(size: 24, weight: .bold))
                         .foregroundColor(.white)
                     
-                case "+", "-":
-                    Image(systemName: key == "+" ? "plus" : "minus")
-                        .font(.system(size: 20, weight: .medium))
+                case "+", "-", "×", "÷":
+                    // 四则运算符
+                    Text(key)
+                        .font(.system(size: 24, weight: .medium))
                         .foregroundColor(.holoTextSecondary)
+                    
+                case "↩︎":
+                    // 预留功能按钮（置灰状态，暂不可用）
+                    Text("↩︎")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundColor(.holoTextSecondary.opacity(0.3))
+                    
+                case "00":
+                    // 双零按钮
+                    Text("00")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundColor(.holoTextPrimary)
                     
                 default:
                     Text(key)
@@ -452,11 +706,23 @@ struct KeypadButton: View {
             }
             .frame(maxWidth: .infinity)
             .frame(height: 56)
-            .background(key == "✓" ? Color.holoPrimary : (key == "AC" || key == "+" || key == "-" || key == "⌫" ? Color.holoBackground : Color.white))
+            .background(buttonBackgroundColor)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         }
         .buttonStyle(PlainButtonStyle())
-        .disabled(key == "✓" && false) // TODO: 添加保存条件判断
+        .disabled(key == "↩︎") // ↩︎ 按钮禁用
+    }
+    
+    /// 根据按键类型返回背景颜色
+    private var buttonBackgroundColor: Color {
+        switch key {
+        case "✓":
+            return Color.holoPrimary
+        case "÷", "×", "-", "+", "⌫", "AC", "↩︎":
+            return Color.holoBackground
+        default:
+            return Color.white
+        }
     }
 }
 
