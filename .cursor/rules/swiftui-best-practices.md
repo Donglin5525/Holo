@@ -111,10 +111,40 @@ VStack {
 
 ### 3. 安全区域
 ```swift
+// 键盘安全区
 VStack {
     // 内容
 }
 .ignoresSafeArea(.keyboard, edges: .bottom)
+
+// ⚠️ 注意：顶部安全区（灵动岛/刘海）
+// 顶部内容需要 padding(.top, 8~12pt) 避开灵动岛
+// 不要设置 padding(.top, 0)，否则内容会被遮挡
+```
+
+### 4. 容器高度精确计算
+子视图有固定高度时，容器高度必须精确计算：
+```swift
+// 计算公式：子元素高度 + 所有间距 + 内边距 + 缓冲
+// 例：标题(16) + 间距(6) + 格子(56) + padding(8) + buffer(4) = 90
+.frame(height: 90)
+
+// ❌ 错误：估算值导致裁切
+.frame(height: 70)  // 底部会被下方视图遮挡
+```
+
+### 5. 互斥视图动画
+功能相似的视图展开 A 时应隐藏 B：
+```swift
+// revealProgress: 0~1 表示展开进度
+ViewA()
+    .opacity(1 - revealProgress)
+    .frame(height: maxHeight * (1 - revealProgress))
+    .clipped()
+
+ViewB()
+    .frame(height: maxHeight * revealProgress)
+    .clipped()
 ```
 
 ## 性能优化
@@ -189,6 +219,38 @@ Form {
 } message: {
     Text("Message")
 }
+```
+
+### 4. Sheet Detent 选择
+```swift
+// .medium ≈ 屏幕 50%，适合简单内容
+// .large ≈ 屏幕 90%，适合完整页面
+
+// ⚠️ 如果 .medium 不够展示完整内容，使用自定义高度
+.presentationDetents([.height(480), .large])
+
+// 添加上滑提示，告知用户可以继续展开
+HStack {
+    Image(systemName: "chevron.up")
+    Text("上滑查看更多")
+}
+.foregroundColor(.secondary.opacity(0.5))
+```
+
+### 5. 交互可发现性
+隐藏的交互（滑动、长按、双击）需要视觉提示：
+```swift
+// ✅ 下拉刷新有系统提示
+.refreshable { await loadData() }
+
+// ⚠️ 自定义手势需要手动提示
+DragGesture()
+    .onChanged { ... }
+
+// 配合提示文字或图标
+Text("下拉展开日历")
+    .font(.caption)
+    .foregroundColor(.secondary)
 ```
 
 ## 调试技巧

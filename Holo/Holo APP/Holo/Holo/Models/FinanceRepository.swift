@@ -244,6 +244,38 @@ class FinanceRepository {
     func getDefaultAccount() async throws -> Account? {
         Account.getDefaultAccount(in: context)
     }
+    
+    // MARK: - 日历相关查询
+    
+    /// 获取指定日期的所有交易（按时间降序）
+    func getTransactionsForDay(_ date: Date) async throws -> [Transaction] {
+        let cal = Calendar.current
+        let dayStart = cal.startOfDay(for: date)
+        guard let dayEnd = cal.date(byAdding: .day, value: 1, to: dayStart) else { return [] }
+        let req = Transaction.fetchRequest()
+        req.predicate = NSPredicate(format: "date >= %@ AND date < %@", dayStart as NSDate, dayEnd as NSDate)
+        req.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
+        return try context.fetch(req)
+    }
+    
+    /// 获取整月的 DailySummary 字典（key = 日期 startOfDay）
+    func getDailySummaries(for month: Date) async throws -> [Date: DailySummary] {
+        let txns = try await getTransactions(for: month)
+        var map: [Date: (exp: Decimal, inc: Decimal, cnt: Int)] = [:]
+        for tx in txns {
+            let key = Calendar.current.startOfDay(for: tx.date)
+            var entry = map[key] ?? (0, 0, 0)
+            if tx.transactionType == .expense { entry.exp += tx.amount.decimalValue }
+            else { entry.inc += tx.amount.decimalValue }
+            entry.cnt += 1
+            map[key] = entry
+        }
+        var result: [Date: DailySummary] = [:]
+        for (date, entry) in map {
+            result[date] = DailySummary(date: date, totalExpense: entry.exp, totalIncome: entry.inc, transactionCount: entry.cnt)
+        }
+        return result
+    }
 }
 
 // MARK: - Update Models

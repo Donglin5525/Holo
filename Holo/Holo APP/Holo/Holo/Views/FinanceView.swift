@@ -31,18 +31,17 @@ enum FinanceTab: String, CaseIterable {
 
 /// 记账功能首页视图（容器）
 /// 管理三个子 Tab：统计分析、账本列表、设置
+/// 支持从左边缘向右滑动返回首页
 struct FinanceView: View {
     
     // MARK: - Properties
     
-    /// 环境变量：dismiss（关闭 fullScreenCover）
     @Environment(\.dismiss) var dismiss
-    
-    /// 当前选中的 Tab
     @State private var selectedTab: FinanceTab = .ledger
-    
-    /// 是否显示添加交易页面
     @State private var showAddTransaction: Bool = false
+    
+    /// 右滑返回偏移量
+    @State private var swipeBackOffset: CGFloat = 0
     
     // MARK: - Body
     
@@ -65,12 +64,31 @@ struct FinanceView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+        .offset(x: swipeBackOffset)
+        .gesture(
+            DragGesture()
+                .onChanged { v in
+                    // 仅在从左侧 40pt 范围内起始的右滑手势生效
+                    if v.startLocation.x < 40 && v.translation.width > 0 {
+                        swipeBackOffset = v.translation.width
+                    }
+                }
+                .onEnded { v in
+                    if v.startLocation.x < 40 && v.translation.width > 120 {
+                        withAnimation(.easeOut(duration: 0.25)) {
+                            swipeBackOffset = UIScreen.main.bounds.width
+                        }
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { dismiss() }
+                    } else {
+                        withAnimation(.spring(response: 0.3)) { swipeBackOffset = 0 }
+                    }
+                }
+        )
         .safeAreaInset(edge: .bottom, spacing: 0) {
             financeTabBarOnly
         }
         .sheet(isPresented: $showAddTransaction) {
             AddTransactionSheet(editingTransaction: nil) {
-                // 保存后刷新账本列表（通过 Notification 或 @State 传递）
                 NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
             }
         }
@@ -195,47 +213,71 @@ extension Notification.Name {
     static let financeDataDidChange = Notification.Name("financeDataDidChange")
 }
 
-// MARK: - Finance Ledger View（账本列表 — 原 FinanceView 主体）
+// MARK: - Finance Ledger View（集成周视图 + 月历 + 弹窗月历 + 按日筛选）
 
-/// 账本列表视图（原 FinanceView 的主内容）
+/// 账本列表视图（集成日历组件）
+/// 修复：① 日历 icon 弹出底部抽屉  ② 展开月历时隐藏周视图
+///       ③ 安全区避开灵动岛  ④ 单日期标题  ⑤ 返回按钮 + 手势
 struct FinanceLedgerView: View {
     
     // MARK: - Properties
     
-    /// 返回回调（关闭 fullScreenCover）
     let onBack: () -> Void
-    
-    /// 是否显示添加交易（由父视图绑定）
     @Binding var showAddTransaction: Bool
     
-    /// 数据仓库
-    private let repository = FinanceRepository.shared
+    /// 日历统一状态管理器
+    @StateObject private var calendarState = CalendarState()
     
-    // MARK: - State
-    
-    /// 所有交易记录
-    @State private var transactions: [Transaction] = []
-    
-    /// 正在编辑的交易（nil 表示新增模式）
+    /// 正在编辑的交易
     @State private var editingTransaction: Transaction? = nil
     
-    /// 是否正在加载
-    @State private var isLoading: Bool = false
+    // --- 月历展开：连续高度控制 ---
     
-    /// 选中的月份
-    @State private var selectedMonth: Date = Date()
+    /// 已展开高度（0 = 收起，maxCalendarHeight = 完全展开）
+    @State private var calendarRevealHeight: CGFloat = 0
+    
+    /// 拖拽过程中的增量位移
+    @State private var dragTranslation: CGFloat = 0
+    
+    /// 月历完全展开高度
+    private let maxCalendarHeight: CGFloat = 300
+    
+    /// 实时生效高度 = 已锁定 + 拖拽增量，限制在 [0, max]
+    private var effectiveCalendarHeight: CGFloat {
+        min(max(calendarRevealHeight + dragTranslation, 0), maxCalendarHeight)
+    }
+    
+    /// 展开比例 0~1
+    private var revealProgress: CGFloat {
+        effectiveCalendarHeight / maxCalendarHeight
+    }
     
     // MARK: - Body
     
     var body: some View {
         VStack(spacing: 0) {
-            // 顶部导航栏（贴近安全区）
+            // 顶部导航（安全区内，避开灵动岛）
             headerView
             
-            // 收支概览卡片
+            // 周视图（展开月历时渐隐 + 高度收缩）
+            // 容器高度 = 星期标题(16) + 间距(6) + 格子(56) + 内边距(8) ≈ 90
+            WeekView(calendarState: calendarState)
+                .opacity(Double(1 - revealProgress))
+                .frame(height: max(0, 90 * (1 - revealProgress)))
+                .clipped()
+            
+            // 月历区域：通过高度 + clip 控制可见区域
+            ExpandedCalendarView(calendarState: calendarState)
+                .frame(height: effectiveCalendarHeight)
+                .clipped()
+            
+            // 拖拽手柄
+            calendarDragHandle
+            
+            // 收支概览
             summaryCards
             
-            // 交易记录区域：占满剩余高度并可滚动
+            // 交易列表
             ScrollView {
                 transactionListView
                     .padding(.bottom, HoloSpacing.lg)
@@ -243,195 +285,135 @@ struct FinanceLedgerView: View {
             .frame(maxHeight: .infinity)
         }
         .background(Color.holoBackground)
+        // --- 弹窗月历（底部抽屉） ---
+        .sheet(isPresented: $calendarState.isPopupVisible) {
+            PopupCalendarSheet(calendarState: calendarState)
+        }
         .sheet(item: $editingTransaction) { transaction in
             AddTransactionSheet(editingTransaction: transaction) {
-                Task { await loadTransactions() }
+                calendarState.refreshAfterDataChange()
             }
         }
-        .task {
-            await loadTransactions()
-        }
+        .task { await calendarState.initialLoad() }
         .onReceive(NotificationCenter.default.publisher(for: .financeDataDidChange)) { _ in
-            Task { await loadTransactions() }
+            calendarState.refreshAfterDataChange()
         }
     }
     
-    // MARK: - Header View
+    // MARK: - 顶部导航栏
     
-    /// 顶部导航栏
+    /// 修复 #3（安全区）#4（单日期）#5（返回按钮）
     private var headerView: some View {
         HStack {
-            // 左侧：返回按钮
-            Button {
-                onBack()
-            } label: {
+            // 返回按钮（确保可点击区域足够大）
+            Button(action: { onBack() }) {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.holoTextPrimary)
-                    .frame(width: 36, height: 36)
+                    .frame(width: 40, height: 40)
                     .background(Color.white)
                     .clipShape(Circle())
-                    .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+                    .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
             }
             
-            // 中间：日期和标题
-            VStack(spacing: 2) {
-                Text(formattedDateString)
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
-                
-                Text("今日账本")
-                    .font(.holoTitle)
-                    .foregroundColor(.holoTextPrimary)
-            }
-            .frame(maxWidth: .infinity)
+            Spacer()
             
-            // 右侧：日历按钮
-            Button {
-                // TODO: 月份选择器
-            } label: {
+            // 仅保留一个标题（修复 #4：去掉小日期文字）
+            Text(headerTitle)
+                .font(.holoTitle)
+                .foregroundColor(.holoTextPrimary)
+            
+            Spacer()
+            
+            // 日历 icon → 弹出底部抽屉（修复 #1）
+            Button(action: { calendarState.showPopupCalendar() }) {
                 Image(systemName: "calendar")
                     .font(.system(size: 20, weight: .medium))
-                    .foregroundColor(.holoTextSecondary)
-                    .frame(width: 36, height: 36)
+                    .foregroundColor(calendarState.isPopupVisible ? .holoPrimary : .holoTextSecondary)
+                    .frame(width: 40, height: 40)
                     .background(Color.white)
                     .clipShape(Circle())
-                    .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
+                    .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
             }
         }
         .padding(.horizontal, HoloSpacing.lg)
-        .padding(.top, 0) // 无多余 pt/mt，日期与标题紧贴灵动岛下方（安全区由系统预留）
-        .padding(.bottom, HoloSpacing.md)
+        .padding(.top, 8)
+        .padding(.bottom, 10)
         .background(Color.holoBackground)
     }
     
-    /// 格式化日期字符串
-    private var formattedDateString: String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy年M月d日 EEEE"
-        formatter.locale = Locale(identifier: "zh_CN")
-        return formatter.string(from: Date())
+    /// 标题：今天显示"今日账本"，其他日期显示"X月X日 账本"
+    private var headerTitle: String {
+        if calendarState.selectedDate.isToday { return "今日账本" }
+        let f = DateFormatter(); f.locale = Locale(identifier: "zh_CN"); f.dateFormat = "M月d日 账本"
+        return f.string(from: calendarState.selectedDate)
     }
     
-    // MARK: - Summary Cards
+    // MARK: - 拖拽手柄（控制月历展开/收起）
     
-    /// 收支概览卡片
+    /// 修复 #2：下拉手柄连续控制月历高度
+    private var calendarDragHandle: some View {
+        VStack(spacing: 0) {
+            Capsule()
+                .fill(Color.holoTextSecondary.opacity(0.25))
+                .frame(width: 36, height: 4)
+        }
+        .frame(maxWidth: .infinity)
+        .frame(height: 24)
+        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 4)
+                .onChanged { v in dragTranslation = v.translation.height }
+                .onEnded { v in
+                    let target = calendarRevealHeight + v.translation.height
+                    let velocity = v.predictedEndTranslation.height - v.translation.height
+                    dragTranslation = 0
+                    // 根据位置和速度判断展开/收起
+                    let shouldExpand = target > maxCalendarHeight * 0.35 || velocity > 100
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                        calendarRevealHeight = shouldExpand ? maxCalendarHeight : 0
+                    }
+                    calendarState.expandState = shouldExpand ? .expanded : .collapsed
+                }
+        )
+    }
+    
+    // MARK: - 收支概览卡片
+    
     private var summaryCards: some View {
         HStack(spacing: HoloSpacing.md) {
-            ExpenseCard(amount: todayExpense)
-            IncomeCard(amount: todayIncome)
+            ExpenseCard(amount: calendarState.selectedDayExpense)
+            IncomeCard(amount: calendarState.selectedDayIncome)
         }
         .padding(.horizontal, HoloSpacing.lg)
         .padding(.vertical, HoloSpacing.md)
     }
     
-    /// 今日支出
-    private var todayExpense: Decimal {
-        todayTransactions
-            .filter { $0.transactionType == .expense }
-            .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
-    }
+    // MARK: - 交易列表（按选中日期）
     
-    /// 今日收入
-    private var todayIncome: Decimal {
-        todayTransactions
-            .filter { $0.transactionType == .income }
-            .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
-    }
-    
-    /// 今日交易
-    private var todayTransactions: [Transaction] {
-        transactions.filter { Calendar.current.isDateInToday($0.date) }
-    }
-    
-    /// 昨日交易
-    private var yesterdayTransactions: [Transaction] {
-        transactions.filter { Calendar.current.isDateInYesterday($0.date) }
-    }
-    
-    /// 更早的交易
-    private var olderTransactions: [Transaction] {
-        transactions.filter {
-            !Calendar.current.isDateInToday($0.date) && !Calendar.current.isDateInYesterday($0.date)
-        }
-    }
-    
-    // MARK: - Transaction List
-    
-    /// 交易列表视图
     private var transactionListView: some View {
         VStack(spacing: 0) {
-            // 标题栏
             HStack {
                 Text("交易记录")
                     .font(.holoHeading)
                     .foregroundColor(.holoTextPrimary)
-                
                 Spacer()
-                
-                Button {
-                    // 查看全部
-                } label: {
-                    Text("查看全部")
-                        .font(.holoCaption)
-                        .foregroundColor(.holoPrimary)
-                }
             }
             .padding(.horizontal, HoloSpacing.lg)
             .padding(.vertical, HoloSpacing.md)
             
-            // 交易列表
             VStack(spacing: HoloSpacing.sm) {
-                ForEach(todayTransactions, id: \.self) { transaction in
-                    TransactionRowView(transaction: transaction) {
-                        editingTransaction = transaction
-                    }
+                ForEach(calendarState.selectedDayTransactions, id: \.self) { tx in
+                    TransactionRowView(transaction: tx) { editingTransaction = tx }
                 }
                 
-                if !yesterdayTransactions.isEmpty {
-                    DateDivider(title: "昨天")
-                    
-                    ForEach(yesterdayTransactions, id: \.self) { transaction in
-                        TransactionRowView(transaction: transaction) {
-                            editingTransaction = transaction
-                        }
-                    }
-                }
-                
-                if !olderTransactions.isEmpty {
-                    DateDivider(title: "更早")
-                    
-                    ForEach(olderTransactions, id: \.self) { transaction in
-                        TransactionRowView(transaction: transaction) {
-                            editingTransaction = transaction
-                        }
-                    }
-                }
-                
-                // 空状态
-                if transactions.isEmpty && !isLoading {
+                if calendarState.selectedDayTransactions.isEmpty && !calendarState.isLoading {
                     EmptyStateView()
-                        .padding(.top, 60)
+                        .padding(.top, 40)
                 }
             }
             .padding(.horizontal, HoloSpacing.lg)
         }
-    }
-    
-    // MARK: - Methods
-    
-    /// 加载交易记录
-    @MainActor
-    private func loadTransactions() async {
-        isLoading = true
-        
-        do {
-            transactions = try await repository.getTransactions(for: selectedMonth)
-        } catch {
-            print("加载交易记录失败：\(error.localizedDescription)")
-        }
-        
-        isLoading = false
     }
 }
 

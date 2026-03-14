@@ -150,6 +150,73 @@ Color.white   // 卡片背景
 - 新手项目保持纯 SwiftUI
 - 避免使用 `UIViewRepresentable`
 
+## iOS 安全区与布局规范
+
+### 安全区处理（灵动岛/刘海）
+```swift
+// ❌ 错误：顶部内容会被灵动岛遮挡
+.padding(.top, 0)
+
+// ✅ 正确：顶部内容留足间距
+.padding(.top, 8)  // 最小 8pt，推荐 10~12pt
+```
+
+### 容器高度精确计算
+当子视图有固定高度时，容器高度必须精确计算，避免内容被裁切：
+```swift
+// 假设子组件：标题行 16pt + 间距 6pt + 格子 56pt + 底部 8pt
+.frame(height: 90)  // 16 + 6 + 56 + 8 + 4(buffer) = 90
+
+// ❌ 错误：估算值导致裁切
+.frame(height: 70)  // 内容会被遮挡
+```
+
+### Sheet 弹窗 Detent 选择
+```swift
+// .medium ≈ 屏幕 50%，可能不够展示完整内容
+
+// ❌ 错误：内容显示不完整
+.presentationDetents([.medium, .large])
+
+// ✅ 正确：根据内容高度自定义
+.presentationDetents([.height(480), .large])  // 480pt 足够放下月历
+```
+
+### 互斥视图处理
+功能相似的视图（如周视图 vs 月历视图）应该互斥显示：
+```swift
+// ✅ 正确：展开月历时隐藏周视图
+WeekView()
+    .opacity(1 - revealProgress)           // 渐隐
+    .frame(height: 90 * (1 - revealProgress))  // 高度收缩
+    .clipped()
+```
+
+### 交互可发现性
+隐藏的交互（滑动、长按等）需要视觉提示：
+```swift
+// ✅ 正确：上滑提示
+HStack {
+    Image(systemName: "chevron.up")
+    Text("上滑查看更多")
+}
+.foregroundColor(.secondary.opacity(0.5))
+```
+
+### 信息去重原则
+同一信息只展示一次，保留最醒目的：
+```swift
+// ❌ 错误：两个时间显示
+VStack {
+    Text("2026年3月14日 周五")  // 灰色小字
+    Text("今日账本")            // 加粗标题
+}
+
+// ✅ 正确：只保留标题
+Text("今日账本")
+    .font(.holoTitle)
+```
+
 ## 快速开始模板
 
 创建新页面时，使用以下模板：
@@ -179,4 +246,5 @@ struct XXXView: View {
 
 ## 更新日志
 
+- 2026-03-14: 新增「iOS 安全区与布局规范」— 灵动岛避让、容器高度计算、Sheet detent、互斥视图、交互可发现性、信息去重
 - 2026-03-01: 初始版本，确定使用 SwiftUI
