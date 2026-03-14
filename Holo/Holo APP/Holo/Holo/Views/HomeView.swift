@@ -29,6 +29,9 @@ struct HomeView: View {
     /// 是否显示财务页面
     @State private var showFinanceView: Bool = false
     
+    /// 是否显示习惯页面
+    @State private var showHabitsView: Bool = false
+    
     // MARK: - 五角形功能按钮拖拽排序状态
     
     /// 图标配置仓库（负责持久化）
@@ -94,6 +97,9 @@ struct HomeView: View {
         // 将 fullScreenCover 挂在整个 HomeView 上，更稳定
         .fullScreenCover(isPresented: $showFinanceView) {
             FinanceView()
+        }
+        .fullScreenCover(isPresented: $showHabitsView) {
+            HabitsView()
         }
         // 页面加载时从持久化存储加载图标配置
         .onAppear {
@@ -398,7 +404,7 @@ struct HomeView: View {
         case "thoughts":
             print("Thoughts tapped")
         case "habit":
-            print("Habit tapped")
+            showHabitsView = true
         default:
             print("\(item.title) tapped")
         }
