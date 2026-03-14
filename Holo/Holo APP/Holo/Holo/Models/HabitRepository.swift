@@ -107,7 +107,7 @@ class HabitRepository: ObservableObject {
         
         try context.save()
         loadActiveHabits()
-        notifyDataChange()
+        notifyDataChange(habitId: habit.id)
         
         return habit
     }
@@ -127,7 +127,7 @@ class HabitRepository: ObservableObject {
         
         try context.save()
         loadActiveHabits()
-        notifyDataChange()
+        notifyDataChange(habitId: habit.id)
     }
     
     /// 归档习惯（软删除）
@@ -137,7 +137,7 @@ class HabitRepository: ObservableObject {
         
         try context.save()
         loadActiveHabits()
-        notifyDataChange()
+        notifyDataChange(habitId: habit.id)
     }
     
     /// 恢复归档的习惯
@@ -147,16 +147,17 @@ class HabitRepository: ObservableObject {
         
         try context.save()
         loadActiveHabits()
-        notifyDataChange()
+        notifyDataChange(habitId: habit.id)
     }
     
     /// 删除习惯（硬删除，会级联删除所有记录）
     func deleteHabit(_ habit: Habit) throws {
+        let habitId = habit.id
         context.delete(habit)
         
         try context.save()
         loadActiveHabits()
-        notifyDataChange()
+        notifyDataChange(habitId: habitId)
     }
     
     /// 通过 ID 删除习惯（安全方法，用于视图 dismiss 后的延迟删除）
@@ -172,7 +173,7 @@ class HabitRepository: ObservableObject {
         context.delete(habit)
         try context.save()
         loadActiveHabits()
-        notifyDataChange()
+        notifyDataChange(habitId: habitId)
     }
     
     /// 通过 ID 归档习惯（安全方法，用于视图 dismiss 后的延迟归档）
@@ -190,7 +191,7 @@ class HabitRepository: ObservableObject {
         
         try context.save()
         loadActiveHabits()
-        notifyDataChange()
+        notifyDataChange(habitId: habitId)
     }
     
     /// 更新习惯排序
@@ -219,13 +220,13 @@ class HabitRepository: ObservableObject {
             // 切换完成状态
             existingRecord.isCompleted.toggle()
             try context.save()
-            notifyDataChange()
+            notifyDataChange(habitId: habit.id)
             return existingRecord.isCompleted
         } else {
             // 创建新记录（默认已完成）
             _ = HabitRecord.createCheckIn(in: context, habit: habit, isCompleted: true)
             try context.save()
-            notifyDataChange()
+            notifyDataChange(habitId: habit.id)
             return true
         }
     }
@@ -241,7 +242,7 @@ class HabitRepository: ObservableObject {
         let record = HabitRecord.createNumeric(in: context, habit: habit, value: value, note: note)
         
         try context.save()
-        notifyDataChange()
+        notifyDataChange(habitId: habit.id)
         
         return record
     }
@@ -254,9 +255,10 @@ class HabitRepository: ObservableObject {
     
     /// 删除记录
     func deleteRecord(_ record: HabitRecord) throws {
+        let habitId = record.habitId
         context.delete(record)
         try context.save()
-        notifyDataChange()
+        notifyDataChange(habitId: habitId)
     }
     
     /// 更新记录
@@ -267,7 +269,7 @@ class HabitRepository: ObservableObject {
         record.note = note
         
         try context.save()
-        notifyDataChange()
+        notifyDataChange(habitId: record.habitId)
     }
     
     // MARK: - Query Methods
@@ -489,16 +491,44 @@ class HabitRepository: ObservableObject {
     
     /// 获取今日打卡型习惯完成进度
     func getTodayCheckInProgress() -> (completed: Int, total: Int) {
-        let checkInHabits = activeHabits.filter { $0.isCheckInType }
-        let completed = checkInHabits.filter { isTodayCompleted(for: $0) }.count
-        return (completed, checkInHabits.count)
+        let checkInHabitIds = activeHabits
+            .filter { $0.isCheckInType }
+            .map(\.id)
+        
+        let total = checkInHabitIds.count
+        guard total > 0 else { return (0, 0) }
+        
+        let today = Calendar.current.startOfDay(for: Date())
+        guard let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today) else {
+            return (0, total)
+        }
+        
+        // 单次 fetch 统计今日完成的习惯数量（避免对每个习惯逐个 fetch）
+        let request = NSFetchRequest<NSDictionary>(entityName: "HabitRecord")
+        request.resultType = .dictionaryResultType
+        request.propertiesToFetch = ["habitId"]
+        request.returnsDistinctResults = true
+        request.predicate = NSPredicate(
+            format: "habitId IN %@ AND date >= %@ AND date < %@ AND isCompleted == YES",
+            checkInHabitIds as NSArray,
+            today as NSDate,
+            tomorrow as NSDate
+        )
+        
+        do {
+            let results = try context.fetch(request)
+            return (results.count, total)
+        } catch {
+            print("[HabitRepository] 获取今日进度失败: \(error)")
+            return (0, total)
+        }
     }
     
     // MARK: - Notifications
     
     /// 发送数据变更通知
-    private func notifyDataChange() {
-        NotificationCenter.default.post(name: .habitDataDidChange, object: nil)
+    private func notifyDataChange(habitId: UUID? = nil) {
+        NotificationCenter.default.post(name: .habitDataDidChange, object: habitId)
     }
 }
 

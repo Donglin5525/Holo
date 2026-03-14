@@ -86,9 +86,7 @@ struct HabitsView: View {
             habitTabBar
         }
         .sheet(isPresented: $showAddHabit) {
-            AddHabitSheet(onSave: {
-                HabitRepository.shared.loadActiveHabits()
-            })
+            AddHabitSheet()
         }
     }
     
@@ -215,9 +213,11 @@ struct HabitListView: View {
     /// 今日进度
     @State private var todayProgress: (completed: Int, total: Int) = (0, 0)
     
-    /// 选中的习惯 ID（用于 sheet 展示，避免删除后持有已释放对象）
-    @State private var selectedHabitId: UUID? = nil
-    @State private var showDetailSheet: Bool = false
+    /// 选中的习惯（用于 sheet 展示，避免删除后持有已释放对象）
+    private struct HabitSelection: Identifiable, Equatable {
+        let id: UUID
+    }
+    @State private var selectedHabit: HabitSelection? = nil
     /// 待执行操作（在 onDismiss 中执行，确保 sheet 完全销毁后再操作 Core Data）
     @State private var pendingAction: PendingHabitAction? = nil
     
@@ -232,8 +232,7 @@ struct HabitListView: View {
                     ForEach(habits) { habit in
                         HabitCardView(habit: habit)
                             .onTapGesture {
-                                selectedHabitId = habit.id
-                                showDetailSheet = true
+                                selectedHabit = HabitSelection(id: habit.id)
                             }
                     }
                     
@@ -252,7 +251,7 @@ struct HabitListView: View {
         .onReceive(NotificationCenter.default.publisher(for: .habitDataDidChange)) { _ in
             loadHabits()
         }
-        .sheet(isPresented: $showDetailSheet, onDismiss: {
+        .sheet(item: $selectedHabit, onDismiss: {
             // sheet 完全销毁后再执行删除/归档
             if let action = pendingAction {
                 // 先从本地数组移除，避免 ForEach 访问已删除对象
@@ -271,13 +270,12 @@ struct HabitListView: View {
                 }
                 pendingAction = nil
             }
-            selectedHabitId = nil
-        }) {
-            if let habitId = selectedHabitId,
-               let habit = habits.first(where: { $0.id == habitId }) {
+            selectedHabit = nil
+        }) { selection in
+            if let habit = habits.first(where: { $0.id == selection.id }) {
                 HabitDetailView(habit: habit, onWillDelete: { action in
                     pendingAction = action
-                    showDetailSheet = false
+                    selectedHabit = nil
                 })
             } else {
                 ProgressView("加载中...")

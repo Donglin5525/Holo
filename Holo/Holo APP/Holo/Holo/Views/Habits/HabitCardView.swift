@@ -56,7 +56,10 @@ struct HabitCardView: View {
         .onAppear {
             loadStatus()
         }
-        .onReceive(NotificationCenter.default.publisher(for: .habitDataDidChange)) { _ in
+        .onReceive(NotificationCenter.default.publisher(for: .habitDataDidChange)) { notification in
+            if let changedHabitId = notification.object as? UUID, changedHabitId != habit.id {
+                return
+            }
             loadStatus()
         }
         .sheet(isPresented: $showValueInput) {

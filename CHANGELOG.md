@@ -50,11 +50,17 @@
 
 #### NSManagedObject 删除流程
 1. 使用 ID（UUID）而非对象引用传递
-2. sheet 用 `isPresented` 而非 `item` 绑定
+2. sheet 用 `item` 绑定（值类型 selection），避免 `isPresented + selectedId` 状态不同步导致的 Loading
 3. 删除前先从本地数组移除（`habits.removeAll { $0.id == id }`）
 4. 延迟 0.1s 再执行 Core Data 删除
 5. 访问前检查 `!habit.isDeleted && habit.managedObjectContext != nil`
 6. 使用 `isDeleted`/`managedObjectContext` 需 `import CoreData`
+
+### 修复与优化
+- 修复 `HabitCardView` / `HabitDetailView` 缺失 `import CoreData` 导致编译失败
+- 修复习惯详情 sheet 首次打开偶现「加载中...」与卡顿：改为 `.sheet(item:)` 单一状态驱动展示
+- 优化习惯变更通知：携带 `habitId`，仅刷新对应卡片/详情，减少全量 Core Data 查询
+- 优化今日完成进度统计：从逐个习惯查询改为单次 fetch 统计
 
 ### 文档更新
 - 开发规范新增「6️⃣ SwiftUI + Core Data 视图卡死/白屏问题」
