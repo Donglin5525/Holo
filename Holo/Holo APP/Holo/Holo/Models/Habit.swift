@@ -89,6 +89,11 @@ public class Habit: NSManagedObject {
         Color(hex: color) ?? .holoInfo
     }
     
+    /// 是否为自定义图标（Asset Catalog 图标）
+    var isCustomIcon: Bool {
+        HabitIconPresets.allItems.first { $0.name == icon }?.isCustom ?? false
+    }
+    
     /// 记录数组
     var recordsArray: [HabitRecord] {
         let set = records as? Set<HabitRecord> ?? []

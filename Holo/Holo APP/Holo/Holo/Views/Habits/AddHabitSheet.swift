@@ -144,9 +144,19 @@ struct AddHabitSheet: View {
                         .fill(Color(hex: selectedColor)?.opacity(0.1) ?? Color.holoInfo.opacity(0.1))
                         .frame(width: 64, height: 64)
                     
-                    Image(systemName: selectedIcon)
-                        .font(.system(size: 28, weight: .medium))
-                        .foregroundColor(Color(hex: selectedColor) ?? .holoInfo)
+                    // 判断是否为自定义图标
+                    if let item = HabitIconPresets.allItems.first(where: { $0.name == selectedIcon }), item.isCustom {
+                        Image(selectedIcon)
+                            .renderingMode(.template)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 28, height: 28)
+                            .foregroundColor(Color(hex: selectedColor) ?? .holoInfo)
+                    } else {
+                        Image(systemName: selectedIcon)
+                            .font(.system(size: 28, weight: .medium))
+                            .foregroundColor(Color(hex: selectedColor) ?? .holoInfo)
+                    }
                 }
             }
             
@@ -368,37 +378,21 @@ struct AddHabitSheet: View {
 
 // MARK: - IconPickerSheet
 
-/// 图标选择器
+/// 图标选择器（按分类展示）
 struct IconPickerSheet: View {
     
     @Environment(\.dismiss) var dismiss
     @Binding var selectedIcon: String
     
-    private let columns = Array(repeating: GridItem(.flexible()), count: 5)
+    /// 网格列定义（5列）
+    private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 5)
     
     var body: some View {
         NavigationView {
             ScrollView {
-                LazyVGrid(columns: columns, spacing: 16) {
-                    ForEach(HabitIconPresets.icons, id: \.self) { icon in
-                        Button {
-                            selectedIcon = icon
-                            dismiss()
-                        } label: {
-                            ZStack {
-                                RoundedRectangle(cornerRadius: HoloRadius.md)
-                                    .fill(selectedIcon == icon ? Color.holoPrimary.opacity(0.1) : Color.white)
-                                    .frame(width: 56, height: 56)
-                                
-                                Image(systemName: icon)
-                                    .font(.system(size: 24))
-                                    .foregroundColor(selectedIcon == icon ? .holoPrimary : .holoTextPrimary)
-                            }
-                            .overlay(
-                                RoundedRectangle(cornerRadius: HoloRadius.md)
-                                    .stroke(selectedIcon == icon ? Color.holoPrimary : Color.clear, lineWidth: 2)
-                            )
-                        }
+                LazyVStack(spacing: 24, pinnedViews: []) {
+                    ForEach(HabitIconPresets.categories) { category in
+                        categorySection(category)
                     }
                 }
                 .padding()
@@ -413,6 +407,72 @@ struct IconPickerSheet: View {
                     }
                     .foregroundColor(.holoPrimary)
                 }
+            }
+        }
+    }
+    
+    // MARK: - 分类区块
+    
+    @ViewBuilder
+    private func categorySection(_ category: HabitIconCategory) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            // 分类标题
+            HStack(spacing: 6) {
+                Image(systemName: category.icon)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.holoPrimary)
+                
+                Text(category.name)
+                    .font(.holoLabel)
+                    .foregroundColor(.holoTextSecondary)
+            }
+            
+            // 图标网格
+            LazyVGrid(columns: columns, spacing: 10) {
+                ForEach(category.items) { item in
+                    iconButton(item)
+                }
+            }
+        }
+    }
+    
+    // MARK: - 图标按钮
+    
+    @ViewBuilder
+    private func iconButton(_ item: IconItem) -> some View {
+        Button {
+            selectedIcon = item.name
+            dismiss()
+        } label: {
+            VStack(spacing: 4) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: HoloRadius.md)
+                        .fill(selectedIcon == item.name ? Color.holoPrimary.opacity(0.1) : Color.white)
+                        .frame(width: 52, height: 52)
+                    
+                    // 根据是否为自定义图标选择不同的显示方式
+                    if item.isCustom {
+                        Image(item.name)
+                            .renderingMode(.template)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 22, height: 22)
+                            .foregroundColor(selectedIcon == item.name ? .holoPrimary : .holoTextPrimary)
+                    } else {
+                        Image(systemName: item.name)
+                            .font(.system(size: 22))
+                            .foregroundColor(selectedIcon == item.name ? .holoPrimary : .holoTextPrimary)
+                    }
+                }
+                .overlay(
+                    RoundedRectangle(cornerRadius: HoloRadius.md)
+                        .stroke(selectedIcon == item.name ? Color.holoPrimary : Color.clear, lineWidth: 2)
+                )
+                
+                Text(item.label)
+                    .font(.system(size: 10))
+                    .foregroundColor(.holoTextSecondary)
+                    .lineLimit(1)
             }
         }
     }

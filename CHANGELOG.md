@@ -4,6 +4,48 @@
 
 ---
 
+## [2026-03-15] 习惯图标系统扩展
+
+### 新增功能
+
+#### 图标分类系统
+- 习惯图标从 20 个扩展到 **62 个**，按 9 大分类组织
+- 新增图标分类：运动健身、健康生活、学习成长、自我提升、饮食营养、财务理财、日常习惯、戒除/减少、其他
+- 每个图标带有中文标签，方便用户识别
+
+#### 图标选择器升级
+- 图标选择器改为分类展示，每个分类有独立标题
+- 图标下方显示中文名称（如"跑步"、"阅读"）
+- 视觉优化：圆角卡片 + 选中高亮效果
+
+#### 自定义 SVG 图标支持
+- 新增 `HabitIcons` Asset Catalog 文件夹
+- 创建自定义"戒烟"图标（香烟 + 禁止符号 SVG）
+- 支持混合使用 SF Symbol 和自定义 Asset 图标
+- `IconItem` 新增 `isCustom` 属性区分图标类型
+
+### 技术要点
+
+#### 图标类型判断
+- `Habit` 模型新增 `isCustomIcon` 计算属性
+- 根据图标名在 `HabitIconPresets.allItems` 中查找是否为自定义图标
+- 自定义图标使用 `Image(name).renderingMode(.template)`，SF Symbol 使用 `Image(systemName:)`
+
+#### 数据结构
+- `HabitIconCategory`：图标分类（name, icon, items）
+- `IconItem`：单个图标项（name, label, isCustom）
+- `HabitIconPresets.categories`：分类数据源
+- `HabitIconPresets.allItems`：扁平化图标列表
+
+### 文件变更
+- `HabitType.swift`：新增图标分类数据结构和 62 个图标定义
+- `AddHabitSheet.swift`：图标选择器改为分类展示，支持自定义图标
+- `HabitCardView.swift`：习惯卡片图标显示支持自定义图标
+- `Habit.swift`：新增 `isCustomIcon` 属性
+- `Assets.xcassets/HabitIcons/`：新增习惯图标资源文件夹
+
+---
+
 ## [2026-03-15] 习惯打卡功能
 
 ### 新增功能

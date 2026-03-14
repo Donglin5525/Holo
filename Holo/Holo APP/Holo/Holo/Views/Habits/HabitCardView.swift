@@ -95,9 +95,19 @@ struct HabitCardView: View {
                 .fill(habit.habitColor.opacity(0.1))
                 .frame(width: 56, height: 56)
             
-            Image(systemName: habit.icon)
-                .font(.system(size: 24, weight: .medium))
-                .foregroundColor(habit.habitColor)
+            // 判断是否为自定义图标
+            if habit.isCustomIcon {
+                Image(habit.icon)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 24, height: 24)
+                    .foregroundColor(habit.habitColor)
+            } else {
+                Image(systemName: habit.icon)
+                    .font(.system(size: 24, weight: .medium))
+                    .foregroundColor(habit.habitColor)
+            }
         }
     }
     
