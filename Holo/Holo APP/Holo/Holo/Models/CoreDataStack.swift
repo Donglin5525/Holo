@@ -5,6 +5,23 @@
 //  Core Data 数据栈管理器
 //  负责管理 Core Data 的持久化容器、上下文和保存操作
 //
+//  ━━━━━━━━━━ iCloud 同步启用指南 ━━━━━━━━━━
+//  当前使用 NSPersistentContainer，数据仅存储在本地。
+//  要启用 iCloud 同步，请按以下步骤操作：
+//
+//  1. 在 Xcode 中启用 CloudKit 能力：
+//     - 选择项目 Target → Signing & Capabilities
+//     - 点击 "+ Capability" 添加 "iCloud"
+//     - 勾选 "CloudKit" 并创建容器（如 iCloud.com.yourcompany.Holo）
+//
+//  2. 修改下方代码：
+//     - 将 `NSPersistentContainer` 改为 `NSPersistentCloudKitContainer`
+//     - 取消注释 CloudKit 相关配置
+//
+//  3. 首次启用后，在 CloudKit Dashboard 中验证 schema 自动创建
+//
+//  注意：CloudKit 同步需要真机测试，模拟器功能有限
+//  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 import CoreData
 
@@ -21,25 +38,37 @@ class CoreDataStack {
     
     /// 持久化容器
     /// 管理 Core Data 的持久化存储和协调
+    /// 
+    /// 【启用 iCloud 同步】将下方 NSPersistentContainer 改为 NSPersistentCloudKitContainer
     lazy var persistentContainer: NSPersistentContainer = {
         // 通过代码创建数据模型
         let model = createDataModel()
+        
+        // ━━━ 本地存储（当前使用）━━━
         let container = NSPersistentContainer(name: "HoloDataModel", managedObjectModel: model)
+        
+        // ━━━ iCloud 同步（取消注释以启用）━━━
+        // let container = NSPersistentCloudKitContainer(name: "HoloDataModel", managedObjectModel: model)
         
         // 配置持久化存储
         if let description = container.persistentStoreDescriptions.first {
             // 使用 SQLite 存储
             description.url = URL.documentsDirectory.appendingPathComponent("HoloDataModel.sqlite")
             
-            // 启用轻量级迁移（支持新增 parentId 字段等 schema 变更）
+            // 启用轻量级迁移（支持新增字段等 schema 变更）
             description.setOption(true as NSNumber, forKey: NSMigratePersistentStoresAutomaticallyOption)
             description.setOption(true as NSNumber, forKey: NSInferMappingModelAutomaticallyOption)
             
-            // 启用历史追踪（用于增量同步）
+            // 启用历史追踪（iCloud 同步必需）
             description.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
             
-            // 启用删除规则验证
+            // 启用远程变更通知（iCloud 同步必需）
             description.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
+            
+            // ━━━ iCloud 同步配置（取消注释以启用）━━━
+            // description.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(
+            //     containerIdentifier: "iCloud.com.yourcompany.Holo"  // 替换为你的 CloudKit 容器 ID
+            // )
         }
         
         container.loadPersistentStores { description, error in
@@ -242,8 +271,63 @@ class CoreDataStack {
         categoryRelation.destinationEntity = categoryEntity
         accountRelation.destinationEntity = accountEntity
         
+        // MARK: - HomeIconConfig Entity
+        // 首页图标配置实体，支持排序、显示/隐藏、自定义名称等
+        let homeIconConfigEntity = NSEntityDescription()
+        homeIconConfigEntity.name = "HomeIconConfig"
+        homeIconConfigEntity.managedObjectClassName = "HomeIconConfig"
+        
+        var homeIconAttributes: [NSAttributeDescription] = []
+        
+        // 图标唯一标识符（如 "task", "finance", "habit" 等）
+        let iconId = NSAttributeDescription()
+        iconId.name = "iconId"
+        iconId.attributeType = .stringAttributeType
+        iconId.isOptional = false
+        iconId.isIndexed = true
+        homeIconAttributes.append(iconId)
+        
+        // 排序顺序（0-based，数字越小越靠前）
+        let iconSortOrder = NSAttributeDescription()
+        iconSortOrder.name = "sortOrder"
+        iconSortOrder.attributeType = .integer16AttributeType
+        iconSortOrder.isOptional = false
+        iconSortOrder.isIndexed = true
+        homeIconAttributes.append(iconSortOrder)
+        
+        // 是否显示（支持用户隐藏某些图标）
+        let iconIsVisible = NSAttributeDescription()
+        iconIsVisible.name = "isVisible"
+        iconIsVisible.attributeType = .booleanAttributeType
+        iconIsVisible.isOptional = false
+        iconIsVisible.defaultValue = true
+        homeIconAttributes.append(iconIsVisible)
+        
+        // 自定义名称（可选，用户可修改显示名称）
+        let iconCustomName = NSAttributeDescription()
+        iconCustomName.name = "customName"
+        iconCustomName.attributeType = .stringAttributeType
+        iconCustomName.isOptional = true
+        homeIconAttributes.append(iconCustomName)
+        
+        // 创建时间
+        let iconCreatedAt = NSAttributeDescription()
+        iconCreatedAt.name = "createdAt"
+        iconCreatedAt.attributeType = .dateAttributeType
+        iconCreatedAt.isOptional = false
+        homeIconAttributes.append(iconCreatedAt)
+        
+        // 更新时间
+        let iconUpdatedAt = NSAttributeDescription()
+        iconUpdatedAt.name = "updatedAt"
+        iconUpdatedAt.attributeType = .dateAttributeType
+        iconUpdatedAt.isOptional = false
+        homeIconAttributes.append(iconUpdatedAt)
+        
+        homeIconConfigEntity.properties = homeIconAttributes
+        
         // Add entities to model
-        model.entities = [transactionEntity, categoryEntity, accountEntity]
+        model.entities = [transactionEntity, categoryEntity, accountEntity, homeIconConfigEntity]
         
         return model
     }
