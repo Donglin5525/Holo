@@ -4,6 +4,64 @@
 
 ---
 
+## [2026-03-15] 习惯打卡功能
+
+### 新增功能
+
+#### 习惯数据模型
+- `Habit` Core Data 实体：支持打卡型（每日打卡）和数值型（记录数值）两种习惯
+- `HabitRecord` Core Data 实体：记录每次打卡/数值，与 Habit 一对多关联
+- 支持自定义图标、颜色、频率（每日/每周/每月）、目标值
+- 数值型习惯支持计数（累加）和测量（取最新值）两种聚合方式
+
+#### 习惯首页 (HabitsView)
+- 习惯卡片列表，展示图标、名称、频率/目标、今日状态
+- 打卡型习惯：点击勾选按钮完成/取消打卡，显示连续天数
+- 数值型习惯：计数类显示 +1 按钮，测量类显示输入按钮
+- 底部 Tab 栏：统计 / 习惯列表 / 新增
+- 顶部显示今日完成进度（如 2/5）
+
+#### 习惯详情页 (HabitDetailView)
+- 习惯信息头部：图标、名称、类型标签、频率目标
+- 时间范围切换：本周 / 本月 / 本季度 / 全部
+- 统计摘要：打卡型显示连续天数/完成次数/完成率，数值型显示总计/日均/峰值或变化/最低/最高
+- 记录列表：按时间倒序展示，支持删除单条记录
+- 工具栏操作：编辑 / 归档 / 删除
+
+#### 新增习惯表单 (AddHabitSheet)
+- 习惯名称输入
+- 类型选择：打卡型 / 数值型（分段选择器）
+- 数值型聚合方式：计数 / 测量
+- 图标选择：20 个预设 SF Symbols
+- 颜色选择：10 种预设颜色（5x2 网格）
+- 频率选择：每日 / 每周 / 每月
+- 目标设置：打卡型设目标次数，数值型设目标值和单位
+
+#### 首页入口
+- 点击首页「习惯」图标进入习惯模块（fullScreenCover）
+- 支持从左边缘向右滑动返回首页
+
+### 技术要点
+
+#### SwiftUI + Core Data 最佳实践
+- **body 内禁止 Core Data 查询**：所有查询在 `onAppear`/`onReceive` 中执行，结果缓存到 `@State`
+- **@StateObject 不能包装 @MainActor 单例**：改用 `@ObservedObject` 或直接 `.shared` 调用
+- **访问 @MainActor 单例必须用 Task 包装**：`Task { @MainActor in ... }`
+
+#### NSManagedObject 删除流程
+1. 使用 ID（UUID）而非对象引用传递
+2. sheet 用 `isPresented` 而非 `item` 绑定
+3. 删除前先从本地数组移除（`habits.removeAll { $0.id == id }`）
+4. 延迟 0.1s 再执行 Core Data 删除
+5. 访问前检查 `!habit.isDeleted && habit.managedObjectContext != nil`
+6. 使用 `isDeleted`/`managedObjectContext` 需 `import CoreData`
+
+### 文档更新
+- 开发规范新增「6️⃣ SwiftUI + Core Data 视图卡死/白屏问题」
+- 开发规范新增「7️⃣ NSManagedObject 删除后访问崩溃」（含标准删除流程代码和时序图）
+
+---
+
 ## [2026-03-14] 首页功能入口重构
 
 ### 新增功能
