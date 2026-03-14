@@ -25,6 +25,7 @@ enum DayCellStyle {
 ///   - isCurrentMonth: 是否属于当前显示月
 ///   - style: 显示样式
 ///   - onTap: 点击回调
+///   - onLongPress: 长按回调（用于快速记账，nil = 不支持长按）
 struct DayCellView: View {
     let date: Date
     let summary: DailySummary?
@@ -32,40 +33,17 @@ struct DayCellView: View {
     let isCurrentMonth: Bool
     let style: DayCellStyle
     let onTap: () -> Void
+    var onLongPress: (() -> Void)? = nil
+    
+    /// 长按缩放反馈
+    @State private var isLongPressing: Bool = false
     
     private var dayString: String {
         "\(Calendar.current.component(.day, from: date))"
     }
     
     var body: some View {
-        Button(action: onTap) {
-            VStack(spacing: style == .week ? 4 : 2) {
-                // 日期数字
-                Text(dayString)
-                    .font(.system(size: style == .week ? 15 : 14, weight: isSelected ? .bold : .regular))
-                    .foregroundColor(textColor)
-                
-                // 交易指示点 / 金额
-                if let s = summary, s.hasTransactions {
-                    if style == .week {
-                        Text(CalendarDateFormatter.compactAmount(s.totalExpense))
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.holoError.opacity(0.8))
-                            .lineLimit(1)
-                    } else {
-                        Circle()
-                            .fill(Color.holoPrimary)
-                            .frame(width: 4, height: 4)
-                    }
-                } else {
-                    if style == .week {
-                        Text(" ")
-                            .font(.system(size: 10))
-                    } else {
-                        Color.clear.frame(width: 4, height: 4)
-                    }
-                }
-            }
+        cellContent
             .frame(maxWidth: .infinity)
             .frame(height: style == .week ? 56 : 40)
             .background(
@@ -76,8 +54,48 @@ struct DayCellView: View {
                 RoundedRectangle(cornerRadius: 10)
                     .stroke(date.isToday && !isSelected ? Color.holoPrimary.opacity(0.4) : Color.clear, lineWidth: 1.5)
             )
+            .scaleEffect(isLongPressing ? 0.9 : 1.0)
+            .animation(.easeInOut(duration: 0.15), value: isLongPressing)
+            .onTapGesture { onTap() }
+            .onLongPressGesture(
+                minimumDuration: 0.5,
+                pressing: { pressing in isLongPressing = pressing },
+                perform: {
+                    // 触觉反馈
+                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                    generator.impactOccurred()
+                    onLongPress?()
+                }
+            )
+    }
+    
+    /// 格子内容（日期数字 + 指示点/金额）
+    private var cellContent: some View {
+        VStack(spacing: style == .week ? 4 : 2) {
+            Text(dayString)
+                .font(.system(size: style == .week ? 15 : 14, weight: isSelected ? .bold : .regular))
+                .foregroundColor(textColor)
+            
+            if let s = summary, s.hasTransactions {
+                if style == .week {
+                    Text(CalendarDateFormatter.compactAmount(s.totalExpense))
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.holoError.opacity(0.8))
+                        .lineLimit(1)
+                } else {
+                    Circle()
+                        .fill(Color.holoPrimary)
+                        .frame(width: 4, height: 4)
+                }
+            } else {
+                if style == .week {
+                    Text(" ")
+                        .font(.system(size: 10))
+                } else {
+                    Color.clear.frame(width: 4, height: 4)
+                }
+            }
         }
-        .buttonStyle(PlainButtonStyle())
     }
     
     private var textColor: Color {

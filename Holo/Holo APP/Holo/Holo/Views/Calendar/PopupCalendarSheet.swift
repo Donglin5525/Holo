@@ -21,6 +21,9 @@ struct PopupCalendarSheet: View {
     /// 滑动偏移
     @State private var swipeOffset: CGFloat = 0
     
+    /// 是否显示年月选择器
+    @State private var showMonthYearPicker: Bool = false
+    
     /// 网格日期
     private var gridDates: [Date] {
         CalendarGridGenerator.generateGrid(for: calendarState.currentMonth)
@@ -60,6 +63,23 @@ struct PopupCalendarSheet: View {
         // large 可查看 AI 占位区
         .presentationDetents([.height(480), .large])
         .presentationDragIndicator(.hidden)
+        // 年月快速选择器弹窗
+        .sheet(isPresented: $showMonthYearPicker) {
+            let cal = Calendar.current
+            let year = cal.component(.year, from: calendarState.currentMonth)
+            let month = cal.component(.month, from: calendarState.currentMonth)
+            MonthYearPickerView(
+                currentYear: year,
+                currentMonth: month,
+                onConfirm: { y, m in
+                    calendarState.jumpToMonth(year: y, month: m)
+                    showMonthYearPicker = false
+                },
+                onCancel: { showMonthYearPicker = false }
+            )
+            .presentationDetents([.height(320)])
+            .presentationDragIndicator(.hidden)
+        }
     }
     
     /// 上滑提示：告知用户可以继续向上滑动
@@ -86,7 +106,7 @@ struct PopupCalendarSheet: View {
             .padding(.bottom, 12)
     }
     
-    /// 月份导航栏（左箭头 + 标题 + 右箭头）
+    /// 月份导航栏（左箭头 + 标题 + 右箭头 + 今天按钮）
     private var monthNavigationBar: some View {
         HStack {
             Button { calendarState.goToPreviousMonth() } label: {
@@ -98,9 +118,19 @@ struct PopupCalendarSheet: View {
             
             Spacer()
             
-            Text(CalendarDateFormatter.monthTitle(for: calendarState.currentMonth))
-                .font(.system(size: 17, weight: .bold))
-                .foregroundColor(.holoTextPrimary)
+            // 月份标题 — 点击弹出年月选择器
+            Button { showMonthYearPicker = true } label: {
+                HStack(spacing: 4) {
+                    Text(CalendarDateFormatter.monthTitle(for: calendarState.currentMonth))
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundColor(.holoTextPrimary)
+                    
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.holoTextSecondary)
+                }
+            }
+            .buttonStyle(PlainButtonStyle())
             
             Spacer()
             
@@ -109,6 +139,24 @@ struct PopupCalendarSheet: View {
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.holoTextSecondary)
                     .frame(width: 32, height: 32)
+            }
+            
+            // 「今天」快捷按钮 — 非当天时高亮显示
+            Button {
+                calendarState.goToToday()
+                dismiss()
+            } label: {
+                Text("今天")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(calendarState.selectedDate.isToday ? .holoTextSecondary : .holoPrimary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(
+                        Capsule()
+                            .fill(calendarState.selectedDate.isToday
+                                  ? Color.holoBackground
+                                  : Color.holoPrimary.opacity(0.1))
+                    )
             }
         }
         .padding(.horizontal, HoloSpacing.lg)
@@ -147,6 +195,13 @@ struct PopupCalendarSheet: View {
                                 onTap: {
                                     calendarState.selectDate(day)
                                     dismiss()
+                                },
+                                onLongPress: {
+                                    // 长按记账：先关闭弹窗，再触发快速记账
+                                    dismiss()
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                                        calendarState.longPressDate = day
+                                    }
                                 }
                             )
                         }

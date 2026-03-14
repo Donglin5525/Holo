@@ -12,6 +12,9 @@ struct ExpandedCalendarView: View {
     
     @State private var swipeOffset: CGFloat = 0
     
+    /// 是否显示年月选择器
+    @State private var showMonthYearPicker: Bool = false
+    
     /// 月历网格（含上下月补位）
     private var gridDates: [Date] {
         CalendarGridGenerator.generateGrid(for: calendarState.currentMonth)
@@ -22,12 +25,21 @@ struct ExpandedCalendarView: View {
     
     var body: some View {
         VStack(spacing: 8) {
-            // 月份标题（无左右箭头，仅展示）
-            Text(CalendarDateFormatter.monthTitle(for: calendarState.currentMonth))
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundColor(.holoTextPrimary)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.top, 6)
+            // 月份标题 — 点击弹出年月选择器
+            Button { showMonthYearPicker = true } label: {
+                HStack(spacing: 4) {
+                    Text(CalendarDateFormatter.monthTitle(for: calendarState.currentMonth))
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.holoTextPrimary)
+                    
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundColor(.holoTextSecondary)
+                }
+            }
+            .buttonStyle(PlainButtonStyle())
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.top, 6)
             
             // 星期标题行
             HStack(spacing: 0) {
@@ -54,7 +66,8 @@ struct ExpandedCalendarView: View {
                                     isSelected: day.isSameDay(as: calendarState.selectedDate),
                                     isCurrentMonth: day.isSameMonth(as: calendarState.currentMonth),
                                     style: .calendar,
-                                    onTap: { calendarState.selectDate(day) }
+                                    onTap: { calendarState.selectDate(day) },
+                                    onLongPress: { calendarState.longPressDate = day }
                                 )
                             }
                         }
@@ -74,6 +87,23 @@ struct ExpandedCalendarView: View {
             )
         }
         .padding(.bottom, 4)
+        // 年月快速选择器弹窗
+        .sheet(isPresented: $showMonthYearPicker) {
+            let cal = Calendar.current
+            let year = cal.component(.year, from: calendarState.currentMonth)
+            let month = cal.component(.month, from: calendarState.currentMonth)
+            MonthYearPickerView(
+                currentYear: year,
+                currentMonth: month,
+                onConfirm: { y, m in
+                    calendarState.jumpToMonth(year: y, month: m)
+                    showMonthYearPicker = false
+                },
+                onCancel: { showMonthYearPicker = false }
+            )
+            .presentationDetents([.height(320)])
+            .presentationDragIndicator(.hidden)
+        }
     }
     
     /// 两阶段月切换动画

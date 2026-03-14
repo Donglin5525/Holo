@@ -231,6 +231,12 @@ struct FinanceLedgerView: View {
     /// 正在编辑的交易
     @State private var editingTransaction: Transaction? = nil
     
+    /// 待删除的交易（滑动删除确认用）
+    @State private var transactionToDelete: Transaction? = nil
+    
+    /// 长按日期快速记账：弹出 Sheet 时使用的预设日期
+    @State private var quickAddDate: Date? = nil
+    
     // --- 月历展开：连续高度控制 ---
     
     /// 已展开高度（0 = 收起，maxCalendarHeight = 完全展开）
@@ -294,9 +300,28 @@ struct FinanceLedgerView: View {
                 calendarState.refreshAfterDataChange()
             }
         }
+        // 长按日期快速记账 Sheet
+        .sheet(isPresented: Binding(
+            get: { quickAddDate != nil },
+            set: { if !$0 { quickAddDate = nil } }
+        )) {
+            if let date = quickAddDate {
+                AddTransactionSheet(editingTransaction: nil, presetDate: date) {
+                    calendarState.refreshAfterDataChange()
+                }
+            }
+        }
         .task { await calendarState.initialLoad() }
         .onReceive(NotificationCenter.default.publisher(for: .financeDataDidChange)) { _ in
             calendarState.refreshAfterDataChange()
+        }
+        // 监听长按日期事件，触发快速记账 Sheet
+        .onChange(of: calendarState.longPressDate) { _, newDate in
+            if let date = newDate {
+                calendarState.selectDate(date)
+                quickAddDate = date
+                calendarState.longPressDate = nil
+            }
         }
     }
     
@@ -325,15 +350,34 @@ struct FinanceLedgerView: View {
             
             Spacer()
             
-            // 日历 icon → 弹出底部抽屉（修复 #1）
-            Button(action: { calendarState.showPopupCalendar() }) {
-                Image(systemName: "calendar")
-                    .font(.system(size: 20, weight: .medium))
-                    .foregroundColor(calendarState.isPopupVisible ? .holoPrimary : .holoTextSecondary)
-                    .frame(width: 40, height: 40)
-                    .background(Color.white)
-                    .clipShape(Circle())
-                    .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+            HStack(spacing: 8) {
+                // 「返回今天」按钮 — 仅在选中日期非今天时显示
+                if !calendarState.selectedDate.isToday {
+                    Button {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            calendarState.goToToday()
+                        }
+                    } label: {
+                        Text("今")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.holoPrimary)
+                            .frame(width: 40, height: 40)
+                            .background(Color.holoPrimary.opacity(0.1))
+                            .clipShape(Circle())
+                    }
+                    .transition(.scale.combined(with: .opacity))
+                }
+                
+                // 日历 icon → 弹出底部抽屉
+                Button(action: { calendarState.showPopupCalendar() }) {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 20, weight: .medium))
+                        .foregroundColor(calendarState.isPopupVisible ? .holoPrimary : .holoTextSecondary)
+                        .frame(width: 40, height: 40)
+                        .background(Color.white)
+                        .clipShape(Circle())
+                        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+                }
             }
         }
         .padding(.horizontal, HoloSpacing.lg)
@@ -405,6 +449,19 @@ struct FinanceLedgerView: View {
             VStack(spacing: HoloSpacing.sm) {
                 ForEach(calendarState.selectedDayTransactions, id: \.self) { tx in
                     TransactionRowView(transaction: tx) { editingTransaction = tx }
+                        .contextMenu {
+                            Button {
+                                editingTransaction = tx
+                            } label: {
+                                Label("编辑", systemImage: "pencil")
+                            }
+                            
+                            Button(role: .destructive) {
+                                transactionToDelete = tx
+                            } label: {
+                                Label("删除", systemImage: "trash")
+                            }
+                        }
                 }
                 
                 if calendarState.selectedDayTransactions.isEmpty && !calendarState.isLoading {
@@ -413,6 +470,37 @@ struct FinanceLedgerView: View {
                 }
             }
             .padding(.horizontal, HoloSpacing.lg)
+        }
+        .confirmationDialog(
+            "确认删除",
+            isPresented: Binding(
+                get: { transactionToDelete != nil },
+                set: { if !$0 { transactionToDelete = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("删除这笔交易", role: .destructive) {
+                if let tx = transactionToDelete {
+                    deleteTransactionFromList(tx)
+                }
+            }
+            Button("取消", role: .cancel) {
+                transactionToDelete = nil
+            }
+        } message: {
+            Text("删除后无法恢复，确定要删除吗？")
+        }
+    }
+    
+    /// 从列表直接删除交易
+    private func deleteTransactionFromList(_ transaction: Transaction) {
+        Task {
+            do {
+                try await FinanceRepository.shared.deleteTransaction(transaction)
+                calendarState.refreshAfterDataChange()
+            } catch {
+                print("[FinanceLedger] 删除交易失败: \(error)")
+            }
         }
     }
 }

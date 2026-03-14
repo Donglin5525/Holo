@@ -40,6 +40,9 @@ class CalendarState: ObservableObject {
     /// 弹窗月历是否显示
     @Published var isPopupVisible: Bool = false
     
+    /// 长按日期快速记账 — 触发后设置此值，外部监听弹出 AddTransactionSheet
+    @Published var longPressDate: Date? = nil
+    
     /// 月度每日汇总
     @Published var dailySummaries: [Date: DailySummary] = [:]
     
@@ -73,6 +76,22 @@ class CalendarState: ObservableObject {
     
     func goToNextMonth() { currentMonth = currentMonth.addingMonths(1); loadMonthIfNeeded() }
     func goToPreviousMonth() { currentMonth = currentMonth.addingMonths(-1); loadMonthIfNeeded() }
+    
+    /// 跳转到指定年月（年月滚轮选择器确认后调用）
+    func jumpToMonth(year: Int, month: Int) {
+        var comps = DateComponents()
+        comps.year = year
+        comps.month = month
+        comps.day = 1
+        guard let target = Calendar.current.date(from: comps) else { return }
+        currentMonth = target.startOfMonth
+        // 选中该月第一天（如果是当前月则选中今天）
+        if Date().isSameMonth(as: target) {
+            selectDate(Date())
+        } else {
+            selectDate(target)
+        }
+    }
     
     func goToNextWeek() {
         currentWeekStart = currentWeekStart.addingWeeks(1)

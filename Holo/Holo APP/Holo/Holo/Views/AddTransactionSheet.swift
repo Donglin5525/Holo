@@ -22,6 +22,9 @@ struct AddTransactionSheet: View {
     /// 正在编辑的交易（nil 表示新增模式）
     let editingTransaction: Transaction?
     
+    /// 预设日期（长按日历日期快速记账时传入，nil 表示使用当天）
+    let presetDate: Date?
+    
     /// 保存完成回调
     let onSave: () -> Void
     
@@ -38,6 +41,12 @@ struct AddTransactionSheet: View {
     
     /// 备注
     @State private var note: String = ""
+    
+    /// 交易日期（编辑/新增时可修改）
+    @State private var selectedDate: Date = Date()
+    
+    /// 是否展开日期选择器
+    @State private var showDatePicker: Bool = false
     
     /// 是否正在保存
     @State private var isSaving: Bool = false
@@ -75,8 +84,9 @@ struct AddTransactionSheet: View {
     
     // MARK: - Initialization
     
-    init(editingTransaction: Transaction?, onSave: @escaping () -> Void) {
+    init(editingTransaction: Transaction?, presetDate: Date? = nil, onSave: @escaping () -> Void) {
         self.editingTransaction = editingTransaction
+        self.presetDate = presetDate
         self.onSave = onSave
     }
     
@@ -102,6 +112,10 @@ struct AddTransactionSheet: View {
                         VStack(spacing: HoloSpacing.lg) {
                             // 分类选择（CategoryPicker 自带内边距）
                             categorySection
+                            
+                            // 日期选择
+                            dateSection
+                                .padding(.horizontal, HoloSpacing.lg)
                             
                             // 备注输入
                             noteSection
@@ -134,6 +148,9 @@ struct AddTransactionSheet: View {
         .onAppear {
             if let transaction = editingTransaction {
                 populateFromTransaction(transaction)
+            } else if let preset = presetDate {
+                // 长按日历日期进入：使用预设日期
+                selectedDate = preset
             }
             startCursorAnimation()
         }
@@ -255,6 +272,72 @@ struct AddTransactionSheet: View {
         )
     }
     
+    // MARK: - Date Section
+    
+    /// 日期选择区域 — 点击展开/收起日期选择器
+    private var dateSection: some View {
+        VStack(spacing: 0) {
+            // 日期显示行
+            Button {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    showDatePicker.toggle()
+                    // 展开日期选择器时隐藏数字键盘、收起备注焦点
+                    if showDatePicker {
+                        showNumericKeypad = false
+                        isNoteFocused = false
+                    }
+                }
+            } label: {
+                HStack(spacing: HoloSpacing.sm) {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundColor(.holoTextSecondary)
+                    
+                    Text(formattedSelectedDate)
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+                    
+                    Spacer()
+                    
+                    Image(systemName: showDatePicker ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.holoTextSecondary)
+                }
+                .padding(HoloSpacing.md)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
+            }
+            .buttonStyle(PlainButtonStyle())
+            
+            // 展开的日期选择器
+            if showDatePicker {
+                DatePicker(
+                    "",
+                    selection: $selectedDate,
+                    displayedComponents: [.date]
+                )
+                .datePickerStyle(.graphical)
+                .environment(\.locale, Locale(identifier: "zh_CN"))
+                .padding(.horizontal, HoloSpacing.sm)
+                .padding(.top, HoloSpacing.sm)
+                .background(Color.white)
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+    }
+    
+    /// 格式化的日期显示文字（X月X日 周X）
+    private var formattedSelectedDate: String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "zh_CN")
+        f.dateFormat = "M月d日 EEEE"
+        let text = f.string(from: selectedDate)
+        if selectedDate.isToday { return "\(text)（今天）" }
+        return text
+    }
+    
     // MARK: - Note Section
     
     /// 备注输入区域
@@ -311,11 +394,11 @@ struct AddTransactionSheet: View {
     /// 从交易填充数据（编辑模式）
     private func populateFromTransaction(_ transaction: Transaction) {
         transactionType = transaction.transactionType
-        // 取绝对值显示（去除负号），因为数据库可能存储负数表示支出
         let absoluteAmount = abs(transaction.amount.decimalValue)
         amountString = String(describing: absoluteAmount)
         selectedCategory = transaction.category
         note = transaction.note ?? ""
+        selectedDate = transaction.date
     }
     
     /// 启动光标闪烁动画
@@ -603,21 +686,22 @@ struct AddTransactionSheet: View {
                 }
                 
                 if let transaction = editingTransaction {
-                    // 编辑模式：更新交易
+                    // 编辑模式：更新交易（含日期变更）
                     var updates = TransactionUpdates()
                     updates.amount = amount
                     updates.category = category
                     updates.note = note.isEmpty ? nil : note
+                    updates.date = selectedDate
                     
                     try await repository.updateTransaction(transaction, updates: updates)
                 } else {
-                    // 新增模式：添加交易
+                    // 新增模式：使用 selectedDate（默认今天，长按日历时为指定日期）
                     _ = try await repository.addTransaction(
                         amount: amount,
                         type: transactionType,
                         category: category,
                         account: defaultAccount,
-                        date: Date(),
+                        date: selectedDate,
                         note: note.isEmpty ? nil : note,
                         tags: nil
                     )
