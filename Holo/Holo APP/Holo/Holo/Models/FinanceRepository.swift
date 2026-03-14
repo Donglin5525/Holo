@@ -276,6 +276,226 @@ class FinanceRepository {
         }
         return result
     }
+    
+    // MARK: - 批量导入
+    
+    /**
+     批量导入交易记录
+     
+     处理流程：
+     1. 预先缓存所有已有分类和账户（减少查询次数）
+     2. 逐条匹配/创建分类和账户
+     3. 每 100 条保存一次（控制内存峰值）
+     4. 返回导入结果（含成功/失败/新建统计）
+     
+     - Parameters:
+       - items: 待导入的交易条目
+       - onProgress: 进度回调 (当前条数, 总条数)
+     - Returns: 批量导入结果
+     */
+    func batchImportTransactions(
+        _ items: [ImportTransactionItem],
+        onProgress: @escaping (Int, Int) -> Void
+    ) async -> BatchImportResult {
+        var successCount = 0
+        var failedItems: [(index: Int, error: String)] = []
+        var newCategoriesCount = 0
+        var newAccountsCount = 0
+        
+        // 缓存已有的分类（key = "type:parentName:childName"）
+        var categoryCache: [String: Category] = [:]
+        // 缓存一级分类（key = "type:name"）
+        var parentCategoryCache: [String: Category] = [:]
+        // 缓存已有的账户（key = name）
+        var accountCache: [String: Account] = [:]
+        
+        // 预加载所有分类
+        if let allCategories = try? context.fetch(Category.fetchRequest()) {
+            for cat in allCategories {
+                if cat.isTopLevel {
+                    parentCategoryCache["\(cat.type):\(cat.name)"] = cat
+                } else if let pid = cat.parentId {
+                    // 查找父级名称用于组合 key
+                    if let parent = allCategories.first(where: { $0.id == pid }) {
+                        categoryCache["\(cat.type):\(parent.name):\(cat.name)"] = cat
+                    }
+                }
+            }
+        }
+        
+        // 预加载所有账户
+        if let allAccounts = try? context.fetch(Account.fetchRequest()) {
+            for acc in allAccounts {
+                accountCache[acc.name] = acc
+            }
+        }
+        
+        let batchSize = 100
+        
+        for (index, item) in items.enumerated() {
+            do {
+                // --- 匹配或创建分类 ---
+                let typeStr = item.type.rawValue
+                let cacheKey = "\(typeStr):\(item.primaryCategory):\(item.subCategory)"
+                
+                let category: Category
+                if let cached = categoryCache[cacheKey] {
+                    category = cached
+                } else {
+                    // 查找或创建一级分类
+                    let parentKey = "\(typeStr):\(item.primaryCategory)"
+                    let parentCategory: Category
+                    if let cachedParent = parentCategoryCache[parentKey] {
+                        parentCategory = cachedParent
+                    } else {
+                        // 新建一级分类
+                        parentCategory = Category.create(
+                            in: context,
+                            name: item.primaryCategory,
+                            icon: "questionmark.circle",
+                            color: "#64748B",
+                            type: typeStr,
+                            isDefault: false,
+                            sortOrder: Int16(parentCategoryCache.count),
+                            parentId: nil
+                        )
+                        parentCategoryCache[parentKey] = parentCategory
+                        newCategoriesCount += 1
+                    }
+                    
+                    // 查找或创建二级分类
+                    if item.subCategory == item.primaryCategory {
+                        // 一级和二级同名时直接使用一级分类
+                        category = parentCategory
+                    } else {
+                        let childCategory = Category.create(
+                            in: context,
+                            name: item.subCategory,
+                            icon: "questionmark.circle",
+                            color: parentCategory.color,
+                            type: typeStr,
+                            isDefault: false,
+                            sortOrder: 0,
+                            parentId: parentCategory.id
+                        )
+                        categoryCache[cacheKey] = childCategory
+                        newCategoriesCount += 1
+                        category = childCategory
+                    }
+                }
+                
+                // --- 匹配或创建账户 ---
+                let accountName = item.accountName.isEmpty ? "现金" : item.accountName
+                let account: Account
+                if let cached = accountCache[accountName] {
+                    account = cached
+                } else {
+                    // 新建账户，根据名称推测类型
+                    let accType = guessAccountType(name: accountName)
+                    let newAccount = Account.create(
+                        in: context,
+                        name: accountName,
+                        type: accType.rawValue,
+                        isDefault: false
+                    )
+                    accountCache[accountName] = newAccount
+                    newAccountsCount += 1
+                    account = newAccount
+                }
+                
+                // --- 创建交易记录 ---
+                let transaction = Transaction(context: context)
+                transaction.id = UUID()
+                transaction.amount = NSDecimalNumber(decimal: item.amount)
+                transaction.type = item.type.rawValue
+                transaction.category = category
+                transaction.account = account
+                transaction.date = item.date
+                transaction.note = item.note
+                transaction.tags = item.tags
+                transaction.createdAt = Date()
+                transaction.updatedAt = Date()
+                
+                successCount += 1
+                
+                // 分批保存
+                if (index + 1) % batchSize == 0 {
+                    try context.save()
+                    context.refreshAllObjects()
+                    // 重新加载缓存（refreshAllObjects 会清除引用）
+                    reloadCaches(
+                        categoryCache: &categoryCache,
+                        parentCategoryCache: &parentCategoryCache,
+                        accountCache: &accountCache
+                    )
+                }
+                
+            } catch {
+                failedItems.append((index: index + 2, error: error.localizedDescription))
+            }
+            
+            onProgress(index + 1, items.count)
+        }
+        
+        // 保存剩余数据
+        do {
+            try context.save()
+        } catch {
+            print("[FinanceRepository] 批量导入最终保存失败: \(error)")
+        }
+        
+        return BatchImportResult(
+            successCount: successCount,
+            failedItems: failedItems,
+            newCategoriesCount: newCategoriesCount,
+            newAccountsCount: newAccountsCount
+        )
+    }
+    
+    // MARK: - 导入辅助方法
+    
+    /// 根据账户名称推测账户类型
+    private func guessAccountType(name: String) -> AccountType {
+        let n = name.lowercased()
+        if n.contains("微信") || n.contains("支付宝") || n.contains("wechat") || n.contains("alipay") {
+            return .digital
+        }
+        if n.contains("信用卡") || n.contains("银行") || n.contains("储蓄") || n.contains("card") || n.contains("bank") {
+            return .card
+        }
+        if n.contains("现金") || n.contains("钱包") || n.contains("cash") {
+            return .cash
+        }
+        return .other
+    }
+    
+    /// 重新加载分类和账户缓存（refreshAllObjects 后需要）
+    private func reloadCaches(
+        categoryCache: inout [String: Category],
+        parentCategoryCache: inout [String: Category],
+        accountCache: inout [String: Account]
+    ) {
+        categoryCache.removeAll()
+        parentCategoryCache.removeAll()
+        accountCache.removeAll()
+        
+        if let allCategories = try? context.fetch(Category.fetchRequest()) {
+            for cat in allCategories {
+                if cat.isTopLevel {
+                    parentCategoryCache["\(cat.type):\(cat.name)"] = cat
+                } else if let pid = cat.parentId {
+                    if let parent = allCategories.first(where: { $0.id == pid }) {
+                        categoryCache["\(cat.type):\(parent.name):\(cat.name)"] = cat
+                    }
+                }
+            }
+        }
+        if let allAccounts = try? context.fetch(Account.fetchRequest()) {
+            for acc in allAccounts {
+                accountCache[acc.name] = acc
+            }
+        }
+    }
 }
 
 // MARK: - Update Models

@@ -564,9 +564,9 @@ struct FinanceAnalysisView: View {
     }
 }
 
-// MARK: - Finance Settings View（设置 — 占位）
+// MARK: - Finance Settings View
 
-/// 财务设置视图（当前为占位，后续迭代实现）
+/// 财务设置视图 — 包含数据导入导出等功能
 struct FinanceSettingsView: View {
     let onBack: () -> Void
     
@@ -600,23 +600,13 @@ struct FinanceSettingsView: View {
             .padding(.top, 0)
             .padding(.bottom, HoloSpacing.md)
             
-            Spacer()
-            
-            VStack(spacing: 20) {
-                Image(systemName: "gearshape.fill")
-                    .font(.system(size: 60, weight: .light))
-                    .foregroundColor(.holoPrimary.opacity(0.4))
-                
-                Text("设置")
-                    .font(.holoTitle)
-                    .foregroundColor(.holoTextPrimary)
-                
-                Text("功能开发中...")
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextSecondary)
+            ScrollView {
+                VStack(spacing: HoloSpacing.xl) {
+                    // 数据导入导出模块
+                    ImportExportView()
+                }
+                .padding(.vertical, HoloSpacing.md)
             }
-            
-            Spacer()
         }
         .background(Color.holoBackground)
     }
