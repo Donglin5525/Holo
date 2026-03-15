@@ -4,6 +4,37 @@
 
 ---
 
+## [2026-03-16] App 图标上线 + 项目结构修复
+
+### 新增功能
+
+#### App 图标
+- 正式设计并集成 HOLO App 图标
+- 图标风格：暖色调米白背景 + 橙色连续线条勾勒的女性轮廓，顶部带有品牌字母 "H"
+- 支持全尺寸适配：iPhone、iPad、App Store（29px ～ 1024px 共 12 个规格）
+- 支持 iOS Light / Dark / Tinted 三种模式
+- 原始图稿保存于 `icon/Holoicon.png`（2048×2048 高清源文件）
+
+#### 项目文档
+- 新增 `CLAUDE.md` 项目规范文件，记录技术栈、目录结构、开发工作流、提交规范等
+
+### 问题修复
+
+#### 项目结构修复（从 Cursor 迁移到 Claude）
+- 修复因跨目录复制项目导致的 Swift 文件重复引用问题（`Multiple commands produce` 编译错误）
+- 删除根目录 `Holo/` 下的 7 个重复 Swift 文件（与 `Holo APP/Holo/Holo/` 内容完全一致）
+- 删除根目录 `Holo/Assets.xcassets/` 重复资源目录，消除 62 个分类图标名称冲突警告
+- 清理旧 DerivedData 缓存（3 个指向 cursor 路径的残留缓存）
+
+### 文件变更
+- `Holo/Holo APP/Holo/Holo/Assets.xcassets/AppIcon.appiconset/` — 新增全套图标文件及更新配置
+- `icon/Holoicon.png` — 新增 App 图标原始源文件
+- `CLAUDE.md` — 新增项目规范文档
+- 删除 `Holo/Assets.xcassets/`（重复资源目录）
+- 删除 `Holo/Components/`、`Holo/Views/`、`Holo/Utils/`、`Holo/ContentView.swift`、`Holo/HoloApp.swift`（重复代码文件）
+
+---
+
 ## [2026-03-15] 习惯图标系统扩展
 
 ### 新增功能
