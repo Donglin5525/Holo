@@ -252,15 +252,10 @@ struct HabitListView: View {
             loadHabits()
         }
         .sheet(item: $selectedHabit, onDismiss: {
-            // sheet 完全销毁后再执行删除/归档
+            // 仅执行待执行操作，让通知系统自动更新 UI（避免 ForEach 问题）
             if let action = pendingAction {
-                // 先从本地数组移除，避免 ForEach 访问已删除对象
-                switch action {
-                case .delete(let id), .archive(let id):
-                    habits.removeAll { $0.id == id }
-                }
-                // 延迟执行 Core Data 操作，确保 UI 完全更新
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                // 延迟执行，确保 sheet 完全销毁
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
                     Task { @MainActor in
                         switch action {
                         case .delete(let id): try? HabitRepository.shared.deleteHabitById(id)
