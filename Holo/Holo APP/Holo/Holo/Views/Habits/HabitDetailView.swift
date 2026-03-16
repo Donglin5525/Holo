@@ -52,7 +52,9 @@ struct HabitDetailView: View {
     @State private var snapshot = HabitDetailSnapshot()
     @State private var showEditSheet: Bool = false
     @State private var showDeleteAlert: Bool = false
-    /// 标记是否正在删除或归档当前习惯（避免 onReceive 访问已删除对象）
+    /// 缓存的 habit ID（避免 onReceive 访问已删除的 habit 对象）
+    @State private var cachedHabitId: UUID? = nil
+    /// 标记是否正在删除或归档当前习惯
     @State private var isDeletingOrArchiving: Bool = false
     
     // MARK: - Body
@@ -111,16 +113,18 @@ struct HabitDetailView: View {
                 }
             }
             .onAppear {
+                cachedHabitId = habit.id  // 缓存 ID，供 onReceive 使用
                 refreshAll()
             }
             .onChange(of: selectedRange) { _, _ in
                 refreshAll()
             }
             .onReceive(NotificationCenter.default.publisher(for: .habitDataDidChange)) { notification in
-                // 如果正在删除或归档当前习惯，忽略通知（避免访问已删除对象导致崩溃）
+                // 如果正在删除或归档当前习惯，忽略通知（完全不访问 habit 对象）
                 if isDeletingOrArchiving { return }
 
-                if let changedHabitId = notification.object as? UUID, changedHabitId != habit.id {
+                // 用缓存的 ID 比较，完全避免访问已删除的 habit 对象
+                if let changedHabitId = notification.object as? UUID, changedHabitId != cachedHabitId {
                     return
                 }
                 refreshAll()
@@ -144,12 +148,12 @@ struct HabitDetailView: View {
     // MARK: - 数据刷新（所有 Core Data 查询在此完成，不在 body 中执行）
     
     private func refreshAll() {
-        // 检查对象是否已被删除
-        guard !habit.isDeleted, habit.managedObjectContext != nil else { return }
-        
+        // 如果正在删除/归档，不执行任何数据刷新
+        if isDeletingOrArchiving { return }
+
         Task { @MainActor in
-            // 再次检查（Task 执行前对象可能已被删除）
-            guard !habit.isDeleted, habit.managedObjectContext != nil else { return }
+            // 再次检查（Task 执行前对象可能已被删除或正在删除）
+            if isDeletingOrArchiving { return }
             
             let repo = HabitRepository.shared
             
