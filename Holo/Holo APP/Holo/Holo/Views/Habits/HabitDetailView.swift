@@ -52,6 +52,8 @@ struct HabitDetailView: View {
     @State private var snapshot = HabitDetailSnapshot()
     @State private var showEditSheet: Bool = false
     @State private var showDeleteAlert: Bool = false
+    /// 标记是否正在删除或归档当前习惯（避免 onReceive 访问已删除对象）
+    @State private var isDeletingOrArchiving: Bool = false
     
     // MARK: - Body
     
@@ -115,8 +117,8 @@ struct HabitDetailView: View {
                 refreshAll()
             }
             .onReceive(NotificationCenter.default.publisher(for: .habitDataDidChange)) { notification in
-                // 检查 habit 是否已被删除（重要：避免访问已删除对象导致崩溃）
-                guard !habit.isDeleted, habit.managedObjectContext != nil else { return }
+                // 如果正在删除或归档当前习惯，忽略通知（避免访问已删除对象导致崩溃）
+                if isDeletingOrArchiving { return }
 
                 if let changedHabitId = notification.object as? UUID, changedHabitId != habit.id {
                     return
@@ -441,6 +443,7 @@ struct HabitDetailView: View {
     
     private func archiveHabit() {
         let habitId = habit.id
+        isDeletingOrArchiving = true  // 立即标记，阻止 onReceive 处理通知
         if let onWillDelete = onWillDelete {
             // 有回调时，让父视图关闭 sheet（确保 onReceive 被清理）
             onWillDelete(.archive(habitId))
@@ -456,6 +459,7 @@ struct HabitDetailView: View {
 
     private func deleteHabit() {
         let habitId = habit.id
+        isDeletingOrArchiving = true  // 立即标记，阻止 onReceive 处理通知
         if let onWillDelete = onWillDelete {
             // 有回调时，让父视图关闭 sheet（确保 onReceive 被清理）
             onWillDelete(.delete(habitId))
