@@ -115,6 +115,9 @@ struct HabitDetailView: View {
                 refreshAll()
             }
             .onReceive(NotificationCenter.default.publisher(for: .habitDataDidChange)) { notification in
+                // 检查 habit 是否已被删除（重要：避免访问已删除对象导致崩溃）
+                guard !habit.isDeleted, habit.managedObjectContext != nil else { return }
+
                 if let changedHabitId = notification.object as? UUID, changedHabitId != habit.id {
                     return
                 }
