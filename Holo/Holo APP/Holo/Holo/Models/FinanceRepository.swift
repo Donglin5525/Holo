@@ -100,6 +100,90 @@ class FinanceRepository {
         return try context.fetch(request)
     }
     
+    // MARK: - 分期交易操作
+
+    /// 一次性创建分期交易（N 笔）
+    @discardableResult
+    func addInstallmentTransactions(
+        totalAmount: Decimal,
+        feePerPeriod: Decimal,
+        periods: Int,
+        type: TransactionType,
+        category: Category,
+        account: Account,
+        startDate: Date,
+        note: String?
+    ) async throws -> [Transaction] {
+        let groupId = UUID()
+        let perPeriodBase = totalAmount / Decimal(periods)
+        var transactions: [Transaction] = []
+
+        for i in 0..<periods {
+            // 末期吸收尾差
+            let isLast = (i == periods - 1)
+            let previousSum = perPeriodBase * Decimal(periods - 1)
+            let baseAmount = isLast ? (totalAmount - previousSum) : perPeriodBase
+            let periodAmount = baseAmount + feePerPeriod
+
+            guard let periodDate = Calendar.current.date(byAdding: .month, value: i, to: startDate) else {
+                continue
+            }
+
+            let notePrefix = "[分期 \(i + 1)/\(periods)]"
+            let fullNote = note.map { "\(notePrefix) \($0)" } ?? notePrefix
+
+            let tx = Transaction(context: context)
+            tx.id = UUID()
+            tx.amount = NSDecimalNumber(decimal: periodAmount)
+            tx.type = type.rawValue
+            tx.category = category
+            tx.account = account
+            tx.date = periodDate
+            tx.note = fullNote
+            tx.createdAt = Date()
+            tx.updatedAt = Date()
+            tx.installmentGroupId = groupId
+            tx.installmentIndex = Int16(i + 1)
+            tx.installmentTotal = Int16(periods)
+
+            transactions.append(tx)
+        }
+
+        try context.save()
+        return transactions
+    }
+
+    /// 查询同一分期组的所有交易
+    func getInstallmentGroup(groupId: UUID) async throws -> [Transaction] {
+        let request = Transaction.fetchRequest()
+        request.predicate = NSPredicate(format: "installmentGroupId == %@", groupId as CVarArg)
+        request.sortDescriptors = [NSSortDescriptor(key: "installmentIndex", ascending: true)]
+        return try context.fetch(request)
+    }
+
+    /// 删除整个分期组
+    func deleteInstallmentGroup(groupId: UUID) async throws {
+        let transactions = try await getInstallmentGroup(groupId: groupId)
+        for tx in transactions {
+            context.delete(tx)
+        }
+        try context.save()
+    }
+
+    // MARK: - 搜索
+
+    /// 搜索交易记录（按备注和分类名模糊匹配）
+    func searchTransactions(keyword: String, limit: Int = 50) async throws -> [Transaction] {
+        let request = Transaction.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "note CONTAINS[cd] %@ OR category.name CONTAINS[cd] %@",
+            keyword, keyword
+        )
+        request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
+        request.fetchLimit = limit
+        return try context.fetch(request)
+    }
+
     // MARK: - Category Operations
     
     func getAllCategories() async throws -> [Category] {

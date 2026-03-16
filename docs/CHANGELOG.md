@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### Features
+- **iOS**: 分期记账功能 — 支持 3/6/12/24 期及自定义期数，自动分摊金额+手续费
+  - Core Data 模型新增 installmentGroupId/installmentIndex/installmentTotal 字段
+  - AddTransactionSheet 新增分期设置区域（期数选择、手续费输入）
+  - 支持分期交易单笔删除或整组删除
+- **iOS**: 交易搜索功能 — 新增 FinanceSearchView，支持关键词搜索交易记录
+  - FinanceView 顶部新增搜索按钮入口
+
 ### Bug Fixes
 - **iOS**: 修复删除/归档习惯时真机闪退（EXC_BREAKPOINT）问题 — 多视图竞态条件全面修复
   - HabitsView: 通知驱动 UI 更新，避免 sheet.onDismiss 直接修改数组
@@ -13,7 +21,7 @@
 ### Chores
 - 精简 CLAUDE.md，移除与全局规则重复的内容
 - 配置真机开发环境（DEVELOPMENT_TEAM、Bundle ID）
-- 新增分期搜索功能计划文档
+- 文档重组：按模块划分子目录（`docs/_common/`、`docs/finance/`）
 
 ## [0.3.0] - 2025-03-16
 

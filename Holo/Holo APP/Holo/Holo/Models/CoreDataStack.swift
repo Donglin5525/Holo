@@ -165,6 +165,28 @@ class CoreDataStack {
         accountRelation.maxCount = 1
         accountRelation.isOptional = false
         
+        // 分期记账字段
+        let installmentGroupId = NSAttributeDescription()
+        installmentGroupId.name = "installmentGroupId"
+        installmentGroupId.attributeType = .UUIDAttributeType
+        installmentGroupId.isOptional = true
+        installmentGroupId.isIndexed = true
+        attributes.append(installmentGroupId)
+
+        let installmentIndex = NSAttributeDescription()
+        installmentIndex.name = "installmentIndex"
+        installmentIndex.attributeType = .integer16AttributeType
+        installmentIndex.isOptional = false
+        installmentIndex.defaultValue = 0
+        attributes.append(installmentIndex)
+
+        let installmentTotal = NSAttributeDescription()
+        installmentTotal.name = "installmentTotal"
+        installmentTotal.attributeType = .integer16AttributeType
+        installmentTotal.isOptional = false
+        installmentTotal.defaultValue = 0
+        attributes.append(installmentTotal)
+
         transactionEntity.properties = attributes + [categoryRelation, accountRelation]
         
         // MARK: - Category Entity

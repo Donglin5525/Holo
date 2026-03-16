@@ -25,8 +25,22 @@ public class Transaction: NSManagedObject {
     @NSManaged public var updatedAt: Date
     @NSManaged public var category: Category
     @NSManaged public var account: Account
-    
+
+    // 分期记账字段
+    @NSManaged public var installmentGroupId: UUID?
+    @NSManaged public var installmentIndex: Int16
+    @NSManaged public var installmentTotal: Int16
+
     // MARK: - Computed Properties
+
+    /// 是否为分期交易
+    var isInstallment: Bool { installmentGroupId != nil }
+
+    /// 分期显示文字，如 "3/12期"
+    var installmentLabel: String? {
+        guard isInstallment else { return nil }
+        return "\(installmentIndex)/\(installmentTotal)期"
+    }
     
     /// 交易类型枚举
     var transactionType: TransactionType {

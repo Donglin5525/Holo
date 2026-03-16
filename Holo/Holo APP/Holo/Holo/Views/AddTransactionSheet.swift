@@ -65,6 +65,13 @@ struct AddTransactionSheet: View {
     
     /// 备注输入框是否获得焦点（用于控制键盘切换）
     @FocusState private var isNoteFocused: Bool
+
+    // 分期设置
+    @State private var isInstallment: Bool = false
+    @State private var installmentPeriods: Int = 12
+    @State private var feePerPeriod: String = ""
+    @State private var showCustomPeriods: Bool = false
+    @State private var customPeriodsText: String = ""
     
     /// 是否为编辑模式
     private var isEditMode: Bool {
@@ -120,6 +127,12 @@ struct AddTransactionSheet: View {
                             // 备注输入
                             noteSection
                                 .padding(.horizontal, HoloSpacing.lg)
+
+                            // 分期设置（仅新增模式）
+                            if !isEditMode {
+                                installmentSection
+                                    .padding(.horizontal, HoloSpacing.lg)
+                            }
                         }
                     }
                     .frame(maxHeight: .infinity)
@@ -358,6 +371,177 @@ struct AddTransactionSheet: View {
         .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
     }
     
+    // MARK: - Installment Section
+
+    /// 分期设置区域
+    private var installmentSection: some View {
+        VStack(spacing: 0) {
+            // 分期开关
+            HStack {
+                Image(systemName: "repeat")
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundColor(.holoTextSecondary)
+
+                Text("分期付款")
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextPrimary)
+
+                Spacer()
+
+                Toggle("", isOn: $isInstallment)
+                    .labelsHidden()
+                    .tint(.holoPrimary)
+            }
+            .padding(HoloSpacing.md)
+
+            // 展开后显示详细设置
+            if isInstallment {
+                VStack(spacing: HoloSpacing.md) {
+                    Divider()
+
+                    // 期数快捷选择
+                    VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                        Text("期数")
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextSecondary)
+
+                        HStack(spacing: HoloSpacing.sm) {
+                            ForEach([3, 6, 12, 24], id: \.self) { period in
+                                Button {
+                                    installmentPeriods = period
+                                    showCustomPeriods = false
+                                } label: {
+                                    Text("\(period)期")
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(
+                                            !showCustomPeriods && installmentPeriods == period
+                                                ? .white : .holoTextPrimary
+                                        )
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 6)
+                                        .background(
+                                            !showCustomPeriods && installmentPeriods == period
+                                                ? Color.holoPrimary
+                                                : Color.holoBackground
+                                        )
+                                        .clipShape(Capsule())
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            }
+
+                            // 自定义按钮
+                            Button {
+                                showCustomPeriods = true
+                            } label: {
+                                if showCustomPeriods {
+                                    HStack(spacing: 2) {
+                                        TextField("", text: $customPeriodsText)
+                                            .font(.system(size: 14, weight: .medium))
+                                            .foregroundColor(.white)
+                                            .keyboardType(.numberPad)
+                                            .frame(width: 30)
+                                            .multilineTextAlignment(.center)
+                                            .onChange(of: customPeriodsText) { _, newValue in
+                                                if let val = Int(newValue), val > 0 {
+                                                    installmentPeriods = val
+                                                }
+                                            }
+                                        Text("期")
+                                            .font(.system(size: 14, weight: .medium))
+                                            .foregroundColor(.white)
+                                    }
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background(Color.holoPrimary)
+                                    .clipShape(Capsule())
+                                } else {
+                                    Text("自定义")
+                                        .font(.system(size: 14, weight: .medium))
+                                        .foregroundColor(.holoTextSecondary)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 6)
+                                        .background(Color.holoBackground)
+                                        .clipShape(Capsule())
+                                }
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+                    }
+
+                    // 每期手续费
+                    HStack(spacing: HoloSpacing.sm) {
+                        Text("手续费")
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextSecondary)
+
+                        HStack(spacing: 4) {
+                            Text("¥")
+                                .font(.holoBody)
+                                .foregroundColor(.holoTextSecondary)
+                            TextField("0.00", text: $feePerPeriod)
+                                .font(.holoBody)
+                                .keyboardType(.decimalPad)
+                                .frame(width: 80)
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 6)
+                        .background(Color.holoBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
+
+                        Text("/每期")
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextSecondary)
+
+                        Spacer()
+                    }
+
+                    Divider()
+
+                    // 实时计算预览
+                    installmentPreview
+                }
+                .padding(.horizontal, HoloSpacing.md)
+                .padding(.bottom, HoloSpacing.md)
+            }
+        }
+        .background(Color.white)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+        .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
+    }
+
+    /// 分期预览信息
+    private var installmentPreview: some View {
+        let totalAmount = Decimal(string: displayAmountString) ?? 0
+        let fee = Decimal(string: feePerPeriod) ?? 0
+        let periods = max(installmentPeriods, 1)
+        let perPeriod = totalAmount / Decimal(periods) + fee
+        let totalFee = fee * Decimal(periods)
+        let totalCost = totalAmount + totalFee
+
+        return VStack(spacing: HoloSpacing.xs) {
+            installmentPreviewRow(label: "每期金额", value: formatPreviewAmount(perPeriod))
+            installmentPreviewRow(label: "总手续费", value: formatPreviewAmount(totalFee))
+            installmentPreviewRow(label: "实际总支出", value: formatPreviewAmount(totalCost))
+        }
+    }
+
+    private func installmentPreviewRow(label: String, value: String) -> some View {
+        HStack {
+            Text(label)
+                .font(.holoCaption)
+                .foregroundColor(.holoTextSecondary)
+            Spacer()
+            Text(value)
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(.holoTextPrimary)
+        }
+    }
+
+    private func formatPreviewAmount(_ amount: Decimal) -> String {
+        let formatter = NumberFormatter.currency
+        return formatter.string(from: amount as NSDecimalNumber) ?? "¥0.00"
+    }
+
     // MARK: - Numeric Keypad
     
     /// 数字键盘
@@ -692,8 +876,21 @@ struct AddTransactionSheet: View {
                     updates.category = category
                     updates.note = note.isEmpty ? nil : note
                     updates.date = selectedDate
-                    
+
                     try await repository.updateTransaction(transaction, updates: updates)
+                } else if isInstallment {
+                    // 分期模式：一次创建多笔交易
+                    let fee = Decimal(string: feePerPeriod) ?? 0
+                    _ = try await repository.addInstallmentTransactions(
+                        totalAmount: amount,
+                        feePerPeriod: fee,
+                        periods: installmentPeriods,
+                        type: transactionType,
+                        category: category,
+                        account: defaultAccount,
+                        startDate: selectedDate,
+                        note: note.isEmpty ? nil : note
+                    )
                 } else {
                     // 新增模式：使用 selectedDate（默认今天，长按日历时为指定日期）
                     _ = try await repository.addTransaction(

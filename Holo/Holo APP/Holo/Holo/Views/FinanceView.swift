@@ -233,9 +233,15 @@ struct FinanceLedgerView: View {
     
     /// 待删除的交易（滑动删除确认用）
     @State private var transactionToDelete: Transaction? = nil
+
+    /// 是否显示分期删除选项
+    @State private var showInstallmentDeleteOptions: Bool = false
     
     /// 长按日期快速记账：弹出 Sheet 时使用的预设日期
     @State private var quickAddDate: Date? = nil
+
+    /// 是否显示搜索页
+    @State private var showSearch: Bool = false
     
     // --- 月历展开：连续高度控制 ---
     
@@ -311,6 +317,9 @@ struct FinanceLedgerView: View {
                 }
             }
         }
+        .fullScreenCover(isPresented: $showSearch) {
+            FinanceSearchView()
+        }
         .task { await calendarState.initialLoad() }
         .onReceive(NotificationCenter.default.publisher(for: .financeDataDidChange)) { _ in
             calendarState.refreshAfterDataChange()
@@ -351,6 +360,17 @@ struct FinanceLedgerView: View {
             Spacer()
             
             HStack(spacing: 8) {
+                // 搜索按钮
+                Button { showSearch = true } label: {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundColor(.holoTextSecondary)
+                        .frame(width: 40, height: 40)
+                        .background(Color.white)
+                        .clipShape(Circle())
+                        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+                }
+
                 // 「返回今天」按钮 — 仅在选中日期非今天时显示
                 if !calendarState.selectedDate.isToday {
                     Button {
@@ -458,6 +478,9 @@ struct FinanceLedgerView: View {
                             
                             Button(role: .destructive) {
                                 transactionToDelete = tx
+                                if tx.isInstallment {
+                                    showInstallmentDeleteOptions = true
+                                }
                             } label: {
                                 Label("删除", systemImage: "trash")
                             }
@@ -471,10 +494,11 @@ struct FinanceLedgerView: View {
             }
             .padding(.horizontal, HoloSpacing.lg)
         }
+        // 普通交易删除确认
         .confirmationDialog(
             "确认删除",
             isPresented: Binding(
-                get: { transactionToDelete != nil },
+                get: { transactionToDelete != nil && !showInstallmentDeleteOptions },
                 set: { if !$0 { transactionToDelete = nil } }
             ),
             titleVisibility: .visible
@@ -490,6 +514,30 @@ struct FinanceLedgerView: View {
         } message: {
             Text("删除后无法恢复，确定要删除吗？")
         }
+        // 分期交易删除选项
+        .confirmationDialog(
+            "删除分期交易",
+            isPresented: $showInstallmentDeleteOptions,
+            titleVisibility: .visible
+        ) {
+            Button("仅删除此期", role: .destructive) {
+                if let tx = transactionToDelete {
+                    deleteTransactionFromList(tx)
+                }
+            }
+            Button("删除全部分期", role: .destructive) {
+                if let tx = transactionToDelete, let groupId = tx.installmentGroupId {
+                    deleteInstallmentGroupFromList(groupId)
+                }
+            }
+            Button("取消", role: .cancel) {
+                transactionToDelete = nil
+            }
+        } message: {
+            if let tx = transactionToDelete {
+                Text("这是一笔分期交易（\(tx.installmentLabel ?? "")），请选择删除方式")
+            }
+        }
     }
     
     /// 从列表直接删除交易
@@ -501,6 +549,20 @@ struct FinanceLedgerView: View {
             } catch {
                 print("[FinanceLedger] 删除交易失败: \(error)")
             }
+            transactionToDelete = nil
+        }
+    }
+
+    /// 删除整个分期组
+    private func deleteInstallmentGroupFromList(_ groupId: UUID) {
+        Task {
+            do {
+                try await FinanceRepository.shared.deleteInstallmentGroup(groupId: groupId)
+                calendarState.refreshAfterDataChange()
+            } catch {
+                print("[FinanceLedger] 删除分期组失败: \(error)")
+            }
+            transactionToDelete = nil
         }
     }
 }
@@ -768,7 +830,18 @@ struct TransactionRowView: View {
                             .padding(.vertical, 2)
                             .background(Color.holoBackground)
                             .clipShape(Capsule())
-                        
+
+                        // 分期标签
+                        if let label = transaction.installmentLabel {
+                            Text(label)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.holoPrimary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.holoPrimary.opacity(0.15))
+                                .clipShape(Capsule())
+                        }
+
                         Text(transaction.date, style: .time)
                             .font(.system(size: 12))
                             .foregroundColor(.holoTextSecondary)
