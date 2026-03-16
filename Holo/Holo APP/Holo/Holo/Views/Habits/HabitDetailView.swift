@@ -438,23 +438,27 @@ struct HabitDetailView: View {
     
     private func archiveHabit() {
         let habitId = habit.id
-        dismiss()  // 先 dismiss，确保 onReceive 通知监听被清理
         if let onWillDelete = onWillDelete {
+            // 有回调时，让父视图关闭 sheet（确保 onReceive 被清理）
             onWillDelete(.archive(habitId))
         } else {
+            // 没有回调时，自己处理
+            dismiss()
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 300_000_000)
                 try? HabitRepository.shared.archiveHabitById(habitId)
             }
         }
     }
-    
+
     private func deleteHabit() {
         let habitId = habit.id
-        dismiss()  // 先 dismiss，确保 onReceive 通知监听被清理
         if let onWillDelete = onWillDelete {
+            // 有回调时，让父视图关闭 sheet（确保 onReceive 被清理）
             onWillDelete(.delete(habitId))
         } else {
+            // 没有回调时，自己处理
+            dismiss()
             Task { @MainActor in
                 try? await Task.sleep(nanoseconds: 300_000_000)
                 try? HabitRepository.shared.deleteHabitById(habitId)
