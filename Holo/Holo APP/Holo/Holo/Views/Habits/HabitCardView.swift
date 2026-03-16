@@ -26,6 +26,8 @@ struct HabitCardView: View {
     @State private var streak: Int = 0
     @State private var showValueInput: Bool = false
     @State private var inputValue: String = ""
+    /// 缓存的 habit ID，避免 onReceive 访问已删除对象
+    @State private var cachedHabitId: UUID? = nil
     
     // MARK: - Body
     
@@ -54,10 +56,12 @@ struct HabitCardView: View {
                 .stroke(Color.white.opacity(0.5), lineWidth: 1)
         )
         .onAppear {
+            cachedHabitId = habit.id  // 缓存 ID，供 onReceive 使用
             loadStatus()
         }
         .onReceive(NotificationCenter.default.publisher(for: .habitDataDidChange)) { notification in
-            if let changedHabitId = notification.object as? UUID, changedHabitId != habit.id {
+            // 用缓存的 ID 过滤，完全不访问 habit 对象
+            if let changedHabitId = notification.object as? UUID, changedHabitId != cachedHabitId {
                 return
             }
             loadStatus()
@@ -70,13 +74,13 @@ struct HabitCardView: View {
     // MARK: - 加载状态
     
     private func loadStatus() {
-        // 检查对象是否已被删除，避免访问无效的 NSManagedObject
-        guard !habit.isDeleted, habit.managedObjectContext != nil else { return }
-        
+        // 离开 body 时检查一次
+        guard habit.managedObjectContext != nil else { return }
+
         Task { @MainActor in
-            // 再次检查（Task 执行前对象可能已被删除）
-            guard !habit.isDeleted, habit.managedObjectContext != nil else { return }
-            
+            // 再检查一次，防止 Task 执行时对象已被删除
+            guard habit.managedObjectContext != nil else { return }
+
             let repo = HabitRepository.shared
             if habit.isCheckInType {
                 isCompleted = repo.isTodayCompleted(for: habit)
