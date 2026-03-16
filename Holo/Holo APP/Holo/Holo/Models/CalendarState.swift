@@ -103,6 +103,15 @@ class CalendarState: ObservableObject {
     }
     
     func goToToday() { selectDate(Date()) }
+
+    /// 将 currentMonth 同步回 selectedDate 所在月（月历收起时调用，防止月/周不一致）
+    func syncMonthToSelectedDate() {
+        let target = selectedDate.startOfMonth
+        if currentMonth != target {
+            currentMonth = target
+            Task { await loadMonthSummaries(for: currentMonth) }
+        }
+    }
     
     // MARK: - 展开控制
     

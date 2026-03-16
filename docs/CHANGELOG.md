@@ -13,6 +13,9 @@
   - FinanceView 顶部新增搜索按钮入口
 
 ### Bug Fixes
+- **iOS**: 修复周视图点击日期跳转到错误周的问题 — 隐藏的月历网格触摸事件穿透
+- **iOS**: 修复切换 Tab 后日历状态丢失的问题 — CalendarState 提升到 FinanceView 层级
+- **iOS**: 优化账本标题显示，非今天仅显示「M月d日」避免换行
 - **iOS**: 修复删除/归档习惯时真机闪退（EXC_BREAKPOINT）问题 — 多视图竞态条件全面修复
   - HabitsView: 通知驱动 UI 更新，避免 sheet.onDismiss 直接修改数组
   - HabitDetailView: 缓存 habit ID，三层防线避免访问已删除对象

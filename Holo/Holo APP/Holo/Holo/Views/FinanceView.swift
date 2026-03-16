@@ -33,13 +33,16 @@ enum FinanceTab: String, CaseIterable {
 /// 管理三个子 Tab：统计分析、账本列表、设置
 /// 支持从左边缘向右滑动返回首页
 struct FinanceView: View {
-    
+
     // MARK: - Properties
-    
+
     @Environment(\.dismiss) var dismiss
     @State private var selectedTab: FinanceTab = .ledger
     @State private var showAddTransaction: Bool = false
-    
+
+    /// 日历状态提升到此层级，避免切换 Tab 时被销毁
+    @StateObject private var calendarState = CalendarState()
+
     /// 右滑返回偏移量
     @State private var swipeBackOffset: CGFloat = 0
     
@@ -55,6 +58,7 @@ struct FinanceView: View {
                     FinanceAnalysisView(onBack: { dismiss() })
                 case .ledger:
                     FinanceLedgerView(
+                        calendarState: calendarState,
                         onBack: { dismiss() },
                         showAddTransaction: $showAddTransaction
                     )
@@ -219,14 +223,14 @@ extension Notification.Name {
 /// 修复：① 日历 icon 弹出底部抽屉  ② 展开月历时隐藏周视图
 ///       ③ 安全区避开灵动岛  ④ 单日期标题  ⑤ 返回按钮 + 手势
 struct FinanceLedgerView: View {
-    
+
     // MARK: - Properties
-    
+
+    /// 日历状态（由父视图持有，切换 Tab 时不丢失）
+    @ObservedObject var calendarState: CalendarState
+
     let onBack: () -> Void
     @Binding var showAddTransaction: Bool
-    
-    /// 日历统一状态管理器
-    @StateObject private var calendarState = CalendarState()
     
     /// 正在编辑的交易
     @State private var editingTransaction: Transaction? = nil
@@ -279,9 +283,11 @@ struct FinanceLedgerView: View {
                 .clipped()
             
             // 月历区域：通过高度 + clip 控制可见区域
+            // allowsHitTesting: 高度为 0 时禁止触摸，防止点击周视图误触隐藏的月历格子
             ExpandedCalendarView(calendarState: calendarState)
                 .frame(height: effectiveCalendarHeight)
                 .clipped()
+                .allowsHitTesting(effectiveCalendarHeight > 0)
             
             // 拖拽手柄
             calendarDragHandle
@@ -406,10 +412,10 @@ struct FinanceLedgerView: View {
         .background(Color.holoBackground)
     }
     
-    /// 标题：今天显示"今日账本"，其他日期显示"X月X日 账本"
+    /// 标题：今天显示"今日账本"，其他日期仅显示"M月d日"
     private var headerTitle: String {
         if calendarState.selectedDate.isToday { return "今日账本" }
-        let f = DateFormatter(); f.locale = Locale(identifier: "zh_CN"); f.dateFormat = "M月d日 账本"
+        let f = DateFormatter(); f.locale = Locale(identifier: "zh_CN"); f.dateFormat = "M月d日"
         return f.string(from: calendarState.selectedDate)
     }
     
@@ -438,6 +444,10 @@ struct FinanceLedgerView: View {
                         calendarRevealHeight = shouldExpand ? maxCalendarHeight : 0
                     }
                     calendarState.expandState = shouldExpand ? .expanded : .collapsed
+                    // 收起时：将 currentMonth 同步回 selectedDate 所在月，避免周视图和月状态不一致
+                    if !shouldExpand {
+                        calendarState.syncMonthToSelectedDate()
+                    }
                 }
         )
     }
