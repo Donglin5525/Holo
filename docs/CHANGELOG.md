@@ -5,6 +5,11 @@
 ## [Unreleased]
 
 ### Features
+- **iOS**: 深色模式完整适配 — 支持跟随系统/浅色/深色三种模式
+  - 新增 DarkModeManager 单例管理器，UserDefaults 持久化用户设置
+  - 新增 SettingsView 设置页面，从首页右上角人头像进入
+  - 新增 9 个 Asset Catalog Color Sets（Background/CardBackground/TextPrimary/TextSecondary 等）
+  - 每个颜色支持 Light/Dark 双变体，系统自动切换
 - **iOS**: 分期记账功能 — 支持 3/6/12/24 期及自定义期数，自动分摊金额+手续费
   - Core Data 模型新增 installmentGroupId/installmentIndex/installmentTotal 字段
   - AddTransactionSheet 新增分期设置区域（期数选择、手续费输入）
