@@ -128,7 +128,7 @@ struct FinanceSearchView: View {
         }
         .padding(.horizontal, HoloSpacing.lg)
         .padding(.vertical, HoloSpacing.sm)
-        .background(Color.white)
+        .background(Color.holoCardBackground)
     }
 
     // MARK: - Recent Search

@@ -78,14 +78,14 @@ struct AddTransactionView: View {
                             selectedCategory: $selectedCategory,
                             transactionType: $transactionType
                         )
-                        .background(Color.white)
+                        .background(Color.holoCardBackground)
                         
                         Divider()
                             .padding(.horizontal, HoloSpacing.lg)
                         
                         // 账户选择
                         AccountPicker(selectedAccount: $selectedAccount)
-                            .background(Color.white)
+                            .background(Color.holoCardBackground)
                         
                         Divider()
                             .padding(.horizontal, HoloSpacing.lg)
@@ -96,7 +96,7 @@ struct AddTransactionView: View {
                             showPicker: $showDatePicker
                         )
                         .padding(HoloSpacing.md)
-                        .background(Color.white)
+                        .background(Color.holoCardBackground)
                         
                         Divider()
                             .padding(.horizontal, HoloSpacing.lg)
@@ -104,14 +104,14 @@ struct AddTransactionView: View {
                         // 备注输入
                         NoteInput(note: $note)
                             .padding(HoloSpacing.md)
-                            .background(Color.white)
+                            .background(Color.holoCardBackground)
                         
                         Divider()
                             .padding(.horizontal, HoloSpacing.lg)
                         
                         // 标签选择
                         TagSelector(selectedTags: $selectedTags)
-                            .background(Color.white)
+                            .background(Color.holoCardBackground)
                     }
                     .background(Color.holoBackground)
                     

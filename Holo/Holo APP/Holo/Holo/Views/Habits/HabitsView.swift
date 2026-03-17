@@ -105,14 +105,14 @@ struct HabitsView: View {
             .padding(.top, 8)
             .padding(.bottom, bottomInset)
             .background(
-                Color.white
-                    .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: -2)
+                Color.holoCardBackground
+                    .shadow(color: HoloShadow.card, radius: 10, x: 0, y: -2)
                     .ignoresSafeArea(edges: .bottom)
             )
         }
         .frame(height: 88)
         .frame(maxWidth: .infinity)
-        .background(Color.white.ignoresSafeArea(edges: .bottom))
+        .background(Color.holoCardBackground.ignoresSafeArea(edges: .bottom))
         .zIndex(40)
     }
     

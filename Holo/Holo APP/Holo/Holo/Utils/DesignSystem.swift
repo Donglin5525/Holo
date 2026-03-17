@@ -19,19 +19,19 @@ extension Color {
     static let holoPrimaryLight = Color(red: 254/255, green: 215/255, blue: 170/255)  // #FED7AA
     static let holoPrimaryDark = Color(red: 234/255, green: 88/255, blue: 12/255)  // #EA580C
     
-    // MARK: - 背景色
-    /// 主背景色 - 米白色调
-    static let holoBackground = Color(red: 253/255, green: 252/255, blue: 248/255)  // #FDFCF8
+    // MARK: - 背景色 (支持 Dark Mode)
+    /// 主背景色 - 米白色调 / 深色模式
+    static let holoBackground = Color("Background")
     /// 卡片背景色
-    static let holoCardBackground = Color.white
+    static let holoCardBackground = Color("CardBackground")
     
-    // MARK: - 文字颜色
-    /// 主文字颜色 - 深灰色
-    static let holoTextPrimary = Color(red: 51/255, green: 51/255, blue: 51/255)  // #333333
+    // MARK: - 文字颜色 (支持 Dark Mode)
+    /// 主文字颜色 - 深灰色 / 浅色模式
+    static let holoTextPrimary = Color("TextPrimary")
     /// 次要文字颜色 - 中灰色
-    static let holoTextSecondary = Color(red: 142/255, green: 142/255, blue: 147/255)  // #8E8E93
+    static let holoTextSecondary = Color("TextSecondary")
     /// 占位符文字
-    static let holoTextPlaceholder = Color(red: 156/255, green: 163/255, blue: 175/255)  // #9CA3AF
+    static let holoTextPlaceholder = Color("TextPlaceholder")
     
     // MARK: - 功能性颜色
     /// 成功状态 - 绿色
@@ -55,13 +55,13 @@ extension Color {
     static let holoChart4 = Color(red: 236/255, green: 72/255, blue: 153/255)  // #EC4899
     static let holoChart5 = Color(red: 16/255, green: 185/255, blue: 129/255)  // #10B981
     
-    // MARK: - 卡片/按钮背景
+    // MARK: - 卡片/按钮背景 (支持 Dark Mode)
     /// 毛玻璃背景色
-    static let holoGlassBackground = Color.white.opacity(0.7)
+    static let holoGlassBackground = Color("GlassBackground")
     /// 边框颜色
-    static let holoBorder = Color(white: 240/255)  // #F0F0F0
+    static let holoBorder = Color("Border")
     /// 分隔线颜色
-    static let holoDivider = Color(white: 241/255)  // #F1F5F9
+    static let holoDivider = Color("Divider")
     
     // MARK: - 分类颜色（与前端原型对齐）
     /// 餐饮 - 橙色
@@ -157,11 +157,11 @@ struct HoloShadow {
         Color.holoPrimary.opacity(0.3)
     }
     
-    /// 卡片阴影 - 轻微投影
-    static let card = Color.black.opacity(0.04)
-    
-    /// 按钮阴影 - 中等投影
-    static let button = Color.black.opacity(0.1)
+    /// 卡片阴影 - 轻微投影 (支持 Dark Mode)
+    static let card = Color("Shadow")
+
+    /// 按钮阴影 - 中等投影 (Dark Mode 下更明显)
+    static let button = Color("Shadow")
     
     /// 浮动按钮阴影
     static let float = Color.holoPrimary.opacity(0.3)

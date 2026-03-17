@@ -175,7 +175,7 @@ struct AddHabitSheet: View {
                             .frame(width: 28, height: 28)
                             .overlay(
                                 Circle()
-                                    .stroke(Color.white, lineWidth: selectedColor == color ? 2 : 0)
+                                    .stroke(Color.holoCardBackground, lineWidth: selectedColor == color ? 2 : 0)
                             )
                             .overlay(
                                 Circle()
@@ -203,7 +203,7 @@ struct AddHabitSheet: View {
                 .foregroundColor(.holoTextPrimary)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
-                .background(Color.white)
+                .background(Color.holoCardBackground)
                 .cornerRadius(HoloRadius.sm)
         }
     }
@@ -270,7 +270,7 @@ struct AddHabitSheet: View {
                             .padding(.vertical, 8)
                             .background(
                                 RoundedRectangle(cornerRadius: HoloRadius.sm)
-                                    .fill(selectedFrequency == freq ? Color.holoPrimary : Color.white)
+                                    .fill(selectedFrequency == freq ? Color.holoPrimary : Color.holoCardBackground)
                             )
                     }
                 }
@@ -294,7 +294,7 @@ struct AddHabitSheet: View {
                         .foregroundColor(.holoTextPrimary)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)
-                        .background(Color.white)
+                        .background(Color.holoCardBackground)
                         .cornerRadius(HoloRadius.sm)
                     
                     Text("次/\(selectedFrequency.displayName)")
@@ -309,7 +309,7 @@ struct AddHabitSheet: View {
                         .foregroundColor(.holoTextPrimary)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)
-                        .background(Color.white)
+                        .background(Color.holoCardBackground)
                         .cornerRadius(HoloRadius.sm)
                     
                     TextField("单位", text: $unit)
@@ -317,7 +317,7 @@ struct AddHabitSheet: View {
                         .foregroundColor(.holoTextPrimary)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)
-                        .background(Color.white)
+                        .background(Color.holoCardBackground)
                         .cornerRadius(HoloRadius.sm)
                         .frame(width: 70)
                 }
@@ -447,7 +447,7 @@ struct IconPickerSheet: View {
             VStack(spacing: 4) {
                 ZStack {
                     RoundedRectangle(cornerRadius: HoloRadius.md)
-                        .fill(selectedIcon == item.name ? Color.holoPrimary.opacity(0.1) : Color.white)
+                        .fill(selectedIcon == item.name ? Color.holoPrimary.opacity(0.1) : Color.holoCardBackground)
                         .frame(width: 52, height: 52)
                     
                     // 根据是否为自定义图标选择不同的显示方式

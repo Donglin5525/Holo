@@ -114,14 +114,14 @@ struct FinanceView: View {
             .padding(.top, 8)
             .padding(.bottom, bottomInset)
             .background(
-                Color.white
-                    .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: -2)
+                Color.holoCardBackground
+                    .shadow(color: HoloShadow.card, radius: 10, x: 0, y: -2)
                     .ignoresSafeArea(edges: .bottom)
             )
         }
         .frame(height: 88)
         .frame(maxWidth: .infinity)
-        .background(Color.white.ignoresSafeArea(edges: .bottom))
+        .background(Color.holoCardBackground.ignoresSafeArea(edges: .bottom))
         .zIndex(40)
     }
     
@@ -351,9 +351,9 @@ struct FinanceLedgerView: View {
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.holoTextPrimary)
                     .frame(width: 40, height: 40)
-                    .background(Color.white)
+                    .background(Color.holoCardBackground)
                     .clipShape(Circle())
-                    .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+                    .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
             }
             
             Spacer()
@@ -372,7 +372,7 @@ struct FinanceLedgerView: View {
                         .font(.system(size: 18, weight: .medium))
                         .foregroundColor(.holoTextSecondary)
                         .frame(width: 40, height: 40)
-                        .background(Color.white)
+                        .background(Color.holoCardBackground)
                         .clipShape(Circle())
                         .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
                 }
@@ -400,7 +400,7 @@ struct FinanceLedgerView: View {
                         .font(.system(size: 20, weight: .medium))
                         .foregroundColor(calendarState.isPopupVisible ? .holoPrimary : .holoTextSecondary)
                         .frame(width: 40, height: 40)
-                        .background(Color.white)
+                        .background(Color.holoCardBackground)
                         .clipShape(Circle())
                         .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
                 }
@@ -594,7 +594,7 @@ struct FinanceAnalysisView: View {
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.holoTextPrimary)
                         .frame(width: 36, height: 36)
-                        .background(Color.white)
+                        .background(Color.holoCardBackground)
                         .clipShape(Circle())
                         .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
                 }
@@ -653,7 +653,7 @@ struct FinanceSettingsView: View {
                         .font(.system(size: 16, weight: .semibold))
                         .foregroundColor(.holoTextPrimary)
                         .frame(width: 36, height: 36)
-                        .background(Color.white)
+                        .background(Color.holoCardBackground)
                         .clipShape(Circle())
                         .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
                 }
@@ -697,7 +697,7 @@ struct ExpenseCard: View {
             iconName: "arrow.down.right",
             iconColor: .holoError,
             gradientStart: Color.holoErrorLight.opacity(0.5),
-            gradientEnd: Color.white.opacity(0.2),
+            gradientEnd: Color.holoCardBackground.opacity(0.2),
             strokeColor: Color.holoError.opacity(0.12)
         )
     }
@@ -716,7 +716,7 @@ struct IncomeCard: View {
             iconName: "arrow.up.right",
             iconColor: .holoSuccess,
             gradientStart: Color.holoSuccessLight.opacity(0.5),
-            gradientEnd: Color.white.opacity(0.2),
+            gradientEnd: Color.holoCardBackground.opacity(0.2),
             strokeColor: Color.holoSuccess.opacity(0.12)
         )
     }
@@ -869,9 +869,9 @@ struct TransactionRowView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(HoloSpacing.md)
-            .background(Color.white)
+            .background(Color.holoCardBackground)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-            .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
+            .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
         }
         .buttonStyle(PlainButtonStyle())
     }

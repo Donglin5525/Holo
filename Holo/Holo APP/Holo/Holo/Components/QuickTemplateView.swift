@@ -81,7 +81,7 @@ struct QuickTemplateView: View {
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.white)
+        .background(Color.holoCardBackground)
         .task {
             await loadCategories()
         }

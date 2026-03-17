@@ -116,7 +116,7 @@ struct ImportPreviewSheet: View {
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.white)
+        .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
     }
@@ -158,7 +158,7 @@ struct ImportPreviewSheet: View {
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.white)
+        .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
     }
@@ -244,7 +244,7 @@ struct ImportPreviewSheet: View {
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.white)
+        .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
     }
@@ -294,7 +294,7 @@ struct ImportPreviewSheet: View {
                         .foregroundColor(.holoTextSecondary)
                         .frame(maxWidth: .infinity)
                         .frame(height: 48)
-                        .background(Color.white)
+                        .background(Color.holoCardBackground)
                         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
                         .overlay(
                             RoundedRectangle(cornerRadius: HoloRadius.lg)
@@ -324,7 +324,7 @@ struct ImportPreviewSheet: View {
             .padding(.horizontal, HoloSpacing.lg)
             .padding(.vertical, HoloSpacing.md)
         }
-        .background(Color.white)
+        .background(Color.holoCardBackground)
     }
     
     private var importButtonText: String {

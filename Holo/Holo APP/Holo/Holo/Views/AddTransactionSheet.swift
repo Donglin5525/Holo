@@ -187,7 +187,7 @@ struct AddTransactionSheet: View {
                 .foregroundColor(.holoError)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, HoloSpacing.md)
-                .background(Color.white)
+                .background(Color.holoCardBackground)
         }
     }
     
@@ -234,7 +234,7 @@ struct AddTransactionSheet: View {
         }
         .padding(.horizontal, HoloSpacing.lg)
         .padding(.vertical, HoloSpacing.md)
-        .background(Color.white)
+        .background(Color.holoCardBackground)
     }
     
     // MARK: - Amount Section
@@ -267,7 +267,7 @@ struct AddTransactionSheet: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, HoloSpacing.lg)
-        .background(Color.white)
+        .background(Color.holoCardBackground)
         .onTapGesture {
             // 点击金额区域时：收起备注输入焦点（系统键盘），显示数字键盘
             isNoteFocused = false
@@ -317,9 +317,9 @@ struct AddTransactionSheet: View {
                         .foregroundColor(.holoTextSecondary)
                 }
                 .padding(HoloSpacing.md)
-                .background(Color.white)
+                .background(Color.holoCardBackground)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-                .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
+                .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
             }
             .buttonStyle(PlainButtonStyle())
             
@@ -334,7 +334,7 @@ struct AddTransactionSheet: View {
                 .environment(\.locale, Locale(identifier: "zh_CN"))
                 .padding(.horizontal, HoloSpacing.sm)
                 .padding(.top, HoloSpacing.sm)
-                .background(Color.white)
+                .background(Color.holoCardBackground)
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
@@ -366,7 +366,7 @@ struct AddTransactionSheet: View {
                 .focused($isNoteFocused)  // 绑定焦点状态，用于控制键盘切换
         }
         .padding(HoloSpacing.md)
-        .background(Color.white)
+        .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
     }
@@ -504,7 +504,7 @@ struct AddTransactionSheet: View {
                 .padding(.bottom, HoloSpacing.md)
             }
         }
-        .background(Color.white)
+        .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
     }
@@ -558,7 +558,7 @@ struct AddTransactionSheet: View {
             }
         }
         .padding(8)
-        .background(Color.white)
+        .background(Color.holoCardBackground)
         .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: -4)
     }
     
@@ -1002,7 +1002,7 @@ struct KeypadButton: View {
         case "÷", "×", "-", "+", "⌫", "AC", "↩︎":
             return Color.holoBackground
         default:
-            return Color.white
+            return Color.holoCardBackground
         }
     }
 }

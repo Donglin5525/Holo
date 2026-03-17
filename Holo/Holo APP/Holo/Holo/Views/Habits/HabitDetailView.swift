@@ -245,7 +245,7 @@ struct HabitDetailView: View {
             }
         }
         .padding()
-        .background(Color.white)
+        .background(Color.holoCardBackground)
         .cornerRadius(HoloRadius.lg)
     }
     
@@ -405,7 +405,7 @@ struct HabitDetailView: View {
             }
         }
         .padding()
-        .background(Color.white)
+        .background(Color.holoCardBackground)
         .cornerRadius(HoloRadius.lg)
     }
     

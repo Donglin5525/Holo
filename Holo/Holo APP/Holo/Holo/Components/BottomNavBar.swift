@@ -61,7 +61,7 @@ struct BottomNavBar: View {
                 .fill(.ultraThinMaterial)
                 .overlay(
                     RoundedRectangle(cornerRadius: HoloRadius.xl)
-                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                        .stroke(Color.holoBorder, lineWidth: 1)
                 )
                 .shadow(color: .black.opacity(0.1), radius: 15, x: 0, y: 5)
         )

@@ -163,7 +163,7 @@ struct ImportExportView: View {
                     .foregroundColor(.holoTextSecondary.opacity(0.5))
             }
             .padding(HoloSpacing.md)
-            .background(Color.white)
+            .background(Color.holoCardBackground)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
             .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
         }
@@ -331,7 +331,7 @@ struct ExportOptionsSheet: View {
             .padding(HoloSpacing.md)
             .background(
                 RoundedRectangle(cornerRadius: HoloRadius.md)
-                    .fill(Color.white)
+                    .fill(Color.holoCardBackground)
                     .overlay(
                         RoundedRectangle(cornerRadius: HoloRadius.md)
                             .stroke(selectedFormat == format ? Color.holoPrimary.opacity(0.3) : Color.clear, lineWidth: 1.5)
@@ -353,7 +353,7 @@ struct ExportOptionsSheet: View {
                 .frame(height: 36)
                 .background(
                     RoundedRectangle(cornerRadius: 18)
-                        .fill(selectedRange == range ? Color.holoPrimary.opacity(0.1) : Color.white)
+                        .fill(selectedRange == range ? Color.holoPrimary.opacity(0.1) : Color.holoCardBackground)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 18)

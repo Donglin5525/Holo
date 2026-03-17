@@ -55,7 +55,7 @@ struct FeatureButtonContent: View {
                 .frame(width: 56, height: 56)
                 .overlay(
                     RoundedRectangle(cornerRadius: HoloRadius.lg)
-                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                        .stroke(Color.holoBorder, lineWidth: 1)
                 )
             
             // 图标

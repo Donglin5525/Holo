@@ -31,6 +31,9 @@ struct HomeView: View {
     
     /// 是否显示习惯页面
     @State private var showHabitsView: Bool = false
+
+    /// 是否显示设置页面
+    @State private var showSettingsView: Bool = false
     
     // MARK: - 五角形功能按钮拖拽排序状态
     
@@ -97,9 +100,15 @@ struct HomeView: View {
         // 将 fullScreenCover 挂在整个 HomeView 上，更稳定
         .fullScreenCover(isPresented: $showFinanceView) {
             FinanceView()
+                .preferredColorScheme(DarkModeManager.shared.colorScheme)
         }
         .fullScreenCover(isPresented: $showHabitsView) {
             HabitsView()
+                .preferredColorScheme(DarkModeManager.shared.colorScheme)
+        }
+        // 设置页面（Sheet 形式）
+        .sheet(isPresented: $showSettingsView) {
+            SettingsView()
         }
         // 页面加载时从持久化存储加载图标配置
         .onAppear {
@@ -171,8 +180,7 @@ struct HomeView: View {
             
             // 右侧用户按钮
             Button {
-                // TODO: 跳转到个人中心
-                print("Profile tapped")
+                showSettingsView = true
             } label: {
                 ZStack {
                     RoundedRectangle(cornerRadius: HoloRadius.full)
@@ -180,7 +188,7 @@ struct HomeView: View {
                         .frame(width: 52, height: 52)
                         .overlay(
                             RoundedRectangle(cornerRadius: HoloRadius.full)
-                                .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                                .stroke(Color.holoBorder, lineWidth: 1)
                         )
                     
                     Image(systemName: "person.fill")

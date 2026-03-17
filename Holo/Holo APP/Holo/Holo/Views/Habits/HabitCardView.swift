@@ -48,12 +48,12 @@ struct HabitCardView: View {
         .padding(.vertical, 17)
         .background(
             RoundedRectangle(cornerRadius: 28)
-                .fill(Color.white)
-                .shadow(color: .black.opacity(0.03), radius: 10, x: 0, y: 4)
+                .fill(Color.holoCardBackground)
+                .shadow(color: HoloShadow.card, radius: 10, x: 0, y: 4)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 28)
-                .stroke(Color.white.opacity(0.5), lineWidth: 1)
+                .stroke(Color.holoBorder, lineWidth: 1)
         )
         .onAppear {
             cachedHabitId = habit.id  // 缓存 ID，供 onReceive 使用
