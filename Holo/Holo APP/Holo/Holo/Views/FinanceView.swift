@@ -43,15 +43,12 @@ struct FinanceView: View {
     /// 日历状态提升到此层级，避免切换 Tab 时被销毁
     @StateObject private var calendarState = CalendarState()
 
-    /// 右滑返回偏移量
-    @State private var swipeBackOffset: CGFloat = 0
-    
     // MARK: - Body
-    
+
     var body: some View {
         ZStack {
             Color.holoBackground.ignoresSafeArea()
-            
+
             Group {
                 switch selectedTab {
                 case .analysis:
@@ -68,26 +65,7 @@ struct FinanceView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .offset(x: swipeBackOffset)
-        .gesture(
-            DragGesture()
-                .onChanged { v in
-                    // 仅在从左侧 40pt 范围内起始的右滑手势生效
-                    if v.startLocation.x < 40 && v.translation.width > 0 {
-                        swipeBackOffset = v.translation.width
-                    }
-                }
-                .onEnded { v in
-                    if v.startLocation.x < 40 && v.translation.width > 120 {
-                        withAnimation(.easeOut(duration: 0.25)) {
-                            swipeBackOffset = UIScreen.main.bounds.width
-                        }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { dismiss() }
-                    } else {
-                        withAnimation(.spring(response: 0.3)) { swipeBackOffset = 0 }
-                    }
-                }
-        )
+        .swipeBackToDismiss { dismiss() }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             financeTabBarOnly
         }

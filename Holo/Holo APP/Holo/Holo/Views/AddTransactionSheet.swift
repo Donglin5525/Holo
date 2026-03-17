@@ -157,6 +157,7 @@ struct AddTransactionSheet: View {
             } message: {
                 Text("删除后无法恢复，确定要删除吗？")
             }
+            .swipeBackToDismiss { dismiss() }
         }
         .onAppear {
             if let transaction = editingTransaction {

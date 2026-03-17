@@ -71,6 +71,7 @@ struct FinanceSearchView: View {
             .frame(maxHeight: .infinity)
         }
         .background(Color.holoBackground)
+        .swipeBackToDismiss { dismiss() }
         .onAppear {
             isSearchFocused = true
         }

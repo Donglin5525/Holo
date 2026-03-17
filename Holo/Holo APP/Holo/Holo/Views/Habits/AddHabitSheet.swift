@@ -96,6 +96,7 @@ struct AddHabitSheet: View {
         .sheet(isPresented: $showIconPicker) {
             IconPickerSheet(selectedIcon: $selectedIcon)
         }
+        .swipeBackToDismiss { dismiss() }
     }
     
     // MARK: - 是否可保存

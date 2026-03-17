@@ -108,6 +108,7 @@ struct CategoryManagementView: View {
             .task {
                 await loadData()
             }
+            .swipeBackToDismiss { dismiss() }
         }
     }
     

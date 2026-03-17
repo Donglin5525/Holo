@@ -5,6 +5,10 @@
 ## [Unreleased]
 
 ### Features
+- **iOS**: 全局右滑返回手势 — 统一的 SwipeBackModifier，支持所有页面
+  - 新增可复用的 `SwipeBackModifier`，从左侧 40pt 区域右滑 120pt 即可关闭
+  - 使用 `simultaneousGesture` 解决 ScrollView 手势冲突
+  - 应用到 10 个页面：FinanceView、HabitsView、FinanceSearchView、SettingsView、HabitDetailView、AddTransactionSheet、AddHabitSheet、CategoryManagementView、ImportPreviewSheet、PopupCalendarSheet
 - **iOS**: 深色模式完整适配 — 支持跟随系统/浅色/深色三种模式
   - 新增 DarkModeManager 单例管理器，UserDefaults 持久化用户设置
   - 新增 SettingsView 设置页面，从首页右上角人头像进入

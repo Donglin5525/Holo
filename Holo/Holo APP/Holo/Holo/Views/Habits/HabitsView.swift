@@ -38,16 +38,13 @@ struct HabitsView: View {
     @Environment(\.dismiss) var dismiss
     @State private var selectedTab: HabitTab = .habits
     @State private var showAddHabit: Bool = false
-    
-    /// 右滑返回偏移量
-    @State private var swipeBackOffset: CGFloat = 0
-    
+
     // MARK: - Body
-    
+
     var body: some View {
         ZStack {
             Color.holoBackground.ignoresSafeArea()
-            
+
             Group {
                 switch selectedTab {
                 case .stats:
@@ -63,25 +60,7 @@ struct HabitsView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .offset(x: swipeBackOffset)
-        .gesture(
-            DragGesture()
-                .onChanged { v in
-                    if v.startLocation.x < 40 && v.translation.width > 0 {
-                        swipeBackOffset = v.translation.width
-                    }
-                }
-                .onEnded { v in
-                    if v.startLocation.x < 40 && v.translation.width > 120 {
-                        withAnimation(.easeOut(duration: 0.25)) {
-                            swipeBackOffset = UIScreen.main.bounds.width
-                        }
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) { dismiss() }
-                    } else {
-                        withAnimation(.spring(response: 0.3)) { swipeBackOffset = 0 }
-                    }
-                }
-        )
+        .swipeBackToDismiss { dismiss() }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             habitTabBar
         }

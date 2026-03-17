@@ -142,6 +142,7 @@ struct HabitDetailView: View {
             } message: {
                 Text("删除后将无法恢复，包括所有记录数据。")
             }
+            .swipeBackToDismiss { dismiss() }
         }
     }
     

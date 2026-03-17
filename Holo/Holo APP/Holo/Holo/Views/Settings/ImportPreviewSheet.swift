@@ -63,6 +63,7 @@ struct ImportPreviewSheet: View {
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .onAppear { performPreParse() }
+        .swipeBackToDismiss { dismiss() }
     }
     
     // MARK: - 顶部信息栏

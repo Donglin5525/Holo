@@ -62,6 +62,7 @@ struct SettingsView: View {
         }
         .preferredColorScheme(darkModeManager.colorScheme)
         .id(darkModeManager.currentSetting)
+        .swipeBackToDismiss { dismiss() }
     }
 
     // MARK: - 用户信息卡片

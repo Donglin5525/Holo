@@ -80,6 +80,7 @@ struct PopupCalendarSheet: View {
             .presentationDetents([.height(320)])
             .presentationDragIndicator(.hidden)
         }
+        .swipeBackToDismiss { dismiss() }
     }
     
     /// 上滑提示：告知用户可以继续向上滑动
