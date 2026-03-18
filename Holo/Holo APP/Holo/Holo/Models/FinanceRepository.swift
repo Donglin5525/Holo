@@ -316,7 +316,39 @@ class FinanceRepository {
         context.delete(category)
         try context.save()
     }
-    
+
+    /// 批量清理非预设分类（导入时自动创建的）
+    /// - Returns: (已删除数量, 跳过数量-被交易使用)
+    func cleanupImportedCategories() async throws -> (deleted: Int, skipped: Int) {
+        // 获取所有非预设分类
+        let request = Category.fetchRequest()
+        request.predicate = NSPredicate(format: "isDefault == NO")
+        let nonDefaultCategories = try context.fetch(request)
+
+        var deleted = 0
+        var skipped = 0
+
+        for category in nonDefaultCategories {
+            // 检查是否被交易使用
+            let txRequest = Transaction.fetchRequest()
+            txRequest.predicate = NSPredicate(format: "category == %@", category)
+            let inUse = try context.count(for: txRequest) > 0
+
+            if inUse {
+                skipped += 1
+            } else {
+                context.delete(category)
+                deleted += 1
+            }
+        }
+
+        if deleted > 0 {
+            try context.save()
+        }
+
+        return (deleted, skipped)
+    }
+
     // MARK: - Account Operations
     
     func getAllAccounts() async throws -> [Account] {

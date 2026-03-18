@@ -23,6 +23,8 @@ struct CategoryManagementView: View {
     @State private var categoryToDelete: Category?
     @State private var isLoading = false
     @State private var errorMessage: String?
+    @State private var showCleanupConfirmation = false
+    @State private var cleanupResult: (deleted: Int, skipped: Int)?
     
     var body: some View {
         NavigationStack {
@@ -65,12 +67,23 @@ struct CategoryManagementView: View {
                     .foregroundColor(.holoPrimary)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        showAddCategory = true
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 22))
-                            .foregroundColor(.holoPrimary)
+                    HStack(spacing: HoloSpacing.sm) {
+                        // 清理导入分类按钮
+                        Button {
+                            showCleanupConfirmation = true
+                        } label: {
+                            Image(systemName: "broom")
+                                .font(.system(size: 18))
+                                .foregroundColor(.orange)
+                        }
+                        // 新增分类按钮
+                        Button {
+                            showAddCategory = true
+                        } label: {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 22))
+                                .foregroundColor(.holoPrimary)
+                        }
                     }
                 }
             }
@@ -105,6 +118,28 @@ struct CategoryManagementView: View {
             } message: {
                 Text("删除后无法恢复；若该分类已被交易使用，将无法删除。")
             }
+            // 清理导入分类确认
+            .confirmationDialog("清理导入分类", isPresented: $showCleanupConfirmation, titleVisibility: .visible) {
+                Button("清理", role: .destructive) {
+                    Task { await cleanupImportedCategories() }
+                }
+                Button("取消", role: .cancel) {}
+            } message: {
+                Text("将删除所有导入时自动创建的分类（非预设分类），已被交易使用的分类会被保留。")
+            }
+            // 清理结果提示
+            .alert("清理完成", isPresented: Binding(
+                get: { cleanupResult != nil },
+                set: { if !$0 { cleanupResult = nil } }
+            )) {
+                Button("确定") { cleanupResult = nil }
+            } message: {
+                if let result = cleanupResult {
+                    Text("已删除 \(result.deleted) 个分类\(result.skipped > 0 ? "，\(result.skipped) 个因被使用而保留" : "")")
+                } else {
+                    Text("")
+                }
+            }
             .task {
                 await loadData()
             }
@@ -135,21 +170,23 @@ struct CategoryManagementView: View {
                     .frame(width: 40, height: 40)
                 transactionCategoryIcon(category, size: 22)
             }
-            
+
             Text(category.name)
                 .font(.holoBody)
                 .foregroundColor(.holoTextPrimary)
-            
+
             Spacer()
-            
+
             Button {
                 editingCategory = category
             } label: {
                 Image(systemName: "pencil")
                     .font(.system(size: 16))
                     .foregroundColor(.holoPrimary)
+                    .frame(width: 44, height: 44) // 扩大点击区域
             }
-            
+            .buttonStyle(.borderless)
+
             // 预设分类不可删除
             if !category.isDefault {
                 Button(role: .destructive) {
@@ -157,10 +194,13 @@ struct CategoryManagementView: View {
                 } label: {
                     Image(systemName: "trash")
                         .font(.system(size: 16))
+                        .frame(width: 44, height: 44) // 扩大点击区域
                 }
+                .buttonStyle(.borderless)
             }
         }
         .padding(.vertical, 4)
+        .contentShape(Rectangle()) // 确保整个行可点击
     }
     
     private func confirmDelete(_ category: Category) {
@@ -171,6 +211,17 @@ struct CategoryManagementView: View {
             } catch {
                 errorMessage = error.localizedDescription
             }
+        }
+    }
+
+    /// 清理导入时自动创建的非预设分类
+    private func cleanupImportedCategories() async {
+        do {
+            let result = try await repository.cleanupImportedCategories()
+            cleanupResult = result
+            await loadData()
+        } catch {
+            errorMessage = "清理失败：\(error.localizedDescription)"
         }
     }
     
