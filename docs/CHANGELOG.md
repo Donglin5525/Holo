@@ -5,6 +5,10 @@
 ## [Unreleased]
 
 ### Features
+- **iOS**: 分类管理页面新增批量清理导入分类功能
+  - 新增清理按钮（扫帚图标），一键删除所有导入时自动创建的非预设分类
+  - 被交易使用的分类会被自动保留，避免数据关联断裂
+  - 修复分类管理页面编辑/删除按钮点击不响应的问题
 - **iOS**: 全局右滑返回手势 — 统一的 SwipeBackModifier，支持所有页面
   - 新增可复用的 `SwipeBackModifier`，从左侧 40pt 区域右滑 120pt 即可关闭
   - 使用 `simultaneousGesture` 解决 ScrollView 手势冲突
