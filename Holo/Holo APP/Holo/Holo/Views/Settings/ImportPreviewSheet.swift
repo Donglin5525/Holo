@@ -26,6 +26,12 @@ struct ImportPreviewSheet: View {
     @State private var parseFailures: [(index: Int, error: String)] = []
     /// 成功解析条目数
     @State private var parsedItemCount: Int = 0
+    /// 分类匹配结果（每条交易对应一个匹配结果）
+    @State private var categoryMatchResults: [CategoryMatchResult] = []
+    /// 去重后的分类匹配结果（用于预览）
+    @State private var uniqueMatchResults: [CategoryMatchResult] = []
+    /// 匹配统计
+    @State private var matchStats: (exact: Int, synonym: Int, fuzzy: Int, unmatched: Int) = (0, 0, 0, 0)
     
     var body: some View {
         NavigationStack {
@@ -39,13 +45,16 @@ struct ImportPreviewSheet: View {
                     VStack(spacing: HoloSpacing.lg) {
                         // 检测结果卡片
                         detectionCard
-                        
+
                         // 字段映射展示
                         mappingSection
-                        
+
+                        // 分类匹配预览
+                        categoryMatchSection
+
                         // 数据预览（前 5 行）
                         previewSection
-                        
+
                         // 解析警告
                         if !parseFailures.isEmpty {
                             warningSection
@@ -194,7 +203,136 @@ struct ImportPreviewSheet: View {
             Spacer()
         }
     }
-    
+
+    // MARK: - 分类匹配预览
+
+    private var categoryMatchSection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            // 标题
+            HStack(spacing: HoloSpacing.sm) {
+                Image(systemName: "link")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.holoPrimary)
+                Text("分类匹配预览")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.holoTextPrimary)
+            }
+
+            // 匹配统计
+            HStack(spacing: HoloSpacing.md) {
+                matchStatBadge(label: "精确", count: matchStats.exact, color: .green)
+                matchStatBadge(label: "同义词", count: matchStats.synonym, color: .blue)
+                matchStatBadge(label: "相似", count: matchStats.fuzzy, color: .orange)
+                matchStatBadge(label: "待确认", count: matchStats.unmatched, color: .red)
+            }
+
+            // 去重后的匹配列表（最多显示 10 条）
+            if !uniqueMatchResults.isEmpty {
+                VStack(spacing: 6) {
+                    ForEach(Array(uniqueMatchResults.prefix(10).enumerated()), id: \.element.uniqueKey) { _, result in
+                        categoryMatchRow(result)
+                    }
+
+                    if uniqueMatchResults.count > 10 {
+                        Text("...还有 \(uniqueMatchResults.count - 10) 个分类")
+                            .font(.system(size: 11))
+                            .foregroundColor(.holoTextSecondary)
+                    }
+                }
+            }
+        }
+        .padding(HoloSpacing.md)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+        .shadow(color: .black.opacity(0.04), radius: 4, x: 0, y: 2)
+    }
+
+    /// 匹配统计徽章
+    private func matchStatBadge(label: String, count: Int, color: Color) -> some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(color)
+                .frame(width: 6, height: 6)
+            Text("\(label) \(count)")
+                .font(.system(size: 12))
+                .foregroundColor(.holoTextSecondary)
+        }
+    }
+
+    /// 分类匹配行
+    private func categoryMatchRow(_ result: CategoryMatchResult) -> some View {
+        HStack(spacing: 8) {
+            // 原始分类名
+            Text(result.originalSub)
+                .font(.system(size: 13))
+                .foregroundColor(.holoTextPrimary)
+                .frame(width: 80, alignment: .leading)
+                .lineLimit(1)
+
+            // 箭头
+            Image(systemName: "arrow.right")
+                .font(.system(size: 10))
+                .foregroundColor(.holoTextSecondary.opacity(0.5))
+
+            // 匹配结果
+            if let matched = result.matchedCategory {
+                HStack(spacing: 4) {
+                    Image(categoryIconName(for: matched))
+                        .resizable()
+                        .frame(width: 16, height: 16)
+                    Text(matched.name)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(matchTypeColor(result.matchType))
+                }
+            } else {
+                HStack(spacing: 4) {
+                    Image(systemName: "questionmark.circle")
+                        .font(.system(size: 14))
+                        .foregroundColor(.red)
+                    Text("新建分类")
+                        .font(.system(size: 13))
+                        .foregroundColor(.red)
+                }
+            }
+
+            Spacer()
+
+            // 匹配类型标签
+            Text(matchTypeLabel(result.matchType))
+                .font(.system(size: 10))
+                .foregroundColor(.white)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(matchTypeColor(result.matchType))
+                .clipShape(Capsule())
+        }
+    }
+
+    /// 获取分类图标名称
+    private func categoryIconName(for category: Category) -> String {
+        category.icon
+    }
+
+    /// 匹配类型标签
+    private func matchTypeLabel(_ type: CategoryMatchType) -> String {
+        switch type {
+        case .exact: return "精确"
+        case .synonym: return "同义词"
+        case .fuzzy: return "相似"
+        case .unmatched: return "待确认"
+        }
+    }
+
+    /// 匹配类型颜色
+    private func matchTypeColor(_ type: CategoryMatchType) -> Color {
+        switch type {
+        case .exact: return .green
+        case .synonym: return .blue
+        case .fuzzy: return .orange
+        case .unmatched: return .red
+        }
+    }
+
     // MARK: - 数据预览
     
     private var previewSection: some View {
@@ -341,8 +479,8 @@ struct ImportPreviewSheet: View {
     }
     
     // MARK: - 逻辑方法
-    
-    /// 预解析：在显示预览时先转换数据，统计成功/失败条数
+
+    /// 预解析：在显示预览时先转换数据，统计成功/失败条数，执行分类匹配
     private func performPreParse() {
         let (items, failures) = DataImportService.shared.convertToImportItems(
             data: previewData,
@@ -350,26 +488,56 @@ struct ImportPreviewSheet: View {
         )
         parsedItemCount = items.count
         parseFailures = failures
+
+        // 执行分类智能匹配
+        Task { @MainActor in
+            await performCategoryMatching(items: items)
+        }
     }
-    
+
+    /// 执行分类智能匹配
+    @MainActor
+    private func performCategoryMatching(items: [ImportTransactionItem]) async {
+        // 获取所有分类
+        guard let categories = try? await FinanceRepository.shared.getAllCategories() else {
+            return
+        }
+
+        // 批量匹配
+        categoryMatchResults = CategoryMatcherService.shared.batchMatchCategories(
+            items: items,
+            categories: categories
+        )
+
+        // 生成统计
+        matchStats = CategoryMatcherService.shared.generateMatchStatistics(results: categoryMatchResults)
+
+        // 去重用于预览显示
+        uniqueMatchResults = CategoryMatcherService.shared.deduplicateResults(categoryMatchResults)
+    }
+
     /// 执行导入
     private func performImport() {
         let (items, _) = DataImportService.shared.convertToImportItems(
             data: previewData,
             mapping: previewData.fieldMapping
         )
-        
+
         guard !items.isEmpty else { return }
-        
+
         progress = .importing(current: 0, total: items.count)
-        
+
         Task {
-            let result = await FinanceRepository.shared.batchImportTransactions(items) { current, total in
+            // 使用匹配结果进行导入
+            let result = await FinanceRepository.shared.batchImportTransactionsWithMatchResults(
+                items,
+                matchResults: categoryMatchResults
+            ) { current, total in
                 Task { @MainActor in
                     progress = .importing(current: current, total: total)
                 }
             }
-            
+
             progress = .completed(result)
             dismiss()
             onComplete(result)

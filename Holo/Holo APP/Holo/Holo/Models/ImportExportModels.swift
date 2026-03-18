@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import CoreData
 
 // MARK: - 导出格式
 
@@ -125,6 +126,40 @@ struct AccountDTO: Codable {
     let name: String
     let type: String
     let isDefault: Bool
+}
+
+// MARK: - 分类智能匹配
+
+/// 分类匹配类型
+enum CategoryMatchType {
+    case exact       // 精确匹配（名称完全相同）
+    case synonym     // 同义词匹配（如「早饭」→「早餐」）
+    case fuzzy       // 模糊匹配（编辑距离相似）
+    case unmatched   // 无匹配
+}
+
+/// 分类匹配结果
+struct CategoryMatchResult {
+    /// 原始一级分类名（来自 CSV）
+    let originalPrimary: String
+    /// 原始二级分类名（来自 CSV）
+    let originalSub: String
+    /// 匹配类型
+    let matchType: CategoryMatchType
+    /// 匹配到的分类（可能为 nil）
+    var matchedCategory: Category?
+    /// 候选分类列表（用于用户手动选择）
+    var candidates: [Category]
+    /// 匹配置信度（0.0 ~ 1.0）
+    var confidence: Double
+    /// 用户是否手动修改过
+    var isManuallyModified: Bool
+
+    /// 便捷属性：是否有匹配结果
+    var hasMatch: Bool { matchedCategory != nil }
+
+    /// 生成唯一标识（用于去重）
+    var uniqueKey: String { "\(originalPrimary)|\(originalSub)" }
 }
 
 // MARK: - 导入相关
