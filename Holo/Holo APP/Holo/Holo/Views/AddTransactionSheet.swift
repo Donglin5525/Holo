@@ -72,6 +72,12 @@ struct AddTransactionSheet: View {
     @State private var feePerPeriod: String = ""
     @State private var showCustomPeriods: Bool = false
     @State private var customPeriodsText: String = ""
+
+    // 下拉保存相关
+    /// 下拉偏移量
+    @State private var pullOffset: CGFloat = 0
+    /// 是否正在执行下拉保存
+    @State private var isPullSaving: Bool = false
     
     /// 是否为编辑模式
     private var isEditMode: Bool {
@@ -119,11 +125,11 @@ struct AddTransactionSheet: View {
                         VStack(spacing: HoloSpacing.lg) {
                             // 分类选择（CategoryPicker 自带内边距）
                             categorySection
-                            
+
                             // 日期选择
                             dateSection
                                 .padding(.horizontal, HoloSpacing.lg)
-                            
+
                             // 备注输入
                             noteSection
                                 .padding(.horizontal, HoloSpacing.lg)
@@ -134,8 +140,24 @@ struct AddTransactionSheet: View {
                                     .padding(.horizontal, HoloSpacing.lg)
                             }
                         }
+                        // 使用 contentShape 定义整个区域可点击
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            // 点击滚动区域空白处：收起数字键盘
+                            showNumericKeypad = false
+                            isNoteFocused = false
+                        }
                     }
                     .frame(maxHeight: .infinity)
+                    .refreshable {
+                        // 下拉保存记账
+                        if canSave && !isSaving {
+                            await MainActor.run {
+                                calculateExpression()
+                            }
+                            await saveTransactionAsync()
+                        }
+                    }
                     
                     // 数字键盘（仅在显示时渲染）
                     if showNumericKeypad {
@@ -204,11 +226,11 @@ struct AddTransactionSheet: View {
     }
     
     // MARK: - Header Section
-    
+
     /// 顶部区域
     private var headerSection: some View {
         HStack {
-            // 关闭按钮
+            // 关闭按钮（取消，不保存）
             Button {
                 dismiss()
             } label: {
@@ -219,23 +241,52 @@ struct AddTransactionSheet: View {
                     .background(Color.holoBackground)
                     .clipShape(Circle())
             }
-            
+
             Spacer()
-            
+
             // 标题（类型切换已移至 CategoryPicker 内部）
             Text(isEditMode ? "编辑交易" : "记一笔")
                 .font(.holoHeading)
                 .foregroundColor(.holoTextPrimary)
-            
+
             Spacer()
-            
-            // 占位，保持对称
-            Color.clear
-                .frame(width: 32, height: 32)
+
+            // 保存按钮（✓）
+            Button {
+                // 先计算表达式（如果有），然后保存
+                calculateExpression()
+                saveTransaction()
+            } label: {
+                if isSaving {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                        .frame(width: 32, height: 32)
+                        .background(canSave ? Color.holoPrimary : Color.holoTextSecondary.opacity(0.3))
+                        .clipShape(Circle())
+                } else {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.white)
+                        .frame(width: 32, height: 32)
+                        .background(canSave ? Color.holoPrimary : Color.holoTextSecondary.opacity(0.3))
+                        .clipShape(Circle())
+                }
+            }
+            .disabled(!canSave || isSaving)
         }
         .padding(.horizontal, HoloSpacing.lg)
         .padding(.vertical, HoloSpacing.md)
         .background(Color.holoCardBackground)
+    }
+
+    /// 是否可以保存（金额 > 0 且已选择分类）
+    private var canSave: Bool {
+        let absoluteAmountString = displayAmountString
+        guard let amount = Decimal(string: absoluteAmountString), amount > 0,
+              absoluteAmountString != "0" else {
+            return false
+        }
+        return selectedCategory != nil
     }
     
     // MARK: - Amount Section
@@ -353,17 +404,17 @@ struct AddTransactionSheet: View {
     }
     
     // MARK: - Note Section
-    
+
     /// 备注输入区域
     private var noteSection: some View {
         HStack(spacing: HoloSpacing.sm) {
             Image(systemName: "note.text")
                 .font(.system(size: 18, weight: .medium))
                 .foregroundColor(.holoTextSecondary)
-            
+
             TextField("添加备注（选填）...", text: $note)
                 .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(.primary)  // 使用 primary 确保深色模式下可见
                 .focused($isNoteFocused)  // 绑定焦点状态，用于控制键盘切换
         }
         .padding(HoloSpacing.md)
@@ -913,6 +964,82 @@ struct AddTransactionSheet: View {
                 print("保存失败：\(error.localizedDescription)")
             }
             
+            isSaving = false
+        }
+    }
+
+    /// 异步保存交易（用于下拉刷新）
+    private func saveTransactionAsync() async {
+        // 获取金额（取绝对值，因为类型由 transactionType 决定）
+        let absoluteAmountString = displayAmountString
+        guard let amount = Decimal(string: absoluteAmountString), amount > 0,
+              absoluteAmountString != "0" else {
+            return
+        }
+
+        guard let category = selectedCategory else {
+            return
+        }
+
+        await MainActor.run {
+            isSaving = true
+        }
+
+        do {
+            // 获取默认账户
+            guard let defaultAccount = try await repository.getDefaultAccount() else {
+                await MainActor.run {
+                    isSaving = false
+                }
+                return
+            }
+
+            if let transaction = editingTransaction {
+                // 编辑模式：更新交易
+                var updates = TransactionUpdates()
+                updates.amount = amount
+                updates.category = category
+                updates.note = note.isEmpty ? nil : note
+                updates.date = selectedDate
+
+                try await repository.updateTransaction(transaction, updates: updates)
+            } else if isInstallment {
+                // 分期模式
+                let fee = Decimal(string: feePerPeriod) ?? 0
+                _ = try await repository.addInstallmentTransactions(
+                    totalAmount: amount,
+                    feePerPeriod: fee,
+                    periods: installmentPeriods,
+                    type: transactionType,
+                    category: category,
+                    account: defaultAccount,
+                    startDate: selectedDate,
+                    note: note.isEmpty ? nil : note
+                )
+            } else {
+                // 新增模式
+                _ = try await repository.addTransaction(
+                    amount: amount,
+                    type: transactionType,
+                    category: category,
+                    account: defaultAccount,
+                    date: selectedDate,
+                    note: note.isEmpty ? nil : note,
+                    tags: nil
+                )
+            }
+
+            // 保存成功
+            await MainActor.run {
+                onSave()
+                dismiss()
+            }
+
+        } catch {
+            print("保存失败：\(error.localizedDescription)")
+        }
+
+        await MainActor.run {
             isSaving = false
         }
     }
