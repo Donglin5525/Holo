@@ -15,6 +15,11 @@
   - 新增 FinanceAggregation 数据模型（ChartDataPoint/CategoryAggregation/PeriodSummary）
 
 ### Bug Fixes
+- **iOS**: 日期选择器月份中文化及年月顺序统一
+  - 为所有 DatePicker 添加中文 locale（zh_CN），确保月份显示为中文而非英文
+  - 修改文件：CustomDateSheet、TimeRangeSelector、AddTransactionView、RepeatRuleView
+  - 将 RepeatRuleView 中的序数词改为中文数字（"一"、"二"、"三"...）
+  - 统一 MonthYearPickerView 的年月顺序为"先月份后年份"
 - **iOS**: 修复财务统计分析模块 UI 问题
   - 修复 TOP3 卡片在无数据时高度不一致问题（固定高度 200pt）
   - 修复饼图中心信息展示，添加选中分类的图标、名称、占比、金额动画
