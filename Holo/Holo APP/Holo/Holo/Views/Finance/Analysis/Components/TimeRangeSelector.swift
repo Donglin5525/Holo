@@ -294,7 +294,7 @@ struct DrillDownDatePicker: View {
 
     /// 时间单位
     private var timeUnit: String {
-        switch state.timeRange {
+        switch state.originalTimeRange {
         case .week: return "周"
         case .month: return "月"
         case .quarter: return "季度"
@@ -305,7 +305,7 @@ struct DrillDownDatePicker: View {
 
     /// 下钻提示
     private var drillDownHint: String {
-        switch state.timeRange {
+        switch state.originalTimeRange {
         case .week:
             return "选择某一天，查看该周的数据"
         case .month:
@@ -337,7 +337,10 @@ struct DrillDownDatePicker: View {
         let calendar = Calendar.current
         let newRange: (start: Date, end: Date)
 
-        switch state.timeRange {
+        // 使用 originalTimeRange 确定时间单位，因为 timeRange 可能在导航后变为 .custom
+        let effectiveRange = state.originalTimeRange
+
+        switch effectiveRange {
         case .day:
             let dayStart = calendar.startOfDay(for: selectedDate)
             guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { return }
@@ -375,7 +378,8 @@ struct DrillDownDatePicker: View {
             return
         }
 
-        state.setCustomDateRange(start: newRange.start, end: newRange.end)
+        // 使用 navigateToRange 而不是 setCustomDateRange，保持 originalTimeRange 不变
+        state.navigateToRange(start: newRange.start, end: newRange.end)
     }
 }
 

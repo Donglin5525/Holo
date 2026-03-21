@@ -61,7 +61,8 @@ class FinanceAnalysisState: ObservableObject {
 
     /// 当前时间范围的实际起止日期
     var currentDateRange: (start: Date, end: Date) {
-        if timeRange == .custom, let custom = customDateRange {
+        // 优先使用自定义范围（包括导航后的范围）
+        if let custom = customDateRange {
             return custom
         }
         return timeRange.dateRange()
