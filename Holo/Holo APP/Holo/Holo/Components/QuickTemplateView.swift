@@ -7,7 +7,11 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 /// 快速记账模板视图
 struct QuickTemplateView: View {
@@ -117,6 +121,7 @@ struct QuickTemplateView: View {
 private func quickTemplateCategoryIcon(_ category: Category, size: CGFloat) -> some View {
     let name = category.icon
     let withNamespace = "CategoryIcons/\(name)"
+    #if canImport(UIKit)
     let loaded = UIImage(named: withNamespace) ?? UIImage(named: name)
     if let img = loaded, name.hasPrefix("icon_") {
         Image(uiImage: img)
@@ -128,6 +133,18 @@ private func quickTemplateCategoryIcon(_ category: Category, size: CGFloat) -> s
         Image(systemName: name.hasPrefix("icon_") ? "tag.fill" : name)
             .font(.system(size: size, weight: .medium))
     }
+    #elseif canImport(AppKit)
+    let loaded = NSImage(named: withNamespace) ?? NSImage(named: name)
+    if let img = loaded, name.hasPrefix("icon_") {
+        Image(nsImage: img)
+            .resizable()
+            .scaledToFit()
+            .frame(width: size, height: size)
+    } else {
+        Image(systemName: name.hasPrefix("icon_") ? "tag.fill" : name)
+            .font(.system(size: size, weight: .medium))
+    }
+    #endif
 }
 
 /// 快速模板按钮

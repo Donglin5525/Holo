@@ -7,7 +7,11 @@
 //
 
 import SwiftUI
+#if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 // MARK: - Finance Tab 枚举
 
@@ -173,18 +177,96 @@ struct FinanceView: View {
 
 // MARK: - 圆角辅助（仅指定部分角）
 
+/// 自定义角类型，用于指定需要圆角化的角
+struct HoloRectCorner: OptionSet {
+    let rawValue: Int
+
+    static let topLeft = HoloRectCorner(rawValue: 1 << 0)
+    static let topRight = HoloRectCorner(rawValue: 1 << 1)
+    static let bottomLeft = HoloRectCorner(rawValue: 1 << 2)
+    static let bottomRight = HoloRectCorner(rawValue: 1 << 3)
+    static let allCorners: HoloRectCorner = [.topLeft, .topRight, .bottomLeft, .bottomRight]
+}
+
 /// 支持只圆化指定角的 Shape
 struct RoundedCorner: Shape {
     var radius: CGFloat = 0
-    var corners: UIRectCorner = .allCorners
-    
+    var corners: HoloRectCorner = .allCorners
+
     func path(in rect: CGRect) -> Path {
-        let path = UIBezierPath(
-            roundedRect: rect,
-            byRoundingCorners: corners,
-            cornerRadii: CGSize(width: radius, height: radius)
-        )
-        return Path(path.cgPath)
+        var path = Path()
+
+        // 如果所有角都圆角化，直接用圆角矩形
+        if corners == .allCorners {
+            return Path(roundedRect: rect, cornerRadius: radius)
+        }
+
+        // 否则手动绘制路径
+        let w = rect.width
+        let h = rect.height
+        let r = min(radius, min(w, h) / 2)
+
+        // 起点：左上角
+        path.move(to: CGPoint(x: rect.minX + (corners.contains(.topLeft) ? r : 0), y: rect.minY))
+
+        // 顶边 + 右上角
+        path.addLine(to: CGPoint(x: rect.maxX - (corners.contains(.topRight) ? r : 0), y: rect.minY))
+        if corners.contains(.topRight) {
+            path.addArc(
+                center: CGPoint(x: rect.maxX - r, y: rect.minY + r),
+                radius: r,
+                startAngle: .degrees(-90),
+                endAngle: .degrees(0),
+                clockwise: false
+            )
+        } else {
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        }
+
+        // 右边 + 右下角
+        path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - (corners.contains(.bottomRight) ? r : 0)))
+        if corners.contains(.bottomRight) {
+            path.addArc(
+                center: CGPoint(x: rect.maxX - r, y: rect.maxY - r),
+                radius: r,
+                startAngle: .degrees(0),
+                endAngle: .degrees(90),
+                clockwise: false
+            )
+        } else {
+            path.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY))
+        }
+
+        // 底边 + 左下角
+        path.addLine(to: CGPoint(x: rect.minX + (corners.contains(.bottomLeft) ? r : 0), y: rect.maxY))
+        if corners.contains(.bottomLeft) {
+            path.addArc(
+                center: CGPoint(x: rect.minX + r, y: rect.maxY - r),
+                radius: r,
+                startAngle: .degrees(90),
+                endAngle: .degrees(180),
+                clockwise: false
+            )
+        } else {
+            path.addLine(to: CGPoint(x: rect.minX, y: rect.maxY))
+        }
+
+        // 左边 + 左上角
+        path.addLine(to: CGPoint(x: rect.minX, y: rect.minY + (corners.contains(.topLeft) ? r : 0)))
+        if corners.contains(.topLeft) {
+            path.addArc(
+                center: CGPoint(x: rect.minX + r, y: rect.minY + r),
+                radius: r,
+                startAngle: .degrees(180),
+                endAngle: .degrees(270),
+                clockwise: false
+            )
+        } else {
+            path.addLine(to: CGPoint(x: rect.minX, y: rect.minY))
+        }
+
+        path.closeSubpath()
+        return path
     }
 }
 

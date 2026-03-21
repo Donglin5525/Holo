@@ -183,11 +183,12 @@ class TodoRepository: ObservableObject {
         _ list: TodoList,
         name: String? = nil,
         color: String? = nil,
-        folder: TodoFolder? = nil
+        folder: TodoFolder? = nil,
+        shouldUpdateFolder: Bool = false
     ) throws {
         if let name = name { list.name = name }
         if let color = color { list.color = color }
-        list.folder = folder
+        if shouldUpdateFolder { list.folder = folder }
         list.updatedAt = Date()
 
         try context.save()
@@ -264,7 +265,8 @@ class TodoRepository: ObservableObject {
         priority: TaskPriority? = nil,
         dueDate: Date? = nil,
         isAllDay: Bool? = nil,
-        list: TodoList? = nil
+        list: TodoList? = nil,
+        tags: [TodoTag]? = nil
     ) throws {
         if let title = title { task.title = title }
         if let description = description { task.desc = description }
@@ -273,6 +275,20 @@ class TodoRepository: ObservableObject {
         if let dueDate = dueDate { task.dueDate = dueDate }
         if let isAllDay = isAllDay { task.isAllDay = isAllDay }
         if let list = list { task.list = list }
+
+        // 更新标签关联
+        if let tags = tags {
+            // 先移除所有现有标签
+            if let existingTags = task.tags?.allObjects as? [TodoTag] {
+                for tag in existingTags {
+                    task.removeFromTags(tag)
+                }
+            }
+            // 添加新标签
+            for tag in tags {
+                task.addToTags(tag)
+            }
+        }
 
         task.updatedAt = Date()
 
@@ -392,12 +408,57 @@ class TodoRepository: ObservableObject {
         notifyDataChange()
     }
 
-    /// 软删除标签
+    /// 软删除标签（归档）
     func deleteTag(_ tag: TodoTag) throws {
         tag.deletedFlag = true
         try context.save()
         loadTags()
         notifyDataChange()
+    }
+
+    /// 永久删除标签
+    func permanentlyDeleteTag(_ tag: TodoTag) throws {
+        context.delete(tag)
+        try context.save()
+        loadTags()
+        notifyDataChange()
+    }
+
+    /// 加载已归档标签
+    func loadArchivedTags() -> [TodoTag] {
+        let request = TodoTag.fetchRequest()
+        request.predicate = NSPredicate(format: "deletedFlag == YES")
+        request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
+
+        do {
+            return try context.fetch(request)
+        } catch {
+            print("[TodoRepository] 加载已归档标签失败：\(error)")
+            return []
+        }
+    }
+
+    /// 恢复归档标签
+    func restoreTag(_ tag: TodoTag) throws {
+        tag.deletedFlag = false
+
+        try context.save()
+        loadTags()
+        notifyDataChange()
+    }
+
+    /// 加载已归档清单
+    func loadArchivedLists() -> [TodoList] {
+        let request = TodoList.fetchRequest()
+        request.predicate = NSPredicate(format: "archived == YES")
+        request.sortDescriptors = [NSSortDescriptor(key: "updatedAt", ascending: false)]
+
+        do {
+            return try context.fetch(request)
+        } catch {
+            print("[TodoRepository] 加载已归档清单失败：\(error)")
+            return []
+        }
     }
 
     // MARK: - CheckItem CRUD

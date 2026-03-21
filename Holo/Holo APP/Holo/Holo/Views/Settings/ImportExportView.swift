@@ -382,15 +382,43 @@ struct ExportOptionsSheet: View {
     }
 }
 
-// MARK: - ShareSheet（UIKit 桥接）
+// MARK: - ShareSheet（跨平台分享）
 
-/// UIActivityViewController 的 SwiftUI 包装
+#if canImport(UIKit)
+import UIKit
+
+/// iOS: UIActivityViewController 的 SwiftUI 包装
 struct ShareSheet: UIViewControllerRepresentable {
     let items: [Any]
-    
+
     func makeUIViewController(context: Context) -> UIActivityViewController {
         UIActivityViewController(activityItems: items, applicationActivities: nil)
     }
-    
+
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }
+#elseif canImport(AppKit)
+import AppKit
+
+/// macOS: NSSharingServicePicker 的 SwiftUI 包装
+struct ShareSheet: NSViewRepresentable {
+    let items: [Any]
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        view.wantsLayer = true
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        // 在 macOS 上，分享功能需要在用户交互时触发
+        // 使用 DispatchQueue 延迟执行以确保视图已完全加载
+        DispatchQueue.main.async {
+            if let window = nsView.window, let contentView = window.contentView {
+                let picker = NSSharingServicePicker(items: items)
+                picker.show(relativeTo: .zero, of: contentView, preferredEdge: .minY)
+            }
+        }
+    }
+}
+#endif

@@ -8,7 +8,11 @@
 
 import SwiftUI
 import CoreData
+#if canImport(UIKit)
 import UIKit
+#elseif canImport(AppKit)
+import AppKit
+#endif
 
 /// 分类选择器视图
 /// 交互流程：Tab 切换类型 → 一级分类网格 → 点击下钻展示二级子分类 → 选中二级分类
@@ -288,11 +292,12 @@ private struct PickerCategoryButton: View {
     let isSelected: Bool
     let action: () -> Void
     
-    /// 分类图标视图：运行时用 UIImage(named:) 检测资源，兼容「CategoryIcons/xxx」与「xxx」；SVG 需 fill="#000000" 才能被模板着色
+    /// 分类图标视图：运行时用 NSImage(named:) 检测资源，兼容「CategoryIcons/xxx」与「xxx」；SVG 需 fill="#000000" 才能被模板着色
     @ViewBuilder
     private var categoryIconView: some View {
         let name = category.icon
         let withNamespace = "CategoryIcons/\(name)"
+        #if canImport(UIKit)
         let loaded = UIImage(named: withNamespace) ?? UIImage(named: name)
         if let img = loaded, name.hasPrefix("icon_") {
             Image(uiImage: img)
@@ -306,6 +311,20 @@ private struct PickerCategoryButton: View {
                 .font(.system(size: 40, weight: .medium))
                 .foregroundColor(category.swiftUIColor)
         }
+        #elseif canImport(AppKit)
+        let loaded = NSImage(named: withNamespace) ?? NSImage(named: name)
+        if let img = loaded, name.hasPrefix("icon_") {
+            Image(nsImage: img)
+                .resizable()
+                .scaledToFit()
+                .frame(width: 44, height: 44)
+                .foregroundColor(category.swiftUIColor)
+        } else {
+            Image(systemName: name.hasPrefix("icon_") ? "tag.fill" : name)
+                .font(.system(size: 40, weight: .medium))
+                .foregroundColor(category.swiftUIColor)
+        }
+        #endif
     }
     
     var body: some View {
