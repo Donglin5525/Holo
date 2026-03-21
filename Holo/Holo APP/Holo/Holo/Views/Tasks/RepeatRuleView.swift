@@ -78,6 +78,7 @@ struct RepeatRuleView: View {
                             get: { untilDate ?? Date() },
                             set: { untilDate = $0 }
                         ), displayedComponents: .date)
+                        .environment(\.locale, Locale(identifier: "zh_CN"))
                     }
 
                     //                    Stepper("重复次数：\(untilCount ?? 0)", value: Binding(
@@ -166,11 +167,13 @@ struct RepeatRuleView: View {
         }
     }
 
-    /// 序数词转换
+    /// 中文数字转换（用于"第X周"显示）
     private func ordinalNumber(_ n: Int) -> String {
-        let formatter = NumberFormatter()
-        formatter.numberStyle = .ordinal
-        return formatter.string(from: NSNumber(value: n)) ?? "\(n)"
+        let chineseNumbers = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十"]
+        if n >= 1 && n <= 10 {
+            return chineseNumbers[n]
+        }
+        return "\(n)"
     }
 }
 

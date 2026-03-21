@@ -84,6 +84,7 @@ struct CustomDateSheet: View {
                 displayedComponents: .date
             )
             .datePickerStyle(.graphical)
+            .environment(\.locale, Locale(identifier: "zh_CN"))
             .padding(HoloSpacing.md)
             .background(Color.holoCardBackground)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
@@ -95,6 +96,7 @@ struct CustomDateSheet: View {
                 displayedComponents: .date
             )
             .datePickerStyle(.compact)
+            .environment(\.locale, Locale(identifier: "zh_CN"))
             .padding(HoloSpacing.md)
             .background(Color.holoCardBackground)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))

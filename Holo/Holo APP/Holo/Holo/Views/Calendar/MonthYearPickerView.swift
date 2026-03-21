@@ -71,24 +71,24 @@ struct MonthYearPickerView: View {
             
             Divider()
             
-            // 双滚轮：年 + 月
+            // 双滚轮：月 + 年（先选月份，再选年份）
             HStack(spacing: 0) {
-                // 年份滚轮
-                Picker("年份", selection: $pickerYear) {
-                    ForEach(yearRange, id: \.self) { year in
-                        Text("\(String(year))年")
-                            .tag(year)
-                    }
-                }
-                .pickerStyle(.wheel)
-                .frame(maxWidth: .infinity)
-                .clipped()
-                
                 // 月份滚轮
                 Picker("月份", selection: $pickerMonth) {
                     ForEach(monthRange, id: \.self) { month in
                         Text("\(month)月")
                             .tag(month)
+                    }
+                }
+                .pickerStyle(.wheel)
+                .frame(maxWidth: .infinity)
+                .clipped()
+
+                // 年份滚轮
+                Picker("年份", selection: $pickerYear) {
+                    ForEach(yearRange, id: \.self) { year in
+                        Text("\(String(year))年")
+                            .tag(year)
                     }
                 }
                 .pickerStyle(.wheel)

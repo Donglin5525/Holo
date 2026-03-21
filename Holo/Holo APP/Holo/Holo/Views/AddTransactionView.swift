@@ -235,6 +235,7 @@ struct DatePickerRow: View {
                     displayedComponents: .date
                 )
                 .datePickerStyle(.graphical)
+                .environment(\.locale, Locale(identifier: "zh_CN"))
             }
         }
     }

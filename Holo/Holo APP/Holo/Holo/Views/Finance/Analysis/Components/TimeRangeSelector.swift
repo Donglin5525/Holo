@@ -68,7 +68,7 @@ struct TimeRangeSelector: View {
 
 // MARK: - 时间范围显示标签
 
-/// 时间范围显示标签（显示当前选中的具体日期范围，可点击下钻）
+/// 时间范围显示标签（显示当前选中的具体日期范围，可点击下钻，支持左右切换）
 struct TimeRangeLabel: View {
     @ObservedObject var state: FinanceAnalysisState
     @State private var showDatePicker: Bool = false
@@ -83,35 +83,136 @@ struct TimeRangeLabel: View {
         return "\(startStr) - \(endStr)"
     }
 
-    /// 是否可以下钻（非日维度都可以）
-    private var canDrillDown: Bool {
-        state.timeRange != .day && state.timeRange != .custom
+    /// 是否可以切换（非自定义维度都可以）
+    private var canNavigate: Bool {
+        state.timeRange != .custom
     }
 
     var body: some View {
-        Button {
-            if canDrillDown {
-                showDatePicker = true
+        HStack(spacing: HoloSpacing.sm) {
+            // 上一时间段按钮
+            if canNavigate {
+                Button {
+                    navigateToPrevious()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.holoTextSecondary)
+                        .frame(width: 32, height: 32)
+                        .background(Color.holoCardBackground)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
             }
-        } label: {
-            HStack(spacing: 4) {
-                Text(dateRangeText)
-                    .font(.holoCaption)
 
-                if canDrillDown {
+            // 日期范围标签
+            Button {
+                showDatePicker = true
+            } label: {
+                HStack(spacing: 4) {
+                    Text(dateRangeText)
+                        .font(.holoCaption)
+
                     Image(systemName: "chevron.down")
                         .font(.system(size: 10, weight: .medium))
                 }
+                .foregroundColor(.holoPrimary)
+                .padding(.horizontal, HoloSpacing.md)
+                .padding(.vertical, HoloSpacing.xs)
+                .background(Color.holoCardBackground)
+                .clipShape(Capsule())
             }
-            .foregroundColor(canDrillDown ? .holoPrimary : .holoTextSecondary)
-            .padding(.horizontal, HoloSpacing.md)
-            .padding(.vertical, HoloSpacing.xs)
-            .background(Color.holoCardBackground)
-            .clipShape(Capsule())
+            .buttonStyle(.plain)
+
+            // 下一时间段按钮
+            if canNavigate {
+                Button {
+                    navigateToNext()
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.holoTextSecondary)
+                        .frame(width: 32, height: 32)
+                        .background(Color.holoCardBackground)
+                        .clipShape(Circle())
+                }
+                .buttonStyle(.plain)
+            }
         }
-        .buttonStyle(.plain)
         .sheet(isPresented: $showDatePicker) {
             DrillDownDatePicker(state: state)
+        }
+    }
+
+    // MARK: - 导航方法
+
+    private func navigateToPrevious() {
+        let calendar = Calendar.current
+        let (currentStart, _) = state.currentDateRange
+        var newStart: Date?
+
+        switch state.timeRange {
+        case .day:
+            newStart = calendar.date(byAdding: .day, value: -1, to: currentStart)
+        case .week:
+            newStart = calendar.date(byAdding: .weekOfYear, value: -1, to: currentStart)
+        case .month:
+            newStart = calendar.date(byAdding: .month, value: -1, to: currentStart)
+        case .quarter:
+            newStart = calendar.date(byAdding: .month, value: -3, to: currentStart)
+        case .year:
+            newStart = calendar.date(byAdding: .year, value: -1, to: currentStart)
+        case .custom:
+            return
+        }
+
+        if let start = newStart {
+            let end = calculateEnd(for: start, timeRange: state.timeRange)
+            state.setCustomDateRange(start: start, end: end)
+        }
+    }
+
+    private func navigateToNext() {
+        let calendar = Calendar.current
+        let (currentStart, _) = state.currentDateRange
+        var newStart: Date?
+
+        switch state.timeRange {
+        case .day:
+            newStart = calendar.date(byAdding: .day, value: 1, to: currentStart)
+        case .week:
+            newStart = calendar.date(byAdding: .weekOfYear, value: 1, to: currentStart)
+        case .month:
+            newStart = calendar.date(byAdding: .month, value: 1, to: currentStart)
+        case .quarter:
+            newStart = calendar.date(byAdding: .month, value: 3, to: currentStart)
+        case .year:
+            newStart = calendar.date(byAdding: .year, value: 1, to: currentStart)
+        case .custom:
+            return
+        }
+
+        if let start = newStart {
+            let end = calculateEnd(for: start, timeRange: state.timeRange)
+            state.setCustomDateRange(start: start, end: end)
+        }
+    }
+
+    private func calculateEnd(for start: Date, timeRange: TimeRange) -> Date {
+        let calendar = Calendar.current
+        switch timeRange {
+        case .day:
+            return calendar.date(byAdding: .day, value: 1, to: start) ?? start
+        case .week:
+            return calendar.date(byAdding: .day, value: 7, to: start) ?? start
+        case .month:
+            return calendar.date(byAdding: .month, value: 1, to: start) ?? start
+        case .quarter:
+            return calendar.date(byAdding: .month, value: 3, to: start) ?? start
+        case .year:
+            return calendar.date(byAdding: .year, value: 1, to: start) ?? start
+        case .custom:
+            return start
         }
     }
 }
@@ -141,6 +242,7 @@ struct DrillDownDatePicker: View {
                     displayedComponents: .date
                 )
                 .datePickerStyle(.graphical)
+                .environment(\.locale, Locale(identifier: "zh_CN"))
                 .padding()
 
                 Spacer()
@@ -218,11 +320,15 @@ struct DrillDownDatePicker: View {
 
     /// 应用下钻
     private func applyDrillDown() {
-        // 根据当前时间范围和选择的日期，设置新的时间范围
         let calendar = Calendar.current
         let newRange: (start: Date, end: Date)
 
         switch state.timeRange {
+        case .day:
+            let dayStart = calendar.startOfDay(for: selectedDate)
+            guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { return }
+            newRange = (dayStart, dayEnd)
+
         case .week:
             let weekStart = selectedDate.startOfWeek
             guard let weekEnd = calendar.date(byAdding: .day, value: 7, to: weekStart) else { return }
@@ -251,7 +357,7 @@ struct DrillDownDatePicker: View {
                   let yearEnd = calendar.date(byAdding: .year, value: 1, to: yearStart) else { return }
             newRange = (yearStart, yearEnd)
 
-        default:
+        case .custom:
             return
         }
 
