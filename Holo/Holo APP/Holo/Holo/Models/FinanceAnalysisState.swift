@@ -20,6 +20,9 @@ class FinanceAnalysisState: ObservableObject {
     /// 当前选中的时间范围
     @Published var timeRange: TimeRange = .month
 
+    /// 原始时间范围类型（用于导航时保持类型）
+    @Published var originalTimeRange: TimeRange = .month
+
     /// 自定义时间范围（仅当 timeRange == .custom 时使用）
     @Published var customDateRange: (start: Date, end: Date)?
 
@@ -103,6 +106,7 @@ class FinanceAnalysisState: ObservableObject {
     func setTimeRange(_ range: TimeRange) {
         guard timeRange != range else { return }
         timeRange = range
+        originalTimeRange = range
         if range != .custom {
             customDateRange = nil
         }
@@ -113,6 +117,13 @@ class FinanceAnalysisState: ObservableObject {
     func setCustomDateRange(start: Date, end: Date) {
         timeRange = .custom
         customDateRange = (start, end)
+        Task { await loadData() }
+    }
+
+    /// 导航到指定时间范围（保持原始类型）
+    func navigateToRange(start: Date, end: Date) {
+        customDateRange = (start, end)
+        // 保持原始的 timeRange 类型，不设置为 .custom
         Task { await loadData() }
     }
 

@@ -83,9 +83,14 @@ struct TimeRangeLabel: View {
         return "\(startStr) - \(endStr)"
     }
 
-    /// 是否可以切换（非自定义维度都可以）
+    /// 是否可以切换（始终可以切换）
     private var canNavigate: Bool {
-        state.timeRange != .custom
+        true
+    }
+
+    /// 获取当前时间范围类型（用于导航计算）
+    private var effectiveTimeRange: TimeRange {
+        state.originalTimeRange
     }
 
     var body: some View {
@@ -151,7 +156,7 @@ struct TimeRangeLabel: View {
         let (currentStart, _) = state.currentDateRange
         var newStart: Date?
 
-        switch state.timeRange {
+        switch effectiveTimeRange {
         case .day:
             newStart = calendar.date(byAdding: .day, value: -1, to: currentStart)
         case .week:
@@ -167,8 +172,8 @@ struct TimeRangeLabel: View {
         }
 
         if let start = newStart {
-            let end = calculateEnd(for: start, timeRange: state.timeRange)
-            state.setCustomDateRange(start: start, end: end)
+            let end = calculateEnd(for: start, timeRange: effectiveTimeRange)
+            state.navigateToRange(start: start, end: end)
         }
     }
 
@@ -177,7 +182,7 @@ struct TimeRangeLabel: View {
         let (currentStart, _) = state.currentDateRange
         var newStart: Date?
 
-        switch state.timeRange {
+        switch effectiveTimeRange {
         case .day:
             newStart = calendar.date(byAdding: .day, value: 1, to: currentStart)
         case .week:
@@ -193,8 +198,8 @@ struct TimeRangeLabel: View {
         }
 
         if let start = newStart {
-            let end = calculateEnd(for: start, timeRange: state.timeRange)
-            state.setCustomDateRange(start: start, end: end)
+            let end = calculateEnd(for: start, timeRange: effectiveTimeRange)
+            state.navigateToRange(start: start, end: end)
         }
     }
 
