@@ -5,6 +5,14 @@
 ## [Unreleased]
 
 ### Features
+- **iOS**: 财务统计分析模块 — 三 Tab 可视化分析视图
+  - 总览 Tab：柱状图展示支出/收入对比，TOP3 分类卡片
+  - 明细 Tab：折线图 + 点击交互查看具体日期交易列表
+  - 类别 Tab：环形饼图 + 一级分类下钻到二级分类
+  - 时间范围选择：日/周/月/季度/年 + 自定义日期范围
+  - X 轴粒度自动切换：<=1 天按小时，2-14 天按天，15-90 天按周，>90 天按月
+  - 新增 FinanceAnalysisState 状态管理（参考 CalendarState 模式）
+  - 新增 FinanceAggregation 数据模型（ChartDataPoint/CategoryAggregation/PeriodSummary）
 - **iOS**: Todo 模块重构为 Tab 栏导航模式
   - 重构 TasksView 为底部 Tab 容器（统计/任务/新增），与 Habits/Finance 模块交互一致
   - 新增 TaskListView 支持任务筛选（全部/收件箱/今日/已过期）

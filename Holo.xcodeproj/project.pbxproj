@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXFileReference section */
+		495B299D2F6DBFD000AD4F4E /* Holo.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = Holo.xcodeproj; sourceTree = "<group>"; };
 		495EFC192F671E220095FCB4 /* Holo.xcodeproj */ = {isa = PBXFileReference; lastKnownFileType = "wrapper.pb-project"; path = Holo.xcodeproj; sourceTree = "<group>"; };
 		49E199F42F54389E0070AE1B /* Holo.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Holo.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -30,6 +31,13 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		495B29A22F6DBFD000AD4F4E /* Products */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
 		495EFC232F671E220095FCB4 /* Products */ = {
 			isa = PBXGroup;
 			children = (
@@ -109,6 +117,10 @@
 				{
 					ProductGroup = 495EFC232F671E220095FCB4 /* Products */;
 					ProjectRef = 495EFC192F671E220095FCB4 /* Holo.xcodeproj */;
+				},
+				{
+					ProductGroup = 495B29A22F6DBFD000AD4F4E /* Products */;
+					ProjectRef = 495B299D2F6DBFD000AD4F4E /* Holo.xcodeproj */;
 				},
 			);
 			projectRoot = "";
