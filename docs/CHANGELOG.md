@@ -5,6 +5,13 @@
 ## [Unreleased]
 
 ### Features
+- **iOS**: Todo 模块重构为 Tab 栏导航模式
+  - 重构 TasksView 为底部 Tab 容器（统计/任务/新增），与 Habits/Finance 模块交互一致
+  - 新增 TaskListView 支持任务筛选（全部/收件箱/今日/已过期）
+  - 新增 TaskStatsView 展示任务统计（总览/按优先级/今日进度）
+  - 新增 AddTaskSheet 支持创建和编辑任务，可选择所属清单
+  - 新增 TaskDetailView 展示任务详情
+  - 右侧圆形 `+` 按钮直接弹出新建任务 Sheet
 - **iOS**: 记账页面交互优化 — AddTransactionSheet 体验提升
   - Header 右侧新增 ✓ 保存按钮，点击即可完成记账
   - 下拉刷新保存记账（X 按钮 = 取消不保存）
@@ -36,6 +43,9 @@
   - FinanceView 顶部新增搜索按钮入口
 
 ### Bug Fixes
+- **iOS**: 修复 Todo 模块保存任务时崩溃问题
+  - Core Data 属性名不匹配：`allDay` → `isAllDay`
+  - `@StateObject` 创建多实例问题，改用单例访问 `TodoRepository.shared`
 - **iOS**: 修复周视图点击日期跳转到错误周的问题 — 隐藏的月历网格触摸事件穿透
 - **iOS**: 修复切换 Tab 后日历状态丢失的问题 — CalendarState 提升到 FinanceView 层级
 - **iOS**: 优化账本标题显示，非今天仅显示「M月d日」避免换行
