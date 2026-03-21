@@ -26,7 +26,37 @@ struct AddTaskSheet: View {
     @State private var showListPicker = false
     @State private var showDatePicker = false
     @State private var showTagPicker = false
+    @State private var showAddTagSheet = false
+    @State private var showAddFolderSheet = false
+    @State private var showAddListSheet = false
+    @State private var showEditFolderSheet = false
+    @State private var showEditListSheet = false
+    @State private var selectedFolderForNewList: TodoFolder? = nil
+    @State private var editingFolder: TodoFolder? = nil
+    @State private var editingList: TodoList? = nil
+    @State private var showDeleteConfirm = false
+    @State private var itemToDelete: DeleteTarget? = nil
     @State private var isSaving = false
+    @State private var newTagName = ""
+    @State private var newTagColor = "#4A90D9"
+
+    // 删除目标类型
+    private enum DeleteTarget: Identifiable {
+        case folder(TodoFolder)
+        case list(TodoList)
+        case tag(TodoTag)
+        var id: String {
+            switch self {
+            case .folder(let f): return "folder-\(f.id)"
+            case .list(let l): return "list-\(l.id)"
+            case .tag(let t): return "tag-\(t.id)"
+            }
+        }
+    }
+
+    // 编辑标签相关
+    @State private var showEditTagSheet = false
+    @State private var editingTag: TodoTag? = nil
 
     private static let logger = Logger(subsystem: "com.holo.app", category: "AddTaskSheet")
 
@@ -400,10 +430,32 @@ struct AddTaskSheet: View {
 
                 ScrollView {
                     VStack(spacing: HoloSpacing.md) {
+                        // 新建文件夹按钮
+                        Button {
+                            showAddFolderSheet = true
+                        } label: {
+                            HStack(spacing: HoloSpacing.sm) {
+                                Image(systemName: "folder.badge.plus")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.holoPrimary)
+
+                                Text("新建文件夹")
+                                    .font(.holoBody)
+                                    .foregroundColor(.holoPrimary)
+
+                                Spacer()
+                            }
+                            .padding(.horizontal, HoloSpacing.lg)
+                            .padding(.vertical, HoloSpacing.md)
+                            .background(Color.holoPrimary.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                        }
+                        .buttonStyle(PlainButtonStyle())
+
                         // 收件箱
                         Button {
                             selectedListId = nil
-                            dismiss()
+                            showListPicker = false
                         } label: {
                             HStack(spacing: HoloSpacing.sm) {
                                 Image(systemName: "tray")
@@ -424,7 +476,7 @@ struct AddTaskSheet: View {
                             }
                             .padding(.horizontal, HoloSpacing.lg)
                             .padding(.vertical, HoloSpacing.md)
-                            .background(Color.holoCardBackground)
+                            .background(selectedListId == nil ? Color.holoPrimary.opacity(0.1) : Color.holoCardBackground)
                             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
                         }
                         .buttonStyle(PlainButtonStyle())
@@ -432,20 +484,55 @@ struct AddTaskSheet: View {
                         // 文件夹和清单
                         ForEach(repository.folders, id: \.id) { folder in
                             VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                                Text(folder.name)
-                                    .font(.holoLabel)
-                                    .foregroundColor(.holoTextSecondary)
-                                    .padding(.horizontal, HoloSpacing.xs)
+                                // 文件夹标题行（支持长按编辑/删除）
+                                HStack {
+                                    Text(folder.name)
+                                        .font(.holoLabel)
+                                        .foregroundColor(.holoTextSecondary)
+                                        .padding(.horizontal, HoloSpacing.xs)
+
+                                    Spacer()
+
+                                    // 在文件夹下新建清单
+                                    Button {
+                                        selectedFolderForNewList = folder
+                                        showAddListSheet = true
+                                    } label: {
+                                        Image(systemName: "plus.circle")
+                                            .font(.system(size: 14, weight: .medium))
+                                            .foregroundColor(.holoPrimary)
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                }
+                                .contentShape(Rectangle())
+                                .contextMenu {
+                                    Button {
+                                        editingFolder = folder
+                                        showEditFolderSheet = true
+                                    } label: {
+                                        Label("编辑文件夹", systemImage: "pencil")
+                                    }
+
+                                    Divider()
+
+                                    Button(role: .destructive) {
+                                        itemToDelete = .folder(folder)
+                                        showDeleteConfirm = true
+                                    } label: {
+                                        Label("删除文件夹", systemImage: "trash")
+                                    }
+                                }
 
                                 ForEach(folder.listsArray, id: \.id) { list in
+                                    // 清单项（支持长按编辑/删除）
                                     Button {
                                         selectedListId = list.id
-                                        dismiss()
+                                        showListPicker = false
                                     } label: {
                                         HStack(spacing: HoloSpacing.sm) {
-                                            Image(systemName: "list.bullet")
-                                                .font(.system(size: 16, weight: .medium))
-                                                .foregroundColor(.holoTextSecondary)
+                                            Circle()
+                                                .fill(Color(hex: list.color ?? "#007AFF"))
+                                                .frame(width: 8, height: 8)
 
                                             Text(list.name)
                                                 .font(.holoBody)
@@ -461,10 +548,35 @@ struct AddTaskSheet: View {
                                         }
                                         .padding(.horizontal, HoloSpacing.lg)
                                         .padding(.vertical, HoloSpacing.md)
-                                        .background(Color.holoCardBackground)
+                                        .background(selectedListId == list.id ? Color.holoPrimary.opacity(0.1) : Color.holoCardBackground)
                                         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
                                     }
                                     .buttonStyle(PlainButtonStyle())
+                                    .contextMenu {
+                                        Button {
+                                            editingList = list
+                                            showEditListSheet = true
+                                        } label: {
+                                            Label("编辑清单", systemImage: "pencil")
+                                        }
+
+                                        Divider()
+
+                                        Button(role: .destructive) {
+                                            itemToDelete = .list(list)
+                                            showDeleteConfirm = true
+                                        } label: {
+                                            Label("删除清单", systemImage: "trash")
+                                        }
+                                    }
+                                }
+
+                                // 文件夹下无清单时的提示
+                                if folder.listsArray.isEmpty {
+                                    Text("暂无清单，点击 + 创建")
+                                        .font(.holoCaption)
+                                        .foregroundColor(.holoTextSecondary.opacity(0.7))
+                                        .padding(.horizontal, HoloSpacing.lg)
                                 }
                             }
                         }
@@ -475,11 +587,11 @@ struct AddTaskSheet: View {
                                     .font(.system(size: 40, weight: .light))
                                     .foregroundColor(.holoTextSecondary.opacity(0.5))
 
-                                Text("暂无清单")
+                                Text("暂无文件夹")
                                     .font(.holoBody)
                                     .foregroundColor(.holoTextSecondary)
 
-                                Text("请先创建文件夹和清单")
+                                Text("点击上方\"新建文件夹\"创建")
                                     .font(.holoCaption)
                                     .foregroundColor(.holoTextSecondary.opacity(0.7))
                             }
@@ -495,14 +607,74 @@ struct AddTaskSheet: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("完成") {
-                        dismiss()
+                        showListPicker = false
                     }
                     .foregroundColor(.holoPrimary)
+                }
+            }
+            .sheet(isPresented: $showAddFolderSheet) {
+                AddFolderSheet(repository: repository)
+            }
+            .sheet(isPresented: $showAddListSheet) {
+                AddListSheet(repository: repository, folder: selectedFolderForNewList)
+            }
+            .sheet(isPresented: $showEditFolderSheet) {
+                if let folder = editingFolder {
+                    EditFolderSheet(repository: repository, folder: folder)
+                }
+            }
+            .sheet(isPresented: $showEditListSheet) {
+                if let list = editingList {
+                    EditListSheet(repository: repository, list: list, folders: repository.folders)
+                }
+            }
+            .alert("确认删除", isPresented: $showDeleteConfirm, presenting: itemToDelete) { target in
+                Button("取消", role: .cancel) { }
+                Button("删除", role: .destructive) {
+                    deleteTarget(target)
+                }
+            } message: { target in
+                switch target {
+                case .folder(let folder):
+                    Text("确定要删除文件夹「\(folder.name)」吗？该文件夹下的所有清单和任务都将被删除。")
+                case .list(let list):
+                    Text("确定要删除清单「\(list.name)」吗？该清单下的所有任务都将被删除。")
+                case .tag(let tag):
+                    Text("确定要永久删除标签「\(tag.name)」吗？此操作不可撤销，但已关联的任务将保留。")
                 }
             }
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+    }
+
+    // MARK: - 删除操作
+
+    private func deleteTarget(_ target: DeleteTarget) {
+        do {
+            switch target {
+            case .folder(let folder):
+                // 如果当前选中的清单在该文件夹下，清除选择
+                if let listId = selectedListId {
+                    if folder.listsArray.contains(where: { $0.id == listId }) {
+                        selectedListId = nil
+                    }
+                }
+                try repository.deleteFolder(folder)
+            case .list(let list):
+                // 如果当前选中的是该清单，清除选择
+                if selectedListId == list.id {
+                    selectedListId = nil
+                }
+                try repository.deleteList(list)
+            case .tag(let tag):
+                // 如果当前选中了该标签，移除选中
+                selectedTags.remove(tag.id)
+                try repository.permanentlyDeleteTag(tag)
+            }
+        } catch {
+            Self.logger.error("删除失败: \(error.localizedDescription)")
+        }
     }
 
     // MARK: - 标签选择器 Sheet
@@ -514,7 +686,33 @@ struct AddTaskSheet: View {
 
                 ScrollView {
                     VStack(spacing: HoloSpacing.md) {
+                        // 新增标签按钮
+                        Button {
+                            showAddTagSheet = true
+                        } label: {
+                            HStack(spacing: HoloSpacing.sm) {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.holoPrimary)
+
+                                Text("新增标签")
+                                    .font(.holoBody)
+                                    .foregroundColor(.holoPrimary)
+
+                                Spacer()
+                            }
+                            .padding(.horizontal, HoloSpacing.lg)
+                            .padding(.vertical, HoloSpacing.md)
+                            .background(Color.holoPrimary.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                        }
+                        .buttonStyle(PlainButtonStyle())
+
+                        Divider()
+                            .padding(.vertical, HoloSpacing.sm)
+
                         ForEach(repository.tags, id: \.id) { tag in
+                            // 标签项（支持长按菜单）
                             Button {
                                 if selectedTags.contains(tag.id) {
                                     selectedTags.remove(tag.id)
@@ -545,6 +743,29 @@ struct AddTaskSheet: View {
                                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
                             }
                             .buttonStyle(PlainButtonStyle())
+                            .contextMenu {
+                                Button {
+                                    editingTag = tag
+                                    showEditTagSheet = true
+                                } label: {
+                                    Label("编辑标签", systemImage: "pencil")
+                                }
+
+                                Button {
+                                    archiveTag(tag)
+                                } label: {
+                                    Label("归档标签", systemImage: "archivebox")
+                                }
+
+                                Divider()
+
+                                Button(role: .destructive) {
+                                    itemToDelete = .tag(tag)
+                                    showDeleteConfirm = true
+                                } label: {
+                                    Label("删除标签", systemImage: "trash")
+                                }
+                            }
                         }
 
                         if repository.tags.isEmpty {
@@ -556,6 +777,10 @@ struct AddTaskSheet: View {
                                 Text("暂无标签")
                                     .font(.holoBody)
                                     .foregroundColor(.holoTextSecondary)
+
+                                Text("点击上方\"新增标签\"创建")
+                                    .font(.holoCaption)
+                                    .foregroundColor(.holoTextSecondary.opacity(0.7))
                             }
                             .padding(.top, HoloSpacing.xl)
                         }
@@ -569,14 +794,130 @@ struct AddTaskSheet: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("完成") {
-                        dismiss()
+                        showTagPicker = false
                     }
                     .foregroundColor(.holoPrimary)
+                }
+            }
+            .sheet(isPresented: $showAddTagSheet) {
+                addTagSheet
+            }
+            .sheet(isPresented: $showEditTagSheet) {
+                if let tag = editingTag {
+                    EditTagSheet(repository: repository, tag: tag)
                 }
             }
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+    }
+
+    // MARK: - 归档标签
+
+    private func archiveTag(_ tag: TodoTag) {
+        do {
+            // 归档 = 软删除，标签从列表中隐藏，但已关联的任务保留关联
+            try repository.deleteTag(tag)
+            // 如果当前选中了该标签，移除选中
+            selectedTags.remove(tag.id)
+        } catch {
+            Self.logger.error("归档标签失败: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - 新增标签 Sheet
+
+    private var addTagSheet: some View {
+        NavigationStack {
+            ZStack {
+                Color.holoBackground.ignoresSafeArea()
+
+                VStack(spacing: HoloSpacing.lg) {
+                    // 标签名称
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("标签名称")
+                            .font(.holoLabel)
+                            .foregroundColor(.holoTextSecondary)
+
+                        TextField("输入标签名称", text: $newTagName)
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .background(Color.holoCardBackground)
+                            .cornerRadius(HoloRadius.sm)
+                    }
+
+                    // 颜色选择
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("标签颜色")
+                            .font(.holoLabel)
+                            .foregroundColor(.holoTextSecondary)
+
+                        HStack(spacing: 8) {
+                            ForEach(["#4A90D9", "#E74C3C", "#2ECC71", "#F39C12", "#9B59B6", "#1ABC9C"], id: \.self) { color in
+                                Button {
+                                    newTagColor = color
+                                } label: {
+                                    Circle()
+                                        .fill(Color(hex: color))
+                                        .frame(width: 32, height: 32)
+                                        .overlay(
+                                            Circle()
+                                                .stroke(Color.white, lineWidth: newTagColor == color ? 3 : 0)
+                                        )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            }
+                        }
+                    }
+
+                    Spacer()
+                }
+                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.top, HoloSpacing.md)
+            }
+            .navigationTitle("新增标签")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("取消") {
+                        newTagName = ""
+                        newTagColor = "#4A90D9"
+                        showAddTagSheet = false
+                    }
+                    .foregroundColor(.holoTextSecondary)
+                }
+
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("创建") {
+                        createTag()
+                    }
+                    .foregroundColor(newTagName.trimmingCharacters(in: .whitespaces).isEmpty ? .holoTextSecondary : .holoPrimary)
+                    .fontWeight(.semibold)
+                    .disabled(newTagName.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+        }
+        .presentationDetents([.height(280)])
+        .presentationDragIndicator(.visible)
+    }
+
+    // MARK: - 创建标签
+
+    private func createTag() {
+        let trimmedName = newTagName.trimmingCharacters(in: .whitespaces)
+        guard !trimmedName.isEmpty else { return }
+
+        do {
+            let tag = try repository.createTag(name: trimmedName, color: newTagColor)
+            selectedTags.insert(tag.id)
+            newTagName = ""
+            newTagColor = "#4A90D9"
+            showAddTagSheet = false
+        } catch {
+            Self.logger.error("创建标签失败: \(error.localizedDescription)")
+        }
     }
 
     // MARK: - 清单查找
@@ -620,7 +961,8 @@ struct AddTaskSheet: View {
                         description: description,
                         priority: priority,
                         dueDate: dueDate,
-                        isAllDay: isAllDay
+                        isAllDay: isAllDay,
+                        tags: selectedTagObjects
                     )
                 } else {
                     _ = try repository.createTask(

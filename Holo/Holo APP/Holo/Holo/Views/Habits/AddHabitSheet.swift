@@ -142,7 +142,7 @@ struct AddHabitSheet: View {
             } label: {
                 ZStack {
                     Circle()
-                        .fill(Color(hex: selectedColor)?.opacity(0.1) ?? Color.holoInfo.opacity(0.1))
+                        .fill(Color(hex: selectedColor).opacity(0.1) ?? Color.holoInfo.opacity(0.1))
                         .frame(width: 64, height: 64)
                     
                     // 判断是否为自定义图标
@@ -180,7 +180,7 @@ struct AddHabitSheet: View {
                             )
                             .overlay(
                                 Circle()
-                                    .stroke(Color(hex: color)?.opacity(0.3) ?? .clear, lineWidth: selectedColor == color ? 1 : 0)
+                                    .stroke(Color(hex: color).opacity(0.3) ?? .clear, lineWidth: selectedColor == color ? 1 : 0)
                                     .padding(-1)
                             )
                     }

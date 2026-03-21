@@ -34,6 +34,9 @@ struct HomeView: View {
 
     /// 是否显示设置页面
     @State private var showSettingsView: Bool = false
+
+    /// 是否显示待办页面
+    @State private var showTasksView: Bool = false
     
     // MARK: - 五角形功能按钮拖拽排序状态
     
@@ -109,6 +112,11 @@ struct HomeView: View {
         // 设置页面（Sheet 形式）
         .sheet(isPresented: $showSettingsView) {
             SettingsView()
+        }
+        // 待办页面（Full Screen Cover 形式）
+        .fullScreenCover(isPresented: $showTasksView) {
+            TasksView()
+                .preferredColorScheme(DarkModeManager.shared.colorScheme)
         }
         // 页面加载时从持久化存储加载图标配置
         .onAppear {
@@ -404,7 +412,7 @@ struct HomeView: View {
     private func handleFeatureButtonTap(_ item: FeatureButtonConfig) {
         switch item.id {
         case "task":
-            print("Task tapped")
+            showTasksView = true
         case "finance":
             showFinanceView = true
         case "health":

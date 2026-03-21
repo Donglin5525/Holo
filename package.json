@@ -18,6 +18,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "@notionhq/notion-mcp-server": "^2.2.1",
     "@tailwindcss/vite": "^4.2.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
@@ -28,5 +29,21 @@
     "globals": "^16.5.0",
     "tailwindcss": "^4.2.1",
     "vite": "^7.3.1"
-  }
+  },
+  "description": "This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.",
+  "main": "eslint.config.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Donglin5525/Holo.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Donglin5525/Holo/issues"
+  },
+  "homepage": "https://github.com/Donglin5525/Holo#readme"
 }

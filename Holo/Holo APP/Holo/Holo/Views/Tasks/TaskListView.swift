@@ -54,6 +54,9 @@ struct TaskListView: View {
     }
     @State private var selectedTask: TaskSelection? = nil
 
+    /// 是否显示归档管理页面
+    @State private var showArchiveManagement = false
+
     // MARK: - Body
 
     var body: some View {
@@ -114,6 +117,9 @@ struct TaskListView: View {
                 ProgressView("加载中...")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+        }
+        .sheet(isPresented: $showArchiveManagement) {
+            ArchiveManagementView(repository: repository)
         }
     }
 
@@ -189,6 +195,33 @@ struct TaskListView: View {
                         }
                     }
                 }
+
+                // 归档入口
+                Button {
+                    showArchiveManagement = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "archivebox")
+                            .font(.system(size: 12, weight: .medium))
+                        Text("归档")
+                            .font(.holoCaption)
+                    }
+                    .foregroundColor(.holoTextSecondary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(Color.holoCardBackground)
+                            .overlay(
+                                Capsule()
+                                    .strokeBorder(
+                                        style: StrokeStyle(lineWidth: 1, dash: [4])
+                                    )
+                                    .foregroundColor(.holoDivider)
+                            )
+                    )
+                }
+                .buttonStyle(.plain)
             }
             .padding(.horizontal, HoloSpacing.lg)
             .padding(.vertical, HoloSpacing.sm)

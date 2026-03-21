@@ -1,33 +1,32 @@
 //
-//  AddListSheet.swift
+//  EditTagSheet.swift
 //  Holo
 //
-//  添加清单表单
-//  统一全局风格：圆角卡片、自定义样式
+//  编辑标签表单
 //
 
 import SwiftUI
 import OSLog
 
-struct AddListSheet: View {
+struct EditTagSheet: View {
     @ObservedObject var repository: TodoRepository
-    let folder: TodoFolder?
+    let tag: TodoTag
     @Environment(\.dismiss) var dismiss
-    @State private var name = ""
-    @State private var color: String = "#007AFF"
+    @State private var name: String = ""
+    @State private var color: String = "#4A90D9"
 
-    private static let logger = Logger(subsystem: "com.holo.app", category: "AddListSheet")
+    private static let logger = Logger(subsystem: "com.holo.app", category: "EditTagSheet")
 
     // 预设颜色
     private let colors = [
-        "#007AFF",  // 蓝色
-        "#34C759",  // 绿色
-        "#FF9500",  // 橙色
-        "#FF3B30",  // 红色
-        "#AF52DE",  // 紫色
+        "#4A90D9",  // 蓝色
+        "#E74C3C",  // 红色
+        "#2ECC71",  // 绿色
+        "#F39C12",  // 橙色
+        "#9B59B6",  // 紫色
+        "#1ABC9C",  // 青色
         "#FF2D55",  // 粉色
-        "#5856D6",  // 靛蓝
-        "#00C7BE"   // 青色
+        "#5856D6"   // 靛蓝
     ]
 
     var body: some View {
@@ -36,13 +35,13 @@ struct AddListSheet: View {
                 Color.holoBackground.ignoresSafeArea()
 
                 VStack(spacing: HoloSpacing.lg) {
-                    // 清单名称
+                    // 标签名称
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("清单名称")
+                        Text("标签名称")
                             .font(.holoLabel)
                             .foregroundColor(.holoTextSecondary)
 
-                        TextField("输入清单名称", text: $name)
+                        TextField("输入标签名称", text: $name)
                             .font(.holoBody)
                             .foregroundColor(.holoTextPrimary)
                             .padding(.horizontal, 12)
@@ -51,34 +50,9 @@ struct AddListSheet: View {
                             .cornerRadius(HoloRadius.sm)
                     }
 
-                    // 所属文件夹
-                    if let folder = folder {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("所属文件夹")
-                                .font(.holoLabel)
-                                .foregroundColor(.holoTextSecondary)
-
-                            HStack(spacing: HoloSpacing.sm) {
-                                Image(systemName: "folder")
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundColor(.holoTextSecondary)
-
-                                Text(folder.name)
-                                    .font(.holoBody)
-                                    .foregroundColor(.holoTextPrimary)
-
-                                Spacer()
-                            }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 10)
-                            .background(Color.holoCardBackground)
-                            .cornerRadius(HoloRadius.sm)
-                        }
-                    }
-
                     // 颜色选择
                     VStack(alignment: .leading, spacing: 6) {
-                        Text("清单颜色")
+                        Text("标签颜色")
                             .font(.holoLabel)
                             .foregroundColor(.holoTextSecondary)
 
@@ -105,7 +79,7 @@ struct AddListSheet: View {
                 .padding(.horizontal, HoloSpacing.lg)
                 .padding(.top, HoloSpacing.md)
             }
-            .navigationTitle("新建清单")
+            .navigationTitle("编辑标签")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -116,8 +90,8 @@ struct AddListSheet: View {
                 }
 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("创建") {
-                        createList()
+                    Button("保存") {
+                        saveTag()
                     }
                     .foregroundColor(name.trimmingCharacters(in: .whitespaces).isEmpty ? .holoTextSecondary : .holoPrimary)
                     .fontWeight(.semibold)
@@ -125,24 +99,20 @@ struct AddListSheet: View {
                 }
             }
         }
-        .presentationDetents([.height(320)])
+        .onAppear {
+            name = tag.name
+            color = tag.color
+        }
+        .presentationDetents([.height(280)])
         .presentationDragIndicator(.visible)
     }
 
-    private func createList() {
+    private func saveTag() {
         do {
-            _ = try repository.createList(
-                name: name.trimmingCharacters(in: .whitespaces),
-                folder: folder,
-                color: color
-            )
+            try repository.updateTag(tag, name: name.trimmingCharacters(in: .whitespaces), color: color)
             dismiss()
         } catch {
-            Self.logger.error("创建清单失败: \(error.localizedDescription)")
+            Self.logger.error("更新标签失败: \(error.localizedDescription)")
         }
     }
-}
-
-#Preview {
-    AddListSheet(repository: TodoRepository.shared, folder: nil)
 }

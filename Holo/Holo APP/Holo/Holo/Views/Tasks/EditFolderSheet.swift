@@ -1,20 +1,20 @@
 //
-//  AddFolderSheet.swift
+//  EditFolderSheet.swift
 //  Holo
 //
-//  添加文件夹表单
-//  统一全局风格：圆角卡片、自定义样式
+//  编辑文件夹表单
 //
 
 import SwiftUI
 import OSLog
 
-struct AddFolderSheet: View {
+struct EditFolderSheet: View {
     @ObservedObject var repository: TodoRepository
+    let folder: TodoFolder
     @Environment(\.dismiss) var dismiss
-    @State private var name = ""
+    @State private var name: String = ""
 
-    private static let logger = Logger(subsystem: "com.holo.app", category: "AddFolderSheet")
+    private static let logger = Logger(subsystem: "com.holo.app", category: "EditFolderSheet")
 
     var body: some View {
         NavigationStack {
@@ -42,7 +42,7 @@ struct AddFolderSheet: View {
                 .padding(.horizontal, HoloSpacing.lg)
                 .padding(.top, HoloSpacing.md)
             }
-            .navigationTitle("新建文件夹")
+            .navigationTitle("编辑文件夹")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -53,8 +53,8 @@ struct AddFolderSheet: View {
                 }
 
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("创建") {
-                        createFolder()
+                    Button("保存") {
+                        saveFolder()
                     }
                     .foregroundColor(name.trimmingCharacters(in: .whitespaces).isEmpty ? .holoTextSecondary : .holoPrimary)
                     .fontWeight(.semibold)
@@ -62,20 +62,19 @@ struct AddFolderSheet: View {
                 }
             }
         }
+        .onAppear {
+            name = folder.name
+        }
         .presentationDetents([.height(200)])
         .presentationDragIndicator(.visible)
     }
 
-    private func createFolder() {
+    private func saveFolder() {
         do {
-            _ = try repository.createFolder(name: name.trimmingCharacters(in: .whitespaces))
+            try repository.updateFolder(folder, name: name.trimmingCharacters(in: .whitespaces))
             dismiss()
         } catch {
-            Self.logger.error("创建文件夹失败: \(error.localizedDescription)")
+            Self.logger.error("更新文件夹失败: \(error.localizedDescription)")
         }
     }
-}
-
-#Preview {
-    AddFolderSheet(repository: TodoRepository.shared)
 }
