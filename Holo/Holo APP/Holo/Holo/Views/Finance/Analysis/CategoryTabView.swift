@@ -38,7 +38,7 @@ struct CategoryTabView: View {
                     aggregations: currentAggregations,
                     selectedCategory: selectedCategory
                 ) { category in
-                    withAnimation(.easeInOut(duration: 0.2)) {
+                    withAnimation(.easeInOut(duration: 0.25)) {
                         selectedCategory = category
                     }
                 }
@@ -49,7 +49,9 @@ struct CategoryTabView: View {
                     selectedCategory: selectedCategory,
                     colors: chartColors
                 ) { category in
-                    handleCategoryTap(category)
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        handleCategoryTap(category)
+                    }
                 }
 
                 // 选中分类的详情
@@ -155,7 +157,7 @@ struct CategoryTabView: View {
             return
         }
 
-        // 如果是下钻模式，不处理
+        // 如果已在下钻模式，只更新选中状态
         if state.isDrillingDown {
             selectedCategory = category
             return

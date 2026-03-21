@@ -68,9 +68,10 @@ struct TimeRangeSelector: View {
 
 // MARK: - 时间范围显示标签
 
-/// 时间范围显示标签（显示当前选中的具体日期范围）
+/// 时间范围显示标签（显示当前选中的具体日期范围，可点击下钻）
 struct TimeRangeLabel: View {
     @ObservedObject var state: FinanceAnalysisState
+    @State private var showDatePicker: Bool = false
 
     private var dateRangeText: String {
         let (start, end) = state.currentDateRange
@@ -82,14 +83,179 @@ struct TimeRangeLabel: View {
         return "\(startStr) - \(endStr)"
     }
 
+    /// 是否可以下钻（非日维度都可以）
+    private var canDrillDown: Bool {
+        state.timeRange != .day && state.timeRange != .custom
+    }
+
     var body: some View {
-        Text(dateRangeText)
-            .font(.holoCaption)
-            .foregroundColor(.holoTextSecondary)
+        Button {
+            if canDrillDown {
+                showDatePicker = true
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text(dateRangeText)
+                    .font(.holoCaption)
+
+                if canDrillDown {
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 10, weight: .medium))
+                }
+            }
+            .foregroundColor(canDrillDown ? .holoPrimary : .holoTextSecondary)
             .padding(.horizontal, HoloSpacing.md)
             .padding(.vertical, HoloSpacing.xs)
             .background(Color.holoCardBackground)
             .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .sheet(isPresented: $showDatePicker) {
+            DrillDownDatePicker(state: state)
+        }
+    }
+}
+
+// MARK: - Drill Down Date Picker
+
+/// 下钻日期选择器
+struct DrillDownDatePicker: View {
+    @ObservedObject var state: FinanceAnalysisState
+    @Environment(\.dismiss) var dismiss
+    @State private var selectedDate: Date = Date()
+
+    var body: some View {
+        NavigationView {
+            VStack(spacing: HoloSpacing.lg) {
+                // 提示信息
+                Text(drillDownHint)
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary)
+                    .padding(.horizontal)
+
+                // 日期选择器
+                DatePicker(
+                    "选择日期",
+                    selection: $selectedDate,
+                    in: dateRange,
+                    displayedComponents: .date
+                )
+                .datePickerStyle(.graphical)
+                .padding()
+
+                Spacer()
+
+                // 确认按钮
+                Button {
+                    applyDrillDown()
+                    dismiss()
+                } label: {
+                    Text("查看该\(timeUnit)数据")
+                        .font(.holoBody)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, HoloSpacing.md)
+                        .background(Color.holoPrimary)
+                        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                }
+                .padding()
+            }
+            .background(Color.holoBackground)
+            .navigationTitle("选择\(timeUnit)")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("取消") {
+                        dismiss()
+                    }
+                    .foregroundColor(.holoTextSecondary)
+                }
+            }
+        }
+        .presentationDetents([.medium])
+        .presentationDragIndicator(.visible)
+    }
+
+    /// 时间单位
+    private var timeUnit: String {
+        switch state.timeRange {
+        case .week: return "周"
+        case .month: return "月"
+        case .quarter: return "季度"
+        case .year: return "年"
+        default: return "日期"
+        }
+    }
+
+    /// 下钻提示
+    private var drillDownHint: String {
+        switch state.timeRange {
+        case .week:
+            return "选择某一天，查看该周的数据"
+        case .month:
+            return "选择某一天，查看该月的数据"
+        case .quarter:
+            return "选择某一天，查看该季度的数据"
+        case .year:
+            return "选择某一天，查看该年的数据"
+        default:
+            return ""
+        }
+    }
+
+    /// 可选日期范围
+    private var dateRange: ClosedRange<Date> {
+        let now = Date()
+        let calendar = Calendar.current
+
+        // 允许选择过去一年到未来的日期
+        guard let start = calendar.date(byAdding: .year, value: -1, to: now),
+              let end = calendar.date(byAdding: .year, value: 1, to: now) else {
+            return now...now
+        }
+        return start...end
+    }
+
+    /// 应用下钻
+    private func applyDrillDown() {
+        // 根据当前时间范围和选择的日期，设置新的时间范围
+        let calendar = Calendar.current
+        let newRange: (start: Date, end: Date)
+
+        switch state.timeRange {
+        case .week:
+            let weekStart = selectedDate.startOfWeek
+            guard let weekEnd = calendar.date(byAdding: .day, value: 7, to: weekStart) else { return }
+            newRange = (weekStart, weekEnd)
+
+        case .month:
+            let monthStart = selectedDate.startOfMonth
+            guard let monthEnd = calendar.date(byAdding: .month, value: 1, to: monthStart) else { return }
+            newRange = (monthStart, monthEnd)
+
+        case .quarter:
+            let month = calendar.component(.month, from: selectedDate)
+            let quarterStartMonth = ((month - 1) / 3) * 3 + 1
+            var components = calendar.dateComponents([.year], from: selectedDate)
+            components.month = quarterStartMonth
+            components.day = 1
+            guard let quarterStart = calendar.date(from: components),
+                  let quarterEnd = calendar.date(byAdding: .month, value: 3, to: quarterStart) else { return }
+            newRange = (quarterStart, quarterEnd)
+
+        case .year:
+            var components = calendar.dateComponents([.year], from: selectedDate)
+            components.month = 1
+            components.day = 1
+            guard let yearStart = calendar.date(from: components),
+                  let yearEnd = calendar.date(byAdding: .year, value: 1, to: yearStart) else { return }
+            newRange = (yearStart, yearEnd)
+
+        default:
+            return
+        }
+
+        state.setCustomDateRange(start: newRange.start, end: newRange.end)
     }
 }
 
@@ -98,6 +264,7 @@ struct TimeRangeLabel: View {
 #Preview("Time Range Selector") {
     VStack {
         TimeRangeSelector(state: FinanceAnalysisState()) {}
+        TimeRangeLabel(state: FinanceAnalysisState())
         Spacer()
     }
     .background(Color.holoBackground)

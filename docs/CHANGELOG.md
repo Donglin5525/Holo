@@ -13,6 +13,13 @@
   - X 轴粒度自动切换：<=1 天按小时，2-14 天按天，15-90 天按周，>90 天按月
   - 新增 FinanceAnalysisState 状态管理（参考 CalendarState 模式）
   - 新增 FinanceAggregation 数据模型（ChartDataPoint/CategoryAggregation/PeriodSummary）
+
+### Bug Fixes
+- **iOS**: 修复财务统计分析模块 UI 问题
+  - 修复 TOP3 卡片在无数据时高度不一致问题（固定高度 200pt）
+  - 修复饼图中心信息展示，添加选中分类的图标、名称、占比、金额动画
+  - 修复明细页点击图表后按粒度展示数据（非仅单日）
+  - 新增日期范围标签点击下钻功能（周/月/季度可跳转到具体时间段）
 - **iOS**: Todo 模块重构为 Tab 栏导航模式
   - 重构 TasksView 为底部 Tab 容器（统计/任务/新增），与 Habits/Finance 模块交互一致
   - 新增 TaskListView 支持任务筛选（全部/收件箱/今日/已过期）

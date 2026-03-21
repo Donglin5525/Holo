@@ -17,6 +17,9 @@ struct TopCategoryCard: View {
     let accentColor: Color
     var onTapCategory: ((Category) -> Void)? = nil
 
+    // 固定高度：标题(28) + 3行(每行约52) + 内边距
+    private let cardHeight: CGFloat = 200
+
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
             // 标题
@@ -43,6 +46,7 @@ struct TopCategoryCard: View {
             }
         }
         .padding(HoloSpacing.md)
+        .frame(height: cardHeight)
         .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
     }
@@ -67,6 +71,7 @@ struct TopCategoryCard: View {
 
     private var emptyState: some View {
         VStack(spacing: HoloSpacing.sm) {
+            Spacer()
             Image(systemName: "tray")
                 .font(.system(size: 24, weight: .light))
                 .foregroundColor(.holoTextSecondary.opacity(0.5))
@@ -74,9 +79,9 @@ struct TopCategoryCard: View {
             Text("暂无数据")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
+            Spacer()
         }
         .frame(maxWidth: .infinity)
-        .padding(.vertical, HoloSpacing.lg)
     }
 }
 
