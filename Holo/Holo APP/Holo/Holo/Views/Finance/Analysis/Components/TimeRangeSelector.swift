@@ -277,6 +277,15 @@ struct DrillDownDatePicker: View {
                     }
                     .foregroundColor(.holoTextSecondary)
                 }
+
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("确认") {
+                        applyDrillDown()
+                        dismiss()
+                    }
+                    .foregroundColor(.holoPrimary)
+                    .fontWeight(.semibold)
+                }
             }
         }
         .presentationDetents([.medium])
