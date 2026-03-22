@@ -5,6 +5,13 @@
 ## [Unreleased]
 
 ### Features
+- **iOS**: 任务重复功能
+  - 新增 RepeatPicker 组件，支持每天/每周/每月/每年/自定义重复
+  - 自定义重复支持工作日快捷选择和周一~周日多选
+  - 每月重复支持「固定日期」和「第 N 个周 X」两种模式
+  - 结束条件支持永不/指定日期/重复次数
+  - 完成重复任务后自动生成下一个任务实例
+  - TaskCardView/TaskDetailView 显示重复图标和信息
 - **iOS**: 习惯统计页面
   - 总览 Tab：完成率趋势图、习惯排行榜、总览卡片
   - 习惯 Tab：按类型筛选、习惯卡片展开详情
@@ -63,6 +70,11 @@
   - 金额使用 fixedSize 确保完整显示，支持六位数加小数点格式
   - 科目名称添加 truncationMode 在空间不足时末尾截断
   - 优化图标尺寸和布局间距
+
+### Known Issues
+- **iOS**: AddTaskSheet 中截止日期选择器（DatePicker）在 ScrollView 中无法正常交互
+  - 重复结束日期选择器已改用 Sheet 方式解决
+  - 截止日期选择器仍存在此问题，待后续修复
 
 ### Features
 - **iOS**: TaskDetailView 风格统一
