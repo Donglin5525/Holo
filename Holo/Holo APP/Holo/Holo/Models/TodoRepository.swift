@@ -234,7 +234,8 @@ class TodoRepository: ObservableObject {
         priority: TaskPriority = .medium,
         dueDate: Date? = nil,
         isAllDay: Bool = false,
-        tags: [TodoTag] = []
+        tags: [TodoTag] = [],
+        reminders: Set<TaskReminder>? = nil
     ) throws -> TodoTask {
         let task = TodoTask.create(
             in: context,
@@ -242,12 +243,20 @@ class TodoRepository: ObservableObject {
             list: list,
             priority: priority,
             dueDate: dueDate,
-            isAllDay: isAllDay
+            isAllDay: isAllDay,
+            reminders: reminders
         )
 
         // 关联标签
         for tag in tags {
             task.addToTags(tag)
+        }
+
+        // 调度提醒通知
+        if let reminders = reminders, !reminders.isEmpty, dueDate != nil {
+            Task {
+                try? await TodoNotificationService.shared.scheduleReminder(for: task, reminders: Array(reminders))
+            }
         }
 
         try context.save()
@@ -266,7 +275,8 @@ class TodoRepository: ObservableObject {
         dueDate: Date? = nil,
         isAllDay: Bool? = nil,
         list: TodoList? = nil,
-        tags: [TodoTag]? = nil
+        tags: [TodoTag]? = nil,
+        reminders: Set<TaskReminder>? = nil
     ) throws {
         if let title = title { task.title = title }
         if let description = description { task.desc = description }
@@ -287,6 +297,15 @@ class TodoRepository: ObservableObject {
             // 添加新标签
             for tag in tags {
                 task.addToTags(tag)
+            }
+        }
+
+        // 更新提醒
+        if let reminders = reminders {
+            task.remindersSet = reminders
+            // 更新通知
+            Task {
+                try? await TodoNotificationService.shared.updateReminders(for: task, reminders: Array(reminders))
             }
         }
 

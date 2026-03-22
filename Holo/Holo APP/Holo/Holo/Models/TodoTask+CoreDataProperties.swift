@@ -18,7 +18,8 @@ extension TodoTask {
         list: TodoList? = nil,
         priority: TaskPriority = .medium,
         dueDate: Date? = nil,
-        isAllDay: Bool = false
+        isAllDay: Bool = false,
+        reminders: Set<TaskReminder>? = nil
     ) -> TodoTask {
         let task = TodoTask(context: context)
         task.id = UUID()
@@ -31,8 +32,13 @@ extension TodoTask {
         task.completed = false
         task.archived = false
         task.deletedFlag = false
+        task.hasDailyReminder = false
+        task.smartReminderEnabled = false
         task.createdAt = Date()
         task.updatedAt = Date()
+        if let reminders = reminders, !reminders.isEmpty {
+            task.remindersSet = reminders
+        }
         return task
     }
 
@@ -96,6 +102,41 @@ extension TodoTask {
         guard !checkItemsArray.isEmpty else { return 0 }
         let completedCount = checkItemsArray.filter { $0.isChecked }.count
         return Double(completedCount) / Double(checkItemsArray.count)
+    }
+
+    // MARK: - Reminder Convenience Properties
+
+    /// 提醒集合（便捷访问）
+    var remindersSet: Set<TaskReminder> {
+        get {
+            guard let data = reminders else { return [] }
+            do {
+                let decoder = JSONDecoder()
+                let array = try decoder.decode([TaskReminder].self, from: data)
+                return Set(array)
+            } catch {
+                return []
+            }
+        }
+        set {
+            do {
+                let encoder = JSONEncoder()
+                let array = Array(newValue)
+                reminders = try encoder.encode(array)
+            } catch {
+                reminders = nil
+            }
+        }
+    }
+
+    /// 提醒数组（用于显示和遍历）
+    var remindersArray: [TaskReminder] {
+        Array(remindersSet).sorted { $0.offsetMinutes > $1.offsetMinutes }
+    }
+
+    /// 是否有提醒
+    var hasReminders: Bool {
+        !remindersSet.isEmpty
     }
 }
 

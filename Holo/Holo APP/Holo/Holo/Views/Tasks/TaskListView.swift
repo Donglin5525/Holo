@@ -56,6 +56,8 @@ struct TaskListView: View {
 
     /// 是否显示归档管理页面
     @State private var showArchiveManagement = false
+    /// 是否显示通知设置页面
+    @State private var showNotificationSettings = false
 
     // MARK: - Body
 
@@ -121,6 +123,9 @@ struct TaskListView: View {
         .sheet(isPresented: $showArchiveManagement) {
             ArchiveManagementView(repository: repository)
         }
+        .sheet(isPresented: $showNotificationSettings) {
+            NotificationSettingsView()
+        }
     }
 
     // MARK: - 数据加载
@@ -168,11 +173,24 @@ struct TaskListView: View {
 
             Spacer()
 
-            // 今日进度
-            Text("\(todayProgress.completed)/\(todayProgress.total)")
-                .font(.holoBody)
-                .foregroundColor(.holoTextSecondary)
-                .frame(width: 44, alignment: .trailing)
+            // 右侧按钮组
+            HStack(spacing: 0) {
+                // 通知设置按钮
+                Button {
+                    showNotificationSettings = true
+                } label: {
+                    Image(systemName: "bell")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.holoTextSecondary)
+                        .frame(width: 32, height: 44)
+                }
+
+                // 今日进度
+                Text("\(todayProgress.completed)/\(todayProgress.total)")
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextSecondary)
+                    .frame(minWidth: 32, alignment: .trailing)
+            }
         }
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, HoloSpacing.sm)

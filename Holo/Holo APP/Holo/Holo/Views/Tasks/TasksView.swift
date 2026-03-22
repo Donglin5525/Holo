@@ -43,6 +43,7 @@ struct TasksView: View {
     @Environment(\.dismiss) var dismiss
     @State private var selectedTab: TodoTab = .tasks
     @State private var showAddTask: Bool = false
+    @State private var showNotificationSettings: Bool = false
 
     /// 直接使用单例，避免 @StateObject 创建新实例
     private var repository: TodoRepository { TodoRepository.shared }

@@ -5,6 +5,18 @@
 ## [Unreleased]
 
 ### Features
+- **iOS**: Todo 本地通知提醒功能
+  - 新增 ReminderPicker 组件，支持多选预设提醒时间（截止时/5分钟/15分钟/30分钟/1小时/1天前）
+  - 新增 NotificationSettingsView 全局通知设置页面（权限管理/每日提醒/测试通知）
+  - TodoNotificationService 增强：每日提醒、通知分类、操作按钮（完成任务/15分钟后提醒）
+  - AddTaskSheet 集成提醒选择器，截止日期开关控制提醒可用性
+  - TaskListView 新增通知设置入口（header 右侧铃铛按钮）
+  - 数据模型扩展：TodoTask 新增 reminders/hasDailyReminder/smartReminderEnabled 字段
+  - HoloApp 生命周期集成：自动设置通知代理和注册分类
+  - 预留 AI 智能提醒接口（smartReminderSchedule）
+- **iOS**: 财务分析 TOP3 分类卡片 UI 优化
+  - 优化布局为更紧凑的水平排列
+  - 修复卡片宽度不自适应问题
 - **iOS**: 财务统计分析模块 — 三 Tab 可视化分析视图
   - 总览 Tab：柱状图展示支出/收入对比，TOP3 分类卡片
   - 明细 Tab：折线图 + 点击交互查看具体日期交易列表

@@ -17,12 +17,26 @@ struct HoloApp: App {
     /// 深色模式管理器
     @StateObject private var darkModeManager = DarkModeManager.shared
 
+    // MARK: - Initialization
+
+    init() {
+        // 设置通知代理和注册分类
+        Task { @MainActor in
+            TodoNotificationService.shared.setupDelegate()
+            TodoNotificationService.shared.registerNotificationCategories()
+        }
+    }
+
     // MARK: - Body
 
     var body: some Scene {
         WindowGroup {
             ContentView()
                 .preferredColorScheme(darkModeManager.colorScheme)
+                .task {
+                    // 检查通知权限状态
+                    TodoNotificationService.shared.checkAuthorizationStatus()
+                }
         }
     }
 }

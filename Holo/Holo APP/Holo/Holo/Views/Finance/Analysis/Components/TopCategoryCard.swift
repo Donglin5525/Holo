@@ -46,7 +46,7 @@ struct TopCategoryCard: View {
             }
         }
         .padding(HoloSpacing.md)
-        .frame(height: cardHeight)
+        .frame(maxWidth: .infinity, minHeight: cardHeight, maxHeight: cardHeight)
         .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
     }
@@ -96,33 +96,29 @@ struct CategoryRankRow: View {
 
     var body: some View {
         Button(action: onTap) {
-            HStack(spacing: HoloSpacing.md) {
-                // 排名
+            HStack(spacing: 6) {
+                // 排名徽章
                 rankBadge
 
-                // 分类图标
-                categoryIcon
+                // 分类图标 + 名称（水平排列，更紧凑）
+                HStack(spacing: 6) {
+                    categoryIcon
 
-                // 分类信息
-                VStack(alignment: .leading, spacing: 2) {
                     Text(aggregation.category.name)
-                        .font(.holoBody)
+                        .font(.system(size: 13))
                         .foregroundColor(.holoTextPrimary)
-
-                    Text(aggregation.formattedPercentage)
-                        .font(.holoLabel)
-                        .foregroundColor(.holoTextSecondary)
+                        .lineLimit(1)
                 }
 
-                Spacer()
+                Spacer(minLength: 4)
 
                 // 金额
                 Text(aggregation.formattedAmount)
-                    .font(.holoBody)
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundColor(accentColor)
-                    .fixedSize(horizontal: true, vertical: false)
+                    .lineLimit(1)
             }
-            .padding(.vertical, HoloSpacing.sm)
+            .padding(.vertical, 6)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -135,18 +131,18 @@ struct CategoryRankRow: View {
         switch rank {
         case 1:
             Text("🥇")
-                .font(.system(size: 18))
+                .font(.system(size: 16))
         case 2:
             Text("🥈")
-                .font(.system(size: 18))
+                .font(.system(size: 16))
         case 3:
             Text("🥉")
-                .font(.system(size: 18))
+                .font(.system(size: 16))
         default:
             Text("\(rank)")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
-                .frame(width: 24, height: 24)
+                .frame(width: 20, height: 20)
                 .background(Color.holoBackground)
                 .clipShape(Circle())
         }
@@ -158,9 +154,9 @@ struct CategoryRankRow: View {
         ZStack {
             Circle()
                 .fill(aggregation.category.swiftUIColor.opacity(0.1))
-                .frame(width: 36, height: 36)
+                .frame(width: 28, height: 28)
 
-            transactionCategoryIcon(aggregation.category, size: 18)
+            transactionCategoryIcon(aggregation.category, size: 14)
         }
     }
 }

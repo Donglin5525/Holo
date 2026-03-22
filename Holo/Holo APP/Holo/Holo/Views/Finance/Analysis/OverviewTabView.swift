@@ -42,6 +42,7 @@ struct OverviewTabView: View {
                         onCategoryTap?(category)
                     }
                 }
+                .frame(maxWidth: .infinity)
             }
             .padding(HoloSpacing.lg)
         }

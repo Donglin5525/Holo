@@ -759,6 +759,35 @@ class CoreDataStack {
         taskUpdatedAt.isOptional = false
         todoTaskAttributes.append(taskUpdatedAt)
 
+        // 提醒相关属性
+        let taskReminders = NSAttributeDescription()
+        taskReminders.name = "reminders"
+        taskReminders.attributeType = .transformableAttributeType
+        taskReminders.isOptional = true
+        taskReminders.valueTransformerName = "NSSecureUnarchiveFromData"
+        todoTaskAttributes.append(taskReminders)
+
+        let taskHasDailyReminder = NSAttributeDescription()
+        taskHasDailyReminder.name = "hasDailyReminder"
+        taskHasDailyReminder.attributeType = .booleanAttributeType
+        taskHasDailyReminder.isOptional = false
+        taskHasDailyReminder.defaultValue = false
+        todoTaskAttributes.append(taskHasDailyReminder)
+
+        let taskSmartReminderEnabled = NSAttributeDescription()
+        taskSmartReminderEnabled.name = "smartReminderEnabled"
+        taskSmartReminderEnabled.attributeType = .booleanAttributeType
+        taskSmartReminderEnabled.isOptional = false
+        taskSmartReminderEnabled.defaultValue = false
+        todoTaskAttributes.append(taskSmartReminderEnabled)
+
+        let taskSmartReminderSchedule = NSAttributeDescription()
+        taskSmartReminderSchedule.name = "smartReminderSchedule"
+        taskSmartReminderSchedule.attributeType = .transformableAttributeType
+        taskSmartReminderSchedule.isOptional = true
+        taskSmartReminderSchedule.valueTransformerName = "NSSecureUnarchiveFromData"
+        todoTaskAttributes.append(taskSmartReminderSchedule)
+
         // MARK: - TodoTag Entity
         // 待办标签实体
         let todoTagEntity = NSEntityDescription()

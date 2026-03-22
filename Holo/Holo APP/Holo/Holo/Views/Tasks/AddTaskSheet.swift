@@ -20,6 +20,8 @@ struct AddTaskSheet: View {
     @State private var priority: TaskPriority = .medium
     @State private var dueDate = Date()
     @State private var isAllDay = true
+    @State private var hasDueDate = false
+    @State private var selectedReminders: Set<TaskReminder> = []
     @State private var selectedTags: Set<UUID> = []
     @State private var selectedListId: UUID? = nil
 
@@ -70,6 +72,8 @@ struct AddTaskSheet: View {
             _priority = State(initialValue: task.taskPriority)
             _dueDate = State(initialValue: task.dueDate ?? Date())
             _isAllDay = State(initialValue: task.isAllDay)
+            _hasDueDate = State(initialValue: task.dueDate != nil)
+            _selectedReminders = State(initialValue: task.remindersSet)
             _selectedTags = State(initialValue: Set(task.tags?.allObjects.compactMap { ($0 as? TodoTag)?.id } ?? []))
             _selectedListId = State(initialValue: task.list?.id)
         } else {
@@ -103,6 +107,9 @@ struct AddTaskSheet: View {
 
                             // 截止日期
                             dueDateSection
+
+                            // 提醒
+                            reminderSection
 
                             // 标签
                             tagSection
@@ -264,8 +271,10 @@ struct AddTaskSheet: View {
         VStack(spacing: 0) {
             // 日期显示行
             Button {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                    showDatePicker.toggle()
+                if hasDueDate {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        showDatePicker.toggle()
+                    }
                 }
             } label: {
                 HStack(spacing: HoloSpacing.sm) {
@@ -273,23 +282,40 @@ struct AddTaskSheet: View {
                         .font(.system(size: 16, weight: .medium))
                         .foregroundColor(.holoTextSecondary)
 
-                    Text(formattedDueDate)
+                    Text(hasDueDate ? formattedDueDate : "无截止日期")
                         .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
+                        .foregroundColor(hasDueDate ? .holoTextPrimary : .holoTextPlaceholder)
 
                     Spacer()
 
-                    Toggle("", isOn: $isAllDay)
+                    Toggle("", isOn: $hasDueDate)
                         .labelsHidden()
                         .tint(.holoPrimary)
+                        .onChange(of: hasDueDate) { _, newValue in
+                            if newValue {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                    showDatePicker = true
+                                }
+                            } else {
+                                showDatePicker = false
+                                // 清除提醒
+                                selectedReminders.removeAll()
+                            }
+                        }
 
-                    Text(isAllDay ? "全天" : "定时")
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
+                    if hasDueDate {
+                        Toggle("", isOn: $isAllDay)
+                            .labelsHidden()
+                            .tint(.holoPrimary)
 
-                    Image(systemName: showDatePicker ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.holoTextSecondary)
+                        Text(isAllDay ? "全天" : "定时")
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextSecondary)
+
+                        Image(systemName: showDatePicker ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.holoTextSecondary)
+                    }
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
@@ -299,7 +325,7 @@ struct AddTaskSheet: View {
             .buttonStyle(PlainButtonStyle())
 
             // 展开的日期选择器
-            if showDatePicker {
+            if showDatePicker && hasDueDate {
                 DatePicker(
                     "",
                     selection: $dueDate,
@@ -339,6 +365,15 @@ struct AddTaskSheet: View {
             formatter.dateFormat = "M月d日 HH:mm"
             return formatter.string(from: dueDate)
         }
+    }
+
+    // MARK: - 提醒
+
+    private var reminderSection: some View {
+        ReminderPicker(
+            selectedReminders: $selectedReminders,
+            isEnabled: hasDueDate
+        )
     }
 
     // MARK: - 标签
@@ -952,6 +987,9 @@ struct AddTaskSheet: View {
         let trimmedTitle = title.trimmingCharacters(in: .whitespaces)
         let selectedTagObjects = repository.tags.filter { selectedTags.contains($0.id) }
 
+        // 只有设置了截止日期才传递提醒
+        let remindersToSave = hasDueDate ? selectedReminders : nil
+
         Task { @MainActor in
             do {
                 if let task = existingTask {
@@ -960,18 +998,20 @@ struct AddTaskSheet: View {
                         title: trimmedTitle,
                         description: description,
                         priority: priority,
-                        dueDate: dueDate,
+                        dueDate: hasDueDate ? dueDate : nil,
                         isAllDay: isAllDay,
-                        tags: selectedTagObjects
+                        tags: selectedTagObjects,
+                        reminders: remindersToSave
                     )
                 } else {
                     _ = try repository.createTask(
                         title: trimmedTitle,
                         list: selectedList,
                         priority: priority,
-                        dueDate: dueDate,
+                        dueDate: hasDueDate ? dueDate : nil,
                         isAllDay: isAllDay,
-                        tags: selectedTagObjects
+                        tags: selectedTagObjects,
+                        reminders: remindersToSave
                     )
                 }
 

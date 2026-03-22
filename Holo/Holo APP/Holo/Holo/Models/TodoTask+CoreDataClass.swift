@@ -31,6 +31,13 @@ class TodoTask: NSManagedObject, @unchecked Sendable {
     @NSManaged var createdAt: Date
     @NSManaged var updatedAt: Date
 
+    // MARK: - Reminder Properties
+
+    @NSManaged var reminders: Data?
+    @NSManaged var hasDailyReminder: Bool
+    @NSManaged var smartReminderEnabled: Bool
+    @NSManaged var smartReminderSchedule: Data?
+
     // MARK: - Relationships
 
     @NSManaged var list: TodoList?
