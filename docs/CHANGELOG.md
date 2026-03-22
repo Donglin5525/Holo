@@ -14,7 +14,9 @@
   - 新增 FinanceAnalysisState 状态管理（参考 CalendarState 模式）
   - 新增 FinanceAggregation 数据模型（ChartDataPoint/CategoryAggregation/PeriodSummary）
 
-### Bug Fixes
+- **iOS**: 财务统计分析时间选择器优化
+  - 去掉"日"维度选项，保留周/月/季度/年/自定义
+  - 修复自定义日期选择器：改用 Tab 切换开始/结束日期，确保可正常滚动选择
 - **iOS**: 习惯模块交互优化
   - 记录删除添加确认弹窗，防止误删
   - 修复时间范围选择器（近30天/90天/全部）点击无响应问题
