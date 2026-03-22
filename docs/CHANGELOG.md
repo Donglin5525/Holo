@@ -5,6 +5,12 @@
 ## [Unreleased]
 
 ### Features
+- **iOS**: TaskDetailView 风格统一
+  - 重构为卡片式布局，与 HabitDetailView 风格一致
+  - 使用 Holo 设计系统（holoBackground/holoCardBackground/holoTextPrimary 等）
+  - 截止日期统一使用中文格式（M月d日 E / 今天 / 明天）
+  - 新增提醒时间显示（在时间卡片中显示已设置的提醒）
+  - 添加右滑返回手势支持
 - **iOS**: Todo 本地通知提醒功能
   - 新增 ReminderPicker 组件，支持多选预设提醒时间（截止时/5分钟/15分钟/30分钟/1小时/1天前）
   - 新增 NotificationSettingsView 全局通知设置页面（权限管理/每日提醒/测试通知）
