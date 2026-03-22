@@ -351,10 +351,10 @@ class HabitRepository: ObservableObject {
     /// - 测量类：返回今日最新值
     func getTodayValue(for habit: Habit) -> Double? {
         guard habit.isNumericType else { return nil }
-        
+
         let todayRecords = getTodayRecords(for: habit)
         guard !todayRecords.isEmpty else { return nil }
-        
+
         if habit.isCountType {
             // 计数类：求和
             return todayRecords.compactMap { $0.valueDouble }.reduce(0, +)
@@ -362,6 +362,22 @@ class HabitRepository: ObservableObject {
             // 测量类：取最新（已按时间倒序，取第一条）
             return todayRecords.first?.valueDouble
         }
+    }
+
+    /// 获取历史最新值（测量类数值型）
+    /// - Returns: 最新的记录值，如果没有记录则返回 nil
+    func getLatestValue(for habit: Habit) -> Double? {
+        guard habit.isNumericType && !habit.isCountType else { return nil }
+
+        let request = HabitRecord.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "habitId == %@ AND value != nil",
+            habit.id as CVarArg
+        )
+        request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
+        request.fetchLimit = 1
+
+        return try? context.fetch(request).first?.valueDouble
     }
     
     /// 计算连续天数（打卡型）

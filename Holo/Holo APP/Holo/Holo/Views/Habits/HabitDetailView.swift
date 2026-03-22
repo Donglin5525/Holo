@@ -52,6 +52,8 @@ struct HabitDetailView: View {
     @State private var snapshot = HabitDetailSnapshot()
     @State private var showEditSheet: Bool = false
     @State private var showDeleteAlert: Bool = false
+    /// 待删除的记录（用于确认弹窗）
+    @State private var recordToDelete: HabitRecord? = nil
     /// 缓存的 habit ID（避免 onReceive 访问已删除的 habit 对象）
     @State private var cachedHabitId: UUID? = nil
     /// 标记是否正在删除或归档当前习惯
@@ -142,6 +144,22 @@ struct HabitDetailView: View {
             } message: {
                 Text("删除后将无法恢复，包括所有记录数据。")
             }
+            .alert("确认删除记录", isPresented: .init(
+                get: { recordToDelete != nil },
+                set: { if !$0 { recordToDelete = nil } }
+            )) {
+                Button("取消", role: .cancel) {
+                    recordToDelete = nil
+                }
+                Button("删除", role: .destructive) {
+                    if let record = recordToDelete {
+                        deleteRecord(record)
+                    }
+                    recordToDelete = nil
+                }
+            } message: {
+                Text("确定要删除这条记录吗？")
+            }
             .swipeBackToDismiss { dismiss() }
         }
     }
@@ -225,14 +243,34 @@ struct HabitDetailView: View {
     }
     
     // MARK: - 时间范围选择器
-    
+
     private var rangePicker: some View {
-        Picker("时间范围", selection: $selectedRange) {
-            ForEach(HabitDateRange.allCases) { range in
-                Text(range.displayName).tag(range)
+        HStack(spacing: 0) {
+            ForEach(HabitDateRange.allCases, id: \.self) { range in
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) {
+                        selectedRange = range
+                    }
+                } label: {
+                    Text(range.displayName)
+                        .font(.holoCaption)
+                        .foregroundColor(selectedRange == range ? .white : .holoTextSecondary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .background(
+                            selectedRange == range
+                                ? Color.holoPrimary
+                                : Color.holoCardBackground
+                        )
+                }
             }
         }
-        .pickerStyle(.segmented)
+        .background(Color.holoCardBackground)
+        .cornerRadius(HoloRadius.sm)
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.sm)
+                .stroke(Color.holoBorder, lineWidth: 1)
+        )
     }
     
     // MARK: - 统计摘要
@@ -431,7 +469,7 @@ struct HabitDetailView: View {
             }
             
             Button {
-                deleteRecord(record)
+                recordToDelete = record
             } label: {
                 Image(systemName: "trash")
                     .font(.system(size: 14))

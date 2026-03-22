@@ -23,6 +23,8 @@ struct HabitCardView: View {
     
     @State private var isCompleted: Bool = false
     @State private var todayValue: Double? = nil
+    /// 历史最新值（用于测量类习惯，即使今日没有记录也显示）
+    @State private var latestHistoricalValue: Double? = nil
     @State private var streak: Int = 0
     @State private var showValueInput: Bool = false
     @State private var inputValue: String = ""
@@ -87,6 +89,10 @@ struct HabitCardView: View {
                 streak = repo.calculateStreak(for: habit)
             } else {
                 todayValue = repo.getTodayValue(for: habit)
+                // 对于测量类习惯，加载历史最新值（即使今日没有记录）
+                if !habit.isCountType {
+                    latestHistoricalValue = repo.getLatestValue(for: habit)
+                }
             }
         }
     }
@@ -231,18 +237,19 @@ struct HabitCardView: View {
     }
     
     // MARK: - 测量类交互（数值显示 + 输入）
-    
+
     private var measureActionView: some View {
         Button {
             inputValue = ""
             showValueInput = true
         } label: {
             HStack(spacing: 4) {
-                if let value = todayValue {
+                // 优先显示今日值，如果没有则显示历史最新值
+                if let value = todayValue ?? latestHistoricalValue {
                     Text(habit.formatValue(value))
                         .font(.system(size: 18, weight: .semibold))
                         .foregroundColor(.holoTextPrimary)
-                    
+
                     Text(habit.unitText)
                         .font(.holoCaption)
                         .foregroundColor(.holoTextSecondary)
@@ -251,7 +258,7 @@ struct HabitCardView: View {
                         .font(.holoCaption)
                         .foregroundColor(.holoTextSecondary)
                 }
-                
+
                 Image(systemName: "plus.circle.fill")
                     .font(.system(size: 20))
                     .foregroundColor(habit.habitColor)
