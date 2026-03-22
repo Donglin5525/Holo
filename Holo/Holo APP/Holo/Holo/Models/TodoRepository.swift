@@ -359,6 +359,70 @@ class TodoRepository: ObservableObject {
         notifyDataChange()
     }
 
+    /// 完成重复任务并生成下一个实例
+    /// - Parameter task: 要完成的重复任务
+    /// - Returns: 是否生成了下一个任务实例
+    @discardableResult
+    func completeRepeatingTask(_ task: TodoTask) throws -> Bool {
+        guard let rule = task.repeatRule else {
+            // 非重复任务，直接完成
+            task.completed = true
+            task.completedAt = Date()
+            task.updatedAt = Date()
+            try context.save()
+            loadActiveTasks()
+            notifyDataChange()
+            return false
+        }
+
+        // 计算下一个到期日期
+        let fromDate = task.dueDate ?? Date()
+        guard let nextDate = rule.nextDueDate(from: fromDate) else {
+            // 已达到结束条件，直接完成（不再生成新任务）
+            task.completed = true
+            task.completedAt = Date()
+            task.updatedAt = Date()
+            try context.save()
+            loadActiveTasks()
+            notifyDataChange()
+            return false
+        }
+
+        // 创建下一个任务实例
+        let nextTask = TodoTask.create(
+            in: context,
+            title: task.title,
+            list: task.list,
+            priority: task.taskPriority,
+            dueDate: nextDate,
+            isAllDay: task.isAllDay,
+            reminders: task.remindersSet
+        )
+
+        // 关联相同的标签
+        if let tags = task.tags?.allObjects as? [TodoTag] {
+            for tag in tags {
+                nextTask.addToTags(tag)
+            }
+        }
+
+        // 关联相同的重复规则
+        nextTask.repeatRule = rule
+
+        // 完成当前任务
+        task.completed = true
+        task.completedAt = Date()
+        task.updatedAt = Date()
+
+        // 解除当前任务与重复规则的关系（保留规则给下一个任务）
+        task.repeatRule = nil
+
+        try context.save()
+        loadActiveTasks()
+        notifyDataChange()
+        return true
+    }
+
     /// 软删除任务（进入回收站）
     func deleteTask(_ task: TodoTask) throws {
         task.deletedFlag = true
@@ -554,6 +618,30 @@ class TodoRepository: ObservableObject {
         let task = rule.task
         task?.repeatRule = nil
         context.delete(rule)
+        try context.save()
+        notifyDataChange()
+    }
+
+    /// 更新重复规则的每月参数
+    func updateRepeatRuleMonthlyParams(
+        _ rule: RepeatRule,
+        monthDay: Int? = nil,
+        monthWeekOrdinal: Int? = nil,
+        monthWeekday: Weekday? = nil,
+        untilCount: Int? = nil
+    ) throws {
+        if let monthDay = monthDay {
+            rule.monthDay = Int16(monthDay)
+        }
+        if let monthWeekOrdinal = monthWeekOrdinal {
+            rule.monthWeekOrdinal = Int16(monthWeekOrdinal)
+        }
+        if let monthWeekday = monthWeekday {
+            rule.monthWeekday = monthWeekday.rawValue.description
+        }
+        if let untilCount = untilCount {
+            rule.untilCount = Int16(untilCount)
+        }
         try context.save()
         notifyDataChange()
     }

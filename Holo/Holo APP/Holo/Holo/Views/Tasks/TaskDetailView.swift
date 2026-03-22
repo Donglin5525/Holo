@@ -99,10 +99,37 @@ struct TaskDetailView: View {
 
     private var taskInfoCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // 标题
-            Text(task.title)
-                .font(.holoHeading)
-                .foregroundColor(.holoTextPrimary)
+            // 完成状态切换按钮
+            Button {
+                toggleCompletion()
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: task.completed ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundColor(task.completed ? .holoSuccess : .holoTextSecondary)
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(task.title)
+                            .font(.holoHeading)
+                            .foregroundColor(task.completed ? .holoTextSecondary : .holoTextPrimary)
+                            .strikethrough(task.completed)
+
+                        // 重复任务提示
+                        if let repeatRule = task.repeatRule, !task.completed {
+                            HStack(spacing: 4) {
+                                Image(systemName: "repeat")
+                                    .font(.system(size: 10, weight: .medium))
+                                Text("重复任务")
+                                    .font(.holoTinyLabel)
+                            }
+                            .foregroundColor(.holoPrimary)
+                        }
+                    }
+
+                    Spacer()
+                }
+            }
+            .buttonStyle(.plain)
 
             // 描述
             if let desc = task.desc, !desc.isEmpty {
@@ -285,6 +312,30 @@ struct TaskDetailView: View {
                     }
                     .padding()
                 }
+
+                // 重复显示
+                if let repeatRule = task.repeatRule {
+                    Divider()
+                        .padding(.horizontal)
+
+                    HStack {
+                        Image(systemName: "repeat")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.holoTextSecondary)
+
+                        Text("重复")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+
+                        Spacer()
+
+                        Text(repeatRule.displayDescription)
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextSecondary)
+                            .multilineTextAlignment(.trailing)
+                    }
+                    .padding()
+                }
             }
         }
         .background(Color.holoCardBackground)
@@ -444,6 +495,27 @@ struct TaskDetailView: View {
             try repository.updateTask(task, status: status)
         } catch {
             Self.logger.error("更新状态失败: \(error.localizedDescription)")
+        }
+    }
+
+    private func toggleCompletion() {
+        do {
+            if task.repeatRule != nil && !task.completed {
+                // 重复任务完成时，生成下一个实例
+                let generated = try repository.completeRepeatingTask(task)
+                if generated {
+                    // 刷新本地 task 状态
+                    task = repository.findTask(by: task.id) ?? task
+                }
+            } else {
+                // 普通任务直接切换完成状态
+                let isCompleted = try repository.toggleTaskCompletion(task)
+                // 更新本地状态
+                task.completed = isCompleted
+                task.completedAt = isCompleted ? Date() : nil
+            }
+        } catch {
+            Self.logger.error("切换完成状态失败: \(error.localizedDescription)")
         }
     }
 

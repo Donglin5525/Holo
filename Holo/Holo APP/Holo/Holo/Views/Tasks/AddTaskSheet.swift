@@ -38,6 +38,18 @@ struct AddTaskSheet: View {
     @State private var newTagName = ""
     @State private var newTagColor = "#4A90D9"
 
+    // 重复相关状态
+    @State private var hasRepeat = false
+    @State private var repeatType: RepeatType = .daily
+    @State private var selectedWeekdays: Set<Weekday> = []
+    @State private var monthDay: Int = 1
+    @State private var monthWeekOrdinal: Int = 1
+    @State private var monthWeekday: Weekday? = nil
+    @State private var monthlyRepeatMode: MonthlyRepeatMode = .dayOfMonth
+    @State private var endConditionType: EndConditionType = .never
+    @State private var repeatEndDate: Date? = nil
+    @State private var repeatEndCount: Int = 10
+
     // 删除目标类型
     private enum DeleteTarget: Identifiable {
         case list(TodoList)
@@ -70,6 +82,22 @@ struct AddTaskSheet: View {
             _selectedReminders = State(initialValue: task.remindersSet)
             _selectedTags = State(initialValue: Set(task.tags?.allObjects.compactMap { ($0 as? TodoTag)?.id } ?? []))
             _selectedListId = State(initialValue: task.list?.id)
+
+            // 加载重复规则
+            if let rule = task.repeatRule {
+                _hasRepeat = State(initialValue: true)
+                _repeatType = State(initialValue: rule.repeatType)
+                _selectedWeekdays = State(initialValue: Set(rule.weekdaysArray))
+                _monthDay = State(initialValue: Int(rule.monthDay))
+                _monthWeekOrdinal = State(initialValue: Int(rule.monthWeekOrdinal))
+                _monthWeekday = State(initialValue: rule.monthWeekdayValue)
+                _monthlyRepeatMode = State(initialValue: rule.monthWeekOrdinal > 0 ? .nthWeekday : .dayOfMonth)
+                _endConditionType = State(initialValue: rule.endConditionType)
+                _repeatEndDate = State(initialValue: rule.untilDate)
+                _repeatEndCount = State(initialValue: Int(rule.untilCount))
+            } else {
+                _hasRepeat = State(initialValue: false)
+            }
         } else {
             _selectedListId = State(initialValue: list?.id)
         }
@@ -104,6 +132,9 @@ struct AddTaskSheet: View {
 
                             // 提醒
                             reminderSection
+
+                            // 重复
+                            repeatSection
 
                             // 标签
                             tagSection
@@ -326,6 +357,8 @@ struct AddTaskSheet: View {
                 )
                 .datePickerStyle(.graphical)
                 .environment(\.locale, Locale(identifier: "zh_CN"))
+                .scrollDismissesKeyboard(.immediately)
+                .frame(minHeight: 320)
                 .padding(.horizontal, HoloSpacing.sm)
                 .padding(.top, HoloSpacing.sm)
                 .background(Color.holoCardBackground)
@@ -366,6 +399,7 @@ struct AddTaskSheet: View {
             }
             .buttonStyle(PlainButtonStyle())
         }
+        .fixedSize()
         .background(Capsule().fill(Color.holoPrimary.opacity(0.1)))
         .clipShape(Capsule())
     }
@@ -400,6 +434,24 @@ struct AddTaskSheet: View {
     private var reminderSection: some View {
         ReminderPicker(
             selectedReminders: $selectedReminders,
+            isEnabled: hasDueDate
+        )
+    }
+
+    // MARK: - 重复
+
+    private var repeatSection: some View {
+        RepeatPicker(
+            hasRepeat: $hasRepeat,
+            repeatType: $repeatType,
+            selectedWeekdays: $selectedWeekdays,
+            monthDay: $monthDay,
+            monthWeekOrdinal: $monthWeekOrdinal,
+            monthWeekday: $monthWeekday,
+            monthlyRepeatMode: $monthlyRepeatMode,
+            endConditionType: $endConditionType,
+            endDate: $repeatEndDate,
+            endCount: $repeatEndCount,
             isEnabled: hasDueDate
         )
     }
@@ -963,6 +1015,9 @@ struct AddTaskSheet: View {
         // 只有设置了截止日期才传递提醒
         let remindersToSave = hasDueDate ? selectedReminders : nil
 
+        // 只有设置了截止日期才允许重复
+        let shouldCreateRepeat = hasRepeat && hasDueDate
+
         Task { @MainActor in
             do {
                 if let task = existingTask {
@@ -976,8 +1031,39 @@ struct AddTaskSheet: View {
                         tags: selectedTagObjects,
                         reminders: remindersToSave
                     )
+
+                    // 处理重复规则
+                    if shouldCreateRepeat {
+                        // 如果已有规则则删除旧的
+                        if let existingRule = task.repeatRule {
+                            try repository.deleteRepeatRule(existingRule)
+                        }
+                        // 创建新规则
+                        _ = try repository.createRepeatRule(
+                            type: repeatType,
+                            for: task,
+                            weekdays: repeatType == .custom ? Array(selectedWeekdays) : nil,
+                            untilDate: endConditionType == .onDate ? repeatEndDate : nil
+                        )
+
+                        // 设置每月模式参数
+                        if repeatType == .monthly {
+                            if let rule = task.repeatRule {
+                                try repository.updateRepeatRuleMonthlyParams(
+                                    rule,
+                                    monthDay: monthlyRepeatMode == .dayOfMonth ? monthDay : nil,
+                                    monthWeekOrdinal: monthlyRepeatMode == .nthWeekday ? monthWeekOrdinal : nil,
+                                    monthWeekday: monthlyRepeatMode == .nthWeekday ? monthWeekday : nil,
+                                    untilCount: endConditionType == .afterCount ? repeatEndCount : nil
+                                )
+                            }
+                        }
+                    } else if let existingRule = task.repeatRule {
+                        // 如果不需要重复但已有规则，则删除
+                        try repository.deleteRepeatRule(existingRule)
+                    }
                 } else {
-                    _ = try repository.createTask(
+                    let newTask = try repository.createTask(
                         title: trimmedTitle,
                         list: selectedList,
                         priority: priority,
@@ -986,6 +1072,29 @@ struct AddTaskSheet: View {
                         tags: selectedTagObjects,
                         reminders: remindersToSave
                     )
+
+                    // 创建重复规则
+                    if shouldCreateRepeat {
+                        _ = try repository.createRepeatRule(
+                            type: repeatType,
+                            for: newTask,
+                            weekdays: repeatType == .custom ? Array(selectedWeekdays) : nil,
+                            untilDate: endConditionType == .onDate ? repeatEndDate : nil
+                        )
+
+                        // 设置每月模式参数
+                        if repeatType == .monthly {
+                            if let rule = newTask.repeatRule {
+                                try repository.updateRepeatRuleMonthlyParams(
+                                    rule,
+                                    monthDay: monthlyRepeatMode == .dayOfMonth ? monthDay : nil,
+                                    monthWeekOrdinal: monthlyRepeatMode == .nthWeekday ? monthWeekOrdinal : nil,
+                                    monthWeekday: monthlyRepeatMode == .nthWeekday ? monthWeekday : nil,
+                                    untilCount: endConditionType == .afterCount ? repeatEndCount : nil
+                                )
+                            }
+                        }
+                    }
                 }
 
                 // 震动反馈

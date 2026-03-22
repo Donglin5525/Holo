@@ -460,6 +460,13 @@ struct TaskCardView: View {
                             .foregroundColor(task.taskPriority.color)
                         }
 
+                        // 重复任务标识
+                        if task.repeatRule != nil {
+                            Image(systemName: "repeat")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.holoPrimary)
+                        }
+
                         // 清单名称
                         if let list = task.list {
                             Label(
@@ -572,7 +579,13 @@ struct TaskCardView: View {
 
     private func toggleCompletion() {
         do {
-            try repository.toggleTaskCompletion(task)
+            if task.repeatRule != nil && !task.completed {
+                // 重复任务完成时，生成下一个实例
+                _ = try repository.completeRepeatingTask(task)
+            } else {
+                // 普通任务直接切换完成状态
+                try repository.toggleTaskCompletion(task)
+            }
         } catch {
             Self.logger.error("切换任务状态失败: \(error.localizedDescription)")
         }
