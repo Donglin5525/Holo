@@ -28,6 +28,22 @@
 | 禁止 `!` force unwrap | 禁止 `console.log` |
 | 禁止 `print()`，用 `Logger` | 不可变更新 |
 | 错误处理用 `try-catch` | |
+| ScrollView 必须隐藏滚动条 | |
+
+**滚动条隐藏**：所有 `ScrollView` 必须设置 `showsIndicators: false`
+```swift
+ScrollView(showsIndicators: false) { ... }
+ScrollView(.horizontal, showsIndicators: false) { ... }
+```
+
+### 日期组件规范
+
+**所有 DatePicker 必须强制使用中文显示**，禁止出现英文月份：
+
+```swift
+DatePicker("", selection: $date, displayedComponents: .date)
+    .environment(\.locale, Locale(identifier: "zh_CN"))
+```
 
 ### 图标管理
 
