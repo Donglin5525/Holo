@@ -20,9 +20,13 @@ struct TaskDetailView: View {
     @State private var showingDeleteAlert = false
     @State private var showingTagPicker = false
     @State private var showingDatePicker = false
+    @State private var showAddTagSheet = false
+    @State private var newTagName = ""
+    @State private var newTagColor = "#4A90D9"
     @State private var selectedDate = Date()
     @State private var selectedIsAllDay = true
     @State private var selectedReminders: Set<TaskReminder> = []
+    @State private var isChecklistExpanded = false
 
     private static let logger = Logger(subsystem: "com.holo.app", category: "TaskDetailView")
 
@@ -617,6 +621,31 @@ struct TaskDetailView: View {
 
                 ScrollView {
                     VStack(spacing: HoloSpacing.md) {
+                        // 新增标签按钮
+                        Button {
+                            showAddTagSheet = true
+                        } label: {
+                            HStack(spacing: HoloSpacing.sm) {
+                                Image(systemName: "plus.circle.fill")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.holoPrimary)
+
+                                Text("新增标签")
+                                    .font(.holoBody)
+                                    .foregroundColor(.holoPrimary)
+
+                                Spacer()
+                            }
+                            .padding(.horizontal, HoloSpacing.lg)
+                            .padding(.vertical, HoloSpacing.md)
+                            .background(Color.holoPrimary.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                        }
+                        .buttonStyle(PlainButtonStyle())
+
+                        Divider()
+                            .padding(.vertical, HoloSpacing.sm)
+
                         if repository.tags.isEmpty {
                             VStack(spacing: HoloSpacing.md) {
                                 Image(systemName: "tag")
@@ -626,6 +655,10 @@ struct TaskDetailView: View {
                                 Text("暂无标签")
                                     .font(.holoBody)
                                     .foregroundColor(.holoTextSecondary)
+
+                                Text("点击上方\"新增标签\"创建")
+                                    .font(.holoCaption)
+                                    .foregroundColor(.holoTextSecondary.opacity(0.7))
                             }
                             .padding(.top, HoloSpacing.xl)
                         }
@@ -673,9 +706,109 @@ struct TaskDetailView: View {
                     .foregroundColor(.holoPrimary)
                 }
             }
+            .sheet(isPresented: $showAddTagSheet) {
+                addTagSheet
+            }
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+    }
+
+    // MARK: - 新增标签 Sheet
+
+    private var addTagSheet: some View {
+        NavigationStack {
+            ZStack {
+                Color.holoBackground.ignoresSafeArea()
+
+                VStack(spacing: HoloSpacing.lg) {
+                    // 标签名称
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("标签名称")
+                            .font(.holoLabel)
+                            .foregroundColor(.holoTextSecondary)
+
+                        TextField("输入标签名称", text: $newTagName)
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .background(Color.holoCardBackground)
+                            .cornerRadius(HoloRadius.sm)
+                    }
+
+                    // 颜色选择
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("标签颜色")
+                            .font(.holoLabel)
+                            .foregroundColor(.holoTextSecondary)
+
+                        HStack(spacing: 8) {
+                            ForEach(["#4A90D9", "#E74C3C", "#2ECC71", "#F39C12", "#9B59B6", "#1ABC9C"], id: \.self) { color in
+                                Button {
+                                    newTagColor = color
+                                } label: {
+                                    Circle()
+                                        .fill(Color(hex: color))
+                                        .frame(width: 32, height: 32)
+                                        .overlay(
+                                            Circle()
+                                                .stroke(Color.white, lineWidth: newTagColor == color ? 3 : 0)
+                                        )
+                                }
+                                .buttonStyle(PlainButtonStyle())
+                            }
+                        }
+                    }
+
+                    Spacer()
+                }
+                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.top, HoloSpacing.md)
+            }
+            .navigationTitle("新增标签")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("取消") {
+                        newTagName = ""
+                        newTagColor = "#4A90D9"
+                        showAddTagSheet = false
+                    }
+                    .foregroundColor(.holoTextSecondary)
+                }
+
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("创建") {
+                        createTag()
+                    }
+                    .foregroundColor(newTagName.trimmingCharacters(in: .whitespaces).isEmpty ? .holoTextSecondary : .holoPrimary)
+                    .fontWeight(.semibold)
+                    .disabled(newTagName.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
+            }
+        }
+        .presentationDetents([.height(280)])
+        .presentationDragIndicator(.visible)
+    }
+
+    private func createTag() {
+        let trimmedName = newTagName.trimmingCharacters(in: .whitespaces)
+        guard !trimmedName.isEmpty else { return }
+
+        do {
+            let tag = try repository.createTag(name: trimmedName, color: newTagColor)
+            // 自动选中新创建的标签
+            var currentTags = (task.tags?.allObjects as? [TodoTag]) ?? []
+            currentTags.append(tag)
+            try repository.updateTask(task, tags: currentTags)
+
+            newTagName = ""
+            newTagColor = "#4A90D9"
+            showAddTagSheet = false
+        } catch {
+            Self.logger.error("创建标签失败: \(error.localizedDescription)")
+        }
     }
 
     private func isTagSelected(_ tag: TodoTag) -> Bool {
