@@ -4,6 +4,7 @@
 //
 //  任务详情视图
 //  统一 Holo 设计风格：卡片布局、中文日期、Holo 颜色系统
+//  支持直接编辑：点击各字段即可修改，无需切换编辑模式
 //
 
 import SwiftUI
@@ -15,9 +16,13 @@ struct TaskDetailView: View {
     @State var task: TodoTask
     @Environment(\.dismiss) var dismiss
 
-    @State private var showingEditSheet = false
     @State private var showingChecklist = false
     @State private var showingDeleteAlert = false
+    @State private var showingTagPicker = false
+    @State private var showingDatePicker = false
+    @State private var selectedDate = Date()
+    @State private var selectedIsAllDay = true
+    @State private var selectedReminders: Set<TaskReminder> = []
 
     private static let logger = Logger(subsystem: "com.holo.app", category: "TaskDetailView")
 
@@ -58,22 +63,15 @@ struct TaskDetailView: View {
                             .foregroundColor(.holoTextSecondary)
                     }
                 }
-
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button {
-                        showingEditSheet = true
-                    } label: {
-                        Text("编辑")
-                            .font(.holoBody)
-                            .foregroundColor(.holoPrimary)
-                    }
-                }
-            }
-            .sheet(isPresented: $showingEditSheet) {
-                AddTaskSheet(repository: repository, list: task.list, task: task)
             }
             .sheet(isPresented: $showingChecklist) {
                 ChecklistView(repository: repository, task: task)
+            }
+            .sheet(isPresented: $showingTagPicker) {
+                tagPickerSheet
+            }
+            .sheet(isPresented: $showingDatePicker) {
+                datePickerSheet
             }
             .alert("删除任务", isPresented: $showingDeleteAlert) {
                 Button("取消", role: .cancel) {}
@@ -84,6 +82,12 @@ struct TaskDetailView: View {
                 Text("确定要删除此任务吗？任务将进入回收站，30 天后可恢复。")
             }
             .swipeBackToDismiss { dismiss() }
+        }
+        .onAppear {
+            // 初始化日期选择器状态
+            selectedDate = task.dueDate ?? Date()
+            selectedIsAllDay = task.isAllDay
+            selectedReminders = task.remindersSet
         }
     }
 
@@ -154,7 +158,7 @@ struct TaskDetailView: View {
             Divider()
                 .padding(.horizontal)
 
-            // 优先级显示
+            // 优先级选择（点击直接调整）
             HStack {
                 Text("优先级")
                     .font(.holoBody)
@@ -162,13 +166,33 @@ struct TaskDetailView: View {
 
                 Spacer()
 
-                HStack(spacing: 6) {
-                    Image(systemName: task.taskPriority.iconName)
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(task.taskPriority.color)
-                    Text(task.taskPriority.displayTitle)
-                        .font(.holoBody)
-                        .foregroundColor(task.taskPriority.color)
+                Menu {
+                    ForEach([TaskPriority.urgent, .high, .medium, .low], id: \.self) { p in
+                        Button {
+                            updatePriority(p)
+                        } label: {
+                            HStack {
+                                Image(systemName: p.iconName)
+                                    .foregroundColor(p.color)
+                                Text(p.displayTitle)
+                                if task.taskPriority == p {
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: task.taskPriority.iconName)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(task.taskPriority.color)
+                        Text(task.taskPriority.displayTitle)
+                            .font(.holoBody)
+                            .foregroundColor(task.taskPriority.color)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.holoTextSecondary)
+                    }
                 }
             }
             .padding()
@@ -181,23 +205,36 @@ struct TaskDetailView: View {
 
     private var timeCard: some View {
         VStack(spacing: 0) {
-            // 截止时间
-            HStack {
-                Image(systemName: "calendar")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.holoTextSecondary)
+            // 截止时间（点击直接调整）
+            Button {
+                selectedDate = task.dueDate ?? Date()
+                selectedIsAllDay = task.isAllDay
+                selectedReminders = task.remindersSet
+                showingDatePicker = true
+            } label: {
+                HStack {
+                    Image(systemName: "calendar")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.holoTextSecondary)
 
-                Text("截止时间")
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
+                    Text("截止时间")
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
 
-                Spacer()
+                    Spacer()
 
-                Text(formattedDueDate)
-                    .font(.holoBody)
-                    .foregroundColor(task.dueDate != nil ? .holoTextPrimary : .holoTextSecondary)
+                    Text(formattedDueDate)
+                        .font(.holoBody)
+                        .foregroundColor(task.dueDate != nil ? .holoTextPrimary : .holoTextSecondary)
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.holoTextSecondary)
+                }
+                .padding()
+                .background(Color.holoCardBackground)
             }
-            .padding()
+            .buttonStyle(PlainButtonStyle())
 
             if task.dueDate != nil {
                 Divider()
@@ -285,43 +322,52 @@ struct TaskDetailView: View {
     // MARK: - 标签卡片
 
     private var tagCard: some View {
-        HStack {
-            Image(systemName: "tag")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(.holoTextSecondary)
+        Button {
+            showingTagPicker = true
+        } label: {
+            HStack {
+                Image(systemName: "tag")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.holoTextSecondary)
 
-            Text("标签")
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
-
-            Spacer()
-
-            if let tags = task.tags?.allObjects as? [TodoTag], !tags.isEmpty {
-                HStack(spacing: 6) {
-                    ForEach(tags, id: \.id) { tag in
-                        HStack(spacing: 4) {
-                            Circle()
-                                .fill(Color(hex: tag.color))
-                                .frame(width: 8, height: 8)
-                            Text(tag.name)
-                                .font(.holoCaption)
-                                .foregroundColor(.holoTextPrimary)
-                        }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color(hex: tag.color).opacity(0.1))
-                        .clipShape(Capsule())
-                    }
-                }
-            } else {
-                Text("未设置")
+                Text("标签")
                     .font(.holoBody)
+                    .foregroundColor(.holoTextPrimary)
+
+                Spacer()
+
+                if let tags = task.tags?.allObjects as? [TodoTag], !tags.isEmpty {
+                    HStack(spacing: 6) {
+                        ForEach(tags, id: \.id) { tag in
+                            HStack(spacing: 4) {
+                                Circle()
+                                    .fill(Color(hex: tag.color))
+                                    .frame(width: 8, height: 8)
+                                Text(tag.name)
+                                    .font(.holoCaption)
+                                    .foregroundColor(.holoTextPrimary)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color(hex: tag.color).opacity(0.1))
+                            .clipShape(Capsule())
+                        }
+                    }
+                } else {
+                    Text("点击设置")
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPlaceholder)
+                }
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.holoTextSecondary)
             }
+            .padding()
+            .background(Color.holoCardBackground)
+            .cornerRadius(HoloRadius.lg)
         }
-        .padding()
-        .background(Color.holoCardBackground)
-        .cornerRadius(HoloRadius.lg)
+        .buttonStyle(PlainButtonStyle())
     }
 
     // MARK: - 删除按钮
@@ -397,12 +443,259 @@ struct TaskDetailView: View {
         }
     }
 
+    private func updatePriority(_ priority: TaskPriority) {
+        do {
+            try repository.updateTask(task, priority: priority)
+        } catch {
+            Self.logger.error("更新优先级失败: \(error.localizedDescription)")
+        }
+    }
+
     private func deleteTask() {
         do {
             try repository.deleteTask(task)
             dismiss()
         } catch {
             Self.logger.error("删除任务失败: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - 日期选择器 Sheet
+
+    private var datePickerSheet: some View {
+        NavigationStack {
+            ZStack {
+                Color.holoBackground.ignoresSafeArea()
+
+                ScrollView {
+                    VStack(spacing: HoloSpacing.lg) {
+                        // 是否设置截止日期
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("截止日期")
+                                .font(.holoLabel)
+                                .foregroundColor(.holoTextSecondary)
+
+                            HStack {
+                                Text("设置截止日期")
+                                    .font(.holoBody)
+                                    .foregroundColor(.holoTextPrimary)
+
+                                Spacer()
+
+                                Toggle("", isOn: Binding(
+                                    get: { task.dueDate != nil },
+                                    set: { newValue in
+                                        if newValue {
+                                            // 设置为当前选择的日期
+                                            saveDueDate(selectedDate, isAllDay: selectedIsAllDay, reminders: selectedReminders)
+                                        } else {
+                                            // 清除截止日期
+                                            saveDueDate(nil, isAllDay: true, reminders: [])
+                                        }
+                                    }
+                                ))
+                                .labelsHidden()
+                                .tint(.holoPrimary)
+                            }
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 10)
+                            .background(Color.holoCardBackground)
+                            .cornerRadius(HoloRadius.sm)
+                        }
+
+                        // 日期选择器（仅在设置了截止日期时显示）
+                        if task.dueDate != nil {
+                            // 全天切换
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("时间类型")
+                                    .font(.holoLabel)
+                                    .foregroundColor(.holoTextSecondary)
+
+                                HStack(spacing: HoloSpacing.sm) {
+                                    Button {
+                                        selectedIsAllDay = true
+                                    } label: {
+                                        Text("全天")
+                                            .font(.holoCaption)
+                                            .foregroundColor(selectedIsAllDay ? .white : .holoTextPrimary)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 6)
+                                            .background(
+                                                Capsule()
+                                                    .fill(selectedIsAllDay ? Color.holoPrimary : Color.holoTextSecondary.opacity(0.15))
+                                            )
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+
+                                    Button {
+                                        selectedIsAllDay = false
+                                    } label: {
+                                        Text("定时")
+                                            .font(.holoCaption)
+                                            .foregroundColor(!selectedIsAllDay ? .white : .holoTextPrimary)
+                                            .padding(.horizontal, 12)
+                                            .padding(.vertical, 6)
+                                            .background(
+                                                Capsule()
+                                                    .fill(!selectedIsAllDay ? Color.holoPrimary : Color.holoTextSecondary.opacity(0.15))
+                                            )
+                                    }
+                                    .buttonStyle(PlainButtonStyle())
+                                }
+                            }
+
+                            // 日期时间选择器
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(selectedIsAllDay ? "选择日期" : "选择日期和时间")
+                                    .font(.holoLabel)
+                                    .foregroundColor(.holoTextSecondary)
+
+                                DatePicker(
+                                    "",
+                                    selection: $selectedDate,
+                                    displayedComponents: selectedIsAllDay ? .date : [.date, .hourAndMinute]
+                                )
+                                .datePickerStyle(.graphical)
+                                .environment(\.locale, Locale(identifier: "zh_CN"))
+                                .padding(.horizontal, HoloSpacing.sm)
+                                .padding(.top, HoloSpacing.sm)
+                                .background(Color.holoCardBackground)
+                                .cornerRadius(HoloRadius.sm)
+                            }
+
+                            // 提醒选择器
+                            ReminderPicker(
+                                selectedReminders: $selectedReminders,
+                                isEnabled: true
+                            )
+                        }
+                    }
+                    .padding(.horizontal, HoloSpacing.lg)
+                    .padding(.top, HoloSpacing.md)
+                }
+            }
+            .navigationTitle("截止时间")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("取消") {
+                        showingDatePicker = false
+                    }
+                    .foregroundColor(.holoTextSecondary)
+                }
+
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("保存") {
+                        if task.dueDate != nil {
+                            saveDueDate(selectedDate, isAllDay: selectedIsAllDay, reminders: selectedReminders)
+                        }
+                        showingDatePicker = false
+                    }
+                    .foregroundColor(.holoPrimary)
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+        .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private func saveDueDate(_ date: Date?, isAllDay: Bool, reminders: Set<TaskReminder>) {
+        do {
+            try repository.updateTask(task, dueDate: date, isAllDay: isAllDay, reminders: reminders)
+        } catch {
+            Self.logger.error("更新截止日期失败: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - 标签选择器 Sheet
+
+    private var tagPickerSheet: some View {
+        NavigationStack {
+            ZStack {
+                Color.holoBackground.ignoresSafeArea()
+
+                ScrollView {
+                    VStack(spacing: HoloSpacing.md) {
+                        if repository.tags.isEmpty {
+                            VStack(spacing: HoloSpacing.md) {
+                                Image(systemName: "tag")
+                                    .font(.system(size: 40, weight: .light))
+                                    .foregroundColor(.holoTextSecondary.opacity(0.5))
+
+                                Text("暂无标签")
+                                    .font(.holoBody)
+                                    .foregroundColor(.holoTextSecondary)
+                            }
+                            .padding(.top, HoloSpacing.xl)
+                        }
+
+                        ForEach(repository.tags, id: \.id) { tag in
+                            Button {
+                                toggleTag(tag)
+                            } label: {
+                                HStack(spacing: HoloSpacing.sm) {
+                                    Circle()
+                                        .fill(Color(hex: tag.color))
+                                        .frame(width: 12, height: 12)
+
+                                    Text(tag.name)
+                                        .font(.holoBody)
+                                        .foregroundColor(.holoTextPrimary)
+
+                                    Spacer()
+
+                                    if isTagSelected(tag) {
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 14, weight: .semibold))
+                                            .foregroundColor(.holoPrimary)
+                                    }
+                                }
+                                .padding(.horizontal, HoloSpacing.lg)
+                                .padding(.vertical, HoloSpacing.md)
+                                .background(isTagSelected(tag) ? Color(hex: tag.color).opacity(0.1) : Color.holoCardBackground)
+                                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+                    }
+                    .padding(.horizontal, HoloSpacing.lg)
+                    .padding(.top, HoloSpacing.md)
+                }
+            }
+            .navigationTitle("选择标签")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("完成") {
+                        showingTagPicker = false
+                    }
+                    .foregroundColor(.holoPrimary)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private func isTagSelected(_ tag: TodoTag) -> Bool {
+        guard let tags = task.tags?.allObjects as? [TodoTag] else { return false }
+        return tags.contains(where: { $0.id == tag.id })
+    }
+
+    private func toggleTag(_ tag: TodoTag) {
+        var currentTags = (task.tags?.allObjects as? [TodoTag]) ?? []
+
+        if isTagSelected(tag) {
+            currentTags.removeAll { $0.id == tag.id }
+        } else {
+            currentTags.append(tag)
+        }
+
+        do {
+            try repository.updateTask(task, tags: currentTags)
+        } catch {
+            Self.logger.error("更新标签失败: \(error.localizedDescription)")
         }
     }
 }
