@@ -76,20 +76,23 @@ struct TagSelector: View {
 
 /// 标签芯片组件
 struct TagChip: View {
-    
+
     // MARK: - Properties
-    
+
     /// 标签文字
     let text: String
-    
+
     /// 是否选中
     let isSelected: Bool
-    
+
+    /// 自定义颜色（选中时使用）
+    var color: Color = .holoPrimary
+
     /// 点击回调
     let onTap: () -> Void
-    
+
     // MARK: - Body
-    
+
     var body: some View {
         Button(action: onTap) {
             Text(text)
@@ -99,7 +102,7 @@ struct TagChip: View {
                 .padding(.vertical, 6)
                 .background(
                     Capsule()
-                        .fill(isSelected ? Color.holoPrimary : Color.holoGlassBackground)
+                        .fill(isSelected ? color : Color.holoGlassBackground)
                         .overlay(
                             Capsule()
                                 .stroke(isSelected ? Color.clear : Color.holoBorder, lineWidth: 1)

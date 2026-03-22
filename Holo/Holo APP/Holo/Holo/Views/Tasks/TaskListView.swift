@@ -85,6 +85,10 @@ struct TaskListView: View {
     @State private var showArchiveManagement = false
     /// 是否显示通知设置页面
     @State private var showNotificationSettings = false
+    /// 是否显示搜索页面
+    @State private var showSearchView = false
+    /// 是否显示标签列表页面
+    @State private var showTagListView = false
 
     // MARK: - Body
 
@@ -153,6 +157,12 @@ struct TaskListView: View {
         .sheet(isPresented: $showNotificationSettings) {
             NotificationSettingsView()
         }
+        .fullScreenCover(isPresented: $showSearchView) {
+            TaskSearchView(repository: repository)
+        }
+        .sheet(isPresented: $showTagListView) {
+            TagListView(repository: repository)
+        }
     }
 
     // MARK: - 数据加载
@@ -204,6 +214,16 @@ struct TaskListView: View {
 
             // 右侧按钮组
             HStack(spacing: 0) {
+                // 搜索按钮
+                Button {
+                    showSearchView = true
+                } label: {
+                    Image(systemName: "magnifyingglass")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.holoTextSecondary)
+                        .frame(width: 32, height: 44)
+                }
+
                 // 通知设置按钮
                 Button {
                     showNotificationSettings = true
@@ -257,6 +277,33 @@ struct TaskListView: View {
                         }
                     }
                 }
+
+                // 标签入口
+                Button {
+                    showTagListView = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "tag")
+                            .font(.system(size: 12, weight: .medium))
+                        Text("标签")
+                            .font(.holoCaption)
+                    }
+                    .foregroundColor(.holoTextSecondary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(
+                        Capsule()
+                            .fill(Color.holoCardBackground)
+                            .overlay(
+                                Capsule()
+                                    .strokeBorder(
+                                        style: StrokeStyle(lineWidth: 1, dash: [4])
+                                    )
+                                    .foregroundColor(.holoDivider)
+                            )
+                    )
+                }
+                .buttonStyle(.plain)
 
                 // 归档入口
                 Button {

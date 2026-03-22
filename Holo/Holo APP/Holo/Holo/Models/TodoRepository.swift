@@ -646,6 +646,21 @@ class TodoRepository: ObservableObject {
         return (try? context.fetch(request)) ?? []
     }
 
+    /// 搜索任务（按标题、描述、标签名、清单名）
+    func searchTasks(keyword: String) -> [TodoTask] {
+        let request = TodoTask.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "(deletedFlag == NO AND archived == NO) AND (title CONTAINS[cd] %@ OR desc CONTAINS[cd] %@ OR ANY tags.name CONTAINS[cd] %@ OR list.name CONTAINS[cd] %@)",
+            keyword, keyword, keyword, keyword
+        )
+        request.sortDescriptors = [
+            NSSortDescriptor(key: "completed", ascending: true),
+            NSSortDescriptor(key: "priority", ascending: false),
+            NSSortDescriptor(key: "updatedAt", ascending: false)
+        ]
+        return (try? context.fetch(request)) ?? []
+    }
+
     /// 获取回收站中的任务
     func getTrashedTasks() -> [TodoTask] {
         let request = TodoTask.fetchRequest()
