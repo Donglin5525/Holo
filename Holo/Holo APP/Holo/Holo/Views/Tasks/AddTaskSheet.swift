@@ -270,59 +270,58 @@ struct AddTaskSheet: View {
     private var dueDateSection: some View {
         VStack(spacing: 0) {
             // 日期显示行
-            Button {
-                if hasDueDate {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        showDatePicker.toggle()
-                    }
-                }
-            } label: {
-                HStack(spacing: HoloSpacing.sm) {
-                    Image(systemName: "calendar")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.holoTextSecondary)
+            HStack(spacing: HoloSpacing.sm) {
+                // 日历图标
+                Image(systemName: "calendar")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.holoTextSecondary)
 
+                // 日期文字（可点击展开/收起）
+                Button {
+                    if hasDueDate {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            showDatePicker.toggle()
+                        }
+                    }
+                } label: {
                     Text(hasDueDate ? formattedDueDate : "无截止日期")
                         .font(.holoBody)
                         .foregroundColor(hasDueDate ? .holoTextPrimary : .holoTextPlaceholder)
-
-                    Spacer()
-
-                    Toggle("", isOn: $hasDueDate)
-                        .labelsHidden()
-                        .tint(.holoPrimary)
-                        .onChange(of: hasDueDate) { _, newValue in
-                            if newValue {
-                                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                                    showDatePicker = true
-                                }
-                            } else {
-                                showDatePicker = false
-                                // 清除提醒
-                                selectedReminders.removeAll()
-                            }
-                        }
-
-                    if hasDueDate {
-                        Toggle("", isOn: $isAllDay)
-                            .labelsHidden()
-                            .tint(.holoPrimary)
-
-                        Text(isAllDay ? "全天" : "定时")
-                            .font(.holoCaption)
-                            .foregroundColor(.holoTextSecondary)
-
-                        Image(systemName: showDatePicker ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.holoTextSecondary)
-                    }
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(Color.holoCardBackground)
-                .cornerRadius(HoloRadius.sm)
+                .buttonStyle(PlainButtonStyle())
+
+                Spacer()
+
+                // 全天/定时胶囊切换（仅当已设置日期时显示）
+                if hasDueDate {
+                    allDayToggleCapsule
+
+                    Image(systemName: showDatePicker ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.holoTextSecondary)
+                        .padding(.leading, 4)
+                }
+
+                // 日期开关
+                Toggle("", isOn: $hasDueDate)
+                    .labelsHidden()
+                    .tint(.holoPrimary)
             }
-            .buttonStyle(PlainButtonStyle())
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(Color.holoCardBackground)
+            .cornerRadius(HoloRadius.sm)
+            .onChange(of: hasDueDate) { _, newValue in
+                if newValue {
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                        showDatePicker = true
+                    }
+                } else {
+                    showDatePicker = false
+                    // 清除提醒
+                    selectedReminders.removeAll()
+                }
+            }
 
             // 展开的日期选择器
             if showDatePicker && hasDueDate {
@@ -340,6 +339,41 @@ struct AddTaskSheet: View {
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
+    }
+
+    /// 全天/定时胶囊切换
+    private var allDayToggleCapsule: some View {
+        HStack(spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isAllDay = true
+                }
+            } label: {
+                Text("全天")
+                    .font(.holoCaption)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(isAllDay ? Color.holoPrimary : Color.clear)
+                    .foregroundColor(isAllDay ? .white : .holoTextSecondary)
+            }
+            .buttonStyle(PlainButtonStyle())
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    isAllDay = false
+                }
+            } label: {
+                Text("定时")
+                    .font(.holoCaption)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(!isAllDay ? Color.holoPrimary : Color.clear)
+                    .foregroundColor(!isAllDay ? .white : .holoTextSecondary)
+            }
+            .buttonStyle(PlainButtonStyle())
+        }
+        .background(Capsule().fill(Color.holoPrimary.opacity(0.1)))
+        .clipShape(Capsule())
     }
 
     /// 判断是否是明天
