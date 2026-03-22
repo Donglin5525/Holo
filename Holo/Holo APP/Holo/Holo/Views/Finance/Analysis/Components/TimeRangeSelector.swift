@@ -18,7 +18,7 @@ struct TimeRangeSelector: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(TimeRange.allCases) { range in
+                ForEach(TimeRange.allCases.filter { $0 != .day }) { range in
                     timeRangeChip(range)
                 }
             }
