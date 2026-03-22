@@ -29,12 +29,8 @@ struct AddTaskSheet: View {
     @State private var showDatePicker = false
     @State private var showTagPicker = false
     @State private var showAddTagSheet = false
-    @State private var showAddFolderSheet = false
     @State private var showAddListSheet = false
-    @State private var showEditFolderSheet = false
     @State private var showEditListSheet = false
-    @State private var selectedFolderForNewList: TodoFolder? = nil
-    @State private var editingFolder: TodoFolder? = nil
     @State private var editingList: TodoList? = nil
     @State private var showDeleteConfirm = false
     @State private var itemToDelete: DeleteTarget? = nil
@@ -44,12 +40,10 @@ struct AddTaskSheet: View {
 
     // 删除目标类型
     private enum DeleteTarget: Identifiable {
-        case folder(TodoFolder)
         case list(TodoList)
         case tag(TodoTag)
         var id: String {
             switch self {
-            case .folder(let f): return "folder-\(f.id)"
             case .list(let l): return "list-\(l.id)"
             case .tag(let t): return "tag-\(t.id)"
             }
@@ -499,16 +493,16 @@ struct AddTaskSheet: View {
 
                 ScrollView {
                     VStack(spacing: HoloSpacing.md) {
-                        // 新建文件夹按钮
+                        // 新建清单按钮
                         Button {
-                            showAddFolderSheet = true
+                            showAddListSheet = true
                         } label: {
                             HStack(spacing: HoloSpacing.sm) {
-                                Image(systemName: "folder.badge.plus")
+                                Image(systemName: "plus.circle.fill")
                                     .font(.system(size: 16, weight: .medium))
                                     .foregroundColor(.holoPrimary)
 
-                                Text("新建文件夹")
+                                Text("新建清单")
                                     .font(.holoBody)
                                     .foregroundColor(.holoPrimary)
 
@@ -550,117 +544,66 @@ struct AddTaskSheet: View {
                         }
                         .buttonStyle(PlainButtonStyle())
 
-                        // 文件夹和清单
-                        ForEach(repository.folders, id: \.id) { folder in
-                            VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                                // 文件夹标题行（支持长按编辑/删除）
-                                HStack {
-                                    Text(folder.name)
-                                        .font(.holoLabel)
-                                        .foregroundColor(.holoTextSecondary)
-                                        .padding(.horizontal, HoloSpacing.xs)
+                        // 所有清单（扁平化显示）
+                        ForEach(allLists, id: \.id) { list in
+                            Button {
+                                selectedListId = list.id
+                                showListPicker = false
+                            } label: {
+                                HStack(spacing: HoloSpacing.sm) {
+                                    Circle()
+                                        .fill(Color(hex: list.color ?? "#007AFF"))
+                                        .frame(width: 10, height: 10)
+
+                                    Text(list.name)
+                                        .font(.holoBody)
+                                        .foregroundColor(.holoTextPrimary)
 
                                     Spacer()
 
-                                    // 在文件夹下新建清单
-                                    Button {
-                                        selectedFolderForNewList = folder
-                                        showAddListSheet = true
-                                    } label: {
-                                        Image(systemName: "plus.circle")
-                                            .font(.system(size: 14, weight: .medium))
+                                    if selectedListId == list.id {
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 14, weight: .semibold))
                                             .foregroundColor(.holoPrimary)
                                     }
-                                    .buttonStyle(PlainButtonStyle())
                                 }
-                                .contentShape(Rectangle())
-                                .contextMenu {
-                                    Button {
-                                        editingFolder = folder
-                                        showEditFolderSheet = true
-                                    } label: {
-                                        Label("编辑文件夹", systemImage: "pencil")
-                                    }
-
-                                    Divider()
-
-                                    Button(role: .destructive) {
-                                        itemToDelete = .folder(folder)
-                                        showDeleteConfirm = true
-                                    } label: {
-                                        Label("删除文件夹", systemImage: "trash")
-                                    }
+                                .padding(.horizontal, HoloSpacing.lg)
+                                .padding(.vertical, HoloSpacing.md)
+                                .background(selectedListId == list.id ? Color(hex: list.color ?? "#007AFF").opacity(0.1) : Color.holoCardBackground)
+                                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                            .contextMenu {
+                                Button {
+                                    editingList = list
+                                    showEditListSheet = true
+                                } label: {
+                                    Label("编辑清单", systemImage: "pencil")
                                 }
 
-                                ForEach(folder.listsArray, id: \.id) { list in
-                                    // 清单项（支持长按编辑/删除）
-                                    Button {
-                                        selectedListId = list.id
-                                        showListPicker = false
-                                    } label: {
-                                        HStack(spacing: HoloSpacing.sm) {
-                                            Circle()
-                                                .fill(Color(hex: list.color ?? "#007AFF"))
-                                                .frame(width: 8, height: 8)
+                                Divider()
 
-                                            Text(list.name)
-                                                .font(.holoBody)
-                                                .foregroundColor(.holoTextPrimary)
-
-                                            Spacer()
-
-                                            if selectedListId == list.id {
-                                                Image(systemName: "checkmark")
-                                                    .font(.system(size: 14, weight: .semibold))
-                                                    .foregroundColor(.holoPrimary)
-                                            }
-                                        }
-                                        .padding(.horizontal, HoloSpacing.lg)
-                                        .padding(.vertical, HoloSpacing.md)
-                                        .background(selectedListId == list.id ? Color.holoPrimary.opacity(0.1) : Color.holoCardBackground)
-                                        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-                                    }
-                                    .buttonStyle(PlainButtonStyle())
-                                    .contextMenu {
-                                        Button {
-                                            editingList = list
-                                            showEditListSheet = true
-                                        } label: {
-                                            Label("编辑清单", systemImage: "pencil")
-                                        }
-
-                                        Divider()
-
-                                        Button(role: .destructive) {
-                                            itemToDelete = .list(list)
-                                            showDeleteConfirm = true
-                                        } label: {
-                                            Label("删除清单", systemImage: "trash")
-                                        }
-                                    }
-                                }
-
-                                // 文件夹下无清单时的提示
-                                if folder.listsArray.isEmpty {
-                                    Text("暂无清单，点击 + 创建")
-                                        .font(.holoCaption)
-                                        .foregroundColor(.holoTextSecondary.opacity(0.7))
-                                        .padding(.horizontal, HoloSpacing.lg)
+                                Button(role: .destructive) {
+                                    itemToDelete = .list(list)
+                                    showDeleteConfirm = true
+                                } label: {
+                                    Label("删除清单", systemImage: "trash")
                                 }
                             }
                         }
 
-                        if repository.folders.isEmpty {
+                        // 空状态
+                        if allLists.isEmpty {
                             VStack(spacing: HoloSpacing.md) {
-                                Image(systemName: "folder.badge.plus")
+                                Image(systemName: "list.bullet.rectangle")
                                     .font(.system(size: 40, weight: .light))
                                     .foregroundColor(.holoTextSecondary.opacity(0.5))
 
-                                Text("暂无文件夹")
+                                Text("暂无清单")
                                     .font(.holoBody)
                                     .foregroundColor(.holoTextSecondary)
 
-                                Text("点击上方\"新建文件夹\"创建")
+                                Text("点击上方\"新建清单\"创建")
                                     .font(.holoCaption)
                                     .foregroundColor(.holoTextSecondary.opacity(0.7))
                             }
@@ -681,16 +624,8 @@ struct AddTaskSheet: View {
                     .foregroundColor(.holoPrimary)
                 }
             }
-            .sheet(isPresented: $showAddFolderSheet) {
-                AddFolderSheet(repository: repository)
-            }
             .sheet(isPresented: $showAddListSheet) {
-                AddListSheet(repository: repository, folder: selectedFolderForNewList)
-            }
-            .sheet(isPresented: $showEditFolderSheet) {
-                if let folder = editingFolder {
-                    EditFolderSheet(repository: repository, folder: folder)
-                }
+                AddListSheet(repository: repository, folder: nil)
             }
             .sheet(isPresented: $showEditListSheet) {
                 if let list = editingList {
@@ -704,8 +639,6 @@ struct AddTaskSheet: View {
                 }
             } message: { target in
                 switch target {
-                case .folder(let folder):
-                    Text("确定要删除文件夹「\(folder.name)」吗？该文件夹下的所有清单和任务都将被删除。")
                 case .list(let list):
                     Text("确定要删除清单「\(list.name)」吗？该清单下的所有任务都将被删除。")
                 case .tag(let tag):
@@ -717,19 +650,20 @@ struct AddTaskSheet: View {
         .presentationDragIndicator(.visible)
     }
 
+    /// 所有清单（包括没有文件夹的）
+    private var allLists: [TodoList] {
+        var lists = repository.folders.flatMap { $0.listsArray }
+        // 也获取没有文件夹的清单
+        let unfiledLists = repository.unfiledLists
+        lists.insert(contentsOf: unfiledLists, at: 0)
+        return lists
+    }
+
     // MARK: - 删除操作
 
     private func deleteTarget(_ target: DeleteTarget) {
         do {
             switch target {
-            case .folder(let folder):
-                // 如果当前选中的清单在该文件夹下，清除选择
-                if let listId = selectedListId {
-                    if folder.listsArray.contains(where: { $0.id == listId }) {
-                        selectedListId = nil
-                    }
-                }
-                try repository.deleteFolder(folder)
             case .list(let list):
                 // 如果当前选中的是该清单，清除选择
                 if selectedListId == list.id {
@@ -992,6 +926,11 @@ struct AddTaskSheet: View {
     // MARK: - 清单查找
 
     private func findList(byId listId: UUID) -> TodoList? {
+        // 先搜索没有文件夹的清单
+        if let list = repository.unfiledLists.first(where: { $0.id == listId }) {
+            return list
+        }
+        // 再搜索文件夹中的清单
         for folder in repository.folders {
             if let list = folder.listsArray.first(where: { $0.id == listId }) {
                 return list

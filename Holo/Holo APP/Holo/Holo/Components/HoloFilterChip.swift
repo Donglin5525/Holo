@@ -15,6 +15,7 @@ import SwiftUI
 struct HoloFilterChip: View {
     let title: String
     var icon: String? = nil
+    var iconColor: Color? = nil
     let isSelected: Bool
     let action: () -> Void
 
@@ -24,6 +25,7 @@ struct HoloFilterChip: View {
                 if let icon = icon {
                     Image(systemName: icon)
                         .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(iconColor != nil && !isSelected ? iconColor : nil)
                 }
                 Text(title)
                     .font(.holoCaption)
@@ -33,7 +35,7 @@ struct HoloFilterChip: View {
             .padding(.vertical, 6)
             .background(
                 Capsule()
-                    .fill(isSelected ? Color.holoPrimary : Color.holoCardBackground)
+                    .fill(isSelected ? (iconColor ?? Color.holoPrimary) : Color.holoCardBackground)
             )
             .overlay(
                 Capsule()

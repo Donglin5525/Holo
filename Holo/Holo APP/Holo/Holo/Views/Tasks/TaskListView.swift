@@ -13,11 +13,22 @@ import OSLog
 // MARK: - 筛选类型
 
 /// 任务筛选类型
-enum TaskFilter: String, CaseIterable {
-    case all = "全部"
-    case inbox = "收件箱"
-    case today = "今日"
-    case overdue = "已过期"
+enum TaskFilterType: Equatable {
+    case all
+    case inbox
+    case today
+    case overdue
+    case list(UUID)  // 清单筛选
+
+    var title: String {
+        switch self {
+        case .all: return "全部"
+        case .inbox: return "收件箱"
+        case .today: return "今日"
+        case .overdue: return "已过期"
+        case .list: return "清单"
+        }
+    }
 
     var icon: String {
         switch self {
@@ -25,6 +36,15 @@ enum TaskFilter: String, CaseIterable {
         case .inbox: return "tray"
         case .today: return "sun.max.fill"
         case .overdue: return "exclamationmark.triangle.fill"
+        case .list: return "folder"
+        }
+    }
+
+    /// 是否是预设筛选（非清单）
+    var isPreset: Bool {
+        switch self {
+        case .all, .inbox, .today, .overdue: return true
+        case .list: return false
         }
     }
 }
@@ -44,9 +64,16 @@ struct TaskListView: View {
     /// 今日进度
     @State private var todayProgress: (completed: Int, total: Int) = (0, 0)
     /// 当前筛选
-    @State private var selectedFilter: TaskFilter = .all
+    @State private var selectedFilter: TaskFilterType = .all
     /// 缓存的过滤结果
     @State private var cachedFilteredTasks: [TodoTask] = []
+
+    /// 所有清单（包括没有文件夹的）
+    private var allLists: [TodoList] {
+        var lists = repository.unfiledLists
+        lists.append(contentsOf: repository.folders.flatMap { $0.listsArray })
+        return lists
+    }
 
     /// 选中的任务（用于 sheet 展示）
     private struct TaskSelection: Identifiable, Equatable {
@@ -147,6 +174,8 @@ struct TaskListView: View {
             cachedFilteredTasks = tasks.filter { $0.isDueToday }
         case .overdue:
             cachedFilteredTasks = tasks.filter { $0.isOverdue && !$0.completed }
+        case .list(let listId):
+            cachedFilteredTasks = tasks.filter { $0.list?.id == listId }
         }
     }
 
@@ -202,14 +231,29 @@ struct TaskListView: View {
     private var filterPickerView: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(TaskFilter.allCases, id: \.self) { filter in
+                // 预设筛选器
+                ForEach([TaskFilterType.all, .inbox, .today, .overdue], id: \.title) { filter in
                     HoloFilterChip(
-                        title: filter.rawValue,
+                        title: filter.title,
                         icon: filter.icon,
                         isSelected: selectedFilter == filter
                     ) {
                         withAnimation(.easeInOut(duration: 0.15)) {
                             selectedFilter = filter
+                        }
+                    }
+                }
+
+                // 清单筛选器
+                ForEach(allLists, id: \.id) { list in
+                    HoloFilterChip(
+                        title: list.name,
+                        icon: "folder.fill",
+                        iconColor: Color(hex: list.color ?? "#007AFF"),
+                        isSelected: selectedFilter == .list(list.id)
+                    ) {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            selectedFilter = .list(list.id)
                         }
                     }
                 }

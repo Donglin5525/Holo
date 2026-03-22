@@ -42,6 +42,14 @@ class TodoRepository: ObservableObject {
     /// 所有标签列表
     @Published var tags: [TodoTag] = []
 
+    /// 没有关联文件夹的清单
+    var unfiledLists: [TodoList] {
+        let request = TodoList.fetchRequest()
+        request.predicate = NSPredicate(format: "folder == nil AND archived == NO")
+        request.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: true)]
+        return (try? context.fetch(request)) ?? []
+    }
+
     // MARK: - Properties
 
     /// 主上下文（主线程）

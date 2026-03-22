@@ -87,13 +87,22 @@ struct AddListSheet: View {
                                 Button {
                                     color = c
                                 } label: {
-                                    Circle()
-                                        .fill(Color(hex: c))
-                                        .frame(width: 32, height: 32)
-                                        .overlay(
+                                    ZStack {
+                                        Circle()
+                                            .fill(Color(hex: c))
+                                            .frame(width: 32, height: 32)
+
+                                        // 选中指示
+                                        if color == c {
                                             Circle()
-                                                .stroke(Color.white, lineWidth: color == c ? 3 : 0)
-                                        )
+                                                .strokeBorder(Color.white, lineWidth: 3)
+                                                .frame(width: 32, height: 32)
+
+                                            Image(systemName: "checkmark")
+                                                .font(.system(size: 14, weight: .bold))
+                                                .foregroundColor(.white)
+                                        }
+                                    }
                                 }
                                 .buttonStyle(PlainButtonStyle())
                             }
