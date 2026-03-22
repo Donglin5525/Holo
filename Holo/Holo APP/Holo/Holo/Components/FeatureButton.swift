@@ -141,7 +141,7 @@ extension FeatureButtonConfig {
         title: "习惯",
         color: .holoInfo
     )
-    
+
     /// 默认的五个功能按钮配置（按五角形布局顺序）
     static let defaultItems: [FeatureButtonConfig] = [
         .task, .finance, .habit, .health, .thoughts

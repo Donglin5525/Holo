@@ -322,57 +322,6 @@ struct HabitListView: View {
     }
 }
 
-// MARK: - HabitStatsView
-
-/// 习惯统计页面（占位）
-struct HabitStatsView: View {
-    let onBack: () -> Void
-    
-    var body: some View {
-        VStack(spacing: 0) {
-            // 顶部导航栏
-            HStack {
-                Button {
-                    onBack()
-                } label: {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.holoTextPrimary)
-                        .frame(width: 44, height: 44)
-                }
-                
-                Spacer()
-                
-                Text("统计")
-                    .font(.holoHeading)
-                    .foregroundColor(.holoTextPrimary)
-                
-                Spacer()
-                
-                Color.clear.frame(width: 44, height: 44)
-            }
-            .padding(.horizontal, HoloSpacing.md)
-            .padding(.vertical, HoloSpacing.sm)
-            .background(Color.holoBackground)
-            
-            Spacer()
-            
-            // 占位内容
-            VStack(spacing: 20) {
-                Image(systemName: "chart.bar.fill")
-                    .font(.system(size: 60, weight: .light))
-                    .foregroundColor(.holoTextSecondary.opacity(0.5))
-                
-                Text("统计功能开发中")
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextSecondary)
-            }
-            
-            Spacer()
-        }
-    }
-}
-
 // MARK: - Preview
 
 #Preview {

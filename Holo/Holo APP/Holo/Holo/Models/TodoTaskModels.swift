@@ -28,6 +28,48 @@ enum RepeatType: String, Codable, CaseIterable {
         case .custom: return "自定义"
         }
     }
+
+    var iconName: String {
+        switch self {
+        case .daily: return "sun.max"
+        case .weekly: return "calendar.badge.clock"
+        case .monthly: return "calendar"
+        case .yearly: return "calendar.circle"
+        case .custom: return "slider.horizontal.3"
+        }
+    }
+}
+
+// MARK: - EndConditionType
+
+/// 重复结束条件类型
+enum EndConditionType: String, Codable, CaseIterable {
+    case never = "never"              // 永不结束
+    case onDate = "onDate"            // 指定日期结束
+    case afterCount = "afterCount"    // 重复N次后结束
+
+    var displayTitle: String {
+        switch self {
+        case .never: return "永不"
+        case .onDate: return "指定日期"
+        case .afterCount: return "重复次数"
+        }
+    }
+}
+
+// MARK: - MonthlyRepeatMode
+
+/// 每月重复模式
+enum MonthlyRepeatMode: String, Codable, CaseIterable {
+    case dayOfMonth = "dayOfMonth"     // 每月固定日期
+    case nthWeekday = "nthWeekday"     // 每月第N个周X
+
+    var displayTitle: String {
+        switch self {
+        case .dayOfMonth: return "固定日期"
+        case .nthWeekday: return "第N个周X"
+        }
+    }
 }
 
 // MARK: - TaskReminder

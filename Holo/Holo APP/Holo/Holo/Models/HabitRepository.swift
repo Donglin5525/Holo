@@ -541,10 +541,290 @@ class HabitRepository: ObservableObject {
     }
     
     // MARK: - Notifications
-    
+
     /// 发送数据变更通知
     private func notifyDataChange(habitId: UUID? = nil) {
         NotificationCenter.default.post(name: .habitDataDidChange, object: habitId)
+    }
+}
+
+// MARK: - Statistics Extension
+
+extension HabitRepository {
+
+    /// 获取总览统计数据
+    func getOverviewStats(range: HabitStatsDateRange) -> HabitOverviewStats {
+        let habits = activeHabits
+        let totalHabits = habits.count
+
+        guard totalHabits > 0 else {
+            return HabitOverviewStats.empty()
+        }
+
+        // 今日完成数
+        let (todayCompleted, _) = getTodayCheckInProgress()
+
+        // 计算平均完成率
+        let dateRange = range.dateRange()
+        var totalCompletionRate: Double = 0
+
+        for habit in habits {
+            if habit.isCheckInType {
+                let completionRate = calculateCheckInCompletionRate(for: habit, in: dateRange)
+                totalCompletionRate += completionRate
+            } else if habit.isNumericType {
+                let completionRate = calculateNumericCompletionRate(for: habit, in: dateRange)
+                totalCompletionRate += completionRate
+            }
+        }
+
+        let averageCompletionRate = totalCompletionRate / Double(totalHabits)
+
+        // 计算总连续天数
+        let totalStreak = habits.reduce(0) { $0 + calculateStreak(for: $1) }
+
+        return HabitOverviewStats(
+            todayCompleted: todayCompleted,
+            totalHabits: totalHabits,
+            averageCompletionRate: averageCompletionRate,
+            totalStreak: totalStreak
+        )
+    }
+
+    /// 获取全局完成率趋势数据
+    func getOverallCompletionTrend(range: HabitStatsDateRange) -> [DailyCompletionData] {
+        let habits = activeHabits
+        guard !habits.isEmpty else { return [] }
+
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+
+        // 确定起始日期
+        let startDate: Date
+        if let rangeDate = range.dateRange() {
+            startDate = calendar.startOfDay(for: rangeDate.lowerBound)
+        } else {
+            // 全部：从最早的习惯创建日期开始
+            startDate = habits.map { calendar.startOfDay(for: $0.createdAt) }.min() ?? today
+        }
+
+        var result: [DailyCompletionData] = []
+        var currentDate = startDate
+
+        while currentDate <= today {
+            let nextDay = calendar.date(byAdding: .day, value: 1, to: currentDate)!
+            var dayCompleted = 0
+            var dayTotal = 0
+
+            for habit in habits {
+                // 检查习惯在该日期是否已创建
+                guard habit.createdAt < nextDay else { continue }
+                dayTotal += 1
+
+                if habit.isCheckInType {
+                    // 检查是否有完成记录
+                    let request = HabitRecord.fetchRequest()
+                    request.predicate = NSPredicate(
+                        format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES",
+                        habit.id as CVarArg,
+                        currentDate as NSDate,
+                        nextDay as NSDate
+                    )
+                    if (try? context.count(for: request)) ?? 0 > 0 {
+                        dayCompleted += 1
+                    }
+                } else if habit.isNumericType {
+                    // 检查是否有数值记录
+                    let request = HabitRecord.fetchRequest()
+                    request.predicate = NSPredicate(
+                        format: "habitId == %@ AND date >= %@ AND date < %@ AND value != nil",
+                        habit.id as CVarArg,
+                        currentDate as NSDate,
+                        nextDay as NSDate
+                    )
+                    if (try? context.count(for: request)) ?? 0 > 0 {
+                        dayCompleted += 1
+                    }
+                }
+            }
+
+            let completionRate = dayTotal > 0 ? Double(dayCompleted) / Double(dayTotal) * 100 : 0
+            result.append(DailyCompletionData(date: currentDate, completionRate: completionRate))
+
+            currentDate = nextDay
+        }
+
+        return result
+    }
+
+    /// 获取习惯排行榜（按完成率排序）
+    func getHabitRanking(range: HabitStatsDateRange, limit: Int = 5) -> [HabitRankingItem] {
+        let habits = activeHabits
+        guard !habits.isEmpty else { return [] }
+
+        let dateRange = range.dateRange()
+
+        var items: [HabitRankingItem] = []
+
+        for habit in habits {
+            let completionRate: Double
+            if habit.isCheckInType {
+                completionRate = calculateCheckInCompletionRate(for: habit, in: dateRange)
+            } else {
+                completionRate = calculateNumericCompletionRate(for: habit, in: dateRange)
+            }
+
+            let streak = calculateStreak(for: habit)
+
+            items.append(HabitRankingItem(
+                habitId: habit.id,
+                name: habit.name,
+                icon: habit.icon,
+                color: habit.color,
+                completionRate: completionRate,
+                streak: streak
+            ))
+        }
+
+        // 按完成率降序排序
+        items.sort { $0.completionRate > $1.completionRate }
+
+        // 返回前 limit 个
+        return Array(items.prefix(limit))
+    }
+
+    /// 获取习惯统计数据项
+    func getHabitStatsItems(range: HabitStatsDateRange, filter: HabitTypeFilter = .all) -> [HabitStatsItem] {
+        var habits = activeHabits
+
+        // 类型筛选
+        switch filter {
+        case .checkIn:
+            habits = habits.filter { $0.isCheckInType }
+        case .count:
+            habits = habits.filter { $0.isCountType }
+        case .measure:
+            habits = habits.filter { $0.isMeasureType }
+        default:
+            break
+        }
+
+        let dateRange = range.dateRange()
+
+        return habits.map { habit in
+            let streak = calculateStreak(for: habit)
+            let completionRate: Double
+            let todayValue: Double?
+            let todayTarget: Double?
+
+            if habit.isCheckInType {
+                completionRate = calculateCheckInCompletionRate(for: habit, in: dateRange)
+                todayValue = isTodayCompleted(for: habit) ? 1 : 0
+                todayTarget = habit.targetCountValue.map { Double($0) }
+            } else {
+                completionRate = calculateNumericCompletionRate(for: habit, in: dateRange)
+                todayValue = getTodayValue(for: habit)
+                todayTarget = habit.targetValueDouble
+            }
+
+            // 将 HabitStatsDateRange 转换为 HabitDateRange 以复用现有方法
+            let legacyRange = convertToHabitDateRange(range)
+            let dailyData = habit.isNumericType ? getDailyAggregatedData(for: habit, range: legacyRange) : []
+            let calendarData = habit.isCheckInType ? getCheckInCalendarData(for: habit, range: range) : [:]
+
+            return HabitStatsItem(
+                habitId: habit.id,
+                name: habit.name,
+                icon: habit.icon,
+                color: habit.color,
+                typeRaw: habit.type,
+                aggregationTypeRaw: habit.aggregationType,
+                streak: streak,
+                completionRate: completionRate,
+                todayValue: todayValue,
+                todayTarget: todayTarget,
+                unit: habit.unit,
+                dailyData: dailyData,
+                calendarData: calendarData
+            )
+        }
+    }
+
+    /// 将 HabitStatsDateRange 转换为 HabitDateRange
+    private func convertToHabitDateRange(_ range: HabitStatsDateRange) -> HabitDateRange {
+        switch range {
+        case .week: return .week
+        case .month: return .month
+        case .quarter: return .quarter
+        case .all: return .all
+        }
+    }
+
+    /// 获取打卡型习惯的日历数据
+    func getCheckInCalendarData(for habit: Habit, range: HabitStatsDateRange) -> [Date: Bool] {
+        guard habit.isCheckInType else { return [:] }
+
+        let calendar = Calendar.current
+        let records = getRecords(for: habit, in: range.dateRange())
+
+        var result: [Date: Bool] = [:]
+        for record in records {
+            let dayStart = calendar.startOfDay(for: record.date)
+            result[dayStart] = record.isCompleted
+        }
+
+        return result
+    }
+
+    // MARK: - Private Helpers
+
+    /// 计算打卡型习惯的完成率
+    private func calculateCheckInCompletionRate(for habit: Habit, in dateRange: ClosedRange<Date>?) -> Double {
+        guard habit.isCheckInType else { return 0 }
+
+        let calendar = Calendar.current
+        let records = getRecords(for: habit, in: dateRange)
+        let completedCount = records.filter { $0.isCompleted }.count
+
+        // 计算周期内的天数
+        let dayCount: Int
+        if let range = dateRange {
+            let components = calendar.dateComponents([.day], from: range.lowerBound, to: range.upperBound)
+            dayCount = max(components.day ?? 1, 1) + 1
+        } else {
+            // 全部时间：从习惯创建日期到今天
+            let components = calendar.dateComponents([.day], from: habit.createdAt, to: Date())
+            dayCount = max(components.day ?? 1, 1) + 1
+        }
+
+        return dayCount > 0 ? Double(completedCount) / Double(dayCount) * 100 : 0
+    }
+
+    /// 计算数值型习惯的完成率
+    private func calculateNumericCompletionRate(for habit: Habit, in dateRange: ClosedRange<Date>?) -> Double {
+        guard habit.isNumericType else { return 0 }
+
+        let calendar = Calendar.current
+        let records = getRecords(for: habit, in: dateRange)
+
+        // 有记录的天数
+        var recordedDays = Set<Date>()
+        for record in records {
+            let dayStart = calendar.startOfDay(for: record.date)
+            recordedDays.insert(dayStart)
+        }
+
+        // 计算周期内的天数
+        let dayCount: Int
+        if let range = dateRange {
+            let components = calendar.dateComponents([.day], from: range.lowerBound, to: range.upperBound)
+            dayCount = max(components.day ?? 1, 1) + 1
+        } else {
+            let components = calendar.dateComponents([.day], from: habit.createdAt, to: Date())
+            dayCount = max(components.day ?? 1, 1) + 1
+        }
+
+        return dayCount > 0 ? Double(recordedDays.count) / Double(dayCount) * 100 : 0
     }
 }
 
