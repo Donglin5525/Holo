@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### Bug Fixes
+- **iOS**: 修复统计视图 TOP 3 卡片布局问题
+  - 移除标题区域多余的 TOP 3 标签（支出/收入显示不一致）
+  - 移除排名徽章，为科目名称和金额腾出更多空间
+  - 金额使用 fixedSize 确保完整显示，支持六位数加小数点格式
+  - 科目名称添加 truncationMode 在空间不足时末尾截断
+  - 优化图标尺寸和布局间距
+
 ### Features
 - **iOS**: TaskDetailView 风格统一
   - 重构为卡片式布局，与 HabitDetailView 风格一致
