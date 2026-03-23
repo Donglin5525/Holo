@@ -957,9 +957,10 @@ struct AddTransactionSheet: View {
                 }
                 
                 // 保存成功，调用回调
+                HapticManager.success()
                 onSave()
                 dismiss()
-                
+
             } catch {
                 print("保存失败：\(error.localizedDescription)")
             }
@@ -1031,6 +1032,7 @@ struct AddTransactionSheet: View {
 
             // 保存成功
             await MainActor.run {
+                HapticManager.success()
                 onSave()
                 dismiss()
             }

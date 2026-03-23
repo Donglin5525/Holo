@@ -175,10 +175,8 @@ struct HabitCardView: View {
                 do {
                     let newStatus = try HabitRepository.shared.toggleCheckIn(for: habit)
                     isCompleted = newStatus
-                    
-                    // 触发 Haptic 反馈
-                    let feedback = UIImpactFeedbackGenerator(style: .medium)
-                    feedback.impactOccurred()
+
+                    HapticManager.medium()
                 } catch {
                     print("[HabitCard] 打卡失败: \(error)")
                 }
@@ -218,9 +216,8 @@ struct HabitCardView: View {
                 do {
                     _ = try HabitRepository.shared.incrementCount(for: habit)
                     todayValue = HabitRepository.shared.getTodayValue(for: habit)
-                    
-                    let feedback = UIImpactFeedbackGenerator(style: .light)
-                    feedback.impactOccurred()
+
+                    HapticManager.light()
                 } catch {
                     print("[HabitCard] +1 失败: \(error)")
                 }
@@ -346,9 +343,8 @@ struct HabitCardView: View {
             _ = try HabitRepository.shared.addNumericRecord(for: habit, value: value)
             todayValue = HabitRepository.shared.getTodayValue(for: habit)
             showValueInput = false
-            
-            let feedback = UINotificationFeedbackGenerator()
-            feedback.notificationOccurred(.success)
+
+            HapticManager.success()
         } catch {
             print("[HabitCard] 保存数值失败: \(error)")
         }

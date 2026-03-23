@@ -586,6 +586,7 @@ struct TaskCardView: View {
                 // 普通任务直接切换完成状态
                 try repository.toggleTaskCompletion(task)
             }
+            HapticManager.medium()
         } catch {
             Self.logger.error("切换任务状态失败: \(error.localizedDescription)")
         }

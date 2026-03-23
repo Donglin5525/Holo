@@ -334,10 +334,8 @@ struct HomeView: View {
                 gestureState = currentState
             }
             .onEnded { _ in
-                // 触发 Haptic 反馈
-                let impactFeedback = UIImpactFeedbackGenerator(style: .medium)
-                impactFeedback.impactOccurred()
-                
+                HapticManager.medium()
+
                 // 设置拖拽状态
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                     draggingItem = item
@@ -401,19 +399,17 @@ struct HomeView: View {
             
             // 如果距离小于阈值，执行交换
             if distance < swapThreshold {
-                // 触发轻微 Haptic 反馈
-                let selectionFeedback = UISelectionFeedbackGenerator()
-                selectionFeedback.selectionChanged()
-                
+                HapticManager.selection()
+
                 // 交换数组中的位置
                 withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
                     featureItems.swapAt(fromIndex, targetIndex)
                     draggingFromIndex = targetIndex
-                    
+
                     // 重置偏移量，让按钮"吸附"到新位置
                     dragOffset = .zero
                 }
-                
+
                 break
             }
         }

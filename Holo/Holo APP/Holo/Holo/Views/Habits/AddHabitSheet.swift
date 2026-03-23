@@ -367,9 +367,8 @@ struct AddHabitSheet: View {
             
             onSave?()
             dismiss()
-            
-            let feedback = UINotificationFeedbackGenerator()
-            feedback.notificationOccurred(.success)
+
+            HapticManager.success()
         } catch {
             print("[AddHabitSheet] 保存失败: \(error)")
             isSaving = false

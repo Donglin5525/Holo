@@ -93,8 +93,6 @@ class DarkModeManager: ObservableObject {
             currentSetting = setting
         }
 
-        // 触发 Haptic 反馈
-        let feedback = UIImpactFeedbackGenerator(style: .light)
-        feedback.impactOccurred()
+        HapticManager.light()
     }
 }

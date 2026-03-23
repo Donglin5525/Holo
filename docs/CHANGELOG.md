@@ -4,6 +4,13 @@
 
 ## [Unreleased]
 
+### Improvements
+- **iOS**: 触觉反馈规范化
+  - 新增 HapticManager 统一管理器，提供 success/medium/light/selection 等方法
+  - 迁移现有分散的震动反馈代码到 HapticManager
+  - 为保存账单、创建任务、任务完成等操作添加缺失的反馈
+  - 规范反馈类型：成功操作用 success，打卡/完成用 medium，微调用 light，拖拽用 selection
+
 ### Features
 - **iOS**: 任务重复功能
   - 新增 RepeatPicker 组件，支持每天/每周/每月/每年/自定义重复

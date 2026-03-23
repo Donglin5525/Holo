@@ -179,7 +179,8 @@ struct AddTransactionView: View {
                 note: note.isEmpty ? nil : note,
                 tags: selectedTags.isEmpty ? nil : selectedTags
             )
-            
+
+            HapticManager.success()
             dismiss()
         } catch {
             errorMessage = error.localizedDescription

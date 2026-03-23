@@ -1097,9 +1097,7 @@ struct AddTaskSheet: View {
                     }
                 }
 
-                // 震动反馈
-                let feedback = UINotificationFeedbackGenerator()
-                feedback.notificationOccurred(.success)
+                HapticManager.success()
 
                 await MainActor.run {
                     dismiss()

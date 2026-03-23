@@ -61,9 +61,7 @@ struct DayCellView: View {
                 minimumDuration: 0.5,
                 pressing: { pressing in isLongPressing = pressing },
                 perform: {
-                    // 触觉反馈
-                    let generator = UIImpactFeedbackGenerator(style: .medium)
-                    generator.impactOccurred()
+                    HapticManager.medium()
                     onLongPress?()
                 }
             )
