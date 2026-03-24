@@ -4,6 +4,34 @@
 
 ---
 
+## [2026-03-25] 健康模块基础实现
+
+### 新增功能
+
+#### 健康数据读取（HealthKit）
+- 集成 HealthKit 框架，支持读取步数、睡眠时长、站立时长
+- 新增 `HealthRepository` 数据仓库，封装 HealthKit 查询逻辑
+- 支持模拟器环境自动切换为模拟数据
+
+#### 健康视图
+- 新增 `HealthView` 健康主页面，展示今日健康数据概览
+- 新增 `HealthDetailView` 详情页，包含 7 天趋势图表
+- 新增 `HealthPermissionView` 权限请求页面
+
+#### 组件
+- `HealthRingView` - 圆环进度指示器
+- `HealthMetricCard` - 指标卡片（含进度条）
+- `HealthTrendChart` - 7 天趋势柱状图（使用 Swift Charts）
+
+#### 项目配置
+- 配置 HealthKit entitlements（read-only 模式）
+- 首页五角形按钮添加健康模块入口
+
+### 已知问题
+- HealthKit 授权在真机上需要手动在 Xcode 中配置 Signing & Capabilities
+
+---
+
 ## [2026-03-16] App 图标上线 + 项目结构修复
 
 ### 新增功能
