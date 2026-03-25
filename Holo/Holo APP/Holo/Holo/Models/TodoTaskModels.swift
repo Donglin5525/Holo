@@ -75,7 +75,7 @@ enum MonthlyRepeatMode: String, Codable, CaseIterable {
 // MARK: - TaskReminder
 
 /// 任务提醒
-struct TaskReminder: Identifiable, Codable {
+struct TaskReminder: Identifiable, Codable, Hashable {
     let id: UUID
     var offsetMinutes: Int // 相对于截止时间的分钟数（负数表示提前）
     var displayTitle: String {
