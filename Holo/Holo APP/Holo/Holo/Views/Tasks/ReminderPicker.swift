@@ -75,42 +75,6 @@ struct ReminderPicker: View {
     }
 }
 
-// MARK: - Reminder Chip
-
-/// 单个提醒选项标签
-struct ReminderChip: View {
-    let reminder: TaskReminder
-    let isSelected: Bool
-    let onTap: () -> Void
-
-    var body: some View {
-        Button(action: onTap) {
-            Text(reminder.displayTitle)
-                .font(.holoCaption)
-                .foregroundColor(isSelected ? .white : .holoTextPrimary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(
-                    Capsule()
-                        .fill(isSelected ? Color.holoPrimary : Color.holoTextSecondary.opacity(0.15))
-                )
-        }
-        .buttonStyle(PlainButtonStyle())
-    }
-}
-
-// MARK: - Hashable Extension for TaskReminder
-
-extension TaskReminder: Hashable {
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(offsetMinutes)
-    }
-
-    static func == (lhs: TaskReminder, rhs: TaskReminder) -> Bool {
-        lhs.offsetMinutes == rhs.offsetMinutes
-    }
-}
-
 // MARK: - Preview
 
 #Preview {

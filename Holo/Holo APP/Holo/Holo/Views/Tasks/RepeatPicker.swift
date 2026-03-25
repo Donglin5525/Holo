@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import Foundation
 
 /// 重复规则选择器
 struct RepeatPicker: View {
@@ -411,55 +412,6 @@ struct RepeatPicker: View {
             .presentationDetents([.height(400)])
             .presentationDragIndicator(.visible)
         }
-    }
-}
-
-// MARK: - Repeat Type Chip
-
-/// 重复类型选项标签
-struct RepeatTypeChip: View {
-    let type: RepeatType
-    let isSelected: Bool
-    let onTap: () -> Void
-
-    var body: some View {
-        Button(action: onTap) {
-            Text(type.displayTitle)
-                .font(.holoCaption)
-                .foregroundColor(isSelected ? .white : .holoTextPrimary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(
-                    Capsule()
-                        .fill(isSelected ? Color.holoPrimary : Color.holoTextSecondary.opacity(0.15))
-                )
-        }
-        .buttonStyle(.plain)
-    }
-}
-
-// MARK: - Weekday Chip
-
-/// 星期选项标签
-struct WeekdayChip: View {
-    let weekday: Weekday
-    let isSelected: Bool
-    let onTap: () -> Void
-
-    var body: some View {
-        Button(action: onTap) {
-            Text(weekday.shortDisplayTitle)
-                .font(.holoCaption)
-                .foregroundColor(isSelected ? .white : .holoTextPrimary)
-                .frame(minWidth: 28)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 6)
-                .background(
-                    Circle()
-                        .fill(isSelected ? Color.holoPrimary : Color.holoTextSecondary.opacity(0.15))
-                )
-        }
-        .buttonStyle(.plain)
     }
 }
 

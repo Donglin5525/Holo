@@ -26,7 +26,7 @@ struct AddTaskSheet: View {
     @State private var selectedListId: UUID? = nil
 
     @State private var showListPicker = false
-    @State private var showDatePicker = false
+    @State private var showDatePickerSheet = false
     @State private var showTagPicker = false
     @State private var showAddTagSheet = false
     @State private var showAddListSheet = false
@@ -130,12 +130,6 @@ struct AddTaskSheet: View {
                             // 截止日期
                             dueDateSection
 
-                            // 提醒
-                            reminderSection
-
-                            // 重复
-                            repeatSection
-
                             // 标签
                             tagSection
 
@@ -173,6 +167,24 @@ struct AddTaskSheet: View {
         }
         .sheet(isPresented: $showTagPicker) {
             tagPickerSheet
+        }
+        .sheet(isPresented: $showDatePickerSheet) {
+            TaskDatePickerSheet(
+                dueDate: $dueDate,
+                isAllDay: $isAllDay,
+                hasDueDate: $hasDueDate,
+                selectedReminders: $selectedReminders,
+                hasRepeat: $hasRepeat,
+                repeatType: $repeatType,
+                selectedWeekdays: $selectedWeekdays,
+                monthDay: $monthDay,
+                monthWeekOrdinal: $monthWeekOrdinal,
+                monthWeekday: $monthWeekday,
+                monthlyRepeatMode: $monthlyRepeatMode,
+                endConditionType: $endConditionType,
+                repeatEndDate: $repeatEndDate,
+                repeatEndCount: $repeatEndCount
+            )
         }
         .swipeBackToDismiss { dismiss() }
     }
@@ -293,115 +305,61 @@ struct AddTaskSheet: View {
     // MARK: - 截止日期
 
     private var dueDateSection: some View {
-        VStack(spacing: 0) {
-            // 日期显示行
-            HStack(spacing: HoloSpacing.sm) {
-                // 日历图标
-                Image(systemName: "calendar")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.holoTextSecondary)
+        HStack(spacing: HoloSpacing.sm) {
+            Image(systemName: "calendar")
+                .font(.system(size: 16, weight: .medium))
+                .foregroundColor(.holoTextSecondary)
 
-                // 日期文字（可点击展开/收起）
-                Button {
-                    if hasDueDate {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            showDatePicker.toggle()
-                        }
-                    }
-                } label: {
-                    Text(hasDueDate ? formattedDueDate : "无截止日期")
-                        .font(.holoBody)
-                        .foregroundColor(hasDueDate ? .holoTextPrimary : .holoTextPlaceholder)
-                }
-                .buttonStyle(PlainButtonStyle())
-
-                Spacer()
-
-                // 全天/定时胶囊切换（仅当已设置日期时显示）
-                if hasDueDate {
-                    allDayToggleCapsule
-
-                    Image(systemName: showDatePicker ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.holoTextSecondary)
-                        .padding(.leading, 4)
-                }
-
-                // 日期开关
-                Toggle("", isOn: $hasDueDate)
-                    .labelsHidden()
-                    .tint(.holoPrimary)
+            Button {
+                if !hasDueDate { hasDueDate = true }
+                showDatePickerSheet = true
+            } label: {
+                Text(hasDueDate ? formattedDueDate : "无截止日期")
+                    .font(.holoBody)
+                    .foregroundColor(hasDueDate ? .holoTextPrimary : .holoTextPlaceholder)
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(Color.holoCardBackground)
-            .cornerRadius(HoloRadius.sm)
-            .onChange(of: hasDueDate) { _, newValue in
-                if newValue {
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                        showDatePicker = true
-                    }
-                } else {
-                    showDatePicker = false
-                    // 清除提醒
-                    selectedReminders.removeAll()
-                }
+            .buttonStyle(.plain)
+
+            Spacer()
+
+            // 设置摘要显示
+            if hasDueDate {
+                settingsSummaryBadge
             }
 
-            // 展开的日期选择器
-            if showDatePicker && hasDueDate {
-                DatePicker(
-                    "",
-                    selection: $dueDate,
-                    displayedComponents: isAllDay ? .date : [.date, .hourAndMinute]
-                )
-                .datePickerStyle(.graphical)
-                .environment(\.locale, Locale(identifier: "zh_CN"))
-                .scrollDismissesKeyboard(.immediately)
-                .frame(minHeight: 320)
-                .padding(.horizontal, HoloSpacing.sm)
-                .padding(.top, HoloSpacing.sm)
-                .background(Color.holoCardBackground)
-                .cornerRadius(HoloRadius.sm)
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
+            Toggle("", isOn: $hasDueDate)
+                .labelsHidden()
+                .tint(.holoPrimary)
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(Color.holoCardBackground)
+        .cornerRadius(HoloRadius.sm)
     }
 
-    /// 全天/定时胶囊切换
-    private var allDayToggleCapsule: some View {
-        HStack(spacing: 0) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isAllDay = true
-                }
-            } label: {
-                Text("全天")
+    /// 设置摘要徽章
+    private var settingsSummaryBadge: some View {
+        HStack(spacing: 4) {
+            if !selectedReminders.isEmpty {
+                Text("提醒×\(selectedReminders.count)")
                     .font(.holoCaption)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(isAllDay ? Color.holoPrimary : Color.clear)
-                    .foregroundColor(isAllDay ? .white : .holoTextSecondary)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.blue.opacity(0.8))
+                    .clipShape(Capsule())
             }
-            .buttonStyle(PlainButtonStyle())
 
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isAllDay = false
-                }
-            } label: {
-                Text("定时")
+            if hasRepeat {
+                Text(repeatType.displayTitle)
                     .font(.holoCaption)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(!isAllDay ? Color.holoPrimary : Color.clear)
-                    .foregroundColor(!isAllDay ? .white : .holoTextSecondary)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.holoPrimary)
+                    .clipShape(Capsule())
             }
-            .buttonStyle(PlainButtonStyle())
         }
-        .fixedSize()
-        .background(Capsule().fill(Color.holoPrimary.opacity(0.1)))
-        .clipShape(Capsule())
     }
 
     /// 判断是否是明天
@@ -427,33 +385,6 @@ struct AddTaskSheet: View {
             formatter.dateFormat = "M月d日 HH:mm"
             return formatter.string(from: dueDate)
         }
-    }
-
-    // MARK: - 提醒
-
-    private var reminderSection: some View {
-        ReminderPicker(
-            selectedReminders: $selectedReminders,
-            isEnabled: hasDueDate
-        )
-    }
-
-    // MARK: - 重复
-
-    private var repeatSection: some View {
-        RepeatPicker(
-            hasRepeat: $hasRepeat,
-            repeatType: $repeatType,
-            selectedWeekdays: $selectedWeekdays,
-            monthDay: $monthDay,
-            monthWeekOrdinal: $monthWeekOrdinal,
-            monthWeekday: $monthWeekday,
-            monthlyRepeatMode: $monthlyRepeatMode,
-            endConditionType: $endConditionType,
-            endDate: $repeatEndDate,
-            endCount: $repeatEndCount,
-            isEnabled: hasDueDate
-        )
     }
 
     // MARK: - 标签
