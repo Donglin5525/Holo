@@ -4,6 +4,40 @@
 
 ---
 
+## [2026-03-26] 任务日期选择交互重设计
+
+### 新增功能
+
+#### 任务日期选择弹窗
+- 新增 `TaskDatePickerSheet.swift` 整合日期、提醒、重复设置
+  - `DatePicker(.graphical)` 日历选择
+  - 全天/定时切换按钮
+  - 提醒设置（整合 ReminderChip 组件）
+  - 重复设置（每天/每周/每月/每年/自定义）
+  - 结束条件（永不/指定日期/重复次数）
+  - 支持半屏和全屏两种 detents
+
+### 改进优化
+
+#### AddTaskSheet 简化
+- 移除内联展开的 `DatePicker`
+- 移除独立的 `reminderSection` 和 `repeatSection`
+- 点击日期区域弹出 `TaskDatePickerSheet`
+- 添加设置摘要徽章显示（提醒数量、重复类型）
+
+#### 组件复用
+- 新增 `Components/ReminderChip.swift`
+- 新增 `Components/TaskChips.swift`（RepeatTypeChip、WeekdayChip）
+- 移除重复的组件定义
+
+### Bug 修复
+
+#### 结束条件 UI
+- 添加"重复次数"选择器 UI（1-100 次）
+- 修复结束日期弹窗按钮重复问题
+
+---
+
 ## [2026-03-25] 健康模块基础实现
 
 ### 新增功能
