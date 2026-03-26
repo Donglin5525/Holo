@@ -5,6 +5,11 @@
 ## [Unreleased]
 
 ### Bug Fixes
+- **iOS**: 修复编辑自定义分类后返回时误弹删除确认框
+  - 移除 categoryRow 的 contentShape(Rectangle()) 防止行级手势冲突
+  - 用独立 @State showDeleteConfirmation 替代内联自定义 Binding
+  - 按钮添加 .buttonStyle(.borderless) 隔离 List 行内手势
+  - editingCategory 变化时主动清除删除相关状态
 - **iOS**: 修复分类管理页面交互失效
   - 根因：SwipeBackModifier 使用 simultaneousGesture(DragGesture(minimumDistance: 0)) 拦截了所有子页面触摸事件
   - 重写 SwipeBackModifier，改用 gesture 替代 simultaneousGesture，新增 isEnabled 参数
