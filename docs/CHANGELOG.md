@@ -6,6 +6,9 @@
 
 ### Bug Fixes
 - **iOS**: 修复编辑自定义分类后返回时误弹删除确认框
+
+### Chores
+- CLAUDE.md 区分 TODO.md（项目级待办清单）与 docs/todo/（待办模块文档）的定位
   - 移除 categoryRow 的 contentShape(Rectangle()) 防止行级手势冲突
   - 用独立 @State showDeleteConfirmation 替代内联自定义 Binding
   - 按钮添加 .buttonStyle(.borderless) 隔离 List 行内手势
