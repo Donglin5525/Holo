@@ -69,7 +69,7 @@ struct FinanceView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .swipeBackToDismiss { dismiss() }
+        .swipeBackToDismiss(isEnabled: selectedTab != .settings) { dismiss() }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             financeTabBarOnly
         }
@@ -792,9 +792,10 @@ struct FinanceAnalysisView: View {
 /// 财务设置视图 — 包含数据导入导出等功能
 struct FinanceSettingsView: View {
     let onBack: () -> Void
-    
+
     var body: some View {
-        VStack(spacing: 0) {
+        NavigationStack {
+            VStack(spacing: 0) {
             // 顶部栏
             HStack {
                 Button {
@@ -827,11 +828,53 @@ struct FinanceSettingsView: View {
                 VStack(spacing: HoloSpacing.xl) {
                     // 数据导入导出模块
                     ImportExportView()
+
+                    // 分类管理模块
+                    VStack(spacing: 0) {
+                        HStack {
+                            Text("分类管理")
+                                .font(.holoLabel)
+                                .foregroundColor(.holoTextSecondary)
+                            Spacer()
+                        }
+                        .padding(.horizontal, HoloSpacing.lg)
+                        .padding(.bottom, HoloSpacing.sm)
+
+                        NavigationLink {
+                            CategoryManagementView()
+                        } label: {
+                            HStack {
+                                Image(systemName: "folder.fill")
+                                    .font(.system(size: 20))
+                                    .foregroundColor(.holoPrimary)
+                                    .frame(width: 44, height: 44)
+                                    .background(Color.holoPrimary.opacity(0.1))
+                                    .clipShape(Circle())
+
+                                Text("分类")
+                                    .font(.holoBody)
+                                    .foregroundColor(.holoTextPrimary)
+
+                                Spacer()
+
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(.holoTextSecondary)
+                            }
+                            .padding(HoloSpacing.md)
+                            .background(Color.holoCardBackground)
+                            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                            .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, HoloSpacing.lg)
+                    }
                 }
                 .padding(.vertical, HoloSpacing.md)
             }
         }
         .background(Color.holoBackground)
+        }
     }
 }
 

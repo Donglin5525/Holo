@@ -4,6 +4,14 @@
 
 ## [Unreleased]
 
+### Bug Fixes
+- **iOS**: 修复分类管理页面交互失效
+  - 根因：SwipeBackModifier 使用 simultaneousGesture(DragGesture(minimumDistance: 0)) 拦截了所有子页面触摸事件
+  - 重写 SwipeBackModifier，改用 gesture 替代 simultaneousGesture，新增 isEnabled 参数
+  - 移除 CategoryManagementView 内部 NavigationStack，依赖外层导航栈
+  - 编辑/删除按钮从 Image + onTapGesture 改为 Button，避免被 List 行拦截
+  - FinanceView 在设置页时禁用 swipeBackToDismiss
+
 ### Improvements
 - **iOS**: 触觉反馈规范化
   - 新增 HapticManager 统一管理器，提供 success/medium/light/selection 等方法

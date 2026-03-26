@@ -29,123 +29,114 @@ struct CategoryManagementView: View {
     @State private var cleanupResult: (deleted: Int, skipped: Int)?
     
     var body: some View {
-        NavigationStack {
-            VStack(spacing: 0) {
-                // 支出/收入 Tab
-                typePicker
-                
-                if isLoading {
-                    Spacer()
-                    ProgressView()
-                    Spacer()
-                } else {
-                    List {
-                        ForEach(topLevelCategories, id: \.id) { parent in
-                            Section {
-                                // 一级分类行（仅展示，不可选删除因有子分类）
-                                categoryRow(parent, isParent: true)
-                                
-                                // 二级子分类
-                                ForEach(subCategoriesMap[parent.id] ?? [], id: \.id) { child in
-                                    categoryRow(child, isParent: false)
-                                }
-                            } header: {
-                                Text(parent.name)
-                                    .font(.holoCaption)
-                                    .foregroundColor(.holoTextSecondary)
+        VStack(spacing: 0) {
+            // 支出/收入 Tab
+            typePicker
+
+            if isLoading {
+                Spacer()
+                ProgressView()
+                Spacer()
+            } else {
+                List {
+                    ForEach(topLevelCategories, id: \.id) { parent in
+                        Section {
+                            // 一级分类行（仅展示，不可选删除因有子分类）
+                            categoryRow(parent, isParent: true)
+
+                            // 二级子分类
+                            ForEach(subCategoriesMap[parent.id] ?? [], id: \.id) { child in
+                                categoryRow(child, isParent: false)
                             }
-                        }
-                    }
-                    .listStyle(.insetGrouped)
-                }
-            }
-            .navigationTitle("分类管理")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("完成") {
-                        dismiss()
-                    }
-                    .foregroundColor(.holoPrimary)
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    HStack(spacing: HoloSpacing.sm) {
-                        // 清理导入分类按钮
-                        Button {
-                            showCleanupConfirmation = true
-                        } label: {
-                            Image(systemName: "broom")
-                                .font(.system(size: 18))
-                                .foregroundColor(.orange)
-                        }
-                        // 新增分类按钮
-                        Button {
-                            showAddCategory = true
-                        } label: {
-                            Image(systemName: "plus.circle.fill")
-                                .font(.system(size: 22))
-                                .foregroundColor(.holoPrimary)
+                        } header: {
+                            Text(parent.name)
+                                .font(.holoCaption)
+                                .foregroundColor(.holoTextSecondary)
                         }
                     }
                 }
+                .listStyle(.insetGrouped)
             }
-            .sheet(isPresented: $showAddCategory) {
-                AddCategorySheet(parentId: nil, type: transactionType) {
-                    Task { await loadData() }
-                }
-            }
-            .sheet(item: $editingCategory) { category in
-                EditCategorySheet(category: category) {
-                    Task { await loadData() }
-                }
-            }
-            .alert("错误", isPresented: .constant(errorMessage != nil)) {
-                Button("确定") { errorMessage = nil }
-            } message: {
-                Text(errorMessage ?? "")
-            }
-            .confirmationDialog("确认删除", isPresented: Binding(
-                get: { categoryToDelete != nil },
-                set: { if !$0 { categoryToDelete = nil } }
-            ), titleVisibility: .visible) {
-                Button("删除", role: .destructive) {
-                    if let cat = categoryToDelete {
-                        confirmDelete(cat)
+        }
+        .navigationTitle("分类管理")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarTrailing) {
+                HStack(spacing: HoloSpacing.sm) {
+                    // 清理导入分类按钮
+                    Button {
+                        showCleanupConfirmation = true
+                    } label: {
+                        Image(systemName: "broom")
+                            .font(.system(size: 18))
+                            .foregroundColor(.orange)
                     }
-                    categoryToDelete = nil
-                }
-                Button("取消", role: .cancel) {
-                    categoryToDelete = nil
-                }
-            } message: {
-                Text("删除后无法恢复；若该分类已被交易使用，将无法删除。")
-            }
-            // 清理导入分类确认
-            .confirmationDialog("清理导入分类", isPresented: $showCleanupConfirmation, titleVisibility: .visible) {
-                Button("清理", role: .destructive) {
-                    Task { await cleanupImportedCategories() }
-                }
-                Button("取消", role: .cancel) {}
-            } message: {
-                Text("将删除所有导入时自动创建的分类（非预设分类），已被交易使用的分类会被保留。")
-            }
-            // 清理结果提示
-            .alert("清理完成", isPresented: Binding(
-                get: { cleanupResult != nil },
-                set: { if !$0 { cleanupResult = nil } }
-            )) {
-                Button("确定") { cleanupResult = nil }
-            } message: {
-                if let result = cleanupResult {
-                    Text("已删除 \(result.deleted) 个分类\(result.skipped > 0 ? "，\(result.skipped) 个因被使用而保留" : "")")
-                } else {
-                    Text("")
+                    // 新增分类按钮
+                    Button {
+                        showAddCategory = true
+                    } label: {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 22))
+                            .foregroundColor(.holoPrimary)
+                    }
                 }
             }
-            .task {
-                await loadData()
+        }
+        .sheet(isPresented: $showAddCategory) {
+            AddCategorySheet(parentId: nil, type: transactionType) {
+                Task { await loadData() }
             }
-            .swipeBackToDismiss { dismiss() }
+        }
+        .sheet(item: $editingCategory) { category in
+            EditCategorySheet(category: category) {
+                Task { await loadData() }
+            }
+        }
+        .alert("错误", isPresented: .constant(errorMessage != nil)) {
+            Button("确定") { errorMessage = nil }
+        } message: {
+            Text(errorMessage ?? "")
+        }
+        .confirmationDialog("确认删除", isPresented: Binding(
+            get: { categoryToDelete != nil },
+            set: { if !$0 { categoryToDelete = nil } }
+        ), titleVisibility: .visible) {
+            Button("删除", role: .destructive) {
+                if let cat = categoryToDelete {
+                    confirmDelete(cat)
+                }
+                categoryToDelete = nil
+            }
+            Button("取消", role: .cancel) {
+                categoryToDelete = nil
+            }
+        } message: {
+            Text("删除后无法恢复；若该分类已被交易使用，将无法删除。")
+        }
+        // 清理导入分类确认
+        .confirmationDialog("清理导入分类", isPresented: $showCleanupConfirmation, titleVisibility: .visible) {
+            Button("清理", role: .destructive) {
+                Task { await cleanupImportedCategories() }
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("将删除所有导入时自动创建的分类（非预设分类），已被交易使用的分类会被保留。")
+        }
+        // 清理结果提示
+        .alert("清理完成", isPresented: Binding(
+            get: { cleanupResult != nil },
+            set: { if !$0 { cleanupResult = nil } }
+        )) {
+            Button("确定") { cleanupResult = nil }
+        } message: {
+            if let result = cleanupResult {
+                Text("已删除 \(result.deleted) 个分类\(result.skipped > 0 ? "，\(result.skipped) 个因被使用而保留" : "")")
+            } else {
+                Text("")
+            }
+        }
+        .task {
+            await loadData()
         }
     }
     
@@ -180,26 +171,26 @@ struct CategoryManagementView: View {
             Spacer()
 
             // 编辑按钮
-            Image(systemName: "pencil")
-                .font(.system(size: 16))
-                .foregroundColor(.holoPrimary)
-                .frame(width: 44, height: 44)
-                .contentShape(Rectangle())
-                .onTapGesture {
-                    editingCategory = category
-                }
+            Button {
+                editingCategory = category
+            } label: {
+                Image(systemName: "pencil")
+                    .font(.system(size: 16))
+                    .foregroundColor(.holoPrimary)
+                    .frame(width: 44, height: 44)
+            }
 
             // 预设分类不可删除
             if !category.isDefault {
                 // 删除按钮
-                Image(systemName: "trash")
-                    .font(.system(size: 16))
-                    .foregroundColor(.red)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        categoryToDelete = category
-                    }
+                Button {
+                    categoryToDelete = category
+                } label: {
+                    Image(systemName: "trash")
+                        .font(.system(size: 16))
+                        .foregroundColor(.red)
+                        .frame(width: 44, height: 44)
+                }
             }
         }
         .padding(.vertical, 4)
