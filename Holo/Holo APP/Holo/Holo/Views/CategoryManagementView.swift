@@ -24,6 +24,7 @@ struct CategoryManagementView: View {
     @State private var addCategoryParentId: UUID?
     @State private var editingCategory: Category?
     @State private var categoryToDelete: Category?
+    @State private var showDeleteConfirmation = false
     @State private var isLoading = false
     @State private var errorMessage: String?
     @State private var showCleanupConfirmation = false
@@ -86,23 +87,32 @@ struct CategoryManagementView: View {
                 Task { await loadData() }
             }
         }
+        .onChange(of: editingCategory) { _, _ in
+            categoryToDelete = nil
+            showDeleteConfirmation = false
+        }
+        .onChange(of: showAddCategory) { _, newValue in
+            if newValue {
+                categoryToDelete = nil
+                showDeleteConfirmation = false
+            }
+        }
         .alert("错误", isPresented: .constant(errorMessage != nil)) {
             Button("确定") { errorMessage = nil }
         } message: {
             Text(errorMessage ?? "")
         }
-        .confirmationDialog("确认删除", isPresented: Binding(
-            get: { categoryToDelete != nil },
-            set: { if !$0 { categoryToDelete = nil } }
-        ), titleVisibility: .visible) {
+        .confirmationDialog("确认删除", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
             Button("删除", role: .destructive) {
                 if let cat = categoryToDelete {
                     confirmDelete(cat)
                 }
                 categoryToDelete = nil
+                showDeleteConfirmation = false
             }
             Button("取消", role: .cancel) {
                 categoryToDelete = nil
+                showDeleteConfirmation = false
             }
         } message: {
             Text("删除后无法恢复；若该分类已被交易使用，将无法删除。")
@@ -196,21 +206,24 @@ struct CategoryManagementView: View {
                     .foregroundColor(.holoPrimary)
                     .frame(width: 44, height: 44)
             }
+            .buttonStyle(.borderless)
 
             // 预设分类不可删除
             if !category.isDefault {
                 Button {
+                    Self.logger.info("🗑️ 删除按钮触发: \(category.name)")
                     categoryToDelete = category
+                    showDeleteConfirmation = true
                 } label: {
                     Image(systemName: "trash")
                         .font(.system(size: 16))
                         .foregroundColor(.red)
                         .frame(width: 44, height: 44)
                 }
+                .buttonStyle(.borderless)
             }
         }
         .padding(.vertical, 4)
-        .contentShape(Rectangle())
     }
 
     private func subCategoryList(for parent: Category) -> some View {
