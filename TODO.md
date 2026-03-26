@@ -6,7 +6,6 @@
 
 | 优先级 | 问题 | 位置 | 状态 |
 | --- | --- | --- | --- |
-| 高 | AddCategorySheet 交互流程不符合预期：应为"选择一级分类 → 选择/创建二级分类" | `CategoryManagementView.swift` | 🔴 Open |
 | 高 | AddTaskSheet 截止日期选择器无法交互 | `AddTaskSheet.swift` | 🔴 Open |
 | 高 | HealthKit 授权失败：真机上点击授权按钮后卡死，需在 Xcode 手动配置 Signing & Capabilities 添加 HealthKit | `HealthRepository.swift` | 🔴 Open |
 
@@ -75,4 +74,5 @@
 | 记账页面交互优化 | 2026-03-19 |
 | 深色模式适配 | 2026-03-24 |
 | 分类管理页面编辑按钮 + 返回手势修复 | 2026-03-26 |
-| 编辑自定义分类后返回误弹删除确认框修复 | 2026-03-26 |
+| 分类管理页面重构为两级导航结构 | 2026-03-26 |
+| 编辑自定义分类后返回误弹删除确认框修复 | 2026-03-27 |
