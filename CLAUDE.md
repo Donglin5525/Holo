@@ -1,13 +1,25 @@
 # HOLO - 个人数据资产 + AI 规划 iOS 应用
 
 **技术栈**：SwiftUI, Swift 5+, MVVM, Core Data
-**核心模块**：记账、习惯追踪、待办（开发中）
+**核心模块**：记账 ✅ | 习惯追踪 ✅ | 待办 🚧 | 健康 📋 | 观点 📋
 
 ---
 
-## 开发前必读
+## 🤝 协作规则
 
-**开始任何开发前，必须先阅读 `docs/_common/` 下的文档：**
+| 规则 | 说明 |
+|------|------|
+| 全局中文回复 | 所有回复使用中文 |
+| 称呼东林 | 每次回答前先称呼名字 |
+| 禁止兼容性代码 | 除非东林主动要求 |
+| 需求模糊时 | 先提问澄清再写代码 |
+| 修改 >3 个文件 | 先拆成小任务 |
+| 出 Bug 时 | 先写能重现的测试再修复 |
+| 被纠正后 | 反思并制定不再犯的计划 |
+
+---
+
+## 📖 开发前必读
 
 | 文档 | 用途 |
 |------|------|
@@ -16,44 +28,43 @@
 | `docs/_common/notes/` | 历史问题解决方案 |
 | `docs/_common/plans/` | 已完成功能的实现计划 |
 
+> **注意**：`docs/todo/` 是**待办模块的文档目录**（PRD、开发计划等），不是项目级待办清单。当东林说"更新 TODO"时，指的是根目录的 `TODO.md`（项目级待办清单），不要混淆。
+
 ---
 
-## 快速参考
+## ⚡ 快速参考
 
 ### 编码约定
 
-| iOS (Swift) | Web (TypeScript) |
-|------------|------------------|
-| MVVM 架构 | 用 `unknown` 代替 `any` |
-| 禁止 `!` force unwrap | 禁止 `console.log` |
-| 禁止 `print()`，用 `Logger` | 不可变更新 |
-| 错误处理用 `try-catch` | |
-| ScrollView 必须隐藏滚动条 | |
+| 规则 | 说明 |
+|------|------|
+| MVVM 架构 | Model-View-ViewModel 分层 |
+| 禁止 `!` force unwrap | 使用 `if let` / `guard let` |
+| 禁止 `print()` | 使用 `Logger` 替代 |
+| 错误处理 | 必须使用 `try-catch` |
+| ScrollView 滚动条 | 必须隐藏 `showsIndicators: false` |
+| DatePicker 语言 | 必须中文 `.environment(\.locale, Locale(identifier: "zh_CN"))` |
 
-**滚动条隐藏**：所有 `ScrollView` 必须设置 `showsIndicators: false`
 ```swift
+// ScrollView 示例
 ScrollView(showsIndicators: false) { ... }
-ScrollView(.horizontal, showsIndicators: false) { ... }
-```
 
-### 日期组件规范
-
-**所有 DatePicker 必须强制使用中文显示**，禁止出现英文月份：
-
-```swift
+// DatePicker 示例
 DatePicker("", selection: $date, displayedComponents: .date)
     .environment(\.locale, Locale(identifier: "zh_CN"))
 ```
 
 ### 图标管理
 
-- **分类图标**：`Holo/Assets.xcassets/CategoryIcons/`（62 个）
-- **更新命令**：`python3 icon/integrate_icons.py`
-- **App 图标**：1024×1024 PNG，Xcode 自动生成
+| 项目 | 路径/命令 |
+|------|----------|
+| 分类图标 (62个) | `Holo/Assets.xcassets/CategoryIcons/` |
+| App 图标 | 1024×1024 PNG |
+| 更新命令 | `python3 icon/integrate_icons.py` |
 
 ### 提交规范
 
-**Scope**：`iOS` / `Web` / `icon` / `docs`
+**Scope**：`iOS` / `icon` / `docs`
 
 ```
 feat(iOS): 新增分期记账功能
@@ -63,34 +74,36 @@ docs: 更新 CHANGELOG
 
 ---
 
-## 禁止操作（需先咨询）
+## 🚫 禁止操作
 
-- 删除 `Assets.xcassets/` 中的任何文件
-- 修改 Xcode 项目配置（Team ID、Bundle ID、签名）
-- Force push 到 main 或修改已发布的提交历史
-- 删除整个目录
-
----
-
-## 提交前检查
-
-**iOS**：编译通过无警告 | 无 `print()` 和 force unwrap | 图标尺寸正确
-**Web**：`npm run lint` 通过 | 无 `console.log`
-**通用**：`docs/CHANGELOG.md` 已更新
+| 操作 | 原因 |
+|------|------|
+| 删除 `Assets.xcassets/` 文件 | 图标资源不可逆 |
+| 修改 Xcode 项目配置 | 签名和 Bundle ID 关键 |
+| Force push 到 main | 破坏提交历史 |
+| 删除整个目录 | 不可逆操作 |
 
 ---
 
-## 提交流程
+## ✅ 提交前检查
 
-**当用户说"提交 Commit"时**，需执行三个动作：
-
-1. 提交 Commit（git add + git commit）
-2. 更新 `docs/CHANGELOG.md` 日志
-3. 同步到 GitHub 仓库（git push）
+- [ ] 编译通过无警告
+- [ ] 无 `print()` 和 force unwrap
+- [ ] `CHANGELOG.md` 已更新
 
 ---
 
-## Core Data 调试经验
+## 📤 提交流程
+
+**当用户说"提交 Commit"时**：
+
+1. `git add` + `git commit`
+2. 更新 `CHANGELOG.md`
+3. `git push`
+
+---
+
+## 🐛 Core Data 调试
 
 | 问题 | 解决方案 |
 |------|----------|
@@ -99,4 +112,4 @@ docs: 更新 CHANGELOG
 | 访问已删除对象的任何属性 | 导致 EXC_BREAKPOINT |
 | 安全访问已删除对象 | 用本地缓存 ID 完全避免 |
 
-> 详细调试经验见 `docs/_common/notes/coredata-debugging.md`
+> 详见 `docs/_common/notes/coredata-debugging.md`
