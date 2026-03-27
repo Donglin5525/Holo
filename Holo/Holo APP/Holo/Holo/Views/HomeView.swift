@@ -56,11 +56,20 @@ struct HomeView: View {
     /// 当前正在拖拽的按钮配置
     @State private var draggingItem: FeatureButtonConfig? = nil
     
-    /// 拖拽偏移量
+    /// 拖拽偏移量（已包含锚点补偿）
+    /// 视图位置 = 当前锚点位置 + dragOffset
     @State private var dragOffset: CGSize = .zero
-    
+
     /// 拖拽起始位置索引
     @State private var draggingFromIndex: Int? = nil
+
+    /// 拖拽时当前锚定的五角形位置（swap 后更新）
+    @State private var dragAnchorPosition: CGPoint = .zero
+
+    /// 累计锚点位移：从拖拽起始位置到当前锚点位置的总偏移
+    /// 用于将 DragGesture.translation 转换为视图所需的 dragOffset
+    /// dragOffset = translation - anchorTotalShift
+    @State private var anchorTotalShift: CGSize = .zero
     
     /// 是否正在进行长按手势（防止点击误触发）
     @GestureState private var isLongPressing: Bool = false
@@ -144,9 +153,11 @@ struct HomeView: View {
         .onAppear {
             loadFeatureItemsFromRepository()
         }
-        // 监听 repository 变化，自动刷新
+        // 监听 repository 变化，自动刷新（拖拽中不刷新，避免干扰排序状态）
         .onChange(of: iconRepository.visibleConfigs) { _, _ in
-            loadFeatureItemsFromRepository()
+            if draggingItem == nil {
+                loadFeatureItemsFromRepository()
+            }
         }
     }
     
@@ -344,11 +355,10 @@ struct HomeView: View {
             .onEnded { _ in
                 HapticManager.medium()
 
-                // 设置拖拽状态
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                    draggingItem = item
-                    draggingFromIndex = index
-                }
+                // 设置拖拽状态，记录锚点位置
+                draggingItem = item
+                draggingFromIndex = index
+                dragAnchorPosition = positions[index]
             }
         
         // 拖拽手势：设置 minimumDistance 为 0，让拖拽在长按完成后立即响应
@@ -356,28 +366,35 @@ struct HomeView: View {
             .onChanged { value in
                 // 只有在长按激活后才处理拖拽
                 guard draggingItem != nil else { return }
-                
-                dragOffset = value.translation
-                
-                // 检测是否接近其他位置，如果是则交换
-                checkAndSwapPosition(
-                    currentPosition: CGPoint(
-                        x: positions[index].x + value.translation.width,
-                        y: positions[index].y + value.translation.height
-                    ),
-                    positions: positions
+
+                // 先计算当前手指屏幕位置（用于 swap 判断）
+                let currentScreenPos = CGPoint(
+                    x: dragAnchorPosition.x + value.translation.width - anchorTotalShift.width,
+                    y: dragAnchorPosition.y + value.translation.height - anchorTotalShift.height
+                )
+
+                // 检测并执行 swap（swap 会更新 anchorTotalShift 和 dragAnchorPosition）
+                checkAndSwapPosition(currentPosition: currentScreenPos, positions: positions)
+
+                // swap 之后再计算 dragOffset，确保用最新的 anchorTotalShift
+                // dragOffset = 手势偏移 - 累计锚点位移
+                dragOffset = CGSize(
+                    width: value.translation.width - anchorTotalShift.width,
+                    height: value.translation.height - anchorTotalShift.height
                 )
             }
             .onEnded { _ in
                 // 拖拽结束，保存新顺序到持久化存储
                 let orderedIds = featureItems.map { $0.id }
                 iconRepository.updateOrder(orderedIds)
-                
+
                 // 重置拖拽状态
                 withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
                     draggingItem = nil
                     draggingFromIndex = nil
                     dragOffset = .zero
+                    dragAnchorPosition = .zero
+                    anchorTotalShift = .zero
                 }
             }
         
@@ -387,36 +404,47 @@ struct HomeView: View {
     
     /// 检测拖拽位置并在必要时交换
     /// - Parameters:
-    ///   - currentPosition: 当前拖拽位置
+    ///   - currentPosition: 当前拖拽位置（锚点 + dragOffset）
     ///   - positions: 五角形位置数组
     private func checkAndSwapPosition(currentPosition: CGPoint, positions: [CGPoint]) {
         guard let fromIndex = draggingFromIndex else { return }
-        
+
         // 检测距离阈值（50pt 范围内触发交换）
         let swapThreshold: CGFloat = 50
-        
+
         for (targetIndex, targetPosition) in positions.enumerated() {
             // 跳过自身位置
             guard targetIndex != fromIndex else { continue }
-            
+
             // 计算当前拖拽位置与目标位置的距离
             let distance = hypot(
                 currentPosition.x - targetPosition.x,
                 currentPosition.y - targetPosition.y
             )
-            
+
             // 如果距离小于阈值，执行交换
             if distance < swapThreshold {
                 HapticManager.selection()
 
-                // 交换数组中的位置
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                    featureItems.swapAt(fromIndex, targetIndex)
-                    draggingFromIndex = targetIndex
+                // 计算锚点位置的变化量
+                let oldAnchor = dragAnchorPosition
+                let newAnchor = targetPosition
+                let anchorDelta = CGSize(
+                    width: newAnchor.x - oldAnchor.x,
+                    height: newAnchor.y - oldAnchor.y
+                )
 
-                    // 重置偏移量，让按钮"吸附"到新位置
-                    dragOffset = .zero
-                }
+                // 交换数组中的位置
+                featureItems.swapAt(fromIndex, targetIndex)
+                draggingFromIndex = targetIndex
+                dragAnchorPosition = newAnchor
+
+                // 累加锚点位移，onChanged 下一帧会用 translation - anchorTotalShift
+                // 自动抵消锚点变化，保持图标屏幕位置不变
+                anchorTotalShift = CGSize(
+                    width: anchorTotalShift.width + anchorDelta.width,
+                    height: anchorTotalShift.height + anchorDelta.height
+                )
 
                 break
             }
