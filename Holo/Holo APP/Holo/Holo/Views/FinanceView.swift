@@ -69,7 +69,7 @@ struct FinanceView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .swipeBackToDismiss(isEnabled: selectedTab != .settings) { dismiss() }
+        .swipeBackToDismiss { dismiss() }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             financeTabBarOnly
         }

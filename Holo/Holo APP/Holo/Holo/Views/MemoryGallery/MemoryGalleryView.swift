@@ -44,6 +44,7 @@ struct MemoryGalleryView: View {
                 mainContent
             }
         }
+        .swipeBackToDismiss { dismiss() }
         .sheet(item: $selectedMemory) { memory in
             MemoryDetailView(memory: memory)
         }

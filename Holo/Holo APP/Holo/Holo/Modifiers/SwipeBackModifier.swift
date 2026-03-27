@@ -3,15 +3,19 @@
 //  Holo
 //
 //  可复用的右滑返回手势修饰器
-//  从屏幕左侧边缘右滑触发页面关闭
+//  使用 UIScreenEdgePanGestureRecognizer，不会与 ScrollView 冲突
 //
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - SwipeBackModifier
 
 /// 右滑返回手势修饰器
-/// 从屏幕左侧 40pt 区域内右滑超过 120pt 即可关闭页面
+/// 基于 UIScreenEdgePanGestureRecognizer，从屏幕左侧边缘右滑触发页面关闭
+/// 不会与内部 ScrollView 的滚动手势冲突
 struct SwipeBackModifier: ViewModifier {
 
     // MARK: - Properties
@@ -19,40 +23,19 @@ struct SwipeBackModifier: ViewModifier {
     /// 是否启用手势
     let isEnabled: Bool
 
-    /// 触发区域宽度（从左边缘起）
-    let edgeWidth: CGFloat
-
-    /// 触发所需滑动距离
-    let triggerDistance: CGFloat
-
     /// 关闭回调
     let onDismiss: () -> Void
 
     /// 当前偏移量
     @State private var offset: CGFloat = 0
 
-    /// 视图宽度（通过背景 GeometryReader 获取）
-    @State private var viewWidth: CGFloat = 0
-
-    // MARK: - Defaults
-
-    /// 默认触发区域宽度
-    static let defaultEdgeWidth: CGFloat = 40
-
-    /// 默认触发距离
-    static let defaultTriggerDistance: CGFloat = 120
-
     // MARK: - Init
 
     init(
         isEnabled: Bool = true,
-        edgeWidth: CGFloat = defaultEdgeWidth,
-        triggerDistance: CGFloat = defaultTriggerDistance,
         onDismiss: @escaping () -> Void
     ) {
         self.isEnabled = isEnabled
-        self.edgeWidth = edgeWidth
-        self.triggerDistance = triggerDistance
         self.onDismiss = onDismiss
     }
 
@@ -61,46 +44,148 @@ struct SwipeBackModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .offset(x: isEnabled ? offset : 0)
-            .gesture(
-                isEnabled ?
-                DragGesture(minimumDistance: 10)
-                    .onChanged { v in
-                        // 仅在从左侧边缘区域内起始的右滑手势生效
-                        if v.startLocation.x < edgeWidth && v.translation.width > 0 {
-                            offset = v.translation.width
-                        }
-                    }
-                    .onEnded { v in
-                        // 判断是否触发关闭
-                        if v.startLocation.x < edgeWidth && v.translation.width > triggerDistance {
-                            // 滑动足够距离，执行关闭动画
-                            // 使用已获取的宽度或一个足够大的值
-                            let targetOffset = viewWidth > 0 ? viewWidth : 500
-                            withAnimation(.easeOut(duration: 0.25)) {
-                                offset = targetOffset
-                            }
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
-                                onDismiss()
-                            }
+            // 滑动时右边缘产生阴影，增加层次感
+            .shadow(
+                color: isEnabled && offset > 0
+                    ? .black.opacity(min(0.2, Double(offset / screenWidth) * 0.4))
+                    : .clear,
+                radius: 10,
+                x: offset > 0 ? -3 : 0
+            )
+            .overlay(
+                EdgeGestureOverlay(
+                    isEnabled: isEnabled,
+                    onTranslate: { rawTranslation in
+                        // 阻尼效果：超过 40% 屏宽后逐渐减速，模拟物理手感
+                        let threshold = screenWidth * 0.4
+                        if rawTranslation <= threshold {
+                            offset = rawTranslation
                         } else {
-                            // 回弹动画
-                            withAnimation(.spring(response: 0.3)) {
-                                offset = 0
-                            }
+                            let excess = rawTranslation - threshold
+                            offset = threshold + excess * 0.3
+                        }
+                    },
+                    onEnd: { velocity in
+                        // 阈值：滑动超过 35% 屏宽 或 速度足够快
+                        let shouldDismiss = offset > screenWidth * 0.35 || velocity > 500
+
+                        if shouldDismiss {
+                            dismissWithVelocity(velocity)
+                        } else {
+                            snapBack()
                         }
                     }
-                : nil
+                )
             )
-            // 使用 background GeometryReader 获取宽度，不影响布局
-            .background(
-                GeometryReader { geo in
-                    Color.clear
-                        .onAppear { viewWidth = geo.size.width }
-                        .onChange(of: geo.size.width) { _, newWidth in
-                            viewWidth = newWidth
-                        }
-                }
-            )
+    }
+
+    // MARK: - 屏幕宽度
+
+    private var screenWidth: CGFloat {
+        UIScreen.main.bounds.width
+    }
+
+    // MARK: - 关闭动画（速度自适应）
+
+    private func dismissWithVelocity(_ velocity: CGFloat) {
+        let remaining = screenWidth - offset
+        let safeVelocity = max(velocity, 300)
+        let duration = min(0.3, Double(remaining / safeVelocity))
+
+        withAnimation(.easeOut(duration: max(0.15, duration))) {
+            offset = screenWidth
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + max(0.15, duration) + 0.02) {
+            onDismiss()
+        }
+    }
+
+    // MARK: - 回弹动画（柔和弹簧）
+
+    private func snapBack() {
+        withAnimation(.spring(response: 0.45, dampingFraction: 0.82)) {
+            offset = 0
+        }
+    }
+}
+
+// MARK: - Edge Gesture Overlay
+
+/// 基于 UIScreenEdgePanGestureRecognizer 的手势覆盖层
+/// 仅拦截左侧边缘手势，其余触摸穿透到下层视图
+private struct EdgeGestureOverlay: UIViewRepresentable {
+
+    let isEnabled: Bool
+    let onTranslate: (CGFloat) -> Void
+    let onEnd: (CGFloat) -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    func makeUIView(context: Context) -> EdgeGestureHostView {
+        let view = EdgeGestureHostView()
+
+        let recognizer = UIScreenEdgePanGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleGesture(_:))
+        )
+        recognizer.edges = .left
+        recognizer.cancelsTouchesInView = false
+        view.addGestureRecognizer(recognizer)
+        context.coordinator.recognizer = recognizer
+
+        return view
+    }
+
+    func updateUIView(_ uiView: EdgeGestureHostView, context: Context) {
+        context.coordinator.parent = self
+        context.coordinator.recognizer?.isEnabled = isEnabled
+    }
+
+    // MARK: - Coordinator
+
+    class Coordinator {
+        var parent: EdgeGestureOverlay
+        weak var recognizer: UIScreenEdgePanGestureRecognizer?
+
+        init(_ parent: EdgeGestureOverlay) {
+            self.parent = parent
+        }
+
+        @objc func handleGesture(_ recognizer: UIScreenEdgePanGestureRecognizer) {
+            guard let view = recognizer.view?.superview else { return }
+            let translation = recognizer.translation(in: view)
+            let velocity = recognizer.velocity(in: view)
+
+            switch recognizer.state {
+            case .changed:
+                parent.onTranslate(max(0, translation.x))
+            case .ended:
+                parent.onEnd(velocity.x)
+            case .cancelled:
+                parent.onEnd(0)
+            default:
+                break
+            }
+        }
+    }
+}
+
+// MARK: - Edge Gesture Host View
+
+/// 仅响应左侧边缘区域触摸的 UIView
+/// 非边缘触摸返回 nil，穿透到下层视图（ScrollView 等）
+private class EdgeGestureHostView: UIView {
+    private let edgeWidth: CGFloat = 20
+
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        guard point.x < edgeWidth,
+              isUserInteractionEnabled,
+              !isHidden,
+              alpha > 0.01
+        else { return nil }
+        return super.hitTest(point, with: event)
     }
 }
 
@@ -110,20 +195,14 @@ extension View {
     /// 添加右滑返回手势
     /// - Parameters:
     ///   - isEnabled: 是否启用手势（默认 true）
-    ///   - edgeWidth: 触发区域宽度（默认 40pt）
-    ///   - triggerDistance: 触发所需滑动距离（默认 120pt）
     ///   - onDismiss: 关闭回调
     /// - Returns: 应用了手势的视图
     func swipeBackToDismiss(
         isEnabled: Bool = true,
-        edgeWidth: CGFloat = SwipeBackModifier.defaultEdgeWidth,
-        triggerDistance: CGFloat = SwipeBackModifier.defaultTriggerDistance,
         onDismiss: @escaping () -> Void
     ) -> some View {
         self.modifier(SwipeBackModifier(
             isEnabled: isEnabled,
-            edgeWidth: edgeWidth,
-            triggerDistance: triggerDistance,
             onDismiss: onDismiss
         ))
     }
@@ -132,16 +211,14 @@ extension View {
 // MARK: - Preview
 
 #Preview {
-    NavigationStack {
-        VStack {
-            Text("从左边缘右滑返回")
-                .font(.holoHeading)
-                .foregroundColor(.holoTextPrimary)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.holoBackground)
-        .swipeBackToDismiss {
-            print("Dismiss triggered")
-        }
+    VStack {
+        Text("从左边缘右滑返回")
+            .font(.holoHeading)
+            .foregroundColor(.holoTextPrimary)
+    }
+    .frame(maxWidth: .infinity, maxHeight: .infinity)
+    .background(Color.holoBackground)
+    .swipeBackToDismiss {
+        // Preview 中无法实际 dismiss
     }
 }

@@ -44,6 +44,7 @@
 | 错误处理 | 必须使用 `try-catch` |
 | ScrollView 滚动条 | 必须隐藏 `showsIndicators: false` |
 | DatePicker 语言 | 必须中文 `.environment(\.locale, Locale(identifier: "zh_CN"))` |
+| 右滑返回手势 | fullScreenCover 页面必须加 `.swipeBackToDismiss`，NavigationStack push 和 Sheet 系统自带 |
 
 ```swift
 // ScrollView 示例
