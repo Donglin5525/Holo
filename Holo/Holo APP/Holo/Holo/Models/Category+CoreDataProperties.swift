@@ -66,8 +66,8 @@ extension Category {
         children: [SubCategoryDef]
     )
     
-    // MARK: - 支出分类层级（8 个一级 + 55 个二级）
-    
+    // MARK: - 支出分类层级（9 个一级 + 69 个二级）
+
     /// 支出分类体系
     /// 按 Figma 设计稿的图标分组排列，每组颜色与设计一致
     static let expenseHierarchy: [CategoryGroupDef] = [
@@ -80,14 +80,21 @@ extension Category {
             (name: "零食", icon: "icon_snack"),
             (name: "咖啡", icon: "icon_coffee"),
             (name: "外卖", icon: "icon_takeout"),
+            (name: "饮品", icon: "icon_beverage"),
+            (name: "水果", icon: "icon_fruit"),
+            (name: "酒水", icon: "icon_alcohol"),
+            (name: "超市", icon: "icon_supermarket"),
         ]),
         // ━━━━━━━━━━ 2. 交通（绿色系 #10B981）━━━━━━━━━━
         (name: "交通", color: "#10B981", children: [
             (name: "地铁", icon: "icon_metro"),
             (name: "打车", icon: "icon_taxi"),
+            (name: "公交", icon: "icon_bus"),
             (name: "单车", icon: "icon_bike_share"),
             (name: "加油", icon: "icon_fuel"),
             (name: "停车", icon: "icon_parking"),
+            (name: "火车", icon: "icon_train"),
+            (name: "机票", icon: "icon_flight"),
             (name: "旅行", icon: "icon_travel"),
             (name: "过路费", icon: "icon_toll"),
         ]),
@@ -115,11 +122,14 @@ extension Category {
         // ━━━━━━━━━━ 5. 居住（靛蓝色系 #6366F1）━━━━━━━━━━
         (name: "居住", color: "#6366F1", children: [
             (name: "房租", icon: "icon_rent"),
+            (name: "房贷", icon: "icon_mortgage"),
             (name: "水费", icon: "icon_water"),
             (name: "电费", icon: "icon_electricity"),
             (name: "燃气", icon: "icon_gas"),
             (name: "物业", icon: "icon_property"),
             (name: "网费", icon: "icon_internet"),
+            (name: "家电", icon: "icon_appliance"),
+            (name: "装修", icon: "icon_renovation"),
         ]),
         // ━━━━━━━━━━ 6. 医疗（玫红色系 #F43F5E）━━━━━━━━━━
         (name: "医疗", color: "#F43F5E", children: [
@@ -128,6 +138,8 @@ extension Category {
             (name: "体检", icon: "icon_checkup"),
             (name: "健身房", icon: "icon_gym"),
             (name: "保健品", icon: "icon_supplement"),
+            (name: "牙齿保健", icon: "icon_dental"),
+            (name: "医疗用品", icon: "icon_medical_supply"),
         ]),
         // ━━━━━━━━━━ 7. 学习（青色系 #06B6D4）━━━━━━━━━━
         (name: "学习", color: "#06B6D4", children: [
@@ -137,12 +149,22 @@ extension Category {
             (name: "文具", icon: "icon_stationery"),
             (name: "订阅", icon: "icon_subscription"),
         ]),
-        // ━━━━━━━━━━ 8. 其他（灰色系 #64748B）━━━━━━━━━━
+        // ━━━━━━━━━━ 8. 人情（琥珀色系 #F59E0B）━━━━━━━━━━
+        (name: "人情", color: "#F59E0B", children: [
+            (name: "红包礼金", icon: "icon_cash_gift"),
+            (name: "请客", icon: "icon_treat"),
+            (name: "送礼", icon: "icon_gifting"),
+            (name: "探望", icon: "icon_visit"),
+            (name: "其他", icon: "icon_social_other"),
+        ]),
+        // ━━━━━━━━━━ 9. 其他（灰色系 #64748B）━━━━━━━━━━
         (name: "其他", color: "#64748B", children: [
             (name: "社交", icon: "icon_social"),
             (name: "宠物", icon: "icon_pet"),
             (name: "理发", icon: "icon_barber"),
             (name: "洗衣", icon: "icon_laundry"),
+            (name: "话费", icon: "icon_phone_bill"),
+            (name: "烟酒", icon: "icon_tobacco_alcohol"),
             (name: "维修", icon: "icon_repair"),
             (name: "保险", icon: "icon_insurance"),
             (name: "还款", icon: "icon_repayment"),
@@ -152,8 +174,8 @@ extension Category {
         ]),
     ]
     
-    // MARK: - 收入分类层级（4 个一级 + 16 个二级）
-    
+    // MARK: - 收入分类层级（4 个一级 + 19 个二级）
+
     /// 收入分类体系
     static let incomeHierarchy: [CategoryGroupDef] = [
         // ━━━━━━━━━━ 1. 投资理财（蓝色系 #3B82F6）━━━━━━━━━━
@@ -168,6 +190,7 @@ extension Category {
             (name: "工资", icon: "icon_salary"),
             (name: "奖金", icon: "icon_bonus"),
             (name: "兼职", icon: "icon_parttime"),
+            (name: "报销", icon: "icon_reimburse"),
             (name: "退款", icon: "icon_refund"),
         ]),
         // ━━━━━━━━━━ 3. 人情来往（红色系 #EF4444）━━━━━━━━━━
@@ -182,33 +205,36 @@ extension Category {
             (name: "借入", icon: "icon_loan_in"),
             (name: "还款收入", icon: "icon_repay_in"),
             (name: "退货", icon: "icon_return"),
+            (name: "公积金", icon: "icon_housing_fund"),
+            (name: "出闲置", icon: "icon_secondhand"),
             (name: "其他", icon: "icon_other_inc"),
         ]),
     ]
     
     // MARK: - Seed 初始化
-    
+
     /**
      初始化默认分类数据（首次启动时调用）
-     
+
      处理逻辑：
-     1. 若已有二级分类（存在 parentId != nil），说明已是层级数据，跳过
-     2. 若无任何分类，或仅有旧版扁平分类（全部 parentId == nil），则创建完整层级
+     1. 若无任何分类，创建完整层级
+     2. 若已有层级分类（存在 parentId != nil），检查是否缺失分类，补充添加
      3. 先创建一级分类（parentId = nil），再创建二级子分类（parentId 指向父级 id）
-     
+
      兼容旧数据：设备上已有 15 个扁平分类时，会补种 12+71 个层级分类，不删除旧数据
      */
     static func seedDefaultCategories(in context: NSManagedObjectContext) {
         let request = Category.fetchRequest()
         request.includesSubentities = false
         guard let all = try? context.fetch(request) else { return }
-        
-        // 若已有任意二级分类，说明层级数据已存在，不再重复 seed
+
+        // 若已有二级分类，检查是否缺失分类并补充
         let hasSubCategory = all.contains { $0.parentId != nil }
         if hasSubCategory {
+            seedMissingCategories(in: context, existing: all)
             return
         }
-        
+
         // 无分类或仅有旧版扁平分类：补种完整层级（不删旧数据，旧交易仍指向旧分类）
         // --- 创建支出分类层级 ---
         seedHierarchy(
@@ -216,15 +242,153 @@ extension Category {
             type: TransactionType.expense.rawValue,
             in: context
         )
-        
+
         // --- 创建收入分类层级 ---
         seedHierarchy(
             incomeHierarchy,
             type: TransactionType.income.rawValue,
             in: context
         )
-        
+
         try? context.save()
+    }
+
+    /**
+     检查并补充缺失的分类
+     - Parameters:
+       - context: Core Data 上下文
+       - existing: 已有的分类列表
+     */
+    private static func seedMissingCategories(
+        in context: NSManagedObjectContext,
+        existing: [Category]
+    ) {
+        // 构建现有分类的名称集合（按类型分组）
+        let existingExpenseNames = Set(
+            existing.filter { $0.type == TransactionType.expense.rawValue }
+                .map { $0.name }
+        )
+        let existingIncomeNames = Set(
+            existing.filter { $0.type == TransactionType.income.rawValue }
+                .map { $0.name }
+        )
+
+        var hasChanges = false
+
+        // 检查并补充支出分类
+        for group in expenseHierarchy {
+            // 检查一级分类是否存在
+            if !existingExpenseNames.contains(group.name) {
+                let parentIcon = group.children.first?.icon ?? "questionmark.circle"
+                let parent = create(
+                    in: context,
+                    name: group.name,
+                    icon: parentIcon,
+                    color: group.color,
+                    type: TransactionType.expense.rawValue,
+                    isDefault: true,
+                    sortOrder: Int16(existing.filter { $0.type == TransactionType.expense.rawValue && $0.parentId == nil }.count),
+                    parentId: nil
+                )
+                hasChanges = true
+
+                // 创建子分类
+                for (idx, child) in group.children.enumerated() {
+                    _ = create(
+                        in: context,
+                        name: child.name,
+                        icon: child.icon,
+                        color: group.color,
+                        type: TransactionType.expense.rawValue,
+                        isDefault: true,
+                        sortOrder: Int16(idx),
+                        parentId: parent.id
+                    )
+                }
+            } else {
+                // 一级分类存在，检查子分类是否缺失
+                let parent = existing.first { $0.name == group.name && $0.parentId == nil }
+                if let parent = parent {
+                    let existingChildNames = Set(
+                        existing.filter { $0.parentId == parent.id }
+                            .map { $0.name }
+                    )
+                    for (idx, child) in group.children.enumerated() {
+                        if !existingChildNames.contains(child.name) {
+                            _ = create(
+                                in: context,
+                                name: child.name,
+                                icon: child.icon,
+                                color: group.color,
+                                type: TransactionType.expense.rawValue,
+                                isDefault: true,
+                                sortOrder: Int16(idx),
+                                parentId: parent.id
+                            )
+                            hasChanges = true
+                        }
+                    }
+                }
+            }
+        }
+
+        // 检查并补充收入分类
+        for group in incomeHierarchy {
+            if !existingIncomeNames.contains(group.name) {
+                let parentIcon = group.children.first?.icon ?? "questionmark.circle"
+                let parent = create(
+                    in: context,
+                    name: group.name,
+                    icon: parentIcon,
+                    color: group.color,
+                    type: TransactionType.income.rawValue,
+                    isDefault: true,
+                    sortOrder: Int16(existing.filter { $0.type == TransactionType.income.rawValue && $0.parentId == nil }.count),
+                    parentId: nil
+                )
+                hasChanges = true
+
+                for (idx, child) in group.children.enumerated() {
+                    _ = create(
+                        in: context,
+                        name: child.name,
+                        icon: child.icon,
+                        color: group.color,
+                        type: TransactionType.income.rawValue,
+                        isDefault: true,
+                        sortOrder: Int16(idx),
+                        parentId: parent.id
+                    )
+                }
+            } else {
+                let parent = existing.first { $0.name == group.name && $0.parentId == nil }
+                if let parent = parent {
+                    let existingChildNames = Set(
+                        existing.filter { $0.parentId == parent.id }
+                            .map { $0.name }
+                    )
+                    for (idx, child) in group.children.enumerated() {
+                        if !existingChildNames.contains(child.name) {
+                            _ = create(
+                                in: context,
+                                name: child.name,
+                                icon: child.icon,
+                                color: group.color,
+                                type: TransactionType.income.rawValue,
+                                isDefault: true,
+                                sortOrder: Int16(idx),
+                                parentId: parent.id
+                            )
+                            hasChanges = true
+                        }
+                    }
+                }
+            }
+        }
+
+        if hasChanges {
+            try? context.save()
+        }
     }
     
     /**

@@ -10,15 +10,17 @@ import SwiftUI
 
 // MARK: - 预设图标列表
 
-/// 所有预设分类图标名称（82 个）
+/// 所有预设分类图标名称（105 个）
 let presetCategoryIcons: [String] = [
     // 餐饮类
     "icon_breakfast", "icon_lunch", "icon_dinner", "icon_snack",
     "icon_late_snack", "icon_takeout", "icon_dining", "icon_coffee",
+    "icon_beverage", "icon_fruit", "icon_alcohol", "icon_supermarket",
 
     // 交通类
     "icon_transport", "icon_metro", "icon_taxi", "icon_fuel",
     "icon_parking", "icon_toll", "icon_bike_share", "icon_trip", "icon_travel",
+    "icon_bus", "icon_train", "icon_flight",
 
     // 购物类
     "icon_shopping", "icon_groceries", "icon_clothes", "icon_digital",
@@ -31,13 +33,17 @@ let presetCategoryIcons: [String] = [
     // 居住类
     "icon_housing", "icon_rent", "icon_property", "icon_water",
     "icon_electricity", "icon_gas", "icon_internet", "icon_repair",
+    "icon_mortgage", "icon_appliance", "icon_renovation",
 
     // 医疗类
     "icon_health", "icon_medical", "icon_medicine", "icon_checkup",
-    "icon_supplement",
+    "icon_supplement", "icon_dental", "icon_medical_supply",
 
     // 学习类
     "icon_education", "icon_course", "icon_exam",
+
+    // 人情类
+    "icon_cash_gift", "icon_treat", "icon_gifting", "icon_visit", "icon_social_other",
 
     // 社交类
     "icon_social", "icon_gift", "icon_present", "icon_donation",
@@ -50,13 +56,13 @@ let presetCategoryIcons: [String] = [
 
     // 其他收入
     "icon_parttime", "icon_loan_in", "icon_repay_in", "icon_transfer_in",
-    "icon_other_income", "icon_other_inc",
+    "icon_other_income", "icon_other_inc", "icon_reimburse", "icon_housing_fund", "icon_secondhand",
 
     // 其他支出
     "icon_other_expense", "icon_other_exp", "icon_transfer_out",
     "icon_repayment", "icon_subscription", "icon_insurance",
     "icon_pet", "icon_beauty", "icon_barber", "icon_laundry",
-    "icon_communication"
+    "icon_communication", "icon_phone_bill", "icon_tobacco_alcohol"
 ]
 
 // MARK: - Icon Picker Grid

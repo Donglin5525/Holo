@@ -116,7 +116,8 @@ struct QuickTemplateView: View {
     }
 }
 
-/// 快速模板中的分类图标（运行时检测 Asset，兼容 CategoryIcons/xxx 与 xxx）
+/// 快速模板中的分类图标：使用全局统一的 transactionCategoryIcon 渲染函数
+/// 独立包装以支持非着色场景（foregroundColor 由外层控制）
 @ViewBuilder
 private func quickTemplateCategoryIcon(_ category: Category, size: CGFloat) -> some View {
     let name = category.icon
@@ -131,7 +132,7 @@ private func quickTemplateCategoryIcon(_ category: Category, size: CGFloat) -> s
             .frame(width: size, height: size)
     } else {
         Image(systemName: name.hasPrefix("icon_") ? "tag.fill" : name)
-            .font(.system(size: size, weight: .medium))
+            .font(.system(size: size * 0.6, weight: .medium))
     }
     #elseif canImport(AppKit)
     let loaded = NSImage(named: withNamespace) ?? NSImage(named: name)
@@ -142,7 +143,7 @@ private func quickTemplateCategoryIcon(_ category: Category, size: CGFloat) -> s
             .frame(width: size, height: size)
     } else {
         Image(systemName: name.hasPrefix("icon_") ? "tag.fill" : name)
-            .font(.system(size: size, weight: .medium))
+            .font(.system(size: size * 0.6, weight: .medium))
     }
     #endif
 }
