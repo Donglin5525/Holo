@@ -190,6 +190,12 @@ struct AddTransactionSheet: View {
             }
             startCursorAnimation()
         }
+        .onChange(of: selectedCategory) { _, newValue in
+            // 选择分类后，收起数字键盘
+            if newValue != nil {
+                showNumericKeypad = false
+            }
+        }
         .onChange(of: isNoteFocused) { _, newValue in
             // 备注输入框获得焦点时，隐藏数字键盘（让系统键盘显示）
             if newValue {
@@ -669,8 +675,9 @@ struct AddTransactionSheet: View {
             handleOperator(key)
             
         case "↩︎":
-            // 预留功能，暂不处理（置灰状态）
-            break
+            // 跳转到下一个可输入区域（备注输入框）
+            showNumericKeypad = false
+            isNoteFocused = true
             
         case ".":
             // 小数点：确保当前数字段没有小数点
@@ -1098,10 +1105,10 @@ struct KeypadButton: View {
                         .foregroundColor(.holoTextSecondary)
                     
                 case "↩︎":
-                    // 预留功能按钮（置灰状态，暂不可用）
-                    Text("↩︎")
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundColor(.holoTextSecondary.opacity(0.3))
+                    // 跳转到下一个输入区域
+                    Image(systemName: "arrow.turn.down.left")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundColor(.holoTextSecondary)
                     
                 case "00":
                     // 双零按钮
@@ -1121,7 +1128,6 @@ struct KeypadButton: View {
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         }
         .buttonStyle(PlainButtonStyle())
-        .disabled(key == "↩︎") // ↩︎ 按钮禁用
     }
     
     /// 根据按键类型返回背景颜色
