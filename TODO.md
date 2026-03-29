@@ -41,7 +41,40 @@
 
 ### 观点模块
 
-状态：📋 待开发（暂无 PRD）
+状态：🚧 Phase 4 进行中
+
+#### Phase 1: 数据层 ✅
+- [x] Core Data 模型定义 (Thought, ThoughtTag, ThoughtReference)
+- [x] NSManagedObject 子类生成
+- [x] ThoughtRepository 仓储层实现
+
+#### Phase 2: 列表视图层 ✅
+- [x] ThoughtsView 根视图容器
+- [x] ThoughtListView 主列表（下拉刷新、筛选）
+- [x] ThoughtCardView 卡片组件
+- [x] ThoughtFilterSheetView 筛选面板（心情、日期范围）
+- [x] 首页入口集成 (fullScreenCover)
+
+#### Phase 3: 编辑器层 ✅
+- [x] ThoughtEditorView 主编辑器
+- [x] MoodSelectorView 心情选择器
+- [x] TagInputView 标签输入
+- [x] ReferenceSelectorView 引用选择器
+
+#### Phase 4: 详情页层 ✅
+- [x] ThoughtDetailView 详情视图
+- [x] ReferenceCardView 引用卡片
+- [x] 引用关系展示（引用 + 反向链接）
+- [x] 编辑功能集成
+
+#### Phase 5: 搜索功能 📋 待开发
+- [ ] ThoughtSearchBarView 搜索栏组件
+- [ ] 搜索结果高亮
+- [ ] 搜索历史
+
+#### Phase 6: 测试与优化 📋 待开发
+- [ ] Repository 层单元测试
+- [ ] UI 测试
 
 ---
 

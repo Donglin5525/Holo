@@ -44,6 +44,9 @@ struct HomeView: View {
     /// 是否显示健康页面
     @State private var showHealthView: Bool = false
 
+    /// 是否显示观点页面
+    @State private var showThoughtsView: Bool = false
+
     // MARK: - 五角形功能按钮拖拽排序状态
     
     /// 图标配置仓库（负责持久化）
@@ -141,6 +144,11 @@ struct HomeView: View {
         // 健康页面（Full Screen Cover 形式）
         .fullScreenCover(isPresented: $showHealthView) {
             HealthView()
+                .preferredColorScheme(DarkModeManager.shared.colorScheme)
+        }
+        // 观点页面（Full Screen Cover 形式）
+        .fullScreenCover(isPresented: $showThoughtsView) {
+            ThoughtsView()
                 .preferredColorScheme(DarkModeManager.shared.colorScheme)
         }
         // 监听底部导航栏变化
@@ -464,7 +472,7 @@ struct HomeView: View {
         case "health":
             showHealthView = true
         case "thoughts":
-            print("Thoughts tapped")
+            showThoughtsView = true
         case "habit":
             showHabitsView = true
         default:
