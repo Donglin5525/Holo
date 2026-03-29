@@ -34,25 +34,42 @@ struct DayCellView: View {
     let style: DayCellStyle
     let onTap: () -> Void
     var onLongPress: (() -> Void)? = nil
-    
+
     /// 长按缩放反馈
     @State private var isLongPressing: Bool = false
-    
+
     private var dayString: String {
         "\(Calendar.current.component(.day, from: date))"
     }
-    
+
+    /// 周视图下是否有消费
+    private var hasExpense: Bool {
+        if let s = summary, s.hasTransactions { return true }
+        return false
+    }
+
+    /// 周视图无消费选中时，用胶囊替代全格背景
+    private var useCompactBackground: Bool {
+        style == .week && isSelected && !hasExpense
+    }
+
     var body: some View {
         cellContent
             .frame(maxWidth: .infinity)
             .frame(height: style == .week ? 56 : 40)
             .background(
-                RoundedRectangle(cornerRadius: 10)
-                    .fill(isSelected ? Color.holoPrimary.opacity(0.12) : Color.clear)
+                Group {
+                    if useCompactBackground {
+                        Color.clear
+                    } else {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(isSelected ? Color.holoPrimary.opacity(0.12) : Color.clear)
+                    }
+                }
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 10)
-                    .stroke(date.isToday && !isSelected ? Color.holoPrimary.opacity(0.4) : Color.clear, lineWidth: 1.5)
+                    .stroke(Color.clear, lineWidth: 1.5)
             )
             .scaleEffect(isLongPressing ? 0.9 : 1.0)
             .animation(.easeInOut(duration: 0.15), value: isLongPressing)
@@ -66,14 +83,21 @@ struct DayCellView: View {
                 }
             )
     }
-    
+
     /// 格子内容（日期数字 + 指示点/金额）
     private var cellContent: some View {
         VStack(spacing: style == .week ? 4 : 2) {
             Text(dayString)
                 .font(.system(size: style == .week ? 15 : 14, weight: isSelected ? .bold : .regular))
                 .foregroundColor(textColor)
-            
+                .padding(.horizontal, useCompactBackground ? 8 : 0)
+                .padding(.vertical, useCompactBackground ? 4 : 0)
+                .background(
+                    Capsule()
+                        .fill(Color.holoPrimary.opacity(0.12))
+                        .opacity(useCompactBackground ? 1 : 0)
+                )
+
             if let s = summary, s.hasTransactions {
                 if style == .week {
                     Text(CalendarDateFormatter.compactAmount(s.totalExpense))
@@ -87,15 +111,17 @@ struct DayCellView: View {
                 }
             } else {
                 if style == .week {
-                    Text(" ")
-                        .font(.system(size: 10))
+                    // 无消费时用透明文字占位，保持与有消费时相同行高，确保日期对齐
+                    Text("0")
+                        .font(.system(size: 10, weight: .medium))
+                        .opacity(0)
                 } else {
                     Color.clear.frame(width: 4, height: 4)
                 }
             }
         }
     }
-    
+
     private var textColor: Color {
         if !isCurrentMonth { return .holoTextSecondary.opacity(0.3) }
         if isSelected { return .holoPrimary }
