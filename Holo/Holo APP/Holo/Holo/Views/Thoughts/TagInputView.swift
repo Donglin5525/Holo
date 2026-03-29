@@ -67,7 +67,7 @@ struct TagInputView: View {
                     Button("完成") {
                         dismiss()
                     }
-                    .foregroundColor(.holoPurple)
+                    .foregroundColor(.holoPrimary)
                     .fontWeight(.semibold)
                 }
             }
@@ -94,7 +94,7 @@ struct TagInputView: View {
             } label: {
                 Image(systemName: "plus.circle.fill")
                     .font(.system(size: 24))
-                    .foregroundColor(inputText.isEmpty ? .holoTextSecondary : .holoPurple)
+                    .foregroundColor(inputText.isEmpty ? .holoTextSecondary : .holoPrimary)
             }
             .disabled(inputText.isEmpty)
         }
@@ -211,7 +211,7 @@ struct SelectedTagChip: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .background(Color.holoPurple)
+        .background(Color.holoPrimary)
         .cornerRadius(HoloRadius.full)
     }
 }
@@ -229,21 +229,21 @@ struct SuggestedTagChip: View {
             HStack(spacing: 4) {
                 Text("#\(tag)")
                     .font(.holoCaption)
-                    .foregroundColor(isSelected ? .holoPurple : .holoTextSecondary)
+                    .foregroundColor(isSelected ? .holoPrimary : .holoTextSecondary)
 
                 if isSelected {
                     Image(systemName: "checkmark")
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.holoPurple)
+                        .foregroundColor(.holoPrimary)
                 }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
-            .background(isSelected ? Color.holoPurple.opacity(0.1) : Color.holoCardBackground)
+            .background(isSelected ? Color.holoPrimary.opacity(0.1) : Color.holoCardBackground)
             .cornerRadius(HoloRadius.full)
             .overlay(
                 Capsule()
-                    .stroke(isSelected ? Color.holoPurple : Color.holoDivider, lineWidth: 1)
+                    .stroke(isSelected ? Color.holoPrimary : Color.holoDivider, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)

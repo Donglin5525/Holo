@@ -43,7 +43,7 @@ struct MoodSelectorView: View {
                     Button("完成") {
                         dismiss()
                     }
-                    .foregroundColor(.holoPurple)
+                    .foregroundColor(.holoPrimary)
                     .fontWeight(.semibold)
                 }
             }

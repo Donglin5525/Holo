@@ -136,7 +136,7 @@ extension ThoughtTag: Identifiable {}
 extension ThoughtTag {
     /// 标签颜色
     var tagColor: Color {
-        guard let colorHex = color else { return .holoPurple }
+        guard let colorHex = color else { return .holoPrimary }
         return Color(hex: colorHex)
     }
 }

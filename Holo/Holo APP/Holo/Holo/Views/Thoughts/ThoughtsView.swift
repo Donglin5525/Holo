@@ -108,16 +108,16 @@ struct ThoughtsView: View {
         } label: {
             VStack(spacing: 4) {
                 Circle()
-                    .fill(selectedTab == tab ? Color.holoPurple : Color.clear)
+                    .fill(selectedTab == tab ? Color.holoPrimary : Color.clear)
                     .frame(width: 4, height: 4)
 
                 Image(systemName: tab.icon)
                     .font(.system(size: 22, weight: .medium))
-                    .foregroundColor(selectedTab == tab ? .holoPurple : .holoTextSecondary)
+                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
 
                 Text(tab.rawValue)
                     .font(.holoTinyLabel)
-                    .foregroundColor(selectedTab == tab ? .holoPurple : .holoTextSecondary)
+                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
             }
             .frame(maxWidth: .infinity)
         }
@@ -137,12 +137,12 @@ struct ThoughtsView: View {
                     .font(.system(size: 24, weight: .semibold))
                     .foregroundColor(.white)
                     .frame(width: 44, height: 44)
-                    .background(Color.holoPurple)
+                    .background(Color.holoPrimary)
                     .clipShape(Circle())
 
                 Text("新增")
                     .font(.holoTinyLabel)
-                    .foregroundColor(.holoPurple)
+                    .foregroundColor(.holoPrimary)
             }
             .frame(maxWidth: .infinity)
         }

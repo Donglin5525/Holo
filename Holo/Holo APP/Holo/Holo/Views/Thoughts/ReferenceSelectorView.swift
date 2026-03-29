@@ -73,7 +73,7 @@ struct ReferenceSelectorView: View {
                     Button("完成") {
                         dismiss()
                     }
-                    .foregroundColor(.holoPurple)
+                    .foregroundColor(.holoPrimary)
                     .fontWeight(.semibold)
                 }
             }
@@ -123,7 +123,7 @@ struct ReferenceSelectorView: View {
         HStack {
             Text("已选择 \(selectedIds.count) 条想法")
                 .font(.holoCaption)
-                .foregroundColor(.holoPurple)
+                .foregroundColor(.holoPrimary)
 
             Spacer()
 
@@ -219,7 +219,7 @@ struct ReferenceThoughtRow: View {
                 // 选中指示器
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .font(.system(size: 20))
-                    .foregroundColor(isSelected ? .holoPurple : .holoTextSecondary.opacity(0.5))
+                    .foregroundColor(isSelected ? .holoPrimary : .holoTextSecondary.opacity(0.5))
 
                 VStack(alignment: .leading, spacing: 4) {
                     // 心情和日期
@@ -245,11 +245,11 @@ struct ReferenceThoughtRow: View {
             .padding(HoloSpacing.md)
             .background(
                 RoundedRectangle(cornerRadius: HoloRadius.md)
-                    .fill(isSelected ? Color.holoPurple.opacity(0.1) : Color.holoCardBackground)
+                    .fill(isSelected ? Color.holoPrimary.opacity(0.1) : Color.holoCardBackground)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: HoloRadius.md)
-                    .stroke(isSelected ? Color.holoPurple : Color.clear, lineWidth: 1)
+                    .stroke(isSelected ? Color.holoPrimary : Color.clear, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)

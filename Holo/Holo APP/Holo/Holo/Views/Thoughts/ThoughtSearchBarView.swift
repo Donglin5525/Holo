@@ -67,7 +67,7 @@ struct ThoughtSearchBarView: View {
         .cornerRadius(HoloRadius.md)
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.md)
-                .stroke(isEditing ? Color.holoPurple : Color.holoBorder, lineWidth: 1)
+                .stroke(isEditing ? Color.holoPrimary : Color.holoBorder, lineWidth: 1)
         )
         .animation(.easeInOut(duration: 0.15), value: isEditing)
     }
@@ -148,7 +148,7 @@ struct SearchResultRow: View {
             } else {
                 Image(systemName: "lightbulb")
                     .font(.system(size: 20))
-                    .foregroundColor(.holoPurple.opacity(0.5))
+                    .foregroundColor(.holoPrimary.opacity(0.5))
             }
 
             VStack(alignment: .leading, spacing: 4) {

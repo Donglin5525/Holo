@@ -216,7 +216,7 @@ struct ThoughtDetailView: View {
 
                 Image(systemName: "link.circle")
                     .font(.system(size: 12))
-                    .foregroundColor(.holoPurple)
+                    .foregroundColor(.holoPrimary)
             }
 
             VStack(spacing: HoloSpacing.sm) {
@@ -284,7 +284,7 @@ struct ReferenceCardView: View {
         .padding(HoloSpacing.sm)
         .background(
             RoundedRectangle(cornerRadius: HoloRadius.md)
-                .fill(Color.holoBackground)
+                .fill(Color.holoCardBackground)
         )
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.md)

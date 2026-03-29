@@ -36,15 +36,11 @@ struct ThoughtCardView: View {
             // 底部：标签 + 引用信息
             footerView
         }
-        .padding(20)
+        .padding(HoloSpacing.md)
         .background(
-            RoundedRectangle(cornerRadius: 28)
+            RoundedRectangle(cornerRadius: HoloRadius.md)
                 .fill(Color.holoCardBackground)
-                .shadow(color: HoloShadow.card, radius: 10, x: 0, y: 4)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 28)
-                .stroke(Color.holoBorder, lineWidth: 1)
+                .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
         )
     }
 
@@ -123,7 +119,7 @@ struct ThoughtCardView: View {
                     Text("\(refCount)")
                         .font(.holoLabel)
                 }
-                .foregroundColor(.holoPurple)
+                .foregroundColor(.holoPrimary)
             }
         }
     }

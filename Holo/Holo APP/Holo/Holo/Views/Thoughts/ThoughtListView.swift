@@ -250,7 +250,7 @@ struct ThoughtListView: View {
                 // 全部标签
                 HoloFilterChip(
                     title: "全部",
-                    iconColor: .holoPurple,
+                    iconColor: .holoPrimary,
                     isSelected: selectedTagName == nil
                 ) {
                     selectedTagName = nil
@@ -326,7 +326,7 @@ struct ThoughtListView: View {
         VStack(spacing: 20) {
             Image(systemName: "lightbulb")
                 .font(.system(size: 60, weight: .light))
-                .foregroundColor(.holoPurple.opacity(0.5))
+                .foregroundColor(.holoTextSecondary.opacity(0.3))
 
             Text("暂无想法")
                 .font(.holoBody)

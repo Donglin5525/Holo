@@ -83,7 +83,7 @@ struct ThoughtEditorView: View {
                     Button("保存") {
                         saveThought()
                     }
-                    .foregroundColor(canSave ? .holoPurple : .holoTextSecondary)
+                    .foregroundColor(canSave ? .holoPrimary : .holoTextSecondary)
                     .fontWeight(.semibold)
                     .disabled(!canSave)
                 }
@@ -172,7 +172,7 @@ struct ThoughtEditorView: View {
                 } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.holoPurple)
+                        .foregroundColor(.holoPrimary)
                 }
             }
 
@@ -187,7 +187,7 @@ struct ThoughtEditorView: View {
                             TagChip(
                                 text: "#\(tag)",
                                 isSelected: true,
-                                color: .holoPurple
+                                color: .holoPrimary
                             ) {
                                 removeTag(tag)
                             }
@@ -214,7 +214,7 @@ struct ThoughtEditorView: View {
                 } label: {
                     Image(systemName: "plus")
                         .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.holoPurple)
+                        .foregroundColor(.holoPrimary)
                 }
             }
 
@@ -225,7 +225,7 @@ struct ThoughtEditorView: View {
             } else {
                 Text("已引用 \(referencedThoughtIds.count) 条想法")
                     .font(.holoCaption)
-                    .foregroundColor(.holoPurple)
+                    .foregroundColor(.holoPrimary)
             }
         }
         .padding(HoloSpacing.md)
