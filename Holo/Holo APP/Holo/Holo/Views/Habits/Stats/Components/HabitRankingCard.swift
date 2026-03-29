@@ -66,12 +66,7 @@ struct HabitRankingCard: View {
                 .frame(width: 24)
 
             // 图标
-            Image(systemName: item.icon)
-                .font(.system(size: 20))
-                .foregroundColor(item.habitColor)
-                .frame(width: 32, height: 32)
-                .background(item.habitColor.opacity(0.15))
-                .clipShape(Circle())
+            habitIconView(icon: item.icon, color: item.habitColor)
 
             // 名称和连续天数
             VStack(alignment: .leading, spacing: 2) {
@@ -107,6 +102,32 @@ struct HabitRankingCard: View {
         case 3: return .holoChart3  // 铜色
         default: return .holoTextSecondary
         }
+    }
+
+    // MARK: - 图标视图
+
+    /// 渲染习惯图标（支持自定义 Asset 图标和 SF Symbol）
+    @ViewBuilder
+    private func habitIconView(icon: String, color: Color) -> some View {
+        let isCustom = HabitIconPresets.allItems.first(where: { $0.name == icon })?.isCustom ?? false
+
+        Group {
+            if isCustom {
+                Image(icon)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 20, height: 20)
+                    .foregroundColor(color)
+            } else {
+                Image(systemName: icon)
+                    .font(.system(size: 20))
+                    .foregroundColor(color)
+            }
+        }
+        .frame(width: 32, height: 32)
+        .background(color.opacity(0.15))
+        .clipShape(Circle())
     }
 
     // MARK: - 空状态

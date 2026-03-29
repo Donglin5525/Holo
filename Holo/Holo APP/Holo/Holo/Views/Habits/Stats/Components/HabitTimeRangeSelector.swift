@@ -15,16 +15,20 @@ struct HabitTimeRangeSelector: View {
     var onRangeChanged: ((HabitStatsDateRange) -> Void)?
 
     var body: some View {
-        HStack(spacing: HoloSpacing.sm) {
-            ForEach(HabitStatsDateRange.allCases) { range in
-                HoloFilterChip(
-                    title: range.displayName,
-                    isSelected: selectedRange == range
-                ) {
-                    selectedRange = range
-                    onRangeChanged?(range)
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(HabitStatsDateRange.allCases) { range in
+                    HoloFilterChip(
+                        title: range.displayName,
+                        isSelected: selectedRange == range
+                    ) {
+                        selectedRange = range
+                        onRangeChanged?(range)
+                    }
                 }
             }
+            .padding(.horizontal, HoloSpacing.lg)
+            .padding(.vertical, HoloSpacing.sm)
         }
     }
 }

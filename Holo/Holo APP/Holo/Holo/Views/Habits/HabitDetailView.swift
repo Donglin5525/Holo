@@ -33,6 +33,10 @@ struct HabitDetailSnapshot {
     var habitColor: Color {
         Color(hex: color) ?? .holoInfo
     }
+
+    var isCustomIcon: Bool {
+        HabitIconPresets.allItems.first(where: { $0.name == icon })?.isCustom ?? false
+    }
 }
 
 /// 习惯详情视图
@@ -215,10 +219,19 @@ struct HabitDetailView: View {
                 Circle()
                     .fill(snapshot.habitColor.opacity(0.1))
                     .frame(width: 80, height: 80)
-                
-                Image(systemName: snapshot.icon)
-                    .font(.system(size: 36, weight: .medium))
-                    .foregroundColor(snapshot.habitColor)
+
+                if snapshot.isCustomIcon {
+                    Image(snapshot.icon)
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 36, height: 36)
+                        .foregroundColor(snapshot.habitColor)
+                } else {
+                    Image(systemName: snapshot.icon)
+                        .font(.system(size: 36, weight: .medium))
+                        .foregroundColor(snapshot.habitColor)
+                }
             }
             
             Text(snapshot.name)

@@ -29,7 +29,7 @@ struct HabitLineChartView: View {
                 chartContent
             }
         }
-        .frame(height: 120)
+        .frame(height: 150)
     }
 
     // MARK: - 图表内容
@@ -56,7 +56,7 @@ struct HabitLineChartView: View {
             // 区域填充
             AreaMark(
                 x: .value("日期", item.date, unit: .day),
-                yStart: .value("底部", 0),
+                yStart: .value("底部", yDomain.lowerBound),
                 yEnd: .value(unit, item.value)
             )
             .foregroundStyle(
@@ -84,7 +84,7 @@ struct HabitLineChartView: View {
             }
         }
         .chartYAxis {
-            AxisMarks(position: .leading) { value in
+            AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
                 AxisGridLine()
                     .foregroundStyle(Color.holoDivider)
                 AxisValueLabel {
@@ -96,8 +96,30 @@ struct HabitLineChartView: View {
                 }
             }
         }
+        .chartYScale(domain: yDomain)
         .chartXAxisLabel("")
         .chartYAxisLabel(unit)
+    }
+
+    // MARK: - Y 轴范围
+
+    /// 根据数据范围计算紧凑的 Y 轴区间，使趋势变化更明显
+    private var yDomain: ClosedRange<Double> {
+        guard !data.isEmpty else { return 0...100 }
+
+        let values = data.map(\.value)
+        let minVal = values.min() ?? 0
+        let maxVal = values.max() ?? 100
+
+        // 数据范围
+        let range = maxVal - minVal
+
+        // 上下各留 30% 的余量（占数据范围的 30%），使趋势更陡峭
+        let padding = max(range * 0.3, range > 0 ? range * 0.1 : 1.0)
+        let lower = minVal - padding
+        let upper = maxVal + padding
+
+        return lower...upper
     }
 
     // MARK: - X 轴标签数量

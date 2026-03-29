@@ -21,11 +21,11 @@ struct HabitStatsView: View {
             // 顶部导航栏
             navigationBar
 
+            // 时间范围选择器（与 Finance 统计页面保持一致的布局）
+            timeRangeSelector
+
             // Tab 选择器（总览/习惯）
             tabBar
-
-            // 时间范围选择器
-            timeRangeSelector
 
             // 内容 Tab 栏
             tabContent
@@ -74,17 +74,6 @@ struct HabitStatsView: View {
         .padding(.vertical, HoloSpacing.sm)
     }
 
-    // MARK: - 时间范围选择器
-
-    private var timeRangeSelector: some View {
-        HabitTimeRangeSelector(
-            selectedRange: $state.selectedDateRange
-        ) { range in
-            state.setDateRange(range)
-        }
-        .padding(.horizontal, HoloSpacing.md)
-    }
-
     // MARK: - Tab 内容
 
     @ViewBuilder
@@ -95,6 +84,16 @@ struct HabitStatsView: View {
             HabitStatsOverviewTab(state: state)
         } else {
             HabitStatsHabitsTab(state: state)
+        }
+    }
+
+    // MARK: - 时间范围选择器
+
+    private var timeRangeSelector: some View {
+        HabitTimeRangeSelector(
+            selectedRange: $state.selectedDateRange
+        ) { range in
+            state.setDateRange(range)
         }
     }
 

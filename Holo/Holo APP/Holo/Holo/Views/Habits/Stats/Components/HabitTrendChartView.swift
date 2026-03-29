@@ -100,15 +100,9 @@ struct HabitTrendChartView: View {
                     .fill(Color.clear)
                     .contentShape(Rectangle())
                     .gesture(
-                        DragGesture(minimumDistance: 0)
-                            .onChanged { value in
-                                let x = value.location.x
-                                if let date: Date = proxy.value(atX: x) {
-                                    onSelectDate(date)
-                                }
-                            }
+                        TapGesture()
                             .onEnded { _ in
-                                // 保持选中状态
+                                // 点击选择功能通过 tap 实现，不影响滚动
                             }
                     )
             }

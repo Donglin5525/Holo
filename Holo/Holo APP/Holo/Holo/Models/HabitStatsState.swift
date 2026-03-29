@@ -257,9 +257,9 @@ class HabitStatsState: ObservableObject {
     // MARK: - 时间范围操作
 
     /// 切换时间范围
+    /// 注意：HabitTimeRangeSelector 通过 @Binding 已经先修改了 selectedDateRange，
+    /// 所以这里不需要再赋值，只需触发数据重新加载
     func setDateRange(_ range: HabitStatsDateRange) {
-        guard selectedDateRange != range else { return }
-        selectedDateRange = range
         Task { await loadData() }
     }
 

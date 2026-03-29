@@ -65,14 +65,25 @@ struct HabitStatsCardView: View {
     // MARK: - 图标
 
     private var iconView: some View {
-        ZStack {
+        let isCustom = HabitIconPresets.allItems.first(where: { $0.name == item.icon })?.isCustom ?? false
+
+        return ZStack {
             Circle()
                 .fill(item.habitColor.opacity(0.15))
                 .frame(width: 44, height: 44)
 
-            Image(systemName: item.icon)
-                .font(.system(size: 20))
-                .foregroundColor(item.habitColor)
+            if isCustom {
+                Image(item.icon)
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 20, height: 20)
+                    .foregroundColor(item.habitColor)
+            } else {
+                Image(systemName: item.icon)
+                    .font(.system(size: 20))
+                    .foregroundColor(item.habitColor)
+            }
         }
     }
 
@@ -140,18 +151,10 @@ struct HabitStatsCardView: View {
                     .font(.system(size: 24))
                     .foregroundColor(item.todayValue == 1 ? .holoSuccess : .holoTextSecondary.opacity(0.5))
             } else {
-                // 数值型
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text(item.todayValue != nil ? String(format: "%.1f", item.todayValue!) : "--")
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
-
-                    if let target = item.todayTarget {
-                        Text("/ \(String(format: "%.0f", target))")
-                            .font(.holoLabel)
-                            .foregroundColor(.holoTextSecondary)
-                    }
-                }
+                // 数值型 - 单行显示
+                Text(formatNumericValue())
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextPrimary)
             }
 
             // 完成率
@@ -159,6 +162,28 @@ struct HabitStatsCardView: View {
                 .font(.holoLabel)
                 .foregroundColor(item.completionRate >= 70 ? .holoSuccess : .holoTextSecondary)
         }
+    }
+
+    // MARK: - 格式化数值
+
+    /// 格式化数值型习惯的显示文本（单行）
+    private func formatNumericValue() -> String {
+        let valueStr: String
+        if let value = item.todayValue {
+            valueStr = value.truncatingRemainder(dividingBy: 1) == 0
+                ? String(format: "%.0f", value)
+                : String(format: "%.1f", value)
+        } else {
+            valueStr = "--"
+        }
+
+        if let target = item.todayTarget {
+            let targetStr = target.truncatingRemainder(dividingBy: 1) == 0
+                ? String(format: "%.0f", target)
+                : String(format: "%.1f", target)
+            return "\(valueStr) / \(targetStr)"
+        }
+        return valueStr
     }
 
     // MARK: - 展开箭头

@@ -273,10 +273,19 @@ struct HabitCardView: View {
                     Circle()
                         .fill(habit.habitColor.opacity(0.1))
                         .frame(width: 80, height: 80)
-                    
-                    Image(systemName: habit.icon)
-                        .font(.system(size: 36, weight: .medium))
-                        .foregroundColor(habit.habitColor)
+
+                    if habit.isCustomIcon {
+                        Image(habit.icon)
+                            .renderingMode(.template)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 36, height: 36)
+                            .foregroundColor(habit.habitColor)
+                    } else {
+                        Image(systemName: habit.icon)
+                            .font(.system(size: 36, weight: .medium))
+                            .foregroundColor(habit.habitColor)
+                    }
                 }
                 .padding(.top, 20)
                 
