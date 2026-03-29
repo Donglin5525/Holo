@@ -50,6 +50,9 @@ struct CategoryManagementView: View {
                     }
                 }
                 .listStyle(.insetGrouped)
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    Color.clear.frame(height: 88)
+                }
             }
         }
         .navigationTitle("分类管理")
