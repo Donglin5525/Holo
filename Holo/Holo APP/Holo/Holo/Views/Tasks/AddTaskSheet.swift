@@ -142,7 +142,7 @@ struct AddTaskSheet: View {
                     }
                 }
             }
-            .navigationTitle(existingTask == nil ? "新建任务" : "编辑任务")
+            .navigationTitle("")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -996,6 +996,7 @@ struct AddTaskSheet: View {
                 } else {
                     let newTask = try repository.createTask(
                         title: trimmedTitle,
+                        description: description.isEmpty ? nil : description,
                         list: selectedList,
                         priority: priority,
                         dueDate: hasDueDate ? dueDate : nil,

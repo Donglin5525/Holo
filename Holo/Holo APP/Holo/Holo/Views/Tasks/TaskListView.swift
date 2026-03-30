@@ -438,6 +438,14 @@ struct TaskCardView: View {
                         .foregroundColor(task.completed ? .holoTextSecondary : .holoTextPrimary)
                         .lineLimit(2)
 
+                    // 描述（截断展示）
+                    if let desc = task.desc, !desc.isEmpty {
+                        Text(desc)
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextSecondary)
+                            .lineLimit(2)
+                    }
+
                     // 任务元信息
                     HStack(spacing: 8) {
                         // 截止日期

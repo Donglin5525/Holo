@@ -133,10 +133,16 @@ struct TaskDetailView: View {
 
             // 描述
             if let desc = task.desc, !desc.isEmpty {
-                Text(desc)
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextSecondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("描述")
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.holoTextSecondary)
+
+                    Text(desc)
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextSecondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
         }
         .padding()

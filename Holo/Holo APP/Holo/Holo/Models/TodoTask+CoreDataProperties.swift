@@ -15,6 +15,7 @@ extension TodoTask {
     @nonobjc class func create(
         in context: NSManagedObjectContext,
         title: String,
+        desc: String? = nil,
         list: TodoList? = nil,
         priority: TaskPriority = .medium,
         dueDate: Date? = nil,
@@ -24,6 +25,7 @@ extension TodoTask {
         let task = TodoTask(context: context)
         task.id = UUID()
         task.title = title
+        task.desc = desc
         task.list = list
         task.priority = priority.rawValue
         task.dueDate = dueDate

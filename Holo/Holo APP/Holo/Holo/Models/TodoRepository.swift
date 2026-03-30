@@ -238,6 +238,7 @@ class TodoRepository: ObservableObject {
     @discardableResult
     func createTask(
         title: String,
+        description: String? = nil,
         list: TodoList? = nil,
         priority: TaskPriority = .medium,
         dueDate: Date? = nil,
@@ -248,6 +249,7 @@ class TodoRepository: ObservableObject {
         let task = TodoTask.create(
             in: context,
             title: title,
+            desc: description,
             list: list,
             priority: priority,
             dueDate: dueDate,
