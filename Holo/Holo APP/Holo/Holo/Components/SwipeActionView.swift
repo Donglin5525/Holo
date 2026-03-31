@@ -12,8 +12,10 @@ import SwiftUI
 private enum SwipeConstants {
     static let actionWidth: CGFloat = 70
     static let snapOpenOffset: CGFloat = 140
-    static let minimumDragDistance: CGFloat = 20
+    static let minimumDragDistance: CGFloat = 10
 }
+
+private let snapAnimation = Animation.spring(response: 0.3, dampingFraction: 0.8)
 
 // MARK: - SwipeActionView
 
@@ -49,16 +51,14 @@ struct SwipeActionView<Content: View>: View {
 
     var body: some View {
         ZStack(alignment: .trailing) {
-            // 底层：操作按钮
             actionButtons
 
-            // 上层：卡片内容（带偏移）
             content
                 .offset(x: offset)
                 .gesture(dragGesture)
         }
         .onChange(of: isRevealed.wrappedValue) { _, newValue in
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+            withAnimation(snapAnimation) {
                 offset = newValue ? -SwipeConstants.snapOpenOffset : 0
             }
         }
@@ -76,7 +76,6 @@ struct SwipeActionView<Content: View>: View {
 
     private var actionButtons: some View {
         HStack(spacing: 0) {
-            // 归档按钮
             Button {
                 onArchive()
                 close()
@@ -97,7 +96,6 @@ struct SwipeActionView<Content: View>: View {
                 .background(Color(.systemGray6))
             }
 
-            // 删除按钮
             Button {
                 showDeleteConfirmation = true
             } label: {
@@ -125,26 +123,30 @@ struct SwipeActionView<Content: View>: View {
     private var dragGesture: some Gesture {
         DragGesture(minimumDistance: SwipeConstants.minimumDragDistance)
             .onChanged { value in
-                let horizontalAmount = value.translation.width
-                let verticalAmount = abs(value.translation.height)
+                let h = value.translation.width
+                let v = abs(value.translation.height)
 
-                guard abs(horizontalAmount) > verticalAmount * 1.5 else { return }
+                // 水平位移需略大于垂直，防止误触 ScrollView
+                guard abs(h) > v * 1.2 else { return }
 
-                if horizontalAmount < 0 {
+                if h < 0 {
+                    // 左滑：展开或继续展开
                     let maxOffset = SwipeConstants.snapOpenOffset + 20
-                    let newOffset = max(-maxOffset, horizontalAmount)
+                    let raw = max(-maxOffset, h)
                     offset = isRevealed.wrappedValue
-                        ? newOffset - SwipeConstants.snapOpenOffset
-                        : newOffset
-                } else if isRevealed.wrappedValue && horizontalAmount > 0 {
-                    offset = -SwipeConstants.snapOpenOffset + min(horizontalAmount, SwipeConstants.snapOpenOffset)
+                        ? raw - SwipeConstants.snapOpenOffset
+                        : raw
+                } else if isRevealed.wrappedValue {
+                    // 右滑收回
+                    offset = -SwipeConstants.snapOpenOffset + min(h, SwipeConstants.snapOpenOffset)
                 }
             }
             .onEnded { value in
-                let horizontalAmount = value.translation.width
-                let verticalAmount = abs(value.translation.height)
+                let h = value.translation.width
+                let v = abs(value.translation.height)
 
-                guard abs(horizontalAmount) > verticalAmount * 1.5 else {
+                // 非水平滑动 → 弹回原位
+                guard abs(h) > v * 1.2 else {
                     snapBack()
                     return
                 }
@@ -156,13 +158,15 @@ struct SwipeActionView<Content: View>: View {
                     shouldOpen = value.predictedEndTranslation.width < -SwipeConstants.snapOpenOffset / 2
                 }
 
-                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                    if shouldOpen {
-                        offset = -SwipeConstants.snapOpenOffset
-                        isRevealed.wrappedValue = true
-                    } else {
-                        offset = 0
-                        isRevealed.wrappedValue = false
+                let targetOffset: CGFloat = shouldOpen ? -SwipeConstants.snapOpenOffset : 0
+
+                if shouldOpen != isRevealed.wrappedValue {
+                    // 状态切换 → 由 onChange 统一处理动画，避免双重弹簧
+                    isRevealed.wrappedValue = shouldOpen
+                } else {
+                    // 状态未变 → 自己弹回
+                    withAnimation(snapAnimation) {
+                        offset = targetOffset
                     }
                 }
             }
@@ -171,14 +175,14 @@ struct SwipeActionView<Content: View>: View {
     // MARK: - Helpers
 
     private func close() {
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+        withAnimation(snapAnimation) {
             offset = 0
             isRevealed.wrappedValue = false
         }
     }
 
     private func snapBack() {
-        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+        withAnimation(snapAnimation) {
             offset = isRevealed.wrappedValue ? -SwipeConstants.snapOpenOffset : 0
         }
     }
