@@ -34,3 +34,4 @@ DerivedData/
 *.ipa
 *.dSYM.zip
 *.dSYM
+.gstack/

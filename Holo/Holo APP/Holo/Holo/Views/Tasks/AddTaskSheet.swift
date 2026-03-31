@@ -69,6 +69,9 @@ struct AddTaskSheet: View {
     // 未保存修改确认
     @State private var showDismissAlert: Bool = false
 
+    // 记忆上次选择的清单
+    @AppStorage("lastSelectedListId") private var lastSelectedListId: String?
+
     private static let logger = Logger(subsystem: "com.holo.app", category: "AddTaskSheet")
 
     init(repository: TodoRepository, list: TodoList? = nil, task: TodoTask? = nil) {
@@ -102,7 +105,9 @@ struct AddTaskSheet: View {
                 _hasRepeat = State(initialValue: false)
             }
         } else {
-            _selectedListId = State(initialValue: list?.id)
+            // 新建任务：优先用传入的 list，其次从记忆恢复
+            let rememberedId = list?.id ?? (UserDefaults.standard.string(forKey: "lastSelectedListId").flatMap { UUID(uuidString: $0) })
+            _selectedListId = State(initialValue: rememberedId)
         }
     }
 
@@ -1041,6 +1046,9 @@ struct AddTaskSheet: View {
                         tags: selectedTagObjects,
                         reminders: remindersToSave
                     )
+
+                    // 记忆本次选择的清单，下次创建任务时默认使用
+                    lastSelectedListId = selectedListId?.uuidString
 
                     // 创建重复规则
                     if shouldCreateRepeat {
