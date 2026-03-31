@@ -56,11 +56,6 @@ struct SwipeActionView<Content: View>: View {
             content
                 .offset(x: offset)
                 .gesture(dragGesture)
-                .onTapGesture {
-                    if isRevealed.wrappedValue {
-                        close()
-                    }
-                }
         }
         .onChange(of: isRevealed.wrappedValue) { _, newValue in
             withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
