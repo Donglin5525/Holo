@@ -253,55 +253,56 @@ struct TaskListView: View {
     // MARK: - 顶部导航栏
 
     private var headerView: some View {
-        HStack {
-            // 返回按钮
-            Button {
-                onBack()
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.holoTextPrimary)
-                    .frame(width: 44, height: 44)
-            }
-
-            Spacer()
-
-            // 标题
+        ZStack {
+            // 居中标题
             Text("任务")
                 .font(.holoHeading)
                 .foregroundColor(.holoTextPrimary)
 
-            Spacer()
-
-            // 右侧按钮组
-            HStack(spacing: 0) {
-                // 搜索按钮
+            HStack {
+                // 返回按钮
                 Button {
-                    showSearchView = true
+                    onBack()
                 } label: {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.holoTextSecondary)
-                        .frame(width: 32, height: 44)
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(.holoTextPrimary)
+                        .frame(width: 44, height: 44)
                 }
 
-                // 通知设置按钮
-                Button {
-                    showNotificationSettings = true
-                } label: {
-                    Image(systemName: "bell")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.holoTextSecondary)
-                        .frame(width: 32, height: 44)
-                }
+                Spacer()
 
-                // 今日进度
-                Text("\(todayProgress.completed)/\(todayProgress.total)")
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextSecondary)
-                    .frame(minWidth: 32, alignment: .trailing)
+                // 右侧按钮组
+                HStack(spacing: 0) {
+                    // 搜索按钮
+                    Button {
+                        showSearchView = true
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.holoTextSecondary)
+                            .frame(width: 32, height: 44)
+                    }
+
+                    // 通知设置按钮
+                    Button {
+                        showNotificationSettings = true
+                    } label: {
+                        Image(systemName: "bell")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.holoTextSecondary)
+                            .frame(width: 32, height: 44)
+                    }
+
+                    // 今日进度
+                    Text("\(todayProgress.completed)/\(todayProgress.total)")
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextSecondary)
+                        .frame(minWidth: 32, alignment: .trailing)
+                }
             }
         }
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, HoloSpacing.sm)
         .background(Color.holoBackground)
