@@ -2,8 +2,8 @@
 //  MemoryGalleryView.swift
 //  Holo
 //
-//  记忆长廊主视图
-//  以瀑布流形式展示用户在所有模块中的历史记录
+//  记忆长廊主视图 — 垂直时间线布局
+//  三层叙事结构：日摘要 → 高亮 → 里程碑
 //
 
 import SwiftUI
@@ -56,12 +56,10 @@ struct MemoryGalleryView: View {
         }
     }
 
-    // MARK: - Subviews
+    // MARK: - Navigation Bar
 
-    /// 顶部导航栏
     private var navigationBar: some View {
         HStack {
-            // 返回按钮
             Button {
                 dismiss()
             } label: {
@@ -72,14 +70,12 @@ struct MemoryGalleryView: View {
 
             Spacer()
 
-            // 标题
             Text("记忆长廊")
                 .font(.holoHeading)
                 .foregroundColor(.holoTextPrimary)
 
             Spacer()
 
-            // 筛选按钮
             Button {
                 withAnimation(.easeInOut(duration: 0.25)) {
                     viewModel.showFilter.toggle()
@@ -95,7 +91,8 @@ struct MemoryGalleryView: View {
         .background(Color.holoBackground)
     }
 
-    /// 筛选栏
+    // MARK: - Filter Bar
+
     private var filterBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: HoloSpacing.sm) {
@@ -116,46 +113,85 @@ struct MemoryGalleryView: View {
         .background(Color.holoCardBackground)
     }
 
-    /// 主内容区域
+    // MARK: - Main Content
+
     @ViewBuilder
     private var mainContent: some View {
-        if viewModel.isLoading && viewModel.sections.isEmpty {
-            // 首次加载中
-            loadingView
-        } else if viewModel.sections.isEmpty {
+        if viewModel.isLoading && viewModel.timelineSections.isEmpty {
+            // 首次加载骨架屏
+            skeletonView
+        } else if viewModel.timelineSections.isEmpty {
             // 空状态
             emptyView
         } else {
-            // 瀑布流列表
-            memoryList
+            // 时间线列表
+            timelineList
         }
     }
 
-    /// 加载中视图
-    private var loadingView: some View {
-        VStack(spacing: HoloSpacing.md) {
-            ProgressView()
-                .progressViewStyle(CircularProgressViewStyle(tint: .holoPrimary))
-            Text("加载中...")
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+    // MARK: - Skeleton View
+
+    private var skeletonView: some View {
+        ScrollView {
+            VStack(spacing: HoloSpacing.lg) {
+                ForEach(0..<4, id: \.self) { _ in
+                    skeletonCard
+                }
+            }
+            .padding(.horizontal, HoloSpacing.md)
+            .padding(.vertical, HoloSpacing.lg)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    /// 空状态视图
+    private var skeletonCard: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                Circle()
+                    .fill(Color.holoBorder)
+                    .frame(width: 12, height: 12)
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(Color.holoBorder)
+                    .frame(width: 100, height: 14)
+            }
+
+            HStack(spacing: 18) {
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.holoBorder)
+                    .frame(width: 80, height: 20)
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.holoBorder)
+                    .frame(width: 60, height: 20)
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(Color.holoBorder)
+                    .frame(width: 40, height: 20)
+            }
+        }
+        .padding(16)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+    }
+
+    // MARK: - Empty View
+
     private var emptyView: some View {
         VStack(spacing: HoloSpacing.lg) {
-            Image(systemName: "photo.on.rectangle.angled")
-                .font(.system(size: 64))
-                .foregroundColor(.holoTextPlaceholder)
+            VStack(spacing: 0) {
+                Circle()
+                    .strokeBorder(Color.holoTextPlaceholder, style: StrokeStyle(lineWidth: 2, dash: [4]))
+                    .frame(width: 40, height: 40)
+
+                Rectangle()
+                    .fill(Color.holoTextPlaceholder.opacity(0.3))
+                    .frame(width: 2, height: 60)
+                    .padding(.top, -2)
+            }
 
             VStack(spacing: HoloSpacing.xs) {
                 Text("暂无记录")
                     .font(.holoHeading)
                     .foregroundColor(.holoTextPrimary)
 
-                Text("开始记录你的生活轨迹吧")
+                Text("记录你的第一笔，开启记忆长廊")
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)
             }
@@ -163,17 +199,23 @@ struct MemoryGalleryView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    /// 记忆列表
-    private var memoryList: some View {
-        ScrollView {
-            LazyVStack(spacing: HoloSpacing.lg) {
-                ForEach(viewModel.sections) { section in
-                    sectionView(for: section)
+    // MARK: - Timeline List
+
+    private var timelineList: some View {
+        ScrollView(showsIndicators: false) {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                ForEach(viewModel.timelineSections) { section in
+                    timelineSectionView(for: section)
                 }
 
-                // 加载更多指示器
                 if viewModel.hasMoreData {
                     loadMoreIndicator
+                } else {
+                    Text("已加载全部")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextPlaceholder)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, HoloSpacing.lg)
                 }
             }
             .padding(.horizontal, HoloSpacing.md)
@@ -181,7 +223,47 @@ struct MemoryGalleryView: View {
         }
     }
 
-    /// 加载更多指示器
+    // MARK: - Timeline Section
+
+    @ViewBuilder
+    private func timelineSectionView(for section: TimelineSection) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // 日期头
+            TimelineDateHeader(section: section)
+
+            // 节点列表（带时间线竖线）
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(section.nodes) { node in
+                    nodeView(for: node)
+                        .padding(.leading, 22)
+                }
+            }
+            .padding(.top, 12)
+        }
+    }
+
+    // MARK: - Node View
+
+    @ViewBuilder
+    private func nodeView(for node: MemoryTimelineNode) -> some View {
+        switch node.data {
+        case .summary(let summaryData):
+            DailySummaryNode(
+                data: summaryData,
+                moduleFilter: viewModel.moduleFilter
+            )
+
+        case .highlight(let highlightData):
+            HighlightNode(data: highlightData)
+                .padding(.leading, 8)
+
+        case .milestone(let milestoneData):
+            MilestoneNode(data: milestoneData)
+        }
+    }
+
+    // MARK: - Load More
+
     private var loadMoreIndicator: some View {
         HStack {
             Spacer()
@@ -198,47 +280,10 @@ struct MemoryGalleryView: View {
             }
         }
     }
-
-    /// 分组视图
-    @ViewBuilder
-    private func sectionView(for section: MemoryItemSection) -> some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            // 日期标题
-            Text(section.displayTitle)
-                .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
-                .padding(.leading, HoloSpacing.xs)
-
-            // 瀑布流网格
-            waterfallGrid(for: section.items)
-        }
-    }
-
-    /// 瀑布流网格布局
-    @ViewBuilder
-    private func waterfallGrid(for items: [MemoryItem]) -> some View {
-        // 使用两列布局
-        let columns = 2
-        let chunkedItems = items.chunked(into: columns)
-
-        HStack(alignment: .top, spacing: HoloSpacing.sm) {
-            ForEach(0..<columns, id: \.self) { columnIndex in
-                LazyVStack(spacing: HoloSpacing.sm) {
-                    ForEach(chunkedItems[columnIndex] ?? []) { item in
-                        MemoryCardView(memory: item)
-                            .onTapGesture {
-                                selectedMemory = item
-                            }
-                    }
-                }
-            }
-        }
-    }
 }
 
 // MARK: - Filter Chip
 
-/// 筛选标签
 private struct FilterChip: View {
     let title: String
     let isSelected: Bool
@@ -261,27 +306,6 @@ private struct FilterChip: View {
                 )
         }
         .buttonStyle(PlainButtonStyle())
-    }
-}
-
-// MARK: - Array Extension
-
-private extension Array {
-    /// 将数组分割成指定数量的子数组（用于瀑布流布局）
-    func chunked(into columns: Int) -> [[Element]] {
-        // 创建空结果数组
-        var result: [[Element]] = []
-        for _ in 0..<columns {
-            result.append([])
-        }
-
-        // 分配元素到各列
-        for (index, element) in enumerated() {
-            let columnIndex = index % columns
-            result[columnIndex].append(element)
-        }
-
-        return result
     }
 }
 

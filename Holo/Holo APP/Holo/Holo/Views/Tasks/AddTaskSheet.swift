@@ -69,6 +69,11 @@ struct AddTaskSheet: View {
     // 未保存修改确认
     @State private var showDismissAlert: Bool = false
 
+    // 检查清单相关
+    @State private var checkItems: [CheckItem] = []
+    @State private var pendingCheckItems: [String] = []
+    @State private var newCheckItemTitle = ""
+
     // 记忆上次选择的清单
     @AppStorage("lastSelectedListId") private var lastSelectedListId: String?
 
@@ -143,6 +148,9 @@ struct AddTaskSheet: View {
 
                             // 描述
                             descriptionSection
+
+                            // 检查清单
+                            checklistSection
                         }
                         .padding(.horizontal, HoloSpacing.lg)
                         .padding(.top, HoloSpacing.md)
@@ -208,6 +216,13 @@ struct AddTaskSheet: View {
         .unsavedChangesAlert(isPresented: $showDismissAlert) {
             dismiss()
         }
+        .onAppear {
+            // 编辑模式：加载已有的检查清单
+            if let task = existingTask {
+                let items = task.checkItems?.allObjects as? [CheckItem] ?? []
+                checkItems = items.sorted { $0.order < $1.order }
+            }
+        }
     }
 
     // MARK: - 未保存修改检测
@@ -221,6 +236,7 @@ struct AddTaskSheet: View {
                 || priority != task.taskPriority
                 || selectedListId != task.list?.id
                 || selectedTags != Set(task.tags?.allObjects.compactMap { ($0 as? TodoTag)?.id } ?? [])
+                || checkItems.count != (task.checkItems?.count ?? 0)
         } else {
             // 新增模式：检查是否输入了内容
             return !title.trimmingCharacters(in: .whitespaces).isEmpty
@@ -228,6 +244,7 @@ struct AddTaskSheet: View {
                 || hasDueDate
                 || hasRepeat
                 || !selectedTags.isEmpty
+                || !pendingCheckItems.isEmpty
         }
     }
 
@@ -506,6 +523,163 @@ struct AddTaskSheet: View {
                 .background(Color.holoCardBackground)
                 .cornerRadius(HoloRadius.sm)
                 .scrollContentBackground(.hidden)
+        }
+    }
+
+    // MARK: - 检查清单
+
+    private var checklistSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("检查清单（可选）")
+                .font(.holoLabel)
+                .foregroundColor(.holoTextSecondary)
+
+            VStack(spacing: 0) {
+                if existingTask != nil {
+                    // 编辑模式：显示已有的检查项
+                    ForEach(checkItems, id: \.id) { item in
+                        HStack(spacing: HoloSpacing.sm) {
+                            Button {
+                                toggleCheckItem(item)
+                            } label: {
+                                Image(systemName: item.isChecked ? "checkmark.circle.fill" : "circle")
+                                    .font(.system(size: 20, weight: .medium))
+                                    .foregroundColor(item.isChecked ? .holoSuccess : .holoTextSecondary.opacity(0.5))
+                            }
+                            .buttonStyle(PlainButtonStyle())
+
+                            Text(item.title)
+                                .font(.holoBody)
+                                .foregroundColor(item.isChecked ? .holoTextSecondary : .holoTextPrimary)
+                                .strikethrough(item.isChecked, color: .holoTextSecondary)
+
+                            Spacer()
+
+                            Button {
+                                deleteCheckItem(item)
+                            } label: {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(.holoError.opacity(0.7))
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+
+                        if item.id != checkItems.last?.id {
+                            Divider().padding(.horizontal, 12)
+                        }
+                    }
+                } else {
+                    // 新建模式：显示暂存的检查项
+                    ForEach(pendingCheckItems.indices, id: \.self) { index in
+                        HStack(spacing: HoloSpacing.sm) {
+                            Image(systemName: "circle")
+                                .font(.system(size: 20, weight: .medium))
+                                .foregroundColor(.holoTextSecondary.opacity(0.5))
+
+                            Text(pendingCheckItems[index])
+                                .font(.holoBody)
+                                .foregroundColor(.holoTextPrimary)
+
+                            Spacer()
+
+                            Button {
+                                pendingCheckItems.remove(at: index)
+                            } label: {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(.holoError.opacity(0.7))
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+
+                        if index != pendingCheckItems.count - 1 {
+                            Divider().padding(.horizontal, 12)
+                        }
+                    }
+                }
+
+                // 添加检查项输入
+                HStack(spacing: HoloSpacing.sm) {
+                    Image(systemName: "plus.circle")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundColor(.holoPrimary)
+
+                    TextField("添加检查项", text: $newCheckItemTitle)
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+                        .submitLabel(.done)
+                        .onSubmit {
+                            addCheckItem()
+                        }
+
+                    Button {
+                        addCheckItem()
+                    } label: {
+                        Text("添加")
+                            .font(.holoCaption)
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(
+                                Capsule()
+                                    .fill(newCheckItemTitle.trimmingCharacters(in: .whitespaces).isEmpty ? Color.holoTextSecondary.opacity(0.3) : Color.holoPrimary)
+                            )
+                    }
+                    .disabled(newCheckItemTitle.trimmingCharacters(in: .whitespaces).isEmpty)
+                    .buttonStyle(PlainButtonStyle())
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+            }
+            .background(Color.holoCardBackground)
+            .cornerRadius(HoloRadius.sm)
+        }
+    }
+
+    private func addCheckItem() {
+        let trimmed = newCheckItemTitle.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+
+        if let task = existingTask {
+            // 编辑模式：直接创建到 Core Data
+            do {
+                let order = Int16(checkItems.count)
+                let item = try repository.addCheckItem(title: trimmed, to: task, order: order)
+                checkItems.append(item)
+            } catch {
+                Self.logger.error("添加检查项失败：\(error.localizedDescription)")
+            }
+        } else {
+            // 新建模式：暂存
+            pendingCheckItems.append(trimmed)
+        }
+        newCheckItemTitle = ""
+    }
+
+    private func toggleCheckItem(_ item: CheckItem) {
+        do {
+            try repository.toggleCheckItem(item)
+            // 刷新列表以更新 UI
+            if let task = existingTask {
+                let items = task.checkItems?.allObjects as? [CheckItem] ?? []
+                checkItems = items.sorted { $0.order < $1.order }
+            }
+        } catch {
+            Self.logger.error("切换检查项失败：\(error.localizedDescription)")
+        }
+    }
+
+    private func deleteCheckItem(_ item: CheckItem) {
+        do {
+            try repository.deleteCheckItem(item)
+            checkItems.removeAll { $0.id == item.id }
+        } catch {
+            Self.logger.error("删除检查项失败：\(error.localizedDescription)")
         }
     }
 
@@ -1001,6 +1175,7 @@ struct AddTaskSheet: View {
                         priority: priority,
                         dueDate: hasDueDate ? dueDate : nil,
                         isAllDay: isAllDay,
+                        list: selectedList,
                         tags: selectedTagObjects,
                         reminders: remindersToSave
                     )
@@ -1049,6 +1224,11 @@ struct AddTaskSheet: View {
 
                     // 记忆本次选择的清单，下次创建任务时默认使用
                     lastSelectedListId = selectedListId?.uuidString
+
+                    // 创建暂存的检查项
+                    for (index, itemTitle) in pendingCheckItems.enumerated() {
+                        _ = try repository.addCheckItem(title: itemTitle, to: newTask, order: Int16(index))
+                    }
 
                     // 创建重复规则
                     if shouldCreateRepeat {
