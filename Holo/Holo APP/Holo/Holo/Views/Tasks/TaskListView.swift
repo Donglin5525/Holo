@@ -90,6 +90,9 @@ struct TaskListView: View {
     /// 是否显示标签列表页面
     @State private var showTagListView = false
 
+    /// 右滑展开的卡片 ID
+    @State private var revealedTaskId: UUID? = nil
+
     // MARK: - Body
 
     var body: some View {
@@ -104,10 +107,28 @@ struct TaskListView: View {
                     // 待办任务
                     let activeTasks = cachedFilteredTasks.filter { !$0.completed }
                     ForEach(activeTasks, id: \.id) { task in
-                        TaskCardView(task: task, repository: repository)
-                            .onTapGesture {
+                        SwipeActionView(
+                            isRevealed: Binding(
+                                get: { revealedTaskId == task.id },
+                                set: { if $0 { revealedTaskId = task.id } else { revealedTaskId = nil } }
+                            ),
+                            content: {
+                                TaskCardView(task: task, repository: repository)
+                            },
+                            onArchive: {
+                                archiveTask(task)
+                            },
+                            onDelete: {
+                                deleteTask(task)
+                            }
+                        )
+                        .onTapGesture {
+                            if revealedTaskId == task.id {
+                                revealedTaskId = nil
+                            } else {
                                 selectedTask = TaskSelection(id: task.id)
                             }
+                        }
                     }
 
                     // 已完成任务
@@ -115,10 +136,28 @@ struct TaskListView: View {
                     if !completedTasks.isEmpty {
                         SectionHeaderView(title: "已完成", count: completedTasks.count)
                         ForEach(completedTasks, id: \.id) { task in
-                            TaskCardView(task: task, repository: repository)
-                                .onTapGesture {
+                            SwipeActionView(
+                                isRevealed: Binding(
+                                    get: { revealedTaskId == task.id },
+                                    set: { if $0 { revealedTaskId = task.id } else { revealedTaskId = nil } }
+                                ),
+                                content: {
+                                    TaskCardView(task: task, repository: repository)
+                                },
+                                onArchive: {
+                                    archiveTask(task)
+                                },
+                                onDelete: {
+                                    deleteTask(task)
+                                }
+                            )
+                            .onTapGesture {
+                                if revealedTaskId == task.id {
+                                    revealedTaskId = nil
+                                } else {
                                     selectedTask = TaskSelection(id: task.id)
                                 }
+                            }
                         }
                     }
 
@@ -171,6 +210,28 @@ struct TaskListView: View {
         tasks = repository.activeTasks
         todayProgress = repository.getTodayTaskProgress()
         updateFilteredTasks()
+    }
+
+    // MARK: - 滑动操作
+
+    /// 归档任务
+    private func archiveTask(_ task: TodoTask) {
+        do {
+            try repository.archiveTask(task)
+            revealedTaskId = nil
+        } catch {
+            Logger(subsystem: "com.holo.app", category: "TaskListView").error("归档任务失败: \(error.localizedDescription)")
+        }
+    }
+
+    /// 删除任务
+    private func deleteTask(_ task: TodoTask) {
+        do {
+            try repository.deleteTask(task)
+            revealedTaskId = nil
+        } catch {
+            Logger(subsystem: "com.holo.app", category: "TaskListView").error("删除任务失败: \(error.localizedDescription)")
+        }
     }
 
     /// 更新过滤结果（缓存）

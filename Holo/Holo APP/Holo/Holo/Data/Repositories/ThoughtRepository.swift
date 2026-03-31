@@ -45,7 +45,7 @@ class ThoughtRepository {
         sortBy: ThoughtSortOption = .createdAtDescending
     ) throws -> [Thought] {
         let request = Thought.fetchRequest()
-        request.predicate = NSPredicate(format: "isSoftDeleted == NO")
+        request.predicate = NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
 
         // 设置排序
         switch sortBy {
@@ -73,7 +73,7 @@ class ThoughtRepository {
     /// - Returns: Thought 对象，不存在返回 nil
     func fetchById(_ id: UUID) throws -> Thought? {
         let request = Thought.fetchRequest()
-        request.predicate = NSPredicate(format: "id == %@ AND isSoftDeleted == NO", id as CVarArg)
+        request.predicate = NSPredicate(format: "id == %@ AND isSoftDeleted == NO AND isArchived == NO", id as CVarArg)
         request.fetchLimit = 1
         return try context.fetch(request).first
     }
@@ -84,7 +84,7 @@ class ThoughtRepository {
     func fetchByTag(_ tagName: String) throws -> [Thought] {
         let request = Thought.fetchRequest()
         let tagPredicate = NSPredicate(format: "ANY tags.name == %@", tagName)
-        let deletePredicate = NSPredicate(format: "isSoftDeleted == NO")
+        let deletePredicate = NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [tagPredicate, deletePredicate])
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
         return try context.fetch(request)
@@ -96,7 +96,7 @@ class ThoughtRepository {
     func fetchByMood(_ mood: String) throws -> [Thought] {
         let request = Thought.fetchRequest()
         let moodPredicate = NSPredicate(format: "mood == %@", mood)
-        let deletePredicate = NSPredicate(format: "isSoftDeleted == NO")
+        let deletePredicate = NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [moodPredicate, deletePredicate])
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
         return try context.fetch(request)
@@ -109,7 +109,7 @@ class ThoughtRepository {
     /// - Returns: Thought 数组
     func search(query: String, filters: ThoughtFilters? = nil) throws -> [Thought] {
         let request = Thought.fetchRequest()
-        var predicates: [NSPredicate] = [NSPredicate(format: "isSoftDeleted == NO")]
+        var predicates: [NSPredicate] = [NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")]
 
         // 搜索内容或标签
         if !query.isEmpty {
@@ -257,6 +257,51 @@ class ThoughtRepository {
 
         context.delete(thought)
         try context.save()
+    }
+
+    // MARK: - Archive Operations
+
+    /// 归档想法
+    /// - Parameter id: 想法 ID
+    func archive(_ id: UUID) throws {
+        let request = Thought.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@ AND isSoftDeleted == NO", id as CVarArg)
+        request.fetchLimit = 1
+
+        guard let thought = try context.fetch(request).first else {
+            throw ThoughtError.notFound
+        }
+
+        thought.isArchived = true
+        thought.updatedAt = Date()
+
+        try context.save()
+    }
+
+    /// 取消归档想法
+    /// - Parameter id: 想法 ID
+    func unarchive(_ id: UUID) throws {
+        let request = Thought.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@ AND isSoftDeleted == NO", id as CVarArg)
+        request.fetchLimit = 1
+
+        guard let thought = try context.fetch(request).first else {
+            throw ThoughtError.notFound
+        }
+
+        thought.isArchived = false
+        thought.updatedAt = Date()
+
+        try context.save()
+    }
+
+    /// 获取已归档的想法
+    /// - Returns: Thought 数组
+    func fetchArchived() throws -> [Thought] {
+        let request = Thought.fetchRequest()
+        request.predicate = NSPredicate(format: "isSoftDeleted == NO AND isArchived == YES")
+        request.sortDescriptors = [NSSortDescriptor(key: "updatedAt", ascending: false)]
+        return try context.fetch(request)
     }
 
     // MARK: - Reference Operations

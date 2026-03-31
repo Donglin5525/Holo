@@ -1115,6 +1115,13 @@ class CoreDataStack {
         thoughtIsSoftDeleted.defaultValue = false
         thoughtAttributes.append(thoughtIsSoftDeleted)
 
+        let thoughtIsArchived = NSAttributeDescription()
+        thoughtIsArchived.name = "isArchived"
+        thoughtIsArchived.attributeType = .booleanAttributeType
+        thoughtIsArchived.isOptional = false
+        thoughtIsArchived.defaultValue = false
+        thoughtAttributes.append(thoughtIsArchived)
+
         // MARK: - ThoughtTag Entity
         // 观点模块 - 标签实体
         let thoughtTagEntity = NSEntityDescription()

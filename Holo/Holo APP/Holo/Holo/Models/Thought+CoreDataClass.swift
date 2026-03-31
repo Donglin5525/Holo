@@ -24,6 +24,7 @@ class Thought: NSManagedObject, @unchecked Sendable {
     @NSManaged var orderIndex: Int16
     @NSManaged var imageData: Data?
     @NSManaged var isSoftDeleted: Bool
+    @NSManaged var isArchived: Bool
 
     // MARK: - Relationships
 

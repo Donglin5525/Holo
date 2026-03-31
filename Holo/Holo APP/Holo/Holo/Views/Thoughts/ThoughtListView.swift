@@ -8,6 +8,7 @@
 
 import SwiftUI
 import CoreData
+import OSLog
 
 // MARK: - ThoughtListView
 
@@ -34,6 +35,9 @@ struct ThoughtListView: View {
 
     /// 所有标签
     @State private var allTags: [ThoughtTag] = []
+
+    /// 右滑展开的卡片 ID
+    @State private var revealedThoughtId: UUID? = nil
 
     // MARK: - Computed Properties
 
@@ -295,10 +299,28 @@ struct ThoughtListView: View {
         ScrollView(showsIndicators: false) {
             LazyVStack(spacing: 12) {
                 ForEach(filteredThoughts) { thought in
-                    ThoughtCardView(thought: thought)
-                        .onTapGesture {
+                    SwipeActionView(
+                        isRevealed: Binding(
+                            get: { revealedThoughtId == thought.id },
+                            set: { if $0 { revealedThoughtId = thought.id } else { revealedThoughtId = nil } }
+                        ),
+                        content: {
+                            ThoughtCardView(thought: thought)
+                        },
+                        onArchive: {
+                            archiveThought(thought)
+                        },
+                        onDelete: {
+                            deleteThought(thought)
+                        }
+                    )
+                    .onTapGesture {
+                        if revealedThoughtId == thought.id {
+                            revealedThoughtId = nil
+                        } else {
                             selectedThoughtId = thought.id
                         }
+                    }
                 }
             }
             .padding(.horizontal, HoloSpacing.lg)
@@ -318,6 +340,31 @@ struct ThoughtListView: View {
         try? await Task.sleep(nanoseconds: 500_000_000)
         loadThoughts()
         loadTags()
+    }
+
+    // MARK: - 滑动操作
+
+    /// 归档想法
+    private func archiveThought(_ thought: Thought) {
+        do {
+            try thoughtRepository.archive(thought.id)
+            revealedThoughtId = nil
+            loadThoughts()
+        } catch {
+            Logger(subsystem: "com.holo.app", category: "ThoughtListView").error("归档想法失败: \(error.localizedDescription)")
+        }
+    }
+
+    /// 删除想法
+    private func deleteThought(_ thought: Thought) {
+        do {
+            try thoughtRepository.delete(thought.id)
+            revealedThoughtId = nil
+            NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+            loadThoughts()
+        } catch {
+            Logger(subsystem: "com.holo.app", category: "ThoughtListView").error("删除想法失败: \(error.localizedDescription)")
+        }
     }
 
     // MARK: - 空状态
