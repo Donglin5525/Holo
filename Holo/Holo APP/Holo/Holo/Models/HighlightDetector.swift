@@ -253,7 +253,7 @@ struct HighlightDetector {
     ) -> Double {
         let request = Transaction.fetchRequest()
         request.predicate = NSPredicate(
-            format: "date >= %@ AND date < %@ AND transactionType == %d",
+            format: "date >= %@ AND date < %@ AND type == %@",
             startDate as NSDate,
             endDate as NSDate,
             TransactionType.expense.rawValue
