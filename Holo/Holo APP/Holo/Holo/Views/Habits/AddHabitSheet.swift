@@ -34,6 +34,9 @@ struct AddHabitSheet: View {
     
     @State private var showIconPicker: Bool = false
     @State private var isSaving: Bool = false
+
+    // 未保存修改确认
+    @State private var showDismissAlert: Bool = false
     
     private let repository = HabitRepository.shared
     
@@ -75,7 +78,11 @@ struct AddHabitSheet: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("取消") {
-                        dismiss()
+                        if hasUnsavedChanges {
+                            showDismissAlert = true
+                        } else {
+                            dismiss()
+                        }
                     }
                     .foregroundColor(.holoTextSecondary)
                 }
@@ -96,7 +103,33 @@ struct AddHabitSheet: View {
         .sheet(isPresented: $showIconPicker) {
             IconPickerSheet(selectedIcon: $selectedIcon)
         }
-        .swipeBackToDismiss { dismiss() }
+        .swipeBackToDismiss {
+            if hasUnsavedChanges {
+                showDismissAlert = true
+            } else {
+                dismiss()
+            }
+        }
+        .unsavedChangesAlert(isPresented: $showDismissAlert) {
+            dismiss()
+        }
+    }
+
+    // MARK: - 未保存修改检测
+
+    /// 是否有未保存的修改
+    private var hasUnsavedChanges: Bool {
+        if let habit = editingHabit {
+            // 编辑模式：比较与原始习惯的差异
+            return name != habit.name
+                || selectedIcon != habit.icon
+                || selectedColor != habit.color
+                || selectedType.rawValue != habit.type
+                || selectedFrequency.rawValue != habit.frequency
+        } else {
+            // 新增模式：检查是否输入了内容
+            return !name.trimmingCharacters(in: .whitespaces).isEmpty
+        }
     }
     
     // MARK: - 是否可保存

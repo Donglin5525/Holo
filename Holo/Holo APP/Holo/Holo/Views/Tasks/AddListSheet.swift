@@ -15,6 +15,7 @@ struct AddListSheet: View {
     @Environment(\.dismiss) var dismiss
     @State private var name = ""
     @State private var color: String = "#007AFF"
+    @State private var showDismissAlert: Bool = false
 
     private static let logger = Logger(subsystem: "com.holo.app", category: "AddListSheet")
 
@@ -119,7 +120,11 @@ struct AddListSheet: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("取消") {
-                        dismiss()
+                        if !name.trimmingCharacters(in: .whitespaces).isEmpty {
+                            showDismissAlert = true
+                        } else {
+                            dismiss()
+                        }
                     }
                     .foregroundColor(.holoTextSecondary)
                 }
@@ -136,6 +141,9 @@ struct AddListSheet: View {
         }
         .presentationDetents([.height(320)])
         .presentationDragIndicator(.visible)
+        .unsavedChangesAlert(isPresented: $showDismissAlert) {
+            dismiss()
+        }
     }
 
     private func createList() {

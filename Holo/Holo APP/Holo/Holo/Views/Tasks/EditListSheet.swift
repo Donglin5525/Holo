@@ -16,6 +16,7 @@ struct EditListSheet: View {
     @State private var name: String = ""
     @State private var color: String = "#007AFF"
     @State private var selectedFolderId: UUID? = nil
+    @State private var showDismissAlert: Bool = false
 
     private static let logger = Logger(subsystem: "com.holo.app", category: "EditListSheet")
 
@@ -128,7 +129,13 @@ struct EditListSheet: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("取消") {
-                        dismiss()
+                        if name != list.name
+                            || color != (list.color ?? "#007AFF")
+                            || selectedFolderId != list.folder?.id {
+                            showDismissAlert = true
+                        } else {
+                            dismiss()
+                        }
                     }
                     .foregroundColor(.holoTextSecondary)
                 }
@@ -150,6 +157,9 @@ struct EditListSheet: View {
         }
         .presentationDetents([.height(360)])
         .presentationDragIndicator(.visible)
+        .unsavedChangesAlert(isPresented: $showDismissAlert) {
+            dismiss()
+        }
     }
 
     private var selectedFolderName: String {

@@ -66,6 +66,9 @@ struct AddTaskSheet: View {
     @State private var showEditTagSheet = false
     @State private var editingTag: TodoTag? = nil
 
+    // 未保存修改确认
+    @State private var showDismissAlert: Bool = false
+
     private static let logger = Logger(subsystem: "com.holo.app", category: "AddTaskSheet")
 
     init(repository: TodoRepository, list: TodoList? = nil, task: TodoTask? = nil) {
@@ -147,7 +150,11 @@ struct AddTaskSheet: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("取消") {
-                        dismiss()
+                        if hasUnsavedChanges {
+                            showDismissAlert = true
+                        } else {
+                            dismiss()
+                        }
                     }
                     .foregroundColor(.holoTextSecondary)
                 }
@@ -186,7 +193,37 @@ struct AddTaskSheet: View {
                 repeatEndCount: $repeatEndCount
             )
         }
-        .swipeBackToDismiss { dismiss() }
+        .swipeBackToDismiss {
+            if hasUnsavedChanges {
+                showDismissAlert = true
+            } else {
+                dismiss()
+            }
+        }
+        .unsavedChangesAlert(isPresented: $showDismissAlert) {
+            dismiss()
+        }
+    }
+
+    // MARK: - 未保存修改检测
+
+    /// 是否有未保存的修改
+    private var hasUnsavedChanges: Bool {
+        if let task = existingTask {
+            // 编辑模式：比较与原始任务的差异
+            return title != task.title
+                || description != (task.desc ?? "")
+                || priority != task.taskPriority
+                || selectedListId != task.list?.id
+                || selectedTags != Set(task.tags?.allObjects.compactMap { ($0 as? TodoTag)?.id } ?? [])
+        } else {
+            // 新增模式：检查是否输入了内容
+            return !title.trimmingCharacters(in: .whitespaces).isEmpty
+                || !description.isEmpty
+                || hasDueDate
+                || hasRepeat
+                || !selectedTags.isEmpty
+        }
     }
 
     // MARK: - 是否可保存

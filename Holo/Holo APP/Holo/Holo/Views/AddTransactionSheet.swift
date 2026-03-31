@@ -59,7 +59,10 @@ struct AddTransactionSheet: View {
     
     /// 光标闪烁动画
     @State private var cursorOpacity: Double = 1.0
-    
+
+    /// 是否显示未保存修改确认弹窗
+    @State private var showDismissAlert: Bool = false
+
     /// 是否显示数字键盘（默认显示，新开页面时弹出）
     @State private var showNumericKeypad: Bool = true
     
@@ -82,6 +85,22 @@ struct AddTransactionSheet: View {
     /// 是否为编辑模式
     private var isEditMode: Bool {
         editingTransaction != nil
+    }
+
+    /// 是否有未保存的修改
+    private var hasUnsavedChanges: Bool {
+        if isEditMode {
+            // 编辑模式：比较与原始交易的差异
+            guard let transaction = editingTransaction else { return false }
+            let originalAmount = String(describing: abs(transaction.amount.decimalValue))
+            return amountString != originalAmount
+                || selectedCategory != transaction.category
+                || note != (transaction.note ?? "")
+                || !Calendar.current.isDate(selectedDate, inSameDayAs: transaction.date)
+        } else {
+            // 新增模式：检查是否输入了内容
+            return amountString != "0" || selectedCategory != nil || !note.isEmpty
+        }
     }
     
     /// 用于显示的金额字符串（取绝对值，去除开头的负号）
@@ -179,7 +198,13 @@ struct AddTransactionSheet: View {
             } message: {
                 Text("删除后无法恢复，确定要删除吗？")
             }
-            .swipeBackToDismiss { dismiss() }
+            .swipeBackToDismiss {
+                if hasUnsavedChanges {
+                    showDismissAlert = true
+                } else {
+                    dismiss()
+                }
+            }
         }
         .onAppear {
             if let transaction = editingTransaction {
@@ -201,6 +226,9 @@ struct AddTransactionSheet: View {
             if newValue {
                 showNumericKeypad = false
             }
+        }
+        .unsavedChangesAlert(isPresented: $showDismissAlert) {
+            dismiss()
         }
     }
     
@@ -238,7 +266,11 @@ struct AddTransactionSheet: View {
         HStack {
             // 关闭按钮（取消，不保存）
             Button {
-                dismiss()
+                if hasUnsavedChanges {
+                    showDismissAlert = true
+                } else {
+                    dismiss()
+                }
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 14, weight: .medium))

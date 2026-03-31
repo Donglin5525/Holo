@@ -45,6 +45,7 @@ struct ThoughtEditorView: View {
     @State private var showTagInput: Bool = false
     @State private var showReferenceSelector: Bool = false
     @State private var isSaving: Bool = false
+    @State private var showDismissAlert: Bool = false
     /// 是否为编辑模式
     private var isEditing: Bool { editingThoughtId != nil }
 
@@ -75,7 +76,11 @@ struct ThoughtEditorView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("取消") {
-                        dismiss()
+                        if hasUnsavedChanges {
+                            showDismissAlert = true
+                        } else {
+                            dismiss()
+                        }
                     }
                     .foregroundColor(.holoTextSecondary)
                 }
@@ -103,6 +108,25 @@ struct ThoughtEditorView: View {
         }
         .onAppear {
             loadEditingData()
+        }
+        .unsavedChangesAlert(isPresented: $showDismissAlert) {
+            dismiss()
+        }
+    }
+
+    // MARK: - 未保存修改检测
+
+    /// 是否有未保存的修改
+    private var hasUnsavedChanges: Bool {
+        if isEditing {
+            // 编辑模式：如果有任何字段被修改（简化判断：content 非空即视为有内容）
+            return !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        } else {
+            // 新增模式：检查是否输入了内容
+            return !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                || selectedMood != nil
+                || !selectedTags.isEmpty
+                || !referencedThoughtIds.isEmpty
         }
     }
 

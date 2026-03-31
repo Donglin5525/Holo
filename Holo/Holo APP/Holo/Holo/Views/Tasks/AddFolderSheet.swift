@@ -13,6 +13,7 @@ struct AddFolderSheet: View {
     @ObservedObject var repository: TodoRepository
     @Environment(\.dismiss) var dismiss
     @State private var name = ""
+    @State private var showDismissAlert: Bool = false
 
     private static let logger = Logger(subsystem: "com.holo.app", category: "AddFolderSheet")
 
@@ -47,7 +48,11 @@ struct AddFolderSheet: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("取消") {
-                        dismiss()
+                        if !name.trimmingCharacters(in: .whitespaces).isEmpty {
+                            showDismissAlert = true
+                        } else {
+                            dismiss()
+                        }
                     }
                     .foregroundColor(.holoTextSecondary)
                 }
@@ -64,6 +69,9 @@ struct AddFolderSheet: View {
         }
         .presentationDetents([.height(200)])
         .presentationDragIndicator(.visible)
+        .unsavedChangesAlert(isPresented: $showDismissAlert) {
+            dismiss()
+        }
     }
 
     private func createFolder() {

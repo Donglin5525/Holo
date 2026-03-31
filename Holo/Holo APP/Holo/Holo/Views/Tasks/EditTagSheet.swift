@@ -14,6 +14,7 @@ struct EditTagSheet: View {
     @Environment(\.dismiss) var dismiss
     @State private var name: String = ""
     @State private var color: String = "#4A90D9"
+    @State private var showDismissAlert: Bool = false
 
     private static let logger = Logger(subsystem: "com.holo.app", category: "EditTagSheet")
 
@@ -84,7 +85,11 @@ struct EditTagSheet: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("取消") {
-                        dismiss()
+                        if name != tag.name || color != tag.color {
+                            showDismissAlert = true
+                        } else {
+                            dismiss()
+                        }
                     }
                     .foregroundColor(.holoTextSecondary)
                 }
@@ -105,6 +110,9 @@ struct EditTagSheet: View {
         }
         .presentationDetents([.height(280)])
         .presentationDragIndicator(.visible)
+        .unsavedChangesAlert(isPresented: $showDismissAlert) {
+            dismiss()
+        }
     }
 
     private func saveTag() {

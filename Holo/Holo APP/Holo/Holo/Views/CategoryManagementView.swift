@@ -338,6 +338,7 @@ struct AddCategorySheet: View {
     @State private var selectedColorHex = "#13A4EC"
     @State private var parentCategory: Category?
     @State private var isSaving = false
+    @State private var showDismissAlert: Bool = false
 
     private let presetColors = ["#13A4EC", "#10B981", "#F97316", "#EC4899", "#6366F1", "#64748B"]
 
@@ -388,7 +389,13 @@ struct AddCategorySheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button("取消") {
+                        if !name.trimmingCharacters(in: .whitespaces).isEmpty {
+                            showDismissAlert = true
+                        } else {
+                            dismiss()
+                        }
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("保存") {
@@ -406,6 +413,9 @@ struct AddCategorySheet: View {
                         Self.logger.error("加载一级分类失败：\(error.localizedDescription)")
                     }
                 }
+            }
+            .unsavedChangesAlert(isPresented: $showDismissAlert) {
+                dismiss()
             }
         }
     }
@@ -448,6 +458,7 @@ struct EditCategorySheet: View {
     @State private var name: String = ""
     @State private var iconName: String = ""
     @State private var isSaving = false
+    @State private var showDismissAlert: Bool = false
     
     var body: some View {
         NavigationStack {
@@ -468,7 +479,13 @@ struct EditCategorySheet: View {
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("取消") { dismiss() }
+                    Button("取消") {
+                        if name != category.name || iconName != category.icon {
+                            showDismissAlert = true
+                        } else {
+                            dismiss()
+                        }
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("保存") {
@@ -478,8 +495,11 @@ struct EditCategorySheet: View {
                 }
             }
         }
+        .unsavedChangesAlert(isPresented: $showDismissAlert) {
+            dismiss()
+        }
     }
-    
+
     private func saveChanges() {
         let trimmed = name.trimmingCharacters(in: .whitespaces)
         guard !trimmed.isEmpty else { return }

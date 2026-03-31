@@ -13,6 +13,7 @@ struct EditFolderSheet: View {
     let folder: TodoFolder
     @Environment(\.dismiss) var dismiss
     @State private var name: String = ""
+    @State private var showDismissAlert: Bool = false
 
     private static let logger = Logger(subsystem: "com.holo.app", category: "EditFolderSheet")
 
@@ -47,7 +48,11 @@ struct EditFolderSheet: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("取消") {
-                        dismiss()
+                        if name != folder.name {
+                            showDismissAlert = true
+                        } else {
+                            dismiss()
+                        }
                     }
                     .foregroundColor(.holoTextSecondary)
                 }
@@ -67,6 +72,9 @@ struct EditFolderSheet: View {
         }
         .presentationDetents([.height(200)])
         .presentationDragIndicator(.visible)
+        .unsavedChangesAlert(isPresented: $showDismissAlert) {
+            dismiss()
+        }
     }
 
     private func saveFolder() {
