@@ -152,7 +152,11 @@ struct CategoryPicker: View {
                             category: category,
                             isSelected: selectedCategory?.objectID == category.objectID
                         ) {
-                            selectedCategory = category
+                            withAnimation {
+                                selectedCategory = category
+                                // 自动下钻到该二级分类所属的一级分类
+                                drillDownParent = categories.first { $0.id == category.parentId }
+                            }
                         }
                         .frame(width: 64)
                     }
