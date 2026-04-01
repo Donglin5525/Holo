@@ -4,6 +4,31 @@
 
 ---
 
+## [2026-04-01] 任务检查清单 + 记忆长廊三层时间线
+
+### 新增功能
+
+#### 任务检查清单
+- 新建任务支持添加检查清单，保存时批量创建 CheckItem
+- 编辑任务支持管理检查清单（添加、勾选、删除）
+- 检查清单区域与任务表单无缝集成
+
+#### 记忆长廊三层叙事时间线
+- 重构为垂直时间线布局：日摘要 → 高亮 → 里程碑
+- 新增 `HighlightDetector` 算法：检测消费异常、习惯表现、任务完成等值得注意事件
+- 新增 `MilestoneDetector` 算法：检测连续打卡、累计记录、习惯掌握等重大成就
+- 新增 `MemoryTimelineNode` 数据模型：统一三种节点类型
+- 新增组件：`DailySummaryNode`（日摘要卡片）、`HighlightNode`（高亮卡片）、`MilestoneNode`（里程碑卡片）、`TimelineDateHeader`（日期头）
+- 支持模块筛选（全部/记账/习惯/任务）
+
+### Bug 修复
+- 修复编辑任务时 `list` 参数未传递导致清单归属丢失的问题
+- 修复 `MilestoneDetector` 属性名拼写错误（`streakThresholds` → `streakDaysThresholds`）
+- 修复 `MemoryGalleryView` 中 ViewModel 属性名不匹配的问题
+- 修复 `HighlightDetector` 交易类型查询谓词字段名错误
+
+---
+
 ## [2026-03-31] 任务模块描述功能修复
 
 ### Bug 修复

@@ -162,7 +162,7 @@ extension MemoryItem {
 extension MemoryItem {
     /// 解析颜色
     var color: Color {
-        Color.fromHex(colorHex) ?? .holoPrimary
+        Color(hex: colorHex) ?? .holoPrimary
     }
 
     /// 格式化日期（相对时间）
@@ -248,40 +248,5 @@ struct MemoryItemSection: Identifiable {
         } else {
             return formattedDate
         }
-    }
-}
-
-// MARK: - Color Extension
-
-extension Color {
-    /// 从 Hex 字符串创建颜色
-    static func fromHex(_ hex: String) -> Color? {
-        var hexSanitized = hex.trimmingCharacters(in: .whitespacesAndNewlines)
-        hexSanitized = hexSanitized.replacingOccurrences(of: "#", with: "")
-
-        var rgb: UInt64 = 0
-
-        guard Scanner(string: hexSanitized).scanHexInt64(&rgb) else {
-            return nil
-        }
-
-        let length = hexSanitized.count
-
-        if length == 6 {
-            let red = Double((rgb & 0xFF0000) >> 16) / 255.0
-            let green = Double((rgb & 0x00FF00) >> 8) / 255.0
-            let blue = Double(rgb & 0x0000FF) / 255.0
-
-            return Color(red: red, green: green, blue: blue)
-        } else if length == 8 {
-            let red = Double((rgb & 0xFF000000) >> 24) / 255.0
-            let green = Double((rgb & 0x00FF0000) >> 16) / 255.0
-            let blue = Double((rgb & 0x0000FF00) >> 8) / 255.0
-            let alpha = Double(rgb & 0x000000FF) / 255.0
-
-            return Color(red: red, green: green, blue: blue, opacity: alpha)
-        }
-
-        return nil
     }
 }
