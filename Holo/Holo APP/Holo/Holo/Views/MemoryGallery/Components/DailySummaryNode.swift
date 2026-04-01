@@ -19,8 +19,10 @@ struct DailySummaryNode: View {
                 expenseView(expense)
             }
 
+            Spacer(minLength: 0)
+
             // 习惯完成率（环形进度条）
-            if showHabit {
+            if showHabit && data.habitsTotal > 0 {
                 habitProgressView
             }
 
@@ -29,6 +31,7 @@ struct DailySummaryNode: View {
                 taskView
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 16)
         .padding(.vertical, 14)
         .background(Color.holoCardBackground)

@@ -13,8 +13,9 @@ struct HighlightNode: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Text(data.icon)
+            Image(systemName: data.icon)
                 .font(.system(size: 16))
+                .foregroundColor(textColor)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(data.title)

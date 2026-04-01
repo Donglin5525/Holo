@@ -138,8 +138,11 @@ struct HomeView: View {
         }
         // 记忆长廊页面（Full Screen Cover 形式）
         .fullScreenCover(isPresented: $showMemoryGallery) {
-            MemoryGalleryView()
-                .preferredColorScheme(DarkModeManager.shared.colorScheme)
+            MemoryGalleryView(onNavigateToFinance: {
+                showMemoryGallery = false
+                showFinanceView = true
+            })
+            .preferredColorScheme(DarkModeManager.shared.colorScheme)
         }
         // 健康页面（Full Screen Cover 形式）
         .fullScreenCover(isPresented: $showHealthView) {

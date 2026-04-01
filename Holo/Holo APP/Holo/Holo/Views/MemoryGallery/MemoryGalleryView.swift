@@ -19,6 +19,9 @@ struct MemoryGalleryView: View {
 
     @StateObject private var viewModel = MemoryGalleryViewModel()
 
+    /// 跳转记账回调
+    let onNavigateToFinance: (() -> Void)?
+
     /// 选中的记忆条目（用于跳转详情）
     @State private var selectedMemory: MemoryItem?
 
@@ -102,6 +105,9 @@ struct MemoryGalleryView: View {
                         isSelected: viewModel.moduleFilter == filter
                     ) {
                         Task {
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                viewModel.moduleFilter = filter
+                            }
                             await viewModel.setModuleFilter(filter)
                         }
                     }
@@ -117,7 +123,10 @@ struct MemoryGalleryView: View {
 
     @ViewBuilder
     private var mainContent: some View {
-        if viewModel.isLoading && viewModel.timelineSections.isEmpty {
+        if let errorMessage = viewModel.errorMessage {
+            // 错误状态
+            errorView(message: errorMessage)
+        } else if viewModel.isLoading && viewModel.timelineSections.isEmpty {
             // 首次加载骨架屏
             skeletonView
         } else if viewModel.timelineSections.isEmpty {
@@ -129,6 +138,35 @@ struct MemoryGalleryView: View {
         }
     }
 
+    // MARK: - Error View
+
+    private func errorView(message: String) -> some View {
+        VStack(spacing: HoloSpacing.lg) {
+            Image(systemName: "exclamationmark.circle")
+                .font(.system(size: 36))
+                .foregroundColor(.holoTextPlaceholder)
+
+            Text(message)
+                .font(.holoBody)
+                .foregroundColor(.holoTextSecondary)
+                .multilineTextAlignment(.center)
+
+            Button {
+                Task { await viewModel.refresh() }
+            } label: {
+                Text("重试")
+                    .font(.holoBody)
+                    .foregroundColor(.holoPrimary)
+                    .padding(.horizontal, HoloSpacing.xl)
+                    .padding(.vertical, HoloSpacing.sm)
+                    .overlay(
+                        Capsule().stroke(Color.holoPrimary, lineWidth: 1)
+                    )
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
     // MARK: - Skeleton View
 
     private var skeletonView: some View {
@@ -136,6 +174,7 @@ struct MemoryGalleryView: View {
             VStack(spacing: HoloSpacing.lg) {
                 ForEach(0..<4, id: \.self) { _ in
                     skeletonCard
+                        .shimmer()
                 }
             }
             .padding(.horizontal, HoloSpacing.md)
@@ -195,6 +234,21 @@ struct MemoryGalleryView: View {
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)
             }
+
+            if onNavigateToFinance != nil {
+                Button {
+                    onNavigateToFinance?()
+                } label: {
+                    Text("去记账")
+                        .font(.holoBody)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, HoloSpacing.xl)
+                        .padding(.vertical, HoloSpacing.md)
+                        .background(Color.holoPrimary)
+                        .clipShape(Capsule())
+                }
+                .padding(.top, HoloSpacing.sm)
+            }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
@@ -206,6 +260,7 @@ struct MemoryGalleryView: View {
             LazyVStack(alignment: .leading, spacing: 0) {
                 ForEach(viewModel.timelineSections) { section in
                     timelineSectionView(for: section)
+                        .transition(.opacity)
                 }
 
                 if viewModel.hasMoreData {
@@ -232,13 +287,23 @@ struct MemoryGalleryView: View {
             TimelineDateHeader(section: section)
 
             // 节点列表（带时间线竖线）
-            VStack(alignment: .leading, spacing: 10) {
-                ForEach(section.nodes) { node in
-                    nodeView(for: node)
-                        .padding(.leading, 22)
+            ZStack(alignment: .topLeading) {
+                // 竖线：从日期头圆点中心向下延伸
+                Rectangle()
+                    .fill(Color.holoBorder)
+                    .frame(width: 2)
+                    .padding(.leading, 5)
+                    .padding(.top, 12)
+
+                // 节点内容
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(section.nodes) { node in
+                        nodeView(for: node)
+                            .padding(.leading, 22)
+                    }
                 }
+                .padding(.top, 12)
             }
-            .padding(.top, 12)
         }
     }
 
@@ -312,5 +377,5 @@ private struct FilterChip: View {
 // MARK: - Preview
 
 #Preview {
-    MemoryGalleryView()
+    MemoryGalleryView(onNavigateToFinance: nil)
 }
