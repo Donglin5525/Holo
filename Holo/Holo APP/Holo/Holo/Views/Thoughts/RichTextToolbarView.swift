@@ -13,8 +13,7 @@ import SwiftUI
 /// 富文本编辑格式工具栏
 struct RichTextToolbarView: View {
 
-    @Binding var content: String
-    @Binding var selectedRange: NSRange
+    @Binding var pendingAction: MarkdownEditorAction?
     var onTagButtonTap: (() -> Void)?
 
     @State private var showColorPicker: Bool = false
@@ -36,7 +35,7 @@ struct RichTextToolbarView: View {
         }
         .padding(.vertical, HoloSpacing.xs)
         .sheet(isPresented: $showColorPicker) {
-            ColorPickerPopover(content: $content, selectedRange: $selectedRange)
+            ColorPickerPopover(pendingAction: $pendingAction)
                 .presentationDetents([.medium])
         }
     }
@@ -46,36 +45,21 @@ struct RichTextToolbarView: View {
     /// 加粗按钮
     private var boldButton: some View {
         ToolbarButton(icon: "bold", label: "加粗") {
-            MarkdownTextView.insertFormat(
-                prefix: "**",
-                suffix: "**",
-                content: $content,
-                range: $selectedRange
-            )
+            pendingAction = .toggleBold
         }
     }
 
     /// 斜体按钮
     private var italicButton: some View {
         ToolbarButton(icon: "italic", label: "斜体") {
-            MarkdownTextView.insertFormat(
-                prefix: "*",
-                suffix: "*",
-                content: $content,
-                range: $selectedRange
-            )
+            pendingAction = .toggleItalic
         }
     }
 
     /// 下划线按钮
     private var underlineButton: some View {
         ToolbarButton(icon: "underline", label: "下划线") {
-            MarkdownTextView.insertFormat(
-                prefix: "++",
-                suffix: "++",
-                content: $content,
-                range: $selectedRange
-            )
+            pendingAction = .toggleUnderline
         }
     }
 
@@ -89,34 +73,21 @@ struct RichTextToolbarView: View {
     /// 无序列表按钮
     private var unorderedListButton: some View {
         ToolbarButton(icon: "list.bullet", label: "无序列表") {
-            MarkdownTextView.insertAtLineStart(
-                "- ",
-                content: $content,
-                range: $selectedRange
-            )
+            pendingAction = .insertUnorderedList
         }
     }
 
     /// 有序列表按钮
     private var orderedListButton: some View {
         ToolbarButton(icon: "list.number", label: "有序列表") {
-            MarkdownTextView.insertAtLineStart(
-                "1. ",
-                content: $content,
-                range: $selectedRange
-            )
+            pendingAction = .insertOrderedList
         }
     }
 
     /// 标签按钮
     private var tagButton: some View {
         ToolbarButton(icon: "number", label: "标签") {
-            MarkdownTextView.insertFormat(
-                prefix: "#",
-                suffix: "",
-                content: $content,
-                range: $selectedRange
-            )
+            pendingAction = .insertTag
             onTagButtonTap?()
         }
     }

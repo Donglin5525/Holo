@@ -40,19 +40,30 @@ struct ThoughtEditorView: View {
     @State private var selectedTags: [String] = []
     @State private var referencedThoughtIds: [UUID] = []
 
+    // MARK: - Original Values (for change detection)
+    @State private var originalContent: String = ""
+    @State private var originalMood: ThoughtMoodType? = nil
+    @State private var originalTags: [String] = []
+    @State private var originalReferencedThoughtIds: [UUID] = []
+
     // MARK: - UI State
     @State private var showMoodSelector: Bool = false
     @State private var showTagInput: Bool = false
     @State private var showReferenceSelector: Bool = false
     @State private var isSaving: Bool = false
     @State private var showDismissAlert: Bool = false
-    @State private var selectedRange: NSRange = NSRange(location: 0, length: 0)
+    @State private var pendingEditorAction: MarkdownEditorAction? = nil
     /// 是否为编辑模式
     private var isEditing: Bool { editingThoughtId != nil }
 
     /// 是否可保存
     private var canSave: Bool {
         !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSaving
+    }
+
+    /// 是否有内容（用于判断退出时是否需要保存）
+    private var hasContent: Bool {
+        !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     // MARK: - Body
@@ -77,11 +88,7 @@ struct ThoughtEditorView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("取消") {
-                        if hasUnsavedChanges {
-                            showDismissAlert = true
-                        } else {
-                            dismiss()
-                        }
+                        handleDismiss()
                     }
                     .foregroundColor(.holoTextSecondary)
                 }
@@ -110,7 +117,17 @@ struct ThoughtEditorView: View {
         .onAppear {
             loadEditingData()
         }
-        .unsavedChangesAlert(isPresented: $showDismissAlert) {
+    }
+
+    // MARK: - Dismiss Handling
+
+    /// 处理取消/右滑退出
+    private func handleDismiss() {
+        if hasContent && hasUnsavedChanges {
+            // 有内容且有修改时自动保存
+            saveThought()
+        } else {
+            // 无内容或无修改时直接退出
             dismiss()
         }
     }
@@ -119,16 +136,30 @@ struct ThoughtEditorView: View {
 
     /// 是否有未保存的修改
     private var hasUnsavedChanges: Bool {
-        if isEditing {
-            // 编辑模式：如果有任何字段被修改（简化判断：content 非空即视为有内容）
-            return !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        } else {
-            // 新增模式：检查是否输入了内容
-            return !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                || selectedMood != nil
-                || !selectedTags.isEmpty
-                || !referencedThoughtIds.isEmpty
+        let trimmedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedOriginal = originalContent.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // 内容发生变化
+        if trimmedContent != trimmedOriginal {
+            return true
         }
+
+        // 心情发生变化
+        if selectedMood?.rawValue != originalMood?.rawValue {
+            return true
+        }
+
+        // 标签发生变化
+        if Set(selectedTags) != Set(originalTags) {
+            return true
+        }
+
+        // 引用发生变化
+        if Set(referencedThoughtIds) != Set(originalReferencedThoughtIds) {
+            return true
+        }
+
+        return false
     }
 
     // MARK: - Sections
@@ -171,7 +202,10 @@ struct ThoughtEditorView: View {
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
 
-            MarkdownTextView(text: $content, selectedRange: $selectedRange)
+            MarkdownTextView(
+                text: $content,
+                pendingAction: $pendingEditorAction
+            )
                 .frame(minHeight: 200)
                 .padding(HoloSpacing.sm)
                 .background(Color.holoCardBackground)
@@ -180,8 +214,7 @@ struct ThoughtEditorView: View {
                     RoundedRectangle(cornerRadius: HoloRadius.md)
                         .stroke(Color.holoBorder, lineWidth: 1)
                 )
-
-            RichTextToolbarView(content: $content, selectedRange: $selectedRange)
+            RichTextToolbarView(pendingAction: $pendingEditorAction)
         }
     }
 
@@ -270,10 +303,17 @@ struct ThoughtEditorView: View {
                 return
             }
 
+            // 设置当前值
             content = thought.content
             selectedMood = ThoughtMoodType(from: thought.mood)
             selectedTags = thought.tagArray.map { $0.name }
             referencedThoughtIds = (thought.references as? Set<ThoughtReference>)?.compactMap { $0.targetThought.id } ?? []
+
+            // 设置原始值（用于比较是否有修改）
+            originalContent = thought.content
+            originalMood = ThoughtMoodType(from: thought.mood)
+            originalTags = thought.tagArray.map { $0.name }
+            originalReferencedThoughtIds = (thought.references as? Set<ThoughtReference>)?.compactMap { $0.targetThought.id } ?? []
         } catch {
             ThoughtLog.error("加载编辑数据失败", error.localizedDescription)
         }
@@ -286,7 +326,18 @@ struct ThoughtEditorView: View {
 
     /// 保存想法
     private func saveThought() {
-        guard canSave else { return }
+        guard canSave else {
+            // 如果没有内容，直接退出
+            dismiss()
+            return
+        }
+
+        // 如果是编辑模式且没有修改，直接退出
+        if isEditing && !hasUnsavedChanges {
+            dismiss()
+            return
+        }
+
         isSaving = true
 
         let repository = ThoughtRepository()

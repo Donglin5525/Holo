@@ -35,12 +35,8 @@ private let presetColors: [PresetColor] = [
 /// 颜色选择弹窗视图
 struct ColorPickerPopover: View {
 
-    @Binding var content: String
-    @Binding var selectedRange: NSRange
+    @Binding var pendingAction: MarkdownEditorAction?
     @Environment(\.dismiss) private var dismiss
-
-    /// 临时选中范围（用于在 sheet 中保持正确的范围）
-    @State private var savedRange: NSRange = NSRange(location: 0, length: 0)
 
     var body: some View {
         NavigationView {
@@ -74,9 +70,6 @@ struct ColorPickerPopover: View {
                     .foregroundColor(.holoTextSecondary)
                 }
             }
-        }
-        .onAppear {
-            savedRange = selectedRange
         }
     }
 
@@ -142,11 +135,6 @@ struct ColorPickerPopover: View {
 
     /// 在内容中插入 {color:#hex}选中文本{/color}
     private func insertColorTag(hex: String) {
-        MarkdownTextView.insertFormat(
-            prefix: "{color:\(hex)}",
-            suffix: "{/color}",
-            content: $content,
-            range: $selectedRange
-        )
+        pendingAction = .applyColor(hex)
     }
 }
