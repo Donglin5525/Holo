@@ -312,15 +312,15 @@ struct ThoughtListView: View {
                         },
                         onDelete: {
                             deleteThought(thought)
+                        },
+                        onTap: {
+                            if revealedThoughtId == thought.id {
+                                revealedThoughtId = nil
+                            } else {
+                                selectedThoughtId = thought.id
+                            }
                         }
                     )
-                    .onTapGesture {
-                        if revealedThoughtId == thought.id {
-                            revealedThoughtId = nil
-                        } else {
-                            selectedThoughtId = thought.id
-                        }
-                    }
                 }
             }
             .padding(.horizontal, HoloSpacing.lg)

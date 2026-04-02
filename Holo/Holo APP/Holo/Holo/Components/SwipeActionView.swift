@@ -3,9 +3,11 @@
 //  Holo
 //
 //  通用右滑手势组件 - 归档与删除
+//  使用 UIKit 手势识别器，解决 ScrollView 内滚动冲突
 //
 
 import SwiftUI
+import UIKit
 
 // MARK: - Layout Constants
 
@@ -20,7 +22,9 @@ private let snapAnimation = Animation.spring(response: 0.3, dampingFraction: 0.8
 // MARK: - SwipeActionView
 
 /// 通用右滑手势组件
-/// 滑动后显示归档和删除两个操作按钮
+/// 使用 UIKit UIPanGestureRecognizer 实现方向感知
+/// 垂直方向：手势不拦截，ScrollView 正常滚动
+/// 水平方向：独占手势，显示操作按钮
 struct SwipeActionView<Content: View>: View {
 
     // MARK: - Properties
@@ -29,6 +33,7 @@ struct SwipeActionView<Content: View>: View {
     let content: Content
     let onArchive: () -> Void
     let onDelete: () -> Void
+    var onTap: (() -> Void)?
 
     @State private var offset: CGFloat = 0
     @State private var showDeleteConfirmation = false
@@ -39,12 +44,14 @@ struct SwipeActionView<Content: View>: View {
         isRevealed: Binding<Bool>,
         @ViewBuilder content: () -> Content,
         onArchive: @escaping () -> Void,
-        onDelete: @escaping () -> Void
+        onDelete: @escaping () -> Void,
+        onTap: (() -> Void)? = nil
     ) {
         self.isRevealed = isRevealed
         self.content = content()
         self.onArchive = onArchive
         self.onDelete = onDelete
+        self.onTap = onTap
     }
 
     // MARK: - Body
@@ -55,7 +62,13 @@ struct SwipeActionView<Content: View>: View {
 
             content
                 .offset(x: offset)
-                .gesture(dragGesture)
+                .overlay(
+                    SwipeGestureOverlay(
+                        offset: $offset,
+                        isRevealed: isRevealed,
+                        onTap: onTap
+                    )
+                )
         }
         .onChange(of: isRevealed.wrappedValue) { _, newValue in
             withAnimation(snapAnimation) {
@@ -118,60 +131,6 @@ struct SwipeActionView<Content: View>: View {
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
     }
 
-    // MARK: - Gesture
-
-    private var dragGesture: some Gesture {
-        DragGesture(minimumDistance: SwipeConstants.minimumDragDistance)
-            .onChanged { value in
-                let h = value.translation.width
-                let v = abs(value.translation.height)
-
-                // 水平位移需略大于垂直，防止误触 ScrollView
-                guard abs(h) > v * 1.2 else { return }
-
-                if h < 0 {
-                    // 左滑：展开或继续展开
-                    let maxOffset = SwipeConstants.snapOpenOffset + 20
-                    let raw = max(-maxOffset, h)
-                    offset = isRevealed.wrappedValue
-                        ? raw - SwipeConstants.snapOpenOffset
-                        : raw
-                } else if isRevealed.wrappedValue {
-                    // 右滑收回
-                    offset = -SwipeConstants.snapOpenOffset + min(h, SwipeConstants.snapOpenOffset)
-                }
-            }
-            .onEnded { value in
-                let h = value.translation.width
-                let v = abs(value.translation.height)
-
-                // 非水平滑动 → 弹回原位
-                guard abs(h) > v * 1.2 else {
-                    snapBack()
-                    return
-                }
-
-                let shouldOpen: Bool
-                if isRevealed.wrappedValue {
-                    shouldOpen = value.predictedEndTranslation.width < -SwipeConstants.minimumDragDistance
-                } else {
-                    shouldOpen = value.predictedEndTranslation.width < -SwipeConstants.snapOpenOffset / 2
-                }
-
-                let targetOffset: CGFloat = shouldOpen ? -SwipeConstants.snapOpenOffset : 0
-
-                if shouldOpen != isRevealed.wrappedValue {
-                    // 状态切换 → 由 onChange 统一处理动画，避免双重弹簧
-                    isRevealed.wrappedValue = shouldOpen
-                } else {
-                    // 状态未变 → 自己弹回
-                    withAnimation(snapAnimation) {
-                        offset = targetOffset
-                    }
-                }
-            }
-    }
-
     // MARK: - Helpers
 
     private func close() {
@@ -180,10 +139,160 @@ struct SwipeActionView<Content: View>: View {
             isRevealed.wrappedValue = false
         }
     }
+}
 
-    private func snapBack() {
-        withAnimation(snapAnimation) {
-            offset = isRevealed.wrappedValue ? -SwipeConstants.snapOpenOffset : 0
+// MARK: - UIKit 手势覆盖层
+
+/// 透明 UIView overlay，承载方向感知的 Pan 手势
+/// 通过 Coordinator 的 gestureRecognizerShouldBegin 控制方向
+/// 垂直方向 → 手势不启动 → ScrollView 正常滚动
+/// 水平方向 → 手势启动 → 临时禁用 ScrollView → 处理偏移
+private struct SwipeGestureOverlay: UIViewRepresentable {
+
+    @Binding var offset: CGFloat
+    let isRevealed: Binding<Bool>
+    let onTap: (() -> Void)?
+
+    func makeUIView(context: Context) -> SwipeOverlayView {
+        let view = SwipeOverlayView()
+
+        // Tap 手势
+        let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handleTap))
+        tap.cancelsTouchesInView = false
+        view.addGestureRecognizer(tap)
+
+        // Pan 手势（方向由 delegate 控制）
+        let pan = UIPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePan(_:)))
+        pan.delegate = context.coordinator
+        view.addGestureRecognizer(pan)
+        context.coordinator.panGesture = pan
+
+        return view
+    }
+
+    func updateUIView(_ uiView: SwipeOverlayView, context: Context) {
+        context.coordinator.parent = self
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
+
+    // MARK: - Coordinator
+
+    class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var parent: SwipeGestureOverlay
+        weak var panGesture: UIPanGestureRecognizer?
+        private weak var disabledScrollView: UIScrollView?
+
+        init(_ parent: SwipeGestureOverlay) {
+            self.parent = parent
         }
+
+        // MARK: - Tap
+
+        @objc func handleTap() {
+            parent.onTap?()
+        }
+
+        // MARK: - Pan
+
+        @objc func handlePan(_ gesture: UIPanGestureRecognizer) {
+            let translation = gesture.translation(in: gesture.view)
+            let snap = SwipeConstants.snapOpenOffset
+
+            switch gesture.state {
+            case .began:
+                disableScrollView(gesture)
+
+            case .changed:
+                let h = translation.x
+                if h < 0 {
+                    let maxOffset = snap + 20
+                    let raw = max(-maxOffset, h)
+                    parent.offset = parent.isRevealed.wrappedValue
+                        ? raw - snap
+                        : raw
+                } else if parent.isRevealed.wrappedValue {
+                    parent.offset = -snap + min(h, snap)
+                }
+
+            case .ended, .cancelled:
+                enableScrollView()
+
+                let velocity = gesture.velocity(in: gesture.view)
+                let predicted = velocity.x * 0.3
+
+                let shouldOpen: Bool
+                if parent.isRevealed.wrappedValue {
+                    shouldOpen = predicted < -SwipeConstants.minimumDragDistance
+                } else {
+                    shouldOpen = predicted < -snap / 2
+                }
+
+                if shouldOpen != parent.isRevealed.wrappedValue {
+                    parent.isRevealed.wrappedValue = shouldOpen
+                } else {
+                    withAnimation(snapAnimation) {
+                        parent.offset = shouldOpen ? -snap : 0
+                    }
+                }
+
+            default:
+                break
+            }
+        }
+
+        // MARK: - UIGestureRecognizerDelegate
+
+        /// 关键方法：控制手势是否开始
+        /// 检查初始速度方向，只在水平方向时返回 true
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
+                  let view = pan.view else { return false }
+            let velocity = pan.velocity(in: view)
+            // 只有水平方向速度大于垂直方向时才开始手势
+            return abs(velocity.x) > abs(velocity.y)
+        }
+
+        /// 允许与 ScrollView 的手势同时识别
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            return true
+        }
+
+        // MARK: - ScrollView 控制
+
+        private func disableScrollView(_ gesture: UIGestureRecognizer) {
+            var view = gesture.view?.superview
+            while let v = view {
+                if let scrollView = v as? UIScrollView {
+                    scrollView.isScrollEnabled = false
+                    disabledScrollView = scrollView
+                    break
+                }
+                view = v.superview
+            }
+        }
+
+        private func enableScrollView() {
+            disabledScrollView?.isScrollEnabled = true
+            disabledScrollView = nil
+        }
+    }
+}
+
+// MARK: - 透明覆盖 View
+
+private class SwipeOverlayView: UIView {
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        backgroundColor = .clear
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
     }
 }

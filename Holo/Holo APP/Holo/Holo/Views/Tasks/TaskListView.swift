@@ -120,15 +120,15 @@ struct TaskListView: View {
                             },
                             onDelete: {
                                 deleteTask(task)
+                            },
+                            onTap: {
+                                if revealedTaskId == task.id {
+                                    revealedTaskId = nil
+                                } else {
+                                    selectedTask = TaskSelection(id: task.id)
+                                }
                             }
                         )
-                        .onTapGesture {
-                            if revealedTaskId == task.id {
-                                revealedTaskId = nil
-                            } else {
-                                selectedTask = TaskSelection(id: task.id)
-                            }
-                        }
                     }
 
                     // 已完成任务
@@ -149,15 +149,15 @@ struct TaskListView: View {
                                 },
                                 onDelete: {
                                     deleteTask(task)
+                                },
+                                onTap: {
+                                    if revealedTaskId == task.id {
+                                        revealedTaskId = nil
+                                    } else {
+                                        selectedTask = TaskSelection(id: task.id)
+                                    }
                                 }
                             )
-                            .onTapGesture {
-                                if revealedTaskId == task.id {
-                                    revealedTaskId = nil
-                                } else {
-                                    selectedTask = TaskSelection(id: task.id)
-                                }
-                            }
                         }
                     }
 

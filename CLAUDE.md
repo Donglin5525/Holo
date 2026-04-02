@@ -45,6 +45,7 @@
 | ScrollView 滚动条 | 必须隐藏 `showsIndicators: false` |
 | DatePicker 语言 | 必须中文 `.environment(\.locale, Locale(identifier: "zh_CN"))` |
 | 右滑返回手势 | fullScreenCover 页面必须加 `.swipeBackToDismiss`，NavigationStack push 和 Sheet 系统自带 |
+| ScrollView 内自定义手势 | 禁止使用 SwiftUI `DragGesture`，必须用 `UIViewRepresentable` + `UIPanGestureRecognizer`，通过 `gestureRecognizerShouldBegin` 控制方向（垂直放行给 ScrollView） |
 
 ```swift
 // ScrollView 示例

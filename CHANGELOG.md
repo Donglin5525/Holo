@@ -4,6 +4,15 @@
 
 ---
 
+## [2026-04-02] 修复任务列表滚动冲突
+
+### Bug 修复
+- 修复任务/观点列表中卡片铺满屏幕时无法上下滚动的问题
+- 根因：SwiftUI `DragGesture` 在 ScrollView 内会拦截滚动手势
+- 方案：改用 UIKit `UIPanGestureRecognizer` + `gestureRecognizerShouldBegin` 方向判断，垂直放行给 ScrollView
+
+---
+
 ## [2026-04-01] 任务检查清单 + 记忆长廊三层时间线
 
 ### 新增功能
