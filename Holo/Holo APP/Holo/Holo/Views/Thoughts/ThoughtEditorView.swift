@@ -53,6 +53,7 @@ struct ThoughtEditorView: View {
     @State private var isSaving: Bool = false
     @State private var showDismissAlert: Bool = false
     @State private var pendingEditorAction: MarkdownEditorAction? = nil
+    @State private var editorHeight: CGFloat = 200
     /// 是否为编辑模式
     private var isEditing: Bool { editingThoughtId != nil }
 
@@ -204,9 +205,10 @@ struct ThoughtEditorView: View {
 
             MarkdownTextView(
                 text: $content,
-                pendingAction: $pendingEditorAction
+                pendingAction: $pendingEditorAction,
+                dynamicHeight: $editorHeight
             )
-                .frame(minHeight: 200)
+                .frame(height: max(editorHeight, 200))
                 .padding(HoloSpacing.sm)
                 .background(Color.holoCardBackground)
                 .cornerRadius(HoloRadius.md)

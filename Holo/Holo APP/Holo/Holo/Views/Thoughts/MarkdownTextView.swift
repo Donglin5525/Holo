@@ -30,18 +30,22 @@ struct MarkdownTextView: UIViewRepresentable {
 
     @Binding var text: String
     @Binding var pendingAction: MarkdownEditorAction?
+    /// 动态高度绑定，由视图自动计算并报告给父视图
+    @Binding var dynamicHeight: CGFloat
 
     /// 是否启用富文本渲染
     var showHighlight: Bool = true
 
     func makeUIView(context: Context) -> UITextView {
-        let textView = UITextView()
+        let textView = SelfSizingTextView()
         textView.delegate = context.coordinator
         textView.font = Self.baseFont
         textView.textColor = Self.baseTextColor
         textView.backgroundColor = .clear
         textView.textContainerInset = UIEdgeInsets(top: 8, left: 4, bottom: 8, right: 4)
-        textView.isScrollEnabled = false
+        // 启用滚动以避免 isScrollEnabled=false 在 SwiftUI ScrollView 中
+        // 产生的 intrinsicContentSize 无限布局反馈循环
+        textView.isScrollEnabled = true
         textView.isEditable = true
         textView.isSelectable = true
         textView.allowsEditingTextAttributes = true
@@ -52,6 +56,11 @@ struct MarkdownTextView: UIViewRepresentable {
         textView.attributedText = showHighlight ? Self.makeAttributedText(from: text) : NSAttributedString(string: text, attributes: Self.baseAttributes)
 
         context.coordinator.lastKnownMarkdown = text
+        context.coordinator.onHeightChange = { height in
+            DispatchQueue.main.async {
+                self.dynamicHeight = height
+            }
+        }
         context.coordinator.refreshTypingAttributes(for: textView)
         return textView
     }
@@ -90,6 +99,7 @@ struct MarkdownTextView: UIViewRepresentable {
 
         var isProgrammaticChange = false
         var lastKnownMarkdown: String = ""
+        var onHeightChange: ((CGFloat) -> Void)?
 
         init(text: Binding<String>) {
             self._text = text
@@ -532,4 +542,21 @@ private extension NSAttributedString.Key {
     static let holoItalic = NSAttributedString.Key("holoMarkdownItalic")
     static let holoUnderline = NSAttributedString.Key("holoMarkdownUnderline")
     static let holoColorHex = NSAttributedString.Key("holoMarkdownColorHex")
+}
+
+// MARK: - SelfSizingTextView
+
+/// 自动计算内容高度的 UITextView
+/// 通过 sizeThatFits 在布局完成后计算正确高度，避免 intrinsicContentSize 反馈循环
+private final class SelfSizingTextView: UITextView {
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        // 利用 sizeThatFits 根据当前宽度计算内容所需高度
+        let targetSize = CGSize(width: frame.width, height: .greatestFiniteMagnitude)
+        let fittedSize = sizeThatFits(targetSize)
+        if fittedSize.height > 0 {
+            (delegate as? MarkdownTextView.Coordinator)?.onHeightChange?(fittedSize.height)
+        }
+    }
 }

@@ -420,6 +420,19 @@ class ThoughtRepository {
         try context.save()
     }
 
+    /// 清除所有观点数据（Thought + ThoughtTag + ThoughtReference）
+    func deleteAllThoughtData() throws {
+        let entities = ["ThoughtReference", "Thought", "ThoughtTag"]
+        for entity in entities {
+            let request = NSFetchRequest<NSManagedObject>(entityName: entity)
+            let objects = try context.fetch(request)
+            for obj in objects {
+                context.delete(obj)
+            }
+        }
+        try context.save()
+    }
+
     /// 删除未使用的标签
     /// - Parameter name: 标签名称
     func deleteTag(_ name: String) throws {

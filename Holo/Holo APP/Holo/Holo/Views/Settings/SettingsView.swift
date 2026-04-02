@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import OSLog
 
 // MARK: - SettingsView
 
@@ -206,6 +207,78 @@ struct SettingsView: View {
             ) {
                 // TODO: 显示关于页面
             }
+
+            // 调试：清除观点数据
+            debugSection
+        }
+    }
+
+    // MARK: - 调试
+
+    @State private var showClearThoughtDataAlert: Bool = false
+
+    private var debugSection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            HStack(spacing: HoloSpacing.sm) {
+                Image(systemName: "ladybug.fill")
+                    .font(.system(size: 18))
+                    .foregroundColor(.orange)
+
+                Text("调试")
+                    .font(.holoBody)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoTextPrimary)
+            }
+
+            Button {
+                showClearThoughtDataAlert = true
+            } label: {
+                HStack(spacing: HoloSpacing.md) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.red.opacity(0.1))
+                            .frame(width: 40, height: 40)
+
+                        Image(systemName: "trash.circle")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(.red)
+                    }
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("清除观点数据")
+                            .font(.holoBody)
+                            .foregroundColor(.red)
+
+                        Text("删除所有观点、标签和引用")
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoTextSecondary)
+                    }
+
+                    Spacer()
+                }
+                .padding(HoloSpacing.md)
+                .background(Color.holoCardBackground)
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+            }
+            .buttonStyle(PlainButtonStyle())
+            .alert("确认清除观点数据？", isPresented: $showClearThoughtDataAlert) {
+                Button("取消", role: .cancel) {}
+                Button("清除", role: .destructive) {
+                    clearThoughtData()
+                }
+            } message: {
+                Text("此操作将删除所有观点、标签和引用数据，不可恢复。")
+            }
+        }
+    }
+
+    private func clearThoughtData() {
+        do {
+            let repo = ThoughtRepository()
+            try repo.deleteAllThoughtData()
+            NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+        } catch {
+            Logger(subsystem: "com.holo.app", category: "Settings").error("清除观点数据失败: \(error.localizedDescription)")
         }
     }
 

@@ -4,6 +4,18 @@
 
 ---
 
+## [2026-04-03] 修复观点新增卡死 + 设置页调试入口
+
+### Bug 修复
+- 修复真机上点击"新增观点"按钮后 App 卡死的问题
+- 根因：UITextView `isScrollEnabled=false` 在 SwiftUI ScrollView 中产生 `intrinsicContentSize` 无限布局反馈循环，真机布局时序更紧凑导致死循环
+- 方案：改用 `isScrollEnabled=true` + `SelfSizingTextView` 通过 `sizeThatFits` 显式计算高度，异步回传给 SwiftUI
+
+### 新增
+- 设置页新增"调试"区域，支持清除观点模块数据（Thought/ThoughtTag/ThoughtReference）
+
+---
+
 ## [2026-04-02] 修复任务列表滚动冲突
 
 ### Bug 修复
