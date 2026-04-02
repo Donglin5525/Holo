@@ -46,6 +46,7 @@ struct ThoughtEditorView: View {
     @State private var showReferenceSelector: Bool = false
     @State private var isSaving: Bool = false
     @State private var showDismissAlert: Bool = false
+    @State private var selectedRange: NSRange = NSRange(location: 0, length: 0)
     /// 是否为编辑模式
     private var isEditing: Bool { editingThoughtId != nil }
 
@@ -169,9 +170,8 @@ struct ThoughtEditorView: View {
             Text("内容")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
-            TextEditor(text: $content)
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
+
+            MarkdownTextView(text: $content, selectedRange: $selectedRange)
                 .frame(minHeight: 200)
                 .padding(HoloSpacing.sm)
                 .background(Color.holoCardBackground)
@@ -180,6 +180,8 @@ struct ThoughtEditorView: View {
                     RoundedRectangle(cornerRadius: HoloRadius.md)
                         .stroke(Color.holoBorder, lineWidth: 1)
                 )
+
+            RichTextToolbarView(content: $content, selectedRange: $selectedRange)
         }
     }
 
@@ -289,6 +291,10 @@ struct ThoughtEditorView: View {
 
         let repository = ThoughtRepository()
 
+        // 合并手动标签与内联 # 标签
+        let inlineTags = InlineTagDetector.extractTags(from: content)
+        let allTags = Array(Set(selectedTags + inlineTags))
+
         do {
             if isEditing, let thoughtId = editingThoughtId {
                 // 编辑模式：更新已有想法
@@ -296,14 +302,14 @@ struct ThoughtEditorView: View {
                     thoughtId,
                     content: content,
                     mood: selectedMood?.rawValue,
-                    tags: selectedTags
+                    tags: allTags
                 )
             } else {
                 // 新建模式
                 let thought = try repository.create(
                     content: content,
                     mood: selectedMood?.rawValue,
-                    tags: selectedTags
+                    tags: allTags
                 )
                 // 添加引用关系
                 for targetId in referencedThoughtIds {

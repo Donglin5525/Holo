@@ -425,10 +425,10 @@ extension TodoNotificationService: UNUserNotificationCenterDelegate {
             }
 
         case UNNotificationDefaultActionIdentifier:
-            // 直接点击通知（打开应用）
-            if let taskIdString = taskIdString {
-                Self.logger.info("用户点击了任务通知：\(taskIdString)")
-                // TODO: 可以触发打开任务详情的 deep link
+            // 直接点击通知（打开应用）→ 触发 Deep Link 跳转到任务详情
+            if let taskIdString = taskIdString, let taskId = UUID(uuidString: taskIdString) {
+                Self.logger.info("用户点击了任务通知，触发 Deep Link：\(taskIdString)")
+                DeepLinkState.shared.pendingTaskId = taskId
             }
 
         default:

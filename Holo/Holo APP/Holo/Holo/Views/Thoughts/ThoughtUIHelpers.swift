@@ -85,14 +85,14 @@ extension Thought {
         ThoughtMoodType(from: mood)
     }
 
-    /// 预览文本（前 80 个字符）
+    /// 预览文本（去除格式，前 80 个字符）
     var previewText: String {
-        let stripped = content
-            .replacingOccurrences(of: "**", with: "")
-            .replacingOccurrences(of: "*", with: "")
-            .replacingOccurrences(of: "- ", with: "")
-            .replacingOccurrences(of: "\n", with: " ")
-        return String(stripped.prefix(80))
+        MarkdownRenderer.previewText(content)
+    }
+
+    /// 内容中的内联标签名称
+    var inlineTags: [String] {
+        MarkdownRenderer.extractTags(content)
     }
 
     /// 格式化日期

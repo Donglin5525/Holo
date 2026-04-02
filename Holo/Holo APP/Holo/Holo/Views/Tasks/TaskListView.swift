@@ -93,6 +93,9 @@ struct TaskListView: View {
     /// 右滑展开的卡片 ID
     @State private var revealedTaskId: UUID? = nil
 
+    /// Deep Link 状态（通知点击跳转）
+    @ObservedObject private var deepLinkState = DeepLinkState.shared
+
     // MARK: - Body
 
     var body: some View {
@@ -173,6 +176,15 @@ struct TaskListView: View {
         .onAppear {
             loadTasks()
         }
+        // 监听 Deep Link：通知点击后自动弹出对应任务详情
+        .task(id: deepLinkState.pendingTaskId) {
+            if let taskId = deepLinkState.pendingTaskId {
+                // 延迟一小段时间确保视图层级就绪
+                try? await Task.sleep(nanoseconds: 300_000_000)
+                selectedTask = TaskSelection(id: taskId)
+                deepLinkState.pendingTaskId = nil
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: .todoDataDidChange)) { _ in
             loadTasks()
         }
@@ -183,7 +195,7 @@ struct TaskListView: View {
             updateFilteredTasks()
         }
         .sheet(item: $selectedTask) { selection in
-            if let task = tasks.first(where: { $0.id == selection.id }) {
+            if let task = tasks.first(where: { $0.id == selection.id }) ?? repository.findTask(by: selection.id) {
                 TaskDetailView(repository: repository, task: task)
             } else {
                 ProgressView("加载中...")

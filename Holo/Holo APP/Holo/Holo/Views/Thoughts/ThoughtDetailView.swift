@@ -77,7 +77,7 @@ struct ThoughtDetailView: View {
                 }
             }
             .sheet(item: $selectedReferenceId) { refId in
-                ThoughtDetailView(
+                ThoughtDetailSheetView(
                     thoughtId: refId,
                     thoughtRepository: thoughtRepository
                 )
@@ -129,11 +129,14 @@ struct ThoughtDetailView: View {
                     .foregroundColor(.holoTextSecondary)
             }
 
-            // 内容
-            Text(thought?.content ?? "")
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
-                .multilineTextAlignment(.leading)
+            // 内容（Markdown 渲染）
+            if let content = thought?.content, !content.isEmpty {
+                MarkdownRenderer.render(content)
+                    .multilineTextAlignment(.leading)
+            } else {
+                Text("")
+                    .font(.holoBody)
+            }
         }
         .padding(HoloSpacing.md)
         .background(
@@ -236,6 +239,18 @@ struct ThoughtDetailView: View {
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.lg)
                 .stroke(Color.holoBorder, lineWidth: 1)
+        )
+    }
+}
+
+private struct ThoughtDetailSheetView: View {
+    let thoughtId: UUID
+    let thoughtRepository: ThoughtRepository
+
+    var body: some View {
+        ThoughtDetailView(
+            thoughtId: thoughtId,
+            thoughtRepository: thoughtRepository
         )
     }
 }

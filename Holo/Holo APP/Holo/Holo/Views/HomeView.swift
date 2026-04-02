@@ -47,6 +47,9 @@ struct HomeView: View {
     /// 是否显示观点页面
     @State private var showThoughtsView: Bool = false
 
+    /// Deep Link 状态（通知点击跳转）
+    @ObservedObject private var deepLinkState = DeepLinkState.shared
+
     // MARK: - 五角形功能按钮拖拽排序状态
     
     /// 图标配置仓库（负责持久化）
@@ -163,6 +166,12 @@ struct HomeView: View {
         // 页面加载时从持久化存储加载图标配置
         .onAppear {
             loadFeatureItemsFromRepository()
+        }
+        // 监听 Deep Link：通知点击后自动打开任务模块
+        .task(id: deepLinkState.pendingTaskId) {
+            if deepLinkState.pendingTaskId != nil {
+                showTasksView = true
+            }
         }
         // 监听 repository 变化，自动刷新（拖拽中不刷新，避免干扰排序状态）
         .onChange(of: iconRepository.visibleConfigs) { _, _ in
