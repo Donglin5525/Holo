@@ -116,20 +116,19 @@ struct TaskListView: View {
                                 set: { if $0 { revealedTaskId = task.id } else { revealedTaskId = nil } }
                             ),
                             content: {
-                                TaskCardView(task: task, repository: repository)
+                                TaskCardView(task: task, repository: repository) {
+                                    if revealedTaskId == task.id {
+                                        revealedTaskId = nil
+                                    } else {
+                                        selectedTask = TaskSelection(id: task.id)
+                                    }
+                                }
                             },
                             onArchive: {
                                 archiveTask(task)
                             },
                             onDelete: {
                                 deleteTask(task)
-                            },
-                            onTap: {
-                                if revealedTaskId == task.id {
-                                    revealedTaskId = nil
-                                } else {
-                                    selectedTask = TaskSelection(id: task.id)
-                                }
                             }
                         )
                     }
@@ -145,20 +144,19 @@ struct TaskListView: View {
                                     set: { if $0 { revealedTaskId = task.id } else { revealedTaskId = nil } }
                                 ),
                                 content: {
-                                    TaskCardView(task: task, repository: repository)
+                                    TaskCardView(task: task, repository: repository) {
+                                        if revealedTaskId == task.id {
+                                            revealedTaskId = nil
+                                        } else {
+                                            selectedTask = TaskSelection(id: task.id)
+                                        }
+                                    }
                                 },
                                 onArchive: {
                                     archiveTask(task)
                                 },
                                 onDelete: {
                                     deleteTask(task)
-                                },
-                                onTap: {
-                                    if revealedTaskId == task.id {
-                                        revealedTaskId = nil
-                                    } else {
-                                        selectedTask = TaskSelection(id: task.id)
-                                    }
                                 }
                             )
                         }
@@ -461,6 +459,7 @@ private struct SectionHeaderView: View {
 struct TaskCardView: View {
     let task: TodoTask
     @ObservedObject var repository: TodoRepository
+    var onNavigate: (() -> Void)?
 
     /// 是否展开检查清单
     @State private var isChecklistExpanded = false
@@ -496,7 +495,7 @@ struct TaskCardView: View {
         VStack(alignment: .leading, spacing: 0) {
             // 主内容行
             HStack(spacing: 12) {
-                // 完成状态切换按钮
+                // 完成状态切换按钮（独立 Button，直接完成任务）
                 Button(action: toggleCompletion) {
                     Image(systemName: task.completed ? "checkmark.circle.fill" : "circle")
                         .font(.system(size: 22, weight: .medium))
@@ -504,74 +503,76 @@ struct TaskCardView: View {
                 }
                 .buttonStyle(.plain)
 
-                // 任务内容
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(task.title)
-                        .font(.holoBody)
-                        .strikethrough(task.completed)
-                        .foregroundColor(task.completed ? .holoTextSecondary : .holoTextPrimary)
-                        .lineLimit(2)
-
-                    // 描述（截断展示）
-                    if let desc = task.desc, !desc.isEmpty {
-                        Text(desc)
-                            .font(.holoCaption)
-                            .foregroundColor(.holoTextSecondary)
+                // 任务内容（点击导航到详情页）
+                Button(action: { onNavigate?() }) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(task.title)
+                            .font(.holoBody)
+                            .strikethrough(task.completed)
+                            .foregroundColor(task.completed ? .holoTextSecondary : .holoTextPrimary)
                             .lineLimit(2)
+
+                        // 描述（截断展示）
+                        if let desc = task.desc, !desc.isEmpty {
+                            Text(desc)
+                                .font(.holoCaption)
+                                .foregroundColor(.holoTextSecondary)
+                                .lineLimit(2)
+                        }
+
+                        // 任务元信息
+                        HStack(spacing: 8) {
+                            // 截止日期
+                            if let dueDate = task.dueDate {
+                                Label(
+                                    formatDueDate(dueDate),
+                                    systemImage: "clock"
+                                )
+                                .font(.holoTinyLabel)
+                                .foregroundColor(dateColor)
+                            }
+
+                            // 优先级
+                            if task.taskPriority == .urgent || task.taskPriority == .high {
+                                Label(
+                                    task.taskPriority.displayTitle,
+                                    systemImage: task.taskPriority.iconName
+                                )
+                                .font(.holoTinyLabel)
+                                .foregroundColor(task.taskPriority.color)
+                            }
+
+                            // 重复任务标识
+                            if task.repeatRule != nil {
+                                Image(systemName: "repeat")
+                                    .font(.system(size: 10, weight: .medium))
+                                    .foregroundColor(.holoPrimary)
+                            }
+
+                            // 清单名称
+                            if let list = task.list {
+                                Label(
+                                    list.name,
+                                    systemImage: "folder"
+                                )
+                                .font(.holoTinyLabel)
+                                .foregroundColor(.holoTextSecondary)
+                            }
+
+                            // 检查清单进度
+                            if hasChecklist {
+                                Label(
+                                    task.checkItemProgress,
+                                    systemImage: "checklist"
+                                )
+                                .font(.holoTinyLabel)
+                                .foregroundColor(.holoTextSecondary)
+                            }
+                        }
                     }
-
-                    // 任务元信息
-                    HStack(spacing: 8) {
-                        // 截止日期
-                        if let dueDate = task.dueDate {
-                            Label(
-                                formatDueDate(dueDate),
-                                systemImage: "clock"
-                            )
-                            .font(.holoTinyLabel)
-                            .foregroundColor(dateColor)
-                        }
-
-                        // 优先级
-                        if task.taskPriority == .urgent || task.taskPriority == .high {
-                            Label(
-                                task.taskPriority.displayTitle,
-                                systemImage: task.taskPriority.iconName
-                            )
-                            .font(.holoTinyLabel)
-                            .foregroundColor(task.taskPriority.color)
-                        }
-
-                        // 重复任务标识
-                        if task.repeatRule != nil {
-                            Image(systemName: "repeat")
-                                .font(.system(size: 10, weight: .medium))
-                                .foregroundColor(.holoPrimary)
-                        }
-
-                        // 清单名称
-                        if let list = task.list {
-                            Label(
-                                list.name,
-                                systemImage: "folder"
-                            )
-                            .font(.holoTinyLabel)
-                            .foregroundColor(.holoTextSecondary)
-                        }
-
-                        // 检查清单进度
-                        if hasChecklist {
-                            Label(
-                                task.checkItemProgress,
-                                systemImage: "checklist"
-                            )
-                            .font(.holoTinyLabel)
-                            .foregroundColor(.holoTextSecondary)
-                        }
-                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
-
-                Spacer()
+                .buttonStyle(.plain)
 
                 // 优先级指示点
                 Circle()

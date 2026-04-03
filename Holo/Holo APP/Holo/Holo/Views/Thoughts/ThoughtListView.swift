@@ -305,20 +305,19 @@ struct ThoughtListView: View {
                             set: { if $0 { revealedThoughtId = thought.id } else { revealedThoughtId = nil } }
                         ),
                         content: {
-                            ThoughtCardView(thought: thought)
+                            ThoughtCardView(thought: thought) {
+                                if revealedThoughtId == thought.id {
+                                    revealedThoughtId = nil
+                                } else {
+                                    selectedThoughtId = thought.id
+                                }
+                            }
                         },
                         onArchive: {
                             archiveThought(thought)
                         },
                         onDelete: {
                             deleteThought(thought)
-                        },
-                        onTap: {
-                            if revealedThoughtId == thought.id {
-                                revealedThoughtId = nil
-                            } else {
-                                selectedThoughtId = thought.id
-                            }
                         }
                     )
                 }

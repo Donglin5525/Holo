@@ -22,26 +22,31 @@ struct ThoughtCardView: View {
     // MARK: - Properties
 
     let thought: Thought
+    var onNavigate: (() -> Void)?
 
     // MARK: - Body
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // 顶部：心情 + 日期
-            headerView
+        Button(action: { onNavigate?() }) {
+            VStack(alignment: .leading, spacing: 12) {
+                // 顶部：心情 + 日期
+                headerView
 
-            // 中间：内容预览
-            contentView
+                // 中间：内容预览
+                contentView
 
-            // 底部：标签 + 引用信息
-            footerView
+                // 底部：标签 + 引用信息
+                footerView
+            }
+            .padding(HoloSpacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: HoloRadius.md)
+                    .fill(Color.holoCardBackground)
+                    .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
+            )
         }
-        .padding(HoloSpacing.md)
-        .background(
-            RoundedRectangle(cornerRadius: HoloRadius.md)
-                .fill(Color.holoCardBackground)
-                .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
-        )
+        .buttonStyle(.plain)
     }
 
     // MARK: - 顶部区域
@@ -65,14 +70,13 @@ struct ThoughtCardView: View {
 
             Spacer()
 
-            // 更多操作按钮
-            Button {
-                // TODO: 显示操作菜单
-            } label: {
-                Image(systemName: "ellipsis")
-                    .font(.system(size: 16))
-                    .foregroundColor(.holoTextSecondary)
-            }
+            // 更多操作按钮（使用 onTapGesture 避免与外层导航 Button 冲突）
+            Image(systemName: "ellipsis")
+                .font(.system(size: 16))
+                .foregroundColor(.holoTextSecondary)
+                .onTapGesture {
+                    // TODO: 显示操作菜单
+                }
         }
     }
 
