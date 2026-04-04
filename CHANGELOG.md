@@ -29,6 +29,7 @@
 - CoreDataStack 新增 createChatEntities() 方法
 - ContentView .holo tab 从占位视图替换为 ChatView
 - SettingsView 新增 AI 设置入口
+- 首页麦克风按钮连接 ChatView（fullScreenCover）
 
 ---
 
