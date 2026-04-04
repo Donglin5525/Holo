@@ -3,7 +3,7 @@
 //  Holo
 //
 //  环形饼图组件（用于类别 Tab）
-//  使用 Swift Charts 实现，带中心信息展示
+//  扇区内显示科目名称，扇区外显示百分比
 //
 
 import SwiftUI
@@ -12,6 +12,7 @@ import Charts
 // MARK: - PieChartView
 
 /// 环形饼图视图
+/// 扇区内部显示科目名称，扇区外部显示占比百分比
 struct PieChartView: View {
     let aggregations: [CategoryAggregation]
     let selectedCategory: Category?
@@ -22,8 +23,8 @@ struct PieChartView: View {
         .holoChart1, .holoChart2, .holoChart3, .holoChart4, .holoChart5
     ]
 
-    /// 小扇区阈值（占比低于此值时标签外延）
-    private let smallSectorThreshold: Double = 8
+    /// 小扇区阈值（占比低于此值时内部不显示标签）
+    private let smallSectorThreshold: Double = 6
 
     // 选中的聚合数据
     private var selectedAggregation: CategoryAggregation? {
@@ -43,28 +44,28 @@ struct PieChartView: View {
             if aggregations.isEmpty {
                 emptyChartView
             } else {
-                chartWithCenter
+                pieChartContent
             }
         }
     }
 
-    // MARK: - 图表带中心信息
+    // MARK: - 饼图主体
 
-    private var chartWithCenter: some View {
+    private var pieChartContent: some View {
         ZStack {
             // 饼图
             Chart(aggregations) { agg in
                 let index = aggregations.firstIndex(where: { $0.id == agg.id }) ?? 0
                 SectorMark(
                     angle: .value("金额", Double(truncating: agg.amount as NSDecimalNumber)),
-                    innerRadius: .ratio(0.58),
+                    innerRadius: .ratio(0.45),
                     angularInset: 1.5
                 )
                 .cornerRadius(4)
                 .foregroundStyle(colorForCategory(agg.category, at: index))
                 .opacity(selectedCategory == nil || selectedCategory?.id == agg.category.id ? 1 : 0.3)
             }
-            .frame(height: 200)
+            .frame(height: 240)
             .chartOverlay { _ in
                 ZStack {
                     PieChartInteractionOverlay(
@@ -74,23 +75,27 @@ struct PieChartView: View {
                         }
                     )
 
-                    sectorLabelsOverlay
+                    labelsOverlay
                 }
             }
 
-            // 中心信息（无图标）
+            // 中心信息
             centerInfo
         }
     }
 
-    // MARK: - 扇区标签覆盖层
+    // MARK: - 标签覆盖层（扇区内科目 + 扇区外百分比）
 
     @ViewBuilder
-    private var sectorLabelsOverlay: some View {
+    private var labelsOverlay: some View {
         if !aggregations.isEmpty {
             GeometryReader { geometry in
                 let center = CGPoint(x: geometry.size.width / 2, y: geometry.size.height / 2)
-                let radius = min(geometry.size.width, geometry.size.height) / 2 * 0.88
+                let outerRadius = min(geometry.size.width, geometry.size.height) / 2
+                let innerRadius = outerRadius * 0.45
+                let ringMidRadius = (outerRadius + innerRadius) / 2
+                let outsideRadius = outerRadius * 1.15
+
                 let total = aggregations.reduce(0.0) {
                     $0 + Double(truncating: $1.amount as NSDecimalNumber)
                 }
@@ -100,25 +105,40 @@ struct PieChartView: View {
                         let midAngle = Self.sectorMidAngle(
                             index: index, aggregations: aggregations, total: total
                         )
-                        let isSmall = agg.percentage < smallSectorThreshold
-                        let labelDist = isSmall ? radius * 1.25 : radius * 0.78
                         let radians = midAngle * .pi / 180
-                        let posX = center.x + CGFloat(cos(radians)) * labelDist
-                        let posY = center.y + CGFloat(sin(radians)) * labelDist
+                        let isSmall = agg.percentage < smallSectorThreshold
 
-                        VStack(spacing: 0) {
+                        // 扇区内部标签：科目名称
+                        if !isSmall {
+                            let insideX = center.x + CGFloat(cos(radians)) * ringMidRadius
+                            let insideY = center.y + CGFloat(sin(radians)) * ringMidRadius
+
                             Text(agg.category.name)
-                                .font(.system(size: isSmall ? 9 : 10, weight: .medium))
-                                .foregroundColor(isSmall ? .holoTextPrimary : .white)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.white)
                                 .lineLimit(1)
                                 .fixedSize()
-                            Text(agg.formattedPercentage)
-                                .font(.system(size: isSmall ? 8 : 9))
-                                .foregroundColor(isSmall ? .holoTextSecondary : .white.opacity(0.85))
-                                .fixedSize()
+                                .shadow(color: .black.opacity(0.5), radius: 1, y: 1)
+                                .position(x: insideX, y: insideY)
                         }
-                        .shadow(color: isSmall ? .clear : .black.opacity(0.4), radius: 1, y: 1)
-                        .position(x: posX, y: posY)
+
+                        // 扇区外部标签：百分比（与扇区中心对齐）
+                        let outsideX = center.x + CGFloat(cos(radians)) * outsideRadius
+                        let outsideY = center.y + CGFloat(sin(radians)) * outsideRadius
+
+                        Group {
+                            if isSmall {
+                                // 小扇区：外部同时显示科目和百分比
+                                Text("\(agg.category.name) \(agg.formattedPercentage)")
+                                    .font(.system(size: 9))
+                            } else {
+                                Text(agg.formattedPercentage)
+                                    .font(.system(size: 10))
+                            }
+                        }
+                        .foregroundColor(.holoTextSecondary)
+                        .fixedSize()
+                        .position(x: outsideX, y: outsideY)
                     }
                 }
             }
@@ -141,46 +161,40 @@ struct PieChartView: View {
         return currentAngle + sectorAngle / 2
     }
 
-    // MARK: - 中心信息（无图标）
+    // MARK: - 中心信息
 
     private var centerInfo: some View {
         VStack(spacing: 2) {
             if let agg = selectedAggregation {
-                // 分类名称
                 Text(agg.category.name)
                     .font(.holoCaption)
                     .foregroundColor(.holoTextPrimary)
                     .lineLimit(1)
                     .transition(.opacity)
 
-                // 占比
-                Text(agg.formattedPercentage)
-                    .font(.system(size: 20, weight: .bold))
+                Text(agg.formattedAmount)
+                    .font(.system(size: 16, weight: .bold))
                     .foregroundColor(agg.category.swiftUIColor)
                     .transition(.scale.combined(with: .opacity))
-
-                // 金额
-                Text(agg.formattedAmount)
-                    .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
-                    .transition(.opacity)
             } else {
-                // 显示总计
-                Text("总计")
-                    .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
-
                 Text(NumberFormatter.currency.string(from: totalAmount as NSDecimalNumber) ?? "¥0")
-                    .font(.system(size: 18, weight: .bold))
+                    .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.holoTextPrimary)
 
                 Text("\(aggregations.count) 个分类")
-                    .font(.holoLabel)
+                    .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)
             }
         }
         .animation(.easeInOut(duration: 0.25), value: selectedCategory)
-        .frame(width: 100)
+        .frame(width: outerCenterWidth)
+    }
+
+    /// 中心区域宽度（根据 innerRadius 比例计算）
+    private var outerCenterWidth: CGFloat {
+        // innerRadius ratio = 0.45，所以中心圆直径约为饼图直径的 45%
+        // 饼图高度 240 → 半径 120 → 中心圆直径 120 * 0.45 * 2 ≈ 108
+        100
     }
 
     // MARK: - 空状态
@@ -266,7 +280,7 @@ struct PieChartInteractionOverlay: UIViewRepresentable {
             let dy = point.y - center.y
             let distance = sqrt(dx * dx + dy * dy)
             let radius = min(bounds.width, bounds.height) / 2
-            return distance > radius * 0.45 && distance < radius * 1.05
+            return distance > radius * 0.35 && distance < radius * 1.05
         }
 
         /// 根据触摸点计算对应的分类
@@ -277,7 +291,7 @@ struct PieChartInteractionOverlay: UIViewRepresentable {
             let distance = sqrt(dx * dx + dy * dy)
             let radius = min(bounds.width, bounds.height) / 2
 
-            guard distance > radius * 0.55 && distance < radius else { return nil }
+            guard distance > radius * 0.35 && distance < radius else { return nil }
 
             var angle = atan2(dy, dx) * 180 / .pi
             if angle < 0 { angle += 360 }

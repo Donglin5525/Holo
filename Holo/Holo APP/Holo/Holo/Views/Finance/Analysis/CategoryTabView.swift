@@ -33,13 +33,13 @@ struct CategoryTabView: View {
                     drillDownHeader
                 }
 
-                // 柱状图 + 折线图组合
-                CategoryBarLineChartView(
+                // 饼图
+                PieChartView(
                     aggregations: currentAggregations,
                     selectedCategory: selectedCategory
                 ) { category in
                     withAnimation(.easeInOut(duration: 0.25)) {
-                        selectedCategory = category
+                        handleCategoryTap(category)
                     }
                 }
 
