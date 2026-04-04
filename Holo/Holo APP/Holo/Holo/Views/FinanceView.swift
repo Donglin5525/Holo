@@ -788,13 +788,10 @@ struct FinanceAnalysisView: View {
             // 顶部栏
             headerView
 
-            // 时间范围选择器
-            TimeRangeSelector(state: state) {
+            // 时间范围标签（含自定义按钮）
+            TimeRangeLabel(state: state) {
                 showCustomDateSheet = true
             }
-
-            // 时间范围标签
-            TimeRangeLabel(state: state)
 
             // Tab 栏
             tabBar
@@ -866,26 +863,20 @@ struct FinanceAnalysisView: View {
                 selectedTab = tab
             }
         } label: {
-            VStack(spacing: HoloSpacing.xs) {
-                Image(systemName: tab.icon)
-                    .font(.system(size: 18, weight: selectedTab == tab ? .semibold : .medium))
-                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
-
-                Text(tab.rawValue)
-                    .font(.holoCaption)
-                    .fontWeight(selectedTab == tab ? .semibold : .medium)
-                    .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, HoloSpacing.sm)
-            .background(
-                VStack {
-                    Spacer()
-                    Rectangle()
-                        .fill(selectedTab == tab ? Color.holoPrimary : Color.clear)
-                        .frame(height: 2)
-                }
-            )
+            Text(tab.rawValue)
+                .font(.holoCaption)
+                .fontWeight(selectedTab == tab ? .semibold : .medium)
+                .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, HoloSpacing.xs)
+                .background(
+                    VStack {
+                        Spacer()
+                        Rectangle()
+                            .fill(selectedTab == tab ? Color.holoPrimary : Color.clear)
+                            .frame(height: 2)
+                    }
+                )
         }
         .buttonStyle(.plain)
     }

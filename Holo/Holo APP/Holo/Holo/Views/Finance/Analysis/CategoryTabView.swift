@@ -33,8 +33,8 @@ struct CategoryTabView: View {
                     drillDownHeader
                 }
 
-                // 饼图
-                PieChartView(
+                // 柱状图 + 折线图组合
+                CategoryBarLineChartView(
                     aggregations: currentAggregations,
                     selectedCategory: selectedCategory
                 ) { category in
