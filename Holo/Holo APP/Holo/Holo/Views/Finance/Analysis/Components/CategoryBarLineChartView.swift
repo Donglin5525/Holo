@@ -27,6 +27,10 @@ struct CategoryBarLineChartView: View {
     /// 折线颜色
     private let lineColor: Color = .holoPrimary
 
+    private var allValuesZero: Bool {
+        aggregations.allSatisfy { $0.amount == 0 }
+    }
+
     /// 最大金额（用于缩放折线数据）
     private var maxAmount: Double {
         let maxVal = aggregations.map { Double(truncating: $0.amount as NSDecimalNumber) }.max() ?? 1
@@ -43,7 +47,7 @@ struct CategoryBarLineChartView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            if aggregations.isEmpty {
+            if aggregations.isEmpty || allValuesZero {
                 emptyChartView
             } else {
                 chartContent

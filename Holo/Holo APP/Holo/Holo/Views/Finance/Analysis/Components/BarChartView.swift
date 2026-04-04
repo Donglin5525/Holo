@@ -16,13 +16,17 @@ struct BarChartView: View {
     let dataPoints: [ChartDataPoint]
     var onTapBar: ((Date) -> Void)? = nil
 
+    private var allValuesZero: Bool {
+        dataPoints.allSatisfy { $0.expense == 0 && $0.income == 0 }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
             // 图例
             chartLegend
 
             // 图表
-            if dataPoints.isEmpty {
+            if dataPoints.isEmpty || allValuesZero {
                 emptyChartView
             } else {
                 chartContent

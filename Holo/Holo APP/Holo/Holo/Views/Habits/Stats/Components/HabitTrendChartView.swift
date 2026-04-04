@@ -17,6 +17,10 @@ struct HabitTrendChartView: View {
     let selectedDate: Date?
     let onSelectDate: (Date?) -> Void
 
+    private var allValuesZero: Bool {
+        data.allSatisfy { $0.completionRate == 0 }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
             // 标题
@@ -25,7 +29,7 @@ struct HabitTrendChartView: View {
                 .foregroundColor(.holoTextPrimary)
 
             // 图表
-            if data.isEmpty {
+            if data.isEmpty || allValuesZero {
                 emptyChartView
             } else {
                 chartContent
