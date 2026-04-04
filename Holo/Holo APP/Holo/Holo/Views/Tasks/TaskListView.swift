@@ -645,7 +645,10 @@ struct TaskCardView: View {
         } else if task.isOverdue {
             return "已过期"
         } else {
-            return date.formatted(.dateTime.month().day())
+            let f = DateFormatter()
+            f.locale = Locale(identifier: "zh_CN")
+            f.dateFormat = "M月d日"
+            return f.string(from: date)
         }
     }
 
