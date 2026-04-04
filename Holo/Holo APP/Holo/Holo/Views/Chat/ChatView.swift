@@ -10,6 +10,7 @@ import SwiftUI
 
 struct ChatView: View {
 
+    @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel = ChatViewModel()
     @State private var showAISettings = false
 
@@ -17,13 +18,21 @@ struct ChatView: View {
         ZStack {
             Color.holoBackground.ignoresSafeArea()
 
-            if !viewModel.isConfigured {
-                // 未配置引导
-                unconfiguredView
-            } else {
-                // 对话内容
-                chatContent
+            VStack(spacing: 0) {
+                // 顶部导航栏
+                chatNavBar
+
+                if !viewModel.isConfigured {
+                    // 未配置引导
+                    unconfiguredView
+                } else {
+                    // 对话内容
+                    chatContent
+                }
             }
+        }
+        .swipeBackToDismiss {
+            dismiss()
         }
         .sheet(isPresented: $showAISettings) {
             NavigationStack {
@@ -33,6 +42,38 @@ struct ChatView: View {
         .onAppear {
             viewModel.configureFromSavedConfig()
         }
+    }
+
+    // MARK: - Navigation Bar
+
+    private var chatNavBar: some View {
+        HStack {
+            Button {
+                dismiss()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.holoTextSecondary)
+                    .frame(width: 32, height: 32)
+                    .background(Color.holoTextSecondary.opacity(0.1))
+                    .cornerRadius(16)
+            }
+
+            Spacer()
+
+            Text("HOLO AI")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(.holoTextPrimary)
+
+            Spacer()
+
+            // 右侧占位，保持标题居中
+            Color.clear
+                .frame(width: 32, height: 32)
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 8)
+        .padding(.bottom, 4)
     }
 
     // MARK: - Unconfigured View
