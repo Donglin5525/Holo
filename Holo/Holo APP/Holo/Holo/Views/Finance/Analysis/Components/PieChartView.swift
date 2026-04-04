@@ -26,6 +26,10 @@ struct PieChartView: View {
     /// 小扇区阈值（占比低于此值时内部不显示标签）
     private let smallSectorThreshold: Double = 6
 
+    private var nonZeroAggregations: [CategoryAggregation] {
+        aggregations.filter { $0.amount > 0 }
+    }
+
     // 选中的聚合数据
     private var selectedAggregation: CategoryAggregation? {
         guard let category = selectedCategory else {
@@ -41,7 +45,7 @@ struct PieChartView: View {
 
     var body: some View {
         VStack(spacing: HoloSpacing.md) {
-            if aggregations.isEmpty {
+            if nonZeroAggregations.isEmpty {
                 emptyChartView
             } else {
                 pieChartContent
@@ -54,8 +58,8 @@ struct PieChartView: View {
     private var pieChartContent: some View {
         ZStack {
             // 饼图
-            Chart(aggregations) { agg in
-                let index = aggregations.firstIndex(where: { $0.id == agg.id }) ?? 0
+            Chart(nonZeroAggregations) { agg in
+                let index = nonZeroAggregations.firstIndex(where: { $0.id == agg.id }) ?? 0
                 SectorMark(
                     angle: .value("金额", Double(truncating: agg.amount as NSDecimalNumber)),
                     innerRadius: .ratio(0.45),
@@ -69,7 +73,7 @@ struct PieChartView: View {
             .chartOverlay { _ in
                 ZStack {
                     PieChartInteractionOverlay(
-                        aggregations: aggregations,
+                        aggregations: nonZeroAggregations,
                         onSelect: { category in
                             onSelectCategory?(category)
                         }
@@ -88,7 +92,7 @@ struct PieChartView: View {
 
     @ViewBuilder
     private var labelsOverlay: some View {
-        if !aggregations.isEmpty {
+        if !nonZeroAggregations.isEmpty {
             GeometryReader { geometry in
                 let center = CGPoint(x: geometry.size.width / 2, y: geometry.size.height / 2)
                 let outerRadius = min(geometry.size.width, geometry.size.height) / 2
@@ -96,14 +100,14 @@ struct PieChartView: View {
                 let ringMidRadius = (outerRadius + innerRadius) / 2
                 let outsideRadius = outerRadius * 1.15
 
-                let total = aggregations.reduce(0.0) {
+                let total = nonZeroAggregations.reduce(0.0) {
                     $0 + Double(truncating: $1.amount as NSDecimalNumber)
                 }
 
                 if total > 0 {
-                    ForEach(Array(aggregations.enumerated()), id: \.element.id) { index, agg in
+                    ForEach(Array(nonZeroAggregations.enumerated()), id: \.element.id) { index, agg in
                         let midAngle = Self.sectorMidAngle(
-                            index: index, aggregations: aggregations, total: total
+                            index: index, aggregations: nonZeroAggregations, total: total
                         )
                         let radians = midAngle * .pi / 180
                         let isSmall = agg.percentage < smallSectorThreshold
@@ -293,7 +297,9 @@ struct PieChartInteractionOverlay: UIViewRepresentable {
 
             guard distance > radius * 0.35 && distance < radius else { return nil }
 
-            var angle = atan2(dy, dx) * 180 / .pi
+            // 将触摸角度转换为从正上方（12 点钟方向）顺时针 0-360°
+            let rawAngle = atan2(dy, dx) * 180 / .pi
+            var angle = rawAngle + 90
             if angle < 0 { angle += 360 }
 
             let total = aggregations.reduce(0.0) {
@@ -301,7 +307,7 @@ struct PieChartInteractionOverlay: UIViewRepresentable {
             }
             guard total > 0 else { return nil }
 
-            var currentAngle = -90.0
+            var currentAngle = 0.0
             for agg in aggregations {
                 let sectorAngle = (Double(truncating: agg.amount as NSDecimalNumber) / total) * 360
                 if angle >= currentAngle && angle < currentAngle + sectorAngle {
@@ -326,9 +332,7 @@ struct PieChartInteractionOverlay: UIViewRepresentable {
             guard let view = gesture.view as? InteractionView else { return }
             let location = gesture.location(in: view)
             let category = view.categoryAtPoint(location)
-            withAnimation(.easeInOut(duration: 0.2)) {
-                parent.onSelect(category)
-            }
+            parent.onSelect(category)
         }
 
         /// 允许与 ScrollView 手势同时识别

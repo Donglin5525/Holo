@@ -38,9 +38,7 @@ struct CategoryTabView: View {
                     aggregations: currentAggregations,
                     selectedCategory: selectedCategory
                 ) { category in
-                    withAnimation(.easeInOut(duration: 0.25)) {
-                        handleCategoryTap(category)
-                    }
+                    handleCategoryTap(category)
                 }
 
                 // 分类列表
@@ -49,9 +47,7 @@ struct CategoryTabView: View {
                     selectedCategory: selectedCategory,
                     colors: chartColors
                 ) { category in
-                    withAnimation(.easeInOut(duration: 0.25)) {
-                        handleCategoryTap(category)
-                    }
+                    handleCategoryTap(category)
                 }
 
                 // 选中分类的详情
@@ -149,23 +145,29 @@ struct CategoryTabView: View {
 
     private func handleCategoryTap(_ category: Category?) {
         guard let category = category else {
-            selectedCategory = nil
+            withAnimation(.easeInOut(duration: 0.25)) {
+                selectedCategory = nil
+            }
             return
         }
 
-        // 如果已在下钻模式，只更新选中状态
+        // 如果已在下钻模式，只更新选中状态（可安全动画）
         if state.isDrillingDown {
-            selectedCategory = category
+            withAnimation(.easeInOut(duration: 0.25)) {
+                selectedCategory = category
+            }
             return
         }
 
         // 检查是否有二级分类（用于下钻）
         if category.isTopLevel {
-            // 进入下钻模式
-            selectedCategory = category
+            // 下钻会改变图表数据源，禁止动画避免 Swift Charts 崩溃
+            selectedCategory = nil
             state.drillDown(category: category)
         } else {
-            selectedCategory = category
+            withAnimation(.easeInOut(duration: 0.25)) {
+                selectedCategory = category
+            }
         }
     }
 

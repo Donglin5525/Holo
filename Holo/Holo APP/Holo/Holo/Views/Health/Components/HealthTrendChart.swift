@@ -16,6 +16,10 @@ struct HealthTrendChart: View {
     let data: [DailyHealthData]
     let type: HealthMetricType
 
+    private var allValuesZero: Bool {
+        data.allSatisfy { $0.value == 0 }
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -35,7 +39,7 @@ struct HealthTrendChart: View {
                 }
             }
 
-            if data.isEmpty {
+            if data.isEmpty || allValuesZero {
                 emptyChartView
             } else {
                 chartContent

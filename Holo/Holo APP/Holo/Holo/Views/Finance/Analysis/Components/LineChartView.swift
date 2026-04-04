@@ -17,13 +17,17 @@ struct LineChartView: View {
     let selectedDate: Date?
     let onSelectDate: (Date?) -> Void
 
+    private var allValuesZero: Bool {
+        dataPoints.allSatisfy { $0.expense == 0 && $0.income == 0 }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
             // 图例
             chartLegend
 
             // 图表
-            if dataPoints.isEmpty {
+            if dataPoints.isEmpty || allValuesZero {
                 emptyChartView
             } else {
                 chartContent
@@ -84,15 +88,18 @@ struct LineChartView: View {
             // 选中高亮
             if let selectedDate = selectedDate,
                Calendar.current.isDate(point.date, inSameDayAs: selectedDate) {
-                RectangleMark(
-                    x: .value("日期", point.label),
-                    yStart: .value("底部", 0),
-                    yEnd: .value("顶部", max(
-                        Double(truncating: point.expense as NSDecimalNumber),
-                        Double(truncating: point.income as NSDecimalNumber)
-                    ) * 1.1)
-                )
-                .foregroundStyle(Color.holoPrimary.opacity(0.1))
+                let yEndValue = max(
+                    Double(truncating: point.expense as NSDecimalNumber),
+                    Double(truncating: point.income as NSDecimalNumber)
+                ) * 1.1
+                if yEndValue > 0 {
+                    RectangleMark(
+                        x: .value("日期", point.label),
+                        yStart: .value("底部", 0),
+                        yEnd: .value("顶部", yEndValue)
+                    )
+                    .foregroundStyle(Color.holoPrimary.opacity(0.1))
+                }
             }
         }
         .chartXAxis {
