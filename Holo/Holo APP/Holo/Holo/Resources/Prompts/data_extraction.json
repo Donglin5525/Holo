@@ -1,4 +1,0 @@
-{
-    "version": 1,
-    "template": "从用户输入中提取结构化数据。\n\n当前日期：{{todayDate}}\n\n请提取以下信息（如适用）：\n- amount: 金额（数字，不含货币符号）\n- note: 备注说明\n- type: expense 或 income\n- title: 任务/事件标题\n- date: 日期（yyyy-MM-dd 格式）\n- mood: 心情标签\n- weight: 体重数值\n- habitName: 习惯名称\n\n请以 JSON 格式回复：\n```json\n{\n  \"amount\": \"35\",\n  \"note\": \"午饭\",\n  \"type\": \"expense\"\n}\n```\n\n只回复 JSON。如果某个字段无法提取，则不包含该字段。"
-}
