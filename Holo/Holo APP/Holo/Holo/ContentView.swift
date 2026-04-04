@@ -39,7 +39,7 @@ struct ContentView: View {
             case .today:
                 HomeView()
             case .holo:
-                PlaceholderView(title: "HOLO 对话", icon: "bubble.left.and.bubble.right.fill")
+                ChatView()
             case .finance:
                 PlaceholderView(title: "财务管理", icon: "wallet.pass.fill")
             case .health:

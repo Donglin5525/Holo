@@ -1,7 +1,7 @@
 # HOLO - 个人数据资产 + AI 规划 iOS 应用
 
 **技术栈**：SwiftUI, Swift 5+, MVVM, Core Data
-**核心模块**：记账 ✅ | 习惯追踪 ✅ | 待办 🚧 | 健康 📋 | 观点 📋
+**核心模块**：记账 ✅ | 习惯追踪 ✅ | 待办 🚧 | 健康 📋 | 观点 📋 | AI 对话 ✅
 
 ---
 
@@ -44,6 +44,7 @@
 | 错误处理 | 必须使用 `try-catch` |
 | ScrollView 滚动条 | 必须隐藏 `showsIndicators: false` |
 | DatePicker 语言 | 必须中文 `.environment(\.locale, Locale(identifier: "zh_CN"))` |
+| 日期显示 | 禁止 `Text(date, style: .date/.time)` 和 `date.formatted(.dateTime)`，必须用 `DateFormatter` + `locale = Locale(identifier: "zh_CN")` |
 | 右滑返回手势 | fullScreenCover 页面必须加 `.swipeBackToDismiss`，NavigationStack push 和 Sheet 系统自带 |
 | ScrollView 内自定义手势 | 禁止使用 SwiftUI `DragGesture`，必须用 `UIViewRepresentable` + `UIPanGestureRecognizer`，通过 `gestureRecognizerShouldBegin` 控制方向（垂直放行给 ScrollView） |
 
@@ -54,6 +55,12 @@ ScrollView(showsIndicators: false) { ... }
 // DatePicker 示例
 DatePicker("", selection: $date, displayedComponents: .date)
     .environment(\.locale, Locale(identifier: "zh_CN"))
+
+// 日期显示示例（禁止 Text(date, style:) / date.formatted()）
+let f = DateFormatter()
+f.locale = Locale(identifier: "zh_CN")
+f.dateFormat = "M月d日"
+return f.string(from: date)
 ```
 
 ### 图标管理

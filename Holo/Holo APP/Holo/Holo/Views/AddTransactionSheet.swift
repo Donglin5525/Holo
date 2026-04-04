@@ -39,8 +39,11 @@ struct AddTransactionSheet: View {
     /// 选中的分类
     @State private var selectedCategory: Category?
     
-    /// 备注
+    /// 备注（名称）
     @State private var note: String = ""
+
+    /// 备注（补充信息）
+    @State private var remark: String = ""
     
     /// 交易日期（编辑/新增时可修改）
     @State private var selectedDate: Date = Date()
@@ -145,12 +148,16 @@ struct AddTransactionSheet: View {
                             // 分类选择（CategoryPicker 自带内边距）
                             categorySection
 
-                            // 日期选择
-                            dateSection
+                            // 名称输入
+                            noteSection
                                 .padding(.horizontal, HoloSpacing.lg)
 
                             // 备注输入
-                            noteSection
+                            remarkSection
+                                .padding(.horizontal, HoloSpacing.lg)
+
+                            // 日期选择
+                            dateSection
                                 .padding(.horizontal, HoloSpacing.lg)
 
                             // 分期设置（仅新增模式）
@@ -329,13 +336,26 @@ struct AddTransactionSheet: View {
     
     // MARK: - Amount Section
     
-    /// 金额显示区域
+    /// 金额显示区域（含分类图标）
     private var amountSection: some View {
         VStack(spacing: HoloSpacing.xs) {
-            Text("金额")
-                .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
-            
+            // 分类图标 + 名称（动态展示当前选中分类）
+            if let category = selectedCategory {
+                HStack(spacing: HoloSpacing.sm) {
+                    ZStack {
+                        Circle()
+                            .fill(category.swiftUIColor.opacity(0.15))
+                            .frame(width: 36, height: 36)
+                        transactionCategoryIcon(category, size: 20)
+                    }
+                    Text(category.name)
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextSecondary)
+                }
+                .transition(.opacity)
+                .animation(.easeInOut(duration: 0.2), value: selectedCategory?.id)
+            }
+
             HStack(alignment: .firstTextBaseline, spacing: 4) {
                 Text("¥")
                     .font(.system(size: 24, weight: .bold))
@@ -443,17 +463,36 @@ struct AddTransactionSheet: View {
     
     // MARK: - Note Section
 
-    /// 备注输入区域
+    /// 名称输入区域
     private var noteSection: some View {
+        HStack(spacing: HoloSpacing.sm) {
+            Image(systemName: "pencil")
+                .font(.system(size: 18, weight: .medium))
+                .foregroundColor(.holoTextSecondary)
+
+            TextField("添加名称...", text: $note)
+                .font(.holoBody)
+                .foregroundColor(.primary)
+                .focused($isNoteFocused)
+        }
+        .padding(HoloSpacing.md)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+        .shadow(color: Color.black.opacity(0.04), radius: 4, x: 0, y: 2)
+    }
+
+    // MARK: - Remark Section
+
+    /// 备注输入区域
+    private var remarkSection: some View {
         HStack(spacing: HoloSpacing.sm) {
             Image(systemName: "note.text")
                 .font(.system(size: 18, weight: .medium))
                 .foregroundColor(.holoTextSecondary)
 
-            TextField("添加备注（选填）...", text: $note)
+            TextField("添加备注（选填）...", text: $remark)
                 .font(.holoBody)
-                .foregroundColor(.primary)  // 使用 primary 确保深色模式下可见
-                .focused($isNoteFocused)  // 绑定焦点状态，用于控制键盘切换
+                .foregroundColor(.primary)
         }
         .padding(HoloSpacing.md)
         .background(Color.holoCardBackground)
@@ -672,6 +711,7 @@ struct AddTransactionSheet: View {
         amountString = String(describing: absoluteAmount)
         selectedCategory = transaction.category
         note = transaction.note ?? ""
+        remark = transaction.remark ?? ""
         selectedDate = transaction.date
     }
     
@@ -966,6 +1006,7 @@ struct AddTransactionSheet: View {
                     updates.amount = amount
                     updates.category = category
                     updates.note = note.isEmpty ? nil : note
+                    updates.remark = remark.isEmpty ? nil : remark
                     updates.date = selectedDate
 
                     try await repository.updateTransaction(transaction, updates: updates)
@@ -980,7 +1021,8 @@ struct AddTransactionSheet: View {
                         category: category,
                         account: defaultAccount,
                         startDate: selectedDate,
-                        note: note.isEmpty ? nil : note
+                        note: note.isEmpty ? nil : note,
+                        remark: remark.isEmpty ? nil : remark
                     )
                 } else {
                     // 新增模式：使用 selectedDate（默认今天，长按日历时为指定日期）
@@ -991,6 +1033,7 @@ struct AddTransactionSheet: View {
                         account: defaultAccount,
                         date: selectedDate,
                         note: note.isEmpty ? nil : note,
+                        remark: remark.isEmpty ? nil : remark,
                         tags: nil
                     )
                 }
@@ -1040,6 +1083,7 @@ struct AddTransactionSheet: View {
                 updates.amount = amount
                 updates.category = category
                 updates.note = note.isEmpty ? nil : note
+                updates.remark = remark.isEmpty ? nil : remark
                 updates.date = selectedDate
 
                 try await repository.updateTransaction(transaction, updates: updates)
@@ -1054,7 +1098,8 @@ struct AddTransactionSheet: View {
                     category: category,
                     account: defaultAccount,
                     startDate: selectedDate,
-                    note: note.isEmpty ? nil : note
+                    note: note.isEmpty ? nil : note,
+                    remark: remark.isEmpty ? nil : remark
                 )
             } else {
                 // 新增模式
@@ -1065,6 +1110,7 @@ struct AddTransactionSheet: View {
                     account: defaultAccount,
                     date: selectedDate,
                     note: note.isEmpty ? nil : note,
+                    remark: remark.isEmpty ? nil : remark,
                     tags: nil
                 )
             }

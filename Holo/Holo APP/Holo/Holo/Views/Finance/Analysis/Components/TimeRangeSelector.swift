@@ -68,9 +68,10 @@ struct TimeRangeSelector: View {
 
 // MARK: - 时间范围显示标签
 
-/// 时间范围显示标签（显示当前选中的具体日期范围，可点击下钻，支持左右切换）
+/// 时间范围显示标签（显示当前选中的具体日期范围，可点击下钻，支持左右切换，含自定义按钮）
 struct TimeRangeLabel: View {
     @ObservedObject var state: FinanceAnalysisState
+    var onCustomTap: () -> Void
     @State private var showDatePicker: Bool = false
 
     private var dateRangeText: String {
@@ -143,7 +144,35 @@ struct TimeRangeLabel: View {
                 }
                 .buttonStyle(.plain)
             }
+
+            Spacer()
+
+            // 自定义按钮
+            Button {
+                onCustomTap()
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 12, weight: .medium))
+                    Text("自定义")
+                        .font(.holoCaption)
+                }
+                .foregroundColor(state.timeRange == .custom ? .white : .holoTextSecondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(
+                    Capsule()
+                        .fill(state.timeRange == .custom ? Color.holoPrimary : Color.holoCardBackground)
+                )
+                .overlay(
+                    Capsule()
+                        .stroke(state.timeRange == .custom ? Color.clear : Color.holoDivider, lineWidth: 1)
+                )
+            }
+            .buttonStyle(.plain)
         }
+        .padding(.horizontal, HoloSpacing.lg)
+        .padding(.vertical, HoloSpacing.xs)
         .sheet(isPresented: $showDatePicker) {
             DrillDownDatePicker(state: state)
         }
@@ -387,8 +416,7 @@ struct DrillDownDatePicker: View {
 
 #Preview("Time Range Selector") {
     VStack {
-        TimeRangeSelector(state: FinanceAnalysisState()) {}
-        TimeRangeLabel(state: FinanceAnalysisState())
+        TimeRangeLabel(state: FinanceAnalysisState()) {}
         Spacer()
     }
     .background(Color.holoBackground)

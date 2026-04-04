@@ -4,6 +4,111 @@
 
 ---
 
+## [2026-04-05] 财务分析页图表重构
+
+### 改进
+- 类别占比图表由饼图改为柱状图+折线图组合（柱状图显示金额，折线图显示占比百分比）
+- 合并时间范围选择器和标签为统一组件，新增自定义日期按钮
+- 分析页 Tab 栏简化样式，移除图标仅保留文字标签
+
+## [2026-04-05] 优化财务统计分析饼图
+
+### 改进
+- 饼图缩小一圈（240→200），中心区域去掉分类图标，信息更紧凑
+- 所有扇区均展示分类名称和占比，小扇区标签外延显示
+- 饼图交互使用 UIKit 手势替代 SwiftUI DragGesture，解决 ScrollView 冲突
+- 取消分析模块卡片背景，饼图/图例列表/分类详情与底色融为一体
+- 下钻返回按钮移除卡片样式，仅展示简洁文字按钮
+
+## [2026-04-05] 优化财务模块交易记录布局
+
+### 改进
+- 交易记录去掉独立卡片样式，改为列表行风格（分隔线替代卡片阴影）
+- 交易记录背景与页面底色融为一体，视觉更简洁
+- 交易行图标与"交易记录"标题左对齐
+- 增大"今日账本"标题与周视图之间的间距（8pt → 16pt）
+
+---
+
+## [2026-04-04] 新增 Prompt 本地编辑器
+
+### 新增
+- AI 设置页新增"Prompt 模板"入口，列出 6 个可编辑的提示词模板
+- PromptEditorView：查看、编辑、保存自定义 Prompt，支持变量预览
+- PromptEditorViewModel：编辑状态管理 + LLM 测试功能
+- PromptTestSheet：输入测试文本，发送到 LLM 实时查看响应
+- PromptManager 支持 UserDefaults 自定义覆盖，优先于硬编码默认值
+- 恢复默认：一键清除自定义 Prompt 回退到系统默认
+
+### 改进
+- PromptType 新增 displayName/displayDescription/icon UI 元数据
+
+### 修复
+- CategoryPicker 从 `.task` 改为 `.onAppear`，每次打开"记一笔"时重新加载"最近使用"分类
+- FinanceLedgerView 月份标题底部间距调整
+
+---
+
+## [2026-04-04] 新增 AI 对话模块
+
+### 新增
+- AI 对话主界面（ChatView）：消息列表 + 快捷操作栏 + 输入栏
+- 消息气泡（MessageBubbleView）：用户/AI 双样式，意图标签，流式打字动画
+- 流式文本渲染（StreamingTextView）：打字中闪烁光标，完成后 Markdown 渲染
+- 快捷操作栏（QuickActionBar）：记账/任务/观点/打卡/周报一键触发
+- AI 设置页（AISettingsView）：Provider 选择、API Key、模型配置、连接测试
+- AI 配置 ViewModel（AIConfigViewModel）：Keychain 安全存储、Provider 切换
+- ChatViewModel：消息管理、流式响应、意图路由
+- OpenAI 兼容 Provider：统一适配 DeepSeek/Qwen/Moonshot/Zhipu/自定义
+- MockAIProvider：关键词匹配意图识别 + 模拟流式响应
+- 网络层（APIClient + APIRequest + APIError + SSEParser）：重试退避、SSE 解析
+- KeychainService：API Key 安全存储
+- PromptManager：JSON 模板加载 + {{变量}} 替换
+- UserContextBuilder：从记账/习惯/任务/观点 Repository 构建用户上下文
+- IntentRouter：意图识别 → 本地 Repository 操作路由（记账/任务/观点/打卡）
+- ChatMessage Core Data 实体 + Repository
+- 6 个 Prompt 模板 JSON（系统提示/意图识别/数据提取/澄清/洞察/响应）
+- AI 数据模型（AIModels.swift、AIConfiguration.swift）
+
+### 变更
+- CoreDataStack 新增 createChatEntities() 方法
+- ContentView .holo tab 从占位视图替换为 ChatView
+- SettingsView 新增 AI 设置入口
+- 首页麦克风按钮连接 ChatView（fullScreenCover）
+
+---
+
+## [2026-04-04] 修复日期显示英文 + 开发规范更新
+
+### 修复
+- 任务列表卡片截止日期改用 DateFormatter + zh_CN，避免英文设备显示 "Apr 4"
+- 记账页日期行、交易时间已在上一提交修复
+
+### 变更
+- CLAUDE.md 编码约定新增日期显示规范（禁止 Text(date, style:) / date.formatted()）
+- 开发规范全局中文化章节补充禁止 API 列表和检查清单
+
+---
+
+## [2026-04-04] 账本页 UI 改版 — 月度卡片 + 显示设置
+
+### 新增
+- 月度收支概览卡片（MonthlySummaryCard），支持环比对比（如 4.1-4.4 vs 3.1-3.4），自动处理月份天数差异
+- 卡片右侧显示当日支出金额
+- 财务设置新增"显示设置"区块，支持切换"本月支出"/"本月收入"卡片显隐（默认仅显示支出）
+- FinanceDisplaySettings 单例，UserDefaults 持久化显示偏好
+
+### 变更
+- "今日账本"标题移至按钮行下方独占一行，修复居中对齐问题
+- 删除旧的日级支出/收入卡片（ExpenseCard、IncomeCard）
+- 整体布局间距收紧（标题、拖拽手柄、卡片、交易列表标题）
+- 卡片水平 padding 收窄 10pt
+
+### 修复
+- AddTransactionView 日期显示改用 DateFormatter + zh_CN locale（原 `Text(date, style: .date)` 不符合项目规范）
+
+---
+
 ## [2026-04-04] 任务完成按钮交互修复
 
 ### Bug 修复

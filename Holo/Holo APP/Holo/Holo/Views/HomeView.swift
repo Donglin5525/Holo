@@ -47,6 +47,9 @@ struct HomeView: View {
     /// 是否显示观点页面
     @State private var showThoughtsView: Bool = false
 
+    /// 是否显示 AI 对话页面
+    @State private var showChatView: Bool = false
+
     /// Deep Link 状态（通知点击跳转）
     @ObservedObject private var deepLinkState = DeepLinkState.shared
 
@@ -157,6 +160,11 @@ struct HomeView: View {
             ThoughtsView()
                 .preferredColorScheme(DarkModeManager.shared.colorScheme)
         }
+        // AI 对话页面（Full Screen Cover 形式）
+        .fullScreenCover(isPresented: $showChatView) {
+            ChatView()
+                .preferredColorScheme(DarkModeManager.shared.colorScheme)
+        }
         // 监听底部导航栏变化
         .onChange(of: selectedTab) { newValue in
             if newValue == .memory {
@@ -265,8 +273,7 @@ struct HomeView: View {
         ZStack {
             // 中央语音助手按钮
             VoiceAssistantButton {
-                // TODO: 激活语音助手
-                print("Voice assistant activated")
+                showChatView = true
             }
             
             // 五角形功能入口按钮（支持拖拽排序）

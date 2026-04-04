@@ -52,7 +52,15 @@ class CalendarState: ObservableObject {
     /// 选中日期支出/收入
     @Published var selectedDayExpense: Decimal = 0
     @Published var selectedDayIncome: Decimal = 0
-    
+
+    /// 本月支出/收入总计
+    @Published var currentMonthExpense: Decimal = 0
+    @Published var currentMonthIncome: Decimal = 0
+
+    /// 上月同期对比值（nil 表示无数据）
+    @Published var previousPeriodExpense: Decimal? = nil
+    @Published var previousPeriodIncome: Decimal? = nil
+
     /// 加载状态
     @Published var isLoading: Bool = false
     
@@ -129,11 +137,13 @@ class CalendarState: ObservableObject {
     
     // MARK: - 数据加载
     
-    /// 首次加载：当月汇总 + 当日交易
+    /// 首次加载：当月汇总 + 当日交易 + 月度汇总 + 环比
     func initialLoad() async {
         isLoading = true
         await loadMonthSummaries(for: currentMonth)
         await loadSelectedDayData()
+        loadMonthlySummary()
+        await loadPreviousPeriodComparison()
         isLoading = false
     }
     
@@ -141,12 +151,17 @@ class CalendarState: ObservableObject {
     func loadMonthSummaries(for month: Date) async {
         let key = month.startOfMonth
         if let cached = summaryCache[key] {
-            dailySummaries = cached; return
+            dailySummaries = cached
+            if currentMonth.startOfMonth == key { loadMonthlySummary() }
+            return
         }
         do {
             let data = try await repository.getDailySummaries(for: key)
             summaryCache[key] = data
-            if currentMonth.startOfMonth == key { dailySummaries = data }
+            if currentMonth.startOfMonth == key {
+                dailySummaries = data
+                loadMonthlySummary()
+            }
         } catch {
             print("[CalendarState] 加载月汇总失败: \(error)")
         }
@@ -172,9 +187,59 @@ class CalendarState: ObservableObject {
         Task {
             await loadMonthSummaries(for: currentMonth)
             await loadSelectedDayData()
+            await loadPreviousPeriodComparison()
         }
     }
     
+    // MARK: - 月度汇总 & 环比
+
+    /// 从已缓存的 dailySummaries 聚合当月总支出/收入
+    func loadMonthlySummary() {
+        var totalExpense: Decimal = 0
+        var totalIncome: Decimal = 0
+        for (_, summary) in dailySummaries {
+            totalExpense += summary.totalExpense
+            totalIncome += summary.totalIncome
+        }
+        currentMonthExpense = totalExpense
+        currentMonthIncome = totalIncome
+    }
+
+    /// 计算上月同期对比（如 4.1-4.4 vs 3.1-3.4）
+    func loadPreviousPeriodComparison() async {
+        let cal = Calendar.current
+        let dayIndex = cal.component(.day, from: selectedDate)
+
+        let previousMonthStart = currentMonth.addingMonths(-1)
+        let previousMonthDays = previousMonthStart.daysInMonth
+
+        // 处理月份天数差异：如 3.31 vs 2.28 → 取 min(31, 28) = 28
+        let effectiveDays = min(dayIndex, previousMonthDays)
+
+        // 确保上月数据已缓存
+        await loadMonthSummaries(for: previousMonthStart)
+
+        let prevKey = previousMonthStart.startOfMonth
+        guard let prevSummaries = summaryCache[prevKey] else {
+            previousPeriodExpense = nil
+            previousPeriodIncome = nil
+            return
+        }
+
+        var prevExpense: Decimal = 0
+        var prevIncome: Decimal = 0
+        for dayOffset in 0..<effectiveDays {
+            let date = previousMonthStart.addingDays(dayOffset)
+            if let summary = prevSummaries[date] {
+                prevExpense += summary.totalExpense
+                prevIncome += summary.totalIncome
+            }
+        }
+
+        previousPeriodExpense = prevExpense
+        previousPeriodIncome = prevIncome
+    }
+
     // MARK: - 内部
     
     private func loadMonthIfNeeded() {

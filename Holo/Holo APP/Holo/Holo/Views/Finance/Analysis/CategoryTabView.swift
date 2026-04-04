@@ -33,8 +33,8 @@ struct CategoryTabView: View {
                     drillDownHeader
                 }
 
-                // 饼图
-                PieChartView(
+                // 柱状图 + 折线图组合
+                CategoryBarLineChartView(
                     aggregations: currentAggregations,
                     selectedCategory: selectedCategory
                 ) { category in
@@ -109,7 +109,7 @@ struct CategoryTabView: View {
                 .padding(.vertical, HoloSpacing.sm)
                 .background(
                     RoundedRectangle(cornerRadius: HoloRadius.sm)
-                        .fill(isSelected ? Color.holoPrimary : Color.clear)
+                        .fill(isSelected ? Color.holoPrimary : Color.holoCardBackground)
                 )
         }
         .buttonStyle(.plain)
@@ -125,9 +125,9 @@ struct CategoryTabView: View {
             } label: {
                 HStack(spacing: HoloSpacing.xs) {
                     Image(systemName: "chevron.left")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: 14, weight: .medium))
                     Text("返回")
-                        .font(.holoCaption)
+                        .font(.holoBody)
                 }
                 .foregroundColor(.holoPrimary)
             }
@@ -143,10 +143,6 @@ struct CategoryTabView: View {
                 }
             }
         }
-        .padding(.horizontal, HoloSpacing.sm)
-        .padding(.vertical, HoloSpacing.xs)
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
     }
 
     // MARK: - 处理分类点击
@@ -215,12 +211,9 @@ struct CategoryTabView: View {
                 }
             }
             .padding(HoloSpacing.md)
-            .background(Color.holoBackground)
+            .background(Color.holoCardBackground.opacity(0.5))
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
         }
-        .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
     }
 }
 

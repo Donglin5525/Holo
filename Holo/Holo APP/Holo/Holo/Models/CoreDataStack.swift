@@ -88,7 +88,20 @@ class CoreDataStack {
     /// - Returns: NSManagedObjectModel
     private func createDataModel() -> NSManagedObjectModel {
         let model = NSManagedObjectModel()
-        
+        var entities: [NSEntityDescription] = []
+        entities.append(contentsOf: createFinanceEntities())
+        entities.append(contentsOf: createHabitEntities())
+        entities.append(contentsOf: createTodoEntities())
+        entities.append(contentsOf: createThoughtEntities())
+        entities.append(contentsOf: createChatEntities())
+        model.entities = entities
+        return model
+    }
+
+    // MARK: - Finance Entities
+
+    /// 创建财务相关实体（Transaction, Category, Account, HomeIconConfig）
+    private func createFinanceEntities() -> [NSEntityDescription] {
         // MARK: - Transaction Entity
         let transactionEntity = NSEntityDescription()
         transactionEntity.name = "Transaction"
@@ -130,7 +143,13 @@ class CoreDataStack {
         note.attributeType = .stringAttributeType
         note.isOptional = true
         attributes.append(note)
-        
+
+        let remark = NSAttributeDescription()
+        remark.name = "remark"
+        remark.attributeType = .stringAttributeType
+        remark.isOptional = true
+        attributes.append(remark)
+
         let tags = NSAttributeDescription()
         tags.name = "tags"
         tags.attributeType = .transformableAttributeType
@@ -347,7 +366,14 @@ class CoreDataStack {
         homeIconAttributes.append(iconUpdatedAt)
         
         homeIconConfigEntity.properties = homeIconAttributes
-        
+
+        return [transactionEntity, categoryEntity, accountEntity, homeIconConfigEntity]
+    }
+
+    // MARK: - Habit Entities
+
+    /// 创建习惯相关实体（Habit, HabitRecord）
+    private func createHabitEntities() -> [NSEntityDescription] {
         // MARK: - Habit Entity
         // 习惯实体，支持打卡型和数值型两种习惯
         let habitEntity = NSEntityDescription()
@@ -550,10 +576,14 @@ class CoreDataStack {
         // 将关系添加到实体属性中
         habitEntity.properties = habitAttributes + [habitRecordsRelation]
         habitRecordEntity.properties = habitRecordAttributes + [recordHabitRelation]
-        
-        // Add entities to model
-        model.entities = [transactionEntity, categoryEntity, accountEntity, homeIconConfigEntity, habitEntity, habitRecordEntity]
 
+        return [habitEntity, habitRecordEntity]
+    }
+
+    // MARK: - Todo Entities
+
+    /// 创建待办相关实体（TodoFolder, TodoList, TodoTask, TodoTag, CheckItem, RepeatRule）
+    private func createTodoEntities() -> [NSEntityDescription] {
         // MARK: - TodoFolder Entity
         // 待办文件夹实体，顶层容器
         let todoFolderEntity = NSEntityDescription()
@@ -1056,6 +1086,13 @@ class CoreDataStack {
         checkItemEntity.properties = checkItemAttributes + [checkItemTaskRelation]
         repeatRuleEntity.properties = repeatRuleAttributes + [ruleTaskRelation]
 
+        return [todoFolderEntity, todoListEntity, todoTaskEntity, todoTagEntity, checkItemEntity, repeatRuleEntity]
+    }
+
+    // MARK: - Thought Entities
+
+    /// 创建观点相关实体（Thought, ThoughtTag, ThoughtReference）
+    private func createThoughtEntities() -> [NSEntityDescription] {
         // MARK: - Thought Entity
         // 观点模块 - 想法实体
         let thoughtEntity = NSEntityDescription()
@@ -1247,12 +1284,75 @@ class CoreDataStack {
         thoughtTagEntity.properties = thoughtTagAttributes + [tagThoughtsRelation]
         thoughtReferenceEntity.properties = thoughtReferenceAttributes + [referenceSourceRelation, referenceTargetRelation]
 
-        // Add all entities to model
-        model.entities.append(contentsOf: [todoFolderEntity, todoListEntity, todoTaskEntity, todoTagEntity, checkItemEntity, repeatRuleEntity, thoughtEntity, thoughtTagEntity, thoughtReferenceEntity])
-
-        return model
+        return [thoughtEntity, thoughtTagEntity, thoughtReferenceEntity]
     }
-    
+
+    // MARK: - Chat Entities
+
+    /// 创建 AI 对话相关实体（ChatMessage）
+    private func createChatEntities() -> [NSEntityDescription] {
+        let chatMessageEntity = NSEntityDescription()
+        chatMessageEntity.name = "ChatMessage"
+        chatMessageEntity.managedObjectClassName = "ChatMessage"
+
+        var chatAttributes: [NSAttributeDescription] = []
+
+        let chatId = NSAttributeDescription()
+        chatId.name = "id"
+        chatId.attributeType = .UUIDAttributeType
+        chatId.isOptional = false
+        chatId.isIndexed = true
+        chatAttributes.append(chatId)
+
+        let chatRole = NSAttributeDescription()
+        chatRole.name = "role"
+        chatRole.attributeType = .stringAttributeType
+        chatRole.isOptional = false
+        chatAttributes.append(chatRole)
+
+        let chatContent = NSAttributeDescription()
+        chatContent.name = "content"
+        chatContent.attributeType = .stringAttributeType
+        chatContent.isOptional = false
+        chatAttributes.append(chatContent)
+
+        let chatTimestamp = NSAttributeDescription()
+        chatTimestamp.name = "timestamp"
+        chatTimestamp.attributeType = .dateAttributeType
+        chatTimestamp.isOptional = false
+        chatTimestamp.isIndexed = true
+        chatAttributes.append(chatTimestamp)
+
+        let chatIntent = NSAttributeDescription()
+        chatIntent.name = "intent"
+        chatIntent.attributeType = .stringAttributeType
+        chatIntent.isOptional = true
+        chatAttributes.append(chatIntent)
+
+        let chatExtractedData = NSAttributeDescription()
+        chatExtractedData.name = "extractedDataJSON"
+        chatExtractedData.attributeType = .stringAttributeType
+        chatExtractedData.isOptional = true
+        chatAttributes.append(chatExtractedData)
+
+        let chatIsStreaming = NSAttributeDescription()
+        chatIsStreaming.name = "isStreaming"
+        chatIsStreaming.attributeType = .booleanAttributeType
+        chatIsStreaming.isOptional = false
+        chatIsStreaming.defaultValue = false
+        chatAttributes.append(chatIsStreaming)
+
+        let chatParentMessageId = NSAttributeDescription()
+        chatParentMessageId.name = "parentMessageId"
+        chatParentMessageId.attributeType = .UUIDAttributeType
+        chatParentMessageId.isOptional = true
+        chatAttributes.append(chatParentMessageId)
+
+        chatMessageEntity.properties = chatAttributes
+
+        return [chatMessageEntity]
+    }
+
     /// 主上下文（用于 UI 操作）
     var viewContext: NSManagedObjectContext {
         persistentContainer.viewContext

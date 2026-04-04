@@ -1,0 +1,119 @@
+//
+//  KeychainService.swift
+//  Holo
+//
+//  Keychain 安全存储服务
+//  用于保存 API Key 等敏感信息
+//
+
+import Foundation
+import Security
+import os.log
+
+@MainActor
+final class KeychainService {
+
+    static let shared = KeychainService()
+
+    private let logger = Logger(subsystem: "com.holo.app", category: "KeychainService")
+
+    private init() {}
+
+    // MARK: - Base CRUD
+
+    func save(key: String, data: Data) throws {
+        // 先删除已有的
+        try? delete(key: key)
+
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: key,
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        ]
+
+        let status = SecItemAdd(query as CFDictionary, nil)
+
+        guard status == errSecSuccess else {
+            logger.error("Keychain save 失败: \(status)")
+            throw KeychainError.saveFailed(status)
+        }
+    }
+
+    func load(key: String) throws -> Data? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: key,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+
+        switch status {
+        case errSecSuccess:
+            return result as? Data
+        case errSecItemNotFound:
+            return nil
+        default:
+            logger.error("Keychain load 失败: \(status)")
+            throw KeychainError.loadFailed(status)
+        }
+    }
+
+    func delete(key: String) throws {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: key
+        ]
+
+        let status = SecItemDelete(query as CFDictionary)
+
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            logger.error("Keychain delete 失败: \(status)")
+            throw KeychainError.deleteFailed(status)
+        }
+    }
+
+    // MARK: - AI Config 便捷方法
+
+    private static let aiConfigKey = "com.holo.ai.config"
+
+    func saveAIConfig(_ config: AIProviderConfig) throws {
+        let data = try JSONEncoder().encode(config)
+        try save(key: Self.aiConfigKey, data: data)
+        logger.info("AI 配置已保存到 Keychain")
+    }
+
+    func loadAIConfig() throws -> AIProviderConfig? {
+        guard let data = try load(key: Self.aiConfigKey) else {
+            return nil
+        }
+        return try JSONDecoder().decode(AIProviderConfig.self, from: data)
+    }
+
+    func deleteAIConfig() throws {
+        try delete(key: Self.aiConfigKey)
+        logger.info("AI 配置已从 Keychain 删除")
+    }
+}
+
+// MARK: - Keychain Error
+
+enum KeychainError: LocalizedError {
+    case saveFailed(OSStatus)
+    case loadFailed(OSStatus)
+    case deleteFailed(OSStatus)
+
+    var errorDescription: String? {
+        switch self {
+        case .saveFailed(let status):
+            return "Keychain 保存失败（错误码：\(status)）"
+        case .loadFailed(let status):
+            return "Keychain 读取失败（错误码：\(status)）"
+        case .deleteFailed(let status):
+            return "Keychain 删除失败（错误码：\(status)）"
+        }
+    }
+}
