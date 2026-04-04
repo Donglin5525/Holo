@@ -49,6 +49,7 @@ class FinanceRepository {
         account: Account,
         date: Date = Date(),
         note: String? = nil,
+        remark: String? = nil,
         tags: [String]? = nil
     ) async throws -> Transaction {
         let transaction = Transaction(context: context)
@@ -59,6 +60,7 @@ class FinanceRepository {
         transaction.account = account
         transaction.date = date
         transaction.note = note
+        transaction.remark = remark
         transaction.tags = tags
         transaction.createdAt = Date()
         transaction.updatedAt = Date()
@@ -72,6 +74,7 @@ class FinanceRepository {
         if let acc = updates.account { transaction.account = acc }
         if let date = updates.date { transaction.date = date }
         if let note = updates.note { transaction.note = note }
+        if let remark = updates.remark { transaction.remark = remark }
         if let tags = updates.tags { transaction.tags = tags }
         transaction.updatedAt = Date()
         try context.save()
@@ -112,7 +115,8 @@ class FinanceRepository {
         category: Category,
         account: Account,
         startDate: Date,
-        note: String?
+        note: String?,
+        remark: String? = nil
     ) async throws -> [Transaction] {
         let groupId = UUID()
         let perPeriodBase = totalAmount / Decimal(periods)
@@ -140,6 +144,7 @@ class FinanceRepository {
             tx.account = account
             tx.date = periodDate
             tx.note = fullNote
+            tx.remark = remark
             tx.createdAt = Date()
             tx.updatedAt = Date()
             tx.installmentGroupId = groupId
@@ -1000,6 +1005,7 @@ struct TransactionUpdates {
     var account: Account?
     var date: Date?
     var note: String?
+    var remark: String?
     var tags: [String]?
 }
 

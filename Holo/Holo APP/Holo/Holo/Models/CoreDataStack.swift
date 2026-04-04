@@ -143,7 +143,13 @@ class CoreDataStack {
         note.attributeType = .stringAttributeType
         note.isOptional = true
         attributes.append(note)
-        
+
+        let remark = NSAttributeDescription()
+        remark.name = "remark"
+        remark.attributeType = .stringAttributeType
+        remark.isOptional = true
+        attributes.append(remark)
+
         let tags = NSAttributeDescription()
         tags.name = "tags"
         tags.attributeType = .transformableAttributeType

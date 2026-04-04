@@ -20,6 +20,7 @@ public class Transaction: NSManagedObject {
     @NSManaged public var type: String
     @NSManaged public var date: Date
     @NSManaged public var note: String?
+    @NSManaged public var remark: String?
     @NSManaged public var tags: [String]?
     @NSManaged public var createdAt: Date
     @NSManaged public var updatedAt: Date

@@ -1177,43 +1177,43 @@ struct DateDivider: View {
 struct TransactionRowView: View {
     let transaction: Transaction
     let onTap: () -> Void
-    
+
+    /// 是否有用户填写的名称
+    private var hasNote: Bool {
+        if let note = transaction.note, !note.isEmpty {
+            return true
+        }
+        return false
+    }
+
+    /// 是否有备注
+    private var hasRemark: Bool {
+        if let remark = transaction.remark, !remark.isEmpty {
+            return true
+        }
+        return false
+    }
+
     var body: some View {
         Button(action: onTap) {
             // 列表行风格：左侧分类信息，右侧金额严格对齐
             HStack(alignment: .center, spacing: HoloSpacing.md) {
-                // 分类图标 + 名称/备注
+                // 分类图标
                 categoryIcon
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(transaction.note ?? transaction.category.name)
+                    // 主标题
+                    Text(hasNote ? transaction.note! : transaction.category.name)
                         .font(.holoBody)
                         .foregroundColor(.holoTextPrimary)
                         .lineLimit(1)
 
-                    HStack(spacing: HoloSpacing.sm) {
-                        Text(transaction.category.name)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.holoTextSecondary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 2)
-                            .background(Color.holoBackground)
-                            .clipShape(Capsule())
-
-                        // 分期标签
-                        if let label = transaction.installmentLabel {
-                            Text(label)
-                                .font(.system(size: 11, weight: .medium))
-                                .foregroundColor(.holoPrimary)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.holoPrimary.opacity(0.15))
-                                .clipShape(Capsule())
-                        }
-
-                        Text(formatTime(transaction.date))
+                    // 副标题：有备注显示备注，无备注不显示副标题
+                    if hasRemark {
+                        Text(transaction.remark!)
                             .font(.system(size: 12))
                             .foregroundColor(.holoTextSecondary)
+                            .lineLimit(1)
                     }
                 }
 

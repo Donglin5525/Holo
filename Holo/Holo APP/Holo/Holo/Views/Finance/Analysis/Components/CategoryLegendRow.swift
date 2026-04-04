@@ -102,9 +102,8 @@ struct CategoryLegendList: View {
                 }
             }
         }
-        .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        .padding(.horizontal, HoloSpacing.sm)
+        .padding(.vertical, HoloSpacing.xs)
     }
 }
 
