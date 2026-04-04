@@ -4,6 +4,34 @@
 
 ---
 
+## [2026-04-04] 新增 AI 对话模块
+
+### 新增
+- AI 对话主界面（ChatView）：消息列表 + 快捷操作栏 + 输入栏
+- 消息气泡（MessageBubbleView）：用户/AI 双样式，意图标签，流式打字动画
+- 流式文本渲染（StreamingTextView）：打字中闪烁光标，完成后 Markdown 渲染
+- 快捷操作栏（QuickActionBar）：记账/任务/观点/打卡/周报一键触发
+- AI 设置页（AISettingsView）：Provider 选择、API Key、模型配置、连接测试
+- AI 配置 ViewModel（AIConfigViewModel）：Keychain 安全存储、Provider 切换
+- ChatViewModel：消息管理、流式响应、意图路由
+- OpenAI 兼容 Provider：统一适配 DeepSeek/Qwen/Moonshot/Zhipu/自定义
+- MockAIProvider：关键词匹配意图识别 + 模拟流式响应
+- 网络层（APIClient + APIRequest + APIError + SSEParser）：重试退避、SSE 解析
+- KeychainService：API Key 安全存储
+- PromptManager：JSON 模板加载 + {{变量}} 替换
+- UserContextBuilder：从记账/习惯/任务/观点 Repository 构建用户上下文
+- IntentRouter：意图识别 → 本地 Repository 操作路由（记账/任务/观点/打卡）
+- ChatMessage Core Data 实体 + Repository
+- 6 个 Prompt 模板 JSON（系统提示/意图识别/数据提取/澄清/洞察/响应）
+- AI 数据模型（AIModels.swift、AIConfiguration.swift）
+
+### 变更
+- CoreDataStack 新增 createChatEntities() 方法
+- ContentView .holo tab 从占位视图替换为 ChatView
+- SettingsView 新增 AI 设置入口
+
+---
+
 ## [2026-04-04] 修复日期显示英文 + 开发规范更新
 
 ### 修复

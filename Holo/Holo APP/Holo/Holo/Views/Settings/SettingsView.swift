@@ -22,6 +22,7 @@ struct SettingsView: View {
     // MARK: - Observed Objects
 
     @ObservedObject private var darkModeManager = DarkModeManager.shared
+    @State private var showAISettings = false
 
     // MARK: - Body
 
@@ -196,6 +197,21 @@ struct SettingsView: View {
                     .font(.holoBody)
                     .fontWeight(.semibold)
                     .foregroundColor(.holoTextPrimary)
+            }
+
+            // AI 设置
+            settingsRow(
+                icon: "sparkles",
+                iconColor: .purple,
+                title: "AI 助手",
+                subtitle: "配置 AI 对话服务"
+            ) {
+                showAISettings = true
+            }
+            .sheet(isPresented: $showAISettings) {
+                NavigationStack {
+                    AISettingsView()
+                }
             }
 
             // 关于
