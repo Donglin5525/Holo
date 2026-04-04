@@ -218,7 +218,7 @@ struct DatePickerRow: View {
                     
                     Spacer()
                     
-                    Text(date, style: .date)
+                    Text(formattedDate)
                         .foregroundColor(.holoTextPrimary)
                     
                     Image(systemName: "chevron.down")
@@ -239,6 +239,13 @@ struct DatePickerRow: View {
                 .environment(\.locale, Locale(identifier: "zh_CN"))
             }
         }
+    }
+
+    private var formattedDate: String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "zh_CN")
+        f.dateFormat = "yyyy年M月d日"
+        return f.string(from: date)
     }
 }
 

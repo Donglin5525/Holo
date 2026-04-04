@@ -447,71 +447,73 @@ struct FinanceLedgerView: View {
     
     /// 修复 #3（安全区）#4（单日期）#5（返回按钮）
     private var headerView: some View {
-        HStack {
-            // 返回按钮（确保可点击区域足够大）
-            Button(action: { onBack() }) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.holoTextPrimary)
-                    .frame(width: 40, height: 40)
-                    .background(Color.holoCardBackground)
-                    .clipShape(Circle())
-                    .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
+        VStack(spacing: 0) {
+            // Row 1: 返回按钮 | Spacer | 搜索 + 日历按钮
+            HStack {
+                Button(action: { onBack() }) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(.holoTextPrimary)
+                        .frame(width: 40, height: 40)
+                        .background(Color.holoCardBackground)
+                        .clipShape(Circle())
+                        .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
+                }
+
+                Spacer()
+
+                HStack(spacing: 8) {
+                    // 搜索按钮
+                    Button { showSearch = true } label: {
+                        Image(systemName: "magnifyingglass")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(.holoTextSecondary)
+                            .frame(width: 40, height: 40)
+                            .background(Color.holoCardBackground)
+                            .clipShape(Circle())
+                            .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+                    }
+
+                    // 「返回今天」按钮 — 仅在选中日期非今天时显示
+                    if !calendarState.selectedDate.isToday {
+                        Button {
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                calendarState.goToToday()
+                            }
+                        } label: {
+                            Text("今")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(.holoPrimary)
+                                .frame(width: 40, height: 40)
+                                .background(Color.holoPrimary.opacity(0.1))
+                                .clipShape(Circle())
+                        }
+                        .transition(.scale.combined(with: .opacity))
+                    }
+
+                    // 日历 icon → 弹出底部抽屉
+                    Button(action: { calendarState.showPopupCalendar() }) {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 20, weight: .medium))
+                            .foregroundColor(calendarState.isPopupVisible ? .holoPrimary : .holoTextSecondary)
+                            .frame(width: 40, height: 40)
+                            .background(Color.holoCardBackground)
+                            .clipShape(Circle())
+                            .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
+                    }
+                }
             }
-            
-            Spacer()
-            
-            // 仅保留一个标题（修复 #4：去掉小日期文字）
+            .padding(.horizontal, HoloSpacing.lg)
+            .padding(.top, 8)
+            .padding(.bottom, 4)
+
+            // Row 2: 标题居中（不受左右按钮宽度影响）
             Text(headerTitle)
                 .font(.holoTitle)
                 .foregroundColor(.holoTextPrimary)
-            
-            Spacer()
-            
-            HStack(spacing: 8) {
-                // 搜索按钮
-                Button { showSearch = true } label: {
-                    Image(systemName: "magnifyingglass")
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(.holoTextSecondary)
-                        .frame(width: 40, height: 40)
-                        .background(Color.holoCardBackground)
-                        .clipShape(Circle())
-                        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
-                }
-
-                // 「返回今天」按钮 — 仅在选中日期非今天时显示
-                if !calendarState.selectedDate.isToday {
-                    Button {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            calendarState.goToToday()
-                        }
-                    } label: {
-                        Text("今")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundColor(.holoPrimary)
-                            .frame(width: 40, height: 40)
-                            .background(Color.holoPrimary.opacity(0.1))
-                            .clipShape(Circle())
-                    }
-                    .transition(.scale.combined(with: .opacity))
-                }
-                
-                // 日历 icon → 弹出底部抽屉
-                Button(action: { calendarState.showPopupCalendar() }) {
-                    Image(systemName: "calendar")
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundColor(calendarState.isPopupVisible ? .holoPrimary : .holoTextSecondary)
-                        .frame(width: 40, height: 40)
-                        .background(Color.holoCardBackground)
-                        .clipShape(Circle())
-                        .shadow(color: .black.opacity(0.05), radius: 4, x: 0, y: 2)
-                }
-            }
+                .frame(maxWidth: .infinity)
+                .padding(.bottom, 4)
         }
-        .padding(.horizontal, HoloSpacing.lg)
-        .padding(.top, 8)
-        .padding(.bottom, 10)
         .background(Color.holoBackground)
     }
     
@@ -532,7 +534,7 @@ struct FinanceLedgerView: View {
                 .frame(width: 36, height: 4)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 24)
+        .frame(height: 16)
         .contentShape(Rectangle())
         .gesture(
             DragGesture(minimumDistance: 4)
@@ -555,19 +557,64 @@ struct FinanceLedgerView: View {
         )
     }
     
-    // MARK: - 收支概览卡片
-    
+    // MARK: - 月度收支概览卡片
+
     private var summaryCards: some View {
-        HStack(spacing: HoloSpacing.md) {
-            ExpenseCard(amount: calendarState.selectedDayExpense)
-            IncomeCard(amount: calendarState.selectedDayIncome)
+        @ObservedObject var displaySettings = FinanceDisplaySettings.shared
+
+        let showExpense = displaySettings.showMonthlyExpense
+        let showIncome = displaySettings.showMonthlyIncome
+
+        return Group {
+            if showExpense && showIncome {
+                HStack(spacing: HoloSpacing.sm) {
+                    monthlyCard("本月支出", amount: calendarState.currentMonthExpense,
+                                previous: calendarState.previousPeriodExpense,
+                                icon: "arrow.down.right", color: .holoError,
+                                light: Color.holoErrorLight, compact: true,
+                                todayAmount: calendarState.selectedDayExpense)
+                    monthlyCard("本月收入", amount: calendarState.currentMonthIncome,
+                                previous: calendarState.previousPeriodIncome,
+                                icon: "arrow.up.right", color: .holoSuccess,
+                                light: Color.holoSuccessLight, compact: true)
+                }
+            } else if showExpense {
+                monthlyCard("本月支出", amount: calendarState.currentMonthExpense,
+                            previous: calendarState.previousPeriodExpense,
+                            icon: "arrow.down.right", color: .holoError,
+                            light: Color.holoErrorLight, compact: false,
+                            todayAmount: calendarState.selectedDayExpense)
+            } else if showIncome {
+                monthlyCard("本月收入", amount: calendarState.currentMonthIncome,
+                            previous: calendarState.previousPeriodIncome,
+                            icon: "arrow.up.right", color: .holoSuccess,
+                            light: Color.holoSuccessLight, compact: false)
+            }
         }
-        .padding(.horizontal, HoloSpacing.lg)
-        .padding(.vertical, HoloSpacing.md)
+        .padding(.horizontal, 14)
+        .padding(.vertical, HoloSpacing.sm)
     }
-    
+
+    /// 构建月度卡片，减少重复代码
+    private func monthlyCard(_ title: String, amount: Decimal, previous: Decimal?,
+                             icon: String, color: Color, light: Color, compact: Bool,
+                             todayAmount: Decimal? = nil) -> some View {
+        MonthlySummaryCard(
+            title: title,
+            amount: amount,
+            previousAmount: previous,
+            iconName: icon,
+            iconColor: color,
+            gradientStart: light.opacity(0.5),
+            gradientEnd: Color.holoCardBackground.opacity(0.2),
+            strokeColor: color.opacity(0.12),
+            isCompact: compact,
+            todayAmount: todayAmount
+        )
+    }
+
     // MARK: - 交易列表（按选中日期）
-    
+
     private var transactionListView: some View {
         VStack(spacing: 0) {
             HStack {
@@ -577,7 +624,8 @@ struct FinanceLedgerView: View {
                 Spacer()
             }
             .padding(.horizontal, HoloSpacing.lg)
-            .padding(.vertical, HoloSpacing.md)
+            .padding(.top, HoloSpacing.sm)
+            .padding(.bottom, HoloSpacing.xs)
             
             VStack(spacing: HoloSpacing.sm) {
                 ForEach(calendarState.selectedDayTransactions, id: \.self) { tx in
@@ -873,6 +921,7 @@ struct FinanceAnalysisView: View {
 /// 财务设置视图 — 包含数据导入导出等功能
 struct FinanceSettingsView: View {
     let onBack: () -> Void
+    @ObservedObject private var displaySettings = FinanceDisplaySettings.shared
 
     var body: some View {
         NavigationStack {
@@ -890,23 +939,58 @@ struct FinanceSettingsView: View {
                         .clipShape(Circle())
                         .shadow(color: Color.black.opacity(0.05), radius: 4, x: 0, y: 2)
                 }
-                
+
                 Spacer()
-                
+
                 Text("设置")
                     .font(.holoTitle)
                     .foregroundColor(.holoTextPrimary)
-                
+
                 Spacer()
-                
+
                 Color.clear.frame(width: 36, height: 36)
             }
             .padding(.horizontal, HoloSpacing.lg)
             .padding(.top, 0)
             .padding(.bottom, HoloSpacing.md)
-            
+
             ScrollView {
                 VStack(spacing: HoloSpacing.xl) {
+                    // 显示设置模块
+                    VStack(spacing: 0) {
+                        HStack {
+                            Text("显示设置")
+                                .font(.holoLabel)
+                                .foregroundColor(.holoTextSecondary)
+                            Spacer()
+                        }
+                        .padding(.horizontal, HoloSpacing.lg)
+                        .padding(.bottom, HoloSpacing.sm)
+
+                        VStack(spacing: 0) {
+                            FinanceDisplayToggleRow(
+                                title: "本月支出",
+                                icon: "arrow.down.right",
+                                iconColor: .holoError,
+                                isOn: $displaySettings.showMonthlyExpense
+                            )
+
+                            Divider().padding(.leading, 60)
+
+                            FinanceDisplayToggleRow(
+                                title: "本月收入",
+                                icon: "arrow.up.right",
+                                iconColor: .holoSuccess,
+                                isOn: $displaySettings.showMonthlyIncome
+                            )
+                        }
+                        .padding(HoloSpacing.md)
+                        .background(Color.holoCardBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                        .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
+                        .padding(.horizontal, HoloSpacing.lg)
+                    }
+
                     // 数据导入导出模块
                     ImportExportView()
 
@@ -959,41 +1043,34 @@ struct FinanceSettingsView: View {
     }
 }
 
-// MARK: - Expense Card
+// MARK: - 显示设置 Toggle 行
 
-/// 支出卡片（去边框 / 微观渐变 / 负空间 / 毛玻璃）
-struct ExpenseCard: View {
-    let amount: Decimal
-    
+struct FinanceDisplayToggleRow: View {
+    let title: String
+    let icon: String
+    let iconColor: Color
+    @Binding var isOn: Bool
+
     var body: some View {
-        SummaryCard(
-            title: "支出",
-            amount: amount,
-            iconName: "arrow.down.right",
-            iconColor: .holoError,
-            gradientStart: Color.holoErrorLight.opacity(0.5),
-            gradientEnd: Color.holoCardBackground.opacity(0.2),
-            strokeColor: Color.holoError.opacity(0.12)
-        )
-    }
-}
+        HStack {
+            Image(systemName: icon)
+                .font(.system(size: 16))
+                .foregroundColor(iconColor)
+                .frame(width: 36, height: 36)
+                .background(iconColor.opacity(0.1))
+                .clipShape(Circle())
 
-// MARK: - Income Card
+            Text(title)
+                .font(.holoBody)
+                .foregroundColor(.holoTextPrimary)
 
-/// 收入卡片（去边框 / 微观渐变 / 负空间 / 毛玻璃）
-struct IncomeCard: View {
-    let amount: Decimal
-    
-    var body: some View {
-        SummaryCard(
-            title: "收入",
-            amount: amount,
-            iconName: "arrow.up.right",
-            iconColor: .holoSuccess,
-            gradientStart: Color.holoSuccessLight.opacity(0.5),
-            gradientEnd: Color.holoCardBackground.opacity(0.2),
-            strokeColor: Color.holoSuccess.opacity(0.12)
-        )
+            Spacer()
+
+            Toggle("", isOn: $isOn)
+                .labelsHidden()
+                .tint(.holoPrimary)
+        }
+        .padding(.vertical, HoloSpacing.sm)
     }
 }
 
@@ -1127,7 +1204,7 @@ struct TransactionRowView: View {
                                 .clipShape(Capsule())
                         }
 
-                        Text(transaction.date, style: .time)
+                        Text(formatTime(transaction.date))
                             .font(.system(size: 12))
                             .foregroundColor(.holoTextSecondary)
                     }
@@ -1157,9 +1234,16 @@ struct TransactionRowView: View {
             Circle()
                 .fill(transaction.category.swiftUIColor.opacity(0.1))
                 .frame(width: 48, height: 48)
-            
+
             transactionCategoryIcon(transaction.category, size: 24)
         }
+    }
+
+    private func formatTime(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "zh_CN")
+        f.dateFormat = "HH:mm"
+        return f.string(from: date)
     }
 }
 

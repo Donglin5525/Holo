@@ -4,6 +4,25 @@
 
 ---
 
+## [2026-04-04] 账本页 UI 改版 — 月度卡片 + 显示设置
+
+### 新增
+- 月度收支概览卡片（MonthlySummaryCard），支持环比对比（如 4.1-4.4 vs 3.1-3.4），自动处理月份天数差异
+- 卡片右侧显示当日支出金额
+- 财务设置新增"显示设置"区块，支持切换"本月支出"/"本月收入"卡片显隐（默认仅显示支出）
+- FinanceDisplaySettings 单例，UserDefaults 持久化显示偏好
+
+### 变更
+- "今日账本"标题移至按钮行下方独占一行，修复居中对齐问题
+- 删除旧的日级支出/收入卡片（ExpenseCard、IncomeCard）
+- 整体布局间距收紧（标题、拖拽手柄、卡片、交易列表标题）
+- 卡片水平 padding 收窄 10pt
+
+### 修复
+- AddTransactionView 日期显示改用 DateFormatter + zh_CN locale（原 `Text(date, style: .date)` 不符合项目规范）
+
+---
+
 ## [2026-04-04] 任务完成按钮交互修复
 
 ### Bug 修复
