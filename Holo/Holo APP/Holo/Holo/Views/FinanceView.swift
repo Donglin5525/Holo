@@ -664,8 +664,6 @@ struct FinanceLedgerView: View {
                         .padding(.top, 40)
                 }
             }
-            .background(Color.holoCardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
             .padding(.horizontal, HoloSpacing.lg)
         }
         // 普通交易删除确认
@@ -1182,17 +1180,17 @@ struct TransactionRowView: View {
     
     var body: some View {
         Button(action: onTap) {
-            // 等价 flex justify-between items-center：左侧分类信息，右侧金额严格对齐
+            // 列表行风格：左侧分类信息，右侧金额严格对齐
             HStack(alignment: .center, spacing: HoloSpacing.md) {
                 // 分类图标 + 名称/备注
                 categoryIcon
-                
+
                 VStack(alignment: .leading, spacing: 4) {
                     Text(transaction.note ?? transaction.category.name)
                         .font(.holoBody)
                         .foregroundColor(.holoTextPrimary)
                         .lineLimit(1)
-                    
+
                     HStack(spacing: HoloSpacing.sm) {
                         Text(transaction.category.name)
                             .font(.system(size: 12, weight: .medium))
@@ -1218,9 +1216,9 @@ struct TransactionRowView: View {
                             .foregroundColor(.holoTextSecondary)
                     }
                 }
-                
+
                 Spacer(minLength: 0)
-                
+
                 // 金额：右侧严格对齐，不压缩（不显示正负号，类型通过颜色区分）
                 Text(transaction.formattedAmount)
                     .font(.holoBody)
@@ -1229,10 +1227,9 @@ struct TransactionRowView: View {
                     .frame(alignment: .trailing)
             }
             .frame(maxWidth: .infinity)
-            .padding(HoloSpacing.md)
-            .background(Color.holoCardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-            .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
+            .padding(.leading, 11)
+            .padding(.trailing, HoloSpacing.md)
+            .padding(.vertical, 12)
         }
         .buttonStyle(PlainButtonStyle())
     }
