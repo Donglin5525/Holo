@@ -512,7 +512,7 @@ struct FinanceLedgerView: View {
                 .font(.holoTitle)
                 .foregroundColor(.holoTextPrimary)
                 .frame(maxWidth: .infinity)
-                .padding(.bottom, 4)
+                .padding(.bottom, 12)
         }
         .background(Color.holoBackground)
     }
@@ -627,8 +627,8 @@ struct FinanceLedgerView: View {
             .padding(.top, HoloSpacing.sm)
             .padding(.bottom, HoloSpacing.xs)
             
-            VStack(spacing: HoloSpacing.sm) {
-                ForEach(calendarState.selectedDayTransactions, id: \.self) { tx in
+            VStack(spacing: 0) {
+                ForEach(Array(calendarState.selectedDayTransactions.enumerated()), id: \.element) { index, tx in
                     TransactionRowView(transaction: tx) {
                         // 滑动切换日期中，忽略点击（防止误触进入编辑页）
                         guard !isDaySwiping && daySwipeOffset == 0 else { return }
@@ -640,7 +640,7 @@ struct FinanceLedgerView: View {
                             } label: {
                                 Label("编辑", systemImage: "pencil")
                             }
-                            
+
                             Button(role: .destructive) {
                                 transactionToDelete = tx
                                 if tx.isInstallment {
@@ -650,13 +650,22 @@ struct FinanceLedgerView: View {
                                 Label("删除", systemImage: "trash")
                             }
                         }
+
+                    // 最后一行不显示分隔线
+                    if index < calendarState.selectedDayTransactions.count - 1 {
+                        Divider()
+                            .background(Color.holoTextSecondary.opacity(0.12))
+                            .padding(.leading, 76)
+                    }
                 }
-                
+
                 if calendarState.selectedDayTransactions.isEmpty && !calendarState.isLoading {
                     EmptyStateView()
                         .padding(.top, 40)
                 }
             }
+            .background(Color.holoCardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
             .padding(.horizontal, HoloSpacing.lg)
         }
         // 普通交易删除确认

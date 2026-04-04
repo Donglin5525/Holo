@@ -110,8 +110,8 @@ struct CategoryPicker: View {
                 Task { await loadCategories() }
             }
         }
-        .task {
-            await loadCategories()
+        .onAppear {
+            Task { await loadCategories() }
         }
     }
     
