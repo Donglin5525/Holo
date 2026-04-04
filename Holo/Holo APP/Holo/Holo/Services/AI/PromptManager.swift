@@ -28,17 +28,53 @@ final class PromptManager {
         case clarification = "clarification"
         case insightGeneration = "insight_generation"
         case responseTemplate = "response_template"
+
+        var displayName: String {
+            switch self {
+            case .systemPrompt: return "系统提示词"
+            case .intentRecognition: return "意图识别"
+            case .dataExtraction: return "数据提取"
+            case .clarification: return "追问澄清"
+            case .insightGeneration: return "洞察生成"
+            case .responseTemplate: return "回复模板"
+            }
+        }
+
+        var displayDescription: String {
+            switch self {
+            case .systemPrompt: return "定义 AI 角色和基本行为规则"
+            case .intentRecognition: return "识别用户输入的意图类型"
+            case .dataExtraction: return "从用户输入中提取结构化数据"
+            case .clarification: return "意图不明确时的追问策略"
+            case .insightGeneration: return "数据分析与洞察总结"
+            case .responseTemplate: return "操作确认回复的格式规范"
+            }
+        }
+
+        var icon: String {
+            switch self {
+            case .systemPrompt: return "brain.head.profile"
+            case .intentRecognition: return "target"
+            case .dataExtraction: return "doc.text.magnifyingglass"
+            case .clarification: return "questionmark.bubble"
+            case .insightGeneration: return "chart.xyaxis.line"
+            case .responseTemplate: return "text.bubble"
+            }
+        }
     }
 
     // MARK: - Load Prompt
 
-    /// 加载指定类型的 Prompt，带缓存
+    /// 加载指定类型的 Prompt，带缓存，优先读取 UserDefaults 自定义
     func loadPrompt(_ type: PromptType) throws -> String {
         if let cached = cache[type] {
             return cached
         }
 
-        guard let raw = templates[type] else {
+        let key = Self.userDefaultsKey(for: type)
+        let raw = UserDefaults.standard.string(forKey: key) ?? templates[type]
+
+        guard let raw = raw else {
             logger.error("Prompt 模板未找到: \(type.rawValue)")
             throw PromptError.fileNotFound(type.rawValue)
         }
@@ -46,6 +82,54 @@ final class PromptManager {
         let template = replaceVariables(in: raw)
         cache[type] = template
         return template
+    }
+
+    /// 加载原始模板文本（不含变量替换，编辑器显示用）
+    func loadRawTemplate(_ type: PromptType) -> String {
+        let key = Self.userDefaultsKey(for: type)
+        return UserDefaults.standard.string(forKey: key) ?? templates[type] ?? ""
+    }
+
+    /// 加载硬编码默认模板（恢复默认用）
+    func loadDefaultTemplate(_ type: PromptType) -> String {
+        templates[type] ?? ""
+    }
+
+    /// 保存自定义 Prompt 到 UserDefaults
+    func saveCustomPrompt(_ type: PromptType, content: String) {
+        let key = Self.userDefaultsKey(for: type)
+        UserDefaults.standard.set(content, forKey: key)
+        cache.removeValue(forKey: type)
+        logger.info("自定义 Prompt 已保存: \(type.rawValue)")
+    }
+
+    /// 重置 Prompt 为硬编码默认值
+    func resetCustomPrompt(_ type: PromptType) {
+        let key = Self.userDefaultsKey(for: type)
+        UserDefaults.standard.removeObject(forKey: key)
+        cache.removeValue(forKey: type)
+        logger.info("Prompt 已重置为默认: \(type.rawValue)")
+    }
+
+    /// 检查是否有自定义覆盖
+    func isCustomized(_ type: PromptType) -> Bool {
+        let key = Self.userDefaultsKey(for: type)
+        return UserDefaults.standard.string(forKey: key) != nil
+    }
+
+    /// 获取当前变量解析值（变量预览用）
+    static func currentVariableValues() -> [String: String] {
+        let dateFormatter = DateFormatter()
+        dateFormatter.locale = Locale(identifier: "zh_CN")
+        dateFormatter.dateFormat = "yyyy年M月d日 EEEE"
+
+        let yearFormatter = DateFormatter()
+        yearFormatter.dateFormat = "yyyy"
+
+        return [
+            "{{todayDate}}": dateFormatter.string(from: Date()),
+            "{{currentYear}}": yearFormatter.string(from: Date())
+        ]
     }
 
     /// 清除缓存
@@ -193,6 +277,10 @@ final class PromptManager {
     ]
 
     // MARK: - Private
+
+    private static func userDefaultsKey(for type: PromptType) -> String {
+        "com.holo.prompt.custom.\(type.rawValue)"
+    }
 
     private func replaceVariables(in template: String) -> String {
         var result = template

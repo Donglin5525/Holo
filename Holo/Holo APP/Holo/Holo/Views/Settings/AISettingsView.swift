@@ -27,6 +27,9 @@ struct AISettingsView: View {
             // 连接测试
             testSection
 
+            // Prompt 模板
+            promptSection
+
             // 危险操作
             dangerSection
         }
@@ -144,6 +147,53 @@ struct AISettingsView: View {
             }
         } header: {
             Text("连接测试")
+        }
+    }
+
+    // MARK: - Prompt Section
+
+    private var promptSection: some View {
+        Section {
+            ForEach(PromptManager.PromptType.allCases, id: \.self) { type in
+                NavigationLink {
+                    PromptEditorView(promptType: type)
+                } label: {
+                    HStack(spacing: HoloSpacing.md) {
+                        Image(systemName: type.icon)
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.holoPrimary)
+                            .frame(width: 28)
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(type.displayName)
+                                .font(.holoBody)
+                                .foregroundColor(.holoTextPrimary)
+
+                            Text(type.displayDescription)
+                                .font(.system(size: 12))
+                                .foregroundColor(.holoTextSecondary)
+                        }
+
+                        Spacer()
+
+                        if PromptManager.shared.isCustomized(type) {
+                            Text("已自定义")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.holoPrimary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.holoPrimary.opacity(0.1))
+                                .cornerRadius(4)
+                        }
+                    }
+                }
+            }
+        } header: {
+            Text("Prompt 模板")
+        } footer: {
+            Text("自定义 AI 对话中使用的提示词模板")
+                .font(.caption)
+                .foregroundColor(.holoTextSecondary)
         }
     }
 

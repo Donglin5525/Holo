@@ -4,7 +4,18 @@
 
 ---
 
-## [2026-04-04] 修复记账"最近使用"不刷新问题
+## [2026-04-04] 新增 Prompt 本地编辑器
+
+### 新增
+- AI 设置页新增"Prompt 模板"入口，列出 6 个可编辑的提示词模板
+- PromptEditorView：查看、编辑、保存自定义 Prompt，支持变量预览
+- PromptEditorViewModel：编辑状态管理 + LLM 测试功能
+- PromptTestSheet：输入测试文本，发送到 LLM 实时查看响应
+- PromptManager 支持 UserDefaults 自定义覆盖，优先于硬编码默认值
+- 恢复默认：一键清除自定义 Prompt 回退到系统默认
+
+### 改进
+- PromptType 新增 displayName/displayDescription/icon UI 元数据
 
 ### 修复
 - CategoryPicker 从 `.task` 改为 `.onAppear`，每次打开"记一笔"时重新加载"最近使用"分类
