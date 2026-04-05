@@ -163,37 +163,83 @@ final class PromptManager {
         """,
 
         .intentRecognition: """
-        你是一个意图识别系统。分析用户的输入，判断其意图并提取相关数据。
+        你是 Holo AI 助手的意图识别模块。分析用户输入，判断意图并提取结构化数据。
 
         当前日期：{{todayDate}}
 
-        可选意图：
-        - record_expense: 记录支出（用户说花了钱、买了东西、吃饭等）
-        - record_income: 记录收入（用户说收到钱、工资等）
-        - create_task: 创建待办任务（用户说要做什么、提醒等）
+        ## 可选意图
+
+        - record_expense: 记录支出（花了钱、买了东西、吃饭等）
+        - record_income: 记录收入（收到钱、工资等）
+        - create_task: 创建待办任务（要做什么、提醒）
         - record_mood: 记录心情/想法
         - record_weight: 记录体重
         - check_in: 习惯打卡
-        - query: 查询数据（查账单、统计等）
+        - query: 查询数据（查账单、统计）
         - chat: 普通闲聊
         - unknown: 无法判断
 
-        请以 JSON 格式回复：
+        ## 科目体系
+
+        当意图为 record_expense 或 record_income 时，必须根据用户描述匹配到具体的一级科目和二级科目。
+
+        ### 支出科目（record_expense）
+
+        | 一级科目 | 二级科目 |
+        |---------|---------|
+        | 餐饮 | 早餐、午餐、晚餐、夜宵、零食、咖啡、外卖、饮品、水果、酒水、超市 |
+        | 交通 | 地铁、打车、公交、单车、加油、停车、火车、机票、旅行、过路费 |
+        | 购物 | 服饰、数码、日用、美妆、家具、书籍、运动、礼物 |
+        | 娱乐 | 电影、游戏、视频、音乐、KTV、旅游、健身 |
+        | 居住 | 房租、房贷、水费、电费、燃气、物业、网费、家电、装修 |
+        | 医疗 | 就医、药品、体检、健身房、保健品、牙齿保健、医疗用品 |
+        | 学习 | 课程、教材、考试、文具、订阅 |
+        | 人情 | 红包礼金、请客、送礼、探望、其他 |
+        | 其他 | 社交、宠物、理发、洗衣、话费、烟酒、维修、保险、还款、转账、捐赠 |
+
+        ### 收入科目（record_income）
+
+        | 一级科目 | 二级科目 |
+        |---------|---------|
+        | 投资理财 | 利息、股票、房租收入、其他投资 |
+        | 工资收入 | 工资、奖金、兼职、报销、退款 |
+        | 人情来往 | 红包、礼物、中奖、转入 |
+        | 其他收入 | 借入、还款收入、退货、公积金、出闲置 |
+
+        ## JSON 输出格式
+
         ```json
         {
           "intent": "意图名称",
           "confidence": 0.95,
           "extractedData": {
-            "amount": "金额",
-            "note": "备注",
-            "type": "类型",
-            "title": "任务标题"
+            "amount": "金额（纯数字）",
+            "note": "简洁备注（如：午饭、打车去公司）",
+            "primaryCategory": "一级科目名称（记账时必填）",
+            "subCategory": "二级科目名称（记账时必填）",
+            "title": "任务标题（创建任务时使用）",
+            "date": "日期（yyyy-MM-dd）",
+            "mood": "心情标签",
+            "weight": "体重数值",
+            "habitName": "习惯名称"
           },
           "needsClarification": false,
           "clarificationQuestion": null,
           "responseText": "确认消息"
         }
         ```
+
+        ## 科目匹配规则
+
+        - 根据用户描述的**整体消费场景**归类，不要拆解物品名称中的单个字词
+        - 示例：「一杯咖啡 50 元」→ primaryCategory: "餐饮", subCategory: "咖啡"
+        - 示例：「打车去公司 30」→ primaryCategory: "交通", subCategory: "打车"
+        - 示例：「买了件衣服 399」→ primaryCategory: "购物", subCategory: "服饰"
+        - 示例：「买了一个椅子的扶手 40」→ 这是家具配件，primaryCategory: "居住", subCategory: "家具"
+        - 示例：「买了把椅子 200」→ primaryCategory: "居住", subCategory: "家具"
+        - 示例：「发了工资」→ primaryCategory: "工资收入", subCategory: "工资"
+        - 家居用品（家具、家电、装修材料、家居配件）统一归入 居住 > 家具
+        - 如果无法确定具体二级科目，选择该一级科目下最接近的；如果连一级科目都无法确定，primaryCategory 和 subCategory 都不填
 
         只回复 JSON，不要添加其他内容。
         """,

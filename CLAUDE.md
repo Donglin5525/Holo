@@ -83,6 +83,22 @@ docs: 更新 CHANGELOG
 
 ---
 
+## 📂 模块文档
+
+编辑某模块的 Models / Repository / Service 文件时，先读取对应模块 CLAUDE.md：
+
+| 模块 | CLAUDE.md 路径 |
+|------|---------------|
+| AI 对话 | `Holo/Holo APP/Holo/Holo/Views/Chat/CLAUDE.md` |
+| 财务 | `Holo/Holo APP/Holo/Holo/Views/Finance/CLAUDE.md` |
+| 待办 | `Holo/Holo APP/Holo/Holo/Views/Tasks/CLAUDE.md` |
+| 习惯 | `Holo/Holo APP/Holo/Holo/Views/Habits/CLAUDE.md` |
+| 健康 | `Holo/Holo APP/Holo/Holo/Views/Health/CLAUDE.md` |
+| 观点 | `Holo/Holo APP/Holo/Holo/Views/Thoughts/CLAUDE.md` |
+| 记忆画廊 | `Holo/Holo APP/Holo/Holo/Views/MemoryGallery/CLAUDE.md` |
+
+---
+
 ## 🚫 禁止操作
 
 | 操作 | 原因 |

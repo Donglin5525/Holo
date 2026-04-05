@@ -12,6 +12,7 @@ struct MessageBubbleView: View {
 
     let message: ChatMessage
     let streamingText: String?
+    var onIntentTagTap: ((ChatMessage) -> Void)? = nil
 
     private var displayText: String {
         streamingText ?? message.content
@@ -114,17 +115,31 @@ struct MessageBubbleView: View {
     // MARK: - Intent Tag
 
     private func intentTag(_ intent: String) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: intentIcon(intent))
-                .font(.system(size: 10))
-            Text(intentLabel(intent))
-                .font(.system(size: 11))
+        let isFinance = intent == "record_expense" || intent == "record_income"
+        let hasTransaction = message.linkedTransactionId != nil
+
+        return Button {
+            if isFinance && hasTransaction {
+                onIntentTagTap?(message)
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: intentIcon(intent))
+                    .font(.system(size: 10))
+                Text(intentLabel(intent))
+                    .font(.system(size: 11))
+                if isFinance && hasTransaction {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 8, weight: .semibold))
+                }
+            }
+            .foregroundColor(.holoPrimary)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Color.holoPrimary.opacity(0.1))
+            .cornerRadius(8)
         }
-        .foregroundColor(.holoPrimary)
-        .padding(.horizontal, 8)
-        .padding(.vertical, 3)
-        .background(Color.holoPrimary.opacity(0.1))
-        .cornerRadius(8)
+        .buttonStyle(.plain)
     }
 
     private func intentIcon(_ intent: String) -> String {
