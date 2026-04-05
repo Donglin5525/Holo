@@ -4,6 +4,18 @@
 
 ---
 
+## [2026-04-06] 推送通知 Deep Link 跳转修复
+
+### 修复
+- 冷启动时点击通知不跳转：`.task(id:)` 改为 `.onAppear` + `.onChange` 组合，确保冷启动/热启动都能触发跳转
+- `setupDelegate()` 从异步 Task 改为同步调用，避免冷启动时 delegate 未就绪
+
+### 重构
+- `DeepLinkState` 引入 `DeepLinkTarget` 枚举替代单一 `pendingTaskId`，支持任务详情/每日提醒/习惯等多模块跳转
+- 通知 delegate 按 `categoryIdentifier` 设置不同跳转目标，每日提醒现在也会跳转到任务列表
+
+---
+
 ## [2026-04-05] AI 记账科目匹配与饼图 Canvas 重绘
 
 ### 新增

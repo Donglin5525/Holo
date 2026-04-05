@@ -9,6 +9,14 @@
 import Foundation
 import Combine
 
+/// Deep Link 跳转目标
+/// 各模块通过匹配对应 case 决定是否响应跳转
+enum DeepLinkTarget: Equatable {
+    case taskDetail(taskId: UUID)
+    case dailyReminder
+    case habitDetail(habitId: UUID)
+}
+
 /// Deep Link 状态管理器
 /// 管理通知点击后的待跳转目标，各层视图监听此状态实现自动导航
 @MainActor
@@ -20,9 +28,9 @@ class DeepLinkState: ObservableObject {
 
     // MARK: - Published Properties
 
-    /// 待跳转的任务 ID
-    /// 设置后，HomeView 会自动打开 TasksView，TaskListView 会自动弹出 TaskDetailView
-    @Published var pendingTaskId: UUID?
+    /// 待跳转的目标
+    /// 设置后，HomeView 会自动打开对应模块，模块内部视图会自动弹出详情页
+    @Published var pendingTarget: DeepLinkTarget?
 
     // MARK: - Initialization
 
