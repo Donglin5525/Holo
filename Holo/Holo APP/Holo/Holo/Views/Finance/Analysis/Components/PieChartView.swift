@@ -3,28 +3,68 @@
 //  Holo
 //
 //  环形饼图组件（用于类别 Tab）
-//  所有标签位于饼图外侧，引导线连接文字与扇区
+//  使用 Canvas 自绘，支持选中扇区凸出效果
+//  标签：名称在环内 + 引导线 + 占比在环外
 //  支持触摸高亮 + 松手后下钻（touch down = 高亮, touch up = 导航)
 //
 
 import SwiftUI
-import Charts
 
 // MARK: - PieChartView
 
 /// 环形饼图视图
-/// 标签全部位于饼图外侧，用引导线连接对应扇区
 struct PieChartView: View {
     let aggregations: [CategoryAggregation]
     let selectedCategory: Category?
     let onSelectCategory: ((Category?) -> Void)?
+    var onTouchActive: ((Bool) -> Void)?
 
     @State private var highlightedCategory: Category?
 
-    // 图表颜色
-    private let chartColors: [Color] = [
-        .holoChart1, .holoChart2, .holoChart3, .holoChart4, .holoChart5
-    ]
+    // MARK: - 颜色分配（保证每个科目颜色不重复）
+
+    /// 为每个科目分配唯一颜色
+    private var sectorColors: [Color] {
+        // 15 个视觉差异明显的颜色
+        let palette: [Color] = [
+            Color(red: 0.07, green: 0.64, blue: 0.93),  // 1.蓝
+            Color(red: 0.96, green: 0.62, blue: 0.04),  // 2.橙
+            Color(red: 0.55, green: 0.36, blue: 0.96),  // 3.紫
+            Color(red: 0.93, green: 0.28, blue: 0.60),  // 4.粉
+            Color(red: 0.06, green: 0.73, blue: 0.51),  // 5.绿
+            Color(red: 0.90, green: 0.35, blue: 0.28),  // 6.红
+            Color(red: 0.20, green: 0.78, blue: 0.75),  // 7.青
+            Color(red: 0.98, green: 0.80, blue: 0.18),  // 8.黄
+            Color(red: 0.55, green: 0.38, blue: 0.18),  // 9.棕
+            Color(red: 0.42, green: 0.52, blue: 0.95),  // 10.靛蓝
+            Color(red: 0.75, green: 0.22, blue: 0.42),  // 11.酒红
+            Color(red: 0.35, green: 0.72, blue: 0.28),  // 12.草绿
+            Color(red: 0.85, green: 0.52, blue: 0.68),  // 13.浅粉
+            Color(red: 0.38, green: 0.62, blue: 0.78),  // 14.灰蓝
+            Color(red: 0.70, green: 0.58, blue: 0.25),  // 15.土黄
+        ]
+
+        let count = nonZeroAggregations.count
+        if count <= palette.count {
+            return Array(palette.prefix(count))
+        }
+        // 超过 15 个：用黄金角补充
+        var colors = palette
+        for i in palette.count..<count {
+            let hue = (Double(i) * 137.508).truncatingRemainder(dividingBy: 360) / 360
+            colors.append(Color(hue: hue, saturation: 0.55, brightness: 0.82))
+        }
+        return colors
+    }
+
+    /// 扇区凸出距离
+    private let explodeDistance: CGFloat = 8
+    /// 饼图缩放比例（0.7 = 缩小 30%，留出标签空间）
+    private let pieScaleFactor: CGFloat = 0.7
+    /// 引导线径向延伸距离
+    private let labelRadialLength: CGFloat = 20
+    /// 引导线水平延伸距离
+    private let labelHorizontalLength: CGFloat = 12
 
     private var nonZeroAggregations: [CategoryAggregation] {
         aggregations.filter { $0.amount > 0 }
@@ -35,11 +75,9 @@ struct PieChartView: View {
         highlightedCategory ?? selectedCategory
     }
 
-    // 焦点聚合数据（高亮或选中)
+    /// 焦点聚合数据（高亮或选中)，未选中时返回 nil
     private var focusedAggregation: CategoryAggregation? {
-        guard let category = effectiveCategory else {
-            return aggregations.first
-        }
+        guard let category = effectiveCategory else { return nil }
         return aggregations.first { $0.category.id == category.id }
     }
 
@@ -62,221 +100,212 @@ struct PieChartView: View {
 
     private var pieChartContent: some View {
         ZStack {
-            // 饼图
-            Chart(nonZeroAggregations) { agg in
-                let index = nonZeroAggregations.firstIndex(where: { $0.id == agg.id }) ?? 0
-                SectorMark(
-                    angle: .value("金额", Double(truncating: agg.amount as NSDecimalNumber)),
-                    innerRadius: .ratio(0.45),
-                    angularInset: 1.5
-                )
-                .cornerRadius(4)
-                .foregroundStyle(colorForCategory(agg.category, at: index))
-                .opacity(effectiveCategory == nil || effectiveCategory?.id == agg.category.id ? 1 : 0.3)
+            Canvas { context, size in
+                drawPieSectors(into: &context, size: size)
+                drawLabels(into: &context, size: size)
             }
-            .frame(height: 220)
-            .chartOverlay { _ in
-                ZStack {
-                    PieChartInteractionOverlay(
-                        aggregations: nonZeroAggregations,
-                        onHighlight: { category in
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                highlightedCategory = category
-                            }
-                        },
-                        onSelect: { category in
-                            highlightedCategory = nil
-                            onSelectCategory?(category)
+            .aspectRatio(1, contentMode: .fit)
+            .overlay {
+                PieChartInteractionOverlay(
+                    aggregations: nonZeroAggregations,
+                    onHighlight: { category in
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            highlightedCategory = category
                         }
-                    )
-
-                    labelsOverlay
-                    highlightArcOverlay
-                }
+                    },
+                    onSelect: { category in
+                        highlightedCategory = nil
+                        onSelectCategory?(category)
+                    },
+                    onTouchActive: { active in
+                        onTouchActive?(active)
+                    }
+                )
             }
 
             // 中心信息
             centerInfo
         }
-        .frame(height: 300)
         .onChange(of: aggregations.map(\.id)) { _, _ in
             highlightedCategory = nil
         }
     }
 
-    // MARK: - 高亮弧线覆盖层（触摸时的视觉反馈）
+    // MARK: - Canvas 绘制饼图扇区
 
-    @ViewBuilder
-    private var highlightArcOverlay: some View {
-        if let highlighted = highlightedCategory,
-           let index = nonZeroAggregations.firstIndex(where: { $0.category.id == highlighted.id }) {
-            GeometryReader { geometry in
-                let center = CGPoint(x: geometry.size.width / 2, y: geometry.size.height / 2)
-                let outerRadius = min(geometry.size.width, geometry.size.height) / 2
+    private func drawPieSectors(into context: inout GraphicsContext, size: CGSize) {
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        let fullRadius = min(size.width, size.height) / 2 - explodeDistance
+        let outerRadius = fullRadius * pieScaleFactor
+        let innerRadius = outerRadius * 0.5
+        let insetAngle: CGFloat = 1.5
 
-                let total = nonZeroAggregations.reduce(0.0) {
-                    $0 + Double(truncating: $1.amount as NSDecimalNumber)
-                }
-
-                if total > 0 {
-                    let startDeg = Self.sectorStartAngle(
-                        index: index, aggregations: nonZeroAggregations, total: total
-                    )
-                    let spanDeg = Self.sectorSpan(
-                        index: index, aggregations: nonZeroAggregations, total: total
-                    )
-
-                    Path { path in
-                        path.addArc(
-                            center: center,
-                            radius: outerRadius + 2,
-                            startAngle: .degrees(-startDeg),
-                            endAngle: .degrees(-(startDeg + spanDeg)),
-                            clockwise: true
-                        )
-                    }
-                    .stroke(
-                        Color.white.opacity(0.7),
-                        style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
-                    )
-                    .shadow(color: .white.opacity(0.3), radius: 3)
-                }
-            }
-            .allowsHitTesting(false)
-            .animation(.easeInOut(duration: 0.15), value: highlightedCategory?.id)
+        let total = nonZeroAggregations.reduce(0.0) {
+            $0 + Double(truncating: $1.amount as NSDecimalNumber)
         }
-    }
+        guard total > 0 else { return }
 
-    // MARK: - 标签覆盖层（所有标签位于饼图外侧，引导线连接）
-
-    @ViewBuilder
-    private var labelsOverlay: some View {
-        if !nonZeroAggregations.isEmpty {
-            GeometryReader { geometry in
-                let center = CGPoint(x: geometry.size.width / 2, y: geometry.size.height / 2)
-                let outerRadius = min(geometry.size.width, geometry.size.height) / 2
-
-                let total = nonZeroAggregations.reduce(0.0) {
-                    $0 + Double(truncating: $1.amount as NSDecimalNumber)
-                }
-
-                if total > 0 {
-                    let labels = computeOutsideLabelLayouts(
-                        center: center,
-                        outerRadius: outerRadius,
-                        total: total
-                    )
-
-                    ForEach(labels, id: \.index) { label in
-                        // 引导线：扇区边缘 → 水平线终点
-                        Path { path in
-                            path.move(to: label.sectorEdge)
-                            path.addLine(to: CGPoint(x: label.lineEndX, y: label.labelY))
-                        }
-                        .stroke(Color.holoTextSecondary.opacity(0.4), lineWidth: 0.8)
-
-                        // 标签文字
-                        Text(label.text)
-                            .font(.system(size: 9))
-                            .foregroundColor(.holoTextSecondary)
-                            .fixedSize()
-                            .position(x: label.textCenterX, y: label.labelY)
-                    }
-                }
-            }
-            .allowsHitTesting(false)
-        }
-    }
-
-    // MARK: - 外部标签布局计算
-
-    /// 外部标签布局信息
-    private struct OutsideLabelLayout {
-        let index: Int
-        let text: String
-        let isRightSide: Bool
-        let sectorEdge: CGPoint
-        var lineEndX: CGFloat
-        var labelY: CGFloat
-        var textCenterX: CGFloat
-        let textHeight: CGFloat
-        var wasAdjusted: Bool
-    }
-
-    /// 计算所有外部标签的布局（含碰撞检测)
-    private func computeOutsideLabelLayouts(
-        center: CGPoint,
-        outerRadius: CGFloat,
-        total: Double
-    ) -> [OutsideLabelLayout] {
-        let labelFont = UIFont.systemFont(ofSize: 9)
-        let bendDistance: CGFloat = 10
-        let horizontalLine: CGFloat = 16
-
-        var layouts: [OutsideLabelLayout] = []
         for (index, agg) in nonZeroAggregations.enumerated() {
-            let midAngleDeg = Self.sectorMidAngle(
+            let startDeg = Self.sectorStartAngle(
                 index: index, aggregations: nonZeroAggregations, total: total
             )
-            let radians = midAngleDeg * .pi / 180
-            let isRightSide = cos(radians) >= 0
-            // 扇区边缘点
-            let edgeX = center.x + CGFloat(cos(radians)) * outerRadius
-            let edgeY = center.y + CGFloat(sin(radians)) * outerRadius
-            // 弯折点（沿径向稍外移)
-            let bendX = center.x + CGFloat(cos(radians)) * (outerRadius + bendDistance)
-            // 水平线终点
-            let lineEndX = isRightSide
-                ? bendX + horizontalLine
-                : bendX - horizontalLine
-            // 文本宽度(用 UIFont 精确测量)
-            let text = "\(agg.category.name) \(agg.formattedPercentage)"
-            let textWidth = (text as NSString).size(withAttributes: [.font: labelFont]).width
-            // 文本中心 X
-            let textCenterX = isRightSide
-                ? lineEndX + textWidth / 2 + 2
-                : lineEndX - textWidth / 2 - 2
+            let spanDeg = Self.sectorSpan(
+                index: index, aggregations: nonZeroAggregations, total: total
+            )
+            let midDeg = startDeg + spanDeg / 2
+            let midRad = midDeg * .pi / 180
 
-            layouts.append(OutsideLabelLayout(
-                index: index,
-                text: text,
-                isRightSide: isRightSide,
-                sectorEdge: CGPoint(x: edgeX, y: edgeY),
-                lineEndX: lineEndX,
-                labelY: edgeY,
-                textCenterX: textCenterX,
-                textHeight: 14,
-                wasAdjusted: false
-            ))
-        }
-        return Self.resolveLabelCollisions(layouts, centerY: center.y)
-    }
+            let isFocused = effectiveCategory?.id == agg.category.id
+            let isDimmed = effectiveCategory != nil && !isFocused
 
-    /// 碰撞检测：按左右分组,组内强制最小垂直间距
-    private static func resolveLabelCollisions(
-        _ labels: [OutsideLabelLayout],
-        centerY: CGFloat,
-        minGap: CGFloat = 14
-    ) -> [OutsideLabelLayout] {
-        guard labels.count > 1 else { return labels }
-        var rightLabels = labels.filter { $0.isRightSide }.sorted { $0.labelY < $1.labelY }
-        var leftLabels = labels.filter { !$0.isRightSide }.sorted { $0.labelY < $1.labelY }
-        func enforceSpacing(_ items: inout [OutsideLabelLayout]) {
-            for i in 1..<items.count {
-                let prevBottom = items[i - 1].labelY + items[i - 1].textHeight / 2
-                let minCurrentY = prevBottom + minGap + items[i].textHeight / 2
-                if items[i].labelY < minCurrentY {
-                    items[i].labelY = minCurrentY
-                    items[i].wasAdjusted = true
-                }
+            // 选中扇区沿角平分线方向偏移
+            let cosMid = CGFloat(cos(midRad))
+            let sinMid = CGFloat(sin(midRad))
+
+            let offset: CGPoint = isFocused
+                ? CGPoint(x: cosMid * explodeDistance, y: sinMid * explodeDistance)
+                : .zero
+            let sectorCenter = CGPoint(x: center.x + offset.x, y: center.y + offset.y)
+
+            let path = SectorPath(
+                center: sectorCenter,
+                innerRadius: innerRadius,
+                outerRadius: outerRadius,
+                startAngle: .degrees(-startDeg + insetAngle / 2),
+                endAngle: .degrees(-(startDeg + spanDeg) - insetAngle / 2),
+                clockwise: true
+            )
+
+            let color = sectorColors[index]
+            context.fill(
+                path,
+                with: .color(color.opacity(isDimmed ? 0.3 : 1.0))
+            )
+
+            if isFocused {
+                context.stroke(
+                    path,
+                    with: .color(Color.white.opacity(0.7)),
+                    style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
+                )
             }
         }
-        enforceSpacing(&rightLabels)
-        enforceSpacing(&leftLabels)
-        return (rightLabels + leftLabels).sorted { $0.index < $1.index }
     }
 
-    /// 计算第 index 个扇区的中间角度(从正上方 -90° 开始顺时针)
+    // MARK: - Canvas 绘制标签（科目名称在环内 + 20px 径向线 + 水平延伸 + 占比数字）
+
+    private func drawLabels(into context: inout GraphicsContext, size: CGSize) {
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        let fullRadius = min(size.width, size.height) / 2 - explodeDistance
+        let outerRadius = fullRadius * pieScaleFactor
+        let innerRadius = outerRadius * 0.5
+
+        let total = nonZeroAggregations.reduce(0.0) {
+            $0 + Double(truncating: $1.amount as NSDecimalNumber)
+        }
+        guard total > 0 else { return }
+
+        for (index, agg) in nonZeroAggregations.enumerated() {
+            let startDeg = Self.sectorStartAngle(
+                index: index, aggregations: nonZeroAggregations, total: total
+            )
+            let spanDeg = Self.sectorSpan(
+                index: index, aggregations: nonZeroAggregations, total: total
+            )
+            let midDeg = startDeg + spanDeg / 2
+            let midRad = midDeg * .pi / 180
+
+            let isFocused = effectiveCategory?.id == agg.category.id
+            let isDimmed = effectiveCategory != nil && !isFocused
+            let labelOpacity: Double = isDimmed ? 0.2 : 1.0
+
+            let cosMid = CGFloat(cos(midRad))
+            let sinMid = CGFloat(sin(midRad))
+
+            // 扇区凸出偏移
+            let offset: CGPoint = isFocused
+                ? CGPoint(x: cosMid * explodeDistance, y: sinMid * explodeDistance)
+                : .zero
+            let sectorCenter = CGPoint(x: center.x + offset.x, y: center.y + offset.y)
+
+            // 1. 科目名称：大扇区在色块内部，小扇区在引导线末端
+            let isSmallSector = spanDeg < 25  // 约 < 7% 的扇区
+            let isRightSide = cosMid >= 0
+
+            if !isSmallSector {
+                // 大扇区：名称在色块内部
+                let nameRadius = (innerRadius + outerRadius) / 2
+                let namePoint = CGPoint(
+                    x: sectorCenter.x + cosMid * nameRadius,
+                    y: sectorCenter.y + sinMid * nameRadius
+                )
+                let nameFontSize: CGFloat = spanDeg > 40 ? 10 : 8
+                context.draw(
+                    Text(agg.category.name)
+                        .font(.system(size: nameFontSize, weight: .medium))
+                        .foregroundColor(.white.opacity(labelOpacity)),
+                    at: namePoint
+                )
+            }
+
+            // 2. 引导线：从外边缘沿径向延伸 20px
+            let lineStart = CGPoint(
+                x: center.x + cosMid * (outerRadius + 1),
+                y: center.y + sinMid * (outerRadius + 1)
+            )
+            // 弯折点（径向 20px）
+            let bendPoint = CGPoint(
+                x: center.x + cosMid * (outerRadius + labelRadialLength),
+                y: center.y + sinMid * (outerRadius + labelRadialLength)
+            )
+
+            // 3. 水平延伸
+            let lineEndX = isRightSide
+                ? bendPoint.x + labelHorizontalLength
+                : bendPoint.x - labelHorizontalLength
+
+            // 绘制引导线（两段：径向 + 水平）
+            var linePath = Path()
+            linePath.move(to: lineStart)
+            linePath.addLine(to: bendPoint)
+            linePath.addLine(to: CGPoint(x: lineEndX, y: bendPoint.y))
+            context.stroke(
+                linePath,
+                with: .color(Color.holoTextSecondary.opacity(labelOpacity * 0.5)),
+                lineWidth: 0.8
+            )
+
+            // 4. 占比数字（水平线末端）
+            let textPoint = CGPoint(
+                x: isRightSide ? lineEndX + 3 : lineEndX - 3,
+                y: bendPoint.y
+            )
+
+            if isSmallSector {
+                // 小扇区：名称 + 占比都在引导线末端
+                let combinedText = "\(agg.category.name) \(agg.formattedPercentage)"
+                context.draw(
+                    Text(combinedText)
+                        .font(.system(size: 9))
+                        .foregroundColor(Color.holoTextSecondary.opacity(labelOpacity)),
+                    at: textPoint,
+                    anchor: isRightSide ? .leading : .trailing
+                )
+            } else {
+                // 大扇区：只显示占比
+                context.draw(
+                    Text(agg.formattedPercentage)
+                        .font(.system(size: 9))
+                        .foregroundColor(Color.holoTextSecondary.opacity(labelOpacity)),
+                    at: textPoint,
+                    anchor: isRightSide ? .leading : .trailing
+                )
+            }
+        }
+    }
+
+    // MARK: - 角度计算
+
     private static func sectorMidAngle(
         index: Int,
         aggregations: [CategoryAggregation],
@@ -291,7 +320,6 @@ struct PieChartView: View {
         return currentAngle + sectorAngle / 2
     }
 
-    /// 计算第 index 个扇区的起始角度
     private static func sectorStartAngle(
         index: Int,
         aggregations: [CategoryAggregation],
@@ -304,7 +332,6 @@ struct PieChartView: View {
         return angle
     }
 
-    /// 计算第 index 个扇区的跨度角度
     private static func sectorSpan(
         index: Int,
         aggregations: [CategoryAggregation],
@@ -331,17 +358,10 @@ struct PieChartView: View {
                 Text(NumberFormatter.currency.string(from: totalAmount as NSDecimalNumber) ?? "¥0")
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.holoTextPrimary)
-                Text("\(aggregations.count) 个分类")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
             }
         }
         .animation(.easeInOut(duration: 0.25), value: effectiveCategory?.id)
-        .frame(width: outerCenterWidth)
     }
-
-    /// 中心区域宽度
-    private var outerCenterWidth: CGFloat { 100 }
 
     // MARK: - 空状态
 
@@ -361,7 +381,37 @@ struct PieChartView: View {
     // MARK: - 辅助方法
 
     private func colorForCategory(_ category: Category, at index: Int) -> Color {
-        chartColors[index % chartColors.count]
+        sectorColors[index]
+    }
+}
+
+// MARK: - Sector Path Helper
+
+/// 绘制环形扇区的 Path
+private func SectorPath(
+    center: CGPoint,
+    innerRadius: CGFloat,
+    outerRadius: CGFloat,
+    startAngle: Angle,
+    endAngle: Angle,
+    clockwise: Bool
+) -> Path {
+    Path { path in
+        path.addArc(
+            center: center,
+            radius: outerRadius,
+            startAngle: startAngle,
+            endAngle: endAngle,
+            clockwise: clockwise
+        )
+        path.addArc(
+            center: center,
+            radius: innerRadius,
+            startAngle: endAngle,
+            endAngle: startAngle,
+            clockwise: !clockwise
+        )
+        path.closeSubpath()
     }
 }
 
@@ -370,10 +420,12 @@ struct PieChartView: View {
 /// 饼图交互覆盖层
 /// - 滑动手势:仅触发视觉高亮（不触发下钻)
 /// - 点击手势:松手时触发实际选中/下钻
+/// - onTouchActive: 通知外部是否正在触摸饼图（用于禁用 ScrollView)
 struct PieChartInteractionOverlay: UIViewRepresentable {
     let aggregations: [CategoryAggregation]
     let onHighlight: ((Category?) -> Void)?
     let onSelect: (Category?) -> Void
+    var onTouchActive: ((Bool) -> Void)?
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -419,7 +471,7 @@ struct PieChartInteractionOverlay: UIViewRepresentable {
         }
 
         required init?(coder: NSCoder) { fatalError() }
-        /// 只处理环形区域的触摸,其他区域放行给 ScrollView
+
         override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
             let center = CGPoint(x: bounds.midX, y: bounds.midY)
             let dx = point.x - center.x
@@ -428,7 +480,7 @@ struct PieChartInteractionOverlay: UIViewRepresentable {
             let radius = min(bounds.width, bounds.height) / 2
             return distance > radius * 0.35 && distance < radius * 1.05
         }
-        /// 根据触摸点计算对应的分类
+
         func categoryAtPoint(_ point: CGPoint) -> Category? {
             let center = CGPoint(x: bounds.midX, y: bounds.midY)
             let dx = point.x - center.x
@@ -456,6 +508,7 @@ struct PieChartInteractionOverlay: UIViewRepresentable {
     }
 
     // MARK: - Coordinator
+
     class Coordinator: NSObject, UIGestureRecognizerDelegate {
         var parent: PieChartInteractionOverlay
 
@@ -467,6 +520,7 @@ struct PieChartInteractionOverlay: UIViewRepresentable {
             guard let view = gesture.view as? InteractionView else { return }
             let location = gesture.location(in: view)
             let category = view.categoryAtPoint(location)
+
             if gesture is UITapGestureRecognizer {
                 if gesture.state == .ended {
                     parent.onSelect(category)
@@ -474,14 +528,17 @@ struct PieChartInteractionOverlay: UIViewRepresentable {
             } else if gesture is UIPanGestureRecognizer {
                 switch gesture.state {
                 case .began, .changed:
+                    parent.onTouchActive?(true)
                     parent.onHighlight?(category)
                 case .ended, .cancelled:
+                    parent.onTouchActive?(false)
                     parent.onHighlight?(nil)
                 default:
                     break
                 }
             }
         }
+
         func gestureRecognizer(
             _ gestureRecognizer: UIGestureRecognizer,
             shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
@@ -490,7 +547,9 @@ struct PieChartInteractionOverlay: UIViewRepresentable {
         }
     }
 }
+
 // MARK: - Preview
+
 #Preview("Pie Chart") {
     VStack {
         PieChartView(
