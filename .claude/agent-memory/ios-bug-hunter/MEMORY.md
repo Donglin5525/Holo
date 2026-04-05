@@ -11,3 +11,4 @@
 
 ## Patterns Found
 - See [drag-swap-patterns.md](./drag-swap-patterns.md) for drag & swap bug patterns
+- See [charts-crash-patterns.md](./charts-crash-patterns.md) for Swift Charts degenerate data EXC_BREAKPOINT crash pattern

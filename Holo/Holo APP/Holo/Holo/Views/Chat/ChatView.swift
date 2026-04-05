@@ -13,6 +13,7 @@ struct ChatView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel = ChatViewModel()
     @State private var showAISettings = false
+    @State private var editingTransaction: Transaction?
 
     var body: some View {
         ZStack {
@@ -38,6 +39,9 @@ struct ChatView: View {
             NavigationStack {
                 AISettingsView()
             }
+        }
+        .sheet(item: $editingTransaction) { transaction in
+            AddTransactionSheet(editingTransaction: transaction) {}
         }
         .onAppear {
             viewModel.configureFromSavedConfig()
@@ -132,7 +136,10 @@ struct ChatView: View {
                     ForEach(viewModel.messages, id: \.id) { message in
                         MessageBubbleView(
                             message: message,
-                            streamingText: viewModel.isStreaming && message.isStreaming ? viewModel.streamingText : nil
+                            streamingText: viewModel.isStreaming && message.isStreaming ? viewModel.streamingText : nil,
+                            onIntentTagTap: { msg in
+                                openTransactionDetail(msg)
+                            }
                         )
                         .id(message.id)
                     }
@@ -155,5 +162,13 @@ struct ChatView: View {
                 proxy.scrollTo(lastMessage.id, anchor: .bottom)
             }
         }
+    }
+
+    // MARK: - Transaction Detail
+
+    private func openTransactionDetail(_ message: ChatMessage) {
+        guard let transactionId = message.linkedTransactionId else { return }
+        let transaction = FinanceRepository.shared.findTransaction(by: transactionId)
+        editingTransaction = transaction
     }
 }

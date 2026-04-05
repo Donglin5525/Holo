@@ -84,7 +84,15 @@ class FinanceRepository {
         context.delete(transaction)
         try context.save()
     }
-    
+
+    /// 根据 ID 查找交易记录
+    func findTransaction(by id: UUID) -> Transaction? {
+        let request = Transaction.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        request.fetchLimit = 1
+        return try? context.fetch(request).first
+    }
+
     func getAllTransactions() async throws -> [Transaction] {
         let request = Transaction.fetchRequest()
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]

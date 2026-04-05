@@ -104,14 +104,20 @@ final class ChatViewModel: ObservableObject {
 
                 if parsedResult.isHighConfidence && parsedResult.intent != .chat && parsedResult.intent != .query {
                     // 高置信度非聊天意图 → 直接执行本地操作
-                    let resultText = try await IntentRouter.shared.route(parsedResult)
+                    let routeResult = try await IntentRouter.shared.route(parsedResult)
+
+                    // 将 transactionId 合并到 extractedData 中
+                    var mergedData = parsedResult.extractedData ?? [:]
+                    if let txId = routeResult.transactionId {
+                        mergedData["transactionId"] = txId.uuidString
+                    }
 
                     // 更新 AI 消息
-                    self.chatRepo.finishStreaming(aiMessage, finalContent: resultText)
+                    self.chatRepo.finishStreaming(aiMessage, finalContent: routeResult.text)
                     self.chatRepo.updateMessageMetadata(
                         aiMessage,
                         intent: parsedResult.intent.rawValue,
-                        extractedDataJSON: Self.encodeExtractedData(parsedResult.extractedData)
+                        extractedDataJSON: Self.encodeExtractedData(mergedData)
                     )
                 } else {
                     // 低置信度或闲聊 → 流式对话

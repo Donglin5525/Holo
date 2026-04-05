@@ -24,4 +24,17 @@ extension ChatMessage {
     @NSManaged var extractedDataJSON: String?  // 提取的结构化数据 JSON
     @NSManaged var isStreaming: Bool
     @NSManaged var parentMessageId: UUID?  // 关联的用户消息 ID
+
+    // MARK: - Computed Properties
+
+    /// 从 extractedDataJSON 中解析关联的交易 ID
+    var linkedTransactionId: UUID? {
+        guard let json = extractedDataJSON,
+              let data = json.data(using: .utf8),
+              let dict = try? JSONDecoder().decode([String: String].self, from: data),
+              let idStr = dict["transactionId"] else {
+            return nil
+        }
+        return UUID(uuidString: idStr)
+    }
 }
