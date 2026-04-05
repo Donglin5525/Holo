@@ -175,11 +175,11 @@ struct HomeView: View {
         .onAppear {
             loadFeatureItemsFromRepository()
         }
-        // 监听 Deep Link：通知点击后自动打开任务模块
-        .task(id: deepLinkState.pendingTaskId) {
-            if deepLinkState.pendingTaskId != nil {
-                showTasksView = true
-            }
+        // 监听 Deep Link：冷启动时 onAppear 读取已有值
+        .onAppear { handleDeepLink() }
+        // 监听 Deep Link：热启动/后台时 onChange 检测变化
+        .onChange(of: deepLinkState.pendingTarget) { _, _ in
+            handleDeepLink()
         }
         // 监听 repository 变化，自动刷新（拖拽中不刷新，避免干扰排序状态）
         .onChange(of: iconRepository.visibleConfigs) { _, _ in
@@ -478,8 +478,22 @@ struct HomeView: View {
         }
     }
     
+    // MARK: - Deep Link 处理
+
+    /// 处理 Deep Link 跳转
+    /// 由 .onAppear（冷启动）和 .onChange（热启动/后台）触发
+    private func handleDeepLink() {
+        guard let target = deepLinkState.pendingTarget else { return }
+        switch target {
+        case .taskDetail, .dailyReminder:
+            if !showTasksView { showTasksView = true }
+        case .habitDetail:
+            if !showHabitsView { showHabitsView = true }
+        }
+    }
+
     // MARK: - 按钮点击处理
-    
+
     /// 处理功能按钮点击事件
     /// - Parameter item: 被点击的按钮配置
     private func handleFeatureButtonTap(_ item: FeatureButtonConfig) {

@@ -174,14 +174,11 @@ struct TaskListView: View {
         .onAppear {
             loadTasks()
         }
-        // 监听 Deep Link：通知点击后自动弹出对应任务详情
-        .task(id: deepLinkState.pendingTaskId) {
-            if let taskId = deepLinkState.pendingTaskId {
-                // 延迟一小段时间确保视图层级就绪
-                try? await Task.sleep(nanoseconds: 300_000_000)
-                selectedTask = TaskSelection(id: taskId)
-                deepLinkState.pendingTaskId = nil
-            }
+        // 监听 Deep Link：冷启动时 onAppear 读取已有值
+        .onAppear { handleDeepLink() }
+        // 监听 Deep Link：热启动/后台时 onChange 检测变化
+        .onChange(of: deepLinkState.pendingTarget) { _, _ in
+            handleDeepLink()
         }
         .onReceive(NotificationCenter.default.publisher(for: .todoDataDidChange)) { _ in
             loadTasks()
@@ -215,6 +212,17 @@ struct TaskListView: View {
     }
 
     // MARK: - 数据加载
+
+    /// 处理 Deep Link 跳转
+    /// 冷启动由 .onAppear 触发，热启动/后台由 .onChange 触发
+    private func handleDeepLink() {
+        guard case .taskDetail(let taskId) = deepLinkState.pendingTarget else { return }
+        // 延迟确保 fullScreenCover 视图层级完全就绪
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            selectedTask = TaskSelection(id: taskId)
+            deepLinkState.pendingTarget = nil
+        }
+    }
 
     private func loadTasks() {
         tasks = repository.activeTasks

@@ -20,11 +20,9 @@ struct HoloApp: App {
     // MARK: - Initialization
 
     init() {
-        // 设置通知代理和注册分类
-        Task { @MainActor in
-            TodoNotificationService.shared.setupDelegate()
-            TodoNotificationService.shared.registerNotificationCategories()
-        }
+        // 同步设置通知代理，确保冷启动时 didReceive 不被错过
+        TodoNotificationService.shared.setupDelegate()
+        TodoNotificationService.shared.registerNotificationCategories()
     }
 
     // MARK: - Body

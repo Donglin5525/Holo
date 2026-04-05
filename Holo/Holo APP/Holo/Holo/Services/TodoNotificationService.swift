@@ -425,10 +425,19 @@ extension TodoNotificationService: UNUserNotificationCenterDelegate {
             }
 
         case UNNotificationDefaultActionIdentifier:
-            // 直接点击通知（打开应用）→ 触发 Deep Link 跳转到任务详情
-            if let taskIdString = taskIdString, let taskId = UUID(uuidString: taskIdString) {
-                Self.logger.info("用户点击了任务通知，触发 Deep Link：\(taskIdString)")
-                DeepLinkState.shared.pendingTaskId = taskId
+            // 直接点击通知（打开应用）→ 按 category 触发对应的 Deep Link
+            let category = response.notification.request.content.categoryIdentifier
+            switch category {
+            case TodoNotificationCategory.task:
+                if let taskIdString = taskIdString, let taskId = UUID(uuidString: taskIdString) {
+                    Self.logger.info("任务通知 Deep Link：\(taskIdString)")
+                    DeepLinkState.shared.pendingTarget = .taskDetail(taskId: taskId)
+                }
+            case TodoNotificationCategory.dailyReminder:
+                Self.logger.info("每日提醒 Deep Link")
+                DeepLinkState.shared.pendingTarget = .dailyReminder
+            default:
+                break
             }
 
         default:
