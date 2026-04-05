@@ -23,38 +23,19 @@ struct PieChartView: View {
 
     // MARK: - 颜色分配（保证每个科目颜色不重复）
 
-    /// 为每个科目分配唯一颜色
+    /// 为每个科目分配唯一颜色（基于黄金角度均匀分布色相，确保相邻扇区颜色差异最大化）
     private var sectorColors: [Color] {
-        // 15 个视觉差异明显的颜色
-        let palette: [Color] = [
-            Color(red: 0.07, green: 0.64, blue: 0.93),  // 1.蓝
-            Color(red: 0.96, green: 0.62, blue: 0.04),  // 2.橙
-            Color(red: 0.55, green: 0.36, blue: 0.96),  // 3.紫
-            Color(red: 0.93, green: 0.28, blue: 0.60),  // 4.粉
-            Color(red: 0.06, green: 0.73, blue: 0.51),  // 5.绿
-            Color(red: 0.90, green: 0.35, blue: 0.28),  // 6.红
-            Color(red: 0.20, green: 0.78, blue: 0.75),  // 7.青
-            Color(red: 0.98, green: 0.80, blue: 0.18),  // 8.黄
-            Color(red: 0.55, green: 0.38, blue: 0.18),  // 9.棕
-            Color(red: 0.42, green: 0.52, blue: 0.95),  // 10.靛蓝
-            Color(red: 0.75, green: 0.22, blue: 0.42),  // 11.酒红
-            Color(red: 0.35, green: 0.72, blue: 0.28),  // 12.草绿
-            Color(red: 0.85, green: 0.52, blue: 0.68),  // 13.浅粉
-            Color(red: 0.38, green: 0.62, blue: 0.78),  // 14.灰蓝
-            Color(red: 0.70, green: 0.58, blue: 0.25),  // 15.土黄
-        ]
-
         let count = nonZeroAggregations.count
-        if count <= palette.count {
-            return Array(palette.prefix(count))
-        }
-        // 超过 15 个：用黄金角补充
-        var colors = palette
-        for i in palette.count..<count {
+        guard count > 0 else { return [] }
+
+        // 黄金角 ≈ 137.508°，保证连续色块色相间距最大
+        // 交替使用高饱和度和中饱和度，增加明度差异
+        return (0..<count).map { i in
             let hue = (Double(i) * 137.508).truncatingRemainder(dividingBy: 360) / 360
-            colors.append(Color(hue: hue, saturation: 0.55, brightness: 0.82))
+            let saturation: Double = i % 2 == 0 ? 0.72 : 0.55
+            let brightness: Double = i % 3 == 0 ? 0.88 : 0.78
+            return Color(hue: hue, saturation: saturation, brightness: brightness)
         }
-        return colors
     }
 
     /// 扇区凸出距离
