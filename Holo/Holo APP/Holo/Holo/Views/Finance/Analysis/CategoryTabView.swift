@@ -16,6 +16,7 @@ struct CategoryTabView: View {
 
     @State private var selectedCategory: Category?
     @State private var showIncomeView: Bool = false
+    @State private var pieTouching: Bool = false
 
     // 图表颜色
     private let chartColors: [Color] = [
@@ -36,10 +37,14 @@ struct CategoryTabView: View {
                 // 饼图
                 PieChartView(
                     aggregations: currentAggregations,
-                    selectedCategory: selectedCategory
-                ) { category in
-                    handleCategoryTap(category)
-                }
+                    selectedCategory: selectedCategory,
+                    onSelectCategory: { category in
+                        handleCategoryTap(category)
+                    },
+                    onTouchActive: { active in
+                        pieTouching = active
+                    }
+                )
 
                 // 分类列表
                 CategoryLegendList(
@@ -58,6 +63,7 @@ struct CategoryTabView: View {
             }
             .padding(HoloSpacing.lg)
         }
+        .scrollDisabled(pieTouching)
         .background(Color.holoBackground)
         .onChange(of: showIncomeView) { _, _ in
             // 切换类型时清除选中状态和下钻
