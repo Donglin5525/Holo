@@ -4,6 +4,19 @@
 
 ---
 
+## [2026-04-05] AI 记账科目匹配与饼图 Canvas 重绘
+
+### 新增
+- AI 意图识别增加完整科目体系，自动归类一级/二级科目
+- 记账消息标签可点击跳转到对应交易的编辑页面
+- ChatMessage 新增 linkedTransactionId 计算属性
+- FinanceRepository 新增按 ID 查询交易方法
+
+### 重构
+- 饼图从 Swift Charts SectorMark 改为 Canvas 自绘，消除动画崩溃风险
+- 选中扇区凸出 8pt，大扇区内部显示科目名称，引导线外部显示占比
+- 触摸饼图时自动禁用父级 ScrollView 滚动
+
 ## [2026-04-05] 饼图标签外移与交互优化
 
 ### 优化
