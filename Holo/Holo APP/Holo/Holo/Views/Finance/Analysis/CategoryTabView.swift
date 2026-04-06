@@ -18,10 +18,15 @@ struct CategoryTabView: View {
     @State private var showIncomeView: Bool = false
     @State private var pieTouching: Bool = false
 
-    // 图表颜色
-    private let chartColors: [Color] = [
-        .holoChart1, .holoChart2, .holoChart3, .holoChart4, .holoChart5
-    ]
+    // 图表颜色（饼图和图例共享）
+    // 一级分类：使用科目指定颜色，保证与 App 其他位置一致
+    // 下钻模式（子分类共享父级颜色）：使用调色板区分
+    private var chartColors: [Color] {
+        if state.isDrillingDown {
+            return Color.holoChartColors(count: currentAggregations.count)
+        }
+        return currentAggregations.map { $0.category.swiftUIColor }
+    }
 
     var body: some View {
         ScrollView {
@@ -38,6 +43,7 @@ struct CategoryTabView: View {
                 PieChartView(
                     aggregations: currentAggregations,
                     selectedCategory: selectedCategory,
+                    colors: chartColors,
                     onSelectCategory: { category in
                         handleCategoryTap(category)
                     },
