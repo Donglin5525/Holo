@@ -172,7 +172,10 @@ final class OpenAICompatibleProvider: AIProvider {
             let result = try JSONDecoder().decode(ParsedResult.self, from: data)
             return result
         } catch {
-            logger.warning("ParsedResult JSON 解析失败，降级为普通聊天")
+            logger.error("ParsedResult JSON 解析失败，降级为普通聊天")
+            logger.error("LLM 原始返回：\(text)")
+            logger.error("提取的 JSON：\(jsonString)")
+            logger.error("解析错误：\(error)")
             return ParsedResult(
                 intent: fallbackIntent,
                 confidence: 0.3,

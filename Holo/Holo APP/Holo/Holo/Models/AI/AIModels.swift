@@ -40,6 +40,41 @@ struct ParsedResult: Codable {
     var isHighConfidence: Bool {
         confidence >= Self.highConfidenceThreshold
     }
+
+    // MARK: - Initializers
+
+    init(
+        intent: AIIntent,
+        confidence: Double,
+        extractedData: [String: String]?,
+        needsClarification: Bool,
+        clarificationQuestion: String?,
+        responseText: String?
+    ) {
+        self.intent = intent
+        self.confidence = confidence
+        self.extractedData = extractedData
+        self.needsClarification = needsClarification
+        self.clarificationQuestion = clarificationQuestion
+        self.responseText = responseText
+    }
+
+    // LLM 可能返回 null 值字段（如 "title": null），需要过滤
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        intent = try container.decode(AIIntent.self, forKey: .intent)
+        confidence = try container.decode(Double.self, forKey: .confidence)
+        needsClarification = try container.decodeIfPresent(Bool.self, forKey: .needsClarification) ?? false
+        clarificationQuestion = try container.decodeIfPresent(String.self, forKey: .clarificationQuestion)
+        responseText = try container.decodeIfPresent(String.self, forKey: .responseText)
+
+        // extractedData 中可能包含 null 值，先解码为 [String: String?] 再过滤
+        if let rawDict = try? container.decodeIfPresent([String: String?].self, forKey: .extractedData) {
+            extractedData = rawDict.compactMapValues { $0 }
+        } else {
+            extractedData = nil
+        }
+    }
 }
 
 // MARK: - API DTO
