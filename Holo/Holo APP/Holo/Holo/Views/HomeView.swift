@@ -271,13 +271,13 @@ struct HomeView: View {
     /// 中央主内容区域
     private var mainContent: some View {
         ZStack {
-            // 中央语音助手按钮
+            // 五角形功能入口按钮（支持拖拽排序）
+            featureButtons
+
+            // 中央语音助手按钮（置于顶层，确保真机触摸事件不被 GeometryReader 拦截）
             VoiceAssistantButton {
                 showChatView = true
             }
-            
-            // 五角形功能入口按钮（支持拖拽排序）
-            featureButtons
         }
         .padding(.horizontal, HoloSpacing.lg)
     }
