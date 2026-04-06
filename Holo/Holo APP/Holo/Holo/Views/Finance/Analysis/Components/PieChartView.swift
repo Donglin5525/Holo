@@ -16,25 +16,24 @@ import SwiftUI
 struct PieChartView: View {
     let aggregations: [CategoryAggregation]
     let selectedCategory: Category?
+    /// 外部传入的颜色数组（与图例共享同一调色板，保证颜色一致）
+    var colors: [Color]
     let onSelectCategory: ((Category?) -> Void)?
     var onTouchActive: ((Bool) -> Void)?
 
     @State private var highlightedCategory: Category?
 
-    // MARK: - 颜色分配（保证每个科目颜色不重复）
+    // MARK: - 颜色分配
 
-    /// 为每个科目分配唯一颜色（基于黄金角度均匀分布色相，确保相邻扇区颜色差异最大化）
+    /// 扇区颜色（使用外部传入的统一调色板）
     private var sectorColors: [Color] {
         let count = nonZeroAggregations.count
         guard count > 0 else { return [] }
-
-        // 黄金角 ≈ 137.508°，保证连续色块色相间距最大
-        // 交替使用高饱和度和中饱和度，增加明度差异
-        return (0..<count).map { i in
+        if colors.count >= count { return colors }
+        // 防御：颜色不足时用黄金角度补充
+        return colors + (colors.count..<count).map { i in
             let hue = (Double(i) * 137.508).truncatingRemainder(dividingBy: 360) / 360
-            let saturation: Double = i % 2 == 0 ? 0.72 : 0.55
-            let brightness: Double = i % 3 == 0 ? 0.88 : 0.78
-            return Color(hue: hue, saturation: saturation, brightness: brightness)
+            return Color(hue: hue, saturation: 0.7, brightness: 0.85)
         }
     }
 
@@ -535,7 +534,8 @@ struct PieChartInteractionOverlay: UIViewRepresentable {
     VStack {
         PieChartView(
             aggregations: [],
-            selectedCategory: nil
+            selectedCategory: nil,
+            colors: []
         ) { _ in }
         Spacer()
     }

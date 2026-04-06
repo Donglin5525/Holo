@@ -48,12 +48,40 @@ extension Color {
     static let holoPurple = Color(red: 192/255, green: 132/255, blue: 252/255)  // #C084FC
     
     // MARK: - 图表颜色
-    /// 图表颜色系列
-    static let holoChart1 = Color(red: 19/255, green: 164/255, blue: 236/255)  // #13A4EC
-    static let holoChart2 = Color(red: 245/255, green: 158/255, blue: 11/255)  // #F59E0B
-    static let holoChart3 = Color(red: 139/255, green: 92/255, blue: 246/255)  // #8B5CF6
-    static let holoChart4 = Color(red: 236/255, green: 72/255, blue: 153/255)  // #EC4899
-    static let holoChart5 = Color(red: 16/255, green: 185/255, blue: 129/255)  // #10B981
+    /// 图表颜色系列（12 色调色板，色相均匀分布，保证视觉可区分）
+    static let holoChart1  = Color(red: 59/255,  green: 130/255, blue: 246/255)  // #3B82F6 蓝
+    static let holoChart2  = Color(red: 249/255, green: 115/255, blue: 22/255)   // #F97316 橙
+    static let holoChart3  = Color(red: 34/255,  green: 197/255, blue: 94/255)   // #22C55E 绿
+    static let holoChart4  = Color(red: 239/255, green: 68/255,  blue: 68/255)   // #EF4444 红
+    static let holoChart5  = Color(red: 139/255, green: 92/255,  blue: 246/255)  // #8B5CF6 紫
+    static let holoChart6  = Color(red: 20/255,  green: 184/255, blue: 166/255)  // #14B8A6 青
+    static let holoChart7  = Color(red: 236/255, green: 72/255,  blue: 153/255)  // #EC4899 粉
+    static let holoChart8  = Color(red: 234/255, green: 179/255, blue: 8/255)    // #EAB308 黄
+    static let holoChart9  = Color(red: 99/255,  green: 102/255, blue: 241/255)  // #6366F1 靛
+    static let holoChart10 = Color(red: 6/255,   green: 182/255, blue: 212/255)  // #06B6D4 天蓝
+    static let holoChart11 = Color(red: 244/255, green: 63/255,  blue: 94/255)   // #F43F5E 玫红
+    static let holoChart12 = Color(red: 132/255, green: 204/255, blue: 22/255)   // #84CC16 黄绿
+
+    /// 预定义调色板（12 色，按最大色相间距排列，相邻色相差 ≥107°）
+    /// 排列逻辑：蓝→黄→紫→绿→橙→天蓝→玫红→青→红→靛→黄绿→粉
+    private static let chartPalette: [Color] = [
+        .holoChart1, .holoChart8, .holoChart5, .holoChart3,
+        .holoChart2, .holoChart10, .holoChart11, .holoChart6,
+        .holoChart4, .holoChart9, .holoChart12, .holoChart7
+    ]
+
+    /// 生成指定数量的图表颜色（12 色内用预定义调色板，超出用黄金角度补充）
+    static func holoChartColors(count: Int) -> [Color] {
+        guard count > 0 else { return [] }
+        if count <= chartPalette.count {
+            return Array(chartPalette.prefix(count))
+        }
+        // 超出 12 色时，用黄金角度生成补充色
+        return chartPalette + (chartPalette.count..<count).map { i in
+            let hue = (Double(i) * 137.508).truncatingRemainder(dividingBy: 360) / 360
+            return Color(hue: hue, saturation: 0.7, brightness: 0.85)
+        }
+    }
     
     // MARK: - 卡片/按钮背景 (支持 Dark Mode)
     /// 毛玻璃背景色
