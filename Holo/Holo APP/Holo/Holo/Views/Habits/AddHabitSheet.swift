@@ -31,6 +31,7 @@ struct AddHabitSheet: View {
     @State private var targetValue: String = ""
     @State private var unit: String = ""
     @State private var selectedAggregationType: HabitAggregationType = .sum
+    @State private var isBadHabit: Bool? = nil
     
     @State private var showIconPicker: Bool = false
     @State private var isSaving: Bool = false
@@ -68,6 +69,9 @@ struct AddHabitSheet: View {
                     
                     // 目标设置
                     targetSection
+
+                    // 习惯性质（好习惯/坏习惯）
+                    habitNatureSection
                 }
                 .padding(.horizontal, HoloSpacing.md)
                 .padding(.vertical, HoloSpacing.sm)
@@ -142,13 +146,14 @@ struct AddHabitSheet: View {
     
     private func loadEditingData() {
         guard let habit = editingHabit else { return }
-        
+
         name = habit.name
         selectedType = habit.habitType
         selectedIcon = habit.icon
         selectedColor = habit.color
         selectedFrequency = habit.habitFrequency
         selectedAggregationType = habit.habitAggregationType
+        isBadHabit = habit.isBadHabit
         
         if let tc = habit.targetCountValue {
             targetCount = String(tc)
@@ -313,13 +318,13 @@ struct AddHabitSheet: View {
     }
     
     // MARK: - 目标设置
-    
+
     private var targetSection: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("目标（可选）")
                 .font(.holoLabel)
                 .foregroundColor(.holoTextSecondary)
-            
+
             if selectedType == .checkIn {
                 HStack(spacing: 8) {
                     TextField("目标次数", text: $targetCount)
@@ -330,7 +335,7 @@ struct AddHabitSheet: View {
                         .padding(.vertical, 10)
                         .background(Color.holoCardBackground)
                         .cornerRadius(HoloRadius.sm)
-                    
+
                     Text("次/\(selectedFrequency.displayName)")
                         .font(.holoCaption)
                         .foregroundColor(.holoTextSecondary)
@@ -345,7 +350,7 @@ struct AddHabitSheet: View {
                         .padding(.vertical, 10)
                         .background(Color.holoCardBackground)
                         .cornerRadius(HoloRadius.sm)
-                    
+
                     TextField("单位", text: $unit)
                         .font(.holoBody)
                         .foregroundColor(.holoTextPrimary)
@@ -356,6 +361,58 @@ struct AddHabitSheet: View {
                         .frame(width: 70)
                 }
             }
+        }
+    }
+
+    // MARK: - 习惯性质选择
+
+    private var habitNatureSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("习惯性质")
+                .font(.holoLabel)
+                .foregroundColor(.holoTextSecondary)
+
+            HStack(spacing: 8) {
+                Button {
+                    isBadHabit = false
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 12))
+                        Text("好习惯")
+                            .font(.holoCaption)
+                    }
+                    .foregroundColor(!isBadHabit ? .white : .holoTextPrimary)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: HoloRadius.sm)
+                            .fill(!isBadHabit ? Color.holoPrimary : Color.holoCardBackground)
+                    )
+                }
+
+                Button {
+                    isBadHabit = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 12))
+                        Text("坏习惯")
+                            .font(.holoCaption)
+                    }
+                    .foregroundColor(isBadHabit ? .white : .holoTextPrimary)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: HoloRadius.sm)
+                            .fill(isBadHabit ? Color.red : Color.holoCardBackground)
+                    )
+                }
+            }
+
+            Text(isBadHabit ? "超过目标值时将以红色标记并提醒控制" : "培养积极的好习惯，目标达成时给予正向反馈")
+                .font(.holoCaption)
+                .foregroundColor(.holoTextSecondary)
         }
     }
     
@@ -381,7 +438,8 @@ struct AddHabitSheet: View {
                     targetCount: tc,
                     targetValue: tv,
                     unit: u,
-                    aggregationType: selectedAggregationType
+                    aggregationType: selectedAggregationType,
+                    isBadHabit: isBadHabit
                 ))
             } else {
                 // 新增模式
@@ -394,7 +452,8 @@ struct AddHabitSheet: View {
                     targetCount: tc,
                     targetValue: tv,
                     unit: u,
-                    aggregationType: selectedAggregationType
+                    aggregationType: selectedAggregationType,
+                    isBadHabit: isBadHabit
                 )
             }
             

@@ -28,6 +28,8 @@ struct HabitCardView: View {
     @State private var streak: Int = 0
     @State private var showValueInput: Bool = false
     @State private var inputValue: String = ""
+    /// 坏习惯超标提示文案是否可见
+    @State private var showOverLimitWarning: Bool = false
     /// 缓存的 habit ID，避免 onReceive 访问已删除对象
     @State private var cachedHabitId: UUID? = nil
     
@@ -74,7 +76,27 @@ struct HabitCardView: View {
     }
     
     // MARK: - 加载状态
-    
+
+    /// 坏习惯是否超过目标值
+    private var isOverLimit: Bool {
+        guard habit.isBadHabit else { return false }
+
+        if habit.isCheckInType {
+            guard let target = habit.targetCountValue else { return false }
+            // 打卡型：isCompleted 且有目标时，视为已完成目标次数 1，比较 1 vs target
+            // 但打卡型一天只能打一次，所以检查 isCompleted 即可
+            return isCompleted && target <= 1
+        } else if habit.isCountType {
+            guard let target = habit.targetValueDouble, let value = todayValue else { return false }
+            return value > target
+        } else {
+            // 测量类坏习惯
+            guard let target = habit.targetValueDouble,
+                  let value = todayValue ?? latestHistoricalValue else { return false }
+            return value > target
+        }
+    }
+
     private func loadStatus() {
         // 离开 body 时检查一次
         guard habit.managedObjectContext != nil else { return }
@@ -176,7 +198,7 @@ struct HabitCardView: View {
                     let newStatus = try HabitRepository.shared.toggleCheckIn(for: habit)
                     isCompleted = newStatus
 
-                    HapticManager.medium()
+                    HapticManager.success()
                 } catch {
                     print("[HabitCard] 打卡失败: \(error)")
                 }
@@ -201,34 +223,49 @@ struct HabitCardView: View {
     }
     
     // MARK: - 计数类交互（+1 按钮）
-    
-    private var countActionView: some View {
-        HStack(spacing: 12) {
-            // 今日总数
-            if let value = todayValue {
-                Text(habit.formatValue(value))
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.holoTextPrimary)
-            }
-            
-            // +1 按钮
-            Button {
-                do {
-                    _ = try HabitRepository.shared.incrementCount(for: habit)
-                    todayValue = HabitRepository.shared.getTodayValue(for: habit)
 
-                    HapticManager.light()
-                } catch {
-                    print("[HabitCard] +1 失败: \(error)")
+    private var countActionView: some View {
+        VStack(alignment: .trailing, spacing: 4) {
+            HStack(spacing: 12) {
+                // 今日总数
+                if let value = todayValue {
+                    Text(habit.formatValue(value))
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(isOverLimit ? .red : .holoTextPrimary)
                 }
-            } label: {
-                Text("+1")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
-                    .background(habit.habitColor)
-                    .clipShape(Capsule())
+
+                // +1 按钮
+                Button {
+                    do {
+                        _ = try HabitRepository.shared.incrementCount(for: habit)
+                        todayValue = HabitRepository.shared.getTodayValue(for: habit)
+
+                        // 坏习惯超标时显示提示
+                        if habit.isBadHabit {
+                            checkAndShowOverLimitWarning()
+                        }
+
+                        HapticManager.light()
+                    } catch {
+                        print("[HabitCard] +1 失败: \(error)")
+                    }
+                } label: {
+                    Text("+1")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(isOverLimit ? Color.red : habit.habitColor)
+                        .clipShape(Capsule())
+                }
+            }
+
+            // 超标提示文案（自动消失）
+            if showOverLimitWarning {
+                Text("已经超过当日限额，请注意控制")
+                    .font(.system(size: 10))
+                    .foregroundColor(.red)
+                    .transition(.opacity)
             }
         }
     }
@@ -236,29 +273,39 @@ struct HabitCardView: View {
     // MARK: - 测量类交互（数值显示 + 输入）
 
     private var measureActionView: some View {
-        Button {
-            inputValue = ""
-            showValueInput = true
-        } label: {
-            HStack(spacing: 4) {
-                // 优先显示今日值，如果没有则显示历史最新值
-                if let value = todayValue ?? latestHistoricalValue {
-                    Text(habit.formatValue(value))
-                        .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(.holoTextPrimary)
+        VStack(alignment: .trailing, spacing: 4) {
+            Button {
+                inputValue = ""
+                showValueInput = true
+            } label: {
+                HStack(spacing: 4) {
+                    // 优先显示今日值，如果没有则显示历史最新值
+                    if let value = todayValue ?? latestHistoricalValue {
+                        Text(habit.formatValue(value))
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(isOverLimit ? .red : .holoTextPrimary)
 
-                    Text(habit.unitText)
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
-                } else {
-                    Text("记录")
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
+                        Text(habit.unitText)
+                            .font(.holoCaption)
+                            .foregroundColor(isOverLimit ? .red : .holoTextSecondary)
+                    } else {
+                        Text("记录")
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextSecondary)
+                    }
+
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 20))
+                        .foregroundColor(isOverLimit ? .red : habit.habitColor)
                 }
+            }
 
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 20))
-                    .foregroundColor(habit.habitColor)
+            // 超标提示文案（自动消失）
+            if showOverLimitWarning {
+                Text("已经超过当日限额，请注意控制")
+                    .font(.system(size: 10))
+                    .foregroundColor(.red)
+                    .transition(.opacity)
             }
         }
     }
@@ -341,21 +388,47 @@ struct HabitCardView: View {
     }
     
     // MARK: - 保存数值
-    
+
     private func saveValue() {
         guard let value = Double(inputValue), value > 0 else {
             showValueInput = false
             return
         }
-        
+
         do {
             _ = try HabitRepository.shared.addNumericRecord(for: habit, value: value)
             todayValue = HabitRepository.shared.getTodayValue(for: habit)
             showValueInput = false
 
+            // 坏习惯超标时显示提示
+            if habit.isBadHabit {
+                checkAndShowOverLimitWarning()
+            }
+
             HapticManager.success()
         } catch {
             print("[HabitCard] 保存数值失败: \(error)")
+        }
+    }
+
+    // MARK: - 超标提示
+
+    /// 检查坏习惯是否超标，如果超标则显示自动消失的提示文案
+    private func checkAndShowOverLimitWarning() {
+        // 短暂延迟以确保 todayValue 已更新
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            guard self.isOverLimit else { return }
+
+            withAnimation(.easeIn(duration: 0.3)) {
+                self.showOverLimitWarning = true
+            }
+
+            // 3 秒后自动消失
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                withAnimation(.easeOut(duration: 0.3)) {
+                    self.showOverLimitWarning = false
+                }
+            }
         }
     }
 }

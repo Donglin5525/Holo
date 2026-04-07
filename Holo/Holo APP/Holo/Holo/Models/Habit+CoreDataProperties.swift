@@ -62,6 +62,7 @@ extension Habit {
         targetValue: Double? = nil,
         unit: String? = nil,
         aggregationType: HabitAggregationType = .sum,
+        isBadHabit: Bool = false,
         sortOrder: Int16 = 0
     ) -> Habit {
         let habit = Habit(context: context)
@@ -75,6 +76,7 @@ extension Habit {
         habit.targetValue = targetValue.map { NSNumber(value: $0) }
         habit.unit = unit
         habit.aggregationType = aggregationType.rawValue
+        habit.isBadHabit = isBadHabit
         habit.isArchived = false
         habit.sortOrder = sortOrder
         habit.createdAt = Date()

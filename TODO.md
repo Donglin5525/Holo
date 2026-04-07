@@ -90,6 +90,47 @@
 
 ---
 
+## 📋 已规划待实施
+
+### 跨模块 / 基础设施
+
+| 项目 | 规划文档 | 说明 |
+|------|----------|------|
+| 全局手势返回 | `docs/_common/plans/全局手势返回.md` | 统一 SwipeBackModifier，消除 FinanceView/HabitsView 重复代码，覆盖 10+ Sheet 页面 |
+| 震动反馈规范化 | `docs/_common/plans/震动反馈规范化.md` | 创建 HapticManager 枚举，统一触觉反馈 API，补全保存交易/完成任务等缺失反馈 |
+| 推送通知 | `docs/_common/plans/push 规划.md`、`push 开发计划.md` | 7 阶段本地推送：Core Data 扩展、通知服务增强、提醒选择 UI、设置页面、应用生命周期集成 |
+
+### 记忆长廊
+
+| 项目 | 规划文档 | 说明 |
+|------|----------|------|
+| 三层叙事时间线 | `docs/_common/plans/记忆长廊三层叙事时间线设计.md` | 替换瀑布流为三层时间线（每日摘要 + 高亮 + 里程碑），设计评审已通过，待实施 |
+| 里程碑自定义设置 | `docs/_common/plans/里程碑自定义设置.md` | MilestoneConfigManager 支持开关预设、调阈值、自定义里程碑类型，含设置页面 UI |
+
+### AI 对话
+
+| 项目 | 规划文档 | 说明 |
+|------|----------|------|
+| Prompt 本地编辑器 | `docs/_common/plans/Prompt本地编辑器方案.md` | 应用内查看/编辑/测试 AI 提示词模板，UserDefaults 覆盖 + 真实 LLM 调用测试 |
+
+### 待办模块
+
+| 项目 | 规划文档 | 说明 |
+|------|----------|------|
+| 图片附件 | `docs/todo/plans/TASK_IMAGE_ATTACHMENT_PLAN.md` | 每任务最多 9 张图，PhotosPicker 集成，缩略图网格 + 全屏查看器，待确认 |
+
+### 记账模块
+
+| 项目 | 规划文档 | 说明 |
+|------|----------|------|
+| 统计图表分析 | `docs/finance/plans/统计图表分析.md` | 概览/详情/类别三 Tab，Swift Charts 实现，支持 6 种时间范围 |
+| 分期记账 + 全局搜索 | `docs/finance/plans/分期记账+全局搜索.md` | 分期字段 + 自动生成 N 笔交易；防抖实时搜索 + 搜索历史 |
+| 导入账单类别智能匹配 | `docs/finance/plans/category-smart-matching.md` | CSV 导入三层匹配策略（精确 → 同义词 → 模糊），含匹配预览 UI |
+| 自定义分类管理 | `docs/finance/plans/自定义分类管理.md` | 财务设置入口 + 82 图标网格选择器，增强 AddCategorySheet |
+| SF Symbols 图标迁移 | `docs/finance/plans/图标迁移SF-Symbols方案.md` | 97 个 SVG → SF Symbols，Phase 1 预览完成，⏸️ 暂缓等待视觉确认 |
+
+---
+
 ## 🟢 优化项
 
 | 项目 | 备注 |

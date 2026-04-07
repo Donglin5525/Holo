@@ -457,6 +457,14 @@ class CoreDataStack {
         habitAggregationType.defaultValue = 0
         habitAttributes.append(habitAggregationType)
         
+        // 是否为坏习惯（如抽烟、熬夜）
+        let habitIsBadHabit = NSAttributeDescription()
+        habitIsBadHabit.name = "isBadHabit"
+        habitIsBadHabit.attributeType = .booleanAttributeType
+        habitIsBadHabit.isOptional = false
+        habitIsBadHabit.defaultValue = false
+        habitAttributes.append(habitIsBadHabit)
+
         // 是否已归档
         let habitIsArchived = NSAttributeDescription()
         habitIsArchived.name = "isArchived"

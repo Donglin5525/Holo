@@ -530,6 +530,8 @@ struct HabitDetailView: View {
     }
     
     private func deleteRecord(_ record: HabitRecord) {
+        // 同步移除，避免 SwiftUI 重新渲染时访问已删除的 Core Data 对象
+        records.removeAll { $0.id == record.id }
         try? HabitRepository.shared.deleteRecord(record)
         refreshAll()
     }

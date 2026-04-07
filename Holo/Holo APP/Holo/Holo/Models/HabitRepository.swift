@@ -86,7 +86,8 @@ class HabitRepository: ObservableObject {
         targetCount: Int? = nil,
         targetValue: Double? = nil,
         unit: String? = nil,
-        aggregationType: HabitAggregationType = .sum
+        aggregationType: HabitAggregationType = .sum,
+        isBadHabit: Bool = false
     ) throws -> Habit {
         // 计算新的排序顺序
         let maxSortOrder = activeHabits.map { $0.sortOrder }.max() ?? -1
@@ -102,6 +103,7 @@ class HabitRepository: ObservableObject {
             targetValue: targetValue,
             unit: unit,
             aggregationType: aggregationType,
+            isBadHabit: isBadHabit,
             sortOrder: maxSortOrder + 1
         )
         
@@ -122,6 +124,7 @@ class HabitRepository: ObservableObject {
         if let targetValue = updates.targetValue { habit.targetValue = NSNumber(value: targetValue) }
         if let unit = updates.unit { habit.unit = unit }
         if let aggregationType = updates.aggregationType { habit.aggregationType = aggregationType.rawValue }
+        if let isBadHabit = updates.isBadHabit { habit.isBadHabit = isBadHabit }
         
         habit.updatedAt = Date()
         
@@ -431,12 +434,35 @@ class HabitRepository: ObservableObject {
         return records.filter { $0.isCompleted }.count
     }
     
-    /// 计算周期统计（数值型）
+    /// 计算周期统计（数值型，基于每日聚合）
     func calculatePeriodStats(for habit: Habit, range: HabitDateRange) -> HabitPeriodStats {
         let records = getRecords(for: habit, in: range.dateRange())
-        let values = records.compactMap { $0.valueDouble }
-        
-        guard !values.isEmpty else {
+        let calendar = Calendar.current
+
+        // 按日期分组
+        var groupedByDay: [Date: [HabitRecord]] = [:]
+        for record in records {
+            let dayStart = calendar.startOfDay(for: record.date)
+            groupedByDay[dayStart, default: []].append(record)
+        }
+
+        // 按天聚合（复用 getDailyAggregatedData 的逻辑）
+        var dailyValues: [(date: Date, value: Double)] = []
+        for (date, dayRecords) in groupedByDay {
+            let values = dayRecords.compactMap { $0.valueDouble }
+            guard !values.isEmpty else { continue }
+
+            let aggregatedValue: Double
+            if habit.isCountType {
+                aggregatedValue = values.reduce(0, +)
+            } else {
+                let sorted = dayRecords.sorted { $0.date > $1.date }
+                aggregatedValue = sorted.first?.valueDouble ?? 0
+            }
+            dailyValues.append((date: date, value: aggregatedValue))
+        }
+
+        guard !dailyValues.isEmpty else {
             return HabitPeriodStats(
                 total: 0,
                 average: 0,
@@ -447,23 +473,24 @@ class HabitRepository: ObservableObject {
                 earliestValue: nil
             )
         }
-        
-        let total = values.reduce(0, +)
-        let average = total / Double(values.count)
-        let minVal = values.min() ?? 0
-        let maxVal = values.max() ?? 0
-        
+
+        let aggregatedValues = dailyValues.map(\.value)
+        let total = aggregatedValues.reduce(0, +)
+        let average = total / Double(aggregatedValues.count)
+        let minVal = aggregatedValues.min() ?? 0
+        let maxVal = aggregatedValues.max() ?? 0
+
         // 按日期排序获取首尾值
-        let sortedRecords = records.sorted { $0.date < $1.date }
-        let earliest = sortedRecords.first?.valueDouble
-        let latest = sortedRecords.last?.valueDouble
-        
+        let sortedByDate = dailyValues.sorted { $0.date < $1.date }
+        let earliest = sortedByDate.first?.value
+        let latest = sortedByDate.last?.value
+
         return HabitPeriodStats(
             total: total,
             average: average,
             min: minVal,
             max: maxVal,
-            count: values.count,
+            count: aggregatedValues.count,
             latestValue: latest,
             earliestValue: earliest
         )
@@ -840,6 +867,7 @@ struct HabitUpdates {
     var targetValue: Double?
     var unit: String?
     var aggregationType: HabitAggregationType?
+    var isBadHabit: Bool?
 }
 
 // MARK: - Statistics Models

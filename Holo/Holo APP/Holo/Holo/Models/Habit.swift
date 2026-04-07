@@ -26,6 +26,7 @@ public class Habit: NSManagedObject {
     @NSManaged public var targetValue: NSNumber?
     @NSManaged public var unit: String?
     @NSManaged public var aggregationType: Int16
+    @NSManaged public var isBadHabit: Bool
     @NSManaged public var isArchived: Bool
     @NSManaged public var sortOrder: Int16
     @NSManaged public var createdAt: Date
