@@ -648,29 +648,77 @@ extension HabitRepository {
                 guard habit.createdAt < nextDay else { continue }
                 dayTotal += 1
 
-                if habit.isCheckInType {
-                    // 检查是否有完成记录
-                    let request = HabitRecord.fetchRequest()
-                    request.predicate = NSPredicate(
-                        format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES",
-                        habit.id as CVarArg,
-                        currentDate as NSDate,
-                        nextDay as NSDate
-                    )
-                    if (try? context.count(for: request)) ?? 0 > 0 {
-                        dayCompleted += 1
+                if habit.isBadHabit {
+                    // 坏习惯：判断是否控制在目标以内
+                    if habit.isCheckInType {
+                        // 打卡型坏习惯：未打卡 = 成功
+                        let request = HabitRecord.fetchRequest()
+                        request.predicate = NSPredicate(
+                            format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES",
+                            habit.id as CVarArg,
+                            currentDate as NSDate,
+                            nextDay as NSDate
+                        )
+                        if (try? context.count(for: request)) ?? 0 == 0 {
+                            dayCompleted += 1
+                        }
+                    } else if habit.isNumericType, let targetValue = habit.targetValueDouble {
+                        // 数值型坏习惯：聚合值 <= 目标值 = 成功
+                        let request = HabitRecord.fetchRequest()
+                        request.predicate = NSPredicate(
+                            format: "habitId == %@ AND date >= %@ AND date < %@ AND value != nil",
+                            habit.id as CVarArg,
+                            currentDate as NSDate,
+                            nextDay as NSDate
+                        )
+                        if let dayRecords = try? context.fetch(request) as? [HabitRecord] {
+                            let aggregatedValue: Double
+                            if habit.isCountType {
+                                aggregatedValue = dayRecords.compactMap { $0.value?.doubleValue }.reduce(0, +)
+                            } else {
+                                aggregatedValue = dayRecords.last?.value?.doubleValue ?? 0
+                            }
+                            if aggregatedValue <= targetValue {
+                                dayCompleted += 1
+                            }
+                        }
+                    } else {
+                        // 无目标值的数值型坏习惯：有记录即算
+                        let request = HabitRecord.fetchRequest()
+                        request.predicate = NSPredicate(
+                            format: "habitId == %@ AND date >= %@ AND date < %@ AND value != nil",
+                            habit.id as CVarArg,
+                            currentDate as NSDate,
+                            nextDay as NSDate
+                        )
+                        if (try? context.count(for: request)) ?? 0 > 0 {
+                            dayCompleted += 1
+                        }
                     }
-                } else if habit.isNumericType {
-                    // 检查是否有数值记录
-                    let request = HabitRecord.fetchRequest()
-                    request.predicate = NSPredicate(
-                        format: "habitId == %@ AND date >= %@ AND date < %@ AND value != nil",
-                        habit.id as CVarArg,
-                        currentDate as NSDate,
-                        nextDay as NSDate
-                    )
-                    if (try? context.count(for: request)) ?? 0 > 0 {
-                        dayCompleted += 1
+                } else {
+                    // 好习惯：原有逻辑
+                    if habit.isCheckInType {
+                        let request = HabitRecord.fetchRequest()
+                        request.predicate = NSPredicate(
+                            format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES",
+                            habit.id as CVarArg,
+                            currentDate as NSDate,
+                            nextDay as NSDate
+                        )
+                        if (try? context.count(for: request)) ?? 0 > 0 {
+                            dayCompleted += 1
+                        }
+                    } else if habit.isNumericType {
+                        let request = HabitRecord.fetchRequest()
+                        request.predicate = NSPredicate(
+                            format: "habitId == %@ AND date >= %@ AND date < %@ AND value != nil",
+                            habit.id as CVarArg,
+                            currentDate as NSDate,
+                            nextDay as NSDate
+                        )
+                        if (try? context.count(for: request)) ?? 0 > 0 {
+                            dayCompleted += 1
+                        }
                     }
                 }
             }
@@ -811,7 +859,6 @@ extension HabitRepository {
 
         let calendar = Calendar.current
         let records = getRecords(for: habit, in: dateRange)
-        let completedCount = records.filter { $0.isCompleted }.count
 
         // 计算周期内的天数
         let dayCount: Int
@@ -824,7 +871,16 @@ extension HabitRepository {
             dayCount = max(components.day ?? 1, 1) + 1
         }
 
-        return dayCount > 0 ? Double(completedCount) / Double(dayCount) * 100 : 0
+        if habit.isBadHabit {
+            // 坏习惯：未打卡的天数算作成功（没有做坏习惯）
+            let checkedInCount = records.filter { $0.isCompleted }.count
+            let controlledCount = max(dayCount - checkedInCount, 0)
+            return dayCount > 0 ? Double(controlledCount) / Double(dayCount) * 100 : 0
+        } else {
+            // 好习惯：打卡天数即算完成
+            let completedCount = records.filter { $0.isCompleted }.count
+            return dayCount > 0 ? Double(completedCount) / Double(dayCount) * 100 : 0
+        }
     }
 
     /// 计算数值型习惯的完成率
@@ -833,13 +889,6 @@ extension HabitRepository {
 
         let calendar = Calendar.current
         let records = getRecords(for: habit, in: dateRange)
-
-        // 有记录的天数
-        var recordedDays = Set<Date>()
-        for record in records {
-            let dayStart = calendar.startOfDay(for: record.date)
-            recordedDays.insert(dayStart)
-        }
 
         // 计算周期内的天数
         let dayCount: Int
@@ -851,7 +900,32 @@ extension HabitRepository {
             dayCount = max(components.day ?? 1, 1) + 1
         }
 
-        return dayCount > 0 ? Double(recordedDays.count) / Double(dayCount) * 100 : 0
+        if habit.isBadHabit, let targetValue = habit.targetValueDouble {
+            // 坏习惯：按天聚合值，统计未超标（值 <= 目标值）的天数
+            var dailyValues: [Date: Double] = [:]
+            for record in records {
+                guard let value = record.value?.doubleValue else { continue }
+                let dayStart = calendar.startOfDay(for: record.date)
+
+                if habit.isCountType {
+                    dailyValues[dayStart, default: 0] += value
+                } else {
+                    dailyValues[dayStart] = value
+                }
+            }
+
+            let controlledDays = dailyValues.values.filter { $0 <= targetValue }.count
+            return dayCount > 0 ? Double(controlledDays) / Double(dayCount) * 100 : 0
+        } else {
+            // 好习惯：有记录的天数即算完成
+            var recordedDays = Set<Date>()
+            for record in records {
+                let dayStart = calendar.startOfDay(for: record.date)
+                recordedDays.insert(dayStart)
+            }
+
+            return dayCount > 0 ? Double(recordedDays.count) / Double(dayCount) * 100 : 0
+        }
     }
 }
 
