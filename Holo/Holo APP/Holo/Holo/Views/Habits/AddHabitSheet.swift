@@ -382,8 +382,8 @@ struct AddHabitSheet: View {
                         Text("好习惯")
                             .font(.holoCaption)
                     }
+                    .frame(maxWidth: .infinity)
                     .foregroundColor(isBadHabit == false ? .white : .holoTextPrimary)
-                    .padding(.horizontal, 16)
                     .padding(.vertical, 8)
                     .background(
                         RoundedRectangle(cornerRadius: HoloRadius.sm)
@@ -400,8 +400,8 @@ struct AddHabitSheet: View {
                         Text("坏习惯")
                             .font(.holoCaption)
                     }
+                    .frame(maxWidth: .infinity)
                     .foregroundColor(isBadHabit == true ? .white : .holoTextPrimary)
-                    .padding(.horizontal, 16)
                     .padding(.vertical, 8)
                     .background(
                         RoundedRectangle(cornerRadius: HoloRadius.sm)
