@@ -151,8 +151,8 @@ struct PieChartView: View {
                 center: sectorCenter,
                 innerRadius: innerRadius,
                 outerRadius: outerRadius,
-                startAngle: .degrees(-startDeg + insetAngle / 2),
-                endAngle: .degrees(-(startDeg + spanDeg) - insetAngle / 2),
+                startAngle: .degrees(-startDeg - insetAngle / 2),
+                endAngle: .degrees(-(startDeg + spanDeg) + insetAngle / 2),
                 clockwise: true
             )
 
@@ -172,7 +172,20 @@ struct PieChartView: View {
         }
     }
 
-    // MARK: - Canvas 绘制标签（科目名称在环内 + 20px 径向线 + 水平延伸 + 占比数字）
+    // MARK: - Canvas 绘制标签（科目名称在环内 + 引导线 + 碰撞避免）
+
+    /// 引导线标签数据（用于碰撞检测）
+    private struct LeaderLabel: Identifiable {
+        let id: Int
+        var textY: CGFloat
+        let textX: CGFloat
+        let bendY: CGFloat
+        let bendX: CGFloat
+        let lineStart: CGPoint
+        let text: String
+        let isRightSide: Bool
+        let opacity: Double
+    }
 
     private func drawLabels(into context: inout GraphicsContext, size: CGSize) {
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
@@ -184,6 +197,9 @@ struct PieChartView: View {
             $0 + Double(truncating: $1.amount as NSDecimalNumber)
         }
         guard total > 0 else { return }
+
+        // 第一步：计算所有标签位置
+        var leaderLabels: [LeaderLabel] = []
 
         for (index, agg) in nonZeroAggregations.enumerated() {
             let startDeg = Self.sectorStartAngle(
@@ -202,24 +218,22 @@ struct PieChartView: View {
             let cosMid = CGFloat(cos(midRad))
             let sinMid = CGFloat(sin(midRad))
 
-            // 扇区凸出偏移
             let offset: CGPoint = isFocused
                 ? CGPoint(x: cosMid * explodeDistance, y: sinMid * explodeDistance)
                 : .zero
             let sectorCenter = CGPoint(x: center.x + offset.x, y: center.y + offset.y)
 
-            // 1. 科目名称：大扇区在色块内部，小扇区在引导线末端
-            let isSmallSector = spanDeg < 25  // 约 < 7% 的扇区
+            let isSmallSector = spanDeg < 30  // 约 < 8% 的扇区
             let isRightSide = cosMid >= 0
 
+            // 大扇区：名称在色块内部
             if !isSmallSector {
-                // 大扇区：名称在色块内部
                 let nameRadius = (innerRadius + outerRadius) / 2
                 let namePoint = CGPoint(
                     x: sectorCenter.x + cosMid * nameRadius,
                     y: sectorCenter.y + sinMid * nameRadius
                 )
-                let nameFontSize: CGFloat = spanDeg > 40 ? 10 : 8
+                let nameFontSize: CGFloat = spanDeg > 45 ? 11 : 9
                 context.draw(
                     Text(agg.category.name)
                         .font(.system(size: nameFontSize, weight: .medium))
@@ -228,59 +242,86 @@ struct PieChartView: View {
                 )
             }
 
-            // 2. 引导线：从外边缘沿径向延伸 20px
+            // 引导线计算
             let lineStart = CGPoint(
                 x: center.x + cosMid * (outerRadius + 1),
                 y: center.y + sinMid * (outerRadius + 1)
             )
-            // 弯折点（径向 20px）
             let bendPoint = CGPoint(
                 x: center.x + cosMid * (outerRadius + labelRadialLength),
                 y: center.y + sinMid * (outerRadius + labelRadialLength)
             )
-
-            // 3. 水平延伸
             let lineEndX = isRightSide
                 ? bendPoint.x + labelHorizontalLength
                 : bendPoint.x - labelHorizontalLength
+            let textX = isRightSide ? lineEndX + 3 : lineEndX - 3
 
-            // 绘制引导线（两段：径向 + 水平）
+            let labelText = isSmallSector
+                ? "\(agg.category.name) \(agg.formattedPercentage)"
+                : agg.formattedPercentage
+
+            leaderLabels.append(LeaderLabel(
+                id: index,
+                textY: bendPoint.y,
+                textX: textX,
+                bendY: bendPoint.y,
+                bendX: lineEndX,
+                lineStart: lineStart,
+                text: labelText,
+                isRightSide: isRightSide,
+                opacity: labelOpacity
+            ))
+        }
+
+        // 第二步：碰撞避免 — 推开 Y 轴间距不足的标签
+        resolveLabelCollisions(&leaderLabels, minY: 8, maxY: size.height - 8)
+
+        // 第三步：绘制所有引导线和标签
+        for label in leaderLabels {
             var linePath = Path()
-            linePath.move(to: lineStart)
-            linePath.addLine(to: bendPoint)
-            linePath.addLine(to: CGPoint(x: lineEndX, y: bendPoint.y))
+            linePath.move(to: label.lineStart)
+            linePath.addLine(to: CGPoint(x: label.bendX, y: label.bendY))
+            linePath.addLine(to: CGPoint(x: label.bendX, y: label.textY))
             context.stroke(
                 linePath,
-                with: .color(Color.holoTextSecondary.opacity(labelOpacity * 0.5)),
+                with: .color(Color.holoTextSecondary.opacity(label.opacity * 0.5)),
                 lineWidth: 0.8
             )
 
-            // 4. 占比数字（水平线末端）
-            let textPoint = CGPoint(
-                x: isRightSide ? lineEndX + 3 : lineEndX - 3,
-                y: bendPoint.y
+            context.draw(
+                Text(label.text)
+                    .font(.system(size: 9))
+                    .foregroundColor(Color.holoTextSecondary.opacity(label.opacity)),
+                at: CGPoint(x: label.textX, y: label.textY),
+                anchor: label.isRightSide ? .leading : .trailing
             )
+        }
+    }
 
-            if isSmallSector {
-                // 小扇区：名称 + 占比都在引导线末端
-                let combinedText = "\(agg.category.name) \(agg.formattedPercentage)"
-                context.draw(
-                    Text(combinedText)
-                        .font(.system(size: 9))
-                        .foregroundColor(Color.holoTextSecondary.opacity(labelOpacity)),
-                    at: textPoint,
-                    anchor: isRightSide ? .leading : .trailing
-                )
-            } else {
-                // 大扇区：只显示占比
-                context.draw(
-                    Text(agg.formattedPercentage)
-                        .font(.system(size: 9))
-                        .foregroundColor(Color.holoTextSecondary.opacity(labelOpacity)),
-                    at: textPoint,
-                    anchor: isRightSide ? .leading : .trailing
-                )
+    /// 碰撞避免：推开 Y 轴距离过近的引导线标签
+    private func resolveLabelCollisions(
+        _ labels: inout [LeaderLabel],
+        minY: CGFloat,
+        maxY: CGFloat
+    ) {
+        guard labels.count > 1 else { return }
+        let minSpacing: CGFloat = 14
+
+        for _ in 0..<10 {
+            var moved = false
+            let sorted = labels.sorted { $0.textY < $1.textY }
+            for i in 1..<sorted.count {
+                let gap = sorted[i].textY - sorted[i - 1].textY
+                if gap < minSpacing {
+                    let push = (minSpacing - gap) / 2
+                    let idxPrev = labels.firstIndex(where: { $0.id == sorted[i - 1].id })!
+                    let idxCurr = labels.firstIndex(where: { $0.id == sorted[i].id })!
+                    labels[idxPrev].textY = max(labels[idxPrev].textY - push, minY)
+                    labels[idxCurr].textY = min(labels[idxCurr].textY + push, maxY)
+                    moved = true
+                }
             }
+            if !moved { break }
         }
     }
 
@@ -350,11 +391,11 @@ struct PieChartView: View {
             Image(systemName: "chart.pie")
                 .font(.system(size: 60, weight: .light))
                 .foregroundColor(.holoTextSecondary.opacity(0.5))
-            Text("暂无数据")
+            Text("暂无数据，这就开始记一笔吧！")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
         }
-        .frame(height: 200)
+        .frame(height: 300)
         .frame(maxWidth: .infinity)
     }
 

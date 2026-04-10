@@ -215,11 +215,11 @@ struct CategoryBarLineChartView: View {
                 .font(.system(size: 40, weight: .light))
                 .foregroundColor(.holoTextSecondary.opacity(0.5))
 
-            Text("暂无数据")
+            Text("暂无数据，这就开始记一笔吧！")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
         }
-        .frame(height: 200)
+        .frame(height: 300)
         .frame(maxWidth: .infinity)
     }
 
