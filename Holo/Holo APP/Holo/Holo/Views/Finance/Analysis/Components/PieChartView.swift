@@ -47,7 +47,23 @@ struct PieChartView: View {
     private let labelHorizontalLength: CGFloat = 12
 
     private var nonZeroAggregations: [CategoryAggregation] {
-        aggregations.filter { $0.amount > 0 }
+        // 过滤零值并按 category.id 去重，合并金额
+        var merged: [UUID: CategoryAggregation] = [:]
+        var order: [UUID] = []
+        for agg in aggregations where agg.amount > 0 {
+            if let existing = merged[agg.category.id] {
+                merged[agg.category.id] = CategoryAggregation(
+                    category: existing.category,
+                    amount: existing.amount + agg.amount,
+                    percentage: existing.percentage + agg.percentage,
+                    transactionCount: existing.transactionCount + agg.transactionCount
+                )
+            } else {
+                merged[agg.category.id] = agg
+                order.append(agg.category.id)
+            }
+        }
+        return order.compactMap { merged[$0] }
     }
 
     /// 当前视觉焦点类别（高亮优先于选中）
@@ -58,12 +74,12 @@ struct PieChartView: View {
     /// 焦点聚合数据（高亮或选中)，未选中时返回 nil
     private var focusedAggregation: CategoryAggregation? {
         guard let category = effectiveCategory else { return nil }
-        return aggregations.first { $0.category.id == category.id }
+        return nonZeroAggregations.first { $0.category.id == category.id }
     }
 
     // 总金额
     private var totalAmount: Decimal {
-        aggregations.reduce(0) { $0 + $1.amount }
+        nonZeroAggregations.reduce(0) { $0 + $1.amount }
     }
 
     var body: some View {
@@ -86,21 +102,26 @@ struct PieChartView: View {
             }
             .aspectRatio(1, contentMode: .fit)
             .overlay {
-                PieChartInteractionOverlay(
-                    aggregations: nonZeroAggregations,
-                    onHighlight: { category in
-                        withAnimation(.easeInOut(duration: 0.15)) {
-                            highlightedCategory = category
-                        }
-                    },
-                    onSelect: { category in
-                        highlightedCategory = nil
-                        onSelectCategory?(category)
-                    },
-                    onTouchActive: { active in
-                        onTouchActive?(active)
-                    }
-                )
+                GeometryReader { geo in
+                    Color.clear
+                        .contentShape(Rectangle())
+                        .gesture(
+                            DragGesture(minimumDistance: 0)
+                                .onChanged { value in
+                                    onTouchActive?(true)
+                                    let cat = categoryAtPoint(value.location, canvasSize: geo.size)
+                                    withAnimation(.easeInOut(duration: 0.15)) {
+                                        highlightedCategory = cat
+                                    }
+                                }
+                                .onEnded { _ in
+                                    onTouchActive?(false)
+                                    let cat = highlightedCategory
+                                    highlightedCategory = nil
+                                    onSelectCategory?(cat)
+                                }
+                        )
+                }
             }
 
             // 中心信息
@@ -109,6 +130,55 @@ struct PieChartView: View {
         .onChange(of: aggregations.map(\.id)) { _, _ in
             highlightedCategory = nil
         }
+    }
+
+    // MARK: - 触摸位置 → 扇区映射
+
+    /// 根据触摸点计算对应的分类（使用 SwiftUI 坐标系，与 Canvas 完全一致）
+    private func categoryAtPoint(_ point: CGPoint, canvasSize: CGSize) -> Category? {
+        let center = CGPoint(x: canvasSize.width / 2, y: canvasSize.height / 2)
+        let dx = point.x - center.x
+        let dy = point.y - center.y
+        let distance = sqrt(dx * dx + dy * dy)
+
+        let fullRadius = min(canvasSize.width, canvasSize.height) / 2 - explodeDistance
+        let outerR = fullRadius * pieScaleFactor
+        let innerR = outerR * 0.5
+
+        // 触摸范围：环形区域 + 少量边距
+        guard distance > innerR - 8 && distance < outerR + explodeDistance + 4 else { return nil }
+
+        // ★ 触摸角度（atan2 约定：0°=右，正值=下方，与 addArc / cos-sin 坐标系一致）
+        let touchAngle = atan2(dy, dx) * 180 / .pi
+
+        let total = nonZeroAggregations.reduce(0.0) {
+            $0 + Double(truncating: $1.amount as NSDecimalNumber)
+        }
+        guard total > 0 else { return nil }
+
+        // 遍历扇区，用角距离判断命中
+        for (index, agg) in nonZeroAggregations.enumerated() {
+            let startDeg = Self.sectorStartAngle(
+                index: index, aggregations: nonZeroAggregations, total: total
+            )
+            let spanDeg = Self.sectorSpan(
+                index: index, aggregations: nonZeroAggregations, total: total
+            )
+
+            // 扇区在 addArc/atan2 坐标系中的中点角度 = -midDeg
+            let midDeg = startDeg + spanDeg / 2
+            let sectorMidAngle = -midDeg
+
+            // 计算触摸角度与扇区中点的角距离（处理 -180°/180° 边界）
+            var diff = touchAngle - sectorMidAngle
+            while diff > 180 { diff -= 360 }
+            while diff < -180 { diff += 360 }
+
+            if abs(diff) <= spanDeg / 2 {
+                return agg.category
+            }
+        }
+        return nil
     }
 
     // MARK: - Canvas 绘制饼图扇区
@@ -133,14 +203,15 @@ struct PieChartView: View {
                 index: index, aggregations: nonZeroAggregations, total: total
             )
             let midDeg = startDeg + spanDeg / 2
-            let midRad = midDeg * .pi / 180
+            // 使用 -midDeg 匹配 addArc 视觉坐标系（addArc 使用 -startDeg）
+            let drawMidRad = -midDeg * .pi / 180
 
             let isFocused = effectiveCategory?.id == agg.category.id
             let isDimmed = effectiveCategory != nil && !isFocused
 
-            // 选中扇区沿角平分线方向偏移
-            let cosMid = CGFloat(cos(midRad))
-            let sinMid = CGFloat(sin(midRad))
+            // 选中扇区沿角平分线方向偏移（方向匹配视觉位置）
+            let cosMid = CGFloat(cos(drawMidRad))
+            let sinMid = CGFloat(sin(drawMidRad))
 
             let offset: CGPoint = isFocused
                 ? CGPoint(x: cosMid * explodeDistance, y: sinMid * explodeDistance)
@@ -172,20 +243,7 @@ struct PieChartView: View {
         }
     }
 
-    // MARK: - Canvas 绘制标签（科目名称在环内 + 引导线 + 碰撞避免）
-
-    /// 引导线标签数据（用于碰撞检测）
-    private struct LeaderLabel: Identifiable {
-        let id: Int
-        var textY: CGFloat
-        let textX: CGFloat
-        let bendY: CGFloat
-        let bendX: CGFloat
-        let lineStart: CGPoint
-        let text: String
-        let isRightSide: Bool
-        let opacity: Double
-    }
+    // MARK: - Canvas 绘制标签
 
     private func drawLabels(into context: inout GraphicsContext, size: CGSize) {
         let center = CGPoint(x: size.width / 2, y: size.height / 2)
@@ -198,8 +256,23 @@ struct PieChartView: View {
         }
         guard total > 0 else { return }
 
-        // 第一步：计算所有标签位置
-        var leaderLabels: [LeaderLabel] = []
+        // MARK: Step 1 - 计算所有标签初始位置
+
+        struct LabelLayout {
+            let index: Int
+            let agg: CategoryAggregation
+            let lineStart: CGPoint
+            var bendY: CGFloat          // var：可被碰撞调整修改
+            let bendX: CGFloat
+            let isRightSide: Bool
+            let isSmallSector: Bool
+            let labelOpacity: Double
+            let namePoint: CGPoint?
+            let nameFontSize: CGFloat
+            let cosMid: CGFloat
+        }
+
+        var layouts: [LabelLayout] = []
 
         for (index, agg) in nonZeroAggregations.enumerated() {
             let startDeg = Self.sectorStartAngle(
@@ -209,137 +282,155 @@ struct PieChartView: View {
                 index: index, aggregations: nonZeroAggregations, total: total
             )
             let midDeg = startDeg + spanDeg / 2
-            let midRad = midDeg * .pi / 180
+
+            // ★ 核心修正：使用 -midDeg 匹配 addArc 视觉坐标系
+            // addArc 绘制使用 -startDeg，所以扇区视觉中点在 -midDeg 方向
+            let drawMidRad = -midDeg * .pi / 180
+            let cosMid = CGFloat(cos(drawMidRad))
+            let sinMid = CGFloat(sin(drawMidRad))
 
             let isFocused = effectiveCategory?.id == agg.category.id
             let isDimmed = effectiveCategory != nil && !isFocused
             let labelOpacity: Double = isDimmed ? 0.2 : 1.0
 
-            let cosMid = CGFloat(cos(midRad))
-            let sinMid = CGFloat(sin(midRad))
+            let isSmallSector = spanDeg < 30
+            let isRightSide = cosMid >= 0
 
+            // 选中扇区偏移（用于扇区内部名称定位）
             let offset: CGPoint = isFocused
                 ? CGPoint(x: cosMid * explodeDistance, y: sinMid * explodeDistance)
                 : .zero
             let sectorCenter = CGPoint(x: center.x + offset.x, y: center.y + offset.y)
 
-            let isSmallSector = spanDeg < 30  // 约 < 8% 的扇区
-            let isRightSide = cosMid >= 0
-
-            // 大扇区：名称在色块内部
-            if !isSmallSector {
+            // 大扇区：名称在色块内部（跟随选中偏移）
+            let namePoint: CGPoint? = isSmallSector ? nil : {
                 let nameRadius = (innerRadius + outerRadius) / 2
-                let namePoint = CGPoint(
+                return CGPoint(
                     x: sectorCenter.x + cosMid * nameRadius,
                     y: sectorCenter.y + sinMid * nameRadius
                 )
-                let nameFontSize: CGFloat = spanDeg > 45 ? 11 : 9
+            }()
+            let nameFontSize: CGFloat = spanDeg > 45 ? 11 : 9
+
+            // 引导线起点：扇区外边缘（固定，不随选中移动）
+            let lineStart = CGPoint(
+                x: center.x + cosMid * (outerRadius + 1),
+                y: center.y + sinMid * (outerRadius + 1)
+            )
+
+            // 引导线弯折点（X 固定，Y 可被碰撞调整）
+            let bendX = center.x + cosMid * (outerRadius + labelRadialLength)
+            let bendY = center.y + sinMid * (outerRadius + labelRadialLength)
+
+            layouts.append(LabelLayout(
+                index: index,
+                agg: agg,
+                lineStart: lineStart,
+                bendY: bendY,
+                bendX: bendX,
+                isRightSide: isRightSide,
+                isSmallSector: isSmallSector,
+                labelOpacity: labelOpacity,
+                namePoint: namePoint,
+                nameFontSize: nameFontSize,
+                cosMid: cosMid
+            ))
+        }
+
+        // MARK: Step 2 - Y 轴防碰撞偏移
+
+        let minLabelSpacing: CGFloat = 16
+
+        func resolveCollisions(_ group: inout [LabelLayout]) {
+            guard group.count > 1 else { return }
+            group.sort { $0.bendY < $1.bendY }
+
+            // 迭代推挤直到无碰撞（最多 10 轮防止死循环）
+            for _ in 0..<10 {
+                var adjusted = false
+                for i in 1..<group.count {
+                    let gap = group[i].bendY - group[i - 1].bendY
+                    if gap < minLabelSpacing {
+                        let push = (minLabelSpacing - gap) / 2
+                        group[i - 1].bendY -= push
+                        group[i].bendY += push
+                        adjusted = true
+                    }
+                }
+                if !adjusted { break }
+            }
+        }
+
+        var rightGroup = layouts.filter { $0.isRightSide }
+        var leftGroup = layouts.filter { !$0.isRightSide }
+        resolveCollisions(&rightGroup)
+        resolveCollisions(&leftGroup)
+
+        // 合并回 layouts（按原 index 排序，保持颜色对应）
+        layouts = (rightGroup + leftGroup).sorted { $0.index < $1.index }
+
+        // MARK: Step 3 - 绘制所有标签
+
+        for layout in layouts {
+            let agg = layout.agg
+            let isRightSide = layout.isRightSide
+            let isSmallSector = layout.isSmallSector
+            let labelOpacity = layout.labelOpacity
+
+            // 大扇区：绘制内部名称
+            if !isSmallSector, let namePoint = layout.namePoint {
                 context.draw(
                     Text(agg.category.name)
-                        .font(.system(size: nameFontSize, weight: .medium))
+                        .font(.system(size: layout.nameFontSize, weight: .medium))
                         .foregroundColor(.white.opacity(labelOpacity)),
                     at: namePoint
                 )
             }
 
-            // 引导线计算
-            let lineStart = CGPoint(
-                x: center.x + cosMid * (outerRadius + 1),
-                y: center.y + sinMid * (outerRadius + 1)
-            )
-            let bendPoint = CGPoint(
-                x: center.x + cosMid * (outerRadius + labelRadialLength),
-                y: center.y + sinMid * (outerRadius + labelRadialLength)
-            )
+            // 引导线：扇区边缘 → 弯折点 → 水平延伸
+            let bendPoint = CGPoint(x: layout.bendX, y: layout.bendY)
             let lineEndX = isRightSide
                 ? bendPoint.x + labelHorizontalLength
                 : bendPoint.x - labelHorizontalLength
-            let textX = isRightSide ? lineEndX + 3 : lineEndX - 3
 
-            let labelText = isSmallSector
-                ? "\(agg.category.name) \(agg.formattedPercentage)"
-                : agg.formattedPercentage
-
-            leaderLabels.append(LeaderLabel(
-                id: index,
-                textY: bendPoint.y,
-                textX: textX,
-                bendY: bendPoint.y,
-                bendX: lineEndX,
-                lineStart: lineStart,
-                text: labelText,
-                isRightSide: isRightSide,
-                opacity: labelOpacity
-            ))
-        }
-
-        // 第二步：碰撞避免 — 推开 Y 轴间距不足的标签
-        resolveLabelCollisions(&leaderLabels, minY: 8, maxY: size.height - 8)
-
-        // 第三步：绘制所有引导线和标签
-        for label in leaderLabels {
             var linePath = Path()
-            linePath.move(to: label.lineStart)
-            linePath.addLine(to: CGPoint(x: label.bendX, y: label.bendY))
-            linePath.addLine(to: CGPoint(x: label.bendX, y: label.textY))
+            linePath.move(to: layout.lineStart)
+            linePath.addLine(to: bendPoint)
+            linePath.addLine(to: CGPoint(x: lineEndX, y: layout.bendY))
             context.stroke(
                 linePath,
-                with: .color(Color.holoTextSecondary.opacity(label.opacity * 0.5)),
+                with: .color(Color.holoTextSecondary.opacity(labelOpacity * 0.5)),
                 lineWidth: 0.8
             )
 
-            context.draw(
-                Text(label.text)
-                    .font(.system(size: 9))
-                    .foregroundColor(Color.holoTextSecondary.opacity(label.opacity)),
-                at: CGPoint(x: label.textX, y: label.textY),
-                anchor: label.isRightSide ? .leading : .trailing
+            // 引导线末端标签
+            let textPoint = CGPoint(
+                x: isRightSide ? lineEndX + 3 : lineEndX - 3,
+                y: layout.bendY
             )
-        }
-    }
 
-    /// 碰撞避免：推开 Y 轴距离过近的引导线标签
-    private func resolveLabelCollisions(
-        _ labels: inout [LeaderLabel],
-        minY: CGFloat,
-        maxY: CGFloat
-    ) {
-        guard labels.count > 1 else { return }
-        let minSpacing: CGFloat = 14
-
-        for _ in 0..<10 {
-            var moved = false
-            let sorted = labels.sorted { $0.textY < $1.textY }
-            for i in 1..<sorted.count {
-                let gap = sorted[i].textY - sorted[i - 1].textY
-                if gap < minSpacing {
-                    let push = (minSpacing - gap) / 2
-                    let idxPrev = labels.firstIndex(where: { $0.id == sorted[i - 1].id })!
-                    let idxCurr = labels.firstIndex(where: { $0.id == sorted[i].id })!
-                    labels[idxPrev].textY = max(labels[idxPrev].textY - push, minY)
-                    labels[idxCurr].textY = min(labels[idxCurr].textY + push, maxY)
-                    moved = true
-                }
+            if isSmallSector {
+                let combinedText = "\(agg.category.name) \(agg.formattedPercentage)"
+                context.draw(
+                    Text(combinedText)
+                        .font(.system(size: 9))
+                        .foregroundColor(Color.holoTextSecondary.opacity(labelOpacity)),
+                    at: textPoint,
+                    anchor: isRightSide ? .leading : .trailing
+                )
+            } else {
+                context.draw(
+                    Text(agg.formattedPercentage)
+                        .font(.system(size: 9))
+                        .foregroundColor(Color.holoTextSecondary.opacity(labelOpacity)),
+                    at: textPoint,
+                    anchor: isRightSide ? .leading : .trailing
+                )
             }
-            if !moved { break }
         }
     }
 
     // MARK: - 角度计算
-
-    private static func sectorMidAngle(
-        index: Int,
-        aggregations: [CategoryAggregation],
-        total: Double
-    ) -> Double {
-        var currentAngle = -90.0
-        for i in 0..<index {
-            let sectorAngle = (Double(truncating: aggregations[i].amount as NSDecimalNumber) / total) * 360
-            currentAngle += sectorAngle
-        }
-        let sectorAngle = (Double(truncating: aggregations[index].amount as NSDecimalNumber) / total) * 360
-        return currentAngle + sectorAngle / 2
-    }
 
     private static func sectorStartAngle(
         index: Int,
@@ -398,12 +489,6 @@ struct PieChartView: View {
         .frame(height: 300)
         .frame(maxWidth: .infinity)
     }
-
-    // MARK: - 辅助方法
-
-    private func colorForCategory(_ category: Category, at index: Int) -> Color {
-        sectorColors[index]
-    }
 }
 
 // MARK: - Sector Path Helper
@@ -433,139 +518,6 @@ private func SectorPath(
             clockwise: !clockwise
         )
         path.closeSubpath()
-    }
-}
-
-// MARK: - Pie Chart Interaction Overlay (UIViewRepresentable)
-
-/// 饼图交互覆盖层
-/// - 滑动手势:仅触发视觉高亮（不触发下钻)
-/// - 点击手势:松手时触发实际选中/下钻
-/// - onTouchActive: 通知外部是否正在触摸饼图（用于禁用 ScrollView)
-struct PieChartInteractionOverlay: UIViewRepresentable {
-    let aggregations: [CategoryAggregation]
-    let onHighlight: ((Category?) -> Void)?
-    let onSelect: (Category?) -> Void
-    var onTouchActive: ((Bool) -> Void)?
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(self)
-    }
-
-    func makeUIView(context: Context) -> InteractionView {
-        let view = InteractionView()
-        view.aggregations = aggregations
-
-        let panGesture = UIPanGestureRecognizer(
-            target: context.coordinator,
-            action: #selector(Coordinator.handleGesture(_:))
-        )
-        panGesture.cancelsTouchesInView = false
-        panGesture.delegate = context.coordinator
-        view.addGestureRecognizer(panGesture)
-
-        let tapGesture = UITapGestureRecognizer(
-            target: context.coordinator,
-            action: #selector(Coordinator.handleGesture(_:))
-        )
-        tapGesture.cancelsTouchesInView = false
-        tapGesture.delegate = context.coordinator
-        view.addGestureRecognizer(tapGesture)
-
-        return view
-    }
-
-    func updateUIView(_ uiView: InteractionView, context: Context) {
-        uiView.aggregations = aggregations
-        context.coordinator.parent = self
-    }
-
-    // MARK: - Interaction View
-
-    class InteractionView: UIView {
-        var aggregations: [CategoryAggregation] = []
-
-        override init(frame: CGRect) {
-            super.init(frame: frame)
-            backgroundColor = .clear
-            isUserInteractionEnabled = true
-        }
-
-        required init?(coder: NSCoder) { fatalError() }
-
-        override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
-            let center = CGPoint(x: bounds.midX, y: bounds.midY)
-            let dx = point.x - center.x
-            let dy = point.y - center.y
-            let distance = sqrt(dx * dx + dy * dy)
-            let radius = min(bounds.width, bounds.height) / 2
-            return distance > radius * 0.35 && distance < radius * 1.05
-        }
-
-        func categoryAtPoint(_ point: CGPoint) -> Category? {
-            let center = CGPoint(x: bounds.midX, y: bounds.midY)
-            let dx = point.x - center.x
-            let dy = point.y - center.y
-            let distance = sqrt(dx * dx + dy * dy)
-            let radius = min(bounds.width, bounds.height) / 2
-            guard distance > radius * 0.35 && distance < radius else { return nil }
-            let rawAngle = atan2(dy, dx) * 180 / .pi
-            var angle = rawAngle + 90
-            if angle < 0 { angle += 360 }
-            let total = aggregations.reduce(0.0) {
-                $0 + Double(truncating: $1.amount as NSDecimalNumber)
-            }
-            guard total > 0 else { return nil }
-            var currentAngle = 0.0
-            for agg in aggregations {
-                let sectorAngle = (Double(truncating: agg.amount as NSDecimalNumber) / total) * 360
-                if angle >= currentAngle && angle < currentAngle + sectorAngle {
-                    return agg.category
-                }
-                currentAngle += sectorAngle
-            }
-            return nil
-        }
-    }
-
-    // MARK: - Coordinator
-
-    class Coordinator: NSObject, UIGestureRecognizerDelegate {
-        var parent: PieChartInteractionOverlay
-
-        init(_ parent: PieChartInteractionOverlay) {
-            self.parent = parent
-        }
-
-        @objc func handleGesture(_ gesture: UIGestureRecognizer) {
-            guard let view = gesture.view as? InteractionView else { return }
-            let location = gesture.location(in: view)
-            let category = view.categoryAtPoint(location)
-
-            if gesture is UITapGestureRecognizer {
-                if gesture.state == .ended {
-                    parent.onSelect(category)
-                }
-            } else if gesture is UIPanGestureRecognizer {
-                switch gesture.state {
-                case .began, .changed:
-                    parent.onTouchActive?(true)
-                    parent.onHighlight?(category)
-                case .ended, .cancelled:
-                    parent.onTouchActive?(false)
-                    parent.onHighlight?(nil)
-                default:
-                    break
-                }
-            }
-        }
-
-        func gestureRecognizer(
-            _ gestureRecognizer: UIGestureRecognizer,
-            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
-        ) -> Bool {
-            return true
-        }
     }
 }
 
