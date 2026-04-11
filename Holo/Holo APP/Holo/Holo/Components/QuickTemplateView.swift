@@ -7,11 +7,6 @@
 //
 
 import SwiftUI
-#if canImport(UIKit)
-import UIKit
-#elseif canImport(AppKit)
-import AppKit
-#endif
 
 /// 快速记账模板视图
 struct QuickTemplateView: View {
@@ -116,36 +111,18 @@ struct QuickTemplateView: View {
     }
 }
 
-/// 快速模板中的分类图标：使用全局统一的 transactionCategoryIcon 渲染函数
+/// 快速模板中的分类图标：统一使用 SF Symbol 渲染
 /// 独立包装以支持非着色场景（foregroundColor 由外层控制）
 @ViewBuilder
 private func quickTemplateCategoryIcon(_ category: Category, size: CGFloat) -> some View {
     let name = category.icon
-    let withNamespace = "CategoryIcons/\(name)"
-    #if canImport(UIKit)
-    let loaded = UIImage(named: withNamespace) ?? UIImage(named: name)
-    if let img = loaded, name.hasPrefix("icon_") {
-        Image(uiImage: img)
-            .renderingMode(.template)
-            .resizable()
-            .scaledToFit()
-            .frame(width: size, height: size)
+    if name.hasPrefix("icon_") {
+        Image(systemName: "tag.fill")
+            .font(.system(size: size * 0.6, weight: .medium))
     } else {
-        Image(systemName: name.hasPrefix("icon_") ? "tag.fill" : name)
+        Image(systemName: name)
             .font(.system(size: size * 0.6, weight: .medium))
     }
-    #elseif canImport(AppKit)
-    let loaded = NSImage(named: withNamespace) ?? NSImage(named: name)
-    if let img = loaded, name.hasPrefix("icon_") {
-        Image(nsImage: img)
-            .resizable()
-            .scaledToFit()
-            .frame(width: size, height: size)
-    } else {
-        Image(systemName: name.hasPrefix("icon_") ? "tag.fill" : name)
-            .font(.system(size: size * 0.6, weight: .medium))
-    }
-    #endif
 }
 
 /// 快速模板按钮

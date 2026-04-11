@@ -212,7 +212,7 @@ struct MemoryDetailView: View {
         date: Date(),
         title: "餐饮",
         subtitle: "午餐 · 现金账户",
-        icon: "icon_food",
+        icon: "fork.knife",
         colorHex: "#13A4EC",
         amount: 35.5,
         note: "公司楼下便当，味道还不错",

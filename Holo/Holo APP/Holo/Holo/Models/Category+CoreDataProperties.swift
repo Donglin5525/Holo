@@ -73,104 +73,104 @@ extension Category {
     static let expenseHierarchy: [CategoryGroupDef] = [
         // ━━━━━━━━━━ 1. 餐饮（蓝色系 #13A4EC）━━━━━━━━━━
         (name: "餐饮", color: "#13A4EC", children: [
-            (name: "早餐", icon: "icon_breakfast"),
-            (name: "午餐", icon: "icon_lunch"),
-            (name: "晚餐", icon: "icon_dinner"),
-            (name: "夜宵", icon: "icon_late_snack"),
-            (name: "零食", icon: "icon_snack"),
-            (name: "咖啡", icon: "icon_coffee"),
-            (name: "外卖", icon: "icon_takeout"),
-            (name: "饮品", icon: "icon_beverage"),
-            (name: "水果", icon: "icon_fruit"),
-            (name: "酒水", icon: "icon_alcohol"),
-            (name: "超市", icon: "icon_supermarket"),
+            (name: "早餐", icon: "sunrise.fill"),
+            (name: "午餐", icon: "sun.max.fill"),
+            (name: "晚餐", icon: "moon.stars.fill"),
+            (name: "夜宵", icon: "moonphase.waning.crescent"),
+            (name: "零食", icon: "popcorn.fill"),
+            (name: "咖啡", icon: "cup.and.saucer.fill"),
+            (name: "外卖", icon: "bag.fill"),
+            (name: "饮品", icon: "wineglass.fill"),
+            (name: "水果", icon: "carrot.fill"),
+            (name: "酒水", icon: "wineglass"),
+            (name: "超市", icon: "cart.fill"),
         ]),
         // ━━━━━━━━━━ 2. 交通（绿色系 #10B981）━━━━━━━━━━
         (name: "交通", color: "#10B981", children: [
-            (name: "地铁", icon: "icon_metro"),
-            (name: "打车", icon: "icon_taxi"),
-            (name: "公交", icon: "icon_bus"),
-            (name: "单车", icon: "icon_bike_share"),
-            (name: "加油", icon: "icon_fuel"),
-            (name: "停车", icon: "icon_parking"),
-            (name: "火车", icon: "icon_train"),
-            (name: "机票", icon: "icon_flight"),
-            (name: "旅行", icon: "icon_travel"),
-            (name: "过路费", icon: "icon_toll"),
+            (name: "地铁", icon: "train.side.front.car"),
+            (name: "打车", icon: "car.side.fill"),
+            (name: "公交", icon: "bus.fill"),
+            (name: "单车", icon: "bicycle"),
+            (name: "加油", icon: "fuelpump.fill"),
+            (name: "停车", icon: "parkingsign.circle.fill"),
+            (name: "火车", icon: "train.side.rear.car"),
+            (name: "机票", icon: "airplane.departure"),
+            (name: "旅行", icon: "figure.walk"),
+            (name: "过路费", icon: "building.columns.fill"),
         ]),
         // ━━━━━━━━━━ 3. 购物（橙色系 #F97316）━━━━━━━━━━
         (name: "购物", color: "#F97316", children: [
-            (name: "服饰", icon: "icon_clothes"),
-            (name: "数码", icon: "icon_digital"),
-            (name: "日用", icon: "icon_groceries"),
-            (name: "美妆", icon: "icon_beauty"),
-            (name: "家具", icon: "icon_furniture"),
-            (name: "书籍", icon: "icon_book"),
-            (name: "运动", icon: "icon_sport"),
-            (name: "礼物", icon: "icon_present"),
+            (name: "服饰", icon: "hanger"),
+            (name: "数码", icon: "desktopcomputer"),
+            (name: "日用", icon: "basket.fill"),
+            (name: "美妆", icon: "sparkles"),
+            (name: "家具", icon: "sofa.fill"),
+            (name: "书籍", icon: "book.fill"),
+            (name: "运动", icon: "sportscourt.fill"),
+            (name: "礼物", icon: "gift.fill"),
         ]),
         // ━━━━━━━━━━ 4. 娱乐（粉色系 #EC4899）━━━━━━━━━━
         (name: "娱乐", color: "#EC4899", children: [
-            (name: "电影", icon: "icon_cinema"),
-            (name: "游戏", icon: "icon_gaming"),
-            (name: "视频", icon: "icon_video"),
-            (name: "音乐", icon: "icon_music"),
-            (name: "KTV", icon: "icon_ktv"),
-            (name: "旅游", icon: "icon_trip"),
-            (name: "健身", icon: "icon_fitness"),
+            (name: "电影", icon: "film.fill"),
+            (name: "游戏", icon: "gamecontroller.fill"),
+            (name: "视频", icon: "play.tv.fill"),
+            (name: "音乐", icon: "music.note.list"),
+            (name: "KTV", icon: "mic.fill"),
+            (name: "旅游", icon: "airplane"),
+            (name: "健身", icon: "figure.run"),
         ]),
         // ━━━━━━━━━━ 5. 居住（靛蓝色系 #6366F1）━━━━━━━━━━
         (name: "居住", color: "#6366F1", children: [
-            (name: "房租", icon: "icon_rent"),
-            (name: "房贷", icon: "icon_mortgage"),
-            (name: "水费", icon: "icon_water"),
-            (name: "电费", icon: "icon_electricity"),
-            (name: "燃气", icon: "icon_gas"),
-            (name: "物业", icon: "icon_property"),
-            (name: "网费", icon: "icon_internet"),
-            (name: "家电", icon: "icon_appliance"),
-            (name: "装修", icon: "icon_renovation"),
+            (name: "房租", icon: "key.fill"),
+            (name: "房贷", icon: "banknote.fill"),
+            (name: "水费", icon: "drop.fill"),
+            (name: "电费", icon: "bolt.fill"),
+            (name: "燃气", icon: "flame.fill"),
+            (name: "物业", icon: "building.2.fill"),
+            (name: "网费", icon: "wifi"),
+            (name: "家电", icon: "tv.fill"),
+            (name: "装修", icon: "paintbrush.fill"),
         ]),
         // ━━━━━━━━━━ 6. 医疗（玫红色系 #F43F5E）━━━━━━━━━━
         (name: "医疗", color: "#F43F5E", children: [
-            (name: "就医", icon: "icon_medical"),
-            (name: "药品", icon: "icon_medicine"),
-            (name: "体检", icon: "icon_checkup"),
-            (name: "健身房", icon: "icon_gym"),
-            (name: "保健品", icon: "icon_supplement"),
-            (name: "牙齿保健", icon: "icon_dental"),
-            (name: "医疗用品", icon: "icon_medical_supply"),
+            (name: "就医", icon: "stethoscope"),
+            (name: "药品", icon: "pill.fill"),
+            (name: "体检", icon: "heart.text.square.fill"),
+            (name: "健身房", icon: "dumbbell.fill"),
+            (name: "保健品", icon: "leaf.fill"),
+            (name: "牙齿保健", icon: "heart.circle.fill"),
+            (name: "医疗用品", icon: "cross.case.fill"),
         ]),
         // ━━━━━━━━━━ 7. 学习（青色系 #06B6D4）━━━━━━━━━━
         (name: "学习", color: "#06B6D4", children: [
-            (name: "课程", icon: "icon_course"),
-            (name: "教材", icon: "icon_textbook"),
-            (name: "考试", icon: "icon_exam"),
-            (name: "文具", icon: "icon_stationery"),
-            (name: "订阅", icon: "icon_subscription"),
+            (name: "课程", icon: "book.closed.fill"),
+            (name: "教材", icon: "text.book.closed.fill"),
+            (name: "考试", icon: "checkmark.rectangle.fill"),
+            (name: "文具", icon: "pencil.line"),
+            (name: "订阅", icon: "arrow.trianglehead.clockwise"),
         ]),
         // ━━━━━━━━━━ 8. 人情（琥珀色系 #F59E0B）━━━━━━━━━━
         (name: "人情", color: "#F59E0B", children: [
-            (name: "红包礼金", icon: "icon_cash_gift"),
-            (name: "请客", icon: "icon_treat"),
-            (name: "送礼", icon: "icon_gifting"),
-            (name: "探望", icon: "icon_visit"),
-            (name: "其他", icon: "icon_social_other"),
+            (name: "红包礼金", icon: "yensign.circle.fill"),
+            (name: "请客", icon: "wineglass.fill"),
+            (name: "送礼", icon: "gift.fill"),
+            (name: "探望", icon: "figure.walk.arrival"),
+            (name: "其他", icon: "ellipsis.circle.fill"),
         ]),
         // ━━━━━━━━━━ 9. 其他（灰色系 #64748B）━━━━━━━━━━
         (name: "其他", color: "#64748B", children: [
-            (name: "社交", icon: "icon_social"),
-            (name: "宠物", icon: "icon_pet"),
-            (name: "理发", icon: "icon_barber"),
-            (name: "洗衣", icon: "icon_laundry"),
-            (name: "话费", icon: "icon_phone_bill"),
-            (name: "烟酒", icon: "icon_tobacco_alcohol"),
-            (name: "维修", icon: "icon_repair"),
-            (name: "保险", icon: "icon_insurance"),
-            (name: "还款", icon: "icon_repayment"),
-            (name: "转账", icon: "icon_transfer_out"),
-            (name: "捐赠", icon: "icon_donation"),
-            (name: "其他", icon: "icon_other_exp"),
+            (name: "社交", icon: "person.2.fill"),
+            (name: "宠物", icon: "pawprint.fill"),
+            (name: "理发", icon: "scissors"),
+            (name: "洗衣", icon: "washer.fill"),
+            (name: "话费", icon: "phone.fill"),
+            (name: "烟酒", icon: "smoke.fill"),
+            (name: "维修", icon: "wrench.fill"),
+            (name: "保险", icon: "shield.checkered"),
+            (name: "还款", icon: "arrow.uturn.backward.circle.fill"),
+            (name: "转账", icon: "arrow.right.circle.fill"),
+            (name: "捐赠", icon: "heart.fill"),
+            (name: "其他", icon: "questionmark.folder.fill"),
         ]),
     ]
     
@@ -180,37 +180,181 @@ extension Category {
     static let incomeHierarchy: [CategoryGroupDef] = [
         // ━━━━━━━━━━ 1. 投资理财（蓝色系 #3B82F6）━━━━━━━━━━
         (name: "投资理财", color: "#3B82F6", children: [
-            (name: "利息", icon: "icon_interest"),
-            (name: "股票", icon: "icon_stock"),
-            (name: "房租收入", icon: "icon_rent_income"),
-            (name: "其他投资", icon: "icon_invest_other"),
+            (name: "利息", icon: "percent"),
+            (name: "股票", icon: "chart.line.uptrend.xyaxis"),
+            (name: "房租收入", icon: "building.columns.fill"),
+            (name: "其他投资", icon: "chart.pie.fill"),
         ]),
         // ━━━━━━━━━━ 2. 工资收入（绿色系 #22C55E）━━━━━━━━━━
         (name: "工资收入", color: "#22C55E", children: [
-            (name: "工资", icon: "icon_salary"),
-            (name: "奖金", icon: "icon_bonus"),
-            (name: "兼职", icon: "icon_parttime"),
-            (name: "报销", icon: "icon_reimburse"),
-            (name: "退款", icon: "icon_refund"),
+            (name: "工资", icon: "banknote.fill"),
+            (name: "奖金", icon: "star.fill"),
+            (name: "兼职", icon: "briefcase.fill"),
+            (name: "报销", icon: "arrow.uturn.backward.circle.fill"),
+            (name: "退款", icon: "arrow.counterclockwise.circle.fill"),
         ]),
         // ━━━━━━━━━━ 3. 人情来往（红色系 #EF4444）━━━━━━━━━━
         (name: "人情来往", color: "#EF4444", children: [
-            (name: "红包", icon: "icon_red_packet"),
-            (name: "礼物", icon: "icon_gift"),
-            (name: "中奖", icon: "icon_winning"),
-            (name: "转入", icon: "icon_transfer_in"),
+            (name: "红包", icon: "yensign.circle.fill"),
+            (name: "礼物", icon: "gift.fill"),
+            (name: "中奖", icon: "trophy.fill"),
+            (name: "转入", icon: "arrow.left.circle.fill"),
         ]),
         // ━━━━━━━━━━ 4. 其他收入（紫色系 #A855F7）━━━━━━━━━━
         (name: "其他收入", color: "#A855F7", children: [
-            (name: "借入", icon: "icon_loan_in"),
-            (name: "还款收入", icon: "icon_repay_in"),
-            (name: "退货", icon: "icon_return"),
-            (name: "公积金", icon: "icon_housing_fund"),
-            (name: "出闲置", icon: "icon_secondhand"),
-            (name: "其他", icon: "icon_other_inc"),
+            (name: "借入", icon: "arrow.down.circle.fill"),
+            (name: "还款收入", icon: "arrow.uturn.forward.circle.fill"),
+            (name: "退货", icon: "shippingbox.fill"),
+            (name: "公积金", icon: "building.columns.fill"),
+            (name: "出闲置", icon: "arrow.3.trianglepath"),
+            (name: "其他", icon: "questionmark.folder.fill"),
         ]),
     ]
     
+    // MARK: - 旧图标 → SF Symbol 映射（一次性迁移用）
+
+    /// 旧 icon_ 前缀图标名 → SF Symbol 名称
+    /// 覆盖全部 97 个自定义 SVG 图标 + 11 个父类别图标
+    static let legacyIconMapping: [String: String] = [
+        // ━━━ 餐饮 ━━━
+        "icon_breakfast": "sunrise.fill",
+        "icon_lunch": "sun.max.fill",
+        "icon_dinner": "moon.stars.fill",
+        "icon_late_snack": "moonphase.waning.crescent",
+        "icon_snack": "popcorn.fill",
+        "icon_coffee": "cup.and.saucer.fill",
+        "icon_takeout": "bag.fill",
+        "icon_beverage": "wineglass.fill",
+        "icon_fruit": "carrot.fill",
+        "icon_alcohol": "wineglass",
+        "icon_supermarket": "cart.fill",
+        // ━━━ 交通 ━━━
+        "icon_metro": "train.side.front.car",
+        "icon_taxi": "car.side.fill",
+        "icon_bus": "bus.fill",
+        "icon_bike_share": "bicycle",
+        "icon_fuel": "fuelpump.fill",
+        "icon_parking": "parkingsign.circle.fill",
+        "icon_train": "train.side.rear.car",
+        "icon_flight": "airplane.departure",
+        "icon_travel": "figure.walk",
+        "icon_toll": "building.columns.fill",
+        // ━━━ 购物 ━━━
+        "icon_clothes": "hanger",
+        "icon_digital": "desktopcomputer",
+        "icon_groceries": "basket.fill",
+        "icon_beauty": "sparkles",
+        "icon_furniture": "sofa.fill",
+        "icon_book": "book.fill",
+        "icon_sport": "sportscourt.fill",
+        "icon_present": "gift.fill",
+        // ━━━ 娱乐 ━━━
+        "icon_cinema": "film.fill",
+        "icon_gaming": "gamecontroller.fill",
+        "icon_video": "play.tv.fill",
+        "icon_music": "music.note.list",
+        "icon_ktv": "mic.fill",
+        "icon_trip": "airplane",
+        "icon_fitness": "figure.run",
+        // ━━━ 居住 ━━━
+        "icon_rent": "key.fill",
+        "icon_mortgage": "banknote.fill",
+        "icon_water": "drop.fill",
+        "icon_electricity": "bolt.fill",
+        "icon_gas": "flame.fill",
+        "icon_property": "building.2.fill",
+        "icon_internet": "wifi",
+        "icon_appliance": "tv.fill",
+        "icon_renovation": "paintbrush.fill",
+        // ━━━ 医疗 ━━━
+        "icon_medical": "stethoscope",
+        "icon_medicine": "pill.fill",
+        "icon_checkup": "heart.text.square.fill",
+        "icon_gym": "dumbbell.fill",
+        "icon_supplement": "leaf.fill",
+        "icon_dental": "heart.circle.fill",
+        "icon_medical_supply": "cross.case.fill",
+        // ━━━ 学习 ━━━
+        "icon_course": "book.closed.fill",
+        "icon_textbook": "text.book.closed.fill",
+        "icon_exam": "checkmark.rectangle.fill",
+        "icon_stationery": "pencil.line",
+        "icon_subscription": "arrow.trianglehead.clockwise",
+        // ━━━ 人情（支出）━━━
+        "icon_cash_gift": "yensign.circle.fill",
+        "icon_treat": "wineglass.fill",
+        "icon_gifting": "gift.fill",
+        "icon_visit": "figure.walk.arrival",
+        "icon_social_other": "ellipsis.circle.fill",
+        // ━━━ 其他支出 ━━━
+        "icon_social": "person.2.fill",
+        "icon_pet": "pawprint.fill",
+        "icon_barber": "scissors",
+        "icon_laundry": "washer.fill",
+        "icon_phone_bill": "phone.fill",
+        "icon_tobacco_alcohol": "smoke.fill",
+        "icon_repair": "wrench.fill",
+        "icon_insurance": "shield.checkered",
+        "icon_repayment": "arrow.uturn.backward.circle.fill",
+        "icon_transfer_out": "arrow.right.circle.fill",
+        "icon_donation": "heart.fill",
+        "icon_other_exp": "questionmark.folder.fill",
+        // ━━━ 投资理财（收入）━━━
+        "icon_interest": "percent",
+        "icon_stock": "chart.line.uptrend.xyaxis",
+        "icon_rent_income": "building.columns.fill",
+        "icon_invest_other": "chart.pie.fill",
+        // ━━━ 工资收入 ━━━
+        "icon_salary": "banknote.fill",
+        "icon_bonus": "star.fill",
+        "icon_parttime": "briefcase.fill",
+        "icon_reimburse": "arrow.uturn.backward.circle.fill",
+        "icon_refund": "arrow.counterclockwise.circle.fill",
+        // ━━━ 人情来往（收入）━━━
+        "icon_red_packet": "yensign.circle.fill",
+        "icon_gift": "gift.fill",
+        "icon_winning": "trophy.fill",
+        "icon_transfer_in": "arrow.left.circle.fill",
+        // ━━━ 其他收入 ━━━
+        "icon_loan_in": "arrow.down.circle.fill",
+        "icon_repay_in": "arrow.uturn.forward.circle.fill",
+        "icon_return": "shippingbox.fill",
+        "icon_housing_fund": "building.columns.fill",
+        "icon_secondhand": "arrow.3.trianglepath",
+        "icon_other_inc": "questionmark.folder.fill",
+        // ━━━ 父类别/选择器额外图标 ━━━
+        "icon_dining": "fork.knife",
+        "icon_transport": "car.fill",
+        "icon_shopping": "bag.fill",
+        "icon_entertainment": "music.note.list",
+        "icon_housing": "house.fill",
+        "icon_health": "heart.text.square.fill",
+        "icon_education": "book.closed.fill",
+        "icon_investment": "chart.line.uptrend.xyaxis",
+        "icon_other_income": "plus.circle.fill",
+        "icon_other_expense": "questionmark.folder.fill",
+        "icon_communication": "phone.fill",
+    ]
+
+    // MARK: - 父类别图标映射
+
+    /// 一级分类名称 → SF Symbol（用于种子数据和迁移）
+    static let parentIconMapping: [String: String] = [
+        "餐饮": "fork.knife",
+        "交通": "car.fill",
+        "购物": "bag.fill",
+        "娱乐": "music.note.list",
+        "居住": "house.fill",
+        "医疗": "heart.text.square.fill",
+        "学习": "book.closed.fill",
+        "人情": "yensign.circle.fill",
+        "其他": "questionmark.folder.fill",
+        "投资理财": "chart.line.uptrend.xyaxis",
+        "工资收入": "banknote.fill",
+        "人情来往": "gift.fill",
+        "其他收入": "plus.circle.fill",
+    ]
+
     // MARK: - Seed 初始化
 
     /**
@@ -251,6 +395,9 @@ extension Category {
         )
 
         try? context.save()
+
+        // 迁移旧 icon_ 图标到 SF Symbol
+        migrateLegacyIcons(in: context)
     }
 
     /**
@@ -279,7 +426,7 @@ extension Category {
         for group in expenseHierarchy {
             // 检查一级分类是否存在
             if !existingExpenseNames.contains(group.name) {
-                let parentIcon = group.children.first?.icon ?? "questionmark.circle"
+                let parentIcon = parentIconMapping[group.name] ?? group.children.first?.icon ?? "questionmark.circle"
                 let parent = create(
                     in: context,
                     name: group.name,
@@ -335,7 +482,7 @@ extension Category {
         // 检查并补充收入分类
         for group in incomeHierarchy {
             if !existingIncomeNames.contains(group.name) {
-                let parentIcon = group.children.first?.icon ?? "questionmark.circle"
+                let parentIcon = parentIconMapping[group.name] ?? group.children.first?.icon ?? "questionmark.circle"
                 let parent = create(
                     in: context,
                     name: group.name,
@@ -389,6 +536,9 @@ extension Category {
         if hasChanges {
             try? context.save()
         }
+
+        // 迁移旧 icon_ 图标到 SF Symbol
+        migrateLegacyIcons(in: context)
     }
     
     /**
@@ -404,8 +554,8 @@ extension Category {
         in context: NSManagedObjectContext
     ) {
         for (groupIndex, group) in hierarchy.enumerated() {
-            // 一级分类图标：暂用其第一个子分类的图标
-            let parentIcon = group.children.first?.icon ?? "questionmark.circle"
+            // 一级分类图标：使用专属映射，回退到第一个子分类图标
+            let parentIcon = parentIconMapping[group.name] ?? group.children.first?.icon ?? "questionmark.circle"
             
             let parent = create(
                 in: context,
@@ -431,6 +581,77 @@ extension Category {
                     parentId: parent.id
                 )
             }
+        }
+    }
+
+    // MARK: - 旧图标迁移
+
+    private static let migrationFlag = "hasMigratedToSFSymbols_v1"
+    private static let migrationV2Flag = "hasMigratedToSFSymbols_v2"
+
+    /// 将旧 icon_ 前缀图标名迁移为 SF Symbol
+    /// 使用 UserDefaults 标记确保只执行一次，迁移失败不设标记下次自动重试
+    static func migrateLegacyIcons(in context: NSManagedObjectContext) {
+        // v1: 迁移 icon_ 前缀
+        if !UserDefaults.standard.bool(forKey: migrationFlag) {
+            let request = Category.fetchRequest()
+            request.includesSubentities = false
+            guard let all = try? context.fetch(request) else { return }
+
+            var migrated = false
+            for category in all {
+                let iconName = category.icon
+                guard iconName.hasPrefix("icon_") else { continue }
+
+                if let sfSymbol = legacyIconMapping[iconName] ?? parentIconMapping[iconName] {
+                    category.icon = sfSymbol
+                    migrated = true
+                }
+            }
+
+            if migrated {
+                do {
+                    try context.save()
+                    UserDefaults.standard.set(true, forKey: migrationFlag)
+                } catch { }
+            } else {
+                UserDefaults.standard.set(true, forKey: migrationFlag)
+            }
+        }
+
+        // v2: 修复 v1 中使用了无效 SF Symbol 名称的图标
+        migrateInvalidSymbols(in: context)
+    }
+
+    /// 修复无效的 SF Symbol 名称（v1 迁移使用了不存在的图标名）
+    private static func migrateInvalidSymbols(in context: NSManagedObjectContext) {
+        guard !UserDefaults.standard.bool(forKey: migrationV2Flag) else { return }
+
+        let fixes: [String: String] = [
+            "apple.meditation": "carrot.fill",
+            "lipstick": "sparkles",
+            "couch.fill": "sofa.fill",
+        ]
+
+        let request = Category.fetchRequest()
+        request.includesSubentities = false
+        guard let all = try? context.fetch(request) else { return }
+
+        var migrated = false
+        for category in all {
+            if let fixed = fixes[category.icon] {
+                category.icon = fixed
+                migrated = true
+            }
+        }
+
+        if migrated {
+            do {
+                try context.save()
+                UserDefaults.standard.set(true, forKey: migrationV2Flag)
+            } catch { }
+        } else {
+            UserDefaults.standard.set(true, forKey: migrationV2Flag)
         }
     }
 }

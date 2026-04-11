@@ -6,11 +6,6 @@
 //
 
 import SwiftUI
-#if canImport(UIKit)
-import UIKit
-#elseif canImport(AppKit)
-import AppKit
-#endif
 
 // MARK: - Category Icon View Builder
 
@@ -22,35 +17,15 @@ import AppKit
 @ViewBuilder
 func transactionCategoryIcon(_ category: Category, size: CGFloat) -> some View {
     let name = category.icon
-    let withNamespace = "CategoryIcons/\(name)"
-    #if canImport(UIKit)
-    let loaded = UIImage(named: withNamespace) ?? UIImage(named: name)
 
-    if let img = loaded, name.hasPrefix("icon_") {
-        Image(uiImage: img)
-            .renderingMode(.template)
-            .resizable()
-            .scaledToFit()
-            .frame(width: size, height: size)
+    if name.hasPrefix("icon_") {
+        // 兼容：用户自定义分类仍使用旧 icon_ 名称，回退到 tag.fill
+        Image(systemName: "tag.fill")
+            .font(.system(size: size * 0.6, weight: .medium))
             .foregroundColor(category.swiftUIColor)
     } else {
-        Image(systemName: name.hasPrefix("icon_") ? "tag.fill" : name)
+        Image(systemName: name)
             .font(.system(size: size * 0.6, weight: .medium))
             .foregroundColor(category.swiftUIColor)
     }
-    #elseif canImport(AppKit)
-    let loaded = NSImage(named: withNamespace) ?? NSImage(named: name)
-
-    if let img = loaded, name.hasPrefix("icon_") {
-        Image(nsImage: img)
-            .resizable()
-            .scaledToFit()
-            .frame(width: size, height: size)
-            .foregroundColor(category.swiftUIColor)
-    } else {
-        Image(systemName: name.hasPrefix("icon_") ? "tag.fill" : name)
-            .font(.system(size: size * 0.6, weight: .medium))
-            .foregroundColor(category.swiftUIColor)
-    }
-    #endif
 }

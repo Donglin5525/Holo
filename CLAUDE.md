@@ -74,9 +74,12 @@ return f.string(from: date)
 
 | 项目 | 路径/命令 |
 |------|----------|
-| 分类图标 (62个) | `Holo/Assets.xcassets/CategoryIcons/` |
+| 分类图标 | SF Symbols（已从自定义 SVG 迁移） |
+| 旧图标映射 | `Category+CoreDataProperties.swift` → `legacyIconMapping` |
 | App 图标 | 1024×1024 PNG |
 | 更新命令 | `python3 icon/integrate_icons.py` |
+
+> **SF Symbol 验证规则**：任何新增或修改 SF Symbol 名称时，**必须先用 `NSImage(systemSymbolName:)` 验证名称存在**，再写入代码。不存在的名称运行时渲染为空白。详见 `docs/_common/开发规范.md` 第 5 节。
 
 ### 提交规范
 

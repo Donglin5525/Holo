@@ -927,22 +927,22 @@ class FinanceRepository {
 
         // 支出分类颜色映射
         let expenseMapping: [(keywords: [String], icon: String, color: String)] = [
-            (["餐", "饭", "食", "吃", "饮", "咖啡", "外卖", "早餐", "午餐", "晚餐"], "icon_food", "#13A4EC"),
-            (["交通", "打车", "地铁", "公交", "出租", "滴滴", "单车", "加油", "停车"], "icon_transport", "#10B981"),
-            (["购物", "买", "服饰", "数码", "日用", "美妆", "家具"], "icon_shopping", "#F97316"),
-            (["娱乐", "电影", "游戏", "音乐", "ktv", "旅游"], "icon_entertainment", "#EC4899"),
-            (["居住", "房租", "水费", "电费", "燃气", "物业", "网费"], "icon_housing", "#6366F1"),
-            (["医疗", "药", "看病", "体检", "健康"], "icon_medical", "#F43F5E"),
-            (["学习", "课程", "教材", "考试", "培训", "教育"], "icon_study", "#06B6D4"),
-            (["社交", "宠物", "理发", "洗衣", "维修", "保险"], "icon_other_exp", "#64748B"),
+            (["餐", "饭", "食", "吃", "饮", "咖啡", "外卖", "早餐", "午餐", "晚餐"], "fork.knife", "#13A4EC"),
+            (["交通", "打车", "地铁", "公交", "出租", "滴滴", "单车", "加油", "停车"], "car.fill", "#10B981"),
+            (["购物", "买", "服饰", "数码", "日用", "美妆", "家具"], "bag.fill", "#F97316"),
+            (["娱乐", "电影", "游戏", "音乐", "ktv", "旅游"], "music.note.list", "#EC4899"),
+            (["居住", "房租", "水费", "电费", "燃气", "物业", "网费"], "house.fill", "#6366F1"),
+            (["医疗", "药", "看病", "体检", "健康"], "stethoscope", "#F43F5E"),
+            (["学习", "课程", "教材", "考试", "培训", "教育"], "book.closed.fill", "#06B6D4"),
+            (["社交", "宠物", "理发", "洗衣", "维修", "保险"], "questionmark.folder.fill", "#64748B"),
         ]
 
         // 收入分类颜色映射
         let incomeMapping: [(keywords: [String], icon: String, color: String)] = [
-            (["投资", "利息", "股票", "理财", "基金"], "icon_invest", "#3B82F6"),
-            (["工资", "奖金", "薪资", "兼职", "薪水"], "icon_salary", "#22C55E"),
-            (["红包", "礼金", "人情", "中奖"], "icon_red_packet", "#EF4444"),
-            (["退款", "退货", "转入", "还款"], "icon_refund", "#A855F7"),
+            (["投资", "利息", "股票", "理财", "基金"], "chart.line.uptrend.xyaxis", "#3B82F6"),
+            (["工资", "奖金", "薪资", "兼职", "薪水"], "banknote.fill", "#22C55E"),
+            (["红包", "礼金", "人情", "中奖"], "yensign.circle.fill", "#EF4444"),
+            (["退款", "退货", "转入", "还款"], "arrow.counterclockwise.circle.fill", "#A855F7"),
         ]
 
         let mapping = type == .expense ? expenseMapping : incomeMapping
@@ -956,7 +956,7 @@ class FinanceRepository {
         }
 
         // 默认值
-        return (type == .expense ? "icon_other_exp" : "icon_other_inc", "#64748B")
+        return (type == .expense ? "questionmark.folder.fill" : "plus.circle.fill", "#64748B")
     }
 
     // MARK: - 导入辅助方法

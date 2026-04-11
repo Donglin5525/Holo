@@ -3,66 +3,67 @@
 //  Holo
 //
 //  图标网格选择组件
-//  展示 82 个预设图标，4 列网格布局，单选模式
+//  展示预设 SF Symbol 图标，4 列网格布局，单选模式
 //
 
 import SwiftUI
 
 // MARK: - 预设图标列表
 
-/// 所有预设分类图标名称（105 个）
+/// 所有预设分类图标名称（SF Symbol）
 let presetCategoryIcons: [String] = [
     // 餐饮类
-    "icon_breakfast", "icon_lunch", "icon_dinner", "icon_snack",
-    "icon_late_snack", "icon_takeout", "icon_dining", "icon_coffee",
-    "icon_beverage", "icon_fruit", "icon_alcohol", "icon_supermarket",
+    "fork.knife", "sunrise.fill", "sun.max.fill", "moon.stars.fill",
+    "moonphase.waning.crescent", "popcorn.fill", "cup.and.saucer.fill",
+    "bag.fill", "wineglass.fill", "carrot.fill", "wineglass", "cart.fill",
 
     // 交通类
-    "icon_transport", "icon_metro", "icon_taxi", "icon_fuel",
-    "icon_parking", "icon_toll", "icon_bike_share", "icon_trip", "icon_travel",
-    "icon_bus", "icon_train", "icon_flight",
+    "car.fill", "train.side.front.car", "car.side.fill", "fuelpump.fill",
+    "parkingsign.circle.fill", "building.columns.fill", "bicycle",
+    "airplane", "figure.walk", "bus.fill", "train.side.rear.car", "airplane.departure",
 
     // 购物类
-    "icon_shopping", "icon_groceries", "icon_clothes", "icon_digital",
-    "icon_furniture", "icon_stationery", "icon_book", "icon_textbook",
+    "hanger", "desktopcomputer", "basket.fill", "sparkles",
+    "sofa.fill", "book.fill", "sportscourt.fill", "gift.fill",
 
     // 娱乐类
-    "icon_entertainment", "icon_cinema", "icon_ktv", "icon_gaming",
-    "icon_music", "icon_video", "icon_sport", "icon_fitness", "icon_gym",
+    "music.note.list", "film.fill", "mic.fill", "gamecontroller.fill",
+    "play.tv.fill", "figure.run",
 
     // 居住类
-    "icon_housing", "icon_rent", "icon_property", "icon_water",
-    "icon_electricity", "icon_gas", "icon_internet", "icon_repair",
-    "icon_mortgage", "icon_appliance", "icon_renovation",
+    "house.fill", "key.fill", "building.2.fill", "drop.fill",
+    "bolt.fill", "flame.fill", "wifi", "wrench.fill",
+    "banknote.fill", "tv.fill", "paintbrush.fill",
 
     // 医疗类
-    "icon_health", "icon_medical", "icon_medicine", "icon_checkup",
-    "icon_supplement", "icon_dental", "icon_medical_supply",
+    "heart.text.square.fill", "stethoscope", "pill.fill",
+    "leaf.fill", "heart.circle.fill", "cross.case.fill", "dumbbell.fill",
 
     // 学习类
-    "icon_education", "icon_course", "icon_exam",
+    "book.closed.fill", "text.book.closed.fill", "checkmark.rectangle.fill",
 
     // 人情类
-    "icon_cash_gift", "icon_treat", "icon_gifting", "icon_visit", "icon_social_other",
+    "yensign.circle.fill", "figure.walk.arrival", "ellipsis.circle.fill",
 
     // 社交类
-    "icon_social", "icon_gift", "icon_present", "icon_donation",
-    "icon_red_packet",
+    "person.2.fill", "heart.fill",
+    "trophy.fill",
 
     // 投资理财类（收入）
-    "icon_salary", "icon_bonus", "icon_interest", "icon_stock",
-    "icon_investment", "icon_invest_other", "icon_rent_income",
-    "icon_return", "icon_winning", "icon_refund",
+    "percent", "star.fill", "chart.line.uptrend.xyaxis",
+    "chart.pie.fill", "briefcase.fill",
+    "arrow.uturn.backward.circle.fill", "arrow.counterclockwise.circle.fill",
 
     // 其他收入
-    "icon_parttime", "icon_loan_in", "icon_repay_in", "icon_transfer_in",
-    "icon_other_income", "icon_other_inc", "icon_reimburse", "icon_housing_fund", "icon_secondhand",
+    "arrow.left.circle.fill", "arrow.down.circle.fill",
+    "arrow.uturn.forward.circle.fill", "shippingbox.fill",
+    "arrow.3.trianglepath", "plus.circle.fill",
 
     // 其他支出
-    "icon_other_expense", "icon_other_exp", "icon_transfer_out",
-    "icon_repayment", "icon_subscription", "icon_insurance",
-    "icon_pet", "icon_beauty", "icon_barber", "icon_laundry",
-    "icon_communication", "icon_phone_bill", "icon_tobacco_alcohol"
+    "pawprint.fill", "scissors", "washer.fill",
+    "phone.fill", "smoke.fill", "shield.checkered",
+    "arrow.right.circle.fill", "questionmark.folder.fill",
+    "pencil.line", "arrow.trianglehead.clockwise"
 ]
 
 // MARK: - Icon Picker Grid
@@ -102,11 +103,8 @@ struct IconPickerGrid: View {
                 .fill(isSelected ? Color.holoPrimary.opacity(0.15) : Color.holoCardBackground)
                 .frame(width: 64, height: 64)
 
-            Image(iconName)
-                .renderingMode(.template)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 36, height: 36)
+            Image(systemName: iconName)
+                .font(.system(size: 22, weight: .medium))
                 .foregroundColor(isSelected ? .holoPrimary : .holoTextSecondary)
 
             if isSelected {
@@ -127,7 +125,7 @@ struct IconPickerGrid: View {
 
 #Preview {
     struct PreviewWrapper: View {
-        @State var selectedIcon = "icon_dining"
+        @State var selectedIcon = "fork.knife"
 
         var body: some View {
             ScrollView {
