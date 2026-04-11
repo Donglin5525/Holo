@@ -13,6 +13,7 @@ struct MessageBubbleView: View {
     let message: ChatMessage
     let streamingText: String?
     var onIntentTagTap: ((ChatMessage) -> Void)? = nil
+    var onCardTap: ((ChatMessage, ChatCardData) -> Void)? = nil
 
     private var displayText: String {
         streamingText ?? message.content
@@ -22,8 +23,22 @@ struct MessageBubbleView: View {
         message.role == "user"
     }
 
+    /// 是否可渲染为卡片
+    private var cardData: ChatCardData? {
+        guard !isUser,
+              let intentStr = message.intent,
+              let intent = AIIntent(rawValue: intentStr),
+              !message.isStreaming else {
+            return nil
+        }
+        return ChatCardData.from(intent: intent, data: message.extractedDataDictionary)
+    }
+
     var body: some View {
-        HStack(alignment: .top, spacing: 8) {
+        // 预计算卡片数据，避免 body 中重复求值
+        let hasCard = cardData
+
+        return HStack(alignment: .top, spacing: 8) {
             if isUser {
                 Spacer(minLength: 60)
             }
@@ -33,12 +48,17 @@ struct MessageBubbleView: View {
                 aiAvatar
             }
 
-            // 气泡内容
+            // 消息内容
             VStack(alignment: isUser ? .trailing : .leading, spacing: 4) {
-                bubbleContent
+                // 有卡片数据时渲染卡片，否则渲染普通气泡
+                if let card = hasCard {
+                    cardView(for: card)
+                } else {
+                    bubbleContent
+                }
 
-                // 意图标签
-                if let intent = message.intent, !isUser {
+                // 意图标签（卡片渲染时隐藏）
+                if let intent = message.intent, !isUser, hasCard == nil {
                     intentTag(intent)
                 }
             }
@@ -110,6 +130,35 @@ struct MessageBubbleView: View {
 
     private var bubbleBackground: Color {
         isUser ? Color.blue.opacity(0.12) : Color(.systemGray6)
+    }
+
+    // MARK: - Card View
+
+    /// 根据卡片数据渲染对应领域的卡片视图
+    @ViewBuilder
+    private func cardView(for data: ChatCardData) -> some View {
+        switch data {
+        case .transaction(let txData):
+            TransactionChatCard(data: txData) {
+                onCardTap?(message, data)
+            }
+        case .task(let taskData):
+            TaskChatCard(data: taskData) {
+                onCardTap?(message, data)
+            }
+        case .habitCheckIn(let habitData):
+            HabitCheckInChatCard(data: habitData) {
+                onCardTap?(message, data)
+            }
+        case .mood(let moodData):
+            MoodChatCard(data: moodData) {
+                onCardTap?(message, data)
+            }
+        case .weight(let weightData):
+            WeightChatCard(data: weightData) {
+                onCardTap?(message, data)
+            }
+        }
     }
 
     // MARK: - Intent Tag

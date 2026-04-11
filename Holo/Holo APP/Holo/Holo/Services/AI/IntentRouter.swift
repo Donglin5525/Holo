@@ -22,6 +22,23 @@ final class IntentRouter {
     struct RouteResult {
         let text: String
         let transactionId: UUID?
+        let taskId: UUID?
+        let habitId: UUID?
+        let thoughtId: UUID?
+
+        init(
+            text: String,
+            transactionId: UUID? = nil,
+            taskId: UUID? = nil,
+            habitId: UUID? = nil,
+            thoughtId: UUID? = nil
+        ) {
+            self.text = text
+            self.transactionId = transactionId
+            self.taskId = taskId
+            self.habitId = habitId
+            self.thoughtId = thoughtId
+        }
     }
 
     /// 根据解析结果执行对应的本地操作
@@ -36,17 +53,16 @@ final class IntentRouter {
         case .recordIncome:
             return try await handleRecordIncome(result)
         case .createTask:
-            return RouteResult(text: try handleCreateTask(result), transactionId: nil)
+            return try handleCreateTask(result)
         case .recordMood:
-            return RouteResult(text: try handleRecordMood(result), transactionId: nil)
+            return try handleRecordMood(result)
         case .recordWeight:
-            return RouteResult(text: try handleRecordWeight(result), transactionId: nil)
+            return try handleRecordWeight(result)
         case .checkIn:
-            return RouteResult(text: try handleCheckIn(result), transactionId: nil)
+            return try handleCheckIn(result)
         case .query, .chat, .unknown:
             return RouteResult(
-                text: result.responseText ?? "我可以帮你记账、创建任务、记录心情等。有什么需要帮忙的吗？",
-                transactionId: nil
+                text: result.responseText ?? "我可以帮你记账、创建任务、记录心情等。有什么需要帮忙的吗？"
             )
         }
     }
@@ -57,7 +73,7 @@ final class IntentRouter {
         guard let data = result.extractedData,
               let amountStr = data["amount"],
               let amount = Decimal(string: amountStr) else {
-            return RouteResult(text: result.responseText ?? "请告诉我具体的金额", transactionId: nil)
+            return RouteResult(text: result.responseText ?? "请告诉我具体的金额")
         }
 
         let note = data["note"]
@@ -77,7 +93,7 @@ final class IntentRouter {
         let account = try await categoryRepo.getDefaultAccount()
 
         guard let category = category, let account = account else {
-            return RouteResult(text: "请先设置默认分类和账户", transactionId: nil)
+            return RouteResult(text: "请先设置默认分类和账户")
         }
 
         let transaction = try await categoryRepo.addTransaction(
@@ -101,7 +117,7 @@ final class IntentRouter {
         guard let data = result.extractedData,
               let amountStr = data["amount"],
               let amount = Decimal(string: amountStr) else {
-            return RouteResult(text: result.responseText ?? "请告诉我具体的金额", transactionId: nil)
+            return RouteResult(text: result.responseText ?? "请告诉我具体的金额")
         }
 
         let note = data["note"]
@@ -119,7 +135,7 @@ final class IntentRouter {
         let account = try await categoryRepo.getDefaultAccount()
 
         guard let category = category, let account = account else {
-            return RouteResult(text: "请先设置默认分类和账户", transactionId: nil)
+            return RouteResult(text: "请先设置默认分类和账户")
         }
 
         let transaction = try await categoryRepo.addTransaction(
@@ -139,44 +155,44 @@ final class IntentRouter {
 
     // MARK: - Create Task
 
-    private func handleCreateTask(_ result: ParsedResult) throws -> String {
+    private func handleCreateTask(_ result: ParsedResult) throws -> RouteResult {
         guard let data = result.extractedData,
               let title = data["title"], !title.isEmpty else {
-            return result.responseText ?? "请告诉我任务内容"
+            return RouteResult(text: result.responseText ?? "请告诉我任务内容")
         }
 
         let todoRepo = TodoRepository.shared
         let task = try todoRepo.createTask(title: title)
 
         logger.info("任务已创建：\(title)")
-        return "已创建任务：\(title)"
+        return RouteResult(text: "已创建任务：\(title)", taskId: task.id)
     }
 
     // MARK: - Record Mood
 
-    private func handleRecordMood(_ result: ParsedResult) throws -> String {
+    private func handleRecordMood(_ result: ParsedResult) throws -> RouteResult {
         let content = result.extractedData?["content"] ?? result.responseText ?? ""
         let mood = result.extractedData?["mood"]
 
         guard !content.isEmpty else {
-            return "请告诉我你现在的感受"
+            return RouteResult(text: "请告诉我你现在的感受")
         }
 
         let thoughtRepo = ThoughtRepository()
-        let _ = try thoughtRepo.create(content: content, mood: mood, tags: [])
+        let thought = try thoughtRepo.create(content: content, mood: mood, tags: [])
 
         logger.info("心情已记录")
-        return "已记录你的心情"
+        return RouteResult(text: "已记录你的心情", thoughtId: thought.id)
     }
 
     // MARK: - Record Weight
 
-    private func handleRecordWeight(_ result: ParsedResult) throws -> String {
+    private func handleRecordWeight(_ result: ParsedResult) throws -> RouteResult {
         // 体重记录复用习惯模块的数值记录功能
         guard let data = result.extractedData,
               let weightStr = data["weight"],
               let weight = Double(weightStr) else {
-            return "请告诉我体重数值"
+            return RouteResult(text: "请告诉我体重数值")
         }
 
         // 查找体重习惯或创建
@@ -187,15 +203,15 @@ final class IntentRouter {
         if let habit = weightHabit {
             try habitRepo.addNumericRecord(for: habit, value: weight)
             logger.info("体重已记录：\(weight) kg")
-            return "已记录体重：\(weight) kg"
+            return RouteResult(text: "已记录体重：\(weight) kg", habitId: habit.id)
         } else {
-            return "未找到体重记录习惯，请先在习惯模块创建"
+            return RouteResult(text: "未找到体重记录习惯，请先在习惯模块创建")
         }
     }
 
     // MARK: - Check In
 
-    private func handleCheckIn(_ result: ParsedResult) throws -> String {
+    private func handleCheckIn(_ result: ParsedResult) throws -> RouteResult {
         let habitName = result.extractedData?["habitName"]
         let habitRepo = HabitRepository.shared
         let habits = habitRepo.activeHabits.filter { !$0.isArchived }
@@ -203,7 +219,10 @@ final class IntentRouter {
         if let name = habitName {
             if let habit = habits.first(where: { $0.name.contains(name) || name.contains($0.name) }) {
                 let completed = try habitRepo.toggleCheckIn(for: habit)
-                return completed ? "\(habit.name) 打卡成功" : "\(habit.name) 已取消打卡"
+                return RouteResult(
+                    text: completed ? "\(habit.name) 打卡成功" : "\(habit.name) 已取消打卡",
+                    habitId: habit.id
+                )
             }
         }
 
@@ -211,12 +230,15 @@ final class IntentRouter {
         if habits.count == 1 {
             let habit = habits[0]
             let completed = try habitRepo.toggleCheckIn(for: habit)
-            return completed ? "\(habit.name) 打卡成功" : "\(habit.name) 已取消打卡"
+            return RouteResult(
+                text: completed ? "\(habit.name) 打卡成功" : "\(habit.name) 已取消打卡",
+                habitId: habit.id
+            )
         }
 
         // 多个习惯时列出选项
         let names = habits.map { $0.name }.joined(separator: "、")
-        return "要给哪个习惯打卡？当前活跃习惯：\(names)"
+        return RouteResult(text: "要给哪个习惯打卡？当前活跃习惯：\(names)")
     }
 
     // MARK: - Category Matching

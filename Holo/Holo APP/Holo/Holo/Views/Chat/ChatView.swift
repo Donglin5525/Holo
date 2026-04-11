@@ -23,7 +23,10 @@ struct ChatView: View {
                 // 顶部导航栏
                 chatNavBar
 
-                if !viewModel.isConfigured {
+                if viewModel.isLoadingConfig {
+                    // 配置加载中
+                    loadingView
+                } else if !viewModel.isConfigured {
                     // 未配置引导
                     unconfiguredView
                 } else {
@@ -44,7 +47,9 @@ struct ChatView: View {
             AddTransactionSheet(editingTransaction: transaction) {}
         }
         .onAppear {
-            viewModel.configureFromSavedConfig()
+            Task {
+                viewModel.configureFromSavedConfig()
+            }
         }
     }
 
@@ -78,6 +83,17 @@ struct ChatView: View {
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 4)
+    }
+
+    // MARK: - Loading View
+
+    private var loadingView: some View {
+        VStack {
+            Spacer()
+            ProgressView()
+                .tint(.holoPrimary)
+            Spacer()
+        }
     }
 
     // MARK: - Unconfigured View

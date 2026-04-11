@@ -28,13 +28,14 @@ final class ChatMessageRepository: ObservableObject {
 
     // MARK: - Load
 
-    /// 加载所有消息（按时间排序）
+    /// 加载消息（按时间排序，限制最近 200 条）
     func loadMessages() {
         let request = ChatMessage.fetchRequest()
-        request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: true)]
+        request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
+        request.fetchLimit = 200
 
         do {
-            messages = try context.fetch(request)
+            messages = try context.fetch(request).reversed()
         } catch {
             logger.error("加载消息失败：\(error.localizedDescription)")
         }

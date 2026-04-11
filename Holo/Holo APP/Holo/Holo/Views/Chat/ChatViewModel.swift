@@ -21,6 +21,7 @@ final class ChatViewModel: ObservableObject {
     @Published var streamingText: String = ""
     @Published var errorMessage: String?
     @Published var isConfigured: Bool = false
+    @Published var isLoadingConfig: Bool = true
 
     // MARK: - Private
 
@@ -49,7 +50,7 @@ final class ChatViewModel: ObservableObject {
         checkConfiguration()
     }
 
-    /// 使用保存的配置创建真实 Provider
+    /// 使用保存的配置创建真实 Provider（异步执行，不阻塞主线程渲染）
     func configureFromSavedConfig() {
         do {
             if let config = try KeychainService.shared.loadAIConfig(), config.isConfigured {
@@ -65,6 +66,7 @@ final class ChatViewModel: ObservableObject {
             provider = MockAIProvider()
             isConfigured = false
         }
+        isLoadingConfig = false
     }
 
     private func checkConfiguration() {
@@ -106,10 +108,19 @@ final class ChatViewModel: ObservableObject {
                     // 高置信度非聊天意图 → 直接执行本地操作
                     let routeResult = try await IntentRouter.shared.route(parsedResult)
 
-                    // 将 transactionId 合并到 extractedData 中
+                    // 将关联实体 ID 合并到 extractedData 中
                     var mergedData = parsedResult.extractedData ?? [:]
                     if let txId = routeResult.transactionId {
                         mergedData["transactionId"] = txId.uuidString
+                    }
+                    if let taskId = routeResult.taskId {
+                        mergedData["taskId"] = taskId.uuidString
+                    }
+                    if let habitId = routeResult.habitId {
+                        mergedData["habitId"] = habitId.uuidString
+                    }
+                    if let thoughtId = routeResult.thoughtId {
+                        mergedData["thoughtId"] = thoughtId.uuidString
                     }
 
                     // 更新 AI 消息
