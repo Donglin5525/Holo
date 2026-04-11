@@ -484,11 +484,32 @@ struct HomeView: View {
     /// 由 .onAppear（冷启动）和 .onChange（热启动/后台）触发
     private func handleDeepLink() {
         guard let target = deepLinkState.pendingTarget else { return }
+
+        // 如果目标页面已打开，不需要 dismiss，让模块内部处理跳转
         switch target {
         case .taskDetail, .dailyReminder:
-            if !showTasksView { showTasksView = true }
+            if showTasksView { return }
         case .habitDetail:
-            if !showHabitsView { showHabitsView = true }
+            if showHabitsView { return }
+        }
+
+        // 先关闭所有已打开的 fullScreenCover（SwiftUI 不支持同时 present 多个）
+        showFinanceView = false
+        showHabitsView = false
+        showTasksView = false
+        showMemoryGallery = false
+        showHealthView = false
+        showThoughtsView = false
+        showChatView = false
+
+        // 延迟后打开目标页面（等待 dismiss 动画完成）
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+            switch target {
+            case .taskDetail, .dailyReminder:
+                showTasksView = true
+            case .habitDetail:
+                showHabitsView = true
+            }
         }
     }
 
