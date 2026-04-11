@@ -93,6 +93,31 @@ final class KeychainService {
         return try JSONDecoder().decode(AIProviderConfig.self, from: data)
     }
 
+    /// 非主线程安全的 AI 配置读取（可在任意线程调用）
+    /// 使用 nonisolated static 避免 @MainActor 限制，解决真机上 SecItemCopyMatching 阻塞主线程的问题
+    nonisolated static func loadAIConfigOffMain() throws -> AIProviderConfig? {
+        let key = "com.holo.ai.config"
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: key,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+
+        switch status {
+        case errSecSuccess:
+            guard let data = result as? Data else { return nil }
+            return try JSONDecoder().decode(AIProviderConfig.self, from: data)
+        case errSecItemNotFound:
+            return nil
+        default:
+            throw KeychainError.loadFailed(status)
+        }
+    }
+
     func deleteAIConfig() throws {
         try delete(key: Self.aiConfigKey)
         logger.info("AI 配置已从 Keychain 删除")

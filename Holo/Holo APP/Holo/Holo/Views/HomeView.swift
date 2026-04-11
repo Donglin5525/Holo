@@ -491,6 +491,10 @@ struct HomeView: View {
             if showTasksView { return }
         case .habitDetail:
             if showHabitsView { return }
+        case .finance:
+            if showFinanceView { return }
+        case .tasks:
+            if showTasksView { return }
         }
 
         // 先关闭所有已打开的 fullScreenCover（SwiftUI 不支持同时 present 多个）
@@ -509,7 +513,14 @@ struct HomeView: View {
                 showTasksView = true
             case .habitDetail:
                 showHabitsView = true
+            case .finance:
+                showFinanceView = true
+            case .tasks:
+                showTasksView = true
             }
+
+            // 清除已处理的 pendingTarget，避免重复触发
+            deepLinkState.pendingTarget = nil
         }
     }
 

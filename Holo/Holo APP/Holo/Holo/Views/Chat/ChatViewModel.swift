@@ -21,7 +21,7 @@ final class ChatViewModel: ObservableObject {
     @Published var streamingText: String = ""
     @Published var errorMessage: String?
     @Published var isConfigured: Bool = false
-    @Published var isLoadingConfig: Bool = true
+    @Published var isLoadingConfig: Bool = false
 
     // MARK: - Private
 
@@ -50,19 +50,19 @@ final class ChatViewModel: ObservableObject {
         checkConfiguration()
     }
 
-    /// 使用保存的配置创建真实 Provider（异步执行，不阻塞主线程渲染）
-    func configureFromSavedConfig() {
-        do {
-            if let config = try KeychainService.shared.loadAIConfig(), config.isConfigured {
-                provider = OpenAICompatibleProvider(config: config)
-                isConfigured = true
-                logger.info("AI 已配置为 \(config.provider.displayName)")
-            } else {
-                provider = MockAIProvider()
-                isConfigured = false
-            }
-        } catch {
-            logger.error("加载 AI 配置失败：\(error.localizedDescription)")
+    /// 使用保存的配置创建真实 Provider
+    /// 在后台线程读取 Keychain，避免真机上 SecItemCopyMatching 阻塞主线程
+    func configureFromSavedConfig() async {
+        // 在后台线程读取 Keychain（SecItemCopyMatching 是线程安全的）
+        let config: AIProviderConfig? = await Task.detached {
+            try? KeychainService.loadAIConfigOffMain()
+        }.value
+
+        if let config = config, config.isConfigured {
+            provider = OpenAICompatibleProvider(config: config)
+            isConfigured = true
+            logger.info("AI 已配置为 \(config.provider.displayName)")
+        } else {
             provider = MockAIProvider()
             isConfigured = false
         }

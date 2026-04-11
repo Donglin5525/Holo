@@ -15,6 +15,9 @@ enum DeepLinkTarget: Equatable {
     case taskDetail(taskId: UUID)
     case dailyReminder
     case habitDetail(habitId: UUID)
+    /// 从 AI Chat 卡片跳转到对应模块
+    case finance
+    case tasks
 }
 
 /// Deep Link 状态管理器

@@ -23,10 +23,7 @@ struct ChatView: View {
                 // 顶部导航栏
                 chatNavBar
 
-                if viewModel.isLoadingConfig {
-                    // 配置加载中
-                    loadingView
-                } else if !viewModel.isConfigured {
+                if !viewModel.isConfigured {
                     // 未配置引导
                     unconfiguredView
                 } else {
@@ -48,7 +45,7 @@ struct ChatView: View {
         }
         .onAppear {
             Task {
-                viewModel.configureFromSavedConfig()
+                await viewModel.configureFromSavedConfig()
             }
         }
     }
@@ -83,17 +80,6 @@ struct ChatView: View {
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 4)
-    }
-
-    // MARK: - Loading View
-
-    private var loadingView: some View {
-        VStack {
-            Spacer()
-            ProgressView()
-                .tint(.holoPrimary)
-            Spacer()
-        }
     }
 
     // MARK: - Unconfigured View
@@ -155,6 +141,9 @@ struct ChatView: View {
                             streamingText: viewModel.isStreaming && message.isStreaming ? viewModel.streamingText : nil,
                             onIntentTagTap: { msg in
                                 openTransactionDetail(msg)
+                            },
+                            onCardTap: { _, cardData in
+                                handleCardTap(cardData)
                             }
                         )
                         .id(message.id)
@@ -186,5 +175,24 @@ struct ChatView: View {
         guard let transactionId = message.linkedTransactionId else { return }
         let transaction = FinanceRepository.shared.findTransaction(by: transactionId)
         editingTransaction = transaction
+    }
+
+    // MARK: - Card Tap Navigation
+
+    /// 点击卡片后跳转到对应模块
+    private func handleCardTap(_ cardData: ChatCardData) {
+        let target: DeepLinkTarget?
+        switch cardData {
+        case .transaction:
+            target = .finance
+        case .task:
+            target = .tasks
+        case .habitCheckIn, .mood, .weight:
+            target = nil
+        }
+
+        guard let target = target else { return }
+        DeepLinkState.shared.pendingTarget = target
+        dismiss()
     }
 }
