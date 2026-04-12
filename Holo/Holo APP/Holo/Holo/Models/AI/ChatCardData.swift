@@ -81,7 +81,7 @@ enum ChatCardData: Equatable {
                 unit: data["unit"] ?? "kg"
             ))
 
-        case .query, .chat, .unknown:
+        case .completeTask, .updateTask, .deleteTask, .createNote, .queryTasks, .queryHabits, .query, .unknown:
             return nil
         }
     }
@@ -89,6 +89,9 @@ enum ChatCardData: Equatable {
     /// 关联实体 ID（从 extractedData 中获取）
     static func linkedEntityId(from data: [String: String]?) -> String? {
         guard let data = data else { return nil }
+        // 优先新格式
+        if let entityId = data["entityId"] { return entityId }
+        // 兜底旧格式
         return data["transactionId"] ?? data["taskId"] ?? data["habitId"] ?? data["thoughtId"]
     }
 }

@@ -28,19 +28,27 @@ class HomeIconConfigRepository: ObservableObject {
     @Published private(set) var allConfigs: [HomeIconConfig] = []
     
     // MARK: - Properties
-    
-    /// 主上下文
-    private var context: NSManagedObjectContext {
-        CoreDataStack.shared.viewContext
-    }
-    
+
+    /// 是否已完成初始化（供 UI 判断加载状态）
+    @Published private(set) var isReady: Bool = false
+
+    /// 主上下文（延迟初始化，避免 init 时触发 Core Data）
+    private lazy var context: NSManagedObjectContext = CoreDataStack.shared.viewContext
+
     // MARK: - Initialization
-    
-    private init() {
-        // 初始化默认数据
+
+    /// init 不做任何 I/O 操作，避免阻塞主线程
+    /// 所有数据操作延迟到 setup() 中执行
+    private init() {}
+
+    /// 延迟初始化：触发 Core Data → seed → load
+    /// 在视图的 .task {} 中调用（.task 在首帧渲染后触发，不会阻塞 UI）
+    func setup() {
+        guard !isReady else { return }
+        _ = context          // 触发 lazy var → CoreDataStack.shared.viewContext
         seedDefaultData()
-        // 加载配置
         loadConfigs()
+        isReady = true
     }
     
     // MARK: - Seed Data

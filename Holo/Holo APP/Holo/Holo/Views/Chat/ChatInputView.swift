@@ -42,7 +42,7 @@ struct ChatInputView: View {
                 } label: {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.system(size: 28))
-                        .foregroundColor(viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .gray : .holoPrimary)
+                        .foregroundColor(sendButtonColor)
                 }
                 .disabled(viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
@@ -50,5 +50,9 @@ struct ChatInputView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .background(Color.holoBackground)
+    }
+
+    private var sendButtonColor: Color {
+        return viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .gray : .holoPrimary
     }
 }

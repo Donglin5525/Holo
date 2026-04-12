@@ -70,6 +70,9 @@ struct FinanceView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .swipeBackToDismiss { dismiss() }
+        .task {
+            FinanceRepository.shared.setup()
+        }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             financeTabBarOnly
         }

@@ -93,7 +93,11 @@ final class PromptEditorViewModel: ObservableObject {
         testError = nil
 
         do {
-            guard let config = try keychainService.loadAIConfig(), config.isConfigured else {
+            let config = try await Task.detached {
+                try KeychainService.loadAIConfigOffMain()
+            }.value
+
+            guard let config, config.isConfigured else {
                 testError = "请先在 AI 设置中配置 API Key"
                 isTesting = false
                 return

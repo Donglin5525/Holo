@@ -15,31 +15,133 @@ final class ChatViewModel: ObservableObject {
 
     // MARK: - Published State
 
-    @Published var messages: [ChatMessage] = []
+    @Published var messages: [ChatMessageViewData] = []
     @Published var inputText: String = ""
     @Published var isStreaming: Bool = false
     @Published var streamingText: String = ""
     @Published var errorMessage: String?
     @Published var isConfigured: Bool = false
     @Published var isLoadingConfig: Bool = false
+    @Published private(set) var hasFinishedSetup: Bool = false
+    @Published private(set) var hasLoadedMessages: Bool = false
+    @Published private(set) var didTimeoutLoadingConfig: Bool = false
 
     // MARK: - Private
 
     private let logger = Logger(subsystem: "com.holo.app", category: "ChatViewModel")
-    private let chatRepo: ChatMessageRepository
+    private let initialHistoryLimit = 30
+    private var chatRepo: ChatMessageRepository?
     private var currentTask: Task<Void, Never>?
     private var provider: AIProvider
+    private var repositoryBootstrapTask: Task<Void, Never>?
+    private var repoMessagesCancellable: AnyCancellable?
 
     // MARK: - Init
 
-    init(
-        chatRepo: ChatMessageRepository = .shared,
-        provider: AIProvider? = nil
-    ) {
-        self.chatRepo = chatRepo
+    /// init 不做任何 I/O 操作，避免 Core Data / Keychain 阻塞主线程
+    init(provider: AIProvider? = nil) {
         self.provider = provider ?? MockAIProvider()
-        self.messages = chatRepo.messages
         checkConfiguration()
+        if KeychainService.hasCachedAIConfig {
+            isConfigured = true
+        }
+    }
+
+    /// 在 .task 中调用，延迟初始化仓库和加载配置
+    /// 流程：先读取 Keychain 配置，再在后台补加载消息仓库
+    func setup() async {
+        if hasFinishedSetup { return }
+        bootstrapChatRepositoryIfNeeded()
+        isLoadingConfig = true
+        didTimeoutLoadingConfig = false
+        defer {
+            isLoadingConfig = false
+            hasFinishedSetup = true
+        }
+
+        enum SetupResult {
+            case config(AIProviderConfig?)
+            case timeout
+        }
+
+        let result = await withTaskGroup(of: SetupResult.self) { group in
+            group.addTask {
+                let config = try? KeychainService.loadAIConfigOffMain()
+                return .config(config)
+            }
+
+            group.addTask {
+                try? await Task.sleep(nanoseconds: 1_200_000_000)
+                return .timeout
+            }
+
+            let first = await group.next() ?? .timeout
+            group.cancelAll()
+            return first
+        }
+
+        switch result {
+        case .config(let config):
+            if let config = config, config.isConfigured {
+                provider = OpenAICompatibleProvider(config: config)
+                isConfigured = true
+                KeychainService.updateCachedAIConfigPresence(true)
+                logger.info("AI 已配置为 \(config.provider.displayName)")
+            } else {
+                provider = MockAIProvider()
+                isConfigured = false
+                KeychainService.updateCachedAIConfigPresence(false)
+            }
+        case .timeout:
+            didTimeoutLoadingConfig = true
+            if KeychainService.hasCachedAIConfig {
+                isConfigured = true
+            }
+            logger.error("AI 配置读取超时，先允许页面继续渲染")
+        }
+    }
+
+    private func bootstrapChatRepositoryIfNeeded() {
+        guard chatRepo == nil, repositoryBootstrapTask == nil else { return }
+
+        repositoryBootstrapTask = Task { @MainActor [weak self] in
+            guard let self = self else { return }
+            let repo = ChatMessageRepository.shared
+            self.bindRepository(repo)
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            await repo.loadMessagesAsync(limit: self.initialHistoryLimit)
+            self.hasLoadedMessages = true
+            self.repositoryBootstrapTask = nil
+        }
+    }
+
+    private func ensureChatRepositoryReady() async {
+        let repo: ChatMessageRepository
+
+        if let chatRepo {
+            repo = chatRepo
+        } else {
+            repo = ChatMessageRepository.shared
+            bindRepository(repo)
+        }
+
+        if !hasLoadedMessages {
+            await repo.loadMessagesAsync(limit: initialHistoryLimit)
+            hasLoadedMessages = true
+        }
+
+        repositoryBootstrapTask = nil
+    }
+
+    private func bindRepository(_ repo: ChatMessageRepository) {
+        guard chatRepo !== repo else { return }
+
+        chatRepo = repo
+        repoMessagesCancellable = repo.$messages
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] messages in
+                self?.messages = messages
+            }
     }
 
     // MARK: - Configuration
@@ -50,25 +152,6 @@ final class ChatViewModel: ObservableObject {
         checkConfiguration()
     }
 
-    /// 使用保存的配置创建真实 Provider
-    /// 在后台线程读取 Keychain，避免真机上 SecItemCopyMatching 阻塞主线程
-    func configureFromSavedConfig() async {
-        // 在后台线程读取 Keychain（SecItemCopyMatching 是线程安全的）
-        let config: AIProviderConfig? = await Task.detached {
-            try? KeychainService.loadAIConfigOffMain()
-        }.value
-
-        if let config = config, config.isConfigured {
-            provider = OpenAICompatibleProvider(config: config)
-            isConfigured = true
-            logger.info("AI 已配置为 \(config.provider.displayName)")
-        } else {
-            provider = MockAIProvider()
-            isConfigured = false
-        }
-        isLoadingConfig = false
-    }
-
     private func checkConfiguration() {
         isConfigured = !(provider is MockAIProvider)
     }
@@ -76,6 +159,9 @@ final class ChatViewModel: ObservableObject {
     // MARK: - Send Message
 
     func sendMessage() async {
+        await retryConfigurationLoadIfNeeded()
+        await ensureChatRepositoryReady()
+        guard let chatRepo = chatRepo else { return }
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
 
@@ -83,12 +169,10 @@ final class ChatViewModel: ObservableObject {
         errorMessage = nil
 
         // 1. 保存用户消息
-        let userMessage = chatRepo.addMessage(role: "user", content: text)
-        messages = chatRepo.messages
+        let userMessageId = chatRepo.addMessage(role: "user", content: text)
 
         // 2. 创建 AI 占位消息
-        let aiMessage = chatRepo.addStreamingMessage(role: "assistant", parentMessageId: userMessage.id)
-        messages = chatRepo.messages
+        let aiMessageId = chatRepo.addStreamingMessage(role: "assistant", parentMessageId: userMessageId)
 
         // 3. 处理用户输入
         isStreaming = true
@@ -101,61 +185,91 @@ final class ChatViewModel: ObservableObject {
                 // 构建上下文
                 let userContext = await UserContextBuilder.shared.buildContext()
 
+                // ENERGY: 锁定检查预留位
+
                 // 先做意图识别
                 let parsedResult = try await self.provider.parseUserInput(text, context: userContext)
 
-                if parsedResult.isHighConfidence && parsedResult.intent != .chat && parsedResult.intent != .query {
-                    // 高置信度非聊天意图 → 直接执行本地操作
-                    let routeResult = try await IntentRouter.shared.route(parsedResult)
+                // ENERGY: 能量检查预留位
 
-                    // 将关联实体 ID 合并到 extractedData 中
-                    var mergedData = parsedResult.extractedData ?? [:]
-                    if let txId = routeResult.transactionId {
-                        mergedData["transactionId"] = txId.uuidString
-                    }
-                    if let taskId = routeResult.taskId {
-                        mergedData["taskId"] = taskId.uuidString
-                    }
-                    if let habitId = routeResult.habitId {
-                        mergedData["habitId"] = habitId.uuidString
-                    }
-                    if let thoughtId = routeResult.thoughtId {
-                        mergedData["thoughtId"] = thoughtId.uuidString
-                    }
+                if parsedResult.isHighConfidence {
+                    switch parsedResult.intent {
+                    case .query:
+                        // 分析型查询 → 流式对话（唯一的流式场景）
+                        guard let chatRepo = self.chatRepo else { return }
+                        let historyDTOs = chatRepo.toDTOs(from: chatRepo.loadRecentMessages(limit: 20))
+                        let stream = self.provider.chatStreaming(messages: historyDTOs, userContext: userContext)
 
-                    // 更新 AI 消息
-                    self.chatRepo.finishStreaming(aiMessage, finalContent: routeResult.text)
-                    self.chatRepo.updateMessageMetadata(
-                        aiMessage,
-                        intent: parsedResult.intent.rawValue,
-                        extractedDataJSON: Self.encodeExtractedData(mergedData)
-                    )
+                        var fullText = ""
+                        for try await chunk in stream {
+                            if Task.isCancelled { break }
+                            fullText += chunk
+                            self.streamingText = fullText
+                        }
+
+                        self.chatRepo?.finishStreaming(aiMessageId, finalContent: fullText)
+
+                    case .unknown:
+                        // 兜底追问
+                        let question = parsedResult.clarificationQuestion ?? "我可以帮你记账、创建任务、完成某个任务、打卡、记笔记"
+                        self.chatRepo?.finishStreaming(aiMessageId, finalContent: question)
+                        self.chatRepo?.updateMessageMetadata(
+                            aiMessageId,
+                            intent: parsedResult.intent.rawValue,
+                            extractedDataJSON: nil
+                        )
+
+                    default:
+                        // 具体操作 → 本地路由
+                        let routeResult = try await IntentRouter.shared.route(parsedResult)
+
+                        // 双写：新格式 + 旧格式
+                        var mergedData = parsedResult.extractedData ?? [:]
+                        if let entity = routeResult.linkedEntity {
+                            mergedData["entityType"] = entity.type.rawValue
+                            mergedData["entityId"] = entity.id.uuidString
+                        }
+                        if let txId = routeResult.transactionId {
+                            mergedData["transactionId"] = txId.uuidString
+                        }
+                        if let taskId = routeResult.taskId {
+                            mergedData["taskId"] = taskId.uuidString
+                        }
+                        if let habitId = routeResult.habitId {
+                            mergedData["habitId"] = habitId.uuidString
+                        }
+                        if let thoughtId = routeResult.thoughtId {
+                            mergedData["thoughtId"] = thoughtId.uuidString
+                        }
+
+                        // 更新 AI 消息
+                        self.chatRepo?.finishStreaming(aiMessageId, finalContent: routeResult.text)
+                        self.chatRepo?.updateMessageMetadata(
+                            aiMessageId,
+                            intent: parsedResult.intent.rawValue,
+                            extractedDataJSON: Self.encodeExtractedData(mergedData)
+                        )
+
+                        // ENERGY: 能量恢复预留位
+                    }
                 } else {
-                    // 低置信度或闲聊 → 流式对话
-                    let historyDTOs = self.chatRepo.toDTOs(from: self.chatRepo.loadRecentMessages(limit: 20))
-
-                    let stream = self.provider.chatStreaming(messages: historyDTOs, userContext: userContext)
-
-                    var fullText = ""
-                    for try await chunk in stream {
-                        if Task.isCancelled { break }
-                        fullText += chunk
-                        self.streamingText = fullText
-                    }
-
-                    self.chatRepo.finishStreaming(aiMessage, finalContent: fullText)
+                    // 低置信度 → unknown 兜底
+                    let question = parsedResult.clarificationQuestion ?? "我没太理解，你可以试试：记一笔消费、创建任务、完成某个任务、打卡、记笔记"
+                    self.chatRepo?.finishStreaming(aiMessageId, finalContent: question)
+                    self.chatRepo?.updateMessageMetadata(
+                        aiMessageId,
+                        intent: "unknown",
+                        extractedDataJSON: nil
+                    )
                 }
 
-                self.messages = self.chatRepo.messages
             } catch is CancellationError {
-                self.chatRepo.finishStreaming(aiMessage, finalContent: self.streamingText)
-                self.messages = self.chatRepo.messages
+                self.chatRepo?.finishStreaming(aiMessageId, finalContent: self.streamingText)
             } catch {
                 self.logger.error("AI 处理失败：\(error.localizedDescription)")
                 self.errorMessage = error.localizedDescription
                 let errorText = "抱歉，处理时出错了：\(error.localizedDescription)"
-                self.chatRepo.finishStreaming(aiMessage, finalContent: errorText)
-                self.messages = self.chatRepo.messages
+                self.chatRepo?.finishStreaming(aiMessageId, finalContent: errorText)
             }
 
             self.isStreaming = false
@@ -178,6 +292,42 @@ final class ChatViewModel: ObservableObject {
         return (try? JSONEncoder().encode(data)).flatMap { String(data: $0, encoding: .utf8) }
     }
 
+    private func retryConfigurationLoadIfNeeded() async {
+        guard provider is MockAIProvider else { return }
+
+        enum RetryResult {
+            case config(AIProviderConfig?)
+            case timeout
+        }
+
+        let result = await withTaskGroup(of: RetryResult.self) { group in
+            group.addTask {
+                let config = try? KeychainService.loadAIConfigOffMain()
+                return .config(config)
+            }
+
+            group.addTask {
+                try? await Task.sleep(nanoseconds: 1_500_000_000)
+                return .timeout
+            }
+
+            let first = await group.next() ?? .timeout
+            group.cancelAll()
+            return first
+        }
+
+        guard case .config(let config) = result,
+              let config,
+              config.isConfigured else {
+            return
+        }
+
+        provider = OpenAICompatibleProvider(config: config)
+        isConfigured = true
+        didTimeoutLoadingConfig = false
+        KeychainService.updateCachedAIConfigPresence(true)
+    }
+
 // MARK: - Quick Actions
 
     func sendQuickAction(_ action: QuickAction) {
@@ -188,8 +338,10 @@ final class ChatViewModel: ObservableObject {
     // MARK: - Clear
 
     func clearMessages() {
-        chatRepo.clearAllMessages()
-        messages = []
+        if chatRepo == nil {
+            bootstrapChatRepositoryIfNeeded()
+        }
+        chatRepo?.clearAllMessages()
     }
 }
 
@@ -201,6 +353,9 @@ enum QuickAction: String, CaseIterable {
     case recordMood = "记录心情"
     case checkIn = "习惯打卡"
     case weeklyReport = "本周总结"
+    case createNote = "记笔记"
+    case queryTasks = "今日任务"
+    case queryHabits = "习惯状态"
 
     var prompt: String {
         switch self {
@@ -209,6 +364,9 @@ enum QuickAction: String, CaseIterable {
         case .recordMood: return "记录我现在的心情"
         case .checkIn: return "帮我打卡"
         case .weeklyReport: return "生成本周总结"
+        case .createNote: return "帮我记一条笔记"
+        case .queryTasks: return "今天有什么待办"
+        case .queryHabits: return "今天习惯完成了吗"
         }
     }
 
@@ -219,6 +377,9 @@ enum QuickAction: String, CaseIterable {
         case .recordMood: return "heart.circle"
         case .checkIn: return "flame.circle"
         case .weeklyReport: return "chart.bar"
+        case .createNote: return "note.text"
+        case .queryTasks: return "list.bullet.circle"
+        case .queryHabits: return "chart.circle"
         }
     }
 }

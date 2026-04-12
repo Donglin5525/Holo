@@ -12,15 +12,40 @@ import Foundation
 
 /// AI 识别的用户意图
 enum AIIntent: String, Codable, CaseIterable {
+    // 记账类
     case recordExpense = "record_expense"
     case recordIncome = "record_income"
+    // 任务类
     case createTask = "create_task"
+    case completeTask = "complete_task"
+    case updateTask = "update_task"
+    case deleteTask = "delete_task"
+    // 习惯类
+    case checkIn = "check_in"
+    // 笔记类
+    case createNote = "create_note"
+    // 健康类
     case recordMood = "record_mood"
     case recordWeight = "record_weight"
-    case checkIn = "check_in"
+    // 查询类
+    case queryTasks = "query_tasks"
+    case queryHabits = "query_habits"
     case query = "query"
-    case chat = "chat"
+    // 兜底
     case unknown = "unknown"
+}
+
+// MARK: - LinkedEntity
+
+/// 关联实体类型
+enum LinkedEntityType: String, Codable {
+    case transaction, task, habit, thought
+}
+
+/// 通用实体链接
+struct LinkedEntity: Codable {
+    let type: LinkedEntityType
+    let id: UUID
 }
 
 // MARK: - ParsedResult
@@ -198,6 +223,7 @@ struct HabitSummary {
     let todayCompleted: Int
     let todayTotal: Int
     let recentCheckIns: [String]
+    let activeHabitNames: [String]
 }
 
 /// 任务摘要
@@ -206,6 +232,7 @@ struct TaskSummary {
     let todayCompleted: Int
     let overdueCount: Int
     let recentTasks: [String]
+    let activeTaskSummaries: [String]
 }
 
 /// 观点摘要

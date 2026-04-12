@@ -7,24 +7,24 @@ import FinanceView from './components/FinanceView'
 import HealthView from './components/HealthView'
 import ProfileView from './components/ProfileView'
 
-const views = {
-  home: HomeView,
-  chat: ChatView,
-  finance: FinanceView,
-  health: HealthView,
-  profile: ProfileView,
-}
-
 /**
  * HOLO APP - 个人 AI 数据助理（移动端 iOS 风格）
  */
 export default function App() {
   const [tab, setTab] = useState('home')
-  const View = views[tab]
 
   return (
     <MobileShell>
-      <View />
+      {tab === 'chat' ? (
+        <ChatView onClose={() => setTab('home')} />
+      ) : (
+        {
+          home: <HomeView />,
+          finance: <FinanceView />,
+          health: <HealthView />,
+          profile: <ProfileView />,
+        }[tab]
+      )}
       <TabBar active={tab} onChange={setTab} />
     </MobileShell>
   )

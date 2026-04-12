@@ -4,6 +4,30 @@
 
 ---
 
+## [2026-04-12] AI 对话能力扩展（Phase 1-3）
+
+### 新增
+- AI 意图从 9 个扩展到 14 个：新增 completeTask、updateTask、deleteTask、createNote、queryTasks、queryHabits
+- 移除 `.chat` 闲聊意图，所有非指令输入走 `.unknown` 追问兜底
+- 通用实体链接系统（`LinkedEntity` + `LinkedEntityType`），统一管理交易/任务/习惯/笔记关联
+- 任务操作支持关键词匹配（精确 > 标题包含 > 备注包含，三级优先排序）
+- 创建任务增强：支持优先级、截止日期、标签、描述
+- 意图标签扩展：新增完成/更新/删除任务、笔记、查询等图标和标签
+- 快捷操作栏从 5 个扩展到 8 个（新增记笔记、今日任务、习惯状态）
+- Prompt 模板重写：14 意图分组、日期解析规则、意图判断规则
+
+### 变更
+- ChatViewModel 路由逻辑重构：query→流式对话、unknown→追问、其他→本地路由
+- 实体合并采用双写策略（新格式 entityType+entityId + 旧字段），向后兼容
+- UserContext 注入活跃习惯名称和未完成任务摘要，辅助 AI 理解上下文
+- MockAIProvider 新增所有新意图的关键词匹配
+
+### 待实施
+- Phase 4: ConfirmationCardView 确认卡片 UI
+- Phase 5: 能量值与限流系统（独立迭代）
+
+---
+
 ## [2026-04-12] AI Chat 卡片点击跳转详情页
 
 ### 修复

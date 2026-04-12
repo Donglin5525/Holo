@@ -60,7 +60,7 @@ struct HomeView: View {
     
     /// 功能按钮配置数组（顺序决定五角形位置：顶部 -> 右上 -> 右下 -> 左下 -> 左上）
     /// 从 iconRepository 加载并按 sortOrder 排序
-    @State private var featureItems: [FeatureButtonConfig] = []
+    @State private var featureItems: [FeatureButtonConfig] = FeatureButtonConfig.defaultItems
     
     /// 当前正在拖拽的按钮配置
     @State private var draggingItem: FeatureButtonConfig? = nil
@@ -99,32 +99,25 @@ struct HomeView: View {
             Color.holoBackground
                 .ignoresSafeArea()
             
-            // 装饰元素
-            backgroundDecorations
-            
-            // 主内容
-            VStack(spacing: 0) {
-                // 顶部 Header
-                headerView
-                    .padding(.horizontal, HoloSpacing.lg)
-                    .padding(.top, HoloSpacing.xxl)
-                    .padding(.bottom, HoloSpacing.md)
-                
-                // 日程提醒 - 位于 Header 下方，语音按钮上方
-                scheduleReminder
-                
-                Spacer()
-                
-                // 中央主内容区域（语音按钮 + 功能入口）
-                mainContent
-                
-                Spacer()
-                
-                // 底部导航栏
-                BottomNavBar(selectedTab: $selectedTab)
-            }
+            homeContent
         }
         // 将 fullScreenCover 挂在整个 HomeView 上，更稳定
+        .task {
+            // 首屏先直接展示默认入口，持久化顺序稍后异步回填，避免首次启动被 Core Data 初始化卡住。
+            guard !iconRepository.isReady else {
+                loadFeatureItemsFromRepository()
+                return
+            }
+
+            Task.detached(priority: .utility) {
+                _ = CoreDataStack.shared.persistentContainer
+
+                await MainActor.run {
+                    iconRepository.setup()
+                    loadFeatureItemsFromRepository()
+                }
+            }
+        }
         .fullScreenCover(isPresented: $showFinanceView) {
             FinanceView()
                 .preferredColorScheme(DarkModeManager.shared.colorScheme)
@@ -171,10 +164,6 @@ struct HomeView: View {
                 showMemoryGallery = true
             }
         }
-        // 页面加载时从持久化存储加载图标配置
-        .onAppear {
-            loadFeatureItemsFromRepository()
-        }
         // 监听 Deep Link：冷启动时 onAppear 读取已有值
         .onAppear { handleDeepLink() }
         // 监听 Deep Link：热启动/后台时 onChange 检测变化
@@ -207,6 +196,38 @@ struct HomeView: View {
         }
     }
     
+    // MARK: - Home Content
+
+    /// 正常的首页内容（数据加载完毕后显示）
+    private var homeContent: some View {
+        ZStack {
+            // 装饰元素
+            backgroundDecorations
+
+            // 主内容
+            VStack(spacing: 0) {
+                // 顶部 Header
+                headerView
+                    .padding(.horizontal, HoloSpacing.lg)
+                    .padding(.top, HoloSpacing.xxl)
+                    .padding(.bottom, HoloSpacing.md)
+
+                // 日程提醒 - 位于 Header 下方，语音按钮上方
+                scheduleReminder
+
+                Spacer()
+
+                // 中央主内容区域（语音按钮 + 功能入口）
+                mainContent
+
+                Spacer()
+
+                // 底部导航栏
+                BottomNavBar(selectedTab: $selectedTab)
+            }
+        }
+    }
+
     // MARK: - 子视图
     
     /// 背景装饰元素

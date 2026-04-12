@@ -19,15 +19,21 @@ class FinanceRepository {
     static let shared = FinanceRepository()
     
     // MARK: - Properties
-    
+
     /// 主上下文（主线程），UI 相关读写均使用此上下文
-    private var context: NSManagedObjectContext {
-        CoreDataStack.shared.viewContext
-    }
-    
+    /// 延迟初始化，避免 init 时触发 Core Data
+    private lazy var context: NSManagedObjectContext = CoreDataStack.shared.viewContext
+
     // MARK: - Initialization
-    
-    private init() {
+
+    /// init 不做任何 I/O 操作，避免阻塞主线程
+    /// 所有数据操作延迟到 setup() 中执行
+    private init() {}
+
+    /// 延迟初始化：触发 Core Data → seed
+    /// 在首次使用 FinanceRepository 时调用
+    func setup() {
+        _ = context          // 触发 lazy var → CoreDataStack.shared.viewContext
         seedDefaultData()
     }
     

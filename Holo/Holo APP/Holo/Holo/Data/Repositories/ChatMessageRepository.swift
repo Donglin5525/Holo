@@ -16,15 +16,18 @@ final class ChatMessageRepository: ObservableObject {
 
     static let shared = ChatMessageRepository()
 
-    @Published var messages: [ChatMessage] = []
+    @Published private(set) var messages: [ChatMessageViewData] = []
 
     private let logger = Logger(subsystem: "com.holo.app", category: "ChatMessageRepository")
-    private let context: NSManagedObjectContext
+    private var liveMessageCache: [UUID: ChatMessage] = [:]
 
-    private init(context: NSManagedObjectContext = CoreDataStack.shared.viewContext) {
-        self.context = context
-        loadMessages()
-    }
+    /// 延迟初始化 context，避免 init 时触发 CoreDataStack 懒加载
+    /// CoreDataStack.loadPersistentStores 是同步阻塞操作（首次创建 SQLite 尤其慢）
+    /// 使用 lazy 确保只在真正需要读/写消息时才触发
+    private lazy var context: NSManagedObjectContext = CoreDataStack.shared.viewContext
+
+    /// init 不做任何 I/O 操作，避免阻塞主线程
+    private init() {}
 
     // MARK: - Load
 
@@ -35,25 +38,40 @@ final class ChatMessageRepository: ObservableObject {
         request.fetchLimit = 200
 
         do {
-            messages = try context.fetch(request).reversed()
+            let fetched = try context.fetch(request)
+            liveMessageCache = Dictionary(uniqueKeysWithValues: fetched.map { ($0.id, $0) })
+            messages = fetched.reversed().map(ChatMessageViewData.init)
         } catch {
             logger.error("加载消息失败：\(error.localizedDescription)")
         }
     }
 
-    /// 加载最近的 N 条消息
-    func loadRecentMessages(limit: Int = 50) -> [ChatMessage] {
-        let request = ChatMessage.fetchRequest()
-        request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
-        request.fetchLimit = limit
+    /// 异步加载消息：
+    /// 在后台上下文中直接转成值类型快照，避免界面持有 Core Data 对象。
+    func loadMessagesAsync(limit: Int = 200) async {
+        let snapshots: [ChatMessageViewData]
 
         do {
-            let result = try context.fetch(request)
-            return result.reversed()
+            snapshots = try await Task.detached(priority: .utility) {
+                let context = CoreDataStack.shared.newBackgroundContext()
+                let request = NSFetchRequest<ChatMessage>(entityName: "ChatMessage")
+                request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
+                request.fetchLimit = limit
+
+                return try context.fetch(request).reversed().map(ChatMessageViewData.init)
+            }.value
         } catch {
-            logger.error("加载最近消息失败：\(error.localizedDescription)")
-            return []
+            logger.error("后台加载消息快照失败：\(error.localizedDescription)")
+            return
         }
+
+        liveMessageCache.removeAll()
+        messages = snapshots
+    }
+
+    /// 加载最近的 N 条消息
+    func loadRecentMessages(limit: Int = 50) -> [ChatMessageViewData] {
+        Array(messages.suffix(limit))
     }
 
     // MARK: - Add
@@ -66,7 +84,7 @@ final class ChatMessageRepository: ObservableObject {
         intent: String? = nil,
         extractedDataJSON: String? = nil,
         parentMessageId: UUID? = nil
-    ) -> ChatMessage {
+    ) -> UUID {
         let message = ChatMessage(context: context)
         message.id = UUID()
         message.role = role
@@ -79,13 +97,14 @@ final class ChatMessageRepository: ObservableObject {
 
         save()
 
-        messages.append(message)
-        return message
+        liveMessageCache[message.id] = message
+        messages.append(ChatMessageViewData(message: message))
+        return message.id
     }
 
     /// 添加流式占位消息
     @discardableResult
-    func addStreamingMessage(role: String, parentMessageId: UUID? = nil) -> ChatMessage {
+    func addStreamingMessage(role: String, parentMessageId: UUID? = nil) -> UUID {
         let message = ChatMessage(context: context)
         message.id = UUID()
         message.role = role
@@ -96,47 +115,73 @@ final class ChatMessageRepository: ObservableObject {
 
         save()
 
-        messages.append(message)
-        return message
+        liveMessageCache[message.id] = message
+        messages.append(ChatMessageViewData(message: message))
+        return message.id
     }
 
     // MARK: - Update
 
     /// 更新消息内容
-    func updateMessage(_ message: ChatMessage, content: String) {
+    func updateMessage(_ messageId: UUID, content: String) {
+        guard let message = liveMessageCache[messageId] else { return }
         message.content = content
         save()
+        updateSnapshot(messageId) { snapshot in
+            snapshot.content = content
+        }
     }
 
     /// 结束流式状态
-    func finishStreaming(_ message: ChatMessage, finalContent: String) {
+    func finishStreaming(_ messageId: UUID, finalContent: String) {
+        guard let message = liveMessageCache[messageId] else { return }
         message.content = finalContent
         message.isStreaming = false
         save()
+        updateSnapshot(messageId) { snapshot in
+            snapshot.content = finalContent
+            snapshot.isStreaming = false
+        }
     }
 
     /// 更新消息的意图和提取数据
-    func updateMessageMetadata(_ message: ChatMessage, intent: String?, extractedDataJSON: String?) {
+    func updateMessageMetadata(_ messageId: UUID, intent: String?, extractedDataJSON: String?) {
+        guard let message = liveMessageCache[messageId] else { return }
         message.intent = intent
         message.extractedDataJSON = extractedDataJSON
         save()
+        updateSnapshot(messageId) { snapshot in
+            snapshot.intent = intent
+            snapshot.extractedDataJSON = extractedDataJSON
+        }
     }
 
     // MARK: - Delete
 
     /// 删除单条消息
-    func deleteMessage(_ message: ChatMessage) {
+    func deleteMessage(_ messageId: UUID) {
+        guard let message = liveMessageCache[messageId] else { return }
         context.delete(message)
         save()
-        messages.removeAll { $0.id == message.id }
+        liveMessageCache.removeValue(forKey: messageId)
+        messages.removeAll { $0.id == messageId }
     }
 
     /// 清除所有消息
     func clearAllMessages() {
-        for message in messages {
-            context.delete(message)
+        let request = ChatMessage.fetchRequest()
+
+        do {
+            let storedMessages = try context.fetch(request)
+            for message in storedMessages {
+                context.delete(message)
+            }
+        } catch {
+            logger.error("清除消息前加载失败：\(error.localizedDescription)")
         }
+
         save()
+        liveMessageCache.removeAll()
         messages.removeAll()
         logger.info("已清除所有对话消息")
     }
@@ -144,18 +189,18 @@ final class ChatMessageRepository: ObservableObject {
     // MARK: - Convert to DTO
 
     /// 将消息列表转换为 ChatMessageDTO 数组（用于 API 调用）
-    func toDTOs(from messages: [ChatMessage]) -> [ChatMessageDTO] {
-        messages.compactMap { message in
-            switch message.role {
-            case "user": return .user(message.content)
-            case "assistant": return .assistant(message.content)
-            case "system": return .system(message.content)
-            default: return nil
-            }
-        }
+    func toDTOs(from messages: [ChatMessageViewData]) -> [ChatMessageDTO] {
+        messages.compactMap(\.dto)
     }
 
     // MARK: - Private
+
+    private func updateSnapshot(_ messageId: UUID, mutate: (inout ChatMessageViewData) -> Void) {
+        guard let index = messages.firstIndex(where: { $0.id == messageId }) else { return }
+        var snapshot = messages[index]
+        mutate(&snapshot)
+        messages[index] = snapshot
+    }
 
     private func save() {
         do {

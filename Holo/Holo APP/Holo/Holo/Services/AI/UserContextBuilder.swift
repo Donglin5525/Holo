@@ -84,11 +84,14 @@ final class UserContextBuilder {
         // 通过 activeHabits 获取习惯列表
         let activeHabits = repo.activeHabits.filter { !$0.isArchived }
 
+        let habitNames = activeHabits.map { $0.name }
+
         return HabitSummary(
             totalActive: activeHabits.count,
             todayCompleted: progress.completed,
             todayTotal: progress.total,
-            recentCheckIns: recentCheckIns
+            recentCheckIns: recentCheckIns,
+            activeHabitNames: habitNames
         )
     }
 
@@ -105,11 +108,16 @@ final class UserContextBuilder {
             recentList.append("\(status) \(task.title)")
         }
 
+        // 前 10 条未完成任务摘要
+        let activeTasks = repo.activeTasks.filter { !$0.completed && !$0.deletedFlag }
+        let activeTaskSummaries = activeTasks.prefix(10).map { "○ \($0.title)" }
+
         return TaskSummary(
             todayTotal: stats.total,
             todayCompleted: stats.completed,
             overdueCount: stats.overdue,
-            recentTasks: recentList
+            recentTasks: recentList,
+            activeTaskSummaries: activeTaskSummaries
         )
     }
 

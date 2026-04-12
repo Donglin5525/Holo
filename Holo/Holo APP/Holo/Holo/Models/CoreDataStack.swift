@@ -27,66 +27,97 @@ import CoreData
 
 /// Core Data 数据栈单例
 /// 提供统一的 Core Data 访问入口，确保数据一致性
+/// 线程安全：支持后台线程预加载，主线程安全访问
 class CoreDataStack {
-    
+
     // MARK: - Singleton
-    
+
     /// 共享实例
-    static let shared = CoreDataStack()
-    
-    // MARK: - Properties
-    
+    nonisolated(unsafe) static let shared = CoreDataStack()
+
+    // MARK: - Thread-Safe Properties
+
+    /// 线程安全锁，保护 _persistentContainer 的读写
+    nonisolated(unsafe) private let lock = NSLock()
+
+    /// 持久化容器（线程安全存储）
+    /// 通过 persistentContainer 计算属性访问
+    nonisolated(unsafe) private var _persistentContainer: NSPersistentContainer?
+
     /// 持久化容器
-    /// 管理 Core Data 的持久化存储和协调
-    /// 
+    /// 线程安全：首次访问时自动初始化，后续访问直接返回缓存实例
+    /// 可从任意线程安全访问（后台预加载或主线程 UI 操作）
+    ///
     /// 【启用 iCloud 同步】将下方 NSPersistentContainer 改为 NSPersistentCloudKitContainer
-    lazy var persistentContainer: NSPersistentContainer = {
-        // 通过代码创建数据模型
+    nonisolated var persistentContainer: NSPersistentContainer {
+        lock.lock()
+        defer { lock.unlock() }
+
+        if let container = _persistentContainer {
+            return container
+        }
+
+        let container = buildContainer()
+        _persistentContainer = container
+        return container
+    }
+
+    /// Core Data 是否已就绪（非阻塞检查）
+    /// 用于在 async 上下文中判断是否需要等待后台初始化
+    nonisolated var isReady: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return _persistentContainer != nil
+    }
+    
+    /// 构建并加载持久化容器
+    /// 包含完整的 schema 创建、存储配置和加载逻辑
+    nonisolated private func buildContainer() -> NSPersistentContainer {
         let model = createDataModel()
-        
+
         // ━━━ 本地存储（当前使用）━━━
         let container = NSPersistentContainer(name: "HoloDataModel", managedObjectModel: model)
-        
+
         // ━━━ iCloud 同步（取消注释以启用）━━━
         // let container = NSPersistentCloudKitContainer(name: "HoloDataModel", managedObjectModel: model)
-        
+
         // 配置持久化存储
         if let description = container.persistentStoreDescriptions.first {
             // 使用 SQLite 存储
             description.url = URL.documentsDirectory.appendingPathComponent("HoloDataModel.sqlite")
-            
+
             // 启用轻量级迁移（支持新增字段等 schema 变更）
             description.setOption(true as NSNumber, forKey: NSMigratePersistentStoresAutomaticallyOption)
             description.setOption(true as NSNumber, forKey: NSInferMappingModelAutomaticallyOption)
-            
+
             // 启用历史追踪（iCloud 同步必需）
             description.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
-            
+
             // 启用远程变更通知（iCloud 同步必需）
             description.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
-            
+
             // ━━━ iCloud 同步配置（取消注释以启用）━━━
             // description.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(
             //     containerIdentifier: "iCloud.com.yourcompany.Holo"  // 替换为你的 CloudKit 容器 ID
             // )
         }
-        
+
         container.loadPersistentStores { description, error in
             if let error = error {
                 fatalError("Core Data 存储加载失败：\(error.localizedDescription)")
             }
         }
-        
+
         // 配置自动合并策略
         container.viewContext.automaticallyMergesChangesFromParent = true
         container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
-        
+
         return container
-    }()
-    
+    }
+
     /// 通过代码创建 Core Data 数据模型
     /// - Returns: NSManagedObjectModel
-    private func createDataModel() -> NSManagedObjectModel {
+    nonisolated private func createDataModel() -> NSManagedObjectModel {
         let model = NSManagedObjectModel()
         var entities: [NSEntityDescription] = []
         entities.append(contentsOf: createFinanceEntities())
@@ -101,7 +132,7 @@ class CoreDataStack {
     // MARK: - Finance Entities
 
     /// 创建财务相关实体（Transaction, Category, Account, HomeIconConfig）
-    private func createFinanceEntities() -> [NSEntityDescription] {
+    nonisolated private func createFinanceEntities() -> [NSEntityDescription] {
         // MARK: - Transaction Entity
         let transactionEntity = NSEntityDescription()
         transactionEntity.name = "Transaction"
@@ -373,7 +404,7 @@ class CoreDataStack {
     // MARK: - Habit Entities
 
     /// 创建习惯相关实体（Habit, HabitRecord）
-    private func createHabitEntities() -> [NSEntityDescription] {
+    nonisolated private func createHabitEntities() -> [NSEntityDescription] {
         // MARK: - Habit Entity
         // 习惯实体，支持打卡型和数值型两种习惯
         let habitEntity = NSEntityDescription()
@@ -591,7 +622,7 @@ class CoreDataStack {
     // MARK: - Todo Entities
 
     /// 创建待办相关实体（TodoFolder, TodoList, TodoTask, TodoTag, CheckItem, RepeatRule）
-    private func createTodoEntities() -> [NSEntityDescription] {
+    nonisolated private func createTodoEntities() -> [NSEntityDescription] {
         // MARK: - TodoFolder Entity
         // 待办文件夹实体，顶层容器
         let todoFolderEntity = NSEntityDescription()
@@ -1100,7 +1131,7 @@ class CoreDataStack {
     // MARK: - Thought Entities
 
     /// 创建观点相关实体（Thought, ThoughtTag, ThoughtReference）
-    private func createThoughtEntities() -> [NSEntityDescription] {
+    nonisolated private func createThoughtEntities() -> [NSEntityDescription] {
         // MARK: - Thought Entity
         // 观点模块 - 想法实体
         let thoughtEntity = NSEntityDescription()
@@ -1298,7 +1329,7 @@ class CoreDataStack {
     // MARK: - Chat Entities
 
     /// 创建 AI 对话相关实体（ChatMessage）
-    private func createChatEntities() -> [NSEntityDescription] {
+    nonisolated private func createChatEntities() -> [NSEntityDescription] {
         let chatMessageEntity = NSEntityDescription()
         chatMessageEntity.name = "ChatMessage"
         chatMessageEntity.managedObjectClassName = "ChatMessage"
@@ -1362,20 +1393,20 @@ class CoreDataStack {
     }
 
     /// 主上下文（用于 UI 操作）
-    var viewContext: NSManagedObjectContext {
+    nonisolated var viewContext: NSManagedObjectContext {
         persistentContainer.viewContext
     }
     
     // MARK: - Initialization
     
     /// 私有初始化方法（单例模式）
-    private init() {}
+    nonisolated private init() {}
     
     // MARK: - Context Management
     
     /// 创建新的后台上下文
     /// 用于执行耗时的数据操作，避免阻塞主线程
-    func newBackgroundContext() -> NSManagedObjectContext {
+    nonisolated func newBackgroundContext() -> NSManagedObjectContext {
         let context = persistentContainer.newBackgroundContext()
         context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
         return context
@@ -1383,7 +1414,7 @@ class CoreDataStack {
     
     /// 执行后台任务
     /// 在后台上下文中执行闭包，完成后自动保存
-    func performBackgroundTask<T>(_ block: @escaping (NSManagedObjectContext) throws -> T) async throws -> T {
+    nonisolated func performBackgroundTask<T>(_ block: @escaping (NSManagedObjectContext) throws -> T) async throws -> T {
         try await withCheckedThrowingContinuation { continuation in
             persistentContainer.performBackgroundTask { context in
                 do {

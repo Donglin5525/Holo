@@ -35,11 +35,16 @@ struct AISettingsView: View {
         }
         .navigationTitle("AI 设置")
         .navigationBarTitleDisplayMode(.inline)
+        .task {
+            await viewModel.loadConfig()
+        }
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("保存") {
-                    viewModel.saveConfig()
-                    dismiss()
+                    Task {
+                        await viewModel.saveConfig()
+                        dismiss()
+                    }
                 }
             }
             ToolbarItem(placement: .cancellationAction) {
@@ -202,7 +207,7 @@ struct AISettingsView: View {
     private var dangerSection: some View {
         Section {
             Button("删除 AI 配置", role: .destructive) {
-                viewModel.deleteConfig()
+                Task { await viewModel.deleteConfig() }
             }
         }
     }

@@ -23,6 +23,12 @@ struct HoloApp: App {
         // 同步设置通知代理，确保冷启动时 didReceive 不被错过
         TodoNotificationService.shared.setupDelegate()
         TodoNotificationService.shared.registerNotificationCategories()
+
+        // 后台预加载 Core Data（避免首次导航到 Chat 时阻塞主线程）
+        // CoreDataStack 使用 NSLock 保护，可安全从后台线程初始化
+        DispatchQueue.global(qos: .userInitiated).async {
+            _ = CoreDataStack.shared.persistentContainer
+        }
     }
 
     // MARK: - Body

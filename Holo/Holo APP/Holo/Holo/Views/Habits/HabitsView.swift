@@ -186,6 +186,7 @@ struct HabitListView: View {
     
     let onBack: () -> Void
     @Binding var showAddHabit: Bool
+    @StateObject private var repository = HabitRepository.shared
     
     /// 习惯列表（本地缓存，避免直接绑定 @MainActor 单例）
     @State private var habits: [Habit] = []
@@ -222,6 +223,21 @@ struct HabitListView: View {
                 .padding(.horizontal, HoloSpacing.lg)
                 .padding(.top, HoloSpacing.md)
                 .padding(.bottom, 100)
+            }
+        }
+        .task {
+            guard !repository.isReady else {
+                loadHabits()
+                return
+            }
+
+            Task.detached(priority: .utility) {
+                _ = CoreDataStack.shared.persistentContainer
+
+                await MainActor.run {
+                    repository.setup()
+                    loadHabits()
+                }
             }
         }
         .onAppear {
@@ -262,9 +278,14 @@ struct HabitListView: View {
     
     private func loadHabits() {
         Task { @MainActor in
-            let repo = HabitRepository.shared
-            habits = repo.activeHabits
-            todayProgress = repo.getTodayCheckInProgress()
+            if !repository.isReady {
+                habits = []
+                todayProgress = (0, 0)
+                return
+            }
+
+            habits = repository.activeHabits
+            todayProgress = repository.getTodayCheckInProgress()
         }
     }
     

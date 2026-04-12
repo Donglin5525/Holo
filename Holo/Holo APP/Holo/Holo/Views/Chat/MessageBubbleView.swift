@@ -10,10 +10,10 @@ import SwiftUI
 
 struct MessageBubbleView: View {
 
-    let message: ChatMessage
+    let message: ChatMessageViewData
     let streamingText: String?
-    var onIntentTagTap: ((ChatMessage) -> Void)? = nil
-    var onCardTap: ((ChatMessage, ChatCardData) -> Void)? = nil
+    var onIntentTagTap: ((ChatMessageViewData) -> Void)? = nil
+    var onCardTap: ((ChatMessageViewData, ChatCardData) -> Void)? = nil
 
     private var displayText: String {
         streamingText ?? message.content
@@ -195,8 +195,16 @@ struct MessageBubbleView: View {
         switch intent {
         case "record_expense", "record_income": return "yensign.circle"
         case "create_task": return "checklist"
+        case "complete_task": return "checkmark.circle"
+        case "update_task": return "pencil.circle"
+        case "delete_task": return "trash.circle"
         case "record_mood": return "heart.circle"
         case "check_in": return "flame.circle"
+        case "create_note": return "note.text"
+        case "query_tasks": return "list.bullet.circle"
+        case "query_habits": return "chart.circle"
+        case "record_weight": return "figure.scale"
+        case "unknown": return "questionmark.circle"
         default: return "sparkles"
         }
     }
@@ -206,8 +214,16 @@ struct MessageBubbleView: View {
         case "record_expense": return "已记账"
         case "record_income": return "已记账"
         case "create_task": return "已创建任务"
+        case "complete_task": return "已完成任务"
+        case "update_task": return "已更新任务"
+        case "delete_task": return "已删除任务"
         case "record_mood": return "已记录心情"
+        case "record_weight": return "已记录体重"
         case "check_in": return "已打卡"
+        case "create_note": return "已记录笔记"
+        case "query_tasks": return "任务查询"
+        case "query_habits": return "习惯查询"
+        case "unknown": return "未识别指令"
         default: return intent
         }
     }

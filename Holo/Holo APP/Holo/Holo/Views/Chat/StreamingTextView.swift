@@ -12,6 +12,8 @@ struct StreamingTextView: View {
 
     let text: String
     let isStreaming: Bool
+    @State private var cursorVisible = false
+    @State private var renderedMarkdown: AttributedString?
 
     var body: some View {
         if isStreaming {
@@ -20,7 +22,6 @@ struct StreamingTextView: View {
                 Text(text)
                     .font(.holoBody)
                     .foregroundColor(.holoTextPrimary)
-                    .textSelection(.enabled)
 
                 // 闪烁光标
                 Text("|")
@@ -31,21 +32,45 @@ struct StreamingTextView: View {
             }
             .onAppear { cursorVisible = true }
         } else {
-            // 完成后：Markdown 渲染
-            Text(attributedString)
+            // 完成后：默认先纯文本秒开，短文本再异步升级成 Markdown
+            Text(renderedMarkdown ?? AttributedString(text))
                 .font(.holoBody)
                 .foregroundColor(.holoTextPrimary)
-                .textSelection(.enabled)
+                .task(id: renderKey) {
+                    renderedMarkdown = nil
+                    guard shouldRenderMarkdown else { return }
+
+                    let source = text
+                    let parsed = await Self.parseMarkdown(source)
+                    guard source == text else { return }
+                    renderedMarkdown = parsed
+                }
         }
     }
 
-    @State private var cursorVisible = false
+    private var renderKey: RenderKey {
+        RenderKey(text: text, isStreaming: isStreaming)
+    }
 
-    private var attributedString: AttributedString {
-        do {
-            return try AttributedString(markdown: text, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace))
-        } catch {
-            return AttributedString(text)
-        }
+    private var shouldRenderMarkdown: Bool {
+        !text.isEmpty &&
+        text.count <= 2_000 &&
+        Self.markdownIndicators.contains { text.contains($0) }
+    }
+
+    private static let markdownIndicators = ["**", "`", "#", "- ", "* ", "[", "> "]
+
+    private static func parseMarkdown(_ text: String) async -> AttributedString? {
+        await Task.detached(priority: .utility) {
+            try? AttributedString(
+                markdown: text,
+                options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+            )
+        }.value
+    }
+
+    private struct RenderKey: Hashable {
+        let text: String
+        let isStreaming: Bool
     }
 }

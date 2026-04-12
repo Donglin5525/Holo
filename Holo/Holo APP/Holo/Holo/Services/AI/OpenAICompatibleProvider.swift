@@ -42,7 +42,7 @@ final class OpenAICompatibleProvider: AIProvider {
         }
 
         // 尝试解析 JSON 格式的 ParsedResult
-        return try parseResultFromJSON(content, fallbackIntent: .chat, fallbackText: content)
+        return try parseResultFromJSON(content, fallbackIntent: .unknown, fallbackText: content)
     }
 
     func generateInsight(type: InsightType, data: UserContext) async throws -> String {

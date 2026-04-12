@@ -22,25 +22,28 @@ final class AIConfigViewModel: ObservableObject {
     @Published var isTesting = false
     @Published var testResult: TestResult?
     @Published var isConfigured = false
+    @Published var isLoading = true
 
     private let logger = Logger(subsystem: "com.holo.app", category: "AIConfigViewModel")
-    private let keychainService: KeychainService
 
     enum TestResult {
         case success(String)
         case failure(String)
     }
 
-    init(keychainService: KeychainService = .shared) {
-        self.keychainService = keychainService
-        loadConfig()
-    }
+    /// init 不做任何 I/O 操作，避免阻塞主线程
+    init() {}
 
     // MARK: - Load / Save
 
-    func loadConfig() {
+    /// 从 Keychain 异步加载配置（后台线程读取，不阻塞 UI）
+    func loadConfig() async {
         do {
-            if let config = try keychainService.loadAIConfig() {
+            let config = try await Task.detached {
+                try KeychainService.loadAIConfigOffMain()
+            }.value
+
+            if let config {
                 selectedProvider = config.provider
                 apiKey = config.apiKey
                 temperature = config.temperature
@@ -52,17 +55,22 @@ final class AIConfigViewModel: ObservableObject {
                 }
 
                 isConfigured = config.isConfigured
+                KeychainService.updateCachedAIConfigPresence(config.isConfigured)
             }
         } catch {
             logger.error("加载 AI 配置失败：\(error.localizedDescription)")
         }
+        isLoading = false
     }
 
-    func saveConfig() {
+    /// 异步保存配置到 Keychain（后台线程写入，不阻塞 UI）
+    func saveConfig() async {
         let config = buildConfig()
 
         do {
-            try keychainService.saveAIConfig(config)
+            try await Task.detached {
+                try KeychainService.saveAIConfigOffMain(config)
+            }.value
             isConfigured = config.isConfigured
             logger.info("AI 配置已保存")
         } catch {
@@ -70,9 +78,12 @@ final class AIConfigViewModel: ObservableObject {
         }
     }
 
-    func deleteConfig() {
+    /// 异步删除 Keychain 中的 AI 配置（后台线程操作，不阻塞 UI）
+    func deleteConfig() async {
         do {
-            try keychainService.deleteAIConfig()
+            try await Task.detached {
+                try KeychainService.deleteAIConfigOffMain()
+            }.value
             apiKey = ""
             isConfigured = false
             testResult = nil
@@ -104,8 +115,8 @@ final class AIConfigViewModel: ObservableObject {
                 userContext: UserContext(
                     todayDate: "测试",
                     transactions: TransactionSummary(todayExpense: "0", todayIncome: "0", recentTransactions: []),
-                    habits: HabitSummary(totalActive: 0, todayCompleted: 0, todayTotal: 0, recentCheckIns: []),
-                    tasks: TaskSummary(todayTotal: 0, todayCompleted: 0, overdueCount: 0, recentTasks: []),
+                    habits: HabitSummary(totalActive: 0, todayCompleted: 0, todayTotal: 0, recentCheckIns: [], activeHabitNames: []),
+                    tasks: TaskSummary(todayTotal: 0, todayCompleted: 0, overdueCount: 0, recentTasks: [], activeTaskSummaries: []),
                     thoughts: ThoughtSummary(recentThoughts: [], totalThoughts: 0)
                 )
             )

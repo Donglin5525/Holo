@@ -81,14 +81,91 @@ final class MockAIProvider: AIProvider {
             )
         }
 
-        // 默认为普通聊天
+        // 新增意图关键词匹配
+        if lowercased.contains("完成") || lowercased.contains("做完了") {
+            let keyword = input.replacingOccurrences(of: "完成", with: "")
+                .replacingOccurrences(of: "了", with: "")
+                .trimmingCharacters(in: .whitespaces)
+            return ParsedResult(
+                intent: .completeTask,
+                confidence: 0.8,
+                extractedData: ["taskKeyword": keyword.isEmpty ? input : keyword],
+                needsClarification: false,
+                clarificationQuestion: nil,
+                responseText: "完成任务"
+            )
+        }
+
+        if lowercased.contains("删除任务") || lowercased.contains("不要了") {
+            let keyword = input.replacingOccurrences(of: "删除任务", with: "")
+                .replacingOccurrences(of: "不要了", with: "")
+                .trimmingCharacters(in: .whitespaces)
+            return ParsedResult(
+                intent: .deleteTask,
+                confidence: 0.8,
+                extractedData: ["taskKeyword": keyword.isEmpty ? input : keyword],
+                needsClarification: false,
+                clarificationQuestion: nil,
+                responseText: "删除任务"
+            )
+        }
+
+        if lowercased.contains("改成") || lowercased.contains("修改") {
+            let keyword = input.replacingOccurrences(of: "把", with: "")
+                .replacingOccurrences(of: "改成", with: " ")
+                .replacingOccurrences(of: "修改", with: " ")
+                .trimmingCharacters(in: .whitespaces)
+            return ParsedResult(
+                intent: .updateTask,
+                confidence: 0.8,
+                extractedData: ["taskKeyword": keyword],
+                needsClarification: false,
+                clarificationQuestion: nil,
+                responseText: "更新任务"
+            )
+        }
+
+        if lowercased.contains("记一下") || lowercased.contains("笔记") {
+            return ParsedResult(
+                intent: .createNote,
+                confidence: 0.8,
+                extractedData: ["noteContent": input],
+                needsClarification: false,
+                clarificationQuestion: nil,
+                responseText: "记录笔记"
+            )
+        }
+
+        if lowercased.contains("有什么任务") || lowercased.contains("待办") || lowercased.contains("任务列表") {
+            return ParsedResult(
+                intent: .queryTasks,
+                confidence: 0.85,
+                extractedData: nil,
+                needsClarification: false,
+                clarificationQuestion: nil,
+                responseText: "查询任务列表"
+            )
+        }
+
+        if lowercased.contains("习惯状态") || lowercased.contains("打卡了吗") || lowercased.contains("习惯完成") {
+            return ParsedResult(
+                intent: .queryHabits,
+                confidence: 0.85,
+                extractedData: nil,
+                needsClarification: false,
+                clarificationQuestion: nil,
+                responseText: "查询习惯状态"
+            )
+        }
+
+        // 兜底：未识别意图
         return ParsedResult(
-            intent: .chat,
-            confidence: 0.6,
+            intent: .unknown,
+            confidence: 0.4,
             extractedData: nil,
-            needsClarification: false,
-            clarificationQuestion: nil,
-            responseText: "[Mock] 收到你的消息：\(input)"
+            needsClarification: true,
+            clarificationQuestion: "我可以帮你记账、创建任务、记录心情等，你想做什么？",
+            responseText: "[Mock] 未识别指令：\(input)"
         )
     }
 

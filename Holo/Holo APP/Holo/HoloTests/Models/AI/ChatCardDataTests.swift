@@ -225,8 +225,8 @@ final class ChatCardDataTests: XCTestCase {
     // MARK: 不应产生卡片的意图
 
     func testFromChatReturnsNil() {
-        let result = ChatCardData.from(intent: .chat, data: ["foo": "bar"])
-        XCTAssertNil(result, ".chat 不应产生卡片")
+        let result = ChatCardData.from(intent: .unknown, data: ["foo": "bar"])
+        XCTAssertNil(result, "unknown 不应产生卡片")
     }
 
     func testFromQueryReturnsNil() {

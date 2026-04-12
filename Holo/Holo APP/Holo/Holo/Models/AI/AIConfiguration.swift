@@ -70,4 +70,73 @@ struct AIProviderConfig: Codable {
     var isConfigured: Bool {
         !apiKey.isEmpty && !baseURL.isEmpty && !model.isEmpty
     }
+
+    enum CodingKeys: String, CodingKey {
+        case provider, apiKey, model, baseURL, temperature, maxTokens
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        let rawProvider = try container.decodeIfPresent(String.self, forKey: .provider)
+        let fallbackBaseURL = try container.decodeIfPresent(String.self, forKey: .baseURL)
+        let fallbackModel = try container.decodeIfPresent(String.self, forKey: .model)
+
+        let resolvedProvider =
+            container.decodeIfPresentProvider(forKey: .provider) ??
+            Self.provider(from: rawProvider, baseURL: fallbackBaseURL, model: fallbackModel) ??
+            .deepseek
+
+        self.provider = resolvedProvider
+        self.apiKey = try container.decodeIfPresent(String.self, forKey: .apiKey) ?? ""
+        self.model = fallbackModel ?? resolvedProvider.defaultModel
+        self.baseURL = fallbackBaseURL ?? resolvedProvider.defaultBaseURL
+        self.temperature = try container.decodeIfPresent(Double.self, forKey: .temperature) ?? 0.7
+        self.maxTokens = try container.decodeIfPresent(Int.self, forKey: .maxTokens) ?? 2048
+    }
+
+    private static func provider(from rawValue: String?, baseURL: String?, model: String?) -> AIProviderType? {
+        if let rawValue {
+            let normalized = rawValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            switch normalized {
+            case "deepseek":
+                return .deepseek
+            case "通义千问", "qwen":
+                return .qwen
+            case "moonshot":
+                return .moonshot
+            case "智谱", "zhipu":
+                return .zhipu
+            case "自定义", "custom":
+                return .custom
+            default:
+                break
+            }
+        }
+
+        if let baseURL {
+            if baseURL.contains("deepseek") { return .deepseek }
+            if baseURL.contains("dashscope") { return .qwen }
+            if baseURL.contains("moonshot") { return .moonshot }
+            if baseURL.contains("bigmodel") { return .zhipu }
+        }
+
+        if let model {
+            if model.contains("deepseek") { return .deepseek }
+            if model.contains("qwen") { return .qwen }
+            if model.contains("moonshot") { return .moonshot }
+            if model.contains("glm") { return .zhipu }
+        }
+
+        return nil
+    }
+}
+
+private extension KeyedDecodingContainer where Key == AIProviderConfig.CodingKeys {
+    func decodeIfPresentProvider(forKey key: Key) -> AIProviderType? {
+        if let provider = try? decodeIfPresent(AIProviderType.self, forKey: key) {
+            return provider
+        }
+        return nil
+    }
 }

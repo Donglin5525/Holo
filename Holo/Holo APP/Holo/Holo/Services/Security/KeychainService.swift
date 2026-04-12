@@ -79,10 +79,20 @@ final class KeychainService {
     // MARK: - AI Config 便捷方法
 
     private static let aiConfigKey = "com.holo.ai.config"
+    private static let aiConfigPresenceKey = "com.holo.ai.configured"
+
+    nonisolated static var hasCachedAIConfig: Bool {
+        UserDefaults.standard.bool(forKey: aiConfigPresenceKey)
+    }
+
+    nonisolated static func updateCachedAIConfigPresence(_ configured: Bool) {
+        UserDefaults.standard.set(configured, forKey: aiConfigPresenceKey)
+    }
 
     func saveAIConfig(_ config: AIProviderConfig) throws {
         let data = try JSONEncoder().encode(config)
         try save(key: Self.aiConfigKey, data: data)
+        Self.updateCachedAIConfigPresence(config.isConfigured)
         logger.info("AI 配置已保存到 Keychain")
     }
 
@@ -120,7 +130,53 @@ final class KeychainService {
 
     func deleteAIConfig() throws {
         try delete(key: Self.aiConfigKey)
+        Self.updateCachedAIConfigPresence(false)
         logger.info("AI 配置已从 Keychain 删除")
+    }
+
+    // MARK: - 非主线程安全操作
+
+    /// 非主线程安全的 AI 配置保存（可在任意线程调用）
+    nonisolated static func saveAIConfigOffMain(_ config: AIProviderConfig) throws {
+        let key = "com.holo.ai.config"
+        let data = try JSONEncoder().encode(config)
+
+        // 先删除已有的
+        let deleteQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: key
+        ]
+        SecItemDelete(deleteQuery as CFDictionary)
+
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: key,
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        ]
+
+        let status = SecItemAdd(query as CFDictionary, nil)
+        guard status == errSecSuccess else {
+            throw KeychainError.saveFailed(status)
+        }
+
+        updateCachedAIConfigPresence(config.isConfigured)
+    }
+
+    /// 非主线程安全的 AI 配置删除（可在任意线程调用）
+    nonisolated static func deleteAIConfigOffMain() throws {
+        let key = "com.holo.ai.config"
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: key
+        ]
+
+        let status = SecItemDelete(query as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw KeychainError.deleteFailed(status)
+        }
+
+        updateCachedAIConfigPresence(false)
     }
 }
 

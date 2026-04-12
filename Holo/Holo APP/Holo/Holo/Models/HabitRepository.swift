@@ -32,24 +32,31 @@ class HabitRepository: ObservableObject {
     
     /// 当前活跃（未归档）的习惯列表
     @Published var activeHabits: [Habit] = []
+    @Published private(set) var isReady: Bool = false
     
     // MARK: - Properties
     
-    /// 主上下文（主线程）
-    private var context: NSManagedObjectContext {
-        CoreDataStack.shared.viewContext
-    }
+    /// 主上下文（延迟初始化，避免进入模块前就阻塞主线程）
+    private lazy var context: NSManagedObjectContext = CoreDataStack.shared.viewContext
     
     // MARK: - Initialization
     
-    private init() {
+    private init() {}
+
+    func setup() {
+        guard !isReady else { return }
+        _ = context
         loadActiveHabits()
+        isReady = true
     }
     
     // MARK: - 数据加载
     
     /// 加载活跃习惯列表
     func loadActiveHabits() {
+        if !isReady {
+            _ = context
+        }
         let request = Habit.fetchRequest()
         request.predicate = NSPredicate(format: "isArchived == NO")
         request.sortDescriptors = [NSSortDescriptor(key: "sortOrder", ascending: true)]
@@ -89,6 +96,7 @@ class HabitRepository: ObservableObject {
         aggregationType: HabitAggregationType = .sum,
         isBadHabit: Bool = false
     ) throws -> Habit {
+        if !isReady { setup() }
         // 计算新的排序顺序
         let maxSortOrder = activeHabits.map { $0.sortOrder }.max() ?? -1
         
@@ -116,6 +124,7 @@ class HabitRepository: ObservableObject {
     
     /// 更新习惯
     func updateHabit(_ habit: Habit, updates: HabitUpdates) throws {
+        if !isReady { setup() }
         if let name = updates.name { habit.name = name }
         if let icon = updates.icon { habit.icon = icon }
         if let color = updates.color { habit.color = color }
@@ -135,6 +144,7 @@ class HabitRepository: ObservableObject {
     
     /// 归档习惯（软删除）
     func archiveHabit(_ habit: Habit) throws {
+        if !isReady { setup() }
         habit.isArchived = true
         habit.updatedAt = Date()
         
@@ -145,6 +155,7 @@ class HabitRepository: ObservableObject {
     
     /// 恢复归档的习惯
     func unarchiveHabit(_ habit: Habit) throws {
+        if !isReady { setup() }
         habit.isArchived = false
         habit.updatedAt = Date()
         
@@ -155,6 +166,7 @@ class HabitRepository: ObservableObject {
     
     /// 删除习惯（硬删除，会级联删除所有记录）
     func deleteHabit(_ habit: Habit) throws {
+        if !isReady { setup() }
         let habitId = habit.id
         context.delete(habit)
         
@@ -165,6 +177,7 @@ class HabitRepository: ObservableObject {
     
     /// 通过 ID 删除习惯（安全方法，用于视图 dismiss 后的延迟删除）
     func deleteHabitById(_ habitId: UUID) throws {
+        if !isReady { setup() }
         let request = Habit.fetchRequest()
         request.predicate = NSPredicate(format: "id == %@", habitId as CVarArg)
         request.fetchLimit = 1
@@ -181,6 +194,7 @@ class HabitRepository: ObservableObject {
     
     /// 通过 ID 归档习惯（安全方法，用于视图 dismiss 后的延迟归档）
     func archiveHabitById(_ habitId: UUID) throws {
+        if !isReady { setup() }
         let request = Habit.fetchRequest()
         request.predicate = NSPredicate(format: "id == %@", habitId as CVarArg)
         request.fetchLimit = 1
@@ -199,6 +213,7 @@ class HabitRepository: ObservableObject {
     
     /// 更新习惯排序
     func updateHabitOrder(_ habits: [Habit]) throws {
+        if !isReady { setup() }
         for (index, habit) in habits.enumerated() {
             habit.sortOrder = Int16(index)
         }
@@ -214,6 +229,7 @@ class HabitRepository: ObservableObject {
     /// - Returns: 当前完成状态
     @discardableResult
     func toggleCheckIn(for habit: Habit) throws -> Bool {
+        if !isReady { setup() }
         guard habit.isCheckInType else { return false }
         
         let today = Calendar.current.startOfDay(for: Date())

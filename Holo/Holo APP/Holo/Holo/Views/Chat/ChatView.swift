@@ -23,12 +23,12 @@ struct ChatView: View {
                 // 顶部导航栏
                 chatNavBar
 
-                if !viewModel.isConfigured {
+                if viewModel.isConfigured || !viewModel.hasFinishedSetup || viewModel.didTimeoutLoadingConfig {
+                    // 已配置、正在检查中、或检查超时：都允许先进入对话页面，避免首屏卡死
+                    chatContent
+                } else if !viewModel.isConfigured {
                     // 未配置引导
                     unconfiguredView
-                } else {
-                    // 对话内容
-                    chatContent
                 }
             }
         }
@@ -43,10 +43,8 @@ struct ChatView: View {
         .sheet(item: $editingTransaction) { transaction in
             AddTransactionSheet(editingTransaction: transaction) {}
         }
-        .onAppear {
-            Task {
-                await viewModel.configureFromSavedConfig()
-            }
+        .task {
+            await viewModel.setup()
         }
     }
 
@@ -73,9 +71,16 @@ struct ChatView: View {
 
             Spacer()
 
-            // 右侧占位，保持标题居中
-            Color.clear
-                .frame(width: 32, height: 32)
+            Button {
+                showAISettings = true
+            } label: {
+                Image(systemName: "gearshape")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.holoTextSecondary)
+                    .frame(width: 32, height: 32)
+                    .background(Color.holoTextSecondary.opacity(0.1))
+                    .cornerRadius(16)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
@@ -118,6 +123,12 @@ struct ChatView: View {
 
     private var chatContent: some View {
         VStack(spacing: 0) {
+            if !viewModel.hasFinishedSetup {
+                statusBanner("正在读取 AI 配置，你现在也可以直接发送消息")
+            } else if viewModel.didTimeoutLoadingConfig {
+                statusBanner("AI 配置读取超时，已先放开聊天交互，你也可以点右上角检查设置")
+            }
+
             // 消息列表
             messageList
 
@@ -127,6 +138,20 @@ struct ChatView: View {
             // 输入栏
             ChatInputView(viewModel: viewModel)
         }
+    }
+
+    private func statusBanner(_ text: String) -> some View {
+        HStack(spacing: 8) {
+            ProgressView()
+                .scaleEffect(0.8)
+            Text(text)
+                .font(.system(size: 12))
+                .foregroundColor(.holoTextSecondary)
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(Color.holoCardBackground)
     }
 
     // MARK: - Message List
@@ -171,7 +196,7 @@ struct ChatView: View {
 
     // MARK: - Transaction Detail
 
-    private func openTransactionDetail(_ message: ChatMessage) {
+    private func openTransactionDetail(_ message: ChatMessageViewData) {
         guard let transactionId = message.linkedTransactionId else { return }
         let transaction = FinanceRepository.shared.findTransaction(by: transactionId)
         editingTransaction = transaction
@@ -180,7 +205,7 @@ struct ChatView: View {
     // MARK: - Card Tap Navigation
 
     /// 点击卡片后跳转到对应详情
-    private func handleCardTap(message: ChatMessage, cardData: ChatCardData) {
+    private func handleCardTap(message: ChatMessageViewData, cardData: ChatCardData) {
         switch cardData {
         case .transaction:
             openTransactionDetail(message)

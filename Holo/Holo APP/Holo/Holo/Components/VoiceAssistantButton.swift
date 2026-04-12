@@ -45,6 +45,7 @@ struct VoiceAssistantButton: View {
             Text("Tap to speak")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
+                .allowsHitTesting(false)
         }
     }
     
@@ -59,6 +60,7 @@ struct VoiceAssistantButton: View {
         Circle()
             .stroke(Color.holoPrimary.opacity(opacity), lineWidth: 1)
             .frame(width: size, height: size)
+            .allowsHitTesting(false)
     }
     
     /// 主按钮
@@ -101,6 +103,7 @@ struct VoiceAssistantButton: View {
             }
         }
         .frame(width: 192, height: 192)
+        .contentShape(Circle())
         .shadow(color: .holoPrimary.opacity(0.3), radius: 30, x: 0, y: 0)
         .scaleEffect(isAnimating ? 1.05 : 1.0)
         .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: isAnimating)

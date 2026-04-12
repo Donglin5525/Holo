@@ -70,7 +70,7 @@
 
 | 模块 | 路径 |
 |------|------|
-| AI 对话 | `Views/Chat/CLAUDE.md` |
+| AI 对话 | `docs/_common/Chat模块文档.md` |
 | 财务 | `Views/Finance/CLAUDE.md` |
 | 待办 | `Views/Tasks/CLAUDE.md` |
 | 习惯 | `Views/Habits/CLAUDE.md` |

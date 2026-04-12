@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { X } from 'lucide-react'
 
 /** @type {Array<{id:number, role:'holo'|'user', text:string, time:string, actions?:string[]}>} */
 const INITIAL_MSGS = [
@@ -52,12 +53,16 @@ function renderText(text) {
 
 /**
  * HOLO 对话视图（轻量化）
+ * @param {Object} props
+ * @param {Function} [props.onClose] - 关闭回调（返回首页）
  */
-export default function ChatView() {
+export default function ChatView({ onClose }) {
   const [msgs, setMsgs] = useState(INITIAL_MSGS)
   const [input, setInput] = useState('')
   const [typing, setTyping] = useState(false)
+  const [swipeX, setSwipeX] = useState(0)
   const bottomRef = useRef(null)
+  const touchRef = useRef(null)
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -82,12 +87,84 @@ export default function ChatView() {
     }, 1600)
   }
 
+  // --- 右滑返回手势 ---
+
+  const onTouchStart = useCallback((e) => {
+    const t = e.touches[0]
+    const rect = e.currentTarget.getBoundingClientRect()
+    if (t.clientX - rect.left < 20) {
+      touchRef.current = { startX: t.clientX }
+    }
+  }, [])
+
+  const onTouchMove = useCallback((e) => {
+    if (!touchRef.current) return
+    const dx = e.touches[0].clientX - touchRef.current.startX
+    if (dx > 0) {
+      // 阻尼：超过 40% 宽度后减速
+      const maxDx = rect => rect.width * 0.4
+      const rect = e.currentTarget.getBoundingClientRect()
+      if (dx <= maxDx(rect)) {
+        setSwipeX(dx)
+      } else {
+        setSwipeX(maxDx(rect) + (dx - maxDx(rect)) * 0.3)
+      }
+    }
+  }, [])
+
+  const onTouchEnd = useCallback(() => {
+    if (!touchRef.current) return
+    const shouldDismiss = swipeX > 120
+    if (shouldDismiss) {
+      // 滑出动画后关闭
+      setSwipeX(393)
+      setTimeout(() => onClose?.(), 250)
+    } else {
+      setSwipeX(0)
+    }
+    touchRef.current = null
+  }, [swipeX, onClose])
+
+  const isSwiping = touchRef.current !== null
+
   return (
-    <div className="flex flex-col flex-1 overflow-hidden" style={{ background: '#f7f7f7' }}>
+    <div
+      className="relative flex flex-col flex-1 overflow-hidden"
+      style={{
+        background: '#f7f7f7',
+        transform: swipeX > 0 ? `translateX(${swipeX}px)` : undefined,
+        transition: !isSwiping ? 'transform 0.3s cubic-bezier(0.25, 1, 0.5, 1)' : 'none',
+        boxShadow: swipeX > 0 ? '-4px 0 24px rgba(0,0,0,0.12)' : 'none',
+      }}
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+    >
+      {/* 关闭按钮 - 最高 z-index，绝对定位左上角，44×44 点击热区 */}
+      <button
+        onClick={onClose}
+        className="absolute flex items-center justify-center"
+        aria-label="关闭"
+        style={{
+          top: 6,
+          left: 6,
+          width: 44,
+          height: 44,
+          zIndex: 50,
+          borderRadius: '50%',
+          background: 'rgba(0,0,0,0.05)',
+          border: 'none',
+          cursor: 'pointer',
+          WebkitTapHighlightColor: 'transparent',
+        }}
+      >
+        <X size={18} color="#555" strokeWidth={2.5} />
+      </button>
+
       {/* Nav bar */}
       <div
         className="flex items-center justify-between px-5 pt-2 pb-3 flex-shrink-0"
-        style={{ background: '#f7f7f7' }}
+        style={{ background: '#f7f7f7', paddingLeft: 56 }}
       >
         <div className="flex items-center gap-2.5">
           <div

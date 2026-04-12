@@ -15,11 +15,16 @@ enum TestAIIntent: String {
     case recordExpense = "record_expense"
     case recordIncome = "record_income"
     case createTask = "create_task"
+    case completeTask = "complete_task"
+    case updateTask = "update_task"
+    case deleteTask = "delete_task"
     case recordMood = "record_mood"
     case recordWeight = "record_weight"
     case checkIn = "check_in"
+    case createNote = "create_note"
+    case queryTasks = "query_tasks"
+    case queryHabits = "query_habits"
     case query = "query"
-    case chat = "chat"
     case unknown = "unknown"
 }
 
@@ -115,7 +120,7 @@ enum TestChatCardData: Equatable {
             return .weight(TestWeightCardData(
                 weight: weight, unit: data["unit"] ?? "kg"
             ))
-        case .query, .chat, .unknown:
+        case .completeTask, .updateTask, .deleteTask, .createNote, .queryTasks, .queryHabits, .query, .unknown:
             return nil
         }
     }
@@ -270,8 +275,8 @@ func runTests() {
         return assertEqual(card.unit, "kg")
     }
 
-    test("chat 意图 → nil") {
-        return assertNil(TestChatCardData.from(intent: .chat, data: ["foo": "bar"]))
+    test("unknown 意图 → nil") {
+        return assertNil(TestChatCardData.from(intent: .unknown, data: ["foo": "bar"]))
     }
     test("query 意图 → nil") {
         return assertNil(TestChatCardData.from(intent: .query, data: ["foo": "bar"]))

@@ -44,6 +44,30 @@ extension ChatMessage {
         return UUID(uuidString: idStr)
     }
 
+    /// 通用实体链接（优先新格式，兜底旧格式）
+    var linkedEntity: LinkedEntity? {
+        guard let dict = extractedDataDictionary else { return nil }
+        // 新格式优先：entityType + entityId
+        if let typeStr = dict["entityType"], let idStr = dict["entityId"],
+           let type = LinkedEntityType(rawValue: typeStr), let id = UUID(uuidString: idStr) {
+            return LinkedEntity(type: type, id: id)
+        }
+        // 旧格式兜底：按字段名推断类型
+        if let idStr = dict["transactionId"], let id = UUID(uuidString: idStr) {
+            return LinkedEntity(type: .transaction, id: id)
+        }
+        if let idStr = dict["taskId"], let id = UUID(uuidString: idStr) {
+            return LinkedEntity(type: .task, id: id)
+        }
+        if let idStr = dict["habitId"], let id = UUID(uuidString: idStr) {
+            return LinkedEntity(type: .habit, id: id)
+        }
+        if let idStr = dict["thoughtId"], let id = UUID(uuidString: idStr) {
+            return LinkedEntity(type: .thought, id: id)
+        }
+        return nil
+    }
+
     /// extractedDataDictionary 缓存的 associated object key
     private static var extractedDataDictKey: UInt8 = 0
 
