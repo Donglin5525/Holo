@@ -142,8 +142,8 @@ struct ChatView: View {
                             onIntentTagTap: { msg in
                                 openTransactionDetail(msg)
                             },
-                            onCardTap: { _, cardData in
-                                handleCardTap(cardData)
+                            onCardTap: { message, cardData in
+                                handleCardTap(message: message, cardData: cardData)
                             }
                         )
                         .id(message.id)
@@ -179,20 +179,18 @@ struct ChatView: View {
 
     // MARK: - Card Tap Navigation
 
-    /// 点击卡片后跳转到对应模块
-    private func handleCardTap(_ cardData: ChatCardData) {
-        let target: DeepLinkTarget?
+    /// 点击卡片后跳转到对应详情
+    private func handleCardTap(message: ChatMessage, cardData: ChatCardData) {
         switch cardData {
         case .transaction:
-            target = .finance
+            openTransactionDetail(message)
         case .task:
-            target = .tasks
+            if let taskId = message.linkedTaskId {
+                DeepLinkState.shared.pendingTarget = .taskDetail(taskId: taskId)
+                dismiss()
+            }
         case .habitCheckIn, .mood, .weight:
-            target = nil
+            break
         }
-
-        guard let target = target else { return }
-        DeepLinkState.shared.pendingTarget = target
-        dismiss()
     }
 }

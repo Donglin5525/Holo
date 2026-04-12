@@ -36,6 +36,14 @@ extension ChatMessage {
         return UUID(uuidString: idStr)
     }
 
+    /// 从 extractedDataJSON 中解析关联的任务 ID
+    var linkedTaskId: UUID? {
+        guard let idStr = extractedDataDictionary?["taskId"] else {
+            return nil
+        }
+        return UUID(uuidString: idStr)
+    }
+
     /// extractedDataDictionary 缓存的 associated object key
     private static var extractedDataDictKey: UInt8 = 0
 
