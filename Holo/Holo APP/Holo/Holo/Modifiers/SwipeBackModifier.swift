@@ -176,6 +176,7 @@ private struct EdgeGestureOverlay: UIViewRepresentable {
 
 /// 仅响应左侧边缘区域触摸的 UIView
 /// 非边缘触摸返回 nil，穿透到下层视图（ScrollView 等）
+/// 当 NavigationStack 有推送内容时，不拦截手势，让 NavigationStack 的内置返回手势优先处理
 private class EdgeGestureHostView: UIView {
     private let edgeWidth: CGFloat = 20
 
@@ -185,7 +186,35 @@ private class EdgeGestureHostView: UIView {
               !isHidden,
               alpha > 0.01
         else { return nil }
+
+        // 当 NavigationStack 有推送内容时，不拦截手势
+        // 让 NavigationStack 的内置返回手势优先处理（只 pop 一层，不关闭整个页面）
+        if hasActiveNavigationStack() {
+            return nil
+        }
+
         return super.hitTest(point, with: event)
+    }
+
+    /// 检查当前窗口中是否存在有推送内容的 UINavigationController
+    /// NavigationStack 底层使用 UINavigationController，viewControllers.count > 1 表示有推送的视图
+    private func hasActiveNavigationStack() -> Bool {
+        guard let window = self.window else { return false }
+        return checkForPushedNavigationController(in: window)
+    }
+
+    /// 递归检查视图层级中是否有推送了内容的 NavigationController
+    private func checkForPushedNavigationController(in view: UIView) -> Bool {
+        if let navController = view.next as? UINavigationController,
+           navController.viewControllers.count > 1 {
+            return true
+        }
+        for subview in view.subviews {
+            if checkForPushedNavigationController(in: subview) {
+                return true
+            }
+        }
+        return false
     }
 }
 
