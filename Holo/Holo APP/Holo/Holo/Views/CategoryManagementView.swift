@@ -47,6 +47,22 @@ struct CategoryManagementView: View {
                         } label: {
                             topLevelCategoryRow(parent)
                         }
+                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                            Button {
+                                editingCategory = parent
+                            } label: {
+                                Label("编辑", systemImage: "pencil")
+                            }
+                            .tint(.holoPrimary)
+                            if !parent.isDefault {
+                                Button(role: .destructive) {
+                                    categoryToDelete = parent
+                                    showDeleteConfirmation = true
+                                } label: {
+                                    Label("删除", systemImage: "trash")
+                                }
+                            }
+                        }
                     }
                 }
                 .listStyle(.insetGrouped)
@@ -105,20 +121,25 @@ struct CategoryManagementView: View {
         } message: {
             Text(errorMessage ?? "")
         }
-        .confirmationDialog("确认删除", isPresented: $showDeleteConfirmation, titleVisibility: .visible) {
+        .alert("确认删除", isPresented: $showDeleteConfirmation) {
             Button("删除", role: .destructive) {
                 if let cat = categoryToDelete {
                     confirmDelete(cat)
                 }
                 categoryToDelete = nil
-                showDeleteConfirmation = false
             }
             Button("取消", role: .cancel) {
                 categoryToDelete = nil
-                showDeleteConfirmation = false
             }
         } message: {
-            Text("删除后无法恢复；若该分类已被交易使用，将无法删除。")
+            if let cat = categoryToDelete {
+                let hasSubs = (subCategoriesMap[cat.id]?.count ?? 0) > 0
+                Text(hasSubs
+                    ? "删除后无法恢复。该分类及其 \(subCategoriesMap[cat.id]?.count ?? 0) 个子分类将被一并删除；若已被交易使用，将无法删除。"
+                    : "删除后无法恢复；若该分类已被交易使用，将无法删除。")
+            } else {
+                Text("删除后无法恢复。")
+            }
         }
         // 清理导入分类确认
         .confirmationDialog("清理导入分类", isPresented: $showCleanupConfirmation, titleVisibility: .visible) {
@@ -199,32 +220,6 @@ struct CategoryManagementView: View {
                 .foregroundColor(.holoTextPrimary)
 
             Spacer()
-
-            // 编辑按钮
-            Button {
-                editingCategory = category
-            } label: {
-                Image(systemName: "pencil")
-                    .font(.system(size: 16))
-                    .foregroundColor(.holoPrimary)
-                    .frame(width: 44, height: 44)
-            }
-            .buttonStyle(.borderless)
-
-            // 预设分类不可删除
-            if !category.isDefault {
-                Button {
-                    Self.logger.info("🗑️ 删除按钮触发: \(category.name)")
-                    categoryToDelete = category
-                    showDeleteConfirmation = true
-                } label: {
-                    Image(systemName: "trash")
-                        .font(.system(size: 16))
-                        .foregroundColor(.red)
-                        .frame(width: 44, height: 44)
-                }
-                .buttonStyle(.borderless)
-            }
         }
         .padding(.vertical, 4)
     }
@@ -250,6 +245,22 @@ struct CategoryManagementView: View {
                 List {
                     ForEach(subs, id: \.id) { child in
                         categoryRow(child)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                                Button {
+                                    editingCategory = child
+                                } label: {
+                                    Label("编辑", systemImage: "pencil")
+                                }
+                                .tint(.holoPrimary)
+                                if !child.isDefault {
+                                    Button(role: .destructive) {
+                                        categoryToDelete = child
+                                        showDeleteConfirmation = true
+                                    } label: {
+                                        Label("删除", systemImage: "trash")
+                                    }
+                                }
+                            }
                     }
                 }
                 .listStyle(.insetGrouped)
@@ -259,26 +270,28 @@ struct CategoryManagementView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
-                HStack(spacing: HoloSpacing.sm) {
-                    // 编辑一级分类
-                    Button {
-                        editingCategory = parent
-                    } label: {
-                        Image(systemName: "pencil")
-                            .font(.system(size: 18))
-                            .foregroundColor(.holoPrimary)
-                    }
-                    // 新增二级分类
-                    Button {
-                        addCategoryParentId = parent.id
-                        showAddCategory = true
-                    } label: {
-                        Image(systemName: "plus.circle.fill")
-                            .font(.system(size: 22))
-                            .foregroundColor(.holoPrimary)
-                    }
+                Button {
+                    addCategoryParentId = parent.id
+                    showAddCategory = true
+                } label: {
+                    Image(systemName: "plus.circle.fill")
+                        .font(.system(size: 22))
+                        .foregroundColor(.holoPrimary)
                 }
             }
+        }
+        .alert("确认删除", isPresented: $showDeleteConfirmation) {
+            Button("删除", role: .destructive) {
+                if let cat = categoryToDelete {
+                    confirmDelete(cat)
+                }
+                categoryToDelete = nil
+            }
+            Button("取消", role: .cancel) {
+                categoryToDelete = nil
+            }
+        } message: {
+            Text("删除后无法恢复；若该分类已被交易使用，将无法删除。")
         }
     }
     

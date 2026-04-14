@@ -327,11 +327,27 @@ class FinanceRepository {
     }
     
     func deleteCategory(_ category: Category) async throws {
+        // 检查该分类本身是否被交易使用
         let request = Transaction.fetchRequest()
         request.predicate = NSPredicate(format: "category == %@", category)
         if try context.count(for: request) > 0 {
             throw FinanceError.categoryInUse
         }
+
+        // 检查子分类是否被交易使用，并收集未使用的子分类
+        let subRequest = Category.fetchRequest()
+        subRequest.predicate = NSPredicate(format: "parentId == %@", category.id as CVarArg)
+        let subCategories = try context.fetch(subRequest)
+
+        for sub in subCategories {
+            let txRequest = Transaction.fetchRequest()
+            txRequest.predicate = NSPredicate(format: "category == %@", sub)
+            if try context.count(for: txRequest) > 0 {
+                throw FinanceError.categoryInUse
+            }
+            context.delete(sub)
+        }
+
         context.delete(category)
         try context.save()
     }
