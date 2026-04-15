@@ -17,12 +17,12 @@ struct HomeView: View {
     
     // MARK: - Properties
     
-    /// 用户昵称（后续从用户数据中获取）
-    @State private var userName: String = "东林"
-    
-    /// 当前日程提醒
-    @State private var currentSchedule: String = "10:00 • 团队同步会议"
-    
+    /// 用户昵称
+    @AppStorage("userName") private var userName: String = "东林"
+
+    /// 首页推送通道服务
+    @ObservedObject private var scheduleService = HomeScheduleService.shared
+
     /// 当前选中的导航标签
     @State private var selectedTab: BottomNavBar.TabItem = .ai
     
@@ -106,6 +106,7 @@ struct HomeView: View {
             // 首屏先直接展示默认入口，持久化顺序稍后异步回填，避免首次启动被 Core Data 初始化卡住。
             guard !iconRepository.isReady else {
                 loadFeatureItemsFromRepository()
+                scheduleService.setup()
                 return
             }
 
@@ -115,6 +116,7 @@ struct HomeView: View {
                 await MainActor.run {
                     iconRepository.setup()
                     loadFeatureItemsFromRepository()
+                    scheduleService.setup()
                 }
             }
         }
@@ -251,6 +253,16 @@ struct HomeView: View {
         }
     }
     
+    /// 根据当前时间返回问候语
+    private var timeGreeting: String {
+        let hour = Calendar.current.component(.hour, from: Date())
+        switch hour {
+        case 6..<12: return "早上好"
+        case 12..<18: return "下午好"
+        default: return "晚上好"
+        }
+    }
+
     /// 顶部 Header
     private var headerView: some View {
         HStack {
@@ -261,7 +273,7 @@ struct HomeView: View {
                     .foregroundColor(.holoTextSecondary)
                     .kerning(1.2)
                 
-                Text("你好，\(userName)")
+                Text("\(timeGreeting)，\(userName)")
                     .font(.holoHeading)
                     .foregroundColor(.holoTextPrimary)
             }
@@ -566,30 +578,42 @@ struct HomeView: View {
         }
     }
     
-    /// 日程提醒
+    /// 日程提醒（站内推送通道）
+    @ViewBuilder
     private var scheduleReminder: some View {
-        HStack(spacing: 8) {
-            // 绿色状态指示点
-            Circle()
-                .fill(Color.holoSuccess)
-                .frame(width: 8, height: 8)
-            
-            // 日程文字
-            Text(currentSchedule)
-                .font(.holoLabel)
-                .foregroundColor(.holoTextPrimary)
+        if let state = scheduleService.currentState {
+            HStack(spacing: 8) {
+                // 状态指示点（颜色随紧急程度变化）
+                Circle()
+                    .fill(state.urgency.indicatorColor)
+                    .frame(width: 8, height: 8)
+
+                // 推送文案
+                Text(state.message)
+                    .font(.holoLabel)
+                    .foregroundColor(.holoTextPrimary)
+            }
+            .padding(.horizontal, 17)
+            .padding(.vertical, 9)
+            .background(
+                Capsule()
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                    )
+                    .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 10)
+            )
+            .onTapGesture {
+                handleScheduleTap(state)
+            }
         }
-        .padding(.horizontal, 17)
-        .padding(.vertical, 9)
-        .background(
-            Capsule()
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    Capsule()
-                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
-                )
-                .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 10)
-        )
+    }
+
+    /// 处理推送点击跳转
+    private func handleScheduleTap(_ state: ScheduleReminderState) {
+        guard let target = state.deepLinkTarget else { return }
+        deepLinkState.pendingTarget = target
     }
 }
 

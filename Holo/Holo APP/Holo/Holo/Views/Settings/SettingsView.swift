@@ -22,7 +22,9 @@ struct SettingsView: View {
     // MARK: - Observed Objects
 
     @ObservedObject private var darkModeManager = DarkModeManager.shared
+    @AppStorage("userName") private var userName: String = "东林"
     @State private var showAISettings = false
+    @State private var showNameEditor = false
 
     // MARK: - Body
 
@@ -70,39 +72,50 @@ struct SettingsView: View {
     // MARK: - 用户信息卡片
 
     private var userInfoCard: some View {
-        HStack(spacing: HoloSpacing.md) {
-            // 头像
-            ZStack {
-                Circle()
-                    .fill(Color.holoPrimary.opacity(0.1))
-                    .frame(width: 56, height: 56)
+        Button {
+            showNameEditor = true
+        } label: {
+            HStack(spacing: HoloSpacing.md) {
+                // 头像
+                ZStack {
+                    Circle()
+                        .fill(Color.holoPrimary.opacity(0.1))
+                        .frame(width: 56, height: 56)
 
-                Image(systemName: "person.fill")
-                    .font(.system(size: 24, weight: .medium))
-                    .foregroundColor(.holoPrimary)
+                    Image(systemName: "person.fill")
+                        .font(.system(size: 24, weight: .medium))
+                        .foregroundColor(.holoPrimary)
+                }
+
+                // 用户信息
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(userName)
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+
+                    Text("点击修改昵称")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                }
+
+                Spacer()
+
+                // 箭头
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.holoTextSecondary.opacity(0.5))
             }
-
-            // 用户信息
-            VStack(alignment: .leading, spacing: 4) {
-                Text("东林")
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
-
-                Text("holo@example.com")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
-            }
-
-            Spacer()
-
-            // 箭头
-            Image(systemName: "chevron.right")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundColor(.holoTextSecondary.opacity(0.5))
+            .padding(HoloSpacing.md)
+            .background(Color.holoCardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         }
-        .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        .alert("修改昵称", isPresented: $showNameEditor) {
+            TextField("昵称", text: $userName)
+            Button("确定") {}
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("输入你的昵称，将显示在首页问候语中")
+        }
     }
 
     // MARK: - 深色模式设置

@@ -797,6 +797,33 @@ class TodoRepository: ObservableObject {
         return (total, completed, overdue)
     }
 
+    /// 获取未来 N 天内即将到期的第一个未完成任务（按截止时间升序）
+    func getNextUpcomingTask(withinDays days: Int = 3) -> TodoTask? {
+        let now = Date()
+        guard let futureDate = Calendar.current.date(byAdding: .day, value: days, to: now) else {
+            return nil
+        }
+
+        let request = TodoTask.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "deletedFlag == NO AND archived == NO AND completed == NO AND dueDate >= %@ AND dueDate < %@",
+            now as NSDate,
+            futureDate as NSDate
+        )
+        request.sortDescriptors = [NSSortDescriptor(key: "dueDate", ascending: true)]
+        request.fetchLimit = 1
+        return (try? context.fetch(request))?.first
+    }
+
+    /// 获取未完成任务总数
+    func getIncompleteTaskCount() -> Int {
+        let request = TodoTask.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "deletedFlag == NO AND archived == NO AND completed == NO"
+        )
+        return (try? context.count(for: request)) ?? 0
+    }
+
     // MARK: - Notifications
 
     /// 发送数据变更通知
