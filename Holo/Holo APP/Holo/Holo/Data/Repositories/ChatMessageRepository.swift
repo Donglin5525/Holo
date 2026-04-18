@@ -161,6 +161,8 @@ final class ChatMessageRepository: ObservableObject {
         updateSnapshot(messageId) { snapshot in
             snapshot.intent = intent
             snapshot.extractedDataJSON = extractedDataJSON
+            snapshot.parsedBatch = message.parsedBatch
+            snapshot.executionBatch = message.executionBatch
         }
     }
 

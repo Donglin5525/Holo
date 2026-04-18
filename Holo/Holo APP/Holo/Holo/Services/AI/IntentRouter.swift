@@ -188,16 +188,31 @@ final class IntentRouter {
         let priority = parsePriority(data["priority"])
         let hasTime = data["dueDate"]?.contains(":") == true
 
+        // 有具体时间时，自动添加提前 15 分钟提醒
+        let reminders: Set<TaskReminder>? = (hasTime && dueDate != nil)
+            ? [TaskReminder(offsetMinutes: 15)]
+            : nil
+
         let task = try todoRepo.createTask(
             title: title,
             priority: priority ?? .medium,
             dueDate: dueDate,
-            isAllDay: !hasTime
+            isAllDay: !hasTime,
+            reminders: reminders
         )
 
         logger.info("任务已创建：\(title)")
+
+        var responseText = "已创建任务：\(title)"
+        if hasTime, let date = dueDate {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "zh_CN")
+            formatter.dateFormat = "M月d日 HH:mm"
+            responseText += "（\(formatter.string(from: date))，将提前 15 分钟提醒你）"
+        }
+
         return RouteResult(
-            text: "已创建任务：\(title)",
+            text: responseText,
             taskId: task.id,
             linkedEntity: LinkedEntity(type: .task, id: task.id)
         )

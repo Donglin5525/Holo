@@ -17,8 +17,8 @@ struct ChatMessageViewData: Identifiable, Equatable, Sendable {
     var extractedDataJSON: String?
     var isStreaming: Bool
     var parentMessageId: UUID?
-    let parsedBatch: AIParseBatch?
-    let executionBatch: AIExecutionBatch?
+    var parsedBatch: AIParseBatch?
+    var executionBatch: AIExecutionBatch?
 
     init(
         id: UUID,
