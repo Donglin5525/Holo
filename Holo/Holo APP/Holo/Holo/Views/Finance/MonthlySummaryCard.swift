@@ -23,10 +23,9 @@ struct MonthlySummaryCard: View {
     var todayAmount: Decimal? = nil
 
     var body: some View {
-        HStack(spacing: 0) {
-            // 左侧：月度信息
-            VStack(alignment: .leading, spacing: 6) {
-                // Row 1: 图标 + 标题
+        VStack(alignment: .leading, spacing: 6) {
+            // Row 1: 标签行 — 图标+标题(左) | 今日(右)
+            HStack(alignment: .center) {
                 HStack(spacing: HoloSpacing.sm) {
                     ZStack {
                         Circle()
@@ -41,29 +40,33 @@ struct MonthlySummaryCard: View {
                         .foregroundColor(.holoTextSecondary)
                 }
 
-                // Row 2: 金额
+                Spacer(minLength: 0)
+
+                if todayAmount != nil {
+                    Text("今日")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.holoTextPlaceholder)
+                }
+            }
+
+            // Row 2: 金额行 — 本月金额(左) | 今日金额(右)
+            HStack(alignment: .firstTextBaseline) {
                 Text(NumberFormatter.currency.string(from: amount as NSDecimalNumber) ?? "¥0.00")
                     .font(isCompact ? .system(size: 17, weight: .bold) : .system(size: 22, weight: .bold))
                     .foregroundColor(.holoTextPrimary)
 
-                // Row 3: 环比（仅在有对比数据时显示）
-                if let prev = previousAmount, prev > 0 {
-                    comparisonView(current: amount, previous: prev)
+                Spacer(minLength: 0)
+
+                if let today = todayAmount {
+                    Text(NumberFormatter.currency.string(from: today as NSDecimalNumber) ?? "¥0.00")
+                        .font(isCompact ? .system(size: 17, weight: .bold) : .system(size: 22, weight: .bold))
+                        .foregroundColor(.holoTextPrimary)
                 }
             }
 
-            Spacer(minLength: 0)
-
-            // 右侧：今日支出
-            if let today = todayAmount {
-                VStack(alignment: .trailing, spacing: 2) {
-                    Text("今日")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.holoTextPlaceholder)
-                    Text(NumberFormatter.currency.string(from: today as NSDecimalNumber) ?? "¥0.00")
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundColor(.holoTextPrimary)
-                }
+            // Row 3: 环比（仅在有对比数据时显示）
+            if let prev = previousAmount, prev > 0 {
+                comparisonView(current: amount, previous: prev)
             }
         }
         .padding(HoloSpacing.md)

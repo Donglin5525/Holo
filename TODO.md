@@ -176,3 +176,6 @@
 | 记忆长廊空状态 CTA + 错误状态重试 UI | 近期 |
 | 观点模块搜索功能（ThoughtSearchBarView + 搜索结果高亮） | 近期 |
 | 多账户功能 P0（余额追踪 + 账户选择记账 + 管理 UI + 净资产 + 余额调整 + 系统分类保护） | 2026-04-18 |
+| 多账户 P0 Bug 修复（CategoryPicker 过滤系统分类 + TransactionRowView 显示账户名 + AccountPicker 余额显示/过滤归档 + 批量导入账户样式） | 2026-04-18 |
+| AI Chat 多账户上下文感知（UserContextBuilder 账户摘要 + AI 可用账户上下文 + 确认文本显示账户名） | 2026-04-18 |
+| MonthlySummaryCard UI 优化（垂直布局重设计 + "今日"标签 + 环比文案改为"较上月同期" + 移除环比箭头图标） | 2026-04-18 |
