@@ -24,6 +24,7 @@ struct SettingsView: View {
     @ObservedObject private var darkModeManager = DarkModeManager.shared
     @AppStorage("userName") private var userName: String = "东林"
     @State private var showAISettings = false
+    @State private var showHoloOneSettings = false
     @State private var showNameEditor = false
 
     // MARK: - Body
@@ -210,6 +211,21 @@ struct SettingsView: View {
                     .font(.holoBody)
                     .fontWeight(.semibold)
                     .foregroundColor(.holoTextPrimary)
+            }
+
+            // Holo One 设置
+            settingsRow(
+                icon: "star.circle",
+                iconColor: .holoPrimary,
+                title: "Holo One",
+                subtitle: "配置中心按钮快捷动作"
+            ) {
+                showHoloOneSettings = true
+            }
+            .sheet(isPresented: $showHoloOneSettings) {
+                NavigationStack {
+                    HoloOneSettingsView()
+                }
             }
 
             // AI 设置

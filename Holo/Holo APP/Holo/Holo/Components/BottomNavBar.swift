@@ -16,9 +16,13 @@ import SwiftUI
 struct BottomNavBar: View {
     
     // MARK: - Properties
-    
+
     /// 当前选中的标签
     @Binding var selectedTab: TabItem
+
+    /// 中心按钮点击回调（Holo One 快捷动作）
+    /// 传 nil 时保持原有行为（设置 selectedTab = .ai）
+    var onCenterTap: (() -> Void)? = nil
     
     /// 导航项枚举
     enum TabItem: String, CaseIterable {
@@ -93,7 +97,11 @@ struct BottomNavBar: View {
     /// 中央 AI 按钮
     private var centerAIButton: some View {
         Button {
-            selectedTab = .ai
+            if let onCenterTap {
+                onCenterTap()
+            } else {
+                selectedTab = .ai
+            }
         } label: {
             ZStack {
                 // 橙色圆形背景

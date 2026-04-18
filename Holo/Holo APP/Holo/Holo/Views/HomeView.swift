@@ -50,6 +50,15 @@ struct HomeView: View {
     /// 是否显示 AI 对话页面
     @State private var showChatView: Bool = false
 
+    /// Holo One 快捷动作设置
+    @AppStorage("holoOneAction") private var holoOneAction: HoloOneAction = .aiChat
+
+    /// Holo One 快捷动作状态
+    @State private var showAddTransactionSheet: Bool = false
+    @State private var showAddTaskSheet: Bool = false
+    @State private var showHabitQuickCheckIn: Bool = false
+    @State private var showThoughtEditor: Bool = false
+
     /// Deep Link 状态（通知点击跳转）
     @ObservedObject private var deepLinkState = DeepLinkState.shared
 
@@ -160,6 +169,26 @@ struct HomeView: View {
             ChatView()
                 .preferredColorScheme(DarkModeManager.shared.colorScheme)
         }
+        // Holo One - 快速记账
+        .sheet(isPresented: $showAddTransactionSheet) {
+            AddTransactionSheet(editingTransaction: nil) {
+                NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+            }
+        }
+        // Holo One - 新建待办
+        .sheet(isPresented: $showAddTaskSheet) {
+            AddTaskSheet(repository: TodoRepository.shared, list: nil)
+        }
+        // Holo One - 习惯快捷打卡
+        .sheet(isPresented: $showHabitQuickCheckIn) {
+            HabitQuickCheckInView()
+        }
+        // Holo One - 记录想法
+        .sheet(isPresented: $showThoughtEditor) {
+            ThoughtEditorView {
+                NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+            }
+        }
         // 监听底部导航栏变化
         .onChange(of: selectedTab) { newValue in
             if newValue == .memory {
@@ -225,7 +254,10 @@ struct HomeView: View {
                 Spacer()
 
                 // 底部导航栏
-                BottomNavBar(selectedTab: $selectedTab)
+                BottomNavBar(
+                    selectedTab: $selectedTab,
+                    onCenterTap: { handleHoloOneAction() }
+                )
             }
         }
     }
@@ -512,6 +544,25 @@ struct HomeView: View {
     }
     
     // MARK: - Deep Link 处理
+
+    // MARK: - Holo One 快捷动作
+
+    /// 处理 Holo One 中心按钮点击
+    /// 根据用户设置执行对应的快捷动作
+    private func handleHoloOneAction() {
+        switch holoOneAction {
+        case .aiChat:
+            showChatView = true
+        case .addTransaction:
+            showAddTransactionSheet = true
+        case .addTask:
+            showAddTaskSheet = true
+        case .habitCheckIn:
+            showHabitQuickCheckIn = true
+        case .recordThought:
+            showThoughtEditor = true
+        }
+    }
 
     /// 处理 Deep Link 跳转
     /// 由 .onAppear（冷启动）和 .onChange（热启动/后台）触发
