@@ -56,9 +56,14 @@ struct MonthlySummaryCard: View {
 
             // 右侧：今日支出
             if let today = todayAmount {
-                Text(NumberFormatter.currency.string(from: today as NSDecimalNumber) ?? "¥0.00")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(.holoTextPrimary)
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("今日")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.holoTextPlaceholder)
+                    Text(NumberFormatter.currency.string(from: today as NSDecimalNumber) ?? "¥0.00")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.holoTextPrimary)
+                }
             }
         }
         .padding(HoloSpacing.md)
@@ -89,14 +94,12 @@ struct MonthlySummaryCard: View {
         let isIncrease = change > 0
         let isNeutral = change == 0
 
-        HStack(spacing: 4) {
-            Image(systemName: isIncrease ? "arrow.up.right" : (isNeutral ? "minus" : "arrow.down.right"))
-                .font(.system(size: 10, weight: .bold))
+        Group {
             if isNeutral {
-                Text("与上月持平")
+                Text("与上月同期持平")
                     .font(.system(size: 11, weight: .medium))
             } else {
-                Text(String(format: "较上月%.1f%%", percentage))
+                Text(String(format: "较上月同期%.1f%%", percentage))
                     .font(.system(size: 11, weight: .medium))
             }
         }
