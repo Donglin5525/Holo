@@ -144,6 +144,7 @@ final class OpenAICompatibleProvider: AIProvider {
         - 日期：\(context.todayDate)
         - 今日支出：\(context.transactions.todayExpense)，今日收入：\(context.transactions.todayIncome)
         - 近期交易：\(context.transactions.recentTransactions.joined(separator: "、"))
+        - 可用账户：\(context.accounts.accountList)
         - 活跃习惯：\(context.habits.totalActive) 个，今日完成 \(context.habits.todayCompleted)/\(context.habits.todayTotal)
         - 今日任务：\(context.tasks.todayTotal) 个（已完成 \(context.tasks.todayCompleted)），逾期 \(context.tasks.overdueCount) 个
         - 近期任务：\(context.tasks.recentTasks.joined(separator: "、"))

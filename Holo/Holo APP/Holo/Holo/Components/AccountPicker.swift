@@ -51,14 +51,10 @@ struct AccountPicker: View {
     
     // MARK: - Methods
     
-    /// 加载账户数据
+    /// 加载账户数据（过滤归档账户）
     @MainActor
     private func loadAccounts() async {
-        do {
-            accounts = try await FinanceRepository.shared.getAllAccounts()
-        } catch {
-            print("加载账户失败：\(error.localizedDescription)")
-        }
+        accounts = FinanceRepository.shared.getAccounts(includeArchived: false)
     }
 }
 
@@ -104,10 +100,11 @@ struct AccountRow: View {
                     Text(account.name)
                         .font(.holoBody)
                         .foregroundColor(isSelected ? Color.holoPrimary : Color.holoTextPrimary)
-                    
-                    Text(account.accountType.displayName)
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
+
+                    let balance = FinanceRepository.shared.getAccountBalance(account)
+                    Text(formatBalance(balance))
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundColor(balance >= 0 ? .holoTextSecondary : .holoError)
                 }
                 
                 Spacer()
@@ -125,6 +122,14 @@ struct AccountRow: View {
                     .fill(isSelected ? Color.holoPrimary.opacity(0.05) : Color.clear)
             )
         }
+    }
+
+    private func formatBalance(_ amount: Decimal) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.maximumFractionDigits = 2
+        return formatter.string(from: NSDecimalNumber(decimal: amount)) ?? "¥0.00"
     }
 }
 

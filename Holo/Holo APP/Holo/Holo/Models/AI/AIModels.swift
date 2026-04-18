@@ -208,6 +208,7 @@ struct UserContext {
     let habits: HabitSummary
     let tasks: TaskSummary
     let thoughts: ThoughtSummary
+    let accounts: AccountSummary
 }
 
 /// 交易摘要
@@ -215,6 +216,14 @@ struct TransactionSummary {
     let todayExpense: String
     let todayIncome: String
     let recentTransactions: [String]
+}
+
+/// 账户摘要
+struct AccountSummary {
+    /// 可读的账户列表，如 "现金(默认)、微信、支付宝、储蓄卡"
+    let accountList: String
+    /// 默认账户名称
+    let defaultAccountName: String
 }
 
 /// 习惯摘要

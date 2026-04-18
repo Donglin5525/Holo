@@ -1250,6 +1250,14 @@ struct TransactionRowView: View {
                             .foregroundColor(.holoTextSecondary)
                             .lineLimit(1)
                     }
+
+                    // 非默认账户时显示账户名
+                    if !transaction.account.isDefault {
+                        Text(transaction.account.name)
+                            .font(.system(size: 11))
+                            .foregroundColor(.holoTextSecondary.opacity(0.7))
+                            .lineLimit(1)
+                    }
                 }
 
                 Spacer(minLength: 0)

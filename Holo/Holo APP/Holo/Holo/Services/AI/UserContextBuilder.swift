@@ -29,13 +29,15 @@ final class UserContextBuilder {
         let habits = buildHabitSummary()
         let tasks = buildTaskSummary()
         let thoughts = buildThoughtSummary()
+        let accounts = buildAccountSummary()
 
         return UserContext(
             todayDate: todayDate,
             transactions: transactions,
             habits: habits,
             tasks: tasks,
-            thoughts: thoughts
+            thoughts: thoughts,
+            accounts: accounts
         )
     }
 
@@ -143,5 +145,23 @@ final class UserContextBuilder {
             logger.warning("构建观点摘要失败：\(error.localizedDescription)")
             return ThoughtSummary(recentThoughts: [], totalThoughts: 0)
         }
+    }
+
+    // MARK: - Account Summary
+
+    private func buildAccountSummary() -> AccountSummary {
+        let repo = FinanceRepository.shared
+        let accounts = repo.getAccounts(includeArchived: false)
+        let defaultAccount = repo.getDefaultAccountSync()
+
+        let list = accounts.map { account in
+            let suffix = account.isDefault ? "(默认)" : ""
+            return "\(account.name)\(suffix)"
+        }.joined(separator: "、")
+
+        return AccountSummary(
+            accountList: list,
+            defaultAccountName: defaultAccount?.name ?? "默认账户"
+        )
     }
 }

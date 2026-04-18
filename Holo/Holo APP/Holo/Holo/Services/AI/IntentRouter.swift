@@ -123,8 +123,9 @@ final class IntentRouter {
         )
 
         logger.info("支出已记录：¥\(amount)")
+        let accountInfo = " → \(account.name)"
         return RouteResult(
-            text: "已记录支出 ¥\(amountStr)\(note != nil ? "（\(note!)）" : "")",
+            text: "已记录支出 ¥\(amountStr)\(note != nil ? "（\(note!)）" : "")\(accountInfo)",
             transactionId: transaction.id,
             linkedEntity: LinkedEntity(type: .transaction, id: transaction.id)
         )
@@ -166,8 +167,9 @@ final class IntentRouter {
         )
 
         logger.info("收入已记录：¥\(amount)")
+        let accountInfo = " → \(account.name)"
         return RouteResult(
-            text: "已记录收入 ¥\(amountStr)\(note != nil ? "（\(note!)）" : "")",
+            text: "已记录收入 ¥\(amountStr)\(note != nil ? "（\(note!)）" : "")\(accountInfo)",
             transactionId: transaction.id,
             linkedEntity: LinkedEntity(type: .transaction, id: transaction.id)
         )

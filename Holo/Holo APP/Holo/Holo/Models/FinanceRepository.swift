@@ -976,13 +976,16 @@ class FinanceRepository {
                 if let cached = accountCache[accountName] {
                     account = cached
                 } else {
-                    // 新建账户，根据名称推测类型
+                    // 新建账户，根据名称推测类型，设置对应图标和颜色
                     let accType = guessAccountType(name: accountName)
                     let newAccount = Account.create(
                         in: context,
                         name: accountName,
                         type: accType.rawValue,
-                        isDefault: false
+                        isDefault: false,
+                        icon: accType.icon,
+                        color: accType.defaultColor,
+                        sortOrder: Int16(accountCache.count)
                     )
                     accountCache[accountName] = newAccount
                     newAccountsCount += 1

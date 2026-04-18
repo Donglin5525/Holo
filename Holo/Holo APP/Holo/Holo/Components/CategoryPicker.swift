@@ -47,6 +47,7 @@ struct CategoryPicker: View {
             .filter { top in
                 top.transactionType == transactionType
                 && top.isTopLevel
+                && !top.isSystem
                 && categories.contains { $0.parentId == top.id }
             }
             .sorted { $0.sortOrder < $1.sortOrder }
