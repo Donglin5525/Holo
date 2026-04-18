@@ -24,6 +24,18 @@ final class OpenAICompatibleProvider: AIProvider {
     // MARK: - AIProvider
 
     func parseUserInput(_ input: String, context: UserContext) async throws -> ParsedResult {
+        let batch = try await parseUserInputBatch(input, context: context)
+        return batch.first?.asParsedResult ?? ParsedResult(
+            intent: .unknown,
+            confidence: 0.3,
+            extractedData: nil,
+            needsClarification: batch.needsClarification,
+            clarificationQuestion: batch.clarificationQuestion,
+            responseText: batch.fallbackResponseText
+        )
+    }
+
+    func parseUserInputBatch(_ input: String, context: UserContext) async throws -> AIParseBatch {
         let systemPrompt = try PromptManager.shared.loadPrompt(.intentRecognition)
         let contextMessage = buildContextMessage(context)
 
@@ -34,15 +46,13 @@ final class OpenAICompatibleProvider: AIProvider {
         ]
 
         let request = buildRequest(messages: messages)
-
         let response: ChatCompletionResponse = try await apiClient.send(request)
 
         guard let content = response.choices?.first?.message?.content else {
             throw APIError.serverError("AI 未返回有效内容")
         }
 
-        // 尝试解析 JSON 格式的 ParsedResult
-        return try parseResultFromJSON(content, fallbackIntent: .unknown, fallbackText: content)
+        return parseBatchFromJSON(content)
     }
 
     func generateInsight(type: InsightType, data: UserContext) async throws -> String {
@@ -186,6 +196,50 @@ final class OpenAICompatibleProvider: AIProvider {
                 responseText: fallbackText
             )
         }
+    }
+
+    /// 从 AI 返回的 JSON 文本中解析 AIParseBatch
+    /// 回退链：batch -> single ParsedResult -> clarification
+    private func parseBatchFromJSON(_ text: String) -> AIParseBatch {
+        let jsonString = extractJSON(from: text)
+
+        guard let data = jsonString.data(using: .utf8) else {
+            return AIParseBatch(
+                mode: .clarification,
+                items: [],
+                needsClarification: true,
+                clarificationQuestion: "我没完全理解这句话，你可以拆开再说一次吗？",
+                fallbackResponseText: text
+            )
+        }
+
+        // 优先尝试 batch 格式
+        if let batch = try? JSONDecoder().decode(AIParseBatch.self, from: data) {
+            return batch
+        }
+
+        // 回退到单意图格式
+        if let single = try? JSONDecoder().decode(ParsedResult.self, from: data) {
+            let mode: AIInteractionMode = (single.intent == .query || single.intent == .queryTasks || single.intent == .queryHabits) ? .query : .singleAction
+            return AIParseBatch(
+                mode: mode,
+                items: [single.asParseItem],
+                needsClarification: single.needsClarification,
+                clarificationQuestion: single.clarificationQuestion,
+                fallbackResponseText: single.responseText
+            )
+        }
+
+        logger.error("Batch JSON 解析全部失败，回退为 clarification")
+        logger.error("LLM 原始返回：\(text)")
+
+        return AIParseBatch(
+            mode: .clarification,
+            items: [],
+            needsClarification: true,
+            clarificationQuestion: "我没完全理解这句话，你可以拆开再说一次吗？",
+            fallbackResponseText: text
+        )
     }
 
     /// 从文本中提取 JSON 内容

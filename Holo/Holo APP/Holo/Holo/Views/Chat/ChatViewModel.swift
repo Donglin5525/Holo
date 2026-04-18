@@ -33,14 +33,16 @@ final class ChatViewModel: ObservableObject {
     private var chatRepo: ChatMessageRepository?
     private var currentTask: Task<Void, Never>?
     private var provider: AIProvider
+    private let coordinator: ConversationCoordinator
     private var repositoryBootstrapTask: Task<Void, Never>?
     private var repoMessagesCancellable: AnyCancellable?
 
     // MARK: - Init
 
     /// init 不做任何 I/O 操作，避免 Core Data / Keychain 阻塞主线程
-    init(provider: AIProvider? = nil) {
+    init(provider: AIProvider? = nil, coordinator: ConversationCoordinator? = nil) {
         self.provider = provider ?? MockAIProvider()
+        self.coordinator = coordinator ?? ConversationCoordinator()
         checkConfiguration()
         if KeychainService.hasCachedAIConfig {
             isConfigured = true
@@ -187,81 +189,44 @@ final class ChatViewModel: ObservableObject {
 
                 // ENERGY: 锁定检查预留位
 
-                // 先做意图识别
-                let parsedResult = try await self.provider.parseUserInput(text, context: userContext)
+                // 通过 Coordinator 处理（支持多动作）
+                let processResult = try await self.coordinator.process(
+                    text: text,
+                    userContext: userContext,
+                    provider: self.provider
+                )
 
                 // ENERGY: 能量检查预留位
 
-                if parsedResult.isHighConfidence {
-                    switch parsedResult.intent {
-                    case .query:
-                        // 分析型查询 → 流式对话（唯一的流式场景）
-                        guard let chatRepo = self.chatRepo else { return }
-                        let historyDTOs = chatRepo.toDTOs(from: chatRepo.loadRecentMessages(limit: 20))
-                        let stream = self.provider.chatStreaming(messages: historyDTOs, userContext: userContext)
+                if processResult.shouldStreamChat {
+                    // 纯查询 → 流式对话
+                    guard let chatRepo = self.chatRepo else { return }
+                    let historyDTOs = chatRepo.toDTOs(from: chatRepo.loadRecentMessages(limit: 20))
+                    let stream = self.provider.chatStreaming(messages: historyDTOs, userContext: userContext)
 
-                        var fullText = ""
-                        for try await chunk in stream {
-                            if Task.isCancelled { break }
-                            fullText += chunk
-                            self.streamingText = fullText
-                        }
-
-                        self.chatRepo?.finishStreaming(aiMessageId, finalContent: fullText)
-
-                    case .unknown:
-                        // 兜底追问
-                        let question = parsedResult.clarificationQuestion ?? "我可以帮你记账、创建任务、完成某个任务、打卡、记笔记"
-                        self.chatRepo?.finishStreaming(aiMessageId, finalContent: question)
-                        self.chatRepo?.updateMessageMetadata(
-                            aiMessageId,
-                            intent: parsedResult.intent.rawValue,
-                            extractedDataJSON: nil
-                        )
-
-                    default:
-                        // 具体操作 → 本地路由
-                        let routeResult = try await IntentRouter.shared.route(parsedResult)
-
-                        // 双写：新格式 + 旧格式
-                        var mergedData = parsedResult.extractedData ?? [:]
-                        if let entity = routeResult.linkedEntity {
-                            mergedData["entityType"] = entity.type.rawValue
-                            mergedData["entityId"] = entity.id.uuidString
-                        }
-                        if let txId = routeResult.transactionId {
-                            mergedData["transactionId"] = txId.uuidString
-                        }
-                        if let taskId = routeResult.taskId {
-                            mergedData["taskId"] = taskId.uuidString
-                        }
-                        if let habitId = routeResult.habitId {
-                            mergedData["habitId"] = habitId.uuidString
-                        }
-                        if let thoughtId = routeResult.thoughtId {
-                            mergedData["thoughtId"] = thoughtId.uuidString
-                        }
-
-                        // 更新 AI 消息
-                        self.chatRepo?.finishStreaming(aiMessageId, finalContent: routeResult.text)
-                        self.chatRepo?.updateMessageMetadata(
-                            aiMessageId,
-                            intent: parsedResult.intent.rawValue,
-                            extractedDataJSON: Self.encodeExtractedData(mergedData)
-                        )
-
-                        // ENERGY: 能量恢复预留位
+                    var fullText = ""
+                    for try await chunk in stream {
+                        if Task.isCancelled { break }
+                        fullText += chunk
+                        self.streamingText = fullText
                     }
+
+                    self.chatRepo?.finishStreaming(aiMessageId, finalContent: fullText)
                 } else {
-                    // 低置信度 → unknown 兜底
-                    let question = parsedResult.clarificationQuestion ?? "我没太理解，你可以试试：记一笔消费、创建任务、完成某个任务、打卡、记笔记"
-                    self.chatRepo?.finishStreaming(aiMessageId, finalContent: question)
-                    self.chatRepo?.updateMessageMetadata(
-                        aiMessageId,
-                        intent: "unknown",
-                        extractedDataJSON: nil
-                    )
+                    // 操作结果 / 澄清 / 错误 → 直接结束
+                    self.chatRepo?.finishStreaming(aiMessageId, finalContent: processResult.finalText)
                 }
+
+                // 双写元数据：旧字段 + batch 字段
+                self.chatRepo?.updateMessageMetadata(
+                    aiMessageId,
+                    intent: processResult.firstIntent?.rawValue,
+                    extractedDataJSON: Self.encodeExtractedData(processResult.firstExtractedData),
+                    parsedBatchJSON: Self.encodeParseBatch(processResult.parsedBatch),
+                    executionBatchJSON: Self.encodeExecutionBatch(processResult.executionBatch)
+                )
+
+                // ENERGY: 能量恢复预留位
 
             } catch is CancellationError {
                 self.chatRepo?.finishStreaming(aiMessageId, finalContent: self.streamingText)
@@ -290,6 +255,18 @@ final class ChatViewModel: ObservableObject {
     private static func encodeExtractedData(_ data: [String: String]?) -> String? {
         guard let data = data, !data.isEmpty else { return nil }
         return (try? JSONEncoder().encode(data)).flatMap { String(data: $0, encoding: .utf8) }
+    }
+
+    /// 将 AIParseBatch 编码为 JSON 字符串
+    private static func encodeParseBatch(_ batch: AIParseBatch?) -> String? {
+        guard let batch = batch else { return nil }
+        return (try? JSONEncoder().encode(batch)).flatMap { String(data: $0, encoding: .utf8) }
+    }
+
+    /// 将 AIExecutionBatch 编码为 JSON 字符串
+    private static func encodeExecutionBatch(_ batch: AIExecutionBatch?) -> String? {
+        guard let batch = batch else { return nil }
+        return (try? JSONEncoder().encode(batch)).flatMap { String(data: $0, encoding: .utf8) }
     }
 
     private func retryConfigurationLoadIfNeeded() async {

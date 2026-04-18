@@ -25,6 +25,8 @@ extension ChatMessage {
     @NSManaged var extractedDataJSON: String?  // 提取的结构化数据 JSON
     @NSManaged var isStreaming: Bool
     @NSManaged var parentMessageId: UUID?  // 关联的用户消息 ID
+    @NSManaged var parsedBatchJSON: String?     // 批量解析结果
+    @NSManaged var executionBatchJSON: String?  // 批量执行结果
 
     // MARK: - Computed Properties
 
@@ -70,6 +72,8 @@ extension ChatMessage {
 
     /// extractedDataDictionary 缓存的 associated object key
     private static var extractedDataDictKey: UInt8 = 0
+    private static var parsedBatchKey: UInt8 = 0
+    private static var executionBatchKey: UInt8 = 0
 
     /// 解析 extractedDataJSON 为字典（带缓存，避免 body 重算时反复解析 JSON）
     var extractedDataDictionary: [String: String]? {
@@ -94,6 +98,42 @@ extension ChatMessage {
             result ?? NSNull(),
             .OBJC_ASSOCIATION_RETAIN
         )
+        return result
+    }
+
+    /// 解析 parsedBatchJSON（带缓存）
+    var parsedBatch: AIParseBatch? {
+        if let cached = objc_getAssociatedObject(self, &Self.parsedBatchKey) {
+            return cached is NSNull ? nil : (cached as? AIParseBatch)
+        }
+
+        let result: AIParseBatch?
+        if let json = parsedBatchJSON,
+           let data = json.data(using: .utf8) {
+            result = try? JSONDecoder().decode(AIParseBatch.self, from: data)
+        } else {
+            result = nil
+        }
+
+        objc_setAssociatedObject(self, &Self.parsedBatchKey, result ?? NSNull(), .OBJC_ASSOCIATION_RETAIN)
+        return result
+    }
+
+    /// 解析 executionBatchJSON（带缓存）
+    var executionBatch: AIExecutionBatch? {
+        if let cached = objc_getAssociatedObject(self, &Self.executionBatchKey) {
+            return cached is NSNull ? nil : (cached as? AIExecutionBatch)
+        }
+
+        let result: AIExecutionBatch?
+        if let json = executionBatchJSON,
+           let data = json.data(using: .utf8) {
+            result = try? JSONDecoder().decode(AIExecutionBatch.self, from: data)
+        } else {
+            result = nil
+        }
+
+        objc_setAssociatedObject(self, &Self.executionBatchKey, result ?? NSNull(), .OBJC_ASSOCIATION_RETAIN)
         return result
     }
 }

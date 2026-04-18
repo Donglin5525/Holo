@@ -17,6 +17,8 @@ struct ChatMessageViewData: Identifiable, Equatable, Sendable {
     var extractedDataJSON: String?
     var isStreaming: Bool
     var parentMessageId: UUID?
+    let parsedBatch: AIParseBatch?
+    let executionBatch: AIExecutionBatch?
 
     init(
         id: UUID,
@@ -26,7 +28,9 @@ struct ChatMessageViewData: Identifiable, Equatable, Sendable {
         intent: String?,
         extractedDataJSON: String?,
         isStreaming: Bool,
-        parentMessageId: UUID?
+        parentMessageId: UUID?,
+        parsedBatch: AIParseBatch? = nil,
+        executionBatch: AIExecutionBatch? = nil
     ) {
         self.id = id
         self.role = role
@@ -36,6 +40,8 @@ struct ChatMessageViewData: Identifiable, Equatable, Sendable {
         self.extractedDataJSON = extractedDataJSON
         self.isStreaming = isStreaming
         self.parentMessageId = parentMessageId
+        self.parsedBatch = parsedBatch
+        self.executionBatch = executionBatch
     }
 
     init(message: ChatMessage) {
@@ -47,7 +53,9 @@ struct ChatMessageViewData: Identifiable, Equatable, Sendable {
             intent: message.intent,
             extractedDataJSON: message.extractedDataJSON,
             isStreaming: message.isStreaming,
-            parentMessageId: message.parentMessageId
+            parentMessageId: message.parentMessageId,
+            parsedBatch: message.parsedBatch,
+            executionBatch: message.executionBatch
         )
     }
 

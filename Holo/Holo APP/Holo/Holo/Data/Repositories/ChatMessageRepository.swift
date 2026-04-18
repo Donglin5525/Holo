@@ -144,11 +144,19 @@ final class ChatMessageRepository: ObservableObject {
         }
     }
 
-    /// 更新消息的意图和提取数据
-    func updateMessageMetadata(_ messageId: UUID, intent: String?, extractedDataJSON: String?) {
+    /// 更新消息的意图和提取数据（含批量字段）
+    func updateMessageMetadata(
+        _ messageId: UUID,
+        intent: String?,
+        extractedDataJSON: String?,
+        parsedBatchJSON: String? = nil,
+        executionBatchJSON: String? = nil
+    ) {
         guard let message = liveMessageCache[messageId] else { return }
         message.intent = intent
         message.extractedDataJSON = extractedDataJSON
+        message.parsedBatchJSON = parsedBatchJSON
+        message.executionBatchJSON = executionBatchJSON
         save()
         updateSnapshot(messageId) { snapshot in
             snapshot.intent = intent

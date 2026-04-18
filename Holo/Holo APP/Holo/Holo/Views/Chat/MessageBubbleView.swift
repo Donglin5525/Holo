@@ -23,7 +23,7 @@ struct MessageBubbleView: View {
         message.role == "user"
     }
 
-    /// 是否可渲染为卡片
+    /// 是否可渲染为卡片（旧路径，单卡片兼容）
     private var cardData: ChatCardData? {
         guard !isUser,
               let intentStr = message.intent,
@@ -34,9 +34,16 @@ struct MessageBubbleView: View {
         return ChatCardData.from(intent: intent, data: message.extractedDataDictionary)
     }
 
+    /// 从 executionBatch 构建多卡片数据
+    private var executionCards: [ChatCardData] {
+        ChatCardData.multiple(from: message.executionBatch)
+    }
+
     var body: some View {
         // 预计算卡片数据，避免 body 中重复求值
-        let hasCard = cardData
+        let cards = executionCards
+        let hasCards = !cards.isEmpty
+        let singleCard = cardData
 
         return HStack(alignment: .top, spacing: 8) {
             if isUser {
@@ -50,15 +57,21 @@ struct MessageBubbleView: View {
 
             // 消息内容
             VStack(alignment: isUser ? .trailing : .leading, spacing: 4) {
-                // 有卡片数据时渲染卡片，否则渲染普通气泡
-                if let card = hasCard {
+                // 渲染优先级：多卡片 > 单卡片 > 气泡
+                if hasCards {
+                    if cards.count > 1 {
+                        multiCardView(cards: cards)
+                    } else {
+                        cardView(for: cards[0])
+                    }
+                } else if let card = singleCard {
                     cardView(for: card)
                 } else {
                     bubbleContent
                 }
 
                 // 意图标签（卡片渲染时隐藏）
-                if let intent = message.intent, !isUser, hasCard == nil {
+                if let intent = message.intent, !isUser, !hasCards, singleCard == nil {
                     intentTag(intent)
                 }
             }
@@ -133,6 +146,25 @@ struct MessageBubbleView: View {
     }
 
     // MARK: - Card View
+
+    /// 多卡片渲染（带汇总标题）
+    @ViewBuilder
+    private func multiCardView(cards: [ChatCardData]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "checkmark.circle.fill")
+                    .font(.system(size: 12))
+                    .foregroundColor(.green)
+                Text("已为你处理 \(cards.count) 件事")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.holoTextPrimary)
+            }
+
+            ForEach(Array(cards.enumerated()), id: \.offset) { _, card in
+                cardView(for: card)
+            }
+        }
+    }
 
     /// 根据卡片数据渲染对应领域的卡片视图
     @ViewBuilder

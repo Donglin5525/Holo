@@ -210,6 +210,63 @@ final class MockAIProvider: AIProvider {
         }
     }
 
+    // MARK: - Batch Parsing
+
+    /// 多动作 mock：按标点分句，每段独立解析
+    /// 注意：这只是非常弱的分句能力，不代表正式拆分策略
+    func parseUserInputBatch(_ input: String, context: UserContext) async throws -> AIParseBatch {
+        let segments = input
+            .split(whereSeparator: { "，,；;".contains($0) })
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+
+        if segments.count <= 1 {
+            let single = try await parseUserInput(input, context: context)
+            return wrapSingleAsBatch(single)
+        }
+
+        var items: [AIParseItem] = []
+        for segment in segments {
+            let parsed = try await parseUserInput(segment, context: context)
+            items.append(parsed.asParseItem)
+        }
+
+        let hasQuery = items.contains { $0.intent == .query || $0.intent == .queryTasks || $0.intent == .queryHabits }
+        let hasAction = items.contains { $0.intent != .query && $0.intent != .queryTasks && $0.intent != .queryHabits && $0.intent != .unknown }
+
+        if hasQuery && hasAction {
+            return AIParseBatch(
+                mode: .clarification,
+                items: items,
+                needsClarification: true,
+                clarificationQuestion: "当前版本暂不支持把查询和执行操作混在一句话里，请拆成两句发送。"
+            )
+        }
+
+        let mode: AIInteractionMode = hasQuery ? .query : .multiAction
+        return AIParseBatch(mode: mode, items: items)
+    }
+
+    private func wrapSingleAsBatch(_ parsed: ParsedResult) -> AIParseBatch {
+        let mode: AIInteractionMode
+        switch parsed.intent {
+        case .query, .queryTasks, .queryHabits:
+            mode = .query
+        case .unknown:
+            mode = parsed.needsClarification ? .clarification : .unknown
+        default:
+            mode = .singleAction
+        }
+
+        return AIParseBatch(
+            mode: mode,
+            items: [parsed.asParseItem],
+            needsClarification: parsed.needsClarification,
+            clarificationQuestion: parsed.clarificationQuestion,
+            fallbackResponseText: parsed.responseText
+        )
+    }
+
     // MARK: - Private Helpers
 
     private func extractAmount(from text: String) -> String {

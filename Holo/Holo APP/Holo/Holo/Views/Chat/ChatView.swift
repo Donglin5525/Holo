@@ -204,18 +204,41 @@ struct ChatView: View {
 
     // MARK: - Card Tap Navigation
 
-    /// 点击卡片后跳转到对应详情
+    /// 点击卡片后跳转到对应详情（支持 item 级实体链接）
     private func handleCardTap(message: ChatMessageViewData, cardData: ChatCardData) {
         switch cardData {
         case .transaction:
-            openTransactionDetail(message)
+            // 优先从 executionBatch 的 renderData 中获取 linkedEntityId
+            if let entityId = findLinkedEntityId(for: cardData, in: message.executionBatch),
+               let uuid = UUID(uuidString: entityId) {
+                let transaction = FinanceRepository.shared.findTransaction(by: uuid)
+                editingTransaction = transaction
+            } else {
+                openTransactionDetail(message)
+            }
         case .task:
-            if let taskId = message.linkedTaskId {
+            if let entityId = findLinkedEntityId(for: cardData, in: message.executionBatch),
+               let uuid = UUID(uuidString: entityId) {
+                DeepLinkState.shared.pendingTarget = .taskDetail(taskId: uuid)
+                dismiss()
+            } else if let taskId = message.linkedTaskId {
                 DeepLinkState.shared.pendingTarget = .taskDetail(taskId: taskId)
                 dismiss()
             }
         case .habitCheckIn, .mood, .weight:
             break
         }
+    }
+
+    /// 从 executionBatch 中查找对应卡片的 linkedEntityId
+    private func findLinkedEntityId(for cardData: ChatCardData, in batch: AIExecutionBatch?) -> String? {
+        guard let batch = batch else { return nil }
+        let targetIntent: AIIntent
+        switch cardData {
+        case .transaction: targetIntent = .recordExpense
+        case .task: targetIntent = .createTask
+        default: return nil
+        }
+        return batch.items.first { $0.intent == targetIntent && $0.linkedEntityId != nil }?.linkedEntityId
     }
 }

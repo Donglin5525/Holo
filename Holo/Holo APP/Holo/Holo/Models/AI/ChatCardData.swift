@@ -94,6 +94,18 @@ enum ChatCardData: Equatable {
         // 兜底旧格式
         return data["transactionId"] ?? data["taskId"] ?? data["habitId"] ?? data["thoughtId"]
     }
+
+    /// 从 AIExecutionItem 构建卡片数据
+    static func from(executionItem: AIExecutionItem) -> ChatCardData? {
+        let linkedId = executionItem.linkedEntityId ?? linkedEntityId(from: executionItem.renderData)
+        return from(intent: executionItem.intent, data: executionItem.renderData)
+    }
+
+    /// 从 AIExecutionBatch 构建多个卡片数据
+    static func multiple(from batch: AIExecutionBatch?) -> [ChatCardData] {
+        guard let batch = batch else { return [] }
+        return batch.items.compactMap { from(executionItem: $0) }
+    }
 }
 
 // MARK: - 交易卡片数据

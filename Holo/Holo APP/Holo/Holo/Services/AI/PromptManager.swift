@@ -164,6 +164,7 @@ final class PromptManager {
 
         .intentRecognition: """
         你是 Holo AI 助手的意图识别模块。分析用户输入，判断意图并提取结构化数据。
+        支持从一句话中识别多个动作，也支持单动作。
         只识别操作指令，不进行闲聊。
 
         当前日期：{{todayDate}}
@@ -227,33 +228,57 @@ final class PromptManager {
 
         ## JSON 输出格式
 
+        始终输出 batch 格式，即使只有一个动作也放在 items 数组中。
+
         ```json
         {
-          "intent": "意图名称",
-          "confidence": 0.95,
-          "extractedData": {
-            "amount": "金额（纯数字）",
-            "note": "简洁备注（如：午饭、打车去公司）",
-            "primaryCategory": "一级科目名称（记账时必填）",
-            "subCategory": "二级科目名称（记账时必填）",
-            "title": "任务标题（create_task 时使用）",
-            "taskKeyword": "任务关键词（complete_task/update_task/delete_task 时必填，用于匹配已有任务）",
-            "priority": "优先级 0-3（0=低 1=中 2=高 3=紧急，create_task 可选）",
-            "dueDate": "截止日期（yyyy-MM-dd，create_task 可选）",
-            "tags": "标签（逗号分隔，create_task/create_note 可选）",
-            "description": "任务描述（create_task 可选）",
-            "noteContent": "笔记正文（create_note 必填）",
-            "habitName": "习惯名称（check_in 时使用）",
-            "habitValue": "习惯数值（Double 类型，如"跑了 5 公里"→ habitValue: "5.0"，配合 habitName 使用）",
-            "mood": "心情标签",
-            "weight": "体重数值",
-            "date": "日期（yyyy-MM-dd）"
-          },
+          "mode": "single_action 或 multi_action 或 query 或 clarification 或 unknown",
+          "items": [
+            {
+              "id": "1",
+              "intent": "意图名称",
+              "confidence": 0.95,
+              "extractedData": {
+                "amount": "金额（纯数字）",
+                "note": "简洁备注（如：午饭、打车去公司）",
+                "primaryCategory": "一级科目名称（记账时必填）",
+                "subCategory": "二级科目名称（记账时必填）",
+                "title": "任务标题（create_task 时使用）",
+                "taskKeyword": "任务关键词（complete_task/update_task/delete_task 时必填，用于匹配已有任务）",
+                "priority": "优先级 0-3（0=低 1=中 2=高 3=紧急，create_task 可选）",
+                "dueDate": "截止日期（yyyy-MM-dd，create_task 可选）",
+                "tags": "标签（逗号分隔，create_task/create_note 可选）",
+                "description": "任务描述（create_task 可选）",
+                "noteContent": "笔记正文（create_note 必填）",
+                "habitName": "习惯名称（check_in 时使用）",
+                "habitValue": "习惯数值（Double 类型，如"跑了 5 公里"→ habitValue: "5.0"，配合 habitName 使用）",
+                "mood": "心情标签",
+                "weight": "体重数值",
+                "date": "日期（yyyy-MM-dd）"
+              },
+              "responseText": "该动作的确认消息"
+            }
+          ],
           "needsClarification": false,
           "clarificationQuestion": null,
-          "responseText": "确认消息"
+          "fallbackResponseText": null
         }
         ```
+
+        ## mode 判断规则
+
+        - 只有一个执行动作 → mode: "single_action"
+        - 有两个或以上执行动作 → mode: "multi_action"
+        - 只有查询意图（query/query_tasks/query_habits） → mode: "query"
+        - 同时包含查询和执行动作 → needsClarification: true, mode: "clarification"
+        - 无法识别 → mode: "unknown"
+
+        ## 多动作拆分规则
+
+        - 用户一句话中用逗号/分号分隔的多个动作，应拆分为多个 items
+        - 每个 item 必须有独立的 id、intent、confidence、extractedData
+        - 无法可靠拆分时，宁可返回 clarification，不要猜测执行
+        - 如果某个片段无法识别，该项 intent 设为 unknown
 
         ## 日期解析规则
 

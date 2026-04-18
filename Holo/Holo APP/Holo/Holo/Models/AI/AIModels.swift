@@ -102,6 +102,152 @@ struct ParsedResult: Codable {
     }
 }
 
+// MARK: - Batch Models
+
+/// 交互模式
+enum AIInteractionMode: String, Codable, Equatable {
+    case singleAction = "single_action"
+    case multiAction = "multi_action"
+    case query = "query"
+    case clarification = "clarification"
+    case unknown = "unknown"
+}
+
+/// 执行状态
+enum AIExecutionStatus: String, Codable, Equatable {
+    case success
+    case failed
+    case skipped
+}
+
+/// 单个解析项
+struct AIParseItem: Codable, Identifiable, Equatable {
+    let id: String
+    let intent: AIIntent
+    let confidence: Double
+    let extractedData: [String: String]?
+    let responseText: String?
+
+    var isHighConfidence: Bool {
+        confidence >= ParsedResult.highConfidenceThreshold
+    }
+
+    init(
+        id: String = UUID().uuidString,
+        intent: AIIntent,
+        confidence: Double,
+        extractedData: [String: String]? = nil,
+        responseText: String? = nil
+    ) {
+        self.id = id
+        self.intent = intent
+        self.confidence = confidence
+        self.extractedData = extractedData
+        self.responseText = responseText
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
+        intent = try container.decode(AIIntent.self, forKey: .intent)
+        confidence = try container.decode(Double.self, forKey: .confidence)
+        responseText = try container.decodeIfPresent(String.self, forKey: .responseText)
+
+        if let rawDict = try? container.decodeIfPresent([String: String?].self, forKey: .extractedData) {
+            extractedData = rawDict.compactMapValues { $0 }
+        } else {
+            extractedData = nil
+        }
+    }
+}
+
+/// 批量解析结果
+struct AIParseBatch: Codable, Equatable {
+    let mode: AIInteractionMode
+    let items: [AIParseItem]
+    let needsClarification: Bool
+    let clarificationQuestion: String?
+    let fallbackResponseText: String?
+
+    init(
+        mode: AIInteractionMode,
+        items: [AIParseItem],
+        needsClarification: Bool = false,
+        clarificationQuestion: String? = nil,
+        fallbackResponseText: String? = nil
+    ) {
+        self.mode = mode
+        self.items = items
+        self.needsClarification = needsClarification
+        self.clarificationQuestion = clarificationQuestion
+        self.fallbackResponseText = fallbackResponseText
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        mode = try container.decode(AIInteractionMode.self, forKey: .mode)
+        needsClarification = try container.decodeIfPresent(Bool.self, forKey: .needsClarification) ?? false
+        clarificationQuestion = try container.decodeIfPresent(String.self, forKey: .clarificationQuestion)
+        fallbackResponseText = try container.decodeIfPresent(String.self, forKey: .fallbackResponseText)
+
+        if let rawItems = try? container.decodeIfPresent([AIParseItem].self, forKey: .items) {
+            items = rawItems
+        } else {
+            items = []
+        }
+    }
+
+    var first: AIParseItem? { items.first }
+    var isEmpty: Bool { items.isEmpty }
+}
+
+/// 单个执行结果
+struct AIExecutionItem: Codable, Identifiable, Equatable {
+    let id: String
+    let parseItemId: String
+    let intent: AIIntent
+    let status: AIExecutionStatus
+    let summaryText: String
+    let renderData: [String: String]?
+    let linkedEntityType: String?
+    let linkedEntityId: String?
+    let errorText: String?
+}
+
+/// 批量执行结果
+struct AIExecutionBatch: Codable, Equatable {
+    let mode: AIInteractionMode
+    let items: [AIExecutionItem]
+    let finalText: String
+}
+
+// MARK: - ParsedResult <-> AIParseItem Conversions
+
+extension ParsedResult {
+    var asParseItem: AIParseItem {
+        AIParseItem(
+            id: UUID().uuidString,
+            intent: intent,
+            confidence: confidence,
+            extractedData: extractedData,
+            responseText: responseText
+        )
+    }
+}
+
+extension AIParseItem {
+    var asParsedResult: ParsedResult {
+        ParsedResult(
+            intent: intent,
+            confidence: confidence,
+            extractedData: extractedData,
+            needsClarification: false,
+            clarificationQuestion: nil,
+            responseText: responseText
+        )
+    }
+}
+
 // MARK: - API DTO
 
 /// OpenAI 兼容 API 消息 DTO

@@ -1459,6 +1459,18 @@ class CoreDataStack {
         chatParentMessageId.isOptional = true
         chatAttributes.append(chatParentMessageId)
 
+        let chatParsedBatch = NSAttributeDescription()
+        chatParsedBatch.name = "parsedBatchJSON"
+        chatParsedBatch.attributeType = .stringAttributeType
+        chatParsedBatch.isOptional = true
+        chatAttributes.append(chatParsedBatch)
+
+        let chatExecutionBatch = NSAttributeDescription()
+        chatExecutionBatch.name = "executionBatchJSON"
+        chatExecutionBatch.attributeType = .stringAttributeType
+        chatExecutionBatch.isOptional = true
+        chatAttributes.append(chatExecutionBatch)
+
         chatMessageEntity.properties = chatAttributes
 
         return [chatMessageEntity]

@@ -21,4 +21,32 @@ protocol AIProvider {
 
     /// 流式对话
     func chatStreaming(messages: [ChatMessageDTO], userContext: UserContext) -> AsyncThrowingStream<String, Error>
+
+    /// 批量解析用户输入（多动作支持）
+    func parseUserInputBatch(_ input: String, context: UserContext) async throws -> AIParseBatch
+}
+
+extension AIProvider {
+    /// 默认实现：将单意图结果包装为 batch
+    func parseUserInputBatch(_ input: String, context: UserContext) async throws -> AIParseBatch {
+        let single = try await parseUserInput(input, context: context)
+
+        let mode: AIInteractionMode
+        switch single.intent {
+        case .query:
+            mode = .query
+        case .unknown:
+            mode = single.needsClarification ? .clarification : .unknown
+        default:
+            mode = .singleAction
+        }
+
+        return AIParseBatch(
+            mode: mode,
+            items: [single.asParseItem],
+            needsClarification: single.needsClarification,
+            clarificationQuestion: single.clarificationQuestion,
+            fallbackResponseText: single.responseText
+        )
+    }
 }
