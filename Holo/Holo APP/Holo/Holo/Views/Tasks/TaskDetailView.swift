@@ -21,10 +21,11 @@ struct TaskDetailView: View {
     @State private var showingTagPicker = false
     @State private var showingDatePicker = false
     @State private var showAddTagSheet = false
+    @State private var showReminderSheet = false
     @State private var newTagName = ""
     @State private var newTagColor = "#4A90D9"
     @State private var selectedDate = Date()
-    @State private var selectedIsAllDay = true
+    @State private var selectedHasTime = false
     @State private var selectedReminders: Set<TaskReminder> = []
     @State private var isChecklistExpanded = false
 
@@ -90,7 +91,7 @@ struct TaskDetailView: View {
         .onAppear {
             // 初始化日期选择器状态
             selectedDate = task.dueDate ?? Date()
-            selectedIsAllDay = task.isAllDay
+            selectedHasTime = !task.isAllDay
             selectedReminders = task.remindersSet
         }
     }
@@ -245,7 +246,7 @@ struct TaskDetailView: View {
             // 截止时间（点击直接调整）
             Button {
                 selectedDate = task.dueDate ?? Date()
-                selectedIsAllDay = task.isAllDay
+                selectedHasTime = !task.isAllDay
                 selectedReminders = task.remindersSet
                 showingDatePicker = true
             } label: {
@@ -274,27 +275,6 @@ struct TaskDetailView: View {
             .buttonStyle(PlainButtonStyle())
 
             if task.dueDate != nil {
-                Divider()
-                    .padding(.horizontal)
-
-                // 全天任务
-                HStack {
-                    Image(systemName: "sun.max")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.holoTextSecondary)
-
-                    Text("全天任务")
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
-
-                    Spacer()
-
-                    Text(task.isAllDay ? "是" : "否")
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextSecondary)
-                }
-                .padding()
-
                 // 提醒显示
                 if task.hasReminders {
                     Divider()
@@ -549,109 +529,122 @@ struct TaskDetailView: View {
             ZStack {
                 Color.holoBackground.ignoresSafeArea()
 
-                ScrollView {
-                    VStack(spacing: HoloSpacing.lg) {
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: 0) {
                         // 是否设置截止日期
-                        VStack(alignment: .leading, spacing: 6) {
+                        HStack {
                             Text("截止日期")
-                                .font(.holoLabel)
-                                .foregroundColor(.holoTextSecondary)
+                                .font(.holoBody)
+                                .foregroundColor(.holoTextPrimary)
 
-                            HStack {
-                                Text("设置截止日期")
+                            Spacer()
+
+                            Toggle("", isOn: Binding(
+                                get: { task.dueDate != nil },
+                                set: { newValue in
+                                    if newValue {
+                                        saveDueDate(selectedDate, isAllDay: !selectedHasTime, reminders: selectedReminders)
+                                    } else {
+                                        saveDueDate(nil, isAllDay: true, reminders: [])
+                                    }
+                                }
+                            ))
+                            .labelsHidden()
+                            .tint(.holoPrimary)
+                        }
+
+                        if task.dueDate != nil {
+                            Divider()
+                                .padding(.vertical, HoloSpacing.xs)
+
+                            // 日期滚轮选择器
+                            DatePicker("", selection: $selectedDate, displayedComponents: .date)
+                                .datePickerStyle(.wheel)
+                                .environment(\.locale, Locale(identifier: "zh_CN"))
+                                .labelsHidden()
+
+                            Divider()
+                                .padding(.vertical, HoloSpacing.xs)
+
+                            // 时间切换行
+                            HStack(spacing: HoloSpacing.sm) {
+                                Image(systemName: "clock")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.holoTextSecondary)
+
+                                Text("时间")
                                     .font(.holoBody)
                                     .foregroundColor(.holoTextPrimary)
 
                                 Spacer()
 
-                                Toggle("", isOn: Binding(
-                                    get: { task.dueDate != nil },
-                                    set: { newValue in
-                                        if newValue {
-                                            // 设置为当前选择的日期
-                                            saveDueDate(selectedDate, isAllDay: selectedIsAllDay, reminders: selectedReminders)
-                                        } else {
-                                            // 清除截止日期
-                                            saveDueDate(nil, isAllDay: true, reminders: [])
-                                        }
-                                    }
-                                ))
-                                .labelsHidden()
-                                .tint(.holoPrimary)
+                                if selectedHasTime {
+                                    Text(formattedSelectedTime)
+                                        .font(.holoBody)
+                                        .foregroundColor(.holoPrimary)
+                                } else {
+                                    Text("全天")
+                                        .font(.holoBody)
+                                        .foregroundColor(.holoTextPlaceholder)
+                                }
+
+                                Toggle("", isOn: $selectedHasTime)
+                                    .labelsHidden()
+                                    .tint(.holoPrimary)
                             }
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 10)
-                            .background(Color.holoCardBackground)
-                            .cornerRadius(HoloRadius.sm)
-                        }
 
-                        // 日期选择器（仅在设置了截止日期时显示）
-                        if task.dueDate != nil {
-                            // 全天切换
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text("时间类型")
-                                    .font(.holoLabel)
-                                    .foregroundColor(.holoTextSecondary)
+                            if selectedHasTime {
+                                Divider()
+                                    .padding(.vertical, HoloSpacing.xs)
 
+                                // 时间滚轮选择器
+                                DatePicker("", selection: $selectedDate, displayedComponents: .hourAndMinute)
+                                    .datePickerStyle(.wheel)
+                                    .environment(\.locale, Locale(identifier: "zh_CN"))
+                                    .labelsHidden()
+                            }
+
+                            Divider()
+                                .padding(.vertical, HoloSpacing.xs)
+
+                            // 提醒行
+                            Button {
+                                showReminderSheet = true
+                            } label: {
                                 HStack(spacing: HoloSpacing.sm) {
-                                    Button {
-                                        selectedIsAllDay = true
-                                    } label: {
-                                        Text("全天")
-                                            .font(.holoCaption)
-                                            .foregroundColor(selectedIsAllDay ? .white : .holoTextPrimary)
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 6)
-                                            .background(
-                                                Capsule()
-                                                    .fill(selectedIsAllDay ? Color.holoPrimary : Color.holoTextSecondary.opacity(0.15))
-                                            )
-                                    }
-                                    .buttonStyle(PlainButtonStyle())
+                                    Image(systemName: "bell")
+                                        .font(.system(size: 16, weight: .medium))
+                                        .foregroundColor(.holoTextSecondary)
 
-                                    Button {
-                                        selectedIsAllDay = false
-                                    } label: {
-                                        Text("定时")
+                                    Text("提醒")
+                                        .font(.holoBody)
+                                        .foregroundColor(.holoTextPrimary)
+
+                                    Spacer()
+
+                                    if selectedReminders.isEmpty {
+                                        Text("未设置")
+                                            .font(.holoBody)
+                                            .foregroundColor(.holoTextPlaceholder)
+                                    } else {
+                                        Text(reminderSummaryText)
                                             .font(.holoCaption)
-                                            .foregroundColor(!selectedIsAllDay ? .white : .holoTextPrimary)
-                                            .padding(.horizontal, 12)
-                                            .padding(.vertical, 6)
-                                            .background(
-                                                Capsule()
-                                                    .fill(!selectedIsAllDay ? Color.holoPrimary : Color.holoTextSecondary.opacity(0.15))
-                                            )
+                                            .foregroundColor(.holoTextSecondary)
+                                            .multilineTextAlignment(.trailing)
                                     }
-                                    .buttonStyle(PlainButtonStyle())
+
+                                    Image(systemName: "chevron.right")
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundColor(.holoTextSecondary)
                                 }
                             }
-
-                            // 日期时间选择器
-                            VStack(alignment: .leading, spacing: 6) {
-                                Text(selectedIsAllDay ? "选择日期" : "选择日期和时间")
-                                    .font(.holoLabel)
-                                    .foregroundColor(.holoTextSecondary)
-
-                                DatePicker(
-                                    "",
-                                    selection: $selectedDate,
-                                    displayedComponents: selectedIsAllDay ? .date : [.date, .hourAndMinute]
-                                )
-                                .datePickerStyle(.graphical)
-                                .environment(\.locale, Locale(identifier: "zh_CN"))
-                                .padding(.horizontal, HoloSpacing.sm)
-                                .padding(.top, HoloSpacing.sm)
-                                .background(Color.holoCardBackground)
-                                .cornerRadius(HoloRadius.sm)
-                            }
-
-                            // 提醒选择器
-                            ReminderPicker(
-                                selectedReminders: $selectedReminders,
-                                isEnabled: true
-                            )
+                            .buttonStyle(.plain)
                         }
                     }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
+                    .background(Color.holoCardBackground)
+                    .cornerRadius(HoloRadius.sm)
                     .padding(.horizontal, HoloSpacing.lg)
                     .padding(.top, HoloSpacing.md)
                 }
@@ -669,7 +662,7 @@ struct TaskDetailView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("保存") {
                         if task.dueDate != nil {
-                            saveDueDate(selectedDate, isAllDay: selectedIsAllDay, reminders: selectedReminders)
+                            saveDueDate(selectedDate, isAllDay: !selectedHasTime, reminders: selectedReminders)
                         }
                         showingDatePicker = false
                     }
@@ -677,8 +670,58 @@ struct TaskDetailView: View {
                     .fontWeight(.semibold)
                 }
             }
+            .sheet(isPresented: $showReminderSheet) {
+                reminderPickerSheet
+            }
         }
         .presentationDetents([.large])
+        .presentationDragIndicator(.visible)
+    }
+
+    /// 格式化的时间显示
+    private var formattedSelectedTime: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: selectedDate)
+    }
+
+    /// 提醒摘要文本
+    private var reminderSummaryText: String {
+        selectedReminders.sorted { $0.offsetMinutes > $1.offsetMinutes }
+            .map(\.displayTitle)
+            .joined(separator: "、")
+    }
+
+    // MARK: - 提醒选择弹窗
+
+    private var reminderPickerSheet: some View {
+        NavigationStack {
+            ZStack {
+                Color.holoBackground.ignoresSafeArea()
+
+                ScrollView(showsIndicators: false) {
+                    ReminderPicker(
+                        selectedReminders: $selectedReminders,
+                        isEnabled: true
+                    )
+                    .padding(.horizontal, HoloSpacing.lg)
+                    .padding(.top, HoloSpacing.md)
+                }
+            }
+            .navigationTitle("选择提醒")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("完成") {
+                        showReminderSheet = false
+                    }
+                    .foregroundColor(.holoPrimary)
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+        .presentationDetents([.height(220)])
         .presentationDragIndicator(.visible)
     }
 

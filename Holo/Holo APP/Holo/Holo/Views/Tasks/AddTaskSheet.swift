@@ -19,14 +19,15 @@ struct AddTaskSheet: View {
     @State private var description = ""
     @State private var priority: TaskPriority = .medium
     @State private var dueDate = Date()
-    @State private var isAllDay = true
     @State private var hasDueDate = false
+    @State private var hasTime = false
     @State private var selectedReminders: Set<TaskReminder> = []
     @State private var selectedTags: Set<UUID> = []
     @State private var selectedListId: UUID? = nil
 
     @State private var showListPicker = false
-    @State private var showDatePickerSheet = false
+    @State private var showReminderSheet = false
+    @State private var showRepeatSheet = false
     @State private var showTagPicker = false
     @State private var showAddTagSheet = false
     @State private var showAddListSheet = false
@@ -88,8 +89,8 @@ struct AddTaskSheet: View {
             _description = State(initialValue: task.desc ?? "")
             _priority = State(initialValue: task.taskPriority)
             _dueDate = State(initialValue: task.dueDate ?? Date())
-            _isAllDay = State(initialValue: task.isAllDay)
             _hasDueDate = State(initialValue: task.dueDate != nil)
+            _hasTime = State(initialValue: !task.isAllDay)
             _selectedReminders = State(initialValue: task.remindersSet)
             _selectedTags = State(initialValue: Set(task.tags?.allObjects.compactMap { ($0 as? TodoTag)?.id } ?? []))
             _selectedListId = State(initialValue: task.list?.id)
@@ -188,23 +189,11 @@ struct AddTaskSheet: View {
         .sheet(isPresented: $showTagPicker) {
             tagPickerSheet
         }
-        .sheet(isPresented: $showDatePickerSheet) {
-            TaskDatePickerSheet(
-                dueDate: $dueDate,
-                isAllDay: $isAllDay,
-                hasDueDate: $hasDueDate,
-                selectedReminders: $selectedReminders,
-                hasRepeat: $hasRepeat,
-                repeatType: $repeatType,
-                selectedWeekdays: $selectedWeekdays,
-                monthDay: $monthDay,
-                monthWeekOrdinal: $monthWeekOrdinal,
-                monthWeekday: $monthWeekday,
-                monthlyRepeatMode: $monthlyRepeatMode,
-                endConditionType: $endConditionType,
-                repeatEndDate: $repeatEndDate,
-                repeatEndCount: $repeatEndCount
-            )
+        .sheet(isPresented: $showReminderSheet) {
+            reminderSheet
+        }
+        .sheet(isPresented: $showRepeatSheet) {
+            repeatSheet
         }
         .swipeBackToDismiss {
             if hasUnsavedChanges {
@@ -363,32 +352,154 @@ struct AddTaskSheet: View {
 
     // MARK: - 截止日期
 
+    /// 是否全天（由 hasTime 反向推导）
+    private var isAllDay: Bool { !hasTime }
+
     private var dueDateSection: some View {
-        HStack(spacing: HoloSpacing.sm) {
-            Image(systemName: "calendar")
-                .font(.system(size: 16, weight: .medium))
-                .foregroundColor(.holoTextSecondary)
+        VStack(spacing: 0) {
+            // 标题行 + 开关
+            HStack(spacing: HoloSpacing.sm) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.holoTextSecondary)
 
-            Button {
-                if !hasDueDate { hasDueDate = true }
-                showDatePickerSheet = true
-            } label: {
-                Text(hasDueDate ? formattedDueDate : "无截止日期")
+                Text("截止日期")
                     .font(.holoBody)
-                    .foregroundColor(hasDueDate ? .holoTextPrimary : .holoTextPlaceholder)
+                    .foregroundColor(.holoTextPrimary)
+
+                Spacer()
+
+                Toggle("", isOn: $hasDueDate)
+                    .labelsHidden()
+                    .tint(.holoPrimary)
             }
-            .buttonStyle(.plain)
 
-            Spacer()
-
-            // 设置摘要显示
             if hasDueDate {
-                settingsSummaryBadge
-            }
+                Divider()
+                    .padding(.vertical, HoloSpacing.xs)
 
-            Toggle("", isOn: $hasDueDate)
-                .labelsHidden()
-                .tint(.holoPrimary)
+                // 日期滚轮选择器
+                DatePicker("", selection: $dueDate, displayedComponents: .date)
+                    .datePickerStyle(.wheel)
+                    .environment(\.locale, Locale(identifier: "zh_CN"))
+                    .labelsHidden()
+
+                Divider()
+                    .padding(.vertical, HoloSpacing.xs)
+
+                // 时间切换行
+                HStack(spacing: HoloSpacing.sm) {
+                    Image(systemName: "clock")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.holoTextSecondary)
+
+                    Text("时间")
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+
+                    Spacer()
+
+                    if hasTime {
+                        Text(formattedTime)
+                            .font(.holoBody)
+                            .foregroundColor(.holoPrimary)
+                    } else {
+                        Text("全天")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPlaceholder)
+                    }
+
+                    Toggle("", isOn: $hasTime)
+                        .labelsHidden()
+                        .tint(.holoPrimary)
+                }
+
+                if hasTime {
+                    Divider()
+                        .padding(.vertical, HoloSpacing.xs)
+
+                    // 时间滚轮选择器
+                    DatePicker("", selection: $dueDate, displayedComponents: .hourAndMinute)
+                        .datePickerStyle(.wheel)
+                        .environment(\.locale, Locale(identifier: "zh_CN"))
+                        .labelsHidden()
+                }
+
+                Divider()
+                    .padding(.vertical, HoloSpacing.xs)
+
+                // 提醒行
+                Button {
+                    showReminderSheet = true
+                } label: {
+                    HStack(spacing: HoloSpacing.sm) {
+                        Image(systemName: "bell")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.holoTextSecondary)
+
+                        Text("提醒")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+
+                        Spacer()
+
+                        if selectedReminders.isEmpty {
+                            Text("未设置")
+                                .font(.holoBody)
+                                .foregroundColor(.holoTextPlaceholder)
+                        } else {
+                            Text(reminderSummaryText)
+                                .font(.holoCaption)
+                                .foregroundColor(.holoTextSecondary)
+                                .multilineTextAlignment(.trailing)
+                        }
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.holoTextSecondary)
+                    }
+                }
+                .buttonStyle(.plain)
+
+                Divider()
+                    .padding(.vertical, HoloSpacing.xs)
+
+                // 重复行
+                HStack(spacing: HoloSpacing.sm) {
+                    Image(systemName: "repeat")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.holoTextSecondary)
+
+                    Text("重复")
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+
+                    Spacer()
+
+                    if hasRepeat {
+                        Button {
+                            showRepeatSheet = true
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text(repeatType.displayTitle)
+                                    .font(.holoCaption)
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 10, weight: .medium))
+                            }
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.holoPrimary)
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    Toggle("", isOn: $hasRepeat)
+                        .labelsHidden()
+                        .tint(.holoPrimary)
+                }
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
@@ -396,54 +507,19 @@ struct AddTaskSheet: View {
         .cornerRadius(HoloRadius.sm)
     }
 
-    /// 设置摘要徽章
-    private var settingsSummaryBadge: some View {
-        HStack(spacing: 4) {
-            if !selectedReminders.isEmpty {
-                Text("提醒×\(selectedReminders.count)")
-                    .font(.holoCaption)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.blue.opacity(0.8))
-                    .clipShape(Capsule())
-            }
-
-            if hasRepeat {
-                Text(repeatType.displayTitle)
-                    .font(.holoCaption)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.holoPrimary)
-                    .clipShape(Capsule())
-            }
-        }
-    }
-
-    /// 判断是否是明天
-    private var isTomorrow: Bool {
-        Calendar.current.isDateInTomorrow(dueDate)
-    }
-
-    /// 格式化的日期显示
-    private var formattedDueDate: String {
+    /// 格式化的时间显示
+    private var formattedTime: String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
-        if isAllDay {
-            formatter.dateFormat = "M月d日 E"
-            let text = formatter.string(from: dueDate)
-            if Calendar.current.isDateInToday(dueDate) { return "今天" }
-            if isTomorrow { return "明天" }
-            return text
-        } else {
-            if Calendar.current.isDateInToday(dueDate) {
-                formatter.dateFormat = "HH:mm"
-                return "今天 " + formatter.string(from: dueDate)
-            }
-            formatter.dateFormat = "M月d日 HH:mm"
-            return formatter.string(from: dueDate)
-        }
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: dueDate)
+    }
+
+    /// 提醒摘要文本
+    private var reminderSummaryText: String {
+        selectedReminders.sorted { $0.offsetMinutes > $1.offsetMinutes }
+            .map(\.displayTitle)
+            .joined(separator: "、")
     }
 
     // MARK: - 标签
@@ -1174,7 +1250,7 @@ struct AddTaskSheet: View {
                         description: description,
                         priority: priority,
                         dueDate: hasDueDate ? dueDate : nil,
-                        isAllDay: isAllDay,
+                        isAllDay: !hasTime,
                         list: selectedList,
                         tags: selectedTagObjects,
                         reminders: remindersToSave
@@ -1217,7 +1293,7 @@ struct AddTaskSheet: View {
                         list: selectedList,
                         priority: priority,
                         dueDate: hasDueDate ? dueDate : nil,
-                        isAllDay: isAllDay,
+                        isAllDay: !hasTime,
                         tags: selectedTagObjects,
                         reminders: remindersToSave
                     )
@@ -1266,6 +1342,79 @@ struct AddTaskSheet: View {
                 }
             }
         }
+    }
+
+    // MARK: - 提醒选择弹窗
+
+    private var reminderSheet: some View {
+        NavigationStack {
+            ZStack {
+                Color.holoBackground.ignoresSafeArea()
+
+                ScrollView(showsIndicators: false) {
+                    ReminderPicker(
+                        selectedReminders: $selectedReminders,
+                        isEnabled: true
+                    )
+                    .padding(.horizontal, HoloSpacing.lg)
+                    .padding(.top, HoloSpacing.md)
+                }
+            }
+            .navigationTitle("选择提醒")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("完成") {
+                        showReminderSheet = false
+                    }
+                    .foregroundColor(.holoPrimary)
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+        .presentationDetents([.height(220)])
+        .presentationDragIndicator(.visible)
+    }
+
+    // MARK: - 重复设置弹窗
+
+    private var repeatSheet: some View {
+        NavigationStack {
+            ZStack {
+                Color.holoBackground.ignoresSafeArea()
+
+                ScrollView(showsIndicators: false) {
+                    RepeatPicker(
+                        hasRepeat: .constant(true),
+                        repeatType: $repeatType,
+                        selectedWeekdays: $selectedWeekdays,
+                        monthDay: $monthDay,
+                        monthWeekOrdinal: $monthWeekOrdinal,
+                        monthWeekday: $monthWeekday,
+                        monthlyRepeatMode: $monthlyRepeatMode,
+                        endConditionType: $endConditionType,
+                        endDate: $repeatEndDate,
+                        endCount: $repeatEndCount,
+                        isEnabled: true
+                    )
+                    .padding(.horizontal, HoloSpacing.lg)
+                    .padding(.top, HoloSpacing.md)
+                }
+            }
+            .navigationTitle("重复设置")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("完成") {
+                        showRepeatSheet = false
+                    }
+                    .foregroundColor(.holoPrimary)
+                    .fontWeight(.semibold)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
     }
 }
 
