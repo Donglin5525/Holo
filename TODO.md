@@ -118,7 +118,7 @@
 
 | 项目 | 规划文档 | 说明 |
 |------|----------|------|
-| 多账户功能 | `docs/finance/plans/多账户功能产品方案.md` | P0: 账户余额追踪 + 账户选择 + 管理 UI + 净资产展示；P1: 转账 + 按账户分析；P2: 多币种 + 信用卡 |
+| 多账户功能 P1 | `docs/finance/plans/多账户功能产品方案.md` | P1: 账户转账 + 按账户筛选分析；P2: 多币种 + 信用卡额度管理 |
 
 ---
 
@@ -126,7 +126,7 @@
 
 | 项目 | 备注 |
 | --- | --- |
-| 大文件重构 | 5 个文件超过 1000 行，需拆分至 <800 行：CoreDataStack、AddTransactionSheet、FinanceView、AddTaskSheet、FinanceRepository |
+| 大文件重构 | FinanceRepository、AddTransactionSheet、FinanceView、CoreDataStack 等文件超过 1000 行，需拆分至 <800 行 |
 | 代码质量目标 | 单文件 <800 行，组件化复用，消除重复代码 |
 | Swift 6 兼容性 | MainActor 隔离 (10 处) + retroactive (4 处) |
 | 记账首页卡片 | 支出/收入卡片面积过大，需重新设计 |
@@ -175,3 +175,4 @@
 | AddTaskSheet 截止日期选择器修复（提取为独立 TaskDatePickerSheet） | 近期 |
 | 记忆长廊空状态 CTA + 错误状态重试 UI | 近期 |
 | 观点模块搜索功能（ThoughtSearchBarView + 搜索结果高亮） | 近期 |
+| 多账户功能 P0（余额追踪 + 账户选择记账 + 管理 UI + 净资产 + 余额调整 + 系统分类保护） | 2026-04-18 |
