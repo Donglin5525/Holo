@@ -184,7 +184,16 @@ final class IntentRouter {
         }
 
         let todoRepo = TodoRepository.shared
-        let task = try todoRepo.createTask(title: title)
+        let dueDate = parseDate(from: data["dueDate"])
+        let priority = parsePriority(data["priority"])
+        let hasTime = data["dueDate"]?.contains(":") == true
+
+        let task = try todoRepo.createTask(
+            title: title,
+            priority: priority ?? .medium,
+            dueDate: dueDate,
+            isAllDay: !hasTime
+        )
 
         logger.info("任务已创建：\(title)")
         return RouteResult(
@@ -478,11 +487,19 @@ final class IntentRouter {
 
     // MARK: - Date & Tag Utilities
 
-    /// 解析 yyyy-MM-dd 格式的日期字符串
+    /// 解析日期字符串，支持 yyyy-MM-dd 和 yyyy-MM-dd HH:mm 格式
     private func parseDate(from string: String?) -> Date? {
         guard let string = string else { return nil }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
+
+        // 优先尝试带时间的格式
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        if let date = formatter.date(from: string) {
+            return date
+        }
+
+        // 回退到纯日期格式
         formatter.dateFormat = "yyyy-MM-dd"
         return formatter.date(from: string)
     }
