@@ -65,6 +65,11 @@ final class PromptManager {
 
     // MARK: - Load Prompt
 
+    /// 需要版本管理的 prompt 类型及其最低版本
+    private static let promptVersions: [PromptType: Int] = [
+        .intentRecognition: 2  // v2: batch 输出 + 时间格式
+    ]
+
     /// 加载指定类型的 Prompt，带缓存，优先读取 UserDefaults 自定义
     func loadPrompt(_ type: PromptType) throws -> String {
         if let cached = cache[type] {
@@ -72,6 +77,19 @@ final class PromptManager {
         }
 
         let key = Self.userDefaultsKey(for: type)
+        let versionKey = "com.holo.prompt.version.\(type.rawValue)"
+
+        // 版本检查：自定义 prompt 版本过低时自动回退默认值
+        if let minVersion = Self.promptVersions[type],
+           UserDefaults.standard.string(forKey: key) != nil {
+            let savedVersion = UserDefaults.standard.integer(forKey: versionKey)
+            if savedVersion < minVersion {
+                logger.info("Prompt \(type.rawValue) 版本过低 (\(savedVersion) < \(minVersion))，自动回退默认值")
+                resetCustomPrompt(type)
+                UserDefaults.standard.set(minVersion, forKey: versionKey)
+            }
+        }
+
         let raw = UserDefaults.standard.string(forKey: key) ?? templates[type]
 
         guard let raw = raw else {
@@ -99,6 +117,11 @@ final class PromptManager {
     func saveCustomPrompt(_ type: PromptType, content: String) {
         let key = Self.userDefaultsKey(for: type)
         UserDefaults.standard.set(content, forKey: key)
+        // 同步更新版本号为当前版本
+        if let version = Self.promptVersions[type] {
+            let versionKey = "com.holo.prompt.version.\(type.rawValue)"
+            UserDefaults.standard.set(version, forKey: versionKey)
+        }
         cache.removeValue(forKey: type)
         logger.info("自定义 Prompt 已保存: \(type.rawValue)")
     }
@@ -107,6 +130,11 @@ final class PromptManager {
     func resetCustomPrompt(_ type: PromptType) {
         let key = Self.userDefaultsKey(for: type)
         UserDefaults.standard.removeObject(forKey: key)
+        // 同步更新版本号
+        if let version = Self.promptVersions[type] {
+            let versionKey = "com.holo.prompt.version.\(type.rawValue)"
+            UserDefaults.standard.set(version, forKey: versionKey)
+        }
         cache.removeValue(forKey: type)
         logger.info("Prompt 已重置为默认: \(type.rawValue)")
     }

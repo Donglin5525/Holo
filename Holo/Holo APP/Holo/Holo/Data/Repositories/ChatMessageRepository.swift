@@ -158,11 +158,21 @@ final class ChatMessageRepository: ObservableObject {
         message.parsedBatchJSON = parsedBatchJSON
         message.executionBatchJSON = executionBatchJSON
         save()
+
+        // 直接从 JSON 解码 batch 数据，绕过 ChatMessage 的 associated object 缓存
+        // （finishStreaming 先于本方法执行，首次访问时 JSON 为 nil 会缓存 NSNull）
+        let decodedParsedBatch: AIParseBatch? = parsedBatchJSON.flatMap { json in
+            json.data(using: .utf8).flatMap { try? JSONDecoder().decode(AIParseBatch.self, from: $0) }
+        }
+        let decodedExecutionBatch: AIExecutionBatch? = executionBatchJSON.flatMap { json in
+            json.data(using: .utf8).flatMap { try? JSONDecoder().decode(AIExecutionBatch.self, from: $0) }
+        }
+
         updateSnapshot(messageId) { snapshot in
             snapshot.intent = intent
             snapshot.extractedDataJSON = extractedDataJSON
-            snapshot.parsedBatch = message.parsedBatch
-            snapshot.executionBatch = message.executionBatch
+            snapshot.parsedBatch = decodedParsedBatch
+            snapshot.executionBatch = decodedExecutionBatch
         }
     }
 
