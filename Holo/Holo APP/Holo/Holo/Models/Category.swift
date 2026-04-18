@@ -24,6 +24,8 @@ public class Category: NSManagedObject {
     @NSManaged public var sortOrder: Int16
     /// 父分类 ID：nil 表示一级分类，非 nil 指向所属一级分类
     @NSManaged public var parentId: UUID?
+    /// 是否为系统内置分类（不可删除/编辑，如"余额调整"）
+    @NSManaged public var isSystem: Bool
     
     // MARK: - Computed Properties
     

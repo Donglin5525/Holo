@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import CoreData
 
 /// 添加/编辑交易 Sheet
 struct AddTransactionSheet: View {
@@ -72,6 +73,15 @@ struct AddTransactionSheet: View {
     /// 备注输入框是否获得焦点（用于控制键盘切换）
     @FocusState private var isNoteFocused: Bool
 
+    /// 选中的账户（nil 时使用默认账户）
+    @State private var selectedAccount: Account?
+
+    /// 记住上次选择的账户
+    @AppStorage("lastSelectedAccountId") private var lastSelectedAccountId: String?
+
+    /// 账户选择器是否展开
+    @State private var showAccountPicker: Bool = false
+
     // 分期设置
     @State private var isInstallment: Bool = false
     @State private var installmentPeriods: Int = 12
@@ -98,6 +108,7 @@ struct AddTransactionSheet: View {
             let originalAmount = String(describing: abs(transaction.amount.decimalValue))
             return amountString != originalAmount
                 || selectedCategory != transaction.category
+                || selectedAccount?.objectID != transaction.account.objectID
                 || note != (transaction.note ?? "")
                 || !Calendar.current.isDate(selectedDate, inSameDayAs: transaction.date)
         } else {
@@ -147,6 +158,10 @@ struct AddTransactionSheet: View {
                         VStack(spacing: HoloSpacing.lg) {
                             // 分类选择（CategoryPicker 自带内边距）
                             categorySection
+
+                            // 账户选择
+                            accountSection
+                                .padding(.horizontal, HoloSpacing.lg)
 
                             // 名称输入
                             noteSection
@@ -216,9 +231,13 @@ struct AddTransactionSheet: View {
         .onAppear {
             if let transaction = editingTransaction {
                 populateFromTransaction(transaction)
-            } else if let preset = presetDate {
-                // 长按日历日期进入：使用预设日期
-                selectedDate = preset
+            } else {
+                // 新增模式：加载默认/上次选择的账户
+                loadDefaultAccount()
+                if let preset = presetDate {
+                    // 长按日历日期进入：使用预设日期
+                    selectedDate = preset
+                }
             }
             startCursorAnimation()
         }
@@ -386,13 +405,113 @@ struct AddTransactionSheet: View {
     }
     
     // MARK: - Category Section
-    
+
     /// 分类选择区域 — 使用 CategoryPicker 组件，支持一级→二级下钻
     private var categorySection: some View {
         CategoryPicker(
             selectedCategory: $selectedCategory,
             transactionType: $transactionType
         )
+    }
+
+    // MARK: - Account Section
+
+    /// 账户选择区域
+    private var accountSection: some View {
+        VStack(spacing: 0) {
+            // 账户选择按钮
+            Button {
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    showAccountPicker.toggle()
+                    if showAccountPicker {
+                        showNumericKeypad = false
+                        isNoteFocused = false
+                    }
+                }
+            } label: {
+                HStack(spacing: HoloSpacing.sm) {
+                    Image(systemName: selectedAccount?.icon ?? "wallet.pass")
+                        .font(.system(size: 18, weight: .medium))
+                        .foregroundColor(selectedAccount?.swiftUIColor ?? .holoTextSecondary)
+
+                    Text(selectedAccount?.name ?? "默认账户")
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+
+                    Spacer()
+
+                    Image(systemName: showAccountPicker ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.holoTextSecondary)
+                }
+                .padding(HoloSpacing.md)
+                .background(Color.holoCardBackground)
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
+            }
+            .buttonStyle(PlainButtonStyle())
+
+            // 展开的账户选择列表
+            if showAccountPicker {
+                let accounts = FinanceRepository.shared.getAccounts(includeArchived: false)
+                VStack(spacing: HoloSpacing.xs) {
+                    ForEach(accounts, id: \.objectID) { account in
+                        Button {
+                            selectedAccount = account
+                            lastSelectedAccountId = account.id.uuidString
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                                showAccountPicker = false
+                            }
+                        } label: {
+                            HStack(spacing: HoloSpacing.md) {
+                                ZStack {
+                                    Circle()
+                                        .fill(account.swiftUIColor.opacity(0.1))
+                                        .frame(width: 36, height: 36)
+                                    Image(systemName: account.icon)
+                                        .font(.system(size: 16, weight: .medium))
+                                        .foregroundColor(account.swiftUIColor)
+                                }
+
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(account.name)
+                                        .font(.holoBody)
+                                        .foregroundColor(
+                                            selectedAccount?.objectID == account.objectID
+                                                ? .holoPrimary : .holoTextPrimary
+                                        )
+                                    Text(account.accountType.displayName)
+                                        .font(.holoCaption)
+                                        .foregroundColor(.holoTextSecondary)
+                                }
+
+                                Spacer()
+
+                                if selectedAccount?.objectID == account.objectID {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.system(size: 18, weight: .semibold))
+                                        .foregroundColor(.holoPrimary)
+                                }
+                            }
+                            .padding(HoloSpacing.sm)
+                            .background(
+                                RoundedRectangle(cornerRadius: HoloRadius.sm)
+                                    .fill(
+                                        selectedAccount?.objectID == account.objectID
+                                            ? Color.holoPrimary.opacity(0.05) : Color.clear
+                                    )
+                            )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                    }
+                }
+                .padding(HoloSpacing.sm)
+                .background(Color.holoCardBackground)
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
     }
     
     // MARK: - Date Section
@@ -710,9 +829,25 @@ struct AddTransactionSheet: View {
         let absoluteAmount = abs(transaction.amount.decimalValue)
         amountString = String(describing: absoluteAmount)
         selectedCategory = transaction.category
+        selectedAccount = transaction.account
         note = transaction.note ?? ""
         remark = transaction.remark ?? ""
         selectedDate = transaction.date
+    }
+
+    /// 加载默认/上次选择的账户（新增模式）
+    private func loadDefaultAccount() {
+        // 优先恢复上次选择
+        if let lastId = lastSelectedAccountId,
+           let uuid = UUID(uuidString: lastId) {
+            let accounts = FinanceRepository.shared.getAccounts(includeArchived: false)
+            if let matched = accounts.first(where: { $0.id == uuid }) {
+                selectedAccount = matched
+                return
+            }
+        }
+        // 回退到默认账户
+        selectedAccount = FinanceRepository.shared.getDefaultAccountSync()
     }
     
     /// 启动光标闪烁动画
@@ -990,21 +1125,26 @@ struct AddTransactionSheet: View {
         }
         
         isSaving = true
-        
+
         Task {
             do {
-                // 获取默认账户
-                guard let defaultAccount = try await repository.getDefaultAccount() else {
-                    print("未找到默认账户")
+                // 使用选中的账户，回退到默认账户
+                let account: Account
+                if let selected = selectedAccount {
+                    account = selected
+                } else if let defaultAcc = try await repository.getDefaultAccount() {
+                    account = defaultAcc
+                } else {
                     isSaving = false
                     return
                 }
-                
+
                 if let transaction = editingTransaction {
-                    // 编辑模式：更新交易（含日期变更）
+                    // 编辑模式：更新交易（含日期和账户变更）
                     var updates = TransactionUpdates()
                     updates.amount = amount
                     updates.category = category
+                    updates.account = account
                     updates.note = note.isEmpty ? nil : note
                     updates.remark = remark.isEmpty ? nil : remark
                     updates.date = selectedDate
@@ -1019,7 +1159,7 @@ struct AddTransactionSheet: View {
                         periods: installmentPeriods,
                         type: transactionType,
                         category: category,
-                        account: defaultAccount,
+                        account: account,
                         startDate: selectedDate,
                         note: note.isEmpty ? nil : note,
                         remark: remark.isEmpty ? nil : remark
@@ -1030,7 +1170,7 @@ struct AddTransactionSheet: View {
                         amount: amount,
                         type: transactionType,
                         category: category,
-                        account: defaultAccount,
+                        account: account,
                         date: selectedDate,
                         note: note.isEmpty ? nil : note,
                         remark: remark.isEmpty ? nil : remark,
@@ -1069,8 +1209,13 @@ struct AddTransactionSheet: View {
         }
 
         do {
-            // 获取默认账户
-            guard let defaultAccount = try await repository.getDefaultAccount() else {
+            // 使用选中的账户，回退到默认账户
+            let account: Account
+            if let selected = selectedAccount {
+                account = selected
+            } else if let defaultAcc = try await repository.getDefaultAccount() {
+                account = defaultAcc
+            } else {
                 await MainActor.run {
                     isSaving = false
                 }
@@ -1082,6 +1227,7 @@ struct AddTransactionSheet: View {
                 var updates = TransactionUpdates()
                 updates.amount = amount
                 updates.category = category
+                updates.account = account
                 updates.note = note.isEmpty ? nil : note
                 updates.remark = remark.isEmpty ? nil : remark
                 updates.date = selectedDate
@@ -1096,7 +1242,7 @@ struct AddTransactionSheet: View {
                     periods: installmentPeriods,
                     type: transactionType,
                     category: category,
-                    account: defaultAccount,
+                    account: account,
                     startDate: selectedDate,
                     note: note.isEmpty ? nil : note,
                     remark: remark.isEmpty ? nil : remark
@@ -1107,7 +1253,7 @@ struct AddTransactionSheet: View {
                     amount: amount,
                     type: transactionType,
                     category: category,
-                    account: defaultAccount,
+                    account: account,
                     date: selectedDate,
                     note: note.isEmpty ? nil : note,
                     remark: remark.isEmpty ? nil : remark,

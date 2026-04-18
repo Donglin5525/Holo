@@ -86,6 +86,8 @@ class DataExportService {
                 type: tx.type,
                 categoryName: tx.category.name,
                 accountName: tx.account.name,
+                accountId: tx.account.id.uuidString,
+                categoryId: tx.category.id.uuidString,
                 date: tx.date,
                 note: tx.note,
                 tags: tx.tags,
@@ -93,7 +95,7 @@ class DataExportService {
                 updatedAt: tx.updatedAt
             )
         }
-        
+
         let catDTOs = categories.map { cat -> CategoryDTO in
             CategoryDTO(
                 id: cat.id.uuidString,
@@ -102,17 +104,26 @@ class DataExportService {
                 color: cat.color,
                 type: cat.type,
                 isDefault: cat.isDefault,
+                isSystem: cat.isSystem,
                 sortOrder: Int(cat.sortOrder),
                 parentId: cat.parentId?.uuidString
             )
         }
-        
+
         let accDTOs = accounts.map { acc -> AccountDTO in
             AccountDTO(
                 id: acc.id.uuidString,
                 name: acc.name,
                 type: acc.type,
-                isDefault: acc.isDefault
+                isDefault: acc.isDefault,
+                icon: acc.customIcon,
+                color: acc.color,
+                initialBalance: acc.initialBalance.doubleValue,
+                sortOrder: Int(acc.sortOrder),
+                isArchived: acc.isArchived,
+                notes: acc.notes,
+                createdAt: acc.createdAt,
+                updatedAt: acc.updatedAt
             )
         }
         

@@ -90,8 +90,8 @@ struct HoloBackup: Codable {
     let transactions: [TransactionDTO]
     let categories: [CategoryDTO]
     let accounts: [AccountDTO]
-    
-    static let currentVersion = "1.0"
+
+    static let currentVersion = "1.1"
 }
 
 /// 交易记录的数据传输对象（用于 JSON 序列化）
@@ -101,11 +101,47 @@ struct TransactionDTO: Codable {
     let type: String
     let categoryName: String
     let accountName: String
+    let accountId: String?
+    let categoryId: String?
     let date: Date
     let note: String?
     let tags: [String]?
     let createdAt: Date
     let updatedAt: Date
+
+    // 兼容旧版 JSON（无 accountId/categoryId 字段时使用默认值）
+    init(id: String, amount: Double, type: String, categoryName: String, accountName: String,
+         accountId: String? = nil, categoryId: String? = nil,
+         date: Date, note: String?, tags: [String]?, createdAt: Date, updatedAt: Date) {
+        self.id = id
+        self.amount = amount
+        self.type = type
+        self.categoryName = categoryName
+        self.accountName = accountName
+        self.accountId = accountId
+        self.categoryId = categoryId
+        self.date = date
+        self.note = note
+        self.tags = tags
+        self.createdAt = createdAt
+        self.updatedAt = updatedAt
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        amount = try container.decode(Double.self, forKey: .amount)
+        type = try container.decode(String.self, forKey: .type)
+        categoryName = try container.decode(String.self, forKey: .categoryName)
+        accountName = try container.decode(String.self, forKey: .accountName)
+        accountId = try container.decodeIfPresent(String.self, forKey: .accountId)
+        categoryId = try container.decodeIfPresent(String.self, forKey: .categoryId)
+        date = try container.decode(Date.self, forKey: .date)
+        note = try container.decodeIfPresent(String.self, forKey: .note)
+        tags = try container.decodeIfPresent([String].self, forKey: .tags)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        updatedAt = try container.decode(Date.self, forKey: .updatedAt)
+    }
 }
 
 /// 分类的数据传输对象
@@ -116,6 +152,7 @@ struct CategoryDTO: Codable {
     let color: String
     let type: String
     let isDefault: Bool
+    let isSystem: Bool?
     let sortOrder: Int
     let parentId: String?
 }
@@ -126,6 +163,14 @@ struct AccountDTO: Codable {
     let name: String
     let type: String
     let isDefault: Bool
+    let icon: String?
+    let color: String?
+    let initialBalance: Double?
+    let sortOrder: Int?
+    let isArchived: Bool?
+    let notes: String?
+    let createdAt: Date?
+    let updatedAt: Date?
 }
 
 // MARK: - 分类智能匹配

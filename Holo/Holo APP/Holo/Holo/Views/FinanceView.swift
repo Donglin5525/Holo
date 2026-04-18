@@ -998,6 +998,47 @@ struct FinanceSettingsView: View {
                     // 分类管理模块
                     VStack(spacing: 0) {
                         HStack {
+                            Text("账户管理")
+                                .font(.holoLabel)
+                                .foregroundColor(.holoTextSecondary)
+                            Spacer()
+                        }
+                        .padding(.horizontal, HoloSpacing.lg)
+                        .padding(.bottom, HoloSpacing.sm)
+
+                        NavigationLink {
+                            AccountListView()
+                        } label: {
+                            HStack {
+                                Image(systemName: "wallet.pass.fill")
+                                    .font(.system(size: 20))
+                                    .foregroundColor(.holoPrimary)
+                                    .frame(width: 44, height: 44)
+                                    .background(Color.holoPrimary.opacity(0.1))
+                                    .clipShape(Circle())
+
+                                Text("账户")
+                                    .font(.holoBody)
+                                    .foregroundColor(.holoTextPrimary)
+
+                                Spacer()
+
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 14, weight: .medium))
+                                    .foregroundColor(.holoTextSecondary)
+                            }
+                            .padding(HoloSpacing.md)
+                            .background(Color.holoCardBackground)
+                            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                            .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.horizontal, HoloSpacing.lg)
+                    }
+
+                    // 分类管理模块
+                    VStack(spacing: 0) {
+                        HStack {
                             Text("分类管理")
                                 .font(.holoLabel)
                                 .foregroundColor(.holoTextSecondary)

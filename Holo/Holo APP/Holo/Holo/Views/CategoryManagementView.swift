@@ -48,13 +48,15 @@ struct CategoryManagementView: View {
                             topLevelCategoryRow(parent)
                         }
                         .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            Button {
-                                editingCategory = parent
-                            } label: {
-                                Label("编辑", systemImage: "pencil")
+                            if !parent.isSystem {
+                                Button {
+                                    editingCategory = parent
+                                } label: {
+                                    Label("编辑", systemImage: "pencil")
+                                }
+                                .tint(.holoPrimary)
                             }
-                            .tint(.holoPrimary)
-                            if !parent.isDefault {
+                            if !parent.isDefault && !parent.isSystem {
                                 Button(role: .destructive) {
                                     categoryToDelete = parent
                                     showDeleteConfirmation = true
@@ -246,13 +248,15 @@ struct CategoryManagementView: View {
                     ForEach(subs, id: \.id) { child in
                         categoryRow(child)
                             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                Button {
-                                    editingCategory = child
-                                } label: {
-                                    Label("编辑", systemImage: "pencil")
+                                if !child.isSystem {
+                                    Button {
+                                        editingCategory = child
+                                    } label: {
+                                        Label("编辑", systemImage: "pencil")
+                                    }
+                                    .tint(.holoPrimary)
                                 }
-                                .tint(.holoPrimary)
-                                if !child.isDefault {
+                                if !child.isDefault && !child.isSystem {
                                     Button(role: .destructive) {
                                         categoryToDelete = child
                                         showDeleteConfirmation = true

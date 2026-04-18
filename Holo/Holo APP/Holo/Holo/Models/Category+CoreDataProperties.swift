@@ -39,7 +39,8 @@ extension Category {
         type: String,
         isDefault: Bool = false,
         sortOrder: Int16 = 0,
-        parentId: UUID? = nil
+        parentId: UUID? = nil,
+        isSystem: Bool = false
     ) -> Category {
         let category = Category(context: context)
         category.id = UUID()
@@ -50,7 +51,8 @@ extension Category {
         category.isDefault = isDefault
         category.sortOrder = sortOrder
         category.parentId = parentId
-        
+        category.isSystem = isSystem
+
         return category
     }
     
@@ -398,6 +400,40 @@ extension Category {
 
         // 迁移旧 icon_ 图标到 SF Symbol
         migrateLegacyIcons(in: context)
+
+        // 确保系统分类存在
+        seedSystemCategories(in: context)
+    }
+
+    // MARK: - 系统分类
+
+    /// 系统内置分类（不可删除/编辑）
+    static let systemCategories: [(name: String, icon: String, color: String, type: String)] = [
+        ("余额调整", "arrow.triangle.2.circlepath", "#94A3B8", "expense")
+    ]
+
+    /// 确保系统分类存在
+    private static func seedSystemCategories(in context: NSManagedObjectContext) {
+        let request = Category.fetchRequest()
+        request.predicate = NSPredicate(format: "isSystem == true")
+        let existingNames = Set((try? context.fetch(request))?.map { $0.name } ?? [])
+
+        for systemCat in systemCategories {
+            if !existingNames.contains(systemCat.name) {
+                _ = create(
+                    in: context,
+                    name: systemCat.name,
+                    icon: systemCat.icon,
+                    color: systemCat.color,
+                    type: systemCat.type,
+                    isDefault: true,
+                    sortOrder: 999,
+                    isSystem: true
+                )
+            }
+        }
+
+        try? context.save()
     }
 
     /**

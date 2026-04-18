@@ -300,7 +300,15 @@ class CoreDataStack {
         parentId.isOptional = true
         parentId.isIndexed = true
         categoryAttributes.append(parentId)
-        
+
+        // 是否为系统内置分类（不可删除/编辑，如"余额调整"）
+        let isSystem = NSAttributeDescription()
+        isSystem.name = "isSystem"
+        isSystem.attributeType = .booleanAttributeType
+        isSystem.isOptional = false
+        isSystem.defaultValue = false
+        categoryAttributes.append(isSystem)
+
         categoryEntity.properties = categoryAttributes
         
         // MARK: - Account Entity
@@ -336,7 +344,71 @@ class CoreDataStack {
         accountIsDefault.isOptional = false
         accountIsDefault.isIndexed = true
         accountAttributes.append(accountIsDefault)
-        
+
+        // 开户余额（初始余额，用于实时计算当前余额）
+        let accountInitialBalance = NSAttributeDescription()
+        accountInitialBalance.name = "initialBalance"
+        accountInitialBalance.attributeType = .decimalAttributeType
+        accountInitialBalance.isOptional = false
+        accountInitialBalance.defaultValue = NSDecimalNumber(value: 0)
+        accountAttributes.append(accountInitialBalance)
+
+        // 自定义 SF Symbol 图标（空则使用 AccountType 默认图标）
+        let accountIcon = NSAttributeDescription()
+        accountIcon.name = "customIcon"
+        accountIcon.attributeType = .stringAttributeType
+        accountIcon.isOptional = false
+        accountIcon.defaultValue = ""
+        accountAttributes.append(accountIcon)
+
+        // 自定义颜色 hex
+        let accountColor = NSAttributeDescription()
+        accountColor.name = "color"
+        accountColor.attributeType = .stringAttributeType
+        accountColor.isOptional = false
+        accountColor.defaultValue = "#64748B"
+        accountAttributes.append(accountColor)
+
+        // 排序权重
+        let accountSortOrder = NSAttributeDescription()
+        accountSortOrder.name = "sortOrder"
+        accountSortOrder.attributeType = .integer16AttributeType
+        accountSortOrder.isOptional = false
+        accountSortOrder.defaultValue = 0
+        accountSortOrder.isIndexed = true
+        accountAttributes.append(accountSortOrder)
+
+        // 是否归档
+        let accountIsArchived = NSAttributeDescription()
+        accountIsArchived.name = "isArchived"
+        accountIsArchived.attributeType = .booleanAttributeType
+        accountIsArchived.isOptional = false
+        accountIsArchived.defaultValue = false
+        accountAttributes.append(accountIsArchived)
+
+        // 备注
+        let accountNotes = NSAttributeDescription()
+        accountNotes.name = "notes"
+        accountNotes.attributeType = .stringAttributeType
+        accountNotes.isOptional = true
+        accountAttributes.append(accountNotes)
+
+        // 创建时间
+        let accountCreatedAt = NSAttributeDescription()
+        accountCreatedAt.name = "createdAt"
+        accountCreatedAt.attributeType = .dateAttributeType
+        accountCreatedAt.isOptional = false
+        accountCreatedAt.defaultValue = Date()
+        accountAttributes.append(accountCreatedAt)
+
+        // 更新时间
+        let accountUpdatedAt = NSAttributeDescription()
+        accountUpdatedAt.name = "updatedAt"
+        accountUpdatedAt.attributeType = .dateAttributeType
+        accountUpdatedAt.isOptional = false
+        accountUpdatedAt.defaultValue = Date()
+        accountAttributes.append(accountUpdatedAt)
+
         accountEntity.properties = accountAttributes
         
         // 绑定 Transaction 关系的目标实体（需在 Category/Account 创建后设置）
