@@ -17,6 +17,7 @@ enum TaskFilterType: Equatable {
     case all
     case inbox
     case today
+    case completed
     case overdue
     case list(UUID)  // 清单筛选
 
@@ -25,6 +26,7 @@ enum TaskFilterType: Equatable {
         case .all: return "全部"
         case .inbox: return "收件箱"
         case .today: return "今日"
+        case .completed: return "已完成"
         case .overdue: return "已过期"
         case .list: return "清单"
         }
@@ -35,6 +37,7 @@ enum TaskFilterType: Equatable {
         case .all: return "tray.full.fill"
         case .inbox: return "tray"
         case .today: return "sun.max.fill"
+        case .completed: return "checkmark.circle.fill"
         case .overdue: return "exclamationmark.triangle.fill"
         case .list: return "folder"
         }
@@ -43,7 +46,7 @@ enum TaskFilterType: Equatable {
     /// 是否是预设筛选（非清单）
     var isPreset: Bool {
         switch self {
-        case .all, .inbox, .today, .overdue: return true
+        case .all, .inbox, .today, .completed, .overdue: return true
         case .list: return false
         }
     }
@@ -107,59 +110,12 @@ struct TaskListView: View {
 
             ScrollView {
                 LazyVStack(spacing: 12) {
-                    // 待办任务
-                    let activeTasks = cachedFilteredTasks.filter { !$0.completed }
-                    ForEach(activeTasks, id: \.id) { task in
-                        SwipeActionView(
-                            isRevealed: Binding(
-                                get: { revealedTaskId == task.id },
-                                set: { if $0 { revealedTaskId = task.id } else { revealedTaskId = nil } }
-                            ),
-                            content: {
-                                TaskCardView(task: task, repository: repository) {
-                                    if revealedTaskId == task.id {
-                                        revealedTaskId = nil
-                                    } else {
-                                        selectedTask = TaskSelection(id: task.id)
-                                    }
-                                }
-                            },
-                            onArchive: {
-                                archiveTask(task)
-                            },
-                            onDelete: {
-                                deleteTask(task)
-                            }
-                        )
-                    }
-
-                    // 已完成任务
-                    let completedTasks = cachedFilteredTasks.filter { $0.completed }
-                    if !completedTasks.isEmpty {
-                        SectionHeaderView(title: "已完成", count: completedTasks.count)
-                        ForEach(completedTasks, id: \.id) { task in
-                            SwipeActionView(
-                                isRevealed: Binding(
-                                    get: { revealedTaskId == task.id },
-                                    set: { if $0 { revealedTaskId = task.id } else { revealedTaskId = nil } }
-                                ),
-                                content: {
-                                    TaskCardView(task: task, repository: repository) {
-                                        if revealedTaskId == task.id {
-                                            revealedTaskId = nil
-                                        } else {
-                                            selectedTask = TaskSelection(id: task.id)
-                                        }
-                                    }
-                                },
-                                onArchive: {
-                                    archiveTask(task)
-                                },
-                                onDelete: {
-                                    deleteTask(task)
-                                }
-                            )
-                        }
+                    if selectedFilter == .completed {
+                        // 已完成 tab：按周分组展示
+                        completedTabContent
+                    } else {
+                        // 其他 tab：待办任务 + 最近已完成
+                        otherTabContent
                     }
 
                     if cachedFilteredTasks.isEmpty {
@@ -209,6 +165,68 @@ struct TaskListView: View {
         .sheet(isPresented: $showTagListView) {
             TagListView(repository: repository)
         }
+    }
+
+    // MARK: - 已完成 Tab 内容
+
+    /// 已完成 tab：按周分组展示所有已完成任务
+    @ViewBuilder
+    private var completedTabContent: some View {
+        let weekGroups = completedTasksGroupedByWeek
+        ForEach(weekGroups, id: \.title) { group in
+            SectionHeaderView(title: group.title, count: group.tasks.count)
+            ForEach(group.tasks, id: \.id) { task in
+                taskRow(task)
+            }
+        }
+    }
+
+    // MARK: - 其他 Tab 内容
+
+    /// 非「已完成」tab：待办任务 + 最近已完成
+    @ViewBuilder
+    private var otherTabContent: some View {
+        // 待办任务
+        let activeTasks = cachedFilteredTasks.filter { !$0.completed }
+        ForEach(activeTasks, id: \.id) { task in
+            taskRow(task)
+        }
+
+        // 最近已完成（仅展示最近一周完成的任务）
+        let recentlyCompleted = cachedFilteredTasks.filter { $0.completed && isCompletedRecently($0) }
+        if !recentlyCompleted.isEmpty {
+            SectionHeaderView(title: "最近已完成", count: recentlyCompleted.count)
+            ForEach(recentlyCompleted, id: \.id) { task in
+                taskRow(task)
+            }
+        }
+    }
+
+    // MARK: - 任务行组件
+
+    /// 可复用的任务卡片行（含滑动操作）
+    private func taskRow(_ task: TodoTask) -> some View {
+        SwipeActionView(
+            isRevealed: Binding(
+                get: { revealedTaskId == task.id },
+                set: { if $0 { revealedTaskId = task.id } else { revealedTaskId = nil } }
+            ),
+            content: {
+                TaskCardView(task: task, repository: repository) {
+                    if revealedTaskId == task.id {
+                        revealedTaskId = nil
+                    } else {
+                        selectedTask = TaskSelection(id: task.id)
+                    }
+                }
+            },
+            onArchive: {
+                archiveTask(task)
+            },
+            onDelete: {
+                deleteTask(task)
+            }
+        )
     }
 
     // MARK: - 数据加载
@@ -261,11 +279,71 @@ struct TaskListView: View {
             cachedFilteredTasks = tasks.filter { $0.list == nil }
         case .today:
             cachedFilteredTasks = tasks.filter { $0.isDueToday }
+        case .completed:
+            cachedFilteredTasks = tasks.filter { $0.completed }
         case .overdue:
             cachedFilteredTasks = tasks.filter { $0.isOverdue && !$0.completed }
         case .list(let listId):
             cachedFilteredTasks = tasks.filter { $0.list?.id == listId }
         }
+    }
+
+    // MARK: - 已完成任务按周分组
+
+    /// 已完成任务按周分组（用于「已完成」tab）
+    private var completedTasksGroupedByWeek: [(title: String, tasks: [TodoTask])] {
+        let completedTasks = cachedFilteredTasks
+            .filter { $0.completed }
+            .sorted { ($0.completedAt ?? .distantPast) > ($1.completedAt ?? .distantPast) }
+
+        let calendar = Calendar.current
+        var groups: [Date: [TodoTask]] = [:]
+
+        for task in completedTasks {
+            guard let completedAt = task.completedAt else {
+                groups[.distantPast, default: []].append(task)
+                continue
+            }
+            let weekStart = calendar.date(
+                from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: completedAt)
+            )!
+            groups[weekStart, default: []].append(task)
+        }
+
+        let sortedWeeks = groups.keys.sorted(by: >)
+        return sortedWeeks.map { weekStart in
+            (title: weekTitle(for: weekStart), tasks: groups[weekStart]!)
+        }
+    }
+
+    /// 生成周标题
+    private func weekTitle(for weekStart: Date) -> String {
+        let calendar = Calendar.current
+        let now = Date()
+        let currentWeekStart = calendar.date(
+            from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)
+        )!
+
+        if weekStart == currentWeekStart {
+            return "本周"
+        }
+
+        if let lastWeekStart = calendar.date(byAdding: .weekOfYear, value: -1, to: currentWeekStart),
+           weekStart == lastWeekStart {
+            return "上周"
+        }
+
+        let weekEnd = calendar.date(byAdding: .day, value: 6, to: weekStart)!
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日"
+        return "\(formatter.string(from: weekStart)) - \(formatter.string(from: weekEnd))"
+    }
+
+    /// 判断任务是否在最近一周内完成
+    private func isCompletedRecently(_ task: TodoTask) -> Bool {
+        guard let completedAt = task.completedAt else { return false }
+        return completedAt >= Calendar.current.date(byAdding: .day, value: -7, to: Date())!
     }
 
     // MARK: - 顶部导航栏
@@ -332,7 +410,7 @@ struct TaskListView: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 // 预设筛选器
-                ForEach([TaskFilterType.all, .inbox, .today, .overdue], id: \.title) { filter in
+                ForEach([TaskFilterType.all, .inbox, .today, .completed, .overdue], id: \.title) { filter in
                     HoloFilterChip(
                         title: filter.title,
                         icon: filter.icon,
