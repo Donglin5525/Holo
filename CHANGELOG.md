@@ -4,6 +4,21 @@
 
 ---
 
+## [2026-04-19] 图标库扩容与分组展示
+
+### 新增
+- CategoryIconCatalog 图标目录：12 个展示分组，171 个 SF Symbol 图标（原 88 个 + 新增 83 个）
+- 图标分组展示：餐饮、交通、娱乐、购物、个人护理、家居、医疗健康、学习成长、家庭人情、生活服务、收入资产、其他
+- 历史图标 fallback：编辑已有分类时，若当前图标不在目录中，顶部自动展示"当前图标"分组
+- CategoryIconCatalogTests 自动化校验：符号可解析、旧图标保留、无重复、分组结构验证
+
+### 变更
+- IconPickerGrid 从扁平 LazyVGrid 重构为按 section 分组展示（外层 ScrollView + LazyVStack）
+- AddCategorySheet 默认图标来源从 presetCategoryIcons 切换为 CategoryIconCatalog.allIcons
+- 移除全局变量 presetCategoryIcons，由 CategoryIconCatalog 统一管理
+
+---
+
 ## [2026-04-12] AI 对话能力扩展（Phase 1-3）
 
 ### 新增

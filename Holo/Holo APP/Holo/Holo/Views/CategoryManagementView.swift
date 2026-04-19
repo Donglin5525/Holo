@@ -351,7 +351,7 @@ struct AddCategorySheet: View {
     let onSave: () -> Void
 
     @State private var name = ""
-    @State private var iconName = presetCategoryIcons.first ?? "tag.fill"
+    @State private var iconName = CategoryIconCatalog.allIcons.first ?? "tag.fill"
     @State private var selectedColorHex = "#13A4EC"
     @State private var parentCategory: Category?
     @State private var isSaving = false

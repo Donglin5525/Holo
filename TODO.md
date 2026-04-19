@@ -26,7 +26,7 @@
 | 记账模块 | ✅ 已完成 | 交互优化 + 深色模式适配 |
 | 任务模块 | 🚧 进行中 | MVP + Phase 2 大部分完成 |
 | 健康模块 | 📋 待开发 | PRD + 实现计划已完成，等待开发 |
-| AI 对话 | 🚧 Phase 1-4 已完成 | Phase 1-4 意图扩展+路由重构+卡片化渲染已完成，Phase 5 能量系统独立迭代 |
+| AI 对话 | 🚧 Phase 1-5 进行中 | Phase 1-4 完成，多动作批处理+Prompt 版本管理已完成，Phase 5 能量系统独立迭代 |
 
 ### 任务模块 Phase 2 待办
 
@@ -179,3 +179,8 @@
 | 多账户 P0 Bug 修复（CategoryPicker 过滤系统分类 + TransactionRowView 显示账户名 + AccountPicker 余额显示/过滤归档 + 批量导入账户样式） | 2026-04-18 |
 | AI Chat 多账户上下文感知（UserContextBuilder 账户摘要 + AI 可用账户上下文 + 确认文本显示账户名） | 2026-04-18 |
 | MonthlySummaryCard UI 优化（垂直布局重设计 + "今日"标签 + 环比文案改为"较上月同期" + 移除环比箭头图标） | 2026-04-18 |
+| AI Chat 多动作批处理（ConversationCoordinator + batch Core Data 扩展 + ChatViewModel 重构 + 批量解码修复） | 2026-04-19 |
+| AI 任务创建增强（时间解析 + 带时间截止日期 + 优先级 + 自动 15 分钟提醒 + 任务卡片导航修复） | 2026-04-19 |
+| Prompt 版本管理（自动回滚 + 重置/保存版本同步修复） | 2026-04-19 |
+| 数字习惯快速打卡 bug 修复 + Holo One 可配置快速打卡功能部署 | 2026-04-19 |
+| 图标库扩容与分组展示（88→171 图标，12 展示分组，CategoryIconCatalog + IconPickerGrid 重构） | 2026-04-19 |
