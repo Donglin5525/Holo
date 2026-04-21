@@ -45,12 +45,23 @@ struct HabitStatsExpandableCardView: View {
 
     private var header: some View {
         HStack(spacing: HoloSpacing.sm) {
-            Image(systemName: item.icon)
-                .font(.system(size: 18))
-                .foregroundColor(accent)
-                .frame(width: 32, height: 32)
-                .background(accent.opacity(0.12))
-                .clipShape(RoundedRectangle(cornerRadius: 8))
+            Group {
+                if item.isCustomIcon {
+                    Image(item.icon)
+                        .renderingMode(.template)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 18, height: 18)
+                        .foregroundColor(accent)
+                } else {
+                    Image(systemName: item.icon)
+                        .font(.system(size: 18))
+                        .foregroundColor(accent)
+                }
+            }
+            .frame(width: 32, height: 32)
+            .background(accent.opacity(0.12))
+            .clipShape(RoundedRectangle(cornerRadius: 8))
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.name)
@@ -177,7 +188,8 @@ struct HabitStatsExpandableCardView: View {
                 dayNumber: i + 1,
                 isInCurrentMonth: true,
                 isToday: i == 0,
-                hasRecord: i % 2 == 0
+                hasRecord: i % 2 == 0,
+                isOverLimit: false
             )
         }
     )
@@ -187,6 +199,7 @@ struct HabitStatsExpandableCardView: View {
             habitId: UUID(),
             name: "健身",
             icon: "figure.strengthtraining.traditional",
+            isCustomIcon: false,
             habitColorHex: "#F46D38",
             type: .count,
             summary: .count(recordedDays: 12, totalCountText: "12次"),
@@ -211,7 +224,8 @@ struct HabitStatsExpandableCardView: View {
             dayNumber: day,
             isInCurrentMonth: true,
             isToday: false,
-            hasRecord: day % 3 == 0
+            hasRecord: day % 3 == 0,
+            isOverLimit: false
         )
     }
 
@@ -220,6 +234,7 @@ struct HabitStatsExpandableCardView: View {
             habitId: UUID(),
             name: "体重",
             icon: "scalemass",
+            isCustomIcon: false,
             habitColorHex: "#3B82F6",
             type: .measure,
             summary: .measure(recordedDays: 18, averageValueText: "58.2kg"),

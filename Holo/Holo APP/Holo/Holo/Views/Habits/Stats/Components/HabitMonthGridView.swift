@@ -37,7 +37,7 @@ struct HabitMonthGridView: View {
 
     private func dayCell(_ day: HabitStatsDayCell) -> some View {
         RoundedRectangle(cornerRadius: 8)
-            .fill(day.isInCurrentMonth ? Color.holoBackground : Color.holoBackground.opacity(0.4))
+            .fill(dayCellBackground(day))
             .overlay(alignment: .topLeading) {
                 if let number = day.dayNumber {
                     Text("\(number)")
@@ -47,14 +47,31 @@ struct HabitMonthGridView: View {
                 }
             }
             .overlay(alignment: .bottomTrailing) {
-                if day.hasRecord {
-                    Circle()
-                        .fill(accentColor)
-                        .frame(width: 6, height: 6)
-                        .padding(4)
-                }
+                dayIndicator(day)
             }
             .aspectRatio(1, contentMode: .fit)
+    }
+
+    private func dayCellBackground(_ day: HabitStatsDayCell) -> Color {
+        if day.isOverLimit {
+            return Color.red.opacity(0.12)
+        }
+        return day.isInCurrentMonth ? Color.holoBackground : Color.holoBackground.opacity(0.4)
+    }
+
+    @ViewBuilder
+    private func dayIndicator(_ day: HabitStatsDayCell) -> some View {
+        if day.isOverLimit {
+            Image(systemName: "xmark")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundColor(.red)
+                .padding(4)
+        } else if day.hasRecord {
+            Image(systemName: "checkmark")
+                .font(.system(size: 8, weight: .bold))
+                .foregroundColor(accentColor)
+                .padding(4)
+        }
     }
 }
 
@@ -69,7 +86,8 @@ struct HabitMonthGridView: View {
             dayNumber: day,
             isInCurrentMonth: true,
             isToday: day == 15,
-            hasRecord: day % 3 == 0
+            hasRecord: day % 3 == 0,
+            isOverLimit: false
         )
     }
 

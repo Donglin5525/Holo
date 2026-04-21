@@ -15,17 +15,40 @@ struct HabitWeekStripView: View {
         HStack(spacing: 6) {
             ForEach(week.days) { day in
                 RoundedRectangle(cornerRadius: 8)
-                    .fill(day.isToday ? Color.holoPrimary.opacity(0.18) : Color.holoBackground)
-                    .overlay(alignment: .bottomTrailing) {
-                        if day.hasRecord {
-                            Circle()
-                                .fill(accentColor)
-                                .frame(width: 6, height: 6)
+                    .fill(dayBackgroundColor(day))
+                    .overlay(alignment: .topLeading) {
+                        if let number = day.dayNumber {
+                            Text("\(number)")
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(day.isToday ? .holoPrimary : .holoTextSecondary)
                                 .padding(4)
                         }
                     }
+                    .overlay(alignment: .center) {
+                        dayCenterIcon(day)
+                    }
                     .aspectRatio(1, contentMode: .fit)
             }
+        }
+    }
+
+    private func dayBackgroundColor(_ day: HabitStatsDayCell) -> Color {
+        if day.isOverLimit {
+            return Color.red.opacity(0.12)
+        }
+        return day.isToday ? Color.holoPrimary.opacity(0.18) : Color.holoBackground
+    }
+
+    @ViewBuilder
+    private func dayCenterIcon(_ day: HabitStatsDayCell) -> some View {
+        if day.isOverLimit {
+            Image(systemName: "xmark")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundColor(.red)
+        } else if day.hasRecord {
+            Image(systemName: "checkmark")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundColor(accentColor)
         }
     }
 }
@@ -43,7 +66,8 @@ struct HabitWeekStripView: View {
                 dayNumber: i + 1,
                 isInCurrentMonth: true,
                 isToday: i == 0,
-                hasRecord: i % 2 == 0
+                hasRecord: i % 2 == 0,
+                isOverLimit: false
             )
         }
     )

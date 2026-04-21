@@ -26,9 +26,21 @@
 | `docs/_common/HoloPRD.md` | 产品需求文档 |
 | `docs/_common/开发规范.md` | 开发规范与踩坑总结（编码约定、布局、Core Data 等） |
 | `docs/_common/notes/` | 历史问题解决方案（含 Core Data 调试） |
-| `docs/_common/plans/` | 已完成功能的实现计划 |
+| `docs/*/plans/` | 各模块实施计划（含已完成和待开发） |
 
 > `docs/todo/` 是**待办模块的文档目录**，不是项目级待办。东林说"更新 TODO"指的是根目录 `TODO.md`。
+
+---
+
+## 开发流程
+
+新功能或非平凡重构前，按以下流程推进：
+
+| 阶段 | 说明 |
+|------|------|
+| 写方案 | 在 `docs/*/plans/` 下写实施计划，明确范围、数据结构、涉及文件 |
+| 对抗评审 | 方案完成后做对抗性审查：检查边界遗漏、技术可行性、与现有代码冲突 |
+| 实施 | 评审通过后按步骤实施，多步任务用 TaskCreate 追踪进度 |
 
 ---
 
@@ -61,7 +73,7 @@
 **Scope**：`iOS` / `icon` / `docs`
 **格式**：`feat(iOS): 描述` / `fix(iOS): 描述` / `docs: 描述`
 
-**提交流程**：`git add` → `git commit` → 更新 `CHANGELOG.md` → `git push`
+**提交流程**：`git add` → `git commit` → 更新 `CHANGELOG.md` + `TODO.md` → `git push`
 
 **提交前**：编译通过 | 无 `print()` / force unwrap | CHANGELOG 已更新
 

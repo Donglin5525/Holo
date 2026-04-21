@@ -19,26 +19,26 @@ final class HabitStatsStateTests: XCTestCase {
         let firstWeek = HabitStatsWeekSlice(
             weekStart: calendar.date(from: DateComponents(year: 2026, month: 4, day: 6))!,
             days: [
-                HabitStatsDayCell(date: calendar.date(from: DateComponents(year: 2026, month: 4, day: 6))!, dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false),
-                HabitStatsDayCell(date: calendar.date(from: DateComponents(year: 2026, month: 4, day: 7))!, dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false),
-                HabitStatsDayCell(date: calendar.date(from: DateComponents(year: 2026, month: 4, day: 8))!, dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false),
-                HabitStatsDayCell(date: calendar.date(from: DateComponents(year: 2026, month: 4, day: 9))!, dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false),
-                HabitStatsDayCell(date: calendar.date(from: DateComponents(year: 2026, month: 4, day: 10))!, dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false),
-                HabitStatsDayCell(date: calendar.date(from: DateComponents(year: 2026, month: 4, day: 11))!, dayNumber: 11, isInCurrentMonth: true, isToday: false, hasRecord: true),
-                HabitStatsDayCell(date: calendar.date(from: DateComponents(year: 2026, month: 4, day: 12))!, dayNumber: 12, isInCurrentMonth: true, isToday: false, hasRecord: false)
+                HabitStatsDayCell(date: calendar.date(from: DateComponents(year: 2026, month: 4, day: 6))!, dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false, isOverLimit: false),
+                HabitStatsDayCell(date: calendar.date(from: DateComponents(year: 2026, month: 4, day: 7))!, dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false, isOverLimit: false),
+                HabitStatsDayCell(date: calendar.date(from: DateComponents(year: 2026, month: 4, day: 8))!, dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false, isOverLimit: false),
+                HabitStatsDayCell(date: calendar.date(from: DateComponents(year: 2026, month: 4, day: 9))!, dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false, isOverLimit: false),
+                HabitStatsDayCell(date: calendar.date(from: DateComponents(year: 2026, month: 4, day: 10))!, dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false, isOverLimit: false),
+                HabitStatsDayCell(date: calendar.date(from: DateComponents(year: 2026, month: 4, day: 11))!, dayNumber: 11, isInCurrentMonth: true, isToday: false, hasRecord: true, isOverLimit: false),
+                HabitStatsDayCell(date: calendar.date(from: DateComponents(year: 2026, month: 4, day: 12))!, dayNumber: 12, isInCurrentMonth: true, isToday: false, hasRecord: false, isOverLimit: false)
             ]
         )
 
         let secondWeek = HabitStatsWeekSlice(
             weekStart: calendar.date(from: DateComponents(year: 2026, month: 4, day: 13))!,
             days: [
-                HabitStatsDayCell(date: calendar.date(from: DateComponents(year: 2026, month: 4, day: 13))!, dayNumber: 13, isInCurrentMonth: true, isToday: false, hasRecord: true),
-                HabitStatsDayCell(date: calendar.date(from: DateComponents(year: 2026, month: 4, day: 14))!, dayNumber: 14, isInCurrentMonth: true, isToday: false, hasRecord: true),
-                HabitStatsDayCell(date: calendar.date(from: DateComponents(year: 2026, month: 4, day: 15))!, dayNumber: 15, isInCurrentMonth: true, isToday: false, hasRecord: false),
-                HabitStatsDayCell(date: calendar.date(from: DateComponents(year: 2026, month: 4, day: 16))!, dayNumber: 16, isInCurrentMonth: true, isToday: false, hasRecord: false),
-                HabitStatsDayCell(date: calendar.date(from: DateComponents(year: 2026, month: 4, day: 17))!, dayNumber: 17, isInCurrentMonth: true, isToday: false, hasRecord: true),
-                HabitStatsDayCell(date: calendar.date(from: DateComponents(year: 2026, month: 4, day: 18))!, dayNumber: 18, isInCurrentMonth: true, isToday: false, hasRecord: false),
-                HabitStatsDayCell(date: calendar.date(from: DateComponents(year: 2026, month: 4, day: 19))!, dayNumber: 19, isInCurrentMonth: true, isToday: false, hasRecord: false)
+                HabitStatsDayCell(date: calendar.date(from: DateComponents(year: 2026, month: 4, day: 13))!, dayNumber: 13, isInCurrentMonth: true, isToday: false, hasRecord: true, isOverLimit: false),
+                HabitStatsDayCell(date: calendar.date(from: DateComponents(year: 2026, month: 4, day: 14))!, dayNumber: 14, isInCurrentMonth: true, isToday: false, hasRecord: true, isOverLimit: false),
+                HabitStatsDayCell(date: calendar.date(from: DateComponents(year: 2026, month: 4, day: 15))!, dayNumber: 15, isInCurrentMonth: true, isToday: false, hasRecord: false, isOverLimit: false),
+                HabitStatsDayCell(date: calendar.date(from: DateComponents(year: 2026, month: 4, day: 16))!, dayNumber: 16, isInCurrentMonth: true, isToday: false, hasRecord: false, isOverLimit: false),
+                HabitStatsDayCell(date: calendar.date(from: DateComponents(year: 2026, month: 4, day: 17))!, dayNumber: 17, isInCurrentMonth: true, isToday: false, hasRecord: true, isOverLimit: false),
+                HabitStatsDayCell(date: calendar.date(from: DateComponents(year: 2026, month: 4, day: 18))!, dayNumber: 18, isInCurrentMonth: true, isToday: false, hasRecord: false, isOverLimit: false),
+                HabitStatsDayCell(date: calendar.date(from: DateComponents(year: 2026, month: 4, day: 19))!, dayNumber: 19, isInCurrentMonth: true, isToday: false, hasRecord: false, isOverLimit: false)
             ]
         )
 
@@ -46,6 +46,7 @@ final class HabitStatsStateTests: XCTestCase {
             habitId: UUID(),
             name: "体重",
             icon: "scalemass",
+            isCustomIcon: false,
             habitColorHex: "#3B82F6",
             type: .measure,
             summary: .measure(recordedDays: 4, averageValueText: "58.2kg"),
@@ -118,14 +119,14 @@ final class HabitStatsStateTests: XCTestCase {
         let firstWeek = HabitStatsWeekSlice(
             weekStart: calendar.date(from: DateComponents(year: 2026, month: 4, day: 6))!,
             days: (0..<7).map { _ in
-                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false)
+                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false, isOverLimit: false)
             }
         )
 
         let secondWeek = HabitStatsWeekSlice(
             weekStart: calendar.date(from: DateComponents(year: 2026, month: 4, day: 13))!,
             days: (0..<7).map { _ in
-                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false)
+                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false, isOverLimit: false)
             }
         )
 
@@ -141,26 +142,26 @@ final class HabitStatsStateTests: XCTestCase {
         let firstWeek = HabitStatsWeekSlice(
             weekStart: calendar.date(from: DateComponents(year: 2026, month: 4, day: 6))!,
             days: [
-                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false),
-                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: true),
-                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false),
-                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false),
-                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false),
-                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false),
-                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false)
+                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false, isOverLimit: false),
+                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: true, isOverLimit: false),
+                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false, isOverLimit: false),
+                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false, isOverLimit: false),
+                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false, isOverLimit: false),
+                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false, isOverLimit: false),
+                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false, isOverLimit: false)
             ]
         )
 
         let secondWeek = HabitStatsWeekSlice(
             weekStart: calendar.date(from: DateComponents(year: 2026, month: 4, day: 13))!,
             days: [
-                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: true),
-                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false),
-                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false),
-                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false),
-                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false),
-                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false),
-                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false)
+                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: true, isOverLimit: false),
+                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false, isOverLimit: false),
+                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false, isOverLimit: false),
+                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false, isOverLimit: false),
+                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false, isOverLimit: false),
+                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false, isOverLimit: false),
+                HabitStatsDayCell(date: Date(), dayNumber: nil, isInCurrentMonth: false, isToday: false, hasRecord: false, isOverLimit: false)
             ]
         )
 

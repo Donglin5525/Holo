@@ -402,11 +402,49 @@ class HabitRepository: ObservableObject {
     /// 计算连续天数（打卡型）
     func calculateStreak(for habit: Habit) -> Int {
         guard habit.isCheckInType else { return 0 }
-        
+
         let calendar = Calendar.current
         var streak = 0
         var checkDate = calendar.startOfDay(for: Date())
-        
+
+        if habit.isBadHabit {
+            // 坏习惯：连续未打卡天数（连续控制住的天数）
+            // 今天已打卡（做了坏事）→ 从昨天开始倒查
+            let todayCompleted = isTodayCompleted(for: habit)
+            if todayCompleted {
+                guard let yesterday = calendar.date(byAdding: .day, value: -1, to: checkDate) else {
+                    return 0
+                }
+                checkDate = yesterday
+            }
+
+            let maxLookback = 3650
+            for _ in 0..<maxLookback {
+                let dayStart = checkDate
+                guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { break }
+
+                let request = HabitRecord.fetchRequest()
+                request.predicate = NSPredicate(
+                    format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES",
+                    habit.id as CVarArg,
+                    dayStart as NSDate,
+                    dayEnd as NSDate
+                )
+                request.fetchLimit = 1
+
+                let hasBadRecord = ((try? context.fetch(request))?.count ?? 0) > 0
+                // 有打卡记录（做了坏事）→ 中断连续控制
+                guard !hasBadRecord else { break }
+
+                streak += 1
+                guard let previousDay = calendar.date(byAdding: .day, value: -1, to: checkDate) else { break }
+                checkDate = previousDay
+            }
+
+            return streak
+        }
+
+        // 好习惯：原始逻辑（连续打卡天数）
         // 今天未完成 → 从昨天开始倒查
         let todayCompleted = isTodayCompleted(for: habit)
         if !todayCompleted {
@@ -415,13 +453,13 @@ class HabitRepository: ObservableObject {
             }
             checkDate = yesterday
         }
-        
+
         // 向前逐天检查，最多追溯 3650 天（防止极端情况）
         let maxLookback = 3650
         for _ in 0..<maxLookback {
             let dayStart = checkDate
             guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { break }
-            
+
             let request = HabitRecord.fetchRequest()
             request.predicate = NSPredicate(
                 format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES",
@@ -430,15 +468,15 @@ class HabitRepository: ObservableObject {
                 dayEnd as NSDate
             )
             request.fetchLimit = 1
-            
+
             let hasRecord = ((try? context.fetch(request))?.count ?? 0) > 0
             guard hasRecord else { break }
-            
+
             streak += 1
             guard let previousDay = calendar.date(byAdding: .day, value: -1, to: checkDate) else { break }
             checkDate = previousDay
         }
-        
+
         return streak
     }
     
@@ -1018,6 +1056,7 @@ extension HabitRepository {
                 habitId: habit.id,
                 name: habit.name,
                 icon: habit.icon,
+                isCustomIcon: habit.isCustomIcon,
                 habitColorHex: habit.color,
                 type: statsCardKind(for: habit),
                 summary: statsSummary(for: habit, monthStart: monthStart, monthEnd: monthEnd),
@@ -1043,6 +1082,8 @@ extension HabitRepository {
     }
 
     /// 构建月份格子
+    /// 好习惯：hasRecord=有记录（成功），isOverLimit=false
+    /// 坏习惯：hasRecord=控制住（成功），isOverLimit=超标（失败）
     private func makeMonthCells(for habit: Habit, monthStart: Date, monthEnd: Date) -> [HabitStatsDayCell] {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
@@ -1050,6 +1091,14 @@ extension HabitRepository {
         let nextDay = calendar.date(byAdding: .day, value: 1, to: monthEnd)!
         let records = getRecords(for: habit, in: monthStart...nextDay)
 
+        if habit.isBadHabit {
+            return makeBadHabitMonthCells(
+                habit: habit, monthStart: monthStart, monthEnd: monthEnd,
+                today: today, records: records, calendar: calendar
+            )
+        }
+
+        // 好习惯：原始逻辑不变
         var recordDates = Set<Date>()
         for record in records {
             let dayStart = calendar.startOfDay(for: record.date)
@@ -1064,11 +1113,8 @@ extension HabitRepository {
         for i in 0..<weekdayOffset {
             guard let date = calendar.date(byAdding: .day, value: i - weekdayOffset, to: monthStart) else { continue }
             cells.append(HabitStatsDayCell(
-                date: date,
-                dayNumber: nil,
-                isInCurrentMonth: false,
-                isToday: false,
-                hasRecord: false
+                date: date, dayNumber: nil, isInCurrentMonth: false,
+                isToday: false, hasRecord: false, isOverLimit: false
             ))
         }
 
@@ -1078,11 +1124,9 @@ extension HabitRepository {
             let dayStart = calendar.startOfDay(for: date)
             let dayNumber = calendar.component(.day, from: date)
             cells.append(HabitStatsDayCell(
-                date: date,
-                dayNumber: dayNumber,
-                isInCurrentMonth: true,
+                date: date, dayNumber: dayNumber, isInCurrentMonth: true,
                 isToday: dayStart == today,
-                hasRecord: recordDates.contains(dayStart)
+                hasRecord: recordDates.contains(dayStart), isOverLimit: false
             ))
         }
 
@@ -1091,11 +1135,86 @@ extension HabitRepository {
             for i in 0..<(7 - remainder) {
                 guard let date = calendar.date(byAdding: .day, value: i + 1, to: monthEnd) else { continue }
                 cells.append(HabitStatsDayCell(
-                    date: date,
-                    dayNumber: nil,
-                    isInCurrentMonth: false,
-                    isToday: false,
-                    hasRecord: false
+                    date: date, dayNumber: nil, isInCurrentMonth: false,
+                    isToday: false, hasRecord: false, isOverLimit: false
+                ))
+            }
+        }
+
+        return cells
+    }
+
+    /// 坏习惯月份格子构建
+    private func makeBadHabitMonthCells(
+        habit: Habit, monthStart: Date, monthEnd: Date,
+        today: Date, records: [HabitRecord], calendar: Calendar
+    ) -> [HabitStatsDayCell] {
+        // 构建每日超标判断
+        var exceededDays = Set<Date>()
+        var recordedDays = Set<Date>()
+
+        if habit.isCheckInType {
+            // 打卡型坏习惯：有 isCompleted 记录 = 做了坏事 = 超标
+            for record in records where record.isCompleted {
+                let dayStart = calendar.startOfDay(for: record.date)
+                exceededDays.insert(dayStart)
+                recordedDays.insert(dayStart)
+            }
+        } else {
+            // 数值型坏习惯：聚合值 > 目标值 = 超标
+            let targetValue = habit.targetValueDouble ?? 0
+            var dailyValues: [Date: Double] = [:]
+            for record in records {
+                let dayStart = calendar.startOfDay(for: record.date)
+                recordedDays.insert(dayStart)
+                if let value = record.value?.doubleValue {
+                    if habit.isCountType {
+                        dailyValues[dayStart, default: 0] += value
+                    } else {
+                        dailyValues[dayStart] = value
+                    }
+                }
+            }
+            for (day, value) in dailyValues where value > targetValue {
+                exceededDays.insert(day)
+            }
+        }
+
+        let firstWeekday = calendar.component(.weekday, from: monthStart)
+        let weekdayOffset = (firstWeekday - calendar.firstWeekday + 7) % 7
+
+        var cells: [HabitStatsDayCell] = []
+
+        for i in 0..<weekdayOffset {
+            guard let date = calendar.date(byAdding: .day, value: i - weekdayOffset, to: monthStart) else { continue }
+            cells.append(HabitStatsDayCell(
+                date: date, dayNumber: nil, isInCurrentMonth: false,
+                isToday: false, hasRecord: false, isOverLimit: false
+            ))
+        }
+
+        let daysInMonth = calendar.dateComponents([.day], from: monthStart, to: monthEnd).day! + 1
+        for dayOffset in 0..<daysInMonth {
+            guard let date = calendar.date(byAdding: .day, value: dayOffset, to: monthStart) else { continue }
+            let dayStart = calendar.startOfDay(for: date)
+            let dayNumber = calendar.component(.day, from: date)
+            let isExceeded = exceededDays.contains(dayStart)
+            // 坏习惯：控制住=成功(hasRecord=true)，超标=失败(hasRecord=false, isOverLimit=true)
+            cells.append(HabitStatsDayCell(
+                date: date, dayNumber: dayNumber, isInCurrentMonth: true,
+                isToday: dayStart == today,
+                hasRecord: !isExceeded,
+                isOverLimit: isExceeded
+            ))
+        }
+
+        let remainder = cells.count % 7
+        if remainder > 0 {
+            for i in 0..<(7 - remainder) {
+                guard let date = calendar.date(byAdding: .day, value: i + 1, to: monthEnd) else { continue }
+                cells.append(HabitStatsDayCell(
+                    date: date, dayNumber: nil, isInCurrentMonth: false,
+                    isToday: false, hasRecord: false, isOverLimit: false
                 ))
             }
         }
@@ -1149,8 +1268,48 @@ extension HabitRepository {
             }
         }
 
-        let recordedDays = dailyHasRecord.count
         let streak = calculateStreak(for: habit)
+
+        // 坏习惯：统计控制住的天数
+        if habit.isBadHabit {
+            let daysInMonth = calendar.dateComponents([.day], from: monthStart, to: monthEnd).day! + 1
+
+            if habit.isCheckInType {
+                // 打卡型：未打卡天数 = 控制住
+                let checkedInDays = records.filter { $0.isCompleted }.count
+                let controlledDays = max(daysInMonth - checkedInDays, 0)
+                return .checkIn(completedDays: controlledDays, streak: streak)
+            } else {
+                let targetValue = habit.targetValueDouble ?? 0
+                // 数值型：聚合值 <= 目标值的天数 + 没有记录的天数
+                let exceededDays = dailyValues.values.filter { $0 > targetValue }.count
+                let controlledDays = max(daysInMonth - exceededDays, 0)
+
+                if habit.isCountType {
+                    let total = dailyValues.values.reduce(0, +)
+                    let formatted: String
+                    if total == floor(total) {
+                        formatted = "\(Int(total))次"
+                    } else {
+                        formatted = "\(String(format: "%.1f", total))次"
+                    }
+                    return .count(recordedDays: controlledDays, totalCountText: formatted)
+                } else {
+                    let avg: Double
+                    if dailyValues.isEmpty {
+                        avg = 0
+                    } else {
+                        avg = dailyValues.values.reduce(0, +) / Double(dailyValues.count)
+                    }
+                    let unit = habit.unit ?? ""
+                    let formatted = String(format: "%.1f%@", avg, unit)
+                    return .measure(recordedDays: controlledDays, averageValueText: formatted)
+                }
+            }
+        }
+
+        // 好习惯：原始逻辑
+        let recordedDays = dailyHasRecord.count
 
         if habit.isCheckInType {
             return .checkIn(completedDays: recordedDays, streak: streak)

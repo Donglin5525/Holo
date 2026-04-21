@@ -37,6 +37,7 @@ struct HabitsView: View {
 
     @Environment(\.dismiss) var dismiss
     @State private var selectedTab: HabitTab = .habits
+    @State private var previousTab: HabitTab = .habits
     @State private var showAddHabit: Bool = false
 
     // MARK: - Body
@@ -55,7 +56,11 @@ struct HabitsView: View {
                         showAddHabit: $showAddHabit
                     )
                 case .settings:
-                    HabitStatsSettingsView(onBack: { dismiss() })
+                    HabitStatsSettingsView(onBack: {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            selectedTab = previousTab
+                        }
+                    })
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -98,6 +103,9 @@ struct HabitsView: View {
     /// Tab 按钮
     private func habitTabButton(_ tab: HabitTab) -> some View {
         Button {
+            if tab != selectedTab {
+                previousTab = selectedTab
+            }
             withAnimation(.easeInOut(duration: 0.15)) {
                 selectedTab = tab
             }

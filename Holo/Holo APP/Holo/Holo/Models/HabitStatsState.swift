@@ -189,7 +189,10 @@ struct HabitStatsDayCell: Identifiable, Equatable {
     let dayNumber: Int?
     let isInCurrentMonth: Bool
     let isToday: Bool
+    /// 好习惯：有记录=成功；坏习惯：控制住=成功
     let hasRecord: Bool
+    /// 坏习惯超标标记
+    let isOverLimit: Bool
     var id: Date { date }
 }
 
@@ -218,6 +221,7 @@ struct HabitStatsDisplayItem: Identifiable, Equatable {
     let habitId: UUID
     let name: String
     let icon: String
+    let isCustomIcon: Bool
     let habitColorHex: String
     let type: HabitStatsCardKind
     let summary: HabitStatsCardSummary
