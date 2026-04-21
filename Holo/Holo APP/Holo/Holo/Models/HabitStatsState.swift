@@ -3,24 +3,23 @@
 //  Holo
 //
 //  习惯统计模块的状态管理
-// 参考 FinanceAnalysisState 模式实现
+//  重构后：月度仪表板模式（当前自然月 + 周视图优先 + 单开展开月历）
 //
 
 import SwiftUI
 import Combine
 
-// MARK: - HabitStatsDateRange
+// MARK: - HabitStatsDateRange（旧接口兼容）
 
 /// 习惯统计时间范围（区别于 HabitDateRange）
 enum HabitStatsDateRange: String, CaseIterable, Identifiable {
-    case week = "7"      // 近 7 天
-    case month = "30"    // 近 30 天
-    case quarter = "90"  // 近 90 天
-    case all = "all"     // 全部
+    case week = "7"
+    case month = "30"
+    case quarter = "90"
+    case all = "all"
 
     var id: String { rawValue }
 
-    /// 显示名称
     var displayName: String {
         switch self {
         case .week: return "7天"
@@ -30,7 +29,6 @@ enum HabitStatsDateRange: String, CaseIterable, Identifiable {
         }
     }
 
-    /// 天数（nil 表示全部）
     var days: Int? {
         switch self {
         case .week: return 7
@@ -40,7 +38,6 @@ enum HabitStatsDateRange: String, CaseIterable, Identifiable {
         }
     }
 
-    /// 获取日期范围
     func dateRange() -> ClosedRange<Date>? {
         guard let days = days else { return nil }
         let calendar = Calendar.current
@@ -52,9 +49,8 @@ enum HabitStatsDateRange: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - HabitTypeFilter
+// MARK: - HabitTypeFilter（旧接口兼容）
 
-/// 习惯类型筛选
 enum HabitTypeFilter: String, CaseIterable, Identifiable {
     case all = "all"
     case checkIn = "checkIn"
@@ -63,7 +59,6 @@ enum HabitTypeFilter: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    /// 显示名称
     var displayName: String {
         switch self {
         case .all: return "全部"
@@ -73,7 +68,6 @@ enum HabitTypeFilter: String, CaseIterable, Identifiable {
         }
     }
 
-    /// 筛选图标
     var icon: String {
         switch self {
         case .all: return "tray.full.fill"
@@ -84,18 +78,16 @@ enum HabitTypeFilter: String, CaseIterable, Identifiable {
     }
 }
 
-// MARK: - DailyCompletionData
+// MARK: - DailyCompletionData（旧接口兼容）
 
-/// 每日完成率数据
 struct DailyCompletionData: Identifiable {
     let date: Date
-    let completionRate: Double  // 0-100
+    let completionRate: Double
     var id: Date { date }
 }
 
-// MARK: - HabitRankingItem
+// MARK: - HabitRankingItem（旧接口兼容）
 
-/// 习惯排行榜项
 struct HabitRankingItem: Identifiable {
     let habitId: UUID
     let name: String
@@ -105,15 +97,13 @@ struct HabitRankingItem: Identifiable {
     let streak: Int
     var id: UUID { habitId }
 
-    /// 习惯颜色
     var habitColor: Color {
         HabitColorPresets.color(from: color)
     }
 }
 
-// MARK: - HabitStatsItem
+// MARK: - HabitStatsItem（旧接口兼容）
 
-/// 习惯统计项（用于习惯列表）
 struct HabitStatsItem: Identifiable {
     let habitId: UUID
     let name: String
@@ -131,37 +121,30 @@ struct HabitStatsItem: Identifiable {
 
     var id: UUID { habitId }
 
-    /// 习惯类型
     var type: HabitType {
         HabitType(rawValue: typeRaw) ?? .checkIn
     }
 
-    /// 聚合类型
     var aggregationType: HabitAggregationType {
         HabitAggregationType(rawValue: aggregationTypeRaw) ?? .sum
     }
 
-    /// 习惯颜色
     var habitColor: Color {
         HabitColorPresets.color(from: color)
     }
 
-    /// 是否为打卡型
     var isCheckInType: Bool {
         type == .checkIn
     }
 
-    /// 是否为计数类
     var isCountType: Bool {
         type == .numeric && aggregationType == .sum
     }
 
-    /// 是否为测量类
     var isMeasureType: Bool {
         type == .numeric && aggregationType == .latest
     }
 
-    /// 单位文本
     var unitText: String {
         unit ?? (isCountType ? "次" : "")
     }
@@ -176,13 +159,11 @@ struct HabitOverviewStats {
     let averageCompletionRate: Double
     let totalStreak: Int
 
-    /// 今日完成率（0-100）
     var todayCompletionRate: Double {
         guard totalHabits > 0 else { return 0 }
         return Double(todayCompleted) / Double(totalHabits) * 100
     }
 
-    /// 空数据
     static func empty() -> HabitOverviewStats {
         HabitOverviewStats(
             todayCompleted: 0,
@@ -193,115 +174,138 @@ struct HabitOverviewStats {
     }
 }
 
+// MARK: - 月度统计投影类型
+
+/// 统计卡片习惯类型
+enum HabitStatsCardKind: Equatable {
+    case checkIn
+    case count
+    case measure
+}
+
+/// 月份格子中的一天
+struct HabitStatsDayCell: Identifiable, Equatable {
+    let date: Date
+    let dayNumber: Int?
+    let isInCurrentMonth: Bool
+    let isToday: Bool
+    let hasRecord: Bool
+    var id: Date { date }
+}
+
+/// 一周的数据切片（折叠态）
+struct HabitStatsWeekSlice: Equatable {
+    let weekStart: Date
+    let days: [HabitStatsDayCell]
+}
+
+/// 月度日历矩阵（展开态）
+struct HabitStatsMonthSection: Equatable {
+    let monthStart: Date
+    let weekdaySymbols: [String]
+    let rows: [[HabitStatsDayCell]]
+}
+
+/// 习惯卡片摘要（按类型区分）
+enum HabitStatsCardSummary: Equatable {
+    case checkIn(completedDays: Int, streak: Int)
+    case count(recordedDays: Int, totalCountText: String)
+    case measure(recordedDays: Int, averageValueText: String)
+}
+
+/// 统计页习惯展示项
+struct HabitStatsDisplayItem: Identifiable, Equatable {
+    let habitId: UUID
+    let name: String
+    let icon: String
+    let habitColorHex: String
+    let type: HabitStatsCardKind
+    let summary: HabitStatsCardSummary
+    let collapsedWeek: HabitStatsWeekSlice
+    let allWeeks: [HabitStatsWeekSlice]
+    let month: HabitStatsMonthSection
+    var id: UUID { habitId }
+}
+
 // MARK: - HabitStatsState
 
-/// 习惯统计模块状态管理器
+/// 习惯统计模块状态管理器（月度仪表板）
 @MainActor
 class HabitStatsState: ObservableObject {
 
     // MARK: - 发布属性
 
-    /// 当前选中的时间范围
-    @Published var selectedDateRange: HabitStatsDateRange = .month
-
-    /// 当前选中的类型筛选
-    @Published var typeFilter: HabitTypeFilter = .all
-
-    /// 总览统计数据
-    @Published var overviewStats: HabitOverviewStats = .empty()
-
-    /// 完成率趋势数据
-    @Published var completionTrend: [DailyCompletionData] = []
-
-    /// 习惯排行榜
-    @Published var habitRanking: [HabitRankingItem] = []
-
-    /// 习惯统计项列表
-    @Published var habitStatsItems: [HabitStatsItem] = []
-
-    /// 是否正在加载
-    @Published var isLoading: Bool = false
-
-    /// 当前选中的 Tab（0: 总览, 1: 习惯）
-    @Published var selectedTab: Int = 0
-
-    /// 展开的习惯 ID
+    @Published var selectedMonth: Date = Date()
     @Published var expandedHabitId: UUID?
+    @Published var summaryStats: HabitOverviewStats = .empty()
+    @Published var displayItems: [HabitStatsDisplayItem] = []
+    @Published var hasAnyHabits: Bool = false
 
     // MARK: - 私有属性
 
-    private let repository = HabitRepository.shared
-
-    // MARK: - 计算属性
-
-    /// 筛选后的习惯统计项
-    var filteredHabitStatsItems: [HabitStatsItem] {
-        switch typeFilter {
-        case .all:
-            return habitStatsItems
-        case .checkIn:
-            return habitStatsItems.filter { $0.isCheckInType }
-        case .count:
-            return habitStatsItems.filter { $0.isCountType }
-        case .measure:
-            return habitStatsItems.filter { $0.isMeasureType }
-        }
-    }
+    private let repository: HabitRepository
+    private let displaySettings: HabitStatsDisplaySettings
+    private var cancellables: Set<AnyCancellable> = []
 
     // MARK: - 初始化
 
-    init() {
-        Task { await loadData() }
+    init(
+        repository: HabitRepository = .shared,
+        displaySettings: HabitStatsDisplaySettings = .shared
+    ) {
+        self.repository = repository
+        self.displaySettings = displaySettings
+        bindDisplaySettings()
+        Task { await reload() }
     }
 
-    // MARK: - 时间范围操作
+    // MARK: - 月份操作
 
-    /// 切换时间范围
-    /// 注意：HabitTimeRangeSelector 通过 @Binding 已经先修改了 selectedDateRange，
-    /// 所以这里不需要再赋值，只需触发数据重新加载
-    func setDateRange(_ range: HabitStatsDateRange) {
-        Task { await loadData() }
+    func selectMonth(_ month: Date) async {
+        selectedMonth = month
+        expandedHabitId = nil
+        await reload()
     }
 
-    /// 切换类型筛选
-    func setTypeFilter(_ filter: HabitTypeFilter) {
-        typeFilter = filter
-    }
+    // MARK: - 展开/收起
 
-    // MARK: - 数据加载
-
-    /// 加载所有数据
-    func loadData() async {
-        isLoading = true
-
-        // 加载总览统计
-        overviewStats = repository.getOverviewStats(range: selectedDateRange)
-
-        // 加载完成率趋势
-        completionTrend = repository.getOverallCompletionTrend(range: selectedDateRange)
-
-        // 加载排行榜
-        habitRanking = repository.getHabitRanking(range: selectedDateRange, limit: 5)
-
-        // 加载习惯统计项
-        habitStatsItems = repository.getHabitStatsItems(range: selectedDateRange, filter: typeFilter)
-
-        isLoading = false
-    }
-
-    /// 刷新数据（数据变更后调用）
-    func refresh() {
-        Task { await loadData() }
-    }
-
-    // MARK: - 交互操作
-
-    /// 切换习惯展开状态
-    func toggleHabitExpansion(_ habitId: UUID) {
+    func toggleExpansion(for habitId: UUID) {
         if expandedHabitId == habitId {
             expandedHabitId = nil
         } else {
             expandedHabitId = habitId
         }
+    }
+
+    // MARK: - 数据加载
+
+    func reload() async {
+        hasAnyHabits = !repository.activeHabits.isEmpty
+        summaryStats = repository.getOverviewStats(
+            forMonth: selectedMonth,
+            visibleHabitIds: displaySettings.visibleHabitIds
+        )
+        displayItems = repository.getHabitStatsDisplayItems(
+            month: selectedMonth,
+            visibleHabitIds: displaySettings.visibleHabitIds,
+            orderedHabitIds: displaySettings.orderedHabitIds
+        )
+    }
+
+    /// 刷新数据（数据变更后调用）
+    func refresh() {
+        Task { await reload() }
+    }
+
+    // MARK: - 设置绑定
+
+    private func bindDisplaySettings() {
+        displaySettings.$visibleHabitIds
+            .combineLatest(displaySettings.$orderedHabitIds)
+            .sink { [weak self] _, _ in
+                guard let self else { return }
+                Task { await self.reload() }
+            }
+            .store(in: &cancellables)
     }
 }

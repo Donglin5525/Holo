@@ -943,6 +943,238 @@ extension HabitRepository {
             return dayCount > 0 ? Double(recordedDays.count) / Double(dayCount) * 100 : 0
         }
     }
+
+    // MARK: - 月度统计投影
+
+    /// 获取月度总览统计
+    func getOverviewStats(forMonth month: Date, visibleHabitIds: [UUID]?) -> HabitOverviewStats {
+        let calendar = Calendar.current
+        let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: month))!
+        guard let nextMonth = calendar.date(byAdding: .month, value: 1, to: monthStart),
+              let monthEnd = calendar.date(byAdding: .day, value: -1, to: nextMonth) else {
+            return .empty()
+        }
+        let monthRange = monthStart...calendar.date(byAdding: .day, value: 1, to: monthEnd)!
+
+        let habits: [Habit]
+        if let visibleIds = visibleHabitIds, !visibleIds.isEmpty {
+            let visibleSet = Set(visibleIds)
+            habits = activeHabits.filter { visibleSet.contains($0.id) }
+        } else {
+            habits = activeHabits
+        }
+
+        let totalHabits = habits.count
+        guard totalHabits > 0 else { return .empty() }
+
+        let (todayCompleted, _) = getTodayCheckInProgress()
+
+        var totalCompletionRate: Double = 0
+        for habit in habits {
+            if habit.isCheckInType {
+                totalCompletionRate += calculateCheckInCompletionRate(for: habit, in: monthRange)
+            } else if habit.isNumericType {
+                totalCompletionRate += calculateNumericCompletionRate(for: habit, in: monthRange)
+            }
+        }
+
+        let averageCompletionRate = totalCompletionRate / Double(totalHabits)
+        let totalStreak = habits.reduce(0) { $0 + calculateStreak(for: $1) }
+
+        return HabitOverviewStats(
+            todayCompleted: todayCompleted,
+            totalHabits: totalHabits,
+            averageCompletionRate: averageCompletionRate,
+            totalStreak: totalStreak
+        )
+    }
+
+    /// 获取习惯统计展示项（月度）
+    func getHabitStatsDisplayItems(
+        month: Date,
+        visibleHabitIds: [UUID]?,
+        orderedHabitIds: [UUID]?
+    ) -> [HabitStatsDisplayItem] {
+        let calendar = Calendar.current
+        let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: month))!
+        guard let nextMonth = calendar.date(byAdding: .month, value: 1, to: monthStart),
+              let monthEnd = calendar.date(byAdding: .day, value: -1, to: nextMonth) else {
+            return []
+        }
+
+        let habits = orderedHabitsForStats(visibleHabitIds: visibleHabitIds, orderedHabitIds: orderedHabitIds)
+
+        return habits.map { habit in
+            let monthCells = makeMonthCells(for: habit, monthStart: monthStart, monthEnd: monthEnd)
+            let weeks = makeWeekSlices(from: monthCells, monthStart: monthStart)
+            let collapsedWeek = weeks.last(where: { $0.days.contains(where: \.hasRecord) }) ?? weeks.first ?? HabitStatsWeekSlice(weekStart: monthStart, days: [])
+
+            let weekdaySymbols = calendar.shortWeekdaySymbols
+            let rows = stride(from: 0, to: monthCells.count, by: 7).map {
+                Array(monthCells[$0..<min($0 + 7, monthCells.count)])
+            }
+
+            return HabitStatsDisplayItem(
+                habitId: habit.id,
+                name: habit.name,
+                icon: habit.icon,
+                habitColorHex: habit.color,
+                type: statsCardKind(for: habit),
+                summary: statsSummary(for: habit, monthStart: monthStart, monthEnd: monthEnd),
+                collapsedWeek: collapsedWeek,
+                allWeeks: weeks,
+                month: HabitStatsMonthSection(
+                    monthStart: monthStart,
+                    weekdaySymbols: weekdaySymbols,
+                    rows: rows
+                )
+            )
+        }
+    }
+
+    // MARK: - Private Helpers (月度统计)
+
+    /// 按展示设置排序习惯
+    private func orderedHabitsForStats(visibleHabitIds: [UUID]?, orderedHabitIds: [UUID]?) -> [Habit] {
+        let visible = Set(visibleHabitIds ?? activeHabits.map(\.id))
+        let filtered = activeHabits.filter { visible.contains($0.id) }
+        let order = Dictionary(uniqueKeysWithValues: (orderedHabitIds ?? []).enumerated().map { ($1, $0) })
+        return filtered.sorted { (order[$0.id] ?? .max) < (order[$1.id] ?? .max) }
+    }
+
+    /// 构建月份格子
+    private func makeMonthCells(for habit: Habit, monthStart: Date, monthEnd: Date) -> [HabitStatsDayCell] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+
+        let nextDay = calendar.date(byAdding: .day, value: 1, to: monthEnd)!
+        let records = getRecords(for: habit, in: monthStart...nextDay)
+
+        var recordDates = Set<Date>()
+        for record in records {
+            let dayStart = calendar.startOfDay(for: record.date)
+            recordDates.insert(dayStart)
+        }
+
+        let firstWeekday = calendar.component(.weekday, from: monthStart)
+        let weekdayOffset = (firstWeekday - calendar.firstWeekday + 7) % 7
+
+        var cells: [HabitStatsDayCell] = []
+
+        for i in 0..<weekdayOffset {
+            guard let date = calendar.date(byAdding: .day, value: i - weekdayOffset, to: monthStart) else { continue }
+            cells.append(HabitStatsDayCell(
+                date: date,
+                dayNumber: nil,
+                isInCurrentMonth: false,
+                isToday: false,
+                hasRecord: false
+            ))
+        }
+
+        let daysInMonth = calendar.dateComponents([.day], from: monthStart, to: monthEnd).day! + 1
+        for dayOffset in 0..<daysInMonth {
+            guard let date = calendar.date(byAdding: .day, value: dayOffset, to: monthStart) else { continue }
+            let dayStart = calendar.startOfDay(for: date)
+            let dayNumber = calendar.component(.day, from: date)
+            cells.append(HabitStatsDayCell(
+                date: date,
+                dayNumber: dayNumber,
+                isInCurrentMonth: true,
+                isToday: dayStart == today,
+                hasRecord: recordDates.contains(dayStart)
+            ))
+        }
+
+        let remainder = cells.count % 7
+        if remainder > 0 {
+            for i in 0..<(7 - remainder) {
+                guard let date = calendar.date(byAdding: .day, value: i + 1, to: monthEnd) else { continue }
+                cells.append(HabitStatsDayCell(
+                    date: date,
+                    dayNumber: nil,
+                    isInCurrentMonth: false,
+                    isToday: false,
+                    hasRecord: false
+                ))
+            }
+        }
+
+        return cells
+    }
+
+    /// 将月份格子切分为周
+    private func makeWeekSlices(from cells: [HabitStatsDayCell], monthStart: Date) -> [HabitStatsWeekSlice] {
+        guard !cells.isEmpty else { return [] }
+
+        var weeks: [HabitStatsWeekSlice] = []
+        var index = 0
+        while index < cells.count {
+            let endIndex = min(index + 7, cells.count)
+            let weekDays = Array(cells[index..<endIndex])
+            weeks.append(HabitStatsWeekSlice(weekStart: weekDays.first?.date ?? monthStart, days: weekDays))
+            index += 7
+        }
+        return weeks
+    }
+
+    /// 获取习惯的卡片类型
+    private func statsCardKind(for habit: Habit) -> HabitStatsCardKind {
+        if habit.isCheckInType {
+            return .checkIn
+        } else if habit.isCountType {
+            return .count
+        } else {
+            return .measure
+        }
+    }
+
+    /// 计算习惯的月度摘要
+    private func statsSummary(for habit: Habit, monthStart: Date, monthEnd: Date) -> HabitStatsCardSummary {
+        let calendar = Calendar.current
+        let nextDay = calendar.date(byAdding: .day, value: 1, to: monthEnd)!
+        let records = getRecords(for: habit, in: monthStart...nextDay)
+
+        var dailyValues: [Date: Double] = [:]
+        var dailyHasRecord = Set<Date>()
+        for record in records {
+            let dayStart = calendar.startOfDay(for: record.date)
+            dailyHasRecord.insert(dayStart)
+            if let value = record.value?.doubleValue {
+                if habit.isCountType {
+                    dailyValues[dayStart, default: 0] += value
+                } else if habit.isMeasureType {
+                    dailyValues[dayStart] = value
+                }
+            }
+        }
+
+        let recordedDays = dailyHasRecord.count
+        let streak = calculateStreak(for: habit)
+
+        if habit.isCheckInType {
+            return .checkIn(completedDays: recordedDays, streak: streak)
+        } else if habit.isCountType {
+            let total = dailyValues.values.reduce(0, +)
+            let formatted: String
+            if total == floor(total) {
+                formatted = "\(Int(total))次"
+            } else {
+                formatted = "\(String(format: "%.1f", total))次"
+            }
+            return .count(recordedDays: recordedDays, totalCountText: formatted)
+        } else {
+            let avg: Double
+            if dailyValues.isEmpty {
+                avg = 0
+            } else {
+                avg = dailyValues.values.reduce(0, +) / Double(dailyValues.count)
+            }
+            let unit = habit.unit ?? ""
+            let formatted = String(format: "%.1f%@", avg, unit)
+            return .measure(recordedDays: recordedDays, averageValueText: formatted)
+        }
+    }
 }
 
 // MARK: - Update Model

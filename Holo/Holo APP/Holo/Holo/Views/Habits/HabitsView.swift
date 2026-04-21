@@ -2,7 +2,7 @@
 //  HabitsView.swift
 //  Holo
 //
-//  习惯功能首页 - 包含底部导航栏（统计/习惯/新增）
+//  习惯功能首页 - 包含底部导航栏（统计/习惯/设置）
 //  从首页 fullScreenCover 进入，顶部有返回按钮
 //
 
@@ -14,14 +14,14 @@ import SwiftUI
 enum HabitTab: String, CaseIterable {
     case stats = "统计"
     case habits = "习惯"
-    case add = "新增"
-    
+    case settings = "设置"
+
     /// 对应的 SF Symbol 图标名
     var icon: String {
         switch self {
         case .stats: return "chart.bar.fill"
         case .habits: return "checkmark.circle.fill"
-        case .add: return "plus"
+        case .settings: return "gearshape.fill"
         }
     }
 }
@@ -29,12 +29,12 @@ enum HabitTab: String, CaseIterable {
 // MARK: - HabitsView
 
 /// 习惯功能首页视图（容器）
-/// 管理三个子 Tab：统计分析、习惯列表、新增
+/// 管理三个子 Tab：统计分析、习惯列表、设置
 /// 支持从左边缘向右滑动返回首页
 struct HabitsView: View {
-    
+
     // MARK: - Properties
-    
+
     @Environment(\.dismiss) var dismiss
     @State private var selectedTab: HabitTab = .habits
     @State private var showAddHabit: Bool = false
@@ -54,8 +54,8 @@ struct HabitsView: View {
                         onBack: { dismiss() },
                         showAddHabit: $showAddHabit
                     )
-                case .add:
-                    EmptyView()
+                case .settings:
+                    HabitStatsSettingsView(onBack: { dismiss() })
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -68,17 +68,17 @@ struct HabitsView: View {
             AddHabitSheet()
         }
     }
-    
+
     // MARK: - 底部 Tab 栏
-    
-    /// 底部导航栏：吸底全宽，右侧为「+」新增
+
+    /// 底部导航栏：统计 / 习惯 / 设置
     private var habitTabBar: some View {
         GeometryReader { geo in
             let bottomInset = max(geo.safeAreaInsets.bottom, 20)
             HStack(spacing: 0) {
-                habitTabButton(.stats)
-                habitCenterTabButton
-                habitAddButton
+                ForEach(HabitTab.allCases, id: \.self) { tab in
+                    habitTabButton(tab)
+                }
             }
             .frame(maxWidth: .infinity)
             .padding(.top, 8)
@@ -94,8 +94,8 @@ struct HabitsView: View {
         .background(Color.holoCardBackground.ignoresSafeArea(edges: .bottom))
         .zIndex(40)
     }
-    
-    /// 普通 Tab 按钮
+
+    /// Tab 按钮
     private func habitTabButton(_ tab: HabitTab) -> some View {
         Button {
             withAnimation(.easeInOut(duration: 0.15)) {
@@ -106,63 +106,14 @@ struct HabitsView: View {
                 Circle()
                     .fill(selectedTab == tab ? Color.holoPrimary : Color.clear)
                     .frame(width: 4, height: 4)
-                
+
                 Image(systemName: tab.icon)
                     .font(.system(size: 22, weight: .medium))
                     .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
-                
+
                 Text(tab.rawValue)
                     .font(.holoTinyLabel)
                     .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
-            }
-            .frame(maxWidth: .infinity)
-        }
-    }
-    
-    /// 中间 Tab：习惯列表
-    private var habitCenterTabButton: some View {
-        Button {
-            withAnimation(.easeInOut(duration: 0.15)) {
-                selectedTab = .habits
-            }
-        } label: {
-            VStack(spacing: 4) {
-                Circle()
-                    .fill(selectedTab == .habits ? Color.holoPrimary : Color.clear)
-                    .frame(width: 4, height: 4)
-                
-                Image(systemName: HabitTab.habits.icon)
-                    .font(.system(size: 22, weight: .medium))
-                    .foregroundColor(selectedTab == .habits ? .holoPrimary : .holoTextSecondary)
-                
-                Text(HabitTab.habits.rawValue)
-                    .font(.holoTinyLabel)
-                    .foregroundColor(selectedTab == .habits ? .holoPrimary : .holoTextSecondary)
-            }
-            .frame(maxWidth: .infinity)
-        }
-    }
-    
-    /// 右侧新增按钮
-    private var habitAddButton: some View {
-        Button {
-            showAddHabit = true
-        } label: {
-            VStack(spacing: 4) {
-                Circle()
-                    .fill(Color.clear)
-                    .frame(width: 4, height: 4)
-                
-                Image(systemName: "plus")
-                    .font(.system(size: 24, weight: .semibold))
-                    .foregroundColor(.white)
-                    .frame(width: 44, height: 44)
-                    .background(Color.holoPrimary)
-                    .clipShape(Circle())
-                
-                Text("新增")
-                    .font(.holoTinyLabel)
-                    .foregroundColor(.holoPrimary)
             }
             .frame(maxWidth: .infinity)
         }
@@ -181,18 +132,18 @@ enum PendingHabitAction {
 
 /// 习惯列表页面
 struct HabitListView: View {
-    
+
     // MARK: - Properties
-    
+
     let onBack: () -> Void
     @Binding var showAddHabit: Bool
     @StateObject private var repository = HabitRepository.shared
-    
+
     /// 习惯列表（本地缓存，避免直接绑定 @MainActor 单例）
     @State private var habits: [Habit] = []
     /// 今日进度
     @State private var todayProgress: (completed: Int, total: Int) = (0, 0)
-    
+
     /// 选中的习惯（用于 sheet 展示，避免删除后持有已释放对象）
     private struct HabitSelection: Identifiable, Equatable {
         let id: UUID
@@ -200,13 +151,13 @@ struct HabitListView: View {
     @State private var selectedHabit: HabitSelection? = nil
     /// 待执行操作（在 onDismiss 中执行，确保 sheet 完全销毁后再操作 Core Data）
     @State private var pendingAction: PendingHabitAction? = nil
-    
+
     // MARK: - Body
-    
+
     var body: some View {
         VStack(spacing: 0) {
             headerView
-            
+
             ScrollView {
                 LazyVStack(spacing: 16) {
                     ForEach(habits) { habit in
@@ -215,7 +166,7 @@ struct HabitListView: View {
                                 selectedHabit = HabitSelection(id: habit.id)
                             }
                     }
-                    
+
                     if habits.isEmpty {
                         emptyStateView
                     }
@@ -273,9 +224,9 @@ struct HabitListView: View {
             }
         }
     }
-    
+
     // MARK: - 数据加载
-    
+
     private func loadHabits() {
         Task { @MainActor in
             if !repository.isReady {
@@ -288,12 +239,11 @@ struct HabitListView: View {
             todayProgress = repository.getTodayCheckInProgress()
         }
     }
-    
+
     // MARK: - 顶部导航栏
-    
+
     private var headerView: some View {
         HStack {
-            // 返回按钮
             Button {
                 onBack()
             } label: {
@@ -302,40 +252,45 @@ struct HabitListView: View {
                     .foregroundColor(.holoTextPrimary)
                     .frame(width: 44, height: 44)
             }
-            
+
             Spacer()
-            
-            // 标题
+
             Text("习惯")
                 .font(.holoHeading)
                 .foregroundColor(.holoTextPrimary)
-            
+
             Spacer()
-            
-            // 今日进度
-            Text("\(todayProgress.completed)/\(todayProgress.total)")
-                .font(.holoBody)
-                .foregroundColor(.holoTextSecondary)
-                .frame(width: 44, alignment: .trailing)
+
+            // 新增按钮（从底部导航移入习惯 Tab 内部）
+            Button {
+                showAddHabit = true
+            } label: {
+                Image(systemName: "plus")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: 32, height: 32)
+                    .background(Color.holoPrimary)
+                    .clipShape(Circle())
+            }
         }
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, HoloSpacing.sm)
         .background(Color.holoBackground)
     }
-    
+
     // MARK: - 空状态
-    
+
     private var emptyStateView: some View {
         VStack(spacing: 20) {
             Image(systemName: "checkmark.circle")
                 .font(.system(size: 60, weight: .light))
                 .foregroundColor(.holoTextSecondary.opacity(0.5))
-            
+
             Text("还没有习惯")
                 .font(.holoBody)
                 .foregroundColor(.holoTextSecondary)
-            
-            Text("点击右下角 + 创建第一个习惯")
+
+            Text("点击右上角 + 创建第一个习惯")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary.opacity(0.7))
         }
