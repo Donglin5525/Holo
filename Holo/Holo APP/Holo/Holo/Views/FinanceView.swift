@@ -955,7 +955,7 @@ struct FinanceSettingsView: View {
             .padding(.top, 0)
             .padding(.bottom, HoloSpacing.md)
 
-            ScrollView {
+            ScrollView(showsIndicators: false) {
                 VStack(spacing: HoloSpacing.xl) {
                     // 显示设置模块
                     VStack(spacing: 0) {
@@ -1077,7 +1077,8 @@ struct FinanceSettingsView: View {
                         .padding(.horizontal, HoloSpacing.lg)
                     }
                 }
-                .padding(.vertical, HoloSpacing.md)
+                .padding(.top, HoloSpacing.md)
+                .padding(.bottom, 100)
             }
         }
         .background(Color.holoBackground)
