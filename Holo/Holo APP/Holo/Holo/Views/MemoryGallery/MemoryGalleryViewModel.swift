@@ -40,6 +40,21 @@ class MemoryGalleryViewModel: ObservableObject {
     /// 是否显示筛选器
     @Published var showFilter: Bool = false
 
+    /// 全量记忆数（不受分页与筛选影响）
+    @Published var totalMemoryCount: Int = 0
+
+    /// 全量记录天数（不受分页与筛选影响）
+    @Published var totalRecordedDays: Int = 0
+
+    /// 洞察数（预留字段）
+    @Published var totalInsights: Int = 0
+
+    /// 最近 13 周每日主动活跃计数
+    @Published var heatmapData: [Date: Int] = [:]
+
+    /// 当前选中的热力图日期
+    @Published var selectedHeatmapDate: Date?
+
     // MARK: - Private Properties
 
     /// 分页按天计算（每页加载 N 天的数据）
@@ -95,6 +110,12 @@ class MemoryGalleryViewModel: ObservableObject {
             name: .todoDataDidChange,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleDataChange),
+            name: .thoughtDataDidChange,
+            object: nil
+        )
     }
 
     @objc private func handleDataChange() {
@@ -124,6 +145,8 @@ class MemoryGalleryViewModel: ObservableObject {
     func refresh() async {
         currentDayOffset = 0
         hasMoreData = true
+        computeAggregateStats()
+        computeHeatmapData()
         await loadData()
     }
 
@@ -208,6 +231,7 @@ class MemoryGalleryViewModel: ObservableObject {
         items.append(contentsOf: try fetchTransactions())
         items.append(contentsOf: try fetchHabitRecords())
         items.append(contentsOf: try fetchTasks())
+        items.append(contentsOf: try fetchThoughts())
 
         return items.sorted { $0.date > $1.date }
     }
@@ -250,7 +274,7 @@ class MemoryGalleryViewModel: ObservableObject {
         let request = TodoTask.fetchRequest()
         let now = Date()
         request.predicate = NSPredicate(
-            format: "(completed == YES) OR (deletedFlag == NO AND archived == NO AND dueDate < %@)",
+            format: "deletedFlag == NO AND archived == NO AND (completed == YES OR dueDate < %@)",
             now as NSDate
         )
         request.sortDescriptors = [
@@ -260,6 +284,15 @@ class MemoryGalleryViewModel: ObservableObject {
         request.fetchLimit = 200
         let tasks = try context.fetch(request)
         return tasks.map { MemoryItem.from(task: $0) }
+    }
+
+    private func fetchThoughts() throws -> [MemoryItem] {
+        let request = Thought.fetchRequest()
+        request.predicate = NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
+        request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
+        request.fetchLimit = 500
+        let thoughts = try context.fetch(request)
+        return thoughts.map { MemoryItem.from(thought: $0) }
     }
 
     // MARK: - Filtering
@@ -286,6 +319,7 @@ class MemoryGalleryViewModel: ObservableObject {
         case .transaction: return dayItems.filter { $0.type == .transaction }
         case .habitRecord: return dayItems.filter { $0.type == .habitRecord }
         case .task: return dayItems.filter { $0.type == .task }
+        case .thought: return dayItems.filter { $0.type == .thought }
         }
     }
 
@@ -300,6 +334,7 @@ class MemoryGalleryViewModel: ObservableObject {
         case .transaction: return highlights.filter { $0.sourceModule == .transaction }
         case .habitRecord: return highlights.filter { $0.sourceModule == .habitRecord }
         case .task: return highlights.filter { $0.sourceModule == .task }
+        case .thought: return []
         }
     }
 
@@ -320,6 +355,174 @@ class MemoryGalleryViewModel: ObservableObject {
         let calendar = Calendar.current
         let uniqueDays = Set(items.map { calendar.startOfDay(for: $0.date) })
         return Array(uniqueDays).sorted(by: >)
+    }
+
+    // MARK: - Overview Aggregates
+
+    private func computeAggregateStats() {
+        let transactionRequest = Transaction.fetchRequest()
+        let txCount = (try? context.count(for: transactionRequest)) ?? 0
+
+        let activeHabitIds = fetchActiveHabitIds()
+        let habitRecordCount = countHabitRecords(for: activeHabitIds)
+
+        let taskRequest = TodoTask.fetchRequest()
+        taskRequest.predicate = NSPredicate(
+            format: "deletedFlag == NO AND archived == NO AND (completed == YES OR dueDate < %@)",
+            Date() as NSDate
+        )
+        let taskCount = (try? context.count(for: taskRequest)) ?? 0
+
+        let thoughtRequest = Thought.fetchRequest()
+        thoughtRequest.predicate = NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
+        let thoughtCount = (try? context.count(for: thoughtRequest)) ?? 0
+
+        var allDates = Set<Date>()
+        allDates.formUnion(fetchUniqueDates(entityName: "Transaction", key: "date", predicate: nil))
+        allDates.formUnion(fetchHabitRecordDates(for: activeHabitIds))
+        allDates.formUnion(fetchUniqueDates(
+            entityName: "TodoTask",
+            key: "completedAt",
+            predicate: NSPredicate(format: "deletedFlag == NO AND archived == NO AND completed == YES")
+        ))
+        allDates.formUnion(fetchUniqueDates(
+            entityName: "TodoTask",
+            key: "dueDate",
+            predicate: NSPredicate(format: "deletedFlag == NO AND archived == NO AND completed == NO AND dueDate < %@", Date() as NSDate)
+        ))
+        allDates.formUnion(fetchUniqueDates(
+            entityName: "Thought",
+            key: "createdAt",
+            predicate: NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
+        ))
+
+        totalMemoryCount = txCount + habitRecordCount + taskCount + thoughtCount
+        totalRecordedDays = allDates.count
+        totalInsights = 0
+    }
+
+    private func computeHeatmapData() {
+        let today = Date().startOfDay
+        let currentWeekStart = today.startOfWeek
+        let windowStart = currentWeekStart.addingWeeks(-12)
+        let windowEnd = currentWeekStart.addingDays(7)
+        let activeHabitIds = fetchActiveHabitIds()
+
+        var counts: [Date: Int] = [:]
+        mergeDayCounts(into: &counts, fetchDayCounts(
+            entityName: "Transaction",
+            key: "date",
+            predicate: NSPredicate(format: "date >= %@ AND date < %@", windowStart as NSDate, windowEnd as NSDate)
+        ))
+        mergeDayCounts(into: &counts, fetchHabitRecordDayCounts(
+            for: activeHabitIds,
+            start: windowStart,
+            end: windowEnd
+        ))
+        mergeDayCounts(into: &counts, fetchDayCounts(
+            entityName: "TodoTask",
+            key: "completedAt",
+            predicate: NSPredicate(format: "deletedFlag == NO AND archived == NO AND completed == YES AND completedAt >= %@ AND completedAt < %@", windowStart as NSDate, windowEnd as NSDate)
+        ))
+        mergeDayCounts(into: &counts, fetchDayCounts(
+            entityName: "Thought",
+            key: "createdAt",
+            predicate: NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO AND createdAt >= %@ AND createdAt < %@", windowStart as NSDate, windowEnd as NSDate)
+        ))
+
+        heatmapData = counts
+    }
+
+    private func fetchActiveHabitIds() -> [UUID] {
+        let request = Habit.fetchRequest()
+        request.predicate = NSPredicate(format: "isArchived == NO")
+        let habits = (try? context.fetch(request)) ?? []
+        return habits.map(\.id)
+    }
+
+    private func countHabitRecords(for activeHabitIds: [UUID]) -> Int {
+        guard !activeHabitIds.isEmpty else { return 0 }
+        let request = HabitRecord.fetchRequest()
+        request.predicate = NSPredicate(format: "habitId IN %@", activeHabitIds)
+        return (try? context.count(for: request)) ?? 0
+    }
+
+    private func fetchHabitRecordDates(for activeHabitIds: [UUID]) -> Set<Date> {
+        guard !activeHabitIds.isEmpty else { return [] }
+        let request = HabitRecord.fetchRequest()
+        request.predicate = NSPredicate(format: "habitId IN %@", activeHabitIds)
+        let records = (try? context.fetch(request)) ?? []
+        return Set(records.map { $0.date.startOfDay })
+    }
+
+    private func fetchHabitRecordDayCounts(for activeHabitIds: [UUID], start: Date, end: Date) -> [Date: Int] {
+        guard !activeHabitIds.isEmpty else { return [:] }
+        let request = HabitRecord.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "habitId IN %@ AND date >= %@ AND date < %@",
+            activeHabitIds,
+            start as NSDate,
+            end as NSDate
+        )
+        let records = (try? context.fetch(request)) ?? []
+        return records.reduce(into: [Date: Int]()) { result, record in
+            result[record.date.startOfDay, default: 0] += 1
+        }
+    }
+
+    private func fetchUniqueDates(entityName: String, key: String, predicate: NSPredicate?) -> Set<Date> {
+        let request = NSFetchRequest<NSManagedObject>(entityName: entityName)
+        request.predicate = predicate
+        let objects = (try? context.fetch(request)) ?? []
+        return Set(objects.compactMap { ($0.value(forKey: key) as? Date)?.startOfDay })
+    }
+
+    private func fetchDayCounts(entityName: String, key: String, predicate: NSPredicate?) -> [Date: Int] {
+        let request = NSFetchRequest<NSManagedObject>(entityName: entityName)
+        request.predicate = predicate
+        let objects = (try? context.fetch(request)) ?? []
+        return objects.reduce(into: [Date: Int]()) { result, object in
+            guard let date = object.value(forKey: key) as? Date else { return }
+            result[date.startOfDay, default: 0] += 1
+        }
+    }
+
+    private func mergeDayCounts(into target: inout [Date: Int], _ source: [Date: Int]) {
+        for (date, count) in source {
+            target[date, default: 0] += count
+        }
+    }
+
+    // MARK: - Heatmap Timeline Linking
+
+    func findSectionInWeek(of date: Date) -> Date? {
+        let weekStart = date.startOfWeek
+        let weekEnd = weekStart.addingDays(7)
+        return timelineSections.first { section in
+            section.date >= weekStart && section.date < weekEnd
+        }?.id
+    }
+
+    func ensureWeekLoaded(_ date: Date) async {
+        let weekStart = date.startOfWeek
+
+        while findSectionInWeek(of: date) == nil && hasMoreData {
+            let previousOffset = currentDayOffset
+            await loadMore()
+
+            if currentDayOffset == previousOffset {
+                break
+            }
+
+            if let loadedThroughDate, loadedThroughDate < weekStart {
+                break
+            }
+        }
+    }
+
+    private var loadedThroughDate: Date? {
+        guard currentDayOffset > 0 else { return nil }
+        return Date().startOfDay.addingDays(-(currentDayOffset - 1))
     }
 }
 
@@ -383,6 +586,7 @@ enum TimelineSectionBuilder {
         let transactions = items.filter { $0.type == .transaction }
         let habits = items.filter { $0.type == .habitRecord }
         let tasks = items.filter { $0.type == .task }
+        let thoughts = items.filter { $0.type == .thought }
 
         // 总消费（仅支出）
         let totalExpense: Decimal? = transactions.isEmpty ? nil : transactions.reduce(Decimal(0)) { sum, item in
@@ -401,7 +605,8 @@ enum TimelineSectionBuilder {
             totalExpense: totalExpense,
             habitsCompleted: habitsCompleted,
             habitsTotal: habitsTotal,
-            tasksCompleted: tasksCompleted
+            tasksCompleted: tasksCompleted,
+            thoughtCount: thoughts.count
         )
 
         return MemoryTimelineNode(

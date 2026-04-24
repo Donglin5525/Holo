@@ -256,25 +256,57 @@ struct MemoryGalleryView: View {
     // MARK: - Timeline List
 
     private var timelineList: some View {
-        ScrollView(showsIndicators: false) {
-            LazyVStack(alignment: .leading, spacing: 0) {
-                ForEach(viewModel.timelineSections) { section in
-                    timelineSectionView(for: section)
-                        .transition(.opacity)
-                }
+        ScrollViewReader { proxy in
+            ScrollView(showsIndicators: false) {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    overviewSection(scrollProxy: proxy)
+                        .padding(.bottom, HoloSpacing.lg)
 
-                if viewModel.hasMoreData {
-                    loadMoreIndicator
-                } else {
-                    Text("已加载全部")
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextPlaceholder)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, HoloSpacing.lg)
+                    ForEach(viewModel.timelineSections) { section in
+                        timelineSectionView(for: section)
+                            .id(section.id)
+                            .transition(.opacity)
+                    }
+
+                    if viewModel.hasMoreData {
+                        loadMoreIndicator
+                    } else {
+                        Text("已加载全部")
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextPlaceholder)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, HoloSpacing.lg)
+                    }
+                }
+                .padding(.horizontal, HoloSpacing.md)
+                .padding(.vertical, HoloSpacing.md)
+            }
+        }
+    }
+
+    private func overviewSection(scrollProxy: ScrollViewProxy) -> some View {
+        VStack(spacing: HoloSpacing.md) {
+            MemoryStatsSummaryView(
+                memoryCount: viewModel.totalMemoryCount,
+                recordedDays: viewModel.totalRecordedDays,
+                insightCount: viewModel.totalInsights
+            )
+
+            MemoryHeatmapView(
+                data: viewModel.heatmapData,
+                selectedDate: viewModel.selectedHeatmapDate
+            ) { date in
+                Task {
+                    viewModel.selectedHeatmapDate = date
+                    await viewModel.ensureWeekLoaded(date)
+
+                    if let target = viewModel.findSectionInWeek(of: date) {
+                        withAnimation(.easeInOut(duration: 0.25)) {
+                            scrollProxy.scrollTo(target, anchor: .top)
+                        }
+                    }
                 }
             }
-            .padding(.horizontal, HoloSpacing.md)
-            .padding(.vertical, HoloSpacing.md)
         }
     }
 

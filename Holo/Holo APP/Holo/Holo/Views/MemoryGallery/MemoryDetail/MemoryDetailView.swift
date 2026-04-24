@@ -141,6 +141,8 @@ struct MemoryDetailView: View {
                 EmptyView()
             case .task:
                 EmptyView()
+            case .thought:
+                EmptyView()
             }
         }
         .background(Color.holoCardBackground)

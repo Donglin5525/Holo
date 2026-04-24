@@ -79,6 +79,8 @@ struct DailySummaryData {
     let habitsTotal: Int
     /// 完成任务数
     let tasksCompleted: Int
+    /// 观点数
+    let thoughtCount: Int
 }
 
 // MARK: - HighlightData

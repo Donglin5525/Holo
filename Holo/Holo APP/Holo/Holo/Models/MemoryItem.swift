@@ -17,12 +17,14 @@ enum MemoryItemType: String, CaseIterable {
     case transaction = "transaction"
     case habitRecord = "habitRecord"
     case task = "task"
+    case thought = "thought"
 
     var displayName: String {
         switch self {
         case .transaction: return "记账"
         case .habitRecord: return "习惯"
         case .task: return "待办"
+        case .thought: return "观点"
         }
     }
 
@@ -31,6 +33,7 @@ enum MemoryItemType: String, CaseIterable {
         case .transaction: return "creditcard.fill"
         case .habitRecord: return "checkmark.circle.fill"
         case .task: return "checklist"
+        case .thought: return "lightbulb.fill"
         }
     }
 }
@@ -43,6 +46,7 @@ enum MemoryModuleFilter: String, CaseIterable, Identifiable {
     case transaction = "transaction"
     case habitRecord = "habitRecord"
     case task = "task"
+    case thought = "thought"
 
     var id: String { rawValue }
 
@@ -52,6 +56,7 @@ enum MemoryModuleFilter: String, CaseIterable, Identifiable {
         case .transaction: return "记账"
         case .habitRecord: return "习惯"
         case .task: return "待办"
+        case .thought: return "观点"
         }
     }
 }
@@ -153,6 +158,26 @@ extension MemoryItem {
             note: task.desc,
             createdAt: task.createdAt,
             sourceId: task.id
+        )
+    }
+
+    /// 从观点创建 MemoryItem
+    static func from(thought: Thought) -> MemoryItem {
+        let title = thought.previewText.isEmpty ? "未命名观点" : thought.previewText
+        let subtitle = thought.moodType?.displayName
+
+        return MemoryItem(
+            id: thought.id,
+            type: .thought,
+            date: thought.createdAt,
+            title: title,
+            subtitle: subtitle,
+            icon: "lightbulb.fill",
+            colorHex: "#F59E0B",
+            amount: nil,
+            note: thought.content,
+            createdAt: thought.createdAt,
+            sourceId: thought.id
         )
     }
 }
