@@ -43,7 +43,7 @@
 
 | 功能 | 状态 | 说明 |
 |------|------|------|
-| 热力图 + 统计概览 + 观点接入 | 📋 待开发 | 方案已完成：`docs/_common/plans/记忆长廊热力图功能方案.md` |
+| 热力图 + 统计概览 + 观点接入 | ✅ 已完成 | `MemoryHeatmapView` + `MemoryStatsSummaryView` + Thought 已接入 |
 | fetchTasks() 谓词 bug | 🔴 高 | 已删除的已完成任务不应出现，需补 `deletedFlag == NO AND archived == NO` |
 | 里程碑触发日期修正 | 🔴 高 | 里程碑应标记在达成日期，而非永远"今天" |
 | 节点时间线连接线 | 🟡 中 | 高亮/里程碑与左侧竖线缺少视觉连接 |
@@ -122,11 +122,19 @@
 |------|----------|------|
 | 图片附件 | `docs/todo/plans/TASK_IMAGE_ATTACHMENT_PLAN.md` | 每任务最多 9 张图，PhotosPicker 集成，缩略图网格 + 全屏查看器，待确认 |
 
+### 观点模块
+
+| 项目 | 规划文档 | 说明 |
+|------|----------|------|
+| 观点编辑器改造 | `docs/chat/plans/04-观点编辑器体验优化方案.md` | 纯文本优先 + 智能辅助，替换当前富文本 MarkdownTextView，待确认 |
+
 ### 记账模块
 
 | 项目 | 规划文档 | 说明 |
 |------|----------|------|
 | 多账户功能 P1 | `docs/finance/plans/多账户功能产品方案.md` | P1: 账户转账 + 按账户筛选分析；P2: 多币种 + 信用卡额度管理 |
+| 预算功能 | `docs/finance/plans/预算功能产品方案.md` | ✅ Phase 1 已完成（账户级总预算 + 进度追踪 + BudgetSettingsSheet），Phase 2 分类预算待开发 |
+| 预算首页展示 + 分类预算 | 待规划 | 1) 记账首页展示预算进度卡片；2) 支持按科目（一级分类）设置预算，如"奶茶不超过 ¥300/月" |
 
 ---
 
@@ -185,6 +193,7 @@
 | 记忆长廊空状态 CTA + 错误状态重试 UI | 近期 |
 | 观点模块搜索功能（ThoughtSearchBarView + 搜索结果高亮） | 近期 |
 | 多账户功能 P0（余额追踪 + 账户选择记账 + 管理 UI + 净资产 + 余额调整 + 系统分类保护） | 2026-04-18 |
+| 记忆长廊热力图 + 统计概览 + 观点接入（MemoryHeatmapView + MemoryStatsSummaryView） | 近期 |
 | 多账户 P0 Bug 修复（CategoryPicker 过滤系统分类 + TransactionRowView 显示账户名 + AccountPicker 余额显示/过滤归档 + 批量导入账户样式） | 2026-04-18 |
 | AI Chat 多账户上下文感知（UserContextBuilder 账户摘要 + AI 可用账户上下文 + 确认文本显示账户名） | 2026-04-18 |
 | MonthlySummaryCard UI 优化（垂直布局重设计 + "今日"标签 + 环比文案改为"较上月同期" + 移除环比箭头图标） | 2026-04-18 |
@@ -193,3 +202,4 @@
 | Prompt 版本管理（自动回滚 + 重置/保存版本同步修复） | 2026-04-19 |
 | 数字习惯快速打卡 bug 修复 + Holo One 可配置快速打卡功能部署 | 2026-04-19 |
 | 图标库扩容与分组展示（88→171 图标，12 展示分组，CategoryIconCatalog + IconPickerGrid 重构） | 2026-04-19 |
+| 预算功能 Phase 1（账户级总预算 + 进度追踪 + BudgetSettingsSheet + AccountDetailView 集成） | 2026-04-24 |

@@ -14,8 +14,10 @@ struct AccountDetailView: View {
     @State private var balance: Decimal = 0
     @State private var monthlySummary: (income: Decimal, expense: Decimal, net: Decimal) = (0, 0, 0)
     @State private var transactions: [Transaction] = []
+    @State private var budgetStatus: BudgetStatus?
     @State private var showEditSheet = false
     @State private var showAdjustBalance = false
+    @State private var showBudgetSettings = false
     @State private var showDeleteConfirm = false
     @State private var errorMessage: String?
     @State private var showError = false
@@ -25,6 +27,9 @@ struct AccountDetailView: View {
             VStack(spacing: HoloSpacing.xl) {
                 // 账户信息头部
                 accountHeader
+
+                // 月度预算卡片
+                budgetCard
 
                 // 月度统计
                 monthlyStatsCard
@@ -50,6 +55,12 @@ struct AccountDetailView: View {
                         showAdjustBalance = true
                     } label: {
                         Label("调整余额", systemImage: "arrow.triangle.2.circlepath")
+                    }
+
+                    Button {
+                        showBudgetSettings = true
+                    } label: {
+                        Label("预算设置", systemImage: "chart.line.uptrend.xyaxis")
                     }
 
                     if account.isDefault {
@@ -108,6 +119,14 @@ struct AccountDetailView: View {
         }
         .sheet(isPresented: $showAdjustBalance) {
             AdjustBalanceSheet(account: account) {
+                loadData()
+            }
+        }
+        .sheet(isPresented: $showBudgetSettings) {
+            BudgetSettingsSheet(
+                account: account,
+                existingBudget: budgetStatus?.budget
+            ) {
                 loadData()
             }
         }
@@ -181,6 +200,122 @@ struct AccountDetailView: View {
         .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
+    }
+
+    // MARK: - Budget Card
+
+    private var budgetCard: some View {
+        Group {
+            if let status = budgetStatus {
+                // 有预算：显示进度卡片
+                budgetProgressCard(status)
+            } else {
+                // 无预算：显示引导卡片
+                budgetEmptyCard
+            }
+        }
+    }
+
+    private func budgetProgressCard(_ status: BudgetStatus) -> some View {
+        VStack(spacing: HoloSpacing.md) {
+            Text("月度预算")
+                .font(.holoLabel)
+                .foregroundColor(.holoTextSecondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            // 进度条
+            GeometryReader { geometry in
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.holoDivider.opacity(0.3))
+                        .frame(height: 12)
+
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(budgetProgressColor(status.progress))
+                        .frame(
+                            width: geometry.size.width * min(CGFloat(status.progress), 1.0),
+                            height: 12
+                        )
+                }
+            }
+            .frame(height: 12)
+
+            // 金额和进度百分比
+            HStack {
+                Text("\(formatAmount(status.spentAmount)) / \(formatAmount(status.budgetAmount))")
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                    .foregroundColor(.holoTextPrimary)
+
+                Spacer()
+
+                Text("\(Int(status.progress * 100))%")
+                    .font(.system(size: 14, weight: .bold, design: .rounded))
+                    .foregroundColor(budgetProgressColor(status.progress))
+            }
+
+            // 剩余信息
+            HStack {
+                if status.isOverBudget {
+                    Text("已超支 \(formatAmount(abs(status.remainingAmount)))")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoError)
+                } else {
+                    Text("剩余 \(formatAmount(status.remainingAmount))")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                }
+
+                Text("·")
+                    .foregroundColor(.holoTextSecondary)
+
+                Text("\(status.remainingDays)天")
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary)
+            }
+        }
+        .padding(HoloSpacing.md)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+        .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
+    }
+
+    private var budgetEmptyCard: some View {
+        Button {
+            showBudgetSettings = true
+        } label: {
+            HStack(spacing: HoloSpacing.md) {
+                Image(systemName: "chart.line.uptrend.xyaxis")
+                    .font(.system(size: 20))
+                    .foregroundColor(.holoTextSecondary)
+
+                Text("点击设置月度预算")
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextSecondary)
+
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.holoTextSecondary)
+            }
+            .padding(HoloSpacing.md)
+            .background(Color.holoCardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+            .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
+        }
+    }
+
+    /// 根据进度返回对应颜色
+    private func budgetProgressColor(_ progress: Double) -> Color {
+        if progress >= 1.0 {
+            return .holoError
+        } else if progress >= 0.8 {
+            return .holoPrimary
+        } else if progress >= 0.6 {
+            return .holoChart8
+        } else {
+            return .holoSuccess
+        }
     }
 
     // MARK: - Monthly Stats
@@ -323,6 +458,10 @@ struct AccountDetailView: View {
             month: Date()
         )
         transactions = FinanceRepository.shared.getAccountTransactions(accountId: account.id)
+        budgetStatus = BudgetRepository.shared.computeTotalBudgetStatus(
+            forAccount: account.id,
+            period: .month
+        )
     }
 
     private func formatAmount(_ amount: Decimal) -> String {

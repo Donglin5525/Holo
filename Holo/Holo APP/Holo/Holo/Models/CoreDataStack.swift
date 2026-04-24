@@ -131,7 +131,7 @@ class CoreDataStack {
 
     // MARK: - Finance Entities
 
-    /// 创建财务相关实体（Transaction, Category, Account, HomeIconConfig）
+    /// 创建财务相关实体（Transaction, Category, Account, HomeIconConfig, Budget）
     nonisolated private func createFinanceEntities() -> [NSEntityDescription] {
         // MARK: - Transaction Entity
         let transactionEntity = NSEntityDescription()
@@ -470,7 +470,74 @@ class CoreDataStack {
         
         homeIconConfigEntity.properties = homeIconAttributes
 
-        return [transactionEntity, categoryEntity, accountEntity, homeIconConfigEntity]
+        // MARK: - Budget Entity
+        // 预算实体，支持账户级月度/周度/年度支出上限设置
+        let budgetEntity = NSEntityDescription()
+        budgetEntity.name = "Budget"
+        budgetEntity.managedObjectClassName = "Budget"
+
+        var budgetAttributes: [NSAttributeDescription] = []
+
+        let budgetId = NSAttributeDescription()
+        budgetId.name = "id"
+        budgetId.attributeType = .UUIDAttributeType
+        budgetId.isOptional = false
+        budgetId.isIndexed = true
+        budgetAttributes.append(budgetId)
+
+        // 所属账户 ID（轻量 UUID 引用，非 Relationship）
+        let budgetAccountId = NSAttributeDescription()
+        budgetAccountId.name = "accountId"
+        budgetAccountId.attributeType = .UUIDAttributeType
+        budgetAccountId.isOptional = false
+        budgetAccountId.isIndexed = true
+        budgetAttributes.append(budgetAccountId)
+
+        // 分类 ID（nil=总预算，非nil=分类预算 Phase 2）
+        let budgetCategoryId = NSAttributeDescription()
+        budgetCategoryId.name = "categoryId"
+        budgetCategoryId.attributeType = .UUIDAttributeType
+        budgetCategoryId.isOptional = true
+        budgetCategoryId.isIndexed = true
+        budgetAttributes.append(budgetCategoryId)
+
+        // 预算金额
+        let budgetAmount = NSAttributeDescription()
+        budgetAmount.name = "amount"
+        budgetAmount.attributeType = .decimalAttributeType
+        budgetAmount.isOptional = false
+        budgetAttributes.append(budgetAmount)
+
+        // 预算周期（BudgetPeriod.rawValue: week/month/year）
+        let budgetPeriod = NSAttributeDescription()
+        budgetPeriod.name = "period"
+        budgetPeriod.attributeType = .stringAttributeType
+        budgetPeriod.isOptional = false
+        budgetPeriod.isIndexed = true
+        budgetAttributes.append(budgetPeriod)
+
+        // 预算起始日期
+        let budgetStartDate = NSAttributeDescription()
+        budgetStartDate.name = "startDate"
+        budgetStartDate.attributeType = .dateAttributeType
+        budgetStartDate.isOptional = false
+        budgetAttributes.append(budgetStartDate)
+
+        let budgetCreatedAt = NSAttributeDescription()
+        budgetCreatedAt.name = "createdAt"
+        budgetCreatedAt.attributeType = .dateAttributeType
+        budgetCreatedAt.isOptional = false
+        budgetAttributes.append(budgetCreatedAt)
+
+        let budgetUpdatedAt = NSAttributeDescription()
+        budgetUpdatedAt.name = "updatedAt"
+        budgetUpdatedAt.attributeType = .dateAttributeType
+        budgetUpdatedAt.isOptional = false
+        budgetAttributes.append(budgetUpdatedAt)
+
+        budgetEntity.properties = budgetAttributes
+
+        return [transactionEntity, categoryEntity, accountEntity, homeIconConfigEntity, budgetEntity]
     }
 
     // MARK: - Habit Entities
