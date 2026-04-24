@@ -359,8 +359,10 @@ struct FinanceLedgerView: View {
                 .clipped()
                 .allowsHitTesting(effectiveCalendarHeight > 0)
             
-            // 拖拽手柄
-            calendarDragHandle
+            // ===== Bottom Sheet 容器 =====
+            VStack(spacing: 0) {
+                // 拖拽手柄
+                calendarDragHandle
             
             // 收支概览
             summaryCards
@@ -407,6 +409,9 @@ struct FinanceLedgerView: View {
                         }
                     }
             )
+            }
+            .background(Color.holoCardBackground)
+            .clipShape(UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24))
         }
         .background(Color.holoBackground)
         // --- 弹窗月历（底部抽屉） ---
@@ -533,11 +538,12 @@ struct FinanceLedgerView: View {
     private var calendarDragHandle: some View {
         VStack(spacing: 0) {
             Capsule()
-                .fill(Color.holoTextSecondary.opacity(0.25))
-                .frame(width: 36, height: 4)
+                .fill(Color.holoTextSecondary.opacity(0.3))
+                .frame(width: 36, height: 5)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: 16)
+        .padding(.top, 8)
+        .padding(.bottom, 16)
         .contentShape(Rectangle())
         .gesture(
             DragGesture(minimumDistance: 4)
@@ -574,33 +580,32 @@ struct FinanceLedgerView: View {
                     monthlyCard("本月支出", amount: calendarState.currentMonthExpense,
                                 previous: calendarState.previousPeriodExpense,
                                 icon: "arrow.down.right", color: .holoError,
-                                light: Color.holoErrorLight, compact: true)
+                                compact: true)
                     monthlyCard("本月收入", amount: calendarState.currentMonthIncome,
                                 previous: calendarState.previousPeriodIncome,
                                 icon: "arrow.up.right", color: .holoSuccess,
-                                light: Color.holoSuccessLight, compact: true)
+                                compact: true)
                 }
             } else if showExpense {
                 monthlyCard("本月支出", amount: calendarState.currentMonthExpense,
                             previous: calendarState.previousPeriodExpense,
                             icon: "arrow.down.right", color: .holoError,
-                            light: Color.holoErrorLight, compact: false,
+                            compact: false,
                             todayAmount: calendarState.selectedDayExpense)
             } else if showIncome {
                 monthlyCard("本月收入", amount: calendarState.currentMonthIncome,
                             previous: calendarState.previousPeriodIncome,
                             icon: "arrow.up.right", color: .holoSuccess,
-                            light: Color.holoSuccessLight, compact: false,
+                            compact: false,
                             todayAmount: calendarState.selectedDayIncome)
             }
         }
         .padding(.horizontal, 14)
-        .padding(.vertical, HoloSpacing.sm)
     }
 
     /// 构建月度卡片，减少重复代码
     private func monthlyCard(_ title: String, amount: Decimal, previous: Decimal?,
-                             icon: String, color: Color, light: Color, compact: Bool,
+                             icon: String, color: Color, compact: Bool,
                              todayAmount: Decimal? = nil) -> some View {
         MonthlySummaryCard(
             title: title,
@@ -608,9 +613,6 @@ struct FinanceLedgerView: View {
             previousAmount: previous,
             iconName: icon,
             iconColor: color,
-            gradientStart: light.opacity(0.5),
-            gradientEnd: Color.holoCardBackground.opacity(0.2),
-            strokeColor: color.opacity(0.12),
             isCompact: compact,
             todayAmount: todayAmount
         )
@@ -627,7 +629,7 @@ struct FinanceLedgerView: View {
                 Spacer()
             }
             .padding(.horizontal, HoloSpacing.lg)
-            .padding(.top, HoloSpacing.sm)
+            .padding(.top, 24)
             .padding(.bottom, HoloSpacing.xs)
             
             VStack(spacing: 0) {
@@ -653,13 +655,6 @@ struct FinanceLedgerView: View {
                                 Label("删除", systemImage: "trash")
                             }
                         }
-
-                    // 最后一行不显示分隔线
-                    if index < calendarState.selectedDayTransactions.count - 1 {
-                        Divider()
-                            .background(Color.holoTextSecondary.opacity(0.12))
-                            .padding(.leading, 76)
-                    }
                 }
 
                 if calendarState.selectedDayTransactions.isEmpty && !calendarState.isLoading {
@@ -1286,7 +1281,7 @@ struct TransactionRowView: View {
             .frame(maxWidth: .infinity)
             .padding(.leading, 11)
             .padding(.trailing, HoloSpacing.md)
-            .padding(.vertical, 12)
+            .padding(.vertical, 10)
         }
         .buttonStyle(PlainButtonStyle())
     }
@@ -1295,7 +1290,7 @@ struct TransactionRowView: View {
     private var categoryIcon: some View {
         ZStack {
             Circle()
-                .fill(transaction.category.swiftUIColor.opacity(0.1))
+                .fill(transaction.category.swiftUIColor.opacity(0.08))
                 .frame(width: 48, height: 48)
 
             transactionCategoryIcon(transaction.category, size: 24)

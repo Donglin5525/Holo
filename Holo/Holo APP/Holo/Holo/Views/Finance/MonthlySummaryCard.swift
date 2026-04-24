@@ -2,7 +2,7 @@
 //  MonthlySummaryCard.swift
 //  Holo
 //
-//  月度收支概览卡片 — 含环比对比 + 今日支出
+//  月度收支概览卡片 — 左右两列布局（本月数据 | 今日数据）
 //  支持全宽（单卡片）和紧凑（双卡片并排）两种模式
 //
 
@@ -14,29 +14,21 @@ struct MonthlySummaryCard: View {
     let previousAmount: Decimal?
     let iconName: String
     let iconColor: Color
-    let gradientStart: Color
-    let gradientEnd: Color
-    let strokeColor: Color
     let isCompact: Bool
 
-    /// 今日支出金额（nil 时不显示）
+    /// 今日金额（nil 时不显示右列）
     var todayAmount: Decimal? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            // Row 1: 标签行 — 图标+标题(左) | 今日(右)
+            // Row 1: 标题行 — 左侧图标+标题 | 右侧"今日"
             HStack(alignment: .center) {
-                HStack(spacing: HoloSpacing.sm) {
-                    ZStack {
-                        Circle()
-                            .fill(iconColor.opacity(0.08))
-                            .frame(width: 24, height: 24)
-                        Image(systemName: iconName)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundColor(iconColor)
-                    }
+                HStack(spacing: 4) {
+                    Image(systemName: iconName)
+                        .font(.system(size: 13))
+                        .foregroundColor(iconColor)
                     Text(title)
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundColor(.holoTextSecondary)
                 }
 
@@ -44,22 +36,22 @@ struct MonthlySummaryCard: View {
 
                 if todayAmount != nil {
                     Text("今日")
-                        .font(.system(size: 12, weight: .medium))
+                        .font(.system(size: 13, weight: .medium))
                         .foregroundColor(.holoTextPlaceholder)
                 }
             }
 
-            // Row 2: 金额行 — 本月金额(左) | 今日金额(右)
+            // Row 2: 金额行 — 本月金额(左) | 今日金额(右)，基线对齐
             HStack(alignment: .firstTextBaseline) {
-                Text(NumberFormatter.currency.string(from: amount as NSDecimalNumber) ?? "¥0.00")
-                    .font(isCompact ? .system(size: 17, weight: .bold) : .system(size: 22, weight: .bold))
+                Text(formatAmount(amount))
+                    .font(.system(size: isCompact ? 20 : 32, weight: .bold))
                     .foregroundColor(.holoTextPrimary)
 
                 Spacer(minLength: 0)
 
                 if let today = todayAmount {
-                    Text(NumberFormatter.currency.string(from: today as NSDecimalNumber) ?? "¥0.00")
-                        .font(isCompact ? .system(size: 17, weight: .bold) : .system(size: 22, weight: .bold))
+                    Text(formatAmount(today))
+                        .font(.system(size: isCompact ? 16 : 24, weight: .bold))
                         .foregroundColor(.holoTextPrimary)
                 }
             }
@@ -70,27 +62,19 @@ struct MonthlySummaryCard: View {
                     comparisonView(current: amount, previous: prev)
                 } else {
                     Text(" ")
-                        .font(.system(size: 11, weight: .medium))
+                        .font(.system(size: 12, weight: .medium))
                 }
             }
         }
-        .padding(HoloSpacing.md)
-        .background {
-            ZStack {
-                Rectangle().fill(.ultraThinMaterial)
-                LinearGradient(
-                    colors: [gradientStart, gradientEnd],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .opacity(0.6)
-            }
-        }
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.xl))
-        .overlay(
-            RoundedRectangle(cornerRadius: HoloRadius.xl)
-                .stroke(strokeColor, lineWidth: 0.5)
-        )
+        .padding(20)
+        .background(.ultraThinMaterial)
+        .clipShape(RoundedRectangle(cornerRadius: 16))
+    }
+
+    // MARK: - Helper
+
+    private func formatAmount(_ value: Decimal) -> String {
+        NumberFormatter.currency.string(from: value as NSDecimalNumber) ?? "¥0.00"
     }
 
     // MARK: - 环比视图
@@ -105,10 +89,10 @@ struct MonthlySummaryCard: View {
         Group {
             if isNeutral {
                 Text("与上月同期持平")
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: 12, weight: .medium))
             } else {
                 Text(String(format: "较上月同期%.1f%%", percentage))
-                    .font(.system(size: 11, weight: .medium))
+                    .font(.system(size: 12, weight: .medium))
             }
         }
         .foregroundColor(isIncrease ? .holoError : (isNeutral ? .holoTextSecondary : .holoSuccess))

@@ -63,7 +63,7 @@ struct WeekView: View {
             )
         }
         .padding(.top, 4)
-        .padding(.bottom, 8)
+        .padding(.bottom, 2)
     }
     
     /// 两阶段动画：快速滑出 → 更新数据 → 弹入
