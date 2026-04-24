@@ -574,8 +574,7 @@ struct FinanceLedgerView: View {
                     monthlyCard("本月支出", amount: calendarState.currentMonthExpense,
                                 previous: calendarState.previousPeriodExpense,
                                 icon: "arrow.down.right", color: .holoError,
-                                light: Color.holoErrorLight, compact: true,
-                                todayAmount: calendarState.selectedDayExpense)
+                                light: Color.holoErrorLight, compact: true)
                     monthlyCard("本月收入", amount: calendarState.currentMonthIncome,
                                 previous: calendarState.previousPeriodIncome,
                                 icon: "arrow.up.right", color: .holoSuccess,
@@ -591,7 +590,8 @@ struct FinanceLedgerView: View {
                 monthlyCard("本月收入", amount: calendarState.currentMonthIncome,
                             previous: calendarState.previousPeriodIncome,
                             icon: "arrow.up.right", color: .holoSuccess,
-                            light: Color.holoSuccessLight, compact: false)
+                            light: Color.holoSuccessLight, compact: false,
+                            todayAmount: calendarState.selectedDayIncome)
             }
         }
         .padding(.horizontal, 14)
@@ -984,6 +984,19 @@ struct FinanceSettingsView: View {
                                 iconColor: .holoSuccess,
                                 isOn: $displaySettings.showMonthlyIncome
                             )
+
+                            if displaySettings.showMonthlyExpense && displaySettings.showMonthlyIncome {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "info.circle")
+                                        .font(.system(size: 11))
+                                    Text("双卡并排时隐藏「今日」金额，仅单独展示时显示")
+                                        .font(.system(size: 11))
+                                }
+                                .foregroundColor(.holoTextPlaceholder)
+                                .padding(.horizontal, HoloSpacing.lg)
+                                .padding(.top, HoloSpacing.xs)
+                                .padding(.bottom, HoloSpacing.xs)
+                            }
                         }
                         .padding(HoloSpacing.md)
                         .background(Color.holoCardBackground)

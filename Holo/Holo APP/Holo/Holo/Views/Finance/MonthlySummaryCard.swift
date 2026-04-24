@@ -64,9 +64,14 @@ struct MonthlySummaryCard: View {
                 }
             }
 
-            // Row 3: 环比（仅在有对比数据时显示）
-            if let prev = previousAmount, prev > 0 {
-                comparisonView(current: amount, previous: prev)
+            // Row 3: 环比（始终占位，保持双卡片高度一致）
+            Group {
+                if let prev = previousAmount, prev > 0 {
+                    comparisonView(current: amount, previous: prev)
+                } else {
+                    Text(" ")
+                        .font(.system(size: 11, weight: .medium))
+                }
             }
         }
         .padding(HoloSpacing.md)
