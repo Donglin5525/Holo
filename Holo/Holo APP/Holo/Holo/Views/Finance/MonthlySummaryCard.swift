@@ -46,6 +46,8 @@ struct MonthlySummaryCard: View {
                 Text(formatAmount(amount))
                     .font(.system(size: isCompact ? 20 : 32, weight: .bold))
                     .foregroundColor(.holoTextPrimary)
+                    .minimumScaleFactor(0.7)
+                    .lineLimit(1)
 
                 Spacer(minLength: 0)
 
@@ -53,6 +55,8 @@ struct MonthlySummaryCard: View {
                     Text(formatAmount(today))
                         .font(.system(size: isCompact ? 16 : 24, weight: .bold))
                         .foregroundColor(.holoTextPrimary)
+                        .minimumScaleFactor(0.7)
+                        .lineLimit(1)
                 }
             }
 
@@ -74,7 +78,10 @@ struct MonthlySummaryCard: View {
     // MARK: - Helper
 
     private func formatAmount(_ value: Decimal) -> String {
-        NumberFormatter.currency.string(from: value as NSDecimalNumber) ?? "¥0.00"
+        if isCompact {
+            return NumberFormatter.compactCurrency(value)
+        }
+        return NumberFormatter.currency.string(from: value as NSDecimalNumber) ?? "¥0.00"
     }
 
     // MARK: - 环比视图

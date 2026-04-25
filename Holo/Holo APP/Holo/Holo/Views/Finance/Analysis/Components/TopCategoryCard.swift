@@ -34,7 +34,7 @@ struct TopCategoryCard: View {
             }
         }
         .padding(HoloSpacing.md)
-        .frame(maxWidth: .infinity, minHeight: cardHeight, maxHeight: cardHeight)
+        .frame(maxWidth: .infinity, minHeight: cardHeight, maxHeight: cardHeight, alignment: .topLeading)
         .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
     }
@@ -93,16 +93,16 @@ struct CategoryRankRow: View {
                     .font(.system(size: 13))
                     .foregroundColor(.holoTextPrimary)
                     .lineLimit(1)
-                    .truncationMode(.tail)
+                    .layoutPriority(1)
 
                 Spacer(minLength: 4)
 
-                // 金额 - 固定宽度确保完整显示
-                Text(aggregation.formattedAmount)
+                // 金额 - 紧凑格式，大额自动使用万/亿单位
+                Text(aggregation.formattedCompactAmount)
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(accentColor)
                     .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
+                    .minimumScaleFactor(0.7)
             }
             .padding(.vertical, 6)
             .contentShape(Rectangle())

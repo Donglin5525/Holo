@@ -46,9 +46,11 @@ struct BudgetSummaryCard: View {
             }
             .frame(height: 6)
 
-            Text(formatAmount(summary.totalBudgetAmount))
+            Text(NumberFormatter.compactCurrency(summary.totalBudgetAmount))
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
                 .foregroundColor(.holoTextPrimary)
+                .minimumScaleFactor(0.7)
+                .lineLimit(1)
                 .layoutPriority(1)
         }
         .padding(.horizontal, HoloSpacing.md)
@@ -67,8 +69,5 @@ struct BudgetSummaryCard: View {
         else { return [.holoSuccess, Color(red: 0.29, green: 0.87, blue: 0.50)] }
     }
 
-    private func formatAmount(_ amount: Decimal) -> String {
-        NumberFormatter.currency.string(from: NSDecimalNumber(decimal: amount)) ?? "¥0"
-    }
 }
 

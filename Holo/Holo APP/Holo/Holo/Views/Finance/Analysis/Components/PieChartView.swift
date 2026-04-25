@@ -462,14 +462,18 @@ struct PieChartView: View {
                     .foregroundColor(.holoTextPrimary)
                     .lineLimit(1)
                     .transition(.opacity)
-                Text(agg.formattedAmount)
+                Text(agg.formattedCompactAmount)
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(agg.category.swiftUIColor)
+                    .minimumScaleFactor(0.7)
+                    .lineLimit(1)
                     .transition(.scale.combined(with: .opacity))
             } else {
-                Text(NumberFormatter.currency.string(from: totalAmount as NSDecimalNumber) ?? "¥0")
+                Text(NumberFormatter.compactCurrency(totalAmount))
                     .font(.system(size: 16, weight: .bold))
                     .foregroundColor(.holoTextPrimary)
+                    .minimumScaleFactor(0.7)
+                    .lineLimit(1)
             }
         }
         .animation(.easeInOut(duration: 0.25), value: effectiveCategory?.id)

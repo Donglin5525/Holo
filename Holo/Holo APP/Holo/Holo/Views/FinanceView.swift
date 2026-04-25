@@ -1181,9 +1181,11 @@ struct SummaryCard: View {
             Spacer(minLength: 16)
             
             // 金额，留白呼吸
-            Text(NumberFormatter.currency.string(from: amount as NSDecimalNumber) ?? "¥0.00")
+            Text(NumberFormatter.compactCurrency(amount))
                 .font(.holoHeading)
                 .foregroundColor(.holoTextPrimary)
+                .minimumScaleFactor(0.7)
+                .lineLimit(1)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .frame(height: 136)
@@ -1294,11 +1296,12 @@ struct TransactionRowView: View {
 
                 Spacer(minLength: 0)
 
-                // 金额：右侧严格对齐，不压缩（不显示正负号，类型通过颜色区分）
+                // 金额：右侧对齐，空间不足时自动缩放
                 Text(transaction.formattedAmount)
                     .font(.holoBody)
                     .foregroundColor(transaction.transactionType == .expense ? .holoTextPrimary : .holoSuccess)
-                    .fixedSize(horizontal: true, vertical: false)
+                    .minimumScaleFactor(0.7)
+                    .lineLimit(1)
                     .frame(alignment: .trailing)
             }
             .frame(maxWidth: .infinity)

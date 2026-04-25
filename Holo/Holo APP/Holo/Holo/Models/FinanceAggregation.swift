@@ -140,6 +140,11 @@ struct CategoryAggregation: Identifiable {
         NumberFormatter.currency.string(from: amount as NSDecimalNumber) ?? "¥0.00"
     }
 
+    /// 紧凑格式化金额（用于空间受限场景，自动使用万/亿单位）
+    var formattedCompactAmount: String {
+        NumberFormatter.compactCurrency(amount)
+    }
+
     /// 格式化占比
     var formattedPercentage: String {
         String(format: "%.1f%%", percentage)

@@ -50,10 +50,11 @@ struct CategoryLegendRow: View {
 
                 // 金额和占比
                 VStack(alignment: .trailing, spacing: 2) {
-                    Text(aggregation.formattedAmount)
+                    Text(aggregation.formattedCompactAmount)
                         .font(.holoBody)
                         .foregroundColor(isSelected ? color : .holoTextPrimary)
-                        .fixedSize(horizontal: true, vertical: false)
+                        .minimumScaleFactor(0.7)
+                        .lineLimit(1)
 
                     Text(aggregation.formattedPercentage)
                         .font(.holoLabel)
