@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import Combine
 
 struct ChatView: View {
 
@@ -14,6 +15,9 @@ struct ChatView: View {
     @StateObject private var viewModel = ChatViewModel()
     @State private var showAISettings = false
     @State private var editingTransaction: Transaction?
+
+    /// 监听记忆长廊"继续问 AI"通知
+    @State private var prefillCancellable: AnyCancellable?
 
     var body: some View {
         ZStack {
@@ -45,6 +49,14 @@ struct ChatView: View {
         }
         .task {
             await viewModel.setup()
+            // 监听记忆长廊"继续问 AI"通知
+            prefillCancellable = NotificationCenter.default.publisher(
+                for: .memoryInsightContinueInChat
+            ).sink { notification in
+                if let text = notification.userInfo?["prefillText"] as? String {
+                    viewModel.inputText = text
+                }
+            }
         }
     }
 

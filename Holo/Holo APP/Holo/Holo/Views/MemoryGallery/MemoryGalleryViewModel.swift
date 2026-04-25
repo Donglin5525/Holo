@@ -55,6 +55,20 @@ class MemoryGalleryViewModel: ObservableObject {
     /// 当前选中的热力图日期
     @Published var selectedHeatmapDate: Date?
 
+    // MARK: - AI Insight Properties
+
+    /// 周/月洞察状态
+    @Published var insightGenerationState: InsightGenerationState = .idle
+
+    /// 当前周期的 AI 洞察
+    @Published var weeklyInsight: MemoryInsight?
+
+    /// 月度洞察
+    @Published var monthlyInsight: MemoryInsight?
+
+    /// 当前选择的洞察周期
+    @Published var selectedInsightPeriod: MemoryInsightPeriodType = .weekly
+
     // MARK: - Private Properties
 
     /// 分页按天计算（每页加载 N 天的数据）
@@ -148,6 +162,7 @@ class MemoryGalleryViewModel: ObservableObject {
         computeAggregateStats()
         computeHeatmapData()
         await loadData()
+        await loadInsights()
     }
 
     /// 加载更多数据
@@ -493,6 +508,45 @@ class MemoryGalleryViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Today Summary
+
+    /// 今日数据摘要（供 TodayMemoryCabinetCard 使用）
+    var todaySummary: DailySummaryData? {
+        let today = Calendar.current.startOfDay(for: Date())
+        let section = timelineSections.first { Calendar.current.isDate($0.date, inSameDayAs: today) }
+
+        if let section = section {
+            return section.nodes.compactMap { node -> DailySummaryData? in
+                if case .summary(let data) = node.data { return data }
+                return nil
+            }.first
+        }
+
+        // 如果 timeline 还没加载到今天的数据，从 cachedItems 直接算
+        let todayItems = cachedItems.filter {
+            Calendar.current.isDate($0.date, inSameDayAs: today)
+        }
+
+        guard !todayItems.isEmpty else { return nil }
+
+        let transactions = todayItems.filter { $0.type == .transaction }
+        let totalExpense = transactions.isEmpty ? nil : transactions.reduce(Decimal(0)) { sum, item in
+            guard let amount = item.amount else { return sum }
+            return sum + amount
+        }
+
+        let habits = todayItems.filter { $0.type == .habitRecord }
+        let tasks = todayItems.filter { $0.type == .task }
+
+        return DailySummaryData(
+            totalExpense: totalExpense,
+            habitsCompleted: habits.filter { $0.subtitle != "未完成" }.count,
+            habitsTotal: habits.count,
+            tasksCompleted: tasks.filter { $0.subtitle == "已完成" }.count,
+            thoughtCount: todayItems.filter { $0.type == .thought }.count
+        )
+    }
+
     // MARK: - Heatmap Timeline Linking
 
     func findSectionInWeek(of date: Date) -> Date? {
@@ -523,6 +577,252 @@ class MemoryGalleryViewModel: ObservableObject {
     private var loadedThroughDate: Date? {
         guard currentDayOffset > 0 else { return nil }
         return Date().startOfDay.addingDays(-(currentDayOffset - 1))
+    }
+
+    // MARK: - AI Insight Methods
+
+    /// 洞察 Repository
+    private let insightRepository = MemoryInsightRepository()
+
+    /// 加载本地洞察（不触发 AI 生成）
+    private func loadInsights() async {
+        let service = MemoryInsightService.shared
+
+        // 检查 AI 配置状态
+        if !service.isAIConfigured {
+            insightGenerationState = .notConfigured
+            return
+        }
+
+        // 加载周洞察
+        let (weekStart, weekEnd) = MemoryInsightContextBuilder.periodRange(
+            periodType: .weekly, referenceDate: Date()
+        )
+
+        if let insight = try? insightRepository.fetchInsight(
+            periodType: .weekly, start: weekStart, end: weekEnd
+        ) {
+            weeklyInsight = insight
+            insightGenerationState = insight.insightStatus == .stale ? .stale : .ready
+
+            // 检查是否过期
+            await service.markStaleIfNeeded(periodType: .weekly, start: weekStart, end: weekEnd)
+            if let updated = try? insightRepository.fetchInsight(
+                periodType: .weekly, start: weekStart, end: weekEnd
+            ) {
+                weeklyInsight = updated
+                if updated.insightStatus == .stale {
+                    insightGenerationState = .stale
+                }
+            }
+        } else {
+            insightGenerationState = .idle
+        }
+
+        // 加载月洞察
+        let (monthStart, monthEnd) = MemoryInsightContextBuilder.periodRange(
+            periodType: .monthly, referenceDate: Date()
+        )
+        monthlyInsight = try? insightRepository.fetchInsight(
+            periodType: .monthly, start: monthStart, end: monthEnd
+        )
+    }
+
+    /// 生成本周 AI 回放
+    func generateWeeklyInsight() async {
+        let (start, end) = MemoryInsightContextBuilder.periodRange(
+            periodType: .weekly, referenceDate: Date()
+        )
+        await generateInsight(periodType: .weekly, start: start, end: end)
+    }
+
+    /// 生成本月 AI 回放
+    func generateMonthlyInsight() async {
+        let (start, end) = MemoryInsightContextBuilder.periodRange(
+            periodType: .monthly, referenceDate: Date()
+        )
+        await generateInsight(periodType: .monthly, start: start, end: end)
+    }
+
+    /// 刷新洞察
+    func refreshInsight(force: Bool = true) async {
+        let period = selectedInsightPeriod
+        let (start, end) = MemoryInsightContextBuilder.periodRange(
+            periodType: period, referenceDate: Date()
+        )
+        await generateInsight(periodType: period, start: start, end: end, forceRefresh: force)
+    }
+
+    /// 通用洞察生成
+    private func generateInsight(
+        periodType: MemoryInsightPeriodType,
+        start: Date,
+        end: Date,
+        forceRefresh: Bool = false
+    ) async {
+        insightGenerationState = .generating
+
+        do {
+            let service = MemoryInsightService.shared
+            let insight = try await service.generateInsight(
+                periodType: periodType,
+                start: start,
+                end: end,
+                forceRefresh: forceRefresh
+            )
+
+            switch periodType {
+            case .weekly:
+                weeklyInsight = insight
+            case .monthly:
+                monthlyInsight = insight
+            case .daily:
+                break
+            }
+            insightGenerationState = .ready
+        } catch let error as MemoryInsightError {
+            switch error {
+            case .aiNotConfigured:
+                insightGenerationState = .notConfigured
+            case .generationInProgress:
+                break
+            default:
+                insightGenerationState = .failed(error.localizedDescription)
+            }
+        } catch {
+            insightGenerationState = .failed(error.localizedDescription)
+        }
+    }
+
+    /// 继续在 AI Chat 中追问
+    func continueInChat() {
+        guard let insight = currentInsight else { return }
+        let periodLabel = selectedInsightPeriod == .weekly ? "周" : "月"
+        let prompt = "基于这份本\(periodLabel)回放继续分析：\n\(insight.title)\n\(insight.summary)"
+        NotificationCenter.default.post(
+            name: .memoryInsightContinueInChat,
+            object: nil,
+            userInfo: ["prefillText": prompt]
+        )
+    }
+
+    /// 当前选中周期的洞察
+    var currentInsight: MemoryInsight? {
+        switch selectedInsightPeriod {
+        case .weekly: return weeklyInsight
+        case .monthly: return monthlyInsight
+        case .daily: return nil
+        }
+    }
+
+    /// 切换洞察周期
+    func switchInsightPeriod(to period: MemoryInsightPeriodType) async {
+        selectedInsightPeriod = period
+        await loadInsights()
+    }
+
+    /// 生成当前选中周期的洞察
+    func generateCurrentInsight() async {
+        switch selectedInsightPeriod {
+        case .weekly:
+            await generateWeeklyInsight()
+        case .monthly:
+            await generateMonthlyInsight()
+        case .daily:
+            break
+        }
+    }
+
+    /// 规则兜底回放数据
+    var fallbackReplayTitle: String {
+        let (weekStart, _) = MemoryInsightContextBuilder.periodRange(
+            periodType: .weekly, referenceDate: Date()
+        )
+        let weekIndex = weekStart.hashValue
+
+        // 简化：基于现有数据推断趋势
+        let habitTrend: Trend = inferHabitTrend()
+        let expenseTrend: Trend = inferExpenseTrend()
+        let hasThoughts = totalInsights > 0 || cachedItems.filter { $0.type == .thought }.count > 0
+
+        return MemoryReplayFallback.weeklyTitle(
+            habitTrend: habitTrend,
+            expenseTrend: expenseTrend,
+            hasThoughts: hasThoughts,
+            weekIndex: weekIndex
+        )
+    }
+
+    var fallbackReplaySummary: String {
+        let (weekStart, _) = MemoryInsightContextBuilder.periodRange(
+            periodType: .weekly, referenceDate: Date()
+        )
+        let weekIndex = weekStart.hashValue
+
+        let habitTrend: Trend = inferHabitTrend()
+        let expenseTrend: Trend = inferExpenseTrend()
+        let hasThoughts = cachedItems.filter { $0.type == .thought }.count > 0
+
+        let habitCount = cachedItems.filter {
+            $0.type == .habitRecord && $0.date >= weekStart
+        }.count
+
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .currency
+        formatter.locale = Locale(identifier: "zh_CN")
+
+        let expenseItems = cachedItems.filter {
+            $0.type == .transaction && $0.date >= weekStart
+        }
+        let totalExpense = expenseItems.compactMap { $0.amount }.reduce(Decimal(0), +)
+        let expenseStr = formatter.string(from: totalExpense as NSDecimalNumber) ?? "¥0"
+
+        let thoughtCount = cachedItems.filter {
+            $0.type == .thought && $0.date >= weekStart
+        }.count
+
+        return MemoryReplayFallback.weeklySummary(
+            habitTrend: habitTrend,
+            expenseTrend: expenseTrend,
+            hasThoughts: hasThoughts,
+            weekIndex: weekIndex,
+            habitCompletedCount: habitCount,
+            totalExpense: expenseStr,
+            thoughtCount: thoughtCount
+        )
+    }
+
+    private func inferHabitTrend() -> Trend {
+        // 简化：根据最近习惯记录数量推断
+        let weekStart = Date().startOfWeek
+        let currentWeekCount = cachedItems.filter {
+            $0.type == .habitRecord && $0.date >= weekStart
+        }.count
+        let prevWeekStart = weekStart.addingDays(-7)
+        let prevWeekCount = cachedItems.filter {
+            $0.type == .habitRecord && $0.date >= prevWeekStart && $0.date < weekStart
+        }.count
+
+        if currentWeekCount > prevWeekCount + 2 { return .up }
+        if currentWeekCount < prevWeekCount - 2 { return .down }
+        return .stable
+    }
+
+    private func inferExpenseTrend() -> Trend {
+        let weekStart = Date().startOfWeek
+        let currentExpense = cachedItems.filter {
+            $0.type == .transaction && $0.date >= weekStart
+        }.compactMap { $0.amount }.reduce(Decimal(0), +)
+
+        let prevWeekStart = weekStart.addingDays(-7)
+        let prevExpense = cachedItems.filter {
+            $0.type == .transaction && $0.date >= prevWeekStart && $0.date < weekStart
+        }.compactMap { $0.amount }.reduce(Decimal(0), +)
+
+        let diff = currentExpense - prevExpense
+        if diff > 50 { return .up }
+        if diff < -50 { return .down }
+        return .stable
     }
 }
 

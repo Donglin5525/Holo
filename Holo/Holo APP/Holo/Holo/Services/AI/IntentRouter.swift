@@ -82,6 +82,8 @@ final class IntentRouter {
             return RouteResult(
                 text: result.responseText ?? "我可以帮你记账、创建任务、记录心情等。有什么需要帮忙的吗？"
             )
+        case .generateMemoryInsight:
+            return await handleGenerateMemoryInsight(result)
         }
     }
 
@@ -594,5 +596,47 @@ final class IntentRouter {
 
         // 兜底：返回默认分类
         return categories.first { $0.isDefault } ?? categories.first
+    }
+
+    // MARK: - Memory Insight Generation
+
+    private func handleGenerateMemoryInsight(_ result: ParsedResult) async -> RouteResult {
+        let data = result.extractedData
+        let periodStr = data?["periodType"] ?? "weekly"
+        let periodType: MemoryInsightPeriodType = periodStr == "monthly" ? .monthly : .weekly
+
+        let (start, end) = MemoryInsightContextBuilder.periodRange(
+            periodType: periodType, referenceDate: Date()
+        )
+
+        let service = MemoryInsightService.shared
+
+        guard service.isAIConfigured else {
+            return RouteResult(
+                text: "AI 服务尚未配置，请先在设置中配置 AI Provider 后再生成回放。"
+            )
+        }
+
+        do {
+            let insight = try await service.generateInsight(
+                periodType: periodType,
+                start: start,
+                end: end,
+                forceRefresh: false
+            )
+            let periodLabel = periodType == .weekly ? "周" : "月"
+            return RouteResult(
+                text: "已生成本\(periodLabel)回放「\(insight.title)」，你可以在记忆长廊中查看完整内容。",
+                linkedEntity: LinkedEntity(
+                    type: .memoryInsight,
+                    id: insight.id
+                )
+            )
+        } catch {
+            logger.error("Chat 触发洞察生成失败：\(error.localizedDescription)")
+            return RouteResult(
+                text: "生成回放失败：\(error.localizedDescription)。请稍后重试。"
+            )
+        }
     }
 }

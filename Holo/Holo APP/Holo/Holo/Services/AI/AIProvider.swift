@@ -24,9 +24,17 @@ protocol AIProvider {
 
     /// 批量解析用户输入（多动作支持）
     func parseUserInputBatch(_ input: String, context: UserContext) async throws -> AIParseBatch
+
+    /// 生成记忆洞察（自定义 prompt + 结构化 context JSON）
+    func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> String
 }
 
 extension AIProvider {
+    /// 默认实现：不支持记忆洞察
+    func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> String {
+        throw APIError.serverError("当前 Provider 不支持记忆洞察生成")
+    }
+
     /// 默认实现：将单意图结果包装为 batch
     func parseUserInputBatch(_ input: String, context: UserContext) async throws -> AIParseBatch {
         let single = try await parseUserInput(input, context: context)

@@ -31,6 +31,8 @@ enum AIIntent: String, Codable, CaseIterable {
     case queryTasks = "query_tasks"
     case queryHabits = "query_habits"
     case query = "query"
+    // 记忆回放类
+    case generateMemoryInsight = "generate_memory_insight"
     // 兜底
     case unknown = "unknown"
 }
@@ -39,7 +41,7 @@ enum AIIntent: String, Codable, CaseIterable {
 
 /// 关联实体类型
 enum LinkedEntityType: String, Codable {
-    case transaction, task, habit, thought
+    case transaction, task, habit, thought, memoryInsight
 }
 
 /// 通用实体链接
@@ -343,6 +345,10 @@ enum InsightType: String, CaseIterable {
     case monthlyReport = "monthly_report"
     case habitAnalysis = "habit_analysis"
     case financeAnalysis = "finance_analysis"
+
+    case memoryDailyReview = "memory_daily_review"
+    case memoryWeeklyReplay = "memory_weekly_replay"
+    case memoryMonthlyReplay = "memory_monthly_replay"
 }
 
 // MARK: - UserContext

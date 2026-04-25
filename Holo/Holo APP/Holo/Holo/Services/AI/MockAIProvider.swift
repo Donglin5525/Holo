@@ -187,6 +187,54 @@ final class MockAIProvider: AIProvider {
         }
     }
 
+    func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> String {
+        try await Task.sleep(nanoseconds: 800_000_000)
+
+        return """
+        {
+          "title": "你在把生活重新拉回节奏里",
+          "summary": "习惯完成回暖，支出保持稳定，观点里反复提到建立仪式感和减少临时补救。",
+          "cards": [
+            {
+              "id": "habit_1",
+              "type": "habit",
+              "title": "运动习惯在回暖",
+              "body": "本周跑步记录连续 5 天，比上周多了 3 天。周末也没有中断。",
+              "evidence": [
+                {"id": "e1", "label": "跑步完成", "date": "2026-04-23", "sourceType": "habitRecord"},
+                {"id": "e2", "label": "跑步完成", "date": "2026-04-24", "sourceType": "habitRecord"}
+              ],
+              "suggestedQuestion": "哪些习惯最容易中断？"
+            },
+            {
+              "id": "finance_1",
+              "type": "finance",
+              "title": "支出没有明显失控",
+              "body": "本周支出保持稳定，餐饮占比最高。",
+              "evidence": [
+                {"id": "e3", "label": "本周总支出 ¥420", "date": null, "sourceType": "transaction"}
+              ],
+              "suggestedQuestion": null
+            },
+            {
+              "id": "thought_1",
+              "type": "thought",
+              "title": "在思考节奏和仪式感",
+              "body": "本周观点中多次提到建立仪式感和减少临时补救。",
+              "evidence": [
+                {"id": "e4", "label": "观点：减少临时补救", "date": "2026-04-22", "sourceType": "thought"}
+              ],
+              "suggestedQuestion": "怎样把仪式感融入日常？"
+            }
+          ],
+          "suggestedQuestions": [
+            "为什么我周三支出比较多？",
+            "下周应该优先保持哪个习惯？"
+          ]
+        }
+        """
+    }
+
     func chat(messages: [ChatMessageDTO], userContext: UserContext) async throws -> String {
         try await Task.sleep(nanoseconds: 1_000_000_000)
 

@@ -71,6 +71,12 @@ final class OpenAICompatibleProvider: AIProvider {
             userMessage = "请分析我的习惯数据"
         case .financeAnalysis:
             userMessage = "请分析我的财务数据"
+        case .memoryDailyReview:
+            userMessage = "请生成今日记忆回顾"
+        case .memoryWeeklyReplay:
+            userMessage = "请生成本周记忆回放"
+        case .memoryMonthlyReplay:
+            userMessage = "请生成本月记忆回放"
         }
 
         let messages: [ChatMessageDTO] = [
@@ -80,6 +86,22 @@ final class OpenAICompatibleProvider: AIProvider {
         ]
 
         let request = buildRequest(messages: messages)
+        let response: ChatCompletionResponse = try await apiClient.send(request)
+
+        guard let content = response.choices?.first?.message?.content else {
+            throw APIError.serverError("AI 未返回有效内容")
+        }
+
+        return content
+    }
+
+    func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> String {
+        let systemPrompt = try PromptManager.shared.loadPrompt(.memoryInsightGeneration)
+        let messages: [ChatMessageDTO] = [
+            .system(systemPrompt),
+            .user(contextJSON)
+        ]
+        let request = buildRequest(messages: messages, temperature: 0.3)
         let response: ChatCompletionResponse = try await apiClient.send(request)
 
         guard let content = response.choices?.first?.message?.content else {
@@ -129,7 +151,7 @@ final class OpenAICompatibleProvider: AIProvider {
 
     // MARK: - Private Helpers
 
-    private func buildRequest(messages: [ChatMessageDTO], stream: Bool = false) -> APIRequest {
+    private func buildRequest(messages: [ChatMessageDTO], stream: Bool = false, temperature: Double? = nil) -> APIRequest {
         APIRequest(
             baseURL: config.baseURL,
             path: "/chat/completions",
@@ -141,7 +163,7 @@ final class OpenAICompatibleProvider: AIProvider {
             body: ChatCompletionRequest(
                 model: config.model,
                 messages: messages,
-                temperature: config.temperature,
+                temperature: temperature ?? config.temperature,
                 maxTokens: config.maxTokens,
                 stream: stream
             )

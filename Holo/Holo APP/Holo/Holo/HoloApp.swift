@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import BackgroundTasks
 
 /// Holo 应用入口
 /// 一款"个人数据资产 + AI 规划"一体化的个人 AI 助理
@@ -23,6 +24,9 @@ struct HoloApp: App {
         // 同步设置通知代理，确保冷启动时 didReceive 不被错过
         TodoNotificationService.shared.setupDelegate()
         TodoNotificationService.shared.registerNotificationCategories()
+
+        // 注册后台洞察生成任务
+        MemoryInsightBackgroundService.shared.registerBackgroundTask()
 
         // 后台预加载 Core Data（避免首次导航到 Chat 时阻塞主线程）
         // CoreDataStack 使用 NSLock 保护，可安全从后台线程初始化

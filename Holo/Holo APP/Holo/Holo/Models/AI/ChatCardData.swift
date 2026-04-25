@@ -81,7 +81,7 @@ enum ChatCardData: Equatable {
                 unit: data["unit"] ?? "kg"
             ))
 
-        case .completeTask, .updateTask, .deleteTask, .createNote, .queryTasks, .queryHabits, .query, .unknown:
+        case .completeTask, .updateTask, .deleteTask, .createNote, .queryTasks, .queryHabits, .query, .generateMemoryInsight, .unknown:
             return nil
         }
     }

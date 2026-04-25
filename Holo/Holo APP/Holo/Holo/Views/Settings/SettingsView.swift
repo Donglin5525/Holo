@@ -22,6 +22,7 @@ struct SettingsView: View {
     // MARK: - Observed Objects
 
     @ObservedObject private var darkModeManager = DarkModeManager.shared
+    @ObservedObject private var insightSettings = MemoryInsightScheduleSettings.shared
     @AppStorage("userName") private var userName: String = "东林"
     @State private var showAISettings = false
     @State private var showHoloOneSettings = false
@@ -38,6 +39,9 @@ struct SettingsView: View {
 
                     // 深色模式设置
                     darkModeSection
+
+                    // AI 回放设置
+                    aiPlaybackSection
 
                     // 其他设置（占位）
                     otherSettingsSection
@@ -195,6 +199,117 @@ struct SettingsView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(PlainButtonStyle())
+    }
+
+    // MARK: - AI 回放设置
+
+    private var aiPlaybackSection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            // 标题
+            HStack(spacing: HoloSpacing.sm) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 18))
+                    .foregroundColor(.holoPrimary)
+
+                Text("AI 回放")
+                    .font(.holoBody)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoTextPrimary)
+            }
+
+            // 开关列表
+            VStack(spacing: 0) {
+                // 每周提醒
+                insightToggleRow(
+                    icon: "calendar.badge.clock",
+                    iconColor: .holoPrimary,
+                    title: "每周提醒我生成周回放",
+                    subtitle: weeklyReminderSubtitle,
+                    isOn: $insightSettings.weeklyReminderEnabled
+                )
+
+                Divider()
+                    .padding(.leading, 56)
+
+                // 每月提醒
+                insightToggleRow(
+                    icon: "calendar.circle",
+                    iconColor: .holoSuccess,
+                    title: "每月提醒我生成月回放",
+                    subtitle: monthlyReminderSubtitle,
+                    isOn: $insightSettings.monthlyReminderEnabled
+                )
+
+                Divider()
+                    .padding(.leading, 56)
+
+                // 后台自动生成
+                insightToggleRow(
+                    icon: "arrow.triangle.2.circlepath",
+                    iconColor: .holoInfo,
+                    title: "允许后台自动尝试生成",
+                    subtitle: "iOS 不保证准时执行，下次打开 App 时会补生成",
+                    isOn: $insightSettings.backgroundAutoGenerationEnabled
+                )
+            }
+            .background(Color.holoCardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        }
+    }
+
+    /// 周提醒描述
+    private var weeklyReminderSubtitle: String {
+        if insightSettings.weeklyReminderEnabled {
+            return "每\(insightSettings.weeklyReminderWeekdayName) \(String(format: "%02d", insightSettings.weeklyReminderHour)):00"
+        }
+        return "默认关闭"
+    }
+
+    /// 月提醒描述
+    private var monthlyReminderSubtitle: String {
+        if insightSettings.monthlyReminderEnabled {
+            return "每月\(insightSettings.monthlyReminderDay)日 \(String(format: "%02d", insightSettings.monthlyReminderHour)):00"
+        }
+        return "默认关闭"
+    }
+
+    /// AI 回放 Toggle 行
+    private func insightToggleRow(
+        icon: String,
+        iconColor: Color,
+        title: String,
+        subtitle: String,
+        isOn: Binding<Bool>
+    ) -> some View {
+        HStack(spacing: HoloSpacing.md) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(iconColor.opacity(0.1))
+                    .frame(width: 40, height: 40)
+
+                Image(systemName: icon)
+                    .font(.system(size: 18, weight: .medium))
+                    .foregroundColor(iconColor)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextPrimary)
+
+                Text(subtitle)
+                    .font(.system(size: 12))
+                    .foregroundColor(.holoTextSecondary)
+            }
+
+            Spacer()
+
+            Toggle("", isOn: isOn)
+                .labelsHidden()
+                .tint(.holoPrimary)
+        }
+        .padding(.horizontal, HoloSpacing.md)
+        .padding(.vertical, 12)
     }
 
     // MARK: - 其他设置（占位）
