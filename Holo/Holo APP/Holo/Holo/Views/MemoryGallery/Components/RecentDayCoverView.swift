@@ -24,7 +24,7 @@ struct RecentDayCoverView: View {
                 emptyHint
             } else {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: HoloSpacing.sm) {
+                    HStack(alignment: .top, spacing: HoloSpacing.sm) {
                         ForEach(sections.prefix(7)) { section in
                             dayCoverCard(section)
                         }
@@ -68,7 +68,8 @@ struct RecentDayCoverView: View {
             }
         }
         .padding(HoloSpacing.md)
-        .frame(width: 140)
+        .frame(width: 140, alignment: .topLeading)
+        .frame(minHeight: 120)
         .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .overlay(
