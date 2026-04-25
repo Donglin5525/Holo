@@ -310,6 +310,10 @@ struct FinanceLedgerView: View {
     /// 是否显示搜索页
     @State private var showSearch: Bool = false
 
+    /// 预算数据（首页卡片）
+    @State private var globalBudgetSummary: GlobalBudgetSummary?
+    @State private var categoryWarnings: [CategoryBudgetWarning] = []
+
     // --- 日期滑动切换 ---
 
     /// 滑动偏移量（跟随手指 + 切换动画）
@@ -366,7 +370,14 @@ struct FinanceLedgerView: View {
             
             // 收支概览
             summaryCards
-            
+
+            // 预算总览卡片
+            if let summary = globalBudgetSummary {
+                BudgetSummaryCard(summary: summary, warnings: categoryWarnings)
+                    .padding(.horizontal, 14)
+                    .padding(.bottom, 8)
+            }
+
             // 交易列表（支持左右滑动切换日期）
             ScrollView(showsIndicators: false) {
                 transactionListView
@@ -437,9 +448,13 @@ struct FinanceLedgerView: View {
         .fullScreenCover(isPresented: $showSearch) {
             FinanceSearchView()
         }
-        .task { await calendarState.initialLoad() }
+        .task {
+            await calendarState.initialLoad()
+            loadBudgetData()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .financeDataDidChange)) { _ in
             calendarState.refreshAfterDataChange()
+            loadBudgetData()
         }
         // 监听长按日期事件，触发快速记账 Sheet
         .onChange(of: calendarState.longPressDate) { _, newDate in
@@ -768,6 +783,14 @@ struct FinanceLedgerView: View {
 
             isDaySwiping = false
         }
+    }
+
+    // MARK: - Budget Data
+
+    /// 加载预算数据（首页卡片）
+    private func loadBudgetData() {
+        globalBudgetSummary = BudgetRepository.shared.computeGlobalTotalBudgetStatus(period: .month)
+        categoryWarnings = BudgetRepository.shared.getWarningCategoryBudgets(period: .month)
     }
 }
 

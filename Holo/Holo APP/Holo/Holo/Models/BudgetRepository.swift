@@ -14,6 +14,7 @@ enum BudgetError: LocalizedError {
     case amountMustBePositive
     case budgetAlreadyExists
     case budgetNotFound
+    case invalidAmount
 
     var errorDescription: String? {
         switch self {
@@ -23,6 +24,8 @@ enum BudgetError: LocalizedError {
             return "该账户已存在相同周期的总预算"
         case .budgetNotFound:
             return "未找到预算记录"
+        case .invalidAmount:
+            return "请输入有效的预算金额"
         }
     }
 }
@@ -108,6 +111,62 @@ class BudgetRepository {
         logger.info("预算已删除")
     }
 
+    // MARK: - Category Budget CRUD
+
+    /// 新增分类预算
+    func addCategoryBudget(
+        accountId: UUID,
+        categoryId: UUID,
+        amount: Decimal,
+        period: BudgetPeriod,
+        startDate: Date
+    ) throws -> Budget {
+        guard amount > 0 else {
+            throw BudgetError.amountMustBePositive
+        }
+
+        // 检查是否已存在相同账户 + 分类 + 周期的预算
+        if getCategoryBudget(forAccount: accountId, categoryId: categoryId, period: period) != nil {
+            throw BudgetError.budgetAlreadyExists
+        }
+
+        let budget = Budget.create(
+            in: context,
+            accountId: accountId,
+            amount: NSDecimalNumber(decimal: amount),
+            period: period,
+            startDate: startDate,
+            categoryId: categoryId
+        )
+
+        try context.save()
+        logger.info("分类预算已创建：分类=\(categoryId.uuidString.prefix(8)), 金额=\(NSDecimalNumber(decimal: amount))")
+
+        return budget
+    }
+
+    /// 获取指定账户 + 分类的预算
+    func getCategoryBudget(
+        forAccount accountId: UUID,
+        categoryId: UUID,
+        period: BudgetPeriod
+    ) -> Budget? {
+        let request = Budget.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "accountId == %@ AND period == %@ AND categoryId == %@",
+            accountId as CVarArg,
+            period.rawValue,
+            categoryId as CVarArg
+        )
+        request.fetchLimit = 1
+        return (try? context.fetch(request)).flatMap { $0.first }
+    }
+
+    /// 获取指定账户的所有分类预算
+    func getCategoryBudgets(forAccount accountId: UUID) -> [Budget] {
+        Budget.fetchCategoryBudgets(forAccount: accountId, in: context)
+    }
+
     // MARK: - Budget Status Computation
 
     /// 计算指定预算的当前状态
@@ -117,13 +176,28 @@ class BudgetRepository {
 
         // 查询该账户在周期内的支出交易
         let request = Transaction.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "account.id == %@ AND date >= %@ AND date < %@ AND type == %@",
-            budget.accountId as CVarArg,
-            range.start as NSDate,
-            range.end as NSDate,
-            TransactionType.expense.rawValue
-        )
+
+        if let categoryId = budget.categoryId {
+            // 分类预算：匹配该分类及其子分类的交易
+            request.predicate = NSPredicate(
+                format: "account.id == %@ AND date >= %@ AND date < %@ AND type == %@ AND (category.id == %@ OR category.parentId == %@)",
+                budget.accountId as CVarArg,
+                range.start as NSDate,
+                range.end as NSDate,
+                TransactionType.expense.rawValue,
+                categoryId as CVarArg,
+                categoryId as CVarArg
+            )
+        } else {
+            // 总预算：该账户所有支出交易
+            request.predicate = NSPredicate(
+                format: "account.id == %@ AND date >= %@ AND date < %@ AND type == %@",
+                budget.accountId as CVarArg,
+                range.start as NSDate,
+                range.end as NSDate,
+                TransactionType.expense.rawValue
+            )
+        }
 
         let transactions = (try? context.fetch(request)) ?? []
         let spentAmount = transactions.reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
@@ -194,5 +268,78 @@ class BudgetRepository {
         }
 
         return (periodStart, now)
+    }
+
+    // MARK: - Global Aggregation（首页卡片）
+
+    /// 计算全局总预算状态（跨所有活跃账户聚合）
+    func computeGlobalTotalBudgetStatus(period: BudgetPeriod) -> GlobalBudgetSummary? {
+        let accounts = FinanceRepository.shared.getAccounts(includeArchived: false)
+        var totalBudgetAmount: Decimal = 0
+        var totalSpentAmount: Decimal = 0
+        var minRemainingDays = Int.max
+        var hasAnyBudget = false
+
+        for account in accounts {
+            guard let budget = getTotalBudget(forAccount: account.id, period: period),
+                  let status = computeBudgetStatus(budget: budget) else {
+                continue
+            }
+            hasAnyBudget = true
+            totalBudgetAmount += status.budgetAmount
+            totalSpentAmount += status.spentAmount
+            minRemainingDays = min(minRemainingDays, status.remainingDays)
+        }
+
+        guard hasAnyBudget else { return nil }
+
+        let progress = totalBudgetAmount > 0
+            ? Double(truncating: NSDecimalNumber(decimal: totalSpentAmount / totalBudgetAmount))
+            : 0.0
+
+        return GlobalBudgetSummary(
+            totalBudgetAmount: totalBudgetAmount,
+            totalSpentAmount: totalSpentAmount,
+            totalRemainingAmount: totalBudgetAmount - totalSpentAmount,
+            progress: progress,
+            isOverBudget: progress >= 1.0,
+            isWarning: progress >= 0.8 && progress < 1.0,
+            remainingDays: minRemainingDays == Int.max ? 0 : minRemainingDays
+        )
+    }
+
+    /// 获取分类预算预警列表（progress >= 0.8，跨所有账户）
+    func getWarningCategoryBudgets(period: BudgetPeriod) -> [CategoryBudgetWarning] {
+        let accounts = FinanceRepository.shared.getAccounts(includeArchived: false)
+        var warnings: [CategoryBudgetWarning] = []
+
+        for account in accounts {
+            let categoryBudgets = getCategoryBudgets(forAccount: account.id)
+            for budget in categoryBudgets {
+                guard let status = computeBudgetStatus(budget: budget),
+                      status.progress >= 0.8 else { continue }
+                let category = findCategory(by: budget.categoryId)
+                warnings.append(CategoryBudgetWarning(
+                    categoryId: budget.categoryId,
+                    categoryName: category?.name ?? "未知分类",
+                    categoryIcon: category?.icon ?? "questionmark.folder.fill",
+                    categoryColor: category?.color ?? "#64748B",
+                    progress: status.progress,
+                    isOverBudget: status.isOverBudget
+                ))
+            }
+        }
+        return warnings.sorted { $0.progress > $1.progress }
+    }
+
+    // MARK: - Helpers
+
+    /// 按 UUID 查找分类
+    func findCategory(by id: UUID?) -> Category? {
+        guard let id else { return nil }
+        let request = Category.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        request.fetchLimit = 1
+        return (try? context.fetch(request))?.first
     }
 }

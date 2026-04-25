@@ -330,6 +330,9 @@ class FinanceRepository {
     }
     
     func deleteCategory(_ category: Category) async throws {
+        // 清理该分类的预算记录
+        Budget.deleteForCategory(category.id, in: context)
+
         // 检查该分类本身是否被交易使用
         let request = Transaction.fetchRequest()
         request.predicate = NSPredicate(format: "category == %@", category)
@@ -343,6 +346,9 @@ class FinanceRepository {
         let subCategories = try context.fetch(subRequest)
 
         for sub in subCategories {
+            // 清理子分类的预算记录
+            Budget.deleteForCategory(sub.id, in: context)
+
             let txRequest = Transaction.fetchRequest()
             txRequest.predicate = NSPredicate(format: "category == %@", sub)
             if try context.count(for: txRequest) > 0 {
@@ -474,6 +480,8 @@ class FinanceRepository {
         guard !account.isDefault else {
             throw AccountError.cannotDeleteDefault
         }
+        // 清理该账户的所有预算记录
+        Budget.deleteAllForAccount(account.id, in: context)
         context.delete(account)
         try context.save()
     }

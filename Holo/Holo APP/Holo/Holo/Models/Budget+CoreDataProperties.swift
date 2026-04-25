@@ -68,4 +68,45 @@ extension Budget {
 
         return (try? context.fetch(request)).flatMap { $0.first }
     }
+
+    /// 查询指定账户的所有分类预算（categoryId != nil）
+    static func fetchCategoryBudgets(
+        forAccount accountId: UUID,
+        in context: NSManagedObjectContext
+    ) -> [Budget] {
+        let request = Budget.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "accountId == %@ AND categoryId != nil",
+            accountId as CVarArg
+        )
+        return (try? context.fetch(request)) ?? []
+    }
+
+    /// 删除指定账户的所有预算
+    static func deleteAllForAccount(
+        _ accountId: UUID,
+        in context: NSManagedObjectContext
+    ) {
+        let budgets = fetchForAccount(accountId, in: context)
+        for budget in budgets {
+            context.delete(budget)
+        }
+    }
+
+    /// 删除指定分类的所有预算
+    static func deleteForCategory(
+        _ categoryId: UUID,
+        in context: NSManagedObjectContext
+    ) {
+        let request = Budget.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "categoryId == %@",
+            categoryId as CVarArg
+        )
+        if let budgets = try? context.fetch(request) {
+            for budget in budgets {
+                context.delete(budget)
+            }
+        }
+    }
 }

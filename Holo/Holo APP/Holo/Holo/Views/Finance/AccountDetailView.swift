@@ -22,6 +22,11 @@ struct AccountDetailView: View {
     @State private var errorMessage: String?
     @State private var showError = false
 
+    // 分类预算相关
+    @State private var categoryBudgetStatuses: [(budget: Budget, status: BudgetStatus)] = []
+    @State private var showCategoryBudgetSheet = false
+    @State private var editingCategoryBudget: Budget?
+
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: HoloSpacing.xl) {
@@ -30,6 +35,9 @@ struct AccountDetailView: View {
 
                 // 月度预算卡片
                 budgetCard
+
+                // 分类预算列表
+                categoryBudgetSection
 
                 // 月度统计
                 monthlyStatsCard
@@ -128,6 +136,16 @@ struct AccountDetailView: View {
                 existingBudget: budgetStatus?.budget
             ) {
                 loadData()
+            }
+        }
+        .sheet(isPresented: $showCategoryBudgetSheet) {
+            BudgetSettingsSheet(
+                account: account,
+                existingBudget: editingCategoryBudget,
+                initialMode: .category
+            ) {
+                loadData()
+                editingCategoryBudget = nil
             }
         }
         .alert("确认删除", isPresented: $showDeleteConfirm) {
@@ -318,6 +336,149 @@ struct AccountDetailView: View {
         }
     }
 
+    // MARK: - Category Budget Section
+
+    /// 分类预算列表区域
+    private var categoryBudgetSection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            // 标题行 + 添加按钮
+            HStack {
+                Text("分类预算")
+                    .font(.holoLabel)
+                    .foregroundColor(.holoTextSecondary)
+                Spacer()
+                Button {
+                    editingCategoryBudget = nil
+                    showCategoryBudgetSheet = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus")
+                            .font(.system(size: 12))
+                        Text("添加")
+                            .font(.holoCaption)
+                    }
+                    .foregroundColor(.holoPrimary)
+                }
+            }
+
+            if categoryBudgetStatuses.isEmpty {
+                // 空状态
+                VStack(spacing: HoloSpacing.sm) {
+                    Image(systemName: "chart.pie")
+                        .font(.system(size: 24))
+                        .foregroundColor(.holoTextSecondary.opacity(0.4))
+                    Text("暂无分类预算")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, HoloSpacing.lg)
+            } else {
+                // 分类预算行
+                ForEach(categoryBudgetStatuses, id: \.budget.id) { item in
+                    categoryBudgetRow(budget: item.budget, status: item.status)
+                }
+            }
+        }
+        .padding(HoloSpacing.md)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+    }
+
+    /// 单个分类预算行
+    private func categoryBudgetRow(budget: Budget, status: BudgetStatus) -> some View {
+        Button {
+            editingCategoryBudget = budget
+            showCategoryBudgetSheet = true
+        } label: {
+            HStack(spacing: HoloSpacing.md) {
+                // 分类图标
+                categoryIconForBudget(budget)
+
+                // 名称 + mini 进度条
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(categoryNameForBudget(budget))
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.holoTextPrimary)
+                        .lineLimit(1)
+
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(Color.holoBorder.opacity(0.3))
+                                .frame(height: 4)
+                            RoundedRectangle(cornerRadius: 2)
+                                .fill(budgetProgressColor(status.progress))
+                                .frame(
+                                    width: geo.size.width * min(CGFloat(status.progress), 1.0),
+                                    height: 4
+                                )
+                        }
+                    }
+                    .frame(height: 4)
+                }
+
+                Spacer()
+
+                // 百分比 + 剩余/超支
+                VStack(alignment: .trailing, spacing: 2) {
+                    Text("\(Int(status.progress * 100))%")
+                        .font(.system(size: 12, weight: .bold, design: .rounded))
+                        .foregroundColor(budgetProgressColor(status.progress))
+                    if status.isOverBudget {
+                        Text("超支 \(formatAmount(status.remainingAmount))")
+                            .font(.system(size: 10))
+                            .foregroundColor(.holoError)
+                    } else {
+                        Text("剩余 \(formatAmount(status.remainingAmount))")
+                            .font(.system(size: 10))
+                            .foregroundColor(.holoTextSecondary)
+                    }
+                }
+            }
+            .padding(.vertical, HoloSpacing.sm)
+        }
+        .buttonStyle(PlainButtonStyle())
+        .contextMenu {
+            Button(role: .destructive) {
+                deleteCategoryBudget(budget)
+            } label: {
+                Label("删除预算", systemImage: "trash")
+            }
+        }
+    }
+
+    /// 分类预算行的分类名称
+    private func categoryNameForBudget(_ budget: Budget) -> String {
+        guard let catId = budget.categoryId else { return "总预算" }
+        return BudgetRepository.shared.findCategory(by: catId)?.name ?? "未知分类"
+    }
+
+    /// 分类预算行的分类图标
+    private func categoryIconForBudget(_ budget: Budget) -> some View {
+        let category = budget.categoryId.flatMap { BudgetRepository.shared.findCategory(by: $0) }
+        return ZStack {
+            Circle()
+                .fill((category?.swiftUIColor ?? .holoTextSecondary).opacity(0.12))
+                .frame(width: 32, height: 32)
+            Image(systemName: category?.icon ?? "chart.pie")
+                .font(.system(size: 14))
+                .foregroundColor(category?.swiftUIColor ?? .holoTextSecondary)
+        }
+    }
+
+    /// 删除分类预算
+    private func deleteCategoryBudget(_ budget: Budget) {
+        do {
+            try BudgetRepository.shared.deleteBudget(budget)
+            HapticManager.success()
+            loadData()
+        } catch {
+            errorMessage = error.localizedDescription
+            showError = true
+        }
+    }
+
     // MARK: - Monthly Stats
 
     private var monthlyStatsCard: some View {
@@ -462,6 +623,15 @@ struct AccountDetailView: View {
             forAccount: account.id,
             period: .month
         )
+
+        // 加载分类预算
+        let categoryBudgets = BudgetRepository.shared.getCategoryBudgets(forAccount: account.id)
+        categoryBudgetStatuses = categoryBudgets.compactMap { budget in
+            guard let status = BudgetRepository.shared.computeBudgetStatus(budget: budget) else {
+                return nil
+            }
+            return (budget, status)
+        }
     }
 
     private func formatAmount(_ amount: Decimal) -> String {

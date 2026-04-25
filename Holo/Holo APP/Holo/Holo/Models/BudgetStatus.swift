@@ -21,3 +21,25 @@ struct BudgetStatus: Identifiable {
     let isWarning: Bool       // progress >= 0.8
     let remainingDays: Int    // 距周期结束的天数
 }
+
+/// 首页预算总览（跨账户聚合）
+struct GlobalBudgetSummary {
+    let totalBudgetAmount: Decimal
+    let totalSpentAmount: Decimal
+    let totalRemainingAmount: Decimal
+    let progress: Double
+    let isOverBudget: Bool
+    let isWarning: Bool
+    let remainingDays: Int
+}
+
+/// 分类预算预警 chip 数据
+struct CategoryBudgetWarning: Identifiable {
+    let id = UUID()
+    let categoryId: UUID?
+    let categoryName: String
+    let categoryIcon: String
+    let categoryColor: String
+    let progress: Double
+    let isOverBudget: Bool
+}
