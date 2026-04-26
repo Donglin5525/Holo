@@ -171,7 +171,7 @@ final class OpenAICompatibleProvider: AIProvider {
     }
 
     private func buildContextMessage(_ context: UserContext) -> String {
-        """
+        var message = """
         当前用户上下文：
         - 日期：\(context.todayDate)
         - 今日支出：\(context.transactions.todayExpense)，今日收入：\(context.transactions.todayIncome)
@@ -182,6 +182,12 @@ final class OpenAICompatibleProvider: AIProvider {
         - 近期任务：\(context.tasks.recentTasks.joined(separator: "、"))
         - 近期想法：\(context.thoughts.recentThoughts.prefix(3).joined(separator: "、"))
         """
+
+        if let profile = context.profileContext, !profile.isEmpty {
+            message += "\n\n--- 用户档案 ---\n\(profile)"
+        }
+
+        return message
     }
 
     /// 从 AI 返回的 JSON 文本中解析 ParsedResult

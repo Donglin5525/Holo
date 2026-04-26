@@ -50,6 +50,9 @@ struct HomeView: View {
     /// 是否显示 AI 对话页面
     @State private var showChatView: Bool = false
 
+    /// 是否显示个人页面
+    @State private var showPersonalView: Bool = false
+
     /// Holo One 快捷动作设置
     @AppStorage("holoOneAction") private var holoOneAction: HoloOneAction = .aiChat
 
@@ -147,7 +150,9 @@ struct HomeView: View {
                 .preferredColorScheme(DarkModeManager.shared.colorScheme)
         }
         // 记忆长廊页面（Full Screen Cover 形式）
-        .fullScreenCover(isPresented: $showMemoryGallery) {
+        .fullScreenCover(isPresented: $showMemoryGallery, onDismiss: {
+            selectedTab = .ai
+        }) {
             MemoryGalleryView(onNavigateToFinance: {
                 showMemoryGallery = false
                 showFinanceView = true
@@ -169,6 +174,13 @@ struct HomeView: View {
             ChatView()
                 .preferredColorScheme(DarkModeManager.shared.colorScheme)
         }
+        // 个人页面（Sheet 形式，与 SettingsView 一致，支持内部弹出子页面）
+        .sheet(isPresented: $showPersonalView, onDismiss: {
+            selectedTab = .ai
+        }) {
+            PersonalView()
+                .preferredColorScheme(DarkModeManager.shared.colorScheme)
+        }
         // Holo One - 快速记账
         .sheet(isPresented: $showAddTransactionSheet) {
             AddTransactionSheet(editingTransaction: nil) {
@@ -187,12 +199,6 @@ struct HomeView: View {
         .sheet(isPresented: $showThoughtEditor) {
             ThoughtEditorView {
                 NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
-            }
-        }
-        // 监听底部导航栏变化
-        .onChange(of: selectedTab) { newValue in
-            if newValue == .memory {
-                showMemoryGallery = true
             }
         }
         // 监听 Deep Link：冷启动时 onAppear 读取已有值
@@ -256,6 +262,14 @@ struct HomeView: View {
                 // 底部导航栏
                 BottomNavBar(
                     selectedTab: $selectedTab,
+                    onProfileTap: {
+                        selectedTab = .profile
+                        showPersonalView = true
+                    },
+                    onMemoryTap: {
+                        selectedTab = .memory
+                        showMemoryGallery = true
+                    },
                     onCenterTap: { handleHoloOneAction() }
                 )
             }
@@ -589,6 +603,7 @@ struct HomeView: View {
         showHealthView = false
         showThoughtsView = false
         showChatView = false
+        showPersonalView = false
 
         // 延迟后打开目标页面（等待 dismiss 动画完成）
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {

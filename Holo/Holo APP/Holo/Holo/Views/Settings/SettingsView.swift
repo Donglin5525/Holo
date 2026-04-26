@@ -27,6 +27,7 @@ struct SettingsView: View {
     @State private var showAISettings = false
     @State private var showHoloOneSettings = false
     @State private var showNameEditor = false
+    @State private var showProfileEditor = false
 
     // MARK: - Body
 
@@ -340,6 +341,21 @@ struct SettingsView: View {
             .sheet(isPresented: $showHoloOneSettings) {
                 NavigationStack {
                     HoloOneSettingsView()
+                }
+            }
+
+            // 个人档案
+            settingsRow(
+                icon: "person.text.rectangle",
+                iconColor: .holoPrimary,
+                title: "个人档案",
+                subtitle: HoloProfileService.shared.hasProfile ? "已配置" : "未配置"
+            ) {
+                showProfileEditor = true
+            }
+            .sheet(isPresented: $showProfileEditor) {
+                NavigationStack {
+                    HoloProfileEditorView()
                 }
             }
 

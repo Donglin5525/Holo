@@ -361,6 +361,7 @@ struct UserContext {
     let tasks: TaskSummary
     let thoughts: ThoughtSummary
     let accounts: AccountSummary
+    let profileContext: String?
 }
 
 /// 交易摘要

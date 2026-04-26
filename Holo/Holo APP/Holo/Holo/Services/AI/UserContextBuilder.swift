@@ -31,13 +31,16 @@ final class UserContextBuilder {
         let thoughts = buildThoughtSummary()
         let accounts = buildAccountSummary()
 
+        let profileContext = HoloProfileService.shared.loadProfile()
+
         return UserContext(
             todayDate: todayDate,
             transactions: transactions,
             habits: habits,
             tasks: tasks,
             thoughts: thoughts,
-            accounts: accounts
+            accounts: accounts,
+            profileContext: profileContext.isEmpty ? nil : profileContext
         )
     }
 

@@ -59,6 +59,7 @@
 | SF Symbol | 新增/修改名称时**必须先验证存在**（`NSImage(systemSymbolName:) != nil`），无效名称渲染为空白 |
 | 金额显示（空间受限） | 必须用 `NumberFormatter.compactCurrency()`（万/亿单位），禁止 `fixedSize`，改用 `minimumScaleFactor(0.7)` + `lineLimit(1)` |
 | 金额显示（空间充足） | 用 `NumberFormatter.currency` 完整格式，仍需加 `minimumScaleFactor(0.7)` + `lineLimit(1)` 防溢出 |
+| 自定义导航栏 | HStack 必须加 `.frame(maxWidth: .infinity, minHeight: 44, maxHeight: 44)` 固定高度，仅靠 padding 无法约束 |
 
 ### 修复策略
 
