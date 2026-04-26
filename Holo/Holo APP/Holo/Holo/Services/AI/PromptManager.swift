@@ -127,6 +127,7 @@ final class PromptManager {
             UserDefaults.standard.set(version, forKey: versionKey)
         }
         cache.removeValue(forKey: type)
+        NotificationCenter.default.post(name: .promptDidChange, object: nil)
         logger.info("自定义 Prompt 已保存: \(type.rawValue)")
     }
 
@@ -140,6 +141,7 @@ final class PromptManager {
             UserDefaults.standard.set(version, forKey: versionKey)
         }
         cache.removeValue(forKey: type)
+        NotificationCenter.default.post(name: .promptDidChange, object: nil)
         logger.info("Prompt 已重置为默认: \(type.rawValue)")
     }
 
@@ -566,4 +568,10 @@ enum PromptError: LocalizedError {
             return "Prompt 文件格式错误：\(name)"
         }
     }
+}
+
+// MARK: - Notification
+
+extension Notification.Name {
+    static let promptDidChange = Notification.Name("com.holo.promptDidChange")
 }

@@ -14,10 +14,6 @@ struct PersonalView: View {
     @ObservedObject private var profileService = HoloProfileService.shared
     @AppStorage("userName") private var userName: String = "东林"
 
-    // Prompt 编辑器 sheet
-    @State private var selectedPromptType: PromptManager.PromptType?
-    @State private var showPromptEditor = false
-
     // 个人档案 sheet
     @State private var showProfileEditor = false
 
@@ -34,6 +30,9 @@ struct PersonalView: View {
             .background(Color.holoBackground)
             .navigationTitle("个人")
             .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(for: PromptManager.PromptType.self) { type in
+                PromptEditorView(promptType: type)
+            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button {
@@ -45,12 +44,6 @@ struct PersonalView: View {
                     }
                 }
             }
-            // Prompt 编辑器（sheet 形式）
-            .sheet(item: $selectedPromptType) { type in
-                // 使用 fullScreenCover 包裹，隔离 PromptEditorView 的 @StateObject 初始化
-                PromptEditorWrapper(promptType: type)
-            }
-            // 个人档案编辑器
             .sheet(isPresented: $showProfileEditor) {
                 NavigationStack {
                     HoloProfileEditorView()
@@ -67,7 +60,6 @@ struct PersonalView: View {
 
     private var promptWorkshopSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            // Section 标题
             HStack(spacing: HoloSpacing.sm) {
                 Image(systemName: "text.cursor")
                     .font(.system(size: 18))
@@ -79,12 +71,9 @@ struct PersonalView: View {
                     .foregroundColor(.holoTextPrimary)
             }
 
-            // Prompt 列表卡片
             VStack(spacing: 0) {
                 ForEach(PromptManager.PromptType.allCases, id: \.rawValue) { type in
-                    Button {
-                        selectedPromptType = type
-                    } label: {
+                    NavigationLink(value: type) {
                         promptRow(type)
                     }
                     .buttonStyle(PlainButtonStyle())
@@ -99,7 +88,6 @@ struct PersonalView: View {
         }
     }
 
-    /// 单条 Prompt 行
     private func promptRow(_ type: PromptManager.PromptType) -> some View {
         HStack(spacing: HoloSpacing.md) {
             ZStack {
@@ -123,16 +111,6 @@ struct PersonalView: View {
             }
 
             Spacer()
-
-            if PromptManager.shared.isCustomized(type) {
-                Text("已自定义")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(.holoPrimary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 3)
-                    .background(Color.holoPrimary.opacity(0.1))
-                    .clipShape(Capsule())
-            }
 
             Image(systemName: "chevron.right")
                 .font(.system(size: 12, weight: .semibold))
@@ -204,43 +182,6 @@ struct PersonalView: View {
         }
     }
 }
-
-// MARK: - PromptType Identifiable conformance (for .sheet(item:))
-
-extension PromptManager.PromptType: Identifiable {
-    public var id: String { rawValue }
-}
-
-// MARK: - PromptEditorWrapper
-
-/// 延迟初始化 PromptEditorView 的包装器
-/// 避免 @StateObject 在 sheet 呈现时立即创建 ViewModel 导致栈溢出
-struct PromptEditorWrapper: View {
-    let promptType: PromptManager.PromptType
-    @State private var showEditor = false
-
-    var body: some View {
-        ZStack {
-            Color.holoBackground.ignoresSafeArea()
-            ProgressView("加载中...")
-                .tint(.holoPrimary)
-        }
-        .onAppear {
-            // 延迟到下一个 RunLoop 再设置，让 sheet 完成呈现动画
-            DispatchQueue.main.async {
-                showEditor = true
-            }
-        }
-        .fullScreenCover(isPresented: $showEditor) {
-            NavigationStack {
-                PromptEditorView(promptType: promptType)
-            }
-            .preferredColorScheme(DarkModeManager.shared.colorScheme)
-        }
-    }
-}
-
-// MARK: - Preview
 
 #Preview {
     PersonalView()

@@ -10,8 +10,14 @@ import SwiftUI
 
 struct PromptTestSheet: View {
 
-    @ObservedObject var viewModel: PromptEditorViewModel
+    let promptType: PromptManager.PromptType
+    let promptContent: String
+
     @Environment(\.dismiss) private var dismiss
+    @State private var testInput = ""
+    @State private var testResult: String?
+    @State private var testError: String?
+    @State private var isTesting = false
 
     var body: some View {
         NavigationView {
@@ -41,7 +47,7 @@ struct PromptTestSheet: View {
                 .foregroundColor(.holoTextSecondary)
 
             HStack(spacing: HoloSpacing.sm) {
-                TextField("输入测试文本，如：午饭花了35", text: $viewModel.testInput)
+                TextField("输入测试文本，如：午饭花了35", text: $testInput)
                     .font(.holoBody)
                     .textFieldStyle(.plain)
                     .padding(.horizontal, HoloSpacing.sm)
@@ -54,9 +60,9 @@ struct PromptTestSheet: View {
                     )
 
                 Button {
-                    Task { await viewModel.runTest() }
+                    Task { await runTest() }
                 } label: {
-                    if viewModel.isTesting {
+                    if isTesting {
                         ProgressView()
                             .scaleEffect(0.8)
                     } else {
@@ -65,7 +71,7 @@ struct PromptTestSheet: View {
                     }
                 }
                 .foregroundColor(.holoPrimary)
-                .disabled(viewModel.isTesting || viewModel.testInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(isTesting || testInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
     }
@@ -78,14 +84,14 @@ struct PromptTestSheet: View {
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
 
-            if viewModel.isTesting {
+            if isTesting {
                 HStack {
                     Spacer()
                     ProgressView("请求中...")
                     Spacer()
                 }
                 .padding(HoloSpacing.lg)
-            } else if let error = viewModel.testError {
+            } else if let error = testError {
                 HStack(spacing: HoloSpacing.sm) {
                     Image(systemName: "xmark.circle.fill")
                         .foregroundColor(.red)
@@ -97,7 +103,7 @@ struct PromptTestSheet: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.red.opacity(0.08))
                 .cornerRadius(HoloRadius.md)
-            } else if let result = viewModel.testResult {
+            } else if let result = testResult {
                 ScrollView(showsIndicators: false) {
                     Text(result)
                         .font(.system(size: 13))
@@ -122,5 +128,60 @@ struct PromptTestSheet: View {
                     .cornerRadius(HoloRadius.md)
             }
         }
+    }
+
+    private func runTest() async {
+        guard !testInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            testError = "请输入测试文本"
+            return
+        }
+
+        isTesting = true
+        testResult = nil
+        testError = nil
+
+        do {
+            let config = try await Task.detached {
+                try KeychainService.loadAIConfigOffMain()
+            }.value
+
+            guard let config, config.isConfigured else {
+                testError = "请先在 AI 设置中配置 API Key"
+                isTesting = false
+                return
+            }
+
+            let request = APIRequest(
+                baseURL: config.baseURL,
+                path: "/chat/completions",
+                method: .post,
+                headers: [
+                    "Authorization": "Bearer \(config.apiKey)",
+                    "Content-Type": "application/json"
+                ],
+                body: ChatCompletionRequest(
+                    model: config.model,
+                    messages: [
+                        .system(promptContent),
+                        .user(testInput)
+                    ],
+                    temperature: config.temperature,
+                    maxTokens: config.maxTokens,
+                    stream: false
+                )
+            )
+
+            let response: ChatCompletionResponse = try await APIClient.shared.send(request)
+
+            if let content = response.choices?.first?.message?.content {
+                testResult = content
+            } else {
+                testError = "未收到有效响应"
+            }
+        } catch {
+            testError = error.localizedDescription
+        }
+
+        isTesting = false
     }
 }
