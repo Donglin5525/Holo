@@ -198,9 +198,14 @@ struct MessageBubbleView: View {
     private func intentTag(_ intent: String) -> some View {
         let isFinance = intent == "record_expense" || intent == "record_income"
         let hasTransaction = message.linkedTransactionId != nil
+        let isTask = intent == "create_task" || intent == "complete_task" || intent == "update_task"
+        // extractedDataJSON 不含 taskId（只有 LLM 原始数据），
+        // 需要同时检查 executionBatch 的 linkedEntityId
+        let hasTask = message.linkedTaskId != nil || message.hasTaskLinkedEntity
+        let canTap = (isFinance && hasTransaction) || (isTask && hasTask)
 
         return Button {
-            if isFinance && hasTransaction {
+            if canTap {
                 onIntentTagTap?(message)
             }
         } label: {
@@ -209,7 +214,7 @@ struct MessageBubbleView: View {
                     .font(.system(size: 10))
                 Text(intentLabel(intent))
                     .font(.system(size: 11))
-                if isFinance && hasTransaction {
+                if canTap {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 8, weight: .semibold))
                 }

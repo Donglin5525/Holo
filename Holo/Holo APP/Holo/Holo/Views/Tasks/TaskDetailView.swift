@@ -28,6 +28,8 @@ struct TaskDetailView: View {
     @State private var selectedHasTime = false
     @State private var selectedReminders: Set<TaskReminder> = []
     @State private var isChecklistExpanded = false
+    @State private var editedTitle = ""
+    @State private var editedDescription = ""
 
     private static let logger = Logger(subsystem: "com.holo.app", category: "TaskDetailView")
 
@@ -93,6 +95,9 @@ struct TaskDetailView: View {
             selectedDate = task.dueDate ?? Date()
             selectedHasTime = !task.isAllDay
             selectedReminders = task.remindersSet
+            // 初始化编辑状态
+            editedTitle = task.title
+            editedDescription = task.desc ?? ""
         }
     }
 
@@ -100,50 +105,59 @@ struct TaskDetailView: View {
 
     private var taskInfoCard: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // 完成状态切换按钮
-            Button {
-                toggleCompletion()
-            } label: {
-                HStack(spacing: 12) {
+            // 完成状态切换 + 标题编辑
+            HStack(spacing: 12) {
+                Button {
+                    toggleCompletion()
+                } label: {
                     Image(systemName: task.completed ? "checkmark.circle.fill" : "circle")
                         .font(.system(size: 24, weight: .medium))
                         .foregroundColor(task.completed ? .holoSuccess : .holoTextSecondary)
+                }
+                .buttonStyle(.plain)
 
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(task.title)
-                            .font(.holoHeading)
-                            .foregroundColor(task.completed ? .holoTextSecondary : .holoTextPrimary)
-                            .strikethrough(task.completed)
-
-                        // 重复任务提示
-                        if let repeatRule = task.repeatRule, !task.completed {
-                            HStack(spacing: 4) {
-                                Image(systemName: "repeat")
-                                    .font(.system(size: 10, weight: .medium))
-                                Text("重复任务")
-                                    .font(.holoTinyLabel)
-                            }
-                            .foregroundColor(.holoPrimary)
+                VStack(alignment: .leading, spacing: 4) {
+                    TextField("任务标题", text: $editedTitle)
+                        .font(.holoHeading)
+                        .foregroundColor(task.completed ? .holoTextSecondary : .holoTextPrimary)
+                        .strikethrough(task.completed)
+                        .submitLabel(.done)
+                        .onSubmit {
+                            saveTitleAndDescription()
                         }
+
+                    // 重复任务提示
+                    if let repeatRule = task.repeatRule, !task.completed {
+                        HStack(spacing: 4) {
+                            Image(systemName: "repeat")
+                                .font(.system(size: 10, weight: .medium))
+                            Text("重复任务")
+                                .font(.holoTinyLabel)
+                        }
+                        .foregroundColor(.holoPrimary)
                     }
-
-                    Spacer()
                 }
+
+                Spacer()
             }
-            .buttonStyle(.plain)
 
-            // 描述
-            if let desc = task.desc, !desc.isEmpty {
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("描述")
-                        .font(.holoTinyLabel)
-                        .foregroundColor(.holoTextSecondary)
+            // 描述（可编辑）
+            VStack(alignment: .leading, spacing: 6) {
+                Text("描述")
+                    .font(.holoTinyLabel)
+                    .foregroundColor(.holoTextSecondary)
 
-                    Text(desc)
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextSecondary)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
+                TextEditor(text: $editedDescription)
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextSecondary)
+                    .frame(minHeight: editedDescription.isEmpty ? 30 : 60)
+                    .scrollContentBackground(.hidden)
+                    .onChange(of: editedDescription) { _, newValue in
+                        if newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && (task.desc ?? "").isEmpty {
+                            return
+                        }
+                        saveTitleAndDescription()
+                    }
             }
         }
         .padding()

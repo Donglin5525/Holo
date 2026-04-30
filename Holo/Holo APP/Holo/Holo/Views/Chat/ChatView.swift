@@ -177,7 +177,7 @@ struct ChatView: View {
                             message: message,
                             streamingText: viewModel.isStreaming && message.isStreaming ? viewModel.streamingText : nil,
                             onIntentTagTap: { msg in
-                                openTransactionDetail(msg)
+                                handleIntentTagTap(msg)
                             },
                             onCardTap: { message, cardData in
                                 handleCardTap(message: message, cardData: cardData)
@@ -212,6 +212,32 @@ struct ChatView: View {
         guard let transactionId = message.linkedTransactionId else { return }
         let transaction = FinanceRepository.shared.findTransaction(by: transactionId)
         editingTransaction = transaction
+    }
+
+    // MARK: - Intent Tag Navigation
+
+    /// 意图标签点击回调（支持记账 + 任务跳转）
+    private func handleIntentTagTap(_ message: ChatMessageViewData) {
+        if let transactionId = message.linkedTransactionId {
+            let transaction = FinanceRepository.shared.findTransaction(by: transactionId)
+            editingTransaction = transaction
+        } else if let taskId = taskIdFromMessage(message) {
+            DeepLinkState.shared.pendingTarget = .taskDetail(taskId: taskId)
+            dismiss()
+        }
+    }
+
+    /// 从消息中提取任务 ID（优先从 executionBatch 获取，兜底读取旧字段）
+    private func taskIdFromMessage(_ message: ChatMessageViewData) -> UUID? {
+        // 优先从 executionBatch 的 linkedEntityId 获取
+        if let batch = message.executionBatch,
+           let item = batch.items.first(where: { $0.intent == .createTask }),
+           let entityId = item.linkedEntityId,
+           let uuid = UUID(uuidString: entityId) {
+            return uuid
+        }
+        // 兜底：从 extractedData 读取
+        return message.linkedTaskId
     }
 
     // MARK: - Card Tap Navigation

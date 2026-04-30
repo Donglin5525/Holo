@@ -618,8 +618,11 @@ struct HomeView: View {
                 showTasksView = true
             }
 
-            // 清除已处理的 pendingTarget，避免重复触发
-            deepLinkState.pendingTarget = nil
+            // 不在此处清除 pendingTarget —— 由目标页面处理完后再清除，
+            // 避免 pendingTarget 在目标视图 onAppear 之前就被清空导致深度链接丢失。
+            // taskDetail → TaskListView.handleDeepLink() 清除
+            // habitDetail → HabitListView 处理后清除
+            // 其余类型由目标视图首次渲染后自动消费
         }
     }
 

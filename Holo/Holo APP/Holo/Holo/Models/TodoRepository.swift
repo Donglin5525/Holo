@@ -89,8 +89,7 @@ class TodoRepository: ObservableObject {
         )
         request.sortDescriptors = [
             NSSortDescriptor(key: "completed", ascending: true),
-            NSSortDescriptor(key: "priority", ascending: false),
-            NSSortDescriptor(key: "dueDate", ascending: true)
+            NSSortDescriptor(key: "createdAt", ascending: false)
         ]
 
         do {

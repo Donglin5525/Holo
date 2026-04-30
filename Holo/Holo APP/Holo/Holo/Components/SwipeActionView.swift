@@ -167,16 +167,17 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
         // 将 pan 手势和 overlay 引用存到 coordinator
         context.coordinator.overlayView = view
 
+        // 视图加入层级后再挂载手势，避免 superview 为 nil
+        let coordinator = context.coordinator
+        view.onMovedToSuperview = { [weak coordinator] in
+            coordinator?.attachPanGesture()
+        }
+
         return view
     }
 
     func updateUIView(_ uiView: SwipeOverlayView, context: Context) {
         context.coordinator.parent = self
-
-        // 如果 pan 手势尚未挂载到父视图，尝试挂载
-        if context.coordinator.panGesture?.view == nil {
-            context.coordinator.attachPanGesture()
-        }
     }
 
     // MARK: - Coordinator
@@ -298,6 +299,8 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
 /// 透明 overlay，hitTest 始终返回 nil
 /// 不拦截任何触摸，所有触摸穿透到 SwiftUI 内容层
 private class SwipeOverlayView: UIView {
+    var onMovedToSuperview: (() -> Void)?
+
     override init(frame: CGRect) {
         super.init(frame: frame)
         backgroundColor = .clear
@@ -305,6 +308,13 @@ private class SwipeOverlayView: UIView {
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    override func didMoveToSuperview() {
+        super.didMoveToSuperview()
+        if superview != nil {
+            onMovedToSuperview?()
+        }
     }
 
     /// 始终返回 nil → 触摸穿透到下层 SwiftUI 内容

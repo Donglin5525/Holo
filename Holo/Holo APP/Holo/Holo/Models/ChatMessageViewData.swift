@@ -82,6 +82,17 @@ struct ChatMessageViewData: Identifiable, Equatable, Sendable {
         return UUID(uuidString: idStr)
     }
 
+    /// 检查 executionBatch 中是否存在任务类型的 linkedEntityId
+    /// extractedDataJSON 只有 LLM 原始数据（不含 taskId），
+    /// 真正的 taskId 在 executionBatch.items[].linkedEntityId 中
+    var hasTaskLinkedEntity: Bool {
+        guard let batch = executionBatch else { return false }
+        let taskIntents: Set<AIIntent> = [.createTask, .completeTask, .updateTask]
+        return batch.items.contains { item in
+            taskIntents.contains(item.intent) && item.linkedEntityId != nil
+        }
+    }
+
     var linkedEntity: LinkedEntity? {
         guard let dict = extractedDataDictionary else { return nil }
 
