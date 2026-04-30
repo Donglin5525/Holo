@@ -193,7 +193,35 @@ private class EdgeGestureHostView: UIView {
             return nil
         }
 
+        // 当子视图有活跃的 UIPanGestureRecognizer（如 SwipeActionView）时，不拦截
+        // 避免边缘手势抢占卡片级左滑操作
+        if hasActivePanGestureInChildren() {
+            return nil
+        }
+
         return super.hitTest(point, with: event)
+    }
+
+    /// 检查子视图中是否有活跃的 UIPanGestureRecognizer
+    private func hasActivePanGestureInChildren() -> Bool {
+        guard let superview = self.superview else { return false }
+        return checkForActivePanGesture(in: superview)
+    }
+
+    private func checkForActivePanGesture(in view: UIView) -> Bool {
+        for recognizer in view.gestureRecognizers ?? [] {
+            if let pan = recognizer as? UIPanGestureRecognizer,
+               pan.state == .began || pan.state == .changed {
+                return true
+            }
+        }
+        for subview in view.subviews {
+            if subview == self { continue }
+            if checkForActivePanGesture(in: subview) {
+                return true
+            }
+        }
+        return false
     }
 
     /// 检查当前窗口中是否存在有推送内容的 UINavigationController
