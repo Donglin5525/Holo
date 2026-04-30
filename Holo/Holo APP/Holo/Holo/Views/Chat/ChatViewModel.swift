@@ -211,20 +211,26 @@ final class ChatViewModel: ObservableObject {
                         self.streamingText = fullText
                     }
 
-                    self.chatRepo?.finishStreaming(aiMessageId, finalContent: fullText)
+                    // 原子化写入：结束流式 + 元数据，单次 save + 单次 snapshot
+                    self.chatRepo?.finalizeMessage(
+                        aiMessageId,
+                        finalContent: fullText,
+                        intent: processResult.firstIntent?.rawValue,
+                        extractedDataJSON: Self.encodeExtractedData(processResult.firstExtractedData),
+                        parsedBatchJSON: Self.encodeParseBatch(processResult.parsedBatch),
+                        executionBatchJSON: Self.encodeExecutionBatch(processResult.executionBatch)
+                    )
                 } else {
-                    // 操作结果 / 澄清 / 错误 → 直接结束
-                    self.chatRepo?.finishStreaming(aiMessageId, finalContent: processResult.finalText)
+                    // 操作结果 / 澄清 / 错误 → 原子化写入
+                    self.chatRepo?.finalizeMessage(
+                        aiMessageId,
+                        finalContent: processResult.finalText,
+                        intent: processResult.firstIntent?.rawValue,
+                        extractedDataJSON: Self.encodeExtractedData(processResult.firstExtractedData),
+                        parsedBatchJSON: Self.encodeParseBatch(processResult.parsedBatch),
+                        executionBatchJSON: Self.encodeExecutionBatch(processResult.executionBatch)
+                    )
                 }
-
-                // 双写元数据：旧字段 + batch 字段
-                self.chatRepo?.updateMessageMetadata(
-                    aiMessageId,
-                    intent: processResult.firstIntent?.rawValue,
-                    extractedDataJSON: Self.encodeExtractedData(processResult.firstExtractedData),
-                    parsedBatchJSON: Self.encodeParseBatch(processResult.parsedBatch),
-                    executionBatchJSON: Self.encodeExecutionBatch(processResult.executionBatch)
-                )
 
                 // ENERGY: 能量恢复预留位
 
@@ -254,19 +260,40 @@ final class ChatViewModel: ObservableObject {
     /// 将 extractedData 字典编码为 JSON 字符串
     private static func encodeExtractedData(_ data: [String: String]?) -> String? {
         guard let data = data, !data.isEmpty else { return nil }
-        return (try? JSONEncoder().encode(data)).flatMap { String(data: $0, encoding: .utf8) }
+        do {
+            let encoded = try JSONEncoder().encode(data)
+            return String(data: encoded, encoding: .utf8)
+        } catch {
+            Logger(subsystem: "com.holo.app", category: "ChatViewModel")
+                .error("编码 extractedData 失败：\(error.localizedDescription)")
+            return nil
+        }
     }
 
     /// 将 AIParseBatch 编码为 JSON 字符串
     private static func encodeParseBatch(_ batch: AIParseBatch?) -> String? {
         guard let batch = batch else { return nil }
-        return (try? JSONEncoder().encode(batch)).flatMap { String(data: $0, encoding: .utf8) }
+        do {
+            let encoded = try JSONEncoder().encode(batch)
+            return String(data: encoded, encoding: .utf8)
+        } catch {
+            Logger(subsystem: "com.holo.app", category: "ChatViewModel")
+                .error("编码 parsedBatch 失败：\(error.localizedDescription)")
+            return nil
+        }
     }
 
     /// 将 AIExecutionBatch 编码为 JSON 字符串
     private static func encodeExecutionBatch(_ batch: AIExecutionBatch?) -> String? {
         guard let batch = batch else { return nil }
-        return (try? JSONEncoder().encode(batch)).flatMap { String(data: $0, encoding: .utf8) }
+        do {
+            let encoded = try JSONEncoder().encode(batch)
+            return String(data: encoded, encoding: .utf8)
+        } catch {
+            Logger(subsystem: "com.holo.app", category: "ChatViewModel")
+                .error("编码 executionBatch 失败：\(error.localizedDescription)")
+            return nil
+        }
     }
 
     private func retryConfigurationLoadIfNeeded() async {

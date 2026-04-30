@@ -248,7 +248,7 @@ final class OpenAICompatibleProvider: AIProvider {
 
         // 回退到单意图格式
         if let single = try? JSONDecoder().decode(ParsedResult.self, from: data) {
-            let mode: AIInteractionMode = (single.intent == .query || single.intent == .queryTasks || single.intent == .queryHabits) ? .query : .singleAction
+            let mode: AIInteractionMode = single.intent.isQuery ? .query : .singleAction
             return AIParseBatch(
                 mode: mode,
                 items: [single.asParseItem],

@@ -37,6 +37,18 @@ enum AIIntent: String, Codable, CaseIterable {
     case unknown = "unknown"
 }
 
+// MARK: - AIIntent Category Helpers
+
+extension AIIntent {
+    static let queryIntents: Set<AIIntent> = [.query, .queryTasks, .queryHabits]
+    static let taskIntents: Set<AIIntent> = [.createTask, .completeTask, .updateTask]
+    static let financeIntents: Set<AIIntent> = [.recordExpense, .recordIncome]
+
+    var isQuery: Bool { Self.queryIntents.contains(self) }
+    var isTask: Bool { Self.taskIntents.contains(self) }
+    var isFinance: Bool { Self.financeIntents.contains(self) }
+}
+
 // MARK: - LinkedEntity
 
 /// 关联实体类型

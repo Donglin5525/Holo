@@ -279,8 +279,8 @@ final class MockAIProvider: AIProvider {
             items.append(parsed.asParseItem)
         }
 
-        let hasQuery = items.contains { $0.intent == .query || $0.intent == .queryTasks || $0.intent == .queryHabits }
-        let hasAction = items.contains { $0.intent != .query && $0.intent != .queryTasks && $0.intent != .queryHabits && $0.intent != .unknown }
+        let hasQuery = items.contains { $0.intent.isQuery }
+        let hasAction = items.contains { !$0.intent.isQuery && $0.intent != .unknown }
 
         if hasQuery && hasAction {
             return AIParseBatch(
@@ -298,7 +298,7 @@ final class MockAIProvider: AIProvider {
     private func wrapSingleAsBatch(_ parsed: ParsedResult) -> AIParseBatch {
         let mode: AIInteractionMode
         switch parsed.intent {
-        case .query, .queryTasks, .queryHabits:
+        case _ where parsed.intent.isQuery:
             mode = .query
         case .unknown:
             mode = parsed.needsClarification ? .clarification : .unknown

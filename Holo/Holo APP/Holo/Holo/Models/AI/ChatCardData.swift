@@ -97,7 +97,6 @@ enum ChatCardData: Equatable {
 
     /// 从 AIExecutionItem 构建卡片数据
     static func from(executionItem: AIExecutionItem) -> ChatCardData? {
-        let linkedId = executionItem.linkedEntityId ?? linkedEntityId(from: executionItem.renderData)
         return from(intent: executionItem.intent, data: executionItem.renderData)
     }
 

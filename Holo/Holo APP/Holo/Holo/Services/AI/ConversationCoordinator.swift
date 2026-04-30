@@ -76,12 +76,8 @@ final class ConversationCoordinator {
         }
 
         // 混合 query + action
-        let hasQuery = parseBatch.items.contains {
-            $0.intent == .query || $0.intent == .queryTasks || $0.intent == .queryHabits
-        }
-        let hasAction = parseBatch.items.contains {
-            $0.intent != .query && $0.intent != .queryTasks && $0.intent != .queryHabits && $0.intent != .unknown
-        }
+        let hasQuery = parseBatch.items.contains { $0.intent.isQuery }
+        let hasAction = parseBatch.items.contains { !$0.intent.isQuery && $0.intent != .unknown }
         if hasQuery && hasAction {
             return ConversationProcessResult(
                 finalText: "当前版本暂不支持把查询和执行操作混在一句话里，请拆成两句发送。",
@@ -95,7 +91,7 @@ final class ConversationCoordinator {
 
         // 低置信度检查
         let hasLowConfidence = parseBatch.items.contains {
-            !$0.isHighConfidence && $0.intent != .query && $0.intent != .queryTasks && $0.intent != .queryHabits
+            !$0.isHighConfidence && !$0.intent.isQuery
         }
         if hasLowConfidence {
             return ConversationProcessResult(

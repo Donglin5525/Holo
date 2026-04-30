@@ -195,73 +195,78 @@ struct MessageBubbleView: View {
 
     // MARK: - Intent Tag
 
-    private func intentTag(_ intent: String) -> some View {
-        let isFinance = intent == "record_expense" || intent == "record_income"
-        let hasTransaction = message.linkedTransactionId != nil
-        let isTask = intent == "create_task" || intent == "complete_task" || intent == "update_task"
-        // extractedDataJSON 不含 taskId（只有 LLM 原始数据），
-        // 需要同时检查 executionBatch 的 linkedEntityId
-        let hasTask = message.linkedTaskId != nil || message.hasTaskLinkedEntity
-        let canTap = (isFinance && hasTransaction) || (isTask && hasTask)
-
-        return Button {
-            if canTap {
-                onIntentTagTap?(message)
-            }
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: intentIcon(intent))
-                    .font(.system(size: 10))
-                Text(intentLabel(intent))
-                    .font(.system(size: 11))
-                if canTap {
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 8, weight: .semibold))
-                }
-            }
-            .foregroundColor(.holoPrimary)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(Color.holoPrimary.opacity(0.1))
-            .cornerRadius(8)
+    private func intentTag(_ intentStr: String) -> some View {
+        guard let intent = AIIntent(rawValue: intentStr) else {
+            return AnyView(EmptyView())
         }
-        .buttonStyle(.plain)
+        let canTap: Bool
+        if intent.isFinance {
+            canTap = message.hasLinkedEntity(for: .finance)
+        } else if intent.isTask {
+            canTap = message.hasLinkedEntity(for: .task)
+        } else {
+            canTap = false
+        }
+
+        return AnyView(
+            Button {
+                if canTap {
+                    onIntentTagTap?(message)
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: intentIcon(intent))
+                        .font(.system(size: 10))
+                    Text(intentLabel(intent))
+                        .font(.system(size: 11))
+                    if canTap {
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 8, weight: .semibold))
+                    }
+                }
+                .foregroundColor(.holoPrimary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Color.holoPrimary.opacity(0.1))
+                .cornerRadius(8)
+            }
+            .buttonStyle(.plain)
+        )
     }
 
-    private func intentIcon(_ intent: String) -> String {
+    private func intentIcon(_ intent: AIIntent) -> String {
         switch intent {
-        case "record_expense", "record_income": return "yensign.circle"
-        case "create_task": return "checklist"
-        case "complete_task": return "checkmark.circle"
-        case "update_task": return "pencil.circle"
-        case "delete_task": return "trash.circle"
-        case "record_mood": return "heart.circle"
-        case "check_in": return "flame.circle"
-        case "create_note": return "note.text"
-        case "query_tasks": return "list.bullet.circle"
-        case "query_habits": return "chart.circle"
-        case "record_weight": return "figure.scale"
-        case "unknown": return "questionmark.circle"
+        case .recordExpense, .recordIncome: return "yensign.circle"
+        case .createTask: return "checklist"
+        case .completeTask: return "checkmark.circle"
+        case .updateTask: return "pencil.circle"
+        case .deleteTask: return "trash.circle"
+        case .recordMood: return "heart.circle"
+        case .checkIn: return "flame.circle"
+        case .createNote: return "note.text"
+        case .queryTasks: return "list.bullet.circle"
+        case .queryHabits: return "chart.circle"
+        case .recordWeight: return "figure.scale"
+        case .unknown: return "questionmark.circle"
         default: return "sparkles"
         }
     }
 
-    private func intentLabel(_ intent: String) -> String {
+    private func intentLabel(_ intent: AIIntent) -> String {
         switch intent {
-        case "record_expense": return "已记账"
-        case "record_income": return "已记账"
-        case "create_task": return "已创建任务"
-        case "complete_task": return "已完成任务"
-        case "update_task": return "已更新任务"
-        case "delete_task": return "已删除任务"
-        case "record_mood": return "已记录心情"
-        case "record_weight": return "已记录体重"
-        case "check_in": return "已打卡"
-        case "create_note": return "已记录笔记"
-        case "query_tasks": return "任务查询"
-        case "query_habits": return "习惯查询"
-        case "unknown": return "未识别指令"
-        default: return intent
+        case .recordExpense, .recordIncome: return "已记账"
+        case .createTask: return "已创建任务"
+        case .completeTask: return "已完成任务"
+        case .updateTask: return "已更新任务"
+        case .deleteTask: return "已删除任务"
+        case .recordMood: return "已记录心情"
+        case .recordWeight: return "已记录体重"
+        case .checkIn: return "已打卡"
+        case .createNote: return "已记录笔记"
+        case .queryTasks: return "任务查询"
+        case .queryHabits: return "习惯查询"
+        case .unknown: return "未识别指令"
+        default: return intent.rawValue
         }
     }
 }

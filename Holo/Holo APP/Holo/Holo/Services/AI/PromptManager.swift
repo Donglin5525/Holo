@@ -281,7 +281,7 @@ final class PromptManager {
                 "note": "简洁备注（如：午饭、打车去公司）",
                 "primaryCategory": "一级科目名称（记账时必填）",
                 "subCategory": "二级科目名称（记账时必填）",
-                "title": "任务标题（create_task 时使用）",
+                "title": "任务标题（create_task 时使用，提取核心动作而非照搬原文，如"提醒我明天买水"→ title: "买水"，"帮我创建一个任务买菜"→ title: "买菜"）",
                 "taskKeyword": "任务关键词（complete_task/update_task/delete_task 时必填，用于匹配已有任务）",
                 "priority": "优先级 0-3（0=低 1=中 2=高 3=紧急，create_task 可选）",
                 "dueDate": "截止日期（yyyy-MM-dd，create_task 可选）",
@@ -335,6 +335,7 @@ final class PromptManager {
         - 明确包含花钱/买东西 → record_expense
         - 明确包含收钱/工资 → record_income
         - "创建任务"/"提醒我"/"待办" → create_task
+          - title 提取核心动作，去掉"提醒我""帮我""创建任务"等套话，如"提醒我明天买水"→ title: "买水"
         - "完成了"/"做完了"/"搞定了" → complete_task
         - "改成"/"修改任务" → update_task
         - "删除任务"/"不要了" → delete_task

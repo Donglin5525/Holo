@@ -41,7 +41,7 @@ extension AIProvider {
 
         let mode: AIInteractionMode
         switch single.intent {
-        case .query:
+        case _ where single.intent.isQuery:
             mode = .query
         case .unknown:
             mode = single.needsClarification ? .clarification : .unknown

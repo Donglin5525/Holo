@@ -8,6 +8,13 @@
 
 import Foundation
 
+// MARK: - EntityCategory
+
+/// 实体类别，用于统一解析 linkedEntityId
+enum EntityCategory {
+    case finance, task, habit, thought
+}
+
 struct ChatMessageViewData: Identifiable, Equatable, Sendable {
     let id: UUID
     var role: String
@@ -59,6 +66,8 @@ struct ChatMessageViewData: Identifiable, Equatable, Sendable {
         )
     }
 
+    // MARK: - Extracted Data
+
     var extractedDataDictionary: [String: String]? {
         guard let json = extractedDataJSON,
               let data = json.data(using: .utf8),
@@ -68,56 +77,47 @@ struct ChatMessageViewData: Identifiable, Equatable, Sendable {
         return dict
     }
 
-    var linkedTransactionId: UUID? {
+    // 旧路径兜底：从 extractedDataJSON 解析（新项通常为 nil）
+    private var linkedTransactionId: UUID? {
         guard let idStr = extractedDataDictionary?["transactionId"] else {
             return nil
         }
         return UUID(uuidString: idStr)
     }
 
-    var linkedTaskId: UUID? {
+    private var linkedTaskId: UUID? {
         guard let idStr = extractedDataDictionary?["taskId"] else {
             return nil
         }
         return UUID(uuidString: idStr)
     }
 
-    /// 检查 executionBatch 中是否存在任务类型的 linkedEntityId
-    /// extractedDataJSON 只有 LLM 原始数据（不含 taskId），
-    /// 真正的 taskId 在 executionBatch.items[].linkedEntityId 中
-    var hasTaskLinkedEntity: Bool {
-        guard let batch = executionBatch else { return false }
-        let taskIntents: Set<AIIntent> = [.createTask, .completeTask, .updateTask]
-        return batch.items.contains { item in
-            taskIntents.contains(item.intent) && item.linkedEntityId != nil
+    // MARK: - Unified Entity Resolution
+
+    /// 统一实体解析：新路径（executionBatch）优先，旧路径（extractedDataJSON）兜底
+    func resolveLinkedEntityId(for category: EntityCategory) -> UUID? {
+        // 新路径：从 executionBatch 查找 linkedEntityId
+        if let batch = executionBatch {
+            let targetIntents = intentsForCategory(category)
+            for item in batch.items {
+                if targetIntents.contains(item.intent),
+                   let idStr = item.linkedEntityId,
+                   let id = UUID(uuidString: idStr) {
+                    return id
+                }
+            }
         }
+
+        // 旧路径兜底：从 extractedDataJSON 按 category 字段名查找
+        return legacyEntityId(for: category)
     }
 
-    var linkedEntity: LinkedEntity? {
-        guard let dict = extractedDataDictionary else { return nil }
-
-        if let typeStr = dict["entityType"],
-           let idStr = dict["entityId"],
-           let type = LinkedEntityType(rawValue: typeStr),
-           let id = UUID(uuidString: idStr) {
-            return LinkedEntity(type: type, id: id)
-        }
-
-        if let idStr = dict["transactionId"], let id = UUID(uuidString: idStr) {
-            return LinkedEntity(type: .transaction, id: id)
-        }
-        if let idStr = dict["taskId"], let id = UUID(uuidString: idStr) {
-            return LinkedEntity(type: .task, id: id)
-        }
-        if let idStr = dict["habitId"], let id = UUID(uuidString: idStr) {
-            return LinkedEntity(type: .habit, id: id)
-        }
-        if let idStr = dict["thoughtId"], let id = UUID(uuidString: idStr) {
-            return LinkedEntity(type: .thought, id: id)
-        }
-
-        return nil
+    /// 检查是否存在关联实体
+    func hasLinkedEntity(for category: EntityCategory) -> Bool {
+        resolveLinkedEntityId(for: category) != nil
     }
+
+    // MARK: - DTO
 
     var dto: ChatMessageDTO? {
         switch role {
@@ -130,5 +130,29 @@ struct ChatMessageViewData: Identifiable, Equatable, Sendable {
         default:
             return nil
         }
+    }
+
+    // MARK: - Private Helpers
+
+    private func intentsForCategory(_ category: EntityCategory) -> Set<AIIntent> {
+        switch category {
+        case .finance: return AIIntent.financeIntents
+        case .task: return AIIntent.taskIntents
+        case .habit: return [.checkIn]
+        case .thought: return [.createNote]
+        }
+    }
+
+    private func legacyEntityId(for category: EntityCategory) -> UUID? {
+        guard let dict = extractedDataDictionary else { return nil }
+        let key: String
+        switch category {
+        case .finance: key = "transactionId"
+        case .task: key = "taskId"
+        case .habit: key = "habitId"
+        case .thought: key = "thoughtId"
+        }
+        guard let idStr = dict[key] else { return nil }
+        return UUID(uuidString: idStr)
     }
 }

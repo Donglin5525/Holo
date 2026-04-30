@@ -209,74 +209,39 @@ struct ChatView: View {
     // MARK: - Transaction Detail
 
     private func openTransactionDetail(_ message: ChatMessageViewData) {
-        guard let transactionId = message.linkedTransactionId else { return }
+        guard let transactionId = message.resolveLinkedEntityId(for: .finance) else { return }
         let transaction = FinanceRepository.shared.findTransaction(by: transactionId)
         editingTransaction = transaction
     }
 
     // MARK: - Intent Tag Navigation
 
-    /// 意图标签点击回调（支持记账 + 任务跳转）
     private func handleIntentTagTap(_ message: ChatMessageViewData) {
-        if let transactionId = message.linkedTransactionId {
+        if let transactionId = message.resolveLinkedEntityId(for: .finance) {
             let transaction = FinanceRepository.shared.findTransaction(by: transactionId)
             editingTransaction = transaction
-        } else if let taskId = taskIdFromMessage(message) {
+        } else if let taskId = message.resolveLinkedEntityId(for: .task) {
             DeepLinkState.shared.pendingTarget = .taskDetail(taskId: taskId)
             dismiss()
         }
     }
 
-    /// 从消息中提取任务 ID（优先从 executionBatch 获取，兜底读取旧字段）
-    private func taskIdFromMessage(_ message: ChatMessageViewData) -> UUID? {
-        // 优先从 executionBatch 的 linkedEntityId 获取
-        if let batch = message.executionBatch,
-           let item = batch.items.first(where: { $0.intent == .createTask }),
-           let entityId = item.linkedEntityId,
-           let uuid = UUID(uuidString: entityId) {
-            return uuid
-        }
-        // 兜底：从 extractedData 读取
-        return message.linkedTaskId
-    }
-
     // MARK: - Card Tap Navigation
 
-    /// 点击卡片后跳转到对应详情（支持 item 级实体链接）
     private func handleCardTap(message: ChatMessageViewData, cardData: ChatCardData) {
         switch cardData {
         case .transaction:
-            // 优先从 executionBatch 的 renderData 中获取 linkedEntityId
-            if let entityId = findLinkedEntityId(for: cardData, in: message.executionBatch),
-               let uuid = UUID(uuidString: entityId) {
-                let transaction = FinanceRepository.shared.findTransaction(by: uuid)
+            if let transactionId = message.resolveLinkedEntityId(for: .finance) {
+                let transaction = FinanceRepository.shared.findTransaction(by: transactionId)
                 editingTransaction = transaction
-            } else {
-                openTransactionDetail(message)
             }
         case .task:
-            if let entityId = findLinkedEntityId(for: cardData, in: message.executionBatch),
-               let uuid = UUID(uuidString: entityId) {
-                DeepLinkState.shared.pendingTarget = .taskDetail(taskId: uuid)
-                dismiss()
-            } else if let taskId = message.linkedTaskId {
+            if let taskId = message.resolveLinkedEntityId(for: .task) {
                 DeepLinkState.shared.pendingTarget = .taskDetail(taskId: taskId)
                 dismiss()
             }
         case .habitCheckIn, .mood, .weight:
             break
         }
-    }
-
-    /// 从 executionBatch 中查找对应卡片的 linkedEntityId
-    private func findLinkedEntityId(for cardData: ChatCardData, in batch: AIExecutionBatch?) -> String? {
-        guard let batch = batch else { return nil }
-        let targetIntent: AIIntent
-        switch cardData {
-        case .transaction: targetIntent = .recordExpense
-        case .task: targetIntent = .createTask
-        default: return nil
-        }
-        return batch.items.first { $0.intent == targetIntent && $0.linkedEntityId != nil }?.linkedEntityId
     }
 }

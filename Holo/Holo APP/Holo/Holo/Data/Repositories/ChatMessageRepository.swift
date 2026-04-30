@@ -144,6 +144,57 @@ final class ChatMessageRepository: ObservableObject {
         }
     }
 
+    /// 原子化最终写入：结束流式 + 写入元数据，单次 save + 单次 snapshot 更新
+    func finalizeMessage(
+        _ messageId: UUID,
+        finalContent: String,
+        intent: String?,
+        extractedDataJSON: String?,
+        parsedBatchJSON: String?,
+        executionBatchJSON: String?
+    ) {
+        guard let message = liveMessageCache[messageId] else { return }
+
+        // Core Data 写入（单次 save）
+        message.content = finalContent
+        message.isStreaming = false
+        message.intent = intent
+        message.extractedDataJSON = extractedDataJSON
+        message.parsedBatchJSON = parsedBatchJSON
+        message.executionBatchJSON = executionBatchJSON
+        save()
+
+        // 解码 batch 数据（绕过 associated object 缓存）
+        let decodedParsedBatch: AIParseBatch? = parsedBatchJSON.flatMap { json in
+            guard let data = json.data(using: .utf8) else { return nil }
+            do {
+                return try JSONDecoder().decode(AIParseBatch.self, from: data)
+            } catch {
+                logger.error("解析 parsedBatchJSON 失败：\(error.localizedDescription)")
+                return nil
+            }
+        }
+        let decodedExecutionBatch: AIExecutionBatch? = executionBatchJSON.flatMap { json in
+            guard let data = json.data(using: .utf8) else { return nil }
+            do {
+                return try JSONDecoder().decode(AIExecutionBatch.self, from: data)
+            } catch {
+                logger.error("解析 executionBatchJSON 失败：\(error.localizedDescription)")
+                return nil
+            }
+        }
+
+        // 单次 snapshot 更新
+        updateSnapshot(messageId) { snapshot in
+            snapshot.content = finalContent
+            snapshot.isStreaming = false
+            snapshot.intent = intent
+            snapshot.extractedDataJSON = extractedDataJSON
+            snapshot.parsedBatch = decodedParsedBatch
+            snapshot.executionBatch = decodedExecutionBatch
+        }
+    }
+
     /// 更新消息的意图和提取数据（含批量字段）
     func updateMessageMetadata(
         _ messageId: UUID,
@@ -162,10 +213,22 @@ final class ChatMessageRepository: ObservableObject {
         // 直接从 JSON 解码 batch 数据，绕过 ChatMessage 的 associated object 缓存
         // （finishStreaming 先于本方法执行，首次访问时 JSON 为 nil 会缓存 NSNull）
         let decodedParsedBatch: AIParseBatch? = parsedBatchJSON.flatMap { json in
-            json.data(using: .utf8).flatMap { try? JSONDecoder().decode(AIParseBatch.self, from: $0) }
+            guard let data = json.data(using: .utf8) else { return nil }
+            do {
+                return try JSONDecoder().decode(AIParseBatch.self, from: data)
+            } catch {
+                logger.error("解析 parsedBatchJSON 失败：\(error.localizedDescription)")
+                return nil
+            }
         }
         let decodedExecutionBatch: AIExecutionBatch? = executionBatchJSON.flatMap { json in
-            json.data(using: .utf8).flatMap { try? JSONDecoder().decode(AIExecutionBatch.self, from: $0) }
+            guard let data = json.data(using: .utf8) else { return nil }
+            do {
+                return try JSONDecoder().decode(AIExecutionBatch.self, from: data)
+            } catch {
+                logger.error("解析 executionBatchJSON 失败：\(error.localizedDescription)")
+                return nil
+            }
         }
 
         updateSnapshot(messageId) { snapshot in
