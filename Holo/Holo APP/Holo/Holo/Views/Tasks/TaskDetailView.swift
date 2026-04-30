@@ -63,6 +63,7 @@ struct TaskDetailView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button {
+                        saveTitleAndDescription()
                         dismiss()
                     } label: {
                         Image(systemName: "xmark")
@@ -88,7 +89,10 @@ struct TaskDetailView: View {
             } message: {
                 Text("确定要删除此任务吗？任务将进入回收站，30 天后可恢复。")
             }
-            .swipeBackToDismiss { dismiss() }
+            .swipeBackToDismiss {
+                saveTitleAndDescription()
+                dismiss()
+            }
         }
         .onAppear {
             // 初始化日期选择器状态
@@ -98,6 +102,9 @@ struct TaskDetailView: View {
             // 初始化编辑状态
             editedTitle = task.title
             editedDescription = task.desc ?? ""
+        }
+        .onDisappear {
+            saveTitleAndDescription()
         }
     }
 
@@ -152,12 +159,6 @@ struct TaskDetailView: View {
                     .foregroundColor(.holoTextSecondary)
                     .frame(minHeight: editedDescription.isEmpty ? 30 : 60)
                     .scrollContentBackground(.hidden)
-                    .onChange(of: editedDescription) { _, newValue in
-                        if newValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && (task.desc ?? "").isEmpty {
-                            return
-                        }
-                        saveTitleAndDescription()
-                    }
             }
         }
         .padding()
@@ -495,6 +496,26 @@ struct TaskDetailView: View {
             try repository.updateTask(task, status: status)
         } catch {
             Self.logger.error("更新状态失败: \(error.localizedDescription)")
+        }
+    }
+
+    private func saveTitleAndDescription() {
+        let trimmedTitle = editedTitle.trimmingCharacters(in: .whitespaces)
+        guard !trimmedTitle.isEmpty else {
+            editedTitle = task.title
+            return
+        }
+        let trimmedDesc = editedDescription.trimmingCharacters(in: .whitespacesAndNewlines)
+        let originalDesc = task.desc?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        guard trimmedTitle != task.title || trimmedDesc != originalDesc else { return }
+        do {
+            try repository.updateTask(
+                task,
+                title: trimmedTitle,
+                description: trimmedDesc.isEmpty ? nil : trimmedDesc
+            )
+        } catch {
+            Self.logger.error("更新标题/描述失败: \(error.localizedDescription)")
         }
     }
 

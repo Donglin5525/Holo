@@ -96,6 +96,10 @@ struct TaskListView: View {
     /// 右滑展开的卡片 ID
     @State private var revealedTaskId: UUID? = nil
 
+    /// 正在完成中的任务 ID（等待撤回窗口）
+    @State private var pendingCompletionTaskId: UUID? = nil
+    @State private var pendingCompletionWorkItem: DispatchWorkItem? = nil
+
     /// Deep Link 状态（通知点击跳转）
     @ObservedObject private var deepLinkState = DeepLinkState.shared
 
@@ -108,23 +112,58 @@ struct TaskListView: View {
             // 筛选器
             filterPickerView
 
-            ScrollView {
-                LazyVStack(spacing: 12) {
-                    if selectedFilter == .completed {
-                        // 已完成 tab：按周分组展示
-                        completedTabContent
-                    } else {
-                        // 其他 tab：待办任务 + 最近已完成
-                        otherTabContent
-                    }
+            ZStack(alignment: .bottom) {
+                ScrollView {
+                    LazyVStack(spacing: 12) {
+                        if selectedFilter == .completed {
+                            // 已完成 tab：按周分组展示
+                            completedTabContent
+                        } else {
+                            // 其他 tab：待办任务 + 最近已完成
+                            otherTabContent
+                        }
 
-                    if cachedFilteredTasks.isEmpty {
-                        emptyStateView
+                        if cachedFilteredTasks.isEmpty {
+                            emptyStateView
+                        }
                     }
+                    .padding(.horizontal, HoloSpacing.lg)
+                    .padding(.top, HoloSpacing.md)
+                    .padding(.bottom, pendingCompletionTaskId != nil ? 80 : 100)
                 }
-                .padding(.horizontal, HoloSpacing.lg)
-                .padding(.top, HoloSpacing.md)
-                .padding(.bottom, 100)
+
+                // 撤回 banner
+                if pendingCompletionTaskId != nil {
+                    HStack {
+                        HStack(spacing: 6) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(.holoSuccess)
+                            Text("任务已完成")
+                                .font(.holoBody)
+                                .foregroundColor(.holoTextPrimary)
+                        }
+
+                        Spacer()
+
+                        Button {
+                            undoCompletion()
+                        } label: {
+                            Text("撤回")
+                                .font(.holoBody)
+                                .foregroundColor(.holoPrimary)
+                                .fontWeight(.semibold)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .background(Color.holoCardBackground)
+                    .cornerRadius(HoloRadius.md)
+                    .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+                    .padding(.horizontal, HoloSpacing.lg)
+                    .padding(.bottom, 8)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
             }
         }
         .onAppear {
@@ -186,10 +225,16 @@ struct TaskListView: View {
     /// 非「已完成」tab：待办任务 + 最近已完成
     @ViewBuilder
     private var otherTabContent: some View {
-        // 待办任务
-        let activeTasks = cachedFilteredTasks.filter { !$0.completed }
+        // 待办任务（撤回窗口期间排除 pending 任务，它在底部 banner 中显示）
+        let activeTasks = cachedFilteredTasks.filter { !$0.completed && $0.id != pendingCompletionTaskId }
         ForEach(activeTasks, id: \.id) { task in
             taskRow(task)
+        }
+
+        // 正在完成中的任务（显示在撤回 banner 上方）
+        if let pendingId = pendingCompletionTaskId,
+           let pendingTask = cachedFilteredTasks.first(where: { $0.id == pendingId }) {
+            taskRow(pendingTask)
         }
 
         // 最近已完成（仅展示最近一周完成的任务）
@@ -212,13 +257,32 @@ struct TaskListView: View {
                 set: { if $0 { revealedTaskId = task.id } else { revealedTaskId = nil } }
             ),
             content: {
-                TaskCardView(task: task, repository: repository) {
-                    if revealedTaskId == task.id {
-                        revealedTaskId = nil
-                    } else {
-                        selectedTask = TaskSelection(id: task.id)
+                TaskCardView(
+                    task: task,
+                    repository: repository,
+                    onNavigate: {
+                        if revealedTaskId == task.id {
+                            revealedTaskId = nil
+                        } else {
+                            selectedTask = TaskSelection(id: task.id)
+                        }
+                    },
+                    isCompleting: pendingCompletionTaskId == task.id,
+                    onToggleCompletion: {
+                        if task.completed {
+                            // 已完成 → 直接取消完成
+                            do {
+                                try repository.toggleTaskCompletion(task)
+                                HapticManager.medium()
+                            } catch {
+                                Logger(subsystem: "com.holo.app", category: "TaskListView").error("取消完成失败: \(error.localizedDescription)")
+                            }
+                        } else {
+                            // 未完成 → 走撤回流程
+                            handleTaskCompletion(task)
+                        }
                     }
-                }
+                )
             },
             onArchive: {
                 archiveTask(task)
@@ -248,6 +312,74 @@ struct TaskListView: View {
         updateFilteredTasks()
     }
 
+    // MARK: - 完成任务（带撤回）
+
+    /// 处理任务完成：延迟 3 秒执行，期间可撤回
+    private func handleTaskCompletion(_ task: TodoTask) {
+        // 如果有上一个待完成的任务，立即确认它
+        if let previousId = pendingCompletionTaskId {
+            pendingCompletionWorkItem?.cancel()
+            pendingCompletionWorkItem = nil
+
+            // 直接完成上一个任务
+            if let previousTask = tasks.first(where: { $0.id == previousId }) {
+                do {
+                    if previousTask.repeatRule != nil {
+                        _ = try repository.completeRepeatingTask(previousTask)
+                    } else {
+                        try repository.toggleTaskCompletion(previousTask)
+                    }
+                } catch {
+                    Logger(subsystem: "com.holo.app", category: "TaskListView").error("完成任务失败: \(error.localizedDescription)")
+                }
+            }
+
+            // 清理状态并刷新
+            pendingCompletionTaskId = nil
+            tasks = repository.activeTasks
+            todayProgress = repository.getTodayTaskProgress()
+            updateFilteredTasks()
+        }
+
+        // 乐观更新 UI
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            pendingCompletionTaskId = task.id
+        }
+        HapticManager.medium()
+
+        // 3 秒后执行实际完成操作
+        let workItem = DispatchWorkItem {
+            do {
+                if task.repeatRule != nil {
+                    _ = try repository.completeRepeatingTask(task)
+                } else {
+                    try repository.toggleTaskCompletion(task)
+                }
+            } catch {
+                Logger(subsystem: "com.holo.app", category: "TaskListView").error("完成任务失败: \(error.localizedDescription)")
+            }
+
+            // 直接在主线程清理（asyncAfter 已在主队列）
+            pendingCompletionTaskId = nil
+            pendingCompletionWorkItem = nil
+            tasks = repository.activeTasks
+            todayProgress = repository.getTodayTaskProgress()
+            updateFilteredTasks()
+        }
+        pendingCompletionWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: workItem)
+    }
+
+    /// 撤回任务完成
+    private func undoCompletion() {
+        pendingCompletionWorkItem?.cancel()
+        pendingCompletionWorkItem = nil
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            pendingCompletionTaskId = nil
+        }
+        HapticManager.light()
+    }
+
     // MARK: - 滑动操作
 
     /// 归档任务
@@ -272,6 +404,7 @@ struct TaskListView: View {
 
     /// 更新过滤结果（缓存）
     private func updateFilteredTasks() {
+        let pendingId = pendingCompletionTaskId
         switch selectedFilter {
         case .all:
             cachedFilteredTasks = tasks
@@ -282,68 +415,11 @@ struct TaskListView: View {
         case .completed:
             cachedFilteredTasks = tasks.filter { $0.completed }
         case .overdue:
-            cachedFilteredTasks = tasks.filter { $0.isOverdue && !$0.completed }
+            // 撤回窗口期间，把 pending 任务从过期列表中排除（它在视觉上已完成）
+            cachedFilteredTasks = tasks.filter { $0.isOverdue && !$0.completed && $0.id != pendingId }
         case .list(let listId):
             cachedFilteredTasks = tasks.filter { $0.list?.id == listId }
         }
-    }
-
-    // MARK: - 已完成任务按周分组
-
-    /// 已完成任务按周分组（用于「已完成」tab）
-    private var completedTasksGroupedByWeek: [(title: String, tasks: [TodoTask])] {
-        let completedTasks = cachedFilteredTasks
-            .filter { $0.completed }
-            .sorted { ($0.completedAt ?? .distantPast) > ($1.completedAt ?? .distantPast) }
-
-        let calendar = Calendar.current
-        var groups: [Date: [TodoTask]] = [:]
-
-        for task in completedTasks {
-            guard let completedAt = task.completedAt else {
-                groups[.distantPast, default: []].append(task)
-                continue
-            }
-            let weekStart = calendar.date(
-                from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: completedAt)
-            )!
-            groups[weekStart, default: []].append(task)
-        }
-
-        let sortedWeeks = groups.keys.sorted(by: >)
-        return sortedWeeks.map { weekStart in
-            (title: weekTitle(for: weekStart), tasks: groups[weekStart]!)
-        }
-    }
-
-    /// 生成周标题
-    private func weekTitle(for weekStart: Date) -> String {
-        let calendar = Calendar.current
-        let now = Date()
-        let currentWeekStart = calendar.date(
-            from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)
-        )!
-
-        if weekStart == currentWeekStart {
-            return "本周"
-        }
-
-        if let lastWeekStart = calendar.date(byAdding: .weekOfYear, value: -1, to: currentWeekStart),
-           weekStart == lastWeekStart {
-            return "上周"
-        }
-
-        let weekEnd = calendar.date(byAdding: .day, value: 6, to: weekStart)!
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "M月d日"
-        return "\(formatter.string(from: weekStart)) - \(formatter.string(from: weekEnd))"
-    }
-
-    /// 判断任务是否在最近一周内完成
-    private func isCompletedRecently(_ task: TodoTask) -> Bool {
-        guard let completedAt = task.completedAt else { return false }
-        return completedAt >= Calendar.current.date(byAdding: .day, value: -7, to: Date())!
     }
 
     // MARK: - 顶部导航栏
@@ -514,6 +590,64 @@ struct TaskListView: View {
         }
         .padding(.top, 80)
     }
+
+    // MARK: - 已完成任务按周分组
+
+    /// 已完成任务按周分组（用于「已完成」tab）
+    private var completedTasksGroupedByWeek: [(title: String, tasks: [TodoTask])] {
+        let completedTasks = cachedFilteredTasks
+            .filter { $0.completed }
+            .sorted { ($0.completedAt ?? .distantPast) > ($1.completedAt ?? .distantPast) }
+
+        let calendar = Calendar.current
+        var groups: [Date: [TodoTask]] = [:]
+
+        for task in completedTasks {
+            guard let completedAt = task.completedAt else {
+                groups[.distantPast, default: []].append(task)
+                continue
+            }
+            let weekStart = calendar.date(
+                from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: completedAt)
+            )!
+            groups[weekStart, default: []].append(task)
+        }
+
+        let sortedWeeks = groups.keys.sorted(by: >)
+        return sortedWeeks.map { weekStart in
+            (title: weekTitle(for: weekStart), tasks: groups[weekStart]!)
+        }
+    }
+
+    /// 生成周标题
+    private func weekTitle(for weekStart: Date) -> String {
+        let calendar = Calendar.current
+        let now = Date()
+        let currentWeekStart = calendar.date(
+            from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)
+        )!
+
+        if weekStart == currentWeekStart {
+            return "本周"
+        }
+
+        if let lastWeekStart = calendar.date(byAdding: .weekOfYear, value: -1, to: currentWeekStart),
+           weekStart == lastWeekStart {
+            return "上周"
+        }
+
+        let weekEnd = calendar.date(byAdding: .day, value: 6, to: weekStart)!
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日"
+        return "\(formatter.string(from: weekStart)) - \(formatter.string(from: weekEnd))"
+    }
+
+    /// 判断任务是否在最近一周内完成
+    private func isCompletedRecently(_ task: TodoTask) -> Bool {
+        guard let completedAt = task.completedAt else { return false }
+        return completedAt >= Calendar.current.date(byAdding: .day, value: -7, to: Date())!
+    }
 }
 
 // MARK: - Section Header View
@@ -546,6 +680,8 @@ struct TaskCardView: View {
     let task: TodoTask
     @ObservedObject var repository: TodoRepository
     var onNavigate: (() -> Void)?
+    var isCompleting: Bool = false
+    var onToggleCompletion: (() -> Void)?
 
     /// 是否展开检查清单
     @State private var isChecklistExpanded = false
@@ -577,25 +713,31 @@ struct TaskCardView: View {
 
     private static let logger = Logger(subsystem: "com.holo.app", category: "TaskCardView")
 
+    /// 显示完成态（task 已完成 或 正在完成中）
+    private var showsCompleted: Bool {
+        task.completed || isCompleting
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // 主内容行
             HStack(spacing: 12) {
-                // 完成状态切换按钮（独立 Button，直接完成任务）
+                // 完成状态切换按钮
                 Button(action: toggleCompletion) {
-                    Image(systemName: task.completed ? "checkmark.circle.fill" : "circle")
+                    Image(systemName: showsCompleted ? "checkmark.circle.fill" : "circle")
                         .font(.system(size: 22, weight: .medium))
-                        .foregroundColor(task.completed ? .holoPrimary : .holoTextSecondary)
+                        .foregroundColor(showsCompleted ? .holoPrimary : .holoTextSecondary)
                 }
                 .buttonStyle(.plain)
+                .disabled(isCompleting)
 
                 // 任务内容（点击导航到详情页）
                 Button(action: { onNavigate?() }) {
                     VStack(alignment: .leading, spacing: 4) {
                         Text(task.title)
                             .font(.holoBody)
-                            .strikethrough(task.completed)
-                            .foregroundColor(task.completed ? .holoTextSecondary : .holoTextPrimary)
+                            .strikethrough(showsCompleted)
+                            .foregroundColor(showsCompleted ? .holoTextSecondary : .holoTextPrimary)
                             .lineLimit(2)
 
                         // 描述（截断展示）
@@ -750,12 +892,19 @@ struct TaskCardView: View {
     }
 
     private func toggleCompletion() {
+        guard !isCompleting else { return }
+
+        // 优先使用回调（TaskListView 会在回调中区分完成/取消完成）
+        if let onToggleCompletion = onToggleCompletion {
+            onToggleCompletion()
+            return
+        }
+
+        // 兼容搜索页等不使用撤回的场景
         do {
             if task.repeatRule != nil && !task.completed {
-                // 重复任务完成时，生成下一个实例
                 _ = try repository.completeRepeatingTask(task)
             } else {
-                // 普通任务直接切换完成状态
                 try repository.toggleTaskCompletion(task)
             }
             HapticManager.medium()
