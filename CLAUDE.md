@@ -55,7 +55,7 @@
 | DatePicker | 必须中文 locale `.environment(\.locale, Locale(identifier: "zh_CN"))` |
 | 日期显示 | 禁止 `Text(date, style:)` 和 `date.formatted()`，必须用 `DateFormatter` + `zh_CN` |
 | 右滑返回 | fullScreenCover 加 `.swipeBackToDismiss`，push/sheet 系统自带 |
-| ScrollView 手势 | 禁止 SwiftUI `DragGesture`，用 `UIViewRepresentable` + `UIPanGestureRecognizer` |
+| ScrollView 手势 | 禁止 SwiftUI `DragGesture`，用 `UIViewRepresentable` + `UIPanGestureRecognizer`。**方向确认前禁止禁用 ScrollView**：`.began` 只重置状态，`.changed` 中确认水平方向后才 `isScrollEnabled = false`，垂直方向直接 `cancel` 手势即可 |
 | SF Symbol | 新增/修改名称时**必须先验证存在**（`NSImage(systemSymbolName:) != nil`），无效名称渲染为空白 |
 | 金额显示（空间受限） | 必须用 `NumberFormatter.compactCurrency()`（万/亿单位），禁止 `fixedSize`，改用 `minimumScaleFactor(0.7)` + `lineLimit(1)` |
 | 金额显示（空间充足） | 用 `NumberFormatter.currency` 完整格式，仍需加 `minimumScaleFactor(0.7)` + `lineLimit(1)` 防溢出 |

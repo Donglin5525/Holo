@@ -198,8 +198,7 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
             switch gesture.state {
             case .began:
                 isHorizontalConfirmed = false
-                // 先禁用 ScrollView，后续方向不对时取消手势并恢复
-                disableScrollView(gesture)
+                // 不在这里禁用 ScrollView，等方向确认后再禁用
 
             case .changed:
                 // 首次收到位移时判断方向
@@ -209,10 +208,11 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
                     // 水平位移 > 垂直位移 且 超过最小阈值 → 确认为水平滑动
                     if h > v && h > SwipeConstants.minimumDragDistance {
                         isHorizontalConfirmed = true
+                        // 方向确认为水平，此时才禁用 ScrollView
+                        disableScrollView(gesture)
                     } else if v > h && v > SwipeConstants.minimumDragDistance {
-                        // 垂直滑动 → 取消手势，让 ScrollView 处理
+                        // 垂直滑动 → 取消手势，让 ScrollView 处理（不需要恢复，因为没有禁用）
                         gesture.state = .cancelled
-                        enableScrollView()
                         return
                     } else {
                         // 位移太小，继续等待
