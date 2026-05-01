@@ -74,6 +74,7 @@ struct AddTaskSheet: View {
     @State private var checkItems: [CheckItem] = []
     @State private var pendingCheckItems: [String] = []
     @State private var newCheckItemTitle = ""
+    @State private var showAdvancedProperties = false
 
     // 记忆上次选择的清单
     @AppStorage("lastSelectedListId") private var lastSelectedListId: String?
@@ -132,26 +133,17 @@ struct AddTaskSheet: View {
                     // 滚动区域
                     ScrollView {
                         VStack(spacing: HoloSpacing.lg) {
-                            // 任务标题
-                            titleSection
-
-                            // 所属清单
-                            listSection
-
-                            // 优先级
-                            prioritySection
-
-                            // 截止日期
-                            dueDateSection
-
-                            // 标签
-                            tagSection
-
-                            // 描述
-                            descriptionSection
+                            // 任务内容
+                            taskContentSection
 
                             // 检查清单
                             checklistSection
+
+                            // 属性与清单
+                            metadataSection
+
+                            // 截止日期
+                            dueDateSection
                         }
                         .padding(.horizontal, HoloSpacing.lg)
                         .padding(.top, HoloSpacing.md)
@@ -265,25 +257,128 @@ struct AddTaskSheet: View {
         }
         .padding(.horizontal, HoloSpacing.lg)
         .padding(.vertical, HoloSpacing.sm)
-        .background(Color.holoCardBackground)
     }
 
-    // MARK: - 任务标题
+    // MARK: - 任务内容
 
-    private var titleSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("任务标题")
-                .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
-
+    private var taskContentSection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             TextField("输入任务名称", text: $title)
+                .font(.holoHeading)
+                .foregroundColor(.holoTextPrimary)
+
+            TextEditor(text: $description)
                 .font(.holoBody)
                 .foregroundColor(.holoTextPrimary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(Color.holoCardBackground)
-                .cornerRadius(HoloRadius.sm)
+                .frame(minHeight: 46)
+                .scrollContentBackground(.hidden)
+                .overlay(alignment: .topLeading) {
+                    if description.isEmpty {
+                        Text("添加描述、完成标准或需要注意的点")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPlaceholder)
+                            .padding(.top, 8)
+                            .allowsHitTesting(false)
+                    }
+                }
         }
+    }
+
+    // MARK: - 属性与清单
+
+    private var metadataSection: some View {
+        VStack(spacing: 0) {
+            advancedPropertiesSection
+
+            Divider()
+                .padding(.horizontal, 12)
+
+            listRow
+        }
+        .background(Color.holoCardBackground)
+        .cornerRadius(HoloRadius.sm)
+    }
+
+    private var dueDateSummaryText: String {
+        guard hasDueDate else { return "无截止日期" }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = hasTime ? "M月d日 HH:mm" : "M月d日"
+        return formatter.string(from: dueDate)
+    }
+
+    private var reminderChipText: String {
+        guard hasDueDate else { return "不提醒" }
+        return selectedReminders.isEmpty ? "不提醒" : reminderSummaryText
+    }
+
+    // MARK: - 更多属性
+
+    private var advancedPropertiesSection: some View {
+        VStack(spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    showAdvancedProperties.toggle()
+                }
+            } label: {
+                HStack(spacing: HoloSpacing.sm) {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.holoTextSecondary)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("更多属性")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+                        Text("优先级和标签默认收起")
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextSecondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                    }
+                    .layoutPriority(1)
+
+                    Spacer()
+
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text(priority.displayTitle)
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextPrimary)
+                            .fontWeight(.semibold)
+
+                        Text(tagSummaryText)
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextSecondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
+                    .frame(maxWidth: 116, alignment: .trailing)
+
+                    Image(systemName: showAdvancedProperties ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.holoTextSecondary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 12)
+            }
+            .buttonStyle(PlainButtonStyle())
+
+            if showAdvancedProperties {
+                Divider()
+                    .padding(.horizontal, 12)
+
+                VStack(spacing: HoloSpacing.md) {
+                    prioritySection
+                    tagSection
+                }
+                .padding(12)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+    }
+
+    private var tagSummaryText: String {
+        selectedTags.isEmpty ? "无标签" : "\(selectedTags.count) 个标签"
     }
 
     // MARK: - 所属清单
@@ -321,6 +416,44 @@ struct AddTaskSheet: View {
         }
     }
 
+    private var listRow: some View {
+        Button {
+            showListPicker = true
+        } label: {
+            HStack(spacing: HoloSpacing.sm) {
+                Image(systemName: "folder")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.holoTextSecondary)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("所属清单")
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+                    Text("点击选择任务所在清单")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                }
+                .layoutPriority(1)
+
+                Spacer()
+
+                Text(selectedListName)
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                    .frame(maxWidth: 116, alignment: .trailing)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.holoTextSecondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 12)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+
     // MARK: - 优先级
 
     private var prioritySection: some View {
@@ -330,6 +463,7 @@ struct AddTaskSheet: View {
                 .foregroundColor(.holoTextSecondary)
 
             HStack(spacing: HoloSpacing.sm) {
+                Spacer()
                 ForEach([TaskPriority.urgent, .high, .medium, .low], id: \.self) { p in
                     Button {
                         priority = p
@@ -693,24 +827,32 @@ struct AddTaskSheet: View {
                             addCheckItem()
                         }
 
-                    Button {
-                        addCheckItem()
-                    } label: {
-                        Text("添加")
+                    if newCheckItemTitle.trimmingCharacters(in: .whitespaces).isEmpty {
+                        Text("输入后添加")
                             .font(.holoCaption)
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 5)
-                            .background(
-                                Capsule()
-                                    .fill(newCheckItemTitle.trimmingCharacters(in: .whitespaces).isEmpty ? Color.holoTextSecondary.opacity(0.3) : Color.holoPrimary)
-                            )
+                            .foregroundColor(.holoTextSecondary)
+                            .lineLimit(1)
+                    } else {
+                        Button {
+                            addCheckItem()
+                        } label: {
+                            Text("添加")
+                                .font(.holoCaption)
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(
+                                    Capsule()
+                                        .fill(Color.holoPrimary)
+                                )
+                        }
+                        .buttonStyle(PlainButtonStyle())
+                        .transition(.opacity.combined(with: .scale))
                     }
-                    .disabled(newCheckItemTitle.trimmingCharacters(in: .whitespaces).isEmpty)
-                    .buttonStyle(PlainButtonStyle())
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
+                .animation(.easeInOut(duration: 0.16), value: newCheckItemTitle.trimmingCharacters(in: .whitespaces).isEmpty)
             }
             .background(Color.holoCardBackground)
             .cornerRadius(HoloRadius.sm)
