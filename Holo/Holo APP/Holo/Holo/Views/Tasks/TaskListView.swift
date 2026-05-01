@@ -93,6 +93,9 @@ struct TaskListView: View {
     /// 是否显示标签列表页面
     @State private var showTagListView = false
 
+    /// 最近已完成是否展开
+    @State private var isRecentlyCompletedExpanded = false
+
     /// 右滑展开的卡片 ID
     @State private var revealedTaskId: UUID? = nil
 
@@ -237,13 +240,10 @@ struct TaskListView: View {
             taskRow(pendingTask)
         }
 
-        // 最近已完成（仅展示最近一周完成的任务）
+        // 最近已完成（折叠抽屉，默认展示 3 个）
         let recentlyCompleted = cachedFilteredTasks.filter { $0.completed && isCompletedRecently($0) }
         if !recentlyCompleted.isEmpty {
-            SectionHeaderView(title: "最近已完成", count: recentlyCompleted.count)
-            ForEach(recentlyCompleted, id: \.id) { task in
-                taskRow(task)
-            }
+            recentlyCompletedSection(recentlyCompleted)
         }
     }
 
@@ -641,6 +641,66 @@ struct TaskListView: View {
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.dateFormat = "M月d日"
         return "\(formatter.string(from: weekStart)) - \(formatter.string(from: weekEnd))"
+    }
+
+    /// 最近已完成折叠抽屉
+    @ViewBuilder
+    private func recentlyCompletedSection(_ tasks: [TodoTask]) -> some View {
+        let maxCollapsed = 3
+        let needsCollapse = tasks.count > maxCollapsed
+
+        VStack(spacing: 0) {
+            // 标题栏（可点击折叠/展开）
+            Button {
+                withAnimation(.easeInOut(duration: 0.3)) {
+                    isRecentlyCompletedExpanded.toggle()
+                }
+            } label: {
+                HStack {
+                    Text("最近已完成")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+
+                    Spacer()
+
+                    Text("\(tasks.count)")
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.holoTextSecondary)
+
+                    if needsCollapse {
+                        Image(systemName: isRecentlyCompletedExpanded ? "chevron.up" : "chevron.down")
+                            .font(.holoTinyLabel)
+                            .foregroundColor(.holoTextSecondary)
+                    }
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.top, HoloSpacing.md)
+
+            // 任务列表
+            let displayed = isRecentlyCompletedExpanded ? tasks : Array(tasks.prefix(maxCollapsed))
+            ForEach(displayed, id: \.id) { task in
+                taskRow(task)
+            }
+
+            // 展开/收起按钮
+            if needsCollapse && !isRecentlyCompletedExpanded {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.3)) {
+                        isRecentlyCompletedExpanded = true
+                    }
+                } label: {
+                    Text("还有 \(tasks.count - maxCollapsed) 项")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoPrimary)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, HoloSpacing.sm)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: isRecentlyCompletedExpanded)
     }
 
     /// 判断任务是否在最近一周内完成
