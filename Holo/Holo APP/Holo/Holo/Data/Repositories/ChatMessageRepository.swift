@@ -22,8 +22,8 @@ final class ChatMessageRepository: ObservableObject {
     private var liveMessageCache: [UUID: ChatMessage] = [:]
 
     /// 延迟初始化 context，避免 init 时触发 CoreDataStack 懒加载
-    /// CoreDataStack 已配置 shouldAddStoreAsynchronously = false，
-    /// loadPersistentStores 为同步阻塞（首次创建 SQLite 由后台线程承载）
+    /// CoreDataStack 在 HoloApp.init() 中异步启动，store 后台加载
+    /// HomeView.task 中 await waitUntilReady() 后再通过 lazy var 访问 context
     /// 使用 lazy 确保只在真正需要读/写消息时才触发
     private lazy var context: NSManagedObjectContext = CoreDataStack.shared.viewContext
 
@@ -50,16 +50,35 @@ final class ChatMessageRepository: ObservableObject {
     /// 异步加载消息：
     /// 在后台上下文中直接转成值类型快照，避免界面持有 Core Data 对象。
     func loadMessagesAsync(limit: Int = 200) async {
+        await CoreDataStack.shared.waitUntilReady()
+
         let snapshots: [ChatMessageViewData]
 
         do {
             snapshots = try await Task.detached(priority: .utility) {
                 let context = CoreDataStack.shared.newBackgroundContext()
-                let request = NSFetchRequest<ChatMessage>(entityName: "ChatMessage")
-                request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
-                request.fetchLimit = limit
+                return try await context.perform {
+                    let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
+                    request.resultType = .dictionaryResultType
+                    request.propertiesToFetch = [
+                        "id",
+                        "role",
+                        "content",
+                        "timestamp",
+                        "intent",
+                        "extractedDataJSON",
+                        "isStreaming",
+                        "parentMessageId",
+                        "parsedBatchJSON",
+                        "executionBatchJSON"
+                    ]
+                    request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
+                    request.fetchLimit = limit
 
-                return try context.fetch(request).reversed().map(ChatMessageViewData.init)
+                    return try context.fetch(request)
+                        .reversed()
+                        .compactMap { ChatMessageViewData(dictionary: $0 as? [String: Any] ?? [:]) }
+                }
             }.value
         } catch {
             logger.error("后台加载消息快照失败：\(error.localizedDescription)")

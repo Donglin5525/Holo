@@ -115,24 +115,13 @@ struct HomeView: View {
         }
         // 将 fullScreenCover 挂在整个 HomeView 上，更稳定
         .task {
-            // 首屏先直接展示默认入口，持久化顺序稍后异步回填，避免首次启动被 Core Data 初始化卡住。
-            guard !iconRepository.isReady else {
-                TodoRepository.shared.setup()
-                loadFeatureItemsFromRepository()
-                scheduleService.setup()
-                return
-            }
-
-            Task.detached(priority: .utility) {
-                _ = CoreDataStack.shared.persistentContainer
-
-                await MainActor.run {
-                    iconRepository.setup()
-                    TodoRepository.shared.setup()
-                    loadFeatureItemsFromRepository()
-                    scheduleService.setup()
-                }
-            }
+            // 等待 Core Data store 异步加载完毕（HoloApp.init 中启动，后台加载）
+            // UI 已以默认值渲染，不阻塞用户看到首屏
+            await CoreDataStack.shared.waitUntilReady()
+            iconRepository.setup()
+            TodoRepository.shared.setup()
+            loadFeatureItemsFromRepository()
+            scheduleService.setup()
         }
         .fullScreenCover(isPresented: $showFinanceView) {
             FinanceView()

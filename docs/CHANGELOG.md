@@ -4,7 +4,32 @@
 
 ## [Unreleased]
 
+### Features
+- **iOS**: 任务完成音效 + 触觉反馈
+- **iOS**: 任务详情支持编辑标题和描述
+- **iOS**: 任务完成增加撤回机制（Toast 提示可撤销）
+- **iOS**: AI 意图标签支持任务跳转
+- **iOS**: 首页小黄点指示器 + HoloProfile 个人档案
+- **iOS**: 记忆长廊三 Tab 改版：AI 回放 + 地图 + 明细
+
+### Improvements
+- **iOS**: 截止时间从 sheet 改为内联抽屉（图形日期选择器 + 时间切换）
+- **iOS**: 检查清单从 sheet 改为内联列表（进度条 + 添加/删除）
+- **iOS**: 新建任务布局优化：检查清单上移、属性对齐、优先级右对齐
+- **iOS**: 任务排序改为创建时间降序
+- **iOS**: 聊天数据读取层重构：统一实体解析 + 修复收入卡片跳转 + 原子化消息写入
+- **iOS**: 预算卡片紧凑化：单行布局，去掉已花金额和分类预警
+
 ### Bug Fixes
+- **iOS**: 修复首次启动卡死 — Core Data 异步加载 + CheckedContinuation + 值类型 nonisolated/Sendable + dictionaryResultType 后台安全读取
+- **iOS**: 修复左滑手势与垂直滚动冲突（方向确认前不禁用 ScrollView）
+- **iOS**: 修复任务/观点模块左滑手势全局失效
+- **iOS**: 修复左滑手势拦截按钮点击
+- **iOS**: 首页导航状态修复
+- **iOS**: Prompt 编辑器栈溢出修复（去除 @StateObject ViewModel，改用 @State 属性）
+- **iOS**: 全局金额显示截断修复（紧凑格式 + minimumScaleFactor）
+- **iOS**: 最近的日子卡片大小统一（顶部对齐 + 固定最小高度）
+- **iOS**: 深度链接竞态修复
 - **iOS**: 修复编辑自定义分类后返回时误弹删除确认框
 - **iOS**: 修复右滑返回手势被 ScrollView 拦截导致真机上无法触发的问题
 - **iOS**: 修复财务模块设置 tab 下右滑返回手势被禁用的问题

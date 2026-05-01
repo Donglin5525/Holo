@@ -41,79 +41,72 @@ class CoreDataStack {
     nonisolated(unsafe) private let lock = NSLock()
 
     /// 持久化容器（线程安全存储）
-    /// 通过 persistentContainer 计算属性访问
     nonisolated(unsafe) private var _persistentContainer: NSPersistentContainer?
 
-    /// 持久化容器
-    /// 线程安全：首次访问时自动初始化，后续访问直接返回缓存实例
-    /// 可从任意线程安全访问（后台预加载或主线程 UI 操作）
-    ///
-    /// 【启用 iCloud 同步】将下方 NSPersistentContainer 改为 NSPersistentCloudKitContainer
+    /// Store 是否已加载完毕
+    nonisolated(unsafe) private var _storeLoaded = false
+
+    /// 等待 store 加载完毕的 continuation 列表
+    nonisolated(unsafe) private var _storeLoadContinuations: [CheckedContinuation<Void, Never>] = []
+
+    /// 持久化容器（线程安全延迟初始化）
+    /// 首次访问时创建容器并异步加载 store，不阻塞调用线程
     nonisolated var persistentContainer: NSPersistentContainer {
         lock.lock()
-        defer { lock.unlock() }
-
         if let container = _persistentContainer {
+            lock.unlock()
             return container
         }
 
         let container = buildContainer()
         _persistentContainer = container
+        lock.unlock()
         return container
     }
 
-    /// Core Data 是否已就绪（非阻塞检查）
-    /// 用于在 async 上下文中判断是否需要等待后台初始化
+    /// Core Data store 是否已加载完毕
     nonisolated var isReady: Bool {
         lock.lock()
         defer { lock.unlock() }
-        return _persistentContainer != nil
+        return _storeLoaded
     }
     
-    /// 构建并加载持久化容器
-    /// 包含完整的 schema 创建、存储配置和加载逻辑
+    /// 构建并异步加载持久化容器
+    /// store 加载在后台进行，不阻塞调用线程
+    /// 加载完成后通过 resume continuations 通知 await waitUntilReady() 的调用方
     nonisolated private func buildContainer() -> NSPersistentContainer {
         let model = createDataModel()
 
-        // ━━━ 本地存储（当前使用）━━━
         let container = NSPersistentContainer(name: "HoloDataModel", managedObjectModel: model)
 
-        // ━━━ iCloud 同步（取消注释以启用）━━━
-        // let container = NSPersistentCloudKitContainer(name: "HoloDataModel", managedObjectModel: model)
-
-        // 配置持久化存储
         if let description = container.persistentStoreDescriptions.first {
-            // 使用 SQLite 存储
             description.url = URL.documentsDirectory.appendingPathComponent("HoloDataModel.sqlite")
 
-            // 同步加载存储（阻塞当前线程直到 store 就绪）
-            // 设为 false 确保后台线程调用 loadPersistentStores 时同步完成，
-            // 避免主线程后续访问 viewContext 时因 store 未就绪而阻塞→死锁
-            description.shouldAddStoreAsynchronously = false
+            // 异步加载：不阻塞调用线程，避免主线程死锁
+            // store 加载完成后通过 completion handler 信号通知
+            description.shouldAddStoreAsynchronously = true
 
-            // 启用轻量级迁移（支持新增字段等 schema 变更）
             description.setOption(true as NSNumber, forKey: NSMigratePersistentStoresAutomaticallyOption)
             description.setOption(true as NSNumber, forKey: NSInferMappingModelAutomaticallyOption)
-
-            // 启用历史追踪（iCloud 同步必需）
             description.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
-
-            // 启用远程变更通知（iCloud 同步必需）
             description.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
-
-            // ━━━ iCloud 同步配置（取消注释以启用）━━━
-            // description.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(
-            //     containerIdentifier: "iCloud.com.yourcompany.Holo"  // 替换为你的 CloudKit 容器 ID
-            // )
         }
 
-        container.loadPersistentStores { description, error in
+        container.loadPersistentStores { [weak self] _, error in
             if let error = error {
                 fatalError("Core Data 存储加载失败：\(error.localizedDescription)")
             }
+            guard let self else { return }
+            self.lock.lock()
+            self._storeLoaded = true
+            let continuations = self._storeLoadContinuations
+            self._storeLoadContinuations = []
+            self.lock.unlock()
+            for continuation in continuations {
+                continuation.resume()
+            }
         }
 
-        // 配置自动合并策略
         container.viewContext.automaticallyMergesChangesFromParent = true
         container.viewContext.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
 
@@ -1663,10 +1656,39 @@ class CoreDataStack {
     }
     
     // MARK: - Initialization
-    
+
     /// 私有初始化方法（单例模式）
     nonisolated private init() {}
-    
+
+    /// 触发异步 store 加载，不阻塞调用线程（在 HoloApp.init() 中调用）
+    func prepareIfNeeded() {
+        _ = persistentContainer
+    }
+
+    /// 等待 store 加载完毕（在 HomeView.task 中 await 调用）
+    /// 若 store 已加载则立即返回；否则挂起当前协程直到 loadPersistentStores 完成
+    func waitUntilReady() async {
+        prepareIfNeeded()
+
+        lock.lock()
+        if _storeLoaded {
+            lock.unlock()
+            return
+        }
+        lock.unlock()
+
+        await withCheckedContinuation { continuation in
+            lock.lock()
+            if _storeLoaded {
+                lock.unlock()
+                continuation.resume()
+                return
+            }
+            _storeLoadContinuations.append(continuation)
+            lock.unlock()
+        }
+    }
+
     // MARK: - Context Management
     
     /// 创建新的后台上下文

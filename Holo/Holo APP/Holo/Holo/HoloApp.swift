@@ -28,11 +28,9 @@ struct HoloApp: App {
         // 注册后台洞察生成任务
         MemoryInsightBackgroundService.shared.registerBackgroundTask()
 
-        // 后台预加载 Core Data（避免首次导航到 Chat 时阻塞主线程）
-        // CoreDataStack 使用 NSLock 保护，可安全从后台线程初始化
-        DispatchQueue.global(qos: .userInitiated).async {
-            _ = CoreDataStack.shared.persistentContainer
-        }
+        // 触发 Core Data 异步加载（不阻塞主线程，避免首次创建 SQLite 时死锁）
+        // store 加载在后台进行，UI 先以默认值渲染，加载完成后通过 await 切换
+        CoreDataStack.shared.prepareIfNeeded()
     }
 
     // MARK: - Body

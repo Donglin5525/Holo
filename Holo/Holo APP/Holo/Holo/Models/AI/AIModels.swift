@@ -11,7 +11,7 @@ import Foundation
 // MARK: - Intent
 
 /// AI 识别的用户意图
-enum AIIntent: String, Codable, CaseIterable {
+nonisolated enum AIIntent: String, Codable, CaseIterable {
     // 记账类
     case recordExpense = "record_expense"
     case recordIncome = "record_income"
@@ -40,13 +40,13 @@ enum AIIntent: String, Codable, CaseIterable {
 // MARK: - AIIntent Category Helpers
 
 extension AIIntent {
-    static let queryIntents: Set<AIIntent> = [.query, .queryTasks, .queryHabits]
-    static let taskIntents: Set<AIIntent> = [.createTask, .completeTask, .updateTask]
-    static let financeIntents: Set<AIIntent> = [.recordExpense, .recordIncome]
+    nonisolated static let queryIntents: Set<AIIntent> = [.query, .queryTasks, .queryHabits]
+    nonisolated static let taskIntents: Set<AIIntent> = [.createTask, .completeTask, .updateTask]
+    nonisolated static let financeIntents: Set<AIIntent> = [.recordExpense, .recordIncome]
 
-    var isQuery: Bool { Self.queryIntents.contains(self) }
-    var isTask: Bool { Self.taskIntents.contains(self) }
-    var isFinance: Bool { Self.financeIntents.contains(self) }
+    nonisolated var isQuery: Bool { Self.queryIntents.contains(self) }
+    nonisolated var isTask: Bool { Self.taskIntents.contains(self) }
+    nonisolated var isFinance: Bool { Self.financeIntents.contains(self) }
 }
 
 // MARK: - LinkedEntity
@@ -119,7 +119,7 @@ struct ParsedResult: Codable {
 // MARK: - Batch Models
 
 /// 交互模式
-enum AIInteractionMode: String, Codable, Equatable {
+nonisolated enum AIInteractionMode: String, Codable, Equatable {
     case singleAction = "single_action"
     case multiAction = "multi_action"
     case query = "query"
@@ -128,14 +128,14 @@ enum AIInteractionMode: String, Codable, Equatable {
 }
 
 /// 执行状态
-enum AIExecutionStatus: String, Codable, Equatable {
+nonisolated enum AIExecutionStatus: String, Codable, Equatable {
     case success
     case failed
     case skipped
 }
 
 /// 单个解析项
-struct AIParseItem: Codable, Identifiable, Equatable {
+nonisolated struct AIParseItem: Codable, Identifiable, Equatable {
     let id: String
     let intent: AIIntent
     let confidence: Double
@@ -176,7 +176,7 @@ struct AIParseItem: Codable, Identifiable, Equatable {
 }
 
 /// 批量解析结果
-struct AIParseBatch: Codable, Equatable {
+nonisolated struct AIParseBatch: Codable, Equatable {
     let mode: AIInteractionMode
     let items: [AIParseItem]
     let needsClarification: Bool
@@ -216,7 +216,7 @@ struct AIParseBatch: Codable, Equatable {
 }
 
 /// 单个执行结果
-struct AIExecutionItem: Codable, Identifiable, Equatable {
+nonisolated struct AIExecutionItem: Codable, Identifiable, Equatable {
     let id: String
     let parseItemId: String
     let intent: AIIntent
@@ -229,7 +229,7 @@ struct AIExecutionItem: Codable, Identifiable, Equatable {
 }
 
 /// 批量执行结果
-struct AIExecutionBatch: Codable, Equatable {
+nonisolated struct AIExecutionBatch: Codable, Equatable {
     let mode: AIInteractionMode
     let items: [AIExecutionItem]
     let finalText: String
@@ -265,7 +265,7 @@ extension AIParseItem {
 // MARK: - API DTO
 
 /// OpenAI 兼容 API 消息 DTO
-struct ChatMessageDTO: Codable {
+nonisolated struct ChatMessageDTO: Codable {
     let role: String
     let content: String
 
