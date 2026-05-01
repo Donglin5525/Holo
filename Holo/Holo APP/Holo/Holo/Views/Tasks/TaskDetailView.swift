@@ -520,6 +520,7 @@ struct TaskDetailView: View {
     }
 
     private func toggleCompletion() {
+        let wasCompleted = task.completed
         do {
             if task.repeatRule != nil && !task.completed {
                 // 重复任务完成时，生成下一个实例
@@ -534,6 +535,11 @@ struct TaskDetailView: View {
                 // 更新本地状态
                 task.completed = isCompleted
                 task.completedAt = isCompleted ? Date() : nil
+            }
+            if wasCompleted {
+                HapticManager.medium()
+            } else {
+                HapticManager.taskCompletion()
             }
         } catch {
             Self.logger.error("切换完成状态失败: \(error.localizedDescription)")

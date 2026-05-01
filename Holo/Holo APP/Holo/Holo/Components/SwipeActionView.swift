@@ -22,10 +22,9 @@ private let snapAnimation = Animation.spring(response: 0.3, dampingFraction: 0.8
 // MARK: - SwipeActionView
 
 /// 通用左滑手势组件（露出归档/删除按钮）
-/// 使用 UIKit UIPanGestureRecognizer，直接挂在 overlay 自身上
-/// hitTest 返回 self + cancelsTouchesInView = false：
-/// - 手势直接接收触摸
-/// - SwiftUI Button / onTapGesture 正常响应点击
+/// 使用 UIKit UIPanGestureRecognizer 挂在 superview 上
+/// overlay 的 hitTest 返回 nil → 所有触摸穿透到 SwiftUI 内容
+/// superview 上的 pan 手势仍可检测水平滑动
 /// 方向判断在 .changed 中用 translation 确认（比 velocity 更可靠）
 struct SwipeActionView<Content: View>: View {
 
@@ -141,9 +140,9 @@ struct SwipeActionView<Content: View>: View {
 
 // MARK: - UIKit 手势覆盖层
 
-/// 透明 UIView overlay，承载 UIPanGestureRecognizer
-/// hitTest 返回 self 让手势直接接收触摸
-/// cancelsTouchesInView = false 确保 SwiftUI Button 正常响应
+/// 透明 UIView overlay，仅用于提供 superview 引用
+/// hitTest 返回 nil → 所有触摸穿透到 SwiftUI 内容
+/// Pan 手势挂在 superview 上，通过 superview 检测水平滑动
 private struct SwipeGestureOverlay: UIViewRepresentable {
 
     @Binding var offset: CGFloat
@@ -156,18 +155,18 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
     func makeUIView(context: Context) -> SwipeOverlayView {
         let view = SwipeOverlayView()
 
-        // Pan 手势直接挂在 overlay 自身上（不依赖 superview）
         let pan = UIPanGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.handlePan(_:)))
         pan.delegate = context.coordinator
-        pan.cancelsTouchesInView = false  // 不吞掉触摸，SwiftUI Button 正常响应
-        view.addGestureRecognizer(pan)
+        pan.cancelsTouchesInView = false
         context.coordinator.panGesture = pan
+        context.coordinator.overlayView = view
 
         return view
     }
 
     func updateUIView(_ uiView: SwipeOverlayView, context: Context) {
         context.coordinator.parent = self
+        context.coordinator.ensureGestureAttached()
     }
 
     // MARK: - Coordinator
@@ -175,6 +174,7 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
     class Coordinator: NSObject, UIGestureRecognizerDelegate {
         var parent: SwipeGestureOverlay
         var panGesture: UIPanGestureRecognizer?
+        weak var overlayView: SwipeOverlayView?
         private weak var disabledScrollView: UIScrollView?
         /// 手势方向是否已确认为水平
         private var isHorizontalConfirmed = false
@@ -187,6 +187,16 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
             if let pan = panGesture {
                 pan.view?.removeGestureRecognizer(pan)
             }
+        }
+
+        /// 将 Pan 手势挂载到 overlay 的父视图
+        /// 父视图能收到子视图的触摸事件，所以 Pan 手势可以检测到水平滑动
+        /// 同时 overlay 的 hitTest 返回 nil，SwiftUI Button 正常接收点击
+        func ensureGestureAttached() {
+            guard let pan = panGesture,
+                  pan.view == nil,
+                  let superview = overlayView?.superview else { return }
+            superview.addGestureRecognizer(pan)
         }
 
         // MARK: - Pan Handler
@@ -289,24 +299,24 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
 
 // MARK: - 透明覆盖 View
 
-/// 透明 overlay，承载 UIPanGestureRecognizer
-/// hitTest 返回 self 让手势直接接收触摸
-/// cancelsTouchesInView = false 确保 SwiftUI Button / onTapGesture 正常响应
+/// 透明 overlay，hitTest 始终返回 nil
+/// 不拦截任何触摸，所有触摸穿透到下层 SwiftUI 内容
+/// SwiftUI 的 Button / onTapGesture 正常接收触摸
+/// Pan 手势挂在父视图上，通过父视图检测水平滑动
 private class SwipeOverlayView: UIView {
 
     override init(frame: CGRect) {
         super.init(frame: frame)
         backgroundColor = .clear
-        isUserInteractionEnabled = true
     }
 
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
     }
 
-    /// 返回 self 让 pan 手势直接接收触摸
-    /// 配合 cancelsTouchesInView = false，SwiftUI 点击事件不被吞掉
+    /// 始终返回 nil → 触摸穿透到下层 SwiftUI 内容
+    /// SwiftUI 的 Button / onTapGesture 正常接收触摸
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
-        return self
+        return nil
     }
 }

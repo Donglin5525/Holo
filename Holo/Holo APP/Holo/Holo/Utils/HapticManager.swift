@@ -1,4 +1,5 @@
 import UIKit
+import AudioToolbox
 
 /// 触觉反馈管理器 - 统一管理 App 内所有震动反馈
 enum HapticManager {
@@ -38,6 +39,14 @@ enum HapticManager {
     /// 重度 - 用于重要操作
     static func heavy() {
         UIImpactFeedbackGenerator(style: .heavy).impactOccurred()
+    }
+
+    // MARK: - 任务完成
+
+    /// 任务完成 - 系统音效 + 触觉反馈
+    static func taskCompletion() {
+        AudioServicesPlaySystemSound(1057)
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
     }
 
     // MARK: - Selection Feedback（选择反馈）

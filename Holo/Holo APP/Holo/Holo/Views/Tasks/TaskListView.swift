@@ -345,7 +345,7 @@ struct TaskListView: View {
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
             pendingCompletionTaskId = task.id
         }
-        HapticManager.medium()
+        HapticManager.taskCompletion()
 
         // 3 秒后执行实际完成操作
         let workItem = DispatchWorkItem {
@@ -901,13 +901,18 @@ struct TaskCardView: View {
         }
 
         // 兼容搜索页等不使用撤回的场景
+        let wasCompleted = task.completed
         do {
             if task.repeatRule != nil && !task.completed {
                 _ = try repository.completeRepeatingTask(task)
             } else {
                 try repository.toggleTaskCompletion(task)
             }
-            HapticManager.medium()
+            if wasCompleted {
+                HapticManager.medium()
+            } else {
+                HapticManager.taskCompletion()
+            }
         } catch {
             Self.logger.error("切换任务状态失败: \(error.localizedDescription)")
         }
