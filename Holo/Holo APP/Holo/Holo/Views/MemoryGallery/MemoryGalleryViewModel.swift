@@ -694,16 +694,11 @@ class MemoryGalleryViewModel: ObservableObject {
         }
     }
 
-    /// 继续在 AI Chat 中追问
-    func continueInChat() {
-        guard let insight = currentInsight else { return }
+    /// 构建"继续问AI"的预填提示文本
+    func buildContinueInChatPrompt() -> String? {
+        guard let insight = currentInsight else { return nil }
         let periodLabel = selectedInsightPeriod == .weekly ? "周" : "月"
-        let prompt = "基于这份本\(periodLabel)回放继续分析：\n\(insight.title)\n\(insight.summary)"
-        NotificationCenter.default.post(
-            name: .memoryInsightContinueInChat,
-            object: nil,
-            userInfo: ["prefillText": prompt]
-        )
+        return "基于这份本\(periodLabel)回放继续分析：\n\(insight.title)\n\(insight.summary)"
     }
 
     /// 当前选中周期的洞察

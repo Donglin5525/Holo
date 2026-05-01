@@ -50,6 +50,9 @@ struct HomeView: View {
     /// 是否显示 AI 对话页面
     @State private var showChatView: Bool = false
 
+    /// AI 对话页面的预填文本
+    @State private var chatPrefillText: String?
+
     /// 是否显示个人页面
     @State private var showPersonalView: Bool = false
 
@@ -143,11 +146,20 @@ struct HomeView: View {
         // 记忆长廊页面（Full Screen Cover 形式）
         .fullScreenCover(isPresented: $showMemoryGallery, onDismiss: {
             selectedTab = .ai
+            if chatPrefillText != nil {
+                showChatView = true
+            }
         }) {
-            MemoryGalleryView(onNavigateToFinance: {
-                showMemoryGallery = false
-                showFinanceView = true
-            })
+            MemoryGalleryView(
+                onNavigateToFinance: {
+                    showMemoryGallery = false
+                    showFinanceView = true
+                },
+                onNavigateToChat: { prefillText in
+                    chatPrefillText = prefillText
+                    showMemoryGallery = false
+                }
+            )
             .preferredColorScheme(DarkModeManager.shared.colorScheme)
         }
         // 健康页面（Full Screen Cover 形式）
@@ -161,8 +173,10 @@ struct HomeView: View {
                 .preferredColorScheme(DarkModeManager.shared.colorScheme)
         }
         // AI 对话页面（Full Screen Cover 形式）
-        .fullScreenCover(isPresented: $showChatView) {
-            ChatView()
+        .fullScreenCover(isPresented: $showChatView, onDismiss: {
+            chatPrefillText = nil
+        }) {
+            ChatView(prefillText: chatPrefillText)
                 .preferredColorScheme(DarkModeManager.shared.colorScheme)
         }
         // 个人页面（Sheet 形式，与 SettingsView 一致，支持内部弹出子页面）

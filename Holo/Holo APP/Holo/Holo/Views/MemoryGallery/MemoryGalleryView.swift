@@ -23,6 +23,9 @@ struct MemoryGalleryView: View {
     /// 跳转记账回调
     let onNavigateToFinance: (() -> Void)?
 
+    /// 跳转 AI 对话回调（携带预填文本）
+    let onNavigateToChat: ((String) -> Void)?
+
     /// 选中的记忆条目（用于跳转详情）
     @State private var selectedMemory: MemoryItem?
 
@@ -145,7 +148,9 @@ struct MemoryGalleryView: View {
                             Task { await viewModel.refreshInsight(force: true) }
                         },
                         onContinueInChat: {
-                            viewModel.continueInChat()
+                            if let prompt = viewModel.buildContinueInChatPrompt() {
+                                onNavigateToChat?(prompt)
+                            }
                         },
                         onGoToAISettings: {
                             showAISettings = true
@@ -575,5 +580,5 @@ private struct FilterChip: View {
 // MARK: - Preview
 
 #Preview {
-    MemoryGalleryView(onNavigateToFinance: nil)
+    MemoryGalleryView(onNavigateToFinance: nil, onNavigateToChat: nil)
 }

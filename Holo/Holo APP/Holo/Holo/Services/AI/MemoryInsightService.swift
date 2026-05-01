@@ -251,7 +251,6 @@ final class MemoryInsightService {
 
 extension Notification.Name {
     static let aiConfigDidChange = Notification.Name("aiConfigDidChange")
-    static let memoryInsightContinueInChat = Notification.Name("memoryInsightContinueInChat")
 }
 
 // MARK: - Date Formatter Extension
