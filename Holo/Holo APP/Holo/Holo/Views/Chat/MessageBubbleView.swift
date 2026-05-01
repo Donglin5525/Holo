@@ -204,6 +204,8 @@ struct MessageBubbleView: View {
             canTap = message.hasLinkedEntity(for: .finance)
         } else if intent.isTask {
             canTap = message.hasLinkedEntity(for: .task)
+        } else if intent == .generateMemoryInsight {
+            canTap = message.hasLinkedEntity(for: .memoryInsight)
         } else {
             canTap = false
         }
@@ -265,6 +267,7 @@ struct MessageBubbleView: View {
         case .createNote: return "已记录笔记"
         case .queryTasks: return "任务查询"
         case .queryHabits: return "习惯查询"
+        case .generateMemoryInsight: return "已生成回放"
         case .unknown: return "未识别指令"
         default: return intent.rawValue
         }

@@ -55,6 +55,27 @@ final class MemoryInsightRepository {
         return (try? context.fetch(request))?.first
     }
 
+    /// 获取指定年份的所有月度洞察（ready 状态）
+    func fetchMonthlyInsights(for year: Int) -> [MemoryInsight] {
+        let calendar = Calendar.current
+        guard let yearStart = calendar.date(from: DateComponents(year: year, month: 1, day: 1)),
+              let yearEnd = calendar.date(from: DateComponents(year: year, month: 12, day: 31)) else {
+            return []
+        }
+
+        let request = MemoryInsight.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "periodType == %@ AND periodStart >= %@ AND periodStart <= %@ AND status IN %@",
+            MemoryInsightPeriodType.monthly.rawValue,
+            yearStart as CVarArg,
+            yearEnd as CVarArg,
+            [MemoryInsightStatus.ready.rawValue, MemoryInsightStatus.stale.rawValue]
+        )
+        request.sortDescriptors = [NSSortDescriptor(key: "periodStart", ascending: true)]
+
+        return (try? context.fetch(request)) ?? []
+    }
+
     // MARK: - Save Generating
 
     /// 生成前保存 generating 状态，同时清理同周期旧的 failed 记录

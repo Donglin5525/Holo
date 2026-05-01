@@ -8,6 +8,13 @@
 
 import Foundation
 
+// MARK: - Decimal Codable
+
+extension Decimal {
+    var codableValue: Double { (self as NSDecimalNumber).doubleValue }
+    init(codableValue: Double) { self = Decimal(codableValue) }
+}
+
 // MARK: - Period Type
 
 /// 洞察周期类型
@@ -128,6 +135,36 @@ struct MemoryInsightContext: Codable, Equatable {
     let tasks: MemoryInsightTaskContext
     let thoughts: MemoryInsightThoughtContext
     let milestones: [MemoryInsightMilestoneContext]
+    let crossModuleCorrelations: [CrossModuleCorrelation]
+    let monthlyInsightDigests: [MonthlyInsightDigest]
+}
+
+// MARK: - Cross-Module Types
+
+enum InsightModule: String, Codable {
+    case finance, habit, task, thought
+}
+
+struct CrossModuleCorrelation: Codable, Equatable {
+    let modulePair: [InsightModule]
+    let observation: String
+    let signalStrength: Double
+    let summary: String
+}
+
+// MARK: - Annual Review Types
+
+struct MonthlyInsightDigest: Codable, Equatable {
+    let periodStart: Date
+    let periodEnd: Date
+    let summary: String
+    let keyFindings: [String]
+    let moduleSnapshots: [ModuleSnapshot]
+}
+
+struct ModuleSnapshot: Codable, Equatable {
+    let module: InsightModule
+    let headline: String
 }
 
 struct MemoryInsightFinanceContext: Codable, Equatable {
@@ -136,6 +173,16 @@ struct MemoryInsightFinanceContext: Codable, Equatable {
     let topCategories: [CategoryAmountSummary]
     let dailyExpenses: [DailyAmountSummary]
     let previousPeriodExpense: Decimal
+    let budgetPerformance: BudgetPerformanceSummary?
+    let anomalyDescriptions: [String]
+}
+
+struct BudgetPerformanceSummary: Codable, Equatable {
+    let totalBudget: Decimal
+    let totalSpent: Decimal
+    let progressPercent: Double
+    let isOnTrack: Bool
+    let warningCategories: [String]
 }
 
 struct MemoryInsightHabitContext: Codable, Equatable {
@@ -143,17 +190,27 @@ struct MemoryInsightHabitContext: Codable, Equatable {
     let completedRecordCount: Int
     let previousPeriodCompletedRecordCount: Int
     let streaks: [HabitStreakSummary]
+    let averageCompletionRate: Double?
+    let topPerformingHabits: [String]
+    let strugglingHabits: [String]
 }
 
 struct MemoryInsightTaskContext: Codable, Equatable {
     let completedCount: Int
     let overdueCount: Int
     let importantCompletedTasks: [String]
+    let totalCount: Int
+    let completionRate: Double
+    let highPriorityCompletionRate: Double?
+    let dailyCompletionTrend: [DailyTaskCount]
 }
 
 struct MemoryInsightThoughtContext: Codable, Equatable {
     let totalCount: Int
     let recentSnippets: [String]
+    let textContents: [String]
+    let moodDistribution: [String: Int]
+    let topTags: [String]
 }
 
 struct MemoryInsightMilestoneContext: Codable, Equatable {

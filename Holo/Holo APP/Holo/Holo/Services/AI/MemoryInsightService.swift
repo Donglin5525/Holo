@@ -16,6 +16,7 @@ final class MemoryInsightService {
 
     private let logger = Logger(subsystem: "com.holo.app", category: "MemoryInsightService")
     private let repository = MemoryInsightRepository()
+    private let contextBuilder = MemoryInsightContextBuilder()
 
     /// 当前是否正在生成（防止重复点击）
     private(set) var isGenerating: Bool = false
@@ -90,7 +91,7 @@ final class MemoryInsightService {
         defer { isGenerating = false }
 
         // 1. 构建上下文
-        let (context, snapshotHash) = await MemoryInsightContextBuilder.build(
+        let (context, snapshotHash) = await contextBuilder.build(
             periodType: periodType,
             referenceDate: end
         )
@@ -169,7 +170,7 @@ final class MemoryInsightService {
             payload: processedPayload,
             rawResponse: rawResponse,
             providerName: providerName,
-            promptVersion: 1
+            promptVersion: 2
         )
 
         logger.info("洞察生成成功：\(periodType.rawValue)")
@@ -184,7 +185,7 @@ final class MemoryInsightService {
         start: Date,
         end: Date
     ) async {
-        let (_, newHash) = await MemoryInsightContextBuilder.build(
+        let (_, newHash) = await contextBuilder.build(
             periodType: periodType,
             referenceDate: end
         )

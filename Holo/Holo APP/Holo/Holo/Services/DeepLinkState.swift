@@ -18,6 +18,8 @@ enum DeepLinkTarget: Equatable {
     /// 从 AI Chat 卡片跳转到对应模块
     case finance
     case tasks
+    /// 从 AI Chat 洞察标签跳转到记忆长廊
+    case memoryGallery
 }
 
 /// Deep Link 状态管理器

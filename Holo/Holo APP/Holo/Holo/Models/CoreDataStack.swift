@@ -86,6 +86,11 @@ class CoreDataStack {
             // 使用 SQLite 存储
             description.url = URL.documentsDirectory.appendingPathComponent("HoloDataModel.sqlite")
 
+            // 同步加载存储（阻塞当前线程直到 store 就绪）
+            // 设为 false 确保后台线程调用 loadPersistentStores 时同步完成，
+            // 避免主线程后续访问 viewContext 时因 store 未就绪而阻塞→死锁
+            description.shouldAddStoreAsynchronously = false
+
             // 启用轻量级迁移（支持新增字段等 schema 变更）
             description.setOption(true as NSNumber, forKey: NSMigratePersistentStoresAutomaticallyOption)
             description.setOption(true as NSNumber, forKey: NSInferMappingModelAutomaticallyOption)

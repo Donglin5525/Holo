@@ -223,6 +223,9 @@ struct ChatView: View {
         } else if let taskId = message.resolveLinkedEntityId(for: .task) {
             DeepLinkState.shared.pendingTarget = .taskDetail(taskId: taskId)
             dismiss()
+        } else if message.hasLinkedEntity(for: .memoryInsight) {
+            DeepLinkState.shared.pendingTarget = .memoryGallery
+            dismiss()
         }
     }
 

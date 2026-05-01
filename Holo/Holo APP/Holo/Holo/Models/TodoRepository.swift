@@ -9,6 +9,7 @@
 import Foundation
 import CoreData
 import Combine
+import os.log
 
 // MARK: - 通知名称
 
@@ -42,6 +43,9 @@ class TodoRepository: ObservableObject {
     /// 所有标签列表
     @Published var tags: [TodoTag] = []
 
+    /// 是否已完成初始化（供 UI 判断加载状态）
+    @Published private(set) var isReady: Bool = false
+
     /// 没有关联文件夹的清单
     var unfiledLists: [TodoList] {
         let request = TodoList.fetchRequest()
@@ -59,11 +63,19 @@ class TodoRepository: ObservableObject {
 
     // MARK: - Initialization
 
-    private init() {
+    /// init 不做任何 I/O 操作，避免阻塞主线程
+    /// 所有数据操作延迟到 setup() 中执行
+    private init() {}
+
+    /// 延迟初始化：加载所有数据
+    /// 在 Core Data store 就绪后调用（HomeView.task 中）
+    func setup() {
+        guard !isReady else { return }
         loadFolders()
         loadActiveTasks()
         loadTrashedTasks()
         loadTags()
+        isReady = true
     }
 
     // MARK: - 数据加载
@@ -796,6 +808,80 @@ class TodoRepository: ObservableObject {
         return (total, completed, overdue)
     }
 
+    /// 按日分组的完成趋势
+    func getCompletionTrend(from start: Date, to end: Date) -> [DailyTaskCount] {
+        let request = TodoTask.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "completedAt >= %@ AND completedAt <= %@ AND deletedFlag == NO AND archived == NO",
+            start as NSDate,
+            end as NSDate
+        )
+
+        guard let tasks = try? context.fetch(request) else {
+            Logger(subsystem: "com.holo.app", category: "TodoRepository")
+                .error("获取完成趋势失败")
+            return []
+        }
+
+        let calendar = Calendar.current
+        var grouped: [Date: Int] = [:]
+        for task in tasks {
+            guard let completedAt = task.completedAt else { continue }
+            let day = calendar.startOfDay(for: completedAt)
+            grouped[day, default: 0] += 1
+        }
+
+        return grouped.map { DailyTaskCount(date: $0.key, completedCount: $0.value) }
+            .sorted { $0.date < $1.date }
+    }
+
+    /// 指定时间范围内的完成统计
+    func getCompletionStats(from start: Date, to end: Date) -> TaskPeriodStats {
+        let activeTasks = activeTasks
+
+        // completedInPeriod: completedAt 在 [start, end] 内的任务数
+        let completedInPeriod = activeTasks.filter { task in
+            guard let completedAt = task.completedAt, task.completed else { return false }
+            return completedAt >= start && completedAt <= end
+        }.count
+
+        // dueInPeriod: dueDate 在 [start, end] 内的任务数
+        let dueInPeriod = activeTasks.filter { task in
+            guard let dueDate = task.dueDate else { return false }
+            return dueDate >= start && dueDate <= end
+        }.count
+
+        // overdueInPeriod: dueDate 在 [start, end] 内且未完成的任务数
+        let overdueInPeriod = activeTasks.filter { task in
+            guard let dueDate = task.dueDate, !task.completed else { return false }
+            return dueDate >= start && dueDate <= end
+        }.count
+
+        let denominator = max(dueInPeriod, 1)
+        let completionRate = Double(completedInPeriod) / Double(denominator)
+
+        // 高优先级完成率
+        let highPriorityDue = activeTasks.filter { task in
+            guard let dueDate = task.dueDate, task.priority >= 2 else { return false }
+            return dueDate >= start && dueDate <= end
+        }
+        let highPriorityCompleted = highPriorityDue.filter { task in
+            guard let completedAt = task.completedAt, task.completed else { return false }
+            return completedAt >= start && completedAt <= end
+        }
+        let highPriorityCompletionRate: Double? = highPriorityDue.isEmpty
+            ? nil
+            : Double(highPriorityCompleted.count) / Double(highPriorityDue.count)
+
+        return TaskPeriodStats(
+            completedInPeriod: completedInPeriod,
+            dueInPeriod: dueInPeriod,
+            overdueInPeriod: overdueInPeriod,
+            completionRate: completionRate,
+            highPriorityCompletionRate: highPriorityCompletionRate
+        )
+    }
+
     /// 获取未来 N 天内即将到期的第一个未完成任务（按截止时间升序）
     func getNextUpcomingTask(withinDays days: Int = 3) -> TodoTask? {
         let now = Date()
@@ -832,4 +918,19 @@ class TodoRepository: ObservableObject {
             object: taskId
         )
     }
+}
+
+// MARK: - Aggregation Types
+
+struct DailyTaskCount: Codable, Equatable {
+    let date: Date
+    let completedCount: Int
+}
+
+struct TaskPeriodStats: Codable, Equatable {
+    let completedInPeriod: Int
+    let dueInPeriod: Int
+    let overdueInPeriod: Int
+    let completionRate: Double
+    let highPriorityCompletionRate: Double?
 }

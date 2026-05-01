@@ -14,32 +14,60 @@ import os.log
 /// 构建记忆洞察所需的周期级数据上下文
 struct MemoryInsightContextBuilder {
 
+    // MARK: - Dependencies
+
+    let financeRepo: FinanceRepository
+    let habitRepo: HabitRepository
+    let todoRepo: TodoRepository
+    let thoughtRepo: ThoughtRepository
+    let budgetRepo: BudgetRepository
+    let insightRepo: MemoryInsightRepository
+
+    // MARK: - Init
+
+    init(
+        financeRepo: FinanceRepository = .shared,
+        habitRepo: HabitRepository = .shared,
+        todoRepo: TodoRepository = .shared,
+        thoughtRepo: ThoughtRepository = ThoughtRepository(),
+        budgetRepo: BudgetRepository = .shared,
+        insightRepo: MemoryInsightRepository = MemoryInsightRepository()
+    ) {
+        self.financeRepo = financeRepo
+        self.habitRepo = habitRepo
+        self.todoRepo = todoRepo
+        self.thoughtRepo = thoughtRepo
+        self.budgetRepo = budgetRepo
+        self.insightRepo = insightRepo
+    }
+
     private static let logger = Logger(subsystem: "com.holo.app", category: "MemoryInsightContextBuilder")
 
     // MARK: - Token Budgets
 
-    /// 周/月回放的输入 token 上限（粗估：1 中文字 ≈ 2 token）
     private static let weeklyTokenBudget = 2000
     private static let monthlyTokenBudget = 3500
 
     // MARK: - Build Context
 
-    /// 构建指定周期的上下文
-    /// - Parameters:
-    ///   - periodType: 周期类型
-    ///   - referenceDate: 参考日期（默认今天）
-    /// - Returns: 上下文和 snapshotHash
-    static func build(
+    func build(
         periodType: MemoryInsightPeriodType,
         referenceDate: Date = Date()
     ) async -> (context: MemoryInsightContext, snapshotHash: String) {
-        let (start, end) = periodRange(periodType: periodType, referenceDate: referenceDate)
+        let (start, end) = Self.periodRange(periodType: periodType, referenceDate: referenceDate)
 
-        let finance = await buildFinanceContext(start: start, end: end)
+        let finance = await buildFinanceContext(start: start, end: end, periodType: periodType)
         let habits = buildHabitContext(start: start, end: end)
         let tasks = buildTaskContext(start: start, end: end)
         let thoughts = buildThoughtContext(start: start, end: end)
-        let milestones = buildMilestoneContext(start: start, end: end)
+        let milestones = Self.buildMilestoneContext(start: start, end: end)
+
+        let correlations = CrossModuleCorrelator.detect(
+            finance: finance,
+            habits: habits,
+            tasks: tasks,
+            thoughts: thoughts
+        )
 
         var context = MemoryInsightContext(
             periodType: periodType,
@@ -51,19 +79,19 @@ struct MemoryInsightContextBuilder {
             habits: habits,
             tasks: tasks,
             thoughts: thoughts,
-            milestones: milestones
+            milestones: milestones,
+            crossModuleCorrelations: correlations,
+            monthlyInsightDigests: []
         )
 
-        // Token 预算检查，超限时截断 dailyExpenses
-        context = enforceTokenBudget(context, periodType: periodType)
+        context = Self.enforceTokenBudget(context, periodType: periodType)
 
-        let snapshotHash = computeHash(context)
+        let snapshotHash = Self.computeHash(context)
         return (context, snapshotHash)
     }
 
     // MARK: - Period Range
 
-    /// 计算周期起止日期
     static func periodRange(periodType: MemoryInsightPeriodType, referenceDate: Date) -> (start: Date, end: Date) {
         switch periodType {
         case .weekly:
@@ -82,12 +110,11 @@ struct MemoryInsightContextBuilder {
 
     // MARK: - Finance
 
-    private static func buildFinanceContext(
+    private func buildFinanceContext(
         start: Date,
-        end: Date
+        end: Date,
+        periodType: MemoryInsightPeriodType
     ) async -> MemoryInsightFinanceContext {
-        let financeRepo = FinanceRepository.shared
-
         var totalExpense: Decimal = 0
         var totalIncome: Decimal = 0
         var topCategories: [CategoryAmountSummary] = []
@@ -106,7 +133,6 @@ struct MemoryInsightContextBuilder {
                 }
             }
 
-            // 日支出
             let dateFormatter = DateFormatter()
             dateFormatter.dateFormat = "yyyy-MM-dd"
             var dailyMap: [String: Decimal] = [:]
@@ -117,7 +143,6 @@ struct MemoryInsightContextBuilder {
             dailyExpenses = dailyMap.map { DailyAmountSummary(date: $0.key, amount: $0.value) }
                 .sorted { $0.date < $1.date }
 
-            // 分类支出（取 top 5）
             let aggregations = try await financeRepo.getCategoryAggregations(
                 from: start, to: endDate, type: .expense
             )
@@ -128,7 +153,7 @@ struct MemoryInsightContextBuilder {
                 )
             }
         } catch {
-            logger.error("构建财务上下文失败：\(error.localizedDescription)")
+            Self.logger.error("构建财务上下文失败：\(error.localizedDescription)")
         }
 
         // 上期对比
@@ -141,7 +166,35 @@ struct MemoryInsightContextBuilder {
                 previousPeriodExpense += (t.amount as NSDecimalNumber).decimalValue
             }
         } catch {
-            logger.error("构建上期财务数据失败：\(error.localizedDescription)")
+            Self.logger.error("构建上期财务数据失败：\(error.localizedDescription)")
+        }
+
+        // 预算表现
+        let budgetPeriod: BudgetPeriod = periodType == .weekly ? .week : .month
+        let budgetSummary: BudgetPerformanceSummary? = {
+            guard let budget = budgetRepo.computeGlobalTotalBudgetStatus(period: budgetPeriod) else { return nil }
+            let warnings = budgetRepo.getWarningCategoryBudgets(period: budgetPeriod).map(\.categoryName)
+            return BudgetPerformanceSummary(
+                totalBudget: budget.totalBudgetAmount,
+                totalSpent: budget.totalSpentAmount,
+                progressPercent: budget.progress,
+                isOnTrack: !budget.isOverBudget && !budget.isWarning,
+                warningCategories: warnings
+            )
+        }()
+
+        // 异常检测
+        var anomalies: [String] = []
+        let daysInPeriod = Calendar.current.dateComponents([.day], from: start, to: end).day ?? 7
+        if daysInPeriod > 0, totalExpense > 0 {
+            let dailyAvg = totalExpense / Decimal(daysInPeriod)
+            if dailyAvg > 0,
+               let maxDay = dailyExpenses.max(by: { $0.amount < $1.amount }),
+               maxDay.amount > dailyAvg * 3 && maxDay.amount > 100 {
+                let ratio = (maxDay.amount / dailyAvg as NSDecimalNumber).doubleValue
+                let percentDisplay = min(Int((ratio - 1) * 100), 999)
+                anomalies.append("\(maxDay.date) 单日 \(maxDay.amount)（高于均值 \(percentDisplay)%）")
+            }
         }
 
         return MemoryInsightFinanceContext(
@@ -149,17 +202,18 @@ struct MemoryInsightContextBuilder {
             totalIncome: totalIncome,
             topCategories: topCategories,
             dailyExpenses: dailyExpenses,
-            previousPeriodExpense: previousPeriodExpense
+            previousPeriodExpense: previousPeriodExpense,
+            budgetPerformance: budgetSummary,
+            anomalyDescriptions: anomalies
         )
     }
 
     // MARK: - Habits
 
-    private static func buildHabitContext(
+    private func buildHabitContext(
         start: Date,
         end: Date
     ) -> MemoryInsightHabitContext {
-        let habitRepo = HabitRepository.shared
         let range = start...end.addingDays(1)
 
         let habits = habitRepo.activeHabits
@@ -191,18 +245,28 @@ struct MemoryInsightContextBuilder {
             previousPeriodCompletedRecordCount += records.filter { $0.isCompleted }.count
         }
 
+        // 总览统计 + 排名
+        let statsRange: HabitStatsDateRange = periodLength <= 7 ? .week : .month
+        let overviewStats = habitRepo.getOverviewStats(range: statsRange)
+        let ranking = habitRepo.getHabitRanking(range: statsRange, limit: 10)
+
+        let topPerforming = ranking.prefix(3).map(\.name)
+        let struggling = ranking.suffix(3).filter { $0.completionRate < 0.5 }.map(\.name)
+
         return MemoryInsightHabitContext(
             activeHabitCount: habits.count,
             completedRecordCount: completedRecordCount,
             previousPeriodCompletedRecordCount: previousPeriodCompletedRecordCount,
-            streaks: streaks.sorted { $0.streakDays > $1.streakDays }
+            streaks: streaks.sorted { $0.streakDays > $1.streakDays },
+            averageCompletionRate: overviewStats.averageCompletionRate,
+            topPerformingHabits: topPerforming,
+            strugglingHabits: struggling
         )
     }
 
     // MARK: - Tasks
 
-    private static func buildTaskContext(start: Date, end: Date) -> MemoryInsightTaskContext {
-        let todoRepo = TodoRepository.shared
+    private func buildTaskContext(start: Date, end: Date) -> MemoryInsightTaskContext {
         let context = CoreDataStack.shared.viewContext
 
         var completedCount = 0
@@ -228,38 +292,164 @@ struct MemoryInsightContextBuilder {
             let overdue = todoRepo.getOverdueTasks()
             overdueCount = overdue.count
         } catch {
-            logger.error("构建任务上下文失败：\(error.localizedDescription)")
+            Self.logger.error("构建任务上下文失败：\(error.localizedDescription)")
         }
+
+        let stats = todoRepo.getCompletionStats(from: start, to: end)
+        let trend = todoRepo.getCompletionTrend(from: start, to: end)
 
         return MemoryInsightTaskContext(
             completedCount: completedCount,
             overdueCount: overdueCount,
-            importantCompletedTasks: importantCompletedTasks
+            importantCompletedTasks: importantCompletedTasks,
+            totalCount: todoRepo.activeTasks.count,
+            completionRate: stats.completionRate,
+            highPriorityCompletionRate: stats.highPriorityCompletionRate,
+            dailyCompletionTrend: trend
         )
     }
 
     // MARK: - Thoughts
 
-    private static func buildThoughtContext(start: Date, end: Date) -> MemoryInsightThoughtContext {
-        let thoughtRepo = ThoughtRepository()
+    private func buildThoughtContext(start: Date, end: Date) -> MemoryInsightThoughtContext {
+        let endDate = end.addingDays(1)
         var totalCount = 0
         var recentSnippets: [String] = []
 
         do {
-            let filters = ThoughtFilters(startDate: start, endDate: end.addingDays(1))
+            let filters = ThoughtFilters(startDate: start, endDate: endDate)
             let thoughts = try thoughtRepo.search(query: "", filters: filters)
             totalCount = thoughts.count
             recentSnippets = thoughts
                 .prefix(5)
                 .map { String($0.content.prefix(50)) }
         } catch {
-            logger.error("构建观点上下文失败：\(error.localizedDescription)")
+            Self.logger.error("构建观点上下文失败：\(error.localizedDescription)")
         }
+
+        let moodDist = thoughtRepo.getMoodDistribution(from: start, to: endDate)
+        let tags = thoughtRepo.getTopTags(from: start, to: endDate, limit: 3).map(\.name)
+        let texts = thoughtRepo.getThoughtTexts(from: start, to: endDate, limit: 20)
 
         return MemoryInsightThoughtContext(
             totalCount: totalCount,
-            recentSnippets: recentSnippets
+            recentSnippets: recentSnippets,
+            textContents: texts,
+            moodDistribution: moodDist,
+            topTags: tags
         )
+    }
+
+    // MARK: - Annual Review
+
+    func buildAnnualContext(year: Int) async -> MemoryInsightContext {
+        let calendar = Calendar.current
+        guard let yearStart = calendar.date(from: DateComponents(year: year, month: 1, day: 1)),
+              let yearEnd = calendar.date(from: DateComponents(year: year, month: 12, day: 31)) else {
+            return emptyAnnualContext(year: year)
+        }
+
+        // 1. 获取该年所有月度洞察
+        let monthlyInsights = insightRepo.fetchMonthlyInsights(for: year)
+
+        // 2. 提取月度摘要
+        let digests: [MonthlyInsightDigest] = monthlyInsights.compactMap { insight in
+            let cardsJSON = insight.cardsJSON
+            guard !cardsJSON.isEmpty,
+                  let data = cardsJSON.data(using: .utf8),
+                  let payload = try? JSONDecoder().decode(MemoryInsightPayload.self, from: data) else {
+                return MonthlyInsightDigest(
+                    periodStart: insight.periodStart ?? Date(),
+                    periodEnd: insight.periodEnd ?? Date(),
+                    summary: insight.summary,
+                    keyFindings: [],
+                    moduleSnapshots: []
+                )
+            }
+            return MonthlyInsightDigest(
+                periodStart: insight.periodStart ?? Date(),
+                periodEnd: insight.periodEnd ?? Date(),
+                summary: payload.summary,
+                keyFindings: payload.cards.prefix(3).map(\.title),
+                moduleSnapshots: payload.cards.map { card in
+                    ModuleSnapshot(
+                        module: mapCardTypeToModule(card.type),
+                        headline: "\(card.title): \(card.body.prefix(30))"
+                    )
+                }
+            )
+        }
+
+        // 3. 年度原始汇总（复用各 build 方法）
+        let finance = await buildFinanceContext(start: yearStart, end: yearEnd, periodType: .monthly)
+        let habits = buildHabitContext(start: yearStart, end: yearEnd)
+        let tasks = buildTaskContext(start: yearStart, end: yearEnd)
+        let thoughts = buildThoughtContext(start: yearStart, end: yearEnd)
+        let milestones = Self.buildMilestoneContext(start: yearStart, end: yearEnd)
+
+        let correlations = CrossModuleCorrelator.detect(
+            finance: finance,
+            habits: habits,
+            tasks: tasks,
+            thoughts: thoughts
+        )
+
+        return MemoryInsightContext(
+            periodType: .monthly,
+            periodStart: yearStart,
+            periodEnd: yearEnd,
+            generatedAt: Date(),
+            localeIdentifier: Locale.current.identifier,
+            finance: finance,
+            habits: habits,
+            tasks: tasks,
+            thoughts: thoughts,
+            milestones: milestones,
+            crossModuleCorrelations: correlations,
+            monthlyInsightDigests: digests
+        )
+    }
+
+    private func emptyAnnualContext(year: Int) -> MemoryInsightContext {
+        let now = Date()
+        return MemoryInsightContext(
+            periodType: .monthly,
+            periodStart: now,
+            periodEnd: now,
+            generatedAt: now,
+            localeIdentifier: Locale.current.identifier,
+            finance: MemoryInsightFinanceContext(
+                totalExpense: 0, totalIncome: 0, topCategories: [], dailyExpenses: [],
+                previousPeriodExpense: 0, budgetPerformance: nil, anomalyDescriptions: []
+            ),
+            habits: MemoryInsightHabitContext(
+                activeHabitCount: 0, completedRecordCount: 0,
+                previousPeriodCompletedRecordCount: 0, streaks: [],
+                averageCompletionRate: nil, topPerformingHabits: [], strugglingHabits: []
+            ),
+            tasks: MemoryInsightTaskContext(
+                completedCount: 0, overdueCount: 0, importantCompletedTasks: [],
+                totalCount: 0, completionRate: 0,
+                highPriorityCompletionRate: nil, dailyCompletionTrend: []
+            ),
+            thoughts: MemoryInsightThoughtContext(
+                totalCount: 0, recentSnippets: [],
+                textContents: [], moodDistribution: [:], topTags: []
+            ),
+            milestones: [],
+            crossModuleCorrelations: [],
+            monthlyInsightDigests: []
+        )
+    }
+
+    private func mapCardTypeToModule(_ cardType: MemoryInsightCardType) -> InsightModule {
+        switch cardType {
+        case .finance: return .finance
+        case .habit: return .habit
+        case .task: return .task
+        case .thought: return .thought
+        default: return .finance
+        }
     }
 
     // MARK: - Milestones
@@ -280,7 +470,6 @@ struct MemoryInsightContextBuilder {
 
     // MARK: - Token Budget
 
-    /// 检查 token 预算，超限时截断 dailyExpenses
     private static func enforceTokenBudget(
         _ context: MemoryInsightContext,
         periodType: MemoryInsightPeriodType
@@ -288,16 +477,29 @@ struct MemoryInsightContextBuilder {
         let budget = periodType == .monthly ? monthlyTokenBudget : weeklyTokenBudget
 
         guard let encoded = try? JSONEncoder().encode(context),
-              let json = String(data: encoded, encoding: .utf8) else {
+              let _ = String(data: encoded, encoding: .utf8) else {
             return context
         }
 
-        let estimatedTokens = json.count / 2
+        let estimatedTokens = encoded.count / 2
 
         if estimatedTokens <= budget {
             return context
         }
 
+        // 截断：优先减少 textContents
+        var truncatedThoughts = context.thoughts
+        if truncatedThoughts.textContents.count > 5 {
+            truncatedThoughts = MemoryInsightThoughtContext(
+                totalCount: truncatedThoughts.totalCount,
+                recentSnippets: truncatedThoughts.recentSnippets,
+                textContents: Array(truncatedThoughts.textContents.prefix(5)),
+                moodDistribution: truncatedThoughts.moodDistribution,
+                topTags: truncatedThoughts.topTags
+            )
+        }
+
+        // 截断 dailyExpenses
         var truncatedFinance = context.finance
         if truncatedFinance.dailyExpenses.count > 14 {
             truncatedFinance = MemoryInsightFinanceContext(
@@ -305,7 +507,23 @@ struct MemoryInsightContextBuilder {
                 totalIncome: truncatedFinance.totalIncome,
                 topCategories: truncatedFinance.topCategories,
                 dailyExpenses: Array(truncatedFinance.dailyExpenses.suffix(14)),
-                previousPeriodExpense: truncatedFinance.previousPeriodExpense
+                previousPeriodExpense: truncatedFinance.previousPeriodExpense,
+                budgetPerformance: truncatedFinance.budgetPerformance,
+                anomalyDescriptions: truncatedFinance.anomalyDescriptions
+            )
+        }
+
+        // 截断 dailyCompletionTrend
+        var truncatedTasks = context.tasks
+        if truncatedTasks.dailyCompletionTrend.count > 14 {
+            truncatedTasks = MemoryInsightTaskContext(
+                completedCount: truncatedTasks.completedCount,
+                overdueCount: truncatedTasks.overdueCount,
+                importantCompletedTasks: truncatedTasks.importantCompletedTasks,
+                totalCount: truncatedTasks.totalCount,
+                completionRate: truncatedTasks.completionRate,
+                highPriorityCompletionRate: truncatedTasks.highPriorityCompletionRate,
+                dailyCompletionTrend: Array(truncatedTasks.dailyCompletionTrend.suffix(14))
             )
         }
 
@@ -317,15 +535,16 @@ struct MemoryInsightContextBuilder {
             localeIdentifier: context.localeIdentifier,
             finance: truncatedFinance,
             habits: context.habits,
-            tasks: context.tasks,
-            thoughts: context.thoughts,
-            milestones: context.milestones
+            tasks: truncatedTasks,
+            thoughts: truncatedThoughts,
+            milestones: context.milestones,
+            crossModuleCorrelations: context.crossModuleCorrelations,
+            monthlyInsightDigests: context.monthlyInsightDigests
         )
     }
 
     // MARK: - Snapshot Hash
 
-    /// 计算 SHA256 hash，用于判断数据是否变化
     static func computeHash(_ context: MemoryInsightContext) -> String {
         guard let encoded = try? JSONEncoder().encode(context) else { return "" }
         let hash = SHA256.hash(data: encoded)

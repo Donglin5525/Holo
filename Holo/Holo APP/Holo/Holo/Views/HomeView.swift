@@ -117,6 +117,7 @@ struct HomeView: View {
         .task {
             // 首屏先直接展示默认入口，持久化顺序稍后异步回填，避免首次启动被 Core Data 初始化卡住。
             guard !iconRepository.isReady else {
+                TodoRepository.shared.setup()
                 loadFeatureItemsFromRepository()
                 scheduleService.setup()
                 return
@@ -127,6 +128,7 @@ struct HomeView: View {
 
                 await MainActor.run {
                     iconRepository.setup()
+                    TodoRepository.shared.setup()
                     loadFeatureItemsFromRepository()
                     scheduleService.setup()
                 }
@@ -593,6 +595,8 @@ struct HomeView: View {
             if showFinanceView { return }
         case .tasks:
             if showTasksView { return }
+        case .memoryGallery:
+            if showMemoryGallery { return }
         }
 
         // 先关闭所有已打开的 fullScreenCover（SwiftUI 不支持同时 present 多个）
@@ -616,6 +620,8 @@ struct HomeView: View {
                 showFinanceView = true
             case .tasks:
                 showTasksView = true
+            case .memoryGallery:
+                showMemoryGallery = true
             }
 
             // 不在此处清除 pendingTarget —— 由目标页面处理完后再清除，

@@ -8,6 +8,7 @@
 
 import Foundation
 import CoreData
+import os.log
 
 // MARK: - Notification Names
 
@@ -450,6 +451,88 @@ class ThoughtRepository {
 
         context.delete(tag)
         try context.save()
+    }
+
+    // MARK: - Aggregation
+
+    /// 指定时间范围内的想法总数
+    func getThoughtCount(from start: Date, to end: Date) -> Int {
+        let request = Thought.fetchRequest()
+        request.predicate = basePredicate(from: start, to: end)
+        return (try? context.count(for: request)) ?? 0
+    }
+
+    /// 指定时间范围内的心情分布（跳过 mood 为 nil 的记录）
+    func getMoodDistribution(from start: Date, to end: Date) -> [String: Int] {
+        let request = Thought.fetchRequest()
+        request.predicate = basePredicate(from: start, to: end)
+
+        guard let thoughts = try? context.fetch(request) else {
+            Logger(subsystem: "com.holo.app", category: "ThoughtRepository")
+                .error("获取心情分布失败")
+            return [:]
+        }
+
+        var distribution: [String: Int] = [:]
+        for thought in thoughts {
+            guard let mood = thought.mood else { continue }
+            distribution[mood, default: 0] += 1
+        }
+        return distribution
+    }
+
+    /// 指定时间范围内的热门标签（按关联想法数排序）
+    func getTopTags(from start: Date, to end: Date, limit: Int) -> [ThoughtTag] {
+        let request = Thought.fetchRequest()
+        request.predicate = basePredicate(from: start, to: end)
+
+        guard let thoughts = try? context.fetch(request), !thoughts.isEmpty else { return [] }
+
+        var tagCounts: [ThoughtTag: Int] = [:]
+        for thought in thoughts {
+            guard let tags = thought.tags as? Set<ThoughtTag> else { continue }
+            for tag in tags {
+                tagCounts[tag, default: 0] += 1
+            }
+        }
+
+        return tagCounts
+            .sorted { $0.value > $1.value }
+            .prefix(limit)
+            .map { $0.key }
+    }
+
+    /// 指定时间范围内的想法原文截取（每篇 ≤200 字，按创建时间倒序）
+    func getThoughtTexts(from start: Date, to end: Date, limit: Int) -> [String] {
+        let request = Thought.fetchRequest()
+        let datePredicate = basePredicate(from: start, to: end)
+        let contentPredicate = NSPredicate(format: "content != ''")
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [datePredicate, contentPredicate])
+        request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
+        request.fetchLimit = limit
+
+        guard let thoughts = try? context.fetch(request) else { return [] }
+
+        return thoughts.compactMap { thought in
+            if thought.content.isEmpty { return nil }
+            return String(thought.content.prefix(200))
+        }
+    }
+
+    // MARK: - Private Helpers
+
+    /// 构建基础 predicate（排除已删除/归档，可选日期范围）
+    private func basePredicate(from startDate: Date?, to endDate: Date?) -> NSPredicate {
+        var predicates: [NSPredicate] = [
+            NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
+        ]
+        if let start = startDate {
+            predicates.append(NSPredicate(format: "createdAt >= %@", start as CVarArg))
+        }
+        if let end = endDate {
+            predicates.append(NSPredicate(format: "createdAt <= %@", end as CVarArg))
+        }
+        return NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
     }
 }
 

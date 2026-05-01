@@ -12,7 +12,7 @@ import Foundation
 
 /// 实体类别，用于统一解析 linkedEntityId
 enum EntityCategory {
-    case finance, task, habit, thought
+    case finance, task, habit, thought, memoryInsight
 }
 
 struct ChatMessageViewData: Identifiable, Equatable, Sendable {
@@ -140,6 +140,7 @@ struct ChatMessageViewData: Identifiable, Equatable, Sendable {
         case .task: return AIIntent.taskIntents
         case .habit: return [.checkIn]
         case .thought: return [.createNote]
+        case .memoryInsight: return [.generateMemoryInsight]
         }
     }
 
@@ -151,6 +152,7 @@ struct ChatMessageViewData: Identifiable, Equatable, Sendable {
         case .task: key = "taskId"
         case .habit: key = "habitId"
         case .thought: key = "thoughtId"
+        case .memoryInsight: key = "entityId"
         }
         guard let idStr = dict[key] else { return nil }
         return UUID(uuidString: idStr)

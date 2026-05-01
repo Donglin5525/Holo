@@ -22,7 +22,8 @@ final class ChatMessageRepository: ObservableObject {
     private var liveMessageCache: [UUID: ChatMessage] = [:]
 
     /// 延迟初始化 context，避免 init 时触发 CoreDataStack 懒加载
-    /// CoreDataStack.loadPersistentStores 是同步阻塞操作（首次创建 SQLite 尤其慢）
+    /// CoreDataStack 已配置 shouldAddStoreAsynchronously = false，
+    /// loadPersistentStores 为同步阻塞（首次创建 SQLite 由后台线程承载）
     /// 使用 lazy 确保只在真正需要读/写消息时才触发
     private lazy var context: NSManagedObjectContext = CoreDataStack.shared.viewContext
 
