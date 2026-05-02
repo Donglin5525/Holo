@@ -3,7 +3,7 @@
 //  Holo
 //
 //  首页视图 - Holo 应用的主界面
-//  包含问候语、日程提醒、中央语音助手、功能入口和底部导航
+//  包含问候语、日程提醒、中央今日看板入口、功能入口和底部导航
 //
 
 import SwiftUI
@@ -49,6 +49,9 @@ struct HomeView: View {
 
     /// 是否显示 AI 对话页面
     @State private var showChatView: Bool = false
+
+    /// 是否显示今日看板
+    @State private var showDailyKanban: Bool = false
 
     /// AI 对话页面的预填文本
     @State private var chatPrefillText: String?
@@ -179,6 +182,11 @@ struct HomeView: View {
             ChatView(prefillText: chatPrefillText)
                 .preferredColorScheme(DarkModeManager.shared.colorScheme)
         }
+        // 今日看板（Full Screen Cover 形式）
+        .fullScreenCover(isPresented: $showDailyKanban) {
+            DailyKanbanView()
+                .preferredColorScheme(DarkModeManager.shared.colorScheme)
+        }
         // 个人页面（Sheet 形式，与 SettingsView 一致，支持内部弹出子页面）
         .sheet(isPresented: $showPersonalView, onDismiss: {
             selectedTab = .ai
@@ -275,7 +283,7 @@ struct HomeView: View {
                         selectedTab = .memory
                         showMemoryGallery = true
                     },
-                    onCenterTap: { handleHoloOneAction() }
+                    onCenterTap: { showChatView = true }
                 )
             }
         }
@@ -358,9 +366,9 @@ struct HomeView: View {
             // 五角形功能入口按钮（支持拖拽排序）
             featureButtons
 
-            // 中央语音助手按钮（置于顶层，确保真机触摸事件不被 GeometryReader 拦截）
-            VoiceAssistantButton {
-                showChatView = true
+            // 中央今日看板入口按钮（置于顶层，确保真机触摸事件不被 GeometryReader 拦截）
+            DailyKanbanEntryButton {
+                showDailyKanban = true
             }
         }
         .padding(.horizontal, HoloSpacing.lg)

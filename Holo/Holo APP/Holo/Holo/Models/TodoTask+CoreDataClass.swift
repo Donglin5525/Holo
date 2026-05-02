@@ -38,6 +38,11 @@ class TodoTask: NSManagedObject, @unchecked Sendable {
     @NSManaged var smartReminderEnabled: Bool
     @NSManaged var smartReminderSchedule: Data?
 
+    // MARK: - Kanban Properties
+
+    @NSManaged var plannedDate: Date?
+    @NSManaged var isDailyRitual: Bool
+
     // MARK: - Relationships
 
     @NSManaged var list: TodoList?

@@ -247,6 +247,21 @@ extension CoreDataStack {
         taskSmartReminderSchedule.valueTransformerName = "NSSecureUnarchiveFromData"
         todoTaskAttributes.append(taskSmartReminderSchedule)
 
+        // 看板相关属性
+        let taskPlannedDate = NSAttributeDescription()
+        taskPlannedDate.name = "plannedDate"
+        taskPlannedDate.attributeType = .dateAttributeType
+        taskPlannedDate.isOptional = true
+        taskPlannedDate.isIndexed = true
+        todoTaskAttributes.append(taskPlannedDate)
+
+        let taskIsDailyRitual = NSAttributeDescription()
+        taskIsDailyRitual.name = "isDailyRitual"
+        taskIsDailyRitual.attributeType = .booleanAttributeType
+        taskIsDailyRitual.isOptional = false
+        taskIsDailyRitual.defaultValue = false
+        todoTaskAttributes.append(taskIsDailyRitual)
+
         // MARK: - TodoTag Entity
         // 待办标签实体
         let todoTagEntity = NSEntityDescription()
