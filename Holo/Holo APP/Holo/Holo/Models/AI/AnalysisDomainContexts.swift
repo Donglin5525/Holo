@@ -20,6 +20,9 @@ struct FinanceAnalysisContext: Codable, Equatable, Sendable {
     let previousPeriodExpense: Decimal?
     let anomalyDescriptions: [String]
     let budgetPerformance: FinanceBudgetItem?
+    let subCategoryDetails: [SubCategoryDetail]?
+    let categoryTrends: [CategoryTrendItem]?
+    let spendingPatterns: SpendingPatterns?
 
     var isDataFree: Bool {
         totalExpense == 0 && totalIncome == 0 && transactionCount == 0
@@ -44,6 +47,40 @@ struct FinanceBudgetItem: Codable, Equatable, Sendable {
     let remainingAmount: Decimal
     let utilizationRate: Double
     let periodType: String
+}
+
+struct SubCategoryDetail: Codable, Equatable, Sendable {
+    let parentCategoryName: String
+    let subCategories: [FinanceCategoryItem]
+}
+
+struct CategoryTrendItem: Codable, Equatable, Sendable {
+    let categoryName: String
+    let currentAmount: Decimal
+    let previousAmount: Decimal?
+    let changePercent: Double?
+}
+
+struct SpendingPatterns: Codable, Equatable, Sendable {
+    let highestSpendingDayOfWeek: DayOfWeekSpending?
+    let weekdayVsWeekend: WeekdayWeekendComparison?
+    let topFrequentCategories: [FrequentCategory]
+}
+
+struct DayOfWeekSpending: Codable, Equatable, Sendable {
+    let dayName: String
+    let averageAmount: Decimal
+}
+
+struct WeekdayWeekendComparison: Codable, Equatable, Sendable {
+    let weekdayAverage: Decimal
+    let weekendAverage: Decimal
+}
+
+struct FrequentCategory: Codable, Equatable, Sendable {
+    let categoryName: String
+    let transactionCount: Int
+    let totalAmount: Decimal
 }
 
 // MARK: - Habit

@@ -4,6 +4,25 @@
 
 ---
 
+## [2026-05-03] AI 深度财务分析增强
+
+### 新增
+- 子分类明细：Top 3 一级分类的子分类拆解（最多各 5 个子分类），AI 可给出"减少宵夜开销"等精准建议
+- 分类环比变化：各一级分类当前期 vs 对比期的金额变化百分比，除零保护
+- 消费模式分析：星期几消费最高、工作日/周末日均消费对比、高频消费分类 Top 5
+- 6 个新增数据模型：SubCategoryDetail / CategoryTrendItem / SpendingPatterns / DayOfWeekSpending / WeekdayWeekendComparison / FrequentCategory
+
+### 改进
+- 分析提示词强化数字精度规则：禁止四舍五入、分数近似，changePercent 必须原值引用
+- 财务分析侧重扩展：增加子分类占比、分类环比变化、消费模式维度
+- FinanceAnalysisContext 新字段全部为 Optional，兼容已持久化的旧 JSON 数据
+
+### 架构
+- 修改 3 个文件：AnalysisDomainContexts / FinanceAnalysisContextBuilder / PromptManager
+- 新增 3 个私有计算方法，复用已加载交易数组做内存聚合，避免重复查 Core Data
+
+---
+
 ## [2026-05-03] 今日看板优化
 
 ### 改进

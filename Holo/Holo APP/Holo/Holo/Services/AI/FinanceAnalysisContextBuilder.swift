@@ -67,6 +67,12 @@ struct FinanceAnalysisContextBuilder {
                 )
             }
 
+            // 子分类明细（Top 3 一级分类的子分类拆解）
+            let subCategoryDetails = buildSubCategoryDetails(
+                expenses: expenses,
+                topCategoryAggregations: categoryAggregations
+            )
+
             // 月度分解（最多 12 个月）
             let monthlyBreakdown = buildMonthlyBreakdown(
                 transactions: transactions,
@@ -74,17 +80,24 @@ struct FinanceAnalysisContextBuilder {
                 end: endExclusive
             )
 
-            // 上周期对比
+            // 上周期对比 + 分类趋势
             var previousPeriodExpense: Decimal?
+            var categoryTrends: [CategoryTrendItem]?
             if let compStart = request.comparisonStart,
                let compEnd = request.comparisonEnd {
                 let compStartDay = calendar.startOfDay(for: compStart)
                 let compEndExclusive = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: compEnd))
                 if let compEndExcl = compEndExclusive {
                     let compTransactions = try await repo.getTransactions(from: compStartDay, to: compEndExcl)
-                    previousPeriodExpense = compTransactions
-                        .filter { $0.transactionType == .expense }
-                        .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+                    let compExpenses = compTransactions.filter { $0.transactionType == .expense }
+                    previousPeriodExpense = compExpenses.reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+
+                    let topLevelCategories = try await repo.getTopLevelCategories(by: .expense)
+                    categoryTrends = buildCategoryTrends(
+                        currentCategoryAggregations: categoryAggregations,
+                        comparisonExpenses: compExpenses,
+                        topLevelCategories: topLevelCategories
+                    )
                 }
             }
 
@@ -102,6 +115,14 @@ struct FinanceAnalysisContextBuilder {
                 totalExpense: totalExpense
             )
 
+            // 消费模式
+            let spendingPatterns = buildSpendingPatterns(
+                expenses: expenses,
+                start: startInclusive,
+                end: endExclusive,
+                calendar: calendar
+            )
+
             return FinanceAnalysisContext(
                 totalExpense: totalExpense,
                 totalIncome: totalIncome,
@@ -111,7 +132,10 @@ struct FinanceAnalysisContextBuilder {
                 monthlyBreakdown: monthlyBreakdown,
                 previousPeriodExpense: previousPeriodExpense,
                 anomalyDescriptions: anomalyDescriptions,
-                budgetPerformance: budgetPerformance
+                budgetPerformance: budgetPerformance,
+                subCategoryDetails: subCategoryDetails.isEmpty ? nil : subCategoryDetails,
+                categoryTrends: categoryTrends,
+                spendingPatterns: spendingPatterns
             )
 
         } catch {
@@ -228,5 +252,179 @@ struct FinanceAnalysisContextBuilder {
         }
 
         return nil
+    }
+
+    // MARK: - Sub Category Details
+
+    private func buildSubCategoryDetails(
+        expenses: [Transaction],
+        topCategoryAggregations: [CategoryAggregation]
+    ) -> [SubCategoryDetail] {
+        let top3 = Array(topCategoryAggregations.prefix(3))
+
+        return top3.compactMap { agg in
+            let parentId = agg.category.id
+            let subExpenses = expenses.filter { $0.category.parentId == parentId }
+
+            guard !subExpenses.isEmpty else { return nil }
+
+            var subCategoryMap: [UUID: (name: String, amount: Decimal)] = [:]
+            for tx in subExpenses {
+                let catId = tx.category.id
+                var entry = subCategoryMap[catId] ?? (name: tx.category.name, amount: 0)
+                entry.amount += tx.amount.decimalValue
+                subCategoryMap[catId] = entry
+            }
+
+            let parentTotal = subExpenses.reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+
+            let sorted = subCategoryMap.sorted { $0.value.amount > $1.value.amount }
+                .prefix(5)
+                .map { _, value in
+                    let pct = parentTotal > 0
+                        ? Double(truncating: (value.amount / parentTotal * 100) as NSDecimalNumber)
+                        : 0
+                    return FinanceCategoryItem(
+                        categoryName: value.name,
+                        amount: value.amount,
+                        percentage: pct
+                    )
+                }
+
+            guard !sorted.isEmpty else { return nil }
+
+            return SubCategoryDetail(
+                parentCategoryName: agg.category.name,
+                subCategories: sorted
+            )
+        }
+    }
+
+    // MARK: - Category Trends
+
+    private func buildCategoryTrends(
+        currentCategoryAggregations: [CategoryAggregation],
+        comparisonExpenses: [Transaction],
+        topLevelCategories: [Category]
+    ) -> [CategoryTrendItem] {
+        guard !comparisonExpenses.isEmpty else { return [] }
+
+        let topLevelNameMap = Dictionary(
+            uniqueKeysWithValues: topLevelCategories.map { ($0.id, $0.name) }
+        )
+
+        var compCategoryMap: [String: Decimal] = [:]
+        for tx in comparisonExpenses {
+            let parentName: String
+            if tx.category.isTopLevel {
+                parentName = tx.category.name
+            } else if let parentId = tx.category.parentId, let name = topLevelNameMap[parentId] {
+                parentName = name
+            } else {
+                continue
+            }
+            compCategoryMap[parentName, default: 0] += tx.amount.decimalValue
+        }
+
+        let currentMap = Dictionary(
+            uniqueKeysWithValues: currentCategoryAggregations.map { ($0.category.name, $0.amount) }
+        )
+
+        let allNames = Set(currentMap.keys).union(Set(compCategoryMap.keys))
+
+        return allNames.compactMap { name in
+            let currentAmount = currentMap[name] ?? 0
+            let previousAmount = compCategoryMap[name]
+
+            let changePercent: Double?
+            if let prev = previousAmount, prev > 0 {
+                changePercent = Double(truncating: ((currentAmount - prev) / prev * 100) as NSDecimalNumber)
+            } else {
+                changePercent = nil
+            }
+
+            return CategoryTrendItem(
+                categoryName: name,
+                currentAmount: currentAmount,
+                previousAmount: previousAmount,
+                changePercent: changePercent
+            )
+        }
+        .sorted { $0.currentAmount > $1.currentAmount }
+    }
+
+    // MARK: - Spending Patterns
+
+    private func buildSpendingPatterns(
+        expenses: [Transaction],
+        start: Date,
+        end: Date,
+        calendar: Calendar
+    ) -> SpendingPatterns? {
+        guard !expenses.isEmpty else { return nil }
+
+        let dayNames = ["", "周日", "周一", "周二", "周三", "周四", "周五", "周六"]
+
+        var dayOfWeekTotals: [Int: Decimal] = [:]
+        var dayOfWeekDates: [Int: Set<Date>] = [:]
+
+        for tx in expenses {
+            let weekday = calendar.component(.weekday, from: tx.date)
+            let dayStart = calendar.startOfDay(for: tx.date)
+            dayOfWeekTotals[weekday, default: 0] += tx.amount.decimalValue
+            dayOfWeekDates[weekday, default: []].insert(dayStart)
+        }
+
+        let dayAverages: [(weekday: Int, average: Decimal)] = dayOfWeekTotals.compactMap { weekday, total in
+            guard let dateCount = dayOfWeekDates[weekday]?.count, dateCount > 0 else { return nil }
+            return (weekday, total / Decimal(dateCount))
+        }
+
+        let highestDay = dayAverages.max(by: { $0.average < $1.average }).map { best in
+            DayOfWeekSpending(dayName: dayNames[best.weekday], averageAmount: best.average)
+        }
+
+        let weekdayTotal = dayOfWeekTotals
+            .filter { $0.key >= 2 && $0.key <= 6 }
+            .values.reduce(Decimal(0), +)
+        let weekendTotal = dayOfWeekTotals
+            .filter { $0.key == 1 || $0.key == 7 }
+            .values.reduce(Decimal(0), +)
+        let weekdayDateCount = dayOfWeekDates
+            .filter { $0.key >= 2 && $0.key <= 6 }
+            .values.flatMap { $0 }.count
+        let weekendDateCount = dayOfWeekDates
+            .filter { $0.key == 1 || $0.key == 7 }
+            .values.flatMap { $0 }.count
+
+        let weekdayVsWeekend: WeekdayWeekendComparison?
+        if weekdayDateCount > 0 && weekendDateCount > 0 {
+            weekdayVsWeekend = WeekdayWeekendComparison(
+                weekdayAverage: weekdayTotal / Decimal(weekdayDateCount),
+                weekendAverage: weekendTotal / Decimal(weekendDateCount)
+            )
+        } else {
+            weekdayVsWeekend = nil
+        }
+
+        var categoryCountMap: [String: (count: Int, total: Decimal)] = [:]
+        for tx in expenses {
+            var entry = categoryCountMap[tx.category.name] ?? (count: 0, total: 0)
+            entry.count += 1
+            entry.total += tx.amount.decimalValue
+            categoryCountMap[tx.category.name] = entry
+        }
+
+        let topFrequent = categoryCountMap.sorted { $0.value.count > $1.value.count }
+            .prefix(5)
+            .map { name, value in
+                FrequentCategory(categoryName: name, transactionCount: value.count, totalAmount: value.total)
+            }
+
+        return SpendingPatterns(
+            highestSpendingDayOfWeek: highestDay,
+            weekdayVsWeekend: weekdayVsWeekend,
+            topFrequentCategories: topFrequent
+        )
     }
 }
