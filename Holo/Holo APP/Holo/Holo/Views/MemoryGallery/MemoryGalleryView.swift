@@ -136,6 +136,8 @@ struct MemoryGalleryView: View {
                         state: viewModel.insightGenerationState,
                         selectedPeriod: viewModel.selectedInsightPeriod,
                         insight: viewModel.currentInsight,
+                        weeklyIsFallback: viewModel.weeklyIsFallback,
+                        monthlyIsFallback: viewModel.monthlyIsFallback,
                         fallbackTitle: viewModel.fallbackReplayTitle,
                         fallbackSummary: viewModel.fallbackReplaySummary,
                         onPeriodChange: { period in

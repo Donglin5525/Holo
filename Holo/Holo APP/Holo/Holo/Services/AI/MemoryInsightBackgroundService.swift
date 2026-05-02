@@ -78,38 +78,59 @@ final class MemoryInsightBackgroundService {
             return
         }
 
-        // 检查当前周期是否已有 ready 洞察
-        let (weekStart, weekEnd) = MemoryInsightContextBuilder.periodRange(
+        let repository = MemoryInsightRepository()
+
+        // 生成本周洞察（使用智能回退）
+        let (weekStart, weekEnd, _) = MemoryInsightContextBuilder.effectivePeriodRange(
             periodType: .weekly, referenceDate: Date()
         )
 
-        let repository = MemoryInsightRepository()
         if let existing = try? repository.fetchInsight(
             periodType: .weekly, start: weekStart, end: weekEnd
         ), existing.insightStatus == .ready {
-            logger.info("本周洞察已存在且为 ready，跳过后台生成")
-            task.setTaskCompleted(success: true)
-            return
+            logger.info("周洞察已存在且为 ready，跳过")
+        } else {
+            do {
+                let insight = try await service.generateInsight(
+                    periodType: .weekly,
+                    start: weekStart,
+                    end: weekEnd,
+                    forceRefresh: false
+                )
+                logger.info("后台周洞察生成成功：\(insight.title)")
+            } catch {
+                logger.error("后台周洞察生成失败：\(error.localizedDescription)")
+            }
         }
 
-        // 尝试生成
-        do {
-            let insight = try await service.generateInsight(
-                periodType: .weekly,
-                start: weekStart,
-                end: weekEnd,
-                forceRefresh: false
-            )
-            logger.info("后台洞察生成成功：\(insight.title)")
+        // 生成月度洞察（使用智能回退）
+        let (monthStart, monthEnd, monthFallback) = MemoryInsightContextBuilder.effectivePeriodRange(
+            periodType: .monthly, referenceDate: Date()
+        )
 
-            // 成功后发本地通知
-            let content = MemoryInsightNotificationService()
-            // 不需要额外通知，下次打开 App 即可看到
-            task.setTaskCompleted(success: true)
-        } catch {
-            logger.error("后台洞察生成失败：\(error.localizedDescription)")
-            task.setTaskCompleted(success: false)
+        if monthFallback {
+            // 回退到上月，检查上月洞察是否已存在
+            if let existing = try? repository.fetchInsight(
+                periodType: .monthly, start: monthStart, end: monthEnd
+            ), existing.insightStatus == .ready {
+                logger.info("上月月度洞察已存在，跳过")
+            } else {
+                do {
+                    let insight = try await service.generateInsight(
+                        periodType: .monthly,
+                        start: monthStart,
+                        end: monthEnd,
+                        forceRefresh: false
+                    )
+                    logger.info("后台月度洞察生成成功：\(insight.title)")
+                } catch {
+                    logger.error("后台月度洞察生成失败：\(error.localizedDescription)")
+                }
+            }
         }
+
+        let content = MemoryInsightNotificationService()
+        task.setTaskCompleted(success: true)
 
         // 调度下一次
         if settings.backgroundAutoGenerationEnabled {
@@ -130,30 +151,56 @@ final class MemoryInsightBackgroundService {
         guard service.isAIConfigured else { return }
         guard !service.isGenerating else { return }
 
-        let (weekStart, weekEnd) = MemoryInsightContextBuilder.periodRange(
+        let repository = MemoryInsightRepository()
+
+        // 补生成周洞察（使用智能回退）
+        let (weekStart, weekEnd, _) = MemoryInsightContextBuilder.effectivePeriodRange(
             periodType: .weekly, referenceDate: Date()
         )
 
-        let repository = MemoryInsightRepository()
-        // 只检查是否完全没有洞察记录（包括 generating/failed）
         if let _ = try? repository.fetchInsight(
             periodType: .weekly, start: weekStart, end: weekEnd
         ) {
-            return
+            // 周洞察已存在，跳过
+        } else {
+            logger.info("前台补偿：尝试生成周洞察")
+            do {
+                _ = try await service.generateInsight(
+                    periodType: .weekly,
+                    start: weekStart,
+                    end: weekEnd,
+                    forceRefresh: false
+                )
+                logger.info("前台补偿周洞察生成成功")
+            } catch {
+                logger.error("前台补偿周洞察生成失败：\(error.localizedDescription)")
+            }
         }
 
-        // 无洞察且开启了自动生成，尝试补生成
-        logger.info("前台补偿：尝试生成本周洞察")
-        do {
-            _ = try await service.generateInsight(
-                periodType: .weekly,
-                start: weekStart,
-                end: weekEnd,
-                forceRefresh: false
-            )
-            logger.info("前台补偿生成成功")
-        } catch {
-            logger.error("前台补偿生成失败：\(error.localizedDescription)")
+        // 补生成月度洞察（使用智能回退）
+        let (monthStart, monthEnd, monthFallback) = MemoryInsightContextBuilder.effectivePeriodRange(
+            periodType: .monthly, referenceDate: Date()
+        )
+
+        if monthFallback {
+            if let _ = try? repository.fetchInsight(
+                periodType: .monthly, start: monthStart, end: monthEnd
+            ) {
+                // 上月洞察已存在，跳过
+            } else {
+                logger.info("前台补偿：尝试生成月度洞察")
+                do {
+                    _ = try await service.generateInsight(
+                        periodType: .monthly,
+                        start: monthStart,
+                        end: monthEnd,
+                        forceRefresh: false
+                    )
+                    logger.info("前台补偿月度洞察生成成功")
+                } catch {
+                    logger.error("前台补偿月度洞察生成失败：\(error.localizedDescription)")
+                }
+            }
         }
     }
 }

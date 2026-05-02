@@ -14,6 +14,8 @@ struct MemoryInsightHeroCard: View {
     let state: InsightGenerationState
     let selectedPeriod: MemoryInsightPeriodType
     let insight: MemoryInsight?
+    let weeklyIsFallback: Bool
+    let monthlyIsFallback: Bool
     let fallbackTitle: String
     let fallbackSummary: String
     let onPeriodChange: (MemoryInsightPeriodType) -> Void
@@ -55,8 +57,8 @@ struct MemoryInsightHeroCard: View {
     @ViewBuilder
     private var periodPicker: some View {
         HStack(spacing: 0) {
-            periodTab("本周", period: .weekly)
-            periodTab("本月", period: .monthly)
+            periodTab(weeklyIsFallback ? "上周" : "本周", period: .weekly)
+            periodTab(monthlyIsFallback ? "上月" : "本月", period: .monthly)
         }
         .background(Color.holoGlassBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
@@ -115,14 +117,16 @@ struct MemoryInsightHeroCard: View {
     }
 
     private var headerTitle: String {
+        let isFallback = selectedPeriod == .weekly ? weeklyIsFallback : monthlyIsFallback
         let periodLabel = selectedPeriod == .weekly ? "周" : "月"
+        let prefix = isFallback ? "上" : "本"
         switch state {
         case .notConfigured:
             return "AI 回放"
         case .idle:
-            return "本\(periodLabel) AI 回放"
+            return "\(prefix)\(periodLabel) AI 回放"
         case .generating:
-            return "正在理解这一\(periodLabel)"
+            return "正在理解\(prefix)\(periodLabel)"
         case .ready:
             return insight?.title ?? "AI 回放"
         case .stale:
@@ -145,8 +149,10 @@ struct MemoryInsightHeroCard: View {
                 .foregroundColor(.holoTextSecondary)
 
         case .idle:
+            let isFallback = selectedPeriod == .weekly ? weeklyIsFallback : monthlyIsFallback
             let periodLabel = selectedPeriod == .weekly ? "周" : "月"
-            Text(fallbackSummary.isEmpty ? "本\(periodLabel)已有记录，可以让 AI 帮你整理成回放" : fallbackSummary)
+            let prefix = isFallback ? "上" : "本"
+            Text(fallbackSummary.isEmpty ? "\(prefix)\(periodLabel)已有记录，可以让 AI 帮你整理成回放" : fallbackSummary)
                 .font(.holoBody)
                 .foregroundColor(.holoTextSecondary)
 
@@ -186,7 +192,14 @@ struct MemoryInsightHeroCard: View {
     @ViewBuilder
     private var actionSection: some View {
         HStack(spacing: HoloSpacing.sm) {
-            let periodLabel = selectedPeriod == .weekly ? "本周" : "本月"
+            let isFallback = selectedPeriod == .weekly ? weeklyIsFallback : monthlyIsFallback
+            let periodLabel: String = {
+                switch selectedPeriod {
+                case .weekly: return isFallback ? "上周" : "本周"
+                case .monthly: return isFallback ? "上月" : "本月"
+                case .daily: return "今日"
+                }
+            }()
             switch state {
             case .notConfigured:
                 Button(action: onGoToAISettings) {
@@ -250,6 +263,8 @@ struct MemoryInsightHeroCard: View {
         state: .notConfigured,
         selectedPeriod: .weekly,
         insight: nil,
+        weeklyIsFallback: false,
+        monthlyIsFallback: false,
         fallbackTitle: "标题",
         fallbackSummary: "摘要",
         onPeriodChange: { _ in },
@@ -266,6 +281,8 @@ struct MemoryInsightHeroCard: View {
         state: .ready,
         selectedPeriod: .weekly,
         insight: nil,
+        weeklyIsFallback: false,
+        monthlyIsFallback: false,
         fallbackTitle: "",
         fallbackSummary: "",
         onPeriodChange: { _ in },

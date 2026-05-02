@@ -69,6 +69,10 @@ class MemoryGalleryViewModel: ObservableObject {
     /// 当前选择的洞察周期
     @Published var selectedInsightPeriod: MemoryInsightPeriodType = .weekly
 
+    /// 当前周期是否已回退到上一周期
+    @Published var weeklyIsFallback: Bool = false
+    @Published var monthlyIsFallback: Bool = false
+
     // MARK: - Private Properties
 
     /// 分页按天计算（每页加载 N 天的数据）
@@ -594,10 +598,11 @@ class MemoryGalleryViewModel: ObservableObject {
             return
         }
 
-        // 加载周洞察
-        let (weekStart, weekEnd) = MemoryInsightContextBuilder.periodRange(
+        // 加载周洞察（智能回退）
+        let (weekStart, weekEnd, weekFallback) = MemoryInsightContextBuilder.effectivePeriodRange(
             periodType: .weekly, referenceDate: Date()
         )
+        weeklyIsFallback = weekFallback
 
         if let insight = try? insightRepository.fetchInsight(
             periodType: .weekly, start: weekStart, end: weekEnd
@@ -619,10 +624,12 @@ class MemoryGalleryViewModel: ObservableObject {
             insightGenerationState = .idle
         }
 
-        // 加载月洞察
-        let (monthStart, monthEnd) = MemoryInsightContextBuilder.periodRange(
+        // 加载月洞察（智能回退）
+        let (monthStart, monthEnd, monthFallback) = MemoryInsightContextBuilder.effectivePeriodRange(
             periodType: .monthly, referenceDate: Date()
         )
+        monthlyIsFallback = monthFallback
+
         monthlyInsight = try? insightRepository.fetchInsight(
             periodType: .monthly, start: monthStart, end: monthEnd
         )
@@ -630,7 +637,7 @@ class MemoryGalleryViewModel: ObservableObject {
 
     /// 生成本周 AI 回放
     func generateWeeklyInsight() async {
-        let (start, end) = MemoryInsightContextBuilder.periodRange(
+        let (start, end, _) = MemoryInsightContextBuilder.effectivePeriodRange(
             periodType: .weekly, referenceDate: Date()
         )
         await generateInsight(periodType: .weekly, start: start, end: end)
@@ -638,7 +645,7 @@ class MemoryGalleryViewModel: ObservableObject {
 
     /// 生成本月 AI 回放
     func generateMonthlyInsight() async {
-        let (start, end) = MemoryInsightContextBuilder.periodRange(
+        let (start, end, _) = MemoryInsightContextBuilder.effectivePeriodRange(
             periodType: .monthly, referenceDate: Date()
         )
         await generateInsight(periodType: .monthly, start: start, end: end)
@@ -647,7 +654,7 @@ class MemoryGalleryViewModel: ObservableObject {
     /// 刷新洞察
     func refreshInsight(force: Bool = true) async {
         let period = selectedInsightPeriod
-        let (start, end) = MemoryInsightContextBuilder.periodRange(
+        let (start, end, _) = MemoryInsightContextBuilder.effectivePeriodRange(
             periodType: period, referenceDate: Date()
         )
         await generateInsight(periodType: period, start: start, end: end, forceRefresh: force)
@@ -730,10 +737,10 @@ class MemoryGalleryViewModel: ObservableObject {
 
     /// 规则兜底回放数据
     var fallbackReplayTitle: String {
-        let (weekStart, _) = MemoryInsightContextBuilder.periodRange(
-            periodType: .weekly, referenceDate: Date()
+        let (effectiveStart, _, _) = MemoryInsightContextBuilder.effectivePeriodRange(
+            periodType: selectedInsightPeriod, referenceDate: Date()
         )
-        let weekIndex = weekStart.hashValue
+        let weekIndex = effectiveStart.hashValue
 
         // 简化：基于现有数据推断趋势
         let habitTrend: Trend = inferHabitTrend()
@@ -749,17 +756,17 @@ class MemoryGalleryViewModel: ObservableObject {
     }
 
     var fallbackReplaySummary: String {
-        let (weekStart, _) = MemoryInsightContextBuilder.periodRange(
-            periodType: .weekly, referenceDate: Date()
+        let (effectiveStart, _, _) = MemoryInsightContextBuilder.effectivePeriodRange(
+            periodType: selectedInsightPeriod, referenceDate: Date()
         )
-        let weekIndex = weekStart.hashValue
+        let weekIndex = effectiveStart.hashValue
 
         let habitTrend: Trend = inferHabitTrend()
         let expenseTrend: Trend = inferExpenseTrend()
         let hasThoughts = cachedItems.filter { $0.type == .thought }.count > 0
 
         let habitCount = cachedItems.filter {
-            $0.type == .habitRecord && $0.date >= weekStart
+            $0.type == .habitRecord && $0.date >= effectiveStart
         }.count
 
         let formatter = NumberFormatter()
@@ -767,13 +774,13 @@ class MemoryGalleryViewModel: ObservableObject {
         formatter.locale = Locale(identifier: "zh_CN")
 
         let expenseItems = cachedItems.filter {
-            $0.type == .transaction && $0.date >= weekStart
+            $0.type == .transaction && $0.date >= effectiveStart
         }
         let totalExpense = expenseItems.compactMap { $0.amount }.reduce(Decimal(0), +)
         let expenseStr = formatter.string(from: totalExpense as NSDecimalNumber) ?? "¥0"
 
         let thoughtCount = cachedItems.filter {
-            $0.type == .thought && $0.date >= weekStart
+            $0.type == .thought && $0.date >= effectiveStart
         }.count
 
         return MemoryReplayFallback.weeklySummary(

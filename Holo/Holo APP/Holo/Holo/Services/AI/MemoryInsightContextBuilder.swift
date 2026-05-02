@@ -108,6 +108,35 @@ struct MemoryInsightContextBuilder {
         }
     }
 
+    /// 智能周期回退：当前周期天数不足阈值时自动回退到上一周期
+    /// - Parameters:
+    ///   - periodType: 周期类型
+    ///   - referenceDate: 参考日期（默认今天）
+    ///   - minDays: 最小有效天数（周默认 3 天，月默认 7 天）
+    /// - Returns: (start, end, isFallback)
+    static func effectivePeriodRange(
+        periodType: MemoryInsightPeriodType,
+        referenceDate: Date = Date(),
+        minDays: Int? = nil
+    ) -> (start: Date, end: Date, isFallback: Bool) {
+        let threshold = minDays ?? (periodType == .weekly ? 3 : 7)
+        let current = periodRange(periodType: periodType, referenceDate: referenceDate)
+        let daySpan = Calendar.current.dateComponents([.day], from: current.start, to: current.end).day ?? 0
+
+        if daySpan >= threshold {
+            return (current.start, current.end, false)
+        }
+
+        let prevRef: Date
+        switch periodType {
+        case .weekly: prevRef = referenceDate.addingDays(-7)
+        case .monthly: prevRef = referenceDate.addingMonths(-1)
+        case .daily: prevRef = referenceDate.addingDays(-1)
+        }
+        let prev = periodRange(periodType: periodType, referenceDate: prevRef)
+        return (prev.start, prev.end, true)
+    }
+
     // MARK: - Finance
 
     private func buildFinanceContext(
