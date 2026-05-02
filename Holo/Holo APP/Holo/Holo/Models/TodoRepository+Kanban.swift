@@ -100,6 +100,66 @@ extension TodoRepository {
         }
     }
 
+    /// 获取近期待办：未来 3 天内到期的未完成任务（排除已规划到今日和今日到期的）
+    func getUncompletedRecentTasks(limit: Int = 5) -> [TodoTask] {
+        let context = CoreDataStack.shared.viewContext
+        let request: NSFetchRequest<TodoTask> = TodoTask.fetchRequest()
+
+        let today = Date()
+        let startOfDay = Calendar.current.startOfDay(for: today)
+        guard let endOf3Days = Calendar.current.date(byAdding: .day, value: 4, to: startOfDay) else { return [] }
+
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "dueDate >= %@ AND dueDate < %@", startOfDay as NSDate, endOf3Days as NSDate),
+            NSPredicate(format: "completed == false"),
+            NSPredicate(format: "deletedFlag == false"),
+            NSPredicate(format: "archived == false"),
+            NSPredicate(format: "isDailyRitual == false"),
+        ])
+        request.sortDescriptors = [
+            NSSortDescriptor(key: "dueDate", ascending: true),
+            NSSortDescriptor(key: "priority", ascending: false),
+        ]
+        request.fetchLimit = limit
+
+        do {
+            let tasks = try context.fetch(request)
+            let plannedIds = Set(getPlannedTodayTasks().map { $0.objectID })
+            let dueTodayIds = Set(getDueTodayUnplannedTasks().map { $0.objectID })
+            let excludeIds = plannedIds.union(dueTodayIds)
+            return tasks.filter { !excludeIds.contains($0.objectID) }
+        } catch {
+            Self.kanbanLogger.error("获取近期待办失败: \(error.localizedDescription)")
+            return []
+        }
+    }
+
+    /// 获取无到期日的未完成任务（最近创建的）
+    func getUnplannedOpenTasks(limit: Int = 3) -> [TodoTask] {
+        let context = CoreDataStack.shared.viewContext
+        let request: NSFetchRequest<TodoTask> = TodoTask.fetchRequest()
+
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "dueDate == nil"),
+            NSPredicate(format: "plannedDate == nil"),
+            NSPredicate(format: "completed == false"),
+            NSPredicate(format: "deletedFlag == false"),
+            NSPredicate(format: "archived == false"),
+            NSPredicate(format: "isDailyRitual == false"),
+        ])
+        request.sortDescriptors = [
+            NSSortDescriptor(key: "createdAt", ascending: false),
+        ]
+        request.fetchLimit = limit
+
+        do {
+            return try context.fetch(request)
+        } catch {
+            Self.kanbanLogger.error("获取未规划任务失败: \(error.localizedDescription)")
+            return []
+        }
+    }
+
     // MARK: - 看板操作
 
     /// 将任务规划到指定日期

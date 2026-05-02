@@ -27,10 +27,10 @@ struct DailyKanbanView: View {
                         healthRepo: healthRepo
                     )
                     KanbanBudgetSection()
-                    KanbanHealthSection(healthRepo: healthRepo)
                     KanbanHabitSection(habitRepo: habitRepo)
                     KanbanTaskSection(todoRepo: todoRepo)
                     KanbanMoodSection()
+                    KanbanHealthSection(healthRepo: healthRepo)
                     Spacer().frame(height: 80)
                 }
                 .padding(.horizontal, 16)
@@ -45,32 +45,32 @@ struct DailyKanbanView: View {
     }
 
     private var headerView: some View {
-        HStack {
-            Button { dismiss() } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.holoTextPrimary)
-                    .frame(width: 36, height: 36)
-                    .background(Color.holoCardBackground)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.holoBorder, lineWidth: 1))
-            }
-
-            Spacer()
-
+        ZStack {
             Text("今日看板")
                 .font(.holoHeading)
                 .foregroundColor(.holoTextPrimary)
 
-            Spacer()
+            HStack {
+                Button { dismiss() } label: {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.holoTextPrimary)
+                        .frame(width: 36, height: 36)
+                        .background(Color.holoCardBackground)
+                        .clipShape(Circle())
+                        .overlay(Circle().stroke(Color.holoBorder, lineWidth: 1))
+                }
 
-            Text(todayString)
-                .font(.holoLabel)
-                .foregroundColor(.holoPrimary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(Color.holoPrimaryLight)
-                .clipShape(Capsule())
+                Spacer()
+
+                Text(todayString)
+                    .font(.holoLabel)
+                    .foregroundColor(.holoPrimary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Color.holoPrimaryLight)
+                    .clipShape(Capsule())
+            }
         }
         .frame(maxWidth: .infinity, minHeight: 44, maxHeight: 44)
     }
