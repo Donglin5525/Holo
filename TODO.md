@@ -142,7 +142,7 @@
 
 | 项目 | 备注 |
 | --- | --- |
-| 大文件重构 | FinanceRepository、AddTransactionSheet、FinanceView、CoreDataStack 等文件超过 1000 行，需拆分至 <800 行 |
+| 大文件重构 Phase 1-2 | ✅ CoreDataStack→7文件、HabitRepository→2、FinanceRepository→5、TodoRepository→2、FinanceView→5、TaskListView→2、MemoryGalleryVM→2。Phase 3（AddTransactionSheet/AddTaskSheet/TaskDetailView）待处理 |
 | 代码质量目标 | 单文件 <800 行，组件化复用，消除重复代码 |
 | Swift 6 兼容性 | MainActor 隔离 (10 处) + retroactive (4 处) |
 | 记账首页卡片 | 支出/收入卡片面积过大，需重新设计 |

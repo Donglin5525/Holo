@@ -4,6 +4,23 @@
 
 ---
 
+## [2026-05-02] 大文件重构 Phase 1-2
+
+### 重构
+- CoreDataStack (1,784→262行) 拆为 7 个模块化实体文件
+- HabitRepository (1,402→696行) 统计逻辑提取到独立扩展文件
+- FinanceRepository (1,384→271行) 拆为 5 个职责化扩展文件
+- TodoRepository (936→809行) 统计逻辑提取到独立扩展文件
+- FinanceView (1,360→182行) 拆为 5 个独立子视图文件
+- TaskListView (994→744行) TaskCardView 提取到独立文件
+- MemoryGalleryViewModel (920→829行) TimelineSectionBuilder 提取到独立文件
+
+### 说明
+- 10 个文件拆分为 24 个文件，Phase 3（AddTransactionSheet/AddTaskSheet/TaskDetailView）待后续处理
+- 纯重构，不改变任何业务逻辑
+
+---
+
 ## [2026-05-02] 记忆长廊智能周期回退
 
 ### 新增
