@@ -239,6 +239,8 @@ struct ChatView: View {
             }
         case .habitCheckIn, .mood, .weight:
             break
+        case .analysisSummary, .analysisTrend, .analysisBreakdown, .analysisComparison, .analysisHighlights:
+            break
         }
     }
 }

@@ -30,6 +30,7 @@ nonisolated enum AIIntent: String, Codable, CaseIterable {
     // 查询类
     case queryTasks = "query_tasks"
     case queryHabits = "query_habits"
+    case queryAnalysis = "query_analysis"
     case query = "query"
     // 记忆回放类
     case generateMemoryInsight = "generate_memory_insight"
@@ -40,7 +41,7 @@ nonisolated enum AIIntent: String, Codable, CaseIterable {
 // MARK: - AIIntent Category Helpers
 
 extension AIIntent {
-    nonisolated static let queryIntents: Set<AIIntent> = [.query, .queryTasks, .queryHabits]
+    nonisolated static let queryIntents: Set<AIIntent> = [.query, .queryTasks, .queryHabits, .queryAnalysis]
     nonisolated static let taskIntents: Set<AIIntent> = [.createTask, .completeTask, .updateTask]
     nonisolated static let financeIntents: Set<AIIntent> = [.recordExpense, .recordIncome]
 
@@ -374,6 +375,17 @@ struct UserContext {
     let thoughts: ThoughtSummary
     let accounts: AccountSummary
     let profileContext: String?
+
+    /// 空上下文（分析查询不需要即时上下文）
+    static let empty = UserContext(
+        todayDate: "",
+        transactions: TransactionSummary(todayExpense: "", todayIncome: "", recentTransactions: []),
+        habits: HabitSummary(totalActive: 0, todayCompleted: 0, todayTotal: 0, recentCheckIns: [], activeHabitNames: []),
+        tasks: TaskSummary(todayTotal: 0, todayCompleted: 0, overdueCount: 0, recentTasks: [], activeTaskSummaries: []),
+        thoughts: ThoughtSummary(recentThoughts: [], totalThoughts: 0),
+        accounts: AccountSummary(accountList: "", defaultAccountName: ""),
+        profileContext: nil
+    )
 }
 
 /// 交易摘要

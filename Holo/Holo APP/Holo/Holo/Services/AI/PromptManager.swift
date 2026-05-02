@@ -30,6 +30,7 @@ final class PromptManager {
         case responseTemplate = "response_template"
         case memoryInsightGeneration = "memory_insight_generation"
         case annualReview = "annual_review"
+        case analysisPrompt = "analysis_prompt"
 
         var displayName: String {
             switch self {
@@ -41,6 +42,7 @@ final class PromptManager {
             case .responseTemplate: return "回复模板"
             case .memoryInsightGeneration: return "记忆长廊洞察生成"
             case .annualReview: return "年度回顾"
+            case .analysisPrompt: return "分析查询"
             }
         }
 
@@ -54,6 +56,7 @@ final class PromptManager {
             case .responseTemplate: return "操作确认回复的格式规范"
             case .memoryInsightGeneration: return "记忆长廊 AI 回放洞察生成"
             case .annualReview: return "年度回顾洞察生成"
+            case .analysisPrompt: return "AI 分析查询专用系统提示"
             }
         }
 
@@ -67,6 +70,7 @@ final class PromptManager {
             case .responseTemplate: return "text.bubble"
             case .memoryInsightGeneration: return "sparkles"
             case .annualReview: return "calendar.badge.clock"
+            case .analysisPrompt: return "chart.bar.xaxis"
             }
         }
     }
@@ -234,7 +238,9 @@ final class PromptManager {
         ### 查询类
         - query_tasks: 查询任务列表（有什么任务、待办、今天要做什么）
         - query_habits: 查询习惯状态（习惯完成了吗、打卡了吗）
-        - query: 分析型查询（分析开销、本月花了多少、统计）
+        - query_analysis: 周期性数据分析、趋势分析、复盘、对比总结（分析我2024年的消费、分析上个月习惯打卡、看看这周任务完成情况、复盘一下最近一个月、综合分析）
+          - 提取字段：analysisDomain（"finance"/"habit"/"task"/"thought"/"crossModule"）、startDate?、endDate?、periodLabel?、comparisonStartDate?、comparisonEndDate?
+        - query: 简单查询（今天花了多少、我还有几个任务）
 
         ### 记忆回放类
         - generate_memory_insight: 生成记忆回放（帮我复盘这周、生成本月记忆回放、帮我看看最近生活有什么变化）
@@ -298,7 +304,13 @@ final class PromptManager {
                 "habitValue": "习惯数值（Double 类型，如"跑了 5 公里"→ habitValue: "5.0"，配合 habitName 使用）",
                 "mood": "心情标签",
                 "weight": "体重数值",
-                "date": "日期（yyyy-MM-dd）"
+                "date": "日期（yyyy-MM-dd）",
+                "analysisDomain": "分析领域（query_analysis 时必填：finance/habit/task/thought/crossModule）",
+                "startDate": "分析开始日期（yyyy-MM-dd，query_analysis 时可选）",
+                "endDate": "分析结束日期（yyyy-MM-dd，query_analysis 时可选）",
+                "periodLabel": "时间段描述（如：2024年、上个月、本周）",
+                "comparisonStartDate": "对比开始日期（yyyy-MM-dd，可选）",
+                "comparisonEndDate": "对比结束日期（yyyy-MM-dd，可选）"
               },
               "responseText": "该动作的确认消息"
             }
@@ -349,7 +361,8 @@ final class PromptManager {
         - "记一下"/"笔记"/"备忘" → create_note
         - "有什么任务"/"待办列表" → query_tasks
         - "习惯状态"/"打卡了吗" → query_habits
-        - "分析"/"统计"/"本月花了多少" → query
+        - "分析我2024年的消费"/"分析上个月习惯打卡"/"看看这周任务完成情况"/"复盘一下最近一个月"/"综合分析"/"分析.*账单"/"分析.*消费"/"分析.*习惯"/"分析.*任务"/"给我一些建议"（涉及时间段分析、趋势、复盘、对比的） → query_analysis（需要明确分析域和日期范围）
+        - "今天花了多少"/"我还有几个任务" → query（仅限当天即时数据的简单一问一答）
         - 不匹配任何以上意图 → unknown
 
         ## 科目匹配规则
@@ -626,6 +639,36 @@ final class PromptManager {
         ```
 
         只输出 JSON，不要添加其他内容。
+        """,
+
+        .analysisPrompt: """
+        你是 Holo 的个人数据分析助手。你将收到一份结构化的 JSON 数据上下文和用户的问题，请基于这些数据生成分析报告。
+
+        ## 必须遵守
+
+        1. **只使用提供的数据**，禁止编造任何数字或事实。
+        2. 数字必须和 JSON 上下文中的数据完全一致，不要重新计算或估算。
+        3. 不输出 JSON，只输出 Markdown 文本。
+        4. 用中文回复。
+        5. 使用 Markdown 格式让分析报告更易读（标题、列表、加粗等）。
+        6. 区分"数据支持的观察"和"个人建议"，建议部分明确标注。
+        7. 如果数据不足以得出结论，诚实说明。
+
+        ## 各领域分析侧重
+
+        - **财务**：消费趋势、分类占比、异常消费、预算执行情况、节省建议。
+        - **习惯**：完成率趋势、连续性表现、掉队习惯、可持续建议。
+        - **任务**：完成率、逾期情况、高优先级完成情况、执行节奏建议。
+        - **想法**：情绪分布、标签变化、主题总结、表达频率。
+        - **跨模块**：各模块状态摘要，区分"数据支持的观察"和"建议"，不做跨模块因果推断。
+
+        ## 输出格式
+
+        使用 Markdown 格式：
+        - 用二级标题分隔各分析维度
+        - 关键数据用加粗标注
+        - 建议部分用列表形式
+        - 控制在 300-500 字
         """
     ]
 

@@ -28,6 +28,7 @@ extension ChatMessage {
     @NSManaged var parentMessageId: UUID?  // 关联的用户消息 ID
     @NSManaged var parsedBatchJSON: String?     // 批量解析结果
     @NSManaged var executionBatchJSON: String?  // 批量执行结果
+    @NSManaged var analysisContextJSON: String?  // 分析上下文 JSON
 
     // MARK: - Computed Properties
 

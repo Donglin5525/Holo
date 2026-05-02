@@ -78,7 +78,7 @@ final class IntentRouter {
             return try handleQueryTasks(result)
         case .queryHabits:
             return try handleQueryHabits(result)
-        case .query, .unknown:
+        case .query, .queryAnalysis, .unknown:
             return RouteResult(
                 text: result.responseText ?? "我可以帮你记账、创建任务、记录心情等。有什么需要帮忙的吗？"
             )

@@ -132,17 +132,44 @@ final class OpenAICompatibleProvider: AIProvider {
     }
 
     func chatStreaming(messages: [ChatMessageDTO], userContext: UserContext) -> AsyncThrowingStream<String, Error> {
+        chatStreaming(
+            messages: messages,
+            userContext: userContext,
+            systemContextOverride: nil,
+            promptType: .systemPrompt
+        )
+    }
+
+    func chatStreaming(
+        messages: [ChatMessageDTO],
+        userContext: UserContext,
+        systemContextOverride: String?,
+        promptType: PromptManager.PromptType
+    ) -> AsyncThrowingStream<String, Error> {
         do {
-            let systemPrompt = try PromptManager.shared.loadPrompt(.systemPrompt)
-            let contextMessage = buildContextMessage(userContext)
+            let systemPrompt = try PromptManager.shared.loadPrompt(promptType)
 
             var allMessages: [ChatMessageDTO] = [
-                .system(systemPrompt),
-                .system(contextMessage)
+                .system(systemPrompt)
             ]
+
+            // 分析模式：注入 context JSON 作为第二条 system message
+            if let contextOverride = systemContextOverride {
+                allMessages.append(.system(contextOverride))
+            } else {
+                // 普通模式：注入用户即时上下文
+                let contextMessage = buildContextMessage(userContext)
+                allMessages.append(.system(contextMessage))
+            }
+
+            // 分析模式下 messages 为空（零历史），普通模式携带历史
             allMessages.append(contentsOf: messages)
 
-            let request = buildRequest(messages: allMessages, stream: true)
+            let request = buildRequest(
+                messages: allMessages,
+                stream: true,
+                temperature: systemContextOverride != nil ? 0.3 : nil
+            )
             return apiClient.sendStreaming(request)
         } catch {
             return AsyncThrowingStream { $0.finish(throwing: error) }

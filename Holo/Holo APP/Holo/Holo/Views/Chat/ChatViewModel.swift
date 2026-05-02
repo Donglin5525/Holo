@@ -199,27 +199,56 @@ final class ChatViewModel: ObservableObject {
                 // ENERGY: 能量检查预留位
 
                 if processResult.shouldStreamChat {
-                    // 纯查询 → 流式对话
-                    guard let chatRepo = self.chatRepo else { return }
-                    let historyDTOs = chatRepo.toDTOs(from: chatRepo.loadRecentMessages(limit: 20))
-                    let stream = self.provider.chatStreaming(messages: historyDTOs, userContext: userContext)
+                    if let analysisContext = processResult.analysisContext {
+                        // 分析查询路径：零历史消息，独立 system context
+                        let contextJSON = Self.encodeAnalysisContext(analysisContext)
 
-                    var fullText = ""
-                    for try await chunk in stream {
-                        if Task.isCancelled { break }
-                        fullText += chunk
-                        self.streamingText = fullText
+                        let stream = self.provider.chatStreaming(
+                            messages: [],
+                            userContext: UserContext.empty,
+                            systemContextOverride: contextJSON,
+                            promptType: .analysisPrompt
+                        )
+
+                        var fullText = ""
+                        for try await chunk in stream {
+                            if Task.isCancelled { break }
+                            fullText += chunk
+                            self.streamingText = fullText
+                        }
+
+                        self.chatRepo?.finalizeMessage(
+                            aiMessageId,
+                            finalContent: fullText,
+                            intent: processResult.firstIntent?.rawValue,
+                            extractedDataJSON: Self.encodeExtractedData(processResult.firstExtractedData),
+                            parsedBatchJSON: Self.encodeParseBatch(processResult.parsedBatch),
+                            executionBatchJSON: Self.encodeExecutionBatch(processResult.executionBatch),
+                            analysisContextJSON: contextJSON
+                        )
+                    } else {
+                        // 标准查询路径 → 流式对话
+                        guard let chatRepo = self.chatRepo else { return }
+                        let historyDTOs = chatRepo.toDTOs(from: chatRepo.loadRecentMessages(limit: 20))
+                        let stream = self.provider.chatStreaming(messages: historyDTOs, userContext: userContext)
+
+                        var fullText = ""
+                        for try await chunk in stream {
+                            if Task.isCancelled { break }
+                            fullText += chunk
+                            self.streamingText = fullText
+                        }
+
+                        // 原子化写入：结束流式 + 元数据，单次 save + 单次 snapshot
+                        self.chatRepo?.finalizeMessage(
+                            aiMessageId,
+                            finalContent: fullText,
+                            intent: processResult.firstIntent?.rawValue,
+                            extractedDataJSON: Self.encodeExtractedData(processResult.firstExtractedData),
+                            parsedBatchJSON: Self.encodeParseBatch(processResult.parsedBatch),
+                            executionBatchJSON: Self.encodeExecutionBatch(processResult.executionBatch)
+                        )
                     }
-
-                    // 原子化写入：结束流式 + 元数据，单次 save + 单次 snapshot
-                    self.chatRepo?.finalizeMessage(
-                        aiMessageId,
-                        finalContent: fullText,
-                        intent: processResult.firstIntent?.rawValue,
-                        extractedDataJSON: Self.encodeExtractedData(processResult.firstExtractedData),
-                        parsedBatchJSON: Self.encodeParseBatch(processResult.parsedBatch),
-                        executionBatchJSON: Self.encodeExecutionBatch(processResult.executionBatch)
-                    )
                 } else {
                     // 操作结果 / 澄清 / 错误 → 原子化写入
                     self.chatRepo?.finalizeMessage(
@@ -292,6 +321,19 @@ final class ChatViewModel: ObservableObject {
         } catch {
             Logger(subsystem: "com.holo.app", category: "ChatViewModel")
                 .error("编码 executionBatch 失败：\(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    /// 将 AnalysisContext 编码为 JSON 字符串
+    private static func encodeAnalysisContext(_ context: AnalysisContext) -> String? {
+        do {
+            let encoder = JSONEncoder()
+            let encoded = try encoder.encode(context)
+            return String(data: encoded, encoding: .utf8)
+        } catch {
+            Logger(subsystem: "com.holo.app", category: "ChatViewModel")
+                .error("编码 analysisContext 失败：\(error.localizedDescription)")
             return nil
         }
     }

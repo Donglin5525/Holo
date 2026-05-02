@@ -18,6 +18,11 @@ enum ChatCardData: Equatable {
     case habitCheckIn(HabitCheckInCardData)
     case mood(MoodCardData)
     case weight(WeightCardData)
+    case analysisSummary(AnalysisSummaryCardData)
+    case analysisTrend(AnalysisTrendCardData)
+    case analysisBreakdown(AnalysisBreakdownCardData)
+    case analysisComparison(AnalysisComparisonCardData)
+    case analysisHighlights(AnalysisHighlightsCardData)
 
     /// 从 intent + extractedData 构造卡片数据
     /// - Parameters:
@@ -81,7 +86,7 @@ enum ChatCardData: Equatable {
                 unit: data["unit"] ?? "kg"
             ))
 
-        case .completeTask, .updateTask, .deleteTask, .createNote, .queryTasks, .queryHabits, .query, .generateMemoryInsight, .unknown:
+        case .completeTask, .updateTask, .deleteTask, .createNote, .queryTasks, .queryHabits, .query, .queryAnalysis, .generateMemoryInsight, .unknown:
             return nil
         }
     }
@@ -263,5 +268,245 @@ enum CategorySFSymbolMapper {
             return icon
         }
         return "yensign.circle"
+    }
+}
+
+// MARK: - 分析卡片模型
+
+struct AnalysisSummaryCardData: Equatable {
+    let domain: AnalysisDomain
+    let periodLabel: String
+    let metrics: [AnalysisBreakdownRow]
+}
+
+struct AnalysisTrendCardData: Equatable {
+    let title: String
+    let points: [AnalysisTrendPoint]
+}
+
+struct AnalysisBreakdownCardData: Equatable {
+    let title: String
+    let rows: [AnalysisBreakdownRow]
+}
+
+struct AnalysisComparisonCardData: Equatable {
+    let title: String
+    let currentValue: String
+    let previousValue: String?
+    let change: String?
+}
+
+struct AnalysisHighlightsCardData: Equatable {
+    let highlights: [String]
+    let warnings: [String]
+}
+
+struct AnalysisBreakdownRow: Equatable {
+    let label: String
+    let value: String
+    let percent: Double?
+}
+
+struct AnalysisTrendPoint: Equatable {
+    let label: String
+    let value: Double
+    let displayValue: String
+}
+
+// MARK: - AnalysisContext → ChatCardData 映射
+
+extension ChatCardData {
+
+    /// 从 AnalysisContext 生成卡片列表
+    static func fromAnalysisContext(_ context: AnalysisContext) -> [ChatCardData] {
+        var cards: [ChatCardData] = []
+
+        switch context.domain {
+        case .finance:
+            if let f = context.finance {
+                cards.append(contentsOf: financeCards(f, periodLabel: context.periodLabel))
+            }
+        case .habit:
+            if let h = context.habit {
+                cards.append(contentsOf: habitCards(h, periodLabel: context.periodLabel))
+            }
+        case .task:
+            if let t = context.task {
+                cards.append(contentsOf: taskCards(t, periodLabel: context.periodLabel))
+            }
+        case .thought:
+            if let th = context.thought {
+                cards.append(contentsOf: thoughtCards(th, periodLabel: context.periodLabel))
+            }
+        case .crossModule:
+            if let cm = context.crossModule, !cm.isDataFree {
+                cards.append(.analysisHighlights(AnalysisHighlightsCardData(
+                    highlights: cm.highlights,
+                    warnings: cm.warnings
+                )))
+            }
+        }
+
+        return cards
+    }
+
+    // MARK: - Finance Cards
+
+    private static func financeCards(_ f: FinanceAnalysisContext, periodLabel: String) -> [ChatCardData] {
+        var cards: [ChatCardData] = []
+
+        // Summary
+        var metrics: [AnalysisBreakdownRow] = [
+            AnalysisBreakdownRow(label: "总支出", value: NumberFormatter.compactCurrency(f.totalExpense), percent: nil),
+            AnalysisBreakdownRow(label: "总收入", value: NumberFormatter.compactCurrency(f.totalIncome), percent: nil),
+            AnalysisBreakdownRow(label: "交易笔数", value: "\(f.transactionCount)", percent: nil),
+            AnalysisBreakdownRow(label: "日均支出", value: NumberFormatter.compactCurrency(f.averageDailyExpense), percent: nil)
+        ]
+        if let budget = f.budgetPerformance {
+            metrics.append(AnalysisBreakdownRow(label: "预算使用率", value: String(format: "%.0f%%", budget.utilizationRate), percent: budget.utilizationRate / 100))
+        }
+        cards.append(.analysisSummary(AnalysisSummaryCardData(
+            domain: .finance,
+            periodLabel: periodLabel,
+            metrics: metrics
+        )))
+
+        // Breakdown
+        if !f.topExpenseCategories.isEmpty {
+            let rows = f.topExpenseCategories.map { cat in
+                AnalysisBreakdownRow(label: cat.categoryName, value: NumberFormatter.compactCurrency(cat.amount), percent: cat.percentage / 100)
+            }
+            cards.append(.analysisBreakdown(AnalysisBreakdownCardData(title: "支出分类", rows: rows)))
+        }
+
+        // Trend
+        if f.monthlyBreakdown.count > 1 {
+            let points = f.monthlyBreakdown.map { item in
+                AnalysisTrendPoint(label: item.month, value: NSDecimalNumber(decimal: item.expense).doubleValue, displayValue: NumberFormatter.compactCurrency(item.expense))
+            }
+            cards.append(.analysisTrend(AnalysisTrendCardData(title: "月度趋势", points: points)))
+        }
+
+        // Comparison
+        if let prev = f.previousPeriodExpense, prev > 0 {
+            let change = f.totalExpense - prev
+            let changeStr = change >= 0 ? "+\(NumberFormatter.compactCurrency(change))" : NumberFormatter.compactCurrency(change)
+            cards.append(.analysisComparison(AnalysisComparisonCardData(
+                title: "环比对比",
+                currentValue: NumberFormatter.compactCurrency(f.totalExpense),
+                previousValue: NumberFormatter.compactCurrency(prev),
+                change: changeStr
+            )))
+        }
+
+        return cards
+    }
+
+    // MARK: - Habit Cards
+
+    private static func habitCards(_ h: HabitAnalysisContext, periodLabel: String) -> [ChatCardData] {
+        var cards: [ChatCardData] = []
+
+        var metrics: [AnalysisBreakdownRow] = [
+            AnalysisBreakdownRow(label: "活跃习惯", value: "\(h.activeHabitCount)", percent: nil),
+            AnalysisBreakdownRow(label: "完成记录", value: "\(h.completedRecordCount)", percent: nil)
+        ]
+        if let rate = h.averageCompletionRate {
+            metrics.append(AnalysisBreakdownRow(label: "平均完成率", value: String(format: "%.0f%%", rate * 100), percent: rate))
+        }
+        cards.append(.analysisSummary(AnalysisSummaryCardData(
+            domain: .habit,
+            periodLabel: periodLabel,
+            metrics: metrics
+        )))
+
+        // Trend
+        if h.dailyCompletionTrend.count > 1 {
+            let points = h.dailyCompletionTrend.prefix(14).map { pt in
+                AnalysisTrendPoint(label: pt.date, value: pt.rate * 100, displayValue: String(format: "%.0f%%", pt.rate * 100))
+            }
+            cards.append(.analysisTrend(AnalysisTrendCardData(title: "完成率趋势", points: points)))
+        }
+
+        // Highlights
+        var highlights = h.topPerformingHabits.map { "\($0.habitName)：完成率 \(String(format: "%.0f%%", $0.completionRate * 100))" }
+        highlights += h.strugglingHabits.map { "\($0.habitName)：完成率仅 \(String(format: "%.0f%%", $0.completionRate * 100))" }
+        if !highlights.isEmpty {
+            cards.append(.analysisHighlights(AnalysisHighlightsCardData(
+                highlights: highlights,
+                warnings: h.strugglingHabits.map { "\($0.habitName) 需要加油" }
+            )))
+        }
+
+        return cards
+    }
+
+    // MARK: - Task Cards
+
+    private static func taskCards(_ t: TaskAnalysisContext, periodLabel: String) -> [ChatCardData] {
+        var cards: [ChatCardData] = []
+
+        var metrics: [AnalysisBreakdownRow] = [
+            AnalysisBreakdownRow(label: "总任务", value: "\(t.totalCount)", percent: nil),
+            AnalysisBreakdownRow(label: "已完成", value: "\(t.completedCount)", percent: nil),
+            AnalysisBreakdownRow(label: "逾期", value: "\(t.overdueCount)", percent: nil),
+            AnalysisBreakdownRow(label: "完成率", value: String(format: "%.0f%%", t.completionRate * 100), percent: t.completionRate)
+        ]
+        if let rate = t.highPriorityCompletionRate {
+            metrics.append(AnalysisBreakdownRow(label: "高优完成率", value: String(format: "%.0f%%", rate * 100), percent: rate))
+        }
+        cards.append(.analysisSummary(AnalysisSummaryCardData(
+            domain: .task,
+            periodLabel: periodLabel,
+            metrics: metrics
+        )))
+
+        // Trend
+        if t.dailyCompletionTrend.count > 1 {
+            let points = t.dailyCompletionTrend.prefix(14).map { pt in
+                AnalysisTrendPoint(label: pt.date, value: Double(pt.count), displayValue: "\(pt.count)")
+            }
+            cards.append(.analysisTrend(AnalysisTrendCardData(title: "每日完成趋势", points: points)))
+        }
+
+        // Comparison
+        if let prev = t.previousPeriodCompletedCount, prev > 0 {
+            let diff = t.completedCount - prev
+            let changeStr = diff >= 0 ? "+\(diff)" : "\(diff)"
+            cards.append(.analysisComparison(AnalysisComparisonCardData(
+                title: "环比对比",
+                currentValue: "\(t.completedCount) 个",
+                previousValue: "\(prev) 个",
+                change: changeStr
+            )))
+        }
+
+        return cards
+    }
+
+    // MARK: - Thought Cards
+
+    private static func thoughtCards(_ th: ThoughtAnalysisContext, periodLabel: String) -> [ChatCardData] {
+        var cards: [ChatCardData] = []
+
+        let metrics: [AnalysisBreakdownRow] = [
+            AnalysisBreakdownRow(label: "想法总数", value: "\(th.totalCount)", percent: nil),
+            AnalysisBreakdownRow(label: "标签数", value: "\(th.topTags.count)", percent: nil)
+        ]
+        cards.append(.analysisSummary(AnalysisSummaryCardData(
+            domain: .thought,
+            periodLabel: periodLabel,
+            metrics: metrics
+        )))
+
+        // Breakdown
+        if !th.moodDistribution.isEmpty {
+            let rows = th.moodDistribution.map { m in
+                AnalysisBreakdownRow(label: m.mood, value: "\(m.count)", percent: m.percentage / 100)
+            }
+            cards.append(.analysisBreakdown(AnalysisBreakdownCardData(title: "心情分布", rows: rows)))
+        }
+
+        return cards
     }
 }

@@ -158,6 +158,39 @@ final class MockAIProvider: AIProvider {
             )
         }
 
+        // 分析查询关键词匹配
+        let analysisKeywords = ["分析", "复盘", "综合分析", "趋势", "统计"]
+        let financeKeywords = ["账单", "消费", "支出", "收入", "预算", "财务", "花了"]
+        let habitAnalysisKeywords = ["习惯打卡", "习惯完成率"]
+        let taskAnalysisKeywords = ["任务完成", "待办完成"]
+        let thoughtAnalysisKeywords = ["想法", "情绪", "心情分析"]
+
+        if analysisKeywords.contains(where: { lowercased.contains($0) }) {
+            let domain: String
+            if financeKeywords.contains(where: { lowercased.contains($0) }) {
+                domain = "finance"
+            } else if habitAnalysisKeywords.contains(where: { lowercased.contains($0) }) {
+                domain = "habit"
+            } else if taskAnalysisKeywords.contains(where: { lowercased.contains($0) }) {
+                domain = "task"
+            } else if thoughtAnalysisKeywords.contains(where: { lowercased.contains($0) }) {
+                domain = "thought"
+            } else {
+                domain = "crossModule"
+            }
+
+            return ParsedResult(
+                intent: .queryAnalysis,
+                confidence: 0.9,
+                extractedData: [
+                    "analysisDomain": domain
+                ],
+                needsClarification: false,
+                clarificationQuestion: nil,
+                responseText: "[Mock] 分析查询"
+            )
+        }
+
         // 兜底：未识别意图
         return ParsedResult(
             intent: .unknown,
@@ -243,7 +276,26 @@ final class MockAIProvider: AIProvider {
     }
 
     func chatStreaming(messages: [ChatMessageDTO], userContext: UserContext) -> AsyncThrowingStream<String, Error> {
-        let response = "[Mock] 这是流式回复的模拟内容。配置真实 API Key 后将接入大语言模型。"
+        chatStreaming(
+            messages: messages,
+            userContext: userContext,
+            systemContextOverride: nil,
+            promptType: .systemPrompt
+        )
+    }
+
+    func chatStreaming(
+        messages: [ChatMessageDTO],
+        userContext: UserContext,
+        systemContextOverride: String?,
+        promptType: PromptManager.PromptType
+    ) -> AsyncThrowingStream<String, Error> {
+        let response: String
+        if systemContextOverride != nil {
+            response = "[Mock 分析] 基于注入的分析上下文数据，这里是对应领域的分析报告。配置真实 API Key 后将生成真实的分析内容。"
+        } else {
+            response = "[Mock] 这是流式回复的模拟内容。配置真实 API Key 后将接入大语言模型。"
+        }
         let chars = Array(response)
 
         return AsyncThrowingStream { continuation in

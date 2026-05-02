@@ -18,6 +18,7 @@ struct ConversationProcessResult {
     let firstIntent: AIIntent?
     let firstExtractedData: [String: String]?
     let shouldStreamChat: Bool
+    let analysisContext: AnalysisContext?
 }
 
 @MainActor
@@ -47,7 +48,8 @@ final class ConversationCoordinator {
                 executionBatch: nil,
                 firstIntent: parseBatch.first?.intent,
                 firstExtractedData: parseBatch.first?.extractedData,
-                shouldStreamChat: false
+                shouldStreamChat: false,
+                analysisContext: nil
             )
         }
 
@@ -59,7 +61,43 @@ final class ConversationCoordinator {
                 executionBatch: nil,
                 firstIntent: nil,
                 firstExtractedData: nil,
-                shouldStreamChat: false
+                shouldStreamChat: false,
+                analysisContext: nil
+            )
+        }
+
+        // 分析查询拦截：queryAnalysis 不走普通查询路径
+        if parseBatch.mode == .query,
+           parseBatch.items.count == 1,
+           parseBatch.first?.intent == .queryAnalysis {
+            let request = AnalysisPeriodResolver.resolve(
+                extractedData: parseBatch.first?.extractedData,
+                originalText: text,
+                referenceDate: Date()
+            )
+
+            let context = await AnalysisContextBuilder().build(request: request)
+
+            if context.isEmpty {
+                return ConversationProcessResult(
+                    finalText: "在 \(request.periodLabel) 期间没有找到可分析的数据。你可以换一个时间范围试试。",
+                    parsedBatch: parseBatch,
+                    executionBatch: nil,
+                    firstIntent: .queryAnalysis,
+                    firstExtractedData: parseBatch.first?.extractedData,
+                    shouldStreamChat: false,
+                    analysisContext: nil
+                )
+            }
+
+            return ConversationProcessResult(
+                finalText: "",
+                parsedBatch: parseBatch,
+                executionBatch: nil,
+                firstIntent: .queryAnalysis,
+                firstExtractedData: parseBatch.first?.extractedData,
+                shouldStreamChat: true,
+                analysisContext: context
             )
         }
 
@@ -71,7 +109,8 @@ final class ConversationCoordinator {
                 executionBatch: nil,
                 firstIntent: parseBatch.first?.intent,
                 firstExtractedData: parseBatch.first?.extractedData,
-                shouldStreamChat: true
+                shouldStreamChat: true,
+                analysisContext: nil
             )
         }
 
@@ -85,7 +124,8 @@ final class ConversationCoordinator {
                 executionBatch: nil,
                 firstIntent: parseBatch.first?.intent,
                 firstExtractedData: parseBatch.first?.extractedData,
-                shouldStreamChat: false
+                shouldStreamChat: false,
+                analysisContext: nil
             )
         }
 
@@ -100,7 +140,8 @@ final class ConversationCoordinator {
                 executionBatch: nil,
                 firstIntent: parseBatch.first?.intent,
                 firstExtractedData: parseBatch.first?.extractedData,
-                shouldStreamChat: false
+                shouldStreamChat: false,
+                analysisContext: nil
             )
         }
 
@@ -158,7 +199,8 @@ final class ConversationCoordinator {
             executionBatch: executionBatch,
             firstIntent: parseBatch.first?.intent,
             firstExtractedData: parseBatch.first?.extractedData,
-            shouldStreamChat: false
+            shouldStreamChat: false,
+            analysisContext: nil
         )
     }
 

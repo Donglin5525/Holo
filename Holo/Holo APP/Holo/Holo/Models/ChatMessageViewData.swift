@@ -26,6 +26,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable {
     var parentMessageId: UUID?
     var parsedBatch: AIParseBatch?
     var executionBatch: AIExecutionBatch?
+    var analysisContext: AnalysisContext?
     private var cachedExtractedDataDictionary: [String: String]?
     private var cachedLinkedEntityIds: [EntityCategory: UUID]
 
@@ -39,7 +40,8 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable {
         isStreaming: Bool,
         parentMessageId: UUID?,
         parsedBatch: AIParseBatch? = nil,
-        executionBatch: AIExecutionBatch? = nil
+        executionBatch: AIExecutionBatch? = nil,
+        analysisContext: AnalysisContext? = nil
     ) {
         self.id = id
         self.role = role
@@ -51,6 +53,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable {
         self.parentMessageId = parentMessageId
         self.parsedBatch = parsedBatch
         self.executionBatch = executionBatch
+        self.analysisContext = analysisContext
         self.cachedExtractedDataDictionary = Self.decodeExtractedData(extractedDataJSON)
         self.cachedLinkedEntityIds = Self.buildLinkedEntityIds(
             extractedDataDictionary: cachedExtractedDataDictionary,
@@ -69,7 +72,8 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable {
             isStreaming: message.isStreaming,
             parentMessageId: message.parentMessageId,
             parsedBatch: message.parsedBatch,
-            executionBatch: message.executionBatch
+            executionBatch: message.executionBatch,
+            analysisContext: Self.decodeAnalysisContext(message.analysisContextJSON)
         )
     }
 
@@ -92,7 +96,8 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable {
             isStreaming: isStreaming,
             parentMessageId: dictionary["parentMessageId"] as? UUID,
             parsedBatch: Self.decodeParseBatch(dictionary["parsedBatchJSON"] as? String),
-            executionBatch: Self.decodeExecutionBatch(dictionary["executionBatchJSON"] as? String)
+            executionBatch: Self.decodeExecutionBatch(dictionary["executionBatchJSON"] as? String),
+            analysisContext: Self.decodeAnalysisContext(dictionary["analysisContextJSON"] as? String)
         )
     }
 
@@ -100,6 +105,14 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable {
 
     nonisolated var extractedDataDictionary: [String: String]? {
         cachedExtractedDataDictionary
+    }
+
+    // MARK: - Analysis Cards
+
+    /// 从 analysisContext 生成的卡片数据
+    var analysisCards: [ChatCardData] {
+        guard let context = analysisContext else { return [] }
+        return ChatCardData.fromAnalysisContext(context)
     }
 
     // 旧路径兜底：从 extractedDataJSON 解析（新项通常为 nil）
@@ -192,6 +205,14 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable {
             return nil
         }
         return try? JSONDecoder().decode(AIExecutionBatch.self, from: data)
+    }
+
+    nonisolated private static func decodeAnalysisContext(_ json: String?) -> AnalysisContext? {
+        guard let json,
+              let data = json.data(using: .utf8) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(AnalysisContext.self, from: data)
     }
 
     nonisolated private static func buildLinkedEntityIds(

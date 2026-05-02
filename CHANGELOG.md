@@ -4,6 +4,23 @@
 
 ---
 
+## [2026-05-02] AI 通用分析查询功能
+
+### 新增
+- AI 分析查询框架：支持财务、习惯、任务、想法和跨模块五大领域的周期性数据分析
+- 新增 `query_analysis` 意图，用户可说"分析我2024年的消费""复盘一下最近一个月"等
+- 5 种分析卡片 UI：概览(Summary)、趋势(Trend)、分类(Breakdown)、对比(Comparison)、亮点(Highlights)
+- 分析上下文持久化到 Core Data，重启 App 后历史分析卡片仍能正常渲染
+- 分析查询发送零历史消息，避免上下文污染
+- AnalysisPeriodResolver：从用户原文和 LLM 提取结果中智能解析日期范围（支持年/月/周/最近N天等）
+
+### 架构
+- 新建 11 个文件：AnalysisDomain / AnalysisContext / AnalysisDomainContexts / AnalysisPeriodResolver / AnalysisContextBuilder / 5 个领域 Builder / AnalysisChatCard
+- 修改 14 个文件：AIModels / PromptManager / ConversationCoordinator / AIProvider / OpenAICompatibleProvider / MockAIProvider / ChatViewModel / ChatMessageViewData / ChatMessageRepository / ChatCardData / MessageBubbleView / CoreDataStack+ChatEntities / ChatMessage+CoreDataProperties / IntentRouter / ChatView
+- 跨模块分析采用并发构建（async let），无共享可变状态
+
+---
+
 ## [2026-05-02] 大文件重构 Phase 1-2
 
 ### 重构

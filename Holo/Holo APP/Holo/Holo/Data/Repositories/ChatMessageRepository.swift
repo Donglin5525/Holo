@@ -70,7 +70,8 @@ final class ChatMessageRepository: ObservableObject {
                         "isStreaming",
                         "parentMessageId",
                         "parsedBatchJSON",
-                        "executionBatchJSON"
+                        "executionBatchJSON",
+                        "analysisContextJSON"
                     ]
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
                     request.fetchLimit = limit
@@ -171,7 +172,8 @@ final class ChatMessageRepository: ObservableObject {
         intent: String?,
         extractedDataJSON: String?,
         parsedBatchJSON: String?,
-        executionBatchJSON: String?
+        executionBatchJSON: String?,
+        analysisContextJSON: String? = nil
     ) {
         guard let message = liveMessageCache[messageId] else { return }
 
@@ -182,6 +184,7 @@ final class ChatMessageRepository: ObservableObject {
         message.extractedDataJSON = extractedDataJSON
         message.parsedBatchJSON = parsedBatchJSON
         message.executionBatchJSON = executionBatchJSON
+        message.analysisContextJSON = analysisContextJSON
         save()
 
         // 解码 batch 数据（绕过 associated object 缓存）
@@ -204,6 +207,17 @@ final class ChatMessageRepository: ObservableObject {
             }
         }
 
+        // 解码分析上下文
+        let decodedAnalysisContext: AnalysisContext? = analysisContextJSON.flatMap { json in
+            guard let data = json.data(using: .utf8) else { return nil }
+            do {
+                return try JSONDecoder().decode(AnalysisContext.self, from: data)
+            } catch {
+                logger.error("解析 analysisContextJSON 失败：\(error.localizedDescription)")
+                return nil
+            }
+        }
+
         // 单次 snapshot 更新
         updateSnapshot(messageId) { snapshot in
             snapshot.content = finalContent
@@ -212,6 +226,7 @@ final class ChatMessageRepository: ObservableObject {
             snapshot.extractedDataJSON = extractedDataJSON
             snapshot.parsedBatch = decodedParsedBatch
             snapshot.executionBatch = decodedExecutionBatch
+            snapshot.analysisContext = decodedAnalysisContext
         }
     }
 

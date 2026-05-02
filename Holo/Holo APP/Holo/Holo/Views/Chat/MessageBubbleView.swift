@@ -41,6 +41,8 @@ struct MessageBubbleView: View {
 
     var body: some View {
         // 预计算卡片数据，避免 body 中重复求值
+        let analysisCardsData = message.analysisCards
+        let hasAnalysisCards = !analysisCardsData.isEmpty
         let cards = executionCards
         let hasCards = !cards.isEmpty
         let singleCard = cardData
@@ -57,8 +59,18 @@ struct MessageBubbleView: View {
 
             // 消息内容
             VStack(alignment: isUser ? .trailing : .leading, spacing: 4) {
-                // 渲染优先级：多卡片 > 单卡片 > 气泡
-                if hasCards {
+                // 渲染优先级：分析卡片（叠加模式） > 批处理卡片 > 单卡片 > 气泡
+                if hasAnalysisCards {
+                    // 分析消息：卡片 + 文本叠加渲染
+                    VStack(alignment: .leading, spacing: 8) {
+                        ForEach(Array(analysisCardsData.enumerated()), id: \.offset) { index, card in
+                            cardView(for: card)
+                        }
+                        if !displayText.isEmpty {
+                            bubbleContent
+                        }
+                    }
+                } else if hasCards {
                     if cards.count > 1 {
                         multiCardView(cards: cards)
                     } else {
@@ -71,7 +83,7 @@ struct MessageBubbleView: View {
                 }
 
                 // 意图标签（卡片渲染时隐藏）
-                if let intent = message.intent, !isUser, !hasCards, singleCard == nil {
+                if let intent = message.intent, !isUser, !hasCards, singleCard == nil, !hasAnalysisCards {
                     intentTag(intent)
                 }
             }
@@ -190,6 +202,16 @@ struct MessageBubbleView: View {
             WeightChatCard(data: weightData) {
                 onCardTap?(message, data)
             }
+        case .analysisSummary(let summaryData):
+            AnalysisSummaryChatCard(data: summaryData)
+        case .analysisTrend(let trendData):
+            AnalysisTrendChatCard(data: trendData)
+        case .analysisBreakdown(let breakdownData):
+            AnalysisBreakdownChatCard(data: breakdownData)
+        case .analysisComparison(let comparisonData):
+            AnalysisComparisonChatCard(data: comparisonData)
+        case .analysisHighlights(let highlightsData):
+            AnalysisHighlightsChatCard(data: highlightsData)
         }
     }
 

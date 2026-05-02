@@ -82,6 +82,12 @@ extension CoreDataStack {
         chatExecutionBatch.isOptional = true
         chatAttributes.append(chatExecutionBatch)
 
+        let chatAnalysisContext = NSAttributeDescription()
+        chatAnalysisContext.name = "analysisContextJSON"
+        chatAnalysisContext.attributeType = .stringAttributeType
+        chatAnalysisContext.isOptional = true
+        chatAttributes.append(chatAnalysisContext)
+
         chatMessageEntity.properties = chatAttributes
 
         return [chatMessageEntity]
