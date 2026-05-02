@@ -86,9 +86,10 @@
 				};
 			};
 			buildConfigurationList = 49E199EF2F54389E0070AE1B /* Build configuration list for PBXProject "Holo" */;
-			developmentRegion = en;
+			developmentRegion = "zh-Hans";
 			hasScannedForEncodings = 0;
 			knownRegions = (
+				"zh-Hans",
 				en,
 				Base,
 			);
