@@ -30,6 +30,25 @@ struct DailyKanbanEntryButton: View {
             .allowsHitTesting(false)
     }
 
+    private var kanbanIcon: some View {
+        ZStack {
+            Circle()
+                .trim(from: 0, to: 0.75)
+                .stroke(Color.white.opacity(0.9), style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                .frame(width: 72, height: 72)
+
+            Circle()
+                .trim(from: 0.15, to: 0.85)
+                .stroke(Color.white.opacity(0.6), style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                .frame(width: 54, height: 54)
+
+            Circle()
+                .trim(from: 0.3, to: 0.9)
+                .stroke(Color.white.opacity(0.4), style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                .frame(width: 36, height: 36)
+        }
+    }
+
     private var mainButton: some View {
         Button(action: action) {
             ZStack {
@@ -51,6 +70,8 @@ struct DailyKanbanEntryButton: View {
                         )
                     )
                     .opacity(0.8)
+
+                kanbanIcon
             }
         }
         .frame(width: 192, height: 192)
