@@ -4,6 +4,30 @@
 
 ---
 
+## [2026-05-02] 今日看板功能
+
+### 新增
+- 首页中心入口按钮 `DailyKanbanEntryButton`，显示今日整体进度环，替代原 VoiceAssistantButton
+- 全屏看板 `DailyKanbanView`，ScrollView 布局融合五大模块
+- `KanbanProgressHero` 顶部进度汇总卡片（橙色渐变，打招呼 + 进度条 + 四项统计）
+- `KanbanBudgetSection` 月度预算摘要（剩余金额、进度条、今日支出、日均可用、剩余天数）
+- `KanbanHealthSection` 健康数据（睡眠/步数/站立三环图 + 睡眠质量标签）
+- `KanbanHabitSection` 每日习惯打卡列表（图标、连续天数、打卡圆圈交互 + haptic）
+- `KanbanTaskSection` 今日待办任务列表（完成交互、仪式标签、到期提醒横幅）
+- `KanbanMoodSection` 心情日记输入（文本 + 6 种心情 emoji，保存自动同步到观点模块）
+- `TodoRepository+Kanban` 扩展：看板查询、每日仪式生成、进度计算
+
+### 改进
+- `TodoTask` 新增 `plannedDate`（Date?）和 `isDailyRitual`（Bool）字段，轻量级 Core Data 迁移
+- 底部导航中间按钮改为 AI 对话入口（原 Holo One 移至 iPhone Action Button）
+- 无预算时自动隐藏预算卡片
+
+### 架构
+- 新建 9 个文件：DailyKanbanEntryButton + DailyKanbanView + 6 个 Section + TodoRepository+Kanban
+- 修改 4 个文件：CoreDataStack+TodoEntities / TodoTask+CoreDataClass / TodoTask+CoreDataProperties / HomeView
+
+---
+
 ## [2026-05-02] AI 通用分析查询功能
 
 ### 新增
