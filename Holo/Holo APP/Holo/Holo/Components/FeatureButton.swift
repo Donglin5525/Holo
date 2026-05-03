@@ -49,25 +49,17 @@ struct FeatureButtonContent: View {
     /// 图标容器
     private var iconContainer: some View {
         ZStack {
-            // 毛玻璃背景 + 色染叠层
+            // 系统毛玻璃底板，自动适配深浅模式
             RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .fill(.ultraThinMaterial)
+                .fill(.thinMaterial)
                 .frame(width: 56, height: 56)
-                .overlay(
-                    RoundedRectangle(cornerRadius: HoloRadius.lg)
-                        .fill(config.color.opacity(0.08))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: HoloRadius.lg)
-                        .stroke(Color.holoBorder, lineWidth: 1)
-                )
 
-            // 图标
+            // 图标 — 自适应色，深色模式浅色、浅色模式深色
             Image(systemName: config.icon)
                 .font(.system(size: 20, weight: .medium))
-                .foregroundColor(config.color)
+                .foregroundColor(.holoTextPrimary)
         }
-        .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 10)
+        .shadow(color: .black.opacity(0.08), radius: 12, x: 0, y: 4)
     }
     
     /// 标题文字
