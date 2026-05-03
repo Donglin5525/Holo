@@ -17,6 +17,8 @@ struct LineChartView: View {
     let selectedDate: Date?
     let onSelectDate: (Date?) -> Void
 
+    @State private var hoveredLabel: String? = nil
+
     private var allValuesZero: Bool {
         dataPoints.allSatisfy { $0.expense == 0 && $0.income == 0 }
     }
@@ -98,7 +100,7 @@ struct LineChartView: View {
                         yStart: .value("底部", 0),
                         yEnd: .value("顶部", yEndValue)
                     )
-                    .foregroundStyle(Color.holoPrimary.opacity(0.1))
+                    .foregroundStyle(Color.holoPrimary.opacity(0.15))
                 }
             }
         }
@@ -111,36 +113,112 @@ struct LineChartView: View {
             }
         }
         .chartYAxis {
-            AxisMarks { _ in
+            AxisMarks { value in
                 AxisGridLine()
                     .foregroundStyle(Color.holoDivider)
-                AxisValueLabel()
-                    .foregroundStyle(Color.holoTextSecondary)
+                AxisValueLabel() {
+                    if let val = value.as(Double.self) {
+                        Text(formatAxisValue(val))
+                            .font(.system(size: 10))
+                            .foregroundColor(.holoTextSecondary)
+                            .frame(width: 40, alignment: .trailing)
+                    }
+                }
             }
         }
-        .chartYAxisLabel("金额 (¥)")
         .chartOverlay { proxy in
             GeometryReader { geometry in
+                let overlayFrame = geometry.frame(in: .local)
+                let plotFrame = proxy.plotFrame.map { geometry[$0] }
+
                 Rectangle()
                     .fill(Color.clear)
                     .contentShape(Rectangle())
                     .gesture(
                         DragGesture(minimumDistance: 0)
                             .onChanged { value in
-                                let x = value.location.x
-                                if let label: String = proxy.value(atX: x) {
-                                    if let point = dataPoints.first(where: { $0.label == label }) {
-                                        onSelectDate(point.date)
-                                    }
+                                guard !dataPoints.isEmpty, let plotFrame else { return }
+                                let touchXInPlot = value.location.x - plotFrame.minX
+                                let pointPositions = dataPoints.compactMap { proxy.position(forX: $0.label) }
+                                guard pointPositions.count == dataPoints.count,
+                                      let index = ChartTouchSelection.nearestPointIndex(
+                                        touchXInPlot: touchXInPlot,
+                                        plotWidth: plotFrame.width,
+                                        pointXPositions: pointPositions
+                                      ) else { return }
+
+                                let point = dataPoints[index]
+                                if hoveredLabel != point.label {
+                                    hoveredLabel = point.label
+                                    onSelectDate(point.date)
                                 }
                             }
                             .onEnded { _ in
-                                // 保持选中状态
+                                hoveredLabel = nil
                             }
                     )
+
+                // 触摸金额标注
+                if let label = hoveredLabel,
+                   let point = dataPoints.first(where: { $0.label == label }),
+                   let xPos = proxy.position(forX: label) {
+                    let convertedX = (plotFrame?.minX ?? 0) + xPos
+
+                    let expenseVal = Double(truncating: point.expense as NSDecimalNumber)
+                    let incomeVal = Double(truncating: point.income as NSDecimalNumber)
+                    let maxVal = max(expenseVal, incomeVal)
+
+                    if let topY = proxy.position(forY: max(maxVal, 0.001)), let plotFrame {
+                        let convertedY = plotFrame.minY + topY
+                        let clampedX = min(max(convertedX, 60), overlayFrame.width - 60)
+                        let clampedY = min(max(convertedY - 24, 16), overlayFrame.height - 16)
+                        lineTooltip(point: point, x: clampedX, y: clampedY)
+                    }
+                }
             }
         }
         .frame(height: 220)
+    }
+
+    // MARK: - 触摸金额标注
+
+    private func lineTooltip(point: ChartDataPoint, x: CGFloat, y: CGFloat) -> some View {
+        HStack(spacing: 4) {
+            if point.expense > 0 {
+                Text("-\(NumberFormatter.compactCurrency(point.expense))")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.holoError)
+            }
+            if point.income > 0 {
+                Text("+\(NumberFormatter.compactCurrency(point.income))")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.holoSuccess)
+            }
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 4)
+        .background(
+            RoundedRectangle(cornerRadius: 4)
+                .fill(Color.holoCardBackground)
+                .shadow(color: .black.opacity(0.1), radius: 2, y: 1)
+        )
+        .fixedSize()
+        .position(x: x, y: y)
+    }
+
+    // MARK: - 辅助方法
+
+    private func formatAxisValue(_ value: Double) -> String {
+        let absValue = abs(value)
+        if absValue >= 100_000_000 {
+            return String(format: "%.1f亿", value / 100_000_000)
+        } else if absValue >= 10_000 {
+            return String(format: "%.1f万", value / 10_000)
+        } else if absValue >= 1 {
+            return String(format: "%.0f", value)
+        } else {
+            return ""
+        }
     }
 
     // MARK: - 空状态

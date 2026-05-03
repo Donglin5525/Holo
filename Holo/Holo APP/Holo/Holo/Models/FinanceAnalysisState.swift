@@ -208,7 +208,7 @@ class FinanceAnalysisState: ObservableObject {
 
     // MARK: - 私有方法
 
-    /// 计算图表数据点
+    /// 计算图表数据点（含累计余额）
     private func computeChartDataPoints(
         from transactions: [Transaction],
         start: Date,
@@ -217,9 +217,9 @@ class FinanceAnalysisState: ObservableObject {
         let calendar = Calendar.current
         let granularity = ChartGranularity.from(dayCount: dayCount)
 
-        // 根据粒度生成时间点
         var points: [ChartDataPoint] = []
         var current = start
+        var runningBalance: Decimal = 0
 
         while current < end {
             let next: Date?
@@ -251,7 +251,6 @@ class FinanceAnalysisState: ObservableObject {
 
             guard let nextDate = next else { break }
 
-            // 计算该时间段的交易统计
             let periodTxns = transactions.filter { tx in
                 tx.date >= current && tx.date < nextDate
             }
@@ -264,12 +263,15 @@ class FinanceAnalysisState: ObservableObject {
                 .filter { $0.transactionType == .income }
                 .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
 
+            runningBalance += income - expense
+
             points.append(ChartDataPoint(
                 date: current,
                 label: label,
                 expense: expense,
                 income: income,
-                transactionCount: periodTxns.count
+                transactionCount: periodTxns.count,
+                balance: runningBalance
             ))
 
             current = nextDate

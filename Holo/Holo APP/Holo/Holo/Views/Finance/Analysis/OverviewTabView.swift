@@ -15,14 +15,32 @@ struct OverviewTabView: View {
     @ObservedObject var state: FinanceAnalysisState
     var onCategoryTap: ((Category) -> Void)? = nil
 
+    /// 计算余额坐标缩放（将余额映射到收支 Y 轴范围）
+    private var balanceScale: BalanceChartScale? {
+        let points = state.chartDataPoints
+        guard !points.isEmpty else { return nil }
+        let amountValues = points.flatMap { [
+            Double(truncating: $0.expense as NSDecimalNumber),
+            Double(truncating: $0.income as NSDecimalNumber)
+        ] }
+        let balanceValues = points.map {
+            Double(truncating: $0.balance as NSDecimalNumber)
+        }
+        return BalanceChartScale(amountValues: amountValues, balanceValues: balanceValues)
+    }
+
     var body: some View {
-        ScrollView {
+        ScrollView(showsIndicators: false) {
             VStack(spacing: HoloSpacing.lg) {
                 // 周期汇总卡片
                 periodSummaryCard
 
-                // 柱状图
-                BarChartView(dataPoints: state.chartDataPoints)
+                // 柱状图（含余额折线，双 Y 轴）
+                BarChartView(
+                    dataPoints: state.chartDataPoints,
+                    showBalance: true,
+                    balanceScale: balanceScale
+                )
 
                 // TOP3 分类
                 HStack(spacing: HoloSpacing.md) {

@@ -117,12 +117,84 @@ struct ChartDataPoint: Identifiable {
     let expense: Decimal
     let income: Decimal
     let transactionCount: Int
+    var balance: Decimal = 0    // 累计余额（净收入累计值）
 
     /// 净收入（收入 - 支出）
     var netIncome: Decimal { income - expense }
 
     /// 是否有交易
     var hasTransactions: Bool { transactionCount > 0 }
+}
+
+// MARK: - 图表触摸命中
+
+/// Swift Charts 的坐标读取以 plot area 为基准，触摸点也必须先换算到同一坐标系。
+struct ChartTouchSelection {
+    static func nearestPointIndex(
+        touchXInPlot: CGFloat,
+        plotWidth: CGFloat,
+        pointXPositions: [CGFloat]
+    ) -> Int? {
+        guard plotWidth > 0, !pointXPositions.isEmpty else { return nil }
+
+        let maxSnapDistance = plotWidth / CGFloat(pointXPositions.count) * 0.6
+        var closestIndex: Int?
+        var closestDistance = CGFloat.infinity
+
+        for (index, pointX) in pointXPositions.enumerated() {
+            let distance = abs(touchXInPlot - pointX)
+            if distance < closestDistance {
+                closestDistance = distance
+                closestIndex = index
+            }
+        }
+
+        guard closestDistance <= maxSnapDistance else { return nil }
+        return closestIndex
+    }
+}
+
+// MARK: - 余额趋势坐标缩放
+
+/// 将余额趋势映射到收入/支出金额轴，供单个图表叠加展示双刻度使用。
+struct BalanceChartScale {
+    let amountAxisMin: Double
+    let amountAxisMax: Double
+    let balanceAxisMin: Double
+    let balanceAxisMax: Double
+
+    init(amountValues: [Double], balanceValues: [Double]) {
+        let maxAmount = amountValues.map(abs).max() ?? 0
+        amountAxisMin = 0
+        amountAxisMax = max(maxAmount * 1.15, 1)
+
+        let minBalance = balanceValues.min() ?? 0
+        let maxBalance = balanceValues.max() ?? 0
+
+        if minBalance == maxBalance {
+            balanceAxisMin = min(0, minBalance)
+            balanceAxisMax = max(1, maxBalance)
+        } else {
+            balanceAxisMin = minBalance
+            balanceAxisMax = maxBalance
+        }
+    }
+
+    func scaledBalance(_ balance: Double) -> Double {
+        let balanceRange = balanceAxisMax - balanceAxisMin
+        guard balanceRange > 0 else { return amountAxisMin }
+
+        let normalized = (balance - balanceAxisMin) / balanceRange
+        return amountAxisMin + normalized * (amountAxisMax - amountAxisMin)
+    }
+
+    func balanceValue(forScaledAmount scaledAmount: Double) -> Double {
+        let amountRange = amountAxisMax - amountAxisMin
+        guard amountRange > 0 else { return balanceAxisMin }
+
+        let normalized = (scaledAmount - amountAxisMin) / amountRange
+        return balanceAxisMin + normalized * (balanceAxisMax - balanceAxisMin)
+    }
 }
 
 // MARK: - 分类聚合
