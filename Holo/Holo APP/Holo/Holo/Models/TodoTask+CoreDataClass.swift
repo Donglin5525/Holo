@@ -48,6 +48,7 @@ class TodoTask: NSManagedObject, @unchecked Sendable {
     @NSManaged var list: TodoList?
     @NSManaged var tags: NSSet?
     @NSManaged var checkItems: NSSet?
+    @NSManaged var attachments: NSSet?
     @NSManaged var repeatRule: RepeatRule?
 }
 
@@ -77,4 +78,16 @@ extension TodoTask {
 
     @objc(removeCheckItems:)
     @NSManaged func removeCheckItems(_ values: Set<CheckItem>)
+
+    @objc(addAttachmentsObject:)
+    @NSManaged func addAttachments(_ value: TaskAttachment)
+
+    @objc(removeAttachmentsObject:)
+    @NSManaged func removeFromAttachments(_ value: TaskAttachment)
+
+    @objc(addAttachments:)
+    @NSManaged func addAttachments(_ values: Set<TaskAttachment>)
+
+    @objc(removeAttachments:)
+    @NSManaged func removeFromAttachments(_ values: Set<TaskAttachment>)
 }

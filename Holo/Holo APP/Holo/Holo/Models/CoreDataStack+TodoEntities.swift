@@ -11,7 +11,7 @@ extension CoreDataStack {
 
     // MARK: - Todo Entities
 
-    /// 创建待办相关实体（TodoFolder, TodoList, TodoTask, TodoTag, CheckItem, RepeatRule）
+    /// 创建待办相关实体（TodoFolder, TodoList, TodoTask, TodoTag, CheckItem, RepeatRule, TaskAttachment）
     nonisolated func createTodoEntities() -> [NSEntityDescription] {
         // MARK: - TodoFolder Entity
         // 待办文件夹实体，顶层容器
@@ -420,6 +420,53 @@ extension CoreDataStack {
         ruleCreatedAt.isOptional = false
         repeatRuleAttributes.append(ruleCreatedAt)
 
+        // MARK: - TaskAttachment Entity
+        // 任务附件实体（图片文件引用）
+        let taskAttachmentEntity = NSEntityDescription()
+        taskAttachmentEntity.name = "TaskAttachment"
+        taskAttachmentEntity.managedObjectClassName = "TaskAttachment"
+
+        var taskAttachmentAttributes: [NSAttributeDescription] = []
+
+        let attachmentId = NSAttributeDescription()
+        attachmentId.name = "id"
+        attachmentId.attributeType = .UUIDAttributeType
+        attachmentId.isOptional = false
+        attachmentId.isIndexed = true
+        taskAttachmentAttributes.append(attachmentId)
+
+        let attachmentFileName = NSAttributeDescription()
+        attachmentFileName.name = "fileName"
+        attachmentFileName.attributeType = .stringAttributeType
+        attachmentFileName.isOptional = false
+        taskAttachmentAttributes.append(attachmentFileName)
+
+        let attachmentThumbnailFileName = NSAttributeDescription()
+        attachmentThumbnailFileName.name = "thumbnailFileName"
+        attachmentThumbnailFileName.attributeType = .stringAttributeType
+        attachmentThumbnailFileName.isOptional = false
+        taskAttachmentAttributes.append(attachmentThumbnailFileName)
+
+        let attachmentSortOrder = NSAttributeDescription()
+        attachmentSortOrder.name = "sortOrder"
+        attachmentSortOrder.attributeType = .integer16AttributeType
+        attachmentSortOrder.isOptional = false
+        attachmentSortOrder.defaultValue = 0
+        taskAttachmentAttributes.append(attachmentSortOrder)
+
+        let attachmentSourceType = NSAttributeDescription()
+        attachmentSourceType.name = "sourceType"
+        attachmentSourceType.attributeType = .stringAttributeType
+        attachmentSourceType.isOptional = false
+        attachmentSourceType.defaultValue = "photoLibrary"
+        taskAttachmentAttributes.append(attachmentSourceType)
+
+        let attachmentCreatedAt = NSAttributeDescription()
+        attachmentCreatedAt.name = "createdAt"
+        attachmentCreatedAt.attributeType = .dateAttributeType
+        attachmentCreatedAt.isOptional = false
+        taskAttachmentAttributes.append(attachmentCreatedAt)
+
         // MARK: - Todo Entity Relationships
 
         // TodoFolder ↔ TodoList 关系
@@ -522,15 +569,36 @@ extension CoreDataStack {
         taskRepeatRuleRelation.inverseRelationship = ruleTaskRelation
         ruleTaskRelation.inverseRelationship = taskRepeatRuleRelation
 
+        // TodoTask ↔ TaskAttachment 关系（一对多）
+        let taskAttachmentsRelation = NSRelationshipDescription()
+        taskAttachmentsRelation.name = "attachments"
+        taskAttachmentsRelation.destinationEntity = taskAttachmentEntity
+        taskAttachmentsRelation.minCount = 0
+        taskAttachmentsRelation.maxCount = 0
+        taskAttachmentsRelation.deleteRule = .cascadeDeleteRule
+        taskAttachmentsRelation.isOptional = true
+
+        let attachmentTaskRelation = NSRelationshipDescription()
+        attachmentTaskRelation.name = "task"
+        attachmentTaskRelation.destinationEntity = todoTaskEntity
+        attachmentTaskRelation.minCount = 1
+        attachmentTaskRelation.maxCount = 1
+        attachmentTaskRelation.deleteRule = .nullifyDeleteRule
+        attachmentTaskRelation.isOptional = false
+
+        taskAttachmentsRelation.inverseRelationship = attachmentTaskRelation
+        attachmentTaskRelation.inverseRelationship = taskAttachmentsRelation
+
         // 将关系添加到实体
         todoFolderEntity.properties = todoFolderAttributes + [folderListsRelation]
         todoListEntity.properties = todoListAttributes + [listFolderRelation, listTasksRelation]
-        todoTaskEntity.properties = todoTaskAttributes + [taskListRelation, taskTagsRelation, taskCheckItemsRelation, taskRepeatRuleRelation]
+        todoTaskEntity.properties = todoTaskAttributes + [taskListRelation, taskTagsRelation, taskCheckItemsRelation, taskAttachmentsRelation, taskRepeatRuleRelation]
         todoTagEntity.properties = todoTagAttributes + [tagTasksRelation]
         checkItemEntity.properties = checkItemAttributes + [checkItemTaskRelation]
         repeatRuleEntity.properties = repeatRuleAttributes + [ruleTaskRelation]
+        taskAttachmentEntity.properties = taskAttachmentAttributes + [attachmentTaskRelation]
 
-        return [todoFolderEntity, todoListEntity, todoTaskEntity, todoTagEntity, checkItemEntity, repeatRuleEntity]
+        return [todoFolderEntity, todoListEntity, todoTaskEntity, todoTagEntity, checkItemEntity, repeatRuleEntity, taskAttachmentEntity]
     }
 
 }

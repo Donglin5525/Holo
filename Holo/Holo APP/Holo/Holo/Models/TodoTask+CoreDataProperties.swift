@@ -116,6 +116,13 @@ extension TodoTask {
         return Double(completedCount) / Double(checkItemsArray.count)
     }
 
+    /// 按排序获取附件列表（排除已删除的对象）
+    var sortedAttachments: [TaskAttachment] {
+        (attachments?.allObjects as? [TaskAttachment] ?? [])
+            .filter { !$0.isDeleted }
+            .sorted { $0.sortOrder < $1.sortOrder }
+    }
+
     // MARK: - Reminder Convenience Properties
 
     /// 提醒集合（便捷访问）

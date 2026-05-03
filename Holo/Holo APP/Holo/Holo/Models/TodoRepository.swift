@@ -165,8 +165,10 @@ class TodoRepository: ObservableObject {
 
     /// 删除文件夹（级联删除所有清单和任务）
     func deleteFolder(_ folder: TodoFolder) throws {
+        let taskIds = collectTaskIdsInFolder(folder)
         context.delete(folder)
         try context.save()
+        AttachmentFileManager.deleteAttachmentDirectories(for: taskIds)
         loadFolders()
         notifyDataChange()
     }
@@ -237,8 +239,10 @@ class TodoRepository: ObservableObject {
 
     /// 删除清单（级联删除所有任务）
     func deleteList(_ list: TodoList) throws {
+        let taskIds = collectTaskIdsInList(list)
         context.delete(list)
         try context.save()
+        AttachmentFileManager.deleteAttachmentDirectories(for: taskIds)
         loadFolders()
         notifyDataChange()
     }
@@ -463,6 +467,7 @@ class TodoRepository: ObservableObject {
     /// 永久删除任务
     func permanentlyDeleteTask(_ task: TodoTask) throws {
         let taskId = task.id
+        deleteAllAttachmentFiles(for: task)
         context.delete(task)
         try context.save()
         loadActiveTasks()
@@ -773,10 +778,12 @@ class TodoRepository: ObservableObject {
     /// 清空回收站（永久删除所有已删除任务）
     func clearTrash() throws {
         let trashed = getTrashedTasks()
+        let taskIds = trashed.map { $0.id }
         for task in trashed {
             context.delete(task)
         }
         try context.save()
+        AttachmentFileManager.deleteAttachmentDirectories(for: taskIds)
         loadTrashedTasks()
         notifyDataChange()
     }
@@ -790,6 +797,19 @@ class TodoRepository: ObservableObject {
             name: .todoDataDidChange,
             object: taskId
         )
+    }
+
+    // MARK: - Attachment Helpers
+
+    /// 收集清单内所有任务的 ID（用于 deleteList 前收集附件目录）
+    private func collectTaskIdsInList(_ list: TodoList) -> [UUID] {
+        (list.tasks?.allObjects as? [TodoTask] ?? []).map { $0.id }
+    }
+
+    /// 收集文件夹内所有任务的 ID（用于 deleteFolder 前收集附件目录）
+    private func collectTaskIdsInFolder(_ folder: TodoFolder) -> [UUID] {
+        let lists = folder.lists?.allObjects as? [TodoList] ?? []
+        return lists.flatMap { collectTaskIdsInList($0) }
     }
 }
 

@@ -128,6 +128,16 @@ struct TaskCardView: View {
                                 .font(.holoTinyLabel)
                                 .foregroundColor(.holoTextSecondary)
                             }
+
+                            // 附件指示器
+                            if let count = task.attachments?.count, count > 0 {
+                                Label(
+                                    "\(count)",
+                                    systemImage: "paperclip"
+                                )
+                                .font(.holoTinyLabel)
+                                .foregroundColor(.holoTextSecondary)
+                            }
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)

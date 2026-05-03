@@ -7,6 +7,8 @@
 //
 
 import SwiftUI
+import PhotosUI
+import AVFoundation
 import OSLog
 
 struct AddTaskSheet: View {
@@ -79,6 +81,16 @@ struct AddTaskSheet: View {
     // 记忆上次选择的清单
     @AppStorage("lastSelectedListId") private var lastSelectedListId: String?
 
+    // 附件相关
+    @State private var pendingImages: [UIImage] = []
+    @State private var showAttachmentGallery = false
+    @State private var galleryStartIndex = 0
+    @State private var showAttachmentSourceChoice = false
+    @State private var showAttachmentCamera = false
+    @State private var showAttachmentPhotoPicker = false
+    @State private var selectedAttachmentPhotos: [PhotosPickerItem] = []
+    @State private var attachmentsRevision = 0
+
     private static let logger = Logger(subsystem: "com.holo.app", category: "AddTaskSheet")
 
     init(repository: TodoRepository, list: TodoList? = nil, task: TodoTask? = nil) {
@@ -139,6 +151,9 @@ struct AddTaskSheet: View {
                             // 检查清单
                             checklistSection
 
+                            // 附件
+                            attachmentSection
+
                             // 属性与清单
                             metadataSection
 
@@ -186,6 +201,32 @@ struct AddTaskSheet: View {
         }
         .sheet(isPresented: $showRepeatSheet) {
             repeatSheet
+        }
+        .fullScreenCover(isPresented: $showAttachmentGallery) {
+            if let task = existingTask {
+                AttachmentGalleryView(
+                    attachments: task.sortedAttachments,
+                    startIndex: galleryStartIndex,
+                    taskId: task.id
+                )
+            }
+        }
+        .photosPicker(
+            isPresented: $showAttachmentPhotoPicker,
+            selection: $selectedAttachmentPhotos,
+            maxSelectionCount: existingTask != nil ? max(0, 9 - (existingTask?.sortedAttachments.count ?? 0)) : max(0, 9 - pendingImages.count),
+            matching: .images
+        )
+        .onChange(of: selectedAttachmentPhotos) { _, newItems in
+            loadAttachmentPhotos(newItems)
+        }
+        .fullScreenCover(isPresented: $showAttachmentCamera) {
+            CameraView(onCapture: { image in
+                handleCapturedImage(image)
+                showAttachmentCamera = false
+            }, onDismiss: {
+                showAttachmentCamera = false
+            })
         }
         .swipeBackToDismiss {
             if hasUnsavedChanges {
@@ -901,6 +942,179 @@ struct AddTaskSheet: View {
         }
     }
 
+    // MARK: - 附件
+
+    private var attachmentSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("附件（可选）")
+                .font(.holoLabel)
+                .foregroundColor(.holoTextSecondary)
+
+            VStack(spacing: 0) {
+                if let task = existingTask {
+                    existingTaskAttachmentGrid(task)
+                } else {
+                    newTaskAttachmentGrid
+                }
+            }
+            .padding()
+            .background(Color.holoCardBackground)
+            .cornerRadius(HoloRadius.lg)
+        }
+        .confirmationDialog("添加附件", isPresented: $showAttachmentSourceChoice) {
+            Button("拍照") {
+                requestCameraAccess()
+            }
+            Button("从相册选择") {
+                showAttachmentPhotoPicker = true
+            }
+            Button("取消", role: .cancel) {}
+        }
+    }
+
+    @ViewBuilder
+    private func existingTaskAttachmentGrid(_ task: TodoTask) -> some View {
+        let _ = attachmentsRevision
+        let attachments = task.sortedAttachments
+        let remaining = 9 - attachments.count
+
+        TaskAttachmentGrid(
+            attachments: attachments,
+            taskId: task.id,
+            maxCount: 9,
+            onAdd: { showAttachmentSourceChoice = true },
+            onDelete: { attachment in
+                do {
+                    try repository.deleteAttachment(attachment)
+                    attachmentsRevision += 1
+                } catch {
+                    Self.logger.error("删除附件失败：\(error.localizedDescription)")
+                }
+            },
+            onTap: { index in
+                galleryStartIndex = index
+                showAttachmentGallery = true
+            }
+        )
+    }
+
+    private var newTaskAttachmentGrid: some View {
+        VStack(spacing: 8) {
+            if !pendingImages.isEmpty {
+                LazyVGrid(columns: [
+                    GridItem(.flexible(), spacing: 8),
+                    GridItem(.flexible(), spacing: 8),
+                    GridItem(.flexible(), spacing: 8)
+                ], spacing: 8) {
+                    ForEach(Array(pendingImages.enumerated()), id: \.offset) { index, image in
+                        Image(uiImage: image)
+                            .resizable()
+                            .aspectRatio(contentMode: .fill)
+                            .frame(maxWidth: .infinity)
+                            .aspectRatio(1, contentMode: .fit)
+                            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
+                            .overlay(alignment: .topTrailing) {
+                                Button {
+                                    pendingImages.remove(at: index)
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 20))
+                                        .foregroundColor(.white)
+                                        .shadow(color: .black.opacity(0.3), radius: 2)
+                                }
+                                .padding(4)
+                            }
+                    }
+
+                    if pendingImages.count < 9 {
+                        addAttachmentButton
+                    }
+                }
+            } else {
+                addAttachmentButton
+            }
+        }
+    }
+
+    private var addAttachmentButton: some View {
+        Button {
+            showAttachmentSourceChoice = true
+        } label: {
+            HStack {
+                Image(systemName: "paperclip")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.holoTextSecondary)
+
+                Text("添加附件")
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextPlaceholder)
+
+                Spacer()
+            }
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    // MARK: - 附件辅助方法
+
+    private func requestCameraAccess() {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            showAttachmentCamera = true
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async {
+                    if granted {
+                        showAttachmentCamera = true
+                    }
+                }
+            }
+        default:
+            break
+        }
+    }
+
+    private func handleCapturedImage(_ image: UIImage) {
+        if let task = existingTask {
+            do {
+                try repository.addAttachment(image: image, to: task)
+                attachmentsRevision += 1
+            } catch {
+                Self.logger.error("添加附件失败：\(error.localizedDescription)")
+            }
+        } else {
+            pendingImages.append(image)
+        }
+    }
+
+    private func loadAttachmentPhotos(_ items: [PhotosPickerItem]) {
+        guard !items.isEmpty else { return }
+        Task {
+            var images: [UIImage] = []
+            for item in items {
+                if let data = try? await item.loadTransferable(type: Data.self),
+                   let image = UIImage(data: data) {
+                    images.append(image)
+                }
+            }
+            selectedAttachmentPhotos = []
+            guard !images.isEmpty else { return }
+
+            if let task = existingTask {
+                for image in images {
+                    do {
+                        try repository.addAttachment(image: image, to: task)
+                    } catch {
+                        Self.logger.error("添加附件失败：\(error.localizedDescription)")
+                    }
+                }
+                attachmentsRevision += 1
+            } else {
+                pendingImages.append(contentsOf: images)
+            }
+        }
+    }
+
     // MARK: - 清单选择器 Sheet
 
     private var listPickerSheet: some View {
@@ -1446,6 +1660,11 @@ struct AddTaskSheet: View {
                     // 创建暂存的检查项
                     for (index, itemTitle) in pendingCheckItems.enumerated() {
                         _ = try repository.addCheckItem(title: itemTitle, to: newTask, order: Int16(index))
+                    }
+
+                    // 保存暂存的附件图片
+                    for image in pendingImages {
+                        try repository.addAttachment(image: image, to: newTask)
                     }
 
                     // 创建重复规则

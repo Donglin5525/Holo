@@ -9,11 +9,13 @@
 
 import SwiftUI
 import CoreData
+import PhotosUI
+import AVFoundation
 import OSLog
 
 struct TaskDetailView: View {
     @ObservedObject var repository: TodoRepository
-    @State var task: TodoTask
+    @ObservedObject var task: TodoTask
     @Environment(\.dismiss) var dismiss
 
     @State private var showingDeleteAlert = false
@@ -30,6 +32,14 @@ struct TaskDetailView: View {
     @State private var editedDescription = ""
     @State private var isDescriptionExpanded = false
     @State private var newCheckItemTitle = ""
+
+    // 附件相关
+    @State private var showAttachmentGallery = false
+    @State private var galleryStartIndex = 0
+    @State private var showAttachmentSourceChoice = false
+    @State private var showAttachmentCamera = false
+    @State private var showAttachmentPhotoPicker = false
+    @State private var selectedAttachmentPhotos: [PhotosPickerItem] = []
 
     private static let logger = Logger(subsystem: "com.holo.app", category: "TaskDetailView")
 
@@ -53,6 +63,9 @@ struct TaskDetailView: View {
 
                     // 检查清单卡片（内联）
                     checklistCard
+
+                    // 附件卡片
+                    attachmentCard
 
                     // 标签卡片
                     tagCard
@@ -82,6 +95,47 @@ struct TaskDetailView: View {
             }
             .sheet(isPresented: $showingTagPicker) {
                 tagPickerSheet
+            }
+            .fullScreenCover(isPresented: $showAttachmentGallery) {
+                AttachmentGalleryView(
+                    attachments: task.sortedAttachments,
+                    startIndex: galleryStartIndex,
+                    taskId: task.id
+                )
+            }
+            .photosPicker(
+                isPresented: $showAttachmentPhotoPicker,
+                selection: $selectedAttachmentPhotos,
+                maxSelectionCount: max(0, 9 - task.sortedAttachments.count),
+                matching: .images
+            )
+            .onChange(of: selectedAttachmentPhotos) { _, newItems in
+                guard !newItems.isEmpty else { return }
+                Task {
+                    for item in newItems {
+                        if let data = try? await item.loadTransferable(type: Data.self),
+                           let image = UIImage(data: data) {
+                            do {
+                                try repository.addAttachment(image: image, to: task)
+                            } catch {
+                                Self.logger.error("添加附件失败：\(error.localizedDescription)")
+                            }
+                        }
+                    }
+                    selectedAttachmentPhotos = []
+                }
+            }
+            .fullScreenCover(isPresented: $showAttachmentCamera) {
+                CameraView(onCapture: { image in
+                    do {
+                        try repository.addAttachment(image: image, to: task)
+                    } catch {
+                        Self.logger.error("添加附件失败：\(error.localizedDescription)")
+                    }
+                    showAttachmentCamera = false
+                }, onDismiss: {
+                    showAttachmentCamera = false
+                })
             }
             .alert("删除任务", isPresented: $showingDeleteAlert) {
                 Button("取消", role: .cancel) {}
@@ -578,6 +632,87 @@ struct TaskDetailView: View {
         .cornerRadius(HoloRadius.lg)
     }
 
+    // MARK: - 附件卡片
+
+    private var attachmentCard: some View {
+        let attachments = task.sortedAttachments
+
+        return VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            HStack {
+                Image(systemName: "paperclip")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.holoTextSecondary)
+
+                Text("附件")
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextPrimary)
+
+                if !attachments.isEmpty {
+                    Text("\(attachments.count)")
+                        .font(.holoCaption)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.holoPrimary)
+                        .clipShape(Capsule())
+                }
+
+                Spacer()
+
+                if attachments.count < 9 {
+                    Button {
+                        showAttachmentSourceChoice = true
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.holoPrimary)
+                    }
+                }
+            }
+
+            TaskAttachmentGrid(
+                attachments: attachments,
+                taskId: task.id,
+                maxCount: 9,
+                onAdd: { showAttachmentSourceChoice = true },
+                onDelete: { attachment in
+                    do {
+                        try repository.deleteAttachment(attachment)
+                    } catch {
+                        Self.logger.error("删除附件失败：\(error.localizedDescription)")
+                    }
+                },
+                onTap: { index in
+                    galleryStartIndex = index
+                    showAttachmentGallery = true
+                }
+            )
+        }
+        .padding()
+        .background(Color.holoCardBackground)
+        .cornerRadius(HoloRadius.lg)
+        .confirmationDialog("添加附件", isPresented: $showAttachmentSourceChoice) {
+            Button("拍照") {
+                switch AVCaptureDevice.authorizationStatus(for: .video) {
+                case .authorized:
+                    showAttachmentCamera = true
+                case .notDetermined:
+                    AVCaptureDevice.requestAccess(for: .video) { granted in
+                        DispatchQueue.main.async {
+                            if granted { showAttachmentCamera = true }
+                        }
+                    }
+                default:
+                    break
+                }
+            }
+            Button("从相册选择") {
+                showAttachmentPhotoPicker = true
+            }
+            Button("取消", role: .cancel) {}
+        }
+    }
+
     // MARK: - 标签卡片
 
     private var tagCard: some View {
@@ -737,13 +872,12 @@ struct TaskDetailView: View {
                 // 重复任务完成时，生成下一个实例
                 let generated = try repository.completeRepeatingTask(task)
                 if generated {
-                    // 刷新本地 task 状态
-                    task = repository.findTask(by: task.id) ?? task
+                    // 刷新 task 的属性（@ObservedObject 会自动检测变更）
+                    repository.context.refresh(task, mergeChanges: true)
                 }
             } else {
                 // 普通任务直接切换完成状态
                 let isCompleted = try repository.toggleTaskCompletion(task)
-                // 更新本地状态
                 task.completed = isCompleted
                 task.completedAt = isCompleted ? Date() : nil
             }
