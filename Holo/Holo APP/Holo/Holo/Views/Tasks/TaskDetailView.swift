@@ -40,6 +40,7 @@ struct TaskDetailView: View {
     @State private var showAttachmentCamera = false
     @State private var showAttachmentPhotoPicker = false
     @State private var selectedAttachmentPhotos: [PhotosPickerItem] = []
+    @State private var pendingCameraImage: UIImage?
 
     private static let logger = Logger(subsystem: "com.holo.app", category: "TaskDetailView")
 
@@ -113,10 +114,9 @@ struct TaskDetailView: View {
                 guard !newItems.isEmpty else { return }
                 Task {
                     for item in newItems {
-                        if let data = try? await item.loadTransferable(type: Data.self),
-                           let image = UIImage(data: data) {
+                        if let data = try? await item.loadTransferable(type: Data.self) {
                             do {
-                                try repository.addAttachment(image: image, to: task)
+                                try await repository.addAttachment(imageData: data, to: task)
                             } catch {
                                 Self.logger.error("添加附件失败：\(error.localizedDescription)")
                             }
@@ -127,15 +127,22 @@ struct TaskDetailView: View {
             }
             .fullScreenCover(isPresented: $showAttachmentCamera) {
                 CameraView(onCapture: { image in
-                    do {
-                        try repository.addAttachment(image: image, to: task)
-                    } catch {
-                        Self.logger.error("添加附件失败：\(error.localizedDescription)")
-                    }
+                    pendingCameraImage = image
                     showAttachmentCamera = false
                 }, onDismiss: {
                     showAttachmentCamera = false
                 })
+            }
+            .onChange(of: pendingCameraImage) { _, newValue in
+                guard let image = newValue else { return }
+                pendingCameraImage = nil
+                Task {
+                    do {
+                        try await repository.addAttachment(image: image, to: task, sourceType: "camera")
+                    } catch {
+                        Self.logger.error("添加附件失败：\(error.localizedDescription)")
+                    }
+                }
             }
             .alert("删除任务", isPresented: $showingDeleteAlert) {
                 Button("取消", role: .cancel) {}
@@ -636,6 +643,9 @@ struct TaskDetailView: View {
 
     private var attachmentCard: some View {
         let attachments = task.sortedAttachments
+        let attachmentItems = attachments.map {
+            TaskAttachmentGridItem(id: $0.id, objectID: $0.objectID, thumbnailFileName: $0.thumbnailFileName)
+        }
 
         return VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             HStack {
@@ -671,13 +681,13 @@ struct TaskDetailView: View {
             }
 
             TaskAttachmentGrid(
-                attachments: attachments,
+                attachments: attachmentItems,
                 taskId: task.id,
                 maxCount: 9,
                 onAdd: { showAttachmentSourceChoice = true },
-                onDelete: { attachment in
+                onDelete: { attachmentID in
                     do {
-                        try repository.deleteAttachment(attachment)
+                        try repository.deleteAttachment(with: attachmentID)
                     } catch {
                         Self.logger.error("删除附件失败：\(error.localizedDescription)")
                     }

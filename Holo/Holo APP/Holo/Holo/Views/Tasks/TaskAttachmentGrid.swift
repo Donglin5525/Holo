@@ -6,13 +6,20 @@
 //
 
 import SwiftUI
+import CoreData
+
+struct TaskAttachmentGridItem: Identifiable {
+    let id: UUID
+    let objectID: NSManagedObjectID
+    let thumbnailFileName: String
+}
 
 struct TaskAttachmentGrid: View {
-    let attachments: [TaskAttachment]
+    let attachments: [TaskAttachmentGridItem]
     let taskId: UUID
     let maxCount: Int
     let onAdd: () -> Void
-    let onDelete: (TaskAttachment) -> Void
+    let onDelete: (NSManagedObjectID) -> Void
     let onTap: (Int) -> Void
 
     @State private var isEditing = false
@@ -62,7 +69,7 @@ struct TaskAttachmentGrid: View {
     // MARK: - 缩略图卡片
 
     @ViewBuilder
-    private func thumbnailCell(_ attachment: TaskAttachment) -> some View {
+    private func thumbnailCell(_ attachment: TaskAttachmentGridItem) -> some View {
         let index = attachments.firstIndex(where: { $0.id == attachment.id }) ?? 0
 
         AttachmentThumbnailView(fileName: attachment.thumbnailFileName, taskId: taskId)
@@ -74,7 +81,7 @@ struct TaskAttachmentGrid: View {
             .contentShape(Rectangle())
             .onTapGesture {
                 if isEditing {
-                    onDelete(attachment)
+                    onDelete(attachment.objectID)
                 } else {
                     onTap(index)
                 }
@@ -88,9 +95,9 @@ struct TaskAttachmentGrid: View {
 
     // MARK: - 删除按钮
 
-    private func deleteButton(_ attachment: TaskAttachment) -> some View {
+    private func deleteButton(_ attachment: TaskAttachmentGridItem) -> some View {
         Button {
-            onDelete(attachment)
+            onDelete(attachment.objectID)
         } label: {
             Image(systemName: "xmark.circle.fill")
                 .font(.system(size: 20))

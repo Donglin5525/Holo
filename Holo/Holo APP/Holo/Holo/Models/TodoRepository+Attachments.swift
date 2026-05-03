@@ -17,11 +17,39 @@ extension TodoRepository {
 
     /// 为任务添加图片附件
     @discardableResult
-    func addAttachment(image: UIImage, to task: TodoTask, sourceType: String = "photoLibrary") throws -> TaskAttachment {
+    func addAttachment(image: UIImage, to task: TodoTask, sourceType: String = "photoLibrary") async throws -> TaskAttachment {
         let attachmentId = UUID()
         let taskId = task.id
 
-        guard let result = AttachmentFileManager.saveImage(image, taskId: taskId, attachmentId: attachmentId) else {
+        guard let result = await AttachmentFileManager.saveImageInBackground(image, taskId: taskId, attachmentId: attachmentId) else {
+            Self.attachmentLogger.error("保存附件图片失败, taskId: \(taskId.uuidString)")
+            throw AttachmentError.saveFailed
+        }
+
+        let order = Int16(task.sortedAttachments.count)
+        let attachment = TaskAttachment.create(
+            in: context,
+            fileName: result.fileName,
+            thumbnailFileName: result.thumbnailFileName,
+            task: task,
+            order: order,
+            sourceType: sourceType
+        )
+
+        task.updatedAt = Date()
+        try context.save()
+        loadActiveTasks()
+        notifyDataChange(taskId: task.id)
+        return attachment
+    }
+
+    /// 为任务添加相册图片附件。视图层只传原始 Data，解码/压缩/写文件全部后台执行。
+    @discardableResult
+    func addAttachment(imageData: Data, to task: TodoTask, sourceType: String = "photoLibrary") async throws -> TaskAttachment {
+        let attachmentId = UUID()
+        let taskId = task.id
+
+        guard let result = await AttachmentFileManager.saveImageDataInBackground(imageData, taskId: taskId, attachmentId: attachmentId) else {
             Self.attachmentLogger.error("保存附件图片失败, taskId: \(taskId.uuidString)")
             throw AttachmentError.saveFailed
         }
@@ -47,19 +75,26 @@ extension TodoRepository {
 
     /// 删除单个附件
     func deleteAttachment(_ attachment: TaskAttachment) throws {
-        guard let task = attachment.task else { return }
-        let taskId = task.id
+        try deleteAttachment(with: attachment.objectID)
+    }
 
-        AttachmentFileManager.deleteAttachmentFiles(
-            fileName: attachment.fileName,
-            thumbnailFileName: attachment.thumbnailFileName,
-            taskId: taskId
-        )
+    /// 通过稳定 objectID 删除附件，避免视图层持有已删除的 Core Data 对象。
+    func deleteAttachment(with attachmentID: NSManagedObjectID) throws {
+        guard let attachment = try context.existingObject(with: attachmentID) as? TaskAttachment,
+              let task = attachment.task else { return }
+        let taskId = task.id
+        let fileName = attachment.fileName
+        let thumbnailFileName = attachment.thumbnailFileName
 
         context.delete(attachment)
         reorderRemainingAttachments(in: task)
         task.updatedAt = Date()
         try context.save()
+        AttachmentFileManager.deleteAttachmentFiles(
+            fileName: fileName,
+            thumbnailFileName: thumbnailFileName,
+            taskId: taskId
+        )
         loadActiveTasks()
         notifyDataChange(taskId: task.id)
     }

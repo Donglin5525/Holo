@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import CoreData
 import PhotosUI
 import AVFoundation
 import OSLog
@@ -222,8 +223,8 @@ struct AddTaskSheet: View {
         }
         .fullScreenCover(isPresented: $showAttachmentCamera) {
             CameraView(onCapture: { image in
-                handleCapturedImage(image)
                 showAttachmentCamera = false
+                handleCapturedImage(image)
             }, onDismiss: {
                 showAttachmentCamera = false
             })
@@ -976,16 +977,18 @@ struct AddTaskSheet: View {
     private func existingTaskAttachmentGrid(_ task: TodoTask) -> some View {
         let _ = attachmentsRevision
         let attachments = task.sortedAttachments
-        let remaining = 9 - attachments.count
+        let attachmentItems = attachments.map {
+            TaskAttachmentGridItem(id: $0.id, objectID: $0.objectID, thumbnailFileName: $0.thumbnailFileName)
+        }
 
         TaskAttachmentGrid(
-            attachments: attachments,
+            attachments: attachmentItems,
             taskId: task.id,
             maxCount: 9,
             onAdd: { showAttachmentSourceChoice = true },
-            onDelete: { attachment in
+            onDelete: { attachmentID in
                 do {
-                    try repository.deleteAttachment(attachment)
+                    try repository.deleteAttachment(with: attachmentID)
                     attachmentsRevision += 1
                 } catch {
                     Self.logger.error("删除附件失败：\(error.localizedDescription)")
@@ -1076,40 +1079,47 @@ struct AddTaskSheet: View {
 
     private func handleCapturedImage(_ image: UIImage) {
         if let task = existingTask {
-            do {
-                try repository.addAttachment(image: image, to: task)
-                attachmentsRevision += 1
-            } catch {
-                Self.logger.error("添加附件失败：\(error.localizedDescription)")
+            Task {
+                do {
+                    try await repository.addAttachment(image: image, to: task, sourceType: "camera")
+                    attachmentsRevision += 1
+                } catch {
+                    Self.logger.error("添加附件失败：\(error.localizedDescription)")
+                }
             }
         } else {
-            pendingImages.append(image)
+            Task {
+                if let previewImage = await AttachmentFileManager.previewImageInBackground(image) {
+                    pendingImages.append(previewImage)
+                }
+            }
         }
     }
 
     private func loadAttachmentPhotos(_ items: [PhotosPickerItem]) {
         guard !items.isEmpty else { return }
         Task {
-            var images: [UIImage] = []
-            for item in items {
-                if let data = try? await item.loadTransferable(type: Data.self),
-                   let image = UIImage(data: data) {
-                    images.append(image)
-                }
-            }
             selectedAttachmentPhotos = []
-            guard !images.isEmpty else { return }
 
             if let task = existingTask {
-                for image in images {
+                for item in items {
+                    guard let data = try? await item.loadTransferable(type: Data.self) else { continue }
                     do {
-                        try repository.addAttachment(image: image, to: task)
+                        try await repository.addAttachment(imageData: data, to: task)
                     } catch {
                         Self.logger.error("添加附件失败：\(error.localizedDescription)")
                     }
                 }
                 attachmentsRevision += 1
             } else {
+                var images: [UIImage] = []
+                for item in items {
+                    if let data = try? await item.loadTransferable(type: Data.self),
+                       let image = UIImage(data: data) {
+                        images.append(image)
+                    }
+                }
+                guard !images.isEmpty else { return }
                 pendingImages.append(contentsOf: images)
             }
         }
@@ -1664,7 +1674,7 @@ struct AddTaskSheet: View {
 
                     // 保存暂存的附件图片
                     for image in pendingImages {
-                        try repository.addAttachment(image: image, to: newTask)
+                        try await repository.addAttachment(image: image, to: newTask)
                     }
 
                     // 创建重复规则

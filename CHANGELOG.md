@@ -4,6 +4,20 @@
 
 ---
 
+## [2026-05-04] 任务附件优化 — 后台图片处理 + 删除稳定性修复
+
+### 改进
+- 相册上传改为传原始 Data，解码/压缩/写文件全部后台执行，避免主线程卡死
+- 新增 `AttachmentFileManager.saveImageDataInBackground` 和 `previewImageInBackground` 后台方法
+- 删除附件改用稳定 `NSManagedObjectID`，避免视图层持有已删除 Core Data 对象
+- 附件网格引入 `TaskAttachmentGridItem` 值类型，解耦视图与 Core Data 实体
+- CameraView 移除手动 `picker.dismiss`，由 SwiftUI 统一管理 fullScreenCover dismiss
+
+### 已知问题
+- 拍照添加附件仍会卡死，暂未定位根因，已记录 TODO 待后续排查
+
+---
+
 ## [2026-05-04] 任务附件功能
 
 ### 新增

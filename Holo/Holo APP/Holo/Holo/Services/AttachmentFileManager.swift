@@ -11,6 +11,11 @@ import os.log
 
 enum AttachmentFileManager {
 
+    struct SavedImageFiles: Sendable {
+        let fileName: String
+        let thumbnailFileName: String
+    }
+
     private static let logger = Logger(subsystem: "com.holo.app", category: "AttachmentFileManager")
 
     // MARK: - 目录结构
@@ -71,6 +76,37 @@ enum AttachmentFileManager {
         }
 
         return (fileName, thumbnailFileName)
+    }
+
+    /// 在后台队列保存图片，避免大图压缩和磁盘写入阻塞主线程。
+    static func saveImageInBackground(_ image: UIImage, taskId: UUID, attachmentId: UUID) async -> SavedImageFiles? {
+        await Task.detached(priority: .userInitiated) {
+            guard let result = saveImage(image, taskId: taskId, attachmentId: attachmentId) else {
+                return nil
+            }
+            return SavedImageFiles(fileName: result.fileName, thumbnailFileName: result.thumbnailFileName)
+        }.value
+    }
+
+    /// 在后台队列解码并保存相册图片，避免 PhotosPicker 确认后主线程解码大图。
+    static func saveImageDataInBackground(_ imageData: Data, taskId: UUID, attachmentId: UUID) async -> SavedImageFiles? {
+        await Task.detached(priority: .userInitiated) {
+            guard let image = UIImage(data: imageData),
+                  let result = saveImage(image, taskId: taskId, attachmentId: attachmentId) else {
+                return nil
+            }
+            return SavedImageFiles(fileName: result.fileName, thumbnailFileName: result.thumbnailFileName)
+        }.value
+    }
+
+    /// 生成用于界面预览的轻量图片，避免相机原图直接进入 SwiftUI 网格导致卡顿。
+    static func previewImageInBackground(_ image: UIImage, maxDimension: CGFloat = 1024) async -> UIImage? {
+        await Task.detached(priority: .userInitiated) {
+            guard let data = compressImage(image, maxDimension: maxDimension, quality: 0.75) else {
+                return nil
+            }
+            return UIImage(data: data)
+        }.value
     }
 
     // MARK: - 加载图片
