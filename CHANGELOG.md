@@ -4,6 +4,31 @@
 
 ---
 
+## [2026-05-04] 任务附件功能
+
+### 新增
+- Core Data 新增 TaskAttachment 实体（图片路径、缩略图、排序）
+- AttachmentFileManager 管理图片存储与清理
+- 任务创建/详情页支持添加图片附件
+- 附件缩略图网格展示 + 全屏预览画廊
+- 项目配置新增相机权限描述
+
+---
+
+## [2026-05-04] 修复财务图表手势错位与左侧 Y 轴不显示
+
+### 修复
+- 手势坐标修正：`proxy.position(forX:)` 返回 plot area 局部坐标，触摸点需减 `plotFrame.minX` 后再比较
+- 抽取 `ChartTouchSelection` 工具类统一触摸命中逻辑
+- 左侧 Y 轴改用默认 `AxisValueLabel` 确保标签可见
+- 禁止使用 `proxy.value(atX:)` 查询分类轴（坐标映射不可靠）
+
+### 新增
+- `FinanceChartScaleTests` 测试用例
+- 开发规范第 11 节「Swift Charts 坐标系与触摸交互」
+
+---
+
 ## [2026-05-04] 首页图标改版 — 回归 iOS 原生质感
 
 ### 改进
