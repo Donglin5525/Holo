@@ -250,66 +250,134 @@ struct HomeView: View {
 
     /// 正常的首页内容（数据加载完毕后显示）
     private var homeContent: some View {
-        ZStack {
-            // 装饰元素
-            backgroundDecorations
+        // 主内容
+        VStack(spacing: 0) {
+            // 顶部 Header
+            headerView
+                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.top, HoloSpacing.xxl)
+                .padding(.bottom, HoloSpacing.md)
 
-            // 主内容
-            VStack(spacing: 0) {
-                // 顶部 Header
-                headerView
-                    .padding(.horizontal, HoloSpacing.lg)
-                    .padding(.top, HoloSpacing.xxl)
-                    .padding(.bottom, HoloSpacing.md)
+            // 日程提醒 - 位于 Header 下方，语音按钮上方
+            scheduleReminder
 
-                // 日程提醒 - 位于 Header 下方，语音按钮上方
-                scheduleReminder
+            Spacer()
 
-                Spacer()
+            // 中央主内容区域（语音按钮 + 功能入口）
+            mainContent
 
-                // 中央主内容区域（语音按钮 + 功能入口）
-                mainContent
+            Spacer()
 
-                Spacer()
-
-                // 底部导航栏
-                BottomNavBar(
-                    selectedTab: $selectedTab,
-                    onProfileTap: {
-                        selectedTab = .profile
-                        showPersonalView = true
-                    },
-                    onMemoryTap: {
-                        selectedTab = .memory
-                        showMemoryGallery = true
-                    },
-                    onCenterTap: { showChatView = true }
-                )
-            }
+            // 底部导航栏
+            BottomNavBar(
+                selectedTab: $selectedTab,
+                onProfileTap: {
+                    selectedTab = .profile
+                    showPersonalView = true
+                },
+                onMemoryTap: {
+                    selectedTab = .memory
+                    showMemoryGallery = true
+                },
+                onCenterTap: { showChatView = true }
+            )
         }
+        .background(
+            backgroundDecorations
+        )
     }
 
     // MARK: - 子视图
     
-    /// 背景装饰元素
+    /// 背景装饰元素 — 鲜艳渐变光球 + 装饰弧线
+    @State private var orbDrift: CGFloat = 0
+    @State private var arcRotation: Double = 0
+    @State private var dotTwinkle: Double = 1.0
+
     private var backgroundDecorations: some View {
         ZStack {
-            // 右上角蓝色圆点
+            // 中心大橙色光晕 — 缓慢浮动
             Circle()
-                .fill(Color.holoInfo.opacity(0.2))
-                .frame(width: 8, height: 8)
+                .fill(
+                    RadialGradient(
+                        colors: [Color.holoPrimary.opacity(0.12), Color.holoPrimary.opacity(0)],
+                        center: .center, startRadius: 0, endRadius: 250
+                    )
+                )
+                .frame(width: 500, height: 500)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+                .offset(y: orbDrift * 8)
+                .blur(radius: 80)
+
+            // 右上紫 — 对向浮动
+            Circle()
+                .fill(
+                    RadialGradient(
+                        colors: [Color.holoPurple.opacity(0.08), Color.holoPurple.opacity(0)],
+                        center: .center, startRadius: 0, endRadius: 210
+                    )
+                )
+                .frame(width: 420, height: 420)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-                .padding(.trailing, 40)
-                .padding(.top, 80)
-            
-            // 左下角紫色圆点
+                .offset(x: 100, y: -40 + orbDrift * -6)
+                .blur(radius: 65)
+
+            // 左下蓝 — 独立节奏
             Circle()
-                .fill(Color.holoPurple.opacity(0.2))
-                .frame(width: 12, height: 12)
+                .fill(
+                    RadialGradient(
+                        colors: [Color.holoInfo.opacity(0.06), Color.holoInfo.opacity(0)],
+                        center: .center, startRadius: 0, endRadius: 190
+                    )
+                )
+                .frame(width: 380, height: 380)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
-                .padding(.leading, 32)
-                .padding(.bottom, 128)
+                .offset(x: -80, y: 60 + orbDrift * 10)
+                .blur(radius: 55)
+
+            // 装饰弧线 — 缓慢旋转
+            Circle()
+                .trim(from: 0, to: 0.3)
+                .stroke(Color.holoPrimary.opacity(0.15), style: StrokeStyle(lineWidth: 1, lineCap: .round))
+                .frame(width: 380, height: 380)
+                .rotationEffect(.degrees(-30 + arcRotation * 0.3))
+
+            Circle()
+                .trim(from: 0.4, to: 0.7)
+                .stroke(Color.holoPurple.opacity(0.12), style: StrokeStyle(lineWidth: 1, lineCap: .round))
+                .frame(width: 350, height: 350)
+                .rotationEffect(.degrees(60 + arcRotation * 0.5))
+
+            // 弧线上的光点 — 闪烁
+            decorDot(color: .holoPrimary, size: 5, radius: 190, angle: -10, opacity: dotTwinkle)
+            decorDot(color: .holoPrimary, size: 3, radius: 190, angle: 70, opacity: dotTwinkle * 0.7)
+            decorDot(color: .holoPurple, size: 4, radius: 175, angle: 150, opacity: dotTwinkle * 0.8)
+            decorDot(color: .holoPurple, size: 3, radius: 175, angle: 210, opacity: dotTwinkle * 0.6)
+            decorDot(color: .holoInfo, size: 4, radius: 160, angle: 300, opacity: dotTwinkle * 0.9)
         }
+        .allowsHitTesting(false)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 3.0).repeatForever(autoreverses: true)) {
+                orbDrift = 1.0
+            }
+            withAnimation(.linear(duration: 60).repeatForever(autoreverses: false)) {
+                arcRotation = 360
+            }
+            withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
+                dotTwinkle = 0.3
+            }
+        }
+    }
+
+    /// 装饰光点
+    private func decorDot(color: Color, size: CGFloat, radius: CGFloat, angle: Double, opacity: Double) -> some View {
+        let radians = angle * .pi / 180
+        return Circle()
+            .fill(color.opacity(0.4 * opacity))
+            .frame(width: size, height: size)
+            .blur(radius: 1)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
+            .offset(x: radius * cos(radians - .pi / 2), y: radius * sin(radians - .pi / 2))
     }
     
     /// 根据当前时间返回问候语

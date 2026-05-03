@@ -49,19 +49,23 @@ struct FeatureButtonContent: View {
     /// 图标容器
     private var iconContainer: some View {
         ZStack {
-            // 毛玻璃背景
+            // 毛玻璃背景 + 色染叠层
             RoundedRectangle(cornerRadius: HoloRadius.lg)
                 .fill(.ultraThinMaterial)
                 .frame(width: 56, height: 56)
                 .overlay(
                     RoundedRectangle(cornerRadius: HoloRadius.lg)
+                        .fill(config.color.opacity(0.08))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: HoloRadius.lg)
                         .stroke(Color.holoBorder, lineWidth: 1)
                 )
-            
+
             // 图标
             Image(systemName: config.icon)
                 .font(.system(size: 20, weight: .medium))
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(config.color)
         }
         .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 10)
     }
