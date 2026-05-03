@@ -7,7 +7,7 @@
 | 优先级 | 问题 | 位置 | 状态 |
 | --- | --- | --- | --- |
 | 高 | HealthKit 授权失败：真机上点击授权按钮后卡死，需在 Xcode 手动配置 Signing & Capabilities 添加 HealthKit | `HealthRepository.swift` | 🔴 Open |
-| 高 | 任务拍照添加附件卡死：UIImagePickerController 确认拍照后 app 卡死，相册上传正常。疑似 fullScreenCover 内嵌 UIViewControllerRepresentable 与 SwiftUI 状态更新冲突 | `TaskDetailView.swift` / `TaskImagePicker.swift` | 🔴 Open |
+| ~~高~~ | ~~任务拍照添加附件卡死~~ | `TaskDetailView.swift` / `TaskImagePicker.swift` | ✅ Fixed |
 
 ---
 

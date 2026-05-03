@@ -42,8 +42,10 @@ struct TaskImagePicker: View {
                 loadSelectedPhotos(newItems)
             }
             .fullScreenCover(isPresented: $showCamera) {
-                CameraView(onCapture: { image in
-                    onSelectImages([image])
+                CameraView(onCapture: { imageData in
+                    if let image = UIImage(data: imageData) {
+                        onSelectImages([image])
+                    }
                     showCamera = false
                 }, onDismiss: {
                     showCamera = false
@@ -110,7 +112,7 @@ struct TaskImagePicker: View {
 // MARK: - Camera View (UIImagePickerController Wrapper)
 
 struct CameraView: UIViewControllerRepresentable {
-    let onCapture: (UIImage) -> Void
+    let onCapture: (Data) -> Void
     let onDismiss: () -> Void
 
     func makeUIViewController(context: Context) -> UIImagePickerController {
@@ -127,17 +129,18 @@ struct CameraView: UIViewControllerRepresentable {
     }
 
     class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
-        let onCapture: (UIImage) -> Void
+        let onCapture: (Data) -> Void
         let onDismiss: () -> Void
 
-        init(onCapture: @escaping (UIImage) -> Void, onDismiss: @escaping () -> Void) {
+        init(onCapture: @escaping (Data) -> Void, onDismiss: @escaping () -> Void) {
             self.onCapture = onCapture
             self.onDismiss = onDismiss
         }
 
         func imagePickerController(_ picker: UIImagePickerController, didFinishPickingMediaWithInfo info: [UIImagePickerController.InfoKey: Any]) {
-            if let image = info[.originalImage] as? UIImage {
-                onCapture(image)
+            if let image = info[.originalImage] as? UIImage,
+               let data = image.jpegData(compressionQuality: 0.85) {
+                onCapture(data)
             } else {
                 onDismiss()
             }

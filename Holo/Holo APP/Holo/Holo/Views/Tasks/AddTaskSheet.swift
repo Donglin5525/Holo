@@ -91,6 +91,7 @@ struct AddTaskSheet: View {
     @State private var showAttachmentPhotoPicker = false
     @State private var selectedAttachmentPhotos: [PhotosPickerItem] = []
     @State private var attachmentsRevision = 0
+    @State private var pendingCameraImageData: Data?
 
     private static let logger = Logger(subsystem: "com.holo.app", category: "AddTaskSheet")
 
@@ -221,10 +222,17 @@ struct AddTaskSheet: View {
         .onChange(of: selectedAttachmentPhotos) { _, newItems in
             loadAttachmentPhotos(newItems)
         }
-        .fullScreenCover(isPresented: $showAttachmentCamera) {
-            CameraView(onCapture: { image in
+        .fullScreenCover(
+            isPresented: $showAttachmentCamera,
+            onDismiss: {
+                guard let data = pendingCameraImageData else { return }
+                pendingCameraImageData = nil
+                handleCapturedImageData(data)
+            }
+        ) {
+            CameraView(onCapture: { imageData in
+                pendingCameraImageData = imageData
                 showAttachmentCamera = false
-                handleCapturedImage(image)
             }, onDismiss: {
                 showAttachmentCamera = false
             })
@@ -1077,17 +1085,18 @@ struct AddTaskSheet: View {
         }
     }
 
-    private func handleCapturedImage(_ image: UIImage) {
+    private func handleCapturedImageData(_ data: Data) {
         if let task = existingTask {
             Task {
                 do {
-                    try await repository.addAttachment(image: image, to: task, sourceType: "camera")
+                    try await repository.addAttachment(imageData: data, to: task, sourceType: "camera")
                     attachmentsRevision += 1
                 } catch {
                     Self.logger.error("添加附件失败：\(error.localizedDescription)")
                 }
             }
         } else {
+            guard let image = UIImage(data: data) else { return }
             Task {
                 if let previewImage = await AttachmentFileManager.previewImageInBackground(image) {
                     pendingImages.append(previewImage)

@@ -40,7 +40,7 @@ struct TaskDetailView: View {
     @State private var showAttachmentCamera = false
     @State private var showAttachmentPhotoPicker = false
     @State private var selectedAttachmentPhotos: [PhotosPickerItem] = []
-    @State private var pendingCameraImage: UIImage?
+    @State private var pendingCameraImageData: Data?
 
     private static let logger = Logger(subsystem: "com.holo.app", category: "TaskDetailView")
 
@@ -125,24 +125,26 @@ struct TaskDetailView: View {
                     selectedAttachmentPhotos = []
                 }
             }
-            .fullScreenCover(isPresented: $showAttachmentCamera) {
-                CameraView(onCapture: { image in
-                    pendingCameraImage = image
+            .fullScreenCover(
+                isPresented: $showAttachmentCamera,
+                onDismiss: {
+                    guard let data = pendingCameraImageData else { return }
+                    pendingCameraImageData = nil
+                    Task {
+                        do {
+                            try await repository.addAttachment(imageData: data, to: task, sourceType: "camera")
+                        } catch {
+                            Self.logger.error("添加附件失败：\(error.localizedDescription)")
+                        }
+                    }
+                }
+            ) {
+                CameraView(onCapture: { imageData in
+                    pendingCameraImageData = imageData
                     showAttachmentCamera = false
                 }, onDismiss: {
                     showAttachmentCamera = false
                 })
-            }
-            .onChange(of: pendingCameraImage) { _, newValue in
-                guard let image = newValue else { return }
-                pendingCameraImage = nil
-                Task {
-                    do {
-                        try await repository.addAttachment(image: image, to: task, sourceType: "camera")
-                    } catch {
-                        Self.logger.error("添加附件失败：\(error.localizedDescription)")
-                    }
-                }
             }
             .alert("删除任务", isPresented: $showingDeleteAlert) {
                 Button("取消", role: .cancel) {}
