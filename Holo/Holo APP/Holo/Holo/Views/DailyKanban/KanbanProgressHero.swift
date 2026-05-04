@@ -43,6 +43,7 @@ struct KanbanProgressHero: View {
                 HStack(spacing: 16) {
                     progressRing
                     progressInfo
+                        .frame(minWidth: 0, maxWidth: .infinity, alignment: .trailing)
                 }
 
                 progressBar
@@ -59,22 +60,24 @@ struct KanbanProgressHero: View {
     }
 
     private var progressRing: some View {
-        ZStack {
-            Circle()
-                .stroke(Color.white.opacity(0.2), lineWidth: 5)
-                .frame(width: 64, height: 64)
+        Color.clear
+            .frame(width: 64, height: 64)
+            .overlay {
+                ZStack {
+                    Circle()
+                        .stroke(Color.white.opacity(0.2), lineWidth: 5)
 
-            Circle()
-                .trim(from: 0, to: overallPercent)
-                .stroke(Color.white, style: StrokeStyle(lineWidth: 5, lineCap: .round))
-                .frame(width: 64, height: 64)
-                .rotationEffect(.degrees(-90))
-                .animation(.spring(response: 0.6, dampingFraction: 0.7), value: overallPercent)
+                    Circle()
+                        .trim(from: 0, to: overallPercent)
+                        .stroke(Color.white, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                        .rotationEffect(.degrees(-90))
+                        .animation(.spring(response: 0.6, dampingFraction: 0.7), value: overallPercent)
 
-            Text("\(Int(overallPercent * 100))%")
-                .font(.system(size: 17, weight: .bold, design: .rounded))
-                .foregroundColor(.white)
-        }
+                    Text("\(Int(overallPercent * 100))%")
+                        .font(.system(size: 17, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                }
+            }
     }
 
     private var progressInfo: some View {

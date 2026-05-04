@@ -15,9 +15,8 @@ struct KanbanHabitSection: View {
     @State private var completedHabits: Set<UUID> = []
     @State private var todayValues: [UUID: Double] = [:]
 
-    @State private var showValueInput: Bool = false
-    @State private var inputValue: String = ""
-    @State private var editingHabit: Habit? = nil
+    @Binding var inputValue: String
+    @Binding var editingHabit: Habit?
 
     private var activeHabits: [Habit] {
         habitRepo.activeHabits.filter { $0.habitFrequency == .daily }
@@ -45,13 +44,11 @@ struct KanbanHabitSection: View {
             }
         }
         .onAppear { loadStatus() }
-        .onReceive(NotificationCenter.default.publisher(for: .habitDataDidChange)) { _ in
+        .onChange(of: habitRepo.activeHabits.count) {
             loadStatus()
         }
-        .sheet(isPresented: $showValueInput) {
-            if let habit = editingHabit {
-                valueInputSheet(habit)
-            }
+        .onReceive(NotificationCenter.default.publisher(for: .habitDataDidChange)) { _ in
+            loadStatus()
         }
     }
 
@@ -224,9 +221,8 @@ struct KanbanHabitSection: View {
 
     private func measureButton(habit: Habit) -> some View {
         Button {
-            editingHabit = habit
             inputValue = ""
-            showValueInput = true
+            editingHabit = habit
         } label: {
             HStack(spacing: 4) {
                 if let value = todayValues[habit.id] {
@@ -249,70 +245,6 @@ struct KanbanHabitSection: View {
             }
         }
         .buttonStyle(.plain)
-    }
-
-    // MARK: - Value Input Sheet
-
-    private func valueInputSheet(_ habit: Habit) -> some View {
-        NavigationStack {
-            VStack(spacing: HoloSpacing.lg) {
-                HStack(spacing: HoloSpacing.md) {
-                    ZStack {
-                        Circle()
-                            .fill(habit.habitColor.opacity(0.1))
-                            .frame(width: 40, height: 40)
-
-                        Image(systemName: habit.icon)
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(habit.habitColor)
-                    }
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(habit.name)
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
-
-                        Text(habit.unitText.isEmpty ? "输入数值" : "单位：\(habit.unitText)")
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
-                    }
-
-                    Spacer()
-                }
-
-                TextField("输入数值", text: $inputValue)
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
-                    .multilineTextAlignment(.center)
-                    .keyboardType(.decimalPad)
-                    .padding()
-                    .background(Color.holoCardBackground)
-                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-
-                Spacer()
-            }
-            .padding(HoloSpacing.lg)
-            .background(Color.holoBackground)
-            .navigationTitle("记录数值")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("取消") {
-                        showValueInput = false
-                        editingHabit = nil
-                    }
-                    .foregroundColor(.holoTextSecondary)
-                }
-
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("保存") {
-                        saveNumericValue(habit)
-                    }
-                    .font(.holoBody)
-                    .foregroundColor(.holoPrimary)
-                    .disabled(inputValue.isEmpty)
-                }
-            }
-        }
     }
 
     // MARK: - Actions
@@ -359,19 +291,6 @@ struct KanbanHabitSection: View {
             HapticManager.light()
         } catch {
             Logger(subsystem: "com.holo.app", category: "UI").error("计数失败: \(error.localizedDescription)")
-        }
-    }
-
-    private func saveNumericValue(_ habit: Habit) {
-        guard let value = Double(inputValue) else { return }
-        do {
-            _ = try habitRepo.addNumericRecord(for: habit, value: value)
-            todayValues[habit.id] = habitRepo.getTodayValue(for: habit)
-            showValueInput = false
-            editingHabit = nil
-            HapticManager.light()
-        } catch {
-            Logger(subsystem: "com.holo.app", category: "UI").error("记录数值失败: \(error.localizedDescription)")
         }
     }
 }

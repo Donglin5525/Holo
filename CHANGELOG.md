@@ -4,6 +4,20 @@
 
 ---
 
+## [2026-05-04] 今日看板交互优化 — 弹窗化 + 进度环修复 + 数据同步
+
+### 改进
+- 数值类型打卡记录从全屏 sheet 改为居中弹窗（卡片 + 半透明遮罩），交互更轻量
+- 弹窗支持点击遮罩关闭、X 按钮关闭、键盘上方"完成"按钮收键盘
+- 弹窗渲染从 KanbanHabitSection 移至 DailyKanbanView 顶层 ZStack，避免 ScrollView 裁剪
+
+### 修复
+- 数值打卡首次点击白屏：`.sheet(isPresented:)` + 独立 editingHabit 状态竞态，改用 `@Binding` + 居中 overlay 消除时序问题
+- 圆形进度条随进度变化变形：`Circle().trim()` 边界框不稳定导致布局抖动，改用 `Color.clear.frame(64×64).overlay` 固定容器方案
+- 首次进入看板习惯数据不同步：`loadActiveHabits()` 排在 async 之后延迟执行，`loadStatus()` 未响应 habits 变化。修复：提前加载 + `onChange` 监听自动刷新
+
+---
+
 ## [2026-05-04] 任务附件优化 — 后台图片处理 + 拍照卡死修复
 
 ### 改进
