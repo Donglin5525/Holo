@@ -106,6 +106,20 @@ class CategoryMatcherService {
             )
         }
 
+        // ━━━━━━━━━━ 策略 2.5: 用户学习映射 ━━━━━━━━━━
+        if let learned = CategoryLearnedMapping.lookup(candidate: normalizedSub, type: type),
+           let learnedMatch = findExactMatch(subCategory: learned.sub, categories: subCategories) {
+            return CategoryMatchResult(
+                originalPrimary: normalizedPrimary,
+                originalSub: normalizedSub,
+                matchType: .synonym,
+                matchedCategory: learnedMatch,
+                candidates: [],
+                confidence: 0.9,
+                isManuallyModified: false
+            )
+        }
+
         // ━━━━━━━━━━ 策略 3: 模糊匹配 ━━━━━━━━━━
         let fuzzyResult = findFuzzyMatch(subCategory: normalizedSub, categories: subCategories)
         if let bestMatch = fuzzyResult.bestMatch, fuzzyResult.confidence >= fuzzyMatchThreshold {

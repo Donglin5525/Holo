@@ -80,6 +80,29 @@ final class MemoryInsightBackgroundService {
 
         let repository = MemoryInsightRepository()
 
+        // 生成今日洞察（当天有足够数据时）
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        if let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) {
+            if let existing = try? repository.fetchInsight(
+                periodType: .daily, start: today, end: tomorrow
+            ), existing.insightStatus == .ready {
+                logger.info("日洞察已存在且为 ready，跳过")
+            } else {
+                do {
+                    let insight = try await service.generateInsight(
+                        periodType: .daily,
+                        start: today,
+                        end: tomorrow,
+                        forceRefresh: false
+                    )
+                    logger.info("后台日洞察生成成功：\(insight.title)")
+                } catch {
+                    logger.error("后台日洞察生成失败：\(error.localizedDescription)")
+                }
+            }
+        }
+
         // 生成本周洞察（使用智能回退）
         let (weekStart, weekEnd, _) = MemoryInsightContextBuilder.effectivePeriodRange(
             periodType: .weekly, referenceDate: Date()
@@ -152,6 +175,30 @@ final class MemoryInsightBackgroundService {
         guard !service.isGenerating else { return }
 
         let repository = MemoryInsightRepository()
+
+        // 补生成今日洞察
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        if let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) {
+            if let _ = try? repository.fetchInsight(
+                periodType: .daily, start: today, end: tomorrow
+            ) {
+                // 日洞察已存在，跳过
+            } else {
+                logger.info("前台补偿：尝试生成日洞察")
+                do {
+                    _ = try await service.generateInsight(
+                        periodType: .daily,
+                        start: today,
+                        end: tomorrow,
+                        forceRefresh: false
+                    )
+                    logger.info("前台补偿日洞察生成成功")
+                } catch {
+                    logger.error("前台补偿日洞察生成失败：\(error.localizedDescription)")
+                }
+            }
+        }
 
         // 补生成周洞察（使用智能回退）
         let (weekStart, weekEnd, _) = MemoryInsightContextBuilder.effectivePeriodRange(

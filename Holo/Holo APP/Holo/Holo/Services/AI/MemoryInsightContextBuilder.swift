@@ -47,6 +47,7 @@ struct MemoryInsightContextBuilder {
 
     private static let weeklyTokenBudget = 2000
     private static let monthlyTokenBudget = 3500
+    private static let dailyTokenBudget = 800
 
     // MARK: - Build Context
 
@@ -503,7 +504,12 @@ struct MemoryInsightContextBuilder {
         _ context: MemoryInsightContext,
         periodType: MemoryInsightPeriodType
     ) -> MemoryInsightContext {
-        let budget = periodType == .monthly ? monthlyTokenBudget : weeklyTokenBudget
+        let budget: Int
+        switch periodType {
+        case .daily: budget = dailyTokenBudget
+        case .weekly: budget = weeklyTokenBudget
+        case .monthly: budget = monthlyTokenBudget
+        }
 
         guard let encoded = try? JSONEncoder().encode(context),
               let _ = String(data: encoded, encoding: .utf8) else {

@@ -155,6 +155,14 @@ final class ConversationCoordinator {
             )
         }
 
+        // 执行前校验
+        let validationResult = AIParseBatchValidator.validate(batch: parseBatch)
+        if !validationResult.isValid {
+            for issue in validationResult.issues {
+                logger.info("校验问题 [item \(issue.itemIndex)] \(issue.code.rawValue): \(issue.message)")
+            }
+        }
+
         // 顺序执行每个动作
         var executionItems: [AIExecutionItem] = []
 
@@ -240,10 +248,11 @@ final class ConversationCoordinator {
             data["thoughtId"] = thoughtId.uuidString
         }
 
-        // 分类未匹配时，覆盖卡片显示为「待确认」
+        // 分类未匹配时，覆盖卡片显示为「待确认」，保留 categoryCandidate 供 UI 展示
         if routeResult.categoryUnmatched {
             data["primaryCategory"] = "待确认"
             data["subCategory"] = nil
+            // categoryCandidate 已在 extractedData 中，此处保留供 UI 展示用户原始分类语义
         }
 
         return data.isEmpty ? nil : data

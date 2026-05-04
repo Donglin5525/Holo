@@ -17,6 +17,7 @@ import os.log
 /// 扩展新模块时：1) 添加 case  2) 在 refresh() 中添加对应查询逻辑
 enum ReminderModule: String {
     case task
+    case insight
     // 未来扩展：
     // case habit     // 习惯打卡提醒
     // case finance   // 账单到期提醒
@@ -132,6 +133,11 @@ class HomeScheduleService: ObservableObject {
         //     candidates.append(habitState)
         // }
 
+        // ---- AI 洞察模块 ----
+        if let insightState = buildInsightReminderState() {
+            candidates.append(insightState)
+        }
+
         // 按紧急程度排序，取最高优先级
         currentState = candidates.sorted(by: { $0.urgency > $1.urgency }).first
     }
@@ -191,6 +197,57 @@ class HomeScheduleService: ObservableObject {
         }
 
         // 5. 全部完成
+        return nil
+    }
+
+    // MARK: - Insight Module
+
+    /// 构建 AI 洞察模块的推送状态
+    /// 优先级低于所有任务提醒，仅在无任务提醒时显示
+    private func buildInsightReminderState() -> ScheduleReminderState? {
+        let insightRepo = MemoryInsightRepository()
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+
+        // 按优先级查找最新洞察：今日 > 本周 > 本月
+        let periods: [(MemoryInsightPeriodType, Date, Date)] = {
+            var result: [(MemoryInsightPeriodType, Date, Date)] = []
+            // 今日
+            if let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) {
+                result.append((.daily, today, tomorrow))
+            }
+            // 本周
+            let (weekStart, weekEnd, _) = MemoryInsightContextBuilder.effectivePeriodRange(
+                periodType: .weekly, referenceDate: Date()
+            )
+            result.append((.weekly, weekStart, weekEnd))
+            // 本月
+            let (monthStart, monthEnd, _) = MemoryInsightContextBuilder.effectivePeriodRange(
+                periodType: .monthly, referenceDate: Date()
+            )
+            result.append((.monthly, monthStart, monthEnd))
+            return result
+        }()
+
+        for (periodType, start, end) in periods {
+            if let insight = try? insightRepo.fetchInsight(periodType: periodType, start: start, end: end),
+               insight.insightStatus == .ready || insight.insightStatus == .stale {
+                let title = insight.title ?? "AI 回放已就绪"
+                let periodLabel: String
+                switch periodType {
+                case .daily: periodLabel = "今日"
+                case .weekly: periodLabel = "本周"
+                case .monthly: periodLabel = "本月"
+                }
+                return ScheduleReminderState(
+                    urgency: .pending,
+                    message: "\(periodLabel)洞察：\(title)",
+                    module: .insight,
+                    deepLinkTarget: .memoryGallery
+                )
+            }
+        }
+
         return nil
     }
 

@@ -1105,7 +1105,29 @@ struct AddTransactionSheet: View {
         
         return result
     }
-    
+
+    /// 当用户将「待确认」交易改为具体分类时，学习映射关系
+    private func learnCategoryMappingIfNeeded(
+        transaction: Transaction,
+        oldCategory: Category?,
+        newCategory: Category
+    ) {
+        guard let oldCategory = oldCategory,
+              oldCategory.name == "待确认",
+              newCategory.name != "待确认",
+              let candidateInfo = CategoryLearnedMapping.lookupTransactionCandidate(
+                  transactionId: transaction.id
+              ) else { return }
+
+        CategoryLearnedMapping.record(
+            candidate: candidateInfo.candidate,
+            type: candidateInfo.type,
+            targetPrimary: newCategory.name,
+            targetSub: newCategory.name
+        )
+        CategoryLearnedMapping.removeTransactionCandidate(transactionId: transaction.id)
+    }
+
     /// 保存交易
     private func saveTransaction() {
         // 保存前先计算表达式（如果有）
@@ -1141,6 +1163,7 @@ struct AddTransactionSheet: View {
 
                 if let transaction = editingTransaction {
                     // 编辑模式：更新交易（含日期和账户变更）
+                    let oldCategory = transaction.category
                     var updates = TransactionUpdates()
                     updates.amount = amount
                     updates.category = category
@@ -1150,6 +1173,13 @@ struct AddTransactionSheet: View {
                     updates.date = selectedDate
 
                     try await repository.updateTransaction(transaction, updates: updates)
+
+                    // 用户将「待确认」改为具体分类时，学习映射
+                    learnCategoryMappingIfNeeded(
+                        transaction: transaction,
+                        oldCategory: oldCategory,
+                        newCategory: category
+                    )
                 } else if isInstallment {
                     // 分期模式：一次创建多笔交易
                     let fee = Decimal(string: feePerPeriod) ?? 0
@@ -1224,6 +1254,7 @@ struct AddTransactionSheet: View {
 
             if let transaction = editingTransaction {
                 // 编辑模式：更新交易
+                let oldCategory = transaction.category
                 var updates = TransactionUpdates()
                 updates.amount = amount
                 updates.category = category
@@ -1233,6 +1264,13 @@ struct AddTransactionSheet: View {
                 updates.date = selectedDate
 
                 try await repository.updateTransaction(transaction, updates: updates)
+
+                // 用户将「待确认」改为具体分类时，学习映射
+                learnCategoryMappingIfNeeded(
+                    transaction: transaction,
+                    oldCategory: oldCategory,
+                    newCategory: category
+                )
             } else if isInstallment {
                 // 分期模式
                 let fee = Decimal(string: feePerPeriod) ?? 0

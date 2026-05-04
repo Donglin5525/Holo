@@ -65,6 +65,7 @@ class MemoryGalleryViewModel: ObservableObject {
 
     /// 月度洞察
     @Published var monthlyInsight: MemoryInsight?
+    @Published var dailyInsight: MemoryInsight?
 
     /// 当前选择的洞察周期
     @Published var selectedInsightPeriod: MemoryInsightPeriodType = .weekly
@@ -633,6 +634,14 @@ class MemoryGalleryViewModel: ObservableObject {
         monthlyInsight = try? insightRepository.fetchInsight(
             periodType: .monthly, start: monthStart, end: monthEnd
         )
+
+        // 加载日洞察
+        let (dayStart, dayEnd, _) = MemoryInsightContextBuilder.effectivePeriodRange(
+            periodType: .daily, referenceDate: Date()
+        )
+        dailyInsight = try? insightRepository.fetchInsight(
+            periodType: .daily, start: dayStart, end: dayEnd
+        )
     }
 
     /// 生成本周 AI 回放
@@ -684,7 +693,7 @@ class MemoryGalleryViewModel: ObservableObject {
             case .monthly:
                 monthlyInsight = insight
             case .daily:
-                break
+                dailyInsight = insight
             }
             insightGenerationState = .ready
         } catch let error as MemoryInsightError {
@@ -704,7 +713,12 @@ class MemoryGalleryViewModel: ObservableObject {
     /// 构建"继续问AI"的预填提示文本
     func buildContinueInChatPrompt() -> String? {
         guard let insight = currentInsight else { return nil }
-        let periodLabel = selectedInsightPeriod == .weekly ? "周" : "月"
+        let periodLabel: String
+        switch selectedInsightPeriod {
+        case .daily: periodLabel = "日"
+        case .weekly: periodLabel = "周"
+        case .monthly: periodLabel = "月"
+        }
         return "基于这份本\(periodLabel)回放继续分析：\n\(insight.title)\n\(insight.summary)"
     }
 
@@ -713,7 +727,7 @@ class MemoryGalleryViewModel: ObservableObject {
         switch selectedInsightPeriod {
         case .weekly: return weeklyInsight
         case .monthly: return monthlyInsight
-        case .daily: return nil
+        case .daily: return dailyInsight
         }
     }
 
@@ -731,7 +745,10 @@ class MemoryGalleryViewModel: ObservableObject {
         case .monthly:
             await generateMonthlyInsight()
         case .daily:
-            break
+            let (start, end, _) = MemoryInsightContextBuilder.effectivePeriodRange(
+                periodType: .daily, referenceDate: Date()
+            )
+            await generateInsight(periodType: .daily, start: start, end: end)
         }
     }
 

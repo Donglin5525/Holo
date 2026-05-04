@@ -103,14 +103,15 @@ final class IntentRouter {
         let note = data["note"]
         let primaryCategory = data["primaryCategory"]
         let subCategory = data["subCategory"]
+        let categoryCandidate = data["categoryCandidate"]
 
-        logger.info("AI 返回科目：primaryCategory=\(primaryCategory ?? "nil"), subCategory=\(subCategory ?? "nil")")
+        logger.info("AI 返回科目：primaryCategory=\(primaryCategory ?? "nil"), subCategory=\(subCategory ?? "nil"), categoryCandidate=\(categoryCandidate ?? "nil")")
 
         let categoryRepo = FinanceRepository.shared
-        // 使用 AI 提取的科目信息进行匹配
         var category = try await matchCategory(
             primaryCategory: primaryCategory,
             subCategory: subCategory,
+            categoryCandidate: categoryCandidate,
             note: note ?? "",
             type: .expense
         )
@@ -120,7 +121,6 @@ final class IntentRouter {
             return RouteResult(text: "请先设置默认账户")
         }
 
-        // 分类未匹配 → 使用「待确认」兜底
         var isUnmatched = false
         if category == nil {
             isUnmatched = true
@@ -136,23 +136,35 @@ final class IntentRouter {
             note: note
         )
 
-        logger.info("支出已记录：¥\(amount)")
-        let accountInfo = " → \(account.name)"
-
-        if isUnmatched {
-            let categoryText = subCategory ?? primaryCategory ?? ""
-            return RouteResult(
-                text: "已记录支出 ¥\(amountStr)\(note != nil ? "（\(note!)）" : "")\(accountInfo)\n⚠️ 无法识别分类「\(categoryText)」，已暂归「待确认」，点击卡片可修改",
+        // 分类未匹配时暂存候选，供用户编辑时学习
+        if isUnmatched, let candidate = categoryCandidate {
+            CategoryLearnedMapping.recordTransactionCandidate(
                 transactionId: transaction.id,
-                linkedEntity: LinkedEntity(type: .transaction, id: transaction.id),
-                categoryUnmatched: true
+                candidate: candidate,
+                type: .expense
             )
         }
 
+        logger.info("支出已记录：¥\(amount)")
+
+        let unmatchedText = isUnmatched
+            ? AIResponseTextBuilder.unmatchedCategoryText(
+                subCategory: subCategory,
+                primaryCategory: primaryCategory,
+                categoryCandidate: categoryCandidate
+            ) : nil
+
         return RouteResult(
-            text: "已记录支出 ¥\(amountStr)\(note != nil ? "（\(note!)）" : "")\(accountInfo)",
+            text: AIResponseTextBuilder.expenseRecorded(
+                amount: amountStr,
+                note: note,
+                accountName: account.name,
+                categoryUnmatched: isUnmatched,
+                unmatchedCategory: unmatchedText
+            ),
             transactionId: transaction.id,
-            linkedEntity: LinkedEntity(type: .transaction, id: transaction.id)
+            linkedEntity: LinkedEntity(type: .transaction, id: transaction.id),
+            categoryUnmatched: isUnmatched
         )
     }
 
@@ -168,12 +180,13 @@ final class IntentRouter {
         let note = data["note"]
         let primaryCategory = data["primaryCategory"]
         let subCategory = data["subCategory"]
+        let categoryCandidate = data["categoryCandidate"]
         let categoryRepo = FinanceRepository.shared
 
-        // 使用 AI 提取的科目信息进行匹配
         var category = try await matchCategory(
             primaryCategory: primaryCategory,
             subCategory: subCategory,
+            categoryCandidate: categoryCandidate,
             note: note ?? "",
             type: .income
         )
@@ -183,7 +196,6 @@ final class IntentRouter {
             return RouteResult(text: "请先设置默认账户")
         }
 
-        // 分类未匹配 → 使用「待确认」兜底
         var isUnmatched = false
         if category == nil {
             isUnmatched = true
@@ -199,23 +211,35 @@ final class IntentRouter {
             note: note
         )
 
-        logger.info("收入已记录：¥\(amount)")
-        let accountInfo = " → \(account.name)"
-
-        if isUnmatched {
-            let categoryText = subCategory ?? primaryCategory ?? ""
-            return RouteResult(
-                text: "已记录收入 ¥\(amountStr)\(note != nil ? "（\(note!)）" : "")\(accountInfo)\n⚠️ 无法识别分类「\(categoryText)」，已暂归「待确认」，点击卡片可修改",
+        // 分类未匹配时暂存候选，供用户编辑时学习
+        if isUnmatched, let candidate = categoryCandidate {
+            CategoryLearnedMapping.recordTransactionCandidate(
                 transactionId: transaction.id,
-                linkedEntity: LinkedEntity(type: .transaction, id: transaction.id),
-                categoryUnmatched: true
+                candidate: candidate,
+                type: .income
             )
         }
 
+        logger.info("收入已记录：¥\(amount)")
+
+        let unmatchedText = isUnmatched
+            ? AIResponseTextBuilder.unmatchedCategoryText(
+                subCategory: subCategory,
+                primaryCategory: primaryCategory,
+                categoryCandidate: categoryCandidate
+            ) : nil
+
         return RouteResult(
-            text: "已记录收入 ¥\(amountStr)\(note != nil ? "（\(note!)）" : "")\(accountInfo)",
+            text: AIResponseTextBuilder.incomeRecorded(
+                amount: amountStr,
+                note: note,
+                accountName: account.name,
+                categoryUnmatched: isUnmatched,
+                unmatchedCategory: unmatchedText
+            ),
             transactionId: transaction.id,
-            linkedEntity: LinkedEntity(type: .transaction, id: transaction.id)
+            linkedEntity: LinkedEntity(type: .transaction, id: transaction.id),
+            categoryUnmatched: isUnmatched
         )
     }
 
@@ -230,7 +254,7 @@ final class IntentRouter {
         let todoRepo = TodoRepository.shared
         let dueDate = parseDate(from: data["dueDate"])
         let priority = parsePriority(data["priority"])
-        let hasTime = data["dueDate"]?.contains(":") == true
+        let hasTime = data["dueDate"].map { NLDateParser.containsTimeComponent($0) } ?? false
 
         // 有具体时间时，自动添加提前 15 分钟提醒
         let reminders: Set<TaskReminder>? = (hasTime && dueDate != nil)
@@ -247,16 +271,8 @@ final class IntentRouter {
 
         logger.info("任务已创建：\(title)")
 
-        var responseText = "已创建任务：\(title)"
-        if hasTime, let date = dueDate {
-            let formatter = DateFormatter()
-            formatter.locale = Locale(identifier: "zh_CN")
-            formatter.dateFormat = "M月d日 HH:mm"
-            responseText += "（\(formatter.string(from: date))，将提前 15 分钟提醒你）"
-        }
-
         return RouteResult(
-            text: responseText,
+            text: AIResponseTextBuilder.taskCreated(title: title, dueDate: dueDate, hasTime: hasTime),
             taskId: task.id,
             linkedEntity: LinkedEntity(type: .task, id: task.id)
         )
@@ -546,21 +562,10 @@ final class IntentRouter {
 
     // MARK: - Date & Tag Utilities
 
-    /// 解析日期字符串，支持 yyyy-MM-dd 和 yyyy-MM-dd HH:mm 格式
+    /// 解析日期字符串，支持标准格式和中文自然语言
     private func parseDate(from string: String?) -> Date? {
         guard let string = string else { return nil }
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-
-        // 优先尝试带时间的格式
-        formatter.dateFormat = "yyyy-MM-dd HH:mm"
-        if let date = formatter.date(from: string) {
-            return date
-        }
-
-        // 回退到纯日期格式
-        formatter.dateFormat = "yyyy-MM-dd"
-        return formatter.date(from: string)
+        return NLDateParser.parse(string)
     }
 
     /// 格式化日期为 M月d日
@@ -604,13 +609,14 @@ final class IntentRouter {
     private func matchCategory(
         primaryCategory: String?,
         subCategory: String?,
+        categoryCandidate: String?,
         note: String,
         type: TransactionType
     ) async throws -> Category? {
         let categoryRepo = FinanceRepository.shared
         let categories = try await categoryRepo.getCategories(by: type)
 
-        // 优先使用 AI 返回的科目信息进行匹配（仅精确和同义词）
+        // 1. 优先使用 AI 返回的科目信息进行匹配（仅精确和同义词）
         if let sub = subCategory, !sub.isEmpty {
             let matchResult = CategoryMatcherService.shared.matchSingle(
                 primaryCategory: primaryCategory ?? "",
@@ -624,7 +630,21 @@ final class IntentRouter {
             }
         }
 
-        // 降级：用 note 文本尝试匹配（仅精确和同义词）
+        // 2. 使用 categoryCandidate（用户原始分类语义）匹配
+        if let candidate = categoryCandidate, !candidate.isEmpty {
+            let matchResult = CategoryMatcherService.shared.matchSingle(
+                primaryCategory: primaryCategory ?? "",
+                subCategory: candidate,
+                type: type,
+                categories: categories
+            )
+            if matchResult.matchType == .exact || matchResult.matchType == .synonym,
+               let matched = matchResult.matchedCategory {
+                return matched
+            }
+        }
+
+        // 3. 降级：用 note 文本尝试匹配（仅精确和同义词）
         if !note.isEmpty {
             let matchResult = CategoryMatcherService.shared.matchSingle(
                 primaryCategory: primaryCategory ?? "",

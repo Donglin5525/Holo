@@ -38,15 +38,13 @@ final class OpenAICompatibleProvider: AIProvider {
 
     func parseUserInputBatch(_ input: String, context: UserContext) async throws -> AIParseBatch {
         let systemPrompt = try PromptManager.shared.loadPrompt(.intentRecognition)
-        let contextMessage = buildContextMessage(context)
 
         let messages: [ChatMessageDTO] = [
             .system(systemPrompt),
-            .system(contextMessage),
             .user(input)
         ]
 
-        let request = buildRequest(messages: messages)
+        let request = buildRequest(messages: messages, responseFormat: .jsonObject)
         let response: ChatCompletionResponse = try await apiClient.send(request)
 
         guard let content = response.choices?.first?.message?.content else {
@@ -61,46 +59,6 @@ final class OpenAICompatibleProvider: AIProvider {
         )
 
         return parseBatchFromJSON(content)
-    }
-
-    func generateInsight(type: InsightType, data: UserContext) async throws -> String {
-        let systemPrompt = try PromptManager.shared.loadPrompt(.insightGeneration)
-        let contextMessage = buildContextMessage(data)
-
-        let userMessage: String
-        switch type {
-        case .dailySummary:
-            userMessage = "请生成今日总结"
-        case .weeklyReport:
-            userMessage = "请生成本周报告"
-        case .monthlyReport:
-            userMessage = "请生成本月报告"
-        case .habitAnalysis:
-            userMessage = "请分析我的习惯数据"
-        case .financeAnalysis:
-            userMessage = "请分析我的财务数据"
-        case .memoryDailyReview:
-            userMessage = "请生成今日记忆回顾"
-        case .memoryWeeklyReplay:
-            userMessage = "请生成本周记忆回放"
-        case .memoryMonthlyReplay:
-            userMessage = "请生成本月记忆回放"
-        }
-
-        let messages: [ChatMessageDTO] = [
-            .system(systemPrompt),
-            .system(contextMessage),
-            .user(userMessage)
-        ]
-
-        let request = buildRequest(messages: messages)
-        let response: ChatCompletionResponse = try await apiClient.send(request)
-
-        guard let content = response.choices?.first?.message?.content else {
-            throw APIError.serverError("AI 未返回有效内容")
-        }
-
-        return content
     }
 
     func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> String {
@@ -194,7 +152,7 @@ final class OpenAICompatibleProvider: AIProvider {
 
     // MARK: - Private Helpers
 
-    private func buildRequest(messages: [ChatMessageDTO], stream: Bool = false, temperature: Double? = nil) -> APIRequest {
+    private func buildRequest(messages: [ChatMessageDTO], stream: Bool = false, temperature: Double? = nil, responseFormat: ResponseFormat? = nil) -> APIRequest {
         APIRequest(
             baseURL: config.baseURL,
             path: "/chat/completions",
@@ -208,7 +166,8 @@ final class OpenAICompatibleProvider: AIProvider {
                 messages: messages,
                 temperature: temperature ?? config.temperature,
                 maxTokens: config.maxTokens,
-                stream: stream
+                stream: stream,
+                responseFormat: responseFormat
             )
         )
     }
@@ -228,6 +187,25 @@ final class OpenAICompatibleProvider: AIProvider {
 
         if let profile = context.profileContext, !profile.isEmpty {
             message += "\n\n--- 用户档案 ---\n\(profile)"
+        }
+
+        if let trend = context.recentTrend {
+            var trendSection = "\n\n--- 近期趋势 ---"
+            trendSection += "\n- 本周支出：\(trend.weekExpenseTotal)"
+            if let change = trend.weekExpenseChange {
+                trendSection += "（较上周\(change)）"
+            }
+            if let rate = trend.weekHabitCompletionRate {
+                trendSection += "\n- 本周习惯完成率：\(rate)"
+            }
+            trendSection += "\n- 本周完成任务：\(trend.weekTaskCompletedCount) 个"
+            if let category = trend.topExpenseCategory {
+                trendSection += "\n- 本周最大支出分类：\(category)"
+            }
+            if let summary = trend.dailyInsightSummary {
+                trendSection += "\n- 今日洞察：\(summary)"
+            }
+            message += trendSection
         }
 
         return message

@@ -131,7 +131,12 @@ final class MemoryInsightService {
         }
 
         // 6. 调用 AI（带超时）
-        let insightType: InsightType = periodType == .weekly ? .memoryWeeklyReplay : .memoryMonthlyReplay
+        let insightType: InsightType
+        switch periodType {
+        case .daily: insightType = .memoryDailyReview
+        case .weekly: insightType = .memoryWeeklyReplay
+        case .monthly: insightType = .memoryMonthlyReplay
+        }
         let rawResponse: String
         do {
             rawResponse = try await withThrowingTaskGroup(of: String.self) { group in

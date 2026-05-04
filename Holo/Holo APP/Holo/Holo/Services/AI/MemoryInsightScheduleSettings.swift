@@ -27,6 +27,7 @@ final class MemoryInsightScheduleSettings: ObservableObject {
         static let monthlyReminderDay = "memoryInsight_monthlyReminderDay"
         static let monthlyReminderHour = "memoryInsight_monthlyReminderHour"
         static let backgroundAutoGenerationEnabled = "memoryInsight_backgroundAutoGenerationEnabled"
+        static let dailyAutoGenerationEnabled = "memoryInsight_dailyAutoGenerationEnabled"
     }
 
     // MARK: - Published Properties
@@ -103,6 +104,12 @@ final class MemoryInsightScheduleSettings: ObservableObject {
         }
     }
 
+    @Published var dailyAutoGenerationEnabled: Bool {
+        didSet {
+            defaults.set(dailyAutoGenerationEnabled, forKey: Keys.dailyAutoGenerationEnabled)
+        }
+    }
+
     // MARK: - Init
 
     private init() {
@@ -113,6 +120,7 @@ final class MemoryInsightScheduleSettings: ObservableObject {
         self.monthlyReminderDay = defaults.object(forKey: Keys.monthlyReminderDay) as? Int ?? 1
         self.monthlyReminderHour = defaults.object(forKey: Keys.monthlyReminderHour) as? Int ?? 9
         self.backgroundAutoGenerationEnabled = defaults.object(forKey: Keys.backgroundAutoGenerationEnabled) as? Bool ?? false
+        self.dailyAutoGenerationEnabled = defaults.object(forKey: Keys.dailyAutoGenerationEnabled) as? Bool ?? false
     }
 
     // MARK: - Scheduling

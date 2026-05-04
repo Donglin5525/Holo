@@ -283,6 +283,13 @@ nonisolated struct ChatMessageDTO: Codable, Equatable {
     }
 }
 
+/// JSON Mode 响应格式控制
+struct ResponseFormat: Codable, Equatable {
+    let type: String
+
+    static let jsonObject = ResponseFormat(type: "json_object")
+}
+
 /// Chat Completion 请求
 struct ChatCompletionRequest: Codable {
     let model: String
@@ -290,10 +297,21 @@ struct ChatCompletionRequest: Codable {
     let temperature: Double?
     let maxTokens: Int?
     let stream: Bool?
+    let responseFormat: ResponseFormat?
+
+    init(model: String, messages: [ChatMessageDTO], temperature: Double? = nil, maxTokens: Int? = nil, stream: Bool? = nil, responseFormat: ResponseFormat? = nil) {
+        self.model = model
+        self.messages = messages
+        self.temperature = temperature
+        self.maxTokens = maxTokens
+        self.stream = stream
+        self.responseFormat = responseFormat
+    }
 
     enum CodingKeys: String, CodingKey {
         case model, messages, temperature, stream
         case maxTokens = "max_tokens"
+        case responseFormat = "response_format"
     }
 }
 
@@ -353,15 +371,21 @@ struct SSEChunk: Codable {
 
 /// 洞察/总结类型
 enum InsightType: String, CaseIterable {
-    case dailySummary = "daily_summary"
-    case weeklyReport = "weekly_report"
-    case monthlyReport = "monthly_report"
-    case habitAnalysis = "habit_analysis"
-    case financeAnalysis = "finance_analysis"
-
     case memoryDailyReview = "memory_daily_review"
     case memoryWeeklyReplay = "memory_weekly_replay"
     case memoryMonthlyReplay = "memory_monthly_replay"
+}
+
+// MARK: - UserRecentTrend
+
+/// 近期趋势数据，让 AI 感知历史对比
+struct UserRecentTrend {
+    let weekExpenseTotal: String
+    let weekExpenseChange: String?
+    let weekHabitCompletionRate: String?
+    let weekTaskCompletedCount: Int
+    let topExpenseCategory: String?
+    let dailyInsightSummary: String?
 }
 
 // MARK: - UserContext
@@ -375,6 +399,7 @@ struct UserContext {
     let thoughts: ThoughtSummary
     let accounts: AccountSummary
     let profileContext: String?
+    let recentTrend: UserRecentTrend?
 
     /// 空上下文（分析查询不需要即时上下文）
     static let empty = UserContext(
@@ -384,7 +409,8 @@ struct UserContext {
         tasks: TaskSummary(todayTotal: 0, todayCompleted: 0, overdueCount: 0, recentTasks: [], activeTaskSummaries: []),
         thoughts: ThoughtSummary(recentThoughts: [], totalThoughts: 0),
         accounts: AccountSummary(accountList: "", defaultAccountName: ""),
-        profileContext: nil
+        profileContext: nil,
+        recentTrend: nil
     )
 }
 

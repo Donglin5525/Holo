@@ -33,6 +33,8 @@ final class UserContextBuilder {
 
         let profileContext = HoloProfileService.shared.loadProfile()
 
+        let recentTrend = await buildRecentTrend()
+
         return UserContext(
             todayDate: todayDate,
             transactions: transactions,
@@ -40,7 +42,8 @@ final class UserContextBuilder {
             tasks: tasks,
             thoughts: thoughts,
             accounts: accounts,
-            profileContext: profileContext.isEmpty ? nil : profileContext
+            profileContext: profileContext.isEmpty ? nil : profileContext,
+            recentTrend: recentTrend
         )
     }
 
@@ -166,5 +169,99 @@ final class UserContextBuilder {
             accountList: list,
             defaultAccountName: defaultAccount?.name ?? "默认账户"
         )
+    }
+
+    // MARK: - Recent Trend
+
+    private func buildRecentTrend() async -> UserRecentTrend? {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+
+        guard let weekAgo = calendar.date(byAdding: .day, value: -7, to: today),
+              let twoWeeksAgo = calendar.date(byAdding: .day, value: -14, to: weekAgo) else {
+            return nil
+        }
+
+        // 本周收支
+        let weekExpense = await calculateExpense(from: weekAgo, to: today)
+        // 上周收支（同期）
+        let lastWeekExpense = await calculateExpense(from: twoWeeksAgo, to: weekAgo)
+
+        // 环比变化
+        let weekExpenseChange = calculateChangeRate(current: weekExpense, previous: lastWeekExpense)
+
+        // 习惯完成率
+        let habitRepo = HabitRepository.shared
+        let habitStats = habitRepo.getOverviewStats(range: .week)
+        let habitRate = habitStats.totalHabits > 0
+            ? "\(Int(habitStats.averageCompletionRate))%"
+            : nil
+
+        // 任务完成数
+        let todoRepo = TodoRepository.shared
+        let taskStats = todoRepo.getCompletionStats(from: weekAgo, to: today)
+
+        // Top 支出分类
+        let topCategory = await fetchTopExpenseCategory(from: weekAgo, to: today)
+
+        // 今日洞察
+        let dailyInsight = fetchDailyInsightSummary()
+
+        return UserRecentTrend(
+            weekExpenseTotal: weekExpense > 0 ? "¥\(weekExpense)" : nil ?? "¥0",
+            weekExpenseChange: weekExpenseChange,
+            weekHabitCompletionRate: habitRate,
+            weekTaskCompletedCount: taskStats.completedInPeriod,
+            topExpenseCategory: topCategory,
+            dailyInsightSummary: dailyInsight
+        )
+    }
+
+    private func calculateExpense(from start: Date, to end: Date) async -> Decimal {
+        do {
+            let repo = FinanceRepository.shared
+            let transactions = try await repo.getTransactions(from: start, to: end)
+            var total: Decimal = 0
+            for t in transactions where t.type == "expense" {
+                total += t.amount as Decimal
+            }
+            return total
+        } catch {
+            logger.warning("计算周期支出失败：\(error.localizedDescription)")
+            return 0
+        }
+    }
+
+    private func calculateChangeRate(current: Decimal, previous: Decimal) -> String? {
+        guard previous > 0 else { return current > 0 ? "+100%" : nil }
+        let change = (current - previous) / previous * 100
+        let percent = Int(truncating: NSDecimalNumber(decimal: change))
+        guard abs(percent) >= 5 else { return nil }
+        return percent > 0 ? "+\(percent)%" : "\(percent)%"
+    }
+
+    private func fetchTopExpenseCategory(from start: Date, to end: Date) async -> String? {
+        do {
+            let repo = FinanceRepository.shared
+            let aggregations = try await repo.getCategoryAggregations(
+                from: start, to: end, type: .expense
+            )
+            return aggregations.first?.category.name
+        } catch {
+            return nil
+        }
+    }
+
+    private func fetchDailyInsightSummary() -> String? {
+        do {
+            let repo = MemoryInsightRepository()
+            let calendar = Calendar.current
+            let today = calendar.startOfDay(for: Date())
+            guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) else { return nil }
+            let insight = try repo.fetchInsight(periodType: .daily, start: today, end: tomorrow)
+            return insight?.title
+        } catch {
+            return nil
+        }
     }
 }

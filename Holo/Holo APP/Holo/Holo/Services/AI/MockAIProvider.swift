@@ -204,24 +204,6 @@ final class MockAIProvider: AIProvider {
         )
     }
 
-    func generateInsight(type: InsightType, data: UserContext) async throws -> String {
-        try await Task.sleep(nanoseconds: 800_000_000)
-
-        switch type {
-        case .dailySummary:
-            return """
-            **今日总结（Mock）**
-
-            今日支出：\(data.transactions.todayExpense)
-            今日收入：\(data.transactions.todayIncome)
-            习惯完成：\(data.habits.todayCompleted)/\(data.habits.todayTotal)
-            任务完成：\(data.tasks.todayCompleted)/\(data.tasks.todayTotal)
-            """
-        default:
-            return "[Mock] 这是\(type.rawValue)的模拟报告内容。"
-        }
-    }
-
     func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> String {
         try await Task.sleep(nanoseconds: 800_000_000)
 
