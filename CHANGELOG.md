@@ -4,6 +4,31 @@
 
 ---
 
+## [2026-05-05] AI 分析异常检测文案修复
+
+### 修复
+- 异常消费描述从「2026-05-02 支出 ¥5,736.00」改为「当日合计 N 笔支出共 ¥5,736.00」，避免 AI 将日汇总金额误读为单笔交易
+
+---
+
+## [2026-05-05] AI 智能洞察阶段 A + 幻觉修复
+
+### 新功能
+- UserContextBuilder 增加历史趋势对比（周支出/环比/习惯率/任务完成/Top分类）
+- 日报洞察完整实现（Service 映射 + ContextBuilder 800 token 预算 + ViewModel 状态管理）
+- Prompt v3 升级（趋势分析指令 + 异常检测指令 + 日报专用规则）
+- 首页洞察入口（HomeScheduleService 新增 insight 模块）
+- 后台/前台补偿增加日报自动生成 + dailyAutoGenerationEnabled 设置
+
+### 修复
+- AI 数据查询幻觉：系统提示词新增禁止编造数据规则，数据查询路由到 queryAnalysis（走结构化数据路径）
+- 习惯完成率显示 1714%：averageCompletionRate 已是百分比值，去掉多余的 × 100
+
+### 清理
+- 移除旧 insightGeneration prompt、旧 InsightType 5 个 case、generateInsight() 死代码
+
+---
+
 ## [2026-05-05] 记忆长廊里程碑日期修复 + fetchTasks 谓词确认
 
 ### 修复

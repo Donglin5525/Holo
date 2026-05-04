@@ -181,10 +181,12 @@ struct FinanceAnalysisContextBuilder {
 
         let threshold = averageDaily * 2
         var dailyTotals: [Date: Decimal] = [:]
+        var dailyCounts: [Date: Int] = [:]
 
         for tx in expenses {
             let day = calendar.startOfDay(for: tx.date)
             dailyTotals[day, default: 0] += tx.amount.decimalValue
+            dailyCounts[day, default: 0] += 1
         }
 
         let anomalies = dailyTotals.filter { $0.value > threshold }
@@ -193,7 +195,8 @@ struct FinanceAnalysisContextBuilder {
 
         return anomalies.map { date, amount in
             let dateStr = Self.dateFmt.string(from: date)
-            return "\(dateStr) 支出 \(NumberFormatter.compactCurrency(amount))，超过日均 \(NumberFormatter.compactCurrency(threshold))"
+            let count = dailyCounts[date] ?? 1
+            return "\(dateStr) 当日合计 \(count) 笔支出共 \(NumberFormatter.compactCurrency(amount))，超过日均 \(NumberFormatter.compactCurrency(threshold))"
         }
     }
 
