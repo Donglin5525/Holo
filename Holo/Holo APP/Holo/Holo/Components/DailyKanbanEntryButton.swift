@@ -16,6 +16,7 @@ struct DailyKanbanEntryButton: View {
     @ObservedObject private var habitRepo = HabitRepository.shared
 
     @State private var isAnimating = false
+    @State private var breathScale: CGFloat = 1.0
     @State private var animatedOverall: Double = 0
     @State private var animatedHabit: Double = 0
     @State private var animatedTask: Double = 0
@@ -90,6 +91,9 @@ struct DailyKanbanEntryButton: View {
             }
             withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
                 centerPulse = 1.0
+            }
+            withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
+                breathScale = 1.03
             }
         }
         .onChange(of: overallPercent) { _, newValue in
@@ -194,8 +198,7 @@ struct DailyKanbanEntryButton: View {
         .frame(width: 192, height: 192)
         .contentShape(Circle())
         .shadow(color: .holoPrimary.opacity(0.3), radius: 30)
-        .scaleEffect(isAnimating ? 1.03 : 1.0)
-        .animation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true), value: isAnimating)
+        .scaleEffect(breathScale)
     }
 }
 
