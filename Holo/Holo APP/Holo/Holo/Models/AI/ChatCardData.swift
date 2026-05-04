@@ -243,6 +243,8 @@ enum CategorySFSymbolMapper {
         "维修": "wrench.fill", "保险": "shield.checkered",
         "还款": "arrow.uturn.backward.circle.fill", "转账": "arrow.right.circle.fill",
         "捐赠": "heart.fill",
+        // 系统分类
+        "待确认": "questionmark.circle.fill",
         // 投资理财（收入）
         "利息": "percent", "股票": "chart.line.uptrend.xyaxis",
         "房租收入": "building.columns.fill", "其他投资": "chart.pie.fill",

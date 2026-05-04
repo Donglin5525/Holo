@@ -125,6 +125,41 @@ extension FinanceRepository {
         return Array(sorted)
     }
     
+    /// 确保「待确认」分类存在，不存在则创建（挂到对应父分类下）
+    func ensurePendingCategory(type: TransactionType) -> Category {
+        let request = Category.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "name == %@ AND type == %@",
+            "待确认", type.rawValue
+        )
+        if let existing = try? context.fetch(request).first {
+            return existing
+        }
+
+        // 找到对应的父分类
+        let parentName = type == .expense ? "其他" : "其他收入"
+        let parentRequest = Category.fetchRequest()
+        parentRequest.predicate = NSPredicate(
+            format: "name == %@ AND type == %@ AND parentId == nil",
+            parentName, type.rawValue
+        )
+        let parentId = (try? context.fetch(parentRequest).first)?.id
+
+        let category = Category.create(
+            in: context,
+            name: "待确认",
+            icon: "questionmark.circle.fill",
+            color: "#F59E0B",
+            type: type.rawValue,
+            isDefault: false,
+            sortOrder: 999,
+            parentId: parentId,
+            isSystem: true
+        )
+        try? context.save()
+        return category
+    }
+
     func updateCategory(_ category: Category, updates: CategoryUpdates) async throws {
         if let name = updates.name { category.name = name }
         if let icon = updates.icon { category.icon = icon }

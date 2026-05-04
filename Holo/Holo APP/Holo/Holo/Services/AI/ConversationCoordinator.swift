@@ -19,6 +19,8 @@ struct ConversationProcessResult {
     let firstExtractedData: [String: String]?
     let shouldStreamChat: Bool
     let analysisContext: AnalysisContext?
+    /// 意图识别 LLM 调用日志
+    var intentCallLog: LLMCallLog?
 }
 
 @MainActor
@@ -39,6 +41,7 @@ final class ConversationCoordinator {
         provider: AIProvider
     ) async throws -> ConversationProcessResult {
         let parseBatch = try await provider.parseUserInputBatch(text, context: userContext)
+        let intentLog = provider.lastCallLog
 
         // 需要追问
         if parseBatch.needsClarification {
@@ -49,7 +52,8 @@ final class ConversationCoordinator {
                 firstIntent: parseBatch.first?.intent,
                 firstExtractedData: parseBatch.first?.extractedData,
                 shouldStreamChat: false,
-                analysisContext: nil
+                analysisContext: nil,
+                intentCallLog: intentLog
             )
         }
 
@@ -62,7 +66,8 @@ final class ConversationCoordinator {
                 firstIntent: nil,
                 firstExtractedData: nil,
                 shouldStreamChat: false,
-                analysisContext: nil
+                analysisContext: nil,
+                intentCallLog: intentLog
             )
         }
 
@@ -86,7 +91,8 @@ final class ConversationCoordinator {
                     firstIntent: .queryAnalysis,
                     firstExtractedData: parseBatch.first?.extractedData,
                     shouldStreamChat: false,
-                    analysisContext: nil
+                    analysisContext: nil,
+                    intentCallLog: intentLog
                 )
             }
 
@@ -97,7 +103,8 @@ final class ConversationCoordinator {
                 firstIntent: .queryAnalysis,
                 firstExtractedData: parseBatch.first?.extractedData,
                 shouldStreamChat: true,
-                analysisContext: context
+                analysisContext: context,
+                intentCallLog: intentLog
             )
         }
 
@@ -110,7 +117,8 @@ final class ConversationCoordinator {
                 firstIntent: parseBatch.first?.intent,
                 firstExtractedData: parseBatch.first?.extractedData,
                 shouldStreamChat: true,
-                analysisContext: nil
+                analysisContext: nil,
+                intentCallLog: intentLog
             )
         }
 
@@ -125,7 +133,8 @@ final class ConversationCoordinator {
                 firstIntent: parseBatch.first?.intent,
                 firstExtractedData: parseBatch.first?.extractedData,
                 shouldStreamChat: false,
-                analysisContext: nil
+                analysisContext: nil,
+                intentCallLog: intentLog
             )
         }
 
@@ -141,7 +150,8 @@ final class ConversationCoordinator {
                 firstIntent: parseBatch.first?.intent,
                 firstExtractedData: parseBatch.first?.extractedData,
                 shouldStreamChat: false,
-                analysisContext: nil
+                analysisContext: nil,
+                intentCallLog: intentLog
             )
         }
 
@@ -200,7 +210,8 @@ final class ConversationCoordinator {
             firstIntent: parseBatch.first?.intent,
             firstExtractedData: parseBatch.first?.extractedData,
             shouldStreamChat: false,
-            analysisContext: nil
+            analysisContext: nil,
+            intentCallLog: intentLog
         )
     }
 
@@ -227,6 +238,12 @@ final class ConversationCoordinator {
         }
         if let thoughtId = routeResult.thoughtId {
             data["thoughtId"] = thoughtId.uuidString
+        }
+
+        // 分类未匹配时，覆盖卡片显示为「待确认」
+        if routeResult.categoryUnmatched {
+            data["primaryCategory"] = "待确认"
+            data["subCategory"] = nil
         }
 
         return data.isEmpty ? nil : data

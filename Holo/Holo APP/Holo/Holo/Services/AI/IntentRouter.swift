@@ -26,6 +26,8 @@ final class IntentRouter {
         let habitId: UUID?
         let thoughtId: UUID?
         let linkedEntity: LinkedEntity?
+        /// 分类未匹配到，使用了「待确认」兜底
+        let categoryUnmatched: Bool
 
         init(
             text: String,
@@ -33,7 +35,8 @@ final class IntentRouter {
             taskId: UUID? = nil,
             habitId: UUID? = nil,
             thoughtId: UUID? = nil,
-            linkedEntity: LinkedEntity? = nil
+            linkedEntity: LinkedEntity? = nil,
+            categoryUnmatched: Bool = false
         ) {
             self.text = text
             self.transactionId = transactionId
@@ -41,6 +44,7 @@ final class IntentRouter {
             self.habitId = habitId
             self.thoughtId = thoughtId
             self.linkedEntity = linkedEntity
+            self.categoryUnmatched = categoryUnmatched
         }
     }
 
@@ -104,7 +108,7 @@ final class IntentRouter {
 
         let categoryRepo = FinanceRepository.shared
         // 使用 AI 提取的科目信息进行匹配
-        let category = try await matchCategory(
+        var category = try await matchCategory(
             primaryCategory: primaryCategory,
             subCategory: subCategory,
             note: note ?? "",
@@ -112,20 +116,39 @@ final class IntentRouter {
         )
         let account = try await categoryRepo.getDefaultAccount()
 
-        guard let category = category, let account = account else {
-            return RouteResult(text: "请先设置默认分类和账户")
+        guard let account = account else {
+            return RouteResult(text: "请先设置默认账户")
+        }
+
+        // 分类未匹配 → 使用「待确认」兜底
+        var isUnmatched = false
+        if category == nil {
+            isUnmatched = true
+            category = categoryRepo.ensurePendingCategory(type: .expense)
+            logger.info("分类未匹配，使用「待确认」兜底")
         }
 
         let transaction = try await categoryRepo.addTransaction(
             amount: amount,
             type: .expense,
-            category: category,
+            category: category!,
             account: account,
             note: note
         )
 
         logger.info("支出已记录：¥\(amount)")
         let accountInfo = " → \(account.name)"
+
+        if isUnmatched {
+            let categoryText = subCategory ?? primaryCategory ?? ""
+            return RouteResult(
+                text: "已记录支出 ¥\(amountStr)\(note != nil ? "（\(note!)）" : "")\(accountInfo)\n⚠️ 无法识别分类「\(categoryText)」，已暂归「待确认」，点击卡片可修改",
+                transactionId: transaction.id,
+                linkedEntity: LinkedEntity(type: .transaction, id: transaction.id),
+                categoryUnmatched: true
+            )
+        }
+
         return RouteResult(
             text: "已记录支出 ¥\(amountStr)\(note != nil ? "（\(note!)）" : "")\(accountInfo)",
             transactionId: transaction.id,
@@ -148,7 +171,7 @@ final class IntentRouter {
         let categoryRepo = FinanceRepository.shared
 
         // 使用 AI 提取的科目信息进行匹配
-        let category = try await matchCategory(
+        var category = try await matchCategory(
             primaryCategory: primaryCategory,
             subCategory: subCategory,
             note: note ?? "",
@@ -156,20 +179,39 @@ final class IntentRouter {
         )
         let account = try await categoryRepo.getDefaultAccount()
 
-        guard let category = category, let account = account else {
-            return RouteResult(text: "请先设置默认分类和账户")
+        guard let account = account else {
+            return RouteResult(text: "请先设置默认账户")
+        }
+
+        // 分类未匹配 → 使用「待确认」兜底
+        var isUnmatched = false
+        if category == nil {
+            isUnmatched = true
+            category = categoryRepo.ensurePendingCategory(type: .income)
+            logger.info("分类未匹配，使用「待确认」兜底")
         }
 
         let transaction = try await categoryRepo.addTransaction(
             amount: amount,
             type: .income,
-            category: category,
+            category: category!,
             account: account,
             note: note
         )
 
         logger.info("收入已记录：¥\(amount)")
         let accountInfo = " → \(account.name)"
+
+        if isUnmatched {
+            let categoryText = subCategory ?? primaryCategory ?? ""
+            return RouteResult(
+                text: "已记录收入 ¥\(amountStr)\(note != nil ? "（\(note!)）" : "")\(accountInfo)\n⚠️ 无法识别分类「\(categoryText)」，已暂归「待确认」，点击卡片可修改",
+                transactionId: transaction.id,
+                linkedEntity: LinkedEntity(type: .transaction, id: transaction.id),
+                categoryUnmatched: true
+            )
+        }
+
         return RouteResult(
             text: "已记录收入 ¥\(amountStr)\(note != nil ? "（\(note!)）" : "")\(accountInfo)",
             transactionId: transaction.id,
@@ -568,7 +610,7 @@ final class IntentRouter {
         let categoryRepo = FinanceRepository.shared
         let categories = try await categoryRepo.getCategories(by: type)
 
-        // 优先使用 AI 返回的科目信息进行匹配
+        // 优先使用 AI 返回的科目信息进行匹配（仅精确和同义词）
         if let sub = subCategory, !sub.isEmpty {
             let matchResult = CategoryMatcherService.shared.matchSingle(
                 primaryCategory: primaryCategory ?? "",
@@ -576,12 +618,13 @@ final class IntentRouter {
                 type: type,
                 categories: categories
             )
-            if matchResult.matchType != .unmatched, let matched = matchResult.matchedCategory {
+            if matchResult.matchType == .exact || matchResult.matchType == .synonym,
+               let matched = matchResult.matchedCategory {
                 return matched
             }
         }
 
-        // 降级：用 note 文本尝试匹配
+        // 降级：用 note 文本尝试匹配（仅精确和同义词）
         if !note.isEmpty {
             let matchResult = CategoryMatcherService.shared.matchSingle(
                 primaryCategory: primaryCategory ?? "",
@@ -589,13 +632,14 @@ final class IntentRouter {
                 type: type,
                 categories: categories
             )
-            if matchResult.matchType != .unmatched, let matched = matchResult.matchedCategory {
+            if matchResult.matchType == .exact || matchResult.matchType == .synonym,
+               let matched = matchResult.matchedCategory {
                 return matched
             }
         }
 
-        // 兜底：返回默认分类
-        return categories.first { $0.isDefault } ?? categories.first
+        // 无法可靠匹配，返回 nil，由调用方使用「待确认」兜底
+        return nil
     }
 
     // MARK: - Memory Insight Generation

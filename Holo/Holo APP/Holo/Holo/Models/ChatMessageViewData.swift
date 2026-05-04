@@ -15,7 +15,10 @@ nonisolated enum EntityCategory: Hashable, Sendable {
     case finance, task, habit, thought, memoryInsight
 }
 
-nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable {
+nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hashable {
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
     let id: UUID
     var role: String
     var content: String
@@ -27,6 +30,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable {
     var parsedBatch: AIParseBatch?
     var executionBatch: AIExecutionBatch?
     var analysisContext: AnalysisContext?
+    var rawLog: LLMLog?
     private var cachedExtractedDataDictionary: [String: String]?
     private var cachedLinkedEntityIds: [EntityCategory: UUID]
 
@@ -41,7 +45,8 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable {
         parentMessageId: UUID?,
         parsedBatch: AIParseBatch? = nil,
         executionBatch: AIExecutionBatch? = nil,
-        analysisContext: AnalysisContext? = nil
+        analysisContext: AnalysisContext? = nil,
+        rawLog: LLMLog? = nil
     ) {
         self.id = id
         self.role = role
@@ -54,6 +59,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable {
         self.parsedBatch = parsedBatch
         self.executionBatch = executionBatch
         self.analysisContext = analysisContext
+        self.rawLog = rawLog
         self.cachedExtractedDataDictionary = Self.decodeExtractedData(extractedDataJSON)
         self.cachedLinkedEntityIds = Self.buildLinkedEntityIds(
             extractedDataDictionary: cachedExtractedDataDictionary,
@@ -73,7 +79,8 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable {
             parentMessageId: message.parentMessageId,
             parsedBatch: message.parsedBatch,
             executionBatch: message.executionBatch,
-            analysisContext: Self.decodeAnalysisContext(message.analysisContextJSON)
+            analysisContext: Self.decodeAnalysisContext(message.analysisContextJSON),
+            rawLog: Self.decodeRawLog(message.rawLogJSON)
         )
     }
 
@@ -97,7 +104,8 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable {
             parentMessageId: dictionary["parentMessageId"] as? UUID,
             parsedBatch: Self.decodeParseBatch(dictionary["parsedBatchJSON"] as? String),
             executionBatch: Self.decodeExecutionBatch(dictionary["executionBatchJSON"] as? String),
-            analysisContext: Self.decodeAnalysisContext(dictionary["analysisContextJSON"] as? String)
+            analysisContext: Self.decodeAnalysisContext(dictionary["analysisContextJSON"] as? String),
+            rawLog: Self.decodeRawLog(dictionary["rawLogJSON"] as? String)
         )
     }
 
@@ -128,6 +136,17 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable {
             return nil
         }
         return UUID(uuidString: idStr)
+    }
+
+    // MARK: - Cache Invalidation
+
+    /// 重新计算缓存的关联实体 ID（updateSnapshot 后调用）
+    mutating func recomputeLinkedEntityIds() {
+        cachedExtractedDataDictionary = Self.decodeExtractedData(extractedDataJSON)
+        cachedLinkedEntityIds = Self.buildLinkedEntityIds(
+            extractedDataDictionary: cachedExtractedDataDictionary,
+            executionBatch: executionBatch
+        )
     }
 
     // MARK: - Unified Entity Resolution
@@ -213,6 +232,14 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable {
             return nil
         }
         return try? JSONDecoder().decode(AnalysisContext.self, from: data)
+    }
+
+    nonisolated private static func decodeRawLog(_ json: String?) -> LLMLog? {
+        guard let json,
+              let data = json.data(using: .utf8) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(LLMLog.self, from: data)
     }
 
     nonisolated private static func buildLinkedEntityIds(

@@ -4,6 +4,25 @@
 
 ---
 
+## [2026-05-04] AI 记账分类未识别兜底 + 卡片跳转修复
+
+### 改进
+- AI 记账分类匹配策略调整：仅接受精确匹配和同义词匹配，移除模糊匹配和随机兜底
+- 无法识别分类时自动归入「待确认」（挂载到「其他」/「其他收入」下），并提示用户点击卡片修改
+- 卡片显示与实际存储保持一致：分类未匹配时卡片显示「待确认」而非 AI 原始文本
+- RouteResult 新增 `categoryUnmatched` 字段，ConversationCoordinator 据此覆盖卡片渲染数据
+
+### 修复
+- 记账卡片无法跳转：`cachedLinkedEntityIds` 在 `updateSnapshot` 后未重新计算，导致新创建的卡片 `resolveLinkedEntityId` 返回 nil。新增 `recomputeLinkedEntityIds()` 方法在快照更新后刷新缓存
+- 分类识别错误：「家政服务59」被模糊匹配到「地铁」，移除不可靠的模糊匹配兜底逻辑
+
+### 新增
+- `FinanceRepository.ensurePendingCategory(type:)` 按需创建「待确认」系统分类
+- `ChatCardData` 图标映射新增「待确认」→ `questionmark.circle.fill`
+- `ChatMessageViewData` 新增 `rawLog` 字段支持 LLM 调用日志查看
+
+---
+
 ## [2026-05-04] 今日看板交互优化 — 弹窗化 + 进度环修复 + 数据同步
 
 ### 改进

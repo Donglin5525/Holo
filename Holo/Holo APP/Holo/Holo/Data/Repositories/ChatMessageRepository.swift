@@ -71,7 +71,8 @@ final class ChatMessageRepository: ObservableObject {
                         "parentMessageId",
                         "parsedBatchJSON",
                         "executionBatchJSON",
-                        "analysisContextJSON"
+                        "analysisContextJSON",
+                        "rawLogJSON"
                     ]
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
                     request.fetchLimit = limit
@@ -173,7 +174,8 @@ final class ChatMessageRepository: ObservableObject {
         extractedDataJSON: String?,
         parsedBatchJSON: String?,
         executionBatchJSON: String?,
-        analysisContextJSON: String? = nil
+        analysisContextJSON: String? = nil,
+        rawLogJSON: String? = nil
     ) {
         guard let message = liveMessageCache[messageId] else { return }
 
@@ -185,6 +187,7 @@ final class ChatMessageRepository: ObservableObject {
         message.parsedBatchJSON = parsedBatchJSON
         message.executionBatchJSON = executionBatchJSON
         message.analysisContextJSON = analysisContextJSON
+        message.rawLogJSON = rawLogJSON
         save()
 
         // 解码 batch 数据（绕过 associated object 缓存）
@@ -218,6 +221,12 @@ final class ChatMessageRepository: ObservableObject {
             }
         }
 
+        // 解码 LLM 日志
+        let decodedRawLog: LLMLog? = rawLogJSON.flatMap { json in
+            guard let data = json.data(using: .utf8) else { return nil }
+            return try? JSONDecoder().decode(LLMLog.self, from: data)
+        }
+
         // 单次 snapshot 更新
         updateSnapshot(messageId) { snapshot in
             snapshot.content = finalContent
@@ -227,6 +236,7 @@ final class ChatMessageRepository: ObservableObject {
             snapshot.parsedBatch = decodedParsedBatch
             snapshot.executionBatch = decodedExecutionBatch
             snapshot.analysisContext = decodedAnalysisContext
+            snapshot.rawLog = decodedRawLog
         }
     }
 
@@ -317,6 +327,7 @@ final class ChatMessageRepository: ObservableObject {
         guard let index = messages.firstIndex(where: { $0.id == messageId }) else { return }
         var snapshot = messages[index]
         mutate(&snapshot)
+        snapshot.recomputeLinkedEntityIds()
         messages[index] = snapshot
     }
 
