@@ -18,8 +18,9 @@ struct MilestoneNode: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Text(data.icon)
+            Image(systemName: data.icon)
                 .font(.system(size: 28))
+                .foregroundColor(goldEnd)
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(data.title)
