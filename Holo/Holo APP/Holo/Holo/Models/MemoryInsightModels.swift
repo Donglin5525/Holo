@@ -34,6 +34,41 @@ enum MemoryInsightStatus: String, Codable {
     case stale
 }
 
+// MARK: - Anomaly Severity
+
+/// 异常严重度
+enum AnomalySeverity: String, Codable {
+    case info
+    case warning
+    case critical
+}
+
+// MARK: - Anomaly Type
+
+/// 异常类型
+enum AnomalyType: String, Codable {
+    case spendingSpike
+    case habitBreak
+    case taskOverload
+    case budgetOverrun
+    case budgetWarning
+}
+
+// MARK: - Anomaly Observation
+
+/// 结构化异常观察
+struct AnomalyObservation: Codable, Equatable {
+    let type: AnomalyType
+    let severity: AnomalySeverity
+    let scopeKey: String
+    let title: String
+    let summary: String
+    let evidence: [String]
+    let metricValue: Double?
+    let baselineValue: Double?
+    let ratio: Double?
+}
+
 // MARK: - Card Type
 
 /// 洞察卡类型（约束 AI 输出范围）
@@ -45,6 +80,7 @@ enum MemoryInsightCardType: String, Codable, CaseIterable {
     case milestone
     case crossDomain = "cross_domain"
     case overview
+    case anomaly
 }
 
 // MARK: - Evidence
@@ -70,6 +106,20 @@ struct MemoryInsightCard: Codable, Identifiable, Equatable {
     let body: String
     let evidence: [MemoryInsightEvidence]
     let suggestedQuestion: String?
+    /// anomaly 卡片的严重度，其他类型为 nil
+    let anomalySeverity: AnomalySeverity?
+
+    init(id: String, type: MemoryInsightCardType, title: String, body: String,
+         evidence: [MemoryInsightEvidence], suggestedQuestion: String?,
+         anomalySeverity: AnomalySeverity? = nil) {
+        self.id = id
+        self.type = type
+        self.title = title
+        self.body = body
+        self.evidence = evidence
+        self.suggestedQuestion = suggestedQuestion
+        self.anomalySeverity = anomalySeverity
+    }
 }
 
 // MARK: - Payload
@@ -137,6 +187,8 @@ struct MemoryInsightContext: Codable, Equatable {
     let milestones: [MemoryInsightMilestoneContext]
     let crossModuleCorrelations: [CrossModuleCorrelation]
     let monthlyInsightDigests: [MonthlyInsightDigest]
+    let anomalies: [AnomalyObservation]
+    let previousPeriodReview: PreviousPeriodReview?
 }
 
 // MARK: - Cross-Module Types
@@ -175,6 +227,7 @@ struct MemoryInsightFinanceContext: Codable, Equatable {
     let previousPeriodExpense: Decimal
     let budgetPerformance: BudgetPerformanceSummary?
     let anomalyDescriptions: [String]
+    let weekdayWeekendSpending: WeekdayWeekendSpendingSummary?
 }
 
 struct BudgetPerformanceSummary: Codable, Equatable {
@@ -193,6 +246,7 @@ struct MemoryInsightHabitContext: Codable, Equatable {
     let averageCompletionRate: Double?
     let topPerformingHabits: [String]
     let strugglingHabits: [String]
+    let habitCategoryCompletionSummaries: [HabitCategoryCompletionSummary]
 }
 
 struct MemoryInsightTaskContext: Codable, Equatable {
@@ -211,6 +265,7 @@ struct MemoryInsightThoughtContext: Codable, Equatable {
     let textContents: [String]
     let moodDistribution: [String: Int]
     let topTags: [String]
+    let thoughtSentimentSummary: ThoughtSentimentSummary
 }
 
 struct MemoryInsightMilestoneContext: Codable, Equatable {
@@ -234,4 +289,30 @@ struct DailyAmountSummary: Codable, Equatable {
 struct HabitStreakSummary: Codable, Equatable {
     let habitName: String
     let streakDays: Int
+}
+
+// MARK: - Cross-Domain Context Summaries
+
+struct WeekdayWeekendSpendingSummary: Codable, Equatable {
+    let weekdayExpense: Decimal
+    let weekendExpense: Decimal
+    let weekdayTransactionCount: Int
+    let weekendTransactionCount: Int
+}
+
+struct HabitCategoryCompletionSummary: Codable, Equatable {
+    let categoryName: String
+    let activeHabitCount: Int
+    let averageCompletionRate: Double
+}
+
+struct ThoughtSentimentSummary: Codable, Equatable {
+    let negativeRatio: Double?
+    let source: String // "mood", "text", "none"
+}
+
+struct PreviousPeriodReview: Codable, Equatable {
+    let previousSuggestions: [String]
+    let previousAnomalyTitles: [String]
+    let previousSummary: String?
 }

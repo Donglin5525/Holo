@@ -29,6 +29,9 @@ public class MemoryInsight: NSManagedObject {
     @NSManaged public var errorMessage: String?
     @NSManaged public var promptVersion: Int16
     @NSManaged public var providerName: String?
+    @NSManaged public var userRating: Int16
+    @NSManaged public var userRatingAt: Date?
+    @NSManaged public var feedbackNote: String?
 
     // MARK: - Computed Properties
 

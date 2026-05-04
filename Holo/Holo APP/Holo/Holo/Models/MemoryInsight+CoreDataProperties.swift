@@ -40,6 +40,9 @@ extension MemoryInsight {
         insight.errorMessage = nil
         insight.promptVersion = 0
         insight.providerName = nil
+        insight.userRating = 0
+        insight.userRatingAt = nil
+        insight.feedbackNote = nil
         return insight
     }
 

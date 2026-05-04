@@ -182,7 +182,7 @@ struct MemoryInsightHeroCard: View {
     private func insightCardsSection(_ payload: MemoryInsightPayload) -> some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             ForEach(payload.cards.prefix(5)) { card in
-                MemoryInsightCardView(card: card)
+                MemoryInsightCardView(card: card, anomalySeverity: card.anomalySeverity)
             }
         }
     }

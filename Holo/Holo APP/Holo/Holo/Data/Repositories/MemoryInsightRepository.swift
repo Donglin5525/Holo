@@ -153,4 +153,57 @@ final class MemoryInsightRepository {
             Self.logger.info("洞察已标记 stale：\(periodType.rawValue)")
         }
     }
+
+    // MARK: - Feedback
+
+    /// 更新用户评分
+    func updateRating(insight: MemoryInsight, rating: Int16, note: String? = nil) throws {
+        insight.userRating = rating
+        insight.userRatingAt = Date()
+        insight.feedbackNote = note
+        try context.save()
+    }
+
+    // MARK: - Recent Insights (Dedup & Review)
+
+    /// 获取最近 N 条同 periodType 且 ready 的洞察
+    func fetchRecentReadyInsights(
+        periodType: MemoryInsightPeriodType,
+        limit: Int = 3
+    ) -> [MemoryInsight] {
+        let request = MemoryInsight.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "periodType == %@ AND status == %@",
+            periodType.rawValue,
+            MemoryInsightStatus.ready.rawValue
+        )
+        request.sortDescriptors = [NSSortDescriptor(key: "generatedAt", ascending: false)]
+        request.fetchLimit = limit
+        return (try? context.fetch(request)) ?? []
+    }
+
+    /// 获取上一周期的 ready 洞察
+    func fetchPreviousPeriodInsight(
+        periodType: MemoryInsightPeriodType,
+        currentStart: Date
+    ) -> MemoryInsight? {
+        let calendar = Calendar.current
+        let prevStart: Date
+        switch periodType {
+        case .daily: prevStart = calendar.date(byAdding: .day, value: -1, to: currentStart) ?? currentStart
+        case .weekly: prevStart = calendar.date(byAdding: .weekOfYear, value: -1, to: currentStart) ?? currentStart
+        case .monthly: prevStart = calendar.date(byAdding: .month, value: -1, to: currentStart) ?? currentStart
+        }
+
+        let request = MemoryInsight.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "periodType == %@ AND periodStart == %@ AND status == %@",
+            periodType.rawValue,
+            prevStart as CVarArg,
+            MemoryInsightStatus.ready.rawValue
+        )
+        request.sortDescriptors = [NSSortDescriptor(key: "generatedAt", ascending: false)]
+        request.fetchLimit = 1
+        return (try? context.fetch(request))?.first
+    }
 }

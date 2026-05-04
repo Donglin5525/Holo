@@ -31,6 +31,12 @@ struct CrossModuleCorrelator {
         if let c = detectTaskHabitCorrelation(tasks: tasks, habits: habits) {
             results.append(c)
         }
+        if let c = detectEmotionSpendingCorrelation(finance: finance, thoughts: thoughts) {
+            results.append(c)
+        }
+        if let c = detectWeekdayWeekendPattern(finance: finance) {
+            results.append(c)
+        }
 
         return results
     }
@@ -164,6 +170,69 @@ struct CrossModuleCorrelator {
             observation: "任务完成率和习惯完成率\(direction)",
             signalStrength: signalStrength,
             summary: "任务完成率 \(Int(taskRate))%，习惯完成率 \(Int(habitRate))%"
+        )
+    }
+
+    // MARK: - 情绪 ↔ 消费
+
+    private static func detectEmotionSpendingCorrelation(
+        finance: MemoryInsightFinanceContext,
+        thoughts: MemoryInsightThoughtContext
+    ) -> CrossModuleCorrelation? {
+        let sentiment = thoughts.thoughtSentimentSummary
+        guard sentiment.source != "none",
+              let negativeRatio = sentiment.negativeRatio,
+              negativeRatio > 0.4 else { return nil }
+
+        // 最低样本量：想法 >= 5
+        guard thoughts.totalCount >= 5 else { return nil }
+
+        // 消费环比上升
+        guard finance.previousPeriodExpense > 0 else { return nil }
+        let expenseChange = ((finance.totalExpense - finance.previousPeriodExpense)
+            / finance.previousPeriodExpense as NSDecimalNumber).doubleValue * 100
+        guard expenseChange > 10 else { return nil }
+
+        let signalStrength = min(1.0, max(negativeRatio, expenseChange / 50.0))
+        return CrossModuleCorrelation(
+            modulePair: [.thought, .finance],
+            observation: "负面情绪占比较高，同时支出较上期上升",
+            signalStrength: signalStrength,
+            summary: "负面情绪 \(Int(negativeRatio * 100))%，支出升 \(Int(expenseChange))%"
+        )
+    }
+
+    // MARK: - 工作日/周末消费模式
+
+    private static func detectWeekdayWeekendPattern(
+        finance: MemoryInsightFinanceContext
+    ) -> CrossModuleCorrelation? {
+        guard let ww = finance.weekdayWeekendSpending else { return nil }
+
+        // 最低样本量：总交易数 >= 14（至少两周数据）
+        let totalCount = ww.weekdayTransactionCount + ww.weekendTransactionCount
+        guard totalCount >= 14 else { return nil }
+
+        // 计算日均差异
+        let weekdayAvg = ww.weekdayTransactionCount > 0
+            ? (ww.weekdayExpense / Decimal(ww.weekdayTransactionCount) as NSDecimalNumber).doubleValue
+            : 0
+        let weekendAvg = ww.weekendTransactionCount > 0
+            ? (ww.weekendExpense / Decimal(ww.weekendTransactionCount) as NSDecimalNumber).doubleValue
+            : 0
+
+        guard weekdayAvg > 0, weekendAvg > 0 else { return nil }
+
+        let ratio = max(weekdayAvg, weekendAvg) / min(weekdayAvg, weekendAvg)
+        guard ratio > 1.5 else { return nil }
+
+        let higherSide = weekendAvg > weekdayAvg ? "周末" : "工作日"
+        let signalStrength = min(1.0, (ratio - 1.0) / 1.0)
+        return CrossModuleCorrelation(
+            modulePair: [.finance, .finance],
+            observation: "\(higherSide)日均消费明显高于另一侧",
+            signalStrength: signalStrength,
+            summary: "工作日日均 ¥\(Int(weekdayAvg))，周末日均 ¥\(Int(weekendAvg))"
         )
     }
 }

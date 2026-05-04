@@ -113,6 +113,25 @@ extension CoreDataStack {
         providerName.isOptional = true
         attributes.append(providerName)
 
+        let userRating = NSAttributeDescription()
+        userRating.name = "userRating"
+        userRating.attributeType = .integer16AttributeType
+        userRating.isOptional = false
+        userRating.defaultValue = 0
+        attributes.append(userRating)
+
+        let userRatingAt = NSAttributeDescription()
+        userRatingAt.name = "userRatingAt"
+        userRatingAt.attributeType = .dateAttributeType
+        userRatingAt.isOptional = true
+        attributes.append(userRatingAt)
+
+        let feedbackNote = NSAttributeDescription()
+        feedbackNote.name = "feedbackNote"
+        feedbackNote.attributeType = .stringAttributeType
+        feedbackNote.isOptional = true
+        attributes.append(feedbackNote)
+
         entity.properties = attributes
         return entity
     }

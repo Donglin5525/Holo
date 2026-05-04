@@ -234,6 +234,18 @@ final class MockAIProvider: AIProvider {
               "suggestedQuestion": null
             },
             {
+              "id": "anomaly_1",
+              "type": "anomaly",
+              "title": "周三消费突增",
+              "body": "周三支出 ¥380，高于日均 ¥85 的 3 倍以上。",
+              "evidence": [
+                {"id": "e5", "label": "日均支出 ¥85", "date": null, "sourceType": null},
+                {"id": "e6", "label": "周三支出 ¥380", "date": "2026-04-23", "sourceType": "transaction"}
+              ],
+              "suggestedQuestion": "周三的支出能减少吗？",
+              "anomalySeverity": "warning"
+            },
+            {
               "id": "thought_1",
               "type": "thought",
               "title": "在思考节奏和仪式感",

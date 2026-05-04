@@ -12,6 +12,8 @@ import SwiftUI
 struct MemoryInsightCardView: View {
 
     let card: MemoryInsightCard
+    /// anomaly 卡片的严重度，用于区分颜色。非 anomaly 卡片传 nil
+    var anomalySeverity: AnomalySeverity?
 
     @State private var isExpanded: Bool = false
 
@@ -70,8 +72,12 @@ struct MemoryInsightCardView: View {
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoGlassBackground)
+        .background(cardBackgroundColor)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.md)
+                .stroke(cardBorderColor, lineWidth: card.type == .anomaly ? 1 : 0)
+        )
     }
 
     // MARK: - Evidence List
@@ -106,6 +112,12 @@ struct MemoryInsightCardView: View {
         case .milestone: return "flag.fill"
         case .crossDomain: return "arrow.triangle.2.circlepath"
         case .overview: return "chart.bar"
+        case .anomaly:
+            switch anomalySeverity {
+            case .critical: return "exclamationmark.octagon.fill"
+            case .warning: return "exclamationmark.triangle.fill"
+            default: return "info.circle.fill"
+            }
         }
     }
 
@@ -118,6 +130,24 @@ struct MemoryInsightCardView: View {
         case .milestone: return .holoError
         case .crossDomain: return .holoPrimary
         case .overview: return .holoTextSecondary
+        case .anomaly:
+            switch anomalySeverity {
+            case .critical: return .red
+            case .warning: return .orange
+            default: return .blue
+            }
         }
+    }
+
+    private var cardBackgroundColor: Color {
+        if card.type == .anomaly {
+            return Color.holoGlassBackground
+        }
+        return Color.holoGlassBackground
+    }
+
+    private var cardBorderColor: Color {
+        guard card.type == .anomaly else { return .clear }
+        return cardColor.opacity(0.3)
     }
 }

@@ -57,9 +57,9 @@ struct MemoryInsightContextBuilder {
     ) async -> (context: MemoryInsightContext, snapshotHash: String) {
         let (start, end) = Self.periodRange(periodType: periodType, referenceDate: referenceDate)
 
-        let finance = await buildFinanceContext(start: start, end: end, periodType: periodType)
-        let habits = buildHabitContext(start: start, end: end)
-        let tasks = buildTaskContext(start: start, end: end)
+        let (finance, financeAnomalies) = await buildFinanceContext(start: start, end: end, periodType: periodType)
+        let (habits, habitAnomalies) = buildHabitContext(start: start, end: end)
+        let (tasks, taskAnomalies) = buildTaskContext(start: start, end: end)
         let thoughts = buildThoughtContext(start: start, end: end)
         let milestones = Self.buildMilestoneContext(start: start, end: end)
 
@@ -68,6 +68,15 @@ struct MemoryInsightContextBuilder {
             habits: habits,
             tasks: tasks,
             thoughts: thoughts
+        )
+
+        let allAnomalies = Self.deduplicateAnomalies(financeAnomalies + habitAnomalies + taskAnomalies)
+
+        // 上期回顾
+        let previousReview = Self.buildPreviousPeriodReview(
+            periodType: periodType,
+            currentStart: start,
+            insightRepo: insightRepo
         )
 
         var context = MemoryInsightContext(
@@ -82,7 +91,9 @@ struct MemoryInsightContextBuilder {
             thoughts: thoughts,
             milestones: milestones,
             crossModuleCorrelations: correlations,
-            monthlyInsightDigests: []
+            monthlyInsightDigests: [],
+            anomalies: allAnomalies,
+            previousPeriodReview: previousReview
         )
 
         context = Self.enforceTokenBudget(context, periodType: periodType)
@@ -144,7 +155,7 @@ struct MemoryInsightContextBuilder {
         start: Date,
         end: Date,
         periodType: MemoryInsightPeriodType
-    ) async -> MemoryInsightFinanceContext {
+    ) async -> (context: MemoryInsightFinanceContext, anomalies: [AnomalyObservation]) {
         var totalExpense: Decimal = 0
         var totalIncome: Decimal = 0
         var topCategories: [CategoryAmountSummary] = []
@@ -213,29 +224,93 @@ struct MemoryInsightContextBuilder {
             )
         }()
 
-        // 异常检测
-        var anomalies: [String] = []
+        // 结构化异常检测
+        var structuredAnomalies: [AnomalyObservation] = []
+        var textAnomalies: [String] = []
+
         let daysInPeriod = Calendar.current.dateComponents([.day], from: start, to: end).day ?? 7
         if daysInPeriod > 0, totalExpense > 0 {
             let dailyAvg = totalExpense / Decimal(daysInPeriod)
-            if dailyAvg > 0,
-               let maxDay = dailyExpenses.max(by: { $0.amount < $1.amount }),
-               maxDay.amount > dailyAvg * 3 && maxDay.amount > 100 {
-                let ratio = (maxDay.amount / dailyAvg as NSDecimalNumber).doubleValue
-                let percentDisplay = min(Int((ratio - 1) * 100), 999)
-                anomalies.append("\(maxDay.date) 单日 \(maxDay.amount)（高于均值 \(percentDisplay)%）")
+            if dailyAvg > 0 {
+                // 消费突增：检查每个交易日是否超过均值 2 倍且 > 100
+                for day in dailyExpenses {
+                    guard day.amount > 100 else { continue }
+                    let ratio = (day.amount / dailyAvg as NSDecimalNumber).doubleValue
+                    guard ratio >= 2 else { continue }
+
+                    let severity: AnomalySeverity = ratio > 5 ? .critical : .warning
+                    let percentDisplay = min(Int((ratio - 1) * 100), 999)
+                    structuredAnomalies.append(AnomalyObservation(
+                        type: .spendingSpike,
+                        severity: severity,
+                        scopeKey: "spending:\(day.date)",
+                        title: "单日消费突增",
+                        summary: "\(day.date) 支出 ¥\(day.amount)，高于均值 \(percentDisplay)%",
+                        evidence: ["日均支出 ¥\(dailyAvg)", "当日支出 ¥\(day.amount)"],
+                        metricValue: (day.amount as NSDecimalNumber).doubleValue,
+                        baselineValue: (dailyAvg as NSDecimalNumber).doubleValue,
+                        ratio: ratio
+                    ))
+                    textAnomalies.append("\(day.date) 单日 ¥\(day.amount)（高于均值 \(percentDisplay)%）")
+                }
             }
         }
 
-        return MemoryInsightFinanceContext(
+        // 预算异常
+        if let budget = budgetSummary {
+            // 总预算超支
+            if budget.progressPercent >= 1.0 {
+                let progressPercent = Int(budget.progressPercent * 100)
+                structuredAnomalies.append(AnomalyObservation(
+                    type: .budgetOverrun,
+                    severity: .critical,
+                    scopeKey: "budget:global",
+                    title: "总预算已超支",
+                    summary: "总预算使用率 \(progressPercent)%",
+                    evidence: ["总预算 ¥\(budget.totalBudget)", "已支出 ¥\(budget.totalSpent)"],
+                    metricValue: budget.progressPercent * 100,
+                    baselineValue: 100.0,
+                    ratio: nil
+                ))
+            }
+
+            // 分类预算预警
+            let categoryWarnings = budgetRepo.getWarningCategoryBudgets(period: budgetPeriod)
+            for warning in categoryWarnings {
+                let progressPercent = Int(warning.progress * 100)
+                let isOverrun = warning.isOverBudget
+                structuredAnomalies.append(AnomalyObservation(
+                    type: isOverrun ? .budgetOverrun : .budgetWarning,
+                    severity: isOverrun ? .critical : .warning,
+                    scopeKey: "budget:category:\(warning.categoryId?.uuidString ?? warning.categoryName)",
+                    title: isOverrun ? "\(warning.categoryName)预算超支" : "\(warning.categoryName)预算预警",
+                    summary: "\(warning.categoryName)使用率 \(progressPercent)%",
+                    evidence: ["分类：\(warning.categoryName)", "使用率：\(progressPercent)%"],
+                    metricValue: warning.progress * 100,
+                    baselineValue: 100.0,
+                    ratio: nil
+                ))
+            }
+        }
+
+        // 工作日/周末消费分布
+        let weekdayWeekend = Self.computeWeekdayWeekendSpending(
+            dailyExpenses: dailyExpenses,
+            start: start,
+            end: end
+        )
+
+        let context = MemoryInsightFinanceContext(
             totalExpense: totalExpense,
             totalIncome: totalIncome,
             topCategories: topCategories,
             dailyExpenses: dailyExpenses,
             previousPeriodExpense: previousPeriodExpense,
             budgetPerformance: budgetSummary,
-            anomalyDescriptions: anomalies
+            anomalyDescriptions: textAnomalies,
+            weekdayWeekendSpending: weekdayWeekend
         )
+        return (context, structuredAnomalies)
     }
 
     // MARK: - Habits
@@ -243,7 +318,7 @@ struct MemoryInsightContextBuilder {
     private func buildHabitContext(
         start: Date,
         end: Date
-    ) -> MemoryInsightHabitContext {
+    ) -> (context: MemoryInsightHabitContext, anomalies: [AnomalyObservation]) {
         let range = start...end.addingDays(1)
 
         let habits = habitRepo.activeHabits
@@ -283,20 +358,57 @@ struct MemoryInsightContextBuilder {
         let topPerforming = ranking.prefix(3).map(\.name)
         let struggling = ranking.suffix(3).filter { $0.completionRate < 0.5 }.map(\.name)
 
-        return MemoryInsightHabitContext(
+        // 习惯断连检测：仅限每日、正向、打卡型活跃习惯
+        var habitAnomalies: [AnomalyObservation] = []
+        let calendar = Calendar.current
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let today = Date()
+
+        for habit in habits {
+            guard habit.isCheckInType,
+                  !habit.isBadHabit,
+                  habit.habitFrequency == .daily else { continue }
+
+            let missedDays = Self.consecutiveMissedDays(
+                for: habit,
+                upTo: today,
+                habitRepo: habitRepo,
+                calendar: calendar,
+                dateFormatter: dateFormatter
+            )
+
+            if missedDays >= 3 {
+                habitAnomalies.append(AnomalyObservation(
+                    type: .habitBreak,
+                    severity: .warning,
+                    scopeKey: "habit:\(habit.id.uuidString)",
+                    title: "\(habit.name)已断连",
+                    summary: "连续 \(missedDays) 天未完成打卡",
+                    evidence: ["习惯：\(habit.name)", "连续未完成：\(missedDays) 天"],
+                    metricValue: Double(missedDays),
+                    baselineValue: 0,
+                    ratio: nil
+                ))
+            }
+        }
+
+        let context = MemoryInsightHabitContext(
             activeHabitCount: habits.count,
             completedRecordCount: completedRecordCount,
             previousPeriodCompletedRecordCount: previousPeriodCompletedRecordCount,
             streaks: streaks.sorted { $0.streakDays > $1.streakDays },
             averageCompletionRate: overviewStats.averageCompletionRate,
             topPerformingHabits: topPerforming,
-            strugglingHabits: struggling
+            strugglingHabits: struggling,
+            habitCategoryCompletionSummaries: []
         )
+        return (context, habitAnomalies)
     }
 
     // MARK: - Tasks
 
-    private func buildTaskContext(start: Date, end: Date) -> MemoryInsightTaskContext {
+    private func buildTaskContext(start: Date, end: Date) -> (context: MemoryInsightTaskContext, anomalies: [AnomalyObservation]) {
         let context = CoreDataStack.shared.viewContext
 
         var completedCount = 0
@@ -328,15 +440,35 @@ struct MemoryInsightContextBuilder {
         let stats = todoRepo.getCompletionStats(from: start, to: end)
         let trend = todoRepo.getCompletionTrend(from: start, to: end)
 
-        return MemoryInsightTaskContext(
+        let totalActive = todoRepo.activeTasks.count
+
+        // 任务堆积检测
+        var taskAnomalies: [AnomalyObservation] = []
+        if totalActive >= 10 && overdueCount >= 3 {
+            let severity: AnomalySeverity = overdueCount > 5 ? .critical : .warning
+            taskAnomalies.append(AnomalyObservation(
+                type: .taskOverload,
+                severity: severity,
+                scopeKey: "task:overdue",
+                title: "任务堆积",
+                summary: "\(totalActive) 个活跃任务中 \(overdueCount) 个已逾期",
+                evidence: ["活跃任务：\(totalActive)", "逾期任务：\(overdueCount)"],
+                metricValue: Double(overdueCount),
+                baselineValue: nil,
+                ratio: nil
+            ))
+        }
+
+        let taskContext = MemoryInsightTaskContext(
             completedCount: completedCount,
             overdueCount: overdueCount,
             importantCompletedTasks: importantCompletedTasks,
-            totalCount: todoRepo.activeTasks.count,
+            totalCount: totalActive,
             completionRate: stats.completionRate,
             highPriorityCompletionRate: stats.highPriorityCompletionRate,
             dailyCompletionTrend: trend
         )
+        return (taskContext, taskAnomalies)
     }
 
     // MARK: - Thoughts
@@ -361,12 +493,20 @@ struct MemoryInsightContextBuilder {
         let tags = thoughtRepo.getTopTags(from: start, to: endDate, limit: 3).map(\.name)
         let texts = thoughtRepo.getThoughtTexts(from: start, to: endDate, limit: 20)
 
+        // 情绪摘要
+        let sentimentSummary = Self.computeSentimentSummary(
+            moodDistribution: moodDist,
+            textContents: texts,
+            totalCount: totalCount
+        )
+
         return MemoryInsightThoughtContext(
             totalCount: totalCount,
             recentSnippets: recentSnippets,
             textContents: texts,
             moodDistribution: moodDist,
-            topTags: tags
+            topTags: tags,
+            thoughtSentimentSummary: sentimentSummary
         )
     }
 
@@ -411,9 +551,9 @@ struct MemoryInsightContextBuilder {
         }
 
         // 3. 年度原始汇总（复用各 build 方法）
-        let finance = await buildFinanceContext(start: yearStart, end: yearEnd, periodType: .monthly)
-        let habits = buildHabitContext(start: yearStart, end: yearEnd)
-        let tasks = buildTaskContext(start: yearStart, end: yearEnd)
+        let (finance, _) = await buildFinanceContext(start: yearStart, end: yearEnd, periodType: .monthly)
+        let (habits, _) = buildHabitContext(start: yearStart, end: yearEnd)
+        let (tasks, _) = buildTaskContext(start: yearStart, end: yearEnd)
         let thoughts = buildThoughtContext(start: yearStart, end: yearEnd)
         let milestones = Self.buildMilestoneContext(start: yearStart, end: yearEnd)
 
@@ -436,7 +576,9 @@ struct MemoryInsightContextBuilder {
             thoughts: thoughts,
             milestones: milestones,
             crossModuleCorrelations: correlations,
-            monthlyInsightDigests: digests
+            monthlyInsightDigests: digests,
+            anomalies: [],
+            previousPeriodReview: nil
         )
     }
 
@@ -450,12 +592,14 @@ struct MemoryInsightContextBuilder {
             localeIdentifier: Locale.current.identifier,
             finance: MemoryInsightFinanceContext(
                 totalExpense: 0, totalIncome: 0, topCategories: [], dailyExpenses: [],
-                previousPeriodExpense: 0, budgetPerformance: nil, anomalyDescriptions: []
+                previousPeriodExpense: 0, budgetPerformance: nil, anomalyDescriptions: [],
+                weekdayWeekendSpending: nil
             ),
             habits: MemoryInsightHabitContext(
                 activeHabitCount: 0, completedRecordCount: 0,
                 previousPeriodCompletedRecordCount: 0, streaks: [],
-                averageCompletionRate: nil, topPerformingHabits: [], strugglingHabits: []
+                averageCompletionRate: nil, topPerformingHabits: [], strugglingHabits: [],
+                habitCategoryCompletionSummaries: []
             ),
             tasks: MemoryInsightTaskContext(
                 completedCount: 0, overdueCount: 0, importantCompletedTasks: [],
@@ -464,11 +608,14 @@ struct MemoryInsightContextBuilder {
             ),
             thoughts: MemoryInsightThoughtContext(
                 totalCount: 0, recentSnippets: [],
-                textContents: [], moodDistribution: [:], topTags: []
+                textContents: [], moodDistribution: [:], topTags: [],
+                thoughtSentimentSummary: ThoughtSentimentSummary(negativeRatio: nil, source: "none")
             ),
             milestones: [],
             crossModuleCorrelations: [],
-            monthlyInsightDigests: []
+            monthlyInsightDigests: [],
+            anomalies: [],
+            previousPeriodReview: nil
         )
     }
 
@@ -478,6 +625,7 @@ struct MemoryInsightContextBuilder {
         case .habit: return .habit
         case .task: return .task
         case .thought: return .thought
+        case .anomaly: return .finance
         default: return .finance
         }
     }
@@ -530,7 +678,8 @@ struct MemoryInsightContextBuilder {
                 recentSnippets: truncatedThoughts.recentSnippets,
                 textContents: Array(truncatedThoughts.textContents.prefix(5)),
                 moodDistribution: truncatedThoughts.moodDistribution,
-                topTags: truncatedThoughts.topTags
+                topTags: truncatedThoughts.topTags,
+                thoughtSentimentSummary: truncatedThoughts.thoughtSentimentSummary
             )
         }
 
@@ -544,7 +693,8 @@ struct MemoryInsightContextBuilder {
                 dailyExpenses: Array(truncatedFinance.dailyExpenses.suffix(14)),
                 previousPeriodExpense: truncatedFinance.previousPeriodExpense,
                 budgetPerformance: truncatedFinance.budgetPerformance,
-                anomalyDescriptions: truncatedFinance.anomalyDescriptions
+                anomalyDescriptions: truncatedFinance.anomalyDescriptions,
+                weekdayWeekendSpending: truncatedFinance.weekdayWeekendSpending
             )
         }
 
@@ -574,7 +724,9 @@ struct MemoryInsightContextBuilder {
             thoughts: truncatedThoughts,
             milestones: context.milestones,
             crossModuleCorrelations: context.crossModuleCorrelations,
-            monthlyInsightDigests: context.monthlyInsightDigests
+            monthlyInsightDigests: context.monthlyInsightDigests,
+            anomalies: context.anomalies,
+            previousPeriodReview: context.previousPeriodReview
         )
     }
 
@@ -584,5 +736,150 @@ struct MemoryInsightContextBuilder {
         guard let encoded = try? JSONEncoder().encode(context) else { return "" }
         let hash = SHA256.hash(data: encoded)
         return hash.compactMap { String(format: "%02x", $0) }.joined()
+    }
+
+    // MARK: - Anomaly Helpers
+
+    /// 按 scopeKey 去重，保留最高严重度
+    private static func deduplicateAnomalies(_ anomalies: [AnomalyObservation]) -> [AnomalyObservation] {
+        var best: [String: AnomalyObservation] = [:]
+        let severityOrder: [AnomalySeverity] = [.info, .warning, .critical]
+
+        for anomaly in anomalies {
+            if let existing = best[anomaly.scopeKey] {
+                let existingRank = severityOrder.firstIndex(of: existing.severity) ?? 0
+                let newRank = severityOrder.firstIndex(of: anomaly.severity) ?? 0
+                if newRank > existingRank {
+                    best[anomaly.scopeKey] = anomaly
+                }
+            } else {
+                best[anomaly.scopeKey] = anomaly
+            }
+        }
+        return Array(best.values)
+    }
+
+    /// 计算连续未打卡天数（从昨天往前数）
+    private static func consecutiveMissedDays(
+        for habit: Habit,
+        upTo date: Date,
+        habitRepo: HabitRepository,
+        calendar: Calendar,
+        dateFormatter: DateFormatter
+    ) -> Int {
+        guard let checkStart = calendar.date(byAdding: .day, value: -30, to: date) else { return 0 }
+        let records = habitRepo.getRecords(for: habit, in: checkStart...date)
+
+        var completedDates = Set<String>()
+        for record in records where record.isCompleted {
+            completedDates.insert(dateFormatter.string(from: record.date))
+        }
+
+        var missedDays = 0
+        guard var checkDate = calendar.date(byAdding: .day, value: -1, to: date) else { return 0 }
+
+        for _ in 0..<30 {
+            let dayStr = dateFormatter.string(from: checkDate)
+            if completedDates.contains(dayStr) {
+                break
+            }
+            missedDays += 1
+            guard let prev = calendar.date(byAdding: .day, value: -1, to: checkDate) else { break }
+            checkDate = prev
+        }
+        return missedDays
+    }
+
+    /// 计算工作日/周末消费分布
+    private static func computeWeekdayWeekendSpending(
+        dailyExpenses: [DailyAmountSummary],
+        start: Date,
+        end: Date
+    ) -> WeekdayWeekendSpendingSummary? {
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+
+        let calendar = Calendar.current
+        var weekdayExpense: Decimal = 0
+        var weekendExpense: Decimal = 0
+        var weekdayCount = 0
+        var weekendCount = 0
+
+        for day in dailyExpenses {
+            guard let date = dateFormatter.date(from: day.date), date >= start else { continue }
+            let weekday = calendar.component(.weekday, from: date)
+            if weekday == 1 || weekday == 7 { // 周日=1, 周六=7
+                weekendExpense += day.amount
+                weekendCount += 1
+            } else {
+                weekdayExpense += day.amount
+                weekdayCount += 1
+            }
+        }
+
+        guard weekdayCount > 0 || weekendCount > 0 else { return nil }
+        return WeekdayWeekendSpendingSummary(
+            weekdayExpense: weekdayExpense,
+            weekendExpense: weekendExpense,
+            weekdayTransactionCount: weekdayCount,
+            weekendTransactionCount: weekendCount
+        )
+    }
+
+    /// 计算情绪摘要
+    private static func computeSentimentSummary(
+        moodDistribution: [String: Int],
+        textContents: [String],
+        totalCount: Int
+    ) -> ThoughtSentimentSummary {
+        let negativeMoods = ["悲伤", "焦虑", "愤怒", "压抑", "沮丧", "烦躁", "难过"]
+        let totalMoodCount = moodDistribution.values.reduce(0, +)
+
+        if totalMoodCount >= 3 {
+            let negativeCount = moodDistribution
+                .filter { negativeMoods.contains($0.key) }
+                .reduce(0) { $0 + $1.value }
+            let ratio = Double(negativeCount) / Double(totalMoodCount)
+            return ThoughtSentimentSummary(negativeRatio: ratio, source: "mood")
+        }
+
+        if totalCount >= 5, !textContents.isEmpty {
+            let negativeKeywords = ["焦虑", "压力", "累", "烦", "难", "沮丧", "崩溃", "无助"]
+            let negativeTextCount = textContents.filter { text in
+                negativeKeywords.contains { text.contains($0) }
+            }.count
+            let ratio = Double(negativeTextCount) / Double(textContents.count)
+            return ThoughtSentimentSummary(negativeRatio: ratio, source: "text")
+        }
+
+        return ThoughtSentimentSummary(negativeRatio: nil, source: "none")
+    }
+
+    /// 构建上期回顾
+    private static func buildPreviousPeriodReview(
+        periodType: MemoryInsightPeriodType,
+        currentStart: Date,
+        insightRepo: MemoryInsightRepository
+    ) -> PreviousPeriodReview? {
+        guard let prevInsight = insightRepo.fetchPreviousPeriodInsight(
+            periodType: periodType,
+            currentStart: currentStart
+        ) else {
+            return nil
+        }
+
+        guard let payload = prevInsight.parsedPayload else { return nil }
+
+        let suggestions = Array(payload.suggestedQuestions.prefix(3))
+        let anomalyTitles = payload.cards
+            .filter { $0.type == .anomaly }
+            .map(\.title)
+        let summary = String(payload.summary.prefix(160))
+
+        return PreviousPeriodReview(
+            previousSuggestions: suggestions,
+            previousAnomalyTitles: anomalyTitles,
+            previousSummary: summary.isEmpty ? nil : summary
+        )
     }
 }

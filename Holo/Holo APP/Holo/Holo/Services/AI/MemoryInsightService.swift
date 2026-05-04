@@ -106,6 +106,17 @@ final class MemoryInsightService {
             }
         }
 
+        // 3. 去重检查：与近期洞察文本相似度
+        if !forceRefresh {
+            if let similar = checkSimilarityWithRecent(
+                periodType: periodType,
+                context: context
+            ) {
+                logger.info("洞察与近期内容高度相似，跳过生成")
+                return similar
+            }
+        }
+
         // 3. 获取 Provider
         let provider = try resolveProvider()
 
@@ -175,7 +186,7 @@ final class MemoryInsightService {
             payload: processedPayload,
             rawResponse: rawResponse,
             providerName: providerName,
-            promptVersion: 2
+            promptVersion: 4
         )
 
         logger.info("洞察生成成功：\(periodType.rawValue)")
@@ -232,7 +243,8 @@ final class MemoryInsightService {
                 title: card.title,
                 body: card.body,
                 evidence: processedEvidence,
-                suggestedQuestion: card.suggestedQuestion
+                suggestedQuestion: card.suggestedQuestion,
+                anomalySeverity: card.anomalySeverity
             ))
         }
 
@@ -249,6 +261,75 @@ final class MemoryInsightService {
         // MVP: 不做精确匹配，evidence 主要用于 UI 展示文字而非跳转
         // 后续可升级为按 content 关键词匹配
         return nil
+    }
+
+    // MARK: - Dedup
+
+    /// 检查近期洞察相似度
+    private func checkSimilarityWithRecent(
+        periodType: MemoryInsightPeriodType,
+        context: MemoryInsightContext
+    ) -> MemoryInsight? {
+        let recentInsights = repository.fetchRecentReadyInsights(periodType: periodType, limit: 3)
+        guard !recentInsights.isEmpty else { return nil }
+
+        // 提取本期 context 关键 token
+        let currentTokens = extractContextTokens(context)
+
+        for insight in recentInsights {
+            guard let payload = insight.parsedPayload else { continue }
+            let historicTokens = extractPayloadTokens(payload)
+
+            // 计算交集比例
+            let intersection = Set(currentTokens).intersection(Set(historicTokens))
+            let union = Set(currentTokens).union(Set(historicTokens))
+            guard !union.isEmpty else { continue }
+
+            let similarity = Double(intersection.count) / Double(union.count)
+            if similarity > 0.85 {
+                logger.info("洞察去重命中，相似度 \(similarity)")
+                return insight
+            }
+        }
+        return nil
+    }
+
+    /// 从 context 提取关键词 token
+    private func extractContextTokens(_ context: MemoryInsightContext) -> [String] {
+        var tokens: [String] = []
+        // 财务关键词
+        for cat in context.finance.topCategories {
+            tokens.append(cat.categoryName)
+        }
+        // 习惯关键词
+        tokens.append(contentsOf: context.habits.topPerformingHabits)
+        tokens.append(contentsOf: context.habits.strugglingHabits)
+        // 任务关键词
+        tokens.append(contentsOf: context.tasks.importantCompletedTasks)
+        // 异常关键词
+        for anomaly in context.anomalies {
+            tokens.append(anomaly.title)
+        }
+        return tokens.filter { !$0.isEmpty }
+    }
+
+    /// 从 payload 提取文本 token（过滤数字日期等易变 token）
+    private func extractPayloadTokens(_ payload: MemoryInsightPayload) -> [String] {
+        var tokens: [String] = []
+        tokens.append(payload.title)
+        tokens.append(payload.summary)
+
+        for card in payload.cards {
+            tokens.append(card.title)
+            // body 中过滤数字和日期
+            let filteredBody = card.body.components(separatedBy: CharacterSet.decimalDigits)
+                .joined()
+                .components(separatedBy: CharacterSet(charactersIn: "-/¥%"))
+                .filter { $0.count >= 2 }
+            tokens.append(contentsOf: filteredBody)
+        }
+
+        return tokens.filter { $0.count >= 2 }
     }
 }
 
