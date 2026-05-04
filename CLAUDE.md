@@ -62,22 +62,6 @@
 | 自定义导航栏 | HStack 必须加 `.frame(maxWidth: .infinity, minHeight: 44, maxHeight: 44)` 固定高度，仅靠 padding 无法约束 |
 | Swift Charts 坐标 | `proxy.position(forX:)` 返回 **plot area 局部坐标**，不是全局坐标。触摸转换：`touch - plotFrame.minX`；Tooltip 定位：`plotFrame.minX + proxyX`。**禁止用 `proxy.value(atX:)`** 查分类轴（不可靠），改用 `proxy.position(forX:)` + 手动最近点（详见开发规范第 11 节） |
 
-### UIImagePickerController + fullScreenCover
-
-1. 在 `imagePickerController(_:didFinishPickingMediaWithInfo:)` 回调中立即将 UIImage 转为 Data，不要持有 UIImage 引用（其生命周期绑定 UIImagePickerController）
-2. dismiss 与数据处理解耦 — 用 `onDismiss` 或 `onChange` 处理数据，不要在 dismiss 闭包中做重操作
-3. 图片保存必须走后台队列，禁止在主线程做 NSData 编码
-
-### CoreData 线程安全
-
-- NSManagedObjectContext 不是线程安全的，每个线程/队列用自己的 context
-- 用 `NSManagedObjectID` 跨线程传递引用，不要直接传 NSManagedObject
-
-### SwiftUI 生命周期
-
-- `fullScreenCover` 的 `onDismiss` 只负责 UI 状态重置，不处理业务逻辑
-- 异步操作用 `Task {}` 包裹，不要在 View body 中直接触发
-
 ### 修复策略
 
 - 同一 bug 修两次未果 → **停下来找根因**，禁止叠补丁
