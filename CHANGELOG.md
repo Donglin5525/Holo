@@ -4,6 +4,14 @@
 
 ---
 
+## [2026-05-05] 删除科目后 UI 卡死修复
+
+### Bug 修复
+- 修复删除科目后交易列表卡死的问题：Transaction→Category CoreData 关系缺少 deleteRule，删除后触发 fault 卡死主线程
+- 三层防御：CoreData 层 denyDeleteRule + Category.swiftUIColor isDeleted 守卫 + View 层 isDeleted 检查
+
+---
+
 ## [2026-05-05] AI 能力全景文档
 
 ### 文档
