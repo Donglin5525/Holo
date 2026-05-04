@@ -54,6 +54,7 @@ struct ThoughtEditorView: View {
     @State private var showDismissAlert: Bool = false
     @State private var pendingEditorAction: MarkdownEditorAction? = nil
     @State private var editorHeight: CGFloat = 200
+    @State private var typingFormatState: TypingFormatState = TypingFormatState()
     /// 是否为编辑模式
     private var isEditing: Bool { editingThoughtId != nil }
 
@@ -206,7 +207,8 @@ struct ThoughtEditorView: View {
             MarkdownTextView(
                 text: $content,
                 pendingAction: $pendingEditorAction,
-                dynamicHeight: $editorHeight
+                dynamicHeight: $editorHeight,
+                formatState: $typingFormatState
             )
                 .frame(height: max(editorHeight, 200))
                 .padding(HoloSpacing.sm)
@@ -216,7 +218,7 @@ struct ThoughtEditorView: View {
                     RoundedRectangle(cornerRadius: HoloRadius.md)
                         .stroke(Color.holoBorder, lineWidth: 1)
                 )
-            RichTextToolbarView(pendingAction: $pendingEditorAction)
+            RichTextToolbarView(pendingAction: $pendingEditorAction, formatState: typingFormatState)
         }
     }
 

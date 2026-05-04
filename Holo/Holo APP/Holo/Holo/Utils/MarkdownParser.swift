@@ -86,7 +86,7 @@ struct DocumentNode: MarkdownNode {
 
 /// 预编译正则表达式缓存，避免重复编译
 private enum RegexCache {
-    static let unorderedList = try! NSRegularExpression(pattern: "^[\\-\\*] (.+)$")
+    static let unorderedList = try! NSRegularExpression(pattern: "^[\\-\\*\u{2022}] (.+)$")
     static let orderedList = try! NSRegularExpression(pattern: "^(\\d+)\\. (.+)$")
     static let inlineTag = try! NSRegularExpression(pattern: "#[\\p{L}][\\p{L}\\p{N}_]*")
     static let colorOpen = try! NSRegularExpression(pattern: "\\{color:(#[0-9A-Fa-f]{3,8}|[0-9A-Fa-f]{3,8})\\}")
@@ -95,7 +95,7 @@ private enum RegexCache {
     // stripFormatting 专用
     static let colorOpenStrip = try! NSRegularExpression(pattern: "\\{color:[^}]+\\}")
     static let italicStrip = try! NSRegularExpression(pattern: "(?<![\\*])\\*(?![\\*])")
-    static let unorderedListStrip = try! NSRegularExpression(pattern: "^[\\-\\*] ", options: .anchorsMatchLines)
+    static let unorderedListStrip = try! NSRegularExpression(pattern: "^[\\-\\*\u{2022}] ", options: .anchorsMatchLines)
     static let orderedListStrip = try! NSRegularExpression(pattern: "^\\d+\\. ", options: .anchorsMatchLines)
     static let tagStrip = try! NSRegularExpression(pattern: "#([\\p{L}][\\p{L}\\p{N}_]*)")
 }

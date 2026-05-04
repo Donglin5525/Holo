@@ -3,7 +3,7 @@
 //  Holo
 //
 //  观点模块 - 富文本格式工具栏
-//  提供加粗、斜体、下划线、颜色、列表、标签按钮
+//  提供加粗、无序列表、有序列表按钮
 //
 
 import SwiftUI
@@ -14,59 +14,27 @@ import SwiftUI
 struct RichTextToolbarView: View {
 
     @Binding var pendingAction: MarkdownEditorAction?
-    var onTagButtonTap: (() -> Void)?
-
-    @State private var showColorPicker: Bool = false
+    var formatState: TypingFormatState = TypingFormatState()
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: HoloSpacing.sm) {
                 boldButton
-                italicButton
-                underlineButton
-                colorButton
                 divider
                 unorderedListButton
                 orderedListButton
-                divider
-                tagButton
             }
             .padding(.horizontal, HoloSpacing.xs)
         }
         .padding(.vertical, HoloSpacing.xs)
-        .sheet(isPresented: $showColorPicker) {
-            ColorPickerPopover(pendingAction: $pendingAction)
-                .presentationDetents([.medium])
-        }
     }
 
     // MARK: - 格式按钮
 
     /// 加粗按钮
     private var boldButton: some View {
-        ToolbarButton(icon: "bold", label: "加粗") {
+        ToolbarButton(icon: "bold", label: "加粗", isActive: formatState.isBold) {
             pendingAction = .toggleBold
-        }
-    }
-
-    /// 斜体按钮
-    private var italicButton: some View {
-        ToolbarButton(icon: "italic", label: "斜体") {
-            pendingAction = .toggleItalic
-        }
-    }
-
-    /// 下划线按钮
-    private var underlineButton: some View {
-        ToolbarButton(icon: "underline", label: "下划线") {
-            pendingAction = .toggleUnderline
-        }
-    }
-
-    /// 颜色按钮
-    private var colorButton: some View {
-        ToolbarButton(icon: "paintpalette", label: "颜色") {
-            showColorPicker = true
         }
     }
 
@@ -81,14 +49,6 @@ struct RichTextToolbarView: View {
     private var orderedListButton: some View {
         ToolbarButton(icon: "list.number", label: "有序列表") {
             pendingAction = .insertOrderedList
-        }
-    }
-
-    /// 标签按钮
-    private var tagButton: some View {
-        ToolbarButton(icon: "number", label: "标签") {
-            pendingAction = .insertTag
-            onTagButtonTap?()
         }
     }
 
@@ -107,9 +67,8 @@ struct RichTextToolbarView: View {
 private struct ToolbarButton: View {
     let icon: String
     let label: String
+    var isActive: Bool = false
     let action: () -> Void
-
-    @State private var isPressed: Bool = false
 
     var body: some View {
         Button(action: {
@@ -118,8 +77,8 @@ private struct ToolbarButton: View {
         }) {
             VStack(spacing: 2) {
                 Image(systemName: icon)
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.holoTextPrimary)
+                    .font(.system(size: 16, weight: isActive ? .bold : .medium))
+                    .foregroundColor(isActive ? .holoPrimary : .holoTextPrimary)
                     .frame(width: 36, height: 28)
             }
         }

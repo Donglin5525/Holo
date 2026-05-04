@@ -135,6 +135,6 @@ struct ColorPickerPopover: View {
 
     /// 在内容中插入 {color:#hex}选中文本{/color}
     private func insertColorTag(hex: String) {
-        pendingAction = .applyColor(hex)
+        dismiss()
     }
 }

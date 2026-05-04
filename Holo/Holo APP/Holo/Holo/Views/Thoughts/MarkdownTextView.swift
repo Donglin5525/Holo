@@ -14,12 +14,15 @@ import UIKit
 /// 编辑器格式化动作
 enum MarkdownEditorAction: Equatable {
     case toggleBold
-    case toggleItalic
-    case toggleUnderline
-    case applyColor(String)
     case insertUnorderedList
     case insertOrderedList
-    case insertTag
+}
+
+// MARK: - TypingFormatState
+
+/// 当前光标处的格式状态，用于工具栏按钮高亮反馈
+struct TypingFormatState: Equatable {
+    var isBold: Bool = false
 }
 
 // MARK: - MarkdownTextView
@@ -32,6 +35,8 @@ struct MarkdownTextView: UIViewRepresentable {
     @Binding var pendingAction: MarkdownEditorAction?
     /// 动态高度绑定，由视图自动计算并报告给父视图
     @Binding var dynamicHeight: CGFloat
+    /// 当前光标处的格式状态，用于工具栏按钮高亮反馈
+    @Binding var formatState: TypingFormatState
 
     /// 是否启用富文本渲染
     var showHighlight: Bool = true
@@ -61,6 +66,11 @@ struct MarkdownTextView: UIViewRepresentable {
                 self.dynamicHeight = height
             }
         }
+        context.coordinator.onFormatStateChange = { state in
+            DispatchQueue.main.async {
+                self.formatState = state
+            }
+        }
         context.coordinator.refreshTypingAttributes(for: textView)
         return textView
     }
@@ -69,6 +79,7 @@ struct MarkdownTextView: UIViewRepresentable {
         if let action = pendingAction {
             pendingAction = nil
             context.coordinator.perform(action: action, on: textView, markdown: $text)
+            return
         }
 
         if !context.coordinator.isProgrammaticChange,
@@ -100,6 +111,12 @@ struct MarkdownTextView: UIViewRepresentable {
         var isProgrammaticChange = false
         var lastKnownMarkdown: String = ""
         var onHeightChange: ((CGFloat) -> Void)?
+        var onFormatStateChange: ((TypingFormatState) -> Void)?
+
+        // 用户显式切换的加粗状态（Word-like sticky toggle）
+        // nil = 无显式状态，走 contextual 推断
+        // true = 强制开启，false = 强制关闭（覆盖 contextual）
+        var explicitBold: Bool? = nil
 
         init(text: Binding<String>) {
             self._text = text
@@ -111,7 +128,99 @@ struct MarkdownTextView: UIViewRepresentable {
             syncMarkdown(from: textView)
         }
 
+        func textView(
+            _ textView: UITextView,
+            shouldChangeTextIn range: NSRange,
+            replacementText text: String
+        ) -> Bool {
+            // 只处理回车键的列表续行逻辑
+            guard text == "\n", !isProgrammaticChange else { return true }
+
+            let currentText = textView.attributedText.string as NSString
+            let cursorLocation = range.location
+
+            // 找到当前行的起始位置
+            var lineStart = 0
+            if cursorLocation > 0 {
+                let substring = currentText.substring(with: NSRange(location: 0, length: cursorLocation))
+                if let lastNewline = substring.lastIndex(of: "\n") {
+                    lineStart = substring.distance(from: substring.startIndex, to: lastNewline) + 1
+                }
+            }
+
+            let lineLength = max(0, cursorLocation - lineStart)
+            let currentLine = currentText.substring(with: NSRange(location: lineStart, length: lineLength))
+
+            // 检测无序列表（支持 - * • 三种前缀）
+            if let match = Self.listPrefixMatch(pattern: "^[\\-\\*\u{2022}] ", in: currentLine) {
+                let contentAfterPrefix = String(currentLine.dropFirst(match.length)).trimmingCharacters(in: .whitespaces)
+
+                // 空列表项：退出列表
+                if contentAfterPrefix.isEmpty {
+                    let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
+                    mutable.deleteCharacters(in: NSRange(location: lineStart, length: lineLength))
+                    mutable.insert(NSAttributedString(string: "\n", attributes: textView.typingAttributes), at: lineStart)
+
+                    isProgrammaticChange = true
+                    textView.attributedText = mutable
+                    textView.selectedRange = NSRange(location: lineStart + 1, length: 0)
+                    isProgrammaticChange = false
+                    syncMarkdown(from: textView)
+                    return false
+                }
+
+                // 续行：插入新行 + 圆角点前缀
+                let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
+                let prefixAttrs = MarkdownTextView.resolvedAttributes(from: textView.typingAttributes)
+                mutable.insert(NSAttributedString(string: "\n\u{2022} ", attributes: prefixAttrs), at: cursorLocation)
+
+                isProgrammaticChange = true
+                textView.attributedText = mutable
+                textView.selectedRange = NSRange(location: cursorLocation + 3, length: 0)
+                isProgrammaticChange = false
+                syncMarkdown(from: textView)
+                return false
+            }
+
+            // 检测有序列表
+            if let match = Self.listPrefixMatch(pattern: "^(\\d+)\\. ", in: currentLine),
+               match.numberValue != nil {
+                let prefixEnd = currentLine.index(currentLine.startIndex, offsetBy: match.length, limitedBy: currentLine.endIndex) ?? currentLine.endIndex
+                let contentAfterPrefix = String(currentLine[prefixEnd...]).trimmingCharacters(in: .whitespaces)
+
+                if contentAfterPrefix.isEmpty {
+                    let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
+                    mutable.deleteCharacters(in: NSRange(location: lineStart, length: lineLength))
+                    mutable.insert(NSAttributedString(string: "\n", attributes: textView.typingAttributes), at: lineStart)
+
+                    isProgrammaticChange = true
+                    textView.attributedText = mutable
+                    textView.selectedRange = NSRange(location: lineStart + 1, length: 0)
+                    isProgrammaticChange = false
+                    syncMarkdown(from: textView)
+                    return false
+                }
+
+                let nextNumber = match.numberValue! + 1
+                let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
+                let prefixAttrs = MarkdownTextView.resolvedAttributes(from: textView.typingAttributes)
+                let newPrefix = "\n\(nextNumber). "
+                mutable.insert(NSAttributedString(string: newPrefix, attributes: prefixAttrs), at: cursorLocation)
+
+                isProgrammaticChange = true
+                textView.attributedText = mutable
+                textView.selectedRange = NSRange(location: cursorLocation + (newPrefix as NSString).length, length: 0)
+                isProgrammaticChange = false
+                syncMarkdown(from: textView)
+                return false
+            }
+
+            return true
+        }
+
         func textViewDidChangeSelection(_ textView: UITextView) {
+            // IME 组字期间不刷新 typingAttributes，防止自定义格式属性被丢弃
+            guard textView.markedTextRange == nil else { return }
             refreshTypingAttributes(for: textView)
         }
 
@@ -129,18 +238,10 @@ struct MarkdownTextView: UIViewRepresentable {
             switch action {
             case .toggleBold:
                 toggleInlineStyle(on: textView, attribute: .holoBold, value: true)
-            case .toggleItalic:
-                toggleInlineStyle(on: textView, attribute: .holoItalic, value: true)
-            case .toggleUnderline:
-                toggleInlineStyle(on: textView, attribute: .holoUnderline, value: true)
-            case .applyColor(let hex):
-                applyColor(hex, on: textView)
             case .insertUnorderedList:
-                insertAtLineStart("- ", on: textView)
+                insertAtLineStart("\u{2022} ", on: textView)
             case .insertOrderedList:
                 insertAtLineStart("1. ", on: textView)
-            case .insertTag:
-                prefixSelection(with: "#", on: textView)
             }
 
             if textView.markedTextRange == nil {
@@ -153,17 +254,29 @@ struct MarkdownTextView: UIViewRepresentable {
             var typingAttributes = MarkdownTextView.baseAttributes
             let location = max(0, min(textView.selectedRange.location, textView.attributedText.length))
 
+            // 先从周围文字推断 contextual 格式
             if textView.selectedRange.length > 0, location < textView.attributedText.length {
                 typingAttributes.merge(MarkdownTextView.inlineAttributes(at: location, in: textView.attributedText)) { _, new in new }
             } else if location > 0, location - 1 < textView.attributedText.length {
                 typingAttributes.merge(MarkdownTextView.inlineAttributes(at: location - 1, in: textView.attributedText)) { _, new in new }
             }
 
+            // 叠加用户显式切换的加粗状态（sticky toggle，Word-like 行为）
+            if let bold = explicitBold {
+                if bold {
+                    typingAttributes[.holoBold] = true
+                } else {
+                    typingAttributes.removeValue(forKey: .holoBold)
+                }
+            }
+
             typingAttributes[.font] = MarkdownTextView.font(from: typingAttributes)
-            if typingAttributes[.underlineStyle] == nil {
-                typingAttributes[.underlineStyle] = 0
+            if typingAttributes[.foregroundColor] == nil {
+                typingAttributes[.foregroundColor] = MarkdownTextView.baseTextColor
             }
             textView.typingAttributes = typingAttributes
+
+            notifyFormatState(typingAttributes)
         }
 
         private func syncMarkdown(from textView: UITextView) {
@@ -184,13 +297,14 @@ struct MarkdownTextView: UIViewRepresentable {
                     typingAttributes[attribute] = value
                 }
                 typingAttributes[.font] = MarkdownTextView.font(from: typingAttributes)
-                typingAttributes[.underlineStyle] = ((typingAttributes[.holoUnderline] as? Bool) == true)
-                    ? NSUnderlineStyle.single.rawValue
-                    : 0
                 if typingAttributes[.foregroundColor] == nil {
                     typingAttributes[.foregroundColor] = MarkdownTextView.baseTextColor
                 }
                 textView.typingAttributes = typingAttributes
+
+                // 更新 sticky toggle 状态
+                if attribute == .holoBold { explicitBold = !isActive }
+                notifyFormatState(typingAttributes)
                 return
             }
 
@@ -205,35 +319,6 @@ struct MarkdownTextView: UIViewRepresentable {
                 } else {
                     updated.removeValue(forKey: attribute)
                 }
-                MarkdownTextView.applyResolvedAttributes(updated, to: mutable, range: range)
-            }
-            mutable.endEditing()
-
-            isProgrammaticChange = true
-            textView.attributedText = mutable
-            textView.selectedRange = safeRange
-            isProgrammaticChange = false
-            refreshTypingAttributes(for: textView)
-        }
-
-        private func applyColor(_ hex: String, on textView: UITextView) {
-            let safeRange = MarkdownTextView.clampedRange(textView.selectedRange, for: textView.attributedText.length)
-
-            if safeRange.length == 0 {
-                var typingAttributes = textView.typingAttributes
-                typingAttributes[.holoColorHex] = hex
-                typingAttributes[.foregroundColor] = UIColor(Color(hex: hex))
-                typingAttributes[.font] = MarkdownTextView.font(from: typingAttributes)
-                textView.typingAttributes = typingAttributes
-                return
-            }
-
-            let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
-            mutable.beginEditing()
-            mutable.enumerateAttributes(in: safeRange, options: []) { attrs, range, _ in
-                var updated = attrs
-                updated[.holoColorHex] = hex
-                updated[.foregroundColor] = UIColor(Color(hex: hex))
                 MarkdownTextView.applyResolvedAttributes(updated, to: mutable, range: range)
             }
             mutable.endEditing()
@@ -271,22 +356,32 @@ struct MarkdownTextView: UIViewRepresentable {
             refreshTypingAttributes(for: textView)
         }
 
-        private func prefixSelection(with prefix: String, on textView: UITextView) {
-            let safeRange = MarkdownTextView.clampedRange(textView.selectedRange, for: textView.attributedText.length)
-            let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
-            let insertAttributes = textView.typingAttributes.merging(MarkdownTextView.baseAttributes) { current, _ in current }
-            let prefixText = NSAttributedString(string: prefix, attributes: MarkdownTextView.resolvedAttributes(from: insertAttributes))
+        // MARK: - 列表续行辅助
 
-            mutable.insert(prefixText, at: safeRange.location)
+        /// 列表前缀匹配结果
+        private struct ListPrefixResult {
+            let length: Int
+            let numberValue: Int?
+        }
 
-            let newLocation = safeRange.location + (prefix as NSString).length
-            let newLength = safeRange.length
+        /// 检测行首是否匹配列表前缀
+        private static func listPrefixMatch(pattern: String, in line: String) -> ListPrefixResult? {
+            guard let regex = try? NSRegularExpression(pattern: pattern),
+                  let match = regex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)),
+                  match.range.location == 0 else {
+                return nil
+            }
+            let numberValue: Int? = match.numberOfRanges > 1
+                ? (Range(match.range(at: 1), in: line).flatMap { Int(String(line[$0])) })
+                : nil
+            return ListPrefixResult(length: match.range.length, numberValue: numberValue)
+        }
 
-            isProgrammaticChange = true
-            textView.attributedText = mutable
-            textView.selectedRange = NSRange(location: newLocation, length: newLength)
-            isProgrammaticChange = false
-            refreshTypingAttributes(for: textView)
+        /// 通知外部当前格式状态
+        private func notifyFormatState(_ typingAttributes: [NSAttributedString.Key: Any]) {
+            onFormatStateChange?(TypingFormatState(
+                isBold: (typingAttributes[.holoBold] as? Bool) == true
+            ))
         }
     }
 }
@@ -355,14 +450,20 @@ private extension MarkdownTextView {
             appendInlineNodes(colored.children, to: result, style: nextStyle)
 
         case let tag as InlineTagNode:
-            result.append(NSAttributedString(string: "#\(tag.tagName)", attributes: attributes(for: style)))
+            var tagAttrs = attributes(for: style)
+            tagAttrs[.foregroundColor] = UIColor(Color.holoPrimary)
+            result.append(NSAttributedString(string: "#\(tag.tagName)", attributes: tagAttrs))
 
         case let item as UnorderedListItemNode:
-            result.append(NSAttributedString(string: "- ", attributes: baseAttributes))
+            var bulletAttrs = baseAttributes
+            bulletAttrs[.foregroundColor] = UIColor(Color.holoTextSecondary)
+            result.append(NSAttributedString(string: "\u{2022} ", attributes: bulletAttrs))
             appendInlineNodes(item.children, to: result, style: style)
 
         case let item as OrderedListItemNode:
-            result.append(NSAttributedString(string: "\(item.index). ", attributes: baseAttributes))
+            var numberAttrs = baseAttributes
+            numberAttrs[.foregroundColor] = UIColor(Color.holoTextSecondary)
+            result.append(NSAttributedString(string: "\(item.index). ", attributes: numberAttrs))
             appendInlineNodes(item.children, to: result, style: style)
 
         default:
@@ -482,16 +583,19 @@ private extension MarkdownTextView {
     }
 
     static func font(from attributes: [NSAttributedString.Key: Any]) -> UIFont {
-        var traits: UIFontDescriptor.SymbolicTraits = []
-        if (attributes[.holoBold] as? Bool) == true {
-            traits.insert(.traitBold)
-        }
-        if (attributes[.holoItalic] as? Bool) == true {
-            traits.insert(.traitItalic)
-        }
+        let isBold = (attributes[.holoBold] as? Bool) == true
+        let isItalic = (attributes[.holoItalic] as? Bool) == true
 
-        let descriptor = baseFont.fontDescriptor.withSymbolicTraits(traits) ?? baseFont.fontDescriptor
-        return UIFont(descriptor: descriptor, size: baseFont.pointSize)
+        // 直接用 weight 创建字体，避免 withSymbolicTraits 在 .medium base 上效果微弱
+        let weight: UIFont.Weight = isBold ? .bold : .medium
+        let base = UIFont.systemFont(ofSize: baseFont.pointSize, weight: weight)
+
+        guard isItalic else { return base }
+
+        var traits = base.fontDescriptor.symbolicTraits
+        traits.insert(.traitItalic)
+        guard let italicDescriptor = base.fontDescriptor.withSymbolicTraits(traits) else { return base }
+        return UIFont(descriptor: italicDescriptor, size: baseFont.pointSize)
     }
 
     static func clampedRange(_ range: NSRange, for length: Int) -> NSRange {
