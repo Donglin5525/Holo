@@ -25,7 +25,13 @@ struct FinanceLedgerView: View {
 
     /// 是否显示分期删除选项
     @State private var showInstallmentDeleteOptions: Bool = false
-    
+
+    /// 正在复制的交易（nil 表示未在复制）
+    @State private var copyingTransaction: Transaction? = nil
+
+    /// 复制目标日期
+    @State private var copyTargetDate: Date = Date()
+
     /// 长按日期快速记账：弹出 Sheet 时使用的预设日期
     @State private var quickAddDate: Date? = nil
 
@@ -179,6 +185,35 @@ struct FinanceLedgerView: View {
         }
         .fullScreenCover(isPresented: $showSearch) {
             FinanceSearchView()
+        }
+        // 复制交易日期选择
+        .sheet(item: $copyingTransaction) { tx in
+            NavigationStack {
+                DatePicker(
+                    "",
+                    selection: $copyTargetDate,
+                    displayedComponents: [.date]
+                )
+                .datePickerStyle(.graphical)
+                .environment(\.locale, Locale(identifier: "zh_CN"))
+                .padding(.horizontal, HoloSpacing.lg)
+                .navigationTitle("复制到")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("取消") {
+                            copyingTransaction = nil
+                        }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("确认") {
+                            performCopyTransaction(tx, targetDate: copyTargetDate)
+                            copyingTransaction = nil
+                        }
+                    }
+                }
+            }
+            .presentationDetents([.medium])
         }
         .task {
             await calendarState.initialLoad()
@@ -418,6 +453,13 @@ struct FinanceLedgerView: View {
                                 Label("编辑", systemImage: "pencil")
                             }
 
+                            Button {
+                                copyingTransaction = tx
+                                copyTargetDate = tx.date
+                            } label: {
+                                Label("复制", systemImage: "doc.on.doc")
+                            }
+
                             Button(role: .destructive) {
                                 transactionToDelete = tx
                                 if tx.isInstallment {
@@ -505,6 +547,28 @@ struct FinanceLedgerView: View {
                 print("[FinanceLedger] 删除分期组失败: \(error)")
             }
             transactionToDelete = nil
+        }
+    }
+
+    /// 复制交易到指定日期
+    private func performCopyTransaction(_ original: Transaction, targetDate: Date) {
+        Task {
+            do {
+                _ = try await FinanceRepository.shared.addTransaction(
+                    amount: abs(original.amount.decimalValue),
+                    type: original.transactionType,
+                    category: original.category,
+                    account: original.account,
+                    date: targetDate,
+                    note: original.note,
+                    remark: original.remark,
+                    tags: original.tags
+                )
+                HapticManager.success()
+                calendarState.refreshAfterDataChange()
+            } catch {
+                print("[FinanceLedger] 复制交易失败: \(error)")
+            }
         }
     }
 

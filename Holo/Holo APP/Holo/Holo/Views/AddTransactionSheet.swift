@@ -57,6 +57,12 @@ struct AddTransactionSheet: View {
     
     /// 是否显示删除确认
     @State private var showDeleteConfirm: Bool = false
+
+    /// 是否显示复制日期选择器
+    @State private var showCopyDatePicker: Bool = false
+
+    /// 复制目标日期
+    @State private var copyTargetDate: Date = Date()
     
     /// 是否正在删除
     @State private var isDeleting: Bool = false
@@ -256,6 +262,35 @@ struct AddTransactionSheet: View {
         .unsavedChangesAlert(isPresented: $showDismissAlert) {
             dismiss()
         }
+        // 复制交易日期选择
+        .sheet(isPresented: $showCopyDatePicker) {
+            NavigationStack {
+                DatePicker(
+                    "",
+                    selection: $copyTargetDate,
+                    displayedComponents: [.date]
+                )
+                .datePickerStyle(.graphical)
+                .environment(\.locale, Locale(identifier: "zh_CN"))
+                .padding(.horizontal, HoloSpacing.lg)
+                .navigationTitle("复制到")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("取消") {
+                            showCopyDatePicker = false
+                        }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("确认") {
+                            performCopyFromEditPage(targetDate: copyTargetDate)
+                            showCopyDatePicker = false
+                        }
+                    }
+                }
+            }
+            .presentationDetents([.medium])
+        }
     }
     
     // MARK: - Delete Button
@@ -314,6 +349,21 @@ struct AddTransactionSheet: View {
                 .foregroundColor(.holoTextPrimary)
 
             Spacer()
+
+            // 复制按钮（编辑模式下显示）
+            if isEditMode {
+                Button {
+                    copyTargetDate = editingTransaction?.date ?? selectedDate
+                    showCopyDatePicker = true
+                } label: {
+                    Image(systemName: "doc.on.doc")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.holoTextSecondary)
+                        .frame(width: 32, height: 32)
+                        .background(Color.holoBackground)
+                        .clipShape(Circle())
+                }
+            }
 
             // 保存按钮（✓）
             Button {
@@ -1318,9 +1368,9 @@ struct AddTransactionSheet: View {
     /// 删除交易（仅编辑模式）
     private func deleteTransaction() {
         guard let transaction = editingTransaction else { return }
-        
+
         isDeleting = true
-        
+
         Task {
             do {
                 try await repository.deleteTransaction(transaction)
@@ -1330,6 +1380,45 @@ struct AddTransactionSheet: View {
                 print("删除失败：\(error.localizedDescription)")
             }
             isDeleting = false
+        }
+    }
+
+    /// 从编辑页面复制交易到指定日期
+    private func performCopyFromEditPage(targetDate: Date) {
+        calculateExpression()
+
+        let absoluteAmountString = displayAmountString
+        guard let amount = Decimal(string: absoluteAmountString), amount > 0,
+              absoluteAmountString != "0",
+              let category = selectedCategory else { return }
+
+        Task {
+            do {
+                let account: Account
+                if let selected = selectedAccount {
+                    account = selected
+                } else if let defaultAcc = try await repository.getDefaultAccount() {
+                    account = defaultAcc
+                } else {
+                    return
+                }
+
+                _ = try await repository.addTransaction(
+                    amount: amount,
+                    type: transactionType,
+                    category: category,
+                    account: account,
+                    date: targetDate,
+                    note: note.isEmpty ? nil : note,
+                    remark: remark.isEmpty ? nil : remark,
+                    tags: editingTransaction?.tags
+                )
+
+                HapticManager.success()
+                onSave()
+            } catch {
+                print("[AddTransactionSheet] 复制交易失败: \(error)")
+            }
         }
     }
 }
