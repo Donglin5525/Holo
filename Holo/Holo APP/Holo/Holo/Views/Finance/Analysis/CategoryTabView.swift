@@ -3,7 +3,7 @@
 //  Holo
 //
 //  类别 Tab 视图
-//  包含饼图 + 分类列表 + 点击科目弹窗详情
+//  包含饼图 + 分类列表 + 下钻 + 交易明细弹窗
 //
 
 import SwiftUI
@@ -17,14 +17,17 @@ struct CategoryTabView: View {
     @State private var selectedCategory: Category?
     @State private var showIncomeView: Bool = false
 
-    // 科目详情弹窗状态
-    @State private var showCategorySheet: Bool = false
-    @State private var sheetCategory: Category?
-    @State private var sheetAggregations: [CategoryAggregation] = []
+    // 交易明细弹窗状态
+    @State private var transactionSheetData: TransactionSheetData?
 
-    // 图表颜色（使用科目指定颜色，保证与 App 其他位置一致）
+    // 图表颜色（饼图和图例共享）
+    // 一级分类：使用科目指定颜色
+    // 下钻模式（子分类共享父级颜色）：使用调色板区分
     private var chartColors: [Color] {
-        currentAggregations.map { $0.category.swiftUIColor }
+        if state.isDrillingDown {
+            return Color.holoChartColors(count: currentAggregations.count)
+        }
+        return currentAggregations.map { $0.category.swiftUIColor }
     }
 
     var body: some View {
@@ -32,6 +35,11 @@ struct CategoryTabView: View {
             VStack(spacing: HoloSpacing.lg) {
                 // 切换收入/支出
                 typeSwitcher
+
+                // 下钻导航栏
+                if state.isDrillingDown {
+                    drillDownHeader
+                }
 
                 // 饼图
                 PieChartView(
@@ -62,15 +70,16 @@ struct CategoryTabView: View {
         }
         .background(Color.holoBackground)
         .onChange(of: showIncomeView) { _, _ in
+            // 切换类型时清除选中状态和下钻
             selectedCategory = nil
+            transactionSheetData = nil
+            state.exitDrillDown()
         }
-        .sheet(isPresented: $showCategorySheet) {
-            if let category = sheetCategory {
-                CategoryDetailSheet(
-                    category: category,
-                    aggregations: sheetAggregations
-                )
-            }
+        .sheet(item: $transactionSheetData) { data in
+            CategoryDetailSheet(
+                category: data.category,
+                transactions: data.transactions
+            )
         }
     }
 
@@ -80,7 +89,7 @@ struct CategoryTabView: View {
         if showIncomeView {
             return state.incomeCategoryAggregations
         }
-        return state.expenseCategoryAggregations
+        return state.currentCategoryAggregations
     }
 
     // MARK: - 类型切换器
@@ -119,6 +128,36 @@ struct CategoryTabView: View {
         .buttonStyle(.plain)
     }
 
+    // MARK: - 下钻导航栏
+
+    private var drillDownHeader: some View {
+        HStack {
+            Button {
+                state.exitDrillDown()
+                selectedCategory = nil
+            } label: {
+                HStack(spacing: HoloSpacing.xs) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 14, weight: .medium))
+                    Text("返回")
+                        .font(.holoBody)
+                }
+                .foregroundColor(.holoPrimary)
+            }
+
+            Spacer()
+
+            if let topCategory = state.selectedTopCategory {
+                HStack(spacing: HoloSpacing.xs) {
+                    transactionCategoryIcon(topCategory, size: 16)
+                    Text(topCategory.name)
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextPrimary)
+                }
+            }
+        }
+    }
+
     // MARK: - 处理分类点击
 
     private func handleCategoryTap(_ category: Category?) {
@@ -129,19 +168,43 @@ struct CategoryTabView: View {
             return
         }
 
-        withAnimation(.easeInOut(duration: 0.25)) {
-            selectedCategory = category
+        // 如果已在下钻模式，展示该二级分类的交易明细
+        if state.isDrillingDown {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                selectedCategory = category
+            }
+            showTransactionDetail(for: category)
+            return
         }
 
-        // 一级科目：加载子分类并弹出详情
+        // 一级科目：下钻
         if category.isTopLevel {
-            Task {
-                let aggregations = await state.loadSubCategoryAggregations(for: category)
-                sheetAggregations = aggregations
-                sheetCategory = category
-                showCategorySheet = true
+            selectedCategory = nil
+            state.drillDown(category: category)
+        } else {
+            withAnimation(.easeInOut(duration: 0.25)) {
+                selectedCategory = category
             }
         }
+    }
+
+    // MARK: - 交易明细弹窗
+
+    private func showTransactionDetail(for category: Category) {
+        let txns: [Transaction]
+        if category.isTopLevel {
+            txns = state.transactions.filter {
+                $0.category.id == category.id || $0.category.parentId == category.id
+            }
+        } else {
+            txns = state.transactions.filter {
+                $0.category.id == category.id
+            }
+        }
+        transactionSheetData = TransactionSheetData(
+            category: category,
+            transactions: txns
+        )
     }
 
     // MARK: - 选中分类详情
@@ -196,4 +259,13 @@ struct CategoryTabView: View {
 
 #Preview {
     CategoryTabView(state: FinanceAnalysisState())
+}
+
+// MARK: - Sheet Data
+
+/// 交易明细弹窗数据（用 .sheet(item:) 确保数据完整性）
+struct TransactionSheetData: Identifiable {
+    let id = UUID()
+    let category: Category
+    let transactions: [Transaction]
 }

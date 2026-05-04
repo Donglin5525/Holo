@@ -5,7 +5,8 @@
 //  环形饼图组件（用于类别 Tab）
 //  使用 Canvas 自绘，支持选中扇区凸出效果
 //  标签：名称在环内 + 引导线 + 占比在环外
-//  支持点击选中扇区凸出效果
+//  支持触摸高亮 + 松手后选中（touch down = 高亮, touch up = 选中)
+//  使用 simultaneousGesture + 移动阈值，与 ScrollView 滚动不冲突
 //
 
 import SwiftUI
@@ -19,6 +20,8 @@ struct PieChartView: View {
     /// 外部传入的颜色数组（与图例共享同一调色板，保证颜色一致）
     var colors: [Color]
     let onSelectCategory: ((Category?) -> Void)?
+
+    @State private var highlightedCategory: Category?
 
     // MARK: - 颜色分配
 
@@ -63,9 +66,9 @@ struct PieChartView: View {
         return order.compactMap { merged[$0] }
     }
 
-    /// 当前视觉焦点类别
+    /// 当前视觉焦点类别（高亮优先于选中）
     private var effectiveCategory: Category? {
-        selectedCategory
+        highlightedCategory ?? selectedCategory
     }
 
     /// 焦点聚合数据（高亮或选中)，未选中时返回 nil
@@ -103,10 +106,18 @@ struct PieChartView: View {
                     Color.clear
                         .contentShape(Rectangle())
                         .simultaneousGesture(
-                            SpatialTapGesture()
-                                .onEnded { value in
+                            DragGesture(minimumDistance: 0)
+                                .onChanged { value in
                                     let cat = categoryAtPoint(value.location, canvasSize: geo.size)
-                                    onSelectCategory?(cat)
+                                    withAnimation(.easeInOut(duration: 0.15)) {
+                                        highlightedCategory = cat
+                                    }
+                                }
+                                .onEnded { _ in
+                                    if let cat = highlightedCategory {
+                                        highlightedCategory = nil
+                                        onSelectCategory?(cat)
+                                    }
                                 }
                         )
                 }
@@ -114,6 +125,9 @@ struct PieChartView: View {
 
             // 中心信息
             centerInfo
+        }
+        .onChange(of: aggregations.map(\.id)) { _, _ in
+            highlightedCategory = nil
         }
     }
 

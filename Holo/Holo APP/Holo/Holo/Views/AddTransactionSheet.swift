@@ -877,7 +877,7 @@ struct AddTransactionSheet: View {
     private func populateFromTransaction(_ transaction: Transaction) {
         transactionType = transaction.transactionType
         let absoluteAmount = abs(transaction.amount.decimalValue)
-        amountString = String(describing: absoluteAmount)
+        amountString = formatAmount(absoluteAmount)
         selectedCategory = transaction.category
         selectedAccount = transaction.account
         note = transaction.note ?? ""
@@ -1135,25 +1135,10 @@ struct AddTransactionSheet: View {
         return finalResult
     }
     
-    /// 格式化金额：保留最多2位小数，去除尾部多余的0
+    /// 格式化金额：四舍五入到2位小数
     private func formatAmount(_ amount: Decimal) -> String {
-        // 四舍五入到2位小数
         let rounded = (amount as NSDecimalNumber).rounding(accordingToBehavior: NSDecimalNumberHandler(roundingMode: .plain, scale: 2, raiseOnExactness: false, raiseOnOverflow: false, raiseOnUnderflow: false, raiseOnDivideByZero: false))
-        
-        // 转换为字符串
-        var result = rounded.stringValue
-        
-        // 去除尾部多余的0（如 "12.50" -> "12.5"，"12.00" -> "12"）
-        if result.contains(".") {
-            while result.last == "0" {
-                result.removeLast()
-            }
-            if result.last == "." {
-                result.removeLast()
-            }
-        }
-        
-        return result
+        return rounded.stringValue
     }
 
     /// 当用户将「待确认」交易改为具体分类时，学习映射关系

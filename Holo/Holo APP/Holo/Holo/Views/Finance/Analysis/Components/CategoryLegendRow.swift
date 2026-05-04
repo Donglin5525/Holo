@@ -20,11 +20,6 @@ struct CategoryLegendRow: View {
     var body: some View {
         Button(action: onTap) {
             HStack(spacing: HoloSpacing.md) {
-                // 颜色标识
-                Circle()
-                    .fill(color)
-                    .frame(width: 12, height: 12)
-
                 // 分类图标
                 ZStack {
                     Circle()

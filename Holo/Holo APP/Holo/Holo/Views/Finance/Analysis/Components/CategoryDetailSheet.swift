@@ -2,34 +2,28 @@
 //  CategoryDetailSheet.swift
 //  Holo
 //
-//  科目详情弹窗：展示一级科目的子分类列表
+//  分类交易明细弹窗：展示某分类下的具体交易列表
+//  按日期分组，复用 TransactionRowView
 //
 
 import SwiftUI
 
 // MARK: - CategoryDetailSheet
 
-/// 科目详情弹窗
+/// 分类交易明细弹窗
 struct CategoryDetailSheet: View {
     let category: Category
-    let aggregations: [CategoryAggregation]
+    let transactions: [Transaction]
 
     @Environment(\.dismiss) private var dismiss
-
-    private let colors: [Color]
-
-    init(category: Category, aggregations: [CategoryAggregation]) {
-        self.category = category
-        self.aggregations = aggregations
-        self.colors = Color.holoChartColors(count: aggregations.count)
-    }
+    @State private var editingTransaction: Transaction?
 
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: HoloSpacing.lg) {
                     headerCard
-                    subCategoryList
+                    transactionList
                 }
                 .padding(HoloSpacing.lg)
             }
@@ -45,6 +39,9 @@ struct CategoryDetailSheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+        .sheet(item: $editingTransaction) { transaction in
+            AddTransactionSheet(editingTransaction: transaction) {}
+        }
     }
 
     // MARK: - Header
@@ -70,7 +67,7 @@ struct CategoryDetailSheet: View {
                     }
 
                     Label {
-                        Text("\(totalTransactionCount) 笔")
+                        Text("\(transactions.count) 笔")
                             .font(.holoCaption)
                             .foregroundColor(.holoTextSecondary)
                     } icon: {
@@ -88,73 +85,81 @@ struct CategoryDetailSheet: View {
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
     }
 
-    // MARK: - Sub-category List
+    // MARK: - Transaction List
 
-    private var subCategoryList: some View {
-        VStack(spacing: 0) {
-            if aggregations.isEmpty {
+    private var transactionList: some View {
+        Group {
+            if transactions.isEmpty {
                 emptyState
             } else {
-                ForEach(Array(aggregations.enumerated()), id: \.element.id) { index, agg in
-                    subCategoryRow(agg: agg, color: colors[index])
-                    if index < aggregations.count - 1 {
-                        Divider()
-                            .padding(.leading, 56)
-                    }
-                }
+                groupedTransactionView
             }
         }
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
     }
 
-    private func subCategoryRow(agg: CategoryAggregation, color: Color) -> some View {
-        HStack(spacing: HoloSpacing.sm) {
-            // 颜色条
-            RoundedRectangle(cornerRadius: 2)
-                .fill(color)
-                .frame(width: 4, height: 32)
-
-            // 科目图标
-            transactionCategoryIcon(agg.category, size: 36)
-
-            // 名称 + 占比条
-            VStack(alignment: .leading, spacing: 4) {
-                Text(agg.category.name)
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
-                    .lineLimit(1)
-
-                GeometryReader { geo in
-                    let barWidth = geo.size.width * CGFloat(agg.percentage / 100)
-                    RoundedRectangle(cornerRadius: 2)
-                        .fill(color.opacity(0.3))
-                        .frame(width: geo.size.width, height: 4)
-                        .overlay(alignment: .leading) {
-                            RoundedRectangle(cornerRadius: 2)
-                                .fill(color)
-                                .frame(width: barWidth, height: 4)
-                        }
-                }
-                .frame(height: 4)
-            }
-
-            // 金额 + 占比
-            VStack(alignment: .trailing, spacing: 2) {
-                Text(agg.formattedCompactAmount)
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextPrimary)
-                    .minimumScaleFactor(0.7)
-                    .lineLimit(1)
-
-                Text(agg.formattedPercentage)
-                    .font(.system(size: 10))
-                    .foregroundColor(.holoTextSecondary)
-            }
-            .frame(width: 72, alignment: .trailing)
+    private var groupedTransactionView: some View {
+        let grouped = Dictionary(grouping: transactions) { tx in
+            Calendar.current.startOfDay(for: tx.date)
         }
-        .padding(.horizontal, HoloSpacing.md)
-        .padding(.vertical, HoloSpacing.sm)
+
+        return VStack(spacing: HoloSpacing.lg) {
+            ForEach(
+                grouped.keys.sorted(by: >),
+                id: \.self
+            ) { date in
+                VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                    // 日期标题 + 日汇总
+                    dateHeader(date: date, transactions: grouped[date] ?? [])
+
+                    // 交易列表
+                    VStack(spacing: 0) {
+                        ForEach(grouped[date] ?? []) { tx in
+                            TransactionRowView(transaction: tx) {
+                                editingTransaction = tx
+                            }
+                            if tx.id != grouped[date]?.last?.id {
+                                Divider().padding(.leading, 72)
+                            }
+                        }
+                    }
+                    .background(Color.holoCardBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                }
+            }
+        }
+    }
+
+    private func dateHeader(date: Date, transactions dayTxns: [Transaction]) -> some View {
+        let df = DateFormatter()
+        df.locale = Locale(identifier: "zh_CN")
+        df.dateFormat = "M月d日 EEEE"
+        let dateString = df.string(from: date)
+        let expense = dayTxns
+            .filter { $0.transactionType == .expense }
+            .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+        let income = dayTxns
+            .filter { $0.transactionType == .income }
+            .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+
+        return HStack {
+            Text(dateString)
+                .font(.holoCaption)
+                .foregroundColor(.holoTextSecondary)
+
+            Spacer()
+
+            if expense > 0 {
+                Text("-\(NumberFormatter.currency.string(from: expense as NSDecimalNumber) ?? "")")
+                    .font(.system(size: 12))
+                    .foregroundColor(.holoError)
+            }
+            if income > 0 {
+                Text("+\(NumberFormatter.currency.string(from: income as NSDecimalNumber) ?? "")")
+                    .font(.system(size: 12))
+                    .foregroundColor(.holoSuccess)
+            }
+        }
+        .padding(.horizontal, HoloSpacing.xs)
     }
 
     // MARK: - Empty State
@@ -164,7 +169,7 @@ struct CategoryDetailSheet: View {
             Image(systemName: "tray")
                 .font(.system(size: 28, weight: .light))
                 .foregroundColor(.holoTextSecondary.opacity(0.5))
-            Text("暂无子分类数据")
+            Text("暂无交易记录")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
         }
@@ -175,17 +180,7 @@ struct CategoryDetailSheet: View {
     // MARK: - Computed
 
     private var totalFormattedAmount: String {
-        let total = aggregations.reduce(Decimal(0)) { $0 + $1.amount }
+        let total = transactions.reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
         return NumberFormatter.compactCurrency(total)
     }
-
-    private var totalTransactionCount: Int {
-        aggregations.reduce(0) { $0 + $1.transactionCount }
-    }
-}
-
-// MARK: - Preview
-
-#Preview {
-    Text("CategoryDetailSheet Preview")
 }
