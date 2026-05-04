@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import CoreData
 
 struct HoloRectCorner: OptionSet {
     let rawValue: Int
@@ -272,18 +273,21 @@ struct TransactionRowView: View {
             .padding(.leading, 11)
             .padding(.trailing, HoloSpacing.md)
             .padding(.vertical, 10)
+            .contentShape(Rectangle())
         }
         .buttonStyle(PlainButtonStyle())
     }
     
     /// 分类图标
     private var categoryIcon: some View {
-        ZStack {
+        let cat = transaction.category
+        let color: Color = cat.isDeleted ? .holoPrimary : cat.swiftUIColor
+        return ZStack {
             Circle()
-                .fill(transaction.category.swiftUIColor.opacity(0.08))
+                .fill(color.opacity(0.08))
                 .frame(width: 48, height: 48)
 
-            transactionCategoryIcon(transaction.category, size: 24)
+            transactionCategoryIcon(cat, size: 24)
         }
     }
 

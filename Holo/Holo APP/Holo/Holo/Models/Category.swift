@@ -29,9 +29,10 @@ public class Category: NSManagedObject {
     
     // MARK: - Computed Properties
     
-    /// SwiftUI 颜色
+    /// SwiftUI 颜色（防御：已删除对象回退默认色）
     public var swiftUIColor: Color {
-        Color(hex: color) ?? .holoPrimary
+        guard !isDeleted else { return .holoPrimary }
+        return Color(hex: color) ?? .holoPrimary
     }
     
     /// 交易类型枚举

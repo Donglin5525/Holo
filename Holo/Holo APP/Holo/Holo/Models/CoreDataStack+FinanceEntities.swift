@@ -87,13 +87,15 @@ extension CoreDataStack {
         categoryRelation.minCount = 1
         categoryRelation.maxCount = 1
         categoryRelation.isOptional = false
-        
+        categoryRelation.deleteRule = .denyDeleteRule
+
         let accountRelation = NSRelationshipDescription()
         accountRelation.name = "account"
         accountRelation.destinationEntity = nil
         accountRelation.minCount = 1
         accountRelation.maxCount = 1
         accountRelation.isOptional = false
+        accountRelation.deleteRule = .denyDeleteRule
         
         // 分期记账字段
         let installmentGroupId = NSAttributeDescription()

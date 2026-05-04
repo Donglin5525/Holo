@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import CoreData
 
 struct AccountDetailView: View {
 
@@ -575,14 +576,16 @@ struct AccountDetailView: View {
     }
 
     private func transactionRow(_ tx: Transaction) -> some View {
-        HStack(spacing: HoloSpacing.md) {
+        let cat = tx.category
+        let catColor: Color = cat.isDeleted ? .holoTextSecondary : cat.swiftUIColor
+        return HStack(spacing: HoloSpacing.md) {
             ZStack {
                 Circle()
-                    .fill(tx.category.swiftUIColor.opacity(0.1))
+                    .fill(catColor.opacity(0.1))
                     .frame(width: 36, height: 36)
-                Image(systemName: tx.category.icon)
+                Image(systemName: cat.isDeleted ? "questionmark.folder" : cat.icon)
                     .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(tx.category.swiftUIColor)
+                    .foregroundColor(catColor)
             }
 
             VStack(alignment: .leading, spacing: 2) {
