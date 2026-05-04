@@ -45,6 +45,8 @@ struct MilestoneDetector {
         context: NSManagedObjectContext
     ) -> [(date: Date, data: MilestoneData)] {
         var results: [(date: Date, data: MilestoneData)] = []
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
 
         let habitRequest = Habit.fetchRequest()
         habitRequest.predicate = NSPredicate(format: "isArchived == NO")
@@ -52,17 +54,21 @@ struct MilestoneDetector {
 
         for habit in habits {
             let streak = HabitRepository.shared.calculateStreak(for: habit)
-            guard streakDaysThresholds.contains(streak) else { continue }
+            let matchedThresholds = streakDaysThresholds.filter { streak >= $0 }
 
-            let milestone = MilestoneData(
-                title: "坚持\(habit.name) \(streak) 天",
-                description: "连续 \(streak) 天不间断",
-                icon: "flame.fill",
-                milestoneType: .streakDays
-            )
+            for threshold in matchedThresholds {
+                let milestone = MilestoneData(
+                    title: "坚持\(habit.name) \(threshold) 天",
+                    description: "已连续 \(streak) 天不间断",
+                    icon: "flame.fill",
+                    milestoneType: .streakDays
+                )
 
-            // 触发日期 = 今天
-            results.append((date: Calendar.current.startOfDay(for: Date()), data: milestone))
+                // 达成日期 = 达到阈值的第 N 天（反推：今天往前推 streak - threshold 天）
+                let daysAgo = streak - threshold
+                let achievementDate = calendar.date(byAdding: .day, value: -daysAgo, to: today)!
+                results.append((date: achievementDate, data: milestone))
+            }
         }
 
         return results
@@ -71,29 +77,36 @@ struct MilestoneDetector {
     // MARK: - Cumulative Count Milestone
 
     /// 检测累计记账笔数里程碑
-    /// 使用 NSFetchRequest countResultType 避免加载全部数据
     private static func detectCumulativeCount(
         context: NSManagedObjectContext
     ) -> [(date: Date, data: MilestoneData)] {
         var results: [(date: Date, data: MilestoneData)] = []
+        let calendar = Calendar.current
 
-        let request = Transaction.fetchRequest()
-        request.resultType = .countResultType
+        let countRequest = Transaction.fetchRequest()
+        guard let count = (try? context.count(for: countRequest)) else { return results }
 
-        guard let count = (try? context.count(for: request)) else { return results }
-
-        // 找到最大命中的阈值
         let matchedThresholds = cumulativeCountThresholds.filter { count >= $0 }
-        guard let threshold = matchedThresholds.max() else { return results }
 
-        let milestone = MilestoneData(
-            title: "坚持记账 \(threshold) 笔",
-            description: "累计记录 \(count) 笔交易",
-            icon: "trophy.fill",
-            milestoneType: .cumulativeCount
-        )
+        for threshold in matchedThresholds {
+            // 查询第 N 笔交易的日期作为达成日期
+            let dateRequest = Transaction.fetchRequest()
+            dateRequest.sortDescriptors = [NSSortDescriptor(key: "date", ascending: true)]
+            dateRequest.fetchOffset = threshold - 1
+            dateRequest.fetchLimit = 1
 
-        results.append((date: Calendar.current.startOfDay(for: Date()), data: milestone))
+            guard let nthTransaction = try? context.fetch(dateRequest).first else { continue }
+            let transactionDate = nthTransaction.date
+
+            let milestone = MilestoneData(
+                title: "坚持记账 \(threshold) 笔",
+                description: "累计记录 \(count) 笔交易",
+                icon: "trophy.fill",
+                milestoneType: .cumulativeCount
+            )
+
+            results.append((date: calendar.startOfDay(for: transactionDate), data: milestone))
+        }
 
         return results
     }
@@ -105,6 +118,8 @@ struct MilestoneDetector {
         context: NSManagedObjectContext
     ) -> [(date: Date, data: MilestoneData)] {
         var results: [(date: Date, data: MilestoneData)] = []
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
 
         let habitRequest = Habit.fetchRequest()
         habitRequest.predicate = NSPredicate(format: "isArchived == NO")
@@ -112,11 +127,10 @@ struct MilestoneDetector {
 
         for habit in habits {
             let streak = HabitRepository.shared.calculateStreak(for: habit)
-            guard streak >= habitMasteryThreshold else { continue }
+            guard streak >= habitMasteryThreshold, streak < 365 else { continue }
 
-            // 只在恰好达到阈值时触发（或超过但未触发过更高里程碑）
-            // 简化：当前 streak >= 30 且 < 365 时触发掌握里程碑
-            guard streak < 365 else { continue }
+            let daysAgo = streak - habitMasteryThreshold
+            let achievementDate = calendar.date(byAdding: .day, value: -daysAgo, to: today)!
 
             let milestone = MilestoneData(
                 title: "掌握习惯「\(habit.name)」",
@@ -125,7 +139,7 @@ struct MilestoneDetector {
                 milestoneType: .habitMastery
             )
 
-            results.append((date: Calendar.current.startOfDay(for: Date()), data: milestone))
+            results.append((date: achievementDate, data: milestone))
         }
 
         return results
