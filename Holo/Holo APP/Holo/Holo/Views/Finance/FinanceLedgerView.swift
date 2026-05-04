@@ -54,14 +54,23 @@ struct FinanceLedgerView: View {
     /// 月历完全展开高度
     private let maxCalendarHeight: CGFloat = 280
     
-    /// 实时生效高度 = 已锁定 + 拖拽增量，限制在 [0, max]
+    /// 实时生效高度 = 已锁定 + 拖拽增量，限制在 [0, max]，取整避免亚像素抖动
     private var effectiveCalendarHeight: CGFloat {
-        min(max(calendarRevealHeight + dragTranslation, 0), maxCalendarHeight)
+        let h = min(max(calendarRevealHeight + dragTranslation, 0), maxCalendarHeight)
+        return round(h)
     }
-    
+
     /// 展开比例 0~1
     private var revealProgress: CGFloat {
         effectiveCalendarHeight / maxCalendarHeight
+    }
+
+    /// 周视图固定高度
+    private let weekViewHeight: CGFloat = 90
+
+    /// 日历区域总高度（唯一驱动外层布局的值）：90 → 280 线性过渡
+    private var calendarAreaHeight: CGFloat {
+        weekViewHeight + (maxCalendarHeight - weekViewHeight) * revealProgress
     }
     
     // MARK: - Body
@@ -71,19 +80,20 @@ struct FinanceLedgerView: View {
             // 顶部导航（安全区内，避开灵动岛）
             headerView
             
-            // 周视图（展开月历时渐隐 + 高度收缩）
-            // 容器高度 = 星期标题(16) + 间距(6) + 格子(56) + 内边距(8) ≈ 90
-            WeekView(calendarState: calendarState)
-                .opacity(Double(1 - revealProgress))
-                .frame(height: max(0, 90 * (1 - revealProgress)))
-                .clipped()
-            
-            // 月历区域：通过高度 + clip 控制可见区域
-            // allowsHitTesting: 高度为 0 时禁止触摸，防止点击周视图误触隐藏的月历格子
-            ExpandedCalendarView(calendarState: calendarState)
-                .frame(height: effectiveCalendarHeight)
-                .clipped()
-                .allowsHitTesting(effectiveCalendarHeight > 0)
+            // 日历区域：ZStack 统一容器，单一高度值驱动外层布局
+            ZStack(alignment: .top) {
+                // 周视图：仅 opacity 渐隐，不改变高度
+                WeekView(calendarState: calendarState)
+                    .opacity(Double(1 - revealProgress))
+
+                // 月历：通过高度 + clip 逐步揭示
+                ExpandedCalendarView(calendarState: calendarState)
+                    .frame(height: effectiveCalendarHeight)
+                    .clipped()
+                    .allowsHitTesting(effectiveCalendarHeight > 0)
+            }
+            .frame(height: calendarAreaHeight)
+            .clipped()
             
             // ===== Bottom Sheet 容器 =====
             VStack(spacing: 0) {
@@ -270,47 +280,62 @@ struct FinanceLedgerView: View {
     }
     
     // MARK: - 拖拽手柄（控制月历展开/收起）
-    
-    /// 修复 #2：下拉手柄连续控制月历高度
+
+    /// 当前是否展开月历
+    private var isCalendarExpanded: Bool {
+        calendarRevealHeight > 0
+    }
+
+    /// 箭头：点击切换 + 拖拽连续控制
     private var calendarDragHandle: some View {
-        VStack(spacing: 0) {
-            Capsule()
-                .fill(Color.holoTextSecondary.opacity(0.3))
-                .frame(width: 36, height: 5)
+        Image(systemName: "chevron.down")
+            .font(.system(size: 9, weight: .semibold))
+            .foregroundColor(.holoTextSecondary.opacity(0.45))
+            .rotationEffect(.degrees(isCalendarExpanded ? 180 : 0))
+            .contentTransition(.symbolEffect(.replace))
+            .frame(maxWidth: .infinity, minHeight: 28)
+            .padding(.top, 6)
+            .padding(.bottom, 10)
+            .contentShape(Rectangle())
+            .onTapGesture { toggleCalendarExpand() }
+            .gesture(
+                DragGesture(minimumDistance: 4)
+                    .onChanged { v in
+                        let rounded = round(v.translation.height)
+                        if rounded != dragTranslation { dragTranslation = rounded }
+                    }
+                    .onEnded { v in
+                        let translation = v.translation.height
+                        let velocity = v.predictedEndTranslation.height - v.translation.height
+                        let target = calendarRevealHeight + translation
+                        dragTranslation = 0
+
+                        let shouldExpand: Bool
+                        if translation >= 0 {
+                            shouldExpand = target > maxCalendarHeight * 0.3 || velocity > 80
+                        } else {
+                            shouldExpand = target > maxCalendarHeight * 0.55 && velocity > -80
+                        }
+
+                        animateCalendarExpand(shouldExpand)
+                    }
+            )
+    }
+
+    /// 点击切换月历展开/收起
+    private func toggleCalendarExpand() {
+        animateCalendarExpand(!isCalendarExpanded)
+    }
+
+    /// 带动画的月历展开/收起
+    private func animateCalendarExpand(_ expand: Bool) {
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
+            calendarRevealHeight = expand ? maxCalendarHeight : 0
         }
-        .frame(maxWidth: .infinity, minHeight: 28)
-        .padding(.top, 8)
-        .padding(.bottom, 12)
-        .contentShape(Rectangle())
-        .gesture(
-            DragGesture(minimumDistance: 4)
-                .onChanged { v in dragTranslation = v.translation.height }
-                .onEnded { v in
-                    let translation = v.translation.height
-                    let velocity = v.predictedEndTranslation.height - v.translation.height
-                    let target = calendarRevealHeight + translation
-                    dragTranslation = 0
-
-                    // 方向感知阈值：下拉更容易展开，上滑更容易收起
-                    let shouldExpand: Bool
-                    if translation >= 0 {
-                        // 下拉方向 → 倾向展开
-                        shouldExpand = target > maxCalendarHeight * 0.3 || velocity > 80
-                    } else {
-                        // 上滑方向 → 倾向收起
-                        shouldExpand = target > maxCalendarHeight * 0.55 && velocity > -80
-                    }
-
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
-                        calendarRevealHeight = shouldExpand ? maxCalendarHeight : 0
-                    }
-                    calendarState.expandState = shouldExpand ? .expanded : .collapsed
-                    // 收起时：将 currentMonth 同步回 selectedDate 所在月，避免周视图和月状态不一致
-                    if !shouldExpand {
-                        calendarState.syncMonthToSelectedDate()
-                    }
-                }
-        )
+        calendarState.expandState = expand ? .expanded : .collapsed
+        if !expand {
+            calendarState.syncMonthToSelectedDate()
+        }
     }
     
     // MARK: - 月度收支概览卡片

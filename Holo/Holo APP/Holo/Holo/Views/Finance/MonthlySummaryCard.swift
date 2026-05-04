@@ -44,18 +44,16 @@ struct MonthlySummaryCard: View {
             // Row 2: 金额行 — 本月金额(左) | 今日金额(右)，基线对齐
             HStack(alignment: .firstTextBaseline) {
                 Text(formatAmount(amount))
-                    .font(.system(size: isCompact ? 20 : 32, weight: .bold))
+                    .font(.system(size: 20, weight: .bold))
                     .foregroundColor(.holoTextPrimary)
-                    .minimumScaleFactor(0.7)
                     .lineLimit(1)
 
                 Spacer(minLength: 0)
 
                 if let today = todayAmount {
                     Text(formatAmount(today))
-                        .font(.system(size: isCompact ? 16 : 24, weight: .bold))
+                        .font(.system(size: 16, weight: .bold))
                         .foregroundColor(.holoTextPrimary)
-                        .minimumScaleFactor(0.7)
                         .lineLimit(1)
                 }
             }
