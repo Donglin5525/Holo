@@ -215,7 +215,7 @@ struct BarChartView: View {
                 }
             }
         }
-        .frame(height: showBalance ? 300 : 240)
+        .frame(height: showBalance ? 200 : 160)
     }
 
     // MARK: - 右侧余额轴（无网格线，独立刻度）
@@ -305,7 +305,7 @@ struct BarChartView: View {
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
         }
-        .frame(height: 300)
+        .frame(height: 160)
         .frame(maxWidth: .infinity)
     }
 }

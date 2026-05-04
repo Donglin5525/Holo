@@ -52,7 +52,7 @@ struct FinanceLedgerView: View {
     @State private var dragTranslation: CGFloat = 0
     
     /// 月历完全展开高度
-    private let maxCalendarHeight: CGFloat = 300
+    private let maxCalendarHeight: CGFloat = 280
     
     /// 实时生效高度 = 已锁定 + 拖拽增量，限制在 [0, max]
     private var effectiveCalendarHeight: CGFloat {
@@ -278,20 +278,30 @@ struct FinanceLedgerView: View {
                 .fill(Color.holoTextSecondary.opacity(0.3))
                 .frame(width: 36, height: 5)
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, minHeight: 28)
         .padding(.top, 8)
-        .padding(.bottom, 16)
+        .padding(.bottom, 12)
         .contentShape(Rectangle())
         .gesture(
             DragGesture(minimumDistance: 4)
                 .onChanged { v in dragTranslation = v.translation.height }
                 .onEnded { v in
-                    let target = calendarRevealHeight + v.translation.height
+                    let translation = v.translation.height
                     let velocity = v.predictedEndTranslation.height - v.translation.height
+                    let target = calendarRevealHeight + translation
                     dragTranslation = 0
-                    // 根据位置和速度判断展开/收起
-                    let shouldExpand = target > maxCalendarHeight * 0.35 || velocity > 100
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+
+                    // 方向感知阈值：下拉更容易展开，上滑更容易收起
+                    let shouldExpand: Bool
+                    if translation >= 0 {
+                        // 下拉方向 → 倾向展开
+                        shouldExpand = target > maxCalendarHeight * 0.3 || velocity > 80
+                    } else {
+                        // 上滑方向 → 倾向收起
+                        shouldExpand = target > maxCalendarHeight * 0.55 && velocity > -80
+                    }
+
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.82)) {
                         calendarRevealHeight = shouldExpand ? maxCalendarHeight : 0
                     }
                     calendarState.expandState = shouldExpand ? .expanded : .collapsed

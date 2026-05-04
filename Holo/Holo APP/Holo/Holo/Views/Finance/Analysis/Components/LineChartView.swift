@@ -23,6 +23,30 @@ struct LineChartView: View {
         dataPoints.allSatisfy { $0.expense == 0 && $0.income == 0 }
     }
 
+    /// 稳定 Y 轴域：取数据最大值向上取整到「好看」的刻度，避免小幅数据变动导致轴抖动
+    private var yAxisDomain: ClosedRange<Double> {
+        let maxVal = dataPoints.flatMap {
+            [Double(truncating: $0.expense as NSDecimalNumber),
+             Double(truncating: $0.income as NSDecimalNumber)]
+        }.map(abs).max() ?? 0
+        return 0...niceCeil(maxVal)
+    }
+
+    /// 向上取整到整齐的刻度值（10, 20, 50, 100, 200, 500, 1000, 2000, 5000 ...）
+    private func niceCeil(_ value: Double) -> Double {
+        guard value > 0 else { return 1 }
+        let magnitude = pow(10, floor(log10(value)))
+        let fraction = value / magnitude
+        let niceFraction: Double
+        switch fraction {
+        case ..<1.5:  niceFraction = 2
+        case ..<3.5:  niceFraction = 5
+        case ..<7.5:  niceFraction = 10
+        default:      niceFraction = 10
+        }
+        return niceFraction * magnitude
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
             // 图例
@@ -104,6 +128,7 @@ struct LineChartView: View {
                 }
             }
         }
+        .chartYScale(domain: yAxisDomain)
         .chartXAxis {
             AxisMarks { _ in
                 AxisGridLine()
@@ -177,7 +202,7 @@ struct LineChartView: View {
                 }
             }
         }
-        .frame(height: 220)
+        .frame(height: 160)
     }
 
     // MARK: - 触摸金额标注
@@ -233,7 +258,7 @@ struct LineChartView: View {
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
         }
-        .frame(height: 300)
+        .frame(height: 160)
         .frame(maxWidth: .infinity)
     }
 }

@@ -178,10 +178,10 @@ struct CategoryBarLineChartView: View {
     /// 根据类别数量动态计算图表高度
     private var chartHeight: CGFloat {
         let count = aggregations.count
-        if count <= 3 { return 200 }
-        if count <= 5 { return 240 }
-        if count <= 8 { return 280 }
-        return 320
+        if count <= 3 { return 140 }
+        if count <= 5 { return 170 }
+        if count <= 8 { return 200 }
+        return 220
     }
 
     // MARK: - 右侧百分比轴
@@ -219,7 +219,7 @@ struct CategoryBarLineChartView: View {
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
         }
-        .frame(height: 300)
+        .frame(height: 160)
         .frame(maxWidth: .infinity)
     }
 
