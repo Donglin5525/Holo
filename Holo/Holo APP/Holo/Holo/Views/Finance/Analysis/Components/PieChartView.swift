@@ -5,7 +5,7 @@
 //  环形饼图组件（用于类别 Tab）
 //  使用 Canvas 自绘，支持选中扇区凸出效果
 //  标签：名称在环内 + 引导线 + 占比在环外
-//  支持触摸高亮 + 松手后下钻（touch down = 高亮, touch up = 导航)
+//  支持点击选中扇区凸出效果
 //
 
 import SwiftUI
@@ -19,9 +19,6 @@ struct PieChartView: View {
     /// 外部传入的颜色数组（与图例共享同一调色板，保证颜色一致）
     var colors: [Color]
     let onSelectCategory: ((Category?) -> Void)?
-    var onTouchActive: ((Bool) -> Void)?
-
-    @State private var highlightedCategory: Category?
 
     // MARK: - 颜色分配
 
@@ -66,9 +63,9 @@ struct PieChartView: View {
         return order.compactMap { merged[$0] }
     }
 
-    /// 当前视觉焦点类别（高亮优先于选中）
+    /// 当前视觉焦点类别
     private var effectiveCategory: Category? {
-        highlightedCategory ?? selectedCategory
+        selectedCategory
     }
 
     /// 焦点聚合数据（高亮或选中)，未选中时返回 nil
@@ -105,19 +102,10 @@ struct PieChartView: View {
                 GeometryReader { geo in
                     Color.clear
                         .contentShape(Rectangle())
-                        .gesture(
-                            DragGesture(minimumDistance: 0)
-                                .onChanged { value in
-                                    onTouchActive?(true)
+                        .simultaneousGesture(
+                            SpatialTapGesture()
+                                .onEnded { value in
                                     let cat = categoryAtPoint(value.location, canvasSize: geo.size)
-                                    withAnimation(.easeInOut(duration: 0.15)) {
-                                        highlightedCategory = cat
-                                    }
-                                }
-                                .onEnded { _ in
-                                    onTouchActive?(false)
-                                    let cat = highlightedCategory
-                                    highlightedCategory = nil
                                     onSelectCategory?(cat)
                                 }
                         )
@@ -126,9 +114,6 @@ struct PieChartView: View {
 
             // 中心信息
             centerInfo
-        }
-        .onChange(of: aggregations.map(\.id)) { _, _ in
-            highlightedCategory = nil
         }
     }
 

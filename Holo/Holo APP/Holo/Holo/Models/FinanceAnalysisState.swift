@@ -199,6 +199,16 @@ class FinanceAnalysisState: ObservableObject {
         drillDownAggregations = []
     }
 
+    /// 加载子科目聚合数据（不修改下钻状态，用于弹窗展示）
+    func loadSubCategoryAggregations(for category: Category) async -> [CategoryAggregation] {
+        let (start, end) = currentDateRange
+        return (try? await repository.getSubCategoryAggregations(
+            parentId: category.id,
+            from: start,
+            to: end
+        )) ?? []
+    }
+
     // MARK: - 图表交互
 
     /// 选中图表数据点

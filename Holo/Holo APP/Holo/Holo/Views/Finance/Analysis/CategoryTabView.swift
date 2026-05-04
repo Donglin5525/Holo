@@ -3,7 +3,7 @@
 //  Holo
 //
 //  类别 Tab 视图
-//  包含饼图 + 分类列表 + 下钻功能
+//  包含饼图 + 分类列表 + 点击科目弹窗详情
 //
 
 import SwiftUI
@@ -16,28 +16,22 @@ struct CategoryTabView: View {
 
     @State private var selectedCategory: Category?
     @State private var showIncomeView: Bool = false
-    @State private var pieTouching: Bool = false
 
-    // 图表颜色（饼图和图例共享）
-    // 一级分类：使用科目指定颜色，保证与 App 其他位置一致
-    // 下钻模式（子分类共享父级颜色）：使用调色板区分
+    // 科目详情弹窗状态
+    @State private var showCategorySheet: Bool = false
+    @State private var sheetCategory: Category?
+    @State private var sheetAggregations: [CategoryAggregation] = []
+
+    // 图表颜色（使用科目指定颜色，保证与 App 其他位置一致）
     private var chartColors: [Color] {
-        if state.isDrillingDown {
-            return Color.holoChartColors(count: currentAggregations.count)
-        }
-        return currentAggregations.map { $0.category.swiftUIColor }
+        currentAggregations.map { $0.category.swiftUIColor }
     }
 
     var body: some View {
-        ScrollView {
+        ScrollView(showsIndicators: false) {
             VStack(spacing: HoloSpacing.lg) {
                 // 切换收入/支出
                 typeSwitcher
-
-                // 下钻导航栏
-                if state.isDrillingDown {
-                    drillDownHeader
-                }
 
                 // 饼图
                 PieChartView(
@@ -46,9 +40,6 @@ struct CategoryTabView: View {
                     colors: chartColors,
                     onSelectCategory: { category in
                         handleCategoryTap(category)
-                    },
-                    onTouchActive: { active in
-                        pieTouching = active
                     }
                 )
 
@@ -69,12 +60,17 @@ struct CategoryTabView: View {
             }
             .padding(HoloSpacing.lg)
         }
-        .scrollDisabled(pieTouching)
         .background(Color.holoBackground)
         .onChange(of: showIncomeView) { _, _ in
-            // 切换类型时清除选中状态和下钻
             selectedCategory = nil
-            state.exitDrillDown()
+        }
+        .sheet(isPresented: $showCategorySheet) {
+            if let category = sheetCategory {
+                CategoryDetailSheet(
+                    category: category,
+                    aggregations: sheetAggregations
+                )
+            }
         }
     }
 
@@ -84,7 +80,7 @@ struct CategoryTabView: View {
         if showIncomeView {
             return state.incomeCategoryAggregations
         }
-        return state.currentCategoryAggregations
+        return state.expenseCategoryAggregations
     }
 
     // MARK: - 类型切换器
@@ -123,36 +119,6 @@ struct CategoryTabView: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: - 下钻导航栏
-
-    private var drillDownHeader: some View {
-        HStack {
-            Button {
-                state.exitDrillDown()
-                selectedCategory = nil
-            } label: {
-                HStack(spacing: HoloSpacing.xs) {
-                    Image(systemName: "chevron.left")
-                        .font(.system(size: 14, weight: .medium))
-                    Text("返回")
-                        .font(.holoBody)
-                }
-                .foregroundColor(.holoPrimary)
-            }
-
-            Spacer()
-
-            if let topCategory = state.selectedTopCategory {
-                HStack(spacing: HoloSpacing.xs) {
-                    transactionCategoryIcon(topCategory, size: 16)
-                    Text(topCategory.name)
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextPrimary)
-                }
-            }
-        }
-    }
-
     // MARK: - 处理分类点击
 
     private func handleCategoryTap(_ category: Category?) {
@@ -163,22 +129,17 @@ struct CategoryTabView: View {
             return
         }
 
-        // 如果已在下钻模式，只更新选中状态（可安全动画）
-        if state.isDrillingDown {
-            withAnimation(.easeInOut(duration: 0.25)) {
-                selectedCategory = category
-            }
-            return
+        withAnimation(.easeInOut(duration: 0.25)) {
+            selectedCategory = category
         }
 
-        // 检查是否有二级分类（用于下钻）
+        // 一级科目：加载子分类并弹出详情
         if category.isTopLevel {
-            // 下钻会改变图表数据源，禁止动画避免 Swift Charts 崩溃
-            selectedCategory = nil
-            state.drillDown(category: category)
-        } else {
-            withAnimation(.easeInOut(duration: 0.25)) {
-                selectedCategory = category
+            Task {
+                let aggregations = await state.loadSubCategoryAggregations(for: category)
+                sheetAggregations = aggregations
+                sheetCategory = category
+                showCategorySheet = true
             }
         }
     }
