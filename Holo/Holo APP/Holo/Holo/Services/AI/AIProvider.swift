@@ -10,6 +10,9 @@ import Foundation
 
 /// AI 服务提供者协议
 protocol AIProvider {
+    /// 最近一次 LLM 调用的日志（请求+响应），由 Provider 在每次调用后更新
+    var lastCallLog: LLMCallLog? { get }
+
     /// 解析用户输入（意图识别 + 数据提取）
     func parseUserInput(_ input: String, context: UserContext) async throws -> ParsedResult
 

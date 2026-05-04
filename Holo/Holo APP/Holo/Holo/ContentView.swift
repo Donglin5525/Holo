@@ -39,7 +39,10 @@ struct ContentView: View {
             case .today:
                 HomeView()
             case .holo:
-                ChatView()
+                NavigationStack {
+                    ChatView()
+                        .navigationBarHidden(true)
+                }
             case .finance:
                 PlaceholderView(title: "财务管理", icon: "wallet.pass.fill")
             case .health:

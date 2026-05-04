@@ -88,6 +88,12 @@ extension CoreDataStack {
         chatAnalysisContext.isOptional = true
         chatAttributes.append(chatAnalysisContext)
 
+        let rawLog = NSAttributeDescription()
+        rawLog.name = "rawLogJSON"
+        rawLog.attributeType = .stringAttributeType
+        rawLog.isOptional = true
+        chatAttributes.append(rawLog)
+
         chatMessageEntity.properties = chatAttributes
 
         return [chatMessageEntity]

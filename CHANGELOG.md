@@ -4,6 +4,19 @@
 
 ---
 
+## [2026-05-04] AI 对话查看 LLM 日志功能
+
+### 新增
+- 长按 AI 消息气泡可弹出「查看日志」上下文菜单，点击进入全屏日志页面
+- 日志页面展示每次 LLM 调用的请求消息（system/user/assistant）和响应内容
+- 每个调用分区独立复制按钮 + 底部浮动「复制全部」胶囊按钮
+- Core Data ChatMessage 实体新增 `rawLogJSON` 字段持久化日志
+- `LLMCallLog` / `LLMLog` 模型捕获意图识别和对话回复两次调用
+- `AIProvider` 协议新增 `lastCallLog` 属性，Provider 侧记录请求，ViewModel 侧填充流式响应
+- 左边缘右滑返回手势适配
+
+---
+
 ## [2026-05-04] AI 记账分类未识别兜底 + 卡片跳转修复
 
 ### 改进

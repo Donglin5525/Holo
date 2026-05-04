@@ -14,6 +14,7 @@ struct MessageBubbleView: View {
     let streamingText: String?
     var onIntentTagTap: ((ChatMessageViewData) -> Void)? = nil
     var onCardTap: ((ChatMessageViewData, ChatCardData) -> Void)? = nil
+    var onViewLog: ((ChatMessageViewData) -> Void)? = nil
 
     private var displayText: String {
         streamingText ?? message.content
@@ -95,6 +96,15 @@ struct MessageBubbleView: View {
 
             if !isUser {
                 Spacer(minLength: 60)
+            }
+        }
+        .contextMenu {
+            if !isUser, message.rawLog != nil {
+                Button {
+                    onViewLog?(message)
+                } label: {
+                    Label("查看日志", systemImage: "doc.text.magnifyingglass")
+                }
             }
         }
     }

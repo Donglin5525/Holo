@@ -217,6 +217,7 @@ final class ChatViewModel: ObservableObject {
                             self.streamingText = fullText
                         }
 
+                        let chatLog = self.provider.lastCallLog
                         self.chatRepo?.finalizeMessage(
                             aiMessageId,
                             finalContent: fullText,
@@ -224,7 +225,12 @@ final class ChatViewModel: ObservableObject {
                             extractedDataJSON: Self.encodeExtractedData(processResult.firstExtractedData),
                             parsedBatchJSON: Self.encodeParseBatch(processResult.parsedBatch),
                             executionBatchJSON: Self.encodeExecutionBatch(processResult.executionBatch),
-                            analysisContextJSON: contextJSON
+                            analysisContextJSON: contextJSON,
+                            rawLogJSON: Self.encodeRawLog(
+                                intentLog: processResult.intentCallLog,
+                                chatLog: chatLog,
+                                chatResponseText: fullText
+                            )
                         )
                     } else {
                         // 标准查询路径 → 流式对话
@@ -240,13 +246,19 @@ final class ChatViewModel: ObservableObject {
                         }
 
                         // 原子化写入：结束流式 + 元数据，单次 save + 单次 snapshot
+                        let chatLog = self.provider.lastCallLog
                         self.chatRepo?.finalizeMessage(
                             aiMessageId,
                             finalContent: fullText,
                             intent: processResult.firstIntent?.rawValue,
                             extractedDataJSON: Self.encodeExtractedData(processResult.firstExtractedData),
                             parsedBatchJSON: Self.encodeParseBatch(processResult.parsedBatch),
-                            executionBatchJSON: Self.encodeExecutionBatch(processResult.executionBatch)
+                            executionBatchJSON: Self.encodeExecutionBatch(processResult.executionBatch),
+                            rawLogJSON: Self.encodeRawLog(
+                                intentLog: processResult.intentCallLog,
+                                chatLog: chatLog,
+                                chatResponseText: fullText
+                            )
                         )
                     }
                 } else {
@@ -257,7 +269,11 @@ final class ChatViewModel: ObservableObject {
                         intent: processResult.firstIntent?.rawValue,
                         extractedDataJSON: Self.encodeExtractedData(processResult.firstExtractedData),
                         parsedBatchJSON: Self.encodeParseBatch(processResult.parsedBatch),
-                        executionBatchJSON: Self.encodeExecutionBatch(processResult.executionBatch)
+                        executionBatchJSON: Self.encodeExecutionBatch(processResult.executionBatch),
+                        rawLogJSON: Self.encodeRawLog(
+                            intentLog: processResult.intentCallLog,
+                            chatLog: nil
+                        )
                     )
                 }
 
@@ -334,6 +350,29 @@ final class ChatViewModel: ObservableObject {
         } catch {
             Logger(subsystem: "com.holo.app", category: "ChatViewModel")
                 .error("编码 analysisContext 失败：\(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    /// 组装 LLM 调用日志并编码为 JSON
+    private static func encodeRawLog(
+        intentLog: LLMCallLog?,
+        chatLog: LLMCallLog?,
+        chatResponseText: String? = nil
+    ) -> String? {
+        var calls: [LLMCallLog] = []
+        if let log = intentLog { calls.append(log) }
+        if var log = chatLog {
+            if let text = chatResponseText { log.responseText = text }
+            calls.append(log)
+        }
+        guard !calls.isEmpty else { return nil }
+        do {
+            let encoded = try JSONEncoder().encode(LLMLog(calls: calls))
+            return String(data: encoded, encoding: .utf8)
+        } catch {
+            Logger(subsystem: "com.holo.app", category: "ChatViewModel")
+                .error("编码 rawLog 失败：\(error.localizedDescription)")
             return nil
         }
     }

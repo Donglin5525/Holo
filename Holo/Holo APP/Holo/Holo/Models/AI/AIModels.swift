@@ -266,7 +266,7 @@ extension AIParseItem {
 // MARK: - API DTO
 
 /// OpenAI 兼容 API 消息 DTO
-nonisolated struct ChatMessageDTO: Codable {
+nonisolated struct ChatMessageDTO: Codable, Equatable {
     let role: String
     let content: String
 

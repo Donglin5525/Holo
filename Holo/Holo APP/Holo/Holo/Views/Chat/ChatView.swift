@@ -14,6 +14,7 @@ struct ChatView: View {
     @StateObject private var viewModel = ChatViewModel()
     @State private var showAISettings = false
     @State private var editingTransaction: Transaction?
+    @State private var viewingLogMessage: ChatMessageViewData?
 
     /// 外部传入的预填文本（如从记忆长廊"继续问AI"跳转）
     var prefillText: String? = nil
@@ -50,6 +51,11 @@ struct ChatView: View {
             await viewModel.setup()
             if let text = prefillText, !text.isEmpty {
                 viewModel.inputText = text
+            }
+        }
+        .fullScreenCover(item: $viewingLogMessage) { message in
+            if let log = message.rawLog {
+                ChatLogView(log: log)
             }
         }
     }
@@ -175,6 +181,9 @@ struct ChatView: View {
                             },
                             onCardTap: { message, cardData in
                                 handleCardTap(message: message, cardData: cardData)
+                            },
+                            onViewLog: { msg in
+                                viewingLogMessage = msg
                             }
                         )
                         .id(message.id)

@@ -15,6 +15,7 @@ final class OpenAICompatibleProvider: AIProvider {
     private let logger = Logger(subsystem: "com.holo.app", category: "OpenAICompatibleProvider")
     private let config: AIProviderConfig
     private let apiClient: APIClient
+    private(set) var lastCallLog: LLMCallLog?
 
     init(config: AIProviderConfig, apiClient: APIClient = .shared) {
         self.config = config
@@ -51,6 +52,13 @@ final class OpenAICompatibleProvider: AIProvider {
         guard let content = response.choices?.first?.message?.content else {
             throw APIError.serverError("AI 未返回有效内容")
         }
+
+        lastCallLog = LLMCallLog(
+            type: "intent_recognition",
+            model: config.model,
+            requestMessages: messages,
+            responseText: content
+        )
 
         return parseBatchFromJSON(content)
     }
@@ -170,6 +178,14 @@ final class OpenAICompatibleProvider: AIProvider {
                 stream: true,
                 temperature: systemContextOverride != nil ? 0.3 : nil
             )
+
+            lastCallLog = LLMCallLog(
+                type: "chat",
+                model: config.model,
+                requestMessages: allMessages,
+                responseText: ""
+            )
+
             return apiClient.sendStreaming(request)
         } catch {
             return AsyncThrowingStream { $0.finish(throwing: error) }

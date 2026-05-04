@@ -14,6 +14,8 @@ final class MockAIProvider: AIProvider {
 
     private let logger = Logger(subsystem: "com.holo.app", category: "MockAIProvider")
 
+    var lastCallLog: LLMCallLog? = nil
+
     // MARK: - AIProvider
 
     func parseUserInput(_ input: String, context: UserContext) async throws -> ParsedResult {
