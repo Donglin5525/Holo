@@ -4,6 +4,19 @@
 
 ---
 
+## [2026-05-05] 交易模块 Core Data 卡死修复 + 数据刷新规范
+
+### Bug 修复
+- 修复交易模块整体卡死：Transaction→Category/Account 缺少反向关系，denyDeleteRule 放在 to-one 侧导致 save 卡死
+- 修复删除/复制交易后页面不更新：移除 refreshAllObjects()，改用 await 重新 fetch
+- 修复删除分类后列表仍显示：loadData 过滤 isDeleted 对象，删除后始终刷新
+
+### 规范
+- 新增开发规范第 13 节：Core Data 关系建模与数据刷新（反向关系强制、denyDeleteRule 方向性、刷新模式）
+- CLAUDE.md 新增 Core Data 关系编码约定
+
+---
+
 ## [2026-05-05] 统计分析饼图交互修复 + 交易金额格式化
 
 ### Bug 修复
