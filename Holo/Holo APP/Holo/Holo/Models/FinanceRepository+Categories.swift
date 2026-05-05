@@ -198,6 +198,8 @@ extension FinanceRepository {
 
         context.delete(category)
         try context.save()
+
+        NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
     }
 
     /// 批量清理非预设分类（导入时自动创建的）
@@ -227,6 +229,7 @@ extension FinanceRepository {
 
         if deleted > 0 {
             try context.save()
+            NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
         }
 
         return (deleted, skipped)

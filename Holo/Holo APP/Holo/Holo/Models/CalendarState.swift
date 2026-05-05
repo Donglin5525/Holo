@@ -8,6 +8,7 @@
 
 import SwiftUI
 import Combine
+import CoreData
 
 // MARK: - 展开状态枚举
 
@@ -171,6 +172,7 @@ class CalendarState: ObservableObject {
     func loadSelectedDayData() async {
         do {
             let txns = try await repository.getTransactionsForDay(selectedDate)
+                .filter { !$0.isDeleted }
             selectedDayTransactions = txns
             selectedDayExpense = txns.filter { $0.transactionType == .expense }
                 .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
@@ -180,15 +182,18 @@ class CalendarState: ObservableObject {
             print("[CalendarState] 加载日交易失败: \(error)")
         }
     }
-    
-    /// 数据变更后刷新（清缓存 + 重新加载）
-    func refreshAfterDataChange() {
+
+    /// 数据变更后刷新（清缓存 + 重新加载，await 版本）
+    func refreshData() async {
         summaryCache.removeAll()
-        Task {
-            await loadMonthSummaries(for: currentMonth)
-            await loadSelectedDayData()
-            await loadPreviousPeriodComparison()
-        }
+        await loadMonthSummaries(for: currentMonth)
+        await loadSelectedDayData()
+        await loadPreviousPeriodComparison()
+    }
+
+    /// 数据变更后刷新（通知处理器用，fire-and-forget）
+    func refreshAfterDataChange() {
+        Task { await refreshData() }
     }
     
     // MARK: - 月度汇总 & 环比

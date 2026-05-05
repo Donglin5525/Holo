@@ -303,10 +303,10 @@ struct CategoryManagementView: View {
         Task {
             do {
                 try await repository.deleteCategory(category)
-                await loadData()
             } catch {
                 errorMessage = error.localizedDescription
             }
+            await loadData()
         }
     }
 
@@ -327,9 +327,11 @@ struct CategoryManagementView: View {
         defer { isLoading = false }
         do {
             topLevelCategories = try await repository.getTopLevelCategories(by: transactionType)
+                .filter { !$0.isDeleted }
             var map: [UUID: [Category]] = [:]
             for parent in topLevelCategories {
                 map[parent.id] = try await repository.getSubCategories(parentId: parent.id)
+                    .filter { !$0.isDeleted }
             }
             subCategoriesMap = map
         } catch {

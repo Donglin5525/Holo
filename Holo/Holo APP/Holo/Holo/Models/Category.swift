@@ -26,6 +26,9 @@ public class Category: NSManagedObject {
     @NSManaged public var parentId: UUID?
     /// 是否为系统内置分类（不可删除/编辑，如"余额调整"）
     @NSManaged public var isSystem: Bool
+
+    /// 反向关系：该分类下的所有交易（Core Data 自动维护）
+    @NSManaged public var transactions: Set<Transaction>?
     
     // MARK: - Computed Properties
     

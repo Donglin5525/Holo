@@ -68,6 +68,14 @@
 2. dismiss 与数据处理解耦 — 用 `onDismiss` 或 `onChange` 处理数据，不要在 dismiss 闭包中做重操作
 3. 图片保存必须走后台队列，禁止在主线程做 NSData 编码
 
+### Core Data 关系与数据刷新
+
+- 关系**必须有反向**，缺反向 save 会卡死
+- `denyDeleteRule` 放 to-many 侧（反向），to-one 侧用 `nullifyDeleteRule`
+- 禁止 `refreshAllObjects()`，改为重新 fetch
+- 数据变更后用 `await` 刷新，禁止 fire-and-forget
+- 详见 `docs/_common/开发规范.md` 第 13 节
+
 ### CoreData 线程安全
 
 - NSManagedObjectContext 不是线程安全的，每个线程/队列用自己的 context
@@ -85,6 +93,7 @@
 - "位置对不上" → 先检查是否存在两套独立的坐标/角度计算逻辑
 - Repository `init()` 必须零 I/O（`@StateObject` 在 body 求值时同步创建，早于 `.task`）
 - 启动阻塞的解法是「默认值先渲染 + 后台补数据」，不是「异步优化」
+- 数据变更后页面不更新 → 查开发规范第 13 节 Checklist
 
 ---
 

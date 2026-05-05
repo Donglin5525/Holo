@@ -87,7 +87,7 @@ extension CoreDataStack {
         categoryRelation.minCount = 1
         categoryRelation.maxCount = 1
         categoryRelation.isOptional = false
-        categoryRelation.deleteRule = .denyDeleteRule
+        categoryRelation.deleteRule = .nullifyDeleteRule
 
         let accountRelation = NSRelationshipDescription()
         accountRelation.name = "account"
@@ -95,7 +95,7 @@ extension CoreDataStack {
         accountRelation.minCount = 1
         accountRelation.maxCount = 1
         accountRelation.isOptional = false
-        accountRelation.deleteRule = .denyDeleteRule
+        accountRelation.deleteRule = .nullifyDeleteRule
         
         // 分期记账字段
         let installmentGroupId = NSAttributeDescription()
@@ -191,8 +191,17 @@ extension CoreDataStack {
         isSystem.defaultValue = false
         categoryAttributes.append(isSystem)
 
-        categoryEntity.properties = categoryAttributes
-        
+        // Category → Transaction 反向关系（to-many）
+        let categoryTransactionsRelation = NSRelationshipDescription()
+        categoryTransactionsRelation.name = "transactions"
+        categoryTransactionsRelation.destinationEntity = nil  // 稍后设置
+        categoryTransactionsRelation.minCount = 0
+        categoryTransactionsRelation.maxCount = 0  // 无上限（to-many）
+        categoryTransactionsRelation.isOptional = true
+        categoryTransactionsRelation.deleteRule = .denyDeleteRule
+
+        categoryEntity.properties = categoryAttributes + [categoryTransactionsRelation]
+
         // MARK: - Account Entity
         let accountEntity = NSEntityDescription()
         accountEntity.name = "Account"
@@ -291,11 +300,30 @@ extension CoreDataStack {
         accountUpdatedAt.defaultValue = Date()
         accountAttributes.append(accountUpdatedAt)
 
-        accountEntity.properties = accountAttributes
-        
+        // Account → Transaction 反向关系（to-many）
+        let accountTransactionsRelation = NSRelationshipDescription()
+        accountTransactionsRelation.name = "transactions"
+        accountTransactionsRelation.destinationEntity = nil  // 稍后设置
+        accountTransactionsRelation.minCount = 0
+        accountTransactionsRelation.maxCount = 0  // 无上限（to-many）
+        accountTransactionsRelation.isOptional = true
+        accountTransactionsRelation.deleteRule = .denyDeleteRule
+
+        accountEntity.properties = accountAttributes + [accountTransactionsRelation]
+
         // 绑定 Transaction 关系的目标实体（需在 Category/Account 创建后设置）
         categoryRelation.destinationEntity = categoryEntity
         accountRelation.destinationEntity = accountEntity
+
+        // 绑定反向关系的目标实体
+        categoryTransactionsRelation.destinationEntity = transactionEntity
+        accountTransactionsRelation.destinationEntity = transactionEntity
+
+        // 双向关系互相引用
+        categoryRelation.inverseRelationship = categoryTransactionsRelation
+        categoryTransactionsRelation.inverseRelationship = categoryRelation
+        accountRelation.inverseRelationship = accountTransactionsRelation
+        accountTransactionsRelation.inverseRelationship = accountRelation
         
         // MARK: - HomeIconConfig Entity
         // 首页图标配置实体，支持排序、显示/隐藏、自定义名称等

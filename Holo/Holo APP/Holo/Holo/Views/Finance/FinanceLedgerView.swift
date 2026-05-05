@@ -42,6 +42,9 @@ struct FinanceLedgerView: View {
     @State private var globalBudgetSummary: GlobalBudgetSummary?
     @State private var categoryWarnings: [CategoryBudgetWarning] = []
 
+    /// 操作完成提示
+    @State private var operationMessage: OperationMessage?
+
     // --- 日期滑动切换 ---
 
     /// 滑动偏移量（跟随手指 + 切换动画）
@@ -163,6 +166,13 @@ struct FinanceLedgerView: View {
             .clipShape(UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24))
         }
         .background(Color.holoBackground)
+        .overlay(alignment: .top) {
+            if let operationMessage {
+                operationToast(operationMessage)
+                    .padding(.top, 10)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
         // --- 弹窗月历（底部抽屉） ---
         .sheet(isPresented: $calendarState.isPopupVisible) {
             PopupCalendarSheet(calendarState: calendarState)
@@ -170,6 +180,7 @@ struct FinanceLedgerView: View {
         .sheet(item: $editingTransaction) { transaction in
             AddTransactionSheet(editingTransaction: transaction) {
                 calendarState.refreshAfterDataChange()
+                showOperationMessage("记账已保存", isError: false)
             }
         }
         // 长按日期快速记账 Sheet
@@ -180,6 +191,7 @@ struct FinanceLedgerView: View {
             if let date = quickAddDate {
                 AddTransactionSheet(editingTransaction: nil, presetDate: date) {
                     calendarState.refreshAfterDataChange()
+                    showOperationMessage("记账已保存", isError: false)
                 }
             }
         }
@@ -529,9 +541,12 @@ struct FinanceLedgerView: View {
         Task {
             do {
                 try await FinanceRepository.shared.deleteTransaction(transaction)
-                calendarState.refreshAfterDataChange()
+                await calendarState.refreshData()
+                HapticManager.success()
+                showOperationMessage("已删除", isError: false)
             } catch {
                 print("[FinanceLedger] 删除交易失败: \(error)")
+                showOperationMessage("删除失败：\(error.localizedDescription)", isError: true)
             }
             transactionToDelete = nil
         }
@@ -542,9 +557,12 @@ struct FinanceLedgerView: View {
         Task {
             do {
                 try await FinanceRepository.shared.deleteInstallmentGroup(groupId: groupId)
-                calendarState.refreshAfterDataChange()
+                await calendarState.refreshData()
+                HapticManager.success()
+                showOperationMessage("已删除分期", isError: false)
             } catch {
                 print("[FinanceLedger] 删除分期组失败: \(error)")
+                showOperationMessage("删除失败：\(error.localizedDescription)", isError: true)
             }
             transactionToDelete = nil
         }
@@ -565,11 +583,43 @@ struct FinanceLedgerView: View {
                     tags: original.tags
                 )
                 HapticManager.success()
-                calendarState.refreshAfterDataChange()
+                await calendarState.refreshData()
+                showOperationMessage("已复制", isError: false)
             } catch {
                 print("[FinanceLedger] 复制交易失败: \(error)")
+                showOperationMessage("复制失败：\(error.localizedDescription)", isError: true)
             }
         }
+    }
+
+    private func showOperationMessage(_ text: String, isError: Bool) {
+        let message = OperationMessage(text: text, isError: isError)
+        withAnimation(.spring(response: 0.25, dampingFraction: 0.9)) {
+            operationMessage = message
+        }
+
+        Task {
+            try? await Task.sleep(nanoseconds: 1_800_000_000)
+            await MainActor.run {
+                guard operationMessage == message else { return }
+                withAnimation(.easeOut(duration: 0.2)) {
+                    operationMessage = nil
+                }
+            }
+        }
+    }
+
+    private func operationToast(_ message: OperationMessage) -> some View {
+        Label(message.text, systemImage: message.isError ? "exclamationmark.circle.fill" : "checkmark.circle.fill")
+            .font(.system(size: 14, weight: .semibold))
+            .foregroundColor(message.isError ? .holoError : .holoSuccess)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(
+                Capsule()
+                    .fill(message.isError ? Color.holoErrorLight : Color.holoSuccessLight)
+                    .shadow(color: Color.black.opacity(0.08), radius: 10, x: 0, y: 4)
+            )
     }
 
     // MARK: - 日期滑动切换（两阶段动画，复用 WeekView 模式）
@@ -613,4 +663,9 @@ struct FinanceLedgerView: View {
         globalBudgetSummary = BudgetRepository.shared.computeGlobalTotalBudgetStatus(period: .month)
         categoryWarnings = BudgetRepository.shared.getWarningCategoryBudgets(period: .month)
     }
+}
+
+private struct OperationMessage: Equatable {
+    let text: String
+    let isError: Bool
 }

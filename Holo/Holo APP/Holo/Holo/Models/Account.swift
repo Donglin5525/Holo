@@ -28,6 +28,9 @@ public class Account: NSManagedObject {
     @NSManaged public var createdAt: Date
     @NSManaged public var updatedAt: Date
 
+    /// 反向关系：该账户下的所有交易（Core Data 自动维护）
+    @NSManaged public var transactions: Set<Transaction>?
+
     // MARK: - Computed Properties
 
     /// 账户类型枚举
