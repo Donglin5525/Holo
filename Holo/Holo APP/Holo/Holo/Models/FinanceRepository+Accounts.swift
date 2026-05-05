@@ -160,6 +160,32 @@ extension FinanceRepository {
         return balance
     }
 
+    /// 获取截止到指定日期的累计余额（initialBalance + 该日期之前的全部收入-支出）
+    func getCumulativeBalance(before date: Date) -> Decimal {
+        let accounts = getAccounts(includeArchived: false)
+
+        // 所有账户的初始余额之和
+        var balance = accounts.reduce(Decimal(0)) { $0 + $1.initialBalance.decimalValue }
+
+        // 截止日期之前的所有交易净收入
+        let request = Transaction.fetchRequest()
+        request.predicate = NSPredicate(format: "date < %@", date as NSDate)
+
+        guard let transactions = try? context.fetch(request) else {
+            return balance
+        }
+
+        for tx in transactions {
+            if tx.transactionType == .income {
+                balance += tx.amount.decimalValue
+            } else {
+                balance -= tx.amount.decimalValue
+            }
+        }
+
+        return balance
+    }
+
     /// 获取净资产信息（总资产、总负债、净资产）
     func getTotalNetWorth() -> (assets: Decimal, liabilities: Decimal, netWorth: Decimal) {
         let accounts = getAccounts(includeArchived: false)

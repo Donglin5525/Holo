@@ -4,6 +4,16 @@
 
 ---
 
+## [2026-05-06] 统计分析余额改为累计值
+
+### 修复
+- 分析页面余额折线从「时间范围内净收入累计」改为「真实累计余额」，反映所有账户的实际净资产走势
+- 余额计算公式：所有账户 initialBalance 之和 + 历史全部交易净收入 + 时间范围内逐期累加
+
+### 技术
+- 新增 `FinanceRepository.getCumulativeBalance(before:)` 计算截止日期的累计余额
+- `computeChartDataPoints` 接受 `initialBalance` 参数，余额折线起点为真实余额
+
 ## [2026-05-05] CSV 导入科目原样迁移
 
 ### 优化

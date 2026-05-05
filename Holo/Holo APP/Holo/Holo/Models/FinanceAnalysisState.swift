@@ -141,8 +141,11 @@ class FinanceAnalysisState: ObservableObject {
             let txns = try await repository.getTransactions(from: start, to: end)
             transactions = txns
 
-            // 计算图表数据点
-            chartDataPoints = computeChartDataPoints(from: txns, start: start, end: end)
+            // 计算截止到时间范围起点的累计余额
+            let balanceAtStart = repository.getCumulativeBalance(before: start)
+
+            // 计算图表数据点（以累计余额为初始值）
+            chartDataPoints = computeChartDataPoints(from: txns, start: start, end: end, initialBalance: balanceAtStart)
 
             // 计算分类聚合
             expenseCategoryAggregations = try await repository.getTopLevelCategoryAggregations(
@@ -218,18 +221,19 @@ class FinanceAnalysisState: ObservableObject {
 
     // MARK: - 私有方法
 
-    /// 计算图表数据点（含累计余额）
+    /// 计算图表数据点（含累计余额，以 initialBalance 为起始值）
     private func computeChartDataPoints(
         from transactions: [Transaction],
         start: Date,
-        end: Date
+        end: Date,
+        initialBalance: Decimal = 0
     ) -> [ChartDataPoint] {
         let calendar = Calendar.current
         let granularity = ChartGranularity.from(dayCount: dayCount)
 
         var points: [ChartDataPoint] = []
         var current = start
-        var runningBalance: Decimal = 0
+        var runningBalance: Decimal = initialBalance
 
         while current < end {
             let next: Date?
