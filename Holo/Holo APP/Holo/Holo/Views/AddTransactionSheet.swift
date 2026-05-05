@@ -95,6 +95,9 @@ struct AddTransactionSheet: View {
     @State private var showCustomPeriods: Bool = false
     @State private var customPeriodsText: String = ""
 
+    /// 智能快捷标签数据
+    @State private var quickTags: [QuickTagItem] = []
+
     // 下拉保存相关
     /// 下拉偏移量
     @State private var pullOffset: CGFloat = 0
@@ -132,6 +135,16 @@ struct AddTransactionSheet: View {
             return String(amountString.dropFirst())
         }
         return amountString
+    }
+
+    /// 当前输入模式下的金额快捷标签
+    private var amountTags: [QuickTagItem] {
+        quickTags.filter { $0.kind == .amount }
+    }
+
+    /// 当前输入模式下的名称快捷标签
+    private var noteTags: [QuickTagItem] {
+        quickTags.filter { $0.kind == .note }
     }
     
     // MARK: - Initialization
@@ -205,7 +218,17 @@ struct AddTransactionSheet: View {
                             await saveTransactionAsync()
                         }
                     }
-                    
+
+                    // 智能快捷标签栏 - 只在输入状态时显示，根据输入模式过滤
+                    if showNumericKeypad || isNoteFocused {
+                        QuickTagBar(
+                            tags: showNumericKeypad ? amountTags : noteTags,
+                            onTagTap: handleQuickTagTap
+                        )
+                        .animation(.easeInOut(duration: 0.25), value: showNumericKeypad)
+                        .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    }
+
                     // 数字键盘（仅在显示时渲染）
                     if showNumericKeypad {
                         numericKeypad
@@ -245,13 +268,13 @@ struct AddTransactionSheet: View {
                     selectedDate = preset
                 }
             }
+            // 加载快捷标签（编辑模式下已有 selectedCategory）
+            loadQuickTags(for: selectedCategory)
             startCursorAnimation()
         }
         .onChange(of: selectedCategory) { _, newValue in
-            // 选择分类后，收起数字键盘
-            if newValue != nil {
-                showNumericKeypad = false
-            }
+            // 加载快捷标签数据（选择科目后保持键盘显示，tagbar 直接出现在键盘上方）
+            loadQuickTags(for: newValue)
         }
         .onChange(of: isNoteFocused) { _, newValue in
             // 备注输入框获得焦点时，隐藏数字键盘（让系统键盘显示）
@@ -950,7 +973,44 @@ struct AddTransactionSheet: View {
             handleDigit(key)
         }
     }
-    
+
+    // MARK: - Quick Tag Handling
+
+    /// 加载快捷标签数据
+    /// 加载快捷标签数据（科目为 nil 时查询所有科目）
+    private func loadQuickTags(for category: Category?) {
+        let repo = FinanceRepository.shared
+        var newTags: [QuickTagItem] = []
+
+        let amounts = repo.getHistoricalAmounts(for: category)
+        for item in amounts {
+            let formatted = repo.formatAmountTag(item.amount)
+            newTags.append(QuickTagItem(value: formatted, kind: .amount, frequency: item.frequency))
+        }
+
+        let notes = repo.getHistoricalNotes(for: category)
+        for item in notes {
+            newTags.append(QuickTagItem(value: item.note, kind: .note, frequency: item.frequency))
+        }
+
+        newTags.sort { $0.frequency > $1.frequency }
+        quickTags = Array(newTags.prefix(10))
+    }
+
+    /// 处理快捷标签点击
+    private func handleQuickTagTap(value: String, kind: QuickTagKind) {
+        switch kind {
+        case .amount:
+            let numericString = value.replacingOccurrences(of: ",", with: "")
+            if Decimal(string: numericString) != nil {
+                amountString = numericString
+            }
+            showNumericKeypad = true
+        case .note:
+            note = value
+            isNoteFocused = true
+        }
+    }
     // MARK: - 计算逻辑辅助方法
     
     /// 处理运算符输入
