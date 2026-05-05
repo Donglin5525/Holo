@@ -38,6 +38,7 @@ final class ImportPreviewViewModel: ObservableObject {
 
     @Published var categoryMatchResults: [CategoryMatchResult] = []
     @Published var uniqueMatchResults: [CategoryMatchResult] = []
+    @Published var categoryImportPlan: ImportCategoryPlan = .empty
     @Published var matchStats: (exact: Int, synonym: Int, fuzzy: Int, unmatched: Int) = (0, 0, 0, 0)
 
     // MARK: - UI 状态
@@ -54,9 +55,11 @@ final class ImportPreviewViewModel: ObservableObject {
 
     var parsedItemCount: Int { items.count }
 
-    /// 需确认的排前面，已确认的排后面
+    /// 将新建的排前面，已存在的排后面
     var sortedUniqueMatchResults: [CategoryMatchResult] {
-        uniqueMatchResults.sorted { lhs, _ in lhs.needsConfirmation }
+        uniqueMatchResults.sorted { lhs, rhs in
+            lhs.willCreateOriginalCategory && !rhs.willCreateOriginalCategory
+        }
     }
 
     var blockingWarnings: [ParseWarning] {
@@ -73,7 +76,6 @@ final class ImportPreviewViewModel: ObservableObject {
 
     var canImport: Bool {
         parsedItemCount > 0
-            && !hasUnconfirmedMappings
             && !hasUnconfirmedBlockingWarnings
             && !isImporting
     }
@@ -150,6 +152,7 @@ final class ImportPreviewViewModel: ObservableObject {
         blockedRowIndexes = []
         categoryMatchResults = []
         uniqueMatchResults = []
+        categoryImportPlan = .empty
         matchStats = (0, 0, 0, 0)
         performPreParse()
     }
@@ -167,8 +170,45 @@ final class ImportPreviewViewModel: ObservableObject {
             items: items,
             categories: categories
         )
+        categoryImportPlan = ImportCategoryPlanner.makePlan(
+            incoming: importCategoryDescriptors(from: items),
+            existing: existingCategoryDescriptors(from: categories)
+        )
         matchStats = CategoryMatcherService.shared.generateMatchStatistics(results: categoryMatchResults)
         uniqueMatchResults = CategoryMatcherService.shared.deduplicateResults(categoryMatchResults)
+    }
+
+    private func importCategoryDescriptors(from items: [ImportTransactionItem]) -> [ImportCategoryDescriptor] {
+        items.map {
+            ImportCategoryDescriptor(
+                typeRaw: $0.type.rawValue,
+                primaryName: $0.primaryCategory,
+                subName: $0.subCategory
+            )
+        }
+    }
+
+    private func existingCategoryDescriptors(from categories: [Category]) -> [ImportCategoryDescriptor] {
+        categories.compactMap { category in
+            if category.isTopLevel {
+                return ImportCategoryDescriptor(
+                    typeRaw: category.type,
+                    primaryName: category.name,
+                    subName: nil
+                )
+            }
+
+            guard let parentId = category.parentId,
+                  let parent = categories.first(where: { $0.id == parentId }) else {
+                return nil
+            }
+
+            return ImportCategoryDescriptor(
+                typeRaw: category.type,
+                primaryName: parent.name,
+                subName: category.name
+            )
+        }
     }
 
     /// 更新某个分类匹配结果（用户手动选择了已有分类）

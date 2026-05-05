@@ -55,14 +55,11 @@ class CategoryMatcherService {
     /**
      匹配单条分类
 
-     匹配策略（按优先级，均需一级分类校验）：
-     1. 精确匹配：名称完全相同 + 一级分类一致
-     2. 同义词匹配：查同义词映射表 + 一级分类一致
-     3. 学习映射：查用户历史映射 + 一级分类一致
-     4. 模糊匹配：Levenshtein 编辑距离 + 一级分类兼容度加权
-     5. 无匹配
+     匹配策略：
+     1. 只在 type + 一级分类 + 二级分类完全一致时复用已有分类。
+     2. 其他所有情况都视为无精确匹配，导入时按 CSV 原始科目创建分类。
 
-     一级分类不一致时，精确/同义词/学习降级为 .fuzzy（保留候选，需用户确认）
+     导入是账本迁移，不替用户猜科目；相似、同义词、学习映射不再参与自动导入。
 
      - Parameters:
        - primaryCategory: 原始一级分类名
@@ -83,7 +80,24 @@ class CategoryMatcherService {
         // 只匹配二级分类（有 parentId 的）
         let subCategories = categories.filter { $0.isSubCategory }
 
-        // ━━━━━━━━━━ 策略 1: 精确匹配 ━━━━━━━━━━
+        if normalizedSub == normalizedPrimary,
+           let topLevel = categories.first(where: {
+               $0.isTopLevel && $0.name.lowercased().trimmingCharacters(in: .whitespaces) == normalizedPrimary.lowercased()
+           }) {
+            return CategoryMatchResult(
+                originalPrimary: normalizedPrimary,
+                originalSub: normalizedSub,
+                type: type,
+                matchType: .exact,
+                matchedCategory: topLevel,
+                candidates: [],
+                confidence: 1.0,
+                isManuallyModified: false,
+                primaryCategoryMatched: true
+            )
+        }
+
+        // ━━━━━━━━━━ 精确复用：二级名称相同且一级分类相同 ━━━━━━━━━━
         if let exact = findExactMatch(subCategory: normalizedSub, categories: subCategories) {
             let parentMatched = primaryMatches(originalPrimary: normalizedPrimary, category: exact, allCategories: categories)
             if parentMatched {
@@ -98,113 +112,17 @@ class CategoryMatcherService {
                     isManuallyModified: false,
                     primaryCategoryMatched: true
                 )
-            } else {
-                // 一级分类不匹配 → 降级为 fuzzy，保留候选
-                return CategoryMatchResult(
-                    originalPrimary: normalizedPrimary,
-                    originalSub: normalizedSub,
-                    type: type,
-                    matchType: .fuzzy,
-                    matchedCategory: exact,
-                    candidates: [exact],
-                    confidence: 0.7,
-                    isManuallyModified: false,
-                    primaryCategoryMatched: false
-                )
             }
         }
 
-        // ━━━━━━━━━━ 策略 2: 同义词匹配 ━━━━━━━━━━
-        if let standardName = CategorySynonymMapping.findStandardSubCategoryName(normalizedSub, type: type),
-           let synonymMatch = findExactMatch(subCategory: standardName, categories: subCategories) {
-            let parentMatched = primaryMatches(originalPrimary: normalizedPrimary, category: synonymMatch, allCategories: categories)
-            if parentMatched {
-                return CategoryMatchResult(
-                    originalPrimary: normalizedPrimary,
-                    originalSub: normalizedSub,
-                    type: type,
-                    matchType: .synonym,
-                    matchedCategory: synonymMatch,
-                    candidates: [],
-                    confidence: 0.95,
-                    isManuallyModified: false,
-                    primaryCategoryMatched: true
-                )
-            } else {
-                return CategoryMatchResult(
-                    originalPrimary: normalizedPrimary,
-                    originalSub: normalizedSub,
-                    type: type,
-                    matchType: .fuzzy,
-                    matchedCategory: synonymMatch,
-                    candidates: [synonymMatch],
-                    confidence: 0.65,
-                    isManuallyModified: false,
-                    primaryCategoryMatched: false
-                )
-            }
-        }
-
-        // ━━━━━━━━━━ 策略 2.5: 用户学习映射 ━━━━━━━━━━
-        if let learned = CategoryLearnedMapping.lookup(candidate: normalizedSub, type: type, primaryCategory: normalizedPrimary),
-           let learnedMatch = findExactMatch(subCategory: learned.sub, categories: subCategories) {
-            let parentMatched = primaryMatches(originalPrimary: normalizedPrimary, category: learnedMatch, allCategories: categories)
-            if parentMatched {
-                return CategoryMatchResult(
-                    originalPrimary: normalizedPrimary,
-                    originalSub: normalizedSub,
-                    type: type,
-                    matchType: .synonym,
-                    matchedCategory: learnedMatch,
-                    candidates: [],
-                    confidence: 0.9,
-                    isManuallyModified: false,
-                    primaryCategoryMatched: true
-                )
-            } else {
-                return CategoryMatchResult(
-                    originalPrimary: normalizedPrimary,
-                    originalSub: normalizedSub,
-                    type: type,
-                    matchType: .fuzzy,
-                    matchedCategory: learnedMatch,
-                    candidates: [learnedMatch],
-                    confidence: 0.6,
-                    isManuallyModified: false,
-                    primaryCategoryMatched: false
-                )
-            }
-        }
-
-        // ━━━━━━━━━━ 策略 3: 模糊匹配 ━━━━━━━━━━
-        let fuzzyResult = findFuzzyMatch(subCategory: normalizedSub, categories: subCategories)
-        if let bestMatch = fuzzyResult.bestMatch, fuzzyResult.confidence >= fuzzyMatchThreshold {
-            let parentMatched = primaryMatches(originalPrimary: normalizedPrimary, category: bestMatch, allCategories: categories)
-            // 一级分类匹配时加权，不匹配时衰减
-            let adjustedConfidence = parentMatched
-                ? min(1.0, fuzzyResult.confidence + 0.05)
-                : max(fuzzyMatchThreshold, fuzzyResult.confidence * 0.7)
-            return CategoryMatchResult(
-                originalPrimary: normalizedPrimary,
-                originalSub: normalizedSub,
-                type: type,
-                matchType: .fuzzy,
-                matchedCategory: bestMatch,
-                candidates: fuzzyResult.candidates,
-                confidence: adjustedConfidence,
-                isManuallyModified: false,
-                primaryCategoryMatched: parentMatched
-            )
-        }
-
-        // ━━━━━━━━━━ 无匹配 ━━━━━━━━━━
+        // ━━━━━━━━━━ 无精确匹配：导入时按原始一级/二级创建 ━━━━━━━━━━
         return CategoryMatchResult(
             originalPrimary: normalizedPrimary,
             originalSub: normalizedSub,
             type: type,
             matchType: .unmatched,
             matchedCategory: nil,
-            candidates: fuzzyResult.candidates,
+            candidates: [],
             confidence: 0,
             isManuallyModified: false,
             primaryCategoryMatched: false

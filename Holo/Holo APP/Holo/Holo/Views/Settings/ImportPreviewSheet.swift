@@ -162,6 +162,11 @@ struct ImportPreviewSheet: View {
                 infoRow(label: "识别格式", value: viewModel.previewData.detectedTemplate.rawValue)
                 infoRow(label: "总行数", value: "\(viewModel.previewData.rows.count) 条记录")
                 infoRow(label: "可导入", value: "\(viewModel.parsedItemCount) 条")
+                let newCategoryCount = viewModel.categoryImportPlan.primaryCategoriesToCreate.count
+                    + viewModel.categoryImportPlan.subCategoriesToCreate.count
+                if newCategoryCount > 0 {
+                    infoRow(label: "将新建科目", value: "\(newCategoryCount) 个")
+                }
                 if !viewModel.parseFailures.isEmpty {
                     infoRow(label: "跳过", value: "\(viewModel.parseFailures.count) 条（格式异常）")
                 }
@@ -296,46 +301,25 @@ struct ImportPreviewSheet: View {
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
     }
 
-    // MARK: - 分类匹配预览
+    // MARK: - 分类导入计划
 
     private var categoryMatchSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             // 标题
             HStack(spacing: HoloSpacing.sm) {
-                Image(systemName: "link")
+                Image(systemName: "folder.badge.plus")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(.holoPrimary)
-                Text("分类匹配预览")
+                Text("科目导入计划")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(.holoTextPrimary)
             }
 
-            // 匹配统计
+            // 导入统计
             HStack(spacing: HoloSpacing.md) {
-                matchStatBadge(label: "精确", count: viewModel.matchStats.exact, color: .green)
-                matchStatBadge(label: "同义词", count: viewModel.matchStats.synonym, color: .blue)
-                matchStatBadge(label: "相似", count: viewModel.matchStats.fuzzy, color: .orange)
-                matchStatBadge(label: "待确认", count: viewModel.matchStats.unmatched, color: .red)
-            }
-
-            // 批量确认按钮（有需要确认的模糊匹配时显示）
-            let fuzzyCount = viewModel.uniqueMatchResults.filter { $0.matchType == .fuzzy && $0.needsConfirmation }.count
-            if fuzzyCount > 0 {
-                Button {
-                    viewModel.confirmAllFuzzyMatches()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "checkmark.circle")
-                            .font(.system(size: 12))
-                        Text("全部接受 \(fuzzyCount) 个相似匹配")
-                            .font(.system(size: 12, weight: .medium))
-                    }
-                    .foregroundColor(.holoPrimary)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(Color.holoPrimary.opacity(0.08))
-                    .clipShape(Capsule())
-                }
+                matchStatBadge(label: "已存在", count: viewModel.matchStats.exact, color: .green)
+                matchStatBadge(label: "新一级", count: viewModel.categoryImportPlan.primaryCategoriesToCreate.count, color: .blue)
+                matchStatBadge(label: "新二级", count: viewModel.categoryImportPlan.subCategoriesToCreate.count, color: .orange)
             }
 
             // 去重后的匹配列表（最多显示 10 条，可点击编辑）
@@ -393,9 +377,9 @@ struct ImportPreviewSheet: View {
             // 匹配结果
             if let matched = result.matchedCategory {
                 HStack(spacing: 4) {
-                    Image(categoryIconName(for: matched))
-                        .resizable()
-                        .frame(width: 16, height: 16)
+                    Image(systemName: categoryIconName(for: matched))
+                        .font(.system(size: 14))
+                        .foregroundColor(matchTypeColor(result.matchType))
                     Text(matched.name)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(matchTypeColor(result.matchType))
@@ -405,7 +389,7 @@ struct ImportPreviewSheet: View {
                     Image(systemName: "questionmark.circle")
                         .font(.system(size: 14))
                         .foregroundColor(.red)
-                    Text("新建分类")
+                    Text("新建科目")
                         .font(.system(size: 13))
                         .foregroundColor(.red)
                 }
@@ -413,8 +397,8 @@ struct ImportPreviewSheet: View {
 
             Spacer()
 
-            // 需确认标记
-            if result.needsConfirmation {
+            // 可手动调整
+            if result.willCreateOriginalCategory {
                 Image(systemName: "chevron.right")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundColor(.holoTextSecondary.opacity(0.5))
@@ -442,7 +426,7 @@ struct ImportPreviewSheet: View {
         case .exact: return "精确"
         case .synonym: return "同义词"
         case .fuzzy: return "相似"
-        case .unmatched: return "待确认"
+        case .unmatched: return "新建"
         }
     }
 

@@ -7,6 +7,9 @@
 
 import Foundation
 import CoreData
+import os.log
+
+private let financeImportLogger = Logger(subsystem: "com.holo.app", category: "FinanceImport")
 
 extension FinanceRepository {
 
@@ -85,7 +88,7 @@ extension FinanceRepository {
                         parentCategory = Category.create(
                             in: context,
                             name: item.primaryCategory,
-                            icon: "questionmark.circle",
+                            icon: "questionmark.folder.fill",
                             color: "#64748B",
                             type: typeStr,
                             isDefault: false,
@@ -104,7 +107,7 @@ extension FinanceRepository {
                         let childCategory = Category.create(
                             in: context,
                             name: item.subCategory,
-                            icon: "questionmark.circle",
+                            icon: "questionmark.circle.fill",
                             color: parentCategory.color,
                             type: typeStr,
                             isDefault: false,
@@ -177,7 +180,7 @@ extension FinanceRepository {
         do {
             try context.save()
         } catch {
-            print("[FinanceRepository] 批量导入最终保存失败: \(error)")
+            financeImportLogger.error("批量导入最终保存失败: \(error.localizedDescription)")
         }
         
         return BatchImportResult(
@@ -264,13 +267,12 @@ extension FinanceRepository {
                         if let cachedParent = parentCategoryCache[parentKey] {
                             parentCategory = cachedParent
                         } else {
-                            // 新建一级分类，智能选择图标和颜色
-                            let (icon, color) = guessCategoryIconAndColor(name: item.primaryCategory, type: item.type)
+                            // 导入文件中的科目即用户真实科目，新分类统一使用待编辑默认图标
                             parentCategory = Category.create(
                                 in: context,
                                 name: item.primaryCategory,
-                                icon: icon,
-                                color: color,
+                                icon: "questionmark.folder.fill",
+                                color: "#64748B",
                                 type: typeStr,
                                 isDefault: false,
                                 sortOrder: Int16(parentCategoryCache.count),
@@ -284,11 +286,10 @@ extension FinanceRepository {
                         if item.subCategory == item.primaryCategory {
                             category = parentCategory
                         } else {
-                            let (childIcon, _) = guessCategoryIconAndColor(name: item.subCategory, type: item.type)
                             let childCategory = Category.create(
                                 in: context,
                                 name: item.subCategory,
-                                icon: childIcon,
+                                icon: "questionmark.circle.fill",
                                 color: parentCategory.color,
                                 type: typeStr,
                                 isDefault: false,

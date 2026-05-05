@@ -177,10 +177,10 @@ struct AccountDTO: Codable {
 
 /// 分类匹配类型
 enum CategoryMatchType {
-    case exact       // 精确匹配（名称完全相同）
-    case synonym     // 同义词匹配（如「早饭」→「早餐」）
-    case fuzzy       // 模糊匹配（编辑距离相似）
-    case unmatched   // 无匹配
+    case exact       // 精确复用（type + 一级 + 二级完全相同）
+    case synonym     // 保留旧枚举值，导入流程不再自动使用
+    case fuzzy       // 保留旧枚举值，导入流程不再自动使用
+    case unmatched   // 无精确分类，导入时按原始科目创建
 }
 
 /// 分类匹配结果
@@ -217,11 +217,12 @@ struct CategoryMatchResult: Identifiable {
 
     /// 是否需要用户确认才能导入
     var needsConfirmation: Bool {
-        if confirmedCreateNew || isManuallyModified || isConfirmed { return false }
-        if matchType == .unmatched { return true }
-        if matchType == .fuzzy { return true }
-        if !primaryCategoryMatched { return true }
         return false
+    }
+
+    /// 是否会在导入时创建原始分类
+    var willCreateOriginalCategory: Bool {
+        matchedCategory == nil
     }
 }
 
