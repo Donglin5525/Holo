@@ -4,6 +4,30 @@
 
 ---
 
+## [2026-05-05] CSV 导入功能完善 — 防止错导入
+
+### 新功能
+- 分类三元匹配：type + 一级分类 + 二级分类联合匹配，防止同名二级分类串线（如「餐饮/其他」与「购物/其他」）
+- 导入预览弹窗重构：新增 ViewModel 管理解析、匹配、确认流程，大文件解析移至后台线程
+- 分类匹配编辑器：点击任意匹配行可手动选择已有分类或确认新建
+- 字段映射编辑器：自动检测错误时可手动修正 CSV 列与 Holo 字段的对应关系
+- 解析警告系统：日期解析失败不再静默使用今天，改为阻断性警告需用户确认
+- 批量确认模糊匹配：一键接受所有相似匹配，减少手动操作
+- 外部文件打开：支持拖拽 CSV 到模拟器/设备直接打开导入（CFBundleDocumentTypes + .onOpenURL）
+- 调试加载按钮：沙箱 Documents 目录存在 holo_import.csv 时显示「加载测试数据」入口
+
+### 优化
+- 模糊匹配阈值从 0.6 提升至 0.75，减少误匹配
+- 一级分类不匹配时精确/同义词匹配降级为模糊匹配，需用户确认
+- 学习映射 key 格式扩展为 `type|primary|sub`，防止跨一级分类碰撞
+- 旧格式学习映射自动迁移（启动时执行）
+
+### 涉及文件
+- 新增：ImportPreviewViewModel、CategoryMatchEditor、FieldMappingEditor、Info.plist
+- 修改：ImportPreviewSheet、ImportExportModels、CategoryMatcherService、DataImportService、CategoryLearnedMapping、HoloApp
+
+---
+
 ## [2026-05-05] 智能快捷标签栏 Quick Tag Bar
 
 ### 新功能

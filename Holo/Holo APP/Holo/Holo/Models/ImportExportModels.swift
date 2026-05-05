@@ -184,13 +184,15 @@ enum CategoryMatchType {
 }
 
 /// 分类匹配结果
-struct CategoryMatchResult {
+struct CategoryMatchResult: Identifiable {
     /// 原始一级分类名（来自 CSV）
     let originalPrimary: String
     /// 原始二级分类名（来自 CSV）
     let originalSub: String
+    /// 交易类型（防止收入/支出同名分类去重碰撞）
+    let type: TransactionType
     /// 匹配类型
-    let matchType: CategoryMatchType
+    var matchType: CategoryMatchType
     /// 匹配到的分类（可能为 nil）
     var matchedCategory: Category?
     /// 候选分类列表（用于用户手动选择）
@@ -199,12 +201,28 @@ struct CategoryMatchResult {
     var confidence: Double
     /// 用户是否手动修改过
     var isManuallyModified: Bool
+    /// 一级分类是否匹配（用于判断是否需要降级）
+    let primaryCategoryMatched: Bool
+    /// 用户是否确认创建新分类（unmatched 时使用）
+    var confirmedCreateNew: Bool = false
+    /// 用户是否已确认此匹配结果
+    var isConfirmed: Bool = false
 
     /// 便捷属性：是否有匹配结果
     var hasMatch: Bool { matchedCategory != nil }
 
-    /// 生成唯一标识（用于去重）
-    var uniqueKey: String { "\(originalPrimary)|\(originalSub)" }
+    /// 生成唯一标识（含 type 防止收入/支出同名分类碰撞）
+    var id: String { uniqueKey }
+    var uniqueKey: String { "\(type.rawValue)|\(originalPrimary)|\(originalSub)" }
+
+    /// 是否需要用户确认才能导入
+    var needsConfirmation: Bool {
+        if confirmedCreateNew || isManuallyModified || isConfirmed { return false }
+        if matchType == .unmatched { return true }
+        if matchType == .fuzzy { return true }
+        if !primaryCategoryMatched { return true }
+        return false
+    }
 }
 
 // MARK: - 导入相关
@@ -294,6 +312,29 @@ struct BatchImportResult {
     var totalCount: Int { successCount + failedItems.count }
     /// 是否全部成功
     var isAllSuccess: Bool { failedItems.isEmpty }
+}
+
+/// 解析警告
+struct ParseWarning: Identifiable {
+    let id = UUID()
+    /// 行号（1-based，含表头偏移）
+    let rowIndex: Int
+    /// 出问题的字段名
+    let field: String
+    /// 警告描述
+    let message: String
+    /// 严重程度
+    let severity: Severity
+    /// 用户是否已确认
+    var isConfirmed: Bool = false
+
+    enum Severity {
+        case blocking    // 必须确认才能导入该行
+        case advisory    // 信息性警告，不阻断
+    }
+
+    /// 是否仍处于阻断状态
+    var isBlocking: Bool { severity == .blocking && !isConfirmed }
 }
 
 /// 导入进度状态

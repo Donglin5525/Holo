@@ -74,6 +74,19 @@ struct ImportExportView: View {
             ) {
                 downloadTemplate()
             }
+
+            // 调试：从沙箱 Documents 加载 CSV
+            if let docURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
+               FileManager.default.fileExists(atPath: docURL.appendingPathComponent("holo_import.csv").path) {
+                settingsRow(
+                    icon: "flask",
+                    iconColor: .orange,
+                    title: "加载测试数据",
+                    subtitle: "从 Documents/holo_import.csv 导入（调试）"
+                ) {
+                    loadFromSandbox()
+                }
+            }
         }
         .padding(.horizontal, HoloSpacing.lg)
         // 导出选项 Sheet
@@ -176,6 +189,20 @@ struct ImportExportView: View {
     private func downloadTemplate() {
         let url = DataExportService.shared.generateImportTemplate()
         shareFileURL = url
+    }
+
+    /// 从沙箱 Documents 目录加载 CSV（调试用）
+    private func loadFromSandbox() {
+        guard let docURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
+        let csvURL = docURL.appendingPathComponent("holo_import.csv")
+        do {
+            let previewData = try DataImportService.shared.parseCSV(url: csvURL)
+            importPreviewData = previewData
+            showImportPreview = true
+        } catch {
+            errorMessage = "文件解析失败：\(error.localizedDescription)"
+            showError = true
+        }
     }
     
     /// 处理文件选择结果

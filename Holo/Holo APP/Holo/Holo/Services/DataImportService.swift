@@ -76,32 +76,87 @@ class DataImportService {
     
     /**
      将预览数据转换为可导入的交易条目
-     
-     根据字段映射，逐行解析日期、金额、类型、分类等字段
-     跳过无法解析的行，记录错误信息
-     
+
+     根据字段映射，逐行解析日期、金额、类型、分类等字段。
+     日期解析失败时生成 blocking warning，该行不进入 items；
+     用户确认使用今天日期后，该行才能导入。
+
      - Parameters:
        - data: 预览数据
        - mapping: 字段映射关系
-     - Returns: (成功解析的条目, 失败条目列表)
+       - confirmedFallbackDateRows: 用户已确认使用今天日期的行索引集合
+     - Returns: (成功解析的条目, 失败条目列表, 解析警告列表)
      */
     func convertToImportItems(
         data: ImportPreviewData,
-        mapping: FieldMapping
-    ) -> ([ImportTransactionItem], [(index: Int, error: String)]) {
+        mapping: FieldMapping,
+        confirmedFallbackDateRows: Set<Int> = []
+    ) -> ([ImportTransactionItem], [(index: Int, error: String)], [ParseWarning]) {
         var items: [ImportTransactionItem] = []
         var failures: [(index: Int, error: String)] = []
-        
+        var warnings: [ParseWarning] = []
+
         for (index, row) in data.rows.enumerated() {
+            let rowNumber = index + 2
+            let isConfirmed = confirmedFallbackDateRows.contains(index)
+
             do {
-                let item = try parseRow(row, mapping: mapping, template: data.detectedTemplate)
+                let item = try parseRow(
+                    row,
+                    mapping: mapping,
+                    template: data.detectedTemplate,
+                    allowDateFallback: isConfirmed
+                )
                 items.append(item)
+
+                // 类型由金额正负推断时生成 advisory warning
+                if let typeIdx = mapping.typeIndex {
+                    let typeStr = row[safe: typeIdx]?.trimmingCharacters(in: .whitespaces) ?? ""
+                    if typeStr.isEmpty {
+                        warnings.append(ParseWarning(
+                            rowIndex: rowNumber,
+                            field: "类型",
+                            message: "未指定交易类型，根据金额正负自动推断",
+                            severity: .advisory
+                        ))
+                    }
+                }
+            } catch let error as ImportError {
+                if case .dateParseFailure(let originalValue) = error {
+                    if isConfirmed {
+                        // 用户已确认使用今天，重新解析（允许日期回退）
+                        if let item = try? parseRow(
+                            row,
+                            mapping: mapping,
+                            template: data.detectedTemplate,
+                            allowDateFallback: true
+                        ) {
+                            items.append(item)
+                            warnings.append(ParseWarning(
+                                rowIndex: rowNumber,
+                                field: "日期",
+                                message: "日期解析失败（原始值：\(originalValue)），已使用今天",
+                                severity: .blocking,
+                                isConfirmed: true
+                            ))
+                        }
+                    } else {
+                        warnings.append(ParseWarning(
+                            rowIndex: rowNumber,
+                            field: "日期",
+                            message: "日期无法解析（原始值：\(originalValue)），确认后将使用今天日期",
+                            severity: .blocking
+                        ))
+                    }
+                } else {
+                    failures.append((index: rowNumber, error: error.localizedDescription))
+                }
             } catch {
-                failures.append((index: index + 2, error: error.localizedDescription))
+                failures.append((index: rowNumber, error: error.localizedDescription))
             }
         }
-        
-        return (items, failures)
+
+        return (items, failures, warnings)
     }
     
     // MARK: - 模板检测
@@ -321,18 +376,23 @@ class DataImportService {
     
     /**
      解析单行数据为 ImportTransactionItem
-     
+
      应用三层容错策略：
      1. cleanAmount — 清洗金额中的货币符号、千分位等
      2. normalizeTransactionType — 类型同义词智能匹配
-     3. 默认值填充 — 分类/账户/日期缺失时使用合理默认值
-     
-     唯一仍会抛出错误的情况：金额列缺失或清洗后仍无法解析为数字
+     3. 默认值填充 — 分类/账户缺失时使用合理默认值
+
+     日期解析失败时：
+     - allowDateFallback = false: 抛出 dateParseFailure 错误
+     - allowDateFallback = true: 静默使用今天
+
+     - Parameter allowDateFallback: 是否允许日期解析失败时回退到今天
      */
     private func parseRow(
         _ row: [String],
         mapping: FieldMapping,
-        template: ImportTemplate
+        template: ImportTemplate,
+        allowDateFallback: Bool = true
     ) throws -> ImportTransactionItem {
         
         // --- 金额解析（唯一必填字段） ---
@@ -355,15 +415,21 @@ class DataImportService {
             .replacingOccurrences(of: ",", with: "")
             .filter { $0.isNumber || $0 == "." || $0 == "-" || $0 == "+" }) ?? 0
         
-        // --- 日期解析（默认值：今天） ---
+        // --- 日期解析 ---
         var date = Date()
         if let dateIdx = mapping.dateIndex {
             let dateStr = row[safe: dateIdx] ?? ""
             let timeStr = mapping.timeIndex.flatMap { row[safe: $0] } ?? ""
             if let parsed = parseDate(dateStr: dateStr, timeStr: timeStr) {
                 date = parsed
+            } else if !dateStr.trimmingCharacters(in: .whitespaces).isEmpty {
+                // 有日期值但无法解析
+                if !allowDateFallback {
+                    throw ImportError.dateParseFailure(dateStr.trimmingCharacters(in: .whitespaces))
+                }
+                // allowDateFallback = true: 使用今天
             }
-            // 解析失败时静默使用今天，不再抛出错误
+            // 日期值为空时静默使用今天（无日期列或空值不算解析失败）
         }
         
         // --- 类型解析（智能同义词匹配 + 金额正负回退） ---
@@ -565,7 +631,8 @@ enum ImportError: LocalizedError {
     case invalidValue(String)
     case encodingError
     case saveFailed(String)
-    
+    case dateParseFailure(String)
+
     var errorDescription: String? {
         switch self {
         case .emptyFile: return "文件为空或仅包含表头"
@@ -574,6 +641,7 @@ enum ImportError: LocalizedError {
         case .invalidValue(let msg): return msg
         case .encodingError: return "无法识别文件编码"
         case .saveFailed(let msg): return "保存失败：\(msg)"
+        case .dateParseFailure(let value): return "日期无法解析：\(value)"
         }
     }
 }

@@ -15,8 +15,10 @@ enum CategoryLearnedMapping {
 
     private static let logger = Logger(subsystem: "com.holo.app", category: "CategoryLearnedMapping")
 
-    /// 存储键：type|candidate  →  目标: primaryCategory|subCategory
+    /// 存储键：type|primary|candidate  →  目标: primaryCategory|subCategory
     private static let storageKey = "categoryLearnedMappings"
+    /// 旧格式 key 迁移标记
+    private static let migrationVersionKey = "categoryLearnedMappingSchemaVersion"
 
     // MARK: - Public API
 
@@ -24,15 +26,17 @@ enum CategoryLearnedMapping {
     /// - Parameters:
     ///   - candidate: 用户原始分类表达（如"家政"）
     ///   - type: 交易类型
+    ///   - primaryCategory: 原始一级分类（防止同名二级分类跨一级分类串线）
     ///   - targetPrimary: 用户确认的一级分类
     ///   - targetSub: 用户确认的二级分类
     static func record(
         candidate: String,
         type: TransactionType,
+        primaryCategory: String = "",
         targetPrimary: String,
         targetSub: String
     ) {
-        let key = makeKey(candidate: candidate, type: type)
+        let key = makeKey(candidate: candidate, type: type, primaryCategory: primaryCategory)
         let value = "\(targetPrimary)|\(targetSub)"
 
         var mappings = loadAll()
@@ -46,12 +50,14 @@ enum CategoryLearnedMapping {
     /// - Parameters:
     ///   - candidate: 待匹配的分类名称
     ///   - type: 交易类型
+    ///   - primaryCategory: 原始一级分类
     /// - Returns: (primaryCategory, subCategory) 或 nil
     static func lookup(
         candidate: String,
-        type: TransactionType
+        type: TransactionType,
+        primaryCategory: String = ""
     ) -> (primary: String, sub: String)? {
-        let key = makeKey(candidate: candidate, type: type)
+        let key = makeKey(candidate: candidate, type: type, primaryCategory: primaryCategory)
         guard let value = loadAll()[key],
               let pipeIndex = value.firstIndex(of: "|") else {
             return nil
@@ -65,8 +71,8 @@ enum CategoryLearnedMapping {
     }
 
     /// 删除一条学习映射
-    static func remove(candidate: String, type: TransactionType) {
-        let key = makeKey(candidate: candidate, type: type)
+    static func remove(candidate: String, type: TransactionType, primaryCategory: String = "") {
+        let key = makeKey(candidate: candidate, type: type, primaryCategory: primaryCategory)
         var mappings = loadAll()
         mappings.removeValue(forKey: key)
         saveAll(mappings)
@@ -108,11 +114,42 @@ enum CategoryLearnedMapping {
         saveTransactionCandidates(mappings)
     }
 
+    // MARK: - 旧格式迁移
+
+    /// 迁移旧格式 key（type|candidate）→ 新格式（type|primary|candidate）
+    /// 旧 key 无法可靠补全 primaryCategory 维度，直接删除
+    static func migrateOldFormatKeys() {
+        let currentVersion = 2
+        let savedVersion = UserDefaults.standard.integer(forKey: migrationVersionKey)
+        guard savedVersion < currentVersion else { return }
+
+        var mappings = loadAll()
+        let oldKeys = mappings.keys.filter { key in
+            // 旧格式: "type|candidate"（只有 1 个 |）
+            // 新格式: "type|primary|candidate"（有 2 个 |）
+            key.components(separatedBy: "|").count == 2
+        }
+
+        guard !oldKeys.isEmpty else {
+            UserDefaults.standard.set(currentVersion, forKey: migrationVersionKey)
+            return
+        }
+
+        for key in oldKeys {
+            mappings.removeValue(forKey: key)
+        }
+        saveAll(mappings)
+
+        UserDefaults.standard.set(currentVersion, forKey: migrationVersionKey)
+        logger.info("迁移旧格式学习映射：删除 \(oldKeys.count) 条旧 key")
+    }
+
     // MARK: - Private
 
-    private static func makeKey(candidate: String, type: TransactionType) -> String {
+    private static func makeKey(candidate: String, type: TransactionType, primaryCategory: String) -> String {
         let normalized = candidate.trimmingCharacters(in: .whitespaces).lowercased()
-        return "\(type.rawValue)|\(normalized)"
+        let primary = primaryCategory.trimmingCharacters(in: .whitespaces).lowercased()
+        return "\(type.rawValue)|\(primary)|\(normalized)"
     }
 
     private static func loadAll() -> [String: String] {
