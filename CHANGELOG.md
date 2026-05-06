@@ -4,6 +4,22 @@
 
 ---
 
+## [2026-05-06] HoloAI 历史消息加载优化
+
+### 优化
+- HoloAI 对话页首屏改为轻量消息快照加载，跳过重 JSON 元数据解码，显著降低进入对话时的卡顿
+- AI 上下文构建路径独立化，UI 只加载当前会话不影响 AI 追问时的历史上下文
+- 消息卡片和日志元数据改为按需批量懒加载，可见时才从数据库读取
+- 进入对话默认只显示最近一次会话（4 小时边界），支持下拉加载更早会话
+- 加载更早会话时保持用户滚动位置不跳变
+
+### 技术
+- `ChatMessageViewData` 新增 `ChatMessageMetadataState` 状态机（unavailable/unloaded/loading/loaded）
+- `ChatMessageRepository` 新增轻量加载、当前会话加载、更早会话加载、数据库级 DTO 查询、批量元数据懒加载
+- `ChatViewModel` 首屏切换到会话加载，新增元数据 debounce 合并、更早会话加载
+- `ChatView` 使用 `.refreshable` 原生下拉加载 + 可点击 header，滚动行为区分首次/流式/prepend
+- `MessageBubbleView` 根据 metadataState 控制日志入口显示时机
+
 ## [2026-05-06] AI 分类学习映射管理
 
 ### 新增

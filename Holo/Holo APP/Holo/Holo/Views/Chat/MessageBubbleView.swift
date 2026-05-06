@@ -99,7 +99,7 @@ struct MessageBubbleView: View {
             }
         }
         .contextMenu {
-            if !isUser, message.rawLog != nil {
+            if !isUser, message.metadataState == .loaded, message.rawLog != nil {
                 Button {
                     onViewLog?(message)
                 } label: {

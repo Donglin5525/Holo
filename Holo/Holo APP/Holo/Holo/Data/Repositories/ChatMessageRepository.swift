@@ -17,9 +17,12 @@ final class ChatMessageRepository: ObservableObject {
     static let shared = ChatMessageRepository()
 
     @Published private(set) var messages: [ChatMessageViewData] = []
+    @Published private(set) var hasEarlierSessions: Bool = false
 
     private let logger = Logger(subsystem: "com.holo.app", category: "ChatMessageRepository")
     private var liveMessageCache: [UUID: ChatMessage] = [:]
+    private var oldestLoadedTimestamp: Date?
+    private let sessionGap: TimeInterval = 4 * 60 * 60 // 4 小时会话边界
 
     /// 延迟初始化 context，避免 init 时触发 CoreDataStack 懒加载
     /// CoreDataStack 在 HoloApp.init() 中异步启动，store 后台加载
@@ -91,9 +94,260 @@ final class ChatMessageRepository: ObservableObject {
         messages = snapshots
     }
 
-    /// 加载最近的 N 条消息
+    /// 轻量加载消息：只读取渲染文本气泡所需的字段，不读取重 JSON 元数据
+    func loadLightweightMessagesAsync(limit: Int = 30) async {
+        await CoreDataStack.shared.waitUntilReady()
+
+        let snapshots: [ChatMessageViewData]
+
+        do {
+            snapshots = try await Task.detached(priority: .utility) {
+                let context = CoreDataStack.shared.newBackgroundContext()
+                return try await context.perform {
+                    let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
+                    request.resultType = .dictionaryResultType
+                    request.propertiesToFetch = [
+                        "id",
+                        "role",
+                        "content",
+                        "timestamp",
+                        "intent",
+                        "extractedDataJSON",
+                        "isStreaming",
+                        "parentMessageId"
+                    ]
+                    request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
+                    request.fetchLimit = limit
+
+                    return try context.fetch(request)
+                        .reversed()
+                        .compactMap { ChatMessageViewData(lightweightDictionary: $0 as? [String: Any] ?? [:]) }
+                }
+            }.value
+        } catch {
+            logger.error("后台轻量加载消息快照失败：\(error.localizedDescription)")
+            return
+        }
+
+        liveMessageCache.removeAll()
+        messages = snapshots
+    }
+
+    /// 加载当前会话的轻量消息：从最新消息向前扫描，遇到 4 小时间隔则截断
+    func loadCurrentSessionLightweightMessagesAsync(limit: Int = 50) async {
+        await CoreDataStack.shared.waitUntilReady()
+
+        let snapshots: [ChatMessageViewData]
+
+        do {
+            // 两步查询：先查 id+timestamp 确定会话边界，再查轻量字段
+            let sessionIds: [UUID] = try await Task.detached(priority: .utility) {
+                let context = CoreDataStack.shared.newBackgroundContext()
+                return try await context.perform {
+                    let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
+                    request.resultType = .dictionaryResultType
+                    request.propertiesToFetch = ["id", "timestamp"]
+                    request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
+                    request.fetchLimit = limit
+
+                    let rows = try context.fetch(request)
+                    var ids: [UUID] = []
+                    var prevTimestamp: Date?
+
+                    for row in rows {
+                        guard let id = row["id"] as? UUID,
+                              let ts = row["timestamp"] as? Date else { continue }
+
+                        if let prev = prevTimestamp, prev.timeIntervalSince(ts) > self.sessionGap {
+                            break
+                        }
+                        ids.append(id)
+                        prevTimestamp = ts
+                    }
+                    return ids
+                }
+            }.value
+
+            guard !sessionIds.isEmpty else {
+                liveMessageCache.removeAll()
+                messages = []
+                hasEarlierSessions = false
+                return
+            }
+
+            snapshots = try await Task.detached(priority: .utility) {
+                let context = CoreDataStack.shared.newBackgroundContext()
+                return try await context.perform {
+                    let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
+                    request.resultType = .dictionaryResultType
+                    request.propertiesToFetch = [
+                        "id", "role", "content", "timestamp",
+                        "intent", "extractedDataJSON", "isStreaming", "parentMessageId"
+                    ]
+                    request.predicate = NSPredicate(format: "id IN %@", sessionIds)
+                    request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: true)]
+
+                    return try context.fetch(request)
+                        .compactMap { ChatMessageViewData(lightweightDictionary: $0 as? [String: Any] ?? [:]) }
+                }
+            }.value
+
+            // 检查是否还有更早的消息
+            let earliestTimestamp = snapshots.first?.timestamp
+            let hasEarlier = try await Task.detached(priority: .utility) {
+                let context = CoreDataStack.shared.newBackgroundContext()
+                return try await context.perform {
+                    let countRequest = NSFetchRequest<NSNumber>(entityName: "ChatMessage")
+                    countRequest.resultType = .countResultType
+                    if let earliest = earliestTimestamp {
+                        countRequest.predicate = NSPredicate(format: "timestamp < %@", earliest as NSDate)
+                    }
+                    let result = try context.fetch(countRequest)
+                    return (result.first?.intValue ?? 0) > 0
+                }
+            }.value
+
+            liveMessageCache.removeAll()
+            messages = snapshots
+            oldestLoadedTimestamp = snapshots.first?.timestamp
+            hasEarlierSessions = hasEarlier
+        } catch {
+            logger.error("加载当前会话消息失败：\(error.localizedDescription)")
+        }
+    }
+
+    /// 加载更早的会话，prepend 到 messages 前面。返回加载前首条消息的上一条消息 id（滚动锚点）
+    func loadEarlierSessionLightweightMessagesAsync() async -> UUID? {
+        guard let cursor = oldestLoadedTimestamp else { return nil }
+
+        let anchorId = messages.first?.id
+
+        do {
+            // 查询 cursor 之前的一段消息
+            let sessionIds: [UUID] = try await Task.detached(priority: .utility) {
+                let context = CoreDataStack.shared.newBackgroundContext()
+                return try await context.perform {
+                    let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
+                    request.resultType = .dictionaryResultType
+                    request.propertiesToFetch = ["id", "timestamp"]
+                    request.predicate = NSPredicate(format: "timestamp < %@", cursor as NSDate)
+                    request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
+                    request.fetchLimit = 50
+
+                    let rows = try context.fetch(request)
+                    var ids: [UUID] = []
+                    var prevTimestamp: Date?
+
+                    for row in rows {
+                        guard let id = row["id"] as? UUID,
+                              let ts = row["timestamp"] as? Date else { continue }
+
+                        if let prev = prevTimestamp, prev.timeIntervalSince(ts) > self.sessionGap {
+                            break
+                        }
+                        ids.append(id)
+                        prevTimestamp = ts
+                    }
+                    return ids
+                }
+            }.value
+
+            guard !sessionIds.isEmpty else {
+                hasEarlierSessions = false
+                return anchorId
+            }
+
+            let newSnapshots: [ChatMessageViewData] = try await Task.detached(priority: .utility) {
+                let context = CoreDataStack.shared.newBackgroundContext()
+                return try await context.perform {
+                    let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
+                    request.resultType = .dictionaryResultType
+                    request.propertiesToFetch = [
+                        "id", "role", "content", "timestamp",
+                        "intent", "extractedDataJSON", "isStreaming", "parentMessageId"
+                    ]
+                    request.predicate = NSPredicate(format: "id IN %@", sessionIds)
+                    request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: true)]
+
+                    return try context.fetch(request)
+                        .compactMap { ChatMessageViewData(lightweightDictionary: $0 as? [String: Any] ?? [:]) }
+                }
+            }.value
+
+            // 去重
+            let existingIds = Set(messages.map(\.id))
+            let uniqueNew = newSnapshots.filter { !existingIds.contains($0.id) }
+
+            guard !uniqueNew.isEmpty else {
+                // 新查到的消息都已存在，更新 hasEarlierSessions
+                if let newOldest = newSnapshots.first?.timestamp {
+                    oldestLoadedTimestamp = newOldest
+                }
+                return anchorId
+            }
+
+            let scrollTargetId = uniqueNew.last?.id ?? anchorId
+            messages = uniqueNew + messages
+            oldestLoadedTimestamp = uniqueNew.first?.timestamp
+
+            // 检查是否还有更早的消息
+            let newEarliest = uniqueNew.first?.timestamp
+            let hasEarlier = try await Task.detached(priority: .utility) {
+                let context = CoreDataStack.shared.newBackgroundContext()
+                return try await context.perform {
+                    let countRequest = NSFetchRequest<NSNumber>(entityName: "ChatMessage")
+                    countRequest.resultType = .countResultType
+                    if let earliest = newEarliest {
+                        countRequest.predicate = NSPredicate(format: "timestamp < %@", earliest as NSDate)
+                    }
+                    let result = try context.fetch(countRequest)
+                    return (result.first?.intValue ?? 0) > 0
+                }
+            }.value
+            hasEarlierSessions = hasEarlier
+
+            return scrollTargetId
+        } catch {
+            logger.error("加载更早会话失败：\(error.localizedDescription)")
+            return anchorId
+        }
+    }
     func loadRecentMessages(limit: Int = 50) -> [ChatMessageViewData] {
         Array(messages.suffix(limit))
+    }
+
+    /// 从数据库独立查询最近 N 条消息的 DTO，不依赖内存 messages 数组
+    /// 用于 AI 上下文构建，UI 列表只加载当前会话时仍可获取全局历史
+    func loadRecentDTOsAsync(limit: Int = 20) async -> [ChatMessageDTO] {
+        await CoreDataStack.shared.waitUntilReady()
+
+        do {
+            return try await Task.detached(priority: .utility) {
+                let context = CoreDataStack.shared.newBackgroundContext()
+                return try await context.perform {
+                    let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
+                    request.resultType = .dictionaryResultType
+                    request.propertiesToFetch = ["role", "content"]
+                    request.predicate = NSPredicate(format: "role IN %@", ["user", "assistant"])
+                    request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
+                    request.fetchLimit = limit
+
+                    let dicts = try context.fetch(request)
+                    return dicts.reversed().compactMap { dict -> ChatMessageDTO? in
+                        guard let role = dict["role"] as? String,
+                              let content = dict["content"] as? String else { return nil }
+                        switch role {
+                        case "user": return .user(content)
+                        case "assistant": return .assistant(content)
+                        default: return nil
+                        }
+                    }
+                }
+            }.value
+        } catch {
+            logger.error("后台加载历史 DTO 失败：\(error.localizedDescription)")
+            return []
+        }
     }
 
     // MARK: - Add
@@ -319,6 +573,75 @@ final class ChatMessageRepository: ObservableObject {
     /// 将消息列表转换为 ChatMessageDTO 数组（用于 API 调用）
     func toDTOs(from messages: [ChatMessageViewData]) -> [ChatMessageDTO] {
         messages.compactMap(\.dto)
+    }
+
+    // MARK: - Metadata Lazy Load
+
+    /// 批量加载消息的重元数据（卡片、日志等），只处理 .unloaded 状态的消息
+    func loadMetadataForMessagesIfNeeded(_ ids: [UUID]) async {
+        // 主线程过滤出需要加载的消息
+        let toLoad = ids.filter { id in
+            guard let msg = messages.first(where: { $0.id == id }) else { return false }
+            return msg.metadataState == .unloaded
+        }
+        guard !toLoad.isEmpty else { return }
+
+        // 先标记为 .loading 防止重复触发
+        for id in toLoad {
+            updateSnapshot(id) { snapshot in
+                snapshot.metadataState = .loading
+            }
+        }
+
+        // 后台批量查询重 JSON 字段
+        do {
+            let decoded: [(UUID, AIParseBatch?, AIExecutionBatch?, AnalysisContext?, LLMLog?)] = try await Task.detached(priority: .utility) {
+                let context = CoreDataStack.shared.newBackgroundContext()
+                return try await context.perform {
+                    let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
+                    request.resultType = .dictionaryResultType
+                    request.propertiesToFetch = [
+                        "id",
+                        "parsedBatchJSON",
+                        "executionBatchJSON",
+                        "analysisContextJSON",
+                        "rawLogJSON"
+                    ]
+                    request.predicate = NSPredicate(format: "id IN %@", toLoad)
+
+                    return try context.fetch(request).compactMap { dict -> (UUID, AIParseBatch?, AIExecutionBatch?, AnalysisContext?, LLMLog?)? in
+                        guard let id = dict["id"] as? UUID else { return nil }
+                        let parsedBatch = ChatMessageViewData.decodeParseBatch(dict["parsedBatchJSON"] as? String)
+                        let executionBatch = ChatMessageViewData.decodeExecutionBatch(dict["executionBatchJSON"] as? String)
+                        let analysisContext = ChatMessageViewData.decodeAnalysisContext(dict["analysisContextJSON"] as? String)
+                        let rawLog = ChatMessageViewData.decodeRawLog(dict["rawLogJSON"] as? String)
+                        return (id, parsedBatch, executionBatch, analysisContext, rawLog)
+                    }
+                }
+            }.value
+
+            // 回到主线程更新 snapshot
+            for (id, parsedBatch, executionBatch, analysisContext, rawLog) in decoded {
+                updateSnapshot(id) { snapshot in
+                    snapshot.enrichMetadata(
+                        parsedBatch: parsedBatch,
+                        executionBatch: executionBatch,
+                        analysisContext: analysisContext,
+                        rawLog: rawLog
+                    )
+                }
+            }
+        } catch {
+            logger.error("批量加载元数据失败：\(error.localizedDescription)")
+            // 失败时恢复为 unloaded，允许重试
+            for id in toLoad {
+                updateSnapshot(id) { snapshot in
+                    if snapshot.metadataState == .loading {
+                        snapshot.metadataState = .unloaded
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - Private

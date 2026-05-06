@@ -15,6 +15,7 @@ struct ChatView: View {
     @State private var showAISettings = false
     @State private var editingTransaction: Transaction?
     @State private var viewingLogMessage: ChatMessageViewData?
+    @State private var didInitialScrollToBottom = false
 
     /// 外部传入的预填文本（如从记忆长廊"继续问AI"跳转）
     var prefillText: String? = nil
@@ -172,6 +173,11 @@ struct ChatView: View {
         ScrollViewReader { proxy in
             ScrollView(showsIndicators: false) {
                 LazyVStack(spacing: 12) {
+                    // 加载更早会话的入口
+                    if viewModel.hasLoadedMessages && viewModel.hasEarlierSessions {
+                        loadMoreHeader(proxy: proxy)
+                    }
+
                     ForEach(viewModel.messages, id: \.id) { message in
                         MessageBubbleView(
                             message: message,
@@ -187,16 +193,30 @@ struct ChatView: View {
                             }
                         )
                         .id(message.id)
+                        .onAppear {
+                            viewModel.loadMetadataIfNeeded(for: message.id)
+                        }
                     }
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
             }
+            .refreshable {
+                await triggerLoadEarlier(proxy: proxy)
+            }
             .onChange(of: viewModel.messages.count) { _ in
-                scrollToBottom(proxy: proxy)
+                if !didInitialScrollToBottom {
+                    scrollToBottom(proxy: proxy)
+                    didInitialScrollToBottom = true
+                }
             }
             .onChange(of: viewModel.streamingText) { _ in
                 scrollToBottom(proxy: proxy)
+            }
+            .onChange(of: viewModel.isStreaming) { streaming in
+                if streaming {
+                    scrollToBottom(proxy: proxy)
+                }
             }
         }
     }
@@ -205,6 +225,50 @@ struct ChatView: View {
         if let lastMessage = viewModel.messages.last {
             withAnimation(.easeOut(duration: 0.2)) {
                 proxy.scrollTo(lastMessage.id, anchor: .bottom)
+            }
+        }
+    }
+
+    // MARK: - Load More Header
+
+    @ViewBuilder
+    private func loadMoreHeader(proxy: ScrollViewProxy) -> some View {
+        Button {
+            Task {
+                await triggerLoadEarlier(proxy: proxy)
+            }
+        } label: {
+            HStack(spacing: 6) {
+                if viewModel.isLoadingEarlierSession {
+                    ProgressView()
+                        .scaleEffect(0.65)
+                    Text("正在加载更早的消息")
+                        .font(.system(size: 12))
+                        .foregroundColor(.holoTextSecondary)
+                } else {
+                    Image(systemName: "chevron.compact.up")
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.holoTextSecondary)
+                    Text("加载更早的消息")
+                        .font(.system(size: 12))
+                        .foregroundColor(.holoTextSecondary)
+                }
+            }
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.plain)
+        .disabled(viewModel.isLoadingEarlierSession)
+    }
+
+    private func triggerLoadEarlier(proxy: ScrollViewProxy) async {
+        guard didInitialScrollToBottom,
+              viewModel.hasEarlierSessions,
+              !viewModel.isLoadingEarlierSession else { return }
+
+        if let anchorId = await viewModel.loadEarlierSession() {
+            withAnimation(.easeOut(duration: 0.15)) {
+                proxy.scrollTo(anchorId, anchor: .top)
             }
         }
     }

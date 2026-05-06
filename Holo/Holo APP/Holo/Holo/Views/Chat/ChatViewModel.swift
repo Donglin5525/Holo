@@ -25,6 +25,8 @@ final class ChatViewModel: ObservableObject {
     @Published private(set) var hasFinishedSetup: Bool = false
     @Published private(set) var hasLoadedMessages: Bool = false
     @Published private(set) var didTimeoutLoadingConfig: Bool = false
+    @Published private(set) var hasEarlierSessions: Bool = false
+    @Published private(set) var isLoadingEarlierSession: Bool = false
 
     // MARK: - Private
 
@@ -36,6 +38,9 @@ final class ChatViewModel: ObservableObject {
     private let coordinator: ConversationCoordinator
     private var repositoryBootstrapTask: Task<Void, Never>?
     private var repoMessagesCancellable: AnyCancellable?
+    private var metadataLoadPendingIds: Set<UUID> = []
+    private var metadataLoadTask: Task<Void, Never>?
+    private var cancellables = Set<AnyCancellable>()
 
     // MARK: - Init
 
@@ -111,8 +116,9 @@ final class ChatViewModel: ObservableObject {
             let repo = ChatMessageRepository.shared
             self.bindRepository(repo)
             try? await Task.sleep(nanoseconds: 250_000_000)
-            await repo.loadMessagesAsync(limit: self.initialHistoryLimit)
+            await repo.loadCurrentSessionLightweightMessagesAsync(limit: self.initialHistoryLimit)
             self.hasLoadedMessages = true
+            self.syncHasEarlierSessions()
             self.repositoryBootstrapTask = nil
         }
     }
@@ -128,8 +134,9 @@ final class ChatViewModel: ObservableObject {
         }
 
         if !hasLoadedMessages {
-            await repo.loadMessagesAsync(limit: initialHistoryLimit)
+            await repo.loadCurrentSessionLightweightMessagesAsync(limit: initialHistoryLimit)
             hasLoadedMessages = true
+            syncHasEarlierSessions()
         }
 
         repositoryBootstrapTask = nil
@@ -144,6 +151,18 @@ final class ChatViewModel: ObservableObject {
             .sink { [weak self] messages in
                 self?.messages = messages
             }
+
+        // 同步 hasEarlierSessions
+        repo.$hasEarlierSessions
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] value in
+                self?.hasEarlierSessions = value
+            }
+            .store(in: &cancellables)
+    }
+
+    private func syncHasEarlierSessions() {
+        hasEarlierSessions = chatRepo?.hasEarlierSessions ?? false
     }
 
     // MARK: - Configuration
@@ -235,7 +254,7 @@ final class ChatViewModel: ObservableObject {
                     } else {
                         // 标准查询路径 → 流式对话
                         guard let chatRepo = self.chatRepo else { return }
-                        let historyDTOs = chatRepo.toDTOs(from: chatRepo.loadRecentMessages(limit: 20))
+                        let historyDTOs = await chatRepo.loadRecentDTOsAsync(limit: 20)
                         let stream = self.provider.chatStreaming(messages: historyDTOs, userContext: userContext)
 
                         var fullText = ""
@@ -427,6 +446,32 @@ final class ChatViewModel: ObservableObject {
             bootstrapChatRepositoryIfNeeded()
         }
         chatRepo?.clearAllMessages()
+    }
+
+    // MARK: - Metadata Lazy Load
+
+    /// 触发单条消息的元数据加载（带 debounce 合并）
+    func loadMetadataIfNeeded(for messageId: UUID) {
+        metadataLoadPendingIds.insert(messageId)
+        metadataLoadTask?.cancel()
+        metadataLoadTask = Task { @MainActor [weak self] in
+            guard let self = self else { return }
+            try? await Task.sleep(nanoseconds: 80_000_000) // 80ms debounce
+            guard !Task.isCancelled else { return }
+            let ids = Array(self.metadataLoadPendingIds)
+            self.metadataLoadPendingIds.removeAll()
+            await self.chatRepo?.loadMetadataForMessagesIfNeeded(ids)
+        }
+    }
+
+    // MARK: - Session History
+
+    /// 加载更早会话，返回加载前首条消息的上一条消息 id（滚动锚点）
+    func loadEarlierSession() async -> UUID? {
+        guard !isLoadingEarlierSession else { return nil }
+        isLoadingEarlierSession = true
+        defer { isLoadingEarlierSession = false }
+        return await chatRepo?.loadEarlierSessionLightweightMessagesAsync()
     }
 }
 

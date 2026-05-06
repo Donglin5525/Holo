@@ -15,6 +15,16 @@ nonisolated enum EntityCategory: Hashable, Sendable {
     case finance, task, habit, thought, memoryInsight
 }
 
+// MARK: - MetadataState
+
+/// 消息重元数据的加载状态
+enum ChatMessageMetadataState: Equatable, Sendable {
+    case unavailable   // 用户消息、流式消息 — 不需要重元数据
+    case unloaded      // 可能有重元数据，尚未加载
+    case loading       // 正在批量加载中
+    case loaded        // 已完成加载（解码结果可以为空）
+}
+
 nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hashable {
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
@@ -33,6 +43,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
     var rawLog: LLMLog?
     private var cachedExtractedDataDictionary: [String: String]?
     private var cachedLinkedEntityIds: [EntityCategory: UUID]
+    var metadataState: ChatMessageMetadataState
 
     init(
         id: UUID,
@@ -60,6 +71,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         self.executionBatch = executionBatch
         self.analysisContext = analysisContext
         self.rawLog = rawLog
+        self.metadataState = .loaded
         self.cachedExtractedDataDictionary = Self.decodeExtractedData(extractedDataJSON)
         self.cachedLinkedEntityIds = Self.buildLinkedEntityIds(
             extractedDataDictionary: cachedExtractedDataDictionary,
@@ -107,6 +119,58 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
             analysisContext: Self.decodeAnalysisContext(dictionary["analysisContextJSON"] as? String),
             rawLog: Self.decodeRawLog(dictionary["rawLogJSON"] as? String)
         )
+    }
+
+    /// 轻量初始化器：只解析渲染文本气泡所需的字段，不读取重 JSON 元数据
+    init?(lightweightDictionary dictionary: [String: Any]) {
+        guard let id = dictionary["id"] as? UUID,
+              let role = dictionary["role"] as? String,
+              let content = dictionary["content"] as? String,
+              let timestamp = dictionary["timestamp"] as? Date,
+              let isStreaming = dictionary["isStreaming"] as? Bool else {
+            return nil
+        }
+
+        self.id = id
+        self.role = role
+        self.content = content
+        self.timestamp = timestamp
+        self.intent = dictionary["intent"] as? String
+        self.extractedDataJSON = dictionary["extractedDataJSON"] as? String
+        self.isStreaming = isStreaming
+        self.parentMessageId = dictionary["parentMessageId"] as? UUID
+        self.parsedBatch = nil
+        self.executionBatch = nil
+        self.analysisContext = nil
+        self.rawLog = nil
+
+        // 元数据状态：用户消息和流式消息不需要重元数据，其余 assistant 消息待加载
+        if role == "user" || isStreaming {
+            self.metadataState = .unavailable
+        } else {
+            self.metadataState = .unloaded
+        }
+
+        self.cachedExtractedDataDictionary = Self.decodeExtractedData(extractedDataJSON)
+        self.cachedLinkedEntityIds = Self.buildLinkedEntityIds(
+            extractedDataDictionary: cachedExtractedDataDictionary,
+            executionBatch: nil
+        )
+    }
+
+    /// 批量元数据加载后填充重字段
+    mutating func enrichMetadata(
+        parsedBatch: AIParseBatch?,
+        executionBatch: AIExecutionBatch?,
+        analysisContext: AnalysisContext?,
+        rawLog: LLMLog?
+    ) {
+        self.parsedBatch = parsedBatch
+        self.executionBatch = executionBatch
+        self.analysisContext = analysisContext
+        self.rawLog = rawLog
+        self.metadataState = .loaded
+        recomputeLinkedEntityIds()
     }
 
     // MARK: - Extracted Data
@@ -210,7 +274,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         return try? JSONDecoder().decode([String: String].self, from: data)
     }
 
-    nonisolated private static func decodeParseBatch(_ json: String?) -> AIParseBatch? {
+    nonisolated static func decodeParseBatch(_ json: String?) -> AIParseBatch? {
         guard let json,
               let data = json.data(using: .utf8) else {
             return nil
@@ -218,7 +282,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         return try? JSONDecoder().decode(AIParseBatch.self, from: data)
     }
 
-    nonisolated private static func decodeExecutionBatch(_ json: String?) -> AIExecutionBatch? {
+    nonisolated static func decodeExecutionBatch(_ json: String?) -> AIExecutionBatch? {
         guard let json,
               let data = json.data(using: .utf8) else {
             return nil
@@ -226,7 +290,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         return try? JSONDecoder().decode(AIExecutionBatch.self, from: data)
     }
 
-    nonisolated private static func decodeAnalysisContext(_ json: String?) -> AnalysisContext? {
+    nonisolated static func decodeAnalysisContext(_ json: String?) -> AnalysisContext? {
         guard let json,
               let data = json.data(using: .utf8) else {
             return nil
@@ -234,7 +298,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         return try? JSONDecoder().decode(AnalysisContext.self, from: data)
     }
 
-    nonisolated private static func decodeRawLog(_ json: String?) -> LLMLog? {
+    nonisolated static func decodeRawLog(_ json: String?) -> LLMLog? {
         guard let json,
               let data = json.data(using: .utf8) else {
             return nil
