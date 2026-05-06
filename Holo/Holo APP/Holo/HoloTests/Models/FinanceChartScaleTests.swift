@@ -64,4 +64,48 @@ final class FinanceChartScaleTests: XCTestCase {
             )
         )
     }
+
+    func testPieChartDoesNotDimOtherSectorsWhenOneCategoryIsFocused() {
+        XCTAssertEqual(
+            PieChartInteractionStyle.sectorOpacity(isFocused: false, hasFocusedCategory: true),
+            1.0,
+            accuracy: 0.001
+        )
+
+        XCTAssertEqual(
+            PieChartInteractionStyle.labelOpacity(isFocused: false, hasFocusedCategory: true),
+            1.0,
+            accuracy: 0.001
+        )
+    }
+
+    func testCategoryAnalysisPieChartUsesPaletteInsteadOfCategoryColors() {
+        XCTAssertTrue(FinanceCategoryChartColor.shouldUseChartPaletteForCategoryAnalysis())
+    }
+
+    func testPieChartTracksHorizontalMoveButLeavesVerticalDragForPageScroll() {
+        XCTAssertTrue(
+            PieChartInteractionStyle.shouldTrackHighlight(translation: CGSize(width: 28, height: 8))
+        )
+        XCTAssertFalse(
+            PieChartInteractionStyle.shouldTrackHighlight(translation: CGSize(width: 8, height: 28))
+        )
+    }
+
+    func testPieChartInsetDoesNotReverseTinySectors() {
+        let tinySectorSpan = 1.08
+        let inset = PieChartInteractionStyle.sectorInsetAngle(
+            spanAngle: tinySectorSpan,
+            preferredInset: 1.5
+        )
+
+        XCTAssertGreaterThan(tinySectorSpan - inset, 0)
+        XCTAssertLessThan(inset, tinySectorSpan)
+    }
+
+    func testPieChartUsesChartPaletteForImportedPlaceholderGrayCategories() {
+        XCTAssertTrue(FinanceCategoryChartColor.shouldUseChartPalette(hex: "#64748B"))
+        XCTAssertTrue(FinanceCategoryChartColor.shouldUseChartPalette(hex: "#6B7280"))
+        XCTAssertFalse(FinanceCategoryChartColor.shouldUseChartPalette(hex: "#F97316"))
+    }
 }

@@ -5,11 +5,13 @@
 //  环形饼图组件（用于类别 Tab）
 //  使用 Canvas 自绘，支持选中扇区凸出效果
 //  标签：名称在环内 + 引导线 + 占比在环外
-//  支持触摸高亮 + 松手后选中（touch down = 高亮, touch up = 选中)
-//  使用 simultaneousGesture + 移动阈值，与 ScrollView 滚动不冲突
+//  点击负责选中，指针悬停/横向移动负责临时查看金额；纵向拖动交给页面滚动
 //
 
 import SwiftUI
+#if canImport(UIKit)
+import UIKit
+#endif
 
 // MARK: - PieChartView
 
@@ -66,12 +68,12 @@ struct PieChartView: View {
         return order.compactMap { merged[$0] }
     }
 
-    /// 当前视觉焦点类别（高亮优先于选中）
+    /// 当前视觉焦点类别
     private var effectiveCategory: Category? {
         highlightedCategory ?? selectedCategory
     }
 
-    /// 焦点聚合数据（高亮或选中)，未选中时返回 nil
+    /// 焦点聚合数据，未选中时返回 nil
     private var focusedAggregation: CategoryAggregation? {
         guard let category = effectiveCategory else { return nil }
         return nonZeroAggregations.first { $0.category.id == category.id }
@@ -103,23 +105,32 @@ struct PieChartView: View {
             .aspectRatio(1, contentMode: .fit)
             .overlay {
                 GeometryReader { geo in
-                    Color.clear
-                        .contentShape(Rectangle())
-                        .simultaneousGesture(
-                            DragGesture(minimumDistance: 0)
-                                .onChanged { value in
-                                    let cat = categoryAtPoint(value.location, canvasSize: geo.size)
-                                    withAnimation(.easeInOut(duration: 0.15)) {
-                                        highlightedCategory = cat
-                                    }
+                    PieChartTouchOverlay(
+                        onTap: { location in
+                            let category = categoryAtPoint(location, canvasSize: geo.size)
+                            onSelectCategory?(category)
+                        },
+                        onMove: { location in
+                            let category = categoryAtPoint(location, canvasSize: geo.size)
+                            withAnimation(.easeInOut(duration: 0.12)) {
+                                highlightedCategory = category
+                            }
+                        },
+                        onMoveEnded: {
+                            highlightedCategory = nil
+                        }
+                    )
+                        .onContinuousHover { phase in
+                            switch phase {
+                            case .active(let location):
+                                let category = categoryAtPoint(location, canvasSize: geo.size)
+                                withAnimation(.easeInOut(duration: 0.12)) {
+                                    highlightedCategory = category
                                 }
-                                .onEnded { _ in
-                                    if let cat = highlightedCategory {
-                                        highlightedCategory = nil
-                                        onSelectCategory?(cat)
-                                    }
-                                }
-                        )
+                            case .ended:
+                                highlightedCategory = nil
+                            }
+                        }
                 }
             }
 
@@ -206,7 +217,7 @@ struct PieChartView: View {
             let drawMidRad = -midDeg * .pi / 180
 
             let isFocused = effectiveCategory?.id == agg.category.id
-            let isDimmed = effectiveCategory != nil && !isFocused
+            let hasFocusedCategory = effectiveCategory != nil
 
             // 选中扇区沿角平分线方向偏移（方向匹配视觉位置）
             let cosMid = CGFloat(cos(drawMidRad))
@@ -216,20 +227,27 @@ struct PieChartView: View {
                 ? CGPoint(x: cosMid * explodeDistance, y: sinMid * explodeDistance)
                 : .zero
             let sectorCenter = CGPoint(x: center.x + offset.x, y: center.y + offset.y)
+            let sectorInset = CGFloat(PieChartInteractionStyle.sectorInsetAngle(
+                spanAngle: spanDeg,
+                preferredInset: Double(insetAngle)
+            ))
 
             let path = SectorPath(
                 center: sectorCenter,
                 innerRadius: innerRadius,
                 outerRadius: outerRadius,
-                startAngle: .degrees(-startDeg - insetAngle / 2),
-                endAngle: .degrees(-(startDeg + spanDeg) + insetAngle / 2),
+                startAngle: .degrees(-startDeg - sectorInset / 2),
+                endAngle: .degrees(-(startDeg + spanDeg) + sectorInset / 2),
                 clockwise: true
             )
 
             let color = sectorColors[index]
             context.fill(
                 path,
-                with: .color(color.opacity(isDimmed ? 0.3 : 1.0))
+                with: .color(color.opacity(PieChartInteractionStyle.sectorOpacity(
+                    isFocused: isFocused,
+                    hasFocusedCategory: hasFocusedCategory
+                )))
             )
 
             if isFocused {
@@ -289,8 +307,10 @@ struct PieChartView: View {
             let sinMid = CGFloat(sin(drawMidRad))
 
             let isFocused = effectiveCategory?.id == agg.category.id
-            let isDimmed = effectiveCategory != nil && !isFocused
-            let labelOpacity: Double = isDimmed ? 0.2 : 1.0
+            let labelOpacity = PieChartInteractionStyle.labelOpacity(
+                isFocused: isFocused,
+                hasFocusedCategory: effectiveCategory != nil
+            )
 
             let isSmallSector = spanDeg < 30
             let isRightSide = cosMid >= 0
@@ -463,7 +483,7 @@ struct PieChartView: View {
                     .transition(.opacity)
                 Text(agg.formattedCompactAmount)
                     .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(agg.category.swiftUIColor)
+                    .foregroundColor(focusedColor(for: agg.category) ?? agg.category.swiftUIColor)
                     .minimumScaleFactor(0.7)
                     .lineLimit(1)
                     .transition(.scale.combined(with: .opacity))
@@ -476,6 +496,14 @@ struct PieChartView: View {
             }
         }
         .animation(.easeInOut(duration: 0.25), value: effectiveCategory?.id)
+    }
+
+    private func focusedColor(for category: Category) -> Color? {
+        guard let index = nonZeroAggregations.firstIndex(where: { $0.category.id == category.id }),
+              sectorColors.indices.contains(index) else {
+            return nil
+        }
+        return sectorColors[index]
     }
 
     // MARK: - 空状态
@@ -538,3 +566,95 @@ private func SectorPath(
     .padding()
     .background(Color.holoBackground)
 }
+
+#if canImport(UIKit)
+private struct PieChartTouchOverlay: UIViewRepresentable {
+    let onTap: (CGPoint) -> Void
+    let onMove: (CGPoint) -> Void
+    let onMoveEnded: () -> Void
+
+    func makeUIView(context: Context) -> TouchView {
+        let view = TouchView()
+        view.backgroundColor = .clear
+
+        let tap = UITapGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleTap(_:))
+        )
+        tap.cancelsTouchesInView = false
+        tap.delaysTouchesBegan = false
+        tap.delaysTouchesEnded = false
+        tap.delegate = context.coordinator
+        view.addGestureRecognizer(tap)
+
+        let pan = UIPanGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handlePan(_:))
+        )
+        pan.cancelsTouchesInView = false
+        pan.delaysTouchesBegan = false
+        pan.delaysTouchesEnded = false
+        pan.delegate = context.coordinator
+        view.addGestureRecognizer(pan)
+
+        return view
+    }
+
+    func updateUIView(_ uiView: TouchView, context: Context) {
+        context.coordinator.overlay = self
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(overlay: self)
+    }
+
+    final class TouchView: UIView {
+        override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+            bounds.contains(point)
+        }
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var overlay: PieChartTouchOverlay
+
+        init(overlay: PieChartTouchOverlay) {
+            self.overlay = overlay
+        }
+
+        @objc func handleTap(_ recognizer: UITapGestureRecognizer) {
+            guard let view = recognizer.view, recognizer.state == .ended else { return }
+            overlay.onTap(recognizer.location(in: view))
+        }
+
+        @objc func handlePan(_ recognizer: UIPanGestureRecognizer) {
+            guard let view = recognizer.view else { return }
+            switch recognizer.state {
+            case .began, .changed:
+                overlay.onMove(recognizer.location(in: view))
+            case .ended, .cancelled, .failed:
+                overlay.onMoveEnded()
+            default:
+                break
+            }
+        }
+
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
+                  let view = pan.view else {
+                return true
+            }
+            let translation = pan.translation(in: view)
+            return PieChartInteractionStyle.shouldTrackHighlight(
+                translation: CGSize(width: translation.x, height: translation.y)
+            )
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            true
+        }
+    }
+}
+#endif

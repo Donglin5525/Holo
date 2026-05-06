@@ -21,10 +21,9 @@ struct CategoryTabView: View {
     @State private var transactionSheetData: TransactionSheetData?
 
     // 图表颜色（饼图和图例共享）
-    // 一级分类：使用科目指定颜色
-    // 下钻模式（子分类共享父级颜色）：使用调色板区分
+    // 类别统计页始终使用图表调色板区分扇区，避免导入/父子分类共享同一科目色时整图变成单色。
     private var chartColors: [Color] {
-        if state.isDrillingDown {
+        if FinanceCategoryChartColor.shouldUseChartPaletteForCategoryAnalysis() {
             return Color.holoChartColors(count: currentAggregations.count)
         }
         return currentAggregations.map { $0.category.swiftUIColor }

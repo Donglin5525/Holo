@@ -154,6 +154,41 @@ struct ChartTouchSelection {
     }
 }
 
+// MARK: - 饼图交互样式
+
+struct PieChartInteractionStyle {
+    static func sectorOpacity(isFocused _: Bool, hasFocusedCategory _: Bool) -> Double {
+        1.0
+    }
+
+    static func labelOpacity(isFocused _: Bool, hasFocusedCategory _: Bool) -> Double {
+        1.0
+    }
+
+    static func shouldTrackHighlight(translation: CGSize) -> Bool {
+        let horizontal = abs(translation.width)
+        let vertical = abs(translation.height)
+        guard horizontal > 0 || vertical > 0 else { return true }
+        return horizontal >= vertical
+    }
+
+    static func sectorInsetAngle(spanAngle: Double, preferredInset: Double) -> Double {
+        guard spanAngle > 0, preferredInset > 0 else { return 0 }
+        return min(preferredInset, spanAngle * 0.45)
+    }
+}
+
+struct FinanceCategoryChartColor {
+    static func shouldUseChartPaletteForCategoryAnalysis() -> Bool {
+        true
+    }
+
+    static func shouldUseChartPalette(hex: String) -> Bool {
+        let normalized = hex.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        return normalized == "#64748B" || normalized == "#6B7280" || normalized == "#9CA3AF"
+    }
+}
+
 // MARK: - 余额趋势坐标缩放
 
 /// 将余额趋势映射到收入/支出金额轴，供单个图表叠加展示双刻度使用。
