@@ -20,6 +20,24 @@ enum CategoryLearnedMapping {
     /// 旧格式 key 迁移标记
     private static let migrationVersionKey = "categoryLearnedMappingSchemaVersion"
 
+    // MARK: - Display Model
+
+    /// 单条学习映射的展示模型
+    struct LearnedMappingEntry: Identifiable {
+        /// 原始 UserDefaults key（用于删除定位）
+        let id: String
+        /// 交易类型
+        let type: TransactionType
+        /// 原始一级分类（可能为空字符串）
+        let primaryCategory: String
+        /// 用户原始分类表达
+        let candidate: String
+        /// 映射目标一级分类
+        let targetPrimary: String
+        /// 映射目标二级分类
+        let targetSub: String
+    }
+
     // MARK: - Public API
 
     /// 记录一条学习映射
@@ -82,6 +100,47 @@ enum CategoryLearnedMapping {
     static func removeAll() {
         UserDefaults.standard.removeObject(forKey: storageKey)
         logger.info("已清除所有学习映射")
+    }
+
+    /// 获取所有学习映射（解析后的展示数据）
+    static func listAll() -> [LearnedMappingEntry] {
+        let raw = loadAll()
+        return raw.compactMap { (key, value) -> LearnedMappingEntry? in
+            let keyParts = key.components(separatedBy: "|")
+            guard keyParts.count == 3,
+                  let type = TransactionType(rawValue: keyParts[0]) else {
+                return nil
+            }
+
+            let valueParts = value.components(separatedBy: "|")
+            guard valueParts.count == 2,
+                  !valueParts[0].isEmpty, !valueParts[1].isEmpty else {
+                return nil
+            }
+
+            return LearnedMappingEntry(
+                id: key,
+                type: type,
+                primaryCategory: keyParts[1],
+                candidate: keyParts[2],
+                targetPrimary: valueParts[0],
+                targetSub: valueParts[1]
+            )
+        }
+        .sorted { lhs, rhs in
+            if lhs.type != rhs.type {
+                return lhs.type == .expense
+            }
+            return lhs.candidate < rhs.candidate
+        }
+    }
+
+    /// 按原始 key 删除一条学习映射
+    static func removeByKey(_ key: String) {
+        var mappings = loadAll()
+        mappings.removeValue(forKey: key)
+        saveAll(mappings)
+        logger.info("删除学习映射：\(key)")
     }
 
     // MARK: - 交易候选暂存

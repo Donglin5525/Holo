@@ -30,6 +30,9 @@ struct AISettingsView: View {
             // Prompt 模板
             promptSection
 
+            // 学习数据
+            mappingSection
+
             // 危险操作
             dangerSection
         }
@@ -197,6 +200,52 @@ struct AISettingsView: View {
             Text("Prompt 模板")
         } footer: {
             Text("自定义 AI 对话中使用的提示词模板")
+                .font(.caption)
+                .foregroundColor(.holoTextSecondary)
+        }
+    }
+
+    // MARK: - Mapping Section
+
+    private var mappingSection: some View {
+        Section {
+            NavigationLink {
+                CategoryLearnedMappingView()
+            } label: {
+                HStack(spacing: HoloSpacing.md) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.holoPrimary)
+                        .frame(width: 28)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("分类学习映射")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+
+                        Text("查看和管理 AI 学习的分类映射")
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoTextSecondary)
+                    }
+
+                    Spacer()
+
+                    let count = CategoryLearnedMapping.listAll().count
+                    if count > 0 {
+                        Text("\(count)")
+                            .font(.system(size: 10, weight: .medium))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.holoPrimary)
+                            .clipShape(Capsule())
+                    }
+                }
+            }
+        } header: {
+            Text("学习数据")
+        } footer: {
+            Text("AI 根据你的确认自动记录分类映射，下次遇到相同分类时自动匹配")
                 .font(.caption)
                 .foregroundColor(.holoTextSecondary)
         }

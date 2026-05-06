@@ -4,6 +4,18 @@
 
 ---
 
+## [2026-05-06] AI 分类学习映射管理
+
+### 新增
+- AI 设置页新增「分类学习映射」管理入口，可查看、搜索、删除 AI 自动学习的分类映射规则
+- 支持按候选分类名和目标分类名搜索，支出/收入分组展示
+- 支持左滑删除单条映射、一键清除所有映射
+
+### 技术
+- `CategoryLearnedMapping` 新增 `LearnedMappingEntry` 展示模型、`listAll()` 和 `removeByKey()` 公开 API
+- 新建 `CategoryLearnedMappingView` 视图，使用 `.searchable` + `.swipeActions` 原生交互
+- `AISettingsView` 新增 `mappingSection` 区块，带映射数量 badge
+
 ## [2026-05-06] 统计分析类别饼图显示与交互修复
 
 ### 修复
