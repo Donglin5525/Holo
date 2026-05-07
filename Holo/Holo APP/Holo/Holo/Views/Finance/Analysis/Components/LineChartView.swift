@@ -18,6 +18,7 @@ struct LineChartView: View {
     let onSelectDate: (Date?) -> Void
 
     @State private var hoveredLabel: String? = nil
+    @State private var touchGestureLock = HorizontalGestureLock()
 
     private var allValuesZero: Bool {
         dataPoints.allSatisfy { $0.expense == 0 && $0.income == 0 }
@@ -162,6 +163,12 @@ struct LineChartView: View {
                     .gesture(
                         DragGesture(minimumDistance: 0)
                             .onChanged { value in
+                                let axis = touchGestureLock.update(translation: value.translation)
+                                guard axis != .vertical else {
+                                    hoveredLabel = nil
+                                    return
+                                }
+                                guard axis == .horizontal || value.translation == .zero else { return }
                                 guard !dataPoints.isEmpty, let plotFrame else { return }
                                 let touchXInPlot = value.location.x - plotFrame.minX
                                 let pointPositions = dataPoints.compactMap { proxy.position(forX: $0.label) }
@@ -180,6 +187,7 @@ struct LineChartView: View {
                             }
                             .onEnded { _ in
                                 hoveredLabel = nil
+                                touchGestureLock.reset()
                             }
                     )
 

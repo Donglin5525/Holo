@@ -148,6 +148,7 @@ private struct EdgeGestureOverlay: UIViewRepresentable {
     class Coordinator {
         var parent: EdgeGestureOverlay
         weak var recognizer: UIScreenEdgePanGestureRecognizer?
+        private var gestureLock = HorizontalGestureLock()
 
         init(_ parent: EdgeGestureOverlay) {
             self.parent = parent
@@ -159,12 +160,30 @@ private struct EdgeGestureOverlay: UIViewRepresentable {
             let velocity = recognizer.velocity(in: view)
 
             switch recognizer.state {
+            case .began:
+                gestureLock.reset()
             case .changed:
+                switch gestureLock.update(translation: translation) {
+                case .horizontal:
+                    break
+                case .vertical:
+                    parent.onTranslate(0)
+                    return
+                case .undecided:
+                    return
+                }
                 parent.onTranslate(max(0, translation.x))
             case .ended:
+                guard gestureLock.axis == .horizontal else {
+                    parent.onEnd(0)
+                    gestureLock.reset()
+                    return
+                }
                 parent.onEnd(velocity.x)
+                gestureLock.reset()
             case .cancelled:
                 parent.onEnd(0)
+                gestureLock.reset()
             default:
                 break
             }

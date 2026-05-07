@@ -166,10 +166,9 @@ struct PieChartInteractionStyle {
     }
 
     static func shouldTrackHighlight(translation: CGSize) -> Bool {
-        let horizontal = abs(translation.width)
-        let vertical = abs(translation.height)
-        guard horizontal > 0 || vertical > 0 else { return true }
-        return horizontal >= vertical
+        guard translation.width != 0 || translation.height != 0 else { return true }
+        var lock = HorizontalGestureLock()
+        return lock.update(translation: translation) != .vertical
     }
 
     static func sectorInsetAngle(spanAngle: Double, preferredInset: Double) -> Double {

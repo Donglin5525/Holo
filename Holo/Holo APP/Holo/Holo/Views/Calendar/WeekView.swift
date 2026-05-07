@@ -13,6 +13,7 @@ struct WeekView: View {
     
     /// 滑动偏移量（手指跟随）
     @State private var swipeOffset: CGFloat = 0
+    @State private var horizontalGestureLock = HorizontalGestureLock()
     
     /// 当前周的 7 天
     private var weekDays: [Date] {
@@ -49,8 +50,22 @@ struct WeekView: View {
             .offset(x: swipeOffset)
             .gesture(
                 DragGesture(minimumDistance: 20)
-                    .onChanged { swipeOffset = $0.translation.width * 0.3 }
+                    .onChanged { value in
+                        switch horizontalGestureLock.update(translation: value.translation) {
+                        case .horizontal:
+                            swipeOffset = value.translation.width * 0.3
+                        case .vertical:
+                            swipeOffset = 0
+                        case .undecided:
+                            break
+                        }
+                    }
                     .onEnded { v in
+                        guard horizontalGestureLock.axis == .horizontal else {
+                            swipeOffset = 0
+                            horizontalGestureLock.reset()
+                            return
+                        }
                         let threshold: CGFloat = 40
                         if v.translation.width < -threshold {
                             performWeekSwipe(forward: true)
@@ -59,6 +74,7 @@ struct WeekView: View {
                         } else {
                             withAnimation(.spring(response: 0.3)) { swipeOffset = 0 }
                         }
+                        horizontalGestureLock.reset()
                     }
             )
         }

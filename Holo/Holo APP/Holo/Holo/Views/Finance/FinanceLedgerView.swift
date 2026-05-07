@@ -51,6 +51,7 @@ struct FinanceLedgerView: View {
     @State private var daySwipeOffset: CGFloat = 0
     /// 是否正在水平滑动（锁定方向，避免与垂直滚动冲突）
     @State private var isDaySwiping: Bool = false
+    @State private var daySwipeGestureLock = HorizontalGestureLock()
     
     // --- 月历展开：连续高度控制 ---
     
@@ -131,22 +132,22 @@ struct FinanceLedgerView: View {
             .simultaneousGesture(
                 DragGesture(minimumDistance: 15)
                     .onChanged { value in
-                        let h = abs(value.translation.width)
-                        let v = abs(value.translation.height)
-
-                        if !isDaySwiping {
-                            // 严格要求水平位移 > 1.5 倍垂直位移才锁定为日滑动
-                            guard h > 10 && h > v * 1.5 else { return }
+                        switch daySwipeGestureLock.update(translation: value.translation) {
+                        case .horizontal:
                             isDaySwiping = true
-                        }
-
-                        if isDaySwiping {
                             daySwipeOffset = value.translation.width * 0.3
+                        case .vertical:
+                            isDaySwiping = false
+                            daySwipeOffset = 0
+                        case .undecided:
+                            break
                         }
                     }
                     .onEnded { value in
-                        guard isDaySwiping else {
+                        guard daySwipeGestureLock.axis == .horizontal else {
+                            isDaySwiping = false
                             daySwipeOffset = 0
+                            daySwipeGestureLock.reset()
                             return
                         }
 
@@ -159,6 +160,7 @@ struct FinanceLedgerView: View {
                             withAnimation(.spring(response: 0.3)) { daySwipeOffset = 0 }
                             isDaySwiping = false
                         }
+                        daySwipeGestureLock.reset()
                     }
             )
             }

@@ -14,10 +14,9 @@ import UIKit
 private enum SwipeConstants {
     static let actionWidth: CGFloat = 70
     static let snapOpenOffset: CGFloat = 140
-    static let minimumDragDistance: CGFloat = 10
 }
 
-private let snapAnimation = Animation.spring(response: 0.3, dampingFraction: 0.8)
+private let snapAnimation = Animation.spring(response: 0.3, dampingFraction: 0.85)
 
 // MARK: - SwipeActionView
 
@@ -176,7 +175,7 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
         var panGesture: UIPanGestureRecognizer?
         weak var overlayView: SwipeOverlayView?
         private weak var disabledScrollView: UIScrollView?
-        private var isHorizontalConfirmed = false
+        private var gestureLock = HorizontalGestureLock()
         private var attachRetryCount = 0
         private static let maxRetryCount = 5
 
@@ -224,22 +223,18 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
 
             switch gesture.state {
             case .began:
-                isHorizontalConfirmed = false
+                gestureLock.reset()
 
             case .changed:
-                if !isHorizontalConfirmed {
-                    let h = abs(translation.x)
-                    let v = abs(translation.y)
-                    if h > v && h > SwipeConstants.minimumDragDistance {
-                        isHorizontalConfirmed = true
-                        disableScrollView(gesture)
-                    } else if v > h && v > SwipeConstants.minimumDragDistance {
-                        gesture.state = .cancelled
-                        return
-                    } else {
-                        return
-                    }
+                switch gestureLock.update(translation: translation) {
+                case .undecided:
+                    return
+                case .vertical:
+                    return
+                case .horizontal:
+                    disableScrollView(gesture)
                 }
+
                 let h = translation.x
                 if h < 0 {
                     let maxOffset = snap + 20
@@ -254,12 +249,21 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
             case .ended, .cancelled:
                 enableScrollView()
 
+                // 未锁定为水平时不处理速度，避免垂直滚动结束时误开操作按钮
+                if gestureLock.axis != .horizontal {
+                    withAnimation(snapAnimation) {
+                        parent.offset = parent.isRevealed.wrappedValue ? -snap : 0
+                    }
+                    gestureLock.reset()
+                    return
+                }
+
                 let velocity = gesture.velocity(in: gesture.view)
                 let predicted = velocity.x * 0.3
 
                 let shouldOpen: Bool
                 if parent.isRevealed.wrappedValue {
-                    shouldOpen = predicted < -SwipeConstants.minimumDragDistance
+                    shouldOpen = predicted < -HorizontalGestureTuning.global.horizontalConfirmDistance
                 } else {
                     shouldOpen = predicted < -snap / 2
                 }
@@ -271,6 +275,7 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
                         parent.offset = shouldOpen ? -snap : 0
                     }
                 }
+                gestureLock.reset()
 
             default:
                 break
@@ -298,7 +303,7 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
         // MARK: - ScrollView 控制
 
         private func disableScrollView(_ gesture: UIGestureRecognizer) {
-            var view = gesture.view?.superview
+            var view = overlayView?.superview ?? gesture.view?.superview
             while let v = view {
                 if let scrollView = v as? UIScrollView {
                     scrollView.isScrollEnabled = false

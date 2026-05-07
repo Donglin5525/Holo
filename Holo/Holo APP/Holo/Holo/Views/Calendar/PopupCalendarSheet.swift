@@ -20,6 +20,7 @@ struct PopupCalendarSheet: View {
     
     /// 滑动偏移
     @State private var swipeOffset: CGFloat = 0
+    @State private var horizontalGestureLock = HorizontalGestureLock()
     
     /// 是否显示年月选择器
     @State private var showMonthYearPicker: Bool = false
@@ -214,11 +215,26 @@ struct PopupCalendarSheet: View {
         .offset(x: swipeOffset)
         .gesture(
             DragGesture(minimumDistance: 20)
-                .onChanged { swipeOffset = $0.translation.width * 0.3 }
+                .onChanged { value in
+                    switch horizontalGestureLock.update(translation: value.translation) {
+                    case .horizontal:
+                        swipeOffset = value.translation.width * 0.3
+                    case .vertical:
+                        swipeOffset = 0
+                    case .undecided:
+                        break
+                    }
+                }
                 .onEnded { v in
+                    guard horizontalGestureLock.axis == .horizontal else {
+                        swipeOffset = 0
+                        horizontalGestureLock.reset()
+                        return
+                    }
                     if v.translation.width < -40 { performSwipe(forward: true) }
                     else if v.translation.width > 40 { performSwipe(forward: false) }
                     else { withAnimation(.spring(response: 0.3)) { swipeOffset = 0 } }
+                    horizontalGestureLock.reset()
                 }
         )
     }
