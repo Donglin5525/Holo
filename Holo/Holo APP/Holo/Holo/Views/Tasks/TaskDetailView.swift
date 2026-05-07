@@ -32,6 +32,7 @@ struct TaskDetailView: View {
     @State private var editedDescription = ""
     @State private var isDescriptionExpanded = false
     @State private var newCheckItemTitle = ""
+    @State private var showListPicker = false
 
     // 附件相关
     @State private var showAttachmentGallery = false
@@ -43,6 +44,14 @@ struct TaskDetailView: View {
     @State private var pendingCameraImageData: Data?
 
     private static let logger = Logger(subsystem: "com.holo.app", category: "TaskDetailView")
+
+    /// 所有清单（包括没有文件夹的）
+    private var allLists: [TodoList] {
+        var lists = repository.folders.flatMap { $0.listsArray }
+        let unfiledLists = repository.unfiledLists
+        lists.insert(contentsOf: unfiledLists, at: 0)
+        return lists
+    }
 
     var checkItems: [CheckItem] {
         let items = task.checkItems?.allObjects as? [CheckItem] ?? []
@@ -71,6 +80,9 @@ struct TaskDetailView: View {
                     // 标签卡片
                     tagCard
 
+                    // 所属清单卡片
+                    listCard
+
                     // 删除操作
                     deleteButton
                 }
@@ -96,6 +108,9 @@ struct TaskDetailView: View {
             }
             .sheet(isPresented: $showingTagPicker) {
                 tagPickerSheet
+            }
+            .sheet(isPresented: $showListPicker) {
+                listPickerSheet
             }
             .fullScreenCover(isPresented: $showAttachmentGallery) {
                 AttachmentGalleryView(
@@ -776,6 +791,57 @@ struct TaskDetailView: View {
         .buttonStyle(PlainButtonStyle())
     }
 
+    // MARK: - 所属清单卡片
+
+    private var listCard: some View {
+        Button {
+            showListPicker = true
+        } label: {
+            HStack {
+                Image(systemName: "folder")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.holoTextSecondary)
+
+                Text("所属清单")
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextPrimary)
+
+                Spacer()
+
+                if let list = task.list {
+                    HStack(spacing: 4) {
+                        Circle()
+                            .fill(Color(hex: list.color ?? "#007AFF"))
+                            .frame(width: 8, height: 8)
+                        Text(list.name)
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextPrimary)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color(hex: list.color ?? "#007AFF").opacity(0.1))
+                    .clipShape(Capsule())
+                } else {
+                    Text("收件箱")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.holoTextSecondary.opacity(0.1))
+                        .clipShape(Capsule())
+                }
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.holoTextSecondary)
+            }
+            .padding()
+            .background(Color.holoCardBackground)
+            .cornerRadius(HoloRadius.lg)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+
     // MARK: - 删除按钮
 
     private var deleteButton: some View {
@@ -1209,6 +1275,123 @@ struct TaskDetailView: View {
             try repository.updateTask(task, tags: currentTags)
         } catch {
             Self.logger.error("更新标签失败: \(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - 清单选择器 Sheet
+
+    private var listPickerSheet: some View {
+        NavigationStack {
+            ZStack {
+                Color.holoBackground.ignoresSafeArea()
+
+                ScrollView(showsIndicators: false) {
+                    VStack(spacing: HoloSpacing.md) {
+                        // 收件箱
+                        Button {
+                            updateTaskList(nil)
+                            showListPicker = false
+                        } label: {
+                            HStack(spacing: HoloSpacing.sm) {
+                                Image(systemName: "tray")
+                                    .font(.system(size: 18, weight: .medium))
+                                    .foregroundColor(.holoTextSecondary)
+
+                                Text("收件箱（未归类）")
+                                    .font(.holoBody)
+                                    .foregroundColor(.holoTextPrimary)
+
+                                Spacer()
+
+                                if task.list == nil {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(.holoPrimary)
+                                }
+                            }
+                            .padding(.horizontal, HoloSpacing.lg)
+                            .padding(.vertical, HoloSpacing.md)
+                            .background(task.list == nil ? Color.holoPrimary.opacity(0.1) : Color.holoCardBackground)
+                            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                        }
+                        .buttonStyle(PlainButtonStyle())
+
+                        // 所有清单
+                        ForEach(allLists, id: \.id) { list in
+                            Button {
+                                updateTaskList(list)
+                                showListPicker = false
+                            } label: {
+                                HStack(spacing: HoloSpacing.sm) {
+                                    Circle()
+                                        .fill(Color(hex: list.color ?? "#007AFF"))
+                                        .frame(width: 10, height: 10)
+
+                                    Text(list.name)
+                                        .font(.holoBody)
+                                        .foregroundColor(.holoTextPrimary)
+
+                                    Spacer()
+
+                                    if task.list?.id == list.id {
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 14, weight: .semibold))
+                                            .foregroundColor(.holoPrimary)
+                                    }
+                                }
+                                .padding(.horizontal, HoloSpacing.lg)
+                                .padding(.vertical, HoloSpacing.md)
+                                .background(task.list?.id == list.id ? Color(hex: list.color ?? "#007AFF").opacity(0.1) : Color.holoCardBackground)
+                                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                            }
+                            .buttonStyle(PlainButtonStyle())
+                        }
+
+                        // 空状态
+                        if allLists.isEmpty {
+                            VStack(spacing: HoloSpacing.md) {
+                                Image(systemName: "list.bullet.rectangle")
+                                    .font(.system(size: 40, weight: .light))
+                                    .foregroundColor(.holoTextSecondary.opacity(0.5))
+
+                                Text("暂无清单")
+                                    .font(.holoBody)
+                                    .foregroundColor(.holoTextSecondary)
+                            }
+                            .padding(.top, HoloSpacing.xl)
+                        }
+                    }
+                    .padding(.horizontal, HoloSpacing.lg)
+                    .padding(.top, HoloSpacing.md)
+                }
+            }
+            .navigationTitle("选择清单")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("完成") {
+                        showListPicker = false
+                    }
+                    .foregroundColor(.holoPrimary)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
+        .presentationDragIndicator(.visible)
+    }
+
+    private func updateTaskList(_ list: TodoList?) {
+        do {
+            if let list = list {
+                try repository.updateTask(task, list: list)
+            } else {
+                task.list = nil
+                task.updatedAt = Date()
+                try repository.context.save()
+                repository.loadActiveTasks()
+            }
+        } catch {
+            Self.logger.error("更新所属清单失败: \(error.localizedDescription)")
         }
     }
 }
