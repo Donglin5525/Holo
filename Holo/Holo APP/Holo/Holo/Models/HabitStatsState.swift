@@ -271,6 +271,30 @@ class HabitStatsState: ObservableObject {
         await reload()
     }
 
+    /// 切换到上一个月
+    func goToPreviousMonth() async {
+        guard let prev = Calendar.current.date(byAdding: .month, value: -1, to: selectedMonth) else { return }
+        await selectMonth(prev)
+    }
+
+    /// 切换到下一个月（不超过当前月）
+    func goToNextMonth() async {
+        let calendar = Calendar.current
+        guard let next = calendar.date(byAdding: .month, value: 1, to: selectedMonth) else { return }
+        let currentMonthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: Date()))!
+        let nextMonthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: next))!
+        guard nextMonthStart <= currentMonthStart else { return }
+        await selectMonth(next)
+    }
+
+    /// 是否可以前往下一个月
+    var canGoToNextMonth: Bool {
+        let calendar = Calendar.current
+        let currentMonthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: Date()))!
+        let selectedMonthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: selectedMonth))!
+        return selectedMonthStart < currentMonthStart
+    }
+
     // MARK: - 展开/收起
 
     func toggleExpansion(for habitId: UUID) {

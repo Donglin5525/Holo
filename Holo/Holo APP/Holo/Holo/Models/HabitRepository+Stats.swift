@@ -334,7 +334,7 @@ extension HabitRepository {
         }
 
         if habit.isBadHabit, let targetValue = habit.targetValueDouble {
-            // 坏习惯：按天聚合值，统计未超标（值 <= 目标值）的天数
+            // 坏习惯：按天聚合值，统计未超标（值 <= 目标值）的天数 + 无记录天数
             var dailyValues: [Date: Double] = [:]
             for record in records {
                 guard let value = record.value?.doubleValue else { continue }
@@ -347,7 +347,8 @@ extension HabitRepository {
                 }
             }
 
-            let controlledDays = dailyValues.values.filter { $0 <= targetValue }.count
+            let exceededDays = dailyValues.values.filter { $0 > targetValue }.count
+            let controlledDays = max(dayCount - exceededDays, 0)
             return dayCount > 0 ? Double(controlledDays) / Double(dayCount) * 100 : 0
         } else {
             // 好习惯：有记录的天数即算完成
@@ -578,11 +579,12 @@ extension HabitRepository {
             let dayStart = calendar.startOfDay(for: date)
             let dayNumber = calendar.component(.day, from: date)
             let isExceeded = exceededDays.contains(dayStart)
-            // 坏习惯：控制住=成功(hasRecord=true)，超标=失败(hasRecord=false, isOverLimit=true)
+            // 坏习惯：有记录且达标=打勾，超标=打叉，无记录=空白
+            let hasActualRecord = recordedDays.contains(dayStart)
             cells.append(HabitStatsDayCell(
                 date: date, dayNumber: dayNumber, isInCurrentMonth: true,
                 isToday: dayStart == today,
-                hasRecord: !isExceeded,
+                hasRecord: hasActualRecord && !isExceeded,
                 isOverLimit: isExceeded
             ))
         }

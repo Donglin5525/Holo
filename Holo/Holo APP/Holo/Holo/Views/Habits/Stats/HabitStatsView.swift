@@ -20,9 +20,13 @@ struct HabitStatsView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: HoloSpacing.md) {
-                    HabitStatsMonthSwitcher(month: state.selectedMonth) {
-                        isMonthPickerPresented = true
-                    }
+                    HabitStatsMonthSwitcher(
+                        month: state.selectedMonth,
+                        canGoNext: state.canGoToNextMonth,
+                        onPrevious: { Task { await state.goToPreviousMonth() } },
+                        onNext: { Task { await state.goToNextMonth() } },
+                        onTap: { isMonthPickerPresented = true }
+                    )
 
                     if state.hasAnyHabits {
                         HabitStatsSummaryCard(
