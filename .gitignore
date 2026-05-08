@@ -35,3 +35,15 @@ DerivedData/
 *.dSYM.zip
 *.dSYM
 .gstack/
+
+# Claude Code 本地配置
+.claude/
+
+# gstack 本地状态
+.superpowers/
+
+# 生成的截图与原型资源
+artifacts/*.png
+
+# 临时数据
+docs/Temporarydata/
