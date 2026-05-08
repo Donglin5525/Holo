@@ -72,12 +72,16 @@ struct AddTaskSheet: View {
 
     // 未保存修改确认
     @State private var showDismissAlert: Bool = false
+    @State private var showDeleteTaskAlert: Bool = false
 
     // 检查清单相关
     @State private var checkItems: [CheckItem] = []
     @State private var pendingCheckItems: [String] = []
     @State private var newCheckItemTitle = ""
     @State private var showAdvancedProperties = false
+
+    // 编辑模式专属
+    @State private var taskStatus: TaskStatus = .todo
 
     // 记忆上次选择的清单
     @AppStorage("lastSelectedListId") private var lastSelectedListId: String?
@@ -125,6 +129,9 @@ struct AddTaskSheet: View {
             } else {
                 _hasRepeat = State(initialValue: false)
             }
+
+            // 加载任务状态
+            _taskStatus = State(initialValue: task.taskStatus)
         } else {
             // 新建任务：优先用传入的 list，其次从记忆恢复
             let rememberedId = list?.id ?? (UserDefaults.standard.string(forKey: "lastSelectedListId").flatMap { UUID(uuidString: $0) })
@@ -161,6 +168,11 @@ struct AddTaskSheet: View {
 
                             // 截止日期
                             dueDateSection
+
+                            // 编辑模式：删除任务
+                            if existingTask != nil {
+                                deleteButton
+                            }
                         }
                         .padding(.horizontal, HoloSpacing.lg)
                         .padding(.top, HoloSpacing.md)
@@ -247,6 +259,14 @@ struct AddTaskSheet: View {
         .unsavedChangesAlert(isPresented: $showDismissAlert) {
             dismiss()
         }
+        .alert("删除任务", isPresented: $showDeleteTaskAlert) {
+            Button("取消", role: .cancel) {}
+            Button("删除", role: .destructive) {
+                deleteTask()
+            }
+        } message: {
+            Text("确定要删除此任务吗？任务将进入回收站，30 天后可恢复。")
+        }
         .onAppear {
             // 编辑模式：加载已有的检查清单
             if let task = existingTask {
@@ -313,9 +333,35 @@ struct AddTaskSheet: View {
 
     private var taskContentSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            TextField("输入任务名称", text: $title)
-                .font(.holoHeading)
-                .foregroundColor(.holoTextPrimary)
+            HStack(spacing: 12) {
+                // 编辑模式：完成切换按钮
+                if let task = existingTask {
+                    Button {
+                        toggleCompletion()
+                    } label: {
+                        Image(systemName: task.completed ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 24, weight: .medium))
+                            .foregroundColor(task.completed ? .holoSuccess : .holoTextSecondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+
+                TextField("输入任务名称", text: $title)
+                    .font(.holoHeading)
+                    .foregroundColor(.holoTextPrimary)
+                    .strikethrough(existingTask?.completed == true, color: .holoTextSecondary)
+            }
+
+            // 编辑模式：重复任务提示
+            if let task = existingTask, let _ = task.repeatRule, !task.completed {
+                HStack(spacing: 4) {
+                    Image(systemName: "repeat")
+                        .font(.system(size: 10, weight: .medium))
+                    Text("重复任务")
+                        .font(.holoTinyLabel)
+                }
+                .foregroundColor(.holoPrimary)
+            }
 
             TextEditor(text: $description)
                 .font(.holoBody)
@@ -334,11 +380,41 @@ struct AddTaskSheet: View {
         }
     }
 
+    // MARK: - 完成切换
+
+    private func toggleCompletion() {
+        guard let task = existingTask else { return }
+        do {
+            if task.repeatRule != nil && !task.completed {
+                let generated = try repository.completeRepeatingTask(task)
+                if generated {
+                    repository.context.refresh(task, mergeChanges: true)
+                }
+            } else {
+                let isCompleted = try repository.toggleTaskCompletion(task)
+                // 同步本地状态
+                if !isCompleted {
+                    taskStatus = .todo
+                }
+            }
+            HapticManager.taskCompletion()
+        } catch {
+            Self.logger.error("切换完成状态失败: \(error.localizedDescription)")
+        }
+    }
+
     // MARK: - 属性与清单
 
     private var metadataSection: some View {
         VStack(spacing: 0) {
             advancedPropertiesSection
+
+            if existingTask != nil {
+                Divider()
+                    .padding(.horizontal, 12)
+
+                statusRow
+            }
 
             Divider()
                 .padding(.horizontal, 12)
@@ -347,6 +423,47 @@ struct AddTaskSheet: View {
         }
         .background(Color.holoCardBackground)
         .cornerRadius(HoloRadius.sm)
+    }
+
+    // MARK: - 状态选择
+
+    private var statusRow: some View {
+        HStack {
+            Text("状态")
+                .font(.holoBody)
+                .foregroundColor(.holoTextPrimary)
+
+            Spacer()
+
+            Menu {
+                ForEach(TaskStatus.allCases, id: \.self) { status in
+                    Button {
+                        taskStatus = status
+                    } label: {
+                        HStack {
+                            Text(status.displayTitle)
+                            if taskStatus == status {
+                                Image(systemName: "checkmark")
+                            }
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(taskStatus.color)
+                        .frame(width: 8, height: 8)
+                    Text(taskStatus.displayTitle)
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.holoTextSecondary)
+                }
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 12)
     }
 
     private var dueDateSummaryText: String {
@@ -513,7 +630,6 @@ struct AddTaskSheet: View {
                 .foregroundColor(.holoTextSecondary)
 
             HStack(spacing: HoloSpacing.sm) {
-                Spacer()
                 ForEach([TaskPriority.urgent, .high, .medium, .low], id: \.self) { p in
                     Button {
                         priority = p
@@ -521,10 +637,10 @@ struct AddTaskSheet: View {
                         Text(p.displayTitle)
                             .font(.holoCaption)
                             .foregroundColor(priority == p ? .white : p.color)
-                            .padding(.horizontal, 12)
+                            .frame(maxWidth: .infinity)
                             .padding(.vertical, 6)
                             .background(
-                                Capsule()
+                                RoundedRectangle(cornerRadius: 8)
                                     .fill(priority == p ? p.color : p.color.opacity(0.15))
                             )
                     }
@@ -795,6 +911,32 @@ struct AddTaskSheet: View {
                 .foregroundColor(.holoTextSecondary)
 
             VStack(spacing: 0) {
+                // 编辑模式：进度条
+                if let task = existingTask, !checkItems.isEmpty {
+                    HStack {
+                        Spacer()
+                        Text(task.checkItemProgress)
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextSecondary)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.top, 8)
+
+                    GeometryReader { geometry in
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color.holoTextSecondary.opacity(0.15))
+
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color.holoPrimary)
+                                .frame(width: geometry.size.width * task.checkItemProgressPercent)
+                        }
+                    }
+                    .frame(height: 4)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, 8)
+                }
+
                 if existingTask != nil {
                     // 编辑模式：显示已有的检查项
                     ForEach(checkItems, id: \.id) { item in
@@ -1311,6 +1453,41 @@ struct AddTaskSheet: View {
 
     // MARK: - 删除操作
 
+    // MARK: - 删除任务按钮
+
+    private var deleteButton: some View {
+        Button {
+            showDeleteTaskAlert = true
+        } label: {
+            HStack {
+                Image(systemName: "trash")
+                    .font(.system(size: 16, weight: .medium))
+                    .foregroundColor(.holoError)
+
+                Text("删除任务")
+                    .font(.holoBody)
+                    .foregroundColor(.holoError)
+
+                Spacer()
+            }
+            .padding()
+            .background(Color.holoCardBackground)
+            .cornerRadius(HoloRadius.lg)
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+
+    private func deleteTask() {
+        guard let task = existingTask else { return }
+        do {
+            try repository.deleteTask(task)
+            HapticManager.medium()
+            dismiss()
+        } catch {
+            Self.logger.error("删除任务失败: \(error.localizedDescription)")
+        }
+    }
+
     private func deleteTarget(_ target: DeleteTarget) {
         do {
             switch target {
@@ -1623,6 +1800,7 @@ struct AddTaskSheet: View {
                         task,
                         title: trimmedTitle,
                         description: description,
+                        status: taskStatus,
                         priority: priority,
                         dueDate: hasDueDate ? dueDate : nil,
                         isAllDay: !hasTime,

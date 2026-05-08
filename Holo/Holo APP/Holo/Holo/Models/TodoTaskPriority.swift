@@ -86,3 +86,15 @@ extension TaskPriority {
         }
     }
 }
+
+// MARK: - TaskStatus Color Extension
+
+extension TaskStatus {
+    var color: Color {
+        switch self {
+        case .todo: return .holoTextSecondary
+        case .inProgress: return .holoPrimary
+        case .completed: return .holoSuccess
+        }
+    }
+}
