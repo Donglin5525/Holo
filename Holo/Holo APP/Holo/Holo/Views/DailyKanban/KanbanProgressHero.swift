@@ -12,13 +12,17 @@ struct KanbanProgressHero: View {
     @ObservedObject var todoRepo: TodoRepository
     @ObservedObject var habitRepo: HabitRepository
     @ObservedObject var healthRepo: HealthRepository
+    @ObservedObject private var displaySettings = HabitStatsDisplaySettings.shared
 
     private var taskProgress: (completed: Int, total: Int) {
         todoRepo.getDailyKanbanProgress()
     }
 
     private var habitProgress: (completed: Int, total: Int) {
-        habitRepo.getTodayCheckInProgress()
+        let visibleIds = displaySettings.dashboardVisibleHabitIds
+        return habitRepo.getTodayCheckInProgress(
+            visibleHabitIds: visibleIds.isEmpty ? nil : visibleIds
+        )
     }
 
     private var overallPercent: Double {

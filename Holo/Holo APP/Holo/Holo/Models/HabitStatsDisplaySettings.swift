@@ -20,12 +20,14 @@ final class HabitStatsDisplaySettings: ObservableObject {
 
     @Published private(set) var visibleHabitIds: [UUID]
     @Published private(set) var orderedHabitIds: [UUID]
+    @Published private(set) var dashboardVisibleHabitIds: [UUID]
 
     // MARK: - Properties
 
     private let userDefaults: UserDefaults
     private let visibleKey = "habit.stats.visible.ids"
     private let orderKey = "habit.stats.order.ids"
+    private let dashboardVisibleKey = "habit.dashboard.visible.ids"
 
     // MARK: - Initialization
 
@@ -33,6 +35,7 @@ final class HabitStatsDisplaySettings: ObservableObject {
         self.userDefaults = userDefaults
         self.visibleHabitIds = Self.loadUUIDs(forKey: visibleKey, from: userDefaults)
         self.orderedHabitIds = Self.loadUUIDs(forKey: orderKey, from: userDefaults)
+        self.dashboardVisibleHabitIds = Self.loadUUIDs(forKey: dashboardVisibleKey, from: userDefaults)
     }
 
     // MARK: - Public Methods
@@ -45,6 +48,11 @@ final class HabitStatsDisplaySettings: ObservableObject {
     func setOrderedHabitIds(_ ids: [UUID]) {
         orderedHabitIds = ids
         save(ids, forKey: orderKey)
+    }
+
+    func setDashboardVisibleHabitIds(_ ids: [UUID]) {
+        dashboardVisibleHabitIds = ids
+        save(ids, forKey: dashboardVisibleKey)
     }
 
     func moveHabit(fromOffsets: IndexSet, toOffset: Int) {

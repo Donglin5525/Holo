@@ -587,10 +587,15 @@ class HabitRepository: ObservableObject {
     }
     
     /// 获取今日打卡型习惯完成进度
-    func getTodayCheckInProgress() -> (completed: Int, total: Int) {
-        let checkInHabitIds = activeHabits
+    func getTodayCheckInProgress(visibleHabitIds: [UUID]? = nil) -> (completed: Int, total: Int) {
+        var checkInHabitIds = activeHabits
             .filter { $0.isCheckInType }
             .map(\.id)
+
+        if let visible = visibleHabitIds, !visible.isEmpty {
+            let visibleSet = Set(visible)
+            checkInHabitIds = checkInHabitIds.filter { visibleSet.contains($0) }
+        }
         
         let total = checkInHabitIds.count
         guard total > 0 else { return (0, 0) }

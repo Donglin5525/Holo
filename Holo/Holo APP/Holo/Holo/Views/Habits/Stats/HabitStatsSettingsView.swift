@@ -76,11 +76,16 @@ struct HabitStatsSettingsView: View {
     private var habitList: some View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                Text("选择要展示在统计页的习惯，拖动调整顺序")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
-                    .padding(.horizontal, HoloSpacing.md)
-                    .padding(.top, HoloSpacing.md)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("选择要展示的习惯，点击切换展示位置，拖动调整顺序")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                    Text("统计 = 习惯模块统计页 · 看板 = 首页今日看板")
+                        .font(.system(size: 11))
+                        .foregroundColor(.holoTextSecondary.opacity(0.7))
+                }
+                .padding(.horizontal, HoloSpacing.md)
+                .padding(.top, HoloSpacing.md)
 
                 LazyVStack(spacing: 0) {
                     ForEach(orderedHabits) { habit in
@@ -123,14 +128,41 @@ struct HabitStatsSettingsView: View {
 
             Spacer()
 
-            Toggle("", isOn: binding(for: habit.id))
-                .labelsHidden()
-                .tint(.holoPrimary)
+            visibilityPillButton(
+                title: "统计",
+                isOn: statsBinding(for: habit.id)
+            )
+            visibilityPillButton(
+                title: "看板",
+                isOn: dashboardBinding(for: habit.id)
+            )
         }
         .padding(.vertical, HoloSpacing.sm)
         .padding(.horizontal, HoloSpacing.md)
         .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+    }
+
+    private func visibilityPillButton(title: String, isOn: Binding<Bool>) -> some View {
+        Button {
+            isOn.wrappedValue.toggle()
+        } label: {
+            Text(title)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(isOn.wrappedValue ? .white : .holoTextSecondary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(isOn.wrappedValue ? Color.holoPrimary : Color.clear)
+                .clipShape(Capsule())
+                .overlay(
+                    Capsule().stroke(
+                        isOn.wrappedValue ? Color.clear : Color.holoBorder,
+                        lineWidth: 1
+                    )
+                )
+        }
+        .buttonStyle(.plain)
+        .animation(.easeInOut(duration: 0.15), value: isOn.wrappedValue)
     }
 
     // MARK: - 空状态
@@ -164,7 +196,7 @@ struct HabitStatsSettingsView: View {
         return ordered + unordered
     }
 
-    private func binding(for habitId: UUID) -> Binding<Bool> {
+    private func statsBinding(for habitId: UUID) -> Binding<Bool> {
         Binding(
             get: {
                 settings.visibleHabitIds.isEmpty || settings.visibleHabitIds.contains(habitId)
@@ -179,6 +211,25 @@ struct HabitStatsSettingsView: View {
                     ids.removeAll { $0 == habitId }
                 }
                 settings.setVisibleHabitIds(ids)
+            }
+        )
+    }
+
+    private func dashboardBinding(for habitId: UUID) -> Binding<Bool> {
+        Binding(
+            get: {
+                settings.dashboardVisibleHabitIds.isEmpty || settings.dashboardVisibleHabitIds.contains(habitId)
+            },
+            set: { isVisible in
+                var ids = settings.dashboardVisibleHabitIds.isEmpty
+                    ? repository.activeHabits.map(\.id)
+                    : settings.dashboardVisibleHabitIds
+                if isVisible {
+                    if !ids.contains(habitId) { ids.append(habitId) }
+                } else {
+                    ids.removeAll { $0 == habitId }
+                }
+                settings.setDashboardVisibleHabitIds(ids)
             }
         )
     }

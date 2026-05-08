@@ -14,6 +14,7 @@ struct DailyKanbanEntryButton: View {
 
     @ObservedObject private var todoRepo = TodoRepository.shared
     @ObservedObject private var habitRepo = HabitRepository.shared
+    @ObservedObject private var displaySettings = HabitStatsDisplaySettings.shared
 
     @State private var isAnimating = false
     @State private var breathScale: CGFloat = 1.0
@@ -34,14 +35,20 @@ struct DailyKanbanEntryButton: View {
     }
 
     private var habitPercent: Double {
-        let p = habitRepo.getTodayCheckInProgress()
+        let visibleIds = displaySettings.dashboardVisibleHabitIds
+        let p = habitRepo.getTodayCheckInProgress(
+            visibleHabitIds: visibleIds.isEmpty ? nil : visibleIds
+        )
         guard p.total > 0 else { return 0 }
         return Double(p.completed) / Double(p.total)
     }
 
     private var overallPercent: Double {
         let t = todoRepo.getDailyKanbanProgress()
-        let h = habitRepo.getTodayCheckInProgress()
+        let visibleIds = displaySettings.dashboardVisibleHabitIds
+        let h = habitRepo.getTodayCheckInProgress(
+            visibleHabitIds: visibleIds.isEmpty ? nil : visibleIds
+        )
         let total = Double(t.total + h.total)
         guard total > 0 else { return 0 }
         return Double(t.completed + h.completed) / total

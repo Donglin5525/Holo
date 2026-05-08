@@ -12,6 +12,7 @@ import os.log
 struct KanbanHabitSection: View {
 
     @ObservedObject var habitRepo: HabitRepository
+    @ObservedObject private var displaySettings = HabitStatsDisplaySettings.shared
     @State private var completedHabits: Set<UUID> = []
     @State private var todayValues: [UUID: Double] = [:]
 
@@ -19,7 +20,11 @@ struct KanbanHabitSection: View {
     @Binding var editingHabit: Habit?
 
     private var activeHabits: [Habit] {
-        habitRepo.activeHabits.filter { $0.habitFrequency == .daily }
+        let daily = habitRepo.activeHabits.filter { $0.habitFrequency == .daily }
+        let visibleIds = displaySettings.dashboardVisibleHabitIds
+        if visibleIds.isEmpty { return daily }
+        let visibleSet = Set(visibleIds)
+        return daily.filter { visibleSet.contains($0.id) }
     }
 
     var body: some View {
