@@ -4,6 +4,20 @@
 
 ---
 
+## [2026-05-09] 任务模块统一：新建与编辑合并为 AddTaskSheet
+
+### 重构
+- 废弃 TaskDetailView（1435 行），新建和编辑统一走 AddTaskSheet 表单模式
+- TaskListView / TaskSearchView / TagListView 调用方重定向至 AddTaskSheet
+- 优先级选择改为等宽按钮平铺一行填满宽度
+
+### 新增
+- 编辑模式：完成切换按钮（支持重复任务生成下一实例）
+- 编辑模式：状态选择行（待办 / 进行中 / 已完成）
+- 编辑模式：检查清单进度条（仅编辑且有待办项时显示）
+- 编辑模式：删除任务按钮 + 确认弹窗
+- `TaskStatus.color` 扩展迁移至 TodoTaskPriority.swift
+
 ## [2026-05-09] 习惯看板展示可见性控制
 
 ### 新增
