@@ -4,6 +4,18 @@
 
 ---
 
+## [2026-05-09] 习惯图标渲染统一为 HabitIconRenderable 协议
+
+### 修复
+- 「戒烟」等自定义图标在今日看板、数值输入弹窗中显示空白（3 处遗漏 isCustomIcon 分支）
+
+### 重构
+- 新增 `HabitIconRenderable` 协议，集中处理 SF Symbol 和自定义 Asset Catalog 图标的渲染分支
+- 4 个数据类型（Habit/HabitDetailSnapshot/HabitStatsDisplayItem/HabitStatsItem）统一遵循协议
+- 10 处渲染点替换为 `iconImage(size:)` 一行调用，以后新增自定义图标不会再遗漏
+
+---
+
 ## [2026-05-09] 记一笔页面交互重构 — 弹窗替代展开式选择
 
 ### 重构
