@@ -4,6 +4,17 @@
 
 ---
 
+## [2026-05-09] 记一笔页面交互重构 — 弹窗替代展开式选择
+
+### 重构
+- 账户/日期/分期从 .sheet 底部弹出改为 ZStack 覆盖层弹窗（半透明遮罩+居中卡片），消除页面抖动
+- 名称行从展开/收起改为始终可见的 TextField，消除 ScrollView 内容高度变化
+- 备注从展开式改为始终可见的 TextEditor 大文本框，带 placeholder 覆盖层
+- 移除 showNoteEditor/showRemarkEditor 状态，简化为 @FocusState 焦点管理
+- AddTransactionSheet 大文件拆分为 6 个职责单一的扩展文件（InfoInputArea/CategoryGrid/Keypad/SaveHandler/StateManager/KeypadComponents）
+
+---
+
 ## [2026-05-09] 任务模块统一：新建与编辑合并为 AddTaskSheet
 
 ### 重构
