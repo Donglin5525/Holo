@@ -65,25 +65,13 @@ struct HabitStatsCardView: View {
     // MARK: - 图标
 
     private var iconView: some View {
-        let isCustom = HabitIconPresets.allItems.first(where: { $0.name == item.icon })?.isCustom ?? false
-
-        return ZStack {
+        ZStack {
             Circle()
                 .fill(item.habitColor.opacity(0.15))
                 .frame(width: 44, height: 44)
 
-            if isCustom {
-                Image(item.icon)
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 20, height: 20)
-                    .foregroundColor(item.habitColor)
-            } else {
-                Image(systemName: item.icon)
-                    .font(.system(size: 20))
-                    .foregroundColor(item.habitColor)
-            }
+            item.iconImage(size: 20)
+                .foregroundColor(item.habitColor)
         }
     }
 

@@ -118,8 +118,7 @@ struct DailyKanbanView: View {
                             Circle()
                                 .fill(habit.habitColor.opacity(0.1))
                                 .frame(width: 40, height: 40)
-                            Image(systemName: habit.icon)
-                                .font(.system(size: 18))
+                            habit.iconImage(size: 18)
                                 .foregroundColor(habit.habitColor)
                         }
                         VStack(alignment: .leading, spacing: 2) {

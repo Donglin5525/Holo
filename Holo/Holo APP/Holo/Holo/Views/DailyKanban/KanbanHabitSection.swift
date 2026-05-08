@@ -157,8 +157,7 @@ struct KanbanHabitSection: View {
                 .fill(habit.habitColor.opacity(0.1))
                 .frame(width: 36, height: 36)
 
-            Image(systemName: habit.icon)
-                .font(.system(size: 16))
+            habit.iconImage(size: 16)
                 .foregroundColor(habit.habitColor)
         }
     }

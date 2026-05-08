@@ -220,18 +220,8 @@ struct HabitDetailView: View {
                     .fill(snapshot.habitColor.opacity(0.1))
                     .frame(width: 80, height: 80)
 
-                if snapshot.isCustomIcon {
-                    Image(snapshot.icon)
-                        .renderingMode(.template)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 36, height: 36)
-                        .foregroundColor(snapshot.habitColor)
-                } else {
-                    Image(systemName: snapshot.icon)
-                        .font(.system(size: 36, weight: .medium))
-                        .foregroundColor(snapshot.habitColor)
-                }
+                snapshot.iconImage(size: 36)
+                    .foregroundColor(snapshot.habitColor)
             }
             
             Text(snapshot.name)

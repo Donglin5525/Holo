@@ -127,19 +127,8 @@ struct HabitCardView: View {
                 .fill(habit.habitColor.opacity(0.1))
                 .frame(width: 56, height: 56)
             
-            // 判断是否为自定义图标
-            if habit.isCustomIcon {
-                Image(habit.icon)
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 24, height: 24)
-                    .foregroundColor(habit.habitColor)
-            } else {
-                Image(systemName: habit.icon)
-                    .font(.system(size: 24, weight: .medium))
-                    .foregroundColor(habit.habitColor)
-            }
+            habit.iconImage(size: 24)
+                .foregroundColor(habit.habitColor)
         }
     }
     
@@ -321,18 +310,8 @@ struct HabitCardView: View {
                         .fill(habit.habitColor.opacity(0.1))
                         .frame(width: 80, height: 80)
 
-                    if habit.isCustomIcon {
-                        Image(habit.icon)
-                            .renderingMode(.template)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 36, height: 36)
-                            .foregroundColor(habit.habitColor)
-                    } else {
-                        Image(systemName: habit.icon)
-                            .font(.system(size: 36, weight: .medium))
-                            .foregroundColor(habit.habitColor)
-                    }
+                    habit.iconImage(size: 36)
+                        .foregroundColor(habit.habitColor)
                 }
                 .padding(.top, 20)
                 

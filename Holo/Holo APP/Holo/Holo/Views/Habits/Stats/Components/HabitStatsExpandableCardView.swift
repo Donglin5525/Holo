@@ -46,18 +46,8 @@ struct HabitStatsExpandableCardView: View {
     private var header: some View {
         HStack(spacing: HoloSpacing.sm) {
             Group {
-                if item.isCustomIcon {
-                    Image(item.icon)
-                        .renderingMode(.template)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 18, height: 18)
-                        .foregroundColor(accent)
-                } else {
-                    Image(systemName: item.icon)
-                        .font(.system(size: 18))
-                        .foregroundColor(accent)
-                }
+                item.iconImage(size: 18)
+                    .foregroundColor(accent)
             }
             .frame(width: 32, height: 32)
             .background(accent.opacity(0.12))

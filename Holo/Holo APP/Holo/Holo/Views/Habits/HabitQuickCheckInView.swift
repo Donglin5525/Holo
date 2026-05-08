@@ -183,18 +183,8 @@ struct HabitQuickCheckInView: View {
                     .fill(habit.habitColor.opacity(0.1))
                     .frame(width: 40, height: 40)
 
-                if habit.isCustomIcon {
-                    Image(habit.icon)
-                        .renderingMode(.template)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 18, height: 18)
-                        .foregroundColor(habit.habitColor)
-                } else {
-                    Image(systemName: habit.icon)
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(habit.habitColor)
-                }
+                habit.iconImage(size: 18)
+                    .foregroundColor(habit.habitColor)
             }
 
             // 名称 + 副标题
@@ -320,8 +310,7 @@ struct HabitQuickCheckInView: View {
                             .fill(habit.habitColor.opacity(0.1))
                             .frame(width: 40, height: 40)
 
-                        Image(systemName: habit.icon)
-                            .font(.system(size: 18, weight: .medium))
+                        habit.iconImage(size: 18)
                             .foregroundColor(habit.habitColor)
                     }
 

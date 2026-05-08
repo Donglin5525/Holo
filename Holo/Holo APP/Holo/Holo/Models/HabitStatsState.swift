@@ -148,6 +148,10 @@ struct HabitStatsItem: Identifiable {
     var unitText: String {
         unit ?? (isCountType ? "次" : "")
     }
+
+    var isCustomIcon: Bool {
+        HabitIconPresets.allItems.first { $0.name == icon }?.isCustom ?? false
+    }
 }
 
 // MARK: - HabitOverviewStats

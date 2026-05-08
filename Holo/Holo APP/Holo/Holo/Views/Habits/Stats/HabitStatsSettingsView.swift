@@ -105,18 +105,8 @@ struct HabitStatsSettingsView: View {
     private func habitRow(_ habit: Habit) -> some View {
         HStack(spacing: HoloSpacing.md) {
             Group {
-                if habit.isCustomIcon {
-                    Image(habit.icon)
-                        .renderingMode(.template)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 16, height: 16)
-                        .foregroundColor(Color(hex: habit.color) ?? .holoPrimary)
-                } else {
-                    Image(systemName: habit.icon)
-                        .font(.system(size: 16))
-                        .foregroundColor(Color(hex: habit.color) ?? .holoPrimary)
-                }
+                habit.iconImage(size: 16)
+                    .foregroundColor(Color(hex: habit.color) ?? .holoPrimary)
             }
             .frame(width: 28, height: 28)
             .background((Color(hex: habit.color) ?? .holoPrimary).opacity(0.12))
