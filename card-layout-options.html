@@ -1,0 +1,510 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MonthlySummaryCard 布局方案</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', sans-serif;
+    background: #1c1c1e;
+    padding: 40px 20px;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1 {
+    text-align: center;
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+    margin-bottom: 6px;
+  }
+  .subtitle {
+    text-align: center;
+    font-size: 13px;
+    color: #98989d;
+    margin-bottom: 36px;
+  }
+
+  /* ===== Layout: vertical stack of phones ===== */
+  .options-list {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 48px;
+    max-width: 500px;
+    margin: 0 auto;
+  }
+  .option-block {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+  }
+  .option-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+  }
+  .option-desc {
+    font-size: 12px;
+    color: #98989d;
+    text-align: center;
+    line-height: 1.6;
+    max-width: 360px;
+  }
+
+  /* ===== iPhone 17 Pro frame ===== */
+  .phone {
+    width: 310px;              /* phone outer frame */
+    background: #2c2c2e;
+    border-radius: 44px;
+    padding: 10px;
+    box-shadow: 0 2px 40px rgba(0,0,0,0.5), inset 0 0 0 1px rgba(255,255,255,0.08);
+    position: relative;
+  }
+  /* Dynamic Island */
+  .phone::before {
+    content: '';
+    position: absolute;
+    top: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 90px;
+    height: 24px;
+    background: #000;
+    border-radius: 20px;
+    z-index: 10;
+  }
+  .screen {
+    width: 290px;              /* 393pt → scale ~0.74 */
+    background: #f2f2f7;
+    border-radius: 36px;
+    overflow: hidden;
+  }
+  .screen-content {
+    padding: 52px 14px 20px 14px;  /* top: clear Dynamic Island */
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* ===== Card base ===== */
+  .card {
+    width: 100%;
+    border-radius: 16px;
+    padding: 14px 16px;
+    position: relative;
+    border: 0.5px solid rgba(255,255,255,0.35);
+  }
+  .card-expense {
+    background: rgba(255,255,255,0.72);
+    backdrop-filter: blur(20px);
+  }
+  .card-income {
+    background: rgba(255,255,255,0.72);
+    backdrop-filter: blur(20px);
+  }
+
+  /* ===== Text tokens ===== */
+  .t-sec { color: #8e8e93; }
+  .t-pri { color: #1c1c1e; }
+  .t-err { color: #ff3b30; }
+  .t-ok  { color: #34c759; }
+
+  /* ===== Icon circle ===== */
+  .ic {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .ic-exp { background: rgba(255,59,48,0.1); color: #ff3b30; }
+  .ic-inc { background: rgba(52,199,89,0.1); color: #34c759; }
+  .ic svg { width: 10px; height: 10px; }
+
+  /* ===== Dual cards row ===== */
+  .dual {
+    display: flex;
+    gap: 8px;
+  }
+  .dual .card {
+    flex: 1;
+    padding: 12px 12px;
+  }
+
+  /* ======================================
+     方案 A · 经典垂直
+     ====================================== */
+  .a-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .a-left {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+  }
+  .a-title-row {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .a-right {
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  /* ======================================
+     方案 B · 金额突出
+     ====================================== */
+  .b-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .b-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .b-meta {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .b-dot {
+    width: 2px; height: 2px;
+    border-radius: 50%;
+    background: #c7c7cc;
+    flex-shrink: 0;
+  }
+  .b-today {
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  /* ======================================
+     方案 C · 标签式
+     ====================================== */
+  .c-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .c-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    padding: 2px 7px;
+    border-radius: 5px;
+    font-size: 10px;
+    font-weight: 500;
+  }
+  .c-tag-exp { background: rgba(255,59,48,0.1); color: #ff3b30; }
+  .c-tag-inc { background: rgba(52,199,89,0.1); color: #34c759; }
+  .c-tag svg { width: 8px; height: 8px; }
+  .c-amounts {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+  }
+
+  /* ======================================
+     方案 D · 横向三栏
+     ====================================== */
+  .d-row {
+    display: flex;
+    align-items: center;
+  }
+  .d-col {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .d-title-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .d-sep {
+    width: 0.5px;
+    align-self: stretch;
+    margin: 2px 12px;
+    background: rgba(0,0,0,0.08);
+    flex-shrink: 0;
+  }
+  .d-today {
+    margin-left: auto;
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  /* ======================================
+     方案 E · 极简
+     ====================================== */
+  .e-row {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+  .e-amt-group {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .e-today {
+    text-align: right;
+    flex-shrink: 0;
+  }
+  .e-meta {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+</style>
+</head>
+<body>
+
+<h1>MonthlySummaryCard 布局方案</h1>
+<p class="subtitle">5 种布局 · iPhone 17 Pro 预览</p>
+
+<div class="options-list">
+
+<!-- ==================== 方案 A ==================== -->
+<div class="option-block">
+  <span class="option-label">A · 经典垂直</span>
+  <div class="phone"><div class="screen"><div class="screen-content">
+
+    <div class="card card-expense">
+      <div class="a-row">
+        <div class="a-left">
+          <div class="a-title-row">
+            <span class="ic ic-exp"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3L9 9"/><path d="M3 9H9V3"/></svg></span>
+            <span style="font-size:11px;font-weight:500" class="t-sec">本月支出</span>
+          </div>
+          <span style="font-size:22px;font-weight:700" class="t-pri">¥11,586.42</span>
+          <span style="font-size:10px;font-weight:500" class="t-err">较上月同期628.6%</span>
+        </div>
+        <div class="a-right">
+          <div style="font-size:9px;color:#aeaeb2;font-weight:500;margin-bottom:2px">今日</div>
+          <span style="font-size:15px;font-weight:700" class="t-pri">¥128.00</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card card-income">
+      <div class="a-row">
+        <div class="a-left">
+          <div class="a-title-row">
+            <span class="ic ic-inc"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3L3 9"/><path d="M9 9V3H3"/></svg></span>
+            <span style="font-size:11px;font-weight:500" class="t-sec">本月收入</span>
+          </div>
+          <span style="font-size:22px;font-weight:700" class="t-pri">¥28,500.00</span>
+          <span style="font-size:10px;font-weight:500" class="t-ok">较上月同期12.3%</span>
+        </div>
+        <div class="a-right">
+          <div style="font-size:9px;color:#aeaeb2;font-weight:500;margin-bottom:2px">今日</div>
+          <span style="font-size:15px;font-weight:700" class="t-pri">¥0.00</span>
+        </div>
+      </div>
+    </div>
+
+  </div></div></div>
+  <span class="option-desc">图标+标题一行，金额一行，环比一行<br>回归原始结构，右侧显示今日支出</span>
+</div>
+
+<!-- ==================== 方案 B ==================== -->
+<div class="option-block">
+  <span class="option-label">B · 金额突出</span>
+  <div class="phone"><div class="screen"><div class="screen-content">
+
+    <div class="card card-expense">
+      <div class="b-row" style="margin-bottom:5px">
+        <div class="b-left">
+          <span class="ic ic-exp"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3L9 9"/><path d="M3 9H9V3"/></svg></span>
+          <span style="font-size:22px;font-weight:700" class="t-pri">¥11,586.42</span>
+        </div>
+        <div class="b-today">
+          <div style="font-size:9px;color:#aeaeb2;font-weight:500;margin-bottom:2px">今日</div>
+          <span style="font-size:15px;font-weight:700" class="t-pri">¥128.00</span>
+        </div>
+      </div>
+      <div class="b-meta">
+        <span style="font-size:11px;font-weight:500" class="t-sec">本月支出</span>
+        <span class="b-dot"></span>
+        <span style="font-size:10px;font-weight:500" class="t-err">较上月同期628.6%</span>
+      </div>
+    </div>
+
+    <div class="card card-income">
+      <div class="b-row" style="margin-bottom:5px">
+        <div class="b-left">
+          <span class="ic ic-inc"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3L3 9"/><path d="M9 9V3H3"/></svg></span>
+          <span style="font-size:22px;font-weight:700" class="t-pri">¥28,500.00</span>
+        </div>
+        <div class="b-today">
+          <div style="font-size:9px;color:#aeaeb2;font-weight:500;margin-bottom:2px">今日</div>
+          <span style="font-size:15px;font-weight:700" class="t-pri">¥0.00</span>
+        </div>
+      </div>
+      <div class="b-meta">
+        <span style="font-size:11px;font-weight:500" class="t-sec">本月收入</span>
+        <span class="b-dot"></span>
+        <span style="font-size:10px;font-weight:500" class="t-ok">较上月同期12.3%</span>
+      </div>
+    </div>
+
+  </div></div></div>
+  <span class="option-desc">图标+金额是视觉焦点，标题和环比合成副行<br>信息层次最清晰</span>
+</div>
+
+<!-- ==================== 方案 C ==================== -->
+<div class="option-block">
+  <span class="option-label">C · 标签式</span>
+  <div class="phone"><div class="screen"><div class="screen-content">
+
+    <div class="card card-expense">
+      <div class="c-header" style="margin-bottom:8px">
+        <span class="c-tag c-tag-exp">
+          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3L9 9"/><path d="M3 9H9V3"/></svg>
+          本月支出
+        </span>
+        <div style="text-align:right">
+          <div style="font-size:9px;color:#aeaeb2;font-weight:500;margin-bottom:2px">今日</div>
+          <span style="font-size:15px;font-weight:700" class="t-pri">¥128.00</span>
+        </div>
+      </div>
+      <div class="c-amounts">
+        <span style="font-size:22px;font-weight:700" class="t-pri">¥11,586.42</span>
+        <span style="font-size:10px;font-weight:500" class="t-err">较上月同期628.6%</span>
+      </div>
+    </div>
+
+    <div class="card card-income">
+      <div class="c-header" style="margin-bottom:8px">
+        <span class="c-tag c-tag-inc">
+          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3L3 9"/><path d="M9 9V3H3"/></svg>
+          本月收入
+        </span>
+        <div style="text-align:right">
+          <div style="font-size:9px;color:#aeaeb2;font-weight:500;margin-bottom:2px">今日</div>
+          <span style="font-size:15px;font-weight:700" class="t-pri">¥0.00</span>
+        </div>
+      </div>
+      <div class="c-amounts">
+        <span style="font-size:22px;font-weight:700" class="t-pri">¥28,500.00</span>
+        <span style="font-size:10px;font-weight:500" class="t-ok">较上月同期12.3%</span>
+      </div>
+    </div>
+
+  </div></div></div>
+  <span class="option-desc">标题用彩色标签区分，金额和环比水平排列<br>视觉区分度最高</span>
+</div>
+
+<!-- ==================== 方案 D ==================== -->
+<div class="option-block">
+  <span class="option-label">D · 横向三栏</span>
+  <div class="phone"><div class="screen"><div class="screen-content">
+
+    <div class="card card-expense">
+      <div class="d-row">
+        <div class="d-col">
+          <div class="d-title-row">
+            <span class="ic ic-exp"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3L9 9"/><path d="M3 9H9V3"/></svg></span>
+            <span style="font-size:11px;font-weight:500" class="t-sec">本月支出</span>
+          </div>
+          <span style="font-size:10px;font-weight:500" class="t-err">较上月同期628.6%</span>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+          <span style="font-size:22px;font-weight:700" class="t-pri">¥11,586.42</span>
+        </div>
+        <div class="d-sep"></div>
+        <div class="d-today">
+          <span style="font-size:10px;font-weight:500" class="t-sec">今日</span>
+          <span style="font-size:16px;font-weight:700;display:block" class="t-pri">¥128.00</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card card-income">
+      <div class="d-row">
+        <div class="d-col">
+          <div class="d-title-row">
+            <span class="ic ic-inc"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3L3 9"/><path d="M9 9V3H3"/></svg></span>
+            <span style="font-size:11px;font-weight:500" class="t-sec">本月收入</span>
+          </div>
+          <span style="font-size:10px;font-weight:500" class="t-ok">较上月同期12.3%</span>
+        </div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+          <span style="font-size:22px;font-weight:700" class="t-pri">¥28,500.00</span>
+        </div>
+        <div class="d-sep"></div>
+        <div class="d-today">
+          <span style="font-size:10px;font-weight:500" class="t-sec">今日</span>
+          <span style="font-size:16px;font-weight:700;display:block" class="t-pri">¥0.00</span>
+        </div>
+      </div>
+    </div>
+
+  </div></div></div>
+  <span class="option-desc">左栏标题+环比，中栏金额，右栏今日支出<br>用竖线分隔，信息分区明确</span>
+</div>
+
+<!-- ==================== 方案 E ==================== -->
+<div class="option-block">
+  <span class="option-label">E · 极简并排</span>
+  <div class="phone"><div class="screen"><div class="screen-content">
+
+    <div class="dual">
+      <div class="card card-expense">
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div class="e-row">
+            <div class="e-amt-group">
+              <span class="ic ic-exp"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3L9 9"/><path d="M3 9H9V3"/></svg></span>
+              <span style="font-size:17px;font-weight:700" class="t-pri">¥11,586</span>
+            </div>
+            <div class="e-today">
+              <div style="font-size:9px;color:#aeaeb2;font-weight:500;margin-bottom:1px">今日</div>
+              <span style="font-size:13px;font-weight:700" class="t-pri">¥128</span>
+            </div>
+          </div>
+          <div class="e-meta">
+            <span style="font-size:10px;font-weight:500" class="t-sec">本月支出</span>
+            <span class="b-dot"></span>
+            <span style="font-size:9px;font-weight:500" class="t-err">较上月同期628.6%</span>
+          </div>
+        </div>
+      </div>
+      <div class="card card-income">
+        <div style="display:flex;flex-direction:column;gap:6px">
+          <div class="e-row">
+            <div class="e-amt-group">
+              <span class="ic ic-inc"><svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3L3 9"/><path d="M9 9V3H3"/></svg></span>
+              <span style="font-size:17px;font-weight:700" class="t-pri">¥28,500</span>
+            </div>
+            <div class="e-today">
+              <div style="font-size:9px;color:#aeaeb2;font-weight:500;margin-bottom:1px">今日</div>
+              <span style="font-size:13px;font-weight:700" class="t-pri">¥0</span>
+            </div>
+          </div>
+          <div class="e-meta">
+            <span style="font-size:10px;font-weight:500" class="t-sec">本月收入</span>
+            <span class="b-dot"></span>
+            <span style="font-size:9px;font-weight:500" class="t-ok">较上月同期12.3%</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div></div></div>
+  <span class="option-desc">双卡并排紧凑模式 · 图标+金额一行搞定<br>标题和环比作为副行补充</span>
+</div>
+
+</div>
+
+</body>
+</html>
