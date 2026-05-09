@@ -1,7 +1,7 @@
 # HoloAI 数据洞察卡片化设计
 
 > 日期：2026-05-10
-> 状态：二审修订（待 GPT 三审）
+> 状态：三审修订完成（待确认）
 
 ## 背景
 
@@ -93,6 +93,7 @@ AI 可以在 Markdown 分析文本中输出 `{{card:类型}}` 标记，用来建
   - `highlights` 插入最后一段之前（索引 `N - 1` 处）。
   - 若 N < 3（段落太少），所有卡片顺序追加在全文末尾。
   - 示例：AI 输出 5 段 → summary 在第 1 段后，mid cards 在第 2 段后，highlights 在第 4 段后。
+  - **稳定排序**：多个卡片落在同一插入索引时，按 `AnalysisCardSlot` 的声明顺序（summary → breakdown → trend → comparison → highlights）稳定排列，避免 UI 顺序随实现变化。实现时先生成 `[(insertIndex: Int, slotOrder: Int, card: AnalysisCardSlot)]`，按 `insertIndex` 升序、`slotOrder` 升序排序后渲染。
 
 ## 三、Chat 紧凑卡片
 
@@ -137,7 +138,7 @@ struct AnalysisCompactSummary: Equatable {
 
 > **技术债 [MEDIUM]**：用户原始提问未持久化到 `ChatMessage` 或 `AnalysisContext` 中。分析查询路径传入 `messages: []` 给 LLM，LLM 只凭 `AnalysisContext` 的 domain + periodLabel 推断分析意图。卡片标题固定为域名称（如「账单分析」），无法反映用户具体措辞（如「分析餐饮支出」→ 仍显示「账单分析」）。若未来需个性化标题，需在 `ChatMessage` 新增 `userQuery` 字段。
 
-> **periodLabel 来源说明**：`AnalysisContext` 持久化的是 `startDate`/`endDate`，不是自然语言 `periodLabel`。`AnalysisSummaryFormatter` 中的 `subtitle` 需通过 `DateFormatter`（zh_CN locale）将日期范围格式化为自然语言描述（如「2026年2月 — 4月」）。若 `AnalysisContext` 中有 `periodLabel` 字段则直接使用，否则回退到日期格式化。
+> **periodLabel 来源说明**：`AnalysisContext` 已有 `periodLabel` 字段，优先直接使用。若为空或不可用，回退到 `DateFormatter`（zh_CN locale）将 `startDate`/`endDate` 格式化为自然语言描述（如「2026年2月 — 4月」）。
 
 ### 元数据延迟加载处理（CRITICAL）
 
@@ -146,14 +147,16 @@ struct AnalysisCompactSummary: Equatable {
 **渲染策略**：
 
 - 当 `metadataState == .loaded` 且 `analysisContext != nil`：正常渲染紧凑卡片，显示摘要数据。
-- 当 `metadataState == .unloaded` 或 `.loading`：渲染占位紧凑卡片（渐变背景 + 域图标 + "分析结果加载中..."），触发元数据加载。
+- 当 `metadataState == .unloaded` 或 `.loading`：渲染占位紧凑卡片（渐变背景 + 域图标 + "分析结果加载中..."），**禁用点击**（`.allowsHitTesting(false)` 或回调中忽略）。元数据加载仍由 `ChatView.onAppear` 的 `viewModel.loadMetadataIfNeeded(...)` 统一负责，占位卡片不触发重复加载。
 - 当 `metadataState == .loaded` 但 `analysisContext == nil`（数据为空）：不渲染紧凑卡片，退化为普通文本气泡（与当前行为一致）。
 
 **备选方案**：将 `analysisContextJSON` 的解码提升为轻量字段（在首次加载时一并解码），避免延迟加载问题。但这会增加初始加载开销，本阶段暂不采用。
 
 ### 点击行为
 
-`AnalysisCompactChatCard` 只负责展示和触发点击回调。Sheet 状态由 `ChatView` 持有：
+`AnalysisCompactChatCard` 只负责展示和触发点击回调。点击行为仅在 `metadataState == .loaded && analysisContext != nil` 时生效。占位态（`.unloaded`/`.loading`）禁用点击，不弹出 Sheet。
+
+Sheet 状态由 `ChatView` 持有：
 
 ```swift
 @State private var selectedAnalysisMessage: ChatMessageViewData?
@@ -224,14 +227,16 @@ enum AnalysisCardSlot: String, CaseIterable {
 
 ### Markdown 渲染方案
 
-Sheet 中 AI 文本使用 `AttributedString(markdown:options:)` 渲染，支持以下格式：
-- **粗体**、*斜体*、`行内代码`
-- 有序/无序列表
-- 标题（h2-h4，h1 过大不使用）
+`AnalysisDetailBlock.text` 始终存储原始 `String`，Markdown 解析推迟到 Sheet 渲染层。
 
-解析失败时（如非法 Markdown 语法）降级为 `Text(rawString)`，不崩溃。解析在 `AnalysisDetailBlockParser` 中完成，将 Markdown 字符串转为 `AttributedString` 后存入 `AnalysisDetailBlock.text(AttributedString)`。
+Sheet 内的文本块渲染复用/提取现有 `StreamingTextView` 的 Markdown 解析能力（`StreamingTextView` 在流式完成后已异步解析 Markdown）。具体做法：
+- 提取 `StreamingTextView` 中的 Markdown → AttributedString 解析逻辑为独立的 `MarkdownRenderer` 工具方法。
+- `AnalysisDetailSheet` 的文本块调用 `MarkdownRenderer.render(String) -> AttributedString`，解析失败时降级为 `Text(rawString)`。
+- `AnalysisDetailBlockParser` 只负责标记拆分和段落合并，不做 Markdown 解析。
 
-> 注意：当前 `MessageBubbleView.bubbleContent` 使用 `Text(displayText)` 纯文本渲染，不支持 Markdown。Sheet 是首个支持 Markdown 渲染的分析展示组件。如果后续 Chat 气泡也要支持 Markdown，可复用本次的渲染逻辑。
+支持的格式：**粗体**、*斜体*、`行内代码`、有序/无序列表、标题（h2-h4）。
+
+> 不要在 `AnalysisDetailBlockParser` 中做第二套 Markdown 解析，复用 `StreamingTextView` 已有的能力。
 
 ### Sheet 高度
 
