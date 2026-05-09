@@ -15,6 +15,7 @@ struct MessageBubbleView: View {
     var onIntentTagTap: ((ChatMessageViewData) -> Void)? = nil
     var onCardTap: ((ChatMessageViewData, ChatCardData) -> Void)? = nil
     var onViewLog: ((ChatMessageViewData) -> Void)? = nil
+    var onCompactAnalysisTap: (() -> Void)? = nil
 
     private var displayText: String {
         streamingText ?? message.content
@@ -61,7 +62,12 @@ struct MessageBubbleView: View {
             // 消息内容
             VStack(alignment: isUser ? .trailing : .leading, spacing: 4) {
                 // 渲染优先级：分析卡片（叠加模式） > 批处理卡片 > 单卡片 > 气泡
-                if hasAnalysisCards {
+                if message.isQueryAnalysis {
+                    // 分析查询：紧凑入口卡片
+                    AnalysisCompactChatCard(message: message) {
+                        onCompactAnalysisTap?()
+                    }
+                } else if hasAnalysisCards {
                     // 分析消息：卡片 + 文本叠加渲染
                     VStack(alignment: .leading, spacing: 8) {
                         ForEach(Array(analysisCardsData.enumerated()), id: \.offset) { index, card in
@@ -84,7 +90,7 @@ struct MessageBubbleView: View {
                 }
 
                 // 意图标签（卡片渲染时隐藏）
-                if let intent = message.intent, !isUser, !hasCards, singleCard == nil, !hasAnalysisCards {
+                if let intent = message.intent, !isUser, !hasCards, singleCard == nil, !hasAnalysisCards, !message.isQueryAnalysis {
                     intentTag(intent)
                 }
             }

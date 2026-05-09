@@ -187,6 +187,13 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         return ChatCardData.fromAnalysisContext(context)
     }
 
+    /// 是否为分析查询消息
+    var isQueryAnalysis: Bool {
+        guard let intentStr = intent,
+              let intent = AIIntent(rawValue: intentStr) else { return false }
+        return intent == .queryAnalysis
+    }
+
     // 旧路径兜底：从 extractedDataJSON 解析（新项通常为 nil）
     private var linkedTransactionId: UUID? {
         guard let idStr = extractedDataDictionary?["transactionId"] else {

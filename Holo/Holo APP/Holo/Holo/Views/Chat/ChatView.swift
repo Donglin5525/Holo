@@ -16,6 +16,7 @@ struct ChatView: View {
     @State private var editingTransaction: Transaction?
     @State private var viewingLogMessage: ChatMessageViewData?
     @State private var didInitialScrollToBottom = false
+    @State private var selectedAnalysisMessage: ChatMessageViewData?
 
     /// 外部传入的预填文本（如从记忆长廊"继续问AI"跳转）
     var prefillText: String? = nil
@@ -58,6 +59,9 @@ struct ChatView: View {
             if let log = message.rawLog {
                 ChatLogView(log: log)
             }
+        }
+        .sheet(item: $selectedAnalysisMessage) { msg in
+            AnalysisDetailSheet(message: msg)
         }
     }
 
@@ -190,6 +194,11 @@ struct ChatView: View {
                             },
                             onViewLog: { msg in
                                 viewingLogMessage = msg
+                            },
+                            onCompactAnalysisTap: {
+                                guard message.metadataState == .loaded,
+                                      message.analysisContext != nil else { return }
+                                selectedAnalysisMessage = message
                             }
                         )
                         .id(message.id)
