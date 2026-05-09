@@ -63,9 +63,14 @@ struct MessageBubbleView: View {
             VStack(alignment: isUser ? .trailing : .leading, spacing: 4) {
                 // 渲染优先级：分析卡片（叠加模式） > 批处理卡片 > 单卡片 > 气泡
                 if message.isQueryAnalysis {
-                    // 分析查询：紧凑入口卡片
-                    AnalysisCompactChatCard(message: message) {
-                        onCompactAnalysisTap?()
+                    if message.metadataState == .loaded && message.analysisContext == nil {
+                        // 已加载但无数据 → 退化为普通气泡
+                        bubbleContent
+                    } else {
+                        // 紧凑入口卡片（含占位态和真实态）
+                        AnalysisCompactChatCard(message: message) {
+                            onCompactAnalysisTap?()
+                        }
                     }
                 } else if hasAnalysisCards {
                     // 分析消息：卡片 + 文本叠加渲染
