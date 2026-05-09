@@ -192,9 +192,12 @@ struct AddTransactionSheet: View {
                     // 2. 类型 Tab（支出/收入下划线样式）
                     typeTabBar
 
-                    // 3. 中间滚动区（分类 + 信息输入）
+                    // 3. 中间滚动区（输入 + 分类 + 信息）
                     ScrollView(showsIndicators: false) {
                         VStack(spacing: 12) {
+                            transactionEntryInputs
+                                .padding(.horizontal, 16)
+
                             categoryGrid
                                 .padding(.horizontal, 16)
 
@@ -224,19 +227,16 @@ struct AddTransactionSheet: View {
                         }
                     }
 
-                    // 4. 智能快捷标签栏
-                    if showNumericKeypad || isNoteFocused {
+                    // 4. 数字键盘托盘（快捷金额 + 键盘）
+                    if showNumericKeypad {
+                        numericKeypadTray
+                            .transition(.opacity.combined(with: .move(edge: .bottom)))
+                    } else if isNoteFocused {
                         QuickTagBar(
-                            tags: showNumericKeypad ? amountTags : noteTags,
+                            tags: noteTags,
                             onTagTap: handleQuickTagTap
                         )
-                        .animation(.easeInOut(duration: 0.25), value: showNumericKeypad)
                         .transition(.opacity.combined(with: .move(edge: .bottom)))
-                    }
-
-                    // 5. 数字键盘
-                    if showNumericKeypad {
-                        numericKeypad
                     }
                 }
 
@@ -326,68 +326,168 @@ struct AddTransactionSheet: View {
 
     /// 顶部操作栏（关闭 + 标题 + 保存）
     private var topBar: some View {
-        HStack {
-            Button {
-                if hasUnsavedChanges {
-                    showDismissAlert = true
-                } else {
-                    dismiss()
-                }
-            } label: {
-                Image(systemName: "xmark")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.holoTextSecondary)
-                    .frame(width: 32, height: 32)
-                    .background(Color.holoBackground)
-                    .clipShape(Circle())
-            }
-
-            Spacer()
-
+        ZStack {
             Text(isEditMode ? "编辑交易" : "记一笔")
                 .font(.holoHeading)
                 .foregroundColor(.holoTextPrimary)
 
-            Spacer()
-
-            if isEditMode {
+            HStack {
                 Button {
-                    copyTargetDate = editingTransaction?.date ?? selectedDate
-                    showCopyDatePicker = true
+                    if hasUnsavedChanges {
+                        showDismissAlert = true
+                    } else {
+                        dismiss()
+                    }
                 } label: {
-                    Image(systemName: "doc.on.doc")
+                    Image(systemName: "xmark")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(.holoTextSecondary)
                         .frame(width: 32, height: 32)
                         .background(Color.holoBackground)
                         .clipShape(Circle())
                 }
-            }
 
-            Button {
-                calculateExpression()
-                saveTransaction()
-            } label: {
-                if isSaving {
-                    ProgressView()
-                        .progressViewStyle(CircularProgressViewStyle(tint: .white))
-                        .frame(width: 32, height: 32)
-                        .background(canSave ? Color.holoPrimary : Color.holoTextSecondary.opacity(0.3))
-                        .clipShape(Circle())
-                } else {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundColor(.white)
-                        .frame(width: 32, height: 32)
-                        .background(canSave ? Color.holoPrimary : Color.holoTextSecondary.opacity(0.3))
-                        .clipShape(Circle())
+                Spacer()
+
+                if isEditMode {
+                    Button {
+                        copyTargetDate = editingTransaction?.date ?? selectedDate
+                        showCopyDatePicker = true
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.holoTextSecondary)
+                            .frame(width: 32, height: 32)
+                            .background(Color.holoBackground)
+                            .clipShape(Circle())
+                    }
                 }
+
+                Button {
+                    calculateExpression()
+                    saveTransaction()
+                } label: {
+                    if isSaving {
+                        ProgressView()
+                            .progressViewStyle(CircularProgressViewStyle(tint: .white))
+                            .frame(width: 32, height: 32)
+                            .background(canSave ? Color.holoPrimary : Color.holoTextSecondary.opacity(0.3))
+                            .clipShape(Circle())
+                    } else {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundColor(.white)
+                            .frame(width: 32, height: 32)
+                            .background(canSave ? Color.holoPrimary : Color.holoTextSecondary.opacity(0.3))
+                            .clipShape(Circle())
+                    }
+                }
+                .disabled(!canSave || isSaving)
             }
-            .disabled(!canSave || isSaving)
+            .frame(maxWidth: .infinity)
         }
+        .frame(maxWidth: .infinity)
         .padding(.horizontal, HoloSpacing.lg)
         .padding(.vertical, HoloSpacing.md)
         .background(Color.holoCardBackground)
+    }
+
+    /// 顶部紧凑输入区（金额 + 名称）
+    private var transactionEntryInputs: some View {
+        HStack(spacing: 10) {
+            amountInputField
+                .frame(maxWidth: .infinity)
+
+            noteInputField
+                .frame(maxWidth: .infinity)
+        }
+    }
+
+    /// 金额输入框（点击唤出数字键盘）
+    private var amountInputField: some View {
+        Button {
+            showNumericKeypad = true
+            isNoteFocused = false
+            isRemarkFocused = false
+        } label: {
+            HStack(spacing: 6) {
+                Text(amountString == "0" ? "金额" : "¥ \(displayAmountString)")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(amountString == "0" ? .holoTextSecondary : .holoTextPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.65)
+
+                if showNumericKeypad {
+                    Rectangle()
+                        .fill(Color.holoPrimary)
+                        .frame(width: 2, height: 20)
+                        .opacity(cursorOpacity)
+                }
+
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 14)
+            .frame(height: 48)
+            .background(Color.holoCardBackground)
+            .overlay(
+                RoundedRectangle(cornerRadius: HoloRadius.md)
+                    .stroke(showNumericKeypad ? Color.holoPrimary.opacity(0.75) : Color.holoTextSecondary.opacity(0.12), lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 名称输入框
+    private var noteInputField: some View {
+        HStack(spacing: 6) {
+            TextField("名称", text: $note)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(.holoTextPrimary)
+                .focused($isNoteFocused)
+                .lineLimit(1)
+                .onTapGesture {
+                    showNumericKeypad = false
+                    isRemarkFocused = false
+                }
+                .onSubmit {
+                    isNoteFocused = false
+                }
+
+            if !note.isEmpty {
+                Button {
+                    note = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 15))
+                        .foregroundColor(.holoTextSecondary.opacity(0.5))
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(.horizontal, 14)
+        .frame(height: 48)
+        .background(Color.holoCardBackground)
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.md)
+                .stroke(isNoteFocused ? Color.holoPrimary.opacity(0.75) : Color.holoTextSecondary.opacity(0.12), lineWidth: 1)
+        )
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+    }
+
+    /// 数字键盘托盘：统一承载快捷标签栏和键盘圆角
+    private var numericKeypadTray: some View {
+        VStack(spacing: 0) {
+            QuickTagBar(
+                tags: amountTags,
+                onTagTap: handleQuickTagTap
+            )
+
+            numericKeypad
+        }
+        .background(Color.transactionKeypadTrayBackground)
+        .clipShape(UnevenRoundedRectangle(topLeadingRadius: 18, topTrailingRadius: 18))
+        .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: -4)
     }
 
     /// 是否可以保存

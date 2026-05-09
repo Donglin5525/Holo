@@ -8,6 +8,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 // MARK: - Quick Tag Bar
 
@@ -25,27 +26,56 @@ struct QuickTagBar: View {
 
     var body: some View {
         if !tags.isEmpty {
-            VStack(spacing: 0) {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: HoloSpacing.sm) {
-                        ForEach(tags) { tag in
-                            QuickTagChip(item: tag) {
-                                onTagTap(tag.value, tag.kind)
-                            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: HoloSpacing.sm) {
+                    ForEach(tags) { tag in
+                        QuickTagChip(item: tag) {
+                            onTagTap(tag.value, tag.kind)
                         }
                     }
-                    .padding(.horizontal, HoloSpacing.md)
                 }
-                .frame(height: 44)
+                .padding(.horizontal, HoloSpacing.md)
             }
-            .padding(.vertical, HoloSpacing.xs)
-            .background(
-                RoundedRectangle(cornerRadius: HoloRadius.lg)
-                    .fill(.ultraThinMaterial)
-            )
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+            .frame(height: 38)
+            .background(Color.transactionQuickTagBarBackground)
+            .overlay(alignment: .top) {
+                Rectangle()
+                    .fill(Color.holoBorder.opacity(0.55))
+                    .frame(height: 0.5)
+            }
+            .overlay(alignment: .bottom) {
+                Rectangle()
+                    .fill(Color.black.opacity(0.08))
+                    .frame(height: 0.5)
+            }
             .transition(.opacity.combined(with: .move(edge: .bottom)))
         }
+    }
+}
+
+extension Color {
+    static var transactionKeypadTrayBackground: Color {
+        Color(UIColor { trait in
+            trait.userInterfaceStyle == .dark
+                ? UIColor(red: 0.145, green: 0.145, blue: 0.155, alpha: 1)
+                : UIColor.secondarySystemBackground
+        })
+    }
+
+    static var transactionQuickTagBarBackground: Color {
+        Color(UIColor { trait in
+            trait.userInterfaceStyle == .dark
+                ? UIColor(red: 0.185, green: 0.185, blue: 0.20, alpha: 1)
+                : UIColor(red: 0.94, green: 0.94, blue: 0.965, alpha: 1)
+        })
+    }
+
+    static var transactionQuickTagChipBackground: Color {
+        Color(UIColor { trait in
+            trait.userInterfaceStyle == .dark
+                ? UIColor(red: 0.08, green: 0.08, blue: 0.09, alpha: 1)
+                : UIColor.white
+        })
     }
 }
 
@@ -70,13 +100,13 @@ struct QuickTagChip: View {
             }
             .foregroundColor(.holoTextPrimary)
             .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            .padding(.vertical, 5)
             .background(
                 Capsule()
-                    .fill(Color.holoGlassBackground)
+                    .fill(Color.transactionQuickTagChipBackground)
                     .overlay(
                         Capsule()
-                            .stroke(Color.holoBorder, lineWidth: 1)
+                            .stroke(Color.holoBorder.opacity(0.9), lineWidth: 1)
                     )
             )
         }

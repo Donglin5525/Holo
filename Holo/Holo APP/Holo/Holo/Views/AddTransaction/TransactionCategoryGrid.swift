@@ -104,7 +104,7 @@ extension AddTransactionSheet {
         }
     }
 
-    /// 最近常用分类横向展示
+    /// 最近常用分类横向展示（胶囊样式，和下方完整分类网格区分层级）
     private var recentCategorySection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             Text("最近使用")
@@ -112,10 +112,9 @@ extension AddTransactionSheet {
                 .foregroundColor(.holoTextSecondary)
 
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: HoloSpacing.md) {
+                HStack(spacing: HoloSpacing.sm) {
                     ForEach(recentCategories, id: \.objectID) { category in
                         recentCategoryButton(category)
-                            .frame(width: 56)
                     }
                 }
             }
@@ -167,22 +166,24 @@ extension AddTransactionSheet {
                 drillDownParent = categories.first { $0.id == category.parentId }
             }
         } label: {
-            VStack(spacing: 6) {
-                ZStack {
-                    Circle()
-                        .fill(category.swiftUIColor.opacity(0.12))
-                        .frame(width: 44, height: 44)
-                    transactionCategoryIcon(category, size: 22)
-                }
-                .overlay(
-                    Circle()
-                        .stroke(isSelected ? category.swiftUIColor : Color.clear, lineWidth: 2)
-                )
+            HStack(spacing: 6) {
+                transactionCategoryIcon(category, size: 16)
+
                 Text(category.name)
-                    .font(.system(size: 11))
+                    .font(.system(size: 13, weight: .medium))
                     .foregroundColor(isSelected ? .holoTextPrimary : .holoTextSecondary)
                     .lineLimit(1)
             }
+            .padding(.horizontal, 10)
+            .frame(height: 34)
+            .background(
+                Capsule()
+                    .fill(category.swiftUIColor.opacity(isSelected ? 0.2 : 0.12))
+            )
+            .overlay(
+                Capsule()
+                    .stroke(isSelected ? category.swiftUIColor : Color.holoTextSecondary.opacity(0.12), lineWidth: 1)
+            )
         }
         .buttonStyle(.plain)
     }

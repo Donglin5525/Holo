@@ -25,8 +25,6 @@ extension AddTransactionSheet {
             }
         }
         .padding(8)
-        .background(Color.holoCardBackground)
-        .shadow(color: Color.black.opacity(0.05), radius: 8, x: 0, y: -4)
     }
 
 }

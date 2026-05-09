@@ -2,7 +2,7 @@
 //  TransactionInfoInputArea.swift
 //  Holo
 //
-//  AddTransactionSheet 信息输入区 — 列表式行（金额/名称/账户/日期/分期）+ 备注大文本框
+//  AddTransactionSheet 信息输入区 — 列表式行（账户/日期/分期）+ 备注大文本框
 //
 
 import SwiftUI
@@ -15,32 +15,6 @@ extension AddTransactionSheet {
     /// 信息输入区（V3：弹窗式选择 + 固定备注框）
     var infoInputArea: some View {
         VStack(spacing: 0) {
-            // 金额行（点击唤出数字键盘）
-            Button {
-                showNumericKeypad = true
-                isNoteFocused = false
-                isRemarkFocused = false
-            } label: {
-                infoRow(icon: "yensign.circle.fill", iconColor: .holoPrimary, label: "金额") {
-                    HStack(spacing: 4) {
-                        Text("¥")
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundColor(.holoTextPrimary)
-                        Text(amountString == "0" ? "0.00" : displayAmountString)
-                            .font(.system(size: 15, weight: .medium))
-                            .foregroundColor(amountString == "0" ? .holoTextSecondary.opacity(0.5) : .holoTextPrimary)
-                    }
-                }
-            }
-            .buttonStyle(.plain)
-
-            Divider().padding(.leading, 44)
-
-            // 名称行（可展开编辑）
-            noteRow
-
-            Divider().padding(.leading, 44)
-
             // 账户行（点击弹窗选择）
             accountRow
 
@@ -63,70 +37,6 @@ extension AddTransactionSheet {
         .padding(.vertical, 4)
         .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
-    }
-
-    /// 信息输入行模板
-    private func infoRow(
-        icon: String,
-        iconColor: Color,
-        label: String,
-        @ViewBuilder rightContent: () -> some View
-    ) -> some View {
-        HStack(spacing: 12) {
-            Image(systemName: icon)
-                .font(.system(size: 18))
-                .foregroundColor(iconColor)
-                .frame(width: 24)
-
-            Text(label)
-                .font(.system(size: 15))
-                .foregroundColor(.holoTextSecondary)
-                .frame(width: 36, alignment: .leading)
-
-            Spacer()
-
-            rightContent()
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 13)
-        .contentShape(Rectangle())
-    }
-
-    // MARK: - 名称输入行
-
-    /// 名称输入行（始终可见，直接输入）
-    private var noteRow: some View {
-        HStack(spacing: 12) {
-            Image(systemName: "pencil.circle.fill")
-                .font(.system(size: 18))
-                .foregroundColor(.blue)
-                .frame(width: 24)
-
-            Text("名称")
-                .font(.system(size: 15))
-                .foregroundColor(.holoTextSecondary)
-                .frame(width: 36, alignment: .leading)
-
-            TextField("输入名称...", text: $note)
-                .font(.system(size: 15))
-                .focused($isNoteFocused)
-                .onSubmit {
-                    isNoteFocused = false
-                }
-
-            if !note.isEmpty {
-                Button {
-                    note = ""
-                } label: {
-                    Image(systemName: "xmark.circle.fill")
-                        .font(.system(size: 16))
-                        .foregroundColor(.holoTextSecondary.opacity(0.5))
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 13)
     }
 
     // MARK: - 账户选择行
