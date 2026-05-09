@@ -75,7 +75,7 @@ final class PromptManager {
 
     /// 需要版本管理的 prompt 类型及其最低版本
     private static let promptVersions: [PromptType: Int] = [
-        .intentRecognition: 4,          // v4: 精简版，去除 responseText/fallbackResponseText，压缩格式，上下文移除
+        .intentRecognition: 5,          // v5: 新增 {{currentTime}} + 餐饮时间自动归类规则
         .memoryInsightGeneration: 4,    // v4: 结构化异常观察 + anomaly 卡片 + 数据护栏
         .annualReview: 1                // v1: 初始版本
     ]
@@ -166,9 +166,13 @@ final class PromptManager {
         let yearFormatter = DateFormatter()
         yearFormatter.dateFormat = "yyyy"
 
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "HH:mm"
+
         return [
             "{{todayDate}}": dateFormatter.string(from: Date()),
-            "{{currentYear}}": yearFormatter.string(from: Date())
+            "{{currentYear}}": yearFormatter.string(from: Date()),
+            "{{currentTime}}": timeFormatter.string(from: Date())
         ]
     }
 
@@ -206,6 +210,7 @@ final class PromptManager {
         .intentRecognition: """
         你是意图识别模块。分析用户输入，输出结构化 JSON。支持从一句话中识别多个动作。只识别操作指令，不识别闲聊。
         当前日期：{{todayDate}}
+        当前时间：{{currentTime}}
 
         ## 意图列表
 
@@ -307,6 +312,7 @@ final class PromptManager {
         - 日期：今天=当天，明天=+1，后天=+2，下周一=计算
         - 有具体时间→dueDate 格式 yyyy-MM-dd HH:mm，无时间→yyyy-MM-dd
         - 时间映射：凌晨=00-05，早上/上午=06-11，中午=12，下午=13-17，晚上/傍晚=18-22，半夜/深夜=23
+        - 餐饮自动归类：用户描述涉及吃饭但未明确指定餐次（如"吃了一碗面""面18"）时，根据当前时间判定：05:00-09:59→早餐，10:00-15:59→午餐，16:00-20:59→晚餐，21:00-04:59→夜宵。用户明确说了早饭/午饭/晚饭/夜宵等词时，以用户指定的为准
         - 涉及具体数据（金额、分类、时间段统计、消费、习惯、任务进度）的查询→用 query_analysis，不要用 query。query 只用于非数据的通用问答
 
         ## 示例
@@ -681,6 +687,10 @@ final class PromptManager {
         let yearFormatter = DateFormatter()
         yearFormatter.dateFormat = "yyyy"
         result = result.replacingOccurrences(of: "{{currentYear}}", with: yearFormatter.string(from: Date()))
+
+        let timeFormatter = DateFormatter()
+        timeFormatter.dateFormat = "HH:mm"
+        result = result.replacingOccurrences(of: "{{currentTime}}", with: timeFormatter.string(from: Date()))
 
         return result
     }

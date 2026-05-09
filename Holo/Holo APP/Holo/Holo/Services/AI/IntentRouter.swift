@@ -107,10 +107,16 @@ final class IntentRouter {
 
         logger.info("AI 返回科目：primaryCategory=\(primaryCategory ?? "nil"), subCategory=\(subCategory ?? "nil"), categoryCandidate=\(categoryCandidate ?? "nil")")
 
+        let correctedSubCategory = correctMealCategoryIfNeeded(
+            primaryCategory: primaryCategory,
+            subCategory: subCategory,
+            categoryCandidate: categoryCandidate,
+            note: note
+        )
         let categoryRepo = FinanceRepository.shared
         var category = try await matchCategory(
             primaryCategory: primaryCategory,
-            subCategory: subCategory,
+            subCategory: correctedSubCategory,
             categoryCandidate: categoryCandidate,
             note: note ?? "",
             type: .expense
@@ -602,6 +608,49 @@ final class IntentRouter {
         return names.compactMap { name in
             allTags.first { $0.name.lowercased() == name.lowercased() }
         }
+    }
+
+    // MARK: - Meal Category Time Correction
+
+    /// 餐饮科目时间修正：用户未明确指定餐次时，根据当前时间自动判定
+    private func correctMealCategoryIfNeeded(
+        primaryCategory: String?,
+        subCategory: String?,
+        categoryCandidate: String?,
+        note: String?
+    ) -> String? {
+        let mealCategories: Set<String> = ["早餐", "午餐", "晚餐", "夜宵"]
+        guard let sub = subCategory, mealCategories.contains(sub) else {
+            return subCategory
+        }
+
+        // 一级科目已确定且不是餐饮，不干预
+        if let primary = primaryCategory, !primary.isEmpty, primary != "餐饮" {
+            return subCategory
+        }
+
+        // 用户明确提到了餐次关键词，尊重用户的选择
+        let explicitMealKeywords = ["早餐", "早饭", "早点", "早茶", "午餐", "午饭", "中饭", "晚餐", "晚饭", "夜宵", "宵夜"]
+        let userText = [categoryCandidate, note].compactMap { $0 }.joined(separator: " ")
+        if explicitMealKeywords.contains(where: { userText.contains($0) }) {
+            return subCategory
+        }
+
+        // 根据当前时间判定
+        let hour = Calendar.current.component(.hour, from: Date())
+        let corrected: String
+        switch hour {
+        case 5..<10: corrected = "早餐"
+        case 10..<16: corrected = "午餐"
+        case 16..<21: corrected = "晚餐"
+        default: corrected = "夜宵"
+        }
+
+        if corrected != sub {
+            logger.info("餐类时间修正：\(sub) → \(corrected)（当前小时：\(hour)）")
+            return corrected
+        }
+        return subCategory
     }
 
     // MARK: - Category Matching
