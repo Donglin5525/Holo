@@ -53,20 +53,11 @@ struct StreamingTextView: View {
     }
 
     private var shouldRenderMarkdown: Bool {
-        !text.isEmpty &&
-        text.count <= 2_000 &&
-        Self.markdownIndicators.contains { text.contains($0) }
+        MarkdownAttributedStringRenderer.shouldRender(text)
     }
 
-    private static let markdownIndicators = ["**", "`", "#", "- ", "* ", "[", "> "]
-
     private static func parseMarkdown(_ text: String) async -> AttributedString? {
-        await Task.detached(priority: .utility) {
-            try? AttributedString(
-                markdown: text,
-                options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-            )
-        }.value
+        await MarkdownAttributedStringRenderer.parse(text)
     }
 
     private struct RenderKey: Hashable {
