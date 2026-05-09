@@ -4,6 +4,28 @@
 
 ---
 
+## [2026-05-10] HoloAI 分析查询卡片化 + loading 状态 + 历史消息零闪烁
+
+### 新增
+- 分析查询识别后立即显示「AI 正在分析中」loading 卡片，流式文字不再暴露给用户
+- 紧凑分析入口卡片（AnalysisCompactChatCard），streaming/loaded/placeholder 三态切换
+- AnalysisDetailSheet 详情页，卡片点击打开展示 AI 分析文本 + 数据卡片混排
+- AnalysisDetailBlockParser 解析 AI 文本中的 `{{card:xxx}}` 标记，支持默认插入策略
+- AnalysisSummaryFormatter 从 AnalysisContext 生成卡片摘要（icon/title/subtitle/summaryLine）
+- MarkdownAttributedStringRenderer 抽取流式文本 Markdown 渲染逻辑为独立组件
+- ChatMessageRepository.setAnalysisLoadingState 方法，流式前设置 intent+analysisContext
+
+### 修复
+- query_analysis 意图因 LLM 返回 single_action mode 而未被拦截（移除 mode 检查）
+- analysisContext 为 nil 时紧凑卡片渲染空白（退化为普通气泡）
+- 历史消息进入 Chat 时 queryAnalysis 卡片闪烁（lightweight init 直接解码 analysisContext）
+
+### 优化
+- PromptManager analysisPrompt 追加 `{{card:xxx}}` 标记指令，AI 输出可精确控制卡片位置
+- MessageBubbleView queryAnalysis 渲染逻辑简化为三路分支（streaming / hasContext / fallback）
+
+---
+
 ## [2026-05-10] 记一笔键盘态布局与快捷金额栏优化
 
 ### 优化
