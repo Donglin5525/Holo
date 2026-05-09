@@ -122,6 +122,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
     }
 
     /// 轻量初始化器：只解析渲染文本气泡所需的字段，不读取重 JSON 元数据
+    /// 例外：queryAnalysis 消息直接解码 analysisContext，避免卡片渲染闪烁
     init?(lightweightDictionary dictionary: [String: Any]) {
         guard let id = dictionary["id"] as? UUID,
               let role = dictionary["role"] as? String,
@@ -141,12 +142,21 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         self.parentMessageId = dictionary["parentMessageId"] as? UUID
         self.parsedBatch = nil
         self.executionBatch = nil
-        self.analysisContext = nil
         self.rawLog = nil
 
-        // 元数据状态：用户消息和流式消息不需要重元数据，其余 assistant 消息待加载
+        // queryAnalysis 消息直接解码 analysisContext，确保首帧即可渲染卡片
+        let intentStr = dictionary["intent"] as? String
+        if intentStr == AIIntent.queryAnalysis.rawValue {
+            self.analysisContext = Self.decodeAnalysisContext(dictionary["analysisContextJSON"] as? String)
+        } else {
+            self.analysisContext = nil
+        }
+
+        // 元数据状态：queryAnalysis 已解码 analysisContext 视为 loaded
         if role == "user" || isStreaming {
             self.metadataState = .unavailable
+        } else if intentStr == AIIntent.queryAnalysis.rawValue && self.analysisContext != nil {
+            self.metadataState = .loaded
         } else {
             self.metadataState = .unloaded
         }

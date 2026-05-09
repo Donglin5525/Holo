@@ -219,6 +219,13 @@ final class ChatViewModel: ObservableObject {
 
                 if processResult.shouldStreamChat {
                     if let analysisContext = processResult.analysisContext {
+                        // 立即设置 intent + analysisContext → 渲染 loading 卡片
+                        self.chatRepo?.setAnalysisLoadingState(
+                            aiMessageId,
+                            intent: processResult.firstIntent?.rawValue,
+                            analysisContext: analysisContext
+                        )
+
                         // 分析查询路径：零历史消息，独立 system context
                         let contextJSON = Self.encodeAnalysisContext(analysisContext)
 

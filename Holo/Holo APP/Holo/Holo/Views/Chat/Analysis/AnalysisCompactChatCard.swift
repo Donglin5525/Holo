@@ -13,8 +13,11 @@ struct AnalysisCompactChatCard: View {
     var onTap: (() -> Void)? = nil
 
     var body: some View {
-        if message.metadataState == .loaded, let context = message.analysisContext,
-           let summary = AnalysisSummaryFormatter.format(from: context) {
+        if message.isStreaming {
+            // 流式分析中：显示 loading 卡片
+            loadingCard
+        } else if message.metadataState == .loaded, let context = message.analysisContext,
+                  let summary = AnalysisSummaryFormatter.format(from: context) {
             // 真实紧凑卡片
             realCard(summary: summary)
         } else if message.metadataState == .unloaded || message.metadataState == .loading {
@@ -70,6 +73,29 @@ struct AnalysisCompactChatCard: View {
             .shadow(color: .black.opacity(0.06), radius: 4, y: 2)
         }
         .buttonStyle(CardButtonStyle())
+    }
+
+    // MARK: - Loading Card（流式分析中）
+
+    private var loadingCard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                ProgressView()
+                    .scaleEffect(0.8)
+                Text("AI 正在分析中...")
+                    .font(.holoLabel)
+                    .foregroundColor(.holoTextSecondary)
+            }
+        }
+        .padding(HoloSpacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.md)
+                .stroke(Color.holoBorder, lineWidth: 1)
+        )
+        .allowsHitTesting(false)
     }
 
     // MARK: - Placeholder

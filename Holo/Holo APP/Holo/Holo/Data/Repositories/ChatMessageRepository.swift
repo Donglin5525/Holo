@@ -114,7 +114,8 @@ final class ChatMessageRepository: ObservableObject {
                         "intent",
                         "extractedDataJSON",
                         "isStreaming",
-                        "parentMessageId"
+                        "parentMessageId",
+                        "analysisContextJSON"
                     ]
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
                     request.fetchLimit = limit
@@ -182,7 +183,8 @@ final class ChatMessageRepository: ObservableObject {
                     request.resultType = .dictionaryResultType
                     request.propertiesToFetch = [
                         "id", "role", "content", "timestamp",
-                        "intent", "extractedDataJSON", "isStreaming", "parentMessageId"
+                        "intent", "extractedDataJSON", "isStreaming", "parentMessageId",
+                        "analysisContextJSON"
                     ]
                     request.predicate = NSPredicate(format: "id IN %@", sessionIds)
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: true)]
@@ -264,7 +266,8 @@ final class ChatMessageRepository: ObservableObject {
                     request.resultType = .dictionaryResultType
                     request.propertiesToFetch = [
                         "id", "role", "content", "timestamp",
-                        "intent", "extractedDataJSON", "isStreaming", "parentMessageId"
+                        "intent", "extractedDataJSON", "isStreaming", "parentMessageId",
+                        "analysisContextJSON"
                     ]
                     request.predicate = NSPredicate(format: "id IN %@", sessionIds)
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: true)]
@@ -535,6 +538,19 @@ final class ChatMessageRepository: ObservableObject {
             snapshot.extractedDataJSON = extractedDataJSON
             snapshot.parsedBatch = decodedParsedBatch
             snapshot.executionBatch = decodedExecutionBatch
+        }
+    }
+
+    /// 分析查询：立即设置 intent + analysisContext，保持 isStreaming 状态
+    /// 用于在流式生成前渲染 loading 卡片，避免用户看到大段原始文字
+    func setAnalysisLoadingState(
+        _ messageId: UUID,
+        intent: String?,
+        analysisContext: AnalysisContext?
+    ) {
+        updateSnapshot(messageId) { snapshot in
+            snapshot.intent = intent
+            snapshot.analysisContext = analysisContext
         }
     }
 
