@@ -72,8 +72,8 @@ final class ConversationCoordinator {
         }
 
         // 分析查询拦截：queryAnalysis 不走普通查询路径
-        if parseBatch.mode == .query,
-           parseBatch.items.count == 1,
+        // 不限制 mode，因为不同 LLM 可能返回 single_action 而非 query
+        if parseBatch.items.count == 1,
            parseBatch.first?.intent == .queryAnalysis {
             let request = AnalysisPeriodResolver.resolve(
                 extractedData: parseBatch.first?.extractedData,
