@@ -67,6 +67,30 @@ enum HabitFrequency: String, CaseIterable, Identifiable {
     }
 }
 
+// MARK: - 连续性单位
+
+/// 连续性统计单位
+enum HabitStreakUnit: String, Equatable {
+    case day = "天"
+    case week = "周"
+    case month = "月"
+}
+
+/// 习惯连续坚持信息
+struct HabitStreak: Equatable {
+    let value: Int
+    let unit: HabitStreakUnit
+
+    /// 显示文本（如 "3天"、"2周"、"1月"）
+    var displayText: String {
+        "\(value)\(unit.rawValue)"
+    }
+
+    static func zero(_ unit: HabitStreakUnit = .day) -> HabitStreak {
+        HabitStreak(value: 0, unit: unit)
+    }
+}
+
 // MARK: - 聚合类型枚举
 
 /// 数值型习惯的聚合方式

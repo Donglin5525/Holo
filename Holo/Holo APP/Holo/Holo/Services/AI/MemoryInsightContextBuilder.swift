@@ -330,11 +330,11 @@ struct MemoryInsightContextBuilder {
             let completed = records.filter { $0.isCompleted }.count
             completedRecordCount += completed
 
-            let streak = habitRepo.calculateStreak(for: habit)
-            if streak >= 3 {
+            let streakInfo = habitRepo.calculateStreakInfo(for: habit)
+            if streakInfo.value >= 3 {
                 streaks.append(HabitStreakSummary(
                     habitName: habit.name,
-                    streakDays: streak
+                    streakDays: streakInfo.value
                 ))
             }
         }

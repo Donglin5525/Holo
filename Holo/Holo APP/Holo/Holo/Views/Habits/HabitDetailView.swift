@@ -21,7 +21,7 @@ struct HabitDetailSnapshot {
     var unit: String? = nil
     
     // 统计数据
-    var streak: Int = 0
+    var streak: HabitStreak = .zero()
     var completedCount: Int = 0
     var completionRate: Double = 0
     var totalDays: Int = 0
@@ -195,7 +195,7 @@ struct HabitDetailView: View {
             s.unit = habit.unit
             
             if habit.isCheckInType {
-                s.streak = repo.calculateStreak(for: habit)
+                s.streak = repo.calculateStreakInfo(for: habit)
                 s.completedCount = repo.calculatePeriodCompletionCount(for: habit, range: selectedRange)
                 s.totalDays = selectedRange.days ?? max(loadedRecords.count, 1)
                 s.completionRate = s.totalDays > 0
@@ -296,8 +296,8 @@ struct HabitDetailView: View {
     private var checkInStatsView: some View {
         HStack(spacing: 0) {
             statItem(
-                value: "\(snapshot.streak)",
-                label: "连续天数",
+                value: "\(snapshot.streak.value)",
+                label: "连续\(snapshot.streak.unit.rawValue)",
                 icon: "flame.fill",
                 color: .holoPrimary
             )

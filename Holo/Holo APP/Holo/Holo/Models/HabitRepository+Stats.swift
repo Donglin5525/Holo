@@ -40,14 +40,16 @@ extension HabitRepository {
 
         let averageCompletionRate = totalCompletionRate / Double(totalHabits)
 
-        // 计算总连续天数
-        let totalStreak = habits.reduce(0) { $0 + calculateStreak(for: $1) }
+        // 计算最佳连续记录
+        let bestStreak = habits
+            .map { calculateStreakInfo(for: $0) }
+            .max(by: { $0.value < $1.value }) ?? .zero()
 
         return HabitOverviewStats(
             todayCompleted: todayCompleted,
             totalHabits: totalHabits,
             averageCompletionRate: averageCompletionRate,
-            totalStreak: totalStreak
+            bestStreak: bestStreak
         )
     }
 
@@ -182,7 +184,7 @@ extension HabitRepository {
                 completionRate = calculateNumericCompletionRate(for: habit, in: dateRange)
             }
 
-            let streak = calculateStreak(for: habit)
+            let streak = calculateStreakInfo(for: habit)
 
             items.append(HabitRankingItem(
                 habitId: habit.id,
@@ -220,7 +222,7 @@ extension HabitRepository {
         let dateRange = range.dateRange()
 
         return habits.map { habit in
-            let streak = calculateStreak(for: habit)
+            let streak = calculateStreakInfo(for: habit)
             let completionRate: Double
             let todayValue: Double?
             let todayTarget: Double?
@@ -397,13 +399,15 @@ extension HabitRepository {
         }
 
         let averageCompletionRate = totalCompletionRate / Double(totalHabits)
-        let totalStreak = habits.reduce(0) { $0 + calculateStreak(for: $1) }
+        let bestStreak = habits
+            .map { calculateStreakInfo(for: $0) }
+            .max(by: { $0.value < $1.value }) ?? .zero()
 
         return HabitOverviewStats(
             todayCompleted: todayCompleted,
             totalHabits: totalHabits,
             averageCompletionRate: averageCompletionRate,
-            totalStreak: totalStreak
+            bestStreak: bestStreak
         )
     }
 
@@ -649,7 +653,7 @@ extension HabitRepository {
             }
         }
 
-        let streak = calculateStreak(for: habit)
+        let streak = calculateStreakInfo(for: habit)
 
         // 坏习惯：统计控制住的天数
         if habit.isBadHabit {

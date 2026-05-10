@@ -25,7 +25,7 @@ struct HabitCardView: View {
     @State private var todayValue: Double? = nil
     /// 历史最新值（用于测量类习惯，即使今日没有记录也显示）
     @State private var latestHistoricalValue: Double? = nil
-    @State private var streak: Int = 0
+    @State private var streakInfo: HabitStreak = .zero()
     @State private var showValueInput: Bool = false
     @State private var inputValue: String = ""
     /// 坏习惯超标提示文案是否可见
@@ -108,7 +108,7 @@ struct HabitCardView: View {
             let repo = HabitRepository.shared
             if habit.isCheckInType {
                 isCompleted = repo.isTodayCompleted(for: habit)
-                streak = repo.calculateStreak(for: habit)
+                streakInfo = repo.calculateStreakInfo(for: habit)
             } else {
                 todayValue = repo.getTodayValue(for: habit)
                 // 对于测量类习惯，加载历史最新值（即使今日没有记录）
@@ -148,12 +148,12 @@ struct HabitCardView: View {
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)
                 
-                // 打卡型显示连续天数（使用预加载的 @State 值）
-                if habit.isCheckInType && streak > 0 {
+                // 打卡型显示连续坚持信息（使用预加载的 @State 值）
+                if habit.isCheckInType && streakInfo.value > 0 {
                     HStack(spacing: 2) {
                         Image(systemName: "flame.fill")
                             .font(.system(size: 10))
-                        Text("\(streak)天")
+                        Text(streakInfo.displayText)
                             .font(.holoLabel)
                     }
                     .foregroundColor(.holoPrimary)

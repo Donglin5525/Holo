@@ -51,12 +51,12 @@ struct HabitAnalysisContextBuilder {
             : nil
 
         // 按习惯统计完成率
-        var habitRates: [(habit: Habit, rate: Double, streak: Int)] = []
+        var habitRates: [(habit: Habit, rate: Double, streak: HabitStreak)] = []
         for habit in checkInHabits {
             let records = repo.getRecords(for: habit, in: range)
             let completed = records.filter { $0.isCompleted }.count
             let rate = dayCount > 0 ? Double(completed) / Double(dayCount) : 0
-            let streak = repo.calculateStreak(for: habit)
+            let streak = repo.calculateStreakInfo(for: habit)
             habitRates.append((habit, rate, streak))
         }
 
@@ -65,21 +65,21 @@ struct HabitAnalysisContextBuilder {
             .filter { $0.rate > 0 }
             .sorted { $0.rate > $1.rate }
             .prefix(5)
-            .map { HabitPerformanceItem(habitName: $0.habit.name, completionRate: $0.rate, streak: $0.streak) }
+            .map { HabitPerformanceItem(habitName: $0.habit.name, completionRate: $0.rate, streak: $0.streak.value) }
 
         // 掉队习惯（完成率 < 50%）
         let struggling = habitRates
             .filter { $0.rate > 0 && $0.rate < 0.5 }
             .sorted { $0.rate < $1.rate }
             .prefix(3)
-            .map { HabitPerformanceItem(habitName: $0.habit.name, completionRate: $0.rate, streak: $0.streak) }
+            .map { HabitPerformanceItem(habitName: $0.habit.name, completionRate: $0.rate, streak: $0.streak.value) }
 
         // Streaks
         let streaks = habitRates
-            .filter { $0.streak > 0 }
-            .sorted { $0.streak > $1.streak }
+            .filter { $0.streak.value > 0 }
+            .sorted { $0.streak.value > $1.streak.value }
             .prefix(5)
-            .map { HabitStreakItem(habitName: $0.habit.name, currentStreak: $0.streak, longestStreak: $0.streak) }
+            .map { HabitStreakItem(habitName: $0.habit.name, currentStreak: $0.streak.value, longestStreak: $0.streak.value) }
 
         // 日完成趋势
         let dailyTrend = buildDailyCompletionTrend(

@@ -479,7 +479,116 @@ class HabitRepository: ObservableObject {
 
         return streak
     }
-    
+
+    /// 根据习惯频率计算连续坚持信息（打卡型）
+    /// 每日习惯：连续打卡天数
+    /// 每周习惯：连续达标周数（每周完成次数 >= 目标次数）
+    /// 每月习惯：连续达标月数（每月完成次数 >= 目标次数）
+    func calculateStreakInfo(for habit: Habit) -> HabitStreak {
+        guard habit.isCheckInType else { return .zero() }
+
+        let frequency = habit.habitFrequency
+        let target = max(habit.targetCountValue ?? 1, 1)
+
+        switch frequency {
+        case .daily:
+            let days = calculateStreak(for: habit)
+            return HabitStreak(value: days, unit: .day)
+        case .weekly:
+            let weeks = calculatePeriodicStreak(
+                for: habit, target: target,
+                periodComponent: .weekOfYear,
+                periodCount: { [weak self] habit, start, end in
+                    self?.countDistinctCompletionDays(for: habit, from: start, to: end) ?? 0
+                }
+            )
+            return HabitStreak(value: weeks, unit: .week)
+        case .monthly:
+            let months = calculatePeriodicStreak(
+                for: habit, target: target,
+                periodComponent: .month,
+                periodCount: { [weak self] habit, start, end in
+                    self?.countDistinctCompletionDays(for: habit, from: start, to: end) ?? 0
+                }
+            )
+            return HabitStreak(value: months, unit: .month)
+        }
+    }
+
+    // MARK: - 周期连续性私有方法
+
+    /// 统计时间范围内的不同打卡天数
+    private func countDistinctCompletionDays(for habit: Habit, from start: Date, to end: Date) -> Int {
+        let request = HabitRecord.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES",
+            habit.id as CVarArg,
+            start as NSDate,
+            end as NSDate
+        )
+
+        let records = (try? context.fetch(request)) ?? []
+        let calendar = Calendar.current
+        let distinctDays = Set(records.map { calendar.startOfDay(for: $0.date) })
+        return distinctDays.count
+    }
+
+    /// 通用周期连续性计算（周/月复用）
+    /// - Parameters:
+    ///   - habit: 习惯
+    ///   - target: 每周期目标次数
+    ///   - periodComponent: .weekOfYear 或 .month
+    ///   - periodCount: 计算某周期内完成次数的闭包
+    private func calculatePeriodicStreak(
+        for habit: Habit,
+        target: Int,
+        periodComponent: Calendar.Component,
+        periodCount: (Habit, Date, Date) -> Int
+    ) -> Int {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+
+        // 计算当前周期的起始日
+        let currentPeriodStart: Date
+        if periodComponent == .weekOfYear {
+            currentPeriodStart = calendar.date(from: calendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: today))!
+        } else {
+            currentPeriodStart = calendar.date(from: calendar.dateComponents([.year, .month], from: today))!
+        }
+
+        guard let currentPeriodEnd = calendar.date(byAdding: periodComponent, value: 1, to: currentPeriodStart) else {
+            return 0
+        }
+
+        // 判断当前周期是否已达标，决定起始检查周期
+        let currentCount = periodCount(habit, currentPeriodStart, currentPeriodEnd)
+        var checkPeriodStart: Date
+
+        if currentCount >= target {
+            checkPeriodStart = currentPeriodStart
+        } else {
+            guard let prevPeriod = calendar.date(byAdding: periodComponent, value: -1, to: currentPeriodStart) else {
+                return 0
+            }
+            checkPeriodStart = prevPeriod
+        }
+
+        var streak = 0
+        let maxLookback = periodComponent == .weekOfYear ? 520 : 120
+
+        for _ in 0..<maxLookback {
+            guard let periodEnd = calendar.date(byAdding: periodComponent, value: 1, to: checkPeriodStart) else { break }
+            let count = periodCount(habit, checkPeriodStart, periodEnd)
+            guard count >= target else { break }
+
+            streak += 1
+            guard let prevPeriod = calendar.date(byAdding: periodComponent, value: -1, to: checkPeriodStart) else { break }
+            checkPeriodStart = prevPeriod
+        }
+
+        return streak
+    }
+
     /// 计算周期内完成次数（打卡型）
     func calculatePeriodCompletionCount(for habit: Habit, range: HabitDateRange) -> Int {
         guard habit.isCheckInType else { return 0 }

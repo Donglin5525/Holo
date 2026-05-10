@@ -94,7 +94,7 @@ struct HabitRankingItem: Identifiable {
     let icon: String
     let color: String
     let completionRate: Double
-    let streak: Int
+    let streak: HabitStreak
     var id: UUID { habitId }
 
     var habitColor: Color {
@@ -111,7 +111,7 @@ struct HabitStatsItem: Identifiable {
     let color: String
     let typeRaw: Int16
     let aggregationTypeRaw: Int16
-    let streak: Int
+    let streak: HabitStreak
     let completionRate: Double
     let todayValue: Double?
     let todayTarget: Double?
@@ -161,7 +161,7 @@ struct HabitOverviewStats {
     let todayCompleted: Int
     let totalHabits: Int
     let averageCompletionRate: Double
-    let totalStreak: Int
+    let bestStreak: HabitStreak
 
     var todayCompletionRate: Double {
         guard totalHabits > 0 else { return 0 }
@@ -173,7 +173,7 @@ struct HabitOverviewStats {
             todayCompleted: 0,
             totalHabits: 0,
             averageCompletionRate: 0,
-            totalStreak: 0
+            bestStreak: .zero()
         )
     }
 }
@@ -215,7 +215,7 @@ struct HabitStatsMonthSection: Equatable {
 
 /// 习惯卡片摘要（按类型区分）
 enum HabitStatsCardSummary: Equatable {
-    case checkIn(completedDays: Int, streak: Int)
+    case checkIn(completedDays: Int, streak: HabitStreak)
     case count(recordedDays: Int, totalCountText: String)
     case measure(recordedDays: Int, averageValueText: String)
 }

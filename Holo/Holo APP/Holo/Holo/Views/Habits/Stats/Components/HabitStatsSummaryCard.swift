@@ -10,7 +10,7 @@ import SwiftUI
 struct HabitStatsSummaryCard: View {
     let totalHabits: Int
     let completionRate: Double
-    let bestStreak: Int
+    let bestStreak: HabitStreak
     let statusText: String
 
     var body: some View {
@@ -26,7 +26,7 @@ struct HabitStatsSummaryCard: View {
             HStack(spacing: HoloSpacing.sm) {
                 summaryPill(title: "展示中", value: "\(totalHabits)")
                 summaryPill(title: "完成率", value: "\(Int(completionRate.rounded()))%")
-                summaryPill(title: "最佳连续", value: "\(bestStreak)天")
+                summaryPill(title: "最佳连续", value: bestStreak.displayText)
             }
         }
         .padding(HoloSpacing.md)
@@ -54,7 +54,7 @@ struct HabitStatsSummaryCard: View {
     HabitStatsSummaryCard(
         totalHabits: 5,
         completionRate: 78,
-        bestStreak: 12,
+        bestStreak: HabitStreak(value: 12, unit: .day),
         statusText: "78% 保持节奏"
     )
     .padding()

@@ -89,7 +89,7 @@ struct HabitStatsCardView: View {
                 typeTag
 
                 // 连续天数
-                if item.streak > 0 {
+                if item.streak.value > 0 {
                     streakBadge
                 }
             }
@@ -121,7 +121,7 @@ struct HabitStatsCardView: View {
                 .font(.system(size: 10))
                 .foregroundColor(.holoPrimary)
 
-            Text("\(item.streak)")
+            Text(item.streak.displayText)
                 .font(.holoLabel)
                 .foregroundColor(.holoPrimary)
         }

@@ -53,19 +53,20 @@ struct MilestoneDetector {
         guard let habits = try? context.fetch(habitRequest) else { return results }
 
         for habit in habits {
-            let streak = HabitRepository.shared.calculateStreak(for: habit)
-            let matchedThresholds = streakDaysThresholds.filter { streak >= $0 }
+            let streakInfo = HabitRepository.shared.calculateStreakInfo(for: habit)
+            let streakDays = streakInfo.value * habit.habitFrequency.periodDays
+            let matchedThresholds = streakDaysThresholds.filter { streakDays >= $0 }
 
             for threshold in matchedThresholds {
                 let milestone = MilestoneData(
                     title: "坚持\(habit.name) \(threshold) 天",
-                    description: "已连续 \(streak) 天不间断",
+                    description: "已连续 \(streakInfo.displayText)不间断",
                     icon: "flame.fill",
                     milestoneType: .streakDays
                 )
 
-                // 达成日期 = 达到阈值的第 N 天（反推：今天往前推 streak - threshold 天）
-                let daysAgo = streak - threshold
+                // 达成日期 = 达到阈值的第 N 天（反推：今天往前推 streakDays - threshold 天）
+                let daysAgo = streakDays - threshold
                 let achievementDate = calendar.date(byAdding: .day, value: -daysAgo, to: today)!
                 results.append((date: achievementDate, data: milestone))
             }
@@ -126,15 +127,16 @@ struct MilestoneDetector {
         guard let habits = try? context.fetch(habitRequest) else { return results }
 
         for habit in habits {
-            let streak = HabitRepository.shared.calculateStreak(for: habit)
-            guard streak >= habitMasteryThreshold, streak < 365 else { continue }
+            let streakInfo = HabitRepository.shared.calculateStreakInfo(for: habit)
+            let streakDays = streakInfo.value * habit.habitFrequency.periodDays
+            guard streakDays >= habitMasteryThreshold, streakDays < 365 else { continue }
 
-            let daysAgo = streak - habitMasteryThreshold
+            let daysAgo = streakDays - habitMasteryThreshold
             let achievementDate = calendar.date(byAdding: .day, value: -daysAgo, to: today)!
 
             let milestone = MilestoneData(
                 title: "掌握习惯「\(habit.name)」",
-                description: "连续完成 \(streak) 天，习惯已融入生活",
+                description: "连续完成 \(streakInfo.displayText)，习惯已融入生活",
                 icon: "star.fill",
                 milestoneType: .habitMastery
             )

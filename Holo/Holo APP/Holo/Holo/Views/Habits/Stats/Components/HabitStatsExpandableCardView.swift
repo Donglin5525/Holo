@@ -99,7 +99,7 @@ struct HabitStatsExpandableCardView: View {
     private var summaryDescription: String {
         switch item.summary {
         case .checkIn(let completedDays, let streak):
-            return "完成\(completedDays)天 · 连续\(streak)天"
+            return "完成\(completedDays)天 · 连续\(streak.displayText)"
         case .count(let recordedDays, let totalCountText):
             return "完成\(recordedDays)天 · 累计\(totalCountText)"
         case .measure(let recordedDays, _):
@@ -136,7 +136,7 @@ struct HabitStatsExpandableCardView: View {
             switch item.summary {
             case .checkIn(let completedDays, let streak):
                 expandedStat(label: "完成天数", value: "\(completedDays)")
-                expandedStat(label: "连续天数", value: "\(streak)")
+                expandedStat(label: "连续\(streak.unit.rawValue)", value: "\(streak.value)")
             case .count(let recordedDays, let totalCountText):
                 expandedStat(label: "完成天数", value: "\(recordedDays)")
                 expandedStat(label: "累计", value: totalCountText)

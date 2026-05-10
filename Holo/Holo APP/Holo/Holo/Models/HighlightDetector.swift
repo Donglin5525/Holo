@@ -80,8 +80,8 @@ struct HighlightDetector {
         guard let habits = try? context.fetch(habitRequest) else { return results }
 
         for habit in habits {
-            let streak = HabitRepository.shared.calculateStreak(for: habit)
-            guard streakThresholds.contains(streak) else { continue }
+            let streakInfo = HabitRepository.shared.calculateStreakInfo(for: habit)
+            guard streakThresholds.contains(streakInfo.value) else { continue }
 
             // 成就日期 = streak 中最新一天（今天或昨天）
             let achievementDate: Date
@@ -96,7 +96,7 @@ struct HighlightDetector {
 
             let highlight = HighlightData(
                 category: .streakAchievement,
-                title: "连续\(habit.name) \(streak)天",
+                title: "连续\(habit.name) \(streakInfo.displayText)",
                 subtitle: "继续保持！",
                 icon: "flame.fill",
                 sourceModule: .habitRecord

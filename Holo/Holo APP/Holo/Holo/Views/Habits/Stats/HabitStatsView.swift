@@ -32,7 +32,7 @@ struct HabitStatsView: View {
                         HabitStatsSummaryCard(
                             totalHabits: state.summaryStats.totalHabits,
                             completionRate: state.summaryStats.averageCompletionRate,
-                            bestStreak: state.summaryStats.totalStreak,
+                            bestStreak: state.summaryStats.bestStreak,
                             statusText: summaryStatusText
                         )
                     }
