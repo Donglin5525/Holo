@@ -121,6 +121,20 @@ final class MemoryInsightScheduleSettings: ObservableObject {
         self.monthlyReminderHour = defaults.object(forKey: Keys.monthlyReminderHour) as? Int ?? 9
         self.backgroundAutoGenerationEnabled = defaults.object(forKey: Keys.backgroundAutoGenerationEnabled) as? Bool ?? false
         self.dailyAutoGenerationEnabled = defaults.object(forKey: Keys.dailyAutoGenerationEnabled) as? Bool ?? false
+
+        // init 中 didSet 不触发，需手动恢复已开启的通知
+        restoreScheduledNotifications()
+    }
+
+    /// App 启动时恢复已开启的通知调度
+    /// UserDefaults 恢复了开关状态但 init 中 didSet 不触发，iOS 可能在 App 更新/重启后清除已注册通知
+    private func restoreScheduledNotifications() {
+        if weeklyReminderEnabled {
+            scheduleWeeklyReminder()
+        }
+        if monthlyReminderEnabled {
+            scheduleMonthlyReminder()
+        }
     }
 
     // MARK: - Scheduling
