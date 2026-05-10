@@ -736,6 +736,43 @@ final class ChatMessageRepository: ObservableObject {
         }
     }
 
+    // MARK: - Orphan Cleanup
+
+    /// 清理所有残留的 isStreaming 消息（app 启动 / 页面进入时调用）
+    /// 这些消息一定是异常残留：app 在 streaming 期间被杀或崩溃
+    func cleanupOrphanedStreamingMessages() {
+        let request = ChatMessage.fetchRequest()
+        request.predicate = NSPredicate(format: "isStreaming == YES")
+
+        do {
+            let orphans = try context.fetch(request)
+            guard !orphans.isEmpty else { return }
+
+            for message in orphans {
+                message.isStreaming = false
+                if message.content.isEmpty {
+                    message.content = "抱歉，处理时意外中断了"
+                }
+            }
+            save()
+
+            // 同步刷新内存中的 snapshot
+            for orphan in orphans {
+                liveMessageCache[orphan.id] = orphan
+                updateSnapshot(orphan.id) { snapshot in
+                    snapshot.isStreaming = false
+                    if snapshot.content.isEmpty {
+                        snapshot.content = "抱歉，处理时意外中断了"
+                    }
+                }
+            }
+
+            logger.info("已清理 \(orphans.count) 条残留 streaming 消息")
+        } catch {
+            logger.error("清理残留 streaming 消息失败：\(error.localizedDescription)")
+        }
+    }
+
     // MARK: - Private
 
     private func updateSnapshot(_ messageId: UUID, mutate: (inout ChatMessageViewData) -> Void) {

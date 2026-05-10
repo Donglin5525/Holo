@@ -54,6 +54,16 @@ final class APIClient {
                     continue
                 }
                 throw error
+            } catch let urlError as URLError where urlError.code == .timedOut {
+                let apiError = APIError.timeout
+                lastError = apiError
+                if attempt < maxRetries {
+                    let delay = pow(2.0, Double(attempt))
+                    logger.warning("请求超时，\(delay)秒后重试（第\(attempt + 1)次）")
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    continue
+                }
+                throw apiError
             } catch {
                 throw error
             }
@@ -64,38 +74,70 @@ final class APIClient {
 
     // MARK: - SSE 流式请求
 
-    /// 发送 SSE 流式请求
+    /// 发送 SSE 流式请求，支持超时重试
     /// 网络请求和 SSE 解码在后台 Task 中执行，只将解码后的纯字符串通过 AsyncThrowingStream 传递
     func sendStreaming(_ request: APIRequest) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             Task {
-                do {
-                    let urlRequest = try request.toURLRequest()
+                var lastError: Error?
 
-                    logger.debug("SSE 流式请求: \(request.baseURL)\(request.path)")
+                for attempt in 0...maxRetries {
+                    do {
+                        let urlRequest = try request.toURLRequest()
 
-                    let (bytes, response) = try await urlSession.bytes(for: urlRequest)
-
-                    try validateHTTPResponse(response, data: nil)
-
-                    var parser = SSEParser()
-
-                    for try await line in bytes.lines {
-                        if Task.isCancelled { break }
-
-                        if let content = parser.parse(line) {
-                            continuation.yield(content)
+                        if attempt > 0 {
+                            logger.debug("SSE 流式重试（第\(attempt)次）: \(request.baseURL)\(request.path)")
+                        } else {
+                            logger.debug("SSE 流式请求: \(request.baseURL)\(request.path)")
                         }
-                    }
 
-                    continuation.finish()
-                } catch let error as APIError {
-                    continuation.finish(throwing: error)
-                } catch is CancellationError {
-                    continuation.finish()
-                } catch {
-                    continuation.finish(throwing: APIError.networkUnavailable)
+                        let (bytes, response) = try await urlSession.bytes(for: urlRequest)
+
+                        try validateHTTPResponse(response, data: nil)
+
+                        var parser = SSEParser()
+
+                        for try await line in bytes.lines {
+                            if Task.isCancelled { break }
+
+                            if let content = parser.parse(line) {
+                                continuation.yield(content)
+                            }
+                        }
+
+                        continuation.finish()
+                        return
+                    } catch let error as APIError {
+                        lastError = error
+                        if error.isRetryable && attempt < maxRetries {
+                            let delay = pow(2.0, Double(attempt))
+                            logger.warning("SSE 流式失败，\(delay)秒后重试（第\(attempt + 1)次）：\(error.errorDescription ?? "")")
+                            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                            continue
+                        }
+                        continuation.finish(throwing: error)
+                        return
+                    } catch is CancellationError {
+                        continuation.finish()
+                        return
+                    } catch let urlError as URLError where urlError.code == .timedOut {
+                        let apiError = APIError.timeout
+                        lastError = apiError
+                        if attempt < maxRetries {
+                            let delay = pow(2.0, Double(attempt))
+                            logger.warning("SSE 流式超时，\(delay)秒后重试（第\(attempt + 1)次）")
+                            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                            continue
+                        }
+                        continuation.finish(throwing: apiError)
+                        return
+                    } catch {
+                        continuation.finish(throwing: APIError.networkUnavailable)
+                        return
+                    }
                 }
+
+                continuation.finish(throwing: lastError ?? APIError.serverError("未知错误"))
             }
         }
     }

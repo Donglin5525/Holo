@@ -204,6 +204,11 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         return intent == .queryAnalysis
     }
 
+    /// 是否为错误消息（AI 处理失败、超时、watchdog 中断等）
+    var isError: Bool {
+        content.hasPrefix("抱歉，处理时出错了") || content.hasSuffix("处理中断") || content.hasSuffix("响应超时")
+    }
+
     // 旧路径兜底：从 extractedDataJSON 解析（新项通常为 nil）
     private var linkedTransactionId: UUID? {
         guard let idStr = extractedDataDictionary?["transactionId"] else {

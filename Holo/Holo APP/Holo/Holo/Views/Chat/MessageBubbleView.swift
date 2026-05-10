@@ -16,6 +16,7 @@ struct MessageBubbleView: View {
     var onCardTap: ((ChatMessageViewData, ChatCardData) -> Void)? = nil
     var onViewLog: ((ChatMessageViewData) -> Void)? = nil
     var onCompactAnalysisTap: (() -> Void)? = nil
+    var onRetry: (() -> Void)? = nil
 
     private var displayText: String {
         streamingText ?? message.content
@@ -166,6 +167,38 @@ struct MessageBubbleView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
             .background(bubbleBackground)
+            .clipShape(BubbleShape(isUser: isUser))
+        } else if message.isError {
+            // 错误消息：红色边框 + 重试按钮
+            VStack(alignment: .leading, spacing: 8) {
+                StreamingTextView(
+                    text: displayText,
+                    isStreaming: false
+                )
+
+                Button {
+                    onRetry?()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 12, weight: .medium))
+                        Text("重新发送")
+                            .font(.system(size: 13, weight: .medium))
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(Color.red.opacity(0.8))
+                    .cornerRadius(8)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .background(bubbleBackground)
+            .overlay(
+                RoundedRectangle(cornerRadius: 16)
+                    .stroke(Color.red.opacity(0.3), lineWidth: 1)
+            )
             .clipShape(BubbleShape(isUser: isUser))
         } else {
             StreamingTextView(

@@ -41,6 +41,7 @@ final class ChatViewModel: ObservableObject {
     private var metadataLoadPendingIds: Set<UUID> = []
     private var metadataLoadTask: Task<Void, Never>?
     private var cancellables = Set<AnyCancellable>()
+    private var streamingWatchdogTask: Task<Void, Never>?
 
     // MARK: - Init
 
@@ -115,6 +116,7 @@ final class ChatViewModel: ObservableObject {
             guard let self = self else { return }
             let repo = ChatMessageRepository.shared
             self.bindRepository(repo)
+            repo.cleanupOrphanedStreamingMessages()
             try? await Task.sleep(nanoseconds: 250_000_000)
             await repo.loadCurrentSessionLightweightMessagesAsync(limit: self.initialHistoryLimit)
             self.hasLoadedMessages = true
@@ -198,6 +200,8 @@ final class ChatViewModel: ObservableObject {
         // 3. 处理用户输入
         isStreaming = true
         streamingText = ""
+
+        startStreamingWatchdog(aiMessageId: aiMessageId)
 
         currentTask = Task { [weak self] in
             guard let self = self else { return }
@@ -310,12 +314,23 @@ final class ChatViewModel: ObservableObject {
             } catch {
                 self.logger.error("AI 处理失败：\(error.localizedDescription)")
                 self.errorMessage = error.localizedDescription
-                let errorText = "抱歉，处理时出错了：\(error.localizedDescription)"
-                self.chatRepo?.finishStreaming(aiMessageId, finalContent: errorText)
+
+                // 保留已接收的部分内容，追加错误提示而非完全覆盖
+                let partialContent = self.streamingText
+                let finalContent: String
+                if partialContent.isEmpty {
+                    finalContent = "抱歉，处理时出错了：\(error.localizedDescription)"
+                } else {
+                    finalContent = partialContent + "\n\n---\n⚠️ 处理中断：\(error.localizedDescription)"
+                }
+
+                self.chatRepo?.finishStreaming(aiMessageId, finalContent: finalContent)
             }
 
             self.isStreaming = false
             self.streamingText = ""
+            self.streamingWatchdogTask?.cancel()
+            self.streamingWatchdogTask = nil
         }
     }
 
@@ -324,6 +339,53 @@ final class ChatViewModel: ObservableObject {
     func cancelStreaming() {
         currentTask?.cancel()
         currentTask = nil
+        streamingWatchdogTask?.cancel()
+        streamingWatchdogTask = nil
+    }
+
+    // MARK: - Retry
+
+    /// 重试发送：找到该错误消息对应的用户消息，重新发送
+    func retryMessage(_ errorMessage: ChatMessageViewData) async {
+        guard let parentId = errorMessage.parentMessageId,
+              let userMessage = messages.first(where: { $0.id == parentId }) else { return }
+
+        // 删除旧的错误消息
+        chatRepo?.deleteMessage(errorMessage.id)
+
+        // 用原始用户消息重新发送
+        inputText = userMessage.content
+        await sendMessage()
+    }
+
+    // MARK: - Streaming Watchdog
+
+    /// 90 秒超时守护：如果 streaming 未在预期时间内完成，强制终止并恢复 UI
+    private func startStreamingWatchdog(aiMessageId: UUID) {
+        streamingWatchdogTask?.cancel()
+        streamingWatchdogTask = Task { [weak self] in
+            guard let self = self else { return }
+            try? await Task.sleep(nanoseconds: 90_000_000_000) // 90s
+            guard !Task.isCancelled else { return }
+
+            self.logger.error("Streaming watchdog 触发：90 秒超时，强制终止")
+
+            self.currentTask?.cancel()
+            self.currentTask = nil
+
+            let partialContent = self.streamingText
+            let finalContent: String
+            if partialContent.isEmpty {
+                finalContent = "抱歉，AI 响应超时了，请稍后重试"
+            } else {
+                finalContent = partialContent + "\n\n---\n⚠️ AI 响应超时，以上为已接收的部分内容"
+            }
+
+            self.chatRepo?.finishStreaming(aiMessageId, finalContent: finalContent)
+            self.isStreaming = false
+            self.streamingText = ""
+            self.errorMessage = "AI 响应超时"
+        }
     }
 
     // MARK: - Helpers

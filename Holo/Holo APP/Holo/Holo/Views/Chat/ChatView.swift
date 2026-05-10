@@ -201,6 +201,9 @@ struct ChatView: View {
                                 guard message.metadataState == .loaded,
                                       message.analysisContext != nil else { return }
                                 selectedAnalysisMessage = message
+                            },
+                            onRetry: {
+                                Task { await viewModel.retryMessage(message) }
                             }
                         )
                         .id(message.id)
