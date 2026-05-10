@@ -4,6 +4,26 @@
 
 ---
 
+## [2026-05-11] HoloAI 超时兜底机制 — 防止对话永久卡死
+
+### 修复
+- URLError.timedOut 在 streaming 路径被错误映射为 networkUnavailable，绕过了重试逻辑
+- sendStreaming() 无重试机制，超时直接失败
+- 超时/错误时已接收的流式内容被完全丢弃
+- Core Data 中 isStreaming=true 持久化，app 崩溃后重进对话永久卡在 loading
+- ViewModel isStreaming 无 watchdog 守护，异常后 UI 锁死
+
+### 新增
+- APIClient: URLError.timedOut → APIError.timeout 正确映射（send + sendStreaming 双路径）
+- APIClient: sendStreaming 增加最多 2 次指数退避重试（与 send 一致）
+- ChatMessageRepository.cleanupOrphanedStreamingMessages: 启动时清理残留 streaming 消息
+- ChatViewModel: 90s streaming watchdog，超时自动取消、保存部分内容、恢复 UI
+- ChatViewModel.retryMessage: 错误消息支持基于原始用户消息重新发送
+- MessageBubbleView: 错误消息显示红色边框 + 重新发送按钮
+- ChatMessageViewData.isError: 错误消息检测计算属性
+
+---
+
 ## [2026-05-10] HoloAI 交易卡片编辑后科目同步
 
 ### 修复
