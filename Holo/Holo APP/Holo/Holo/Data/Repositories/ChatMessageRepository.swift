@@ -554,6 +554,82 @@ final class ChatMessageRepository: ObservableObject {
         }
     }
 
+    // MARK: - Transaction Card Refresh
+
+    /// 刷新交易卡片显示数据（用户编辑交易后调用）
+    /// 同步 Core Data 中的 executionBatchJSON + extractedDataJSON，并刷新内存快照
+    func refreshTransactionCard(transactionId: UUID) {
+        // 1. 找到关联此交易的消息
+        guard let messageIndex = messages.firstIndex(where: { msg in
+            msg.resolveLinkedEntityId(for: .finance) == transactionId
+        }) else { return }
+
+        let messageId = messages[messageIndex].id
+
+        // 2. 获取更新后的交易
+        guard let transaction = FinanceRepository.shared.findTransaction(by: transactionId) else { return }
+        let category = transaction.category
+
+        let (primaryCategory, subCategory) = FinanceRepository.shared.resolveCategoryNames(from: category)
+
+        // 3. 从 Core Data 读取 ChatMessage
+        let request = ChatMessage.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", messageId as CVarArg)
+        request.fetchLimit = 1
+        guard let message = try? context.fetch(request).first else { return }
+
+        var updatedBatch: AIExecutionBatch?
+        var updatedExtractedJSON: String?
+
+        // 4. 更新 executionBatchJSON（新路径）
+        if let batchJSON = message.executionBatchJSON,
+           let batchData = batchJSON.data(using: .utf8),
+           let batch = try? JSONDecoder().decode(AIExecutionBatch.self, from: batchData) {
+            let txIdStr = transactionId.uuidString
+            let newItems = batch.items.map { item in
+                guard item.linkedEntityId == txIdStr else { return item }
+                var rd = item.renderData ?? [:]
+                rd["primaryCategory"] = primaryCategory
+                if let sub = subCategory { rd["subCategory"] = sub } else { rd.removeValue(forKey: "subCategory") }
+                if let note = transaction.note, !note.isEmpty { rd["note"] = note } else { rd.removeValue(forKey: "note") }
+                return AIExecutionItem(
+                    id: item.id, parseItemId: item.parseItemId, intent: item.intent,
+                    status: item.status, summaryText: item.summaryText, renderData: rd,
+                    linkedEntityType: item.linkedEntityType, linkedEntityId: item.linkedEntityId,
+                    errorText: item.errorText
+                )
+            }
+            let newBatch = AIExecutionBatch(mode: batch.mode, items: newItems, finalText: batch.finalText)
+            updatedBatch = newBatch
+            if let data = try? JSONEncoder().encode(newBatch),
+               let str = String(data: data, encoding: .utf8) {
+                message.executionBatchJSON = str
+            }
+        }
+
+        // 5. 更新 extractedDataJSON（旧路径兜底）
+        if let json = message.extractedDataJSON,
+           let data = json.data(using: .utf8),
+           var dict = try? JSONDecoder().decode([String: String].self, from: data) {
+            dict["primaryCategory"] = primaryCategory
+            if let sub = subCategory { dict["subCategory"] = sub } else { dict.removeValue(forKey: "subCategory") }
+            if let note = transaction.note, !note.isEmpty { dict["note"] = note } else { dict.removeValue(forKey: "note") }
+            if let data = try? JSONEncoder().encode(dict),
+               let str = String(data: data, encoding: .utf8) {
+                message.extractedDataJSON = str
+                updatedExtractedJSON = str
+            }
+        }
+
+        save()
+
+        // 6. 单次 snapshot 更新
+        updateSnapshot(messageId) { snapshot in
+            if let batch = updatedBatch { snapshot.executionBatch = batch }
+            if let json = updatedExtractedJSON { snapshot.extractedDataJSON = json }
+        }
+    }
+
     // MARK: - Delete
 
     /// 删除单条消息

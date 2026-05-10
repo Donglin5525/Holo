@@ -4,6 +4,16 @@
 
 ---
 
+## [2026-05-10] HoloAI 交易卡片编辑后科目同步
+
+### 修复
+- 用户在 HoloAI 中编辑交易科目后返回，卡片仍显示旧科目的问题
+- 根因：卡片数据来自 ChatMessage 的冻结 JSON 快照，编辑 Transaction 后未同步回 ChatMessage
+- 新增 ChatMessageRepository.refreshTransactionCard 方法，onSave 时同步 executionBatchJSON + extractedDataJSON 并刷新内存快照
+- 新增 FinanceRepository.findCategory / resolveCategoryNames 支持分类层级解析
+
+---
+
 ## [2026-05-10] HoloAI 分析查询卡片化 + loading 状态 + 历史消息零闪烁
 
 ### 新增

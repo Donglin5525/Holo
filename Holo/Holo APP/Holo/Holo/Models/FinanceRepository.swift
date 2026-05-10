@@ -102,6 +102,23 @@ class FinanceRepository {
         return try? context.fetch(request).first
     }
 
+    /// 根据 ID 查找分类
+    func findCategory(by id: UUID) -> Category? {
+        let request = Category.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        request.fetchLimit = 1
+        return try? context.fetch(request).first
+    }
+
+    /// 解析分类层级名称（一级/二级）
+    func resolveCategoryNames(from category: Category) -> (primary: String, sub: String?) {
+        if let parentId = category.parentId,
+           let parent = findCategory(by: parentId) {
+            return (parent.name, category.name)
+        }
+        return (category.name, nil)
+    }
+
     func getAllTransactions() async throws -> [Transaction] {
         let request = Transaction.fetchRequest()
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]

@@ -47,7 +47,9 @@ struct ChatView: View {
             }
         }
         .sheet(item: $editingTransaction) { transaction in
-            AddTransactionSheet(editingTransaction: transaction) {}
+            AddTransactionSheet(editingTransaction: transaction) {
+                ChatMessageRepository.shared.refreshTransactionCard(transactionId: transaction.id)
+            }
         }
         .task {
             await viewModel.setup()
