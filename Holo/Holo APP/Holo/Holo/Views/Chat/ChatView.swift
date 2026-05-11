@@ -12,11 +12,10 @@ struct ChatView: View {
 
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel = ChatViewModel()
-    @State private var showAISettings = false
-    @State private var editingTransaction: Transaction?
+    @State private var activeSheet: ChatSheet?
     @State private var viewingLogMessage: ChatMessageViewData?
     @State private var didInitialScrollToBottom = false
-    @State private var selectedAnalysisMessage: ChatMessageViewData?
+    @State private var pendingVoiceTranscriptToSend: String?
 
     /// 外部传入的预填文本（如从记忆长廊"继续问AI"跳转）
     var prefillText: String? = nil
@@ -41,15 +40,8 @@ struct ChatView: View {
         .swipeBackToDismiss {
             dismiss()
         }
-        .sheet(isPresented: $showAISettings) {
-            NavigationStack {
-                AISettingsView()
-            }
-        }
-        .sheet(item: $editingTransaction) { transaction in
-            AddTransactionSheet(editingTransaction: transaction) {
-                ChatMessageRepository.shared.refreshTransactionCard(transactionId: transaction.id)
-            }
+        .sheet(item: $activeSheet, onDismiss: handleSheetDismiss) { sheet in
+            sheetContent(sheet)
         }
         .task {
             await viewModel.setup()
@@ -61,9 +53,6 @@ struct ChatView: View {
             if let log = message.rawLog {
                 ChatLogView(log: log)
             }
-        }
-        .sheet(item: $selectedAnalysisMessage) { msg in
-            AnalysisDetailSheet(message: msg)
         }
     }
 
@@ -91,7 +80,7 @@ struct ChatView: View {
             Spacer()
 
             Button {
-                showAISettings = true
+                activeSheet = .aiSettings
             } label: {
                 Image(systemName: "gearshape")
                     .font(.system(size: 16, weight: .medium))
@@ -124,7 +113,7 @@ struct ChatView: View {
                 .multilineTextAlignment(.center)
 
             Button {
-                showAISettings = true
+                activeSheet = .aiSettings
             } label: {
                 Text("配置 AI 服务")
                     .font(.system(size: 16, weight: .bold))
@@ -155,7 +144,12 @@ struct ChatView: View {
             QuickActionBar(viewModel: viewModel)
 
             // 输入栏
-            ChatInputView(viewModel: viewModel)
+            ChatInputView(
+                viewModel: viewModel,
+                onVoiceInputTap: {
+                    activeSheet = .voiceInput
+                }
+            )
         }
     }
 
@@ -200,7 +194,7 @@ struct ChatView: View {
                             onCompactAnalysisTap: {
                                 guard message.metadataState == .loaded,
                                       message.analysisContext != nil else { return }
-                                selectedAnalysisMessage = message
+                                activeSheet = .analysisDetail(message)
                             },
                             onRetry: {
                                 Task { await viewModel.retryMessage(message) }
@@ -292,7 +286,7 @@ struct ChatView: View {
     private func openTransactionDetail(_ message: ChatMessageViewData) {
         guard let transactionId = message.resolveLinkedEntityId(for: .finance) else { return }
         let transaction = FinanceRepository.shared.findTransaction(by: transactionId)
-        editingTransaction = transaction
+        activeSheet = transaction.map { .editTransaction($0) }
     }
 
     // MARK: - Intent Tag Navigation
@@ -300,7 +294,7 @@ struct ChatView: View {
     private func handleIntentTagTap(_ message: ChatMessageViewData) {
         if let transactionId = message.resolveLinkedEntityId(for: .finance) {
             let transaction = FinanceRepository.shared.findTransaction(by: transactionId)
-            editingTransaction = transaction
+            activeSheet = transaction.map { .editTransaction($0) }
         } else if let taskId = message.resolveLinkedEntityId(for: .task) {
             DeepLinkState.shared.pendingTarget = .taskDetail(taskId: taskId)
             dismiss()
@@ -317,7 +311,7 @@ struct ChatView: View {
         case .transaction:
             if let transactionId = message.resolveLinkedEntityId(for: .finance) {
                 let transaction = FinanceRepository.shared.findTransaction(by: transactionId)
-                editingTransaction = transaction
+                activeSheet = transaction.map { .editTransaction($0) }
             }
         case .task:
             if let taskId = message.resolveLinkedEntityId(for: .task) {
@@ -328,6 +322,60 @@ struct ChatView: View {
             break
         case .analysisSummary, .analysisTrend, .analysisBreakdown, .analysisComparison, .analysisHighlights:
             break
+        }
+    }
+
+    @ViewBuilder
+    private func sheetContent(_ sheet: ChatSheet) -> some View {
+        switch sheet {
+        case .aiSettings:
+            NavigationStack {
+                AISettingsView()
+            }
+        case .editTransaction(let transaction):
+            AddTransactionSheet(editingTransaction: transaction) {
+                ChatMessageRepository.shared.refreshTransactionCard(transactionId: transaction.id)
+            }
+        case .analysisDetail(let message):
+            AnalysisDetailSheet(message: message)
+        case .voiceInput:
+            VoiceInputSheet(speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider()) { transcript in
+                pendingVoiceTranscriptToSend = transcript
+                activeSheet = nil
+            }
+        }
+    }
+
+    private func handleSheetDismiss() {
+        guard let transcript = pendingVoiceTranscriptToSend?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+            !transcript.isEmpty else {
+            pendingVoiceTranscriptToSend = nil
+            return
+        }
+
+        pendingVoiceTranscriptToSend = nil
+        viewModel.inputText = transcript
+        Task { await viewModel.sendMessage() }
+    }
+}
+
+private enum ChatSheet: Identifiable {
+    case aiSettings
+    case editTransaction(Transaction)
+    case analysisDetail(ChatMessageViewData)
+    case voiceInput
+
+    var id: String {
+        switch self {
+        case .aiSettings:
+            return "aiSettings"
+        case .editTransaction(let transaction):
+            return "editTransaction-\(transaction.id)"
+        case .analysisDetail(let message):
+            return "analysisDetail-\(message.id)"
+        case .voiceInput:
+            return "voiceInput"
         }
     }
 }

@@ -25,6 +25,7 @@ struct SettingsView: View {
     @ObservedObject private var insightSettings = MemoryInsightScheduleSettings.shared
     @AppStorage("userName") private var userName: String = "东林"
     @State private var showAISettings = false
+    @State private var showVoiceRecognitionSettings = false
     @State private var showHoloOneSettings = false
     @State private var showNameEditor = false
     @State private var showProfileEditor = false
@@ -371,6 +372,20 @@ struct SettingsView: View {
             .sheet(isPresented: $showAISettings) {
                 NavigationStack {
                     AISettingsView()
+                }
+            }
+
+            settingsRow(
+                icon: "waveform.circle",
+                iconColor: .holoInfo,
+                title: "语音识别",
+                subtitle: KeychainService.hasCachedVoiceRecognitionConfig ? "已配置" : "配置阿里云百炼 Qwen-ASR"
+            ) {
+                showVoiceRecognitionSettings = true
+            }
+            .sheet(isPresented: $showVoiceRecognitionSettings) {
+                NavigationStack {
+                    VoiceRecognitionSettingsView()
                 }
             }
 

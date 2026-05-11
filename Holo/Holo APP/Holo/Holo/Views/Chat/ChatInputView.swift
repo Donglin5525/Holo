@@ -11,6 +11,15 @@ import SwiftUI
 struct ChatInputView: View {
 
     @ObservedObject var viewModel: ChatViewModel
+    let onVoiceInputTap: () -> Void
+
+    init(
+        viewModel: ChatViewModel,
+        onVoiceInputTap: @escaping () -> Void = {}
+    ) {
+        self.viewModel = viewModel
+        self.onVoiceInputTap = onVoiceInputTap
+    }
 
     var body: some View {
         HStack(alignment: .bottom, spacing: 12) {
@@ -26,6 +35,16 @@ struct ChatInputView: View {
                 .onSubmit {
                     Task { await viewModel.sendMessage() }
                 }
+
+            Button {
+                onVoiceInputTap()
+            } label: {
+                Image(systemName: "mic.circle.fill")
+                    .font(.system(size: 28))
+                    .foregroundColor(voiceButtonColor)
+            }
+            .disabled(viewModel.isStreaming)
+            .accessibilityLabel("语音输入")
 
             // 发送/停止按钮
             if viewModel.isStreaming {
@@ -54,5 +73,9 @@ struct ChatInputView: View {
 
     private var sendButtonColor: Color {
         return viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .gray : .holoPrimary
+    }
+
+    private var voiceButtonColor: Color {
+        viewModel.isStreaming ? .gray : .holoTextSecondary
     }
 }

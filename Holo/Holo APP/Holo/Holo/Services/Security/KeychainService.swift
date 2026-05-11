@@ -78,8 +78,10 @@ final class KeychainService {
 
     // MARK: - AI Config 便捷方法
 
-    private static let aiConfigKey = "com.holo.ai.config"
-    private static let aiConfigPresenceKey = "com.holo.ai.configured"
+    nonisolated private static let aiConfigKey = "com.holo.ai.config"
+    nonisolated private static let aiConfigPresenceKey = "com.holo.ai.configured"
+    nonisolated private static let voiceRecognitionConfigKey = "com.holo.voice.recognition.config"
+    nonisolated private static let voiceRecognitionConfigPresenceKey = "com.holo.voice.recognition.configured"
 
     nonisolated static var hasCachedAIConfig: Bool {
         UserDefaults.standard.bool(forKey: aiConfigPresenceKey)
@@ -87,6 +89,14 @@ final class KeychainService {
 
     nonisolated static func updateCachedAIConfigPresence(_ configured: Bool) {
         UserDefaults.standard.set(configured, forKey: aiConfigPresenceKey)
+    }
+
+    nonisolated static var hasCachedVoiceRecognitionConfig: Bool {
+        UserDefaults.standard.bool(forKey: voiceRecognitionConfigPresenceKey)
+    }
+
+    nonisolated static func updateCachedVoiceRecognitionConfigPresence(_ configured: Bool) {
+        UserDefaults.standard.set(configured, forKey: voiceRecognitionConfigPresenceKey)
     }
 
     func saveAIConfig(_ config: AIProviderConfig) throws {
@@ -177,6 +187,68 @@ final class KeychainService {
         }
 
         updateCachedAIConfigPresence(false)
+    }
+
+    // MARK: - Voice Recognition Config
+
+    nonisolated static func loadVoiceRecognitionConfigOffMain() throws -> VoiceRecognitionConfig? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: voiceRecognitionConfigKey,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+
+        switch status {
+        case errSecSuccess:
+            guard let data = result as? Data else { return nil }
+            return try JSONDecoder().decode(VoiceRecognitionConfig.self, from: data)
+        case errSecItemNotFound:
+            return nil
+        default:
+            throw KeychainError.loadFailed(status)
+        }
+    }
+
+    nonisolated static func saveVoiceRecognitionConfigOffMain(_ config: VoiceRecognitionConfig) throws {
+        let data = try JSONEncoder().encode(config)
+
+        let deleteQuery: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: voiceRecognitionConfigKey
+        ]
+        SecItemDelete(deleteQuery as CFDictionary)
+
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: voiceRecognitionConfigKey,
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+        ]
+
+        let status = SecItemAdd(query as CFDictionary, nil)
+        guard status == errSecSuccess else {
+            throw KeychainError.saveFailed(status)
+        }
+
+        updateCachedVoiceRecognitionConfigPresence(config.isConfigured)
+    }
+
+    nonisolated static func deleteVoiceRecognitionConfigOffMain() throws {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrAccount as String: voiceRecognitionConfigKey
+        ]
+
+        let status = SecItemDelete(query as CFDictionary)
+        guard status == errSecSuccess || status == errSecItemNotFound else {
+            throw KeychainError.deleteFailed(status)
+        }
+
+        updateCachedVoiceRecognitionConfigPresence(false)
     }
 }
 
