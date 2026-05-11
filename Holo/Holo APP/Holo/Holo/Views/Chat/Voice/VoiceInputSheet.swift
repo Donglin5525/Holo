@@ -13,11 +13,15 @@ struct VoiceInputSheet: View {
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var viewModel: VoiceInputViewModel
 
+    let readySubtitle: String
+    let submitButtonTitle: String
     let onSendTranscript: (String) -> Void
 
     init(
         speechProvider: SpeechRecognitionProvider = MockSpeechRecognitionProvider(),
         recordingService: VoiceRecordingServiceProviding? = nil,
+        readySubtitle: String = "确认后再发送给 HoloAI",
+        submitButtonTitle: String = "发送",
         onSendTranscript: @escaping (String) -> Void
     ) {
         _viewModel = StateObject(
@@ -26,6 +30,8 @@ struct VoiceInputSheet: View {
                 recordingService: recordingService
             )
         )
+        self.readySubtitle = readySubtitle
+        self.submitButtonTitle = submitButtonTitle
         self.onSendTranscript = onSendTranscript
     }
 
@@ -157,7 +163,7 @@ struct VoiceInputSheet: View {
                 }
                 .buttonStyle(VoiceSecondaryButtonStyle())
 
-                Button("发送") {
+                Button(submitButtonTitle) {
                     VoiceInputHaptics.success()
                     onSendTranscript(viewModel.editableTranscript)
                 }
@@ -261,7 +267,7 @@ struct VoiceInputSheet: View {
         case .transcribing:
             return viewModel.didAutoFinishBecauseOfLimit ? "已到 60 秒，正在整理你的语音" : "正在整理你的语音"
         case .transcriptReady:
-            return "确认后再发送给 HoloAI"
+            return readySubtitle
         case .failed(.microphonePermissionDenied):
             return "需要使用麦克风来记录你的语音"
         case .failed:

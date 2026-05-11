@@ -16,6 +16,7 @@ enum MarkdownEditorAction: Equatable {
     case toggleBold
     case insertUnorderedList
     case insertOrderedList
+    case insertText(String)
 }
 
 // MARK: - TypingFormatState
@@ -40,6 +41,8 @@ struct MarkdownTextView: UIViewRepresentable {
 
     /// 是否启用富文本渲染
     var showHighlight: Bool = true
+    /// UIKit 文本容器内边距，便于外层悬浮按钮预留空间
+    var textContainerInset: UIEdgeInsets = UIEdgeInsets(top: 8, left: 4, bottom: 8, right: 4)
 
     func makeUIView(context: Context) -> UITextView {
         let textView = SelfSizingTextView()
@@ -47,7 +50,7 @@ struct MarkdownTextView: UIViewRepresentable {
         textView.font = Self.baseFont
         textView.textColor = Self.baseTextColor
         textView.backgroundColor = .clear
-        textView.textContainerInset = UIEdgeInsets(top: 8, left: 4, bottom: 8, right: 4)
+        textView.textContainerInset = textContainerInset
         // 启用滚动以避免 isScrollEnabled=false 在 SwiftUI ScrollView 中
         // 产生的 intrinsicContentSize 无限布局反馈循环
         textView.isScrollEnabled = true
@@ -242,6 +245,8 @@ struct MarkdownTextView: UIViewRepresentable {
                 insertAtLineStart("\u{2022} ", on: textView)
             case .insertOrderedList:
                 insertAtLineStart("1. ", on: textView)
+            case .insertText(let text):
+                insertText(text, on: textView)
             }
 
             if textView.markedTextRange == nil {
@@ -352,6 +357,29 @@ struct MarkdownTextView: UIViewRepresentable {
             isProgrammaticChange = true
             textView.attributedText = mutable
             textView.selectedRange = NSRange(location: newCursorLocation, length: safeRange.length)
+            isProgrammaticChange = false
+            refreshTypingAttributes(for: textView)
+        }
+
+        private func insertText(_ text: String, on textView: UITextView) {
+            let safeRange = MarkdownTextView.clampedRange(textView.selectedRange, for: textView.attributedText.length)
+            let insertionText = ThoughtVoiceTranscriptInsertion.makeInsertionText(
+                transcript: text,
+                currentContent: textView.attributedText.string,
+                selectedRange: safeRange
+            )
+            guard !insertionText.isEmpty else { return }
+
+            let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
+            let insert = NSAttributedString(
+                string: insertionText,
+                attributes: MarkdownTextView.resolvedAttributes(from: textView.typingAttributes)
+            )
+            mutable.replaceCharacters(in: safeRange, with: insert)
+
+            isProgrammaticChange = true
+            textView.attributedText = mutable
+            textView.selectedRange = NSRange(location: safeRange.location + (insertionText as NSString).length, length: 0)
             isProgrammaticChange = false
             refreshTypingAttributes(for: textView)
         }

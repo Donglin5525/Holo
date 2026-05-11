@@ -50,6 +50,7 @@ struct ThoughtEditorView: View {
     @State private var showMoodSelector: Bool = false
     @State private var showTagInput: Bool = false
     @State private var showReferenceSelector: Bool = false
+    @State private var showVoiceInput: Bool = false
     @State private var isSaving: Bool = false
     @State private var showDismissAlert: Bool = false
     @State private var pendingEditorAction: MarkdownEditorAction? = nil
@@ -115,6 +116,16 @@ struct ThoughtEditorView: View {
         .sheet(isPresented: $showReferenceSelector) {
             ReferenceSelectorView(selectedIds: $referencedThoughtIds)
                 .presentationDetents([.large])
+        }
+        .sheet(isPresented: $showVoiceInput) {
+            VoiceInputSheet(
+                speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(),
+                readySubtitle: "确认后插入到观点内容",
+                submitButtonTitle: "插入"
+            ) { transcript in
+                insertVoiceTranscript(transcript)
+                showVoiceInput = false
+            }
         }
         .onAppear {
             loadEditingData()
@@ -204,22 +215,46 @@ struct ThoughtEditorView: View {
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
 
-            MarkdownTextView(
-                text: $content,
-                pendingAction: $pendingEditorAction,
-                dynamicHeight: $editorHeight,
-                formatState: $typingFormatState
-            )
-                .frame(height: max(editorHeight, 200))
-                .padding(HoloSpacing.sm)
-                .background(Color.holoCardBackground)
-                .cornerRadius(HoloRadius.md)
-                .overlay(
-                    RoundedRectangle(cornerRadius: HoloRadius.md)
-                        .stroke(Color.holoBorder, lineWidth: 1)
+            ZStack(alignment: .bottomTrailing) {
+                MarkdownTextView(
+                    text: $content,
+                    pendingAction: $pendingEditorAction,
+                    dynamicHeight: $editorHeight,
+                    formatState: $typingFormatState,
+                    textContainerInset: UIEdgeInsets(top: 8, left: 4, bottom: 62, right: 58)
                 )
+                    .frame(height: max(editorHeight, 200))
+
+                voiceInputButton
+                    .padding(.trailing, 12)
+                    .padding(.bottom, 12)
+            }
+            .padding(HoloSpacing.sm)
+            .background(Color.holoCardBackground)
+            .cornerRadius(HoloRadius.md)
+            .overlay(
+                RoundedRectangle(cornerRadius: HoloRadius.md)
+                    .stroke(Color.holoBorder, lineWidth: 1)
+            )
             RichTextToolbarView(pendingAction: $pendingEditorAction, formatState: typingFormatState)
         }
+    }
+
+    private var voiceInputButton: some View {
+        Button {
+            HapticManager.selection()
+            showVoiceInput = true
+        } label: {
+            Image(systemName: "mic.fill")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(.white)
+                .frame(width: 44, height: 44)
+                .background(Color.holoPrimary)
+                .clipShape(Circle())
+                .shadow(color: Color.black.opacity(0.16), radius: 8, x: 0, y: 4)
+        }
+        .accessibilityLabel("语音输入")
+        .accessibilityHint("录音并将识别结果插入到当前光标位置")
     }
 
     /// 标签区域
@@ -326,6 +361,12 @@ struct ThoughtEditorView: View {
     /// 移除标签
     private func removeTag(_ tag: String) {
         selectedTags.removeAll { $0 == tag }
+    }
+
+    private func insertVoiceTranscript(_ transcript: String) {
+        let trimmedTranscript = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedTranscript.isEmpty else { return }
+        pendingEditorAction = .insertText(trimmedTranscript)
     }
 
     /// 保存想法
