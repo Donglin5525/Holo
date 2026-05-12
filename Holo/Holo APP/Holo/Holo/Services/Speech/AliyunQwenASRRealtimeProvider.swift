@@ -7,7 +7,7 @@
 
 import Foundation
 
-final class AliyunQwenASRRealtimeProvider: SpeechRecognitionProvider {
+final class AliyunQwenASRRealtimeProvider: StreamingSpeechRecognitionProvider {
     private let config: VoiceRecognitionConfig
     private let session: URLSession
     private let timeoutNanoseconds: UInt64
@@ -41,7 +41,9 @@ final class AliyunQwenASRRealtimeProvider: SpeechRecognitionProvider {
 
         return try await withThrowingTaskGroup(of: SpeechRecognitionResult.self) { group in
             group.addTask {
-                try await self.performTranscription(audioData: audioData, url: url, locale: locale)
+                let session = try await self.makeStreamingSession(url: url, locale: locale)
+                try await session.appendAudio(audioData)
+                return try await session.finish()
             }
 
             group.addTask {
@@ -55,6 +57,18 @@ final class AliyunQwenASRRealtimeProvider: SpeechRecognitionProvider {
             group.cancelAll()
             return result
         }
+    }
+
+    func makeStreamingSession(locale: String?) async throws -> SpeechRecognitionStreamingSession {
+        guard config.isConfigured else {
+            throw SpeechRecognitionError.serverMessage("请先配置语音识别 API Key")
+        }
+
+        guard let url = config.endpointURL else {
+            throw SpeechRecognitionError.serverMessage("语音识别服务地址无效")
+        }
+
+        return try await makeStreamingSession(url: url, locale: locale)
     }
 
     func testConnection() async throws {
@@ -77,38 +91,15 @@ final class AliyunQwenASRRealtimeProvider: SpeechRecognitionProvider {
         try await sendJSON(eventPayload(type: "session.finish"), task: task)
     }
 
-    private func performTranscription(audioData: Data, url: URL, locale: String?) async throws -> SpeechRecognitionResult {
+    private func makeStreamingSession(url: URL, locale: String?) async throws -> SpeechRecognitionStreamingSession {
         let task = makeWebSocketTask(url: url)
         task.resume()
-        defer {
-            task.cancel(with: .normalClosure, reason: nil)
-        }
 
         try await waitForEvent(["session.created"], task: task)
         try await sendJSON(sessionUpdatePayload(locale: locale), task: task)
         try await waitForEvent(["session.updated"], task: task)
 
-        try await sendAudioChunks(audioData, task: task)
-        try await sendJSON(eventPayload(type: "input_audio_buffer.commit"), task: task)
-        try await sendJSON(eventPayload(type: "session.finish"), task: task)
-
-        while true {
-            let event = try await receiveEvent(task)
-            switch event.type {
-            case "conversation.item.input_audio_transcription.completed":
-                let transcript = event.transcript?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-                guard !transcript.isEmpty else {
-                    throw SpeechRecognitionError.emptyTranscript
-                }
-                return SpeechRecognitionResult(text: transcript, duration: nil, confidence: nil)
-            case "conversation.item.input_audio_transcription.failed":
-                throw SpeechRecognitionError.serverMessage(event.errorMessage ?? "语音识别失败")
-            case "session.finished":
-                throw SpeechRecognitionError.emptyTranscript
-            default:
-                continue
-            }
-        }
+        return AliyunQwenASRStreamingSession(task: task)
     }
 
     private func makeWebSocketTask(url: URL) -> URLSessionWebSocketTask {
@@ -228,6 +219,99 @@ final class AliyunQwenASRRealtimeProvider: SpeechRecognitionProvider {
         }
 
         return data.dropFirst(44)
+    }
+
+    private static func eventID() -> String {
+        "event_\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
+    }
+}
+
+private final class AliyunQwenASRStreamingSession: SpeechRecognitionStreamingSession {
+    private let task: URLSessionWebSocketTask
+    private var isCancelled = false
+
+    init(task: URLSessionWebSocketTask) {
+        self.task = task
+    }
+
+    func appendAudio(_ data: Data) async throws {
+        guard !data.isEmpty, !isCancelled else { return }
+        try await sendJSON([
+            "event_id": Self.eventID(),
+            "type": "input_audio_buffer.append",
+            "audio": data.base64EncodedString()
+        ])
+    }
+
+    func finish() async throws -> SpeechRecognitionResult {
+        guard !isCancelled else {
+            throw SpeechRecognitionError.networkFailure
+        }
+
+        defer {
+            task.cancel(with: .normalClosure, reason: nil)
+        }
+
+        try await sendJSON(eventPayload(type: "input_audio_buffer.commit"))
+        try await sendJSON(eventPayload(type: "session.finish"))
+
+        while true {
+            let event = try await receiveEvent()
+            switch event.type {
+            case "conversation.item.input_audio_transcription.completed":
+                let transcript = event.transcript?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                guard !transcript.isEmpty else {
+                    throw SpeechRecognitionError.emptyTranscript
+                }
+                return SpeechRecognitionResult(text: transcript, duration: nil, confidence: nil)
+            case "conversation.item.input_audio_transcription.failed":
+                throw SpeechRecognitionError.serverMessage(event.errorMessage ?? "语音识别失败")
+            case "session.finished":
+                throw SpeechRecognitionError.emptyTranscript
+            default:
+                continue
+            }
+        }
+    }
+
+    func cancel() {
+        isCancelled = true
+        task.cancel(with: .goingAway, reason: nil)
+    }
+
+    private func eventPayload(type: String) -> [String: Any] {
+        [
+            "event_id": Self.eventID(),
+            "type": type
+        ]
+    }
+
+    private func sendJSON(_ payload: [String: Any]) async throws {
+        let data = try JSONSerialization.data(withJSONObject: payload)
+        guard let string = String(data: data, encoding: .utf8) else {
+            throw SpeechRecognitionError.serverMessage("语音识别请求编码失败")
+        }
+        try await task.send(.string(string))
+    }
+
+    private func receiveEvent() async throws -> ASREvent {
+        let message = try await task.receive()
+        let data: Data
+
+        switch message {
+        case .data(let messageData):
+            data = messageData
+        case .string(let string):
+            data = Data(string.utf8)
+        @unknown default:
+            throw SpeechRecognitionError.networkFailure
+        }
+
+        let event = try JSONDecoder().decode(ASREvent.self, from: data)
+        if event.type == "error" {
+            throw SpeechRecognitionError.serverMessage(event.errorMessage ?? "语音识别服务返回错误")
+        }
+        return event
     }
 
     private static func eventID() -> String {

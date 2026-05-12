@@ -73,6 +73,8 @@ final class VoiceInputViewModel: ObservableObject {
 
     private let speechProvider: SpeechRecognitionProvider
     private var transcriptionTask: Task<Void, Never>?
+    private var streamingSession: SpeechRecognitionStreamingSession?
+    private var audioAppendTask: Task<Void, Never>?
     private var durationTask: Task<Void, Never>?
     private var currentAudioFileURL: URL?
     private let minimumDuration: TimeInterval
@@ -95,15 +97,22 @@ final class VoiceInputViewModel: ObservableObject {
         self.recordingService.onInterruptionEnded = { [weak self] in
             self?.handleInterruptionEnded()
         }
+        self.recordingService.onAudioPCMData = { [weak self] data in
+            self?.enqueueStreamingAudio(data)
+        }
     }
 
     deinit {
         transcriptionTask?.cancel()
+        audioAppendTask?.cancel()
         durationTask?.cancel()
     }
 
     func startRecording() async {
         transcriptionTask?.cancel()
+        audioAppendTask?.cancel()
+        streamingSession?.cancel()
+        streamingSession = nil
         state = .requestingPermission
         editableTranscript = ""
         recordingDuration = 0
@@ -117,12 +126,20 @@ final class VoiceInputViewModel: ObservableObject {
         }
 
         do {
+            guard let streamingProvider = speechProvider as? StreamingSpeechRecognitionProvider else {
+                state = .failed(.serverMessage("当前语音识别服务不支持实时识别"))
+                return
+            }
+
+            streamingSession = try await streamingProvider.makeStreamingSession(locale: Self.currentLocale)
             try recordingService.startRecording()
             currentAudioFileURL = recordingService.currentFileURL
             state = .recording
             didReceiveRecoverableInterruption = false
             startDurationUpdates()
         } catch {
+            streamingSession?.cancel()
+            streamingSession = nil
             state = .failed(.recordingFailed(error.localizedDescription))
         }
     }
@@ -151,6 +168,8 @@ final class VoiceInputViewModel: ObservableObject {
         recordingDuration = recordingService.currentTime
 
         guard let result = recordingService.stopRecording() else {
+            streamingSession?.cancel()
+            streamingSession = nil
             state = .failed(.recordingFailed("录音文件不可用"))
             return
         }
@@ -159,17 +178,22 @@ final class VoiceInputViewModel: ObservableObject {
         recordingDuration = result.duration
 
         guard result.duration >= minimumDuration else {
+            streamingSession?.cancel()
+            streamingSession = nil
             recordingService.deleteCurrentRecording()
             currentAudioFileURL = nil
             state = .failed(.recordingTooShort)
             return
         }
 
-        transcribeAudio(at: result.fileURL)
+        finishStreamingTranscription()
     }
 
     func cancel() {
         transcriptionTask?.cancel()
+        audioAppendTask?.cancel()
+        streamingSession?.cancel()
+        streamingSession = nil
         durationTask?.cancel()
         recordingService.cancelRecording()
         currentAudioFileURL = nil
@@ -182,6 +206,9 @@ final class VoiceInputViewModel: ObservableObject {
 
     func reRecord() {
         transcriptionTask?.cancel()
+        audioAppendTask?.cancel()
+        streamingSession?.cancel()
+        streamingSession = nil
         durationTask?.cancel()
         recordingService.cancelRecording()
         currentAudioFileURL = nil
@@ -208,6 +235,9 @@ final class VoiceInputViewModel: ObservableObject {
 
     func cleanupAfterDismiss() {
         transcriptionTask?.cancel()
+        audioAppendTask?.cancel()
+        streamingSession?.cancel()
+        streamingSession = nil
         durationTask?.cancel()
         recordingService.cancelRecording()
         currentAudioFileURL = nil
@@ -216,8 +246,60 @@ final class VoiceInputViewModel: ObservableObject {
     private func handleInterruptionBegan() {
         guard state == .recording else { return }
         durationTask?.cancel()
+        audioAppendTask?.cancel()
+        streamingSession?.cancel()
+        streamingSession = nil
         didReceiveRecoverableInterruption = false
         state = .interrupted
+    }
+
+    private func enqueueStreamingAudio(_ data: Data) {
+        guard let streamingSession, state == .recording, !data.isEmpty else { return }
+
+        let previousTask = audioAppendTask
+        audioAppendTask = Task {
+            await previousTask?.value
+            guard !Task.isCancelled else { return }
+            try? await streamingSession.appendAudio(data)
+        }
+    }
+
+    private func finishStreamingTranscription() {
+        guard let streamingSession else {
+            state = .failed(.networkFailure)
+            return
+        }
+
+        transcriptionTask?.cancel()
+        state = .transcribing
+
+        let pendingAudioTask = audioAppendTask
+        transcriptionTask = Task { [weak self] in
+            guard let self else { return }
+
+            do {
+                await pendingAudioTask?.value
+                let result = try await streamingSession.finish()
+                guard !Task.isCancelled else { return }
+
+                self.streamingSession = nil
+                self.audioAppendTask = nil
+
+                let text = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !text.isEmpty else {
+                    self.state = .failed(.emptyTranscript)
+                    return
+                }
+
+                self.editableTranscript = text
+                self.state = .transcriptReady(text)
+            } catch {
+                guard !Task.isCancelled else { return }
+                self.streamingSession = nil
+                self.audioAppendTask = nil
+                self.state = .failed(Self.mapSpeechError(error))
+            }
+        }
     }
 
     private func handleInterruptionEnded() {

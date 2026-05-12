@@ -14,6 +14,16 @@ protocol SpeechRecognitionProvider {
     ) async throws -> SpeechRecognitionResult
 }
 
+protocol StreamingSpeechRecognitionProvider: SpeechRecognitionProvider {
+    func makeStreamingSession(locale: String?) async throws -> SpeechRecognitionStreamingSession
+}
+
+protocol SpeechRecognitionStreamingSession: AnyObject {
+    func appendAudio(_ data: Data) async throws
+    func finish() async throws -> SpeechRecognitionResult
+    func cancel()
+}
+
 struct SpeechRecognitionResult: Equatable {
     let text: String
     let duration: TimeInterval?

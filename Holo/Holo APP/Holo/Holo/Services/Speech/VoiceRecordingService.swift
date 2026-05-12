@@ -35,6 +35,7 @@ protocol VoiceRecordingServiceProviding: AnyObject {
     var currentTime: TimeInterval { get }
     var onInterruptionBegan: (() -> Void)? { get set }
     var onInterruptionEnded: (() -> Void)? { get set }
+    var onAudioPCMData: ((Data) -> Void)? { get set }
 
     func requestPermission() async -> Bool
     func startRecording() throws
@@ -51,7 +52,10 @@ protocol VoiceRecordingServiceProviding: AnyObject {
 final class VoiceRecordingService: NSObject, VoiceRecordingServiceProviding, AVAudioRecorderDelegate {
     private let configuration: VoiceRecordingConfiguration
     private let fileManager: FileManager
-    private var recorder: AVAudioRecorder?
+    private var audioEngine: AVAudioEngine?
+    private var outputFileHandle: FileHandle?
+    private var recordedPCMByteCount = 0
+    private var lastAveragePower: Float = -160
     private var savedCategory: AVAudioSession.Category?
     private var savedOptions: AVAudioSession.CategoryOptions?
     private var savedMode: AVAudioSession.Mode?
@@ -60,10 +64,11 @@ final class VoiceRecordingService: NSObject, VoiceRecordingServiceProviding, AVA
 
     var onInterruptionBegan: (() -> Void)?
     var onInterruptionEnded: (() -> Void)?
+    var onAudioPCMData: ((Data) -> Void)?
     private(set) var currentFileURL: URL?
 
     var currentTime: TimeInterval {
-        recorder?.currentTime ?? 0
+        Double(recordedPCMByteCount) / (configuration.sampleRate * Double(configuration.channels) * 2)
     }
 
     init(
@@ -105,39 +110,50 @@ final class VoiceRecordingService: NSObject, VoiceRecordingServiceProviding, AVA
         observeInterruptions()
 
         let url = createTempFileURL()
-        let settings: [String: Any] = [
-            AVFormatIDKey: configuration.formatID,
-            AVSampleRateKey: configuration.sampleRate,
-            AVNumberOfChannelsKey: configuration.channels,
-            AVEncoderAudioQualityKey: configuration.quality.rawValue,
-            AVLinearPCMBitDepthKey: 16,
-            AVLinearPCMIsFloatKey: false,
-            AVLinearPCMIsBigEndianKey: false
-        ]
+        fileManager.createFile(atPath: url.path, contents: nil)
+        outputFileHandle = try FileHandle(forWritingTo: url)
+        recordedPCMByteCount = 0
+        lastAveragePower = -160
 
-        let recorder = try AVAudioRecorder(url: url, settings: settings)
-        recorder.delegate = self
-        recorder.isMeteringEnabled = true
-        recorder.prepareToRecord()
-        recorder.record()
+        let engine = AVAudioEngine()
+        let inputNode = engine.inputNode
+        let inputFormat = inputNode.outputFormat(forBus: 0)
+        guard let targetFormat = AVAudioFormat(
+            commonFormat: .pcmFormatInt16,
+            sampleRate: configuration.sampleRate,
+            channels: configuration.channels,
+            interleaved: false
+        ), let converter = AVAudioConverter(from: inputFormat, to: targetFormat) else {
+            throw VoiceRecordingError.failedToCreateAudioConverter
+        }
 
-        self.recorder = recorder
+        inputNode.installTap(onBus: 0, bufferSize: 1_024, format: inputFormat) { [weak self] buffer, _ in
+            self?.handleInputBuffer(buffer, converter: converter, targetFormat: targetFormat)
+        }
+
+        engine.prepare()
+        try engine.start()
+
+        audioEngine = engine
         currentFileURL = url
     }
 
     func pauseRecording() {
-        recorder?.pause()
+        audioEngine?.pause()
     }
 
     func resumeRecording() {
         try? AVAudioSession.sharedInstance().setActive(true)
-        recorder?.record()
+        try? audioEngine?.start()
     }
 
     func stopRecording() -> VoiceRecordingResult? {
-        let duration = recorder?.currentTime ?? 0
-        recorder?.stop()
-        recorder = nil
+        let duration = currentTime
+        audioEngine?.inputNode.removeTap(onBus: 0)
+        audioEngine?.stop()
+        audioEngine = nil
+        try? outputFileHandle?.close()
+        outputFileHandle = nil
         restoreAudioSession()
 
         guard let currentFileURL else { return nil }
@@ -145,8 +161,11 @@ final class VoiceRecordingService: NSObject, VoiceRecordingServiceProviding, AVA
     }
 
     func cancelRecording() {
-        recorder?.stop()
-        recorder = nil
+        audioEngine?.inputNode.removeTap(onBus: 0)
+        audioEngine?.stop()
+        audioEngine = nil
+        try? outputFileHandle?.close()
+        outputFileHandle = nil
         deleteCurrentRecording()
         restoreAudioSession()
     }
@@ -171,8 +190,77 @@ final class VoiceRecordingService: NSObject, VoiceRecordingServiceProviding, AVA
     }
 
     func currentPowerLevel() -> Float {
-        recorder?.updateMeters()
-        return recorder?.averagePower(forChannel: 0) ?? -160
+        lastAveragePower
+    }
+
+    private func handleInputBuffer(
+        _ buffer: AVAudioPCMBuffer,
+        converter: AVAudioConverter,
+        targetFormat: AVAudioFormat
+    ) {
+        let ratio = targetFormat.sampleRate / buffer.format.sampleRate
+        let targetCapacity = AVAudioFrameCount(Double(buffer.frameLength) * ratio) + 1
+        guard let convertedBuffer = AVAudioPCMBuffer(
+            pcmFormat: targetFormat,
+            frameCapacity: targetCapacity
+        ) else { return }
+
+        let inputState = AudioConverterInputState()
+        var conversionError: NSError?
+        let inputBlock: AVAudioConverterInputBlock = { _, outStatus in
+            if inputState.didProvideBuffer {
+                outStatus.pointee = .noDataNow
+                return nil
+            }
+            inputState.didProvideBuffer = true
+            outStatus.pointee = .haveData
+            return buffer
+        }
+
+        converter.convert(to: convertedBuffer, error: &conversionError, withInputFrom: inputBlock)
+        guard conversionError == nil,
+              let data = Self.pcmData(from: convertedBuffer),
+              !data.isEmpty else { return }
+
+        let averagePower = Self.averagePowerLevel(fromPCMData: data)
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            self.recordedPCMByteCount += data.count
+            self.lastAveragePower = averagePower
+            try? self.outputFileHandle?.write(contentsOf: data)
+            self.onAudioPCMData?(data)
+        }
+    }
+
+    private static func pcmData(from buffer: AVAudioPCMBuffer) -> Data? {
+        guard let channelData = buffer.int16ChannelData else { return nil }
+        let frameLength = Int(buffer.frameLength)
+        guard frameLength > 0 else { return nil }
+
+        let byteCount = frameLength * MemoryLayout<Int16>.size
+        return Data(bytes: channelData[0], count: byteCount)
+    }
+
+    private static func averagePowerLevel(fromPCMData data: Data) -> Float {
+        let sampleCount = data.count / MemoryLayout<Int16>.size
+        guard sampleCount > 0 else { return -160 }
+
+        let sumSquares = data.withUnsafeBytes { rawBuffer in
+            guard let samples = rawBuffer.bindMemory(to: Int16.self).baseAddress else {
+                return 0.0
+            }
+
+            var total = 0.0
+            for index in 0..<sampleCount {
+                let normalizedSample = Double(samples[index]) / Double(Int16.max)
+                total += normalizedSample * normalizedSample
+            }
+            return total
+        }
+
+        guard sumSquares > 0 else { return -160 }
+        let rms = sqrt(sumSquares / Double(sampleCount))
+        return max(-160, Float(20 * log10(rms)))
     }
 
     private func createTempFileURL() -> URL {
@@ -238,6 +326,21 @@ final class VoiceRecordingService: NSObject, VoiceRecordingServiceProviding, AVA
                     break
                 }
             }
+        }
+    }
+}
+
+private final class AudioConverterInputState: @unchecked Sendable {
+    nonisolated(unsafe) var didProvideBuffer = false
+}
+
+private enum VoiceRecordingError: LocalizedError {
+    case failedToCreateAudioConverter
+
+    var errorDescription: String? {
+        switch self {
+        case .failedToCreateAudioConverter:
+            return "无法初始化录音转换器"
         }
     }
 }

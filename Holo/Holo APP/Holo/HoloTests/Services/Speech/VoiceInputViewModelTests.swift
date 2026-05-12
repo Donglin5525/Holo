@@ -25,6 +25,36 @@ final class VoiceInputViewModelTests: XCTestCase {
         XCTAssertTrue(recorder.didStartRecording)
     }
 
+    func testStartRecordingStartsStreamingRecognition() async {
+        let recorder = FakeVoiceRecordingService()
+        let provider = FakeSpeechRecognitionProvider()
+        let viewModel = VoiceInputViewModel(
+            speechProvider: provider,
+            recordingService: recorder
+        )
+
+        await viewModel.startRecording()
+        await provider.waitForStreamingSession()
+
+        XCTAssertEqual(provider.streamingSessionCallCount, 1)
+    }
+
+    func testRecordingAudioDataIsAppendedToStreamingSession() async {
+        let recorder = FakeVoiceRecordingService()
+        let provider = FakeSpeechRecognitionProvider()
+        let viewModel = VoiceInputViewModel(
+            speechProvider: provider,
+            recordingService: recorder
+        )
+
+        await viewModel.startRecording()
+        await provider.waitForStreamingSession()
+        recorder.onAudioPCMData?(Data([0x01, 0x02, 0x03]))
+        await provider.streamingSession.waitForAppend()
+
+        XCTAssertEqual(provider.streamingSession.appendedAudio, [Data([0x01, 0x02, 0x03])])
+    }
+
     func testStartRecordingWithDeniedPermissionFails() async {
         let recorder = FakeVoiceRecordingService()
         recorder.permissionGranted = false
@@ -83,10 +113,11 @@ final class VoiceInputViewModelTests: XCTestCase {
 
         await viewModel.startRecording()
         await viewModel.finishRecording()
-        await provider.waitForTranscription()
+        await provider.streamingSession.waitForFinish()
 
         XCTAssertEqual(viewModel.state, .transcriptReady("今天午饭花了 32 元"))
         XCTAssertEqual(viewModel.editableTranscript, "今天午饭花了 32 元")
+        XCTAssertEqual(provider.transcribeCallCount, 0)
     }
 
     func testEmptyTranscriptFails() async {
@@ -101,7 +132,7 @@ final class VoiceInputViewModelTests: XCTestCase {
 
         await viewModel.startRecording()
         await viewModel.finishRecording()
-        await provider.waitForTranscription()
+        await provider.streamingSession.waitForFinish()
 
         XCTAssertEqual(viewModel.state, .failed(.emptyTranscript))
     }
@@ -118,7 +149,7 @@ final class VoiceInputViewModelTests: XCTestCase {
 
         await viewModel.startRecording()
         await viewModel.finishRecording()
-        await provider.waitForTranscription()
+        await provider.streamingSession.waitForFinish()
         XCTAssertEqual(viewModel.state, .failed(.networkFailure))
 
         provider.error = nil
@@ -177,6 +208,7 @@ private final class FakeVoiceRecordingService: VoiceRecordingServiceProviding {
     var currentTime: TimeInterval = 1.2
     var onInterruptionBegan: (() -> Void)?
     var onInterruptionEnded: (() -> Void)?
+    var onAudioPCMData: ((Data) -> Void)?
     var didStartRecording = false
     var didDeleteCurrentFile = false
     var didResumeRecording = false
@@ -219,11 +251,30 @@ private final class FakeVoiceRecordingService: VoiceRecordingServiceProviding {
 }
 
 @MainActor
-private final class FakeSpeechRecognitionProvider: SpeechRecognitionProvider {
+private final class FakeSpeechRecognitionProvider: StreamingSpeechRecognitionProvider {
     var result = SpeechRecognitionResult(text: "测试语音", duration: nil, confidence: nil)
     var error: Error?
     var transcribeCallCount = 0
+    var streamingSessionCallCount = 0
+    let streamingSession = FakeSpeechRecognitionStreamingSession()
     private var continuation: CheckedContinuation<Void, Never>?
+    private var streamingContinuation: CheckedContinuation<Void, Never>?
+
+    func makeStreamingSession(locale: String?) async throws -> SpeechRecognitionStreamingSession {
+        streamingSessionCallCount += 1
+        streamingSession.resultProvider = { [weak self] in
+            guard let self else {
+                return SpeechRecognitionResult(text: "", duration: nil, confidence: nil)
+            }
+            if let error = self.error {
+                throw error
+            }
+            return self.result
+        }
+        streamingContinuation?.resume()
+        streamingContinuation = nil
+        return streamingSession
+    }
 
     func transcribe(audioFileURL: URL, locale: String?) async throws -> SpeechRecognitionResult {
         transcribeCallCount += 1
@@ -241,6 +292,52 @@ private final class FakeSpeechRecognitionProvider: SpeechRecognitionProvider {
         guard transcribeCallCount == 0 || continuation != nil else { return }
         await withCheckedContinuation { continuation in
             self.continuation = continuation
+        }
+    }
+
+    func waitForStreamingSession() async {
+        guard streamingSessionCallCount == 0 || streamingContinuation != nil else { return }
+        await withCheckedContinuation { continuation in
+            self.streamingContinuation = continuation
+        }
+    }
+}
+
+private final class FakeSpeechRecognitionStreamingSession: SpeechRecognitionStreamingSession {
+    var appendedAudio: [Data] = []
+    var resultProvider: (() throws -> SpeechRecognitionResult)?
+    var didFinish = false
+    private var appendContinuation: CheckedContinuation<Void, Never>?
+    private var finishContinuation: CheckedContinuation<Void, Never>?
+
+    func appendAudio(_ data: Data) async throws {
+        appendedAudio.append(data)
+        appendContinuation?.resume()
+        appendContinuation = nil
+    }
+
+    func finish() async throws -> SpeechRecognitionResult {
+        didFinish = true
+        defer {
+            finishContinuation?.resume()
+            finishContinuation = nil
+        }
+        return try resultProvider?() ?? SpeechRecognitionResult(text: "", duration: nil, confidence: nil)
+    }
+
+    func cancel() {}
+
+    func waitForAppend() async {
+        guard appendedAudio.isEmpty || appendContinuation != nil else { return }
+        await withCheckedContinuation { continuation in
+            self.appendContinuation = continuation
+        }
+    }
+
+    func waitForFinish() async {
+        guard !didFinish || finishContinuation != nil else { return }
+        await withCheckedContinuation { continuation in
+            self.finishContinuation = continuation
         }
     }
 }
