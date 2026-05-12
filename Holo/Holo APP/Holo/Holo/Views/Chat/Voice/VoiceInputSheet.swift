@@ -146,9 +146,10 @@ struct VoiceInputSheet: View {
     private var transcriptEditor: some View {
         VStack(spacing: 16) {
             TextField("识别结果", text: $viewModel.editableTranscript, axis: .vertical)
-                .lineLimit(2...5)
+                .lineLimit(4...9)
                 .font(.holoBody)
                 .padding(14)
+                .frame(minHeight: 118, alignment: .topLeading)
                 .background(Color.holoCardBackground)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .overlay(

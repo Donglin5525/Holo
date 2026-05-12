@@ -11,15 +11,18 @@ final class AliyunQwenASRRealtimeProvider: SpeechRecognitionProvider {
     private let config: VoiceRecognitionConfig
     private let session: URLSession
     private let timeoutNanoseconds: UInt64
+    private let chunkingPlan: ASRAudioChunkingPlan
 
     init(
         config: VoiceRecognitionConfig,
         session: URLSession = .shared,
-        timeoutSeconds: UInt64 = 30
+        timeoutSeconds: UInt64 = 120,
+        chunkingPlan: ASRAudioChunkingPlan = ASRAudioChunkingPlan()
     ) {
         self.config = config
         self.session = session
         self.timeoutNanoseconds = timeoutSeconds * 1_000_000_000
+        self.chunkingPlan = chunkingPlan
     }
 
     func transcribe(audioFileURL: URL, locale: String?) async throws -> SpeechRecognitionResult {
@@ -115,18 +118,19 @@ final class AliyunQwenASRRealtimeProvider: SpeechRecognitionProvider {
     }
 
     private func sendAudioChunks(_ data: Data, task: URLSessionWebSocketTask) async throws {
-        let maxChunkSize = 256 * 1024
-        var offset = 0
+        let ranges = chunkingPlan.ranges(forByteCount: data.count)
 
-        while offset < data.count {
-            let length = min(maxChunkSize, data.count - offset)
-            let chunk = data.subdata(in: offset..<(offset + length))
+        for (index, range) in ranges.enumerated() {
+            let chunk = data.subdata(in: range)
             try await sendJSON([
                 "event_id": Self.eventID(),
                 "type": "input_audio_buffer.append",
                 "audio": chunk.base64EncodedString()
             ], task: task)
-            offset += length
+
+            if index < ranges.count - 1 {
+                try await Task.sleep(nanoseconds: chunkingPlan.interChunkDelayNanoseconds)
+            }
         }
     }
 
@@ -228,6 +232,42 @@ final class AliyunQwenASRRealtimeProvider: SpeechRecognitionProvider {
 
     private static func eventID() -> String {
         "event_\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
+    }
+}
+
+struct ASRAudioChunkingPlan {
+    let sampleRate: Int
+    let bytesPerSample: Int
+    let chunkDuration: TimeInterval
+    let interChunkDelayNanoseconds: UInt64
+
+    init(
+        sampleRate: Int = 16_000,
+        bytesPerSample: Int = 2,
+        chunkDuration: TimeInterval = 0.1,
+        interChunkDelayNanoseconds: UInt64 = 100_000_000
+    ) {
+        self.sampleRate = sampleRate
+        self.bytesPerSample = bytesPerSample
+        self.chunkDuration = chunkDuration
+        self.interChunkDelayNanoseconds = interChunkDelayNanoseconds
+    }
+
+    var chunkSizeBytes: Int {
+        max(1, Int(Double(sampleRate * bytesPerSample) * chunkDuration))
+    }
+
+    func ranges(forByteCount byteCount: Int) -> [Range<Int>] {
+        guard byteCount > 0 else { return [] }
+
+        var ranges: [Range<Int>] = []
+        var offset = 0
+        while offset < byteCount {
+            let end = min(offset + chunkSizeBytes, byteCount)
+            ranges.append(offset..<end)
+            offset = end
+        }
+        return ranges
     }
 }
 
