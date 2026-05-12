@@ -78,7 +78,7 @@ final class VoiceInputViewModel: ObservableObject {
     private var durationTask: Task<Void, Never>?
     private var currentAudioFileURL: URL?
     private let minimumDuration: TimeInterval
-    private let maximumDuration: TimeInterval
+    let maximumDuration: TimeInterval
 
     init(
         speechProvider: SpeechRecognitionProvider,

@@ -20,6 +20,7 @@ struct VoiceInputSheet: View {
     init(
         speechProvider: SpeechRecognitionProvider = MockSpeechRecognitionProvider(),
         recordingService: VoiceRecordingServiceProviding? = nil,
+        maximumDuration: TimeInterval = 60,
         readySubtitle: String = "确认后再发送给 HoloAI",
         submitButtonTitle: String = "发送",
         onSendTranscript: @escaping (String) -> Void
@@ -27,7 +28,8 @@ struct VoiceInputSheet: View {
         _viewModel = StateObject(
             wrappedValue: VoiceInputViewModel(
                 speechProvider: speechProvider,
-                recordingService: recordingService
+                recordingService: recordingService,
+                maximumDuration: maximumDuration
             )
         )
         self.readySubtitle = readySubtitle
@@ -284,9 +286,11 @@ struct VoiceInputSheet: View {
             if viewModel.state == .interrupted {
                 return viewModel.didReceiveRecoverableInterruption ? "中断已结束，可以继续或完成" : "录音被中断，可以继续或完成"
             }
-            return "\(formatDuration(viewModel.recordingDuration)) / 01:00"
+            let maxText = formatDuration(viewModel.maximumDuration)
+            return "\(formatDuration(viewModel.recordingDuration)) / \(maxText)"
         case .transcribing:
-            return viewModel.didAutoFinishBecauseOfLimit ? "已到 60 秒，正在整理你的语音" : "正在整理你的语音"
+            let maxDesc = viewModel.maximumDuration >= 60 ? "\(Int(viewModel.maximumDuration / 60)) 分钟" : "\(Int(viewModel.maximumDuration)) 秒"
+            return viewModel.didAutoFinishBecauseOfLimit ? "已到 \(maxDesc)，正在整理你的语音" : "正在整理你的语音"
         case .transcriptReady:
             return readySubtitle
         case .failed(.microphonePermissionDenied):

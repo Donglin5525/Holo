@@ -121,6 +121,7 @@ struct ThoughtEditorView: View {
         .sheet(isPresented: $showVoiceInput, onDismiss: insertPendingVoiceTranscript) {
             VoiceInputSheet(
                 speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(),
+                maximumDuration: 300,
                 readySubtitle: "确认后插入到观点内容",
                 submitButtonTitle: "插入"
             ) { transcript in
