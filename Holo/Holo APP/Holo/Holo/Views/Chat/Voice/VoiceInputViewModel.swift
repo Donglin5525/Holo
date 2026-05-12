@@ -79,6 +79,9 @@ final class VoiceInputViewModel: ObservableObject {
     private var currentAudioFileURL: URL?
     private let minimumDuration: TimeInterval
     let maximumDuration: TimeInterval
+    private var pendingAudioBuffers: [Data] = []
+    private var streamingConnectionTask: Task<Void, Never>?
+    private var isSessionReady = false
 
     init(
         speechProvider: SpeechRecognitionProvider,
@@ -113,6 +116,9 @@ final class VoiceInputViewModel: ObservableObject {
         audioAppendTask?.cancel()
         streamingSession?.cancel()
         streamingSession = nil
+        streamingConnectionTask?.cancel()
+        pendingAudioBuffers = []
+        isSessionReady = false
         state = .requestingPermission
         editableTranscript = ""
         recordingDuration = 0
@@ -126,21 +132,42 @@ final class VoiceInputViewModel: ObservableObject {
         }
 
         do {
-            guard let streamingProvider = speechProvider as? StreamingSpeechRecognitionProvider else {
-                state = .failed(.serverMessage("当前语音识别服务不支持实时识别"))
-                return
-            }
-
-            streamingSession = try await streamingProvider.makeStreamingSession(locale: Self.currentLocale)
             try recordingService.startRecording()
             currentAudioFileURL = recordingService.currentFileURL
             state = .recording
             didReceiveRecoverableInterruption = false
             startDurationUpdates()
+            connectStreamingSession()
         } catch {
-            streamingSession?.cancel()
-            streamingSession = nil
             state = .failed(.recordingFailed(error.localizedDescription))
+        }
+    }
+
+    private func connectStreamingSession() {
+        guard let streamingProvider = speechProvider as? StreamingSpeechRecognitionProvider else {
+            return
+        }
+
+        streamingConnectionTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let session = try await streamingProvider.makeStreamingSession(locale: Self.currentLocale)
+                guard !Task.isCancelled else {
+                    session.cancel()
+                    return
+                }
+
+                self.streamingSession = session
+
+                for buffer in self.pendingAudioBuffers {
+                    guard !Task.isCancelled else { return }
+                    try? await session.appendAudio(buffer)
+                }
+                self.pendingAudioBuffers.removeAll(keepingCapacity: true)
+                self.isSessionReady = true
+            } catch {
+                guard !Task.isCancelled else { return }
+            }
         }
     }
 
@@ -167,6 +194,10 @@ final class VoiceInputViewModel: ObservableObject {
         didAutoFinishBecauseOfLimit = autoCompleted
         recordingDuration = recordingService.currentTime
 
+        if let connectionTask = streamingConnectionTask {
+            await connectionTask.value
+        }
+
         guard let result = recordingService.stopRecording() else {
             streamingSession?.cancel()
             streamingSession = nil
@@ -186,7 +217,13 @@ final class VoiceInputViewModel: ObservableObject {
             return
         }
 
-        finishStreamingTranscription()
+        if streamingSession != nil {
+            finishStreamingTranscription()
+        } else if let currentAudioFileURL {
+            transcribeAudio(at: currentAudioFileURL)
+        } else {
+            state = .failed(.networkFailure)
+        }
     }
 
     func cancel() {
@@ -194,7 +231,10 @@ final class VoiceInputViewModel: ObservableObject {
         audioAppendTask?.cancel()
         streamingSession?.cancel()
         streamingSession = nil
+        streamingConnectionTask?.cancel()
         durationTask?.cancel()
+        pendingAudioBuffers = []
+        isSessionReady = false
         recordingService.cancelRecording()
         currentAudioFileURL = nil
         editableTranscript = ""
@@ -209,7 +249,10 @@ final class VoiceInputViewModel: ObservableObject {
         audioAppendTask?.cancel()
         streamingSession?.cancel()
         streamingSession = nil
+        streamingConnectionTask?.cancel()
         durationTask?.cancel()
+        pendingAudioBuffers = []
+        isSessionReady = false
         recordingService.cancelRecording()
         currentAudioFileURL = nil
         editableTranscript = ""
@@ -238,7 +281,10 @@ final class VoiceInputViewModel: ObservableObject {
         audioAppendTask?.cancel()
         streamingSession?.cancel()
         streamingSession = nil
+        streamingConnectionTask?.cancel()
         durationTask?.cancel()
+        pendingAudioBuffers = []
+        isSessionReady = false
         recordingService.cancelRecording()
         currentAudioFileURL = nil
     }
@@ -249,18 +295,25 @@ final class VoiceInputViewModel: ObservableObject {
         audioAppendTask?.cancel()
         streamingSession?.cancel()
         streamingSession = nil
+        streamingConnectionTask?.cancel()
+        pendingAudioBuffers = []
+        isSessionReady = false
         didReceiveRecoverableInterruption = false
         state = .interrupted
     }
 
     private func enqueueStreamingAudio(_ data: Data) {
-        guard let streamingSession, state == .recording, !data.isEmpty else { return }
+        guard !data.isEmpty, state == .recording else { return }
 
-        let previousTask = audioAppendTask
-        audioAppendTask = Task {
-            await previousTask?.value
-            guard !Task.isCancelled else { return }
-            try? await streamingSession.appendAudio(data)
+        if isSessionReady, let streamingSession {
+            let previousTask = audioAppendTask
+            audioAppendTask = Task {
+                await previousTask?.value
+                guard !Task.isCancelled else { return }
+                try? await streamingSession.appendAudio(data)
+            }
+        } else {
+            pendingAudioBuffers.append(data)
         }
     }
 
