@@ -27,7 +27,7 @@ struct ThoughtListView: View {
     @State private var showFilterSheet: Bool = false
     @State private var currentFilters: ThoughtFilters? = nil
 
-    /// 选中的想法（用于跳转详情）
+    /// 选中的想法（用于直接编辑）
     @State private var selectedThoughtId: UUID? = nil
 
     /// 所有想法
@@ -92,10 +92,7 @@ struct ThoughtListView: View {
             }
         }
         .sheet(item: $selectedThoughtId) { thoughtId in
-            ThoughtDetailView(
-                thoughtId: thoughtId,
-                thoughtRepository: thoughtRepository
-            )
+            ThoughtEditorView(editingThoughtId: thoughtId)
         }
         .sheet(isPresented: $showFilterSheet) {
             ThoughtFilterSheetView(onApplyFilters: { filters in

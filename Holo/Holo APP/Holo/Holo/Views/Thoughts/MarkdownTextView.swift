@@ -428,8 +428,15 @@ private extension MarkdownTextView {
     static let baseTextColor = UIColor(Color.holoTextPrimary)
     static let baseAttributes: [NSAttributedString.Key: Any] = [
         .font: baseFont,
-        .foregroundColor: baseTextColor
+        .foregroundColor: baseTextColor,
+        .paragraphStyle: baseParagraphStyle()
     ]
+
+    private static func baseParagraphStyle() -> NSParagraphStyle {
+        let style = NSMutableParagraphStyle()
+        style.lineHeightMultiple = 1.5
+        return style
+    }
 
     static func makeAttributedText(from markdown: String) -> NSAttributedString {
         let document = MarkdownParser.parse(markdown)

@@ -44,13 +44,15 @@ struct VoiceInputSheet: View {
 
             header
 
-            RecordingWaveformView(
-                recordingService: viewModel.recordingService,
-                isRecording: viewModel.state == .recording,
-                isFrozen: viewModel.state == .paused || viewModel.state == .interrupted,
-                isLoading: viewModel.state == .transcribing
-            )
-            .padding(.horizontal, 8)
+            if !isTranscriptReady {
+                RecordingWaveformView(
+                    recordingService: viewModel.recordingService,
+                    isRecording: viewModel.state == .recording,
+                    isFrozen: viewModel.state == .paused || viewModel.state == .interrupted,
+                    isLoading: viewModel.state == .transcribing
+                )
+                .padding(.horizontal, 8)
+            }
 
             content
 
@@ -60,7 +62,7 @@ struct VoiceInputSheet: View {
         .padding(.bottom, 18)
         .frame(maxWidth: .infinity)
         .background(Color.holoBackground.ignoresSafeArea())
-        .presentationDetents([.height(390), .medium])
+        .presentationDetents([.height(preferredSheetHeight), .medium])
         .presentationDragIndicator(.hidden)
         .task {
             await viewModel.startRecording()
@@ -146,10 +148,10 @@ struct VoiceInputSheet: View {
     private var transcriptEditor: some View {
         VStack(spacing: 16) {
             TextField("识别结果", text: $viewModel.editableTranscript, axis: .vertical)
-                .lineLimit(4...9)
+                .lineLimit(8...16)
                 .font(.holoBody)
                 .padding(14)
-                .frame(minHeight: 118, alignment: .topLeading)
+                .frame(minHeight: 240, alignment: .topLeading)
                 .background(Color.holoCardBackground)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                 .overlay(
@@ -256,6 +258,24 @@ struct VoiceInputSheet: View {
         case .failed:
             return "识别失败"
         }
+    }
+
+    private var preferredSheetHeight: CGFloat {
+        switch viewModel.state {
+        case .transcriptReady:
+            return 560
+        case .failed:
+            return 430
+        default:
+            return 390
+        }
+    }
+
+    private var isTranscriptReady: Bool {
+        if case .transcriptReady = viewModel.state {
+            return true
+        }
+        return false
     }
 
     private var subtitleText: String {

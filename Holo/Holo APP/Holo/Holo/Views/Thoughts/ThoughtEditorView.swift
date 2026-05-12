@@ -54,7 +54,8 @@ struct ThoughtEditorView: View {
     @State private var isSaving: Bool = false
     @State private var showDismissAlert: Bool = false
     @State private var pendingEditorAction: MarkdownEditorAction? = nil
-    @State private var editorHeight: CGFloat = 200
+    @State private var pendingVoiceTranscriptToInsert: String? = nil
+    @State private var editorHeight: CGFloat = 360
     @State private var typingFormatState: TypingFormatState = TypingFormatState()
     /// 是否为编辑模式
     private var isEditing: Bool { editingThoughtId != nil }
@@ -83,7 +84,7 @@ struct ThoughtEditorView: View {
                     // 引用区域
                     referencesSection
                 }
-                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.horizontal, HoloSpacing.md)
             }
             .background(Color.holoBackground)
             .navigationTitle(isEditing ? "编辑想法" : "记录想法")
@@ -117,13 +118,13 @@ struct ThoughtEditorView: View {
             ReferenceSelectorView(selectedIds: $referencedThoughtIds)
                 .presentationDetents([.large])
         }
-        .sheet(isPresented: $showVoiceInput) {
+        .sheet(isPresented: $showVoiceInput, onDismiss: insertPendingVoiceTranscript) {
             VoiceInputSheet(
                 speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(),
                 readySubtitle: "确认后插入到观点内容",
                 submitButtonTitle: "插入"
             ) { transcript in
-                insertVoiceTranscript(transcript)
+                pendingVoiceTranscriptToInsert = transcript
                 showVoiceInput = false
             }
         }
@@ -221,15 +222,14 @@ struct ThoughtEditorView: View {
                     pendingAction: $pendingEditorAction,
                     dynamicHeight: $editorHeight,
                     formatState: $typingFormatState,
-                    textContainerInset: UIEdgeInsets(top: 8, left: 4, bottom: 62, right: 58)
+                    textContainerInset: UIEdgeInsets(top: 22, left: 16, bottom: 88, right: 16)
                 )
-                    .frame(height: max(editorHeight, 200))
+                    .frame(height: max(editorHeight, 360))
 
                 voiceInputButton
-                    .padding(.trailing, 12)
-                    .padding(.bottom, 12)
+                    .padding(.trailing, 18)
+                    .padding(.bottom, 18)
             }
-            .padding(HoloSpacing.sm)
             .background(Color.holoCardBackground)
             .cornerRadius(HoloRadius.md)
             .overlay(
@@ -367,6 +367,15 @@ struct ThoughtEditorView: View {
         let trimmedTranscript = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedTranscript.isEmpty else { return }
         pendingEditorAction = .insertText(trimmedTranscript)
+    }
+
+    private func insertPendingVoiceTranscript() {
+        guard let transcript = pendingVoiceTranscriptToInsert else { return }
+        pendingVoiceTranscriptToInsert = nil
+
+        DispatchQueue.main.async {
+            insertVoiceTranscript(transcript)
+        }
     }
 
     /// 保存想法
