@@ -42,12 +42,14 @@ final class ChatViewModel: ObservableObject {
     private var metadataLoadTask: Task<Void, Never>?
     private var cancellables = Set<AnyCancellable>()
     private var streamingWatchdogTask: Task<Void, Never>?
+    private let usesInjectedProvider: Bool
 
     // MARK: - Init
 
     /// init 不做任何 I/O 操作，避免 Core Data / Keychain 阻塞主线程
     init(provider: AIProvider? = nil, coordinator: ConversationCoordinator? = nil) {
-        self.provider = provider ?? MockAIProvider()
+        self.usesInjectedProvider = provider != nil
+        self.provider = provider ?? HoloBackendEnvironment.makeDefaultProvider()
         self.coordinator = coordinator ?? ConversationCoordinator()
         checkConfiguration()
         if KeychainService.hasCachedAIConfig {
@@ -60,6 +62,17 @@ final class ChatViewModel: ObservableObject {
     func setup() async {
         if hasFinishedSetup { return }
         bootstrapChatRepositoryIfNeeded()
+
+        if HoloBackendEnvironment.isEnabledByDefault && !usesInjectedProvider {
+            provider = HoloBackendEnvironment.makeDefaultProvider()
+            isConfigured = true
+            isLoadingConfig = false
+            didTimeoutLoadingConfig = false
+            hasFinishedSetup = true
+            logger.info("AI 已配置为 Holo 后端网关")
+            return
+        }
+
         isLoadingConfig = true
         didTimeoutLoadingConfig = false
         defer {

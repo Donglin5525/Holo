@@ -99,15 +99,20 @@ final class AIConfigViewModel: ObservableObject {
         isTesting = true
         testResult = nil
 
-        let config = buildConfig()
+        let provider: AIProvider
+        if HoloBackendEnvironment.isEnabledByDefault {
+            provider = HoloBackendEnvironment.makeDefaultProvider()
+        } else {
+            let config = buildConfig()
 
-        guard config.isConfigured else {
-            testResult = .failure("请先填写 API Key")
-            isTesting = false
-            return
+            guard config.isConfigured else {
+                testResult = .failure("请先填写 API Key")
+                isTesting = false
+                return
+            }
+
+            provider = OpenAICompatibleProvider(config: config)
         }
-
-        let provider = OpenAICompatibleProvider(config: config)
 
         do {
             let result = try await provider.chat(

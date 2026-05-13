@@ -1,0 +1,18 @@
+{
+  "name": "holo-backend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch src/server.js",
+    "start": "node src/server.js",
+    "smoke": "bash scripts/smoke-test.sh",
+    "test": "node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "@hono/node-server": "^1.19.6",
+    "dotenv": "^17.4.2",
+    "hono": "^4.11.2",
+    "ws": "^8.20.1"
+  }
+}

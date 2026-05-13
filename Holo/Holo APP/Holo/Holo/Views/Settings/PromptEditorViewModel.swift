@@ -93,36 +93,58 @@ final class PromptEditorViewModel: ObservableObject {
         testError = nil
 
         do {
-            let config = try await Task.detached {
-                try KeychainService.loadAIConfigOffMain()
-            }.value
-
-            guard let config, config.isConfigured else {
-                testError = "请先在 AI 设置中配置 API Key"
-                isTesting = false
-                return
-            }
-
             let systemContent = promptManager.loadRawTemplate(promptType)
-            let request = APIRequest(
-                baseURL: config.baseURL,
-                path: "/chat/completions",
-                method: .post,
-                headers: [
-                    "Authorization": "Bearer \(config.apiKey)",
-                    "Content-Type": "application/json"
-                ],
-                body: ChatCompletionRequest(
-                    model: config.model,
-                    messages: [
-                        .system(systemContent),
-                        .user(testInput)
+            let request: APIRequest
+            if HoloBackendEnvironment.isEnabledByDefault {
+                request = APIRequest(
+                    baseURL: HoloBackendEnvironment.baseURL,
+                    path: "/v1/ai/chat/completions",
+                    method: .post,
+                    headers: [
+                        "Content-Type": "application/json",
+                        "X-Holo-Device-Id": HoloBackendDeviceIdentity.shared.deviceId
                     ],
-                    temperature: config.temperature,
-                    maxTokens: config.maxTokens,
-                    stream: false
+                    body: HoloBackendChatCompletionRequest(
+                        purpose: HoloBackendPurpose.chat.rawValue,
+                        messages: [
+                            .system(systemContent),
+                            .user(testInput)
+                        ],
+                        stream: false,
+                        responseFormat: nil
+                    )
                 )
-            )
+            } else {
+                let config = try await Task.detached {
+                    try KeychainService.loadAIConfigOffMain()
+                }.value
+
+                guard let config, config.isConfigured else {
+                    testError = "请先在 AI 设置中配置 API Key"
+                    isTesting = false
+                    return
+                }
+
+                request = APIRequest(
+                    baseURL: config.baseURL,
+                    path: "/chat/completions",
+                    method: .post,
+                    headers: [
+                        "Authorization": "Bearer \(config.apiKey)",
+                        "Content-Type": "application/json"
+                    ],
+                    body: ChatCompletionRequest(
+                        model: config.model,
+                        messages: [
+                            .system(systemContent),
+                            .user(testInput)
+                        ],
+                        temperature: config.temperature,
+                        maxTokens: config.maxTokens,
+                        stream: false
+                    )
+                )
+            }
 
             let response: ChatCompletionResponse = try await APIClient.shared.send(request)
 

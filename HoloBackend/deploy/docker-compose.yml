@@ -1,0 +1,11 @@
+services:
+  holo-backend:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: holo-backend
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    ports:
+      - "8787:8787"

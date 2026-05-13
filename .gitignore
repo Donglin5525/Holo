@@ -6,11 +6,15 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+.env
+.env.*
+!.env.example
 
 node_modules
 dist
 dist-ssr
 *.local
+*.swp
 
 # Editor directories and files
 .vscode/*

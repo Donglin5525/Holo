@@ -1,0 +1,89 @@
+const DEFAULT_CONFIG = {
+  auth: {
+    enforceAppAttest: process.env.HOLO_ENFORCE_APP_ATTEST === "true",
+  },
+  limits: {
+    chatRequestsPerMinute: Number(process.env.HOLO_CHAT_REQUESTS_PER_MINUTE ?? 20),
+    chatRequestsPerDay: Number(process.env.HOLO_CHAT_REQUESTS_PER_DAY ?? 50),
+    asrRequestsPerMinute: Number(process.env.HOLO_ASR_REQUESTS_PER_MINUTE ?? 10),
+    asrRequestsPerDay: Number(process.env.HOLO_ASR_REQUESTS_PER_DAY ?? 20),
+    asrMaxBytes: Number(process.env.HOLO_ASR_MAX_BYTES ?? 10 * 1024 * 1024),
+  },
+  routes: {
+    chat: {
+      provider: process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_CHAT_TEMPERATURE ?? 0.2),
+      maxTokens: Number(process.env.HOLO_CHAT_MAX_TOKENS ?? 1024),
+    },
+    intent: {
+      provider: process.env.HOLO_INTENT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_INTENT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_INTENT_TEMPERATURE ?? 0),
+      maxTokens: Number(process.env.HOLO_INTENT_MAX_TOKENS ?? 512),
+    },
+    insight: {
+      provider: process.env.HOLO_INSIGHT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_INSIGHT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_INSIGHT_TEMPERATURE ?? 0.3),
+      maxTokens: Number(process.env.HOLO_INSIGHT_MAX_TOKENS ?? 2048),
+    },
+  },
+  providers: {
+    deepseek: {
+      type: "openai-compatible",
+      baseURL: process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com",
+      apiKey: process.env.DEEPSEEK_API_KEY,
+    },
+    qwen: {
+      type: "openai-compatible",
+      baseURL: process.env.QWEN_BASE_URL ?? "https://dashscope.aliyuncs.com/compatible-mode/v1",
+      apiKey: process.env.QWEN_API_KEY,
+    },
+    moonshot: {
+      type: "openai-compatible",
+      baseURL: process.env.MOONSHOT_BASE_URL ?? "https://api.moonshot.cn/v1",
+      apiKey: process.env.MOONSHOT_API_KEY,
+    },
+    zhipu: {
+      type: "openai-compatible",
+      baseURL: process.env.ZHIPU_BASE_URL ?? "https://open.bigmodel.cn/api/paas/v4",
+      apiKey: process.env.ZHIPU_API_KEY,
+    },
+  },
+  asr: {
+    provider: process.env.HOLO_ASR_PROVIDER ?? "mock",
+    dashscopeApiKey: process.env.DASHSCOPE_API_KEY,
+    dashscopeWebSocketURL: process.env.DASHSCOPE_ASR_WEBSOCKET_URL ?? "wss://dashscope.aliyuncs.com/api-ws/v1/realtime",
+    model: process.env.DASHSCOPE_ASR_MODEL ?? "qwen3-asr-flash-realtime",
+    language: process.env.DASHSCOPE_ASR_LANGUAGE ?? "zh",
+    sampleRate: Number(process.env.DASHSCOPE_ASR_SAMPLE_RATE ?? 16_000),
+  },
+};
+
+export function loadConfig(overrides = {}) {
+  return {
+    auth: {
+      ...DEFAULT_CONFIG.auth,
+      ...overrides.auth,
+    },
+    limits: {
+      ...DEFAULT_CONFIG.limits,
+      ...overrides.limits,
+    },
+    routes: {
+      ...DEFAULT_CONFIG.routes,
+      ...overrides.routes,
+    },
+    providers: {
+      ...DEFAULT_CONFIG.providers,
+      ...overrides.providers,
+    },
+    asr: {
+      ...DEFAULT_CONFIG.asr,
+      ...overrides.asr,
+    },
+    asrProvider: overrides.asrProvider,
+    usageStore: overrides.usageStore,
+  };
+}

@@ -372,6 +372,10 @@ private struct ASRError: Decodable {
 enum SpeechRecognitionProviderFactory {
     @MainActor
     static func makeConfiguredProvider() -> SpeechRecognitionProvider {
+        if HoloBackendEnvironment.isEnabledByDefault {
+            return HoloBackendSpeechRecognitionProvider()
+        }
+
         guard KeychainService.hasCachedVoiceRecognitionConfig,
               let config = try? KeychainService.loadVoiceRecognitionConfigOffMain(),
               config.isConfigured else {

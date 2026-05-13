@@ -1,0 +1,315 @@
+//
+//  HoloBackendAIProvider.swift
+//  Holo
+//
+//  调用 Holo 自有后端网关的 AI Provider
+//
+
+import Foundation
+import os.log
+
+@MainActor
+final class HoloBackendAIProvider: AIProvider {
+
+    private let logger = Logger(subsystem: "com.holo.app", category: "HoloBackendAIProvider")
+    private let baseURL: String
+    private let apiClient: APIClient
+    private let deviceIdProvider: () -> String
+    private(set) var lastCallLog: LLMCallLog?
+
+    init(
+        baseURL: String = HoloBackendEnvironment.baseURL,
+        apiClient: APIClient = .shared,
+        deviceIdProvider: @escaping () -> String = { HoloBackendDeviceIdentity.shared.deviceId }
+    ) {
+        self.baseURL = baseURL
+        self.apiClient = apiClient
+        self.deviceIdProvider = deviceIdProvider
+    }
+
+    // MARK: - AIProvider
+
+    func parseUserInput(_ input: String, context: UserContext) async throws -> ParsedResult {
+        let batch = try await parseUserInputBatch(input, context: context)
+        return batch.first?.asParsedResult ?? ParsedResult(
+            intent: .unknown,
+            confidence: 0.3,
+            extractedData: nil,
+            needsClarification: batch.needsClarification,
+            clarificationQuestion: batch.clarificationQuestion,
+            responseText: batch.fallbackResponseText
+        )
+    }
+
+    func parseUserInputBatch(_ input: String, context: UserContext) async throws -> AIParseBatch {
+        let systemPrompt = try PromptManager.shared.loadPrompt(.intentRecognition)
+        let messages: [ChatMessageDTO] = [
+            .system(systemPrompt),
+            .user(input)
+        ]
+
+        let request = buildRequest(
+            purpose: .intent,
+            messages: messages,
+            responseFormat: .jsonObject
+        )
+        let response: ChatCompletionResponse = try await apiClient.send(request)
+
+        guard let content = response.choices?.first?.message?.content else {
+            throw APIError.serverError("AI 未返回有效内容")
+        }
+
+        lastCallLog = LLMCallLog(
+            type: "intent_recognition",
+            model: "holo-backend",
+            requestMessages: messages,
+            responseText: content
+        )
+
+        return parseBatchFromJSON(content)
+    }
+
+    func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> String {
+        let systemPrompt = try PromptManager.shared.loadPrompt(.memoryInsightGeneration)
+        let messages: [ChatMessageDTO] = [
+            .system(systemPrompt),
+            .user(contextJSON)
+        ]
+        let request = buildRequest(purpose: .insight, messages: messages)
+        let response: ChatCompletionResponse = try await apiClient.send(request)
+
+        guard let content = response.choices?.first?.message?.content else {
+            throw APIError.serverError("AI 未返回有效内容")
+        }
+
+        return content
+    }
+
+    func chat(messages: [ChatMessageDTO], userContext: UserContext) async throws -> String {
+        let allMessages = try buildChatMessages(messages: messages, userContext: userContext)
+        let request = buildRequest(purpose: .chat, messages: allMessages)
+        let response: ChatCompletionResponse = try await apiClient.send(request)
+
+        guard let content = response.choices?.first?.message?.content else {
+            throw APIError.serverError("AI 未返回有效内容")
+        }
+
+        return content
+    }
+
+    func chatStreaming(messages: [ChatMessageDTO], userContext: UserContext) -> AsyncThrowingStream<String, Error> {
+        chatStreaming(
+            messages: messages,
+            userContext: userContext,
+            systemContextOverride: nil,
+            promptType: .systemPrompt
+        )
+    }
+
+    func chatStreaming(
+        messages: [ChatMessageDTO],
+        userContext: UserContext,
+        systemContextOverride: String?,
+        promptType: PromptManager.PromptType
+    ) -> AsyncThrowingStream<String, Error> {
+        do {
+            let systemPrompt = try PromptManager.shared.loadPrompt(promptType)
+            var allMessages: [ChatMessageDTO] = [.system(systemPrompt)]
+
+            if let systemContextOverride {
+                allMessages.append(.system(systemContextOverride))
+            } else {
+                allMessages.append(.system(buildContextMessage(userContext)))
+            }
+
+            allMessages.append(contentsOf: messages)
+
+            let request = buildRequest(
+                purpose: .chat,
+                messages: allMessages,
+                stream: true
+            )
+
+            lastCallLog = LLMCallLog(
+                type: "chat",
+                model: "holo-backend",
+                requestMessages: allMessages,
+                responseText: ""
+            )
+
+            return apiClient.sendStreaming(request)
+        } catch {
+            return AsyncThrowingStream { $0.finish(throwing: error) }
+        }
+    }
+
+    // MARK: - Request Building
+
+    private func buildRequest(
+        purpose: HoloBackendPurpose,
+        messages: [ChatMessageDTO],
+        stream: Bool = false,
+        responseFormat: ResponseFormat? = nil
+    ) -> APIRequest {
+        APIRequest(
+            baseURL: baseURL,
+            path: "/v1/ai/chat/completions",
+            method: .post,
+            headers: [
+                "Content-Type": "application/json",
+                "X-Holo-Device-Id": deviceIdProvider()
+            ],
+            body: HoloBackendChatCompletionRequest(
+                purpose: purpose.rawValue,
+                messages: messages,
+                stream: stream,
+                responseFormat: responseFormat
+            )
+        )
+    }
+
+    private func buildChatMessages(messages: [ChatMessageDTO], userContext: UserContext) throws -> [ChatMessageDTO] {
+        let systemPrompt = try PromptManager.shared.loadPrompt(.systemPrompt)
+        var allMessages: [ChatMessageDTO] = [
+            .system(systemPrompt),
+            .system(buildContextMessage(userContext))
+        ]
+        allMessages.append(contentsOf: messages)
+        return allMessages
+    }
+
+    private func buildContextMessage(_ context: UserContext) -> String {
+        var message = """
+        当前用户上下文：
+        - 日期：\(context.todayDate)
+        - 今日支出：\(context.transactions.todayExpense)，今日收入：\(context.transactions.todayIncome)
+        - 近期交易：\(context.transactions.recentTransactions.joined(separator: "、"))
+        - 可用账户：\(context.accounts.accountList)
+        - 活跃习惯：\(context.habits.totalActive) 个，今日完成 \(context.habits.todayCompleted)/\(context.habits.todayTotal)
+        - 今日任务：\(context.tasks.todayTotal) 个（已完成 \(context.tasks.todayCompleted)），逾期 \(context.tasks.overdueCount) 个
+        - 近期任务：\(context.tasks.recentTasks.joined(separator: "、"))
+        - 近期想法：\(context.thoughts.recentThoughts.prefix(3).joined(separator: "、"))
+        """
+
+        if let profile = context.profileContext, !profile.isEmpty {
+            message += "\n\n--- 用户档案 ---\n\(profile)"
+        }
+
+        if let trend = context.recentTrend {
+            var trendSection = "\n\n--- 近期趋势 ---"
+            trendSection += "\n- 本周支出：\(trend.weekExpenseTotal)"
+            if let change = trend.weekExpenseChange {
+                trendSection += "（较上周\(change)）"
+            }
+            if let rate = trend.weekHabitCompletionRate {
+                trendSection += "\n- 本周习惯完成率：\(rate)"
+            }
+            trendSection += "\n- 本周完成任务：\(trend.weekTaskCompletedCount) 个"
+            if let category = trend.topExpenseCategory {
+                trendSection += "\n- 本周最大支出分类：\(category)"
+            }
+            if let summary = trend.dailyInsightSummary {
+                trendSection += "\n- 今日洞察：\(summary)"
+            }
+            message += trendSection
+        }
+
+        return message
+    }
+
+    // MARK: - JSON Parsing
+
+    private func parseBatchFromJSON(_ text: String) -> AIParseBatch {
+        let jsonString = extractJSON(from: text)
+
+        guard let data = jsonString.data(using: .utf8) else {
+            return AIParseBatch(
+                mode: .clarification,
+                items: [],
+                needsClarification: true,
+                clarificationQuestion: "我没完全理解这句话，你可以拆开再说一次吗？",
+                fallbackResponseText: text
+            )
+        }
+
+        if let batch = try? JSONDecoder().decode(AIParseBatch.self, from: data) {
+            return batch
+        }
+
+        if let single = try? JSONDecoder().decode(ParsedResult.self, from: data) {
+            let mode: AIInteractionMode = single.intent.isQuery ? .query : .singleAction
+            return AIParseBatch(
+                mode: mode,
+                items: [single.asParseItem],
+                needsClarification: single.needsClarification,
+                clarificationQuestion: single.clarificationQuestion,
+                fallbackResponseText: single.responseText
+            )
+        }
+
+        logger.error("后端 AI JSON 解析失败，回退为 clarification")
+        logger.error("LLM 原始返回：\(text)")
+
+        return AIParseBatch(
+            mode: .clarification,
+            items: [],
+            needsClarification: true,
+            clarificationQuestion: "我没完全理解这句话，你可以拆开再说一次吗？",
+            fallbackResponseText: text
+        )
+    }
+
+    private func extractJSON(from text: String) -> String {
+        if let range = text.range(of: "```json") {
+            let afterMarker = text[range.upperBound...]
+            if let endRange = afterMarker.range(of: "```") {
+                return String(afterMarker[..<endRange.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
+        if let start = text.firstIndex(of: "{"), let end = text.lastIndex(of: "}") {
+            return String(text[start...end])
+        }
+
+        return text
+    }
+}
+
+enum HoloBackendPurpose: String {
+    case chat
+    case intent
+    case insight
+}
+
+struct HoloBackendChatCompletionRequest: Encodable {
+    let purpose: String
+    let messages: [ChatMessageDTO]
+    let stream: Bool
+    let responseFormat: ResponseFormat?
+
+    enum CodingKeys: String, CodingKey {
+        case purpose, messages, stream
+        case responseFormat = "response_format"
+    }
+}
+
+final class HoloBackendDeviceIdentity {
+    static let shared = HoloBackendDeviceIdentity()
+
+    private let key = "holo.backend.deviceId"
+    private let userDefaults: UserDefaults
+
+    var deviceId: String {
+        if let existing = userDefaults.string(forKey: key), !existing.isEmpty {
+            return existing
+        }
+
+        let created = UUID().uuidString
+        userDefaults.set(created, forKey: key)
+        return created
+    }
+
+    private init(userDefaults: UserDefaults = .standard) {
+        self.userDefaults = userDefaults
+    }
+}

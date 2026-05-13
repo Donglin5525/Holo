@@ -5,6 +5,8 @@
 ## [Unreleased]
 
 ### Features
+- **Backend**: 新增 HoloBackend 商用 AI 网关 MVP，统一代理 HoloAI 聊天补全和 DashScope ASR 请求，前端不再直接暴露大模型 API Key
+- **iOS**: Debug 环境接入 HoloBackend，HoloAI 对话、Prompt 测试、AI 洞察和语音识别默认走 ECS 后端转发
 - **iOS**: 任务完成音效 + 触觉反馈
 - **iOS**: 任务详情支持编辑标题和描述
 - **iOS**: 任务完成增加撤回机制（Toast 提示可撤销）
@@ -13,6 +15,8 @@
 - **iOS**: 记忆长廊三 Tab 改版：AI 回放 + 地图 + 明细
 
 ### Improvements
+- **Backend**: 新增 DeepSeek 聊天转发、DashScope ASR 转写、设备级限流、请求字段过滤、ECS systemd/Nginx 部署文档和 smoke test
+- **iOS**: 为当前公网 IP + HTTP 验收临时放行 ATS；商用域名 + HTTPS 接入后需移除该临时配置
 - **iOS**: 记一笔键盘态布局优化：金额/名称上移为紧凑输入框，最近使用分类改为图标胶囊，快捷金额栏与数字键盘使用统一托盘和轻微色差过渡
 - **iOS**: 截止时间从 sheet 改为内联抽屉（图形日期选择器 + 时间切换）
 - **iOS**: 检查清单从 sheet 改为内联列表（进度条 + 添加/删除）
@@ -22,6 +26,7 @@
 - **iOS**: 预算卡片紧凑化：单行布局，去掉已花金额和分类预警
 
 ### Bug Fixes
+- **Backend**: 修复 Node 18 环境 ASR 上传处理触发 `File is not defined`，导致 `/v1/asr/transcriptions` 返回 500 的问题
 - **iOS**: 修复首次启动卡死 — Core Data 异步加载 + CheckedContinuation + 值类型 nonisolated/Sendable + dictionaryResultType 后台安全读取
 - **iOS**: 修复左滑手势与垂直滚动冲突（方向确认前不禁用 ScrollView）
 - **iOS**: 修复任务/观点模块左滑手势全局失效
@@ -37,6 +42,7 @@
 - **iOS**: 为记忆长廊页面添加缺失的右滑返回手势
 
 ### Chores
+- TODO: 记录后端请求耗时日志、域名 + HTTPS 接入并移除临时 HTTP 放行两个商用化后续项
 - CLAUDE.md 区分 TODO.md（项目级待办清单）与 docs/todo/（待办模块文档）的定位
   - 移除 categoryRow 的 contentShape(Rectangle()) 防止行级手势冲突
   - 用独立 @State showDeleteConfirmation 替代内联自定义 Binding

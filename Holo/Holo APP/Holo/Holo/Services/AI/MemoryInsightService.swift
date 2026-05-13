@@ -41,6 +41,10 @@ final class MemoryInsightService {
 
     /// 检查 AI 是否已配置
     var isAIConfigured: Bool {
+        if HoloBackendEnvironment.isEnabledByDefault {
+            return true
+        }
+
         guard let config = try? KeychainService.shared.loadAIConfig() else {
             return false
         }
@@ -52,6 +56,12 @@ final class MemoryInsightService {
     /// 从 Keychain 读取 AI 配置并创建 Provider
     private func resolveProvider() throws -> AIProvider {
         if let current = currentProvider { return current }
+
+        if HoloBackendEnvironment.isEnabledByDefault {
+            let provider = HoloBackendEnvironment.makeDefaultProvider()
+            currentProvider = provider
+            return provider
+        }
 
         guard let config = try KeychainService.shared.loadAIConfig(),
               config.isConfigured else {

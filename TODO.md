@@ -150,6 +150,8 @@
 
 | 优先级 | 项目 | 说明 | 状态 |
 |--------|------|------|------|
+| 高 | 后端请求耗时日志 | 为 HoloBackend 增加按接口记录耗时的访问日志，例如 `POST /v1/asr/transcriptions 200 1.42s`、`POST /v1/ai/chat/completions 200 0.63s`，便于对比直连大模型与后端转发后的体感延迟 | 📋 待实施 |
+| 高 | 域名 + HTTPS 商用接入 | 为 ECS 后端绑定正式域名并配置 HTTPS，iOS 改用 HTTPS 后端地址；完成后移除当前为公网 IP 验收临时加入的 `NSAllowsArbitraryLoads` HTTP 放行 | 📋 待实施 |
 | 中 | 自定义分类同步到 AI 意图识别 | 用户新增一级/二级分类后，AI 的 LLM 意图识别 prompt 中的科目表是硬编码的，无法感知。需要设计同步机制让 AI 及时知晓分类调整 | 📋 待规划 |
 | 中 | HoloProfile 扩展注入范围 | 当前 HoloProfile 仅在普通对话中注入，分析查询（`UserContext.empty`）和洞察生成均未使用。需扩展至分析查询和记忆洞察生成场景 | 📋 待规划 |
 
