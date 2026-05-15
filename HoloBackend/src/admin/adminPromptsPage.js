@@ -40,7 +40,7 @@ export function renderAdminPromptsPage({ prompts, notice = null, error = null })
   });
 }
 
-export function renderAdminPromptEditorPage({ prompt, notice = null, error = null }) {
+export function renderAdminPromptEditorPage({ prompt, notice = null, error = null, testResult = null, testError = null }) {
   return renderAdminShell({
     title: `编辑 Prompt：${prompt.type}`,
     active: "prompts",
@@ -58,11 +58,78 @@ export function renderAdminPromptEditorPage({ prompt, notice = null, error = nul
             Prompt 内容
             <textarea class="prompt-editor" name="content" required>${escapeHtml(prompt.content)}</textarea>
           </label>
+          <label style="margin-top:12px">
+            变更说明（可选）
+            <textarea name="change_note" rows="2" placeholder="描述本次修改的原因或内容，方便日后回顾">${escapeHtml(prompt.lastChangeNote ?? "")}</textarea>
+          </label>
           <div class="actions">
             <button type="submit">保存 Prompt</button>
             <button type="submit" name="action" value="reset" class="secondary">恢复默认</button>
           </div>
         </form>
+      </section>
+      <section class="panel">
+        <h2 style="font-size:16px;margin:0 0 12px">测试 Prompt</h2>
+        <form id="prompt-test-form">
+          <label>
+            Purpose
+            <select name="purpose">
+              <option value="chat">chat</option>
+              <option value="intent">intent</option>
+              <option value="insight">insight</option>
+            </select>
+          </label>
+          <label style="margin-top:8px">
+            消息内容
+            <textarea name="message" rows="3" placeholder="输入测试消息" required></textarea>
+          </label>
+          <div class="actions">
+            <button type="submit">发送测试</button>
+          </div>
+        </form>
+        ${testError ? `<p class="error-message" style="margin-top:12px">${escapeHtml(testError)}</p>` : ''}
+        ${testResult ? `<details open style="margin-top:12px"><summary>测试结果</summary><pre class="diff-view">${escapeHtml(testResult)}</pre></details>` : ''}
+        <script>
+        (function() {
+          var form = document.getElementById('prompt-test-form');
+          form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            var data = new FormData(form);
+            var resultArea = form.querySelector('details, .error-message');
+            var body = new URLSearchParams({
+              purpose: data.get('purpose'),
+              message: data.get('message')
+            });
+            fetch('/admin/prompts/${encodeURIComponent(prompt.type)}/test', {
+              method: 'POST',
+              headers: { 'content-type': 'application/x-www-form-urlencoded' },
+              body: body.toString()
+            }).then(function(r) {
+              return r.json();
+            }).then(function(json) {
+              var container = document.getElementById('test-result');
+              if (!container) {
+                container = document.createElement('div');
+                container.id = 'test-result';
+                form.parentNode.appendChild(container);
+              }
+              if (json.error) {
+                container.innerHTML = '<p class="error-message" style="margin-top:12px">' + json.error + '</p>';
+              } else {
+                container.innerHTML = '<details open style="margin-top:12px"><summary>测试结果</summary><pre class="diff-view">' + json.result.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</pre></details>';
+              }
+            }).catch(function(err) {
+              var container = document.getElementById('test-result');
+              if (!container) {
+                container = document.createElement('div');
+                container.id = 'test-result';
+                form.parentNode.appendChild(container);
+              }
+              container.innerHTML = '<p class="error-message" style="margin-top:12px">请求失败: ' + err.message + '</p>';
+            });
+          });
+        })();
+        </script>
       </section>
     `,
   });
@@ -82,6 +149,7 @@ export function renderAdminPromptHistoryPage({ type, history, currentVersion, no
         <td>${escapeHtml(entry.source)}</td>
         <td>${escapeHtml(entry.created_at ?? "-")}</td>
         <td>${escapeHtml(entry.content_length)} 字</td>
+        <td>${entry.change_note ? escapeHtml(entry.change_note) : '<span style="color:#9ca3af">-</span>'}</td>
         <td>
           <details>
             <summary>查看 Diff</summary>
@@ -118,6 +186,7 @@ export function renderAdminPromptHistoryPage({ type, history, currentVersion, no
               <th>来源</th>
               <th>时间</th>
               <th>长度</th>
+              <th>变更说明</th>
               <th>Diff</th>
               <th>操作</th>
             </tr>

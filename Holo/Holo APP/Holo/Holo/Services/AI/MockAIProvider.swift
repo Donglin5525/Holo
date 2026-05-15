@@ -204,10 +204,10 @@ final class MockAIProvider: AIProvider {
         )
     }
 
-    func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> String {
+    func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> MemoryInsightGenerationResult {
         try await Task.sleep(nanoseconds: 800_000_000)
 
-        return """
+        let rawResponse = """
         {
           "title": "你在把生活重新拉回节奏里",
           "summary": "习惯完成回暖，支出保持稳定，观点里反复提到建立仪式感和减少临时补救。",
@@ -262,6 +262,12 @@ final class MockAIProvider: AIProvider {
           ]
         }
         """
+
+        return MemoryInsightGenerationResult(
+            rawResponse: rawResponse,
+            promptType: "memory_insight_generation",
+            promptVersion: nil
+        )
     }
 
     func chat(messages: [ChatMessageDTO], userContext: UserContext) async throws -> String {

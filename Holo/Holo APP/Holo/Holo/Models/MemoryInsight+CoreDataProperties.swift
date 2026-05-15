@@ -68,6 +68,30 @@ extension MemoryInsight {
         return (try? context.fetch(request))?.first
     }
 
+    /// 查询指定周期的可用洞察，同时匹配 snapshotHash 和 promptVersion
+    static func fetchAvailable(
+        periodType: MemoryInsightPeriodType,
+        start: Date,
+        end: Date,
+        in context: NSManagedObjectContext,
+        snapshotHash: String,
+        promptVersion: Int16
+    ) -> MemoryInsight? {
+        let request = MemoryInsight.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "periodType == %@ AND periodStart == %@ AND status IN %@ AND sourceSnapshotHash == %@ AND promptVersion == %d",
+            periodType.rawValue,
+            start as CVarArg,
+            [MemoryInsightStatus.ready.rawValue, MemoryInsightStatus.stale.rawValue],
+            snapshotHash,
+            promptVersion
+        )
+        request.sortDescriptors = [NSSortDescriptor(key: "generatedAt", ascending: false)]
+        request.fetchLimit = 1
+
+        return (try? context.fetch(request))?.first
+    }
+
     /// 清理同周期同类型的 failed 记录
     static func cleanupFailed(
         periodType: MemoryInsightPeriodType,

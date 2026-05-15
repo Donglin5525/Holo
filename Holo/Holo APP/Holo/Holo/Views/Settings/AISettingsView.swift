@@ -12,6 +12,7 @@ struct AISettingsView: View {
 
     @StateObject private var viewModel = AIConfigViewModel()
     @Environment(\.dismiss) private var dismiss
+    @State private var showPromptRefreshed = false
 
     var body: some View {
         Form {
@@ -26,6 +27,9 @@ struct AISettingsView: View {
 
             // 连接测试
             testSection
+
+            // Prompt 模板
+            promptSection
 
             // 学习数据
             mappingSection
@@ -196,9 +200,29 @@ struct AISettingsView: View {
         } header: {
             Text("Prompt 模板")
         } footer: {
-            Text("自定义 AI 对话中使用的提示词模板")
-                .font(.caption)
-                .foregroundColor(.holoTextSecondary)
+            VStack(alignment: .leading, spacing: 8) {
+                Text("自定义 AI 对话中使用的提示词模板")
+                    .font(.caption)
+                    .foregroundColor(.holoTextSecondary)
+
+                Button {
+                    HoloBackendPromptService.shared.clearCache()
+                    PromptManager.shared.clearCache()
+                    showPromptRefreshed = true
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.clockwise")
+                        Text("刷新后端 Prompt 缓存")
+                    }
+                    .font(.caption)
+                    .foregroundColor(.holoPrimary)
+                }
+                .alert("已刷新", isPresented: $showPromptRefreshed) {
+                    Button("好的", role: .cancel) {}
+                } message: {
+                    Text("后端 Prompt 缓存已清除，下次生成洞察时将使用最新版本")
+                }
+            }
         }
     }
 

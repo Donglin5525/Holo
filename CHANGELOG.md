@@ -4,6 +4,44 @@
 
 ---
 
+## [2026-05-16] Holo 生活轨迹 AI 洞察升级
+
+### 新增
+- Prompt 体系升级：system_prompt 从"数据管理助手"升级为"生活轨迹观察助手"，memory_insight_generation 新增轨迹观察视角、洞察层级（fact/change/pattern/correlation/hypothesis/suggestion）、恢复迹象检测
+- analysis_prompt 新增分层分析顺序（事实→变化→模式→关联→建议）
+- annual_review 升级为转折点+恢复能力观察，不再逐月流水账
+- intent_recognition 新增跨模块分析（crossModule）和混合意图识别规则
+- 后端 `/v1/prompts/meta` 批量元数据 API（不含正文，供 iOS 判断缓存版本）
+- 后端 Prompt 版本 `change_note` 变更说明字段（migration + 管理后台展示）
+- 后端管理后台 Prompt 测试区（purpose + message 输入 + 实时测试）
+- iOS Prompt 版本化缓存：`LoadedPrompt` 携带 version，meta TTL 2 分钟自动检测版本变化
+- iOS 设置页「刷新后端 Prompt 缓存」按钮
+- `LifeEvent` 关键事件流模型（最多 30 条，按优先级排序）
+- `DailyLifeSnapshot` 每日快照模型（支出/任务/习惯/想法日维度数据）
+- `PersonalBaseline` 个人基线模型（观察期前 4 周基线，含高支出工作日检测）
+- `CrossModuleCorrelation` 扩展 `patternType` + `evidenceDates` 字段
+- 2 条新跨模块规则：重要任务完成+习惯恢复、恢复迹象优先展示
+- 跨模块去重逻辑（同一 modulePair+evidenceDates+patternType 不重复输出）
+- 13 个后端 Prompt 相关测试用例
+
+### 变更
+- `generateMemoryInsight()` 强制 `responseFormat: .jsonObject`，提升 JSON 解析稳定性
+- `AIProvider` 协议 `generateMemoryInsight` 返回 `MemoryInsightGenerationResult`（含 promptVersion），三个 Provider 同步适配
+- `MemoryInsightService` 保存真实 promptVersion（不再硬编码 `4`）
+- 洞察缓存命中同时检查 `sourceSnapshotHash` + `promptVersion`
+- Jaccard 去重只比较同 promptVersion 内的洞察
+- 旧 `promptVersion=0` 记录仍可展示但不阻挡新生成
+- Token Budget 渐进式裁剪：daily 800 → weekly 2200 → monthly 3800 → annual 5000，CJK 友好估算
+- 年度上下文新增专用预算裁剪（`enforceAnnualTokenBudget`）
+- `ThoughtRepository` 新增 `getThoughtCountByDay` 聚合方法
+- AISettingsView 修复 promptSection 未显示在 body 中的问题
+
+### 涉及文件
+- iOS: 13 个文件修改，+1373 行
+- 后端: 7 个文件修改 + 1 个新增，+147 行
+
+---
+
 ## [2026-05-16] HoloBackend 功能增强 — SQLite 持久化 + 日志增强 + Prompt 版本管理 + ECS 部署
 
 ### 新增

@@ -189,6 +189,47 @@ struct MemoryInsightContext: Codable, Equatable {
     let monthlyInsightDigests: [MonthlyInsightDigest]
     let anomalies: [AnomalyObservation]
     let previousPeriodReview: PreviousPeriodReview?
+    let dailySnapshots: [DailyLifeSnapshot]?
+    let lifeEvents: [LifeEvent]?
+    let personalBaseline: PersonalBaseline?
+
+    init(
+        periodType: MemoryInsightPeriodType,
+        periodStart: Date,
+        periodEnd: Date,
+        generatedAt: Date,
+        localeIdentifier: String,
+        finance: MemoryInsightFinanceContext,
+        habits: MemoryInsightHabitContext,
+        tasks: MemoryInsightTaskContext,
+        thoughts: MemoryInsightThoughtContext,
+        milestones: [MemoryInsightMilestoneContext],
+        crossModuleCorrelations: [CrossModuleCorrelation],
+        monthlyInsightDigests: [MonthlyInsightDigest],
+        anomalies: [AnomalyObservation],
+        previousPeriodReview: PreviousPeriodReview?,
+        dailySnapshots: [DailyLifeSnapshot]? = nil,
+        lifeEvents: [LifeEvent]? = nil,
+        personalBaseline: PersonalBaseline? = nil
+    ) {
+        self.periodType = periodType
+        self.periodStart = periodStart
+        self.periodEnd = periodEnd
+        self.generatedAt = generatedAt
+        self.localeIdentifier = localeIdentifier
+        self.finance = finance
+        self.habits = habits
+        self.tasks = tasks
+        self.thoughts = thoughts
+        self.milestones = milestones
+        self.crossModuleCorrelations = crossModuleCorrelations
+        self.monthlyInsightDigests = monthlyInsightDigests
+        self.anomalies = anomalies
+        self.previousPeriodReview = previousPeriodReview
+        self.dailySnapshots = dailySnapshots
+        self.lifeEvents = lifeEvents
+        self.personalBaseline = personalBaseline
+    }
 }
 
 // MARK: - Cross-Module Types
@@ -202,6 +243,24 @@ struct CrossModuleCorrelation: Codable, Equatable {
     let observation: String
     let signalStrength: Double
     let summary: String
+    let patternType: String?
+    let evidenceDates: [String]
+
+    init(
+        modulePair: [InsightModule],
+        observation: String,
+        signalStrength: Double,
+        summary: String,
+        patternType: String? = nil,
+        evidenceDates: [String] = []
+    ) {
+        self.modulePair = modulePair
+        self.observation = observation
+        self.signalStrength = signalStrength
+        self.summary = summary
+        self.patternType = patternType
+        self.evidenceDates = evidenceDates
+    }
 }
 
 // MARK: - Annual Review Types
@@ -315,4 +374,44 @@ struct PreviousPeriodReview: Codable, Equatable {
     let previousSuggestions: [String]
     let previousAnomalyTitles: [String]
     let previousSummary: String?
+}
+
+// MARK: - Life Trajectory Models
+
+struct LifeEvent: Codable, Equatable, Sendable {
+    let id: String
+    let date: String
+    let module: String      // finance | habit | task | thought
+    let type: String        // expense | income | habitCompleted | habitMissed | taskCompleted | taskOverdue | thoughtCreated
+    let title: String
+    let valueText: String?
+    let tags: [String]
+    let sourceId: String?
+}
+
+struct DailyLifeSnapshot: Codable, Equatable, Sendable {
+    let date: String
+    let expenseTotalText: String
+    let taskCreatedCount: Int
+    let taskCompletedCount: Int
+    let overdueCount: Int
+    let habitCompletionRate: Double?
+    let thoughtCount: Int
+    let topSignals: [String]
+}
+
+struct PersonalBaseline: Codable, Equatable, Sendable {
+    let baselineStart: Date
+    let baselineEnd: Date
+    let effectiveWeekCount: Int
+    let expenseWeeklyAverageText: String?
+    let categoryAverages: [CategoryBaseline]
+    let taskCompletionRateAverage: Double?
+    let habitCompletionRateAverage: Double?
+    let usualHighExpenseWeekdays: [String]
+}
+
+struct CategoryBaseline: Codable, Equatable, Sendable {
+    let categoryName: String
+    let weeklyAverageText: String
 }

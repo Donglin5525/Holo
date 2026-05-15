@@ -45,9 +45,10 @@ struct MemoryInsightContextBuilder {
 
     // MARK: - Token Budgets
 
-    private static let weeklyTokenBudget = 2000
-    private static let monthlyTokenBudget = 3500
     private static let dailyTokenBudget = 800
+    private static let weeklyTokenBudget = 2200
+    private static let monthlyTokenBudget = 3800
+    private static let annualTokenBudget = 5000
 
     // MARK: - Build Context
 
@@ -79,6 +80,12 @@ struct MemoryInsightContextBuilder {
             insightRepo: insightRepo
         )
 
+        // 生活轨迹上下文
+        async let dailySnapshotsTask = buildDailySnapshots(start: start, end: end)
+        async let lifeEventsTask = buildLifeEvents(start: start, end: end)
+        let personalBaseline = await buildPersonalBaseline(observationStart: start)
+        let (dailySnapshots, lifeEvents) = await (dailySnapshotsTask, lifeEventsTask)
+
         var context = MemoryInsightContext(
             periodType: periodType,
             periodStart: start,
@@ -93,7 +100,10 @@ struct MemoryInsightContextBuilder {
             crossModuleCorrelations: correlations,
             monthlyInsightDigests: [],
             anomalies: allAnomalies,
-            previousPeriodReview: previousReview
+            previousPeriodReview: previousReview,
+            dailySnapshots: dailySnapshots,
+            lifeEvents: lifeEvents,
+            personalBaseline: personalBaseline
         )
 
         context = Self.enforceTokenBudget(context, periodType: periodType)
@@ -510,6 +520,214 @@ struct MemoryInsightContextBuilder {
         )
     }
 
+    // MARK: - Life Trajectory: Daily Snapshots
+
+    private func buildDailySnapshots(start: Date, end: Date) async -> [DailyLifeSnapshot] {
+        let calendar = Calendar.current
+        let dateFormatter = Self.makeDateFormatter()
+        let currencyFormatter = Self.makeCurrencyFormatter()
+
+        // 批量获取数据
+        let endExclusive = end.addingDays(1)
+        let dailyExpenses = await Self.fetchDailyExpenseMap(
+            financeRepo: financeRepo,
+            start: start,
+            end: endExclusive
+        )
+        let dailyTaskMap = Self.fetchDailyTaskMap(
+            todoRepo: todoRepo,
+            start: start,
+            end: end
+        )
+        let overdueTasks = todoRepo.getOverdueTasks()
+        let habitRates = Self.fetchDailyHabitRates(
+            habitRepo: habitRepo,
+            start: start,
+            end: end
+        )
+        let thoughtCounts = thoughtRepo.getThoughtCountByDay(
+            from: start,
+            to: endExclusive
+        )
+
+        // 按天聚合逾期
+        var overdueByDay: [String: Int] = [:]
+        let overdueDateFormatter = DateFormatter()
+        overdueDateFormatter.locale = Locale(identifier: "zh_CN")
+        overdueDateFormatter.dateFormat = "yyyy-MM-dd"
+        for task in overdueTasks {
+            guard let dueDate = task.dueDate else { continue }
+            let key = overdueDateFormatter.string(from: dueDate)
+            overdueByDay[key, default: 0] += 1
+        }
+
+        // 计算全期日均消费，用于异常判定
+        let totalExpense = dailyExpenses.values.reduce(Decimal(0), +)
+        let totalDays = max(calendar.dateComponents([.day], from: start, to: end).day ?? 0, 1)
+        let avgDailyExpense = totalExpense / Decimal(totalDays)
+
+        var snapshots: [DailyLifeSnapshot] = []
+        var current = start
+        while current <= end {
+            let key = dateFormatter.string(from: current)
+            let dayExpense = dailyExpenses[key] ?? Decimal(0)
+            let taskInfo = dailyTaskMap[key] ?? (created: 0, completed: 0)
+            let dayOverdue = overdueByDay[key] ?? 0
+            let habitRate = habitRates[key]
+            let thoughtCount = thoughtCounts[key] ?? 0
+
+            let signals = Self.detectDailySignals(
+                dayExpense: dayExpense,
+                avgDailyExpense: avgDailyExpense,
+                overdueCount: dayOverdue,
+                habitRate: habitRate
+            )
+
+            snapshots.append(DailyLifeSnapshot(
+                date: key,
+                expenseTotalText: currencyFormatter.string(from: dayExpense as NSDecimalNumber) ?? "¥0.00",
+                taskCreatedCount: taskInfo.created,
+                taskCompletedCount: taskInfo.completed,
+                overdueCount: dayOverdue,
+                habitCompletionRate: habitRate,
+                thoughtCount: thoughtCount,
+                topSignals: signals
+            ))
+
+            guard let next = calendar.date(byAdding: .day, value: 1, to: current) else { break }
+            current = next
+        }
+
+        return snapshots
+    }
+
+    // MARK: - Life Trajectory: Life Events
+
+    private func buildLifeEvents(start: Date, end: Date) async -> [LifeEvent] {
+        let dateFormatter = Self.makeDateFormatter()
+        let currencyFormatter = Self.makeCurrencyFormatter()
+        let endExclusive = end.addingDays(1)
+
+        var events: [LifeEvent] = []
+
+        // 财务事件
+        await Self.collectFinanceEvents(
+            financeRepo: financeRepo,
+            start: start,
+            end: endExclusive,
+            dateFormatter: dateFormatter,
+            currencyFormatter: currencyFormatter,
+            into: &events
+        )
+
+        // 任务事件
+        Self.collectTaskEvents(
+            todoRepo: todoRepo,
+            start: start,
+            end: end,
+            dateFormatter: dateFormatter,
+            into: &events
+        )
+
+        // 习惯事件
+        Self.collectHabitEvents(
+            habitRepo: habitRepo,
+            start: start,
+            end: end,
+            dateFormatter: dateFormatter,
+            into: &events
+        )
+
+        // 观点事件
+        Self.collectThoughtEvents(
+            thoughtRepo: thoughtRepo,
+            start: start,
+            end: endExclusive,
+            dateFormatter: dateFormatter,
+            into: &events
+        )
+
+        return Self.prioritizeEvents(events)
+    }
+
+    // MARK: - Life Trajectory: Personal Baseline
+
+    private func buildPersonalBaseline(observationStart: Date) async -> PersonalBaseline? {
+        let baselineEnd = observationStart.addingDays(-1)
+        let baselineStart = baselineEnd.addingDays(-27) // 4 周
+        let endExclusive = baselineEnd.addingDays(1)
+
+        // 获取基线期交易
+        let transactions: [Transaction]
+        do {
+            transactions = try await financeRepo.getTransactions(from: baselineStart, to: endExclusive)
+        } catch {
+            Self.logger.error("构建个人基线获取交易失败：\(error.localizedDescription)")
+            return nil
+        }
+
+        let expenses = transactions.filter { $0.type == "expense" }
+        let calendar = Calendar.current
+        let weekCount = 4
+
+        // 按周聚合支出（跳过空周）
+        let weeklyExpenses = Self.aggregateWeeklyExpenses(
+            expenses: expenses,
+            start: baselineStart,
+            weekCount: weekCount,
+            calendar: calendar
+        )
+
+        let validWeeks = weeklyExpenses.filter { $0 > 0 }
+        guard validWeeks.count >= 2 else { return nil }
+
+        let weeklyAvg = validWeeks.reduce(Decimal(0), +) / Decimal(validWeeks.count)
+        let currencyFormatter = Self.makeCurrencyFormatter()
+
+        // 分类周均
+        let categoryAverages = Self.aggregateCategoryBaselines(
+            expenses: expenses,
+            validWeekCount: validWeeks.count,
+            currencyFormatter: currencyFormatter
+        )
+
+        // 任务完成率周均
+        let taskRate = Self.aggregateTaskCompletionRate(
+            todoRepo: todoRepo,
+            start: baselineStart,
+            end: baselineEnd,
+            weekCount: weekCount,
+            calendar: calendar
+        )
+
+        // 习惯完成率周均
+        let habitRate = Self.aggregateHabitCompletionRate(
+            habitRepo: habitRepo,
+            start: baselineStart,
+            end: baselineEnd,
+            weekCount: weekCount,
+            calendar: calendar
+        )
+
+        // 高消费工作日
+        let highExpenseWeekdays = Self.detectHighExpenseWeekdays(
+            expenses: expenses,
+            weeklyAvg: weeklyAvg,
+            calendar: calendar
+        )
+
+        return PersonalBaseline(
+            baselineStart: baselineStart,
+            baselineEnd: baselineEnd,
+            effectiveWeekCount: validWeeks.count,
+            expenseWeeklyAverageText: currencyFormatter.string(from: weeklyAvg as NSDecimalNumber),
+            categoryAverages: categoryAverages,
+            taskCompletionRateAverage: taskRate,
+            habitCompletionRateAverage: habitRate,
+            usualHighExpenseWeekdays: highExpenseWeekdays
+        )
+    }
+
     // MARK: - Annual Review
 
     func buildAnnualContext(year: Int) async -> MemoryInsightContext {
@@ -564,7 +782,7 @@ struct MemoryInsightContextBuilder {
             thoughts: thoughts
         )
 
-        return MemoryInsightContext(
+        let rawContext = MemoryInsightContext(
             periodType: .monthly,
             periodStart: yearStart,
             periodEnd: yearEnd,
@@ -580,6 +798,8 @@ struct MemoryInsightContextBuilder {
             anomalies: [],
             previousPeriodReview: nil
         )
+
+        return Self.enforceAnnualTokenBudget(rawContext)
     }
 
     private func emptyAnnualContext(year: Int) -> MemoryInsightContext {
@@ -648,6 +868,11 @@ struct MemoryInsightContextBuilder {
 
     // MARK: - Token Budget
 
+    /// CJK 友好的 token 估算
+    private static func estimateTokenCount(_ string: String) -> Int {
+        Int(Double(string.count) * 1.5)
+    }
+
     private static func enforceTokenBudget(
         _ context: MemoryInsightContext,
         periodType: MemoryInsightPeriodType
@@ -659,75 +884,146 @@ struct MemoryInsightContextBuilder {
         case .monthly: budget = monthlyTokenBudget
         }
 
+        var current = context
+
+        // 渐进式裁剪：逐步削减直到低于预算
+        // 步骤 1：裁剪 thoughts.textContents 到 5 条
+        if estimateContextTokens(current) > budget {
+            if current.thoughts.textContents.count > 5 {
+                let truncated = MemoryInsightThoughtContext(
+                    totalCount: current.thoughts.totalCount,
+                    recentSnippets: current.thoughts.recentSnippets,
+                    textContents: Array(current.thoughts.textContents.prefix(5)),
+                    moodDistribution: current.thoughts.moodDistribution,
+                    topTags: current.thoughts.topTags,
+                    thoughtSentimentSummary: current.thoughts.thoughtSentimentSummary
+                )
+                current = rebuildContext(from: current, thoughts: truncated)
+            }
+        }
+
+        // 步骤 2：裁剪 lifeEvents 到 15 条
+        if estimateContextTokens(current) > budget {
+            if let events = current.lifeEvents, events.count > 15 {
+                current = rebuildContext(from: current, lifeEvents: Array(events.prefix(15)))
+            }
+        }
+
+        // 步骤 3：裁剪 dailyExpenses 和 dailyCompletionTrend 到最近 14 天
+        if estimateContextTokens(current) > budget {
+            if current.finance.dailyExpenses.count > 14 {
+                let truncated = MemoryInsightFinanceContext(
+                    totalExpense: current.finance.totalExpense,
+                    totalIncome: current.finance.totalIncome,
+                    topCategories: current.finance.topCategories,
+                    dailyExpenses: Array(current.finance.dailyExpenses.suffix(14)),
+                    previousPeriodExpense: current.finance.previousPeriodExpense,
+                    budgetPerformance: current.finance.budgetPerformance,
+                    anomalyDescriptions: current.finance.anomalyDescriptions,
+                    weekdayWeekendSpending: current.finance.weekdayWeekendSpending
+                )
+                current = rebuildContext(from: current, finance: truncated)
+            }
+            if current.tasks.dailyCompletionTrend.count > 14 {
+                let truncated = MemoryInsightTaskContext(
+                    completedCount: current.tasks.completedCount,
+                    overdueCount: current.tasks.overdueCount,
+                    importantCompletedTasks: current.tasks.importantCompletedTasks,
+                    totalCount: current.tasks.totalCount,
+                    completionRate: current.tasks.completionRate,
+                    highPriorityCompletionRate: current.tasks.highPriorityCompletionRate,
+                    dailyCompletionTrend: Array(current.tasks.dailyCompletionTrend.suffix(14))
+                )
+                current = rebuildContext(from: current, tasks: truncated)
+            }
+        }
+
+        return current
+    }
+
+    /// 估算上下文 token 数量
+    private static func estimateContextTokens(_ context: MemoryInsightContext) -> Int {
         guard let encoded = try? JSONEncoder().encode(context),
-              let _ = String(data: encoded, encoding: .utf8) else {
-            return context
+              let string = String(data: encoded, encoding: .utf8) else {
+            return 0
         }
+        return estimateTokenCount(string)
+    }
 
-        let estimatedTokens = encoded.count / 2
-
-        if estimatedTokens <= budget {
-            return context
-        }
-
-        // 截断：优先减少 textContents
-        var truncatedThoughts = context.thoughts
-        if truncatedThoughts.textContents.count > 5 {
-            truncatedThoughts = MemoryInsightThoughtContext(
-                totalCount: truncatedThoughts.totalCount,
-                recentSnippets: truncatedThoughts.recentSnippets,
-                textContents: Array(truncatedThoughts.textContents.prefix(5)),
-                moodDistribution: truncatedThoughts.moodDistribution,
-                topTags: truncatedThoughts.topTags,
-                thoughtSentimentSummary: truncatedThoughts.thoughtSentimentSummary
-            )
-        }
-
-        // 截断 dailyExpenses
-        var truncatedFinance = context.finance
-        if truncatedFinance.dailyExpenses.count > 14 {
-            truncatedFinance = MemoryInsightFinanceContext(
-                totalExpense: truncatedFinance.totalExpense,
-                totalIncome: truncatedFinance.totalIncome,
-                topCategories: truncatedFinance.topCategories,
-                dailyExpenses: Array(truncatedFinance.dailyExpenses.suffix(14)),
-                previousPeriodExpense: truncatedFinance.previousPeriodExpense,
-                budgetPerformance: truncatedFinance.budgetPerformance,
-                anomalyDescriptions: truncatedFinance.anomalyDescriptions,
-                weekdayWeekendSpending: truncatedFinance.weekdayWeekendSpending
-            )
-        }
-
-        // 截断 dailyCompletionTrend
-        var truncatedTasks = context.tasks
-        if truncatedTasks.dailyCompletionTrend.count > 14 {
-            truncatedTasks = MemoryInsightTaskContext(
-                completedCount: truncatedTasks.completedCount,
-                overdueCount: truncatedTasks.overdueCount,
-                importantCompletedTasks: truncatedTasks.importantCompletedTasks,
-                totalCount: truncatedTasks.totalCount,
-                completionRate: truncatedTasks.completionRate,
-                highPriorityCompletionRate: truncatedTasks.highPriorityCompletionRate,
-                dailyCompletionTrend: Array(truncatedTasks.dailyCompletionTrend.suffix(14))
-            )
-        }
-
-        return MemoryInsightContext(
+    /// 重建上下文（只替换指定字段）
+    private static func rebuildContext(
+        from context: MemoryInsightContext,
+        finance: MemoryInsightFinanceContext? = nil,
+        tasks: MemoryInsightTaskContext? = nil,
+        thoughts: MemoryInsightThoughtContext? = nil,
+        lifeEvents: [LifeEvent]? = nil
+    ) -> MemoryInsightContext {
+        MemoryInsightContext(
             periodType: context.periodType,
             periodStart: context.periodStart,
             periodEnd: context.periodEnd,
             generatedAt: context.generatedAt,
             localeIdentifier: context.localeIdentifier,
-            finance: truncatedFinance,
+            finance: finance ?? context.finance,
             habits: context.habits,
-            tasks: truncatedTasks,
-            thoughts: truncatedThoughts,
+            tasks: tasks ?? context.tasks,
+            thoughts: thoughts ?? context.thoughts,
             milestones: context.milestones,
             crossModuleCorrelations: context.crossModuleCorrelations,
             monthlyInsightDigests: context.monthlyInsightDigests,
             anomalies: context.anomalies,
-            previousPeriodReview: context.previousPeriodReview
+            previousPeriodReview: context.previousPeriodReview,
+            dailySnapshots: context.dailySnapshots,
+            lifeEvents: lifeEvents ?? context.lifeEvents,
+            personalBaseline: context.personalBaseline
         )
+    }
+
+    /// 年度上下文专用预算裁剪
+    private static func enforceAnnualTokenBudget(_ context: MemoryInsightContext) -> MemoryInsightContext {
+        var current = context
+
+        // 年度上下文优先裁剪月度摘要（最多保留 6 条）
+        if estimateContextTokens(current) > annualTokenBudget {
+            if current.monthlyInsightDigests.count > 6 {
+                current = MemoryInsightContext(
+                    periodType: current.periodType,
+                    periodStart: current.periodStart,
+                    periodEnd: current.periodEnd,
+                    generatedAt: current.generatedAt,
+                    localeIdentifier: current.localeIdentifier,
+                    finance: current.finance,
+                    habits: current.habits,
+                    tasks: current.tasks,
+                    thoughts: current.thoughts,
+                    milestones: current.milestones,
+                    crossModuleCorrelations: current.crossModuleCorrelations,
+                    monthlyInsightDigests: Array(current.monthlyInsightDigests.prefix(6)),
+                    anomalies: current.anomalies,
+                    previousPeriodReview: current.previousPeriodReview,
+                    dailySnapshots: nil,
+                    lifeEvents: nil,
+                    personalBaseline: nil
+                )
+            }
+        }
+
+        // 再裁剪想法文本
+        if estimateContextTokens(current) > annualTokenBudget {
+            if current.thoughts.textContents.count > 3 {
+                let truncated = MemoryInsightThoughtContext(
+                    totalCount: current.thoughts.totalCount,
+                    recentSnippets: current.thoughts.recentSnippets,
+                    textContents: Array(current.thoughts.textContents.prefix(3)),
+                    moodDistribution: current.thoughts.moodDistribution,
+                    topTags: current.thoughts.topTags,
+                    thoughtSentimentSummary: current.thoughts.thoughtSentimentSummary
+                )
+                current = rebuildContext(from: current, thoughts: truncated)
+            }
+        }
+
+        return current
     }
 
     // MARK: - Snapshot Hash
@@ -881,5 +1177,490 @@ struct MemoryInsightContextBuilder {
             previousAnomalyTitles: anomalyTitles,
             previousSummary: summary.isEmpty ? nil : summary
         )
+    }
+
+    // MARK: - Life Trajectory Helpers
+
+    private static func makeDateFormatter() -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter
+    }
+
+    private static func makeCurrencyFormatter() -> NumberFormatter {
+        let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.numberStyle = .currency
+        formatter.currencyCode = "CNY"
+        return formatter
+    }
+
+    private static func fetchDailyExpenseMap(
+        financeRepo: FinanceRepository,
+        start: Date,
+        end: Date
+    ) async -> [String: Decimal] {
+        do {
+            let transactions = try await financeRepo.getTransactions(from: start, to: end)
+            let dateFormatter = makeDateFormatter()
+            var map: [String: Decimal] = [:]
+            for t in transactions where t.type == "expense" {
+                let key = dateFormatter.string(from: t.date)
+                map[key, default: 0] += t.amount.decimalValue
+            }
+            return map
+        } catch {
+            logger.error("获取每日支出失败：\(error.localizedDescription)")
+            return [:]
+        }
+    }
+
+    private static func fetchDailyTaskMap(
+        todoRepo: TodoRepository,
+        start: Date,
+        end: Date
+    ) -> [String: (created: Int, completed: Int)] {
+        let context = CoreDataStack.shared.viewContext
+        let dateFormatter = makeDateFormatter()
+        var map: [String: (created: Int, completed: Int)] = [:]
+
+        do {
+            // 已完成任务
+            let completedRequest = TodoTask.fetchRequest()
+            completedRequest.predicate = NSPredicate(
+                format: "completedAt >= %@ AND completedAt < %@ AND deletedFlag == NO AND archived == NO",
+                start as CVarArg,
+                end.addingDays(1) as CVarArg
+            )
+            let completedTasks = try context.fetch(completedRequest)
+            for task in completedTasks {
+                guard let date = task.completedAt else { continue }
+                let key = dateFormatter.string(from: date)
+                map[key, default: (0, 0)].completed += 1
+            }
+
+            // 创建的任务
+            let createdRequest = TodoTask.fetchRequest()
+            createdRequest.predicate = NSPredicate(
+                format: "createdAt >= %@ AND createdAt < %@ AND deletedFlag == NO AND archived == NO",
+                start as CVarArg,
+                end.addingDays(1) as CVarArg
+            )
+            let createdTasks = try context.fetch(createdRequest)
+            for task in createdTasks {
+                let key = dateFormatter.string(from: task.createdAt)
+                map[key, default: (0, 0)].created += 1
+            }
+        } catch {
+            logger.error("获取每日任务数据失败：\(error.localizedDescription)")
+        }
+        return map
+    }
+
+    private static func fetchDailyHabitRates(
+        habitRepo: HabitRepository,
+        start: Date,
+        end: Date
+    ) -> [String: Double] {
+        let habits = habitRepo.activeHabits
+            .filter { $0.isCheckInType && !$0.isBadHabit }
+        guard !habits.isEmpty else { return [:] }
+
+        let dateFormatter = makeDateFormatter()
+        let calendar = Calendar.current
+        var completionByDate: [String: (completed: Int, total: Int)] = [:]
+
+        var current = start
+        while current <= end {
+            let key = dateFormatter.string(from: current)
+            completionByDate[key] = (0, habits.count)
+            guard let next = calendar.date(byAdding: .day, value: 1, to: current) else { break }
+            current = next
+        }
+
+        for habit in habits {
+            let records = habitRepo.getRecords(for: habit, in: start...end.addingDays(1))
+            for record in records where record.isCompleted {
+                let key = dateFormatter.string(from: record.date)
+                if completionByDate[key] != nil {
+                    completionByDate[key]!.completed += 1
+                }
+            }
+        }
+
+        var rates: [String: Double] = [:]
+        for (key, counts) in completionByDate {
+            guard counts.total > 0 else { continue }
+            rates[key] = Double(counts.completed) / Double(counts.total)
+        }
+        return rates
+    }
+
+    private static func detectDailySignals(
+        dayExpense: Decimal,
+        avgDailyExpense: Decimal,
+        overdueCount: Int,
+        habitRate: Double?
+    ) -> [String] {
+        var signals: [String] = []
+
+        // 高消费日：超过日均 2 倍
+        if avgDailyExpense > 0, dayExpense > avgDailyExpense * 2 {
+            signals.append("高消费日")
+        }
+
+        // 逾期堆积
+        if overdueCount >= 3 {
+            signals.append("逾期任务堆积")
+        }
+
+        // 习惯完成率低
+        if let rate = habitRate, rate < 0.3 {
+            signals.append("习惯完成率低")
+        }
+
+        return signals
+    }
+
+    private static func collectFinanceEvents(
+        financeRepo: FinanceRepository,
+        start: Date,
+        end: Date,
+        dateFormatter: DateFormatter,
+        currencyFormatter: NumberFormatter,
+        into events: inout [LifeEvent]
+    ) async {
+        do {
+            let transactions = try await financeRepo.getTransactions(from: start, to: end)
+
+            // 高额消费事件（> 200）
+            for t in transactions where t.type == "expense" {
+                let amount = t.amount.decimalValue
+                guard amount >= 200 else { continue }
+                events.append(LifeEvent(
+                    id: UUID().uuidString,
+                    date: dateFormatter.string(from: t.date),
+                    module: "finance",
+                    type: "expense",
+                    title: String(t.note?.prefix(30) ?? t.category.name.prefix(20)),
+                    valueText: currencyFormatter.string(from: t.amount),
+                    tags: t.tags ?? [],
+                    sourceId: t.id.uuidString
+                ))
+            }
+
+            // 收入事件
+            for t in transactions where t.type == "income" {
+                let amount = t.amount.decimalValue
+                guard amount >= 500 else { continue }
+                events.append(LifeEvent(
+                    id: UUID().uuidString,
+                    date: dateFormatter.string(from: t.date),
+                    module: "finance",
+                    type: "income",
+                    title: String(t.note?.prefix(30) ?? t.category.name.prefix(20)),
+                    valueText: currencyFormatter.string(from: t.amount),
+                    tags: t.tags ?? [],
+                    sourceId: t.id.uuidString
+                ))
+            }
+        } catch {
+            logger.error("收集财务事件失败：\(error.localizedDescription)")
+        }
+    }
+
+    private static func collectTaskEvents(
+        todoRepo: TodoRepository,
+        start: Date,
+        end: Date,
+        dateFormatter: DateFormatter,
+        into events: inout [LifeEvent]
+    ) {
+        let context = CoreDataStack.shared.viewContext
+        let endExclusive = end.addingDays(1)
+
+        do {
+            // 高优先级已完成任务
+            let completedRequest = TodoTask.fetchRequest()
+            completedRequest.predicate = NSPredicate(
+                format: "completed == YES AND completedAt >= %@ AND completedAt < %@ AND priority >= %d AND deletedFlag == NO AND archived == NO",
+                start as CVarArg,
+                endExclusive as CVarArg,
+                2
+            )
+            let completedTasks = try context.fetch(completedRequest)
+            for task in completedTasks {
+                guard let completedAt = task.completedAt else { continue }
+                events.append(LifeEvent(
+                    id: UUID().uuidString,
+                    date: dateFormatter.string(from: completedAt),
+                    module: "task",
+                    type: "taskCompleted",
+                    title: String(task.title.prefix(30)),
+                    valueText: nil,
+                    tags: [],
+                    sourceId: task.id.uuidString
+                ))
+            }
+
+            // 逾期任务
+            let overdueTasks = todoRepo.getOverdueTasks()
+            for task in overdueTasks.prefix(10) {
+                guard let dueDate = task.dueDate else { continue }
+                events.append(LifeEvent(
+                    id: UUID().uuidString,
+                    date: dateFormatter.string(from: dueDate),
+                    module: "task",
+                    type: "taskOverdue",
+                    title: String(task.title.prefix(30)),
+                    valueText: nil,
+                    tags: [],
+                    sourceId: task.id.uuidString
+                ))
+            }
+        } catch {
+            logger.error("收集任务事件失败：\(error.localizedDescription)")
+        }
+    }
+
+    private static func collectHabitEvents(
+        habitRepo: HabitRepository,
+        start: Date,
+        end: Date,
+        dateFormatter: DateFormatter,
+        into events: inout [LifeEvent]
+    ) {
+        let habits = habitRepo.activeHabits.filter { $0.isCheckInType && !$0.isBadHabit }
+        let range = start...end.addingDays(1)
+
+        for habit in habits {
+            let records = habitRepo.getRecords(for: habit, in: range)
+            let streakInfo = habitRepo.calculateStreakInfo(for: habit)
+
+            // 习惯断连（>= 3 天）
+            if streakInfo.value == 0 {
+                let missedDays = consecutiveMissedDays(
+                    for: habit,
+                    upTo: end,
+                    habitRepo: habitRepo,
+                    calendar: Calendar.current,
+                    dateFormatter: dateFormatter
+                )
+                if missedDays >= 3 {
+                    events.append(LifeEvent(
+                        id: UUID().uuidString,
+                        date: dateFormatter.string(from: end),
+                        module: "habit",
+                        type: "habitMissed",
+                        title: "\(habit.name)已断连\(missedDays)天",
+                        valueText: nil,
+                        tags: [],
+                        sourceId: habit.id.uuidString
+                    ))
+                }
+            }
+
+            // 连续打卡 >= 7 天
+            if streakInfo.value >= 7 {
+                let completedRecords = records.filter { $0.isCompleted }
+                if let latestRecord = completedRecords.last {
+                    events.append(LifeEvent(
+                        id: UUID().uuidString,
+                        date: dateFormatter.string(from: latestRecord.date),
+                        module: "habit",
+                        type: "habitCompleted",
+                        title: "\(habit.name)连续打卡\(streakInfo.value)天",
+                        valueText: nil,
+                        tags: [],
+                        sourceId: habit.id.uuidString
+                    ))
+                }
+            }
+        }
+    }
+
+    private static func collectThoughtEvents(
+        thoughtRepo: ThoughtRepository,
+        start: Date,
+        end: Date,
+        dateFormatter: DateFormatter,
+        into events: inout [LifeEvent]
+    ) {
+        do {
+            let filters = ThoughtFilters(startDate: start, endDate: end)
+            let thoughts = try thoughtRepo.search(query: "", filters: filters)
+            for thought in thoughts.prefix(10) {
+                guard !thought.content.isEmpty else { continue }
+                let tagNames = (thought.tags as? Set<ThoughtTag>)?.map(\.name) ?? []
+                events.append(LifeEvent(
+                    id: UUID().uuidString,
+                    date: dateFormatter.string(from: thought.createdAt),
+                    module: "thought",
+                    type: "thoughtCreated",
+                    title: String(thought.content.prefix(30)),
+                    valueText: nil,
+                    tags: tagNames,
+                    sourceId: thought.id.uuidString
+                ))
+            }
+        } catch {
+            logger.error("收集观点事件失败：\(error.localizedDescription)")
+        }
+    }
+
+    /// 按优先级排序并截取前 30 条事件
+    private static func prioritizeEvents(_ events: [LifeEvent]) -> [LifeEvent] {
+        let typePriority: [String: Int] = [
+            "expense": 5,     // 高额消费（已通过金额阈值筛选）
+            "income": 4,
+            "taskCompleted": 3,
+            "taskOverdue": 6,  // 逾期最高优先
+            "habitMissed": 5,
+            "habitCompleted": 2,
+            "thoughtCreated": 1
+        ]
+
+        return events
+            .sorted { (typePriority[$0.type] ?? 0) > (typePriority[$1.type] ?? 0) }
+            .prefix(30)
+            .map { $0 }
+    }
+
+    // MARK: - Personal Baseline Helpers
+
+    /// 按周聚合支出
+    private static func aggregateWeeklyExpenses(
+        expenses: [Transaction],
+        start: Date,
+        weekCount: Int,
+        calendar: Calendar
+    ) -> [Decimal] {
+        var weeklyTotals = Array(repeating: Decimal(0), count: weekCount)
+
+        for transaction in expenses {
+            let daysSinceStart = calendar.dateComponents([.day], from: start, to: transaction.date).day ?? 0
+            let weekIndex = min(daysSinceStart / 7, weekCount - 1)
+            guard weekIndex >= 0 else { continue }
+            weeklyTotals[weekIndex] += transaction.amount.decimalValue
+        }
+
+        return weeklyTotals
+    }
+
+    /// 分类周均支出
+    private static func aggregateCategoryBaselines(
+        expenses: [Transaction],
+        validWeekCount: Int,
+        currencyFormatter: NumberFormatter
+    ) -> [CategoryBaseline] {
+        var categoryMap: [String: Decimal] = [:]
+        for t in expenses {
+            categoryMap[t.category.name, default: 0] += t.amount.decimalValue
+        }
+
+        let weeklyDivisor = Decimal(validWeekCount)
+        return categoryMap
+            .map { name, total -> CategoryBaseline in
+                let weeklyAvg = total / weeklyDivisor
+                return CategoryBaseline(
+                    categoryName: name,
+                    weeklyAverageText: currencyFormatter.string(from: weeklyAvg as NSDecimalNumber) ?? "¥0.00"
+                )
+            }
+            .sorted { $0.weeklyAverageText > $1.weeklyAverageText }
+            .prefix(10)
+            .map { $0 }
+    }
+
+    /// 基线期任务完成率周均
+    private static func aggregateTaskCompletionRate(
+        todoRepo: TodoRepository,
+        start: Date,
+        end: Date,
+        weekCount: Int,
+        calendar: Calendar
+    ) -> Double? {
+        var weeklyRates: [Double] = []
+        for week in 0..<weekCount {
+            guard let weekStart = calendar.date(byAdding: .day, value: week * 7, to: start),
+                  let weekEnd = calendar.date(byAdding: .day, value: 6, to: weekStart) else { continue }
+            let effectiveWeekEnd = min(weekEnd, end)
+            let stats = todoRepo.getCompletionStats(from: weekStart, to: effectiveWeekEnd)
+            if stats.dueInPeriod > 0 {
+                weeklyRates.append(stats.completionRate)
+            }
+        }
+        guard weeklyRates.count >= 2 else { return nil }
+        return weeklyRates.reduce(0, +) / Double(weeklyRates.count)
+    }
+
+    /// 基线期习惯完成率周均
+    private static func aggregateHabitCompletionRate(
+        habitRepo: HabitRepository,
+        start: Date,
+        end: Date,
+        weekCount: Int,
+        calendar: Calendar
+    ) -> Double? {
+        let habits = habitRepo.activeHabits.filter { $0.isCheckInType && !$0.isBadHabit }
+        guard !habits.isEmpty else { return nil }
+
+        var weeklyRates: [Double] = []
+        for week in 0..<weekCount {
+            guard let weekStart = calendar.date(byAdding: .day, value: week * 7, to: start),
+                  let weekEnd = calendar.date(byAdding: .day, value: 6, to: weekStart) else { continue }
+            let effectiveWeekEnd = min(weekEnd, end)
+
+            var totalScheduled = 0
+            var totalCompleted = 0
+            for habit in habits {
+                let habitRecords = habitRepo.getRecords(for: habit, in: weekStart...effectiveWeekEnd.addingDays(1))
+                totalScheduled += 7
+                totalCompleted += habitRecords.filter { $0.isCompleted }.count
+            }
+
+            if totalScheduled > 0 {
+                weeklyRates.append(Double(totalCompleted) / Double(totalScheduled))
+            }
+        }
+        guard weeklyRates.count >= 2 else { return nil }
+        return weeklyRates.reduce(0, +) / Double(weeklyRates.count)
+    }
+
+    /// 检测高消费工作日
+    private static func detectHighExpenseWeekdays(
+        expenses: [Transaction],
+        weeklyAvg: Decimal,
+        calendar: Calendar
+    ) -> [String] {
+        let dailyAvg = weeklyAvg / 7
+        guard dailyAvg > 0 else { return [] }
+
+        // 按星期聚合
+        let weekdayNames = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"]
+        var weekdayTotals = Array(repeating: Decimal(0), count: 7)
+        var weekdayCounts = Array(repeating: 0, count: 7)
+
+        for t in expenses {
+            let weekday = calendar.component(.weekday, from: t.date)
+            // weekday: 1=Sunday ... 7=Saturday
+            let index = weekday - 1
+            guard index >= 0 && index < 7 else { continue }
+            weekdayTotals[index] += t.amount.decimalValue
+            weekdayCounts[index] += 1
+        }
+
+        var highWeekdays: [String] = []
+        for i in 0..<7 {
+            guard weekdayCounts[i] > 0 else { continue }
+            let avgForWeekday = weekdayTotals[i] / Decimal(weekdayCounts[i])
+            // 工作日平均日消费 >= 1.5 倍日均
+            if avgForWeekday >= dailyAvg * Decimal(1.5) {
+                highWeekdays.append(weekdayNames[i])
+            }
+        }
+
+        return highWeekdays
     }
 }

@@ -72,20 +72,24 @@ final class HoloBackendAIProvider: AIProvider {
         return parseBatchFromJSON(content)
     }
 
-    func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> String {
-        let systemPrompt = await loadManagedPrompt(.memoryInsightGeneration)
+    func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> MemoryInsightGenerationResult {
+        let promptResult = await loadManagedPromptResult(.memoryInsightGeneration)
         let messages: [ChatMessageDTO] = [
-            .system(systemPrompt),
+            .system(promptResult.content),
             .user(contextJSON)
         ]
-        let request = buildRequest(purpose: .insight, messages: messages)
+        let request = buildRequest(purpose: .insight, messages: messages, responseFormat: .jsonObject)
         let response: ChatCompletionResponse = try await apiClient.send(request)
 
         guard let content = response.choices?.first?.message?.content else {
             throw APIError.serverError("AI 未返回有效内容")
         }
 
-        return content
+        return MemoryInsightGenerationResult(
+            rawResponse: content,
+            promptType: "memory_insight_generation",
+            promptVersion: promptResult.version
+        )
     }
 
     func chat(messages: [ChatMessageDTO], userContext: UserContext) async throws -> String {
@@ -194,6 +198,16 @@ final class HoloBackendAIProvider: AIProvider {
         } catch {
             logger.warning("后端 Prompt 加载失败，回退本地默认模板：\(type.rawValue), \(error.localizedDescription)")
             return (try? PromptManager.shared.loadPrompt(type)) ?? PromptManager.shared.loadDefaultTemplate(type)
+        }
+    }
+
+    private func loadManagedPromptResult(_ type: PromptManager.PromptType) async -> LoadedPrompt {
+        do {
+            return try await promptService.loadPromptResult(type)
+        } catch {
+            logger.warning("后端 Prompt 加载失败，回退本地默认模板：\(type.rawValue), \(error.localizedDescription)")
+            let content = (try? PromptManager.shared.loadPrompt(type)) ?? PromptManager.shared.loadDefaultTemplate(type)
+            return LoadedPrompt(type: type, version: 0, content: content)
         }
     }
 

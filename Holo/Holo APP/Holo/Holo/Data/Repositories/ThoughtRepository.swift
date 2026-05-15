@@ -462,6 +462,25 @@ class ThoughtRepository {
         return (try? context.count(for: request)) ?? 0
     }
 
+    /// 按天统计想法数量，返回 [yyyy-MM-dd: count]
+    func getThoughtCountByDay(from start: Date, to end: Date) -> [String: Int] {
+        let request = Thought.fetchRequest()
+        request.predicate = basePredicate(from: start, to: end)
+
+        guard let thoughts = try? context.fetch(request) else { return [:] }
+
+        let dateFormatter = DateFormatter()
+        dateFormatter.locale = Locale(identifier: "zh_CN")
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+
+        var counts: [String: Int] = [:]
+        for thought in thoughts {
+            let key = dateFormatter.string(from: thought.createdAt)
+            counts[key, default: 0] += 1
+        }
+        return counts
+    }
+
     /// 指定时间范围内的心情分布（跳过 mood 为 nil 的记录）
     func getMoodDistribution(from start: Date, to end: Date) -> [String: Int] {
         let request = Thought.fetchRequest()

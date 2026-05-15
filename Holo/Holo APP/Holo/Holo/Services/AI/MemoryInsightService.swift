@@ -106,31 +106,45 @@ final class MemoryInsightService {
             referenceDate: end
         )
 
-        // 2. 检查缓存（非强制刷新且 hash 一致）
+        // 2. 预加载 Prompt 版本（用于缓存检查）
+        let currentPromptVersion: Int16
+        if HoloBackendEnvironment.isEnabledByDefault {
+            let promptResult = (try? await HoloBackendPromptService.shared.loadPromptResult(.memoryInsightGeneration))
+            currentPromptVersion = Int16(promptResult?.version ?? 0)
+        } else {
+            currentPromptVersion = 0
+        }
+
+        // 3. 检查缓存（非强制刷新且 hash + version 一致）
         if !forceRefresh {
-            if let existing = try repository.fetchInsight(periodType: periodType, start: start, end: end),
-               existing.sourceSnapshotHash == snapshotHash,
-               existing.insightStatus == .ready {
-                logger.info("洞察缓存命中，跳过生成")
+            if let existing = repository.fetchInsight(
+                periodType: periodType,
+                start: start,
+                end: end,
+                snapshotHash: snapshotHash,
+                promptVersion: currentPromptVersion
+            ), existing.insightStatus == .ready {
+                logger.info("洞察缓存命中（hash + version），跳过生成")
                 return existing
             }
         }
 
-        // 3. 去重检查：与近期洞察文本相似度
+        // 4. 去重检查：与同版本近期洞察文本相似度
         if !forceRefresh {
             if let similar = checkSimilarityWithRecent(
                 periodType: periodType,
-                context: context
+                context: context,
+                promptVersion: currentPromptVersion
             ) {
                 logger.info("洞察与近期内容高度相似，跳过生成")
                 return similar
             }
         }
 
-        // 3. 获取 Provider
+        // 5. 获取 Provider
         let provider = try resolveProvider()
 
-        // 4. 保存 generating 状态
+        // 6. 保存 generating 状态
         let insight = try repository.saveGenerating(
             periodType: periodType,
             start: start,
@@ -138,7 +152,7 @@ final class MemoryInsightService {
             snapshotHash: snapshotHash
         )
 
-        // 5. 序列化上下文为 JSON
+        // 7. 序列化上下文为 JSON
         let contextJSON: String
         do {
             let data = try JSONEncoder().encode(context)
@@ -151,16 +165,16 @@ final class MemoryInsightService {
             throw MemoryInsightError.contextBuildFailed(error.localizedDescription)
         }
 
-        // 6. 调用 AI（带超时）
+        // 8. 调用 AI（带超时）
         let insightType: InsightType
         switch periodType {
         case .daily: insightType = .memoryDailyReview
         case .weekly: insightType = .memoryWeeklyReplay
         case .monthly: insightType = .memoryMonthlyReplay
         }
-        let rawResponse: String
+        let generationResult: MemoryInsightGenerationResult
         do {
-            rawResponse = try await withThrowingTaskGroup(of: String.self) { group in
+            generationResult = try await withThrowingTaskGroup(of: MemoryInsightGenerationResult.self) { group in
             group.addTask {
                 try await provider.generateMemoryInsight(type: insightType, contextJSON: contextJSON)
             }
@@ -179,8 +193,8 @@ final class MemoryInsightService {
         }
 
         // 7. 解析 JSON
-        guard let payload = MemoryInsightResponseParser.parse(rawResponse) else {
-            let errorMsg = String(rawResponse.prefix(200))
+        guard let payload = MemoryInsightResponseParser.parse(generationResult.rawResponse) else {
+            let errorMsg = String(generationResult.rawResponse.prefix(200))
             try? repository.saveFailed(insight: insight, errorMessage: "JSON 解析失败：\(errorMsg)")
             throw MemoryInsightError.parsingFailed(errorMsg)
         }
@@ -189,14 +203,15 @@ final class MemoryInsightService {
         var processedPayload = payload
         processedPayload = postProcessEvidence(processedPayload, start: start, end: end)
 
-        // 9. 保存 ready 状态
+        // 9. 保存 ready 状态（使用真实 promptVersion）
         let providerName: String? = nil
+        let promptVersion = Int16(generationResult.promptVersion ?? 0)
         try repository.saveReady(
             insight: insight,
             payload: processedPayload,
-            rawResponse: rawResponse,
+            rawResponse: generationResult.rawResponse,
             providerName: providerName,
-            promptVersion: 4
+            promptVersion: promptVersion
         )
 
         logger.info("洞察生成成功：\(periodType.rawValue)")
@@ -275,12 +290,17 @@ final class MemoryInsightService {
 
     // MARK: - Dedup
 
-    /// 检查近期洞察相似度
+    /// 检查近期洞察相似度（同 promptVersion 内去重）
     private func checkSimilarityWithRecent(
         periodType: MemoryInsightPeriodType,
-        context: MemoryInsightContext
+        context: MemoryInsightContext,
+        promptVersion: Int16
     ) -> MemoryInsight? {
-        let recentInsights = repository.fetchRecentReadyInsights(periodType: periodType, limit: 3)
+        let recentInsights = repository.fetchRecentReadyInsights(
+            periodType: periodType,
+            promptVersion: promptVersion,
+            limit: 3
+        )
         guard !recentInsights.isEmpty else { return nil }
 
         // 提取本期 context 关键 token

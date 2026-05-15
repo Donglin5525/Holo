@@ -86,6 +86,13 @@ const MIGRATIONS = [
       CREATE INDEX IF NOT EXISTS idx_request_logs_created ON request_logs(created_at);
     `,
   },
+  {
+    id: 5,
+    description: 'prompt_versions 表新增 change_note 列',
+    up: `
+      ALTER TABLE prompt_versions ADD COLUMN change_note TEXT;
+    `,
+  },
 ];
 
 function computeChecksum(sql) {

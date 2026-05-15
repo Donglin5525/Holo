@@ -199,7 +199,8 @@ export function registerAdminRoutes(app, { config, logStore, runTestChat }) {
       return redirect(`/admin/prompts/${encodeURIComponent(type)}?error=content_required`);
     }
 
-    const prompt = updatePrompt(type, content);
+    const changeNote = (body.get("change_note") ?? "").trim() || null;
+    const prompt = updatePrompt(type, content, changeNote);
     if (!prompt) {
       return redirect("/admin/prompts?error=prompt_not_found");
     }
@@ -228,6 +229,39 @@ export function registerAdminRoutes(app, { config, logStore, runTestChat }) {
       return redirect("/admin/logs?notice=test_sent");
     } catch {
       return redirect("/admin/logs?error=test_failed");
+    }
+  });
+
+  // Prompt 测试 — 使用当前编辑中的 Prompt 作为 system message
+  app.post("/admin/prompts/:type/test", async (context) => {
+    const auth = assertAdminAuthorized(context, config);
+    if (!auth.ok) {
+      return adminJson(context, { error: "未授权" }, 401);
+    }
+
+    const type = context.req.param("type");
+    const prompt = getPrompt(type);
+    if (!prompt) {
+      return adminJson(context, { error: "Prompt 不存在" }, 404);
+    }
+
+    const body = new URLSearchParams(await context.req.text());
+    const message = (body.get("message") ?? "").trim();
+    const purpose = normalizePurpose(body.get("purpose") ?? "chat");
+    if (!message) {
+      return adminJson(context, { error: "消息内容不能为空" }, 400);
+    }
+
+    try {
+      const result = await runTestChat({
+        message: message.slice(0, 2_000),
+        purpose,
+        systemPrompt: prompt.content,
+      });
+      const responseText = result?.result?.choices?.[0]?.message?.content ?? JSON.stringify(result?.result ?? result, null, 2);
+      return adminJson(context, { result: responseText });
+    } catch (err) {
+      return adminJson(context, { error: `测试失败: ${err.message}` }, 500);
     }
   });
 

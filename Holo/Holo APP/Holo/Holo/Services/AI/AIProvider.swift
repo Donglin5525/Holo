@@ -8,6 +8,13 @@
 
 import Foundation
 
+/// 记忆洞察生成结果（包含原始响应和 Prompt 版本信息）
+struct MemoryInsightGenerationResult: Sendable {
+    let rawResponse: String
+    let promptType: String
+    let promptVersion: Int?
+}
+
 /// AI 服务提供者协议
 protocol AIProvider {
     /// 最近一次 LLM 调用的日志（请求+响应），由 Provider 在每次调用后更新
@@ -34,7 +41,7 @@ protocol AIProvider {
     func parseUserInputBatch(_ input: String, context: UserContext) async throws -> AIParseBatch
 
     /// 生成记忆洞察（自定义 prompt + 结构化 context JSON）
-    func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> String
+    func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> MemoryInsightGenerationResult
 }
 
 extension AIProvider {
@@ -52,7 +59,7 @@ extension AIProvider {
     }
 
     /// 默认实现：不支持记忆洞察
-    func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> String {
+    func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> MemoryInsightGenerationResult {
         throw APIError.serverError("当前 Provider 不支持记忆洞察生成")
     }
 

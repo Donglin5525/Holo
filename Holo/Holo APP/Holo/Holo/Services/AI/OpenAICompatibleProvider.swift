@@ -61,7 +61,7 @@ final class OpenAICompatibleProvider: AIProvider {
         return parseBatchFromJSON(content)
     }
 
-    func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> String {
+    func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> MemoryInsightGenerationResult {
         let systemPrompt = try PromptManager.shared.loadPrompt(.memoryInsightGeneration)
         let messages: [ChatMessageDTO] = [
             .system(systemPrompt),
@@ -74,7 +74,11 @@ final class OpenAICompatibleProvider: AIProvider {
             throw APIError.serverError("AI 未返回有效内容")
         }
 
-        return content
+        return MemoryInsightGenerationResult(
+            rawResponse: content,
+            promptType: "memory_insight_generation",
+            promptVersion: nil
+        )
     }
 
     func chat(messages: [ChatMessageDTO], userContext: UserContext) async throws -> String {

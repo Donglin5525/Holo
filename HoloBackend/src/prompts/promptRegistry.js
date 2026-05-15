@@ -54,6 +54,16 @@ export function listPrompts() {
   }));
 }
 
+/** 返回所有 Prompt 的元数据（不含正文），供 iOS 判断缓存版本 */
+export function listPromptMetadata() {
+  return PROMPT_TYPES.map((type) => ({
+    type,
+    version: getPromptVersion(type),
+    source: getPromptSource(type),
+    updatedAt: getPromptUpdatedAt(type),
+  }));
+}
+
 export function getPrompt(type) {
   if (!PROMPT_TYPES.includes(type)) {
     return null;
@@ -63,7 +73,7 @@ export function getPrompt(type) {
   if (_db) {
     try {
       const row = _db.prepare(
-        'SELECT version, content, source, created_at FROM prompt_versions WHERE prompt_type = ? ORDER BY version DESC LIMIT 1'
+        'SELECT version, content, source, created_at, change_note FROM prompt_versions WHERE prompt_type = ? ORDER BY version DESC LIMIT 1'
       ).get(type);
       if (row) {
         return {
@@ -72,6 +82,7 @@ export function getPrompt(type) {
           source: row.source,
           updatedAt: row.created_at,
           content: row.content,
+          lastChangeNote: row.change_note ?? null,
         };
       }
     } catch (err) {
@@ -90,10 +101,11 @@ export function getPrompt(type) {
     source: managedPrompt ? "managed" : "default",
     updatedAt: managedPrompt?.updatedAt ?? null,
     content,
+    lastChangeNote: null,
   };
 }
 
-export function updatePrompt(type, content) {
+export function updatePrompt(type, content, changeNote = null) {
   if (!PROMPT_TYPES.includes(type)) {
     return null;
   }
@@ -115,8 +127,8 @@ export function updatePrompt(type, content) {
   if (_db) {
     try {
       _db.prepare(
-        'INSERT INTO prompt_versions (prompt_type, version, content, diff_from_prev, source) VALUES (?, ?, ?, ?, ?)'
-      ).run(type, version, content, diffText, 'managed');
+        'INSERT INTO prompt_versions (prompt_type, version, content, diff_from_prev, source, change_note) VALUES (?, ?, ?, ?, ?, ?)'
+      ).run(type, version, content, diffText, 'managed', changeNote ?? null);
     } catch (err) {
       console.error('[PromptRegistry] SQLite 版本写入失败:', err.message);
     }
@@ -157,8 +169,8 @@ export function resetPrompt(type) {
   if (_db) {
     try {
       _db.prepare(
-        'INSERT INTO prompt_versions (prompt_type, version, content, diff_from_prev, source) VALUES (?, ?, ?, ?, ?)'
-      ).run(type, version, defaultContent, diffText, 'reset');
+        'INSERT INTO prompt_versions (prompt_type, version, content, diff_from_prev, source, change_note) VALUES (?, ?, ?, ?, ?, ?)'
+      ).run(type, version, defaultContent, diffText, 'reset', null);
     } catch (err) {
       console.error('[PromptRegistry] SQLite reset 写入失败:', err.message);
     }
@@ -177,7 +189,7 @@ export function getPromptHistory(type) {
   if (!_db) return [];
   try {
     return _db.prepare(
-      'SELECT id, prompt_type, version, diff_from_prev, source, created_at, LENGTH(content) as content_length FROM prompt_versions WHERE prompt_type = ? ORDER BY version DESC'
+      'SELECT id, prompt_type, version, diff_from_prev, source, created_at, change_note, LENGTH(content) as content_length FROM prompt_versions WHERE prompt_type = ? ORDER BY version DESC'
     ).all(type);
   } catch (err) {
     console.error('[PromptRegistry] SQLite getHistory 失败:', err.message);

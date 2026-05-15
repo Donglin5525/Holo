@@ -8,7 +8,7 @@ import { createMockChatProvider } from "./providers/mockChatProvider.js";
 import { createOpenAICompatibleProvider } from "./providers/openAICompatibleProvider.js";
 import { createMockAsrProvider } from "./providers/mockAsrProvider.js";
 import { createDashScopeAsrProvider } from "./providers/dashScopeAsrProvider.js";
-import { getPrompt, listPrompts, setDatabase } from "./prompts/promptRegistry.js";
+import { getPrompt, listPrompts, listPromptMetadata, setDatabase } from "./prompts/promptRegistry.js";
 import { loadConfig } from "./config.js";
 import { createAdminLogStore, truncateText } from "./admin/adminLogStore.js";
 import { isAdminEnabled } from "./admin/adminAuth.js";
@@ -64,6 +64,12 @@ export function createApp(overrides = {}) {
   app.get("/v1/prompts", (context) => {
     return context.json({
       prompts: listPrompts(),
+    });
+  });
+
+  app.get("/v1/prompts/meta", (context) => {
+    return context.json({
+      prompts: listPromptMetadata(),
     });
   });
 
@@ -293,7 +299,7 @@ function createProviders(config) {
 }
 
 function createAdminTestChatRunner({ config, providers, logStore }) {
-  return async function runAdminTestChat({ message, purpose }) {
+  return async function runAdminTestChat({ message, purpose, systemPrompt }) {
     const route = config.routes[purpose];
     if (!route) {
       throw new GatewayError("UNKNOWN_PURPOSE", `Unsupported purpose: ${purpose}`, 400);
@@ -304,9 +310,10 @@ function createAdminTestChatRunner({ config, providers, logStore }) {
       throw new GatewayError("MODEL_UNAVAILABLE", `Provider unavailable: ${route.provider}`, 503);
     }
 
+    const systemContent = systemPrompt ?? "You are handling a Holo admin console test request.";
     const upstreamRequest = {
       messages: [
-        { role: "system", content: "You are handling a Holo admin console test request." },
+        { role: "system", content: systemContent },
         { role: "user", content: message },
       ],
       stream: false,

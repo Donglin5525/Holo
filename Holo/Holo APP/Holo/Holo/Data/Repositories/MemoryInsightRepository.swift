@@ -38,6 +38,24 @@ final class MemoryInsightRepository {
         )
     }
 
+    /// 查询指定周期的可用洞察，同时匹配 snapshotHash 和 promptVersion
+    func fetchInsight(
+        periodType: MemoryInsightPeriodType,
+        start: Date,
+        end: Date,
+        snapshotHash: String,
+        promptVersion: Int16
+    ) -> MemoryInsight? {
+        MemoryInsight.fetchAvailable(
+            periodType: periodType,
+            start: start,
+            end: end,
+            in: context,
+            snapshotHash: snapshotHash,
+            promptVersion: promptVersion
+        )
+    }
+
     /// 查询任意状态的洞察（包含 generating/failed）
     func fetchAnyInsight(
         periodType: MemoryInsightPeriodType,
@@ -166,17 +184,29 @@ final class MemoryInsightRepository {
 
     // MARK: - Recent Insights (Dedup & Review)
 
-    /// 获取最近 N 条同 periodType 且 ready 的洞察
+    /// 获取最近 N 条同 periodType 且 ready 的洞察（支持按 promptVersion 过滤）
     func fetchRecentReadyInsights(
         periodType: MemoryInsightPeriodType,
+        promptVersion: Int16? = nil,
         limit: Int = 3
     ) -> [MemoryInsight] {
         let request = MemoryInsight.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "periodType == %@ AND status == %@",
-            periodType.rawValue,
-            MemoryInsightStatus.ready.rawValue
-        )
+
+        if let version = promptVersion {
+            request.predicate = NSPredicate(
+                format: "periodType == %@ AND status == %@ AND promptVersion == %d",
+                periodType.rawValue,
+                MemoryInsightStatus.ready.rawValue,
+                version
+            )
+        } else {
+            request.predicate = NSPredicate(
+                format: "periodType == %@ AND status == %@",
+                periodType.rawValue,
+                MemoryInsightStatus.ready.rawValue
+            )
+        }
+
         request.sortDescriptors = [NSSortDescriptor(key: "generatedAt", ascending: false)]
         request.fetchLimit = limit
         return (try? context.fetch(request)) ?? []
