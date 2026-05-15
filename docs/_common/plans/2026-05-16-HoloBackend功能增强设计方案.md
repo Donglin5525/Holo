@@ -1,7 +1,7 @@
 # HoloBackend 功能增强设计方案
 
 > 日期：2026-05-16
-> 状态：第二轮审查完成（Claude 审查），待 GPT 终审
+> 状态：第三轮审查完成（Claude 补充），待终审
 
 ---
 
@@ -16,8 +16,8 @@ HoloBackend 当前是纯内存 MVP：限流、日志、Prompt 版本均重启即
 实施前必须确认以下门槛：
 
 1. 管理后台公网访问必须与 HTTPS、VPN 或 SSH tunnel 三选一绑定，不能仅依赖 IP 白名单。
-2. 在真实 App Attest 完成前，通过 **ECS 安全组限制来源 IP** 临时保护 API 端点，不引入客户端签名机制（避免 iOS 端跨平台改动）。正式鉴权等 App Attest 上线后一次性解决。
-3. AI/ASR 日志默认只落元数据，用户正文摘要必须通过显式开关启用，并做截断和保留期控制。
+2. 在真实 App Attest 完成前，通过 **ECS 安全组限制来源 IP** 临时保护 API 端点，但该方案仅允许开发者内测，不支持公开 TestFlight 或真实用户访问；如需外部用户使用，必须先补临时 API token、请求签名或 App Attest。
+3. AI/ASR 日志默认只落元数据，用户正文摘要必须通过显式开关启用，并做基础敏感信息脱敏、截断和保留期控制。
 4. SQLite 同步写入会阻塞 Node event loop；若宣称”不阻塞响应”，必须实现队列写入、背压和丢弃策略。
 5. Prompt 版本状态源必须单一化，SQLite 作为唯一事实源，`managedPrompts.json` 只能用于一次性迁移或导出备份。
 
@@ -42,7 +42,7 @@ HoloBackend 当前是纯内存 MVP：限流、日志、Prompt 版本均重启即
 | 域名 + HTTPS + Secure Cookie + CSRF + 登录限速 | 等域名购买 |
 | 真实 App Attest 校验 | 等付费开发者账号 |
 
-> 注意：如果本期没有 HTTPS，管理后台只能通过 SSH tunnel 或 ECS 安全组内网访问，不允许直接开放公网登录页。API 端点通过 ECS 安全组限制来源 IP 临时保护。
+> 注意：如果本期没有 HTTPS，管理后台只能通过 SSH tunnel 或 ECS 安全组内网访问，不允许直接开放公网登录页。API 端点通过 ECS 安全组限制来源 IP 临时保护，但仅限开发者内测；公开 TestFlight 或真实用户访问必须先补应用侧鉴权。
 
 ---
 
@@ -83,7 +83,7 @@ CREATE TABLE IF NOT EXISTS ai_call_logs (
   prompt_version INTEGER,                   -- 新增：使用的 Prompt 版本
   request_summary TEXT,                     -- 可选：脱敏 + 截断后的请求摘要
   response_summary TEXT,                    -- 可选：脱敏 + 截断后的响应摘要
-  redaction_applied INTEGER DEFAULT 0,       -- 预留：是否已执行脱敏
+  redaction_applied INTEGER DEFAULT 0,       -- 是否已执行基础敏感信息脱敏
   content_capture_enabled INTEGER DEFAULT 0, -- 是否启用正文摘要落库
   asr_file_type TEXT,                       -- ASR 专用：音频格式
   asr_result_length INTEGER,                -- ASR 专用：转写结果字符数
@@ -223,7 +223,8 @@ CREATE INDEX idx_request_logs_created ON request_logs(created_at);
 
 - 默认仅记录元数据：device_id、purpose、provider、model、duration、status、error_code、ASR 文件类型、转写结果长度
 - `request_summary` / `response_summary` 默认关闭，由环境变量 `HOLO_LOG_CAPTURE_CONTENT=true` 显式启用
-- 启用正文摘要后，截断到 2,000 字符上限，不做模式脱敏（正则匹配手机号/身份证等复杂度高且易误判）
+- 启用正文摘要后，先执行基础敏感信息脱敏，再截断到 2,000 字符上限
+- 基础脱敏只覆盖低误伤规则：邮箱、手机号、Bearer token、疑似 API key、超长连续数字串；暂不做复杂身份证/银行卡识别，避免误判扩大实现复杂度
 - 对 `finance`、`health`、`memory` 等高敏内容，即使开启正文摘要也只记录长度和调用状态，不记录正文
 
 ### 自动清理
@@ -313,7 +314,14 @@ CREATE INDEX idx_request_logs_created ON request_logs(created_at);
 
 ### App Attest 前的临时 API 保护
 
-真实 App Attest 上线前，通过 **ECS 安全组**限制 `/v1/ai/*` 和 `/v1/asr/*` 的来源 IP，仅允许开发者 IP 访问。这是零代码改动的方案，避免引入客户端签名机制导致的 iOS 端跨平台改动。正式鉴权等 App Attest 上线后一次性解决。
+真实 App Attest 上线前，通过 **ECS 安全组**限制 `/v1/ai/*` 和 `/v1/asr/*` 的来源 IP，仅允许开发者 IP 访问。这是零代码改动的方案，避免引入客户端签名机制导致的 iOS 端跨平台改动。
+
+该方案的边界必须明确：
+
+- 仅适用于开发者内测和固定来源调试。
+- 不支持公开 TestFlight、真实用户、蜂窝网络或不可控 Wi-Fi 场景，因为来源 IP 不稳定且不代表设备可信。
+- 如果需要外部用户访问，必须在开放前补充临时 API token、请求签名或真实 App Attest 三选一。
+- 安全组限制来源 IP 不能替代限流；即使只有开发者 IP，也仍要启用 device/purpose 维度限流。
 
 ---
 
@@ -329,6 +337,12 @@ CREATE INDEX idx_request_logs_created ON request_logs(created_at);
 | 下期（有 HTTPS） | 是 | HTTPS + IP 白名单 + Secure Cookie + CSRF 防护 + 登录失败限速 |
 
 本期无 HTTPS，部署脚本不得开放公网 `/admin/`，只允许通过 SSH tunnel 访问，例如本机转发到 ECS 的 `127.0.0.1:8787`。
+
+同时必须避免绕过 Nginx 直连 Hono 服务：
+
+- Docker Compose 端口只能绑定到 ECS 本机回环地址：`127.0.0.1:8787:8787`。
+- ECS 安全组不得开放公网 `8787`。
+- 公网入口只能是 Nginx 暴露的 `80`，且 Nginx 本期只代理 `/v1/`，不代理 `/admin/` 或 `/v1/admin/`。
 
 ### Nginx 配置改造
 
@@ -359,6 +373,8 @@ location /v1/ {
 services:
   holo-backend:
     # ... 现有配置
+    ports:
+      - "127.0.0.1:8787:8787"  # 禁止公网直连 Hono，避免绕过 Nginx 访问 /admin/login
     volumes:
       - ./data:/data          # SQLite 数据库持久化
       - ./logs:/app/logs      # 可选：日志文件备份
@@ -370,6 +386,7 @@ services:
 - 新增 SQLite 数据目录创建步骤
 - 新增 SSH tunnel 访问管理后台的说明
 - 新增 ECS 安全组配置说明（API 端点来源 IP 限制）
+- 新增 Docker Compose 端口绑定说明：`127.0.0.1:8787:8787`，禁止开放公网 `8787`
 - 新增数据库备份/恢复指引
 - 下期补充：HTTPS 配置、IP 白名单、CSRF、Secure Cookie 步骤
 
@@ -439,7 +456,7 @@ Phase 5: 持久化限流
 
 Phase 6: 部署
   ├── ECS 安全组配置（API 来源 IP 限制）
-  ├── Docker Compose volume 挂载
+  ├── Docker Compose 绑定 127.0.0.1:8787 + volume 挂载
   ├── SSH tunnel 管理后台访问配置
   ├── 部署到 ECS
   └── 冒烟测试
@@ -457,10 +474,10 @@ Phase 6: 部署
 | 数据库文件损坏 | 启动时 PRAGMA integrity_check；启动前备份；失败拒绝启动并从备份恢复 |
 | Migration 半失败 | 每个 migration 使用事务、checksum、版本锁；失败时拒绝启动 |
 | AI/ASR 限流存储故障导致成本失控 | 成本接口 fail-closed 或极低额度保护，不无限期降级到内存 |
-| 日志持久化泄露用户隐私 | 默认只记录元数据；正文摘要显式开关 + 截断上限 2,000 字符；高敏内容永不存正文 |
+| 日志持久化泄露用户隐私 | 默认只记录元数据；正文摘要显式开关 + 基础敏感信息脱敏 + 截断上限 2,000 字符；高敏内容永不存正文 |
 | Prompt SQLite 与 JSON 双写状态分裂 | SQLite 作为唯一事实源；JSON 只用于一次性迁移或导出备份 |
-| 未接 App Attest 时 device_id 可伪造 | 通过 ECS 安全组限制 API 来源 IP；正式鉴权等 App Attest |
-| 管理后台凭证泄露 | 本期不暴露到公网，仅 SSH tunnel 访问 |
+| 未接 App Attest 时 device_id 可伪造 | 通过 ECS 安全组限制 API 来源 IP，但仅限开发者内测；公开 TestFlight/真实用户必须先补临时鉴权或 App Attest |
+| 管理后台凭证泄露 | 本期不暴露到公网，仅 SSH tunnel 访问；Docker Compose 仅绑定 `127.0.0.1:8787:8787`，安全组禁止公网 `8787` |
 | IP 变动导致无法访问管理后台 | 通过 SSH 连接 ECS 修改安全组；管理后台始终可通过 localhost 访问 |
 | 迁移过程中服务中断 | 每个 Phase 独立可部署；迁移是渐进式的 |
 
@@ -469,8 +486,10 @@ Phase 6: 部署
 ## 十三、实施前检查清单
 
 - [ ] 确认后台访问模式：本期 SSH tunnel，下期 HTTPS 公网。
-- [ ] 确认 ECS 安全组已配置 API 来源 IP 限制。
-- [ ] 确认日志正文默认关闭，截断上限 2,000 字符，保留期 30 天。
+- [ ] 确认 Docker Compose 端口绑定为 `127.0.0.1:8787:8787`，ECS 安全组未开放公网 `8787`。
+- [ ] 确认 ECS 安全组已配置 API 来源 IP 限制，且本期仅用于开发者内测。
+- [ ] 确认如果要开放 TestFlight 或真实用户访问，已先补临时 API token、请求签名或 App Attest。
+- [ ] 确认日志正文默认关闭，基础敏感信息脱敏生效，截断上限 2,000 字符，保留期 30 天。
 - [ ] 确认 SQLite migration 有备份、事务、checksum、失败中止。
 - [ ] 确认 Prompt 以 SQLite 为唯一运行时事实源。
 - [ ] 确认限流存储失败时成本接口不会 fail-open。
