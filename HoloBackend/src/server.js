@@ -19,7 +19,7 @@ const app = createApp({ database });
 
 const server = serve(
   {
-    fetch: app.fetch,
+    fetch: (req, env, ctx) => app.fetch(req, env, ctx),
     port,
   },
   (info) => {
