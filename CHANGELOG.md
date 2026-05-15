@@ -4,6 +4,28 @@
 
 ---
 
+## [2026-05-16] HoloBackend Prompt 托管与内部管理后台
+
+### 新增
+- 新增后端 Prompt 托管接口：`GET /v1/prompts`、`GET /v1/prompts/:type`
+- 新增 HoloBackend 内部管理后台，支持账号密码登录、AI 调用日志查看、后台测试调用
+- 新增 Prompt 管理页面，可查看、编辑、保存和恢复默认 Prompt
+- 新增 `docs/admin-backend.md` 和 `memory.md`，记录管理后台架构决策和后续演进方向
+
+### 优化
+- iOS HoloAI 调用优先从后端加载 Prompt，失败时回退本地默认模板
+- iOS 设置页和个人页隐藏普通用户 Prompt 编辑入口，Prompt 暂由开发者通过后端管理
+- AI 调用日志页面支持展开完整请求/响应 JSON，便于调试模型输入输出
+
+### 安全
+- 管理后台使用环境变量配置账号密码，登录后使用 HttpOnly Cookie
+- `HOLO_ADMIN_TOKEN` 仅保留给脚本调试；日志仅保存在进程内存中，不保存 ASR 音频二进制
+- Prompt 与日志文档不记录真实密码、session secret、API Key 或用户日志内容
+
+### 验证
+- HoloBackend `npm test` 通过
+- iOS Debug 模拟器构建通过
+
 ## [2026-05-14] HoloAI 商用后端网关接入
 
 ### 新增

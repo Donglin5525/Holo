@@ -3,7 +3,7 @@
 //  Holo
 //
 //  「个人」页面
-//  Prompt 工坊 + 个人档案两大板块
+//  个人档案
 //
 
 import SwiftUI
@@ -21,7 +21,6 @@ struct PersonalView: View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: HoloSpacing.xl) {
-                    promptWorkshopSection
                     profileSection
                 }
                 .padding(.horizontal, HoloSpacing.lg)
@@ -30,9 +29,6 @@ struct PersonalView: View {
             .background(Color.holoBackground)
             .navigationTitle("个人")
             .navigationBarTitleDisplayMode(.inline)
-            .navigationDestination(for: PromptManager.PromptType.self) { type in
-                PromptEditorView(promptType: type)
-            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button {

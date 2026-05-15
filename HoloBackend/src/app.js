@@ -7,7 +7,11 @@ import { createMockChatProvider } from "./providers/mockChatProvider.js";
 import { createOpenAICompatibleProvider } from "./providers/openAICompatibleProvider.js";
 import { createMockAsrProvider } from "./providers/mockAsrProvider.js";
 import { createDashScopeAsrProvider } from "./providers/dashScopeAsrProvider.js";
+import { getPrompt, listPrompts } from "./prompts/promptRegistry.js";
 import { loadConfig } from "./config.js";
+import { createAdminLogStore, truncateText } from "./admin/adminLogStore.js";
+import { isAdminEnabled } from "./admin/adminAuth.js";
+import { registerAdminRoutes } from "./admin/adminRoutes.js";
 
 const CLIENT_ROUTING_FIELDS = ["baseURL", "baseUrl", "apiKey", "provider", "model"];
 
@@ -15,14 +19,46 @@ export function createApp(overrides = {}) {
   const config = loadConfig(overrides);
   const app = new Hono();
   const usageStore = config.usageStore ?? createInMemoryUsageStore();
+  const adminLogStore =
+    config.adminLogStore ??
+    createAdminLogStore({
+      maxEntries: config.admin.logMaxEntries,
+      maxDetailChars: config.admin.logDetailMaxChars,
+    });
   const providers = createProviders(config);
   const asrProvider = createAsrProvider(config);
+  const captureAdminLogs = isAdminEnabled(config);
+  const runAdminTestChat = createAdminTestChatRunner({
+    config,
+    providers,
+    logStore: adminLogStore,
+  });
+
+  registerAdminRoutes(app, { config, logStore: adminLogStore, runTestChat: runAdminTestChat });
 
   app.get("/v1/health", (context) => {
     return context.json({
       ok: true,
       service: "holo-ai-gateway",
     });
+  });
+
+  app.get("/v1/prompts", (context) => {
+    return context.json({
+      prompts: listPrompts(),
+    });
+  });
+
+  app.get("/v1/prompts/:type", (context) => {
+    try {
+      const prompt = getPrompt(context.req.param("type"));
+      if (!prompt) {
+        throw new GatewayError("PROMPT_NOT_FOUND", "Prompt type is not supported", 404);
+      }
+      return context.json(prompt);
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
   });
 
   app.post("/v1/app-attest/challenge", async (context) => {
@@ -90,13 +126,47 @@ export function createApp(overrides = {}) {
         maxTokens: route.maxTokens,
         responseFormat: request.response_format,
       };
+      const logId = captureAdminLogs
+        ? adminLogStore.startAiCall({
+            deviceId,
+            purpose,
+            provider: route.provider,
+            model: route.model,
+            stream: upstreamRequest.stream,
+            request: {
+              messages: request.messages,
+              responseFormat: request.response_format ?? null,
+              temperature: route.temperature,
+              maxTokens: route.maxTokens,
+            },
+          })
+        : null;
 
       if (upstreamRequest.stream) {
-        return streamChat(context, provider, upstreamRequest);
+        return streamChat(context, provider, upstreamRequest, {
+          logStore: logId ? adminLogStore : null,
+          logId,
+        });
       }
 
-      const result = await provider.complete(upstreamRequest);
-      return context.json(result);
+      try {
+        const result = await provider.complete(upstreamRequest);
+        if (logId) {
+          adminLogStore.finishAiCall(logId, {
+            status: "success",
+            response: result,
+          });
+        }
+        return context.json(result);
+      } catch (error) {
+        if (logId) {
+          adminLogStore.finishAiCall(logId, {
+            status: "error",
+            error: serializeError(error),
+          });
+        }
+        throw error;
+      }
     } catch (error) {
       return createErrorResponse(context, error);
     }
@@ -174,6 +244,60 @@ function createProviders(config) {
   return providers;
 }
 
+function createAdminTestChatRunner({ config, providers, logStore }) {
+  return async function runAdminTestChat({ message, purpose }) {
+    const route = config.routes[purpose];
+    if (!route) {
+      throw new GatewayError("UNKNOWN_PURPOSE", `Unsupported purpose: ${purpose}`, 400);
+    }
+
+    const provider = providers.get(route.provider);
+    if (!provider) {
+      throw new GatewayError("MODEL_UNAVAILABLE", `Provider unavailable: ${route.provider}`, 503);
+    }
+
+    const upstreamRequest = {
+      messages: [
+        { role: "system", content: "You are handling a Holo admin console test request." },
+        { role: "user", content: message },
+      ],
+      stream: false,
+      model: route.model,
+      temperature: route.temperature,
+      maxTokens: route.maxTokens,
+      responseFormat: null,
+    };
+    const logId = logStore.startAiCall({
+      deviceId: "admin-console",
+      purpose,
+      provider: route.provider,
+      model: route.model,
+      stream: false,
+      request: {
+        messages: upstreamRequest.messages,
+        responseFormat: null,
+        temperature: route.temperature,
+        maxTokens: route.maxTokens,
+      },
+    });
+
+    try {
+      const result = await provider.complete(upstreamRequest);
+      logStore.finishAiCall(logId, {
+        status: "success",
+        response: result,
+      });
+      return { logId, result };
+    } catch (error) {
+      logStore.finishAiCall(logId, {
+        status: "error",
+        error: serializeError(error),
+      });
+      throw error;
+    }
+  };
+}
+
 async function readJson(context) {
   try {
     return await context.req.json();
@@ -222,26 +346,44 @@ function getDeviceId(context, config) {
   return "debug-device";
 }
 
-function streamChat(context, provider, request) {
+function streamChat(context, provider, request, options = {}) {
   const stream = new ReadableStream({
     async start(controller) {
       const encoder = new TextEncoder();
+      let capturedText = "";
 
       try {
         for await (const chunk of provider.stream(request)) {
           if (typeof chunk === "string") {
             controller.enqueue(encoder.encode(chunk));
+            capturedText = appendCapturedText(capturedText, chunk, options.logStore?.maxDetailChars);
           } else {
             controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
+            capturedText = appendCapturedText(
+              capturedText,
+              extractStreamChunkText(chunk),
+              options.logStore?.maxDetailChars,
+            );
           }
         }
         if (!provider.passesThroughSSE) {
           controller.enqueue(encoder.encode("data: [DONE]\n\n"));
         }
+        options.logStore?.finishAiCall(options.logId, {
+          status: "success",
+          response: {
+            text: capturedText,
+          },
+        });
         controller.close();
       } catch (error) {
         const code = error instanceof GatewayError ? error.code : "UPSTREAM_ERROR";
         controller.enqueue(encoder.encode(`event: error\ndata: ${JSON.stringify({ code })}\n\n`));
+        options.logStore?.finishAiCall(options.logId, {
+          status: "error",
+          response: capturedText ? { text: capturedText } : null,
+          error: serializeError(error),
+        });
         controller.close();
       }
     },
@@ -254,4 +396,33 @@ function streamChat(context, provider, request) {
       "content-type": "text/event-stream; charset=UTF-8",
     },
   });
+}
+
+function appendCapturedText(current, next, maxChars = 20_000) {
+  if (!next) {
+    return current;
+  }
+
+  return truncateText(`${current}${next}`, maxChars);
+}
+
+function extractStreamChunkText(chunk) {
+  return chunk?.choices
+    ?.map((choice) => choice.delta?.content ?? choice.message?.content ?? "")
+    .join("") ?? "";
+}
+
+function serializeError(error) {
+  if (error instanceof GatewayError) {
+    return {
+      code: error.code,
+      message: error.message,
+      status: error.status,
+    };
+  }
+
+  return {
+    code: "UPSTREAM_ERROR",
+    message: error instanceof Error ? error.message : "Unknown error",
+  };
 }

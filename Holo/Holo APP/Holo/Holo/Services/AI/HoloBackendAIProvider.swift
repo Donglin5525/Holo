@@ -15,16 +15,19 @@ final class HoloBackendAIProvider: AIProvider {
     private let baseURL: String
     private let apiClient: APIClient
     private let deviceIdProvider: () -> String
+    private let promptService: HoloBackendPromptService
     private(set) var lastCallLog: LLMCallLog?
 
     init(
         baseURL: String = HoloBackendEnvironment.baseURL,
         apiClient: APIClient = .shared,
-        deviceIdProvider: @escaping () -> String = { HoloBackendDeviceIdentity.shared.deviceId }
+        deviceIdProvider: @escaping () -> String = { HoloBackendDeviceIdentity.shared.deviceId },
+        promptService: HoloBackendPromptService = .shared
     ) {
         self.baseURL = baseURL
         self.apiClient = apiClient
         self.deviceIdProvider = deviceIdProvider
+        self.promptService = promptService
     }
 
     // MARK: - AIProvider
@@ -42,7 +45,7 @@ final class HoloBackendAIProvider: AIProvider {
     }
 
     func parseUserInputBatch(_ input: String, context: UserContext) async throws -> AIParseBatch {
-        let systemPrompt = try PromptManager.shared.loadPrompt(.intentRecognition)
+        let systemPrompt = await loadManagedPrompt(.intentRecognition)
         let messages: [ChatMessageDTO] = [
             .system(systemPrompt),
             .user(input)
@@ -70,7 +73,7 @@ final class HoloBackendAIProvider: AIProvider {
     }
 
     func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> String {
-        let systemPrompt = try PromptManager.shared.loadPrompt(.memoryInsightGeneration)
+        let systemPrompt = await loadManagedPrompt(.memoryInsightGeneration)
         let messages: [ChatMessageDTO] = [
             .system(systemPrompt),
             .user(contextJSON)
@@ -86,7 +89,7 @@ final class HoloBackendAIProvider: AIProvider {
     }
 
     func chat(messages: [ChatMessageDTO], userContext: UserContext) async throws -> String {
-        let allMessages = try buildChatMessages(messages: messages, userContext: userContext)
+        let allMessages = await buildChatMessages(messages: messages, userContext: userContext)
         let request = buildRequest(purpose: .chat, messages: allMessages)
         let response: ChatCompletionResponse = try await apiClient.send(request)
 
@@ -112,34 +115,41 @@ final class HoloBackendAIProvider: AIProvider {
         systemContextOverride: String?,
         promptType: PromptManager.PromptType
     ) -> AsyncThrowingStream<String, Error> {
-        do {
-            let systemPrompt = try PromptManager.shared.loadPrompt(promptType)
-            var allMessages: [ChatMessageDTO] = [.system(systemPrompt)]
+        AsyncThrowingStream { continuation in
+            Task {
+                let systemPrompt = await loadManagedPrompt(promptType)
+                var allMessages: [ChatMessageDTO] = [.system(systemPrompt)]
 
-            if let systemContextOverride {
-                allMessages.append(.system(systemContextOverride))
-            } else {
-                allMessages.append(.system(buildContextMessage(userContext)))
+                if let systemContextOverride {
+                    allMessages.append(.system(systemContextOverride))
+                } else {
+                    allMessages.append(.system(buildContextMessage(userContext)))
+                }
+
+                allMessages.append(contentsOf: messages)
+
+                let request = buildRequest(
+                    purpose: .chat,
+                    messages: allMessages,
+                    stream: true
+                )
+
+                lastCallLog = LLMCallLog(
+                    type: "chat",
+                    model: "holo-backend",
+                    requestMessages: allMessages,
+                    responseText: ""
+                )
+
+                do {
+                    for try await chunk in apiClient.sendStreaming(request) {
+                        continuation.yield(chunk)
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
             }
-
-            allMessages.append(contentsOf: messages)
-
-            let request = buildRequest(
-                purpose: .chat,
-                messages: allMessages,
-                stream: true
-            )
-
-            lastCallLog = LLMCallLog(
-                type: "chat",
-                model: "holo-backend",
-                requestMessages: allMessages,
-                responseText: ""
-            )
-
-            return apiClient.sendStreaming(request)
-        } catch {
-            return AsyncThrowingStream { $0.finish(throwing: error) }
         }
     }
 
@@ -168,14 +178,23 @@ final class HoloBackendAIProvider: AIProvider {
         )
     }
 
-    private func buildChatMessages(messages: [ChatMessageDTO], userContext: UserContext) throws -> [ChatMessageDTO] {
-        let systemPrompt = try PromptManager.shared.loadPrompt(.systemPrompt)
+    private func buildChatMessages(messages: [ChatMessageDTO], userContext: UserContext) async -> [ChatMessageDTO] {
+        let systemPrompt = await loadManagedPrompt(.systemPrompt)
         var allMessages: [ChatMessageDTO] = [
             .system(systemPrompt),
             .system(buildContextMessage(userContext))
         ]
         allMessages.append(contentsOf: messages)
         return allMessages
+    }
+
+    private func loadManagedPrompt(_ type: PromptManager.PromptType) async -> String {
+        do {
+            return try await promptService.loadPrompt(type)
+        } catch {
+            logger.warning("后端 Prompt 加载失败，回退本地默认模板：\(type.rawValue), \(error.localizedDescription)")
+            return (try? PromptManager.shared.loadPrompt(type)) ?? PromptManager.shared.loadDefaultTemplate(type)
+        }
     }
 
     private func buildContextMessage(_ context: UserContext) -> String {

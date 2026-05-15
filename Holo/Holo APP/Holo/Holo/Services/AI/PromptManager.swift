@@ -181,6 +181,12 @@ final class PromptManager {
         cache.removeAll()
     }
 
+    /// 渲染任意 Prompt 模板中的运行时变量。
+    /// 远程 Prompt 由后端托管，但日期/时间等客户端运行时变量仍在本地替换。
+    func renderTemplate(_ template: String) -> String {
+        replaceVariables(in: template)
+    }
+
     // MARK: - Inline Templates
 
     private let templates: [PromptType: String] = [

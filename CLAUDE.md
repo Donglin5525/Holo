@@ -124,6 +124,86 @@
 
 ---
 
+## 后端网关架构
+
+Holo 的 AI/ASR 调用已从客户端直连大模型改为经阿里云后端网关统一代理，客户端不再持有 API Key。
+
+**架构**：`iOS App → Holo AI Gateway (阿里云 ECS 123.56.104.9:8787) → LLM / DashScope ASR`
+
+**方案文档**：`docs/_common/plans/HoloAI商用后端网关MVP方案.md`
+
+### 后端代码（HoloBackend/）
+
+| 文件 | 说明 |
+|------|------|
+| `src/app.js` | Hono 路由，4 组端点 |
+| `src/config.js` | 模型路由配置（chat/intent/insight 各自独立 provider/model/temperature） |
+| `src/server.js` | Node 服务入口 |
+| `src/errors.js` | GatewayError，中文错误消息 |
+| `src/providers/dashScopeAsrProvider.js` | DashScope ASR WebSocket 转写 |
+| `src/providers/openAICompatibleProvider.js` | 通用 LLM 转发 |
+| `src/usage/inMemoryUsageStore.js` | 设备级内存限流 |
+
+**API 端点**：`/v1/health` | `/v1/app-attest/challenge` | `/v1/ai/chat/completions` | `/v1/asr/transcriptions`
+
+**部署**：Docker Compose + Nginx，配置在 `HoloBackend/deploy/`
+
+### HoloBackend 管理后台
+
+HoloBackend 内置内部管理后台，供开发者调试 AI 调用、查看日志和管理 Prompt，不面向普通 App 用户开放。
+
+| 入口 | 说明 |
+|------|------|
+| `/admin/login` | 管理后台登录 |
+| `/admin/logs` | AI 调用日志、测试调用、请求/响应明细 |
+| `/admin/prompts` | Prompt 管理列表 |
+| `/admin/prompts/:type` | Prompt 查看、编辑、保存、恢复默认 |
+
+鉴权：
+- 使用 `HOLO_ADMIN_USERNAME` / `HOLO_ADMIN_PASSWORD` 登录
+- 登录后使用 HttpOnly Cookie
+- `HOLO_ADMIN_TOKEN` 仅保留给脚本或 curl 调试
+- 禁止将真实密码、session secret、API Key、用户日志写入文档或提交到 git
+
+Prompt 管理：
+- 默认 Prompt 来源：`HoloBackend/src/prompts/defaultPrompts.json`
+- 后台编辑后的 Prompt 写入：`HoloBackend/src/prompts/managedPrompts.json`
+- `/v1/prompts/:type` 优先返回 managed 版本，无 managed 版本则回退 default
+- App 普通用户不能手动调整 Prompt；管理后台仅供开发者内部调试和发布前校准
+
+日志：
+- `/admin/logs` 记录 `/v1/ai/chat/completions` 的请求、响应、provider、model、耗时和错误
+- 日志当前仅保存在后端进程内存中，服务重启后清空
+- 当前不记录 ASR 音频二进制内容
+- 真机 App 默认后端为 `HoloBackendEnvironment.baseURL`，若要在本地后台看真机日志，需让真机临时连接电脑局域网地址，例如 `http://<Mac局域网IP>:8787`
+
+### iOS 集成
+
+| 文件 | 说明 |
+|------|------|
+| `Services/AI/HoloBackendEnvironment.swift` | DEBUG/Release 环境切换，默认后端地址 |
+| `Services/AI/HoloBackendAIProvider.swift` | 替代 OpenAICompatibleProvider，走后端网关 |
+| `Services/Speech/HoloBackendSpeechRecognitionProvider.swift` | 录音上传到后端转写 |
+
+- Debug 环境已默认接入后端；Release 暂未启用
+- `AliyunQwenASRRealtimeProvider.swift`（客户端直连方案）将在后端方案上线后废弃
+
+> 涉及 AI/ASR 的改动需同时考虑 iOS 端和后端两侧。后端代码在 `HoloBackend/`，iOS 集成在 `Services/AI/HoloBackend*.swift`。后端待完成项见 `TODO.md`「后端网关」章节。
+
+---
+
+## HoloAI 智能系统
+
+**全景文档**：`docs/_common/AI能力全景(A+B+C).md`
+
+**主动交互（5 类）**：对话助手（15 种意图）| 数据分析（5 域）| 记忆洞察回放（8 种卡片）| 个性化配置（Provider/Prompt/Profile）| 智能分类学习
+
+**被动交互（5 类）**：后台自动生成 | 定时通知 | 异常检测 | 跨域关联 | 去重缓存
+
+**核心文件**：`Services/AI/`（27 文件）| `Models/AI/`（7 文件）| `Views/Chat/`（11 文件）| `Views/MemoryGallery/`（17 文件）| `Views/Settings/`（6 文件）| `HoloBackend/`（后端网关）
+
+---
+
 ## 禁止操作
 
 - 修改 Xcode 项目配置（签名和 Bundle ID）

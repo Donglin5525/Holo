@@ -27,9 +27,6 @@ struct AISettingsView: View {
             // 连接测试
             testSection
 
-            // Prompt 模板
-            promptSection
-
             // 学习数据
             mappingSection
 

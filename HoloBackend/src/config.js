@@ -59,6 +59,14 @@ const DEFAULT_CONFIG = {
     language: process.env.DASHSCOPE_ASR_LANGUAGE ?? "zh",
     sampleRate: Number(process.env.DASHSCOPE_ASR_SAMPLE_RATE ?? 16_000),
   },
+  admin: {
+    token: process.env.HOLO_ADMIN_TOKEN ?? "",
+    username: process.env.HOLO_ADMIN_USERNAME ?? "admin",
+    password: process.env.HOLO_ADMIN_PASSWORD ?? "",
+    sessionSecret: process.env.HOLO_ADMIN_SESSION_SECRET ?? "",
+    logMaxEntries: Number(process.env.HOLO_ADMIN_LOG_MAX_ENTRIES ?? 200),
+    logDetailMaxChars: Number(process.env.HOLO_ADMIN_LOG_DETAIL_MAX_CHARS ?? 20_000),
+  },
 };
 
 export function loadConfig(overrides = {}) {
@@ -83,7 +91,12 @@ export function loadConfig(overrides = {}) {
       ...DEFAULT_CONFIG.asr,
       ...overrides.asr,
     },
+    admin: {
+      ...DEFAULT_CONFIG.admin,
+      ...overrides.admin,
+    },
     asrProvider: overrides.asrProvider,
+    adminLogStore: overrides.adminLogStore,
     usageStore: overrides.usageStore,
   };
 }
