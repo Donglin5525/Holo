@@ -9,12 +9,15 @@ import { renderAdminLoginPage, renderAdminLogsPage } from "./adminLogsPage.js";
 import { renderAdminPromptEditorPage, renderAdminPromptsPage, renderAdminPromptHistoryPage } from "./adminPromptsPage.js";
 import { getPrompt, getPromptHistory, getPromptVersionEntry, listPrompts, resetPrompt, rollbackPrompt, updatePrompt } from "../prompts/promptRegistry.js";
 
-const HTML_HEADERS = {
-  "content-type": "text/html; charset=UTF-8",
-  "cache-control": "no-store",
-  "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
-  "x-content-type-options": "nosniff",
-};
+// 每次调用返回新对象，避免 @hono/node-server 写入 Content-Length 时污染共享引用
+function htmlHeaders() {
+  return {
+    "content-type": "text/html; charset=UTF-8",
+    "cache-control": "no-store",
+    "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; base-uri 'none'; frame-ancestors 'none'; form-action 'self'",
+    "x-content-type-options": "nosniff",
+  };
+}
 
 export function registerAdminRoutes(app, { config, logStore, runTestChat }) {
   app.get("/admin/login", (context) => {
@@ -26,7 +29,7 @@ export function registerAdminRoutes(app, { config, logStore, runTestChat }) {
       );
     }
 
-    return new Response(renderAdminLoginPage(), { headers: HTML_HEADERS });
+    return new Response(renderAdminLoginPage(), { headers: htmlHeaders() });
   });
 
   app.post("/admin/login", async (context) => {
@@ -46,7 +49,7 @@ export function registerAdminRoutes(app, { config, logStore, runTestChat }) {
     if (!ok) {
       return new Response(renderAdminLoginPage({ error: "账号或密码不正确" }), {
         status: 401,
-        headers: HTML_HEADERS,
+        headers: htmlHeaders(),
       });
     }
 
@@ -82,7 +85,7 @@ export function registerAdminRoutes(app, { config, logStore, runTestChat }) {
         notice: context.req.query("notice") ?? null,
         error: context.req.query("error") ?? null,
       }),
-      { headers: HTML_HEADERS },
+      { headers: htmlHeaders() },
     );
   });
 
@@ -103,7 +106,7 @@ export function registerAdminRoutes(app, { config, logStore, runTestChat }) {
         notice: context.req.query("notice") ?? null,
         error: context.req.query("error") ?? null,
       }),
-      { headers: HTML_HEADERS },
+      { headers: htmlHeaders() },
     );
   });
 
@@ -126,7 +129,7 @@ export function registerAdminRoutes(app, { config, logStore, runTestChat }) {
         notice: context.req.query("notice") ?? null,
         error: context.req.query("error") ?? null,
       }),
-      { headers: HTML_HEADERS },
+      { headers: htmlHeaders() },
     );
   });
 
@@ -307,7 +310,7 @@ export function registerAdminRoutes(app, { config, logStore, runTestChat }) {
         error: context.req.query("error") ?? null,
         token: context.req.query("token") ?? "",
       }),
-      { headers: HTML_HEADERS },
+      { headers: htmlHeaders() },
     );
   });
 }
