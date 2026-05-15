@@ -1,11 +1,23 @@
 import "dotenv/config";
 import { serve } from "@hono/node-server";
+import { createDatabase } from "./db/database.js";
 
 const port = Number(process.env.PORT ?? 8787);
-const { createApp } = await import("./app.js");
-const app = createApp();
 
-serve(
+const dbPath = process.env.HOLO_DB_PATH ?? "/data/holo-backend.db";
+let database;
+try {
+  database = createDatabase({ dbPath });
+  console.log(`[DB] SQLite 数据库已初始化: ${dbPath}`);
+} catch (err) {
+  console.error(`[DB] 数据库初始化失败: ${err.message}`);
+  process.exit(1);
+}
+
+const { createApp } = await import("./app.js");
+const app = createApp({ database });
+
+const server = serve(
   {
     fetch: app.fetch,
     port,
@@ -14,3 +26,14 @@ serve(
     console.log(`Holo AI Gateway listening on http://localhost:${info.port}`);
   },
 );
+
+function gracefulShutdown(signal) {
+  console.log(`\n[${signal}] 正在关闭...`);
+  server.close();
+  database.close();
+  console.log("[DB] 数据库已关闭");
+  process.exit(0);
+}
+
+process.on("SIGINT", () => gracefulShutdown("SIGINT"));
+process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));

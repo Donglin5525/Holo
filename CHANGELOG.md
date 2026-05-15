@@ -4,6 +4,35 @@
 
 ---
 
+## [2026-05-16] HoloBackend 功能增强 — SQLite 持久化 + 日志增强 + Prompt 版本管理 + ECS 部署
+
+### 新增
+- SQLite 持久化基础设施：`src/db/database.js` + `src/db/migrations.js`，WAL 模式、integrity_check、busy_timeout、自动 migration（备份+事务+checksum+失败中止）
+- 4 张数据表：`ai_call_logs`、`prompt_versions`、`rate_limits`、`request_logs`
+- 请求耗时日志中间件 `src/middleware/requestLogger.js`：队列批量写入 SQLite，控制台结构化输出，队列满时丢弃不阻塞主链路
+- ASR 调用摘要日志：ASR 路由已接入 startAiCall/finishAiCall 模式，记录音频格式、转写长度、耗时、错误
+- 日志持久化：adminLogStore 从纯内存改为 SQLite + 内存热缓存双层架构
+- 日志正文落库开关 `HOLO_LOG_CAPTURE_CONTENT=true`，基础敏感信息脱敏（邮箱/手机号/token/API key/长数字串），截断上限 2000 字符
+- Prompt 版本历史 + Diff + 回滚：`getPromptHistory`/`getPromptVersionEntry`/`rollbackPrompt`，diff 库集成
+- 管理后台新增 Prompt 版本历史页面：版本列表、行级 Diff 视图、回滚按钮
+- 管理后台日志页面增强：ASR 调用卡片展示（音频格式、转写长度、专属 badge）
+- 持久化限流存储 `src/usage/sqliteUsageStore.js`：INSERT ON CONFLICT 原子计数，成本接口 fail-closed
+- 管理日志自动清理（默认 30 天）、request_logs 自动清理（7 天）
+
+### 变更
+- Docker Compose 端口绑定改为 `127.0.0.1:8787:8787`，禁止公网直连 Hono
+- Docker Compose 新增 `volumes: ./data:/data` 挂载 SQLite 数据库
+- Dockerfile 新增 `build-base` + `python3` 编译依赖（better-sqlite3 原生绑定）
+- Nginx 配置明确本期仅代理 `/v1/`，管理后台通过 SSH tunnel 访问
+- promptRegistry.js 以 SQLite 为唯一运行时事实源，managedPrompts.json 仅用于一次性迁移
+- server.js 新增数据库初始化和优雅关闭（SIGINT/SIGTERM）
+
+### 依赖
+- 新增 `better-sqlite3`（SQLite 原生绑定）
+- 新增 `diff`（行级 Diff 算法）
+
+---
+
 ## [2026-05-16] HoloBackend Prompt 托管与内部管理后台
 
 ### 新增

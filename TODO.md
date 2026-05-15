@@ -152,19 +152,19 @@
 |--------|------|------|------|
 | 高 | 真实 App Attest 校验 | 当前仅骨架，需实现完整挑战-应答流程 | 📋 待实施 |
 | 高 | 域名 + HTTPS | 当前 HTTP 直连 ECS IP，需绑定域名并配置 HTTPS，完成后移除 `NSAllowsArbitraryLoads` | 📋 待实施 |
-| 中 | 持久化限流存储 | 当前内存存储，重启丢失，需接入持久化方案 | 📋 待实施 |
-| 高 | 后端请求耗时日志 | 按接口记录耗时，如 `POST /v1/asr/transcriptions 200 1.42s`，便于对比直连 vs 转发延迟 | 📋 待实施 |
-| 高 | 管理后台部署到 ECS | 当前本地管理后台可用；需部署到 ECS 后端服务，方便查看真机线上 AI 调用日志 | 📋 待实施 |
-| 高 | Prompt 版本历史 + Diff + 回滚 | 当前可编辑并保存 managed Prompt，但缺少历史版本、变更 diff 和按版本回滚 | 📋 待实施 |
-| 中 | AI 调用日志关联 Prompt 版本 | 当前日志记录请求/响应/provider/model/耗时；需记录当次使用的 Prompt 类型、来源和版本 | 📋 待实施 |
-| 中 | ASR 调用摘要日志 | 管理后台增加 ASR 调用摘要日志（耗时、文件类型、结果长度、错误），但禁止保存音频二进制 | 📋 待实施 |
-| 中 | 管理日志持久化 | 当前 AI 调用日志仅保存在进程内存，服务重启清空；后续接入可控持久化存储 | 📋 待实施 |
+| ~~中~~ | ~~持久化限流存储~~ | SQLite + fail-closed | ✅ 已完成 |
+| ~~高~~ | ~~后端请求耗时日志~~ | 队列批量写入 SQLite + 控制台结构化输出 | ✅ 已完成 |
+| ~~高~~ | ~~管理后台部署到 ECS~~ | Docker 127.0.0.1 绑定 + SSH tunnel + Nginx 仅代理 /v1/ | 🚧 代码已完成，待实际部署到 ECS |
+| ~~高~~ | ~~Prompt 版本历史 + Diff + 回滚~~ | SQLite 版本历史 + diff 库行级 Diff + 管理后台 UI | ✅ 已完成 |
+| ~~中~~ | ~~AI 调用日志关联 Prompt 版本~~ | ai_call_logs 表 prompt_type/prompt_version 字段 | ✅ 已完成 |
+| ~~中~~ | ~~ASR 调用摘要日志~~ | ASR 路由接入 startAiCall/finishAiCall，管理后台 ASR 卡片 | ✅ 已完成 |
+| ~~中~~ | ~~管理日志持久化~~ | adminLogStore SQLite + 内存热缓存双层架构 | ✅ 已完成 |
 
 ### HoloAI 优化 TODO
 
 | 优先级 | 项目 | 说明 | 状态 |
 |--------|------|------|------|
-| 高 | 后端请求耗时日志 | 为 HoloBackend 增加按接口记录耗时的访问日志，例如 `POST /v1/asr/transcriptions 200 1.42s`、`POST /v1/ai/chat/completions 200 0.63s`，便于对比直连大模型与后端转发后的体感延迟 | 📋 待实施 |
+| ~~高~~ | ~~后端请求耗时日志~~ | 队列批量写入 + 控制台结构化输出 | ✅ 已完成 |
 | 高 | 域名 + HTTPS 商用接入 | 为 ECS 后端绑定正式域名并配置 HTTPS，iOS 改用 HTTPS 后端地址；完成后移除当前为公网 IP 验收临时加入的 `NSAllowsArbitraryLoads` HTTP 放行 | 📋 待实施 |
 | 中 | 自定义分类同步到 AI 意图识别 | 用户新增一级/二级分类后，AI 的 LLM 意图识别 prompt 中的科目表是硬编码的，无法感知。需要设计同步机制让 AI 及时知晓分类调整 | 📋 待规划 |
 | 中 | HoloProfile 扩展注入范围 | 当前 HoloProfile 仅在普通对话中注入，分析查询（`UserContext.empty`）和洞察生成均未使用。需扩展至分析查询和记忆洞察生成场景 | 📋 待规划 |
@@ -259,3 +259,4 @@
 | 预算功能 Phase 1（账户级总预算 + 进度追踪 + BudgetSettingsSheet + AccountDetailView 集成） | 2026-04-24 |
 | 预算功能 Phase 2（分类预算 + 首页预算卡片 + 预警 chips + 分类/账户删除预算清理） | 2026-04-25 |
 | HoloBackend 内部管理后台（登录、AI 日志、测试调用、Prompt 查看/编辑/保存/恢复默认） | 2026-05-16 |
+| HoloBackend 功能增强（SQLite 持久化 + 请求耗时日志 + ASR 日志 + 日志持久化 + Prompt 版本历史/Diff/回滚 + 持久化限流 + 部署配置） | 2026-05-16 |

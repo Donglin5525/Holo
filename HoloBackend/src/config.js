@@ -98,5 +98,9 @@ export function loadConfig(overrides = {}) {
     asrProvider: overrides.asrProvider,
     adminLogStore: overrides.adminLogStore,
     usageStore: overrides.usageStore,
+    database: overrides.database ?? null,
+    contentCaptureEnabled: process.env.HOLO_LOG_CAPTURE_CONTENT === "true",
+    logRetentionDays: Number(process.env.HOLO_LOG_RETENTION_DAYS ?? 30),
+    dbPath: process.env.HOLO_DB_PATH ?? "/data/holo-backend.db",
   };
 }

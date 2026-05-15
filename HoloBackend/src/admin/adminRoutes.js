@@ -6,8 +6,8 @@ import {
   validateAdminLogin,
 } from "./adminAuth.js";
 import { renderAdminLoginPage, renderAdminLogsPage } from "./adminLogsPage.js";
-import { renderAdminPromptEditorPage, renderAdminPromptsPage } from "./adminPromptsPage.js";
-import { getPrompt, listPrompts, resetPrompt, updatePrompt } from "../prompts/promptRegistry.js";
+import { renderAdminPromptEditorPage, renderAdminPromptsPage, renderAdminPromptHistoryPage } from "./adminPromptsPage.js";
+import { getPrompt, getPromptHistory, getPromptVersionEntry, listPrompts, resetPrompt, rollbackPrompt, updatePrompt } from "../prompts/promptRegistry.js";
 
 const HTML_HEADERS = {
   "content-type": "text/html; charset=UTF-8",
@@ -105,6 +105,77 @@ export function registerAdminRoutes(app, { config, logStore, runTestChat }) {
       }),
       { headers: HTML_HEADERS },
     );
+  });
+
+  // Prompt 版本历史页面
+  app.get("/admin/prompts/:type/history", (context) => {
+    const auth = assertAdminAuthorized(context, config);
+    if (!auth.ok) {
+      return redirect("/admin/login");
+    }
+
+    const type = context.req.param("type");
+    const history = getPromptHistory(type);
+    const currentPrompt = getPrompt(type);
+
+    return new Response(
+      renderAdminPromptHistoryPage({
+        type,
+        history,
+        currentVersion: currentPrompt?.version ?? 0,
+        notice: context.req.query("notice") ?? null,
+        error: context.req.query("error") ?? null,
+      }),
+      { headers: HTML_HEADERS },
+    );
+  });
+
+  // Prompt 版本 Diff 查看
+  app.get("/admin/prompts/:type/diff/:version", (context) => {
+    const auth = assertAdminAuthorized(context, config);
+    if (!auth.ok) {
+      return adminJson(context, auth.body, auth.status);
+    }
+
+    const type = context.req.param("type");
+    const version = Number(context.req.param("version"));
+    const entry = getPromptVersionEntry(type, version);
+
+    if (!entry) {
+      return adminJson(context, { error: { code: "VERSION_NOT_FOUND" } }, 404);
+    }
+
+    return adminJson(context, {
+      type,
+      version: entry.version,
+      content: entry.content,
+      diff: entry.diff_from_prev,
+      source: entry.source,
+      createdAt: entry.created_at,
+    });
+  });
+
+  // Prompt 回滚
+  app.post("/admin/prompts/:type/rollback", async (context) => {
+    const auth = assertAdminAuthorized(context, config);
+    if (!auth.ok) {
+      return redirect("/admin/login");
+    }
+
+    const type = context.req.param("type");
+    const body = new URLSearchParams(await context.req.text());
+    const targetVersion = Number(body.get("version"));
+
+    if (!targetVersion) {
+      return redirect(`/admin/prompts/${encodeURIComponent(type)}/history?error=invalid_version`);
+    }
+
+    const result = rollbackPrompt(type, targetVersion);
+    if (!result) {
+      return redirect(`/admin/prompts/${encodeURIComponent(type)}/history?error=rollback_failed`);
+    }
+
+    return redirect(`/admin/prompts/${encodeURIComponent(type)}/history?notice=rolled_back_to_v${targetVersion}`);
   });
 
   app.post("/admin/prompts/:type", async (context) => {

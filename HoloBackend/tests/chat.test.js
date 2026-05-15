@@ -1,10 +1,18 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { randomUUID } from "node:crypto";
 
 import { createApp } from "../src/app.js";
+import { createDatabase } from "../src/db/database.js";
+
+// 每个测试使用独立的内存数据库
+function createTestDatabase() {
+  return createDatabase({ dbPath: `:memory:` });
+}
 
 function createTestApp(overrides = {}) {
   return createApp({
+    database: createTestDatabase(),
     auth: { enforceAppAttest: false },
     limits: {
       chatRequestsPerMinute: 2,

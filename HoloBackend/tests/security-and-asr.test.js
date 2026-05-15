@@ -2,9 +2,13 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { createApp } from "../src/app.js";
+import { createDatabase } from "../src/db/database.js";
 
 test("POST /v1/app-attest/challenge returns short-lived challenge", async () => {
-  const app = createApp({ auth: { enforceAppAttest: false } });
+  const app = createApp({
+    database: createDatabase({ dbPath: ':memory:' }),
+    auth: { enforceAppAttest: false },
+  });
 
   const response = await app.request("/v1/app-attest/challenge", {
     method: "POST",
@@ -20,7 +24,10 @@ test("POST /v1/app-attest/challenge returns short-lived challenge", async () => 
 });
 
 test("POST /v1/app-attest/assert allows debug assertion when enforcement is disabled", async () => {
-  const app = createApp({ auth: { enforceAppAttest: false } });
+  const app = createApp({
+    database: createDatabase({ dbPath: ':memory:' }),
+    auth: { enforceAppAttest: false },
+  });
 
   const response = await app.request("/v1/app-attest/assert", {
     method: "POST",
@@ -37,6 +44,7 @@ test("POST /v1/app-attest/assert allows debug assertion when enforcement is disa
 
 test("POST /v1/asr/transcriptions returns mock transcript for uploaded audio", async () => {
   const app = createApp({
+    database: createDatabase({ dbPath: ':memory:' }),
     auth: { enforceAppAttest: false },
     limits: {
       chatRequestsPerMinute: 20,
@@ -69,6 +77,7 @@ test("POST /v1/asr/transcriptions returns mock transcript for uploaded audio", a
 test("POST /v1/asr/transcriptions passes uploaded audio to configured ASR provider", async () => {
   let captured = null;
   const app = createApp({
+    database: createDatabase({ dbPath: ':memory:' }),
     auth: { enforceAppAttest: false },
     limits: {
       chatRequestsPerMinute: 20,

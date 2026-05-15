@@ -3,38 +3,56 @@ import { randomBytes } from "node:crypto";
 
 import { createErrorResponse, GatewayError } from "./errors.js";
 import { createInMemoryUsageStore } from "./usage/inMemoryUsageStore.js";
+import { createSqliteUsageStore } from "./usage/sqliteUsageStore.js";
 import { createMockChatProvider } from "./providers/mockChatProvider.js";
 import { createOpenAICompatibleProvider } from "./providers/openAICompatibleProvider.js";
 import { createMockAsrProvider } from "./providers/mockAsrProvider.js";
 import { createDashScopeAsrProvider } from "./providers/dashScopeAsrProvider.js";
-import { getPrompt, listPrompts } from "./prompts/promptRegistry.js";
+import { getPrompt, listPrompts, setDatabase } from "./prompts/promptRegistry.js";
 import { loadConfig } from "./config.js";
 import { createAdminLogStore, truncateText } from "./admin/adminLogStore.js";
 import { isAdminEnabled } from "./admin/adminAuth.js";
 import { registerAdminRoutes } from "./admin/adminRoutes.js";
+import { createRequestLogger } from "./middleware/requestLogger.js";
+import { createDatabase } from "./db/database.js";
 
 const CLIENT_ROUTING_FIELDS = ["baseURL", "baseUrl", "apiKey", "provider", "model"];
 
 export function createApp(overrides = {}) {
   const config = loadConfig(overrides);
   const app = new Hono();
-  const usageStore = config.usageStore ?? createInMemoryUsageStore();
+
+  // SQLite 数据库（可选，测试时可以不传）
+  const database = config.database ?? createDatabase({ dbPath: config.dbPath });
+
+  // 注入数据库到 Prompt 管理
+  setDatabase(database.db);
+
+  const usageStore = config.usageStore ?? createSqliteUsageStore(database.db);
   const adminLogStore =
     config.adminLogStore ??
     createAdminLogStore({
       maxEntries: config.admin.logMaxEntries,
       maxDetailChars: config.admin.logDetailMaxChars,
+      db: database.db,
     });
   const providers = createProviders(config);
   const asrProvider = createAsrProvider(config);
   const captureAdminLogs = isAdminEnabled(config);
+
+  // 请求耗时日志中间件
+  const requestLogger = createRequestLogger(database.db);
+  app.use('*', requestLogger.middleware);
+  requestLogger.startFlushTimer();
+  requestLogger.cleanupOld();
+
   const runAdminTestChat = createAdminTestChatRunner({
     config,
     providers,
     logStore: adminLogStore,
   });
 
-  registerAdminRoutes(app, { config, logStore: adminLogStore, runTestChat: runAdminTestChat });
+  registerAdminRoutes(app, { config, logStore: adminLogStore, runTestChat: runAdminTestChat, db: database.db });
 
   app.get("/v1/health", (context) => {
     return context.json({
@@ -195,13 +213,43 @@ export function createApp(overrides = {}) {
         throw new GatewayError("AUDIO_TOO_LARGE", "Audio file is too large", 413);
       }
 
-      const result = await asrProvider.transcribe({
-        audio: await audio.arrayBuffer(),
-        fileName: audio.name,
-        mimeType: audio.type,
-        locale: formData.get("locale")?.toString() ?? null,
-      });
-      return context.json(result);
+      const logId = captureAdminLogs
+        ? adminLogStore.startAiCall({
+            deviceId,
+            purpose: "asr_transcription",
+            provider: "dashscope",
+            model: config.asr.model,
+            stream: false,
+            asrFileType: audio.type,
+            request: { asr: true },
+          })
+        : null;
+
+      try {
+        const result = await asrProvider.transcribe({
+          audio: await audio.arrayBuffer(),
+          fileName: audio.name,
+          mimeType: audio.type,
+          locale: formData.get("locale")?.toString() ?? null,
+        });
+        if (logId) {
+          const transcriptText = result.text ?? JSON.stringify(result);
+          adminLogStore.finishAiCall(logId, {
+            status: "success",
+            response: result,
+            asrResultLength: transcriptText.length,
+          });
+        }
+        return context.json(result);
+      } catch (error) {
+        if (logId) {
+          adminLogStore.finishAiCall(logId, {
+            status: "error",
+            error: serializeError(error),
+          });
+        }
+        throw error;
+      }
     } catch (error) {
       return createErrorResponse(context, error);
     }

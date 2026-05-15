@@ -2,22 +2,27 @@ export function renderAdminLogsPage({ logs, token, notice = null, error = null }
   const rows = logs
     .map((log) => {
       const detailHref = `/v1/admin/logs/${encodeURIComponent(log.id)}?token=${encodeURIComponent(token)}`;
+      const isAsr = log.type === 'asr.transcriptions' || log.purpose === 'asr_transcription';
       const userText = extractUserText(log);
       const assistantText = extractAssistantText(log);
       return `
-        <article class="log">
+        <article class="log${isAsr ? ' asr-log' : ''}">
           <header>
-            <strong>${escapeHtml(log.purpose)} / ${escapeHtml(log.model)}</strong>
+            <strong>${isAsr ? '🎤 ASR' : escapeHtml(log.purpose)} / ${escapeHtml(log.model)}</strong>
             <span class="status ${escapeHtml(log.status)}">${escapeHtml(log.status)}</span>
+            ${isAsr ? '<span class="asr-badge">ASR</span>' : ''}
           </header>
           <dl>
             <div><dt>Time</dt><dd>${escapeHtml(log.startedAt)}</dd></div>
             <div><dt>Duration</dt><dd>${log.durationMs == null ? "pending" : `${log.durationMs}ms`}</dd></div>
             <div><dt>Provider</dt><dd>${escapeHtml(log.provider)}</dd></div>
             <div><dt>Device</dt><dd>${escapeHtml(log.deviceId)}</dd></div>
-            <div><dt>Stream</dt><dd>${log.stream ? "true" : "false"}</dd></div>
+            ${!isAsr ? `<div><dt>Stream</dt><dd>${log.stream ? "true" : "false"}</dd></div>` : ''}
+            ${isAsr && log.asrFileType ? `<div><dt>音频格式</dt><dd>${escapeHtml(log.asrFileType)}</dd></div>` : ''}
+            ${isAsr && log.asrResultLength != null ? `<div><dt>转写长度</dt><dd>${log.asrResultLength} 字</dd></div>` : ''}
             <div><dt>Error</dt><dd>${escapeHtml(log.errorCode ?? log.error?.code ?? "-")}</dd></div>
           </dl>
+          ${!isAsr ? `
           <section class="snippet">
             <h2>用户输入</h2>
             <pre>${escapeHtml(userText || "-")}</pre>
@@ -26,6 +31,7 @@ export function renderAdminLogsPage({ logs, token, notice = null, error = null }
             <h2>模型输出</h2>
             <pre>${escapeHtml(assistantText || log.error?.message || "-")}</pre>
           </section>
+          ` : ''}
           <details>
             <summary>查看完整请求 / 响应</summary>
             <section class="snippet">
@@ -76,6 +82,8 @@ export function renderAdminLogsPage({ logs, token, notice = null, error = null }
     .status { border-radius: 999px; padding: 3px 9px; font-size: 12px; background: #e4e7eb; }
     .status.success { background: #d3f9d8; color: #1b5e20; }
     .status.error { background: #ffdddd; color: #8a1c1c; }
+    .asr-badge { border-radius: 999px; padding: 3px 9px; font-size: 12px; background: #fff3cd; color: #856404; }
+    .asr-log { border-left: 3px solid #ffc107; }
     dl { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px 18px; margin: 14px 0; }
     dt { font-size: 12px; color: #7b8794; }
     dd { margin: 3px 0 0; overflow-wrap: anywhere; }
@@ -106,7 +114,7 @@ export function renderAdminLogsPage({ logs, token, notice = null, error = null }
     </nav>
     <h1>Holo Admin Logs</h1>
     <div class="toolbar">
-      <p>最近 AI 调用详情日志。页面每 10 秒自动刷新，日志仅保存在当前后端进程内存中。</p>
+      <p>最近 AI / ASR 调用详情日志。页面每 10 秒自动刷新，日志已持久化到 SQLite。</p>
     </div>
     ${renderNotice(notice, error)}
     <section class="panel">
