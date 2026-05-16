@@ -27,6 +27,15 @@ extension Date {
         let c = Calendar.current.dateComponents([.year, .month], from: self)
         return Calendar.current.date(from: c) ?? self
     }
+
+    /// 所在季度第一天
+    var startOfQuarter: Date {
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.year, .month], from: self)
+        guard let year = components.year, let month = components.month else { return startOfMonth }
+        let quarterStartMonth = ((month - 1) / 3) * 3 + 1
+        return calendar.date(from: DateComponents(year: year, month: quarterStartMonth, day: 1)) ?? startOfMonth
+    }
     
     /// 当月天数
     var daysInMonth: Int {

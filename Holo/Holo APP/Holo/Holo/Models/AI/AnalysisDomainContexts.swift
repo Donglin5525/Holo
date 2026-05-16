@@ -23,6 +23,7 @@ struct FinanceAnalysisContext: Codable, Equatable, Sendable {
     let subCategoryDetails: [SubCategoryDetail]?
     let categoryTrends: [CategoryTrendItem]?
     let spendingPatterns: SpendingPatterns?
+    let semanticSummary: FinanceSemanticSummary?
 
     var isDataFree: Bool {
         totalExpense == 0 && totalIncome == 0 && transactionCount == 0
@@ -83,6 +84,27 @@ struct FrequentCategory: Codable, Equatable, Sendable {
     let totalAmount: Decimal
 }
 
+struct FinanceSemanticSummary: Codable, Equatable, Sendable {
+    let fixedNecessaryExpenseTotal: Decimal
+    let actionableExpenseTotal: Decimal
+    let fixedNecessaryCategories: [FinanceCategoryItem]
+    let transport: TransportSpendingSummary?
+    let incomeCadenceHint: String?
+}
+
+struct TransportSpendingSummary: Codable, Equatable, Sendable {
+    let totalAmount: Decimal
+    let transactionCount: Int
+    let taxiAmount: Decimal
+    let taxiCount: Int
+    let publicTransitAmount: Decimal
+    let publicTransitCount: Int
+    let longDistanceAmount: Decimal
+    let longDistanceCount: Int
+    let taxiAmountRatio: Double?
+    let analysisHint: String
+}
+
 // MARK: - Habit
 
 struct HabitAnalysisContext: Codable, Equatable, Sendable {
@@ -128,9 +150,16 @@ struct TaskAnalysisContext: Codable, Equatable, Sendable {
     let importantCompletedTasks: [String]
     let dailyCompletionTrend: [DailyCountPoint]
     let previousPeriodCompletedCount: Int?
+    let dueInPeriod: Int
+    let createdInPeriod: Int
+    let completedInPeriod: Int
+    let newOverdueInPeriod: Int
+    let carriedOverBacklogCount: Int
+    let activeBacklogCount: Int
+    let periodCompletionScopeNote: String
 
     var isDataFree: Bool {
-        totalCount == 0
+        dueInPeriod == 0 && completedInPeriod == 0 && createdInPeriod == 0 && activeBacklogCount == 0
     }
 }
 

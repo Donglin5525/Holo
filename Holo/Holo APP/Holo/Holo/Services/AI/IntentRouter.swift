@@ -107,16 +107,10 @@ final class IntentRouter {
 
         logger.info("AI 返回科目：primaryCategory=\(primaryCategory ?? "nil"), subCategory=\(subCategory ?? "nil"), categoryCandidate=\(categoryCandidate ?? "nil")")
 
-        let correctedSubCategory = correctMealCategoryIfNeeded(
-            primaryCategory: primaryCategory,
-            subCategory: subCategory,
-            categoryCandidate: categoryCandidate,
-            note: note
-        )
         let categoryRepo = FinanceRepository.shared
         var category = try await matchCategory(
             primaryCategory: primaryCategory,
-            subCategory: correctedSubCategory,
+            subCategory: subCategory,
             categoryCandidate: categoryCandidate,
             note: note ?? "",
             type: .expense
@@ -612,45 +606,37 @@ final class IntentRouter {
 
     // MARK: - Meal Category Time Correction
 
-    /// 餐饮科目时间修正：用户未明确指定餐次时，根据当前时间自动判定
-    private func correctMealCategoryIfNeeded(
-        primaryCategory: String?,
-        subCategory: String?,
+    private func normalizedMealCandidate(
         categoryCandidate: String?,
         note: String?
     ) -> String? {
-        let mealCategories: Set<String> = ["早餐", "午餐", "晚餐", "夜宵"]
-        guard let sub = subCategory, mealCategories.contains(sub) else {
-            return subCategory
+        let text = [categoryCandidate, note].compactMap { $0 }.joined(separator: " ")
+
+        if text.contains("早餐") || text.contains("早饭") || text.contains("早点") {
+            return "早餐"
+        }
+        if text.contains("午餐") || text.contains("午饭") || text.contains("中饭") {
+            return "午餐"
+        }
+        if text.contains("晚餐") || text.contains("晚饭") {
+            return "晚餐"
+        }
+        if text.contains("夜宵") || text.contains("宵夜") {
+            return "夜宵"
         }
 
-        // 一级科目已确定且不是餐饮，不干预
-        if let primary = primaryCategory, !primary.isEmpty, primary != "餐饮" {
-            return subCategory
+        let genericMealKeywords = ["吃饭", "饭", "餐", "外卖"]
+        guard genericMealKeywords.contains(where: { text.contains($0) }) else {
+            return nil
         }
 
-        // 用户明确提到了餐次关键词，尊重用户的选择
-        let explicitMealKeywords = ["早餐", "早饭", "早点", "早茶", "午餐", "午饭", "中饭", "晚餐", "晚饭", "夜宵", "宵夜"]
-        let userText = [categoryCandidate, note].compactMap { $0 }.joined(separator: " ")
-        if explicitMealKeywords.contains(where: { userText.contains($0) }) {
-            return subCategory
-        }
-
-        // 根据当前时间判定
         let hour = Calendar.current.component(.hour, from: Date())
-        let corrected: String
         switch hour {
-        case 5..<10: corrected = "早餐"
-        case 10..<16: corrected = "午餐"
-        case 16..<21: corrected = "晚餐"
-        default: corrected = "夜宵"
+        case 5..<10: return "早餐"
+        case 10..<16: return "午餐"
+        case 16..<21: return "晚餐"
+        default: return "夜宵"
         }
-
-        if corrected != sub {
-            logger.info("餐类时间修正：\(sub) → \(corrected)（当前小时：\(hour)）")
-            return corrected
-        }
-        return subCategory
     }
 
     // MARK: - Category Matching
@@ -665,7 +651,7 @@ final class IntentRouter {
         let categoryRepo = FinanceRepository.shared
         let categories = try await categoryRepo.getCategories(by: type)
 
-        // 1. 优先使用 AI 返回的科目信息进行匹配（仅精确和同义词）
+        // 1. AI 明确给出的标准科目，先走严格 Core Data 匹配。
         if let sub = subCategory, !sub.isEmpty {
             let matchResult = CategoryMatcherService.shared.matchSingle(
                 primaryCategory: primaryCategory ?? "",
@@ -679,32 +665,75 @@ final class IntentRouter {
             }
         }
 
-        // 2. 使用 categoryCandidate（用户原始分类语义）匹配
-        if let candidate = categoryCandidate, !candidate.isEmpty {
-            let matchResult = CategoryMatcherService.shared.matchSingle(
+        let normalizedCandidate = normalizedMealCandidate(
+            categoryCandidate: categoryCandidate,
+            note: note
+        ) ?? categoryCandidate
+
+        if let candidate = normalizedCandidate?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !candidate.isEmpty {
+            // 2. 用户学习映射优先，尊重手动纠正过的分类。
+            if let learned = CategoryLearnedMapping.lookup(
+                candidate: candidate,
+                type: type,
+                primaryCategory: primaryCategory ?? ""
+            ) ?? CategoryLearnedMapping.lookup(candidate: candidate, type: type) {
+                let learnedResult = CategoryMatcherService.shared.matchSingle(
+                    primaryCategory: learned.primary,
+                    subCategory: learned.sub,
+                    type: type,
+                    categories: categories
+                )
+                if let matched = learnedResult.matchedCategory {
+                    return matched
+                }
+            }
+
+            // 3. 直接匹配用户本地已有科目，保护自定义分类。
+            if let customMatched = CategoryMatcherService.shared.matchExistingCategoryByCandidate(
+                candidate,
                 primaryCategory: primaryCategory ?? "",
-                subCategory: candidate,
                 type: type,
                 categories: categories
-            )
-            if matchResult.matchType == .exact || matchResult.matchType == .synonym,
-               let matched = matchResult.matchedCategory {
-                return matched
+            ) {
+                return customMatched
+            }
+
+            // 4. 标准 catalog 负责别名归一，例如“滴滴”→“交通/打车”。
+            let catalog = await FinanceCategoryCatalogProvider.shared.loadCatalog()
+            if let catalogMatch = CategoryMatcherService.shared.matchCandidate(candidate, type: type, catalog: catalog) {
+                let catalogResult = CategoryMatcherService.shared.matchSingle(
+                    primaryCategory: catalogMatch.primaryCategory,
+                    subCategory: catalogMatch.subCategory,
+                    type: type,
+                    categories: categories
+                )
+                if let matched = catalogResult.matchedCategory {
+                    return matched
+                }
             }
         }
 
-        // 3. 降级：用 note 文本尝试匹配（仅精确和同义词）
-        if !note.isEmpty {
-            let matchResult = CategoryMatcherService.shared.matchSingle(
+        // 5. 降级：note 只做唯一精确匹配，不做模糊猜测。
+        if let noteMatched = CategoryMatcherService.shared.matchExistingCategoryByCandidate(
+            note,
+            primaryCategory: "",
+            type: type,
+            categories: categories
+        ) {
+            return noteMatched
+        }
+
+        // 6. 原始 candidate 再做一次直接匹配，避免餐饮归一掩盖同名自定义分类。
+        if let rawCandidate = categoryCandidate?.trimmingCharacters(in: .whitespacesAndNewlines),
+           rawCandidate != (normalizedCandidate ?? ""),
+           let rawMatched = CategoryMatcherService.shared.matchExistingCategoryByCandidate(
+                rawCandidate,
                 primaryCategory: primaryCategory ?? "",
-                subCategory: note,
                 type: type,
                 categories: categories
-            )
-            if matchResult.matchType == .exact || matchResult.matchType == .synonym,
-               let matched = matchResult.matchedCategory {
-                return matched
-            }
+           ) {
+            return rawMatched
         }
 
         // 无法可靠匹配，返回 nil，由调用方使用「待确认」兜底

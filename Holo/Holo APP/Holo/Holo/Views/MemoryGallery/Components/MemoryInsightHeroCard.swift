@@ -16,9 +16,12 @@ struct MemoryInsightHeroCard: View {
     let insight: MemoryInsight?
     let weeklyIsFallback: Bool
     let monthlyIsFallback: Bool
+    @Binding var customStartDate: Date
+    @Binding var customEndDate: Date
     let fallbackTitle: String
     let fallbackSummary: String
     let onPeriodChange: (MemoryInsightPeriodType) -> Void
+    let onCustomRangeChange: (Date, Date) -> Void
     let onGenerate: () -> Void
     let onRefresh: () -> Void
     let onContinueInChat: () -> Void
@@ -26,11 +29,12 @@ struct MemoryInsightHeroCard: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            // 周/月切换器
-            periodPicker
-
             // 标题区域
             headerSection
+
+            if selectedPeriod == .custom {
+                customDatePicker
+            }
 
             // 摘要区域
             summarySection
@@ -56,77 +60,165 @@ struct MemoryInsightHeroCard: View {
 
     @ViewBuilder
     private var periodPicker: some View {
-        HStack(spacing: 0) {
-            periodTab(weeklyIsFallback ? "上周" : "本周", period: .weekly)
-            periodTab(monthlyIsFallback ? "上月" : "本月", period: .monthly)
+        Menu {
+            periodMenuButton(weeklyIsFallback ? "上周" : "本周", period: .weekly)
+            periodMenuButton(monthlyIsFallback ? "上月" : "本月", period: .monthly)
+            periodMenuButton("本季度", period: .quarterly)
+            periodMenuButton("自定义周期", period: .custom)
+        } label: {
+            HStack(spacing: 6) {
+                Text(selectedPeriodTitle)
+                    .font(.holoCaption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoPrimary)
+                    .lineLimit(1)
+
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundColor(.holoPrimary)
+            }
+            .padding(.horizontal, HoloSpacing.sm)
+            .frame(height: 30)
+            .background(Color.holoPrimary.opacity(0.1))
+            .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(Color.holoPrimary.opacity(0.24), lineWidth: 1)
+            )
         }
-        .background(Color.holoGlassBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
+        .buttonStyle(PlainButtonStyle())
     }
 
-    private func periodTab(_ title: String, period: MemoryInsightPeriodType) -> some View {
+    private func periodMenuButton(_ title: String, period: MemoryInsightPeriodType) -> some View {
         Button {
             onPeriodChange(period)
         } label: {
+            Label(title, systemImage: selectedPeriod == period ? "checkmark" : "calendar")
+        }
+    }
+
+    private var selectedPeriodTitle: String {
+        switch selectedPeriod {
+        case .weekly:
+            return weeklyIsFallback ? "上周" : "本周"
+        case .monthly:
+            return monthlyIsFallback ? "上月" : "本月"
+        case .quarterly:
+            return "本季度"
+        case .custom:
+            return customRangeTitle
+        case .daily:
+            return "今日"
+        }
+    }
+
+    private var customRangeTitle: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M.d"
+        return "\(formatter.string(from: customStartDate))-\(formatter.string(from: customEndDate))"
+    }
+
+    private var customDatePicker: some View {
+        VStack(spacing: HoloSpacing.sm) {
+            customDateRow(title: "开始", selection: $customStartDate)
+            customDateRow(title: "结束", selection: $customEndDate)
+        }
+        .padding(HoloSpacing.sm)
+        .background(Color.holoGlassBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.md)
+                .stroke(Color.holoBorder.opacity(0.45), lineWidth: 1)
+        )
+        .onChange(of: customStartDate) { _, newValue in
+            if newValue.startOfDay > customEndDate.startOfDay {
+                customEndDate = newValue.startOfDay
+            }
+            onCustomRangeChange(customStartDate.startOfDay, customEndDate.startOfDay)
+        }
+        .onChange(of: customEndDate) { _, newValue in
+            if newValue.startOfDay < customStartDate.startOfDay {
+                customStartDate = newValue.startOfDay
+            }
+            onCustomRangeChange(customStartDate.startOfDay, customEndDate.startOfDay)
+        }
+    }
+
+    private func customDateRow(title: String, selection: Binding<Date>) -> some View {
+        HStack {
             Text(title)
                 .font(.holoCaption)
-                .foregroundColor(selectedPeriod == period ? .white : .holoTextSecondary)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, HoloSpacing.xs)
-                .background(
-                    RoundedRectangle(cornerRadius: HoloRadius.sm / 2)
-                        .fill(selectedPeriod == period ? Color.holoPrimary : Color.clear)
-                )
+                .foregroundColor(.holoTextSecondary)
+
+            Spacer()
+
+            DatePicker(
+                title,
+                selection: selection,
+                in: ...Date().startOfDay,
+                displayedComponents: .date
+            )
+            .labelsHidden()
+            .datePickerStyle(.compact)
+            .tint(.holoPrimary)
         }
-        .buttonStyle(PlainButtonStyle())
     }
 
     // MARK: - Header
 
     @ViewBuilder
     private var headerSection: some View {
-        HStack {
-            Image(systemName: "sparkles")
-                .font(.system(size: 16))
-                .foregroundColor(.holoPrimary)
+        VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+            HStack(spacing: HoloSpacing.xs) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.holoPrimary)
+
+                Text("AI 回放")
+                    .font(.holoLabel)
+                    .foregroundColor(.holoTextSecondary)
+
+                Spacer(minLength: HoloSpacing.sm)
+
+                periodPicker
+            }
 
             Text(headerTitle)
                 .font(.holoHeading)
                 .foregroundColor(.holoTextPrimary)
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
 
-            Spacer()
+            HStack(spacing: HoloSpacing.sm) {
+                if state == .stale {
+                    Text("有新记录")
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.holoPrimary)
+                        .padding(.horizontal, HoloSpacing.sm)
+                        .padding(.vertical, 3)
+                        .background(Color.holoPrimary.opacity(0.1))
+                        .clipShape(Capsule())
+                }
 
-            // stale 标记
-            if state == .stale {
-                Text("有新记录")
-                    .font(.holoTinyLabel)
-                    .foregroundColor(.holoInfo)
-                    .padding(.horizontal, HoloSpacing.sm)
-                    .padding(.vertical, 2)
-                    .background(Color.holoInfo.opacity(0.1))
-                    .clipShape(Capsule())
-            }
-
-            // 生成时间
-            if let insight = insight, state == .ready || state == .stale {
-                Text(insight.formattedGeneratedAt)
-                    .font(.holoTinyLabel)
-                    .foregroundColor(.holoTextPlaceholder)
+                if let insight = insight, state == .ready || state == .stale {
+                    Text(insight.formattedGeneratedAt)
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.holoTextPlaceholder)
+                }
             }
         }
     }
 
     private var headerTitle: String {
-        let isFallback = selectedPeriod == .weekly ? weeklyIsFallback : monthlyIsFallback
-        let periodLabel = selectedPeriod == .weekly ? "周" : "月"
-        let prefix = isFallback ? "上" : "本"
+        let periodLabel = selectedPeriodInsightLabel
         switch state {
         case .notConfigured:
             return "AI 回放"
         case .idle:
-            return "\(prefix)\(periodLabel) AI 回放"
+            return "\(periodLabel) AI 回放"
         case .generating:
-            return "正在理解\(prefix)\(periodLabel)"
+            return "正在理解\(periodLabel)"
         case .ready:
             return insight?.title ?? "AI 回放"
         case .stale:
@@ -136,25 +228,33 @@ struct MemoryInsightHeroCard: View {
         }
     }
 
+    private var selectedPeriodInsightLabel: String {
+        switch selectedPeriod {
+        case .weekly:
+            return weeklyIsFallback ? "上周" : "本周"
+        case .monthly:
+            return monthlyIsFallback ? "上月" : "本月"
+        case .quarterly:
+            return "本季度"
+        case .custom:
+            return "自定义周期"
+        case .daily:
+            return "今日"
+        }
+    }
+
     // MARK: - Summary
 
     @ViewBuilder
     private var summarySection: some View {
         switch state {
         case .notConfigured:
-            Text("配置 AI 后可以生成个性化的周/月回放")
-                .font(.holoBody)
-                .foregroundColor(.holoTextSecondary)
+            Text("配置 AI 后可以生成个性化的周期回放")
                 .font(.holoBody)
                 .foregroundColor(.holoTextSecondary)
 
         case .idle:
-            let isFallback = selectedPeriod == .weekly ? weeklyIsFallback : monthlyIsFallback
-            let periodLabel = selectedPeriod == .weekly ? "周" : "月"
-            let prefix = isFallback ? "上" : "本"
-            Text(fallbackSummary.isEmpty ? "\(prefix)\(periodLabel)已有记录，可以让 AI 帮你整理成回放" : fallbackSummary)
-                .font(.holoBody)
-                .foregroundColor(.holoTextSecondary)
+            missingReplayPlaceholder
 
         case .generating:
             HStack(spacing: HoloSpacing.sm) {
@@ -177,6 +277,40 @@ struct MemoryInsightHeroCard: View {
         }
     }
 
+    private var missingReplayPlaceholder: some View {
+        HStack(alignment: .center, spacing: HoloSpacing.md) {
+            ZStack {
+                Circle()
+                    .fill(Color.holoPrimary.opacity(0.1))
+                    .frame(width: 48, height: 48)
+
+                Image(systemName: "calendar.badge.sparkles")
+                    .font(.system(size: 21, weight: .semibold))
+                    .foregroundColor(.holoPrimary)
+            }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text("还没有生成\(selectedPeriodInsightLabel)回放")
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Text("生成后这里会展示该时间范围内的洞察与关键事件")
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .padding(HoloSpacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.holoGlassBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.md)
+                .stroke(Color.holoBorder.opacity(0.45), lineWidth: 1)
+        )
+    }
+
     // MARK: - Insight Cards
 
     private func insightCardsSection(_ payload: MemoryInsightPayload) -> some View {
@@ -192,11 +326,12 @@ struct MemoryInsightHeroCard: View {
     @ViewBuilder
     private var actionSection: some View {
         HStack(spacing: HoloSpacing.sm) {
-            let isFallback = selectedPeriod == .weekly ? weeklyIsFallback : monthlyIsFallback
             let periodLabel: String = {
                 switch selectedPeriod {
-                case .weekly: return isFallback ? "上周" : "本周"
-                case .monthly: return isFallback ? "上月" : "本月"
+                case .weekly: return weeklyIsFallback ? "上周" : "本周"
+                case .monthly: return monthlyIsFallback ? "上月" : "本月"
+                case .quarterly: return "本季度"
+                case .custom: return "自定义周期"
                 case .daily: return "今日"
                 }
             }()
@@ -265,9 +400,12 @@ struct MemoryInsightHeroCard: View {
         insight: nil,
         weeklyIsFallback: false,
         monthlyIsFallback: false,
+        customStartDate: .constant(Date().addingDays(-6)),
+        customEndDate: .constant(Date()),
         fallbackTitle: "标题",
         fallbackSummary: "摘要",
         onPeriodChange: { _ in },
+        onCustomRangeChange: { _, _ in },
         onGenerate: {},
         onRefresh: {},
         onContinueInChat: {},
@@ -283,9 +421,12 @@ struct MemoryInsightHeroCard: View {
         insight: nil,
         weeklyIsFallback: false,
         monthlyIsFallback: false,
+        customStartDate: .constant(Date().addingDays(-6)),
+        customEndDate: .constant(Date()),
         fallbackTitle: "",
         fallbackSummary: "",
         onPeriodChange: { _ in },
+        onCustomRangeChange: { _, _ in },
         onGenerate: {},
         onRefresh: {},
         onContinueInChat: {},

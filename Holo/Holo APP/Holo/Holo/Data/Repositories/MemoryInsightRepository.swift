@@ -223,6 +223,8 @@ final class MemoryInsightRepository {
         case .daily: prevStart = calendar.date(byAdding: .day, value: -1, to: currentStart) ?? currentStart
         case .weekly: prevStart = calendar.date(byAdding: .weekOfYear, value: -1, to: currentStart) ?? currentStart
         case .monthly: prevStart = calendar.date(byAdding: .month, value: -1, to: currentStart) ?? currentStart
+        case .quarterly: prevStart = calendar.date(byAdding: .month, value: -3, to: currentStart) ?? currentStart
+        case .custom: prevStart = calendar.date(byAdding: .day, value: -1, to: currentStart) ?? currentStart
         }
 
         let request = MemoryInsight.fetchRequest()

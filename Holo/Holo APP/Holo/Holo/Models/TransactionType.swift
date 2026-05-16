@@ -8,7 +8,7 @@
 import Foundation
 
 /// 交易类型枚举
-enum TransactionType: String {
+enum TransactionType: String, Codable, Sendable {
     case income = "income"      // 收入
     case expense = "expense"    // 支出
     

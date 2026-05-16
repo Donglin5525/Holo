@@ -12,22 +12,34 @@ struct HighlightNode: View {
     let data: HighlightData
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: data.icon)
-                .font(.system(size: 16))
-                .foregroundColor(textColor)
+        HStack(alignment: .top, spacing: HoloSpacing.sm) {
+            ZStack {
+                RoundedRectangle(cornerRadius: HoloRadius.sm)
+                    .fill(textColor.opacity(0.12))
+                    .frame(width: 34, height: 34)
 
-            VStack(alignment: .leading, spacing: 2) {
+                Image(systemName: data.icon)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(textColor)
+            }
+
+            VStack(alignment: .leading, spacing: 5) {
                 Text(data.title)
                     .font(.holoBody)
-                    .foregroundColor(textColor)
+                    .foregroundColor(.holoTextPrimary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 if let subtitle = data.subtitle {
                     Text(subtitle)
                         .font(.holoLabel)
-                        .foregroundColor(textColor.opacity(0.6))
+                        .foregroundColor(.holoTextSecondary)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
+
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
@@ -46,7 +58,7 @@ struct HighlightNode: View {
         switch data.tone {
         case .positive: return .holoPrimary
         case .negative: return .holoError
-        case .achievement: return .holoSuccess
+        case .achievement: return .holoPrimary
         }
     }
 

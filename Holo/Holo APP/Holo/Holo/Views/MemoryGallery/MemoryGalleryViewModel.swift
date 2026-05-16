@@ -65,10 +65,16 @@ class MemoryGalleryViewModel: ObservableObject {
 
     /// 月度洞察
     @Published var monthlyInsight: MemoryInsight?
+    @Published var quarterlyInsight: MemoryInsight?
+    @Published var customInsight: MemoryInsight?
     @Published var dailyInsight: MemoryInsight?
 
     /// 当前选择的洞察周期
     @Published var selectedInsightPeriod: MemoryInsightPeriodType = .weekly
+
+    /// 自定义洞察周期
+    @Published var customInsightStartDate: Date = Date().startOfDay.addingDays(-6)
+    @Published var customInsightEndDate: Date = Date().startOfDay
 
     /// 当前周期是否已回退到上一周期
     @Published var weeklyIsFallback: Bool = false
@@ -609,7 +615,6 @@ class MemoryGalleryViewModel: ObservableObject {
             periodType: .weekly, start: weekStart, end: weekEnd
         ) {
             weeklyInsight = insight
-            insightGenerationState = insight.insightStatus == .stale ? .stale : .ready
 
             // 检查是否过期
             await service.markStaleIfNeeded(periodType: .weekly, start: weekStart, end: weekEnd)
@@ -617,12 +622,7 @@ class MemoryGalleryViewModel: ObservableObject {
                 periodType: .weekly, start: weekStart, end: weekEnd
             ) {
                 weeklyInsight = updated
-                if updated.insightStatus == .stale {
-                    insightGenerationState = .stale
-                }
             }
-        } else {
-            insightGenerationState = .idle
         }
 
         // 加载月洞察（智能回退）
@@ -635,6 +635,18 @@ class MemoryGalleryViewModel: ObservableObject {
             periodType: .monthly, start: monthStart, end: monthEnd
         )
 
+        let (quarterStart, quarterEnd, _) = MemoryInsightContextBuilder.effectivePeriodRange(
+            periodType: .quarterly, referenceDate: Date()
+        )
+        quarterlyInsight = try? insightRepository.fetchInsight(
+            periodType: .quarterly, start: quarterStart, end: quarterEnd
+        )
+
+        let customRange = normalizedCustomInsightRange()
+        customInsight = try? insightRepository.fetchInsight(
+            periodType: .custom, start: customRange.start, end: customRange.end
+        )
+
         // 加载日洞察
         let (dayStart, dayEnd, _) = MemoryInsightContextBuilder.effectivePeriodRange(
             periodType: .daily, referenceDate: Date()
@@ -642,6 +654,8 @@ class MemoryGalleryViewModel: ObservableObject {
         dailyInsight = try? insightRepository.fetchInsight(
             periodType: .daily, start: dayStart, end: dayEnd
         )
+
+        updateInsightGenerationStateForCurrentSelection()
     }
 
     /// 生成本周 AI 回放
@@ -663,9 +677,7 @@ class MemoryGalleryViewModel: ObservableObject {
     /// 刷新洞察
     func refreshInsight(force: Bool = true) async {
         let period = selectedInsightPeriod
-        let (start, end, _) = MemoryInsightContextBuilder.effectivePeriodRange(
-            periodType: period, referenceDate: Date()
-        )
+        let (start, end) = insightRange(for: period)
         await generateInsight(periodType: period, start: start, end: end, forceRefresh: force)
     }
 
@@ -692,6 +704,10 @@ class MemoryGalleryViewModel: ObservableObject {
                 weeklyInsight = insight
             case .monthly:
                 monthlyInsight = insight
+            case .quarterly:
+                quarterlyInsight = insight
+            case .custom:
+                customInsight = insight
             case .daily:
                 dailyInsight = insight
             }
@@ -718,8 +734,10 @@ class MemoryGalleryViewModel: ObservableObject {
         case .daily: periodLabel = "日"
         case .weekly: periodLabel = "周"
         case .monthly: periodLabel = "月"
+        case .quarterly: periodLabel = "季度"
+        case .custom: periodLabel = "自定义周期"
         }
-        return "基于这份本\(periodLabel)回放继续分析：\n\(insight.title)\n\(insight.summary)"
+        return "基于这份\(periodLabel)回放继续分析：\n\(insight.title)\n\(insight.summary)"
     }
 
     /// 当前选中周期的洞察
@@ -727,6 +745,8 @@ class MemoryGalleryViewModel: ObservableObject {
         switch selectedInsightPeriod {
         case .weekly: return weeklyInsight
         case .monthly: return monthlyInsight
+        case .quarterly: return quarterlyInsight
+        case .custom: return customInsight
         case .daily: return dailyInsight
         }
     }
@@ -737,6 +757,51 @@ class MemoryGalleryViewModel: ObservableObject {
         await loadInsights()
     }
 
+    func updateCustomInsightRange(start: Date, end: Date) async {
+        let normalizedStart = min(start.startOfDay, end.startOfDay)
+        let normalizedEnd = max(start.startOfDay, end.startOfDay)
+        customInsightStartDate = normalizedStart
+        customInsightEndDate = normalizedEnd
+        selectedInsightPeriod = .custom
+        await loadInsights()
+    }
+
+    private func normalizedCustomInsightRange() -> (start: Date, end: Date) {
+        let start = customInsightStartDate.startOfDay
+        let end = customInsightEndDate.startOfDay
+        return (min(start, end), max(start, end))
+    }
+
+    private func insightRange(for period: MemoryInsightPeriodType) -> (start: Date, end: Date) {
+        switch period {
+        case .custom:
+            return normalizedCustomInsightRange()
+        default:
+            let range = MemoryInsightContextBuilder.effectivePeriodRange(
+                periodType: period,
+                referenceDate: Date()
+            )
+            return (range.start, range.end)
+        }
+    }
+
+    var selectedInsightDateRange: (start: Date, end: Date) {
+        insightRange(for: selectedInsightPeriod)
+    }
+
+    private func updateInsightGenerationStateForCurrentSelection() {
+        guard MemoryInsightService.shared.isAIConfigured else {
+            insightGenerationState = .notConfigured
+            return
+        }
+
+        if let insight = currentInsight {
+            insightGenerationState = insight.insightStatus == .stale ? .stale : .ready
+        } else {
+            insightGenerationState = .idle
+        }
+    }
+
     /// 生成当前选中周期的洞察
     func generateCurrentInsight() async {
         switch selectedInsightPeriod {
@@ -744,6 +809,9 @@ class MemoryGalleryViewModel: ObservableObject {
             await generateWeeklyInsight()
         case .monthly:
             await generateMonthlyInsight()
+        case .quarterly, .custom:
+            let (start, end) = insightRange(for: selectedInsightPeriod)
+            await generateInsight(periodType: selectedInsightPeriod, start: start, end: end)
         case .daily:
             let (start, end, _) = MemoryInsightContextBuilder.effectivePeriodRange(
                 periodType: .daily, referenceDate: Date()
@@ -754,9 +822,7 @@ class MemoryGalleryViewModel: ObservableObject {
 
     /// 规则兜底回放数据
     var fallbackReplayTitle: String {
-        let (effectiveStart, _, _) = MemoryInsightContextBuilder.effectivePeriodRange(
-            periodType: selectedInsightPeriod, referenceDate: Date()
-        )
+        let (effectiveStart, _) = insightRange(for: selectedInsightPeriod)
         let weekIndex = effectiveStart.hashValue
 
         // 简化：基于现有数据推断趋势
@@ -773,9 +839,7 @@ class MemoryGalleryViewModel: ObservableObject {
     }
 
     var fallbackReplaySummary: String {
-        let (effectiveStart, _, _) = MemoryInsightContextBuilder.effectivePeriodRange(
-            periodType: selectedInsightPeriod, referenceDate: Date()
-        )
+        let (effectiveStart, effectiveEnd) = insightRange(for: selectedInsightPeriod)
         let weekIndex = effectiveStart.hashValue
 
         let habitTrend: Trend = inferHabitTrend()
@@ -783,7 +847,7 @@ class MemoryGalleryViewModel: ObservableObject {
         let hasThoughts = cachedItems.filter { $0.type == .thought }.count > 0
 
         let habitCount = cachedItems.filter {
-            $0.type == .habitRecord && $0.date >= effectiveStart
+            $0.type == .habitRecord && $0.date >= effectiveStart && $0.date <= effectiveEnd.addingDays(1)
         }.count
 
         let formatter = NumberFormatter()
@@ -791,13 +855,13 @@ class MemoryGalleryViewModel: ObservableObject {
         formatter.locale = Locale(identifier: "zh_CN")
 
         let expenseItems = cachedItems.filter {
-            $0.type == .transaction && $0.date >= effectiveStart
+            $0.type == .transaction && $0.date >= effectiveStart && $0.date <= effectiveEnd.addingDays(1)
         }
         let totalExpense = expenseItems.compactMap { $0.amount }.reduce(Decimal(0), +)
         let expenseStr = formatter.string(from: totalExpense as NSDecimalNumber) ?? "¥0"
 
         let thoughtCount = cachedItems.filter {
-            $0.type == .thought && $0.date >= effectiveStart
+            $0.type == .thought && $0.date >= effectiveStart && $0.date <= effectiveEnd.addingDays(1)
         }.count
 
         return MemoryReplayFallback.weeklySummary(

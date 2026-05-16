@@ -11,21 +11,24 @@ struct TimelineDateHeader: View {
     let section: TimelineSection
 
     var body: some View {
-        HStack(spacing: 10) {
+        HStack(alignment: .top, spacing: 10) {
             // 时间线圆点
             Circle()
                 .fill(Color.holoPrimary)
                 .frame(width: 12, height: 12)
                 .shadow(color: Color.holoPrimary.opacity(0.35), radius: 4, x: 0, y: 0)
+                .padding(.top, 5)
 
             // 日期文本
-            Text(section.formattedDate)
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(section.formattedDate)
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextPrimary)
 
-            Text(section.displayLabel)
-                .font(.holoLabel)
-                .foregroundColor(.holoPrimary)
+                Text(section.displayLabel)
+                    .font(.holoLabel)
+                    .foregroundColor(.holoPrimary)
+            }
         }
         .padding(.top, 20)
     }

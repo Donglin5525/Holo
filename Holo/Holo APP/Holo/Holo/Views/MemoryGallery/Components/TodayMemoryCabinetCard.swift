@@ -54,7 +54,7 @@ struct TodayMemoryCabinetCard: View {
                             icon: "checkmark.circle",
                             value: "\(summary.tasksCompleted)",
                             label: "任务",
-                            color: .holoInfo
+                            color: .holoPrimary
                         )
                     }
 
@@ -63,7 +63,7 @@ struct TodayMemoryCabinetCard: View {
                             icon: "bubble.left",
                             value: "\(summary.thoughtCount)",
                             label: "观点",
-                            color: .holoInfo
+                            color: .holoPurple
                         )
                     }
                 }

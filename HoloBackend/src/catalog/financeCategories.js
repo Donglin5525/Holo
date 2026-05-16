@@ -1,0 +1,165 @@
+export const FINANCE_CATEGORY_CATALOG_VERSION = 1;
+
+export const financeCategoryCatalog = {
+  version: FINANCE_CATEGORY_CATALOG_VERSION,
+  expense: [
+    {
+      name: "餐饮",
+      children: [
+        { name: "早餐", aliases: ["早饭", "早点", "早饭钱", "早餐费"], tags: ["meal", "breakfast"] },
+        { name: "午餐", aliases: ["午饭", "中饭", "中午饭", "午饭钱"], tags: ["meal", "lunch"] },
+        { name: "晚餐", aliases: ["晚饭", "晚饭钱", "晚餐费"], tags: ["meal", "dinner"] },
+        { name: "夜宵", aliases: ["宵夜", "夜点心", "晚间餐"], tags: ["meal", "lateNight"] },
+        { name: "零食", aliases: ["小食", "点心", "零食饮料", "面包", "蛋糕", "甜点", "烘焙", "小吃"], tags: ["food", "snack"] },
+        { name: "咖啡", aliases: ["咖啡奶茶", "拿铁", "美式", "瑞幸", "星巴克", "奶茶"], tags: ["drink", "coffee"] },
+        { name: "外卖", aliases: ["外送", "配送", "点外卖", "外卖费", "美团", "饿了么"], tags: ["meal", "takeaway"] },
+        { name: "饮品", aliases: ["饮料", "果汁", "牛奶", "豆浆", "果茶"], tags: ["drink"] },
+        { name: "水果", aliases: ["鲜果", "果品", "买水果"], tags: ["food"] },
+        { name: "酒水", aliases: ["酒", "啤酒", "白酒", "红酒"], tags: ["drink", "alcohol"] },
+        { name: "超市", aliases: ["商超", "便利店", "卖场", "菜市场", "生鲜"], tags: ["grocery"] },
+      ],
+    },
+    {
+      name: "交通",
+      children: [
+        { name: "地铁", aliases: ["轨道交通", "捷运", "地下铁", "城铁"], tags: ["transport", "publicTransit"] },
+        { name: "打车", aliases: ["出租车", "滴滴", "网约车", "的士", "出租", "打车费", "高德打车"], tags: ["transport", "taxi"] },
+        { name: "公交", aliases: ["公交车", "巴士", "公车"], tags: ["transport", "publicTransit"] },
+        { name: "单车", aliases: ["共享单车", "自行车", "骑行", "单车骑行"], tags: ["transport", "publicTransit"] },
+        { name: "加油", aliases: ["汽油", "加油费", "油费", "燃油"], tags: ["transport", "car"] },
+        { name: "停车", aliases: ["停车费", "车位", "停车场"], tags: ["transport", "car"] },
+        { name: "火车", aliases: ["高铁", "动车", "铁路"], tags: ["transport", "longDistance"] },
+        { name: "机票", aliases: ["飞机票", "航空", "飞行", "航班"], tags: ["transport", "longDistance"] },
+        { name: "旅行", aliases: ["差旅", "出差", "旅游交通", "出行"], tags: ["transport", "travel"] },
+        { name: "过路费", aliases: ["高速费", "过桥费", "通行费", "高速"], tags: ["transport", "car"] },
+      ],
+    },
+    {
+      name: "购物",
+      children: [
+        { name: "服饰", aliases: ["衣服", "服装", "鞋服", "鞋帽", "穿搭", "裤子", "外套", "T恤", "鞋子"], tags: ["shopping", "clothing"] },
+        { name: "数码", aliases: ["电子产品", "数码产品", "电子设备", "手机", "电脑"], tags: ["shopping", "digital"] },
+        { name: "日用", aliases: ["日用品", "生活用品", "百货", "杂货", "日常用品", "家政", "保洁", "快递", "邮费", "买菜", "买菜钱"], tags: ["shopping", "dailyGoods"] },
+        { name: "美妆", aliases: ["化妆品", "护肤品", "彩妆", "美容"], tags: ["shopping", "beauty"] },
+        { name: "家具", aliases: ["家居", "家具家电", "家装", "家具用品"], tags: ["shopping", "home"] },
+        { name: "书籍", aliases: ["书", "图书", "书刊", "读物"], tags: ["shopping", "books"] },
+        { name: "运动", aliases: ["体育用品", "运动器材", "健身用品"], tags: ["shopping", "sports"] },
+        { name: "礼物", aliases: ["礼品", "礼品卡", "赠品", "送礼物"], tags: ["shopping", "gift"] },
+      ],
+    },
+    {
+      name: "娱乐",
+      children: [
+        { name: "电影", aliases: ["影院", "电影院", "观影", "电影票"], tags: ["entertainment", "movie"] },
+        { name: "游戏", aliases: ["手游", "网游", "电子游戏", "游戏充值"], tags: ["entertainment", "game"] },
+        { name: "视频", aliases: ["视频会员", "会员", "VIP", "流媒体"], tags: ["entertainment", "subscription"] },
+        { name: "音乐", aliases: ["音乐会员", "音频", "歌曲"], tags: ["entertainment", "music"] },
+        { name: "KTV", aliases: ["卡拉 OK", "唱歌", "量贩 KTV"], tags: ["entertainment", "social"] },
+        { name: "旅游", aliases: ["旅行", "度假", "出游"], tags: ["entertainment", "travel"] },
+        { name: "健身", aliases: ["健身运动", "健身房会员", "健身卡"], tags: ["entertainment", "fitness"] },
+      ],
+    },
+    {
+      name: "居住",
+      children: [
+        { name: "房租", aliases: ["房租水电", "租房", "房屋租金"], tags: ["housing", "fixedNecessary", "rent"] },
+        { name: "房贷", aliases: ["房屋贷款", "按揭", "月供"], tags: ["housing", "fixedNecessary", "mortgage"] },
+        { name: "水费", aliases: ["自来水", "用水"], tags: ["housing", "utility"] },
+        { name: "电费", aliases: ["用电", "电力"], tags: ["housing", "utility"] },
+        { name: "燃气", aliases: ["煤气", "天然气", "用气"], tags: ["housing", "utility"] },
+        { name: "物业", aliases: ["物业费", "物业管理"], tags: ["housing", "fixedNecessary"] },
+        { name: "网费", aliases: ["宽带", "网络", "上网费", "宽带费"], tags: ["housing", "utility"] },
+        { name: "家电", aliases: ["家用电器", "电器"], tags: ["housing", "appliance"] },
+        { name: "装修", aliases: ["家装", "房屋装修", "翻新"], tags: ["housing", "renovation"] },
+      ],
+    },
+    {
+      name: "医疗",
+      children: [
+        { name: "就医", aliases: ["看病", "门诊", "医院", "挂号", "诊疗"], tags: ["medical", "doctor"] },
+        { name: "药品", aliases: ["药", "医药", "药费", "买药"], tags: ["medical", "medicine"] },
+        { name: "体检", aliases: ["身体检查", "健康检查", "体检费"], tags: ["medical", "checkup"] },
+        { name: "健身房", aliases: ["健身房会员", "健身卡", "健身中心"], tags: ["medical", "fitness"] },
+        { name: "保健品", aliases: ["保健", "营养品", "补品"], tags: ["medical", "supplement"] },
+        { name: "牙齿保健", aliases: ["牙科", "洗牙", "看牙", "口腔"], tags: ["medical", "dental"] },
+        { name: "医疗用品", aliases: ["医疗耗材", "医用物资", "防疫用品"], tags: ["medical", "supplies"] },
+      ],
+    },
+    {
+      name: "学习",
+      children: [
+        { name: "课程", aliases: ["培训", "网课", "学习班", "培训班", "学费"], tags: ["learning", "course"] },
+        { name: "教材", aliases: ["课本", "教科书", "学习资料"], tags: ["learning", "textbook"] },
+        { name: "考试", aliases: ["考试费", "报名费", "考务费"], tags: ["learning", "exam"] },
+        { name: "文具", aliases: ["办公用品", "办公文具", "学习用品"], tags: ["learning", "stationery"] },
+        { name: "订阅", aliases: ["订阅服务", "订阅费", "付费订阅"], tags: ["learning", "subscription"] },
+      ],
+    },
+    {
+      name: "人情",
+      children: [
+        { name: "红包礼金", aliases: ["红包", "礼金", "份子钱", "彩礼"], tags: ["relationship", "giftMoney"] },
+        { name: "请客", aliases: ["请吃饭", "做东", "宴请"], tags: ["relationship", "treat"] },
+        { name: "送礼", aliases: ["送礼物", "人情"], tags: ["relationship", "gift"] },
+        { name: "探望", aliases: ["看望", "探访", "探病"], tags: ["relationship", "visit"] },
+        { name: "其他", aliases: ["人情其他", "其他人情"], tags: ["relationship", "other"] },
+      ],
+    },
+    {
+      name: "其他",
+      children: [
+        { name: "社交", aliases: ["聚会", "应酬", "社交活动", "聚餐", "团建", "AA"], tags: ["other", "social"] },
+        { name: "宠物", aliases: ["猫粮", "狗粮", "宠物用品", "养宠"], tags: ["other", "pet"] },
+        { name: "理发", aliases: ["美发", "剪发", "发型", "洗发", "造型", "烫发", "染发", "做头发"], tags: ["other", "haircut"] },
+        { name: "洗衣", aliases: ["干洗", "洗衣费", "洗涤"], tags: ["other", "laundry"] },
+        { name: "话费", aliases: ["电话费", "通讯费", "手机费"], tags: ["other", "phone"] },
+        { name: "烟酒", aliases: ["香烟", "烟草", "酒水"], tags: ["other", "tobaccoAlcohol"] },
+        { name: "维修", aliases: ["修理", "维修费", "修缮", "维护"], tags: ["other", "repair"] },
+        { name: "保险", aliases: ["保险费", "保费", "商业保险"], tags: ["other", "insurance"] },
+        { name: "还款", aliases: ["贷款还款", "还贷", "按揭"], tags: ["other", "repayment"] },
+        { name: "转账", aliases: ["汇款", "转账汇款", "转账支出"], tags: ["other", "transfer"] },
+        { name: "捐赠", aliases: ["公益", "捐款", "慈善"], tags: ["other", "donation"] },
+      ],
+    },
+  ],
+  income: [
+    {
+      name: "投资理财",
+      children: [
+        { name: "利息", aliases: ["利息收入", "存款利息", "利息所得"], tags: ["income", "investment", "interest"] },
+        { name: "股票", aliases: ["股票收益", "股息", "炒股", "证券"], tags: ["income", "investment", "stock"] },
+        { name: "房租收入", aliases: ["租金收入", "收租", "房租所得"], tags: ["income", "investment", "rent"] },
+        { name: "其他投资", aliases: ["投资其他", "其他投资收益"], tags: ["income", "investment", "other"] },
+      ],
+    },
+    {
+      name: "工资收入",
+      children: [
+        { name: "工资", aliases: ["薪资", "工资收入", "月薪", "薪水", "发工资"], tags: ["income", "stableIncome", "salary"] },
+        { name: "奖金", aliases: ["年终奖", "绩效", "绩效奖金", "提成"], tags: ["income", "stableIncome", "bonus"] },
+        { name: "兼职", aliases: ["副业", "外快", "兼职收入", "零工"], tags: ["income", "sideJob"] },
+        { name: "报销", aliases: ["报销款", "报账", "费用报销", "公司报销"], tags: ["income", "reimbursement"] },
+        { name: "退款", aliases: ["退货退款", "退费", "返还", "退钱"], tags: ["income", "refund"] },
+      ],
+    },
+    {
+      name: "人情来往",
+      children: [
+        { name: "红包", aliases: ["红包收入", "微信红包", "支付宝红包"], tags: ["income", "relationship", "redPacket"] },
+        { name: "礼物", aliases: ["礼金", "收礼", "收礼物"], tags: ["income", "relationship", "gift"] },
+        { name: "中奖", aliases: ["彩票", "中奖收入", "抽奖"], tags: ["income", "windfall"] },
+        { name: "转入", aliases: ["转账收入", "收款"], tags: ["income", "transfer"] },
+      ],
+    },
+    {
+      name: "其他收入",
+      children: [
+        { name: "借入", aliases: ["借款", "借钱", "贷款收入"], tags: ["income", "borrow"] },
+        { name: "还款收入", aliases: ["收到还款", "回款"], tags: ["income", "repayment"] },
+        { name: "退货", aliases: ["退货收入", "商品退货"], tags: ["income", "refund"] },
+        { name: "公积金", aliases: ["住房公积金", "社保公积金"], tags: ["income", "fund"] },
+        { name: "出闲置", aliases: ["二手", "闲置物品", "卖二手"], tags: ["income", "secondHand"] },
+      ],
+    },
+  ],
+};

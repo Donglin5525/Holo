@@ -113,8 +113,9 @@ export function renderAdminLogsPage({ logs, token, notice = null, error = null }
       <a href="/admin/logout">退出</a>
     </nav>
     <h1>Holo Admin Logs</h1>
-    <div class="toolbar">
-      <p>最近 AI / ASR 调用详情日志。页面每 10 秒自动刷新，日志已持久化到 SQLite。</p>
+    <div class="toolbar" style="display:flex;align-items:center;gap:12px;">
+      <p style="margin:0;">最近 AI / ASR 调用详情日志。页面每 10 秒自动刷新，日志已持久化到 SQLite。</p>
+      <button onclick="location.reload()" style="padding:6px 16px;border:1px solid #4b5563;border-radius:6px;background:#1f2937;color:#e5e7eb;cursor:pointer;font-size:13px;">刷新</button>
     </div>
     ${renderNotice(notice, error)}
     <section class="panel">

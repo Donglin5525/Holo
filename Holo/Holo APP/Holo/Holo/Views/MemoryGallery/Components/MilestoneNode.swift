@@ -11,27 +11,36 @@ import SwiftUI
 struct MilestoneNode: View {
     let data: MilestoneData
 
-    /// 金色渐变起始色
-    private let goldStart = Color(hex: "F59E0B")
-    /// 金色渐变终止色
-    private let goldEnd = Color(hex: "FDE68A")
+    private let accent = Color.holoPrimary
 
     var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: data.icon)
-                .font(.system(size: 28))
-                .foregroundColor(goldEnd)
+        HStack(alignment: .top, spacing: 12) {
+            ZStack {
+                RoundedRectangle(cornerRadius: HoloRadius.sm)
+                    .fill(accent.opacity(0.12))
+                    .frame(width: 42, height: 42)
 
-            VStack(alignment: .leading, spacing: 3) {
+                Image(systemName: data.icon)
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundColor(accent)
+            }
+
+            VStack(alignment: .leading, spacing: 5) {
                 Text(data.title)
                     .font(.holoHeading)
                     .fontWeight(.bold)
-                    .foregroundColor(goldEnd)
+                    .foregroundColor(.holoTextPrimary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Text(data.description)
                     .font(.holoCaption)
-                    .foregroundColor(goldEnd.opacity(0.55))
+                    .foregroundColor(.holoTextSecondary)
+                    .lineLimit(3)
+                    .fixedSize(horizontal: false, vertical: true)
             }
+
+            Spacer(minLength: 0)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 16)
@@ -41,8 +50,8 @@ struct MilestoneNode: View {
                 .fill(
                     LinearGradient(
                         colors: [
-                            goldStart.opacity(0.12),
-                            goldStart.opacity(0.04)
+                            accent.opacity(0.10),
+                            Color.holoCardBackground
                         ],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
@@ -52,9 +61,7 @@ struct MilestoneNode: View {
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.md)
-                .stroke(goldStart.opacity(0.22), lineWidth: 1)
+                .stroke(accent.opacity(0.20), lineWidth: 1)
         )
-        .shadow(color: goldStart.opacity(0.15), radius: 8, x: 0, y: 2)
-        .padding(.leading, 8) // 菱形标记偏移
     }
 }

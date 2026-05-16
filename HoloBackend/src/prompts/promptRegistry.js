@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 import * as Diff from "diff";
 
 const PROMPT_VERSIONS = {
-  intent_recognition: 5,
+  intent_recognition: 6,
   memory_insight_generation: 4,
   annual_review: 1,
 };
@@ -19,6 +19,7 @@ let _db = null;
 export function setDatabase(db) {
   _db = db;
   migrateFromJson();
+  syncDefaultPromptsToHistory();
 }
 
 /** 首次启动时将 managedPrompts.json 迁移到 SQLite（一次性） */
@@ -41,6 +42,54 @@ function migrateFromJson() {
 
   if (Object.keys(managedPrompts).length > 0) {
     console.log(`[PromptRegistry] 已从 managedPrompts.json 迁移 ${Object.keys(managedPrompts).length} 个 Prompt`);
+  }
+}
+
+/** 将 defaultPrompts.json 的内容登记进 SQLite 历史，确保代码侧 Prompt 变更在后台可见 */
+function syncDefaultPromptsToHistory() {
+  if (!_db) return;
+
+  for (const type of PROMPT_TYPES) {
+    const defaultContent = defaultPrompts[type];
+    if (!defaultContent) continue;
+
+    try {
+      const latest = _db.prepare(
+        'SELECT version, content FROM prompt_versions WHERE prompt_type = ? ORDER BY version DESC LIMIT 1'
+      ).get(type);
+
+      if (!latest) {
+        const version = PROMPT_VERSIONS[type] ?? 1;
+        _db.prepare(
+          'INSERT INTO prompt_versions (prompt_type, version, content, diff_from_prev, source, change_note) VALUES (?, ?, ?, ?, ?, ?)'
+        ).run(
+          type,
+          version,
+          defaultContent,
+          buildDiff('', defaultContent),
+          'default',
+          '自动登记默认 Prompt 基线：来自 defaultPrompts.json'
+        );
+        continue;
+      }
+
+      if (latest.content === defaultContent) continue;
+
+      const version = latest.version + 1;
+      _db.prepare(
+        'INSERT INTO prompt_versions (prompt_type, version, content, diff_from_prev, source, change_note) VALUES (?, ?, ?, ?, ?, ?)'
+      ).run(
+        type,
+        version,
+        defaultContent,
+        buildDiff(latest.content, defaultContent),
+        'default_sync',
+        '自动同步默认 Prompt 文件变更：defaultPrompts.json 已更新'
+      );
+      console.log(`[PromptRegistry] 已同步默认 Prompt 到历史: ${type} v${version}`);
+    } catch (err) {
+      console.error(`[PromptRegistry] 同步默认 Prompt ${type} 失败:`, err.message);
+    }
   }
 }
 
@@ -114,14 +163,7 @@ export function updatePrompt(type, content, changeNote = null) {
   const prevContent = previous?.content ?? '';
   const version = (previous?.version ?? PROMPT_VERSIONS[type] ?? 1) + 1;
 
-  // 计算 diff
-  const diffParts = Diff.diffLines(prevContent, content);
-  const diffText = diffParts
-    .map((part) => {
-      const prefix = part.added ? '+' : part.removed ? '-' : ' ';
-      return part.value.split('\n').map((line) => `${prefix}${line}`).join('\n');
-    })
-    .join('\n');
+  const diffText = buildDiff(prevContent, content);
 
   // 存入 SQLite
   if (_db) {
@@ -156,14 +198,7 @@ export function resetPrompt(type) {
   const previous = getPrompt(type);
   const version = (previous?.version ?? PROMPT_VERSIONS[type] ?? 1) + 1;
 
-  // 计算 diff
-  const diffParts = Diff.diffLines(previous?.content ?? '', defaultContent);
-  const diffText = diffParts
-    .map((part) => {
-      const prefix = part.added ? '+' : part.removed ? '-' : ' ';
-      return part.value.split('\n').map((line) => `${prefix}${line}`).join('\n');
-    })
-    .join('\n');
+  const diffText = buildDiff(previous?.content ?? '', defaultContent);
 
   // 存入 SQLite 作为 reset 版本
   if (_db) {
@@ -254,6 +289,16 @@ function getPromptVersion(type) {
     } catch { /* fall through */ }
   }
   return managedPrompts[type]?.version ?? PROMPT_VERSIONS[type] ?? 1;
+}
+
+function buildDiff(prevContent, nextContent) {
+  const diffParts = Diff.diffLines(prevContent, nextContent);
+  return diffParts
+    .map((part) => {
+      const prefix = part.added ? '+' : part.removed ? '-' : ' ';
+      return part.value.split('\n').map((line) => `${prefix}${line}`).join('\n');
+    })
+    .join('\n');
 }
 
 function loadManagedPrompts() {

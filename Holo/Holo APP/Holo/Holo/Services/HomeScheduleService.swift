@@ -238,6 +238,8 @@ class HomeScheduleService: ObservableObject {
                 case .daily: periodLabel = "今日"
                 case .weekly: periodLabel = "本周"
                 case .monthly: periodLabel = "本月"
+                case .quarterly: periodLabel = "本季度"
+                case .custom: periodLabel = "自定义周期"
                 }
                 return ScheduleReminderState(
                     urgency: .pending,

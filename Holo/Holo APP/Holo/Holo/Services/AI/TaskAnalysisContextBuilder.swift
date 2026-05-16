@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import CoreData
 import os.log
 
 struct TaskAnalysisContextBuilder {
@@ -31,7 +32,7 @@ struct TaskAnalysisContextBuilder {
 
         let stats = repo.getCompletionStats(from: startInclusive, to: endExclusive)
 
-        guard stats.dueInPeriod > 0 else {
+        guard stats.dueInPeriod > 0 || stats.completedInPeriod > 0 || stats.createdInPeriod > 0 || stats.activeBacklogCount > 0 else {
             return nil
         }
 
@@ -41,18 +42,14 @@ struct TaskAnalysisContextBuilder {
         }
 
         // 重要完成的任务标题
-        let importantCompleted = repo.activeTasks
-            .filter { $0.completed && $0.priority >= 2 }
-            .compactMap { $0.title }
-            .prefix(5)
-            .map { String($0) }
+        let importantCompleted = fetchImportantCompletedTasks(from: startInclusive, to: endExclusive)
 
         // 上周期对比
         var previousPeriodCompletedCount: Int?
         if let compStart = request.comparisonStart,
            let compEnd = request.comparisonEnd {
             let compStartDay = calendar.startOfDay(for: compStart)
-            let compEndDay = calendar.startOfDay(for: compEnd)
+            let compEndDay = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: compEnd)) ?? calendar.startOfDay(for: compEnd)
             let compStats = repo.getCompletionStats(from: compStartDay, to: compEndDay)
             previousPeriodCompletedCount = compStats.completedInPeriod
         }
@@ -63,9 +60,32 @@ struct TaskAnalysisContextBuilder {
             overdueCount: stats.overdueInPeriod,
             completionRate: stats.completionRate,
             highPriorityCompletionRate: stats.highPriorityCompletionRate,
-            importantCompletedTasks: Array(importantCompleted),
+            importantCompletedTasks: importantCompleted,
             dailyCompletionTrend: dailyTrend,
-            previousPeriodCompletedCount: previousPeriodCompletedCount
+            previousPeriodCompletedCount: previousPeriodCompletedCount,
+            dueInPeriod: stats.dueInPeriod,
+            createdInPeriod: stats.createdInPeriod,
+            completedInPeriod: stats.completedInPeriod,
+            newOverdueInPeriod: stats.overdueInPeriod,
+            carriedOverBacklogCount: stats.carriedOverBacklogCount,
+            activeBacklogCount: stats.activeBacklogCount,
+            periodCompletionScopeNote: "完成率仅以本周期到期任务为分母；历史积压单独放在 carriedOverBacklogCount / activeBacklogCount，不代表本周期失败。"
         )
+    }
+
+    @MainActor
+    private func fetchImportantCompletedTasks(from start: Date, to end: Date) -> [String] {
+        let context = CoreDataStack.shared.viewContext
+        let request = TodoTask.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "completed == YES AND priority >= 2 AND completedAt >= %@ AND completedAt < %@ AND deletedFlag == NO AND archived == NO",
+            start as CVarArg,
+            end as CVarArg
+        )
+        request.sortDescriptors = [NSSortDescriptor(key: "completedAt", ascending: false)]
+        request.fetchLimit = 5
+        return ((try? context.fetch(request)) ?? [])
+            .compactMap(\.title)
+            .map { String($0) }
     }
 }

@@ -20,28 +20,30 @@ struct MemoryInsightCardView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             // 类型图标 + 标题
-            HStack(spacing: HoloSpacing.sm) {
-                Image(systemName: cardIcon)
-                    .font(.system(size: 14))
-                    .foregroundColor(cardColor)
+            HStack(alignment: .top, spacing: HoloSpacing.sm) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: HoloRadius.sm)
+                        .fill(cardColor.opacity(0.12))
+                        .frame(width: 34, height: 34)
+
+                    Image(systemName: cardIcon)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(cardColor)
+                }
 
                 Text(card.title)
                     .font(.holoBody)
                     .foregroundColor(.holoTextPrimary)
                     .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Spacer()
 
                 if !card.evidence.isEmpty {
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            isExpanded.toggle()
-                        }
-                    } label: {
-                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoTextPlaceholder)
-                    }
+                    Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.holoTextPlaceholder)
+                        .padding(.top, 7)
                 }
             }
 
@@ -61,7 +63,7 @@ struct MemoryInsightCardView: View {
                 HStack(spacing: HoloSpacing.xs) {
                     Image(systemName: "lightbulb")
                         .font(.system(size: 11))
-                        .foregroundColor(.holoInfo)
+                        .foregroundColor(.holoPrimary)
 
                     Text(question)
                         .font(.holoTinyLabel)
@@ -76,8 +78,15 @@ struct MemoryInsightCardView: View {
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.md)
-                .stroke(cardBorderColor, lineWidth: card.type == .anomaly ? 1 : 0)
+                .stroke(cardBorderColor, lineWidth: 1)
         )
+        .contentShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+        .onTapGesture {
+            guard !card.evidence.isEmpty else { return }
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isExpanded.toggle()
+            }
+        }
     }
 
     // MARK: - Evidence List
@@ -125,29 +134,28 @@ struct MemoryInsightCardView: View {
         switch card.type {
         case .habit: return .holoSuccess
         case .finance: return .holoPrimary
-        case .task: return .holoInfo
-        case .thought: return .holoInfo
-        case .milestone: return .holoError
+        case .task: return .holoPrimary
+        case .thought: return .holoPrimary
+        case .milestone: return .holoPrimary
         case .crossDomain: return .holoPrimary
         case .overview: return .holoTextSecondary
         case .anomaly:
             switch anomalySeverity {
             case .critical: return .red
             case .warning: return .orange
-            default: return .blue
+            default: return .holoPrimary
             }
         }
     }
 
     private var cardBackgroundColor: Color {
         if card.type == .anomaly {
-            return Color.holoGlassBackground
+            return cardColor.opacity(0.07)
         }
-        return Color.holoGlassBackground
+        return Color.holoCardBackground
     }
 
     private var cardBorderColor: Color {
-        guard card.type == .anomaly else { return .clear }
-        return cardColor.opacity(0.3)
+        card.type == .anomaly ? cardColor.opacity(0.28) : Color.holoBorder.opacity(0.45)
     }
 }

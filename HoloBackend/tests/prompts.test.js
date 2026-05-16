@@ -107,6 +107,75 @@ test("GET /v1/prompts/meta 在无 SQLite 时仍能返回基本元数据", async 
   }
 });
 
+test("启动时自动把默认 Prompt 登记到版本历史", async () => {
+  const { app, cookie } = await createLoggedInApp();
+
+  const historyPage = await app.request("/admin/prompts/memory_insight_generation/history", {
+    headers: { cookie },
+  });
+
+  assert.equal(historyPage.status, 200);
+  const historyHtml = await historyPage.text();
+  assert.match(historyHtml, /default/);
+  assert.match(historyHtml, /自动登记默认 Prompt 基线/);
+});
+
+test("intent_recognition 默认 Prompt 已移除完整科目表并使用 categoryCandidate", async () => {
+  const app = createTestApp();
+
+  const response = await app.request("/v1/prompts/intent_recognition");
+  assert.equal(response.status, 200);
+  const prompt = await response.json();
+
+  assert.equal(prompt.version, 6);
+  assert.match(prompt.content, /categoryCandidate/);
+  assert.match(prompt.content, /系统科目对照 catalog/);
+  assert.doesNotMatch(prompt.content, /## 科目体系/);
+  assert.doesNotMatch(prompt.content, /### 支出/);
+  assert.doesNotMatch(prompt.content, /### 收入/);
+  assert.doesNotMatch(prompt.content, /餐饮 \\| 早餐、午餐、晚餐/);
+});
+
+test("默认 Prompt 文件内容与当前版本不一致时会同步为可见历史版本", async () => {
+  const database = createTestDatabase();
+  const { app, cookie } = await createLoggedInApp({ database });
+
+  const beforeResponse = await app.request("/v1/prompts/system_prompt");
+  const before = await beforeResponse.json();
+
+  await app.request("/admin/prompts/system_prompt", {
+    method: "POST",
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      cookie,
+    },
+    body: new URLSearchParams({
+      content: "临时覆盖 Prompt，等待默认文件同步",
+      change_note: "模拟网页修改",
+    }).toString(),
+  });
+
+  const afterManagedResponse = await app.request("/v1/prompts/system_prompt");
+  const afterManaged = await afterManagedResponse.json();
+  assert.equal(afterManaged.source, "managed");
+
+  const { app: restartedApp, cookie: restartedCookie } = await createLoggedInApp({ database });
+  const afterRestartResponse = await restartedApp.request("/v1/prompts/system_prompt");
+  const afterRestart = await afterRestartResponse.json();
+
+  assert.equal(afterRestart.source, "default_sync");
+  assert.equal(afterRestart.content, before.content);
+  assert.equal(afterRestart.version, afterManaged.version + 1);
+
+  const historyPage = await restartedApp.request("/admin/prompts/system_prompt/history", {
+    headers: { cookie: restartedCookie },
+  });
+  assert.equal(historyPage.status, 200);
+  const historyHtml = await historyPage.text();
+  assert.match(historyHtml, /default_sync/);
+  assert.match(historyHtml, /自动同步默认 Prompt 文件变更/);
+});
+
 // === 测试 3: Prompt 保存后版本号递增 ===
 
 test("保存 Prompt 后版本号递增", async () => {

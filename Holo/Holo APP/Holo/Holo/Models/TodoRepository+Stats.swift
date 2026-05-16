@@ -67,49 +67,76 @@ extension TodoRepository {
 
     /// 指定时间范围内的完成统计
     func getCompletionStats(from start: Date, to end: Date) -> TaskPeriodStats {
-        let activeTasks = activeTasks
-
-        // completedInPeriod: completedAt 在 [start, end] 内的任务数
-        let completedInPeriod = activeTasks.filter { task in
-            guard let completedAt = task.completedAt, task.completed else { return false }
-            return completedAt >= start && completedAt <= end
-        }.count
-
-        // dueInPeriod: dueDate 在 [start, end] 内的任务数
-        let dueInPeriod = activeTasks.filter { task in
-            guard let dueDate = task.dueDate else { return false }
-            return dueDate >= start && dueDate <= end
-        }.count
-
-        // overdueInPeriod: dueDate 在 [start, end] 内且未完成的任务数
-        let overdueInPeriod = activeTasks.filter { task in
-            guard let dueDate = task.dueDate, !task.completed else { return false }
-            return dueDate >= start && dueDate <= end
-        }.count
+        // end 约定为开区间，避免把下一天 00:00 的任务误算进本周期。
+        let basePredicate = "deletedFlag == NO AND archived == NO"
+        let completedInPeriod = countTasks(
+            predicate: "\(basePredicate) AND completed == YES AND completedAt >= %@ AND completedAt < %@",
+            start as NSDate,
+            end as NSDate
+        )
+        let dueInPeriod = countTasks(
+            predicate: "\(basePredicate) AND dueDate >= %@ AND dueDate < %@",
+            start as NSDate,
+            end as NSDate
+        )
+        let overdueInPeriod = countTasks(
+            predicate: "\(basePredicate) AND completed == NO AND dueDate >= %@ AND dueDate < %@",
+            start as NSDate,
+            end as NSDate
+        )
+        let createdInPeriod = countTasks(
+            predicate: "\(basePredicate) AND createdAt >= %@ AND createdAt < %@",
+            start as NSDate,
+            end as NSDate
+        )
+        let carriedOverBacklogCount = countTasks(
+            predicate: "\(basePredicate) AND completed == NO AND dueDate < %@",
+            start as NSDate
+        )
+        let activeBacklogCount = countTasks(
+            predicate: "\(basePredicate) AND completed == NO"
+        )
 
         let denominator = max(dueInPeriod, 1)
         let completionRate = Double(completedInPeriod) / Double(denominator)
 
         // 高优先级完成率
-        let highPriorityDue = activeTasks.filter { task in
-            guard let dueDate = task.dueDate, task.priority >= 2 else { return false }
-            return dueDate >= start && dueDate <= end
-        }
-        let highPriorityCompleted = highPriorityDue.filter { task in
-            guard let completedAt = task.completedAt, task.completed else { return false }
-            return completedAt >= start && completedAt <= end
-        }
-        let highPriorityCompletionRate: Double? = highPriorityDue.isEmpty
+        let highPriorityDue = countTasks(
+            predicate: "\(basePredicate) AND priority >= 2 AND dueDate >= %@ AND dueDate < %@",
+            start as NSDate,
+            end as NSDate
+        )
+        let highPriorityCompleted = countTasks(
+            predicate: "\(basePredicate) AND priority >= 2 AND completed == YES AND completedAt >= %@ AND completedAt < %@",
+            start as NSDate,
+            end as NSDate
+        )
+        let highPriorityCompletionRate: Double? = highPriorityDue == 0
             ? nil
-            : Double(highPriorityCompleted.count) / Double(highPriorityDue.count)
+            : Double(highPriorityCompleted) / Double(highPriorityDue)
 
         return TaskPeriodStats(
             completedInPeriod: completedInPeriod,
             dueInPeriod: dueInPeriod,
             overdueInPeriod: overdueInPeriod,
             completionRate: completionRate,
-            highPriorityCompletionRate: highPriorityCompletionRate
+            highPriorityCompletionRate: highPriorityCompletionRate,
+            createdInPeriod: createdInPeriod,
+            carriedOverBacklogCount: carriedOverBacklogCount,
+            activeBacklogCount: activeBacklogCount
         )
+    }
+
+    private func countTasks(predicate format: String, _ args: CVarArg...) -> Int {
+        let request = TodoTask.fetchRequest()
+        request.predicate = NSPredicate(format: format, argumentArray: args)
+        do {
+            return try context.count(for: request)
+        } catch {
+            Logger(subsystem: "com.holo.app", category: "TodoRepository")
+                .error("获取任务统计失败: \(error.localizedDescription)")
+            return 0
+        }
     }
 
     /// 获取未来 N 天内即将到期的第一个未完成任务（按截止时间升序）

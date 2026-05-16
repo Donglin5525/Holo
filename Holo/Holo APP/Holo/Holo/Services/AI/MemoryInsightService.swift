@@ -103,7 +103,8 @@ final class MemoryInsightService {
         // 1. 构建上下文
         let (context, snapshotHash) = await contextBuilder.build(
             periodType: periodType,
-            referenceDate: end
+            start: start,
+            end: end
         )
 
         // 2. 预加载 Prompt 版本（用于缓存检查）
@@ -170,7 +171,7 @@ final class MemoryInsightService {
         switch periodType {
         case .daily: insightType = .memoryDailyReview
         case .weekly: insightType = .memoryWeeklyReplay
-        case .monthly: insightType = .memoryMonthlyReplay
+        case .monthly, .quarterly, .custom: insightType = .memoryMonthlyReplay
         }
         let generationResult: MemoryInsightGenerationResult
         do {
@@ -228,7 +229,8 @@ final class MemoryInsightService {
     ) async {
         let (_, newHash) = await contextBuilder.build(
             periodType: periodType,
-            referenceDate: end
+            start: start,
+            end: end
         )
         try? repository.markStaleIfNeeded(
             periodType: periodType,

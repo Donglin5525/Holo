@@ -8,6 +8,7 @@ import { createMockChatProvider } from "./providers/mockChatProvider.js";
 import { createOpenAICompatibleProvider } from "./providers/openAICompatibleProvider.js";
 import { createMockAsrProvider } from "./providers/mockAsrProvider.js";
 import { createDashScopeAsrProvider } from "./providers/dashScopeAsrProvider.js";
+import { getFinanceCategoryCatalog } from "./catalog/financeCategoryCatalog.js";
 import { getPrompt, listPrompts, listPromptMetadata, setDatabase } from "./prompts/promptRegistry.js";
 import { loadConfig } from "./config.js";
 import { createAdminLogStore, truncateText } from "./admin/adminLogStore.js";
@@ -83,6 +84,10 @@ export function createApp(overrides = {}) {
     } catch (error) {
       return createErrorResponse(context, error);
     }
+  });
+
+  app.get("/v1/catalog/finance-categories", (context) => {
+    return context.json(getFinanceCategoryCatalog());
   });
 
   app.post("/v1/app-attest/challenge", async (context) => {

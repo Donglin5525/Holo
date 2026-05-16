@@ -189,7 +189,6 @@ enum MemoryReplayFallback {
 
     private static let summaryTemplates: [String] = [
         "%@。%@%@。",
-        "本周%@@%@@。",
         "这周的记录显示：%@，%@%@。"
     ]
 

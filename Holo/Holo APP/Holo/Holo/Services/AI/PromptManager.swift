@@ -75,7 +75,7 @@ final class PromptManager {
 
     /// 需要版本管理的 prompt 类型及其最低版本
     private static let promptVersions: [PromptType: Int] = [
-        .intentRecognition: 5,          // v5: 新增 {{currentTime}} + 餐饮时间自动归类规则
+        .intentRecognition: 6,          // v6: Prompt 移除完整科目表，科目由后端 catalog + 本地分类匹配
         .memoryInsightGeneration: 4,    // v4: 结构化异常观察 + anomaly 卡片 + 数据护栏
         .annualReview: 1                // v1: 初始版本
     ]
@@ -239,30 +239,17 @@ final class PromptManager {
         | generate_memory_insight | 复盘这周/本月记忆回放 | periodType? |
         | unknown | 不匹配以上任何意图 | - |
 
-        ## 科目体系
+        ## 科目抽取规则
 
-        记账时根据用户描述匹配科目。科目名必须严格来自下表。不在表中的分类填入 categoryCandidate，primaryCategory/subCategory 留空。
+        记账时不要在 Prompt 中维护或枚举完整科目表。科目由系统科目对照 catalog 和用户本地分类共同匹配。
 
-        ### 支出
-        | 一级 | 二级 |
-        |------|------|
-        | 餐饮 | 早餐、午餐、晚餐、夜宵、零食、咖啡、外卖、饮品、水果、酒水、超市 |
-        | 交通 | 地铁、打车、公交、单车、加油、停车、火车、机票、旅行、过路费 |
-        | 购物 | 服饰、数码、日用、美妆、家具、书籍、运动、礼物 |
-        | 娱乐 | 电影、游戏、视频、音乐、KTV、旅游、健身 |
-        | 居住 | 房租、房贷、水费、电费、燃气、物业、网费、家电、装修 |
-        | 医疗 | 就医、药品、体检、健身房、保健品、牙齿保健、医疗用品 |
-        | 学习 | 课程、教材、考试、文具、订阅 |
-        | 人情 | 红包礼金、请客、送礼、探望、其他 |
-        | 其他 | 社交、宠物、理发、洗衣、话费、烟酒、维修、保险、还款、转账、捐赠 |
-
-        ### 收入
-        | 一级 | 二级 |
-        |------|------|
-        | 投资理财 | 利息、股票、房租收入、其他投资 |
-        | 工资收入 | 工资、奖金、兼职、报销、退款 |
-        | 人情来往 | 红包、礼物、中奖、转入 |
-        | 其他收入 | 借入、还款收入、退货、公积金、出闲置 |
+        你只需要抽取用户原始消费/收入语义：
+        - categoryCandidate：记账必填，保留用户原始分类语义或最自然的短语，例如“打车”“午饭”“房租”“工资”“手办”。
+        - primaryCategory/subCategory：只有当用户语义非常明确且你确信是系统标准科目时才填写；不确定时留空。
+        - 即使填写 primaryCategory/subCategory，系统仍会用科目对照 catalog 和用户本地分类做最终校验。
+        - 不要为了匹配而编造科目。
+        - 无法判断分类时，保留 categoryCandidate，primaryCategory/subCategory 留空。
+        - 餐饮语义：用户明确说早饭/午饭/晚饭/夜宵时，categoryCandidate 保留用户原话；用户只说吃饭/一碗面/外卖等泛餐饮语义时，也保留最自然短语，系统会结合当前时间归一。
 
         ## 输出格式
 
@@ -313,24 +300,30 @@ final class PromptManager {
         - categoryCandidate 始终填用户原始语义，无论科目是否匹配
         - 科目不确定时 primaryCategory/subCategory 留空，categoryCandidate 必填
         - 根据整体消费场景归类，不要拆解物品名称中的单个字词
-        - 家居用品（家具、家电、装修材料）归入 居住 > 家具
         - title 提取核心动作，去掉"提醒我""帮我"等套话
         - 日期：今天=当天，明天=+1，后天=+2，下周一=计算
         - 有具体时间→dueDate 格式 yyyy-MM-dd HH:mm，无时间→yyyy-MM-dd
         - 时间映射：凌晨=00-05，早上/上午=06-11，中午=12，下午=13-17，晚上/傍晚=18-22，半夜/深夜=23
-        - 餐饮自动归类：用户描述涉及吃饭但未明确指定餐次（如"吃了一碗面""面18"）时，根据当前时间判定：05:00-09:59→早餐，10:00-15:59→午餐，16:00-20:59→晚餐，21:00-04:59→夜宵。用户明确说了早饭/午饭/晚饭/夜宵等词时，以用户指定的为准
         - 涉及具体数据（金额、分类、时间段统计、消费、习惯、任务进度）的查询→用 query_analysis，不要用 query。query 只用于非数据的通用问答
+        - "复盘、总结、看看这周/本月状态、我最近怎么样"优先识别为 generate_memory_insight 或 query_analysis
+        - 如果用户想要跨财务、习惯、待办一起分析，analysisDomain 使用 crossModule
+        - 如果一句话同时包含执行动作和分析查询，返回 clarification，不要混合执行
 
         ## 示例
 
         输入：「午饭35」
         ```json
-        {"mode":"single_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"35","note":"午饭","primaryCategory":"餐饮","subCategory":"午餐","categoryCandidate":"午饭"}}],"needsClarification":false,"clarificationQuestion":null}
+        {"mode":"single_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"35","note":"午饭","primaryCategory":"","subCategory":"","categoryCandidate":"午饭"}}],"needsClarification":false,"clarificationQuestion":null}
+        ```
+
+        输入：「买个手办200」
+        ```json
+        {"mode":"single_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"200","note":"买个手办","primaryCategory":"","subCategory":"","categoryCandidate":"手办"}}],"needsClarification":false,"clarificationQuestion":null}
         ```
 
         输入：「午饭35，提醒我明天买牛奶」
         ```json
-        {"mode":"multi_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"35","note":"午饭","primaryCategory":"餐饮","subCategory":"午餐","categoryCandidate":"午饭"}},{"id":"2","intent":"create_task","confidence":0.95,"extractedData":{"title":"买牛奶","dueDate":"2026-05-05"}}],"needsClarification":false,"clarificationQuestion":null}
+        {"mode":"multi_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"35","note":"午饭","primaryCategory":"","subCategory":"","categoryCandidate":"午饭"}},{"id":"2","intent":"create_task","confidence":0.95,"extractedData":{"title":"买牛奶","dueDate":"2026-05-05"}}],"needsClarification":false,"clarificationQuestion":null}
         ```
 
         输入：「上周花了多少钱」
@@ -426,6 +419,32 @@ final class PromptManager {
         9. type 只能取以下值：habit / finance / task / thought / milestone / cross_domain / overview / anomaly。
         10. 如果某个维度数据为空，不要强行生成该维度的 card。
         11. suggestedQuestions 提供 2-3 个用户可能想追问的问题。
+
+        ## 洞察相关性门槛（必须执行）
+
+        生成任何 card 前先判断它是否值得出现在回放里。只有满足以下至少一项，才允许生成：
+        - 相比个人常态或上期发生明显偏离。
+        - 用户可以采取一个具体小动作。
+        - 影响本周期生活节奏，例如任务积压、习惯断连、预算异常、恢复迹象。
+        - 多个模块在同一日期或相邻日期出现并发现象。
+        - 这是一个明确异常、转折或恢复，不只是数字很大。
+
+        禁止把“金额大、任务多、收入少”本身当成洞察；必须说明为什么它在本周期重要。
+
+        ## 财务语义规则
+
+        - 如果 context.finance.semanticSummary.fixedNecessaryCategories 包含房租、房贷、物业、保险等固定必要支出，只把它作为背景事实；不要默认建议优化这部分。
+        - 财务建议优先看 semanticSummary.actionableExpenseTotal 和可调整分类，不要把固定必要支出当成主要优化对象。
+        - 分析交通支出时，优先使用 semanticSummary.transport：打车次数/金额占比、公共交通次数/金额、长途交通占比和频率。不要只看是否有单笔大额打车或长途。
+        - 如果 semanticSummary.incomeCadenceHint 存在，周维度或短周期内不要把“本期收入低于支出”写成收支失衡；工资、奖金、报销等低频收入应按月度或滚动30天判断。
+
+        ## 待办统计口径
+
+        - tasks.totalCount / dueInPeriod 代表本周期到期任务，不代表历史所有任务。
+        - tasks.completionRate 只描述本周期到期任务完成率。
+        - tasks.carriedOverBacklogCount 和 activeBacklogCount 是历史积压背景，不能写成“本周任务完成了 0/全部”。
+        - 如果本周期 dueInPeriod 很少但 activeBacklogCount 很多，应表达为“历史积压仍在”，不要归因成本周失败。
+        - importantCompletedTasks 只引用本周期完成的高优任务。
 
         ## 异常观察（anomaly）
 
@@ -657,6 +676,22 @@ final class PromptManager {
         5. 使用 Markdown 格式让分析报告更易读（标题、列表、加粗等）。
         6. 区分"数据支持的观察"和"个人建议"，建议部分明确标注。
         7. 如果数据不足以得出结论，诚实说明。
+
+        ## 洞察相关性门槛
+
+        不要把显眼数字直接当成洞察。优先回答以下类型：偏离个人常态、可行动的小切口、影响生活节奏的变化、跨模块并发现象、异常/转折/恢复。若只是固定成本或周期口径造成的数字差异，要明确降权。
+
+        ## 财务分析口径
+
+        - 固定必要支出：如果 semanticSummary.fixedNecessaryCategories 出现房租、房贷、物业、保险等，只作为背景，不默认建议优化。建议聚焦 semanticSummary.actionableExpenseTotal 和可调整分类。
+        - 交通：使用 semanticSummary.transport 分析结构和频率，包括打车金额占比、打车次数、公共交通次数/金额、长途交通次数/金额；不要只依据“有没有大额打车/长途”下结论。
+        - 收入：如果 semanticSummary.incomeCadenceHint 存在，短周期内不要简单比较本周收入和支出并判定失衡；工资型收入应优先看月度或滚动30天。
+
+        ## 待办分析口径
+
+        - totalCount / dueInPeriod 表示本周期到期任务。completionRate 只对应本周期到期任务。
+        - carriedOverBacklogCount / activeBacklogCount 是历史积压背景，不能混入本周期完成率。
+        - 当历史 backlog 很多时，可以指出积压存在，但不要说成本周新产生或本周全部未完成。
 
         ## 各领域分析侧重
 

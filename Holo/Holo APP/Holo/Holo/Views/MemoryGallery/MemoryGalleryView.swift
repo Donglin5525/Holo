@@ -2,8 +2,8 @@
 //  MemoryGalleryView.swift
 //  Holo
 //
-//  记忆长廊主视图 — 三 Tab 结构
-//  回放（HeroCard + 展柜 + 封面流）/ 地图（统计 + 热力图）/ 明细（时间线）
+//  记忆长廊主视图 — 洞察 / 明细结构
+//  洞察（热力图 + AI 回放 + 里程碑高光）/ 明细（完整时间线）
 //
 
 import SwiftUI
@@ -18,7 +18,7 @@ struct MemoryGalleryView: View {
     // MARK: - State
 
     @StateObject private var viewModel = MemoryGalleryViewModel()
-    @State private var selectedTab: MemoryGalleryTab = .replay
+    @State private var selectedTab: MemoryGalleryTab = .insight
 
     /// 跳转记账回调
     let onNavigateToFinance: (() -> Void)?
@@ -111,37 +111,41 @@ struct MemoryGalleryView: View {
     @ViewBuilder
     private var tabContent: some View {
         switch selectedTab {
-        case .replay:
-            replayTab
-        case .map:
-            mapTab
+        case .insight:
+            insightTab
         case .detail:
             detailTab
         }
     }
 
-    // MARK: - 回放 Tab
+    // MARK: - 洞察 Tab
 
     @ViewBuilder
-    private var replayTab: some View {
+    private var insightTab: some View {
         if viewModel.isLoading && viewModel.timelineSections.isEmpty {
             skeletonView
+        } else if let errorMessage = viewModel.errorMessage {
+            errorView(message: errorMessage)
         } else if viewModel.timelineSections.isEmpty && viewModel.errorMessage == nil {
             emptyView
         } else {
             ScrollView(showsIndicators: false) {
-                VStack(spacing: HoloSpacing.md) {
-                    // AI 洞察 Hero 卡片
+                VStack(spacing: HoloSpacing.lg) {
                     MemoryInsightHeroCard(
                         state: viewModel.insightGenerationState,
                         selectedPeriod: viewModel.selectedInsightPeriod,
                         insight: viewModel.currentInsight,
                         weeklyIsFallback: viewModel.weeklyIsFallback,
                         monthlyIsFallback: viewModel.monthlyIsFallback,
+                        customStartDate: $viewModel.customInsightStartDate,
+                        customEndDate: $viewModel.customInsightEndDate,
                         fallbackTitle: viewModel.fallbackReplayTitle,
                         fallbackSummary: viewModel.fallbackReplaySummary,
                         onPeriodChange: { period in
                             Task { await viewModel.switchInsightPeriod(to: period) }
+                        },
+                        onCustomRangeChange: { start, end in
+                            Task { await viewModel.updateCustomInsightRange(start: start, end: end) }
                         },
                         onGenerate: {
                             Task { await viewModel.generateCurrentInsight() }
@@ -159,49 +163,13 @@ struct MemoryGalleryView: View {
                         }
                     )
 
-                    // 今日展柜
-                    TodayMemoryCabinetCard(
-                        summary: viewModel.todaySummary
-                    )
-
-                    // 最近日子封面流
-                    RecentDayCoverView(
-                        sections: Array(viewModel.timelineSections.prefix(7))
-                    )
+                    if viewModel.currentInsight != nil {
+                        featuredStoriesSection
+                    }
                 }
                 .padding(.horizontal, HoloSpacing.md)
                 .padding(.vertical, HoloSpacing.md)
             }
-        }
-    }
-
-    // MARK: - 地图 Tab
-
-    private var mapTab: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(spacing: HoloSpacing.md) {
-                // 统计概览
-                MemoryStatsSummaryView(
-                    memoryCount: viewModel.totalMemoryCount,
-                    recordedDays: viewModel.totalRecordedDays,
-                    insightCount: viewModel.totalInsights
-                )
-
-                // 热力图
-                MemoryHeatmapView(
-                    data: viewModel.heatmapData,
-                    selectedDate: viewModel.selectedHeatmapDate
-                ) { date in
-                    viewModel.selectedHeatmapDate = date
-                }
-
-                // 选中日期预览
-                if let selectedDate = viewModel.selectedHeatmapDate {
-                    selectedDatePreview(date: selectedDate)
-                }
-            }
-            .padding(.horizontal, HoloSpacing.md)
-            .padding(.vertical, HoloSpacing.md)
         }
     }
 
@@ -215,9 +183,21 @@ struct MemoryGalleryView: View {
                 return formatter.string(from: date)
             }()
 
-            Text(dateStr)
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
+            HStack(spacing: HoloSpacing.xs) {
+                Image(systemName: "calendar")
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.holoPrimary)
+
+                Text(dateStr)
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextPrimary)
+
+                Spacer(minLength: 0)
+
+                Text("当天轨迹")
+                    .font(.holoTinyLabel)
+                    .foregroundColor(.holoTextPlaceholder)
+            }
 
             if let section = viewModel.timelineSections.first(where: {
                 Calendar.current.isDate($0.date, inSameDayAs: date)
@@ -228,36 +208,7 @@ struct MemoryGalleryView: View {
                 }.first
 
                 if let summary = summary {
-                    HStack(spacing: HoloSpacing.md) {
-                        if let expense = summary.totalExpense {
-                            previewStat(
-                                icon: "yensign.circle",
-                                value: formatExpense(expense),
-                                color: .holoPrimary
-                            )
-                        }
-                        if summary.habitsTotal > 0 {
-                            previewStat(
-                                icon: "figure.run",
-                                value: "\(summary.habitsCompleted)/\(summary.habitsTotal)",
-                                color: .holoSuccess
-                            )
-                        }
-                        if summary.tasksCompleted > 0 {
-                            previewStat(
-                                icon: "checkmark.circle",
-                                value: "\(summary.tasksCompleted) 任务",
-                                color: .holoInfo
-                            )
-                        }
-                        if summary.thoughtCount > 0 {
-                            previewStat(
-                                icon: "bubble.left",
-                                value: "\(summary.thoughtCount) 观点",
-                                color: .holoInfo
-                            )
-                        }
-                    }
+                    selectedDateStats(summary)
                 } else {
                     Text("当天暂无记录")
                         .font(.holoCaption)
@@ -278,14 +229,162 @@ struct MemoryGalleryView: View {
         )
     }
 
-    private func previewStat(icon: String, value: String, color: Color) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.system(size: 12))
-                .foregroundColor(color)
-            Text(value)
+    @ViewBuilder
+    private func selectedDateStats(_ summary: DailySummaryData) -> some View {
+        let stats = selectedDateStatItems(summary)
+
+        if stats.isEmpty {
+            Text("当天暂无记录")
                 .font(.holoCaption)
+                .foregroundColor(.holoTextPlaceholder)
+        } else {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 82), spacing: HoloSpacing.sm)], spacing: HoloSpacing.sm) {
+                ForEach(stats) { stat in
+                    previewStat(stat)
+                }
+            }
+        }
+    }
+
+    private func previewStat(_ stat: MemoryPreviewStatItem) -> some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Image(systemName: stat.icon)
+                .font(.system(size: 12))
+                .foregroundColor(stat.color)
+
+            Text(stat.value)
+                .font(.holoCaption)
+                .fontWeight(.semibold)
+                .foregroundColor(.holoTextPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+
+            Text(stat.label)
+                .font(.holoTinyLabel)
                 .foregroundColor(.holoTextSecondary)
+                .lineLimit(1)
+        }
+        .padding(HoloSpacing.sm)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(stat.color.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
+    }
+
+    private func selectedDateStatItems(_ summary: DailySummaryData) -> [MemoryPreviewStatItem] {
+        var stats: [MemoryPreviewStatItem] = []
+
+        if let expense = summary.totalExpense {
+            stats.append(MemoryPreviewStatItem(
+                icon: "yensign.circle",
+                value: formatExpense(expense),
+                label: "支出",
+                color: .holoPrimary
+            ))
+        }
+
+        if summary.habitsTotal > 0 {
+            stats.append(MemoryPreviewStatItem(
+                icon: "figure.run",
+                value: "\(summary.habitsCompleted)/\(summary.habitsTotal)",
+                label: "习惯",
+                color: .holoSuccess
+            ))
+        }
+
+        if summary.tasksCompleted > 0 {
+            stats.append(MemoryPreviewStatItem(
+                icon: "checkmark.circle",
+                value: "\(summary.tasksCompleted)",
+                label: "任务",
+                color: .holoPrimary
+            ))
+        }
+
+        if summary.thoughtCount > 0 {
+            stats.append(MemoryPreviewStatItem(
+                icon: "bubble.left",
+                value: "\(summary.thoughtCount)",
+                label: "观点",
+                color: .holoPurple
+            ))
+        }
+
+        return stats
+    }
+
+    @ViewBuilder
+    private var featuredStoriesSection: some View {
+        let stories = featuredNarrativeNodes
+
+        if !stories.isEmpty {
+            VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                sectionHeading(title: "里程碑与高光", icon: "flag.fill")
+
+                VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                    ForEach(stories) { item in
+                        featuredStoryRow(item)
+                    }
+                }
+            }
+        }
+    }
+
+    private var featuredNarrativeNodes: [FeaturedMemoryNode] {
+        var stories: [FeaturedMemoryNode] = []
+        let range = viewModel.selectedInsightDateRange
+
+        for section in viewModel.timelineSections {
+            guard section.date >= range.start && section.date <= range.end else {
+                continue
+            }
+
+            for node in section.nodes where node.type == .milestone || node.type == .highlight {
+                stories.append(FeaturedMemoryNode(section: section, node: node))
+            }
+        }
+
+        return Array(stories.prefix(2))
+    }
+
+    private func sectionHeading(title: String, icon: String) -> some View {
+        HStack(spacing: HoloSpacing.xs) {
+            Image(systemName: icon)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.holoPrimary)
+
+            Text(title)
+                .font(.holoBody)
+                .foregroundColor(.holoTextPrimary)
+
+            Spacer()
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func featuredStoryRow(_ item: FeaturedMemoryNode) -> some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+            HStack(spacing: HoloSpacing.xs) {
+                Text(item.section.formattedDate)
+                    .font(.holoLabel)
+                    .foregroundColor(.holoTextSecondary)
+
+                Text(item.section.displayLabel)
+                    .font(.holoTinyLabel)
+                    .foregroundColor(.holoPrimary)
+                    .padding(.horizontal, HoloSpacing.xs)
+                    .padding(.vertical, 2)
+                    .background(Color.holoPrimary.opacity(0.1))
+                    .clipShape(Capsule())
+            }
+
+            switch item.node.data {
+            case .milestone(let milestoneData):
+                MilestoneNode(data: milestoneData)
+            case .highlight(let highlightData):
+                HighlightNode(data: highlightData)
+            case .summary:
+                EmptyView()
+            }
         }
     }
 
@@ -300,14 +399,30 @@ struct MemoryGalleryView: View {
         } else if viewModel.timelineSections.isEmpty {
             emptyView
         } else {
-            // 筛选器
-            if viewModel.showFilter {
-                filterBar
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-            }
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: HoloSpacing.md) {
+                    MemoryHeatmapView(
+                        data: viewModel.heatmapData,
+                        selectedDate: viewModel.selectedHeatmapDate
+                    ) { date in
+                        viewModel.selectedHeatmapDate = date
+                        Task { await viewModel.ensureWeekLoaded(date) }
+                    }
 
-            // 时间线列表
-            timelineList
+                    if let selectedDate = viewModel.selectedHeatmapDate {
+                        selectedDatePreview(date: selectedDate)
+                    }
+
+                    if viewModel.showFilter {
+                        filterBar
+                            .transition(.opacity.combined(with: .move(edge: .top)))
+                    }
+
+                    timelineList
+                }
+                .padding(.horizontal, HoloSpacing.md)
+                .padding(.vertical, HoloSpacing.md)
+            }
         }
     }
 
@@ -454,26 +569,22 @@ struct MemoryGalleryView: View {
     // MARK: - Timeline List
 
     private var timelineList: some View {
-        ScrollView(showsIndicators: false) {
-            LazyVStack(alignment: .leading, spacing: 0) {
-                ForEach(viewModel.timelineSections) { section in
-                    timelineSectionView(for: section)
-                        .id(section.id)
-                        .transition(.opacity)
-                }
-
-                if viewModel.hasMoreData {
-                    loadMoreIndicator
-                } else {
-                    Text("已加载全部")
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextPlaceholder)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, HoloSpacing.lg)
-                }
+        LazyVStack(alignment: .leading, spacing: 0) {
+            ForEach(viewModel.timelineSections) { section in
+                timelineSectionView(for: section)
+                    .id(section.id)
+                    .transition(.opacity)
             }
-            .padding(.horizontal, HoloSpacing.md)
-            .padding(.vertical, HoloSpacing.md)
+
+            if viewModel.hasMoreData {
+                loadMoreIndicator
+            } else {
+                Text("已加载全部")
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextPlaceholder)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, HoloSpacing.lg)
+            }
         }
     }
 
@@ -550,6 +661,24 @@ struct MemoryGalleryView: View {
         formatter.maximumFractionDigits = 0
         return formatter.string(from: value as NSDecimalNumber) ?? "¥0"
     }
+}
+
+// MARK: - Supporting Models
+
+private struct MemoryPreviewStatItem: Identifiable {
+    let icon: String
+    let value: String
+    let label: String
+    let color: Color
+
+    var id: String { label }
+}
+
+private struct FeaturedMemoryNode: Identifiable {
+    let section: TimelineSection
+    let node: MemoryTimelineNode
+
+    var id: UUID { node.id }
 }
 
 // MARK: - Filter Chip

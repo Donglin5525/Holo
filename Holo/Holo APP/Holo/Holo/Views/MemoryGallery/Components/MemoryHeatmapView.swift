@@ -15,7 +15,7 @@ struct MemoryHeatmapView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     private let weekdays = ["一", "二", "三", "四", "五", "六", "日"]
-    private let cellSize: CGFloat = 14
+    private let cellSize: CGFloat = 16
     private let cellSpacing: CGFloat = 3
     private let hitSize: CGFloat = 22
 
@@ -27,21 +27,59 @@ struct MemoryHeatmapView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            header
             monthHeader
 
             HStack(alignment: .top, spacing: 6) {
                 weekdayLabels
                 heatmapGrid
             }
+
+            legend
         }
-        .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-        .overlay(
-            RoundedRectangle(cornerRadius: HoloRadius.md)
-                .stroke(Color.holoBorder, lineWidth: 1)
+        .padding(HoloSpacing.lg)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color.holoCardBackground,
+                    Color.holoPrimary.opacity(colorScheme == .dark ? 0.12 : 0.05)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         )
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.lg)
+                .stroke(Color.holoBorder.opacity(0.65), lineWidth: 1)
+        )
+    }
+
+    private var header: some View {
+        HStack(alignment: .top, spacing: HoloSpacing.sm) {
+            ZStack {
+                RoundedRectangle(cornerRadius: HoloRadius.sm)
+                    .fill(Color.holoPrimary.opacity(0.12))
+                    .frame(width: 38, height: 38)
+
+                Image(systemName: "square.grid.3x3.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.holoPrimary)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text("活跃热力图")
+                    .font(.holoHeading)
+                    .foregroundColor(.holoTextPrimary)
+
+                Text("最近 13 周 · \(recordedDayCount) 天有记录")
+                    .font(.holoLabel)
+                    .foregroundColor(.holoTextSecondary)
+            }
+
+            Spacer(minLength: 0)
+        }
     }
 
     private var monthHeader: some View {
@@ -96,8 +134,9 @@ struct MemoryHeatmapView: View {
                 .frame(width: cellSize, height: cellSize)
                 .overlay(
                     RoundedRectangle(cornerRadius: 3)
-                        .stroke(borderColor(count: count, isSelected: isSelected), lineWidth: isSelected ? 2 : 1)
+                        .stroke(borderColor(count: count, isSelected: isSelected), lineWidth: isSelected ? 2.5 : 1)
                 )
+                .shadow(color: shadowColor(count: count), radius: count > 0 ? 3 : 0, x: 0, y: 1)
                 .frame(width: hitSize, height: hitSize)
                 .contentShape(Rectangle())
         }
@@ -117,43 +156,83 @@ struct MemoryHeatmapView: View {
     private func color(for count: Int) -> Color {
         switch level(for: count) {
         case 0:
-            return .holoCardBackground
+            return Color(hex: "#F5F2ED")
         case 1:
-            return colorScheme == .dark
-                ? (Color(hex: "#78350F") ?? .orange).opacity(0.4)
-                : (Color(hex: "#FEF3C7") ?? .yellow)
+            return Color(hex: "#F5F2ED")
         case 2:
-            return colorScheme == .dark
-                ? (Color(hex: "#92400E") ?? .orange).opacity(0.6)
-                : (Color(hex: "#FBBF24") ?? .orange)
+            return Color(hex: "#FFD6C7")
         case 3:
-            return colorScheme == .dark
-                ? (Color(hex: "#EA580C") ?? .orange).opacity(0.8)
-                : (Color(hex: "#F97316") ?? .orange)
+            return Color(hex: "#FFB499")
+        case 4:
+            return Color(hex: "#FF9B7A")
         default:
-            return Color(hex: "#F46D38") ?? .holoPrimary
+            return Color(hex: "#FF8C66")
         }
     }
 
     private func borderColor(count: Int, isSelected: Bool) -> Color {
         if isSelected {
-            return .holoPrimary
+            return .holoTextPrimary
         }
-        return count == 0 ? .holoBorder : .clear
+        return count == 0
+            ? .holoBorder.opacity(0.85)
+            : .white.opacity(colorScheme == .dark ? 0.1 : 0.28)
+    }
+
+    private func shadowColor(count: Int) -> Color {
+        level(for: count) == 5 ? color(for: count).opacity(colorScheme == .dark ? 0.2 : 0.1) : .clear
+    }
+
+    private var legend: some View {
+        HStack(spacing: HoloSpacing.xs) {
+            Text("少")
+                .font(.holoTinyLabel)
+                .foregroundColor(.holoTextPlaceholder)
+
+            ForEach(1...5, id: \.self) { level in
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(colorForLegendLevel(level))
+                    .frame(width: 16, height: 16)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 3)
+                            .stroke(level == 1 ? Color.holoBorder.opacity(0.85) : Color.clear, lineWidth: 1)
+                    )
+            }
+
+            Text("多")
+                .font(.holoTinyLabel)
+                .foregroundColor(.holoTextPlaceholder)
+
+            Spacer()
+        }
+    }
+
+    private func colorForLegendLevel(_ level: Int) -> Color {
+        switch level {
+        case 1: return color(for: 1)
+        case 2: return color(for: 2)
+        case 3: return color(for: 3)
+        case 4: return color(for: 6)
+        default: return color(for: 10)
+        }
+    }
+
+    private var recordedDayCount: Int {
+        data.filter { $0.value > 0 }.count
     }
 
     private func level(for count: Int) -> Int {
         switch count {
-        case 0:
-            return 0
-        case 1...2:
+        case 0...1:
             return 1
-        case 3...5:
+        case 2...3:
             return 2
-        case 6...10:
+        case 4...5:
             return 3
-        default:
+        case 6...9:
             return 4
+        default:
+            return 5
         }
     }
 }

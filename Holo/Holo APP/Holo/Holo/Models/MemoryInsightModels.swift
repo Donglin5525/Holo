@@ -22,6 +22,8 @@ enum MemoryInsightPeriodType: String, Codable, CaseIterable {
     case daily
     case weekly
     case monthly
+    case quarterly
+    case custom
 }
 
 // MARK: - Status
@@ -287,6 +289,7 @@ struct MemoryInsightFinanceContext: Codable, Equatable {
     let budgetPerformance: BudgetPerformanceSummary?
     let anomalyDescriptions: [String]
     let weekdayWeekendSpending: WeekdayWeekendSpendingSummary?
+    let semanticSummary: FinanceSemanticSummary?
 }
 
 struct BudgetPerformanceSummary: Codable, Equatable {
@@ -316,6 +319,13 @@ struct MemoryInsightTaskContext: Codable, Equatable {
     let completionRate: Double
     let highPriorityCompletionRate: Double?
     let dailyCompletionTrend: [DailyTaskCount]
+    let dueInPeriod: Int
+    let createdInPeriod: Int
+    let completedInPeriod: Int
+    let newOverdueInPeriod: Int
+    let carriedOverBacklogCount: Int
+    let activeBacklogCount: Int
+    let periodCompletionScopeNote: String
 }
 
 struct MemoryInsightThoughtContext: Codable, Equatable {

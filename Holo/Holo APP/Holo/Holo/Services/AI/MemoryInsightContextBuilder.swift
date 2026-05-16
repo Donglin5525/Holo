@@ -57,7 +57,14 @@ struct MemoryInsightContextBuilder {
         referenceDate: Date = Date()
     ) async -> (context: MemoryInsightContext, snapshotHash: String) {
         let (start, end) = Self.periodRange(periodType: periodType, referenceDate: referenceDate)
+        return await build(periodType: periodType, start: start, end: end)
+    }
 
+    func build(
+        periodType: MemoryInsightPeriodType,
+        start: Date,
+        end: Date
+    ) async -> (context: MemoryInsightContext, snapshotHash: String) {
         let (finance, financeAnomalies) = await buildFinanceContext(start: start, end: end, periodType: periodType)
         let (habits, habitAnomalies) = buildHabitContext(start: start, end: end)
         let (tasks, taskAnomalies) = buildTaskContext(start: start, end: end)
@@ -124,6 +131,14 @@ struct MemoryInsightContextBuilder {
             let start = referenceDate.startOfMonth
             let end = min(start.addingDays(referenceDate.daysInMonth - 1), referenceDate)
             return (start.startOfDay, end.startOfDay)
+        case .quarterly:
+            let start = referenceDate.startOfQuarter
+            let fullQuarterEnd = start.addingMonths(3).addingDays(-1)
+            let end = min(fullQuarterEnd, referenceDate)
+            return (start.startOfDay, end.startOfDay)
+        case .custom:
+            let start = referenceDate.startOfDay
+            return (start, start)
         case .daily:
             let start = referenceDate.startOfDay
             return (start, start)
@@ -153,6 +168,8 @@ struct MemoryInsightContextBuilder {
         switch periodType {
         case .weekly: prevRef = referenceDate.addingDays(-7)
         case .monthly: prevRef = referenceDate.addingMonths(-1)
+        case .quarterly: prevRef = referenceDate.addingMonths(-3)
+        case .custom: prevRef = referenceDate.addingDays(-1)
         case .daily: prevRef = referenceDate.addingDays(-1)
         }
         let prev = periodRange(periodType: periodType, referenceDate: prevRef)
@@ -171,11 +188,14 @@ struct MemoryInsightContextBuilder {
         var topCategories: [CategoryAmountSummary] = []
         var dailyExpenses: [DailyAmountSummary] = []
         var previousPeriodExpense: Decimal = 0
+        var semanticSummary: FinanceSemanticSummary?
 
         let endDate = end.addingDays(1)
 
         do {
             let transactions = try await financeRepo.getTransactions(from: start, to: endDate)
+            let expenses = transactions.filter { $0.type == "expense" }
+            let incomes = transactions.filter { $0.type == "income" }
             for t in transactions {
                 if t.type == "expense" {
                     totalExpense += (t.amount as NSDecimalNumber).decimalValue
@@ -203,6 +223,18 @@ struct MemoryInsightContextBuilder {
                     amount: $0.amount
                 )
             }
+
+            let topLevelCategories = try await financeRepo.getTopLevelCategories(by: .expense)
+            let topLevelNameMap = Dictionary(
+                uniqueKeysWithValues: topLevelCategories.map { ($0.id, $0.name) }
+            )
+            let dayCount = max(Calendar.current.dateComponents([.day], from: start, to: endDate).day ?? 1, 1)
+            semanticSummary = Self.buildFinanceSemanticSummary(
+                expenses: expenses,
+                incomes: incomes,
+                topLevelNameMap: topLevelNameMap,
+                dayCount: dayCount
+            )
         } catch {
             Self.logger.error("构建财务上下文失败：\(error.localizedDescription)")
         }
@@ -318,9 +350,124 @@ struct MemoryInsightContextBuilder {
             previousPeriodExpense: previousPeriodExpense,
             budgetPerformance: budgetSummary,
             anomalyDescriptions: textAnomalies,
-            weekdayWeekendSpending: weekdayWeekend
+            weekdayWeekendSpending: weekdayWeekend,
+            semanticSummary: semanticSummary
         )
         return (context, structuredAnomalies)
+    }
+
+    private static func buildFinanceSemanticSummary(
+        expenses: [Transaction],
+        incomes: [Transaction],
+        topLevelNameMap: [UUID: String],
+        dayCount: Int
+    ) -> FinanceSemanticSummary {
+        var fixedMap: [String: Decimal] = [:]
+        var fixedTotal: Decimal = 0
+        var transportTransactions: [Transaction] = []
+
+        for tx in expenses {
+            let parentName = parentCategoryName(for: tx.category, topLevelNameMap: topLevelNameMap)
+            if isFixedNecessaryExpense(categoryName: tx.category.name, parentName: parentName) {
+                fixedMap[tx.category.name, default: 0] += tx.amount.decimalValue
+                fixedTotal += tx.amount.decimalValue
+            }
+            if isTransportExpense(categoryName: tx.category.name, parentName: parentName) {
+                transportTransactions.append(tx)
+            }
+        }
+
+        let totalExpense = expenses.reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+        let fixedCategories = fixedMap
+            .sorted { $0.value > $1.value }
+            .map { name, amount in
+                let percentage = totalExpense > 0
+                    ? Double(truncating: (amount / totalExpense * 100) as NSDecimalNumber)
+                    : 0
+                return FinanceCategoryItem(categoryName: name, amount: amount, percentage: percentage)
+            }
+
+        return FinanceSemanticSummary(
+            fixedNecessaryExpenseTotal: fixedTotal,
+            actionableExpenseTotal: max(totalExpense - fixedTotal, 0),
+            fixedNecessaryCategories: fixedCategories,
+            transport: buildTransportSummary(transactions: transportTransactions),
+            incomeCadenceHint: buildIncomeCadenceHint(incomes: incomes, dayCount: dayCount)
+        )
+    }
+
+    private static func buildTransportSummary(transactions: [Transaction]) -> TransportSpendingSummary? {
+        guard !transactions.isEmpty else { return nil }
+
+        var taxiAmount: Decimal = 0
+        var taxiCount = 0
+        var publicTransitAmount: Decimal = 0
+        var publicTransitCount = 0
+        var longDistanceAmount: Decimal = 0
+        var longDistanceCount = 0
+        var totalAmount: Decimal = 0
+
+        for tx in transactions {
+            let amount = tx.amount.decimalValue
+            totalAmount += amount
+            switch tx.category.name {
+            case "打车":
+                taxiAmount += amount
+                taxiCount += 1
+            case "地铁", "公交", "单车":
+                publicTransitAmount += amount
+                publicTransitCount += 1
+            case "火车", "机票", "旅行":
+                longDistanceAmount += amount
+                longDistanceCount += 1
+            default:
+                break
+            }
+        }
+
+        let taxiRatio = totalAmount > 0
+            ? Double(truncating: (taxiAmount / totalAmount * 100) as NSDecimalNumber)
+            : nil
+
+        return TransportSpendingSummary(
+            totalAmount: totalAmount,
+            transactionCount: transactions.count,
+            taxiAmount: taxiAmount,
+            taxiCount: taxiCount,
+            publicTransitAmount: publicTransitAmount,
+            publicTransitCount: publicTransitCount,
+            longDistanceAmount: longDistanceAmount,
+            longDistanceCount: longDistanceCount,
+            taxiAmountRatio: taxiRatio,
+            analysisHint: "交通支出应优先看打车/公共交通/长途的结构与频率，不要只用是否存在单笔大额来判断。"
+        )
+    }
+
+    private static func buildIncomeCadenceHint(incomes: [Transaction], dayCount: Int) -> String? {
+        guard dayCount <= 14 else { return nil }
+        let stableIncomeNames: Set<String> = ["工资", "奖金", "兼职", "报销", "房租收入", "公积金"]
+        let hasStableIncome = incomes.contains { stableIncomeNames.contains($0.category.name) }
+        if hasStableIncome {
+            return "当前是短周期分析；工资/奖金/报销等收入可能低频发生，周收入不能直接代表收支失衡，应结合月度或滚动30天判断。"
+        }
+        return "当前是短周期分析；若用户是固定工资型收入，本周期收入低不应直接解读为收支失衡。"
+    }
+
+    private static func parentCategoryName(for category: Category, topLevelNameMap: [UUID: String]) -> String {
+        if category.isTopLevel { return category.name }
+        if let parentId = category.parentId, let parentName = topLevelNameMap[parentId] {
+            return parentName
+        }
+        return category.name
+    }
+
+    private static func isFixedNecessaryExpense(categoryName: String, parentName: String) -> Bool {
+        let fixedNames: Set<String> = ["房租", "房贷", "物业", "保险"]
+        return fixedNames.contains(categoryName) || (parentName == "居住" && fixedNames.contains(categoryName))
+    }
+
+    private static func isTransportExpense(categoryName: String, parentName: String) -> Bool {
+        parentName == "交通" || ["地铁", "打车", "公交", "单车", "加油", "停车", "火车", "机票", "旅行", "过路费"].contains(categoryName)
     }
 
     // MARK: - Habits
@@ -420,9 +567,9 @@ struct MemoryInsightContextBuilder {
 
     private func buildTaskContext(start: Date, end: Date) -> (context: MemoryInsightTaskContext, anomalies: [AnomalyObservation]) {
         let context = CoreDataStack.shared.viewContext
+        let endExclusive = end.addingDays(1)
 
         var completedCount = 0
-        var overdueCount = 0
         var importantCompletedTasks: [String] = []
 
         do {
@@ -430,7 +577,7 @@ struct MemoryInsightContextBuilder {
             request.predicate = NSPredicate(
                 format: "completed == YES AND completedAt >= %@ AND completedAt < %@ AND deletedFlag == NO AND archived == NO",
                 start as CVarArg,
-                end.addingDays(1) as CVarArg
+                endExclusive as CVarArg
             )
             let completedTasks = try context.fetch(request)
             completedCount = completedTasks.count
@@ -440,30 +587,27 @@ struct MemoryInsightContextBuilder {
                 .map { $0.title }
                 .prefix(5)
                 .map { String($0) }
-
-            let overdue = todoRepo.getOverdueTasks()
-            overdueCount = overdue.count
         } catch {
             Self.logger.error("构建任务上下文失败：\(error.localizedDescription)")
         }
 
-        let stats = todoRepo.getCompletionStats(from: start, to: end)
-        let trend = todoRepo.getCompletionTrend(from: start, to: end)
+        let stats = todoRepo.getCompletionStats(from: start, to: endExclusive)
+        let trend = todoRepo.getCompletionTrend(from: start, to: endExclusive)
 
-        let totalActive = todoRepo.activeTasks.count
+        let totalActive = stats.activeBacklogCount
 
         // 任务堆积检测
         var taskAnomalies: [AnomalyObservation] = []
-        if totalActive >= 10 && overdueCount >= 3 {
-            let severity: AnomalySeverity = overdueCount > 5 ? .critical : .warning
+        if totalActive >= 10 && stats.carriedOverBacklogCount >= 3 {
+            let severity: AnomalySeverity = stats.carriedOverBacklogCount > 5 ? .critical : .warning
             taskAnomalies.append(AnomalyObservation(
                 type: .taskOverload,
                 severity: severity,
                 scopeKey: "task:overdue",
                 title: "任务堆积",
-                summary: "\(totalActive) 个活跃任务中 \(overdueCount) 个已逾期",
-                evidence: ["活跃任务：\(totalActive)", "逾期任务：\(overdueCount)"],
-                metricValue: Double(overdueCount),
+                summary: "\(totalActive) 个未完成任务中 \(stats.carriedOverBacklogCount) 个是历史积压",
+                evidence: ["未完成任务：\(totalActive)", "历史积压：\(stats.carriedOverBacklogCount)"],
+                metricValue: Double(stats.carriedOverBacklogCount),
                 baselineValue: nil,
                 ratio: nil
             ))
@@ -471,12 +615,19 @@ struct MemoryInsightContextBuilder {
 
         let taskContext = MemoryInsightTaskContext(
             completedCount: completedCount,
-            overdueCount: overdueCount,
+            overdueCount: stats.overdueInPeriod,
             importantCompletedTasks: importantCompletedTasks,
-            totalCount: totalActive,
+            totalCount: stats.dueInPeriod,
             completionRate: stats.completionRate,
             highPriorityCompletionRate: stats.highPriorityCompletionRate,
-            dailyCompletionTrend: trend
+            dailyCompletionTrend: trend,
+            dueInPeriod: stats.dueInPeriod,
+            createdInPeriod: stats.createdInPeriod,
+            completedInPeriod: stats.completedInPeriod,
+            newOverdueInPeriod: stats.overdueInPeriod,
+            carriedOverBacklogCount: stats.carriedOverBacklogCount,
+            activeBacklogCount: stats.activeBacklogCount,
+            periodCompletionScopeNote: "完成率只看本周期到期任务；历史积压仅作为 backlog 背景，不应写成“本周任务全部没完成”。"
         )
         return (taskContext, taskAnomalies)
     }
@@ -813,7 +964,7 @@ struct MemoryInsightContextBuilder {
             finance: MemoryInsightFinanceContext(
                 totalExpense: 0, totalIncome: 0, topCategories: [], dailyExpenses: [],
                 previousPeriodExpense: 0, budgetPerformance: nil, anomalyDescriptions: [],
-                weekdayWeekendSpending: nil
+                weekdayWeekendSpending: nil, semanticSummary: nil
             ),
             habits: MemoryInsightHabitContext(
                 activeHabitCount: 0, completedRecordCount: 0,
@@ -824,7 +975,11 @@ struct MemoryInsightContextBuilder {
             tasks: MemoryInsightTaskContext(
                 completedCount: 0, overdueCount: 0, importantCompletedTasks: [],
                 totalCount: 0, completionRate: 0,
-                highPriorityCompletionRate: nil, dailyCompletionTrend: []
+                highPriorityCompletionRate: nil, dailyCompletionTrend: [],
+                dueInPeriod: 0, createdInPeriod: 0, completedInPeriod: 0,
+                newOverdueInPeriod: 0, carriedOverBacklogCount: 0,
+                activeBacklogCount: 0,
+                periodCompletionScopeNote: "完成率只看本周期到期任务；历史积压单独统计。"
             ),
             thoughts: MemoryInsightThoughtContext(
                 totalCount: 0, recentSnippets: [],
@@ -882,6 +1037,7 @@ struct MemoryInsightContextBuilder {
         case .daily: budget = dailyTokenBudget
         case .weekly: budget = weeklyTokenBudget
         case .monthly: budget = monthlyTokenBudget
+        case .quarterly, .custom: budget = annualTokenBudget
         }
 
         var current = context
@@ -920,7 +1076,8 @@ struct MemoryInsightContextBuilder {
                     previousPeriodExpense: current.finance.previousPeriodExpense,
                     budgetPerformance: current.finance.budgetPerformance,
                     anomalyDescriptions: current.finance.anomalyDescriptions,
-                    weekdayWeekendSpending: current.finance.weekdayWeekendSpending
+                    weekdayWeekendSpending: current.finance.weekdayWeekendSpending,
+                    semanticSummary: current.finance.semanticSummary
                 )
                 current = rebuildContext(from: current, finance: truncated)
             }
@@ -932,7 +1089,14 @@ struct MemoryInsightContextBuilder {
                     totalCount: current.tasks.totalCount,
                     completionRate: current.tasks.completionRate,
                     highPriorityCompletionRate: current.tasks.highPriorityCompletionRate,
-                    dailyCompletionTrend: Array(current.tasks.dailyCompletionTrend.suffix(14))
+                    dailyCompletionTrend: Array(current.tasks.dailyCompletionTrend.suffix(14)),
+                    dueInPeriod: current.tasks.dueInPeriod,
+                    createdInPeriod: current.tasks.createdInPeriod,
+                    completedInPeriod: current.tasks.completedInPeriod,
+                    newOverdueInPeriod: current.tasks.newOverdueInPeriod,
+                    carriedOverBacklogCount: current.tasks.carriedOverBacklogCount,
+                    activeBacklogCount: current.tasks.activeBacklogCount,
+                    periodCompletionScopeNote: current.tasks.periodCompletionScopeNote
                 )
                 current = rebuildContext(from: current, tasks: truncated)
             }

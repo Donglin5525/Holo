@@ -59,6 +59,10 @@ struct FinanceAnalysisContextBuilder {
                 to: endExclusive,
                 type: .expense
             )
+            let topLevelCategories = try await repo.getTopLevelCategories(by: .expense)
+            let topLevelNameMap = Dictionary(
+                uniqueKeysWithValues: topLevelCategories.map { ($0.id, $0.name) }
+            )
             let topCategories = categoryAggregations.prefix(5).map { agg in
                 FinanceCategoryItem(
                     categoryName: agg.category.name,
@@ -92,7 +96,6 @@ struct FinanceAnalysisContextBuilder {
                     let compExpenses = compTransactions.filter { $0.transactionType == .expense }
                     previousPeriodExpense = compExpenses.reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
 
-                    let topLevelCategories = try await repo.getTopLevelCategories(by: .expense)
                     categoryTrends = buildCategoryTrends(
                         currentCategoryAggregations: categoryAggregations,
                         comparisonExpenses: compExpenses,
@@ -123,6 +126,13 @@ struct FinanceAnalysisContextBuilder {
                 calendar: calendar
             )
 
+            let semanticSummary = buildSemanticSummary(
+                expenses: expenses,
+                incomes: incomes,
+                topLevelNameMap: topLevelNameMap,
+                dayCount: dayCount
+            )
+
             return FinanceAnalysisContext(
                 totalExpense: totalExpense,
                 totalIncome: totalIncome,
@@ -135,13 +145,130 @@ struct FinanceAnalysisContextBuilder {
                 budgetPerformance: budgetPerformance,
                 subCategoryDetails: subCategoryDetails.isEmpty ? nil : subCategoryDetails,
                 categoryTrends: categoryTrends,
-                spendingPatterns: spendingPatterns
+                spendingPatterns: spendingPatterns,
+                semanticSummary: semanticSummary
             )
 
         } catch {
             logger.error("构建财务分析上下文失败: \(error.localizedDescription)")
             return nil
         }
+    }
+
+    // MARK: - Semantic Summary
+
+    private func buildSemanticSummary(
+        expenses: [Transaction],
+        incomes: [Transaction],
+        topLevelNameMap: [UUID: String],
+        dayCount: Int
+    ) -> FinanceSemanticSummary {
+        var fixedMap: [String: Decimal] = [:]
+        var fixedTotal: Decimal = 0
+        var transportTransactions: [Transaction] = []
+
+        for tx in expenses {
+            let parentName = parentCategoryName(for: tx.category, topLevelNameMap: topLevelNameMap)
+            if isFixedNecessaryExpense(categoryName: tx.category.name, parentName: parentName) {
+                fixedMap[tx.category.name, default: 0] += tx.amount.decimalValue
+                fixedTotal += tx.amount.decimalValue
+            }
+            if isTransportExpense(categoryName: tx.category.name, parentName: parentName) {
+                transportTransactions.append(tx)
+            }
+        }
+
+        let totalExpense = expenses.reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+        let fixedCategories = fixedMap
+            .sorted { $0.value > $1.value }
+            .map { name, amount in
+                let percentage = totalExpense > 0
+                    ? Double(truncating: (amount / totalExpense * 100) as NSDecimalNumber)
+                    : 0
+                return FinanceCategoryItem(categoryName: name, amount: amount, percentage: percentage)
+            }
+
+        return FinanceSemanticSummary(
+            fixedNecessaryExpenseTotal: fixedTotal,
+            actionableExpenseTotal: max(totalExpense - fixedTotal, 0),
+            fixedNecessaryCategories: fixedCategories,
+            transport: buildTransportSummary(transactions: transportTransactions),
+            incomeCadenceHint: buildIncomeCadenceHint(incomes: incomes, dayCount: dayCount)
+        )
+    }
+
+    private func buildTransportSummary(transactions: [Transaction]) -> TransportSpendingSummary? {
+        guard !transactions.isEmpty else { return nil }
+
+        var taxiAmount: Decimal = 0
+        var taxiCount = 0
+        var publicTransitAmount: Decimal = 0
+        var publicTransitCount = 0
+        var longDistanceAmount: Decimal = 0
+        var longDistanceCount = 0
+        var totalAmount: Decimal = 0
+
+        for tx in transactions {
+            let amount = tx.amount.decimalValue
+            totalAmount += amount
+            switch tx.category.name {
+            case "打车":
+                taxiAmount += amount
+                taxiCount += 1
+            case "地铁", "公交", "单车":
+                publicTransitAmount += amount
+                publicTransitCount += 1
+            case "火车", "机票", "旅行":
+                longDistanceAmount += amount
+                longDistanceCount += 1
+            default:
+                break
+            }
+        }
+
+        let taxiRatio = totalAmount > 0
+            ? Double(truncating: (taxiAmount / totalAmount * 100) as NSDecimalNumber)
+            : nil
+
+        return TransportSpendingSummary(
+            totalAmount: totalAmount,
+            transactionCount: transactions.count,
+            taxiAmount: taxiAmount,
+            taxiCount: taxiCount,
+            publicTransitAmount: publicTransitAmount,
+            publicTransitCount: publicTransitCount,
+            longDistanceAmount: longDistanceAmount,
+            longDistanceCount: longDistanceCount,
+            taxiAmountRatio: taxiRatio,
+            analysisHint: "交通支出应优先看打车/公共交通/长途的结构与频率，不要只用是否存在单笔大额来判断。"
+        )
+    }
+
+    private func buildIncomeCadenceHint(incomes: [Transaction], dayCount: Int) -> String? {
+        guard dayCount <= 14 else { return nil }
+        let stableIncomeNames: Set<String> = ["工资", "奖金", "兼职", "报销", "房租收入", "公积金"]
+        let hasStableIncome = incomes.contains { stableIncomeNames.contains($0.category.name) }
+        if hasStableIncome {
+            return "当前是短周期分析；工资/奖金/报销等收入可能低频发生，周收入不能直接代表收支失衡，应结合月度或滚动30天判断。"
+        }
+        return "当前是短周期分析；若用户是固定工资型收入，本周期收入低不应直接解读为收支失衡。"
+    }
+
+    private func parentCategoryName(for category: Category, topLevelNameMap: [UUID: String]) -> String {
+        if category.isTopLevel { return category.name }
+        if let parentId = category.parentId, let parentName = topLevelNameMap[parentId] {
+            return parentName
+        }
+        return category.name
+    }
+
+    private func isFixedNecessaryExpense(categoryName: String, parentName: String) -> Bool {
+        let fixedNames: Set<String> = ["房租", "房贷", "物业", "保险"]
+        return fixedNames.contains(categoryName) || (parentName == "居住" && fixedNames.contains(categoryName))
+    }
+
+    private func isTransportExpense(categoryName: String, parentName: String) -> Bool {
+        parentName == "交通" || ["地铁", "打车", "公交", "单车", "加油", "停车", "火车", "机票", "旅行", "过路费"].contains(categoryName)
     }
 
     // MARK: - Monthly Breakdown

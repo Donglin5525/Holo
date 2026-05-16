@@ -9,6 +9,14 @@
 import Foundation
 import CoreData
 
+struct FinanceCategoryCandidateMatch: Equatable {
+    let type: TransactionType
+    let primaryCategory: String
+    let subCategory: String
+    let confidence: Double
+    let matchReason: String
+}
+
 // MARK: - CategoryMatcherService
 
 /// 分类智能匹配服务（单例）
@@ -127,6 +135,78 @@ class CategoryMatcherService {
             isManuallyModified: false,
             primaryCategoryMatched: false
         )
+    }
+
+    func matchCandidate(
+        _ candidate: String,
+        type: TransactionType,
+        catalog: FinanceCategoryCatalog
+    ) -> FinanceCategoryCandidateMatch? {
+        let normalized = candidate.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalized.isEmpty else { return nil }
+
+        for row in catalog.flattenedRows where row.type == type {
+            if row.subCategory.lowercased() == normalized {
+                return FinanceCategoryCandidateMatch(
+                    type: type,
+                    primaryCategory: row.primaryCategory,
+                    subCategory: row.subCategory,
+                    confidence: 1.0,
+                    matchReason: "exact_subcategory"
+                )
+            }
+
+            if row.aliases.map({ $0.lowercased() }).contains(normalized) {
+                return FinanceCategoryCandidateMatch(
+                    type: type,
+                    primaryCategory: row.primaryCategory,
+                    subCategory: row.subCategory,
+                    confidence: 1.0,
+                    matchReason: "alias"
+                )
+            }
+        }
+
+        return nil
+    }
+
+    func matchExistingCategoryByCandidate(
+        _ candidate: String,
+        primaryCategory: String,
+        type: TransactionType,
+        categories: [Category]
+    ) -> Category? {
+        let normalizedCandidate = candidate.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        let normalizedPrimary = primaryCategory.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !normalizedCandidate.isEmpty else { return nil }
+
+        if !normalizedPrimary.isEmpty {
+            let result = matchSingle(
+                primaryCategory: primaryCategory,
+                subCategory: candidate,
+                type: type,
+                categories: categories
+            )
+            return result.matchedCategory
+        }
+
+        let subMatches = categories.filter {
+            $0.isSubCategory &&
+            $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedCandidate
+        }
+        if subMatches.count == 1 {
+            return subMatches[0]
+        }
+
+        let topLevelMatches = categories.filter {
+            $0.isTopLevel &&
+            $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedCandidate
+        }
+        if topLevelMatches.count == 1 {
+            return topLevelMatches[0]
+        }
+
+        return nil
     }
 
     // MARK: - 私有方法

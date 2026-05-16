@@ -826,4 +826,7 @@ struct TaskPeriodStats: Codable, Equatable {
     let overdueInPeriod: Int
     let completionRate: Double
     let highPriorityCompletionRate: Double?
+    let createdInPeriod: Int
+    let carriedOverBacklogCount: Int
+    let activeBacklogCount: Int
 }

@@ -5,6 +5,10 @@
 //  分类同义词映射配置
 //  用于导入账单时智能匹配分类名称
 //
+//  Legacy note:
+//  新记账意图识别的科目语义主源已迁移到后端 finance category catalog。
+//  本文件暂时保留给账单导入等旧逻辑使用，后续稳定后再收敛。
+//
 
 import Foundation
 
