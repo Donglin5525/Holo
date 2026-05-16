@@ -69,10 +69,6 @@ final class HoloBackendAIProvider: AIProvider {
             responseText: content
         )
 
-        // DEBUG: 打印 LLM 原始返回到 Xcode Console
-        print("🔍 [HOLO-DEBUG] 用户输入: \(input)")
-        print("🔍 [HOLO-DEBUG] LLM 返回: \(content)")
-
         return parseBatchFromJSON(content)
     }
 
