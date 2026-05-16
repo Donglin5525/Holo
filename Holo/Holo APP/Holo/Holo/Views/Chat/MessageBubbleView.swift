@@ -17,6 +17,7 @@ struct MessageBubbleView: View {
     var onViewLog: ((ChatMessageViewData) -> Void)? = nil
     var onCompactAnalysisTap: (() -> Void)? = nil
     var onRetry: (() -> Void)? = nil
+    var onCardDelete: ((ChatMessageViewData, EntityCategory, String) -> Void)? = nil
 
     private var displayText: String {
         streamingText ?? message.content
@@ -116,6 +117,15 @@ struct MessageBubbleView: View {
             }
         }
         .contextMenu {
+            // 删除记录（仅有关联实体且未删除的卡片消息）
+            if !isUser, let info = firstDeletableCard {
+                Button(role: .destructive) {
+                    onCardDelete?(message, info.category, info.description)
+                } label: {
+                    Label("删除记录", systemImage: "trash")
+                }
+            }
+            // 查看日志（保持原有）
             if !isUser, message.metadataState == .loaded, message.rawLog != nil {
                 Button {
                     onViewLog?(message)
@@ -127,6 +137,28 @@ struct MessageBubbleView: View {
     }
 
     // MARK: - Avatars
+
+    /// 获取第一个可删除的卡片信息（用于上下文菜单）
+    private var firstDeletableCard: (category: EntityCategory, description: String)? {
+        let allCards = executionCards.isEmpty ? (cardData.map { [$0] } ?? []) : executionCards
+
+        for card in allCards {
+            switch card {
+            case .transaction(let data):
+                if message.hasLinkedEntity(for: .finance) && !message.isEntityDeleted(for: .finance) {
+                    let desc = "\(data.displayTitle) ¥\(data.amount)"
+                    return (.finance, desc)
+                }
+            case .task(let data):
+                if message.hasLinkedEntity(for: .task) && !message.isEntityDeleted(for: .task) {
+                    return (.task, "任务「\(data.title)」")
+                }
+            default:
+                break
+            }
+        }
+        return nil
+    }
 
     private var aiAvatar: some View {
         Circle()
@@ -242,11 +274,11 @@ struct MessageBubbleView: View {
     private func cardView(for data: ChatCardData) -> some View {
         switch data {
         case .transaction(let txData):
-            TransactionChatCard(data: txData) {
+            TransactionChatCard(data: txData, isDeleted: message.isEntityDeleted(for: .finance)) {
                 onCardTap?(message, data)
             }
         case .task(let taskData):
-            TaskChatCard(data: taskData) {
+            TaskChatCard(data: taskData, isDeleted: message.isEntityDeleted(for: .task)) {
                 onCardTap?(message, data)
             }
         case .habitCheckIn(let habitData):

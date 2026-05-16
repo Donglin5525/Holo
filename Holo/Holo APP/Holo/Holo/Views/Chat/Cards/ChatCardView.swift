@@ -14,15 +14,17 @@ struct ChatCardView<Content: View>: View {
 
     let content: Content
     var onTap: (() -> Void)?
+    let isDeleted: Bool
 
-    init(onTap: (() -> Void)? = nil, @ViewBuilder content: () -> Content) {
+    init(isDeleted: Bool = false, onTap: (() -> Void)? = nil, @ViewBuilder content: () -> Content) {
+        self.isDeleted = isDeleted
         self.onTap = onTap
         self.content = content()
     }
 
     var body: some View {
         Button {
-            onTap?()
+            if !isDeleted { onTap?() }
         } label: {
             VStack(alignment: .leading, spacing: 12) {
                 content
@@ -35,8 +37,20 @@ struct ChatCardView<Content: View>: View {
                     .stroke(Color.holoBorder, lineWidth: 1)
             )
             .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
+            .opacity(isDeleted ? 0.5 : 1.0)
+            .saturation(isDeleted ? 0 : 1)
+            .overlay(alignment: .bottomTrailing) {
+                if isDeleted {
+                    Text("已删除")
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.holoError)
+                        .padding(.horizontal, HoloSpacing.xs)
+                        .padding(.vertical, 2)
+                }
+            }
         }
         .buttonStyle(CardButtonStyle())
+        .disabled(isDeleted)
     }
 }
 

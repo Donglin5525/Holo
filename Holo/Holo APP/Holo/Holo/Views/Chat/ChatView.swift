@@ -16,6 +16,8 @@ struct ChatView: View {
     @State private var viewingLogMessage: ChatMessageViewData?
     @State private var didInitialScrollToBottom = false
     @State private var pendingVoiceTranscriptToSend: String?
+    @State private var pendingDelete: PendingCardDelete?
+    @State private var showDeleteConfirmation = false
 
     /// 外部传入的预填文本（如从记忆长廊"继续问AI"跳转）
     var prefillText: String? = nil
@@ -52,6 +54,22 @@ struct ChatView: View {
         .fullScreenCover(item: $viewingLogMessage) { message in
             if let log = message.rawLog {
                 ChatLogView(log: log)
+            }
+        }
+        .confirmationDialog(
+            "删除确认",
+            isPresented: $showDeleteConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("删除", role: .destructive) {
+                executePendingDelete()
+            }
+            Button("取消", role: .cancel) {
+                pendingDelete = nil
+            }
+        } message: {
+            if let pending = pendingDelete {
+                Text("确定删除\(pending.description)吗？此操作不可撤销。")
             }
         }
     }
@@ -198,6 +216,15 @@ struct ChatView: View {
                             },
                             onRetry: {
                                 Task { await viewModel.retryMessage(message) }
+                            },
+                            onCardDelete: { msg, category, description in
+                                guard let entityId = msg.resolveLinkedEntityId(for: category) else { return }
+                                pendingDelete = PendingCardDelete(
+                                    category: category,
+                                    entityId: entityId,
+                                    description: description
+                                )
+                                showDeleteConfirmation = true
                             }
                         )
                         .id(message.id)
@@ -306,6 +333,32 @@ struct ChatView: View {
 
     // MARK: - Card Tap Navigation
 
+    // MARK: - Card Delete
+
+    private func executePendingDelete() {
+        guard let pending = pendingDelete else { return }
+        let category = pending.category
+        let entityId = pending.entityId
+        pendingDelete = nil
+
+        switch category {
+        case .finance:
+            if let transaction = FinanceRepository.shared.findTransaction(by: entityId) {
+                Task {
+                    try? await FinanceRepository.shared.deleteTransaction(transaction)
+                }
+            }
+        case .task:
+            if let task = TodoRepository.shared.findTask(by: entityId) {
+                try? TodoRepository.shared.deleteTask(task)
+            }
+        default:
+            break
+        }
+    }
+
+    // MARK: - Original Card Tap Navigation
+
     private func handleCardTap(message: ChatMessageViewData, cardData: ChatCardData) {
         switch cardData {
         case .transaction:
@@ -378,4 +431,11 @@ private enum ChatSheet: Identifiable {
             return "voiceInput"
         }
     }
+}
+
+/// 待删除卡片的信息（用于确认弹窗）
+private struct PendingCardDelete {
+    let category: EntityCategory
+    let entityId: UUID
+    let description: String
 }

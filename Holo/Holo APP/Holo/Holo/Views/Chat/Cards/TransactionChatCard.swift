@@ -10,10 +10,11 @@ import SwiftUI
 struct TransactionChatCard: View {
 
     let data: TransactionCardData
+    var isDeleted: Bool = false
     var onTap: (() -> Void)?
 
     var body: some View {
-        ChatCardView(onTap: onTap) {
+        ChatCardView(isDeleted: isDeleted, onTap: onTap) {
             // 头部：分类图标 + 标题
             CardHeaderView(
                 icon: data.categoryIcon,
@@ -27,6 +28,7 @@ struct TransactionChatCard: View {
             Text(formattedAmount)
                 .font(.holoHeading)
                 .foregroundColor(data.isExpense ? .holoError : .holoSuccess)
+                .strikethrough(isDeleted)
 
             // 分类路径
             if let path = data.categoryPath {
@@ -34,6 +36,7 @@ struct TransactionChatCard: View {
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)
                     .lineLimit(1)
+                    .strikethrough(isDeleted)
             }
 
             // 底部：时间 + 操作入口

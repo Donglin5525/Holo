@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import CoreData
 
 // MARK: - EntityCategory
 
@@ -245,6 +246,35 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
     /// 检查是否存在关联实体
     nonisolated func hasLinkedEntity(for category: EntityCategory) -> Bool {
         resolveLinkedEntityId(for: category) != nil
+    }
+
+    // MARK: - Entity Deletion State
+
+    /// 检查关联实体是否已被删除
+    /// - Transaction: 硬删除（不存在即为已删除）
+    /// - TodoTask: 软删除（deletedFlag == true 即为已删除）
+    nonisolated func isEntityDeleted(for category: EntityCategory) -> Bool {
+        guard let entityId = resolveLinkedEntityId(for: category) else { return false }
+        return !Self.entityExists(entityId, category: category)
+    }
+
+    /// 检查指定实体是否存在（且未被软删除）
+    nonisolated private static func entityExists(_ id: UUID, category: EntityCategory) -> Bool {
+        let context = CoreDataStack.shared.viewContext
+        switch category {
+        case .finance:
+            let request = Transaction.fetchRequest()
+            request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            request.fetchLimit = 1
+            return (try? context.count(for: request)) ?? 0 > 0
+        case .task:
+            let request = TodoTask.fetchRequest()
+            request.predicate = NSPredicate(format: "id == %@ AND deletedFlag == NO", id as CVarArg)
+            request.fetchLimit = 1
+            return (try? context.count(for: request)) ?? 0 > 0
+        default:
+            return true
+        }
     }
 
     // MARK: - DTO

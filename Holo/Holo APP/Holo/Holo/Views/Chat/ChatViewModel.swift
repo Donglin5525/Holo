@@ -8,6 +8,7 @@
 
 import Foundation
 import Combine
+import CoreData
 import os.log
 
 @MainActor
@@ -43,10 +44,16 @@ final class ChatViewModel: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var streamingWatchdogTask: Task<Void, Never>?
     private let usesInjectedProvider: Bool
+    private var coreDataObserver: NSObjectProtocol?
 
     // MARK: - Init
 
     /// init 不做任何 I/O 操作，避免 Core Data / Keychain 阻塞主线程
+    deinit {
+        if let observer = coreDataObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
+    }
     init(provider: AIProvider? = nil, coordinator: ConversationCoordinator? = nil) {
         self.usesInjectedProvider = provider != nil
         self.provider = provider ?? HoloBackendEnvironment.makeDefaultProvider()
@@ -174,6 +181,8 @@ final class ChatViewModel: ObservableObject {
                 self?.hasEarlierSessions = value
             }
             .store(in: &cancellables)
+
+        startObservingCoreDataChanges()
     }
 
     private func syncHasEarlierSessions() {
@@ -398,6 +407,73 @@ final class ChatViewModel: ObservableObject {
             self.isStreaming = false
             self.streamingText = ""
             self.errorMessage = "AI 响应超时"
+        }
+    }
+
+    // MARK: - Core Data Change Observation
+
+    /// 监听 CoreData 实体变更（删除/软删除），刷新受影响的卡片
+    private func startObservingCoreDataChanges() {
+        guard coreDataObserver == nil else { return }
+        let context = CoreDataStack.shared.viewContext
+
+        coreDataObserver = NotificationCenter.default.addObserver(
+            forName: NSNotification.Name.NSManagedObjectContextObjectsDidChange,
+            object: context,
+            queue: .main
+        ) { [weak self] notification in
+            self?.handleCoreDataChange(notification)
+        }
+    }
+
+    private func stopObservingCoreDataChanges() {
+        if let observer = coreDataObserver {
+            NotificationCenter.default.removeObserver(observer)
+            coreDataObserver = nil
+        }
+    }
+
+    private func handleCoreDataChange(_ notification: Notification) {
+        guard let userInfo = notification.userInfo else { return }
+
+        var affectedIds: Set<UUID> = []
+
+        // 硬删除：Transaction、TodoTask 永久删除
+        if let deleted = userInfo[NSDeletedObjectsKey] as? Set<NSManagedObject> {
+            for object in deleted {
+                if let transaction = object as? Transaction {
+                    affectedIds.insert(transaction.id)
+                }
+                if let task = object as? TodoTask {
+                    affectedIds.insert(task.id)
+                }
+            }
+        }
+
+        // 软删除/更新：TodoTask deletedFlag 变更
+        if let updated = userInfo[NSUpdatedObjectsKey] as? Set<NSManagedObject> {
+            for object in updated {
+                if let task = object as? TodoTask {
+                    affectedIds.insert(task.id)
+                }
+            }
+        }
+
+        guard !affectedIds.isEmpty else { return }
+
+        // 检查已加载消息中是否有匹配的关联实体
+        let hasAffectedMessages = messages.contains { message in
+            for category in [EntityCategory.finance, .task] {
+                if let entityId = message.resolveLinkedEntityId(for: category),
+                   affectedIds.contains(entityId) {
+                    return true
+                }
+            }
+            return false
+        }
+
+        if hasAffectedMessages {
+            objectWillChange.send()
         }
     }
 

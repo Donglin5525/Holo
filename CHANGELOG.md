@@ -4,6 +4,20 @@
 
 ---
 
+## [2026-05-16] HoloAI 聊天卡片双向删除
+
+### 新增
+- 支持在 HoloAI 聊天界面长按交易/任务卡片删除底层实体（上下文菜单 → 确认弹窗 → 执行删除）
+- 已删除卡片显示灰色 + 删除线 + 红色「已删除」标签，禁用点击跳转
+- 在财务/待办模块删除实体后，聊天卡片实时刷新为「已删除」状态（CoreData 通知驱动）
+
+### 变更
+- `ChatMessageViewData` 新增 `isEntityDeleted(for:)` 渲染时检查实体存在性
+- `ChatCardView` 新增 `isDeleted` 参数，统一处理已删除 UI
+- `ChatViewModel` 监听 `NSManagedObjectContextObjectsDidChange` 通知，自动刷新受影响卡片
+
+---
+
 ## [2026-05-16] 全局文本长按复制支持
 
 ### 修复

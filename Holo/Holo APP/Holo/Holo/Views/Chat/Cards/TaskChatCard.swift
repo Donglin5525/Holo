@@ -10,10 +10,11 @@ import SwiftUI
 struct TaskChatCard: View {
 
     let data: TaskCardData
+    var isDeleted: Bool = false
     var onTap: (() -> Void)?
 
     var body: some View {
-        ChatCardView(onTap: onTap) {
+        ChatCardView(isDeleted: isDeleted, onTap: onTap) {
             // 头部：图标 + 标题
             CardHeaderView(
                 icon: "checkmark.circle",
