@@ -110,6 +110,12 @@ struct GoalDraft: Codable, Equatable, Identifiable {
     var tasks: [GoalTaskDraft]
     var habits: [GoalHabitDraft]
     var missingInfoWarnings: [String]
+
+    var cardSummary: String {
+        let taskCount = tasks.filter(\.isSelected).count
+        let habitCount = habits.filter(\.isSelected).count
+        return "\(taskCount) 个任务 · \(habitCount) 个习惯"
+    }
 }
 
 struct GoalPlanningSession: Identifiable, Equatable {

@@ -224,6 +224,7 @@ struct ChatView: View {
                         MessageBubbleView(
                             message: message,
                             streamingText: viewModel.isStreaming && message.isStreaming ? viewModel.streamingText : nil,
+                            goalDraftForReview: viewModel.goalDraftForReview,
                             onIntentTagTap: { msg in
                                 handleIntentTagTap(msg)
                             },
@@ -237,6 +238,9 @@ struct ChatView: View {
                                 guard message.metadataState == .loaded,
                                       message.analysisContext != nil else { return }
                                 activeSheet = .analysisDetail(message)
+                            },
+                            onGoalDraftCardTap: {
+                                viewModel.showGoalDraftReview = true
                             },
                             onRetry: {
                                 Task { await viewModel.retryMessage(message) }

@@ -684,7 +684,13 @@ final class ChatViewModel: ObservableObject {
                 }
                 if let draft = result.draft {
                     goalDraftForReview = draft
-                    showGoalDraftReview = true
+                    let summary = "已根据你的需求生成了目标计划「\(draft.title)」\(draft.cardSummary)"
+                    _ = chatRepo.addMessage(
+                        role: "assistant",
+                        content: summary,
+                        parentMessageId: userMessageId,
+                        messageType: .goalPlanning
+                    )
                 }
             } catch {
                 errorMessage = error.localizedDescription
@@ -722,7 +728,13 @@ final class ChatViewModel: ObservableObject {
             }
             if let draft = result.draft {
                 goalDraftForReview = draft
-                showGoalDraftReview = true
+                let summary = "已根据你的需求生成了目标计划「\(draft.title)」\(draft.cardSummary)"
+                _ = chatRepo.addMessage(
+                    role: "assistant",
+                    content: summary,
+                    parentMessageId: userMessageId,
+                    messageType: .goalPlanning
+                )
             }
         } catch {
             errorMessage = error.localizedDescription
