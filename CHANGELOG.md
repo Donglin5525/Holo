@@ -23,6 +23,19 @@
 
 ---
 
+## [2026-05-17] 目标规划体验优化
+
+### 优化
+- 草稿生成后先显示 inline 聊天卡片（显示目标标题和任务/习惯数量），点击后才弹出编辑界面，避免突兀弹窗
+- GoalDraftReviewView 全面重写为 Holo 设计风格：卡片容器（holoCardBackground + 圆角 + 边框 + 阴影）、设计系统字体和间距、底部固定操作栏
+- 目标规划 Prompt 增加"我是 Holo"人格引导：分轮次追问策略、自然口语化语气、草案质量要求
+
+### 新增
+- GoalDraftReadyChatCard：聊天内嵌目标计划入口卡片，复用 ChatCardView 设计风格
+- GoalDraft.cardSummary：计算选中任务/习惯数量的摘要文本
+
+---
+
 ## [2026-05-17] 目标系统 v1
 
 ### 新增
