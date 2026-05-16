@@ -3,31 +3,32 @@
 //  Holo
 //
 //  健康主视图
-//  显示今日健康数据概览
 //
 
 import SwiftUI
 
 // MARK: - HealthView
 
-/// 健康主视图
 struct HealthView: View {
+    @Environment(\.dismiss) private var dismiss
     @StateObject private var repository = HealthRepository.shared
-    @State private var showPermissionView = false
     @State private var selectedMetric: HealthMetricType?
+    @State private var weeklySleepData: [DailyHealthData] = []
 
-    // MARK: - Body
+    private var snapshot: HealthDashboardSnapshot {
+        repository.dashboardSnapshot
+    }
 
     var body: some View {
         NavigationStack {
             Group {
-                if !repository.hasRequestedPermission {
+                if shouldShowPermissionView {
                     HealthPermissionView(
                         onAuthorize: requestPermission,
-                        onDismiss: { showPermissionView = false }
+                        onDismiss: { dismiss() }
                     )
-                } else if !repository.isAuthorized {
-                    unauthorizedView
+                } else if shouldShowUnavailableView {
+                    unavailableView
                 } else {
                     healthContent
                 }
@@ -35,159 +36,384 @@ struct HealthView: View {
             .navigationDestination(item: $selectedMetric) { metric in
                 HealthDetailView(type: metric)
             }
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        dismiss()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .semibold))
+                    }
+                    .foregroundColor(.holoTextSecondary)
+                }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        Task {
+                            await refreshAll()
+                        }
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 14, weight: .semibold))
+                    }
+                    .foregroundColor(.holoTextSecondary)
+                }
+            }
         }
         .task {
-            if repository.isAuthorized {
-                await repository.fetchTodayData()
-            }
+            await refreshAll()
         }
     }
 
-    // MARK: - Health Content
+    private var shouldShowPermissionView: Bool {
+        !repository.hasRequestedPermission && repository.dataSourceState == .notRequested
+    }
+
+    private var shouldShowUnavailableView: Bool {
+        repository.dataSourceState == .denied || repository.dataSourceState == .unavailable
+    }
 
     private var healthContent: some View {
         ScrollView(showsIndicators: false) {
-            VStack(spacing: HoloSpacing.lg) {
-                // 日期标题
-                dateHeaderView
-
-                // 三个圆环
-                ringsView
-
-                // 指标卡片
-                metricsSection
+            VStack(spacing: HoloSpacing.md) {
+                headerView
+                heroCard
+                metricSummaryRow
+                dataSourceCard
+                coreInsightCard
+                lifestyleInsightCard
+                weeklyTrendCard
             }
             .padding(HoloSpacing.md)
+        }
+        .refreshable {
+            await refreshAll()
         }
         .background(Color.holoBackground)
     }
 
-    // MARK: - Date Header
-
-    private var dateHeaderView: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 2) {
-                Text("今日健康")
-                    .font(.holoHeading)
+    private var headerView: some View {
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("健康")
+                    .font(.holoTitle)
                     .foregroundColor(.holoTextPrimary)
 
-                Text(formatDate(Date()))
+                Text(syncStatusText)
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)
             }
 
             Spacer()
         }
+        .padding(.top, HoloSpacing.sm)
     }
 
-    // MARK: - Rings View
+    private var heroCard: some View {
+        HStack(spacing: HoloSpacing.md) {
+            TripleHealthRingView(snapshot: snapshot)
 
-    private var ringsView: some View {
-        HStack(spacing: HoloSpacing.xl) {
-            HealthRingView(
-                progress: calculateProgress(value: repository.todaySteps, goal: HealthMetricType.steps.dailyGoal),
-                color: HealthMetricType.steps.color,
-                icon: HealthMetricType.steps.icon,
-                label: HealthMetricType.steps.rawValue
-            )
+            VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                Text(snapshot.statusTitle)
+                    .font(.holoHeading)
+                    .foregroundColor(.holoTextPrimary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-            HealthRingView(
-                progress: calculateProgress(value: repository.todaySleep, goal: HealthMetricType.sleep.dailyGoal),
-                color: HealthMetricType.sleep.color,
-                icon: HealthMetricType.sleep.icon,
-                label: HealthMetricType.sleep.rawValue
-            )
+                Text(snapshot.statusSubtitle)
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary)
+                    .lineSpacing(2)
 
-            HealthRingView(
-                progress: calculateProgress(value: repository.todayStandHours, goal: HealthMetricType.standHours.dailyGoal),
-                color: HealthMetricType.standHours.color,
-                icon: HealthMetricType.standHours.icon,
-                label: HealthMetricType.standHours.rawValue
-            )
+                Text(snapshot.ringBadgeText)
+                    .font(.holoLabel)
+                    .foregroundColor(.holoPrimary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.holoPrimary.opacity(0.12))
+                    .clipShape(Capsule())
+            }
+
+            Spacer(minLength: 0)
         }
-        .frame(maxWidth: .infinity)
-        .padding(.vertical, HoloSpacing.lg)
+        .padding(HoloSpacing.md)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.xl))
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.xl)
+                .stroke(Color.holoBorder, lineWidth: 1)
+        )
+        .shadow(color: HoloShadow.card, radius: 6, y: 2)
     }
 
-    // MARK: - Metrics Section
-
-    private var metricsSection: some View {
-        VStack(spacing: HoloSpacing.md) {
-            HealthMetricCard(
-                type: .steps,
-                value: repository.todaySteps,
-                goal: HealthMetricType.steps.dailyGoal
-            ) {
-                selectedMetric = .steps
-            }
-
-            HealthMetricCard(
-                type: .sleep,
-                value: repository.todaySleep,
-                goal: HealthMetricType.sleep.dailyGoal
-            ) {
-                selectedMetric = .sleep
-            }
-
-            HealthMetricCard(
-                type: .standHours,
-                value: repository.todayStandHours,
-                goal: HealthMetricType.standHours.dailyGoal
-            ) {
-                selectedMetric = .standHours
+    private var metricSummaryRow: some View {
+        HStack(spacing: HoloSpacing.sm) {
+            ForEach(snapshot.metrics) { metric in
+                Button {
+                    selectedMetric = metric.type
+                } label: {
+                    metricSummaryChip(metric)
+                }
+                .buttonStyle(.plain)
             }
         }
     }
 
-    // MARK: - Unauthorized View
+    private func metricSummaryChip(_ metric: HealthMetricSnapshot) -> some View {
+        VStack(alignment: .leading, spacing: 7) {
+            HStack {
+                Text(metric.title)
+                    .font(.holoLabel)
+                    .foregroundColor(.holoTextSecondary)
+                Spacer()
+                Image(systemName: metric.type.icon)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(metric.type.color)
+            }
 
-    private var unauthorizedView: some View {
-        VStack(spacing: HoloSpacing.lg) {
-            Image(systemName: "heart.slash.fill")
-                .font(.system(size: 48, weight: .light))
-                .foregroundColor(.holoTextSecondary.opacity(0.5))
-
-            Text("无法访问健康数据")
-                .font(.holoHeading)
+            Text(metric.valueText)
+                .font(.system(size: 18, weight: .bold, design: .rounded))
                 .foregroundColor(.holoTextPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.75)
 
-            Text("请在系统设置中允许 Holo 访问健康数据")
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
-                .multilineTextAlignment(.center)
-
-            Button("打开设置") {
-                if let url = URL(string: UIApplication.openSettingsURLString) {
-                    UIApplication.shared.open(url)
+            GeometryReader { proxy in
+                ZStack(alignment: .leading) {
+                    Capsule()
+                        .fill(Color.holoDivider)
+                    Capsule()
+                        .fill(metric.type.color)
+                        .frame(width: proxy.size.width * metric.progress)
                 }
             }
-            .font(.holoBody)
-            .foregroundColor(.holoPrimary)
+            .frame(height: 5)
+
+            Text(metric.targetText)
+                .font(.holoTinyLabel)
+                .foregroundColor(.holoTextSecondary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
+        .padding(12)
+        .frame(maxWidth: .infinity, minHeight: 104)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.lg)
+                .stroke(Color.holoBorder, lineWidth: 1)
+        )
+    }
+
+    private var dataSourceCard: some View {
+        HStack(spacing: HoloSpacing.md) {
+            ZStack {
+                RoundedRectangle(cornerRadius: HoloRadius.md)
+                    .fill(Color.holoTextPrimary)
+                    .frame(width: 42, height: 42)
+
+                Image(systemName: "apple.logo")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(.holoCardBackground)
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(repository.dataSourceState.title)
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextPrimary)
+
+                Text(repository.dataSourceState.subtitle)
+                    .font(.holoLabel)
+                    .foregroundColor(.holoTextSecondary)
+            }
+
+            Spacer()
+
+            Text(repository.dataSourceState.badgeText)
+                .font(.holoLabel)
+                .foregroundColor(repository.dataSourceState.badgeColor)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(repository.dataSourceState.badgeColor.opacity(0.12))
+                .clipShape(Capsule())
+        }
+        .padding(HoloSpacing.md)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.lg)
+                .stroke(Color.holoBorder, lineWidth: 1)
+        )
+    }
+
+    private var coreInsightCard: some View {
+        insightCard(
+            iconText: "✦",
+            title: snapshot.coreInsight.title,
+            detail: snapshot.coreInsight.detail,
+            color: snapshot.coreInsight.color
+        )
+    }
+
+    private var lifestyleInsightCard: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            HStack {
+                Text("生活闭环")
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextPrimary)
+                Spacer()
+                Text("\(snapshot.lifestyleInsights.count) 条关联")
+                    .font(.holoLabel)
+                    .foregroundColor(.holoTextSecondary)
+            }
+
+            VStack(spacing: HoloSpacing.sm) {
+                ForEach(snapshot.lifestyleInsights) { insight in
+                    HStack(alignment: .top, spacing: HoloSpacing.sm) {
+                        Text(insight.domain)
+                            .font(.holoLabel)
+                            .foregroundColor(.white)
+                            .frame(width: 28, height: 28)
+                            .background(insight.color)
+                            .clipShape(Circle())
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(insight.title)
+                                .font(.holoLabel)
+                                .foregroundColor(.holoTextPrimary)
+
+                            Text(insight.detail)
+                                .font(.holoTinyLabel)
+                                .foregroundColor(.holoTextSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        Spacer(minLength: 0)
+                    }
+                }
+            }
+        }
+        .padding(HoloSpacing.md)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.lg)
+                .stroke(Color.holoBorder, lineWidth: 1)
+        )
+    }
+
+    private var weeklyTrendCard: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            HStack {
+                Text("7 天睡眠")
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextPrimary)
+                Spacer()
+                Text("详情")
+                    .font(.holoLabel)
+                    .foregroundColor(.holoChart1)
+            }
+
+            HealthTrendChart(data: weeklySleepData, type: .sleep)
+        }
+        .padding(HoloSpacing.md)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.lg)
+                .stroke(Color.holoBorder, lineWidth: 1)
+        )
+        .onTapGesture {
+            selectedMetric = .sleep
+        }
+    }
+
+    private func insightCard(iconText: String, title: String, detail: String, color: Color) -> some View {
+        HStack(alignment: .top, spacing: HoloSpacing.md) {
+            Text(iconText)
+                .font(.system(size: 16, weight: .bold))
+                .foregroundColor(.white)
+                .frame(width: 34, height: 34)
+                .background(color)
+                .clipShape(Circle())
+
+            VStack(alignment: .leading, spacing: 5) {
+                Text(title)
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextPrimary)
+
+                Text(detail)
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary)
+                    .lineSpacing(2)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(HoloSpacing.md)
+        .background(Color.holoPrimary.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.lg)
+                .stroke(Color.holoPrimary.opacity(0.18), lineWidth: 1)
+        )
+    }
+
+    private var unavailableView: some View {
+        VStack(spacing: HoloSpacing.lg) {
+            Image(systemName: repository.dataSourceState == .denied ? "heart.slash.fill" : "iphone.slash")
+                .font(.system(size: 48, weight: .light))
+                .foregroundColor(.holoTextSecondary.opacity(0.55))
+
+            VStack(spacing: HoloSpacing.sm) {
+                Text(repository.dataSourceState.title)
+                    .font(.holoHeading)
+                    .foregroundColor(.holoTextPrimary)
+
+                Text(repository.dataSourceState.subtitle)
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary)
+                    .multilineTextAlignment(.center)
+            }
+
+            if repository.dataSourceState == .denied {
+                Button("打开系统设置") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                }
+                .font(.holoBody)
+                .foregroundColor(.holoPrimary)
+            }
+        }
+        .padding(HoloSpacing.lg)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color.holoBackground)
     }
 
-    // MARK: - Helper Methods
-
-    private func calculateProgress(value: Double, goal: Double) -> Double {
-        guard goal > 0 else { return 0 }
-        return min(value / goal * 100, 100)
-    }
-
-    private func formatDate(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "M月d日 EEEE"
-        formatter.locale = Locale(identifier: "zh_CN")
-        return formatter.string(from: date)
+    private var syncStatusText: String {
+        switch repository.dataSourceState {
+        case .connected:
+            return "同步自 Apple Health · 刚刚"
+        case .partiallyConnected:
+            return "Apple Health 部分同步"
+        case .notRequested:
+            return "等待 Apple Health 授权"
+        case .denied:
+            return "健康权限已关闭"
+        case .unavailable:
+            return "此设备不支持 HealthKit"
+        }
     }
 
     private func requestPermission() {
         repository.requestAuthorization()
     }
-}
 
-// MARK: - Preview
+    private func refreshAll() async {
+        await repository.refresh()
+        weeklySleepData = await repository.fetchWeeklyData(for: .sleep)
+    }
+}
 
 #Preview {
     HealthView()

@@ -21,22 +21,22 @@ struct HealthPermissionView: View {
         VStack(spacing: HoloSpacing.xl) {
             // 图标
             ZStack {
-                Circle()
-                    .fill(Color.holoPrimary.opacity(0.15))
+                RoundedRectangle(cornerRadius: HoloRadius.xl)
+                    .fill(Color.holoTextPrimary)
                     .frame(width: 100, height: 100)
 
-                Image(systemName: "heart.fill")
-                    .font(.system(size: 44, weight: .medium))
-                    .foregroundColor(.holoPrimary)
+                Image(systemName: "apple.logo")
+                    .font(.system(size: 44, weight: .semibold))
+                    .foregroundColor(.holoCardBackground)
             }
 
             // 标题和说明
             VStack(spacing: HoloSpacing.sm) {
-                Text("健康数据")
+                Text("连接 Apple Health")
                     .font(.holoHeading)
                     .foregroundColor(.holoTextPrimary)
 
-                Text("Holo 需要读取您的健康数据来展示步数、睡眠和站立时长")
+                Text("HOLO 只读取你的健康数据，用于展示三环进度和生成生活洞察；不会写入 Apple Health，也不会上传原始健康记录。")
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)
                     .multilineTextAlignment(.center)
@@ -44,9 +44,9 @@ struct HealthPermissionView: View {
 
             // 数据类型说明
             VStack(spacing: HoloSpacing.md) {
-                permissionRow(icon: "figure.walk", title: "步数", description: "每日行走步数")
-                permissionRow(icon: "bed.double.fill", title: "睡眠", description: "睡眠时长分析")
-                permissionRow(icon: "figure.stand", title: "站立", description: "每日站立时长")
+                permissionRow(icon: "figure.walk", title: "步数", description: "生成日间活动环")
+                permissionRow(icon: "bed.double.fill", title: "睡眠", description: "生成恢复状态和效率洞察")
+                permissionRow(icon: "figure.stand", title: "站立", description: "识别久坐和提醒节奏")
             }
             .padding(HoloSpacing.md)
             .background(Color.holoCardBackground)
@@ -57,7 +57,7 @@ struct HealthPermissionView: View {
             // 按钮
             VStack(spacing: HoloSpacing.sm) {
                 Button(action: onAuthorize) {
-                    Text("授权访问")
+                    Text("授权 Apple Health")
                         .font(.holoBody)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)

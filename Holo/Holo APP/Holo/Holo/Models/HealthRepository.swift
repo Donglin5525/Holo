@@ -38,6 +38,18 @@ class HealthRepository: ObservableObject {
     /// 今日站立时长（小时）
     @Published var todayStandHours: Double = 0
 
+    /// 今日活动分钟（无 Apple Watch 时作为站立替代指标）
+    @Published var todayActiveMinutes: Double = 0
+
+    /// 各指标可用状态
+    @Published var stepsAvailability: HealthMetricAvailability = .noData
+    @Published var sleepAvailability: HealthMetricAvailability = .noData
+    @Published var standAvailability: HealthMetricAvailability = .noData
+    @Published var activeMinutesAvailability: HealthMetricAvailability = .noData
+
+    /// Apple Health 数据源状态
+    @Published var dataSourceState: HealthDataSourceState = .notRequested
+
     /// 错误信息
     @Published var errorMessage: String?
 
@@ -59,11 +71,19 @@ class HealthRepository: ObservableObject {
         useMockData = false
         #endif
 
-        // 检查 HealthKit 是否可用
-        if HKHealthStore.isHealthDataAvailable() {
+        if useMockData {
+            isAuthorized = true
+            hasRequestedPermission = true
+            dataSourceState = .connected
+            Task {
+                await fetchTodayData()
+            }
+        } else if HKHealthStore.isHealthDataAvailable() {
             Task {
                 await checkAuthorizationStatus()
             }
+        } else {
+            dataSourceState = .unavailable
         }
     }
 
@@ -71,23 +91,32 @@ class HealthRepository: ObservableObject {
 
     /// 检查授权状态
     func checkAuthorizationStatus() async {
-        let typesToRead: Set<HKObjectType> = [
-            HKObjectType.quantityType(forIdentifier: .stepCount)!,
-            HKObjectType.categoryType(forIdentifier: .sleepAnalysis)!,
-            HKObjectType.quantityType(forIdentifier: .appleStandTime)!
-        ]
-
-        var allAuthorized = true
-        for type in typesToRead {
-            let status = healthStore.authorizationStatus(for: type)
-            if status != .sharingAuthorized {
-                allAuthorized = false
-                break
-            }
+        if useMockData {
+            isAuthorized = true
+            hasRequestedPermission = true
+            dataSourceState = .connected
+            return
         }
 
-        await MainActor.run {
-            self.isAuthorized = allAuthorized
+        guard HKHealthStore.isHealthDataAvailable() else {
+            isAuthorized = false
+            dataSourceState = .unavailable
+            return
+        }
+
+        let statuses = readTypes.map { healthStore.authorizationStatus(for: $0) }
+        if statuses.contains(.notDetermined) {
+            dataSourceState = .notRequested
+            isAuthorized = false
+        } else if statuses.allSatisfy({ $0 == .sharingAuthorized }) {
+            dataSourceState = .connected
+            isAuthorized = true
+        } else if statuses.contains(.sharingAuthorized) {
+            dataSourceState = .partiallyConnected
+            isAuthorized = true
+        } else {
+            dataSourceState = .denied
+            isAuthorized = false
         }
     }
 
@@ -97,32 +126,43 @@ class HealthRepository: ObservableObject {
         if useMockData {
             self.isAuthorized = true
             self.hasRequestedPermission = true
+            self.dataSourceState = .connected
+            Task {
+                await fetchTodayData()
+            }
             return
         }
 
         // 检查 HealthKit 是否可用
         guard HKHealthStore.isHealthDataAvailable() else {
             self.errorMessage = "HealthKit 不可用"
+            self.dataSourceState = .unavailable
             return
         }
 
-        // 需要读取的数据类型
-        let typesToRead: Set<HKObjectType> = [
-            HKObjectType.quantityType(forIdentifier: .stepCount)!,
-            HKObjectType.categoryType(forIdentifier: .sleepAnalysis)!,
-            HKObjectType.quantityType(forIdentifier: .appleStandTime)!
-        ]
-
         // 调用 HealthKit 授权（异步回调，不会阻塞主线程）
-        healthStore.requestAuthorization(toShare: nil, read: typesToRead) { [weak self] success, error in
+        healthStore.requestAuthorization(toShare: nil, read: Set(readTypes)) { [weak self] success, error in
             DispatchQueue.main.async {
                 guard let self = self else { return }
                 self.hasRequestedPermission = true
-                self.isAuthorized = success
                 if let error = error {
                     self.errorMessage = error.localizedDescription
                 }
+                Task {
+                    await self.checkAuthorizationStatus()
+                    if success {
+                        await self.fetchTodayData()
+                    }
+                }
             }
+        }
+    }
+
+    /// 刷新授权和今日数据
+    func refresh() async {
+        await checkAuthorizationStatus()
+        if isAuthorized || useMockData {
+            await fetchTodayData()
         }
     }
 
@@ -138,13 +178,16 @@ class HealthRepository: ObservableObject {
         async let steps = fetchSteps(for: Date())
         async let sleep = fetchSleep(for: Date())
         async let stand = fetchStandTime(for: Date())
+        async let activeMinutes = fetchActiveMinutes(for: Date())
 
-        let (stepsValue, sleepValue, standValue) = await (steps, sleep, stand)
+        let (stepsValue, sleepValue, standValue, activeMinutesValue) = await (steps, sleep, stand, activeMinutes)
 
         await MainActor.run {
             self.todaySteps = stepsValue
             self.todaySleep = sleepValue
             self.todayStandHours = standValue
+            self.todayActiveMinutes = activeMinutesValue
+            self.updateAvailabilityAfterFetch()
         }
     }
 
@@ -175,6 +218,8 @@ class HealthRepository: ObservableObject {
                 value = await fetchSleep(for: currentDate)
             case .standHours:
                 value = await fetchStandTime(for: currentDate)
+            case .activeMinutes:
+                value = await fetchActiveMinutes(for: currentDate)
             }
 
             results.append(DailyHealthData(date: currentDate, value: value))
@@ -297,6 +342,37 @@ class HealthRepository: ObservableObject {
         }
     }
 
+    /// 获取指定日期的活动分钟（用于无 Apple Watch 时替代站立环）
+    private func fetchActiveMinutes(for date: Date) async -> Double {
+        guard let exerciseType = HKObjectType.quantityType(forIdentifier: .appleExerciseTime) else {
+            return 0
+        }
+
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: date)
+        guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else {
+            return 0
+        }
+
+        let predicate = HKQuery.predicateForSamples(
+            withStart: startOfDay,
+            end: endOfDay,
+            options: .strictStartDate
+        )
+
+        return await withCheckedContinuation { continuation in
+            let query = HKStatisticsQuery(
+                quantityType: exerciseType,
+                quantitySamplePredicate: predicate,
+                options: .cumulativeSum
+            ) { _, result, _ in
+                let minutes = result?.sumQuantity()?.doubleValue(for: .minute()) ?? 0
+                continuation.resume(returning: minutes)
+            }
+            healthStore.execute(query)
+        }
+    }
+
     // MARK: - 私有方法 - 模拟数据
 
     /// 加载模拟今日数据
@@ -305,6 +381,12 @@ class HealthRepository: ObservableObject {
             self.todaySteps = Double(Int.random(in: 5000...12000))
             self.todaySleep = Double(Int.random(in: 5...9)) + Double.random(in: 0...0.9)
             self.todayStandHours = Double(Int.random(in: 8...14))
+            self.todayActiveMinutes = Double(Int.random(in: 18...55))
+            self.stepsAvailability = .available
+            self.sleepAvailability = .available
+            self.standAvailability = .available
+            self.activeMinutesAvailability = .available
+            self.dataSourceState = .connected
         }
     }
 
@@ -326,10 +408,67 @@ class HealthRepository: ObservableObject {
                 value = Double(Int.random(in: 5...10)) + Double.random(in: 0...0.9)
             case .standHours:
                 value = Double(Int.random(in: 6...14))
+            case .activeMinutes:
+                value = Double(Int.random(in: 12...60))
             }
 
             return DailyHealthData(date: date, value: value)
         }
+    }
+
+    private var readTypes: [HKObjectType] {
+        [
+            HKObjectType.quantityType(forIdentifier: .stepCount),
+            HKObjectType.categoryType(forIdentifier: .sleepAnalysis),
+            HKObjectType.quantityType(forIdentifier: .appleStandTime),
+            HKObjectType.quantityType(forIdentifier: .appleExerciseTime)
+        ].compactMap { $0 }
+    }
+
+    private func updateAvailabilityAfterFetch() {
+        stepsAvailability = todaySteps > 0 ? .available : .noData
+        sleepAvailability = todaySleep > 0 ? .available : .noData
+        activeMinutesAvailability = todayActiveMinutes > 0 ? .available : .noData
+
+        if todayStandHours > 0 {
+            standAvailability = .available
+        } else if todayActiveMinutes > 0 {
+            standAvailability = .unsupported
+        } else {
+            standAvailability = .noData
+        }
+
+        let states = [stepsAvailability, sleepAvailability, standAvailability]
+        if states.allSatisfy({ $0 == .available }) {
+            dataSourceState = .connected
+            isAuthorized = true
+        } else if states.contains(.available) {
+            dataSourceState = .partiallyConnected
+            isAuthorized = true
+        } else if hasRequestedPermission {
+            dataSourceState = .connected
+        }
+    }
+
+    var dashboardSnapshot: HealthDashboardSnapshot {
+        HealthDashboardSnapshot(
+            steps: HealthMetricSnapshot(
+                type: .steps,
+                value: todaySteps,
+                availability: stepsAvailability
+            ),
+            sleep: HealthMetricSnapshot(
+                type: .sleep,
+                value: todaySleep,
+                availability: sleepAvailability
+            ),
+            standOrActivity: HealthDashboardSnapshot.standOrActivitySnapshot(
+                standHours: todayStandHours,
+                activeMinutes: todayActiveMinutes,
+                standAvailability: standAvailability
+            ),
+            dataSourceState: dataSourceState
+        )
     }
 }
 

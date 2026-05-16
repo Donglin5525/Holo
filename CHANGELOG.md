@@ -4,6 +4,25 @@
 
 ---
 
+## [2026-05-17] 健康模块产品化重构
+
+### 新增
+- 新增健康首页 A+C 组合体验：三环主视觉、身体状态分数、三项指标摘要、Apple Health 数据源卡
+- 新增健康展示状态模型，支持身体状态分数、指标可用性、数据源状态、无 Apple Watch 替代环和洞察文案
+- 新增首页「今日核心洞察」和「生活闭环」关联线索，串联习惯、财务、思考等模块
+- 新增活动分钟指标，用于无 Apple Watch 或无站立数据时替代站立环
+
+### 优化
+- 重构步数、睡眠、站立详情页，统一展示大圆环、7 天趋势、统计摘要、单项洞察和关联线索
+- HealthKit 仓库新增按指标可用状态和数据源状态，避免把授权回调 success 简单等同于全部读取权限
+- 权限引导页强调 Apple Health 只读同步、不写入、不上传原始健康记录
+- 趋势图空状态文案改为「暂无可用趋势数据」，避免无数据与零进度混淆
+
+### 验证
+- iOS Debug 模拟器构建通过：`xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -configuration Debug -destination 'generic/platform=iOS Simulator' build`
+
+---
+
 ## [2026-05-17] 财务模块滚动回弹修复
 
 ### 修复

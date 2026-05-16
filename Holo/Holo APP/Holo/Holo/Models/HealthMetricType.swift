@@ -15,6 +15,7 @@ enum HealthMetricType: String, CaseIterable, Identifiable {
     case steps = "步数"
     case sleep = "睡眠"
     case standHours = "站立"
+    case activeMinutes = "活动"
 
     var id: String { rawValue }
 
@@ -24,6 +25,7 @@ enum HealthMetricType: String, CaseIterable, Identifiable {
         case .steps: return "figure.walk"
         case .sleep: return "bed.double.fill"
         case .standHours: return "figure.stand"
+        case .activeMinutes: return "figure.walk.motion"
         }
     }
 
@@ -33,6 +35,7 @@ enum HealthMetricType: String, CaseIterable, Identifiable {
         case .steps: return .holoPrimary      // #F46D38
         case .sleep: return .holoChart1       // #13A4EC
         case .standHours: return .holoPurple  // #C084FC
+        case .activeMinutes: return .holoChart6 // #14B8A6
         }
     }
 
@@ -42,6 +45,7 @@ enum HealthMetricType: String, CaseIterable, Identifiable {
         case .steps: return 10000
         case .sleep: return 8
         case .standHours: return 12
+        case .activeMinutes: return 30
         }
     }
 
@@ -51,6 +55,7 @@ enum HealthMetricType: String, CaseIterable, Identifiable {
         case .steps: return "步"
         case .sleep: return "小时"
         case .standHours: return "小时"
+        case .activeMinutes: return "分钟"
         }
     }
 
@@ -61,6 +66,8 @@ enum HealthMetricType: String, CaseIterable, Identifiable {
             return Int(value).formatted()
         case .sleep, .standHours:
             return String(format: "%.1f", value)
+        case .activeMinutes:
+            return Int(value).formatted()
         }
     }
 
