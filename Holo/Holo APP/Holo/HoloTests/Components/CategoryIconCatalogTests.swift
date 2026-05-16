@@ -14,11 +14,11 @@ final class CategoryIconCatalogTests: XCTestCase {
 
     // MARK: - 1. 所有 SF Symbol 可解析
 
-    /// 遍历全部图标，校验 UIImage(systemSymbolName:) != nil
+    /// 遍历全部 SF Symbol 图标，校验 UIImage(systemSymbolName:) != nil
     func testAllSymbolsResolvable() {
         var failures: [String] = []
 
-        for iconName in CategoryIconCatalog.allIcons {
+        for iconName in CategoryIconCatalog.sfSymbolIcons {
             let isAvailable = UIImage(systemSymbolName: iconName, accessibilityDescription: nil) != nil
             if !isAvailable {
                 failures.append(iconName)
@@ -91,6 +91,51 @@ final class CategoryIconCatalogTests: XCTestCase {
                 section.icons.isEmpty,
                 "展示分组「\(section.title)」(\(section.id)) 不应为空"
             )
+        }
+    }
+
+    // MARK: - 7. 自绘兜底图标进入目录但不按 SF Symbol 校验
+
+    func testCustomFallbackIconsAreAvailableInCatalog() {
+        let customIcons = CategoryIconCatalog.customIconNames
+
+        XCTAssertTrue(customIcons.contains("holo.category.generic"))
+        XCTAssertTrue(customIcons.contains("holo.category.misc"))
+
+        for iconName in customIcons {
+            XCTAssertTrue(CategoryIconCatalog.contains(iconName), "自绘图标 \(iconName) 应出现在图标目录中")
+            XCTAssertFalse(CategoryIconCatalog.sfSymbolIcons.contains(iconName), "自绘图标 \(iconName) 不应进入 SF Symbol 校验列表")
+        }
+    }
+
+    // MARK: - 8. 轻量增强科目需要有可选图标
+
+    func testLightweightFinanceExpansionIconsAreInCatalog() {
+        let expectedIcons = [
+            "bolt.car.fill",
+            "car.rear.waves.up.fill",
+            "wrench.and.screwdriver.fill",
+            "exclamationmark.triangle.fill",
+            "shippingbox.fill",
+            "dollarsign.arrow.circlepath",
+            "building.columns.circle.fill",
+            "figure.and.child.holdinghands",
+            "person.2.badge.gearshape.fill",
+            "shippingbox.and.arrow.backward.fill",
+            "cloud.fill",
+            "laptopcomputer",
+            "sparkles",
+            "bed.double.fill",
+            "ticket.fill",
+            "briefcase.fill",
+            "doc.text.fill",
+            "person.crop.circle.badge.checkmark",
+            "giftcard.fill",
+            "arrow.uturn.backward.circle.fill",
+        ]
+
+        for iconName in expectedIcons {
+            XCTAssertTrue(CategoryIconCatalog.contains(iconName), "新增科目图标 \(iconName) 应在图标目录中可选")
         }
     }
 }

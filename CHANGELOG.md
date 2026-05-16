@@ -4,6 +4,25 @@
 
 ---
 
+## [2026-05-17] 财务分类与图标编辑增强
+
+### 新增
+- 财务预设科目轻量扩容：新增车辆充电/保养、住宿门票、家政搬家、AI 工具/软件服务/云存储、家庭育儿/赡养、手续费/税费/快递等支出科目
+- 收入科目新增基金、项目款、咨询费、稿费、补贴、个税退税
+- 后端 finance category catalog 同步新增上述科目及别名、标签，保持 HoloAI 分类匹配语义与 iOS 本地预置一致
+- 图标库新增两个 SwiftUI 自绘万能兜底图标：`holo.category.generic` 与 `holo.category.misc`
+
+### 优化
+- 分类管理页的一级/二级分类行新增可见编辑按钮，不再只能依赖左滑发现编辑入口
+- 编辑分类页新增当前图标预览和「恢复默认」按钮，可从图标库直接替换预设分类图标
+- 图标选择器支持混合展示 SF Symbols 与 SwiftUI 自绘图标，自绘图标不会进入 SF Symbol 可用性校验
+
+### 验证
+- 后端测试通过：`npm test -- tests/catalog.test.js`
+- iOS Debug 模拟器构建通过：`xcodebuild -project Holo.xcodeproj -scheme Holo -destination 'platform=iOS Simulator,name=iPhone 17' build`
+
+---
+
 ## [2026-05-17] 目标系统 v1
 
 ### 新增

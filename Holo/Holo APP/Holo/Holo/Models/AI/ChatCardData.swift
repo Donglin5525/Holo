@@ -211,6 +211,8 @@ enum CategorySFSymbolMapper {
         // 交通
         "地铁": "train.side.front.car", "打车": "car.side.fill", "公交": "bus.fill",
         "单车": "bicycle", "加油": "fuelpump.fill", "停车": "parkingsign.circle.fill",
+        "充电": "bolt.car.fill", "洗车": "car.rear.waves.up.fill",
+        "车辆保养": "wrench.and.screwdriver.fill", "违章罚款": "exclamationmark.triangle.fill",
         "火车": "train.side.rear.car", "机票": "airplane.departure",
         "旅行": "figure.walk", "过路费": "building.columns.fill",
         // 购物
@@ -220,11 +222,12 @@ enum CategorySFSymbolMapper {
         // 娱乐
         "电影": "film.fill", "游戏": "gamecontroller.fill", "视频": "play.tv.fill",
         "音乐": "music.note.list", "KTV": "mic.fill", "旅游": "airplane",
-        "健身": "figure.run",
+        "住宿": "bed.double.fill", "门票": "ticket.fill", "健身": "figure.run",
         // 居住
         "房租": "key.fill", "房贷": "banknote.fill", "水费": "drop.fill",
         "电费": "bolt.fill", "燃气": "flame.fill", "物业": "building.2.fill",
         "网费": "wifi", "家电": "tv.fill", "装修": "paintbrush.fill",
+        "家政保洁": "person.2.badge.gearshape.fill", "搬家": "shippingbox.and.arrow.backward.fill",
         // 医疗
         "就医": "stethoscope", "药品": "pill.fill", "体检": "heart.text.square.fill",
         "健身房": "dumbbell.fill", "保健品": "leaf.fill", "牙齿保健": "heart.circle.fill",
@@ -233,23 +236,28 @@ enum CategorySFSymbolMapper {
         "课程": "book.closed.fill", "教材": "text.book.closed.fill",
         "考试": "checkmark.rectangle.fill", "文具": "pencil.line",
         "订阅": "arrow.trianglehead.clockwise",
+        "AI工具": "sparkles", "软件服务": "laptopcomputer", "云存储": "cloud.fill",
         // 人情（支出）
         "红包礼金": "yensign.circle.fill", "请客": "wineglass.fill",
         "送礼": "gift.fill", "探望": "figure.walk.arrival",
+        "育儿": "figure.and.child.holdinghands", "赡养": "person.2.fill",
         "其他": "ellipsis.circle.fill",
         // 其他支出
         "社交": "person.2.fill", "宠物": "pawprint.fill", "理发": "scissors",
         "洗衣": "washer.fill", "话费": "phone.fill", "烟酒": "smoke.fill",
         "维修": "wrench.fill", "保险": "shield.checkered",
+        "手续费": "dollarsign.arrow.circlepath", "税费": "building.columns.circle.fill",
+        "罚款": "exclamationmark.triangle.fill", "快递": "shippingbox.fill",
         "还款": "arrow.uturn.backward.circle.fill", "转账": "arrow.right.circle.fill",
         "捐赠": "heart.fill",
         // 系统分类
         "待确认": "questionmark.circle.fill",
         // 投资理财（收入）
         "利息": "percent", "股票": "chart.line.uptrend.xyaxis",
-        "房租收入": "building.columns.fill", "其他投资": "chart.pie.fill",
+        "基金": "chart.pie.fill", "房租收入": "building.columns.fill", "其他投资": "chart.pie.fill",
         // 工资收入
         "工资": "banknote.fill", "奖金": "star.fill", "兼职": "briefcase.fill",
+        "项目款": "briefcase.fill", "咨询费": "person.crop.circle.badge.checkmark",
         "报销": "arrow.uturn.backward.circle.fill", "退款": "arrow.counterclockwise.circle.fill",
         // 人情来往（收入）
         "红包": "yensign.circle.fill",
@@ -257,7 +265,8 @@ enum CategorySFSymbolMapper {
         // 其他收入
         "借入": "arrow.down.circle.fill", "还款收入": "arrow.uturn.forward.circle.fill",
         "退货": "shippingbox.fill", "公积金": "building.columns.fill",
-        "出闲置": "arrow.3.trianglepath",
+        "出闲置": "arrow.3.trianglepath", "稿费": "doc.text.fill",
+        "补贴": "giftcard.fill", "个税退税": "arrow.uturn.backward.circle.fill",
     ]
 
     /// 获取分类对应的 SF Symbol

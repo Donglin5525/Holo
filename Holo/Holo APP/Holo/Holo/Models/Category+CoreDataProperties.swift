@@ -68,7 +68,7 @@ extension Category {
         children: [SubCategoryDef]
     )
     
-    // MARK: - 支出分类层级（9 个一级 + 69 个二级）
+    // MARK: - 支出分类层级（9 个一级 + 86 个二级）
 
     /// 支出分类体系
     /// 按 Figma 设计稿的图标分组排列，每组颜色与设计一致
@@ -94,11 +94,15 @@ extension Category {
             (name: "公交", icon: "bus.fill"),
             (name: "单车", icon: "bicycle"),
             (name: "加油", icon: "fuelpump.fill"),
+            (name: "充电", icon: "bolt.car.fill"),
             (name: "停车", icon: "parkingsign.circle.fill"),
+            (name: "洗车", icon: "car.rear.waves.up.fill"),
+            (name: "车辆保养", icon: "wrench.and.screwdriver.fill"),
             (name: "火车", icon: "train.side.rear.car"),
             (name: "机票", icon: "airplane.departure"),
             (name: "旅行", icon: "figure.walk"),
             (name: "过路费", icon: "building.columns.fill"),
+            (name: "违章罚款", icon: "exclamationmark.triangle.fill"),
         ]),
         // ━━━━━━━━━━ 3. 购物（橙色系 #F97316）━━━━━━━━━━
         (name: "购物", color: "#F97316", children: [
@@ -119,6 +123,8 @@ extension Category {
             (name: "音乐", icon: "music.note.list"),
             (name: "KTV", icon: "mic.fill"),
             (name: "旅游", icon: "airplane"),
+            (name: "住宿", icon: "bed.double.fill"),
+            (name: "门票", icon: "ticket.fill"),
             (name: "健身", icon: "figure.run"),
         ]),
         // ━━━━━━━━━━ 5. 居住（靛蓝色系 #6366F1）━━━━━━━━━━
@@ -132,6 +138,8 @@ extension Category {
             (name: "网费", icon: "wifi"),
             (name: "家电", icon: "tv.fill"),
             (name: "装修", icon: "paintbrush.fill"),
+            (name: "家政保洁", icon: "person.2.badge.gearshape.fill"),
+            (name: "搬家", icon: "shippingbox.and.arrow.backward.fill"),
         ]),
         // ━━━━━━━━━━ 6. 医疗（玫红色系 #F43F5E）━━━━━━━━━━
         (name: "医疗", color: "#F43F5E", children: [
@@ -150,6 +158,9 @@ extension Category {
             (name: "考试", icon: "checkmark.rectangle.fill"),
             (name: "文具", icon: "pencil.line"),
             (name: "订阅", icon: "arrow.trianglehead.clockwise"),
+            (name: "AI工具", icon: "sparkles"),
+            (name: "软件服务", icon: "laptopcomputer"),
+            (name: "云存储", icon: "cloud.fill"),
         ]),
         // ━━━━━━━━━━ 8. 人情（琥珀色系 #F59E0B）━━━━━━━━━━
         (name: "人情", color: "#F59E0B", children: [
@@ -157,6 +168,8 @@ extension Category {
             (name: "请客", icon: "wineglass.fill"),
             (name: "送礼", icon: "gift.fill"),
             (name: "探望", icon: "figure.walk.arrival"),
+            (name: "育儿", icon: "figure.and.child.holdinghands"),
+            (name: "赡养", icon: "person.2.fill"),
             (name: "其他", icon: "ellipsis.circle.fill"),
         ]),
         // ━━━━━━━━━━ 9. 其他（灰色系 #64748B）━━━━━━━━━━
@@ -169,14 +182,18 @@ extension Category {
             (name: "烟酒", icon: "smoke.fill"),
             (name: "维修", icon: "wrench.fill"),
             (name: "保险", icon: "shield.checkered"),
+            (name: "手续费", icon: "dollarsign.arrow.circlepath"),
+            (name: "税费", icon: "building.columns.circle.fill"),
+            (name: "罚款", icon: "exclamationmark.triangle.fill"),
             (name: "还款", icon: "arrow.uturn.backward.circle.fill"),
             (name: "转账", icon: "arrow.right.circle.fill"),
+            (name: "快递", icon: "shippingbox.fill"),
             (name: "捐赠", icon: "heart.fill"),
             (name: "其他", icon: "questionmark.folder.fill"),
         ]),
     ]
     
-    // MARK: - 收入分类层级（4 个一级 + 19 个二级）
+    // MARK: - 收入分类层级（4 个一级 + 25 个二级）
 
     /// 收入分类体系
     static let incomeHierarchy: [CategoryGroupDef] = [
@@ -184,6 +201,7 @@ extension Category {
         (name: "投资理财", color: "#3B82F6", children: [
             (name: "利息", icon: "percent"),
             (name: "股票", icon: "chart.line.uptrend.xyaxis"),
+            (name: "基金", icon: "chart.pie.fill"),
             (name: "房租收入", icon: "building.columns.fill"),
             (name: "其他投资", icon: "chart.pie.fill"),
         ]),
@@ -192,6 +210,8 @@ extension Category {
             (name: "工资", icon: "banknote.fill"),
             (name: "奖金", icon: "star.fill"),
             (name: "兼职", icon: "briefcase.fill"),
+            (name: "项目款", icon: "briefcase.fill"),
+            (name: "咨询费", icon: "person.crop.circle.badge.checkmark"),
             (name: "报销", icon: "arrow.uturn.backward.circle.fill"),
             (name: "退款", icon: "arrow.counterclockwise.circle.fill"),
         ]),
@@ -209,6 +229,9 @@ extension Category {
             (name: "退货", icon: "shippingbox.fill"),
             (name: "公积金", icon: "building.columns.fill"),
             (name: "出闲置", icon: "arrow.3.trianglepath"),
+            (name: "稿费", icon: "doc.text.fill"),
+            (name: "补贴", icon: "giftcard.fill"),
+            (name: "个税退税", icon: "arrow.uturn.backward.circle.fill"),
             (name: "其他", icon: "questionmark.folder.fill"),
         ]),
     ]
@@ -357,6 +380,27 @@ extension Category {
         "其他收入": "plus.circle.fill",
     ]
 
+    /// 查询预设分类的默认图标，用于编辑页“恢复默认图标”。
+    static func defaultIconName(name: String, type: TransactionType, parentName: String?) -> String? {
+        if parentName == nil, let icon = parentIconMapping[name] {
+            return icon
+        }
+
+        let hierarchy = type == .expense ? expenseHierarchy : incomeHierarchy
+        if let parentName {
+            return hierarchy
+                .first { $0.name == parentName }?
+                .children
+                .first { $0.name == name }?
+                .icon
+        }
+
+        return hierarchy
+            .flatMap(\.children)
+            .first { $0.name == name }?
+            .icon
+    }
+
     // MARK: - Seed 初始化
 
     /**
@@ -367,7 +411,7 @@ extension Category {
      2. 若已有层级分类（存在 parentId != nil），检查是否缺失分类，补充添加
      3. 先创建一级分类（parentId = nil），再创建二级子分类（parentId 指向父级 id）
 
-     兼容旧数据：设备上已有 15 个扁平分类时，会补种 12+71 个层级分类，不删除旧数据
+     兼容旧数据：设备上已有 15 个扁平分类时，会补种完整层级分类，不删除旧数据
      */
     static func seedDefaultCategories(in context: NSManagedObjectContext) {
         let request = Category.fetchRequest()
