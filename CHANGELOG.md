@@ -4,6 +4,28 @@
 
 ---
 
+## [2026-05-16] V2 方案实施 — 科目对照与 Prompt 瘦身
+
+### 新增
+- 后端新增 `/v1/catalog/finance-categories` 科目对照 Catalog API
+- 后端 Prompt 注册机制（promptRegistry），支持版本管理和历史同步
+- iOS `FinanceCategoryCatalog` 数据模型 + `FinanceCategoryCatalogProvider` + 缓存
+- iOS 分类匹配链新增 `categoryCandidate` 抽取规则和 `matchExistingCategoryByCandidate` 自定义科目匹配
+- 后台 admin logs 页面增加手动刷新按钮
+
+### 优化
+- Prompt 模板瘦身：移除硬编码科目表，改为科目抽取规则 + categoryCandidate + 系统科目对照 catalog
+- 记忆画廊 UI 全面重构：热力图暖橙色系、卡片化布局、品牌色统一
+- AI 洞察上下文构建器升级：财务/习惯/待办/任务分析上下文增强
+- 后台 `adminLogStore.list()` 改为合并热缓存 + SQLite，不再二选一
+- 后台 `contentCaptureEnabled` 默认开启，确保日志存储请求/响应内容
+
+### 修复
+- 修复 HoloAI 卡片匹配成功后不显示科目名称的问题：RouteResult 新增 `matchedPrimaryCategory/matchedSubCategory`，`buildRenderData` 用 Core Data 真实科目名回写
+- 修复 `matchExistingCategoryByCandidate` 多同名科目时返回 nil 的问题，改为取第一个匹配
+
+---
+
 ## [2026-05-16] 记忆长廊重构与回放周期优化
 
 ### 新增
