@@ -149,6 +149,8 @@ struct HealthDetailView: View {
             return repository.todaySleep
         case .standHours:
             return repository.todayStandHours
+        case .activeMinutes:
+            return repository.todayActiveMinutes
         }
     }
 

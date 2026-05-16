@@ -719,4 +719,40 @@ extension HabitRepository {
             return .measure(recordedDays: recordedDays, averageValueText: formatted)
         }
     }
+
+    // MARK: - Window Completion Stats (Goal Progress)
+
+    /// 获取指定天数窗口内的完成统计
+    func getCompletionStats(for habit: Habit, days: Int) -> HabitWindowCompletionStats {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        guard let start = calendar.date(byAdding: .day, value: -(days - 1), to: today) else {
+            return HabitWindowCompletionStats(completedCount: 0, expectedCount: 0)
+        }
+
+        let records = habit.records?.allObjects as? [HabitRecord] ?? []
+        let completed = records.filter { record in
+            record.date >= start && record.date <= today && record.isCompleted
+        }.count
+
+        let expected: Int
+        switch habit.habitFrequency {
+        case .daily:
+            expected = days
+        case .weekly:
+            expected = max(1, Int(ceil(Double(days) / 7.0)))
+        case .monthly:
+            expected = 1
+        }
+
+        return HabitWindowCompletionStats(
+            completedCount: min(completed, expected),
+            expectedCount: expected
+        )
+    }
+}
+
+struct HabitWindowCompletionStats {
+    let completedCount: Int
+    let expectedCount: Int
 }
