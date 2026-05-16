@@ -29,6 +29,7 @@ struct AddTaskSheet: View {
     @State private var selectedListId: UUID? = nil
 
     @State private var showListPicker = false
+    @State private var showDateTimeSheet = false
     @State private var showReminderSheet = false
     @State private var showRepeatSheet = false
     @State private var showTagPicker = false
@@ -209,6 +210,9 @@ struct AddTaskSheet: View {
         }
         .sheet(isPresented: $showTagPicker) {
             tagPickerSheet
+        }
+        .sheet(isPresented: $showDateTimeSheet) {
+            dateTimeSheet
         }
         .sheet(isPresented: $showReminderSheet) {
             reminderSheet
@@ -673,57 +677,40 @@ struct AddTaskSheet: View {
                     .labelsHidden()
                     .tint(.holoPrimary)
             }
+            .frame(minHeight: 36)
 
             if hasDueDate {
                 Divider()
                     .padding(.vertical, HoloSpacing.xs)
 
-                // 日期滚轮选择器
-                DatePicker("", selection: $dueDate, displayedComponents: .date)
-                    .datePickerStyle(.wheel)
-                    .environment(\.locale, Locale(identifier: "zh_CN"))
-                    .labelsHidden()
+                Button {
+                    showDateTimeSheet = true
+                } label: {
+                    settingRow(
+                        icon: "calendar",
+                        title: "日期",
+                        value: formattedDueDateSummary,
+                        valueColor: .holoTextSecondary,
+                        showsChevron: true
+                    )
+                }
+                .buttonStyle(.plain)
 
                 Divider()
                     .padding(.vertical, HoloSpacing.xs)
 
-                // 时间切换行
-                HStack(spacing: HoloSpacing.sm) {
-                    Image(systemName: "clock")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.holoTextSecondary)
-
-                    Text("时间")
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
-
-                    Spacer()
-
-                    if hasTime {
-                        Text(formattedTime)
-                            .font(.holoBody)
-                            .foregroundColor(.holoPrimary)
-                    } else {
-                        Text("全天")
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPlaceholder)
-                    }
-
-                    Toggle("", isOn: $hasTime)
-                        .labelsHidden()
-                        .tint(.holoPrimary)
+                Button {
+                    showDateTimeSheet = true
+                } label: {
+                    settingRow(
+                        icon: "clock",
+                        title: "时间",
+                        value: hasTime ? formattedTime : "全天",
+                        valueColor: hasTime ? .holoPrimary : .holoTextPlaceholder,
+                        showsChevron: true
+                    )
                 }
-
-                if hasTime {
-                    Divider()
-                        .padding(.vertical, HoloSpacing.xs)
-
-                    // 时间滚轮选择器
-                    DatePicker("", selection: $dueDate, displayedComponents: .hourAndMinute)
-                        .datePickerStyle(.wheel)
-                        .environment(\.locale, Locale(identifier: "zh_CN"))
-                        .labelsHidden()
-                }
+                .buttonStyle(.plain)
 
                 Divider()
                     .padding(.vertical, HoloSpacing.xs)
@@ -732,32 +719,13 @@ struct AddTaskSheet: View {
                 Button {
                     showReminderSheet = true
                 } label: {
-                    HStack(spacing: HoloSpacing.sm) {
-                        Image(systemName: "bell")
-                            .font(.system(size: 16, weight: .medium))
-                            .foregroundColor(.holoTextSecondary)
-
-                        Text("提醒")
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
-
-                        Spacer()
-
-                        if selectedReminders.isEmpty {
-                            Text("未设置")
-                                .font(.holoBody)
-                                .foregroundColor(.holoTextPlaceholder)
-                        } else {
-                            Text(reminderSummaryText)
-                                .font(.holoCaption)
-                                .foregroundColor(.holoTextSecondary)
-                                .multilineTextAlignment(.trailing)
-                        }
-
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.holoTextSecondary)
-                    }
+                    settingRow(
+                        icon: "bell",
+                        title: "提醒",
+                        value: selectedReminders.isEmpty ? "未设置" : reminderSummaryText,
+                        valueColor: selectedReminders.isEmpty ? .holoTextPlaceholder : .holoTextSecondary,
+                        showsChevron: true
+                    )
                 }
                 .buttonStyle(.plain)
 
@@ -766,9 +734,7 @@ struct AddTaskSheet: View {
 
                 // 重复行
                 HStack(spacing: HoloSpacing.sm) {
-                    Image(systemName: "repeat")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.holoTextSecondary)
+                    rowIcon("repeat")
 
                     Text("重复")
                         .font(.holoBody)
@@ -805,6 +771,53 @@ struct AddTaskSheet: View {
         .padding(.vertical, 10)
         .background(Color.holoCardBackground)
         .cornerRadius(HoloRadius.sm)
+    }
+
+    private func settingRow(
+        icon: String,
+        title: String,
+        value: String,
+        valueColor: Color,
+        showsChevron: Bool
+    ) -> some View {
+        HStack(spacing: HoloSpacing.sm) {
+            rowIcon(icon)
+
+            Text(title)
+                .font(.holoBody)
+                .foregroundColor(.holoTextPrimary)
+
+            Spacer(minLength: HoloSpacing.md)
+
+            Text(value)
+                .font(.holoBody)
+                .foregroundColor(valueColor)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .multilineTextAlignment(.trailing)
+
+            if showsChevron {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.holoTextSecondary)
+            }
+        }
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
+    }
+
+    private func rowIcon(_ systemName: String) -> some View {
+        Image(systemName: systemName)
+            .font(.system(size: 16, weight: .medium))
+            .foregroundColor(.holoTextSecondary)
+            .frame(width: 22)
+    }
+
+    private var formattedDueDateSummary: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日 EEE"
+        return formatter.string(from: dueDate)
     }
 
     /// 格式化的时间显示
@@ -1900,6 +1913,30 @@ struct AddTaskSheet: View {
                 }
             }
         }
+    }
+
+    // MARK: - 日期与时间弹窗
+
+    private var dateTimeSheet: some View {
+        TaskDatePickerSheet(
+            dueDate: $dueDate,
+            isAllDay: Binding(
+                get: { !hasTime },
+                set: { hasTime = !$0 }
+            ),
+            hasDueDate: $hasDueDate,
+            selectedReminders: $selectedReminders,
+            hasRepeat: $hasRepeat,
+            repeatType: $repeatType,
+            selectedWeekdays: $selectedWeekdays,
+            monthDay: $monthDay,
+            monthWeekOrdinal: $monthWeekOrdinal,
+            monthWeekday: $monthWeekday,
+            monthlyRepeatMode: $monthlyRepeatMode,
+            endConditionType: $endConditionType,
+            repeatEndDate: $repeatEndDate,
+            repeatEndCount: $repeatEndCount
+        )
     }
 
     // MARK: - 提醒选择弹窗

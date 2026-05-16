@@ -4,6 +4,18 @@
 
 ---
 
+## [2026-05-16] 任务日期时间交互优化
+
+### 优化
+- 新建任务页的截止日期区域改为摘要式列表，主表单不再内嵌日期/时间滚轮，减少页面拥挤感
+- 日期与时间设置迁移到独立底部弹窗，支持快捷日期、日历选择和全天/具体时间切换
+- 具体时间改用紧凑选择器展示，避免日期滚轮和时间滚轮同时堆叠
+
+### 验证
+- iOS Debug 模拟器构建通过：`xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build`
+
+---
+
 ## [2026-05-16] HoloAI 聊天卡片双向删除
 
 ### 新增
