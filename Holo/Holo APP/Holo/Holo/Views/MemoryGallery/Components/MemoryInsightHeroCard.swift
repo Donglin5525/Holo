@@ -189,6 +189,7 @@ struct MemoryInsightHeroCard: View {
                 .foregroundColor(.holoTextPrimary)
                 .lineLimit(2)
                 .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
 
             HStack(spacing: HoloSpacing.sm) {
                 if state == .stale {
@@ -269,6 +270,7 @@ struct MemoryInsightHeroCard: View {
             Text(insight?.summary ?? "")
                 .font(.holoBody)
                 .foregroundColor(.holoTextSecondary)
+                .textSelection(.enabled)
 
         case .failed(let message):
             Text(message)

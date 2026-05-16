@@ -261,6 +261,7 @@ struct AnalysisHighlightsChatCard: View {
                             .font(.holoCaption)
                             .foregroundColor(.holoTextPrimary)
                             .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
                     }
                 }
             }
@@ -282,6 +283,7 @@ struct AnalysisHighlightsChatCard: View {
                             .font(.holoCaption)
                             .foregroundColor(.holoTextPrimary)
                             .fixedSize(horizontal: false, vertical: true)
+                            .textSelection(.enabled)
                     }
                 }
             }

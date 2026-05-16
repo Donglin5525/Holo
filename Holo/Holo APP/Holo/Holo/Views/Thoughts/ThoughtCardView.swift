@@ -88,6 +88,7 @@ struct ThoughtCardView: View {
             .foregroundColor(.holoTextPrimary)
             .lineLimit(3)
             .multilineTextAlignment(.leading)
+            .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 

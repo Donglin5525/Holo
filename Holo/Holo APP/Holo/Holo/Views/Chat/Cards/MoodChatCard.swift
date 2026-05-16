@@ -28,6 +28,7 @@ struct MoodChatCard: View {
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
                 .lineLimit(2)
+                .textSelection(.enabled)
 
             // 底部
             CardFooterView(timeText: "刚刚")

@@ -36,6 +36,7 @@ struct StreamingTextView: View {
             Text(renderedMarkdown ?? AttributedString(text))
                 .font(.holoBody)
                 .foregroundColor(.holoTextPrimary)
+                .textSelection(.enabled)
                 .task(id: renderKey) {
                     renderedMarkdown = nil
                     guard shouldRenderMarkdown else { return }

@@ -32,12 +32,14 @@ struct MilestoneNode: View {
                     .foregroundColor(.holoTextPrimary)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
 
                 Text(data.description)
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)
                     .lineLimit(3)
                     .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
             }
 
             Spacer(minLength: 0)

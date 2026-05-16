@@ -193,6 +193,7 @@ struct MemoryDetailView: View {
             Text(note)
                 .font(.holoBody)
                 .foregroundColor(.holoTextPrimary)
+                .textSelection(.enabled)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(HoloSpacing.md)

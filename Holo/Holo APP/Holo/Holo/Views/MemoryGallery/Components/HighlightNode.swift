@@ -29,6 +29,7 @@ struct HighlightNode: View {
                     .foregroundColor(.holoTextPrimary)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
 
                 if let subtitle = data.subtitle {
                     Text(subtitle)
@@ -36,6 +37,7 @@ struct HighlightNode: View {
                         .foregroundColor(.holoTextSecondary)
                         .lineLimit(3)
                         .fixedSize(horizontal: false, vertical: true)
+                        .textSelection(.enabled)
                 }
             }
 

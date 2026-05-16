@@ -52,6 +52,7 @@ struct MemoryInsightCardView: View {
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
                 .lineLimit(isExpanded ? nil : 2)
+                .textSelection(.enabled)
 
             // 展开的 evidence
             if isExpanded {

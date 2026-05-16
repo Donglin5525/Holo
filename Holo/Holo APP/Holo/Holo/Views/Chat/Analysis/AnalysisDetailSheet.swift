@@ -69,6 +69,7 @@ struct AnalysisDetailSheet: View {
         Text(MarkdownAttributedStringRenderer.parseSync(text) ?? AttributedString(text))
             .font(.holoBody)
             .foregroundColor(.holoTextPrimary)
+            .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
