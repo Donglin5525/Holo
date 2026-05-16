@@ -25,6 +25,9 @@ struct AccountListView: View {
             .padding(HoloSpacing.lg)
         }
         .background(Color.holoBackground)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Color.clear.frame(height: 88)
+        }
         .navigationTitle("账户管理")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

@@ -49,6 +49,9 @@ struct AccountDetailView: View {
             .padding(HoloSpacing.lg)
         }
         .background(Color.holoBackground)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Color.clear.frame(height: 88)
+        }
         .navigationTitle(account.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {

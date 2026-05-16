@@ -4,6 +4,18 @@
 
 ---
 
+## [2026-05-17] 财务模块滚动回弹修复
+
+### 修复
+- 分类管理二级分类列表超出首屏时无法滚到底部、回弹（缺少底部 safeAreaInset 避让自定义 Tab Bar）
+- 账户管理页 ScrollView 同样缺少底部避让，内容多时底部被遮挡
+- 账户详情页 ScrollView 同类问题一并修复
+
+### 根因
+- FinanceView 自定义 Tab Bar（88pt）通过 `.safeAreaInset(edge: .bottom)` 挂载，但 NavigationLink push 的子页面不会继承该修饰符，每个可滚动容器需自行处理
+
+---
+
 ## [2026-05-16] 任务日期时间交互优化
 
 ### 优化
