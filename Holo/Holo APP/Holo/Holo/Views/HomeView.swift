@@ -56,6 +56,9 @@ struct HomeView: View {
     /// AI 对话页面的预填文本
     @State private var chatPrefillText: String?
 
+    /// 目标规划请求（跨页面传递：PersonalView → ChatView）
+    @State private var pendingGoalPlanningRequest: GoalPlanningRequest?
+
     /// 是否显示个人页面
     @State private var showPersonalView: Bool = false
 
@@ -179,7 +182,7 @@ struct HomeView: View {
         .fullScreenCover(isPresented: $showChatView, onDismiss: {
             chatPrefillText = nil
         }) {
-            ChatView(prefillText: chatPrefillText)
+            ChatView(goalPlanningRequest: $pendingGoalPlanningRequest, prefillText: chatPrefillText)
                 .preferredColorScheme(DarkModeManager.shared.colorScheme)
         }
         // 今日看板（Full Screen Cover 形式）
@@ -191,7 +194,11 @@ struct HomeView: View {
         .sheet(isPresented: $showPersonalView, onDismiss: {
             selectedTab = .ai
         }) {
-            PersonalView()
+            PersonalView(onPlanGoal: {
+                pendingGoalPlanningRequest = GoalPlanningRequest(seedText: nil)
+                showPersonalView = false
+                showChatView = true
+            })
                 .preferredColorScheme(DarkModeManager.shared.colorScheme)
         }
         // Holo One - 快速记账
