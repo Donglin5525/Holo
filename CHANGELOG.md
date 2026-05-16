@@ -4,6 +4,35 @@
 
 ---
 
+## [2026-05-17] 目标系统 v1
+
+### 新增
+- 目标 Core Data 实体：Goal 与 TodoTask、Habit 的双向关系（nullifyDeleteRule，删除目标不级联删除任务/习惯）
+- GoalModels 值类型：GoalStatus、GoalDomain、GoalDraft、GoalPlanningSession、GoalPlanningRequest
+- GoalRepository：CRUD、草案落库（saveDraft 同时创建关联任务和习惯）、状态切换、AI 上下文授权查询
+- GoalProgressEvaluator：基于任务完成率和习惯近 14 天完成率的粗粒度进展评估（起步中/稳定推进/有些停滞/接近完成/已暂停/已完成）
+- GoalPlanningCoordinator：最多 3 轮追问的状态机，信息足够时提前生成 GoalDraft JSON
+- GoalPlanningPromptBuilder：追问 prompt 和草案生成 prompt，支持精简/完整模式
+- GoalListView：我的目标列表，空状态引导跳转 HoloAI 规划
+- GoalDetailView：目标详情页，支持暂停/恢复/标记完成/删除，AI 授权开关
+- GoalDraftReviewView：fullScreenCover 确认看板，可编辑标题/领域、勾选任务/习惯、选择频率、AI 授权
+- 个人页「我的目标」入口，跨 Tab 跳转（PersonalView → HomeView → ChatView）
+- ChatMessage 新增 messageType 字段，区分普通消息和目标规划消息
+- ChatViewModel 目标规划分流：sendMessage 检测活跃规划 session，走专用追问链路
+- QuickAction 新增「规划目标」快捷入口
+- AI Context 注入：授权 active Goal 摘要注入 UserContext.goalContext，OpenAICompatibleProvider 和 HoloBackendAIProvider 均已支持
+- MockAIProvider 目标规划确定性响应（固定追问 + 固定草案 JSON）
+- HabitRepository 新增 getCompletionStats(for:days:) 窗口完成率统计
+
+### 修复
+- 修复目标规划跳转失败：根因是应用主导航在 HomeView 而非 ContentView，onPlanGoal 回调和 goalPlanningRequest binding 需要接入 HomeView 的 sheet/fullScreenCover
+- 修复 HealthDetailView switch 缺少 activeMinutes case（预存问题）
+
+### 验证
+- iOS Debug 模拟器构建通过：`xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build`
+
+---
+
 ## [2026-05-17] 健康模块产品化重构
 
 ### 新增
