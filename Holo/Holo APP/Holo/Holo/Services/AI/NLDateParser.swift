@@ -25,8 +25,13 @@ enum NLDateParser {
     }
 
     /// 文本是否包含具体时间（时/分）
+    /// - 中文格式: "14点45分"、"下午3点半"
+    /// - 标准格式: "2026-05-16 14:45"（包含 HH:mm 部分）
     static func containsTimeComponent(_ text: String) -> Bool {
-        extractHourMinute(text) != nil
+        if extractHourMinute(text) != nil { return true }
+        // 标准格式 yyyy-MM-dd HH:mm 包含时间部分
+        let pattern = #"^\d{4}-\d{2}-\d{2}\s+\d{1,2}:\d{2}$"#
+        return text.range(of: pattern, options: .regularExpression) != nil
     }
 
     // MARK: - Standard Format
