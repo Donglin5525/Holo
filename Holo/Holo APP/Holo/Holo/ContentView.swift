@@ -16,6 +16,7 @@ struct ContentView: View {
     
     /// 当前选中的 Tab
     @State private var selectedTab: Tab = .today
+    @State private var pendingGoalPlanningRequest: GoalPlanningRequest?
     
     /// Tab 枚举
     enum Tab: String, CaseIterable {
@@ -40,7 +41,7 @@ struct ContentView: View {
                 HomeView()
             case .holo:
                 NavigationStack {
-                    ChatView()
+                    ChatView(goalPlanningRequest: $pendingGoalPlanningRequest)
                         .navigationBarHidden(true)
                 }
             case .finance:
@@ -48,7 +49,10 @@ struct ContentView: View {
             case .health:
                 PlaceholderView(title: "健康记录", icon: "heart.fill")
             case .profile:
-                PlaceholderView(title: "个人中心", icon: "person.fill")
+                PersonalView(onPlanGoal: {
+                    pendingGoalPlanningRequest = GoalPlanningRequest(seedText: nil)
+                    selectedTab = .holo
+                })
             }
         }
     }

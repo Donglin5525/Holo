@@ -94,6 +94,13 @@ extension CoreDataStack {
         rawLog.isOptional = true
         chatAttributes.append(rawLog)
 
+        let chatMessageType = NSAttributeDescription()
+        chatMessageType.name = "messageType"
+        chatMessageType.attributeType = .stringAttributeType
+        chatMessageType.isOptional = false
+        chatMessageType.defaultValue = "normal"
+        chatAttributes.append(chatMessageType)
+
         chatMessageEntity.properties = chatAttributes
 
         return [chatMessageEntity]

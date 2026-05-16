@@ -30,6 +30,7 @@ extension ChatMessage {
     @NSManaged var executionBatchJSON: String?  // 批量执行结果
     @NSManaged var analysisContextJSON: String?  // 分析上下文 JSON
     @NSManaged var rawLogJSON: String?  // LLM 调用日志 JSON
+    @NSManaged var messageType: String
 
     // MARK: - Computed Properties
 

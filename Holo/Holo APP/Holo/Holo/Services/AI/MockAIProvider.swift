@@ -379,4 +379,31 @@ final class MockAIProvider: AIProvider {
         }
         return String(text[range])
     }
+
+    // MARK: - Goal Planning
+
+    func completeGoalPlanning(prompt: String, context: UserContext) async throws -> String {
+        if prompt.contains("JSON 结构") {
+            return """
+            {
+              "id": "mock-draft",
+              "title": "学习 SwiftUI",
+              "summary": "通过小项目掌握 SwiftUI 基础",
+              "domain": "learning",
+              "desiredOutcome": "能独立做一个简单 App",
+              "motivation": "用于改进 Holo",
+              "deadlineText": null,
+              "tasks": [
+                {"id":"task-1","isSelected":true,"title":"完成 SwiftUI 基础教程","dueDateText":null,"priority":1,"note":"先完成官方入门内容"},
+                {"id":"task-2","isSelected":true,"title":"做一个 Todo Demo","dueDateText":null,"priority":1,"note":"用真实小项目练习"}
+              ],
+              "habits": [
+                {"id":"habit-1","isSelected":true,"name":"学习 SwiftUI","frequency":"weekly","targetCount":3,"type":"checkIn","unit":null,"targetValue":null}
+              ],
+              "missingInfoWarnings": []
+            }
+            """
+        }
+        return "你希望把这个目标做到什么程度？"
+    }
 }

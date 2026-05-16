@@ -35,6 +35,8 @@ final class UserContextBuilder {
 
         let recentTrend = await buildRecentTrend()
 
+        let goalContext = buildGoalContext(limit: 1)
+
         return UserContext(
             todayDate: todayDate,
             transactions: transactions,
@@ -43,7 +45,8 @@ final class UserContextBuilder {
             thoughts: thoughts,
             accounts: accounts,
             profileContext: profileContext.isEmpty ? nil : profileContext,
-            recentTrend: recentTrend
+            recentTrend: recentTrend,
+            goalContext: goalContext
         )
     }
 
@@ -263,5 +266,25 @@ final class UserContextBuilder {
         } catch {
             return nil
         }
+    }
+
+    // MARK: - Goal Context
+
+    private func buildGoalContext(limit: Int) -> String? {
+        let goals = GoalRepository.shared.activeGoalsForAI(limit: limit)
+        guard !goals.isEmpty else { return nil }
+
+        let lines = goals.map { goal -> String in
+            let progress = GoalProgressEvaluator.evaluate(goal: goal)
+            return """
+            - \(goal.title)
+              - 状态：\(progress.state.displayName)
+              - \(progress.taskSummary)
+              - \(progress.habitSummary)
+              - 说明：\(goal.summary ?? goal.desiredOutcome ?? "无")
+            """
+        }
+
+        return "## 当前目标\n\n" + lines.joined(separator: "\n")
     }
 }

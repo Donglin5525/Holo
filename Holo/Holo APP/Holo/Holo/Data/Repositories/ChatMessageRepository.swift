@@ -362,7 +362,8 @@ final class ChatMessageRepository: ObservableObject {
         content: String,
         intent: String? = nil,
         extractedDataJSON: String? = nil,
-        parentMessageId: UUID? = nil
+        parentMessageId: UUID? = nil,
+        messageType: ChatMessageType = .normal
     ) -> UUID {
         let message = ChatMessage(context: context)
         message.id = UUID()
@@ -373,6 +374,7 @@ final class ChatMessageRepository: ObservableObject {
         message.extractedDataJSON = extractedDataJSON
         message.isStreaming = false
         message.parentMessageId = parentMessageId
+        message.messageType = messageType.rawValue
 
         save()
 
@@ -383,7 +385,7 @@ final class ChatMessageRepository: ObservableObject {
 
     /// 添加流式占位消息
     @discardableResult
-    func addStreamingMessage(role: String, parentMessageId: UUID? = nil) -> UUID {
+    func addStreamingMessage(role: String, parentMessageId: UUID? = nil, messageType: ChatMessageType = .normal) -> UUID {
         let message = ChatMessage(context: context)
         message.id = UUID()
         message.role = role
@@ -391,6 +393,7 @@ final class ChatMessageRepository: ObservableObject {
         message.timestamp = Date()
         message.isStreaming = true
         message.parentMessageId = parentMessageId
+        message.messageType = messageType.rawValue
 
         save()
 

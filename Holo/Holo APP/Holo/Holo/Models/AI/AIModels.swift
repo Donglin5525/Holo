@@ -400,6 +400,7 @@ struct UserContext {
     let accounts: AccountSummary
     let profileContext: String?
     let recentTrend: UserRecentTrend?
+    let goalContext: String?
 
     /// 空上下文（分析查询不需要即时上下文）
     static let empty = UserContext(
@@ -410,7 +411,8 @@ struct UserContext {
         thoughts: ThoughtSummary(recentThoughts: [], totalThoughts: 0),
         accounts: AccountSummary(accountList: "", defaultAccountName: ""),
         profileContext: nil,
-        recentTrend: nil
+        recentTrend: nil,
+        goalContext: nil
     )
 }
 

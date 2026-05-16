@@ -26,6 +26,11 @@ enum ChatMessageMetadataState: Equatable, Sendable {
     case loaded        // 已完成加载（解码结果可以为空）
 }
 
+enum ChatMessageType: String, Codable, Sendable {
+    case normal
+    case goalPlanning
+}
+
 nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hashable {
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
@@ -38,6 +43,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
     var extractedDataJSON: String?
     var isStreaming: Bool
     var parentMessageId: UUID?
+    var messageType: ChatMessageType
     var parsedBatch: AIParseBatch?
     var executionBatch: AIExecutionBatch?
     var analysisContext: AnalysisContext?
@@ -55,6 +61,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         extractedDataJSON: String?,
         isStreaming: Bool,
         parentMessageId: UUID?,
+        messageType: ChatMessageType = .normal,
         parsedBatch: AIParseBatch? = nil,
         executionBatch: AIExecutionBatch? = nil,
         analysisContext: AnalysisContext? = nil,
@@ -68,6 +75,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         self.extractedDataJSON = extractedDataJSON
         self.isStreaming = isStreaming
         self.parentMessageId = parentMessageId
+        self.messageType = messageType
         self.parsedBatch = parsedBatch
         self.executionBatch = executionBatch
         self.analysisContext = analysisContext
@@ -90,6 +98,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
             extractedDataJSON: message.extractedDataJSON,
             isStreaming: message.isStreaming,
             parentMessageId: message.parentMessageId,
+            messageType: ChatMessageType(rawValue: message.messageType) ?? .normal,
             parsedBatch: message.parsedBatch,
             executionBatch: message.executionBatch,
             analysisContext: Self.decodeAnalysisContext(message.analysisContextJSON),
@@ -141,6 +150,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         self.extractedDataJSON = dictionary["extractedDataJSON"] as? String
         self.isStreaming = isStreaming
         self.parentMessageId = dictionary["parentMessageId"] as? UUID
+        self.messageType = ChatMessageType(rawValue: dictionary["messageType"] as? String ?? "normal") ?? .normal
         self.parsedBatch = nil
         self.executionBatch = nil
         self.rawLog = nil

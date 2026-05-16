@@ -247,6 +247,10 @@ final class HoloBackendAIProvider: AIProvider {
             message += trendSection
         }
 
+        if let goalContext = context.goalContext, !goalContext.isEmpty {
+            message += "\n\n" + goalContext
+        }
+
         return message
     }
 

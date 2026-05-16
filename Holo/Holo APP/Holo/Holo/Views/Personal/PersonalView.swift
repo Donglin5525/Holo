@@ -14,14 +14,21 @@ struct PersonalView: View {
     @ObservedObject private var profileService = HoloProfileService.shared
     @AppStorage("userName") private var userName: String = "东林"
 
+    let onPlanGoal: () -> Void
+
     // 个人档案 sheet
     @State private var showProfileEditor = false
+
+    init(onPlanGoal: @escaping () -> Void = {}) {
+        self.onPlanGoal = onPlanGoal
+    }
 
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: HoloSpacing.xl) {
                     profileSection
+                    goalsSection
                 }
                 .padding(.horizontal, HoloSpacing.lg)
                 .padding(.vertical, HoloSpacing.md)
@@ -166,6 +173,53 @@ struct PersonalView: View {
 
                     Spacer()
 
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.holoTextSecondary.opacity(0.5))
+                }
+                .padding(HoloSpacing.md)
+                .background(Color.holoCardBackground)
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+            }
+            .buttonStyle(PlainButtonStyle())
+        }
+    }
+
+    // MARK: - 我的目标
+
+    private var goalsSection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            HStack(spacing: HoloSpacing.sm) {
+                Image(systemName: "target")
+                    .font(.system(size: 18))
+                    .foregroundColor(.holoPrimary)
+                Text("我的目标")
+                    .font(.holoBody)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoTextPrimary)
+            }
+
+            NavigationLink {
+                GoalListView(onPlanGoal: onPlanGoal)
+            } label: {
+                HStack(spacing: HoloSpacing.md) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.holoPrimary.opacity(0.1))
+                            .frame(width: 40, height: 40)
+                        Image(systemName: "target")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.holoPrimary)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("目标管理")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+                        Text("查看 HoloAI 为你规划的长期目标")
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoTextSecondary)
+                    }
+                    Spacer()
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .semibold))
                         .foregroundColor(.holoTextSecondary.opacity(0.5))

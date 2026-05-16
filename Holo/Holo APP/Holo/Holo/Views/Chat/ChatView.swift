@@ -18,9 +18,15 @@ struct ChatView: View {
     @State private var pendingVoiceTranscriptToSend: String?
     @State private var pendingDelete: PendingCardDelete?
     @State private var showDeleteConfirmation = false
+    @Binding var goalPlanningRequest: GoalPlanningRequest?
 
     /// 外部传入的预填文本（如从记忆长廊"继续问AI"跳转）
     var prefillText: String? = nil
+
+    init(goalPlanningRequest: Binding<GoalPlanningRequest?> = .constant(nil), prefillText: String? = nil) {
+        self._goalPlanningRequest = goalPlanningRequest
+        self.prefillText = prefillText
+    }
 
     var body: some View {
         ZStack {
@@ -51,6 +57,11 @@ struct ChatView: View {
                 viewModel.inputText = text
             }
         }
+        .onChange(of: goalPlanningRequest) { request in
+            guard let request else { return }
+            viewModel.startGoalPlanning(seedText: request.seedText)
+            goalPlanningRequest = nil
+        }
         .fullScreenCover(item: $viewingLogMessage) { message in
             if let log = message.rawLog {
                 ChatLogView(log: log)
@@ -70,6 +81,19 @@ struct ChatView: View {
         } message: {
             if let pending = pendingDelete {
                 Text("确定删除\(pending.description)吗？此操作不可撤销。")
+            }
+        }
+        .fullScreenCover(isPresented: $viewModel.showGoalDraftReview) {
+            if let draft = viewModel.goalDraftForReview {
+                GoalDraftReviewView(
+                    draft: draft,
+                    onCancel: {
+                        viewModel.cancelGoalPlanning()
+                    },
+                    onSaved: { result in
+                        viewModel.finishGoalPlanningSave(result)
+                    }
+                )
             }
         }
     }

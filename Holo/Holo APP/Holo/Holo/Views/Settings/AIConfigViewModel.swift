@@ -125,7 +125,8 @@ final class AIConfigViewModel: ObservableObject {
                     thoughts: ThoughtSummary(recentThoughts: [], totalThoughts: 0),
                     accounts: AccountSummary(accountList: "默认账户", defaultAccountName: "现金"),
                     profileContext: nil,
-                    recentTrend: nil
+                    recentTrend: nil,
+                    goalContext: nil
                 )
             )
             testResult = .success("连接成功：\(result.prefix(50))...")
