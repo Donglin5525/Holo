@@ -179,6 +179,9 @@ export function createAdminLogStore(options = {}) {
     // 先从热缓存获取最近记录
     for (const entry of hotCache) {
       seenIds.add(entry.id);
+      if (entry._rowId != null) {
+        seenIds.add(String(entry._rowId));
+      }
       results.push({
         id: entry.id,
         type: entry.type,

@@ -5,6 +5,8 @@
  * - 队列满时丢弃 request_logs，不阻塞主链路
  */
 
+import { formatLocalTimestamp } from "../time.js";
+
 const MAX_QUEUE_SIZE = 500;
 const FLUSH_INTERVAL_MS = 2000;
 const CLEANUP_OLDER_THAN_DAYS = 7;
@@ -83,7 +85,7 @@ export function createRequestLogger(db) {
       const durationMs = Math.round(performance.now() - start);
 
       // 控制台结构化输出
-      const timestamp = new Date().toISOString().replace('T', ' ').slice(0, 19);
+      const timestamp = formatLocalTimestamp();
       console.log(`[${timestamp}] ${c.req.method} ${c.req.path} ${c.res.status} ${durationMs}ms`);
 
       // 排除 admin 页面请求
@@ -96,7 +98,7 @@ export function createRequestLogger(db) {
       }
 
       const deviceId =
-        c.req.header('x-device-id') || c.req.query('device_id') || null;
+        c.req.header('x-holo-device-id') || c.req.header('x-device-id') || c.req.query('device_id') || null;
 
       queue.push({
         method: c.req.method,

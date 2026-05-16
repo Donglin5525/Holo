@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 
 import { createApp } from "../src/app.js";
 import { createDatabase } from "../src/db/database.js";
+import { renderAdminLogsPage } from "../src/admin/adminLogsPage.js";
 
 // 每个测试使用独立的内存数据库
 function createTestDatabase() {
@@ -28,6 +29,36 @@ function createTestApp(overrides = {}) {
     },
     ...overrides,
   });
+}
+
+function createRecordingAdminLogStore() {
+  const entries = [];
+  return {
+    maxDetailChars: 20_000,
+    entries,
+    startAiCall(input) {
+      const id = randomUUID();
+      entries.push({
+        id,
+        ...input,
+        status: "pending",
+      });
+      return id;
+    },
+    finishAiCall(id, result) {
+      const entry = entries.find((item) => item.id === id);
+      if (entry) {
+        Object.assign(entry, result);
+      }
+    },
+    list() {
+      return entries;
+    },
+    get(id) {
+      return entries.find((entry) => entry.id === id) ?? null;
+    },
+    cleanup() {},
+  };
 }
 
 test("GET /v1/health returns gateway status", async () => {
@@ -83,6 +114,51 @@ test("admin logs are disabled when HOLO_ADMIN_TOKEN is not configured", async ()
 
   assert.equal(response.status, 404);
   assert.equal((await response.json()).error.code, "ADMIN_DISABLED");
+});
+
+test("AI call logs can be captured independently from admin auth", async () => {
+  const adminLogStore = createRecordingAdminLogStore();
+  const app = createTestApp({ adminLogStore });
+
+  const response = await app.request("/v1/ai/chat/completions", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-holo-device-id": "capture-without-admin",
+    },
+    body: JSON.stringify({
+      purpose: "chat",
+      stream: false,
+      messages: [{ role: "user", content: "记录这次请求" }],
+    }),
+  });
+
+  assert.equal(response.status, 200);
+  assert.equal(adminLogStore.entries.length, 1);
+  assert.equal(adminLogStore.entries[0].deviceId, "capture-without-admin");
+  assert.equal(adminLogStore.entries[0].status, "success");
+});
+
+test("admin logs page displays UTC timestamps as UTC+8 local time", () => {
+  const html = renderAdminLogsPage({
+    token: "",
+    logs: [
+      {
+        id: "1",
+        type: "ai.chat.completions",
+        status: "success",
+        startedAt: "2026-05-16 09:32:11",
+        durationMs: 120,
+        purpose: "chat",
+        provider: "mock",
+        model: "holo-mock",
+        deviceId: "device-a",
+        stream: false,
+      },
+    ],
+  });
+
+  assert.match(html, /2026-05-16 17:32:11/);
 });
 
 test("admin logs reject missing or invalid tokens", async () => {

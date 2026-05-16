@@ -12,7 +12,6 @@ import { getFinanceCategoryCatalog } from "./catalog/financeCategoryCatalog.js";
 import { getPrompt, listPrompts, listPromptMetadata, setDatabase } from "./prompts/promptRegistry.js";
 import { loadConfig } from "./config.js";
 import { createAdminLogStore, truncateText } from "./admin/adminLogStore.js";
-import { isAdminEnabled } from "./admin/adminAuth.js";
 import { registerAdminRoutes } from "./admin/adminRoutes.js";
 import { createRequestLogger } from "./middleware/requestLogger.js";
 import { createDatabase } from "./db/database.js";
@@ -40,7 +39,7 @@ export function createApp(overrides = {}) {
     });
   const providers = createProviders(config);
   const asrProvider = createAsrProvider(config);
-  const captureAdminLogs = isAdminEnabled(config);
+  const captureAiCallLogs = config.aiCallLogs.enabled;
 
   // 请求耗时日志中间件
   const requestLogger = createRequestLogger(database.db);
@@ -156,7 +155,7 @@ export function createApp(overrides = {}) {
         maxTokens: route.maxTokens,
         responseFormat: request.response_format,
       };
-      const logId = captureAdminLogs
+      const logId = captureAiCallLogs
         ? adminLogStore.startAiCall({
             deviceId,
             purpose,
@@ -225,7 +224,7 @@ export function createApp(overrides = {}) {
         throw new GatewayError("AUDIO_TOO_LARGE", "Audio file is too large", 413);
       }
 
-      const logId = captureAdminLogs
+      const logId = captureAiCallLogs
         ? adminLogStore.startAiCall({
             deviceId,
             purpose: "asr_transcription",

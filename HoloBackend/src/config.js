@@ -67,6 +67,9 @@ const DEFAULT_CONFIG = {
     logMaxEntries: Number(process.env.HOLO_ADMIN_LOG_MAX_ENTRIES ?? 200),
     logDetailMaxChars: Number(process.env.HOLO_ADMIN_LOG_DETAIL_MAX_CHARS ?? 20_000),
   },
+  aiCallLogs: {
+    enabled: process.env.HOLO_AI_CALL_LOGS_ENABLED !== "false",
+  },
 };
 
 export function loadConfig(overrides = {}) {
@@ -94,6 +97,10 @@ export function loadConfig(overrides = {}) {
     admin: {
       ...DEFAULT_CONFIG.admin,
       ...overrides.admin,
+    },
+    aiCallLogs: {
+      ...DEFAULT_CONFIG.aiCallLogs,
+      ...overrides.aiCallLogs,
     },
     asrProvider: overrides.asrProvider,
     adminLogStore: overrides.adminLogStore,

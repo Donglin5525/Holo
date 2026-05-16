@@ -1,3 +1,5 @@
+import { formatLocalTimestamp } from "../time.js";
+
 export function renderAdminLogsPage({ logs, token, notice = null, error = null }) {
   const rows = logs
     .map((log) => {
@@ -13,7 +15,7 @@ export function renderAdminLogsPage({ logs, token, notice = null, error = null }
             ${isAsr ? '<span class="asr-badge">ASR</span>' : ''}
           </header>
           <dl>
-            <div><dt>Time</dt><dd>${escapeHtml(log.startedAt)}</dd></div>
+            <div><dt>Time</dt><dd>${escapeHtml(formatLocalTimestamp(log.startedAt))}</dd></div>
             <div><dt>Duration</dt><dd>${log.durationMs == null ? "pending" : `${log.durationMs}ms`}</dd></div>
             <div><dt>Provider</dt><dd>${escapeHtml(log.provider)}</dd></div>
             <div><dt>Device</dt><dd>${escapeHtml(log.deviceId)}</dd></div>
@@ -114,7 +116,7 @@ export function renderAdminLogsPage({ logs, token, notice = null, error = null }
     </nav>
     <h1>Holo Admin Logs</h1>
     <div class="toolbar" style="display:flex;align-items:center;gap:12px;">
-      <p style="margin:0;">最近 AI / ASR 调用详情日志。页面每 10 秒自动刷新，日志已持久化到 SQLite。</p>
+      <p style="margin:0;">最近 AI / ASR 调用详情日志。页面每 10 秒自动刷新，时间按 UTC+8 展示，日志已持久化到 SQLite。</p>
       <button onclick="location.reload()" style="padding:6px 16px;border:1px solid #4b5563;border-radius:6px;background:#1f2937;color:#e5e7eb;cursor:pointer;font-size:13px;">刷新</button>
     </div>
     ${renderNotice(notice, error)}
