@@ -12,7 +12,7 @@ extension CoreDataStack {
     // MARK: - Habit Entities
 
     /// 创建习惯相关实体（Habit, HabitRecord）
-    nonisolated func createHabitEntities() -> [NSEntityDescription] {
+    nonisolated func createHabitEntities(goalEntity: NSEntityDescription) -> [NSEntityDescription] {
         // MARK: - Habit Entity
         // 习惯实体，支持打卡型和数值型两种习惯
         let habitEntity = NSEntityDescription()
@@ -220,8 +220,28 @@ extension CoreDataStack {
         habitRecordsRelation.inverseRelationship = recordHabitRelation
         recordHabitRelation.inverseRelationship = habitRecordsRelation
         
-        // 将关系添加到实体属性中
-        habitEntity.properties = habitAttributes + [habitRecordsRelation]
+        // Goal ↔ Habit 关系
+        let goalHabitsRelation = NSRelationshipDescription()
+        goalHabitsRelation.name = "habits"
+        goalHabitsRelation.destinationEntity = habitEntity
+        goalHabitsRelation.minCount = 0
+        goalHabitsRelation.maxCount = 0
+        goalHabitsRelation.deleteRule = .nullifyDeleteRule
+        goalHabitsRelation.isOptional = true
+
+        let habitGoalRelation = NSRelationshipDescription()
+        habitGoalRelation.name = "goal"
+        habitGoalRelation.destinationEntity = goalEntity
+        habitGoalRelation.minCount = 0
+        habitGoalRelation.maxCount = 1
+        habitGoalRelation.deleteRule = .nullifyDeleteRule
+        habitGoalRelation.isOptional = true
+
+        goalHabitsRelation.inverseRelationship = habitGoalRelation
+        habitGoalRelation.inverseRelationship = goalHabitsRelation
+
+        goalEntity.properties.append(goalHabitsRelation)
+        habitEntity.properties = habitAttributes + [habitRecordsRelation, habitGoalRelation]
         habitRecordEntity.properties = habitRecordAttributes + [recordHabitRelation]
 
         return [habitEntity, habitRecordEntity]

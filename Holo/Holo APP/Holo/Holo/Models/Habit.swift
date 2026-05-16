@@ -32,6 +32,7 @@ public class Habit: NSManagedObject {
     @NSManaged public var createdAt: Date
     @NSManaged public var updatedAt: Date
     @NSManaged public var records: NSSet?
+    @NSManaged public var goal: Goal?
     
     // MARK: - Computed Properties
     

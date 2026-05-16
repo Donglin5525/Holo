@@ -118,12 +118,14 @@ class CoreDataStack {
     nonisolated func createDataModel() -> NSManagedObjectModel {
         let model = NSManagedObjectModel()
         var entities: [NSEntityDescription] = []
+        let goalEntity = createGoalEntity()
         entities.append(contentsOf: createFinanceEntities())
-        entities.append(contentsOf: createHabitEntities())
-        entities.append(contentsOf: createTodoEntities())
+        entities.append(contentsOf: createHabitEntities(goalEntity: goalEntity))
+        entities.append(contentsOf: createTodoEntities(goalEntity: goalEntity))
         entities.append(contentsOf: createThoughtEntities())
         entities.append(contentsOf: createChatEntities())
         entities.append(createMemoryInsightEntity())
+        entities.append(goalEntity)
         model.entities = entities
         return model
     }

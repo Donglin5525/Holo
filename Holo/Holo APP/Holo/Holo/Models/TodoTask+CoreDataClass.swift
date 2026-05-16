@@ -50,6 +50,10 @@ class TodoTask: NSManagedObject, @unchecked Sendable {
     @NSManaged var checkItems: NSSet?
     @NSManaged var attachments: NSSet?
     @NSManaged var repeatRule: RepeatRule?
+
+    // MARK: - Goal Relationship
+
+    @NSManaged var goal: Goal?
 }
 
 // MARK: - Core Data Generated Accessors

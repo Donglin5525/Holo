@@ -12,7 +12,7 @@ extension CoreDataStack {
     // MARK: - Todo Entities
 
     /// 创建待办相关实体（TodoFolder, TodoList, TodoTask, TodoTag, CheckItem, RepeatRule, TaskAttachment）
-    nonisolated func createTodoEntities() -> [NSEntityDescription] {
+    nonisolated func createTodoEntities(goalEntity: NSEntityDescription) -> [NSEntityDescription] {
         // MARK: - TodoFolder Entity
         // 待办文件夹实体，顶层容器
         let todoFolderEntity = NSEntityDescription()
@@ -589,10 +589,31 @@ extension CoreDataStack {
         taskAttachmentsRelation.inverseRelationship = attachmentTaskRelation
         attachmentTaskRelation.inverseRelationship = taskAttachmentsRelation
 
-        // 将关系添加到实体
+        // Goal ↔ TodoTask 关系
+        let goalTasksRelation = NSRelationshipDescription()
+        goalTasksRelation.name = "tasks"
+        goalTasksRelation.destinationEntity = todoTaskEntity
+        goalTasksRelation.minCount = 0
+        goalTasksRelation.maxCount = 0
+        goalTasksRelation.deleteRule = .nullifyDeleteRule
+        goalTasksRelation.isOptional = true
+
+        let taskGoalRelation = NSRelationshipDescription()
+        taskGoalRelation.name = "goal"
+        taskGoalRelation.destinationEntity = goalEntity
+        taskGoalRelation.minCount = 0
+        taskGoalRelation.maxCount = 1
+        taskGoalRelation.deleteRule = .nullifyDeleteRule
+        taskGoalRelation.isOptional = true
+
+        goalTasksRelation.inverseRelationship = taskGoalRelation
+        taskGoalRelation.inverseRelationship = goalTasksRelation
+
+        goalEntity.properties.append(goalTasksRelation)
+        todoTaskEntity.properties = todoTaskAttributes + [taskListRelation, taskTagsRelation, taskCheckItemsRelation, taskAttachmentsRelation, taskRepeatRuleRelation, taskGoalRelation]
+
         todoFolderEntity.properties = todoFolderAttributes + [folderListsRelation]
         todoListEntity.properties = todoListAttributes + [listFolderRelation, listTasksRelation]
-        todoTaskEntity.properties = todoTaskAttributes + [taskListRelation, taskTagsRelation, taskCheckItemsRelation, taskAttachmentsRelation, taskRepeatRuleRelation]
         todoTagEntity.properties = todoTagAttributes + [tagTasksRelation]
         checkItemEntity.properties = checkItemAttributes + [checkItemTaskRelation]
         repeatRuleEntity.properties = repeatRuleAttributes + [ruleTaskRelation]
