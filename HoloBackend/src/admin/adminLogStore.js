@@ -173,9 +173,13 @@ export function createAdminLogStore(options = {}) {
   }
 
   function list() {
-    // 优先从热缓存返回
-    if (hotCache.length > 0) {
-      return hotCache.map((entry) => ({
+    const results = [];
+    const seenIds = new Set();
+
+    // 先从热缓存获取最近记录
+    for (const entry of hotCache) {
+      seenIds.add(entry.id);
+      results.push({
         id: entry.id,
         type: entry.type,
         status: entry.status,
@@ -190,35 +194,41 @@ export function createAdminLogStore(options = {}) {
         errorCode: entry.error?.code ?? null,
         asrFileType: entry.asrFileType ?? null,
         asrResultLength: entry.asrResultLength ?? null,
-      }));
+      });
     }
 
-    // 缓存为空时从 SQLite 读取
+    // 再从 SQLite 补充热缓存没有的旧记录
     const s = getStmts();
     if (s) {
       try {
-        return s.listLogs.all(maxEntries).map((row) => ({
-          id: String(row.id),
-          type: row.call_type === 'asr' ? 'asr.transcriptions' : 'ai.chat.completions',
-          status: row.error_message ? 'error' : 'success',
-          startedAt: row.created_at,
-          finishedAt: row.created_at,
-          durationMs: row.duration_ms,
-          deviceId: row.device_id,
-          purpose: row.purpose,
-          provider: row.provider,
-          model: row.model,
-          stream: row.is_stream === 1,
-          errorCode: row.error_message ?? null,
-          asrFileType: row.asr_file_type ?? null,
-          asrResultLength: row.asr_result_length ?? null,
-        }));
+        const rows = s.listLogs.all(maxEntries);
+        for (const row of rows) {
+          const id = String(row.id);
+          if (!seenIds.has(id)) {
+            results.push({
+              id,
+              type: row.call_type === 'asr' ? 'asr.transcriptions' : 'ai.chat.completions',
+              status: row.error_message ? 'error' : 'success',
+              startedAt: row.created_at,
+              finishedAt: row.created_at,
+              durationMs: row.duration_ms,
+              deviceId: row.device_id,
+              purpose: row.purpose,
+              provider: row.provider,
+              model: row.model,
+              stream: row.is_stream === 1,
+              errorCode: row.error_message ?? null,
+              asrFileType: row.asr_file_type ?? null,
+              asrResultLength: row.asr_result_length ?? null,
+            });
+          }
+        }
       } catch (err) {
         console.error('[AdminLogStore] SQLite list 失败:', err.message);
       }
     }
 
-    return [];
+    return results;
   }
 
   function get(id) {

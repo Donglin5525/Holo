@@ -36,6 +36,7 @@ export function createApp(overrides = {}) {
       maxEntries: config.admin.logMaxEntries,
       maxDetailChars: config.admin.logDetailMaxChars,
       db: database.db,
+      contentCaptureEnabled: true,
     });
   const providers = createProviders(config);
   const asrProvider = createAsrProvider(config);

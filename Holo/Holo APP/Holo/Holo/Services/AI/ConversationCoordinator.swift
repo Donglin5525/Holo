@@ -252,7 +252,14 @@ final class ConversationCoordinator {
         if routeResult.categoryUnmatched {
             data["primaryCategory"] = "待确认"
             data["subCategory"] = nil
-            // categoryCandidate 已在 extractedData 中，此处保留供 UI 展示用户原始分类语义
+        } else {
+            // 匹配成功时，用 Core Data 真实科目名覆盖 LLM 可能缺失的值
+            if let primary = routeResult.matchedPrimaryCategory {
+                data["primaryCategory"] = primary
+            }
+            if let sub = routeResult.matchedSubCategory {
+                data["subCategory"] = sub
+            }
         }
 
         return data.isEmpty ? nil : data

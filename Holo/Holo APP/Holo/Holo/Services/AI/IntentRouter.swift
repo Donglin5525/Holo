@@ -28,6 +28,9 @@ final class IntentRouter {
         let linkedEntity: LinkedEntity?
         /// 分类未匹配到，使用了「待确认」兜底
         let categoryUnmatched: Bool
+        /// 匹配成功后的真实科目名（来自 Core Data）
+        let matchedPrimaryCategory: String?
+        let matchedSubCategory: String?
 
         init(
             text: String,
@@ -36,7 +39,9 @@ final class IntentRouter {
             habitId: UUID? = nil,
             thoughtId: UUID? = nil,
             linkedEntity: LinkedEntity? = nil,
-            categoryUnmatched: Bool = false
+            categoryUnmatched: Bool = false,
+            matchedPrimaryCategory: String? = nil,
+            matchedSubCategory: String? = nil
         ) {
             self.text = text
             self.transactionId = transactionId
@@ -45,6 +50,8 @@ final class IntentRouter {
             self.thoughtId = thoughtId
             self.linkedEntity = linkedEntity
             self.categoryUnmatched = categoryUnmatched
+            self.matchedPrimaryCategory = matchedPrimaryCategory
+            self.matchedSubCategory = matchedSubCategory
         }
     }
 
@@ -154,6 +161,23 @@ final class IntentRouter {
                 categoryCandidate: categoryCandidate
             ) : nil
 
+        // 提取匹配后的真实科目名
+        var matchedPrimary: String?
+        var matchedSub: String?
+        if !isUnmatched, let matched = category {
+            if let parentID = matched.parentId {
+                let allCategories = try await categoryRepo.getCategories(by: .expense)
+                if let parent = allCategories.first(where: { $0.id == parentID }) {
+                    matchedPrimary = parent.name
+                    matchedSub = matched.name
+                } else {
+                    matchedPrimary = matched.name
+                }
+            } else {
+                matchedPrimary = matched.name
+            }
+        }
+
         return RouteResult(
             text: AIResponseTextBuilder.expenseRecorded(
                 amount: amountStr,
@@ -164,7 +188,9 @@ final class IntentRouter {
             ),
             transactionId: transaction.id,
             linkedEntity: LinkedEntity(type: .transaction, id: transaction.id),
-            categoryUnmatched: isUnmatched
+            categoryUnmatched: isUnmatched,
+            matchedPrimaryCategory: matchedPrimary,
+            matchedSubCategory: matchedSub
         )
     }
 
