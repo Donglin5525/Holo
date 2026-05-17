@@ -4,6 +4,18 @@
 
 ---
 
+## [2026-05-17] 健康模块导航与同步样式优化
+
+### 优化
+- 健康首页移除系统导航栏的左上角关闭按钮，改为右滑返回首页
+- 健康详情页隐藏系统返回样式，改为 Holo 自绘标题区，并支持右滑返回健康总览
+- 健康首页移除 iOS 原生刷新按钮和下拉刷新样式，新增 Holo 胶囊式「同步」控件与自绘小环动画
+
+### 验证
+- iOS Debug 模拟器构建通过：`xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -configuration Debug -destination 'generic/platform=iOS Simulator' build`
+
+---
+
 ## [2026-05-17] 财务分类与图标编辑增强
 
 ### 新增
