@@ -93,6 +93,8 @@ struct GoalHabitDraft: Codable, Equatable, Identifiable {
     var type: String
     var unit: String?
     var targetValue: Double?
+    var isBadHabit: Bool?
+    var successRule: String?
 
     var resolvedFrequency: HabitFrequency {
         HabitFrequency(rawValue: frequency) ?? .daily

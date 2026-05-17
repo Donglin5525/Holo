@@ -367,12 +367,13 @@ struct MemoryInsightContextBuilder {
         var transportTransactions: [Transaction] = []
 
         for tx in expenses {
-            let parentName = parentCategoryName(for: tx.category, topLevelNameMap: topLevelNameMap)
-            if isFixedNecessaryExpense(categoryName: tx.category.name, parentName: parentName) {
-                fixedMap[tx.category.name, default: 0] += tx.amount.decimalValue
+            guard let category = tx.category else { continue }
+            let parentName = parentCategoryName(for: category, topLevelNameMap: topLevelNameMap)
+            if isFixedNecessaryExpense(categoryName: category.name, parentName: parentName) {
+                fixedMap[category.name, default: 0] += tx.amount.decimalValue
                 fixedTotal += tx.amount.decimalValue
             }
-            if isTransportExpense(categoryName: tx.category.name, parentName: parentName) {
+            if isTransportExpense(categoryName: category.name, parentName: parentName) {
                 transportTransactions.append(tx)
             }
         }
@@ -408,9 +409,10 @@ struct MemoryInsightContextBuilder {
         var totalAmount: Decimal = 0
 
         for tx in transactions {
+            guard let category = tx.category else { continue }
             let amount = tx.amount.decimalValue
             totalAmount += amount
-            switch tx.category.name {
+            switch category.name {
             case "打车":
                 taxiAmount += amount
                 taxiCount += 1
@@ -446,7 +448,10 @@ struct MemoryInsightContextBuilder {
     private static func buildIncomeCadenceHint(incomes: [Transaction], dayCount: Int) -> String? {
         guard dayCount <= 14 else { return nil }
         let stableIncomeNames: Set<String> = ["工资", "奖金", "兼职", "报销", "房租收入", "公积金"]
-        let hasStableIncome = incomes.contains { stableIncomeNames.contains($0.category.name) }
+        let hasStableIncome = incomes.contains { tx in
+            guard let category = tx.category else { return false }
+            return stableIncomeNames.contains(category.name)
+        }
         if hasStableIncome {
             return "当前是短周期分析；工资/奖金/报销等收入可能低频发生，周收入不能直接代表收支失衡，应结合月度或滚动30天判断。"
         }
@@ -481,11 +486,12 @@ struct MemoryInsightContextBuilder {
         let habits = habitRepo.activeHabits
         var completedRecordCount = 0
         var streaks: [HabitStreakSummary] = []
+        var performanceSummaries: [HabitPerformanceSummary] = []
 
         for habit in habits {
-            let records = habitRepo.getRecords(for: habit, in: range)
-            let completed = records.filter { $0.isCompleted }.count
-            completedRecordCount += completed
+            let performance = habitRepo.evaluatePerformance(for: habit, in: range)
+            completedRecordCount += performance.completedDays
+            performanceSummaries.append(Self.makeHabitPerformanceSummary(from: performance))
 
             let streakInfo = habitRepo.calculateStreakInfo(for: habit)
             if streakInfo.value >= 3 {
@@ -503,8 +509,7 @@ struct MemoryInsightContextBuilder {
         var previousPeriodCompletedRecordCount = 0
         let prevRange = prevStart...prevEnd
         for habit in habits {
-            let records = habitRepo.getRecords(for: habit, in: prevRange)
-            previousPeriodCompletedRecordCount += records.filter { $0.isCompleted }.count
+            previousPeriodCompletedRecordCount += habitRepo.evaluatePerformance(for: habit, in: prevRange).completedDays
         }
 
         // 总览统计 + 排名
@@ -558,12 +563,29 @@ struct MemoryInsightContextBuilder {
             averageCompletionRate: overviewStats.averageCompletionRate,
             topPerformingHabits: topPerforming,
             strugglingHabits: struggling,
+            habitPerformanceSummaries: performanceSummaries,
             habitCategoryCompletionSummaries: []
         )
         return (context, habitAnomalies)
     }
 
     // MARK: - Tasks
+
+    private static func makeHabitPerformanceSummary(from snapshot: HabitPerformanceSnapshot) -> HabitPerformanceSummary {
+        HabitPerformanceSummary(
+            habitName: snapshot.habitName,
+            polarity: snapshot.polarity,
+            successRule: snapshot.successRule,
+            completionRate: snapshot.completionRate,
+            totalValue: snapshot.totalValue,
+            targetValue: snapshot.targetValue,
+            unit: snapshot.unit,
+            controlledDays: snapshot.controlledDays,
+            overLimitDays: snapshot.overLimitDays,
+            completedDays: snapshot.completedDays,
+            totalDays: snapshot.totalDays
+        )
+    }
 
     private func buildTaskContext(start: Date, end: Date) -> (context: MemoryInsightTaskContext, anomalies: [AnomalyObservation]) {
         let context = CoreDataStack.shared.viewContext
@@ -970,6 +992,7 @@ struct MemoryInsightContextBuilder {
                 activeHabitCount: 0, completedRecordCount: 0,
                 previousPeriodCompletedRecordCount: 0, streaks: [],
                 averageCompletionRate: nil, topPerformingHabits: [], strugglingHabits: [],
+                habitPerformanceSummaries: [],
                 habitCategoryCompletionSummaries: []
             ),
             tasks: MemoryInsightTaskContext(
@@ -1507,7 +1530,7 @@ struct MemoryInsightContextBuilder {
                     date: dateFormatter.string(from: t.date),
                     module: "finance",
                     type: "expense",
-                    title: String(t.note?.prefix(30) ?? t.category.name.prefix(20)),
+                    title: String(t.note?.prefix(30) ?? (t.category?.name ?? "未分类").prefix(20)),
                     valueText: currencyFormatter.string(from: t.amount),
                     tags: t.tags ?? [],
                     sourceId: t.id.uuidString
@@ -1523,7 +1546,7 @@ struct MemoryInsightContextBuilder {
                     date: dateFormatter.string(from: t.date),
                     module: "finance",
                     type: "income",
-                    title: String(t.note?.prefix(30) ?? t.category.name.prefix(20)),
+                    title: String(t.note?.prefix(30) ?? (t.category?.name ?? "未分类").prefix(20)),
                     valueText: currencyFormatter.string(from: t.amount),
                     tags: t.tags ?? [],
                     sourceId: t.id.uuidString
@@ -1720,7 +1743,8 @@ struct MemoryInsightContextBuilder {
     ) -> [CategoryBaseline] {
         var categoryMap: [String: Decimal] = [:]
         for t in expenses {
-            categoryMap[t.category.name, default: 0] += t.amount.decimalValue
+            guard let category = t.category else { continue }
+            categoryMap[category.name, default: 0] += t.amount.decimalValue
         }
 
         let weeklyDivisor = Decimal(validWeekCount)

@@ -69,7 +69,7 @@ enum AnalysisSummaryFormatter {
 
         var parts: [String] = []
         if let rate = habit.averageCompletionRate {
-            parts.append("完成率 \(String(format: "%.0f%%", rate * 100))")
+            parts.append("达标率 \(String(format: "%.0f%%", rate * 100))")
         }
         parts.append("活跃 \(habit.activeHabitCount) 个")
         let maxStreak = habit.streaks.map(\.currentStreak).max() ?? 0

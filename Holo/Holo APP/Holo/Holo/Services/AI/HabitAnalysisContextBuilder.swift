@@ -30,49 +30,44 @@ struct HabitAnalysisContextBuilder {
         }
         let range = startInclusive...endExclusive
 
-        let activeHabits = repo.activeHabits
-        let checkInHabits = activeHabits.filter { $0.isCheckInType }
+        let activeHabits = repo.activeHabits.filter { !$0.isArchived }
 
-        guard !checkInHabits.isEmpty else {
+        guard !activeHabits.isEmpty else {
             return nil
         }
 
-        let completedRecordCount = calculateCompletedRecords(
-            habits: checkInHabits,
+        let successDayCount = calculateSuccessDays(
+            habits: activeHabits,
             range: range,
             repo: repo
         )
 
-        // 完成率
         let dayCount = max(calendar.dateComponents([.day], from: startInclusive, to: endExclusive).day ?? 1, 1)
-        let expectedTotal = checkInHabits.count * dayCount
-        let averageCompletionRate: Double? = expectedTotal > 0
-            ? Double(completedRecordCount) / Double(expectedTotal)
-            : nil
+        let expectedTotal = activeHabits.count * dayCount
+        let averageCompletionRate: Double? = expectedTotal > 0 ? Double(successDayCount) / Double(expectedTotal) : nil
 
-        // 按习惯统计完成率
-        var habitRates: [(habit: Habit, rate: Double, streak: HabitStreak)] = []
-        for habit in checkInHabits {
-            let records = repo.getRecords(for: habit, in: range)
-            let completed = records.filter { $0.isCompleted }.count
-            let rate = dayCount > 0 ? Double(completed) / Double(dayCount) : 0
+        var habitRates: [(habit: Habit, snapshot: HabitPerformanceSnapshot, streak: HabitStreak)] = []
+        for habit in activeHabits {
+            let snapshot = repo.evaluatePerformance(for: habit, in: range)
             let streak = repo.calculateStreakInfo(for: habit)
-            habitRates.append((habit, rate, streak))
+            habitRates.append((habit, snapshot, streak))
         }
 
-        // Top 5 表现最好的习惯
         let topPerforming = habitRates
-            .filter { $0.rate > 0 }
-            .sorted { $0.rate > $1.rate }
+            .filter { $0.snapshot.completionRate > 0 }
+            .sorted { $0.snapshot.completionRate > $1.snapshot.completionRate }
             .prefix(5)
-            .map { HabitPerformanceItem(habitName: $0.habit.name, completionRate: $0.rate, streak: $0.streak.value) }
+            .map { item in
+                makePerformanceItem(snapshot: item.snapshot, streak: item.streak.value)
+            }
 
-        // 掉队习惯（完成率 < 50%）
         let struggling = habitRates
-            .filter { $0.rate > 0 && $0.rate < 0.5 }
-            .sorted { $0.rate < $1.rate }
+            .filter { $0.snapshot.completionRate > 0 && $0.snapshot.completionRate < 0.5 }
+            .sorted { $0.snapshot.completionRate < $1.snapshot.completionRate }
             .prefix(3)
-            .map { HabitPerformanceItem(habitName: $0.habit.name, completionRate: $0.rate, streak: $0.streak.value) }
+            .map { item in
+                makePerformanceItem(snapshot: item.snapshot, streak: item.streak.value)
+            }
 
         // Streaks
         let streaks = habitRates
@@ -82,9 +77,8 @@ struct HabitAnalysisContextBuilder {
             .map { HabitStreakItem(habitName: $0.habit.name, currentStreak: $0.streak.value, longestStreak: $0.streak.value) }
 
         // 日完成趋势
-        let dailyTrend = buildDailyCompletionTrend(
-            habits: checkInHabits,
-            range: range,
+        let dailyTrend = buildDailySuccessTrend(
+            habits: activeHabits,
             start: startInclusive,
             end: endExclusive,
             calendar: calendar,
@@ -98,8 +92,8 @@ struct HabitAnalysisContextBuilder {
             let compStartDay = calendar.startOfDay(for: compStart)
             let compEndExclusive = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: compEnd))
             if let compEndExcl = compEndExclusive {
-                previousPeriodCompletedRecordCount = calculateCompletedRecords(
-                    habits: checkInHabits,
+                previousPeriodCompletedRecordCount = calculateSuccessDays(
+                    habits: activeHabits,
                     range: compStartDay...compEndExcl,
                     repo: repo
                 )
@@ -107,8 +101,8 @@ struct HabitAnalysisContextBuilder {
         }
 
         return HabitAnalysisContext(
-            activeHabitCount: checkInHabits.count,
-            completedRecordCount: completedRecordCount,
+            activeHabitCount: activeHabits.count,
+            completedRecordCount: successDayCount,
             averageCompletionRate: averageCompletionRate,
             topPerformingHabits: topPerforming,
             strugglingHabits: struggling,
@@ -121,23 +115,17 @@ struct HabitAnalysisContextBuilder {
     // MARK: - Helpers
 
     @MainActor
-    private func calculateCompletedRecords(
+    private func calculateSuccessDays(
         habits: [Habit],
         range: ClosedRange<Date>,
         repo: HabitRepository
     ) -> Int {
-        var total = 0
-        for habit in habits {
-            let records = repo.getRecords(for: habit, in: range)
-            total += records.filter { $0.isCompleted }.count
-        }
-        return total
+        habits.reduce(0) { $0 + repo.evaluatePerformance(for: $1, in: range).completedDays }
     }
 
     @MainActor
-    private func buildDailyCompletionTrend(
+    private func buildDailySuccessTrend(
         habits: [Habit],
-        range: ClosedRange<Date>,
         start: Date,
         end: Date,
         calendar: Calendar,
@@ -145,28 +133,42 @@ struct HabitAnalysisContextBuilder {
     ) -> [DailyRatePoint] {
         guard habits.count > 0 else { return [] }
 
-        var dailyCompleted: [Date: Int] = [:]
+        var dailyRates: [Date: Double] = [:]
         var current = start
-        while current <= end {
-            dailyCompleted[calendar.startOfDay(for: current)] = 0
+        while current < end {
+            let dayStart = calendar.startOfDay(for: current)
+            guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { break }
+
+            let rate = habits.reduce(0.0) { sum, habit in
+                sum + repo.evaluatePerformance(for: habit, in: dayStart...dayEnd).completionRate
+            } / Double(habits.count)
+            dailyRates[dayStart] = rate
+
             guard let next = calendar.date(byAdding: .day, value: 1, to: current) else { break }
             current = next
         }
 
-        for habit in habits {
-            let records = repo.getRecords(for: habit, in: range)
-            for record in records where record.isCompleted {
-                let day = calendar.startOfDay(for: record.date)
-                dailyCompleted[day, default: 0] += 1
-            }
-        }
-
-        let totalDays = dailyCompleted.count
-        return dailyCompleted.sorted { $0.key < $1.key }
+        return dailyRates.sorted { $0.key < $1.key }
             .prefix(31)
-            .map { date, count in
-                let rate = totalDays > 0 ? Double(count) / Double(habits.count) : 0
+            .map { date, rate in
                 return DailyRatePoint(date: Self.dateFmt.string(from: date), rate: min(rate, 1.0))
             }
+    }
+
+    private func makePerformanceItem(snapshot: HabitPerformanceSnapshot, streak: Int) -> HabitPerformanceItem {
+        HabitPerformanceItem(
+            habitName: snapshot.habitName,
+            completionRate: snapshot.completionRate,
+            streak: streak,
+            polarity: snapshot.polarity,
+            successRule: snapshot.successRule,
+            totalValue: snapshot.totalValue,
+            targetValue: snapshot.targetValue,
+            unit: snapshot.unit,
+            controlledDays: snapshot.controlledDays,
+            overLimitDays: snapshot.overLimitDays,
+            completedDays: snapshot.completedDays,
+            totalDays: snapshot.totalDays
+        )
     }
 }

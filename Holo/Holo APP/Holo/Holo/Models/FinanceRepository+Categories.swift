@@ -109,8 +109,7 @@ extension FinanceRepository {
         var categoryMap: [NSManagedObjectID: Category] = [:]
         
         for tx in transactions {
-            let cat = tx.category
-            guard cat.isSubCategory else { continue }
+            guard let cat = tx.category, cat.isSubCategory else { continue }
             let oid = cat.objectID
             frequencyMap[oid, default: 0] += 1
             categoryMap[oid] = cat

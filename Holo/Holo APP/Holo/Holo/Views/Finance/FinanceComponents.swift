@@ -237,7 +237,7 @@ struct TransactionRowView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     // 主标题
-                    Text(hasNote ? transaction.note! : transaction.category.name)
+                    Text(hasNote ? transaction.note! : (transaction.category?.name ?? "未分类"))
                         .font(.holoBody)
                         .foregroundColor(.holoTextPrimary)
                         .lineLimit(1)
@@ -251,8 +251,8 @@ struct TransactionRowView: View {
                     }
 
                     // 非默认账户时显示账户名
-                    if !transaction.account.isDefault {
-                        Text(transaction.account.name)
+                    if let account = transaction.account, !account.isDefault {
+                        Text(account.name)
                             .font(.system(size: 11))
                             .foregroundColor(.holoTextSecondary.opacity(0.7))
                             .lineLimit(1)
@@ -281,13 +281,15 @@ struct TransactionRowView: View {
     /// 分类图标
     private var categoryIcon: some View {
         let cat = transaction.category
-        let color: Color = cat.isDeleted ? .holoPrimary : cat.swiftUIColor
+        let color: Color = (cat?.isDeleted ?? false) ? .holoPrimary : (cat?.swiftUIColor ?? .holoPrimary)
         return ZStack {
             Circle()
                 .fill(color.opacity(0.08))
                 .frame(width: 48, height: 48)
 
-            transactionCategoryIcon(cat, size: 24)
+            if let cat {
+                transactionCategoryIcon(cat, size: 24)
+            }
         }
     }
 

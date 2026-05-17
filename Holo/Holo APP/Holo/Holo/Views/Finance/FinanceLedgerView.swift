@@ -574,11 +574,13 @@ struct FinanceLedgerView: View {
     private func performCopyTransaction(_ original: Transaction, targetDate: Date) {
         Task {
             do {
+                guard let category = original.category,
+                      let account = original.account else { return }
                 _ = try await FinanceRepository.shared.addTransaction(
                     amount: abs(original.amount.decimalValue),
                     type: original.transactionType,
-                    category: original.category,
-                    account: original.account,
+                    category: category,
+                    account: account,
                     date: targetDate,
                     note: original.note,
                     remark: original.remark,

@@ -347,13 +347,13 @@ struct ThoughtEditorView: View {
             content = thought.content
             selectedMood = ThoughtMoodType(from: thought.mood)
             selectedTags = thought.tagArray.map { $0.name }
-            referencedThoughtIds = (thought.references as? Set<ThoughtReference>)?.compactMap { $0.targetThought.id } ?? []
+            referencedThoughtIds = (thought.references as? Set<ThoughtReference>)?.compactMap { $0.targetThought?.id } ?? []
 
             // 设置原始值（用于比较是否有修改）
             originalContent = thought.content
             originalMood = ThoughtMoodType(from: thought.mood)
             originalTags = thought.tagArray.map { $0.name }
-            originalReferencedThoughtIds = (thought.references as? Set<ThoughtReference>)?.compactMap { $0.targetThought.id } ?? []
+            originalReferencedThoughtIds = (thought.references as? Set<ThoughtReference>)?.compactMap { $0.targetThought?.id } ?? []
         } catch {
             ThoughtLog.error("加载编辑数据失败", error.localizedDescription)
         }

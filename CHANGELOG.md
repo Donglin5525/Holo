@@ -4,6 +4,20 @@
 
 ---
 
+## [2026-05-17] iCloud CloudKit 同步
+
+### 新增
+- 启用 iCloud CloudKit 私有数据库同步，使用 Core Data with CloudKit 在用户设备间自动同步本地数据
+- 设置页增加 iCloud 同步状态区，显示账号状态、同步事件和错误信息
+- CoreDataStack 增加 Debug 模式 CloudKit schema dry-run 验证方法
+
+### 修改
+- `NSPersistentContainer` 切换为 `NSPersistentCloudKitContainer`
+- Core Data 模型 7 个 required relationship 改为 optional，适配 CloudKit mirroring 限制
+- Debug/Release entitlements 增加 CloudKit 配置
+
+---
+
 ## [2026-05-17] 健康模块导航与同步样式优化
 
 ### 优化

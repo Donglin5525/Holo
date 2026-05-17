@@ -26,6 +26,7 @@ extension CoreDataStack {
         habitId.name = "id"
         habitId.attributeType = .UUIDAttributeType
         habitId.isOptional = false
+        habitId.defaultValue = UUID()
         habitId.isIndexed = true
         habitAttributes.append(habitId)
         
@@ -34,6 +35,7 @@ extension CoreDataStack {
         habitName.name = "name"
         habitName.attributeType = .stringAttributeType
         habitName.isOptional = false
+        habitName.defaultValue = ""
         habitAttributes.append(habitName)
         
         // SF Symbol 图标名称
@@ -41,6 +43,7 @@ extension CoreDataStack {
         habitIcon.name = "icon"
         habitIcon.attributeType = .stringAttributeType
         habitIcon.isOptional = false
+        habitIcon.defaultValue = "checkmark.circle"
         habitAttributes.append(habitIcon)
         
         // Hex 颜色值
@@ -48,6 +51,7 @@ extension CoreDataStack {
         habitColor.name = "color"
         habitColor.attributeType = .stringAttributeType
         habitColor.isOptional = false
+        habitColor.defaultValue = "#5B8CFF"
         habitAttributes.append(habitColor)
         
         // 习惯类型：0=打卡型, 1=数值型
@@ -127,6 +131,7 @@ extension CoreDataStack {
         habitCreatedAt.name = "createdAt"
         habitCreatedAt.attributeType = .dateAttributeType
         habitCreatedAt.isOptional = false
+        habitCreatedAt.defaultValue = Date()
         habitAttributes.append(habitCreatedAt)
         
         // 更新时间
@@ -134,6 +139,7 @@ extension CoreDataStack {
         habitUpdatedAt.name = "updatedAt"
         habitUpdatedAt.attributeType = .dateAttributeType
         habitUpdatedAt.isOptional = false
+        habitUpdatedAt.defaultValue = Date()
         habitAttributes.append(habitUpdatedAt)
         
         // MARK: - HabitRecord Entity
@@ -149,6 +155,7 @@ extension CoreDataStack {
         recordId.name = "id"
         recordId.attributeType = .UUIDAttributeType
         recordId.isOptional = false
+        recordId.defaultValue = UUID()
         recordId.isIndexed = true
         habitRecordAttributes.append(recordId)
         
@@ -157,6 +164,7 @@ extension CoreDataStack {
         recordHabitId.name = "habitId"
         recordHabitId.attributeType = .UUIDAttributeType
         recordHabitId.isOptional = false
+        recordHabitId.defaultValue = UUID()
         recordHabitId.isIndexed = true
         habitRecordAttributes.append(recordHabitId)
         
@@ -165,6 +173,7 @@ extension CoreDataStack {
         recordDate.name = "date"
         recordDate.attributeType = .dateAttributeType
         recordDate.isOptional = false
+        recordDate.defaultValue = Date()
         recordDate.isIndexed = true
         habitRecordAttributes.append(recordDate)
         
@@ -195,6 +204,7 @@ extension CoreDataStack {
         recordCreatedAt.name = "createdAt"
         recordCreatedAt.attributeType = .dateAttributeType
         recordCreatedAt.isOptional = false
+        recordCreatedAt.defaultValue = Date()
         habitRecordAttributes.append(recordCreatedAt)
         
         // MARK: - Habit ↔ HabitRecord 关系定义
@@ -211,10 +221,10 @@ extension CoreDataStack {
         let recordHabitRelation = NSRelationshipDescription()
         recordHabitRelation.name = "habit"
         recordHabitRelation.destinationEntity = habitEntity
-        recordHabitRelation.minCount = 1
+        recordHabitRelation.minCount = 0
         recordHabitRelation.maxCount = 1
         recordHabitRelation.deleteRule = .nullifyDeleteRule
-        recordHabitRelation.isOptional = false
+        recordHabitRelation.isOptional = true
         
         // 设置双向关系
         habitRecordsRelation.inverseRelationship = recordHabitRelation

@@ -127,8 +127,10 @@ test("intent_recognition 默认 Prompt 已移除完整科目表并使用 categor
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  assert.equal(prompt.version, 6);
+  assert.equal(prompt.version, 7);
   assert.match(prompt.content, /categoryCandidate/);
+  assert.match(prompt.content, /habitPolarity/);
+  assert.match(prompt.content, /stayBelowTarget/);
   assert.match(prompt.content, /系统科目对照 catalog/);
   assert.doesNotMatch(prompt.content, /## 科目体系/);
   assert.doesNotMatch(prompt.content, /### 支出/);

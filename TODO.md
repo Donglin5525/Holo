@@ -6,16 +6,16 @@
 
 | 优先级 | 问题 | 位置 | 状态 |
 | --- | --- | --- | --- |
-| 高 | HealthKit 授权失败：真机上点击授权按钮后卡死，需在 Xcode 手动配置 Signing & Capabilities 添加 HealthKit | `HealthRepository.swift` | 🔴 Open |
+| ~~高~~ | ~~HealthKit 授权失败：真机上点击授权按钮后卡死~~ | `HealthRepository.swift` | ✅ Fixed（entitlements 修复 + 授权逻辑重写） |
 | ~~高~~ | ~~任务拍照添加附件卡死~~ | `TaskDetailView.swift` / `TaskImagePicker.swift` | ✅ Fixed |
 
 ---
 
-## ⏸️ 暂缓（等待开发者账号）
+## ⏸️ 暂缓
 
 | 项目 | 说明 | 规划文档 |
 | --- | --- | --- |
-| 桌面小组件 - 习惯模块 | 需要 App Groups 共享数据，需付费开发者账号 | `docs/_common/plans/桌面小组件规划.md` |
+| 桌面小组件 - 习惯模块 | 需要 App Groups 共享数据 | `docs/_common/plans/桌面小组件规划.md` |
 
 ---
 
@@ -26,9 +26,10 @@
 | 习惯模块 | 🚧 进行中 | 打卡 + 图标系统 + 统计模块重构已完成；待验证真机体验 |
 | 记账模块 | ✅ 已完成 | 交互优化 + 深色模式适配 |
 | 任务模块 | 🚧 进行中 | MVP + Phase 2 大部分完成 |
-| 健康模块 | 📋 待开发 | PRD + 实现计划已完成，等待开发 |
+| 健康模块 | ✅ 已完成 | HealthKit 授权 + 数据读取 + Holo 风格导航与刷新 + 仪表盘 |
 | AI 对话 | 🚧 Phase 1-5 进行中 | Phase 1-4 完成，多动作批处理+Prompt 版本管理已完成，Phase 5 能量系统独立迭代 |
 | AI 分析查询 | ✅ 已完成 | 通用分析框架：财务/习惯/任务/想法/跨模块五大领域，零历史消息，持久化分析卡片 |
+| iCloud 同步 | 🚧 真机验证中 | CloudKit 私有数据库同步已配置，待双设备 E2E 验证 |
 
 ### 任务模块 Phase 2 待办
 
@@ -151,7 +152,7 @@
 | 优先级 | 项目 | 说明 | 状态 |
 |--------|------|------|------|
 | 高 | 真实 App Attest 校验 | 当前仅骨架，需实现完整挑战-应答流程 | 📋 待实施 |
-| 高 | 域名 + HTTPS | 当前 HTTP 直连 ECS IP，需绑定域名并配置 HTTPS，完成后移除 `NSAllowsArbitraryLoads` | 📋 待实施 |
+| 高 | 域名 + HTTPS 生产化接入 | 购买/绑定域名；DNS 指向 ECS `123.56.104.9`；配置 `api.*` 代理 `/v1/`、`admin.*` 代理 `/admin/` 和 `/v1/admin/`；申请 HTTPS 证书；Admin 加强密码 + IP 白名单/Basic Auth；iOS 后端地址改为 `https://api.*`；完成后移除 `NSAllowsArbitraryLoads` 和 SSH tunnel 依赖 | 📋 待实施 |
 | ~~中~~ | ~~持久化限流存储~~ | SQLite + fail-closed | ✅ 已完成 |
 | ~~高~~ | ~~后端请求耗时日志~~ | 队列批量写入 SQLite + 控制台结构化输出 | ✅ 已完成 |
 | ~~高~~ | ~~管理后台部署到 ECS~~ | Docker 127.0.0.1 绑定 + SSH tunnel + Nginx 仅代理 /v1/ | 🚧 代码已完成，待实际部署到 ECS |
@@ -165,7 +166,7 @@
 | 优先级 | 项目 | 说明 | 状态 |
 |--------|------|------|------|
 | ~~高~~ | ~~后端请求耗时日志~~ | 队列批量写入 + 控制台结构化输出 | ✅ 已完成 |
-| 高 | 域名 + HTTPS 商用接入 | 为 ECS 后端绑定正式域名并配置 HTTPS，iOS 改用 HTTPS 后端地址；完成后移除当前为公网 IP 验收临时加入的 `NSAllowsArbitraryLoads` HTTP 放行 | 📋 待实施 |
+| 高 | 域名 + HTTPS 商用接入 | 见「后端网关 / 域名 + HTTPS 生产化接入」；目标是避免 `localhost:8787` 与 SSH tunnel 混淆，App 和后台统一走正式 HTTPS 域名 | 📋 待实施 |
 | 中 | 自定义分类同步到 AI 意图识别 | 用户新增一级/二级分类后，AI 的 LLM 意图识别 prompt 中的科目表是硬编码的，无法感知。需要设计同步机制让 AI 及时知晓分类调整 | 📋 待规划 |
 | 中 | HoloProfile 扩展注入范围 | 当前 HoloProfile 仅在普通对话中注入，分析查询（`UserContext.empty`）和洞察生成均未使用。需扩展至分析查询和记忆洞察生成场景 | 📋 待规划 |
 
@@ -260,3 +261,4 @@
 | 预算功能 Phase 2（分类预算 + 首页预算卡片 + 预警 chips + 分类/账户删除预算清理） | 2026-04-25 |
 | HoloBackend 内部管理后台（登录、AI 日志、测试调用、Prompt 查看/编辑/保存/恢复默认） | 2026-05-16 |
 | HoloBackend 功能增强（SQLite 持久化 + 请求耗时日志 + ASR 日志 + 日志持久化 + Prompt 版本历史/Diff/回滚 + 持久化限流 + 部署配置） | 2026-05-16 |
+| 健康模块完整功能上线（HealthKit 授权修复 + 数据读取 + Holo 风格导航/刷新 + 仪表盘重构） | 2026-05-17 |

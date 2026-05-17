@@ -126,6 +126,43 @@ struct HabitPerformanceItem: Codable, Equatable, Sendable {
     let habitName: String
     let completionRate: Double
     let streak: Int
+    let polarity: HabitPolarity
+    let successRule: HabitSuccessRule
+    let totalValue: Double?
+    let targetValue: Double?
+    let unit: String?
+    let controlledDays: Int?
+    let overLimitDays: Int?
+    let completedDays: Int?
+    let totalDays: Int?
+
+    init(
+        habitName: String,
+        completionRate: Double,
+        streak: Int,
+        polarity: HabitPolarity = .positive,
+        successRule: HabitSuccessRule = .completeWhenDone,
+        totalValue: Double? = nil,
+        targetValue: Double? = nil,
+        unit: String? = nil,
+        controlledDays: Int? = nil,
+        overLimitDays: Int? = nil,
+        completedDays: Int? = nil,
+        totalDays: Int? = nil
+    ) {
+        self.habitName = habitName
+        self.completionRate = completionRate
+        self.streak = streak
+        self.polarity = polarity
+        self.successRule = successRule
+        self.totalValue = totalValue
+        self.targetValue = targetValue
+        self.unit = unit
+        self.controlledDays = controlledDays
+        self.overLimitDays = overLimitDays
+        self.completedDays = completedDays
+        self.totalDays = totalDays
+    }
 }
 
 struct HabitStreakItem: Codable, Equatable, Sendable {

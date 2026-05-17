@@ -128,7 +128,8 @@ extension GoalRepository {
                 frequency: habitDraft.resolvedFrequency,
                 targetCount: habitDraft.targetCount,
                 targetValue: habitDraft.targetValue,
-                unit: habitDraft.unit
+                unit: habitDraft.unit,
+                isBadHabit: habitDraft.isBadHabit ?? (habitDraft.successRule == HabitSuccessRule.stayBelowTarget.rawValue)
             )
             habit.goal = goal
             habitCount += 1

@@ -18,11 +18,13 @@ extension CoreDataStack {
         id.name = "id"
         id.attributeType = .UUIDAttributeType
         id.isOptional = false
+        id.defaultValue = UUID()
 
         let title = NSAttributeDescription()
         title.name = "title"
         title.attributeType = .stringAttributeType
         title.isOptional = false
+        title.defaultValue = ""
 
         let summary = NSAttributeDescription()
         summary.name = "summary"
@@ -60,11 +62,13 @@ extension CoreDataStack {
         createdAt.name = "createdAt"
         createdAt.attributeType = .dateAttributeType
         createdAt.isOptional = false
+        createdAt.defaultValue = Date()
 
         let updatedAt = NSAttributeDescription()
         updatedAt.name = "updatedAt"
         updatedAt.attributeType = .dateAttributeType
         updatedAt.isOptional = false
+        updatedAt.defaultValue = Date()
 
         let completedAt = NSAttributeDescription()
         completedAt.name = "completedAt"

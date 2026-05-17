@@ -47,6 +47,7 @@ enum GoalPlanningPromptBuilder {
         - 只输出 JSON，不要 Markdown
         - frequency 只能是 daily、weekly、monthly
         - type 只能是 checkIn 或 numeric
+        - successRule 只能是 completeWhenDone、stayBelowTarget、abstain
         - priority 只能是 0、1、2、3
         - deadlineText 和 dueDateText 使用 yyyy-MM-dd
         - 精简模式生成 2-4 个任务、1-2 个习惯
@@ -55,6 +56,8 @@ enum GoalPlanningPromptBuilder {
         质量要求：
         - 任务标题具体、可执行，避免模糊描述
         - 习惯设置合理，不要给用户太大压力
+        - 戒烟、少抽烟、减少喝酒、控制熬夜等目标属于坏习惯/减少型目标，不要生成“每天抽烟打卡”这类正向习惯
+        - 减少型目标应生成数值型习惯，例如 name="抽烟"，type="numeric"，isBadHabit=true，successRule="stayBelowTarget"，unit="根"，targetValue 为阶段上限
         - 优先级根据重要性和紧急程度合理安排
         - deadline 要合理，给用户留出缓冲时间
 
@@ -86,7 +89,9 @@ enum GoalPlanningPromptBuilder {
               "targetCount": 1,
               "type": "checkIn",
               "unit": null,
-              "targetValue": null
+              "targetValue": null,
+              "isBadHabit": false,
+              "successRule": "completeWhenDone"
             }
           ],
           "missingInfoWarnings": []

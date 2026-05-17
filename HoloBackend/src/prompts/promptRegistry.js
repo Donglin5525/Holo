@@ -5,8 +5,8 @@ import { fileURLToPath } from "node:url";
 import * as Diff from "diff";
 
 const PROMPT_VERSIONS = {
-  intent_recognition: 6,
-  memory_insight_generation: 4,
+  intent_recognition: 7,
+  memory_insight_generation: 5,
   annual_review: 1,
 };
 const PROMPT_TYPES = Object.keys(defaultPrompts);

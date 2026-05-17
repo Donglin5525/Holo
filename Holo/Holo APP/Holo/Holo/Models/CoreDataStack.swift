@@ -5,25 +5,11 @@
 //  Core Data 数据栈管理器
 //  负责管理 Core Data 的持久化容器、上下文和保存操作
 //
-//  ━━━━━━━━━━ iCloud 同步启用指南 ━━━━━━━━━━
-//  当前使用 NSPersistentContainer，数据仅存储在本地。
-//  要启用 iCloud 同步，请按以下步骤操作：
-//
-//  1. 在 Xcode 中启用 CloudKit 能力：
-//     - 选择项目 Target → Signing & Capabilities
-//     - 点击 "+ Capability" 添加 "iCloud"
-//     - 勾选 "CloudKit" 并创建容器（如 iCloud.com.yourcompany.Holo）
-//
-//  2. 修改下方代码：
-//     - 将 `NSPersistentContainer` 改为 `NSPersistentCloudKitContainer`
-//     - 取消注释 CloudKit 相关配置
-//
-//  3. 首次启用后，在 CloudKit Dashboard 中验证 schema 自动创建
-//
-//  注意：CloudKit 同步需要真机测试，模拟器功能有限
-//  ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  使用 NSPersistentCloudKitContainer 将本地 Core Data store 镜像到用户的 iCloud 私有数据库。
+//  业务层仍通过 Core Data Repository 读写本地 store；同步由系统在后台调度。
 
 import CoreData
+import CloudKit
 
 /// Core Data 数据栈单例
 /// 提供统一的 Core Data 访问入口，确保数据一致性
@@ -77,7 +63,7 @@ class CoreDataStack {
     nonisolated func buildContainer() -> NSPersistentContainer {
         let model = createDataModel()
 
-        let container = NSPersistentContainer(name: "HoloDataModel", managedObjectModel: model)
+        let container = NSPersistentCloudKitContainer(name: "HoloDataModel", managedObjectModel: model)
 
         if let description = container.persistentStoreDescriptions.first {
             description.url = URL.documentsDirectory.appendingPathComponent("HoloDataModel.sqlite")
@@ -90,11 +76,16 @@ class CoreDataStack {
             description.setOption(true as NSNumber, forKey: NSInferMappingModelAutomaticallyOption)
             description.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
             description.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
+
+            description.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(
+                containerIdentifier: "iCloud.com.tangyuxuan.Holo"
+            )
         }
 
         container.loadPersistentStores { [weak self] _, error in
             if let error = error {
-                fatalError("Core Data 存储加载失败：\(error.localizedDescription)")
+                let nsError = error as NSError
+                fatalError("Core Data 存储加载失败：\(error.localizedDescription)\n\(nsError)\nuserInfo: \(nsError.userInfo)")
             }
             guard let self else { return }
             self.lock.lock()
@@ -204,6 +195,16 @@ class CoreDataStack {
             try context.save()
         }
     }
+
+    #if DEBUG
+    /// Debug 专用：验证 CloudKit schema 是否兼容当前 Core Data 模型（不上传到 CloudKit）
+    func validateCloudKitSchemaDryRun() throws {
+        guard let container = _persistentContainer as? NSPersistentCloudKitContainer else {
+            return
+        }
+        try container.initializeCloudKitSchema(options: [.dryRun, .printSchema])
+    }
+    #endif
     
     /// 保存指定上下文
     func save(_ context: NSManagedObjectContext) throws {

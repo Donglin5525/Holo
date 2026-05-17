@@ -440,16 +440,30 @@ extension ChatCardData {
         }
 
         // Highlights
-        var highlights = h.topPerformingHabits.map { "\($0.habitName)：完成率 \(String(format: "%.0f%%", $0.completionRate * 100))" }
-        highlights += h.strugglingHabits.map { "\($0.habitName)：完成率仅 \(String(format: "%.0f%%", $0.completionRate * 100))" }
+        var highlights = h.topPerformingHabits.map { habitPerformanceText($0) }
+        highlights += h.strugglingHabits.map { habitPerformanceText($0) }
         if !highlights.isEmpty {
             cards.append(.analysisHighlights(AnalysisHighlightsCardData(
                 highlights: highlights,
-                warnings: h.strugglingHabits.map { "\($0.habitName) 需要加油" }
+                warnings: h.strugglingHabits.map { item in
+                    item.polarity == .negative ? "\(item.habitName) 需要控制频率" : "\(item.habitName) 需要加油"
+                }
             )))
         }
 
         return cards
+    }
+
+    private static func habitPerformanceText(_ item: HabitPerformanceItem) -> String {
+        let rate = String(format: "%.0f%%", item.completionRate * 100)
+        guard item.polarity == .negative else {
+            return "\(item.habitName)：完成率 \(rate)"
+        }
+
+        if let overLimitDays = item.overLimitDays, let controlledDays = item.controlledDays {
+            return "\(item.habitName)：控制率 \(rate)，超标 \(overLimitDays) 天，控制 \(controlledDays) 天"
+        }
+        return "\(item.habitName)：控制率 \(rate)"
     }
 
     // MARK: - Task Cards

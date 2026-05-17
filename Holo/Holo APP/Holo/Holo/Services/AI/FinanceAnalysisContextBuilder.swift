@@ -168,12 +168,13 @@ struct FinanceAnalysisContextBuilder {
         var transportTransactions: [Transaction] = []
 
         for tx in expenses {
-            let parentName = parentCategoryName(for: tx.category, topLevelNameMap: topLevelNameMap)
-            if isFixedNecessaryExpense(categoryName: tx.category.name, parentName: parentName) {
-                fixedMap[tx.category.name, default: 0] += tx.amount.decimalValue
+            guard let category = tx.category else { continue }
+            let parentName = parentCategoryName(for: category, topLevelNameMap: topLevelNameMap)
+            if isFixedNecessaryExpense(categoryName: category.name, parentName: parentName) {
+                fixedMap[category.name, default: 0] += tx.amount.decimalValue
                 fixedTotal += tx.amount.decimalValue
             }
-            if isTransportExpense(categoryName: tx.category.name, parentName: parentName) {
+            if isTransportExpense(categoryName: category.name, parentName: parentName) {
                 transportTransactions.append(tx)
             }
         }
@@ -209,9 +210,10 @@ struct FinanceAnalysisContextBuilder {
         var totalAmount: Decimal = 0
 
         for tx in transactions {
+            guard let category = tx.category else { continue }
             let amount = tx.amount.decimalValue
             totalAmount += amount
-            switch tx.category.name {
+            switch category.name {
             case "打车":
                 taxiAmount += amount
                 taxiCount += 1
@@ -247,7 +249,10 @@ struct FinanceAnalysisContextBuilder {
     private func buildIncomeCadenceHint(incomes: [Transaction], dayCount: Int) -> String? {
         guard dayCount <= 14 else { return nil }
         let stableIncomeNames: Set<String> = ["工资", "奖金", "兼职", "报销", "房租收入", "公积金"]
-        let hasStableIncome = incomes.contains { stableIncomeNames.contains($0.category.name) }
+        let hasStableIncome = incomes.contains { tx in
+            guard let category = tx.category else { return false }
+            return stableIncomeNames.contains(category.name)
+        }
         if hasStableIncome {
             return "当前是短周期分析；工资/奖金/报销等收入可能低频发生，周收入不能直接代表收支失衡，应结合月度或滚动30天判断。"
         }
@@ -394,14 +399,18 @@ struct FinanceAnalysisContextBuilder {
 
         return top3.compactMap { agg in
             let parentId = agg.category.id
-            let subExpenses = expenses.filter { $0.category.parentId == parentId }
+            let subExpenses = expenses.filter { tx in
+                guard let cat = tx.category else { return false }
+                return cat.parentId == parentId
+            }
 
             guard !subExpenses.isEmpty else { return nil }
 
             var subCategoryMap: [UUID: (name: String, amount: Decimal)] = [:]
             for tx in subExpenses {
-                let catId = tx.category.id
-                var entry = subCategoryMap[catId] ?? (name: tx.category.name, amount: 0)
+                guard let category = tx.category else { continue }
+                let catId = category.id
+                var entry = subCategoryMap[catId] ?? (name: category.name, amount: 0)
                 entry.amount += tx.amount.decimalValue
                 subCategoryMap[catId] = entry
             }
@@ -445,10 +454,11 @@ struct FinanceAnalysisContextBuilder {
 
         var compCategoryMap: [String: Decimal] = [:]
         for tx in comparisonExpenses {
+            guard let category = tx.category else { continue }
             let parentName: String
-            if tx.category.isTopLevel {
-                parentName = tx.category.name
-            } else if let parentId = tx.category.parentId, let name = topLevelNameMap[parentId] {
+            if category.isTopLevel {
+                parentName = category.name
+            } else if let parentId = category.parentId, let name = topLevelNameMap[parentId] {
                 parentName = name
             } else {
                 continue
@@ -539,10 +549,11 @@ struct FinanceAnalysisContextBuilder {
 
         var categoryCountMap: [String: (count: Int, total: Decimal)] = [:]
         for tx in expenses {
-            var entry = categoryCountMap[tx.category.name] ?? (count: 0, total: 0)
+            guard let category = tx.category else { continue }
+            var entry = categoryCountMap[category.name] ?? (count: 0, total: 0)
             entry.count += 1
             entry.total += tx.amount.decimalValue
-            categoryCountMap[tx.category.name] = entry
+            categoryCountMap[category.name] = entry
         }
 
         let topFrequent = categoryCountMap.sorted { $0.value.count > $1.value.count }

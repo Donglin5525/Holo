@@ -71,7 +71,7 @@ final class UserContextBuilder {
                 } else {
                     todayIncome += t.amount as Decimal
                 }
-                recentList.append("\(t.note ?? t.category.name) ¥\(t.amount)")
+                recentList.append("\(t.note ?? t.category?.name ?? "未分类") ¥\(t.amount)")
             }
 
             return TransactionSummary(

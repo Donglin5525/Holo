@@ -25,6 +25,7 @@ extension CoreDataStack {
         thoughtId.name = "id"
         thoughtId.attributeType = .UUIDAttributeType
         thoughtId.isOptional = false
+        thoughtId.defaultValue = UUID()
         thoughtId.isIndexed = true
         thoughtAttributes.append(thoughtId)
 
@@ -32,18 +33,21 @@ extension CoreDataStack {
         thoughtContent.name = "content"
         thoughtContent.attributeType = .stringAttributeType
         thoughtContent.isOptional = false
+        thoughtContent.defaultValue = ""
         thoughtAttributes.append(thoughtContent)
 
         let thoughtCreatedAt = NSAttributeDescription()
         thoughtCreatedAt.name = "createdAt"
         thoughtCreatedAt.attributeType = .dateAttributeType
         thoughtCreatedAt.isOptional = false
+        thoughtCreatedAt.defaultValue = Date()
         thoughtAttributes.append(thoughtCreatedAt)
 
         let thoughtUpdatedAt = NSAttributeDescription()
         thoughtUpdatedAt.name = "updatedAt"
         thoughtUpdatedAt.attributeType = .dateAttributeType
         thoughtUpdatedAt.isOptional = false
+        thoughtUpdatedAt.defaultValue = Date()
         thoughtAttributes.append(thoughtUpdatedAt)
 
         let thoughtMood = NSAttributeDescription()
@@ -91,6 +95,7 @@ extension CoreDataStack {
         thoughtTagId.name = "id"
         thoughtTagId.attributeType = .UUIDAttributeType
         thoughtTagId.isOptional = false
+        thoughtTagId.defaultValue = UUID()
         thoughtTagId.isIndexed = true
         thoughtTagAttributes.append(thoughtTagId)
 
@@ -98,6 +103,7 @@ extension CoreDataStack {
         thoughtTagName.name = "name"
         thoughtTagName.attributeType = .stringAttributeType
         thoughtTagName.isOptional = false
+        thoughtTagName.defaultValue = ""
         thoughtTagAttributes.append(thoughtTagName)
 
         let thoughtTagColor = NSAttributeDescription()
@@ -125,6 +131,7 @@ extension CoreDataStack {
         thoughtReferenceId.name = "id"
         thoughtReferenceId.attributeType = .UUIDAttributeType
         thoughtReferenceId.isOptional = false
+        thoughtReferenceId.defaultValue = UUID()
         thoughtReferenceId.isIndexed = true
         thoughtReferenceAttributes.append(thoughtReferenceId)
 
@@ -132,6 +139,7 @@ extension CoreDataStack {
         thoughtReferenceCreatedAt.name = "createdAt"
         thoughtReferenceCreatedAt.attributeType = .dateAttributeType
         thoughtReferenceCreatedAt.isOptional = false
+        thoughtReferenceCreatedAt.defaultValue = Date()
         thoughtReferenceAttributes.append(thoughtReferenceCreatedAt)
 
         // MARK: - Thought Relationships
@@ -178,19 +186,19 @@ extension CoreDataStack {
         let referenceSourceRelation = NSRelationshipDescription()
         referenceSourceRelation.name = "sourceThought"
         referenceSourceRelation.destinationEntity = thoughtEntity
-        referenceSourceRelation.minCount = 1
+        referenceSourceRelation.minCount = 0
         referenceSourceRelation.maxCount = 1
         referenceSourceRelation.deleteRule = .nullifyDeleteRule
-        referenceSourceRelation.isOptional = false
+        referenceSourceRelation.isOptional = true
 
         // ThoughtReference → Thought（被引用方）
         let referenceTargetRelation = NSRelationshipDescription()
         referenceTargetRelation.name = "targetThought"
         referenceTargetRelation.destinationEntity = thoughtEntity
-        referenceTargetRelation.minCount = 1
+        referenceTargetRelation.minCount = 0
         referenceTargetRelation.maxCount = 1
         referenceTargetRelation.deleteRule = .nullifyDeleteRule
-        referenceTargetRelation.isOptional = false
+        referenceTargetRelation.isOptional = true
 
         // 设置双向关系
         thoughtReferencesRelation.inverseRelationship = referenceSourceRelation

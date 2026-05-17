@@ -45,15 +45,16 @@ class DataExportService {
         timeFormatter.dateFormat = "HH:mm"
         
         for tx in transactions {
+            guard let category = tx.category, let account = tx.account else { continue }
             let dateStr = dateFormatter.string(from: tx.date)
             let timeStr = timeFormatter.string(from: tx.date)
             let typeStr = tx.transactionType == .expense ? "支出" : "收入"
             let amount = abs(tx.amount.doubleValue)
-            
+
             // 查找一级分类名称
-            let (primaryName, subName) = categoryNames(for: tx.category)
-            
-            let accountName = tx.account.name
+            let (primaryName, subName) = categoryNames(for: category)
+
+            let accountName = account.name
             let note = escapeCSVField(tx.note ?? "")
             let tags = tx.tags?.joined(separator: ";") ?? ""
             
@@ -79,15 +80,16 @@ class DataExportService {
         let accounts = try await repository.getAllAccounts()
         
         // 转换为 DTO
-        let txDTOs = transactions.map { tx -> TransactionDTO in
-            TransactionDTO(
+        let txDTOs = transactions.compactMap { tx -> TransactionDTO? in
+            guard let category = tx.category, let account = tx.account else { return nil }
+            return TransactionDTO(
                 id: tx.id.uuidString,
                 amount: tx.amount.doubleValue,
                 type: tx.type,
-                categoryName: tx.category.name,
-                accountName: tx.account.name,
-                accountId: tx.account.id.uuidString,
-                categoryId: tx.category.id.uuidString,
+                categoryName: category.name,
+                accountName: account.name,
+                accountId: account.id.uuidString,
+                categoryId: category.id.uuidString,
                 date: tx.date,
                 note: tx.note,
                 tags: tx.tags,

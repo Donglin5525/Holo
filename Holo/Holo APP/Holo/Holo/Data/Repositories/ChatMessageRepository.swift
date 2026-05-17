@@ -570,8 +570,8 @@ final class ChatMessageRepository: ObservableObject {
         let messageId = messages[messageIndex].id
 
         // 2. 获取更新后的交易
-        guard let transaction = FinanceRepository.shared.findTransaction(by: transactionId) else { return }
-        let category = transaction.category
+        guard let transaction = FinanceRepository.shared.findTransaction(by: transactionId),
+              let category = transaction.category else { return }
 
         let (primaryCategory, subCategory) = FinanceRepository.shared.resolveCategoryNames(from: category)
 

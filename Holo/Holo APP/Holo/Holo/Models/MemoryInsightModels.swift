@@ -308,7 +308,22 @@ struct MemoryInsightHabitContext: Codable, Equatable {
     let averageCompletionRate: Double?
     let topPerformingHabits: [String]
     let strugglingHabits: [String]
+    let habitPerformanceSummaries: [HabitPerformanceSummary]
     let habitCategoryCompletionSummaries: [HabitCategoryCompletionSummary]
+}
+
+struct HabitPerformanceSummary: Codable, Equatable {
+    let habitName: String
+    let polarity: HabitPolarity
+    let successRule: HabitSuccessRule
+    let completionRate: Double
+    let totalValue: Double?
+    let targetValue: Double?
+    let unit: String?
+    let controlledDays: Int?
+    let overLimitDays: Int?
+    let completedDays: Int
+    let totalDays: Int
 }
 
 struct MemoryInsightTaskContext: Codable, Equatable {

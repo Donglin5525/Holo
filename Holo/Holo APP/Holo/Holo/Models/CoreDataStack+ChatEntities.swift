@@ -23,6 +23,7 @@ extension CoreDataStack {
         chatId.name = "id"
         chatId.attributeType = .UUIDAttributeType
         chatId.isOptional = false
+        chatId.defaultValue = UUID()
         chatId.isIndexed = true
         chatAttributes.append(chatId)
 
@@ -30,18 +31,21 @@ extension CoreDataStack {
         chatRole.name = "role"
         chatRole.attributeType = .stringAttributeType
         chatRole.isOptional = false
+        chatRole.defaultValue = "assistant"
         chatAttributes.append(chatRole)
 
         let chatContent = NSAttributeDescription()
         chatContent.name = "content"
         chatContent.attributeType = .stringAttributeType
         chatContent.isOptional = false
+        chatContent.defaultValue = ""
         chatAttributes.append(chatContent)
 
         let chatTimestamp = NSAttributeDescription()
         chatTimestamp.name = "timestamp"
         chatTimestamp.attributeType = .dateAttributeType
         chatTimestamp.isOptional = false
+        chatTimestamp.defaultValue = Date()
         chatTimestamp.isIndexed = true
         chatAttributes.append(chatTimestamp)
 

@@ -193,11 +193,11 @@ struct CategoryTabView: View {
         let txns: [Transaction]
         if category.isTopLevel {
             txns = state.transactions.filter {
-                $0.category.id == category.id || $0.category.parentId == category.id
+                $0.category?.id == category.id || $0.category?.parentId == category.id
             }
         } else {
             txns = state.transactions.filter {
-                $0.category.id == category.id
+                $0.category?.id == category.id
             }
         }
         transactionSheetData = TransactionSheetData(

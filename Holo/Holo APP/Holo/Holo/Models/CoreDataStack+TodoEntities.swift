@@ -25,6 +25,7 @@ extension CoreDataStack {
         folderId.name = "id"
         folderId.attributeType = .UUIDAttributeType
         folderId.isOptional = false
+        folderId.defaultValue = UUID()
         folderId.isIndexed = true
         todoFolderAttributes.append(folderId)
 
@@ -32,6 +33,7 @@ extension CoreDataStack {
         folderName.name = "name"
         folderName.attributeType = .stringAttributeType
         folderName.isOptional = false
+        folderName.defaultValue = ""
         todoFolderAttributes.append(folderName)
 
         let folderOrder = NSAttributeDescription()
@@ -52,12 +54,14 @@ extension CoreDataStack {
         folderCreatedAt.name = "createdAt"
         folderCreatedAt.attributeType = .dateAttributeType
         folderCreatedAt.isOptional = false
+        folderCreatedAt.defaultValue = Date()
         todoFolderAttributes.append(folderCreatedAt)
 
         let folderUpdatedAt = NSAttributeDescription()
         folderUpdatedAt.name = "updatedAt"
         folderUpdatedAt.attributeType = .dateAttributeType
         folderUpdatedAt.isOptional = false
+        folderUpdatedAt.defaultValue = Date()
         todoFolderAttributes.append(folderUpdatedAt)
 
         // MARK: - TodoList Entity
@@ -72,6 +76,7 @@ extension CoreDataStack {
         listId.name = "id"
         listId.attributeType = .UUIDAttributeType
         listId.isOptional = false
+        listId.defaultValue = UUID()
         listId.isIndexed = true
         todoListAttributes.append(listId)
 
@@ -79,6 +84,7 @@ extension CoreDataStack {
         listName.name = "name"
         listName.attributeType = .stringAttributeType
         listName.isOptional = false
+        listName.defaultValue = ""
         todoListAttributes.append(listName)
 
         let listOrder = NSAttributeDescription()
@@ -105,12 +111,14 @@ extension CoreDataStack {
         listCreatedAt.name = "createdAt"
         listCreatedAt.attributeType = .dateAttributeType
         listCreatedAt.isOptional = false
+        listCreatedAt.defaultValue = Date()
         todoListAttributes.append(listCreatedAt)
 
         let listUpdatedAt = NSAttributeDescription()
         listUpdatedAt.name = "updatedAt"
         listUpdatedAt.attributeType = .dateAttributeType
         listUpdatedAt.isOptional = false
+        listUpdatedAt.defaultValue = Date()
         todoListAttributes.append(listUpdatedAt)
 
         // MARK: - TodoTask Entity
@@ -125,6 +133,7 @@ extension CoreDataStack {
         taskId.name = "id"
         taskId.attributeType = .UUIDAttributeType
         taskId.isOptional = false
+        taskId.defaultValue = UUID()
         taskId.isIndexed = true
         todoTaskAttributes.append(taskId)
 
@@ -132,6 +141,7 @@ extension CoreDataStack {
         taskTitle.name = "title"
         taskTitle.attributeType = .stringAttributeType
         taskTitle.isOptional = false
+        taskTitle.defaultValue = ""
         todoTaskAttributes.append(taskTitle)
 
         let taskDescription = NSAttributeDescription()
@@ -210,12 +220,14 @@ extension CoreDataStack {
         taskCreatedAt.name = "createdAt"
         taskCreatedAt.attributeType = .dateAttributeType
         taskCreatedAt.isOptional = false
+        taskCreatedAt.defaultValue = Date()
         todoTaskAttributes.append(taskCreatedAt)
 
         let taskUpdatedAt = NSAttributeDescription()
         taskUpdatedAt.name = "updatedAt"
         taskUpdatedAt.attributeType = .dateAttributeType
         taskUpdatedAt.isOptional = false
+        taskUpdatedAt.defaultValue = Date()
         todoTaskAttributes.append(taskUpdatedAt)
 
         // 提醒相关属性
@@ -274,6 +286,7 @@ extension CoreDataStack {
         tagId.name = "id"
         tagId.attributeType = .UUIDAttributeType
         tagId.isOptional = false
+        tagId.defaultValue = UUID()
         tagId.isIndexed = true
         todoTagAttributes.append(tagId)
 
@@ -281,12 +294,14 @@ extension CoreDataStack {
         tagName.name = "name"
         tagName.attributeType = .stringAttributeType
         tagName.isOptional = false
+        tagName.defaultValue = ""
         todoTagAttributes.append(tagName)
 
         let tagColor = NSAttributeDescription()
         tagColor.name = "color"
         tagColor.attributeType = .stringAttributeType
         tagColor.isOptional = false
+        tagColor.defaultValue = "#64748B"
         todoTagAttributes.append(tagColor)
 
         let tagDeletedFlag = NSAttributeDescription()
@@ -300,6 +315,7 @@ extension CoreDataStack {
         tagCreatedAt.name = "createdAt"
         tagCreatedAt.attributeType = .dateAttributeType
         tagCreatedAt.isOptional = false
+        tagCreatedAt.defaultValue = Date()
         todoTagAttributes.append(tagCreatedAt)
 
         // MARK: - CheckItem Entity
@@ -314,6 +330,7 @@ extension CoreDataStack {
         checkItemId.name = "id"
         checkItemId.attributeType = .UUIDAttributeType
         checkItemId.isOptional = false
+        checkItemId.defaultValue = UUID()
         checkItemId.isIndexed = true
         checkItemAttributes.append(checkItemId)
 
@@ -321,6 +338,7 @@ extension CoreDataStack {
         checkItemTitle.name = "title"
         checkItemTitle.attributeType = .stringAttributeType
         checkItemTitle.isOptional = false
+        checkItemTitle.defaultValue = ""
         checkItemAttributes.append(checkItemTitle)
 
         let checkItemIsChecked = NSAttributeDescription()
@@ -341,6 +359,7 @@ extension CoreDataStack {
         checkItemCreatedAt.name = "createdAt"
         checkItemCreatedAt.attributeType = .dateAttributeType
         checkItemCreatedAt.isOptional = false
+        checkItemCreatedAt.defaultValue = Date()
         checkItemAttributes.append(checkItemCreatedAt)
 
         // MARK: - RepeatRule Entity
@@ -355,6 +374,7 @@ extension CoreDataStack {
         ruleId.name = "id"
         ruleId.attributeType = .UUIDAttributeType
         ruleId.isOptional = false
+        ruleId.defaultValue = UUID()
         ruleId.isIndexed = true
         repeatRuleAttributes.append(ruleId)
 
@@ -362,6 +382,7 @@ extension CoreDataStack {
         ruleType.name = "type"
         ruleType.attributeType = .stringAttributeType
         ruleType.isOptional = false
+        ruleType.defaultValue = "daily"
         repeatRuleAttributes.append(ruleType)
 
         let ruleWeekdays = NSAttributeDescription()
@@ -418,6 +439,7 @@ extension CoreDataStack {
         ruleCreatedAt.name = "createdAt"
         ruleCreatedAt.attributeType = .dateAttributeType
         ruleCreatedAt.isOptional = false
+        ruleCreatedAt.defaultValue = Date()
         repeatRuleAttributes.append(ruleCreatedAt)
 
         // MARK: - TaskAttachment Entity
@@ -432,6 +454,7 @@ extension CoreDataStack {
         attachmentId.name = "id"
         attachmentId.attributeType = .UUIDAttributeType
         attachmentId.isOptional = false
+        attachmentId.defaultValue = UUID()
         attachmentId.isIndexed = true
         taskAttachmentAttributes.append(attachmentId)
 
@@ -439,12 +462,14 @@ extension CoreDataStack {
         attachmentFileName.name = "fileName"
         attachmentFileName.attributeType = .stringAttributeType
         attachmentFileName.isOptional = false
+        attachmentFileName.defaultValue = ""
         taskAttachmentAttributes.append(attachmentFileName)
 
         let attachmentThumbnailFileName = NSAttributeDescription()
         attachmentThumbnailFileName.name = "thumbnailFileName"
         attachmentThumbnailFileName.attributeType = .stringAttributeType
         attachmentThumbnailFileName.isOptional = false
+        attachmentThumbnailFileName.defaultValue = ""
         taskAttachmentAttributes.append(attachmentThumbnailFileName)
 
         let attachmentSortOrder = NSAttributeDescription()
@@ -465,6 +490,7 @@ extension CoreDataStack {
         attachmentCreatedAt.name = "createdAt"
         attachmentCreatedAt.attributeType = .dateAttributeType
         attachmentCreatedAt.isOptional = false
+        attachmentCreatedAt.defaultValue = Date()
         taskAttachmentAttributes.append(attachmentCreatedAt)
 
         // MARK: - Todo Entity Relationships
@@ -541,10 +567,10 @@ extension CoreDataStack {
         let checkItemTaskRelation = NSRelationshipDescription()
         checkItemTaskRelation.name = "task"
         checkItemTaskRelation.destinationEntity = todoTaskEntity
-        checkItemTaskRelation.minCount = 1
+        checkItemTaskRelation.minCount = 0
         checkItemTaskRelation.maxCount = 1
         checkItemTaskRelation.deleteRule = .cascadeDeleteRule
-        checkItemTaskRelation.isOptional = false
+        checkItemTaskRelation.isOptional = true
 
         taskCheckItemsRelation.inverseRelationship = checkItemTaskRelation
         checkItemTaskRelation.inverseRelationship = taskCheckItemsRelation
@@ -581,10 +607,10 @@ extension CoreDataStack {
         let attachmentTaskRelation = NSRelationshipDescription()
         attachmentTaskRelation.name = "task"
         attachmentTaskRelation.destinationEntity = todoTaskEntity
-        attachmentTaskRelation.minCount = 1
+        attachmentTaskRelation.minCount = 0
         attachmentTaskRelation.maxCount = 1
         attachmentTaskRelation.deleteRule = .nullifyDeleteRule
-        attachmentTaskRelation.isOptional = false
+        attachmentTaskRelation.isOptional = true
 
         taskAttachmentsRelation.inverseRelationship = attachmentTaskRelation
         attachmentTaskRelation.inverseRelationship = taskAttachmentsRelation
