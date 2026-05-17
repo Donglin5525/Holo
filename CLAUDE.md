@@ -171,6 +171,23 @@ Prompt 管理：
 - `/v1/prompts/:type` 优先返回 managed 版本，无 managed 版本则回退 default
 - App 普通用户不能手动调整 Prompt；管理后台仅供开发者内部调试和发布前校准
 
+### Prompt 双端同步（重要）
+
+**Prompt 加载优先级**：`HoloBackendAIProvider.loadManagedPrompt` 优先后端 API，失败才回退本地 `PromptManager`。因此 **iOS 端 PromptManager.swift 的模板只是后备**，实际运行时以后端为准。
+
+**修改 Prompt 的完整流程**：
+1. 修改 iOS 端 `PromptManager.swift` 内嵌模板（后备）
+2. 同步修改后端 `HoloBackend/src/prompts/defaultPrompts.json`（生效端）
+3. 升级 `PromptManager.promptVersions` 版本号
+4. **必须重新部署后端**：`ssh root@123.56.104.9` → `cd /root/Holo/HoloBackend/deploy` → `docker compose build --no-cache && docker compose up -d`
+5. 部署后验证：`curl http://localhost:8787/v1/prompts/intent_recognition` 确认版本和内容
+
+**常见陷阱**：
+- 只改 iOS 端 PromptManager 不改后端 → 不生效（后端优先）
+- 改了后端源文件但没重建 Docker 镜像 → 不生效（源码 baked 进镜像，非 volume 挂载）
+- Docker compose restart 不够 → 需 `build --no-cache` 重建镜像
+- iOS 端 `HoloBackendPromptService` 有 2 分钟 metaTTL 缓存 → 部署后杀掉 App 重开
+
 日志：
 - `/admin/logs` 记录 `/v1/ai/chat/completions` 的请求、响应、provider、model、耗时和错误
 - 日志当前仅保存在后端进程内存中，服务重启后清空
