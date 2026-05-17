@@ -104,19 +104,17 @@ class HealthRepository: ObservableObject {
             return
         }
 
-        let statuses = readTypes.map { healthStore.authorizationStatus(for: $0) }
-        if statuses.contains(.notDetermined) {
-            dataSourceState = .notRequested
-            isAuthorized = false
-        } else if statuses.allSatisfy({ $0 == .sharingAuthorized }) {
-            dataSourceState = .connected
+        // HealthKit deliberately does not expose reliable read-authorization
+        // status. Once the read request has completed, keep the module in a
+        // connected state and let fetch results decide per-metric availability.
+        if hasRequestedPermission || hasAnyFetchedData {
             isAuthorized = true
-        } else if statuses.contains(.sharingAuthorized) {
-            dataSourceState = .partiallyConnected
-            isAuthorized = true
+            if dataSourceState == .notRequested || dataSourceState == .denied {
+                dataSourceState = .connected
+            }
         } else {
-            dataSourceState = .denied
             isAuthorized = false
+            dataSourceState = .notRequested
         }
     }
 
@@ -147,9 +145,13 @@ class HealthRepository: ObservableObject {
                 self.hasRequestedPermission = true
                 if let error = error {
                     self.errorMessage = error.localizedDescription
+                    self.dataSourceState = .denied
+                    self.isAuthorized = false
+                } else {
+                    self.dataSourceState = .connected
+                    self.isAuthorized = true
                 }
                 Task {
-                    await self.checkAuthorizationStatus()
                     if success {
                         await self.fetchTodayData()
                     }
@@ -161,7 +163,7 @@ class HealthRepository: ObservableObject {
     /// 刷新授权和今日数据
     func refresh() async {
         await checkAuthorizationStatus()
-        if isAuthorized || useMockData {
+        if isAuthorized || hasRequestedPermission || useMockData {
             await fetchTodayData()
         }
     }
@@ -423,6 +425,10 @@ class HealthRepository: ObservableObject {
             HKObjectType.quantityType(forIdentifier: .appleStandTime),
             HKObjectType.quantityType(forIdentifier: .appleExerciseTime)
         ].compactMap { $0 }
+    }
+
+    private var hasAnyFetchedData: Bool {
+        todaySteps > 0 || todaySleep > 0 || todayStandHours > 0 || todayActiveMinutes > 0
     }
 
     private func updateAvailabilityAfterFetch() {
