@@ -38,6 +38,9 @@ struct HoloApp: App {
         // 触发 Core Data 异步加载（不阻塞主线程，避免首次创建 SQLite 时死锁）
         // store 加载在后台进行，UI 先以默认值渲染，加载完成后通过 await 切换
         CoreDataStack.shared.prepareIfNeeded()
+
+        // 提前启动 CloudKit 事件监听，避免首次打开设置页时错过启动期同步事件
+        _ = ICloudSyncStatusService.shared
     }
 
     // MARK: - Body

@@ -115,6 +115,7 @@ class CoreDataStack {
         entities.append(contentsOf: createTodoEntities(goalEntity: goalEntity))
         entities.append(contentsOf: createThoughtEntities())
         entities.append(contentsOf: createChatEntities())
+        entities.append(contentsOf: createSyncEntities())
         entities.append(createMemoryInsightEntity())
         entities.append(goalEntity)
         model.entities = entities

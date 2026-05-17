@@ -4,6 +4,22 @@
 
 ---
 
+## [2026-05-18] iCloud 手动同步请求
+
+### 新增
+- 设置页 iCloud 区支持「请求同步并检查状态」，点击后写入内部 Core Data 同步探针，触发 CloudKit 尽快安排导出
+- 新增内部 `ICloudSyncProbe` Core Data 实体，用于产生轻量同步变更，不影响业务数据
+
+### 优化
+- 最近同步时间合并到「同步状态」下方的小字，不再作为独立字段展示
+- 手动请求后显示「最近请求同步」时间，真正收到 CloudKit 完成事件后再更新为「最近同步」
+- App 启动时提前初始化 iCloud 同步监听，减少打开设置页太晚导致错过同步事件的情况
+
+### 验证
+- iOS Debug 模拟器构建通过：`xcodebuild -quiet -project Holo.xcodeproj -scheme Holo -configuration Debug -destination 'generic/platform=iOS Simulator' build`
+
+---
+
 ## [2026-05-17] iCloud CloudKit 同步
 
 ### 新增

@@ -286,42 +286,10 @@ struct SettingsView: View {
                         Text(iCloudSyncStatus.lastEventDescription)
                             .font(.system(size: 12))
                             .foregroundColor(.holoTextSecondary)
-                    }
 
-                    Spacer()
-                }
-                .padding(.horizontal, HoloSpacing.md)
-                .padding(.vertical, 12)
-
-                // 最近同步时间（始终显示）
-                Divider()
-                    .padding(.leading, 56)
-
-                HStack(spacing: HoloSpacing.md) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(iCloudSyncStatus.lastSyncTime != nil ? Color.holoSuccess.opacity(0.1) : Color.holoPrimary.opacity(0.1))
-                            .frame(width: 40, height: 40)
-
-                        Image(systemName: "clock.badge.checkmark")
-                            .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(iCloudSyncStatus.lastSyncTime != nil ? .holoSuccess : .holoPrimary)
-                    }
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("最近同步时间")
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
-
-                        if let syncTime = iCloudSyncStatus.lastSyncTime {
-                            Text("最近同步时间:\(formatSyncTime(syncTime))")
-                                .font(.system(size: 12))
-                                .foregroundColor(.holoTextSecondary)
-                        } else {
-                            Text("等待首次同步完成")
-                                .font(.system(size: 12))
-                                .foregroundColor(.holoTextSecondary)
-                        }
+                        Text(iCloudSyncStatus.syncStatusDetailText)
+                            .font(.system(size: 11))
+                            .foregroundColor(.holoTextSecondary.opacity(0.75))
                     }
 
                     Spacer()
@@ -370,7 +338,7 @@ struct SettingsView: View {
                     guard !iCloudSyncStatus.isRefreshing else { return }
                     iCloudRefreshToast = nil
                     Task {
-                        await iCloudSyncStatus.refreshAccountStatus()
+                        await iCloudSyncStatus.requestManualSync()
                         iCloudRefreshToast = iCloudSyncStatus.refreshToast
                         // 2 秒后隐藏 toast
                         try? await Task.sleep(for: .seconds(2))
@@ -394,7 +362,7 @@ struct SettingsView: View {
                         }
 
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(iCloudSyncStatus.isRefreshing ? "正在检查…" : "重新检查状态")
+                            Text(iCloudSyncStatus.isRefreshing ? "正在请求同步…" : "请求同步并检查状态")
                                 .font(.holoBody)
                                 .foregroundColor(.holoInfo)
 
@@ -417,13 +385,6 @@ struct SettingsView: View {
             .background(Color.holoCardBackground)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         }
-    }
-
-    private func formatSyncTime(_ date: Date) -> String {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "yyyy-MM-dd-HH-mm-ss"
-        return formatter.string(from: date)
     }
 
     // MARK: - AI 回放设置
