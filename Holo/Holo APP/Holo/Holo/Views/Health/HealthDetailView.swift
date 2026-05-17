@@ -12,6 +12,7 @@ import SwiftUI
 struct HealthDetailView: View {
     let type: HealthMetricType
 
+    @Environment(\.dismiss) private var dismiss
     @StateObject private var repository = HealthRepository.shared
     @State private var weeklyData: [DailyHealthData] = []
     @State private var isLoading = true
@@ -23,6 +24,7 @@ struct HealthDetailView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: HoloSpacing.md) {
+                detailHeader
                 bigRingCard
                 statsSection
 
@@ -54,15 +56,36 @@ struct HealthDetailView: View {
             .padding(HoloSpacing.md)
         }
         .background(Color.holoBackground)
-        .navigationTitle(type.rawValue)
-        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .navigationBar)
+        .simultaneousGesture(dismissGesture)
         .task {
             await loadWeeklyData()
         }
-        .refreshable {
-            await repository.refresh()
-            await loadWeeklyData()
+    }
+
+    private var detailHeader: some View {
+        HStack(alignment: .center, spacing: HoloSpacing.md) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(type.rawValue)
+                    .font(.holoTitle)
+                    .foregroundColor(.holoTextPrimary)
+
+                Text("近 7 天趋势与关联线索")
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary)
+            }
+
+            Spacer()
+
+            Text(metric.statusText)
+                .font(.holoLabel)
+                .foregroundColor(type.color)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(type.color.opacity(0.12))
+                .clipShape(Capsule())
         }
+        .padding(.top, HoloSpacing.sm)
     }
 
     private var bigRingCard: some View {
@@ -348,6 +371,16 @@ struct HealthDetailView: View {
         isLoading = true
         weeklyData = await repository.fetchWeeklyData(for: type)
         isLoading = false
+    }
+
+    private var dismissGesture: some Gesture {
+        DragGesture(minimumDistance: 24, coordinateSpace: .local)
+            .onEnded { value in
+                let isRightSwipe = value.translation.width > 96
+                let isMostlyHorizontal = abs(value.translation.height) < 80
+                guard isRightSwipe && isMostlyHorizontal else { return }
+                dismiss()
+            }
     }
 }
 

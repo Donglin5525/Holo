@@ -14,6 +14,7 @@ struct HealthView: View {
     @StateObject private var repository = HealthRepository.shared
     @State private var selectedMetric: HealthMetricType?
     @State private var weeklySleepData: [DailyHealthData] = []
+    @State private var isRefreshing = false
 
     private var snapshot: HealthDashboardSnapshot {
         repository.dashboardSnapshot
@@ -36,30 +37,9 @@ struct HealthView: View {
             .navigationDestination(item: $selectedMetric) { metric in
                 HealthDetailView(type: metric)
             }
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 14, weight: .semibold))
-                    }
-                    .foregroundColor(.holoTextSecondary)
-                }
-
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        Task {
-                            await refreshAll()
-                        }
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 14, weight: .semibold))
-                    }
-                    .foregroundColor(.holoTextSecondary)
-                }
-            }
+            .toolbar(.hidden, for: .navigationBar)
         }
+        .simultaneousGesture(dismissGesture)
         .task {
             await refreshAll()
         }
@@ -86,14 +66,11 @@ struct HealthView: View {
             }
             .padding(HoloSpacing.md)
         }
-        .refreshable {
-            await refreshAll()
-        }
         .background(Color.holoBackground)
     }
 
     private var headerView: some View {
-        HStack(alignment: .top) {
+        HStack(alignment: .center, spacing: HoloSpacing.md) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("健康")
                     .font(.holoTitle)
@@ -105,8 +82,60 @@ struct HealthView: View {
             }
 
             Spacer()
+
+            syncButton
         }
         .padding(.top, HoloSpacing.sm)
+    }
+
+    private var syncButton: some View {
+        Button {
+            Task {
+                await runRefresh()
+            }
+        } label: {
+            HStack(spacing: 7) {
+                ZStack {
+                    Circle()
+                        .stroke(Color.holoPrimary.opacity(0.18), lineWidth: 2)
+                        .frame(width: 18, height: 18)
+
+                    Circle()
+                        .trim(from: 0.12, to: 0.82)
+                        .stroke(
+                            Color.holoPrimary,
+                            style: StrokeStyle(lineWidth: 2, lineCap: .round)
+                        )
+                        .frame(width: 18, height: 18)
+                        .rotationEffect(.degrees(isRefreshing ? 360 : 0))
+                        .animation(
+                            isRefreshing
+                                ? .linear(duration: 0.9).repeatForever(autoreverses: false)
+                                : .default,
+                            value: isRefreshing
+                        )
+
+                    Circle()
+                        .fill(Color.holoPrimary)
+                        .frame(width: 4, height: 4)
+                }
+
+                Text(isRefreshing ? "同步中" : "同步")
+                    .font(.holoLabel)
+                    .foregroundColor(.holoPrimary)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color.holoPrimary.opacity(0.1))
+            .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(Color.holoPrimary.opacity(0.18), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(isRefreshing)
     }
 
     private var heroCard: some View {
@@ -412,6 +441,29 @@ struct HealthView: View {
     private func refreshAll() async {
         await repository.refresh()
         weeklySleepData = await repository.fetchWeeklyData(for: .sleep)
+    }
+
+    @MainActor
+    private func runRefresh() async {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        await refreshAll()
+        isRefreshing = false
+    }
+
+    private var dismissGesture: some Gesture {
+        DragGesture(minimumDistance: 24, coordinateSpace: .local)
+            .onEnded { value in
+                let isRightSwipe = value.translation.width > 96
+                let isMostlyHorizontal = abs(value.translation.height) < 80
+                guard isRightSwipe && isMostlyHorizontal else { return }
+
+                if selectedMetric != nil {
+                    selectedMetric = nil
+                } else {
+                    dismiss()
+                }
+            }
     }
 }
 
