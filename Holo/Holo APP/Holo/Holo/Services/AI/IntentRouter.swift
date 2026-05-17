@@ -281,6 +281,7 @@ final class IntentRouter {
         let dueDate = parseDate(from: data["dueDate"])
         let priority = parsePriority(data["priority"])
         let hasTime = data["dueDate"].map { NLDateParser.containsTimeComponent($0) } ?? false
+        let checkItemTitles = SubtaskParser.parse(data["subtasks"])
 
         // 有具体时间时，自动添加提前 15 分钟提醒
         let reminders: Set<TaskReminder>? = (hasTime && dueDate != nil)
@@ -292,13 +293,14 @@ final class IntentRouter {
             priority: priority ?? .medium,
             dueDate: dueDate,
             isAllDay: !hasTime,
-            reminders: reminders
+            reminders: reminders,
+            checkItemTitles: checkItemTitles.isEmpty ? nil : checkItemTitles
         )
 
         logger.info("任务已创建：\(title)")
 
         return RouteResult(
-            text: AIResponseTextBuilder.taskCreated(title: title, dueDate: dueDate, hasTime: hasTime),
+            text: AIResponseTextBuilder.taskCreated(title: title, dueDate: dueDate, hasTime: hasTime, subtaskCount: checkItemTitles.count),
             taskId: task.id,
             linkedEntity: LinkedEntity(type: .task, id: task.id)
         )
@@ -362,6 +364,9 @@ final class IntentRouter {
 
         if let name = habitName {
             if let habit = habits.first(where: { $0.name.contains(name) || name.contains($0.name) }) {
+                if habit.isNumericType {
+                    return try handleNumericHabitRecord(habit, result: result)
+                }
                 let completed = try habitRepo.toggleCheckIn(for: habit)
                 return RouteResult(
                     text: completed ? "\(habit.name) 打卡成功" : "\(habit.name) 已取消打卡",
@@ -374,6 +379,9 @@ final class IntentRouter {
         // 如果只有一个活跃习惯，直接打卡
         if habits.count == 1 {
             let habit = habits[0]
+            if habit.isNumericType {
+                return try handleNumericHabitRecord(habit, result: result)
+            }
             let completed = try habitRepo.toggleCheckIn(for: habit)
             return RouteResult(
                 text: completed ? "\(habit.name) 打卡成功" : "\(habit.name) 已取消打卡",
@@ -385,6 +393,40 @@ final class IntentRouter {
         // 多个习惯时列出选项
         let names = habits.map { $0.name }.joined(separator: "、")
         return RouteResult(text: "要给哪个习惯打卡？当前活跃习惯：\(names)")
+    }
+
+    private func handleNumericHabitRecord(_ habit: Habit, result: ParsedResult) throws -> RouteResult {
+        guard let value = parseHabitValue(from: result.extractedData) else {
+            let unitText = habit.unitText.isEmpty ? "" : "（\(habit.unitText)）"
+            return RouteResult(text: "请告诉我要记录的数值\(unitText)，比如「\(habit.name) 5\(habit.unitText)」")
+        }
+
+        let record = try HabitRepository.shared.addNumericRecord(for: habit, value: value)
+        let formattedValue = habit.formatValue(value)
+        let unit = habit.unitText
+        let verb = habit.isBadHabit ? "已记录" : "已更新"
+        return RouteResult(
+            text: "\(verb)「\(habit.name)」\(formattedValue)\(unit)",
+            habitId: habit.id,
+            linkedEntity: LinkedEntity(type: .habit, id: record.habitId)
+        )
+    }
+
+    private func parseHabitValue(from data: [String: String]?) -> Double? {
+        guard let data else { return nil }
+        let candidates = [
+            data["habitValue"],
+            data["value"],
+            data["amount"]
+        ]
+        for candidate in candidates {
+            guard let raw = candidate?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { continue }
+            let numeric = raw.filter { $0.isNumber || $0 == "." || $0 == "-" }
+            if let value = Double(numeric) {
+                return value
+            }
+        }
+        return nil
     }
 
     // MARK: - Complete Task
