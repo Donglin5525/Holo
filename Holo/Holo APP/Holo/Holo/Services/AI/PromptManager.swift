@@ -75,8 +75,8 @@ final class PromptManager {
 
     /// 需要版本管理的 prompt 类型及其最低版本
     private static let promptVersions: [PromptType: Int] = [
-        .intentRecognition: 6,          // v6: Prompt 移除完整科目表，科目由后端 catalog + 本地分类匹配
-        .memoryInsightGeneration: 4,    // v4: 结构化异常观察 + anomaly 卡片 + 数据护栏
+        .intentRecognition: 7,          // v7: 子任务自动识别；v6: Prompt 移除完整科目表，科目由后端 catalog + 本地分类匹配
+        .memoryInsightGeneration: 5,    // v5: 习惯洞察区分正向习惯与坏习惯控制率
         .annualReview: 1                // v1: 初始版本
     ]
 
@@ -272,9 +272,14 @@ final class PromptManager {
               "dueDate": "yyyy-MM-dd 或 yyyy-MM-dd HH:mm",
               "tags": "逗号分隔",
               "description": "任务描述",
+              "subtasks": "逗号分隔的子任务列表（2项及以上并列待办事项时提取）",
               "noteContent": "笔记正文",
               "habitName": "习惯名",
               "habitValue": "数值",
+              "habitPolarity": "positive|negative",
+              "successRule": "completeWhenDone|stayBelowTarget|abstain",
+              "unit": "单位，如根/杯/次",
+              "targetValue": "目标上限或目标值",
               "mood": "心情标签",
               "weight": "体重",
               "date": "yyyy-MM-dd",
@@ -305,9 +310,14 @@ final class PromptManager {
         - 有具体时间→dueDate 格式 yyyy-MM-dd HH:mm，无时间→yyyy-MM-dd
         - 时间映射：凌晨=00-05，早上/上午=06-11，中午=12，下午=13-17，晚上/傍晚=18-22，半夜/深夜=23
         - 涉及具体数据（金额、分类、时间段统计、消费、习惯、任务进度）的查询→用 query_analysis，不要用 query。query 只用于非数据的通用问答
+        - 抽烟、喝酒、熬夜、暴食等减少/戒除语义属于 negative habit；提取 habitPolarity="negative"，优先使用 successRule="stayBelowTarget" 或 "abstain"
+        - 用户记录坏习惯发生次数时，habitValue 保留数值，unit 保留单位；不要把“抽烟 5 根”理解为正向完成 5 次
         - "复盘、总结、看看这周/本月状态、我最近怎么样"优先识别为 generate_memory_insight 或 query_analysis
         - 如果用户想要跨财务、习惯、待办一起分析，analysisDomain 使用 crossModule
         - 如果一句话同时包含执行动作和分析查询，返回 clarification，不要混合执行
+        - 子任务识别：用户输入包含2个及以上并列待办事项时，将每项提取为 subtasks（逗号分隔），同时将 title 概括为整体意图
+        - 只有并列"待办动作/事项"才拆：并列对象（给张三和李四发邮件）、并列人名（约小王和小李吃饭）、介词结构（和妈妈打电话）不拆
+        - 信心不足时不提取 subtasks，仅1个事项时不提取 subtasks 字段
 
         ## 示例
 
@@ -334,6 +344,11 @@ final class PromptManager {
         输入：「你能帮我做什么」
         ```json
         {"mode":"query","items":[{"id":"1","intent":"query","confidence":0.9,"extractedData":{}}],"needsClarification":false,"clarificationQuestion":null}
+        ```
+
+        输入：「提醒我1小时后去山姆买牛奶和洗手液」
+        ```json
+        {"mode":"single_action","items":[{"id":"1","intent":"create_task","confidence":0.95,"extractedData":{"title":"去山姆购物","dueDate":"2026-05-17 22:17","subtasks":"买牛奶,买洗手液"}}],"needsClarification":false,"clarificationQuestion":null}
         ```
 
         只回复 JSON。
@@ -445,6 +460,13 @@ final class PromptManager {
         - tasks.carriedOverBacklogCount 和 activeBacklogCount 是历史积压背景，不能写成“本周任务完成了 0/全部”。
         - 如果本周期 dueInPeriod 很少但 activeBacklogCount 很多，应表达为“历史积压仍在”，不要归因成本周失败。
         - importantCompletedTasks 只引用本周期完成的高优任务。
+
+        ## 习惯语义口径
+
+        - habits.habitPerformanceSummaries 中 polarity=negative 的项目是坏习惯/减少型行为，不能写成“完成了 X 次”。
+        - negative + stayBelowTarget 表示控制在目标以内才算达标；优先描述总量、目标上限、控制天数、超标天数。
+        - negative + abstain 表示没有发生才算达标；有记录代表坏习惯发生，不是正向完成。
+        - positive 习惯才使用“完成率、连续打卡、表现最好”等正向表达。
 
         ## 异常观察（anomaly）
 
@@ -692,6 +714,13 @@ final class PromptManager {
         - totalCount / dueInPeriod 表示本周期到期任务。completionRate 只对应本周期到期任务。
         - carriedOverBacklogCount / activeBacklogCount 是历史积压背景，不能混入本周期完成率。
         - 当历史 backlog 很多时，可以指出积压存在，但不要说成本周新产生或本周全部未完成。
+
+        ## 习惯分析口径
+
+        - habitPerformanceSummaries 中 polarity=negative 的项目是坏习惯/减少型行为。
+        - 不要把负向习惯的记录次数写成“完成次数”；应写成“发生次数/总量/超标天数/控制率”。
+        - successRule=stayBelowTarget 时，低于或等于 targetValue 才算达标；successRule=abstain 时，没有发生才算达标。
+        - positive 习惯才使用“完成率、连续打卡、掉队习惯”等表达。
 
         ## 各领域分析侧重
 
