@@ -4,6 +4,15 @@
 
 ---
 
+## [2026-05-18] 洞察推送点击跳转修复
+
+### 修复
+- 修复点击洞察（周/月记忆回放）推送通知后无法跳转到对应页面的问题
+- `MemoryInsightNotificationService` 为周/月提醒通知添加 `categoryIdentifier`
+- `TodoNotificationService` 注册 `MEMORY_INSIGHT` 通知分类并在点击时触发 Deep Link 跳转到记忆长廊
+
+---
+
 ## [2026-05-18] 子任务删除闪退修复
 
 ### 修复

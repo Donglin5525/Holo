@@ -16,6 +16,7 @@ import OSLog
 enum TodoNotificationCategory {
     static let task = "TODO_TASK"
     static let dailyReminder = "DAILY_REMINDER"
+    static let memoryInsight = "MEMORY_INSIGHT"
 }
 
 enum TodoNotificationAction: String {
@@ -125,7 +126,15 @@ class TodoNotificationService: NSObject, ObservableObject {
             options: []
         )
 
-        UNUserNotificationCenter.current().setNotificationCategories([taskCategory, dailyCategory])
+        // 洞察提醒分类（无操作按钮）
+        let memoryInsightCategory = UNNotificationCategory(
+            identifier: TodoNotificationCategory.memoryInsight,
+            actions: [],
+            intentIdentifiers: [],
+            options: []
+        )
+
+        UNUserNotificationCenter.current().setNotificationCategories([taskCategory, dailyCategory, memoryInsightCategory])
         Self.logger.info("已注册通知分类")
     }
 
@@ -436,6 +445,9 @@ extension TodoNotificationService: UNUserNotificationCenterDelegate {
             case TodoNotificationCategory.dailyReminder:
                 Self.logger.info("每日提醒 Deep Link")
                 DeepLinkState.shared.pendingTarget = .dailyReminder
+            case TodoNotificationCategory.memoryInsight:
+                Self.logger.info("洞察通知 Deep Link")
+                DeepLinkState.shared.pendingTarget = .memoryGallery
             default:
                 break
             }
