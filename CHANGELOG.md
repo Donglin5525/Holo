@@ -4,6 +4,16 @@
 
 ---
 
+## [2026-05-18] 子任务删除闪退修复
+
+### 修复
+- 修复删除子任务时 App 直接闪退的问题：`CheckItem.task` 关系的删除规则从 `cascadeDeleteRule` 改为 `nullifyDeleteRule`，防止删除子任务时级联删除父任务
+- 优化 `AddTaskSheet` 新建模式下子列表使用 `Identifiable` 包装，消除 `ForEach` 索引越界风险
+- `AddTaskSheet` 编辑模式删除子任务时先从本地数组移除，再执行 CoreData 删除，并增加失败回滚
+- `ChecklistView` 将 `checkItems` 从计算属性改为 `@State` 数组，手动管理增删状态，避免 CoreData 删除后访问野指针
+
+---
+
 ## [2026-05-18] iCloud 手动同步请求
 
 ### 新增

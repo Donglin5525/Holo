@@ -601,7 +601,10 @@ class TodoRepository: ObservableObject {
     /// 删除检查项
     func deleteCheckItem(_ item: CheckItem) throws {
         let task = item.task
+        task?.removeCheckItems(item)
+        task?.updatedAt = Date()
         context.delete(item)
+        context.processPendingChanges()
         try context.save()
         loadActiveTasks()
         notifyDataChange()

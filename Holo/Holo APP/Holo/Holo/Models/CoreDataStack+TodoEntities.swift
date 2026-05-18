@@ -569,7 +569,7 @@ extension CoreDataStack {
         checkItemTaskRelation.destinationEntity = todoTaskEntity
         checkItemTaskRelation.minCount = 0
         checkItemTaskRelation.maxCount = 1
-        checkItemTaskRelation.deleteRule = .cascadeDeleteRule
+        checkItemTaskRelation.deleteRule = .nullifyDeleteRule
         checkItemTaskRelation.isOptional = true
 
         taskCheckItemsRelation.inverseRelationship = checkItemTaskRelation

@@ -15,13 +15,9 @@ struct ChecklistView: View {
     @State var task: TodoTask
     @Environment(\.dismiss) var dismiss
     @State private var newCheckItemTitle = ""
+    @State private var checkItems: [CheckItem] = []
 
     private static let logger = Logger(subsystem: "com.holo.app", category: "ChecklistView")
-
-    var checkItems: [CheckItem] {
-        let items = task.checkItems?.allObjects as? [CheckItem] ?? []
-        return items.sorted { $0.order < $1.order }
-    }
 
     var body: some View {
         NavigationStack {
@@ -67,6 +63,7 @@ struct ChecklistView: View {
                     .fontWeight(.semibold)
                 }
             }
+            .onAppear(perform: reloadCheckItems)
         }
     }
 
@@ -231,7 +228,8 @@ struct ChecklistView: View {
 
         do {
             let order = Int16(checkItems.count)
-            _ = try repository.addCheckItem(title: trimmedTitle, to: task, order: order)
+            let item = try repository.addCheckItem(title: trimmedTitle, to: task, order: order)
+            checkItems.append(item)
             newCheckItemTitle = ""
         } catch {
             Self.logger.error("添加检查项失败：\(error.localizedDescription)")
@@ -239,11 +237,20 @@ struct ChecklistView: View {
     }
 
     private func deleteCheckItem(_ item: CheckItem) {
+        let itemID = item.id
+        checkItems.removeAll { $0.id == itemID }
+
         do {
             try repository.deleteCheckItem(item)
         } catch {
             Self.logger.error("删除检查项失败：\(error.localizedDescription)")
+            reloadCheckItems()
         }
+    }
+
+    private func reloadCheckItems() {
+        let items = task.checkItems?.allObjects as? [CheckItem] ?? []
+        checkItems = items.sorted { $0.order < $1.order }
     }
 }
 

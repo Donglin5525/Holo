@@ -12,6 +12,11 @@ import PhotosUI
 import AVFoundation
 import OSLog
 
+private struct PendingCheckItem: Identifiable, Equatable {
+    let id = UUID()
+    var title: String
+}
+
 struct AddTaskSheet: View {
     @ObservedObject var repository: TodoRepository
     let existingTask: TodoTask?
@@ -77,7 +82,7 @@ struct AddTaskSheet: View {
 
     // 检查清单相关
     @State private var checkItems: [CheckItem] = []
-    @State private var pendingCheckItems: [String] = []
+    @State private var pendingCheckItems: [PendingCheckItem] = []
     @State private var newCheckItemTitle = ""
     @State private var showAdvancedProperties = false
 
@@ -988,20 +993,20 @@ struct AddTaskSheet: View {
                     }
                 } else {
                     // 新建模式：显示暂存的检查项
-                    ForEach(pendingCheckItems.indices, id: \.self) { index in
+                    ForEach(pendingCheckItems) { item in
                         HStack(spacing: HoloSpacing.sm) {
                             Image(systemName: "circle")
                                 .font(.system(size: 20, weight: .medium))
                                 .foregroundColor(.holoTextSecondary.opacity(0.5))
 
-                            Text(pendingCheckItems[index])
+                            Text(item.title)
                                 .font(.holoBody)
                                 .foregroundColor(.holoTextPrimary)
 
                             Spacer()
 
                             Button {
-                                pendingCheckItems.remove(at: index)
+                                pendingCheckItems.removeAll { $0.id == item.id }
                             } label: {
                                 Image(systemName: "trash")
                                     .font(.system(size: 13, weight: .medium))
@@ -1012,7 +1017,7 @@ struct AddTaskSheet: View {
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
 
-                        if index != pendingCheckItems.count - 1 {
+                        if item.id != pendingCheckItems.last?.id {
                             Divider().padding(.horizontal, 12)
                         }
                     }
@@ -1079,7 +1084,7 @@ struct AddTaskSheet: View {
             }
         } else {
             // 新建模式：暂存
-            pendingCheckItems.append(trimmed)
+            pendingCheckItems.append(PendingCheckItem(title: trimmed))
         }
         newCheckItemTitle = ""
     }
@@ -1098,11 +1103,17 @@ struct AddTaskSheet: View {
     }
 
     private func deleteCheckItem(_ item: CheckItem) {
+        let itemID = item.id
+        checkItems.removeAll { $0.id == itemID }
+
         do {
             try repository.deleteCheckItem(item)
-            checkItems.removeAll { $0.id == item.id }
         } catch {
             Self.logger.error("删除检查项失败：\(error.localizedDescription)")
+            if let task = existingTask {
+                let items = task.checkItems?.allObjects as? [CheckItem] ?? []
+                checkItems = items.sorted { $0.order < $1.order }
+            }
         }
     }
 
@@ -1868,8 +1879,8 @@ struct AddTaskSheet: View {
                     lastSelectedListId = selectedListId?.uuidString
 
                     // 创建暂存的检查项
-                    for (index, itemTitle) in pendingCheckItems.enumerated() {
-                        _ = try repository.addCheckItem(title: itemTitle, to: newTask, order: Int16(index))
+                    for (index, item) in pendingCheckItems.enumerated() {
+                        _ = try repository.addCheckItem(title: item.title, to: newTask, order: Int16(index))
                     }
 
                     // 保存暂存的附件图片
