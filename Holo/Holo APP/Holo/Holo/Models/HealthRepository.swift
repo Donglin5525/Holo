@@ -312,9 +312,9 @@ class HealthRepository: ObservableObject {
         }
     }
 
-    /// 获取指定日期的站立时长（小时）
+    /// 获取指定日期的站立小时数
     private func fetchStandTime(for date: Date) async -> Double {
-        guard let standType = HKObjectType.quantityType(forIdentifier: .appleStandTime) else {
+        guard let standType = HKObjectType.categoryType(forIdentifier: .appleStandHour) else {
             return 0
         }
 
@@ -331,14 +331,17 @@ class HealthRepository: ObservableObject {
         )
 
         return await withCheckedContinuation { continuation in
-            let query = HKStatisticsQuery(
-                quantityType: standType,
-                quantitySamplePredicate: predicate,
-                options: .cumulativeSum
-            ) { _, result, _ in
-                // Apple Stand Time 单位是分钟，转换为小时
-                let minutes = result?.sumQuantity()?.doubleValue(for: .minute()) ?? 0
-                continuation.resume(returning: minutes / 60)
+            let query = HKSampleQuery(
+                sampleType: standType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: nil
+            ) { _, samples, _ in
+                let standHours = samples?
+                    .compactMap { $0 as? HKCategorySample }
+                    .filter { $0.value == HKCategoryValueAppleStandHour.stood.rawValue }
+                    .count ?? 0
+                continuation.resume(returning: Double(standHours))
             }
             healthStore.execute(query)
         }
@@ -423,6 +426,7 @@ class HealthRepository: ObservableObject {
             HKObjectType.quantityType(forIdentifier: .stepCount),
             HKObjectType.categoryType(forIdentifier: .sleepAnalysis),
             HKObjectType.quantityType(forIdentifier: .appleStandTime),
+            HKObjectType.categoryType(forIdentifier: .appleStandHour),
             HKObjectType.quantityType(forIdentifier: .appleExerciseTime)
         ].compactMap { $0 }
     }
