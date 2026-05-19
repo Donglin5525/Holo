@@ -43,6 +43,33 @@ test("GET /v1/catalog/finance-categories returns complete finance category catal
   assert.ok(salary.tags.includes("stableIncome"));
 });
 
+test("finance category catalog contains semantic anchors for normalized candidates", () => {
+  const rows = flattenFinanceCategoryCatalog();
+
+  function findExpense(candidate) {
+    const normalized = candidate.toLowerCase();
+    return rows.find(
+      (row) =>
+        row.type === "expense" &&
+        (row.subCategory.toLowerCase() === normalized ||
+          row.aliases.map((alias) => alias.toLowerCase()).includes(normalized))
+    );
+  }
+
+  assert.deepEqual(
+    pickPath(findExpense("香烟")),
+    { primaryCategory: "其他", subCategory: "烟酒" }
+  );
+  assert.deepEqual(
+    pickPath(findExpense("快餐")),
+    { primaryCategory: "餐饮", subCategory: "晚餐" }
+  );
+});
+
+function pickPath(row) {
+  return row ? { primaryCategory: row.primaryCategory, subCategory: row.subCategory } : null;
+}
+
 test("finance category catalog covers the default category tree", () => {
   const rows = flattenFinanceCategoryCatalog();
   const keySet = new Set(rows.map((row) => `${row.type}|${row.primaryCategory}|${row.subCategory}`));

@@ -120,15 +120,19 @@ test("启动时自动把默认 Prompt 登记到版本历史", async () => {
   assert.match(historyHtml, /自动登记默认 Prompt 基线/);
 });
 
-test("intent_recognition 默认 Prompt 已移除完整科目表并使用 categoryCandidate", async () => {
+test("intent_recognition 默认 Prompt 已移除完整科目表并使用语义归一字段", async () => {
   const app = createTestApp();
 
   const response = await app.request("/v1/prompts/intent_recognition");
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  assert.equal(prompt.version, 7);
+  assert.equal(prompt.version, 8);
   assert.match(prompt.content, /categoryCandidate/);
+  assert.match(prompt.content, /normalizedCategoryCandidate/);
+  assert.match(prompt.content, /semanticCategoryHint/);
+  assert.match(prompt.content, /买烟250/);
+  assert.match(prompt.content, /肯德基40/);
   assert.match(prompt.content, /habitPolarity/);
   assert.match(prompt.content, /stayBelowTarget/);
   assert.match(prompt.content, /系统科目对照 catalog/);
