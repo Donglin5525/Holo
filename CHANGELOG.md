@@ -4,6 +4,19 @@
 
 ---
 
+## [2026-05-19] 记账意图识别语义归一
+
+### 优化
+- 意图识别 Prompt 升级为 v8，新增 `normalizedCategoryCandidate` 和 `semanticCategoryHint`，由 AI 负责将品牌、口语和动作短语归一为可匹配的记账分类候选
+- iOS 记账路由支持按「归一候选 → 原始候选 → 语义提示」匹配本地分类与后端 catalog，减少「肯德基40」「买烟250」这类输入落入兜底分类
+- 后端 finance catalog 增加快餐语义锚点，并补充 Prompt 和 catalog 测试覆盖
+
+### 验证
+- 后端测试通过：`npm test`
+- iOS 模拟器构建通过：`xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' build`
+
+---
+
 ## [2026-05-18] 洞察推送点击跳转修复
 
 ### 修复

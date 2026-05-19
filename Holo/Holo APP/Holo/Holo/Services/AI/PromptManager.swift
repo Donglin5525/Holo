@@ -75,7 +75,7 @@ final class PromptManager {
 
     /// 需要版本管理的 prompt 类型及其最低版本
     private static let promptVersions: [PromptType: Int] = [
-        .intentRecognition: 7,          // v7: 子任务自动识别；v6: Prompt 移除完整科目表，科目由后端 catalog + 本地分类匹配
+        .intentRecognition: 8,          // v8: 记账语义归一；v7: 子任务自动识别；v6: Prompt 移除完整科目表
         .memoryInsightGeneration: 5,    // v5: 习惯洞察区分正向习惯与坏习惯控制率
         .annualReview: 1                // v1: 初始版本
     ]
@@ -243,13 +243,14 @@ final class PromptManager {
 
         记账时不要在 Prompt 中维护或枚举完整科目表。科目由系统科目对照 catalog 和用户本地分类共同匹配。
 
-        你只需要抽取用户原始消费/收入语义：
-        - categoryCandidate：记账必填，保留用户原始分类语义或最自然的短语，例如“打车”“午饭”“房租”“工资”“手办”。
+        你需要抽取两层消费/收入语义：
+        - categoryCandidate：记账必填，保留用户原始分类语义或最自然的短语，例如“肯德基”“买烟”“打车”“午饭”“房租”“工资”“手办”。
+        - normalizedCategoryCandidate：用常识把品牌、动词短语、口语表达归一成可匹配的短语，例如“肯德基”→“晚餐”或“快餐”，“买烟”→“香烟”，“滴滴”→“打车”。不要让用户维护这类通用映射。
+        - semanticCategoryHint：可选，给出宽泛语义提示，例如“餐饮”“烟酒”“交通”“购物”。不确定时留空。
         - primaryCategory/subCategory：只有当用户语义非常明确且你确信是系统标准科目时才填写；不确定时留空。
         - 即使填写 primaryCategory/subCategory，系统仍会用科目对照 catalog 和用户本地分类做最终校验。
-        - 不要为了匹配而编造科目。
-        - 无法判断分类时，保留 categoryCandidate，primaryCategory/subCategory 留空。
-        - 餐饮语义：用户明确说早饭/午饭/晚饭/夜宵时，categoryCandidate 保留用户原话；用户只说吃饭/一碗面/外卖等泛餐饮语义时，也保留最自然短语，系统会结合当前时间归一。
+        - 不要为了匹配而编造科目；无法判断分类时，保留 categoryCandidate，其他分类字段留空。
+        - 餐饮语义：用户明确说早饭/午饭/晚饭/夜宵时保留原话并归一到对应餐次；用户说餐饮品牌、快餐、一碗面、外卖等泛餐饮语义时，结合当前时间归一到早餐/午餐/晚餐/夜宵，semanticCategoryHint 填“餐饮”。
 
         ## 输出格式
 
@@ -266,6 +267,8 @@ final class PromptManager {
               "primaryCategory": "一级科目（不确定留空）",
               "subCategory": "二级科目（不确定留空）",
               "categoryCandidate": "用户原始分类（记账必填）",
+              "normalizedCategoryCandidate": "语义归一后的候选，如晚餐/香烟/打车（不确定留空）",
+              "semanticCategoryHint": "宽泛语义提示，如餐饮/烟酒/交通（不确定留空）",
               "title": "任务标题（去套话，如"提醒我买水"→"买水"）",
               "taskKeyword": "任务关键词",
               "priority": "0-3",
@@ -303,6 +306,7 @@ final class PromptManager {
         - 逗号/分号分隔多动作，每项独立 id
         - 无法可靠拆分时宁可返回 clarification
         - categoryCandidate 始终填用户原始语义，无论科目是否匹配
+        - normalizedCategoryCandidate 负责通用语义归一，不要只复述原词；无法归一时留空
         - 科目不确定时 primaryCategory/subCategory 留空，categoryCandidate 必填
         - 根据整体消费场景归类，不要拆解物品名称中的单个字词
         - title 提取核心动作，去掉"提醒我""帮我"等套话
@@ -323,17 +327,27 @@ final class PromptManager {
 
         输入：「午饭35」
         ```json
-        {"mode":"single_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"35","note":"午饭","primaryCategory":"","subCategory":"","categoryCandidate":"午饭"}}],"needsClarification":false,"clarificationQuestion":null}
+        {"mode":"single_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"35","note":"午饭","primaryCategory":"","subCategory":"","categoryCandidate":"午饭","normalizedCategoryCandidate":"午餐","semanticCategoryHint":"餐饮"}}],"needsClarification":false,"clarificationQuestion":null}
+        ```
+
+        输入：「肯德基40」
+        ```json
+        {"mode":"single_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"40","note":"肯德基","primaryCategory":"","subCategory":"","categoryCandidate":"肯德基","normalizedCategoryCandidate":"晚餐","semanticCategoryHint":"餐饮"}}],"needsClarification":false,"clarificationQuestion":null}
+        ```
+
+        输入：「买烟250」
+        ```json
+        {"mode":"single_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"250","note":"买烟","primaryCategory":"","subCategory":"","categoryCandidate":"买烟","normalizedCategoryCandidate":"香烟","semanticCategoryHint":"烟酒"}}],"needsClarification":false,"clarificationQuestion":null}
         ```
 
         输入：「买个手办200」
         ```json
-        {"mode":"single_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"200","note":"买个手办","primaryCategory":"","subCategory":"","categoryCandidate":"手办"}}],"needsClarification":false,"clarificationQuestion":null}
+        {"mode":"single_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"200","note":"买个手办","primaryCategory":"","subCategory":"","categoryCandidate":"手办","normalizedCategoryCandidate":"","semanticCategoryHint":"购物"}}],"needsClarification":false,"clarificationQuestion":null}
         ```
 
         输入：「午饭35，提醒我明天买牛奶」
         ```json
-        {"mode":"multi_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"35","note":"午饭","primaryCategory":"","subCategory":"","categoryCandidate":"午饭"}},{"id":"2","intent":"create_task","confidence":0.95,"extractedData":{"title":"买牛奶","dueDate":"2026-05-05"}}],"needsClarification":false,"clarificationQuestion":null}
+        {"mode":"multi_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"35","note":"午饭","primaryCategory":"","subCategory":"","categoryCandidate":"午饭","normalizedCategoryCandidate":"午餐","semanticCategoryHint":"餐饮"}},{"id":"2","intent":"create_task","confidence":0.95,"extractedData":{"title":"买牛奶","dueDate":"2026-05-05"}}],"needsClarification":false,"clarificationQuestion":null}
         ```
 
         输入：「上周花了多少钱」

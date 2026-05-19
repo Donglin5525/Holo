@@ -111,14 +111,18 @@ final class IntentRouter {
         let primaryCategory = data["primaryCategory"]
         let subCategory = data["subCategory"]
         let categoryCandidate = data["categoryCandidate"]
+        let normalizedCategoryCandidate = data["normalizedCategoryCandidate"]
+        let semanticCategoryHint = data["semanticCategoryHint"]
 
-        logger.info("AI 返回科目：primaryCategory=\(primaryCategory ?? "nil"), subCategory=\(subCategory ?? "nil"), categoryCandidate=\(categoryCandidate ?? "nil")")
+        logger.info("AI 返回科目：primaryCategory=\(primaryCategory ?? "nil"), subCategory=\(subCategory ?? "nil"), categoryCandidate=\(categoryCandidate ?? "nil"), normalizedCategoryCandidate=\(normalizedCategoryCandidate ?? "nil"), semanticCategoryHint=\(semanticCategoryHint ?? "nil")")
 
         let categoryRepo = FinanceRepository.shared
         var category = try await matchCategory(
             primaryCategory: primaryCategory,
             subCategory: subCategory,
             categoryCandidate: categoryCandidate,
+            normalizedCategoryCandidate: normalizedCategoryCandidate,
+            semanticCategoryHint: semanticCategoryHint,
             note: note ?? "",
             type: .expense
         )
@@ -207,12 +211,16 @@ final class IntentRouter {
         let primaryCategory = data["primaryCategory"]
         let subCategory = data["subCategory"]
         let categoryCandidate = data["categoryCandidate"]
+        let normalizedCategoryCandidate = data["normalizedCategoryCandidate"]
+        let semanticCategoryHint = data["semanticCategoryHint"]
         let categoryRepo = FinanceRepository.shared
 
         var category = try await matchCategory(
             primaryCategory: primaryCategory,
             subCategory: subCategory,
             categoryCandidate: categoryCandidate,
+            normalizedCategoryCandidate: normalizedCategoryCandidate,
+            semanticCategoryHint: semanticCategoryHint,
             note: note ?? "",
             type: .income
         )
@@ -676,9 +684,13 @@ final class IntentRouter {
 
     private func normalizedMealCandidate(
         categoryCandidate: String?,
+        normalizedCategoryCandidate: String?,
+        semanticCategoryHint: String?,
         note: String?
     ) -> String? {
-        let text = [categoryCandidate, note].compactMap { $0 }.joined(separator: " ")
+        let text = [categoryCandidate, normalizedCategoryCandidate, semanticCategoryHint, note]
+            .compactMap { $0 }
+            .joined(separator: " ")
 
         if text.contains("早餐") || text.contains("早饭") || text.contains("早点") {
             return "早餐"
@@ -713,6 +725,8 @@ final class IntentRouter {
         primaryCategory: String?,
         subCategory: String?,
         categoryCandidate: String?,
+        normalizedCategoryCandidate: String?,
+        semanticCategoryHint: String?,
         note: String,
         type: TransactionType
     ) async throws -> Category? {
@@ -735,11 +749,19 @@ final class IntentRouter {
 
         let normalizedCandidate = normalizedMealCandidate(
             categoryCandidate: categoryCandidate,
+            normalizedCategoryCandidate: normalizedCategoryCandidate,
+            semanticCategoryHint: semanticCategoryHint,
             note: note
-        ) ?? categoryCandidate
+        )
 
-        if let candidate = normalizedCandidate?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !candidate.isEmpty {
+        let candidates = uniqueCategoryCandidates([
+            normalizedCandidate,
+            normalizedCategoryCandidate,
+            categoryCandidate,
+            semanticCategoryHint
+        ])
+
+        for candidate in candidates {
             // 2. 用户学习映射优先，尊重手动纠正过的分类。
             if let learned = CategoryLearnedMapping.lookup(
                 candidate: candidate,
@@ -794,7 +816,7 @@ final class IntentRouter {
 
         // 6. 原始 candidate 再做一次直接匹配，避免餐饮归一掩盖同名自定义分类。
         if let rawCandidate = categoryCandidate?.trimmingCharacters(in: .whitespacesAndNewlines),
-           rawCandidate != (normalizedCandidate ?? ""),
+           !candidates.contains(rawCandidate),
            let rawMatched = CategoryMatcherService.shared.matchExistingCategoryByCandidate(
                 rawCandidate,
                 primaryCategory: primaryCategory ?? "",
@@ -806,6 +828,22 @@ final class IntentRouter {
 
         // 无法可靠匹配，返回 nil，由调用方使用「待确认」兜底
         return nil
+    }
+
+    private func uniqueCategoryCandidates(_ values: [String?]) -> [String] {
+        var seen = Set<String>()
+        var result: [String] = []
+
+        for value in values {
+            let candidate = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            guard !candidate.isEmpty else { continue }
+            let key = candidate.lowercased()
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+            result.append(candidate)
+        }
+
+        return result
     }
 
     // MARK: - Memory Insight Generation
