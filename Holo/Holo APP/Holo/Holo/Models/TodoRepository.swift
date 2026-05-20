@@ -564,6 +564,20 @@ class TodoRepository: ObservableObject {
         notifyDataChange()
     }
 
+    /// 加载已归档任务
+    func loadArchivedTasks() -> [TodoTask] {
+        let request = TodoTask.fetchRequest()
+        request.predicate = NSPredicate(format: "archived == YES AND deletedFlag == NO")
+        request.sortDescriptors = [NSSortDescriptor(key: "updatedAt", ascending: false)]
+
+        do {
+            return try context.fetch(request)
+        } catch {
+            Logger(subsystem: "com.holo.app", category: "TodoRepository").error("加载已归档任务失败：\(error)")
+            return []
+        }
+    }
+
     /// 加载已归档清单
     func loadArchivedLists() -> [TodoList] {
         let request = TodoList.fetchRequest()

@@ -30,6 +30,7 @@ final class PromptManager {
         case memoryInsightGeneration = "memory_insight_generation"
         case annualReview = "annual_review"
         case analysisPrompt = "analysis_prompt"
+        case thoughtVoiceSummary = "thought_voice_summary"
 
         var displayName: String {
             switch self {
@@ -41,6 +42,7 @@ final class PromptManager {
             case .memoryInsightGeneration: return "记忆长廊洞察生成"
             case .annualReview: return "年度回顾"
             case .analysisPrompt: return "分析查询"
+            case .thoughtVoiceSummary: return "观点语音总结"
             }
         }
 
@@ -54,6 +56,7 @@ final class PromptManager {
             case .memoryInsightGeneration: return "记忆长廊 AI 回放洞察生成"
             case .annualReview: return "年度回顾洞察生成"
             case .analysisPrompt: return "AI 分析查询专用系统提示"
+            case .thoughtVoiceSummary: return "观点语音输入智能总结"
             }
         }
 
@@ -67,6 +70,7 @@ final class PromptManager {
             case .memoryInsightGeneration: return "sparkles"
             case .annualReview: return "calendar.badge.clock"
             case .analysisPrompt: return "chart.bar.xaxis"
+            case .thoughtVoiceSummary: return "waveform.badge.magnifyingglass"
             }
         }
     }
@@ -77,7 +81,8 @@ final class PromptManager {
     private static let promptVersions: [PromptType: Int] = [
         .intentRecognition: 8,          // v8: 记账语义归一；v7: 子任务自动识别；v6: Prompt 移除完整科目表
         .memoryInsightGeneration: 5,    // v5: 习惯洞察区分正向习惯与坏习惯控制率
-        .annualReview: 1                // v1: 初始版本
+        .annualReview: 1,               // v1: 初始版本
+        .thoughtVoiceSummary: 1         // v1: 初始版本
     ]
 
     /// 加载指定类型的 Prompt，带缓存，优先读取 UserDefaults 自定义
@@ -767,6 +772,22 @@ final class PromptManager {
         3. 标记必须独占一行。
         4. 不要为了使用标记而编造数据。
         5. 如果不确定是否适合插入卡片，可以不输出标记。
+        """,
+
+        .thoughtVoiceSummary: """
+        你是一个语音记录整理助手。用户通过语音表达了一个或多个观点，ASR 转写结果包含口语化的重复、停顿和语序混乱。请将内容整理成适合保存的观点记录。
+
+        规则：
+        1. 保留第一人称表达，不要改成客观第三方摘要。
+        2. 保留用户的判断、倾向、情绪和关键细节。
+        3. 去掉口癖（如「然后」「就是说」）、重复、无意义停顿和明显绕路表达。
+        4. 调整语序，使内容成为可以直接保存的顺畅观点。
+        5. 不要替用户扩写不存在的事实、结论、行动项或理由。如果原文没有说，就不要加。
+        6. 短文本（100字以内）以润色为主，尽量不压缩长度。
+        7. 长文本轻度压缩到原文约 50%-70%，优先保留观点推理链路和关键细节。
+        8. 只输出整理后的文本，不要加标题、标签、解释或格式标记。
+
+        直接输出整理结果：
         """
     ]
 

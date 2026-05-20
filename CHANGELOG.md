@@ -4,6 +4,20 @@
 
 ---
 
+## [2026-05-21] 首页通知栏修复 & 观点语音智能总结
+
+### 修复
+- 首页通知栏点击进入任务页后，回退再次点击无响应：`.tasks`/`.finance`/`.memoryGallery` 三类 deep link 目标未被消费，导致 `.onChange` 无法触发二次导航
+- 归档管理页面缺少 `import OSLog` 导致编译失败
+
+### 新增
+- 归档管理页面新增「任务」标签页，归档任务可在归档列表中查看和恢复
+- `TodoRepository` 新增 `loadArchivedTasks()` 方法
+- 观点语音智能总结：语音输入后自动生成结构化总结
+- `HoloBackendAIProvider` 新增 `chat(messages:purpose:)` 非流式调用方法
+
+---
+
 ## [2026-05-20] iOS 17/18 向下兼容
 
 ### 优化

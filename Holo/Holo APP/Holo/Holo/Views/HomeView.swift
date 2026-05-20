@@ -700,21 +700,20 @@ struct HomeView: View {
             switch target {
             case .taskDetail, .dailyReminder:
                 showTasksView = true
+                // pendingTarget 由 TaskListView.handleDeepLink() 清除
             case .habitDetail:
                 showHabitsView = true
+                // pendingTarget 由 HabitListView 处理后清除
             case .finance:
                 showFinanceView = true
+                deepLinkState.pendingTarget = nil
             case .tasks:
                 showTasksView = true
+                deepLinkState.pendingTarget = nil
             case .memoryGallery:
                 showMemoryGallery = true
+                deepLinkState.pendingTarget = nil
             }
-
-            // 不在此处清除 pendingTarget —— 由目标页面处理完后再清除，
-            // 避免 pendingTarget 在目标视图 onAppear 之前就被清空导致深度链接丢失。
-            // taskDetail → TaskListView.handleDeepLink() 清除
-            // habitDetail → HabitListView 处理后清除
-            // 其余类型由目标视图首次渲染后自动消费
         }
     }
 

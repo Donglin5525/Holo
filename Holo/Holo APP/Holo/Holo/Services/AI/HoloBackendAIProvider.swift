@@ -104,6 +104,18 @@ final class HoloBackendAIProvider: AIProvider {
         return content
     }
 
+    /// 使用自定义 purpose 的非流式 chat 调用（不注入 UserContext）
+    func chat(messages: [ChatMessageDTO], purpose: HoloBackendPurpose) async throws -> String {
+        let request = buildRequest(purpose: purpose, messages: messages)
+        let response: ChatCompletionResponse = try await apiClient.send(request)
+
+        guard let content = response.choices?.first?.message?.content else {
+            throw APIError.serverError("AI 未返回有效内容")
+        }
+
+        return content
+    }
+
     func chatStreaming(messages: [ChatMessageDTO], userContext: UserContext) -> AsyncThrowingStream<String, Error> {
         chatStreaming(
             messages: messages,
@@ -316,6 +328,7 @@ enum HoloBackendPurpose: String {
     case chat
     case intent
     case insight
+    case thoughtVoiceSummary = "thought_voice_summary"
 }
 
 struct HoloBackendChatCompletionRequest: Encodable {

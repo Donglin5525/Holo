@@ -57,6 +57,7 @@ struct ThoughtEditorView: View {
     @State private var pendingVoiceTranscriptToInsert: String? = nil
     @State private var editorHeight: CGFloat = 360
     @State private var typingFormatState: TypingFormatState = TypingFormatState()
+    @AppStorage("com.holo.thought.voice.smartSummary.enabled") private var smartSummaryEnabled: Bool = true
     /// 是否为编辑模式
     private var isEditing: Bool { editingThoughtId != nil }
 
@@ -119,14 +120,32 @@ struct ThoughtEditorView: View {
                 .presentationDetents([.large])
         }
         .sheet(isPresented: $showVoiceInput, onDismiss: insertPendingVoiceTranscript) {
-            VoiceInputSheet(
-                speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(),
-                maximumDuration: 300,
-                readySubtitle: "确认后插入到观点内容",
-                submitButtonTitle: "插入"
-            ) { transcript in
-                pendingVoiceTranscriptToInsert = transcript
-                showVoiceInput = false
+            if smartSummaryEnabled {
+                VoiceInputSheet(
+                    speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(),
+                    maximumDuration: 300,
+                    readySubtitle: "确认后插入到观点内容",
+                    submitButtonTitle: "插入",
+                    resultConfig: VoiceResultConfig(
+                        title: "智能总结完成",
+                        subtitle: "已整理成更适合观点记录的表达",
+                        showsOriginalToggle: true
+                    ),
+                    postProcessor: ThoughtVoiceSummaryProcessor()
+                ) { transcript in
+                    pendingVoiceTranscriptToInsert = transcript
+                    showVoiceInput = false
+                }
+            } else {
+                VoiceInputSheet(
+                    speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(),
+                    maximumDuration: 300,
+                    readySubtitle: "确认后插入到观点内容",
+                    submitButtonTitle: "插入"
+                ) { transcript in
+                    pendingVoiceTranscriptToInsert = transcript
+                    showVoiceInput = false
+                }
             }
         }
         .onAppear {
@@ -242,20 +261,36 @@ struct ThoughtEditorView: View {
     }
 
     private var voiceInputButton: some View {
-        Button {
-            HapticManager.selection()
-            showVoiceInput = true
-        } label: {
-            Image(systemName: "mic.fill")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundColor(.white)
-                .frame(width: 44, height: 44)
-                .background(Color.holoPrimary)
-                .clipShape(Circle())
-                .shadow(color: Color.black.opacity(0.16), radius: 8, x: 0, y: 4)
+        HStack(spacing: 8) {
+            Button {
+                HapticManager.selection()
+                showVoiceInput = true
+            } label: {
+                Image(systemName: "mic.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: 44, height: 44)
+                    .background(Color.holoPrimary)
+                    .clipShape(Circle())
+                    .shadow(color: Color.black.opacity(0.16), radius: 8, x: 0, y: 4)
+            }
+            .accessibilityLabel("语音输入")
+            .accessibilityHint("录音并将识别结果插入到当前光标位置")
+
+            Button {
+                smartSummaryEnabled.toggle()
+            } label: {
+                Image(systemName: smartSummaryEnabled ? "sparkles" : "sparkle")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(smartSummaryEnabled ? .holoPrimary : .holoTextSecondary)
+                    .frame(width: 32, height: 32)
+                    .background(
+                        Circle()
+                            .fill(smartSummaryEnabled ? Color.holoPrimary.opacity(0.12) : Color.holoCardBackground)
+                    )
+            }
+            .accessibilityLabel(smartSummaryEnabled ? "关闭智能总结" : "开启智能总结")
         }
-        .accessibilityLabel("语音输入")
-        .accessibilityHint("录音并将识别结果插入到当前光标位置")
     }
 
     /// 标签区域
