@@ -250,7 +250,7 @@ struct MemoryInsightHeroCard: View {
     private var summarySection: some View {
         switch state {
         case .notConfigured:
-            Text("配置 AI 后可以生成个性化的周期回放")
+            Text("AI 服务暂时不可用，请稍后重试")
                 .font(.holoBody)
                 .foregroundColor(.holoTextSecondary)
 
@@ -339,8 +339,8 @@ struct MemoryInsightHeroCard: View {
             }()
             switch state {
             case .notConfigured:
-                Button(action: onGoToAISettings) {
-                    actionButtonLabel("去配置 AI", isPrimary: true)
+                Button(action: onGenerate) {
+                    actionButtonLabel("稍后重试", isPrimary: true)
                 }
 
             case .idle:

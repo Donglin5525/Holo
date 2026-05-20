@@ -159,7 +159,7 @@ enum MemoryInsightError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .aiNotConfigured:
-            return "AI 服务未配置，请先在设置中配置 AI Provider"
+            return "AI 服务暂时不可用，请稍后重试"
         case .generationInProgress:
             return "正在生成中，请勿重复操作"
         case .generationTimeout:

@@ -29,8 +29,10 @@ struct MemoryGalleryView: View {
     /// 选中的记忆条目（用于跳转详情）
     @State private var selectedMemory: MemoryItem?
 
+    #if DEBUG
     /// 是否显示 AI 设置页
     @State private var showAISettings = false
+    #endif
 
     // MARK: - Body
 
@@ -53,11 +55,13 @@ struct MemoryGalleryView: View {
         .sheet(item: $selectedMemory) { memory in
             MemoryDetailView(memory: memory)
         }
+        #if DEBUG
         .sheet(isPresented: $showAISettings) {
             NavigationStack {
                 AISettingsView()
             }
         }
+        #endif
         .task {
             await viewModel.refresh()
         }
@@ -159,7 +163,9 @@ struct MemoryGalleryView: View {
                             }
                         },
                         onGoToAISettings: {
+                            #if DEBUG
                             showAISettings = true
+                            #endif
                         }
                     )
 

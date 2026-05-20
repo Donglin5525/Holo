@@ -4,6 +4,32 @@
 
 ---
 
+## [2026-05-21] 首次昵称设置
+
+### 新增
+- 首次打开 App 时弹出昵称设置弹窗，引导用户填写 Holo 对自己的称呼
+- 首页、今日看板、设置页和个人页统一读取本地昵称，不再显示硬编码「东林」
+
+### 优化
+- 设置页修改昵称改为确认后保存，空白输入不会覆盖已有昵称
+
+### 验证
+- iOS Debug 模拟器构建通过：`xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build`
+
+---
+
+## [2026-05-21] HoloAI 普通用户免配置
+
+### 优化
+- 正式版默认使用 Holo 自有后端网关提供 AI 对话、AI 回放和语音识别能力，新用户无需配置任何 AI/API Key 即可使用
+- 普通用户界面隐藏 AI 助手和语音识别的技术配置入口，保留 Debug 环境下的开发调试入口
+- 将「配置 AI / API Key」相关失败提示调整为服务暂时不可用提示，避免误导用户自行配置第三方 Key
+
+### 验证
+- Release 真机通用构建通过：`xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -configuration Release -destination "generic/platform=iOS" -derivedDataPath /private/tmp/holo-derived-data build`
+
+---
+
 ## [2026-05-21] 首页通知栏修复 & 观点语音智能总结
 
 ### 修复

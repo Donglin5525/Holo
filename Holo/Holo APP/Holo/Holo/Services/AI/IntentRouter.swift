@@ -861,7 +861,7 @@ final class IntentRouter {
 
         guard service.isAIConfigured else {
             return RouteResult(
-                text: "AI 服务尚未配置，请先在设置中配置 AI Provider 后再生成回放。"
+                text: "AI 服务暂时不可用，请稍后重试。"
             )
         }
 

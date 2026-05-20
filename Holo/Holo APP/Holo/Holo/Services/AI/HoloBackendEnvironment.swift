@@ -9,11 +9,7 @@ import Foundation
 
 enum HoloBackendEnvironment {
     static var isEnabledByDefault: Bool {
-        #if DEBUG
         return true
-        #else
-        return false
-        #endif
     }
 
     static var baseURL: String {

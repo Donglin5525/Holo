@@ -544,12 +544,13 @@ struct SettingsView: View {
                 }
             }
 
-            // AI 设置
+            #if DEBUG
+            // AI 设置（仅开发调试）
             settingsRow(
                 icon: "sparkles",
                 iconColor: .purple,
                 title: "AI 助手",
-                subtitle: "配置 AI 对话服务"
+                subtitle: "开发调试：Provider、Prompt 与学习映射"
             ) {
                 showAISettings = true
             }
@@ -563,7 +564,7 @@ struct SettingsView: View {
                 icon: "waveform.circle",
                 iconColor: .holoInfo,
                 title: "语音识别",
-                subtitle: KeychainService.hasCachedVoiceRecognitionConfig ? "已配置" : "配置阿里云百炼 Qwen-ASR"
+                subtitle: KeychainService.hasCachedVoiceRecognitionConfig ? "已配置" : "开发调试：阿里云百炼 Qwen-ASR"
             ) {
                 showVoiceRecognitionSettings = true
             }
@@ -572,6 +573,7 @@ struct SettingsView: View {
                     VoiceRecognitionSettingsView()
                 }
             }
+            #endif
 
             // 关于
             settingsRow(
