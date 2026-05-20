@@ -25,11 +25,12 @@ struct SettingsView: View {
     @ObservedObject private var darkModeManager = DarkModeManager.shared
     @ObservedObject private var insightSettings = MemoryInsightScheduleSettings.shared
     @ObservedObject private var iCloudSyncStatus = ICloudSyncStatusService.shared
-    @AppStorage("userName") private var userName: String = "东林"
+    @AppStorage(UserDisplayNameSettings.displayNameKey) private var userName: String = UserDisplayNameSettings.fallbackDisplayName
     @State private var showAISettings = false
     @State private var showVoiceRecognitionSettings = false
     @State private var showHoloOneSettings = false
     @State private var showNameEditor = false
+    @State private var nameDraft = ""
     @State private var showProfileEditor = false
 
     // MARK: - Body
@@ -88,6 +89,7 @@ struct SettingsView: View {
 
     private var userInfoCard: some View {
         Button {
+            nameDraft = userName
             showNameEditor = true
         } label: {
             HStack(spacing: HoloSpacing.md) {
@@ -125,9 +127,15 @@ struct SettingsView: View {
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         }
         .alert("修改昵称", isPresented: $showNameEditor) {
-            TextField("昵称", text: $userName)
-            Button("确定") {}
-            Button("取消", role: .cancel) {}
+            TextField("昵称", text: $nameDraft)
+            Button("确定") {
+                userName = UserDisplayNameSettings.standard.saveDisplayName(nameDraft)
+                nameDraft = userName
+            }
+            .disabled(UserDisplayNameSettings.normalizedDisplayName(nameDraft) == nil)
+            Button("取消", role: .cancel) {
+                nameDraft = userName
+            }
         } message: {
             Text("输入你的昵称，将显示在首页问候语中")
         }

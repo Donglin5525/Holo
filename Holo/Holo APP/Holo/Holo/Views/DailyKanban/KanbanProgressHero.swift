@@ -12,6 +12,7 @@ struct KanbanProgressHero: View {
     @ObservedObject var todoRepo: TodoRepository
     @ObservedObject var habitRepo: HabitRepository
     @ObservedObject var healthRepo: HealthRepository
+    let userName: String
     @ObservedObject private var displaySettings = HabitStatsDisplaySettings.shared
 
     private var taskProgress: (completed: Int, total: Int) {
@@ -130,9 +131,14 @@ struct KanbanProgressHero: View {
     private var greetingMessage: String {
         let hour = Calendar.current.component(.hour, from: Date())
         if hour < 6 { return "夜深了" }
-        if hour < 12 { return "早上好，东林" }
-        if hour < 18 { return "下午好，东林" }
-        return "晚上好，东林"
+        if hour < 12 { return "早上好，\(displayName)" }
+        if hour < 18 { return "下午好，\(displayName)" }
+        return "晚上好，\(displayName)"
+    }
+
+    private var displayName: String {
+        UserDisplayNameSettings.normalizedDisplayName(userName)
+            ?? UserDisplayNameSettings.fallbackDisplayName
     }
 
     private var progressMessage: String {

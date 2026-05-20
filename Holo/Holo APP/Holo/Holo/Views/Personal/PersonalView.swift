@@ -12,7 +12,7 @@ struct PersonalView: View {
 
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var profileService = HoloProfileService.shared
-    @AppStorage("userName") private var userName: String = "东林"
+    @AppStorage(UserDisplayNameSettings.displayNameKey) private var userName: String = UserDisplayNameSettings.fallbackDisplayName
 
     let onPlanGoal: () -> Void
 

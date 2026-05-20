@@ -18,7 +18,16 @@ struct HomeView: View {
     // MARK: - Properties
     
     /// 用户昵称
-    @AppStorage("userName") private var userName: String = "东林"
+    @AppStorage(UserDisplayNameSettings.displayNameKey) private var userName: String = UserDisplayNameSettings.fallbackDisplayName
+
+    /// 是否已完成首次昵称设置
+    @AppStorage(UserDisplayNameSettings.onboardingKey) private var hasCompletedUserNameOnboarding: Bool = false
+
+    /// 是否显示首次昵称设置弹窗
+    @State private var showUserNameOnboarding: Bool = false
+
+    /// 首次昵称设置输入内容
+    @State private var onboardingNameDraft: String = ""
 
     /// 首页推送通道服务
     @ObservedObject private var scheduleService = HomeScheduleService.shared
@@ -222,7 +231,10 @@ struct HomeView: View {
             }
         }
         // 监听 Deep Link：冷启动时 onAppear 读取已有值
-        .onAppear { handleDeepLink() }
+        .onAppear {
+            presentUserNameOnboardingIfNeeded()
+            handleDeepLink()
+        }
         // 监听 Deep Link：热启动/后台时 onChange 检测变化
         .onChange(of: deepLinkState.pendingTarget) { _, _ in
             handleDeepLink()
@@ -233,9 +245,35 @@ struct HomeView: View {
                 loadFeatureItemsFromRepository()
             }
         }
+        .alert("我是Holo，你的个人助理。", isPresented: $showUserNameOnboarding) {
+            TextField("希望我怎么称呼您？", text: $onboardingNameDraft)
+            Button("保存") {
+                userName = UserDisplayNameSettings.standard.saveDisplayName(onboardingNameDraft)
+                hasCompletedUserNameOnboarding = true
+                onboardingNameDraft = ""
+            }
+            .disabled(UserDisplayNameSettings.normalizedDisplayName(onboardingNameDraft) == nil)
+        } message: {
+            Text("希望我怎么称呼您？")
+        }
     }
     
     // MARK: - 数据加载
+
+    /// 首次打开应用时引导用户设置昵称
+    private func presentUserNameOnboardingIfNeeded() {
+        guard !hasCompletedUserNameOnboarding else { return }
+
+        if UserDisplayNameSettings.normalizedDisplayName(userName) != nil,
+           userName != UserDisplayNameSettings.fallbackDisplayName {
+            hasCompletedUserNameOnboarding = true
+            UserDisplayNameSettings.standard.markOnboardingCompleted()
+            return
+        }
+
+        onboardingNameDraft = ""
+        showUserNameOnboarding = true
+    }
     
     /// 从 Repository 加载图标配置，转换为 FeatureButtonConfig 数组
     private func loadFeatureItemsFromRepository() {

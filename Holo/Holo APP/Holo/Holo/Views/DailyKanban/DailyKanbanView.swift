@@ -14,6 +14,7 @@ struct DailyKanbanView: View {
     @ObservedObject private var todoRepo = TodoRepository.shared
     @ObservedObject private var habitRepo = HabitRepository.shared
     @ObservedObject private var healthRepo = HealthRepository.shared
+    @AppStorage(UserDisplayNameSettings.displayNameKey) private var userName: String = UserDisplayNameSettings.fallbackDisplayName
 
     @State private var editingHabit: Habit? = nil
     @State private var inputValue: String = ""
@@ -29,7 +30,8 @@ struct DailyKanbanView: View {
                     KanbanProgressHero(
                         todoRepo: todoRepo,
                         habitRepo: habitRepo,
-                        healthRepo: healthRepo
+                        healthRepo: healthRepo,
+                        userName: userName
                     )
                     KanbanBudgetSection()
                     KanbanHabitSection(
