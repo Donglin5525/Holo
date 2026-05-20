@@ -4,6 +4,17 @@
 
 ---
 
+## [2026-05-20] iOS 17/18 向下兼容
+
+### 优化
+- 将 Holo iOS App 的最低系统版本从 iOS 26.2 下调到 iOS 17.0，覆盖 iOS 17、iOS 18 和当前 iOS 26 设备
+- 修正 AppIcon 资源配置，补齐 iOS marketing 图标和缺失的 20pt@3x 图标引用，移除不匹配的 mac/iPad 图标槽位
+
+### 验证
+- iOS Debug 模拟器构建通过：`xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -configuration Debug -destination "generic/platform=iOS Simulator" CODE_SIGNING_ALLOWED=NO build`
+
+---
+
 ## [2026-05-19] 站立数据修复
 
 ### 修复
