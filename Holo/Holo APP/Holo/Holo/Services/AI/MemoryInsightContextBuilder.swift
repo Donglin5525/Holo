@@ -487,9 +487,11 @@ struct MemoryInsightContextBuilder {
         var completedRecordCount = 0
         var streaks: [HabitStreakSummary] = []
         var performanceSummaries: [HabitPerformanceSummary] = []
+        var currentPerformanceByHabitId: [UUID: HabitPerformanceSnapshot] = [:]
 
         for habit in habits {
             let performance = habitRepo.evaluatePerformance(for: habit, in: range)
+            currentPerformanceByHabitId[habit.id] = performance
             completedRecordCount += performance.completedDays
             performanceSummaries.append(Self.makeHabitPerformanceSummary(from: performance))
 
@@ -508,8 +510,11 @@ struct MemoryInsightContextBuilder {
         let prevEnd = start.addingDays(-1)
         var previousPeriodCompletedRecordCount = 0
         let prevRange = prevStart...prevEnd
+        var previousPerformanceByHabitId: [UUID: HabitPerformanceSnapshot] = [:]
         for habit in habits {
-            previousPeriodCompletedRecordCount += habitRepo.evaluatePerformance(for: habit, in: prevRange).completedDays
+            let previousPerformance = habitRepo.evaluatePerformance(for: habit, in: prevRange)
+            previousPerformanceByHabitId[habit.id] = previousPerformance
+            previousPeriodCompletedRecordCount += previousPerformance.completedDays
         }
 
         // 总览统计 + 排名
@@ -553,6 +558,51 @@ struct MemoryInsightContextBuilder {
                     ratio: nil
                 ))
             }
+        }
+
+        for habit in habits {
+            guard let currentPerformance = currentPerformanceByHabitId[habit.id] else { continue }
+            let signal = HabitFocusSignal.classify(
+                habitName: habit.name,
+                isBadHabit: habit.isBadHabit,
+                goalTitle: habit.goal?.title,
+                profileContext: nil
+            )
+            guard signal.polarity == .negative else { continue }
+
+            let focus = HabitFocusSummary(
+                habitName: habit.name,
+                signal: signal,
+                current: currentPerformance,
+                previous: previousPerformanceByHabitId[habit.id],
+                currentStreak: habitRepo.calculateStreakInfo(for: habit).value,
+                goalTitle: habit.goal?.title
+            )
+            guard focus.trend == .worse else { continue }
+
+            let totalDelta = focus.totalValueDelta
+            let overLimitDelta = focus.overLimitDaysDelta
+            let severity: AnomalySeverity = {
+                if let overLimitDelta, overLimitDelta >= 3 { return .critical }
+                if let totalDelta, totalDelta >= 10 { return .critical }
+                return .warning
+            }()
+
+            habitAnomalies.append(AnomalyObservation(
+                type: .negativeHabitTrend,
+                severity: severity,
+                scopeKey: "habit-negative:\(habit.id.uuidString)",
+                title: "\(habit.name)控制变弱",
+                summary: focus.aiContextLine,
+                evidence: [
+                    "习惯：\(habit.name)",
+                    "趋势：负向习惯发生更多代表变差",
+                    "当前：\(focus.aiContextLine)"
+                ],
+                metricValue: totalDelta ?? Double(overLimitDelta ?? 0),
+                baselineValue: previousPerformanceByHabitId[habit.id]?.totalValue,
+                ratio: focus.controlRateDelta
+            ))
         }
 
         let context = MemoryInsightHabitContext(

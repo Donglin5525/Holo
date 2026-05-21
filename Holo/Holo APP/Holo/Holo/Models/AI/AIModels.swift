@@ -406,7 +406,7 @@ struct UserContext {
     static let empty = UserContext(
         todayDate: "",
         transactions: TransactionSummary(todayExpense: "", todayIncome: "", recentTransactions: []),
-        habits: HabitSummary(totalActive: 0, todayCompleted: 0, todayTotal: 0, recentCheckIns: [], activeHabitNames: []),
+        habits: HabitSummary(totalActive: 0, todayCompleted: 0, todayTotal: 0, recentCheckIns: [], activeHabitNames: [], focusSummaries: [], focusTopicLines: []),
         tasks: TaskSummary(todayTotal: 0, todayCompleted: 0, overdueCount: 0, recentTasks: [], activeTaskSummaries: []),
         thoughts: ThoughtSummary(recentThoughts: [], totalThoughts: 0),
         accounts: AccountSummary(accountList: "", defaultAccountName: ""),
@@ -438,6 +438,8 @@ struct HabitSummary {
     let todayTotal: Int
     let recentCheckIns: [String]
     let activeHabitNames: [String]
+    let focusSummaries: [HabitFocusSummary]
+    let focusTopicLines: [String]
 }
 
 /// 任务摘要

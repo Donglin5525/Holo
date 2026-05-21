@@ -51,6 +51,7 @@ enum AnomalySeverity: String, Codable {
 enum AnomalyType: String, Codable {
     case spendingSpike
     case habitBreak
+    case negativeHabitTrend
     case taskOverload
     case budgetOverrun
     case budgetWarning

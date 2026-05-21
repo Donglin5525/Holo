@@ -25,13 +25,13 @@ final class UserContextBuilder {
         dateFormatter.dateFormat = "yyyy年M月d日 EEEE"
         let todayDate = dateFormatter.string(from: Date())
 
+        let profileContext = HoloProfileService.shared.loadProfile()
+
         let transactions = await buildTransactionSummary()
-        let habits = buildHabitSummary()
+        let habits = buildHabitSummary(profileContext: profileContext)
         let tasks = buildTaskSummary()
         let thoughts = buildThoughtSummary()
         let accounts = buildAccountSummary()
-
-        let profileContext = HoloProfileService.shared.loadProfile()
 
         let recentTrend = await buildRecentTrend()
 
@@ -87,7 +87,7 @@ final class UserContextBuilder {
 
     // MARK: - Habit Summary
 
-    private func buildHabitSummary() -> HabitSummary {
+    private func buildHabitSummary(profileContext: String) -> HabitSummary {
         let repo = HabitRepository.shared
         let progress = repo.getTodayCheckInProgress()
 
@@ -96,14 +96,105 @@ final class UserContextBuilder {
         let activeHabits = repo.activeHabits.filter { !$0.isArchived }
 
         let habitNames = activeHabits.map { $0.name }
+        let focusSummaries = buildHabitFocusSummaries(
+            activeHabits: activeHabits,
+            profileContext: profileContext,
+            repo: repo
+        )
+        let focusTopicLines = buildFocusTopicLines(
+            activeHabits: activeHabits,
+            profileContext: profileContext
+        )
 
         return HabitSummary(
             totalActive: activeHabits.count,
             todayCompleted: progress.completed,
             todayTotal: progress.total,
             recentCheckIns: recentCheckIns,
-            activeHabitNames: habitNames
+            activeHabitNames: habitNames,
+            focusSummaries: focusSummaries,
+            focusTopicLines: focusTopicLines
         )
+    }
+
+    private func buildHabitFocusSummaries(
+        activeHabits: [Habit],
+        profileContext: String,
+        repo: HabitRepository
+    ) -> [HabitFocusSummary] {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: today),
+              let weekAgo = calendar.date(byAdding: .day, value: -7, to: today),
+              let twoWeeksAgo = calendar.date(byAdding: .day, value: -14, to: today) else {
+            return []
+        }
+
+        return activeHabits.compactMap { habit in
+            let goalTitle = habit.goal?.title
+            let signal = HabitFocusSignal.classify(
+                habitName: habit.name,
+                isBadHabit: habit.isBadHabit,
+                goalTitle: goalTitle,
+                profileContext: profileContext
+            )
+            guard signal.polarity == .negative || signal.needsClarification else {
+                return nil
+            }
+
+            let current = repo.evaluatePerformance(for: habit, in: weekAgo...tomorrow)
+            let previous = repo.evaluatePerformance(for: habit, in: twoWeeksAgo...weekAgo)
+            let streak = repo.calculateStreakInfo(for: habit).value
+
+            return HabitFocusSummary(
+                habitName: habit.name,
+                signal: signal,
+                current: current,
+                previous: previous,
+                currentStreak: streak,
+                goalTitle: goalTitle
+            )
+        }
+    }
+
+    private func buildFocusTopicLines(
+        activeHabits: [Habit],
+        profileContext: String
+    ) -> [String] {
+        var lines: [String] = []
+
+        let goals = GoalRepository.shared.activeGoalsForAI(limit: 3)
+        for goal in goals {
+            let signal = HabitFocusSignal.classify(
+                habitName: "",
+                isBadHabit: false,
+                goalTitle: goal.title,
+                profileContext: profileContext
+            )
+            if signal.polarity == .negative {
+                lines.append("目标「\(goal.title)」属于减少/戒除型主题，分析时看发生量下降、超标减少、控制率提升")
+            }
+        }
+
+        let hasNegativeHabitSignal = activeHabits.contains { habit in
+            HabitFocusSignal.classify(
+                habitName: habit.name,
+                isBadHabit: habit.isBadHabit,
+                goalTitle: habit.goal?.title,
+                profileContext: profileContext
+            ).polarity == .negative
+        }
+        let profileSignal = HabitFocusSignal.classify(
+            habitName: "",
+            isBadHabit: false,
+            goalTitle: nil,
+            profileContext: profileContext
+        )
+        if profileSignal.sources.contains(.profileKeyword), !hasNegativeHabitSignal {
+            lines.append("用户档案出现戒除/减少型主题；如果相关习惯未标记为坏习惯，回答时先确认再按负向趋势分析")
+        }
+
+        return Array(lines.prefix(3))
     }
 
     // MARK: - Task Summary

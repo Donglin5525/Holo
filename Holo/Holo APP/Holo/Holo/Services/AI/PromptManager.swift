@@ -485,6 +485,8 @@ final class PromptManager {
         - habits.habitPerformanceSummaries 中 polarity=negative 的项目是坏习惯/减少型行为，不能写成“完成了 X 次”。
         - negative + stayBelowTarget 表示控制在目标以内才算达标；优先描述总量、目标上限、控制天数、超标天数。
         - negative + abstain 表示没有发生才算达标；有记录代表坏习惯发生，不是正向完成。
+        - 戒烟/抽烟/烟瘾/复吸等主题属于负向习惯或减少型目标；抽烟发生量增加、超标天数增加、控制率下降都是坏趋势。
+        - 如果 anomalies 中 type=negativeHabitTrend，必须按“控制变弱/复吸风险/发生量上升”表达，不能写成习惯完成更多。
         - positive 习惯才使用“完成率、连续打卡、表现最好”等正向表达。
 
         ## 异常观察（anomaly）
@@ -739,6 +741,8 @@ final class PromptManager {
         - habitPerformanceSummaries 中 polarity=negative 的项目是坏习惯/减少型行为。
         - 不要把负向习惯的记录次数写成“完成次数”；应写成“发生次数/总量/超标天数/控制率”。
         - successRule=stayBelowTarget 时，低于或等于 targetValue 才算达标；successRule=abstain 时，没有发生才算达标。
+        - 戒烟/抽烟/烟瘾/复吸等主题要按坏习惯趋势分析：发生量减少、超标天数减少、控制率提升才是好趋势；发生量增加不是好事。
+        - 如果上下文中出现“习惯关注主题”，必须优先使用该结构化判断，不要只按习惯名称猜测。
         - positive 习惯才使用“完成率、连续打卡、掉队习惯”等表达。
 
         ## 各领域分析侧重

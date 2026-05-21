@@ -236,6 +236,13 @@ final class HoloBackendAIProvider: AIProvider {
         - 近期想法：\(context.thoughts.recentThoughts.prefix(3).joined(separator: "、"))
         """
 
+        let habitFocusLines = context.habits.focusSummaries.map(\.aiContextLine) + context.habits.focusTopicLines
+        if !habitFocusLines.isEmpty {
+            message += "\n\n--- 习惯关注主题 ---"
+            message += "\n- " + habitFocusLines.joined(separator: "\n- ")
+            message += "\n规则：负向习惯/减少型目标（如戒烟、抽烟、少喝酒、熬夜）发生越多不是越好；优先看发生总量下降、超标天数减少、控制率提升。"
+        }
+
         if let profile = context.profileContext, !profile.isEmpty {
             message += "\n\n--- 用户档案 ---\n\(profile)"
         }
