@@ -26,8 +26,10 @@ class HealthRepository: ObservableObject {
     /// 是否已授权
     @Published var isAuthorized: Bool = false
 
-    /// 是否已请求过权限
-    @Published var hasRequestedPermission: Bool = false
+    /// 是否已请求过权限（持久化，App 重启后仍记住）
+    @Published var hasRequestedPermission: Bool = UserDefaults.standard.bool(forKey: "HealthKit.hasRequestedPermission") {
+        didSet { UserDefaults.standard.set(hasRequestedPermission, forKey: "HealthKit.hasRequestedPermission") }
+    }
 
     /// 今日步数
     @Published var todaySteps: Double = 0
