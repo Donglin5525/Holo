@@ -18,6 +18,7 @@ struct MessageBubbleView: View {
     var onViewLog: ((ChatMessageViewData) -> Void)? = nil
     var onCompactAnalysisTap: (() -> Void)? = nil
     var onGoalDraftCardTap: (() -> Void)? = nil
+    var onSavedGoalCardTap: ((UUID) -> Void)? = nil
     var onRetry: (() -> Void)? = nil
     var onCardDelete: ((ChatMessageViewData, EntityCategory, String) -> Void)? = nil
 
@@ -35,6 +36,16 @@ struct MessageBubbleView: View {
 
     private var isUser: Bool {
         message.role == "user"
+    }
+
+    /// 保存完成的目标消息（需要渲染成可跳转卡片）
+    private var savedGoalCardData: GoalSavedChatCardData? {
+        guard !isUser,
+              message.messageType == .goalPlanning,
+              !message.isStreaming else {
+            return nil
+        }
+        return GoalSavedChatCardData(dictionary: message.extractedDataDictionary)
     }
 
     /// 是否可渲染为卡片（旧路径，单卡片兼容）
@@ -73,8 +84,12 @@ struct MessageBubbleView: View {
 
             // 消息内容
             VStack(alignment: isUser ? .trailing : .leading, spacing: 4) {
-                // 渲染优先级：目标计划卡片 > 分析卡片（叠加模式） > 批处理卡片 > 单卡片 > 气泡
-                if isGoalDraftReady {
+                // 渲染优先级：已保存目标卡片 > 目标计划卡片 > 分析卡片（叠加模式） > 批处理卡片 > 单卡片 > 气泡
+                if let savedGoalCardData {
+                    GoalSavedChatCard(data: savedGoalCardData) {
+                        onSavedGoalCardTap?(savedGoalCardData.goalId)
+                    }
+                } else if isGoalDraftReady {
                     if let draft = goalDraftForReview {
                         GoalDraftReadyChatCard(draft: draft) {
                             onGoalDraftCardTap?()

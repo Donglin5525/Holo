@@ -235,6 +235,10 @@ struct ChatView: View {
                             onGoalDraftCardTap: {
                                 viewModel.showGoalDraftReview = true
                             },
+                            onSavedGoalCardTap: { goalId in
+                                DeepLinkState.shared.pendingTarget = .goalDetail(goalId: goalId)
+                                dismiss()
+                            },
                             onRetry: {
                                 Task { await viewModel.retryMessage(message) }
                             },

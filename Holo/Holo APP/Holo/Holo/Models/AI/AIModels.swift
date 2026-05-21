@@ -54,7 +54,7 @@ extension AIIntent {
 
 /// 关联实体类型
 enum LinkedEntityType: String, Codable {
-    case transaction, task, habit, thought, memoryInsight
+    case transaction, task, habit, thought, memoryInsight, goal
 }
 
 /// 通用实体链接

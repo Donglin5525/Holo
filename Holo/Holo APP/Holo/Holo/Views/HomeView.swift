@@ -71,6 +71,9 @@ struct HomeView: View {
     /// 是否显示个人页面
     @State private var showPersonalView: Bool = false
 
+    /// 从 AI 对话卡片跳转到个人目标详情
+    @State private var pendingGoalDetailId: UUID?
+
     /// Holo One 快捷动作设置
     @AppStorage("holoOneAction") private var holoOneAction: HoloOneAction = .aiChat
 
@@ -207,7 +210,7 @@ struct HomeView: View {
                 pendingGoalPlanningRequest = GoalPlanningRequest(seedText: nil)
                 showPersonalView = false
                 showChatView = true
-            })
+            }, pendingGoalDetailId: $pendingGoalDetailId)
                 .preferredColorScheme(DarkModeManager.shared.colorScheme)
         }
         // Holo One - 快速记账
@@ -713,6 +716,8 @@ struct HomeView: View {
         switch target {
         case .taskDetail, .dailyReminder:
             if showTasksView { return }
+        case .goalDetail:
+            if showPersonalView { return }
         case .habitDetail:
             if showHabitsView { return }
         case .finance:
@@ -739,6 +744,10 @@ struct HomeView: View {
             case .taskDetail, .dailyReminder:
                 showTasksView = true
                 // pendingTarget 由 TaskListView.handleDeepLink() 清除
+            case .goalDetail(let goalId):
+                pendingGoalDetailId = goalId
+                showPersonalView = true
+                deepLinkState.pendingTarget = nil
             case .habitDetail:
                 showHabitsView = true
                 // pendingTarget 由 HabitListView 处理后清除

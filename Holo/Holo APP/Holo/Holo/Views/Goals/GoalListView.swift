@@ -10,6 +10,16 @@ import SwiftUI
 struct GoalListView: View {
     @ObservedObject private var repository = GoalRepository.shared
     let onPlanGoal: () -> Void
+    @Binding var pendingGoalDetailId: UUID?
+    @State private var selectedGoalRoute: GoalDetailRoute?
+
+    init(
+        onPlanGoal: @escaping () -> Void,
+        pendingGoalDetailId: Binding<UUID?> = .constant(nil)
+    ) {
+        self.onPlanGoal = onPlanGoal
+        self._pendingGoalDetailId = pendingGoalDetailId
+    }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -32,7 +42,22 @@ struct GoalListView: View {
         .background(Color.holoBackground)
         .navigationTitle("我的目标")
         .navigationBarTitleDisplayMode(.inline)
-        .onAppear { repository.loadGoals() }
+        .navigationDestination(item: $selectedGoalRoute) { route in
+            if let goal = repository.findGoal(by: route.id) {
+                GoalDetailView(goal: goal)
+            } else {
+                Text("目标不存在或已被删除")
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextSecondary)
+            }
+        }
+        .onAppear {
+            repository.loadGoals()
+            openPendingGoalIfNeeded()
+        }
+        .onChange(of: pendingGoalDetailId) { _, _ in
+            openPendingGoalIfNeeded()
+        }
     }
 
     private var emptyState: some View {
@@ -93,4 +118,14 @@ struct GoalListView: View {
         .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
     }
+
+    private func openPendingGoalIfNeeded() {
+        guard let goalId = pendingGoalDetailId else { return }
+        selectedGoalRoute = GoalDetailRoute(id: goalId)
+        pendingGoalDetailId = nil
+    }
+}
+
+private struct GoalDetailRoute: Identifiable, Hashable {
+    let id: UUID
 }

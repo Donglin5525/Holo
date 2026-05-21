@@ -4,6 +4,18 @@
 
 ---
 
+## [2026-05-22] 目标创建完成卡片跳转
+
+### 优化
+- HoloAI 目标规划保存成功后，将最后的「已创建目标」消息改为可点击卡片，展示目标标题、任务数和习惯数
+- 点击目标创建完成卡片后，自动跳转到「个人 → 我的目标 → 目标详情」
+- 为目标保存消息补充 `goalId` 等关联元数据，支持后续从聊天历史继续跳转
+
+### 验证
+- iOS Debug 模拟器构建通过：`xcodebuild -project Holo.xcodeproj -scheme Holo -destination 'generic/platform=iOS Simulator' -derivedDataPath /private/tmp/HoloDerivedData build`
+
+---
+
 ## [2026-05-21] 健康模块权限持久化
 
 ### 修复

@@ -13,7 +13,7 @@ import CoreData
 
 /// 实体类别，用于统一解析 linkedEntityId
 nonisolated enum EntityCategory: Hashable, Sendable {
-    case finance, task, habit, thought, memoryInsight
+    case finance, task, habit, thought, memoryInsight, goal
 }
 
 // MARK: - MetadataState
@@ -282,6 +282,11 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
             request.predicate = NSPredicate(format: "id == %@ AND deletedFlag == NO", id as CVarArg)
             request.fetchLimit = 1
             return (try? context.count(for: request)) ?? 0 > 0
+        case .goal:
+            let request = Goal.fetchRequest()
+            request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            request.fetchLimit = 1
+            return (try? context.count(for: request)) ?? 0 > 0
         default:
             return true
         }
@@ -311,6 +316,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         case .habit: return [.checkIn]
         case .thought: return [.createNote]
         case .memoryInsight: return [.generateMemoryInsight]
+        case .goal: return []
         }
     }
 
@@ -323,6 +329,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         case .habit: key = "habitId"
         case .thought: key = "thoughtId"
         case .memoryInsight: key = "entityId"
+        case .goal: key = "goalId"
         }
         guard let idStr = dict[key] else { return nil }
         return UUID(uuidString: idStr)
@@ -385,7 +392,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
             }
         }
 
-        for category in [EntityCategory.finance, .task, .habit, .thought, .memoryInsight] where ids[category] == nil {
+        for category in [EntityCategory.finance, .task, .habit, .thought, .memoryInsight, .goal] where ids[category] == nil {
             guard let id = legacyEntityId(for: category, in: extractedDataDictionary) else { continue }
             ids[category] = id
         }
@@ -413,6 +420,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         case .habit: key = "habitId"
         case .thought: key = "thoughtId"
         case .memoryInsight: key = "entityId"
+        case .goal: key = "goalId"
         }
         guard let idStr = dict[key] else { return nil }
         return UUID(uuidString: idStr)

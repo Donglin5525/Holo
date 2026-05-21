@@ -13,6 +13,7 @@ import Combine
 /// 各模块通过匹配对应 case 决定是否响应跳转
 enum DeepLinkTarget: Equatable {
     case taskDetail(taskId: UUID)
+    case goalDetail(goalId: UUID)
     case dailyReminder
     case habitDetail(habitId: UUID)
     /// 从 AI Chat 卡片跳转到对应模块

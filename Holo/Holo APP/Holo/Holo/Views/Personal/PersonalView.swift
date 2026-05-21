@@ -15,12 +15,18 @@ struct PersonalView: View {
     @AppStorage(UserDisplayNameSettings.displayNameKey) private var userName: String = UserDisplayNameSettings.fallbackDisplayName
 
     let onPlanGoal: () -> Void
+    @Binding var pendingGoalDetailId: UUID?
 
     // 个人档案 sheet
     @State private var showProfileEditor = false
+    @State private var showGoalList = false
 
-    init(onPlanGoal: @escaping () -> Void = {}) {
+    init(
+        onPlanGoal: @escaping () -> Void = {},
+        pendingGoalDetailId: Binding<UUID?> = .constant(nil)
+    ) {
         self.onPlanGoal = onPlanGoal
+        self._pendingGoalDetailId = pendingGoalDetailId
     }
 
     var body: some View {
@@ -52,10 +58,24 @@ struct PersonalView: View {
                     HoloProfileEditorView()
                 }
             }
+            .navigationDestination(isPresented: $showGoalList) {
+                GoalListView(
+                    onPlanGoal: onPlanGoal,
+                    pendingGoalDetailId: $pendingGoalDetailId
+                )
+            }
         }
         .swipeBackToDismiss { dismiss() }
         .onAppear {
             _ = profileService.loadProfile()
+            if pendingGoalDetailId != nil {
+                showGoalList = true
+            }
+        }
+        .onChange(of: pendingGoalDetailId) { _, newValue in
+            if newValue != nil {
+                showGoalList = true
+            }
         }
     }
 
@@ -199,8 +219,8 @@ struct PersonalView: View {
                     .foregroundColor(.holoTextPrimary)
             }
 
-            NavigationLink {
-                GoalListView(onPlanGoal: onPlanGoal)
+            Button {
+                showGoalList = true
             } label: {
                 HStack(spacing: HoloSpacing.md) {
                     ZStack {

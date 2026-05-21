@@ -761,9 +761,16 @@ final class ChatViewModel: ObservableObject {
     }
 
     func finishGoalPlanningSave(_ result: GoalDraftSaveResult) {
+        let extractedData: [String: String] = [
+            "goalId": result.goal.id.uuidString,
+            "goalTitle": result.goal.title,
+            "createdTaskCount": "\(result.createdTaskCount)",
+            "createdHabitCount": "\(result.createdHabitCount)"
+        ]
         _ = chatRepo?.addMessage(
             role: "assistant",
             content: "已创建目标「\(result.goal.title)」，并生成 \(result.createdTaskCount) 个任务、\(result.createdHabitCount) 个习惯。",
+            extractedDataJSON: Self.encodeExtractedData(extractedData),
             messageType: .goalPlanning
         )
         markGoalPlanningConfirmed()

@@ -41,6 +41,13 @@ final class GoalRepository: ObservableObject {
         return (try? context.fetch(request)) ?? []
     }
 
+    func findGoal(by id: UUID) -> Goal? {
+        let request = Goal.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        request.fetchLimit = 1
+        return try? context.fetch(request).first
+    }
+
     @discardableResult
     func createGoal(
         from draft: GoalDraft,
