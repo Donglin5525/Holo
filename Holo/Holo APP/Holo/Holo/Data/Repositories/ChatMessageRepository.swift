@@ -575,6 +575,14 @@ final class ChatMessageRepository: ObservableObject {
 
         let (primaryCategory, subCategory) = FinanceRepository.shared.resolveCategoryNames(from: category)
 
+        // 同步金额、类型、日期
+        let updatedAmount = transaction.amount.stringValue
+        let updatedType = transaction.type // "expense" / "income"
+        let dateFormatter = DateFormatter()
+        dateFormatter.locale = Locale(identifier: "zh_CN")
+        dateFormatter.dateFormat = "M月d日"
+        let updatedDate = dateFormatter.string(from: transaction.date)
+
         // 3. 从 Core Data 读取 ChatMessage
         let request = ChatMessage.fetchRequest()
         request.predicate = NSPredicate(format: "id == %@", messageId as CVarArg)
@@ -592,6 +600,9 @@ final class ChatMessageRepository: ObservableObject {
             let newItems = batch.items.map { item in
                 guard item.linkedEntityId == txIdStr else { return item }
                 var rd = item.renderData ?? [:]
+                rd["amount"] = updatedAmount
+                rd["type"] = updatedType
+                rd["date"] = updatedDate
                 rd["primaryCategory"] = primaryCategory
                 if let sub = subCategory { rd["subCategory"] = sub } else { rd.removeValue(forKey: "subCategory") }
                 if let note = transaction.note, !note.isEmpty { rd["note"] = note } else { rd.removeValue(forKey: "note") }
@@ -614,6 +625,9 @@ final class ChatMessageRepository: ObservableObject {
         if let json = message.extractedDataJSON,
            let data = json.data(using: .utf8),
            var dict = try? JSONDecoder().decode([String: String].self, from: data) {
+            dict["amount"] = updatedAmount
+            dict["type"] = updatedType
+            dict["date"] = updatedDate
             dict["primaryCategory"] = primaryCategory
             if let sub = subCategory { dict["subCategory"] = sub } else { dict.removeValue(forKey: "subCategory") }
             if let note = transaction.note, !note.isEmpty { dict["note"] = note } else { dict.removeValue(forKey: "note") }

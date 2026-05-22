@@ -4,6 +4,14 @@
 
 ---
 
+## [2026-05-23] 记账卡片编辑后金额同步
+
+### 修复
+- 用户在 HoloAI 中点击记账卡片修改金额/类型/日期后，卡片内容未同步更新
+- `refreshTransactionCard` 现在完整同步 amount、type、date、primaryCategory、subCategory、note 六个字段到卡片 renderData
+
+---
+
 ## [2026-05-22] 目标创建完成卡片跳转
 
 ### 优化
