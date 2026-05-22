@@ -195,6 +195,7 @@ struct MemoryInsightContext: Codable, Equatable {
     let dailySnapshots: [DailyLifeSnapshot]?
     let lifeEvents: [LifeEvent]?
     let personalBaseline: PersonalBaseline?
+    let personalProfileContext: String?
 
     init(
         periodType: MemoryInsightPeriodType,
@@ -213,7 +214,8 @@ struct MemoryInsightContext: Codable, Equatable {
         previousPeriodReview: PreviousPeriodReview?,
         dailySnapshots: [DailyLifeSnapshot]? = nil,
         lifeEvents: [LifeEvent]? = nil,
-        personalBaseline: PersonalBaseline? = nil
+        personalBaseline: PersonalBaseline? = nil,
+        personalProfileContext: String? = nil
     ) {
         self.periodType = periodType
         self.periodStart = periodStart
@@ -232,6 +234,7 @@ struct MemoryInsightContext: Codable, Equatable {
         self.dailySnapshots = dailySnapshots
         self.lifeEvents = lifeEvents
         self.personalBaseline = personalBaseline
+        self.personalProfileContext = personalProfileContext
     }
 }
 

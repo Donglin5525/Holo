@@ -4,6 +4,23 @@
 
 ---
 
+## [2026-05-23] 个人档案接入全局 AI 上下文
+
+### 新增
+- 新增统一的 AI 用户上下文构建器，聊天和意图识别共享同一份个人档案、目标、近期趋势和习惯关注主题上下文
+- 意图识别请求现在会携带个人档案，用于分类、习惯、目标等语义消歧
+- 记忆洞察上下文新增 `personalProfileContext`，AI 回放生成时可读取稳定用户画像
+
+### 优化
+- 为意图识别加入档案优先级护栏：个人档案只能作为消歧和个性化依据，不得覆盖用户当前明确指令
+- 去除 Holo 后端 Provider 和本地 OpenAI-compatible Provider 中重复的上下文拼接逻辑
+
+### 验证
+- 独立测试通过：`AIUserContextMessageBuilderStandaloneTests`
+- iOS Debug 模拟器构建通过：`xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -configuration Debug -destination 'generic/platform=iOS Simulator' build`
+
+---
+
 ## [2026-05-23] 记账卡片编辑后金额同步
 
 ### 修复

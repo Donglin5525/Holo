@@ -91,6 +91,7 @@ struct MemoryInsightContextBuilder {
         async let dailySnapshotsTask = buildDailySnapshots(start: start, end: end)
         async let lifeEventsTask = buildLifeEvents(start: start, end: end)
         let personalBaseline = await buildPersonalBaseline(observationStart: start)
+        let personalProfileContext = await buildPersonalProfileContext()
         let (dailySnapshots, lifeEvents) = await (dailySnapshotsTask, lifeEventsTask)
 
         var context = MemoryInsightContext(
@@ -110,13 +111,21 @@ struct MemoryInsightContextBuilder {
             previousPeriodReview: previousReview,
             dailySnapshots: dailySnapshots,
             lifeEvents: lifeEvents,
-            personalBaseline: personalBaseline
+            personalBaseline: personalBaseline,
+            personalProfileContext: personalProfileContext
         )
 
         context = Self.enforceTokenBudget(context, periodType: periodType)
 
         let snapshotHash = Self.computeHash(context)
         return (context, snapshotHash)
+    }
+
+    private func buildPersonalProfileContext() async -> String? {
+        await MainActor.run {
+            let profile = HoloProfileService.shared.loadProfile()
+            return profile.isEmpty ? nil : profile
+        }
     }
 
     // MARK: - Period Range
@@ -997,6 +1006,7 @@ struct MemoryInsightContextBuilder {
         let (tasks, _) = buildTaskContext(start: yearStart, end: yearEnd)
         let thoughts = buildThoughtContext(start: yearStart, end: yearEnd)
         let milestones = Self.buildMilestoneContext(start: yearStart, end: yearEnd)
+        let personalProfileContext = await buildPersonalProfileContext()
 
         let correlations = CrossModuleCorrelator.detect(
             finance: finance,
@@ -1019,7 +1029,8 @@ struct MemoryInsightContextBuilder {
             crossModuleCorrelations: correlations,
             monthlyInsightDigests: digests,
             anomalies: [],
-            previousPeriodReview: nil
+            previousPeriodReview: nil,
+            personalProfileContext: personalProfileContext
         )
 
         return Self.enforceAnnualTokenBudget(rawContext)
@@ -1063,7 +1074,8 @@ struct MemoryInsightContextBuilder {
             crossModuleCorrelations: [],
             monthlyInsightDigests: [],
             anomalies: [],
-            previousPeriodReview: nil
+            previousPeriodReview: nil,
+            personalProfileContext: nil
         )
     }
 
@@ -1212,7 +1224,8 @@ struct MemoryInsightContextBuilder {
             previousPeriodReview: context.previousPeriodReview,
             dailySnapshots: context.dailySnapshots,
             lifeEvents: lifeEvents ?? context.lifeEvents,
-            personalBaseline: context.personalBaseline
+            personalBaseline: context.personalBaseline,
+            personalProfileContext: context.personalProfileContext
         )
     }
 
@@ -1240,7 +1253,8 @@ struct MemoryInsightContextBuilder {
                     previousPeriodReview: current.previousPeriodReview,
                     dailySnapshots: nil,
                     lifeEvents: nil,
-                    personalBaseline: nil
+                    personalBaseline: nil,
+                    personalProfileContext: current.personalProfileContext
                 )
             }
         }

@@ -48,6 +48,7 @@ final class HoloBackendAIProvider: AIProvider {
         let systemPrompt = await loadManagedPrompt(.intentRecognition)
         let messages: [ChatMessageDTO] = [
             .system(systemPrompt),
+            .system(AIUserContextMessageBuilder.build(from: context, purpose: .intentRecognition)),
             .user(input)
         ]
 
@@ -139,7 +140,7 @@ final class HoloBackendAIProvider: AIProvider {
                 if let systemContextOverride {
                     allMessages.append(.system(systemContextOverride))
                 } else {
-                    allMessages.append(.system(buildContextMessage(userContext)))
+                    allMessages.append(.system(AIUserContextMessageBuilder.build(from: userContext, purpose: .chat)))
                 }
 
                 allMessages.append(contentsOf: messages)
@@ -198,7 +199,7 @@ final class HoloBackendAIProvider: AIProvider {
         let systemPrompt = await loadManagedPrompt(.systemPrompt)
         var allMessages: [ChatMessageDTO] = [
             .system(systemPrompt),
-            .system(buildContextMessage(userContext))
+            .system(AIUserContextMessageBuilder.build(from: userContext, purpose: .chat))
         ]
         allMessages.append(contentsOf: messages)
         return allMessages
@@ -221,56 +222,6 @@ final class HoloBackendAIProvider: AIProvider {
             let content = (try? PromptManager.shared.loadPrompt(type)) ?? PromptManager.shared.loadDefaultTemplate(type)
             return LoadedPrompt(type: type, version: 0, content: content)
         }
-    }
-
-    private func buildContextMessage(_ context: UserContext) -> String {
-        var message = """
-        当前用户上下文：
-        - 日期：\(context.todayDate)
-        - 今日支出：\(context.transactions.todayExpense)，今日收入：\(context.transactions.todayIncome)
-        - 近期交易：\(context.transactions.recentTransactions.joined(separator: "、"))
-        - 可用账户：\(context.accounts.accountList)
-        - 活跃习惯：\(context.habits.totalActive) 个，今日完成 \(context.habits.todayCompleted)/\(context.habits.todayTotal)
-        - 今日任务：\(context.tasks.todayTotal) 个（已完成 \(context.tasks.todayCompleted)），逾期 \(context.tasks.overdueCount) 个
-        - 近期任务：\(context.tasks.recentTasks.joined(separator: "、"))
-        - 近期想法：\(context.thoughts.recentThoughts.prefix(3).joined(separator: "、"))
-        """
-
-        let habitFocusLines = context.habits.focusSummaries.map(\.aiContextLine) + context.habits.focusTopicLines
-        if !habitFocusLines.isEmpty {
-            message += "\n\n--- 习惯关注主题 ---"
-            message += "\n- " + habitFocusLines.joined(separator: "\n- ")
-            message += "\n规则：负向习惯/减少型目标（如戒烟、抽烟、少喝酒、熬夜）发生越多不是越好；优先看发生总量下降、超标天数减少、控制率提升。"
-        }
-
-        if let profile = context.profileContext, !profile.isEmpty {
-            message += "\n\n--- 用户档案 ---\n\(profile)"
-        }
-
-        if let trend = context.recentTrend {
-            var trendSection = "\n\n--- 近期趋势 ---"
-            trendSection += "\n- 本周支出：\(trend.weekExpenseTotal)"
-            if let change = trend.weekExpenseChange {
-                trendSection += "（较上周\(change)）"
-            }
-            if let rate = trend.weekHabitCompletionRate {
-                trendSection += "\n- 本周习惯完成率：\(rate)"
-            }
-            trendSection += "\n- 本周完成任务：\(trend.weekTaskCompletedCount) 个"
-            if let category = trend.topExpenseCategory {
-                trendSection += "\n- 本周最大支出分类：\(category)"
-            }
-            if let summary = trend.dailyInsightSummary {
-                trendSection += "\n- 今日洞察：\(summary)"
-            }
-            message += trendSection
-        }
-
-        if let goalContext = context.goalContext, !goalContext.isEmpty {
-            message += "\n\n" + goalContext
-        }
-
-        return message
     }
 
     // MARK: - JSON Parsing
