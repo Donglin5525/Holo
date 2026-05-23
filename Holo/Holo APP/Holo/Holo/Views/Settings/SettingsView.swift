@@ -32,6 +32,7 @@ struct SettingsView: View {
     @State private var showVoiceRecognitionSettings = false
     @State private var showHoloOneSettings = false
     @State private var showProfileEditor = false
+    @State private var showHealthKitDiagnostics = false
     @State private var showSignOutConfirmation = false
 
     // MARK: - Body
@@ -663,6 +664,20 @@ struct SettingsView: View {
                     .font(.holoBody)
                     .fontWeight(.semibold)
                     .foregroundColor(.holoTextPrimary)
+            }
+
+            settingsRow(
+                icon: "heart.text.square",
+                iconColor: .holoInfo,
+                title: "健康数据诊断",
+                subtitle: "HealthKit 来源与类型汇总"
+            ) {
+                showHealthKitDiagnostics = true
+            }
+            .sheet(isPresented: $showHealthKitDiagnostics) {
+                NavigationStack {
+                    HealthKitDiagnosticsView()
+                }
             }
 
             Button {
