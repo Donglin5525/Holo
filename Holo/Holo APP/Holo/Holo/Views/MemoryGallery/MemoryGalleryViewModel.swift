@@ -597,6 +597,7 @@ class MemoryGalleryViewModel: ObservableObject {
 
     /// 洞察 Repository
     private let insightRepository = MemoryInsightRepository()
+    private let insightGenerationTimeoutSeconds: UInt64 = 45
 
     /// 加载本地洞察（不触发 AI 生成）
     private func loadInsights() async {
@@ -701,16 +702,30 @@ class MemoryGalleryViewModel: ObservableObject {
         end: Date,
         forceRefresh: Bool = false
     ) async {
+        guard insightGenerationState != .generating else { return }
         insightGenerationState = .generating
 
         do {
             let service = MemoryInsightService.shared
-            let insight = try await service.generateInsight(
-                periodType: periodType,
-                start: start,
-                end: end,
-                forceRefresh: forceRefresh
-            )
+            let timeoutSeconds = insightGenerationTimeoutSeconds
+            let insight = try await withThrowingTaskGroup(of: MemoryInsight.self) { group in
+                group.addTask {
+                    try await service.generateInsight(
+                        periodType: periodType,
+                        start: start,
+                        end: end,
+                        forceRefresh: forceRefresh
+                    )
+                }
+                group.addTask {
+                    try await Task.sleep(nanoseconds: timeoutSeconds * 1_000_000_000)
+                    throw MemoryInsightError.generationTimeout
+                }
+
+                let result = try await group.next()!
+                group.cancelAll()
+                return result
+            }
 
             switch periodType {
             case .weekly:
@@ -730,7 +745,7 @@ class MemoryGalleryViewModel: ObservableObject {
             case .aiNotConfigured:
                 insightGenerationState = .notConfigured
             case .generationInProgress:
-                break
+                updateInsightGenerationStateForCurrentSelection()
             default:
                 insightGenerationState = .failed(error.localizedDescription)
             }

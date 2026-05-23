@@ -10,6 +10,39 @@ import XCTest
 
 final class ChatCardDataTests: XCTestCase {
 
+    func testInsightActionCandidatesDeduplicateDuplicateCardIds() {
+        InsightFeatureFlags.actionCandidateEnabled = true
+        defer { InsightFeatureFlags.resetAll() }
+
+        let cards = [
+            MemoryInsightCard(
+                id: "duplicate-card",
+                type: .finance,
+                title: "餐饮消费升高",
+                body: "本周餐饮消费高于平时。",
+                evidence: [],
+                suggestedQuestion: nil,
+                moduleHint: "finance",
+                patternType: "spending_increase"
+            ),
+            MemoryInsightCard(
+                id: "duplicate-card",
+                type: .finance,
+                title: "外卖消费升高",
+                body: "本周外卖消费高于平时。",
+                evidence: [],
+                suggestedQuestion: nil,
+                moduleHint: "finance",
+                patternType: "spending_increase"
+            )
+        ]
+
+        let result = InsightActionCandidateBuilder.buildCandidateMap(cards: cards, context: nil)
+
+        XCTAssertEqual(result.count, 1)
+        XCTAssertNotNil(result["duplicate-card"])
+    }
+
     // MARK: - ChatCardData.from() 工厂方法
 
     // MARK: 记账卡片

@@ -112,6 +112,7 @@ final class MemoryInsightService {
             start: start,
             end: end
         )
+        try Task.checkCancellation()
 
         // 2. 预加载 Prompt 版本（用于缓存检查）
         let currentPromptVersion: Int16
@@ -121,6 +122,7 @@ final class MemoryInsightService {
         } else {
             currentPromptVersion = 0
         }
+        try Task.checkCancellation()
 
         // 3. 检查缓存（非强制刷新且 hash + version 一致）
         if !forceRefresh {
@@ -150,6 +152,7 @@ final class MemoryInsightService {
 
         // 5. 获取 Provider
         let provider = try resolveProvider()
+        try Task.checkCancellation()
 
         // 6. 保存 generating 状态
         let insight = try repository.saveGenerating(
@@ -171,6 +174,7 @@ final class MemoryInsightService {
             try? repository.saveFailed(insight: insight, errorMessage: error.localizedDescription)
             throw MemoryInsightError.contextBuildFailed(error.localizedDescription)
         }
+        try Task.checkCancellation()
 
         // 8. 调用 AI（带超时）
         let insightType: InsightType
@@ -198,6 +202,7 @@ final class MemoryInsightService {
             try? repository.saveFailed(insight: insight, errorMessage: error.localizedDescription)
             throw error
         }
+        try Task.checkCancellation()
 
         // 7. 解析 JSON
         guard let payload = MemoryInsightResponseParser.parse(generationResult.rawResponse) else {
@@ -292,7 +297,9 @@ final class MemoryInsightService {
                 body: card.body,
                 evidence: processedEvidence,
                 suggestedQuestion: card.suggestedQuestion,
-                anomalySeverity: card.anomalySeverity
+                anomalySeverity: card.anomalySeverity,
+                moduleHint: card.moduleHint,
+                patternType: card.patternType
             ))
         }
 

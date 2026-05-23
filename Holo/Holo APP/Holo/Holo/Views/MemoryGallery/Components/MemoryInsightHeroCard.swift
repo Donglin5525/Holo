@@ -318,11 +318,10 @@ struct MemoryInsightHeroCard: View {
     // MARK: - Insight Cards
 
     private func insightCardsSection(_ payload: MemoryInsightPayload) -> some View {
-        let actionCandidates = InsightActionCandidateBuilder.buildCandidates(
+        let actionMap = InsightActionCandidateBuilder.buildCandidateMap(
             cards: payload.cards,
             context: nil
         )
-        let actionMap = Dictionary(uniqueKeysWithValues: actionCandidates.map { ($0.cardId, $0) })
 
         return VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             ForEach(displayedCards(payload)) { card in

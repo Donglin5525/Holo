@@ -28,6 +28,19 @@ struct InsightActionCandidateBuilder {
         return candidates
     }
 
+    static func buildCandidateMap(
+        cards: [MemoryInsightCard],
+        context: MemoryInsightContext?
+    ) -> [String: InsightActionCandidate] {
+        var map: [String: InsightActionCandidate] = [:]
+        for candidate in buildCandidates(cards: cards, context: context) {
+            if map[candidate.cardId] == nil {
+                map[candidate.cardId] = candidate
+            }
+        }
+        return map
+    }
+
     // MARK: - Rule Matching
 
     private static func matchCandidate(

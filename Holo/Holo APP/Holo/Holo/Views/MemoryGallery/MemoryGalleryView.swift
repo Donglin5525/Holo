@@ -175,9 +175,7 @@ struct MemoryGalleryView: View {
                         }
                     )
 
-                    if viewModel.currentInsight != nil {
-                        featuredStoriesSection
-                    }
+                    featuredStoriesSection
                 }
                 .padding(.horizontal, HoloSpacing.md)
                 .padding(.vertical, HoloSpacing.md)
