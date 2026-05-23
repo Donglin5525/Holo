@@ -4,6 +4,19 @@
 
 ---
 
+## [2026-05-23] 修复记忆长廊刷新洞察闪退
+
+### 修复
+- 记忆长廊点击"刷新洞察"后 2-3 秒闪退：`InsightPreferenceProfileService.loadFromDisk()` 在 `static let shared` 初始化期间通过 `Self.shared` 递归访问自身，触发 EXC_BREAKPOINT 陷阱
+- `MemoryInsightContextBuilder` 添加 `@MainActor` 隔离，防止 `async let` 子任务在后台线程访问 `@MainActor` 仓库
+- 修复 3 处 force-unwrap 崩溃隐患（MemoryInsightService / MemoryGalleryViewModel / MemoryReplayFallback）
+- 在洞察生成关键路径添加 `Task.yield()` 缓解 UI 卡顿
+
+### 规范
+- CLAUDE.md 新增闪退排查规范：禁止只搜关键词，必须从入口逐函数走完整调用链
+
+---
+
 ## [2026-05-23] AI 分析扩展：健康与目标模块 + 习惯分析 bug 修复
 
 ### 新增
