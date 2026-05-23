@@ -79,7 +79,7 @@ final class PromptManager {
 
     /// 需要版本管理的 prompt 类型及其最低版本
     private static let promptVersions: [PromptType: Int] = [
-        .intentRecognition: 8,          // v8: 记账语义归一；v7: 子任务自动识别；v6: Prompt 移除完整科目表
+        .intentRecognition: 9,          // v9: health/goal 分析域；v8: 记账语义归一
         .memoryInsightGeneration: 5,    // v5: 习惯洞察区分正向习惯与坏习惯控制率
         .annualReview: 1,               // v1: 初始版本
         .thoughtVoiceSummary: 1         // v1: 初始版本
@@ -239,7 +239,7 @@ final class PromptManager {
         | record_weight | 记录体重 | weight |
         | query_tasks | 有什么任务/待办列表 | - |
         | query_habits | 习惯状态/打卡了吗 | - |
-        | query_analysis | 分析*/复盘*/对比总结/花了多少/消费统计/支出统计/习惯完成率/任务进度 | analysisDomain, startDate?, endDate?, periodLabel? |
+        | query_analysis | 分析*/复盘*/对比总结/花了多少/消费统计/支出统计/习惯完成率/任务进度/步数/睡眠/运动/健康/走路/锻炼/目标进展/进度/goal | analysisDomain, startDate?, endDate?, periodLabel? |
         | query | 你能做什么/帮我什么/闲聊 | - |
         | generate_memory_insight | 复盘这周/本月记忆回放 | periodType? |
         | unknown | 不匹配以上任何意图 | - |
@@ -291,7 +291,7 @@ final class PromptManager {
               "mood": "心情标签",
               "weight": "体重",
               "date": "yyyy-MM-dd",
-              "analysisDomain": "finance|habit|task|thought|crossModule",
+              "analysisDomain": "finance|habit|task|thought|health|goal|crossModule",
               "startDate": "yyyy-MM-dd",
               "endDate": "yyyy-MM-dd",
               "periodLabel": "时间段描述",
@@ -751,6 +751,8 @@ final class PromptManager {
         - **习惯**：完成率趋势、连续性表现、掉队习惯、可持续建议。
         - **任务**：完成率、逾期情况、高优先级完成情况、执行节奏建议。
         - **想法**：情绪分布、标签变化、主题总结、表达频率。
+        - **健康**：步数/睡眠/站立/活动趋势、达标率、体表分变化、异常检测（连续睡眠不足、连续低步数）。bodyScore 使用 3 槽位模型（步数 30%、睡眠 45%、站立或活动 25%）。建议聚焦可改善指标，说明具体目标差距。
+        - **目标**：目标整体进度、关联任务完成率、关联习惯完成率、风险目标预警。风险标准：deadline < 7 天且进度 < 50%、关联习惯完成率 < 30%。综合进度 = 任务 60% + 习惯 40%。
         - **跨模块**：各模块状态摘要，区分"数据支持的观察"和"建议"，不做跨模块因果推断。
 
         ## 输出格式
