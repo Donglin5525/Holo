@@ -345,11 +345,10 @@ class HealthRepository: ObservableObject {
 
                 if let samples = samples as? [HKCategorySample] {
                     for sample in samples {
-                        // 统计所有睡眠状态（包括深睡、REM、浅睡等）
-                        let sleepValue = sample.value
-                        // 使用 intValue 比较，避免使用已废弃的枚举
-                        // 2 = asleepUnspecified, 3 = asleep, 4 = asleepDeep, 5 = asleepCore, 6 = asleepREM
-                        if sleepValue >= 2 && sleepValue <= 6 {
+                        // 统计实际睡眠阶段（排除 inBed=0 上床时间 和 awake=2 醒来时间）
+                        // 1=asleepUnspecified(第三方设备如小米手环), 3=asleepCore, 4=asleepDeep, 5=asleepREM
+                        let sleepStages: Set<Int> = [1, 3, 4, 5]
+                        if sleepStages.contains(sample.value) {
                             let duration = sample.endDate.timeIntervalSince(sample.startDate) / 3600
                             totalSleep += duration
                         }
