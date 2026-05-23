@@ -41,6 +41,18 @@ final class GoalRepository: ObservableObject {
         return (try? context.fetch(request)) ?? []
     }
 
+    /// 获取指定时间段内完成的目标数量（AI 分析用）
+    func completedGoalsCount(from start: Date, to end: Date) -> Int {
+        let request = Goal.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "status == %@ AND completedAt >= %@ AND completedAt <= %@",
+            GoalStatus.completed.rawValue,
+            start as CVarArg,
+            end as CVarArg
+        )
+        return (try? context.count(for: request)) ?? 0
+    }
+
     func findGoal(by id: UUID) -> Goal? {
         let request = Goal.fetchRequest()
         request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
