@@ -9,6 +9,7 @@
 import SwiftUI
 import CloudKit
 import OSLog
+import AuthenticationServices
 
 // MARK: - SettingsView
 
@@ -25,13 +26,13 @@ struct SettingsView: View {
     @ObservedObject private var darkModeManager = DarkModeManager.shared
     @ObservedObject private var insightSettings = MemoryInsightScheduleSettings.shared
     @ObservedObject private var iCloudSyncStatus = ICloudSyncStatusService.shared
+    @ObservedObject private var authService = AppleSignInAuthService.shared
     @AppStorage(UserDisplayNameSettings.displayNameKey) private var userName: String = UserDisplayNameSettings.fallbackDisplayName
     @State private var showAISettings = false
     @State private var showVoiceRecognitionSettings = false
     @State private var showHoloOneSettings = false
-    @State private var showNameEditor = false
-    @State private var nameDraft = ""
     @State private var showProfileEditor = false
+    @State private var showSignOutConfirmation = false
 
     // MARK: - Body
 
@@ -81,64 +82,103 @@ struct SettingsView: View {
         .id(darkModeManager.currentSetting)
         .swipeBackToDismiss { dismiss() }
         .task {
+            await authService.refreshCredentialState()
             await iCloudSyncStatus.refreshAccountStatus()
+        }
+        .alert("退出 Apple 登录？", isPresented: $showSignOutConfirmation) {
+            Button("退出登录", role: .destructive) {
+                authService.signOut()
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("退出登录只会清除 Holo 的本地登录状态，不会删除本机数据，也不会删除 iCloud 云端数据。")
         }
     }
 
     // MARK: - 用户信息卡片
 
     private var userInfoCard: some View {
-        Button {
-            nameDraft = userName
-            showNameEditor = true
-        } label: {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
             HStack(spacing: HoloSpacing.md) {
-                // 头像
                 ZStack {
                     Circle()
-                        .fill(Color.holoPrimary.opacity(0.1))
+                        .fill(authService.isSignedIn ? Color.holoPrimary.opacity(0.1) : Color.holoTextSecondary.opacity(0.1))
                         .frame(width: 56, height: 56)
 
-                    Image(systemName: "person.fill")
-                        .font(.system(size: 24, weight: .medium))
-                        .foregroundColor(.holoPrimary)
+                    Image(systemName: authService.isSignedIn ? "person.crop.circle.badge.checkmark" : "person.crop.circle")
+                        .font(.system(size: 26, weight: .medium))
+                        .foregroundColor(authService.isSignedIn ? .holoPrimary : .holoTextSecondary)
                 }
 
-                // 用户信息
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(userName)
+                    Text(authService.session?.displayName ?? userName)
                         .font(.holoBody)
                         .foregroundColor(.holoTextPrimary)
 
-                    Text("点击修改昵称")
+                    Text(accountStatusSubtitle)
                         .font(.holoCaption)
                         .foregroundColor(.holoTextSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Spacer()
+            }
 
-                // 箭头
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.holoTextSecondary.opacity(0.5))
+            if let errorMessage = authService.errorMessage {
+                Text(errorMessage)
+                    .font(.system(size: 12))
+                    .foregroundColor(.red)
+                    .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(HoloSpacing.md)
-            .background(Color.holoCardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+
+            if authService.isSignedIn {
+                Button {
+                    showSignOutConfirmation = true
+                } label: {
+                    HStack {
+                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                        Text("退出登录")
+                    }
+                    .font(.holoBody)
+                    .foregroundColor(.red)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .background(Color.red.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                }
+                .buttonStyle(PlainButtonStyle())
+            } else {
+                SignInWithAppleButton(.signIn) { request in
+                    authService.configureSignInRequest(request)
+                } onCompletion: { result in
+                    authService.handleSignInCompletion(result)
+                    Task {
+                        await iCloudSyncStatus.refreshAccountStatus()
+                    }
+                }
+                .signInWithAppleButtonStyle(darkModeManager.colorScheme == .dark ? .white : .black)
+                .frame(height: 44)
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+            }
         }
-        .alert("修改昵称", isPresented: $showNameEditor) {
-            TextField("昵称", text: $nameDraft)
-            Button("确定") {
-                userName = UserDisplayNameSettings.standard.saveDisplayName(nameDraft)
-                nameDraft = userName
+        .padding(HoloSpacing.md)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+    }
+
+    private var accountStatusSubtitle: String {
+        if authService.isSignedIn {
+            if iCloudSyncStatus.accountStatus == .available {
+                return "已登录，iCloud 云同步已开启"
             }
-            .disabled(UserDisplayNameSettings.normalizedDisplayName(nameDraft) == nil)
-            Button("取消", role: .cancel) {
-                nameDraft = userName
-            }
-        } message: {
-            Text("输入你的昵称，将显示在首页问候语中")
+            return "已登录，本机数据会保存；登录 iCloud 后将自动同步"
         }
+
+        if authService.status == .credentialRevoked {
+            return "Apple 登录已失效，请重新登录"
+        }
+
+        return "本机模式，登录后会检查 iCloud 云同步状态"
     }
 
     // MARK: - 深色模式设置
@@ -254,9 +294,7 @@ struct SettingsView: View {
                             .font(.holoBody)
                             .foregroundColor(.holoTextPrimary)
 
-                        Text(iCloudSyncStatus.accountStatus == .available
-                             ? "已登录，自动同步"
-                             : iCloudSyncStatus.accountStatusText)
+                        Text(iCloudAccountSubtitle)
                             .font(.system(size: 12))
                             .foregroundColor(.holoTextSecondary)
                     }
@@ -393,6 +431,18 @@ struct SettingsView: View {
             .background(Color.holoCardBackground)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         }
+    }
+
+    private var iCloudAccountSubtitle: String {
+        guard authService.isSignedIn else {
+            return "登录 Holo 后检查云同步状态"
+        }
+
+        if iCloudSyncStatus.accountStatus == .available {
+            return "iCloud 可用，云同步已开启"
+        }
+
+        return iCloudSyncStatus.accountStatusText
     }
 
     // MARK: - AI 回放设置

@@ -82,6 +82,7 @@ final class KeychainService {
     nonisolated private static let aiConfigPresenceKey = "com.holo.ai.configured"
     nonisolated private static let voiceRecognitionConfigKey = "com.holo.voice.recognition.config"
     nonisolated private static let voiceRecognitionConfigPresenceKey = "com.holo.voice.recognition.configured"
+    nonisolated private static let appleAuthSessionKey = "com.holo.auth.apple.session"
 
     nonisolated static var hasCachedAIConfig: Bool {
         UserDefaults.standard.bool(forKey: aiConfigPresenceKey)
@@ -142,6 +143,26 @@ final class KeychainService {
         try delete(key: Self.aiConfigKey)
         Self.updateCachedAIConfigPresence(false)
         logger.info("AI 配置已从 Keychain 删除")
+    }
+
+    // MARK: - Apple 登录态
+
+    func saveAppleAuthSession(_ session: HoloAuthSession) throws {
+        let data = try JSONEncoder().encode(session)
+        try save(key: Self.appleAuthSessionKey, data: data)
+        logger.info("Apple 登录态已保存到 Keychain")
+    }
+
+    func loadAppleAuthSession() throws -> HoloAuthSession? {
+        guard let data = try load(key: Self.appleAuthSessionKey) else {
+            return nil
+        }
+        return try JSONDecoder().decode(HoloAuthSession.self, from: data)
+    }
+
+    func deleteAppleAuthSession() throws {
+        try delete(key: Self.appleAuthSessionKey)
+        logger.info("Apple 登录态已从 Keychain 删除")
     }
 
     // MARK: - 非主线程安全操作
