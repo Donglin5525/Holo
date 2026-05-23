@@ -108,9 +108,9 @@ struct DailySenseStateBuilder {
     // MARK: - Signal Fetchers
 
     private static func fetchOverdueTaskCount(in context: NSManagedObjectContext, asOf date: Date) -> Int {
-        let request = NSFetchRequest<NSManagedObject>(entityName: "TodoItem")
+        let request: NSFetchRequest<TodoTask> = TodoTask.fetchRequest()
         request.predicate = NSPredicate(
-            format: "isCompleted == NO AND dueDate < %@",
+            format: "completed == NO AND deletedFlag == NO AND archived == NO AND dueDate < %@",
             date as CVarArg
         )
         return (try? context.count(for: request)) ?? 0
@@ -121,35 +121,36 @@ struct DailySenseStateBuilder {
         // 检查昨天是否有断连（正向打卡习惯昨天没记录）
         guard let yesterday = calendar.date(byAdding: .day, value: -1, to: date) else { return 0 }
 
-        let request = NSFetchRequest<NSManagedObject>(entityName: "HabitRecord")
+        let request: NSFetchRequest<HabitRecord> = HabitRecord.fetchRequest()
         request.predicate = NSPredicate(
-            format: "date == %@ AND habit.polarity == %@ AND isCompleted == NO",
+            format: "date >= %@ AND date < %@ AND habit.isBadHabit == NO AND isCompleted == NO",
             yesterday as CVarArg,
-            "positive"
+            date as CVarArg
         )
-        return (try? context.count(for: request)) ?? 0
+        let records = (try? context.fetch(request)) ?? []
+        return Set(records.map(\.habitId)).count
     }
 
     private static func fetchRecoveredHabitCount(in context: NSManagedObjectContext, asOf date: Date) -> Int {
         let calendar = Calendar.current
-        guard let yesterday = calendar.date(byAdding: .day, value: -1, to: date),
-              let dayBefore = calendar.date(byAdding: .day, value: -2, to: date) else { return 0 }
+        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: date) else { return 0 }
 
         // 今天已完成的习惯（简化：查今天的记录）
-        let todayRequest = NSFetchRequest<NSManagedObject>(entityName: "HabitRecord")
+        let todayRequest: NSFetchRequest<HabitRecord> = HabitRecord.fetchRequest()
         todayRequest.predicate = NSPredicate(
-            format: "date == %@ AND isCompleted == YES",
-            date as CVarArg
+            format: "date >= %@ AND date < %@ AND isCompleted == YES",
+            date as CVarArg,
+            tomorrow as CVarArg
         )
         let todayCompleted = (try? context.fetch(todayRequest)) ?? []
 
         // 前天断连的习惯（简化：假设今天打卡 + 前天没打卡 = 恢复）
-        return min(todayCompleted.count, 3) // 上限 3
+        return min(Set(todayCompleted.map(\.habitId)).count, 3) // 上限 3
     }
 
     private static func fetchExpenseDeviation(in context: NSManagedObjectContext, weekStart: Date, todayStart: Date) -> Double {
         // 查过去 7 天的日均消费
-        let request = NSFetchRequest<NSManagedObject>(entityName: "Transaction")
+        let request: NSFetchRequest<Transaction> = Transaction.fetchRequest()
         request.predicate = NSPredicate(
             format: "date >= %@ AND date < %@ AND type == %@",
             weekStart as CVarArg,
@@ -158,20 +159,18 @@ struct DailySenseStateBuilder {
         )
 
         guard let transactions = try? context.fetch(request) else { return 0 }
-        let totalAmount = transactions.compactMap { $0.value(forKey: "amount") as? Double }.reduce(0, +)
+        let totalAmount = transactions.map { $0.amount.doubleValue }.reduce(0, +)
         let days = max(Calendar.current.dateComponents([.day], from: weekStart, to: todayStart).day ?? 1, 1)
         let dailyAvg = totalAmount / Double(days)
 
         // 今日消费
-        let todayRequest = NSFetchRequest<NSManagedObject>(entityName: "Transaction")
+        let todayRequest: NSFetchRequest<Transaction> = Transaction.fetchRequest()
         todayRequest.predicate = NSPredicate(
             format: "date >= %@ AND type == %@",
             todayStart as CVarArg,
             "expense"
         )
-        let todayAmount = ((try? context.fetch(todayRequest)) ?? [])
-            .compactMap { $0.value(forKey: "amount") as? Double }
-            .reduce(0, +)
+        let todayAmount = ((try? context.fetch(todayRequest)) ?? []).map { $0.amount.doubleValue }.reduce(0, +)
 
         guard dailyAvg > 0 else { return 0 }
         return todayAmount / dailyAvg

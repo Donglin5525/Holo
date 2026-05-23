@@ -29,6 +29,7 @@ extension CoreDataStack {
         insightId.name = "insightId"
         insightId.attributeType = .UUIDAttributeType
         insightId.isOptional = false
+        insightId.defaultValue = UUID()
         insightId.isIndexed = true
         attributes.append(insightId)
 
