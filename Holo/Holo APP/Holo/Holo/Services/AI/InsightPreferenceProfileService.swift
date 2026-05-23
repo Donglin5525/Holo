@@ -23,7 +23,7 @@ final class InsightPreferenceProfileService {
     private(set) var currentProfile: InsightPreferenceProfile
 
     private init() {
-        currentProfile = Self.loadFromDisk() ?? .default()
+        currentProfile = Self.loadFromDisk(fileURL: fileURL) ?? .default()
     }
 
     /// 读取当前画像
@@ -62,8 +62,8 @@ final class InsightPreferenceProfileService {
         }
     }
 
-    private static func loadFromDisk() -> InsightPreferenceProfile? {
-        guard let data = try? Data(contentsOf: Self.shared.fileURL) else { return nil }
+    private static func loadFromDisk(fileURL: URL) -> InsightPreferenceProfile? {
+        guard let data = try? Data(contentsOf: fileURL) else { return nil }
         do {
             return try JSONDecoder().decode(InsightPreferenceProfile.self, from: data)
         } catch {

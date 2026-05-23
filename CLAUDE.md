@@ -95,6 +95,15 @@
 - 启动阻塞的解法是「默认值先渲染 + 后台补数据」，不是「异步优化」
 - 数据变更后页面不更新 → 查开发规范第 13 节 Checklist
 
+### 闪退排查
+
+- **禁止只搜关键词**（`!`、`try!`、`fatalError`）— 递归初始化、actor 隔离违规等运行时陷阱不会被搜到
+- **必须从入口逐函数走完整调用链**，包括看起来"很简单"的工具类、单例的 `init()`、`static let` 初始化路径
+- 常见的隐蔽崩溃模式：
+  - `static let shared = X()` 的 `init()` 中通过 `Self.shared` 递归访问自身 → EXC_BREAKPOINT
+  - 非 `@MainActor` 类型的 `async let` 子任务访问 `@MainActor` 属性 → actor 隔离运行时陷阱
+  - Core Data 的 `-com.apple.CoreData.ConcurrencyDebug 1` 线程检测 → 跨线程访问直接 trap
+
 ---
 
 ## 提交规范

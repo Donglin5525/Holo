@@ -100,10 +100,14 @@ final class MemoryInsightService {
         isGenerating = true
         defer { isGenerating = false }
 
+        // 让 UI 有机会渲染"生成中"状态，避免点击后立即卡死
+        await Task.yield()
+
         // 0. 聚合未消费反馈（生成前批量聚合，偏好更新后用于本次生成）
         if InsightFeatureFlags.preferenceLearningEnabled {
             let context = CoreDataStack.shared.viewContext
             InsightFeedbackAggregator.shared.aggregate(in: context)
+            await Task.yield()
         }
 
         // 1. 构建上下文
@@ -113,6 +117,7 @@ final class MemoryInsightService {
             end: end
         )
         try Task.checkCancellation()
+        await Task.yield()
 
         // 2. 预加载 Prompt 版本（用于缓存检查）
         let currentPromptVersion: Int16
@@ -194,7 +199,9 @@ final class MemoryInsightService {
                 throw MemoryInsightError.generationTimeout
             }
 
-            let first = try await group.next()!
+            guard let first = try await group.next() else {
+                throw MemoryInsightError.generationTimeout
+            }
             group.cancelAll()
             return first
         }

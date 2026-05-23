@@ -704,6 +704,7 @@ class MemoryGalleryViewModel: ObservableObject {
     ) async {
         guard insightGenerationState != .generating else { return }
         insightGenerationState = .generating
+        await Task.yield()
 
         do {
             let service = MemoryInsightService.shared
@@ -722,7 +723,9 @@ class MemoryGalleryViewModel: ObservableObject {
                     throw MemoryInsightError.generationTimeout
                 }
 
-                let result = try await group.next()!
+                guard let result = try await group.next() else {
+                    throw MemoryInsightError.generationTimeout
+                }
                 group.cancelAll()
                 return result
             }

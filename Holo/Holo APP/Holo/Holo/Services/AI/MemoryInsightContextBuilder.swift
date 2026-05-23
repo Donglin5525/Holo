@@ -12,6 +12,7 @@ import CoreData
 import os.log
 
 /// 构建记忆洞察所需的周期级数据上下文
+@MainActor
 struct MemoryInsightContextBuilder {
 
     // MARK: - Dependencies
@@ -23,6 +24,10 @@ struct MemoryInsightContextBuilder {
     let budgetRepo: BudgetRepository
     let insightRepo: MemoryInsightRepository
 
+    /// Core Data 上下文，用于直接访问（非 repo 管理的查询）
+    /// 传入后台 context 可让重型读取操作不阻塞主线程
+    let dataContext: NSManagedObjectContext
+
     // MARK: - Init
 
     init(
@@ -31,7 +36,8 @@ struct MemoryInsightContextBuilder {
         todoRepo: TodoRepository = .shared,
         thoughtRepo: ThoughtRepository = ThoughtRepository(),
         budgetRepo: BudgetRepository = .shared,
-        insightRepo: MemoryInsightRepository = MemoryInsightRepository()
+        insightRepo: MemoryInsightRepository = MemoryInsightRepository(),
+        dataContext: NSManagedObjectContext = CoreDataStack.shared.viewContext
     ) {
         self.financeRepo = financeRepo
         self.habitRepo = habitRepo
@@ -39,6 +45,7 @@ struct MemoryInsightContextBuilder {
         self.thoughtRepo = thoughtRepo
         self.budgetRepo = budgetRepo
         self.insightRepo = insightRepo
+        self.dataContext = dataContext
     }
 
     private static let logger = Logger(subsystem: "com.holo.app", category: "MemoryInsightContextBuilder")
@@ -69,7 +76,7 @@ struct MemoryInsightContextBuilder {
         let (habits, habitAnomalies) = buildHabitContext(start: start, end: end)
         let (tasks, taskAnomalies) = buildTaskContext(start: start, end: end)
         let thoughts = buildThoughtContext(start: start, end: end)
-        let milestones = Self.buildMilestoneContext(start: start, end: end)
+        let milestones = buildMilestoneContext(start: start, end: end)
 
         let correlations = CrossModuleCorrelator.detect(
             finance: finance,
@@ -647,7 +654,7 @@ struct MemoryInsightContextBuilder {
     }
 
     private func buildTaskContext(start: Date, end: Date) -> (context: MemoryInsightTaskContext, anomalies: [AnomalyObservation]) {
-        let context = CoreDataStack.shared.viewContext
+        let context = dataContext
         let endExclusive = end.addingDays(1)
 
         var completedCount = 0
@@ -766,7 +773,7 @@ struct MemoryInsightContextBuilder {
             start: start,
             end: endExclusive
         )
-        let dailyTaskMap = Self.fetchDailyTaskMap(
+        let dailyTaskMap = fetchDailyTaskMap(
             todoRepo: todoRepo,
             start: start,
             end: end
@@ -853,7 +860,7 @@ struct MemoryInsightContextBuilder {
         )
 
         // 任务事件
-        Self.collectTaskEvents(
+        collectTaskEvents(
             todoRepo: todoRepo,
             start: start,
             end: end,
@@ -1006,7 +1013,7 @@ struct MemoryInsightContextBuilder {
         let (habits, _) = buildHabitContext(start: yearStart, end: yearEnd)
         let (tasks, _) = buildTaskContext(start: yearStart, end: yearEnd)
         let thoughts = buildThoughtContext(start: yearStart, end: yearEnd)
-        let milestones = Self.buildMilestoneContext(start: yearStart, end: yearEnd)
+        let milestones = buildMilestoneContext(start: yearStart, end: yearEnd)
         let personalProfileContext = await buildPersonalProfileContext()
 
         let correlations = CrossModuleCorrelator.detect(
@@ -1092,9 +1099,8 @@ struct MemoryInsightContextBuilder {
 
     // MARK: - Milestones
 
-    private static func buildMilestoneContext(start: Date, end: Date) -> [MemoryInsightMilestoneContext] {
-        let context = CoreDataStack.shared.viewContext
-        let allMilestones = MilestoneDetector.detect(context: context)
+    private func buildMilestoneContext(start: Date, end: Date) -> [MemoryInsightMilestoneContext] {
+        let allMilestones = MilestoneDetector.detect(context: dataContext)
 
         return allMilestones
             .filter { $0.date >= start && $0.date <= end.addingDays(1) }
@@ -1488,13 +1494,13 @@ struct MemoryInsightContextBuilder {
         }
     }
 
-    private static func fetchDailyTaskMap(
+    private func fetchDailyTaskMap(
         todoRepo: TodoRepository,
         start: Date,
         end: Date
     ) -> [String: (created: Int, completed: Int)] {
-        let context = CoreDataStack.shared.viewContext
-        let dateFormatter = makeDateFormatter()
+        let context = dataContext
+        let dateFormatter = Self.makeDateFormatter()
         var map: [String: (created: Int, completed: Int)] = [:]
 
         do {
@@ -1525,7 +1531,7 @@ struct MemoryInsightContextBuilder {
                 map[key, default: (0, 0)].created += 1
             }
         } catch {
-            logger.error("获取每日任务数据失败：\(error.localizedDescription)")
+            Self.logger.error("获取每日任务数据失败：\(error.localizedDescription)")
         }
         return map
     }
@@ -1642,14 +1648,14 @@ struct MemoryInsightContextBuilder {
         }
     }
 
-    private static func collectTaskEvents(
+    private func collectTaskEvents(
         todoRepo: TodoRepository,
         start: Date,
         end: Date,
         dateFormatter: DateFormatter,
         into events: inout [LifeEvent]
     ) {
-        let context = CoreDataStack.shared.viewContext
+        let context = dataContext
         let endExclusive = end.addingDays(1)
 
         do {
@@ -1692,7 +1698,7 @@ struct MemoryInsightContextBuilder {
                 ))
             }
         } catch {
-            logger.error("收集任务事件失败：\(error.localizedDescription)")
+            Self.logger.error("收集任务事件失败：\(error.localizedDescription)")
         }
     }
 
