@@ -11,6 +11,7 @@
 - `MemoryInsightContextBuilder` 添加 `@MainActor` 隔离，防止 `async let` 子任务在后台线程访问 `@MainActor` 仓库
 - 修复 3 处 force-unwrap 崩溃隐患（MemoryInsightService / MemoryGalleryViewModel / MemoryReplayFallback）
 - 在洞察生成关键路径添加 `Task.yield()` 缓解 UI 卡顿
+- 修复第三方设备（小米手环等）睡眠数据无法读取：`HKCategoryValueSleepAnalysis` 枚举值映射错误，`asleepUnspecified` 的实际 rawValue 是 1 而非 2，导致非 Apple Watch 设备的睡眠数据被过滤掉；同时修正了 `awake`(2) 被错误计入睡眠时间的问题
 
 ### 规范
 - CLAUDE.md 新增闪退排查规范：禁止只搜关键词，必须从入口逐函数走完整调用链
