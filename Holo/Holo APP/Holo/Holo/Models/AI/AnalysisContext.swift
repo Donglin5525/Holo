@@ -19,6 +19,8 @@ struct AnalysisContext: Codable, Equatable, Sendable {
     let habit: HabitAnalysisContext?
     let task: TaskAnalysisContext?
     let thought: ThoughtAnalysisContext?
+    let health: HealthAnalysisContext?
+    let goal: GoalAnalysisContext?
     let crossModule: CrossModuleAnalysisContext?
 
     /// 所有领域 context 都为 nil 或其数据全为零值时视为空
@@ -27,7 +29,9 @@ struct AnalysisContext: Codable, Equatable, Sendable {
         let hasHabit = habit != nil && !habit!.isDataFree
         let hasTask = task != nil && !task!.isDataFree
         let hasThought = thought != nil && !thought!.isDataFree
+        let hasHealth = health != nil && !health!.isDataFree
+        let hasGoal = goal != nil && !goal!.isDataFree
         let hasCrossModule = crossModule != nil && !crossModule!.isDataFree
-        return !hasFinance && !hasHabit && !hasTask && !hasThought && !hasCrossModule
+        return !hasFinance && !hasHabit && !hasTask && !hasThought && !hasHealth && !hasGoal && !hasCrossModule
     }
 }
