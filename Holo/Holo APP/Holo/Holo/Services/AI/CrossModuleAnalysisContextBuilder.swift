@@ -3,7 +3,7 @@
 //  Holo
 //
 //  跨模块分析上下文构建器
-//  第一版只做各模块摘要并列，不做统计关联分析
+//  从各模块 context 中提取亮点和风险
 //
 
 import Foundation
@@ -15,7 +15,9 @@ struct CrossModuleAnalysisContextBuilder {
         finance: FinanceAnalysisContext?,
         habit: HabitAnalysisContext?,
         task: TaskAnalysisContext?,
-        thought: ThoughtAnalysisContext?
+        thought: ThoughtAnalysisContext?,
+        health: HealthAnalysisContext?,
+        goal: GoalAnalysisContext?
     ) -> CrossModuleAnalysisContext {
         var highlights: [String] = []
         var warnings: [String] = []
@@ -77,9 +79,44 @@ struct CrossModuleAnalysisContextBuilder {
             }
         }
 
+        // 健康亮点/风险
+        if let ht = health, !ht.isDataFree {
+            if let score = ht.overallBodyScore {
+                if score >= 80 {
+                    highlights.append(String(format: "健康体表分 %.0f，状态良好", score))
+                } else if score < 50 {
+                    warnings.append(String(format: "健康体表分仅 %.0f，需要关注", score))
+                }
+            }
+            if let prevScore = ht.previousPeriodScore, let currScore = ht.overallBodyScore {
+                let diff = currScore - prevScore
+                if diff > 10 {
+                    highlights.append(String(format: "体表分较上期提升 %.0f 分", diff))
+                } else if diff < -10 {
+                    warnings.append(String(format: "体表分较上期下降 %.0f 分", abs(diff)))
+                }
+            }
+            for anomaly in ht.anomalyNotes {
+                warnings.append(anomaly)
+            }
+        }
+
+        // 目标亮点/风险
+        if let g = goal, !g.isDataFree {
+            if g.totalActiveGoals > 0 && g.atRiskGoals.isEmpty {
+                highlights.append("\(g.totalActiveGoals) 个活跃目标均无风险")
+            }
+            if !g.atRiskGoals.isEmpty {
+                warnings.append("\(g.atRiskGoals.count) 个目标存在风险：\(g.atRiskGoals.joined(separator: "、"))")
+            }
+            if g.completedGoalsInPeriod > 0 {
+                highlights.append("本周期完成了 \(g.completedGoalsInPeriod) 个目标")
+            }
+        }
+
         return CrossModuleAnalysisContext(
-            highlights: Array(highlights.prefix(5)),
-            warnings: Array(warnings.prefix(3))
+            highlights: Array(highlights.prefix(7)),
+            warnings: Array(warnings.prefix(5))
         )
     }
 }

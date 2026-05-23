@@ -29,6 +29,8 @@ struct AnalysisContextBuilder {
                 habit: nil,
                 task: nil,
                 thought: nil,
+                health: nil,
+                goal: nil,
                 crossModule: nil
             )
 
@@ -44,6 +46,8 @@ struct AnalysisContextBuilder {
                 habit: habit,
                 task: nil,
                 thought: nil,
+                health: nil,
+                goal: nil,
                 crossModule: nil
             )
 
@@ -59,6 +63,8 @@ struct AnalysisContextBuilder {
                 habit: nil,
                 task: task,
                 thought: nil,
+                health: nil,
+                goal: nil,
                 crossModule: nil
             )
 
@@ -74,23 +80,63 @@ struct AnalysisContextBuilder {
                 habit: nil,
                 task: nil,
                 thought: thought,
+                health: nil,
+                goal: nil,
+                crossModule: nil
+            )
+
+        case .health:
+            let health = await HealthAnalysisContextBuilder().build(request: request)
+            return AnalysisContext(
+                domain: .health,
+                periodLabel: request.periodLabel,
+                startDate: request.startDateString,
+                endDate: request.endDateString,
+                comparisonLabel: request.comparisonLabel,
+                finance: nil,
+                habit: nil,
+                task: nil,
+                thought: nil,
+                health: health,
+                goal: nil,
+                crossModule: nil
+            )
+
+        case .goal:
+            let goal = await GoalAnalysisContextBuilder().build(request: request)
+            return AnalysisContext(
+                domain: .goal,
+                periodLabel: request.periodLabel,
+                startDate: request.startDateString,
+                endDate: request.endDateString,
+                comparisonLabel: request.comparisonLabel,
+                finance: nil,
+                habit: nil,
+                task: nil,
+                thought: nil,
+                health: nil,
+                goal: goal,
                 crossModule: nil
             )
 
         case .crossModule:
-            // 并发构建各模块
+            // 并发构建各模块（6 域）
             async let f = FinanceAnalysisContextBuilder().build(request: request)
             async let h = HabitAnalysisContextBuilder().build(request: request)
             async let t = TaskAnalysisContextBuilder().build(request: request)
             async let th = ThoughtAnalysisContextBuilder().build(request: request)
+            async let ht = HealthAnalysisContextBuilder().build(request: request)
+            async let g = GoalAnalysisContextBuilder().build(request: request)
 
-            let (finance, habit, task, thought) = await (f, h, t, th)
+            let (finance, habit, task, thought, health, goal) = await (f, h, t, th, ht, g)
 
             let crossModule = CrossModuleAnalysisContextBuilder().build(
                 finance: finance,
                 habit: habit,
                 task: task,
-                thought: thought
+                thought: thought,
+                health: health,
+                goal: goal
             )
 
             return AnalysisContext(
@@ -103,6 +149,8 @@ struct AnalysisContextBuilder {
                 habit: habit,
                 task: task,
                 thought: thought,
+                health: health,
+                goal: goal,
                 crossModule: crossModule
             )
         }
