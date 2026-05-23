@@ -135,6 +135,12 @@ struct MemoryGalleryView: View {
         } else {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: HoloSpacing.lg) {
+                    // Daily Sense 状态卡片
+                    if InsightFeatureFlags.dailySenseEnabled,
+                       let snapshot = viewModel.dailySenseSnapshot {
+                        DailySenseStatusCard(snapshot: snapshot)
+                    }
+
                     MemoryInsightHeroCard(
                         state: viewModel.insightGenerationState,
                         selectedPeriod: viewModel.selectedInsightPeriod,

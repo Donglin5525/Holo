@@ -7,6 +7,7 @@
 //
 
 import SwiftUI
+import CoreData
 
 /// 单张 AI 洞察卡片
 struct MemoryInsightCardView: View {
@@ -14,8 +15,14 @@ struct MemoryInsightCardView: View {
     let card: MemoryInsightCard
     /// anomaly 卡片的严重度，用于区分颜色。非 anomaly 卡片传 nil
     var anomalySeverity: AnomalySeverity?
+    /// 所属洞察的 ID，用于反馈关联
+    var insightId: UUID?
+    /// 行动候选（可选，由外部生成）
+    var actionCandidate: InsightActionCandidate?
 
     @State private var isExpanded: Bool = false
+    @State private var showFeedbackSheet: Bool = false
+    @State private var showActionConfirmation: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
@@ -38,6 +45,18 @@ struct MemoryInsightCardView: View {
                     .fixedSize(horizontal: false, vertical: true)
 
                 Spacer()
+
+                // 反馈按钮（仅在 Feature Flag 开启且有 insightId 时显示）
+                if InsightFeatureFlags.feedbackEnabled, insightId != nil {
+                    Button {
+                        showFeedbackSheet = true
+                    } label: {
+                        Image(systemName: "hand.thumbsup")
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoTextPlaceholder)
+                    }
+                    .buttonStyle(PlainButtonStyle())
+                }
 
                 if !card.evidence.isEmpty {
                     Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
@@ -73,6 +92,34 @@ struct MemoryInsightCardView: View {
                 }
                 .padding(.top, HoloSpacing.xs)
             }
+
+            // 行动候选
+            if let action = actionCandidate, InsightFeatureFlags.actionCandidateEnabled {
+                Button {
+                    showActionConfirmation = true
+                } label: {
+                    HStack(spacing: HoloSpacing.xs) {
+                        Image(systemName: "bolt.fill")
+                            .font(.system(size: 11))
+                        Text(action.title)
+                            .font(.holoTinyLabel)
+                    }
+                    .foregroundColor(.white)
+                    .padding(.horizontal, HoloSpacing.sm)
+                    .padding(.vertical, 4)
+                    .background(Capsule().fill(Color.holoPrimary))
+                }
+                .buttonStyle(PlainButtonStyle())
+                .padding(.top, HoloSpacing.xs)
+                .alert(action.title, isPresented: $showActionConfirmation) {
+                    Button("确认") {
+                        executeAction(action)
+                    }
+                    Button("取消", role: .cancel) {}
+                } message: {
+                    Text(actionDescription(action))
+                }
+            }
         }
         .padding(HoloSpacing.md)
         .background(cardBackgroundColor)
@@ -86,6 +133,16 @@ struct MemoryInsightCardView: View {
             guard !card.evidence.isEmpty else { return }
             withAnimation(.easeInOut(duration: 0.2)) {
                 isExpanded.toggle()
+            }
+        }
+        .sheet(isPresented: $showFeedbackSheet) {
+            if let insightId = insightId {
+                InsightFeedbackSheet(
+                    insightId: insightId,
+                    cardId: card.id,
+                    cardType: card.type,
+                    moduleHint: card.moduleHint
+                )
             }
         }
     }
@@ -158,5 +215,46 @@ struct MemoryInsightCardView: View {
 
     private var cardBorderColor: Color {
         card.type == .anomaly ? cardColor.opacity(0.28) : Color.holoBorder.opacity(0.45)
+    }
+
+    // MARK: - Action Helpers
+
+    private func actionDescription(_ action: InsightActionCandidate) -> String {
+        switch action.payload {
+        case .taskDraft(let title, _, _):
+            return "将创建任务「\(title)」"
+        case .reflectionQuestion(let question):
+            return question
+        case .budgetReminderDraft:
+            return "将设置消费提醒"
+        case .habitAdjustmentDraft:
+            return "将调整习惯设置"
+        case .checkInReminder:
+            return "将设置提醒"
+        case .noAction:
+            return ""
+        }
+    }
+
+    private func executeAction(_ action: InsightActionCandidate) {
+        switch action.payload {
+        case .taskDraft(let title, let dueDate, let priority):
+            createTask(title: title, dueDate: dueDate, priority: priority)
+        default:
+            break
+        }
+    }
+
+    private func createTask(title: String, dueDate: Date?, priority: Int16?) {
+        let context = CoreDataStack.shared.viewContext
+        let task = TodoTask(context: context)
+        task.id = UUID()
+        task.title = title
+        task.desc = nil
+        task.status = "pending"
+        task.priority = priority ?? 0
+        task.dueDate = dueDate
+        task.createdAt = Date()
+        try? context.save()
     }
 }

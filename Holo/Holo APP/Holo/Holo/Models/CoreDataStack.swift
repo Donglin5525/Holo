@@ -117,6 +117,7 @@ class CoreDataStack {
         entities.append(contentsOf: createChatEntities())
         entities.append(contentsOf: createSyncEntities())
         entities.append(createMemoryInsightEntity())
+        entities.append(createMemoryInsightFeedbackEntity())
         entities.append(goalEntity)
         model.entities = entities
         return model

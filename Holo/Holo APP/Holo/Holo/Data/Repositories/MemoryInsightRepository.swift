@@ -174,6 +174,51 @@ final class MemoryInsightRepository {
 
     // MARK: - Feedback
 
+    /// 保存结构化反馈
+    func saveFeedback(
+        insightId: UUID,
+        cardId: String?,
+        accuracyRating: AccuracyRating?,
+        valueRating: ValueRating?,
+        reasonType: FeedbackReasonType?,
+        module: String?,
+        patternType: String?,
+        userCorrection: String?
+    ) throws {
+        let feedback = MemoryInsightFeedback.create(
+            in: context,
+            insightId: insightId,
+            cardId: cardId,
+            accuracyRating: accuracyRating,
+            valueRating: valueRating,
+            reasonType: reasonType,
+            module: module,
+            patternType: patternType,
+            userCorrection: userCorrection
+        )
+        _ = feedback
+        try context.save()
+        Self.logger.info("洞察反馈已保存：insightId=\(insightId), cardId=\(cardId ?? "整体")")
+    }
+
+    /// 查询未消费的反馈
+    func fetchUnconsumedFeedback() -> [MemoryInsightFeedback] {
+        MemoryInsightFeedback.fetchUnconsumed(in: context)
+    }
+
+    /// 查询指定洞察的反馈
+    func fetchFeedback(for insightId: UUID) -> [MemoryInsightFeedback] {
+        MemoryInsightFeedback.fetchForInsight(insightId: insightId, in: context)
+    }
+
+    /// 标记反馈为已消费
+    func markFeedbackConsumed(_ feedback: [MemoryInsightFeedback]) throws {
+        for item in feedback {
+            item.markConsumed()
+        }
+        try context.save()
+    }
+
     /// 更新用户评分
     func updateRating(insight: MemoryInsight, rating: Int16, note: String? = nil) throws {
         insight.userRating = rating

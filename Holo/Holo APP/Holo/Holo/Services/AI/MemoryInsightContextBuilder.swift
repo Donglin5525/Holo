@@ -991,9 +991,10 @@ struct MemoryInsightContextBuilder {
                 periodEnd: insight.periodEnd ?? Date(),
                 summary: payload.summary,
                 keyFindings: payload.cards.prefix(3).map(\.title),
-                moduleSnapshots: payload.cards.map { card in
-                    ModuleSnapshot(
-                        module: mapCardTypeToModule(card.type),
+                moduleSnapshots: payload.cards.compactMap { card in
+                    guard let module = mapCardTypeToModule(card.type) else { return nil }
+                    return ModuleSnapshot(
+                        module: module,
                         headline: "\(card.title): \(card.body.prefix(30))"
                     )
                 }
@@ -1079,14 +1080,13 @@ struct MemoryInsightContextBuilder {
         )
     }
 
-    private func mapCardTypeToModule(_ cardType: MemoryInsightCardType) -> InsightModule {
+    private func mapCardTypeToModule(_ cardType: MemoryInsightCardType) -> InsightModule? {
         switch cardType {
         case .finance: return .finance
         case .habit: return .habit
         case .task: return .task
         case .thought: return .thought
-        case .anomaly: return .finance
-        default: return .finance
+        case .overview, .crossDomain, .milestone, .anomaly: return nil
         }
     }
 
@@ -1280,7 +1280,28 @@ struct MemoryInsightContextBuilder {
     // MARK: - Snapshot Hash
 
     static func computeHash(_ context: MemoryInsightContext) -> String {
-        guard let encoded = try? JSONEncoder().encode(context) else { return "" }
+        // 排除 generatedAt 运行时字段，保证相同业务数据生成稳定 hash
+        let stableContext = MemoryInsightContext(
+            periodType: context.periodType,
+            periodStart: context.periodStart,
+            periodEnd: context.periodEnd,
+            generatedAt: Date(timeIntervalSince1970: 0),
+            localeIdentifier: context.localeIdentifier,
+            finance: context.finance,
+            habits: context.habits,
+            tasks: context.tasks,
+            thoughts: context.thoughts,
+            milestones: context.milestones,
+            crossModuleCorrelations: context.crossModuleCorrelations,
+            monthlyInsightDigests: context.monthlyInsightDigests,
+            anomalies: context.anomalies,
+            previousPeriodReview: context.previousPeriodReview,
+            dailySnapshots: context.dailySnapshots,
+            lifeEvents: context.lifeEvents,
+            personalBaseline: context.personalBaseline,
+            personalProfileContext: context.personalProfileContext
+        )
+        guard let encoded = try? JSONEncoder().encode(stableContext) else { return "" }
         let hash = SHA256.hash(data: encoded)
         return hash.compactMap { String(format: "%02x", $0) }.joined()
     }

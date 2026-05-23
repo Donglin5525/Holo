@@ -50,6 +50,8 @@ struct AnalysisSummaryChatCard: View {
         case .task: return "任务"
         case .thought: return "想法"
         case .crossModule: return "综合"
+        case .health: return "健康"
+        case .goal: return "目标"
         }
     }
 
@@ -60,6 +62,8 @@ struct AnalysisSummaryChatCard: View {
         case .task: return "checklist"
         case .thought: return "lightbulb.fill"
         case .crossModule: return "chart.bar.xaxis"
+        case .health: return "heart.fill"
+        case .goal: return "flag.fill"
         }
     }
 }

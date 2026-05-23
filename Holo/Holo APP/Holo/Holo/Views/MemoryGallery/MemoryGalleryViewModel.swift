@@ -80,6 +80,9 @@ class MemoryGalleryViewModel: ObservableObject {
     @Published var weeklyIsFallback: Bool = false
     @Published var monthlyIsFallback: Bool = false
 
+    /// 每日状态快照
+    @Published var dailySenseSnapshot: DailySenseSnapshot?
+
     // MARK: - Private Properties
 
     /// 分页按天计算（每页加载 N 天的数据）
@@ -656,6 +659,16 @@ class MemoryGalleryViewModel: ObservableObject {
         )
 
         updateInsightGenerationStateForCurrentSelection()
+
+        // 加载或生成 Daily Sense
+        if InsightFeatureFlags.dailySenseEnabled {
+            if let cached = DailySenseSnapshotStore.shared.todaySnapshot() {
+                dailySenseSnapshot = cached
+            } else if let snapshot = DailySenseStateBuilder.buildToday() {
+                DailySenseSnapshotStore.shared.saveToday(snapshot)
+                dailySenseSnapshot = snapshot
+            }
+        }
     }
 
     /// 生成本周 AI 回放

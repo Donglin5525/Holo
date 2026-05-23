@@ -100,6 +100,12 @@ final class MemoryInsightService {
         isGenerating = true
         defer { isGenerating = false }
 
+        // 0. 聚合未消费反馈（生成前批量聚合，偏好更新后用于本次生成）
+        if InsightFeatureFlags.preferenceLearningEnabled {
+            let context = CoreDataStack.shared.viewContext
+            InsightFeedbackAggregator.shared.aggregate(in: context)
+        }
+
         // 1. 构建上下文
         let (context, snapshotHash) = await contextBuilder.build(
             periodType: periodType,
@@ -203,6 +209,21 @@ final class MemoryInsightService {
         // 8. Evidence 后处理
         var processedPayload = payload
         processedPayload = postProcessEvidence(processedPayload, start: start, end: end)
+
+        // 8.5 Post-process: 填充 moduleHint / patternType
+        processedPayload = MemoryInsightResponseParser.fillModuleHints(processedPayload)
+
+        // 8.6 Rerank: 根据偏好排序
+        if InsightFeatureFlags.rerankEnabled {
+            let profile = InsightPreferenceProfileService.shared.loadProfile()
+            let rerankedCards = InsightCardReranker.rerank(processedPayload.cards, with: profile)
+            processedPayload = MemoryInsightPayload(
+                title: processedPayload.title,
+                summary: processedPayload.summary,
+                cards: rerankedCards,
+                suggestedQuestions: processedPayload.suggestedQuestions
+            )
+        }
 
         // 9. 保存 ready 状态（使用真实 promptVersion）
         let providerName: String? = nil

@@ -4,6 +4,53 @@
 
 ---
 
+## [2026-05-23] AI 分析扩展：健康与目标模块 + 习惯分析 bug 修复
+
+### 新增
+- 健康（Health）分析域：步数/睡眠/站立/活动 4 指标趋势、达标率、体表分（3 槽位模型）、异常检测（连续低睡眠/低步数/零活动）
+- 目标（Goal）分析域：目标进度（任务 60% + 习惯 40%）、风险检测（deadline < 7 天且进度 < 50%）、领域分布
+- AI 对话支持健康和目标分析卡片渲染（summary/trend/comparison/highlights）
+- 跨模块分析新增健康体表分和目标风险聚合，预算从 5+3 提升到 7+5
+- 意图识别新增健康关键词（步数/睡眠/运动/健康/锻炼等）和目标关键词（目标/进展/进度/goal/里程碑）
+
+### 修复
+- 习惯分析返回"没有数据"：HabitAnalysisContextBuilder 访问 activeHabits 时未先调用 repo.setup()
+
+### 后端同步
+- defaultPrompts.json 同步更新 intent_recognition 和 analysis_prompt 模板
+
+---
+
+## [2026-05-23] Holo Sense Layer 洞察闭环系统（Phase 0-6）
+
+### 新增
+- 洞察反馈系统：两维反馈（准确性 + 价值感），支持 5 种不准原因分类，反馈保存到独立 Core Data 实体
+- 洞察偏好画像 `InsightPreferenceProfile`：弱信号/稳定偏好分层，30 天过期 + 2 次阈值升级，JSON 原子写入 + 损坏回退
+- 反馈聚合器 `InsightFeedbackAggregator`：生成前批量聚合 + App 启动轻量聚合，dataWrong 隔离到 debug 日志
+- 本地卡片 Rerank：根据偏好排序，critical anomaly 保底，偏好变化立即生效不改内容
+- 每日状态雷达 Daily Sense：3 状态规则引擎（stable/atRisk/recovering），7 天持久化，记忆长廊顶部展示
+- 健康洞察上下文框架：`HealthInsightContext` + `HealthDataAvailability` 手写 Codable，`MemoryInsightContext` 新增 health 字段
+- 行动闭环：规则生成行动候选（任务清理/习惯回顾/消费提醒），卡片展示行动按钮 + 二次确认弹窗
+- Feature Flag 系统：6 个 UserDefaults Bool flag，Debug 默认开启，Release 可关闭
+- 反馈 UI Sheet：`InsightFeedbackSheet`，两维选择 + 不准原因 + 补充说明
+
+### 修复
+- `snapshotHash` 排除 `generatedAt` 运行时字段，相同业务数据生成稳定 hash
+- `mapCardTypeToModule` 不再将 `.anomaly`/default 硬映射为 `.finance`，不可映射类型返回 nil
+- `GoalAnalysisContextBuilder` 属性名 `isCompleted` → `completed`
+- 补全 `AnalysisContextBuilder`/`AnalysisSummaryFormatter`/`AnalysisDetailSheet`/`AnalysisChatCard`/`ChatCardData` 中缺失的 health/goal case
+
+### 优化
+- `MemoryInsightCard` 新增 `moduleHint`/`patternType` 可选字段，post-process 关键词匹配填充
+- `MemoryInsightHeroCard` 卡片列表从 `prefix(5)` 改为可展开
+- `MemoryInsightResponseParser` 新增 `fillModuleHints` 后处理方法
+- `MemoryInsightCardView` 新增反馈按钮 + 行动候选按钮 + 二次确认
+
+### 方案文档
+- `docs/_common/plans/2026-05-23-Holo-Sense-Layer洞察闭环方案.md`
+
+---
+
 ## [2026-05-23] 个人档案接入全局 AI 上下文
 
 ### 新增

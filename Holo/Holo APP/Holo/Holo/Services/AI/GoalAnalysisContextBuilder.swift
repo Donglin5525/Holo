@@ -99,7 +99,7 @@ struct GoalAnalysisContextBuilder {
 
         // 任务完成率
         let taskTotal = tasks.count
-        let taskCompleted = tasks.filter { $0.isCompleted }.count
+        let taskCompleted = tasks.filter { $0.completed }.count
 
         // 习惯完成率（从习惯创建日或分析期开始日中较晚者开始计算）
         let habitTotal = habits.count

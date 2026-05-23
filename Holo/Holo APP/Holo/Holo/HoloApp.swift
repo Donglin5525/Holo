@@ -63,6 +63,12 @@ struct HoloApp: App {
                 .task {
                     // 检查通知权限状态
                     TodoNotificationService.shared.checkAuthorizationStatus()
+
+                    // 启动时轻量聚合未消费反馈（更新 rerank 用的偏好）
+                    if InsightFeatureFlags.preferenceLearningEnabled {
+                        let context = CoreDataStack.shared.viewContext
+                        InsightFeedbackAggregator.shared.aggregate(in: context)
+                    }
                 }
         }
     }
