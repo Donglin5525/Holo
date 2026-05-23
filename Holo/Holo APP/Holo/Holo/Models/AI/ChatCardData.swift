@@ -356,6 +356,14 @@ extension ChatCardData {
                     warnings: cm.warnings
                 )))
             }
+        case .health:
+            if let ht = context.health {
+                cards.append(contentsOf: healthCards(ht, periodLabel: context.periodLabel))
+            }
+        case .goal:
+            if let g = context.goal {
+                cards.append(contentsOf: goalCards(g, periodLabel: context.periodLabel))
+            }
         }
 
         return cards
@@ -530,6 +538,150 @@ extension ChatCardData {
                 AnalysisBreakdownRow(label: m.mood, value: "\(m.count)", percent: m.percentage / 100)
             }
             cards.append(.analysisBreakdown(AnalysisBreakdownCardData(title: "心情分布", rows: rows)))
+        }
+
+        return cards
+    }
+
+    // MARK: - Health Cards
+
+    private static func healthCards(_ h: HealthAnalysisContext, periodLabel: String) -> [ChatCardData] {
+        var cards: [ChatCardData] = []
+
+        // Summary
+        var metrics: [AnalysisBreakdownRow] = []
+        if let steps = h.steps, !steps.isDataFree {
+            metrics.append(AnalysisBreakdownRow(
+                label: "步数",
+                value: "日均 \(Int(steps.dailyAverage).formatted()) 步 · 达标 \(steps.goalMetDays)/\(steps.totalDays) 天",
+                percent: steps.totalDays > 0 ? Double(steps.goalMetDays) / Double(steps.totalDays) : nil
+            ))
+        }
+        if let sleep = h.sleep, !sleep.isDataFree {
+            metrics.append(AnalysisBreakdownRow(
+                label: "睡眠",
+                value: "日均 \(String(format: "%.1f", sleep.dailyAverage))h · 达标 \(sleep.goalMetDays)/\(sleep.totalDays) 天",
+                percent: sleep.totalDays > 0 ? Double(sleep.goalMetDays) / Double(sleep.totalDays) : nil
+            ))
+        }
+        if let stand = h.stand, !stand.isDataFree {
+            metrics.append(AnalysisBreakdownRow(
+                label: "站立",
+                value: "日均 \(String(format: "%.1f", stand.dailyAverage))h · 达标 \(stand.goalMetDays)/\(stand.totalDays) 天",
+                percent: stand.totalDays > 0 ? Double(stand.goalMetDays) / Double(stand.totalDays) : nil
+            ))
+        }
+        if let active = h.activeMinutes, !active.isDataFree {
+            metrics.append(AnalysisBreakdownRow(
+                label: "活动",
+                value: "日均 \(Int(active.dailyAverage).formatted()) 分钟 · 达标 \(active.goalMetDays)/\(active.totalDays) 天",
+                percent: active.totalDays > 0 ? Double(active.goalMetDays) / Double(active.totalDays) : nil
+            ))
+        }
+        if let score = h.overallBodyScore {
+            metrics.append(AnalysisBreakdownRow(
+                label: "体表分",
+                value: String(format: "%.0f", score),
+                percent: score / 100
+            ))
+        }
+        if !metrics.isEmpty {
+            cards.append(.analysisSummary(AnalysisSummaryCardData(
+                domain: .health,
+                periodLabel: periodLabel,
+                metrics: metrics
+            )))
+        }
+
+        // Trend — 步数趋势
+        if let steps = h.steps, steps.dailyTrend.count > 1 {
+            let points = steps.dailyTrend.suffix(14).map { pt in
+                AnalysisTrendPoint(label: pt.date, value: pt.rate, displayValue: "\(Int(pt.rate).formatted()) 步")
+            }
+            cards.append(.analysisTrend(AnalysisTrendCardData(title: "步数趋势", points: points)))
+        }
+
+        // Trend — 睡眠趋势
+        if let sleep = h.sleep, sleep.dailyTrend.count > 1 {
+            let points = sleep.dailyTrend.suffix(14).map { pt in
+                AnalysisTrendPoint(label: pt.date, value: pt.rate, displayValue: String(format: "%.1fh", pt.rate))
+            }
+            cards.append(.analysisTrend(AnalysisTrendCardData(title: "睡眠趋势", points: points)))
+        }
+
+        // Comparison — 体表分环比
+        if let curr = h.overallBodyScore, let prev = h.previousPeriodScore {
+            let diff = curr - prev
+            let changeStr = diff >= 0 ? "+\(String(format: "%.0f", diff))" : String(format: "%.0f", diff)
+            cards.append(.analysisComparison(AnalysisComparisonCardData(
+                title: "体表分环比",
+                currentValue: String(format: "%.0f", curr),
+                previousValue: String(format: "%.0f", prev),
+                change: changeStr
+            )))
+        }
+
+        // Highlights
+        if !h.anomalyNotes.isEmpty {
+            cards.append(.analysisHighlights(AnalysisHighlightsCardData(
+                highlights: [],
+                warnings: h.anomalyNotes
+            )))
+        }
+
+        return cards
+    }
+
+    // MARK: - Goal Cards
+
+    private static func goalCards(_ g: GoalAnalysisContext, periodLabel: String) -> [ChatCardData] {
+        var cards: [ChatCardData] = []
+
+        // Summary
+        var metrics: [AnalysisBreakdownRow] = [
+            AnalysisBreakdownRow(label: "活跃目标", value: "\(g.totalActiveGoals)", percent: nil)
+        ]
+        if g.completedGoalsInPeriod > 0 {
+            metrics.append(AnalysisBreakdownRow(label: "本周期完成", value: "\(g.completedGoalsInPeriod)", percent: nil))
+        }
+        if !g.atRiskGoals.isEmpty {
+            metrics.append(AnalysisBreakdownRow(label: "风险目标", value: "\(g.atRiskGoals.count)", percent: nil))
+        }
+        cards.append(.analysisSummary(AnalysisSummaryCardData(
+            domain: .goal,
+            periodLabel: periodLabel,
+            metrics: metrics
+        )))
+
+        // Breakdown — 各目标进度
+        let progressItems = g.goals.filter { $0.overallProgress != nil || $0.linkedTaskTotal > 0 }
+        if !progressItems.isEmpty {
+            let rows = progressItems.map { item in
+                let progressStr = item.overallProgress.map { String(format: "%.0f%%", $0 * 100) } ?? "无数据"
+                let taskInfo = "\(item.linkedTaskCompleted)/\(item.linkedTaskTotal) 任务"
+                return AnalysisBreakdownRow(
+                    label: item.title,
+                    value: "\(progressStr) · \(taskInfo)",
+                    percent: item.overallProgress
+                )
+            }
+            cards.append(.analysisBreakdown(AnalysisBreakdownCardData(title: "目标进度", rows: rows)))
+        }
+
+        // Highlights
+        var highlights: [String] = []
+        var warnings: [String] = g.atRiskGoals.map { "\($0) 需要关注" }
+        if let prev = g.previousPeriodCompleted, prev > 0 {
+            let diff = g.completedGoalsInPeriod - prev
+            if diff > 0 {
+                highlights.append("比上期多完成 \(diff) 个目标")
+            }
+        }
+        if !highlights.isEmpty || !warnings.isEmpty {
+            cards.append(.analysisHighlights(AnalysisHighlightsCardData(
+                highlights: highlights,
+                warnings: warnings
+            )))
         }
 
         return cards
