@@ -25,15 +25,12 @@ struct HealthMetricAnalysis: Codable, Equatable, Sendable {
     let dailyAverage: Double        // 日均
     let goalMetDays: Int            // 达标天数
     let totalDays: Int              // 总天数
-    let dailyTrend: [DailyValuePoint] // 日趋势（最多31天）
-    let bestDay: DailyValuePoint?   // 最佳单日
+    let dailyTrend: [DailyRatePoint] // 复用现有类型（最多31天）
+    let bestDay: DailyRatePoint?   // 最佳单日
     let isDataFree: Bool
 }
 
-struct DailyValuePoint: Codable, Equatable, Sendable {
-    let date: String    // yyyy-MM-dd
-    let value: Double
-}
+// 复用现有 DailyRatePoint（date: String, rate: Double），不新建类型
 
 // HealthAnalysisContext — 完整健康分析上下文
 struct HealthAnalysisContext: Codable, Equatable, Sendable {
@@ -65,12 +62,13 @@ struct HealthAnalysisContext: Codable, Equatable, Sendable {
 新建文件 `Services/AI/HealthAnalysisContextBuilder.swift`。
 
 逻辑：
-1. 调用 HealthRepository 的 4 个范围查询方法（并发 async let）
-2. 每个指标构建 `HealthMetricAnalysis`（总量/日均/达标天数/趋势/最佳日）
-3. 达标判定复用 `HealthMetricType.dailyGoal`（步数 10000、睡眠 8h、站立 12h、活动 30min）
-4. 综合体表分复用现有权重：步数 30%、睡眠 45%、活动 25%
-5. 异常检测：连续 3 天睡眠 < 6h、连续 3 天步数 < 3000、活动分钟连续为 0
-6. 如果所有指标都 isDataFree，返回 nil
+1. 检查 `HealthRepository.shared.isAuthorized`，未授权直接返回 nil
+2. 调用 HealthRepository 的 4 个范围查询方法（并发 async let）
+3. 每个指标构建 `HealthMetricAnalysis`（总量/日均/达标天数/趋势/最佳日）
+4. 达标判定复用 `HealthMetricType.dailyGoal`（步数 10000、睡眠 8h、站立 12h、活动 30min）
+5. 综合体表分沿用现有 3 槽位模型：步数 30%、睡眠 45%、站立或活动 25%（stand 和 activeMinutes 互斥取一，复用 `standOrActivitySnapshot` 逻辑）
+6. 异常检测：连续 3 天睡眠 < 6h、连续 3 天步数 < 3000、活动分钟连续为 0
+7. 如果所有指标都 isDataFree，返回 nil
 
 ### 意图识别关键词
 
@@ -124,7 +122,7 @@ struct GoalAnalysisContext: Codable, Equatable, Sendable {
 
 ### 意图识别关键词
 
-`目标|进展|进度|规划|计划|goal`
+`目标|进展|进度|goal|里程碑`
 
 ---
 
@@ -166,3 +164,25 @@ struct GoalAnalysisContext: Codable, Equatable, Sendable {
 用户说"复盘"或"综合分析"时，`CrossModuleAnalysisContextBuilder` 同时拉取 6 个域：
 - 健康 highlights："睡眠达标率显著提升"、"本周步数持续偏低"
 - 目标 warnings："2 个目标即将到期但进度不足 50%"
+
+---
+
+## 第四部分：审查发现与实施注意事项
+
+### 问题 1（已修复）：DailyValuePoint 冗余
+直接复用现有 `DailyRatePoint`，不新建类型。
+
+### 问题 2（已修复）：体表分 3 槽位 vs 4 指标
+分析数据保留 4 个指标的完整趋势，但体表分计算沿用现有 3 槽位互斥逻辑（stand 和 activeMinutes 取一）。
+
+### 问题 3（实施注意）：HealthKit 未授权处理
+`HealthAnalysisContextBuilder` 开头检查 `HealthRepository.shared.isAuthorized`，未授权直接返回 nil，避免无意义的 HealthKit 查询。
+
+### 问题 4（已修复）：关键词 "计划" 过于宽泛
+目标域关键词改为 `目标|进展|进度|goal|里程碑`，去掉 "计划" 和 "规划"。
+
+### 问题 5（实施注意）：crossModule 预算调整
+`CrossModuleAnalysisContextBuilder` 当前 highlights 限 5 条、warnings 限 3 条。加入 health/goal 后 6 个域竞争 8 个名额，实施时提升到 highlights 7、warnings 5。
+
+### 问题 6（实施注意）：目标关联习惯的完成率时间段
+习惯可能晚于分析期开始创建。习惯完成率计算区间改为 `max(分析开始日期, 习惯创建日期) → 分析结束日期`，避免创建前空窗期拉低完成率。
