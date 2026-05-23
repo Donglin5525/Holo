@@ -23,6 +23,8 @@ struct HabitAnalysisContextBuilder {
     @MainActor
     func build(request: ResolvedAnalysisRequest) async -> HabitAnalysisContext? {
         let repo = HabitRepository.shared
+        if !repo.isReady { repo.setup() }
+
         let calendar = Calendar.current
         let startInclusive = calendar.startOfDay(for: request.start)
         guard let endExclusive = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: request.end)) else {
@@ -30,7 +32,7 @@ struct HabitAnalysisContextBuilder {
         }
         let range = startInclusive...endExclusive
 
-        let activeHabits = repo.activeHabits.filter { !$0.isArchived }
+        let activeHabits = repo.activeHabits
 
         guard !activeHabits.isEmpty else {
             return nil
