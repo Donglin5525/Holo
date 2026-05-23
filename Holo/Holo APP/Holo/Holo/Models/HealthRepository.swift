@@ -235,6 +235,54 @@ class HealthRepository: ObservableObject {
         return results
     }
 
+    // MARK: - 日期范围查询（AI 分析用）
+
+    /// 获取指定日期范围的步数数据
+    func fetchStepsRange(from start: Date, to end: Date) async -> [DailyHealthData] {
+        await fetchRange(for: .steps, from: start, to: end)
+    }
+
+    /// 获取指定日期范围的睡眠数据
+    func fetchSleepRange(from start: Date, to end: Date) async -> [DailyHealthData] {
+        await fetchRange(for: .sleep, from: start, to: end)
+    }
+
+    /// 获取指定日期范围的站立数据
+    func fetchStandTimeRange(from start: Date, to end: Date) async -> [DailyHealthData] {
+        await fetchRange(for: .standHours, from: start, to: end)
+    }
+
+    /// 获取指定日期范围的活动分钟数据
+    func fetchActiveMinutesRange(from start: Date, to end: Date) async -> [DailyHealthData] {
+        await fetchRange(for: .activeMinutes, from: start, to: end)
+    }
+
+    /// 通用范围查询
+    private func fetchRange(for type: HealthMetricType, from start: Date, to end: Date) async -> [DailyHealthData] {
+        if useMockData {
+            return generateMockRangeData(for: type, from: start, to: end)
+        }
+
+        let calendar = Calendar.current
+        var results: [DailyHealthData] = []
+        var current = calendar.startOfDay(for: start)
+        let endDay = calendar.startOfDay(for: end)
+
+        while current <= endDay {
+            let value: Double
+            switch type {
+            case .steps: value = await fetchSteps(for: current)
+            case .sleep: value = await fetchSleep(for: current)
+            case .standHours: value = await fetchStandTime(for: current)
+            case .activeMinutes: value = await fetchActiveMinutes(for: current)
+            }
+            results.append(DailyHealthData(date: current, value: value))
+            guard let next = calendar.date(byAdding: .day, value: 1, to: current) else { break }
+            current = next
+        }
+        return results
+    }
+
     // MARK: - 私有方法 - 真实数据获取
 
     /// 获取指定日期的步数
@@ -421,6 +469,28 @@ class HealthRepository: ObservableObject {
 
             return DailyHealthData(date: date, value: value)
         }
+    }
+
+    /// 生成模拟日期范围数据
+    private func generateMockRangeData(for type: HealthMetricType, from start: Date, to end: Date) -> [DailyHealthData] {
+        let calendar = Calendar.current
+        var results: [DailyHealthData] = []
+        var current = calendar.startOfDay(for: start)
+        let endDay = calendar.startOfDay(for: end)
+
+        while current <= endDay {
+            let value: Double
+            switch type {
+            case .steps: value = Double(Int.random(in: 5000...15000))
+            case .sleep: value = Double(Int.random(in: 5...10)) + Double.random(in: 0...0.9)
+            case .standHours: value = Double(Int.random(in: 6...14))
+            case .activeMinutes: value = Double(Int.random(in: 12...60))
+            }
+            results.append(DailyHealthData(date: current, value: value))
+            guard let next = calendar.date(byAdding: .day, value: 1, to: current) else { break }
+            current = next
+        }
+        return results
     }
 
     private var readTypes: [HKObjectType] {
