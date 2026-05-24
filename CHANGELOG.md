@@ -4,6 +4,26 @@
 
 ---
 
+## [2026-05-25] HoloAI 卡片纯文本化与后端 Prompt 热更新
+
+### 修复
+- HoloAI 分析卡片不再裸露 `##`、`###`、`*` 等 Markdown 语法，前端渲染会将标题和列表转成更适合 C 端阅读的纯文本样式
+- 分析回复中的 `{{card:...}}` 卡片标记不再出现在用户可见文本里
+
+### 优化
+- iOS 本地 fallback Prompt 和后端默认 Prompt 统一约束分析输出为手机 App 可读的中文纯文本，避免模型生成 Markdown 报告体
+- `analysis_prompt` 增加版本声明和后端测试，防止默认 Prompt 回退到 Markdown 输出
+
+### 后端同步
+- 后端 `system_prompt` 和 `analysis_prompt` 已通过管理接口热更新到线上，避免等待完整 Docker 重建
+
+### 验证
+- 独立测试通过：`MarkdownAttributedStringRendererStandaloneTests`
+- 后端 Prompt 测试通过：`npm test`
+- iOS Debug 模拟器构建通过：`xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 17' build`
+
+---
+
 ## [2026-05-24] 待办检查项编辑 + Deep Link 导航 + 观点光标修复
 
 ### 新增

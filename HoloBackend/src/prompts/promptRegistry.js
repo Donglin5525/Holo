@@ -7,6 +7,7 @@ import * as Diff from "diff";
 const PROMPT_VERSIONS = {
   intent_recognition: 8,
   memory_insight_generation: 5,
+  analysis_prompt: 2,
   annual_review: 1,
 };
 const PROMPT_TYPES = Object.keys(defaultPrompts);
