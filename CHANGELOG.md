@@ -4,6 +4,28 @@
 
 ---
 
+## [2026-05-25] HoloAI 能力启动台与记忆层
+
+### 新增
+- 能力启动台：替换输入框上方无价值 Tab，新增「今日状态/最近分析/长期模式/规划目标」四个高价值入口
+- 新人引导入口：新用户展示使用指南，完成 3 次有效 AI 行动后自动隐藏
+- 短期记忆模型：数据覆盖度评估（rich/partial/empty 三档），今日状态兜底
+- 长期记忆模型：候选池、晋升策略（丢弃/观察/静默写入/要求确认）、本地 JSON Store
+- 记忆注入：AIUserContextMessageBuilder 支持 chat 记忆摘要注入和 intent 保守注入
+- MemoryInsight 候选提取：洞察生成后异步提取长期记忆候选
+- 记忆管理 UI：设置页新增「AI 记忆」section，支持长期记忆开关、记忆辅助对话开关、记忆管理入口
+- 记忆管理中心：查看已确认记忆、处理候选、查看证据、删除记忆
+
+### 修复
+- 历史消息空 content 导致后端 400 的既存 bug（loadRecentDTOsAsync 现在过滤 isStreaming 和空 content）
+- InsightFeedbackAggregator 过期检查失效（from: now, to: now → 使用 per-item updatedAt）
+
+### 不变
+- 后端无变更，无需发版
+- V1 不引入 Agent，不跨会话短期缓存，不让 AI 自由写入长期画像
+
+---
+
 ## [2026-05-25] HoloAI 卡片纯文本化与后端 Prompt 热更新
 
 ### 修复
