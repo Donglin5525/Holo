@@ -46,6 +46,10 @@ final class ChatViewModel: ObservableObject {
     private let usesInjectedProvider: Bool
     private var coreDataObserver: NSObjectProtocol?
 
+    // MARK: - Capability Launchpad
+
+    @Published var capabilities: [HoloAICapability] = HoloAICapabilityProvider.visibleCapabilities(context: .empty)
+
     // MARK: - Goal Planning
 
     @Published private(set) var activeGoalPlanningSession: GoalPlanningSession?
@@ -609,7 +613,26 @@ final class ChatViewModel: ObservableObject {
         KeychainService.updateCachedAIConfigPresence(true)
     }
 
-// MARK: - Quick Actions
+// MARK: - Capability Tap
+
+    func handleCapabilityTap(_ capability: HoloAICapability) {
+        switch capability.id {
+        case .onboarding:
+            inputText = "我是新用户，能教我怎么用 Holo 吗？"
+        case .todayState:
+            inputText = "帮我看看今天的整体状态"
+        case .recentAnalysis:
+            inputText = "分析一下我最近的数据趋势"
+        case .longTermPatterns:
+            inputText = "你了解我哪些长期偏好和模式？"
+        case .goalPlanning:
+            startGoalPlanning(seedText: nil)
+            return
+        }
+        Task { await sendMessage() }
+    }
+
+    // MARK: - Quick Actions（兼容旧入口）
 
     func sendQuickAction(_ action: QuickAction) {
         if action == .planGoal {

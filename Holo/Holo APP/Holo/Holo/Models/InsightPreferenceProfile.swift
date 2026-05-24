@@ -24,9 +24,27 @@ struct InsightModulePreference: Codable, Equatable {
     var weight: Double          // 默认 1.0，范围 0.0-2.0
     var evidenceCount: Int      // 支撑此权重的反馈次数
     var isStable: Bool          // true = 已升级为稳定偏好，不过期
+    var updatedAt: Date         // 最近更新时间，用于过期检查
 
     static func defaultValue(for module: InsightModuleKey) -> InsightModulePreference {
-        InsightModulePreference(module: module, weight: 1.0, evidenceCount: 0, isStable: false)
+        InsightModulePreference(module: module, weight: 1.0, evidenceCount: 0, isStable: false, updatedAt: Date())
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        module = try container.decode(InsightModuleKey.self, forKey: .module)
+        weight = try container.decode(Double.self, forKey: .weight)
+        evidenceCount = try container.decode(Int.self, forKey: .evidenceCount)
+        isStable = try container.decode(Bool.self, forKey: .isStable)
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
+    }
+
+    init(module: InsightModuleKey, weight: Double, evidenceCount: Int, isStable: Bool, updatedAt: Date = Date()) {
+        self.module = module
+        self.weight = weight
+        self.evidenceCount = evidenceCount
+        self.isStable = isStable
+        self.updatedAt = updatedAt
     }
 }
 
@@ -37,6 +55,26 @@ struct InsightPatternPreference: Codable, Equatable {
     var reason: String?
     var evidenceCount: Int
     var isStable: Bool
+    var updatedAt: Date         // 最近更新时间，用于过期检查
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        patternType = try container.decode(String.self, forKey: .patternType)
+        penalty = try container.decode(Double.self, forKey: .penalty)
+        reason = try container.decodeIfPresent(String.self, forKey: .reason)
+        evidenceCount = try container.decode(Int.self, forKey: .evidenceCount)
+        isStable = try container.decode(Bool.self, forKey: .isStable)
+        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
+    }
+
+    init(patternType: String, penalty: Double, reason: String? = nil, evidenceCount: Int, isStable: Bool, updatedAt: Date = Date()) {
+        self.patternType = patternType
+        self.penalty = penalty
+        self.reason = reason
+        self.evidenceCount = evidenceCount
+        self.isStable = isStable
+        self.updatedAt = updatedAt
+    }
 }
 
 /// 语气偏好

@@ -330,15 +330,16 @@ final class ChatMessageRepository: ObservableObject {
                 return try await context.perform {
                     let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
                     request.resultType = .dictionaryResultType
-                    request.propertiesToFetch = ["role", "content"]
-                    request.predicate = NSPredicate(format: "role IN %@", ["user", "assistant"])
+                    request.propertiesToFetch = ["role", "content", "isStreaming"]
+                    request.predicate = NSPredicate(format: "role IN %@ AND isStreaming == NO", ["user", "assistant"])
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
                     request.fetchLimit = limit
 
                     let dicts = try context.fetch(request)
                     return dicts.reversed().compactMap { dict -> ChatMessageDTO? in
                         guard let role = dict["role"] as? String,
-                              let content = dict["content"] as? String else { return nil }
+                              let content = dict["content"] as? String,
+                              !content.isEmpty else { return nil }
                         switch role {
                         case "user": return .user(content)
                         case "assistant": return .assistant(content)

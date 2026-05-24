@@ -248,6 +248,31 @@ final class MemoryInsightService {
             promptVersion: promptVersion
         )
 
+        // 10. 发送洞察生成完成通知（供长期记忆候选提取使用）
+        let cardPayloads: [[String: Any]] = processedPayload.cards.compactMap { card in
+            guard card.patternType != nil, !card.evidence.isEmpty else { return nil }
+            return [
+                "id": card.id,
+                "title": card.title,
+                "summary": card.body,
+                "patternType": card.patternType ?? "",
+                "evidence": card.evidence.map { [
+                    "sourceID": ($0.matchedSourceId?.uuidString) ?? "",
+                    "excerpt": $0.label
+                ] }
+            ]
+        }
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(
+                name: .memoryInsightDidGenerate,
+                object: nil,
+                userInfo: [
+                    "insightID": insight.id.uuidString,
+                    "cards": cardPayloads
+                ]
+            )
+        }
+
         logger.info("洞察生成成功：\(periodType.rawValue)")
         return insight
     }

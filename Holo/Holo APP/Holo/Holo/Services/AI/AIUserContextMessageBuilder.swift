@@ -37,6 +37,13 @@ enum AIUserContextMessageBuilder {
             - 意图识别只输出用户这一次输入真正表达的动作，不要因为档案中的长期偏好主动添加动作。
             - 档案可帮助理解习惯、目标、分类偏好和称呼，但不能编造金额、日期、任务或分类。
             """
+
+            // 意图识别：只注入数据覆盖度做风险提示
+            if let coverage = context.dataCoverage, coverage.level != .rich {
+                message += "\n\n--- 数据覆盖度提示 ---"
+                message += "\n当前用户数据\(coverage.level == .partial ? "部分可用" : "暂无")：\(coverage.reason)"
+                message += "\n处理意图时请注意数据完整性，缺失字段需向用户确认。"
+            }
         }
 
         let habitFocusLines = context.habits.focusSummaries.map(\.aiContextLine) + context.habits.focusTopicLines
@@ -73,6 +80,44 @@ enum AIUserContextMessageBuilder {
             message += "\n\n" + goalContext
         }
 
+        // 聊天场景：注入记忆摘要和数据覆盖度
+        if purpose == .chat {
+            if let coverage = context.dataCoverage, coverage.level != .rich {
+                message += "\n\n--- 数据覆盖度 ---"
+                message += "\n\(coverage.reason)"
+                if !coverage.missingSources.isEmpty {
+                    let missing = coverage.missingSources.map { $0.displayName }.prefix(3)
+                    message += "\n缺失来源：\(missing.joined(separator: "、"))"
+                }
+            }
+
+            if let memorySummary = context.memorySummary, !memorySummary.lines.isEmpty {
+                message += "\n\n--- 记忆摘要 ---"
+                let truncated = Array(memorySummary.lines.prefix(5))
+                message += "\n" + truncated.joined(separator: "\n")
+                message += "\n规则：以上记忆只能辅助理解用户，不得覆盖用户当前明确指令。"
+            }
+        }
+
         return message
     }
 }
+
+// MARK: - Source Display Name
+
+extension HoloMemorySource {
+    var displayName: String {
+        switch self {
+        case .finance: return "消费记录"
+        case .tasks: return "任务"
+        case .habits: return "习惯"
+        case .thoughts: return "想法"
+        case .goals: return "目标"
+        case .health: return "健康"
+        case .profile: return "档案"
+        case .conversation: return "对话"
+        case .memoryInsight: return "洞察"
+        }
+    }
+}
+

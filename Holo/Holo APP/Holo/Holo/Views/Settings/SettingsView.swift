@@ -25,6 +25,7 @@ struct SettingsView: View {
 
     @ObservedObject private var darkModeManager = DarkModeManager.shared
     @ObservedObject private var insightSettings = MemoryInsightScheduleSettings.shared
+    @ObservedObject private var memorySettings = HoloMemorySettings.shared
     @ObservedObject private var iCloudSyncStatus = ICloudSyncStatusService.shared
     @ObservedObject private var authService = AppleSignInAuthService.shared
     @AppStorage(UserDisplayNameSettings.displayNameKey) private var userName: String = UserDisplayNameSettings.fallbackDisplayName
@@ -52,6 +53,9 @@ struct SettingsView: View {
 
                     // AI 回放设置
                     aiPlaybackSection
+
+                    // AI 记忆设置
+                    aiMemorySection
 
                     // 其他设置（占位）
                     otherSettingsSection
@@ -555,6 +559,75 @@ struct SettingsView: View {
         }
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, 12)
+    }
+
+    // MARK: - AI 记忆设置
+
+    @State private var showMemoryCenter = false
+
+    private var aiMemorySection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            HStack(spacing: HoloSpacing.sm) {
+                Image(systemName: "brain.head.profile")
+                    .font(.system(size: 18))
+                    .foregroundColor(.holoPrimary)
+
+                Text("AI 记忆")
+                    .font(.holoBody)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoTextPrimary)
+            }
+
+            VStack(spacing: 0) {
+                insightToggleRow(
+                    icon: "arrow.triangle.2.circlepath",
+                    iconColor: .holoPrimary,
+                    title: "长期记忆",
+                    subtitle: memorySettings.longTermMemoryEnabled ? "AI 会从洞察中学习偏好与模式" : "默认关闭",
+                    isOn: $memorySettings.longTermMemoryEnabled
+                )
+
+                Divider()
+                    .padding(.leading, 56)
+
+                insightToggleRow(
+                    icon: "text.bubble",
+                    iconColor: .holoInfo,
+                    title: "记忆辅助对话",
+                    subtitle: memorySettings.memorySummaryInjectionEnabled ? "对话中利用已记住的信息辅助回答" : "默认开启",
+                    isOn: $memorySettings.memorySummaryInjectionEnabled
+                )
+
+                Divider()
+                    .padding(.leading, 56)
+
+                settingsRow(
+                    icon: "list.bullet.rectangle",
+                    iconColor: .holoPrimary,
+                    title: "记忆管理",
+                    subtitle: {
+                        let confirmed = HoloLongTermMemoryStore.queryConfirmed().count
+                        let candidates = HoloLongTermMemoryStore.queryCandidates().count
+                        if confirmed == 0 && candidates == 0 {
+                            return "暂无记忆"
+                        }
+                        var parts: [String] = []
+                        if confirmed > 0 { parts.append("\(confirmed) 条已记住") }
+                        if candidates > 0 { parts.append("\(candidates) 条待确认") }
+                        return parts.joined(separator: "，")
+                    }()
+                ) {
+                    showMemoryCenter = true
+                }
+                .sheet(isPresented: $showMemoryCenter) {
+                    NavigationStack {
+                        HoloMemoryCenterView()
+                    }
+                }
+            }
+            .background(Color.holoCardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        }
     }
 
     // MARK: - 其他设置（占位）

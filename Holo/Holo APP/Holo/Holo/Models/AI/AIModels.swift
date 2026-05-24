@@ -401,6 +401,8 @@ struct UserContext {
     let profileContext: String?
     let recentTrend: UserRecentTrend?
     let goalContext: String?
+    var dataCoverage: HoloMemoryDataCoverage?
+    var memorySummary: HoloMemoryPromptSummary?
 
     /// 空上下文（分析查询不需要即时上下文）
     static let empty = UserContext(
@@ -412,7 +414,9 @@ struct UserContext {
         accounts: AccountSummary(accountList: "", defaultAccountName: ""),
         profileContext: nil,
         recentTrend: nil,
-        goalContext: nil
+        goalContext: nil,
+        dataCoverage: nil,
+        memorySummary: nil
     )
 }
 

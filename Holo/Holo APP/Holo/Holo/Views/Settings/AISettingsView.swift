@@ -11,6 +11,7 @@ import SwiftUI
 struct AISettingsView: View {
 
     @StateObject private var viewModel = AIConfigViewModel()
+    @ObservedObject private var memorySettings = HoloMemorySettings.shared
     @Environment(\.dismiss) private var dismiss
     @State private var showPromptRefreshed = false
 
@@ -33,6 +34,9 @@ struct AISettingsView: View {
 
             // 学习数据
             mappingSection
+
+            // 记忆管理
+            memorySection
 
             // 危险操作
             dangerSection
@@ -267,6 +271,79 @@ struct AISettingsView: View {
             Text("学习数据")
         } footer: {
             Text("AI 根据你的确认自动记录分类映射，下次遇到相同分类时自动匹配")
+                .font(.caption)
+                .foregroundColor(.holoTextSecondary)
+        }
+    }
+
+    // MARK: - Memory Section
+
+    private var memorySection: some View {
+        Section {
+            NavigationLink {
+                HoloMemoryCenterView()
+            } label: {
+                HStack(spacing: HoloSpacing.md) {
+                    Image(systemName: "brain.head.profile")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.holoPrimary)
+                        .frame(width: 28)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("记忆管理")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+
+                        Text("查看和管理 AI 记住的内容")
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoTextSecondary)
+                    }
+
+                    Spacer()
+                }
+            }
+
+            Toggle(isOn: $memorySettings.longTermMemoryEnabled) {
+                HStack(spacing: HoloSpacing.md) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.holoPrimary)
+                        .frame(width: 28)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("长期记忆")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+
+                        Text("AI 自动从对话和洞察中学习偏好与模式")
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoTextSecondary)
+                    }
+                }
+            }
+
+            Toggle(isOn: $memorySettings.memorySummaryInjectionEnabled) {
+                HStack(spacing: HoloSpacing.md) {
+                    Image(systemName: "text.bubble")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.holoPrimary)
+                        .frame(width: 28)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("记忆辅助对话")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+
+                        Text("在对话中利用已记住的信息辅助回答")
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoTextSecondary)
+                    }
+                }
+            }
+        } header: {
+            Text("记忆管理")
+        } footer: {
+            Text("开启长期记忆后，AI 会从洞察中自动学习并征求确认。你随时可以在记忆管理中查看和删除。")
                 .font(.caption)
                 .foregroundColor(.holoTextSecondary)
         }

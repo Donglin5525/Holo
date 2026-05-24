@@ -37,6 +37,22 @@ final class UserContextBuilder {
 
         let goalContext = buildGoalContext(limit: 1)
 
+        let coverage = DataCoverageEvaluator.evaluate(
+            from: UserContext(
+                todayDate: todayDate,
+                transactions: transactions,
+                habits: habits,
+                tasks: tasks,
+                thoughts: thoughts,
+                accounts: accounts,
+                profileContext: profileContext.isEmpty ? nil : profileContext,
+                recentTrend: recentTrend,
+                goalContext: goalContext,
+                dataCoverage: nil,
+                memorySummary: nil
+            )
+        )
+
         return UserContext(
             todayDate: todayDate,
             transactions: transactions,
@@ -46,7 +62,9 @@ final class UserContextBuilder {
             accounts: accounts,
             profileContext: profileContext.isEmpty ? nil : profileContext,
             recentTrend: recentTrend,
-            goalContext: goalContext
+            goalContext: goalContext,
+            dataCoverage: coverage,
+            memorySummary: nil
         )
     }
 

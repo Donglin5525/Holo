@@ -161,13 +161,15 @@ final class InsightFeedbackAggregator {
     private func isExpired(pref: InsightModulePreference, now: Date) -> Bool {
         guard !pref.isStable else { return false }
         let calendar = Calendar.current
-        let daysSinceUpdate = calendar.dateComponents([.day], from: now, to: now).day ?? 0
+        let daysSinceUpdate = calendar.dateComponents([.day], from: pref.updatedAt, to: now).day ?? 0
         return daysSinceUpdate > weakSignalExpiryDays
     }
 
     private func isExpired(pref: InsightPatternPreference, now: Date) -> Bool {
         guard !pref.isStable else { return false }
-        return false // 简化：pattern 过期由 updatedAt 隐含
+        let calendar = Calendar.current
+        let daysSinceUpdate = calendar.dateComponents([.day], from: pref.updatedAt, to: now).day ?? 0
+        return daysSinceUpdate > weakSignalExpiryDays
     }
 
     private func applyModuleWeight(
@@ -183,6 +185,7 @@ final class InsightFeedbackAggregator {
                 min: 0.0, max: 2.0
             )
             profile.moduleWeights[index].evidenceCount += evidenceCount
+            profile.moduleWeights[index].updatedAt = now
             if profile.moduleWeights[index].evidenceCount >= stableThreshold {
                 profile.moduleWeights[index].isStable = true
             }
@@ -191,7 +194,8 @@ final class InsightFeedbackAggregator {
                 module: module,
                 weight: clamp(1.0 + weightDelta, min: 0.0, max: 2.0),
                 evidenceCount: evidenceCount,
-                isStable: evidenceCount >= stableThreshold
+                isStable: evidenceCount >= stableThreshold,
+                updatedAt: now
             )
             profile.moduleWeights.append(pref)
         }
@@ -211,6 +215,7 @@ final class InsightFeedbackAggregator {
                 min: 0.0, max: 1.0
             )
             profile.dislikedPatterns[index].evidenceCount += evidenceCount
+            profile.dislikedPatterns[index].updatedAt = now
             if profile.dislikedPatterns[index].evidenceCount >= stableThreshold {
                 profile.dislikedPatterns[index].isStable = true
             }
@@ -220,7 +225,8 @@ final class InsightFeedbackAggregator {
                 penalty: clamp(penaltyDelta, min: 0.0, max: 1.0),
                 reason: reason,
                 evidenceCount: evidenceCount,
-                isStable: evidenceCount >= stableThreshold
+                isStable: evidenceCount >= stableThreshold,
+                updatedAt: now
             )
             profile.dislikedPatterns.append(pref)
         }
