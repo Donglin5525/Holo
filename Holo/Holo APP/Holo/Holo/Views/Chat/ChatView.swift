@@ -236,7 +236,7 @@ struct ChatView: View {
                                 viewModel.showGoalDraftReview = true
                             },
                             onSavedGoalCardTap: { goalId in
-                                DeepLinkState.shared.pendingTarget = .goalDetail(goalId: goalId)
+                                DeepLinkState.shared.navigate(to: .goalDetail(goalId: goalId))
                                 dismiss()
                             },
                             onRetry: {
@@ -348,10 +348,10 @@ struct ChatView: View {
             let transaction = FinanceRepository.shared.findTransaction(by: transactionId)
             activeSheet = transaction.map { .editTransaction($0) }
         } else if let taskId = message.resolveLinkedEntityId(for: .task) {
-            DeepLinkState.shared.pendingTarget = .taskDetail(taskId: taskId)
+            DeepLinkState.shared.navigate(to: .taskDetail(taskId: taskId))
             dismiss()
         } else if message.hasLinkedEntity(for: .memoryInsight) {
-            DeepLinkState.shared.pendingTarget = .memoryGallery
+            DeepLinkState.shared.navigate(to: .memoryGallery)
             dismiss()
         }
     }
@@ -393,7 +393,7 @@ struct ChatView: View {
             }
         case .task:
             if let taskId = message.resolveLinkedEntityId(for: .task) {
-                DeepLinkState.shared.pendingTarget = .taskDetail(taskId: taskId)
+                DeepLinkState.shared.navigate(to: .taskDetail(taskId: taskId))
                 dismiss()
             }
         case .habitCheckIn, .mood, .weight:

@@ -301,8 +301,16 @@ struct TaskListView: View {
         guard case .taskDetail(let taskId) = deepLinkState.pendingTarget else { return }
         // 延迟确保 fullScreenCover 视图层级完全就绪
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            selectedTask = TaskSelection(id: taskId)
-            deepLinkState.pendingTarget = nil
+            // 防御性清空：确保 sheet 能重新弹出（避免 @State 残留导致相同值不触发）
+            if self.selectedTask != nil {
+                self.selectedTask = nil
+                DispatchQueue.main.async {
+                    self.selectedTask = TaskSelection(id: taskId)
+                }
+            } else {
+                self.selectedTask = TaskSelection(id: taskId)
+            }
+            self.deepLinkState.pendingTarget = nil
         }
     }
 

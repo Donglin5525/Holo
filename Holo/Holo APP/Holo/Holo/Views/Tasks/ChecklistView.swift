@@ -16,6 +16,9 @@ struct ChecklistView: View {
     @Environment(\.dismiss) var dismiss
     @State private var newCheckItemTitle = ""
     @State private var checkItems: [CheckItem] = []
+    @State private var editingItemId: UUID?
+    @State private var editingTitle = ""
+    @FocusState private var isEditingFocused: Bool
 
     private static let logger = Logger(subsystem: "com.holo.app", category: "ChecklistView")
 
@@ -154,11 +157,30 @@ struct ChecklistView: View {
             }
             .buttonStyle(PlainButtonStyle())
 
-            // 标题
-            Text(item.title)
-                .font(.holoBody)
-                .foregroundColor(item.isChecked ? .holoTextSecondary : .holoTextPrimary)
-                .strikethrough(item.isChecked, color: .holoTextSecondary)
+            // 标题（点击进入编辑）
+            if editingItemId == item.id {
+                TextField("检查项内容", text: $editingTitle)
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextPrimary)
+                    .focused($isEditingFocused)
+                    .submitLabel(.done)
+                    .onSubmit {
+                        commitEdit(item: item)
+                    }
+                    .onChange(of: isEditingFocused) { _, focused in
+                        if !focused {
+                            commitEdit(item: item)
+                        }
+                    }
+            } else {
+                Text(item.title)
+                    .font(.holoBody)
+                    .foregroundColor(item.isChecked ? .holoTextSecondary : .holoTextPrimary)
+                    .strikethrough(item.isChecked, color: .holoTextSecondary)
+                    .onTapGesture {
+                        startEditing(item: item)
+                    }
+            }
 
             Spacer()
 
@@ -238,6 +260,7 @@ struct ChecklistView: View {
 
     private func deleteCheckItem(_ item: CheckItem) {
         let itemID = item.id
+        if editingItemId == itemID { cancelEditing() }
         checkItems.removeAll { $0.id == itemID }
 
         do {
@@ -246,6 +269,35 @@ struct ChecklistView: View {
             Self.logger.error("删除检查项失败：\(error.localizedDescription)")
             reloadCheckItems()
         }
+    }
+
+    private func startEditing(item: CheckItem) {
+        editingItemId = item.id
+        editingTitle = item.title
+        isEditingFocused = true
+    }
+
+    private func commitEdit(item: CheckItem) {
+        guard editingItemId == item.id else { return }
+        let trimmed = editingTitle.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty && trimmed != item.title {
+            do {
+                try repository.updateCheckItemTitle(item, newTitle: trimmed)
+                if let idx = checkItems.firstIndex(where: { $0.id == item.id }) {
+                    checkItems[idx] = item
+                }
+            } catch {
+                Self.logger.error("更新检查项标题失败：\(error.localizedDescription)")
+            }
+        }
+        editingItemId = nil
+        editingTitle = ""
+    }
+
+    private func cancelEditing() {
+        editingItemId = nil
+        editingTitle = ""
+        isEditingFocused = false
     }
 
     private func reloadCheckItems() {

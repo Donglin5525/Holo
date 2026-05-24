@@ -624,6 +624,13 @@ class TodoRepository: ObservableObject {
         notifyDataChange()
     }
 
+    /// 更新检查项标题
+    func updateCheckItemTitle(_ item: CheckItem, newTitle: String) throws {
+        item.title = newTitle
+        try context.save()
+        notifyDataChange()
+    }
+
     /// 更新检查项顺序
     func updateCheckItemOrder(_ items: [CheckItem]) throws {
         for (index, item) in items.enumerated() {

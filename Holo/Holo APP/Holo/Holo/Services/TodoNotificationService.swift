@@ -440,11 +440,11 @@ extension TodoNotificationService: UNUserNotificationCenterDelegate {
             case TodoNotificationCategory.task:
                 if let taskIdString = taskIdString, let taskId = UUID(uuidString: taskIdString) {
                     Self.logger.info("任务通知 Deep Link：\(taskIdString)")
-                    DeepLinkState.shared.pendingTarget = .taskDetail(taskId: taskId)
+                    DeepLinkState.shared.navigate(to: .taskDetail(taskId: taskId))
                 }
             case TodoNotificationCategory.dailyReminder:
                 Self.logger.info("每日提醒 Deep Link")
-                DeepLinkState.shared.pendingTarget = .dailyReminder
+                DeepLinkState.shared.navigate(to: .dailyReminder)
             case TodoNotificationCategory.memoryInsight:
                 Self.logger.info("洞察通知 Deep Link")
                 DeepLinkState.shared.pendingTarget = .memoryGallery

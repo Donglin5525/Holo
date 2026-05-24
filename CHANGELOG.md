@@ -4,6 +4,19 @@
 
 ---
 
+## [2026-05-24] 待办检查项编辑 + Deep Link 导航 + 观点光标修复
+
+### 新增
+- 待办检查项支持点击标题直接内联编辑（AddTaskSheet 和 ChecklistView），回车或失焦自动保存
+- TodoRepository 新增 `updateCheckItemTitle` 方法
+- DeepLinkState 新增 `navigate(to:)` 方法，处理连续跳转相同目标时 onChange 不触发的问题
+
+### 修复
+- 观点模块编辑时光标比文字偏高：UITextView 的 `lineHeightMultiple` 导致行框扩大后光标与文字基线不对齐，改用 `lineSpacing` 修复
+- 任务通知/AI 对话点击跳转到任务详情时，连续跳转相同任务 fullScreenCover 不弹出：DeepLinkState 统一走 `navigate(to:)` 方法，TaskListView 增加防御性清空 selectedTask 逻辑
+
+---
+
 ## [2026-05-23] 健康数据诊断入口
 
 ### 新增

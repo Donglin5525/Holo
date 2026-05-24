@@ -85,6 +85,9 @@ struct AddTaskSheet: View {
     @State private var pendingCheckItems: [PendingCheckItem] = []
     @State private var newCheckItemTitle = ""
     @State private var showAdvancedProperties = false
+    @State private var editingCheckItemId: UUID?
+    @State private var editingCheckItemTitle = ""
+    @FocusState private var isCheckItemEditing: Bool
 
     // 编辑模式专属
     @State private var taskStatus: TaskStatus = .todo
@@ -968,10 +971,29 @@ struct AddTaskSheet: View {
                             }
                             .buttonStyle(PlainButtonStyle())
 
-                            Text(item.title)
-                                .font(.holoBody)
-                                .foregroundColor(item.isChecked ? .holoTextSecondary : .holoTextPrimary)
-                                .strikethrough(item.isChecked, color: .holoTextSecondary)
+                            if editingCheckItemId == item.id {
+                                TextField("检查项内容", text: $editingCheckItemTitle)
+                                    .font(.holoBody)
+                                    .foregroundColor(.holoTextPrimary)
+                                    .focused($isCheckItemEditing)
+                                    .submitLabel(.done)
+                                    .onSubmit {
+                                        commitCheckItemEdit(item)
+                                    }
+                                    .onChange(of: isCheckItemEditing) { _, focused in
+                                        if !focused {
+                                            commitCheckItemEdit(item)
+                                        }
+                                    }
+                            } else {
+                                Text(item.title)
+                                    .font(.holoBody)
+                                    .foregroundColor(item.isChecked ? .holoTextSecondary : .holoTextPrimary)
+                                    .strikethrough(item.isChecked, color: .holoTextSecondary)
+                                    .onTapGesture {
+                                        startCheckItemEdit(item)
+                                    }
+                            }
 
                             Spacer()
 
@@ -1104,6 +1126,11 @@ struct AddTaskSheet: View {
 
     private func deleteCheckItem(_ item: CheckItem) {
         let itemID = item.id
+        if editingCheckItemId == itemID {
+            editingCheckItemId = nil
+            editingCheckItemTitle = ""
+            isCheckItemEditing = false
+        }
         checkItems.removeAll { $0.id == itemID }
 
         do {
@@ -1115,6 +1142,26 @@ struct AddTaskSheet: View {
                 checkItems = items.sorted { $0.order < $1.order }
             }
         }
+    }
+
+    private func startCheckItemEdit(_ item: CheckItem) {
+        editingCheckItemId = item.id
+        editingCheckItemTitle = item.title
+        isCheckItemEditing = true
+    }
+
+    private func commitCheckItemEdit(_ item: CheckItem) {
+        guard editingCheckItemId == item.id else { return }
+        let trimmed = editingCheckItemTitle.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty && trimmed != item.title {
+            do {
+                try repository.updateCheckItemTitle(item, newTitle: trimmed)
+            } catch {
+                Self.logger.error("更新检查项标题失败：\(error.localizedDescription)")
+            }
+        }
+        editingCheckItemId = nil
+        editingCheckItemTitle = ""
     }
 
     // MARK: - 附件

@@ -434,7 +434,7 @@ private extension MarkdownTextView {
 
     private static func baseParagraphStyle() -> NSParagraphStyle {
         let style = NSMutableParagraphStyle()
-        style.lineHeightMultiple = 1.5
+        style.lineSpacing = 8
         return style
     }
 
