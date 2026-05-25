@@ -152,8 +152,8 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         self.parentMessageId = dictionary["parentMessageId"] as? UUID
         self.messageType = ChatMessageType(rawValue: dictionary["messageType"] as? String ?? "normal") ?? .normal
         self.parsedBatch = nil
-        self.executionBatch = nil
-        self.rawLog = nil
+        self.executionBatch = Self.decodeExecutionBatch(dictionary["executionBatchJSON"] as? String)
+        self.rawLog = Self.decodeRawLog(dictionary["rawLogJSON"] as? String)
 
         // queryAnalysis 消息直接解码 analysisContext，确保首帧即可渲染卡片
         let intentStr = dictionary["intent"] as? String
@@ -163,9 +163,12 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
             self.analysisContext = nil
         }
 
-        // 元数据状态：queryAnalysis 已解码 analysisContext 视为 loaded
+        // 元数据状态：首屏轻量查询会带上卡片渲染和日志所需字段，避免等待滚动触发懒加载。
+        let hasFetchedCardMetadata = dictionary.keys.contains("executionBatchJSON") || dictionary.keys.contains("rawLogJSON")
         if role == "user" || isStreaming {
             self.metadataState = .unavailable
+        } else if hasFetchedCardMetadata {
+            self.metadataState = .loaded
         } else if intentStr == AIIntent.queryAnalysis.rawValue && self.analysisContext != nil {
             self.metadataState = .loaded
         } else {
@@ -175,7 +178,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         self.cachedExtractedDataDictionary = Self.decodeExtractedData(extractedDataJSON)
         self.cachedLinkedEntityIds = Self.buildLinkedEntityIds(
             extractedDataDictionary: cachedExtractedDataDictionary,
-            executionBatch: nil
+            executionBatch: executionBatch
         )
     }
 

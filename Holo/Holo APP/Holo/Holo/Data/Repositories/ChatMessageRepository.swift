@@ -115,7 +115,9 @@ final class ChatMessageRepository: ObservableObject {
                         "extractedDataJSON",
                         "isStreaming",
                         "parentMessageId",
-                        "analysisContextJSON"
+                        "analysisContextJSON",
+                        "executionBatchJSON",
+                        "rawLogJSON"
                     ]
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
                     request.fetchLimit = limit
@@ -184,7 +186,7 @@ final class ChatMessageRepository: ObservableObject {
                     request.propertiesToFetch = [
                         "id", "role", "content", "timestamp",
                         "intent", "extractedDataJSON", "isStreaming", "parentMessageId",
-                        "analysisContextJSON"
+                        "analysisContextJSON", "executionBatchJSON", "rawLogJSON"
                     ]
                     request.predicate = NSPredicate(format: "id IN %@", sessionIds)
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: true)]
@@ -267,7 +269,7 @@ final class ChatMessageRepository: ObservableObject {
                     request.propertiesToFetch = [
                         "id", "role", "content", "timestamp",
                         "intent", "extractedDataJSON", "isStreaming", "parentMessageId",
-                        "analysisContextJSON"
+                        "analysisContextJSON", "executionBatchJSON", "rawLogJSON"
                     ]
                     request.predicate = NSPredicate(format: "id IN %@", sessionIds)
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: true)]

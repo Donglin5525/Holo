@@ -10,6 +10,63 @@ import XCTest
 
 final class ChatCardDataTests: XCTestCase {
 
+    func testLightweightMessageKeepsExecutionRenderDataAndRawLogForFirstFrameCards() throws {
+        let executionBatch = AIExecutionBatch(
+            mode: .singleAction,
+            items: [
+                AIExecutionItem(
+                    id: "item-1",
+                    parseItemId: "parse-1",
+                    intent: .recordExpense,
+                    status: .success,
+                    summaryText: "已记录凉菜 42 元",
+                    renderData: [
+                        "amount": "42",
+                        "note": "凉菜",
+                        "primaryCategory": "餐饮",
+                        "subCategory": "凉菜",
+                        "type": "expense"
+                    ],
+                    linkedEntityType: "transaction",
+                    linkedEntityId: UUID().uuidString,
+                    errorText: nil
+                )
+            ],
+            finalText: "已记录"
+        )
+        let rawLog = LLMLog(calls: [
+            LLMCallLog(
+                type: "intent_recognition",
+                model: "test-model",
+                requestMessages: [.user("凉菜 42")],
+                responseText: "{}"
+            )
+        ])
+
+        let message = ChatMessageViewData(lightweightDictionary: [
+            "id": UUID(),
+            "role": "assistant",
+            "content": "已记录",
+            "timestamp": Date(),
+            "intent": AIIntent.recordExpense.rawValue,
+            "extractedDataJSON": #"{"amount":"42","note":"凉菜"}"#,
+            "isStreaming": false,
+            "executionBatchJSON": String(data: try JSONEncoder().encode(executionBatch), encoding: .utf8)!,
+            "rawLogJSON": String(data: try JSONEncoder().encode(rawLog), encoding: .utf8)!
+        ])
+
+        XCTAssertEqual(message?.metadataState, .loaded)
+        XCTAssertNotNil(message?.rawLog)
+
+        guard let card = ChatCardData.multiple(from: message?.executionBatch).first,
+              case .transaction(let transaction) = card else {
+            XCTFail("轻量消息首帧应能用 executionBatch 渲染交易卡片")
+            return
+        }
+
+        XCTAssertEqual(transaction.categoryPath, "餐饮 · 凉菜")
+    }
+
     func testInsightActionCandidatesDeduplicateDuplicateCardIds() {
         InsightFeatureFlags.actionCandidateEnabled = true
         defer { InsightFeatureFlags.resetAll() }

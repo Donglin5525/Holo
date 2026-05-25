@@ -4,6 +4,24 @@
 
 ---
 
+## [2026-05-25] HoloAI 交易卡片首屏分类与日志修复
+
+### 修复
+- 修复进入 HoloAI 时交易卡片首屏分类路径丢失，滑动后才恢复的问题
+- 修复首屏分类丢失状态下长按卡片无法查看 LLM 调用日志的问题
+
+### 原因
+- HoloAI 首屏使用轻量消息快照，但未加载交易卡片渲染依赖的 `executionBatchJSON` 和日志依赖的 `rawLogJSON`
+- 现在轻量快照会直接带上卡片 renderData 与日志字段，避免等待滚动触发懒加载
+
+### 验证
+- iOS 真机构建通过：`xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -destination "generic/platform=iOS" -derivedDataPath /private/tmp/HoloDerivedData build`
+
+### 不变
+- 后端无变更，无需发版
+
+---
+
 ## [2026-05-25] HoloAI 能力启动台与记忆层
 
 ### 新增
