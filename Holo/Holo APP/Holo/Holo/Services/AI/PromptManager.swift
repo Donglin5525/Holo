@@ -15,7 +15,7 @@ final class PromptManager {
     static let shared = PromptManager()
 
     private let logger = Logger(subsystem: "com.holo.app", category: "PromptManager")
-    private var cache: [PromptType: String] = [:]
+    private var rawTemplateCache: [PromptType: String] = [:]
 
     private init() {}
 
@@ -86,10 +86,11 @@ final class PromptManager {
         .thoughtVoiceSummary: 1         // v1: 初始版本
     ]
 
-    /// 加载指定类型的 Prompt，带缓存，优先读取 UserDefaults 自定义
+    /// 加载指定类型的 Prompt，带缓存，优先读取 UserDefaults 自定义。
+    /// 缓存只保存原始模板，日期/时间等变量必须在每次调用时实时渲染。
     func loadPrompt(_ type: PromptType) throws -> String {
-        if let cached = cache[type] {
-            return cached
+        if let cachedRaw = rawTemplateCache[type] {
+            return replaceVariables(in: cachedRaw)
         }
 
         let key = Self.userDefaultsKey(for: type)
@@ -113,9 +114,8 @@ final class PromptManager {
             throw PromptError.fileNotFound(type.rawValue)
         }
 
-        let template = replaceVariables(in: raw)
-        cache[type] = template
-        return template
+        rawTemplateCache[type] = raw
+        return replaceVariables(in: raw)
     }
 
     /// 加载原始模板文本（不含变量替换，编辑器显示用）
@@ -138,7 +138,7 @@ final class PromptManager {
             let versionKey = "com.holo.prompt.version.\(type.rawValue)"
             UserDefaults.standard.set(version, forKey: versionKey)
         }
-        cache.removeValue(forKey: type)
+        rawTemplateCache.removeValue(forKey: type)
         NotificationCenter.default.post(name: .promptDidChange, object: nil)
         logger.info("自定义 Prompt 已保存: \(type.rawValue)")
     }
@@ -152,7 +152,7 @@ final class PromptManager {
             let versionKey = "com.holo.prompt.version.\(type.rawValue)"
             UserDefaults.standard.set(version, forKey: versionKey)
         }
-        cache.removeValue(forKey: type)
+        rawTemplateCache.removeValue(forKey: type)
         NotificationCenter.default.post(name: .promptDidChange, object: nil)
         logger.info("Prompt 已重置为默认: \(type.rawValue)")
     }
@@ -184,7 +184,7 @@ final class PromptManager {
 
     /// 清除缓存
     func clearCache() {
-        cache.removeAll()
+        rawTemplateCache.removeAll()
     }
 
     /// 渲染任意 Prompt 模板中的运行时变量。

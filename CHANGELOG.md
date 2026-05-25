@@ -4,6 +4,23 @@
 
 ---
 
+## [2026-05-25] HoloAI 意图识别当前时间缓存修复
+
+### 修复
+- 修复 HoloAI 意图识别日志中 `当前时间` 与系统状态栏时间不一致的问题
+- 后端托管 Prompt 和本地 Prompt 缓存现在只保存原始模板，每次请求实时渲染 `{{todayDate}}`、`{{currentTime}}` 等运行时变量
+
+### 原因
+- Prompt 缓存此前保存的是已渲染文本，首次加载时的 `{{currentTime}}` 会被冻结，后续意图识别继续复用旧时间
+
+### 验证
+- iOS 真机构建通过：`xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -destination 'generic/platform=iOS' -derivedDataPath /private/tmp/holo-timefix-derived CLANG_MODULE_CACHE_PATH=/private/tmp/holo-timefix-module-cache SWIFT_MODULE_CACHE_PATH=/private/tmp/holo-timefix-module-cache build`
+
+### 不变
+- 后端无变更，无需发版
+
+---
+
 ## [2026-05-25] HoloAI 交易卡片首屏分类与日志修复
 
 ### 修复
