@@ -126,6 +126,43 @@ struct HabitPerformanceItem: Codable, Equatable, Sendable {
     let habitName: String
     let completionRate: Double
     let streak: Int
+    let polarity: HabitPolarity
+    let successRule: HabitSuccessRule
+    let totalValue: Double?
+    let targetValue: Double?
+    let unit: String?
+    let controlledDays: Int?
+    let overLimitDays: Int?
+    let completedDays: Int?
+    let totalDays: Int?
+
+    init(
+        habitName: String,
+        completionRate: Double,
+        streak: Int,
+        polarity: HabitPolarity = .positive,
+        successRule: HabitSuccessRule = .completeWhenDone,
+        totalValue: Double? = nil,
+        targetValue: Double? = nil,
+        unit: String? = nil,
+        controlledDays: Int? = nil,
+        overLimitDays: Int? = nil,
+        completedDays: Int? = nil,
+        totalDays: Int? = nil
+    ) {
+        self.habitName = habitName
+        self.completionRate = completionRate
+        self.streak = streak
+        self.polarity = polarity
+        self.successRule = successRule
+        self.totalValue = totalValue
+        self.targetValue = targetValue
+        self.unit = unit
+        self.controlledDays = controlledDays
+        self.overLimitDays = overLimitDays
+        self.completedDays = completedDays
+        self.totalDays = totalDays
+    }
 }
 
 struct HabitStreakItem: Codable, Equatable, Sendable {
@@ -196,5 +233,64 @@ struct CrossModuleAnalysisContext: Codable, Equatable, Sendable {
 
     var isDataFree: Bool {
         highlights.isEmpty && warnings.isEmpty
+    }
+}
+
+// MARK: - Health
+
+struct HealthMetricAnalysis: Codable, Equatable, Sendable {
+    let totalValue: Double
+    let dailyAverage: Double
+    let goalMetDays: Int
+    let totalDays: Int
+    let dailyTrend: [DailyRatePoint]
+    let bestDay: DailyRatePoint?
+
+    var isDataFree: Bool {
+        totalDays == 0 || (totalValue == 0 && goalMetDays == 0)
+    }
+}
+
+struct HealthAnalysisContext: Codable, Equatable, Sendable {
+    let steps: HealthMetricAnalysis?
+    let sleep: HealthMetricAnalysis?
+    let stand: HealthMetricAnalysis?
+    let activeMinutes: HealthMetricAnalysis?
+    let overallBodyScore: Double?
+    let previousPeriodScore: Double?
+    let anomalyNotes: [String]
+
+    var isDataFree: Bool {
+        let metrics = [steps, sleep, stand, activeMinutes].compactMap { $0 }
+        return metrics.isEmpty || metrics.allSatisfy(\.isDataFree)
+    }
+}
+
+// MARK: - Goal
+
+struct GoalProgressItem: Codable, Equatable, Sendable {
+    let title: String
+    let domain: String
+    let status: String
+    let deadline: String?
+    let daysRemaining: Int?
+    let linkedTaskTotal: Int
+    let linkedTaskCompleted: Int
+    let linkedHabitTotal: Int
+    let linkedHabitAverageRate: Double?
+    let overallProgress: Double?
+    let isOverdue: Bool
+}
+
+struct GoalAnalysisContext: Codable, Equatable, Sendable {
+    let totalActiveGoals: Int
+    let goals: [GoalProgressItem]
+    let completedGoalsInPeriod: Int
+    let atRiskGoals: [String]
+    let domainDistribution: [String: Int]
+    let previousPeriodCompleted: Int?
+
+    var isDataFree: Bool {
+        totalActiveGoals == 0 && completedGoalsInPeriod == 0
     }
 }

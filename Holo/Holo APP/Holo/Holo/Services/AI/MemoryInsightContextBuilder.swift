@@ -12,6 +12,7 @@ import CoreData
 import os.log
 
 /// 构建记忆洞察所需的周期级数据上下文
+@MainActor
 struct MemoryInsightContextBuilder {
 
     // MARK: - Dependencies
@@ -23,6 +24,10 @@ struct MemoryInsightContextBuilder {
     let budgetRepo: BudgetRepository
     let insightRepo: MemoryInsightRepository
 
+    /// Core Data 上下文，用于直接访问（非 repo 管理的查询）
+    /// 传入后台 context 可让重型读取操作不阻塞主线程
+    let dataContext: NSManagedObjectContext
+
     // MARK: - Init
 
     init(
@@ -31,7 +36,8 @@ struct MemoryInsightContextBuilder {
         todoRepo: TodoRepository = .shared,
         thoughtRepo: ThoughtRepository = ThoughtRepository(),
         budgetRepo: BudgetRepository = .shared,
-        insightRepo: MemoryInsightRepository = MemoryInsightRepository()
+        insightRepo: MemoryInsightRepository = MemoryInsightRepository(),
+        dataContext: NSManagedObjectContext = CoreDataStack.shared.viewContext
     ) {
         self.financeRepo = financeRepo
         self.habitRepo = habitRepo
@@ -39,6 +45,7 @@ struct MemoryInsightContextBuilder {
         self.thoughtRepo = thoughtRepo
         self.budgetRepo = budgetRepo
         self.insightRepo = insightRepo
+        self.dataContext = dataContext
     }
 
     private static let logger = Logger(subsystem: "com.holo.app", category: "MemoryInsightContextBuilder")
@@ -69,7 +76,7 @@ struct MemoryInsightContextBuilder {
         let (habits, habitAnomalies) = buildHabitContext(start: start, end: end)
         let (tasks, taskAnomalies) = buildTaskContext(start: start, end: end)
         let thoughts = buildThoughtContext(start: start, end: end)
-        let milestones = Self.buildMilestoneContext(start: start, end: end)
+        let milestones = buildMilestoneContext(start: start, end: end)
 
         let correlations = CrossModuleCorrelator.detect(
             finance: finance,
@@ -91,6 +98,7 @@ struct MemoryInsightContextBuilder {
         async let dailySnapshotsTask = buildDailySnapshots(start: start, end: end)
         async let lifeEventsTask = buildLifeEvents(start: start, end: end)
         let personalBaseline = await buildPersonalBaseline(observationStart: start)
+        let personalProfileContext = await buildPersonalProfileContext()
         let (dailySnapshots, lifeEvents) = await (dailySnapshotsTask, lifeEventsTask)
 
         var context = MemoryInsightContext(
@@ -110,13 +118,21 @@ struct MemoryInsightContextBuilder {
             previousPeriodReview: previousReview,
             dailySnapshots: dailySnapshots,
             lifeEvents: lifeEvents,
-            personalBaseline: personalBaseline
+            personalBaseline: personalBaseline,
+            personalProfileContext: personalProfileContext
         )
 
         context = Self.enforceTokenBudget(context, periodType: periodType)
 
         let snapshotHash = Self.computeHash(context)
         return (context, snapshotHash)
+    }
+
+    private func buildPersonalProfileContext() async -> String? {
+        await MainActor.run {
+            let profile = HoloProfileService.shared.loadProfile()
+            return profile.isEmpty ? nil : profile
+        }
     }
 
     // MARK: - Period Range
@@ -367,12 +383,13 @@ struct MemoryInsightContextBuilder {
         var transportTransactions: [Transaction] = []
 
         for tx in expenses {
-            let parentName = parentCategoryName(for: tx.category, topLevelNameMap: topLevelNameMap)
-            if isFixedNecessaryExpense(categoryName: tx.category.name, parentName: parentName) {
-                fixedMap[tx.category.name, default: 0] += tx.amount.decimalValue
+            guard let category = tx.category else { continue }
+            let parentName = parentCategoryName(for: category, topLevelNameMap: topLevelNameMap)
+            if isFixedNecessaryExpense(categoryName: category.name, parentName: parentName) {
+                fixedMap[category.name, default: 0] += tx.amount.decimalValue
                 fixedTotal += tx.amount.decimalValue
             }
-            if isTransportExpense(categoryName: tx.category.name, parentName: parentName) {
+            if isTransportExpense(categoryName: category.name, parentName: parentName) {
                 transportTransactions.append(tx)
             }
         }
@@ -408,9 +425,10 @@ struct MemoryInsightContextBuilder {
         var totalAmount: Decimal = 0
 
         for tx in transactions {
+            guard let category = tx.category else { continue }
             let amount = tx.amount.decimalValue
             totalAmount += amount
-            switch tx.category.name {
+            switch category.name {
             case "打车":
                 taxiAmount += amount
                 taxiCount += 1
@@ -446,7 +464,10 @@ struct MemoryInsightContextBuilder {
     private static func buildIncomeCadenceHint(incomes: [Transaction], dayCount: Int) -> String? {
         guard dayCount <= 14 else { return nil }
         let stableIncomeNames: Set<String> = ["工资", "奖金", "兼职", "报销", "房租收入", "公积金"]
-        let hasStableIncome = incomes.contains { stableIncomeNames.contains($0.category.name) }
+        let hasStableIncome = incomes.contains { tx in
+            guard let category = tx.category else { return false }
+            return stableIncomeNames.contains(category.name)
+        }
         if hasStableIncome {
             return "当前是短周期分析；工资/奖金/报销等收入可能低频发生，周收入不能直接代表收支失衡，应结合月度或滚动30天判断。"
         }
@@ -481,11 +502,14 @@ struct MemoryInsightContextBuilder {
         let habits = habitRepo.activeHabits
         var completedRecordCount = 0
         var streaks: [HabitStreakSummary] = []
+        var performanceSummaries: [HabitPerformanceSummary] = []
+        var currentPerformanceByHabitId: [UUID: HabitPerformanceSnapshot] = [:]
 
         for habit in habits {
-            let records = habitRepo.getRecords(for: habit, in: range)
-            let completed = records.filter { $0.isCompleted }.count
-            completedRecordCount += completed
+            let performance = habitRepo.evaluatePerformance(for: habit, in: range)
+            currentPerformanceByHabitId[habit.id] = performance
+            completedRecordCount += performance.completedDays
+            performanceSummaries.append(Self.makeHabitPerformanceSummary(from: performance))
 
             let streakInfo = habitRepo.calculateStreakInfo(for: habit)
             if streakInfo.value >= 3 {
@@ -502,9 +526,11 @@ struct MemoryInsightContextBuilder {
         let prevEnd = start.addingDays(-1)
         var previousPeriodCompletedRecordCount = 0
         let prevRange = prevStart...prevEnd
+        var previousPerformanceByHabitId: [UUID: HabitPerformanceSnapshot] = [:]
         for habit in habits {
-            let records = habitRepo.getRecords(for: habit, in: prevRange)
-            previousPeriodCompletedRecordCount += records.filter { $0.isCompleted }.count
+            let previousPerformance = habitRepo.evaluatePerformance(for: habit, in: prevRange)
+            previousPerformanceByHabitId[habit.id] = previousPerformance
+            previousPeriodCompletedRecordCount += previousPerformance.completedDays
         }
 
         // 总览统计 + 排名
@@ -550,6 +576,51 @@ struct MemoryInsightContextBuilder {
             }
         }
 
+        for habit in habits {
+            guard let currentPerformance = currentPerformanceByHabitId[habit.id] else { continue }
+            let signal = HabitFocusSignal.classify(
+                habitName: habit.name,
+                isBadHabit: habit.isBadHabit,
+                goalTitle: habit.goal?.title,
+                profileContext: nil
+            )
+            guard signal.polarity == .negative else { continue }
+
+            let focus = HabitFocusSummary(
+                habitName: habit.name,
+                signal: signal,
+                current: currentPerformance,
+                previous: previousPerformanceByHabitId[habit.id],
+                currentStreak: habitRepo.calculateStreakInfo(for: habit).value,
+                goalTitle: habit.goal?.title
+            )
+            guard focus.trend == .worse else { continue }
+
+            let totalDelta = focus.totalValueDelta
+            let overLimitDelta = focus.overLimitDaysDelta
+            let severity: AnomalySeverity = {
+                if let overLimitDelta, overLimitDelta >= 3 { return .critical }
+                if let totalDelta, totalDelta >= 10 { return .critical }
+                return .warning
+            }()
+
+            habitAnomalies.append(AnomalyObservation(
+                type: .negativeHabitTrend,
+                severity: severity,
+                scopeKey: "habit-negative:\(habit.id.uuidString)",
+                title: "\(habit.name)控制变弱",
+                summary: focus.aiContextLine,
+                evidence: [
+                    "习惯：\(habit.name)",
+                    "趋势：负向习惯发生更多代表变差",
+                    "当前：\(focus.aiContextLine)"
+                ],
+                metricValue: totalDelta ?? Double(overLimitDelta ?? 0),
+                baselineValue: previousPerformanceByHabitId[habit.id]?.totalValue,
+                ratio: focus.controlRateDelta
+            ))
+        }
+
         let context = MemoryInsightHabitContext(
             activeHabitCount: habits.count,
             completedRecordCount: completedRecordCount,
@@ -558,6 +629,7 @@ struct MemoryInsightContextBuilder {
             averageCompletionRate: overviewStats.averageCompletionRate,
             topPerformingHabits: topPerforming,
             strugglingHabits: struggling,
+            habitPerformanceSummaries: performanceSummaries,
             habitCategoryCompletionSummaries: []
         )
         return (context, habitAnomalies)
@@ -565,8 +637,24 @@ struct MemoryInsightContextBuilder {
 
     // MARK: - Tasks
 
+    private static func makeHabitPerformanceSummary(from snapshot: HabitPerformanceSnapshot) -> HabitPerformanceSummary {
+        HabitPerformanceSummary(
+            habitName: snapshot.habitName,
+            polarity: snapshot.polarity,
+            successRule: snapshot.successRule,
+            completionRate: snapshot.completionRate,
+            totalValue: snapshot.totalValue,
+            targetValue: snapshot.targetValue,
+            unit: snapshot.unit,
+            controlledDays: snapshot.controlledDays,
+            overLimitDays: snapshot.overLimitDays,
+            completedDays: snapshot.completedDays,
+            totalDays: snapshot.totalDays
+        )
+    }
+
     private func buildTaskContext(start: Date, end: Date) -> (context: MemoryInsightTaskContext, anomalies: [AnomalyObservation]) {
-        let context = CoreDataStack.shared.viewContext
+        let context = dataContext
         let endExclusive = end.addingDays(1)
 
         var completedCount = 0
@@ -685,7 +773,7 @@ struct MemoryInsightContextBuilder {
             start: start,
             end: endExclusive
         )
-        let dailyTaskMap = Self.fetchDailyTaskMap(
+        let dailyTaskMap = fetchDailyTaskMap(
             todoRepo: todoRepo,
             start: start,
             end: end
@@ -772,7 +860,7 @@ struct MemoryInsightContextBuilder {
         )
 
         // 任务事件
-        Self.collectTaskEvents(
+        collectTaskEvents(
             todoRepo: todoRepo,
             start: start,
             end: end,
@@ -910,9 +998,10 @@ struct MemoryInsightContextBuilder {
                 periodEnd: insight.periodEnd ?? Date(),
                 summary: payload.summary,
                 keyFindings: payload.cards.prefix(3).map(\.title),
-                moduleSnapshots: payload.cards.map { card in
-                    ModuleSnapshot(
-                        module: mapCardTypeToModule(card.type),
+                moduleSnapshots: payload.cards.compactMap { card in
+                    guard let module = mapCardTypeToModule(card.type) else { return nil }
+                    return ModuleSnapshot(
+                        module: module,
                         headline: "\(card.title): \(card.body.prefix(30))"
                     )
                 }
@@ -924,7 +1013,8 @@ struct MemoryInsightContextBuilder {
         let (habits, _) = buildHabitContext(start: yearStart, end: yearEnd)
         let (tasks, _) = buildTaskContext(start: yearStart, end: yearEnd)
         let thoughts = buildThoughtContext(start: yearStart, end: yearEnd)
-        let milestones = Self.buildMilestoneContext(start: yearStart, end: yearEnd)
+        let milestones = buildMilestoneContext(start: yearStart, end: yearEnd)
+        let personalProfileContext = await buildPersonalProfileContext()
 
         let correlations = CrossModuleCorrelator.detect(
             finance: finance,
@@ -947,7 +1037,8 @@ struct MemoryInsightContextBuilder {
             crossModuleCorrelations: correlations,
             monthlyInsightDigests: digests,
             anomalies: [],
-            previousPeriodReview: nil
+            previousPeriodReview: nil,
+            personalProfileContext: personalProfileContext
         )
 
         return Self.enforceAnnualTokenBudget(rawContext)
@@ -970,6 +1061,7 @@ struct MemoryInsightContextBuilder {
                 activeHabitCount: 0, completedRecordCount: 0,
                 previousPeriodCompletedRecordCount: 0, streaks: [],
                 averageCompletionRate: nil, topPerformingHabits: [], strugglingHabits: [],
+                habitPerformanceSummaries: [],
                 habitCategoryCompletionSummaries: []
             ),
             tasks: MemoryInsightTaskContext(
@@ -990,26 +1082,25 @@ struct MemoryInsightContextBuilder {
             crossModuleCorrelations: [],
             monthlyInsightDigests: [],
             anomalies: [],
-            previousPeriodReview: nil
+            previousPeriodReview: nil,
+            personalProfileContext: nil
         )
     }
 
-    private func mapCardTypeToModule(_ cardType: MemoryInsightCardType) -> InsightModule {
+    private func mapCardTypeToModule(_ cardType: MemoryInsightCardType) -> InsightModule? {
         switch cardType {
         case .finance: return .finance
         case .habit: return .habit
         case .task: return .task
         case .thought: return .thought
-        case .anomaly: return .finance
-        default: return .finance
+        case .overview, .crossDomain, .milestone, .anomaly: return nil
         }
     }
 
     // MARK: - Milestones
 
-    private static func buildMilestoneContext(start: Date, end: Date) -> [MemoryInsightMilestoneContext] {
-        let context = CoreDataStack.shared.viewContext
-        let allMilestones = MilestoneDetector.detect(context: context)
+    private func buildMilestoneContext(start: Date, end: Date) -> [MemoryInsightMilestoneContext] {
+        let allMilestones = MilestoneDetector.detect(context: dataContext)
 
         return allMilestones
             .filter { $0.date >= start && $0.date <= end.addingDays(1) }
@@ -1139,7 +1230,8 @@ struct MemoryInsightContextBuilder {
             previousPeriodReview: context.previousPeriodReview,
             dailySnapshots: context.dailySnapshots,
             lifeEvents: lifeEvents ?? context.lifeEvents,
-            personalBaseline: context.personalBaseline
+            personalBaseline: context.personalBaseline,
+            personalProfileContext: context.personalProfileContext
         )
     }
 
@@ -1167,7 +1259,8 @@ struct MemoryInsightContextBuilder {
                     previousPeriodReview: current.previousPeriodReview,
                     dailySnapshots: nil,
                     lifeEvents: nil,
-                    personalBaseline: nil
+                    personalBaseline: nil,
+                    personalProfileContext: current.personalProfileContext
                 )
             }
         }
@@ -1193,7 +1286,28 @@ struct MemoryInsightContextBuilder {
     // MARK: - Snapshot Hash
 
     static func computeHash(_ context: MemoryInsightContext) -> String {
-        guard let encoded = try? JSONEncoder().encode(context) else { return "" }
+        // 排除 generatedAt 运行时字段，保证相同业务数据生成稳定 hash
+        let stableContext = MemoryInsightContext(
+            periodType: context.periodType,
+            periodStart: context.periodStart,
+            periodEnd: context.periodEnd,
+            generatedAt: Date(timeIntervalSince1970: 0),
+            localeIdentifier: context.localeIdentifier,
+            finance: context.finance,
+            habits: context.habits,
+            tasks: context.tasks,
+            thoughts: context.thoughts,
+            milestones: context.milestones,
+            crossModuleCorrelations: context.crossModuleCorrelations,
+            monthlyInsightDigests: context.monthlyInsightDigests,
+            anomalies: context.anomalies,
+            previousPeriodReview: context.previousPeriodReview,
+            dailySnapshots: context.dailySnapshots,
+            lifeEvents: context.lifeEvents,
+            personalBaseline: context.personalBaseline,
+            personalProfileContext: context.personalProfileContext
+        )
+        guard let encoded = try? JSONEncoder().encode(stableContext) else { return "" }
         let hash = SHA256.hash(data: encoded)
         return hash.compactMap { String(format: "%02x", $0) }.joined()
     }
@@ -1380,13 +1494,13 @@ struct MemoryInsightContextBuilder {
         }
     }
 
-    private static func fetchDailyTaskMap(
+    private func fetchDailyTaskMap(
         todoRepo: TodoRepository,
         start: Date,
         end: Date
     ) -> [String: (created: Int, completed: Int)] {
-        let context = CoreDataStack.shared.viewContext
-        let dateFormatter = makeDateFormatter()
+        let context = dataContext
+        let dateFormatter = Self.makeDateFormatter()
         var map: [String: (created: Int, completed: Int)] = [:]
 
         do {
@@ -1417,7 +1531,7 @@ struct MemoryInsightContextBuilder {
                 map[key, default: (0, 0)].created += 1
             }
         } catch {
-            logger.error("获取每日任务数据失败：\(error.localizedDescription)")
+            Self.logger.error("获取每日任务数据失败：\(error.localizedDescription)")
         }
         return map
     }
@@ -1507,7 +1621,7 @@ struct MemoryInsightContextBuilder {
                     date: dateFormatter.string(from: t.date),
                     module: "finance",
                     type: "expense",
-                    title: String(t.note?.prefix(30) ?? t.category.name.prefix(20)),
+                    title: String(t.note?.prefix(30) ?? (t.category?.name ?? "未分类").prefix(20)),
                     valueText: currencyFormatter.string(from: t.amount),
                     tags: t.tags ?? [],
                     sourceId: t.id.uuidString
@@ -1523,7 +1637,7 @@ struct MemoryInsightContextBuilder {
                     date: dateFormatter.string(from: t.date),
                     module: "finance",
                     type: "income",
-                    title: String(t.note?.prefix(30) ?? t.category.name.prefix(20)),
+                    title: String(t.note?.prefix(30) ?? (t.category?.name ?? "未分类").prefix(20)),
                     valueText: currencyFormatter.string(from: t.amount),
                     tags: t.tags ?? [],
                     sourceId: t.id.uuidString
@@ -1534,14 +1648,14 @@ struct MemoryInsightContextBuilder {
         }
     }
 
-    private static func collectTaskEvents(
+    private func collectTaskEvents(
         todoRepo: TodoRepository,
         start: Date,
         end: Date,
         dateFormatter: DateFormatter,
         into events: inout [LifeEvent]
     ) {
-        let context = CoreDataStack.shared.viewContext
+        let context = dataContext
         let endExclusive = end.addingDays(1)
 
         do {
@@ -1584,7 +1698,7 @@ struct MemoryInsightContextBuilder {
                 ))
             }
         } catch {
-            logger.error("收集任务事件失败：\(error.localizedDescription)")
+            Self.logger.error("收集任务事件失败：\(error.localizedDescription)")
         }
     }
 
@@ -1720,7 +1834,8 @@ struct MemoryInsightContextBuilder {
     ) -> [CategoryBaseline] {
         var categoryMap: [String: Decimal] = [:]
         for t in expenses {
-            categoryMap[t.category.name, default: 0] += t.amount.decimalValue
+            guard let category = t.category else { continue }
+            categoryMap[category.name, default: 0] += t.amount.decimalValue
         }
 
         let weeklyDivisor = Decimal(validWeekCount)

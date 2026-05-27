@@ -18,6 +18,9 @@ final class CategorySFSymbolMapperTests: XCTestCase {
         XCTAssertEqual(CategorySFSymbolMapper.icon(for: "购物", subCategory: "数码"), "desktopcomputer")
         XCTAssertEqual(CategorySFSymbolMapper.icon(for: "居住", subCategory: "房租"), "key.fill")
         XCTAssertEqual(CategorySFSymbolMapper.icon(for: "医疗", subCategory: "就医"), "stethoscope")
+        XCTAssertEqual(CategorySFSymbolMapper.icon(for: "交通", subCategory: "充电"), "bolt.car.fill")
+        XCTAssertEqual(CategorySFSymbolMapper.icon(for: "学习", subCategory: "AI工具"), "sparkles")
+        XCTAssertEqual(CategorySFSymbolMapper.icon(for: "其他", subCategory: "手续费"), "dollarsign.arrow.circlepath")
     }
 
     // MARK: - 一级分类回退
@@ -41,6 +44,8 @@ final class CategorySFSymbolMapperTests: XCTestCase {
         XCTAssertEqual(CategorySFSymbolMapper.icon(for: "投资理财", subCategory: nil), "chart.line.uptrend.xyaxis")
         XCTAssertEqual(CategorySFSymbolMapper.icon(for: "工资收入", subCategory: "工资"), "banknote.fill")
         XCTAssertEqual(CategorySFSymbolMapper.icon(for: "投资理财", subCategory: "股票"), "chart.line.uptrend.xyaxis")
+        XCTAssertEqual(CategorySFSymbolMapper.icon(for: "工资收入", subCategory: "咨询费"), "person.crop.circle.badge.checkmark")
+        XCTAssertEqual(CategorySFSymbolMapper.icon(for: "其他收入", subCategory: "个税退税"), "arrow.uturn.backward.circle.fill")
     }
 
     // MARK: - 未知分类回退
@@ -64,7 +69,10 @@ final class CategorySFSymbolMapperTests: XCTestCase {
             ("餐饮", "午餐"), ("餐饮", "咖啡"), ("交通", "地铁"), ("交通", "打车"),
             ("购物", "服饰"), ("娱乐", "电影"), ("居住", "房租"), ("医疗", "就医"),
             ("学习", "课程"), ("人情", "红包礼金"), ("其他", "社交"),
+            ("交通", "充电"), ("交通", "车辆保养"), ("学习", "AI工具"), ("其他", "手续费"),
+            ("居住", "家政保洁"), ("娱乐", "住宿"),
             ("工资收入", "工资"), ("投资理财", "股票"),
+            ("工资收入", "咨询费"), ("其他收入", "个税退税"),
             // 一级分类
             ("餐饮", nil), ("交通", nil), ("购物", nil), ("娱乐", nil),
             ("居住", nil), ("医疗", nil), ("学习", nil), ("人情", nil),

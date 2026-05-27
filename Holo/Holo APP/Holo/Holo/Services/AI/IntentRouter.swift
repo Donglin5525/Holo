@@ -111,14 +111,18 @@ final class IntentRouter {
         let primaryCategory = data["primaryCategory"]
         let subCategory = data["subCategory"]
         let categoryCandidate = data["categoryCandidate"]
+        let normalizedCategoryCandidate = data["normalizedCategoryCandidate"]
+        let semanticCategoryHint = data["semanticCategoryHint"]
 
-        logger.info("AI 返回科目：primaryCategory=\(primaryCategory ?? "nil"), subCategory=\(subCategory ?? "nil"), categoryCandidate=\(categoryCandidate ?? "nil")")
+        logger.info("AI 返回科目：primaryCategory=\(primaryCategory ?? "nil"), subCategory=\(subCategory ?? "nil"), categoryCandidate=\(categoryCandidate ?? "nil"), normalizedCategoryCandidate=\(normalizedCategoryCandidate ?? "nil"), semanticCategoryHint=\(semanticCategoryHint ?? "nil")")
 
         let categoryRepo = FinanceRepository.shared
         var category = try await matchCategory(
             primaryCategory: primaryCategory,
             subCategory: subCategory,
             categoryCandidate: categoryCandidate,
+            normalizedCategoryCandidate: normalizedCategoryCandidate,
+            semanticCategoryHint: semanticCategoryHint,
             note: note ?? "",
             type: .expense
         )
@@ -207,12 +211,16 @@ final class IntentRouter {
         let primaryCategory = data["primaryCategory"]
         let subCategory = data["subCategory"]
         let categoryCandidate = data["categoryCandidate"]
+        let normalizedCategoryCandidate = data["normalizedCategoryCandidate"]
+        let semanticCategoryHint = data["semanticCategoryHint"]
         let categoryRepo = FinanceRepository.shared
 
         var category = try await matchCategory(
             primaryCategory: primaryCategory,
             subCategory: subCategory,
             categoryCandidate: categoryCandidate,
+            normalizedCategoryCandidate: normalizedCategoryCandidate,
+            semanticCategoryHint: semanticCategoryHint,
             note: note ?? "",
             type: .income
         )
@@ -281,6 +289,7 @@ final class IntentRouter {
         let dueDate = parseDate(from: data["dueDate"])
         let priority = parsePriority(data["priority"])
         let hasTime = data["dueDate"].map { NLDateParser.containsTimeComponent($0) } ?? false
+        let checkItemTitles = SubtaskParser.parse(data["subtasks"])
 
         // 有具体时间时，自动添加提前 15 分钟提醒
         let reminders: Set<TaskReminder>? = (hasTime && dueDate != nil)
@@ -292,13 +301,14 @@ final class IntentRouter {
             priority: priority ?? .medium,
             dueDate: dueDate,
             isAllDay: !hasTime,
-            reminders: reminders
+            reminders: reminders,
+            checkItemTitles: checkItemTitles.isEmpty ? nil : checkItemTitles
         )
 
         logger.info("任务已创建：\(title)")
 
         return RouteResult(
-            text: AIResponseTextBuilder.taskCreated(title: title, dueDate: dueDate, hasTime: hasTime),
+            text: AIResponseTextBuilder.taskCreated(title: title, dueDate: dueDate, hasTime: hasTime, subtaskCount: checkItemTitles.count),
             taskId: task.id,
             linkedEntity: LinkedEntity(type: .task, id: task.id)
         )
@@ -362,6 +372,9 @@ final class IntentRouter {
 
         if let name = habitName {
             if let habit = habits.first(where: { $0.name.contains(name) || name.contains($0.name) }) {
+                if habit.isNumericType {
+                    return try handleNumericHabitRecord(habit, result: result)
+                }
                 let completed = try habitRepo.toggleCheckIn(for: habit)
                 return RouteResult(
                     text: completed ? "\(habit.name) 打卡成功" : "\(habit.name) 已取消打卡",
@@ -374,6 +387,9 @@ final class IntentRouter {
         // 如果只有一个活跃习惯，直接打卡
         if habits.count == 1 {
             let habit = habits[0]
+            if habit.isNumericType {
+                return try handleNumericHabitRecord(habit, result: result)
+            }
             let completed = try habitRepo.toggleCheckIn(for: habit)
             return RouteResult(
                 text: completed ? "\(habit.name) 打卡成功" : "\(habit.name) 已取消打卡",
@@ -385,6 +401,40 @@ final class IntentRouter {
         // 多个习惯时列出选项
         let names = habits.map { $0.name }.joined(separator: "、")
         return RouteResult(text: "要给哪个习惯打卡？当前活跃习惯：\(names)")
+    }
+
+    private func handleNumericHabitRecord(_ habit: Habit, result: ParsedResult) throws -> RouteResult {
+        guard let value = parseHabitValue(from: result.extractedData) else {
+            let unitText = habit.unitText.isEmpty ? "" : "（\(habit.unitText)）"
+            return RouteResult(text: "请告诉我要记录的数值\(unitText)，比如「\(habit.name) 5\(habit.unitText)」")
+        }
+
+        let record = try HabitRepository.shared.addNumericRecord(for: habit, value: value)
+        let formattedValue = habit.formatValue(value)
+        let unit = habit.unitText
+        let verb = habit.isBadHabit ? "已记录" : "已更新"
+        return RouteResult(
+            text: "\(verb)「\(habit.name)」\(formattedValue)\(unit)",
+            habitId: habit.id,
+            linkedEntity: LinkedEntity(type: .habit, id: record.habitId)
+        )
+    }
+
+    private func parseHabitValue(from data: [String: String]?) -> Double? {
+        guard let data else { return nil }
+        let candidates = [
+            data["habitValue"],
+            data["value"],
+            data["amount"]
+        ]
+        for candidate in candidates {
+            guard let raw = candidate?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else { continue }
+            let numeric = raw.filter { $0.isNumber || $0 == "." || $0 == "-" }
+            if let value = Double(numeric) {
+                return value
+            }
+        }
+        return nil
     }
 
     // MARK: - Complete Task
@@ -630,47 +680,14 @@ final class IntentRouter {
         }
     }
 
-    // MARK: - Meal Category Time Correction
-
-    private func normalizedMealCandidate(
-        categoryCandidate: String?,
-        note: String?
-    ) -> String? {
-        let text = [categoryCandidate, note].compactMap { $0 }.joined(separator: " ")
-
-        if text.contains("早餐") || text.contains("早饭") || text.contains("早点") {
-            return "早餐"
-        }
-        if text.contains("午餐") || text.contains("午饭") || text.contains("中饭") {
-            return "午餐"
-        }
-        if text.contains("晚餐") || text.contains("晚饭") {
-            return "晚餐"
-        }
-        if text.contains("夜宵") || text.contains("宵夜") {
-            return "夜宵"
-        }
-
-        let genericMealKeywords = ["吃饭", "饭", "餐", "外卖"]
-        guard genericMealKeywords.contains(where: { text.contains($0) }) else {
-            return nil
-        }
-
-        let hour = Calendar.current.component(.hour, from: Date())
-        switch hour {
-        case 5..<10: return "早餐"
-        case 10..<16: return "午餐"
-        case 16..<21: return "晚餐"
-        default: return "夜宵"
-        }
-    }
-
     // MARK: - Category Matching
 
     private func matchCategory(
         primaryCategory: String?,
         subCategory: String?,
         categoryCandidate: String?,
+        normalizedCategoryCandidate: String?,
+        semanticCategoryHint: String?,
         note: String,
         type: TransactionType
     ) async throws -> Category? {
@@ -691,13 +708,15 @@ final class IntentRouter {
             }
         }
 
-        let normalizedCandidate = normalizedMealCandidate(
+        let candidates = CategoryCandidateResolver.orderedCandidates(
             categoryCandidate: categoryCandidate,
-            note: note
-        ) ?? categoryCandidate
+            normalizedCategoryCandidate: normalizedCategoryCandidate,
+            semanticCategoryHint: semanticCategoryHint,
+            note: note,
+            hour: Calendar.current.component(.hour, from: Date())
+        )
 
-        if let candidate = normalizedCandidate?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !candidate.isEmpty {
+        for candidate in candidates {
             // 2. 用户学习映射优先，尊重手动纠正过的分类。
             if let learned = CategoryLearnedMapping.lookup(
                 candidate: candidate,
@@ -752,7 +771,7 @@ final class IntentRouter {
 
         // 6. 原始 candidate 再做一次直接匹配，避免餐饮归一掩盖同名自定义分类。
         if let rawCandidate = categoryCandidate?.trimmingCharacters(in: .whitespacesAndNewlines),
-           rawCandidate != (normalizedCandidate ?? ""),
+           !candidates.contains(rawCandidate),
            let rawMatched = CategoryMatcherService.shared.matchExistingCategoryByCandidate(
                 rawCandidate,
                 primaryCategory: primaryCategory ?? "",
@@ -781,7 +800,7 @@ final class IntentRouter {
 
         guard service.isAIConfigured else {
             return RouteResult(
-                text: "AI 服务尚未配置，请先在设置中配置 AI Provider 后再生成回放。"
+                text: "AI 服务暂时不可用，请稍后重试。"
             )
         }
 

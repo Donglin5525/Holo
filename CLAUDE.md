@@ -1,7 +1,7 @@
 # HOLO - 个人数据资产 + AI 规划 iOS 应用
 
 **技术栈**：SwiftUI, Swift 5+, MVVM, Core Data
-**核心模块**：记账 ✅ | 习惯追踪 ✅ | 待办 🚧 | 健康 📋 | 观点 📋 | AI 对话 ✅
+**核心模块**：记账 ✅ | 习惯追踪 ✅ | 待办 🚧 | 健康 ✅ | 观点 📋 | AI 对话 ✅
 
 ---
 
@@ -95,6 +95,15 @@
 - 启动阻塞的解法是「默认值先渲染 + 后台补数据」，不是「异步优化」
 - 数据变更后页面不更新 → 查开发规范第 13 节 Checklist
 
+### 闪退排查
+
+- **禁止只搜关键词**（`!`、`try!`、`fatalError`）— 递归初始化、actor 隔离违规等运行时陷阱不会被搜到
+- **必须从入口逐函数走完整调用链**，包括看起来"很简单"的工具类、单例的 `init()`、`static let` 初始化路径
+- 常见的隐蔽崩溃模式：
+  - `static let shared = X()` 的 `init()` 中通过 `Self.shared` 递归访问自身 → EXC_BREAKPOINT
+  - 非 `@MainActor` 类型的 `async let` 子任务访问 `@MainActor` 属性 → actor 隔离运行时陷阱
+  - Core Data 的 `-com.apple.CoreData.ConcurrencyDebug 1` 线程检测 → 跨线程访问直接 trap
+
 ---
 
 ## 提交规范
@@ -170,6 +179,23 @@ Prompt 管理：
 - 后台编辑后的 Prompt 写入：`HoloBackend/src/prompts/managedPrompts.json`
 - `/v1/prompts/:type` 优先返回 managed 版本，无 managed 版本则回退 default
 - App 普通用户不能手动调整 Prompt；管理后台仅供开发者内部调试和发布前校准
+
+### Prompt 双端同步（重要）
+
+**Prompt 加载优先级**：`HoloBackendAIProvider.loadManagedPrompt` 优先后端 API，失败才回退本地 `PromptManager`。因此 **iOS 端 PromptManager.swift 的模板只是后备**，实际运行时以后端为准。
+
+**修改 Prompt 的完整流程**：
+1. 修改 iOS 端 `PromptManager.swift` 内嵌模板（后备）
+2. 同步修改后端 `HoloBackend/src/prompts/defaultPrompts.json`（生效端）
+3. 升级 `PromptManager.promptVersions` 版本号
+4. **必须重新部署后端**：`ssh root@123.56.104.9` → `cd /root/Holo/HoloBackend/deploy` → `docker compose build --no-cache && docker compose up -d`
+5. 部署后验证：`curl http://localhost:8787/v1/prompts/intent_recognition` 确认版本和内容
+
+**常见陷阱**：
+- 只改 iOS 端 PromptManager 不改后端 → 不生效（后端优先）
+- 改了后端源文件但没重建 Docker 镜像 → 不生效（源码 baked 进镜像，非 volume 挂载）
+- Docker compose restart 不够 → 需 `build --no-cache` 重建镜像
+- iOS 端 `HoloBackendPromptService` 有 2 分钟 metaTTL 缓存 → 部署后杀掉 App 重开
 
 日志：
 - `/admin/logs` 记录 `/v1/ai/chat/completions` 的请求、响应、provider、model、耗时和错误

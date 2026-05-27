@@ -3,7 +3,7 @@
 //  Holo
 //
 //  图标网格选择组件
-//  按展示分组渲染 SF Symbol 图标，4 列网格布局，单选模式
+//  按展示分组渲染分类图标，4 列网格布局，单选模式
 //  支持历史图标 fallback 展示
 //
 
@@ -80,9 +80,11 @@ struct IconPickerGrid: View {
                 .fill(isSelected ? Color.holoPrimary.opacity(0.15) : Color.holoCardBackground)
                 .frame(width: 64, height: 64)
 
-            Image(systemName: iconName)
-                .font(.system(size: 22, weight: .medium))
-                .foregroundColor(isSelected ? .holoPrimary : .holoTextSecondary)
+            categoryIconGlyph(
+                iconName,
+                size: 22,
+                color: isSelected ? .holoPrimary : .holoTextSecondary
+            )
 
             if isSelected {
                 Circle()

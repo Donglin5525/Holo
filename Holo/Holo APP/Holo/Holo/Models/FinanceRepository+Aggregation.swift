@@ -69,13 +69,14 @@ extension FinanceRepository {
         // 按分类聚合
         var categoryMap: [UUID: (category: Category, amount: Decimal, count: Int)] = [:]
         for tx in filtered {
-            let catId = tx.category.id
+            guard let category = tx.category else { continue }
+            let catId = category.id
             if var entry = categoryMap[catId] {
                 entry.amount += tx.amount.decimalValue
                 entry.count += 1
                 categoryMap[catId] = entry
             } else {
-                categoryMap[catId] = (category: tx.category, amount: tx.amount.decimalValue, count: 1)
+                categoryMap[catId] = (category: category, amount: tx.amount.decimalValue, count: 1)
             }
         }
 
@@ -116,19 +117,20 @@ extension FinanceRepository {
         // 按一级分类聚合（如果是二级分类则归入父分类）
         var categoryMap: [UUID: (category: Category, amount: Decimal, count: Int)] = [:]
         for tx in filtered {
+            guard let txCategory = tx.category else { continue }
             // 获取一级分类
             let topCategory: Category
-            if tx.category.isTopLevel {
-                topCategory = tx.category
-            } else if let parentId = tx.category.parentId {
+            if txCategory.isTopLevel {
+                topCategory = txCategory
+            } else if let parentId = txCategory.parentId {
                 // 从缓存中查找父分类
                 if let parent = categoryCache[parentId] {
                     topCategory = parent
                 } else {
-                    topCategory = tx.category
+                    topCategory = txCategory
                 }
             } else {
-                topCategory = tx.category
+                topCategory = txCategory
             }
 
             let catId = topCategory.id
@@ -164,10 +166,11 @@ extension FinanceRepository {
 
         // 筛选属于该一级分类的交易
         let filtered = transactions.filter { tx in
-            if tx.category.isTopLevel {
-                return tx.category.id == parentId
+            guard let category = tx.category else { return false }
+            if category.isTopLevel {
+                return category.id == parentId
             } else {
-                return tx.category.parentId == parentId
+                return category.parentId == parentId
             }
         }
 
@@ -178,7 +181,7 @@ extension FinanceRepository {
         // 按二级分类聚合
         var categoryMap: [UUID: (category: Category, amount: Decimal, count: Int)] = [:]
         for tx in filtered {
-            let cat = tx.category
+            guard let cat = tx.category else { continue }
             let catId = cat.id
             if var entry = categoryMap[catId] {
                 entry.amount += tx.amount.decimalValue

@@ -49,8 +49,12 @@ enum AIResponseTextBuilder {
 
     // MARK: - Task
 
-    static func taskCreated(title: String, dueDate: Date?, hasTime: Bool) -> String {
+    static func taskCreated(title: String, dueDate: Date?, hasTime: Bool, subtaskCount: Int = 0) -> String {
         var text = "已创建任务：\(title)"
+
+        if subtaskCount > 0 {
+            text += "，包含 \(subtaskCount) 个子任务"
+        }
 
         if hasTime, let date = dueDate {
             let formatter = DateFormatter()

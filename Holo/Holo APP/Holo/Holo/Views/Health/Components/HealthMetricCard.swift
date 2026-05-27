@@ -12,17 +12,28 @@ import SwiftUI
 
 /// 健康指标卡片
 struct HealthMetricCard: View {
-    let type: HealthMetricType
-    let value: Double
-    let goal: Double
+    let metric: HealthMetricSnapshot
     let onTap: () -> Void
+
+    init(metric: HealthMetricSnapshot, onTap: @escaping () -> Void) {
+        self.metric = metric
+        self.onTap = onTap
+    }
+
+    init(type: HealthMetricType, value: Double, goal: Double, onTap: @escaping () -> Void) {
+        self.metric = HealthMetricSnapshot(
+            type: type,
+            value: value,
+            availability: value > 0 ? .available : .noData
+        )
+        self.onTap = onTap
+    }
 
     // MARK: - Computed Properties
 
     /// 完成百分比（0-100）
     private var progress: Double {
-        guard goal > 0 else { return 0 }
-        return min(value / goal * 100, 100)
+        Double(metric.progressPercent)
     }
 
     // MARK: - Body
@@ -33,21 +44,21 @@ struct HealthMetricCard: View {
                 // 图标
                 ZStack {
                     Circle()
-                        .fill(type.color.opacity(0.15))
+                        .fill(metric.type.color.opacity(0.15))
                         .frame(width: 48, height: 48)
 
-                    Image(systemName: type.icon)
+                    Image(systemName: metric.type.icon)
                         .font(.system(size: 22, weight: .medium))
-                        .foregroundColor(type.color)
+                        .foregroundColor(metric.type.color)
                 }
 
                 // 信息
                 VStack(alignment: .leading, spacing: HoloSpacing.xs) {
-                    Text(type.rawValue)
+                    Text(metric.title)
                         .font(.holoBody)
                         .foregroundColor(.holoTextPrimary)
 
-                    Text("\(type.formatValue(value)) / \(type.formatValue(goal)) \(type.unit)")
+                    Text(metricSubtitle)
                         .font(.holoCaption)
                         .foregroundColor(.holoTextSecondary)
                 }
@@ -56,9 +67,9 @@ struct HealthMetricCard: View {
 
                 // 进度指示
                 VStack(alignment: .trailing, spacing: HoloSpacing.xs) {
-                    Text("\(Int(progress))%")
+                    Text(metric.statusText)
                         .font(.holoBody)
-                        .foregroundColor(type.color)
+                        .foregroundColor(metric.type.color)
 
                     Image(systemName: "chevron.right")
                         .font(.system(size: 14, weight: .medium))
@@ -70,6 +81,19 @@ struct HealthMetricCard: View {
             .cornerRadius(HoloRadius.lg)
         }
         .buttonStyle(.plain)
+    }
+
+    private var metricSubtitle: String {
+        switch metric.availability {
+        case .available:
+            return "\(metric.type.formatValueWithUnit(metric.value)) · \(metric.targetText)"
+        case .unauthorized:
+            return "需要在系统设置中授权"
+        case .noData:
+            return "等待 Apple Health 数据"
+        case .unsupported:
+            return "当前设备不支持"
+        }
     }
 }
 

@@ -80,6 +80,9 @@ class MemoryGalleryViewModel: ObservableObject {
     @Published var weeklyIsFallback: Bool = false
     @Published var monthlyIsFallback: Bool = false
 
+    /// 每日状态快照
+    @Published var dailySenseSnapshot: DailySenseSnapshot?
+
     // MARK: - Private Properties
 
     /// 分页按天计算（每页加载 N 天的数据）
@@ -594,6 +597,7 @@ class MemoryGalleryViewModel: ObservableObject {
 
     /// 洞察 Repository
     private let insightRepository = MemoryInsightRepository()
+    private let insightGenerationTimeoutSeconds: UInt64 = 45
 
     /// 加载本地洞察（不触发 AI 生成）
     private func loadInsights() async {
@@ -656,6 +660,16 @@ class MemoryGalleryViewModel: ObservableObject {
         )
 
         updateInsightGenerationStateForCurrentSelection()
+
+        // 加载或生成 Daily Sense
+        if InsightFeatureFlags.dailySenseEnabled {
+            if let cached = DailySenseSnapshotStore.shared.todaySnapshot() {
+                dailySenseSnapshot = cached
+            } else if let snapshot = DailySenseStateBuilder.buildToday() {
+                DailySenseSnapshotStore.shared.saveToday(snapshot)
+                dailySenseSnapshot = snapshot
+            }
+        }
     }
 
     /// 生成本周 AI 回放
@@ -688,16 +702,33 @@ class MemoryGalleryViewModel: ObservableObject {
         end: Date,
         forceRefresh: Bool = false
     ) async {
+        guard insightGenerationState != .generating else { return }
         insightGenerationState = .generating
+        await Task.yield()
 
         do {
             let service = MemoryInsightService.shared
-            let insight = try await service.generateInsight(
-                periodType: periodType,
-                start: start,
-                end: end,
-                forceRefresh: forceRefresh
-            )
+            let timeoutSeconds = insightGenerationTimeoutSeconds
+            let insight = try await withThrowingTaskGroup(of: MemoryInsight.self) { group in
+                group.addTask {
+                    try await service.generateInsight(
+                        periodType: periodType,
+                        start: start,
+                        end: end,
+                        forceRefresh: forceRefresh
+                    )
+                }
+                group.addTask {
+                    try await Task.sleep(nanoseconds: timeoutSeconds * 1_000_000_000)
+                    throw MemoryInsightError.generationTimeout
+                }
+
+                guard let result = try await group.next() else {
+                    throw MemoryInsightError.generationTimeout
+                }
+                group.cancelAll()
+                return result
+            }
 
             switch periodType {
             case .weekly:
@@ -717,7 +748,7 @@ class MemoryGalleryViewModel: ObservableObject {
             case .aiNotConfigured:
                 insightGenerationState = .notConfigured
             case .generationInProgress:
-                break
+                updateInsightGenerationStateForCurrentSelection()
             default:
                 insightGenerationState = .failed(error.localizedDescription)
             }

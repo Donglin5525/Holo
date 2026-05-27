@@ -27,6 +27,8 @@ struct MemoryInsightHeroCard: View {
     let onContinueInChat: () -> Void
     let onGoToAISettings: () -> Void
 
+    @State private var isCardsExpanded: Bool = false
+
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
             // 标题区域
@@ -250,7 +252,7 @@ struct MemoryInsightHeroCard: View {
     private var summarySection: some View {
         switch state {
         case .notConfigured:
-            Text("配置 AI 后可以生成个性化的周期回放")
+            Text("AI 服务暂时不可用，请稍后重试")
                 .font(.holoBody)
                 .foregroundColor(.holoTextSecondary)
 
@@ -316,11 +318,42 @@ struct MemoryInsightHeroCard: View {
     // MARK: - Insight Cards
 
     private func insightCardsSection(_ payload: MemoryInsightPayload) -> some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            ForEach(payload.cards.prefix(5)) { card in
-                MemoryInsightCardView(card: card, anomalySeverity: card.anomalySeverity)
+        let actionMap = InsightActionCandidateBuilder.buildCandidateMap(
+            cards: payload.cards,
+            context: nil
+        )
+
+        return VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            ForEach(displayedCards(payload)) { card in
+                MemoryInsightCardView(
+                    card: card,
+                    anomalySeverity: card.anomalySeverity,
+                    insightId: insight?.id,
+                    actionCandidate: actionMap[card.id]
+                )
+            }
+
+            // 展开更多卡片
+            if payload.cards.count > defaultDisplayCount {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isCardsExpanded.toggle()
+                    }
+                } label: {
+                    Text(isCardsExpanded ? "收起" : "查看更多 (\(payload.cards.count - defaultDisplayCount))")
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.holoPrimary)
+                }
+                .buttonStyle(PlainButtonStyle())
             }
         }
+    }
+
+    private let defaultDisplayCount = 5
+
+    private func displayedCards(_ payload: MemoryInsightPayload) -> [MemoryInsightCard] {
+        let limit = isCardsExpanded ? max(payload.cards.count, 7) : defaultDisplayCount
+        return Array(payload.cards.prefix(limit))
     }
 
     // MARK: - Actions
@@ -339,8 +372,8 @@ struct MemoryInsightHeroCard: View {
             }()
             switch state {
             case .notConfigured:
-                Button(action: onGoToAISettings) {
-                    actionButtonLabel("去配置 AI", isPrimary: true)
+                Button(action: onGenerate) {
+                    actionButtonLabel("稍后重试", isPrimary: true)
                 }
 
             case .idle:

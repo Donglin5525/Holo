@@ -203,6 +203,10 @@ struct CategoryManagementView: View {
             }
 
             Spacer()
+
+            if !category.isSystem {
+                editCategoryButton(category)
+            }
         }
         .padding(.vertical, 4)
     }
@@ -222,8 +226,26 @@ struct CategoryManagementView: View {
                 .foregroundColor(.holoTextPrimary)
 
             Spacer()
+
+            if !category.isSystem {
+                editCategoryButton(category)
+            }
         }
         .padding(.vertical, 4)
+    }
+
+    private func editCategoryButton(_ category: Category) -> some View {
+        Button {
+            editingCategory = category
+        } label: {
+            Image(systemName: "pencil.circle")
+                .font(.system(size: 22, weight: .medium))
+                .foregroundColor(.holoTextSecondary)
+                .frame(width: 36, height: 36)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.borderless)
+        .accessibilityLabel("编辑\(category.name)")
     }
 
     private func subCategoryList(for parent: Category) -> some View {
@@ -479,8 +501,14 @@ struct EditCategorySheet: View {
     
     @State private var name: String = ""
     @State private var iconName: String = ""
+    @State private var defaultIconName: String?
     @State private var isSaving = false
     @State private var showDismissAlert: Bool = false
+
+    private var canRestoreDefaultIcon: Bool {
+        guard let defaultIconName else { return false }
+        return iconName != defaultIconName
+    }
     
     var body: some View {
         NavigationStack {
@@ -489,6 +517,31 @@ struct EditCategorySheet: View {
                     TextField("名称", text: $name)
                 }
                 Section("图标") {
+                    HStack(spacing: HoloSpacing.md) {
+                        ZStack {
+                            Circle()
+                                .fill(category.swiftUIColor.opacity(0.15))
+                                .frame(width: 44, height: 44)
+                            categoryIconGlyph(iconName, size: 24, color: category.swiftUIColor)
+                        }
+
+                        Text("当前图标")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+
+                        Spacer()
+
+                        if canRestoreDefaultIcon {
+                            Button("恢复默认") {
+                                if let defaultIconName {
+                                    iconName = defaultIconName
+                                }
+                            }
+                            .font(.holoCaption)
+                            .buttonStyle(.borderless)
+                        }
+                    }
+
                     IconPickerGrid(selectedIcon: $iconName)
                         .padding(.vertical, 8)
                 }
@@ -498,6 +551,9 @@ struct EditCategorySheet: View {
             .onAppear {
                 name = category.name
                 iconName = category.icon
+            }
+            .task {
+                await loadDefaultIconName()
             }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -539,6 +595,26 @@ struct EditCategorySheet: View {
             }
             isSaving = false
         }
+    }
+
+    @MainActor
+    private func loadDefaultIconName() async {
+        var parentName: String?
+        if let parentId = category.parentId {
+            do {
+                parentName = try await repository.getAllCategories()
+                    .first { $0.id == parentId }?
+                    .name
+            } catch {
+                Self.logger.error("加载父分类失败：\(error.localizedDescription)")
+            }
+        }
+
+        defaultIconName = Category.defaultIconName(
+            name: category.name,
+            type: category.transactionType,
+            parentName: parentName
+        )
     }
 }
 

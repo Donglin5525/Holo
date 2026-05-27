@@ -100,12 +100,24 @@ final class MemoryInsightService {
         isGenerating = true
         defer { isGenerating = false }
 
+        // 让 UI 有机会渲染"生成中"状态，避免点击后立即卡死
+        await Task.yield()
+
+        // 0. 聚合未消费反馈（生成前批量聚合，偏好更新后用于本次生成）
+        if InsightFeatureFlags.preferenceLearningEnabled {
+            let context = CoreDataStack.shared.viewContext
+            InsightFeedbackAggregator.shared.aggregate(in: context)
+            await Task.yield()
+        }
+
         // 1. 构建上下文
         let (context, snapshotHash) = await contextBuilder.build(
             periodType: periodType,
             start: start,
             end: end
         )
+        try Task.checkCancellation()
+        await Task.yield()
 
         // 2. 预加载 Prompt 版本（用于缓存检查）
         let currentPromptVersion: Int16
@@ -115,6 +127,7 @@ final class MemoryInsightService {
         } else {
             currentPromptVersion = 0
         }
+        try Task.checkCancellation()
 
         // 3. 检查缓存（非强制刷新且 hash + version 一致）
         if !forceRefresh {
@@ -144,6 +157,7 @@ final class MemoryInsightService {
 
         // 5. 获取 Provider
         let provider = try resolveProvider()
+        try Task.checkCancellation()
 
         // 6. 保存 generating 状态
         let insight = try repository.saveGenerating(
@@ -165,6 +179,7 @@ final class MemoryInsightService {
             try? repository.saveFailed(insight: insight, errorMessage: error.localizedDescription)
             throw MemoryInsightError.contextBuildFailed(error.localizedDescription)
         }
+        try Task.checkCancellation()
 
         // 8. 调用 AI（带超时）
         let insightType: InsightType
@@ -184,7 +199,9 @@ final class MemoryInsightService {
                 throw MemoryInsightError.generationTimeout
             }
 
-            let first = try await group.next()!
+            guard let first = try await group.next() else {
+                throw MemoryInsightError.generationTimeout
+            }
             group.cancelAll()
             return first
         }
@@ -192,6 +209,7 @@ final class MemoryInsightService {
             try? repository.saveFailed(insight: insight, errorMessage: error.localizedDescription)
             throw error
         }
+        try Task.checkCancellation()
 
         // 7. 解析 JSON
         guard let payload = MemoryInsightResponseParser.parse(generationResult.rawResponse) else {
@@ -204,6 +222,21 @@ final class MemoryInsightService {
         var processedPayload = payload
         processedPayload = postProcessEvidence(processedPayload, start: start, end: end)
 
+        // 8.5 Post-process: 填充 moduleHint / patternType
+        processedPayload = MemoryInsightResponseParser.fillModuleHints(processedPayload)
+
+        // 8.6 Rerank: 根据偏好排序
+        if InsightFeatureFlags.rerankEnabled {
+            let profile = InsightPreferenceProfileService.shared.loadProfile()
+            let rerankedCards = InsightCardReranker.rerank(processedPayload.cards, with: profile)
+            processedPayload = MemoryInsightPayload(
+                title: processedPayload.title,
+                summary: processedPayload.summary,
+                cards: rerankedCards,
+                suggestedQuestions: processedPayload.suggestedQuestions
+            )
+        }
+
         // 9. 保存 ready 状态（使用真实 promptVersion）
         let providerName: String? = nil
         let promptVersion = Int16(generationResult.promptVersion ?? 0)
@@ -214,6 +247,31 @@ final class MemoryInsightService {
             providerName: providerName,
             promptVersion: promptVersion
         )
+
+        // 10. 发送洞察生成完成通知（供长期记忆候选提取使用）
+        let cardPayloads: [[String: Any]] = processedPayload.cards.compactMap { card in
+            guard card.patternType != nil, !card.evidence.isEmpty else { return nil }
+            return [
+                "id": card.id,
+                "title": card.title,
+                "summary": card.body,
+                "patternType": card.patternType ?? "",
+                "evidence": card.evidence.map { [
+                    "sourceID": ($0.matchedSourceId?.uuidString) ?? "",
+                    "excerpt": $0.label
+                ] }
+            ]
+        }
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(
+                name: .memoryInsightDidGenerate,
+                object: nil,
+                userInfo: [
+                    "insightID": insight.id.uuidString,
+                    "cards": cardPayloads
+                ]
+            )
+        }
 
         logger.info("洞察生成成功：\(periodType.rawValue)")
         return insight
@@ -271,7 +329,9 @@ final class MemoryInsightService {
                 body: card.body,
                 evidence: processedEvidence,
                 suggestedQuestion: card.suggestedQuestion,
-                anomalySeverity: card.anomalySeverity
+                anomalySeverity: card.anomalySeverity,
+                moduleHint: card.moduleHint,
+                patternType: card.patternType
             ))
         }
 

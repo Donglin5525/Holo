@@ -46,6 +46,17 @@ final class ChatViewModel: ObservableObject {
     private let usesInjectedProvider: Bool
     private var coreDataObserver: NSObjectProtocol?
 
+    // MARK: - Capability Launchpad
+
+    @Published var capabilities: [HoloAICapability] = HoloAICapabilityProvider.visibleCapabilities(context: .empty)
+
+    // MARK: - Goal Planning
+
+    @Published private(set) var activeGoalPlanningSession: GoalPlanningSession?
+    @Published var goalDraftForReview: GoalDraft?
+    @Published var showGoalDraftReview = false
+    private let goalPlanningCoordinator = GoalPlanningCoordinator()
+
     // MARK: - Init
 
     /// init 不做任何 I/O 操作，避免 Core Data / Keychain 阻塞主线程
@@ -212,6 +223,18 @@ final class ChatViewModel: ObservableObject {
 
         inputText = ""
         errorMessage = nil
+
+        // 目标规划分流
+        if let session = activeGoalPlanningSession, session.status == .collecting {
+            await handleGoalPlanningReply(text, session: session)
+            return
+        }
+
+        if let session = activeGoalPlanningSession, session.status == .draftReady {
+            errorMessage = "目标草案正在等待确认，请先处理当前草案。"
+            inputText = text
+            return
+        }
 
         // 1. 保存用户消息
         let userMessageId = chatRepo.addMessage(role: "user", content: text)
@@ -590,9 +613,32 @@ final class ChatViewModel: ObservableObject {
         KeychainService.updateCachedAIConfigPresence(true)
     }
 
-// MARK: - Quick Actions
+// MARK: - Capability Tap
+
+    func handleCapabilityTap(_ capability: HoloAICapability) {
+        switch capability.id {
+        case .onboarding:
+            inputText = "我是新用户，能教我怎么用 Holo 吗？"
+        case .todayState:
+            inputText = "帮我看看今天的整体状态"
+        case .recentAnalysis:
+            inputText = "分析一下我最近的数据趋势"
+        case .longTermPatterns:
+            inputText = "你了解我哪些长期偏好和模式？"
+        case .goalPlanning:
+            startGoalPlanning(seedText: nil)
+            return
+        }
+        Task { await sendMessage() }
+    }
+
+    // MARK: - Quick Actions（兼容旧入口）
 
     func sendQuickAction(_ action: QuickAction) {
+        if action == .planGoal {
+            startGoalPlanning(seedText: nil)
+            return
+        }
         inputText = action.prompt
         Task { await sendMessage() }
     }
@@ -622,6 +668,137 @@ final class ChatViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Goal Planning
+
+    func startGoalPlanning(seedText: String?) {
+        Task { @MainActor in
+            await retryConfigurationLoadIfNeeded()
+            await ensureChatRepositoryReady()
+            guard let chatRepo else { return }
+
+            let userMessageId: UUID?
+            if let seedText, !seedText.isEmpty {
+                userMessageId = chatRepo.addMessage(role: "user", content: seedText, messageType: .goalPlanning)
+            } else {
+                userMessageId = nil
+            }
+
+            isStreaming = true
+            defer {
+                isStreaming = false
+                streamingText = ""
+            }
+
+            do {
+                let userContext = await UserContextBuilder.shared.buildContext()
+                let result = try await goalPlanningCoordinator.start(
+                    seedText: seedText,
+                    userContext: userContext,
+                    provider: provider
+                )
+                activeGoalPlanningSession = result.session
+                if let question = result.assistantText {
+                    _ = chatRepo.addMessage(
+                        role: "assistant",
+                        content: question,
+                        parentMessageId: userMessageId,
+                        messageType: .goalPlanning
+                    )
+                }
+                if let draft = result.draft {
+                    goalDraftForReview = draft
+                    let summary = "已根据你的需求生成了目标计划「\(draft.title)」\(draft.cardSummary)"
+                    _ = chatRepo.addMessage(
+                        role: "assistant",
+                        content: summary,
+                        parentMessageId: userMessageId,
+                        messageType: .goalPlanning
+                    )
+                }
+            } catch {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func handleGoalPlanningReply(_ text: String, session: GoalPlanningSession) async {
+        guard let chatRepo else { return }
+        inputText = ""
+        errorMessage = nil
+        let userMessageId = chatRepo.addMessage(role: "user", content: text, messageType: .goalPlanning)
+        isStreaming = true
+        defer {
+            isStreaming = false
+            streamingText = ""
+        }
+
+        do {
+            let userContext = await UserContextBuilder.shared.buildContext()
+            let result = try await goalPlanningCoordinator.handleUserReply(
+                text,
+                session: session,
+                userContext: userContext,
+                provider: provider
+            )
+            activeGoalPlanningSession = result.session
+            if let question = result.assistantText {
+                _ = chatRepo.addMessage(
+                    role: "assistant",
+                    content: question,
+                    parentMessageId: userMessageId,
+                    messageType: .goalPlanning
+                )
+            }
+            if let draft = result.draft {
+                goalDraftForReview = draft
+                let summary = "已根据你的需求生成了目标计划「\(draft.title)」\(draft.cardSummary)"
+                _ = chatRepo.addMessage(
+                    role: "assistant",
+                    content: summary,
+                    parentMessageId: userMessageId,
+                    messageType: .goalPlanning
+                )
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func cancelGoalPlanning() {
+        activeGoalPlanningSession?.status = .cancelled
+        goalDraftForReview = nil
+        showGoalDraftReview = false
+        _ = chatRepo?.addMessage(
+            role: "assistant",
+            content: "已取消这次目标规划。",
+            messageType: .goalPlanning
+        )
+        activeGoalPlanningSession = nil
+    }
+
+    func markGoalPlanningConfirmed() {
+        activeGoalPlanningSession?.status = .confirmed
+        goalDraftForReview = nil
+        showGoalDraftReview = false
+        activeGoalPlanningSession = nil
+    }
+
+    func finishGoalPlanningSave(_ result: GoalDraftSaveResult) {
+        let extractedData: [String: String] = [
+            "goalId": result.goal.id.uuidString,
+            "goalTitle": result.goal.title,
+            "createdTaskCount": "\(result.createdTaskCount)",
+            "createdHabitCount": "\(result.createdHabitCount)"
+        ]
+        _ = chatRepo?.addMessage(
+            role: "assistant",
+            content: "已创建目标「\(result.goal.title)」，并生成 \(result.createdTaskCount) 个任务、\(result.createdHabitCount) 个习惯。",
+            extractedDataJSON: Self.encodeExtractedData(extractedData),
+            messageType: .goalPlanning
+        )
+        markGoalPlanningConfirmed()
+    }
+
     // MARK: - Session History
 
     /// 加载更早会话，返回加载前首条消息的上一条消息 id（滚动锚点）
@@ -644,6 +821,7 @@ enum QuickAction: String, CaseIterable {
     case createNote = "记笔记"
     case queryTasks = "今日任务"
     case queryHabits = "习惯状态"
+    case planGoal = "规划目标"
 
     var prompt: String {
         switch self {
@@ -655,6 +833,7 @@ enum QuickAction: String, CaseIterable {
         case .createNote: return "帮我记一条笔记"
         case .queryTasks: return "今天有什么待办"
         case .queryHabits: return "今天习惯完成了吗"
+        case .planGoal: return ""
         }
     }
 
@@ -668,6 +847,7 @@ enum QuickAction: String, CaseIterable {
         case .createNote: return "note.text"
         case .queryTasks: return "list.bullet.circle"
         case .queryHabits: return "chart.circle"
+        case .planGoal: return "target"
         }
     }
 }

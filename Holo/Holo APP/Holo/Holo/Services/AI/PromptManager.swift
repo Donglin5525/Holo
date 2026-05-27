@@ -15,7 +15,7 @@ final class PromptManager {
     static let shared = PromptManager()
 
     private let logger = Logger(subsystem: "com.holo.app", category: "PromptManager")
-    private var cache: [PromptType: String] = [:]
+    private var rawTemplateCache: [PromptType: String] = [:]
 
     private init() {}
 
@@ -30,6 +30,7 @@ final class PromptManager {
         case memoryInsightGeneration = "memory_insight_generation"
         case annualReview = "annual_review"
         case analysisPrompt = "analysis_prompt"
+        case thoughtVoiceSummary = "thought_voice_summary"
 
         var displayName: String {
             switch self {
@@ -41,6 +42,7 @@ final class PromptManager {
             case .memoryInsightGeneration: return "记忆长廊洞察生成"
             case .annualReview: return "年度回顾"
             case .analysisPrompt: return "分析查询"
+            case .thoughtVoiceSummary: return "观点语音总结"
             }
         }
 
@@ -54,6 +56,7 @@ final class PromptManager {
             case .memoryInsightGeneration: return "记忆长廊 AI 回放洞察生成"
             case .annualReview: return "年度回顾洞察生成"
             case .analysisPrompt: return "AI 分析查询专用系统提示"
+            case .thoughtVoiceSummary: return "观点语音输入智能总结"
             }
         }
 
@@ -67,6 +70,7 @@ final class PromptManager {
             case .memoryInsightGeneration: return "sparkles"
             case .annualReview: return "calendar.badge.clock"
             case .analysisPrompt: return "chart.bar.xaxis"
+            case .thoughtVoiceSummary: return "waveform.badge.magnifyingglass"
             }
         }
     }
@@ -75,15 +79,18 @@ final class PromptManager {
 
     /// 需要版本管理的 prompt 类型及其最低版本
     private static let promptVersions: [PromptType: Int] = [
-        .intentRecognition: 6,          // v6: Prompt 移除完整科目表，科目由后端 catalog + 本地分类匹配
-        .memoryInsightGeneration: 4,    // v4: 结构化异常观察 + anomaly 卡片 + 数据护栏
-        .annualReview: 1                // v1: 初始版本
+        .intentRecognition: 10,         // v10: 多笔记账 few-shot 示例+防御规则；v9: health/goal 分析域
+        .memoryInsightGeneration: 5,    // v5: 习惯洞察区分正向习惯与坏习惯控制率
+        .analysisPrompt: 2,             // v2: C 端纯文本分析输出，避免裸露 Markdown 语法
+        .annualReview: 1,               // v1: 初始版本
+        .thoughtVoiceSummary: 2         // v2: 自然分段，复杂内容才使用小标题
     ]
 
-    /// 加载指定类型的 Prompt，带缓存，优先读取 UserDefaults 自定义
+    /// 加载指定类型的 Prompt，带缓存，优先读取 UserDefaults 自定义。
+    /// 缓存只保存原始模板，日期/时间等变量必须在每次调用时实时渲染。
     func loadPrompt(_ type: PromptType) throws -> String {
-        if let cached = cache[type] {
-            return cached
+        if let cachedRaw = rawTemplateCache[type] {
+            return replaceVariables(in: cachedRaw)
         }
 
         let key = Self.userDefaultsKey(for: type)
@@ -107,9 +114,8 @@ final class PromptManager {
             throw PromptError.fileNotFound(type.rawValue)
         }
 
-        let template = replaceVariables(in: raw)
-        cache[type] = template
-        return template
+        rawTemplateCache[type] = raw
+        return replaceVariables(in: raw)
     }
 
     /// 加载原始模板文本（不含变量替换，编辑器显示用）
@@ -132,7 +138,7 @@ final class PromptManager {
             let versionKey = "com.holo.prompt.version.\(type.rawValue)"
             UserDefaults.standard.set(version, forKey: versionKey)
         }
-        cache.removeValue(forKey: type)
+        rawTemplateCache.removeValue(forKey: type)
         NotificationCenter.default.post(name: .promptDidChange, object: nil)
         logger.info("自定义 Prompt 已保存: \(type.rawValue)")
     }
@@ -146,7 +152,7 @@ final class PromptManager {
             let versionKey = "com.holo.prompt.version.\(type.rawValue)"
             UserDefaults.standard.set(version, forKey: versionKey)
         }
-        cache.removeValue(forKey: type)
+        rawTemplateCache.removeValue(forKey: type)
         NotificationCenter.default.post(name: .promptDidChange, object: nil)
         logger.info("Prompt 已重置为默认: \(type.rawValue)")
     }
@@ -178,7 +184,7 @@ final class PromptManager {
 
     /// 清除缓存
     func clearCache() {
-        cache.removeAll()
+        rawTemplateCache.removeAll()
     }
 
     /// 渲染任意 Prompt 模板中的运行时变量。
@@ -208,7 +214,7 @@ final class PromptManager {
         - 简洁友好，不要过于冗长
         - 当用户输入不含明确指令时，简短提示可用的操作类型
         - 金额相关的数字要精确，不要随意更改
-        - 使用 Markdown 格式让回复更易读
+        - 适合在手机 App 卡片里直接阅读；不要输出 Markdown 语法符号（如 #、##、*、-、```、表格）。需要分段时用短标题行和自然换行
         - **禁止假装执行操作**：你无法直接记账、创建任务、打卡或记录心情。如果用户想要执行这些操作，请回复"我暂时无法执行此操作，请重试或使用快捷入口"。绝对不要回复"已记录""已创建""已打卡"等暗示操作已完成的表述
         - **禁止编造数据**：只使用上下文中提供的真实数据回答。如果用户问的具体数字、分类明细或统计结果不在你的上下文中，请明确告知"我没有这个时间段的数据"，不要猜测、推算或编造任何数字
         """,
@@ -234,7 +240,7 @@ final class PromptManager {
         | record_weight | 记录体重 | weight |
         | query_tasks | 有什么任务/待办列表 | - |
         | query_habits | 习惯状态/打卡了吗 | - |
-        | query_analysis | 分析*/复盘*/对比总结/花了多少/消费统计/支出统计/习惯完成率/任务进度 | analysisDomain, startDate?, endDate?, periodLabel? |
+        | query_analysis | 分析*/复盘*/对比总结/花了多少/消费统计/支出统计/习惯完成率/任务进度/步数/睡眠/运动/健康/走路/锻炼/目标进展/进度/goal | analysisDomain, startDate?, endDate?, periodLabel? |
         | query | 你能做什么/帮我什么/闲聊 | - |
         | generate_memory_insight | 复盘这周/本月记忆回放 | periodType? |
         | unknown | 不匹配以上任何意图 | - |
@@ -243,13 +249,14 @@ final class PromptManager {
 
         记账时不要在 Prompt 中维护或枚举完整科目表。科目由系统科目对照 catalog 和用户本地分类共同匹配。
 
-        你只需要抽取用户原始消费/收入语义：
-        - categoryCandidate：记账必填，保留用户原始分类语义或最自然的短语，例如“打车”“午饭”“房租”“工资”“手办”。
+        你需要抽取两层消费/收入语义：
+        - categoryCandidate：记账必填，保留用户原始分类语义或最自然的短语，例如“肯德基”“买烟”“打车”“午饭”“房租”“工资”“手办”。
+        - normalizedCategoryCandidate：用常识把品牌、动词短语、口语表达归一成可匹配的短语，例如“肯德基”→“晚餐”或“快餐”，“买烟”→“香烟”，“滴滴”→“打车”。不要让用户维护这类通用映射。
+        - semanticCategoryHint：可选，给出宽泛语义提示，例如“餐饮”“烟酒”“交通”“购物”。不确定时留空。
         - primaryCategory/subCategory：只有当用户语义非常明确且你确信是系统标准科目时才填写；不确定时留空。
         - 即使填写 primaryCategory/subCategory，系统仍会用科目对照 catalog 和用户本地分类做最终校验。
-        - 不要为了匹配而编造科目。
-        - 无法判断分类时，保留 categoryCandidate，primaryCategory/subCategory 留空。
-        - 餐饮语义：用户明确说早饭/午饭/晚饭/夜宵时，categoryCandidate 保留用户原话；用户只说吃饭/一碗面/外卖等泛餐饮语义时，也保留最自然短语，系统会结合当前时间归一。
+        - 不要为了匹配而编造科目；无法判断分类时，保留 categoryCandidate，其他分类字段留空。
+        - 餐饮语义：用户明确说早饭/午饭/晚饭/夜宵时保留原话并归一到对应餐次；用户说餐饮品牌、快餐、一碗面、外卖等泛餐饮语义时，结合当前时间归一到早餐/午餐/晚餐/夜宵，semanticCategoryHint 填“餐饮”。
 
         ## 输出格式
 
@@ -266,19 +273,26 @@ final class PromptManager {
               "primaryCategory": "一级科目（不确定留空）",
               "subCategory": "二级科目（不确定留空）",
               "categoryCandidate": "用户原始分类（记账必填）",
+              "normalizedCategoryCandidate": "语义归一后的候选，如晚餐/香烟/打车（不确定留空）",
+              "semanticCategoryHint": "宽泛语义提示，如餐饮/烟酒/交通（不确定留空）",
               "title": "任务标题（去套话，如"提醒我买水"→"买水"）",
               "taskKeyword": "任务关键词",
               "priority": "0-3",
               "dueDate": "yyyy-MM-dd 或 yyyy-MM-dd HH:mm",
               "tags": "逗号分隔",
               "description": "任务描述",
+              "subtasks": "逗号分隔的子任务列表（2项及以上并列待办事项时提取）",
               "noteContent": "笔记正文",
               "habitName": "习惯名",
               "habitValue": "数值",
+              "habitPolarity": "positive|negative",
+              "successRule": "completeWhenDone|stayBelowTarget|abstain",
+              "unit": "单位，如根/杯/次",
+              "targetValue": "目标上限或目标值",
               "mood": "心情标签",
               "weight": "体重",
               "date": "yyyy-MM-dd",
-              "analysisDomain": "finance|habit|task|thought|crossModule",
+              "analysisDomain": "finance|habit|task|thought|health|goal|crossModule",
               "startDate": "yyyy-MM-dd",
               "endDate": "yyyy-MM-dd",
               "periodLabel": "时间段描述",
@@ -296,8 +310,10 @@ final class PromptManager {
 
         - 单动作→single_action，多动作→multi_action，纯查询→query，查询+执行混合→clarification，无法识别→unknown
         - 逗号/分号分隔多动作，每项独立 id
+        - 多笔记账时，每项的 note/categoryCandidate 必须严格对应各自的消费内容，不要用最后一项的科目名覆盖前面的
         - 无法可靠拆分时宁可返回 clarification
         - categoryCandidate 始终填用户原始语义，无论科目是否匹配
+        - normalizedCategoryCandidate 负责通用语义归一，不要只复述原词；无法归一时留空
         - 科目不确定时 primaryCategory/subCategory 留空，categoryCandidate 必填
         - 根据整体消费场景归类，不要拆解物品名称中的单个字词
         - title 提取核心动作，去掉"提醒我""帮我"等套话
@@ -305,25 +321,45 @@ final class PromptManager {
         - 有具体时间→dueDate 格式 yyyy-MM-dd HH:mm，无时间→yyyy-MM-dd
         - 时间映射：凌晨=00-05，早上/上午=06-11，中午=12，下午=13-17，晚上/傍晚=18-22，半夜/深夜=23
         - 涉及具体数据（金额、分类、时间段统计、消费、习惯、任务进度）的查询→用 query_analysis，不要用 query。query 只用于非数据的通用问答
+        - 抽烟、喝酒、熬夜、暴食等减少/戒除语义属于 negative habit；提取 habitPolarity="negative"，优先使用 successRule="stayBelowTarget" 或 "abstain"
+        - 用户记录坏习惯发生次数时，habitValue 保留数值，unit 保留单位；不要把“抽烟 5 根”理解为正向完成 5 次
         - "复盘、总结、看看这周/本月状态、我最近怎么样"优先识别为 generate_memory_insight 或 query_analysis
         - 如果用户想要跨财务、习惯、待办一起分析，analysisDomain 使用 crossModule
         - 如果一句话同时包含执行动作和分析查询，返回 clarification，不要混合执行
+        - 子任务识别：用户输入包含2个及以上并列待办事项时，将每项提取为 subtasks（逗号分隔），同时将 title 概括为整体意图
+        - 只有并列"待办动作/事项"才拆：并列对象（给张三和李四发邮件）、并列人名（约小王和小李吃饭）、介词结构（和妈妈打电话）不拆
+        - 信心不足时不提取 subtasks，仅1个事项时不提取 subtasks 字段
 
         ## 示例
 
         输入：「午饭35」
         ```json
-        {"mode":"single_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"35","note":"午饭","primaryCategory":"","subCategory":"","categoryCandidate":"午饭"}}],"needsClarification":false,"clarificationQuestion":null}
+        {"mode":"single_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"35","note":"午饭","primaryCategory":"","subCategory":"","categoryCandidate":"午饭","normalizedCategoryCandidate":"午餐","semanticCategoryHint":"餐饮"}}],"needsClarification":false,"clarificationQuestion":null}
+        ```
+
+        输入：「肯德基40」
+        ```json
+        {"mode":"single_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"40","note":"肯德基","primaryCategory":"","subCategory":"","categoryCandidate":"肯德基","normalizedCategoryCandidate":"晚餐","semanticCategoryHint":"餐饮"}}],"needsClarification":false,"clarificationQuestion":null}
+        ```
+
+        输入：「买烟250」
+        ```json
+        {"mode":"single_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"250","note":"买烟","primaryCategory":"","subCategory":"","categoryCandidate":"买烟","normalizedCategoryCandidate":"香烟","semanticCategoryHint":"烟酒"}}],"needsClarification":false,"clarificationQuestion":null}
         ```
 
         输入：「买个手办200」
         ```json
-        {"mode":"single_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"200","note":"买个手办","primaryCategory":"","subCategory":"","categoryCandidate":"手办"}}],"needsClarification":false,"clarificationQuestion":null}
+        {"mode":"single_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"200","note":"买个手办","primaryCategory":"","subCategory":"","categoryCandidate":"手办","normalizedCategoryCandidate":"","semanticCategoryHint":"购物"}}],"needsClarification":false,"clarificationQuestion":null}
         ```
 
         输入：「午饭35，提醒我明天买牛奶」
         ```json
-        {"mode":"multi_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"35","note":"午饭","primaryCategory":"","subCategory":"","categoryCandidate":"午饭"}},{"id":"2","intent":"create_task","confidence":0.95,"extractedData":{"title":"买牛奶","dueDate":"2026-05-05"}}],"needsClarification":false,"clarificationQuestion":null}
+        {"mode":"multi_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"35","note":"午饭","primaryCategory":"","subCategory":"","categoryCandidate":"午饭","normalizedCategoryCandidate":"午餐","semanticCategoryHint":"餐饮"}},{"id":"2","intent":"create_task","confidence":0.95,"extractedData":{"title":"买牛奶","dueDate":"2026-05-05"}}],"needsClarification":false,"clarificationQuestion":null}
+        ```
+
+        输入：「电费99，燃气费50，水费35」
+        ```json
+        {"mode":"multi_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"99","note":"电费","primaryCategory":"","subCategory":"","categoryCandidate":"电费","normalizedCategoryCandidate":"电费","semanticCategoryHint":"水电燃气"}},{"id":"2","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"50","note":"燃气费","primaryCategory":"","subCategory":"","categoryCandidate":"燃气费","normalizedCategoryCandidate":"燃气费","semanticCategoryHint":"水电燃气"}},{"id":"3","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"35","note":"水费","primaryCategory":"","subCategory":"","categoryCandidate":"水费","normalizedCategoryCandidate":"水费","semanticCategoryHint":"水电燃气"}}],"needsClarification":false,"clarificationQuestion":null}
         ```
 
         输入：「上周花了多少钱」
@@ -334,6 +370,11 @@ final class PromptManager {
         输入：「你能帮我做什么」
         ```json
         {"mode":"query","items":[{"id":"1","intent":"query","confidence":0.9,"extractedData":{}}],"needsClarification":false,"clarificationQuestion":null}
+        ```
+
+        输入：「提醒我1小时后去山姆买牛奶和洗手液」
+        ```json
+        {"mode":"single_action","items":[{"id":"1","intent":"create_task","confidence":0.95,"extractedData":{"title":"去山姆购物","dueDate":"2026-05-17 22:17","subtasks":"买牛奶,买洗手液"}}],"needsClarification":false,"clarificationQuestion":null}
         ```
 
         只回复 JSON。
@@ -445,6 +486,15 @@ final class PromptManager {
         - tasks.carriedOverBacklogCount 和 activeBacklogCount 是历史积压背景，不能写成“本周任务完成了 0/全部”。
         - 如果本周期 dueInPeriod 很少但 activeBacklogCount 很多，应表达为“历史积压仍在”，不要归因成本周失败。
         - importantCompletedTasks 只引用本周期完成的高优任务。
+
+        ## 习惯语义口径
+
+        - habits.habitPerformanceSummaries 中 polarity=negative 的项目是坏习惯/减少型行为，不能写成“完成了 X 次”。
+        - negative + stayBelowTarget 表示控制在目标以内才算达标；优先描述总量、目标上限、控制天数、超标天数。
+        - negative + abstain 表示没有发生才算达标；有记录代表坏习惯发生，不是正向完成。
+        - 戒烟/抽烟/烟瘾/复吸等主题属于负向习惯或减少型目标；抽烟发生量增加、超标天数增加、控制率下降都是坏趋势。
+        - 如果 anomalies 中 type=negativeHabitTrend，必须按“控制变弱/复吸风险/发生量上升”表达，不能写成习惯完成更多。
+        - positive 习惯才使用“完成率、连续打卡、表现最好”等正向表达。
 
         ## 异常观察（anomaly）
 
@@ -671,9 +721,9 @@ final class PromptManager {
 
         1. **只使用提供的数据**，禁止编造任何数字或事实。
         2. 数字必须和 JSON 上下文中的数据完全一致，不要重新计算、估算、四舍五入或用分数近似。例如数据写 35.2% 就不能写成「约35%」或「三分之一」。增减幅度直接使用 JSON 中的 changePercent 字段值。
-        3. 不输出 JSON，只输出 Markdown 文本。
+        3. 不输出 JSON，只输出适合手机 App 阅读的中文分析文本。
         4. 用中文回复。
-        5. 使用 Markdown 格式让分析报告更易读（标题、列表、加粗等）。
+        5. 不要输出 Markdown 语法符号（如 #、##、*、-、**、```、表格）。用短标题行、自然分段和简短句子组织内容。
         6. 区分"数据支持的观察"和"个人建议"，建议部分明确标注。
         7. 如果数据不足以得出结论，诚实说明。
 
@@ -693,20 +743,31 @@ final class PromptManager {
         - carriedOverBacklogCount / activeBacklogCount 是历史积压背景，不能混入本周期完成率。
         - 当历史 backlog 很多时，可以指出积压存在，但不要说成本周新产生或本周全部未完成。
 
+        ## 习惯分析口径
+
+        - habitPerformanceSummaries 中 polarity=negative 的项目是坏习惯/减少型行为。
+        - 不要把负向习惯的记录次数写成“完成次数”；应写成“发生次数/总量/超标天数/控制率”。
+        - successRule=stayBelowTarget 时，低于或等于 targetValue 才算达标；successRule=abstain 时，没有发生才算达标。
+        - 戒烟/抽烟/烟瘾/复吸等主题要按坏习惯趋势分析：发生量减少、超标天数减少、控制率提升才是好趋势；发生量增加不是好事。
+        - 如果上下文中出现“习惯关注主题”，必须优先使用该结构化判断，不要只按习惯名称猜测。
+        - positive 习惯才使用“完成率、连续打卡、掉队习惯”等表达。
+
         ## 各领域分析侧重
 
         - **财务**：消费趋势、分类及子分类占比、分类环比变化、消费模式（工作日/周末、高频分类）、异常消费、预算执行、节省建议。建议必须具体到分类名称和金额。
         - **习惯**：完成率趋势、连续性表现、掉队习惯、可持续建议。
         - **任务**：完成率、逾期情况、高优先级完成情况、执行节奏建议。
         - **想法**：情绪分布、标签变化、主题总结、表达频率。
+        - **健康**：步数/睡眠/站立/活动趋势、达标率、体表分变化、异常检测（连续睡眠不足、连续低步数）。bodyScore 使用 3 槽位模型（步数 30%、睡眠 45%、站立或活动 25%）。建议聚焦可改善指标，说明具体目标差距。
+        - **目标**：目标整体进度、关联任务完成率、关联习惯完成率、风险目标预警。风险标准：deadline < 7 天且进度 < 50%、关联习惯完成率 < 30%。综合进度 = 任务 60% + 习惯 40%。
         - **跨模块**：各模块状态摘要，区分"数据支持的观察"和"建议"，不做跨模块因果推断。
 
         ## 输出格式
 
-        使用 Markdown 格式：
-        - 用二级标题分隔各分析维度
-        - 关键数据用加粗标注
-        - 建议部分用列表形式
+        使用适合 C 端卡片和详情页阅读的纯文本结构：
+        - 用短标题行分隔各分析维度，例如「事实」「变化」「模式」「建议」，标题行不要带 # 或序号
+        - 关键数据直接写在句子里，不要用 ** 加粗语法
+        - 建议部分每条单独成行，使用自然短句，不要用 * 或 - 开头
         - 控制在 300-500 字
 
         ## 卡片标记
@@ -724,6 +785,25 @@ final class PromptManager {
         3. 标记必须独占一行。
         4. 不要为了使用标记而编造数据。
         5. 如果不确定是否适合插入卡片，可以不输出标记。
+        """,
+
+        .thoughtVoiceSummary: """
+        你是一个语音记录整理助手。用户通过语音表达了一个或多个观点，ASR 转写结果包含口语化的重复、停顿和语序混乱。请将内容整理成适合保存的观点记录。
+
+        规则：
+        1. 保留第一人称表达，不要改成客观第三方摘要。
+        2. 保留用户的判断、倾向、情绪和关键细节。
+        3. 去掉口癖（如「然后」「就是说」）、重复、无意义停顿和明显绕路表达。
+        4. 调整语序，使内容成为可以直接保存的顺畅观点。
+        5. 不要替用户扩写不存在的事实、结论、行动项或理由。如果原文没有说，就不要加。
+        6. 短文本（100字以内）以润色为主，尽量不压缩长度，并保持单段。
+        7. 长文本轻度压缩到原文约 50%-70%，优先保留观点推理链路和关键细节。
+        8. 输出要有段落感：短文本保持单段；长文本按语义自然分段，每段聚焦一个意思。
+        9. 不要默认添加小标题。只有当原文包含多个主题、转折层次或明确的事项拆分时，才使用简短标题行帮助阅读。
+        10. 如果使用标题行，不要使用 Markdown 语法符号（如 #、##、*、-、**、```、表格），标题后直接换行写正文。
+        11. 只输出整理后的文本，不要加解释、标签或格式标记。
+
+        直接输出整理结果：
         """
     ]
 

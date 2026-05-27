@@ -15,49 +15,23 @@ struct HealthPermissionView: View {
     let onAuthorize: () -> Void
     let onDismiss: () -> Void
 
+    private let heroTextMaxWidth: CGFloat = 330
+    private let permissionCardWidth: CGFloat = 248
+    private let permissionIconColumnWidth: CGFloat = 56
+
     // MARK: - Body
 
     var body: some View {
-        VStack(spacing: HoloSpacing.xl) {
-            // 图标
-            ZStack {
-                Circle()
-                    .fill(Color.holoPrimary.opacity(0.15))
-                    .frame(width: 100, height: 100)
-
-                Image(systemName: "heart.fill")
-                    .font(.system(size: 44, weight: .medium))
-                    .foregroundColor(.holoPrimary)
-            }
-
-            // 标题和说明
-            VStack(spacing: HoloSpacing.sm) {
-                Text("健康数据")
-                    .font(.holoHeading)
-                    .foregroundColor(.holoTextPrimary)
-
-                Text("Holo 需要读取您的健康数据来展示步数、睡眠和站立时长")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
-                    .multilineTextAlignment(.center)
-            }
-
-            // 数据类型说明
-            VStack(spacing: HoloSpacing.md) {
-                permissionRow(icon: "figure.walk", title: "步数", description: "每日行走步数")
-                permissionRow(icon: "bed.double.fill", title: "睡眠", description: "睡眠时长分析")
-                permissionRow(icon: "figure.stand", title: "站立", description: "每日站立时长")
-            }
-            .padding(HoloSpacing.md)
-            .background(Color.holoCardBackground)
-            .cornerRadius(HoloRadius.lg)
+        VStack(alignment: .center, spacing: HoloSpacing.xl) {
+            heroContent
+            permissionCard
 
             Spacer()
 
             // 按钮
             VStack(spacing: HoloSpacing.sm) {
                 Button(action: onAuthorize) {
-                    Text("授权访问")
+                    Text("授权 Apple Health")
                         .font(.holoBody)
                         .foregroundColor(.white)
                         .frame(maxWidth: .infinity)
@@ -74,16 +48,58 @@ struct HealthPermissionView: View {
             }
         }
         .padding(HoloSpacing.lg)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
     }
 
     // MARK: - Helper Views
+
+    private var heroContent: some View {
+        VStack(alignment: .center, spacing: HoloSpacing.xl) {
+            ZStack {
+                RoundedRectangle(cornerRadius: HoloRadius.xl)
+                    .fill(Color.holoTextPrimary)
+                    .frame(width: 100, height: 100)
+
+                Image(systemName: "apple.logo")
+                    .font(.system(size: 44, weight: .semibold))
+                    .foregroundColor(.holoCardBackground)
+            }
+
+            VStack(alignment: .center, spacing: HoloSpacing.sm) {
+                Text("连接 Apple Health")
+                    .font(.holoHeading)
+                    .foregroundColor(.holoTextPrimary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: .infinity, alignment: .center)
+
+                Text("HOLO 只读取你的健康数据，用于展示三环进度和生成生活洞察；不会写入 Apple Health，也不会上传原始健康记录。")
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary)
+                    .multilineTextAlignment(.center)
+                    .frame(maxWidth: heroTextMaxWidth, alignment: .center)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    private var permissionCard: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            permissionRow(icon: "figure.walk", title: "步数", description: "生成日间活动环")
+            permissionRow(icon: "bed.double.fill", title: "睡眠", description: "生成恢复状态和效率洞察")
+            permissionRow(icon: "figure.stand", title: "站立", description: "识别久坐和提醒节奏")
+        }
+        .padding(HoloSpacing.md)
+        .frame(width: permissionCardWidth, alignment: .leading)
+        .background(Color.holoCardBackground)
+        .cornerRadius(HoloRadius.lg)
+    }
 
     private func permissionRow(icon: String, title: String, description: String) -> some View {
         HStack(spacing: HoloSpacing.md) {
             Image(systemName: icon)
                 .font(.system(size: 20, weight: .medium))
                 .foregroundColor(.holoPrimary)
-                .frame(width: 24)
+                .frame(width: permissionIconColumnWidth, alignment: .center)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)
@@ -94,7 +110,9 @@ struct HealthPermissionView: View {
                     .font(.holoLabel)
                     .foregroundColor(.holoTextSecondary)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 }
 

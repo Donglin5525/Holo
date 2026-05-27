@@ -28,6 +28,16 @@ const DEFAULT_CONFIG = {
       temperature: Number(process.env.HOLO_INSIGHT_TEMPERATURE ?? 0.3),
       maxTokens: Number(process.env.HOLO_INSIGHT_MAX_TOKENS ?? 2048),
     },
+    thought_voice_summary: {
+      provider: process.env.HOLO_THOUGHT_VOICE_SUMMARY_PROVIDER
+        ?? process.env.HOLO_CHAT_PROVIDER
+        ?? "mock",
+      model: process.env.HOLO_THOUGHT_VOICE_SUMMARY_MODEL
+        ?? process.env.HOLO_CHAT_MODEL
+        ?? "holo-mock",
+      temperature: Number(process.env.HOLO_THOUGHT_VOICE_SUMMARY_TEMPERATURE ?? 0.3),
+      maxTokens: Number(process.env.HOLO_THOUGHT_VOICE_SUMMARY_MAX_TOKENS ?? 1024),
+    },
   },
   providers: {
     deepseek: {

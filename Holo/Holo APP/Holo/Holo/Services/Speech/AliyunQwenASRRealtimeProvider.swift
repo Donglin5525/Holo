@@ -388,6 +388,6 @@ enum SpeechRecognitionProviderFactory {
 
 private struct UnconfiguredSpeechRecognitionProvider: SpeechRecognitionProvider {
     func transcribe(audioFileURL: URL, locale: String?) async throws -> SpeechRecognitionResult {
-        throw SpeechRecognitionError.serverMessage("请先在设置中配置语音识别 API Key")
+        throw SpeechRecognitionError.serverMessage("语音识别服务暂时不可用，请稍后重试")
     }
 }

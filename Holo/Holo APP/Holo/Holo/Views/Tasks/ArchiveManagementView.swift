@@ -3,20 +3,23 @@
 //  Holo
 //
 //  归档管理页面
-//  查看和管理已归档的标签与清单
+//  查看和管理已归档的任务、标签与清单
 //
 
 import SwiftUI
+import OSLog
 
 // MARK: - Archive Tab
 
 /// 归档类型标签页
 enum ArchiveTab: String, CaseIterable {
+    case tasks = "任务"
     case tags = "标签"
     case lists = "清单"
 
     var icon: String {
         switch self {
+        case .tasks: return "checkmark.circle"
         case .tags: return "tag"
         case .lists: return "list.bullet.rectangle"
         }
@@ -34,8 +37,10 @@ struct ArchiveManagementView: View {
     @Environment(\.dismiss) private var dismiss
 
     /// 当前选中的标签页
-    @State private var selectedTab: ArchiveTab = .tags
+    @State private var selectedTab: ArchiveTab = .tasks
 
+    /// 已归档任务
+    @State private var archivedTasks: [TodoTask] = []
     /// 已归档标签
     @State private var archivedTags: [TodoTag] = []
     /// 已归档清单
@@ -47,11 +52,13 @@ struct ArchiveManagementView: View {
 
     /// 删除目标类型
     private enum DeleteTarget: Identifiable {
+        case task(TodoTask)
         case tag(TodoTag)
         case list(TodoList)
 
         var id: UUID {
             switch self {
+            case .task(let task): return task.id
             case .tag(let tag): return tag.id
             case .list(let list): return list.id
             }
@@ -69,6 +76,8 @@ struct ArchiveManagementView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     switch selectedTab {
+                    case .tasks:
+                        tasksContentView
                     case .tags:
                         tagsContentView
                     case .lists:
@@ -99,6 +108,7 @@ struct ArchiveManagementView: View {
     // MARK: - 数据加载
 
     private func loadArchivedData() {
+        archivedTasks = repository.loadArchivedTasks()
         archivedTags = repository.loadArchivedTags()
         archivedLists = repository.loadArchivedLists()
     }
@@ -160,6 +170,33 @@ struct ArchiveManagementView: View {
         .padding(.horizontal, HoloSpacing.lg)
         .padding(.top, HoloSpacing.sm)
         .background(Color.holoBackground)
+    }
+
+    // MARK: - 任务内容视图
+
+    private var tasksContentView: some View {
+        VStack(spacing: 16) {
+            statsHeaderView(
+                activeCount: repository.activeTasks.count,
+                archivedCount: archivedTasks.count,
+                type: "任务"
+            )
+
+            if archivedTasks.isEmpty {
+                emptyStateView(message: "暂无已归档的任务")
+            } else {
+                ForEach(archivedTasks, id: \.id) { task in
+                    ArchivedTaskRow(
+                        task: task,
+                        onRestore: { restoreTask(task) },
+                        onDelete: {
+                            itemToDelete = .task(task)
+                            showDeleteConfirmation = true
+                        }
+                    )
+                }
+            }
+        }
     }
 
     // MARK: - 标签内容视图
@@ -261,6 +298,15 @@ struct ArchiveManagementView: View {
 
     // MARK: - 操作方法
 
+    private func restoreTask(_ task: TodoTask) {
+        do {
+            try repository.unarchiveTask(task)
+            loadArchivedData()
+        } catch {
+            Logger(subsystem: "com.holo.app", category: "ArchiveManagementView").error("恢复任务失败: \(error.localizedDescription)")
+        }
+    }
+
     private func restoreTag(_ tag: TodoTag) {
         do {
             try repository.restoreTag(tag)
@@ -284,6 +330,8 @@ struct ArchiveManagementView: View {
 
         do {
             switch target {
+            case .task(let task):
+                try repository.permanentlyDeleteTask(task)
             case .tag(let tag):
                 try repository.permanentlyDeleteTag(tag)
             case .list(let list):
@@ -381,6 +429,59 @@ private struct ArchivedListRow: View {
             Spacer()
 
             // 操作按钮
+            HStack(spacing: 8) {
+                Button(action: onRestore) {
+                    Text("恢复")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoPrimary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.holoPrimary.opacity(0.1))
+                        .clipShape(Capsule())
+                }
+
+                Button(action: onDelete) {
+                    Text("删除")
+                        .font(.holoCaption)
+                        .foregroundColor(.red)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(Color.red.opacity(0.1))
+                        .clipShape(Capsule())
+                }
+            }
+        }
+        .padding(HoloSpacing.md)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+    }
+}
+
+// MARK: - Archived Task Row
+
+/// 已归档任务行视图
+private struct ArchivedTaskRow: View {
+    let task: TodoTask
+    let onRestore: () -> Void
+    let onDelete: () -> Void
+
+    var body: some View {
+        HStack(spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(task.title ?? "")
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextPrimary)
+                    .lineLimit(1)
+
+                if let list = task.list {
+                    Text(list.name)
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.holoTextSecondary)
+                }
+            }
+
+            Spacer()
+
             HStack(spacing: 8) {
                 Button(action: onRestore) {
                     Text("恢复")

@@ -18,9 +18,15 @@ struct ChatView: View {
     @State private var pendingVoiceTranscriptToSend: String?
     @State private var pendingDelete: PendingCardDelete?
     @State private var showDeleteConfirmation = false
+    @Binding var goalPlanningRequest: GoalPlanningRequest?
 
     /// 外部传入的预填文本（如从记忆长廊"继续问AI"跳转）
     var prefillText: String? = nil
+
+    init(goalPlanningRequest: Binding<GoalPlanningRequest?> = .constant(nil), prefillText: String? = nil) {
+        self._goalPlanningRequest = goalPlanningRequest
+        self.prefillText = prefillText
+    }
 
     var body: some View {
         ZStack {
@@ -31,10 +37,10 @@ struct ChatView: View {
                 chatNavBar
 
                 if viewModel.isConfigured || !viewModel.hasFinishedSetup || viewModel.didTimeoutLoadingConfig {
-                    // 已配置、正在检查中、或检查超时：都允许先进入对话页面，避免首屏卡死
+                    // 已连接、正在检查中、或检查超时：都允许先进入对话页面，避免首屏卡死
                     chatContent
                 } else if !viewModel.isConfigured {
-                    // 未配置引导
+                    // 服务不可用兜底
                     unconfiguredView
                 }
             }
@@ -50,6 +56,11 @@ struct ChatView: View {
             if let text = prefillText, !text.isEmpty {
                 viewModel.inputText = text
             }
+        }
+        .onChange(of: goalPlanningRequest) { request in
+            guard let request else { return }
+            viewModel.startGoalPlanning(seedText: request.seedText)
+            goalPlanningRequest = nil
         }
         .fullScreenCover(item: $viewingLogMessage) { message in
             if let log = message.rawLog {
@@ -70,6 +81,19 @@ struct ChatView: View {
         } message: {
             if let pending = pendingDelete {
                 Text("确定删除\(pending.description)吗？此操作不可撤销。")
+            }
+        }
+        .fullScreenCover(isPresented: $viewModel.showGoalDraftReview) {
+            if let draft = viewModel.goalDraftForReview {
+                GoalDraftReviewView(
+                    draft: draft,
+                    onCancel: {
+                        viewModel.cancelGoalPlanning()
+                    },
+                    onSaved: { result in
+                        viewModel.finishGoalPlanningSave(result)
+                    }
+                )
             }
         }
     }
@@ -97,6 +121,7 @@ struct ChatView: View {
 
             Spacer()
 
+            #if DEBUG
             Button {
                 activeSheet = .aiSettings
             } label: {
@@ -107,6 +132,10 @@ struct ChatView: View {
                     .background(Color.holoTextSecondary.opacity(0.1))
                     .cornerRadius(16)
             }
+            #else
+            Color.clear
+                .frame(width: 32, height: 32)
+            #endif
         }
         .padding(.horizontal, 16)
         .padding(.top, 8)
@@ -125,22 +154,10 @@ struct ChatView: View {
                 .font(.holoTitle)
                 .foregroundColor(.holoTextPrimary)
 
-            Text("配置 AI 服务后即可使用\n支持记账、任务、习惯打卡等智能操作")
+            Text("AI 服务暂时不可用\n请稍后重试或检查网络连接")
                 .font(.holoBody)
                 .foregroundColor(.holoTextSecondary)
                 .multilineTextAlignment(.center)
-
-            Button {
-                activeSheet = .aiSettings
-            } label: {
-                Text("配置 AI 服务")
-                    .font(.system(size: 16, weight: .bold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 32)
-                    .padding(.vertical, 12)
-                    .background(Color.holoPrimary)
-                    .cornerRadius(12)
-            }
         }
         .padding()
     }
@@ -150,9 +167,9 @@ struct ChatView: View {
     private var chatContent: some View {
         VStack(spacing: 0) {
             if !viewModel.hasFinishedSetup {
-                statusBanner("正在读取 AI 配置，你现在也可以直接发送消息")
+                statusBanner("正在连接 Holo AI 服务，你现在也可以直接发送消息")
             } else if viewModel.didTimeoutLoadingConfig {
-                statusBanner("AI 配置读取超时，已先放开聊天交互，你也可以点右上角检查设置")
+                statusBanner("AI 服务连接较慢，已先放开聊天交互")
             }
 
             // 消息列表
@@ -200,6 +217,7 @@ struct ChatView: View {
                         MessageBubbleView(
                             message: message,
                             streamingText: viewModel.isStreaming && message.isStreaming ? viewModel.streamingText : nil,
+                            goalDraftForReview: viewModel.goalDraftForReview,
                             onIntentTagTap: { msg in
                                 handleIntentTagTap(msg)
                             },
@@ -213,6 +231,13 @@ struct ChatView: View {
                                 guard message.metadataState == .loaded,
                                       message.analysisContext != nil else { return }
                                 activeSheet = .analysisDetail(message)
+                            },
+                            onGoalDraftCardTap: {
+                                viewModel.showGoalDraftReview = true
+                            },
+                            onSavedGoalCardTap: { goalId in
+                                DeepLinkState.shared.navigate(to: .goalDetail(goalId: goalId))
+                                dismiss()
                             },
                             onRetry: {
                                 Task { await viewModel.retryMessage(message) }
@@ -323,10 +348,10 @@ struct ChatView: View {
             let transaction = FinanceRepository.shared.findTransaction(by: transactionId)
             activeSheet = transaction.map { .editTransaction($0) }
         } else if let taskId = message.resolveLinkedEntityId(for: .task) {
-            DeepLinkState.shared.pendingTarget = .taskDetail(taskId: taskId)
+            DeepLinkState.shared.navigate(to: .taskDetail(taskId: taskId))
             dismiss()
         } else if message.hasLinkedEntity(for: .memoryInsight) {
-            DeepLinkState.shared.pendingTarget = .memoryGallery
+            DeepLinkState.shared.navigate(to: .memoryGallery)
             dismiss()
         }
     }
@@ -368,7 +393,7 @@ struct ChatView: View {
             }
         case .task:
             if let taskId = message.resolveLinkedEntityId(for: .task) {
-                DeepLinkState.shared.pendingTarget = .taskDetail(taskId: taskId)
+                DeepLinkState.shared.navigate(to: .taskDetail(taskId: taskId))
                 dismiss()
             }
         case .habitCheckIn, .mood, .weight:

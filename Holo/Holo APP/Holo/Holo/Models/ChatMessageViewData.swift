@@ -13,7 +13,7 @@ import CoreData
 
 /// 实体类别，用于统一解析 linkedEntityId
 nonisolated enum EntityCategory: Hashable, Sendable {
-    case finance, task, habit, thought, memoryInsight
+    case finance, task, habit, thought, memoryInsight, goal
 }
 
 // MARK: - MetadataState
@@ -24,6 +24,11 @@ enum ChatMessageMetadataState: Equatable, Sendable {
     case unloaded      // 可能有重元数据，尚未加载
     case loading       // 正在批量加载中
     case loaded        // 已完成加载（解码结果可以为空）
+}
+
+enum ChatMessageType: String, Codable, Sendable {
+    case normal
+    case goalPlanning
 }
 
 nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hashable {
@@ -38,6 +43,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
     var extractedDataJSON: String?
     var isStreaming: Bool
     var parentMessageId: UUID?
+    var messageType: ChatMessageType
     var parsedBatch: AIParseBatch?
     var executionBatch: AIExecutionBatch?
     var analysisContext: AnalysisContext?
@@ -55,6 +61,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         extractedDataJSON: String?,
         isStreaming: Bool,
         parentMessageId: UUID?,
+        messageType: ChatMessageType = .normal,
         parsedBatch: AIParseBatch? = nil,
         executionBatch: AIExecutionBatch? = nil,
         analysisContext: AnalysisContext? = nil,
@@ -68,6 +75,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         self.extractedDataJSON = extractedDataJSON
         self.isStreaming = isStreaming
         self.parentMessageId = parentMessageId
+        self.messageType = messageType
         self.parsedBatch = parsedBatch
         self.executionBatch = executionBatch
         self.analysisContext = analysisContext
@@ -90,6 +98,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
             extractedDataJSON: message.extractedDataJSON,
             isStreaming: message.isStreaming,
             parentMessageId: message.parentMessageId,
+            messageType: ChatMessageType(rawValue: message.messageType) ?? .normal,
             parsedBatch: message.parsedBatch,
             executionBatch: message.executionBatch,
             analysisContext: Self.decodeAnalysisContext(message.analysisContextJSON),
@@ -141,9 +150,10 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         self.extractedDataJSON = dictionary["extractedDataJSON"] as? String
         self.isStreaming = isStreaming
         self.parentMessageId = dictionary["parentMessageId"] as? UUID
+        self.messageType = ChatMessageType(rawValue: dictionary["messageType"] as? String ?? "normal") ?? .normal
         self.parsedBatch = nil
-        self.executionBatch = nil
-        self.rawLog = nil
+        self.executionBatch = Self.decodeExecutionBatch(dictionary["executionBatchJSON"] as? String)
+        self.rawLog = Self.decodeRawLog(dictionary["rawLogJSON"] as? String)
 
         // queryAnalysis 消息直接解码 analysisContext，确保首帧即可渲染卡片
         let intentStr = dictionary["intent"] as? String
@@ -153,9 +163,12 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
             self.analysisContext = nil
         }
 
-        // 元数据状态：queryAnalysis 已解码 analysisContext 视为 loaded
+        // 元数据状态：首屏轻量查询会带上卡片渲染和日志所需字段，避免等待滚动触发懒加载。
+        let hasFetchedCardMetadata = dictionary.keys.contains("executionBatchJSON") || dictionary.keys.contains("rawLogJSON")
         if role == "user" || isStreaming {
             self.metadataState = .unavailable
+        } else if hasFetchedCardMetadata {
+            self.metadataState = .loaded
         } else if intentStr == AIIntent.queryAnalysis.rawValue && self.analysisContext != nil {
             self.metadataState = .loaded
         } else {
@@ -165,7 +178,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         self.cachedExtractedDataDictionary = Self.decodeExtractedData(extractedDataJSON)
         self.cachedLinkedEntityIds = Self.buildLinkedEntityIds(
             extractedDataDictionary: cachedExtractedDataDictionary,
-            executionBatch: nil
+            executionBatch: executionBatch
         )
     }
 
@@ -272,6 +285,11 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
             request.predicate = NSPredicate(format: "id == %@ AND deletedFlag == NO", id as CVarArg)
             request.fetchLimit = 1
             return (try? context.count(for: request)) ?? 0 > 0
+        case .goal:
+            let request = Goal.fetchRequest()
+            request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+            request.fetchLimit = 1
+            return (try? context.count(for: request)) ?? 0 > 0
         default:
             return true
         }
@@ -301,6 +319,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         case .habit: return [.checkIn]
         case .thought: return [.createNote]
         case .memoryInsight: return [.generateMemoryInsight]
+        case .goal: return []
         }
     }
 
@@ -313,6 +332,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         case .habit: key = "habitId"
         case .thought: key = "thoughtId"
         case .memoryInsight: key = "entityId"
+        case .goal: key = "goalId"
         }
         guard let idStr = dict[key] else { return nil }
         return UUID(uuidString: idStr)
@@ -375,7 +395,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
             }
         }
 
-        for category in [EntityCategory.finance, .task, .habit, .thought, .memoryInsight] where ids[category] == nil {
+        for category in [EntityCategory.finance, .task, .habit, .thought, .memoryInsight, .goal] where ids[category] == nil {
             guard let id = legacyEntityId(for: category, in: extractedDataDictionary) else { continue }
             ids[category] = id
         }
@@ -403,6 +423,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         case .habit: key = "habitId"
         case .thought: key = "thoughtId"
         case .memoryInsight: key = "entityId"
+        case .goal: key = "goalId"
         }
         guard let idStr = dict[key] else { return nil }
         return UUID(uuidString: idStr)

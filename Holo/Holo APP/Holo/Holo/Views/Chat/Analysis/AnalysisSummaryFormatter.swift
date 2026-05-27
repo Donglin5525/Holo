@@ -32,6 +32,10 @@ enum AnalysisSummaryFormatter {
             return formatThought(context: context, periodLabel: periodLabel)
         case .crossModule:
             return formatCrossModule(context: context, periodLabel: periodLabel)
+        case .health:
+            return formatHealth(context: context, periodLabel: periodLabel)
+        case .goal:
+            return formatGoal(context: context, periodLabel: periodLabel)
         }
     }
 
@@ -69,7 +73,7 @@ enum AnalysisSummaryFormatter {
 
         var parts: [String] = []
         if let rate = habit.averageCompletionRate {
-            parts.append("完成率 \(String(format: "%.0f%%", rate * 100))")
+            parts.append("达标率 \(String(format: "%.0f%%", rate * 100))")
         }
         parts.append("活跃 \(habit.activeHabitCount) 个")
         let maxStreak = habit.streaks.map(\.currentStreak).max() ?? 0
@@ -123,6 +127,55 @@ enum AnalysisSummaryFormatter {
             title: "综合分析 · \(periodLabel)",
             subtitle: periodLabel,
             summaryLine: "亮点 \(cross.highlights.count) 条 · 提醒 \(cross.warnings.count) 条"
+        )
+    }
+
+    // MARK: - Health
+
+    private static func formatHealth(context: AnalysisContext, periodLabel: String) -> AnalysisCompactSummary? {
+        guard let health = context.health else { return nil }
+
+        var parts: [String] = []
+        if let score = health.overallBodyScore {
+            parts.append("体表分 \(String(format: "%.0f", score))")
+        }
+        if let steps = health.steps, !steps.isDataFree {
+            parts.append("日均 \(Int(steps.dailyAverage).formatted()) 步")
+        }
+        if let sleep = health.sleep, !sleep.isDataFree {
+            parts.append("日均 \(String(format: "%.1f", sleep.dailyAverage))h 睡眠")
+        }
+        if !health.anomalyNotes.isEmpty {
+            parts.append("\(health.anomalyNotes.count) 项提醒")
+        }
+
+        return AnalysisCompactSummary(
+            icon: "heart.fill",
+            title: "健康分析 · \(periodLabel)",
+            subtitle: periodLabel,
+            summaryLine: parts.isEmpty ? "暂无数据" : parts.joined(separator: " · ")
+        )
+    }
+
+    // MARK: - Goal
+
+    private static func formatGoal(context: AnalysisContext, periodLabel: String) -> AnalysisCompactSummary? {
+        guard let goal = context.goal else { return nil }
+
+        var parts: [String] = []
+        parts.append("活跃 \(goal.totalActiveGoals) 个")
+        if goal.completedGoalsInPeriod > 0 {
+            parts.append("完成 \(goal.completedGoalsInPeriod) 个")
+        }
+        if !goal.atRiskGoals.isEmpty {
+            parts.append("\(goal.atRiskGoals.count) 个风险")
+        }
+
+        return AnalysisCompactSummary(
+            icon: "target",
+            title: "目标分析 · \(periodLabel)",
+            subtitle: periodLabel,
+            summaryLine: parts.joined(separator: " · ")
         )
     }
 

@@ -54,7 +54,7 @@ extension AIIntent {
 
 /// 关联实体类型
 enum LinkedEntityType: String, Codable {
-    case transaction, task, habit, thought, memoryInsight
+    case transaction, task, habit, thought, memoryInsight, goal
 }
 
 /// 通用实体链接
@@ -400,17 +400,23 @@ struct UserContext {
     let accounts: AccountSummary
     let profileContext: String?
     let recentTrend: UserRecentTrend?
+    let goalContext: String?
+    var dataCoverage: HoloMemoryDataCoverage?
+    var memorySummary: HoloMemoryPromptSummary?
 
     /// 空上下文（分析查询不需要即时上下文）
     static let empty = UserContext(
         todayDate: "",
         transactions: TransactionSummary(todayExpense: "", todayIncome: "", recentTransactions: []),
-        habits: HabitSummary(totalActive: 0, todayCompleted: 0, todayTotal: 0, recentCheckIns: [], activeHabitNames: []),
+        habits: HabitSummary(totalActive: 0, todayCompleted: 0, todayTotal: 0, recentCheckIns: [], activeHabitNames: [], focusSummaries: [], focusTopicLines: []),
         tasks: TaskSummary(todayTotal: 0, todayCompleted: 0, overdueCount: 0, recentTasks: [], activeTaskSummaries: []),
         thoughts: ThoughtSummary(recentThoughts: [], totalThoughts: 0),
         accounts: AccountSummary(accountList: "", defaultAccountName: ""),
         profileContext: nil,
-        recentTrend: nil
+        recentTrend: nil,
+        goalContext: nil,
+        dataCoverage: nil,
+        memorySummary: nil
     )
 }
 
@@ -436,6 +442,8 @@ struct HabitSummary {
     let todayTotal: Int
     let recentCheckIns: [String]
     let activeHabitNames: [String]
+    let focusSummaries: [HabitFocusSummary]
+    let focusTopicLines: [String]
 }
 
 /// 任务摘要

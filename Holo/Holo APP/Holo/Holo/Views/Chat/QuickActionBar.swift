@@ -2,8 +2,8 @@
 //  QuickActionBar.swift
 //  Holo
 //
-//  快捷操作栏
-//  横向滚动的快捷模板按钮
+//  能力启动台
+//  替代原有 CRUD 快捷按钮，展示高价值 AI 能力入口
 //
 
 import SwiftUI
@@ -15,23 +15,28 @@ struct QuickActionBar: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(QuickAction.allCases, id: \.self) { action in
+                ForEach(viewModel.capabilities) { capability in
                     Button {
-                        viewModel.sendQuickAction(action)
+                        viewModel.handleCapabilityTap(capability)
                     } label: {
                         HStack(spacing: 4) {
-                            Image(systemName: action.icon)
+                            Image(systemName: capability.systemImage)
                                 .font(.system(size: 12))
-                            Text(action.rawValue)
+                            Text(capability.title)
                                 .font(.system(size: 13))
                         }
-                        .foregroundColor(.holoPrimary)
+                        .foregroundColor(capability.isEmphasized ? .white : .holoPrimary)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 6)
-                        .background(Color.holoPrimary.opacity(0.1))
+                        .background(
+                            capability.isEmphasized
+                                ? Color.holoPrimary
+                                : Color.holoPrimary.opacity(0.1)
+                        )
                         .cornerRadius(16)
                     }
-                    .disabled(viewModel.isStreaming)
+                    .disabled(viewModel.isStreaming || !capability.isEnabled)
+                    .opacity(capability.isEnabled ? 1.0 : 0.5)
                 }
             }
             .padding(.horizontal, 16)

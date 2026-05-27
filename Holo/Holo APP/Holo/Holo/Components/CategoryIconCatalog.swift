@@ -3,7 +3,7 @@
 //  Holo
 //
 //  记账模块图标目录
-//  12 个展示分组，共 171 个 SF Symbol 图标
+//  12 个展示分组，共 171+ 个图标
 //  仅用于 IconPickerGrid 的 UI 展示分组，不代表业务分类
 //
 
@@ -43,7 +43,8 @@ enum CategoryIconCatalog {
             "airplane", "figure.walk", "bus.fill", "train.side.rear.car", "airplane.departure",
             // 新增 6 个
             "tram.fill", "sailboat.fill", "bolt.car.fill", "scooter",
-            "figure.roll.runningpace", "ferry",
+            "figure.roll.runningpace", "ferry", "car.rear.waves.up.fill",
+            "wrench.and.screwdriver.fill",
         ]),
 
         IconPickerSection(id: "entertainment", title: "娱乐", icons: [
@@ -101,7 +102,7 @@ enum CategoryIconCatalog {
             // 新增 8 个
             "character.book.closed.fill", "laptopcomputer.and.iphone",
             "studentdesk", "doc.text.fill", "bubble.left.and.bubble.right.fill",
-            "magazine.fill", "highlighter", "rosette",
+            "magazine.fill", "highlighter", "rosette", "cloud.fill", "laptopcomputer",
         ]),
 
         IconPickerSection(id: "family", title: "家庭人情", icons: [
@@ -112,6 +113,7 @@ enum CategoryIconCatalog {
             "figure.and.child.holdinghands", "graduationcap.fill",
             "figure.stand.dress", "balloon.fill", "figure.socialdance",
             "giftcard.fill", "gift.circle.fill", "bubble.left.fill",
+            "person.2.badge.gearshape.fill",
         ]),
 
         IconPickerSection(id: "lifeServices", title: "生活服务", icons: [
@@ -119,7 +121,7 @@ enum CategoryIconCatalog {
             "pawprint.fill", "washer.fill", "phone.fill",
             // 新增 5 个
             "tree.fill", "qrcode", "hourglass", "bookmark.fill",
-            "globe.asia.australia.fill",
+            "globe.asia.australia.fill", "shippingbox.and.arrow.backward.fill",
         ]),
 
         IconPickerSection(id: "income", title: "收入资产", icons: [
@@ -132,7 +134,7 @@ enum CategoryIconCatalog {
             "arrow.3.trianglepath", "plus.circle.fill",
             // 新增 3 个
             "bitcoinsign.circle.fill", "arrow.up.circle.fill",
-            "building.columns.circle.fill",
+            "building.columns.circle.fill", "person.crop.circle.badge.checkmark",
         ]),
 
         IconPickerSection(id: "other", title: "其他", icons: [
@@ -142,7 +144,8 @@ enum CategoryIconCatalog {
             // 新增 5 个
             "exclamationmark.triangle.fill", "xmark.circle.fill",
             "arrow.right.arrow.left.circle.fill", "hands.clap.fill",
-            "rectangle.portrait.and.arrow.right.fill",
+            "rectangle.portrait.and.arrow.right.fill", "dollarsign.arrow.circlepath",
+            "holo.category.generic", "holo.category.misc",
         ]),
     ]
 
@@ -152,6 +155,21 @@ enum CategoryIconCatalog {
     static let allIcons: [String] = {
         sections.flatMap(\.icons)
     }()
+
+    /// SwiftUI 自绘图标，不是 SF Symbol
+    static let customIconNames: Set<String> = [
+        "holo.category.generic",
+        "holo.category.misc",
+    ]
+
+    /// 仅 SF Symbol 图标，用于系统符号可解析性测试
+    static let sfSymbolIcons: [String] = {
+        allIcons.filter { !customIconNames.contains($0) }
+    }()
+
+    static func isCustomIcon(_ icon: String) -> Bool {
+        customIconNames.contains(icon)
+    }
 
     /// 判断指定图标是否在目录中
     static func contains(_ icon: String) -> Bool {

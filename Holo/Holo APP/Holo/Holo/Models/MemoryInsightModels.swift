@@ -51,9 +51,43 @@ enum AnomalySeverity: String, Codable {
 enum AnomalyType: String, Codable {
     case spendingSpike
     case habitBreak
+    case negativeHabitTrend
     case taskOverload
     case budgetOverrun
     case budgetWarning
+}
+
+// MARK: - Feedback Types
+
+/// 准确性评分
+enum AccuracyRating: String, Codable {
+    case accurate
+    case inaccurate
+}
+
+/// 价值感评分
+enum ValueRating: String, Codable {
+    case useful
+    case notUseful
+}
+
+/// 不准原因分类
+enum FeedbackReasonType: String, Codable, CaseIterable {
+    case dataWrong         // 数据不准
+    case relationWrong     // 关联不准
+    case priorityWrong     // 重点不准
+    case suggestionWrong   // 建议不适合
+    case toneWrong         // 语气不喜欢
+
+    var displayName: String {
+        switch self {
+        case .dataWrong: return "数据不准"
+        case .relationWrong: return "关联不准"
+        case .priorityWrong: return "重点不准"
+        case .suggestionWrong: return "建议不适合"
+        case .toneWrong: return "语气不喜欢"
+        }
+    }
 }
 
 // MARK: - Anomaly Observation
@@ -110,10 +144,15 @@ struct MemoryInsightCard: Codable, Identifiable, Equatable {
     let suggestedQuestion: String?
     /// anomaly 卡片的严重度，其他类型为 nil
     let anomalySeverity: AnomalySeverity?
+    /// overview/anomaly/crossDomain 等多模块卡片补充归属，post-process 填充
+    let moduleHint: String?
+    /// rerank 用的模式标识（如 spending_increase / habit_break），post-process 填充
+    let patternType: String?
 
     init(id: String, type: MemoryInsightCardType, title: String, body: String,
          evidence: [MemoryInsightEvidence], suggestedQuestion: String?,
-         anomalySeverity: AnomalySeverity? = nil) {
+         anomalySeverity: AnomalySeverity? = nil,
+         moduleHint: String? = nil, patternType: String? = nil) {
         self.id = id
         self.type = type
         self.title = title
@@ -121,6 +160,8 @@ struct MemoryInsightCard: Codable, Identifiable, Equatable {
         self.evidence = evidence
         self.suggestedQuestion = suggestedQuestion
         self.anomalySeverity = anomalySeverity
+        self.moduleHint = moduleHint
+        self.patternType = patternType
     }
 }
 
@@ -159,7 +200,7 @@ enum MemoryInsightError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .aiNotConfigured:
-            return "AI 服务未配置，请先在设置中配置 AI Provider"
+            return "AI 服务暂时不可用，请稍后重试"
         case .generationInProgress:
             return "正在生成中，请勿重复操作"
         case .generationTimeout:
@@ -194,6 +235,9 @@ struct MemoryInsightContext: Codable, Equatable {
     let dailySnapshots: [DailyLifeSnapshot]?
     let lifeEvents: [LifeEvent]?
     let personalBaseline: PersonalBaseline?
+    let personalProfileContext: String?
+    /// 健康洞察上下文（Phase 5 新增，可选）
+    let health: HealthInsightContext?
 
     init(
         periodType: MemoryInsightPeriodType,
@@ -212,7 +256,9 @@ struct MemoryInsightContext: Codable, Equatable {
         previousPeriodReview: PreviousPeriodReview?,
         dailySnapshots: [DailyLifeSnapshot]? = nil,
         lifeEvents: [LifeEvent]? = nil,
-        personalBaseline: PersonalBaseline? = nil
+        personalBaseline: PersonalBaseline? = nil,
+        personalProfileContext: String? = nil,
+        health: HealthInsightContext? = nil
     ) {
         self.periodType = periodType
         self.periodStart = periodStart
@@ -231,6 +277,8 @@ struct MemoryInsightContext: Codable, Equatable {
         self.dailySnapshots = dailySnapshots
         self.lifeEvents = lifeEvents
         self.personalBaseline = personalBaseline
+        self.personalProfileContext = personalProfileContext
+        self.health = health
     }
 }
 
@@ -308,7 +356,22 @@ struct MemoryInsightHabitContext: Codable, Equatable {
     let averageCompletionRate: Double?
     let topPerformingHabits: [String]
     let strugglingHabits: [String]
+    let habitPerformanceSummaries: [HabitPerformanceSummary]
     let habitCategoryCompletionSummaries: [HabitCategoryCompletionSummary]
+}
+
+struct HabitPerformanceSummary: Codable, Equatable {
+    let habitName: String
+    let polarity: HabitPolarity
+    let successRule: HabitSuccessRule
+    let completionRate: Double
+    let totalValue: Double?
+    let targetValue: Double?
+    let unit: String?
+    let controlledDays: Int?
+    let overLimitDays: Int?
+    let completedDays: Int
+    let totalDays: Int
 }
 
 struct MemoryInsightTaskContext: Codable, Equatable {

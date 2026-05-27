@@ -21,6 +21,6 @@ class ThoughtReference: NSManagedObject, @unchecked Sendable {
 
     // MARK: - Relationships
 
-    @NSManaged var sourceThought: Thought
-    @NSManaged var targetThought: Thought
+    @NSManaged var sourceThought: Thought?
+    @NSManaged var targetThought: Thought?
 }

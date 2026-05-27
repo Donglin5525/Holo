@@ -13,6 +13,7 @@ import Combine
 /// 各模块通过匹配对应 case 决定是否响应跳转
 enum DeepLinkTarget: Equatable {
     case taskDetail(taskId: UUID)
+    case goalDetail(goalId: UUID)
     case dailyReminder
     case habitDetail(habitId: UUID)
     /// 从 AI Chat 卡片跳转到对应模块
@@ -36,6 +37,22 @@ class DeepLinkState: ObservableObject {
     /// 待跳转的目标
     /// 设置后，HomeView 会自动打开对应模块，模块内部视图会自动弹出详情页
     @Published var pendingTarget: DeepLinkTarget?
+
+    // MARK: - Navigation
+
+    /// 设置跳转目标
+    /// 自动处理连续跳转相同目标的情况：先清空再异步设置，确保 onChange 一定能触发
+    func navigate(to target: DeepLinkTarget) {
+        if pendingTarget == target {
+            // 相同目标：先清空让 onChange 检测到变化，再异步设置新值
+            pendingTarget = nil
+            DispatchQueue.main.async { [weak self] in
+                self?.pendingTarget = target
+            }
+        } else {
+            pendingTarget = target
+        }
+    }
 
     // MARK: - Initialization
 

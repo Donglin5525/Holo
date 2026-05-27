@@ -135,7 +135,7 @@ struct AddTransactionSheet: View {
             let originalAmount = String(describing: abs(transaction.amount.decimalValue))
             return amountString != originalAmount
                 || selectedCategory != transaction.category
-                || selectedAccount?.objectID != transaction.account.objectID
+                || selectedAccount?.objectID != transaction.account?.objectID
                 || note != (transaction.note ?? "")
                 || !Calendar.current.isDate(selectedDate, inSameDayAs: transaction.date)
         } else {

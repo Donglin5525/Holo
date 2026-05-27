@@ -211,6 +211,8 @@ enum CategorySFSymbolMapper {
         // 交通
         "地铁": "train.side.front.car", "打车": "car.side.fill", "公交": "bus.fill",
         "单车": "bicycle", "加油": "fuelpump.fill", "停车": "parkingsign.circle.fill",
+        "充电": "bolt.car.fill", "洗车": "car.rear.waves.up.fill",
+        "车辆保养": "wrench.and.screwdriver.fill", "违章罚款": "exclamationmark.triangle.fill",
         "火车": "train.side.rear.car", "机票": "airplane.departure",
         "旅行": "figure.walk", "过路费": "building.columns.fill",
         // 购物
@@ -220,11 +222,12 @@ enum CategorySFSymbolMapper {
         // 娱乐
         "电影": "film.fill", "游戏": "gamecontroller.fill", "视频": "play.tv.fill",
         "音乐": "music.note.list", "KTV": "mic.fill", "旅游": "airplane",
-        "健身": "figure.run",
+        "住宿": "bed.double.fill", "门票": "ticket.fill", "健身": "figure.run",
         // 居住
         "房租": "key.fill", "房贷": "banknote.fill", "水费": "drop.fill",
         "电费": "bolt.fill", "燃气": "flame.fill", "物业": "building.2.fill",
         "网费": "wifi", "家电": "tv.fill", "装修": "paintbrush.fill",
+        "家政保洁": "person.2.badge.gearshape.fill", "搬家": "shippingbox.and.arrow.backward.fill",
         // 医疗
         "就医": "stethoscope", "药品": "pill.fill", "体检": "heart.text.square.fill",
         "健身房": "dumbbell.fill", "保健品": "leaf.fill", "牙齿保健": "heart.circle.fill",
@@ -233,23 +236,28 @@ enum CategorySFSymbolMapper {
         "课程": "book.closed.fill", "教材": "text.book.closed.fill",
         "考试": "checkmark.rectangle.fill", "文具": "pencil.line",
         "订阅": "arrow.trianglehead.clockwise",
+        "AI工具": "sparkles", "软件服务": "laptopcomputer", "云存储": "cloud.fill",
         // 人情（支出）
         "红包礼金": "yensign.circle.fill", "请客": "wineglass.fill",
         "送礼": "gift.fill", "探望": "figure.walk.arrival",
+        "育儿": "figure.and.child.holdinghands", "赡养": "person.2.fill",
         "其他": "ellipsis.circle.fill",
         // 其他支出
         "社交": "person.2.fill", "宠物": "pawprint.fill", "理发": "scissors",
         "洗衣": "washer.fill", "话费": "phone.fill", "烟酒": "smoke.fill",
         "维修": "wrench.fill", "保险": "shield.checkered",
+        "手续费": "dollarsign.arrow.circlepath", "税费": "building.columns.circle.fill",
+        "罚款": "exclamationmark.triangle.fill", "快递": "shippingbox.fill",
         "还款": "arrow.uturn.backward.circle.fill", "转账": "arrow.right.circle.fill",
         "捐赠": "heart.fill",
         // 系统分类
         "待确认": "questionmark.circle.fill",
         // 投资理财（收入）
         "利息": "percent", "股票": "chart.line.uptrend.xyaxis",
-        "房租收入": "building.columns.fill", "其他投资": "chart.pie.fill",
+        "基金": "chart.pie.fill", "房租收入": "building.columns.fill", "其他投资": "chart.pie.fill",
         // 工资收入
         "工资": "banknote.fill", "奖金": "star.fill", "兼职": "briefcase.fill",
+        "项目款": "briefcase.fill", "咨询费": "person.crop.circle.badge.checkmark",
         "报销": "arrow.uturn.backward.circle.fill", "退款": "arrow.counterclockwise.circle.fill",
         // 人情来往（收入）
         "红包": "yensign.circle.fill",
@@ -257,7 +265,8 @@ enum CategorySFSymbolMapper {
         // 其他收入
         "借入": "arrow.down.circle.fill", "还款收入": "arrow.uturn.forward.circle.fill",
         "退货": "shippingbox.fill", "公积金": "building.columns.fill",
-        "出闲置": "arrow.3.trianglepath",
+        "出闲置": "arrow.3.trianglepath", "稿费": "doc.text.fill",
+        "补贴": "giftcard.fill", "个税退税": "arrow.uturn.backward.circle.fill",
     ]
 
     /// 获取分类对应的 SF Symbol
@@ -347,6 +356,14 @@ extension ChatCardData {
                     warnings: cm.warnings
                 )))
             }
+        case .health:
+            if let ht = context.health {
+                cards.append(contentsOf: healthCards(ht, periodLabel: context.periodLabel))
+            }
+        case .goal:
+            if let g = context.goal {
+                cards.append(contentsOf: goalCards(g, periodLabel: context.periodLabel))
+            }
         }
 
         return cards
@@ -431,16 +448,30 @@ extension ChatCardData {
         }
 
         // Highlights
-        var highlights = h.topPerformingHabits.map { "\($0.habitName)：完成率 \(String(format: "%.0f%%", $0.completionRate * 100))" }
-        highlights += h.strugglingHabits.map { "\($0.habitName)：完成率仅 \(String(format: "%.0f%%", $0.completionRate * 100))" }
+        var highlights = h.topPerformingHabits.map { habitPerformanceText($0) }
+        highlights += h.strugglingHabits.map { habitPerformanceText($0) }
         if !highlights.isEmpty {
             cards.append(.analysisHighlights(AnalysisHighlightsCardData(
                 highlights: highlights,
-                warnings: h.strugglingHabits.map { "\($0.habitName) 需要加油" }
+                warnings: h.strugglingHabits.map { item in
+                    item.polarity == .negative ? "\(item.habitName) 需要控制频率" : "\(item.habitName) 需要加油"
+                }
             )))
         }
 
         return cards
+    }
+
+    private static func habitPerformanceText(_ item: HabitPerformanceItem) -> String {
+        let rate = String(format: "%.0f%%", item.completionRate * 100)
+        guard item.polarity == .negative else {
+            return "\(item.habitName)：完成率 \(rate)"
+        }
+
+        if let overLimitDays = item.overLimitDays, let controlledDays = item.controlledDays {
+            return "\(item.habitName)：控制率 \(rate)，超标 \(overLimitDays) 天，控制 \(controlledDays) 天"
+        }
+        return "\(item.habitName)：控制率 \(rate)"
     }
 
     // MARK: - Task Cards
@@ -507,6 +538,150 @@ extension ChatCardData {
                 AnalysisBreakdownRow(label: m.mood, value: "\(m.count)", percent: m.percentage / 100)
             }
             cards.append(.analysisBreakdown(AnalysisBreakdownCardData(title: "心情分布", rows: rows)))
+        }
+
+        return cards
+    }
+
+    // MARK: - Health Cards
+
+    private static func healthCards(_ h: HealthAnalysisContext, periodLabel: String) -> [ChatCardData] {
+        var cards: [ChatCardData] = []
+
+        // Summary
+        var metrics: [AnalysisBreakdownRow] = []
+        if let steps = h.steps, !steps.isDataFree {
+            metrics.append(AnalysisBreakdownRow(
+                label: "步数",
+                value: "日均 \(Int(steps.dailyAverage).formatted()) 步 · 达标 \(steps.goalMetDays)/\(steps.totalDays) 天",
+                percent: steps.totalDays > 0 ? Double(steps.goalMetDays) / Double(steps.totalDays) : nil
+            ))
+        }
+        if let sleep = h.sleep, !sleep.isDataFree {
+            metrics.append(AnalysisBreakdownRow(
+                label: "睡眠",
+                value: "日均 \(String(format: "%.1f", sleep.dailyAverage))h · 达标 \(sleep.goalMetDays)/\(sleep.totalDays) 天",
+                percent: sleep.totalDays > 0 ? Double(sleep.goalMetDays) / Double(sleep.totalDays) : nil
+            ))
+        }
+        if let stand = h.stand, !stand.isDataFree {
+            metrics.append(AnalysisBreakdownRow(
+                label: "站立",
+                value: "日均 \(String(format: "%.1f", stand.dailyAverage))h · 达标 \(stand.goalMetDays)/\(stand.totalDays) 天",
+                percent: stand.totalDays > 0 ? Double(stand.goalMetDays) / Double(stand.totalDays) : nil
+            ))
+        }
+        if let active = h.activeMinutes, !active.isDataFree {
+            metrics.append(AnalysisBreakdownRow(
+                label: "活动",
+                value: "日均 \(Int(active.dailyAverage).formatted()) 分钟 · 达标 \(active.goalMetDays)/\(active.totalDays) 天",
+                percent: active.totalDays > 0 ? Double(active.goalMetDays) / Double(active.totalDays) : nil
+            ))
+        }
+        if let score = h.overallBodyScore {
+            metrics.append(AnalysisBreakdownRow(
+                label: "体表分",
+                value: String(format: "%.0f", score),
+                percent: score / 100
+            ))
+        }
+        if !metrics.isEmpty {
+            cards.append(.analysisSummary(AnalysisSummaryCardData(
+                domain: .health,
+                periodLabel: periodLabel,
+                metrics: metrics
+            )))
+        }
+
+        // Trend — 步数趋势
+        if let steps = h.steps, steps.dailyTrend.count > 1 {
+            let points = steps.dailyTrend.suffix(14).map { pt in
+                AnalysisTrendPoint(label: pt.date, value: pt.rate, displayValue: "\(Int(pt.rate).formatted()) 步")
+            }
+            cards.append(.analysisTrend(AnalysisTrendCardData(title: "步数趋势", points: points)))
+        }
+
+        // Trend — 睡眠趋势
+        if let sleep = h.sleep, sleep.dailyTrend.count > 1 {
+            let points = sleep.dailyTrend.suffix(14).map { pt in
+                AnalysisTrendPoint(label: pt.date, value: pt.rate, displayValue: String(format: "%.1fh", pt.rate))
+            }
+            cards.append(.analysisTrend(AnalysisTrendCardData(title: "睡眠趋势", points: points)))
+        }
+
+        // Comparison — 体表分环比
+        if let curr = h.overallBodyScore, let prev = h.previousPeriodScore {
+            let diff = curr - prev
+            let changeStr = diff >= 0 ? "+\(String(format: "%.0f", diff))" : String(format: "%.0f", diff)
+            cards.append(.analysisComparison(AnalysisComparisonCardData(
+                title: "体表分环比",
+                currentValue: String(format: "%.0f", curr),
+                previousValue: String(format: "%.0f", prev),
+                change: changeStr
+            )))
+        }
+
+        // Highlights
+        if !h.anomalyNotes.isEmpty {
+            cards.append(.analysisHighlights(AnalysisHighlightsCardData(
+                highlights: [],
+                warnings: h.anomalyNotes
+            )))
+        }
+
+        return cards
+    }
+
+    // MARK: - Goal Cards
+
+    private static func goalCards(_ g: GoalAnalysisContext, periodLabel: String) -> [ChatCardData] {
+        var cards: [ChatCardData] = []
+
+        // Summary
+        var metrics: [AnalysisBreakdownRow] = [
+            AnalysisBreakdownRow(label: "活跃目标", value: "\(g.totalActiveGoals)", percent: nil)
+        ]
+        if g.completedGoalsInPeriod > 0 {
+            metrics.append(AnalysisBreakdownRow(label: "本周期完成", value: "\(g.completedGoalsInPeriod)", percent: nil))
+        }
+        if !g.atRiskGoals.isEmpty {
+            metrics.append(AnalysisBreakdownRow(label: "风险目标", value: "\(g.atRiskGoals.count)", percent: nil))
+        }
+        cards.append(.analysisSummary(AnalysisSummaryCardData(
+            domain: .goal,
+            periodLabel: periodLabel,
+            metrics: metrics
+        )))
+
+        // Breakdown — 各目标进度
+        let progressItems = g.goals.filter { $0.overallProgress != nil || $0.linkedTaskTotal > 0 }
+        if !progressItems.isEmpty {
+            let rows = progressItems.map { item in
+                let progressStr = item.overallProgress.map { String(format: "%.0f%%", $0 * 100) } ?? "无数据"
+                let taskInfo = "\(item.linkedTaskCompleted)/\(item.linkedTaskTotal) 任务"
+                return AnalysisBreakdownRow(
+                    label: item.title,
+                    value: "\(progressStr) · \(taskInfo)",
+                    percent: item.overallProgress
+                )
+            }
+            cards.append(.analysisBreakdown(AnalysisBreakdownCardData(title: "目标进度", rows: rows)))
+        }
+
+        // Highlights
+        var highlights: [String] = []
+        var warnings: [String] = g.atRiskGoals.map { "\($0) 需要关注" }
+        if let prev = g.previousPeriodCompleted, prev > 0 {
+            let diff = g.completedGoalsInPeriod - prev
+            if diff > 0 {
+                highlights.append("比上期多完成 \(diff) 个目标")
+            }
+        }
+        if !highlights.isEmpty || !warnings.isEmpty {
+            cards.append(.analysisHighlights(AnalysisHighlightsCardData(
+                highlights: highlights,
+                warnings: warnings
+            )))
         }
 
         return cards

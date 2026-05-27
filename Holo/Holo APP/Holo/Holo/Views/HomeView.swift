@@ -18,7 +18,16 @@ struct HomeView: View {
     // MARK: - Properties
     
     /// 用户昵称
-    @AppStorage("userName") private var userName: String = "东林"
+    @AppStorage(UserDisplayNameSettings.displayNameKey) private var userName: String = UserDisplayNameSettings.fallbackDisplayName
+
+    /// 是否已完成首次昵称设置
+    @AppStorage(UserDisplayNameSettings.onboardingKey) private var hasCompletedUserNameOnboarding: Bool = false
+
+    /// 是否显示首次昵称设置弹窗
+    @State private var showUserNameOnboarding: Bool = false
+
+    /// 首次昵称设置输入内容
+    @State private var onboardingNameDraft: String = ""
 
     /// 首页推送通道服务
     @ObservedObject private var scheduleService = HomeScheduleService.shared
@@ -56,8 +65,14 @@ struct HomeView: View {
     /// AI 对话页面的预填文本
     @State private var chatPrefillText: String?
 
+    /// 目标规划请求（跨页面传递：PersonalView → ChatView）
+    @State private var pendingGoalPlanningRequest: GoalPlanningRequest?
+
     /// 是否显示个人页面
     @State private var showPersonalView: Bool = false
+
+    /// 从 AI 对话卡片跳转到个人目标详情
+    @State private var pendingGoalDetailId: UUID?
 
     /// Holo One 快捷动作设置
     @AppStorage("holoOneAction") private var holoOneAction: HoloOneAction = .aiChat
@@ -179,7 +194,7 @@ struct HomeView: View {
         .fullScreenCover(isPresented: $showChatView, onDismiss: {
             chatPrefillText = nil
         }) {
-            ChatView(prefillText: chatPrefillText)
+            ChatView(goalPlanningRequest: $pendingGoalPlanningRequest, prefillText: chatPrefillText)
                 .preferredColorScheme(DarkModeManager.shared.colorScheme)
         }
         // 今日看板（Full Screen Cover 形式）
@@ -191,7 +206,11 @@ struct HomeView: View {
         .sheet(isPresented: $showPersonalView, onDismiss: {
             selectedTab = .ai
         }) {
-            PersonalView()
+            PersonalView(onPlanGoal: {
+                pendingGoalPlanningRequest = GoalPlanningRequest(seedText: nil)
+                showPersonalView = false
+                showChatView = true
+            }, pendingGoalDetailId: $pendingGoalDetailId)
                 .preferredColorScheme(DarkModeManager.shared.colorScheme)
         }
         // Holo One - 快速记账
@@ -215,7 +234,10 @@ struct HomeView: View {
             }
         }
         // 监听 Deep Link：冷启动时 onAppear 读取已有值
-        .onAppear { handleDeepLink() }
+        .onAppear {
+            presentUserNameOnboardingIfNeeded()
+            handleDeepLink()
+        }
         // 监听 Deep Link：热启动/后台时 onChange 检测变化
         .onChange(of: deepLinkState.pendingTarget) { _, _ in
             handleDeepLink()
@@ -226,9 +248,35 @@ struct HomeView: View {
                 loadFeatureItemsFromRepository()
             }
         }
+        .alert("我是Holo，你的个人助理。", isPresented: $showUserNameOnboarding) {
+            TextField("希望我怎么称呼您？", text: $onboardingNameDraft)
+            Button("保存") {
+                userName = UserDisplayNameSettings.standard.saveDisplayName(onboardingNameDraft)
+                hasCompletedUserNameOnboarding = true
+                onboardingNameDraft = ""
+            }
+            .disabled(UserDisplayNameSettings.normalizedDisplayName(onboardingNameDraft) == nil)
+        } message: {
+            Text("希望我怎么称呼您？")
+        }
     }
     
     // MARK: - 数据加载
+
+    /// 首次打开应用时引导用户设置昵称
+    private func presentUserNameOnboardingIfNeeded() {
+        guard !hasCompletedUserNameOnboarding else { return }
+
+        if UserDisplayNameSettings.normalizedDisplayName(userName) != nil,
+           userName != UserDisplayNameSettings.fallbackDisplayName {
+            hasCompletedUserNameOnboarding = true
+            UserDisplayNameSettings.standard.markOnboardingCompleted()
+            return
+        }
+
+        onboardingNameDraft = ""
+        showUserNameOnboarding = true
+    }
     
     /// 从 Repository 加载图标配置，转换为 FeatureButtonConfig 数组
     private func loadFeatureItemsFromRepository() {
@@ -668,6 +716,8 @@ struct HomeView: View {
         switch target {
         case .taskDetail, .dailyReminder:
             if showTasksView { return }
+        case .goalDetail:
+            if showPersonalView { return }
         case .habitDetail:
             if showHabitsView { return }
         case .finance:
@@ -693,21 +743,24 @@ struct HomeView: View {
             switch target {
             case .taskDetail, .dailyReminder:
                 showTasksView = true
+                // pendingTarget 由 TaskListView.handleDeepLink() 清除
+            case .goalDetail(let goalId):
+                pendingGoalDetailId = goalId
+                showPersonalView = true
+                deepLinkState.pendingTarget = nil
             case .habitDetail:
                 showHabitsView = true
+                // pendingTarget 由 HabitListView 处理后清除
             case .finance:
                 showFinanceView = true
+                deepLinkState.pendingTarget = nil
             case .tasks:
                 showTasksView = true
+                deepLinkState.pendingTarget = nil
             case .memoryGallery:
                 showMemoryGallery = true
+                deepLinkState.pendingTarget = nil
             }
-
-            // 不在此处清除 pendingTarget —— 由目标页面处理完后再清除，
-            // 避免 pendingTarget 在目标视图 onAppear 之前就被清空导致深度链接丢失。
-            // taskDetail → TaskListView.handleDeepLink() 清除
-            // habitDetail → HabitListView 处理后清除
-            // 其余类型由目标视图首次渲染后自动消费
         }
     }
 

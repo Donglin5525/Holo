@@ -63,6 +63,18 @@ extension AIProvider {
         throw APIError.serverError("当前 Provider 不支持记忆洞察生成")
     }
 
+    /// 非流式目标规划调用
+    func completeGoalPlanning(prompt: String, context: UserContext) async throws -> String {
+        let messages = [
+            ChatMessageDTO(role: "user", content: prompt)
+        ]
+        var text = ""
+        for try await chunk in chatStreaming(messages: messages, userContext: context) {
+            text += chunk
+        }
+        return text
+    }
+
     /// 默认实现：将单意图结果包装为 batch
     func parseUserInputBatch(_ input: String, context: UserContext) async throws -> AIParseBatch {
         let single = try await parseUserInput(input, context: context)

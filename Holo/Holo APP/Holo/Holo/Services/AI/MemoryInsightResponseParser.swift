@@ -95,4 +95,86 @@ enum MemoryInsightResponseParser {
 
         return true
     }
+
+    // MARK: - Post-Process
+
+    /// 为卡片填充 moduleHint / patternType（基于 card.type + 关键词匹配）
+    /// 不改 Prompt 输出 schema，纯本地后处理
+    static func fillModuleHints(_ payload: MemoryInsightPayload) -> MemoryInsightPayload {
+        let processedCards = payload.cards.map { card -> MemoryInsightCard in
+            // 已有 moduleHint 的不覆盖
+            if card.moduleHint != nil { return card }
+
+            let hint = deriveModuleHint(for: card)
+            let pattern = derivePatternType(for: card)
+
+            if hint != nil || pattern != nil {
+                return MemoryInsightCard(
+                    id: card.id,
+                    type: card.type,
+                    title: card.title,
+                    body: card.body,
+                    evidence: card.evidence,
+                    suggestedQuestion: card.suggestedQuestion,
+                    anomalySeverity: card.anomalySeverity,
+                    moduleHint: hint,
+                    patternType: pattern
+                )
+            }
+            return card
+        }
+
+        return MemoryInsightPayload(
+            title: payload.title,
+            summary: payload.summary,
+            cards: processedCards,
+            suggestedQuestions: payload.suggestedQuestions
+        )
+    }
+
+    // MARK: - Hint Derivation
+
+    private static func deriveModuleHint(for card: MemoryInsightCard) -> String? {
+        switch card.type {
+        case .habit, .finance, .task, .thought, .milestone:
+            return nil // 直接映射类型无需 hint
+        case .overview:
+            return deriveOverviewHint(text: card.title + " " + card.body)
+        case .crossDomain:
+            return "crossDomain"
+        case .anomaly:
+            return deriveAnomalyHint(text: card.title + " " + card.body)
+        }
+    }
+
+    private static func deriveOverviewHint(text: String) -> String? {
+        let lower = text.lowercased()
+        if lower.contains("睡眠") || lower.contains("步数") || lower.contains("运动") || lower.contains("站立") {
+            return "health"
+        }
+        return nil
+    }
+
+    private static func deriveAnomalyHint(text: String) -> String? {
+        let lower = text.lowercased()
+        if lower.contains("消费") || lower.contains("支出") || lower.contains("餐饮") || lower.contains("预算") {
+            return "finance"
+        }
+        if lower.contains("习惯") || lower.contains("打卡") || lower.contains("断连") {
+            return "habit"
+        }
+        if lower.contains("任务") || lower.contains("逾期") || lower.contains("待办") {
+            return "task"
+        }
+        return nil
+    }
+
+    private static func derivePatternType(for card: MemoryInsightCard) -> String? {
+        let lower = (card.title + " " + card.body).lowercased()
+        if lower.contains("消费突增") || lower.contains("支出升高") { return "spending_increase" }
+        if lower.contains("习惯断连") || lower.contains("打卡中断") { return "habit_break" }
+        if lower.contains("任务堆积") || lower.contains("逾期") { return "task_backlog" }
+        if lower.contains("恢复") { return "recovery" }
+        return nil
+    }
 }

@@ -7,7 +7,9 @@
 //
 
 import SwiftUI
+import CloudKit
 import OSLog
+import AuthenticationServices
 
 // MARK: - SettingsView
 
@@ -23,12 +25,16 @@ struct SettingsView: View {
 
     @ObservedObject private var darkModeManager = DarkModeManager.shared
     @ObservedObject private var insightSettings = MemoryInsightScheduleSettings.shared
-    @AppStorage("userName") private var userName: String = "东林"
+    @ObservedObject private var memorySettings = HoloMemorySettings.shared
+    @ObservedObject private var iCloudSyncStatus = ICloudSyncStatusService.shared
+    @ObservedObject private var authService = AppleSignInAuthService.shared
+    @AppStorage(UserDisplayNameSettings.displayNameKey) private var userName: String = UserDisplayNameSettings.fallbackDisplayName
     @State private var showAISettings = false
     @State private var showVoiceRecognitionSettings = false
     @State private var showHoloOneSettings = false
-    @State private var showNameEditor = false
     @State private var showProfileEditor = false
+    @State private var showHealthKitDiagnostics = false
+    @State private var showSignOutConfirmation = false
 
     // MARK: - Body
 
@@ -42,8 +48,14 @@ struct SettingsView: View {
                     // 深色模式设置
                     darkModeSection
 
+                    // iCloud 同步
+                    iCloudSyncSection
+
                     // AI 回放设置
                     aiPlaybackSection
+
+                    // AI 记忆设置
+                    aiMemorySection
 
                     // 其他设置（占位）
                     otherSettingsSection
@@ -74,55 +86,104 @@ struct SettingsView: View {
         .preferredColorScheme(darkModeManager.colorScheme)
         .id(darkModeManager.currentSetting)
         .swipeBackToDismiss { dismiss() }
+        .task {
+            await authService.refreshCredentialState()
+            await iCloudSyncStatus.refreshAccountStatus()
+        }
+        .alert("退出 Apple 登录？", isPresented: $showSignOutConfirmation) {
+            Button("退出登录", role: .destructive) {
+                authService.signOut()
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("退出登录只会清除 Holo 的本地登录状态，不会删除本机数据，也不会删除 iCloud 云端数据。")
+        }
     }
 
     // MARK: - 用户信息卡片
 
     private var userInfoCard: some View {
-        Button {
-            showNameEditor = true
-        } label: {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
             HStack(spacing: HoloSpacing.md) {
-                // 头像
                 ZStack {
                     Circle()
-                        .fill(Color.holoPrimary.opacity(0.1))
+                        .fill(authService.isSignedIn ? Color.holoPrimary.opacity(0.1) : Color.holoTextSecondary.opacity(0.1))
                         .frame(width: 56, height: 56)
 
-                    Image(systemName: "person.fill")
-                        .font(.system(size: 24, weight: .medium))
-                        .foregroundColor(.holoPrimary)
+                    Image(systemName: authService.isSignedIn ? "person.crop.circle.badge.checkmark" : "person.crop.circle")
+                        .font(.system(size: 26, weight: .medium))
+                        .foregroundColor(authService.isSignedIn ? .holoPrimary : .holoTextSecondary)
                 }
 
-                // 用户信息
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(userName)
+                    Text(authService.session?.displayName ?? userName)
                         .font(.holoBody)
                         .foregroundColor(.holoTextPrimary)
 
-                    Text("点击修改昵称")
+                    Text(accountStatusSubtitle)
                         .font(.holoCaption)
                         .foregroundColor(.holoTextSecondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
 
                 Spacer()
-
-                // 箭头
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.holoTextSecondary.opacity(0.5))
             }
-            .padding(HoloSpacing.md)
-            .background(Color.holoCardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+
+            if let errorMessage = authService.errorMessage {
+                Text(errorMessage)
+                    .font(.system(size: 12))
+                    .foregroundColor(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            if authService.isSignedIn {
+                Button {
+                    showSignOutConfirmation = true
+                } label: {
+                    HStack {
+                        Image(systemName: "rectangle.portrait.and.arrow.right")
+                        Text("退出登录")
+                    }
+                    .font(.holoBody)
+                    .foregroundColor(.red)
+                    .frame(maxWidth: .infinity)
+                    .frame(height: 44)
+                    .background(Color.red.opacity(0.08))
+                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                }
+                .buttonStyle(PlainButtonStyle())
+            } else {
+                SignInWithAppleButton(.signIn) { request in
+                    authService.configureSignInRequest(request)
+                } onCompletion: { result in
+                    authService.handleSignInCompletion(result)
+                    Task {
+                        await iCloudSyncStatus.refreshAccountStatus()
+                    }
+                }
+                .signInWithAppleButtonStyle(darkModeManager.colorScheme == .dark ? .white : .black)
+                .frame(height: 44)
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+            }
         }
-        .alert("修改昵称", isPresented: $showNameEditor) {
-            TextField("昵称", text: $userName)
-            Button("确定") {}
-            Button("取消", role: .cancel) {}
-        } message: {
-            Text("输入你的昵称，将显示在首页问候语中")
+        .padding(HoloSpacing.md)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+    }
+
+    private var accountStatusSubtitle: String {
+        if authService.isSignedIn {
+            if iCloudSyncStatus.accountStatus == .available {
+                return "已登录，iCloud 云同步已开启"
+            }
+            return "已登录，本机数据会保存；登录 iCloud 后将自动同步"
         }
+
+        if authService.status == .credentialRevoked {
+            return "Apple 登录已失效，请重新登录"
+        }
+
+        return "本机模式，登录后会检查 iCloud 云同步状态"
     }
 
     // MARK: - 深色模式设置
@@ -201,6 +262,192 @@ struct SettingsView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(PlainButtonStyle())
+    }
+
+    // MARK: - iCloud 同步
+
+    @State private var iCloudRefreshToast: String?
+
+    private var iCloudSyncSection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            HStack(spacing: HoloSpacing.sm) {
+                Image(systemName: "icloud.fill")
+                    .font(.system(size: 18))
+                    .foregroundColor(.holoPrimary)
+
+                Text("iCloud 同步")
+                    .font(.holoBody)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoTextPrimary)
+            }
+
+            VStack(spacing: 0) {
+                // 账号状态
+                HStack(spacing: HoloSpacing.md) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.holoPrimary.opacity(0.1))
+                            .frame(width: 40, height: 40)
+
+                        Image(systemName: "person.icloud")
+                            .font(.system(size: 18, weight: .medium))
+                            .foregroundColor(.holoPrimary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("账号状态")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+
+                        Text(iCloudAccountSubtitle)
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoTextSecondary)
+                    }
+
+                    Spacer()
+                }
+                .padding(.horizontal, HoloSpacing.md)
+                .padding(.vertical, 12)
+
+                Divider()
+                    .padding(.leading, 56)
+
+                // 同步状态
+                HStack(spacing: HoloSpacing.md) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(iCloudSyncStatus.isSyncing ? Color.blue.opacity(0.1) : Color.holoPrimary.opacity(0.1))
+                            .frame(width: 40, height: 40)
+
+                        if iCloudSyncStatus.isSyncing {
+                            ProgressView()
+                                .tint(.blue)
+                        } else {
+                            Image(systemName: "icloud.and.arrow.down")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(.holoPrimary)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("同步状态")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+
+                        Text(iCloudSyncStatus.lastEventDescription)
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoTextSecondary)
+
+                        Text(iCloudSyncStatus.syncStatusDetailText)
+                            .font(.system(size: 11))
+                            .foregroundColor(.holoTextSecondary.opacity(0.75))
+                    }
+
+                    Spacer()
+                }
+                .padding(.horizontal, HoloSpacing.md)
+                .padding(.vertical, 12)
+
+                // 错误信息
+                if iCloudSyncStatus.lastErrorMessage != nil {
+                    Divider()
+                        .padding(.leading, 56)
+
+                    HStack(spacing: HoloSpacing.md) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color.red.opacity(0.1))
+                                .frame(width: 40, height: 40)
+
+                            Image(systemName: "exclamationmark.icloud")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(.red)
+                        }
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("最近错误")
+                                .font(.holoBody)
+                                .foregroundColor(.holoTextPrimary)
+
+                            Text(iCloudSyncStatus.lastErrorMessage ?? "")
+                                .font(.system(size: 12))
+                                .foregroundColor(.red)
+                                .lineLimit(2)
+                        }
+
+                        Spacer()
+                    }
+                    .padding(.horizontal, HoloSpacing.md)
+                    .padding(.vertical, 12)
+                }
+
+                Divider()
+                    .padding(.leading, 56)
+
+                // 重新检查按钮
+                Button {
+                    guard !iCloudSyncStatus.isRefreshing else { return }
+                    iCloudRefreshToast = nil
+                    Task {
+                        await iCloudSyncStatus.requestManualSync()
+                        iCloudRefreshToast = iCloudSyncStatus.refreshToast
+                        // 2 秒后隐藏 toast
+                        try? await Task.sleep(for: .seconds(2))
+                        iCloudRefreshToast = nil
+                    }
+                } label: {
+                    HStack(spacing: HoloSpacing.md) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(Color.holoInfo.opacity(0.1))
+                                .frame(width: 40, height: 40)
+
+                            if iCloudSyncStatus.isRefreshing {
+                                ProgressView()
+                                    .tint(.holoInfo)
+                            } else {
+                                Image(systemName: "arrow.clockwise.icloud")
+                                    .font(.system(size: 18, weight: .medium))
+                                    .foregroundColor(.holoInfo)
+                            }
+                        }
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(iCloudSyncStatus.isRefreshing ? "正在请求同步…" : "请求同步并检查状态")
+                                .font(.holoBody)
+                                .foregroundColor(.holoInfo)
+
+                            if let toast = iCloudRefreshToast {
+                                Text(toast)
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.holoSuccess)
+                                    .transition(.opacity)
+                            }
+                        }
+
+                        Spacer()
+                    }
+                    .padding(.horizontal, HoloSpacing.md)
+                    .padding(.vertical, 12)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(PlainButtonStyle())
+            }
+            .background(Color.holoCardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        }
+    }
+
+    private var iCloudAccountSubtitle: String {
+        guard authService.isSignedIn else {
+            return "登录 Holo 后检查云同步状态"
+        }
+
+        if iCloudSyncStatus.accountStatus == .available {
+            return "iCloud 可用，云同步已开启"
+        }
+
+        return iCloudSyncStatus.accountStatusText
     }
 
     // MARK: - AI 回放设置
@@ -314,6 +561,75 @@ struct SettingsView: View {
         .padding(.vertical, 12)
     }
 
+    // MARK: - AI 记忆设置
+
+    @State private var showMemoryCenter = false
+
+    private var aiMemorySection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            HStack(spacing: HoloSpacing.sm) {
+                Image(systemName: "brain.head.profile")
+                    .font(.system(size: 18))
+                    .foregroundColor(.holoPrimary)
+
+                Text("AI 记忆")
+                    .font(.holoBody)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoTextPrimary)
+            }
+
+            VStack(spacing: 0) {
+                insightToggleRow(
+                    icon: "arrow.triangle.2.circlepath",
+                    iconColor: .holoPrimary,
+                    title: "长期记忆",
+                    subtitle: memorySettings.longTermMemoryEnabled ? "AI 会从洞察中学习偏好与模式" : "默认关闭",
+                    isOn: $memorySettings.longTermMemoryEnabled
+                )
+
+                Divider()
+                    .padding(.leading, 56)
+
+                insightToggleRow(
+                    icon: "text.bubble",
+                    iconColor: .holoInfo,
+                    title: "记忆辅助对话",
+                    subtitle: memorySettings.memorySummaryInjectionEnabled ? "对话中利用已记住的信息辅助回答" : "默认开启",
+                    isOn: $memorySettings.memorySummaryInjectionEnabled
+                )
+
+                Divider()
+                    .padding(.leading, 56)
+
+                settingsRow(
+                    icon: "list.bullet.rectangle",
+                    iconColor: .holoPrimary,
+                    title: "记忆管理",
+                    subtitle: {
+                        let confirmed = HoloLongTermMemoryStore.queryConfirmed().count
+                        let candidates = HoloLongTermMemoryStore.queryCandidates().count
+                        if confirmed == 0 && candidates == 0 {
+                            return "暂无记忆"
+                        }
+                        var parts: [String] = []
+                        if confirmed > 0 { parts.append("\(confirmed) 条已记住") }
+                        if candidates > 0 { parts.append("\(candidates) 条待确认") }
+                        return parts.joined(separator: "，")
+                    }()
+                ) {
+                    showMemoryCenter = true
+                }
+                .sheet(isPresented: $showMemoryCenter) {
+                    NavigationStack {
+                        HoloMemoryCenterView()
+                    }
+                }
+            }
+            .background(Color.holoCardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        }
+    }
+
     // MARK: - 其他设置（占位）
 
     private var otherSettingsSection: some View {
@@ -360,12 +676,13 @@ struct SettingsView: View {
                 }
             }
 
-            // AI 设置
+            #if DEBUG
+            // AI 设置（仅开发调试）
             settingsRow(
                 icon: "sparkles",
                 iconColor: .purple,
                 title: "AI 助手",
-                subtitle: "配置 AI 对话服务"
+                subtitle: "开发调试：Provider、Prompt 与学习映射"
             ) {
                 showAISettings = true
             }
@@ -379,7 +696,7 @@ struct SettingsView: View {
                 icon: "waveform.circle",
                 iconColor: .holoInfo,
                 title: "语音识别",
-                subtitle: KeychainService.hasCachedVoiceRecognitionConfig ? "已配置" : "配置阿里云百炼 Qwen-ASR"
+                subtitle: KeychainService.hasCachedVoiceRecognitionConfig ? "已配置" : "开发调试：阿里云百炼 Qwen-ASR"
             ) {
                 showVoiceRecognitionSettings = true
             }
@@ -388,6 +705,7 @@ struct SettingsView: View {
                     VoiceRecognitionSettingsView()
                 }
             }
+            #endif
 
             // 关于
             settingsRow(
@@ -419,6 +737,20 @@ struct SettingsView: View {
                     .font(.holoBody)
                     .fontWeight(.semibold)
                     .foregroundColor(.holoTextPrimary)
+            }
+
+            settingsRow(
+                icon: "heart.text.square",
+                iconColor: .holoInfo,
+                title: "健康数据诊断",
+                subtitle: "HealthKit 来源与类型汇总"
+            ) {
+                showHealthKitDiagnostics = true
+            }
+            .sheet(isPresented: $showHealthKitDiagnostics) {
+                NavigationStack {
+                    HealthKitDiagnosticsView()
+                }
             }
 
             Button {

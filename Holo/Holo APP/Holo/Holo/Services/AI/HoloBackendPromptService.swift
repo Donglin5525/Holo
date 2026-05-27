@@ -24,7 +24,8 @@ final class HoloBackendPromptService {
     private let apiClient: APIClient
     private let deviceIdProvider: () -> String
 
-    // 版本化缓存：正文 + 版本号 + 加载时间
+    // 版本化缓存：原始正文 + 版本号 + 加载时间。
+    // 不缓存已渲染正文，避免 {{currentTime}} 等运行时变量被冻结。
     private var cache: [PromptManager.PromptType: CachedPrompt] = [:]
 
     // Meta 缓存
@@ -58,18 +59,18 @@ final class HoloBackendPromptService {
             let metaValid = await ensureMetaLoaded()
             if metaValid {
                 if let metaVersion = metaCache?.first(where: { $0.type == type.rawValue })?.version {
-                    if cached.prompt.version == metaVersion {
-                        return cached.prompt
+                    if cached.version == metaVersion {
+                        return cached.renderedPrompt(type: type)
                     }
                     // 后端版本已变化，清除缓存重新加载
-                    logger.info("后端 Prompt 版本变化：\(type.rawValue) v\(cached.prompt.version) → v\(metaVersion)")
+                    logger.info("后端 Prompt 版本变化：\(type.rawValue) v\(cached.version) → v\(metaVersion)")
                 } else {
                     // meta 中无此 type，缓存仍有效
-                    return cached.prompt
+                    return cached.renderedPrompt(type: type)
                 }
             } else {
                 // meta 加载失败，使用本地缓存
-                return cached.prompt
+                return cached.renderedPrompt(type: type)
             }
         }
 
@@ -85,9 +86,16 @@ final class HoloBackendPromptService {
         )
 
         let response: HoloBackendPromptResponse = try await apiClient.send(request)
-        let rendered = PromptManager.shared.renderTemplate(response.content)
-        let prompt = LoadedPrompt(type: type, version: response.version, content: rendered)
-        cache[type] = CachedPrompt(prompt: prompt, loadedAt: Date())
+        cache[type] = CachedPrompt(
+            version: response.version,
+            rawContent: response.content,
+            loadedAt: Date()
+        )
+        let prompt = LoadedPrompt(
+            type: type,
+            version: response.version,
+            content: PromptManager.shared.renderTemplate(response.content)
+        )
         logger.info("已加载后端 Prompt：\(response.type) v\(response.version)")
         return prompt
     }
@@ -133,8 +141,18 @@ final class HoloBackendPromptService {
 // MARK: - Private Types
 
 private struct CachedPrompt {
-    let prompt: LoadedPrompt
+    let version: Int
+    let rawContent: String
     let loadedAt: Date
+
+    @MainActor
+    func renderedPrompt(type: PromptManager.PromptType) -> LoadedPrompt {
+        LoadedPrompt(
+            type: type,
+            version: version,
+            content: PromptManager.shared.renderTemplate(rawContent)
+        )
+    }
 }
 
 private struct HoloBackendPromptResponse: Decodable {

@@ -1,0 +1,80 @@
+//
+//  HoloShortTermMemoryModels.swift
+//  Holo
+//
+//  短期记忆模型：单次流程内快照，不跨会话缓存
+//
+
+import Foundation
+
+enum HoloMemoryCoverageLevel: String, Codable, Equatable {
+    case rich
+    case partial
+    case empty
+}
+
+struct HoloMemoryDataCoverage: Codable, Equatable {
+    var level: HoloMemoryCoverageLevel
+    var availableSources: [HoloMemorySource]
+    var missingSources: [HoloMemorySource]
+    var reason: String
+
+    static let empty = HoloMemoryDataCoverage(
+        level: .empty,
+        availableSources: [],
+        missingSources: HoloMemorySource.allCases,
+        reason: "暂无任何数据"
+    )
+}
+
+enum HoloMemorySource: String, Codable, CaseIterable, Equatable {
+    case finance
+    case tasks
+    case habits
+    case thoughts
+    case goals
+    case health
+    case profile
+    case conversation
+    case memoryInsight
+}
+
+struct HoloShortTermMemorySnapshot: Codable, Equatable {
+    var generatedAt: Date
+    var window: HoloMemoryWindow
+    var dataCoverage: HoloMemoryDataCoverage
+    var sourceSummary: [HoloMemorySourceSummary]
+    var recentSignals: [HoloRecentSignal]
+    var activeGoalSummary: String?
+    var recentConversationIntent: String?
+    var relevantLongTermMemorySummary: HoloMemoryPromptSummary?
+}
+
+enum HoloMemoryWindow: String, Codable, Equatable {
+    case today
+    case sevenDays
+    case fourteenDays
+    case thirtyDays
+}
+
+struct HoloMemorySourceSummary: Codable, Equatable {
+    var source: HoloMemorySource
+    var count: Int
+    var latestAt: Date?
+}
+
+struct HoloRecentSignal: Codable, Equatable, Identifiable {
+    var id: String
+    var source: HoloMemorySource
+    var title: String
+    var detail: String
+    var occurredAt: Date?
+}
+
+struct HoloMemoryPromptSummary: Codable, Equatable {
+    var lines: [String]
+    var sourceIDs: [String]
+    var coverage: HoloMemoryCoverageLevel
+
+    static let empty = HoloMemoryPromptSummary(lines: [], sourceIDs: [], coverage: .empty)
+}

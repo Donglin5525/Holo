@@ -580,24 +580,24 @@ struct AccountDetailView: View {
 
     private func transactionRow(_ tx: Transaction) -> some View {
         let cat = tx.category
-        let catColor: Color = cat.isDeleted ? .holoTextSecondary : cat.swiftUIColor
+        let catColor: Color = (cat?.isDeleted ?? false) ? .holoTextSecondary : (cat?.swiftUIColor ?? .holoTextSecondary)
         return HStack(spacing: HoloSpacing.md) {
             ZStack {
                 Circle()
                     .fill(catColor.opacity(0.1))
                     .frame(width: 36, height: 36)
-                Image(systemName: cat.isDeleted ? "questionmark.folder" : cat.icon)
+                Image(systemName: (cat?.isDeleted ?? false) ? "questionmark.folder" : (cat?.icon ?? "questionmark.circle"))
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(catColor)
             }
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(tx.note ?? tx.category.name)
+                Text(tx.note ?? (tx.category?.name ?? "未分类"))
                     .font(.holoBody)
                     .foregroundColor(.holoTextPrimary)
                     .lineLimit(1)
 
-                if tx.category.isSystem {
+                if tx.category?.isSystem == true {
                     Text("[余额调整]")
                         .font(.system(size: 10, weight: .medium))
                         .foregroundColor(.holoTextSecondary)

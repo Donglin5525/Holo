@@ -16,6 +16,9 @@ struct ContentView: View {
     
     /// 当前选中的 Tab
     @State private var selectedTab: Tab = .today
+    @State private var pendingGoalPlanningRequest: GoalPlanningRequest?
+    @State private var pendingGoalDetailId: UUID?
+    @ObservedObject private var deepLinkState = DeepLinkState.shared
     
     /// Tab 枚举
     enum Tab: String, CaseIterable {
@@ -40,7 +43,7 @@ struct ContentView: View {
                 HomeView()
             case .holo:
                 NavigationStack {
-                    ChatView()
+                    ChatView(goalPlanningRequest: $pendingGoalPlanningRequest)
                         .navigationBarHidden(true)
                 }
             case .finance:
@@ -48,8 +51,29 @@ struct ContentView: View {
             case .health:
                 PlaceholderView(title: "健康记录", icon: "heart.fill")
             case .profile:
-                PlaceholderView(title: "个人中心", icon: "person.fill")
+                PersonalView(onPlanGoal: {
+                    pendingGoalPlanningRequest = GoalPlanningRequest(seedText: nil)
+                    selectedTab = .holo
+                }, pendingGoalDetailId: $pendingGoalDetailId)
             }
+        }
+        .onChange(of: deepLinkState.pendingTarget) { _, target in
+            handleDeepLink(target)
+        }
+        .onAppear {
+            handleDeepLink(deepLinkState.pendingTarget)
+        }
+    }
+
+    private func handleDeepLink(_ target: DeepLinkTarget?) {
+        guard let target else { return }
+        switch target {
+        case .goalDetail(let goalId):
+            pendingGoalDetailId = goalId
+            selectedTab = .profile
+            deepLinkState.pendingTarget = nil
+        default:
+            break
         }
     }
 }

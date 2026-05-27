@@ -107,7 +107,7 @@ struct HealthTrendChart: View {
         switch type {
         case .steps:
             return String(format: "%.0f", value / 1000) + "k"
-        case .sleep, .standHours:
+        case .sleep, .standHours, .activeMinutes:
             return String(format: "%.0f", value)
         }
     }
@@ -120,7 +120,7 @@ struct HealthTrendChart: View {
                 .font(.system(size: 32, weight: .light))
                 .foregroundColor(.holoTextSecondary.opacity(0.5))
 
-            Text("暂无数据")
+            Text("暂无可用趋势数据")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
         }

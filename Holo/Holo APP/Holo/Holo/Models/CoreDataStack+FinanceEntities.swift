@@ -24,6 +24,7 @@ extension CoreDataStack {
         transactionId.name = "id"
         transactionId.attributeType = .UUIDAttributeType
         transactionId.isOptional = false
+        transactionId.defaultValue = UUID()
         transactionId.isIndexed = true
         attributes.append(transactionId)
         
@@ -31,12 +32,14 @@ extension CoreDataStack {
         amount.name = "amount"
         amount.attributeType = .decimalAttributeType
         amount.isOptional = false
+        amount.defaultValue = NSDecimalNumber(value: 0)
         attributes.append(amount)
         
         let type = NSAttributeDescription()
         type.name = "type"
         type.attributeType = .stringAttributeType
         type.isOptional = false
+        type.defaultValue = TransactionType.expense.rawValue
         type.isIndexed = true
         attributes.append(type)
         
@@ -46,6 +49,7 @@ extension CoreDataStack {
         date.name = "date"
         date.attributeType = .dateAttributeType
         date.isOptional = false
+        date.defaultValue = Date()
         date.isIndexed = true
         attributes.append(date)
         
@@ -66,35 +70,38 @@ extension CoreDataStack {
         tags.attributeType = .transformableAttributeType
         tags.isOptional = true
         tags.attributeValueClassName = "NSArray"
+        tags.valueTransformerName = "NSSecureUnarchiveFromData"
         attributes.append(tags)
         
         let createdAt = NSAttributeDescription()
         createdAt.name = "createdAt"
         createdAt.attributeType = .dateAttributeType
         createdAt.isOptional = false
+        createdAt.defaultValue = Date()
         attributes.append(createdAt)
         
         let updatedAt = NSAttributeDescription()
         updatedAt.name = "updatedAt"
         updatedAt.attributeType = .dateAttributeType
         updatedAt.isOptional = false
+        updatedAt.defaultValue = Date()
         attributes.append(updatedAt)
         
         // Transaction 与 Category / Account 的关系（对应 Transaction.category / Transaction.account）
         let categoryRelation = NSRelationshipDescription()
         categoryRelation.name = "category"
         categoryRelation.destinationEntity = nil  // 稍后设置，避免循环引用
-        categoryRelation.minCount = 1
+        categoryRelation.minCount = 0
         categoryRelation.maxCount = 1
-        categoryRelation.isOptional = false
+        categoryRelation.isOptional = true
         categoryRelation.deleteRule = .nullifyDeleteRule
 
         let accountRelation = NSRelationshipDescription()
         accountRelation.name = "account"
         accountRelation.destinationEntity = nil
-        accountRelation.minCount = 1
+        accountRelation.minCount = 0
         accountRelation.maxCount = 1
-        accountRelation.isOptional = false
+        accountRelation.isOptional = true
         accountRelation.deleteRule = .nullifyDeleteRule
         
         // 分期记账字段
@@ -132,6 +139,7 @@ extension CoreDataStack {
         categoryIdAttr.name = "id"
         categoryIdAttr.attributeType = .UUIDAttributeType
         categoryIdAttr.isOptional = false
+        categoryIdAttr.defaultValue = UUID()
         categoryIdAttr.isIndexed = true
         categoryAttributes.append(categoryIdAttr)
         
@@ -139,24 +147,28 @@ extension CoreDataStack {
         name.name = "name"
         name.attributeType = .stringAttributeType
         name.isOptional = false
+        name.defaultValue = ""
         categoryAttributes.append(name)
         
         let icon = NSAttributeDescription()
         icon.name = "icon"
         icon.attributeType = .stringAttributeType
         icon.isOptional = false
+        icon.defaultValue = "questionmark.circle"
         categoryAttributes.append(icon)
         
         let color = NSAttributeDescription()
         color.name = "color"
         color.attributeType = .stringAttributeType
         color.isOptional = false
+        color.defaultValue = "#64748B"
         categoryAttributes.append(color)
         
         let categoryType = NSAttributeDescription()
         categoryType.name = "type"
         categoryType.attributeType = .stringAttributeType
         categoryType.isOptional = false
+        categoryType.defaultValue = TransactionType.expense.rawValue
         categoryType.isIndexed = true
         categoryAttributes.append(categoryType)
         
@@ -164,6 +176,7 @@ extension CoreDataStack {
         isDefault.name = "isDefault"
         isDefault.attributeType = .booleanAttributeType
         isDefault.isOptional = false
+        isDefault.defaultValue = false
         isDefault.isIndexed = true
         categoryAttributes.append(isDefault)
         
@@ -171,6 +184,7 @@ extension CoreDataStack {
         sortOrder.name = "sortOrder"
         sortOrder.attributeType = .integer16AttributeType
         sortOrder.isOptional = false
+        sortOrder.defaultValue = 0
         sortOrder.isIndexed = true
         categoryAttributes.append(sortOrder)
         
@@ -198,7 +212,7 @@ extension CoreDataStack {
         categoryTransactionsRelation.minCount = 0
         categoryTransactionsRelation.maxCount = 0  // 无上限（to-many）
         categoryTransactionsRelation.isOptional = true
-        categoryTransactionsRelation.deleteRule = .denyDeleteRule
+        categoryTransactionsRelation.deleteRule = .nullifyDeleteRule
 
         categoryEntity.properties = categoryAttributes + [categoryTransactionsRelation]
 
@@ -213,6 +227,7 @@ extension CoreDataStack {
         accountIdAttr.name = "id"
         accountIdAttr.attributeType = .UUIDAttributeType
         accountIdAttr.isOptional = false
+        accountIdAttr.defaultValue = UUID()
         accountIdAttr.isIndexed = true
         accountAttributes.append(accountIdAttr)
         
@@ -220,12 +235,14 @@ extension CoreDataStack {
         accountName.name = "name"
         accountName.attributeType = .stringAttributeType
         accountName.isOptional = false
+        accountName.defaultValue = ""
         accountAttributes.append(accountName)
         
         let accountType = NSAttributeDescription()
         accountType.name = "type"
         accountType.attributeType = .stringAttributeType
         accountType.isOptional = false
+        accountType.defaultValue = AccountType.cash.rawValue
         accountType.isIndexed = true
         accountAttributes.append(accountType)
         
@@ -233,6 +250,7 @@ extension CoreDataStack {
         accountIsDefault.name = "isDefault"
         accountIsDefault.attributeType = .booleanAttributeType
         accountIsDefault.isOptional = false
+        accountIsDefault.defaultValue = false
         accountIsDefault.isIndexed = true
         accountAttributes.append(accountIsDefault)
 
@@ -307,7 +325,7 @@ extension CoreDataStack {
         accountTransactionsRelation.minCount = 0
         accountTransactionsRelation.maxCount = 0  // 无上限（to-many）
         accountTransactionsRelation.isOptional = true
-        accountTransactionsRelation.deleteRule = .denyDeleteRule
+        accountTransactionsRelation.deleteRule = .nullifyDeleteRule
 
         accountEntity.properties = accountAttributes + [accountTransactionsRelation]
 
@@ -338,6 +356,7 @@ extension CoreDataStack {
         iconId.name = "iconId"
         iconId.attributeType = .stringAttributeType
         iconId.isOptional = false
+        iconId.defaultValue = ""
         iconId.isIndexed = true
         homeIconAttributes.append(iconId)
         
@@ -346,6 +365,7 @@ extension CoreDataStack {
         iconSortOrder.name = "sortOrder"
         iconSortOrder.attributeType = .integer16AttributeType
         iconSortOrder.isOptional = false
+        iconSortOrder.defaultValue = 0
         iconSortOrder.isIndexed = true
         homeIconAttributes.append(iconSortOrder)
         
@@ -369,6 +389,7 @@ extension CoreDataStack {
         iconCreatedAt.name = "createdAt"
         iconCreatedAt.attributeType = .dateAttributeType
         iconCreatedAt.isOptional = false
+        iconCreatedAt.defaultValue = Date()
         homeIconAttributes.append(iconCreatedAt)
         
         // 更新时间
@@ -376,6 +397,7 @@ extension CoreDataStack {
         iconUpdatedAt.name = "updatedAt"
         iconUpdatedAt.attributeType = .dateAttributeType
         iconUpdatedAt.isOptional = false
+        iconUpdatedAt.defaultValue = Date()
         homeIconAttributes.append(iconUpdatedAt)
         
         homeIconConfigEntity.properties = homeIconAttributes
@@ -392,6 +414,7 @@ extension CoreDataStack {
         budgetId.name = "id"
         budgetId.attributeType = .UUIDAttributeType
         budgetId.isOptional = false
+        budgetId.defaultValue = UUID()
         budgetId.isIndexed = true
         budgetAttributes.append(budgetId)
 
@@ -400,6 +423,7 @@ extension CoreDataStack {
         budgetAccountId.name = "accountId"
         budgetAccountId.attributeType = .UUIDAttributeType
         budgetAccountId.isOptional = false
+        budgetAccountId.defaultValue = UUID()
         budgetAccountId.isIndexed = true
         budgetAttributes.append(budgetAccountId)
 
@@ -416,6 +440,7 @@ extension CoreDataStack {
         budgetAmount.name = "amount"
         budgetAmount.attributeType = .decimalAttributeType
         budgetAmount.isOptional = false
+        budgetAmount.defaultValue = NSDecimalNumber(value: 0)
         budgetAttributes.append(budgetAmount)
 
         // 预算周期（BudgetPeriod.rawValue: week/month/year）
@@ -423,6 +448,7 @@ extension CoreDataStack {
         budgetPeriod.name = "period"
         budgetPeriod.attributeType = .stringAttributeType
         budgetPeriod.isOptional = false
+        budgetPeriod.defaultValue = BudgetPeriod.month.rawValue
         budgetPeriod.isIndexed = true
         budgetAttributes.append(budgetPeriod)
 
@@ -431,18 +457,21 @@ extension CoreDataStack {
         budgetStartDate.name = "startDate"
         budgetStartDate.attributeType = .dateAttributeType
         budgetStartDate.isOptional = false
+        budgetStartDate.defaultValue = Date()
         budgetAttributes.append(budgetStartDate)
 
         let budgetCreatedAt = NSAttributeDescription()
         budgetCreatedAt.name = "createdAt"
         budgetCreatedAt.attributeType = .dateAttributeType
         budgetCreatedAt.isOptional = false
+        budgetCreatedAt.defaultValue = Date()
         budgetAttributes.append(budgetCreatedAt)
 
         let budgetUpdatedAt = NSAttributeDescription()
         budgetUpdatedAt.name = "updatedAt"
         budgetUpdatedAt.attributeType = .dateAttributeType
         budgetUpdatedAt.isOptional = false
+        budgetUpdatedAt.defaultValue = Date()
         budgetAttributes.append(budgetUpdatedAt)
 
         budgetEntity.properties = budgetAttributes

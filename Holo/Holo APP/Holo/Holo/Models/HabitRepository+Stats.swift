@@ -12,6 +12,50 @@ import CoreData
 
 extension HabitRepository {
 
+    /// 统一评估一个习惯在指定窗口内的表现。
+    /// 好习惯：完成/记录越多越好；坏习惯：未发生或未超标才算成功。
+    func evaluatePerformance(for habit: Habit, in range: ClosedRange<Date>) -> HabitPerformanceSnapshot {
+        let calendar = Calendar.current
+        let lower = calendar.startOfDay(for: range.lowerBound)
+        let upperDay = calendar.startOfDay(for: range.upperBound)
+        let isExclusiveUpperDay = range.upperBound == upperDay && upperDay > lower
+        let rawDayCount = calendar.dateComponents([.day], from: lower, to: upperDay).day ?? 0
+        let dayCount = max(isExclusiveUpperDay ? rawDayCount : rawDayCount + 1, 1)
+
+        let records = getRecords(for: habit, in: range)
+        let completedCheckInDays = records.filter { $0.isCompleted }.count
+        let dailyNumericValues = aggregateDailyNumericValues(for: habit, records: records, calendar: calendar)
+
+        return HabitPerformanceEvaluator.evaluate(
+            habitName: habit.name,
+            isBadHabit: habit.isBadHabit,
+            isNumericType: habit.isNumericType,
+            totalDays: dayCount,
+            completedCheckInDays: completedCheckInDays,
+            dailyNumericValues: dailyNumericValues,
+            targetValue: habit.targetValueDouble,
+            unit: habit.unit
+        )
+    }
+
+    private func aggregateDailyNumericValues(for habit: Habit, records: [HabitRecord], calendar: Calendar) -> [Double] {
+        guard habit.isNumericType else { return [] }
+
+        var dailyValues: [Date: Double] = [:]
+        let sortedRecords = records.sorted { $0.date < $1.date }
+        for record in sortedRecords {
+            guard let value = record.valueDouble else { continue }
+            let dayStart = calendar.startOfDay(for: record.date)
+            if habit.isCountType {
+                dailyValues[dayStart, default: 0] += value
+            } else {
+                dailyValues[dayStart] = value
+            }
+        }
+
+        return dailyValues.sorted { $0.key < $1.key }.map(\.value)
+    }
+
     /// 获取总览统计数据
     func getOverviewStats(range: HabitStatsDateRange) -> HabitOverviewStats {
         let habits = activeHabits
@@ -719,4 +763,40 @@ extension HabitRepository {
             return .measure(recordedDays: recordedDays, averageValueText: formatted)
         }
     }
+
+    // MARK: - Window Completion Stats (Goal Progress)
+
+    /// 获取指定天数窗口内的完成统计
+    func getCompletionStats(for habit: Habit, days: Int) -> HabitWindowCompletionStats {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        guard let start = calendar.date(byAdding: .day, value: -(days - 1), to: today) else {
+            return HabitWindowCompletionStats(completedCount: 0, expectedCount: 0)
+        }
+
+        let records = habit.records?.allObjects as? [HabitRecord] ?? []
+        let completed = records.filter { record in
+            record.date >= start && record.date <= today && record.isCompleted
+        }.count
+
+        let expected: Int
+        switch habit.habitFrequency {
+        case .daily:
+            expected = days
+        case .weekly:
+            expected = max(1, Int(ceil(Double(days) / 7.0)))
+        case .monthly:
+            expected = 1
+        }
+
+        return HabitWindowCompletionStats(
+            completedCount: min(completed, expected),
+            expectedCount: expected
+        )
+    }
+}
+
+struct HabitWindowCompletionStats {
+    let completedCount: Int
+    let expectedCount: Int
 }

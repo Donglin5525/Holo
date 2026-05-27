@@ -13,6 +13,8 @@ enum AnalysisDomain: String, Codable, Equatable, Sendable {
     case habit
     case task
     case thought
+    case health
+    case goal
     case crossModule
 
     /// 从用户原文关键词推断领域
@@ -22,6 +24,8 @@ enum AnalysisDomain: String, Codable, Equatable, Sendable {
         let habitKeywords = ["习惯", "打卡", "连续", "完成率", "坚持"]
         let taskKeywords = ["任务", "待办", "完成", "逾期", "优先级"]
         let thoughtKeywords = ["想法", "记录", "情绪", "标签", "观点", "心情"]
+        let healthKeywords = ["步数", "睡眠", "睡觉", "运动", "站立", "健康", "走路", "锻炼", "体能"]
+        let goalKeywords = ["目标", "进展", "进度", "goal", "里程碑"]
         let crossKeywords = ["复盘", "综合分析", "状态", "最近过得", "总结", "整体"]
 
         for keyword in crossKeywords where lower.contains(keyword) { return .crossModule }
@@ -29,6 +33,8 @@ enum AnalysisDomain: String, Codable, Equatable, Sendable {
         for keyword in habitKeywords where lower.contains(keyword) { return .habit }
         for keyword in taskKeywords where lower.contains(keyword) { return .task }
         for keyword in thoughtKeywords where lower.contains(keyword) { return .thought }
+        for keyword in healthKeywords where lower.contains(keyword) { return .health }
+        for keyword in goalKeywords where lower.contains(keyword) { return .goal }
         return nil
     }
 }

@@ -51,6 +51,7 @@ final class MemoryInsightNotificationService {
         content.title = "本周记忆已准备好"
         content.body = "打开 Holo，让 AI 帮你生成一份本周回放。"
         content.sound = .default
+        content.categoryIdentifier = TodoNotificationCategory.memoryInsight
 
         var dateComponents = DateComponents()
         dateComponents.weekday = weekday
@@ -93,6 +94,7 @@ final class MemoryInsightNotificationService {
         content.title = "本月记忆已准备好"
         content.body = "打开 Holo，让 AI 帮你生成一份本月回放。"
         content.sound = .default
+        content.categoryIdentifier = TodoNotificationCategory.memoryInsight
 
         var dateComponents = DateComponents()
         dateComponents.day = day

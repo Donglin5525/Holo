@@ -16,8 +16,14 @@ enum VoiceInputState: Equatable {
     case paused
     case interrupted
     case transcribing
+    case summarizing(String)
     case transcriptReady(String)
     case failed(VoiceInputError)
+}
+
+enum TranscriptDisplayMode: Equatable {
+    case summary
+    case original
 }
 
 enum VoiceInputError: Equatable {
@@ -69,6 +75,15 @@ final class VoiceInputViewModel: ObservableObject {
     @Published private(set) var didReceiveRecoverableInterruption = false
     @Published var editableTranscript: String = ""
 
+    // 智能总结相关属性（可选，nil 时不启用）
+    @Published private(set) var originalTranscript: String?
+    @Published private(set) var summaryTranscript: String?
+    @Published private(set) var transcriptDisplayMode: TranscriptDisplayMode = .summary
+    @Published private(set) var summaryNotice: String?
+
+    let postProcessor: (any VoiceTranscriptPostProcessing)?
+    private var summaryTask: Task<Void, Never>?
+
     let recordingService: VoiceRecordingServiceProviding
 
     private let speechProvider: SpeechRecognitionProvider
@@ -87,12 +102,14 @@ final class VoiceInputViewModel: ObservableObject {
         speechProvider: SpeechRecognitionProvider,
         recordingService: VoiceRecordingServiceProviding? = nil,
         minimumDuration: TimeInterval = 0.8,
-        maximumDuration: TimeInterval = 60
+        maximumDuration: TimeInterval = 60,
+        postProcessor: (any VoiceTranscriptPostProcessing)? = nil
     ) {
         self.speechProvider = speechProvider
         self.recordingService = recordingService ?? VoiceRecordingService()
         self.minimumDuration = minimumDuration
         self.maximumDuration = maximumDuration
+        self.postProcessor = postProcessor
 
         self.recordingService.onInterruptionBegan = { [weak self] in
             self?.handleInterruptionBegan()
@@ -124,6 +141,10 @@ final class VoiceInputViewModel: ObservableObject {
         recordingDuration = 0
         didAutoFinishBecauseOfLimit = false
         didReceiveRecoverableInterruption = false
+        originalTranscript = nil
+        summaryTranscript = nil
+        transcriptDisplayMode = .summary
+        summaryNotice = nil
 
         let granted = await recordingService.requestPermission()
         guard granted else {
@@ -233,6 +254,7 @@ final class VoiceInputViewModel: ObservableObject {
         streamingSession = nil
         streamingConnectionTask?.cancel()
         durationTask?.cancel()
+        cancelSummary()
         pendingAudioBuffers = []
         isSessionReady = false
         recordingService.cancelRecording()
@@ -241,6 +263,10 @@ final class VoiceInputViewModel: ObservableObject {
         recordingDuration = 0
         didAutoFinishBecauseOfLimit = false
         didReceiveRecoverableInterruption = false
+        originalTranscript = nil
+        summaryTranscript = nil
+        transcriptDisplayMode = .summary
+        summaryNotice = nil
         state = .idle
     }
 
@@ -251,6 +277,7 @@ final class VoiceInputViewModel: ObservableObject {
         streamingSession = nil
         streamingConnectionTask?.cancel()
         durationTask?.cancel()
+        cancelSummary()
         pendingAudioBuffers = []
         isSessionReady = false
         recordingService.cancelRecording()
@@ -259,6 +286,10 @@ final class VoiceInputViewModel: ObservableObject {
         recordingDuration = 0
         didAutoFinishBecauseOfLimit = false
         didReceiveRecoverableInterruption = false
+        originalTranscript = nil
+        summaryTranscript = nil
+        transcriptDisplayMode = .summary
+        summaryNotice = nil
 
         Task {
             await startRecording()
@@ -283,6 +314,7 @@ final class VoiceInputViewModel: ObservableObject {
         streamingSession = nil
         streamingConnectionTask?.cancel()
         durationTask?.cancel()
+        cancelSummary()
         pendingAudioBuffers = []
         isSessionReady = false
         recordingService.cancelRecording()
@@ -344,8 +376,7 @@ final class VoiceInputViewModel: ObservableObject {
                     return
                 }
 
-                self.editableTranscript = text
-                self.state = .transcriptReady(text)
+                self.handleTranscriptionResult(text)
             } catch {
                 guard !Task.isCancelled else { return }
                 self.streamingSession = nil
@@ -380,13 +411,94 @@ final class VoiceInputViewModel: ObservableObject {
                     return
                 }
 
-                self.editableTranscript = text
-                self.state = .transcriptReady(text)
+                self.handleTranscriptionResult(text)
             } catch {
                 guard !Task.isCancelled else { return }
                 self.state = .failed(Self.mapSpeechError(error))
             }
         }
+    }
+
+    // MARK: - 智能总结
+
+    /// ASR 成功后，根据是否有 postProcessor 决定走总结路径还是直出路径
+    private func handleTranscriptionResult(_ text: String) {
+        if let postProcessor {
+            editableTranscript = text
+            state = .summarizing(text)
+            startSummary(text, processor: postProcessor)
+        } else {
+            editableTranscript = text
+            state = .transcriptReady(text)
+        }
+    }
+
+    private func startSummary(_ asrText: String, processor: any VoiceTranscriptPostProcessing) {
+        summaryTask = Task { [weak self] in
+            guard let self else { return }
+            do {
+                let result = try await withThrowingTaskGroup(of: String.self) { group in
+                    group.addTask {
+                        try await processor.process(asrText)
+                    }
+                    group.addTask {
+                        try await Task.sleep(nanoseconds: 15_000_000_000)
+                        throw SummaryError.timeout
+                    }
+                    let first = try await group.next()!
+                    group.cancelAll()
+                    return first
+                }
+                guard !Task.isCancelled else { return }
+
+                self.originalTranscript = asrText
+                self.summaryTranscript = result
+                self.editableTranscript = result
+                self.transcriptDisplayMode = .summary
+                self.summaryNotice = Self.qualityNotice(summary: result, original: asrText)
+                self.state = .transcriptReady(result)
+            } catch is CancellationError {
+                // Task 被 cancel，不更新状态
+            } catch {
+                guard !Task.isCancelled else { return }
+                // 总结失败，回退 ASR 原文
+                self.originalTranscript = asrText
+                self.summaryTranscript = nil
+                self.editableTranscript = asrText
+                self.transcriptDisplayMode = .original
+                self.summaryNotice = "智能总结失败，已保留原文"
+                self.state = .transcriptReady(asrText)
+            }
+        }
+    }
+
+    func cancelSummary() {
+        summaryTask?.cancel()
+        summaryTask = nil
+    }
+
+    func showOriginalTranscript() {
+        guard let originalTranscript else { return }
+        editableTranscript = originalTranscript
+        transcriptDisplayMode = .original
+    }
+
+    func restoreSummaryTranscript() {
+        guard let summaryTranscript else { return }
+        editableTranscript = summaryTranscript
+        transcriptDisplayMode = .summary
+    }
+
+    /// 质量兜底：长度异常时生成提示文案
+    private static func qualityNotice(summary: String, original: String) -> String? {
+        let ratio = Double(summary.count) / Double(max(original.count, 1))
+        if ratio < 0.1 {
+            return "总结较原文大幅缩短，可查看原文确认"
+        }
+        if ratio > 1.5 {
+            return "总结内容较原文更长，建议查看原文对比"
+        }
+        return nil
     }
 
     private func startDurationUpdates() {

@@ -4,6 +4,422 @@
 
 ---
 
+## [2026-05-25] HoloAI 意图识别当前时间缓存修复
+
+### 修复
+- 修复 HoloAI 意图识别日志中 `当前时间` 与系统状态栏时间不一致的问题
+- 后端托管 Prompt 和本地 Prompt 缓存现在只保存原始模板，每次请求实时渲染 `{{todayDate}}`、`{{currentTime}}` 等运行时变量
+
+### 原因
+- Prompt 缓存此前保存的是已渲染文本，首次加载时的 `{{currentTime}}` 会被冻结，后续意图识别继续复用旧时间
+
+### 验证
+- iOS 真机构建通过：`xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -destination 'generic/platform=iOS' -derivedDataPath /private/tmp/holo-timefix-derived CLANG_MODULE_CACHE_PATH=/private/tmp/holo-timefix-module-cache SWIFT_MODULE_CACHE_PATH=/private/tmp/holo-timefix-module-cache build`
+
+### 不变
+- 后端无变更，无需发版
+
+---
+
+## [2026-05-25] HoloAI 交易卡片首屏分类与日志修复
+
+### 修复
+- 修复进入 HoloAI 时交易卡片首屏分类路径丢失，滑动后才恢复的问题
+- 修复首屏分类丢失状态下长按卡片无法查看 LLM 调用日志的问题
+
+### 原因
+- HoloAI 首屏使用轻量消息快照，但未加载交易卡片渲染依赖的 `executionBatchJSON` 和日志依赖的 `rawLogJSON`
+- 现在轻量快照会直接带上卡片 renderData 与日志字段，避免等待滚动触发懒加载
+
+### 验证
+- iOS 真机构建通过：`xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -destination "generic/platform=iOS" -derivedDataPath /private/tmp/HoloDerivedData build`
+
+### 不变
+- 后端无变更，无需发版
+
+---
+
+## [2026-05-25] HoloAI 能力启动台与记忆层
+
+### 新增
+- 能力启动台：替换输入框上方无价值 Tab，新增「今日状态/最近分析/长期模式/规划目标」四个高价值入口
+- 新人引导入口：新用户展示使用指南，完成 3 次有效 AI 行动后自动隐藏
+- 短期记忆模型：数据覆盖度评估（rich/partial/empty 三档），今日状态兜底
+- 长期记忆模型：候选池、晋升策略（丢弃/观察/静默写入/要求确认）、本地 JSON Store
+- 记忆注入：AIUserContextMessageBuilder 支持 chat 记忆摘要注入和 intent 保守注入
+- MemoryInsight 候选提取：洞察生成后异步提取长期记忆候选
+- 记忆管理 UI：设置页新增「AI 记忆」section，支持长期记忆开关、记忆辅助对话开关、记忆管理入口
+- 记忆管理中心：查看已确认记忆、处理候选、查看证据、删除记忆
+
+### 修复
+- 历史消息空 content 导致后端 400 的既存 bug（loadRecentDTOsAsync 现在过滤 isStreaming 和空 content）
+- InsightFeedbackAggregator 过期检查失效（from: now, to: now → 使用 per-item updatedAt）
+
+### 不变
+- 后端无变更，无需发版
+- V1 不引入 Agent，不跨会话短期缓存，不让 AI 自由写入长期画像
+
+---
+
+## [2026-05-25] HoloAI 卡片纯文本化与后端 Prompt 热更新
+
+### 修复
+- HoloAI 分析卡片不再裸露 `##`、`###`、`*` 等 Markdown 语法，前端渲染会将标题和列表转成更适合 C 端阅读的纯文本样式
+- 分析回复中的 `{{card:...}}` 卡片标记不再出现在用户可见文本里
+
+### 优化
+- iOS 本地 fallback Prompt 和后端默认 Prompt 统一约束分析输出为手机 App 可读的中文纯文本，避免模型生成 Markdown 报告体
+- `analysis_prompt` 增加版本声明和后端测试，防止默认 Prompt 回退到 Markdown 输出
+
+### 后端同步
+- 后端 `system_prompt` 和 `analysis_prompt` 已通过管理接口热更新到线上，避免等待完整 Docker 重建
+
+### 验证
+- 独立测试通过：`MarkdownAttributedStringRendererStandaloneTests`
+- 后端 Prompt 测试通过：`npm test`
+- iOS Debug 模拟器构建通过：`xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 17' build`
+
+---
+
+## [2026-05-24] 待办检查项编辑 + Deep Link 导航 + 观点光标修复
+
+### 新增
+- 待办检查项支持点击标题直接内联编辑（AddTaskSheet 和 ChecklistView），回车或失焦自动保存
+- TodoRepository 新增 `updateCheckItemTitle` 方法
+- DeepLinkState 新增 `navigate(to:)` 方法，处理连续跳转相同目标时 onChange 不触发的问题
+
+### 修复
+- 观点模块编辑时光标比文字偏高：UITextView 的 `lineHeightMultiple` 导致行框扩大后光标与文字基线不对齐，改用 `lineSpacing` 修复
+- 任务通知/AI 对话点击跳转到任务详情时，连续跳转相同任务 fullScreenCover 不弹出：DeepLinkState 统一走 `navigate(to:)` 方法，TaskListView 增加防御性清空 selectedTask 逻辑
+
+---
+
+## [2026-05-23] 健康数据诊断入口
+
+### 新增
+- 设置页“调试”区新增“健康数据诊断”入口，可生成并复制 HealthKit 诊断报告
+- 诊断报告按数据类型汇总步数、睡眠、Apple Watch 站立小时、Apple 运动分钟、活动能量、步行跑步距离、体能训练
+- 报告按 HealthKit source 汇总来源名称、bundle identifier、设备厂商/型号、样本数和总值，用于排查小米手环等第三方设备数据写入类型不匹配的问题
+
+---
+
+## [2026-05-23] 修复记忆长廊刷新洞察闪退
+
+### 修复
+- 记忆长廊点击"刷新洞察"后 2-3 秒闪退：`InsightPreferenceProfileService.loadFromDisk()` 在 `static let shared` 初始化期间通过 `Self.shared` 递归访问自身，触发 EXC_BREAKPOINT 陷阱
+- `MemoryInsightContextBuilder` 添加 `@MainActor` 隔离，防止 `async let` 子任务在后台线程访问 `@MainActor` 仓库
+- 修复 3 处 force-unwrap 崩溃隐患（MemoryInsightService / MemoryGalleryViewModel / MemoryReplayFallback）
+- 在洞察生成关键路径添加 `Task.yield()` 缓解 UI 卡顿
+- 修复第三方设备（小米手环等）睡眠数据无法读取：`HKCategoryValueSleepAnalysis` 枚举值映射错误，`asleepUnspecified` 的实际 rawValue 是 1 而非 2，导致非 Apple Watch 设备的睡眠数据被过滤掉；同时修正了 `awake`(2) 被错误计入睡眠时间的问题
+
+### 规范
+- CLAUDE.md 新增闪退排查规范：禁止只搜关键词，必须从入口逐函数走完整调用链
+
+---
+
+## [2026-05-23] AI 分析扩展：健康与目标模块 + 习惯分析 bug 修复
+
+### 新增
+- 健康（Health）分析域：步数/睡眠/站立/活动 4 指标趋势、达标率、体表分（3 槽位模型）、异常检测（连续低睡眠/低步数/零活动）
+- 目标（Goal）分析域：目标进度（任务 60% + 习惯 40%）、风险检测（deadline < 7 天且进度 < 50%）、领域分布
+- AI 对话支持健康和目标分析卡片渲染（summary/trend/comparison/highlights）
+- 跨模块分析新增健康体表分和目标风险聚合，预算从 5+3 提升到 7+5
+- 意图识别新增健康关键词（步数/睡眠/运动/健康/锻炼等）和目标关键词（目标/进展/进度/goal/里程碑）
+
+### 修复
+- 习惯分析返回"没有数据"：HabitAnalysisContextBuilder 访问 activeHabits 时未先调用 repo.setup()
+
+### 后端同步
+- defaultPrompts.json 同步更新 intent_recognition 和 analysis_prompt 模板
+
+---
+
+## [2026-05-23] Holo Sense Layer 洞察闭环系统（Phase 0-6）
+
+### 新增
+- 洞察反馈系统：两维反馈（准确性 + 价值感），支持 5 种不准原因分类，反馈保存到独立 Core Data 实体
+- 洞察偏好画像 `InsightPreferenceProfile`：弱信号/稳定偏好分层，30 天过期 + 2 次阈值升级，JSON 原子写入 + 损坏回退
+- 反馈聚合器 `InsightFeedbackAggregator`：生成前批量聚合 + App 启动轻量聚合，dataWrong 隔离到 debug 日志
+- 本地卡片 Rerank：根据偏好排序，critical anomaly 保底，偏好变化立即生效不改内容
+- 每日状态雷达 Daily Sense：3 状态规则引擎（stable/atRisk/recovering），7 天持久化，记忆长廊顶部展示
+- 健康洞察上下文框架：`HealthInsightContext` + `HealthDataAvailability` 手写 Codable，`MemoryInsightContext` 新增 health 字段
+- 行动闭环：规则生成行动候选（任务清理/习惯回顾/消费提醒），卡片展示行动按钮 + 二次确认弹窗
+- Feature Flag 系统：6 个 UserDefaults Bool flag，Debug 默认开启，Release 可关闭
+- 反馈 UI Sheet：`InsightFeedbackSheet`，两维选择 + 不准原因 + 补充说明
+
+### 修复
+- `snapshotHash` 排除 `generatedAt` 运行时字段，相同业务数据生成稳定 hash
+- `mapCardTypeToModule` 不再将 `.anomaly`/default 硬映射为 `.finance`，不可映射类型返回 nil
+- `GoalAnalysisContextBuilder` 属性名 `isCompleted` → `completed`
+- 补全 `AnalysisContextBuilder`/`AnalysisSummaryFormatter`/`AnalysisDetailSheet`/`AnalysisChatCard`/`ChatCardData` 中缺失的 health/goal case
+
+### 优化
+- `MemoryInsightCard` 新增 `moduleHint`/`patternType` 可选字段，post-process 关键词匹配填充
+- `MemoryInsightHeroCard` 卡片列表从 `prefix(5)` 改为可展开
+- `MemoryInsightResponseParser` 新增 `fillModuleHints` 后处理方法
+- `MemoryInsightCardView` 新增反馈按钮 + 行动候选按钮 + 二次确认
+
+### 方案文档
+- `docs/_common/plans/2026-05-23-Holo-Sense-Layer洞察闭环方案.md`
+
+---
+
+## [2026-05-23] 个人档案接入全局 AI 上下文
+
+### 新增
+- 新增统一的 AI 用户上下文构建器，聊天和意图识别共享同一份个人档案、目标、近期趋势和习惯关注主题上下文
+- 意图识别请求现在会携带个人档案，用于分类、习惯、目标等语义消歧
+- 记忆洞察上下文新增 `personalProfileContext`，AI 回放生成时可读取稳定用户画像
+
+### 优化
+- 为意图识别加入档案优先级护栏：个人档案只能作为消歧和个性化依据，不得覆盖用户当前明确指令
+- 去除 Holo 后端 Provider 和本地 OpenAI-compatible Provider 中重复的上下文拼接逻辑
+
+### 验证
+- 独立测试通过：`AIUserContextMessageBuilderStandaloneTests`
+- iOS Debug 模拟器构建通过：`xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -configuration Debug -destination 'generic/platform=iOS Simulator' build`
+
+---
+
+## [2026-05-23] 记账卡片编辑后金额同步
+
+### 修复
+- 用户在 HoloAI 中点击记账卡片修改金额/类型/日期后，卡片内容未同步更新
+- `refreshTransactionCard` 现在完整同步 amount、type、date、primaryCategory、subCategory、note 六个字段到卡片 renderData
+
+---
+
+## [2026-05-22] 目标创建完成卡片跳转
+
+### 优化
+- HoloAI 目标规划保存成功后，将最后的「已创建目标」消息改为可点击卡片，展示目标标题、任务数和习惯数
+- 点击目标创建完成卡片后，自动跳转到「个人 → 我的目标 → 目标详情」
+- 为目标保存消息补充 `goalId` 等关联元数据，支持后续从聊天历史继续跳转
+
+### 验证
+- iOS Debug 模拟器构建通过：`xcodebuild -project Holo.xcodeproj -scheme Holo -destination 'generic/platform=iOS Simulator' -derivedDataPath /private/tmp/HoloDerivedData build`
+
+---
+
+## [2026-05-21] 健康模块权限持久化
+
+### 修复
+- 健康模块每次打开都显示权限引导页的问题：将 `hasRequestedPermission` 持久化到 UserDefaults，App 重启后不再重复请求授权
+
+---
+
+## [2026-05-21] 首次昵称设置
+
+### 新增
+- 首次打开 App 时弹出昵称设置弹窗，引导用户填写 Holo 对自己的称呼
+- 首页、今日看板、设置页和个人页统一读取本地昵称，不再显示硬编码「东林」
+
+### 优化
+- 设置页修改昵称改为确认后保存，空白输入不会覆盖已有昵称
+
+### 验证
+- iOS Debug 模拟器构建通过：`xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build`
+
+---
+
+## [2026-05-21] HoloAI 普通用户免配置
+
+### 优化
+- 正式版默认使用 Holo 自有后端网关提供 AI 对话、AI 回放和语音识别能力，新用户无需配置任何 AI/API Key 即可使用
+- 普通用户界面隐藏 AI 助手和语音识别的技术配置入口，保留 Debug 环境下的开发调试入口
+- 将「配置 AI / API Key」相关失败提示调整为服务暂时不可用提示，避免误导用户自行配置第三方 Key
+
+### 验证
+- Release 真机通用构建通过：`xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -configuration Release -destination "generic/platform=iOS" -derivedDataPath /private/tmp/holo-derived-data build`
+
+---
+
+## [2026-05-21] 首页通知栏修复 & 观点语音智能总结
+
+### 修复
+- 首页通知栏点击进入任务页后，回退再次点击无响应：`.tasks`/`.finance`/`.memoryGallery` 三类 deep link 目标未被消费，导致 `.onChange` 无法触发二次导航
+- 归档管理页面缺少 `import OSLog` 导致编译失败
+
+### 新增
+- 归档管理页面新增「任务」标签页，归档任务可在归档列表中查看和恢复
+- `TodoRepository` 新增 `loadArchivedTasks()` 方法
+- 观点语音智能总结：语音输入后自动生成结构化总结
+- `HoloBackendAIProvider` 新增 `chat(messages:purpose:)` 非流式调用方法
+
+---
+
+## [2026-05-20] iOS 17/18 向下兼容
+
+### 优化
+- 将 Holo iOS App 的最低系统版本从 iOS 26.2 下调到 iOS 17.0，覆盖 iOS 17、iOS 18 和当前 iOS 26 设备
+- 修正 AppIcon 资源配置，补齐 iOS marketing 图标和缺失的 20pt@3x 图标引用，移除不匹配的 mac/iPad 图标槽位
+
+### 验证
+- iOS Debug 模拟器构建通过：`xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -configuration Debug -destination "generic/platform=iOS Simulator" CODE_SIGNING_ALLOWED=NO build`
+
+---
+
+## [2026-05-19] 站立数据修复
+
+### 修复
+- 站立数据从 `appleStandTime`（分钟折合小时）改为 `appleStandHour`（Apple Watch 站立环小时数），数据与系统健康 app 一致
+
+---
+
+## [2026-05-19] 记账意图识别语义归一
+
+### 优化
+- 意图识别 Prompt 升级为 v8，新增 `normalizedCategoryCandidate` 和 `semanticCategoryHint`，由 AI 负责将品牌、口语和动作短语归一为可匹配的记账分类候选
+- iOS 记账路由支持按「归一候选 → 原始候选 → 语义提示」匹配本地分类与后端 catalog，减少「肯德基40」「买烟250」这类输入落入兜底分类
+- 后端 finance catalog 增加快餐语义锚点，并补充 Prompt 和 catalog 测试覆盖
+
+### 验证
+- 后端测试通过：`npm test`
+- iOS 模拟器构建通过：`xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' build`
+
+---
+
+## [2026-05-18] 洞察推送点击跳转修复
+
+### 修复
+- 修复点击洞察（周/月记忆回放）推送通知后无法跳转到对应页面的问题
+- `MemoryInsightNotificationService` 为周/月提醒通知添加 `categoryIdentifier`
+- `TodoNotificationService` 注册 `MEMORY_INSIGHT` 通知分类并在点击时触发 Deep Link 跳转到记忆长廊
+
+---
+
+## [2026-05-18] 子任务删除闪退修复
+
+### 修复
+- 修复删除子任务时 App 直接闪退的问题：`CheckItem.task` 关系的删除规则从 `cascadeDeleteRule` 改为 `nullifyDeleteRule`，防止删除子任务时级联删除父任务
+- 优化 `AddTaskSheet` 新建模式下子列表使用 `Identifiable` 包装，消除 `ForEach` 索引越界风险
+- `AddTaskSheet` 编辑模式删除子任务时先从本地数组移除，再执行 CoreData 删除，并增加失败回滚
+- `ChecklistView` 将 `checkItems` 从计算属性改为 `@State` 数组，手动管理增删状态，避免 CoreData 删除后访问野指针
+
+---
+
+## [2026-05-18] iCloud 手动同步请求
+
+### 新增
+- 设置页 iCloud 区支持「请求同步并检查状态」，点击后写入内部 Core Data 同步探针，触发 CloudKit 尽快安排导出
+- 新增内部 `ICloudSyncProbe` Core Data 实体，用于产生轻量同步变更，不影响业务数据
+
+### 优化
+- 最近同步时间合并到「同步状态」下方的小字，不再作为独立字段展示
+- 手动请求后显示「最近请求同步」时间，真正收到 CloudKit 完成事件后再更新为「最近同步」
+- App 启动时提前初始化 iCloud 同步监听，减少打开设置页太晚导致错过同步事件的情况
+
+### 验证
+- iOS Debug 模拟器构建通过：`xcodebuild -quiet -project Holo.xcodeproj -scheme Holo -configuration Debug -destination 'generic/platform=iOS Simulator' build`
+
+---
+
+## [2026-05-17] iCloud CloudKit 同步
+
+### 新增
+- 启用 iCloud CloudKit 私有数据库同步，使用 Core Data with CloudKit 在用户设备间自动同步本地数据
+- 设置页增加 iCloud 同步状态区，显示账号状态、同步事件和错误信息
+- CoreDataStack 增加 Debug 模式 CloudKit schema dry-run 验证方法
+
+### 修改
+- `NSPersistentContainer` 切换为 `NSPersistentCloudKitContainer`
+- Core Data 模型 7 个 required relationship 改为 optional，适配 CloudKit mirroring 限制
+- Debug/Release entitlements 增加 CloudKit 配置
+
+---
+
+## [2026-05-17] 健康模块导航与同步样式优化
+
+### 优化
+- 健康首页移除系统导航栏的左上角关闭按钮，改为右滑返回首页
+- 健康详情页隐藏系统返回样式，改为 Holo 自绘标题区，并支持右滑返回健康总览
+- 健康首页移除 iOS 原生刷新按钮和下拉刷新样式，新增 Holo 胶囊式「同步」控件与自绘小环动画
+
+### 验证
+- iOS Debug 模拟器构建通过：`xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -configuration Debug -destination 'generic/platform=iOS Simulator' build`
+
+---
+
+## [2026-05-17] 财务分类与图标编辑增强
+
+### 新增
+- 财务预设科目轻量扩容：新增车辆充电/保养、住宿门票、家政搬家、AI 工具/软件服务/云存储、家庭育儿/赡养、手续费/税费/快递等支出科目
+- 收入科目新增基金、项目款、咨询费、稿费、补贴、个税退税
+- 后端 finance category catalog 同步新增上述科目及别名、标签，保持 HoloAI 分类匹配语义与 iOS 本地预置一致
+- 图标库新增两个 SwiftUI 自绘万能兜底图标：`holo.category.generic` 与 `holo.category.misc`
+
+### 优化
+- 分类管理页的一级/二级分类行新增可见编辑按钮，不再只能依赖左滑发现编辑入口
+- 编辑分类页新增当前图标预览和「恢复默认」按钮，可从图标库直接替换预设分类图标
+- 图标选择器支持混合展示 SF Symbols 与 SwiftUI 自绘图标，自绘图标不会进入 SF Symbol 可用性校验
+
+### 验证
+- 后端测试通过：`npm test -- tests/catalog.test.js`
+- iOS Debug 模拟器构建通过：`xcodebuild -project Holo.xcodeproj -scheme Holo -destination 'platform=iOS Simulator,name=iPhone 17' build`
+
+---
+
+## [2026-05-17] 目标规划体验优化
+
+### 优化
+- 草稿生成后先显示 inline 聊天卡片（显示目标标题和任务/习惯数量），点击后才弹出编辑界面，避免突兀弹窗
+- GoalDraftReviewView 全面重写为 Holo 设计风格：卡片容器（holoCardBackground + 圆角 + 边框 + 阴影）、设计系统字体和间距、底部固定操作栏
+- 目标规划 Prompt 增加"我是 Holo"人格引导：分轮次追问策略、自然口语化语气、草案质量要求
+
+### 新增
+- GoalDraftReadyChatCard：聊天内嵌目标计划入口卡片，复用 ChatCardView 设计风格
+- GoalDraft.cardSummary：计算选中任务/习惯数量的摘要文本
+
+---
+
+## [2026-05-17] 目标系统 v1
+
+### 新增
+- 目标 Core Data 实体：Goal 与 TodoTask、Habit 的双向关系（nullifyDeleteRule，删除目标不级联删除任务/习惯）
+- GoalModels 值类型：GoalStatus、GoalDomain、GoalDraft、GoalPlanningSession、GoalPlanningRequest
+- GoalRepository：CRUD、草案落库（saveDraft 同时创建关联任务和习惯）、状态切换、AI 上下文授权查询
+- GoalProgressEvaluator：基于任务完成率和习惯近 14 天完成率的粗粒度进展评估（起步中/稳定推进/有些停滞/接近完成/已暂停/已完成）
+- GoalPlanningCoordinator：最多 3 轮追问的状态机，信息足够时提前生成 GoalDraft JSON
+- GoalPlanningPromptBuilder：追问 prompt 和草案生成 prompt，支持精简/完整模式
+- GoalListView：我的目标列表，空状态引导跳转 HoloAI 规划
+- GoalDetailView：目标详情页，支持暂停/恢复/标记完成/删除，AI 授权开关
+- GoalDraftReviewView：fullScreenCover 确认看板，可编辑标题/领域、勾选任务/习惯、选择频率、AI 授权
+- 个人页「我的目标」入口，跨 Tab 跳转（PersonalView → HomeView → ChatView）
+- ChatMessage 新增 messageType 字段，区分普通消息和目标规划消息
+- ChatViewModel 目标规划分流：sendMessage 检测活跃规划 session，走专用追问链路
+- QuickAction 新增「规划目标」快捷入口
+- AI Context 注入：授权 active Goal 摘要注入 UserContext.goalContext，OpenAICompatibleProvider 和 HoloBackendAIProvider 均已支持
+- MockAIProvider 目标规划确定性响应（固定追问 + 固定草案 JSON）
+- HabitRepository 新增 getCompletionStats(for:days:) 窗口完成率统计
+
+### 修复
+- 修复目标规划跳转失败：根因是应用主导航在 HomeView 而非 ContentView，onPlanGoal 回调和 goalPlanningRequest binding 需要接入 HomeView 的 sheet/fullScreenCover
+- 修复 HealthDetailView switch 缺少 activeMinutes case（预存问题）
+
+### 验证
+- iOS Debug 模拟器构建通过：`xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -configuration Debug -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build`
+
+---
+
+## [2026-05-17] 健康模块产品化重构
+
+### 新增
+- 新增健康首页 A+C 组合体验：三环主视觉、身体状态分数、三项指标摘要、Apple Health 数据源卡
+- 新增健康展示状态模型，支持身体状态分数、指标可用性、数据源状态、无 Apple Watch 替代环和洞察文案
+- 新增首页「今日核心洞察」和「生活闭环」关联线索，串联习惯、财务、思考等模块
+- 新增活动分钟指标，用于无 Apple Watch 或无站立数据时替代站立环
+
+### 优化
+- 重构步数、睡眠、站立详情页，统一展示大圆环、7 天趋势、统计摘要、单项洞察和关联线索
+- HealthKit 仓库新增按指标可用状态和数据源状态，避免把授权回调 success 简单等同于全部读取权限
+- 权限引导页强调 Apple Health 只读同步、不写入、不上传原始健康记录
+- 趋势图空状态文案改为「暂无可用趋势数据」，避免无数据与零进度混淆
+
+### 验证
+- iOS Debug 模拟器构建通过：`xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -configuration Debug -destination 'generic/platform=iOS Simulator' build`
+
+---
+
 ## [2026-05-17] 财务模块滚动回弹修复
 
 ### 修复

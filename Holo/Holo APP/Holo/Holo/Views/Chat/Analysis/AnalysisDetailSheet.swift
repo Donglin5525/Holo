@@ -147,6 +147,8 @@ struct AnalysisDetailSheet: View {
         case .task: return "任务分析"
         case .thought: return "想法分析"
         case .crossModule: return "综合分析"
+        case .health: return "健康分析"
+        case .goal: return "目标分析"
         }
     }
 }

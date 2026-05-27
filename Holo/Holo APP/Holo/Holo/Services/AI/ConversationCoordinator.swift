@@ -173,6 +173,8 @@ final class ConversationCoordinator {
                 let routeResult = try await intentRouter.route(item.asParsedResult)
                 let renderData = Self.buildRenderData(from: item, routeResult: routeResult)
 
+                logger.info("[多动作] item=\(item.id) intent=\(item.intent.rawValue) note=\(renderData?["note"] ?? "nil") candidate=\(renderData?["categoryCandidate"] ?? "nil") primary=\(renderData?["primaryCategory"] ?? "nil") sub=\(renderData?["subCategory"] ?? "nil")")
+
                 executionItems.append(
                     AIExecutionItem(
                         id: UUID().uuidString,

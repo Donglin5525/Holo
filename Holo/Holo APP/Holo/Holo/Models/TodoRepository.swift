@@ -259,7 +259,8 @@ class TodoRepository: ObservableObject {
         dueDate: Date? = nil,
         isAllDay: Bool = false,
         tags: [TodoTag] = [],
-        reminders: Set<TaskReminder>? = nil
+        reminders: Set<TaskReminder>? = nil,
+        checkItemTitles: [String]? = nil
     ) throws -> TodoTask {
         let task = TodoTask.create(
             in: context,
@@ -281,6 +282,13 @@ class TodoRepository: ObservableObject {
         if let reminders = reminders, !reminders.isEmpty, dueDate != nil {
             Task {
                 try? await TodoNotificationService.shared.scheduleReminder(for: task, reminders: Array(reminders))
+            }
+        }
+
+        // 创建子任务（原子操作，与主任务同一次 save）
+        if let checkItemTitles = checkItemTitles {
+            for (index, title) in checkItemTitles.enumerated() {
+                CheckItem.create(in: context, title: title, task: task, order: Int16(index))
             }
         }
 
@@ -556,6 +564,20 @@ class TodoRepository: ObservableObject {
         notifyDataChange()
     }
 
+    /// 加载已归档任务
+    func loadArchivedTasks() -> [TodoTask] {
+        let request = TodoTask.fetchRequest()
+        request.predicate = NSPredicate(format: "archived == YES AND deletedFlag == NO")
+        request.sortDescriptors = [NSSortDescriptor(key: "updatedAt", ascending: false)]
+
+        do {
+            return try context.fetch(request)
+        } catch {
+            Logger(subsystem: "com.holo.app", category: "TodoRepository").error("加载已归档任务失败：\(error)")
+            return []
+        }
+    }
+
     /// 加载已归档清单
     func loadArchivedLists() -> [TodoList] {
         let request = TodoList.fetchRequest()
@@ -593,9 +615,19 @@ class TodoRepository: ObservableObject {
     /// 删除检查项
     func deleteCheckItem(_ item: CheckItem) throws {
         let task = item.task
+        task?.removeCheckItems(item)
+        task?.updatedAt = Date()
         context.delete(item)
+        context.processPendingChanges()
         try context.save()
         loadActiveTasks()
+        notifyDataChange()
+    }
+
+    /// 更新检查项标题
+    func updateCheckItemTitle(_ item: CheckItem, newTitle: String) throws {
+        item.title = newTitle
+        try context.save()
         notifyDataChange()
     }
 

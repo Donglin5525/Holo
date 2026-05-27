@@ -115,7 +115,9 @@ final class ChatMessageRepository: ObservableObject {
                         "extractedDataJSON",
                         "isStreaming",
                         "parentMessageId",
-                        "analysisContextJSON"
+                        "analysisContextJSON",
+                        "executionBatchJSON",
+                        "rawLogJSON"
                     ]
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
                     request.fetchLimit = limit
@@ -184,7 +186,7 @@ final class ChatMessageRepository: ObservableObject {
                     request.propertiesToFetch = [
                         "id", "role", "content", "timestamp",
                         "intent", "extractedDataJSON", "isStreaming", "parentMessageId",
-                        "analysisContextJSON"
+                        "analysisContextJSON", "executionBatchJSON", "rawLogJSON"
                     ]
                     request.predicate = NSPredicate(format: "id IN %@", sessionIds)
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: true)]
@@ -267,7 +269,7 @@ final class ChatMessageRepository: ObservableObject {
                     request.propertiesToFetch = [
                         "id", "role", "content", "timestamp",
                         "intent", "extractedDataJSON", "isStreaming", "parentMessageId",
-                        "analysisContextJSON"
+                        "analysisContextJSON", "executionBatchJSON", "rawLogJSON"
                     ]
                     request.predicate = NSPredicate(format: "id IN %@", sessionIds)
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: true)]
@@ -330,15 +332,16 @@ final class ChatMessageRepository: ObservableObject {
                 return try await context.perform {
                     let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
                     request.resultType = .dictionaryResultType
-                    request.propertiesToFetch = ["role", "content"]
-                    request.predicate = NSPredicate(format: "role IN %@", ["user", "assistant"])
+                    request.propertiesToFetch = ["role", "content", "isStreaming"]
+                    request.predicate = NSPredicate(format: "role IN %@ AND isStreaming == NO", ["user", "assistant"])
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
                     request.fetchLimit = limit
 
                     let dicts = try context.fetch(request)
                     return dicts.reversed().compactMap { dict -> ChatMessageDTO? in
                         guard let role = dict["role"] as? String,
-                              let content = dict["content"] as? String else { return nil }
+                              let content = dict["content"] as? String,
+                              !content.isEmpty else { return nil }
                         switch role {
                         case "user": return .user(content)
                         case "assistant": return .assistant(content)
@@ -362,7 +365,8 @@ final class ChatMessageRepository: ObservableObject {
         content: String,
         intent: String? = nil,
         extractedDataJSON: String? = nil,
-        parentMessageId: UUID? = nil
+        parentMessageId: UUID? = nil,
+        messageType: ChatMessageType = .normal
     ) -> UUID {
         let message = ChatMessage(context: context)
         message.id = UUID()
@@ -373,6 +377,7 @@ final class ChatMessageRepository: ObservableObject {
         message.extractedDataJSON = extractedDataJSON
         message.isStreaming = false
         message.parentMessageId = parentMessageId
+        message.messageType = messageType.rawValue
 
         save()
 
@@ -383,7 +388,7 @@ final class ChatMessageRepository: ObservableObject {
 
     /// 添加流式占位消息
     @discardableResult
-    func addStreamingMessage(role: String, parentMessageId: UUID? = nil) -> UUID {
+    func addStreamingMessage(role: String, parentMessageId: UUID? = nil, messageType: ChatMessageType = .normal) -> UUID {
         let message = ChatMessage(context: context)
         message.id = UUID()
         message.role = role
@@ -391,6 +396,7 @@ final class ChatMessageRepository: ObservableObject {
         message.timestamp = Date()
         message.isStreaming = true
         message.parentMessageId = parentMessageId
+        message.messageType = messageType.rawValue
 
         save()
 
@@ -567,10 +573,18 @@ final class ChatMessageRepository: ObservableObject {
         let messageId = messages[messageIndex].id
 
         // 2. 获取更新后的交易
-        guard let transaction = FinanceRepository.shared.findTransaction(by: transactionId) else { return }
-        let category = transaction.category
+        guard let transaction = FinanceRepository.shared.findTransaction(by: transactionId),
+              let category = transaction.category else { return }
 
         let (primaryCategory, subCategory) = FinanceRepository.shared.resolveCategoryNames(from: category)
+
+        // 同步金额、类型、日期
+        let updatedAmount = transaction.amount.stringValue
+        let updatedType = transaction.type // "expense" / "income"
+        let dateFormatter = DateFormatter()
+        dateFormatter.locale = Locale(identifier: "zh_CN")
+        dateFormatter.dateFormat = "M月d日"
+        let updatedDate = dateFormatter.string(from: transaction.date)
 
         // 3. 从 Core Data 读取 ChatMessage
         let request = ChatMessage.fetchRequest()
@@ -589,6 +603,9 @@ final class ChatMessageRepository: ObservableObject {
             let newItems = batch.items.map { item in
                 guard item.linkedEntityId == txIdStr else { return item }
                 var rd = item.renderData ?? [:]
+                rd["amount"] = updatedAmount
+                rd["type"] = updatedType
+                rd["date"] = updatedDate
                 rd["primaryCategory"] = primaryCategory
                 if let sub = subCategory { rd["subCategory"] = sub } else { rd.removeValue(forKey: "subCategory") }
                 if let note = transaction.note, !note.isEmpty { rd["note"] = note } else { rd.removeValue(forKey: "note") }
@@ -611,6 +628,9 @@ final class ChatMessageRepository: ObservableObject {
         if let json = message.extractedDataJSON,
            let data = json.data(using: .utf8),
            var dict = try? JSONDecoder().decode([String: String].self, from: data) {
+            dict["amount"] = updatedAmount
+            dict["type"] = updatedType
+            dict["date"] = updatedDate
             dict["primaryCategory"] = primaryCategory
             if let sub = subCategory { dict["subCategory"] = sub } else { dict.removeValue(forKey: "subCategory") }
             if let note = transaction.note, !note.isEmpty { dict["note"] = note } else { dict.removeValue(forKey: "note") }

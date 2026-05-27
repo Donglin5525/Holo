@@ -24,8 +24,8 @@ public class Transaction: NSManagedObject {
     @NSManaged public var tags: [String]?
     @NSManaged public var createdAt: Date
     @NSManaged public var updatedAt: Date
-    @NSManaged public var category: Category
-    @NSManaged public var account: Account
+    @NSManaged public var category: Category?
+    @NSManaged public var account: Account?
 
     // 分期记账字段
     @NSManaged public var installmentGroupId: UUID?

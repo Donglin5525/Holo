@@ -120,20 +120,56 @@ test("启动时自动把默认 Prompt 登记到版本历史", async () => {
   assert.match(historyHtml, /自动登记默认 Prompt 基线/);
 });
 
-test("intent_recognition 默认 Prompt 已移除完整科目表并使用 categoryCandidate", async () => {
+test("intent_recognition 默认 Prompt 已移除完整科目表并使用语义归一字段", async () => {
   const app = createTestApp();
 
   const response = await app.request("/v1/prompts/intent_recognition");
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  assert.equal(prompt.version, 6);
+  assert.equal(prompt.version, 8);
   assert.match(prompt.content, /categoryCandidate/);
+  assert.match(prompt.content, /normalizedCategoryCandidate/);
+  assert.match(prompt.content, /semanticCategoryHint/);
+  assert.match(prompt.content, /买烟250/);
+  assert.match(prompt.content, /肯德基40/);
+  assert.match(prompt.content, /habitPolarity/);
+  assert.match(prompt.content, /stayBelowTarget/);
   assert.match(prompt.content, /系统科目对照 catalog/);
   assert.doesNotMatch(prompt.content, /## 科目体系/);
   assert.doesNotMatch(prompt.content, /### 支出/);
   assert.doesNotMatch(prompt.content, /### 收入/);
   assert.doesNotMatch(prompt.content, /餐饮 \\| 早餐、午餐、晚餐/);
+});
+
+test("analysis_prompt 默认 Prompt 使用 C 端纯文本输出约束", async () => {
+  const app = createTestApp();
+
+  const response = await app.request("/v1/prompts/analysis_prompt");
+  assert.equal(response.status, 200);
+  const prompt = await response.json();
+
+  assert.equal(prompt.version, 2);
+  assert.match(prompt.content, /适合手机 App 阅读的中文分析文本/);
+  assert.match(prompt.content, /不要输出 Markdown 语法符号/);
+  assert.match(prompt.content, /短标题行/);
+  assert.doesNotMatch(prompt.content, /只输出 Markdown 文本/);
+  assert.doesNotMatch(prompt.content, /使用 Markdown 格式/);
+});
+
+test("thought_voice_summary 默认 Prompt 要求自然分段且小标题只在必要时出现", async () => {
+  const app = createTestApp();
+
+  const response = await app.request("/v1/prompts/thought_voice_summary");
+  assert.equal(response.status, 200);
+  const prompt = await response.json();
+
+  assert.equal(prompt.version, 2);
+  assert.match(prompt.content, /自然分段/);
+  assert.match(prompt.content, /不要默认添加小标题/);
+  assert.match(prompt.content, /只有当原文包含多个主题/);
+  assert.match(prompt.content, /不要使用 Markdown 语法符号/);
+  assert.match(prompt.content, /短文本.*单段/);
 });
 
 test("默认 Prompt 文件内容与当前版本不一致时会同步为可见历史版本", async () => {

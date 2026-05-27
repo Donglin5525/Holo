@@ -12,10 +12,13 @@ struct MessageBubbleView: View {
 
     let message: ChatMessageViewData
     let streamingText: String?
+    let goalDraftForReview: GoalDraft?
     var onIntentTagTap: ((ChatMessageViewData) -> Void)? = nil
     var onCardTap: ((ChatMessageViewData, ChatCardData) -> Void)? = nil
     var onViewLog: ((ChatMessageViewData) -> Void)? = nil
     var onCompactAnalysisTap: (() -> Void)? = nil
+    var onGoalDraftCardTap: (() -> Void)? = nil
+    var onSavedGoalCardTap: ((UUID) -> Void)? = nil
     var onRetry: (() -> Void)? = nil
     var onCardDelete: ((ChatMessageViewData, EntityCategory, String) -> Void)? = nil
 
@@ -23,8 +26,26 @@ struct MessageBubbleView: View {
         streamingText ?? message.content
     }
 
+    /// 是否为目标计划草稿就绪消息（需要渲染为卡片而非气泡）
+    private var isGoalDraftReady: Bool {
+        !isUser
+            && message.messageType == .goalPlanning
+            && !message.isStreaming
+            && goalDraftForReview != nil
+    }
+
     private var isUser: Bool {
         message.role == "user"
+    }
+
+    /// 保存完成的目标消息（需要渲染成可跳转卡片）
+    private var savedGoalCardData: GoalSavedChatCardData? {
+        guard !isUser,
+              message.messageType == .goalPlanning,
+              !message.isStreaming else {
+            return nil
+        }
+        return GoalSavedChatCardData(dictionary: message.extractedDataDictionary)
     }
 
     /// 是否可渲染为卡片（旧路径，单卡片兼容）
@@ -63,8 +84,18 @@ struct MessageBubbleView: View {
 
             // 消息内容
             VStack(alignment: isUser ? .trailing : .leading, spacing: 4) {
-                // 渲染优先级：分析卡片（叠加模式） > 批处理卡片 > 单卡片 > 气泡
-                if message.isQueryAnalysis {
+                // 渲染优先级：已保存目标卡片 > 目标计划卡片 > 分析卡片（叠加模式） > 批处理卡片 > 单卡片 > 气泡
+                if let savedGoalCardData {
+                    GoalSavedChatCard(data: savedGoalCardData) {
+                        onSavedGoalCardTap?(savedGoalCardData.goalId)
+                    }
+                } else if isGoalDraftReady {
+                    if let draft = goalDraftForReview {
+                        GoalDraftReadyChatCard(draft: draft) {
+                            onGoalDraftCardTap?()
+                        }
+                    }
+                } else if message.isQueryAnalysis {
                     if message.isStreaming {
                         // 流式中：显示 loading 卡片
                         AnalysisCompactChatCard(message: message) {

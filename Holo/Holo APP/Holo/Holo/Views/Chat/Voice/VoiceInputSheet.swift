@@ -8,6 +8,13 @@
 import SwiftUI
 import UIKit
 
+struct VoiceResultConfig: Equatable {
+    var title: String = "识别结果"
+    var subtitle: String? = nil
+    var warningSubtitle: String? = nil
+    var showsOriginalToggle: Bool = false
+}
+
 struct VoiceInputSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
@@ -15,6 +22,7 @@ struct VoiceInputSheet: View {
 
     let readySubtitle: String
     let submitButtonTitle: String
+    let resultConfig: VoiceResultConfig?
     let onSendTranscript: (String) -> Void
 
     init(
@@ -23,17 +31,21 @@ struct VoiceInputSheet: View {
         maximumDuration: TimeInterval = 60,
         readySubtitle: String = "确认后再发送给 HoloAI",
         submitButtonTitle: String = "发送",
+        resultConfig: VoiceResultConfig? = nil,
+        postProcessor: (any VoiceTranscriptPostProcessing)? = nil,
         onSendTranscript: @escaping (String) -> Void
     ) {
         _viewModel = StateObject(
             wrappedValue: VoiceInputViewModel(
                 speechProvider: speechProvider,
                 recordingService: recordingService,
-                maximumDuration: maximumDuration
+                maximumDuration: maximumDuration,
+                postProcessor: postProcessor
             )
         )
         self.readySubtitle = readySubtitle
         self.submitButtonTitle = submitButtonTitle
+        self.resultConfig = resultConfig
         self.onSendTranscript = onSendTranscript
     }
 
@@ -113,6 +125,8 @@ struct VoiceInputSheet: View {
                 dismiss()
             }
             .buttonStyle(VoiceSecondaryButtonStyle())
+        case .summarizing:
+            summarizingControls
         case .transcriptReady:
             transcriptEditor
         case .failed(let error):
@@ -168,6 +182,22 @@ struct VoiceInputSheet: View {
                 }
                 .buttonStyle(VoiceSecondaryButtonStyle())
 
+                if resultConfig?.showsOriginalToggle == true && viewModel.originalTranscript != nil {
+                    if viewModel.transcriptDisplayMode == .summary {
+                        Button("查看原文") {
+                            VoiceInputHaptics.selection()
+                            viewModel.showOriginalTranscript()
+                        }
+                        .buttonStyle(VoiceSecondaryButtonStyle())
+                    } else {
+                        Button("还原总结") {
+                            VoiceInputHaptics.selection()
+                            viewModel.restoreSummaryTranscript()
+                        }
+                        .buttonStyle(VoiceSecondaryButtonStyle())
+                    }
+                }
+
                 Button(submitButtonTitle) {
                     VoiceInputHaptics.success()
                     onSendTranscript(viewModel.editableTranscript)
@@ -175,6 +205,21 @@ struct VoiceInputSheet: View {
                 .buttonStyle(VoicePrimaryButtonStyle())
                 .disabled(viewModel.editableTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
+        }
+    }
+
+    private var summarizingControls: some View {
+        VStack(spacing: 16) {
+            ProgressView()
+                .tint(.holoPrimary)
+                .scaleEffect(1.2)
+
+            Button("重录") {
+                VoiceInputHaptics.selection()
+                viewModel.cancelSummary()
+                viewModel.reRecord()
+            }
+            .buttonStyle(VoiceSecondaryButtonStyle())
         }
     }
 
@@ -255,8 +300,10 @@ struct VoiceInputSheet: View {
             return "录音被中断"
         case .transcribing:
             return "正在识别"
+        case .summarizing:
+            return "正在智能总结"
         case .transcriptReady:
-            return "识别结果"
+            return resultConfig?.title ?? "识别结果"
         case .failed:
             return "识别失败"
         }
@@ -266,6 +313,8 @@ struct VoiceInputSheet: View {
         switch viewModel.state {
         case .transcriptReady:
             return 560
+        case .summarizing:
+            return 390
         case .failed:
             return 430
         default:
@@ -291,8 +340,13 @@ struct VoiceInputSheet: View {
         case .transcribing:
             let maxDesc = viewModel.maximumDuration >= 60 ? "\(Int(viewModel.maximumDuration / 60)) 分钟" : "\(Int(viewModel.maximumDuration)) 秒"
             return viewModel.didAutoFinishBecauseOfLimit ? "已到 \(maxDesc)，正在整理你的语音" : "正在整理你的语音"
+        case .summarizing:
+            return "正在将语音整理成更适合观点记录的表达"
         case .transcriptReady:
-            return readySubtitle
+            if let notice = viewModel.summaryNotice {
+                return notice
+            }
+            return resultConfig?.subtitle ?? readySubtitle
         case .failed(.microphonePermissionDenied):
             return "需要使用麦克风来记录你的语音"
         case .failed:
@@ -307,9 +361,11 @@ struct VoiceInputSheet: View {
         case .failed:
             return "exclamationmark.circle.fill"
         case .transcriptReady:
-            return "text.bubble.fill"
+            return "sparkles"
         case .transcribing:
             return "waveform"
+        case .summarizing:
+            return "waveform.badge.magnifyingglass"
         default:
             return "mic.circle.fill"
         }
@@ -337,6 +393,8 @@ struct VoiceInputSheet: View {
             if viewModel.didAutoFinishBecauseOfLimit {
                 VoiceInputHaptics.medium()
             }
+        case .summarizing:
+            VoiceInputHaptics.medium()
         case .transcriptReady:
             VoiceInputHaptics.success()
         case .failed:

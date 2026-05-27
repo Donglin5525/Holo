@@ -52,29 +52,72 @@ struct HealthRingView: View {
     }
 }
 
+// MARK: - TripleHealthRingView
+
+/// 健康首页三环主视觉
+struct TripleHealthRingView: View {
+    let snapshot: HealthDashboardSnapshot
+
+    var body: some View {
+        ZStack {
+            ring(for: snapshot.steps, size: 168, lineWidth: 13)
+            ring(for: snapshot.sleep, size: 124, lineWidth: 13)
+            ring(for: snapshot.standOrActivity, size: 80, lineWidth: 13)
+
+            Circle()
+                .fill(Color.holoCardBackground)
+                .frame(width: 58, height: 58)
+                .overlay(
+                    Circle()
+                        .stroke(Color.holoBorder, lineWidth: 1)
+                )
+
+            VStack(spacing: 2) {
+                Text(snapshot.bodyScoreText)
+                    .font(.system(size: snapshot.bodyScore == nil ? 12 : 24, weight: .bold, design: .rounded))
+                    .foregroundColor(.holoTextPrimary)
+                    .minimumScaleFactor(0.7)
+                    .lineLimit(1)
+
+                Text("身体")
+                    .font(.holoTinyLabel)
+                    .foregroundColor(.holoTextSecondary)
+            }
+            .frame(width: 52)
+        }
+        .frame(width: 168, height: 168)
+    }
+
+    private func ring(for metric: HealthMetricSnapshot, size: CGFloat, lineWidth: CGFloat) -> some View {
+        ZStack {
+            Circle()
+                .stroke(Color.holoDivider, lineWidth: lineWidth)
+                .frame(width: size, height: size)
+
+            Circle()
+                .trim(from: 0, to: metric.progress)
+                .stroke(
+                    metric.type.color,
+                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
+                )
+                .frame(width: size, height: size)
+                .rotationEffect(.degrees(-90))
+                .animation(.easeInOut(duration: 0.45), value: metric.progress)
+        }
+    }
+}
+
 // MARK: - Preview
 
 #Preview {
-    HStack(spacing: HoloSpacing.lg) {
-        HealthRingView(
-            progress: 72,
-            color: .holoPrimary,
-            icon: "figure.walk",
-            label: "步数"
-        )
-
-        HealthRingView(
-            progress: 85,
-            color: .holoChart1,
-            icon: "bed.double.fill",
-            label: "睡眠"
-        )
-
-        HealthRingView(
-            progress: 50,
-            color: .holoPurple,
-            icon: "figure.stand",
-            label: "站立"
+    VStack(spacing: HoloSpacing.lg) {
+        TripleHealthRingView(
+            snapshot: HealthDashboardSnapshot(
+                steps: HealthMetricSnapshot(type: .steps, value: 8400, availability: .available),
+                sleep: HealthMetricSnapshot(type: .sleep, value: 7.2, availability: .available),
+                standOrActivity: HealthMetricSnapshot(type: .standHours, value: 8, availability: .available),
+                dataSourceState: .connected
+            )
         )
     }
     .padding()

@@ -120,8 +120,7 @@ private func quickTemplateCategoryIcon(_ category: Category, size: CGFloat) -> s
         Image(systemName: "tag.fill")
             .font(.system(size: size * 0.6, weight: .medium))
     } else {
-        Image(systemName: name)
-            .font(.system(size: size * 0.6, weight: .medium))
+        categoryIconGlyph(name, size: size * 0.6, color: .holoTextSecondary)
     }
 }
 

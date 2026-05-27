@@ -29,7 +29,7 @@ enum MemoryReplayFallback {
         weekIndex: Int
     ) -> String {
         let key = "\(habitTrend)_\(expenseTrend)_\(hasThoughts)"
-        let variants = titleVariants[key] ?? titleVariants["stable_stable_false"]!
+        let variants = titleVariants[key] ?? titleVariants["stable_stable_false"] ?? ["平稳的一周"]
         return variants[abs(weekIndex) % variants.count]
     }
 
