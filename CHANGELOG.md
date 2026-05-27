@@ -4,6 +4,28 @@
 
 ---
 
+## [2026-05-28] 长期记忆候选写入链路修复
+
+### 修复
+- 修复打开“长期记忆”后仍不会保存任何候选记忆的问题
+- App 启动时现在会注册长期记忆候选观察器，避免洞察生成完成通知无人消费
+- “长期记忆”开关现在会真正控制洞察候选抽取，不再依赖未暴露的内部开关
+- 设置页文案改为“从洞察中学习”，避免误导为普通对话会自动写入长期记忆
+
+### 触发方式
+- 打开“长期记忆”后，生成或刷新记忆洞察；带有 `patternType` 和 evidence 的洞察卡片会进入“记忆管理”的待确认列表
+- 用户确认候选后才会成为已记住内容
+
+### 验证
+- 独立测试通过：`HoloMemorySettingsStandaloneTests`
+- iOS 真机构建通过：`xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -destination 'generic/platform=iOS' -derivedDataPath /private/tmp/holo-long-term-memory-dd build`
+
+### 不变
+- 后端无变更，无需发版
+- 普通聊天仍不会自动写入长期记忆
+
+---
+
 ## [2026-05-28] 任务编辑进度条实时更新 + 编辑模式自动保存
 
 ### 修复

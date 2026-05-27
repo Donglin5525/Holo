@@ -32,6 +32,9 @@ struct HoloApp: App {
         // 注册后台洞察生成任务
         MemoryInsightBackgroundService.shared.registerBackgroundTask()
 
+        // 监听洞察生成完成事件，用于在长期记忆开启后抽取待确认记忆候选。
+        HoloLongTermMemoryCandidateObserver.startObserving()
+
         // 迁移旧格式学习映射 key（type|candidate → type|primary|candidate）
         CategoryLearnedMapping.migrateOldFormatKeys()
 

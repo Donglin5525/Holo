@@ -359,6 +359,12 @@ class TodoRepository: ObservableObject {
         try context.save()
         loadActiveTasks()
         notifyDataChange()
+
+        if task.completed {
+            TodoNotificationService.shared.removeReminders(for: task)
+        } else {
+            rescheduleRemindersIfNeeded(for: task)
+        }
         return task.completed
     }
 
@@ -371,6 +377,8 @@ class TodoRepository: ObservableObject {
         try context.save()
         loadActiveTasks()
         notifyDataChange()
+
+        TodoNotificationService.shared.removeReminders(for: task)
     }
 
     /// 取消完成任务
@@ -382,6 +390,8 @@ class TodoRepository: ObservableObject {
         try context.save()
         loadActiveTasks()
         notifyDataChange()
+
+        rescheduleRemindersIfNeeded(for: task)
     }
 
     /// 完成重复任务并生成下一个实例
@@ -397,6 +407,8 @@ class TodoRepository: ObservableObject {
             try context.save()
             loadActiveTasks()
             notifyDataChange()
+
+            TodoNotificationService.shared.removeReminders(for: task)
             return false
         }
 
@@ -410,6 +422,8 @@ class TodoRepository: ObservableObject {
             try context.save()
             loadActiveTasks()
             notifyDataChange()
+
+            TodoNotificationService.shared.removeReminders(for: task)
             return false
         }
 
@@ -445,6 +459,10 @@ class TodoRepository: ObservableObject {
         try context.save()
         loadActiveTasks()
         notifyDataChange()
+
+        // 取消当前任务的通知，为新任务调度通知
+        TodoNotificationService.shared.removeReminders(for: task)
+        rescheduleRemindersIfNeeded(for: nextTask)
         return true
     }
 
@@ -458,6 +476,8 @@ class TodoRepository: ObservableObject {
         loadActiveTasks()
         loadTrashedTasks()
         notifyDataChange()
+
+        TodoNotificationService.shared.removeReminders(for: task)
     }
 
     /// 恢复任务（从回收站）
@@ -470,11 +490,14 @@ class TodoRepository: ObservableObject {
         loadActiveTasks()
         loadTrashedTasks()
         notifyDataChange()
+
+        rescheduleRemindersIfNeeded(for: task)
     }
 
     /// 永久删除任务
     func permanentlyDeleteTask(_ task: TodoTask) throws {
         let taskId = task.id
+        TodoNotificationService.shared.removeReminders(for: task)
         deleteAllAttachmentFiles(for: task)
         context.delete(task)
         try context.save()
@@ -491,6 +514,8 @@ class TodoRepository: ObservableObject {
         try context.save()
         loadActiveTasks()
         notifyDataChange()
+
+        TodoNotificationService.shared.removeReminders(for: task)
     }
 
     /// 取消归档任务
@@ -501,6 +526,21 @@ class TodoRepository: ObservableObject {
         try context.save()
         loadActiveTasks()
         notifyDataChange()
+
+        rescheduleRemindersIfNeeded(for: task)
+    }
+
+    // MARK: - Reminder Helpers
+
+    /// 任务恢复活跃状态时，重新调度提醒（仅当未完成、未删除、有提醒且有截止日期）
+    private func rescheduleRemindersIfNeeded(for task: TodoTask) {
+        guard !task.completed, !task.deletedFlag, !task.archived,
+              task.hasReminders, task.dueDate != nil else { return }
+        Task {
+            try? await TodoNotificationService.shared.scheduleReminder(
+                for: task, reminders: task.remindersArray
+            )
+        }
     }
 
     // MARK: - Tag CRUD

@@ -62,5 +62,5 @@ enum HoloAIFeatureFlags {
     static var capabilityLaunchpadEnabled: Bool { true }
     static var memorySummaryInjectionEnabled: Bool { HoloMemorySettings.shared.memorySummaryInjectionEnabled }
     static var longTermMemoryWriteEnabled: Bool { HoloMemorySettings.shared.longTermMemoryEnabled }
-    static var memoryInsightCandidateExtractionEnabled: Bool { HoloMemorySettings.shared.memoryInsightExtractionEnabled }
+    static var memoryInsightCandidateExtractionEnabled: Bool { HoloMemorySettings.shared.longTermMemoryEnabled }
 }

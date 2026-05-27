@@ -315,7 +315,7 @@ struct AISettingsView: View {
                             .font(.holoBody)
                             .foregroundColor(.holoTextPrimary)
 
-                        Text("AI 自动从对话和洞察中学习偏好与模式")
+                        Text("AI 自动从洞察中学习偏好与模式")
                             .font(.system(size: 12))
                             .foregroundColor(.holoTextSecondary)
                     }
