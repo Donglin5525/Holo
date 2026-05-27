@@ -4,6 +4,28 @@
 
 ---
 
+## [2026-05-28] 任务清单进度条丝滑动画与完成彩带
+
+### 优化
+- 编辑任务页的检查清单进度条改为显式动画状态，勾选、添加、删除检查项时不再直接跳到最终进度
+- 独立检查清单页同步使用显式进度状态和进度条动画，避免 Core Data 关系刷新导致动画被跳过
+- 检查项勾选按钮增加轻量弹跳反馈
+
+### 新增
+- 检查清单从未完成推进到 100% 时展示轻量彩带庆祝动画
+
+### 原因
+- 实际编辑任务入口的进度条位于 `AddTaskSheet.swift`，此前只改 `ChecklistView.swift` 未覆盖用户正在操作的页面
+- 原实现直接按最新完成比例设置宽度，SwiftUI 没有稳定的旧值到新值过渡帧
+
+### 验证
+- iOS 构建通过：`xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -configuration Debug -destination 'generic/platform=iOS' -derivedDataPath /private/tmp/holo-checklist-animation-addsheet CODE_SIGNING_ALLOWED=NO build`
+
+### 不变
+- 后端无变更，无需发版
+
+---
+
 ## [2026-05-28] 财务科目快速新增入口
 
 ### 新增

@@ -87,6 +87,9 @@ struct AddTaskSheet: View {
     @State private var showAdvancedProperties = false
     @State private var editingCheckItemId: UUID?
     @State private var editingCheckItemTitle = ""
+    @State private var displayedChecklistProgress: Double = 0
+    @State private var showChecklistCompletionCelebration = false
+    @State private var checklistCompletionCelebrationID = UUID()
     @FocusState private var isCheckItemEditing: Bool
 
     // 编辑模式专属
@@ -294,6 +297,7 @@ struct AddTaskSheet: View {
             if let task = existingTask {
                 let items = task.checkItems?.allObjects as? [CheckItem] ?? []
                 checkItems = items.sorted { $0.order < $1.order }
+                displayedChecklistProgress = checklistProgress
             }
         }
     }
@@ -325,6 +329,12 @@ struct AddTaskSheet: View {
 
     private var canSave: Bool {
         !title.trimmingCharacters(in: .whitespaces).isEmpty
+    }
+
+    private var checklistProgress: Double {
+        guard !checkItems.isEmpty else { return 0 }
+        let completedCount = checkItems.filter(\.isChecked).count
+        return Double(completedCount) / Double(checkItems.count)
     }
 
     // MARK: - 拖动指示条
@@ -946,30 +956,34 @@ struct AddTaskSheet: View {
                 if existingTask != nil, !checkItems.isEmpty {
                     let completedCount = checkItems.filter(\.isChecked).count
                     let totalCount = checkItems.count
-                    let percent = totalCount > 0 ? Double(completedCount) / Double(totalCount) : 0.0
+                    let percent = min(max(displayedChecklistProgress, 0), 1)
+                    let isComplete = checklistProgress >= 1.0
 
                     HStack {
                         Spacer()
                         Text("已完成 \(completedCount)/\(totalCount) 项")
                             .font(.holoCaption)
-                            .foregroundColor(.holoTextSecondary)
+                            .foregroundColor(isComplete ? .holoSuccess : .holoTextSecondary)
+                            .contentTransition(.numericText())
                     }
                     .padding(.horizontal, 12)
                     .padding(.top, 8)
 
-                    GeometryReader { geometry in
-                        ZStack(alignment: .leading) {
-                            RoundedRectangle(cornerRadius: 3)
-                                .fill(Color.holoTextSecondary.opacity(0.15))
-
-                            RoundedRectangle(cornerRadius: 3)
-                                .fill(Color.holoPrimary)
-                                .frame(width: geometry.size.width * percent)
-                        }
-                    }
+                    TaskChecklistProgressBar(progress: percent, isComplete: isComplete)
                     .frame(height: 4)
                     .padding(.horizontal, 12)
                     .padding(.bottom, 8)
+                    .overlay {
+                        if showChecklistCompletionCelebration {
+                            TaskChecklistCelebrationView {
+                                showChecklistCompletionCelebration = false
+                            }
+                            .id(checklistCompletionCelebrationID)
+                            .frame(height: 90)
+                            .offset(y: -28)
+                            .allowsHitTesting(false)
+                        }
+                    }
                 }
 
                 if existingTask != nil {
@@ -982,6 +996,7 @@ struct AddTaskSheet: View {
                                 Image(systemName: item.isChecked ? "checkmark.circle.fill" : "circle")
                                     .font(.system(size: 20, weight: .medium))
                                     .foregroundColor(item.isChecked ? .holoSuccess : .holoTextSecondary.opacity(0.5))
+                                    .symbolEffect(.bounce, value: item.isChecked)
                             }
                             .buttonStyle(PlainButtonStyle())
 
@@ -1112,9 +1127,12 @@ struct AddTaskSheet: View {
         if let task = existingTask {
             // 编辑模式：直接创建到 Core Data
             do {
+                let progressBeforeChange = checklistProgress
                 let order = Int16(checkItems.count)
                 let item = try repository.addCheckItem(title: trimmed, to: task, order: order)
+                displayedChecklistProgress = progressBeforeChange
                 checkItems.append(item)
+                applyChecklistProgressChange(from: progressBeforeChange, to: checklistProgress)
             } catch {
                 Self.logger.error("添加检查项失败：\(error.localizedDescription)")
             }
@@ -1126,6 +1144,9 @@ struct AddTaskSheet: View {
     }
 
     private func toggleCheckItem(_ item: CheckItem) {
+        let progressBeforeChange = checklistProgress
+        displayedChecklistProgress = progressBeforeChange
+
         do {
             try repository.toggleCheckItem(item)
             // 刷新列表以更新 UI
@@ -1133,6 +1154,7 @@ struct AddTaskSheet: View {
                 let items = task.checkItems?.allObjects as? [CheckItem] ?? []
                 checkItems = items.sorted { $0.order < $1.order }
             }
+            applyChecklistProgressChange(from: progressBeforeChange, to: checklistProgress)
         } catch {
             Self.logger.error("切换检查项失败：\(error.localizedDescription)")
         }
@@ -1145,16 +1167,49 @@ struct AddTaskSheet: View {
             editingCheckItemTitle = ""
             isCheckItemEditing = false
         }
-        checkItems.removeAll { $0.id == itemID }
+        let progressBeforeChange = checklistProgress
+        displayedChecklistProgress = progressBeforeChange
 
         do {
             try repository.deleteCheckItem(item)
+            checkItems.removeAll { $0.id == itemID }
+            applyChecklistProgressChange(from: progressBeforeChange, to: checklistProgress)
         } catch {
             Self.logger.error("删除检查项失败：\(error.localizedDescription)")
             if let task = existingTask {
                 let items = task.checkItems?.allObjects as? [CheckItem] ?? []
                 checkItems = items.sorted { $0.order < $1.order }
             }
+            applyChecklistProgressChange(to: checklistProgress)
+        }
+    }
+
+    private func applyChecklistProgressChange(from previousProgress: Double? = nil, to nextProgress: Double) {
+        let startProgress = min(max(previousProgress ?? displayedChecklistProgress, 0), 1)
+        let targetProgress = min(max(nextProgress, 0), 1)
+        let wasComplete = startProgress >= 1.0
+
+        displayedChecklistProgress = startProgress
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.01) {
+            withAnimation(.easeInOut(duration: 0.62)) {
+                displayedChecklistProgress = targetProgress
+            }
+        }
+
+        if !wasComplete && targetProgress >= 1.0 {
+            triggerChecklistCompletionCelebration(after: 0.6)
+        } else if targetProgress < 1.0 {
+            showChecklistCompletionCelebration = false
+        }
+    }
+
+    private func triggerChecklistCompletionCelebration(after delay: Double) {
+        showChecklistCompletionCelebration = false
+        checklistCompletionCelebrationID = UUID()
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+            showChecklistCompletionCelebration = true
         }
     }
 
@@ -2142,6 +2197,110 @@ struct AddTaskSheet: View {
         }
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
+    }
+}
+
+// MARK: - TaskChecklistProgressBar
+
+private struct TaskChecklistProgressBar: View {
+    let progress: Double
+    let isComplete: Bool
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(Color.holoTextSecondary.opacity(0.15))
+
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(isComplete ? Color.holoSuccess : Color.holoPrimary)
+                    .frame(width: geometry.size.width * progress)
+                    .shadow(
+                        color: (isComplete ? Color.holoSuccess : Color.holoPrimary).opacity(isComplete ? 0.24 : 0),
+                        radius: 4,
+                        x: 0,
+                        y: 0
+                    )
+                    .animation(.easeInOut(duration: 0.62), value: progress)
+            }
+        }
+    }
+}
+
+// MARK: - TaskChecklistCelebrationView
+
+private struct TaskChecklistCelebrationView: View {
+    let onComplete: () -> Void
+
+    @State private var isActive = false
+    @State private var ribbons: [Ribbon] = []
+
+    private struct Ribbon: Identifiable {
+        let id = UUID()
+        let x: CGFloat
+        let y: CGFloat
+        let rotation: Double
+        let color: Color
+        let width: CGFloat
+        let height: CGFloat
+        let delay: Double
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                ForEach(ribbons) { ribbon in
+                    RoundedRectangle(cornerRadius: 1.5)
+                        .fill(ribbon.color)
+                        .frame(width: ribbon.width, height: ribbon.height)
+                        .rotationEffect(.degrees(isActive ? ribbon.rotation : 0))
+                        .position(x: geometry.size.width / 2, y: geometry.size.height - 8)
+                        .offset(x: isActive ? ribbon.x : 0, y: isActive ? ribbon.y : 0)
+                        .opacity(isActive ? 0 : 1)
+                        .animation(.easeOut(duration: 1.05).delay(ribbon.delay), value: isActive)
+                }
+
+                Circle()
+                    .stroke(Color.holoSuccess.opacity(isActive ? 0 : 0.28), lineWidth: 2)
+                    .frame(width: 28, height: 28)
+                    .scaleEffect(isActive ? 1.7 : 0.45)
+                    .opacity(isActive ? 0 : 1)
+                    .position(x: geometry.size.width / 2, y: geometry.size.height - 10)
+                    .animation(.easeOut(duration: 0.5), value: isActive)
+            }
+        }
+        .onAppear {
+            generate()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.02) {
+                isActive = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.15) {
+                onComplete()
+            }
+        }
+    }
+
+    private func generate() {
+        guard ribbons.isEmpty else { return }
+        let palette: [Color] = [
+            .holoPrimary,
+            .holoSuccess,
+            Color(red: 1.0, green: 0.68, blue: 0.38),
+            Color(red: 0.42, green: 0.68, blue: 1.0),
+        ]
+
+        ribbons = (0..<24).map { index in
+            let side = index.isMultiple(of: 2) ? -1.0 : 1.0
+            return Ribbon(
+                x: CGFloat(side * Double.random(in: 24...118)),
+                y: CGFloat.random(in: -74...(-18)),
+                rotation: Double.random(in: -170...170),
+                color: palette[index % palette.count],
+                width: CGFloat.random(in: 5...8),
+                height: CGFloat.random(in: 12...22),
+                delay: Double.random(in: 0...0.08)
+            )
+        }
     }
 }
 
