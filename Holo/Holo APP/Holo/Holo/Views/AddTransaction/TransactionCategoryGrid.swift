@@ -97,6 +97,11 @@ extension AddTransactionSheet {
         .sheet(isPresented: $showCategoryManagement) {
             CategoryManagementView()
         }
+        .sheet(isPresented: $showAddCategory) {
+            AddCategorySheet(parentId: addCategoryParentId, type: transactionType) {
+                Task { await loadCategories() }
+            }
+        }
         .onChange(of: showCategoryManagement) { _, isShowing in
             if !isShowing {
                 Task { await loadCategories() }
@@ -127,6 +132,7 @@ extension AddTransactionSheet {
             ForEach(topLevelCategories, id: \.objectID) { category in
                 parentCategoryButton(category)
             }
+            addTopLevelCategoryButton()
         }
     }
 
@@ -135,6 +141,9 @@ extension AddTransactionSheet {
         LazyVGrid(columns: columns, spacing: 14) {
             ForEach(childCategories, id: \.objectID) { category in
                 childCategoryButton(category)
+            }
+            if let parent = drillDownParent {
+                addChildCategoryButton(parent)
             }
         }
     }
@@ -258,6 +267,49 @@ extension AddTransactionSheet {
             }
         }
         .buttonStyle(.plain)
+    }
+
+    /// 一级分类末尾的快速新增入口
+    private func addTopLevelCategoryButton() -> some View {
+        categoryAddButton(title: "新增", accessibilityLabel: "新增一级分类") {
+            addCategoryParentId = nil
+            showAddCategory = true
+        }
+    }
+
+    /// 二级分类末尾的快速新增入口
+    private func addChildCategoryButton(_ parent: Category) -> some View {
+        categoryAddButton(title: "新增", accessibilityLabel: "在\(parent.name)下新增二级分类") {
+            addCategoryParentId = parent.id
+            showAddCategory = true
+        }
+    }
+
+    private func categoryAddButton(
+        title: String,
+        accessibilityLabel: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            VStack(spacing: 6) {
+                ZStack {
+                    Circle()
+                        .fill(Color.holoPrimary.opacity(0.12))
+                        .frame(width: 48, height: 48)
+
+                    Image(systemName: "plus")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(.holoPrimary)
+                }
+
+                Text(title)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.holoPrimary)
+                    .lineLimit(1)
+            }
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(accessibilityLabel)
     }
 }
 

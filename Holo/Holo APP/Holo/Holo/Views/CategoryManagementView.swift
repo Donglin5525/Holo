@@ -66,6 +66,16 @@ struct CategoryManagementView: View {
                             }
                         }
                     }
+
+                    Button {
+                        openAddTopLevelCategory()
+                    } label: {
+                        addCategoryRow(
+                            title: "新增一级分类",
+                            subtitle: "创建新的一级科目分组"
+                        )
+                    }
+                    .buttonStyle(.plain)
                 }
                 .listStyle(.insetGrouped)
                 .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -88,8 +98,7 @@ struct CategoryManagementView: View {
                     }
                     // 新增一级分类按钮
                     Button {
-                        addCategoryParentId = nil
-                        showAddCategory = true
+                        openAddTopLevelCategory()
                     } label: {
                         Image(systemName: "plus.circle.fill")
                             .font(.system(size: 22))
@@ -234,6 +243,39 @@ struct CategoryManagementView: View {
         .padding(.vertical, 4)
     }
 
+    private func addCategoryRow(title: String, subtitle: String) -> some View {
+        HStack(spacing: HoloSpacing.md) {
+            ZStack {
+                Circle()
+                    .fill(Color.holoPrimary.opacity(0.12))
+                    .frame(width: 40, height: 40)
+                Image(systemName: "plus")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundColor(.holoPrimary)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.holoBody)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoPrimary)
+                Text(subtitle)
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary)
+            }
+
+            Spacer()
+
+            Image(systemName: "chevron.right")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.holoTextPlaceholder)
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel(title)
+    }
+
     private func editCategoryButton(_ category: Category) -> some View {
         Button {
             editingCategory = category
@@ -250,58 +292,13 @@ struct CategoryManagementView: View {
 
     private func subCategoryList(for parent: Category) -> some View {
         let subs = subCategoriesMap[parent.id] ?? []
-        return Group {
-            if subs.isEmpty {
-                VStack(spacing: HoloSpacing.md) {
-                    Spacer()
-                    Image(systemName: "tray")
-                        .font(.system(size: 48))
-                        .foregroundColor(.holoTextPlaceholder)
-                    Text("暂无二级分类")
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextPlaceholder)
-                    Text("点击右上角 + 添加")
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
-                    Spacer()
-                }
-            } else {
-                List {
-                    ForEach(subs, id: \.id) { child in
-                        categoryRow(child)
-                            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                                if !child.isSystem {
-                                    Button {
-                                        editingCategory = child
-                                    } label: {
-                                        Label("编辑", systemImage: "pencil")
-                                    }
-                                    .tint(.holoPrimary)
-                                }
-                                if !child.isDefault && !child.isSystem {
-                                    Button(role: .destructive) {
-                                        categoryToDelete = child
-                                        showDeleteConfirmation = true
-                                    } label: {
-                                        Label("删除", systemImage: "trash")
-                                    }
-                                }
-                            }
-                    }
-                }
-                .listStyle(.insetGrouped)
-                .safeAreaInset(edge: .bottom, spacing: 0) {
-                    Color.clear.frame(height: 88)
-                }
-            }
-        }
+        return subCategoryContent(for: parent, subs: subs)
         .navigationTitle(parent.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarTrailing) {
                 Button {
-                    addCategoryParentId = parent.id
-                    showAddCategory = true
+                    openAddSubCategory(parent)
                 } label: {
                     Image(systemName: "plus.circle.fill")
                         .font(.system(size: 22))
@@ -322,6 +319,113 @@ struct CategoryManagementView: View {
         } message: {
             Text("删除后无法恢复；若该分类已被交易使用，将无法删除。")
         }
+    }
+
+    @ViewBuilder
+    private func subCategoryContent(for parent: Category, subs: [Category]) -> some View {
+        if subs.isEmpty {
+            emptySubCategoryView(for: parent)
+        } else {
+            subCategoryRowsList(for: parent, subs: subs)
+        }
+    }
+
+    private func emptySubCategoryView(for parent: Category) -> some View {
+        VStack(spacing: HoloSpacing.md) {
+            Spacer()
+            Button {
+                openAddSubCategory(parent)
+            } label: {
+                emptySubCategoryAddCard(parentName: parent.name)
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, HoloSpacing.lg)
+            Spacer()
+        }
+    }
+
+    private func emptySubCategoryAddCard(parentName: String) -> some View {
+        VStack(spacing: HoloSpacing.sm) {
+            ZStack {
+                Circle()
+                    .fill(Color.holoPrimary.opacity(0.12))
+                    .frame(width: 72, height: 72)
+                Image(systemName: "plus")
+                    .font(.system(size: 34, weight: .semibold))
+                    .foregroundColor(.holoPrimary)
+            }
+
+            Text("新增第一个二级分类")
+                .font(.holoBody.bold())
+                .foregroundColor(.holoPrimary)
+
+            Text("会创建在「\(parentName)」这个一级科目下")
+                .font(.holoCaption)
+                .foregroundColor(.holoTextSecondary)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, HoloSpacing.xl)
+        .padding(.horizontal, HoloSpacing.lg)
+        .background(
+            RoundedRectangle(cornerRadius: HoloRadius.lg)
+                .fill(Color.holoPrimary.opacity(0.05))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.lg)
+                .stroke(Color.holoPrimary.opacity(0.22), style: StrokeStyle(lineWidth: 1.5, dash: [6]))
+        )
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("新增第一个二级分类")
+    }
+
+    private func subCategoryRowsList(for parent: Category, subs: [Category]) -> some View {
+        List {
+            ForEach(subs, id: \.id) { child in
+                categoryRow(child)
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                        if !child.isSystem {
+                            Button {
+                                editingCategory = child
+                            } label: {
+                                Label("编辑", systemImage: "pencil")
+                            }
+                            .tint(.holoPrimary)
+                        }
+                        if !child.isDefault && !child.isSystem {
+                            Button(role: .destructive) {
+                                categoryToDelete = child
+                                showDeleteConfirmation = true
+                            } label: {
+                                Label("删除", systemImage: "trash")
+                            }
+                        }
+                    }
+            }
+
+            Button {
+                openAddSubCategory(parent)
+            } label: {
+                addCategoryRow(
+                    title: "在「\(parent.name)」下新增二级分类",
+                    subtitle: "会自动归属到当前一级分类"
+                )
+            }
+            .buttonStyle(.plain)
+        }
+        .listStyle(.insetGrouped)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Color.clear.frame(height: 88)
+        }
+    }
+
+    private func openAddTopLevelCategory() {
+        addCategoryParentId = nil
+        showAddCategory = true
+    }
+
+    private func openAddSubCategory(_ parent: Category) {
+        addCategoryParentId = parent.id
+        showAddCategory = true
     }
     
     private func confirmDelete(_ category: Category) {

@@ -4,6 +4,24 @@
 
 ---
 
+## [2026-05-28] 财务科目快速新增入口
+
+### 新增
+- “记一笔”分类网格末尾新增圆形 `+` 入口：一级分类总览中用于新增一级分类，进入某个一级分类后用于新增该一级下的二级分类
+- 分类管理页同步增加列表末尾新增入口，二级分类为空时直接展示大号 `+` 空状态卡片
+
+### 优化
+- 快速新增入口复用现有 `AddCategorySheet`，保存后自动刷新分类数据，不新增平行数据路径
+- 保留原右上角 `+` 和“管理”入口，兼容既有操作习惯
+
+### 验证
+- iOS 模拟器构建通过：`xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -destination 'generic/platform=iOS Simulator' -derivedDataPath /private/tmp/holo-derived-data build`
+
+### 不变
+- 后端无变更，无需发版
+
+---
+
 ## [2026-05-28] 任务提醒生命周期修复
 
 ### 修复

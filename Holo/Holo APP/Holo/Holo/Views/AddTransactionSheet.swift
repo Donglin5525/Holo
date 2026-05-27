@@ -116,6 +116,10 @@ struct AddTransactionSheet: View {
     @State var drillDownParent: Category?
     /// 是否显示分类管理页面
     @State var showCategoryManagement = false
+    /// 是否显示快速新增分类弹窗
+    @State var showAddCategory = false
+    /// 快速新增分类的父级，nil 表示新增一级分类
+    @State var addCategoryParentId: UUID?
 
     // 下拉保存相关
     /// 下拉偏移量
