@@ -157,6 +157,21 @@ test("analysis_prompt 默认 Prompt 使用 C 端纯文本输出约束", async ()
   assert.doesNotMatch(prompt.content, /使用 Markdown 格式/);
 });
 
+test("thought_voice_summary 默认 Prompt 要求自然分段且小标题只在必要时出现", async () => {
+  const app = createTestApp();
+
+  const response = await app.request("/v1/prompts/thought_voice_summary");
+  assert.equal(response.status, 200);
+  const prompt = await response.json();
+
+  assert.equal(prompt.version, 2);
+  assert.match(prompt.content, /自然分段/);
+  assert.match(prompt.content, /不要默认添加小标题/);
+  assert.match(prompt.content, /只有当原文包含多个主题/);
+  assert.match(prompt.content, /不要使用 Markdown 语法符号/);
+  assert.match(prompt.content, /短文本.*单段/);
+});
+
 test("默认 Prompt 文件内容与当前版本不一致时会同步为可见历史版本", async () => {
   const database = createTestDatabase();
   const { app, cookie } = await createLoggedInApp({ database });

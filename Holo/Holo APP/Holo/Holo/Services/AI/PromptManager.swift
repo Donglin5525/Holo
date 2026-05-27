@@ -79,11 +79,11 @@ final class PromptManager {
 
     /// 需要版本管理的 prompt 类型及其最低版本
     private static let promptVersions: [PromptType: Int] = [
-        .intentRecognition: 9,          // v9: health/goal 分析域；v8: 记账语义归一
+        .intentRecognition: 10,         // v10: 多笔记账 few-shot 示例+防御规则；v9: health/goal 分析域
         .memoryInsightGeneration: 5,    // v5: 习惯洞察区分正向习惯与坏习惯控制率
         .analysisPrompt: 2,             // v2: C 端纯文本分析输出，避免裸露 Markdown 语法
         .annualReview: 1,               // v1: 初始版本
-        .thoughtVoiceSummary: 1         // v1: 初始版本
+        .thoughtVoiceSummary: 2         // v2: 自然分段，复杂内容才使用小标题
     ]
 
     /// 加载指定类型的 Prompt，带缓存，优先读取 UserDefaults 自定义。
@@ -310,6 +310,7 @@ final class PromptManager {
 
         - 单动作→single_action，多动作→multi_action，纯查询→query，查询+执行混合→clarification，无法识别→unknown
         - 逗号/分号分隔多动作，每项独立 id
+        - 多笔记账时，每项的 note/categoryCandidate 必须严格对应各自的消费内容，不要用最后一项的科目名覆盖前面的
         - 无法可靠拆分时宁可返回 clarification
         - categoryCandidate 始终填用户原始语义，无论科目是否匹配
         - normalizedCategoryCandidate 负责通用语义归一，不要只复述原词；无法归一时留空
@@ -354,6 +355,11 @@ final class PromptManager {
         输入：「午饭35，提醒我明天买牛奶」
         ```json
         {"mode":"multi_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"35","note":"午饭","primaryCategory":"","subCategory":"","categoryCandidate":"午饭","normalizedCategoryCandidate":"午餐","semanticCategoryHint":"餐饮"}},{"id":"2","intent":"create_task","confidence":0.95,"extractedData":{"title":"买牛奶","dueDate":"2026-05-05"}}],"needsClarification":false,"clarificationQuestion":null}
+        ```
+
+        输入：「电费99，燃气费50，水费35」
+        ```json
+        {"mode":"multi_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"99","note":"电费","primaryCategory":"","subCategory":"","categoryCandidate":"电费","normalizedCategoryCandidate":"电费","semanticCategoryHint":"水电燃气"}},{"id":"2","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"50","note":"燃气费","primaryCategory":"","subCategory":"","categoryCandidate":"燃气费","normalizedCategoryCandidate":"燃气费","semanticCategoryHint":"水电燃气"}},{"id":"3","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"35","note":"水费","primaryCategory":"","subCategory":"","categoryCandidate":"水费","normalizedCategoryCandidate":"水费","semanticCategoryHint":"水电燃气"}}],"needsClarification":false,"clarificationQuestion":null}
         ```
 
         输入：「上周花了多少钱」
@@ -790,9 +796,12 @@ final class PromptManager {
         3. 去掉口癖（如「然后」「就是说」）、重复、无意义停顿和明显绕路表达。
         4. 调整语序，使内容成为可以直接保存的顺畅观点。
         5. 不要替用户扩写不存在的事实、结论、行动项或理由。如果原文没有说，就不要加。
-        6. 短文本（100字以内）以润色为主，尽量不压缩长度。
+        6. 短文本（100字以内）以润色为主，尽量不压缩长度，并保持单段。
         7. 长文本轻度压缩到原文约 50%-70%，优先保留观点推理链路和关键细节。
-        8. 只输出整理后的文本，不要加标题、标签、解释或格式标记。
+        8. 输出要有段落感：短文本保持单段；长文本按语义自然分段，每段聚焦一个意思。
+        9. 不要默认添加小标题。只有当原文包含多个主题、转折层次或明确的事项拆分时，才使用简短标题行帮助阅读。
+        10. 如果使用标题行，不要使用 Markdown 语法符号（如 #、##、*、-、**、```、表格），标题后直接换行写正文。
+        11. 只输出整理后的文本，不要加解释、标签或格式标记。
 
         直接输出整理结果：
         """
