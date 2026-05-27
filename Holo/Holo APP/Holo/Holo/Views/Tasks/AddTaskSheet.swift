@@ -193,11 +193,16 @@ struct AddTaskSheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("取消") {
-                        if hasUnsavedChanges {
-                            showDismissAlert = true
+                    Button(existingTask != nil ? "返回" : "取消") {
+                        if existingTask != nil {
+                            // 编辑模式：自动保存后返回
+                            autoSaveAndDismiss()
                         } else {
-                            dismiss()
+                            if hasUnsavedChanges {
+                                showDismissAlert = true
+                            } else {
+                                dismiss()
+                            }
                         }
                     }
                     .foregroundColor(.holoTextSecondary)
@@ -262,10 +267,15 @@ struct AddTaskSheet: View {
             })
         }
         .swipeBackToDismiss {
-            if hasUnsavedChanges {
-                showDismissAlert = true
+            if existingTask != nil {
+                // 编辑模式：自动保存后返回
+                autoSaveAndDismiss()
             } else {
-                dismiss()
+                if hasUnsavedChanges {
+                    showDismissAlert = true
+                } else {
+                    dismiss()
+                }
             }
         }
         .unsavedChangesAlert(isPresented: $showDismissAlert) {
@@ -932,11 +942,15 @@ struct AddTaskSheet: View {
                 .foregroundColor(.holoTextSecondary)
 
             VStack(spacing: 0) {
-                // 编辑模式：进度条
-                if let task = existingTask, !checkItems.isEmpty {
+                // 编辑模式：进度条（基于本地 checkItems 数组实时计算）
+                if existingTask != nil, !checkItems.isEmpty {
+                    let completedCount = checkItems.filter(\.isChecked).count
+                    let totalCount = checkItems.count
+                    let percent = totalCount > 0 ? Double(completedCount) / Double(totalCount) : 0.0
+
                     HStack {
                         Spacer()
-                        Text(task.checkItemProgress)
+                        Text("已完成 \(completedCount)/\(totalCount) 项")
                             .font(.holoCaption)
                             .foregroundColor(.holoTextSecondary)
                     }
@@ -950,7 +964,7 @@ struct AddTaskSheet: View {
 
                             RoundedRectangle(cornerRadius: 3)
                                 .fill(Color.holoPrimary)
-                                .frame(width: geometry.size.width * task.checkItemProgressPercent)
+                                .frame(width: geometry.size.width * percent)
                         }
                     }
                     .frame(height: 4)
@@ -1847,6 +1861,66 @@ struct AddTaskSheet: View {
     private var selectedList: TodoList? {
         guard let listId = selectedListId else { return nil }
         return findList(byId: listId)
+    }
+
+    // MARK: - 编辑模式自动保存
+
+    /// 编辑模式下 dismiss 时自动保存所有改动
+    private func autoSaveAndDismiss() {
+        guard let task = existingTask else {
+            dismiss()
+            return
+        }
+
+        let trimmedTitle = title.trimmingCharacters(in: .whitespaces)
+        let selectedTagObjects = repository.tags.filter { selectedTags.contains($0.id) }
+        let remindersToSave = hasDueDate ? selectedReminders : nil
+
+        do {
+            try repository.updateTask(
+                task,
+                title: trimmedTitle,
+                description: description,
+                status: taskStatus,
+                priority: priority,
+                dueDate: hasDueDate ? dueDate : nil,
+                isAllDay: !hasTime,
+                list: selectedList,
+                tags: selectedTagObjects,
+                reminders: remindersToSave
+            )
+
+            // 处理重复规则
+            let shouldCreateRepeat = hasRepeat && hasDueDate
+            if shouldCreateRepeat {
+                if let existingRule = task.repeatRule {
+                    try repository.deleteRepeatRule(existingRule)
+                }
+                _ = try repository.createRepeatRule(
+                    type: repeatType,
+                    for: task,
+                    weekdays: repeatType == .custom ? Array(selectedWeekdays) : nil,
+                    untilDate: endConditionType == .onDate ? repeatEndDate : nil
+                )
+                if repeatType == .monthly {
+                    if let rule = task.repeatRule {
+                        try repository.updateRepeatRuleMonthlyParams(
+                            rule,
+                            monthDay: monthlyRepeatMode == .dayOfMonth ? monthDay : nil,
+                            monthWeekOrdinal: monthlyRepeatMode == .nthWeekday ? monthWeekOrdinal : nil,
+                            monthWeekday: monthlyRepeatMode == .nthWeekday ? monthWeekday : nil,
+                            untilCount: endConditionType == .afterCount ? repeatEndCount : nil
+                        )
+                    }
+                }
+            } else if let existingRule = task.repeatRule {
+                try repository.deleteRepeatRule(existingRule)
+            }
+        } catch {
+            Self.logger.error("自动保存任务失败: \(error.localizedDescription)")
+        }
+
+        dismiss()
     }
 
     // MARK: - 保存
