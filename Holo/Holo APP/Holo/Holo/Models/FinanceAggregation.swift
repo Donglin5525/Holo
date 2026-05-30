@@ -231,6 +231,34 @@ struct BalanceChartScale {
     }
 }
 
+// MARK: - 财务图表轴刻度
+
+struct FinanceChartAxisTicks {
+    static let overviewTickCount = 5
+
+    static func amountTicks(min: Double, max: Double) -> [Double] {
+        evenlySpacedTicks(min: min, max: max, count: overviewTickCount)
+    }
+
+    static func balanceTicks(for scale: BalanceChartScale) -> [(balance: Double, scaledAmount: Double)] {
+        evenlySpacedTicks(
+            min: scale.balanceAxisMin,
+            max: scale.balanceAxisMax,
+            count: overviewTickCount
+        ).map { balance in
+            (balance: balance, scaledAmount: scale.scaledBalance(balance))
+        }
+    }
+
+    private static func evenlySpacedTicks(min: Double, max: Double, count: Int) -> [Double] {
+        guard count > 1 else { return [min] }
+        guard max > min else { return Array(repeating: min, count: count) }
+
+        let step = (max - min) / Double(count - 1)
+        return (0..<count).map { min + step * Double($0) }
+    }
+}
+
 // MARK: - 分类聚合
 
 /// 分类聚合数据（用于饼图和 TOP3 卡片）

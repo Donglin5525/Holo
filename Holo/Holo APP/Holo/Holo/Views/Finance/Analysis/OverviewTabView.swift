@@ -43,24 +43,12 @@ struct OverviewTabView: View {
                 )
 
                 // TOP3 分类
-                HStack(spacing: HoloSpacing.md) {
-                    TopCategoryCard(
-                        title: "支出 TOP 3",
-                        aggregations: state.expenseCategoryAggregations,
-                        accentColor: .holoError
-                    ) { category in
-                        onCategoryTap?(category)
-                    }
-
-                    TopCategoryCard(
-                        title: "收入 TOP 3",
-                        aggregations: state.incomeCategoryAggregations,
-                        accentColor: .holoSuccess
-                    ) { category in
-                        onCategoryTap?(category)
-                    }
+                TopCategoryCard(
+                    expenseAggregations: state.expenseCategoryAggregations,
+                    incomeAggregations: state.incomeCategoryAggregations
+                ) { category in
+                    onCategoryTap?(category)
                 }
-                .frame(maxWidth: .infinity)
             }
             .padding(HoloSpacing.lg)
         }

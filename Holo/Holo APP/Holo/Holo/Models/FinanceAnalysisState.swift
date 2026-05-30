@@ -53,6 +53,9 @@ class FinanceAnalysisState: ObservableObject {
     /// 图表选中的数据点日期（用于明细 Tab 点击交互）
     @Published var selectedChartDate: Date?
 
+    /// 明细 Tab 当前分类筛选（从 TOP3 等入口跳转时使用）
+    @Published var selectedDetailCategory: Category?
+
     // MARK: - 私有属性
 
     private let repository = FinanceRepository.shared
@@ -217,6 +220,23 @@ class FinanceAnalysisState: ObservableObject {
     /// 选中图表数据点
     func selectChartDate(_ date: Date?) {
         selectedChartDate = date
+    }
+
+    /// 选中明细分类筛选
+    func selectDetailCategory(_ category: Category?) {
+        selectedDetailCategory = category
+        selectedChartDate = nil
+    }
+
+    /// 判断交易是否命中当前分类筛选
+    func transaction(_ transaction: Transaction, matchesDetailCategory category: Category) -> Bool {
+        guard transaction.transactionType == category.transactionType else { return false }
+        guard let transactionCategory = transaction.category else { return false }
+
+        if category.isTopLevel {
+            return transactionCategory.id == category.id || transactionCategory.parentId == category.id
+        }
+        return transactionCategory.id == category.id
     }
 
     // MARK: - 私有方法

@@ -121,7 +121,12 @@ struct FinanceAnalysisView: View {
         } else {
             switch selectedTab {
             case .overview:
-                OverviewTabView(state: state)
+                OverviewTabView(state: state) { category in
+                    state.selectDetailCategory(category)
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        selectedTab = .detail
+                    }
+                }
             case .detail:
                 DetailTabView(state: state)
             case .category:

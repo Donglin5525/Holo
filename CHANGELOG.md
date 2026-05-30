@@ -4,6 +4,24 @@
 
 ---
 
+## [2026-05-31] 财务统计分析页图表与分类排行优化
+
+### 优化
+- 分类排行改为支出/收入切换的全宽 Top 5 展示，压缩行间距并让切换控件与金额列对齐
+- 趋势图中余额折线提升层级和线宽，避免被收入/支出柱状图遮挡
+- 收支左轴和余额右轴统一使用 5 个刻度，改善左右坐标轴视觉对齐
+
+### 新增
+- 点击支出/收入分类排行项后可跳转到明细页，并自动按对应分类筛选交易
+
+### 验证
+- iOS 构建通过：`xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -configuration Debug -destination "generic/platform=iOS" -derivedDataPath /private/tmp/holo-rank-type-align-fixed-build CODE_SIGNING_ALLOWED=NO build`
+
+### 不变
+- 后端无变更，无需发版
+
+---
+
 ## [2026-05-31] HoloAI 支持创建待办确认卡片
 
 ### 新增

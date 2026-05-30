@@ -80,7 +80,7 @@ struct BarChartView: View {
                 x: .value("日期", point.label),
                 y: .value("支出", expenseVal)
             )
-            .foregroundStyle(Color.holoError)
+            .foregroundStyle(Color.holoError.opacity(0.88))
             .position(by: .value("类型", "支出"))
 
             // 收入柱 → 左 Y 轴 (yAxisIndex: 0)
@@ -88,7 +88,7 @@ struct BarChartView: View {
                 x: .value("日期", point.label),
                 y: .value("收入", incomeVal)
             )
-            .foregroundStyle(Color.holoSuccess)
+            .foregroundStyle(Color.holoSuccess.opacity(0.88))
             .position(by: .value("类型", "收入"))
 
             // 余额折线 → 右 Y 轴 (yAxisIndex: 1, 缩放后映射到左轴视觉范围)
@@ -102,14 +102,16 @@ struct BarChartView: View {
                 )
                 .foregroundStyle(Color.holoInfo)
                 .interpolationMethod(.catmullRom)
-                .lineStyle(StrokeStyle(lineWidth: 2))
+                .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
+                .zIndex(10)
 
                 PointMark(
                     x: .value("日期", point.label),
                     y: .value("余额", scaledVal)
                 )
                 .foregroundStyle(Color.holoInfo)
-                .symbolSize(20)
+                .symbolSize(34)
+                .zIndex(11)
             }
         }
         // X 轴
@@ -123,7 +125,10 @@ struct BarChartView: View {
         }
         // 左 Y 轴（收支）—— 保留网格线 + 默认刻度标签
         .chartYAxis {
-            AxisMarks(position: .leading) { value in
+            AxisMarks(
+                position: .leading,
+                values: FinanceChartAxisTicks.amountTicks(min: yAxisDomain.lowerBound, max: yAxisDomain.upperBound)
+            ) { value in
                 AxisGridLine()
                     .foregroundStyle(Color.holoDivider)
                 AxisValueLabel {
@@ -131,6 +136,7 @@ struct BarChartView: View {
                         Text(formatAxisValue(amount))
                             .font(.system(size: 10))
                             .foregroundColor(.holoTextSecondary)
+                            .frame(width: 36, alignment: .trailing)
                     }
                 }
             }
@@ -139,7 +145,9 @@ struct BarChartView: View {
         .chartYScale(domain: yAxisDomain)
         // 给右侧 Y 轴标签预留空间
         .chartPlotStyle { plotArea in
-            plotArea.padding(.trailing, showBalance ? 44 : 0)
+            plotArea
+                .padding(.leading, 4)
+                .padding(.trailing, showBalance ? 44 : 0)
         }
         .chartOverlay { proxy in
             GeometryReader { geometry in
@@ -234,17 +242,13 @@ struct BarChartView: View {
         proxy: ChartProxy,
         plotFrame: CGRect
     ) -> some View {
-        let tickCount = 5
-        let balanceStep = (scale.balanceAxisMax - scale.balanceAxisMin) / Double(tickCount - 1)
+        let ticks = FinanceChartAxisTicks.balanceTicks(for: scale)
 
-        ForEach(0..<tickCount, id: \.self) { i in
-            let tickBalance = scale.balanceAxisMin + balanceStep * Double(i)
-            let scaledTickY = scale.scaledBalance(tickBalance)
-
-            if let yPos = proxy.position(forY: scaledTickY) {
+        ForEach(Array(ticks.enumerated()), id: \.offset) { _, tick in
+            if let yPos = proxy.position(forY: tick.scaledAmount) {
                 let localY = plotFrame.minY + yPos
 
-                Text(formatAxisValue(tickBalance))
+                Text(formatAxisValue(tick.balance))
                     .font(.system(size: 9))
                     .foregroundColor(.holoInfo.opacity(0.7))
                     .fixedSize()

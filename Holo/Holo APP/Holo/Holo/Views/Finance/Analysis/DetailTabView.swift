@@ -15,9 +15,22 @@ import SwiftUI
 struct DetailTabView: View {
     @ObservedObject var state: FinanceAnalysisState
 
+    private var filteredTransactions: [Transaction] {
+        guard let category = state.selectedDetailCategory else {
+            return state.transactions
+        }
+        return state.transactions.filter {
+            state.transaction($0, matchesDetailCategory: category)
+        }
+    }
+
     var body: some View {
         ScrollView {
             VStack(spacing: HoloSpacing.lg) {
+                if let category = state.selectedDetailCategory {
+                    categoryFilterBanner(category)
+                }
+
                 // 折线图
                 LineChartView(
                     dataPoints: state.chartDataPoints,
@@ -156,13 +169,13 @@ struct DetailTabView: View {
             // 该小时的交易
             let hourStart = calendar.date(bySettingHour: calendar.component(.hour, from: date), minute: 0, second: 0, of: date) ?? date
             guard let hourEnd = calendar.date(byAdding: .hour, value: 1, to: hourStart) else { return [] }
-            return state.transactions.filter { tx in
+            return filteredTransactions.filter { tx in
                 tx.date >= hourStart && tx.date < hourEnd
             }
 
         case .day:
             // 该天的交易
-            return state.transactions.filter { tx in
+            return filteredTransactions.filter { tx in
                 calendar.isDate(tx.date, inSameDayAs: date)
             }
 
@@ -170,7 +183,7 @@ struct DetailTabView: View {
             // 该周的交易
             let weekStart = date.startOfWeek
             guard let weekEnd = calendar.date(byAdding: .day, value: 7, to: weekStart) else { return [] }
-            return state.transactions.filter { tx in
+            return filteredTransactions.filter { tx in
                 tx.date >= weekStart && tx.date < weekEnd
             }
 
@@ -178,10 +191,47 @@ struct DetailTabView: View {
             // 该月的交易
             let monthStart = date.startOfMonth
             guard let monthEnd = calendar.date(byAdding: .month, value: 1, to: monthStart) else { return [] }
-            return state.transactions.filter { tx in
+            return filteredTransactions.filter { tx in
                 tx.date >= monthStart && tx.date < monthEnd
             }
         }
+    }
+
+    // MARK: - 分类筛选
+
+    private func categoryFilterBanner(_ category: Category) -> some View {
+        HStack(spacing: HoloSpacing.sm) {
+            transactionCategoryIcon(category, size: 24)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("\(category.name)明细")
+                    .font(.holoBody)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoTextPrimary)
+
+                Text("\(filteredTransactions.count) 笔 · 当前日期范围")
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary)
+            }
+
+            Spacer()
+
+            Button {
+                state.selectDetailCategory(nil)
+            } label: {
+                Text("清除")
+                    .font(.holoCaption)
+                    .foregroundColor(.holoPrimary)
+                    .padding(.horizontal, HoloSpacing.sm)
+                    .padding(.vertical, HoloSpacing.xs)
+                    .background(Color.holoPrimary.opacity(0.08))
+                    .clipShape(Capsule())
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(HoloSpacing.md)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
     }
 
     // MARK: - 全部交易列表
@@ -196,13 +246,13 @@ struct DetailTabView: View {
 
                 Spacer()
 
-                Text("\(state.transactions.count) 笔")
+                Text("\(filteredTransactions.count) 笔")
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)
             }
 
             // 按日期分组
-            if state.transactions.isEmpty {
+            if filteredTransactions.isEmpty {
                 emptyTransactionState
             } else {
                 groupedTransactionsView
@@ -213,7 +263,7 @@ struct DetailTabView: View {
     // MARK: - 分组交易列表
 
     private var groupedTransactionsView: some View {
-        let grouped = Dictionary(grouping: state.transactions) { tx in
+        let grouped = Dictionary(grouping: filteredTransactions) { tx in
             Calendar.current.startOfDay(for: tx.date)
         }
 
