@@ -46,22 +46,75 @@ extension AddTransactionSheet {
                 }
 
                 if let transaction = editingTransaction {
-                    let oldCategory = transaction.category
-                    var updates = TransactionUpdates()
-                    updates.amount = amount
-                    updates.category = category
-                    updates.account = account
-                    updates.note = note.isEmpty ? nil : note
-                    updates.remark = remark.isEmpty ? nil : remark
-                    updates.date = selectedDate
+                    let wasInstallment = transaction.isInstallment
 
-                    try await repository.updateTransaction(transaction, updates: updates)
+                    if isInstallment && !wasInstallment {
+                        // 普通交易 → 转为分期：当前金额作为总金额
+                        try await repository.deleteTransaction(transaction)
+                        let fee = Decimal(string: feePerPeriod) ?? 0
+                        _ = try await repository.addInstallmentTransactions(
+                            totalAmount: amount,
+                            feePerPeriod: fee,
+                            periods: installmentPeriods,
+                            type: transactionType,
+                            category: category,
+                            account: account,
+                            startDate: selectedDate,
+                            note: note.isEmpty ? nil : note,
+                            remark: remark.isEmpty ? nil : remark
+                        )
+                    } else if !isInstallment && wasInstallment {
+                        // 分期 → 取消分期：删除整组，创建单笔（当前金额作为单笔金额）
+                        if let groupId = transaction.installmentGroupId {
+                            try await repository.deleteInstallmentGroup(groupId: groupId)
+                        }
+                        _ = try await repository.addTransaction(
+                            amount: amount,
+                            type: transactionType,
+                            category: category,
+                            account: account,
+                            date: selectedDate,
+                            note: note.isEmpty ? nil : note,
+                            remark: remark.isEmpty ? nil : remark,
+                            tags: nil
+                        )
+                    } else if isInstallment && wasInstallment {
+                        // 分期 → 修改分期参数：删除旧组，按每期金额 × 新期数重建
+                        if let groupId = transaction.installmentGroupId {
+                            try await repository.deleteInstallmentGroup(groupId: groupId)
+                        }
+                        let newTotal = amount * Decimal(installmentPeriods)
+                        let fee = Decimal(string: feePerPeriod) ?? 0
+                        _ = try await repository.addInstallmentTransactions(
+                            totalAmount: newTotal,
+                            feePerPeriod: fee,
+                            periods: installmentPeriods,
+                            type: transactionType,
+                            category: category,
+                            account: account,
+                            startDate: selectedDate,
+                            note: note.isEmpty ? nil : note,
+                            remark: remark.isEmpty ? nil : remark
+                        )
+                    } else {
+                        // 普通编辑（无分期变更）
+                        let oldCategory = transaction.category
+                        var updates = TransactionUpdates()
+                        updates.amount = amount
+                        updates.category = category
+                        updates.account = account
+                        updates.note = note.isEmpty ? nil : note
+                        updates.remark = remark.isEmpty ? nil : remark
+                        updates.date = selectedDate
 
-                    learnCategoryMappingIfNeeded(
-                        transaction: transaction,
-                        oldCategory: oldCategory,
-                        newCategory: category
-                    )
+                        try await repository.updateTransaction(transaction, updates: updates)
+
+                        learnCategoryMappingIfNeeded(
+                            transaction: transaction,
+                            oldCategory: oldCategory,
+                            newCategory: category
+                        )
+                    }
                 } else if isInstallment {
                     let fee = Decimal(string: feePerPeriod) ?? 0
                     _ = try await repository.addInstallmentTransactions(
@@ -130,22 +183,75 @@ extension AddTransactionSheet {
             }
 
             if let transaction = editingTransaction {
-                let oldCategory = transaction.category
-                var updates = TransactionUpdates()
-                updates.amount = amount
-                updates.category = category
-                updates.account = account
-                updates.note = note.isEmpty ? nil : note
-                updates.remark = remark.isEmpty ? nil : remark
-                updates.date = selectedDate
+                let wasInstallment = transaction.isInstallment
 
-                try await repository.updateTransaction(transaction, updates: updates)
+                if isInstallment && !wasInstallment {
+                    // 普通交易 → 转为分期
+                    try await repository.deleteTransaction(transaction)
+                    let fee = Decimal(string: feePerPeriod) ?? 0
+                    _ = try await repository.addInstallmentTransactions(
+                        totalAmount: amount,
+                        feePerPeriod: fee,
+                        periods: installmentPeriods,
+                        type: transactionType,
+                        category: category,
+                        account: account,
+                        startDate: selectedDate,
+                        note: note.isEmpty ? nil : note,
+                        remark: remark.isEmpty ? nil : remark
+                    )
+                } else if !isInstallment && wasInstallment {
+                    // 分期 → 取消分期
+                    if let groupId = transaction.installmentGroupId {
+                        try await repository.deleteInstallmentGroup(groupId: groupId)
+                    }
+                    _ = try await repository.addTransaction(
+                        amount: amount,
+                        type: transactionType,
+                        category: category,
+                        account: account,
+                        date: selectedDate,
+                        note: note.isEmpty ? nil : note,
+                        remark: remark.isEmpty ? nil : remark,
+                        tags: nil
+                    )
+                } else if isInstallment && wasInstallment {
+                    // 分期 → 修改分期参数
+                    if let groupId = transaction.installmentGroupId {
+                        try await repository.deleteInstallmentGroup(groupId: groupId)
+                    }
+                    let newTotal = amount * Decimal(installmentPeriods)
+                    let fee = Decimal(string: feePerPeriod) ?? 0
+                    _ = try await repository.addInstallmentTransactions(
+                        totalAmount: newTotal,
+                        feePerPeriod: fee,
+                        periods: installmentPeriods,
+                        type: transactionType,
+                        category: category,
+                        account: account,
+                        startDate: selectedDate,
+                        note: note.isEmpty ? nil : note,
+                        remark: remark.isEmpty ? nil : remark
+                    )
+                } else {
+                    // 普通编辑（无分期变更）
+                    let oldCategory = transaction.category
+                    var updates = TransactionUpdates()
+                    updates.amount = amount
+                    updates.category = category
+                    updates.account = account
+                    updates.note = note.isEmpty ? nil : note
+                    updates.remark = remark.isEmpty ? nil : remark
+                    updates.date = selectedDate
 
-                learnCategoryMappingIfNeeded(
-                    transaction: transaction,
-                    oldCategory: oldCategory,
-                    newCategory: category
-                )
+                    try await repository.updateTransaction(transaction, updates: updates)
+
+                    learnCategoryMappingIfNeeded(
+                        transaction: transaction,
+                        oldCategory: oldCategory,
+                        newCategory: category
+                    )
+                }
             } else if isInstallment {
                 let fee = Decimal(string: feePerPeriod) ?? 0
                 _ = try await repository.addInstallmentTransactions(

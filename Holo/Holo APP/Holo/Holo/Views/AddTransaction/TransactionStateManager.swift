@@ -21,6 +21,13 @@ extension AddTransactionSheet {
         note = transaction.note ?? ""
         remark = transaction.remark ?? ""
         selectedDate = transaction.date
+
+        // 分期状态初始化
+        if transaction.isInstallment {
+            isInstallment = true
+            installmentPeriods = Int(transaction.installmentTotal)
+            // 无法从存储数据恢复原始手续费，默认 0
+        }
     }
 
     /// 加载默认/上次选择的账户（新增模式）

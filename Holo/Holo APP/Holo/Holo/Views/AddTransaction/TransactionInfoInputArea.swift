@@ -23,11 +23,9 @@ extension AddTransactionSheet {
             // 日期行（点击弹窗选择）
             dateRow
 
-            // 分期设置（仅新增模式，点击弹窗）
-            if !isEditMode {
-                Divider().padding(.leading, 44)
-                installmentRow
-            }
+            // 分期设置（点击弹窗）
+            Divider().padding(.leading, 44)
+            installmentRow
 
             Divider().padding(.leading, 44)
 
