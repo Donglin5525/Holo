@@ -29,6 +29,7 @@ enum NLDateParser {
     /// - 标准格式: "2026-05-16 14:45"（包含 HH:mm 部分）
     static func containsTimeComponent(_ text: String) -> Bool {
         if extractHourMinute(text) != nil { return true }
+        if defaultHourMinute(for: text) != nil { return true }
         // 标准格式 yyyy-MM-dd HH:mm 包含时间部分
         let pattern = #"^\d{4}-\d{2}-\d{2}\s+\d{1,2}:\d{2}$"#
         return text.range(of: pattern, options: .regularExpression) != nil
@@ -66,6 +67,9 @@ enum NLDateParser {
         var components = calendar.dateComponents([.year, .month, .day], from: targetDay)
 
         if let (hour, minute) = extractHourMinute(text) {
+            components.hour = hour
+            components.minute = minute
+        } else if let (hour, minute) = defaultHourMinute(for: text) {
             components.hour = hour
             components.minute = minute
         }
@@ -196,5 +200,25 @@ enum NLDateParser {
         if hour >= 1 && hour <= 6 { return hour + 12 }
 
         return hour
+    }
+
+    private static func defaultHourMinute(for text: String) -> (hour: Int, minute: Int)? {
+        if text.contains("早上") || text.contains("上午") || text.contains("今早") || text.contains("明早") {
+            return (9, 0)
+        }
+        if text.contains("中午") {
+            return (12, 0)
+        }
+        if text.contains("下午") {
+            return (15, 0)
+        }
+        if text.contains("傍晚") || text.contains("晚上") || text.contains("夜晚") ||
+            text.contains("今晚") || text.contains("明晚") {
+            return (20, 0)
+        }
+        if text.contains("半夜") || text.contains("深夜") {
+            return (23, 0)
+        }
+        return nil
     }
 }

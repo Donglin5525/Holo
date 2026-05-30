@@ -60,7 +60,11 @@ enum ChatCardData: Equatable {
             return .task(TaskCardData(
                 title: title,
                 dueDate: data["dueDate"],
-                priority: data["priority"]
+                priority: data["priority"],
+                description: data["description"],
+                subtasks: SubtaskParser.parse(data["subtasks"]),
+                reminderDate: data["reminderDate"],
+                requiresConfirmation: data["confirmationStatus"] == "pending"
             ))
 
         case .checkIn:
@@ -154,6 +158,28 @@ struct TaskCardData: Equatable {
     let title: String
     let dueDate: String?
     let priority: String?
+    let description: String?
+    let subtasks: [String]
+    let reminderDate: String?
+    let requiresConfirmation: Bool
+
+    init(
+        title: String,
+        dueDate: String?,
+        priority: String?,
+        description: String? = nil,
+        subtasks: [String] = [],
+        reminderDate: String? = nil,
+        requiresConfirmation: Bool = false
+    ) {
+        self.title = title
+        self.dueDate = dueDate
+        self.priority = priority
+        self.description = description
+        self.subtasks = subtasks
+        self.reminderDate = reminderDate
+        self.requiresConfirmation = requiresConfirmation
+    }
 }
 
 // MARK: - 习惯打卡卡片数据

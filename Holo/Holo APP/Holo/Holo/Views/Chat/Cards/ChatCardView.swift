@@ -23,34 +23,42 @@ struct ChatCardView<Content: View>: View {
     }
 
     var body: some View {
-        Button {
-            if !isDeleted { onTap?() }
-        } label: {
-            VStack(alignment: .leading, spacing: 12) {
-                content
+        if let onTap {
+            Button {
+                if !isDeleted { onTap() }
+            } label: {
+                cardBody
             }
-            .padding(HoloSpacing.md)
-            .background(Color.holoCardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-            .overlay(
-                RoundedRectangle(cornerRadius: HoloRadius.md)
-                    .stroke(Color.holoBorder, lineWidth: 1)
-            )
-            .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
-            .opacity(isDeleted ? 0.5 : 1.0)
-            .saturation(isDeleted ? 0 : 1)
-            .overlay(alignment: .bottomTrailing) {
-                if isDeleted {
-                    Text("已删除")
-                        .font(.holoTinyLabel)
-                        .foregroundColor(.holoError)
-                        .padding(.horizontal, HoloSpacing.xs)
-                        .padding(.vertical, 2)
-                }
+            .buttonStyle(CardButtonStyle())
+            .disabled(isDeleted)
+        } else {
+            cardBody
+        }
+    }
+
+    private var cardBody: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            content
+        }
+        .padding(HoloSpacing.md)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.md)
+                .stroke(Color.holoBorder, lineWidth: 1)
+        )
+        .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
+        .opacity(isDeleted ? 0.5 : 1.0)
+        .saturation(isDeleted ? 0 : 1)
+        .overlay(alignment: .bottomTrailing) {
+            if isDeleted {
+                Text("已删除")
+                    .font(.holoTinyLabel)
+                    .foregroundColor(.holoError)
+                    .padding(.horizontal, HoloSpacing.xs)
+                    .padding(.vertical, 2)
             }
         }
-        .buttonStyle(CardButtonStyle())
-        .disabled(isDeleted)
     }
 }
 

@@ -169,6 +169,25 @@ final class ConversationCoordinator {
         for item in parseBatch.items {
             try Task.checkCancellation()
 
+            if item.intent == .createTask {
+                var renderData = item.extractedData ?? [:]
+                renderData["confirmationStatus"] = "pending"
+                executionItems.append(
+                    AIExecutionItem(
+                        id: UUID().uuidString,
+                        parseItemId: item.id,
+                        intent: item.intent,
+                        status: .skipped,
+                        summaryText: "我识别到一个待办，请确认后创建",
+                        renderData: renderData.isEmpty ? nil : renderData,
+                        linkedEntityType: nil,
+                        linkedEntityId: nil,
+                        errorText: nil
+                    )
+                )
+                continue
+            }
+
             do {
                 let routeResult = try await intentRouter.route(item.asParsedResult)
                 let renderData = Self.buildRenderData(from: item, routeResult: routeResult)

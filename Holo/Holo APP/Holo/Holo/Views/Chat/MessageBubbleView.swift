@@ -21,6 +21,7 @@ struct MessageBubbleView: View {
     var onSavedGoalCardTap: ((UUID) -> Void)? = nil
     var onRetry: (() -> Void)? = nil
     var onCardDelete: ((ChatMessageViewData, EntityCategory, String) -> Void)? = nil
+    var onTaskConfirm: ((ChatMessageViewData) -> Void)? = nil
 
     private var displayText: String {
         streamingText ?? message.content
@@ -311,6 +312,8 @@ struct MessageBubbleView: View {
         case .task(let taskData):
             TaskChatCard(data: taskData, isDeleted: message.isEntityDeleted(for: .task)) {
                 onCardTap?(message, data)
+            } onConfirm: {
+                onTaskConfirm?(message)
             }
         case .habitCheckIn(let habitData):
             HabitCheckInChatCard(data: habitData) {

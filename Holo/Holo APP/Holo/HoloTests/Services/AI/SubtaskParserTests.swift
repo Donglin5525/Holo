@@ -71,4 +71,50 @@ final class SubtaskParserTests: XCTestCase {
     func testParseOneItemAfterDedupReturnsEmpty() {
         XCTAssertTrue(SubtaskParser.parse("买牛奶,买牛奶").isEmpty)
     }
+
+    // MARK: - 自然语言提醒时间
+
+    func testNLDateParserMapsTomorrowMorningToConcreteTime() throws {
+        let calendar = Calendar(identifier: .gregorian)
+        var components = DateComponents()
+        components.calendar = calendar
+        components.timeZone = TimeZone.current
+        components.year = 2026
+        components.month = 5
+        components.day = 30
+        components.hour = 16
+        components.minute = 0
+        let referenceDate = try XCTUnwrap(components.date)
+
+        let result = try XCTUnwrap(NLDateParser.parse("明天早上", referenceDate: referenceDate))
+        let resultComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: result)
+
+        XCTAssertEqual(resultComponents.year, 2026)
+        XCTAssertEqual(resultComponents.month, 5)
+        XCTAssertEqual(resultComponents.day, 31)
+        XCTAssertEqual(resultComponents.hour, 9)
+        XCTAssertEqual(resultComponents.minute, 0)
+    }
+
+    func testNLDateParserMapsTomorrowAfternoonToConcreteTime() throws {
+        let calendar = Calendar(identifier: .gregorian)
+        var components = DateComponents()
+        components.calendar = calendar
+        components.timeZone = TimeZone.current
+        components.year = 2026
+        components.month = 5
+        components.day = 30
+        components.hour = 16
+        components.minute = 0
+        let referenceDate = try XCTUnwrap(components.date)
+
+        let result = try XCTUnwrap(NLDateParser.parse("明天下午", referenceDate: referenceDate))
+        let resultComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: result)
+
+        XCTAssertEqual(resultComponents.year, 2026)
+        XCTAssertEqual(resultComponents.month, 5)
+        XCTAssertEqual(resultComponents.day, 31)
+        XCTAssertEqual(resultComponents.hour, 15)
+        XCTAssertEqual(resultComponents.minute, 0)
+    }
 }

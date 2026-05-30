@@ -4,6 +4,27 @@
 
 ---
 
+## [2026-05-31] HoloAI 支持创建待办确认卡片
+
+### 新增
+- HoloAI 识别“创建任务/待办/提醒我”类自然语言后，先展示待确认任务卡片，用户点击“确认创建”后再写入待办
+- 任务卡片支持展示标题、备注、提醒时间和子任务列表，避免 AI 识别后直接静默落库
+- 支持把“今天要买苹果、买胡萝卜、买哈密瓜、买水蜜桃”识别为「购物清单」，并拆分为多个子任务
+
+### 优化
+- HoloBackend `intent_recognition` 默认 Prompt 增强任务创建规则，补充 `reminderDate` 输出和购物清单拆分示例
+- “明天早上”“明天下午”等提醒表达会解析为具体时间，分别默认映射为次日 09:00 和 15:00
+- 只有 `reminderDate`、没有 `dueDate` 的任务也能正确进入任务日期/提醒创建流程
+
+### 验证
+- 后端测试通过：`npm test`（44 passed）
+- iOS 构建通过：`xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -configuration Debug -destination "generic/platform=iOS" -derivedDataPath /private/tmp/holo-ai-task-create-build CODE_SIGNING_ALLOWED=NO build`
+
+### 后端
+- 本次包含 HoloBackend Prompt 变更，已同步到 ECS 并通过 Docker 重新构建部署
+
+---
+
 ## [2026-05-30] 编辑交易支持分期功能（转分期/修改/取消）
 
 ### 新增

@@ -500,6 +500,83 @@ final class ChatViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Pending Task Confirmation
+
+    func confirmPendingTask(from message: ChatMessageViewData) {
+        guard let batch = message.executionBatch,
+              let pendingIndex = batch.items.firstIndex(where: {
+                  $0.intent == .createTask && $0.status == .skipped && $0.renderData?["confirmationStatus"] == "pending"
+              }),
+              let renderData = batch.items[pendingIndex].renderData else {
+            return
+        }
+
+        Task { @MainActor [weak self] in
+            guard let self, let chatRepo = self.chatRepo else { return }
+
+            do {
+                let result = ParsedResult(
+                    intent: .createTask,
+                    confidence: 1,
+                    extractedData: renderData,
+                    needsClarification: false,
+                    clarificationQuestion: nil,
+                    responseText: nil
+                )
+                let routeResult = try await IntentRouter.shared.route(result)
+
+                var confirmedRenderData = renderData
+                confirmedRenderData["confirmationStatus"] = "confirmed"
+                if let entity = routeResult.linkedEntity {
+                    confirmedRenderData["entityType"] = entity.type.rawValue
+                    confirmedRenderData["entityId"] = entity.id.uuidString
+                }
+                if let taskId = routeResult.taskId {
+                    confirmedRenderData["taskId"] = taskId.uuidString
+                }
+
+                var updatedItems = batch.items
+                let pending = updatedItems[pendingIndex]
+                updatedItems[pendingIndex] = AIExecutionItem(
+                    id: pending.id,
+                    parseItemId: pending.parseItemId,
+                    intent: pending.intent,
+                    status: .success,
+                    summaryText: routeResult.text,
+                    renderData: confirmedRenderData,
+                    linkedEntityType: routeResult.linkedEntity?.type.rawValue,
+                    linkedEntityId: routeResult.linkedEntity?.id.uuidString,
+                    errorText: nil
+                )
+
+                let updatedBatch = AIExecutionBatch(
+                    mode: batch.mode,
+                    items: updatedItems,
+                    finalText: Self.confirmedFinalText(from: updatedItems)
+                )
+
+                chatRepo.updateMessage(message.id, content: updatedBatch.finalText)
+                chatRepo.updateMessageMetadata(
+                    message.id,
+                    intent: message.intent,
+                    extractedDataJSON: Self.encodeExtractedData(message.extractedDataDictionary),
+                    parsedBatchJSON: Self.encodeParseBatch(message.parsedBatch),
+                    executionBatchJSON: Self.encodeExecutionBatch(updatedBatch)
+                )
+            } catch {
+                self.errorMessage = "创建任务失败：\(error.localizedDescription)"
+            }
+        }
+    }
+
+    private static func confirmedFinalText(from items: [AIExecutionItem]) -> String {
+        guard !items.isEmpty else { return "已处理" }
+        if items.count == 1 { return items[0].summaryText }
+        return "已为你处理 \(items.count) 件事：\n" + items.enumerated().map { index, item in
+            "\(index + 1). \(item.summaryText)"
+        }.joined(separator: "\n")
+    }
+
     // MARK: - Helpers
 
     /// 将 extractedData 字典编码为 JSON 字符串

@@ -281,9 +281,10 @@ final class IntentRouter {
         }
 
         let todoRepo = TodoRepository.shared
-        let dueDate = parseDate(from: data["dueDate"])
+        let dueDateText = data["dueDate"] ?? data["reminderDate"]
+        let dueDate = parseDate(from: dueDateText)
         let priority = parsePriority(data["priority"])
-        let hasTime = data["dueDate"].map { NLDateParser.containsTimeComponent($0) } ?? false
+        let hasTime = dueDateText.map { NLDateParser.containsTimeComponent($0) } ?? false
         let checkItemTitles = SubtaskParser.parse(data["subtasks"])
 
         // 有具体时间时，自动添加提前 15 分钟提醒

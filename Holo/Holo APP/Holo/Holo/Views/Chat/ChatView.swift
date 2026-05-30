@@ -250,6 +250,9 @@ struct ChatView: View {
                                     description: description
                                 )
                                 showDeleteConfirmation = true
+                            },
+                            onTaskConfirm: { msg in
+                                viewModel.confirmPendingTask(from: msg)
                             }
                         )
                         .id(message.id)

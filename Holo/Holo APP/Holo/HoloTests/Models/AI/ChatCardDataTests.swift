@@ -222,6 +222,32 @@ final class ChatCardDataTests: XCTestCase {
         XCTAssertEqual(cardData.priority, "high")
     }
 
+    func testFromCreateTaskKeepsDescriptionSubtasksAndPendingState() {
+        let data: [String: String] = [
+            "title": "购物清单",
+            "description": "今天去超市补货",
+            "dueDate": "2026-05-30",
+            "reminderDate": "2026-05-31 09:00",
+            "priority": "medium",
+            "subtasks": "买苹果,买胡萝卜,买哈密瓜,买水蜜桃"
+        ]
+
+        let result = ChatCardData.from(intent: .createTask, data: data)
+
+        guard case .task(let cardData) = result else {
+            XCTFail("应为 .task 类型")
+            return
+        }
+
+        XCTAssertEqual(cardData.title, "购物清单")
+        XCTAssertEqual(cardData.description, "今天去超市补货")
+        XCTAssertEqual(cardData.dueDate, "2026-05-30")
+        XCTAssertEqual(cardData.reminderDate, "2026-05-31 09:00")
+        XCTAssertEqual(cardData.priority, "medium")
+        XCTAssertEqual(cardData.subtasks, ["买苹果", "买胡萝卜", "买哈密瓜", "买水蜜桃"])
+        XCTAssertTrue(cardData.requiresConfirmation)
+    }
+
     func testFromCreateTaskEmptyTitle() {
         let data: [String: String] = [
             "title": ""
