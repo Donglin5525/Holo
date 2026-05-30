@@ -250,9 +250,9 @@ final class ConversationCoordinator {
             data["thoughtId"] = thoughtId.uuidString
         }
 
-        // 分类未匹配时，覆盖卡片显示为「待确认」，保留 categoryCandidate 供 UI 展示
+        // 分类未匹配时，覆盖卡片显示为统一兜底分类，保留 categoryCandidate 供 UI 展示
         if routeResult.categoryUnmatched {
-            data["primaryCategory"] = "待确认"
+            data["primaryCategory"] = FinancePendingCategory.currentName
             data["subCategory"] = nil
         } else {
             // 匹配成功时，用 Core Data 真实科目名覆盖 LLM 可能缺失的值

@@ -4,6 +4,28 @@
 
 ---
 
+## [2026-05-30] HoloAI 财务分类卡片与待分类兜底修复
+
+### 修复
+- 修复收入记录详情页分类正确、但 HoloAI 聊天卡片不显示科目的问题
+- 收入和支出现在统一把 Core Data 匹配后的真实一级/二级科目回填到卡片 `renderData`
+- 无法可靠匹配科目时仍然完成记账，并统一归入「待分类」，不再展示「无法识别分类」的失败提示
+- 用户把「待分类」交易手动改为具体科目后，学习映射现在记录真实父子科目，避免下次仍匹配失败
+
+### 优化
+- iOS 本地 Prompt 和 HoloBackend 默认 Prompt 补充工资收入识别规则与「工资23870」示例
+- HoloBackend `intent_recognition` 默认 Prompt 版本升级到 v9
+- 兼容旧「待确认」分类，首次兜底时会迁移为「待分类」
+
+### 验证
+- 后端测试通过：`npm test`（44 passed）
+- iOS 构建通过：`xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -configuration Debug -destination 'generic/platform=iOS' -derivedDataPath /private/tmp/holo-derived-income-card-build build`
+
+### 后端
+- 本次包含 HoloBackend Prompt 变更，需要部署后端后生产环境生效
+
+---
+
 ## [2026-05-28] 任务清单进度条丝滑动画与完成彩带
 
 ### 优化

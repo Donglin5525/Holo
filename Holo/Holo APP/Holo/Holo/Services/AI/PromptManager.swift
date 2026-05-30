@@ -79,7 +79,7 @@ final class PromptManager {
 
     /// 需要版本管理的 prompt 类型及其最低版本
     private static let promptVersions: [PromptType: Int] = [
-        .intentRecognition: 10,         // v10: 多笔记账 few-shot 示例+防御规则；v9: health/goal 分析域
+        .intentRecognition: 11,         // v11: 收入分类示例+待分类兜底；v10: 多笔记账 few-shot 示例+防御规则
         .memoryInsightGeneration: 5,    // v5: 习惯洞察区分正向习惯与坏习惯控制率
         .analysisPrompt: 2,             // v2: C 端纯文本分析输出，避免裸露 Markdown 语法
         .annualReview: 1,               // v1: 初始版本
@@ -256,6 +256,8 @@ final class PromptManager {
         - primaryCategory/subCategory：只有当用户语义非常明确且你确信是系统标准科目时才填写；不确定时留空。
         - 即使填写 primaryCategory/subCategory，系统仍会用科目对照 catalog 和用户本地分类做最终校验。
         - 不要为了匹配而编造科目；无法判断分类时，保留 categoryCandidate，其他分类字段留空。
+        - 收入语义：用户输入“工资/薪水/月薪/发工资 + 金额”时识别为 record_income，categoryCandidate 填“工资”，normalizedCategoryCandidate 填“工资”，semanticCategoryHint 填“工资收入”。
+        - 无法可靠匹配科目时仍然执行记账，系统会统一归入“待分类”；不要输出“无法识别分类”之类面向用户的失败文案。
         - 餐饮语义：用户明确说早饭/午饭/晚饭/夜宵时保留原话并归一到对应餐次；用户说餐饮品牌、快餐、一碗面、外卖等泛餐饮语义时，结合当前时间归一到早餐/午餐/晚餐/夜宵，semanticCategoryHint 填“餐饮”。
 
         ## 输出格式
@@ -350,6 +352,11 @@ final class PromptManager {
         输入：「买个手办200」
         ```json
         {"mode":"single_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"200","note":"买个手办","primaryCategory":"","subCategory":"","categoryCandidate":"手办","normalizedCategoryCandidate":"","semanticCategoryHint":"购物"}}],"needsClarification":false,"clarificationQuestion":null}
+        ```
+
+        输入：「工资23870」
+        ```json
+        {"mode":"single_action","items":[{"id":"1","intent":"record_income","confidence":0.95,"extractedData":{"amount":"23870","note":"工资","primaryCategory":"","subCategory":"","categoryCandidate":"工资","normalizedCategoryCandidate":"工资","semanticCategoryHint":"工资收入"}}],"needsClarification":false,"clarificationQuestion":null}
         ```
 
         输入：「午饭35，提醒我明天买牛奶」

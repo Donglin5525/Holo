@@ -23,8 +23,8 @@ enum AIResponseTextBuilder {
         let notePart = note.map { "（\($0)）" } ?? ""
         let accountPart = accountName.map { " → \($0)" } ?? ""
 
-        if categoryUnmatched, let category = unmatchedCategory, !category.isEmpty {
-            return "已记录支出 ¥\(amount)\(notePart)\(accountPart)\n⚠️ 无法识别分类「\(category)」，已暂归「待确认」，点击卡片可修改"
+        if categoryUnmatched {
+            return "已记录支出 ¥\(amount)\(notePart)\(accountPart)\n已归入「\(FinancePendingCategory.currentName)」，点击卡片可修改"
         }
 
         return "已记录支出 ¥\(amount)\(notePart)\(accountPart)"
@@ -40,8 +40,8 @@ enum AIResponseTextBuilder {
         let notePart = note.map { "（\($0)）" } ?? ""
         let accountPart = accountName.map { " → \($0)" } ?? ""
 
-        if categoryUnmatched, let category = unmatchedCategory, !category.isEmpty {
-            return "已记录收入 ¥\(amount)\(notePart)\(accountPart)\n⚠️ 无法识别分类「\(category)」，已暂归「待确认」，点击卡片可修改"
+        if categoryUnmatched {
+            return "已记录收入 ¥\(amount)\(notePart)\(accountPart)\n已归入「\(FinancePendingCategory.currentName)」，点击卡片可修改"
         }
 
         return "已记录收入 ¥\(amount)\(notePart)\(accountPart)"

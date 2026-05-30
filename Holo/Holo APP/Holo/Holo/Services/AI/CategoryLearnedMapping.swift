@@ -10,7 +10,7 @@ import Foundation
 import os.log
 
 /// 用户分类学习服务
-/// 当用户将「待确认」交易改为具体分类时，自动记录映射关系
+/// 当用户将「待分类」交易改为具体分类时，自动记录映射关系
 enum CategoryLearnedMapping {
 
     private static let logger = Logger(subsystem: "com.holo.app", category: "CategoryLearnedMapping")
@@ -146,7 +146,7 @@ enum CategoryLearnedMapping {
     // MARK: - 交易候选暂存
 
     /// 暂存交易创建时的原始分类候选
-    /// 用于用户后续编辑「待确认」交易时触发学习
+    /// 用于用户后续编辑「待分类」交易时触发学习
     private static let transactionCandidateKey = "transactionCategoryCandidates"
 
     static func recordTransactionCandidate(transactionId: UUID, candidate: String, type: TransactionType) {

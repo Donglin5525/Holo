@@ -26,7 +26,7 @@ final class IntentRouter {
         let habitId: UUID?
         let thoughtId: UUID?
         let linkedEntity: LinkedEntity?
-        /// 分类未匹配到，使用了「待确认」兜底
+        /// 分类未匹配到，使用了「待分类」兜底
         let categoryUnmatched: Bool
         /// 匹配成功后的真实科目名（来自 Core Data）
         let matchedPrimaryCategory: String?
@@ -136,7 +136,7 @@ final class IntentRouter {
         if category == nil {
             isUnmatched = true
             category = categoryRepo.ensurePendingCategory(type: .expense)
-            logger.info("分类未匹配，使用「待确认」兜底")
+            logger.info("分类未匹配，使用「待分类」兜底")
         }
 
         let transaction = try await categoryRepo.addTransaction(
@@ -165,22 +165,10 @@ final class IntentRouter {
                 categoryCandidate: categoryCandidate
             ) : nil
 
-        // 提取匹配后的真实科目名
-        var matchedPrimary: String?
-        var matchedSub: String?
-        if !isUnmatched, let matched = category {
-            if let parentID = matched.parentId {
-                let allCategories = try await categoryRepo.getCategories(by: .expense)
-                if let parent = allCategories.first(where: { $0.id == parentID }) {
-                    matchedPrimary = parent.name
-                    matchedSub = matched.name
-                } else {
-                    matchedPrimary = matched.name
-                }
-            } else {
-                matchedPrimary = matched.name
-            }
-        }
+        let matchedNames = try await resolvedCategoryDisplayNames(
+            for: isUnmatched ? nil : category,
+            type: .expense
+        )
 
         return RouteResult(
             text: AIResponseTextBuilder.expenseRecorded(
@@ -193,8 +181,8 @@ final class IntentRouter {
             transactionId: transaction.id,
             linkedEntity: LinkedEntity(type: .transaction, id: transaction.id),
             categoryUnmatched: isUnmatched,
-            matchedPrimaryCategory: matchedPrimary,
-            matchedSubCategory: matchedSub
+            matchedPrimaryCategory: matchedNames.primary,
+            matchedSubCategory: matchedNames.sub
         )
     }
 
@@ -234,7 +222,7 @@ final class IntentRouter {
         if category == nil {
             isUnmatched = true
             category = categoryRepo.ensurePendingCategory(type: .income)
-            logger.info("分类未匹配，使用「待确认」兜底")
+            logger.info("分类未匹配，使用「待分类」兜底")
         }
 
         let transaction = try await categoryRepo.addTransaction(
@@ -263,6 +251,11 @@ final class IntentRouter {
                 categoryCandidate: categoryCandidate
             ) : nil
 
+        let matchedNames = try await resolvedCategoryDisplayNames(
+            for: isUnmatched ? nil : category,
+            type: .income
+        )
+
         return RouteResult(
             text: AIResponseTextBuilder.incomeRecorded(
                 amount: amountStr,
@@ -273,7 +266,9 @@ final class IntentRouter {
             ),
             transactionId: transaction.id,
             linkedEntity: LinkedEntity(type: .transaction, id: transaction.id),
-            categoryUnmatched: isUnmatched
+            categoryUnmatched: isUnmatched,
+            matchedPrimaryCategory: matchedNames.primary,
+            matchedSubCategory: matchedNames.sub
         )
     }
 
@@ -682,6 +677,22 @@ final class IntentRouter {
 
     // MARK: - Category Matching
 
+    private func resolvedCategoryDisplayNames(
+        for category: Category?,
+        type: TransactionType
+    ) async throws -> (primary: String?, sub: String?) {
+        guard let category else { return (nil, nil) }
+
+        if let parentID = category.parentId {
+            let allCategories = try await FinanceRepository.shared.getCategories(by: type)
+            if let parent = allCategories.first(where: { $0.id == parentID }) {
+                return (parent.name, category.name)
+            }
+        }
+
+        return (category.name, nil)
+    }
+
     private func matchCategory(
         primaryCategory: String?,
         subCategory: String?,
@@ -781,7 +792,7 @@ final class IntentRouter {
             return rawMatched
         }
 
-        // 无法可靠匹配，返回 nil，由调用方使用「待确认」兜底
+        // 无法可靠匹配，返回 nil，由调用方使用「待分类」兜底
         return nil
     }
 

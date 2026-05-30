@@ -354,24 +354,25 @@ extension AddTransactionSheet {
         return rounded.stringValue
     }
 
-    /// 当用户将「待确认」交易改为具体分类时，学习映射关系
+    /// 当用户将「待分类」交易改为具体分类时，学习映射关系
     func learnCategoryMappingIfNeeded(
         transaction: Transaction,
         oldCategory: Category?,
         newCategory: Category
     ) {
         guard let oldCategory = oldCategory,
-              oldCategory.name == "待确认",
-              newCategory.name != "待确认",
+              [FinancePendingCategory.currentName, FinancePendingCategory.legacyName].contains(oldCategory.name),
+              ![FinancePendingCategory.currentName, FinancePendingCategory.legacyName].contains(newCategory.name),
               let candidateInfo = CategoryLearnedMapping.lookupTransactionCandidate(
                   transactionId: transaction.id
               ) else { return }
 
+        let categoryNames = FinanceRepository.shared.resolveCategoryNames(from: newCategory)
         CategoryLearnedMapping.record(
             candidate: candidateInfo.candidate,
             type: candidateInfo.type,
-            targetPrimary: newCategory.name,
-            targetSub: newCategory.name
+            targetPrimary: categoryNames.primary,
+            targetSub: categoryNames.sub ?? categoryNames.primary
         )
         CategoryLearnedMapping.removeTransactionCandidate(transactionId: transaction.id)
     }

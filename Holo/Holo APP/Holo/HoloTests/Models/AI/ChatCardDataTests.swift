@@ -146,6 +146,47 @@ final class ChatCardDataTests: XCTestCase {
         XCTAssertFalse(cardData.isExpense)
     }
 
+    func testIncomeCardShowsMatchedSalaryCategoryPath() {
+        let data: [String: String] = [
+            "amount": "23870",
+            "note": "工资",
+            "primaryCategory": "工资收入",
+            "subCategory": "工资"
+        ]
+
+        let result = ChatCardData.from(intent: .recordIncome, data: data)
+
+        guard case .transaction(let cardData) = result else {
+            XCTFail("工资收入应渲染为交易卡片")
+            return
+        }
+
+        XCTAssertEqual(cardData.displayTitle, "工资")
+        XCTAssertEqual(cardData.categoryPath, "工资收入 · 工资")
+    }
+
+    func testUnmatchedFinanceConfirmationDoesNotShowUnableToRecognizeWarning() {
+        let expenseText = AIResponseTextBuilder.expenseRecorded(
+            amount: "18",
+            note: "不知道买了啥",
+            accountName: "现金",
+            categoryUnmatched: true,
+            unmatchedCategory: "不知道买了啥"
+        )
+        let incomeText = AIResponseTextBuilder.incomeRecorded(
+            amount: "88",
+            note: "奇怪收入",
+            accountName: "现金",
+            categoryUnmatched: true,
+            unmatchedCategory: "奇怪收入"
+        )
+
+        XCTAssertFalse(expenseText.contains("无法识别"))
+        XCTAssertFalse(incomeText.contains("无法识别"))
+        XCTAssertTrue(expenseText.contains("待分类"))
+        XCTAssertTrue(incomeText.contains("待分类"))
+    }
+
     func testFromRecordExpenseMissingAmount() {
         let data: [String: String] = [
             "note": "午饭"

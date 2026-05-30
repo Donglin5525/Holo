@@ -199,6 +199,7 @@ enum CategorySFSymbolMapper {
         "工资收入": "banknote.fill",
         "人情来往": "gift.fill",
         "其他收入": "plus.circle.fill",
+        FinancePendingCategory.currentName: "questionmark.circle.fill",
     ]
 
     /// 二级分类 → SF Symbol（从 Category+CoreDataProperties 的层级定义中提取）
@@ -251,7 +252,8 @@ enum CategorySFSymbolMapper {
         "还款": "arrow.uturn.backward.circle.fill", "转账": "arrow.right.circle.fill",
         "捐赠": "heart.fill",
         // 系统分类
-        "待确认": "questionmark.circle.fill",
+        FinancePendingCategory.currentName: "questionmark.circle.fill",
+        FinancePendingCategory.legacyName: "questionmark.circle.fill",
         // 投资理财（收入）
         "利息": "percent", "股票": "chart.line.uptrend.xyaxis",
         "基金": "chart.pie.fill", "房租收入": "building.columns.fill", "其他投资": "chart.pie.fill",

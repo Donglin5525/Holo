@@ -143,7 +143,7 @@ struct CategoryLearnedMappingView: View {
                 .font(.holoBody)
                 .foregroundColor(.holoTextPlaceholder)
 
-            Text("在 AI 对话中确认「待确认」交易的分类后\n系统会自动记录映射关系")
+            Text("在 AI 对话中确认「待分类」交易的分类后\n系统会自动记录映射关系")
                 .font(.system(size: 13))
                 .foregroundColor(.holoTextSecondary)
                 .multilineTextAlignment(.center)

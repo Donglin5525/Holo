@@ -124,15 +124,29 @@ extension FinanceRepository {
         return Array(sorted)
     }
     
-    /// 确保「待确认」分类存在，不存在则创建（挂到对应父分类下）
+    /// 确保「待分类」分类存在，不存在则创建（挂到对应父分类下）
     func ensurePendingCategory(type: TransactionType) -> Category {
         let request = Category.fetchRequest()
         request.predicate = NSPredicate(
             format: "name == %@ AND type == %@",
-            "待确认", type.rawValue
+            FinancePendingCategory.currentName, type.rawValue
         )
         if let existing = try? context.fetch(request).first {
             return existing
+        }
+
+        let legacyRequest = Category.fetchRequest()
+        legacyRequest.predicate = NSPredicate(
+            format: "name == %@ AND type == %@",
+            FinancePendingCategory.legacyName, type.rawValue
+        )
+        if let legacy = try? context.fetch(legacyRequest).first {
+            legacy.name = FinancePendingCategory.currentName
+            legacy.icon = "questionmark.circle.fill"
+            legacy.color = "#F59E0B"
+            legacy.isSystem = true
+            try? context.save()
+            return legacy
         }
 
         // 找到对应的父分类
@@ -146,7 +160,7 @@ extension FinanceRepository {
 
         let category = Category.create(
             in: context,
-            name: "待确认",
+            name: FinancePendingCategory.currentName,
             icon: "questionmark.circle.fill",
             color: "#F59E0B",
             type: type.rawValue,
