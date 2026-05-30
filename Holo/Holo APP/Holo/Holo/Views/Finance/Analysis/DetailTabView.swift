@@ -14,6 +14,8 @@ import SwiftUI
 /// 明细 Tab 视图
 struct DetailTabView: View {
     @ObservedObject var state: FinanceAnalysisState
+    @State private var editingTransaction: Transaction?
+    @State private var selectedTrendType: TransactionType = .expense
 
     private var filteredTransactions: [Transaction] {
         guard let category = state.selectedDetailCategory else {
@@ -24,32 +26,118 @@ struct DetailTabView: View {
         }
     }
 
+    private var dailySelectionPoints: [ChartDataPoint] {
+        dailyChartDataPoints.filter { point in
+            amount(for: point, type: selectedTrendType) > 0
+        }
+    }
+
+    private var dailyChartDataPoints: [ChartDataPoint] {
+        let calendar = Calendar.current
+        let grouped = Dictionary(grouping: filteredTransactions) { tx in
+            calendar.startOfDay(for: tx.date)
+        }
+        let range = state.currentDateRange
+        var current = calendar.startOfDay(for: range.start)
+        let end = calendar.startOfDay(for: range.end)
+        var points: [ChartDataPoint] = []
+
+        while current < end {
+            let dayTxns = grouped[current] ?? []
+            let expense = dayTxns
+                .filter { $0.transactionType == .expense }
+                .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+            let income = dayTxns
+                .filter { $0.transactionType == .income }
+                .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+
+            let df = DateFormatter()
+            df.locale = Locale(identifier: "zh_CN")
+            df.dateFormat = "M.d"
+
+            points.append(ChartDataPoint(
+                date: current,
+                label: df.string(from: current),
+                expense: expense,
+                income: income,
+                transactionCount: dayTxns.count
+            ))
+
+            guard let next = calendar.date(byAdding: .day, value: 1, to: current) else { break }
+            current = next
+        }
+
+        return points
+    }
+
     var body: some View {
-        ScrollView {
-            VStack(spacing: HoloSpacing.lg) {
-                if let category = state.selectedDetailCategory {
-                    categoryFilterBanner(category)
-                }
+        ScrollViewReader { scrollProxy in
+            VStack(spacing: 0) {
+                fixedTrendSection(scrollProxy: scrollProxy)
+                    .padding(.horizontal, HoloSpacing.lg)
+                    .padding(.top, HoloSpacing.lg)
+                    .padding(.bottom, HoloSpacing.md)
 
-                // 折线图
-                LineChartView(
-                    dataPoints: state.chartDataPoints,
-                    selectedDate: state.selectedChartDate
-                ) { date in
-                    state.selectChartDate(date)
-                }
+                transactionListHeader
+                    .padding(.horizontal, HoloSpacing.lg)
+                    .padding(.bottom, HoloSpacing.sm)
 
-                // 选中日期的交易列表
-                if let selectedDate = state.selectedChartDate {
-                    selectedPeriodTransactionsView(selectedDate)
-                } else {
-                    // 显示全部交易
-                    allTransactionsView
+                ScrollView {
+                    transactionListContent
+                        .padding(.horizontal, HoloSpacing.lg)
+                        .padding(.bottom, HoloSpacing.lg)
                 }
             }
-            .padding(HoloSpacing.lg)
+            .background(Color.holoBackground)
         }
-        .background(Color.holoBackground)
+        .sheet(item: $editingTransaction) { transaction in
+            AddTransactionSheet(editingTransaction: transaction) {
+                state.refresh()
+            }
+        }
+        .onChange(of: selectedTrendType) { _, _ in
+            state.selectChartDate(nil)
+        }
+    }
+
+    private func fixedTrendSection(scrollProxy: ScrollViewProxy) -> some View {
+        VStack(spacing: HoloSpacing.lg) {
+            if let category = state.selectedDetailCategory {
+                categoryFilterBanner(category)
+            }
+
+            LineChartView(
+                dataPoints: dailyChartDataPoints,
+                selectedDate: state.selectedChartDate,
+                displayedType: selectedTrendType,
+                displayedTypeSelection: $selectedTrendType,
+                selectionDataPoints: dailySelectionPoints
+            ) { date in
+                guard let date else {
+                    state.selectChartDate(nil)
+                    return
+                }
+
+                let day = Calendar.current.startOfDay(for: date)
+                guard dailySelectionPoints.contains(where: { Calendar.current.isDate($0.date, inSameDayAs: day) }) else {
+                    return
+                }
+
+                state.selectChartDate(day)
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    scrollProxy.scrollTo(day, anchor: .top)
+                }
+            }
+        }
+    }
+
+    private func amount(for point: ChartDataPoint, type: TransactionType) -> Decimal {
+        switch type {
+        case .expense:
+            return point.expense
+        case .income:
+            return point.income
+        }
     }
 
     // MARK: - 选中时间段的交易列表（根据粒度显示）
@@ -83,7 +171,9 @@ struct DetailTabView: View {
                 emptyTransactionState
             } else {
                 ForEach(periodTransactions, id: \.self) { tx in
-                    TransactionRowView(transaction: tx) {}
+                    TransactionRowView(transaction: tx) {
+                        editingTransaction = tx
+                    }
                 }
             }
         }
@@ -236,27 +326,38 @@ struct DetailTabView: View {
 
     // MARK: - 全部交易列表
 
+    private var transactionListHeader: some View {
+        HStack {
+            Text("交易明细")
+                .font(.holoHeading)
+                .foregroundColor(.holoTextPrimary)
+
+            Spacer()
+
+            Text("\(filteredTransactions.count) 笔")
+                .font(.holoCaption)
+                .foregroundColor(.holoTextSecondary)
+        }
+    }
+
+    @ViewBuilder
+    private var transactionListContent: some View {
+        if filteredTransactions.isEmpty {
+            emptyTransactionState
+        } else {
+            VStack(alignment: .leading, spacing: HoloSpacing.md) {
+                groupedTransactionsView
+            }
+        }
+    }
+
     private var allTransactionsView: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
             // 标题
-            HStack {
-                Text("交易明细")
-                    .font(.holoHeading)
-                    .foregroundColor(.holoTextPrimary)
-
-                Spacer()
-
-                Text("\(filteredTransactions.count) 笔")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
-            }
+            transactionListHeader
 
             // 按日期分组
-            if filteredTransactions.isEmpty {
-                emptyTransactionState
-            } else {
-                groupedTransactionsView
-            }
+            transactionListContent
         }
     }
 
@@ -302,13 +403,26 @@ struct DetailTabView: View {
                     }
                 }
                 .padding(.horizontal, HoloSpacing.xs)
+                .padding(.vertical, 2)
+                .background(
+                    RoundedRectangle(cornerRadius: HoloRadius.sm)
+                        .fill(isSelectedDay(date) ? Color.holoPrimary.opacity(0.08) : Color.clear)
+                )
+                .id(date)
 
                 // 交易列表
                 ForEach(grouped[date] ?? [], id: \.self) { tx in
-                    TransactionRowView(transaction: tx) {}
+                    TransactionRowView(transaction: tx) {
+                        editingTransaction = tx
+                    }
                 }
             }
         }
+    }
+
+    private func isSelectedDay(_ date: Date) -> Bool {
+        guard let selectedDate = state.selectedChartDate else { return false }
+        return Calendar.current.isDate(date, inSameDayAs: selectedDate)
     }
 
     // MARK: - 空状态

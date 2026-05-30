@@ -15,21 +15,37 @@ import Charts
 struct LineChartView: View {
     let dataPoints: [ChartDataPoint]
     let selectedDate: Date?
+    var displayedType: TransactionType = .expense
+    var displayedTypeSelection: Binding<TransactionType>? = nil
+    var selectionDataPoints: [ChartDataPoint]? = nil
     let onSelectDate: (Date?) -> Void
 
-    @State private var hoveredLabel: String? = nil
+    @State private var hoveredDate: Date? = nil
     @State private var touchGestureLock = HorizontalGestureLock()
 
-    private var allValuesZero: Bool {
-        dataPoints.allSatisfy { $0.expense == 0 && $0.income == 0 }
+    private var selectablePoints: [ChartDataPoint] {
+        (selectionDataPoints ?? dataPoints).filter(\.hasTransactions)
+    }
+
+    private var axisMarkDates: [Date] {
+        guard dataPoints.count > 14 else { return dataPoints.map(\.date) }
+
+        let desiredCount = 6
+        let lastIndex = dataPoints.count - 1
+        let step = max(Double(lastIndex) / Double(desiredCount - 1), 1)
+
+        return (0..<desiredCount).compactMap { index in
+            let dataIndex = min(Int((Double(index) * step).rounded()), lastIndex)
+            return dataPoints[dataIndex].date
+        }
     }
 
     /// 稳定 Y 轴域：取数据最大值向上取整到「好看」的刻度，避免小幅数据变动导致轴抖动
     private var yAxisDomain: ClosedRange<Double> {
-        let maxVal = dataPoints.flatMap {
-            [Double(truncating: $0.expense as NSDecimalNumber),
-             Double(truncating: $0.income as NSDecimalNumber)]
-        }.map(abs).max() ?? 0
+        let maxVal = dataPoints
+            .map { Double(truncating: amount(for: $0) as NSDecimalNumber) }
+            .map(abs)
+            .max() ?? 0
         return 0...niceCeil(maxVal)
     }
 
@@ -49,12 +65,12 @@ struct LineChartView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             // 图例
-            chartLegend
+            chartHeader
 
             // 图表
-            if dataPoints.isEmpty || allValuesZero {
+            if dataPoints.isEmpty {
                 emptyChartView
             } else {
                 chartContent
@@ -67,10 +83,18 @@ struct LineChartView: View {
 
     // MARK: - 图例
 
-    private var chartLegend: some View {
-        HStack(spacing: HoloSpacing.lg) {
-            LegendItem(color: .holoError, label: "支出")
-            LegendItem(color: .holoSuccess, label: "收入")
+    private var chartHeader: some View {
+        HStack(spacing: HoloSpacing.sm) {
+            if let displayedTypeSelection {
+                Picker("趋势类型", selection: displayedTypeSelection) {
+                    Text("支出").tag(TransactionType.expense)
+                    Text("收入").tag(TransactionType.income)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+            } else {
+                LegendItem(color: lineColor, label: displayedType.displayName)
+            }
         }
     }
 
@@ -78,50 +102,20 @@ struct LineChartView: View {
 
     private var chartContent: some View {
         Chart(dataPoints) { point in
-            // 支出折线
             LineMark(
-                x: .value("日期", point.label),
-                y: .value("支出", Double(truncating: point.expense as NSDecimalNumber))
+                x: .value("日期", point.date),
+                y: .value(displayedType.displayName, Double(truncating: amount(for: point) as NSDecimalNumber))
             )
-            .foregroundStyle(Color.holoError)
+            .foregroundStyle(lineColor)
             .interpolationMethod(.catmullRom)
-
-            // 支出点
-            PointMark(
-                x: .value("日期", point.label),
-                y: .value("支出", Double(truncating: point.expense as NSDecimalNumber))
-            )
-            .foregroundStyle(Color.holoError)
-            .symbolSize(30)
-
-            // 收入折线
-            if point.income > 0 {
-                LineMark(
-                    x: .value("日期", point.label),
-                    y: .value("收入", Double(truncating: point.income as NSDecimalNumber))
-                )
-                .foregroundStyle(Color.holoSuccess)
-                .interpolationMethod(.catmullRom)
-
-                // 收入点
-                PointMark(
-                    x: .value("日期", point.label),
-                    y: .value("收入", Double(truncating: point.income as NSDecimalNumber))
-                )
-                .foregroundStyle(Color.holoSuccess)
-                .symbolSize(30)
-            }
 
             // 选中高亮
             if let selectedDate = selectedDate,
-               Calendar.current.isDate(point.date, inSameDayAs: selectedDate) {
-                let yEndValue = max(
-                    Double(truncating: point.expense as NSDecimalNumber),
-                    Double(truncating: point.income as NSDecimalNumber)
-                ) * 1.1
+               pointContains(selectedDate, in: point) {
+                let yEndValue = Double(truncating: amount(for: point) as NSDecimalNumber) * 1.1
                 if yEndValue > 0 {
                     RectangleMark(
-                        x: .value("日期", point.label),
+                        x: .value("日期", point.date),
                         yStart: .value("底部", 0),
                         yEnd: .value("顶部", yEndValue)
                     )
@@ -131,11 +125,16 @@ struct LineChartView: View {
         }
         .chartYScale(domain: yAxisDomain)
         .chartXAxis {
-            AxisMarks { _ in
+            AxisMarks(values: axisMarkDates) { value in
                 AxisGridLine()
                     .foregroundStyle(Color.holoDivider)
-                AxisValueLabel()
-                    .foregroundStyle(Color.holoTextSecondary)
+                AxisValueLabel {
+                    if let date = value.as(Date.self),
+                       let label = labelForAxisDate(date) {
+                        Text(label)
+                            .foregroundStyle(Color.holoTextSecondary)
+                    }
+                }
             }
         }
         .chartYAxis {
@@ -165,43 +164,40 @@ struct LineChartView: View {
                             .onChanged { value in
                                 let axis = touchGestureLock.update(translation: value.translation)
                                 guard axis != .vertical else {
-                                    hoveredLabel = nil
+                                    hoveredDate = nil
                                     return
                                 }
                                 guard axis == .horizontal || value.translation == .zero else { return }
-                                guard !dataPoints.isEmpty, let plotFrame else { return }
+                                guard !selectablePoints.isEmpty, let plotFrame else { return }
                                 let touchXInPlot = value.location.x - plotFrame.minX
-                                let pointPositions = dataPoints.compactMap { proxy.position(forX: $0.label) }
-                                guard pointPositions.count == dataPoints.count,
-                                      let index = ChartTouchSelection.nearestPointIndex(
+                                let pointPositions = selectablePoints.compactMap { proxy.position(forX: $0.date) }
+                                guard pointPositions.count == selectablePoints.count,
+                                      let index = nearestSelectablePointIndex(
                                         touchXInPlot: touchXInPlot,
-                                        plotWidth: plotFrame.width,
                                         pointXPositions: pointPositions
                                       ) else { return }
 
-                                let point = dataPoints[index]
-                                if hoveredLabel != point.label {
-                                    hoveredLabel = point.label
+                                let point = selectablePoints[index]
+                                if hoveredDate.map({ !Calendar.current.isDate($0, inSameDayAs: point.date) }) ?? true {
+                                    hoveredDate = point.date
                                     onSelectDate(point.date)
                                 }
                             }
                             .onEnded { _ in
-                                hoveredLabel = nil
+                                hoveredDate = nil
                                 touchGestureLock.reset()
                             }
                     )
 
                 // 触摸金额标注
-                if let label = hoveredLabel,
-                   let point = dataPoints.first(where: { $0.label == label }),
-                   let xPos = proxy.position(forX: label) {
+                if let hoveredDate,
+                   let point = selectablePoints.first(where: { Calendar.current.isDate($0.date, inSameDayAs: hoveredDate) }),
+                   let xPos = proxy.position(forX: point.date) {
                     let convertedX = (plotFrame?.minX ?? 0) + xPos
 
-                    let expenseVal = Double(truncating: point.expense as NSDecimalNumber)
-                    let incomeVal = Double(truncating: point.income as NSDecimalNumber)
-                    let maxVal = max(expenseVal, incomeVal)
+                    let pointValue = Double(truncating: amount(for: point) as NSDecimalNumber)
 
-                    if let topY = proxy.position(forY: max(maxVal, 0.001)), let plotFrame {
+                    if let topY = proxy.position(forY: max(pointValue, 0.001)), let plotFrame {
                         let convertedY = plotFrame.minY + topY
                         let clampedX = min(max(convertedX, 60), overlayFrame.width - 60)
                         let clampedY = min(max(convertedY - 24, 16), overlayFrame.height - 16)
@@ -217,16 +213,9 @@ struct LineChartView: View {
 
     private func lineTooltip(point: ChartDataPoint, x: CGFloat, y: CGFloat) -> some View {
         HStack(spacing: 4) {
-            if point.expense > 0 {
-                Text("-\(NumberFormatter.compactCurrency(point.expense))")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.holoError)
-            }
-            if point.income > 0 {
-                Text("+\(NumberFormatter.compactCurrency(point.income))")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundColor(.holoSuccess)
-            }
+            Text("\(displayedType == .expense ? "-" : "+")\(NumberFormatter.compactCurrency(amount(for: point)))")
+                .font(.system(size: 10, weight: .bold))
+                .foregroundColor(lineColor)
         }
         .padding(.horizontal, 6)
         .padding(.vertical, 4)
@@ -252,6 +241,41 @@ struct LineChartView: View {
         } else {
             return ""
         }
+    }
+
+    private var lineColor: Color {
+        displayedType == .expense ? .holoError : .holoSuccess
+    }
+
+    private func amount(for point: ChartDataPoint) -> Decimal {
+        switch displayedType {
+        case .expense:
+            return point.expense
+        case .income:
+            return point.income
+        }
+    }
+
+    private func labelForAxisDate(_ date: Date) -> String? {
+        dataPoints.first { Calendar.current.isDate($0.date, inSameDayAs: date) }?.label
+    }
+
+    private func pointContains(_ selectedDate: Date, in point: ChartDataPoint) -> Bool {
+        guard !Calendar.current.isDate(point.date, inSameDayAs: selectedDate) else { return true }
+        guard let index = dataPoints.firstIndex(where: { $0.id == point.id }) else { return false }
+        guard dataPoints.indices.contains(index + 1) else { return selectedDate >= point.date }
+        return selectedDate >= point.date && selectedDate < dataPoints[index + 1].date
+    }
+
+    private func nearestSelectablePointIndex(
+        touchXInPlot: CGFloat,
+        pointXPositions: [CGFloat]
+    ) -> Int? {
+        guard !pointXPositions.isEmpty else { return nil }
+
+        return pointXPositions.enumerated()
+            .min { abs(touchXInPlot - $0.element) < abs(touchXInPlot - $1.element) }?
+            .offset
     }
 
     // MARK: - 空状态

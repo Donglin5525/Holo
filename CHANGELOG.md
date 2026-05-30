@@ -4,6 +4,29 @@
 
 ---
 
+## [2026-05-31] 财务统计明细页按日趋势与交易联动优化
+
+### 修复
+- 修复统计分析明细页交易行点击无响应的问题，现在可打开对应交易详情/编辑页
+- 修复明细页趋势图按周/月聚合导致光标日期与下方交易明细错位的问题，趋势图改为按日展开
+- 修复趋势图卡片随交易明细列表一起滚动的问题，趋势图固定，仅「交易明细」下方列表滚动
+
+### 优化
+- 趋势图新增支出/收入切换，并将切换控件收进图表卡片顶部，减少外部占位，让下方展示更多交易明细
+- 支出/收入趋势独立展示为单条曲线，不再同时绘制两条线
+- 未发生当前类型交易的日期按 0 参与趋势展示，连续无数据日期形成平滑的 0 线
+- 去掉每个日期上的数据点，避免日维度展开后图表过密；横坐标仍抽样展示日期标签
+- 图表拖动时只吸附当前支出/收入类型下有数据的日期，并自动滚动到对应日期分组
+
+### 验证
+- Swift 解析通过：`xcrun swiftc -parse "Holo/Holo APP/Holo/Holo/Models/TransactionType.swift" "Holo/Holo APP/Holo/Holo/Views/Finance/Analysis/DetailTabView.swift" "Holo/Holo APP/Holo/Holo/Views/Finance/Analysis/Components/LineChartView.swift"`
+- 完整 iOS 构建被本机 CoreSimulator 环境阻断：`No available simulator runtimes for platform iphonesimulator`
+
+### 不变
+- 后端无变更，无需发版
+
+---
+
 ## [2026-05-31] 财务统计分析页图表与分类排行优化
 
 ### 优化
