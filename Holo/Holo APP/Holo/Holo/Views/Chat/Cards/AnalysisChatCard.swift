@@ -3,7 +3,6 @@
 //  Holo
 //
 //  AI 分析查询卡片 UI
-//  包含 Summary / Trend / Breakdown / Comparison / Highlights 五种卡片
 //
 
 import SwiftUI
@@ -18,27 +17,18 @@ struct AnalysisSummaryChatCard: View {
         ChatCardView {
             CardHeaderView(
                 icon: domainIcon,
-                title: "\(domainLabel)概览"
+                title: "\(domainLabel)概览",
+                subtitle: data.periodLabel
             )
 
-            CardBadge(text: data.periodLabel, color: .holoPrimary)
-
-            CardDivider()
-
-            ForEach(data.metrics, id: \.label) { metric in
-                HStack {
-                    Text(metric.label)
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
-
-                    Spacer()
-
-                    Text(metric.value)
-                        .font(.holoBody.bold())
-                        .foregroundColor(.holoTextPrimary)
-                        .minimumScaleFactor(0.7)
-                        .lineLimit(1)
-                }
+            if let primary = data.metrics.first {
+                let supportingMetrics = data.metrics.dropFirst().prefix(2)
+                HoloAIHeroMetric(
+                    label: primary.label,
+                    value: primary.value,
+                    note: supportingMetrics.map { "\($0.label) \($0.value)" }.joined(separator: " · "),
+                    tint: .holoTextPrimary
+                )
             }
         }
     }
@@ -78,30 +68,40 @@ struct AnalysisBreakdownChatCard: View {
         ChatCardView {
             CardHeaderView(
                 icon: "chart.pie.fill",
-                title: data.title
+                title: data.title,
+                subtitle: "分类构成"
             )
 
-            CardDivider()
+            VStack(spacing: 10) {
+                ForEach(Array(data.rows.prefix(4).enumerated()), id: \.offset) { index, row in
+                    HStack(spacing: 12) {
+                        Text("\(index + 1)")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.holoPrimary)
+                            .frame(width: 28, height: 28)
+                            .background(Color.holoPrimary.opacity(0.12))
+                            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
 
-            ForEach(data.rows, id: \.label) { row in
-                HStack {
-                    Text(row.label)
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
-                        .lineLimit(1)
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(row.label)
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundColor(.holoTextPrimary)
+                                .lineLimit(1)
 
-                    Spacer()
+                            if let percent = row.percent {
+                                Text(String(format: "占比 %.0f%%", percent * 100))
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundColor(.holoTextSecondary)
+                            }
+                        }
 
-                    Text(row.value)
-                        .font(.holoBody.bold())
-                        .foregroundColor(.holoTextPrimary)
-                        .minimumScaleFactor(0.7)
-                        .lineLimit(1)
+                        Spacer()
 
-                    if let percent = row.percent {
-                        Text(String(format: "%.0f%%", percent * 100))
-                            .font(.holoTinyLabel)
-                            .foregroundColor(.holoTextSecondary)
+                        Text(row.value)
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(.holoTextPrimary)
+                            .minimumScaleFactor(0.75)
+                            .lineLimit(1)
                     }
                 }
             }
@@ -119,57 +119,27 @@ struct AnalysisTrendChatCard: View {
         ChatCardView {
             CardHeaderView(
                 icon: "chart.line.uptrend.xyaxis",
-                title: data.title
+                title: data.title,
+                subtitle: "趋势变化"
             )
 
-            CardDivider()
-
-            // 简化趋势展示：最大值 + 最小值 + 趋势方向
             if let max = data.points.max(by: { $0.value < $1.value }),
                let min = data.points.min(by: { $0.value < $1.value }) {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("最高")
-                            .font(.holoTinyLabel)
-                            .foregroundColor(.holoTextSecondary)
-                        Text(max.displayValue)
-                            .font(.holoBody.bold())
-                            .foregroundColor(.holoTextPrimary)
-                        Text(max.label)
-                            .font(.holoTinyLabel)
-                            .foregroundColor(.holoTextSecondary)
-                    }
+                let lastValue = data.points.last?.value ?? 0
+                let firstValue = data.points.first?.value ?? 0
+                let isUp = lastValue >= firstValue
 
-                    Spacer()
-
-                    VStack(alignment: .center, spacing: 4) {
-                        let lastValue = data.points.last?.value ?? 0
-                        let firstValue = data.points.first?.value ?? 0
-                        Image(systemName: lastValue >= firstValue ? "arrow.up.right" : "arrow.down.right")
-                            .font(.system(size: 20))
-                            .foregroundColor(lastValue >= firstValue ? .holoError : .holoSuccess)
-                    }
-
-                    Spacer()
-
-                    VStack(alignment: .trailing, spacing: 4) {
-                        Text("最低")
-                            .font(.holoTinyLabel)
-                            .foregroundColor(.holoTextSecondary)
-                        Text(min.displayValue)
-                            .font(.holoBody.bold())
-                            .foregroundColor(.holoTextPrimary)
-                        Text(min.label)
-                            .font(.holoTinyLabel)
-                            .foregroundColor(.holoTextSecondary)
-                    }
-                }
+                HoloAIHeroMetric(
+                    label: isUp ? "整体上升" : "整体下降",
+                    value: data.points.last?.displayValue ?? max.displayValue,
+                    note: "最高 \(max.displayValue)（\(max.label)） · 最低 \(min.displayValue)（\(min.label)）",
+                    tint: isUp ? .holoError : .holoSuccess
+                )
             }
 
-            // 数据点数
             if data.points.count > 2 {
                 Text("\(data.points.count) 个数据点")
-                    .font(.holoTinyLabel)
+                    .font(.system(size: 12, weight: .semibold))
                     .foregroundColor(.holoTextSecondary)
             }
         }
@@ -186,53 +156,24 @@ struct AnalysisComparisonChatCard: View {
         ChatCardView {
             CardHeaderView(
                 icon: "arrow.left.arrow.right",
-                title: data.title
+                title: data.title,
+                subtitle: "对比"
             )
 
-            CardDivider()
+            HoloAIHeroMetric(
+                label: "当前",
+                value: data.currentValue,
+                note: data.previousValue.map { "上期 \($0)" },
+                tint: .holoTextPrimary
+            )
 
-            HStack(spacing: 16) {
-                // 当前
-                VStack(alignment: .center, spacing: 4) {
-                    Text("当前")
-                        .font(.holoTinyLabel)
-                        .foregroundColor(.holoTextSecondary)
-                    Text(data.currentValue)
-                        .font(.holoBody.bold())
-                        .foregroundColor(.holoTextPrimary)
-                        .minimumScaleFactor(0.7)
-                        .lineLimit(1)
-                }
-                .frame(maxWidth: .infinity)
-
-                // 变化
+            HStack(spacing: 10) {
                 if let change = data.change {
-                    VStack(alignment: .center, spacing: 4) {
-                        let isPositive = change.hasPrefix("+")
-                        Image(systemName: isPositive ? "arrow.up.right" : "arrow.down.right")
-                            .font(.system(size: 16))
-                            .foregroundColor(isPositive ? .holoError : .holoSuccess)
-                        Text(change)
-                            .font(.holoCaption.bold())
-                            .foregroundColor(isPositive ? .holoError : .holoSuccess)
-                            .minimumScaleFactor(0.7)
-                            .lineLimit(1)
-                    }
+                    let isPositive = change.hasPrefix("+")
+                    CardBadge(text: change, color: isPositive ? .holoError : .holoSuccess)
                 }
-
-                // 上期
                 if let previous = data.previousValue {
-                    VStack(alignment: .center, spacing: 4) {
-                        Text("上期")
-                            .font(.holoTinyLabel)
-                            .foregroundColor(.holoTextSecondary)
-                        Text(previous)
-                            .font(.holoBody.bold())
-                            .foregroundColor(.holoTextSecondary)
-                            .minimumScaleFactor(0.7)
-                            .lineLimit(1)
-                    }
-                    .frame(maxWidth: .infinity)
+                    CardBadge(text: "上期 \(previous)", color: .holoTextSecondary)
                 }
             }
         }
@@ -249,47 +190,20 @@ struct AnalysisHighlightsChatCard: View {
         ChatCardView {
             CardHeaderView(
                 icon: "star.fill",
-                title: "亮点与提醒"
+                title: "亮点与提醒",
+                subtitle: "\(data.highlights.count) 条亮点 · \(data.warnings.count) 条提醒"
             )
 
-            if !data.highlights.isEmpty {
-                ForEach(data.highlights, id: \.self) { highlight in
-                    HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: "sparkle")
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoSuccess)
-                            .frame(width: 16, height: 16)
-                            .padding(.top, 2)
-
-                        Text(highlight)
-                            .font(.holoCaption)
-                            .foregroundColor(.holoTextPrimary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .textSelection(.enabled)
-                    }
-                }
+            ForEach(data.highlights, id: \.self) { highlight in
+                HoloAIFactItem(kicker: "亮点", bodyText: highlight, tint: .holoSuccess)
             }
 
-            if !data.warnings.isEmpty {
-                if !data.highlights.isEmpty {
-                    CardDivider()
-                }
-
-                ForEach(data.warnings, id: \.self) { warning in
-                    HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 12))
-                            .foregroundColor(Color(red: 245/255, green: 158/255, blue: 11/255))
-                            .frame(width: 16, height: 16)
-                            .padding(.top, 2)
-
-                        Text(warning)
-                            .font(.holoCaption)
-                            .foregroundColor(.holoTextPrimary)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .textSelection(.enabled)
-                    }
-                }
+            ForEach(data.warnings, id: \.self) { warning in
+                HoloAIFactItem(
+                    kicker: "提醒",
+                    bodyText: warning,
+                    tint: Color(red: 245/255, green: 158/255, blue: 11/255)
+                )
             }
         }
     }

@@ -17,49 +17,24 @@ struct GoalDraftReadyChatCard: View {
         Button {
             onTap?()
         } label: {
-            VStack(alignment: .leading, spacing: 10) {
-                // 标题行
+            ChatCardView {
+                CardHeaderView(
+                    icon: "target",
+                    title: "目标计划已生成",
+                    subtitle: draft.title
+                )
+
+                HoloAIFactItem(kicker: "计划摘要", bodyText: draft.cardSummary)
+
                 HStack(spacing: 6) {
-                    Image(systemName: "target")
-                        .font(.system(size: 16))
-                        .foregroundColor(.holoPrimary)
-                    Text("目标计划已生成")
-                        .font(.holoLabel)
-                        .foregroundColor(.holoTextPrimary)
-                        .lineLimit(1)
-                }
-
-                // 目标标题
-                Text(draft.title)
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.7)
-
-                // 摘要
-                Text(draft.cardSummary)
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
-
-                // 提示行
-                HStack(spacing: 4) {
                     Text("点击查看详细计划")
-                        .font(.holoTinyLabel)
-                        .foregroundColor(.holoTextSecondary.opacity(0.6))
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.holoPrimary)
                     Image(systemName: "chevron.right")
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.holoTextSecondary.opacity(0.6))
+                        .foregroundColor(.holoPrimary)
                 }
             }
-            .padding(HoloSpacing.md)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.holoCardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-            .overlay(
-                RoundedRectangle(cornerRadius: HoloRadius.md)
-                    .stroke(Color.holoBorder, lineWidth: 1)
-            )
-            .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
         }
         .buttonStyle(CardButtonStyle())
     }

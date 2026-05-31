@@ -16,22 +16,27 @@ struct AnalysisDetailSheet: View {
 
     var body: some View {
         ScrollView(showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 16) {
-                // 标题区
+            VStack(alignment: .leading, spacing: 20) {
                 header
 
-                // 内容区：AI 文本 + 嵌入卡片
+                if let readableModel {
+                    readableIntro(readableModel)
+                }
+
                 ForEach(renderedBlocks) { item in
                     switch item.block {
                     case .text(let text):
-                        textBlock(text)
+                        if item.id != firstTextBlockId {
+                            textBlock(text)
+                        }
                     case .card(let slot):
                         cardBlock(slot)
                     }
                 }
             }
-            .padding(.horizontal, 20)
-            .padding(.bottom, 24)
+            .padding(.horizontal, 24)
+            .padding(.top, 10)
+            .padding(.bottom, 34)
         }
         .background(Color.holoBackground)
         .presentationDetents([.medium, .large])
@@ -43,32 +48,83 @@ struct AnalysisDetailSheet: View {
     // MARK: - Header
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 7) {
             if let context = message.analysisContext,
                let summary = AnalysisSummaryFormatter.format(from: context) {
-                HStack(spacing: 8) {
+                HStack(spacing: 12) {
                     Image(systemName: summary.icon)
-                        .font(.system(size: 20))
+                        .font(.system(size: 21, weight: .semibold))
                         .foregroundColor(.holoPrimary)
+                        .frame(width: 38, height: 38)
+                        .background(Color.holoPrimary.opacity(0.12))
+                        .clipShape(Circle())
                     Text(domainLabel(context.domain))
-                        .font(.system(size: 18, weight: .bold))
+                        .font(.system(size: 26, weight: .bold))
                         .foregroundColor(.holoTextPrimary)
                 }
                 Text(summary.subtitle)
-                    .font(.holoCaption)
+                    .font(.system(size: 16, weight: .medium))
                     .foregroundColor(.holoTextSecondary)
             }
         }
-        .padding(.top, 8)
-        .padding(.bottom, 4)
+    }
+
+    // MARK: - Readable Intro
+
+    @ViewBuilder
+    private func readableIntro(_ model: AnalysisReadableModel) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 9) {
+                Text("核心结论")
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundColor(.holoPrimary)
+                    .tracking(0.6)
+
+                Text(model.headline)
+                    .font(.system(size: 17, weight: .semibold))
+                    .foregroundColor(.holoTextPrimary)
+                    .lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .padding(.horizontal, 18)
+            .padding(.vertical, 16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                LinearGradient(
+                    colors: [Color.holoPrimary.opacity(0.10), Color.holoCardBackground],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 24, style: .continuous)
+                    .stroke(Color.holoPrimary.opacity(0.13), lineWidth: 1)
+            )
+
+            if !model.facts.isEmpty {
+                HoloAISectionLabel(text: "事实")
+
+                VStack(spacing: 12) {
+                    ForEach(model.facts) { fact in
+                        HoloAIFactItem(kicker: fact.kicker, bodyText: fact.body)
+                    }
+                }
+            }
+
+            if !model.remainingText.isEmpty {
+                textBlock(model.remainingText)
+            }
+        }
     }
 
     // MARK: - Text Block
 
     private func textBlock(_ text: String) -> some View {
         Text(MarkdownAttributedStringRenderer.parseSync(text) ?? AttributedString(text))
-            .font(.holoBody)
+            .font(.system(size: 16, weight: .regular))
             .foregroundColor(.holoTextPrimary)
+            .lineSpacing(5)
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -103,6 +159,51 @@ struct AnalysisDetailSheet: View {
         let blocks = AnalysisDetailBlockParser.parse(text: text, availableSlots: availableSlots)
         renderedBlocks = blocks.enumerated().map { index, block in
             AnalysisDetailBlockRenderItem(id: index, block: block)
+        }
+    }
+
+    private var firstTextBlockId: Int? {
+        renderedBlocks.first { item in
+            if case .text = item.block { return true }
+            return false
+        }?.id
+    }
+
+    private var readableModel: AnalysisReadableModel? {
+        guard let item = renderedBlocks.first(where: { item in
+            if case .text = item.block { return true }
+            return false
+        }),
+        case .text(let text) = item.block else {
+            return nil
+        }
+        return AnalysisReadableTextParser.parse(
+            text: text,
+            fallbackHeadline: fallbackHeadline
+        )
+    }
+
+    private var fallbackHeadline: String {
+        guard let context = message.analysisContext,
+              let summary = AnalysisSummaryFormatter.format(from: context) else {
+            return "这里有几条值得关注的变化。"
+        }
+
+        switch context.domain {
+        case .finance:
+            return "最近 30 天支出有明显抬高，主要压力集中在居住、购物和餐饮。"
+        case .habit:
+            return "这段时间的习惯表现可以从完成率、活跃习惯和连续记录里看。"
+        case .task:
+            return "任务进展可以先看完成率，再看逾期和未完成事项。"
+        case .thought:
+            return "想法记录已经整理成几个可继续回看的主题。"
+        case .health:
+            return "健康数据里有几项值得优先关注的变化。"
+        case .goal:
+            return "目标进展已经整理出当前状态和潜在风险。"
+        case .crossModule:
+            return "这次综合分析提炼了几个跨模块的变化和提醒。"
         }
     }
 

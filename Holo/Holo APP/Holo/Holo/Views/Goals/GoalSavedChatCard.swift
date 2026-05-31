@@ -42,49 +42,27 @@ struct GoalSavedChatCard: View {
         Button {
             onTap?()
         } label: {
-            HStack(alignment: .top, spacing: HoloSpacing.md) {
-                Image(systemName: "target")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundColor(.holoPrimary)
-                    .frame(width: 40, height: 40)
-                    .background(Color.holoPrimary.opacity(0.1))
-                    .clipShape(RoundedRectangle(cornerRadius: 10))
+            ChatCardView {
+                CardHeaderView(
+                    icon: "target",
+                    title: "目标已创建",
+                    subtitle: data.title
+                )
 
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("目标已创建")
-                        .font(.holoLabel)
-                        .foregroundColor(.holoTextSecondary)
+                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                    HoloAIMetricTile(label: "任务", value: "\(data.taskCount)")
+                    HoloAIMetricTile(label: "习惯", value: "\(data.habitCount)")
+                }
 
-                    Text(data.title)
-                        .font(.holoBody)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.holoTextPrimary)
-                        .lineLimit(2)
-                        .minimumScaleFactor(0.8)
-
-                    HStack(spacing: 6) {
-                        Text(data.summary)
-                            .font(.holoCaption)
-                            .foregroundColor(.holoTextSecondary)
-                        Spacer(minLength: 0)
-                        Text("查看")
-                            .font(.holoTinyLabel)
-                            .foregroundColor(.holoPrimary)
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.holoPrimary)
-                    }
+                HStack(spacing: 6) {
+                    Text("查看目标")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.holoPrimary)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.holoPrimary)
                 }
             }
-            .padding(HoloSpacing.md)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.holoCardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-            .overlay(
-                RoundedRectangle(cornerRadius: HoloRadius.md)
-                    .stroke(Color.holoBorder, lineWidth: 1)
-            )
-            .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
         }
         .buttonStyle(CardButtonStyle())
     }

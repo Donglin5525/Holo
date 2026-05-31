@@ -14,21 +14,18 @@ struct WeightChatCard: View {
 
     var body: some View {
         ChatCardView(onTap: onTap) {
-            // 头部
             CardHeaderView(
                 icon: "scalemass.fill",
-                title: "体重记录"
+                title: "体重记录",
+                subtitle: "刚刚记录"
             )
 
-            // 分隔线
-            CardDivider()
+            HoloAIHeroMetric(
+                label: "当前体重",
+                value: "\(data.weight) \(data.unit)",
+                tint: .holoTextPrimary
+            )
 
-            // 体重数值
-            Text("\(data.weight) \(data.unit)")
-                .font(.holoHeading)
-                .foregroundColor(.holoTextPrimary)
-
-            // 底部
             CardFooterView(timeText: "刚刚")
         }
         .accessibilityLabel("体重卡片：\(data.weight) \(data.unit)")

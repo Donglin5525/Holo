@@ -37,17 +37,27 @@ struct ChatCardView<Content: View>: View {
     }
 
     private var cardBody: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 14) {
             content
         }
-        .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-        .overlay(
-            RoundedRectangle(cornerRadius: HoloRadius.md)
-                .stroke(Color.holoBorder, lineWidth: 1)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 18)
+        .background(
+            LinearGradient(
+                colors: [
+                    Color.holoCardBackground,
+                    Color.holoCardBackground.opacity(0.96)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         )
-        .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(Color.holoBorder.opacity(0.75), lineWidth: 1)
+        )
+        .shadow(color: HoloShadow.card.opacity(0.55), radius: 14, x: 0, y: 7)
         .opacity(isDeleted ? 0.5 : 1.0)
         .saturation(isDeleted ? 0 : 1)
         .overlay(alignment: .bottomTrailing) {
@@ -83,18 +93,38 @@ struct CardHeaderView: View {
     let icon: String
     let title: String
     var badge: CardBadge?
+    var subtitle: String?
+
+    init(icon: String, title: String, badge: CardBadge? = nil, subtitle: String? = nil) {
+        self.icon = icon
+        self.title = title
+        self.badge = badge
+        self.subtitle = subtitle
+    }
 
     var body: some View {
-        HStack(spacing: 8) {
+        HStack(alignment: .top, spacing: 11) {
             Image(systemName: icon)
-                .font(.system(size: 16))
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(.holoPrimary)
-                .frame(width: 24, height: 24)
+                .frame(width: 34, height: 34)
+                .background(Color.holoPrimary.opacity(0.12))
+                .clipShape(Circle())
 
-            Text(title)
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
-                .lineLimit(1)
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.holoTextPrimary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                if let subtitle, !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.holoTextSecondary)
+                        .lineLimit(1)
+                }
+            }
 
             Spacer()
 
@@ -113,12 +143,12 @@ struct CardBadge: View {
 
     var body: some View {
         Text(text)
-            .font(.holoTinyLabel)
+            .font(.system(size: 11, weight: .semibold))
             .foregroundColor(color)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
             .background(color.opacity(0.12))
-            .cornerRadius(4)
+            .clipShape(Capsule())
     }
 }
 
@@ -127,7 +157,7 @@ struct CardDivider: View {
 
     var body: some View {
         Rectangle()
-            .fill(Color.holoDivider)
+            .fill(Color.holoDivider.opacity(0.75))
             .frame(height: 0.5)
     }
 }
@@ -140,14 +170,138 @@ struct CardFooterView: View {
     var body: some View {
         HStack {
             Text(timeText)
-                .font(.holoLabel)
+                .font(.system(size: 12, weight: .medium))
                 .foregroundColor(.holoTextSecondary)
 
             Spacer()
 
             Image(systemName: "chevron.right")
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(.holoPrimary.opacity(0.78))
         }
+    }
+}
+
+// MARK: - HoloAI 阅读组件
+
+struct HoloAIHeroMetric: View {
+    let label: String
+    let value: String
+    var note: String?
+    var tint: Color = .holoPrimary
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(label)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.holoTextSecondary)
+
+            Text(value)
+                .font(.system(size: 30, weight: .bold))
+                .foregroundColor(tint)
+                .minimumScaleFactor(0.75)
+                .lineLimit(1)
+
+            if let note, !note.isEmpty {
+                Text(note)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.holoTextSecondary)
+                    .lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+    }
+}
+
+struct HoloAIFactItem: View {
+    let kicker: String
+    let bodyText: String
+    var tint: Color = .holoPrimary
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Circle()
+                .fill(tint)
+                .frame(width: 6, height: 6)
+                .padding(.top, 8)
+                .background {
+                    Circle()
+                        .fill(tint.opacity(0.12))
+                        .frame(width: 18, height: 18)
+                        .offset(y: 1)
+                }
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(kicker)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.holoTextSecondary)
+
+                Text(bodyText)
+                    .font(.system(size: 14, weight: .regular))
+                    .foregroundColor(.holoTextPrimary)
+                    .lineSpacing(3)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+            }
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.holoBorder.opacity(0.55), lineWidth: 1)
+        )
+    }
+}
+
+struct HoloAIMetricTile: View {
+    let label: String
+    let value: String
+    var note: String?
+    var isProminent: Bool = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 7) {
+            Text(label)
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.holoTextSecondary)
+
+            Text(value)
+                .font(.system(size: isProminent ? 26 : 21, weight: .bold))
+                .foregroundColor(.holoTextPrimary)
+                .minimumScaleFactor(0.78)
+                .lineLimit(1)
+
+            if let note, !note.isEmpty {
+                Text(note)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.holoTextSecondary)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 15)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.holoCardBackground.opacity(0.72))
+        .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .stroke(Color.holoBorder.opacity(0.7), lineWidth: 1)
+        )
+    }
+}
+
+struct HoloAISectionLabel: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(.system(size: 13, weight: .semibold))
+            .foregroundColor(.holoTextSecondary)
+            .padding(.horizontal, 11)
+            .padding(.vertical, 7)
+            .background(Color.holoTextSecondary.opacity(0.08))
+            .clipShape(Capsule())
     }
 }

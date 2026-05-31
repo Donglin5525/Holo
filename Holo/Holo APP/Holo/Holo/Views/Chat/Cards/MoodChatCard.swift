@@ -14,23 +14,14 @@ struct MoodChatCard: View {
 
     var body: some View {
         ChatCardView(onTap: onTap) {
-            // 头部：图标 + 心情标签
             CardHeaderView(
                 icon: "heart.fill",
-                title: data.mood ?? "心情记录"
+                title: data.mood ?? "心情记录",
+                subtitle: "刚刚记录"
             )
 
-            // 分隔线
-            CardDivider()
+            HoloAIFactItem(kicker: "记录内容", bodyText: data.content, tint: .holoPrimary)
 
-            // 内容摘要（2 行截断）
-            Text(data.content)
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
-                .lineLimit(2)
-                .textSelection(.enabled)
-
-            // 底部
             CardFooterView(timeText: "刚刚")
         }
         .accessibilityLabel("心情卡片：\(data.mood ?? "心情记录")")

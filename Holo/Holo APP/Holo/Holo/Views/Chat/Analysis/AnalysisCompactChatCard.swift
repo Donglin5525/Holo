@@ -33,44 +33,29 @@ struct AnalysisCompactChatCard: View {
         Button {
             onTap?()
         } label: {
-            VStack(alignment: .leading, spacing: 8) {
-                // 标题行
+            ChatCardView {
+                CardHeaderView(
+                    icon: summary.icon,
+                    title: summary.displayTitle,
+                    subtitle: summary.subtitle
+                )
+
+                HoloAIHeroMetric(
+                    label: summary.primaryLabel,
+                    value: summary.primaryValue,
+                    note: summary.secondarySummary,
+                    tint: .holoTextPrimary
+                )
+
                 HStack(spacing: 6) {
-                    Image(systemName: summary.icon)
-                        .font(.system(size: 16))
-                        .foregroundColor(.holoPrimary)
-                    Text(summary.title)
-                        .font(.holoLabel)
-                        .foregroundColor(.holoTextPrimary)
-                        .lineLimit(1)
-                }
-
-                // 摘要行
-                Text(summary.summaryLine)
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.7)
-
-                // 提示行
-                HStack(spacing: 4) {
                     Text("点击查看详细分析")
-                        .font(.holoTinyLabel)
-                        .foregroundColor(.holoTextSecondary.opacity(0.6))
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.holoPrimary)
                     Image(systemName: "chevron.right")
                         .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.holoTextSecondary.opacity(0.6))
+                        .foregroundColor(.holoPrimary)
                 }
             }
-            .padding(HoloSpacing.md)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color.holoCardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-            .overlay(
-                RoundedRectangle(cornerRadius: HoloRadius.md)
-                    .stroke(Color.holoBorder, lineWidth: 1)
-            )
-            .shadow(color: .black.opacity(0.06), radius: 4, y: 2)
         }
         .buttonStyle(CardButtonStyle())
     }
@@ -78,47 +63,57 @@ struct AnalysisCompactChatCard: View {
     // MARK: - Loading Card（流式分析中）
 
     private var loadingCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        ChatCardView {
             HStack(spacing: 8) {
                 ProgressView()
                     .scaleEffect(0.8)
                 Text("AI 正在分析中...")
-                    .font(.holoLabel)
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.holoTextSecondary)
             }
         }
-        .padding(HoloSpacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-        .overlay(
-            RoundedRectangle(cornerRadius: HoloRadius.md)
-                .stroke(Color.holoBorder, lineWidth: 1)
-        )
         .allowsHitTesting(false)
     }
 
     // MARK: - Placeholder
 
     private var placeholderCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        ChatCardView {
             HStack(spacing: 6) {
                 Image(systemName: "chart.bar.xaxis")
                     .font(.system(size: 16))
                     .foregroundColor(.holoTextSecondary)
                 Text("分析结果加载中...")
-                    .font(.holoLabel)
+                    .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.holoTextSecondary)
             }
         }
-        .padding(HoloSpacing.md)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-        .overlay(
-            RoundedRectangle(cornerRadius: HoloRadius.md)
-                .stroke(Color.holoBorder, lineWidth: 1)
-        )
         .allowsHitTesting(false)
+    }
+}
+
+private extension AnalysisCompactSummary {
+    var displayTitle: String {
+        title.components(separatedBy: " · ").first ?? title
+    }
+
+    var primaryLabel: String {
+        let parts = summaryLine.components(separatedBy: " · ")
+        guard let first = parts.first else { return "摘要" }
+        let tokens = first.components(separatedBy: " ")
+        return tokens.first ?? "摘要"
+    }
+
+    var primaryValue: String {
+        let parts = summaryLine.components(separatedBy: " · ")
+        guard let first = parts.first else { return summaryLine }
+        let tokens = first.components(separatedBy: " ")
+        guard tokens.count > 1 else { return first }
+        return tokens.dropFirst().joined(separator: " ")
+    }
+
+    var secondarySummary: String {
+        let parts = summaryLine.components(separatedBy: " · ")
+        return parts.dropFirst().joined(separator: " · ")
     }
 }
