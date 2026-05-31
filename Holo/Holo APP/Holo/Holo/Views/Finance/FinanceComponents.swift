@@ -8,7 +8,7 @@
 import SwiftUI
 import CoreData
 
-struct HoloRectCorner: OptionSet {
+nonisolated struct HoloRectCorner: OptionSet {
     let rawValue: Int
 
     static let topLeft = HoloRectCorner(rawValue: 1 << 0)

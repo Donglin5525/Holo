@@ -8,7 +8,7 @@
 
 import Foundation
 
-enum MarkdownAttributedStringRenderer {
+nonisolated enum MarkdownAttributedStringRenderer {
 
     /// 判断文本是否值得尝试 Markdown 渲染
     static func shouldRender(_ text: String) -> Bool {

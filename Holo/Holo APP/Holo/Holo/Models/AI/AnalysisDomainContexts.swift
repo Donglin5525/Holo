@@ -10,7 +10,7 @@ import Foundation
 
 // MARK: - Finance
 
-struct FinanceAnalysisContext: Codable, Equatable, Sendable {
+nonisolated struct FinanceAnalysisContext: Codable, Equatable, Sendable {
     let totalExpense: Decimal
     let totalIncome: Decimal
     let transactionCount: Int
@@ -30,19 +30,19 @@ struct FinanceAnalysisContext: Codable, Equatable, Sendable {
     }
 }
 
-struct FinanceCategoryItem: Codable, Equatable, Sendable {
+nonisolated struct FinanceCategoryItem: Codable, Equatable, Sendable {
     let categoryName: String
     let amount: Decimal
     let percentage: Double
 }
 
-struct FinanceMonthlyItem: Codable, Equatable, Sendable {
+nonisolated struct FinanceMonthlyItem: Codable, Equatable, Sendable {
     let month: String
     let expense: Decimal
     let income: Decimal
 }
 
-struct FinanceBudgetItem: Codable, Equatable, Sendable {
+nonisolated struct FinanceBudgetItem: Codable, Equatable, Sendable {
     let budgetAmount: Decimal
     let spentAmount: Decimal
     let remainingAmount: Decimal
@@ -50,41 +50,41 @@ struct FinanceBudgetItem: Codable, Equatable, Sendable {
     let periodType: String
 }
 
-struct SubCategoryDetail: Codable, Equatable, Sendable {
+nonisolated struct SubCategoryDetail: Codable, Equatable, Sendable {
     let parentCategoryName: String
     let subCategories: [FinanceCategoryItem]
 }
 
-struct CategoryTrendItem: Codable, Equatable, Sendable {
+nonisolated struct CategoryTrendItem: Codable, Equatable, Sendable {
     let categoryName: String
     let currentAmount: Decimal
     let previousAmount: Decimal?
     let changePercent: Double?
 }
 
-struct SpendingPatterns: Codable, Equatable, Sendable {
+nonisolated struct SpendingPatterns: Codable, Equatable, Sendable {
     let highestSpendingDayOfWeek: DayOfWeekSpending?
     let weekdayVsWeekend: WeekdayWeekendComparison?
     let topFrequentCategories: [FrequentCategory]
 }
 
-struct DayOfWeekSpending: Codable, Equatable, Sendable {
+nonisolated struct DayOfWeekSpending: Codable, Equatable, Sendable {
     let dayName: String
     let averageAmount: Decimal
 }
 
-struct WeekdayWeekendComparison: Codable, Equatable, Sendable {
+nonisolated struct WeekdayWeekendComparison: Codable, Equatable, Sendable {
     let weekdayAverage: Decimal
     let weekendAverage: Decimal
 }
 
-struct FrequentCategory: Codable, Equatable, Sendable {
+nonisolated struct FrequentCategory: Codable, Equatable, Sendable {
     let categoryName: String
     let transactionCount: Int
     let totalAmount: Decimal
 }
 
-struct FinanceSemanticSummary: Codable, Equatable, Sendable {
+nonisolated struct FinanceSemanticSummary: Codable, Equatable, Sendable {
     let fixedNecessaryExpenseTotal: Decimal
     let actionableExpenseTotal: Decimal
     let fixedNecessaryCategories: [FinanceCategoryItem]
@@ -92,7 +92,7 @@ struct FinanceSemanticSummary: Codable, Equatable, Sendable {
     let incomeCadenceHint: String?
 }
 
-struct TransportSpendingSummary: Codable, Equatable, Sendable {
+nonisolated struct TransportSpendingSummary: Codable, Equatable, Sendable {
     let totalAmount: Decimal
     let transactionCount: Int
     let taxiAmount: Decimal
@@ -107,7 +107,7 @@ struct TransportSpendingSummary: Codable, Equatable, Sendable {
 
 // MARK: - Habit
 
-struct HabitAnalysisContext: Codable, Equatable, Sendable {
+nonisolated struct HabitAnalysisContext: Codable, Equatable, Sendable {
     let activeHabitCount: Int
     let completedRecordCount: Int
     let averageCompletionRate: Double?
@@ -122,7 +122,7 @@ struct HabitAnalysisContext: Codable, Equatable, Sendable {
     }
 }
 
-struct HabitPerformanceItem: Codable, Equatable, Sendable {
+nonisolated struct HabitPerformanceItem: Codable, Equatable, Sendable {
     let habitName: String
     let completionRate: Double
     let streak: Int
@@ -165,20 +165,20 @@ struct HabitPerformanceItem: Codable, Equatable, Sendable {
     }
 }
 
-struct HabitStreakItem: Codable, Equatable, Sendable {
+nonisolated struct HabitStreakItem: Codable, Equatable, Sendable {
     let habitName: String
     let currentStreak: Int
     let longestStreak: Int
 }
 
-struct DailyRatePoint: Codable, Equatable, Sendable {
+nonisolated struct DailyRatePoint: Codable, Equatable, Sendable {
     let date: String
     let rate: Double
 }
 
 // MARK: - Task
 
-struct TaskAnalysisContext: Codable, Equatable, Sendable {
+nonisolated struct TaskAnalysisContext: Codable, Equatable, Sendable {
     let totalCount: Int
     let completedCount: Int
     let overdueCount: Int
@@ -200,14 +200,14 @@ struct TaskAnalysisContext: Codable, Equatable, Sendable {
     }
 }
 
-struct DailyCountPoint: Codable, Equatable, Sendable {
+nonisolated struct DailyCountPoint: Codable, Equatable, Sendable {
     let date: String
     let count: Int
 }
 
 // MARK: - Thought
 
-struct ThoughtAnalysisContext: Codable, Equatable, Sendable {
+nonisolated struct ThoughtAnalysisContext: Codable, Equatable, Sendable {
     let totalCount: Int
     let moodDistribution: [MoodDistributionItem]
     let topTags: [String]
@@ -219,7 +219,7 @@ struct ThoughtAnalysisContext: Codable, Equatable, Sendable {
     }
 }
 
-struct MoodDistributionItem: Codable, Equatable, Sendable {
+nonisolated struct MoodDistributionItem: Codable, Equatable, Sendable {
     let mood: String
     let count: Int
     let percentage: Double
@@ -227,7 +227,7 @@ struct MoodDistributionItem: Codable, Equatable, Sendable {
 
 // MARK: - CrossModule
 
-struct CrossModuleAnalysisContext: Codable, Equatable, Sendable {
+nonisolated struct CrossModuleAnalysisContext: Codable, Equatable, Sendable {
     let highlights: [String]
     let warnings: [String]
 
@@ -238,7 +238,7 @@ struct CrossModuleAnalysisContext: Codable, Equatable, Sendable {
 
 // MARK: - Health
 
-struct HealthMetricAnalysis: Codable, Equatable, Sendable {
+nonisolated struct HealthMetricAnalysis: Codable, Equatable, Sendable {
     let totalValue: Double
     let dailyAverage: Double
     let goalMetDays: Int
@@ -251,7 +251,7 @@ struct HealthMetricAnalysis: Codable, Equatable, Sendable {
     }
 }
 
-struct HealthAnalysisContext: Codable, Equatable, Sendable {
+nonisolated struct HealthAnalysisContext: Codable, Equatable, Sendable {
     let steps: HealthMetricAnalysis?
     let sleep: HealthMetricAnalysis?
     let stand: HealthMetricAnalysis?
@@ -268,7 +268,7 @@ struct HealthAnalysisContext: Codable, Equatable, Sendable {
 
 // MARK: - Goal
 
-struct GoalProgressItem: Codable, Equatable, Sendable {
+nonisolated struct GoalProgressItem: Codable, Equatable, Sendable {
     let title: String
     let domain: String
     let status: String
@@ -282,7 +282,7 @@ struct GoalProgressItem: Codable, Equatable, Sendable {
     let isOverdue: Bool
 }
 
-struct GoalAnalysisContext: Codable, Equatable, Sendable {
+nonisolated struct GoalAnalysisContext: Codable, Equatable, Sendable {
     let totalActiveGoals: Int
     let goals: [GoalProgressItem]
     let completedGoalsInPeriod: Int

@@ -522,7 +522,7 @@ struct AddCategorySheet: View {
                     LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 6), spacing: 12) {
                         ForEach(presetColors, id: \.self) { hex in
                             Circle()
-                                .fill(Color(hex: hex) ?? .gray)
+                                .fill(Color(hex: hex))
                                 .frame(width: 36, height: 36)
                                 .overlay(
                                     Circle()
@@ -724,4 +724,4 @@ struct EditCategorySheet: View {
 
 // MARK: - Category Identifiable
 
-extension Category: @retroactive Identifiable {}
+extension Category: Identifiable {}

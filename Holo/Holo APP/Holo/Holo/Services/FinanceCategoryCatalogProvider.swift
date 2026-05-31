@@ -21,11 +21,11 @@ final class FinanceCategoryCatalogProvider {
     init(
         baseURL: String = HoloBackendEnvironment.baseURL,
         apiClient: APIClient = .shared,
-        cache: FinanceCategoryCatalogCache = .shared
+        cache: FinanceCategoryCatalogCache? = nil
     ) {
         self.baseURL = baseURL
         self.apiClient = apiClient
-        self.cache = cache
+        self.cache = cache ?? .shared
     }
 
     func loadCatalog(forceRefresh: Bool = false) async -> FinanceCategoryCatalog {

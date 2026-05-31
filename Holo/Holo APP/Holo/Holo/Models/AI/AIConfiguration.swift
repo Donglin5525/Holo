@@ -9,7 +9,7 @@
 import Foundation
 
 /// LLM 服务商类型
-enum AIProviderType: String, Codable, CaseIterable {
+nonisolated enum AIProviderType: String, Codable, CaseIterable {
     case deepseek = "DeepSeek"
     case qwen = "通义千问"
     case moonshot = "Moonshot"
@@ -42,7 +42,7 @@ enum AIProviderType: String, Codable, CaseIterable {
 }
 
 /// AI Provider 配置
-struct AIProviderConfig: Codable {
+nonisolated struct AIProviderConfig: Codable {
     var provider: AIProviderType
     var apiKey: String
     var model: String
@@ -133,7 +133,7 @@ struct AIProviderConfig: Codable {
 }
 
 private extension KeyedDecodingContainer where Key == AIProviderConfig.CodingKeys {
-    func decodeIfPresentProvider(forKey key: Key) -> AIProviderType? {
+    nonisolated func decodeIfPresentProvider(forKey key: Key) -> AIProviderType? {
         if let provider = try? decodeIfPresent(AIProviderType.self, forKey: key) {
             return provider
         }

@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum FinancePendingCategory {
+nonisolated enum FinancePendingCategory {
     static let currentName = "待分类"
     static let legacyName = "待确认"
 }

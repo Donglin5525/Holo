@@ -70,7 +70,7 @@ enum HoloLongTermMemoryStore {
         // 原子写入：临时文件 + 替换
         let tempURL = dir.appendingPathComponent("HoloLongTermMemories_temp.json")
         try data.write(to: tempURL, options: .atomic)
-        try fm.replaceItemAt(storeURL, withItemAt: tempURL)
+        _ = try fm.replaceItemAt(storeURL, withItemAt: tempURL)
     }
 
     // MARK: - Upsert Candidate

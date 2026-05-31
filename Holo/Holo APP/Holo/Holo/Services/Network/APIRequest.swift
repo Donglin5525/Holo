@@ -8,14 +8,14 @@
 
 import Foundation
 
-struct APIRequest {
+nonisolated struct APIRequest {
     let baseURL: String
     let path: String
     let method: HTTPMethod
     let headers: [String: String]
     let body: Encodable?
 
-    enum HTTPMethod: String {
+    nonisolated enum HTTPMethod: String {
         case get = "GET"
         case post = "POST"
         case put = "PUT"

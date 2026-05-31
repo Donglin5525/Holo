@@ -144,7 +144,7 @@ struct AddAccountSheet: View {
 
     private func typeButton(for type: AccountType) -> some View {
         let isSelected = selectedType == type
-        let tintColor = Color(hex: type.defaultColor) ?? .holoPrimary
+        let tintColor = Color(hex: type.defaultColor)
 
         return Button {
             selectedType = type
@@ -193,7 +193,7 @@ struct AddAccountSheet: View {
                     } label: {
                         ZStack {
                             Circle()
-                                .fill(Color(hex: hex) ?? .gray)
+                                .fill(Color(hex: hex))
                                 .frame(width: 36, height: 36)
                             if selectedColor == hex {
                                 Image(systemName: "checkmark")

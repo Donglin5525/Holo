@@ -150,7 +150,7 @@ extension HabitRepository {
                             currentDate as NSDate,
                             nextDay as NSDate
                         )
-                        if let dayRecords = try? context.fetch(request) as? [HabitRecord] {
+                        if let dayRecords = try? context.fetch(request) {
                             let aggregatedValue: Double
                             if habit.isCountType {
                                 aggregatedValue = dayRecords.compactMap { $0.value?.doubleValue }.reduce(0, +)

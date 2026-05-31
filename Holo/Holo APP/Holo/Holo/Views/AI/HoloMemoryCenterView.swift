@@ -177,17 +177,17 @@ struct HoloMemoryCenterView: View {
     }
 
     private func confirmCandidate(_ candidate: HoloLongTermMemory) {
-        HoloLongTermMemoryStore.confirm(id: candidate.id)
+        _ = HoloLongTermMemoryStore.confirm(id: candidate.id)
         loadMemories()
     }
 
     private func rejectCandidate(_ candidate: HoloLongTermMemory) {
-        HoloLongTermMemoryStore.reject(id: candidate.id)
+        _ = HoloLongTermMemoryStore.reject(id: candidate.id)
         loadMemories()
     }
 
     private func deleteMemory(_ memory: HoloLongTermMemory) {
-        HoloLongTermMemoryStore.delete(id: memory.id)
+        _ = HoloLongTermMemoryStore.delete(id: memory.id)
         loadMemories()
     }
 

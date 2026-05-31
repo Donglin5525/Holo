@@ -93,9 +93,6 @@ struct MemoryItem: Identifiable, Equatable {
 extension MemoryItem {
     /// 从交易记录创建 MemoryItem
     static func from(transaction: Transaction) -> MemoryItem {
-        let isExpense = transaction.transactionType == .expense
-        let sign = isExpense ? "-" : "+"
-
         return MemoryItem(
             id: transaction.id,
             type: .transaction,
@@ -187,7 +184,7 @@ extension MemoryItem {
 extension MemoryItem {
     /// 解析颜色
     var color: Color {
-        Color(hex: colorHex) ?? .holoPrimary
+        Color(hex: colorHex)
     }
 
     /// 格式化日期（相对时间）

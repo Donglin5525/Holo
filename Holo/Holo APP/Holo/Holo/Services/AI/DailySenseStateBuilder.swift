@@ -20,8 +20,7 @@ struct DailySenseStateBuilder {
         let calendar = Calendar.current
         let todayStart = calendar.startOfDay(for: today)
 
-        guard let yesterdayStart = calendar.date(byAdding: .day, value: -1, to: todayStart),
-              let weekAgo = calendar.date(byAdding: .day, value: -7, to: todayStart) else {
+        guard let weekAgo = calendar.date(byAdding: .day, value: -7, to: todayStart) else {
             return nil
         }
 

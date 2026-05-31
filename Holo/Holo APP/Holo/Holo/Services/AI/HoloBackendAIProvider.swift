@@ -22,12 +22,12 @@ final class HoloBackendAIProvider: AIProvider {
         baseURL: String = HoloBackendEnvironment.baseURL,
         apiClient: APIClient = .shared,
         deviceIdProvider: @escaping () -> String = { HoloBackendDeviceIdentity.shared.deviceId },
-        promptService: HoloBackendPromptService = .shared
+        promptService: HoloBackendPromptService? = nil
     ) {
         self.baseURL = baseURL
         self.apiClient = apiClient
         self.deviceIdProvider = deviceIdProvider
-        self.promptService = promptService
+        self.promptService = promptService ?? .shared
     }
 
     // MARK: - AIProvider
@@ -301,7 +301,7 @@ struct HoloBackendChatCompletionRequest: Encodable {
     }
 }
 
-final class HoloBackendDeviceIdentity {
+nonisolated final class HoloBackendDeviceIdentity {
     static let shared = HoloBackendDeviceIdentity()
 
     private let key = "holo.backend.deviceId"

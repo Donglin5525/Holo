@@ -57,7 +57,7 @@ struct ChatView: View {
                 viewModel.inputText = text
             }
         }
-        .onChange(of: goalPlanningRequest) { request in
+        .onChange(of: goalPlanningRequest) { _, request in
             guard let request else { return }
             viewModel.startGoalPlanning(seedText: request.seedText)
             goalPlanningRequest = nil
@@ -267,16 +267,16 @@ struct ChatView: View {
             .refreshable {
                 await triggerLoadEarlier(proxy: proxy)
             }
-            .onChange(of: viewModel.messages.count) { _ in
+            .onChange(of: viewModel.messages.count) { _, _ in
                 if !didInitialScrollToBottom {
                     scrollToBottom(proxy: proxy)
                     didInitialScrollToBottom = true
                 }
             }
-            .onChange(of: viewModel.streamingText) { _ in
+            .onChange(of: viewModel.streamingText) { _, _ in
                 scrollToBottom(proxy: proxy)
             }
-            .onChange(of: viewModel.isStreaming) { streaming in
+            .onChange(of: viewModel.isStreaming) { _, streaming in
                 if streaming {
                     scrollToBottom(proxy: proxy)
                 }

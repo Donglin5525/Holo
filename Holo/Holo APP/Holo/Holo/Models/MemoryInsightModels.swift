@@ -123,7 +123,7 @@ enum MemoryInsightCardType: String, Codable, CaseIterable {
 
 /// AI 输出的 evidence 只有描述性字段，不直接引用 UUID。
 /// 后处理映射在 MemoryInsightService.postProcessEvidence() 中完成。
-struct MemoryInsightEvidence: Codable, Identifiable, Equatable {
+nonisolated struct MemoryInsightEvidence: Codable, Identifiable, Equatable {
     let id: String
     let label: String
     let date: String?          // yyyy-MM-dd，AI 从 context 中引用
@@ -135,7 +135,7 @@ struct MemoryInsightEvidence: Codable, Identifiable, Equatable {
 // MARK: - Card
 
 /// 单张洞察卡
-struct MemoryInsightCard: Codable, Identifiable, Equatable {
+nonisolated struct MemoryInsightCard: Codable, Identifiable, Equatable {
     let id: String
     let type: MemoryInsightCardType
     let title: String
@@ -168,7 +168,7 @@ struct MemoryInsightCard: Codable, Identifiable, Equatable {
 // MARK: - Payload
 
 /// AI 生成结果完整载荷
-struct MemoryInsightPayload: Codable, Equatable {
+nonisolated struct MemoryInsightPayload: Codable, Equatable {
     let title: String
     let summary: String
     let cards: [MemoryInsightCard]

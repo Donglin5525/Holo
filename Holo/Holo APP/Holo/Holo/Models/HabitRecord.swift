@@ -88,7 +88,7 @@ public class HabitRecord: NSManagedObject {
 
 // MARK: - Identifiable
 
-extension HabitRecord: @retroactive Identifiable {}
+extension HabitRecord: Identifiable {}
 
 // MARK: - Concurrency
 

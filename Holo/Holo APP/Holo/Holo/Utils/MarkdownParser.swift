@@ -339,7 +339,7 @@ struct MarkdownParser {
         let afterOpenString = String(fullText[afterOpenRange])
         let afterOpenNSRange = NSRange(afterOpenString.startIndex..., in: afterOpenString)
         guard let closeMatch = RegexCache.colorClose.firstMatch(in: afterOpenString, range: afterOpenNSRange),
-              let closeSwiftRange = Range(closeMatch.range, in: afterOpenString) else {
+              Range(closeMatch.range, in: afterOpenString) != nil else {
             return nil
         }
 

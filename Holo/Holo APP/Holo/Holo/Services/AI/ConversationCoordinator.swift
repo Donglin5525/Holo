@@ -29,8 +29,8 @@ final class ConversationCoordinator {
     private let logger = Logger(subsystem: "com.holo.app", category: "ConversationCoordinator")
     private let intentRouter: IntentRouting
 
-    init(intentRouter: IntentRouting = IntentRouter.shared) {
-        self.intentRouter = intentRouter
+    init(intentRouter: IntentRouting? = nil) {
+        self.intentRouter = intentRouter ?? IntentRouter.shared
     }
 
     // MARK: - Main Entry

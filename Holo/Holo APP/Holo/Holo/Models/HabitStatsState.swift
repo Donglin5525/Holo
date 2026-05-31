@@ -258,11 +258,11 @@ class HabitStatsState: ObservableObject {
     // MARK: - 初始化
 
     init(
-        repository: HabitRepository = .shared,
-        displaySettings: HabitStatsDisplaySettings = .shared
+        repository: HabitRepository? = nil,
+        displaySettings: HabitStatsDisplaySettings? = nil
     ) {
-        self.repository = repository
-        self.displaySettings = displaySettings
+        self.repository = repository ?? .shared
+        self.displaySettings = displaySettings ?? .shared
         bindDisplaySettings()
         Task { await reload() }
     }

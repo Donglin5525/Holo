@@ -2,7 +2,7 @@ import Foundation
 
 /// 子任务字符串解析器
 /// 将 LLM 返回的逗号分隔子任务字符串解析为 [String]
-enum SubtaskParser {
+nonisolated enum SubtaskParser {
     static let maxSubtasks = 10
     static let maxTitleLength = 50
 

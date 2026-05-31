@@ -19,7 +19,7 @@ nonisolated enum EntityCategory: Hashable, Sendable {
 // MARK: - MetadataState
 
 /// 消息重元数据的加载状态
-enum ChatMessageMetadataState: Equatable, Sendable {
+nonisolated enum ChatMessageMetadataState: Equatable, Sendable {
     case unavailable   // 用户消息、流式消息 — 不需要重元数据
     case unloaded      // 可能有重元数据，尚未加载
     case loading       // 正在批量加载中
@@ -276,12 +276,12 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         let context = CoreDataStack.shared.viewContext
         switch category {
         case .finance:
-            let request = Transaction.fetchRequest()
+            let request = NSFetchRequest<Transaction>(entityName: "Transaction")
             request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
             request.fetchLimit = 1
             return (try? context.count(for: request)) ?? 0 > 0
         case .task:
-            let request = TodoTask.fetchRequest()
+            let request = NSFetchRequest<TodoTask>(entityName: "TodoTask")
             request.predicate = NSPredicate(format: "id == %@ AND deletedFlag == NO", id as CVarArg)
             request.fetchLimit = 1
             return (try? context.count(for: request)) ?? 0 > 0

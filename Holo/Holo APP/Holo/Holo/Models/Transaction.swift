@@ -79,7 +79,7 @@ public class Transaction: NSManagedObject {
 
 // MARK: - Identifiable
 /// 用于 SwiftUI sheet(item:) 等
-extension Transaction: @retroactive Identifiable {}
+extension Transaction: Identifiable {}
 
 // MARK: - Concurrency
 /// 允许在并发闭包中安全捕获 Transaction（仅在当前简单场景下使用）

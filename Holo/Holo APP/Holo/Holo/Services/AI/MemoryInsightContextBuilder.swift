@@ -31,21 +31,21 @@ struct MemoryInsightContextBuilder {
     // MARK: - Init
 
     init(
-        financeRepo: FinanceRepository = .shared,
-        habitRepo: HabitRepository = .shared,
-        todoRepo: TodoRepository = .shared,
-        thoughtRepo: ThoughtRepository = ThoughtRepository(),
-        budgetRepo: BudgetRepository = .shared,
-        insightRepo: MemoryInsightRepository = MemoryInsightRepository(),
-        dataContext: NSManagedObjectContext = CoreDataStack.shared.viewContext
+        financeRepo: FinanceRepository? = nil,
+        habitRepo: HabitRepository? = nil,
+        todoRepo: TodoRepository? = nil,
+        thoughtRepo: ThoughtRepository? = nil,
+        budgetRepo: BudgetRepository? = nil,
+        insightRepo: MemoryInsightRepository? = nil,
+        dataContext: NSManagedObjectContext? = nil
     ) {
-        self.financeRepo = financeRepo
-        self.habitRepo = habitRepo
-        self.todoRepo = todoRepo
-        self.thoughtRepo = thoughtRepo
-        self.budgetRepo = budgetRepo
-        self.insightRepo = insightRepo
-        self.dataContext = dataContext
+        self.financeRepo = financeRepo ?? .shared
+        self.habitRepo = habitRepo ?? .shared
+        self.todoRepo = todoRepo ?? .shared
+        self.thoughtRepo = thoughtRepo ?? ThoughtRepository()
+        self.budgetRepo = budgetRepo ?? .shared
+        self.insightRepo = insightRepo ?? MemoryInsightRepository()
+        self.dataContext = dataContext ?? CoreDataStack.shared.viewContext
     }
 
     private static let logger = Logger(subsystem: "com.holo.app", category: "MemoryInsightContextBuilder")
@@ -986,16 +986,16 @@ struct MemoryInsightContextBuilder {
                   let data = cardsJSON.data(using: .utf8),
                   let payload = try? JSONDecoder().decode(MemoryInsightPayload.self, from: data) else {
                 return MonthlyInsightDigest(
-                    periodStart: insight.periodStart ?? Date(),
-                    periodEnd: insight.periodEnd ?? Date(),
+                    periodStart: insight.periodStart,
+                    periodEnd: insight.periodEnd,
                     summary: insight.summary,
                     keyFindings: [],
                     moduleSnapshots: []
                 )
             }
             return MonthlyInsightDigest(
-                periodStart: insight.periodStart ?? Date(),
-                periodEnd: insight.periodEnd ?? Date(),
+                periodStart: insight.periodStart,
+                periodEnd: insight.periodEnd,
                 summary: payload.summary,
                 keyFindings: payload.cards.prefix(3).map(\.title),
                 moduleSnapshots: payload.cards.compactMap { card in

@@ -170,8 +170,7 @@ struct CustomDateSheet: View {
         let now = Date()
         let calendar = Calendar.current
 
-        guard let minDate = calendar.date(byAdding: .year, value: -5, to: now),
-              let maxDate = calendar.date(byAdding: .year, value: 1, to: now) else {
+        guard let minDate = calendar.date(byAdding: .year, value: -5, to: now) else {
             return now...now
         }
 
@@ -184,8 +183,7 @@ struct CustomDateSheet: View {
         let now = Date()
         let calendar = Calendar.current
 
-        guard let minDate = calendar.date(byAdding: .year, value: -5, to: now),
-              let maxDate = calendar.date(byAdding: .year, value: 1, to: now) else {
+        guard let maxDate = calendar.date(byAdding: .year, value: 1, to: now) else {
             return now...now
         }
 

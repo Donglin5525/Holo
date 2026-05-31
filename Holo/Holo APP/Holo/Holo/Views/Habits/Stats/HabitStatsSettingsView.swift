@@ -106,10 +106,10 @@ struct HabitStatsSettingsView: View {
         HStack(spacing: HoloSpacing.md) {
             Group {
                 habit.iconImage(size: 16)
-                    .foregroundColor(Color(hex: habit.color) ?? .holoPrimary)
+                    .foregroundColor(Color(hex: habit.color))
             }
             .frame(width: 28, height: 28)
-            .background((Color(hex: habit.color) ?? .holoPrimary).opacity(0.12))
+            .background((Color(hex: habit.color)).opacity(0.12))
             .clipShape(RoundedRectangle(cornerRadius: 6))
 
             Text(habit.name)
@@ -178,7 +178,6 @@ struct HabitStatsSettingsView: View {
     // MARK: - Helpers
 
     private var orderedHabits: [Habit] {
-        let order = Dictionary(uniqueKeysWithValues: settings.orderedHabitIds.enumerated().map { ($1, $0) })
         let unordered = repository.activeHabits.filter { !settings.orderedHabitIds.contains($0.id) }
         let ordered = settings.orderedHabitIds.compactMap { id in
             repository.activeHabits.first { $0.id == id }

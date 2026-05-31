@@ -9,7 +9,7 @@
 import Foundation
 
 /// 通用分析上下文，每个领域最多填充一个子上下文
-struct AnalysisContext: Codable, Equatable, Sendable {
+nonisolated struct AnalysisContext: Codable, Equatable, Sendable {
     let domain: AnalysisDomain
     let periodLabel: String
     let startDate: String

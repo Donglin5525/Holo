@@ -66,7 +66,7 @@ struct LinkedEntity: Codable {
 // MARK: - ParsedResult
 
 /// AI 意图识别结果
-struct ParsedResult: Codable {
+nonisolated struct ParsedResult: Codable {
     let intent: AIIntent
     let confidence: Double
     let extractedData: [String: String]?
@@ -75,7 +75,7 @@ struct ParsedResult: Codable {
     let responseText: String?
 
     /// 高置信度阈值
-    static let highConfidenceThreshold = 0.7
+    nonisolated static let highConfidenceThreshold = 0.7
 
     var isHighConfidence: Bool {
         confidence >= Self.highConfidenceThreshold
@@ -346,11 +346,11 @@ struct ChatCompletionResponse: Codable {
 }
 
 /// SSE 流式响应块
-struct SSEChunk: Codable {
+nonisolated struct SSEChunk: Codable {
     let id: String?
     let choices: [ChunkChoice]?
 
-    struct ChunkChoice: Codable {
+    nonisolated struct ChunkChoice: Codable {
         let index: Int?
         let delta: Delta?
         let finishReason: String?
@@ -361,7 +361,7 @@ struct SSEChunk: Codable {
         }
     }
 
-    struct Delta: Codable {
+    nonisolated struct Delta: Codable {
         let role: String?
         let content: String?
     }

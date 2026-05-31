@@ -18,6 +18,8 @@ struct TagInputView: View {
     @Environment(\.dismiss) var dismiss
     @Binding var selectedTags: [String]
 
+    private let thoughtRepository = ThoughtRepository()
+
     /// 输入文本
     @State private var inputText: String = ""
 
@@ -26,6 +28,9 @@ struct TagInputView: View {
 
     /// 所有标签
     @State private var allTags: [ThoughtTag] = []
+
+    /// 首次使用时的默认标签
+    private static let defaultTags = ["工作", "生活", "灵感", "学习", "阅读"]
 
     // MARK: - Body
 
@@ -152,9 +157,23 @@ struct TagInputView: View {
 
     /// 加载标签
     private func loadTags() {
-        // TODO: 从 Core Data 加载标签
-        // 临时使用模拟数据
-        suggestedTags = ["工作", "生活", "灵感", "学习", "阅读"]
+        do {
+            allTags = try thoughtRepository.getAllTags()
+            // 用 Core Data 中已有的标签名作为推荐，按使用频率排序
+            let userTagNames = allTags.map { $0.name }
+            if userTagNames.isEmpty {
+                // 首次使用，显示默认标签
+                suggestedTags = Self.defaultTags
+            } else {
+                // 显示用户创建的标签（排除已选中的），不足时补充默认标签
+                let unselectedUserTags = userTagNames.filter { !selectedTags.contains($0) }
+                let fallbackDefaults = Self.defaultTags.filter { !selectedTags.contains($0) && !userTagNames.contains($0) }
+                suggestedTags = unselectedUserTags + fallbackDefaults
+            }
+        } catch {
+            // 加载失败时回退到默认标签
+            suggestedTags = Self.defaultTags
+        }
     }
 
     /// 添加标签

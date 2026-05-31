@@ -9,8 +9,7 @@
 import Foundation
 import os.log
 
-@MainActor
-final class APIClient {
+nonisolated final class APIClient {
 
     static let shared = APIClient()
 

@@ -45,7 +45,7 @@ final class ICloudSyncStatusService: ObservableObject {
             object: nil,
             queue: .main
         ) { [weak self] notification in
-            Task { @MainActor in
+            MainActor.assumeIsolated {
                 self?.handleCloudKitEvent(notification)
             }
         }

@@ -35,7 +35,7 @@ public class Category: NSManagedObject {
     /// SwiftUI 颜色（防御：已删除对象回退默认色）
     public var swiftUIColor: Color {
         guard !isDeleted else { return .holoPrimary }
-        return Color(hex: color) ?? .holoPrimary
+        return Color(hex: color)
     }
     
     /// 交易类型枚举

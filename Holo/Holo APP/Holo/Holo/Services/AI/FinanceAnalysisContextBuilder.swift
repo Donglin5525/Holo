@@ -283,7 +283,6 @@ struct FinanceAnalysisContextBuilder {
         start: Date,
         end: Date
     ) -> [FinanceMonthlyItem] {
-        let calendar = Calendar.current
         var monthlyMap: [String: (expense: Decimal, income: Decimal)] = [:]
 
         for tx in transactions {

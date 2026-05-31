@@ -91,7 +91,7 @@ class FinanceAnalysisState: ObservableObject {
 
     /// 当前显示的分类聚合（根据下钻状态返回一级或二级）
     var currentCategoryAggregations: [CategoryAggregation] {
-        if let topCategory = selectedTopCategory {
+        if selectedTopCategory != nil {
             // 返回该一级分类下的二级分类聚合
             return drillDownAggregations
         }

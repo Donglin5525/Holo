@@ -55,12 +55,13 @@ final class PromptEditorViewModel: ObservableObject {
 
     init(
         promptType: PromptManager.PromptType,
-        promptManager: PromptManager = .shared,
-        keychainService: KeychainService = .shared
+        promptManager: PromptManager? = nil,
+        keychainService: KeychainService? = nil
     ) {
         self.promptType = promptType
+        let promptManager = promptManager ?? .shared
         self.promptManager = promptManager
-        self.keychainService = keychainService
+        self.keychainService = keychainService ?? .shared
         self.initialContent = promptManager.loadRawTemplate(promptType)
         self.editedContent = initialContent
         self.variablePreview = PromptManager.currentVariableValues()

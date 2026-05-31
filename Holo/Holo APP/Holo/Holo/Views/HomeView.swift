@@ -145,21 +145,29 @@ struct HomeView: View {
             scheduleService.setup()
         }
         .fullScreenCover(isPresented: $showFinanceView) {
-            FinanceView()
-                .preferredColorScheme(DarkModeManager.shared.colorScheme)
+            LazyView {
+                FinanceView()
+                    .preferredColorScheme(DarkModeManager.shared.colorScheme)
+            }
         }
         .fullScreenCover(isPresented: $showHabitsView) {
-            HabitsView()
-                .preferredColorScheme(DarkModeManager.shared.colorScheme)
+            LazyView {
+                HabitsView()
+                    .preferredColorScheme(DarkModeManager.shared.colorScheme)
+            }
         }
         // 设置页面（Sheet 形式）
         .sheet(isPresented: $showSettingsView) {
-            SettingsView()
+            LazyView {
+                SettingsView()
+            }
         }
         // 待办页面（Full Screen Cover 形式）
         .fullScreenCover(isPresented: $showTasksView) {
-            TasksView()
-                .preferredColorScheme(DarkModeManager.shared.colorScheme)
+            LazyView {
+                TasksView()
+                    .preferredColorScheme(DarkModeManager.shared.colorScheme)
+            }
         }
         // 记忆长廊页面（Full Screen Cover 形式）
         .fullScreenCover(isPresented: $showMemoryGallery, onDismiss: {
@@ -168,69 +176,89 @@ struct HomeView: View {
                 showChatView = true
             }
         }) {
-            MemoryGalleryView(
-                onNavigateToFinance: {
-                    showMemoryGallery = false
-                    showFinanceView = true
-                },
-                onNavigateToChat: { prefillText in
-                    chatPrefillText = prefillText
-                    showMemoryGallery = false
-                }
-            )
-            .preferredColorScheme(DarkModeManager.shared.colorScheme)
+            LazyView {
+                MemoryGalleryView(
+                    onNavigateToFinance: {
+                        showMemoryGallery = false
+                        showFinanceView = true
+                    },
+                    onNavigateToChat: { prefillText in
+                        chatPrefillText = prefillText
+                        showMemoryGallery = false
+                    }
+                )
+                .preferredColorScheme(DarkModeManager.shared.colorScheme)
+            }
         }
         // 健康页面（Full Screen Cover 形式）
         .fullScreenCover(isPresented: $showHealthView) {
-            HealthView()
-                .preferredColorScheme(DarkModeManager.shared.colorScheme)
+            LazyView {
+                HealthView()
+                    .preferredColorScheme(DarkModeManager.shared.colorScheme)
+            }
         }
         // 观点页面（Full Screen Cover 形式）
         .fullScreenCover(isPresented: $showThoughtsView) {
-            ThoughtsView()
-                .preferredColorScheme(DarkModeManager.shared.colorScheme)
+            LazyView {
+                ThoughtsView()
+                    .preferredColorScheme(DarkModeManager.shared.colorScheme)
+            }
         }
         // AI 对话页面（Full Screen Cover 形式）
         .fullScreenCover(isPresented: $showChatView, onDismiss: {
             chatPrefillText = nil
         }) {
-            ChatView(goalPlanningRequest: $pendingGoalPlanningRequest, prefillText: chatPrefillText)
-                .preferredColorScheme(DarkModeManager.shared.colorScheme)
+            LazyView {
+                ChatView(goalPlanningRequest: $pendingGoalPlanningRequest, prefillText: chatPrefillText)
+                    .preferredColorScheme(DarkModeManager.shared.colorScheme)
+            }
         }
         // 今日看板（Full Screen Cover 形式）
         .fullScreenCover(isPresented: $showDailyKanban) {
-            DailyKanbanView()
-                .preferredColorScheme(DarkModeManager.shared.colorScheme)
+            LazyView {
+                DailyKanbanView()
+                    .preferredColorScheme(DarkModeManager.shared.colorScheme)
+            }
         }
         // 个人页面（Sheet 形式，与 SettingsView 一致，支持内部弹出子页面）
         .sheet(isPresented: $showPersonalView, onDismiss: {
             selectedTab = .ai
         }) {
-            PersonalView(onPlanGoal: {
-                pendingGoalPlanningRequest = GoalPlanningRequest(seedText: nil)
-                showPersonalView = false
-                showChatView = true
-            }, pendingGoalDetailId: $pendingGoalDetailId)
-                .preferredColorScheme(DarkModeManager.shared.colorScheme)
+            LazyView {
+                PersonalView(onPlanGoal: {
+                    pendingGoalPlanningRequest = GoalPlanningRequest(seedText: nil)
+                    showPersonalView = false
+                    showChatView = true
+                }, pendingGoalDetailId: $pendingGoalDetailId)
+                    .preferredColorScheme(DarkModeManager.shared.colorScheme)
+            }
         }
         // Holo One - 快速记账
         .sheet(isPresented: $showAddTransactionSheet) {
-            AddTransactionSheet(editingTransaction: nil) {
-                NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+            LazyView {
+                AddTransactionSheet(editingTransaction: nil) {
+                    NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+                }
             }
         }
         // Holo One - 新建待办
         .sheet(isPresented: $showAddTaskSheet) {
-            AddTaskSheet(repository: TodoRepository.shared, list: nil)
+            LazyView {
+                AddTaskSheet(repository: TodoRepository.shared, list: nil)
+            }
         }
         // Holo One - 习惯快捷打卡
         .sheet(isPresented: $showHabitQuickCheckIn) {
-            HabitQuickCheckInView()
+            LazyView {
+                HabitQuickCheckInView()
+            }
         }
         // Holo One - 记录想法
         .sheet(isPresented: $showThoughtEditor) {
-            ThoughtEditorView {
-                NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+            LazyView {
+                ThoughtEditorView {
+                    NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+                }
             }
         }
         // 监听 Deep Link：冷启动时 onAppear 读取已有值

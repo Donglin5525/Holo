@@ -110,7 +110,7 @@ class HomeScheduleService: ObservableObject {
             withTimeInterval: Self.refreshInterval,
             repeats: true
         ) { [weak self] _ in
-            Task { @MainActor in
+            MainActor.assumeIsolated {
                 self?.refresh()
             }
         }
@@ -153,7 +153,7 @@ class HomeScheduleService: ObservableObject {
         if let task = overdueTasks.first {
             return ScheduleReminderState(
                 urgency: .overdue,
-                message: "已过期 \u{2022} \(truncateTitle(task.title ?? ""))",
+                message: "已过期 \u{2022} \(truncateTitle(task.title))",
                 module: .task,
                 deepLinkTarget: .taskDetail(taskId: task.id)
             )
@@ -167,7 +167,7 @@ class HomeScheduleService: ObservableObject {
             let timeStr = formatTime(task.effectiveDueDate)
             return ScheduleReminderState(
                 urgency: .today,
-                message: "\(timeStr) \u{2022} \(truncateTitle(task.title ?? ""))",
+                message: "\(timeStr) \u{2022} \(truncateTitle(task.title))",
                 module: .task,
                 deepLinkTarget: .taskDetail(taskId: task.id)
             )
@@ -179,7 +179,7 @@ class HomeScheduleService: ObservableObject {
             let timeStr = formatTime(task.effectiveDueDate)
             return ScheduleReminderState(
                 urgency: .upcoming,
-                message: "\(dateStr) \(timeStr) \u{2022} \(truncateTitle(task.title ?? ""))",
+                message: "\(dateStr) \(timeStr) \u{2022} \(truncateTitle(task.title))",
                 module: .task,
                 deepLinkTarget: .taskDetail(taskId: task.id)
             )
@@ -232,7 +232,7 @@ class HomeScheduleService: ObservableObject {
         for (periodType, start, end) in periods {
             if let insight = try? insightRepo.fetchInsight(periodType: periodType, start: start, end: end),
                insight.insightStatus == .ready || insight.insightStatus == .stale {
-                let title = insight.title ?? "AI 回放已就绪"
+                let title = insight.title
                 let periodLabel: String
                 switch periodType {
                 case .daily: periodLabel = "今日"

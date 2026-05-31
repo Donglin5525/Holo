@@ -88,7 +88,7 @@ public class Habit: NSManagedObject {
     
     /// 习惯颜色
     var habitColor: Color {
-        Color(hex: color) ?? .holoInfo
+        Color(hex: color)
     }
     
     /// 是否为自定义图标（Asset Catalog 图标）
@@ -141,7 +141,7 @@ public class Habit: NSManagedObject {
 
 // MARK: - Identifiable
 
-extension Habit: @retroactive Identifiable {}
+extension Habit: Identifiable {}
 
 // MARK: - Concurrency
 

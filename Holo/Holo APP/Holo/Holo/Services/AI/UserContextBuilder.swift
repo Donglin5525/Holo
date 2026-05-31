@@ -109,7 +109,7 @@ final class UserContextBuilder {
         let repo = HabitRepository.shared
         let progress = repo.getTodayCheckInProgress()
 
-        var recentCheckIns: [String] = []
+        let recentCheckIns: [String] = []
         // 通过 activeHabits 获取习惯列表
         let activeHabits = repo.activeHabits.filter { !$0.isArchived }
 

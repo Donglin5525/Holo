@@ -152,7 +152,6 @@ final class MemoryInsightBackgroundService {
             }
         }
 
-        let content = MemoryInsightNotificationService()
         task.setTaskCompleted(success: true)
 
         // 调度下一次

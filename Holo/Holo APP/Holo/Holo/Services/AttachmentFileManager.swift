@@ -9,7 +9,7 @@
 import UIKit
 import os.log
 
-enum AttachmentFileManager {
+nonisolated enum AttachmentFileManager {
 
     struct SavedImageFiles: Sendable {
         let fileName: String

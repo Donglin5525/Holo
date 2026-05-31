@@ -8,7 +8,7 @@
 
 import Foundation
 
-struct SSEParser {
+nonisolated struct SSEParser {
 
     /// 解析单行 SSE 数据
     /// - Parameter line: 一行 SSE 文本

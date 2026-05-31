@@ -232,8 +232,6 @@ class HabitRepository: ObservableObject {
         if !isReady { setup() }
         guard habit.isCheckInType else { return false }
         
-        let today = Calendar.current.startOfDay(for: Date())
-        
         // 查找今日记录
         if let existingRecord = findTodayCheckInRecord(for: habit) {
             // 切换完成状态

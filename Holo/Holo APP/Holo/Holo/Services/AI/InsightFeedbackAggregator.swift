@@ -40,7 +40,6 @@ final class InsightFeedbackAggregator {
         var dataWrongCount = 0
 
         let now = Date()
-        let calendar = Calendar.current
 
         for feedback in feedbacks {
             // dataWrong 不进入画像
@@ -49,8 +48,6 @@ final class InsightFeedbackAggregator {
                 feedback.markConsumed()
                 continue
             }
-
-            let feedbackAge = calendar.dateComponents([.day], from: feedback.createdAt, to: now).day ?? 0
 
             // 处理准确性反馈
             if let accuracyStr = feedback.accuracyRating,

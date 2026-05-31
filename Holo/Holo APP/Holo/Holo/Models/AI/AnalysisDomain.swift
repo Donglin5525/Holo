@@ -8,7 +8,7 @@
 import Foundation
 
 /// 分析查询覆盖的数据领域
-enum AnalysisDomain: String, Codable, Equatable, Sendable {
+nonisolated enum AnalysisDomain: String, Codable, Equatable, Sendable {
     case finance
     case habit
     case task

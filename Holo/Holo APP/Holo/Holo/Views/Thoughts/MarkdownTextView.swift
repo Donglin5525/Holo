@@ -51,8 +51,8 @@ struct MarkdownTextView: UIViewRepresentable {
         textView.textColor = Self.baseTextColor
         textView.backgroundColor = .clear
         textView.textContainerInset = textContainerInset
-        // 启用滚动以避免 isScrollEnabled=false 在 SwiftUI ScrollView 中
-        // 产生的 intrinsicContentSize 无限布局反馈循环
+        // 初始启用滚动，SelfSizingTextView.layoutSubviews() 会根据内容与 frame 的关系动态切换
+        // 内容不超出 frame 时自动禁用，让外层 SwiftUI ScrollView 接管滚动手势
         textView.isScrollEnabled = true
         textView.isEditable = true
         textView.isSelectable = true
@@ -689,6 +689,12 @@ private extension NSAttributedString.Key {
 /// 通过 sizeThatFits 在布局完成后计算正确高度，避免 intrinsicContentSize 反馈循环
 private final class SelfSizingTextView: UITextView {
 
+    /// 重写 intrinsicContentSize 返回无固定值，避免 SwiftUI ScrollView 内布局反馈循环
+    /// 实际高度由 dynamicHeight binding + .frame(height:) 控制
+    override var intrinsicContentSize: CGSize {
+        CGSize(width: UIView.noIntrinsicMetric, height: UIView.noIntrinsicMetric)
+    }
+
     override func layoutSubviews() {
         super.layoutSubviews()
         // 利用 sizeThatFits 根据当前宽度计算内容所需高度
@@ -696,6 +702,11 @@ private final class SelfSizingTextView: UITextView {
         let fittedSize = sizeThatFits(targetSize)
         if fittedSize.height > 0 {
             (delegate as? MarkdownTextView.Coordinator)?.onHeightChange?(fittedSize.height)
+            // 内容不超出 frame 时禁用自身滚动，让外层 SwiftUI ScrollView 接管滚动手势
+            let needsSelfScroll = fittedSize.height > frame.height + 1
+            if isScrollEnabled != needsSelfScroll {
+                isScrollEnabled = needsSelfScroll
+            }
         }
     }
 }

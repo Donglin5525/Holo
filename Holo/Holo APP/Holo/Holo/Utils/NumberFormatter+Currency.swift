@@ -23,7 +23,7 @@ extension NumberFormatter {
     /// - ¥9,999.00 → ¥9,999.00（万元以下保持原样）
     /// - ¥100,000.00 → ¥10.0万
     /// - ¥100,000,000.00 → ¥1.00亿
-    static func compactCurrency(_ amount: Decimal) -> String {
+    nonisolated static func compactCurrency(_ amount: Decimal) -> String {
         let absAmount = abs(amount)
         let tenThousand: Decimal = 10_000
         let hundredMillion: Decimal = 100_000_000
@@ -35,7 +35,13 @@ extension NumberFormatter {
             let value = NSDecimalNumber(decimal: amount / tenThousand).doubleValue
             return String(format: "¥%.1f万", value)
         } else {
-            return currency.string(from: amount as NSDecimalNumber) ?? "¥0.00"
+            let formatter = NumberFormatter()
+            formatter.numberStyle = .currency
+            formatter.currencyCode = "CNY"
+            formatter.locale = Locale(identifier: "zh_CN")
+            formatter.minimumFractionDigits = 2
+            formatter.maximumFractionDigits = 2
+            return formatter.string(from: amount as NSDecimalNumber) ?? "¥0.00"
         }
     }
 }

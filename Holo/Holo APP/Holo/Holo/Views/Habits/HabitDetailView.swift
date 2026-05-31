@@ -31,7 +31,7 @@ struct HabitDetailSnapshot {
     )
     
     var habitColor: Color {
-        Color(hex: color) ?? .holoInfo
+        Color(hex: color)
     }
 
     var isCustomIcon: Bool {

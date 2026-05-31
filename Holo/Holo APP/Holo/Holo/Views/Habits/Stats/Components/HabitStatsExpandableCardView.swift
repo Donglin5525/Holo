@@ -15,7 +15,7 @@ struct HabitStatsExpandableCardView: View {
     let onTap: () -> Void
 
     private var accent: Color {
-        Color(hex: item.habitColorHex) ?? .holoPrimary
+        Color(hex: item.habitColorHex)
     }
 
     var body: some View {

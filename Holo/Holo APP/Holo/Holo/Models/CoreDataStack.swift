@@ -14,17 +14,17 @@ import CloudKit
 /// Core Data 数据栈单例
 /// 提供统一的 Core Data 访问入口，确保数据一致性
 /// 线程安全：支持后台线程预加载，主线程安全访问
-class CoreDataStack {
+nonisolated class CoreDataStack {
 
     // MARK: - Singleton
 
     /// 共享实例
-    nonisolated(unsafe) static let shared = CoreDataStack()
+    static let shared = CoreDataStack()
 
     // MARK: - Thread-Safe Properties
 
     /// 线程安全锁，保护 _persistentContainer 的读写
-    nonisolated(unsafe) private let lock = NSLock()
+    private let lock = NSLock()
 
     /// 持久化容器（线程安全存储）
     nonisolated(unsafe) private var _persistentContainer: NSPersistentContainer?
@@ -143,22 +143,25 @@ class CoreDataStack {
     func waitUntilReady() async {
         prepareIfNeeded()
 
-        lock.lock()
-        if _storeLoaded {
-            lock.unlock()
+        let didLoad = lock.withLock {
+            _storeLoaded
+        }
+        if didLoad {
             return
         }
-        lock.unlock()
 
         await withCheckedContinuation { continuation in
-            lock.lock()
-            if _storeLoaded {
-                lock.unlock()
-                continuation.resume()
-                return
+            let shouldResume = lock.withLock {
+                if _storeLoaded {
+                    return true
+                }
+                _storeLoadContinuations.append(continuation)
+                return false
             }
-            _storeLoadContinuations.append(continuation)
-            lock.unlock()
+
+            if shouldResume {
+                continuation.resume()
+            }
         }
     }
 

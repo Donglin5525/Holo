@@ -84,10 +84,10 @@ struct VoiceInputSheet: View {
         .onDisappear {
             viewModel.cleanupAfterDismiss()
         }
-        .onChange(of: scenePhase) { newPhase in
+        .onChange(of: scenePhase) { _, newPhase in
             viewModel.handleScenePhaseChange(newPhase)
         }
-        .onChange(of: viewModel.state) { newState in
+        .onChange(of: viewModel.state) { _, newState in
             handleStateFeedback(newState)
         }
     }

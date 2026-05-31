@@ -12,7 +12,7 @@ import Foundation
 
 /// AI Chat 卡片数据
 /// 渲染时从 ChatMessage 的 intent + extractedDataJSON 动态构造
-enum ChatCardData: Equatable {
+nonisolated enum ChatCardData: Equatable {
     case transaction(TransactionCardData)
     case task(TaskCardData)
     case habitCheckIn(HabitCheckInCardData)
@@ -29,7 +29,7 @@ enum ChatCardData: Equatable {
     ///   - intent: AI 识别的意图
     ///   - data: 提取的结构化数据
     /// - Returns: 对应的卡片数据，无法构造时返回 nil
-    static func from(intent: AIIntent, data: [String: String]?) -> ChatCardData? {
+    nonisolated static func from(intent: AIIntent, data: [String: String]?) -> ChatCardData? {
         guard let data = data else { return nil }
 
         switch intent {
@@ -96,7 +96,7 @@ enum ChatCardData: Equatable {
     }
 
     /// 关联实体 ID（从 extractedData 中获取）
-    static func linkedEntityId(from data: [String: String]?) -> String? {
+    nonisolated static func linkedEntityId(from data: [String: String]?) -> String? {
         guard let data = data else { return nil }
         // 优先新格式
         if let entityId = data["entityId"] { return entityId }
@@ -105,12 +105,12 @@ enum ChatCardData: Equatable {
     }
 
     /// 从 AIExecutionItem 构建卡片数据
-    static func from(executionItem: AIExecutionItem) -> ChatCardData? {
+    nonisolated static func from(executionItem: AIExecutionItem) -> ChatCardData? {
         return from(intent: executionItem.intent, data: executionItem.renderData)
     }
 
     /// 从 AIExecutionBatch 构建多个卡片数据
-    static func multiple(from batch: AIExecutionBatch?) -> [ChatCardData] {
+    nonisolated static func multiple(from batch: AIExecutionBatch?) -> [ChatCardData] {
         guard let batch = batch else { return [] }
         return batch.items.compactMap { from(executionItem: $0) }
     }
@@ -118,7 +118,7 @@ enum ChatCardData: Equatable {
 
 // MARK: - 交易卡片数据
 
-struct TransactionCardData: Equatable {
+nonisolated struct TransactionCardData: Equatable {
     let amount: String
     let note: String?
     let primaryCategory: String?
@@ -154,7 +154,7 @@ struct TransactionCardData: Equatable {
 
 // MARK: - 任务卡片数据
 
-struct TaskCardData: Equatable {
+nonisolated struct TaskCardData: Equatable {
     let title: String
     let dueDate: String?
     let priority: String?
@@ -184,7 +184,7 @@ struct TaskCardData: Equatable {
 
 // MARK: - 习惯打卡卡片数据
 
-struct HabitCheckInCardData: Equatable {
+nonisolated struct HabitCheckInCardData: Equatable {
     let habitName: String
     let streak: Int?
     let completed: Bool
@@ -192,14 +192,14 @@ struct HabitCheckInCardData: Equatable {
 
 // MARK: - 心情卡片数据
 
-struct MoodCardData: Equatable {
+nonisolated struct MoodCardData: Equatable {
     let mood: String?
     let content: String
 }
 
 // MARK: - 体重卡片数据
 
-struct WeightCardData: Equatable {
+nonisolated struct WeightCardData: Equatable {
     let weight: String
     let unit: String
 }
@@ -208,7 +208,7 @@ struct WeightCardData: Equatable {
 
 /// 将分类名称映射到 SF Symbol 图标
 /// 用于记账卡片的头部图标
-enum CategorySFSymbolMapper {
+nonisolated enum CategorySFSymbolMapper {
 
     /// 一级分类 → SF Symbol
     private static let primaryMapping: [String: String] = [
@@ -299,7 +299,7 @@ enum CategorySFSymbolMapper {
 
     /// 获取分类对应的 SF Symbol
     /// 优先使用二级分类图标，回退到一级分类图标
-    static func icon(for primaryCategory: String?, subCategory: String?) -> String {
+    nonisolated static func icon(for primaryCategory: String?, subCategory: String?) -> String {
         if let sub = subCategory, let icon = subMapping[sub] {
             return icon
         }
@@ -312,41 +312,41 @@ enum CategorySFSymbolMapper {
 
 // MARK: - 分析卡片模型
 
-struct AnalysisSummaryCardData: Equatable {
+nonisolated struct AnalysisSummaryCardData: Equatable {
     let domain: AnalysisDomain
     let periodLabel: String
     let metrics: [AnalysisBreakdownRow]
 }
 
-struct AnalysisTrendCardData: Equatable {
+nonisolated struct AnalysisTrendCardData: Equatable {
     let title: String
     let points: [AnalysisTrendPoint]
 }
 
-struct AnalysisBreakdownCardData: Equatable {
+nonisolated struct AnalysisBreakdownCardData: Equatable {
     let title: String
     let rows: [AnalysisBreakdownRow]
 }
 
-struct AnalysisComparisonCardData: Equatable {
+nonisolated struct AnalysisComparisonCardData: Equatable {
     let title: String
     let currentValue: String
     let previousValue: String?
     let change: String?
 }
 
-struct AnalysisHighlightsCardData: Equatable {
+nonisolated struct AnalysisHighlightsCardData: Equatable {
     let highlights: [String]
     let warnings: [String]
 }
 
-struct AnalysisBreakdownRow: Equatable {
+nonisolated struct AnalysisBreakdownRow: Equatable {
     let label: String
     let value: String
     let percent: Double?
 }
 
-struct AnalysisTrendPoint: Equatable {
+nonisolated struct AnalysisTrendPoint: Equatable {
     let label: String
     let value: Double
     let displayValue: String
@@ -357,7 +357,7 @@ struct AnalysisTrendPoint: Equatable {
 extension ChatCardData {
 
     /// 从 AnalysisContext 生成卡片列表
-    static func fromAnalysisContext(_ context: AnalysisContext) -> [ChatCardData] {
+    nonisolated static func fromAnalysisContext(_ context: AnalysisContext) -> [ChatCardData] {
         var cards: [ChatCardData] = []
 
         switch context.domain {
@@ -399,7 +399,7 @@ extension ChatCardData {
 
     // MARK: - Finance Cards
 
-    private static func financeCards(_ f: FinanceAnalysisContext, periodLabel: String) -> [ChatCardData] {
+    nonisolated private static func financeCards(_ f: FinanceAnalysisContext, periodLabel: String) -> [ChatCardData] {
         var cards: [ChatCardData] = []
 
         // Summary
@@ -451,7 +451,7 @@ extension ChatCardData {
 
     // MARK: - Habit Cards
 
-    private static func habitCards(_ h: HabitAnalysisContext, periodLabel: String) -> [ChatCardData] {
+    nonisolated private static func habitCards(_ h: HabitAnalysisContext, periodLabel: String) -> [ChatCardData] {
         var cards: [ChatCardData] = []
 
         var metrics: [AnalysisBreakdownRow] = [
@@ -490,7 +490,7 @@ extension ChatCardData {
         return cards
     }
 
-    private static func habitPerformanceText(_ item: HabitPerformanceItem) -> String {
+    nonisolated private static func habitPerformanceText(_ item: HabitPerformanceItem) -> String {
         let rate = String(format: "%.0f%%", item.completionRate * 100)
         guard item.polarity == .negative else {
             return "\(item.habitName)：完成率 \(rate)"
@@ -504,7 +504,7 @@ extension ChatCardData {
 
     // MARK: - Task Cards
 
-    private static func taskCards(_ t: TaskAnalysisContext, periodLabel: String) -> [ChatCardData] {
+    nonisolated private static func taskCards(_ t: TaskAnalysisContext, periodLabel: String) -> [ChatCardData] {
         var cards: [ChatCardData] = []
 
         var metrics: [AnalysisBreakdownRow] = [
@@ -547,7 +547,7 @@ extension ChatCardData {
 
     // MARK: - Thought Cards
 
-    private static func thoughtCards(_ th: ThoughtAnalysisContext, periodLabel: String) -> [ChatCardData] {
+    nonisolated private static func thoughtCards(_ th: ThoughtAnalysisContext, periodLabel: String) -> [ChatCardData] {
         var cards: [ChatCardData] = []
 
         let metrics: [AnalysisBreakdownRow] = [
@@ -573,7 +573,7 @@ extension ChatCardData {
 
     // MARK: - Health Cards
 
-    private static func healthCards(_ h: HealthAnalysisContext, periodLabel: String) -> [ChatCardData] {
+    nonisolated private static func healthCards(_ h: HealthAnalysisContext, periodLabel: String) -> [ChatCardData] {
         var cards: [ChatCardData] = []
 
         // Summary
@@ -662,7 +662,7 @@ extension ChatCardData {
 
     // MARK: - Goal Cards
 
-    private static func goalCards(_ g: GoalAnalysisContext, periodLabel: String) -> [ChatCardData] {
+    nonisolated private static func goalCards(_ g: GoalAnalysisContext, periodLabel: String) -> [ChatCardData] {
         var cards: [ChatCardData] = []
 
         // Summary
@@ -698,7 +698,7 @@ extension ChatCardData {
 
         // Highlights
         var highlights: [String] = []
-        var warnings: [String] = g.atRiskGoals.map { "\($0) 需要关注" }
+        let warnings: [String] = g.atRiskGoals.map { "\($0) 需要关注" }
         if let prev = g.previousPeriodCompleted, prev > 0 {
             let diff = g.completedGoalsInPeriod - prev
             if diff > 0 {

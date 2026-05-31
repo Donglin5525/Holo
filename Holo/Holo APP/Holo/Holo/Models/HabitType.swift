@@ -332,6 +332,6 @@ struct HabitColorPresets {
     
     /// 将 Hex 转换为 Color
     static func color(from hex: String) -> Color {
-        Color(hex: hex) ?? .holoInfo
+        Color(hex: hex)
     }
 }

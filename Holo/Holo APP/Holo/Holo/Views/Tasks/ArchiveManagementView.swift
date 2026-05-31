@@ -358,7 +358,7 @@ private struct ArchivedTagRow: View {
         HStack(spacing: 12) {
             // 颜色指示器
             Circle()
-                .fill(Color(hex: tag.color) ?? .holoPrimary)
+                .fill(Color(hex: tag.color))
                 .frame(width: 12, height: 12)
 
             // 标签名称
@@ -468,7 +468,7 @@ private struct ArchivedTaskRow: View {
     var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
-                Text(task.title ?? "")
+                Text(task.title)
                     .font(.holoBody)
                     .foregroundColor(.holoTextPrimary)
                     .lineLimit(1)

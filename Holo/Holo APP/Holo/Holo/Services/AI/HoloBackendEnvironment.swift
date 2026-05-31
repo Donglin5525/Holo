@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum HoloBackendEnvironment {
+nonisolated enum HoloBackendEnvironment {
     static var isEnabledByDefault: Bool {
         return true
     }

@@ -445,7 +445,9 @@ final class ChatViewModel: ObservableObject {
             object: context,
             queue: .main
         ) { [weak self] notification in
-            self?.handleCoreDataChange(notification)
+            MainActor.assumeIsolated {
+                self?.handleCoreDataChange(notification)
+            }
         }
     }
 

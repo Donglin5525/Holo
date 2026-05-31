@@ -26,32 +26,24 @@ struct DailyKanbanEntryButton: View {
     @State private var ringRotation3: Double = 0
     @State private var centerPulse: Double = 0.6
 
-    // MARK: - 进度计算
+    // MARK: - 进度缓存
 
-    private var taskPercent: Double {
-        let p = todoRepo.getDailyKanbanProgress()
-        guard p.total > 0 else { return 0 }
-        return Double(p.completed) / Double(p.total)
-    }
+    /// 缓存进度值，避免动画驱动的 body 重渲染触发重复 Core Data 查询
+    @State private var cachedTaskPercent: Double = 0
+    @State private var cachedHabitPercent: Double = 0
+    @State private var cachedOverallPercent: Double = 0
 
-    private var habitPercent: Double {
+    /// 统一刷新三环进度（仅在数据变更时调用，而非每次 body 求值）
+    private func refreshProgress() {
         let visibleIds = displaySettings.dashboardVisibleHabitIds
-        let p = habitRepo.getTodayCheckInProgress(
-            visibleHabitIds: visibleIds.isEmpty ? nil : visibleIds
-        )
-        guard p.total > 0 else { return 0 }
-        return Double(p.completed) / Double(p.total)
-    }
-
-    private var overallPercent: Double {
         let t = todoRepo.getDailyKanbanProgress()
-        let visibleIds = displaySettings.dashboardVisibleHabitIds
         let h = habitRepo.getTodayCheckInProgress(
             visibleHabitIds: visibleIds.isEmpty ? nil : visibleIds
         )
-        let total = Double(t.total + h.total)
-        guard total > 0 else { return 0 }
-        return Double(t.completed + h.completed) / total
+        cachedTaskPercent = t.total > 0 ? Double(t.completed) / Double(t.total) : 0
+        cachedHabitPercent = h.total > 0 ? Double(h.completed) / Double(h.total) : 0
+        let overall = Double(t.total + h.total)
+        cachedOverallPercent = overall > 0 ? Double(t.completed + h.completed) / overall : 0
     }
 
     // MARK: - Body
@@ -84,9 +76,10 @@ struct DailyKanbanEntryButton: View {
         .frame(width: 192, height: 192)
         .onAppear {
             isAnimating = true
-            animatedOverall = overallPercent
-            animatedHabit = habitPercent
-            animatedTask = taskPercent
+            refreshProgress()
+            animatedOverall = cachedOverallPercent
+            animatedHabit = cachedHabitPercent
+            animatedTask = cachedTaskPercent
             withAnimation(.linear(duration: 90).repeatForever(autoreverses: false)) {
                 ringRotation1 = 360
             }
@@ -103,17 +96,26 @@ struct DailyKanbanEntryButton: View {
                 breathScale = 1.03
             }
         }
-        .onChange(of: overallPercent) { _, newValue in
+        .onReceive(NotificationCenter.default.publisher(for: .todoDataDidChange)) { _ in
+            refreshProgress()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .habitDataDidChange)) { _ in
+            refreshProgress()
+        }
+        .onChange(of: displaySettings.dashboardVisibleHabitIds) { _, _ in
+            refreshProgress()
+        }
+        .onChange(of: cachedOverallPercent) { _, newValue in
             withAnimation(.spring(response: 0.8, dampingFraction: 0.7)) {
                 animatedOverall = newValue
             }
         }
-        .onChange(of: habitPercent) { _, newValue in
+        .onChange(of: cachedHabitPercent) { _, newValue in
             withAnimation(.spring(response: 0.8, dampingFraction: 0.7)) {
                 animatedHabit = newValue
             }
         }
-        .onChange(of: taskPercent) { _, newValue in
+        .onChange(of: cachedTaskPercent) { _, newValue in
             withAnimation(.spring(response: 0.8, dampingFraction: 0.7)) {
                 animatedTask = newValue
             }

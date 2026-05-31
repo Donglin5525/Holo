@@ -22,10 +22,10 @@ final class ThoughtVoiceSummaryProcessor: VoiceTranscriptPostProcessing {
 
     init(
         aiProvider: HoloBackendAIProvider,
-        promptManager: PromptManager = .shared
+        promptManager: PromptManager? = nil
     ) {
         self.aiProvider = aiProvider
-        self.promptManager = promptManager
+        self.promptManager = promptManager ?? .shared
     }
 
     convenience init() {

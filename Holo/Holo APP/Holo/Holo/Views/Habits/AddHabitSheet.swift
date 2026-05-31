@@ -180,7 +180,7 @@ struct AddHabitSheet: View {
             } label: {
                 ZStack {
                     Circle()
-                        .fill(Color(hex: selectedColor).opacity(0.1) ?? Color.holoInfo.opacity(0.1))
+                        .fill(Color(hex: selectedColor).opacity(0.1))
                         .frame(width: 64, height: 64)
                     
                     // 判断是否为自定义图标
@@ -190,11 +190,11 @@ struct AddHabitSheet: View {
                             .resizable()
                             .scaledToFit()
                             .frame(width: 28, height: 28)
-                            .foregroundColor(Color(hex: selectedColor) ?? .holoInfo)
+                            .foregroundColor(Color(hex: selectedColor))
                     } else {
                         Image(systemName: selectedIcon)
                             .font(.system(size: 28, weight: .medium))
-                            .foregroundColor(Color(hex: selectedColor) ?? .holoInfo)
+                            .foregroundColor(Color(hex: selectedColor))
                     }
                 }
             }
@@ -210,7 +210,7 @@ struct AddHabitSheet: View {
                         selectedColor = color
                     } label: {
                         Circle()
-                            .fill(Color(hex: color) ?? .holoInfo)
+                            .fill(Color(hex: color))
                             .frame(width: 28, height: 28)
                             .overlay(
                                 Circle()
@@ -218,7 +218,7 @@ struct AddHabitSheet: View {
                             )
                             .overlay(
                                 Circle()
-                                    .stroke(Color(hex: color).opacity(0.3) ?? .clear, lineWidth: selectedColor == color ? 1 : 0)
+                                    .stroke(Color(hex: color).opacity(0.3), lineWidth: selectedColor == color ? 1 : 0)
                                     .padding(-1)
                             )
                     }

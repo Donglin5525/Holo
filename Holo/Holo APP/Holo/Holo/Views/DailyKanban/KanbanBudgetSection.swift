@@ -12,7 +12,7 @@ struct KanbanBudgetSection: View {
     @State private var budgetSummary: GlobalBudgetSummary?
 
     var body: some View {
-        if let summary = budgetSummary {
+        if budgetSummary != nil {
             section
                 .onAppear { loadBudget() }
         } else {

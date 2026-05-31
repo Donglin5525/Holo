@@ -288,7 +288,7 @@ class TodoRepository: ObservableObject {
         // 创建子任务（原子操作，与主任务同一次 save）
         if let checkItemTitles = checkItemTitles {
             for (index, title) in checkItemTitles.enumerated() {
-                CheckItem.create(in: context, title: title, task: task, order: Int16(index))
+                _ = CheckItem.create(in: context, title: title, task: task, order: Int16(index))
             }
         }
 
