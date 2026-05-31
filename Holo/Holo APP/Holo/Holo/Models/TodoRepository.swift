@@ -647,6 +647,7 @@ class TodoRepository: ObservableObject {
     /// 切换检查项状态
     func toggleCheckItem(_ item: CheckItem) throws {
         item.isChecked.toggle()
+        item.task?.updatedAt = Date()
         try context.save()
         loadActiveTasks()
         notifyDataChange()

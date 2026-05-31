@@ -263,6 +263,18 @@ struct TaskCardView: View {
     private func toggleCheckItem(_ item: CheckItem) {
         do {
             try repository.toggleCheckItem(item)
+
+            // 所有子项完成 → 通过 onToggleCompletion 走撤回流程自动完成父任务
+            // 有子项未完成且父任务已完成 → 自动取消完成父任务
+            let items = checkItems
+            guard !items.isEmpty else { return }
+
+            let allChecked = items.allSatisfy(\.isChecked)
+            if allChecked && !task.completed {
+                onToggleCompletion?()
+            } else if !allChecked && task.completed {
+                onToggleCompletion?()
+            }
         } catch {
             Self.logger.error("切换检查项状态失败: \(error.localizedDescription)")
         }
