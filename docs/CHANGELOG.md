@@ -14,6 +14,7 @@
 - **iOS**: AI 意图标签支持任务跳转
 - **iOS**: 首页小黄点指示器 + HoloProfile 个人档案
 - **iOS**: 记忆长廊三 Tab 改版：AI 回放 + 地图 + 明细
+- **iOS**: 子任务全部完成时自动完成父任务，支持 3 秒撤回；取消已完成任务的子项时自动恢复父任务为未完成
 
 ### Improvements
 - **Backend**: 新增 DeepSeek 聊天转发、DashScope ASR 转写、设备级限流、请求字段过滤、ECS systemd/Nginx 部署文档和 smoke test
