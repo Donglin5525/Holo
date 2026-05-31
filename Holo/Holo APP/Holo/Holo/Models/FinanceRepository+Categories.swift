@@ -128,8 +128,9 @@ extension FinanceRepository {
     func ensurePendingCategory(type: TransactionType) -> Category {
         let request = Category.fetchRequest()
         request.predicate = NSPredicate(
-            format: "name == %@ AND type == %@",
-            FinancePendingCategory.currentName, type.rawValue
+            format: "name == %@ AND type == %@ AND parentId != nil",
+            FinancePendingCategory.currentName,
+            type.rawValue
         )
         if let existing = try? context.fetch(request).first {
             return existing
@@ -137,8 +138,9 @@ extension FinanceRepository {
 
         let legacyRequest = Category.fetchRequest()
         legacyRequest.predicate = NSPredicate(
-            format: "name == %@ AND type == %@",
-            FinancePendingCategory.legacyName, type.rawValue
+            format: "name == %@ AND type == %@ AND parentId != nil",
+            FinancePendingCategory.legacyName,
+            type.rawValue
         )
         if let legacy = try? context.fetch(legacyRequest).first {
             legacy.name = FinancePendingCategory.currentName

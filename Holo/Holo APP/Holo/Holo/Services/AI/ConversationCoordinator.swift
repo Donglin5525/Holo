@@ -188,6 +188,44 @@ final class ConversationCoordinator {
                 continue
             }
 
+            if item.intent.isFinance {
+                var renderData = item.extractedData ?? [:]
+
+                // 预览分类匹配（不创建交易，仅获取真实分类名用于卡片展示）
+                let txType: TransactionType = item.intent == .recordIncome ? .income : .expense
+                if let preview = try? await intentRouter.previewCategoryMatch(
+                    extractedData: item.extractedData,
+                    type: txType
+                ) {
+                    if let primary = preview.primary {
+                        renderData["primaryCategory"] = primary
+                    }
+                    if let sub = preview.sub {
+                        renderData["subCategory"] = sub
+                    }
+                }
+
+                renderData["confirmationStatus"] = "pending"
+                renderData["pendingKind"] = "transaction"
+                let summary = item.intent == .recordExpense
+                    ? "我识别到一笔支出，请确认后记录"
+                    : "我识别到一笔收入，请确认后记录"
+                executionItems.append(
+                    AIExecutionItem(
+                        id: UUID().uuidString,
+                        parseItemId: item.id,
+                        intent: item.intent,
+                        status: .skipped,
+                        summaryText: summary,
+                        renderData: renderData.isEmpty ? nil : renderData,
+                        linkedEntityType: nil,
+                        linkedEntityId: nil,
+                        errorText: nil
+                    )
+                )
+                continue
+            }
+
             do {
                 let routeResult = try await intentRouter.route(item.asParsedResult)
                 let renderData = Self.buildRenderData(from: item, routeResult: routeResult)

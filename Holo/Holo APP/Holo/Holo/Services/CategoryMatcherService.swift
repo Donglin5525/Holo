@@ -198,14 +198,6 @@ class CategoryMatcherService {
             return first
         }
 
-        let topLevelMatches = categories.filter {
-            $0.isTopLevel &&
-            $0.name.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == normalizedCandidate
-        }
-        if let first = topLevelMatches.first {
-            return first
-        }
-
         return nil
     }
 

@@ -38,6 +38,7 @@ final class ChatViewModel: ObservableObject {
     private var provider: AIProvider
     private let coordinator: ConversationCoordinator
     private var repositoryBootstrapTask: Task<Void, Never>?
+    private var confirmingItemIds: Set<String> = []
     private var repoMessagesCancellable: AnyCancellable?
     private var metadataLoadPendingIds: Set<UUID> = []
     private var metadataLoadTask: Task<Void, Never>?
@@ -577,6 +578,324 @@ final class ChatViewModel: ObservableObject {
         return "已为你处理 \(items.count) 件事：\n" + items.enumerated().map { index, item in
             "\(index + 1). \(item.summaryText)"
         }.joined(separator: "\n")
+    }
+
+    // MARK: - Pending Transaction Confirmation
+
+    func confirmPendingTransaction(from message: ChatMessageViewData) {
+        guard let batch = message.executionBatch,
+              let pendingIndex = batch.items.firstIndex(where: {
+                  $0.intent.isFinance && $0.status == .skipped && $0.renderData?["confirmationStatus"] == "pending"
+              }),
+              let renderData = batch.items[pendingIndex].renderData else {
+            return
+        }
+
+        let itemId = batch.items[pendingIndex].id
+        guard !confirmingItemIds.contains(itemId) else { return }
+        confirmingItemIds.insert(itemId)
+
+        Task { @MainActor [weak self] in
+            guard let self, let chatRepo = self.chatRepo else {
+                self?.confirmingItemIds.remove(itemId)
+                return
+            }
+
+            do {
+                // 重读最新消息状态，防止过期数据重复确认
+                guard let currentBatch = self.latestExecutionBatch(for: message.id),
+                      let currentItems = currentBatch.items.first(where: { $0.id == itemId }),
+                      currentItems.renderData?["confirmationStatus"] == "pending" else {
+                    self.confirmingItemIds.remove(itemId)
+                    return
+                }
+
+                let intent: AIIntent = renderData["pendingKind"] == "transaction"
+                    ? (currentItems.intent == .recordIncome ? .recordIncome : .recordExpense)
+                    : currentItems.intent
+
+                let result = ParsedResult(
+                    intent: intent,
+                    confidence: 1,
+                    extractedData: renderData,
+                    needsClarification: false,
+                    clarificationQuestion: nil,
+                    responseText: nil
+                )
+                let routeResult = try await IntentRouter.shared.route(result)
+
+                var confirmedRenderData = renderData
+                confirmedRenderData["confirmationStatus"] = "confirmed"
+                if let entity = routeResult.linkedEntity {
+                    confirmedRenderData["entityType"] = entity.type.rawValue
+                    confirmedRenderData["entityId"] = entity.id.uuidString
+                }
+                if let txId = routeResult.transactionId {
+                    confirmedRenderData["transactionId"] = txId.uuidString
+                }
+                if let primary = routeResult.matchedPrimaryCategory {
+                    confirmedRenderData["primaryCategory"] = primary
+                }
+                if let sub = routeResult.matchedSubCategory {
+                    confirmedRenderData["subCategory"] = sub
+                }
+
+                // 写入 AI 来源标记
+                if let txId = routeResult.transactionId {
+                    self.markTransactionAsAICreated(txId, candidate: renderData["categoryCandidate"] ?? renderData["note"])
+                }
+
+                var updatedItems = batch.items
+                let pending = updatedItems[pendingIndex]
+                updatedItems[pendingIndex] = AIExecutionItem(
+                    id: pending.id,
+                    parseItemId: pending.parseItemId,
+                    intent: pending.intent,
+                    status: .success,
+                    summaryText: routeResult.text,
+                    renderData: confirmedRenderData,
+                    linkedEntityType: routeResult.linkedEntity?.type.rawValue,
+                    linkedEntityId: routeResult.linkedEntity?.id.uuidString,
+                    errorText: nil
+                )
+
+                let updatedBatch = AIExecutionBatch(
+                    mode: batch.mode,
+                    items: updatedItems,
+                    finalText: Self.confirmedFinalText(from: updatedItems)
+                )
+
+                chatRepo.updateMessage(message.id, content: updatedBatch.finalText)
+                chatRepo.updateMessageMetadata(
+                    message.id,
+                    intent: message.intent,
+                    extractedDataJSON: Self.encodeExtractedData(message.extractedDataDictionary),
+                    parsedBatchJSON: Self.encodeParseBatch(message.parsedBatch),
+                    executionBatchJSON: Self.encodeExecutionBatch(updatedBatch)
+                )
+
+                // 用户修改过分类时触发学习
+                self.recordCategoryLearningIfNeeded(
+                    renderData: renderData,
+                    routeResult: routeResult,
+                    intent: intent
+                )
+            } catch {
+                self.writeTransactionError(itemId: itemId, batch: batch, message: message, error: error)
+            }
+
+            self.confirmingItemIds.remove(itemId)
+        }
+    }
+
+    func cancelPendingTransaction(from message: ChatMessageViewData) {
+        guard let batch = message.executionBatch,
+              let pendingIndex = batch.items.firstIndex(where: {
+                  $0.intent.isFinance && $0.status == .skipped && $0.renderData?["confirmationStatus"] == "pending"
+              }) else {
+            return
+        }
+
+        let pending = batch.items[pendingIndex]
+        guard var renderData = pending.renderData else { return }
+        renderData["confirmationStatus"] = "cancelled"
+
+        var updatedItems = batch.items
+        updatedItems[pendingIndex] = AIExecutionItem(
+            id: pending.id,
+            parseItemId: pending.parseItemId,
+            intent: pending.intent,
+            status: pending.status,
+            summaryText: "已取消记账",
+            renderData: renderData,
+            linkedEntityType: pending.linkedEntityType,
+            linkedEntityId: pending.linkedEntityId,
+            errorText: nil
+        )
+
+        let updatedBatch = AIExecutionBatch(
+            mode: batch.mode,
+            items: updatedItems,
+            finalText: Self.confirmedFinalText(from: updatedItems)
+        )
+
+        chatRepo?.updateMessage(message.id, content: updatedBatch.finalText)
+        chatRepo?.updateMessageMetadata(
+            message.id,
+            intent: message.intent,
+            extractedDataJSON: Self.encodeExtractedData(message.extractedDataDictionary),
+            parsedBatchJSON: Self.encodeParseBatch(message.parsedBatch),
+            executionBatchJSON: Self.encodeExecutionBatch(updatedBatch)
+        )
+    }
+
+    /// AddTransactionSheet 编辑保存后，将待确认卡片标记为"已确认"（不重复创建交易）
+    func dismissPendingCardAfterEdit(from message: ChatMessageViewData) {
+        guard let batch = message.executionBatch,
+              let pendingIndex = batch.items.firstIndex(where: {
+                $0.intent.isFinance && $0.status == .skipped && $0.renderData?["confirmationStatus"] == "pending"
+              }) else {
+            return
+        }
+
+        let pending = batch.items[pendingIndex]
+        var renderData = pending.renderData ?? [:]
+        renderData["confirmationStatus"] = "confirmed"
+
+        var updatedItems = batch.items
+        updatedItems[pendingIndex] = AIExecutionItem(
+            id: pending.id,
+            parseItemId: pending.parseItemId,
+            intent: pending.intent,
+            status: .success,
+            summaryText: "已确认并记录",
+            renderData: renderData,
+            linkedEntityType: pending.linkedEntityType,
+            linkedEntityId: pending.linkedEntityId,
+            errorText: nil
+        )
+
+        let updatedBatch = AIExecutionBatch(
+            mode: batch.mode,
+            items: updatedItems,
+            finalText: Self.confirmedFinalText(from: updatedItems)
+        )
+
+        chatRepo?.updateMessage(message.id, content: updatedBatch.finalText)
+        chatRepo?.updateMessageMetadata(
+            message.id,
+            intent: message.intent,
+            extractedDataJSON: Self.encodeExtractedData(message.extractedDataDictionary),
+            parsedBatchJSON: Self.encodeParseBatch(message.parsedBatch),
+            executionBatchJSON: Self.encodeExecutionBatch(updatedBatch)
+        )
+    }
+
+    private func writeTransactionError(
+        itemId: String,
+        batch: AIExecutionBatch,
+        message: ChatMessageViewData,
+        error: Error
+    ) {
+        guard let pendingIndex = batch.items.firstIndex(where: { $0.id == itemId }) else { return }
+        let pending = batch.items[pendingIndex]
+        var renderData = pending.renderData ?? [:]
+        renderData["confirmationStatus"] = "failed"
+        renderData["confirmationError"] = error.localizedDescription
+
+        var updatedItems = batch.items
+        updatedItems[pendingIndex] = AIExecutionItem(
+            id: pending.id,
+            parseItemId: pending.parseItemId,
+            intent: pending.intent,
+            status: .skipped,
+            summaryText: pending.summaryText,
+            renderData: renderData,
+            linkedEntityType: pending.linkedEntityType,
+            linkedEntityId: pending.linkedEntityId,
+            errorText: error.localizedDescription
+        )
+
+        let updatedBatch = AIExecutionBatch(
+            mode: batch.mode,
+            items: updatedItems,
+            finalText: Self.confirmedFinalText(from: updatedItems)
+        )
+
+        chatRepo?.updateMessage(message.id, content: updatedBatch.finalText)
+        chatRepo?.updateMessageMetadata(
+            message.id,
+            intent: message.intent,
+            extractedDataJSON: Self.encodeExtractedData(message.extractedDataDictionary),
+            parsedBatchJSON: Self.encodeParseBatch(message.parsedBatch),
+            executionBatchJSON: Self.encodeExecutionBatch(updatedBatch)
+        )
+    }
+
+    private func latestExecutionBatch(for messageId: UUID) -> AIExecutionBatch? {
+        guard let msg = messages.first(where: { $0.id == messageId }) else { return nil }
+        return msg.executionBatch
+    }
+
+    // MARK: - Pending Transaction Category Update
+
+    func updatePendingTransactionCategory(
+        from message: ChatMessageViewData,
+        category: Category
+    ) {
+        guard category.isSubCategory,
+              let batch = message.executionBatch,
+              let pendingIndex = batch.items.firstIndex(where: {
+                  $0.intent.isFinance && $0.status == .skipped && $0.renderData?["confirmationStatus"] == "pending"
+              }) else {
+            return
+        }
+
+        let pending = batch.items[pendingIndex]
+        var renderData = pending.renderData ?? [:]
+
+        // 查找父分类名称
+        let parentName = FinanceRepository.shared.parentCategoryName(for: category)
+        renderData["primaryCategory"] = parentName
+        renderData["subCategory"] = category.name
+        renderData["selectedCategoryId"] = category.id.uuidString
+
+        var updatedItems = batch.items
+        updatedItems[pendingIndex] = AIExecutionItem(
+            id: pending.id,
+            parseItemId: pending.parseItemId,
+            intent: pending.intent,
+            status: pending.status,
+            summaryText: pending.summaryText,
+            renderData: renderData,
+            linkedEntityType: pending.linkedEntityType,
+            linkedEntityId: pending.linkedEntityId,
+            errorText: pending.errorText
+        )
+
+        let updatedBatch = AIExecutionBatch(
+            mode: batch.mode,
+            items: updatedItems,
+            finalText: batch.finalText
+        )
+
+        chatRepo?.updateMessage(message.id, content: updatedBatch.finalText)
+        chatRepo?.updateMessageMetadata(
+            message.id,
+            intent: message.intent,
+            extractedDataJSON: Self.encodeExtractedData(message.extractedDataDictionary),
+            parsedBatchJSON: Self.encodeParseBatch(message.parsedBatch),
+            executionBatchJSON: Self.encodeExecutionBatch(updatedBatch)
+        )
+    }
+
+    // MARK: - Category Learning
+
+    private func markTransactionAsAICreated(_ transactionId: UUID, candidate: String?) {
+        FinanceRepository.shared.markTransactionAsAICreated(transactionId, candidate: candidate)
+    }
+
+    private func recordCategoryLearningIfNeeded(
+        renderData: [String: String],
+        routeResult: IntentRouter.RouteResult,
+        intent: AIIntent
+    ) {
+        // 只有用户通过 Sheet 修改过分类才触发学习
+        guard renderData["selectedCategoryId"] != nil else { return }
+        guard let candidate = renderData["categoryCandidate"] ?? renderData["note"],
+              !candidate.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        guard let targetPrimary = routeResult.matchedPrimaryCategory,
+              let targetSub = routeResult.matchedSubCategory else { return }
+
+        let type: TransactionType = intent == .recordIncome ? .income : .expense
+        CategoryLearnedMapping.record(
+            candidate: candidate,
+            type: type,
+            primaryCategory: renderData["primaryCategory"] ?? "",
+            targetPrimary: targetPrimary,
+            targetSub: targetSub
+        )
+        logger.info("记账分类学习：\(candidate) → \(targetPrimary)/\(targetSub)")
     }
 
     // MARK: - Helpers

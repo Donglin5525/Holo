@@ -99,25 +99,19 @@ extension FinanceRepository {
                         newCategoriesCount += 1
                     }
                     
-                    // 查找或创建二级分类
-                    if item.subCategory == item.primaryCategory {
-                        // 一级和二级同名时直接使用一级分类
-                        category = parentCategory
-                    } else {
-                        let childCategory = Category.create(
-                            in: context,
-                            name: item.subCategory,
-                            icon: "questionmark.circle.fill",
-                            color: parentCategory.color,
-                            type: typeStr,
-                            isDefault: false,
-                            sortOrder: 0,
-                            parentId: parentCategory.id
-                        )
-                        categoryCache[cacheKey] = childCategory
-                        newCategoriesCount += 1
-                        category = childCategory
-                    }
+                    let childCategory = Category.create(
+                        in: context,
+                        name: item.subCategory,
+                        icon: "questionmark.circle.fill",
+                        color: parentCategory.color,
+                        type: typeStr,
+                        isDefault: false,
+                        sortOrder: 0,
+                        parentId: parentCategory.id
+                    )
+                    categoryCache[cacheKey] = childCategory
+                    newCategoriesCount += 1
+                    category = childCategory
                 }
                 
                 // --- 匹配或创建账户 ---
@@ -251,7 +245,7 @@ extension FinanceRepository {
                 let matchResult = matchResults[safe: index]
                 let category: Category
 
-                if let matched = matchResult?.matchedCategory {
+                if let matched = matchResult?.matchedCategory, matched.isSubCategory {
                     // 使用匹配到的分类
                     category = matched
                 } else {
@@ -282,24 +276,19 @@ extension FinanceRepository {
                             newCategoriesCount += 1
                         }
 
-                        // 查找或创建二级分类
-                        if item.subCategory == item.primaryCategory {
-                            category = parentCategory
-                        } else {
-                            let childCategory = Category.create(
-                                in: context,
-                                name: item.subCategory,
-                                icon: "questionmark.circle.fill",
-                                color: parentCategory.color,
-                                type: typeStr,
-                                isDefault: false,
-                                sortOrder: 0,
-                                parentId: parentCategory.id
-                            )
-                            categoryCache[cacheKey] = childCategory
-                            newCategoriesCount += 1
-                            category = childCategory
-                        }
+                        let childCategory = Category.create(
+                            in: context,
+                            name: item.subCategory,
+                            icon: "questionmark.circle.fill",
+                            color: parentCategory.color,
+                            type: typeStr,
+                            isDefault: false,
+                            sortOrder: 0,
+                            parentId: parentCategory.id
+                        )
+                        categoryCache[cacheKey] = childCategory
+                        newCategoriesCount += 1
+                        category = childCategory
                     }
                 }
 

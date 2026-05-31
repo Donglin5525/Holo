@@ -18,6 +18,8 @@ struct ChatView: View {
     @State private var pendingVoiceTranscriptToSend: String?
     @State private var pendingDelete: PendingCardDelete?
     @State private var showDeleteConfirmation = false
+    @State private var pendingCategoryEditMessage: ChatMessageViewData?
+    @State private var pendingEditPrefill: PendingTransactionPrefill?
     @Binding var goalPlanningRequest: GoalPlanningRequest?
 
     /// 外部传入的预填文本（如从记忆长廊"继续问AI"跳转）
@@ -65,6 +67,23 @@ struct ChatView: View {
         .fullScreenCover(item: $viewingLogMessage) { message in
             if let log = message.rawLog {
                 ChatLogView(log: log)
+            }
+        }
+        .sheet(isPresented: Binding(
+            get: { pendingCategoryEditMessage != nil },
+            set: { if !$0 { pendingCategoryEditMessage = nil } }
+        )) {
+            if let prefill = pendingEditPrefill {
+                AddTransactionSheet(
+                    editingTransaction: nil,
+                    pendingPrefill: prefill
+                ) {
+                    if let msg = pendingCategoryEditMessage {
+                        viewModel.dismissPendingCardAfterEdit(from: msg)
+                    }
+                    pendingCategoryEditMessage = nil
+                    pendingEditPrefill = nil
+                }
             }
         }
         .confirmationDialog(
@@ -253,6 +272,25 @@ struct ChatView: View {
                             },
                             onTaskConfirm: { msg in
                                 viewModel.confirmPendingTask(from: msg)
+                            },
+                            onTransactionConfirm: { msg in
+                                viewModel.confirmPendingTransaction(from: msg)
+                            },
+                            onTransactionCancel: { msg in
+                                viewModel.cancelPendingTransaction(from: msg)
+                            },
+                            onTransactionModifyCategory: { msg in
+                                guard let batch = msg.executionBatch,
+                                      let item = batch.items.first(where: { $0.intent.isFinance && $0.renderData?["confirmationStatus"] == "pending" }),
+                                      let renderData = item.renderData else { return }
+                                let type: TransactionType = item.intent == .recordIncome ? .income : .expense
+                                pendingCategoryEditMessage = msg
+                                pendingEditPrefill = PendingTransactionPrefill(
+                                    amount: renderData["amount"] ?? "0",
+                                    note: renderData["note"],
+                                    type: type,
+                                    category: nil
+                                )
                             }
                         )
                         .id(message.id)

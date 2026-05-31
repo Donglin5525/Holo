@@ -22,6 +22,9 @@ struct MessageBubbleView: View {
     var onRetry: (() -> Void)? = nil
     var onCardDelete: ((ChatMessageViewData, EntityCategory, String) -> Void)? = nil
     var onTaskConfirm: ((ChatMessageViewData) -> Void)? = nil
+    var onTransactionConfirm: ((ChatMessageViewData) -> Void)? = nil
+    var onTransactionCancel: ((ChatMessageViewData) -> Void)? = nil
+    var onTransactionModifyCategory: ((ChatMessageViewData) -> Void)? = nil
 
     private var displayText: String {
         streamingText ?? message.content
@@ -308,6 +311,12 @@ struct MessageBubbleView: View {
         case .transaction(let txData):
             TransactionChatCard(data: txData, isDeleted: message.isEntityDeleted(for: .finance)) {
                 onCardTap?(message, data)
+            } onConfirm: {
+                onTransactionConfirm?(message)
+            } onCancel: {
+                onTransactionCancel?(message)
+            } onModifyCategory: {
+                onTransactionModifyCategory?(message)
             }
         case .task(let taskData):
             TaskChatCard(data: taskData, isDeleted: message.isEntityDeleted(for: .task)) {

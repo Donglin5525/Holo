@@ -61,6 +61,8 @@ class FinanceRepository {
         remark: String? = nil,
         tags: [String]? = nil
     ) async throws -> Transaction {
+        try validateTransactionCategory(category)
+
         let transaction = Transaction(context: context)
         transaction.id = UUID()
         transaction.amount = NSDecimalNumber(decimal: amount)
@@ -79,7 +81,10 @@ class FinanceRepository {
     
     func updateTransaction(_ transaction: Transaction, updates: TransactionUpdates) async throws {
         if let amount = updates.amount { transaction.amount = NSDecimalNumber(decimal: amount) }
-        if let cat = updates.category { transaction.category = cat }
+        if let cat = updates.category {
+            try validateTransactionCategory(cat)
+            transaction.category = cat
+        }
         if let acc = updates.account { transaction.account = acc }
         if let date = updates.date { transaction.date = date }
         if let note = updates.note { transaction.note = note }
@@ -152,6 +157,8 @@ class FinanceRepository {
         note: String?,
         remark: String? = nil
     ) async throws -> [Transaction] {
+        try validateTransactionCategory(category)
+
         let groupId = UUID()
         let perPeriodBase = totalAmount / Decimal(periods)
         var transactions: [Transaction] = []
@@ -190,6 +197,32 @@ class FinanceRepository {
 
         try context.save()
         return transactions
+    }
+
+    private func validateTransactionCategory(_ category: Category) throws {
+        guard category.isSubCategory else {
+            throw FinanceError.subCategoryRequired
+        }
+    }
+
+    /// 查询子分类所属的一级分类名称
+    func parentCategoryName(for category: Category) -> String? {
+        guard let parentId = category.parentId else { return nil }
+        let request = Category.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", parentId as CVarArg)
+        request.fetchLimit = 1
+        return (try? context.fetch(request))?.first?.name
+    }
+
+    /// 标记交易为 AI 创建，并记录原始分类候选词
+    func markTransactionAsAICreated(_ transactionId: UUID, candidate: String?) {
+        let request = Transaction.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", transactionId as CVarArg)
+        request.fetchLimit = 1
+        guard let transaction = try? context.fetch(request).first else { return }
+        transaction.isAICreated = true
+        transaction.aiCandidate = candidate
+        try? context.save()
     }
 
     /// 查询同一分期组的所有交易
@@ -250,6 +283,7 @@ enum FinanceError: LocalizedError {
     case notFound
     case categoryInUse
     case saveFailed
+    case subCategoryRequired
 
     var errorDescription: String? {
         switch self {
@@ -257,6 +291,7 @@ enum FinanceError: LocalizedError {
         case .notFound: return "记录不存在"
         case .categoryInUse: return "该分类正在使用中，无法删除"
         case .saveFailed: return "保存失败"
+        case .subCategoryRequired: return "记账必须选择二级分类"
         }
     }
 }

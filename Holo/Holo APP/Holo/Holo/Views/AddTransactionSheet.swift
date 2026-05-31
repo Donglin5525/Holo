@@ -26,6 +26,9 @@ struct AddTransactionSheet: View {
     /// 预设日期（长按日历日期快速记账时传入，nil 表示使用当天）
     let presetDate: Date?
 
+    /// 待确认交易预填数据（从待确认卡片进入编辑时使用）
+    let pendingPrefill: PendingTransactionPrefill?
+
     /// 保存完成回调
     let onSave: () -> Void
 
@@ -167,9 +170,10 @@ struct AddTransactionSheet: View {
     
     // MARK: - Initialization
     
-    init(editingTransaction: Transaction?, presetDate: Date? = nil, onSave: @escaping () -> Void) {
+    init(editingTransaction: Transaction?, presetDate: Date? = nil, pendingPrefill: PendingTransactionPrefill? = nil, onSave: @escaping () -> Void) {
         self.editingTransaction = editingTransaction
         self.presetDate = presetDate
+        self.pendingPrefill = pendingPrefill
         self.onSave = onSave
     }
 
@@ -269,6 +273,17 @@ struct AddTransactionSheet: View {
         .onAppear {
             if let transaction = editingTransaction {
                 populateFromTransaction(transaction)
+            } else if let prefill = pendingPrefill {
+                transactionType = prefill.type
+                amountString = prefill.amount
+                note = prefill.note ?? ""
+                loadDefaultAccount()
+                Task {
+                    await loadCategories()
+                    if let category = prefill.category {
+                        selectedCategory = category
+                    }
+                }
             } else {
                 loadDefaultAccount()
                 if let preset = presetDate {
@@ -501,7 +516,7 @@ struct AddTransactionSheet: View {
               absoluteAmountString != "0" else {
             return false
         }
-        return selectedCategory != nil
+        return selectedCategory?.isSubCategory == true
     }
 
     /// 删除按钮
@@ -524,4 +539,13 @@ struct AddTransactionSheet: View {
 
 #Preview {
     AddTransactionSheet(editingTransaction: nil) {}
+}
+
+// MARK: - Pending Transaction Prefill
+
+struct PendingTransactionPrefill {
+    let amount: String
+    let note: String?
+    let type: TransactionType
+    let category: Category?
 }

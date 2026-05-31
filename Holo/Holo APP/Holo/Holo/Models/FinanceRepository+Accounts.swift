@@ -221,21 +221,15 @@ extension FinanceRepository {
             throw AccountError.noBalanceChange
         }
 
-        // 查找系统分类"余额调整"
-        let categoryRequest = Category.fetchRequest()
-        categoryRequest.predicate = NSPredicate(format: "isSystem == true AND name == %@", "余额调整")
-        categoryRequest.fetchLimit = 1
-        guard let adjustCategory = try context.fetch(categoryRequest).first else {
-            throw AccountError.systemCategoryNotFound
-        }
-
         let isIncome = difference > 0
         let absoluteAmount = abs(difference)
+        let transactionType: TransactionType = isIncome ? .income : .expense
+        let adjustCategory = try ensureBalanceAdjustmentCategory(type: transactionType)
 
         let transaction = Transaction(context: context)
         transaction.id = UUID()
         transaction.amount = NSDecimalNumber(decimal: absoluteAmount)
-        transaction.type = isIncome ? TransactionType.income.rawValue : TransactionType.expense.rawValue
+        transaction.type = transactionType.rawValue
         transaction.category = adjustCategory
         transaction.account = account
         transaction.date = date
@@ -246,6 +240,45 @@ extension FinanceRepository {
         transaction.updatedAt = Date()
         try context.save()
         return transaction
+    }
+
+    private func ensureBalanceAdjustmentCategory(type: TransactionType) throws -> Category {
+        let categoryRequest = Category.fetchRequest()
+        categoryRequest.predicate = NSPredicate(
+            format: "isSystem == true AND name == %@ AND type == %@ AND parentId != nil",
+            "余额调整",
+            type.rawValue
+        )
+        categoryRequest.fetchLimit = 1
+        if let existing = try context.fetch(categoryRequest).first {
+            return existing
+        }
+
+        let parentName = type == .income ? "其他收入" : "其他"
+        let parentRequest = Category.fetchRequest()
+        parentRequest.predicate = NSPredicate(
+            format: "name == %@ AND type == %@ AND parentId == nil",
+            parentName,
+            type.rawValue
+        )
+        parentRequest.fetchLimit = 1
+        guard let parent = try context.fetch(parentRequest).first else {
+            throw AccountError.systemCategoryNotFound
+        }
+
+        let category = Category.create(
+            in: context,
+            name: "余额调整",
+            icon: "arrow.triangle.2.circlepath",
+            color: "#94A3B8",
+            type: type.rawValue,
+            isDefault: true,
+            sortOrder: 999,
+            parentId: parent.id,
+            isSystem: true
+        )
+        try context.save()
+        return category
     }
 
     // MARK: 账户详情查询

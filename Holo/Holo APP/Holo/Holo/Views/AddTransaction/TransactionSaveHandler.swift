@@ -27,7 +27,7 @@ extension AddTransactionSheet {
             return
         }
 
-        guard let category = selectedCategory else {
+        guard let category = selectedCategory, category.isSubCategory else {
             return
         }
 
@@ -161,7 +161,7 @@ extension AddTransactionSheet {
             return
         }
 
-        guard let category = selectedCategory else {
+        guard let category = selectedCategory, category.isSubCategory else {
             return
         }
 
@@ -318,7 +318,8 @@ extension AddTransactionSheet {
         let absoluteAmountString = displayAmountString
         guard let amount = Decimal(string: absoluteAmountString), amount > 0,
               absoluteAmountString != "0",
-              let category = selectedCategory else { return }
+              let category = selectedCategory,
+              category.isSubCategory else { return }
 
         Task {
             do {
@@ -460,26 +461,45 @@ extension AddTransactionSheet {
         return rounded.stringValue
     }
 
-    /// 当用户将「待分类」交易改为具体分类时，学习映射关系
+    /// 当用户修改分类时，学习映射关系
+    /// 覆盖两种场景：
+    /// 1. "待分类"交易改为具体分类（原有逻辑）
+    /// 2. AI 创建的交易被用户修改分类（二次纠错学习）
     func learnCategoryMappingIfNeeded(
         transaction: Transaction,
         oldCategory: Category?,
         newCategory: Category
     ) {
-        guard let oldCategory = oldCategory,
-              [FinancePendingCategory.currentName, FinancePendingCategory.legacyName].contains(oldCategory.name),
-              ![FinancePendingCategory.currentName, FinancePendingCategory.legacyName].contains(newCategory.name),
-              let candidateInfo = CategoryLearnedMapping.lookupTransactionCandidate(
-                  transactionId: transaction.id
-              ) else { return }
-
         let categoryNames = FinanceRepository.shared.resolveCategoryNames(from: newCategory)
-        CategoryLearnedMapping.record(
-            candidate: candidateInfo.candidate,
-            type: candidateInfo.type,
-            targetPrimary: categoryNames.primary,
-            targetSub: categoryNames.sub ?? categoryNames.primary
-        )
-        CategoryLearnedMapping.removeTransactionCandidate(transactionId: transaction.id)
+
+        // 场景 1：待分类 → 具体分类
+        if let oldCategory = oldCategory,
+           [FinancePendingCategory.currentName, FinancePendingCategory.legacyName].contains(oldCategory.name),
+           ![FinancePendingCategory.currentName, FinancePendingCategory.legacyName].contains(newCategory.name),
+           let candidateInfo = CategoryLearnedMapping.lookupTransactionCandidate(
+               transactionId: transaction.id
+           ) {
+            CategoryLearnedMapping.record(
+                candidate: candidateInfo.candidate,
+                type: candidateInfo.type,
+                targetPrimary: categoryNames.primary,
+                targetSub: categoryNames.sub ?? categoryNames.primary
+            )
+            CategoryLearnedMapping.removeTransactionCandidate(transactionId: transaction.id)
+        }
+
+        // 场景 2：AI 创建交易的分类纠错学习
+        if transaction.isAICreated,
+           let candidate = transaction.aiCandidate,
+           !candidate.isEmpty,
+           let oldCategory = oldCategory,
+           oldCategory != newCategory {
+            CategoryLearnedMapping.record(
+                candidate: candidate,
+                type: transaction.transactionType,
+                targetPrimary: categoryNames.primary,
+                targetSub: categoryNames.sub ?? categoryNames.primary
+            )
+        }
     }
 }

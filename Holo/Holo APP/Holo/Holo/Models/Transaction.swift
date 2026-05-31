@@ -32,6 +32,10 @@ public class Transaction: NSManagedObject {
     @NSManaged public var installmentIndex: Int16
     @NSManaged public var installmentTotal: Int16
 
+    // AI 来源标记
+    @NSManaged public var isAICreated: Bool
+    @NSManaged public var aiCandidate: String?
+
     // MARK: - Computed Properties
 
     /// 是否为分期交易

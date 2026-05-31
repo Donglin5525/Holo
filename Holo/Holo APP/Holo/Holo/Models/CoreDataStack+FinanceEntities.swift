@@ -126,6 +126,20 @@ extension CoreDataStack {
         installmentTotal.defaultValue = 0
         attributes.append(installmentTotal)
 
+        // AI 来源标记
+        let isAICreated = NSAttributeDescription()
+        isAICreated.name = "isAICreated"
+        isAICreated.attributeType = .booleanAttributeType
+        isAICreated.isOptional = false
+        isAICreated.defaultValue = false
+        attributes.append(isAICreated)
+
+        let aiCandidate = NSAttributeDescription()
+        aiCandidate.name = "aiCandidate"
+        aiCandidate.attributeType = .stringAttributeType
+        aiCandidate.isOptional = true
+        attributes.append(aiCandidate)
+
         transactionEntity.properties = attributes + [categoryRelation, accountRelation]
         
         // MARK: - Category Entity

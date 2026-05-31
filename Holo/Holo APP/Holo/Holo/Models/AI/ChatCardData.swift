@@ -41,7 +41,9 @@ nonisolated enum ChatCardData: Equatable {
                 primaryCategory: data["primaryCategory"],
                 subCategory: data["subCategory"],
                 type: "expense",
-                date: data["date"]
+                date: data["date"],
+                confirmationStatus: data["confirmationStatus"],
+                confirmationError: data["confirmationError"]
             ))
 
         case .recordIncome:
@@ -52,7 +54,9 @@ nonisolated enum ChatCardData: Equatable {
                 primaryCategory: data["primaryCategory"],
                 subCategory: data["subCategory"],
                 type: "income",
-                date: data["date"]
+                date: data["date"],
+                confirmationStatus: data["confirmationStatus"],
+                confirmationError: data["confirmationError"]
             ))
 
         case .createTask:
@@ -125,9 +129,20 @@ nonisolated struct TransactionCardData: Equatable {
     let subCategory: String?
     let type: String        // "expense" / "income"
     let date: String?
+    let confirmationStatus: String?
+    let confirmationError: String?
 
     /// 是否为支出
     var isExpense: Bool { type == "expense" }
+
+    /// 是否待确认
+    var requiresConfirmation: Bool { confirmationStatus == "pending" }
+
+    /// 是否已取消
+    var isCancelled: Bool { confirmationStatus == "cancelled" }
+
+    /// 是否确认失败（可重试）
+    var isFailed: Bool { confirmationStatus == "failed" }
 
     /// 分类 SF Symbol 图标
     var categoryIcon: String {

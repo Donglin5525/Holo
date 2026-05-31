@@ -55,6 +55,31 @@ final class IntentRouter {
         }
     }
 
+    /// 预览分类匹配结果（不创建交易，用于待确认卡片的分类展示）
+    func previewCategoryMatch(
+        extractedData: [String: String]?,
+        type: TransactionType
+    ) async throws -> (primary: String?, sub: String?) {
+        guard let data = extractedData else { return (nil, nil) }
+
+        FinanceRepository.shared.setup()
+
+        let category = try await matchCategory(
+            primaryCategory: data["primaryCategory"],
+            subCategory: data["subCategory"],
+            categoryCandidate: data["categoryCandidate"],
+            normalizedCategoryCandidate: data["normalizedCategoryCandidate"],
+            semanticCategoryHint: data["semanticCategoryHint"],
+            note: data["note"] ?? "",
+            type: type
+        )
+
+        if let category {
+            return try await resolvedCategoryDisplayNames(for: category, type: type)
+        }
+        return (FinancePendingCategory.currentName, nil)
+    }
+
     /// 根据解析结果执行对应的本地操作
     /// - Parameter result: AI 解析结果
     /// - Returns: 路由结果（含文本和关联实体 ID）
@@ -166,7 +191,7 @@ final class IntentRouter {
             ) : nil
 
         let matchedNames = try await resolvedCategoryDisplayNames(
-            for: isUnmatched ? nil : category,
+            for: isUnmatched ? nil : transaction.category,
             type: .expense
         )
 
@@ -252,7 +277,7 @@ final class IntentRouter {
             ) : nil
 
         let matchedNames = try await resolvedCategoryDisplayNames(
-            for: isUnmatched ? nil : category,
+            for: isUnmatched ? nil : transaction.category,
             type: .income
         )
 
@@ -706,20 +731,6 @@ final class IntentRouter {
         let categoryRepo = FinanceRepository.shared
         let categories = try await categoryRepo.getCategories(by: type)
 
-        // 1. AI 明确给出的标准科目，先走严格 Core Data 匹配。
-        if let sub = subCategory, !sub.isEmpty {
-            let matchResult = CategoryMatcherService.shared.matchSingle(
-                primaryCategory: primaryCategory ?? "",
-                subCategory: sub,
-                type: type,
-                categories: categories
-            )
-            if matchResult.matchType == .exact || matchResult.matchType == .synonym,
-               let matched = matchResult.matchedCategory {
-                return matched
-            }
-        }
-
         let candidates = CategoryCandidateResolver.orderedCandidates(
             categoryCandidate: categoryCandidate,
             normalizedCategoryCandidate: normalizedCategoryCandidate,
@@ -728,8 +739,8 @@ final class IntentRouter {
             hour: Calendar.current.component(.hour, from: Date())
         )
 
+        // 1. 用户学习映射最优先，尊重手动纠正过的分类
         for candidate in candidates {
-            // 2. 用户学习映射优先，尊重手动纠正过的分类。
             if let learned = CategoryLearnedMapping.lookup(
                 candidate: candidate,
                 type: type,
@@ -741,12 +752,30 @@ final class IntentRouter {
                     type: type,
                     categories: categories
                 )
-                if let matched = learnedResult.matchedCategory {
+                if let matched = learnedResult.matchedCategory, matched.isSubCategory {
                     return matched
                 }
             }
+        }
 
-            // 3. 直接匹配用户本地已有科目，保护自定义分类。
+        // 2. AI 明确给出的标准科目，走严格 Core Data 匹配
+        if let sub = subCategory, !sub.isEmpty {
+            let matchResult = CategoryMatcherService.shared.matchSingle(
+                primaryCategory: primaryCategory ?? "",
+                subCategory: sub,
+                type: type,
+                categories: categories
+            )
+            if matchResult.matchType == .exact || matchResult.matchType == .synonym,
+               let matched = matchResult.matchedCategory,
+               matched.isSubCategory {
+                return matched
+            }
+        }
+
+        // 3. 本地科目 + catalog 别名
+        for candidate in candidates {
+            // 直接匹配用户本地已有科目，保护自定义分类
             if let customMatched = CategoryMatcherService.shared.matchExistingCategoryByCandidate(
                 candidate,
                 primaryCategory: primaryCategory ?? "",
@@ -756,7 +785,7 @@ final class IntentRouter {
                 return customMatched
             }
 
-            // 4. 标准 catalog 负责别名归一，例如“滴滴”→“交通/打车”。
+            // 标准 catalog 负责别名归一，例如"滴滴"→"交通/打车"
             let catalog = await FinanceCategoryCatalogProvider.shared.loadCatalog()
             if let catalogMatch = CategoryMatcherService.shared.matchCandidate(candidate, type: type, catalog: catalog) {
                 let catalogResult = CategoryMatcherService.shared.matchSingle(
@@ -765,13 +794,13 @@ final class IntentRouter {
                     type: type,
                     categories: categories
                 )
-                if let matched = catalogResult.matchedCategory {
+                if let matched = catalogResult.matchedCategory, matched.isSubCategory {
                     return matched
                 }
             }
         }
 
-        // 5. 降级：note 只做唯一精确匹配，不做模糊猜测。
+        // 4. 降级：note 只做唯一精确匹配
         if let noteMatched = CategoryMatcherService.shared.matchExistingCategoryByCandidate(
             note,
             primaryCategory: "",
@@ -781,7 +810,7 @@ final class IntentRouter {
             return noteMatched
         }
 
-        // 6. 原始 candidate 再做一次直接匹配，避免餐饮归一掩盖同名自定义分类。
+        // 5. 原始 candidate 再做一次直接匹配，避免餐饮归一掩盖同名自定义分类
         if let rawCandidate = categoryCandidate?.trimmingCharacters(in: .whitespacesAndNewlines),
            !candidates.contains(rawCandidate),
            let rawMatched = CategoryMatcherService.shared.matchExistingCategoryByCandidate(
