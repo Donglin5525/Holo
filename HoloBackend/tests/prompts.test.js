@@ -127,7 +127,7 @@ test("intent_recognition 默认 Prompt 已移除完整科目表并使用语义�
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  assert.equal(prompt.version, 10);
+  assert.equal(prompt.version, 13);
   assert.match(prompt.content, /categoryCandidate/);
   assert.match(prompt.content, /normalizedCategoryCandidate/);
   assert.match(prompt.content, /semanticCategoryHint/);
