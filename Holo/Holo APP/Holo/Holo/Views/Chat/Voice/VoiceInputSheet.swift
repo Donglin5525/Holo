@@ -81,10 +81,12 @@ struct VoiceInputSheet: View {
         .presentationDetents([.height(preferredSheetHeight), .medium])
         .presentationDragIndicator(.hidden)
         .task {
+            UIApplication.shared.isIdleTimerDisabled = true
             await viewModel.startRecording()
         }
         .onDisappear {
             viewModel.cleanupAfterDismiss()
+            UIApplication.shared.isIdleTimerDisabled = false
         }
         .onChange(of: scenePhase) { _, newPhase in
             viewModel.handleScenePhaseChange(newPhase)
