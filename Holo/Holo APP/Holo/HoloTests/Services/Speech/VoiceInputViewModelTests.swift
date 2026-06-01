@@ -120,6 +120,68 @@ final class VoiceInputViewModelTests: XCTestCase {
         XCTAssertEqual(provider.transcribeCallCount, 0)
     }
 
+    func testPostProcessedTranscriptShowsOriginalImmediatelyWhileSummaryRuns() async {
+        let recorder = FakeVoiceRecordingService()
+        recorder.currentTime = 2.0
+        let provider = FakeSpeechRecognitionProvider()
+        provider.result = SpeechRecognitionResult(text: "第一段原文。第二段原文。", duration: 2, confidence: nil)
+        let processor = DelayedVoiceTranscriptPostProcessor(result: "整理后的总结")
+        let viewModel = VoiceInputViewModel(
+            speechProvider: provider,
+            recordingService: recorder,
+            postProcessor: processor
+        )
+
+        await viewModel.startRecording()
+        await viewModel.finishRecording()
+        await provider.streamingSession.waitForFinish()
+
+        XCTAssertEqual(viewModel.state, .transcriptReady("第一段原文。第二段原文。"))
+        XCTAssertEqual(viewModel.editableTranscript, "第一段原文。第二段原文。")
+        XCTAssertEqual(viewModel.originalTranscript, "第一段原文。第二段原文。")
+        XCTAssertNil(viewModel.summaryTranscript)
+        XCTAssertEqual(viewModel.transcriptDisplayMode, .original)
+        XCTAssertEqual(viewModel.summaryNotice, "正在智能总结，可先确认原文")
+
+        processor.finish()
+        await processor.waitForProcessCompletion()
+
+        XCTAssertEqual(viewModel.state, .transcriptReady("整理后的总结"))
+        XCTAssertEqual(viewModel.editableTranscript, "整理后的总结")
+        XCTAssertEqual(viewModel.summaryTranscript, "整理后的总结")
+        XCTAssertEqual(viewModel.transcriptDisplayMode, .summary)
+    }
+
+    func testTranscriptFormatterFormatsOriginalAndSummaryForConfirmation() async {
+        let recorder = FakeVoiceRecordingService()
+        recorder.currentTime = 2.0
+        let provider = FakeSpeechRecognitionProvider()
+        provider.result = SpeechRecognitionResult(text: "原文第一句。原文第二句。", duration: 2, confidence: nil)
+        let processor = DelayedVoiceTranscriptPostProcessor(result: "总结第一句。总结第二句。")
+        let viewModel = VoiceInputViewModel(
+            speechProvider: provider,
+            recordingService: recorder,
+            postProcessor: processor,
+            transcriptFormatter: { text in
+                text.replacingOccurrences(of: "。", with: "。\n\n")
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        )
+
+        await viewModel.startRecording()
+        await viewModel.finishRecording()
+        await provider.streamingSession.waitForFinish()
+
+        XCTAssertEqual(viewModel.editableTranscript, "原文第一句。\n\n原文第二句。")
+        XCTAssertEqual(viewModel.originalTranscript, "原文第一句。\n\n原文第二句。")
+
+        processor.finish()
+        await processor.waitForProcessCompletion()
+
+        XCTAssertEqual(viewModel.editableTranscript, "总结第一句。\n\n总结第二句。")
+        XCTAssertEqual(viewModel.summaryTranscript, "总结第一句。\n\n总结第二句。")
+    }
+
     func testEmptyTranscriptFails() async {
         let recorder = FakeVoiceRecordingService()
         recorder.currentTime = 2.0
@@ -338,6 +400,58 @@ private final class FakeSpeechRecognitionStreamingSession: SpeechRecognitionStre
         guard !didFinish || finishContinuation != nil else { return }
         await withCheckedContinuation { continuation in
             self.finishContinuation = continuation
+        }
+    }
+}
+
+@MainActor
+private final class DelayedVoiceTranscriptPostProcessor: VoiceTranscriptPostProcessing {
+    let result: String
+    private var startContinuation: CheckedContinuation<Void, Never>?
+    private var finishContinuation: CheckedContinuation<Void, Never>?
+    private var completionContinuation: CheckedContinuation<Void, Never>?
+    private var didStart = false
+    private var shouldFinish = false
+    private var didComplete = false
+
+    init(result: String) {
+        self.result = result
+    }
+
+    func process(_ text: String) async throws -> String {
+        didStart = true
+        startContinuation?.resume()
+        startContinuation = nil
+
+        if !shouldFinish {
+            await withCheckedContinuation { continuation in
+                finishContinuation = continuation
+            }
+        }
+
+        didComplete = true
+        completionContinuation?.resume()
+        completionContinuation = nil
+        return result
+    }
+
+    func finish() {
+        shouldFinish = true
+        finishContinuation?.resume()
+        finishContinuation = nil
+    }
+
+    func waitForProcessStart() async {
+        guard !didStart else { return }
+        await withCheckedContinuation { continuation in
+            startContinuation = continuation
+        }
+    }
+
+    func waitForProcessCompletion() async {
+        guard !didComplete else { return }
+        await withCheckedContinuation { continuation in
+            completionContinuation = continuation
         }
     }
 }

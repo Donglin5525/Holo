@@ -33,6 +33,7 @@ struct VoiceInputSheet: View {
         submitButtonTitle: String = "发送",
         resultConfig: VoiceResultConfig? = nil,
         postProcessor: (any VoiceTranscriptPostProcessing)? = nil,
+        transcriptFormatter: @escaping (String) -> String = { $0 },
         onSendTranscript: @escaping (String) -> Void
     ) {
         _viewModel = StateObject(
@@ -40,7 +41,8 @@ struct VoiceInputSheet: View {
                 speechProvider: speechProvider,
                 recordingService: recordingService,
                 maximumDuration: maximumDuration,
-                postProcessor: postProcessor
+                postProcessor: postProcessor,
+                transcriptFormatter: transcriptFormatter
             )
         )
         self.readySubtitle = readySubtitle
@@ -190,11 +192,13 @@ struct VoiceInputSheet: View {
                         }
                         .buttonStyle(VoiceSecondaryButtonStyle())
                     } else {
-                        Button("还原总结") {
-                            VoiceInputHaptics.selection()
-                            viewModel.restoreSummaryTranscript()
+                        if viewModel.summaryTranscript != nil {
+                            Button("还原总结") {
+                                VoiceInputHaptics.selection()
+                                viewModel.restoreSummaryTranscript()
+                            }
+                            .buttonStyle(VoiceSecondaryButtonStyle())
                         }
-                        .buttonStyle(VoiceSecondaryButtonStyle())
                     }
                 }
 
@@ -303,6 +307,9 @@ struct VoiceInputSheet: View {
         case .summarizing:
             return "正在智能总结"
         case .transcriptReady:
+            if viewModel.summaryNotice == "正在智能总结，可先确认原文" {
+                return "识别结果"
+            }
             return resultConfig?.title ?? "识别结果"
         case .failed:
             return "识别失败"

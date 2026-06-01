@@ -4,6 +4,22 @@
 
 ---
 
+## [2026-06-02] 想法语音输入确认页与智能总结体验优化
+
+### 优化
+- 想法语音输入确认页复用最终插入文本的段落整理规则，长语音不再在确认页显示为一整段
+- 开启智能总结时，ASR 识别完成后先展示可编辑原文，智能总结改为后台继续处理，减少等待确认页出现的体感耗时
+- 智能总结完成后，如果用户未编辑原文则自动切换为总结；如果用户正在编辑，则保留用户改动并提供还原总结入口
+
+### 验证
+- iOS 构建通过：`xcodebuild -project /Users/tangyuxuan/Desktop/Claude/HOLO/Holo/Holo\ APP/Holo/Holo.xcodeproj -scheme Holo -configuration Debug -destination 'generic/platform=iOS' -derivedDataPath /private/tmp/holo-voice-final2 CODE_SIGNING_ALLOWED=NO build`
+- `xcodebuild ... test` 暂不可用：当前 Holo scheme 未配置 test action
+
+### 不变
+- 后端无变更，无需发版
+
+---
+
 ## [2026-05-31] 财务统计明细页按日趋势与交易联动优化
 
 ### 修复

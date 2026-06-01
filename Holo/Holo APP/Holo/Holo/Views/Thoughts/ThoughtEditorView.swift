@@ -131,7 +131,8 @@ struct ThoughtEditorView: View {
                         subtitle: "已整理成更适合观点记录的表达",
                         showsOriginalToggle: true
                     ),
-                    postProcessor: ThoughtVoiceSummaryProcessor()
+                    postProcessor: ThoughtVoiceSummaryProcessor(),
+                    transcriptFormatter: formatThoughtVoiceTranscript
                 ) { transcript in
                     pendingVoiceTranscriptToInsert = transcript
                     showVoiceInput = false
@@ -141,7 +142,8 @@ struct ThoughtEditorView: View {
                     speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(),
                     maximumDuration: 300,
                     readySubtitle: "确认后插入到观点内容",
-                    submitButtonTitle: "插入"
+                    submitButtonTitle: "插入",
+                    transcriptFormatter: formatThoughtVoiceTranscript
                 ) { transcript in
                     pendingVoiceTranscriptToInsert = transcript
                     showVoiceInput = false
@@ -154,6 +156,14 @@ struct ThoughtEditorView: View {
     }
 
     // MARK: - Dismiss Handling
+
+    private func formatThoughtVoiceTranscript(_ transcript: String) -> String {
+        ThoughtVoiceTranscriptInsertion.makeInsertionText(
+            transcript: transcript,
+            currentContent: content,
+            selectedRange: NSRange(location: content.count, length: 0)
+        )
+    }
 
     /// 处理取消/右滑退出
     private func handleDismiss() {
