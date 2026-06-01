@@ -4,6 +4,21 @@
 
 ---
 
+## [2026-06-02] HoloAI 灵活数据查询模块（Phase 1）
+
+### 新增
+- 新增 `flexibleDataQuery` 意图，支持「上一次」「最近一次」「哪一笔」「超过」等自然语言数据查询
+- 新增 FlexibleQuery 子模块：Planner（结构化查询规划）→ Executor（Core Data 后台查询）→ AnswerBuilder（自然语言回答）
+- ConversationCoordinator 集成灵活查询拦截分支（Branch 3.5）
+- PromptManager 新增 flexibleQuery_planner prompt 类型及模板
+- MockAIProvider 新增灵活查询关键词匹配
+- 后端 defaultPrompts.json / promptRegistry.js 同步新增 flexible_query_planner 端点
+
+### 不变
+- ChatViewModel / ChatView 渲染侧尚未接入 flexibleQueryResult，待后续 PR 完成
+
+---
+
 ## [2026-06-02] 语音输入模式防止屏幕自动熄灭
 
 ### 修复

@@ -94,7 +94,7 @@ nonisolated enum ChatCardData: Equatable {
                 unit: data["unit"] ?? "kg"
             ))
 
-        case .completeTask, .updateTask, .deleteTask, .createNote, .queryTasks, .queryHabits, .query, .queryAnalysis, .generateMemoryInsight, .unknown:
+        case .completeTask, .updateTask, .deleteTask, .createNote, .queryTasks, .queryHabits, .query, .queryAnalysis, .flexibleDataQuery, .generateMemoryInsight, .unknown:
             return nil
         }
     }

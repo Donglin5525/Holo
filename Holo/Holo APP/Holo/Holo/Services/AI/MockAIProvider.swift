@@ -193,6 +193,23 @@ final class MockAIProvider: AIProvider {
             )
         }
 
+        // 灵活数据查询关键词匹配
+        let flexibleKeywords = ["上一次", "最近一次", "哪一笔", "几次", "距今", "多久没", "最大一笔", "最小一笔", "超过"]
+        if flexibleKeywords.contains(where: { lowercased.contains($0) }) {
+            return ParsedResult(
+                intent: .flexibleDataQuery,
+                confidence: 0.9,
+                extractedData: [
+                    "queryDomain": "finance",
+                    "queryGoal": input,
+                    "rawConstraints": input
+                ],
+                needsClarification: false,
+                clarificationQuestion: nil,
+                responseText: "[Mock] 灵活数据查询"
+            )
+        }
+
         // 兜底：未识别意图
         return ParsedResult(
             intent: .unknown,

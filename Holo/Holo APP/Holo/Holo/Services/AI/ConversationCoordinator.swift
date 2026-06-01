@@ -19,6 +19,8 @@ struct ConversationProcessResult {
     let firstExtractedData: [String: String]?
     let shouldStreamChat: Bool
     let analysisContext: AnalysisContext?
+    /// 灵活查询结构化结果，供 ChatViewModel 渲染
+    let flexibleQueryResult: FlexibleQueryResult?
     /// 意图识别 LLM 调用日志
     var intentCallLog: LLMCallLog?
 }
@@ -53,6 +55,7 @@ final class ConversationCoordinator {
                 firstExtractedData: parseBatch.first?.extractedData,
                 shouldStreamChat: false,
                 analysisContext: nil,
+                flexibleQueryResult: nil,
                 intentCallLog: intentLog
             )
         }
@@ -67,6 +70,7 @@ final class ConversationCoordinator {
                 firstExtractedData: nil,
                 shouldStreamChat: false,
                 analysisContext: nil,
+                flexibleQueryResult: nil,
                 intentCallLog: intentLog
             )
         }
@@ -92,6 +96,7 @@ final class ConversationCoordinator {
                     firstExtractedData: parseBatch.first?.extractedData,
                     shouldStreamChat: false,
                     analysisContext: nil,
+                    flexibleQueryResult: nil,
                     intentCallLog: intentLog
                 )
             }
@@ -104,7 +109,20 @@ final class ConversationCoordinator {
                 firstExtractedData: parseBatch.first?.extractedData,
                 shouldStreamChat: true,
                 analysisContext: context,
+                flexibleQueryResult: nil,
                 intentCallLog: intentLog
+            )
+        }
+
+        // 灵活数据查询拦截（Branch 3.5）：无论 mode 是 query 还是 single_action
+        if parseBatch.items.count == 1,
+           parseBatch.first?.intent == .flexibleDataQuery {
+            return await handleFlexibleQuery(
+                text: text,
+                extractedData: parseBatch.first?.extractedData,
+                provider: provider,
+                parseBatch: parseBatch,
+                intentLog: intentLog
             )
         }
 
@@ -118,6 +136,7 @@ final class ConversationCoordinator {
                 firstExtractedData: parseBatch.first?.extractedData,
                 shouldStreamChat: true,
                 analysisContext: nil,
+                flexibleQueryResult: nil,
                 intentCallLog: intentLog
             )
         }
@@ -134,6 +153,7 @@ final class ConversationCoordinator {
                 firstExtractedData: parseBatch.first?.extractedData,
                 shouldStreamChat: false,
                 analysisContext: nil,
+                flexibleQueryResult: nil,
                 intentCallLog: intentLog
             )
         }
@@ -151,6 +171,7 @@ final class ConversationCoordinator {
                 firstExtractedData: parseBatch.first?.extractedData,
                 shouldStreamChat: false,
                 analysisContext: nil,
+                flexibleQueryResult: nil,
                 intentCallLog: intentLog
             )
         }
@@ -278,6 +299,7 @@ final class ConversationCoordinator {
             firstExtractedData: parseBatch.first?.extractedData,
             shouldStreamChat: false,
             analysisContext: nil,
+            flexibleQueryResult: nil,
             intentCallLog: intentLog
         )
     }
@@ -342,5 +364,91 @@ final class ConversationCoordinator {
             result += "\n其中 \(failedCount) 项失败"
         }
         return result
+    }
+
+    // MARK: - Flexible Query
+
+    private func handleFlexibleQuery(
+        text: String,
+        extractedData: [String: String]?,
+        provider: AIProvider,
+        parseBatch: AIParseBatch,
+        intentLog: LLMCallLog?
+    ) async -> ConversationProcessResult {
+        do {
+            let plannerResult = try await FlexibleQueryPlanner(provider: provider)
+                .plan(userQuestion: text, extractedData: extractedData)
+
+            switch plannerResult.status {
+            case .needsClarification:
+                return ConversationProcessResult(
+                    finalText: plannerResult.clarificationQuestion ?? "你能再说具体一些吗？",
+                    parsedBatch: parseBatch,
+                    executionBatch: nil,
+                    firstIntent: .flexibleDataQuery,
+                    firstExtractedData: extractedData,
+                    shouldStreamChat: false,
+                    analysisContext: nil,
+                    flexibleQueryResult: nil,
+                    intentCallLog: intentLog
+                )
+
+            case .unsupported:
+                return ConversationProcessResult(
+                    finalText: "这个问题当前还不能基于本地数据查询，我可以帮你分析一段时间的消费趋势。",
+                    parsedBatch: parseBatch,
+                    executionBatch: nil,
+                    firstIntent: .flexibleDataQuery,
+                    firstExtractedData: extractedData,
+                    shouldStreamChat: false,
+                    analysisContext: nil,
+                    flexibleQueryResult: nil,
+                    intentCallLog: intentLog
+                )
+
+            case .ready:
+                guard let plan = plannerResult.plan else {
+                    return ConversationProcessResult(
+                        finalText: "抱歉，查询出了点问题。你可以换个方式问我。",
+                        parsedBatch: parseBatch,
+                        executionBatch: nil,
+                        firstIntent: .flexibleDataQuery,
+                        firstExtractedData: extractedData,
+                        shouldStreamChat: false,
+                        analysisContext: nil,
+                        flexibleQueryResult: nil,
+                        intentCallLog: intentLog
+                    )
+                }
+
+                let result = try await FlexibleQueryExecutor().execute(plan)
+                let answer = FlexibleQueryAnswerBuilder().answer(result)
+
+                return ConversationProcessResult(
+                    finalText: answer,
+                    parsedBatch: parseBatch,
+                    executionBatch: nil,
+                    firstIntent: .flexibleDataQuery,
+                    firstExtractedData: extractedData,
+                    shouldStreamChat: false,
+                    analysisContext: nil,
+                    flexibleQueryResult: result,
+                    intentCallLog: intentLog
+                )
+            }
+        } catch {
+            logger.error("FlexibleQuery 失败: \(error.localizedDescription)")
+            return ConversationProcessResult(
+                finalText: "抱歉，查询出了点问题。你可以换个方式问我，或者让我帮你分析一段时间的消费记录。",
+                parsedBatch: parseBatch,
+                executionBatch: nil,
+                firstIntent: .flexibleDataQuery,
+                firstExtractedData: extractedData,
+                shouldStreamChat: false,
+                analysisContext: nil,
+                flexibleQueryResult: nil,
+                intentCallLog: intentLog
+            )
+        }
     }
 }

@@ -5,11 +5,12 @@ import { fileURLToPath } from "node:url";
 import * as Diff from "diff";
 
 const PROMPT_VERSIONS = {
-  intent_recognition: 10,
+  intent_recognition: 12,
   memory_insight_generation: 5,
   analysis_prompt: 2,
   annual_review: 1,
   thought_voice_summary: 2,
+  flexible_query_planner: 1,
 };
 const PROMPT_TYPES = Object.keys(defaultPrompts);
 const MANAGED_PROMPTS_PATH = join(dirname(fileURLToPath(import.meta.url)), "managedPrompts.json");

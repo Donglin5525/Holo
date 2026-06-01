@@ -31,6 +31,7 @@ nonisolated enum AIIntent: String, Codable, CaseIterable {
     case queryTasks = "query_tasks"
     case queryHabits = "query_habits"
     case queryAnalysis = "query_analysis"
+    case flexibleDataQuery = "flexible_data_query"
     case query = "query"
     // 记忆回放类
     case generateMemoryInsight = "generate_memory_insight"
@@ -41,7 +42,7 @@ nonisolated enum AIIntent: String, Codable, CaseIterable {
 // MARK: - AIIntent Category Helpers
 
 extension AIIntent {
-    nonisolated static let queryIntents: Set<AIIntent> = [.query, .queryTasks, .queryHabits, .queryAnalysis]
+    nonisolated static let queryIntents: Set<AIIntent> = [.query, .queryTasks, .queryHabits, .queryAnalysis, .flexibleDataQuery]
     nonisolated static let taskIntents: Set<AIIntent> = [.createTask, .completeTask, .updateTask]
     nonisolated static let financeIntents: Set<AIIntent> = [.recordExpense, .recordIncome]
 

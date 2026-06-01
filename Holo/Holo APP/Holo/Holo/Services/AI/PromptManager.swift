@@ -31,6 +31,7 @@ final class PromptManager {
         case annualReview = "annual_review"
         case analysisPrompt = "analysis_prompt"
         case thoughtVoiceSummary = "thought_voice_summary"
+        case flexibleQueryPlanner = "flexible_query_planner"
 
         var displayName: String {
             switch self {
@@ -43,6 +44,7 @@ final class PromptManager {
             case .annualReview: return "年度回顾"
             case .analysisPrompt: return "分析查询"
             case .thoughtVoiceSummary: return "观点语音总结"
+            case .flexibleQueryPlanner: return "灵活查询规划"
             }
         }
 
@@ -57,6 +59,7 @@ final class PromptManager {
             case .annualReview: return "年度回顾洞察生成"
             case .analysisPrompt: return "AI 分析查询专用系统提示"
             case .thoughtVoiceSummary: return "观点语音输入智能总结"
+            case .flexibleQueryPlanner: return "将用户自然语言问题转成结构化查询计划"
             }
         }
 
@@ -71,6 +74,7 @@ final class PromptManager {
             case .annualReview: return "calendar.badge.clock"
             case .analysisPrompt: return "chart.bar.xaxis"
             case .thoughtVoiceSummary: return "waveform.badge.magnifyingglass"
+            case .flexibleQueryPlanner: return "magnifyingglass.circle"
             }
         }
     }
@@ -79,11 +83,12 @@ final class PromptManager {
 
     /// 需要版本管理的 prompt 类型及其最低版本
     private static let promptVersions: [PromptType: Int] = [
-        .intentRecognition: 11,         // v11: 收入分类示例+待分类兜底；v10: 多笔记账 few-shot 示例+防御规则
+        .intentRecognition: 12,         // v12: 新增 flexible_data_query 意图+路由规则；v11: 收入分类示例+待分类兜底
         .memoryInsightGeneration: 5,    // v5: 习惯洞察区分正向习惯与坏习惯控制率
         .analysisPrompt: 2,             // v2: C 端纯文本分析输出，避免裸露 Markdown 语法
         .annualReview: 1,               // v1: 初始版本
-        .thoughtVoiceSummary: 2         // v2: 自然分段，复杂内容才使用小标题
+        .thoughtVoiceSummary: 2,        // v2: 自然分段，复杂内容才使用小标题
+        .flexibleQueryPlanner: 1        // v1: 初始版本，财务域灵活查询规划
     ]
 
     /// 加载指定类型的 Prompt，带缓存，优先读取 UserDefaults 自定义。
@@ -241,6 +246,7 @@ final class PromptManager {
         | query_tasks | 有什么任务/待办列表 | - |
         | query_habits | 习惯状态/打卡了吗 | - |
         | query_analysis | 分析*/复盘*/对比总结/花了多少/消费统计/支出统计/习惯完成率/任务进度/步数/睡眠/运动/健康/走路/锻炼/目标进展/进度/goal | analysisDomain, startDate?, endDate?, periodLabel? |
+        | flexible_data_query | 上一次*/最近一次*/哪一笔/几次/超过N元/距今多久/多久没/最大一笔/最小一笔 | queryDomain?, queryGoal?, rawConstraints? |
         | query | 你能做什么/帮我什么/闲聊 | - |
         | generate_memory_insight | 复盘这周/本月记忆回放 | periodType? |
         | unknown | 不匹配以上任何意图 | - |
@@ -300,7 +306,10 @@ final class PromptManager {
               "periodLabel": "时间段描述",
               "comparisonStartDate": "yyyy-MM-dd",
               "comparisonEndDate": "yyyy-MM-dd",
-              "periodType": "weekly|monthly"
+              "periodType": "weekly|monthly",
+              "queryDomain": "finance（灵活数据查询域名，目前只支持 finance）",
+              "queryGoal": "用户查询目标简述",
+              "rawConstraints": "用户原始约束条件"
             }
           }],
           "needsClarification": false,
@@ -323,6 +332,7 @@ final class PromptManager {
         - 有具体时间→dueDate 格式 yyyy-MM-dd HH:mm，无时间→yyyy-MM-dd
         - 时间映射：凌晨=00-05，早上/上午=06-11，中午=12，下午=13-17，晚上/傍晚=18-22，半夜/深夜=23
         - 涉及具体数据（金额、分类、时间段统计、消费、习惯、任务进度）的查询→用 query_analysis，不要用 query。query 只用于非数据的通用问答
+        - 涉及"上一次/最近一次/哪一笔/几次/超过N元/距今多久/多久没发生/最大一笔/最小一笔"等单点数据查询→用 flexible_data_query，不要用 query_analysis。涉及"分析/复盘/趋势/结构/占比/总结"的周期性问题→用 query_analysis
         - 抽烟、喝酒、熬夜、暴食等减少/戒除语义属于 negative habit；提取 habitPolarity="negative"，优先使用 successRule="stayBelowTarget" 或 "abstain"
         - 用户记录坏习惯发生次数时，habitValue 保留数值，unit 保留单位；不要把“抽烟 5 根”理解为正向完成 5 次
         - "复盘、总结、看看这周/本月状态、我最近怎么样"优先识别为 generate_memory_insight 或 query_analysis
@@ -382,6 +392,16 @@ final class PromptManager {
         输入：「提醒我1小时后去山姆买牛奶和洗手液」
         ```json
         {"mode":"single_action","items":[{"id":"1","intent":"create_task","confidence":0.95,"extractedData":{"title":"去山姆购物","dueDate":"2026-05-17 22:17","subtasks":"买牛奶,买洗手液"}}],"needsClarification":false,"clarificationQuestion":null}
+        ```
+
+        输入：「我上一次买烟超过200是什么时候」
+        ```json
+        {"mode":"query","items":[{"id":"1","intent":"flexible_data_query","confidence":0.95,"extractedData":{"queryDomain":"finance","queryGoal":"查找最近一笔金额>200的买烟记录","rawConstraints":"金额>200, 关键词包含烟"}}],"needsClarification":false,"clarificationQuestion":null}
+        ```
+
+        输入：「这个月超过50的外卖有几次」
+        ```json
+        {"mode":"query","items":[{"id":"1","intent":"flexible_data_query","confidence":0.95,"extractedData":{"queryDomain":"finance","queryGoal":"统计本月超过50元的外卖次数","rawConstraints":"本月, 金额>50, 外卖"}}],"needsClarification":false,"clarificationQuestion":null}
         ```
 
         只回复 JSON。
@@ -811,6 +831,131 @@ final class PromptManager {
         11. 只输出整理后的文本，不要加解释、标签或格式标记。
 
         直接输出整理结果：
+        """,
+
+        .flexibleQueryPlanner: """
+        你是 Holo 的个人数据查询规划器。你的任务是把用户的自然语言问题转成严格 JSON 查询计划（Query Plan）。
+
+        你不能回答用户问题，也不能编造交易数据。你只能选择允许的 domain/operation/filter/calculation。
+
+        当前日期：{{todayDate}}
+
+        ## 支持的域
+
+        当前只支持 domain = "finance"（财务域）。
+
+        ## 支持的操作
+
+        | operation | 说明 |
+        |-----------|------|
+        | findLatestTransaction | 查找最近一笔匹配交易 |
+        | findEarliestTransaction | 查找最早一笔匹配交易 |
+        | countTransactions | 统计匹配交易数量 |
+        | sumAmount | 对匹配交易求金额合计 |
+        | maxTransaction | 查找金额最大的匹配交易 |
+        | minTransaction | 查找金额最小的匹配交易 |
+        | listTransactions | 列出匹配交易 |
+        | rankByDay | 按天聚合排行（暂不支持，返回 unsupported） |
+
+        ## 过滤条件
+
+        | 字段 | 类型 | 说明 |
+        |------|------|------|
+        | type | string? | "expense"、"income"、"any"，默认 "expense" |
+        | amountGreaterThan | number? | 金额大于 |
+        | amountGreaterThanOrEqual | number? | 金额大于等于 |
+        | amountLessThan | number? | 金额小于 |
+        | amountLessThanOrEqual | number? | 金额小于等于 |
+        | amountEqual | number? | 金额等于 |
+        | keywords | string[] | 关键词子串匹配（note/remark/tags/category），最多10个，每个最长20字符 |
+        | excludedKeywords | string[] | 排除关键词，最多20个 |
+        | categoryNames | string[] | 分类名精确匹配 |
+        | startDate | string? | 起始日期 yyyy-MM-dd |
+        | endDate | string? | 结束日期 yyyy-MM-dd |
+        | accountNames | string[] | 账户名筛选 |
+        | includeNote | bool | 默认 true |
+        | includeRemark | bool | 默认 true |
+        | includeTags | bool | 默认 true |
+        | includeCategory | bool | 默认 true |
+
+        ## 计算类型
+
+        | calculation | 说明 |
+        |-------------|------|
+        | elapsedTimeSinceTransaction | 距今多久（天数） |
+        | daysBetweenTransactions | 两笔交易间隔天数 |
+        | averageAmount | 平均金额 |
+        | none | 无需额外计算 |
+
+        ## 排序
+
+        sort: { "field": "date"|"amount", "direction": "asc"|"desc" }
+
+        ## 规则
+
+        1. 不要编造用户未提及的金额或日期约束。用户只说"最近买烟"，不要自动添加金额条件。
+        2. keywords 使用具体词汇（"香烟"而非"烟"，"外卖/美团/饿了么"而非单一词），减少误匹配。
+        3. 当用户说"一整条烟""买烟>200"时，设置 amountGreaterThan: 200，keywords 用 ["烟","香烟","买烟"]。
+        4. excludedKeywords 用于排除容易误匹配的词（如搜"烟"时排除"烟花""烟台"）。
+        5. categoryNames 使用精确分类名。如果不确定，留空或降级为 keywords。
+        6. 无日期范围时 startDate/endDate 设 null，表示查询所有历史。
+        7. limit 默认 20，findLatestTransaction/findEarliestTransaction/maxTransaction/minTransaction 建议 limit=1。
+        8. explanationHints 用来说明推断依据和不确定性，不要编造数据。
+
+        ## 输出格式
+
+        ```json
+        {
+          "status": "ready | needs_clarification | unsupported",
+          "clarificationQuestion": null,
+          "plan": {
+            "domain": "finance",
+            "operation": "操作类型",
+            "filters": {
+              "type": "expense",
+              "amountGreaterThan": null,
+              "amountGreaterThanOrEqual": null,
+              "amountLessThan": null,
+              "amountLessThanOrEqual": null,
+              "amountEqual": null,
+              "keywords": [],
+              "excludedKeywords": [],
+              "categoryNames": [],
+              "startDate": null,
+              "endDate": null,
+              "accountNames": [],
+              "includeNote": true,
+              "includeRemark": true,
+              "includeTags": true,
+              "includeCategory": true
+            },
+            "calculation": "none",
+            "sort": null,
+            "limit": 20,
+            "explanationHints": []
+          }
+        }
+        ```
+
+        explanationHints 格式（数组，每个元素是一种 hint 对象）：
+        - {"approximateConstraint": {"field": "amount", "reason": "金额>200近似约束一整条烟"}}
+        - {"lowConfidenceMatch": {"fields": ["category"]}}
+        - {"inferredCategory": {"synonym": "烟", "target": "香烟"}}
+        - {"noExplicitRecord": {"note": "备注可能没写'一整条'，基于金额+关键词推断"}}
+
+        ## 示例
+
+        用户：「我上一次买一整条烟过去多久了？金额大于200」
+        ```json
+        {"status":"ready","clarificationQuestion":null,"plan":{"domain":"finance","operation":"findLatestTransaction","filters":{"type":"expense","amountGreaterThan":200,"amountGreaterThanOrEqual":null,"amountLessThan":null,"amountLessThanOrEqual":null,"amountEqual":null,"keywords":["香烟","买烟","整条烟"],"excludedKeywords":["烟花","烟台","电子烟"],"categoryNames":[],"startDate":null,"endDate":null,"accountNames":[],"includeNote":true,"includeRemark":true,"includeTags":true,"includeCategory":true},"calculation":"elapsedTimeSinceTransaction","sort":{"field":"date","direction":"desc"},"limit":1,"explanationHints":[{"approximateConstraint":{"field":"amount","reason":"金额>200近似约束一整条烟"}},{"noExplicitRecord":{"note":"备注可能没写'一整条'，基于金额+关键词推断"}}]}}
+        ```
+
+        用户：「这个月超过50的外卖有几次」
+        ```json
+        {"status":"ready","clarificationQuestion":null,"plan":{"domain":"finance","operation":"countTransactions","filters":{"type":"expense","amountGreaterThan":50,"amountGreaterThanOrEqual":null,"amountLessThan":null,"amountLessThanOrEqual":null,"amountEqual":null,"keywords":["外卖","美团","饿了么","打包"],"excludedKeywords":[],"categoryNames":["外卖"],"startDate":"2026-06-01","endDate":"2026-06-30","accountNames":[],"includeNote":true,"includeRemark":true,"includeTags":true,"includeCategory":true},"calculation":"none","sort":null,"limit":20,"explanationHints":[]}}
+        ```
+
+        只回复 JSON。
         """
     ]
 
