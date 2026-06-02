@@ -243,6 +243,9 @@ struct ChatView: View {
                             onCardTap: { message, cardData in
                                 handleCardTap(message: message, cardData: cardData)
                             },
+                            onFlexibleQueryTransactionTap: { transactionId in
+                                openTransactionDetail(transactionId)
+                            },
                             onViewLog: { msg in
                                 viewingLogMessage = msg
                             },
@@ -378,6 +381,10 @@ struct ChatView: View {
 
     private func openTransactionDetail(_ message: ChatMessageViewData) {
         guard let transactionId = message.resolveLinkedEntityId(for: .finance) else { return }
+        openTransactionDetail(transactionId)
+    }
+
+    private func openTransactionDetail(_ transactionId: UUID) {
         let transaction = FinanceRepository.shared.findTransaction(by: transactionId)
         activeSheet = transaction.map { .editTransaction($0) }
     }
@@ -439,7 +446,7 @@ struct ChatView: View {
             }
         case .habitCheckIn, .mood, .weight:
             break
-        case .analysisSummary, .analysisTrend, .analysisBreakdown, .analysisComparison, .analysisHighlights:
+        case .analysisSummary, .analysisTrend, .analysisBreakdown, .analysisComparison, .analysisHighlights, .flexibleQuery:
             break
         }
     }

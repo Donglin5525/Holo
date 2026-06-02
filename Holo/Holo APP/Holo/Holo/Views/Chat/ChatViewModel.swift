@@ -343,7 +343,10 @@ final class ChatViewModel: ObservableObject {
                         aiMessageId,
                         finalContent: processResult.finalText,
                         intent: processResult.firstIntent?.rawValue,
-                        extractedDataJSON: Self.encodeExtractedData(processResult.firstExtractedData),
+                        extractedDataJSON: Self.encodeExtractedData(
+                            processResult.firstExtractedData,
+                            flexibleQueryResult: processResult.flexibleQueryResult
+                        ),
                         parsedBatchJSON: Self.encodeParseBatch(processResult.parsedBatch),
                         executionBatchJSON: Self.encodeExecutionBatch(processResult.executionBatch),
                         rawLogJSON: Self.encodeRawLog(
@@ -901,10 +904,19 @@ final class ChatViewModel: ObservableObject {
     // MARK: - Helpers
 
     /// 将 extractedData 字典编码为 JSON 字符串
-    private static func encodeExtractedData(_ data: [String: String]?) -> String? {
-        guard let data = data, !data.isEmpty else { return nil }
+    private static func encodeExtractedData(
+        _ data: [String: String]?,
+        flexibleQueryResult: FlexibleQueryResult? = nil
+    ) -> String? {
+        var payload = data ?? [:]
+        if let flexibleQueryResult,
+           let resultData = try? JSONEncoder().encode(flexibleQueryResult),
+           let resultJSON = String(data: resultData, encoding: .utf8) {
+            payload["flexibleQueryResultJSON"] = resultJSON
+        }
+        guard !payload.isEmpty else { return nil }
         do {
-            let encoded = try JSONEncoder().encode(data)
+            let encoded = try JSONEncoder().encode(payload)
             return String(data: encoded, encoding: .utf8)
         } catch {
             Logger(subsystem: "com.holo.app", category: "ChatViewModel")

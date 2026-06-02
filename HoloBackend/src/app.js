@@ -148,6 +148,7 @@ export function createApp(overrides = {}) {
       }
 
       const upstreamRequest = {
+        purpose,
         messages: request.messages,
         stream: request.stream === true,
         model: route.model,

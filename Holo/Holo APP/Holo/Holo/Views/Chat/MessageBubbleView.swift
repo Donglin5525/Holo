@@ -15,6 +15,7 @@ struct MessageBubbleView: View {
     let goalDraftForReview: GoalDraft?
     var onIntentTagTap: ((ChatMessageViewData) -> Void)? = nil
     var onCardTap: ((ChatMessageViewData, ChatCardData) -> Void)? = nil
+    var onFlexibleQueryTransactionTap: ((UUID) -> Void)? = nil
     var onViewLog: ((ChatMessageViewData) -> Void)? = nil
     var onCompactAnalysisTap: (() -> Void)? = nil
     var onGoalDraftCardTap: (() -> Void)? = nil
@@ -75,6 +76,7 @@ struct MessageBubbleView: View {
         let cards = executionCards
         let hasCards = !cards.isEmpty
         let singleCard = cardData
+        let flexibleQueryCard = message.flexibleQueryCard
 
         return HStack(alignment: .top, spacing: 8) {
             if isUser {
@@ -124,6 +126,13 @@ struct MessageBubbleView: View {
                             bubbleContent
                         }
                     }
+                } else if let flexibleQueryCard {
+                    VStack(alignment: .leading, spacing: 8) {
+                        cardView(for: flexibleQueryCard)
+                        if !displayText.isEmpty {
+                            bubbleContent
+                        }
+                    }
                 } else if hasCards {
                     if cards.count > 1 {
                         multiCardView(cards: cards)
@@ -137,7 +146,7 @@ struct MessageBubbleView: View {
                 }
 
                 // 意图标签（卡片渲染时隐藏）
-                if let intent = message.intent, !isUser, !hasCards, singleCard == nil, !hasAnalysisCards, !message.isQueryAnalysis {
+                if let intent = message.intent, !isUser, !hasCards, singleCard == nil, flexibleQueryCard == nil, !hasAnalysisCards, !message.isQueryAnalysis {
                     intentTag(intent)
                 }
             }
@@ -346,6 +355,10 @@ struct MessageBubbleView: View {
             AnalysisComparisonChatCard(data: comparisonData)
         case .analysisHighlights(let highlightsData):
             AnalysisHighlightsChatCard(data: highlightsData)
+        case .flexibleQuery(let queryData):
+            FlexibleQueryChatCard(data: queryData) { transactionId in
+                onFlexibleQueryTransactionTap?(transactionId)
+            }
         }
     }
 
@@ -423,9 +436,7 @@ struct MessageBubbleView: View {
         case .createNote: return "已记录笔记"
         case .queryTasks: return "任务查询"
         case .queryHabits: return "习惯查询"
-        case .generateMemoryInsight: return "已生成回放"
-        case .unknown: return "未识别指令"
-        default: return intent.rawValue
+        default: return intent.chatDisplayLabel
         }
     }
 }

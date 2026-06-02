@@ -23,6 +23,7 @@ nonisolated enum ChatCardData: Equatable {
     case analysisBreakdown(AnalysisBreakdownCardData)
     case analysisComparison(AnalysisComparisonCardData)
     case analysisHighlights(AnalysisHighlightsCardData)
+    case flexibleQuery(FlexibleQueryChatCardData)
 
     /// 从 intent + extractedData 构造卡片数据
     /// - Parameters:
@@ -118,6 +119,51 @@ nonisolated enum ChatCardData: Equatable {
         guard let batch = batch else { return [] }
         return batch.items.compactMap { from(executionItem: $0) }
     }
+
+    nonisolated static func fromFlexibleQueryResult(_ result: FlexibleQueryResult?) -> ChatCardData? {
+        guard let result, result.status == .success else { return nil }
+        let rows = result.matchedTransactions.compactMap(FlexibleQueryTransactionRow.init(evidence:))
+        guard !rows.isEmpty else { return nil }
+
+        let amountText = result.summary.totalAmount.map { FlexibleQueryExecutor.formatAmount($0) }
+        return .flexibleQuery(FlexibleQueryChatCardData(
+            badgeText: AIIntent.flexibleDataQuery.chatDisplayLabel,
+            title: flexibleQueryTitle(for: result),
+            summaryText: flexibleQuerySummaryText(for: result),
+            totalAmountText: amountText,
+            rows: rows
+        ))
+    }
+
+    nonisolated private static func flexibleQueryTitle(for result: FlexibleQueryResult) -> String {
+        switch result.plan.operation {
+        case .sumAmount:
+            return "查到 \(result.summary.totalMatched) 笔明细"
+        case .countTransactions:
+            return "共匹配 \(result.summary.totalMatched) 笔记录"
+        case .findLatestTransaction:
+            return "最近一笔匹配记录"
+        case .findEarliestTransaction:
+            return "最早一笔匹配记录"
+        case .maxTransaction:
+            return "金额最高的一笔"
+        case .minTransaction:
+            return "金额最低的一笔"
+        case .rankByDay, .listTransactions:
+            return "查询明细"
+        }
+    }
+
+    nonisolated private static func flexibleQuerySummaryText(for result: FlexibleQueryResult) -> String {
+        var parts: [String] = []
+        if let range = result.summary.dateRange {
+            parts.append(range)
+        }
+        if let topCategory = result.summary.topCategory, topCategory != "未分类" {
+            parts.append("主要分类：\(topCategory)")
+        }
+        return parts.joined(separator: " · ")
+    }
 }
 
 // MARK: - 交易卡片数据
@@ -161,6 +207,77 @@ nonisolated struct TransactionCardData: Equatable {
     var categoryPath: String? {
         guard let primary = primaryCategory else { return nil }
         if let sub = subCategory, !sub.isEmpty {
+            return "\(primary) · \(sub)"
+        }
+        return primary
+    }
+}
+
+// MARK: - 灵活查询卡片数据
+
+nonisolated struct FlexibleQueryChatCardData: Equatable {
+    let badgeText: String
+    let title: String
+    let summaryText: String
+    let totalAmountText: String?
+    let rows: [FlexibleQueryTransactionRow]
+
+    var previewRows: [FlexibleQueryTransactionRow] {
+        Array(rows.prefix(5))
+    }
+
+    var remainingRowCount: Int {
+        max(rows.count - previewRows.count, 0)
+    }
+
+    var resultCountText: String {
+        "\(rows.count) 笔"
+    }
+}
+
+nonisolated struct FlexibleQueryTransactionRow: Equatable, Identifiable {
+    let transactionId: UUID
+    let date: String
+    let amount: String
+    let type: String
+    let title: String
+    let categoryPath: String?
+
+    var id: UUID { transactionId }
+
+    init?(evidence: FlexibleTransactionEvidence) {
+        guard let uuid = UUID(uuidString: evidence.id) else { return nil }
+        self.transactionId = uuid
+        self.date = evidence.date
+        self.amount = FlexibleQueryExecutor.formatAmount(evidence.amount)
+        self.type = evidence.type
+        self.title = Self.displayTitle(for: evidence)
+        self.categoryPath = Self.categoryPath(for: evidence)
+    }
+
+    var signedAmountText: String {
+        type == "income" ? "+\(amount)" : "-\(amount)"
+    }
+
+    var isExpense: Bool {
+        type != "income"
+    }
+
+    private static func displayTitle(for evidence: FlexibleTransactionEvidence) -> String {
+        if let note = evidence.note?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty {
+            return note
+        }
+        if let remark = evidence.remark?.trimmingCharacters(in: .whitespacesAndNewlines), !remark.isEmpty {
+            return remark
+        }
+        return evidence.subCategory ?? evidence.primaryCategory ?? "未分类记录"
+    }
+
+    private static func categoryPath(for evidence: FlexibleTransactionEvidence) -> String? {
+        guard let primary = evidence.primaryCategory, !primary.isEmpty else {
+            return evidence.subCategory
+        }
+        if let sub = evidence.subCategory, !sub.isEmpty, sub != primary {
             return "\(primary) · \(sub)"
         }
         return primary

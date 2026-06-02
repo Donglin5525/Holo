@@ -49,6 +49,27 @@ extension AIIntent {
     nonisolated var isQuery: Bool { Self.queryIntents.contains(self) }
     nonisolated var isTask: Bool { Self.taskIntents.contains(self) }
     nonisolated var isFinance: Bool { Self.financeIntents.contains(self) }
+
+    nonisolated var chatDisplayLabel: String {
+        switch self {
+        case .recordExpense, .recordIncome: return "已记账"
+        case .createTask: return "已创建任务"
+        case .completeTask: return "已完成任务"
+        case .updateTask: return "已更新任务"
+        case .deleteTask: return "已删除任务"
+        case .recordMood: return "已记录心情"
+        case .recordWeight: return "已记录体重"
+        case .checkIn: return "已打卡"
+        case .createNote: return "已记录笔记"
+        case .queryTasks: return "任务查询"
+        case .queryHabits: return "习惯查询"
+        case .queryAnalysis: return "分析卡片"
+        case .flexibleDataQuery: return "查询卡片"
+        case .generateMemoryInsight: return "已生成回放"
+        case .unknown: return "未识别指令"
+        case .query: return "查询"
+        }
+    }
 }
 
 // MARK: - LinkedEntity

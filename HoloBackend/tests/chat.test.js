@@ -107,6 +107,76 @@ test("POST /v1/ai/chat/completions returns non-streaming model response", async 
   });
 });
 
+test("intent mock routes category-specific spending amount queries to flexible_data_query", async () => {
+  const app = createTestApp();
+
+  const promptResponse = await app.request("/v1/prompts/intent_recognition");
+  assert.equal(promptResponse.status, 200);
+  const prompt = await promptResponse.json();
+
+  const response = await app.request("/v1/ai/chat/completions", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-holo-device-id": "intent-fireworks-device",
+    },
+    body: JSON.stringify({
+      purpose: "intent",
+      stream: false,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: prompt.content },
+        { role: "user", content: "今年买烟花了多少钱" },
+      ],
+    }),
+  });
+
+  assert.equal(response.status, 200);
+  const json = await response.json();
+  const content = json.choices[0].message.content;
+  const parsed = JSON.parse(content);
+  assert.equal(parsed.mode, "query");
+  assert.equal(parsed.items[0].intent, "flexible_data_query");
+  assert.notEqual(parsed.items[0].intent, "query_analysis");
+  assert.equal(parsed.items[0].extractedData.queryDomain, "finance");
+  assert.match(parsed.items[0].extractedData.rawConstraints, /今年/);
+  assert.match(parsed.items[0].extractedData.rawConstraints, /烟花/);
+});
+
+test("intent mock routes direct income total queries to flexible_data_query", async () => {
+  const app = createTestApp();
+
+  const promptResponse = await app.request("/v1/prompts/intent_recognition");
+  assert.equal(promptResponse.status, 200);
+  const prompt = await promptResponse.json();
+
+  const response = await app.request("/v1/ai/chat/completions", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-holo-device-id": "intent-income-total-device",
+    },
+    body: JSON.stringify({
+      purpose: "intent",
+      stream: false,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: prompt.content },
+        { role: "user", content: "今年的收入是多少" },
+      ],
+    }),
+  });
+
+  assert.equal(response.status, 200);
+  const json = await response.json();
+  const parsed = JSON.parse(json.choices[0].message.content);
+  assert.equal(parsed.mode, "query");
+  assert.equal(parsed.items[0].intent, "flexible_data_query");
+  assert.equal(parsed.items[0].extractedData.queryDomain, "finance");
+  assert.match(parsed.items[0].extractedData.rawConstraints, /今年/);
+  assert.match(parsed.items[0].extractedData.rawConstraints, /收入/);
+});
+
 test("admin logs are disabled when HOLO_ADMIN_TOKEN is not configured", async () => {
   const app = createTestApp();
 
@@ -490,7 +560,7 @@ test("GET /v1/prompts/:type returns prompt content and version", async () => {
   assert.equal(response.status, 200);
   const json = await response.json();
   assert.equal(json.type, "intent_recognition");
-  assert.equal(json.version, 13);
+  assert.equal(json.version, 15);
   assert.match(json.content, /你是意图识别模块/);
 });
 

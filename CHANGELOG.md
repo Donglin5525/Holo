@@ -4,6 +4,26 @@
 
 ---
 
+## [2026-06-03] HoloAI 财务查询卡片与确定金额路由优化
+
+### 新增
+- 灵活财务查询结果新增聊天卡片渲染，展示合计金额、命中笔数和可点击记账明细
+- 明细行点击后可打开对应记账记录，便于从 HoloAI 查询结果跳回财务模块核对
+
+### 优化
+- 查询卡片改为轻量摘要样式，最多预览前 5 笔明细，避免长列表撑满聊天界面
+- `intent_recognition` 升级到 v15：确定数字类财务问题（如“今年的收入是多少”“上周花了多少钱”）优先走 `flexible_data_query`；趋势、结构、复盘类问题继续走 `query_analysis`
+- iOS 本地 fallback prompt 同步新路由规则，降低后端不可用时的行为漂移
+
+### 验证
+- 后端测试通过：`npm test`（46 tests passed）
+- iOS 构建通过：`xcodebuild -project 'Holo/Holo APP/Holo/Holo.xcodeproj' -scheme Holo -configuration Debug -destination 'generic/platform=iOS' -derivedDataPath /private/tmp/holo-flex-card-green CODE_SIGNING_ALLOWED=NO build`
+
+### 后端
+- 需要后端发版，已同步 `HoloBackend` prompt/provider 相关改动
+
+---
+
 ## [2026-06-02] 编辑任务描述输入框自适应高度
 
 ### 修复

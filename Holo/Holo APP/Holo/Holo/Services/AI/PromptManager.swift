@@ -83,7 +83,7 @@ final class PromptManager {
 
     /// 需要版本管理的 prompt 类型及其最低版本
     private static let promptVersions: [PromptType: Int] = [
-        .intentRecognition: 12,         // v12: 新增 flexible_data_query 意图+路由规则；v11: 收入分类示例+待分类兜底
+        .intentRecognition: 14,         // v14: 收窄 query_analysis 金额触发，特定品类金额查询优先 flexible_data_query
         .memoryInsightGeneration: 5,    // v5: 习惯洞察区分正向习惯与坏习惯控制率
         .analysisPrompt: 2,             // v2: C 端纯文本分析输出，避免裸露 Markdown 语法
         .annualReview: 1,               // v1: 初始版本
@@ -245,8 +245,8 @@ final class PromptManager {
         | record_weight | 记录体重 | weight |
         | query_tasks | 有什么任务/待办列表 | - |
         | query_habits | 习惯状态/打卡了吗 | - |
-        | query_analysis | 分析*/复盘*/对比总结/花了多少/消费统计/支出统计/习惯完成率/任务进度/步数/睡眠/运动/健康/走路/锻炼/目标进展/进度/goal | analysisDomain, startDate?, endDate?, periodLabel? |
-        | flexible_data_query | 上一次*/最近一次*/哪一笔/几次/超过N元/距今多久/多久没/最大一笔/最小一笔 | queryDomain?, queryGoal?, rawConstraints? |
+        | query_analysis | 分析*/复盘*/对比总结/趋势/结构/占比/消费统计/支出统计/收入分析/习惯完成率/任务进度/步数/睡眠/运动/健康/走路/锻炼/目标进展/进度/goal | analysisDomain, startDate?, endDate?, periodLabel? |
+        | flexible_data_query | 上一次*/最近一次*/哪一笔/几次/超过N元/距今多久/多久没/最大一笔/最小一笔/确定金额/确定数字/收入是多少/支出是多少/花了多少钱/关键词限定+花了多少/关键词限定+多少钱/特定品类+共花/特定品类+总共 | queryDomain?, queryGoal?, rawConstraints? |
         | query | 你能做什么/帮我什么/闲聊 | - |
         | generate_memory_insight | 复盘这周/本月记忆回放 | periodType? |
         | unknown | 不匹配以上任何意图 | - |
@@ -331,8 +331,9 @@ final class PromptManager {
         - 日期：今天=当天，明天=+1，后天=+2，下周一=计算
         - 有具体时间→dueDate 格式 yyyy-MM-dd HH:mm，无时间→yyyy-MM-dd
         - 时间映射：凌晨=00-05，早上/上午=06-11，中午=12，下午=13-17，晚上/傍晚=18-22，半夜/深夜=23
-        - 涉及具体数据（金额、分类、时间段统计、消费、习惯、任务进度）的查询→用 query_analysis，不要用 query。query 只用于非数据的通用问答
+        - 涉及具体数据（金额、分类、时间段统计、消费、习惯、任务进度）的查询→不要用 query。query 只用于非数据的通用问答
         - 涉及"上一次/最近一次/哪一笔/几次/超过N元/距今多久/多久没发生/最大一笔/最小一笔"等单点数据查询→用 flexible_data_query，不要用 query_analysis。涉及"分析/复盘/趋势/结构/占比/总结"的周期性问题→用 query_analysis
+        - 先判断用户是在要一个确定数字/金额/次数，还是要分析趋势/结构/复盘。确定数字类财务查询→用 flexible_data_query，不要用 query_analysis。例如"今年的收入是多少""今年支出了多少""本月花了多少钱""今年买烟花了多少钱""咖啡花了多少钱""打车一共花了多少"。只有用户明确要求分析、复盘、趋势、结构、占比、总结时才用 query_analysis。例如"分析一下今年收入""今年收入结构怎么样""最近财务状态怎么样""消费统计""支出分析"。关键词限定的消费金额查询也必须用 flexible_data_query，例如"今年买烟花了多少钱""买烟花了多少""外卖总共花了多少"。不带品类限定但只要确定总额，也用 flexible_data_query，例如"今年花了多少钱""今年的收入是多少"
         - 抽烟、喝酒、熬夜、暴食等减少/戒除语义属于 negative habit；提取 habitPolarity="negative"，优先使用 successRule="stayBelowTarget" 或 "abstain"
         - 用户记录坏习惯发生次数时，habitValue 保留数值，unit 保留单位；不要把“抽烟 5 根”理解为正向完成 5 次
         - "复盘、总结、看看这周/本月状态、我最近怎么样"优先识别为 generate_memory_insight 或 query_analysis
@@ -381,7 +382,17 @@ final class PromptManager {
 
         输入：「上周花了多少钱」
         ```json
-        {"mode":"query","items":[{"id":"1","intent":"query_analysis","confidence":0.95,"extractedData":{"analysisDomain":"finance","periodLabel":"上周"}}],"needsClarification":false,"clarificationQuestion":null}
+        {"mode":"query","items":[{"id":"1","intent":"flexible_data_query","confidence":0.95,"extractedData":{"queryDomain":"finance","queryGoal":"统计上周支出总额","rawConstraints":"上周, 支出"}}],"needsClarification":false,"clarificationQuestion":null}
+        ```
+
+        输入：「今年的收入是多少」
+        ```json
+        {"mode":"query","items":[{"id":"1","intent":"flexible_data_query","confidence":0.95,"extractedData":{"queryDomain":"finance","queryGoal":"统计今年收入总额","rawConstraints":"今年, 收入"}}],"needsClarification":false,"clarificationQuestion":null}
+        ```
+
+        输入：「今年买烟花了多少钱」
+        ```json
+        {"mode":"query","items":[{"id":"1","intent":"flexible_data_query","confidence":0.95,"extractedData":{"queryDomain":"finance","queryGoal":"统计今年买烟花的支出总额","rawConstraints":"今年, 关键词包含烟花"}}],"needsClarification":false,"clarificationQuestion":null}
         ```
 
         输入：「你能帮我做什么」

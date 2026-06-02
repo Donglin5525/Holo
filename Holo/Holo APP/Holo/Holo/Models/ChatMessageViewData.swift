@@ -211,6 +211,19 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         return ChatCardData.fromAnalysisContext(context)
     }
 
+    /// 从 flexible query 结构化结果生成的查询卡片
+    var flexibleQueryCard: ChatCardData? {
+        ChatCardData.fromFlexibleQueryResult(flexibleQueryResult)
+    }
+
+    var flexibleQueryResult: FlexibleQueryResult? {
+        guard let json = extractedDataDictionary?["flexibleQueryResultJSON"],
+              let data = json.data(using: .utf8) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(FlexibleQueryResult.self, from: data)
+    }
+
     /// 是否为分析查询消息
     var isQueryAnalysis: Bool {
         guard let intentStr = intent,
