@@ -17,6 +17,25 @@ private struct PendingCheckItem: Identifiable, Equatable {
     var title: String
 }
 
+private enum TaskDescriptionEditorLayout {
+    static let minHeight: CGFloat = 46
+    static let maxHeight: CGFloat = 132
+    static let horizontalInset: CGFloat = 5
+    static let verticalInset: CGFloat = 8
+
+    static func height(for measuredTextHeight: CGFloat) -> CGFloat {
+        min(max(measuredTextHeight, minHeight), maxHeight)
+    }
+}
+
+private struct TaskDescriptionHeightPreferenceKey: PreferenceKey {
+    static var defaultValue: CGFloat = TaskDescriptionEditorLayout.minHeight
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 struct AddTaskSheet: View {
     @ObservedObject var repository: TodoRepository
     let existingTask: TodoTask?
@@ -25,6 +44,7 @@ struct AddTaskSheet: View {
 
     @State private var title = ""
     @State private var description = ""
+    @State private var descriptionEditorHeight = TaskDescriptionEditorLayout.minHeight
     @State private var priority: TaskPriority = .medium
     @State private var dueDate = Date()
     @State private var hasDueDate = false
@@ -395,21 +415,47 @@ struct AddTaskSheet: View {
                 .foregroundColor(.holoPrimary)
             }
 
-            TextEditor(text: $description)
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
-                .frame(minHeight: 46)
-                .scrollContentBackground(.hidden)
-                .overlay(alignment: .topLeading) {
-                    if description.isEmpty {
-                        Text("添加描述、完成标准或需要注意的点")
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPlaceholder)
-                            .padding(.top, 8)
-                            .allowsHitTesting(false)
-                    }
+            ZStack(alignment: .topLeading) {
+                descriptionHeightMeasurer
+
+                TextEditor(text: $description)
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextPrimary)
+                    .frame(height: descriptionEditorHeight)
+                    .scrollDisabled(descriptionEditorHeight < TaskDescriptionEditorLayout.maxHeight)
+                    .scrollContentBackground(.hidden)
+
+                if description.isEmpty {
+                    Text("添加描述、完成标准或需要注意的点")
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPlaceholder)
+                        .padding(.top, TaskDescriptionEditorLayout.verticalInset)
+                        .padding(.leading, TaskDescriptionEditorLayout.horizontalInset)
+                        .allowsHitTesting(false)
                 }
+            }
+            .onPreferenceChange(TaskDescriptionHeightPreferenceKey.self) { measuredHeight in
+                descriptionEditorHeight = TaskDescriptionEditorLayout.height(for: measuredHeight)
+            }
         }
+    }
+
+    private var descriptionHeightMeasurer: some View {
+        Text(description.isEmpty ? " " : description + "\n")
+            .font(.holoBody)
+            .foregroundColor(.clear)
+            .padding(.horizontal, TaskDescriptionEditorLayout.horizontalInset)
+            .padding(.vertical, TaskDescriptionEditorLayout.verticalInset)
+            .frame(maxWidth: .infinity, alignment: .topLeading)
+            .background(
+                GeometryReader { geometry in
+                    Color.clear.preference(
+                        key: TaskDescriptionHeightPreferenceKey.self,
+                        value: geometry.size.height
+                    )
+                }
+            )
+            .allowsHitTesting(false)
     }
 
     // MARK: - 完成切换

@@ -4,6 +4,20 @@
 
 ---
 
+## [2026-06-02] 编辑任务描述输入框自适应高度
+
+### 修复
+- 修复编辑任务页描述内容较长时输入区域高度不随文字增长、下方检查清单位置过早贴近的问题
+- 描述框现在会根据文字内容自动增高，内容过长后再启用内部滚动，避免键盘弹起时占满页面
+
+### 验证
+- iOS 构建通过：`xcodebuild -project 'Holo/Holo APP/Holo/Holo.xcodeproj' -scheme Holo -configuration Debug -destination 'generic/platform=iOS' -derivedDataPath /private/tmp/holo-desc-autosize-build CODE_SIGNING_ALLOWED=NO build`
+
+### 不变
+- 后端无变更，无需发版
+
+---
+
 ## [2026-06-02] HoloAI 灵活数据查询模块（Phase 1）
 
 ### 新增
