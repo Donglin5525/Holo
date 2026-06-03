@@ -38,6 +38,16 @@ const DEFAULT_CONFIG = {
       temperature: Number(process.env.HOLO_THOUGHT_VOICE_SUMMARY_TEMPERATURE ?? 0.3),
       maxTokens: Number(process.env.HOLO_THOUGHT_VOICE_SUMMARY_MAX_TOKENS ?? 1024),
     },
+    memory_observer: {
+      provider: process.env.HOLO_MEMORY_OBSERVER_PROVIDER
+        ?? process.env.HOLO_CHAT_PROVIDER
+        ?? "mock",
+      model: process.env.HOLO_MEMORY_OBSERVER_MODEL
+        ?? process.env.HOLO_CHAT_MODEL
+        ?? "holo-mock",
+      temperature: Number(process.env.HOLO_MEMORY_OBSERVER_TEMPERATURE ?? 0.1),
+      maxTokens: Number(process.env.HOLO_MEMORY_OBSERVER_MAX_TOKENS ?? 2048),
+    },
   },
   providers: {
     deepseek: {
