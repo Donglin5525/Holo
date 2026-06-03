@@ -33,6 +33,8 @@ final class PromptManager {
         case thoughtVoiceSummary = "thought_voice_summary"
         case flexibleQueryPlanner = "flexible_query_planner"
         case memoryObserver = "memory_observer"
+        case financeActionParser = "finance_action_parser"
+        case taskActionParser = "task_action_parser"
 
         var displayName: String {
             switch self {
@@ -47,6 +49,8 @@ final class PromptManager {
             case .thoughtVoiceSummary: return "观点语音总结"
             case .flexibleQueryPlanner: return "灵活查询规划"
             case .memoryObserver: return "记忆观察引擎"
+            case .financeActionParser: return "分期记账解析"
+            case .taskActionParser: return "重复任务解析"
             }
         }
 
@@ -63,6 +67,8 @@ final class PromptManager {
             case .thoughtVoiceSummary: return "观点语音输入智能总结"
             case .flexibleQueryPlanner: return "将用户自然语言问题转成结构化查询计划"
             case .memoryObserver: return "从模块信号生成短期记忆观察"
+            case .financeActionParser: return "从分期记账文本中提取结构化参数"
+            case .taskActionParser: return "从重复任务文本中提取结构化参数"
             }
         }
 
@@ -79,6 +85,8 @@ final class PromptManager {
             case .thoughtVoiceSummary: return "waveform.badge.magnifyingglass"
             case .flexibleQueryPlanner: return "magnifyingglass.circle"
             case .memoryObserver: return "eye.circle"
+            case .financeActionParser: return "creditcard.circle"
+            case .taskActionParser: return "repeat.circle"
             }
         }
     }
@@ -93,7 +101,9 @@ final class PromptManager {
         .annualReview: 1,               // v1: 初始版本
         .thoughtVoiceSummary: 2,        // v2: 自然分段，复杂内容才使用小标题
         .flexibleQueryPlanner: 1,       // v1: 初始版本，财务域灵活查询规划
-        .memoryObserver: 1              // v1: 初始版本，记忆观察引擎
+        .memoryObserver: 1,             // v1: 初始版本，记忆观察引擎
+        .financeActionParser: 1,        // v1: 分期记账参数解析
+        .taskActionParser: 1            // v1: 重复任务参数解析
     ]
 
     /// 加载指定类型的 Prompt，带缓存，优先读取 UserDefaults 自定义。
@@ -1014,6 +1024,78 @@ final class PromptManager {
         }
 
         只输出 JSON，不要添加其他内容。
+        """,
+
+        .financeActionParser: """
+        你是 Holo 应用的分期记账参数解析器。用户已经表达了分期记账意图，你需要从用户输入中提取结构化的分期参数。
+
+        ## 输出格式
+        只输出一个 JSON object，不要输出其他内容。
+
+        ## 必须输出的字段
+        - "amount": 总金额字符串，如 "2000"
+        - "type": 固定为 "expense"（当前只支持支出分期）
+        - "note": 商品或服务说明
+        - "transactionDate": 交易日期，ISO 格式 "YYYY-MM-DD"，未提及则用今天的日期
+        - "categoryCandidate": 推荐分类名，可为空字符串
+        - "installmentEnabled": 固定为 "true"
+        - "installmentTotalAmount": 分期总金额字符串，与 amount 一致
+        - "installmentPeriods": 分期期数，字符串格式的整数，范围 2-36
+        - "installmentFeePerPeriod": 每期手续费，字符串格式，未提及则默认 "0"
+        - "installmentFirstDueDate": 首期还款日期，ISO 格式，未提及则与 transactionDate 相同
+
+        ## 不支持的情况
+        如果用户表达了以下不支持的语义，必须返回：
+        - "needsClarification": "true"
+        - "unsupportedReason": 具体原因描述
+
+        不支持的语义包括：按周或按季度分期（只支持按月分期）、分期期数为 0 或 1、超过 36 期。
+
+        ## 示例
+        输入：我买了个沙发，总价2000，分三期，0手续费
+        输出：{"amount":"2000","type":"expense","note":"沙发","transactionDate":"{{todayDate}}","categoryCandidate":"家具","installmentEnabled":"true","installmentTotalAmount":"2000","installmentPeriods":"3","installmentFeePerPeriod":"0","installmentFirstDueDate":"{{todayDate}}"}
+        """,
+
+        .taskActionParser: """
+        你是 Holo 应用的重复任务参数解析器。用户已经表达了创建重复提醒的意图，你需要从用户输入中提取结构化的重复参数。
+
+        当前日期：{{todayDate}}
+        当前时间：{{currentTime}}
+
+        ## 输出格式
+        只输出一个 JSON object，不要输出其他内容。
+
+        ## 必须输出的字段
+        - "title": 任务标题
+        - "dueDate": 截止日期时间，ISO 8601 格式，如 "2026-06-03T20:00:00+08:00"
+        - "repeatEnabled": 固定为 "true"
+        - "repeatType": 重复类型，可选值："daily"、"weekly"、"monthly"、"custom"
+        - "repeatInterval": 重复间隔，字符串格式的正整数，默认 "1"
+        - "repeatWeekdays": 星期几，逗号分隔的数字（1=周日，2=周一...7=周六），不适用时为空字符串
+        - "repeatMonthDay": 每月固定日期，整数，不适用时为空字符串
+        - "repeatSummary": 重复规则的人类可读摘要，如 "每隔 3 天"
+
+        ## 重复类型映射规则
+        | 用户表达 | repeatType | repeatInterval | 其他字段 |
+        |----------|------------|----------------|----------|
+        | 每天 | daily | 1 | 空 |
+        | 每隔 N 天 | daily | N | 空 |
+        | 每周X | custom | 1 | repeatWeekdays=对应数字 |
+        | 每周X和Y | custom | 1 | repeatWeekdays=逗号分隔数字 |
+        | 每月N号 | monthly | 1 | repeatMonthDay=N |
+
+        星期映射：周日=1，周一=2，周二=3，周三=4，周四=5，周五=6，周六=7
+
+        ## 不支持的情况
+        如果用户表达了以下不支持的语义，必须返回：
+        - "needsClarification": "true"
+        - "unsupportedReason": 具体原因描述
+
+        不支持的语义包括：每隔 N 周的特定周X、每月第N个周X、工作日跳过节假日、重复 N 次后结束。
+
+        ## 示例
+        输入：每隔三天跟家里打电话
+        输出：{"title":"跟家里打电话","dueDate":"{{todayDate}}T20:00:00+08:00","repeatEnabled":"true","repeatType":"daily","repeatInterval":"3","repeatWeekdays":"","repeatMonthDay":"","repeatSummary":"每隔 3 天"}
         """
     ]
 

@@ -5,6 +5,13 @@
 ## [Unreleased]
 
 ### Features
+- **iOS**: HoloAI 结构化执行：新增分期记账和重复任务的 AI 意图解析，支持"沙发 2000 分三期"、"每隔三天打电话"等自然语言输入
+- **iOS**: RepeatRule 新增 interval 字段，支持"每隔 N 天/周/月"的重复规则
+- **iOS**: 交易卡片展示分期信息（期数、每期金额、手续费），分期 pending 禁用 sheet 编辑入口
+- **iOS**: 任务卡片展示重复信息（repeat summary）
+- **iOS**: confirmPendingTask 加固：去重、重读最新状态、失败时回写错误到卡片
+- **Backend**: 新增 finance_action_parser / task_action_parser 路由和 Prompt 模板
+- **Backend**: normalizePurpose 改为动态 route 判断，修复 thought_voice_summary / memory_observer 降级为 chat 的旧 bug
 - **iOS**: HoloAI 双层记忆架构：新增情景记忆（短期记忆）完整管线，包含信号采集、LLM 观察引擎、响应校验和持久化存储
 - **iOS**: 记忆管理中心升级为三区布局：最近记住（情景记忆）、待确认（长期候选）、已记住（长期记忆）
 - **iOS**: AI 设置新增「情景记忆观察」开关和「手动触发观察」按钮

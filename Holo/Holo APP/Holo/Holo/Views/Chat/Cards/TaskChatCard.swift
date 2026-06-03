@@ -59,9 +59,19 @@ struct TaskChatCard: View {
 
             if data.requiresConfirmation {
                 HStack(spacing: 10) {
-                    Text(footerText)
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.holoTextSecondary)
+                    if data.isRecurring, let summary = data.repeatSummary {
+                        HStack(spacing: 4) {
+                            Image(systemName: "repeat")
+                                .font(.system(size: 10))
+                            Text(summary)
+                                .font(.system(size: 12, weight: .medium))
+                        }
+                        .foregroundColor(.holoPrimary)
+                    } else {
+                        Text(footerText)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.holoTextSecondary)
+                    }
 
                     Spacer()
 

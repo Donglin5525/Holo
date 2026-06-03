@@ -62,6 +62,35 @@ final class OpenAICompatibleProvider: AIProvider {
         return parseBatchFromJSON(content)
     }
 
+    func parseActionInput(
+        _ input: String,
+        context: UserContext,
+        kind: AIActionParserKind
+    ) async throws -> AIParseBatch {
+        let systemPrompt = try PromptManager.shared.loadPrompt(kind.promptType)
+        let messages: [ChatMessageDTO] = [
+            .system(systemPrompt),
+            .system(AIUserContextMessageBuilder.build(from: context, purpose: .intentRecognition)),
+            .user(input)
+        ]
+
+        let request = buildRequest(messages: messages, responseFormat: .jsonObject)
+        let response: ChatCompletionResponse = try await apiClient.send(request)
+
+        guard let content = response.choices?.first?.message?.content else {
+            throw APIError.serverError("AI 未返回有效内容")
+        }
+
+        lastCallLog = LLMCallLog(
+            type: kind.promptType.rawValue,
+            model: config.model,
+            requestMessages: messages,
+            responseText: content
+        )
+
+        return parseBatchFromJSON(content)
+    }
+
     func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> MemoryInsightGenerationResult {
         let systemPrompt = try PromptManager.shared.loadPrompt(.memoryInsightGeneration)
         let messages: [ChatMessageDTO] = [

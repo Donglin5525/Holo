@@ -73,6 +73,39 @@ final class HoloBackendAIProvider: AIProvider {
         return parseBatchFromJSON(content)
     }
 
+    func parseActionInput(
+        _ input: String,
+        context: UserContext,
+        kind: AIActionParserKind
+    ) async throws -> AIParseBatch {
+        let systemPrompt = await loadManagedPrompt(kind.promptType)
+        let messages: [ChatMessageDTO] = [
+            .system(systemPrompt),
+            .system(AIUserContextMessageBuilder.build(from: context, purpose: .intentRecognition)),
+            .user(input)
+        ]
+
+        let request = buildRequest(
+            purpose: kind.backendPurpose,
+            messages: messages,
+            responseFormat: .jsonObject
+        )
+        let response: ChatCompletionResponse = try await apiClient.send(request)
+
+        guard let content = response.choices?.first?.message?.content else {
+            throw APIError.serverError("AI 未返回有效内容")
+        }
+
+        lastCallLog = LLMCallLog(
+            type: kind.promptType.rawValue,
+            model: "holo-backend",
+            requestMessages: messages,
+            responseText: content
+        )
+
+        return parseBatchFromJSON(content)
+    }
+
     func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> MemoryInsightGenerationResult {
         let promptResult = await loadManagedPromptResult(.memoryInsightGeneration)
         let messages: [ChatMessageDTO] = [
@@ -288,6 +321,17 @@ enum HoloBackendPurpose: String {
     case insight
     case thoughtVoiceSummary = "thought_voice_summary"
     case memoryObserver = "memory_observer"
+    case financeActionParser = "finance_action_parser"
+    case taskActionParser = "task_action_parser"
+}
+
+extension AIActionParserKind {
+    var backendPurpose: HoloBackendPurpose {
+        switch self {
+        case .financeInstallment: return .financeActionParser
+        case .taskRepeat: return .taskActionParser
+        }
+    }
 }
 
 struct HoloBackendChatCompletionRequest: Encodable {

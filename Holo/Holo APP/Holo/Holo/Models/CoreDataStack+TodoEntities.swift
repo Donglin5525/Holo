@@ -435,6 +435,13 @@ extension CoreDataStack {
         ruleSkipWeekends.defaultValue = false
         repeatRuleAttributes.append(ruleSkipWeekends)
 
+        let ruleInterval = NSAttributeDescription()
+        ruleInterval.name = "interval"
+        ruleInterval.attributeType = .integer16AttributeType
+        ruleInterval.isOptional = false
+        ruleInterval.defaultValue = 1
+        repeatRuleAttributes.append(ruleInterval)
+
         let ruleCreatedAt = NSAttributeDescription()
         ruleCreatedAt.name = "createdAt"
         ruleCreatedAt.attributeType = .dateAttributeType

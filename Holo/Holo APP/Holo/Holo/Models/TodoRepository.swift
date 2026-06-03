@@ -689,12 +689,18 @@ class TodoRepository: ObservableObject {
         type: RepeatType,
         for task: TodoTask,
         weekdays: [Weekday]? = nil,
+        interval: Int = 1,
+        monthDay: Int? = nil,
         untilDate: Date? = nil
     ) throws -> RepeatRule {
         let rule = RepeatRule.create(in: context, type: type, task: task)
 
         if let weekdays = weekdays {
             rule.weekdaysArray = weekdays
+        }
+        rule.repeatInterval = interval
+        if let monthDay = monthDay {
+            rule.monthDay = Int16(monthDay)
         }
         rule.untilDate = untilDate
 

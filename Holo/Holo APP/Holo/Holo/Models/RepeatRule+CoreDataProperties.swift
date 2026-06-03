@@ -27,6 +27,12 @@ extension RepeatRule {
 
     // MARK: - 计算属性
 
+    /// 安全间隔值，最小为 1
+    var repeatInterval: Int {
+        get { max(1, Int(interval)) }
+        set { interval = Int16(max(1, newValue)) }
+    }
+
     /// 重复类型枚举值
     var repeatType: RepeatType {
         get { RepeatType(rawValue: type) ?? .daily }
@@ -94,10 +100,10 @@ extension RepeatRule {
     private func calculateNextRawDate(from fromDate: Date, calendar: Calendar) -> Date? {
         switch repeatType {
         case .daily:
-            return calendar.date(byAdding: .day, value: 1, to: fromDate)
+            return calendar.date(byAdding: .day, value: repeatInterval, to: fromDate)
 
         case .weekly:
-            return calendar.date(byAdding: .weekOfYear, value: 1, to: fromDate)
+            return calendar.date(byAdding: .weekOfYear, value: repeatInterval, to: fromDate)
 
         case .monthly:
             // 检查是否使用"第N个周X"模式
@@ -105,11 +111,11 @@ extension RepeatRule {
                 return nextNthWeekdayOfMonth(from: fromDate, ordinal: Int(monthWeekOrdinal), weekday: weekday, calendar: calendar)
             } else {
                 // 固定日期模式
-                return calendar.date(byAdding: .month, value: 1, to: fromDate)
+                return calendar.date(byAdding: .month, value: repeatInterval, to: fromDate)
             }
 
         case .yearly:
-            return calendar.date(byAdding: .year, value: 1, to: fromDate)
+            return calendar.date(byAdding: .year, value: repeatInterval, to: fromDate)
 
         case .custom:
             return nextCustomDate(from: fromDate, calendar: calendar)
@@ -156,10 +162,11 @@ extension RepeatRule {
     /// 显示描述文本
     var displayDescription: String {
         let baseDescription: String
+        let iv = repeatInterval
 
         switch repeatType {
         case .daily:
-            baseDescription = "每天"
+            baseDescription = iv == 1 ? "每天" : "每隔 \(iv) 天"
 
         case .weekly:
             let weekdays = weekdaysArray
@@ -178,15 +185,17 @@ extension RepeatRule {
             if monthWeekOrdinal > 0, let weekday = monthWeekdayValue {
                 let ordinalNames = ["", "第一", "第二", "第三", "第四", "第五"]
                 let ordinalName = monthWeekOrdinal < ordinalNames.count ? ordinalNames[Int(monthWeekOrdinal)] : "第\(monthWeekOrdinal)"
-                baseDescription = "每月\(ordinalName)个\(weekday.displayTitle)"
+                let prefix = iv == 1 ? "每月" : "每隔 \(iv) 个月"
+                baseDescription = "\(prefix)\(ordinalName)个\(weekday.displayTitle)"
             } else if monthDay > 0 {
-                baseDescription = "每月\(monthDay)日"
+                let prefix = iv == 1 ? "每月" : "每隔 \(iv) 个月"
+                baseDescription = "\(prefix)\(monthDay)日"
             } else {
-                baseDescription = "每月"
+                baseDescription = iv == 1 ? "每月" : "每隔 \(iv) 个月"
             }
 
         case .yearly:
-            baseDescription = "每年"
+            baseDescription = iv == 1 ? "每年" : "每隔 \(iv) 年"
 
         case .custom:
             let weekdays = weekdaysArray

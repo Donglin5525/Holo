@@ -517,10 +517,25 @@ final class ChatViewModel: ObservableObject {
             return
         }
 
+        let itemId = batch.items[pendingIndex].id
+        guard !confirmingItemIds.contains(itemId) else { return }
+        confirmingItemIds.insert(itemId)
+
         Task { @MainActor [weak self] in
-            guard let self, let chatRepo = self.chatRepo else { return }
+            guard let self, let chatRepo = self.chatRepo else {
+                self?.confirmingItemIds.remove(itemId)
+                return
+            }
 
             do {
+                // 重读最新消息状态，防止过期数据重复确认
+                guard let currentBatch = self.latestExecutionBatch(for: message.id),
+                      let currentItems = currentBatch.items.first(where: { $0.id == itemId }),
+                      currentItems.renderData?["confirmationStatus"] == "pending" else {
+                    self.confirmingItemIds.remove(itemId)
+                    return
+                }
+
                 let result = ParsedResult(
                     intent: .createTask,
                     confidence: 1,
@@ -570,8 +585,43 @@ final class ChatViewModel: ObservableObject {
                     executionBatchJSON: Self.encodeExecutionBatch(updatedBatch)
                 )
             } catch {
+                // 错误回写：标记卡片为 failed
+                var failedRenderData = renderData
+                failedRenderData["confirmationStatus"] = "failed"
+                failedRenderData["errorText"] = error.localizedDescription
+
+                var updatedItems = batch.items
+                let pending = updatedItems[pendingIndex]
+                updatedItems[pendingIndex] = AIExecutionItem(
+                    id: pending.id,
+                    parseItemId: pending.parseItemId,
+                    intent: pending.intent,
+                    status: .failed,
+                    summaryText: "创建任务失败",
+                    renderData: failedRenderData,
+                    linkedEntityType: nil,
+                    linkedEntityId: nil,
+                    errorText: error.localizedDescription
+                )
+
+                let failedBatch = AIExecutionBatch(
+                    mode: batch.mode,
+                    items: updatedItems,
+                    finalText: Self.confirmedFinalText(from: updatedItems)
+                )
+
+                chatRepo.updateMessage(message.id, content: failedBatch.finalText)
+                chatRepo.updateMessageMetadata(
+                    message.id,
+                    intent: message.intent,
+                    extractedDataJSON: Self.encodeExtractedData(message.extractedDataDictionary),
+                    parsedBatchJSON: Self.encodeParseBatch(message.parsedBatch),
+                    executionBatchJSON: Self.encodeExecutionBatch(failedBatch)
+                )
                 self.errorMessage = "创建任务失败：\(error.localizedDescription)"
             }
+
+            self.confirmingItemIds.remove(itemId)
         }
     }
 

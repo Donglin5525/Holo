@@ -24,6 +24,7 @@ class RepeatRule: NSManagedObject, @unchecked Sendable {
     @NSManaged var monthWeekday: String?
     @NSManaged var untilCount: Int16
     @NSManaged var untilDate: Date?
+    @NSManaged var interval: Int16
     @NSManaged var skipHolidays: Bool
     @NSManaged var skipWeekends: Bool
     @NSManaged var createdAt: Date

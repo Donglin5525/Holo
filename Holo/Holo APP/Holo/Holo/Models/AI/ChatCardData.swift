@@ -44,7 +44,14 @@ nonisolated enum ChatCardData: Equatable {
                 type: "expense",
                 date: data["date"],
                 confirmationStatus: data["confirmationStatus"],
-                confirmationError: data["confirmationError"]
+                confirmationError: data["confirmationError"],
+                installmentEnabled: data["installmentEnabled"] == "true",
+                installmentTotalAmount: data["installmentTotalAmount"],
+                installmentPeriods: data["installmentPeriods"].flatMap { Int($0) },
+                installmentFeePerPeriod: data["installmentFeePerPeriod"],
+                installmentSummary: data["installmentSummary"],
+                installmentPeriodAmounts: data["installmentPeriodAmounts"]?
+                    .split(separator: ",").map(String.init) ?? []
             ))
 
         case .recordIncome:
@@ -57,7 +64,14 @@ nonisolated enum ChatCardData: Equatable {
                 type: "income",
                 date: data["date"],
                 confirmationStatus: data["confirmationStatus"],
-                confirmationError: data["confirmationError"]
+                confirmationError: data["confirmationError"],
+                installmentEnabled: data["installmentEnabled"] == "true",
+                installmentTotalAmount: data["installmentTotalAmount"],
+                installmentPeriods: data["installmentPeriods"].flatMap { Int($0) },
+                installmentFeePerPeriod: data["installmentFeePerPeriod"],
+                installmentSummary: data["installmentSummary"],
+                installmentPeriodAmounts: data["installmentPeriodAmounts"]?
+                    .split(separator: ",").map(String.init) ?? []
             ))
 
         case .createTask:
@@ -69,7 +83,14 @@ nonisolated enum ChatCardData: Equatable {
                 description: data["description"],
                 subtasks: SubtaskParser.parse(data["subtasks"]),
                 reminderDate: data["reminderDate"],
-                requiresConfirmation: data["confirmationStatus"] == "pending"
+                requiresConfirmation: data["confirmationStatus"] == "pending",
+                repeatEnabled: data["repeatEnabled"] == "true",
+                repeatType: data["repeatType"],
+                repeatInterval: data["repeatInterval"].flatMap { Int($0) },
+                repeatWeekdays: data["repeatWeekdays"]?
+                    .split(separator: ",").compactMap { Int($0) } ?? [],
+                repeatMonthDay: data["repeatMonthDay"].flatMap { Int($0) },
+                repeatSummary: data["repeatSummary"]
             ))
 
         case .checkIn:
@@ -177,6 +198,12 @@ nonisolated struct TransactionCardData: Equatable {
     let date: String?
     let confirmationStatus: String?
     let confirmationError: String?
+    let installmentEnabled: Bool
+    let installmentTotalAmount: String?
+    let installmentPeriods: Int?
+    let installmentFeePerPeriod: String?
+    let installmentSummary: String?
+    let installmentPeriodAmounts: [String]
 
     /// 是否为支出
     var isExpense: Bool { type == "expense" }
@@ -190,7 +217,10 @@ nonisolated struct TransactionCardData: Equatable {
     /// 是否确认失败（可重试）
     var isFailed: Bool { confirmationStatus == "failed" }
 
-    /// 分类 SF Symbol 图标
+    /// 是否分期记账
+    var isInstallment: Bool { installmentEnabled }
+
+    /// 分期 SF Symbol 图标
     var categoryIcon: String {
         CategorySFSymbolMapper.icon(for: primaryCategory, subCategory: subCategory)
     }
@@ -294,6 +324,12 @@ nonisolated struct TaskCardData: Equatable {
     let subtasks: [String]
     let reminderDate: String?
     let requiresConfirmation: Bool
+    let repeatEnabled: Bool
+    let repeatType: String?
+    let repeatInterval: Int?
+    let repeatWeekdays: [Int]
+    let repeatMonthDay: Int?
+    let repeatSummary: String?
 
     init(
         title: String,
@@ -302,7 +338,13 @@ nonisolated struct TaskCardData: Equatable {
         description: String? = nil,
         subtasks: [String] = [],
         reminderDate: String? = nil,
-        requiresConfirmation: Bool = false
+        requiresConfirmation: Bool = false,
+        repeatEnabled: Bool = false,
+        repeatType: String? = nil,
+        repeatInterval: Int? = nil,
+        repeatWeekdays: [Int] = [],
+        repeatMonthDay: Int? = nil,
+        repeatSummary: String? = nil
     ) {
         self.title = title
         self.dueDate = dueDate
@@ -311,7 +353,15 @@ nonisolated struct TaskCardData: Equatable {
         self.subtasks = subtasks
         self.reminderDate = reminderDate
         self.requiresConfirmation = requiresConfirmation
+        self.repeatEnabled = repeatEnabled
+        self.repeatType = repeatType
+        self.repeatInterval = repeatInterval
+        self.repeatWeekdays = repeatWeekdays
+        self.repeatMonthDay = repeatMonthDay
+        self.repeatSummary = repeatSummary
     }
+
+    var isRecurring: Bool { repeatEnabled }
 }
 
 // MARK: - 习惯打卡卡片数据

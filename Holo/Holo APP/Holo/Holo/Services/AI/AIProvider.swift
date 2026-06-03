@@ -40,8 +40,28 @@ protocol AIProvider {
     /// 批量解析用户输入（多动作支持）
     func parseUserInputBatch(_ input: String, context: UserContext) async throws -> AIParseBatch
 
+    /// 结构化执行参数解析（分期记账/重复任务）
+    func parseActionInput(
+        _ input: String,
+        context: UserContext,
+        kind: AIActionParserKind
+    ) async throws -> AIParseBatch
+
     /// 生成记忆洞察（自定义 prompt + 结构化 context JSON）
     func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> MemoryInsightGenerationResult
+}
+
+/// 结构化执行解析类型
+enum AIActionParserKind: Sendable {
+    case financeInstallment
+    case taskRepeat
+
+    var promptType: PromptManager.PromptType {
+        switch self {
+        case .financeInstallment: return .financeActionParser
+        case .taskRepeat: return .taskActionParser
+        }
+    }
 }
 
 extension AIProvider {
@@ -61,6 +81,15 @@ extension AIProvider {
     /// 默认实现：不支持记忆洞察
     func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> MemoryInsightGenerationResult {
         throw APIError.serverError("当前 Provider 不支持记忆洞察生成")
+    }
+
+    /// 默认实现：不支持结构化执行解析
+    func parseActionInput(
+        _ input: String,
+        context: UserContext,
+        kind: AIActionParserKind
+    ) async throws -> AIParseBatch {
+        throw APIError.serverError("当前 Provider 不支持结构化执行解析")
     }
 
     /// 非流式目标规划调用

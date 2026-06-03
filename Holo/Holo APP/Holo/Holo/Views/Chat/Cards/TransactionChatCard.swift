@@ -51,8 +51,15 @@ struct TransactionChatCard: View {
                 .foregroundColor(.holoTextSecondary)
             }
 
+            // 分期信息
+            if data.isInstallment, data.requiresConfirmation {
+                installmentInfo
+            }
+
             if data.requiresConfirmation {
-                modifyCategoryLink
+                if !data.isInstallment {
+                    modifyCategoryLink
+                }
                 pendingActions
             } else if data.isCancelled {
                 cancelledInfo
@@ -89,6 +96,39 @@ struct TransactionChatCard: View {
             return CardBadge(text: "已取消", color: .holoTextSecondary)
         }
         return nil
+    }
+
+    // MARK: - Installment Info
+
+    private var installmentInfo: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 4) {
+                Image(systemName: "calendar.badge.clock")
+                    .font(.system(size: 11))
+                Text(data.installmentSummary ?? "按月分期")
+                    .font(.system(size: 13, weight: .medium))
+            }
+            .foregroundColor(.holoPrimary)
+
+            if let periods = data.installmentPeriods, periods > 0,
+               let totalStr = data.installmentTotalAmount,
+               let total = Decimal(string: totalStr) {
+                let perPeriod = total / Decimal(periods)
+                Text("每期 ¥\(perPeriod.description) × \(periods) 期")
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(.holoTextSecondary)
+            }
+
+            if let fee = data.installmentFeePerPeriod, fee != "0" {
+                Text("手续费 ¥\(fee)/期")
+                    .font(.system(size: 12, weight: .regular))
+                    .foregroundColor(.holoTextSecondary)
+            }
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.holoPrimary.opacity(0.06))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 
     // MARK: - Modify Category Link

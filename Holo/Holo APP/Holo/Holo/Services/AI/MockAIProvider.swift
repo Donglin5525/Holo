@@ -331,6 +331,124 @@ final class MockAIProvider: AIProvider {
 
     // MARK: - Batch Parsing
 
+    func parseActionInput(
+        _ input: String,
+        context: UserContext,
+        kind: AIActionParserKind
+    ) async throws -> AIParseBatch {
+        try await Task.sleep(nanoseconds: 300_000_000)
+        let lowercased = input.lowercased()
+
+        switch kind {
+        case .financeInstallment:
+            let periodsMatch = input.range(of: #"分\s*(\d+)\s*期"#, options: .regularExpression)
+            let periods = periodsMatch.map { String(input[$0]) } ?? "3"
+            let amountMatch = input.range(of: #"\d+"#, options: .regularExpression)
+            let amount = amountMatch.map { String(input[$0]) } ?? "0"
+
+            let item = AIParseItem(
+                id: UUID().uuidString,
+                intent: .recordExpense,
+                confidence: 0.95,
+                extractedData: [
+                    "amount": amount,
+                    "type": "expense",
+                    "note": "测试分期",
+                    "transactionDate": "2026-06-03",
+                    "categoryCandidate": "",
+                    "installmentEnabled": "true",
+                    "installmentTotalAmount": amount,
+                    "installmentPeriods": periods,
+                    "installmentFeePerPeriod": "0",
+                    "installmentFirstDueDate": "2026-06-03"
+                ]
+            )
+            return AIParseBatch(mode: .singleAction, items: [item])
+
+        case .taskRepeat:
+            let dailyMatch = input.range(of: #"每隔\s*(\d+)\s*天"#, options: .regularExpression)
+            let weeklyMatch = input.range(of: #"每周([一二三四五六日天])"#, options: .regularExpression)
+            let monthlyMatch = input.range(of: #"每月(\d+)号"#, options: .regularExpression)
+
+            let extractedData: [String: String]
+            let title = lowercased
+                .replacingOccurrences(of: "提醒我", with: "")
+                .replacingOccurrences(of: "每隔", with: "")
+                .replacingOccurrences(of: "每天", with: "")
+                .replacingOccurrences(of: "每周", with: "")
+                .replacingOccurrences(of: "每月", with: "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+
+            if let dailyMatch {
+                let matchedStr = String(input[dailyMatch])
+                let n = matchedStr.replacingOccurrences(of: "每隔", with: "")
+                    .replacingOccurrences(of: "天", with: "")
+                    .trimmingCharacters(in: .whitespaces)
+                    .replacingOccurrences(of: "每", with: "")
+                extractedData = [
+                    "title": title.isEmpty ? "提醒" : title,
+                    "dueDate": "2026-06-03T20:00:00+08:00",
+                    "repeatEnabled": "true",
+                    "repeatType": "daily",
+                    "repeatInterval": n.isEmpty ? "1" : n,
+                    "repeatWeekdays": "",
+                    "repeatMonthDay": "",
+                    "repeatSummary": "每隔 \(n) 天"
+                ]
+            } else if let match = weeklyMatch {
+                let matchedStr = String(input[match])
+                let weekdayMap: [Character: String] = [
+                    "日": "1", "一": "2", "二": "3", "三": "4",
+                    "四": "5", "五": "6", "六": "7", "天": "1"
+                ]
+                let dayChar = matchedStr.last.map { weekdayMap[$0] ?? "4" } ?? "4"
+                let displayName = matchedStr.replacingOccurrences(of: "每周", with: "")
+                extractedData = [
+                    "title": title.isEmpty ? "提醒" : title,
+                    "dueDate": "2026-06-03T20:00:00+08:00",
+                    "repeatEnabled": "true",
+                    "repeatType": "custom",
+                    "repeatInterval": "1",
+                    "repeatWeekdays": dayChar,
+                    "repeatMonthDay": "",
+                    "repeatSummary": "每周\(displayName)"
+                ]
+            } else if let monthlyMatch {
+                let dayNum = String(input[monthlyMatch]).replacingOccurrences(of: "每月", with: "")
+                    .replacingOccurrences(of: "号", with: "")
+                extractedData = [
+                    "title": title.isEmpty ? "提醒" : title,
+                    "dueDate": "2026-06-03T20:00:00+08:00",
+                    "repeatEnabled": "true",
+                    "repeatType": "monthly",
+                    "repeatInterval": "1",
+                    "repeatWeekdays": "",
+                    "repeatMonthDay": dayNum,
+                    "repeatSummary": "每月\(dayNum)号"
+                ]
+            } else {
+                extractedData = [
+                    "title": title.isEmpty ? input : title,
+                    "dueDate": "2026-06-03T20:00:00+08:00",
+                    "repeatEnabled": "true",
+                    "repeatType": "daily",
+                    "repeatInterval": "1",
+                    "repeatWeekdays": "",
+                    "repeatMonthDay": "",
+                    "repeatSummary": "每天"
+                ]
+            }
+
+            let item = AIParseItem(
+                id: UUID().uuidString,
+                intent: .createTask,
+                confidence: 0.95,
+                extractedData: extractedData
+            )
+            return AIParseBatch(mode: .singleAction, items: [item])
+        }
+    }
+
     /// 多动作 mock：按标点分句，每段独立解析
     /// 注意：这只是非常弱的分句能力，不代表正式拆分策略
     func parseUserInputBatch(_ input: String, context: UserContext) async throws -> AIParseBatch {

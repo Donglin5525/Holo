@@ -23,6 +23,8 @@ struct ConversationProcessResult {
     let flexibleQueryResult: FlexibleQueryResult?
     /// 意图识别 LLM 调用日志
     var intentCallLog: LLMCallLog?
+    /// 结构化执行 parser 调用日志
+    var actionParserCallLog: LLMCallLog?
 }
 
 @MainActor
@@ -192,14 +194,31 @@ final class ConversationCoordinator {
 
             if item.intent == .createTask {
                 var renderData = item.extractedData ?? [:]
+
+                // 重复任务：触发 action parser 补充 repeat 字段
+                if Self.looksLikeRepeatTask(text, data: item.extractedData),
+                   let actionResult = try? await callActionParser(
+                       text: text,
+                       data: item.extractedData,
+                       kind: .taskRepeat,
+                       provider: provider
+                   ) {
+                    for (key, value) in actionResult where !value.isEmpty {
+                        renderData[key] = value
+                    }
+                }
+
                 renderData["confirmationStatus"] = "pending"
+                renderData["pendingKind"] = "task"
                 executionItems.append(
                     AIExecutionItem(
                         id: UUID().uuidString,
                         parseItemId: item.id,
                         intent: item.intent,
                         status: .skipped,
-                        summaryText: "我识别到一个待办，请确认后创建",
+                        summaryText: renderData["repeatEnabled"] == "true"
+                            ? "我识别到一个重复提醒，请确认后创建"
+                            : "我识别到一个待办，请确认后创建",
                         renderData: renderData.isEmpty ? nil : renderData,
                         linkedEntityType: nil,
                         linkedEntityId: nil,
@@ -211,6 +230,19 @@ final class ConversationCoordinator {
 
             if item.intent.isFinance {
                 var renderData = item.extractedData ?? [:]
+
+                // 分期记账：触发 action parser 补充 installment 字段
+                if Self.looksLikeInstallment(text, data: item.extractedData),
+                   let actionResult = try? await callActionParser(
+                       text: text,
+                       data: item.extractedData,
+                       kind: .financeInstallment,
+                       provider: provider
+                   ) {
+                    for (key, value) in actionResult where !value.isEmpty {
+                        renderData[key] = value
+                    }
+                }
 
                 // 预览分类匹配（不创建交易，仅获取真实分类名用于卡片展示）
                 let txType: TransactionType = item.intent == .recordIncome ? .income : .expense
@@ -228,9 +260,15 @@ final class ConversationCoordinator {
 
                 renderData["confirmationStatus"] = "pending"
                 renderData["pendingKind"] = "transaction"
-                let summary = item.intent == .recordExpense
-                    ? "我识别到一笔支出，请确认后记录"
-                    : "我识别到一笔收入，请确认后记录"
+                let summary: String
+                if renderData["installmentEnabled"] == "true" {
+                    let periods = renderData["installmentPeriods"] ?? "?"
+                    summary = "我识别到一笔分期支出，分 \(periods) 期，请确认后记录"
+                } else {
+                    summary = item.intent == .recordExpense
+                        ? "我识别到一笔支出，请确认后记录"
+                        : "我识别到一笔收入，请确认后记录"
+                }
                 executionItems.append(
                     AIExecutionItem(
                         id: UUID().uuidString,
@@ -305,6 +343,30 @@ final class ConversationCoordinator {
     }
 
     // MARK: - Private Helpers
+
+    // MARK: Action Parser 触发判断
+
+    private static func looksLikeInstallment(_ text: String, data: [String: String]?) -> Bool {
+        if let data = data, data["installmentEnabled"] == "true" { return true }
+        let patterns = ["分\\d+期", "分\\s*期", "分期", "分[二三四五六七八九十]+期"]
+        return patterns.contains { text.range(of: $0, options: .regularExpression) != nil }
+    }
+
+    private static func looksLikeRepeatTask(_ text: String, data: [String: String]?) -> Bool {
+        if let data = data, data["repeatEnabled"] == "true" { return true }
+        let patterns = ["每隔", "每天", "每周[一二三四五六日天]", "每月\\d+号", "每周[一二三四五六日天]和"]
+        return patterns.contains { text.range(of: $0, options: .regularExpression) != nil }
+    }
+
+    private func callActionParser(
+        text: String,
+        data: [String: String]?,
+        kind: AIActionParserKind,
+        provider: AIProvider
+    ) async throws -> [String: String]? {
+        let batch = try await provider.parseActionInput(text, context: .empty, kind: kind)
+        return batch.first?.extractedData
+    }
 
     private static func buildRenderData(
         from item: AIParseItem,

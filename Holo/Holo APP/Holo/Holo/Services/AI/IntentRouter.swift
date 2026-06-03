@@ -132,6 +132,11 @@ final class IntentRouter {
             return RouteResult(text: result.responseText ?? "请告诉我具体的金额")
         }
 
+        // 分期记账路径
+        if data["installmentEnabled"] == "true" {
+            return try await handleInstallmentExpense(data: data, amount: amount, amountStr: amountStr)
+        }
+
         let note = data["note"]
         let primaryCategory = data["primaryCategory"]
         let subCategory = data["subCategory"]
@@ -325,6 +330,38 @@ final class IntentRouter {
             reminders: reminders,
             checkItemTitles: checkItemTitles.isEmpty ? nil : checkItemTitles
         )
+
+        // 重复任务：创建 RepeatRule
+        if data["repeatEnabled"] == "true", let repeatTypeStr = data["repeatType"] {
+            let repeatType = RepeatType(rawValue: repeatTypeStr) ?? .daily
+            let interval = data["repeatInterval"].flatMap { Int($0) } ?? 1
+
+            let weekdays: [Weekday]?
+            let monthDay: Int?
+
+            switch repeatType {
+            case .custom:
+                weekdays = data["repeatWeekdays"]?
+                    .split(separator: ",")
+                    .compactMap { Weekday(rawValue: Int($0) ?? 0) }
+                monthDay = nil
+            case .monthly:
+                weekdays = nil
+                monthDay = data["repeatMonthDay"].flatMap { Int($0) }
+            default:
+                weekdays = nil
+                monthDay = nil
+            }
+
+            _ = try todoRepo.createRepeatRule(
+                type: repeatType,
+                for: task,
+                weekdays: weekdays,
+                interval: interval,
+                monthDay: monthDay
+            )
+            logger.info("重复规则已创建：\(repeatType.rawValue) interval=\(interval)")
+        }
 
         logger.info("任务已创建：\(title)")
 
@@ -866,5 +903,84 @@ final class IntentRouter {
                 text: "生成回放失败：\(error.localizedDescription)。请稍后重试。"
             )
         }
+    }
+
+    // MARK: - Installment Expense
+
+    private func handleInstallmentExpense(data: [String: String], amount: Decimal, amountStr: String) async throws -> RouteResult {
+        guard let periodsStr = data["installmentPeriods"],
+              let periods = Int(periodsStr),
+              (2...36).contains(periods) else {
+            return RouteResult(text: "分期期数无效，请使用 2-36 期")
+        }
+
+        let feePerPeriod = Decimal(string: data["installmentFeePerPeriod"] ?? "0") ?? 0
+        let note = data["note"]
+        let categoryCandidate = data["categoryCandidate"]
+
+        let categoryRepo = FinanceRepository.shared
+        var category = try await matchCategory(
+            primaryCategory: data["primaryCategory"],
+            subCategory: data["subCategory"],
+            categoryCandidate: categoryCandidate,
+            normalizedCategoryCandidate: data["normalizedCategoryCandidate"],
+            semanticCategoryHint: data["semanticCategoryHint"],
+            note: note ?? "",
+            type: .expense
+        )
+        let account = try await categoryRepo.getDefaultAccount()
+
+        guard let account = account else {
+            return RouteResult(text: "请先设置默认账户")
+        }
+
+        var isUnmatched = false
+        if category == nil {
+            isUnmatched = true
+            category = categoryRepo.ensurePendingCategory(type: .expense)
+        }
+
+        let startDateStr = data["installmentFirstDueDate"] ?? data["transactionDate"] ?? ""
+        let dateFormatter = DateFormatter()
+        dateFormatter.dateFormat = "yyyy-MM-dd"
+        let startDate = dateFormatter.date(from: startDateStr) ?? Date()
+
+        let transactions = try await categoryRepo.addInstallmentTransactions(
+            totalAmount: amount,
+            feePerPeriod: feePerPeriod,
+            periods: periods,
+            type: .expense,
+            category: category!,
+            account: account,
+            startDate: startDate,
+            note: note
+        )
+
+        if isUnmatched, let candidate = categoryCandidate {
+            if let firstTx = transactions.first {
+                CategoryLearnedMapping.recordTransactionCandidate(
+                    transactionId: firstTx.id,
+                    candidate: candidate,
+                    type: .expense
+                )
+            }
+        }
+
+        let groupId = transactions.first?.installmentGroupId
+        logger.info("分期支出已记录：¥\(amount) × \(periods) 期，groupId=\(groupId?.uuidString ?? "nil")")
+
+        let matchedNames = try await resolvedCategoryDisplayNames(
+            for: isUnmatched ? nil : transactions.first?.category,
+            type: .expense
+        )
+
+        return RouteResult(
+            text: "已记录分期支出：\(note ?? "分期购物")，总额 ¥\(amountStr)，分 \(periods) 期",
+            transactionId: transactions.first?.id,
+            linkedEntity: groupId.map { LinkedEntity(type: .transaction, id: $0) } ?? transactions.first.map { LinkedEntity(type: .transaction, id: $0.id) },
+            categoryUnmatched: isUnmatched,
+            matchedPrimaryCategory: matchedNames.primary,
+            matchedSubCategory: matchedNames.sub
+        )
     }
 }
