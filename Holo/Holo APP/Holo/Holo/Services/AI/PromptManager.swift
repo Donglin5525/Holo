@@ -32,6 +32,7 @@ final class PromptManager {
         case analysisPrompt = "analysis_prompt"
         case thoughtVoiceSummary = "thought_voice_summary"
         case flexibleQueryPlanner = "flexible_query_planner"
+        case memoryObserver = "memory_observer"
 
         var displayName: String {
             switch self {
@@ -45,6 +46,7 @@ final class PromptManager {
             case .analysisPrompt: return "分析查询"
             case .thoughtVoiceSummary: return "观点语音总结"
             case .flexibleQueryPlanner: return "灵活查询规划"
+            case .memoryObserver: return "记忆观察引擎"
             }
         }
 
@@ -60,6 +62,7 @@ final class PromptManager {
             case .analysisPrompt: return "AI 分析查询专用系统提示"
             case .thoughtVoiceSummary: return "观点语音输入智能总结"
             case .flexibleQueryPlanner: return "将用户自然语言问题转成结构化查询计划"
+            case .memoryObserver: return "从模块信号生成短期记忆观察"
             }
         }
 
@@ -75,6 +78,7 @@ final class PromptManager {
             case .analysisPrompt: return "chart.bar.xaxis"
             case .thoughtVoiceSummary: return "waveform.badge.magnifyingglass"
             case .flexibleQueryPlanner: return "magnifyingglass.circle"
+            case .memoryObserver: return "eye.circle"
             }
         }
     }
@@ -88,7 +92,8 @@ final class PromptManager {
         .analysisPrompt: 2,             // v2: C 端纯文本分析输出，避免裸露 Markdown 语法
         .annualReview: 1,               // v1: 初始版本
         .thoughtVoiceSummary: 2,        // v2: 自然分段，复杂内容才使用小标题
-        .flexibleQueryPlanner: 1        // v1: 初始版本，财务域灵活查询规划
+        .flexibleQueryPlanner: 1,       // v1: 初始版本，财务域灵活查询规划
+        .memoryObserver: 1              // v1: 初始版本，记忆观察引擎
     ]
 
     /// 加载指定类型的 Prompt，带缓存，优先读取 UserDefaults 自定义。
@@ -967,6 +972,48 @@ final class PromptManager {
         ```
 
         只回复 JSON。
+        """,
+
+        .memoryObserver: """
+        你是 HoloAI 的记忆观察引擎。你会收到一个观察包，包含用户近期的模块信号和既有记忆。
+
+        你的任务是：
+        1. 判断哪些模式值得形成新的短期记忆（Episodic Memory）。
+        2. 判断哪些既有短期记忆被当前信号语义命中（仍相关）。
+        3. 判断哪些既有短期记忆应该被标记为弱化/过期。
+
+        安全约束（必须遵守）：
+        - 不把短期倾向写成永久事实。
+        - 不根据单次行为推断人格、身份、医疗或心理状态。
+        - 对坏习惯、健康、金钱压力等高影响内容使用克制措辞。
+        - 用户否定过的内容是反例，不得换个说法重复提出。
+        - 每条输出必须有 evidenceRefs，且 evidenceRefs 必须在输入信号中存在。
+        - 只输出 suggested 或 active 状态的记忆，不输出 promotionCandidate。
+        - 既有记忆与原始信号冲突时，以原始信号为准。
+
+        输出 JSON 格式：
+        {
+          "newEpisodicMemories": [{
+            "title": "string, ≤20字",
+            "memoryText": "string, ≤100字, 记忆正文",
+            "confidence": 0.0-1.0,
+            "sensitivity": "normal | highImpact | sensitive",
+            "visibility": "suggested | reviewRequired",
+            "evidenceRefs": ["信号ID1", "信号ID2"],
+            "reasoningSummary": "string, ≤50字, 为什么生成这条记忆",
+            "expiresInDays": 7-90
+          }],
+          "memoryHits": [{
+            "episodicMemoryID": "既有记忆ID",
+            "hitReasoning": "string, 为什么认为命中"
+          }],
+          "weakenedOrExpiredMemories": [{
+            "episodicMemoryID": "既有记忆ID",
+            "reason": "string, 为什么应该弱化或过期"
+          }]
+        }
+
+        只输出 JSON，不要添加其他内容。
         """
     ]
 

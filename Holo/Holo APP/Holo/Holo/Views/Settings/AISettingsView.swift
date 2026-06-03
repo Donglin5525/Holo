@@ -14,6 +14,8 @@ struct AISettingsView: View {
     @ObservedObject private var memorySettings = HoloMemorySettings.shared
     @Environment(\.dismiss) private var dismiss
     @State private var showPromptRefreshed = false
+    @State private var isObserving = false
+    @State private var observationResult: String?
 
     var body: some View {
         Form {
@@ -340,10 +342,57 @@ struct AISettingsView: View {
                     }
                 }
             }
+
+            Toggle(isOn: $memorySettings.episodicMemoryObservationEnabled) {
+                HStack(spacing: HoloSpacing.md) {
+                    Image(systemName: "eye.circle")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.holoPrimary)
+                        .frame(width: 28)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("情景记忆观察")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+
+                        Text("自动从习惯和目标中识别值得记住的模式")
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoTextSecondary)
+                    }
+                }
+            }
+
+            Button {
+                Task { await runManualObservation() }
+            } label: {
+                HStack(spacing: HoloSpacing.md) {
+                    Image(systemName: "play.circle")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.holoPrimary)
+                        .frame(width: 28)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(isObserving ? "观察中..." : "手动触发观察")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+
+                        if let result = observationResult {
+                            Text(result)
+                                .font(.system(size: 12))
+                                .foregroundColor(result.hasPrefix("成功") ? .green : .holoTextSecondary)
+                        } else {
+                            Text("立即执行一次记忆观察（忽略开关状态）")
+                                .font(.system(size: 12))
+                                .foregroundColor(.holoTextSecondary)
+                        }
+                    }
+                }
+            }
+            .disabled(isObserving)
         } header: {
             Text("记忆管理")
         } footer: {
-            Text("开启长期记忆后，AI 会从洞察中自动学习并征求确认。你随时可以在记忆管理中查看和删除。")
+            Text("开启后，AI 会定期观察你的习惯和目标变化，识别有意义的模式并生成短期记忆。你可以在记忆管理中查看和管理。")
                 .font(.caption)
                 .foregroundColor(.holoTextSecondary)
         }
@@ -357,5 +406,30 @@ struct AISettingsView: View {
                 Task { await viewModel.deleteConfig() }
             }
         }
+    }
+
+    // MARK: - Manual Observation
+
+    private func runManualObservation() async {
+        isObserving = true
+        observationResult = nil
+
+        let habitSummaries = MemorySignalDataAdapter.buildHabitFocusSummaries()
+        let goalInputs = MemorySignalDataAdapter.buildGoalProgressInputs()
+
+        if habitSummaries.isEmpty && goalInputs.isEmpty {
+            observationResult = "暂无习惯或目标数据"
+            isObserving = false
+            return
+        }
+
+        await HoloMemoryObserverService.shared.runObservation(
+            habitSummaries: habitSummaries,
+            goalInputs: goalInputs
+        )
+
+        let episodicCount = HoloEpisodicMemoryStore.shared.querySuggested().count
+        observationResult = "成功（信号：\(habitSummaries.count) 习惯 + \(goalInputs.count) 目标，当前建议记忆：\(episodicCount) 条）"
+        isObserving = false
     }
 }

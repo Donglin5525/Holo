@@ -36,7 +36,9 @@ enum HoloLongTermMemoryStore {
 
         do {
             let data = try Data(contentsOf: storeURL)
-            let memories = try JSONDecoder().decode([HoloLongTermMemory].self, from: data)
+            let decoder = JSONDecoder()
+            decoder.dateDecodingStrategy = .iso8601
+            let memories = try decoder.decode([HoloLongTermMemory].self, from: data)
             return memories
         } catch {
             logger.error("长期记忆 JSON 解码失败：\(error.localizedDescription)")

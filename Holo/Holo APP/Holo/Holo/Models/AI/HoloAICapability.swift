@@ -35,12 +35,14 @@ final class HoloMemorySettings: ObservableObject {
         static let longTermMemoryEnabled = "holo_memory_longTermEnabled"
         static let memoryInsightExtractionEnabled = "holo_memory_insightExtractionEnabled"
         static let memorySummaryInjectionEnabled = "holo_memory_summaryInjectionEnabled"
+        static let episodicMemoryObservationEnabled = "holo_memory_episodicObservationEnabled"
     }
 
     @Published var longTermMemoryEnabled: Bool {
         didSet { defaults.set(longTermMemoryEnabled, forKey: Keys.longTermMemoryEnabled) }
     }
 
+    @available(*, deprecated, message: "未使用，请使用 episodicMemoryObservationEnabled")
     @Published var memoryInsightExtractionEnabled: Bool {
         didSet { defaults.set(memoryInsightExtractionEnabled, forKey: Keys.memoryInsightExtractionEnabled) }
     }
@@ -49,10 +51,15 @@ final class HoloMemorySettings: ObservableObject {
         didSet { defaults.set(memorySummaryInjectionEnabled, forKey: Keys.memorySummaryInjectionEnabled) }
     }
 
+    @Published var episodicMemoryObservationEnabled: Bool {
+        didSet { defaults.set(episodicMemoryObservationEnabled, forKey: Keys.episodicMemoryObservationEnabled) }
+    }
+
     private init() {
         self.longTermMemoryEnabled = defaults.object(forKey: Keys.longTermMemoryEnabled) as? Bool ?? false
         self.memoryInsightExtractionEnabled = defaults.object(forKey: Keys.memoryInsightExtractionEnabled) as? Bool ?? false
         self.memorySummaryInjectionEnabled = defaults.object(forKey: Keys.memorySummaryInjectionEnabled) as? Bool ?? true
+        self.episodicMemoryObservationEnabled = defaults.object(forKey: Keys.episodicMemoryObservationEnabled) as? Bool ?? false
     }
 }
 
@@ -63,4 +70,5 @@ enum HoloAIFeatureFlags {
     static var memorySummaryInjectionEnabled: Bool { HoloMemorySettings.shared.memorySummaryInjectionEnabled }
     static var longTermMemoryWriteEnabled: Bool { HoloMemorySettings.shared.longTermMemoryEnabled }
     static var memoryInsightCandidateExtractionEnabled: Bool { HoloMemorySettings.shared.longTermMemoryEnabled }
+    static var episodicMemoryObservationEnabled: Bool { HoloMemorySettings.shared.episodicMemoryObservationEnabled }
 }

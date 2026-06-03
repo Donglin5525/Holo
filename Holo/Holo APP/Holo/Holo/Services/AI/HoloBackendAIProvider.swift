@@ -287,6 +287,7 @@ enum HoloBackendPurpose: String {
     case intent
     case insight
     case thoughtVoiceSummary = "thought_voice_summary"
+    case memoryObserver = "memory_observer"
 }
 
 struct HoloBackendChatCompletionRequest: Encodable {

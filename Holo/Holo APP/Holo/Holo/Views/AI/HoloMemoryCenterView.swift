@@ -2,20 +2,53 @@
 //  HoloMemoryCenterView.swift
 //  Holo
 //
-//  长期记忆管理中心：查看已确认记忆、处理候选、删除
+//  记忆管理中心：情景记忆（短期）、长期候选、已确认长期记忆
 //
 
 import SwiftUI
 
 struct HoloMemoryCenterView: View {
 
+    @State private var episodicMemories: [HoloEpisodicMemory] = []
     @State private var confirmedMemories: [HoloLongTermMemory] = []
     @State private var candidates: [HoloLongTermMemory] = []
     @State private var selectedMemory: HoloLongTermMemory?
+    @State private var selectedEpisodic: HoloEpisodicMemory?
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         List {
+            // Section 1: 最近记住（情景记忆）
+            if !episodicMemories.isEmpty {
+                Section {
+                    ForEach(episodicMemories) { memory in
+                        episodicMemoryRow(memory)
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    deleteEpisodicMemory(memory)
+                                } label: {
+                                    Label("删除", systemImage: "trash")
+                                }
+                            }
+                            .swipeActions(edge: .leading) {
+                                Button {
+                                    hideEpisodicMemory(memory)
+                                } label: {
+                                    Label("隐藏", systemImage: "eye.slash")
+                                }
+                                .tint(.orange)
+                            }
+                    }
+                } header: {
+                    HStack {
+                        Image(systemName: "eye.circle")
+                            .font(.system(size: 12))
+                        Text("最近记住（\(episodicMemories.count)）")
+                    }
+                }
+            }
+
+            // Section 2: 待确认（长期候选）
             if !candidates.isEmpty {
                 Section {
                     ForEach(candidates) { candidate in
@@ -34,8 +67,9 @@ struct HoloMemoryCenterView: View {
                 }
             }
 
+            // Section 3: 已记住（已确认长期记忆）
             Section {
-                if confirmedMemories.isEmpty {
+                if confirmedMemories.isEmpty && episodicMemories.isEmpty && candidates.isEmpty {
                     emptyStateView
                 } else {
                     ForEach(confirmedMemories) { memory in
@@ -62,6 +96,48 @@ struct HoloMemoryCenterView: View {
         .onAppear { loadMemories() }
         .sheet(item: $selectedMemory) { memory in
             memoryDetailSheet(memory)
+        }
+        .sheet(item: $selectedEpisodic) { memory in
+            HoloEpisodicMemoryDetailView(memory: memory, onDismiss: { loadMemories() })
+        }
+    }
+
+    // MARK: - Episodic Memory Row
+
+    private func episodicMemoryRow(_ memory: HoloEpisodicMemory) -> some View {
+        Button {
+            selectedEpisodic = memory
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: iconForSource(memory.sourceModules.first))
+                    .font(.system(size: 16))
+                    .foregroundColor(.holoPrimary)
+                    .frame(width: 28)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(memory.title)
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+                        .lineLimit(1)
+
+                    Text(memory.summary)
+                        .font(.system(size: 12))
+                        .foregroundColor(.holoTextSecondary)
+                        .lineLimit(2)
+
+                    HStack(spacing: 8) {
+                        if !memory.evidence.isEmpty {
+                            Label("\(memory.evidence.count) 条证据", systemImage: "doc.text")
+                                .font(.system(size: 11))
+                        }
+                        Text("过期：\(daysUntilExpiry(memory.expiresAt))")
+                            .font(.system(size: 11))
+                    }
+                    .foregroundColor(.holoTextSecondary)
+                }
+
+                Spacer()
+            }
         }
     }
 
@@ -172,6 +248,7 @@ struct HoloMemoryCenterView: View {
     // MARK: - Actions
 
     private func loadMemories() {
+        episodicMemories = HoloEpisodicMemoryStore.shared.querySuggested()
         candidates = HoloLongTermMemoryStore.queryCandidates()
         confirmedMemories = HoloLongTermMemoryStore.queryConfirmed()
     }
@@ -191,7 +268,38 @@ struct HoloMemoryCenterView: View {
         loadMemories()
     }
 
+    private func deleteEpisodicMemory(_ memory: HoloEpisodicMemory) {
+        HoloEpisodicMemoryStore.shared.delete(id: memory.id)
+        loadMemories()
+    }
+
+    private func hideEpisodicMemory(_ memory: HoloEpisodicMemory) {
+        HoloEpisodicMemoryStore.shared.updateState(id: memory.id, to: .archived)
+        loadMemories()
+    }
+
     // MARK: - Helpers
+
+    private func daysUntilExpiry(_ date: Date) -> String {
+        let days = Calendar.current.dateComponents([.day], from: Date(), to: date).day ?? 0
+        if days <= 0 { return "已过期" }
+        return "\(days) 天后"
+    }
+
+    private func iconForSource(_ source: HoloMemorySource?) -> String {
+        guard let source else { return "circle" }
+        switch source {
+        case .habits: return "flame"
+        case .goals: return "target"
+        case .finance: return "yensign.circle"
+        case .health: return "heart"
+        case .tasks: return "checklist"
+        case .thoughts: return "lightbulb"
+        case .profile: return "person"
+        case .conversation: return "bubble.left"
+        case .memoryInsight: return "sparkles"
+        }
+    }
 
     private func iconForType(_ type: HoloLongTermMemoryType) -> String {
         switch type {
