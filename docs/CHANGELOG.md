@@ -5,6 +5,10 @@
 ## [Unreleased]
 
 ### Features
+- **iOS**: HoloAI 双层记忆架构：新增情景记忆（短期记忆）完整管线，包含信号采集、LLM 观察引擎、响应校验和持久化存储
+- **iOS**: 记忆管理中心升级为三区布局：最近记住（情景记忆）、待确认（长期候选）、已记住（长期记忆）
+- **iOS**: AI 设置新增「情景记忆观察」开关和「手动触发观察」按钮
+- **Backend**: 新增 memory_observer 路由和 Prompt 模板
 - **Backend**: 新增 HoloBackend 商用 AI 网关 MVP，统一代理 HoloAI 聊天补全和 DashScope ASR 请求，前端不再直接暴露大模型 API Key
 - **iOS**: Debug 环境接入 HoloBackend，HoloAI 对话、Prompt 测试、AI 洞察和语音识别默认走 ECS 后端转发
 - **iOS**: 任务完成音效 + 触觉反馈
