@@ -57,6 +57,8 @@ struct AddTaskSheet: View {
     @State private var showDateTimeSheet = false
     @State private var showReminderSheet = false
     @State private var showRepeatSheet = false
+    @State private var showTaskVoiceInput = false
+    @State private var pendingTaskVoiceTranscriptToInsert: String? = nil
     @State private var showTagPicker = false
     @State private var showAddTagSheet = false
     @State private var showAddListSheet = false
@@ -117,6 +119,7 @@ struct AddTaskSheet: View {
 
     // 记忆上次选择的清单
     @AppStorage("lastSelectedListId") private var lastSelectedListId: String?
+    @AppStorage("com.holo.thought.voice.smartSummary.enabled") private var smartSummaryEnabled: Bool = true
 
     // 附件相关
     @State private var pendingImages: [UIImage] = []
@@ -255,6 +258,37 @@ struct AddTaskSheet: View {
         }
         .sheet(isPresented: $showRepeatSheet) {
             repeatSheet
+        }
+        .sheet(isPresented: $showTaskVoiceInput, onDismiss: insertPendingTaskVoiceTranscript) {
+            if smartSummaryEnabled {
+                VoiceInputSheet(
+                    speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(),
+                    maximumDuration: 300,
+                    readySubtitle: "确认后插入到任务描述",
+                    submitButtonTitle: "插入",
+                    resultConfig: VoiceResultConfig(
+                        title: "智能总结完成",
+                        subtitle: "已整理成更适合任务描述的表达",
+                        showsOriginalToggle: true
+                    ),
+                    postProcessor: ThoughtVoiceSummaryProcessor(),
+                    transcriptFormatter: formatTaskVoiceTranscript
+                ) { transcript in
+                    pendingTaskVoiceTranscriptToInsert = transcript
+                    showTaskVoiceInput = false
+                }
+            } else {
+                VoiceInputSheet(
+                    speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(),
+                    maximumDuration: 300,
+                    readySubtitle: "确认后插入到任务描述",
+                    submitButtonTitle: "插入",
+                    transcriptFormatter: formatTaskVoiceTranscript
+                ) { transcript in
+                    pendingTaskVoiceTranscriptToInsert = transcript
+                    showTaskVoiceInput = false
+                }
+            }
         }
         .fullScreenCover(isPresented: $showAttachmentGallery) {
             if let task = existingTask {
@@ -437,6 +471,70 @@ struct AddTaskSheet: View {
             .onPreferenceChange(TaskDescriptionHeightPreferenceKey.self) { measuredHeight in
                 descriptionEditorHeight = TaskDescriptionEditorLayout.height(for: measuredHeight)
             }
+
+            taskDescriptionVoiceControls
+                .frame(maxWidth: .infinity, alignment: .trailing)
+        }
+    }
+
+    private var taskDescriptionVoiceControls: some View {
+        HStack(spacing: 8) {
+            Button {
+                HapticManager.selection()
+                showTaskVoiceInput = true
+            } label: {
+                Image(systemName: "mic.fill")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(.white)
+                    .frame(width: 32, height: 32)
+                    .background(Color.holoPrimary)
+                    .clipShape(Circle())
+                    .shadow(color: Color.black.opacity(0.12), radius: 5, x: 0, y: 2)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("语音输入")
+            .accessibilityHint("录音并将识别结果插入到任务描述")
+
+            Button {
+                smartSummaryEnabled.toggle()
+            } label: {
+                Image(systemName: smartSummaryEnabled ? "sparkles" : "sparkle")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(smartSummaryEnabled ? .holoPrimary : .holoTextSecondary)
+                    .frame(width: 28, height: 28)
+                    .background(
+                        Circle()
+                            .fill(smartSummaryEnabled ? Color.holoPrimary.opacity(0.12) : Color.holoCardBackground)
+                    )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(smartSummaryEnabled ? "关闭智能总结" : "开启智能总结")
+        }
+    }
+
+    private func formatTaskVoiceTranscript(_ transcript: String) -> String {
+        ThoughtVoiceTranscriptInsertion.makeInsertionText(
+            transcript: transcript,
+            currentContent: description,
+            selectedRange: NSRange(location: description.count, length: 0)
+        )
+    }
+
+    private func insertPendingTaskVoiceTranscript() {
+        guard let transcript = pendingTaskVoiceTranscriptToInsert else { return }
+        pendingTaskVoiceTranscriptToInsert = nil
+
+        let trimmed = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+
+        if description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            description = trimmed
+        } else if description.hasSuffix("\n\n") {
+            description += trimmed
+        } else if description.hasSuffix("\n") {
+            description += "\n" + trimmed
+        } else {
+            description += "\n\n" + trimmed
         }
     }
 

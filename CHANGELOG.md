@@ -4,6 +4,23 @@
 
 ---
 
+## [2026-06-03] 任务描述语音输入
+
+### 新增
+- 任务模块新建/编辑任务时，描述输入框下方新增语音输入入口
+- 语音输入复用想法模块的录音、识别、确认插入和智能总结能力，长语音会整理成更易读的段落
+
+### 优化
+- 语音按钮放在描述输入框下方，不覆盖原本输入区域
+
+### 验证
+- iOS 构建通过：`xcodebuild -project 'Holo/Holo APP/Holo/Holo.xcodeproj' -scheme Holo -configuration Debug -destination 'generic/platform=iOS' -derivedDataPath /private/tmp/holo-task-voice-derived CODE_SIGNING_ALLOWED=NO build`
+
+### 不变
+- 后端无变更，无需发版
+
+---
+
 ## [2026-06-03] HoloAI 财务查询卡片与确定金额路由优化
 
 ### 新增
