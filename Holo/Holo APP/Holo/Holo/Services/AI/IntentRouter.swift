@@ -977,7 +977,7 @@ final class IntentRouter {
         return RouteResult(
             text: "已记录分期支出：\(note ?? "分期购物")，总额 ¥\(amountStr)，分 \(periods) 期",
             transactionId: transactions.first?.id,
-            linkedEntity: groupId.map { LinkedEntity(type: .transaction, id: $0) } ?? transactions.first.map { LinkedEntity(type: .transaction, id: $0.id) },
+            linkedEntity: transactions.first.map { LinkedEntity(type: .transaction, id: $0.id) },
             categoryUnmatched: isUnmatched,
             matchedPrimaryCategory: matchedNames.primary,
             matchedSubCategory: matchedNames.sub

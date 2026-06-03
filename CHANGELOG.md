@@ -4,6 +4,25 @@
 
 ---
 
+## [2026-06-03] 修复 HoloAI 分期记账确认与卡片状态
+
+### 修复
+- 修复 `finance_action_parser` / `task_action_parser` 返回裸字段 JSON 时，iOS 仍按旧批量结构解析，导致分期记账字段丢失的问题
+- 修复分期记账确认后聊天卡片误显示“已删除”的问题，卡片现在绑定真实交易 ID，而不是分期组 ID
+
+### 优化
+- 结构化执行解析失败时保留 action parser 调用日志，便于在调试页区分 intent 粗路由和二段字段解析
+- action parser 调用改为携带当前用户上下文，避免解析阶段丢失用户类别、习惯和偏好信息
+
+### 验证
+- 后端测试通过：`npm test`（46 tests passed）
+- iOS 构建通过：`xcodebuild -project 'Holo/Holo APP/Holo/Holo.xcodeproj' -scheme Holo -configuration Debug -destination 'generic/platform=iOS' -derivedDataPath /private/tmp/holo-installment-linked-entity-fix CODE_SIGNING_ALLOWED=NO build`
+
+### 不变
+- 后端无代码变更，无需发版
+
+---
+
 ## [2026-06-03] 任务描述语音输入
 
 ### 新增

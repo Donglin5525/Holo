@@ -58,7 +58,8 @@ final class ConversationCoordinator {
                 shouldStreamChat: false,
                 analysisContext: nil,
                 flexibleQueryResult: nil,
-                intentCallLog: intentLog
+                intentCallLog: intentLog,
+                actionParserCallLog: nil
             )
         }
 
@@ -73,7 +74,8 @@ final class ConversationCoordinator {
                 shouldStreamChat: false,
                 analysisContext: nil,
                 flexibleQueryResult: nil,
-                intentCallLog: intentLog
+                intentCallLog: intentLog,
+                actionParserCallLog: nil
             )
         }
 
@@ -99,7 +101,8 @@ final class ConversationCoordinator {
                     shouldStreamChat: false,
                     analysisContext: nil,
                     flexibleQueryResult: nil,
-                    intentCallLog: intentLog
+                    intentCallLog: intentLog,
+                    actionParserCallLog: nil
                 )
             }
 
@@ -112,7 +115,8 @@ final class ConversationCoordinator {
                 shouldStreamChat: true,
                 analysisContext: context,
                 flexibleQueryResult: nil,
-                intentCallLog: intentLog
+                intentCallLog: intentLog,
+                actionParserCallLog: nil
             )
         }
 
@@ -139,7 +143,8 @@ final class ConversationCoordinator {
                 shouldStreamChat: true,
                 analysisContext: nil,
                 flexibleQueryResult: nil,
-                intentCallLog: intentLog
+                intentCallLog: intentLog,
+                actionParserCallLog: nil
             )
         }
 
@@ -156,7 +161,8 @@ final class ConversationCoordinator {
                 shouldStreamChat: false,
                 analysisContext: nil,
                 flexibleQueryResult: nil,
-                intentCallLog: intentLog
+                intentCallLog: intentLog,
+                actionParserCallLog: nil
             )
         }
 
@@ -174,7 +180,8 @@ final class ConversationCoordinator {
                 shouldStreamChat: false,
                 analysisContext: nil,
                 flexibleQueryResult: nil,
-                intentCallLog: intentLog
+                intentCallLog: intentLog,
+                actionParserCallLog: nil
             )
         }
 
@@ -188,6 +195,7 @@ final class ConversationCoordinator {
 
         // 顺序执行每个动作
         var executionItems: [AIExecutionItem] = []
+        var actionParserLog: LLMCallLog?
 
         for item in parseBatch.items {
             try Task.checkCancellation()
@@ -201,9 +209,11 @@ final class ConversationCoordinator {
                        text: text,
                        data: item.extractedData,
                        kind: .taskRepeat,
+                       userContext: userContext,
                        provider: provider
                    ) {
-                    for (key, value) in actionResult where !value.isEmpty {
+                    actionParserLog = actionResult.log
+                    for (key, value) in actionResult.data where !value.isEmpty {
                         renderData[key] = value
                     }
                 }
@@ -237,9 +247,11 @@ final class ConversationCoordinator {
                        text: text,
                        data: item.extractedData,
                        kind: .financeInstallment,
+                       userContext: userContext,
                        provider: provider
                    ) {
-                    for (key, value) in actionResult where !value.isEmpty {
+                    actionParserLog = actionResult.log
+                    for (key, value) in actionResult.data where !value.isEmpty {
                         renderData[key] = value
                     }
                 }
@@ -338,7 +350,8 @@ final class ConversationCoordinator {
             shouldStreamChat: false,
             analysisContext: nil,
             flexibleQueryResult: nil,
-            intentCallLog: intentLog
+            intentCallLog: intentLog,
+            actionParserCallLog: actionParserLog
         )
     }
 
@@ -362,10 +375,14 @@ final class ConversationCoordinator {
         text: String,
         data: [String: String]?,
         kind: AIActionParserKind,
+        userContext: UserContext,
         provider: AIProvider
-    ) async throws -> [String: String]? {
-        let batch = try await provider.parseActionInput(text, context: .empty, kind: kind)
-        return batch.first?.extractedData
+    ) async throws -> (data: [String: String], log: LLMCallLog?) {
+        let batch = try await provider.parseActionInput(text, context: userContext, kind: kind)
+        guard let data = batch.first?.extractedData else {
+            throw APIError.serverError(batch.clarificationQuestion ?? "结构化执行解析没有返回有效字段")
+        }
+        return (data, provider.lastCallLog)
     }
 
     private static func buildRenderData(
@@ -452,7 +469,8 @@ final class ConversationCoordinator {
                     shouldStreamChat: false,
                     analysisContext: nil,
                     flexibleQueryResult: nil,
-                    intentCallLog: intentLog
+                    intentCallLog: intentLog,
+                    actionParserCallLog: nil
                 )
 
             case .unsupported:
@@ -465,7 +483,8 @@ final class ConversationCoordinator {
                     shouldStreamChat: false,
                     analysisContext: nil,
                     flexibleQueryResult: nil,
-                    intentCallLog: intentLog
+                    intentCallLog: intentLog,
+                    actionParserCallLog: nil
                 )
 
             case .ready:
@@ -479,7 +498,8 @@ final class ConversationCoordinator {
                         shouldStreamChat: false,
                         analysisContext: nil,
                         flexibleQueryResult: nil,
-                        intentCallLog: intentLog
+                        intentCallLog: intentLog,
+                        actionParserCallLog: nil
                     )
                 }
 
@@ -495,7 +515,8 @@ final class ConversationCoordinator {
                     shouldStreamChat: false,
                     analysisContext: nil,
                     flexibleQueryResult: result,
-                    intentCallLog: intentLog
+                    intentCallLog: intentLog,
+                    actionParserCallLog: nil
                 )
             }
         } catch {
@@ -509,7 +530,8 @@ final class ConversationCoordinator {
                 shouldStreamChat: false,
                 analysisContext: nil,
                 flexibleQueryResult: nil,
-                intentCallLog: intentLog
+                intentCallLog: intentLog,
+                actionParserCallLog: nil
             )
         }
     }

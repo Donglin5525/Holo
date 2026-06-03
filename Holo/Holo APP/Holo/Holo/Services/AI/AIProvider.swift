@@ -62,6 +62,13 @@ enum AIActionParserKind: Sendable {
         case .taskRepeat: return .taskActionParser
         }
     }
+
+    var defaultIntent: AIIntent {
+        switch self {
+        case .financeInstallment: return .recordExpense
+        case .taskRepeat: return .createTask
+        }
+    }
 }
 
 extension AIProvider {

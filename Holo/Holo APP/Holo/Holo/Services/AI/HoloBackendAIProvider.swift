@@ -103,7 +103,7 @@ final class HoloBackendAIProvider: AIProvider {
             responseText: content
         )
 
-        return parseBatchFromJSON(content)
+        return parseActionBatchFromJSON(content, kind: kind)
     }
 
     func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> MemoryInsightGenerationResult {
@@ -297,6 +297,82 @@ final class HoloBackendAIProvider: AIProvider {
             clarificationQuestion: "我没完全理解这句话，你可以拆开再说一次吗？",
             fallbackResponseText: text
         )
+    }
+
+    private func parseActionBatchFromJSON(_ text: String, kind: AIActionParserKind) -> AIParseBatch {
+        let jsonString = extractJSON(from: text)
+
+        guard let data = jsonString.data(using: .utf8) else {
+            return actionClarification(fallbackText: text)
+        }
+
+        if let batch = try? JSONDecoder().decode(AIParseBatch.self, from: data) {
+            return batch
+        }
+
+        if let single = try? JSONDecoder().decode(ParsedResult.self, from: data) {
+            let mode: AIInteractionMode = single.intent.isQuery ? .query : .singleAction
+            return AIParseBatch(
+                mode: mode,
+                items: [single.asParseItem],
+                needsClarification: single.needsClarification,
+                clarificationQuestion: single.clarificationQuestion,
+                fallbackResponseText: single.responseText
+            )
+        }
+
+        guard let fields = Self.decodeActionFields(from: data) else {
+            logger.error("结构化执行 JSON 解析失败，回退为 clarification")
+            logger.error("LLM 原始返回：\(text)")
+            return actionClarification(fallbackText: text)
+        }
+
+        if fields["needsClarification"] == "true" {
+            return actionClarification(
+                question: fields["unsupportedReason"] ?? fields["clarificationQuestion"],
+                fallbackText: text
+            )
+        }
+
+        let item = AIParseItem(
+            intent: kind.defaultIntent,
+            confidence: 0.95,
+            extractedData: fields
+        )
+        return AIParseBatch(mode: .singleAction, items: [item])
+    }
+
+    private func actionClarification(question: String? = nil, fallbackText: String) -> AIParseBatch {
+        AIParseBatch(
+            mode: .clarification,
+            items: [],
+            needsClarification: true,
+            clarificationQuestion: question ?? "这个结构化操作暂不支持，请换一种说法或拆开处理。",
+            fallbackResponseText: fallbackText
+        )
+    }
+
+    private static func decodeActionFields(from data: Data) -> [String: String]? {
+        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+
+        var fields: [String: String] = [:]
+        for (key, value) in object {
+            switch value {
+            case is NSNull:
+                continue
+            case let string as String:
+                fields[key] = string
+            case let bool as Bool:
+                fields[key] = bool ? "true" : "false"
+            case let number as NSNumber:
+                fields[key] = number.stringValue
+            default:
+                fields[key] = String(describing: value)
+            }
+        }
+        return fields.isEmpty ? nil : fields
     }
 
     private func extractJSON(from text: String) -> String {
