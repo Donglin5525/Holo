@@ -11,6 +11,8 @@ const PROMPT_VERSIONS = {
   annual_review: 1,
   thought_voice_summary: 2,
   flexible_query_planner: 1,
+  finance_action_parser: 1,
+  task_action_parser: 1,
 };
 const PROMPT_TYPES = Object.keys(defaultPrompts);
 const MANAGED_PROMPTS_PATH = join(dirname(fileURLToPath(import.meta.url)), "managedPrompts.json");

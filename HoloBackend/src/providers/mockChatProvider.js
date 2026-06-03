@@ -4,6 +4,12 @@ export function createMockChatProvider() {
       if (request.purpose === "intent") {
         return mockIntentCompletion(request);
       }
+      if (request.purpose === "finance_action_parser") {
+        return mockFinanceActionParserCompletion(request);
+      }
+      if (request.purpose === "task_action_parser") {
+        return mockTaskActionParserCompletion(request);
+      }
 
       return {
         id: "mock-chat-completion",
@@ -68,6 +74,85 @@ function mockIntentCompletion(request) {
         finish_reason: "stop",
       },
     ],
+  };
+}
+
+function mockFinanceActionParserCompletion(request) {
+  const input = lastUserMessage(request.messages);
+  const periodsMatch = input.match(/分\s*(\d+)\s*期/);
+  const amountMatch = input.match(/(\d+)/);
+  const feeMatch = input.match(/(\d+)\s*手续费/);
+
+  const content = JSON.stringify({
+    amount: amountMatch ? amountMatch[1] : "0",
+    type: "expense",
+    note: "测试分期",
+    transactionDate: "2026-06-03",
+    categoryCandidate: "",
+    installmentEnabled: "true",
+    installmentTotalAmount: amountMatch ? amountMatch[1] : "0",
+    installmentPeriods: periodsMatch ? periodsMatch[1] : "3",
+    installmentFeePerPeriod: feeMatch ? feeMatch[1] : "0",
+    installmentFirstDueDate: "2026-06-03",
+  });
+
+  return {
+    id: "mock-finance-action-parser",
+    provider: "mock",
+    model: request.model,
+    choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }],
+  };
+}
+
+function mockTaskActionParserCompletion(request) {
+  const input = lastUserMessage(request.messages);
+  const dailyMatch = input.match(/每隔\s*(\d+)\s*天/);
+  const weeklyMatch = input.match(/每周([一二三四五六日天])/);
+
+  let result;
+  if (dailyMatch) {
+    result = {
+      title: input.replace(/每隔\s*\d+\s*天/, "").trim() || "提醒",
+      dueDate: "2026-06-03T20:00:00+08:00",
+      repeatEnabled: "true",
+      repeatType: "daily",
+      repeatInterval: dailyMatch[1],
+      repeatWeekdays: "",
+      repeatMonthDay: "",
+      repeatSummary: `每隔 ${dailyMatch[1]} 天`,
+    };
+  } else if (weeklyMatch) {
+    const weekdayMap = { "日": 1, "一": 2, "二": 3, "三": 4, "四": 5, "五": 6, "六": 7, "天": 1 };
+    const day = weekdayMap[weeklyMatch[1]] ?? 4;
+    result = {
+      title: input.replace(/每周[一二三四五六日天]/, "").trim() || "提醒",
+      dueDate: "2026-06-03T20:00:00+08:00",
+      repeatEnabled: "true",
+      repeatType: "custom",
+      repeatInterval: "1",
+      repeatWeekdays: String(day),
+      repeatMonthDay: "",
+      repeatSummary: `每周${weeklyMatch[1]}`,
+    };
+  } else {
+    result = {
+      title: input.trim(),
+      dueDate: "2026-06-03T20:00:00+08:00",
+      repeatEnabled: "true",
+      repeatType: "daily",
+      repeatInterval: "1",
+      repeatWeekdays: "",
+      repeatMonthDay: "",
+      repeatSummary: "每天",
+    };
+  }
+
+  const content = JSON.stringify(result);
+  return {
+    id: "mock-task-action-parser",
+    provider: "mock",
+    model: request.model,
+    choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }],
   };
 }
 

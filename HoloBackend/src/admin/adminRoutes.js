@@ -219,7 +219,7 @@ export function registerAdminRoutes(app, { config, logStore, runTestChat }) {
 
     const body = new URLSearchParams(await context.req.text());
     const message = (body.get("message") ?? "").trim();
-    const purpose = normalizePurpose(body.get("purpose") ?? "chat");
+    const purpose = normalizePurpose(body.get("purpose") ?? "chat", config);
     if (!message) {
       return redirect("/admin/logs?error=message_required");
     }
@@ -250,7 +250,7 @@ export function registerAdminRoutes(app, { config, logStore, runTestChat }) {
 
     const body = new URLSearchParams(await context.req.text());
     const message = (body.get("message") ?? "").trim();
-    const purpose = normalizePurpose(body.get("purpose") ?? "chat");
+    const purpose = normalizePurpose(body.get("purpose") ?? "chat", config);
     if (!message) {
       return adminJson(context, { error: "消息内容不能为空" }, 400);
     }
@@ -315,11 +315,10 @@ export function registerAdminRoutes(app, { config, logStore, runTestChat }) {
   });
 }
 
-function normalizePurpose(value) {
-  if (["chat", "intent", "insight"].includes(value)) {
+function normalizePurpose(value, config) {
+  if (value && Object.prototype.hasOwnProperty.call(config.routes, value)) {
     return value;
   }
-
   return "chat";
 }
 
