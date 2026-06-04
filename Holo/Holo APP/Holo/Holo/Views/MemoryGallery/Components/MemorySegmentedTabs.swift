@@ -17,6 +17,8 @@ enum MemoryGalleryTab: String, CaseIterable {
 /// 分段 Tab 切换器
 struct MemorySegmentedTabs: View {
 
+    @Environment(\.colorScheme) private var colorScheme
+
     @Binding var selectedTab: MemoryGalleryTab
 
     var body: some View {
@@ -45,7 +47,7 @@ struct MemorySegmentedTabs: View {
         } label: {
             Text(tab.rawValue)
                 .font(.system(size: 15, weight: isSelected ? .semibold : .medium))
-                .foregroundColor(isSelected ? .white : .holoTextPrimary.opacity(0.62))
+                .foregroundColor(isSelected ? .white : unselectedTextColor)
                 .frame(maxWidth: .infinity)
                 .frame(height: 34)
                 .background(
@@ -55,5 +57,9 @@ struct MemorySegmentedTabs: View {
         }
         .contentShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
         .buttonStyle(PlainButtonStyle())
+    }
+
+    private var unselectedTextColor: Color {
+        Color.holoTextPrimary.opacity(colorScheme == .dark ? 0.74 : 0.62)
     }
 }

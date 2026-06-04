@@ -11,6 +11,8 @@ import SwiftUI
 /// AI 洞察 Hero 卡片
 struct MemoryInsightHeroCard: View {
 
+    @Environment(\.colorScheme) private var colorScheme
+
     let state: InsightGenerationState
     let selectedPeriod: MemoryInsightPeriodType
     let insight: MemoryInsight?
@@ -81,14 +83,22 @@ struct MemoryInsightHeroCard: View {
             }
             .padding(.horizontal, HoloSpacing.sm)
             .frame(height: 30)
-            .background(Color.holoPrimary.opacity(0.1))
+            .background(periodPickerBackground)
             .clipShape(Capsule())
             .overlay(
                 Capsule()
-                    .stroke(Color.holoPrimary.opacity(0.24), lineWidth: 1)
+                    .stroke(periodPickerBorder, lineWidth: 1)
             )
         }
         .buttonStyle(PlainButtonStyle())
+    }
+
+    private var periodPickerBackground: Color {
+        Color.holoPrimary.opacity(colorScheme == .dark ? 0.16 : 0.1)
+    }
+
+    private var periodPickerBorder: Color {
+        Color.holoPrimary.opacity(colorScheme == .dark ? 0.38 : 0.24)
     }
 
     private func periodMenuButton(_ title: String, period: MemoryInsightPeriodType) -> some View {
@@ -285,8 +295,12 @@ struct MemoryInsightHeroCard: View {
         HStack(alignment: .center, spacing: HoloSpacing.md) {
             ZStack {
                 Circle()
-                    .fill(Color.holoPrimary.opacity(0.1))
+                    .fill(missingReplayIconBackground)
                     .frame(width: 48, height: 48)
+                    .overlay(
+                        Circle()
+                            .stroke(missingReplayIconBorder, lineWidth: 1)
+                    )
 
                 Image(systemName: "calendar.badge.sparkles")
                     .font(.system(size: 21, weight: .semibold))
@@ -307,12 +321,34 @@ struct MemoryInsightHeroCard: View {
         }
         .padding(HoloSpacing.md)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.holoGlassBackground)
+        .background(missingReplayBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.md)
-                .stroke(Color.holoBorder.opacity(0.45), lineWidth: 1)
+                .stroke(missingReplayBorder, lineWidth: 1)
         )
+    }
+
+    private var missingReplayBackground: Color {
+        colorScheme == .dark
+            ? Color.white.opacity(0.045)
+            : Color.holoGlassBackground
+    }
+
+    private var missingReplayBorder: Color {
+        colorScheme == .dark
+            ? Color.white.opacity(0.08)
+            : Color.holoBorder.opacity(0.45)
+    }
+
+    private var missingReplayIconBackground: Color {
+        colorScheme == .dark
+            ? Color.white.opacity(0.055)
+            : Color.holoPrimary.opacity(0.1)
+    }
+
+    private var missingReplayIconBorder: Color {
+        Color.holoPrimary.opacity(colorScheme == .dark ? 0.55 : 0.16)
     }
 
     // MARK: - Insight Cards
