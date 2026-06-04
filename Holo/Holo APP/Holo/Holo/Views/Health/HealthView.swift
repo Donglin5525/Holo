@@ -15,9 +15,31 @@ struct HealthView: View {
     @State private var selectedMetric: HealthMetricType?
     @State private var weeklySleepData: [DailyHealthData] = []
     @State private var isRefreshing = false
+    @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
+    @State private var dayData: (steps: Double, sleep: Double, standHours: Double, activeMinutes: Double) = (0, 0, 0, 0)
 
     private var snapshot: HealthDashboardSnapshot {
-        repository.dashboardSnapshot
+        let stepsAvail: HealthMetricAvailability = dayData.steps > 0 ? .available : .noData
+        let sleepAvail: HealthMetricAvailability = dayData.sleep > 0 ? .available : .noData
+        let standAvail: HealthMetricAvailability
+        if dayData.standHours > 0 {
+            standAvail = .available
+        } else if dayData.activeMinutes > 0 {
+            standAvail = .unsupported
+        } else {
+            standAvail = .noData
+        }
+
+        return HealthDashboardSnapshot(
+            steps: HealthMetricSnapshot(type: .steps, value: dayData.steps, availability: stepsAvail),
+            sleep: HealthMetricSnapshot(type: .sleep, value: dayData.sleep, availability: sleepAvail),
+            standOrActivity: HealthDashboardSnapshot.standOrActivitySnapshot(
+                standHours: dayData.standHours,
+                activeMinutes: dayData.activeMinutes,
+                standAvailability: standAvail
+            ),
+            dataSourceState: repository.dataSourceState
+        )
     }
 
     var body: some View {
@@ -35,13 +57,16 @@ struct HealthView: View {
                 }
             }
             .navigationDestination(item: $selectedMetric) { metric in
-                HealthDetailView(type: metric)
+                HealthDetailView(type: metric, selectedDate: selectedDate)
             }
             .toolbar(.hidden, for: .navigationBar)
         }
         .simultaneousGesture(dismissGesture)
         .task {
             await refreshAll()
+        }
+        .onChange(of: selectedDate) {
+            Task { await loadDateData() }
         }
     }
 
@@ -70,22 +95,112 @@ struct HealthView: View {
     }
 
     private var headerView: some View {
-        HStack(alignment: .center, spacing: HoloSpacing.md) {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("健康")
-                    .font(.holoTitle)
-                    .foregroundColor(.holoTextPrimary)
+        VStack(spacing: HoloSpacing.sm) {
+            HStack(alignment: .center, spacing: HoloSpacing.md) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("健康")
+                        .font(.holoTitle)
+                        .foregroundColor(.holoTextPrimary)
 
-                Text(syncStatusText)
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
+                    Text(syncStatusText)
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                }
+
+                Spacer()
+
+                syncButton
             }
+
+            dateNavigationBar
+        }
+        .padding(.top, HoloSpacing.sm)
+    }
+
+    private var dateNavigationBar: some View {
+        HStack(spacing: 0) {
+            Button {
+                navigateDate(-1)
+            } label: {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.holoTextPrimary)
+                    .frame(width: 32, height: 32)
+                    .background(Color.holoCardBackground)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(Color.holoBorder, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
 
             Spacer()
 
-            syncButton
+            Text(dateDisplayText)
+                .font(.holoBody)
+                .foregroundColor(.holoTextPrimary)
+
+            Spacer()
+
+            Button {
+                navigateDate(1)
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(Calendar.current.isDateInToday(selectedDate) ? .holoTextSecondary.opacity(0.4) : .holoTextPrimary)
+                    .frame(width: 32, height: 32)
+                    .background(Color.holoCardBackground)
+                    .clipShape(Circle())
+                    .overlay(Circle().stroke(Color.holoBorder, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .disabled(Calendar.current.isDateInToday(selectedDate))
+
+            if !Calendar.current.isDateInToday(selectedDate) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        selectedDate = Calendar.current.startOfDay(for: Date())
+                    }
+                } label: {
+                    Text("今天")
+                        .font(.holoLabel)
+                        .foregroundColor(.holoPrimary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.holoPrimary.opacity(0.1))
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .padding(.leading, HoloSpacing.sm)
+            }
         }
-        .padding(.top, HoloSpacing.sm)
+    }
+
+    private var dateDisplayText: String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        let calendar = Calendar.current
+
+        formatter.dateFormat = "M月d日"
+        let dateStr = formatter.string(from: selectedDate)
+
+        if calendar.isDateInToday(selectedDate) {
+            return "今天 · \(dateStr)"
+        } else if calendar.isDateInYesterday(selectedDate) {
+            return "昨天 · \(dateStr)"
+        } else {
+            formatter.dateFormat = "EEEE"
+            let weekday = formatter.string(from: selectedDate)
+            return "\(dateStr) \(weekday)"
+        }
+    }
+
+    private func navigateDate(_ direction: Int) {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        guard let newDate = calendar.date(byAdding: .day, value: direction, to: selectedDate),
+              newDate <= today else { return }
+        withAnimation(.easeInOut(duration: 0.2)) {
+            selectedDate = calendar.startOfDay(for: newDate)
+        }
     }
 
     private var syncButton: some View {
@@ -420,11 +535,14 @@ struct HealthView: View {
     }
 
     private var syncStatusText: String {
+        let calendar = Calendar.current
+        let isToday = calendar.isDateInToday(selectedDate)
+
         switch repository.dataSourceState {
         case .connected:
-            return "同步自 Apple Health · 刚刚"
+            return isToday ? "同步自 Apple Health · 刚刚" : "查看历史健康数据"
         case .partiallyConnected:
-            return "Apple Health 部分同步"
+            return isToday ? "Apple Health 部分同步" : "查看历史健康数据"
         case .notRequested:
             return "等待 Apple Health 授权"
         case .denied:
@@ -440,7 +558,12 @@ struct HealthView: View {
 
     private func refreshAll() async {
         await repository.refresh()
-        weeklySleepData = await repository.fetchWeeklyData(for: .sleep)
+        await loadDateData()
+    }
+
+    private func loadDateData() async {
+        dayData = await repository.fetchDayData(for: selectedDate)
+        weeklySleepData = await repository.fetchWeeklyData(for: .sleep, endingOn: selectedDate)
     }
 
     @MainActor

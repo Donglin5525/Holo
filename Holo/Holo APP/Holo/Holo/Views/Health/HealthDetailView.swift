@@ -11,11 +11,14 @@ import SwiftUI
 
 struct HealthDetailView: View {
     let type: HealthMetricType
+    let selectedDate: Date
 
     @Environment(\.dismiss) private var dismiss
     @StateObject private var repository = HealthRepository.shared
     @State private var weeklyData: [DailyHealthData] = []
     @State private var isLoading = true
+    @State private var currentValue: Double = 0
+    @State private var currentAvailability: HealthMetricAvailability = .noData
 
     private var metric: HealthMetricSnapshot {
         HealthMetricSnapshot(type: type, value: currentValue, availability: currentAvailability)
@@ -59,6 +62,7 @@ struct HealthDetailView: View {
         .toolbar(.hidden, for: .navigationBar)
         .simultaneousGesture(dismissGesture)
         .task {
+            await loadDateData()
             await loadWeeklyData()
         }
     }
@@ -70,7 +74,7 @@ struct HealthDetailView: View {
                     .font(.holoTitle)
                     .foregroundColor(.holoTextPrimary)
 
-                Text("近 7 天趋势与关联线索")
+                Text(detailSubtitleText)
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)
             }
@@ -254,35 +258,38 @@ struct HealthDetailView: View {
         )
     }
 
-    private var currentValue: Double {
+    private func loadDateData() async {
+        let data = await repository.fetchDayData(for: selectedDate)
         switch type {
         case .steps:
-            return repository.todaySteps
+            currentValue = data.steps
+            currentAvailability = data.steps > 0 ? .available : .noData
         case .sleep:
-            return repository.todaySleep
+            currentValue = data.sleep
+            currentAvailability = data.sleep > 0 ? .available : .noData
         case .standHours:
-            return repository.todayStandHours
+            currentValue = data.standHours
+            currentAvailability = data.standHours > 0 ? .available : (data.activeMinutes > 0 ? .unsupported : .noData)
         case .activeMinutes:
-            return repository.todayActiveMinutes
-        }
-    }
-
-    private var currentAvailability: HealthMetricAvailability {
-        switch type {
-        case .steps:
-            return repository.stepsAvailability
-        case .sleep:
-            return repository.sleepAvailability
-        case .standHours:
-            return repository.standAvailability
-        case .activeMinutes:
-            return repository.activeMinutesAvailability
+            currentValue = data.activeMinutes
+            currentAvailability = data.activeMinutes > 0 ? .available : .noData
         }
     }
 
     private var weeklyAverage: Double {
         guard !weeklyData.isEmpty else { return 0 }
         return weeklyData.reduce(0) { $0 + $1.value } / Double(weeklyData.count)
+    }
+
+    private var detailSubtitleText: String {
+        let calendar = Calendar.current
+        if calendar.isDateInToday(selectedDate) {
+            return "近 7 天趋势与关联线索"
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日"
+        return "\(formatter.string(from: selectedDate)) 及近 7 天趋势"
     }
 
     private var weeklyMax: Double {
@@ -369,7 +376,7 @@ struct HealthDetailView: View {
 
     private func loadWeeklyData() async {
         isLoading = true
-        weeklyData = await repository.fetchWeeklyData(for: type)
+        weeklyData = await repository.fetchWeeklyData(for: type, endingOn: selectedDate)
         isLoading = false
     }
 
@@ -386,6 +393,6 @@ struct HealthDetailView: View {
 
 #Preview {
     NavigationStack {
-        HealthDetailView(type: .sleep)
+        HealthDetailView(type: .sleep, selectedDate: Date())
     }
 }

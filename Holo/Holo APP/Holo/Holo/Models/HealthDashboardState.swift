@@ -188,8 +188,8 @@ struct HealthDashboardSnapshot: Equatable {
 
     var statusTitle: String {
         guard let score = bodyScore else { return "等待健康数据" }
-        if score >= 85 { return "今天状态很好" }
-        if score >= 70 { return "今天状态不错" }
+        if score >= 85 { return "状态很好" }
+        if score >= 70 { return "状态不错" }
         if score >= 45 { return "身体需要一点照顾" }
         return "先把节奏放慢一点"
     }
@@ -201,7 +201,7 @@ struct HealthDashboardSnapshot: Equatable {
         if standOrActivity.type == .activeMinutes {
             return "已启用无 Watch 模式，用活动分钟替代站立环。"
         }
-        return "睡眠恢复、日间活动和久坐打断共同组成今天的身体状态。"
+        return "睡眠恢复、日间活动和久坐打断共同构成身体状态。"
     }
 
     var ringBadgeText: String {

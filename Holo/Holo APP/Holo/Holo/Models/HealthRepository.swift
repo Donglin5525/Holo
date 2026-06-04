@@ -195,24 +195,43 @@ class HealthRepository: ObservableObject {
         }
     }
 
+    // MARK: - 获取指定日期数据
+
+    /// 获取指定日期的所有健康数据
+    func fetchDayData(for date: Date) async -> (steps: Double, sleep: Double, standHours: Double, activeMinutes: Double) {
+        if useMockData {
+            return (
+                steps: Double(Int.random(in: 5000...12000)),
+                sleep: Double(Int.random(in: 5...9)) + Double.random(in: 0...0.9),
+                standHours: Double(Int.random(in: 8...14)),
+                activeMinutes: Double(Int.random(in: 18...55))
+            )
+        }
+        async let steps = fetchSteps(for: date)
+        async let sleep = fetchSleep(for: date)
+        async let stand = fetchStandTime(for: date)
+        async let activeMinutes = fetchActiveMinutes(for: date)
+        return await (steps, sleep, stand, activeMinutes)
+    }
+
     // MARK: - 获取历史数据
 
-    /// 获取 7 天历史数据
-    func fetchWeeklyData(for type: HealthMetricType) async -> [DailyHealthData] {
+    /// 获取 7 天历史数据（以指定日期为终点，默认到今天）
+    func fetchWeeklyData(for type: HealthMetricType, endingOn endDate: Date? = nil) async -> [DailyHealthData] {
         if useMockData {
-            return generateMockWeeklyData(for: type)
+            return generateMockWeeklyData(for: type, endingOn: endDate ?? Date())
         }
 
         let calendar = Calendar.current
-        let endDate = Date()
-        guard let startDate = calendar.date(byAdding: .day, value: -6, to: endDate) else {
+        let end = endDate ?? Date()
+        guard let startDate = calendar.date(byAdding: .day, value: -6, to: end) else {
             return []
         }
 
         var results: [DailyHealthData] = []
 
         var currentDate = startDate
-        while currentDate <= endDate {
+        while currentDate <= end {
             let value: Double
 
             switch type {
@@ -445,12 +464,11 @@ class HealthRepository: ObservableObject {
     }
 
     /// 生成模拟周数据
-    private func generateMockWeeklyData(for type: HealthMetricType) -> [DailyHealthData] {
+    private func generateMockWeeklyData(for type: HealthMetricType, endingOn endDate: Date = Date()) -> [DailyHealthData] {
         let calendar = Calendar.current
-        let today = Date()
 
         return (0..<7).reversed().compactMap { offset -> DailyHealthData? in
-            guard let date = calendar.date(byAdding: .day, value: -offset, to: today) else {
+            guard let date = calendar.date(byAdding: .day, value: -offset, to: endDate) else {
                 return nil
             }
 
