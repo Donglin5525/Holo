@@ -471,7 +471,7 @@ struct HomeView: View {
         HStack {
             // 左侧问候语
             VStack(alignment: .leading, spacing: 4) {
-                Text("有机智能")
+                Text("Holo")
                     .font(.holoLabel)
                     .foregroundColor(.holoTextSecondary)
                     .kerning(1.2)
