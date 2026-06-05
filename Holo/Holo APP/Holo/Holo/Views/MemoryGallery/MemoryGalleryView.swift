@@ -137,7 +137,8 @@ struct MemoryGalleryView: View {
                 VStack(spacing: HoloSpacing.lg) {
                     // Daily Sense 状态卡片
                     if InsightFeatureFlags.dailySenseEnabled,
-                       let snapshot = viewModel.dailySenseSnapshot {
+                       let snapshot = viewModel.dailySenseSnapshot,
+                       !snapshot.signals.isEmpty {
                         DailySenseStatusCard(snapshot: snapshot)
                     }
 
