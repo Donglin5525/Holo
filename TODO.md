@@ -118,6 +118,7 @@
 |------|----------|------|
 | AI 对话能力扩展 | `docs/_common/plans/AI对话能力扩展方案.md` | Phase 1-4 已完成（14 意图+实体链接+路由重构+卡片化渲染），Phase 5 能量系统独立迭代 |
 | HoloProfile 个人档案 | `docs/_common/plans/HoloProfile个人档案系统方案.md` | V1: 手动编辑+AI读取，Application Support 存储，8KB 上限，设置页入口。已通过 Eng Review |
+| AI 灵活数据查询（第一阶段） | `docs/_common/plans/2026-06-02-HoloAI灵活数据查询与受控Planner方案.md` | 新增 flexible_data_query 意图 + 两段式受控 Planner + 财务域单点查询。已通过 Eng Review（12 issues 待修复）。第二阶段待办：(1) 多步组合查询（operation 改数组或引入 compoundOperation）(2) FlexibleQueryChatCard + 结果持久化 (3) NSPredicate 精确查询优化 |
 
 ### AI 智能洞察
 

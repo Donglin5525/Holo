@@ -91,6 +91,32 @@ final class HoloEpisodicMemoryStore {
         save(memories)
     }
 
+    /// 批量删除已过期、已归档、已拒绝的情景记忆
+    /// - Returns: (删除数量, 释放字节数)
+    @discardableResult
+    func deleteExpiredArchivedRejected() -> (count: Int, bytes: Int64) {
+        let memories = load()
+        let removableStates: Set<HoloEpisodicMemoryState> = [.expired, .archived, .rejected]
+        let toDelete = memories.filter { removableStates.contains($0.state) }
+
+        guard !toDelete.isEmpty else { return (0, 0) }
+
+        var freedBytes: Int64 = 0
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        for memory in toDelete {
+            if let data = try? encoder.encode(memory) {
+                freedBytes += Int64(data.count)
+            }
+        }
+
+        let remaining = memories.filter { !removableStates.contains($0.state) }
+        save(remaining)
+        logger.info("已清理 \(toDelete.count) 条过期情景记忆，释放 \(freedBytes) 字节")
+
+        return (toDelete.count, freedBytes)
+    }
+
     @discardableResult
     func reject(id: String) -> HoloMemorySuppressionRule? {
         var memories = load()

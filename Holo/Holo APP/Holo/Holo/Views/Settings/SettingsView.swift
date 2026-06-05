@@ -28,6 +28,7 @@ struct SettingsView: View {
     @ObservedObject private var memorySettings = HoloMemorySettings.shared
     @ObservedObject private var iCloudSyncStatus = ICloudSyncStatusService.shared
     @ObservedObject private var authService = AppleSignInAuthService.shared
+    @ObservedObject private var storageService = StorageCacheService.shared
     @AppStorage(UserDisplayNameSettings.displayNameKey) private var userName: String = UserDisplayNameSettings.fallbackDisplayName
     @State private var showAISettings = false
     @State private var showVoiceRecognitionSettings = false
@@ -35,6 +36,7 @@ struct SettingsView: View {
     @State private var showProfileEditor = false
     @State private var showHealthKitDiagnostics = false
     @State private var showSignOutConfirmation = false
+    @State private var showClearCacheAlert = false
 
     // MARK: - Body
 
@@ -56,6 +58,9 @@ struct SettingsView: View {
 
                     // AI 记忆设置
                     aiMemorySection
+
+                    // 存储与缓存
+                    storageSection
 
                     // 其他设置（占位）
                     otherSettingsSection
@@ -89,6 +94,7 @@ struct SettingsView: View {
         .task {
             await authService.refreshCredentialState()
             await iCloudSyncStatus.refreshAccountStatus()
+            await storageService.calculateCacheSize()
         }
         .alert("退出 Apple 登录？", isPresented: $showSignOutConfirmation) {
             Button("退出登录", role: .destructive) {
@@ -719,6 +725,111 @@ struct SettingsView: View {
 
             // 调试：清除观点数据
             debugSection
+        }
+    }
+
+    // MARK: - 存储与缓存
+
+    private var storageSection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            HStack(spacing: HoloSpacing.sm) {
+                Image(systemName: "internaldrive")
+                    .font(.system(size: 18))
+                    .foregroundColor(.holoPrimary)
+
+                Text("存储与缓存")
+                    .font(.holoBody)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoTextPrimary)
+            }
+
+            VStack(spacing: 0) {
+                // 缓存大小
+                HStack(spacing: HoloSpacing.md) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.holoInfo.opacity(0.1))
+                            .frame(width: 40, height: 40)
+
+                        if storageService.isCalculating {
+                            ProgressView()
+                                .tint(.holoInfo)
+                        } else {
+                            Image(systemName: "chart.bar")
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(.holoInfo)
+                        }
+                    }
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("缓存大小")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+
+                        Text(storageService.formattedSize)
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoTextSecondary)
+                    }
+
+                    Spacer()
+                }
+                .padding(.horizontal, HoloSpacing.md)
+                .padding(.vertical, 12)
+
+                Divider()
+                    .padding(.leading, 56)
+
+                // 清除缓存按钮
+                Button {
+                    showClearCacheAlert = true
+                } label: {
+                    HStack(spacing: HoloSpacing.md) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(storageService.isClearing || storageService.cacheSize == 0
+                                      ? Color.holoTextSecondary.opacity(0.1)
+                                      : Color.red.opacity(0.1))
+                                .frame(width: 40, height: 40)
+
+                            if storageService.isClearing {
+                                ProgressView()
+                                    .tint(.red)
+                            } else {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 18, weight: .medium))
+                                    .foregroundColor(storageService.cacheSize == 0 ? .holoTextSecondary : .red)
+                            }
+                        }
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("清除缓存")
+                                .font(.holoBody)
+                                .foregroundColor(storageService.cacheSize == 0 ? .holoTextSecondary : .red)
+
+                            Text("清理调试日志和过期数据，不会删除你的数据")
+                                .font(.system(size: 12))
+                                .foregroundColor(.holoTextSecondary)
+                        }
+
+                        Spacer()
+                    }
+                    .padding(.horizontal, HoloSpacing.md)
+                    .padding(.vertical, 12)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(PlainButtonStyle())
+                .disabled(storageService.isClearing || storageService.cacheSize == 0)
+            }
+            .background(Color.holoCardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        }
+        .alert("确认清除缓存？", isPresented: $showClearCacheAlert) {
+            Button("取消", role: .cancel) {}
+            Button("清除", role: .destructive) {
+                Task { await storageService.clearCache() }
+            }
+        } message: {
+            Text("将清理 AI 调试日志和过期数据，你的对话、记忆和其他数据不会受影响。")
         }
     }
 

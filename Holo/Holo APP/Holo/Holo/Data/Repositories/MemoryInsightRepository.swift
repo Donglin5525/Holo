@@ -227,6 +227,39 @@ final class MemoryInsightRepository {
         try context.save()
     }
 
+    // MARK: - Cleanup
+
+    /// 删除 stale 和 failed 状态的洞察记录
+    /// - Returns: (删除数量, cardsJSON + rawResponse 释放字节数)
+    @discardableResult
+    func deleteStaleAndFailed() -> (count: Int, bytes: Int64) {
+        let request = MemoryInsight.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "status IN %@",
+            [MemoryInsightStatus.stale.rawValue, MemoryInsightStatus.failed.rawValue]
+        )
+
+        do {
+            let results = try context.fetch(request)
+            var freedBytes: Int64 = 0
+            for insight in results {
+                freedBytes += Int64(insight.cardsJSON.utf8.count)
+                if let raw = insight.rawResponse {
+                    freedBytes += Int64(raw.utf8.count)
+                }
+                context.delete(insight)
+            }
+            try context.save()
+            if !results.isEmpty {
+                Self.logger.info("已清理 \(results.count) 条过期洞察，释放 \(freedBytes) 字节")
+            }
+            return (results.count, freedBytes)
+        } catch {
+            Self.logger.error("清理过期洞察失败: \(error.localizedDescription)")
+            return (0, 0)
+        }
+    }
+
     // MARK: - Recent Insights (Dedup & Review)
 
     /// 获取最近 N 条同 periodType 且 ready 的洞察（支持按 promptVersion 过滤）
