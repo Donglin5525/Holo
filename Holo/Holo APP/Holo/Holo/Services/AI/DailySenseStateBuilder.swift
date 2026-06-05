@@ -2,8 +2,8 @@
 //  DailySenseStateBuilder.swift
 //  Holo
 //
-//  每日状态规则引擎
-//  基于任务、习惯、消费、想法信号判断 stable/atRisk/recovering
+//  每日状态规则引擎（v2）
+//  输出结构化 DailySenseSignal，async 支持 HealthRepository
 //
 
 import Foundation
@@ -13,8 +13,8 @@ import os.log
 struct DailySenseStateBuilder {
     private static let logger = Logger(subsystem: "com.holo.app", category: "DailySenseStateBuilder")
 
-    /// 生成今日状态快照（纯规则引擎，不调用 AI）
-    static func buildToday() -> DailySenseSnapshot? {
+    /// 生成今日状态快照
+    static func buildToday() async -> DailySenseSnapshot? {
         let context = CoreDataStack.shared.viewContext
         let today = Date()
         let calendar = Calendar.current
@@ -24,65 +24,85 @@ struct DailySenseStateBuilder {
             return nil
         }
 
-        // TODO(v2): 临时占位，Task 2 重写时实现真实信号生成
         var signals: [DailySenseSignal] = []
         var riskScore: Double = 0
         var recoveryScore: Double = 0
 
-        // 任务信号
+        // 待办信号
         let overdueCount = fetchOverdueTaskCount(in: context, asOf: todayStart)
-        if overdueCount >= 3 {
-            // TODO(v2): Task 2 添加真实信号
-            riskScore += 1.0
-        }
-        if overdueCount > 0 && overdueCount <= 2 {
-            // 轻微逾期不触发 atRisk，但不是完美 stable
-            riskScore += 0.3
+        let hasTasks = hasAnyTasks(in: context)
+        if hasTasks {
+            if overdueCount >= 3 {
+                signals.append(DailySenseSignal(dimension: .task, level: .warning, text: "\(overdueCount) 笔过了截止日"))
+                riskScore += 1.0
+            } else if overdueCount > 0 {
+                signals.append(DailySenseSignal(dimension: .task, level: .warning, text: "\(overdueCount) 笔快到截止日了"))
+                riskScore += 0.3
+            } else {
+                signals.append(DailySenseSignal(dimension: .task, level: .normal, text: "没有逾期"))
+            }
         }
 
         // 习惯信号
         let brokenHabits = fetchBrokenHabitCount(in: context, asOf: todayStart)
-        if brokenHabits >= 2 {
-            // TODO(v2): Task 2 添加真实信号
-            riskScore += 0.8
-        }
-
-        // 恢复信号：断连习惯恢复打卡
         let recoveredHabits = fetchRecoveredHabitCount(in: context, asOf: todayStart)
-        if recoveredHabits > 0 {
-            // TODO(v2): Task 2 添加真实信号
-            recoveryScore += 1.0
+        let hasHabits = hasAnyHabits(in: context)
+        if hasHabits {
+            if brokenHabits >= 2 {
+                signals.append(DailySenseSignal(dimension: .habit, level: .warning, text: "\(brokenHabits) 个断了节奏"))
+                riskScore += 0.8
+            } else if recoveredHabits > 0 {
+                signals.append(DailySenseSignal(dimension: .habit, level: .normal, text: "\(recoveredHabits) 个恢复打卡"))
+                recoveryScore += 1.0
+            } else {
+                signals.append(DailySenseSignal(dimension: .habit, level: .normal, text: "打卡都完成了"))
+            }
         }
 
         // 消费信号
-        let expenseDeviation = fetchExpenseDeviation(in: context, weekStart: weekAgo, todayStart: todayStart)
-        if expenseDeviation > 1.5 {
-            // TODO(v2): Task 2 添加真实信号
-            riskScore += 0.6
-        }
-        if expenseDeviation <= 1.0 && expenseDeviation > 0 {
-            recoveryScore += 0.3
+        let expenseResult = fetchExpenseDeviation(in: context, weekStart: weekAgo, todayStart: todayStart)
+        if expenseResult.hasData {
+            let todayAmount = expenseResult.todayAmount
+            let dailyAvg = expenseResult.dailyAvg
+
+            if todayAmount > 100 && todayAmount / dailyAvg > 3.0 {
+                signals.append(DailySenseSignal(
+                    dimension: .expense,
+                    level: .critical,
+                    text: "今天 \(formatAmount(todayAmount)) · 平时 \(formatAmount(dailyAvg))"
+                ))
+                riskScore += 0.6
+            } else if dailyAvg > 0 && todayAmount / dailyAvg > 1.5 {
+                let diff = todayAmount - dailyAvg
+                signals.append(DailySenseSignal(
+                    dimension: .expense,
+                    level: .warning,
+                    text: "比平时多花了 \(formatAmount(diff))"
+                ))
+                riskScore += 0.3
+            } else {
+                signals.append(DailySenseSignal(dimension: .expense, level: .normal, text: "消费正常"))
+                if dailyAvg > 0 && todayAmount / dailyAvg <= 1.0 && todayAmount > 0 {
+                    recoveryScore += 0.3
+                }
+            }
         }
 
-        // 健康信号（如果 Feature Flag 开启）
+        // 健康信号
         if InsightFeatureFlags.healthContextEnabled {
-            let healthSignals = buildHealthSignals()
-            for signal in healthSignals {
-                if signal.severity == "warning" {
-                    // TODO(v2): Task 2 添加真实信号
+            if let healthSignal = await buildHealthSignal() {
+                signals.append(healthSignal)
+                if healthSignal.level == .warning {
+                    riskScore += 0.3
+                } else if healthSignal.level == .critical {
                     riskScore += 0.5
                 }
             }
         }
 
-        // 数据不足时返回 stable 或不展示
-        guard !signals.isEmpty || recoveryScore > 0 else {
-            return DailySenseSnapshot(
-                date: today,
-                state: .stable,
-                signals: [],
-                generatedAt: Date()
-            )
+        // 数据不足时不生成快照
+        guard !signals.isEmpty else {
+            return nil
         }
 
         // 状态优先级：atRisk > recovering > stable
@@ -98,12 +118,12 @@ struct DailySenseStateBuilder {
         return DailySenseSnapshot(
             date: today,
             state: state,
-            signals: Array(signals.prefix(3)),
+            signals: signals,
             generatedAt: Date()
         )
     }
 
-    // MARK: - Signal Fetchers
+    // MARK: - Task Signal Fetchers
 
     private static func fetchOverdueTaskCount(in context: NSManagedObjectContext, asOf date: Date) -> Int {
         let request: NSFetchRequest<TodoTask> = TodoTask.fetchRequest()
@@ -114,9 +134,16 @@ struct DailySenseStateBuilder {
         return (try? context.count(for: request)) ?? 0
     }
 
+    private static func hasAnyTasks(in context: NSManagedObjectContext) -> Bool {
+        let request: NSFetchRequest<TodoTask> = TodoTask.fetchRequest()
+        request.predicate = NSPredicate(format: "deletedFlag == NO AND archived == NO")
+        return ((try? context.count(for: request)) ?? 0) > 0
+    }
+
+    // MARK: - Habit Signal Fetchers
+
     private static func fetchBrokenHabitCount(in context: NSManagedObjectContext, asOf date: Date) -> Int {
         let calendar = Calendar.current
-        // 检查昨天是否有断连（正向打卡习惯昨天没记录）
         guard let yesterday = calendar.date(byAdding: .day, value: -1, to: date) else { return 0 }
 
         let request: NSFetchRequest<HabitRecord> = HabitRecord.fetchRequest()
@@ -133,7 +160,6 @@ struct DailySenseStateBuilder {
         let calendar = Calendar.current
         guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: date) else { return 0 }
 
-        // 今天已完成的习惯（简化：查今天的记录）
         let todayRequest: NSFetchRequest<HabitRecord> = HabitRecord.fetchRequest()
         todayRequest.predicate = NSPredicate(
             format: "date >= %@ AND date < %@ AND isCompleted == YES",
@@ -141,13 +167,27 @@ struct DailySenseStateBuilder {
             tomorrow as CVarArg
         )
         let todayCompleted = (try? context.fetch(todayRequest)) ?? []
-
-        // 前天断连的习惯（简化：假设今天打卡 + 前天没打卡 = 恢复）
-        return min(Set(todayCompleted.map(\.habitId)).count, 3) // 上限 3
+        return min(Set(todayCompleted.map(\.habitId)).count, 3)
     }
 
-    private static func fetchExpenseDeviation(in context: NSManagedObjectContext, weekStart: Date, todayStart: Date) -> Double {
-        // 查过去 7 天的日均消费
+    private static func hasAnyHabits(in context: NSManagedObjectContext) -> Bool {
+        let request: NSFetchRequest<HabitRecord> = HabitRecord.fetchRequest()
+        return ((try? context.count(for: request)) ?? 0) > 0
+    }
+
+    // MARK: - Expense Signal Fetchers
+
+    private struct ExpenseResult {
+        let todayAmount: Double
+        let dailyAvg: Double
+        let hasData: Bool
+    }
+
+    private static func fetchExpenseDeviation(
+        in context: NSManagedObjectContext,
+        weekStart: Date,
+        todayStart: Date
+    ) -> ExpenseResult {
         let request: NSFetchRequest<Transaction> = Transaction.fetchRequest()
         request.predicate = NSPredicate(
             format: "date >= %@ AND date < %@ AND type == %@",
@@ -156,12 +196,13 @@ struct DailySenseStateBuilder {
             "expense"
         )
 
-        guard let transactions = try? context.fetch(request) else { return 0 }
+        guard let transactions = try? context.fetch(request) else {
+            return ExpenseResult(todayAmount: 0, dailyAvg: 0, hasData: false)
+        }
         let totalAmount = transactions.map { $0.amount.doubleValue }.reduce(0, +)
         let days = max(Calendar.current.dateComponents([.day], from: weekStart, to: todayStart).day ?? 1, 1)
         let dailyAvg = totalAmount / Double(days)
 
-        // 今日消费
         let todayRequest: NSFetchRequest<Transaction> = Transaction.fetchRequest()
         todayRequest.predicate = NSPredicate(
             format: "date >= %@ AND type == %@",
@@ -170,13 +211,62 @@ struct DailySenseStateBuilder {
         )
         let todayAmount = ((try? context.fetch(todayRequest)) ?? []).map { $0.amount.doubleValue }.reduce(0, +)
 
-        guard dailyAvg > 0 else { return 0 }
-        return todayAmount / dailyAvg
+        let hasData = dailyAvg > 0 || todayAmount > 0
+        return ExpenseResult(todayAmount: todayAmount, dailyAvg: dailyAvg, hasData: hasData)
     }
 
-    private static func buildHealthSignals() -> [HealthSignal] {
-        // 健康信号获取需要 async，Daily Sense 在同步上下文生成
-        // 第一版暂不集成实时健康数据，Phase 5 稳定后改为 async
-        return []
+    // MARK: - Health Signal
+
+    private static func buildHealthSignal() async -> DailySenseSignal? {
+        let healthRepo = HealthRepository.shared
+
+        guard healthRepo.isAuthorized else {
+            return nil
+        }
+
+        // 如果缓存值为 0，尝试刷新一次
+        if healthRepo.todaySleep == 0 && healthRepo.todaySteps == 0 {
+            await healthRepo.refresh()
+        }
+
+        let sleepHours = healthRepo.todaySleep
+        let steps = healthRepo.todaySteps
+        let sleepAvailable = healthRepo.sleepAvailability == .available
+        let stepsAvailable = healthRepo.stepsAvailability == .available
+
+        guard sleepAvailable || stepsAvailable else {
+            return nil
+        }
+
+        // 优先显示异常项
+        if sleepAvailable && sleepHours < 5 {
+            return DailySenseSignal(dimension: .health, level: .critical, text: "只睡了 \(String(format: "%.1f", sleepHours))h")
+        }
+        if stepsAvailable && steps < 2000 {
+            return DailySenseSignal(dimension: .health, level: .warning, text: "步数偏少")
+        }
+        if sleepAvailable && sleepHours > 0 && sleepHours < 6 {
+            return DailySenseSignal(dimension: .health, level: .warning, text: "\(String(format: "%.1f", sleepHours))h · 有点少")
+        }
+
+        // 无异常，显示睡眠时长
+        if sleepAvailable && sleepHours > 0 {
+            return DailySenseSignal(dimension: .health, level: .normal, text: "\(String(format: "%.1f", sleepHours))h")
+        }
+        if stepsAvailable && steps > 0 {
+            let formatter = NumberFormatter()
+            formatter.numberStyle = .decimal
+            formatter.maximumFractionDigits = 0
+            let formatted = formatter.string(from: Int(steps) as NSNumber) ?? "\(Int(steps))"
+            return DailySenseSignal(dimension: .health, level: .normal, text: "走了 \(formatted) 步")
+        }
+
+        return nil
+    }
+
+    // MARK: - Formatting
+
+    private static func formatAmount(_ value: Double) -> String {
+        "¥\(Int(value.rounded()))"
     }
 }

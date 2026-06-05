@@ -663,9 +663,10 @@ class MemoryGalleryViewModel: ObservableObject {
 
         // 加载或生成 Daily Sense
         if InsightFeatureFlags.dailySenseEnabled {
-            if let cached = DailySenseSnapshotStore.shared.todaySnapshot() {
+            let cached = DailySenseSnapshotStore.shared.todaySnapshot()
+            if let cached, !cached.isLegacy, !cached.signals.isEmpty {
                 dailySenseSnapshot = cached
-            } else if let snapshot = DailySenseStateBuilder.buildToday() {
+            } else if let snapshot = await DailySenseStateBuilder.buildToday() {
                 DailySenseSnapshotStore.shared.saveToday(snapshot)
                 dailySenseSnapshot = snapshot
             }
