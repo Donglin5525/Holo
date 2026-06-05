@@ -24,14 +24,15 @@ struct DailySenseStateBuilder {
             return nil
         }
 
-        var reasons: [String] = []
+        // TODO(v2): 临时占位，Task 2 重写时实现真实信号生成
+        var signals: [DailySenseSignal] = []
         var riskScore: Double = 0
         var recoveryScore: Double = 0
 
         // 任务信号
         let overdueCount = fetchOverdueTaskCount(in: context, asOf: todayStart)
         if overdueCount >= 3 {
-            reasons.append("\(overdueCount) 个任务逾期")
+            // TODO(v2): Task 2 添加真实信号
             riskScore += 1.0
         }
         if overdueCount > 0 && overdueCount <= 2 {
@@ -42,21 +43,21 @@ struct DailySenseStateBuilder {
         // 习惯信号
         let brokenHabits = fetchBrokenHabitCount(in: context, asOf: todayStart)
         if brokenHabits >= 2 {
-            reasons.append("\(brokenHabits) 个习惯断连")
+            // TODO(v2): Task 2 添加真实信号
             riskScore += 0.8
         }
 
         // 恢复信号：断连习惯恢复打卡
         let recoveredHabits = fetchRecoveredHabitCount(in: context, asOf: todayStart)
         if recoveredHabits > 0 {
-            reasons.append("\(recoveredHabits) 个习惯恢复打卡")
+            // TODO(v2): Task 2 添加真实信号
             recoveryScore += 1.0
         }
 
         // 消费信号
         let expenseDeviation = fetchExpenseDeviation(in: context, weekStart: weekAgo, todayStart: todayStart)
         if expenseDeviation > 1.5 {
-            reasons.append("消费偏离均值 \(String(format: "%.1f", expenseDeviation))x")
+            // TODO(v2): Task 2 添加真实信号
             riskScore += 0.6
         }
         if expenseDeviation <= 1.0 && expenseDeviation > 0 {
@@ -68,19 +69,18 @@ struct DailySenseStateBuilder {
             let healthSignals = buildHealthSignals()
             for signal in healthSignals {
                 if signal.severity == "warning" {
-                    reasons.append(signal.title)
+                    // TODO(v2): Task 2 添加真实信号
                     riskScore += 0.5
                 }
             }
         }
 
         // 数据不足时返回 stable 或不展示
-        guard !reasons.isEmpty || recoveryScore > 0 else {
+        guard !signals.isEmpty || recoveryScore > 0 else {
             return DailySenseSnapshot(
                 date: today,
                 state: .stable,
-                confidence: 0.5,
-                reasons: [],
+                signals: [],
                 generatedAt: Date()
             )
         }
@@ -98,8 +98,7 @@ struct DailySenseStateBuilder {
         return DailySenseSnapshot(
             date: today,
             state: state,
-            confidence: min(riskScore + recoveryScore, 1.0),
-            reasons: Array(reasons.prefix(3)),
+            signals: Array(signals.prefix(3)),
             generatedAt: Date()
         )
     }

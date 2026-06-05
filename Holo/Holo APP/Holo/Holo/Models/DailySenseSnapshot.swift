@@ -2,28 +2,130 @@
 //  DailySenseSnapshot.swift
 //  Holo
 //
-//  每日状态雷达模型
-//  3 个状态：stable / atRisk / recovering，规则引擎生成
+//  每日状态雷达模型（v2）
+//  3 个状态：stable / atRisk / recovering
+//  结构化信号替代 reasons 字符串数组
 //
 
 import Foundation
 
-/// 每日状态
-enum DailySenseState: String, Codable {
-    case stable       // 稳定
-    case atRisk       // 断连风险
-    case recovering   // 恢复中
+// MARK: - 信号模型
+
+/// 信号维度
+enum SenseDimension: String, Codable, CaseIterable {
+    case task
+    case habit
+    case expense
+    case health
+
+    var displayName: String {
+        switch self {
+        case .task: return "待办"
+        case .habit: return "习惯"
+        case .expense: return "消费"
+        case .health: return "健康"
+        }
+    }
 }
 
-/// 每日状态快照
+/// 信号等级
+enum SignalLevel: String, Codable {
+    case normal    // .holoSuccess 绿
+    case warning   // .orange 橙
+    case critical  // .holoError 红
+}
+
+/// 单维度信号
+struct DailySenseSignal: Codable, Equatable {
+    let dimension: SenseDimension
+    let level: SignalLevel
+    let text: String
+}
+
+// MARK: - 状态模型
+
+/// 每日状态
+enum DailySenseState: String, Codable {
+    case stable       // 节奏不错
+    case atRisk       // 节奏有点乱
+    case recovering   // 节奏在找回
+}
+
+/// 每日状态快照（v2）
 struct DailySenseSnapshot: Codable, Equatable {
+    let schemaVersion: Int
     let date: Date
     let state: DailySenseState
-    let confidence: Double
-    /// 最多 3 条原因，可追溯到真实数据
-    let reasons: [String]
+    let signals: [DailySenseSignal]
     let generatedAt: Date
+
+    // MARK: - Coding Keys
+
+    private enum CodingKeys: String, CodingKey {
+        case schemaVersion
+        case date
+        case state
+        case signals
+        case generatedAt
+        // Legacy keys（仅用于解码）
+        case confidence
+        case reasons
+    }
+
+    // MARK: - Codable（向后兼容）
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        // schemaVersion 可能为空（legacy 格式）
+        schemaVersion = try container.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? 1
+
+        date = try container.decode(Date.self, forKey: .date)
+        state = try container.decode(DailySenseState.self, forKey: .state)
+        generatedAt = try container.decode(Date.self, forKey: .generatedAt)
+
+        // signals 可能为空（legacy 格式）
+        signals = try container.decodeIfPresent([DailySenseSignal].self, forKey: .signals) ?? []
+
+        // 忽略 legacy 字段（confidence, reasons）
+        // 这些字段在 v1 中存在，但在 v2 中已废弃
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(schemaVersion, forKey: .schemaVersion)
+        try container.encode(date, forKey: .date)
+        try container.encode(state, forKey: .state)
+        try container.encode(signals, forKey: .signals)
+        try container.encode(generatedAt, forKey: .generatedAt)
+    }
+
+    // MARK: - Regular Init（v2 格式）
+
+    init(date: Date, state: DailySenseState, signals: [DailySenseSignal], generatedAt: Date) {
+        self.schemaVersion = 2
+        self.date = date
+        self.state = state
+        self.signals = signals
+        self.generatedAt = generatedAt
+    }
+
+    // MARK: - Computed Properties
+
+    /// 是否为 legacy 格式（schemaVersion < 2）
+    var isLegacy: Bool { schemaVersion < 2 }
+
+    /// 状态标题
+    var stateTitle: String {
+        switch state {
+        case .stable: return "节奏不错"
+        case .atRisk: return "节奏有点乱"
+        case .recovering: return "节奏在找回"
+        }
+    }
 }
+
+// MARK: - Store
 
 /// 每日状态持久化（保留最近 7 天 JSON 数组）
 final class DailySenseSnapshotStore {
@@ -72,13 +174,20 @@ final class DailySenseSnapshotStore {
     }
 
     private func load() {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
         guard let data = try? Data(contentsOf: fileURL) else { return }
-        snapshots = (try? JSONDecoder().decode([DailySenseSnapshot].self, from: data)) ?? []
+        snapshots = (try? decoder.decode([DailySenseSnapshot].self, from: data)) ?? []
         cleanup()
     }
 
     private func save() {
-        guard let data = try? JSONEncoder().encode(snapshots) else { return }
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = .prettyPrinted
+
+        guard let data = try? encoder.encode(snapshots) else { return }
         let dir = fileURL.deletingLastPathComponent()
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         try? data.write(to: fileURL, options: .atomic)

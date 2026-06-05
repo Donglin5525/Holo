@@ -27,13 +27,13 @@ struct DailySenseStatusCard: View {
 
             // 状态文本
             VStack(alignment: .leading, spacing: 2) {
-                Text(stateTitle)
+                Text(snapshot.stateTitle)
                     .font(.holoCaption)
                     .fontWeight(.semibold)
                     .foregroundColor(.holoTextPrimary)
 
-                if !snapshot.reasons.isEmpty {
-                    Text(snapshot.reasons.joined(separator: " · "))
+                if !snapshot.signals.isEmpty {
+                    Text(snapshot.signals.map(\.text).joined(separator: " · "))
                         .font(.holoTinyLabel)
                         .foregroundColor(.holoTextSecondary)
                         .lineLimit(1)
@@ -71,14 +71,6 @@ struct DailySenseStatusCard: View {
         case .stable: return "checkmark.circle.fill"
         case .atRisk: return "exclamationmark.triangle.fill"
         case .recovering: return "arrow.up.circle.fill"
-        }
-    }
-
-    private var stateTitle: String {
-        switch snapshot.state {
-        case .stable: return "状态稳定"
-        case .atRisk: return "需要注意"
-        case .recovering: return "正在恢复"
         }
     }
 }
