@@ -132,6 +132,18 @@ nonisolated struct MemoryInsightEvidence: Codable, Identifiable, Equatable {
     var matchedSourceId: UUID?
 }
 
+// MARK: - Memory Candidate Payload
+
+/// LLM 输出的记忆候选语义字段（嵌入在洞察卡片中）
+nonisolated struct MemoryCandidatePayload: Codable, Equatable {
+    /// 语义类型：phaseShift / stablePattern / driftSignal / lifeEvent / statMilestone
+    let semanticType: String
+    /// 给用户审核的事实摘要，不含建议
+    let displaySummary: String
+    /// 给 HoloAI 使用的上下文摘要，含误用边界
+    let aiUseSummary: String
+}
+
 // MARK: - Card
 
 /// 单张洞察卡
@@ -148,11 +160,14 @@ nonisolated struct MemoryInsightCard: Codable, Identifiable, Equatable {
     let moduleHint: String?
     /// rerank 用的模式标识（如 spending_increase / habit_break），post-process 填充
     let patternType: String?
+    /// 记忆候选语义字段（仅 habit/finance/task/milestone 卡片有值）
+    let memoryCandidate: MemoryCandidatePayload?
 
     init(id: String, type: MemoryInsightCardType, title: String, body: String,
          evidence: [MemoryInsightEvidence], suggestedQuestion: String?,
          anomalySeverity: AnomalySeverity? = nil,
-         moduleHint: String? = nil, patternType: String? = nil) {
+         moduleHint: String? = nil, patternType: String? = nil,
+         memoryCandidate: MemoryCandidatePayload? = nil) {
         self.id = id
         self.type = type
         self.title = title
@@ -162,6 +177,7 @@ nonisolated struct MemoryInsightCard: Codable, Identifiable, Equatable {
         self.anomalySeverity = anomalySeverity
         self.moduleHint = moduleHint
         self.patternType = patternType
+        self.memoryCandidate = memoryCandidate
     }
 }
 

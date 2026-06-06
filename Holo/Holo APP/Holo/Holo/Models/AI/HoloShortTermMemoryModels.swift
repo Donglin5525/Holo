@@ -71,10 +71,20 @@ struct HoloRecentSignal: Codable, Equatable, Identifiable {
     var occurredAt: Date?
 }
 
+/// 单条记忆摘要的增强信息（Phase 4 新增）
+struct HoloMemorySummaryEntry: Codable, Equatable {
+    var title: String
+    var aiUseSummary: String
+    var useScopeLabels: [String]
+    var prohibitedInferences: [String]
+}
+
 struct HoloMemoryPromptSummary: Codable, Equatable {
     var lines: [String]
     var sourceIDs: [String]
     var coverage: HoloMemoryCoverageLevel
+    /// 增强条目（含 aiUseSummary + prohibitedInferences），Phase 4 新增
+    var entries: [HoloMemorySummaryEntry]
 
-    static let empty = HoloMemoryPromptSummary(lines: [], sourceIDs: [], coverage: .empty)
+    static let empty = HoloMemoryPromptSummary(lines: [], sourceIDs: [], coverage: .empty, entries: [])
 }

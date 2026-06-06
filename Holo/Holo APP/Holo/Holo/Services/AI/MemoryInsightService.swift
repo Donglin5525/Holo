@@ -251,7 +251,8 @@ final class MemoryInsightService {
         // 10. 发送洞察生成完成通知（供长期记忆候选提取使用）
         let cardPayloads: [[String: Any]] = processedPayload.cards.compactMap { card in
             guard card.patternType != nil, !card.evidence.isEmpty else { return nil }
-            return [
+
+            var payload: [String: Any] = [
                 "id": card.id,
                 "title": card.title,
                 "summary": card.body,
@@ -259,8 +260,20 @@ final class MemoryInsightService {
                 "evidence": card.evidence.map { [
                     "sourceID": ($0.matchedSourceId?.uuidString) ?? "",
                     "excerpt": $0.label
-                ] }
+                ] },
+                "cardType": card.type.rawValue
             ]
+
+            // 携带记忆候选语义字段
+            if let mc = card.memoryCandidate {
+                payload["memoryCandidate"] = [
+                    "semanticType": mc.semanticType,
+                    "displaySummary": mc.displaySummary,
+                    "aiUseSummary": mc.aiUseSummary
+                ] as [String: String]
+            }
+
+            return payload
         }
         DispatchQueue.main.async {
             NotificationCenter.default.post(
@@ -331,7 +344,8 @@ final class MemoryInsightService {
                 suggestedQuestion: card.suggestedQuestion,
                 anomalySeverity: card.anomalySeverity,
                 moduleHint: card.moduleHint,
-                patternType: card.patternType
+                patternType: card.patternType,
+                memoryCandidate: card.memoryCandidate
             ))
         }
 

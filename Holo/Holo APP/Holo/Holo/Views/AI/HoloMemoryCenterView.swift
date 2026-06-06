@@ -176,12 +176,34 @@ struct HoloMemoryCenterView: View {
                     .frame(width: 28)
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(memory.title)
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
-                        .lineLimit(1)
+                    HStack(spacing: 6) {
+                        Text(memory.title)
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+                            .lineLimit(1)
 
-                    Text(memory.summary)
+                        // 语义类型标签
+                        if let semanticType = memory.semanticType {
+                            Text(semanticTypeDisplayName(semanticType))
+                                .font(.system(size: 10))
+                                .foregroundColor(.holoPrimary)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(Color.holoPrimary.opacity(0.1))
+                                .cornerRadius(3)
+                        } else {
+                            Text("旧格式")
+                                .font(.system(size: 10))
+                                .foregroundColor(.holoTextSecondary)
+                                .padding(.horizontal, 5)
+                                .padding(.vertical, 1)
+                                .background(Color.holoTextSecondary.opacity(0.1))
+                                .cornerRadius(3)
+                        }
+                    }
+
+                    // 优先展示 displaySummary，fallback 到 summary
+                    Text(memory.displaySummary ?? memory.summary)
                         .font(.system(size: 12))
                         .foregroundColor(.holoTextSecondary)
                         .lineLimit(2)
@@ -205,6 +227,9 @@ struct HoloMemoryCenterView: View {
             List {
                 Section {
                     LabeledContent("类型", value: typeLabel(memory.type))
+                    if let semanticType = memory.semanticType {
+                        LabeledContent("语义类型", value: semanticTypeDisplayName(semanticType))
+                    }
                     LabeledContent("确认状态", value: stateLabel(memory.confirmationState))
                     LabeledContent("置信度", value: confidenceLabel(memory.confidence))
                 } header: {
@@ -340,6 +365,16 @@ struct HoloMemoryCenterView: View {
         case .low: return "低"
         case .medium: return "中"
         case .high: return "高"
+        }
+    }
+
+    private func semanticTypeDisplayName(_ type: HoloMemorySemanticType) -> String {
+        switch type {
+        case .phaseShift: return "阶段变化"
+        case .stablePattern: return "稳定习惯"
+        case .driftSignal: return "偏离提醒"
+        case .lifeEvent: return "人生节点"
+        case .statMilestone: return "轻量记录"
         }
     }
 }

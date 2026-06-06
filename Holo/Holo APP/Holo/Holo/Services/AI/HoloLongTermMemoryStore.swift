@@ -2,7 +2,7 @@
 //  HoloLongTermMemoryStore.swift
 //  Holo
 //
-//  长期记忆 JSON Store：原子写入、损坏回退、查询限制
+//  长期记忆 JSON Store：原子写入、损坏回退、并发安全、过期清理
 //
 
 import Foundation
@@ -12,6 +12,13 @@ enum HoloLongTermMemoryStore {
 
     private static let logger = Logger(subsystem: "com.holo.app", category: "LongTermMemoryStore")
     private static let fileName = "HoloLongTermMemories.json"
+
+    // MARK: - 并发安全
+
+    private static let queue = DispatchQueue(
+        label: "com.holo.longTermMemoryStore",
+        attributes: .concurrent
+    )
 
     // MARK: - File Path
 
@@ -28,51 +35,61 @@ enum HoloLongTermMemoryStore {
     // MARK: - Load
 
     static func load() -> [HoloLongTermMemory] {
-        let fm = FileManager.default
+        queue.sync {
+            let fm = FileManager.default
 
-        guard fm.fileExists(atPath: storeURL.path) else {
-            return []
-        }
-
-        do {
-            let data = try Data(contentsOf: storeURL)
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            let memories = try decoder.decode([HoloLongTermMemory].self, from: data)
-            return memories
-        } catch {
-            logger.error("长期记忆 JSON 解码失败：\(error.localizedDescription)")
-
-            // 备份损坏文件
-            if fm.fileExists(atPath: backupURL.path) {
-                try? fm.removeItem(at: backupURL)
+            guard fm.fileExists(atPath: storeURL.path) else {
+                return []
             }
-            try? fm.copyItem(at: storeURL, to: backupURL)
-            logger.info("已备份损坏文件到 \(backupURL.lastPathComponent)")
 
-            return []
+            do {
+                let data = try Data(contentsOf: storeURL)
+                let decoder = JSONDecoder()
+                decoder.dateDecodingStrategy = .iso8601
+                return try decoder.decode([HoloLongTermMemory].self, from: data)
+            } catch {
+                logger.error("长期记忆 JSON 解码失败：\(error.localizedDescription)")
+
+                // 备份损坏文件
+                if fm.fileExists(atPath: backupURL.path) {
+                    try? fm.removeItem(at: backupURL)
+                }
+                try? fm.copyItem(at: storeURL, to: backupURL)
+                logger.info("已备份损坏文件到 \(backupURL.lastPathComponent)")
+
+                return []
+            }
         }
     }
 
     // MARK: - Save
 
     static func save(_ memories: [HoloLongTermMemory]) throws {
-        let fm = FileManager.default
-        let dir = storeURL.deletingLastPathComponent()
+        let result: Result<Void, Error> = queue.sync(flags: .barrier) {
+            do {
+                let fm = FileManager.default
+                let dir = storeURL.deletingLastPathComponent()
 
-        if !fm.fileExists(atPath: dir.path) {
-            try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+                if !fm.fileExists(atPath: dir.path) {
+                    try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+                }
+
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
+                encoder.dateEncodingStrategy = .iso8601
+                let data = try encoder.encode(memories)
+
+                // 原子写入：临时文件 + 替换
+                let tempURL = dir.appendingPathComponent("HoloLongTermMemories_temp.json")
+                try data.write(to: tempURL, options: .atomic)
+                _ = try fm.replaceItemAt(storeURL, withItemAt: tempURL)
+
+                return .success(())
+            } catch {
+                return .failure(error)
+            }
         }
-
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
-        encoder.dateEncodingStrategy = .iso8601
-        let data = try encoder.encode(memories)
-
-        // 原子写入：临时文件 + 替换
-        let tempURL = dir.appendingPathComponent("HoloLongTermMemories_temp.json")
-        try data.write(to: tempURL, options: .atomic)
-        _ = try fm.replaceItemAt(storeURL, withItemAt: tempURL)
+        try result.get()
     }
 
     // MARK: - Upsert Candidate
@@ -151,10 +168,16 @@ enum HoloLongTermMemoryStore {
 
     // MARK: - Query
 
-    /// 查询 Prompt 摘要，最多 5 条
+    /// 查询 Prompt 摘要，最多 limit 条，排除过期记忆
     static func queryPromptSummary(limit: Int = 5) -> HoloMemoryPromptSummary {
+        let now = Date()
         let memories = load()
-            .filter { $0.confirmationState == .confirmed || $0.confirmationState == .silentlyAccepted }
+            .filter { mem in
+                guard mem.confirmationState == .confirmed || mem.confirmationState == .silentlyAccepted else { return false }
+                // 排除已过期的记忆
+                if let expires = mem.expiresAt, expires < now { return false }
+                return true
+            }
             .sorted { $0.updatedAt > $1.updatedAt }
 
         let selected = Array(memories.prefix(limit))
@@ -166,17 +189,57 @@ enum HoloLongTermMemoryStore {
         return HoloMemoryPromptSummary(
             lines: lines,
             sourceIDs: sourceIDs,
-            coverage: coverage
+            coverage: coverage,
+            entries: []
         )
     }
 
-    /// 查询候选记忆
+    /// 查询候选记忆（排除过期）
     static func queryCandidates() -> [HoloLongTermMemory] {
-        load().filter { $0.confirmationState == .candidate }
+        let now = Date()
+        return load().filter { mem in
+            guard mem.confirmationState == .candidate else { return false }
+            if let expires = mem.expiresAt, expires < now { return false }
+            return true
+        }
     }
 
-    /// 查询已确认记忆
+    /// 查询已确认记忆（排除过期）
     static func queryConfirmed() -> [HoloLongTermMemory] {
-        load().filter { $0.confirmationState == .confirmed || $0.confirmationState == .silentlyAccepted }
+        let now = Date()
+        return load().filter { mem in
+            guard mem.confirmationState == .confirmed || mem.confirmationState == .silentlyAccepted else { return false }
+            if let expires = mem.expiresAt, expires < now { return false }
+            return true
+        }
+    }
+
+    // MARK: - 过期清理
+
+    /// 归档已过期的记忆（不硬删），返回归档数量
+    @discardableResult
+    static func cleanupExpired(now: Date = Date()) -> Int {
+        var memories = load()
+        let before = memories.count
+
+        var archivedCount = 0
+        for index in memories.indices {
+            guard let expires = memories[index].expiresAt, expires < now else { continue }
+            guard memories[index].confirmationState != .archived else { continue }
+            memories[index].confirmationState = .archived
+            memories[index].updatedAt = now
+            archivedCount += 1
+        }
+
+        guard archivedCount > 0 else { return 0 }
+
+        do {
+            try save(memories)
+            logger.info("归档了 \(archivedCount) 条过期长期记忆")
+            return archivedCount
+        } catch {
+            logger.error("过期清理保存失败：\(error.localizedDescription)")
+            return 0
+        }
     }
 }

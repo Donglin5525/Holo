@@ -4,6 +4,39 @@
 
 ---
 
+## [2026-06-07] 记忆管理类型化重构
+
+### 新增
+- 5 种语义类型（阶段变化/稳定习惯/偏离提醒/人生节点/轻量记录）替代旧来源类型，记忆按 AI 使用场景分类
+- 双摘要机制：displaySummary（用户审核）+ aiUseSummary（AI 召回上下文 + 误用边界）
+- 记忆候选语义 Mapper（MemoryCandidateSemanticMapper）：校验 LLM 输出、本地补默认值、降级处理
+- useScopes 使用场景筛选：coreContext/recentInsight/goalPlanning/retrospective/displayOnly
+- prohibitedInferences 误用边界：每种语义类型有默认禁止推断规则
+- 洞察 prompt v6：增加 memoryCandidate 子结构输出规则，仅 habit/finance/task/milestone 卡片输出
+- 3 个灰度 Feature Flag：semanticMemoryPromptEnabled / semanticMemoryTypesEnabled / semanticMemoryRecallEnabled（默认全 false）
+
+### 修复
+- 修复长期记忆召回链路断路：UserContextBuilder.buildContext() 硬编码 memorySummary: nil 导致 AI 对话无法获取已确认记忆
+- 长期记忆 Store 增加并发 barrier 队列，修复并发 upsertCandidate + confirm 可能丢数据的问题
+- 过期记忆归档而非硬删，queryConfirmed/queryCandidates/queryPromptSummary 自动过滤已过期记忆
+- HoloLongTermMemoryCandidateObserver 不再硬编码所有候选为 .recurringPattern 类型
+
+### 优化
+- 晋升策略按 semanticType 分流：phaseShift/lifeEvent 需确认、stablePattern 多证据可静默写入、driftSignal 自动 21 天过期、statMilestone 轻量收藏
+- AI 召回注入格式增强：含 [useScopes] 标签和「避免推断」误用边界
+- 记忆管理页 UI 展示语义类型标签、displaySummary 和旧格式标记
+- 后端 defaultPrompts.json 同步更新，已部署至 ECS
+
+---
+
+## [2026-06-07] App 图标满幅修复
+
+### 修复
+- 重新裁切并生成 AppIcon 全套尺寸，移除图标素材中烘焙的外层预览背景与阴影，修复桌面 App 图标显示内缩的问题，并将头像主体回收约 10% 以避免视觉过满
+- 补齐 AppIcon catalog 中缺失文件引用的 iPhone/iPad 小尺寸槽位，避免不同系统位置取图不一致
+
+---
+
 ## [2026-06-06] 全局背景色一致性修复
 
 ### 修复

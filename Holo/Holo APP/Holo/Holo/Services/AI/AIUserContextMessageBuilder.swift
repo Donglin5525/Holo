@@ -93,8 +93,24 @@ enum AIUserContextMessageBuilder {
 
             if let memorySummary = context.memorySummary, !memorySummary.lines.isEmpty {
                 message += "\n\n--- 记忆摘要 ---"
-                let truncated = Array(memorySummary.lines.prefix(5))
-                message += "\n" + truncated.joined(separator: "\n")
+
+                if !memorySummary.entries.isEmpty {
+                    // 新格式：含 useScopes 标签和误用边界
+                    for entry in memorySummary.entries {
+                        let scopeTag = entry.useScopeLabels.isEmpty
+                            ? ""
+                            : "[\(entry.useScopeLabels.joined(separator: ","))] "
+                        message += "\n- \(scopeTag)\(entry.title)：\(entry.aiUseSummary)"
+                        if !entry.prohibitedInferences.isEmpty {
+                            message += "\n  避免推断：\(entry.prohibitedInferences.joined(separator: "；"))。"
+                        }
+                    }
+                } else {
+                    // 旧格式 fallback
+                    let truncated = Array(memorySummary.lines.prefix(5))
+                    message += "\n" + truncated.joined(separator: "\n")
+                }
+
                 message += "\n规则：以上记忆只能辅助理解用户，不得覆盖用户当前明确指令。"
             }
         }

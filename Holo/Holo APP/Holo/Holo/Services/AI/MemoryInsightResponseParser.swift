@@ -118,7 +118,8 @@ enum MemoryInsightResponseParser {
                     suggestedQuestion: card.suggestedQuestion,
                     anomalySeverity: card.anomalySeverity,
                     moduleHint: hint,
-                    patternType: pattern
+                    patternType: pattern,
+                    memoryCandidate: card.memoryCandidate
                 )
             }
             return card

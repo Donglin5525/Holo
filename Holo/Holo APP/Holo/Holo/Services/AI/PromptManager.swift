@@ -96,7 +96,7 @@ final class PromptManager {
     /// 需要版本管理的 prompt 类型及其最低版本
     private static let promptVersions: [PromptType: Int] = [
         .intentRecognition: 14,         // v14: 收窄 query_analysis 金额触发，特定品类金额查询优先 flexible_data_query
-        .memoryInsightGeneration: 5,    // v5: 习惯洞察区分正向习惯与坏习惯控制率
+        .memoryInsightGeneration: 6,    // v6: 新增 memoryCandidate 子结构，支持语义类型化记忆候选
         .analysisPrompt: 2,             // v2: C 端纯文本分析输出，避免裸露 Markdown 语法
         .annualReview: 1,               // v1: 初始版本
         .thoughtVoiceSummary: 2,        // v2: 自然分段，复杂内容才使用小标题
@@ -617,6 +617,25 @@ final class PromptManager {
         - 聚焦当天的高光时刻和待关注事项
         - 如果当天数据极少（总记录不到 3 条），只输出 1 张 overview 卡片
 
+        ## 记忆候选（memoryCandidate）
+
+        对 habit / finance / task / milestone 类型的卡片，如果该卡片描述的是值得长期记住的模式、变化或节点，请额外输出 memoryCandidate 子对象。
+        overview / anomaly / thought / cross_domain 类型的卡片不要输出 memoryCandidate。
+
+        memoryCandidate 包含 3 个字段：
+        - semanticType（语义类型，必填）：
+          - phaseShift：用户跨过了一个阶段，或长期状态出现了可被证据支撑的台阶变化
+          - stablePattern：用户长期重复出现、对个性化理解有价值的行为倾向
+          - driftSignal：用户近期偏离了自己曾经在意、持续追踪或明确设定的目标/节奏
+          - lifeEvent：来自想法、对话、任务、财务或档案更新中的重要生活事件
+          - statMilestone：有纪念意义但不应强影响 AI 判断的累计节点（如"完成了第 50 个任务"）
+        - displaySummary（用户可审核的事实摘要，≤60字）：只描述事实，不含建议、鼓励或教练表达
+        - aiUseSummary（给 HoloAI 的上下文摘要，≤80字）：必须包含适用场景和误用边界（如"不要归因为懒惰"）
+
+        候选标题约束（title + displaySummary 必须同时满足）：
+        - 禁止使用系统词：闭环、终端、清零、偏高、偏低、模式、趋势、画像、异常
+        - 混合语义（如"任务清零，支出偏高"）必须拆分为独立候选，一个 memoryCandidate 只有一个主语义
+
         ## 输出格式
 
         生成一份完整的洞察报告，包含所有可用维度的卡片和跨模块关联。报告为一次性输出，用户不会追问——请确保内容自包含、无需额外解释。
@@ -642,7 +661,12 @@ final class PromptManager {
                 }
               ],
               "suggestedQuestion": "string 或 null",
-              "anomalySeverity": "warning | critical | info 或 null（仅 anomaly 卡片必填）"
+              "anomalySeverity": "warning | critical | info 或 null（仅 anomaly 卡片必填）",
+              "memoryCandidate": {
+                "semanticType": "phaseShift | stablePattern | driftSignal | lifeEvent | statMilestone",
+                "displaySummary": "string, 用户可审核的事实摘要, ≤60字",
+                "aiUseSummary": "string, 给 HoloAI 的上下文摘要含误用边界, ≤80字"
+              } 或 null（仅 habit/finance/task/milestone 可输出）
             }
           ],
           "suggestedQuestions": ["string", "string"]
@@ -665,7 +689,12 @@ final class PromptManager {
                 {"id": "e1", "label": "4月23日 跑步完成", "date": "2026-04-23", "sourceType": "habitRecord"},
                 {"id": "e2", "label": "4月24日 跑步完成", "date": "2026-04-24", "sourceType": "habitRecord"}
               ],
-              "suggestedQuestion": "哪些习惯最容易中断？"
+              "suggestedQuestion": "哪些习惯最容易中断？",
+              "memoryCandidate": {
+                "semanticType": "stablePattern",
+                "displaySummary": "近两周跑步记录连续出现，频率从每周 2 天上升至 5 天。",
+                "aiUseSummary": "用户运动习惯正在恢复。健康和习惯洞察可参考此背景，但不要表述为强制偏好，需结合最近记录判断是否持续。"
+              }
             },
             {
               "id": "finance_1",

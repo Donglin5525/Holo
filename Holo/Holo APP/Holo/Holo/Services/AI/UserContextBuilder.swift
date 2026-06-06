@@ -37,6 +37,12 @@ final class UserContextBuilder {
 
         let goalContext = buildGoalContext(limit: 1)
 
+        // 记忆摘要：开启时从长期记忆 Store 选取相关条目
+        let memorySummary: HoloMemoryPromptSummary? =
+            HoloAIFeatureFlags.memorySummaryInjectionEnabled
+                ? HoloMemorySummaryProvider.selectRelevantSummary(purpose: nil)
+                : nil
+
         let coverage = DataCoverageEvaluator.evaluate(
             from: UserContext(
                 todayDate: todayDate,
@@ -49,7 +55,7 @@ final class UserContextBuilder {
                 recentTrend: recentTrend,
                 goalContext: goalContext,
                 dataCoverage: nil,
-                memorySummary: nil
+                memorySummary: memorySummary
             )
         )
 
@@ -64,7 +70,7 @@ final class UserContextBuilder {
             recentTrend: recentTrend,
             goalContext: goalContext,
             dataCoverage: coverage,
-            memorySummary: nil
+            memorySummary: memorySummary
         )
     }
 

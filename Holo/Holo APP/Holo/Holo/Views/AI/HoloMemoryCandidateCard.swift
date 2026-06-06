@@ -23,12 +23,19 @@ struct HoloMemoryCandidateCard: View {
                     .font(.system(size: 15, weight: .medium))
                     .foregroundColor(.holoTextPrimary)
                 Spacer()
+                // 语义类型标签
+                if let semanticType = memory.semanticType {
+                    semanticTypeBadge(semanticType)
+                } else {
+                    legacyFormatBadge
+                }
                 if memory.sensitivity != .normal {
                     sensitivityBadge
                 }
             }
 
-            Text(memory.summary)
+            // 优先展示 displaySummary，fallback 到 summary
+            Text(memory.displaySummary ?? memory.summary)
                 .font(.system(size: 13))
                 .foregroundColor(.holoTextSecondary)
                 .lineLimit(3)
@@ -77,6 +84,38 @@ struct HoloMemoryCandidateCard: View {
             .padding(.vertical, 2)
             .background(Color.orange.opacity(0.1))
             .cornerRadius(4)
+    }
+
+    // MARK: - Semantic Type Badge
+
+    private func semanticTypeBadge(_ type: HoloMemorySemanticType) -> some View {
+        Text(semanticTypeDisplayName(type))
+            .font(.system(size: 11))
+            .foregroundColor(.holoPrimary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.holoPrimary.opacity(0.1))
+            .cornerRadius(4)
+    }
+
+    private var legacyFormatBadge: some View {
+        Text("旧格式")
+            .font(.system(size: 11))
+            .foregroundColor(.holoTextSecondary)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.holoTextSecondary.opacity(0.1))
+            .cornerRadius(4)
+    }
+
+    private func semanticTypeDisplayName(_ type: HoloMemorySemanticType) -> String {
+        switch type {
+        case .phaseShift: return "阶段变化"
+        case .stablePattern: return "稳定习惯"
+        case .driftSignal: return "偏离提醒"
+        case .lifeEvent: return "人生节点"
+        case .statMilestone: return "轻量记录"
+        }
     }
 
     // MARK: - Evidence Preview

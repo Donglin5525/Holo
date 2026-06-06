@@ -44,6 +44,7 @@ enum HoloLongTermMemoryCandidateObserver {
 
         logger.info("开始从洞察 \(insightID) 提取长期记忆候选")
 
+        let useSemanticMapper = HoloAIFeatureFlags.semanticMemoryPromptEnabled
         var candidates: [HoloLongTermMemory] = []
 
         for cardData in cards {
@@ -65,6 +66,45 @@ enum HoloLongTermMemoryCandidateObserver {
                 )
             }
 
+            // 尝试使用新的语义 Mapper
+            if useSemanticMapper,
+               let mcData = cardData["memoryCandidate"] as? [String: String],
+               let semanticType = mcData["semanticType"],
+               let displaySummary = mcData["displaySummary"],
+               let aiUseSummary = mcData["aiUseSummary"] {
+
+                let mcPayload = MemoryCandidatePayload(
+                    semanticType: semanticType,
+                    displaySummary: displaySummary,
+                    aiUseSummary: aiUseSummary
+                )
+
+                // 构造临时卡片用于 Mapper
+                let cardTypeRaw = cardData["cardType"] as? String ?? "habit"
+                let cardType = MemoryInsightCardType(rawValue: cardTypeRaw) ?? .habit
+                let tempCard = MemoryInsightCard(
+                    id: cardID,
+                    type: cardType,
+                    title: title,
+                    body: summary,
+                    evidence: [],
+                    suggestedQuestion: nil,
+                    memoryCandidate: mcPayload
+                )
+
+                if let mapped = MemoryCandidateSemanticMapper.validateAndMap(
+                    candidate: mcPayload,
+                    card: tempCard,
+                    evidence: evidence
+                ) {
+                    candidates.append(mapped)
+                    continue
+                }
+                // Mapper 返回 nil → 降级到旧逻辑
+                logger.info("Mapper 丢弃候选 \(cardID)，降级到旧逻辑")
+            }
+
+            // 旧逻辑 fallback：无 memoryCandidate 或 Mapper 降级
             let candidate = HoloLongTermMemory(
                 id: "candidate-\(insightID)-\(cardID)",
                 type: .recurringPattern,
@@ -72,7 +112,7 @@ enum HoloLongTermMemoryCandidateObserver {
                 summary: summary,
                 confidence: evidence.count >= 2 ? .medium : .low,
                 confirmationState: .candidate,
-                sensitivity: classifySensitivity(title: title, summary: summary),
+                sensitivity: MemoryCandidateSemanticMapper.classifySensitivity(title: title, summary: summary),
                 evidence: evidence,
                 createdAt: Date(),
                 updatedAt: Date(),
@@ -84,38 +124,36 @@ enum HoloLongTermMemoryCandidateObserver {
 
         // 候选进入晋升策略
         for candidate in candidates {
-            let decision = HoloMemoryPromotionPolicy.evaluate(candidate: candidate)
+            // driftSignal 自动设置 21 天过期
+            var processedCandidate = candidate
+            if candidate.semanticType == .driftSignal && candidate.expiresAt == nil {
+                processedCandidate.expiresAt = Calendar.current.date(byAdding: .day, value: 21, to: Date())
+            }
+
+            // statMilestone 强制 useScopes 为 displayOnly
+            if candidate.semanticType == .statMilestone {
+                processedCandidate.useScopes = [.displayOnly, .retrospective]
+            }
+
+            let decision = HoloMemoryPromotionPolicy.evaluate(candidate: processedCandidate)
             switch decision {
             case .discard(let reason):
-                logger.info("丢弃候选 \(candidate.id)：\(reason)")
+                logger.info("丢弃候选 \(processedCandidate.id)：\(reason)")
             case .observe(let reason):
-                logger.info("观察候选 \(candidate.id)：\(reason)")
-                HoloLongTermMemoryStore.upsertCandidate(candidate)
+                logger.info("观察候选 \(processedCandidate.id)：\(reason)")
+                HoloLongTermMemoryStore.upsertCandidate(processedCandidate)
             case .silentlyAccept(let reason):
-                logger.info("静默写入 \(candidate.id)：\(reason)")
-                var accepted = candidate
+                logger.info("静默写入 \(processedCandidate.id)：\(reason)")
+                var accepted = processedCandidate
                 accepted.confirmationState = .silentlyAccepted
                 HoloLongTermMemoryStore.upsertCandidate(accepted)
             case .requireConfirmation(let reason):
-                logger.info("要求确认 \(candidate.id)：\(reason)")
-                HoloLongTermMemoryStore.upsertCandidate(candidate)
+                logger.info("要求确认 \(processedCandidate.id)：\(reason)")
+                HoloLongTermMemoryStore.upsertCandidate(processedCandidate)
             }
         }
 
         logger.info("从洞察 \(insightID) 提取了 \(candidates.count) 个候选")
-    }
-
-    // MARK: - Sensitivity Classification
-
-    private static func classifySensitivity(title: String, summary: String) -> HoloMemorySensitivity {
-        let sensitiveKeywords = ["焦虑", "抑郁", "压力", "心理", "人格", "身份", "关系", "分手", "离婚", "债务"]
-        let text = title + summary
-        for keyword in sensitiveKeywords {
-            if text.contains(keyword) {
-                return .sensitive
-            }
-        }
-        return .normal
     }
 }
 
