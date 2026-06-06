@@ -6,12 +6,18 @@
 
 ## [2026-06-06] App Store 上线前巡检修复
 
+### 新增
+- 新增 `PrivacyInfo.xcprivacy` 隐私清单，声明 Holo 使用的账号、健康、健身、财务和用户内容数据，以及 UserDefaults Required Reason API 使用原因
+- 设置页新增“删除账号与 Holo 数据”入口，可清除本机 CoreData 记录、附件、AI 记忆、缓存、Keychain 登录状态和本地偏好
+
 ### 修复
 - 添加 Apple ID 凭证撤销实时监听（`credentialRevokedNotification`），用户在系统设置撤销授权后 App 立即感知并自动登出
 - 任务附件图片数据存入 CoreData，支持 iCloud 同步：换设备后附件图片自动恢复，不再丢失
   - TaskAttachment 实体新增 `imageData` / `thumbnailData` 二进制属性
   - 新附件图片直接存入 CoreData，旧附件仍通过文件系统兼容加载
   - AttachmentFileManager 新增 `processImageData` / `processRawImageData` 纯数据处理方法（不写磁盘）
+- 移除 `NSAllowsArbitraryLoads` 全局 ATS 放开，发布包默认只允许符合 ATS 要求的网络连接
+- 设置页 Release 可见“调试”文案改为“诊断与数据管理”，避免提审时出现内部调试入口感
 
 ---
 

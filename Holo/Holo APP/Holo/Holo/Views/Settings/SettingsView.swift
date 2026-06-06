@@ -37,6 +37,9 @@ struct SettingsView: View {
     @State private var showHealthKitDiagnostics = false
     @State private var showSignOutConfirmation = false
     @State private var showClearCacheAlert = false
+    @State private var showDeleteAccountDataConfirmation = false
+    @State private var isDeletingAccountData = false
+    @State private var accountDataDeletionMessage: String?
 
     // MARK: - Body
 
@@ -61,6 +64,9 @@ struct SettingsView: View {
 
                     // 存储与缓存
                     storageSection
+
+                    // 账号与数据
+                    accountDataSection
 
                     // 其他设置（占位）
                     otherSettingsSection
@@ -103,6 +109,14 @@ struct SettingsView: View {
             Button("取消", role: .cancel) {}
         } message: {
             Text("退出登录只会清除 Holo 的本地登录状态，不会删除本机数据，也不会删除 iCloud 云端数据。")
+        }
+        .alert("删除 Holo 账号与数据？", isPresented: $showDeleteAccountDataConfirmation) {
+            Button("取消", role: .cancel) {}
+            Button("删除", role: .destructive) {
+                Task { await deleteAccountAndData() }
+            }
+        } message: {
+            Text("这会删除本机 Holo 数据、附件、AI 记忆、缓存和登录状态。已同步到 iCloud 的 Holo 数据会在系统同步后尝试删除；如果设备离线，删除同步可能延后。")
         }
     }
 
@@ -723,8 +737,7 @@ struct SettingsView: View {
                 // TODO: 显示关于页面
             }
 
-            // 调试：清除观点数据
-            debugSection
+            diagnosticsSection
         }
     }
 
@@ -806,7 +819,7 @@ struct SettingsView: View {
                                 .font(.holoBody)
                                 .foregroundColor(storageService.cacheSize == 0 ? .holoTextSecondary : .red)
 
-                            Text("清理调试日志和过期数据，不会删除你的数据")
+                            Text("清理诊断日志和过期数据，不会删除你的数据")
                                 .font(.system(size: 12))
                                 .foregroundColor(.holoTextSecondary)
                         }
@@ -829,22 +842,103 @@ struct SettingsView: View {
                 Task { await storageService.clearCache() }
             }
         } message: {
-            Text("将清理 AI 调试日志和过期数据，你的对话、记忆和其他数据不会受影响。")
+            Text("将清理 AI 诊断日志和过期数据，你的对话、记忆和其他数据不会受影响。")
         }
     }
 
-    // MARK: - 调试
+    // MARK: - 账号与数据
+
+    private var accountDataSection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            HStack(spacing: HoloSpacing.sm) {
+                Image(systemName: "person.crop.circle.badge.minus")
+                    .font(.system(size: 18))
+                    .foregroundColor(.red)
+
+                Text("账号与数据")
+                    .font(.holoBody)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoTextPrimary)
+            }
+
+            VStack(spacing: 0) {
+                Button {
+                    showDeleteAccountDataConfirmation = true
+                } label: {
+                    HStack(spacing: HoloSpacing.md) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 10)
+                                .fill(isDeletingAccountData ? Color.holoTextSecondary.opacity(0.1) : Color.red.opacity(0.1))
+                                .frame(width: 40, height: 40)
+
+                            if isDeletingAccountData {
+                                ProgressView()
+                                    .tint(.red)
+                            } else {
+                                Image(systemName: "trash.slash")
+                                    .font(.system(size: 18, weight: .medium))
+                                    .foregroundColor(.red)
+                            }
+                        }
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("删除账号与 Holo 数据")
+                                .font(.holoBody)
+                                .foregroundColor(.red)
+
+                            Text("清除本机数据、附件、AI 记忆和登录状态")
+                                .font(.system(size: 12))
+                                .foregroundColor(.holoTextSecondary)
+
+                            if let accountDataDeletionMessage {
+                                Text(accountDataDeletionMessage)
+                                    .font(.system(size: 11))
+                                    .foregroundColor(.holoTextSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+
+                        Spacer()
+                    }
+                    .padding(HoloSpacing.md)
+                    .background(Color.holoCardBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(PlainButtonStyle())
+                .disabled(isDeletingAccountData)
+            }
+        }
+    }
+
+    private func deleteAccountAndData() async {
+        guard !isDeletingAccountData else { return }
+        isDeletingAccountData = true
+        accountDataDeletionMessage = nil
+        defer { isDeletingAccountData = false }
+
+        do {
+            let result = try await AccountDataDeletionService.shared.deleteAccountAndLocalData()
+            authService.signOut()
+            accountDataDeletionMessage = "已删除 \(result.deletedObjectCount) 条本机记录；iCloud 删除同步由系统继续处理。"
+            await storageService.calculateCacheSize()
+        } catch {
+            accountDataDeletionMessage = "删除失败：\(error.localizedDescription)"
+        }
+    }
+
+    // MARK: - 诊断与数据管理
 
     @State private var showClearThoughtDataAlert: Bool = false
 
-    private var debugSection: some View {
+    private var diagnosticsSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
             HStack(spacing: HoloSpacing.sm) {
-                Image(systemName: "ladybug.fill")
+                Image(systemName: "stethoscope")
                     .font(.system(size: 18))
                     .foregroundColor(.orange)
 
-                Text("调试")
+                Text("诊断与数据管理")
                     .font(.holoBody)
                     .fontWeight(.semibold)
                     .foregroundColor(.holoTextPrimary)
