@@ -91,6 +91,8 @@ struct HoloMemoryCenterView: View {
                 }
             }
         }
+        .scrollContentBackground(.hidden)
+        .background(Color.holoBackground)
         .navigationTitle("记忆管理")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear { loadMemories() }
@@ -235,6 +237,8 @@ struct HoloMemoryCenterView: View {
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Color.holoBackground)
             .navigationTitle(memory.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

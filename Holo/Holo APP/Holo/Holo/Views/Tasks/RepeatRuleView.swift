@@ -100,6 +100,8 @@ struct RepeatRuleView: View {
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Color.holoBackground)
             .navigationTitle("重复规则")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

@@ -55,19 +55,11 @@ struct QuickTagBar: View {
 
 extension Color {
     static var transactionKeypadTrayBackground: Color {
-        Color(UIColor { trait in
-            trait.userInterfaceStyle == .dark
-                ? UIColor(red: 0.145, green: 0.145, blue: 0.155, alpha: 1)
-                : UIColor.secondarySystemBackground
-        })
+        Color.holoCardBackground
     }
 
     static var transactionQuickTagBarBackground: Color {
-        Color(UIColor { trait in
-            trait.userInterfaceStyle == .dark
-                ? UIColor(red: 0.185, green: 0.185, blue: 0.20, alpha: 1)
-                : UIColor(red: 0.94, green: 0.94, blue: 0.965, alpha: 1)
-        })
+        Color.holoCardBackground
     }
 
     static var transactionQuickTagChipBackground: Color {

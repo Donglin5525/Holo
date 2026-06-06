@@ -101,6 +101,8 @@ struct HoloEpisodicMemoryDetailView: View {
                     .tint(.red)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Color.holoBackground)
             .navigationTitle(memory.title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

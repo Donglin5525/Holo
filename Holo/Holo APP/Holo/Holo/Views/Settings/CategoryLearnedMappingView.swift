@@ -47,6 +47,8 @@ struct CategoryLearnedMappingView: View {
         }
         .navigationTitle("分类学习映射")
         .navigationBarTitleDisplayMode(.inline)
+        .scrollContentBackground(.hidden)
+        .background(Color.holoBackground)
         .searchable(text: $searchText, prompt: "搜索分类映射")
         .onAppear { reload() }
     }

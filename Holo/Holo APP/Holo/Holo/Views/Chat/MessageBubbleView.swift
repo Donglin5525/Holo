@@ -289,7 +289,7 @@ struct MessageBubbleView: View {
     }
 
     private var bubbleBackground: Color {
-        isUser ? Color.blue.opacity(0.12) : Color(.systemGray6)
+        isUser ? Color.blue.opacity(0.12) : Color.holoCardBackground
     }
 
     // MARK: - Card View

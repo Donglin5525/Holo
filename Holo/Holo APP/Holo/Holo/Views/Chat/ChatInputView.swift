@@ -30,7 +30,7 @@ struct ChatInputView: View {
                 .font(.holoBody)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
-                .background(Color(.systemGray6))
+                .background(Color.holoCardBackground)
                 .cornerRadius(20)
                 .onSubmit {
                     Task { await viewModel.sendMessage() }

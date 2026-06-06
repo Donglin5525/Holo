@@ -40,47 +40,7 @@ struct CategoryManagementView: View {
                 ProgressView()
                 Spacer()
             } else {
-                List {
-                    ForEach(topLevelCategories, id: \.id) { parent in
-                        NavigationLink {
-                            subCategoryList(for: parent)
-                        } label: {
-                            topLevelCategoryRow(parent)
-                        }
-                        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                            if !parent.isSystem {
-                                Button {
-                                    editingCategory = parent
-                                } label: {
-                                    Label("编辑", systemImage: "pencil")
-                                }
-                                .tint(.holoPrimary)
-                            }
-                            if !parent.isDefault && !parent.isSystem {
-                                Button(role: .destructive) {
-                                    categoryToDelete = parent
-                                    showDeleteConfirmation = true
-                                } label: {
-                                    Label("删除", systemImage: "trash")
-                                }
-                            }
-                        }
-                    }
-
-                    Button {
-                        openAddTopLevelCategory()
-                    } label: {
-                        addCategoryRow(
-                            title: "新增一级分类",
-                            subtitle: "创建新的一级科目分组"
-                        )
-                    }
-                    .buttonStyle(.plain)
-                }
-                .listStyle(.insetGrouped)
-                .safeAreaInset(edge: .bottom, spacing: 0) {
-                    Color.clear.frame(height: 88)
-                }
+                categoryList
             }
         }
         .navigationTitle("分类管理")
@@ -187,7 +147,7 @@ struct CategoryManagementView: View {
         .pickerStyle(.segmented)
         .padding(.horizontal, HoloSpacing.lg)
         .padding(.vertical, HoloSpacing.sm)
-        .background(Color(.systemGroupedBackground))
+        .background(Color.holoBackground)
         .onChange(of: transactionType) { _, _ in
             Task { await loadData() }
         }
@@ -218,6 +178,54 @@ struct CategoryManagementView: View {
             }
         }
         .padding(.vertical, 4)
+    }
+
+    // MARK: - Category List
+
+    private var categoryList: some View {
+        List {
+            ForEach(topLevelCategories, id: \.id) { parent in
+                NavigationLink {
+                    subCategoryList(for: parent)
+                } label: {
+                    topLevelCategoryRow(parent)
+                }
+                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+                    if !parent.isSystem {
+                        Button {
+                            editingCategory = parent
+                        } label: {
+                            Label("编辑", systemImage: "pencil")
+                        }
+                        .tint(.holoPrimary)
+                    }
+                    if !parent.isDefault && !parent.isSystem {
+                        Button(role: .destructive) {
+                            categoryToDelete = parent
+                            showDeleteConfirmation = true
+                        } label: {
+                            Label("删除", systemImage: "trash")
+                        }
+                    }
+                }
+            }
+
+            Button {
+                openAddTopLevelCategory()
+            } label: {
+                addCategoryRow(
+                    title: "新增一级分类",
+                    subtitle: "创建新的一级科目分组"
+                )
+            }
+            .buttonStyle(.plain)
+        }
+        .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(Color.holoBackground)
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            Color.clear.frame(height: 88)
+        }
     }
 
     @ViewBuilder
@@ -413,6 +421,8 @@ struct CategoryManagementView: View {
             .buttonStyle(.plain)
         }
         .listStyle(.insetGrouped)
+        .scrollContentBackground(.hidden)
+        .background(Color.holoBackground)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             Color.clear.frame(height: 88)
         }
@@ -533,6 +543,8 @@ struct AddCategorySheet: View {
                     }
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Color.holoBackground)
             .navigationTitle(parentId != nil ? "新增二级分类" : "新增一级分类")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -650,6 +662,8 @@ struct EditCategorySheet: View {
                         .padding(.vertical, 8)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .background(Color.holoBackground)
             .navigationTitle("编辑分类")
             .navigationBarTitleDisplayMode(.inline)
             .onAppear {

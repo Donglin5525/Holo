@@ -4,6 +4,22 @@
 
 ---
 
+## [2026-06-06] 全局背景色一致性修复
+
+### 修复
+- 全局统一 List/Form 页面背景色为 holoBackground，修复三级/四级页面底色与主页不一致的问题
+  - 记忆管理页面（HoloMemoryCenterView）主列表 + 详情 Sheet
+  - 情景记忆详情 Sheet（HoloEpisodicMemoryDetailView）
+  - 分类管理页面主列表 + 新增/编辑分类 Sheet（CategoryManagementView）
+  - 分类学习映射页面（CategoryLearnedMappingView）
+  - AI 设置页面（AISettingsView）
+  - 语音识别设置页面（VoiceRecognitionSettingsView）
+  - 重复规则页面（RepeatRuleView）
+- 聊天输入框和 AI 气泡背景从系统 systemGray6 统一为 holoCardBackground
+- 记账键盘和快捷标签栏背景从硬编码颜色统一为 holoCardBackground
+
+---
+
 ## [2026-06-06] App Store 上线前巡检修复
 
 ### 新增

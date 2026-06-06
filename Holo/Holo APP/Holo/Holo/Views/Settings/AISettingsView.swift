@@ -43,6 +43,8 @@ struct AISettingsView: View {
             // 危险操作
             dangerSection
         }
+        .scrollContentBackground(.hidden)
+        .background(Color.holoBackground)
         .navigationTitle("AI 设置")
         .navigationBarTitleDisplayMode(.inline)
         .task {

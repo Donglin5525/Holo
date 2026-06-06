@@ -19,6 +19,8 @@ struct VoiceRecognitionSettingsView: View {
             testSection
             dangerSection
         }
+        .scrollContentBackground(.hidden)
+        .background(Color.holoBackground)
         .navigationTitle("语音识别设置")
         .navigationBarTitleDisplayMode(.inline)
         .task {
