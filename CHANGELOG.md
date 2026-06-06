@@ -37,6 +37,14 @@
 
 ---
 
+## [2026-06-07] 生产后端 HTTPS 接入
+
+### 修复
+- 将 iOS 默认 HoloBackend 地址从公网 IP 明文 HTTP 切换为 `https://api.holoapp.cn`，修复 ATS 拦截导致 HoloAI 请求失败的问题
+- 阿里云 ECS Nginx 已启用 `api.holoapp.cn` HTTPS 证书，并将 HTTP 请求自动跳转到 HTTPS
+
+---
+
 ## [2026-06-06] 全局背景色一致性修复
 
 ### 修复
