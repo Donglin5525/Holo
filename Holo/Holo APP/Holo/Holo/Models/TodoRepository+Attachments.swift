@@ -15,14 +15,14 @@ extension TodoRepository {
 
     // MARK: - 添加附件
 
-    /// 为任务添加图片附件
+    /// 为任务添加图片附件（图片数据存入 CoreData，支持 iCloud 同步）
     @discardableResult
     func addAttachment(image: UIImage, to task: TodoTask, sourceType: String = "photoLibrary") async throws -> TaskAttachment {
         let attachmentId = UUID()
         let taskId = task.id
 
-        guard let result = await AttachmentFileManager.saveImageInBackground(image, taskId: taskId, attachmentId: attachmentId) else {
-            Self.attachmentLogger.error("保存附件图片失败, taskId: \(taskId.uuidString)")
+        guard let result = await AttachmentFileManager.processImageData(image, attachmentId: attachmentId) else {
+            Self.attachmentLogger.error("处理附件图片失败, taskId: \(taskId.uuidString)")
             throw AttachmentError.saveFailed
         }
 
@@ -33,7 +33,9 @@ extension TodoRepository {
             thumbnailFileName: result.thumbnailFileName,
             task: task,
             order: order,
-            sourceType: sourceType
+            sourceType: sourceType,
+            imageData: result.imageData,
+            thumbnailData: result.thumbnailData
         )
 
         task.updatedAt = Date()
@@ -43,14 +45,14 @@ extension TodoRepository {
         return attachment
     }
 
-    /// 为任务添加相册图片附件。视图层只传原始 Data，解码/压缩/写文件全部后台执行。
+    /// 为任务添加相册图片附件。视图层只传原始 Data，解码/压缩全部后台执行，数据存入 CoreData。
     @discardableResult
     func addAttachment(imageData: Data, to task: TodoTask, sourceType: String = "photoLibrary") async throws -> TaskAttachment {
         let attachmentId = UUID()
         let taskId = task.id
 
-        guard let result = await AttachmentFileManager.saveImageDataInBackground(imageData, taskId: taskId, attachmentId: attachmentId) else {
-            Self.attachmentLogger.error("保存附件图片失败, taskId: \(taskId.uuidString)")
+        guard let result = await AttachmentFileManager.processRawImageData(imageData, attachmentId: attachmentId) else {
+            Self.attachmentLogger.error("处理附件图片失败, taskId: \(taskId.uuidString)")
             throw AttachmentError.saveFailed
         }
 
@@ -61,7 +63,9 @@ extension TodoRepository {
             thumbnailFileName: result.thumbnailFileName,
             task: task,
             order: order,
-            sourceType: sourceType
+            sourceType: sourceType,
+            imageData: result.imageData,
+            thumbnailData: result.thumbnailData
         )
 
         task.updatedAt = Date()

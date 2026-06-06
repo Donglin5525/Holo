@@ -22,6 +22,8 @@ class TaskAttachment: NSManagedObject, @unchecked Sendable {
     @NSManaged var sortOrder: Int16
     @NSManaged var sourceType: String
     @NSManaged var createdAt: Date
+    @NSManaged var imageData: Data?
+    @NSManaged var thumbnailData: Data?
 
     // MARK: - Relationships
 

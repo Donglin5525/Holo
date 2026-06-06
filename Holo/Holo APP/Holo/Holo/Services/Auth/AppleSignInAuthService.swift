@@ -59,6 +59,23 @@ final class AppleSignInAuthService: ObservableObject {
         self.sessionStore = sessionStore ?? KeychainHoloAuthSessionStore()
         self.credentialProvider = credentialProvider
         loadStoredSession()
+        observeCredentialRevocation()
+    }
+
+    private func observeCredentialRevocation() {
+        NotificationCenter.default.addObserver(
+            forName: ASAuthorizationAppleIDProvider.credentialRevokedNotification,
+            object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                authLogger.warning("Apple ID 凭证已被用户撤销")
+                try? sessionStore.delete()
+                session = nil
+                status = .credentialRevoked
+                errorMessage = "Apple 登录已失效，请重新登录"
+            }
+        }
     }
 
     var isSignedIn: Bool {

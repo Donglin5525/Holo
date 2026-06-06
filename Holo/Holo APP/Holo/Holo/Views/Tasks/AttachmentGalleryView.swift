@@ -69,6 +69,14 @@ struct AttachmentGalleryView: View {
 
     private func loadAllImages() {
         for (index, attachment) in attachments.enumerated() {
+            // 优先从 CoreData 二进制数据加载（新附件，iCloud 同步后可用）
+            if let imageData = attachment.imageData {
+                if index < images.count {
+                    images[index] = UIImage(data: imageData)
+                }
+                continue
+            }
+            // 回退到文件系统（旧附件）
             DispatchQueue.global(qos: .userInitiated).async {
                 let image = AttachmentFileManager.loadFullImage(
                     fileName: attachment.fileName,

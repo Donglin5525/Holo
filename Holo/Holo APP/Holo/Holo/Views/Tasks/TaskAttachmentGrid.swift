@@ -12,6 +12,7 @@ struct TaskAttachmentGridItem: Identifiable {
     let id: UUID
     let objectID: NSManagedObjectID
     let thumbnailFileName: String
+    let thumbnailData: Data?
 }
 
 struct TaskAttachmentGrid: View {
@@ -72,7 +73,7 @@ struct TaskAttachmentGrid: View {
     private func thumbnailCell(_ attachment: TaskAttachmentGridItem) -> some View {
         let index = attachments.firstIndex(where: { $0.id == attachment.id }) ?? 0
 
-        AttachmentThumbnailView(fileName: attachment.thumbnailFileName, taskId: taskId)
+        AttachmentThumbnailView(fileName: attachment.thumbnailFileName, taskId: taskId, thumbnailData: attachment.thumbnailData)
             .overlay(alignment: .topTrailing) {
                 if isEditing {
                     deleteButton(attachment)

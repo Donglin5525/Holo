@@ -16,6 +16,14 @@ nonisolated enum AttachmentFileManager {
         let thumbnailFileName: String
     }
 
+    /// 图片处理结果（不写磁盘，仅返回压缩后的二进制数据）
+    struct ProcessedImageData: Sendable {
+        let fileName: String
+        let thumbnailFileName: String
+        let imageData: Data
+        let thumbnailData: Data
+    }
+
     private static let logger = Logger(subsystem: "com.holo.app", category: "AttachmentFileManager")
 
     // MARK: - 目录结构
@@ -96,6 +104,43 @@ nonisolated enum AttachmentFileManager {
                 return nil
             }
             return SavedImageFiles(fileName: result.fileName, thumbnailFileName: result.thumbnailFileName)
+        }.value
+    }
+
+    /// 处理图片数据但不写磁盘，返回压缩后的原图和缩略图二进制（用于 CoreData 存储 + iCloud 同步）
+    static func processImageData(_ image: UIImage, attachmentId: UUID) async -> ProcessedImageData? {
+        await Task.detached(priority: .userInitiated) {
+            guard let originalData = compressImage(image, maxDimension: 2048, quality: 0.8),
+                  let thumbData = generateThumbnail(from: image, maxSize: 300) else {
+                return nil
+            }
+            let fileName = "\(attachmentId.uuidString).jpeg"
+            let thumbnailFileName = "\(attachmentId.uuidString)_thumb.jpeg"
+            return ProcessedImageData(
+                fileName: fileName,
+                thumbnailFileName: thumbnailFileName,
+                imageData: originalData,
+                thumbnailData: thumbData
+            )
+        }.value
+    }
+
+    /// 从原始 Data 解码图片后处理（不写磁盘）
+    static func processRawImageData(_ rawData: Data, attachmentId: UUID) async -> ProcessedImageData? {
+        await Task.detached(priority: .userInitiated) {
+            guard let image = UIImage(data: rawData) else { return nil }
+            guard let originalData = compressImage(image, maxDimension: 2048, quality: 0.8),
+                  let thumbData = generateThumbnail(from: image, maxSize: 300) else {
+                return nil
+            }
+            let fileName = "\(attachmentId.uuidString).jpeg"
+            let thumbnailFileName = "\(attachmentId.uuidString)_thumb.jpeg"
+            return ProcessedImageData(
+                fileName: fileName,
+                thumbnailFileName: thumbnailFileName,
+                imageData: originalData,
+                thumbnailData: thumbData
+            )
         }.value
     }
 

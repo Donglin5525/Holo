@@ -1412,7 +1412,7 @@ struct AddTaskSheet: View {
         let _ = attachmentsRevision
         let attachments = task.sortedAttachments
         let attachmentItems = attachments.map {
-            TaskAttachmentGridItem(id: $0.id, objectID: $0.objectID, thumbnailFileName: $0.thumbnailFileName)
+            TaskAttachmentGridItem(id: $0.id, objectID: $0.objectID, thumbnailFileName: $0.thumbnailFileName, thumbnailData: $0.thumbnailData)
         }
 
         TaskAttachmentGrid(

@@ -493,6 +493,20 @@ extension CoreDataStack {
         attachmentSourceType.defaultValue = "photoLibrary"
         taskAttachmentAttributes.append(attachmentSourceType)
 
+        // 原图二进制数据（iCloud 同步用）
+        let attachmentImageData = NSAttributeDescription()
+        attachmentImageData.name = "imageData"
+        attachmentImageData.attributeType = .binaryDataAttributeType
+        attachmentImageData.isOptional = true
+        taskAttachmentAttributes.append(attachmentImageData)
+
+        // 缩略图二进制数据
+        let attachmentThumbnailData = NSAttributeDescription()
+        attachmentThumbnailData.name = "thumbnailData"
+        attachmentThumbnailData.attributeType = .binaryDataAttributeType
+        attachmentThumbnailData.isOptional = true
+        taskAttachmentAttributes.append(attachmentThumbnailData)
+
         let attachmentCreatedAt = NSAttributeDescription()
         attachmentCreatedAt.name = "createdAt"
         attachmentCreatedAt.attributeType = .dateAttributeType

@@ -18,12 +18,16 @@ extension TaskAttachment {
         thumbnailFileName: String,
         task: TodoTask,
         order: Int16 = 0,
-        sourceType: String = "photoLibrary"
+        sourceType: String = "photoLibrary",
+        imageData: Data? = nil,
+        thumbnailData: Data? = nil
     ) -> TaskAttachment {
         let attachment = TaskAttachment(context: context)
         attachment.id = UUID()
         attachment.fileName = fileName
         attachment.thumbnailFileName = thumbnailFileName
+        attachment.imageData = imageData
+        attachment.thumbnailData = thumbnailData
         attachment.task = task
         attachment.sortOrder = order
         attachment.sourceType = sourceType

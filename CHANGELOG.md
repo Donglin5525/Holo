@@ -4,7 +4,16 @@
 
 ---
 
-## [2026-06-05] Daily Sense 状态卡片重设计
+## [2026-06-06] App Store 上线前巡检修复
+
+### 修复
+- 添加 Apple ID 凭证撤销实时监听（`credentialRevokedNotification`），用户在系统设置撤销授权后 App 立即感知并自动登出
+- 任务附件图片数据存入 CoreData，支持 iCloud 同步：换设备后附件图片自动恢复，不再丢失
+  - TaskAttachment 实体新增 `imageData` / `thumbnailData` 二进制属性
+  - 新附件图片直接存入 CoreData，旧附件仍通过文件系统兼容加载
+  - AttachmentFileManager 新增 `processImageData` / `processRawImageData` 纯数据处理方法（不写磁盘）
+
+---
 
 ### 新增
 - 记忆长廊顶部 Daily Sense 卡片全新设计：收起态彩色圆点概览各维度状态，点击展开查看信号详情
