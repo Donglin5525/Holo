@@ -5,6 +5,13 @@
 ## [Unreleased]
 
 ### Features
+- **iOS/Backend**: HoloAI Sense Loop 公测人格化闭环：复用 HoloProfile、长期记忆语义类型、Daily Sense、洞察反馈与偏好画像，补齐“理解 -> 表达 -> 反馈 -> 更理解”的上下文贯穿
+- **iOS**: 洞察反馈新增“没感觉”和“少提醒这个”，将用户反馈转成 pattern 降权、fewerSuggestions 语气偏好和低价值主题沉淀
+- **iOS**: Daily Sense v3 新增状态标签（信号偏紧 / 出现新阶段），主状态仍保持 stable / atRisk / recovering，避免单一财务波动冒充生活判断
+- **iOS**: 新增 HoloExpressionDecisionEngine 和 HoloLifePatternService，提供表达强度决策与稳定生活模式摘要
+- **Backend**: 高曝光 Prompt 增加 Sense Loop 表达边界、HoloProfile 优先级和当前输入优先规则，并新增测试覆盖
+- **iOS/Backend**: 智能分类归纳学习：用户多次修正分类后，LLM 自动归纳规律并持久化，后续同类消费自动匹配正确分类
+- **iOS**: pending card 编辑确认时触发分类学习，修正的分类会被记录用于后续归纳
 - **iOS**: HoloAI 结构化执行：新增分期记账和重复任务的 AI 意图解析，支持"沙发 2000 分三期"、"每隔三天打电话"等自然语言输入
 - **iOS**: RepeatRule 新增 interval 字段，支持"每隔 N 天/周/月"的重复规则
 - **iOS**: 交易卡片展示分期信息（期数、每期金额、手续费），分期 pending 禁用 sheet 编辑入口

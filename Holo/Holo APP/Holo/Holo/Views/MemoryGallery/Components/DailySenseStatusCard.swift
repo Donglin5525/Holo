@@ -50,10 +50,19 @@ struct DailySenseStatusCard: View {
                 .foregroundColor(stateColor)
 
             // 状态标题
-            Text(snapshot.stateTitle)
-                .font(.holoCaption)
-                .fontWeight(.semibold)
-                .foregroundColor(.holoTextPrimary)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(snapshot.stateTitle)
+                    .font(.holoCaption)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoTextPrimary)
+
+                if !snapshot.tags.isEmpty {
+                    Text(snapshot.tags.map(\.displayName).joined(separator: " · "))
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.holoTextSecondary)
+                        .lineLimit(1)
+                }
+            }
 
             Spacer()
 
@@ -84,6 +93,18 @@ struct DailySenseStatusCard: View {
 
             // 竖线圆点时间线
             VStack(alignment: .leading, spacing: 0) {
+                if !snapshot.tags.isEmpty {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(snapshot.tags, id: \.self) { tag in
+                            Text(tag.safeSummary)
+                                .font(.holoTinyLabel)
+                                .foregroundColor(.holoTextSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .padding(.vertical, HoloSpacing.xs)
+                }
+
                 ForEach(Array(snapshot.signals.enumerated()), id: \.element.dimension) { index, signal in
                     HStack(spacing: HoloSpacing.sm) {
                         // 圆点 + 竖线

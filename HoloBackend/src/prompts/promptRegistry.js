@@ -5,12 +5,13 @@ import { fileURLToPath } from "node:url";
 import * as Diff from "diff";
 
 const PROMPT_VERSIONS = {
+  system_prompt: 2,
   intent_recognition: 15,
-  memory_insight_generation: 5,
-  analysis_prompt: 2,
+  memory_insight_generation: 6,
+  analysis_prompt: 3,
   annual_review: 1,
   thought_voice_summary: 2,
-  flexible_query_planner: 1,
+  flexible_query_planner: 2,
   finance_action_parser: 1,
   task_action_parser: 1,
 };

@@ -735,6 +735,13 @@ final class ChatViewModel: ObservableObject {
                     routeResult: routeResult,
                     intent: intent
                 )
+
+                // 归纳学习：记录样本并尝试触发 LLM 归纳
+                self.recordInductionSampleIfNeeded(
+                    renderData: renderData,
+                    routeResult: routeResult,
+                    intent: intent
+                )
             } catch {
                 self.writeTransactionError(itemId: itemId, batch: batch, message: message, error: error)
             }
@@ -785,7 +792,7 @@ final class ChatViewModel: ObservableObject {
     }
 
     /// AddTransactionSheet 编辑保存后，将待确认卡片标记为"已确认"（不重复创建交易）
-    func dismissPendingCardAfterEdit(from message: ChatMessageViewData) {
+    func dismissPendingCardAfterEdit(from message: ChatMessageViewData, createdTransaction: Transaction? = nil) {
         guard let batch = message.executionBatch,
               let pendingIndex = batch.items.firstIndex(where: {
                 $0.intent.isFinance && $0.status == .skipped && $0.renderData?["confirmationStatus"] == "pending"
@@ -797,6 +804,46 @@ final class ChatViewModel: ObservableObject {
         var renderData = pending.renderData ?? [:]
         renderData["confirmationStatus"] = "confirmed"
 
+        // 如果 AddTransactionSheet 创建了交易，补全分类和实体关联信息
+        if let tx = createdTransaction, let category = tx.category {
+            let names = FinanceRepository.shared.resolveCategoryNames(from: category)
+            renderData["primaryCategory"] = names.primary
+            if let sub = names.sub {
+                renderData["subCategory"] = sub
+            }
+            renderData["entityType"] = "finance"
+            renderData["entityId"] = tx.id.uuidString
+            renderData["transactionId"] = tx.id.uuidString
+
+            // 标记为 AI 创建
+            markTransactionAsAICreated(tx.id, candidate: renderData["categoryCandidate"] ?? renderData["note"])
+
+            // 分类学习：将原始候选词映射到用户选择的正确分类
+            let candidate = renderData["categoryCandidate"] ?? renderData["note"]
+            if let candidateText = candidate, !candidateText.trimmingCharacters(in: .whitespaces).isEmpty {
+                let txType: TransactionType = tx.transactionType
+                CategoryLearnedMapping.record(
+                    candidate: candidateText,
+                    type: txType,
+                    targetPrimary: names.primary,
+                    targetSub: names.sub ?? names.primary
+                )
+
+                // 归纳学习：记录样本并尝试触发 LLM 归纳
+                CategoryLearnedMapping.recordInductionSample(
+                    candidate: candidateText,
+                    targetPrimary: names.primary,
+                    targetSub: names.sub ?? names.primary,
+                    transactionType: txType
+                )
+                CategoryLearnedMapping.tryTriggerInduction(
+                    targetPrimary: names.primary,
+                    targetSub: names.sub ?? names.primary,
+                    transactionType: txType
+                )
+            }
+        }
+
         var updatedItems = batch.items
         updatedItems[pendingIndex] = AIExecutionItem(
             id: pending.id,
@@ -805,8 +852,8 @@ final class ChatViewModel: ObservableObject {
             status: .success,
             summaryText: "已确认并记录",
             renderData: renderData,
-            linkedEntityType: pending.linkedEntityType,
-            linkedEntityId: pending.linkedEntityId,
+            linkedEntityType: createdTransaction != nil ? "finance" : pending.linkedEntityType,
+            linkedEntityId: createdTransaction?.id.uuidString ?? pending.linkedEntityId,
             errorText: nil
         )
 
@@ -951,6 +998,31 @@ final class ChatViewModel: ObservableObject {
             targetSub: targetSub
         )
         logger.info("记账分类学习：\(candidate) → \(targetPrimary)/\(targetSub)")
+    }
+
+    /// 归纳学习：记录样本并尝试触发 LLM 归纳
+    private func recordInductionSampleIfNeeded(
+        renderData: [String: String],
+        routeResult: IntentRouter.RouteResult,
+        intent: AIIntent
+    ) {
+        guard let candidate = renderData["categoryCandidate"] ?? renderData["note"],
+              !candidate.trimmingCharacters(in: .whitespaces).isEmpty else { return }
+        guard let targetPrimary = routeResult.matchedPrimaryCategory,
+              let targetSub = routeResult.matchedSubCategory else { return }
+
+        let type: TransactionType = intent == .recordIncome ? .income : .expense
+        CategoryLearnedMapping.recordInductionSample(
+            candidate: candidate,
+            targetPrimary: targetPrimary,
+            targetSub: targetSub,
+            transactionType: type
+        )
+        CategoryLearnedMapping.tryTriggerInduction(
+            targetPrimary: targetPrimary,
+            targetSub: targetSub,
+            transactionType: type
+        )
     }
 
     // MARK: - Helpers

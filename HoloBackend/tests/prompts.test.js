@@ -163,12 +163,28 @@ test("analysis_prompt 默认 Prompt 使用 C 端纯文本输出约束", async ()
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  assert.equal(prompt.version, 2);
+  assert.equal(prompt.version, 3);
   assert.match(prompt.content, /适合手机 App 阅读的中文分析文本/);
   assert.match(prompt.content, /不要输出 Markdown 语法符号/);
   assert.match(prompt.content, /短标题行/);
   assert.doesNotMatch(prompt.content, /只输出 Markdown 文本/);
   assert.doesNotMatch(prompt.content, /使用 Markdown 格式/);
+});
+
+test("高曝光默认 Prompt 包含 Sense Loop 表达边界", async () => {
+  const app = createTestApp();
+
+  for (const type of ["system_prompt", "memory_insight_generation", "analysis_prompt", "flexible_query_planner"]) {
+    const response = await app.request(`/v1/prompts/${type}`);
+    assert.equal(response.status, 200);
+    const prompt = await response.json();
+
+    assert.match(prompt.content, /区分事实、观察、假设和建议/);
+    assert.match(prompt.content, /当前明确输入永远优先/);
+    assert.match(prompt.content, /HoloProfile 是用户主动档案/);
+    assert.match(prompt.content, /不能说.*导致|跨模块关系/);
+    assert.doesNotMatch(prompt.content, /你是一个很自律的人/);
+  }
 });
 
 test("thought_voice_summary 默认 Prompt 要求自然分段且小标题只在必要时出现", async () => {

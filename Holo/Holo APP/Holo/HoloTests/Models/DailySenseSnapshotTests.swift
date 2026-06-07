@@ -2,7 +2,7 @@
 //  DailySenseSnapshotTests.swift
 //  HoloTests
 //
-//  DailySenseSnapshot v2 模型测试
+//  DailySenseSnapshot v3 模型测试
 //  测试编码/解码、向后兼容性、legacy 判断
 //
 
@@ -11,9 +11,9 @@ import XCTest
 
 final class DailySenseSnapshotTests: XCTestCase {
 
-    // MARK: - v2 格式测试
+    // MARK: - v3 格式测试
 
-    func testV2RoundTrip() throws {
+    func testV3RoundTripIncludesTags() throws {
         let date = Date(timeIntervalSince1970: 1704067200) // 2024-01-01 00:00:00 UTC
         let generatedAt = Date(timeIntervalSince1970: 1704153600) // 2024-01-02 00:00:00 UTC
         let signals = [
@@ -25,6 +25,7 @@ final class DailySenseSnapshotTests: XCTestCase {
             date: date,
             state: .atRisk,
             signals: signals,
+            tags: [.highPressure],
             generatedAt: generatedAt
         )
 
@@ -40,7 +41,7 @@ final class DailySenseSnapshotTests: XCTestCase {
         let decoded = try decoder.decode(DailySenseSnapshot.self, from: jsonData)
 
         // 验证
-        XCTAssertEqual(decoded.schemaVersion, 2)
+        XCTAssertEqual(decoded.schemaVersion, 3)
         XCTAssertEqual(decoded.date, date)
         XCTAssertEqual(decoded.state, .atRisk)
         XCTAssertEqual(decoded.signals.count, 3)
@@ -53,12 +54,14 @@ final class DailySenseSnapshotTests: XCTestCase {
         XCTAssertEqual(decoded.signals[2].dimension, .expense)
         XCTAssertEqual(decoded.signals[2].level, .critical)
         XCTAssertEqual(decoded.signals[2].text, "消费偏离均值 2.0x")
+        XCTAssertEqual(decoded.tags, [.highPressure])
         XCTAssertEqual(decoded.generatedAt, generatedAt)
         XCTAssertFalse(decoded.isLegacy)
 
         // 验证 JSON 包含新字段
-        XCTAssertTrue(jsonString.contains("\"schemaVersion\":2"))
+        XCTAssertTrue(jsonString.contains("\"schemaVersion\":3"))
         XCTAssertTrue(jsonString.contains("\"signals\":["))
+        XCTAssertTrue(jsonString.contains("\"tags\":["))
     }
 
     // MARK: - Legacy 格式测试
@@ -87,7 +90,33 @@ final class DailySenseSnapshotTests: XCTestCase {
         XCTAssertEqual(decoded.date, Date(timeIntervalSince1970: 1704067200))
         XCTAssertEqual(decoded.state, .atRisk)
         XCTAssertTrue(decoded.signals.isEmpty) // legacy 没有信号
+        XCTAssertTrue(decoded.tags.isEmpty) // legacy 没有标签
         XCTAssertEqual(decoded.generatedAt, Date(timeIntervalSince1970: 1704067200 + 43200))
+    }
+
+    func testV2JSONDecodesTagsAsEmpty() throws {
+        let v2JSON = """
+        {
+            "schemaVersion": 2,
+            "date": "2024-01-01T00:00:00Z",
+            "state": "stable",
+            "signals": [
+                { "dimension": "task", "level": "normal", "text": "没有逾期" }
+            ],
+            "generatedAt": "2024-01-01T12:00:00Z"
+        }
+        """
+
+        let jsonData = v2JSON.data(using: .utf8)!
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let decoded = try decoder.decode(DailySenseSnapshot.self, from: jsonData)
+
+        XCTAssertEqual(decoded.schemaVersion, 2)
+        XCTAssertFalse(decoded.isLegacy)
+        XCTAssertEqual(decoded.signals.count, 1)
+        XCTAssertTrue(decoded.tags.isEmpty)
     }
 
     func testEmptySignalsIsNotLegacy() throws {
@@ -110,8 +139,8 @@ final class DailySenseSnapshotTests: XCTestCase {
         decoder.dateDecodingStrategy = .iso8601
         let decoded = try decoder.decode(DailySenseSnapshot.self, from: jsonData)
 
-        // 验证：空信号数组仍然是 v2，不是 legacy
-        XCTAssertEqual(decoded.schemaVersion, 2)
+        // 验证：空信号数组仍然是 v3，不是 legacy
+        XCTAssertEqual(decoded.schemaVersion, 3)
         XCTAssertFalse(decoded.isLegacy)
         XCTAssertTrue(decoded.signals.isEmpty)
         XCTAssertEqual(decoded.state, .stable)
@@ -223,5 +252,35 @@ final class DailySenseSnapshotTests: XCTestCase {
         XCTAssertEqual(decoded[0].state, .stable)
         XCTAssertEqual(decoded[1].state, .atRisk)
         XCTAssertEqual(decoded[1].signals.count, 1)
+    }
+
+    func testHighPressureRequiresThreeIndependentWarningDimensions() {
+        let twoSignals = [
+            DailySenseSignal(dimension: .task, level: .warning, text: "任务集中"),
+            DailySenseSignal(dimension: .expense, level: .critical, text: "消费偏离")
+        ]
+        XCTAssertFalse(DailySenseStateBuilder.buildTags(signals: twoSignals, hasConfirmedNewStage: false).contains(.highPressure))
+
+        let threeSignals = twoSignals + [
+            DailySenseSignal(dimension: .health, level: .warning, text: "睡眠偏少")
+        ]
+        XCTAssertTrue(DailySenseStateBuilder.buildTags(signals: threeSignals, hasConfirmedNewStage: false).contains(.highPressure))
+    }
+
+    func testSingleFinanceSpikeDoesNotCreateHighPressure() {
+        let signals = [
+            DailySenseSignal(dimension: .expense, level: .critical, text: "今天支出明显偏离")
+        ]
+
+        XCTAssertTrue(DailySenseStateBuilder.buildTags(signals: signals, hasConfirmedNewStage: false).isEmpty)
+    }
+
+    func testNewStageRequiresExplicitConfirmedSignal() {
+        let signals = [
+            DailySenseSignal(dimension: .task, level: .normal, text: "没有逾期")
+        ]
+
+        XCTAssertFalse(DailySenseStateBuilder.buildTags(signals: signals, hasConfirmedNewStage: false).contains(.newStage))
+        XCTAssertTrue(DailySenseStateBuilder.buildTags(signals: signals, hasConfirmedNewStage: true).contains(.newStage))
     }
 }

@@ -77,7 +77,7 @@ struct FinanceView: View {
             financeTabBarOnly
         }
         .sheet(isPresented: $showAddTransaction) {
-            AddTransactionSheet(editingTransaction: nil) {
+            AddTransactionSheet(editingTransaction: nil) { _ in
                 NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
             }
         }

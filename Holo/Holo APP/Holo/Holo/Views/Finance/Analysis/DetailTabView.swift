@@ -91,7 +91,7 @@ struct DetailTabView: View {
             .background(Color.holoBackground)
         }
         .sheet(item: $editingTransaction) { transaction in
-            AddTransactionSheet(editingTransaction: transaction) {
+            AddTransactionSheet(editingTransaction: transaction) { _ in
                 state.refresh()
             }
         }

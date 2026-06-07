@@ -40,7 +40,7 @@ struct CategoryDetailSheet: View {
         .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .sheet(item: $editingTransaction) { transaction in
-            AddTransactionSheet(editingTransaction: transaction) {}
+            AddTransactionSheet(editingTransaction: transaction) { _ in }
         }
     }
 

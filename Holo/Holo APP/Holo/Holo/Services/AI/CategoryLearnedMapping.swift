@@ -4,6 +4,7 @@
 //
 //  用户分类学习机制
 //  记录用户确认的分类映射，下次自动匹配
+//  支持精确匹配 + LLM 归纳模式匹配
 //
 
 import Foundation
@@ -11,6 +12,7 @@ import os.log
 
 /// 用户分类学习服务
 /// 当用户将「待分类」交易改为具体分类时，自动记录映射关系
+/// 支持两级匹配：精确匹配 → 归纳模式匹配
 enum CategoryLearnedMapping {
 
     private static let logger = Logger(subsystem: "com.holo.app", category: "CategoryLearnedMapping")
@@ -65,12 +67,36 @@ enum CategoryLearnedMapping {
     }
 
     /// 查找学习映射
+    /// 两级匹配：精确匹配 → 归纳模式匹配
     /// - Parameters:
     ///   - candidate: 待匹配的分类名称
     ///   - type: 交易类型
     ///   - primaryCategory: 原始一级分类
     /// - Returns: (primaryCategory, subCategory) 或 nil
     static func lookup(
+        candidate: String,
+        type: TransactionType,
+        primaryCategory: String = ""
+    ) -> (primary: String, sub: String)? {
+        // 第一级：精确匹配
+        if let exact = exactLookup(candidate: candidate, type: type, primaryCategory: primaryCategory) {
+            return exact
+        }
+
+        // 第二级：归纳模式匹配
+        let rules = loadInductionRules().filter { $0.transactionType == type.rawValue }
+        let normalized = candidate.trimmingCharacters(in: .whitespaces).lowercased()
+        for rule in rules {
+            if matchPattern(candidate: normalized, rule: rule) {
+                return (rule.targetPrimary, rule.targetSub)
+            }
+        }
+
+        return nil
+    }
+
+    /// 精确匹配（原 lookup 逻辑）
+    private static func exactLookup(
         candidate: String,
         type: TransactionType,
         primaryCategory: String = ""
@@ -229,5 +255,331 @@ enum CategoryLearnedMapping {
     private static func saveTransactionCandidates(_ mappings: [String: String]) {
         guard let data = try? JSONEncoder().encode(mappings) else { return }
         UserDefaults.standard.set(data, forKey: transactionCandidateKey)
+    }
+
+    // MARK: - 归纳学习
+
+    /// 归纳学习触发阈值：累积多少个不同样本才触发 LLM 归纳
+    private static let inductionThreshold = 3
+
+    /// 归纳样本存储 key
+    private static let inductionSamplesKey = "categoryInductionSamples"
+    /// 归纳规则存储 key
+    private static let inductionRulesKey = "categoryInductionRules"
+
+    // MARK: 归纳数据模型
+
+    /// 默认归纳系统 Prompt（后备，优先使用 PromptManager 加载）
+    private static let defaultInductionSystemPrompt = """
+    你是一个分类模式归纳专家。分析用户的分类修正样本，找出候选词的共性规律，归纳出匹配模式。
+
+    输出格式要求（纯 JSON，不要包含 markdown 代码块）：
+    {
+      "pattern": "关键词",
+      "matchType": "contains",
+      "confidence": 0.9
+    }
+
+    matchType 可选值：
+    - "contains"：候选词包含该关键词（适用于关键词出现在任意位置的场景）
+    - "startsWith"：候选词以该关键词开头（适用于前缀匹配场景）
+    - "endsWith"：候选词以该关键词结尾（适用于后缀匹配场景）
+
+    confidence：0-1 之间的置信度，0.7 以下将被丢弃。
+    pattern：必须是简短的关键词，不要使用正则表达式。
+    """
+
+    /// 归纳样本
+    struct InductionSample: Codable, Equatable {
+        let candidate: String
+        let targetPrimary: String
+        let targetSub: String
+        let transactionType: String
+        let timestamp: Date
+    }
+
+    /// 归纳规则（LLM 归纳出的模式）
+    struct InductionRule: Codable, Equatable {
+        let pattern: String           // 匹配模式（小写），如 "软件"
+        let matchType: MatchType      // 匹配方式
+        let targetPrimary: String     // 目标一级分类
+        let targetSub: String         // 目标二级分类
+        let transactionType: String   // 交易类型
+        let sampleCount: Int          // 基于多少样本归纳
+        let createdAt: Date
+
+        var transactionTypeEnum: TransactionType? {
+            TransactionType(rawValue: transactionType)
+        }
+    }
+
+    /// 模式匹配方式
+    enum MatchType: String, Codable, CaseIterable {
+        case contains     // 包含关键词
+        case startsWith   // 以关键词开头
+        case endsWith     // 以关键词结尾
+
+        var displayName: String {
+            switch self {
+            case .contains: return "包含"
+            case .startsWith: return "开头"
+            case .endsWith: return "结尾"
+            }
+        }
+    }
+
+    // MARK: 样本记录
+
+    /// 记录一条归纳样本
+    static func recordInductionSample(
+        candidate: String,
+        targetPrimary: String,
+        targetSub: String,
+        transactionType: TransactionType
+    ) {
+        let sample = InductionSample(
+            candidate: candidate.trimmingCharacters(in: .whitespaces).lowercased(),
+            targetPrimary: targetPrimary,
+            targetSub: targetSub,
+            transactionType: transactionType.rawValue,
+            timestamp: Date()
+        )
+
+        var samples = loadInductionSamples()
+
+        // 去重：同一 candidate 不重复记录
+        if samples.contains(sample) { return }
+
+        samples.append(sample)
+        // 限制样本总量，保留最近 200 条
+        if samples.count > 200 {
+            samples = Array(samples.suffix(200))
+        }
+        saveInductionSamples(samples)
+
+        logger.info("归纳样本记录：\"\(candidate)\" → \(targetPrimary)/\(targetSub)")
+    }
+
+    // MARK: 归纳触发
+
+    /// 检查并触发归纳
+    /// 当某个 (targetSub, transactionType) 组合的样本数 ≥ 阈值时触发
+    /// 返回 true 表示触发了归纳
+    @discardableResult
+    static func tryTriggerInduction(
+        targetPrimary: String,
+        targetSub: String,
+        transactionType: TransactionType
+    ) -> Bool {
+        let samples = loadInductionSamples()
+        let matchingSamples = samples.filter {
+            $0.targetPrimary == targetPrimary &&
+            $0.targetSub == targetSub &&
+            $0.transactionType == transactionType.rawValue
+        }
+
+        guard matchingSamples.count >= inductionThreshold else { return false }
+
+        // 检查是否已有该目标的规则，避免重复归纳
+        let existingRules = loadInductionRules()
+        let hasRule = existingRules.contains { rule in
+            rule.targetPrimary == targetPrimary &&
+            rule.targetSub == targetSub &&
+            rule.transactionType == transactionType.rawValue
+        }
+        if hasRule { return false }
+
+        logger.info("触发归纳：\(matchingSamples.count) 个样本 → \(targetPrimary)/\(targetSub)")
+
+        // 异步触发 LLM 归纳
+        Task {
+            await performInduction(
+                samples: matchingSamples,
+                targetPrimary: targetPrimary,
+                targetSub: targetSub,
+                transactionType: transactionType
+            )
+        }
+
+        return true
+    }
+
+    /// 执行 LLM 归纳
+    private static func performInduction(
+        samples: [InductionSample],
+        targetPrimary: String,
+        targetSub: String,
+        transactionType: TransactionType
+    ) async {
+        let prompt = buildInductionPrompt(
+            samples: samples,
+            targetPrimary: targetPrimary,
+            targetSub: targetSub
+        )
+
+        do {
+            let provider = HoloBackendAIProvider(baseURL: HoloBackendEnvironment.baseURL)
+            let systemPrompt = (try? PromptManager.shared.loadPrompt(.categoryPatternInduction)) ?? Self.defaultInductionSystemPrompt
+            let messages = [
+                ChatMessageDTO(role: "system", content: systemPrompt),
+                ChatMessageDTO(role: "user", content: prompt)
+            ]
+            let response = try await provider.chat(
+                messages: messages,
+                userContext: UserContext.empty
+            )
+
+            try parseAndSaveInductionRule(
+                response: response,
+                targetPrimary: targetPrimary,
+                targetSub: targetSub,
+                transactionType: transactionType,
+                sampleCount: samples.count
+            )
+        } catch {
+            logger.error("归纳学习失败：\(error.localizedDescription)")
+        }
+    }
+
+    /// 构建归纳 Prompt
+    private static func buildInductionPrompt(
+        samples: [InductionSample],
+        targetPrimary: String,
+        targetSub: String
+    ) -> String {
+        let sampleList = samples.enumerated().map { index, sample in
+            "\(index + 1). \"\(sample.candidate)\" → \"\(sample.targetSub)\""
+        }.joined(separator: "\n")
+
+        return """
+        目标分类：\(targetPrimary) · \(targetSub)
+
+        用户分类修正样本：
+        \(sampleList)
+
+        请分析这些样本的共性规律，输出匹配模式。
+        """
+    }
+
+    /// 解析 LLM 响应并保存归纳规则
+    private static func parseAndSaveInductionRule(
+        response: String,
+        targetPrimary: String,
+        targetSub: String,
+        transactionType: TransactionType,
+        sampleCount: Int
+    ) throws {
+        // 从响应中提取 JSON（找第一个 { 到最后一个 } 之间的内容）
+        guard let firstBrace = response.firstIndex(of: "{"),
+              let lastBrace = response.lastIndex(of: "}") else {
+            logger.warning("归纳响应中未找到 JSON：\(response.prefix(200))")
+            return
+        }
+        let jsonStr = String(response[firstBrace...lastBrace])
+
+        // 尝试解析 JSON
+        struct InductionResult: Codable {
+            let pattern: String
+            let matchType: String
+            let confidence: Double
+        }
+
+        guard let jsonData = jsonStr.data(using: .utf8),
+              let result = try? JSONDecoder().decode(InductionResult.self, from: jsonData),
+              result.confidence >= 0.7 else {
+            logger.warning("归纳结果解析失败或置信度不足：\(jsonStr.prefix(200))")
+            return
+        }
+
+        let matchType = MatchType(rawValue: result.matchType) ?? .contains
+        let rule = InductionRule(
+            pattern: result.pattern.trimmingCharacters(in: .whitespaces).lowercased(),
+            matchType: matchType,
+            targetPrimary: targetPrimary,
+            targetSub: targetSub,
+            transactionType: transactionType.rawValue,
+            sampleCount: sampleCount,
+            createdAt: Date()
+        )
+
+        var rules = loadInductionRules()
+        rules.append(rule)
+        saveInductionRules(rules)
+
+        logger.info("归纳规则已保存：\(rule.matchType.rawValue) \"\(rule.pattern)\" → \(targetPrimary)/\(targetSub)（置信度 \(result.confidence)，基于 \(sampleCount) 个样本）")
+    }
+
+    // MARK: 模式匹配
+
+    /// 检查候选词是否匹配某条归纳规则
+    private static func matchPattern(candidate: String, rule: InductionRule) -> Bool {
+        let pattern = rule.pattern.lowercased()
+        guard !pattern.isEmpty else { return false }
+
+        switch rule.matchType {
+        case .contains:
+            return candidate.contains(pattern)
+        case .startsWith:
+            return candidate.hasPrefix(pattern)
+        case .endsWith:
+            return candidate.hasSuffix(pattern)
+        }
+    }
+
+    // MARK: 归纳规则管理
+
+    /// 获取所有归纳规则
+    static func listInductionRules() -> [InductionRule] {
+        loadInductionRules().sorted { $0.createdAt > $1.createdAt }
+    }
+
+    /// 删除归纳规则
+    static func removeInductionRule(at index: Int) {
+        var rules = loadInductionRules()
+        guard index >= 0, index < rules.count else { return }
+        rules.remove(at: index)
+        saveInductionRules(rules)
+        logger.info("删除归纳规则：索引 \(index)")
+    }
+
+    /// 清除所有归纳规则
+    static func removeAllInductionRules() {
+        UserDefaults.standard.removeObject(forKey: inductionRulesKey)
+        logger.info("已清除所有归纳规则")
+    }
+
+    // MARK: 归纳样本管理
+
+    /// 获取所有归纳样本
+    static func listInductionSamples() -> [InductionSample] {
+        loadInductionSamples().sorted { $0.timestamp > $1.timestamp }
+    }
+
+    /// 清除所有归纳样本
+    static func removeAllInductionSamples() {
+        UserDefaults.standard.removeObject(forKey: inductionSamplesKey)
+        logger.info("已清除所有归纳样本")
+    }
+
+    // MARK: 归纳持久化
+
+    private static func loadInductionSamples() -> [InductionSample] {
+        guard let data = UserDefaults.standard.data(forKey: inductionSamplesKey) else { return [] }
+        return (try? JSONDecoder().decode([InductionSample].self, from: data)) ?? []
+    }
+
+    private static func saveInductionSamples(_ samples: [InductionSample]) {
+        guard let data = try? JSONEncoder().encode(samples) else { return }
+        UserDefaults.standard.set(data, forKey: inductionSamplesKey)
+    }
+
+    private static func loadInductionRules() -> [InductionRule] {
+        guard let data = UserDefaults.standard.data(forKey: inductionRulesKey) else { return [] }
+        return (try? JSONDecoder().decode([InductionRule].self, from: data)) ?? []
+    }
+
+    private static func saveInductionRules(_ rules: [InductionRule]) {
+        guard let data = try? JSONEncoder().encode(rules) else { return }
+        UserDefaults.standard.set(data, forKey: inductionRulesKey)
     }
 }

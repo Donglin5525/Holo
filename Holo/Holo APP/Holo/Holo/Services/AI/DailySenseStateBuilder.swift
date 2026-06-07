@@ -115,12 +115,37 @@ struct DailySenseStateBuilder {
             state = .stable
         }
 
+        let tags = buildTags(signals: signals, hasConfirmedNewStage: false)
+
         return DailySenseSnapshot(
             date: today,
             state: state,
             signals: signals,
+            tags: tags,
             generatedAt: Date()
         )
+    }
+
+    static func buildTags(
+        signals: [DailySenseSignal],
+        hasConfirmedNewStage: Bool
+    ) -> [DailySenseTag] {
+        var tags: [DailySenseTag] = []
+        let warningDimensions = Set(
+            signals
+                .filter { $0.level == .warning || $0.level == .critical }
+                .map(\.dimension)
+        )
+
+        if warningDimensions.count >= 3 {
+            tags.append(.highPressure)
+        }
+
+        if hasConfirmedNewStage {
+            tags.append(.newStage)
+        }
+
+        return tags
     }
 
     // MARK: - Task Signal Fetchers

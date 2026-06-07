@@ -113,6 +113,7 @@ nonisolated struct HabitAnalysisContext: Codable, Equatable, Sendable {
     let averageCompletionRate: Double?
     let topPerformingHabits: [HabitPerformanceItem]
     let strugglingHabits: [HabitPerformanceItem]
+    let habitPerformanceSummaries: [HabitPerformanceItem]?
     let streaks: [HabitStreakItem]
     let dailyCompletionTrend: [DailyRatePoint]
     let previousPeriodCompletedRecordCount: Int?

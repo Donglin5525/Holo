@@ -14,7 +14,7 @@ enum AIUserContextPurpose {
 
 enum AIUserContextMessageBuilder {
 
-    static func build(from context: UserContext, purpose: AIUserContextPurpose) -> String {
+    static func build(from context: UserContext, purpose: AIUserContextPurpose, userText: String? = nil) -> String {
         var message = """
         当前用户上下文：
         - 日期：\(context.todayDate)
@@ -51,6 +51,13 @@ enum AIUserContextMessageBuilder {
             message += "\n\n--- 习惯关注主题 ---"
             message += "\n- " + habitFocusLines.joined(separator: "\n- ")
             message += "\n规则：负向习惯/减少型目标（如戒烟、抽烟、少喝酒、熬夜）发生越多不是越好；优先看发生总量下降、超标天数减少、控制率提升。"
+        }
+
+        if purpose == .chat {
+            let decision = HoloExpressionDecisionEngine.decide(for: context, userText: userText)
+            message += "\n\n--- 表达强度 ---"
+            message += "\n\(decision.promptSummary)"
+            message += "\n规则：表达强度只决定说法，不改变事实；当前用户明确输入永远优先。"
         }
 
         if let profile = context.profileContext, !profile.isEmpty {
@@ -149,4 +156,3 @@ extension HoloMemorySource {
         }
     }
 }
-

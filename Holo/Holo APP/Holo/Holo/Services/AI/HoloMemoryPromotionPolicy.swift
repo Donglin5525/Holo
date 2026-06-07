@@ -41,7 +41,10 @@ enum HoloMemoryPromotionPolicy {
     ) -> HoloMemoryPromotionDecision {
         switch semanticType {
         case .phaseShift:
-            // 任何阶段变化都需确认
+            guard candidate.evidence.count >= 2 else {
+                return .observe(reason: "阶段变化证据不足，继续观察")
+            }
+            // 阶段变化都需确认，避免 AI 过早替用户定义阶段
             return .requireConfirmation(reason: "阶段变化需确认")
 
         case .stablePattern:
@@ -52,7 +55,10 @@ enum HoloMemoryPromotionPolicy {
             return .requireConfirmation(reason: "稳定模式需确认（证据 \(candidate.evidence.count) 个）")
 
         case .driftSignal:
-            // 偏离提醒始终需确认，由 Observer 设置 expiresAt
+            guard candidate.evidence.count >= 2 else {
+                return .observe(reason: "偏离提醒证据不足，继续观察")
+            }
+            // 偏离提醒始终需确认，并应有过期时间
             return .requireConfirmation(reason: "偏离提醒需确认")
 
         case .lifeEvent:
@@ -60,7 +66,10 @@ enum HoloMemoryPromotionPolicy {
             return .requireConfirmation(reason: "人生节点需确认")
 
         case .statMilestone:
-            // 轻量统计收藏，标记为 observe（首版行为等同 requireConfirmation）
+            // 轻量统计收藏默认只展示，不进入 core context
+            if candidate.useScopes?.contains(.coreContext) == true {
+                return .requireConfirmation(reason: "轻量记录不能直接进入核心上下文")
+            }
             return .observe(reason: "轻量统计收藏")
         }
     }

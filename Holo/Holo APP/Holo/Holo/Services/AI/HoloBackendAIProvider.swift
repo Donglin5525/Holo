@@ -182,7 +182,11 @@ final class HoloBackendAIProvider: AIProvider {
                     }
                     allMessages.append(.system(systemContextOverride))
                 } else {
-                    allMessages.append(.system(AIUserContextMessageBuilder.build(from: userContext, purpose: .chat)))
+                    allMessages.append(.system(AIUserContextMessageBuilder.build(
+                        from: userContext,
+                        purpose: .chat,
+                        userText: Self.latestUserText(in: messages)
+                    )))
                 }
 
                 allMessages.append(contentsOf: messages)
@@ -241,10 +245,18 @@ final class HoloBackendAIProvider: AIProvider {
         let systemPrompt = await loadManagedPrompt(.systemPrompt)
         var allMessages: [ChatMessageDTO] = [
             .system(systemPrompt),
-            .system(AIUserContextMessageBuilder.build(from: userContext, purpose: .chat))
+            .system(AIUserContextMessageBuilder.build(
+                from: userContext,
+                purpose: .chat,
+                userText: Self.latestUserText(in: messages)
+            ))
         ]
         allMessages.append(contentsOf: messages)
         return allMessages
+    }
+
+    private static func latestUserText(in messages: [ChatMessageDTO]) -> String? {
+        messages.last(where: { $0.role == "user" })?.content
     }
 
     private func loadManagedPrompt(_ type: PromptManager.PromptType) async -> String {

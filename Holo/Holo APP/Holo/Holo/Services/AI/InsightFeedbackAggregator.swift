@@ -86,19 +86,44 @@ final class InsightFeedbackAggregator {
                             break // Phase 6 补充
                         case .toneWrong:
                             toneSignals[.gentle, default: 0] += 0 // 后续根据具体反馈调整
+                        case .tooFrequent:
+                            if let pattern = feedback.patternType ?? feedback.module {
+                                var pen = patternPenalties[pattern] ?? (penalty: 0.15, count: 0, reason: nil)
+                                pen.count += 1
+                                pen.reason = "用户希望减少此类提醒"
+                                patternPenalties[pattern] = pen
+                            }
+                            toneSignals[.fewerSuggestions, default: 0] += 1
                         }
                     }
                 }
             }
 
+            if feedback.reasonType == FeedbackReasonType.tooFrequent.rawValue {
+                if let pattern = feedback.patternType ?? feedback.module {
+                    var pen = patternPenalties[pattern] ?? (penalty: 0.15, count: 0, reason: nil)
+                    pen.count += 1
+                    pen.reason = "用户希望减少此类提醒"
+                    patternPenalties[pattern] = pen
+                }
+                toneSignals[.fewerSuggestions, default: 0] += 1
+            }
+
             // 处理价值感反馈
             if let valueStr = feedback.valueRating,
                let value = ValueRating(rawValue: valueStr) {
-                if let moduleKey = feedback.module.flatMap({ InsightModuleKey(rawValue: $0) }) {
+                if value == .notMeaningful {
+                    if let pattern = feedback.patternType ?? feedback.module {
+                        var pen = patternPenalties[pattern] ?? (penalty: 0.1, count: 0, reason: nil)
+                        pen.count += 1
+                        pen.reason = "用户觉得这类洞察没感觉"
+                        patternPenalties[pattern] = pen
+                    }
+                } else if let moduleKey = feedback.module.flatMap({ InsightModuleKey(rawValue: $0) }) {
                     var adj = moduleAdjustments[moduleKey] ?? (weight: 0, count: 0)
                     if value == .useful {
                         adj.weight += 0.05
-                    } else {
+                    } else if value == .notUseful {
                         adj.weight -= 0.05
                     }
                     adj.count += 1
@@ -148,6 +173,20 @@ final class InsightFeedbackAggregator {
                     now: now
                 )
             }
+
+            if (toneSignals[.fewerSuggestions] ?? 0) >= 1 {
+                profile.preferredTone = .fewerSuggestions
+            }
+
+            profile.updatedAt = now
+        }
+
+        for pattern in profileService.loadProfile().dislikedPatterns where pattern.isStable {
+            HoloLifePatternService.shared.recordLowValueTopic(
+                patternType: pattern.patternType,
+                summary: "\(pattern.patternType) 类洞察对用户价值偏低，后续应降低出现频率",
+                evidenceCount: pattern.evidenceCount
+            )
         }
 
         Self.logger.info("聚合完成：module=\(moduleAdjustments.count), pattern=\(patternPenalties.count), dataWrong=\(dataWrongCount)")

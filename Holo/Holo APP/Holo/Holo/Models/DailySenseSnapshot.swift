@@ -2,9 +2,9 @@
 //  DailySenseSnapshot.swift
 //  Holo
 //
-//  每日状态雷达模型（v2）
+//  每日状态雷达模型（v3）
 //  3 个状态：stable / atRisk / recovering
-//  结构化信号替代 reasons 字符串数组
+//  结构化信号 + 状态标签替代强生活判断
 //
 
 import Foundation
@@ -51,12 +51,33 @@ enum DailySenseState: String, Codable {
     case recovering   // 节奏在找回
 }
 
-/// 每日状态快照（v2）
+/// 状态标签。只作为副文案，不扩展主状态。
+enum DailySenseTag: String, Codable, CaseIterable {
+    case highPressure
+    case newStage
+
+    var displayName: String {
+        switch self {
+        case .highPressure: return "信号偏紧"
+        case .newStage: return "出现新阶段"
+        }
+    }
+
+    var safeSummary: String {
+        switch self {
+        case .highPressure: return "这几个信号像是一起偏紧，先不用过度解读。"
+        case .newStage: return "最近有一个值得单独留意的新阶段。"
+        }
+    }
+}
+
+/// 每日状态快照（v3）
 struct DailySenseSnapshot: Codable, Equatable {
     let schemaVersion: Int
     let date: Date
     let state: DailySenseState
     let signals: [DailySenseSignal]
+    let tags: [DailySenseTag]
     let generatedAt: Date
 
     // MARK: - Coding Keys
@@ -66,6 +87,7 @@ struct DailySenseSnapshot: Codable, Equatable {
         case date
         case state
         case signals
+        case tags
         case generatedAt
         // Legacy keys（仅用于解码）
         case confidence
@@ -84,8 +106,9 @@ struct DailySenseSnapshot: Codable, Equatable {
         state = try container.decode(DailySenseState.self, forKey: .state)
         generatedAt = try container.decode(Date.self, forKey: .generatedAt)
 
-        // signals 可能为空（legacy 格式）
+        // signals/tags 可能为空（legacy 格式）
         signals = try container.decodeIfPresent([DailySenseSignal].self, forKey: .signals) ?? []
+        tags = try container.decodeIfPresent([DailySenseTag].self, forKey: .tags) ?? []
 
         // 忽略 legacy 字段（confidence, reasons）
         // 这些字段在 v1 中存在，但在 v2 中已废弃
@@ -97,16 +120,18 @@ struct DailySenseSnapshot: Codable, Equatable {
         try container.encode(date, forKey: .date)
         try container.encode(state, forKey: .state)
         try container.encode(signals, forKey: .signals)
+        try container.encode(tags, forKey: .tags)
         try container.encode(generatedAt, forKey: .generatedAt)
     }
 
-    // MARK: - Regular Init（v2 格式）
+    // MARK: - Regular Init（v3 格式）
 
-    init(date: Date, state: DailySenseState, signals: [DailySenseSignal], generatedAt: Date) {
-        self.schemaVersion = 2
+    init(date: Date, state: DailySenseState, signals: [DailySenseSignal], tags: [DailySenseTag] = [], generatedAt: Date) {
+        self.schemaVersion = 3
         self.date = date
         self.state = state
         self.signals = signals
+        self.tags = tags
         self.generatedAt = generatedAt
     }
 

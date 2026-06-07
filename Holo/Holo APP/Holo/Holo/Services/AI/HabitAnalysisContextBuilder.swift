@@ -71,6 +71,10 @@ struct HabitAnalysisContextBuilder {
                 makePerformanceItem(snapshot: item.snapshot, streak: item.streak.value)
             }
 
+        let performanceSummaries = habitRates.map { item in
+            makePerformanceItem(snapshot: item.snapshot, streak: item.streak.value)
+        }
+
         // Streaks
         let streaks = habitRates
             .filter { $0.streak.value > 0 }
@@ -108,6 +112,7 @@ struct HabitAnalysisContextBuilder {
             averageCompletionRate: averageCompletionRate,
             topPerformingHabits: topPerforming,
             strugglingHabits: struggling,
+            habitPerformanceSummaries: performanceSummaries,
             streaks: streaks,
             dailyCompletionTrend: dailyTrend,
             previousPeriodCompletedRecordCount: previousPeriodCompletedRecordCount

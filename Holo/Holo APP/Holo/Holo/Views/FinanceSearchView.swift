@@ -79,7 +79,7 @@ struct FinanceSearchView: View {
             performDebouncedSearch(keyword: newValue)
         }
         .sheet(item: $editingTransaction) { transaction in
-            AddTransactionSheet(editingTransaction: transaction) {
+            AddTransactionSheet(editingTransaction: transaction) { _ in
                 // 编辑后重新搜索
                 performSearch(keyword: searchText)
             }

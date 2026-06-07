@@ -21,7 +21,8 @@ struct CrossModuleCorrelator {
         finance: MemoryInsightFinanceContext,
         habits: MemoryInsightHabitContext,
         tasks: MemoryInsightTaskContext,
-        thoughts: MemoryInsightThoughtContext
+        thoughts: MemoryInsightThoughtContext,
+        health: HealthInsightContext? = nil
     ) -> [CrossModuleCorrelation] {
         var results: [CrossModuleCorrelation] = []
 
@@ -53,6 +54,9 @@ struct CrossModuleCorrelator {
         // 新增：恢复迹象
         if let c = detectRecoverySignal(habits: habits, tasks: tasks) {
             results.append(c)
+        }
+        if let health {
+            results.append(contentsOf: detectHealthCorrelations(health: health, habits: habits, tasks: tasks))
         }
 
         return deduplicateCorrelations(results)
@@ -345,5 +349,60 @@ struct CrossModuleCorrelator {
             patternType: "recovery_signal",
             evidenceDates: []
         )
+    }
+
+    // MARK: - 健康并发观察
+
+    private static func detectHealthCorrelations(
+        health: HealthInsightContext,
+        habits: MemoryInsightHabitContext,
+        tasks: MemoryInsightTaskContext
+    ) -> [CrossModuleCorrelation] {
+        var results: [CrossModuleCorrelation] = []
+
+        let shortSleep = (health.sleepDurationHours ?? 99) > 0 && (health.sleepDurationHours ?? 99) < 6
+        let lowSteps = (health.stepCount ?? 10_000) > 0 && (health.stepCount ?? 10_000) < 3_000
+        let hasTaskPressure = tasks.overdueCount >= 1 || tasks.activeBacklogCount >= 3 || tasks.dueInPeriod >= 5
+        let hasHabitBreak = habits.strugglingHabits.count >= 1 || (habits.averageCompletionRate ?? 100) < 60
+        let hasRecoverySignal = tasks.completedCount > tasks.overdueCount && tasks.completedCount > 0
+
+        if shortSleep && hasTaskPressure {
+            results.append(CrossModuleCorrelation(
+                modulePair: [.health, .task],
+                observation: "休息偏少和任务压力在同一段时间出现",
+                signalStrength: 0.65,
+                summary: "睡眠少于 6h，任务也有堆积或逾期",
+                patternType: "sleep_task_pressure",
+                evidenceDates: []
+            ))
+        }
+
+        if shortSleep && hasHabitBreak {
+            results.append(CrossModuleCorrelation(
+                modulePair: [.health, .habit],
+                observation: "休息偏少时，习惯节奏也有中断",
+                signalStrength: 0.6,
+                summary: "睡眠少于 6h，习惯完成也偏弱",
+                patternType: "sleep_habit_break",
+                evidenceDates: []
+            ))
+        }
+
+        if lowSteps && hasRecoverySignal {
+            results.append(CrossModuleCorrelation(
+                modulePair: [.health, .task],
+                observation: "活动量偏低，但其他节奏有恢复迹象",
+                signalStrength: 0.5,
+                summary: "步数偏少，同时任务在推进",
+                patternType: "low_activity_recovery",
+                evidenceDates: []
+            ))
+        }
+
+        return results.filter { correlation in
+            !bannedWords.contains { word in
+                correlation.observation.contains(word) || correlation.summary.contains(word)
+            }
+        }
     }
 }

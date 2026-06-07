@@ -236,7 +236,7 @@ struct HomeView: View {
         // Holo One - 快速记账
         .sheet(isPresented: $showAddTransactionSheet) {
             LazyView {
-                AddTransactionSheet(editingTransaction: nil) {
+                AddTransactionSheet(editingTransaction: nil) { _ in
                     NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
                 }
             }

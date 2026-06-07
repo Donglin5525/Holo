@@ -183,7 +183,7 @@ struct FinanceLedgerView: View {
             PopupCalendarSheet(calendarState: calendarState)
         }
         .sheet(item: $editingTransaction) { transaction in
-            AddTransactionSheet(editingTransaction: transaction) {
+            AddTransactionSheet(editingTransaction: transaction) { _ in
                 calendarState.refreshAfterDataChange()
                 showOperationMessage("记账已保存", isError: false)
             }
@@ -194,7 +194,7 @@ struct FinanceLedgerView: View {
             set: { if !$0 { quickAddDate = nil } }
         )) {
             if let date = quickAddDate {
-                AddTransactionSheet(editingTransaction: nil, presetDate: date) {
+                AddTransactionSheet(editingTransaction: nil, presetDate: date) { _ in
                     calendarState.refreshAfterDataChange()
                     showOperationMessage("记账已保存", isError: false)
                 }

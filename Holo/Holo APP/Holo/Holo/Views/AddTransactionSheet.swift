@@ -29,8 +29,8 @@ struct AddTransactionSheet: View {
     /// 待确认交易预填数据（从待确认卡片进入编辑时使用）
     let pendingPrefill: PendingTransactionPrefill?
 
-    /// 保存完成回调
-    let onSave: () -> Void
+    /// 保存完成回调（传入本次创建/编辑后的交易，nil 表示删除或多笔分期等场景）
+    let onSave: (Transaction?) -> Void
 
     // MARK: - State
 
@@ -170,7 +170,7 @@ struct AddTransactionSheet: View {
     
     // MARK: - Initialization
     
-    init(editingTransaction: Transaction?, presetDate: Date? = nil, pendingPrefill: PendingTransactionPrefill? = nil, onSave: @escaping () -> Void) {
+    init(editingTransaction: Transaction?, presetDate: Date? = nil, pendingPrefill: PendingTransactionPrefill? = nil, onSave: @escaping (Transaction?) -> Void) {
         self.editingTransaction = editingTransaction
         self.presetDate = presetDate
         self.pendingPrefill = pendingPrefill
@@ -538,7 +538,7 @@ struct AddTransactionSheet: View {
 // MARK: - Preview
 
 #Preview {
-    AddTransactionSheet(editingTransaction: nil) {}
+    AddTransactionSheet(editingTransaction: nil) { _ in }
 }
 
 // MARK: - Pending Transaction Prefill

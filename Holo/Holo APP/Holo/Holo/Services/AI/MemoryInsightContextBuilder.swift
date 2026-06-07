@@ -77,12 +77,14 @@ struct MemoryInsightContextBuilder {
         let (tasks, taskAnomalies) = buildTaskContext(start: start, end: end)
         let thoughts = buildThoughtContext(start: start, end: end)
         let milestones = buildMilestoneContext(start: start, end: end)
+        let health = await buildHealthInsightContext(start: start, end: end)
 
         let correlations = CrossModuleCorrelator.detect(
             finance: finance,
             habits: habits,
             tasks: tasks,
-            thoughts: thoughts
+            thoughts: thoughts,
+            health: health
         )
 
         let allAnomalies = Self.deduplicateAnomalies(financeAnomalies + habitAnomalies + taskAnomalies)
@@ -99,6 +101,16 @@ struct MemoryInsightContextBuilder {
         async let lifeEventsTask = buildLifeEvents(start: start, end: end)
         let personalBaseline = await buildPersonalBaseline(observationStart: start)
         let personalProfileContext = await buildPersonalProfileContext()
+        let insightPreferenceContext = buildInsightPreferenceContext()
+        let lifePatternContext = HoloLifePatternService.shared.promptSummary(for: .memoryInsightGeneration)
+        let expressionDecisionContext = buildExpressionDecisionContext(
+            finance: finance,
+            habits: habits,
+            tasks: tasks,
+            thoughts: thoughts,
+            health: health,
+            correlations: correlations
+        )
         let (dailySnapshots, lifeEvents) = await (dailySnapshotsTask, lifeEventsTask)
 
         var context = MemoryInsightContext(
@@ -119,7 +131,11 @@ struct MemoryInsightContextBuilder {
             dailySnapshots: dailySnapshots,
             lifeEvents: lifeEvents,
             personalBaseline: personalBaseline,
-            personalProfileContext: personalProfileContext
+            personalProfileContext: personalProfileContext,
+            insightPreferenceContext: insightPreferenceContext,
+            expressionDecisionContext: expressionDecisionContext,
+            lifePatternContext: lifePatternContext,
+            health: health
         )
 
         context = Self.enforceTokenBudget(context, periodType: periodType)
@@ -142,6 +158,135 @@ struct MemoryInsightContextBuilder {
             // Feature flag 关闭时使用安全 fallback
             let fallback = HoloProfilePromptRenderer.renderRawFallback(profile)
             return fallback.isEmpty ? profile : fallback
+        }
+    }
+
+    private func buildInsightPreferenceContext() -> String? {
+        let profile = InsightPreferenceProfileService.shared.loadProfile()
+        var lines: [String] = []
+
+        let stableDisliked = profile.dislikedPatterns
+            .filter { $0.isStable || $0.evidenceCount >= 1 }
+            .sorted { $0.penalty > $1.penalty }
+            .prefix(5)
+
+        for item in stableDisliked {
+            let reason = item.reason ?? "用户反馈此类洞察价值较低"
+            lines.append("用户近期对 \(item.patternType) 类洞察反馈偏低：\(reason)。除非证据很强，请降低优先级。")
+        }
+
+        if profile.preferredTone == .fewerSuggestions {
+            lines.append("用户偏好 fewerSuggestions：减少建议数量，优先输出观察；如需建议，只给一个最小动作。")
+        }
+
+        guard !lines.isEmpty else { return nil }
+        return "洞察偏好摘要：\n- " + lines.joined(separator: "\n- ")
+    }
+
+    private func buildHealthInsightContext(start: Date, end: Date) async -> HealthInsightContext? {
+        guard InsightFeatureFlags.healthContextEnabled else { return nil }
+
+        let repo = HealthRepository.shared
+        guard repo.isAuthorized else {
+            return HealthInsightContext(
+                sleepDurationHours: nil,
+                stepCount: nil,
+                standHours: nil,
+                workoutMinutes: nil,
+                dataAvailability: .notAvailable(reason: "未授权"),
+                signals: []
+            )
+        }
+
+        let startDate = Calendar.current.startOfDay(for: start)
+        let endDate = Calendar.current.startOfDay(for: end)
+        async let stepsData = repo.fetchStepsRange(from: startDate, to: endDate)
+        async let sleepData = repo.fetchSleepRange(from: startDate, to: endDate)
+        let (steps, sleep) = await (stepsData, sleepData)
+
+        let averageSteps = average(steps.map(\.value)).map { Int($0.rounded()) }
+        let averageSleep = average(sleep.map(\.value))
+        var signals: [HealthSignal] = []
+
+        if let averageSleep, averageSleep > 0, averageSleep < 6 {
+            signals.append(HealthSignal(
+                type: "sleepShort",
+                severity: "warning",
+                title: "睡眠偏少",
+                evidence: ["周期日均睡眠 \(String(format: "%.1f", averageSleep))h"]
+            ))
+        }
+
+        if let averageSteps, averageSteps > 0, averageSteps < 3_000 {
+            signals.append(HealthSignal(
+                type: "stepLow",
+                severity: "warning",
+                title: "步数偏低",
+                evidence: ["周期日均步数 \(averageSteps)"]
+            ))
+        }
+
+        let availability: HealthDataAvailability
+        if averageSteps != nil && averageSleep != nil {
+            availability = .fullyAvailable
+        } else if averageSteps != nil || averageSleep != nil {
+            availability = .partiallyAvailable(
+                availableTypes: averageSteps != nil ? ["steps"] : ["sleep"],
+                missingTypes: averageSteps == nil ? ["steps"] : ["sleep"]
+            )
+        } else {
+            availability = .notAvailable(reason: "暂无可用健康数据")
+        }
+
+        return HealthInsightContext(
+            sleepDurationHours: averageSleep,
+            stepCount: averageSteps,
+            standHours: nil,
+            workoutMinutes: nil,
+            dataAvailability: availability,
+            signals: signals
+        )
+    }
+
+    private func average(_ values: [Double]) -> Double? {
+        let positiveValues = values.filter { $0 > 0 }
+        guard !positiveValues.isEmpty else { return nil }
+        return positiveValues.reduce(0, +) / Double(positiveValues.count)
+    }
+
+    private func buildExpressionDecisionContext(
+        finance: MemoryInsightFinanceContext,
+        habits: MemoryInsightHabitContext,
+        tasks: MemoryInsightTaskContext,
+        thoughts: MemoryInsightThoughtContext,
+        health: HealthInsightContext?,
+        correlations: [CrossModuleCorrelation]
+    ) -> String {
+        let activeDimensions = [
+            finance.totalExpense > 0 || finance.totalIncome > 0,
+            habits.activeHabitCount > 0,
+            tasks.totalCount > 0,
+            thoughts.totalCount > 0,
+            healthHasData(health)
+        ].filter { $0 }.count
+
+        let evidenceCount = max(activeDimensions, correlations.count)
+        let sensitiveHealth = health?.signals.contains { $0.type == "sleepShort" } ?? false
+        let decision = HoloExpressionDecisionEngine.decide(
+            evidenceCount: evidenceCount,
+            independentDimensionCount: activeDimensions,
+            containsSensitiveHealthOrMindSignal: sensitiveHealth
+        )
+        return decision.promptSummary
+    }
+
+    private func healthHasData(_ health: HealthInsightContext?) -> Bool {
+        guard let health else { return false }
+        switch health.dataAvailability {
+        case .fullyAvailable, .partiallyAvailable:
+            return true
+        case .notAvailable:
+            return false
         }
     }
 
@@ -1025,6 +1170,8 @@ struct MemoryInsightContextBuilder {
         let thoughts = buildThoughtContext(start: yearStart, end: yearEnd)
         let milestones = buildMilestoneContext(start: yearStart, end: yearEnd)
         let personalProfileContext = await buildPersonalProfileContext()
+        let insightPreferenceContext = buildInsightPreferenceContext()
+        let lifePatternContext = HoloLifePatternService.shared.promptSummary(for: .retrospective)
 
         let correlations = CrossModuleCorrelator.detect(
             finance: finance,
@@ -1048,7 +1195,9 @@ struct MemoryInsightContextBuilder {
             monthlyInsightDigests: digests,
             anomalies: [],
             previousPeriodReview: nil,
-            personalProfileContext: personalProfileContext
+            personalProfileContext: personalProfileContext,
+            insightPreferenceContext: insightPreferenceContext,
+            lifePatternContext: lifePatternContext
         )
 
         return Self.enforceAnnualTokenBudget(rawContext)
@@ -1093,7 +1242,9 @@ struct MemoryInsightContextBuilder {
             monthlyInsightDigests: [],
             anomalies: [],
             previousPeriodReview: nil,
-            personalProfileContext: nil
+            personalProfileContext: nil,
+            insightPreferenceContext: nil,
+            lifePatternContext: nil
         )
     }
 
@@ -1241,7 +1392,11 @@ struct MemoryInsightContextBuilder {
             dailySnapshots: context.dailySnapshots,
             lifeEvents: lifeEvents ?? context.lifeEvents,
             personalBaseline: context.personalBaseline,
-            personalProfileContext: context.personalProfileContext
+            personalProfileContext: context.personalProfileContext,
+            insightPreferenceContext: context.insightPreferenceContext,
+            expressionDecisionContext: context.expressionDecisionContext,
+            lifePatternContext: context.lifePatternContext,
+            health: context.health
         )
     }
 
@@ -1270,7 +1425,11 @@ struct MemoryInsightContextBuilder {
                     dailySnapshots: nil,
                     lifeEvents: nil,
                     personalBaseline: nil,
-                    personalProfileContext: current.personalProfileContext
+                    personalProfileContext: current.personalProfileContext,
+                    insightPreferenceContext: current.insightPreferenceContext,
+                    expressionDecisionContext: current.expressionDecisionContext,
+                    lifePatternContext: current.lifePatternContext,
+                    health: current.health
                 )
             }
         }
@@ -1315,7 +1474,11 @@ struct MemoryInsightContextBuilder {
             dailySnapshots: context.dailySnapshots,
             lifeEvents: context.lifeEvents,
             personalBaseline: context.personalBaseline,
-            personalProfileContext: context.personalProfileContext
+            personalProfileContext: context.personalProfileContext,
+            insightPreferenceContext: context.insightPreferenceContext,
+            expressionDecisionContext: context.expressionDecisionContext,
+            lifePatternContext: context.lifePatternContext,
+            health: context.health
         )
         guard let encoded = try? JSONEncoder().encode(stableContext) else { return "" }
         let hash = SHA256.hash(data: encoded)

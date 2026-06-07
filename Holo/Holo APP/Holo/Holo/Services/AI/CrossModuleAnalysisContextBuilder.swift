@@ -45,13 +45,35 @@ struct CrossModuleAnalysisContextBuilder {
 
         // 习惯亮点/风险
         if let h = habit, !h.isDataFree {
-            if let rate = h.averageCompletionRate, rate >= 0.8 {
-                highlights.append(String(format: "习惯完成率 %.0f%%，表现优秀", rate * 100))
-            } else if let rate = h.averageCompletionRate, rate < 0.5 {
-                warnings.append(String(format: "习惯完成率仅 %.0f%%，需要加油", rate * 100))
+            let habitItems = h.habitPerformanceSummaries ?? (h.topPerformingHabits + h.strugglingHabits)
+            let negativeHabits = Array(habitItems.filter { $0.polarity == .negative }.prefix(3))
+            let negativeHabitNames = Set(negativeHabits.map(\.habitName))
+
+            for item in negativeHabits {
+                let line = negativeHabitSummary(item)
+                if (item.overLimitDays ?? 0) > 0 {
+                    warnings.append(line)
+                } else {
+                    highlights.append(line)
+                }
             }
 
-            if let topStreak = h.streaks.first, topStreak.currentStreak >= 7 {
+            if !negativeHabits.isEmpty, let ht = health, !ht.isDataFree {
+                let names = negativeHabits.map { "「\($0.habitName)」" }.joined(separator: "、")
+                highlights.append("本周期同时有健康数据和 \(names) 控制记录，可并排观察，不做因果判断")
+            }
+
+            if habitItems.contains(where: { $0.polarity == .positive }) {
+                if let rate = h.averageCompletionRate, rate >= 0.8 {
+                    highlights.append(String(format: "正向习惯平均完成率 %.0f%%", rate * 100))
+                } else if let rate = h.averageCompletionRate, rate < 0.5 {
+                    warnings.append(String(format: "正向习惯平均完成率 %.0f%%", rate * 100))
+                }
+            }
+
+            if let topStreak = h.streaks.first,
+               topStreak.currentStreak >= 7,
+               !negativeHabitNames.contains(topStreak.habitName) {
                 highlights.append("\(topStreak.habitName) 连续打卡 \(topStreak.currentStreak) 天")
             }
         }
@@ -118,5 +140,34 @@ struct CrossModuleAnalysisContextBuilder {
             highlights: Array(highlights.prefix(7)),
             warnings: Array(warnings.prefix(5))
         )
+    }
+
+    private func negativeHabitSummary(_ item: HabitPerformanceItem) -> String {
+        let rate = String(format: "%.0f%%", item.completionRate * 100)
+        var parts = ["\(item.habitName) 控制率 \(rate)"]
+
+        if let totalValue = item.totalValue {
+            let unit = item.unit ?? ""
+            parts.append("发生总量 \(format(totalValue))\(unit)")
+        }
+        if let targetValue = item.targetValue {
+            let unit = item.unit ?? ""
+            parts.append("每日上限 \(format(targetValue))\(unit)")
+        }
+        if let overLimitDays = item.overLimitDays {
+            parts.append("超标 \(overLimitDays) 天")
+        }
+        if let controlledDays = item.controlledDays, let totalDays = item.totalDays {
+            parts.append("控制 \(controlledDays)/\(totalDays) 天")
+        }
+
+        return parts.joined(separator: "，")
+    }
+
+    private func format(_ value: Double) -> String {
+        if value.truncatingRemainder(dividingBy: 1) == 0 {
+            return String(format: "%.0f", value)
+        }
+        return String(format: "%.1f", value)
     }
 }

@@ -35,6 +35,7 @@ final class PromptManager {
         case memoryObserver = "memory_observer"
         case financeActionParser = "finance_action_parser"
         case taskActionParser = "task_action_parser"
+        case categoryPatternInduction = "category_pattern_induction"
 
         var displayName: String {
             switch self {
@@ -51,6 +52,7 @@ final class PromptManager {
             case .memoryObserver: return "记忆观察引擎"
             case .financeActionParser: return "分期记账解析"
             case .taskActionParser: return "重复任务解析"
+            case .categoryPatternInduction: return "分类模式归纳"
             }
         }
 
@@ -69,6 +71,7 @@ final class PromptManager {
             case .memoryObserver: return "从模块信号生成短期记忆观察"
             case .financeActionParser: return "从分期记账文本中提取结构化参数"
             case .taskActionParser: return "从重复任务文本中提取结构化参数"
+            case .categoryPatternInduction: return "从用户分类修正样本中归纳出通用匹配模式"
             }
         }
 
@@ -87,6 +90,7 @@ final class PromptManager {
             case .memoryObserver: return "eye.circle"
             case .financeActionParser: return "creditcard.circle"
             case .taskActionParser: return "repeat.circle"
+            case .categoryPatternInduction: return "lightbulb.circle"
             }
         }
     }
@@ -95,12 +99,13 @@ final class PromptManager {
 
     /// 需要版本管理的 prompt 类型及其最低版本
     private static let promptVersions: [PromptType: Int] = [
+        .systemPrompt: 2,               // v2: Sense Loop 表达边界与档案优先级
         .intentRecognition: 14,         // v14: 收窄 query_analysis 金额触发，特定品类金额查询优先 flexible_data_query
-        .memoryInsightGeneration: 6,    // v6: 新增 memoryCandidate 子结构，支持语义类型化记忆候选
-        .analysisPrompt: 2,             // v2: C 端纯文本分析输出，避免裸露 Markdown 语法
+        .memoryInsightGeneration: 7,    // v7: Sense Loop 表达边界、偏好摘要与表达强度
+        .analysisPrompt: 3,             // v3: Sense Loop 表达边界与档案优先级
         .annualReview: 1,               // v1: 初始版本
         .thoughtVoiceSummary: 2,        // v2: 自然分段，复杂内容才使用小标题
-        .flexibleQueryPlanner: 1,       // v1: 初始版本，财务域灵活查询规划
+        .flexibleQueryPlanner: 2,       // v2: 当前输入优先，档案不干扰硬查询
         .memoryObserver: 1,             // v1: 初始版本，记忆观察引擎
         .financeActionParser: 1,        // v1: 分期记账参数解析
         .taskActionParser: 1            // v1: 重复任务参数解析
@@ -234,6 +239,12 @@ final class PromptManager {
         - 简洁友好，不要过于冗长
         - 当用户输入不含明确指令时，简短提示可用的操作类型
         - 金额相关的数字要精确，不要随意更改
+        - 区分事实、观察、假设和建议；低置信判断必须使用“可能/像是/值得留意”，不能说成确定结论
+        - 跨模块关系只能表达为并发现象或值得留意的关联，不能说“导致/证明/说明一定因为”
+        - 不做人格、心理、医疗诊断；不要输出人格标签式夸奖或“你压力很大”
+        - 少用空泛鼓励，多给一个具体、可执行的小切口
+        - 当前明确输入永远优先；HoloProfile、长期记忆、近期状态只能辅助理解，不能覆盖本轮输入
+        - HoloProfile 是用户主动档案，权重高于 AI 自动推断记忆；不要主动暴露敏感档案细节，除非用户话题相关
         - 适合在手机 App 卡片里直接阅读；不要输出 Markdown 语法符号（如 #、##、*、-、```、表格）。需要分段时用短标题行和自然换行
         - **禁止假装执行操作**：你无法直接记账、创建任务、打卡或记录心情。如果用户想要执行这些操作，请回复"我暂时无法执行此操作，请重试或使用快捷入口"。绝对不要回复"已记录""已创建""已打卡"等暗示操作已完成的表述
         - **禁止编造数据**：只使用上下文中提供的真实数据回答。如果用户问的具体数字、分类明细或统计结果不在你的上下文中，请明确告知"我没有这个时间段的数据"，不要猜测、推算或编造任何数字
@@ -513,6 +524,24 @@ final class PromptManager {
         9. type 只能取以下值：habit / finance / task / thought / milestone / cross_domain / overview / anomaly。
         10. 如果某个维度数据为空，不要强行生成该维度的 card。
         11. suggestedQuestions 提供 2-3 个用户可能想追问的问题。
+
+        ## 表达边界
+
+        - 区分事实、观察、假设和建议。
+        - 低置信判断必须使用“可能/像是/值得留意”，不能说成确定结论。
+        - 跨模块关系只能表达为并发现象或值得留意的关联，不能说“导致/证明/说明一定因为”。
+        - 不做人格、心理、医疗诊断，不说“你压力很大”“你焦虑了”，也不要输出人格标签式夸奖。
+        - 少用空泛鼓励，多给一个具体、可执行的小切口。
+        - 当前明确输入永远优先；HoloProfile、长期记忆、近期状态只能辅助理解。
+        - 如果 context.insightPreferenceContext 存在，按其中的稳定偏好调整优先级；不要引用原始反馈文本。
+        - 如果 context.expressionDecisionContext 存在，按表达强度决定说法，不要擅自升级为建议或庆祝。
+
+        ## 用户档案与长期记忆使用规则
+
+        - HoloProfile 是用户主动档案，权重高于 AI 自动推断记忆。
+        - 长期记忆和近期状态只能辅助理解，不能覆盖用户本轮明确输入。
+        - 如果档案/记忆与本轮输入冲突，以本轮输入为准。
+        - 不要主动暴露敏感档案细节，除非用户话题相关。
 
         ## 洞察相关性门槛（必须执行）
 
@@ -809,6 +838,16 @@ final class PromptManager {
         6. 区分"数据支持的观察"和"个人建议"，建议部分明确标注。
         7. 如果数据不足以得出结论，诚实说明。
 
+        ## 表达边界
+
+        - 区分事实、观察、假设和建议。
+        - 低置信判断必须使用“可能/像是/值得留意”，不能说成确定结论。
+        - 跨模块关系只能表达为并发现象或值得留意的关联，不能说“导致/证明/说明一定因为”。
+        - 不做人格、心理、医疗诊断，不说“你压力很大”“你焦虑了”，也不要输出人格标签式夸奖。
+        - 少用空泛鼓励，多给一个具体、可执行的小切口。
+        - 当前明确输入永远优先；HoloProfile、长期记忆、近期状态只能辅助理解，不能覆盖本轮问题。
+        - HoloProfile 是用户主动档案，权重高于 AI 自动推断记忆；不要主动暴露敏感档案细节，除非用户话题相关。
+
         ## 洞察相关性门槛
 
         不要把显眼数字直接当成洞察。优先回答以下类型：偏离个人常态、可行动的小切口、影响生活节奏的变化、跨模块并发现象、异常/转折/恢复。若只是固定成本或周期口径造成的数字差异，要明确降权。
@@ -949,6 +988,10 @@ final class PromptManager {
         ## 规则
 
         1. 不要编造用户未提及的金额或日期约束。用户只说"最近买烟"，不要自动添加金额条件。
+        1a. 区分事实、观察、假设和建议；本模块只输出查询计划，不输出用户结论或生活判断。
+        1b. 当前明确输入永远优先；HoloProfile、长期记忆、近期状态只能用于理解词义，不能替用户添加查询条件。
+        1c. HoloProfile 是用户主动档案，权重高于 AI 自动推断记忆；如果档案/记忆与本轮输入冲突，以本轮输入为准。
+        1d. 本模块只做查询规划，不能输出人格、心理、医疗判断，也不能把跨模块关系写成“导致/证明/说明一定因为”。
         2. keywords 使用具体词汇（"香烟"而非"烟"，"外卖/美团/饿了么"而非单一词），减少误匹配。
         3. 当用户说"一整条烟""买烟>200"时，设置 amountGreaterThan: 200，keywords 用 ["烟","香烟","买烟"]。
         4. excludedKeywords 用于排除容易误匹配的词（如搜"烟"时排除"烟花""烟台"）。
@@ -1125,7 +1168,35 @@ final class PromptManager {
         ## 示例
         输入：每隔三天跟家里打电话
         输出：{"title":"跟家里打电话","dueDate":"{{todayDate}}T20:00:00+08:00","repeatEnabled":"true","repeatType":"daily","repeatInterval":"3","repeatWeekdays":"","repeatMonthDay":"","repeatSummary":"每隔 3 天"}
-        """
+        """,
+
+        // MARK: - 分类模式归纳
+        .categoryPatternInduction: """
+你是一个分类模式归纳专家。分析用户的分类修正样本，找出候选词的共性规律，归纳出匹配模式。
+
+## 输出格式
+
+纯 JSON（不要包含 markdown 代码块）：
+{
+  "pattern": "关键词",
+  "matchType": "contains",
+  "confidence": 0.9
+}
+
+## matchType 可选值
+
+- "contains"：候选词包含该关键词（关键词出现在任意位置）
+- "startsWith"：候选词以该关键词开头
+- "endsWith"：候选词以该关键词结尾
+
+## 规则
+
+1. confidence 范围 0-1，低于 0.7 的规则会被丢弃
+2. pattern 必须是简短关键词，不要使用正则表达式
+3. 优先选择 "contains"，只有明显的前缀/后缀模式才用 startsWith/endsWith
+4. 如果样本之间没有明显共性，输出 confidence < 0.7 的结果即可
+5. pattern 应该尽可能简短，用最短的关键词覆盖最多的样本
+"""
     ]
 
     // MARK: - Private

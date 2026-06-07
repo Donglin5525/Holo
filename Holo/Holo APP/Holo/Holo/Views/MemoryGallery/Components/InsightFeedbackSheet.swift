@@ -3,7 +3,7 @@
 //  Holo
 //
 //  洞察卡片反馈 Sheet
-//  两维反馈：准确性（准/不准）+ 价值感（有用/没用）
+//  两维反馈：准确性（准/不准）+ 价值感（有用/没用/没感觉）
 //  选"不准"必须选择原因
 //
 
@@ -36,6 +36,9 @@ struct InsightFeedbackSheet: View {
 
                     // 价值感
                     valueSection
+
+                    // 频率偏好
+                    frequencySection
 
                     // 不准原因（仅在选了 inaccurate 时展示）
                     if accuracyRating == .inaccurate {
@@ -83,6 +86,9 @@ struct InsightFeedbackSheet: View {
                     isSelected: accuracyRating == .inaccurate
                 ) {
                     accuracyRating = .inaccurate
+                    if reasonType == .tooFrequent {
+                        reasonType = nil
+                    }
                     showReasonPicker = true
                 }
             }
@@ -105,10 +111,34 @@ struct InsightFeedbackSheet: View {
                 ) { valueRating = .useful }
 
                 feedbackChip(
+                    title: "没感觉",
+                    icon: "minus.circle",
+                    isSelected: valueRating == .notMeaningful
+                ) { valueRating = .notMeaningful }
+
+                feedbackChip(
                     title: "没用",
                     icon: "hand.thumbsdown",
                     isSelected: valueRating == .notUseful
                 ) { valueRating = .notUseful }
+            }
+        }
+    }
+
+    // MARK: - Frequency
+
+    private var frequencySection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            Text("提醒频率")
+                .font(.holoCaption)
+                .foregroundColor(.holoTextSecondary)
+
+            feedbackChip(
+                title: "少提醒这个",
+                icon: "bell.slash",
+                isSelected: reasonType == .tooFrequent
+            ) {
+                reasonType = reasonType == .tooFrequent ? nil : .tooFrequent
             }
         }
     }
@@ -122,7 +152,7 @@ struct InsightFeedbackSheet: View {
                 .foregroundColor(.holoTextSecondary)
 
             VStack(spacing: HoloSpacing.xs) {
-                ForEach(FeedbackReasonType.allCases, id: \.self) { reason in
+                ForEach(FeedbackReasonType.allCases.filter { $0 != .tooFrequent }, id: \.self) { reason in
                     reasonChip(reason: reason)
                 }
             }
@@ -208,11 +238,10 @@ struct InsightFeedbackSheet: View {
     // MARK: - Logic
 
     private var canSubmit: Bool {
-        // 至少选一个维度
-        guard accuracyRating != nil || valueRating != nil else { return false }
-        // 选了"不准"必须选原因
-        if accuracyRating == .inaccurate && reasonType == nil { return false }
-        return true
+        if accuracyRating == .inaccurate {
+            return reasonType != nil && reasonType != .tooFrequent
+        }
+        return accuracyRating != nil || valueRating != nil || reasonType == .tooFrequent
     }
 
     private func submitFeedback() {

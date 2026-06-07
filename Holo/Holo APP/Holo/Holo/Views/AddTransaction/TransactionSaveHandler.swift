@@ -34,6 +34,8 @@ extension AddTransactionSheet {
         isSaving = true
 
         Task {
+            var savedTransaction: Transaction?
+
             do {
                 let account: Account
                 if let selected = selectedAccount {
@@ -68,7 +70,7 @@ extension AddTransactionSheet {
                         if let groupId = transaction.installmentGroupId {
                             try await repository.deleteInstallmentGroup(groupId: groupId)
                         }
-                        _ = try await repository.addTransaction(
+                        savedTransaction = try await repository.addTransaction(
                             amount: amount,
                             type: transactionType,
                             category: category,
@@ -108,6 +110,7 @@ extension AddTransactionSheet {
                         updates.date = selectedDate
 
                         try await repository.updateTransaction(transaction, updates: updates)
+                        savedTransaction = transaction
 
                         learnCategoryMappingIfNeeded(
                             transaction: transaction,
@@ -129,7 +132,7 @@ extension AddTransactionSheet {
                         remark: remark.isEmpty ? nil : remark
                     )
                 } else {
-                    _ = try await repository.addTransaction(
+                    savedTransaction = try await repository.addTransaction(
                         amount: amount,
                         type: transactionType,
                         category: category,
@@ -142,7 +145,7 @@ extension AddTransactionSheet {
                 }
 
                 HapticManager.success()
-                onSave()
+                onSave(savedTransaction)
                 dismiss()
 
             } catch {
@@ -168,6 +171,8 @@ extension AddTransactionSheet {
         await MainActor.run {
             isSaving = true
         }
+
+        var savedTransaction: Transaction?
 
         do {
             let account: Account
@@ -205,7 +210,7 @@ extension AddTransactionSheet {
                     if let groupId = transaction.installmentGroupId {
                         try await repository.deleteInstallmentGroup(groupId: groupId)
                     }
-                    _ = try await repository.addTransaction(
+                    savedTransaction = try await repository.addTransaction(
                         amount: amount,
                         type: transactionType,
                         category: category,
@@ -245,6 +250,7 @@ extension AddTransactionSheet {
                     updates.date = selectedDate
 
                     try await repository.updateTransaction(transaction, updates: updates)
+                    savedTransaction = transaction
 
                     learnCategoryMappingIfNeeded(
                         transaction: transaction,
@@ -266,7 +272,7 @@ extension AddTransactionSheet {
                     remark: remark.isEmpty ? nil : remark
                 )
             } else {
-                _ = try await repository.addTransaction(
+                savedTransaction = try await repository.addTransaction(
                     amount: amount,
                     type: transactionType,
                     category: category,
@@ -280,7 +286,7 @@ extension AddTransactionSheet {
 
             await MainActor.run {
                 HapticManager.success()
-                onSave()
+                onSave(savedTransaction)
                 dismiss()
             }
 
@@ -302,7 +308,7 @@ extension AddTransactionSheet {
         Task {
             do {
                 try await repository.deleteTransaction(transaction)
-                onSave()
+                onSave(nil)
                 dismiss()
             } catch {
                 logger.error("删除失败：\(error.localizedDescription)")
@@ -344,7 +350,7 @@ extension AddTransactionSheet {
                 )
 
                 HapticManager.success()
-                onSave()
+                onSave(nil)
             } catch {
                 logger.error("复制交易失败: \(error)")
             }

@@ -39,6 +39,11 @@ enum MemoryCandidateSemanticMapper {
             return nil
         }
 
+        guard shouldPromote(semanticType: semanticType, card: card, candidate: candidate, evidenceCount: evidence.count) else {
+            logger.info("候选 \(card.id) 不满足语义晋升边界，跳过")
+            return nil
+        }
+
         // 3. 摘要降级
         let displaySummary = candidate.displaySummary.isEmpty
             ? card.body
@@ -74,7 +79,7 @@ enum MemoryCandidateSemanticMapper {
             evidence: evidence,
             createdAt: Date(),
             updatedAt: Date(),
-            expiresAt: nil,
+            expiresAt: defaultExpiresAt(for: semanticType),
             semanticType: semanticType,
             displaySummary: displaySummary,
             aiUseSummary: aiUseSummary,
@@ -98,6 +103,44 @@ enum MemoryCandidateSemanticMapper {
             return [.coreContext, .goalPlanning, .retrospective]
         case .statMilestone:
             return [.displayOnly, .retrospective]
+        }
+    }
+
+    static func shouldPromote(
+        semanticType: HoloMemorySemanticType,
+        card: MemoryInsightCard,
+        candidate: MemoryCandidatePayload,
+        evidenceCount: Int
+    ) -> Bool {
+        let text = "\(card.title) \(card.body) \(candidate.displaySummary) \(candidate.aiUseSummary)"
+        let mixedMarkers = ["同时", "并且", "以及", "支出偏高", "消费偏高", "任务清零"]
+        let looksMixed = mixedMarkers.filter { text.contains($0) }.count >= 2
+        if looksMixed { return false }
+
+        if card.type == .crossDomain || card.type == .overview || card.type == .anomaly {
+            return false
+        }
+
+        switch semanticType {
+        case .phaseShift:
+            return evidenceCount >= 2 && !isSingleDaySpike(text)
+        case .stablePattern:
+            return evidenceCount >= 3
+        case .driftSignal:
+            return evidenceCount >= 2
+        case .lifeEvent:
+            return evidenceCount >= 1
+        case .statMilestone:
+            return evidenceCount >= 1
+        }
+    }
+
+    static func defaultExpiresAt(for type: HoloMemorySemanticType) -> Date? {
+        switch type {
+        case .driftSignal:
+            return Calendar.current.date(byAdding: .day, value: 30, to: Date())
+        case .phaseShift, .stablePattern, .lifeEvent, .statMilestone:
+            return nil
         }
     }
 
@@ -193,5 +236,10 @@ enum MemoryCandidateSemanticMapper {
             if text.contains(keyword) { return .highImpact }
         }
         return .normal
+    }
+
+    private static func isSingleDaySpike(_ text: String) -> Bool {
+        let spikeWords = ["单日", "今天", "一天", "突增", "偏高", "多花"]
+        return spikeWords.filter { text.contains($0) }.count >= 2
     }
 }

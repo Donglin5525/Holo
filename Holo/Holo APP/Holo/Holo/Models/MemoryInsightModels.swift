@@ -69,6 +69,7 @@ enum AccuracyRating: String, Codable {
 enum ValueRating: String, Codable {
     case useful
     case notUseful
+    case notMeaningful
 }
 
 /// 不准原因分类
@@ -78,6 +79,7 @@ enum FeedbackReasonType: String, Codable, CaseIterable {
     case priorityWrong     // 重点不准
     case suggestionWrong   // 建议不适合
     case toneWrong         // 语气不喜欢
+    case tooFrequent       // 少提醒这个
 
     var displayName: String {
         switch self {
@@ -86,6 +88,7 @@ enum FeedbackReasonType: String, Codable, CaseIterable {
         case .priorityWrong: return "重点不准"
         case .suggestionWrong: return "建议不适合"
         case .toneWrong: return "语气不喜欢"
+        case .tooFrequent: return "少提醒这个"
         }
     }
 }
@@ -252,6 +255,9 @@ struct MemoryInsightContext: Codable, Equatable {
     let lifeEvents: [LifeEvent]?
     let personalBaseline: PersonalBaseline?
     let personalProfileContext: String?
+    let insightPreferenceContext: String?
+    let expressionDecisionContext: String?
+    let lifePatternContext: String?
     /// 健康洞察上下文（Phase 5 新增，可选）
     let health: HealthInsightContext?
 
@@ -274,6 +280,9 @@ struct MemoryInsightContext: Codable, Equatable {
         lifeEvents: [LifeEvent]? = nil,
         personalBaseline: PersonalBaseline? = nil,
         personalProfileContext: String? = nil,
+        insightPreferenceContext: String? = nil,
+        expressionDecisionContext: String? = nil,
+        lifePatternContext: String? = nil,
         health: HealthInsightContext? = nil
     ) {
         self.periodType = periodType
@@ -294,6 +303,9 @@ struct MemoryInsightContext: Codable, Equatable {
         self.lifeEvents = lifeEvents
         self.personalBaseline = personalBaseline
         self.personalProfileContext = personalProfileContext
+        self.insightPreferenceContext = insightPreferenceContext
+        self.expressionDecisionContext = expressionDecisionContext
+        self.lifePatternContext = lifePatternContext
         self.health = health
     }
 }
@@ -301,7 +313,7 @@ struct MemoryInsightContext: Codable, Equatable {
 // MARK: - Cross-Module Types
 
 enum InsightModule: String, Codable {
-    case finance, habit, task, thought
+    case finance, habit, task, thought, health
 }
 
 struct CrossModuleCorrelation: Codable, Equatable {

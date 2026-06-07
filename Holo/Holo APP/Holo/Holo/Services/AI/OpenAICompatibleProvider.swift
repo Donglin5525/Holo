@@ -113,7 +113,11 @@ final class OpenAICompatibleProvider: AIProvider {
 
     func chat(messages: [ChatMessageDTO], userContext: UserContext) async throws -> String {
         let systemPrompt = try PromptManager.shared.loadPrompt(.systemPrompt)
-        let contextMessage = AIUserContextMessageBuilder.build(from: userContext, purpose: .chat)
+        let contextMessage = AIUserContextMessageBuilder.build(
+            from: userContext,
+            purpose: .chat,
+            userText: Self.latestUserText(in: messages)
+        )
 
         var allMessages: [ChatMessageDTO] = [
             .system(systemPrompt),
@@ -168,7 +172,11 @@ final class OpenAICompatibleProvider: AIProvider {
                 allMessages.append(.system(contextOverride))
             } else {
                 // 普通模式：注入用户即时上下文
-                let contextMessage = AIUserContextMessageBuilder.build(from: userContext, purpose: .chat)
+                let contextMessage = AIUserContextMessageBuilder.build(
+                    from: userContext,
+                    purpose: .chat,
+                    userText: Self.latestUserText(in: messages)
+                )
                 allMessages.append(.system(contextMessage))
             }
 
@@ -195,6 +203,10 @@ final class OpenAICompatibleProvider: AIProvider {
     }
 
     // MARK: - Private Helpers
+
+    private static func latestUserText(in messages: [ChatMessageDTO]) -> String? {
+        messages.last(where: { $0.role == "user" })?.content
+    }
 
     private func buildRequest(messages: [ChatMessageDTO], stream: Bool = false, temperature: Double? = nil, responseFormat: ResponseFormat? = nil) -> APIRequest {
         APIRequest(
