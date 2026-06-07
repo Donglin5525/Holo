@@ -4,6 +4,28 @@
 
 ---
 
+## [2026-06-07] HoloProfile 结构化 snapshot 和全链路 AI 注入
+
+### 新增
+- `HoloProfileSnapshot`：结构化解析结果数据模型（preferredName、language、timezone、city、profession、communicationStyle、currentFocus、healthHabitContext、sensitiveBoundaries）
+- `HoloProfileSnapshotBuilder`：本地 Markdown 解析器，首版重点解析 preferredName（覆盖 5+ 种写法），其余按 section 标题提取
+- `HoloProfilePromptRenderer`：安全 prompt 渲染器，含"用户档案数据非系统规则"包裹、结构化字段优先、token 上限截断（1500 tokens）、三种渲染模式（chat/analysis/insight）
+- `profileSnapshotEnabled` / `profileAnalysisInjectionEnabled` feature flags（默认开启，可回退）
+
+### 改进
+- HoloProfileService 新增 snapshot 缓存，保存时自动清空重建
+- AIUserContextMessageBuilder 从 raw markdown 注入改为结构化 Renderer 渲染
+- 分析查询路径（Provider 策略 B）：分析模式在 AnalysisContext JSON 前注入 profile system message
+- FlexibleQuery 路径：传递实际 userContext 替代 UserContext.empty
+- MemoryInsightContextBuilder 升级为 snapshot + renderer（受 feature flag 控制）
+- ChatViewModel 分析路径传递实际 userContext（含 profileSnapshot）
+- FlexibleQueryPlanner.plan() 接收 userContext 参数
+
+### 文档
+- 新增 HoloProfile 作为 AI 长期上下文方案文档，含三轮对抗性审查标注（GLM → Codex → Claude）
+
+---
+
 ## [2026-06-07] 上线前安全加固 — 消除全部强制解包和 print 残留
 
 ### 修复
