@@ -4,6 +4,23 @@
 
 ---
 
+## [2026-06-07] App Store 上架预检修复
+
+### 新增
+- 隐私政策页面（完整 HTML，本地离线可用，自动适配深色模式）
+- 用户协议页面（完整 HTML，本地离线可用，自动适配深色模式）
+- 法律文档查看器 LegalDocumentSheet（WKWebView 渲染）
+- 设置页新增「法律与隐私」section，可直接查看隐私政策和用户协议
+
+### 修复
+- 后端错误消息中文化（errors.js 补全 6 个缺失的 publicMessage）
+- 后端 SSE 流式错误事件包含用户友好的中文消息
+- iOS APIClient 优先解析后端返回的中文错误消息
+- iOS APIError 枚举描述改为用户友好的中文文案
+- ImportExportView「加载测试数据」用 #if DEBUG 包裹，Release 不可见
+
+---
+
 ## [2026-06-07] 记忆管理类型化重构
 
 ### 新增

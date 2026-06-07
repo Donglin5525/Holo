@@ -33,6 +33,8 @@ struct SettingsView: View {
     @State private var showAISettings = false
     @State private var showVoiceRecognitionSettings = false
     @State private var showHoloOneSettings = false
+    @State private var showPrivacyPolicy = false
+    @State private var showTermsOfUse = false
     @State private var showProfileEditor = false
     @State private var showHealthKitDiagnostics = false
     @State private var showSignOutConfirmation = false
@@ -64,6 +66,9 @@ struct SettingsView: View {
 
                     // 存储与缓存
                     storageSection
+
+                    // 法律与隐私
+                    legalSection
 
                     // 账号与数据
                     accountDataSection
@@ -843,6 +848,47 @@ struct SettingsView: View {
             }
         } message: {
             Text("将清理 AI 诊断日志和过期数据，你的对话、记忆和其他数据不会受影响。")
+        }
+    }
+
+    // MARK: - 法律与隐私
+
+    private var legalSection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            HStack(spacing: HoloSpacing.sm) {
+                Image(systemName: "hand.raised.fill")
+                    .font(.system(size: 18))
+                    .foregroundColor(.holoPrimary)
+
+                Text("法律与隐私")
+                    .font(.holoBody)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoTextPrimary)
+            }
+
+            settingsRow(
+                icon: "shield.checkered",
+                iconColor: .holoPrimary,
+                title: "隐私政策",
+                subtitle: "了解我们如何保护你的数据"
+            ) {
+                showPrivacyPolicy = true
+            }
+            .sheet(isPresented: $showPrivacyPolicy) {
+                LegalDocumentSheet(documentType: .privacyPolicy)
+            }
+
+            settingsRow(
+                icon: "doc.text",
+                iconColor: .holoInfo,
+                title: "用户协议",
+                subtitle: "服务条款与使用规范"
+            ) {
+                showTermsOfUse = true
+            }
+            .sheet(isPresented: $showTermsOfUse) {
+                LegalDocumentSheet(documentType: .termsOfUse)
+            }
         }
     }
 

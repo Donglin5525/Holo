@@ -75,18 +75,20 @@ struct ImportExportView: View {
                 downloadTemplate()
             }
 
-            // 调试：从沙箱 Documents 加载 CSV
+            #if DEBUG
+            // 开发环境：从沙箱 Documents 加载 CSV
             if let docURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first,
                FileManager.default.fileExists(atPath: docURL.appendingPathComponent("holo_import.csv").path) {
                 settingsRow(
                     icon: "flask",
                     iconColor: .orange,
                     title: "加载测试数据",
-                    subtitle: "从 Documents/holo_import.csv 导入（调试）"
+                    subtitle: "从 Documents/holo_import.csv 导入"
                 ) {
                     loadFromSandbox()
                 }
             }
+            #endif
         }
         .padding(.horizontal, HoloSpacing.lg)
         // 导出选项 Sheet
