@@ -32,18 +32,34 @@ function normalizeError(error) {
   return new GatewayError("INTERNAL_ERROR", "Internal server error", 500);
 }
 
-function publicMessage(code) {
+export function publicMessage(code) {
   const messages = {
+    // 鉴权 & 安全
     APP_ATTEST_REQUIRED: "安全校验失败，请更新 App 或稍后重试",
-    AUDIO_TOO_LARGE: "语音文件过大，请缩短录音后重试",
+    UPSTREAM_AUTH_FAILED: "模型服务暂时不可用，请稍后重试",
+
+    // 请求参数
     INVALID_CLIENT_ROUTING: "请求参数无效",
     INVALID_JSON: "请求格式无效",
     INVALID_REQUEST: "请求参数无效",
-    MODEL_UNAVAILABLE: "模型服务暂时不可用，请稍后重试",
-    RATE_LIMITED: "今天的 AI 使用次数已达上限，稍后再试",
+    INVALID_CHAT_REQUEST: "请求参数无效",
+    PROMPT_NOT_FOUND: "请求的功能暂不可用",
     UNKNOWN_PURPOSE: "请求的 AI 功能暂不可用",
-    UPSTREAM_AUTH_FAILED: "模型服务鉴权失败，请稍后重试",
+
+    // 频率限制
+    RATE_LIMITED: "今天的 AI 使用次数已达上限，稍后再试",
+
+    // 语音相关
+    AUDIO_TOO_LARGE: "语音文件过大，请缩短录音后重试",
+    EMPTY_TRANSCRIPT: "未能识别语音内容，请再试一次",
+
+    // 上游服务
+    MODEL_UNAVAILABLE: "模型服务暂时不可用，请稍后重试",
     UPSTREAM_TIMEOUT: "模型响应超时，请稍后重试",
+    UPSTREAM_ERROR: "模型服务暂时不可用，请稍后重试",
+
+    // 兜底
+    INTERNAL_ERROR: "服务暂时不可用，请稍后重试",
   };
 
   return messages[code] ?? "服务暂时不可用，请稍后重试";

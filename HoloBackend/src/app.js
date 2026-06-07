@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { randomBytes } from "node:crypto";
 
-import { createErrorResponse, GatewayError } from "./errors.js";
+import { createErrorResponse, GatewayError, publicMessage } from "./errors.js";
 import { createInMemoryUsageStore } from "./usage/inMemoryUsageStore.js";
 import { createSqliteUsageStore } from "./usage/sqliteUsageStore.js";
 import { createMockChatProvider } from "./providers/mockChatProvider.js";
@@ -439,7 +439,7 @@ function streamChat(context, provider, request, options = {}) {
         controller.close();
       } catch (error) {
         const code = error instanceof GatewayError ? error.code : "UPSTREAM_ERROR";
-        controller.enqueue(encoder.encode(`event: error\ndata: ${JSON.stringify({ code })}\n\n`));
+        controller.enqueue(encoder.encode(`event: error\ndata: ${JSON.stringify({ code, message: publicMessage(code) })}\n\n`));
         options.logStore?.finishAiCall(options.logId, {
           status: "error",
           response: capturedText ? { text: capturedText } : null,

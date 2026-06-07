@@ -143,25 +143,42 @@ nonisolated final class APIClient {
 
     // MARK: - HTTP 响应验证
 
+    /// 后端错误响应结构
+    private struct BackendErrorResponse: Decodable {
+        let error: ErrorPayload
+        struct ErrorPayload: Decodable {
+            let code: String?
+            let message: String?
+        }
+    }
+
+    /// 从响应体中提取后端返回的用户友好消息
+    private func extractBackendMessage(from data: Data?) -> String? {
+        guard let data else { return nil }
+        guard let payload = try? JSONDecoder().decode(BackendErrorResponse.self, from: data) else { return nil }
+        return payload.error.message
+    }
+
     private func validateHTTPResponse(_ response: URLResponse?, data: Data?) throws {
         guard let httpResponse = response as? HTTPURLResponse else {
             throw APIError.networkUnavailable
         }
 
+        let backendMessage = extractBackendMessage(from: data)
+
         switch httpResponse.statusCode {
         case 200...299:
             return
         case 429:
-            throw APIError.rateLimited
+            throw APIError.rateLimited(backendMessage)
         case 401:
-            throw APIError.httpError(statusCode: httpResponse.statusCode, message: "API Key 无效或已过期")
+            throw APIError.httpError(statusCode: httpResponse.statusCode, message: backendMessage ?? "安全校验失败，请重试")
         case 400...499:
-            let message = data.flatMap { String(data: $0, encoding: .utf8) } ?? "客户端错误"
-            throw APIError.httpError(statusCode: httpResponse.statusCode, message: message)
+            throw APIError.httpError(statusCode: httpResponse.statusCode, message: backendMessage ?? "请求参数无效")
         case 500...599:
-            throw APIError.serverError("服务器内部错误（\(httpResponse.statusCode)）")
+            throw APIError.serverError(backendMessage ?? "服务暂时不可用，请稍后重试")
         default:
-            throw APIError.httpError(statusCode: httpResponse.statusCode, message: "未知 HTTP 错误")
+            throw APIError.httpError(statusCode: httpResponse.statusCode, message: backendMessage ?? "请求失败，请稍后重试")
         }
     }
 }
