@@ -131,7 +131,17 @@ struct MemoryInsightContextBuilder {
     private func buildPersonalProfileContext() async -> String? {
         await MainActor.run {
             let profile = HoloProfileService.shared.loadProfile()
-            return profile.isEmpty ? nil : profile
+            if profile.isEmpty { return nil }
+
+            // 优先使用结构化 snapshot + renderer（受 feature flag 控制）
+            if let snapshot = HoloProfileService.shared.loadSnapshot() {
+                let rendered = HoloProfilePromptRenderer.render(snapshot, purpose: .insight)
+                return rendered.isEmpty ? profile : rendered
+            }
+
+            // Feature flag 关闭时使用安全 fallback
+            let fallback = HoloProfilePromptRenderer.renderRawFallback(profile)
+            return fallback.isEmpty ? profile : fallback
         }
     }
 

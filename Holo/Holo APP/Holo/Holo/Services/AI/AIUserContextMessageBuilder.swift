@@ -54,7 +54,20 @@ enum AIUserContextMessageBuilder {
         }
 
         if let profile = context.profileContext, !profile.isEmpty {
-            message += "\n\n--- 用户档案 ---\n\(profile)"
+            // 优先使用结构化 snapshot + renderer（受 feature flag 控制）
+            if let snapshot = context.profileSnapshot,
+               HoloAIFeatureFlags.profileSnapshotEnabled {
+                let rendered = HoloProfilePromptRenderer.render(snapshot, purpose: purpose == .chat ? .chat : .chat)
+                if !rendered.isEmpty {
+                    message += "\n\n\(rendered)"
+                }
+            } else {
+                // Feature flag 关闭时回退到 raw markdown
+                let fallback = HoloProfilePromptRenderer.renderRawFallback(profile)
+                if !fallback.isEmpty {
+                    message += "\n\n\(fallback)"
+                }
+            }
         }
 
         if let trend = context.recentTrend {

@@ -26,6 +26,8 @@ final class HoloProfileService: ObservableObject {
 
     @Published private(set) var profileContent: String = ""
     @Published private(set) var isLoaded: Bool = false
+    /// 结构化解析缓存，profileDidChange 时清空
+    @Published private(set) var currentSnapshot: HoloProfileSnapshot?
 
     var hasProfile: Bool { !profileContent.isEmpty }
 
@@ -92,6 +94,8 @@ final class HoloProfileService: ObservableObject {
             let content = try String(contentsOf: fileURL, encoding: .utf8)
             profileContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
             isLoaded = true
+            // 同步构建 snapshot 缓存
+            rebuildSnapshotIfNeeded()
             return profileContent
         } catch {
             // 文件不存在是正常情况（首次使用），不报错
@@ -100,8 +104,28 @@ final class HoloProfileService: ObservableObject {
             }
             profileContent = ""
             isLoaded = true
+            currentSnapshot = .empty()
             return ""
         }
+    }
+
+    /// 加载结构化 snapshot，带缓存
+    ///
+    /// 受 `profileSnapshotEnabled` feature flag 控制。
+    /// 关闭时返回 nil，回退到 raw markdown 注入。
+    func loadSnapshot() -> HoloProfileSnapshot? {
+        guard HoloAIFeatureFlags.profileSnapshotEnabled else {
+            return nil
+        }
+        // 确保 profile 已加载
+        let _ = loadProfile()
+        return currentSnapshot
+    }
+
+    /// 重新构建 snapshot（仅当缓存为空时）
+    private func rebuildSnapshotIfNeeded() {
+        guard currentSnapshot == nil else { return }
+        currentSnapshot = HoloProfileSnapshotBuilder.build(from: profileContent)
     }
 
     // MARK: - Save
@@ -128,6 +152,9 @@ final class HoloProfileService: ObservableObject {
         try data.write(to: fileURL, options: .atomic)
         profileContent = trimmed
         isLoaded = true
+
+        // 保存后清空 snapshot 缓存，下次 loadSnapshot() 时重建
+        currentSnapshot = nil
 
         NotificationCenter.default.post(name: .profileDidChange, object: nil)
         logger.info("个人档案已保存 (\(data.count) bytes)")

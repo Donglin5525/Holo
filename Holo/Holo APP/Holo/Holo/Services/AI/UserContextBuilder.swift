@@ -27,6 +27,9 @@ final class UserContextBuilder {
 
         let profileContext = HoloProfileService.shared.loadProfile()
 
+        // 结构化 profile snapshot（受 feature flag 控制）
+        let profileSnapshot = HoloProfileService.shared.loadSnapshot()
+
         let transactions = await buildTransactionSummary()
         let habits = buildHabitSummary(profileContext: profileContext)
         let tasks = buildTaskSummary()
@@ -52,6 +55,7 @@ final class UserContextBuilder {
                 thoughts: thoughts,
                 accounts: accounts,
                 profileContext: profileContext.isEmpty ? nil : profileContext,
+                profileSnapshot: profileSnapshot,
                 recentTrend: recentTrend,
                 goalContext: goalContext,
                 dataCoverage: nil,
@@ -67,6 +71,7 @@ final class UserContextBuilder {
             thoughts: thoughts,
             accounts: accounts,
             profileContext: profileContext.isEmpty ? nil : profileContext,
+            profileSnapshot: profileSnapshot,
             recentTrend: recentTrend,
             goalContext: goalContext,
             dataCoverage: coverage,

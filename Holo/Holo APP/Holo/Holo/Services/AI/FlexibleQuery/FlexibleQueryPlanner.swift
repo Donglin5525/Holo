@@ -20,11 +20,11 @@ final class FlexibleQueryPlanner {
     }
 
     /// 两段式规划：用独立 prompt 让 LLM 输出结构化 Query Plan
-    func plan(userQuestion: String, extractedData: [String: String]?) async throws -> FlexiblePlannerResult {
+    func plan(userQuestion: String, extractedData: [String: String]?, userContext: UserContext) async throws -> FlexiblePlannerResult {
         let prompt = try buildPlannerPrompt(userQuestion: userQuestion, extractedData: extractedData)
 
         // 使用非流式 chat completion 获取 JSON plan
-        let plannerJSON = try await requestPlannerCompletion(prompt: prompt)
+        let plannerJSON = try await requestPlannerCompletion(prompt: prompt, userContext: userContext)
 
         // 解码 Planner 输出
         let result = try decodePlannerOutput(plannerJSON)
@@ -62,11 +62,10 @@ final class FlexibleQueryPlanner {
 
     // MARK: - LLM Completion
 
-    private func requestPlannerCompletion(prompt: String) async throws -> String {
+    private func requestPlannerCompletion(prompt: String, userContext: UserContext) async throws -> String {
         let messages: [ChatMessageDTO] = [
             ChatMessageDTO(role: "user", content: prompt)
         ]
-        let userContext = UserContext.empty
 
         return try await provider.chat(messages: messages, userContext: userContext)
     }

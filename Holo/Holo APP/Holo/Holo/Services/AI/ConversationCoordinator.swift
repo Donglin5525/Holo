@@ -126,6 +126,7 @@ final class ConversationCoordinator {
             return await handleFlexibleQuery(
                 text: text,
                 extractedData: parseBatch.first?.extractedData,
+                userContext: userContext,
                 provider: provider,
                 parseBatch: parseBatch,
                 intentLog: intentLog
@@ -450,13 +451,14 @@ final class ConversationCoordinator {
     private func handleFlexibleQuery(
         text: String,
         extractedData: [String: String]?,
+        userContext: UserContext,
         provider: AIProvider,
         parseBatch: AIParseBatch,
         intentLog: LLMCallLog?
     ) async -> ConversationProcessResult {
         do {
             let plannerResult = try await FlexibleQueryPlanner(provider: provider)
-                .plan(userQuestion: text, extractedData: extractedData)
+                .plan(userQuestion: text, extractedData: extractedData, userContext: userContext)
 
             switch plannerResult.status {
             case .needsClarification:

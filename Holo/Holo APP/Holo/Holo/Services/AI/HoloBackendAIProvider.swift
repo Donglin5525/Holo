@@ -171,6 +171,15 @@ final class HoloBackendAIProvider: AIProvider {
                 var allMessages: [ChatMessageDTO] = [.system(systemPrompt)]
 
                 if let systemContextOverride {
+                    // 分析模式：先注入 profile（如开启），再注入分析 context JSON
+                    if HoloAIFeatureFlags.profileAnalysisInjectionEnabled,
+                       let snapshot = userContext.profileSnapshot,
+                       !snapshot.isEmpty {
+                        let profilePrompt = HoloProfilePromptRenderer.render(snapshot, purpose: .analysis)
+                        if !profilePrompt.isEmpty {
+                            allMessages.append(.system(profilePrompt))
+                        }
+                    }
                     allMessages.append(.system(systemContextOverride))
                 } else {
                     allMessages.append(.system(AIUserContextMessageBuilder.build(from: userContext, purpose: .chat)))

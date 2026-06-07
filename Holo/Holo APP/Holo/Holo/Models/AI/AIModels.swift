@@ -421,6 +421,8 @@ struct UserContext {
     let thoughts: ThoughtSummary
     let accounts: AccountSummary
     let profileContext: String?
+    /// 结构化 profile snapshot（由 HoloProfileSnapshotBuilder 解析）
+    let profileSnapshot: HoloProfileSnapshot?
     let recentTrend: UserRecentTrend?
     let goalContext: String?
     var dataCoverage: HoloMemoryDataCoverage?
@@ -435,6 +437,7 @@ struct UserContext {
         thoughts: ThoughtSummary(recentThoughts: [], totalThoughts: 0),
         accounts: AccountSummary(accountList: "", defaultAccountName: ""),
         profileContext: nil,
+        profileSnapshot: nil,
         recentTrend: nil,
         goalContext: nil,
         dataCoverage: nil,

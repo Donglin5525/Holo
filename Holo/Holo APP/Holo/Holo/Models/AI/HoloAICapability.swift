@@ -39,6 +39,10 @@ final class HoloMemorySettings: ObservableObject {
         static let semanticMemoryTypesEnabled = "holo_memory_semanticTypesEnabled"
         static let semanticMemoryPromptEnabled = "holo_memory_semanticPromptEnabled"
         static let semanticMemoryRecallEnabled = "holo_memory_semanticRecallEnabled"
+
+        // Profile Snapshot Feature Flags
+        static let profileSnapshotEnabled = "holo_profile_snapshotEnabled"
+        static let profileAnalysisInjectionEnabled = "holo_profile_analysisInjectionEnabled"
     }
 
     @Published var longTermMemoryEnabled: Bool {
@@ -73,6 +77,18 @@ final class HoloMemorySettings: ObservableObject {
         didSet { defaults.set(semanticMemoryRecallEnabled, forKey: Keys.semanticMemoryRecallEnabled) }
     }
 
+    // MARK: - Profile Snapshot Feature Flags
+
+    /// 控制是否使用结构化 snapshot + renderer（关闭回退到 raw markdown 注入）
+    @Published var profileSnapshotEnabled: Bool {
+        didSet { defaults.set(profileSnapshotEnabled, forKey: Keys.profileSnapshotEnabled) }
+    }
+
+    /// 控制分析查询 / FlexibleQuery 路径是否注入 profile（关闭保持现有分析行为）
+    @Published var profileAnalysisInjectionEnabled: Bool {
+        didSet { defaults.set(profileAnalysisInjectionEnabled, forKey: Keys.profileAnalysisInjectionEnabled) }
+    }
+
     private init() {
         self.longTermMemoryEnabled = defaults.object(forKey: Keys.longTermMemoryEnabled) as? Bool ?? false
         self.memoryInsightExtractionEnabled = defaults.object(forKey: Keys.memoryInsightExtractionEnabled) as? Bool ?? false
@@ -81,6 +97,10 @@ final class HoloMemorySettings: ObservableObject {
         self.semanticMemoryTypesEnabled = defaults.object(forKey: Keys.semanticMemoryTypesEnabled) as? Bool ?? false
         self.semanticMemoryPromptEnabled = defaults.object(forKey: Keys.semanticMemoryPromptEnabled) as? Bool ?? false
         self.semanticMemoryRecallEnabled = defaults.object(forKey: Keys.semanticMemoryRecallEnabled) as? Bool ?? false
+
+        // Profile Snapshot 默认启用（核心功能升级，非实验性）
+        self.profileSnapshotEnabled = defaults.object(forKey: Keys.profileSnapshotEnabled) as? Bool ?? true
+        self.profileAnalysisInjectionEnabled = defaults.object(forKey: Keys.profileAnalysisInjectionEnabled) as? Bool ?? true
     }
 }
 
@@ -108,5 +128,17 @@ enum HoloAIFeatureFlags {
     /// 控制新格式召回（useScopes + prohibitedInferences）
     static var semanticMemoryRecallEnabled: Bool {
         HoloMemorySettings.shared.semanticMemoryRecallEnabled
+    }
+
+    // MARK: - Profile Snapshot Feature Flags
+
+    /// 控制是否使用结构化 snapshot + renderer；关闭回退到 raw markdown 注入
+    static var profileSnapshotEnabled: Bool {
+        HoloMemorySettings.shared.profileSnapshotEnabled
+    }
+
+    /// 控制分析查询 / FlexibleQuery 路径是否注入 profile
+    static var profileAnalysisInjectionEnabled: Bool {
+        HoloMemorySettings.shared.profileAnalysisInjectionEnabled
     }
 }

@@ -279,9 +279,11 @@ final class ChatViewModel: ObservableObject {
                         // 分析查询路径：零历史消息，独立 system context
                         let contextJSON = Self.encodeAnalysisContext(analysisContext)
 
+                        // 传递实际 userContext（含 profileSnapshot）而非 empty
+                        // Provider 内部会从 userContext.profileSnapshot 读取 profile 注入
                         let stream = self.provider.chatStreaming(
                             messages: [],
-                            userContext: UserContext.empty,
+                            userContext: userContext,
                             systemContextOverride: contextJSON,
                             promptType: .analysisPrompt
                         )

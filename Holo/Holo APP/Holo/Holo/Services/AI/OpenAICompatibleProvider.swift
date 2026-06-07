@@ -155,6 +155,16 @@ final class OpenAICompatibleProvider: AIProvider {
 
             // 分析模式：注入 context JSON 作为第二条 system message
             if let contextOverride = systemContextOverride {
+                // 分析模式：先注入 profile（如开启），再注入分析 context JSON
+                // Profile 放前面是因为稳定长期上下文权重应高于临时分析数据
+                if HoloAIFeatureFlags.profileAnalysisInjectionEnabled,
+                   let snapshot = userContext.profileSnapshot,
+                   !snapshot.isEmpty {
+                    let profilePrompt = HoloProfilePromptRenderer.render(snapshot, purpose: .analysis)
+                    if !profilePrompt.isEmpty {
+                        allMessages.append(.system(profilePrompt))
+                    }
+                }
                 allMessages.append(.system(contextOverride))
             } else {
                 // 普通模式：注入用户即时上下文
