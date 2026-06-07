@@ -4,6 +4,30 @@
 
 ---
 
+## [2026-06-08] HoloAI 多层路由 Prompt 瘦身
+
+### 优化
+- `intent_recognition` prompt 从 11007 字符精简至 2347（降幅 78.7%），降低 token 消耗和路由噪音
+- 去掉全字段 JSON schema、科目归一规则、坏习惯语义规则等下沉内容，Router 只做意图分流和基础字段抽取
+- 保留 `flexible_data_query`/`query_analysis` 分流规则和 `subtasks`/`description`/`reminderDate` 最小规则
+
+### 后端
+- 新增 9 个 golden test，覆盖 11 个核心意图用例（record_expense/income/create_task/check_in/flexible_data_query/query_analysis/query）
+- Mock provider 扩展支持全部 golden test 用例
+- `promptRegistry.js` 版本 15→17，`defaultPrompts.json` 同步更新
+- 线上已部署验证：version=17, contentLength=2347, source=default_sync
+
+### iOS
+- `PromptManager` fallback prompt 同步精简，版本 14→17
+- 时间映射对齐后端（早上/上午=09:00）
+- `ConversationCoordinator` parser 合并改为显式 `Set<String>` 白名单，防止 parser 字段覆盖基础字段
+- 新增 `#if DEBUG` 探针日志（只记录 key set，不记录 value）
+
+### 方案文档
+- `docs/_common/plans/2026-06-07-HoloAI多层路由Prompt瘦身方案.md`（经三轮审查定稿）
+
+---
+
 ## [2026-06-07] HoloAI 负向习惯分析口径修正
 
 ### 修复
