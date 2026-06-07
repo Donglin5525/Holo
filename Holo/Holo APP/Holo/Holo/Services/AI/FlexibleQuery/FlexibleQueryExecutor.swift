@@ -71,7 +71,7 @@ final class FlexibleQueryExecutor {
         plan: FlexibleQueryPlan,
         context: NSManagedObjectContext
     ) throws -> [FlexibleTransactionDTO] {
-        let request: NSFetchRequest<Transaction> = Transaction.fetchRequest() as! NSFetchRequest<Transaction>
+        let request: NSFetchRequest<Transaction> = Transaction.fetchRequest() as? NSFetchRequest<Transaction> ?? NSFetchRequest<Transaction>(entityName: "Transaction")
 
         // 粗筛 predicate：type + date + amount
         var predicates: [NSPredicate] = []
@@ -155,7 +155,7 @@ final class FlexibleQueryExecutor {
     // MARK: - Category Cache
 
     private static func buildCategoryCache(context: NSManagedObjectContext) -> [UUID: String] {
-        let request: NSFetchRequest<Category> = Category.fetchRequest() as! NSFetchRequest<Category>
+        let request: NSFetchRequest<Category> = Category.fetchRequest() as? NSFetchRequest<Category> ?? NSFetchRequest<Category>(entityName: "Category")
         guard let categories = try? context.fetch(request) else { return [:] }
         var cache: [UUID: String] = [:]
         for cat in categories {
@@ -341,9 +341,9 @@ final class FlexibleQueryExecutor {
         case .daysBetweenTransactions:
             guard evidences.count >= 2 else { return nil }
             let sorted = evidences.sorted { $0.date < $1.date }
-            let first = sorted.first!.date
-            let last = sorted.last!.date
-            let days = Calendar.current.dateComponents([.day], from: first.startOfDay, to: last.startOfDay).day ?? 0
+            guard let firstDate = sorted.first?.date,
+                  let lastDate = sorted.last?.date else { return nil }
+            let days = Calendar.current.dateComponents([.day], from: firstDate.startOfDay, to: lastDate.startOfDay).day ?? 0
             return FlexibleCalculationResult(
                 type: .daysBetweenTransactions,
                 valueText: "间隔 \(days) 天",

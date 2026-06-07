@@ -15,6 +15,8 @@ import OSLog
 /// 想法列表视图
 struct ThoughtListView: View {
 
+    private let logger = Logger(subsystem: "com.holo.app", category: "ThoughtListView")
+
     // MARK: - Properties
 
     let onBack: () -> Void
@@ -118,7 +120,7 @@ struct ThoughtListView: View {
             thoughts = try thoughtRepository.fetchAll()
             currentFilters = nil
         } catch {
-            print("[ThoughtListView] 加载想法失败：\(error)")
+            logger.error("加载想法失败：\(error)")
             thoughts = []
         }
     }
@@ -157,7 +159,7 @@ struct ThoughtListView: View {
                 thoughts = allThoughts
             }
         } catch {
-            print("[ThoughtListView] 加载想法失败：\(error)")
+            logger.error("加载想法失败：\(error)")
             thoughts = []
         }
     }
@@ -166,7 +168,7 @@ struct ThoughtListView: View {
         do {
             allTags = try thoughtRepository.getAllTags()
         } catch {
-            print("[ThoughtListView] 加载标签失败：\(error)")
+            logger.error("加载标签失败：\(error)")
             allTags = []
         }
     }

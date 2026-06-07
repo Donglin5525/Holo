@@ -240,7 +240,7 @@ struct CategoryPicker: View {
             categories = try await FinanceRepository.shared.getAllCategories()
             await loadRecentCategories()
         } catch {
-            print("加载分类失败：\(error.localizedDescription)")
+            // 加载分类失败，静默处理
         }
     }
     

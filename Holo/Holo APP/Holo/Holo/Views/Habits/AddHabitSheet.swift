@@ -7,10 +7,13 @@
 //
 
 import SwiftUI
+import os.log
 
 /// 新增习惯表单
 struct AddHabitSheet: View {
-    
+
+    private let logger = Logger(subsystem: "com.holo.app", category: "AddHabitSheet")
+
     // MARK: - Properties
     
     @Environment(\.dismiss) var dismiss
@@ -474,7 +477,7 @@ struct AddHabitSheet: View {
 
             HapticManager.success()
         } catch {
-            print("[AddHabitSheet] 保存失败: \(error)")
+            logger.error("保存失败: \(error)")
             isSaving = false
         }
     }

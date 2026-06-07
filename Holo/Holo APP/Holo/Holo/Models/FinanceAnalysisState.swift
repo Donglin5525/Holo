@@ -8,12 +8,15 @@
 
 import SwiftUI
 import Combine
+import os.log
 
 // MARK: - FinanceAnalysisState
 
 /// 财务分析模块状态管理器
 @MainActor
 class FinanceAnalysisState: ObservableObject {
+
+    private let logger = Logger(subsystem: "com.holo.app", category: "FinanceAnalysisState")
 
     // MARK: - 发布属性
 
@@ -166,7 +169,7 @@ class FinanceAnalysisState: ObservableObject {
             drillDownAggregations = []
 
         } catch {
-            print("[FinanceAnalysisState] 加载数据失败: \(error)")
+            logger.error("加载数据失败: \(error)")
         }
 
         isLoading = false
@@ -193,7 +196,7 @@ class FinanceAnalysisState: ObservableObject {
                     to: end
                 )
             } catch {
-                print("[FinanceAnalysisState] 下钻加载失败: \(error)")
+                    logger.error("下钻加载失败: \(error)")
                 drillDownAggregations = []
             }
         }

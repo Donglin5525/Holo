@@ -546,7 +546,7 @@ extension HabitRepository {
             ))
         }
 
-        let daysInMonth = calendar.dateComponents([.day], from: monthStart, to: monthEnd).day! + 1
+        let daysInMonth = (calendar.dateComponents([.day], from: monthStart, to: monthEnd).day ?? 0) + 1
         for dayOffset in 0..<daysInMonth {
             guard let date = calendar.date(byAdding: .day, value: dayOffset, to: monthStart) else { continue }
             let dayStart = calendar.startOfDay(for: date)
@@ -621,7 +621,7 @@ extension HabitRepository {
             ))
         }
 
-        let daysInMonth = calendar.dateComponents([.day], from: monthStart, to: monthEnd).day! + 1
+        let daysInMonth = (calendar.dateComponents([.day], from: monthStart, to: monthEnd).day ?? 0) + 1
         for dayOffset in 0..<daysInMonth {
             guard let date = calendar.date(byAdding: .day, value: dayOffset, to: monthStart) else { continue }
             let dayStart = calendar.startOfDay(for: date)
@@ -701,7 +701,7 @@ extension HabitRepository {
 
         // 坏习惯：统计控制住的天数
         if habit.isBadHabit {
-            let daysInMonth = calendar.dateComponents([.day], from: monthStart, to: monthEnd).day! + 1
+            let daysInMonth = (calendar.dateComponents([.day], from: monthStart, to: monthEnd).day ?? 0) + 1
 
             if habit.isCheckInType {
                 // 打卡型：未打卡天数 = 控制住

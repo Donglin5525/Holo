@@ -93,7 +93,7 @@ struct QuickTemplateView: View {
         do {
             categories = try await repository.getAllCategories()
         } catch {
-            print("加载分类失败：\(error.localizedDescription)")
+            // 加载分类失败，静默处理
         }
     }
     
@@ -165,6 +165,5 @@ struct QuickTemplateButton: View {
 
 #Preview {
     QuickTemplateView(selectedAccount: .constant(nil)) { _, _, _ in
-        print("Quick add")
     }
 }

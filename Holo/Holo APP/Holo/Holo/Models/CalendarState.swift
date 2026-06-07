@@ -9,6 +9,7 @@
 import SwiftUI
 import Combine
 import CoreData
+import os.log
 
 // MARK: - 展开状态枚举
 
@@ -23,7 +24,9 @@ enum CalendarExpandState {
 /// 日历组件统一状态管理器（所有视图共享同一实例）
 @MainActor
 class CalendarState: ObservableObject {
-    
+
+    private let logger = Logger(subsystem: "com.holo.app", category: "CalendarState")
+
     // MARK: - 对外发布属性
     
     /// 当前选中日期
@@ -164,7 +167,7 @@ class CalendarState: ObservableObject {
                 loadMonthlySummary()
             }
         } catch {
-            print("[CalendarState] 加载月汇总失败: \(error)")
+            logger.error("加载月汇总失败: \(error)")
         }
     }
     
@@ -179,7 +182,7 @@ class CalendarState: ObservableObject {
             selectedDayIncome = txns.filter { $0.transactionType == .income }
                 .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
         } catch {
-            print("[CalendarState] 加载日交易失败: \(error)")
+            logger.error("加载日交易失败: \(error)")
         }
     }
 

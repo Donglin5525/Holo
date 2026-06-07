@@ -30,7 +30,8 @@ final class MemoryInsightBackgroundService {
             using: nil
         ) { task in
             Task { @MainActor in
-                await self.handleBackgroundTask(task as! BGAppRefreshTask)
+                guard let bgTask = task as? BGAppRefreshTask else { return }
+                await self.handleBackgroundTask(bgTask)
             }
         }
     }

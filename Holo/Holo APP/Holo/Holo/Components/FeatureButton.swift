@@ -153,11 +153,9 @@ extension FeatureButtonConfig {
         
         HStack(spacing: 40) {
             FeatureButton(config: .task) {
-                print("Task tapped")
             }
             
             FeatureButton(config: .finance) {
-                print("Finance tapped")
             }
         }
     }

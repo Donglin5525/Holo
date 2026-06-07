@@ -85,19 +85,42 @@ struct DocumentNode: MarkdownNode {
 // MARK: - 正则缓存
 
 /// 预编译正则表达式缓存，避免重复编译
+/// 使用 lazy static let + try? 安全初始化，回退到永不匹配的占位正则
 private enum RegexCache {
-    static let unorderedList = try! NSRegularExpression(pattern: "^[\\-\\*\u{2022}] (.+)$")
-    static let orderedList = try! NSRegularExpression(pattern: "^(\\d+)\\. (.+)$")
-    static let inlineTag = try! NSRegularExpression(pattern: "#[\\p{L}][\\p{L}\\p{N}_]*")
-    static let colorOpen = try! NSRegularExpression(pattern: "\\{color:(#[0-9A-Fa-f]{3,8}|[0-9A-Fa-f]{3,8})\\}")
-    static let colorClose = try! NSRegularExpression(pattern: "\\{/color\\}")
 
-    // stripFormatting 专用
-    static let colorOpenStrip = try! NSRegularExpression(pattern: "\\{color:[^}]+\\}")
-    static let italicStrip = try! NSRegularExpression(pattern: "(?<![\\*])\\*(?![\\*])")
-    static let unorderedListStrip = try! NSRegularExpression(pattern: "^[\\-\\*\u{2022}] ", options: .anchorsMatchLines)
-    static let orderedListStrip = try! NSRegularExpression(pattern: "^\\d+\\. ", options: .anchorsMatchLines)
-    static let tagStrip = try! NSRegularExpression(pattern: "#([\\p{L}][\\p{L}\\p{N}_]*)")
+    // MARK: - 解析用正则
+
+    static let unorderedList = safeRegex("^[\\-\\*\u{2022}] (.+)$")
+    static let orderedList = safeRegex("^(\\d+)\\. (.+)$")
+    static let inlineTag = safeRegex("#[\\p{L}][\\p{L}\\p{N}_]*")
+    static let colorOpen = safeRegex("\\{color:(#[0-9A-Fa-f]{3,8}|[0-9A-Fa-f]{3,8})\\}")
+    static let colorClose = safeRegex("\\{/color\\}")
+
+    // MARK: - stripFormatting 专用
+
+    static let colorOpenStrip = safeRegex("\\{color:[^}]+\\}")
+    static let italicStrip = safeRegex("(?<![\\*])\\*(?![\\*])")
+    static let unorderedListStrip = safeRegex("^[\\-\\*\u{2022}] ", options: .anchorsMatchLines)
+    static let orderedListStrip = safeRegex("^\\d+\\. ", options: .anchorsMatchLines)
+    static let tagStrip = safeRegex("#([\\p{L}][\\p{L}\\p{N}_]*)")
+
+    // MARK: - 辅助
+
+    /// 安全创建正则。失败时回退到永不匹配的占位正则（^$ 仅匹配空字符串）
+    private static func safeRegex(
+        _ pattern: String,
+        options: NSRegularExpression.Options = []
+    ) -> NSRegularExpression {
+        if let regex = try? NSRegularExpression(pattern: pattern, options: options) {
+            return regex
+        }
+        assertionFailure("MarkdownParser 正则编译失败: \(pattern)")
+        // 回退到 ^$（仅匹配空字符串），对正常文本不产生任何匹配
+        guard let fallback = try? NSRegularExpression(pattern: "^$", options: options) else {
+            preconditionFailure("NSRegularExpression init 不可用 — 这在正常 iOS 运行时不可能发生")
+        }
+        return fallback
+    }
 }
 
 // MARK: - MarkdownParser

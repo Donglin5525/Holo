@@ -6,8 +6,11 @@
 //
 
 import SwiftUI
+import os.log
 
 struct FinanceLedgerView: View {
+
+    private let logger = Logger(subsystem: "com.holo.app", category: "FinanceLedgerView")
 
     // MARK: - Properties
 
@@ -547,7 +550,7 @@ struct FinanceLedgerView: View {
                 HapticManager.success()
                 showOperationMessage("已删除", isError: false)
             } catch {
-                print("[FinanceLedger] 删除交易失败: \(error)")
+                logger.error("删除交易失败: \(error)")
                 showOperationMessage("删除失败：\(error.localizedDescription)", isError: true)
             }
             transactionToDelete = nil
@@ -563,7 +566,7 @@ struct FinanceLedgerView: View {
                 HapticManager.success()
                 showOperationMessage("已删除分期", isError: false)
             } catch {
-                print("[FinanceLedger] 删除分期组失败: \(error)")
+                logger.error("删除分期组失败: \(error)")
                 showOperationMessage("删除失败：\(error.localizedDescription)", isError: true)
             }
             transactionToDelete = nil
@@ -590,7 +593,7 @@ struct FinanceLedgerView: View {
                 await calendarState.refreshData()
                 showOperationMessage("已复制", isError: false)
             } catch {
-                print("[FinanceLedger] 复制交易失败: \(error)")
+                logger.error("复制交易失败: \(error)")
                 showOperationMessage("复制失败：\(error.localizedDescription)", isError: true)
             }
         }

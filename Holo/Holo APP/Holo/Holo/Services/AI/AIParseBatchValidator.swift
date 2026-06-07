@@ -121,7 +121,7 @@ enum AIParseBatchValidator {
 
         // 有 categoryCandidate 但科目表字段为空 → 未匹配
         if let candidate, !candidate.isEmpty,
-           (primary == nil || primary!.isEmpty) && (sub == nil || sub!.isEmpty) {
+           (primary == nil || primary?.isEmpty == true) && (sub == nil || sub?.isEmpty == true) {
             issues.append(ValidationIssue(
                 itemIndex: index,
                 field: "categoryCandidate",

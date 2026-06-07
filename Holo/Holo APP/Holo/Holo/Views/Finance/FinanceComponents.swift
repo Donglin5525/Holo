@@ -237,14 +237,14 @@ struct TransactionRowView: View {
 
                 VStack(alignment: .leading, spacing: 4) {
                     // 主标题
-                    Text(hasNote ? transaction.note! : (transaction.category?.name ?? "未分类"))
+                    Text(hasNote ? (transaction.note ?? "") : (transaction.category?.name ?? "未分类"))
                         .font(.holoBody)
                         .foregroundColor(.holoTextPrimary)
                         .lineLimit(1)
 
                     // 副标题：有备注显示备注，无备注不显示副标题
-                    if hasRemark {
-                        Text(transaction.remark!)
+                    if hasRemark, let remark = transaction.remark {
+                        Text(remark)
                             .font(.system(size: 12))
                             .foregroundColor(.holoTextSecondary)
                             .lineLimit(1)

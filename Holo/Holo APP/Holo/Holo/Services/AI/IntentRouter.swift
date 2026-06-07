@@ -169,10 +169,14 @@ final class IntentRouter {
             logger.info("分类未匹配，使用「待分类」兜底")
         }
 
+        guard let category else {
+            return RouteResult(text: "分类信息异常，请重试")
+        }
+
         let transaction = try await categoryRepo.addTransaction(
             amount: amount,
             type: .expense,
-            category: category!,
+            category: category,
             account: account,
             note: note
         )
@@ -255,10 +259,14 @@ final class IntentRouter {
             logger.info("分类未匹配，使用「待分类」兜底")
         }
 
+        guard let category else {
+            return RouteResult(text: "分类信息异常，请重试")
+        }
+
         let transaction = try await categoryRepo.addTransaction(
             amount: amount,
             type: .income,
-            category: category!,
+            category: category,
             account: account,
             note: note
         )
@@ -940,6 +948,10 @@ final class IntentRouter {
             category = categoryRepo.ensurePendingCategory(type: .expense)
         }
 
+        guard let category else {
+            return RouteResult(text: "分类信息异常，请重试")
+        }
+
         let startDateStr = data["installmentFirstDueDate"] ?? data["transactionDate"] ?? ""
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
@@ -950,7 +962,7 @@ final class IntentRouter {
             feePerPeriod: feePerPeriod,
             periods: periods,
             type: .expense,
-            category: category!,
+            category: category,
             account: account,
             startDate: startDate,
             note: note

@@ -809,7 +809,7 @@ struct HomeView: View {
         case "habit":
             showHabitsView = true
         default:
-            print("\(item.title) tapped")
+            break
         }
     }
     

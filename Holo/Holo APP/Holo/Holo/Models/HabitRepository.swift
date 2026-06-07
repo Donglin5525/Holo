@@ -9,6 +9,7 @@
 import Foundation
 import CoreData
 import Combine
+import os.log
 
 // MARK: - 通知名称
 
@@ -23,9 +24,11 @@ extension Notification.Name {
 /// 使用 @MainActor 保证所有操作在主线程执行
 @MainActor
 class HabitRepository: ObservableObject {
-    
+
+    private let logger = Logger(subsystem: "com.holo.app", category: "HabitRepository")
+
     // MARK: - Singleton
-    
+
     static let shared = HabitRepository()
     
     // MARK: - Published Properties
@@ -64,7 +67,7 @@ class HabitRepository: ObservableObject {
         do {
             activeHabits = try context.fetch(request)
         } catch {
-            print("[HabitRepository] 加载习惯失败: \(error)")
+            logger.error("加载习惯失败: \(error)")
             activeHabits = []
         }
     }
@@ -728,7 +731,7 @@ class HabitRepository: ObservableObject {
             let results = try context.fetch(request)
             return (results.count, total)
         } catch {
-            print("[HabitRepository] 获取今日进度失败: \(error)")
+            logger.error("获取今日进度失败: \(error)")
             return (0, total)
         }
     }

@@ -31,6 +31,8 @@ enum ArchiveTab: String, CaseIterable {
 /// 归档管理页面
 struct ArchiveManagementView: View {
 
+    private let logger = Logger(subsystem: "com.holo.app", category: "ArchiveManagementView")
+
     // MARK: - Properties
 
     @ObservedObject var repository: TodoRepository
@@ -303,7 +305,7 @@ struct ArchiveManagementView: View {
             try repository.unarchiveTask(task)
             loadArchivedData()
         } catch {
-            Logger(subsystem: "com.holo.app", category: "ArchiveManagementView").error("恢复任务失败: \(error.localizedDescription)")
+            logger.error("恢复任务失败: \(error.localizedDescription)")
         }
     }
 
@@ -312,7 +314,7 @@ struct ArchiveManagementView: View {
             try repository.restoreTag(tag)
             loadArchivedData()
         } catch {
-            print("[ArchiveManagementView] 恢复标签失败: \(error)")
+            logger.error("恢复标签失败: \(error)")
         }
     }
 
@@ -321,7 +323,7 @@ struct ArchiveManagementView: View {
             try repository.unarchiveList(list)
             loadArchivedData()
         } catch {
-            print("[ArchiveManagementView] 恢复清单失败: \(error)")
+            logger.error("恢复清单失败: \(error)")
         }
     }
 
@@ -339,7 +341,7 @@ struct ArchiveManagementView: View {
             }
             loadArchivedData()
         } catch {
-            print("[ArchiveManagementView] 删除失败: \(error)")
+            logger.error("删除失败: \(error)")
         }
 
         itemToDelete = nil

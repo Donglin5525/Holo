@@ -4,6 +4,33 @@
 
 ---
 
+## [2026-06-07] 上线前安全加固 — 消除全部强制解包和 print 残留
+
+### 修复
+- IntentRouter 3 处 category! 改为 guard let 安全解包（AI 分类匹配失败不再闪退）
+- FlexibleQueryExecutor sorted.first!/.last! 和 as! 强制转型改为安全方式
+- AddTransactionView selectedCategory!/selectedAccount! 改为 guard let + 错误提示
+- KanbanBudgetSection budgetSummary! ×3 改为 if let 安全解包
+- AnalysisPeriodResolver 多层 year!/date(...)!/day! 改为 guard let + fallback
+- FinanceComponents note!/remark! 改为 ?? 和 if let 安全解包
+- 全项目 36 处 print() 替换为 Logger（12 个文件新增 import os.log）
+- 5 处调试 print("... tapped") 残留清除
+- MarkdownParser 12 处 try! NSRegularExpression 改为 safeRegex() 辅助方法
+- InlineTagDetector 1 处 try! 改为安全初始化
+- HabitRepository+Stats 3 处 .day! 改为 .day ?? 0
+- HoloLongTermMemoryStore/HoloProfileService .first! 改为安全回退
+- GoalAnalysisContextBuilder habitAvgRate! 改为 ?? 0
+- MarkdownTextView numberValue! 改为 ?? 0
+- MemoryInsightBackgroundService as! BGAppRefreshTask 改为 guard let as?
+- BudgetSettingsSheet components.month! 改为 ?? 0
+- AIParseBatchValidator primary!/sub! 改为 ?. 安全访问
+
+### 优化
+- 后端 errors.js publicMessage 映射补全并按分类整理
+- 后端 SSE 流式错误事件同时返回 code 和 message
+
+---
+
 ## [2026-06-07] App Store 上架预检修复
 
 ### 新增

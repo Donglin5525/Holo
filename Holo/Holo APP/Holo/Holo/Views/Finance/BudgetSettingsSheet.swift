@@ -232,7 +232,7 @@ struct BudgetSettingsSheet: View {
                     let cal = Calendar.current
                     let now = Date()
                     var components = cal.dateComponents([.year, .month], from: now)
-                    components.month! += 1
+                    components.month = (components.month ?? 0) + 1
                     components.day = 1
                     startDate = cal.date(from: components) ?? now
                 }

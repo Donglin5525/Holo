@@ -170,11 +170,22 @@ struct AddTransactionView: View {
         do {
             let amountValue = Decimal(string: amount) ?? 0
             
+            guard let category = selectedCategory else {
+                errorMessage = "请选择分类"
+                isSaving = false
+                return
+            }
+            guard let account = selectedAccount else {
+                errorMessage = "请选择账户"
+                isSaving = false
+                return
+            }
+
             try await repository.addTransaction(
                 amount: amountValue,
                 type: transactionType,
-                category: selectedCategory!,
-                account: selectedAccount!,
+                category: category,
+                account: account,
                 date: selectedDate,
                 note: note.isEmpty ? nil : note,
                 tags: selectedTags.isEmpty ? nil : selectedTags

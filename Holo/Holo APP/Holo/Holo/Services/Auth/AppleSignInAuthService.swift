@@ -175,6 +175,28 @@ final class AppleSignInAuthService: ObservableObject {
         errorMessage = nil
     }
 
+    /// 标记账号删除完成，将状态设为已注销
+    /// Sign in with Apple 凭证撤销需通过服务端 REST API（Apple /auth/revoke 端点），
+    /// 客户端负责清除所有本地数据并退出登录态
+    func markAccountDeleted() {
+        if let error = tryDeleteSession() {
+            authLogger.warning("删除登录态失败（不阻断删除）：\(error.localizedDescription)")
+        }
+
+        session = nil
+        status = .signedOut
+        errorMessage = nil
+    }
+
+    private func tryDeleteSession() -> Error? {
+        do {
+            try sessionStore.delete()
+            return nil
+        } catch {
+            return error
+        }
+    }
+
     private func loadStoredSession() {
         do {
             session = try sessionStore.load()

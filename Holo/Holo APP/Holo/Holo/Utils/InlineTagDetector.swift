@@ -14,9 +14,16 @@ import Foundation
 struct InlineTagDetector {
 
     /// 内联标签正则模式：# 后跟字母/CJK 字符，然后跟任意字母/数字/下划线/CJK 字符
-    private static let tagRegex = try! NSRegularExpression(
-        pattern: "#[\\p{L}][\\p{L}\\p{N}_]*"
-    )
+    private static let tagRegex: NSRegularExpression = {
+        if let regex = try? NSRegularExpression(pattern: "#[\\p{L}][\\p{L}\\p{N}_]*") {
+            return regex
+        }
+        assertionFailure("InlineTagDetector 正则编译失败")
+        guard let fallback = try? NSRegularExpression(pattern: "^$") else {
+            preconditionFailure("NSRegularExpression init 不可用")
+        }
+        return fallback
+    }()
 
     // MARK: - 提取标签
 

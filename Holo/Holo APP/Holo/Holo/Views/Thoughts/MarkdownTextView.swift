@@ -204,7 +204,7 @@ struct MarkdownTextView: UIViewRepresentable {
                     return false
                 }
 
-                let nextNumber = match.numberValue! + 1
+                let nextNumber = (match.numberValue ?? 0) + 1
                 let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
                 let prefixAttrs = MarkdownTextView.resolvedAttributes(from: textView.typingAttributes)
                 let newPrefix = "\n\(nextNumber). "

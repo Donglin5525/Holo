@@ -181,7 +181,7 @@ final class VoiceRecordingService: NSObject, VoiceRecordingServiceProviding, AVA
         let directory = tempDirectoryURL()
         guard let files = try? fileManager.contentsOfDirectory(
             at: directory,
-            includingPropertiesForKeys: [.creationDateKey]
+            includingPropertiesForKeys: nil
         ) else { return }
 
         for file in files {

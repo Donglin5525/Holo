@@ -8,11 +8,14 @@
 
 import SwiftUI
 import CoreData
+import os.log
 
 // MARK: - ThoughtDetailView
 
 /// 想法详情视图
 struct ThoughtDetailView: View {
+
+    private let logger = Logger(subsystem: "com.holo.app", category: "ThoughtDetailView")
 
     // MARK: - Properties
 
@@ -104,7 +107,7 @@ struct ThoughtDetailView: View {
             references = try thoughtRepository.getReferences(for: thoughtId)
             referencedBy = try thoughtRepository.getReferencedBy(id: thoughtId)
         } catch {
-            print("[ThoughtDetailView] 加载数据失败：\(error)")
+            logger.error("加载数据失败：\(error)")
         }
     }
 

@@ -120,26 +120,33 @@ struct AnalysisPeriodResolver {
                 return fallback30Days(today: today)
             }
             let components = calendar.dateComponents([.year], from: lastYear)
-            let yStart = calendar.date(from: DateComponents(year: components.year!, month: 1, day: 1))!
-            let yEnd = calendar.date(from: DateComponents(year: components.year!, month: 12, day: 31))!
-            return (yStart, yEnd, "\(components.year!)年")
+            guard let year = components.year,
+                  let yStart = calendar.date(from: DateComponents(year: year, month: 1, day: 1)),
+                  let yEnd = calendar.date(from: DateComponents(year: year, month: 12, day: 31)) else {
+                return fallback30Days(today: today)
+            }
+            return (yStart, yEnd, "\(year)年")
         }
 
         // 今年
         if lower.contains("今年") {
             let components = calendar.dateComponents([.year], from: today)
-            let yStart = calendar.date(from: DateComponents(year: components.year!, month: 1, day: 1))!
-            let yEnd = calendar.date(from: DateComponents(year: components.year!, month: 12, day: 31))!
-            return (yStart, yEnd, "\(components.year!)年")
+            guard let year = components.year,
+                  let yStart = calendar.date(from: DateComponents(year: year, month: 1, day: 1)),
+                  let yEnd = calendar.date(from: DateComponents(year: year, month: 12, day: 31)) else {
+                return fallback30Days(today: today)
+            }
+            return (yStart, yEnd, "\(year)年")
         }
 
         // 上个月
         if lower.contains("上个月") || lower.contains("上个月") {
-            guard let prevMonth = calendar.date(byAdding: .month, value: -1, to: today) else {
+            guard let prevMonth = calendar.date(byAdding: .month, value: -1, to: today),
+                  let range = calendar.dateInterval(of: .month, for: prevMonth),
+                  let prevEnd = calendar.date(byAdding: .day, value: -1, to: range.end) else {
                 return fallback30Days(today: today)
             }
-            let range = calendar.dateInterval(of: .month, for: prevMonth)!
-            return (range.start, calendar.date(byAdding: .day, value: -1, to: range.end)!, formatLabel(start: range.start, end: calendar.date(byAdding: .day, value: -1, to: range.end)!))
+            return (range.start, prevEnd, formatLabel(start: range.start, end: prevEnd))
         }
 
         // 本月 / 这个月
@@ -197,9 +204,11 @@ struct AnalysisPeriodResolver {
         }
 
         // 自动推导：上一等长区间
-        let duration = calendar.dateComponents([.day], from: start, to: end).day! + 1
-        let compEnd = calendar.date(byAdding: .day, value: -1, to: start)!
-        let compStart = calendar.date(byAdding: .day, value: -duration, to: start)!
+        let duration = (calendar.dateComponents([.day], from: start, to: end).day ?? 0) + 1
+        guard let compEnd = calendar.date(byAdding: .day, value: -1, to: start),
+              let compStart = calendar.date(byAdding: .day, value: -duration, to: start) else {
+            return (start, end, "上一周期")
+        }
 
         return (compStart, compEnd, "上一周期")
     }

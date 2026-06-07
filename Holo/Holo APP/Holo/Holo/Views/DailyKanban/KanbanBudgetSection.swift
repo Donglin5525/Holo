@@ -25,16 +25,18 @@ struct KanbanBudgetSection: View {
         VStack(spacing: 8) {
             sectionHeader
 
-            VStack(spacing: 12) {
-                budgetOverview(summary: budgetSummary!)
-                budgetBar(progress: budgetSummary!.progress)
-                budgetDetails(summary: budgetSummary!)
+            if let summary = budgetSummary {
+                VStack(spacing: 12) {
+                    budgetOverview(summary: summary)
+                    budgetBar(progress: summary.progress)
+                    budgetDetails(summary: summary)
+                }
+                .padding(16)
+                .background(Color.holoCardBackground)
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+                .overlay(RoundedRectangle(cornerRadius: HoloRadius.lg).stroke(Color.holoBorder, lineWidth: 1))
+                .shadow(color: HoloShadow.card, radius: 4, y: 1)
             }
-            .padding(16)
-            .background(Color.holoCardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
-            .overlay(RoundedRectangle(cornerRadius: HoloRadius.lg).stroke(Color.holoBorder, lineWidth: 1))
-            .shadow(color: HoloShadow.card, radius: 4, y: 1)
         }
     }
 

@@ -8,11 +8,14 @@
 
 import SwiftUI
 import CoreData
+import os.log
 
 // MARK: - ReferenceSelectorView
 
 /// 引用选择器视图
 struct ReferenceSelectorView: View {
+
+    private let logger = Logger(subsystem: "com.holo.app", category: "ReferenceSelectorView")
 
     // MARK: - Properties
 
@@ -189,7 +192,7 @@ struct ReferenceSelectorView: View {
         do {
             thoughts = try context.fetch(request)
         } catch {
-            print("[ReferenceSelectorView] 加载想法失败: \(error)")
+            logger.error("加载想法失败: \(error)")
             thoughts = []
         }
     }

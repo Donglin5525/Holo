@@ -25,6 +25,8 @@ extension Notification.Name {
 @MainActor
 class TodoRepository: ObservableObject {
 
+    private let logger = Logger(subsystem: "com.holo.app", category: "TodoRepository")
+
     // MARK: - Singleton
 
     static let shared = TodoRepository()
@@ -88,7 +90,7 @@ class TodoRepository: ObservableObject {
         do {
             folders = try context.fetch(request)
         } catch {
-            print("[TodoRepository] 加载文件夹失败：\(error)")
+            logger.error("加载文件夹失败：\(error)")
             folders = []
         }
     }
@@ -107,7 +109,7 @@ class TodoRepository: ObservableObject {
         do {
             activeTasks = try context.fetch(request)
         } catch {
-            print("[TodoRepository] 加载任务失败：\(error)")
+            logger.error("加载任务失败：\(error)")
             activeTasks = []
         }
     }
@@ -121,7 +123,7 @@ class TodoRepository: ObservableObject {
         do {
             trashedTasks = try context.fetch(request)
         } catch {
-            print("[TodoRepository] 加载回收站失败：\(error)")
+            logger.error("加载回收站失败：\(error)")
             trashedTasks = []
         }
     }
@@ -135,7 +137,7 @@ class TodoRepository: ObservableObject {
         do {
             tags = try context.fetch(request)
         } catch {
-            print("[TodoRepository] 加载标签失败：\(error)")
+            logger.error("加载标签失败：\(error)")
             tags = []
         }
     }
@@ -590,7 +592,7 @@ class TodoRepository: ObservableObject {
         do {
             return try context.fetch(request)
         } catch {
-            print("[TodoRepository] 加载已归档标签失败：\(error)")
+            logger.error("加载已归档标签失败：\(error)")
             return []
         }
     }
@@ -627,7 +629,7 @@ class TodoRepository: ObservableObject {
         do {
             return try context.fetch(request)
         } catch {
-            print("[TodoRepository] 加载已归档清单失败：\(error)")
+            logger.error("加载已归档清单失败：\(error)")
             return []
         }
     }

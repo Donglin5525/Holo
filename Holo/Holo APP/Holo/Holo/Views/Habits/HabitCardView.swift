@@ -8,6 +8,7 @@
 
 import SwiftUI
 import CoreData
+import os.log
 
 /// 习惯卡片视图
 /// 设计参考 Body.svg：
@@ -16,7 +17,9 @@ import CoreData
 /// - 中间：习惯名称 + 频率/目标信息
 /// - 右侧：交互按钮（打卡/数值）
 struct HabitCardView: View {
-    
+
+    private let logger = Logger(subsystem: "com.holo.app", category: "HabitCardView")
+
     // MARK: - Properties
     
     let habit: Habit
@@ -189,7 +192,7 @@ struct HabitCardView: View {
 
                     HapticManager.success()
                 } catch {
-                    print("[HabitCard] 打卡失败: \(error)")
+                    logger.error("打卡失败: \(error)")
                 }
             }
         } label: {
@@ -236,7 +239,7 @@ struct HabitCardView: View {
 
                         HapticManager.light()
                     } catch {
-                        print("[HabitCard] +1 失败: \(error)")
+                        logger.error("+1 失败: \(error)")
                     }
                 } label: {
                     Text("+1")
@@ -386,7 +389,7 @@ struct HabitCardView: View {
 
             HapticManager.success()
         } catch {
-            print("[HabitCard] 保存数值失败: \(error)")
+            logger.error("保存数值失败: \(error)")
         }
     }
 

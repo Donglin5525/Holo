@@ -163,7 +163,7 @@ struct GoalAnalysisContextBuilder {
 
         if hasTasks && hasHabits {
             let taskRate = Double(taskCompleted) / Double(taskTotal)
-            return taskRate * 0.6 + habitAvgRate! * 0.4
+            return taskRate * 0.6 + (habitAvgRate ?? 0) * 0.4
         } else if hasTasks {
             return Double(taskCompleted) / Double(taskTotal)
         } else if hasHabits {

@@ -7,8 +7,11 @@
 
 import SwiftUI
 import CoreData
+import os.log
 
 struct RepeatRuleView: View {
+
+    private let logger = Logger(subsystem: "com.holo.app", category: "RepeatRuleView")
     @ObservedObject var repository: TodoRepository
     @State var task: TodoTask
     @Environment(\.dismiss) var dismiss
@@ -153,7 +156,7 @@ struct RepeatRuleView: View {
 
             dismiss()
         } catch {
-            print("[RepeatRuleView] 保存重复规则失败：\(error)")
+            logger.error("保存重复规则失败：\(error)")
         }
     }
 
@@ -165,7 +168,7 @@ struct RepeatRuleView: View {
             }
             dismiss()
         } catch {
-            print("[RepeatRuleView] 删除重复规则失败：\(error)")
+            logger.error("删除重复规则失败：\(error)")
         }
     }
 

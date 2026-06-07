@@ -121,7 +121,6 @@ struct VoiceAssistantButton: View {
             .ignoresSafeArea()
         
         VoiceAssistantButton {
-            print("Voice assistant tapped")
         }
     }
 }
