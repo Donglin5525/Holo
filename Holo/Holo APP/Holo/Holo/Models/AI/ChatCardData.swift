@@ -635,13 +635,16 @@ extension ChatCardData {
 
     nonisolated private static func habitCards(_ h: HabitAnalysisContext, periodLabel: String) -> [ChatCardData] {
         var cards: [ChatCardData] = []
+        let hasNegativeHabit = h.habitPerformanceSummaries?.contains { $0.polarity == .negative } == true
+            || h.topPerformingHabits.contains { $0.polarity == .negative }
+            || h.strugglingHabits.contains { $0.polarity == .negative }
 
         var metrics: [AnalysisBreakdownRow] = [
             AnalysisBreakdownRow(label: "活跃习惯", value: "\(h.activeHabitCount)", percent: nil),
-            AnalysisBreakdownRow(label: "完成记录", value: "\(h.completedRecordCount)", percent: nil)
+            AnalysisBreakdownRow(label: hasNegativeHabit ? "控制/完成记录" : "完成记录", value: "\(h.completedRecordCount)", percent: nil)
         ]
         if let rate = h.averageCompletionRate {
-            metrics.append(AnalysisBreakdownRow(label: "平均完成率", value: String(format: "%.0f%%", rate * 100), percent: rate))
+            metrics.append(AnalysisBreakdownRow(label: hasNegativeHabit ? "平均控制/完成率" : "平均完成率", value: String(format: "%.0f%%", rate * 100), percent: rate))
         }
         cards.append(.analysisSummary(AnalysisSummaryCardData(
             domain: .habit,
@@ -654,7 +657,7 @@ extension ChatCardData {
             let points = h.dailyCompletionTrend.prefix(14).map { pt in
                 AnalysisTrendPoint(label: pt.date, value: pt.rate * 100, displayValue: String(format: "%.0f%%", pt.rate * 100))
             }
-            cards.append(.analysisTrend(AnalysisTrendCardData(title: "完成率趋势", points: points)))
+            cards.append(.analysisTrend(AnalysisTrendCardData(title: hasNegativeHabit ? "控制/完成趋势" : "完成率趋势", points: points)))
         }
 
         // Highlights

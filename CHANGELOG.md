@@ -4,6 +4,15 @@
 
 ---
 
+## [2026-06-07] HoloAI 负向习惯分析口径修正
+
+### 修复
+- 习惯分析卡片识别到戒烟、控烟等负向习惯时，指标文案改为“控制/完成记录”“平均控制/完成率”和“控制/完成趋势”
+- 避免把减少型坏习惯继续按正向习惯的“完成率”口径展示，降低 HoloAI 对戒烟类目标的误读感
+
+### 验证
+- iOS Debug build 通过：`xcodebuild -project ".../Holo.xcodeproj" -scheme Holo -configuration Debug -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build`
+
 ## [2026-06-07] AI 回复时自动收起键盘
 
 ### 修复
