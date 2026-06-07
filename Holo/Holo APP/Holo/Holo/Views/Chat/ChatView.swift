@@ -77,9 +77,9 @@ struct ChatView: View {
                 AddTransactionSheet(
                     editingTransaction: nil,
                     pendingPrefill: prefill
-                ) {
+                ) { savedTransaction in
                     if let msg = pendingCategoryEditMessage {
-                        viewModel.dismissPendingCardAfterEdit(from: msg)
+                        viewModel.dismissPendingCardAfterEdit(from: msg, createdTransaction: savedTransaction)
                     }
                     pendingCategoryEditMessage = nil
                     pendingEditPrefill = nil
@@ -319,6 +319,11 @@ struct ChatView: View {
             }
             .onChange(of: viewModel.isStreaming) { _, streaming in
                 if streaming {
+                    // AI 开始回复时自动收起键盘，让用户看到完整内容
+                    UIApplication.shared.sendAction(
+                        #selector(UIResponder.resignFirstResponder),
+                        to: nil, from: nil, for: nil
+                    )
                     scrollToBottom(proxy: proxy)
                 }
             }
@@ -459,7 +464,7 @@ struct ChatView: View {
                 AISettingsView()
             }
         case .editTransaction(let transaction):
-            AddTransactionSheet(editingTransaction: transaction) {
+            AddTransactionSheet(editingTransaction: transaction) { _ in
                 ChatMessageRepository.shared.refreshTransactionCard(transactionId: transaction.id)
             }
         case .analysisDetail(let message):

@@ -4,6 +4,30 @@
 
 ---
 
+## [2026-06-07] AI 回复时自动收起键盘
+
+### 修复
+- AI 开始流式回复时自动收起键盘，避免键盘遮挡回复内容
+
+## [2026-06-07] Holo AI Sense Loop 公测人格化闭环
+
+### 新增
+- HoloAI 表达强度层：新增 observe / summarize / remind / suggestAction / celebrate 决策，聊天与洞察上下文会带入允许表达和禁止表达边界
+- Daily Sense v3：保留 3 个主状态，新增“信号偏紧”和“出现新阶段”标签，旧 v2 缓存可继续解码
+- 生活模式模型：新增 HoloLifePatternModel / HoloLifePatternService，用稳定反馈沉淀低价值主题，避免单次异常长期化
+- 洞察反馈新增“没感觉”和“少提醒这个”，用于公测收集用户是否真的觉得 Holo 懂自己
+
+### 改进
+- 洞察偏好画像会把 notMeaningful / tooFrequent 转成 pattern 降权和 fewerSuggestions，不再把“没感觉”误当事实错误
+- Memory Insight 上下文接入洞察偏好摘要、表达强度摘要、生活模式摘要和健康摘要
+- CrossModuleCorrelator 接入健康并发观察，支持睡眠偏少 + 任务压力、睡眠偏少 + 习惯中断、低活动量 + 恢复迹象，严格避免因果表达
+- PromptManager 与 HoloBackend 默认 Prompt 同步增加 Sense Loop 表达边界、HoloProfile 优先级和当前输入优先规则
+- 长期记忆语义晋升收紧：单日突增不进入 phaseShift，driftSignal 默认 30 天过期，statMilestone 默认 displayOnly
+
+### 验证
+- iOS Debug build 通过：`xcodebuild -project ".../Holo.xcodeproj" -scheme Holo -configuration Debug -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO build`
+- 后端测试通过：`npm test`（47/47）
+
 ## [2026-06-07] HoloProfile 结构化 snapshot 和全链路 AI 注入
 
 ### 新增
