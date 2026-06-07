@@ -6,7 +6,7 @@ import * as Diff from "diff";
 
 const PROMPT_VERSIONS = {
   system_prompt: 2,
-  intent_recognition: 15,
+  intent_recognition: 17,
   memory_insight_generation: 6,
   analysis_prompt: 3,
   annual_review: 1,

@@ -560,8 +560,8 @@ test("GET /v1/prompts/:type returns prompt content and version", async () => {
   assert.equal(response.status, 200);
   const json = await response.json();
   assert.equal(json.type, "intent_recognition");
-  assert.equal(json.version, 15);
-  assert.match(json.content, /你是意图识别模块/);
+  assert.equal(json.version, 17);
+  assert.match(json.content, /短意图 Router/);
 });
 
 test("GET /v1/prompts/:type rejects unsupported prompt types", async () => {
@@ -617,6 +617,130 @@ test("chat endpoint rejects client-supplied provider routing fields", async () =
   assert.equal(response.status, 400);
   assert.equal((await response.json()).error.code, "INVALID_CLIENT_ROUTING");
 });
+
+// ── Phase 0: Golden tests ──
+
+// 辅助函数：发送 intent 请求并返回解析结果
+async function sendIntentGoldenTest(app, input, deviceId) {
+  const promptResponse = await app.request("/v1/prompts/intent_recognition");
+  assert.equal(promptResponse.status, 200);
+  const prompt = await promptResponse.json();
+
+  const response = await app.request("/v1/ai/chat/completions", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-holo-device-id": deviceId,
+    },
+    body: JSON.stringify({
+      purpose: "intent",
+      stream: false,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: prompt.content },
+        { role: "user", content: input },
+      ],
+    }),
+  });
+
+  assert.equal(response.status, 200);
+  const json = await response.json();
+  return JSON.parse(json.choices[0].message.content);
+}
+
+test("golden: 今天午饭花了35 → record_expense", async () => {
+  const app = createTestApp();
+  const parsed = await sendIntentGoldenTest(app, "今天午饭花了35", "golden-expense-1");
+
+  assert.equal(parsed.mode, "single_action");
+  assert.equal(parsed.items[0].intent, "record_expense");
+  assert.equal(parsed.items[0].extractedData.amount, "35");
+  assert.equal(parsed.items[0].extractedData.categoryCandidate, "午饭");
+});
+
+test("golden: 发工资 20000 → record_income", async () => {
+  const app = createTestApp();
+  const parsed = await sendIntentGoldenTest(app, "发工资 20000", "golden-income-1");
+
+  assert.equal(parsed.mode, "single_action");
+  assert.equal(parsed.items[0].intent, "record_income");
+  assert.equal(parsed.items[0].extractedData.amount, "20000");
+  assert.equal(parsed.items[0].extractedData.categoryCandidate, "工资");
+});
+
+test("golden: 明天早上提醒我买水 → create_task with reminderDate", async () => {
+  const app = createTestApp();
+  const parsed = await sendIntentGoldenTest(app, "明天早上提醒我买水", "golden-task-reminder");
+
+  assert.equal(parsed.mode, "single_action");
+  assert.equal(parsed.items[0].intent, "create_task");
+  assert.ok(parsed.items[0].extractedData.reminderDate, "应有 reminderDate");
+  assert.ok(parsed.items[0].extractedData.title.includes("买水"), "title 应包含买水");
+});
+
+test("golden: 明天去山姆买牛奶、鸡蛋和纸巾 → create_task with subtasks", async () => {
+  const app = createTestApp();
+  const parsed = await sendIntentGoldenTest(app, "明天去山姆买牛奶、鸡蛋和纸巾", "golden-task-subtasks");
+
+  assert.equal(parsed.mode, "single_action");
+  assert.equal(parsed.items[0].intent, "create_task");
+  const title = parsed.items[0].extractedData.title;
+  assert.ok(title.includes("山姆") || title.includes("购物"), `title 应包含山姆或购物，实际: ${title}`);
+  const subtasks = parsed.items[0].extractedData.subtasks;
+  assert.ok(subtasks.includes("买牛奶"), `subtasks 应包含买牛奶，实际: ${subtasks}`);
+  assert.ok(subtasks.includes("买鸡蛋"), `subtasks 应包含买鸡蛋，实际: ${subtasks}`);
+  assert.ok(subtasks.includes("买纸巾"), `subtasks 应包含买纸巾，实际: ${subtasks}`);
+});
+
+test("golden: 今天跑步打卡 → check_in", async () => {
+  const app = createTestApp();
+  const parsed = await sendIntentGoldenTest(app, "今天跑步打卡", "golden-checkin-1");
+
+  assert.equal(parsed.mode, "single_action");
+  assert.equal(parsed.items[0].intent, "check_in");
+  assert.equal(parsed.items[0].extractedData.habitName, "跑步");
+});
+
+test("golden: 最近一次打车是什么时候 → flexible_data_query", async () => {
+  const app = createTestApp();
+  const parsed = await sendIntentGoldenTest(app, "最近一次打车是什么时候", "golden-latest-query");
+
+  assert.equal(parsed.mode, "query");
+  assert.equal(parsed.items[0].intent, "flexible_data_query");
+  assert.equal(parsed.items[0].extractedData.queryDomain, "finance");
+  assert.notEqual(parsed.items[0].intent, "query_analysis");
+});
+
+test("golden: 分析今年收入结构 → query_analysis", async () => {
+  const app = createTestApp();
+  const parsed = await sendIntentGoldenTest(app, "分析今年收入结构", "golden-analysis-1");
+
+  assert.equal(parsed.mode, "query");
+  assert.equal(parsed.items[0].intent, "query_analysis");
+  assert.equal(parsed.items[0].extractedData.analysisDomain, "finance");
+  assert.notEqual(parsed.items[0].intent, "flexible_data_query");
+});
+
+test("golden: 复盘本月消费 → query_analysis", async () => {
+  const app = createTestApp();
+  const parsed = await sendIntentGoldenTest(app, "复盘本月消费", "golden-analysis-2");
+
+  assert.equal(parsed.mode, "query");
+  assert.equal(parsed.items[0].intent, "query_analysis");
+  assert.notEqual(parsed.items[0].intent, "flexible_data_query");
+});
+
+test("golden: 你能做什么 → query", async () => {
+  const app = createTestApp();
+  const parsed = await sendIntentGoldenTest(app, "你能做什么", "golden-query-1");
+
+  assert.equal(parsed.mode, "query");
+  assert.equal(parsed.items[0].intent, "query");
+  assert.notEqual(parsed.items[0].intent, "flexible_data_query");
+  assert.notEqual(parsed.items[0].intent, "query_analysis");
+});
+
+// ── End Phase 0: Golden tests ──
 
 test("chat endpoint applies per-device minute rate limit", async () => {
   const app = createTestApp();

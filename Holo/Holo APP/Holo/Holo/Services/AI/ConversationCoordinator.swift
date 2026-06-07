@@ -214,7 +214,13 @@ final class ConversationCoordinator {
                        provider: provider
                    ) {
                     actionParserLog = actionResult.log
-                    for (key, value) in actionResult.data where !value.isEmpty {
+                    // Step 3a: DEBUG 探针——只记录 key set，不记录 value
+                    #if DEBUG
+                    let taskParserKeys = actionResult.data.keys.sorted().joined(separator: ",")
+                    logger.debug("Task action parser returned keys: \(taskParserKeys, privacy: .public)")
+                    #endif
+                    // Step 3b: 显式白名单合并——只允许 repeat* 字段
+                    for (key, value) in actionResult.data where !value.isEmpty && Self.repeatParserKeys.contains(key) {
                         renderData[key] = value
                     }
                 }
@@ -252,7 +258,13 @@ final class ConversationCoordinator {
                        provider: provider
                    ) {
                     actionParserLog = actionResult.log
-                    for (key, value) in actionResult.data where !value.isEmpty {
+                    // Step 3a: DEBUG 探针——只记录 key set，不记录 value
+                    #if DEBUG
+                    let financeParserKeys = actionResult.data.keys.sorted().joined(separator: ",")
+                    logger.debug("Finance action parser returned keys: \(financeParserKeys, privacy: .public)")
+                    #endif
+                    // Step 3b: 显式白名单合并——只允许 installment* 字段
+                    for (key, value) in actionResult.data where !value.isEmpty && Self.installmentParserKeys.contains(key) {
                         renderData[key] = value
                     }
                 }
@@ -357,6 +369,21 @@ final class ConversationCoordinator {
     }
 
     // MARK: - Private Helpers
+
+    // MARK: Parser 白名单——显式列出允许从 parser 结果写入 renderData 的字段
+
+    /// finance_action_parser 允许覆盖的字段（与 defaultPrompts.json finance_action_parser 输出字段对齐）
+    private static let installmentParserKeys: Set<String> = [
+        "installmentEnabled", "installmentTotalAmount",
+        "installmentPeriods", "installmentFeePerPeriod",
+        "installmentFirstDueDate", "installmentSummary",
+    ]
+
+    /// task_action_parser 允许覆盖的字段（与 defaultPrompts.json task_action_parser 输出字段对齐）
+    private static let repeatParserKeys: Set<String> = [
+        "repeatEnabled", "repeatType", "repeatInterval",
+        "repeatWeekdays", "repeatMonthDay", "repeatUntilDate", "repeatSummary",
+    ]
 
     // MARK: Action Parser 触发判断
 

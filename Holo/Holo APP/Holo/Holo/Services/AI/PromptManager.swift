@@ -100,7 +100,7 @@ final class PromptManager {
     /// 需要版本管理的 prompt 类型及其最低版本
     private static let promptVersions: [PromptType: Int] = [
         .systemPrompt: 2,               // v2: Sense Loop 表达边界与档案优先级
-        .intentRecognition: 14,         // v14: 收窄 query_analysis 金额触发，特定品类金额查询优先 flexible_data_query
+        .intentRecognition: 17,         // v17: Router 瘦身，去掉全字段 schema 和科目规则，保留核心分流和基础字段
         .memoryInsightGeneration: 7,    // v7: Sense Loop 表达边界、偏好摘要与表达强度
         .analysisPrompt: 3,             // v3: Sense Loop 表达边界与档案优先级
         .annualReview: 1,               // v1: 初始版本
@@ -251,195 +251,55 @@ final class PromptManager {
         """,
 
         .intentRecognition: """
-        你是意图识别模块。分析用户输入，输出结构化 JSON。支持从一句话中识别多个动作。只识别操作指令，不识别闲聊。
+        你是 HoloAI 的短意图 Router。只判断用户要做什么，输出结构化 JSON。不要解释，不要闲聊。
         当前日期：{{todayDate}}
         当前时间：{{currentTime}}
 
-        ## 意图列表
-
-        | 意图 | 触发词 | 必填字段 |
-        |------|--------|---------|
-        | record_expense | 花钱/买东西/吃饭 | amount, categoryCandidate |
-        | record_income | 收钱/工资 | amount, categoryCandidate |
-        | create_task | 创建任务/提醒我/待办 | title |
-        | complete_task | 完成了/做完了/搞定了 | taskKeyword |
-        | update_task | 改成/修改任务 | taskKeyword |
-        | delete_task | 删除任务/不要了 | taskKeyword |
-        | check_in | 打卡/签到 | - |
-        | create_note | 记一下/笔记/备忘 | noteContent |
-        | record_mood | 记录心情 | content, mood? |
-        | record_weight | 记录体重 | weight |
-        | query_tasks | 有什么任务/待办列表 | - |
-        | query_habits | 习惯状态/打卡了吗 | - |
-        | query_analysis | 分析*/复盘*/对比总结/趋势/结构/占比/消费统计/支出统计/收入分析/习惯完成率/任务进度/步数/睡眠/运动/健康/走路/锻炼/目标进展/进度/goal | analysisDomain, startDate?, endDate?, periodLabel? |
-        | flexible_data_query | 上一次*/最近一次*/哪一笔/几次/超过N元/距今多久/多久没/最大一笔/最小一笔/确定金额/确定数字/收入是多少/支出是多少/花了多少钱/关键词限定+花了多少/关键词限定+多少钱/特定品类+共花/特定品类+总共 | queryDomain?, queryGoal?, rawConstraints? |
-        | query | 你能做什么/帮我什么/闲聊 | - |
-        | generate_memory_insight | 复盘这周/本月记忆回放 | periodType? |
-        | unknown | 不匹配以上任何意图 | - |
-
-        ## 科目抽取规则
-
-        记账时不要在 Prompt 中维护或枚举完整科目表。科目由系统科目对照 catalog 和用户本地分类共同匹配。
-
-        你需要抽取两层消费/收入语义：
-        - categoryCandidate：记账必填，保留用户原始分类语义或最自然的短语，例如“肯德基”“买烟”“打车”“午饭”“房租”“工资”“手办”。
-        - normalizedCategoryCandidate：用常识把品牌、动词短语、口语表达归一成可匹配的短语，例如“肯德基”→“晚餐”或“快餐”，“买烟”→“香烟”，“滴滴”→“打车”。不要让用户维护这类通用映射。
-        - semanticCategoryHint：可选，给出宽泛语义提示，例如“餐饮”“烟酒”“交通”“购物”。不确定时留空。
-        - primaryCategory/subCategory：只有当用户语义非常明确且你确信是系统标准科目时才填写；不确定时留空。
-        - 即使填写 primaryCategory/subCategory，系统仍会用科目对照 catalog 和用户本地分类做最终校验。
-        - 不要为了匹配而编造科目；无法判断分类时，保留 categoryCandidate，其他分类字段留空。
-        - 收入语义：用户输入“工资/薪水/月薪/发工资 + 金额”时识别为 record_income，categoryCandidate 填“工资”，normalizedCategoryCandidate 填“工资”，semanticCategoryHint 填“工资收入”。
-        - 无法可靠匹配科目时仍然执行记账，系统会统一归入“待分类”；不要输出“无法识别分类”之类面向用户的失败文案。
-        - 餐饮语义：用户明确说早饭/午饭/晚饭/夜宵时保留原话并归一到对应餐次；用户说餐饮品牌、快餐、一碗面、外卖等泛餐饮语义时，结合当前时间归一到早餐/午餐/晚餐/夜宵，semanticCategoryHint 填“餐饮”。
-
-        ## 输出格式
-
-        ```json
+        输出 JSON object：
         {
           "mode": "single_action | multi_action | query | clarification | unknown",
-          "items": [{
-            "id": "1",
-            "intent": "意图名",
-            "confidence": 0.95,
-            "extractedData": {
-              "amount": "数字",
-              "note": "备注",
-              "primaryCategory": "一级科目（不确定留空）",
-              "subCategory": "二级科目（不确定留空）",
-              "categoryCandidate": "用户原始分类（记账必填）",
-              "normalizedCategoryCandidate": "语义归一后的候选，如晚餐/香烟/打车（不确定留空）",
-              "semanticCategoryHint": "宽泛语义提示，如餐饮/烟酒/交通（不确定留空）",
-              "title": "任务标题（去套话，如"提醒我买水"→"买水"）",
-              "taskKeyword": "任务关键词",
-              "priority": "0-3",
-              "dueDate": "yyyy-MM-dd 或 yyyy-MM-dd HH:mm",
-              "tags": "逗号分隔",
-              "description": "任务描述",
-              "subtasks": "逗号分隔的子任务列表（2项及以上并列待办事项时提取）",
-              "noteContent": "笔记正文",
-              "habitName": "习惯名",
-              "habitValue": "数值",
-              "habitPolarity": "positive|negative",
-              "successRule": "completeWhenDone|stayBelowTarget|abstain",
-              "unit": "单位，如根/杯/次",
-              "targetValue": "目标上限或目标值",
-              "mood": "心情标签",
-              "weight": "体重",
-              "date": "yyyy-MM-dd",
-              "analysisDomain": "finance|habit|task|thought|health|goal|crossModule",
-              "startDate": "yyyy-MM-dd",
-              "endDate": "yyyy-MM-dd",
-              "periodLabel": "时间段描述",
-              "comparisonStartDate": "yyyy-MM-dd",
-              "comparisonEndDate": "yyyy-MM-dd",
-              "periodType": "weekly|monthly",
-              "queryDomain": "finance（灵活数据查询域名，目前只支持 finance）",
-              "queryGoal": "用户查询目标简述",
-              "rawConstraints": "用户原始约束条件"
-            }
-          }],
+          "items": [{ "id": "1", "intent": "...", "confidence": 0.0-1.0, "extractedData": {} }],
           "needsClarification": false,
           "clarificationQuestion": null
         }
-        ```
 
-        ## 规则
+        意图与 extractedData 关键字段：
+        - record_expense：记录支出。金额明确时填 amount，原始消费语义填 categoryCandidate，可选 normalizedCategoryCandidate（语义归一）和 semanticCategoryHint（宽泛分类）。收入语义（工资/发工资+金额）走 record_income。
+        - record_income：记录收入。填 amount、categoryCandidate。
+        - create_task：创建待办或提醒。填 title（去掉套话）；能确定日期时填 dueDate（yyyy-MM-dd 或 yyyy-MM-dd HH:mm）；用户明确说提醒时间时填 reminderDate（yyyy-MM-dd HH:mm）。多个并列待办事项时填 subtasks（逗号分隔），title 概括整体意图。填 description 补充任务说明。
+        - complete_task / update_task / delete_task：操作已有任务。填 taskKeyword。
+        - check_in：习惯打卡。填 habitName / habitValue。
+        - create_note / record_mood / record_weight：记录笔记、心情、体重。
+        - query_tasks / query_habits：查询任务或习惯状态。
+        - flexible_data_query：查确定金额、次数、最近一次、哪一笔、距今多久、最大/最小一笔、超过 N 元、关键词限定花了多少。
+        - query_analysis：分析、复盘、趋势、结构、占比、总结。
+        - query：非数据类普通问答或闲聊。
+        - generate_memory_insight：记忆回放。
+        - unknown：无法判断。
 
-        - 单动作→single_action，多动作→multi_action，纯查询→query，查询+执行混合→clarification，无法识别→unknown
-        - 逗号/分号分隔多动作，每项独立 id
-        - 多笔记账时，每项的 note/categoryCandidate 必须严格对应各自的消费内容，不要用最后一项的科目名覆盖前面的
-        - 无法可靠拆分时宁可返回 clarification
-        - categoryCandidate 始终填用户原始语义，无论科目是否匹配
-        - normalizedCategoryCandidate 负责通用语义归一，不要只复述原词；无法归一时留空
-        - 科目不确定时 primaryCategory/subCategory 留空，categoryCandidate 必填
-        - 根据整体消费场景归类，不要拆解物品名称中的单个字词
-        - title 提取核心动作，去掉"提醒我""帮我"等套话
-        - 日期：今天=当天，明天=+1，后天=+2，下周一=计算
-        - 有具体时间→dueDate 格式 yyyy-MM-dd HH:mm，无时间→yyyy-MM-dd
-        - 时间映射：凌晨=00-05，早上/上午=06-11，中午=12，下午=13-17，晚上/傍晚=18-22，半夜/深夜=23
-        - 涉及具体数据（金额、分类、时间段统计、消费、习惯、任务进度）的查询→不要用 query。query 只用于非数据的通用问答
-        - 涉及"上一次/最近一次/哪一笔/几次/超过N元/距今多久/多久没发生/最大一笔/最小一笔"等单点数据查询→用 flexible_data_query，不要用 query_analysis。涉及"分析/复盘/趋势/结构/占比/总结"的周期性问题→用 query_analysis
-        - 先判断用户是在要一个确定数字/金额/次数，还是要分析趋势/结构/复盘。确定数字类财务查询→用 flexible_data_query，不要用 query_analysis。例如"今年的收入是多少""今年支出了多少""本月花了多少钱""今年买烟花了多少钱""咖啡花了多少钱""打车一共花了多少"。只有用户明确要求分析、复盘、趋势、结构、占比、总结时才用 query_analysis。例如"分析一下今年收入""今年收入结构怎么样""最近财务状态怎么样""消费统计""支出分析"。关键词限定的消费金额查询也必须用 flexible_data_query，例如"今年买烟花了多少钱""买烟花了多少""外卖总共花了多少"。不带品类限定但只要确定总额，也用 flexible_data_query，例如"今年花了多少钱""今年的收入是多少"
-        - 抽烟、喝酒、熬夜、暴食等减少/戒除语义属于 negative habit；提取 habitPolarity="negative"，优先使用 successRule="stayBelowTarget" 或 "abstain"
-        - 用户记录坏习惯发生次数时，habitValue 保留数值，unit 保留单位；不要把“抽烟 5 根”理解为正向完成 5 次
-        - "复盘、总结、看看这周/本月状态、我最近怎么样"优先识别为 generate_memory_insight 或 query_analysis
-        - 如果用户想要跨财务、习惯、待办一起分析，analysisDomain 使用 crossModule
-        - 如果一句话同时包含执行动作和分析查询，返回 clarification，不要混合执行
-        - 子任务识别：用户输入包含2个及以上并列待办事项时，将每项提取为 subtasks（逗号分隔），同时将 title 概括为整体意图
-        - 只有并列"待办动作/事项"才拆：并列对象（给张三和李四发邮件）、并列人名（约小王和小李吃饭）、介词结构（和妈妈打电话）不拆
-        - 信心不足时不提取 subtasks，仅1个事项时不提取 subtasks 字段
+        关键分流：
+        - 确定数字类："今年收入是多少""本月花了多少钱""今年买烟花花了多少""咖啡一共花了多少"→ flexible_data_query。
+        - 分析总结类："分析今年收入结构""复盘本月消费""最近财务状态怎么样"→ query_analysis。
+        - 涉及具体数据的查询不要用 query。
 
-        ## 示例
+        规则：
+        - 单动作→single_action，多动作→multi_action，纯查询→query，查询+执行混合→clarification，无法识别→unknown。
+        - categoryCandidate 始终填用户原始语义。normalizedCategoryCandidate 用常识归一品牌/口语，不确定则留空。不要编造分类。
+        - title 去掉"提醒我""帮我"等套话。日期：今天=当天，明天=+1。时间映射：凌晨=00-05，早上/上午=09:00，中午=12:00，下午=15:00，晚上/傍晚=20:00。
+        - 用户明确说"提醒我明天早上/下午/今晚N点"时，同时填 reminderDate 和 dueDate。
+        - 购物清单：并列物品填 subtasks（逗号分隔），title 概括。只有 1 个事项时不填 subtasks。
+        - 多笔记账每项的 note/categoryCandidate 严格对应各自内容。
+        - 查询+执行混合时返回 clarification。
+        - 不确定就 clarification，不要编造字段。
+        - 复杂字段（分期、重复任务）由专用 parser 处理，不要输出 installment* / repeat* 字段。
+        - 无法判断时输出 intent: "unknown", mode: "unknown"，不要输出自由文本。
 
-        输入：「午饭35」
-        ```json
-        {"mode":"single_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"35","note":"午饭","primaryCategory":"","subCategory":"","categoryCandidate":"午饭","normalizedCategoryCandidate":"午餐","semanticCategoryHint":"餐饮"}}],"needsClarification":false,"clarificationQuestion":null}
-        ```
-
-        输入：「肯德基40」
-        ```json
-        {"mode":"single_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"40","note":"肯德基","primaryCategory":"","subCategory":"","categoryCandidate":"肯德基","normalizedCategoryCandidate":"晚餐","semanticCategoryHint":"餐饮"}}],"needsClarification":false,"clarificationQuestion":null}
-        ```
-
-        输入：「买烟250」
-        ```json
-        {"mode":"single_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"250","note":"买烟","primaryCategory":"","subCategory":"","categoryCandidate":"买烟","normalizedCategoryCandidate":"香烟","semanticCategoryHint":"烟酒"}}],"needsClarification":false,"clarificationQuestion":null}
-        ```
-
-        输入：「买个手办200」
-        ```json
-        {"mode":"single_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"200","note":"买个手办","primaryCategory":"","subCategory":"","categoryCandidate":"手办","normalizedCategoryCandidate":"","semanticCategoryHint":"购物"}}],"needsClarification":false,"clarificationQuestion":null}
-        ```
-
-        输入：「工资23870」
-        ```json
-        {"mode":"single_action","items":[{"id":"1","intent":"record_income","confidence":0.95,"extractedData":{"amount":"23870","note":"工资","primaryCategory":"","subCategory":"","categoryCandidate":"工资","normalizedCategoryCandidate":"工资","semanticCategoryHint":"工资收入"}}],"needsClarification":false,"clarificationQuestion":null}
-        ```
-
-        输入：「午饭35，提醒我明天买牛奶」
-        ```json
-        {"mode":"multi_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"35","note":"午饭","primaryCategory":"","subCategory":"","categoryCandidate":"午饭","normalizedCategoryCandidate":"午餐","semanticCategoryHint":"餐饮"}},{"id":"2","intent":"create_task","confidence":0.95,"extractedData":{"title":"买牛奶","dueDate":"2026-05-05"}}],"needsClarification":false,"clarificationQuestion":null}
-        ```
-
-        输入：「电费99，燃气费50，水费35」
-        ```json
-        {"mode":"multi_action","items":[{"id":"1","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"99","note":"电费","primaryCategory":"","subCategory":"","categoryCandidate":"电费","normalizedCategoryCandidate":"电费","semanticCategoryHint":"水电燃气"}},{"id":"2","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"50","note":"燃气费","primaryCategory":"","subCategory":"","categoryCandidate":"燃气费","normalizedCategoryCandidate":"燃气费","semanticCategoryHint":"水电燃气"}},{"id":"3","intent":"record_expense","confidence":0.95,"extractedData":{"amount":"35","note":"水费","primaryCategory":"","subCategory":"","categoryCandidate":"水费","normalizedCategoryCandidate":"水费","semanticCategoryHint":"水电燃气"}}],"needsClarification":false,"clarificationQuestion":null}
-        ```
-
-        输入：「上周花了多少钱」
-        ```json
-        {"mode":"query","items":[{"id":"1","intent":"flexible_data_query","confidence":0.95,"extractedData":{"queryDomain":"finance","queryGoal":"统计上周支出总额","rawConstraints":"上周, 支出"}}],"needsClarification":false,"clarificationQuestion":null}
-        ```
-
-        输入：「今年的收入是多少」
-        ```json
-        {"mode":"query","items":[{"id":"1","intent":"flexible_data_query","confidence":0.95,"extractedData":{"queryDomain":"finance","queryGoal":"统计今年收入总额","rawConstraints":"今年, 收入"}}],"needsClarification":false,"clarificationQuestion":null}
-        ```
-
-        输入：「今年买烟花了多少钱」
-        ```json
-        {"mode":"query","items":[{"id":"1","intent":"flexible_data_query","confidence":0.95,"extractedData":{"queryDomain":"finance","queryGoal":"统计今年买烟花的支出总额","rawConstraints":"今年, 关键词包含烟花"}}],"needsClarification":false,"clarificationQuestion":null}
-        ```
-
-        输入：「你能帮我做什么」
-        ```json
-        {"mode":"query","items":[{"id":"1","intent":"query","confidence":0.9,"extractedData":{}}],"needsClarification":false,"clarificationQuestion":null}
-        ```
-
-        输入：「提醒我1小时后去山姆买牛奶和洗手液」
-        ```json
-        {"mode":"single_action","items":[{"id":"1","intent":"create_task","confidence":0.95,"extractedData":{"title":"去山姆购物","dueDate":"2026-05-17 22:17","subtasks":"买牛奶,买洗手液"}}],"needsClarification":false,"clarificationQuestion":null}
-        ```
-
-        输入：「我上一次买烟超过200是什么时候」
-        ```json
-        {"mode":"query","items":[{"id":"1","intent":"flexible_data_query","confidence":0.95,"extractedData":{"queryDomain":"finance","queryGoal":"查找最近一笔金额>200的买烟记录","rawConstraints":"金额>200, 关键词包含烟"}}],"needsClarification":false,"clarificationQuestion":null}
-        ```
-
-        输入：「这个月超过50的外卖有几次」
-        ```json
-        {"mode":"query","items":[{"id":"1","intent":"flexible_data_query","confidence":0.95,"extractedData":{"queryDomain":"finance","queryGoal":"统计本月超过50元的外卖次数","rawConstraints":"本月, 金额>50, 外卖"}}],"needsClarification":false,"clarificationQuestion":null}
-        ```
+        示例：
+        - "今天午饭花了35" → intent: "record_expense", extractedData: { amount: "35", categoryCandidate: "午饭" }
+        - "今年收入是多少" → intent: "flexible_data_query", extractedData: { queryGoal: "今年收入总额" }
+        - "帮我分析一下最近的花销" → intent: "query_analysis", extractedData: { analysisDomain: "finance", periodLabel: "最近" }
+        - "明天去山姆买牛奶、鸡蛋和纸巾" → intent: "create_task", extractedData: { title: "去山姆购物", subtasks: "买牛奶,买鸡蛋,买纸巾" }
+        - "嗯..." → intent: "unknown", mode: "unknown"
 
         只回复 JSON。
         """,

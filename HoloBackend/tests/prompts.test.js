@@ -120,40 +120,46 @@ test("启动时自动把默认 Prompt 登记到版本历史", async () => {
   assert.match(historyHtml, /自动登记默认 Prompt 基线/);
 });
 
-test("intent_recognition 默认 Prompt 已移除完整科目表并使用语义归一字段", async () => {
+test("intent_recognition 默认 Prompt 已瘦身为核心 Router（v17）", async () => {
   const app = createTestApp();
 
   const response = await app.request("/v1/prompts/intent_recognition");
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  assert.equal(prompt.version, 15);
+  // 版本号
+  assert.equal(prompt.version, 17);
+
+  // 长度验证：必须在 2500 字符以内
+  assert.ok(prompt.content.length < 2500, `prompt 长度 ${prompt.content.length} 超过 2500`);
+
+  // 保留的核心字段
   assert.match(prompt.content, /categoryCandidate/);
   assert.match(prompt.content, /normalizedCategoryCandidate/);
   assert.match(prompt.content, /semanticCategoryHint/);
-  assert.match(prompt.content, /工资23870/);
-  assert.match(prompt.content, /待分类/);
-  assert.match(prompt.content, /买烟250/);
-  assert.match(prompt.content, /肯德基40/);
-  assert.match(prompt.content, /habitPolarity/);
-  assert.match(prompt.content, /stayBelowTarget/);
-  assert.match(prompt.content, /购物清单/);
-  assert.match(prompt.content, /买苹果,买胡萝卜,买哈密瓜,买水蜜桃/);
-  assert.match(prompt.content, /明天早上/);
-  assert.match(prompt.content, /明天下午/);
   assert.match(prompt.content, /reminderDate/);
-  assert.match(prompt.content, /系统科目对照 catalog/);
-  assert.match(prompt.content, /今年买烟花了多少钱/);
-  assert.match(prompt.content, /今年的收入是多少/);
-  assert.match(prompt.content, /确定数字.*flexible_data_query/);
-  assert.match(prompt.content, /关键词限定.*flexible_data_query/);
-  assert.match(prompt.content, /明确要求分析.*query_analysis/);
+  assert.match(prompt.content, /subtasks/);
+  assert.match(prompt.content, /description/);
+  assert.match(prompt.content, /购物清单/);
+
+  // 保留的分流规则
+  assert.match(prompt.content, /今年买烟花花了多少/);
+  assert.match(prompt.content, /今年收入是多少/);
+  assert.match(prompt.content, /flexible_data_query/);
+  assert.match(prompt.content, /query_analysis/);
+
+  // 已下沉字段不应出现在 Router prompt 中
+  assert.doesNotMatch(prompt.content, /installmentEnabled/);
+  assert.doesNotMatch(prompt.content, /installmentPeriods/);
+  assert.doesNotMatch(prompt.content, /repeatEnabled/);
+  assert.doesNotMatch(prompt.content, /repeatType/);
+  assert.doesNotMatch(prompt.content, /habitPolarity/);
+  assert.doesNotMatch(prompt.content, /stayBelowTarget/);
+
+  // 已移除的大段内容
+  assert.doesNotMatch(prompt.content, /系统科目对照 catalog/);
   assert.doesNotMatch(prompt.content, /## 科目体系/);
-  assert.doesNotMatch(prompt.content, /### 支出/);
-  assert.doesNotMatch(prompt.content, /### 收入/);
-  assert.doesNotMatch(prompt.content, /餐饮 \\| 早餐、午餐、晚餐/);
-  assert.doesNotMatch(prompt.content, /\| query_analysis \|[^|\n]*花了多少/);
-  assert.doesNotMatch(prompt.content, /\| query_analysis \|[^|\n]*整体花费/);
+  assert.doesNotMatch(prompt.content, /## 输出格式/);
 });
 
 test("analysis_prompt 默认 Prompt 使用 C 端纯文本输出约束", async () => {
