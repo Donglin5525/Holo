@@ -28,6 +28,8 @@
 ### 优化
 - 后端 errors.js publicMessage 映射补全并按分类整理
 - 后端 SSE 流式错误事件同时返回 code 和 message
+- PrivacyInfo.xcprivacy：移除 VoiceRecordingService 中未使用的 FileTimestamp API 调用（.creationDateKey → nil），避免苹果静态分析误报
+- 账号删除流程：新增 markAccountDeleted() 替代 signOut()，明确区分账号删除与退出登录场景（Guideline 5.1.1 合规）
 
 ---
 
