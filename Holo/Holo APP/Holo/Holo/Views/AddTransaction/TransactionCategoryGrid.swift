@@ -318,13 +318,13 @@ extension AddTransactionSheet {
 extension AddTransactionSheet {
 
     /// 当前类型下的一级分类列表
+    /// 不过滤「无子分类」的一级分类——用户新增的空一级分类也应当可见
     private var topLevelCategories: [Category] {
         categories
             .filter { top in
                 top.transactionType == transactionType
                 && top.isTopLevel
                 && !top.isSystem
-                && categories.contains { $0.parentId == top.id }
             }
             .sorted { $0.sortOrder < $1.sortOrder }
     }
@@ -354,14 +354,27 @@ extension AddTransactionSheet {
     }
 
     /// 加载所有分类 + 最近常用
+    /// 加载后同步清理已失效的 selectedCategory / drillDownParent 引用
     @MainActor
     func loadCategories() async {
         do {
             categories = try await FinanceRepository.shared.getAllCategories()
             await loadRecentCategories()
+            cleanStaleCategoryRefs()
         } catch {
             Logger(subsystem: "com.holo.app", category: "CategoryGrid")
                 .error("加载分类失败：\(error.localizedDescription)")
+        }
+    }
+
+    /// 清理已删除分类的引用，避免 UI 访问已删除的 NSManagedObject 导致崩溃
+    private func cleanStaleCategoryRefs() {
+        let validIDs = Set(categories.map { $0.objectID })
+        if let selected = selectedCategory, !validIDs.contains(selected.objectID) || selected.isDeleted {
+            selectedCategory = nil
+        }
+        if let parent = drillDownParent, !validIDs.contains(parent.objectID) || parent.isDeleted {
+            drillDownParent = nil
         }
     }
 

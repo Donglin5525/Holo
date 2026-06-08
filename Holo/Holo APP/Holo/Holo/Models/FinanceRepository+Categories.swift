@@ -184,6 +184,9 @@ extension FinanceRepository {
     }
     
     func deleteCategory(_ category: Category) async throws {
+        // 防御：对象已被删除则直接返回
+        guard !category.isDeleted else { return }
+
         // 清理该分类的预算记录
         Budget.deleteForCategory(category.id, in: context)
 

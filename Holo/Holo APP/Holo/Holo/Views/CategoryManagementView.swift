@@ -439,12 +439,27 @@ struct CategoryManagementView: View {
     }
     
     private func confirmDelete(_ category: Category) {
+        // 防御：对象已被删除则跳过
+        guard !category.isDeleted else {
+            categoryToDelete = nil
+            showDeleteConfirmation = false
+            return
+        }
+        // ⚠️ 先从本地数据中移除，避免 context.save() 后 SwiftUI 渲染已删除的 NSManagedObject
+        // EXC_BREAKPOINT 根因：context.save() 将对象从 store 删除，但数组仍持有引用
+        topLevelCategories.removeAll { $0.objectID == category.objectID }
+        if category.isTopLevel {
+            subCategoriesMap.removeValue(forKey: category.id)
+        } else if let parentId = category.parentId {
+            subCategoriesMap[parentId]?.removeAll { $0.objectID == category.objectID }
+        }
         Task {
             do {
                 try await repository.deleteCategory(category)
             } catch {
                 errorMessage = error.localizedDescription
             }
+            categoryToDelete = nil
             await loadData()
         }
     }
