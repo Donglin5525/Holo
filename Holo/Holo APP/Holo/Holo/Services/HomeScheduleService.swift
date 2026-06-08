@@ -209,36 +209,36 @@ class HomeScheduleService: ObservableObject {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
 
-        // 按优先级查找最新洞察：今日 > 本周 > 本月
-        let periods: [(MemoryInsightPeriodType, Date, Date)] = {
-            var result: [(MemoryInsightPeriodType, Date, Date)] = []
+        // 按优先级查找最新洞察：今日 > 本周/上周 > 本月/上月
+        let periods: [(periodType: MemoryInsightPeriodType, start: Date, end: Date, isFallback: Bool)] = {
+            var result: [(periodType: MemoryInsightPeriodType, start: Date, end: Date, isFallback: Bool)] = []
             // 今日
             if let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) {
-                result.append((.daily, today, tomorrow))
+                result.append((.daily, today, tomorrow, false))
             }
-            // 本周
-            let (weekStart, weekEnd, _) = MemoryInsightContextBuilder.effectivePeriodRange(
+            // 本周 / 上周（自动回退）
+            let (weekStart, weekEnd, weekFallback) = MemoryInsightContextBuilder.effectivePeriodRange(
                 periodType: .weekly, referenceDate: Date()
             )
-            result.append((.weekly, weekStart, weekEnd))
-            // 本月
-            let (monthStart, monthEnd, _) = MemoryInsightContextBuilder.effectivePeriodRange(
+            result.append((.weekly, weekStart, weekEnd, weekFallback))
+            // 本月 / 上月（自动回退）
+            let (monthStart, monthEnd, monthFallback) = MemoryInsightContextBuilder.effectivePeriodRange(
                 periodType: .monthly, referenceDate: Date()
             )
-            result.append((.monthly, monthStart, monthEnd))
+            result.append((.monthly, monthStart, monthEnd, monthFallback))
             return result
         }()
 
-        for (periodType, start, end) in periods {
+        for (periodType, start, end, isFallback) in periods {
             if let insight = try? insightRepo.fetchInsight(periodType: periodType, start: start, end: end),
                insight.insightStatus == .ready || insight.insightStatus == .stale {
                 let title = insight.title
                 let periodLabel: String
                 switch periodType {
                 case .daily: periodLabel = "今日"
-                case .weekly: periodLabel = "本周"
-                case .monthly: periodLabel = "本月"
-                case .quarterly: periodLabel = "本季度"
+                case .weekly: periodLabel = isFallback ? "上周" : "本周"
+                case .monthly: periodLabel = isFallback ? "上月" : "本月"
+                case .quarterly: periodLabel = isFallback ? "上季度" : "本季度"
                 case .custom: periodLabel = "自定义周期"
                 }
                 return ScheduleReminderState(

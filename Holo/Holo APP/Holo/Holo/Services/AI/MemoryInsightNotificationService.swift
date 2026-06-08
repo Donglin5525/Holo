@@ -48,8 +48,8 @@ final class MemoryInsightNotificationService {
     ///   - hour: 小时 (0-23)
     func scheduleWeeklyReminder(weekday: Int, hour: Int) {
         let content = UNMutableNotificationContent()
-        content.title = "本周记忆已准备好"
-        content.body = "打开 Holo，让 AI 帮你生成一份本周回放。"
+        content.title = "上周记忆已准备好"
+        content.body = "打开 Holo，让 AI 帮你生成一份上周回放。"
         content.sound = .default
         content.categoryIdentifier = TodoNotificationCategory.memoryInsight
 
@@ -91,8 +91,8 @@ final class MemoryInsightNotificationService {
     ///   - hour: 小时 (0-23)
     func scheduleMonthlyReminder(day: Int, hour: Int) {
         let content = UNMutableNotificationContent()
-        content.title = "本月记忆已准备好"
-        content.body = "打开 Holo，让 AI 帮你生成一份本月回放。"
+        content.title = "上月记忆已准备好"
+        content.body = "打开 Holo，让 AI 帮你生成一份上月回放。"
         content.sound = .default
         content.categoryIdentifier = TodoNotificationCategory.memoryInsight
 
