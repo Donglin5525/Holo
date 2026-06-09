@@ -90,9 +90,10 @@ extension Thought {
         MarkdownRenderer.previewText(content)
     }
 
-    /// 去除格式的完整纯文本（不按字符截断，用于行数自适应显示）
+    /// 去除格式的完整纯文本（保留段落换行，用于卡片自适应显示）
     var plainContent: String {
-        MarkdownRenderer.previewText(content, maxLength: .max)
+        MarkdownParser.stripFormatting(content)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// 内容中的内联标签名称
