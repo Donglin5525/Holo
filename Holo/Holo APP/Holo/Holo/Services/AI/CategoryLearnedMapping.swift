@@ -371,6 +371,12 @@ enum CategoryLearnedMapping {
         targetSub: String,
         transactionType: TransactionType
     ) -> Bool {
+        // 跳过时间敏感分类的归纳——餐段应由时间动态推断，不应归纳为固定规则
+        guard !CategoryCandidateResolver.timeSensitivePrimaries.contains(targetPrimary) else {
+            logger.info("跳过时间敏感分类归纳：\(targetPrimary)")
+            return false
+        }
+
         let samples = loadInductionSamples()
         let matchingSamples = samples.filter {
             $0.targetPrimary == targetPrimary &&

@@ -8,7 +8,7 @@ export const financeCategoryCatalog = {
       children: [
         { name: "早餐", aliases: ["早饭", "早点", "早饭钱", "早餐费"], tags: ["meal", "breakfast"] },
         { name: "午餐", aliases: ["午饭", "中饭", "中午饭", "午饭钱"], tags: ["meal", "lunch"] },
-        { name: "晚餐", aliases: ["晚饭", "晚饭钱", "晚餐费", "快餐"], tags: ["meal", "dinner"] },
+        { name: "晚餐", aliases: ["晚饭", "晚饭钱", "晚餐费"], tags: ["meal", "dinner"] },
         { name: "夜宵", aliases: ["宵夜", "夜点心", "晚间餐"], tags: ["meal", "lateNight"] },
         { name: "零食", aliases: ["小食", "点心", "零食饮料", "面包", "蛋糕", "甜点", "烘焙", "小吃"], tags: ["food", "snack"] },
         { name: "咖啡", aliases: ["咖啡奶茶", "拿铁", "美式", "瑞幸", "星巴克", "奶茶"], tags: ["drink", "coffee"] },

@@ -2,6 +2,25 @@ import Foundation
 
 enum CategoryCandidateResolver {
 
+    // MARK: - 时间敏感分类配置
+
+    /// 需要按时间推断二级分类的一级分类名
+    /// 当学习映射或语义 fallback 匹配到这些一级分类时，
+    /// 不锁死具体餐次，而是根据当前时间动态推断
+    static let timeSensitivePrimaries: Set<String> = ["餐饮"]
+
+    /// 根据小时返回餐段子分类名
+    static func mealSubCategoryForHour(_ hour: Int) -> String {
+        switch hour {
+        case 5..<10: return "早餐"
+        case 10..<16: return "午餐"
+        case 16..<21: return "晚餐"
+        default: return "夜宵"
+        }
+    }
+
+    // MARK: - 候选词排序
+
     static func orderedCandidates(
         categoryCandidate: String?,
         normalizedCategoryCandidate: String?,

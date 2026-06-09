@@ -791,6 +791,21 @@ final class IntentRouter {
                 type: type,
                 primaryCategory: primaryCategory ?? ""
             ) ?? CategoryLearnedMapping.lookup(candidate: candidate, type: type) {
+
+                // 时间敏感分类（如餐饮）：忽略已记录的餐段，按当前时间推断
+                if CategoryCandidateResolver.timeSensitivePrimaries.contains(learned.primary) {
+                    let hour = Calendar.current.component(.hour, from: Date())
+                    let mealSub = CategoryCandidateResolver.mealSubCategoryForHour(hour)
+                    let parent = categories.first(where: {
+                        $0.isTopLevel && $0.name == learned.primary && $0.type == type.rawValue
+                    })
+                    if let parent = parent,
+                       let sub = categories.first(where: { $0.parentId == parent.id && $0.name == mealSub }) {
+                        return sub
+                    }
+                }
+
+                // 非时间敏感分类：走原有精确匹配逻辑
                 let learnedResult = CategoryMatcherService.shared.matchSingle(
                     primaryCategory: learned.primary,
                     subCategory: learned.sub,
@@ -841,6 +856,34 @@ final class IntentRouter {
                 )
                 if let matched = catalogResult.matchedCategory, matched.isSubCategory {
                     return matched
+                }
+            }
+        }
+
+        // 3.5. AI 语义兜底：semanticCategoryHint 匹配到一级分类后推断二级
+        if let hint = semanticCategoryHint?.trimmingCharacters(in: .whitespaces),
+           !hint.isEmpty {
+            let hintLower = hint.lowercased()
+            if let parent = categories.first(where: {
+                $0.isTopLevel && $0.type == type.rawValue && $0.name.lowercased() == hintLower
+            }) {
+                if CategoryCandidateResolver.timeSensitivePrimaries.contains(parent.name) {
+                    // 餐饮类：按时间选餐段
+                    let hour = Calendar.current.component(.hour, from: Date())
+                    let mealSub = CategoryCandidateResolver.mealSubCategoryForHour(hour)
+                    if let sub = categories.first(where: { $0.parentId == parent.id && $0.name == mealSub }) {
+                        return sub
+                    }
+                } else {
+                    // 非餐饮类：用 normalizedCategoryCandidate 在该一级分类下找子类
+                    if let normalized = normalizedCategoryCandidate?.trimmingCharacters(in: .whitespaces),
+                       !normalized.isEmpty {
+                        if let sub = categories.first(where: {
+                            $0.parentId == parent.id && $0.name.lowercased() == normalized.lowercased()
+                        }) {
+                            return sub
+                        }
+                    }
                 }
             }
         }

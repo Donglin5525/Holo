@@ -36,6 +36,7 @@ final class PromptManager {
         case financeActionParser = "finance_action_parser"
         case taskActionParser = "task_action_parser"
         case categoryPatternInduction = "category_pattern_induction"
+        case thoughtOrganization = "thought_organization"
 
         var displayName: String {
             switch self {
@@ -53,6 +54,7 @@ final class PromptManager {
             case .financeActionParser: return "分期记账解析"
             case .taskActionParser: return "重复任务解析"
             case .categoryPatternInduction: return "分类模式归纳"
+            case .thoughtOrganization: return "想法自动整理"
             }
         }
 
@@ -72,6 +74,7 @@ final class PromptManager {
             case .financeActionParser: return "从分期记账文本中提取结构化参数"
             case .taskActionParser: return "从重复任务文本中提取结构化参数"
             case .categoryPatternInduction: return "从用户分类修正样本中归纳出通用匹配模式"
+            case .thoughtOrganization: return "为想法自动生成标签和主题候选"
             }
         }
 
@@ -91,6 +94,7 @@ final class PromptManager {
             case .financeActionParser: return "creditcard.circle"
             case .taskActionParser: return "repeat.circle"
             case .categoryPatternInduction: return "lightbulb.circle"
+            case .thoughtOrganization: return "tag.circle"
             }
         }
     }
@@ -100,7 +104,7 @@ final class PromptManager {
     /// 需要版本管理的 prompt 类型及其最低版本
     private static let promptVersions: [PromptType: Int] = [
         .systemPrompt: 2,               // v2: Sense Loop 表达边界与档案优先级
-        .intentRecognition: 17,         // v17: Router 瘦身，去掉全字段 schema 和科目规则，保留核心分流和基础字段
+        .intentRecognition: 18,         // v18: semanticCategoryHint 品牌必须填写规则
         .memoryInsightGeneration: 7,    // v7: Sense Loop 表达边界、偏好摘要与表达强度
         .analysisPrompt: 3,             // v3: Sense Loop 表达边界与档案优先级
         .annualReview: 1,               // v1: 初始版本
@@ -108,7 +112,8 @@ final class PromptManager {
         .flexibleQueryPlanner: 2,       // v2: 当前输入优先，档案不干扰硬查询
         .memoryObserver: 1,             // v1: 初始版本，记忆观察引擎
         .financeActionParser: 1,        // v1: 分期记账参数解析
-        .taskActionParser: 1            // v1: 重复任务参数解析
+        .taskActionParser: 1,           // v1: 重复任务参数解析
+        .thoughtOrganization: 1        // v1: 想法自动整理
     ]
 
     /// 加载指定类型的 Prompt，带缓存，优先读取 UserDefaults 自定义。
@@ -284,7 +289,7 @@ final class PromptManager {
 
         规则：
         - 单动作→single_action，多动作→multi_action，纯查询→query，查询+执行混合→clarification，无法识别→unknown。
-        - categoryCandidate 始终填用户原始语义。normalizedCategoryCandidate 用常识归一品牌/口语，不确定则留空。不要编造分类。
+        - categoryCandidate 始终填用户原始语义。normalizedCategoryCandidate 用常识归一品牌/口语，不确定则留空。不要编造分类。semanticCategoryHint 填写消费所属的一级分类名（餐饮、交通、购物、娱乐、居住、医疗、学习、人情、其他）。品牌类消费必须填，如"麦当劳"→"餐饮"，"优衣库"→"购物"。
         - title 去掉"提醒我""帮我"等套话。日期：今天=当天，明天=+1。时间映射：凌晨=00-05，早上/上午=09:00，中午=12:00，下午=15:00，晚上/傍晚=20:00。
         - 用户明确说"提醒我明天早上/下午/今晚N点"时，同时填 reminderDate 和 dueDate。
         - 购物清单：并列物品填 subtasks（逗号分隔），title 概括。只有 1 个事项时不填 subtasks。
@@ -296,6 +301,7 @@ final class PromptManager {
 
         示例：
         - "今天午饭花了35" → intent: "record_expense", extractedData: { amount: "35", categoryCandidate: "午饭" }
+        - "麦当劳35" → intent: "record_expense", extractedData: { amount: "35", categoryCandidate: "麦当劳", normalizedCategoryCandidate: "快餐", semanticCategoryHint: "餐饮" }
         - "今年收入是多少" → intent: "flexible_data_query", extractedData: { queryGoal: "今年收入总额" }
         - "帮我分析一下最近的花销" → intent: "query_analysis", extractedData: { analysisDomain: "finance", periodLabel: "最近" }
         - "明天去山姆买牛奶、鸡蛋和纸巾" → intent: "create_task", extractedData: { title: "去山姆购物", subtasks: "买牛奶,买鸡蛋,买纸巾" }
@@ -1056,6 +1062,35 @@ final class PromptManager {
 3. 优先选择 "contains"，只有明显的前缀/后缀模式才用 startsWith/endsWith
 4. 如果样本之间没有明显共性，输出 confidence < 0.7 的结果即可
 5. pattern 应该尽可能简短，用最短的关键词覆盖最多的样本
+""",
+
+        // MARK: - 想法自动整理
+        .thoughtOrganization: """
+你是一个想法整理助手。用户会给你一条想法的原文，你需要为这条想法生成简短标签。
+
+## 标签规则
+
+- 生成 1-3 个标签，每个标签 2-6 个字
+- 标签应该是内容关键词，不是情感分类
+- 避免过于宽泛的标签（如"生活""思考""日常""想法""记录"）
+- 参考已有标签风格：{{existingTagExamples}}
+- 不要生成以下标签（用户已拒绝）：{{rejectedTags}}
+
+## 输出格式
+
+严格输出 JSON（不要 markdown 代码块）：
+{
+  "suggestedTags": ["标签1", "标签2"],
+  "topicCandidate": {
+    "title": "主题名",
+    "confidence": 0.85
+  },
+  "matchedTopicId": null,
+  "confidence": 0.86,
+  "reason": "一句话理由"
+}
+
+只输出 JSON，不要添加其他内容。
 """
     ]
 
