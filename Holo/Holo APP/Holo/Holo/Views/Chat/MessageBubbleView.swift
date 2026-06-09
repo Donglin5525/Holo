@@ -16,6 +16,7 @@ struct MessageBubbleView: View {
     var onIntentTagTap: ((ChatMessageViewData) -> Void)? = nil
     var onCardTap: ((ChatMessageViewData, ChatCardData) -> Void)? = nil
     var onFlexibleQueryTransactionTap: ((UUID) -> Void)? = nil
+    var onFlexibleQueryViewAllTap: ((FlexibleQueryChatCardData) -> Void)? = nil
     var onViewLog: ((ChatMessageViewData) -> Void)? = nil
     var onCompactAnalysisTap: (() -> Void)? = nil
     var onGoalDraftCardTap: (() -> Void)? = nil
@@ -358,6 +359,8 @@ struct MessageBubbleView: View {
         case .flexibleQuery(let queryData):
             FlexibleQueryChatCard(data: queryData) { transactionId in
                 onFlexibleQueryTransactionTap?(transactionId)
+            } onViewAllTap: {
+                onFlexibleQueryViewAllTap?(queryData)
             }
         }
     }

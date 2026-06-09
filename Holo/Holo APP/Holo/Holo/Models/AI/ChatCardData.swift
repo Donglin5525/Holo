@@ -152,26 +152,32 @@ nonisolated enum ChatCardData: Equatable {
             title: flexibleQueryTitle(for: result),
             summaryText: flexibleQuerySummaryText(for: result),
             totalAmountText: amountText,
+            searchKeyword: flexibleQuerySearchKeyword(for: result),
             rows: rows
         ))
     }
 
     nonisolated private static func flexibleQueryTitle(for result: FlexibleQueryResult) -> String {
+        let subject = flexibleQuerySubject(for: result)
         switch result.plan.operation {
         case .sumAmount:
-            return "查到 \(result.summary.totalMatched) 笔明细"
+            if let subject {
+                let isIncome = result.plan.filters.type == .income
+                return isIncome ? "\(subject)收入" : "\(subject)消费"
+            }
+            return "这次查询"
         case .countTransactions:
-            return "共匹配 \(result.summary.totalMatched) 笔记录"
+            return subject.map { "\($0)记录" } ?? "匹配记录"
         case .findLatestTransaction:
-            return "最近一笔匹配记录"
+            return subject.map { "最近一笔\($0)" } ?? "最近一笔记录"
         case .findEarliestTransaction:
-            return "最早一笔匹配记录"
+            return subject.map { "最早一笔\($0)" } ?? "最早一笔记录"
         case .maxTransaction:
             return "金额最高的一笔"
         case .minTransaction:
             return "金额最低的一笔"
         case .rankByDay, .listTransactions:
-            return "查询明细"
+            return subject.map { "\($0)明细" } ?? "查询明细"
         }
     }
 
@@ -184,6 +190,20 @@ nonisolated enum ChatCardData: Equatable {
             parts.append("主要分类：\(topCategory)")
         }
         return parts.joined(separator: " · ")
+    }
+
+    nonisolated private static func flexibleQuerySubject(for result: FlexibleQueryResult) -> String? {
+        if let keyword = flexibleQuerySearchKeyword(for: result) {
+            return keyword
+        }
+        if let category = result.plan.filters.categoryNames.first, !category.isEmpty {
+            return category
+        }
+        return nil
+    }
+
+    nonisolated private static func flexibleQuerySearchKeyword(for result: FlexibleQueryResult) -> String? {
+        result.plan.filters.keywords.first(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
     }
 }
 
@@ -250,10 +270,11 @@ nonisolated struct FlexibleQueryChatCardData: Equatable {
     let title: String
     let summaryText: String
     let totalAmountText: String?
+    let searchKeyword: String?
     let rows: [FlexibleQueryTransactionRow]
 
     var previewRows: [FlexibleQueryTransactionRow] {
-        Array(rows.prefix(5))
+        Array(rows.prefix(3))
     }
 
     var remainingRowCount: Int {
@@ -262,6 +283,10 @@ nonisolated struct FlexibleQueryChatCardData: Equatable {
 
     var resultCountText: String {
         "\(rows.count) 笔"
+    }
+
+    var viewAllText: String {
+        "查看全部 \(rows.count) 笔"
     }
 }
 

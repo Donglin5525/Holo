@@ -15,6 +15,7 @@ struct FinanceSearchView: View {
     @Environment(\.dismiss) var dismiss
 
     private let repository = FinanceRepository.shared
+    private let initialSearchText: String?
 
     // MARK: - State
 
@@ -38,6 +39,10 @@ struct FinanceSearchView: View {
 
     /// 正在编辑的交易
     @State private var editingTransaction: Transaction?
+
+    init(initialSearchText: String? = nil) {
+        self.initialSearchText = initialSearchText
+    }
 
     // MARK: - Computed
 
@@ -73,7 +78,15 @@ struct FinanceSearchView: View {
         .background(Color.holoBackground)
         .swipeBackToDismiss { dismiss() }
         .onAppear {
-            isSearchFocused = true
+            if let initialSearchText,
+               searchText.isEmpty,
+               !initialSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                searchText = initialSearchText
+                isSearchFocused = false
+                performSearch(keyword: initialSearchText)
+            } else {
+                isSearchFocused = true
+            }
         }
         .onChange(of: searchText) { _, newValue in
             performDebouncedSearch(keyword: newValue)

@@ -20,6 +20,7 @@ struct ChatView: View {
     @State private var showDeleteConfirmation = false
     @State private var pendingCategoryEditMessage: ChatMessageViewData?
     @State private var pendingEditPrefill: PendingTransactionPrefill?
+    @State private var financeSearchRoute: FlexibleQueryFinanceSearchRoute?
     @Binding var goalPlanningRequest: GoalPlanningRequest?
 
     /// 外部传入的预填文本（如从记忆长廊"继续问AI"跳转）
@@ -68,6 +69,9 @@ struct ChatView: View {
             if let log = message.rawLog {
                 ChatLogView(log: log)
             }
+        }
+        .fullScreenCover(item: $financeSearchRoute) { route in
+            FinanceSearchView(initialSearchText: route.keyword)
         }
         .sheet(isPresented: Binding(
             get: { pendingCategoryEditMessage != nil },
@@ -246,6 +250,9 @@ struct ChatView: View {
                             onFlexibleQueryTransactionTap: { transactionId in
                                 openTransactionDetail(transactionId)
                             },
+                            onFlexibleQueryViewAllTap: { queryData in
+                                openFlexibleQueryResults(queryData)
+                            },
                             onViewLog: { msg in
                                 viewingLogMessage = msg
                             },
@@ -394,6 +401,16 @@ struct ChatView: View {
         activeSheet = transaction.map { .editTransaction($0) }
     }
 
+    private func openFlexibleQueryResults(_ data: FlexibleQueryChatCardData) {
+        if let keyword = data.searchKeyword?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !keyword.isEmpty {
+            financeSearchRoute = FlexibleQueryFinanceSearchRoute(keyword: keyword)
+        } else {
+            DeepLinkState.shared.navigate(to: .finance)
+            dismiss()
+        }
+    }
+
     // MARK: - Intent Tag Navigation
 
     private func handleIntentTagTap(_ message: ChatMessageViewData) {
@@ -509,6 +526,12 @@ private enum ChatSheet: Identifiable {
             return "voiceInput"
         }
     }
+}
+
+private struct FlexibleQueryFinanceSearchRoute: Identifiable {
+    let keyword: String
+
+    var id: String { keyword }
 }
 
 /// 待删除卡片的信息（用于确认弹窗）

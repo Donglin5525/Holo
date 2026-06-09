@@ -49,7 +49,7 @@ final class FlexibleQueryChatCardDataTests: XCTestCase {
         XCTAssertEqual(data.rows[0].title, "买盐花")
     }
 
-    func testFlexibleQueryCardPreviewsFirstFiveRowsAndReportsRemainingCount() throws {
+    func testFlexibleQueryCardPreviewsFirstThreeRowsAndBuildsViewAllAction() throws {
         let evidences = (0..<9).map { index in
             FlexibleTransactionEvidence(
                 id: UUID().uuidString,
@@ -85,9 +85,11 @@ final class FlexibleQueryChatCardDataTests: XCTestCase {
             return XCTFail("Expected flexible query card")
         }
 
-        XCTAssertEqual(data.previewRows.count, 5)
-        XCTAssertEqual(data.remainingRowCount, 4)
+        XCTAssertEqual(data.previewRows.count, 3)
+        XCTAssertEqual(data.remainingRowCount, 6)
         XCTAssertEqual(data.resultCountText, "9 笔")
+        XCTAssertEqual(data.viewAllText, "查看全部 9 笔")
+        XCTAssertEqual(data.searchKeyword, "盐花")
     }
 
     private static func makePlan() -> FlexibleQueryPlan {

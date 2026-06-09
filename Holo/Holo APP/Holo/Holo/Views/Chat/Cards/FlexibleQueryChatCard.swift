@@ -11,12 +11,87 @@ struct FlexibleQueryChatCard: View {
 
     let data: FlexibleQueryChatCardData
     var onTransactionTap: (UUID) -> Void
+    var onViewAllTap: () -> Void
 
     var body: some View {
         ChatCardView {
-            header
+            VStack(alignment: .leading, spacing: 16) {
+                answerSummary
 
-            VStack(spacing: 10) {
+                if !data.previewRows.isEmpty {
+                    previewSection
+                }
+            }
+        }
+    }
+
+    private var answerSummary: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: "magnifyingglass")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundColor(.holoPrimary)
+                    .frame(width: 34, height: 34)
+                    .background(Color.holoPrimary.opacity(0.12))
+                    .clipShape(Circle())
+
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 8) {
+                        Text(data.title)
+                            .font(.system(size: 18, weight: .semibold))
+                            .foregroundColor(.holoTextPrimary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.82)
+
+                        Spacer(minLength: 8)
+
+                        Text(data.resultCountText)
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.holoPrimary)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 5)
+                            .background(Color.holoPrimary.opacity(0.12))
+                            .clipShape(Capsule())
+                    }
+
+                    if !data.summaryText.isEmpty {
+                        Text(data.summaryText)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.holoTextSecondary)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.86)
+                    }
+                }
+            }
+
+            if let totalAmountText = data.totalAmountText {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("合计")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.holoTextSecondary)
+
+                    Text(totalAmountText)
+                        .font(.system(size: 32, weight: .bold))
+                        .foregroundColor(.holoPrimary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.72)
+                }
+                .padding(.leading, 46)
+            }
+        }
+    }
+
+    private var previewSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("最近明细")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.holoTextSecondary)
+
+                Spacer()
+            }
+
+            VStack(spacing: 8) {
                 ForEach(data.previewRows) { row in
                     Button {
                         onTransactionTap(row.transactionId)
@@ -27,80 +102,30 @@ struct FlexibleQueryChatCard: View {
                 }
 
                 if data.remainingRowCount > 0 {
-                    remainingRowsFooter
+                    viewAllFooter
                 }
             }
         }
     }
 
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .center, spacing: 10) {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(.holoPrimary)
-                    .frame(width: 30, height: 30)
-                    .background(Color.holoPrimary.opacity(0.12))
-                    .clipShape(Circle())
+    private var viewAllFooter: some View {
+        Button {
+            onViewAllTap()
+        } label: {
+            HStack(spacing: 6) {
+                Text(data.viewAllText)
+                    .font(.system(size: 13, weight: .semibold))
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(data.title)
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.holoTextPrimary)
-                        .lineLimit(1)
-
-                    if !data.summaryText.isEmpty {
-                        Text(data.summaryText)
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.holoTextSecondary)
-                            .lineLimit(1)
-                    }
-                }
-
-                Spacer(minLength: 8)
-
-                Text(data.resultCountText)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.holoPrimary)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .background(Color.holoPrimary.opacity(0.12))
-                    .clipShape(Capsule())
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .bold))
             }
-
-            if let totalAmountText = data.totalAmountText {
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text("合计")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.holoTextSecondary)
-
-                    Text(totalAmountText)
-                        .font(.system(size: 24, weight: .bold))
-                        .foregroundColor(.holoPrimary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.78)
-
-                    Spacer()
-                }
-            }
+            .foregroundColor(.holoPrimary)
+            .frame(maxWidth: .infinity, alignment: .center)
+            .padding(.vertical, 10)
+            .background(Color.holoPrimary.opacity(0.10))
+            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
-    }
-
-    private var remainingRowsFooter: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "ellipsis.circle")
-                .font(.system(size: 12, weight: .semibold))
-            Text("还有 \(data.remainingRowCount) 笔未展示，可继续追问查看更多明细")
-                .font(.system(size: 12, weight: .medium))
-                .lineLimit(1)
-                .minimumScaleFactor(0.85)
-        }
-        .foregroundColor(.holoTextSecondary)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 9)
-        .background(Color.holoCardBackground.opacity(0.55))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .buttonStyle(.plain)
     }
 }
 
@@ -110,14 +135,12 @@ private struct FlexibleQueryTransactionRowView: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 10) {
-            Circle()
-                .fill((row.isExpense ? Color.holoError : Color.holoSuccess).opacity(0.14))
-                .frame(width: 28, height: 28)
-                .overlay {
-                    Image(systemName: row.isExpense ? "arrow.up.right" : "arrow.down.left")
-                        .font(.system(size: 12, weight: .bold))
-                        .foregroundColor(row.isExpense ? .holoError : .holoSuccess)
-                }
+            Image(systemName: row.isExpense ? "minus.circle.fill" : "plus.circle.fill")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor((row.isExpense ? Color.holoError : Color.holoSuccess).opacity(0.82))
+                .frame(width: 24, height: 24)
+                .background((row.isExpense ? Color.holoError : Color.holoSuccess).opacity(0.10))
+                .clipShape(Circle())
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(row.title)
@@ -151,15 +174,8 @@ private struct FlexibleQueryTransactionRowView: View {
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundColor(.holoTextSecondary.opacity(0.72))
             }
-            .frame(minWidth: 90, alignment: .trailing)
+            .frame(minWidth: 82, alignment: .trailing)
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(Color.holoCardBackground.opacity(0.68))
-        .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 13, style: .continuous)
-                .stroke(Color.holoBorder.opacity(0.42), lineWidth: 1)
-        )
+        .padding(.vertical, 7)
     }
 }
