@@ -72,6 +72,12 @@ struct HoloApp: App {
                         let context = CoreDataStack.shared.viewContext
                         InsightFeedbackAggregator.shared.aggregate(in: context)
                     }
+
+                    // AI 想法整理：首次启动 backfill + 恢复 pending 队列
+                    let repository = ThoughtRepository()
+                    repository.backfillTagAssignmentsIfNeeded()
+
+                    ThoughtOrganizationQueue.shared.rebuildFromDatabase()
                 }
         }
     }

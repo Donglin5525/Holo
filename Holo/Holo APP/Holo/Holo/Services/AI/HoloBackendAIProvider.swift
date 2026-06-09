@@ -420,6 +420,7 @@ enum HoloBackendPurpose: String {
     case memoryObserver = "memory_observer"
     case financeActionParser = "finance_action_parser"
     case taskActionParser = "task_action_parser"
+    case thoughtOrganization = "thought_organization"
 }
 
 extension AIActionParserKind {

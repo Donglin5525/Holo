@@ -317,10 +317,16 @@ final class HealthKitDiagnosticsService {
                 let sleepSamples = ((samples as? [HKCategorySample]) ?? []).filter {
                     sleepValues.contains($0.value)
                 }
-                let total = sleepSamples.reduce(0) { partial, sample in
-                    partial + sample.endDate.timeIntervalSince(sample.startDate) / 3600
+                let window = HealthSleepSampleAggregator.Interval(start: start, end: end)
+                let intervals = sleepSamples.compactMap { sample in
+                    HealthSleepSampleAggregator.clippedInterval(
+                        start: sample.startDate,
+                        end: sample.endDate,
+                        to: window
+                    )
                 }
-                let sources = self.summarizeCategorySources(sleepSamples, unitScale: 3600)
+                let total = HealthSleepSampleAggregator.totalHours(for: intervals)
+                let sources = self.summarizeSleepSources(sleepSamples, window: window)
                 continuation.resume(returning: HealthKitDiagnosticMetric(
                     title: "睡眠分析",
                     identifier: HKCategoryTypeIdentifier.sleepAnalysis.rawValue,
@@ -373,14 +379,21 @@ final class HealthKitDiagnosticsService {
                 let categorySamples = ((samples as? [HKCategorySample]) ?? []).filter {
                     includedValues.contains($0.value)
                 }
-                let sources = self.summarizeCategorySources(categorySamples, unitScale: nil)
+                let isStandHourMetric = categoryIdentifier == .appleStandHour
+                let window = HealthSleepSampleAggregator.Interval(start: start, end: end)
+                let totalValue = isStandHourMetric
+                    ? HealthStandHourAggregator.stoodHours(for: categorySamples, in: window)
+                    : Double(categorySamples.count)
+                let sources = isStandHourMetric
+                    ? self.summarizeStandHourSources(categorySamples, window: window)
+                    : self.summarizeCategorySources(categorySamples, unitScale: nil)
                 continuation.resume(returning: HealthKitDiagnosticMetric(
                     title: title,
                     identifier: identifier,
                     windowDescription: windowDescription,
                     unit: unitText,
                     sampleCount: categorySamples.count,
-                    totalValue: Double(categorySamples.count),
+                    totalValue: totalValue,
                     sourceSummaries: sources,
                     errorMessage: nil
                 ))
@@ -465,6 +478,39 @@ final class HealthKitDiagnosticsService {
             } else {
                 totalValue = Double(group.count)
             }
+            return sourceSummary(from: first, sampleCount: group.count, totalValue: totalValue)
+        }
+        .sorted { $0.sourceName < $1.sourceName }
+    }
+
+    private func summarizeSleepSources(
+        _ samples: [HKCategorySample],
+        window: HealthSleepSampleAggregator.Interval
+    ) -> [HealthKitDiagnosticSourceSummary] {
+        let groups = Dictionary(grouping: samples, by: sourceKey)
+        return groups.values.map { group in
+            let first = group[0]
+            let intervals = group.compactMap { sample in
+                HealthSleepSampleAggregator.clippedInterval(
+                    start: sample.startDate,
+                    end: sample.endDate,
+                    to: window
+                )
+            }
+            let totalValue = HealthSleepSampleAggregator.totalHours(for: intervals)
+            return sourceSummary(from: first, sampleCount: group.count, totalValue: totalValue)
+        }
+        .sorted { $0.sourceName < $1.sourceName }
+    }
+
+    private func summarizeStandHourSources(
+        _ samples: [HKCategorySample],
+        window: HealthSleepSampleAggregator.Interval
+    ) -> [HealthKitDiagnosticSourceSummary] {
+        let groups = Dictionary(grouping: samples, by: sourceKey)
+        return groups.values.map { group in
+            let first = group[0]
+            let totalValue = HealthStandHourAggregator.stoodHours(for: group, in: window)
             return sourceSummary(from: first, sampleCount: group.count, totalValue: totalValue)
         }
         .sorted { $0.sourceName < $1.sourceName }

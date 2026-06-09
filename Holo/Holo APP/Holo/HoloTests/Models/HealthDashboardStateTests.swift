@@ -6,9 +6,66 @@
 //
 
 import XCTest
+import HealthKit
 @testable import Holo
 
 final class HealthDashboardStateTests: XCTestCase {
+
+    func testSleepSampleAggregatorDoesNotDoubleCountOverlappingStages() {
+        let calendar = Calendar(identifier: .gregorian)
+        let base = calendar.date(from: DateComponents(year: 2026, month: 6, day: 8, hour: 2))!
+        let samples = [
+            HealthSleepSampleAggregator.Interval(
+                start: base,
+                end: base.addingTimeInterval(6 * 3600)
+            ),
+            HealthSleepSampleAggregator.Interval(
+                start: base,
+                end: base.addingTimeInterval(2 * 3600)
+            ),
+            HealthSleepSampleAggregator.Interval(
+                start: base.addingTimeInterval(2 * 3600),
+                end: base.addingTimeInterval(4 * 3600)
+            ),
+            HealthSleepSampleAggregator.Interval(
+                start: base.addingTimeInterval(4 * 3600),
+                end: base.addingTimeInterval(6 * 3600)
+            )
+        ]
+
+        XCTAssertEqual(HealthSleepSampleAggregator.totalHours(for: samples), 6, accuracy: 0.001)
+    }
+
+    func testStandHourAggregatorCountsUniqueHours() {
+        let calendar = Calendar(identifier: .gregorian)
+        let base = calendar.date(from: DateComponents(year: 2026, month: 6, day: 8, hour: 9))!
+        let window = HealthSleepSampleAggregator.Interval(
+            start: calendar.startOfDay(for: base),
+            end: calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: base))!
+        )
+        let samples = [
+            HKCategorySample(
+                type: HKObjectType.categoryType(forIdentifier: .appleStandHour)!,
+                value: HKCategoryValueAppleStandHour.stood.rawValue,
+                start: base,
+                end: base.addingTimeInterval(3600)
+            ),
+            HKCategorySample(
+                type: HKObjectType.categoryType(forIdentifier: .appleStandHour)!,
+                value: HKCategoryValueAppleStandHour.stood.rawValue,
+                start: base.addingTimeInterval(20 * 60),
+                end: base.addingTimeInterval(3600)
+            ),
+            HKCategorySample(
+                type: HKObjectType.categoryType(forIdentifier: .appleStandHour)!,
+                value: HKCategoryValueAppleStandHour.stood.rawValue,
+                start: base.addingTimeInterval(3600),
+                end: base.addingTimeInterval(2 * 3600)
+            )
+        ]
+
+        XCTAssertEqual(HealthStandHourAggregator.stoodHours(for: samples, in: window), 2)
+    }
 
     func testBodyScoreUsesWeightedProgressAndCapsAtOneHundred() {
         let snapshot = HealthDashboardSnapshot(

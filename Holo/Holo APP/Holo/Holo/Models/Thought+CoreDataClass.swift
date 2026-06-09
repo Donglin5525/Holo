@@ -26,11 +26,18 @@ class Thought: NSManagedObject, @unchecked Sendable {
     @NSManaged var isSoftDeleted: Bool
     @NSManaged var isArchived: Bool
 
+    // AI 自动整理状态
+    @NSManaged var organizedStatus: String        // unprocessed/pending/processing/organized/failed/disabled/skipped
+    @NSManaged var createdDeviceId: String?        // 创建该想法的设备 ID
+    @NSManaged var organizationStartedAt: Date?    // AI 整理开始时间（用于 processing 超时恢复）
+
     // MARK: - Relationships
 
     @NSManaged var tags: NSSet?
     @NSManaged var references: NSSet?
     @NSManaged var referencedBy: NSSet?
+    @NSManaged var tagAssignments: NSSet?          // ThoughtTagAssignment 中间实体
+    @NSManaged var topics: NSSet?                   // Topic 多对多
 }
 
 // MARK: - Core Data Generated Accessors
@@ -77,4 +84,32 @@ extension Thought {
 
     @objc(removeReferencedBy:)
     @NSManaged func removeReferencedBy(_ values: Set<ThoughtReference>)
+
+    // MARK: - TagAssignments Accessors
+
+    @objc(addTagAssignmentsObject:)
+    @NSManaged func addTagAssignments(_ value: ThoughtTagAssignment)
+
+    @objc(removeTagAssignmentsObject:)
+    @NSManaged func removeTagAssignments(_ value: ThoughtTagAssignment)
+
+    @objc(addTagAssignments:)
+    @NSManaged func addTagAssignments(_ values: Set<ThoughtTagAssignment>)
+
+    @objc(removeTagAssignments:)
+    @NSManaged func removeTagAssignments(_ values: Set<ThoughtTagAssignment>)
+
+    // MARK: - Topics Accessors
+
+    @objc(addTopicsObject:)
+    @NSManaged func addTopics(_ value: Topic)
+
+    @objc(removeTopicsObject:)
+    @NSManaged func removeTopics(_ value: Topic)
+
+    @objc(addTopics:)
+    @NSManaged func addTopics(_ values: Set<Topic>)
+
+    @objc(removeTopics:)
+    @NSManaged func removeTopics(_ values: Set<Topic>)
 }

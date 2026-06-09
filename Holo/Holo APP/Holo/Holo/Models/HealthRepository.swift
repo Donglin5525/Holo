@@ -10,6 +10,61 @@ import Foundation
 import HealthKit
 import Combine
 
+// MARK: - HealthSleepSampleAggregator
+
+struct HealthSleepSampleAggregator {
+    struct Interval {
+        let start: Date
+        let end: Date
+    }
+
+    static func totalHours(for intervals: [Interval]) -> Double {
+        let sorted = intervals
+            .filter { $0.end > $0.start }
+            .sorted { $0.start < $1.start }
+
+        guard var current = sorted.first else { return 0 }
+        var mergedSeconds: TimeInterval = 0
+
+        for interval in sorted.dropFirst() {
+            if interval.start <= current.end {
+                current = Interval(start: current.start, end: max(current.end, interval.end))
+            } else {
+                mergedSeconds += current.end.timeIntervalSince(current.start)
+                current = interval
+            }
+        }
+
+        mergedSeconds += current.end.timeIntervalSince(current.start)
+        return mergedSeconds / 3600
+    }
+
+    static func clippedInterval(start: Date, end: Date, to window: Interval) -> Interval? {
+        let clippedStart = max(start, window.start)
+        let clippedEnd = min(end, window.end)
+        guard clippedEnd > clippedStart else { return nil }
+        return Interval(start: clippedStart, end: clippedEnd)
+    }
+}
+
+// MARK: - HealthStandHourAggregator
+
+struct HealthStandHourAggregator {
+    static func stoodHours(for samples: [HKCategorySample], in window: HealthSleepSampleAggregator.Interval) -> Double {
+        let calendar = Calendar.current
+        let stoodHourKeys = samples.compactMap { sample -> Date? in
+            guard sample.value == HKCategoryValueAppleStandHour.stood.rawValue,
+                  HealthSleepSampleAggregator.clippedInterval(start: sample.startDate, end: sample.endDate, to: window) != nil
+            else {
+                return nil
+            }
+            return calendar.dateInterval(of: .hour, for: sample.startDate)?.start
+        }
+
+        return Double(Set(stoodHourKeys).count)
+    }
+}
+
 // MARK: - HealthRepository
 
 /// 健康数据仓库
@@ -350,8 +405,15 @@ class HealthRepository: ObservableObject {
         let predicate = HKQuery.predicateForSamples(
             withStart: startOfDay,
             end: endOfDay,
-            options: .strictStartDate
+            options: []
         )
+        let dayWindow = HealthSleepSampleAggregator.Interval(start: startOfDay, end: endOfDay)
+        let sleepStages: Set<Int> = [
+            HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue,
+            HKCategoryValueSleepAnalysis.asleepCore.rawValue,
+            HKCategoryValueSleepAnalysis.asleepDeep.rawValue,
+            HKCategoryValueSleepAnalysis.asleepREM.rawValue
+        ]
 
         return await withCheckedContinuation { continuation in
             let query = HKSampleQuery(
@@ -363,15 +425,15 @@ class HealthRepository: ObservableObject {
                 var totalSleep: Double = 0
 
                 if let samples = samples as? [HKCategorySample] {
-                    for sample in samples {
-                        // 统计实际睡眠阶段（排除 inBed=0 上床时间 和 awake=2 醒来时间）
-                        // 1=asleepUnspecified(第三方设备如小米手环), 3=asleepCore, 4=asleepDeep, 5=asleepREM
-                        let sleepStages: Set<Int> = [1, 3, 4, 5]
-                        if sleepStages.contains(sample.value) {
-                            let duration = sample.endDate.timeIntervalSince(sample.startDate) / 3600
-                            totalSleep += duration
-                        }
+                    let intervals = samples.compactMap { sample -> HealthSleepSampleAggregator.Interval? in
+                        guard sleepStages.contains(sample.value) else { return nil }
+                        return HealthSleepSampleAggregator.clippedInterval(
+                            start: sample.startDate,
+                            end: sample.endDate,
+                            to: dayWindow
+                        )
                     }
+                    totalSleep = HealthSleepSampleAggregator.totalHours(for: intervals)
                 }
 
                 continuation.resume(returning: totalSleep)
@@ -397,6 +459,7 @@ class HealthRepository: ObservableObject {
             end: endOfDay,
             options: .strictStartDate
         )
+        let dayWindow = HealthSleepSampleAggregator.Interval(start: startOfDay, end: endOfDay)
 
         return await withCheckedContinuation { continuation in
             let query = HKSampleQuery(
@@ -405,10 +468,10 @@ class HealthRepository: ObservableObject {
                 limit: HKObjectQueryNoLimit,
                 sortDescriptors: nil
             ) { _, samples, _ in
-                let standHours = samples?
-                    .compactMap { $0 as? HKCategorySample }
-                    .filter { $0.value == HKCategoryValueAppleStandHour.stood.rawValue }
-                    .count ?? 0
+                let standHours = HealthStandHourAggregator.stoodHours(
+                    for: (samples as? [HKCategorySample]) ?? [],
+                    in: dayWindow
+                )
                 continuation.resume(returning: Double(standHours))
             }
             healthStore.execute(query)

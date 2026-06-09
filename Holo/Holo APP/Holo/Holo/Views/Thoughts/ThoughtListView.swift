@@ -83,6 +83,9 @@ struct ThoughtListView: View {
             // 搜索栏
             searchBarView
 
+            // AI 归纳状态条
+            aiOrganizationBanner
+
             // 筛选栏
             filterBarView
 
@@ -111,6 +114,44 @@ struct ThoughtListView: View {
             loadThoughts()
             loadTags()
         }
+    }
+
+    // MARK: - AI 归纳状态条
+
+    /// 是否有想法正在被 AI 处理
+    private var hasProcessingThoughts: Bool {
+        thoughts.contains { $0.organizedStatus == "processing" }
+    }
+
+    /// 正在处理的数量
+    private var processingCount: Int {
+        thoughts.filter { $0.organizedStatus == "processing" }.count
+    }
+
+    /// AI 归纳状态条（仅在有处理中的想法时显示）
+    private var aiOrganizationBanner: some View {
+        Group {
+            if hasProcessingThoughts {
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                        .tint(.holoPrimary)
+
+                    Text(processingCount == 1
+                         ? "AI 自动归纳中..."
+                         : "AI 自动归纳中（\(processingCount) 条）")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+
+                    Spacer()
+                }
+                .padding(.horizontal, HoloSpacing.md)
+                .padding(.vertical, 6)
+                .background(Color.holoPrimary.opacity(0.04))
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .animation(.easeInOut(duration: 0.3), value: hasProcessingThoughts)
     }
 
     // MARK: - 数据加载

@@ -90,6 +90,11 @@ extension Thought {
         MarkdownRenderer.previewText(content)
     }
 
+    /// 去除格式的完整纯文本（不按字符截断，用于行数自适应显示）
+    var plainContent: String {
+        MarkdownRenderer.previewText(content, maxLength: .max)
+    }
+
     /// 内容中的内联标签名称
     var inlineTags: [String] {
         MarkdownRenderer.extractTags(content)
@@ -116,6 +121,36 @@ extension Thought {
     /// 标签数组
     var tagArray: [ThoughtTag] {
         (tags as? Set<ThoughtTag>)?.sorted { $0.name < $1.name } ?? []
+    }
+
+    /// AI 自动整理的可展示标签名（source == ai 或 confirmedAI，排除 rejectedAI）
+    /// 用于卡片在没有手动标签时的灰色标签展示
+    var visibleAITagNames: [String] {
+        guard let assignments = tagAssignments as? Set<ThoughtTagAssignment> else {
+            return []
+        }
+
+        return assignments
+            .filter { assignment in
+                let source = assignment.source
+                return (source == "ai" || source == "confirmedAI") && assignment.rejectedAt == nil
+            }
+            .sorted { $0.assignedAt > $1.assignedAt }
+            .compactMap { $0.tag?.name }
+    }
+
+    /// AI 标签分配（可展示的，source == ai 或 confirmedAI）
+    var visibleAIAssignments: [ThoughtTagAssignment] {
+        guard let assignments = tagAssignments as? Set<ThoughtTagAssignment> else {
+            return []
+        }
+
+        return assignments
+            .filter { assignment in
+                let source = assignment.source
+                return (source == "ai" || source == "confirmedAI") && assignment.rejectedAt == nil
+            }
+            .sorted { $0.confidence > $1.confidence }
     }
 
     /// 引用数量

@@ -83,22 +83,25 @@ struct ThoughtCardView: View {
     // MARK: - 内容区域
 
     private var contentView: some View {
-        Text(thought.previewText)
-            .font(.holoBody)
-            .foregroundColor(.holoTextPrimary)
-            .lineLimit(3)
-            .multilineTextAlignment(.leading)
-            .textSelection(.enabled)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        ExpandableText(
+            text: thought.plainContent,
+            lineLimit: 5
+        )
     }
 
     // MARK: - 底部区域
 
     private var footerView: some View {
         HStack(spacing: 0) {
-            // 标签
+            // 标签展示策略：
+            // 1. 有手动标签 → 展示手动标签（不变）
+            // 2. 无手动标签 + 有 AI 标签 → 展示 1-2 个 AI 标签（灰色调）
+            // 3. 正在整理 → 展示"AI 正在整理..."
             let tags = thought.tagArray
+            let aiTagNames = thought.visibleAITagNames
+
             if !tags.isEmpty {
+                // 有手动标签：展示手动标签
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
                         ForEach(tags.prefix(3)) { tag in
@@ -111,6 +114,20 @@ struct ThoughtCardView: View {
                         }
                     }
                 }
+            } else if !aiTagNames.isEmpty {
+                // 无手动标签，有 AI 标签：灰色调展示
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
+                        ForEach(aiTagNames.prefix(2), id: \.self) { tagName in
+                            aiTagChip(tagName)
+                        }
+                    }
+                }
+            } else if thought.organizedStatus == "processing" {
+                // 正在整理
+                Text("AI 正在整理...")
+                    .font(.holoLabel)
+                    .foregroundColor(.holoTextSecondary)
             }
 
             Spacer()
@@ -139,6 +156,24 @@ struct ThoughtCardView: View {
             .padding(.vertical, 4)
             .background(tag.tagColor.opacity(0.1))
             .cornerRadius(HoloRadius.sm)
+    }
+
+    // MARK: - AI 标签 Chip（灰色调 + AI 角标）
+
+    private func aiTagChip(_ tagName: String) -> some View {
+        HStack(spacing: 3) {
+            Text("#\(tagName)")
+                .font(.holoLabel)
+                .foregroundColor(.holoTextSecondary)
+
+            Text("AI")
+                .font(.system(size: 8, weight: .semibold))
+                .foregroundColor(.holoTextSecondary.opacity(0.6))
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color.holoTextSecondary.opacity(0.08))
+        .cornerRadius(HoloRadius.sm)
     }
 }
 

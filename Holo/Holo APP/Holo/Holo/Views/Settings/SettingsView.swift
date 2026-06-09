@@ -58,6 +58,9 @@ struct SettingsView: View {
                     // iCloud 同步
                     iCloudSyncSection
 
+                    // AI 整理设置
+                    aiOrganizationSection
+
                     // AI 回放设置
                     aiPlaybackSection
 
@@ -473,6 +476,58 @@ struct SettingsView: View {
         }
 
         return iCloudSyncStatus.accountStatusText
+    }
+
+    // MARK: - AI 整理设置
+
+    @State private var isThoughtAutoOrganizationEnabled: Bool = {
+        UserDefaults.standard.object(forKey: ThoughtRepository.autoOrganizationEnabledKey) as? Bool ?? true
+    }()
+
+    private var aiOrganizationSection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            // 标题
+            HStack(spacing: HoloSpacing.sm) {
+                Image(systemName: "tag.circle")
+                    .font(.system(size: 18))
+                    .foregroundColor(.holoPrimary)
+
+                Text("AI 整理")
+                    .font(.holoBody)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoTextPrimary)
+            }
+
+            // 自动整理想法开关
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("自动整理想法")
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+
+                    Text(isThoughtAutoOrganizationEnabled
+                         ? "保存想法后，AI 会自动生成标签和主题，可随时编辑"
+                         : "已关闭，手动标签和正文 #标签 仍会保留")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                        .lineLimit(2)
+                }
+
+                Spacer()
+
+                Toggle("", isOn: $isThoughtAutoOrganizationEnabled)
+                    .labelsHidden()
+                    .tint(.holoPrimary)
+            }
+            .contentShape(Rectangle())
+        }
+        .padding(.horizontal, HoloSpacing.md)
+        .padding(.vertical, HoloSpacing.sm)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .onChange(of: isThoughtAutoOrganizationEnabled) { _, newValue in
+            UserDefaults.standard.set(newValue, forKey: ThoughtRepository.autoOrganizationEnabledKey)
+        }
     }
 
     // MARK: - AI 回放设置

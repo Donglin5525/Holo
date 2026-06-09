@@ -11,7 +11,7 @@ extension CoreDataStack {
 
     // MARK: - Thought Entities
 
-    /// 创建观点相关实体（Thought, ThoughtTag, ThoughtReference）
+    /// 创建观点相关实体（Thought, ThoughtTag, ThoughtReference, ThoughtTagAssignment, Topic）
     nonisolated func createThoughtEntities() -> [NSEntityDescription] {
         // MARK: - Thought Entity
         // 观点模块 - 想法实体
@@ -83,6 +83,28 @@ extension CoreDataStack {
         thoughtIsArchived.defaultValue = false
         thoughtAttributes.append(thoughtIsArchived)
 
+        // AI 自动整理状态
+        let thoughtOrganizedStatus = NSAttributeDescription()
+        thoughtOrganizedStatus.name = "organizedStatus"
+        thoughtOrganizedStatus.attributeType = .stringAttributeType
+        thoughtOrganizedStatus.isOptional = false
+        thoughtOrganizedStatus.defaultValue = "unprocessed"
+        thoughtAttributes.append(thoughtOrganizedStatus)
+
+        // 创建该想法的设备 ID
+        let thoughtCreatedDeviceId = NSAttributeDescription()
+        thoughtCreatedDeviceId.name = "createdDeviceId"
+        thoughtCreatedDeviceId.attributeType = .stringAttributeType
+        thoughtCreatedDeviceId.isOptional = true
+        thoughtAttributes.append(thoughtCreatedDeviceId)
+
+        // AI 整理开始时间（processing 超时恢复）
+        let thoughtOrganizationStartedAt = NSAttributeDescription()
+        thoughtOrganizationStartedAt.name = "organizationStartedAt"
+        thoughtOrganizationStartedAt.attributeType = .dateAttributeType
+        thoughtOrganizationStartedAt.isOptional = true
+        thoughtAttributes.append(thoughtOrganizationStartedAt)
+
         // MARK: - ThoughtTag Entity
         // 观点模块 - 标签实体
         let thoughtTagEntity = NSEntityDescription()
@@ -141,6 +163,119 @@ extension CoreDataStack {
         thoughtReferenceCreatedAt.isOptional = false
         thoughtReferenceCreatedAt.defaultValue = Date()
         thoughtReferenceAttributes.append(thoughtReferenceCreatedAt)
+
+        // MARK: - ThoughtTagAssignment Entity
+        // AI 自动整理 - 标签分配中间实体
+        let assignmentEntity = NSEntityDescription()
+        assignmentEntity.name = "ThoughtTagAssignment"
+        assignmentEntity.managedObjectClassName = "ThoughtTagAssignment"
+
+        var assignmentAttributes: [NSAttributeDescription] = []
+
+        let assignmentId = NSAttributeDescription()
+        assignmentId.name = "id"
+        assignmentId.attributeType = .UUIDAttributeType
+        assignmentId.isOptional = false
+        assignmentId.defaultValue = UUID()
+        assignmentId.isIndexed = true
+        assignmentAttributes.append(assignmentId)
+
+        let assignmentSource = NSAttributeDescription()
+        assignmentSource.name = "source"
+        assignmentSource.attributeType = .stringAttributeType
+        assignmentSource.isOptional = false
+        assignmentSource.defaultValue = "ai"
+        assignmentAttributes.append(assignmentSource)
+
+        let assignmentConfidence = NSAttributeDescription()
+        assignmentConfidence.name = "confidence"
+        assignmentConfidence.attributeType = .doubleAttributeType
+        assignmentConfidence.isOptional = false
+        assignmentConfidence.defaultValue = 1.0
+        assignmentAttributes.append(assignmentConfidence)
+
+        let assignmentAssignedAt = NSAttributeDescription()
+        assignmentAssignedAt.name = "assignedAt"
+        assignmentAssignedAt.attributeType = .dateAttributeType
+        assignmentAssignedAt.isOptional = false
+        assignmentAssignedAt.defaultValue = Date()
+        assignmentAttributes.append(assignmentAssignedAt)
+
+        let assignmentRejectedAt = NSAttributeDescription()
+        assignmentRejectedAt.name = "rejectedAt"
+        assignmentRejectedAt.attributeType = .dateAttributeType
+        assignmentRejectedAt.isOptional = true
+        assignmentAttributes.append(assignmentRejectedAt)
+
+        // MARK: - Topic Entity
+        // AI 自动整理 - 主题实体
+        let topicEntity = NSEntityDescription()
+        topicEntity.name = "Topic"
+        topicEntity.managedObjectClassName = "Topic"
+
+        var topicAttributes: [NSAttributeDescription] = []
+
+        let topicId = NSAttributeDescription()
+        topicId.name = "id"
+        topicId.attributeType = .UUIDAttributeType
+        topicId.isOptional = false
+        topicId.defaultValue = UUID()
+        topicId.isIndexed = true
+        topicAttributes.append(topicId)
+
+        let topicTitle = NSAttributeDescription()
+        topicTitle.name = "title"
+        topicTitle.attributeType = .stringAttributeType
+        topicTitle.isOptional = false
+        topicTitle.defaultValue = ""
+        topicAttributes.append(topicTitle)
+
+        let topicSummary = NSAttributeDescription()
+        topicSummary.name = "summary"
+        topicSummary.attributeType = .stringAttributeType
+        topicSummary.isOptional = true
+        topicAttributes.append(topicSummary)
+
+        let topicStatus = NSAttributeDescription()
+        topicStatus.name = "status"
+        topicStatus.attributeType = .stringAttributeType
+        topicStatus.isOptional = false
+        topicStatus.defaultValue = "candidate"
+        topicAttributes.append(topicStatus)
+
+        let topicConfidence = NSAttributeDescription()
+        topicConfidence.name = "confidence"
+        topicConfidence.attributeType = .doubleAttributeType
+        topicConfidence.isOptional = false
+        topicConfidence.defaultValue = 0.0
+        topicAttributes.append(topicConfidence)
+
+        let topicAssociatedTagNames = NSAttributeDescription()
+        topicAssociatedTagNames.name = "associatedTagNames"
+        topicAssociatedTagNames.attributeType = .stringAttributeType
+        topicAssociatedTagNames.isOptional = true
+        topicAttributes.append(topicAssociatedTagNames)
+
+        let topicThoughtCount = NSAttributeDescription()
+        topicThoughtCount.name = "thoughtCount"
+        topicThoughtCount.attributeType = .integer16AttributeType
+        topicThoughtCount.isOptional = false
+        topicThoughtCount.defaultValue = 0
+        topicAttributes.append(topicThoughtCount)
+
+        let topicCreatedAt = NSAttributeDescription()
+        topicCreatedAt.name = "createdAt"
+        topicCreatedAt.attributeType = .dateAttributeType
+        topicCreatedAt.isOptional = false
+        topicCreatedAt.defaultValue = Date()
+        topicAttributes.append(topicCreatedAt)
+
+        let topicUpdatedAt = NSAttributeDescription()
+        topicUpdatedAt.name = "updatedAt"
+        topicUpdatedAt.attributeType = .dateAttributeType
+        topicUpdatedAt.isOptional = false
+        topicUpdatedAt.defaultValue = Date()
+        topicAttributes.append(topicUpdatedAt)
 
         // MARK: - Thought Relationships
 
@@ -207,12 +342,135 @@ extension CoreDataStack {
         thoughtReferencedByRelation.inverseRelationship = referenceTargetRelation
         referenceTargetRelation.inverseRelationship = thoughtReferencedByRelation
 
-        // 将属性和关系添加到实体
-        thoughtEntity.properties = thoughtAttributes + [thoughtTagsRelation, thoughtReferencesRelation, thoughtReferencedByRelation]
-        thoughtTagEntity.properties = thoughtTagAttributes + [tagThoughtsRelation]
-        thoughtReferenceEntity.properties = thoughtReferenceAttributes + [referenceSourceRelation, referenceTargetRelation]
+        // Thought → ThoughtTagAssignment（一对多，cascade）
+        let thoughtAssignmentsRelation = NSRelationshipDescription()
+        thoughtAssignmentsRelation.name = "tagAssignments"
+        thoughtAssignmentsRelation.destinationEntity = assignmentEntity
+        thoughtAssignmentsRelation.minCount = 0
+        thoughtAssignmentsRelation.maxCount = 0
+        thoughtAssignmentsRelation.deleteRule = .cascadeDeleteRule
+        thoughtAssignmentsRelation.isOptional = true
 
-        return [thoughtEntity, thoughtTagEntity, thoughtReferenceEntity]
+        let assignmentThoughtRelation = NSRelationshipDescription()
+        assignmentThoughtRelation.name = "thought"
+        assignmentThoughtRelation.destinationEntity = thoughtEntity
+        assignmentThoughtRelation.minCount = 0
+        assignmentThoughtRelation.maxCount = 1
+        assignmentThoughtRelation.deleteRule = .nullifyDeleteRule
+        assignmentThoughtRelation.isOptional = true
+
+        thoughtAssignmentsRelation.inverseRelationship = assignmentThoughtRelation
+        assignmentThoughtRelation.inverseRelationship = thoughtAssignmentsRelation
+
+        // Thought ↔ Topic（多对多，nullify）
+        let thoughtTopicsRelation = NSRelationshipDescription()
+        thoughtTopicsRelation.name = "topics"
+        thoughtTopicsRelation.destinationEntity = topicEntity
+        thoughtTopicsRelation.minCount = 0
+        thoughtTopicsRelation.maxCount = 0
+        thoughtTopicsRelation.deleteRule = .nullifyDeleteRule
+        thoughtTopicsRelation.isOptional = true
+
+        let topicThoughtsRelation = NSRelationshipDescription()
+        topicThoughtsRelation.name = "thoughts"
+        topicThoughtsRelation.destinationEntity = thoughtEntity
+        topicThoughtsRelation.minCount = 0
+        topicThoughtsRelation.maxCount = 0
+        topicThoughtsRelation.deleteRule = .nullifyDeleteRule
+        topicThoughtsRelation.isOptional = true
+
+        thoughtTopicsRelation.inverseRelationship = topicThoughtsRelation
+        topicThoughtsRelation.inverseRelationship = thoughtTopicsRelation
+
+        // ThoughtTag → ThoughtTagAssignment（一对多，cascade）
+        let tagAssignmentsRelation = NSRelationshipDescription()
+        tagAssignmentsRelation.name = "assignments"
+        tagAssignmentsRelation.destinationEntity = assignmentEntity
+        tagAssignmentsRelation.minCount = 0
+        tagAssignmentsRelation.maxCount = 0
+        tagAssignmentsRelation.deleteRule = .cascadeDeleteRule
+        tagAssignmentsRelation.isOptional = true
+
+        let assignmentTagRelation = NSRelationshipDescription()
+        assignmentTagRelation.name = "tag"
+        assignmentTagRelation.destinationEntity = thoughtTagEntity
+        assignmentTagRelation.minCount = 0
+        assignmentTagRelation.maxCount = 1
+        assignmentTagRelation.deleteRule = .nullifyDeleteRule
+        assignmentTagRelation.isOptional = true
+
+        tagAssignmentsRelation.inverseRelationship = assignmentTagRelation
+        assignmentTagRelation.inverseRelationship = tagAssignmentsRelation
+
+        // ThoughtTag ↔ Topic（多对多，nullify）
+        let tagAssociatedTopicsRelation = NSRelationshipDescription()
+        tagAssociatedTopicsRelation.name = "associatedTopics"
+        tagAssociatedTopicsRelation.destinationEntity = topicEntity
+        tagAssociatedTopicsRelation.minCount = 0
+        tagAssociatedTopicsRelation.maxCount = 0
+        tagAssociatedTopicsRelation.deleteRule = .nullifyDeleteRule
+        tagAssociatedTopicsRelation.isOptional = true
+
+        let topicAssociatedTagsRelation = NSRelationshipDescription()
+        topicAssociatedTagsRelation.name = "associatedTags"
+        topicAssociatedTagsRelation.destinationEntity = thoughtTagEntity
+        topicAssociatedTagsRelation.minCount = 0
+        topicAssociatedTagsRelation.maxCount = 0
+        topicAssociatedTagsRelation.deleteRule = .nullifyDeleteRule
+        topicAssociatedTagsRelation.isOptional = true
+
+        tagAssociatedTopicsRelation.inverseRelationship = topicAssociatedTagsRelation
+        topicAssociatedTagsRelation.inverseRelationship = tagAssociatedTopicsRelation
+
+        // Topic 自引用：mergedToTopic（多对一）/ mergedFromTopics（一对多）
+        let topicMergedToRelation = NSRelationshipDescription()
+        topicMergedToRelation.name = "mergedToTopic"
+        topicMergedToRelation.destinationEntity = topicEntity
+        topicMergedToRelation.minCount = 0
+        topicMergedToRelation.maxCount = 1
+        topicMergedToRelation.deleteRule = .nullifyDeleteRule
+        topicMergedToRelation.isOptional = true
+
+        let topicMergedFromRelation = NSRelationshipDescription()
+        topicMergedFromRelation.name = "mergedFromTopics"
+        topicMergedFromRelation.destinationEntity = topicEntity
+        topicMergedFromRelation.minCount = 0
+        topicMergedFromRelation.maxCount = 0
+        topicMergedFromRelation.deleteRule = .nullifyDeleteRule
+        topicMergedFromRelation.isOptional = true
+
+        topicMergedToRelation.inverseRelationship = topicMergedFromRelation
+        topicMergedFromRelation.inverseRelationship = topicMergedToRelation
+
+        // 将属性和关系添加到实体
+        thoughtEntity.properties = thoughtAttributes + [
+            thoughtTagsRelation,
+            thoughtReferencesRelation,
+            thoughtReferencedByRelation,
+            thoughtAssignmentsRelation,
+            thoughtTopicsRelation
+        ]
+        thoughtTagEntity.properties = thoughtTagAttributes + [
+            tagThoughtsRelation,
+            tagAssignmentsRelation,
+            tagAssociatedTopicsRelation
+        ]
+        thoughtReferenceEntity.properties = thoughtReferenceAttributes + [
+            referenceSourceRelation,
+            referenceTargetRelation
+        ]
+        assignmentEntity.properties = assignmentAttributes + [
+            assignmentThoughtRelation,
+            assignmentTagRelation
+        ]
+        topicEntity.properties = topicAttributes + [
+            topicThoughtsRelation,
+            topicAssociatedTagsRelation,
+            topicMergedToRelation,
+            topicMergedFromRelation
+        ]
+
+        return [thoughtEntity, thoughtTagEntity, thoughtReferenceEntity, assignmentEntity, topicEntity]
     }
 
 }

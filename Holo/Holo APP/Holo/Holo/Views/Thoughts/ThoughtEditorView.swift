@@ -442,13 +442,13 @@ struct ThoughtEditorView: View {
 
         let repository = ThoughtRepository()
 
-        // 合并手动标签与内联 # 标签
+        // 分离手动标签与内联 # 标签（不再合并后传入，保留来源信息）
         let inlineTags = InlineTagDetector.extractTags(from: content)
-        let allTags = Array(Set(selectedTags + inlineTags))
 
         do {
             if isEditing, let thoughtId = editingThoughtId {
-                // 编辑模式：更新已有想法
+                // 编辑模式：更新已有想法（仍用合并标签，保留旧 UI 兼容）
+                let allTags = Array(Set(selectedTags + inlineTags))
                 try repository.update(
                     thoughtId,
                     content: content,
@@ -456,15 +456,24 @@ struct ThoughtEditorView: View {
                     tags: allTags
                 )
             } else {
-                // 新建模式
+                // 新建模式：分别传入 manualTags 和 inlineTags
                 let thought = try repository.create(
                     content: content,
                     mood: selectedMood?.rawValue,
-                    tags: allTags
+                    manualTags: selectedTags,
+                    inlineTags: inlineTags
                 )
                 // 添加引用关系
                 for targetId in referencedThoughtIds {
                     try repository.addReference(sourceId: thought.id, targetId: targetId)
+                }
+
+                // AI 自动整理：新想法保存后触发（仅新建，编辑不触发）
+                let isEnabled = UserDefaults.standard.object(forKey: ThoughtRepository.autoOrganizationEnabledKey) as? Bool ?? true
+                if isEnabled && content.count >= 10 {
+                    Task { @MainActor in
+                        ThoughtOrganizationQueue.shared.enqueue(thoughtId: thought.id)
+                    }
                 }
             }
         } catch {

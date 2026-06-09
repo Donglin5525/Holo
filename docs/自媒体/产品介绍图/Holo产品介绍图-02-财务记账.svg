@@ -1,0 +1,77 @@
+<svg width="1080" height="1440" viewBox="0 0 1080 1440" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1080" y2="1440" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF6EF"/>
+      <stop offset="1" stop-color="#FFFFFF"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="26" stdDeviation="30" flood-color="#D96D3B" flood-opacity=".16"/>
+    </filter>
+    <style>
+      .font { font-family: "PingFang SC","Hiragino Sans GB","STYuanti-SC","Arial Rounded MT Bold",sans-serif; }
+      .title { font-size: 68px; font-weight: 900; fill:#242424; letter-spacing:0; }
+      .sub { font-size: 30px; font-weight: 700; fill:#6F6962; }
+      .label { font-size: 29px; font-weight: 900; fill:#F46D38; }
+      .body { font-size: 26px; font-weight: 700; fill:#3D3935; }
+      .small { font-size: 22px; font-weight: 650; fill:#928C86; }
+    </style>
+  </defs>
+  <rect width="1080" height="1440" fill="url(#bg)"/>
+  <text class="font title" x="78" y="124">记账快一点</text>
+  <text class="font title" x="78" y="204">焦虑就少一点</text>
+  <text class="font sub" x="82" y="264">不是让你盯着报表自责，是帮你看清钱都去哪了</text>
+
+  <g transform="translate(98 340)" filter="url(#shadow)">
+    <rect width="430" height="860" rx="78" fill="#202020"/>
+    <rect x="20" y="24" width="390" height="812" rx="58" fill="#FFFDF9"/>
+    <rect x="154" y="48" width="122" height="36" rx="18" fill="#050505"/>
+    <text class="font small" x="64" y="100" fill="#222">23:01</text>
+    <text class="font title" x="154" y="190" font-size="44">4月9日</text>
+    <g class="font small" fill="#9A948E">
+      <text x="78" y="250">一</text><text x="152" y="250">二</text><text x="226" y="250">三</text><text x="300" y="250">四</text>
+      <text x="78" y="300" fill="#333">6</text><text x="152" y="300" fill="#333">7</text><text x="226" y="300" fill="#333">8</text>
+      <rect x="286" y="264" width="74" height="88" rx="18" fill="#FFE7D8"/>
+      <text x="312" y="305" fill="#F46D38" font-weight="900">9</text>
+      <text x="304" y="334" fill="#FF6B61">25</text>
+    </g>
+    <rect x="48" y="380" width="334" height="132" rx="28" fill="#F5F3F0"/>
+    <text class="font small" x="72" y="430">↘ 本月支出</text>
+    <text class="font title" x="72" y="480" font-size="38">¥24,590.02</text>
+    <text class="font small" x="260" y="440">今日</text>
+    <text class="font body" x="268" y="480">¥25.00</text>
+    <text class="font label" x="72" y="522" font-size="24">较上月同期 255.7%</text>
+    <text class="font body" x="64" y="604" font-size="34">交易记录</text>
+    <circle cx="100" cy="690" r="38" fill="#EAF8FF"/>
+    <text class="font body" x="152" y="682">饮品</text>
+    <text class="font small" x="152" y="716">钱包</text>
+    <text class="font body" x="310" y="694">¥7.00</text>
+    <circle cx="100" cy="790" r="38" fill="#EAF8FF"/>
+    <text class="font body" x="152" y="782">晚餐</text>
+    <text class="font small" x="152" y="816">钱包</text>
+    <text class="font body" x="300" y="794">¥18.00</text>
+    <circle cx="215" cy="758" r="40" fill="#FF6B36"/>
+    <text class="font title" x="198" y="776" font-size="52" fill="#fff">+</text>
+  </g>
+
+  <g transform="translate(580 368)">
+    <rect width="394" height="132" rx="38" fill="#FFFFFF" stroke="#FFE1D1" stroke-width="3"/>
+    <text class="font label" x="34" y="50">快速记一笔</text>
+    <text class="font body" x="34" y="92">咖啡 7 块、晚饭 18</text>
+    <text class="font small" x="34" y="122">这种碎账也别放过，几秒就搞定</text>
+
+    <rect y="172" width="394" height="144" rx="38" fill="#FFF1E8"/>
+    <text class="font label" x="34" y="224">多账户不打架</text>
+    <text class="font body" x="34" y="268">钱包、银行卡、花呗</text>
+    <text class="font small" x="34" y="302">钱从哪里出，账就回哪里去</text>
+
+    <rect y="356" width="394" height="144" rx="38" fill="#FFFFFF" stroke="#E7F4EC" stroke-width="3"/>
+    <text class="font label" x="34" y="408">分期也能看懂</text>
+    <text class="font body" x="34" y="452">大件消费别再糊成一坨</text>
+    <text class="font small" x="34" y="486">每期怎么摊，Holo 帮你记清楚</text>
+
+    <rect y="540" width="394" height="144" rx="38" fill="#252525"/>
+    <text class="font label" x="34" y="592" fill="#FFD8C6">重点是</text>
+    <text class="font body" x="34" y="636" fill="#FFF8F1">它不是来骂你超支的</text>
+    <text class="font small" x="34" y="670" fill="#D9D1CA">它会帮你看见最近的真实状态</text>
+  </g>
+</svg>

@@ -23,6 +23,11 @@ class ThoughtRepository {
     // MARK: - Properties
 
     private let context: NSManagedObjectContext
+    private let logger = Logger(subsystem: "com.holo.app", category: "ThoughtRepository")
+
+    // MARK: - UserDefaults Keys
+
+    private static let backfillFlagKey = "hasBackfilledTagAssignments"
 
     // MARK: - Initialization
 
@@ -75,6 +80,14 @@ class ThoughtRepository {
     func fetchById(_ id: UUID) throws -> Thought? {
         let request = Thought.fetchRequest()
         request.predicate = NSPredicate(format: "id == %@ AND isSoftDeleted == NO AND isArchived == NO", id as CVarArg)
+        request.fetchLimit = 1
+        return try context.fetch(request).first
+    }
+
+    /// 根据 ID 获取想法（不过滤软删除/归档，用于内部操作）
+    func fetchByIdInternal(_ id: UUID) throws -> Thought? {
+        let request = Thought.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
         request.fetchLimit = 1
         return try context.fetch(request).first
     }
@@ -140,18 +153,20 @@ class ThoughtRepository {
 
     // MARK: - Create Operations
 
-    /// 创建新想法
+    /// 创建新想法（支持双写：同时写 Thought.tags 和 ThoughtTagAssignment）
     /// - Parameters:
     ///   - content: 内容
     ///   - mood: 心情
-    ///   - tags: 标签名称数组
+    ///   - manualTags: 手动选择的标签
+    ///   - inlineTags: 正文内 #标签 自动提取的标签
     ///   - imageData: 图片数据
     /// - Returns: 创建的 Thought 对象
     @discardableResult
     func create(
         content: String,
         mood: String? = nil,
-        tags: [String] = [],
+        manualTags: [String] = [],
+        inlineTags: [String] = [],
         imageData: Data? = nil
     ) throws -> Thought {
         let thought = Thought(context: context)
@@ -163,27 +178,68 @@ class ThoughtRepository {
         thought.orderIndex = 0
         thought.imageData = imageData
         thought.isSoftDeleted = false
+        thought.createdDeviceId = HoloBackendDeviceIdentity.shared.deviceId
 
-        // 关联标签
-        if !tags.isEmpty {
-            for tagName in tags {
-                let tag = try getOrCreateTag(name: tagName)
-                thought.addTags(tag)
-            }
+        // 初始化 organizedStatus
+        let autoOrgEnabled = UserDefaults.standard.bool(forKey: Self.autoOrganizationEnabledKey)
+        // 首次读取时如果 key 不存在，默认为开启
+        let isEnabled = UserDefaults.standard.object(forKey: Self.autoOrganizationEnabledKey) as? Bool ?? true
+
+        if !isEnabled {
+            thought.organizedStatus = "disabled"
+        } else if content.count < 10 {
+            thought.organizedStatus = "skipped"
+        } else {
+            thought.organizedStatus = "pending"
+        }
+
+        // 合并去重标签
+        let allTagNames = Array(Set(manualTags + inlineTags))
+
+        // 双写：同时写 Thought.tags（旧 UI 兼容）和 ThoughtTagAssignment（新数据源）
+        for tagName in manualTags {
+            let tag = try getOrCreateTag(name: tagName)
+            thought.addTags(tag)
+            createAssignmentInternal(thought: thought, tag: tag, source: .manual, confidence: 1.0)
+        }
+
+        for tagName in inlineTags {
+            // 去重：如果 manualTags 已包含该标签，不再重复创建 assignment
+            guard !manualTags.contains(tagName) else { continue }
+            let tag = try getOrCreateTag(name: tagName)
+            thought.addTags(tag)
+            createAssignmentInternal(thought: thought, tag: tag, source: .inline, confidence: 1.0)
         }
 
         try context.save()
         return thought
     }
 
+    /// 兼容旧调用方：合并标签后创建
+    @discardableResult
+    func create(
+        content: String,
+        mood: String? = nil,
+        tags: [String] = [],
+        imageData: Data? = nil
+    ) throws -> Thought {
+        try create(
+            content: content,
+            mood: mood,
+            manualTags: tags,
+            inlineTags: [],
+            imageData: imageData
+        )
+    }
+
     // MARK: - Update Operations
 
-    /// 更新想法
+    /// 更新想法（支持双写）
     /// - Parameters:
     ///   - id: 想法 ID
     ///   - content: 新内容
     ///   - mood: 新心情
-    ///   - tags: 新标签数组
+    ///   - tags: 新标签数组（合并后的，视为 manual）
     /// - Returns: 更新后的 Thought 对象
     @discardableResult
     func update(
@@ -205,19 +261,20 @@ class ThoughtRepository {
 
         thought.updatedAt = Date()
 
-        // 更新标签
+        // 更新标签（双写）
         if let tags = tags {
-            // 清除现有标签关联
+            // 清除旧 Thought.tags 关联
             thought.tags?.forEach { tag in
                 if let tag = tag as? ThoughtTag {
                     thought.removeTags(tag)
                 }
             }
 
-            // 添加新标签
+            // 添加新标签（双写）
             for tagName in tags {
                 let tag = try getOrCreateTag(name: tagName)
                 thought.addTags(tag)
+                createAssignmentInternal(thought: thought, tag: tag, source: .manual, confidence: 1.0)
             }
         }
 
@@ -227,7 +284,7 @@ class ThoughtRepository {
 
     // MARK: - Delete Operations
 
-    /// 删除想法
+    /// 删除想法（软删除）
     /// - Parameter id: 想法 ID
     func delete(_ id: UUID) throws {
         guard let thought = try fetchById(id) else {
@@ -255,6 +312,9 @@ class ThoughtRepository {
         if let referencedBy = thought.referencedBy as? Set<ThoughtReference> {
             referencedBy.forEach { context.delete($0) }
         }
+
+        // ThoughtTagAssignment 通过 cascade delete rule 自动级联删除
+        // Topic 多对多关系通过 nullify 自动断开
 
         context.delete(thought)
         try context.save()
@@ -421,9 +481,9 @@ class ThoughtRepository {
         try context.save()
     }
 
-    /// 清除所有观点数据（Thought + ThoughtTag + ThoughtReference）
+    /// 清除所有观点数据（Thought + ThoughtTag + ThoughtReference + ThoughtTagAssignment + Topic）
     func deleteAllThoughtData() throws {
-        let entities = ["ThoughtReference", "Thought", "ThoughtTag"]
+        let entities = ["ThoughtReference", "ThoughtTagAssignment", "Topic", "Thought", "ThoughtTag"]
         for entity in entities {
             let request = NSFetchRequest<NSManagedObject>(entityName: entity)
             let objects = try context.fetch(request)
@@ -451,6 +511,203 @@ class ThoughtRepository {
 
         context.delete(tag)
         try context.save()
+    }
+
+    // MARK: - ThoughtTagAssignment Operations
+
+    /// 为想法创建标签分配
+    /// - Parameters:
+    ///   - thoughtId: 想法 ID
+    ///   - tagName: 标签名称
+    ///   - source: 标签来源
+    ///   - confidence: 置信度
+    func createTagAssignment(
+        thoughtId: UUID,
+        tagName: String,
+        source: ThoughtTagAssignment.Source,
+        confidence: Double
+    ) throws {
+        guard let thought = try fetchByIdInternal(thoughtId) else {
+            throw ThoughtError.notFound
+        }
+        let tag = try getOrCreateTag(name: tagName)
+        createAssignmentInternal(thought: thought, tag: tag, source: source, confidence: confidence)
+        try context.save()
+    }
+
+    /// 获取想法的标签分配
+    /// - Parameters:
+    ///   - thoughtId: 想法 ID
+    ///   - sourceFilter: 可选的来源过滤
+    /// - Returns: ThoughtTagAssignment 数组
+    func fetchAssignments(
+        thoughtId: UUID,
+        sourceFilter: [ThoughtTagAssignment.Source]? = nil
+    ) throws -> [ThoughtTagAssignment] {
+        guard let thought = try fetchByIdInternal(thoughtId) else {
+            throw ThoughtError.notFound
+        }
+
+        guard let assignments = thought.tagAssignments as? Set<ThoughtTagAssignment> else {
+            return []
+        }
+
+        var result = Array(assignments)
+
+        if let sourceFilter = sourceFilter {
+            let sourceValues = sourceFilter.map { $0.rawValue }
+            result = result.filter { sourceValues.contains($0.source) }
+        }
+
+        return result.sorted { $0.assignedAt > $1.assignedAt }
+    }
+
+    /// 获取想法的可展示 AI 标签分配（source == ai 或 confirmedAI，排除 rejectedAI）
+    /// - Parameter thoughtId: 想法 ID
+    /// - Returns: ThoughtTagAssignment 数组
+    func fetchVisibleAIAssignments(thoughtId: UUID) throws -> [ThoughtTagAssignment] {
+        try fetchAssignments(
+            thoughtId: thoughtId,
+            sourceFilter: [.ai, .confirmedAI]
+        )
+    }
+
+    /// 拒绝（删除）AI 标签：将 source 改为 rejectedAI
+    /// - Parameter assignmentId: 分配 ID
+    func rejectTagAssignment(assignmentId: UUID) throws {
+        let request = ThoughtTagAssignment.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", assignmentId as CVarArg)
+        request.fetchLimit = 1
+
+        guard let assignment = try context.fetch(request).first else {
+            throw ThoughtError.notFound
+        }
+
+        assignment.source = ThoughtTagAssignment.Source.rejectedAI.rawValue
+        assignment.rejectedAt = Date()
+
+        try context.save()
+    }
+
+    /// 确认 AI 标签：将 source 从 ai 改为 confirmedAI
+    /// - Parameter assignmentId: 分配 ID
+    func confirmTagAssignment(assignmentId: UUID) throws {
+        let request = ThoughtTagAssignment.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", assignmentId as CVarArg)
+        request.fetchLimit = 1
+
+        guard let assignment = try context.fetch(request).first else {
+            throw ThoughtError.notFound
+        }
+
+        assignment.source = ThoughtTagAssignment.Source.confirmedAI.rawValue
+
+        try context.save()
+    }
+
+    // MARK: - Backfill
+
+    /// 首次启动时将旧 Thought.tags 关系转为 ThoughtTagAssignment
+    /// 只执行一次（UserDefaults flag 控制）
+    func backfillTagAssignmentsIfNeeded() {
+        let flagKey = Self.backfillFlagKey
+        guard !UserDefaults.standard.bool(forKey: flagKey) else { return }
+
+        logger.info("开始 backfill ThoughtTagAssignment...")
+
+        do {
+            let request = Thought.fetchRequest()
+            // 包括软删除/归档的，确保数据完整
+            let allThoughts = try context.fetch(request)
+            var totalAssignments = 0
+
+            for thought in allThoughts {
+                guard let tags = thought.tags as? Set<ThoughtTag> else { continue }
+
+                for tag in tags {
+                    createAssignmentInternal(
+                        thought: thought,
+                        tag: tag,
+                        source: .manual,
+                        confidence: 1.0
+                    )
+                    totalAssignments += 1
+                }
+
+                // 所有旧想法标记为 unprocessed（不自动入队）
+                thought.organizedStatus = "unprocessed"
+            }
+
+            try context.save()
+            UserDefaults.standard.set(true, forKey: flagKey)
+            logger.info("Backfill 完成：\(totalAssignments) 条 assignment，\(allThoughts.count) 条想法标记为 unprocessed")
+        } catch {
+            logger.error("Backfill 失败：\(error.localizedDescription)")
+        }
+    }
+
+    // MARK: - Organization Status Operations
+
+    /// 更新想法的整理状态
+    /// - Parameters:
+    ///   - thoughtId: 想法 ID
+    ///   - status: 新状态
+    func updateOrganizedStatus(thoughtId: UUID, status: String) throws {
+        guard let thought = try fetchByIdInternal(thoughtId) else {
+            throw ThoughtError.notFound
+        }
+        thought.organizedStatus = status
+
+        // 进入 processing 时记录开始时间
+        if status == "processing" {
+            thought.organizationStartedAt = Date()
+        }
+        // 离开 processing 时清空开始时间
+        if status != "processing" {
+            thought.organizationStartedAt = nil
+        }
+
+        try context.save()
+    }
+
+    /// 恢复 processing 超时的想法（App 启动时调用）
+    func recoverStaleProcessingThoughts() {
+        let fiveMinutesAgo = Date().addingTimeInterval(-5 * 60)
+
+        let request = Thought.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "organizedStatus == 'processing' AND organizationStartedAt < %@",
+            fiveMinutesAgo as CVarArg
+        )
+
+        do {
+            let staleThoughts = try context.fetch(request)
+            for thought in staleThoughts {
+                thought.organizedStatus = "pending"
+                thought.organizationStartedAt = nil
+                logger.info("恢复 processing 超时想法：\(thought.id)")
+            }
+            if !staleThoughts.isEmpty {
+                try context.save()
+            }
+        } catch {
+            logger.error("恢复 processing 超时想法失败：\(error.localizedDescription)")
+        }
+    }
+
+    /// 获取待整理的想法队列（App 启动时重建队列）
+    /// - Returns: 待整理的 thoughtId 列表（按 createdAt 升序）
+    func fetchPendingThoughtIds() throws -> [UUID] {
+        let currentDeviceId = HoloBackendDeviceIdentity.shared.deviceId
+
+        let request = Thought.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "organizedStatus == 'pending' AND createdDeviceId == %@ AND isSoftDeleted == NO",
+            currentDeviceId as CVarArg
+        )
+        request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: true)]
+
+        return try context.fetch(request).map { $0.id }
     }
 
     // MARK: - Aggregation
@@ -487,8 +744,7 @@ class ThoughtRepository {
         request.predicate = basePredicate(from: start, to: end)
 
         guard let thoughts = try? context.fetch(request) else {
-            Logger(subsystem: "com.holo.app", category: "ThoughtRepository")
-                .error("获取心情分布失败")
+            logger.error("获取心情分布失败")
             return [:]
         }
 
@@ -501,6 +757,7 @@ class ThoughtRepository {
     }
 
     /// 指定时间范围内的热门标签（按关联想法数排序）
+    /// v1a 继续读 thought.tags（双写保证数据一致）
     func getTopTags(from start: Date, to end: Date, limit: Int) -> [ThoughtTag] {
         let request = Thought.fetchRequest()
         request.predicate = basePredicate(from: start, to: end)
@@ -538,9 +795,25 @@ class ThoughtRepository {
         }
     }
 
+    /// 获取最近的标签样例（用于 AI prompt 的 existingTagExamples 变量）
+    /// - Parameter limit: 数量限制
+    /// - Returns: 标签名称数组（按 usageCount 降序）
+    func getRecentTagNames(limit: Int = 20) -> [String] {
+        let request = ThoughtTag.fetchRequest()
+        request.sortDescriptors = [NSSortDescriptor(key: "usageCount", ascending: false)]
+        request.fetchLimit = limit
+
+        return (try? context.fetch(request).map { $0.name }) ?? []
+    }
+
+    // MARK: - Settings Keys
+
+    /// 自动整理开关的 UserDefaults key
+    static let autoOrganizationEnabledKey = "isThoughtAutoOrganizationEnabled"
+
     // MARK: - Private Helpers
 
-    /// 构建基础 predicate（排除已删除/归档，可选日期范围）
+    /// 构建 base predicate（排除已删除/归档，可选日期范围）
     private func basePredicate(from startDate: Date?, to endDate: Date?) -> NSPredicate {
         var predicates: [NSPredicate] = [
             NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
@@ -552,6 +825,50 @@ class ThoughtRepository {
             predicates.append(NSPredicate(format: "createdAt <= %@", end as CVarArg))
         }
         return NSCompoundPredicate(andPredicateWithSubpredicates: predicates)
+    }
+
+    /// 内部创建 ThoughtTagAssignment（不调用 context.save，由调用方统一 save）
+    private func createAssignmentInternal(
+        thought: Thought,
+        tag: ThoughtTag,
+        source: ThoughtTagAssignment.Source,
+        confidence: Double
+    ) {
+        // 去重：同一条想法同一标签同一来源组不重复创建
+        let sourceGroup: String
+        switch source {
+        case .manual, .inline:
+            sourceGroup = "high_priority"
+        case .confirmedAI, .ai:
+            sourceGroup = "ai"
+        case .rejectedAI:
+            sourceGroup = "rejected"
+        }
+
+        if let existing = thought.tagAssignments as? Set<ThoughtTagAssignment> {
+            let duplicateExists = existing.contains { assignment in
+                assignment.tag == tag && resolveSourceGroup(assignment.source) == sourceGroup
+            }
+            if duplicateExists { return }
+        }
+
+        let assignment = ThoughtTagAssignment(context: context)
+        assignment.id = UUID()
+        assignment.source = source.rawValue
+        assignment.confidence = confidence
+        assignment.assignedAt = Date()
+        assignment.thought = thought
+        assignment.tag = tag
+    }
+
+    /// 将 source 归类为来源组（用于去重判断）
+    private func resolveSourceGroup(_ source: String) -> String {
+        switch ThoughtTagAssignment.Source(rawValue: source) {
+        case .manual, .inline: return "high_priority"
+        case .confirmedAI, .ai: return "ai"
+        case .rejectedAI: return "rejected"
+        case .none: return "unknown"
+        }
     }
 }
 
