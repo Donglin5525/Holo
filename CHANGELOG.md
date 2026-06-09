@@ -4,6 +4,22 @@
 
 ---
 
+## [2026-06-10] App 启动页视觉改造
+
+### 新增
+- 新增全屏 `LaunchScreen.storyboard`，App 冷启动时使用 Holo 专属启动页视觉，避免系统自动启动屏的空白感
+- 新增 SwiftUI 启动过渡页，进入主界面前短暂展示同一套 Holo 启动视觉，减少冷启动到首页的突兀切换
+- 新增 `StartupSplashArtwork` 图片资源，按现代 iPhone 竖屏比例重新适配，避免上下留白和主体拉伸
+
+### 优化
+- 启动页从“居中 App icon”改为完整品牌插画，顶部状态栏和底部 Home Indicator 区域都由画面自然铺满
+- 过渡页支持减少动态效果设置，降低系统辅助功能场景下的视觉干扰
+
+### 验证
+- iOS Debug build 通过：`xcodebuild -project ".../Holo.xcodeproj" -scheme Holo -configuration Debug -destination 'generic/platform=iOS' -derivedDataPath /private/tmp/holo-startup-splash-derived CODE_SIGNING_ALLOWED=NO build`
+
+---
+
 ## [2026-06-09] 想法卡片文本行间距优化
 
 ### 优化
