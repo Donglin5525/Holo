@@ -28,7 +28,7 @@ struct ThoughtCardView: View {
 
     var body: some View {
         Button(action: { onNavigate?() }) {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .leading, spacing: 16) {
                 // 顶部：心情 + 日期
                 headerView
 
@@ -38,10 +38,10 @@ struct ThoughtCardView: View {
                 // 底部：标签 + 引用信息
                 footerView
             }
-            .padding(HoloSpacing.md)
+            .padding(20)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: HoloRadius.md)
+                RoundedRectangle(cornerRadius: HoloRadius.lg)
                     .fill(Color.holoCardBackground)
                     .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
             )
@@ -85,7 +85,7 @@ struct ThoughtCardView: View {
     private var contentView: some View {
         ExpandableText(
             text: thought.plainContent,
-            lineLimit: 5
+            lineLimit: 7
         )
     }
 

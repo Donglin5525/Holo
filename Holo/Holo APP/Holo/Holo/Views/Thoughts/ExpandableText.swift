@@ -24,6 +24,7 @@ struct ExpandableText: View {
     var lineLimit: Int = 5
     var font: Font = .holoBody
     var color: Color = .holoTextPrimary
+    var lineSpacing: CGFloat = 8
 
     // MARK: - 状态
 
@@ -46,6 +47,7 @@ struct ExpandableText: View {
             Text(text)
                 .font(font)
                 .foregroundColor(color)
+                .lineSpacing(lineSpacing)
                 .lineLimit(isExpanded ? nil : lineLimit)
                 .multilineTextAlignment(.leading)
                 .textSelection(.enabled)
@@ -79,6 +81,7 @@ struct ExpandableText: View {
     private var fullHeightMeasurement: some View {
         Text(text)
             .font(font)
+            .lineSpacing(lineSpacing)
             .fixedSize(horizontal: false, vertical: true)
             .hidden()
             .background(
@@ -94,6 +97,7 @@ struct ExpandableText: View {
     private var limitedHeightMeasurement: some View {
         Text(text)
             .font(font)
+            .lineSpacing(lineSpacing)
             .lineLimit(lineLimit)
             .fixedSize(horizontal: false, vertical: true)
             .hidden()
