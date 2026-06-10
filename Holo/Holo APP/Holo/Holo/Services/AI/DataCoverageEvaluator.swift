@@ -78,7 +78,7 @@ enum DataCoverageEvaluator {
         ))
 
         // 任务
-        let hasTasks = context.tasks.todayTotal > 0
+        let hasTasks = context.tasks.dueToday > 0
             || !context.tasks.recentTasks.isEmpty
             || !context.tasks.activeTaskSummaries.isEmpty
         sources.append(SourceAvailability(

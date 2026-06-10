@@ -120,7 +120,6 @@ final class UserContextBuilder {
         let repo = HabitRepository.shared
         let progress = repo.getTodayCheckInProgress()
 
-        let recentCheckIns: [String] = []
         // 通过 activeHabits 获取习惯列表
         let activeHabits = repo.activeHabits.filter { !$0.isArchived }
 
@@ -135,15 +134,54 @@ final class UserContextBuilder {
             profileContext: profileContext
         )
 
+        // 构建今日每个习惯的打卡/数值摘要
+        let recentCheckIns = activeHabits.map { habit in
+            formatHabitTodayLine(habit: habit, repo: repo)
+        }
+
+        // 分正负向统计打卡型习惯
+        let split = repo.getTodayCheckInSplit()
+
         return HabitSummary(
             totalActive: activeHabits.count,
-            todayCompleted: progress.completed,
-            todayTotal: progress.total,
+            todayCompleted: split.positive.completed,
+            todayTotal: split.positive.total,
+            todayNegativeChecked: split.negative.checked,
+            todayNegativeTotal: split.negative.total,
             recentCheckIns: recentCheckIns,
             activeHabitNames: habitNames,
             focusSummaries: focusSummaries,
             focusTopicLines: focusTopicLines
         )
+    }
+
+    /// 格式化单个习惯今日状态，供 AI 上下文使用
+    private func formatHabitTodayLine(habit: Habit, repo: HabitRepository) -> String {
+        let name = habit.name
+
+        if habit.isCheckInType {
+            let done = repo.isTodayCompleted(for: habit)
+            if habit.isBadHabit {
+                return "\(name): \(done ? "已发生" : "未发生")"
+            } else {
+                return "\(name): \(done ? "已打卡" : "未打卡")"
+            }
+        }
+
+        // 数值型：显示今日聚合值
+        if let value = repo.getTodayValue(for: habit) {
+            let unit = habit.unitText
+            let overTarget = habit.isBadHabit
+                && habit.targetValue != nil
+                && value > habit.targetValue!.doubleValue
+            let suffix = overTarget ? "（超标）" : ""
+            let displayValue = habit.isMeasureType
+                ? String(format: "%.1f", value)
+                : "\(Int(value))"
+            return "\(name): \(displayValue)\(unit)\(suffix)"
+        }
+
+        return "\(name): 未记录"
     }
 
     private func buildHabitFocusSummaries(
@@ -230,26 +268,68 @@ final class UserContextBuilder {
 
     private func buildTaskSummary() -> TaskSummary {
         let repo = TodoRepository.shared
-        let stats = repo.getTaskStatistics()
+        let stats = repo.getTodayTaskStats()
         let todayTasks = repo.getTodayTasks()
 
-        var recentList: [String] = []
-        for task in todayTasks.prefix(5) {
-            let status = task.completed ? "✓" : "○"
-            recentList.append("\(status) \(task.title)")
-        }
+        // 近期任务列表：优先今日到期，不足时补充未完成积压
+        let recentList = buildRecentTaskList(todayTasks: todayTasks, repo: repo)
 
-        // 前 10 条未完成任务摘要
+        // 前 10 条未完成任务摘要（用于积压展示）
         let activeTasks = repo.activeTasks.filter { !$0.completed && !$0.deletedFlag }
         let activeTaskSummaries = activeTasks.prefix(10).map { "○ \($0.title)" }
 
         return TaskSummary(
-            todayTotal: stats.total,
-            todayCompleted: stats.completed,
+            dueToday: stats.dueToday,
+            completedToday: stats.completedToday,
             overdueCount: stats.overdue,
             recentTasks: recentList,
             activeTaskSummaries: activeTaskSummaries
         )
+    }
+
+    /// 构建近期任务列表：优先今日到期任务，不足 3 条时补充未完成积压
+    private func buildRecentTaskList(todayTasks: [TodoTask], repo: TodoRepository) -> [String] {
+        var lines: [String] = []
+
+        for task in todayTasks.prefix(5) {
+            let status = task.completed ? "✓" : "○"
+            lines.append("\(status) \(task.title)")
+        }
+
+        // 不足 3 条时补充最近的未完成任务
+        if lines.count < 3 {
+            let existingTitles = Set(todayTasks.map(\.title))
+            let activeTasks = repo.activeTasks
+                .filter { !$0.completed && !$0.deletedFlag && !existingTitles.contains($0.title) }
+                .sorted { ($0.dueDate ?? .distantFuture) < ($1.dueDate ?? .distantFuture) }
+
+            for task in activeTasks {
+                if lines.count >= 5 { break }
+                let dueLabel = formatDueLabel(task.dueDate)
+                lines.append("○ \(task.title)（\(dueLabel)）")
+            }
+        }
+
+        return lines
+    }
+
+    /// 格式化截止日期标签
+    private func formatDueLabel(_ date: Date?) -> String {
+        guard let date = date else { return "无截止日" }
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let target = calendar.startOfDay(for: date)
+
+        let dayDiff = calendar.dateComponents([.day], from: today, to: target).day ?? 0
+
+        switch dayDiff {
+        case 0: return "今天"
+        case 1: return "明天"
+        case 2: return "后天"
+        case 3...: return "\(calendar.component(.month, from: date))/\(calendar.component(.day, from: date))"
+        case ..<0: return "逾期\(-dayDiff)天"
+        default: return "无截止日"
+        }
     }
 
     // MARK: - Thought Summary

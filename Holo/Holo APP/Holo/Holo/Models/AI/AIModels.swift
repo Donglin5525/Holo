@@ -432,8 +432,8 @@ struct UserContext {
     static let empty = UserContext(
         todayDate: "",
         transactions: TransactionSummary(todayExpense: "", todayIncome: "", recentTransactions: []),
-        habits: HabitSummary(totalActive: 0, todayCompleted: 0, todayTotal: 0, recentCheckIns: [], activeHabitNames: [], focusSummaries: [], focusTopicLines: []),
-        tasks: TaskSummary(todayTotal: 0, todayCompleted: 0, overdueCount: 0, recentTasks: [], activeTaskSummaries: []),
+        habits: HabitSummary(totalActive: 0, todayCompleted: 0, todayTotal: 0, todayNegativeChecked: 0, todayNegativeTotal: 0, recentCheckIns: [], activeHabitNames: [], focusSummaries: [], focusTopicLines: []),
+        tasks: TaskSummary(dueToday: 0, completedToday: 0, overdueCount: 0, recentTasks: [], activeTaskSummaries: []),
         thoughts: ThoughtSummary(recentThoughts: [], totalThoughts: 0),
         accounts: AccountSummary(accountList: "", defaultAccountName: ""),
         profileContext: nil,
@@ -463,8 +463,10 @@ struct AccountSummary {
 /// 习惯摘要
 struct HabitSummary {
     let totalActive: Int
-    let todayCompleted: Int
-    let todayTotal: Int
+    let todayCompleted: Int         // 正向打卡型习惯今日已打卡数
+    let todayTotal: Int             // 正向打卡型习惯总数
+    let todayNegativeChecked: Int   // 负向打卡型习惯今日已发生数
+    let todayNegativeTotal: Int     // 负向打卡型习惯总数
     let recentCheckIns: [String]
     let activeHabitNames: [String]
     let focusSummaries: [HabitFocusSummary]
@@ -473,9 +475,9 @@ struct HabitSummary {
 
 /// 任务摘要
 struct TaskSummary {
-    let todayTotal: Int
-    let todayCompleted: Int
-    let overdueCount: Int
+    let dueToday: Int           // 今日到期任务数（含已完成和未完成）
+    let completedToday: Int     // 今日完成任务数（不限截止日期）
+    let overdueCount: Int       // 逾期未完成任务数
     let recentTasks: [String]
     let activeTaskSummaries: [String]
 }

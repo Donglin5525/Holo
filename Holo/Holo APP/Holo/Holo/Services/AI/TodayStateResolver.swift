@@ -46,10 +46,8 @@ enum TodayStateResolver {
         }
 
         // 今日任务
-        if context.tasks.todayTotal > 0 {
-            let completed = context.tasks.todayCompleted
-            let total = context.tasks.todayTotal
-            parts.append("任务 \(completed)/\(total)")
+        if context.tasks.dueToday > 0 || context.tasks.completedToday > 0 {
+            parts.append("任务：到期 \(context.tasks.dueToday)，完成 \(context.tasks.completedToday)")
             labels.append("今日任务")
         }
 
@@ -85,8 +83,8 @@ enum TodayStateResolver {
         var parts: [String] = []
         var labels: [String] = []
 
-        if context.tasks.todayTotal > 0 {
-            parts.append("任务 \(context.tasks.todayCompleted)/\(context.tasks.todayTotal)")
+        if context.tasks.dueToday > 0 || context.tasks.completedToday > 0 {
+            parts.append("任务：到期 \(context.tasks.dueToday)，完成 \(context.tasks.completedToday)")
             labels.append("今日任务")
         }
 

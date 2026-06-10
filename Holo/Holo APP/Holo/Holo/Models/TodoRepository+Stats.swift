@@ -30,12 +30,46 @@ extension TodoRepository {
         return result
     }
 
-    /// 获取总任务数统计
+    /// 获取总任务数统计（全量活跃，不含时间过滤）
     func getTaskStatistics() -> (total: Int, completed: Int, overdue: Int) {
         let total = activeTasks.count
         let completed = activeTasks.filter { $0.completed }.count
         let overdue = getOverdueTasks().count
         return (total, completed, overdue)
+    }
+
+    /// 今日任务统计（用于 AI 上下文）
+    /// - dueToday: 今日到期任务数（含已完成和未完成）
+    /// - completedToday: 今日完成任务数（不限截止日期）
+    /// - overdue: 逾期未完成任务数
+    func getTodayTaskStats() -> (dueToday: Int, completedToday: Int, overdue: Int) {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) else {
+            return (0, 0, 0)
+        }
+
+        let base = "deletedFlag == NO AND archived == NO"
+
+        // 今日到期（不管是否已完成）
+        let dueToday = countTasks(
+            predicate: "\(base) AND dueDate >= %@ AND dueDate < %@",
+            today as NSDate, tomorrow as NSDate
+        )
+
+        // 今日完成（completedAt 在今天，不限 dueDate）
+        let completedToday = countTasks(
+            predicate: "\(base) AND completed == YES AND completedAt >= %@ AND completedAt < %@",
+            today as NSDate, tomorrow as NSDate
+        )
+
+        // 逾期（截止日已过且未完成）
+        let overdue = countTasks(
+            predicate: "\(base) AND completed == NO AND dueDate < %@",
+            today as NSDate
+        )
+
+        return (dueToday, completedToday, overdue)
     }
 
     /// 按日分组的完成趋势

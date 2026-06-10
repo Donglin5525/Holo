@@ -19,10 +19,10 @@ enum HoloMemorySnapshotBuilder {
         var signals: [HoloRecentSignal] = []
 
         // 任务来源
-        if userContext.tasks.todayTotal > 0 || !userContext.tasks.recentTasks.isEmpty {
+        if userContext.tasks.dueToday > 0 || userContext.tasks.completedToday > 0 || !userContext.tasks.recentTasks.isEmpty {
             sourceSummaries.append(HoloMemorySourceSummary(
                 source: .tasks,
-                count: userContext.tasks.todayTotal,
+                count: userContext.tasks.dueToday,
                 latestAt: nil
             ))
         }

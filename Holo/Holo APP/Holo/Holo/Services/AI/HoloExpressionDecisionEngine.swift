@@ -73,7 +73,7 @@ enum HoloExpressionDecisionEngine {
         let evidenceCount = [
             !context.transactions.recentTransactions.isEmpty,
             context.habits.totalActive > 0,
-            context.tasks.todayTotal > 0,
+            context.tasks.dueToday > 0 || context.tasks.completedToday > 0,
             context.thoughts.totalThoughts > 0,
             context.memorySummary?.lines.isEmpty == false
         ].filter { $0 }.count

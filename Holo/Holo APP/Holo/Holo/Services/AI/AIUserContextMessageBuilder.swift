@@ -22,9 +22,9 @@ enum AIUserContextMessageBuilder {
         - 近期交易：\(context.transactions.recentTransactions.joined(separator: "、"))
         - 可用账户：\(context.accounts.accountList)
         - 默认账户：\(context.accounts.defaultAccountName)
-        - 活跃习惯：\(context.habits.totalActive) 个，今日完成 \(context.habits.todayCompleted)/\(context.habits.todayTotal)
-        - 今日任务：\(context.tasks.todayTotal) 个（已完成 \(context.tasks.todayCompleted)），逾期 \(context.tasks.overdueCount) 个
-        - 近期任务：\(context.tasks.recentTasks.joined(separator: "、"))
+        \(formatHabitSummaryLines(context.habits))
+        - 今日到期：\(context.tasks.dueToday) 个，今日完成：\(context.tasks.completedToday) 个，逾期 \(context.tasks.overdueCount) 个
+        \(formatTaskLines(context.tasks))
         - 近期想法：\(context.thoughts.recentThoughts.prefix(3).joined(separator: "、"))
         """
 
@@ -136,6 +136,58 @@ enum AIUserContextMessageBuilder {
         }
 
         return message
+    }
+
+    // MARK: - Habit Summary Formatting
+
+    /// 格式化习惯摘要：分正负向展示，避免语义混淆
+    private static func formatHabitSummaryLines(_ habits: HabitSummary) -> String {
+        var lines: [String] = []
+
+        let hasPositive = habits.todayTotal > 0
+        let hasNegative = habits.todayNegativeTotal > 0
+
+        if hasPositive || hasNegative {
+            var parts: [String] = []
+            if hasPositive {
+                parts.append("正向：\(habits.todayCompleted)/\(habits.todayTotal) 已打卡")
+            }
+            if hasNegative {
+                parts.append("负向：\(habits.todayNegativeChecked)/\(habits.todayNegativeTotal) 已发生")
+            }
+            lines.append("- 活跃习惯：\(habits.totalActive) 个（\(parts.joined(separator: "，"))）")
+        } else {
+            lines.append("- 活跃习惯：\(habits.totalActive) 个")
+        }
+
+        // 今日每个习惯的详情
+        if !habits.recentCheckIns.isEmpty {
+            lines.append("- 今日习惯：\(habits.recentCheckIns.joined(separator: "、"))")
+        }
+
+        return lines.joined(separator: "\n        ")
+    }
+
+    // MARK: - Task Summary Formatting
+
+    /// 格式化任务摘要：近期任务 + 未完成积压
+    private static func formatTaskLines(_ tasks: TaskSummary) -> String {
+        var lines: [String] = []
+
+        // 近期到期任务
+        if !tasks.recentTasks.isEmpty {
+            lines.append("- 近期任务：\(tasks.recentTasks.joined(separator: "、"))")
+        }
+
+        // 未完成积压（前 5 条）
+        if !tasks.activeTaskSummaries.isEmpty {
+            let backlog = tasks.activeTaskSummaries.prefix(5).joined(separator: "、")
+            let total = tasks.activeTaskSummaries.count
+            let suffix = total > 5 ? "等共 \(total) 个未完成" : "共 \(total) 个未完成"
+            lines.append("- 待办积压：\(backlog)（\(suffix)）")
+        }
+
+        return lines.joined(separator: "\n        ")
     }
 }
 

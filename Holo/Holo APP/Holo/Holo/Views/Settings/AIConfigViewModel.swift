@@ -120,8 +120,8 @@ final class AIConfigViewModel: ObservableObject {
                 userContext: UserContext(
                     todayDate: "测试",
                     transactions: TransactionSummary(todayExpense: "0", todayIncome: "0", recentTransactions: []),
-                    habits: HabitSummary(totalActive: 0, todayCompleted: 0, todayTotal: 0, recentCheckIns: [], activeHabitNames: [], focusSummaries: [], focusTopicLines: []),
-                    tasks: TaskSummary(todayTotal: 0, todayCompleted: 0, overdueCount: 0, recentTasks: [], activeTaskSummaries: []),
+                    habits: HabitSummary(totalActive: 0, todayCompleted: 0, todayTotal: 0, todayNegativeChecked: 0, todayNegativeTotal: 0, recentCheckIns: [], activeHabitNames: [], focusSummaries: [], focusTopicLines: []),
+                    tasks: TaskSummary(dueToday: 0, completedToday: 0, overdueCount: 0, recentTasks: [], activeTaskSummaries: []),
                     thoughts: ThoughtSummary(recentThoughts: [], totalThoughts: 0),
                     accounts: AccountSummary(accountList: "默认账户", defaultAccountName: "现金"),
                     profileContext: nil,

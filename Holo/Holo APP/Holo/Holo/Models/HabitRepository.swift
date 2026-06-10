@@ -706,15 +706,15 @@ class HabitRepository: ObservableObject {
             let visibleSet = Set(visible)
             checkInHabitIds = checkInHabitIds.filter { visibleSet.contains($0) }
         }
-        
+
         let total = checkInHabitIds.count
         guard total > 0 else { return (0, 0) }
-        
+
         let today = Calendar.current.startOfDay(for: Date())
         guard let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today) else {
             return (0, total)
         }
-        
+
         // 单次 fetch 统计今日完成的习惯数量（避免对每个习惯逐个 fetch）
         let request = NSFetchRequest<NSDictionary>(entityName: "HabitRecord")
         request.resultType = .dictionaryResultType
@@ -726,13 +726,64 @@ class HabitRepository: ObservableObject {
             today as NSDate,
             tomorrow as NSDate
         )
-        
+
         do {
             let results = try context.fetch(request)
             return (results.count, total)
         } catch {
             logger.error("获取今日进度失败: \(error)")
             return (0, total)
+        }
+    }
+
+    /// 分正负向统计今日打卡型习惯进度
+    /// - positive: 正向习惯（completed = 今日已打卡数）
+    /// - negative: 负向习惯（checked = 今日已发生数）
+    func getTodayCheckInSplit() -> (
+        positive: (completed: Int, total: Int),
+        negative: (checked: Int, total: Int)
+    ) {
+        let positiveHabits = activeHabits.filter { $0.isCheckInType && !$0.isBadHabit }
+        let negativeHabits = activeHabits.filter { $0.isCheckInType && $0.isBadHabit }
+
+        let today = Calendar.current.startOfDay(for: Date())
+        guard let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: today) else {
+            return ((0, positiveHabits.count), (0, negativeHabits.count))
+        }
+
+        let positiveCompleted = countCheckedHabits(
+            ids: positiveHabits.map(\.id), from: today, to: tomorrow
+        )
+        let negativeChecked = countCheckedHabits(
+            ids: negativeHabits.map(\.id), from: today, to: tomorrow
+        )
+
+        return (
+            (positiveCompleted, positiveHabits.count),
+            (negativeChecked, negativeHabits.count)
+        )
+    }
+
+    /// 统计指定习惯 ID 列表中今日有打卡记录的习惯数量
+    private func countCheckedHabits(ids: [UUID], from: Date, to: Date) -> Int {
+        guard !ids.isEmpty else { return 0 }
+
+        let request = NSFetchRequest<NSDictionary>(entityName: "HabitRecord")
+        request.resultType = .dictionaryResultType
+        request.propertiesToFetch = ["habitId"]
+        request.returnsDistinctResults = true
+        request.predicate = NSPredicate(
+            format: "habitId IN %@ AND date >= %@ AND date < %@ AND isCompleted == YES",
+            ids as NSArray,
+            from as NSDate,
+            to as NSDate
+        )
+
+        do {
+            return try context.fetch(request).count
+        } catch {
+            logger.error("统计习惯打卡失败: \(error)")
+            return 0
         }
     }
     
