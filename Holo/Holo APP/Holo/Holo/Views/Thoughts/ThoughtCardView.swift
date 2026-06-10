@@ -83,10 +83,16 @@ struct ThoughtCardView: View {
     // MARK: - 内容区域
 
     private var contentView: some View {
-        ExpandableText(
-            text: thought.plainContent,
-            lineLimit: 7
-        )
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            ExpandableText(
+                text: thought.plainContent,
+                lineLimit: 7
+            )
+
+            if !thought.sortedAttachments.isEmpty {
+                inlineAttachmentsView
+            }
+        }
     }
 
     // MARK: - 底部区域
@@ -132,18 +138,6 @@ struct ThoughtCardView: View {
 
             Spacer()
 
-            // 图片附件指示
-            let attachmentCount = thought.sortedAttachments.count
-            if attachmentCount > 0 {
-                HStack(spacing: 4) {
-                    Image(systemName: "paperclip")
-                        .font(.system(size: 12))
-                    Text("\(attachmentCount)")
-                        .font(.holoLabel)
-                }
-                .foregroundColor(.holoTextSecondary)
-            }
-
             // 引用信息
             let refCount = thought.referenceCount + thought.referencedByCount
             if refCount > 0 {
@@ -154,6 +148,21 @@ struct ThoughtCardView: View {
                         .font(.holoLabel)
                 }
                 .foregroundColor(.holoPrimary)
+            }
+        }
+    }
+
+    private var inlineAttachmentsView: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: HoloSpacing.sm) {
+                ForEach(Array(thought.sortedAttachments.enumerated()), id: \.element.id) { _, attachment in
+                    ThoughtAttachmentThumbnailView(
+                        thumbnailData: attachment.thumbnailData,
+                        fileName: attachment.thumbnailFileName,
+                        thoughtId: thought.id
+                    )
+                    .frame(width: 80, height: 80)
+                }
             }
         }
     }

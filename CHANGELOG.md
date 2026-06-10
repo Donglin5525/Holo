@@ -4,6 +4,18 @@
 
 ---
 
+## [2026-06-11] 想法图片贴合正文布局
+
+### 优化
+- 想法编辑页中图片预览并入正文内容卡片，跟随文字末尾展示，不再作为独立附件卡片割裂显示
+- 想法详情页中图片缩略图贴在正文内容下方，保持内容和图片的一体化阅读体验
+- 想法列表卡片直接在「展开/收起」下方展示图片缩略图，替代底部纸夹数量提示
+
+### 验证
+- iOS Debug build 通过：`xcodebuild -project ".../Holo.xcodeproj" -scheme Holo -destination "platform=iOS Simulator,name=iPhone 17 Pro" build`
+
+---
+
 ## [2026-06-11] AI「今日状态」上下文数据修复
 
 ### 修复

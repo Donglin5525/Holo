@@ -97,8 +97,6 @@ struct ThoughtEditorView: View {
                     tagsSection
                     // 引用区域
                     referencesSection
-                    // 已添加的图片缩略图条
-                    attachmentStrip
                 }
                 .padding(.horizontal, HoloSpacing.md)
             }
@@ -307,19 +305,23 @@ struct ThoughtEditorView: View {
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
 
-            ZStack(alignment: .bottomTrailing) {
-                MarkdownTextView(
-                    text: $content,
-                    pendingAction: $pendingEditorAction,
-                    dynamicHeight: $editorHeight,
-                    formatState: $typingFormatState,
-                    textContainerInset: UIEdgeInsets(top: 22, left: 16, bottom: 88, right: 16)
-                )
-                    .frame(height: max(editorHeight, 360))
+            VStack(alignment: .leading, spacing: HoloSpacing.md) {
+                ZStack(alignment: .bottomTrailing) {
+                    MarkdownTextView(
+                        text: $content,
+                        pendingAction: $pendingEditorAction,
+                        dynamicHeight: $editorHeight,
+                        formatState: $typingFormatState,
+                        textContainerInset: UIEdgeInsets(top: 22, left: 16, bottom: 88, right: 16)
+                    )
+                        .frame(height: max(editorHeight, contentEditorMinimumHeight))
 
-                voiceInputButton
-                    .padding(.trailing, 18)
-                    .padding(.bottom, 18)
+                    voiceInputButton
+                        .padding(.trailing, 18)
+                        .padding(.bottom, 18)
+                }
+
+                attachmentStrip
             }
             .background(Color.holoCardBackground)
             .cornerRadius(HoloRadius.md)
@@ -457,20 +459,28 @@ struct ThoughtEditorView: View {
         return try? repo.fetchById(thoughtId)
     }
 
+    private var hasAttachments: Bool {
+        isEditing ? !editingAttachments.isEmpty : !pendingImages.isEmpty
+    }
+
+    private var contentEditorMinimumHeight: CGFloat {
+        hasAttachments ? 220 : 360
+    }
+
     /// 已添加图片的横向缩略图条（带可见删除按钮）
     @ViewBuilder
     private var attachmentStrip: some View {
         if isEditing {
             if !editingAttachments.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: HoloSpacing.sm) {
                         ForEach(Array(editingAttachments.enumerated()), id: \.element.id) { index, item in
                             ThoughtAttachmentThumbnailView(
                                 thumbnailData: item.thumbnailData,
                                 fileName: item.thumbnailFileName,
                                 thoughtId: editingThoughtId ?? UUID()
                             )
-                            .frame(width: 56, height: 56)
+                            .frame(width: 80, height: 80)
                             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
                             .overlay(alignment: .topTrailing) {
                                 Button {
@@ -491,19 +501,17 @@ struct ThoughtEditorView: View {
                         }
                     }
                 }
-                .padding(HoloSpacing.sm)
-                .background(Color.holoCardBackground)
-                .cornerRadius(HoloRadius.md)
+                .padding(HoloSpacing.md)
             }
         } else {
             if !pendingImages.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
+                    HStack(spacing: HoloSpacing.sm) {
                         ForEach(Array(pendingImages.enumerated()), id: \.offset) { index, image in
                             Image(uiImage: image)
                                 .resizable()
                                 .aspectRatio(1, contentMode: .fill)
-                                .frame(width: 56, height: 56)
+                                .frame(width: 80, height: 80)
                                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
                                 .overlay(alignment: .topTrailing) {
                                     Button {
@@ -519,9 +527,7 @@ struct ThoughtEditorView: View {
                         }
                     }
                 }
-                .padding(HoloSpacing.sm)
-                .background(Color.holoCardBackground)
-                .cornerRadius(HoloRadius.md)
+                .padding(HoloSpacing.md)
             }
         }
     }

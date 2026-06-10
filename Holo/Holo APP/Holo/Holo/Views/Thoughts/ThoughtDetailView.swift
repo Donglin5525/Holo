@@ -54,11 +54,6 @@ struct ThoughtDetailView: View {
                     // 内容区域
                     contentSection
 
-                    // 图片附件区域
-                    if let thought = thought, !thought.sortedAttachments.isEmpty {
-                        attachmentsSection
-                    }
-
                     // 标签区域
                     if let thought = thought, !thought.tagArray.isEmpty {
                         tagsSection
@@ -166,6 +161,10 @@ struct ThoughtDetailView: View {
                 Text("")
                     .font(.holoBody)
             }
+
+            if let thought = thought, !thought.sortedAttachments.isEmpty {
+                inlineAttachmentsSection
+            }
         }
         .padding(HoloSpacing.md)
         .background(
@@ -180,12 +179,8 @@ struct ThoughtDetailView: View {
 
     // MARK: - 图片附件区域
 
-    private var attachmentsSection: some View {
+    private var inlineAttachmentsSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            Text("图片")
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
-
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: HoloSpacing.sm) {
                     if let attachments = thought?.sortedAttachments {
@@ -206,15 +201,6 @@ struct ThoughtDetailView: View {
                 }
             }
         }
-        .padding(HoloSpacing.md)
-        .background(
-            RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .fill(Color.holoCardBackground)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .stroke(Color.holoBorder, lineWidth: 1)
-        )
     }
 
     // MARK: - 标签区域
