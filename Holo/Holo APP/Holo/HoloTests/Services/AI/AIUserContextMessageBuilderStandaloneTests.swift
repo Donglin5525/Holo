@@ -27,14 +27,16 @@ struct AIUserContextMessageBuilderStandaloneTests {
                 totalActive: 2,
                 todayCompleted: 1,
                 todayTotal: 2,
-                recentCheckIns: [],
+                todayNegativeChecked: 0,
+                todayNegativeTotal: 1,
+                recentCheckIns: ["戒烟: 未发生", "跑步: 已打卡"],
                 activeHabitNames: ["戒烟", "跑步"],
                 focusSummaries: [],
                 focusTopicLines: ["用户档案出现戒除/减少型主题"]
             ),
             tasks: TaskSummary(
-                todayTotal: 3,
-                todayCompleted: 1,
+                dueToday: 3,
+                completedToday: 1,
                 overdueCount: 0,
                 recentTasks: ["○ 写周报"],
                 activeTaskSummaries: ["○ 写周报"]
@@ -61,7 +63,10 @@ struct AIUserContextMessageBuilderStandaloneTests {
             ## 当前目标
 
             - 戒烟 90 天
-            """
+            """,
+            profileSnapshot: nil,
+            dataCoverage: nil,
+            memorySummary: nil
         )
     }
 
