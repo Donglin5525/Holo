@@ -8,6 +8,8 @@
 
 import SwiftUI
 import CoreData
+import PhotosUI
+import AVFoundation
 
 import os.log
 
@@ -58,6 +60,17 @@ struct ThoughtEditorView: View {
     @State private var editorHeight: CGFloat = 360
     @State private var typingFormatState: TypingFormatState = TypingFormatState()
     @AppStorage("com.holo.thought.voice.smartSummary.enabled") private var smartSummaryEnabled: Bool = true
+
+    // MARK: - Attachment State
+    @State private var pendingImages: [UIImage] = []
+    @State private var showAttachmentSourceChoice: Bool = false
+    @State private var showAttachmentPhotoPicker: Bool = false
+    @State private var selectedAttachmentPhotos: [PhotosPickerItem] = []
+    @State private var showAttachmentCamera: Bool = false
+    @State private var pendingCameraImageData: Data?
+    @State private var showAttachmentGallery: Bool = false
+    @State private var galleryStartIndex: Int = 0
+    @State private var editingAttachments: [ThoughtAttachmentGridItem] = []
     /// 是否为编辑模式
     private var isEditing: Bool { editingThoughtId != nil }
 
@@ -84,6 +97,8 @@ struct ThoughtEditorView: View {
                     tagsSection
                     // 引用区域
                     referencesSection
+                    // 已添加的图片缩略图条
+                    attachmentStrip
                 }
                 .padding(.horizontal, HoloSpacing.md)
             }
@@ -153,6 +168,47 @@ struct ThoughtEditorView: View {
         .onAppear {
             loadEditingData()
         }
+        // MARK: - Attachment Modifiers
+        .photosPicker(
+            isPresented: $showAttachmentPhotoPicker,
+            selection: $selectedAttachmentPhotos,
+            maxSelectionCount: maxAttachmentSelection,
+            matching: .images
+        )
+        .onChange(of: selectedAttachmentPhotos) { _, newValue in
+            guard !newValue.isEmpty else { return }
+            loadAttachmentPhotos(newValue)
+        }
+        .fullScreenCover(isPresented: $showAttachmentCamera, onDismiss: {
+            handleCapturedImageData()
+        }) {
+            CameraView(
+                onCapture: { imageData in
+                    pendingCameraImageData = imageData
+                    showAttachmentCamera = false
+                },
+                onDismiss: {
+                    showAttachmentCamera = false
+                }
+            )
+        }
+        .fullScreenCover(isPresented: $showAttachmentGallery, onDismiss: nil) {
+            if let thought = currentEditingThought {
+                ThoughtGalleryView(
+                    attachments: thought.sortedAttachments,
+                    startIndex: galleryStartIndex
+                )
+            }
+        }
+        .confirmationDialog("添加图片", isPresented: $showAttachmentSourceChoice) {
+            Button("拍照") {
+                requestCameraAccess()
+            }
+            Button("从相册选择") {
+                showAttachmentPhotoPicker = true
+            }
+            Button("取消", role: .cancel) {}
+        }
     }
 
     // MARK: - Dismiss Handling
@@ -200,6 +256,11 @@ struct ThoughtEditorView: View {
 
         // 引用发生变化
         if Set(referencedThoughtIds) != Set(originalReferencedThoughtIds) {
+            return true
+        }
+
+        // 新建模式有暂存图片
+        if !isEditing && !pendingImages.isEmpty {
             return true
         }
 
@@ -266,7 +327,9 @@ struct ThoughtEditorView: View {
                 RoundedRectangle(cornerRadius: HoloRadius.md)
                     .stroke(Color.holoBorder, lineWidth: 1)
             )
-            RichTextToolbarView(pendingAction: $pendingEditorAction, formatState: typingFormatState)
+            RichTextToolbarView(pendingAction: $pendingEditorAction, formatState: typingFormatState, onAddImage: {
+                showAttachmentSourceChoice = true
+            })
         }
     }
 
@@ -377,6 +440,92 @@ struct ThoughtEditorView: View {
         .cornerRadius(HoloRadius.md)
     }
 
+    // MARK: - 图片附件区域
+
+    /// 最大可选数量（新建模式用 pendingImages，编辑模式用 editingAttachments）
+    private var maxAttachmentSelection: Int {
+        if isEditing {
+            return max(0, 9 - editingAttachments.count)
+        }
+        return max(0, 9 - pendingImages.count)
+    }
+
+    /// 当前编辑中的 Thought 对象（用于全屏浏览）
+    private var currentEditingThought: Thought? {
+        guard let thoughtId = editingThoughtId else { return nil }
+        let repo = ThoughtRepository()
+        return try? repo.fetchById(thoughtId)
+    }
+
+    /// 已添加图片的横向缩略图条（带可见删除按钮）
+    @ViewBuilder
+    private var attachmentStrip: some View {
+        if isEditing {
+            if !editingAttachments.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(Array(editingAttachments.enumerated()), id: \.element.id) { index, item in
+                            ThoughtAttachmentThumbnailView(
+                                thumbnailData: item.thumbnailData,
+                                fileName: item.thumbnailFileName,
+                                thoughtId: editingThoughtId ?? UUID()
+                            )
+                            .frame(width: 56, height: 56)
+                            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
+                            .overlay(alignment: .topTrailing) {
+                                Button {
+                                    deleteEditingAttachment(item.objectID)
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.system(size: 16))
+                                        .foregroundColor(.white)
+                                        .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
+                                }
+                                .padding(2)
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                galleryStartIndex = index
+                                showAttachmentGallery = true
+                            }
+                        }
+                    }
+                }
+                .padding(HoloSpacing.sm)
+                .background(Color.holoCardBackground)
+                .cornerRadius(HoloRadius.md)
+            }
+        } else {
+            if !pendingImages.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(Array(pendingImages.enumerated()), id: \.offset) { index, image in
+                            Image(uiImage: image)
+                                .resizable()
+                                .aspectRatio(1, contentMode: .fill)
+                                .frame(width: 56, height: 56)
+                                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
+                                .overlay(alignment: .topTrailing) {
+                                    Button {
+                                        pendingImages.remove(at: index)
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .font(.system(size: 16))
+                                            .foregroundColor(.white)
+                                            .shadow(color: .black.opacity(0.3), radius: 2, x: 0, y: 1)
+                                    }
+                                    .padding(2)
+                                }
+                        }
+                    }
+                }
+                .padding(HoloSpacing.sm)
+                .background(Color.holoCardBackground)
+                .cornerRadius(HoloRadius.md)
+            }
+        }
+    }
+
     // MARK: - Actions
     /// 加载编辑数据
     private func loadEditingData() {
@@ -399,6 +548,16 @@ struct ThoughtEditorView: View {
             originalMood = ThoughtMoodType(from: thought.mood)
             originalTags = thought.tagArray.map { $0.name }
             originalReferencedThoughtIds = (thought.references as? Set<ThoughtReference>)?.compactMap { $0.targetThought?.id } ?? []
+
+            // 加载附件列表
+            editingAttachments = thought.sortedAttachments.map { attachment in
+                ThoughtAttachmentGridItem(
+                    id: attachment.id,
+                    objectID: attachment.objectID,
+                    thumbnailFileName: attachment.thumbnailFileName,
+                    thumbnailData: attachment.thumbnailData
+                )
+            }
         } catch {
             ThoughtLog.error("加载编辑数据失败", error.localizedDescription)
         }
@@ -407,6 +566,111 @@ struct ThoughtEditorView: View {
     /// 移除标签
     private func removeTag(_ tag: String) {
         selectedTags.removeAll { $0 == tag }
+    }
+
+    // MARK: - Attachment Actions
+
+    /// 加载相册选中的图片
+    private func loadAttachmentPhotos(_ photos: [PhotosPickerItem]) {
+        Task { @MainActor in
+            for photo in photos {
+                guard let data = try? await photo.loadTransferable(type: Data.self),
+                      let image = UIImage(data: data) else { continue }
+
+                if isEditing {
+                    // 编辑模式：直接保存到 CoreData
+                    guard let thoughtId = editingThoughtId,
+                          let thought = try? thoughtRepository.fetchById(thoughtId) else { continue }
+                    do {
+                        _ = try await thoughtRepository.addAttachment(imageData: data, to: thought)
+                        refreshEditingAttachments()
+                    } catch {
+                        ThoughtLog.error("添加附件失败", error.localizedDescription)
+                    }
+                } else {
+                    // 新建模式：暂存到内存
+                    let preview = await AttachmentFileManager.previewImageInBackground(image, maxDimension: 1024)
+                    if let preview {
+                        pendingImages.append(preview)
+                    }
+                }
+            }
+            selectedAttachmentPhotos = []
+        }
+    }
+
+    /// 处理相机拍照数据
+    private func handleCapturedImageData() {
+        guard let imageData = pendingCameraImageData else { return }
+        pendingCameraImageData = nil
+
+        if isEditing {
+            guard let thoughtId = editingThoughtId,
+                  let thought = try? thoughtRepository.fetchById(thoughtId) else { return }
+            Task { @MainActor in
+                do {
+                    _ = try await thoughtRepository.addAttachment(
+                        imageData: imageData,
+                        to: thought,
+                        sourceType: "camera"
+                    )
+                    refreshEditingAttachments()
+                } catch {
+                    ThoughtLog.error("添加拍照附件失败", error.localizedDescription)
+                }
+            }
+        } else {
+            guard let image = UIImage(data: imageData) else { return }
+            Task { @MainActor in
+                let preview = await AttachmentFileManager.previewImageInBackground(image, maxDimension: 1024)
+                if let preview {
+                    pendingImages.append(preview)
+                }
+            }
+        }
+    }
+
+    /// 请求相机权限
+    private func requestCameraAccess() {
+        let status = AVCaptureDevice.authorizationStatus(for: .video)
+        switch status {
+        case .authorized:
+            showAttachmentCamera = true
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { granted in
+                DispatchQueue.main.async {
+                    if granted {
+                        showAttachmentCamera = true
+                    }
+                }
+            }
+        default:
+            break
+        }
+    }
+
+    /// 刷新编辑模式的附件列表
+    private func refreshEditingAttachments() {
+        guard let thoughtId = editingThoughtId,
+              let thought = try? thoughtRepository.fetchById(thoughtId) else { return }
+        editingAttachments = thought.sortedAttachments.map { attachment in
+            ThoughtAttachmentGridItem(
+                id: attachment.id,
+                objectID: attachment.objectID,
+                thumbnailFileName: attachment.thumbnailFileName,
+                thumbnailData: attachment.thumbnailData
+            )
+        }
+    }
+
+    /// 删除编辑模式的附件
+    private func deleteEditingAttachment(_ objectID: NSManagedObjectID) {
+        do {
+            try thoughtRepository.deleteAttachment(with: objectID)
+            refreshEditingAttachments()
+        } catch {
+            ThoughtLog.error("删除附件失败", error.localizedDescription)
+        }
     }
 
     private func insertVoiceTranscript(_ transcript: String) {
@@ -466,6 +730,16 @@ struct ThoughtEditorView: View {
                 // 添加引用关系
                 for targetId in referencedThoughtIds {
                     try repository.addReference(sourceId: thought.id, targetId: targetId)
+                }
+
+                // 保存待上传图片（后台逐张处理）
+                if !pendingImages.isEmpty {
+                    Task { @MainActor in
+                        for image in pendingImages {
+                            guard let jpegData = image.jpegData(compressionQuality: 0.85) else { continue }
+                            _ = try? await repository.addAttachment(imageData: jpegData, to: thought)
+                        }
+                    }
                 }
 
                 // AI 自动整理：新想法保存后触发（仅新建，编辑不触发）

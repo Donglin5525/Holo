@@ -1,25 +1,23 @@
 //
-//  AttachmentGalleryView.swift
+//  ThoughtGalleryView.swift
 //  Holo
 //
-//  全屏图片浏览器 — 横向滑动、双指缩放、页码指示
+//  想法附件全屏图片浏览器 — 横向滑动、双指缩放、页码指示
 //
 
 import SwiftUI
 
-struct AttachmentGalleryView: View {
-    let attachments: [TaskAttachment]
+struct ThoughtGalleryView: View {
+    let attachments: [ThoughtAttachment]
     let startIndex: Int
-    let taskId: UUID
 
     @Environment(\.dismiss) private var dismiss
     @State private var currentIndex: Int
     @State private var images: [UIImage?] = []
 
-    init(attachments: [TaskAttachment], startIndex: Int, taskId: UUID) {
+    init(attachments: [ThoughtAttachment], startIndex: Int) {
         self.attachments = attachments
         self.startIndex = startIndex
-        self.taskId = taskId
         self._currentIndex = State(initialValue: startIndex)
         self._images = State(initialValue: Array(repeating: nil, count: attachments.count))
     }
@@ -70,7 +68,7 @@ struct AttachmentGalleryView: View {
 
     private func loadAllImages() {
         for (index, attachment) in attachments.enumerated() {
-            // 优先从 CoreData 二进制数据加载（新附件，iCloud 同步后可用）
+            // 优先从 CoreData 二进制数据加载（iCloud 同步后可用）
             if let imageData = attachment.imageData {
                 if index < images.count {
                     images[index] = UIImage(data: imageData)
@@ -79,9 +77,10 @@ struct AttachmentGalleryView: View {
             }
             // 回退到文件系统（旧附件）
             DispatchQueue.global(qos: .userInitiated).async {
+                let thoughtId = attachment.thought?.id ?? attachment.id
                 let image = AttachmentFileManager.loadFullImage(
                     fileName: attachment.fileName,
-                    taskId: taskId
+                    taskId: thoughtId
                 )
                 DispatchQueue.main.async {
                     if index < images.count {
@@ -89,33 +88,6 @@ struct AttachmentGalleryView: View {
                     }
                 }
             }
-        }
-    }
-}
-
-// MARK: - 可缩放图片视图（基于 UIScrollView，未缩放时手势穿透给 TabView）
-
-struct ZoomableImageView: View {
-    let image: UIImage?
-    let isLoading: Bool
-    var onSingleTap: (() -> Void)? = nil
-
-    var body: some View {
-        ZStack {
-            if let image {
-                ZoomableScrollView(image: image)
-            }
-            if isLoading {
-                ProgressView()
-                    .tint(.white)
-            }
-        }
-        .contentShape(Rectangle())
-        .onTapGesture(count: 2) {
-            // 双击：消费掉，不触发单击 dismiss，让 UIKit 层处理缩放
-        }
-        .onTapGesture(count: 1) {
-            onSingleTap?()
         }
     }
 }

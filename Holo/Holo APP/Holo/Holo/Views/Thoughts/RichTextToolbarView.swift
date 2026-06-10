@@ -3,7 +3,7 @@
 //  Holo
 //
 //  观点模块 - 富文本格式工具栏
-//  提供加粗、无序列表、有序列表按钮
+//  提供加粗、图片、无序列表、有序列表按钮
 //
 
 import SwiftUI
@@ -15,11 +15,13 @@ struct RichTextToolbarView: View {
 
     @Binding var pendingAction: MarkdownEditorAction?
     var formatState: TypingFormatState = TypingFormatState()
+    var onAddImage: (() -> Void)? = nil
 
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: HoloSpacing.sm) {
                 boldButton
+                imageButton
                 divider
                 unorderedListButton
                 orderedListButton
@@ -35,6 +37,13 @@ struct RichTextToolbarView: View {
     private var boldButton: some View {
         ToolbarButton(icon: "bold", label: "加粗", isActive: formatState.isBold) {
             pendingAction = .toggleBold
+        }
+    }
+
+    /// 图片按钮
+    private var imageButton: some View {
+        ToolbarButton(icon: "photo", label: "添加图片") {
+            onAddImage?()
         }
     }
 

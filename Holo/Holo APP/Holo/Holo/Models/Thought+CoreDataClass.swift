@@ -38,6 +38,7 @@ class Thought: NSManagedObject, @unchecked Sendable {
     @NSManaged var referencedBy: NSSet?
     @NSManaged var tagAssignments: NSSet?          // ThoughtTagAssignment 中间实体
     @NSManaged var topics: NSSet?                   // Topic 多对多
+    @NSManaged var attachments: NSSet?              // ThoughtAttachment 附件
 }
 
 // MARK: - Core Data Generated Accessors
@@ -112,4 +113,30 @@ extension Thought {
 
     @objc(removeTopics:)
     @NSManaged func removeTopics(_ values: Set<Topic>)
+
+    // MARK: - Attachments Accessors
+
+    @objc(addAttachmentsObject:)
+    @NSManaged func addAttachments(_ value: ThoughtAttachment)
+
+    @objc(removeAttachmentsObject:)
+    @NSManaged func removeAttachments(_ value: ThoughtAttachment)
+
+    @objc(addAttachments:)
+    @NSManaged func addAttachments(_ values: Set<ThoughtAttachment>)
+
+    @objc(removeAttachments:)
+    @NSManaged func removeAttachments(_ values: Set<ThoughtAttachment>)
+}
+
+// MARK: - 想法附件便捷访问
+
+extension Thought {
+
+    /// 按 sortOrder 排序的附件列表（过滤已删除）
+    var sortedAttachments: [ThoughtAttachment] {
+        (attachments?.allObjects as? [ThoughtAttachment] ?? [])
+            .filter { !$0.isDeleted }
+            .sorted { $0.sortOrder < $1.sortOrder }
+    }
 }

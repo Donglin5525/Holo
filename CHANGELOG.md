@@ -4,6 +4,35 @@
 
 ---
 
+## [2026-06-11] 图片画廊交互优化
+
+### 改进
+- 图片浏览器从 SwiftUI 手势切换为 `UIScrollView`（`GalleryScrollView`），未缩放时手势穿透 TabView 实现左右滑动翻页
+- 单击图片退出全屏画廊，双击缩放/还原，互不干扰
+- 提取共享组件 `GalleryScrollView`，供任务和想法两个模块的图片浏览器共用
+
+---
+
+## [2026-06-10] 想法模块支持图片上传
+
+### 新增
+- 新增 `ThoughtAttachment` CoreData 实体，支持想法关联多张图片附件（最多 9 张）
+- 想法编辑器（ThoughtEditorView）新增图片选择功能：支持从相册选择和拍照两种来源
+- 想法编辑器展示图片缩略图网格：3 列布局，支持添加、长按删除、点击全屏浏览
+- 新增 `ThoughtGalleryView` 全屏图片浏览器：横向滑动浏览、双指缩放、双击缩放、页码指示
+- 想法详情页（ThoughtDetailView）新增图片缩略图横向列表，点击可全屏浏览
+- 想法卡片（ThoughtCardView）新增图片数量指示器（📎 图标 + 数量）
+
+### 数据层
+- `ThoughtRepository` 新增附件扩展：addAttachment / deleteAttachment / reorderAttachments
+- 删除想法时自动清理附件文件（cascade 级联删除 + 磁盘文件清理）
+- 图片数据存入 CoreData 二进制字段，支持 iCloud 同步
+
+### 验证
+- iOS Debug build 通过：`xcodebuild build` 编译成功
+
+---
+
 ## [2026-06-10] App 启动页视觉改造
 
 ### 新增

@@ -22,7 +22,7 @@ class ThoughtRepository {
 
     // MARK: - Properties
 
-    private let context: NSManagedObjectContext
+    private(set) var context: NSManagedObjectContext
     private let logger = Logger(subsystem: "com.holo.app", category: "ThoughtRepository")
 
     // MARK: - UserDefaults Keys
@@ -305,6 +305,9 @@ class ThoughtRepository {
             throw ThoughtError.notFound
         }
 
+        // 清理附件文件（Core Data 级联删除前先清理磁盘）
+        deleteAllAttachmentFiles(for: thought)
+
         // 删除相关的引用关系
         if let references = thought.references as? Set<ThoughtReference> {
             references.forEach { context.delete($0) }
@@ -314,6 +317,7 @@ class ThoughtRepository {
         }
 
         // ThoughtTagAssignment 通过 cascade delete rule 自动级联删除
+        // ThoughtAttachment 通过 cascade delete rule 自动级联删除
         // Topic 多对多关系通过 nullify 自动断开
 
         context.delete(thought)
@@ -481,9 +485,17 @@ class ThoughtRepository {
         try context.save()
     }
 
-    /// 清除所有观点数据（Thought + ThoughtTag + ThoughtReference + ThoughtTagAssignment + Topic）
+    /// 清除所有观点数据（Thought + ThoughtTag + ThoughtReference + ThoughtTagAssignment + Topic + ThoughtAttachment）
     func deleteAllThoughtData() throws {
-        let entities = ["ThoughtReference", "ThoughtTagAssignment", "Topic", "Thought", "ThoughtTag"]
+        // 先清理所有想法的附件文件
+        let thoughtRequest = Thought.fetchRequest()
+        if let allThoughts = try? context.fetch(thoughtRequest) {
+            for thought in allThoughts {
+                deleteAllAttachmentFiles(for: thought)
+            }
+        }
+
+        let entities = ["ThoughtAttachment", "ThoughtReference", "ThoughtTagAssignment", "Topic", "Thought", "ThoughtTag"]
         for entity in entities {
             let request = NSFetchRequest<NSManagedObject>(entityName: entity)
             let objects = try context.fetch(request)

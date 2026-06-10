@@ -442,13 +442,100 @@ extension CoreDataStack {
         topicMergedToRelation.inverseRelationship = topicMergedFromRelation
         topicMergedFromRelation.inverseRelationship = topicMergedToRelation
 
+        // MARK: - ThoughtAttachment Entity
+        // 想法模块 - 图片附件实体
+        let thoughtAttachmentEntity = NSEntityDescription()
+        thoughtAttachmentEntity.name = "ThoughtAttachment"
+        thoughtAttachmentEntity.managedObjectClassName = "ThoughtAttachment"
+
+        var thoughtAttachmentAttributes: [NSAttributeDescription] = []
+
+        let taId = NSAttributeDescription()
+        taId.name = "id"
+        taId.attributeType = .UUIDAttributeType
+        taId.isOptional = false
+        taId.defaultValue = UUID()
+        taId.isIndexed = true
+        thoughtAttachmentAttributes.append(taId)
+
+        let taFileName = NSAttributeDescription()
+        taFileName.name = "fileName"
+        taFileName.attributeType = .stringAttributeType
+        taFileName.isOptional = false
+        taFileName.defaultValue = ""
+        thoughtAttachmentAttributes.append(taFileName)
+
+        let taThumbnailFileName = NSAttributeDescription()
+        taThumbnailFileName.name = "thumbnailFileName"
+        taThumbnailFileName.attributeType = .stringAttributeType
+        taThumbnailFileName.isOptional = false
+        taThumbnailFileName.defaultValue = ""
+        thoughtAttachmentAttributes.append(taThumbnailFileName)
+
+        let taSortOrder = NSAttributeDescription()
+        taSortOrder.name = "sortOrder"
+        taSortOrder.attributeType = .integer16AttributeType
+        taSortOrder.isOptional = false
+        taSortOrder.defaultValue = 0
+        thoughtAttachmentAttributes.append(taSortOrder)
+
+        let taSourceType = NSAttributeDescription()
+        taSourceType.name = "sourceType"
+        taSourceType.attributeType = .stringAttributeType
+        taSourceType.isOptional = false
+        taSourceType.defaultValue = "photoLibrary"
+        thoughtAttachmentAttributes.append(taSourceType)
+
+        let taCreatedAt = NSAttributeDescription()
+        taCreatedAt.name = "createdAt"
+        taCreatedAt.attributeType = .dateAttributeType
+        taCreatedAt.isOptional = false
+        taCreatedAt.defaultValue = Date()
+        thoughtAttachmentAttributes.append(taCreatedAt)
+
+        let taImageData = NSAttributeDescription()
+        taImageData.name = "imageData"
+        taImageData.attributeType = .binaryDataAttributeType
+        taImageData.isOptional = true
+        thoughtAttachmentAttributes.append(taImageData)
+
+        let taThumbnailData = NSAttributeDescription()
+        taThumbnailData.name = "thumbnailData"
+        taThumbnailData.attributeType = .binaryDataAttributeType
+        taThumbnailData.isOptional = true
+        thoughtAttachmentAttributes.append(taThumbnailData)
+
+        // MARK: - ThoughtAttachment Relationships
+
+        // Thought → ThoughtAttachment（一对多，cascade）
+        let thoughtAttachmentsRelation = NSRelationshipDescription()
+        thoughtAttachmentsRelation.name = "attachments"
+        thoughtAttachmentsRelation.destinationEntity = thoughtAttachmentEntity
+        thoughtAttachmentsRelation.minCount = 0
+        thoughtAttachmentsRelation.maxCount = 0
+        thoughtAttachmentsRelation.deleteRule = .cascadeDeleteRule
+        thoughtAttachmentsRelation.isOptional = true
+
+        // ThoughtAttachment → Thought（多对一，nullify）
+        let attachmentThoughtRelation = NSRelationshipDescription()
+        attachmentThoughtRelation.name = "thought"
+        attachmentThoughtRelation.destinationEntity = thoughtEntity
+        attachmentThoughtRelation.minCount = 0
+        attachmentThoughtRelation.maxCount = 1
+        attachmentThoughtRelation.deleteRule = .nullifyDeleteRule
+        attachmentThoughtRelation.isOptional = true
+
+        thoughtAttachmentsRelation.inverseRelationship = attachmentThoughtRelation
+        attachmentThoughtRelation.inverseRelationship = thoughtAttachmentsRelation
+
         // 将属性和关系添加到实体
         thoughtEntity.properties = thoughtAttributes + [
             thoughtTagsRelation,
             thoughtReferencesRelation,
             thoughtReferencedByRelation,
             thoughtAssignmentsRelation,
-            thoughtTopicsRelation
+            thoughtTopicsRelation,
+            thoughtAttachmentsRelation
         ]
         thoughtTagEntity.properties = thoughtTagAttributes + [
             tagThoughtsRelation,
@@ -469,8 +556,11 @@ extension CoreDataStack {
             topicMergedToRelation,
             topicMergedFromRelation
         ]
+        thoughtAttachmentEntity.properties = thoughtAttachmentAttributes + [
+            attachmentThoughtRelation
+        ]
 
-        return [thoughtEntity, thoughtTagEntity, thoughtReferenceEntity, assignmentEntity, topicEntity]
+        return [thoughtEntity, thoughtTagEntity, thoughtReferenceEntity, assignmentEntity, topicEntity, thoughtAttachmentEntity]
     }
 
 }

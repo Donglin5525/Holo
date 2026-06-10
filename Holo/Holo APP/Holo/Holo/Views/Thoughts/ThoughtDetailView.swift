@@ -38,6 +38,10 @@ struct ThoughtDetailView: View {
     /// 是否显示编辑 sheet
     @State private var showEditSheet: Bool = false
 
+    /// 是否显示全屏图片浏览
+    @State private var showAttachmentGallery: Bool = false
+    @State private var galleryStartIndex: Int = 0
+
     /// AI 标签分配
     @State private var aiAssignments: [ThoughtTagAssignment] = []
 
@@ -49,6 +53,11 @@ struct ThoughtDetailView: View {
                 VStack(alignment: .leading, spacing: HoloSpacing.lg) {
                     // 内容区域
                     contentSection
+
+                    // 图片附件区域
+                    if let thought = thought, !thought.sortedAttachments.isEmpty {
+                        attachmentsSection
+                    }
 
                     // 标签区域
                     if let thought = thought, !thought.tagArray.isEmpty {
@@ -101,6 +110,14 @@ struct ThoughtDetailView: View {
                     editingThoughtId: thoughtId
                 )
             }
+            .fullScreenCover(isPresented: $showAttachmentGallery) {
+                if let thought = thought {
+                    ThoughtGalleryView(
+                        attachments: thought.sortedAttachments,
+                        startIndex: galleryStartIndex
+                    )
+                }
+            }
             .onAppear {
                 loadData()
             }
@@ -148,6 +165,45 @@ struct ThoughtDetailView: View {
             } else {
                 Text("")
                     .font(.holoBody)
+            }
+        }
+        .padding(HoloSpacing.md)
+        .background(
+            RoundedRectangle(cornerRadius: HoloRadius.lg)
+                .fill(Color.holoCardBackground)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.lg)
+                .stroke(Color.holoBorder, lineWidth: 1)
+        )
+    }
+
+    // MARK: - 图片附件区域
+
+    private var attachmentsSection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            Text("图片")
+                .font(.holoCaption)
+                .foregroundColor(.holoTextSecondary)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: HoloSpacing.sm) {
+                    if let attachments = thought?.sortedAttachments {
+                        ForEach(Array(attachments.enumerated()), id: \.element.id) { index, attachment in
+                            ThoughtAttachmentThumbnailView(
+                                thumbnailData: attachment.thumbnailData,
+                                fileName: attachment.thumbnailFileName,
+                                thoughtId: thoughtId
+                            )
+                            .frame(width: 80, height: 80)
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                galleryStartIndex = index
+                                showAttachmentGallery = true
+                            }
+                        }
+                    }
+                }
             }
         }
         .padding(HoloSpacing.md)

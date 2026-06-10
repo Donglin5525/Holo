@@ -132,6 +132,18 @@ struct ThoughtCardView: View {
 
             Spacer()
 
+            // 图片附件指示
+            let attachmentCount = thought.sortedAttachments.count
+            if attachmentCount > 0 {
+                HStack(spacing: 4) {
+                    Image(systemName: "paperclip")
+                        .font(.system(size: 12))
+                    Text("\(attachmentCount)")
+                        .font(.holoLabel)
+                }
+                .foregroundColor(.holoTextSecondary)
+            }
+
             // 引用信息
             let refCount = thought.referenceCount + thought.referencedByCount
             if refCount > 0 {
