@@ -1,0 +1,156 @@
+//
+//  HoloLocalAgentRuntime.swift
+//  Holo
+//
+//  HoloAI Agent V3.1 — Task 1.5 Mock Agent Runtime
+//  本地可恢复 Agent 执行骨架。Phase 1 不接 LLM / 不调真实 tool，
+//  只用 mock 消息与 checkpoint 跑通「启动 → 推进 → 重启恢复 → 取消」生命周期。
+//
+
+import Foundation
+
+actor HoloLocalAgentRuntime {
+
+    private let persistence: HoloAgentPersistenceManager
+    private let jobStore: HoloAgentJobStore
+    private let checkpointStore: HoloAgentCheckpointStore
+
+    /// mock 阶段模拟的步骤序列（plan → executeTools → persistResult）。
+    private static let mockSequence: [HoloAgentStep] = [.plan, .executeTools, .persistResult]
+
+    /// 终态集合：resume 时遇到这些状态直接返回，不恢复执行。
+    private static let terminalStates: Set<HoloAgentJobState> = [.completed, .failed, .cancelled]
+
+    init(persistence: HoloAgentPersistenceManager,
+         jobStore: HoloAgentJobStore,
+         checkpointStore: HoloAgentCheckpointStore) {
+        self.persistence = persistence
+        self.jobStore = jobStore
+        self.checkpointStore = checkpointStore
+    }
+
+    /// 创建并启动一个 mock job：立即进入 running，写初始 checkpoint（step=plan）。
+    func startMockJob(question: String, now: Date = Date()) async throws -> HoloAgentJob {
+        var job = HoloAgentJob(
+            id: UUID().uuidString, type: .debugMock, userQuestion: question,
+            trigger: .debug, state: .running, currentStep: .plan,
+            createdAt: now, updatedAt: now,
+            lastForegroundRunAt: nil, timeRange: nil,
+            budget: HoloAgentBudget.normalDeep(now: now),
+            checkpointID: nil, resultID: nil, errorSummary: nil, deviceID: nil
+        )
+        let checkpoint = Self.makeCheckpoint(
+            jobID: job.id, step: .plan, completedSteps: [],
+            conversation: [Self.mockUserMessage(question, now)], now: now
+        )
+        job.checkpointID = checkpoint.id
+        // 写入顺序由 PersistenceManager 保证：evidence → checkpoint → job
+        try await persistence.saveProgress(job: job, evidence: [], checkpoint: checkpoint)
+        return job
+    }
+
+    /// 完成当前 step，推进到序列中的下一步并写新 checkpoint。
+    /// 非运行态（已取消/已完成）不推进；序列走完后进入 completed。
+    @discardableResult
+    func completeCurrentStep(jobID: String, now: Date = Date()) async throws -> HoloAgentJob {
+        guard var job = await loadJob(jobID) else {
+            throw HoloAgentRuntimeError.jobNotFound(jobID)
+        }
+        guard job.state == .running else { return job }
+
+        let current = job.currentStep
+        guard let index = Self.mockSequence.firstIndex(of: current) else {
+            throw HoloAgentRuntimeError.unknownStep(current)
+        }
+
+        let latest = await checkpointStore.latestForJob(jobID: jobID)
+        var completedSteps = latest?.completedSteps ?? []
+        if !completedSteps.contains(current) { completedSteps.append(current) }
+
+        let isLast = index == Self.mockSequence.count - 1
+        let nextStep = isLast ? current : Self.mockSequence[index + 1]
+
+        let checkpoint = Self.makeCheckpoint(
+            jobID: job.id, step: nextStep, completedSteps: completedSteps,
+            conversation: latest?.conversationState ?? [], now: now
+        )
+        job.currentStep = nextStep
+        job.checkpointID = checkpoint.id
+        job.state = isLast ? .completed : .running
+        job.updatedAt = now
+        try await persistence.saveProgress(job: job, evidence: [], checkpoint: checkpoint)
+        return job
+    }
+
+    /// 从最新 checkpoint 恢复（模拟 app 重启后继续）。
+    /// 对齐 job.currentStep 与 checkpoint.step；终态任务不恢复。
+    @discardableResult
+    func resume(jobID: String, now: Date = Date()) async throws -> HoloAgentJob {
+        guard var job = await loadJob(jobID) else {
+            throw HoloAgentRuntimeError.jobNotFound(jobID)
+        }
+        // 已结束的任务不复活
+        guard !Self.terminalStates.contains(job.state) else { return job }
+
+        guard let checkpoint = await checkpointStore.latestForJob(jobID: jobID) else {
+            throw HoloAgentRuntimeError.checkpointMissing(jobID)
+        }
+        job.currentStep = checkpoint.step
+        job.checkpointID = checkpoint.id
+        if job.state != .running { job.state = .running }
+        job.updatedAt = now
+        try await jobStore.upsert(job)
+        return job
+    }
+
+    /// 取消任务：状态置为 cancelled，不再继续执行。
+    @discardableResult
+    func cancel(jobID: String, now: Date = Date()) async throws -> HoloAgentJob {
+        guard var job = await loadJob(jobID) else {
+            throw HoloAgentRuntimeError.jobNotFound(jobID)
+        }
+        job.state = .cancelled
+        job.updatedAt = now
+        try await jobStore.upsert(job)
+        return job
+    }
+
+    // MARK: - 内部辅助
+
+    private func loadJob(_ jobID: String) async -> HoloAgentJob? {
+        await jobStore.load().first { $0.id == jobID }
+    }
+
+    private static func makeCheckpoint(
+        jobID: String, step: HoloAgentStep, completedSteps: [HoloAgentStep],
+        conversation: [HoloAgentMessage], now: Date
+    ) -> HoloAgentCheckpoint {
+        HoloAgentCheckpoint(
+            id: UUID().uuidString, jobID: jobID, step: step, completedSteps: completedSteps,
+            conversationState: conversation, pendingToolRequests: [], completedToolResults: [],
+            patternSignals: [], evidenceRecordIDs: [], validatedClaimIDs: [],
+            memoryCandidateIDs: [], retryCountByStep: [:],
+            createdAt: now, updatedAt: now
+        )
+    }
+
+    private static func mockUserMessage(_ content: String, _ now: Date) -> HoloAgentMessage {
+        HoloAgentMessage(role: .user, content: content, toolRequestID: nil, toolName: nil,
+                         timestamp: now, tokenEstimate: nil)
+    }
+}
+
+/// Runtime 错误：用中文描述，便于上层展示与日志。
+enum HoloAgentRuntimeError: Error, LocalizedError {
+    case jobNotFound(String)
+    case checkpointMissing(String)
+    case unknownStep(HoloAgentStep)
+
+    var errorDescription: String? {
+        switch self {
+        case .jobNotFound(let id): return "找不到 Agent 任务：\(id)"
+        case .checkpointMissing(let id): return "找不到任务的可恢复快照：\(id)"
+        case .unknownStep(let step): return "mock 序列未覆盖步骤：\(step.rawValue)"
+        }
+    }
+}
