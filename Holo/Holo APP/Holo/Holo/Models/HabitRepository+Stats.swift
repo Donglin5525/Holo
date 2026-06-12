@@ -488,7 +488,9 @@ extension HabitRepository {
             let weeks = makeWeekSlices(from: monthCells, monthStart: monthStart)
             let collapsedWeek = weeks.last(where: { $0.days.contains(where: \.hasRecord) }) ?? weeks.first ?? HabitStatsWeekSlice(weekStart: monthStart, days: [])
 
-            let weekdaySymbols = calendar.shortWeekdaySymbols
+            // 周一开始排列：["周一", "周二", ..., "周日"]
+            let allSymbols = calendar.shortWeekdaySymbols
+            let weekdaySymbols = Array(allSymbols[1...]) + [allSymbols[0]]
             let rows = stride(from: 0, to: monthCells.count, by: 7).map {
                 Array(monthCells[$0..<min($0 + 7, monthCells.count)])
             }
@@ -525,8 +527,11 @@ extension HabitRepository {
     /// 构建月份格子
     /// 好习惯：hasRecord=有记录（成功），isOverLimit=false
     /// 坏习惯：hasRecord=控制住（成功），isOverLimit=超标（失败）
+    /// 周一为每周第一天，周日为最后一天
     func makeMonthCells(for habit: Habit, monthStart: Date, monthEnd: Date) -> [HabitStatsDayCell] {
-        let calendar = Calendar.current
+        // 强制周一开始：firstWeekday=2（1=周日, 2=周一）
+        var calendar = Calendar.current
+        calendar.firstWeekday = 2
         let today = calendar.startOfDay(for: Date())
 
         let nextDay = calendar.date(byAdding: .day, value: 1, to: monthEnd)!
@@ -586,6 +591,7 @@ extension HabitRepository {
     }
 
     /// 坏习惯月份格子构建
+    /// 周一为每周第一天，周日为最后一天
     func makeBadHabitMonthCells(
         habit: Habit, monthStart: Date, monthEnd: Date,
         today: Date, records: [HabitRecord], calendar: Calendar
