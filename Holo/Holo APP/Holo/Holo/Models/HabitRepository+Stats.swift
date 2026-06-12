@@ -332,6 +332,17 @@ extension HabitRepository {
 
     // MARK: - Private Helpers
 
+    /// 根据习惯频率和目标次数，计算指定天数范围内的期望完成次数
+    /// 公式：dayCount × target / periodDays（按比例折算，四舍五入）
+    /// - daily: 每天 target 次 → dayCount × target
+    /// - weekly: 每7天 target 次 → dayCount × target / 7
+    /// - monthly: 每30天 target 次 → dayCount × target / 30
+    private func expectedCompletions(for habit: Habit, inDays dayCount: Int) -> Int {
+        let target = max(habit.targetCountValue ?? 1, 1)
+        let periodDays = habit.habitFrequency.periodDays
+        return max(1, Int(round(Double(dayCount) * Double(target) / Double(periodDays))))
+    }
+
     /// 计算打卡型习惯的完成率
     func calculateCheckInCompletionRate(for habit: Habit, in dateRange: ClosedRange<Date>?) -> Double {
         guard habit.isCheckInType else { return 0 }
@@ -356,9 +367,10 @@ extension HabitRepository {
             let controlledCount = max(dayCount - checkedInCount, 0)
             return dayCount > 0 ? Double(controlledCount) / Double(dayCount) * 100 : 0
         } else {
-            // 好习惯：打卡天数即算完成
+            // 好习惯：完成次数 / 期望次数（按频率和目标折算）
             let completedCount = records.filter { $0.isCompleted }.count
-            return dayCount > 0 ? Double(completedCount) / Double(dayCount) * 100 : 0
+            let expected = expectedCompletions(for: habit, inDays: dayCount)
+            return expected > 0 ? Double(completedCount) / Double(expected) * 100 : 0
         }
     }
 
@@ -397,14 +409,15 @@ extension HabitRepository {
             let controlledDays = max(dayCount - exceededDays, 0)
             return dayCount > 0 ? Double(controlledDays) / Double(dayCount) * 100 : 0
         } else {
-            // 好习惯：有记录的天数即算完成
+            // 好习惯：有记录天数 / 期望次数（按频率和目标折算）
             var recordedDays = Set<Date>()
             for record in records {
                 let dayStart = calendar.startOfDay(for: record.date)
                 recordedDays.insert(dayStart)
             }
 
-            return dayCount > 0 ? Double(recordedDays.count) / Double(dayCount) * 100 : 0
+            let expected = expectedCompletions(for: habit, inDays: dayCount)
+            return expected > 0 ? Double(recordedDays.count) / Double(expected) * 100 : 0
         }
     }
 
@@ -779,15 +792,7 @@ extension HabitRepository {
             record.date >= start && record.date <= today && record.isCompleted
         }.count
 
-        let expected: Int
-        switch habit.habitFrequency {
-        case .daily:
-            expected = days
-        case .weekly:
-            expected = max(1, Int(ceil(Double(days) / 7.0)))
-        case .monthly:
-            expected = 1
-        }
+        let expected = expectedCompletions(for: habit, inDays: days)
 
         return HabitWindowCompletionStats(
             completedCount: min(completed, expected),

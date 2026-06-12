@@ -4,6 +4,15 @@
 
 ---
 
+## [2026-06-12] 修复习惯完成率分母计算
+
+### 修复
+- **完成率分母改为按频率和目标次数折算**：好习惯的完成率分母从「时间范围天数」改为「期望完成次数（dayCount × targetCount ÷ periodDays）」，例如「每周 4 次」在 7 天内分母为 4 而非 7
+- 新增 `expectedCompletions(for:inDays:)` 统一计算方法，替代原来 `getCompletionStats` 中硬编码的 switch 逻辑
+- 涉及 `calculateCheckInCompletionRate`、`calculateNumericCompletionRate`、`getCompletionStats` 三个方法
+
+---
+
 ## [2026-06-12] 修复删除习惯闪退
 
 ### 修复
