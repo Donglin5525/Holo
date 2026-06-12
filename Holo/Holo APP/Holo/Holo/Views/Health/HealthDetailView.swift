@@ -60,7 +60,9 @@ struct HealthDetailView: View {
         }
         .background(Color.holoBackground)
         .toolbar(.hidden, for: .navigationBar)
-        .simultaneousGesture(dismissGesture)
+        .swipeBackToDismiss {
+            dismiss()
+        }
         .task {
             await loadDateData()
             await loadWeeklyData()
@@ -380,15 +382,6 @@ struct HealthDetailView: View {
         isLoading = false
     }
 
-    private var dismissGesture: some Gesture {
-        DragGesture(minimumDistance: 24, coordinateSpace: .local)
-            .onEnded { value in
-                let isRightSwipe = value.translation.width > 96
-                let isMostlyHorizontal = abs(value.translation.height) < 80
-                guard isRightSwipe && isMostlyHorizontal else { return }
-                dismiss()
-            }
-    }
 }
 
 #Preview {

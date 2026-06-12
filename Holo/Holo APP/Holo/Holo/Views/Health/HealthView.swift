@@ -61,7 +61,13 @@ struct HealthView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
         }
-        .simultaneousGesture(dismissGesture)
+        .swipeBackToDismiss {
+            if selectedMetric != nil {
+                selectedMetric = nil
+            } else {
+                dismiss()
+            }
+        }
         .task {
             await refreshAll()
         }
@@ -574,20 +580,6 @@ struct HealthView: View {
         isRefreshing = false
     }
 
-    private var dismissGesture: some Gesture {
-        DragGesture(minimumDistance: 24, coordinateSpace: .local)
-            .onEnded { value in
-                let isRightSwipe = value.translation.width > 96
-                let isMostlyHorizontal = abs(value.translation.height) < 80
-                guard isRightSwipe && isMostlyHorizontal else { return }
-
-                if selectedMetric != nil {
-                    selectedMetric = nil
-                } else {
-                    dismiss()
-                }
-            }
-    }
 }
 
 #Preview {

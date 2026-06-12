@@ -534,8 +534,13 @@ struct HomeView: View {
                     let isDragging = draggingItem?.id == item.id
                     let position = positions[index]
                     
-                    // 使用纯内容视图，避免 Button 拦截手势
-                    FeatureButtonContent(config: item)
+                    Button {
+                        guard draggingItem == nil && !isLongPressing else { return }
+                        handleFeatureButtonTap(item)
+                    } label: {
+                        FeatureButtonContent(config: item)
+                    }
+                    .buttonStyle(.plain)
                         .contentShape(Rectangle())  // 扩大点击区域
                         .scaleEffect(isDragging ? 1.15 : 1.0)
                         .shadow(
@@ -549,19 +554,9 @@ struct HomeView: View {
                             x: isDragging ? position.x + dragOffset.width : position.x,
                             y: isDragging ? position.y + dragOffset.height : position.y
                         )
-                        // 长按 + 拖拽组合手势（高优先级）
-                        .gesture(
-                            createDragGesture(for: item, at: index, positions: positions)
-                        )
-                        // 点击手势（同时触发，仅在非拖拽和非长按状态下生效）
+                        // 长按 + 拖拽排序作为附加手势，普通点击仍交给 Button 处理。
                         .simultaneousGesture(
-                            TapGesture()
-                                .onEnded {
-                                    // 只有在没有拖拽且没有长按时才处理点击
-                                    if draggingItem == nil && !isLongPressing {
-                                        handleFeatureButtonTap(item)
-                                    }
-                                }
+                            createDragGesture(for: item, at: index, positions: positions)
                         )
                         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: isDragging)
                 }
@@ -624,8 +619,8 @@ struct HomeView: View {
                 dragAnchorPosition = positions[index]
             }
         
-        // 拖拽手势：设置 minimumDistance 为 0，让拖拽在长按完成后立即响应
-        let drag = DragGesture(minimumDistance: 0)
+        // 拖拽手势：保留轻微阈值，避免 iOS 17 将普通点击卷入拖拽识别。
+        let drag = DragGesture(minimumDistance: 6)
             .onChanged { value in
                 // 只有在长按激活后才处理拖拽
                 guard draggingItem != nil else { return }
