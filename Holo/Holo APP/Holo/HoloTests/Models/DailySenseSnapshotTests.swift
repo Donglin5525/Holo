@@ -41,7 +41,7 @@ final class DailySenseSnapshotTests: XCTestCase {
         let decoded = try decoder.decode(DailySenseSnapshot.self, from: jsonData)
 
         // 验证
-        XCTAssertEqual(decoded.schemaVersion, 3)
+        XCTAssertEqual(decoded.schemaVersion, DailySenseSnapshot.currentSchemaVersion)
         XCTAssertEqual(decoded.date, date)
         XCTAssertEqual(decoded.state, .atRisk)
         XCTAssertEqual(decoded.signals.count, 3)
@@ -139,8 +139,8 @@ final class DailySenseSnapshotTests: XCTestCase {
         decoder.dateDecodingStrategy = .iso8601
         let decoded = try decoder.decode(DailySenseSnapshot.self, from: jsonData)
 
-        // 验证：空信号数组仍然是 v3，不是 legacy
-        XCTAssertEqual(decoded.schemaVersion, 3)
+        // 验证：空信号数组仍然是当前格式，不是 legacy
+        XCTAssertEqual(decoded.schemaVersion, DailySenseSnapshot.currentSchemaVersion)
         XCTAssertFalse(decoded.isLegacy)
         XCTAssertTrue(decoded.signals.isEmpty)
         XCTAssertEqual(decoded.state, .stable)
@@ -282,5 +282,64 @@ final class DailySenseSnapshotTests: XCTestCase {
 
         XCTAssertFalse(DailySenseStateBuilder.buildTags(signals: signals, hasConfirmedNewStage: false).contains(.newStage))
         XCTAssertTrue(DailySenseStateBuilder.buildTags(signals: signals, hasConfirmedNewStage: true).contains(.newStage))
+    }
+
+    func testExpenseDeviationExcludesFutureTransactionsFromToday() throws {
+        let calendar = Calendar(identifier: .gregorian)
+        let todayStart = try XCTUnwrap(calendar.date(from: DateComponents(year: 2026, month: 6, day: 12)))
+        let weekStart = try XCTUnwrap(calendar.date(byAdding: .day, value: -7, to: todayStart))
+        let morning = try XCTUnwrap(calendar.date(byAdding: .hour, value: 10, to: todayStart))
+        let tomorrow = try XCTUnwrap(calendar.date(byAdding: .day, value: 1, to: todayStart))
+
+        let result = DailySenseStateBuilder.calculateExpenseDeviation(
+            samples: [
+                DailySenseStateBuilder.DailySenseExpenseSample(date: weekStart, amount: 700),
+                DailySenseStateBuilder.DailySenseExpenseSample(date: morning, amount: 25),
+                DailySenseStateBuilder.DailySenseExpenseSample(date: tomorrow, amount: 13_768)
+            ],
+            weekStart: weekStart,
+            todayStart: todayStart,
+            calendar: calendar
+        )
+
+        XCTAssertEqual(result.todayAmount, 25)
+        XCTAssertEqual(result.dailyAvg, 100)
+    }
+
+    func testHabitSignalDoesNotSayAllCompletedWhenNoHabitCompletedToday() {
+        let signal = DailySenseStateBuilder.buildHabitSignal(
+            todayCompleted: 0,
+            totalActive: 4,
+            brokenHabits: 0,
+            recoveredHabits: 0
+        )
+
+        XCTAssertEqual(signal?.level, .normal)
+        XCTAssertEqual(signal?.text, "今天还没打卡")
+    }
+
+    func testOnlyCurrentDailySenseSchemaIsFresh() {
+        let oldSnapshot = DailySenseSnapshot(
+            schemaVersion: DailySenseSnapshot.currentSchemaVersion - 1,
+            date: Date(),
+            state: .stable,
+            signals: [
+                DailySenseSignal(dimension: .habit, level: .normal, text: "打卡都完成了")
+            ],
+            tags: [],
+            generatedAt: Date()
+        )
+
+        let currentSnapshot = DailySenseSnapshot(
+            date: Date(),
+            state: .stable,
+            signals: [
+                DailySenseSignal(dimension: .habit, level: .normal, text: "今天还没打卡")
+            ],
+            generatedAt: Date()
+        )
+
+        XCTAssertFalse(oldSnapshot.isCurrentSchema)
+        XCTAssertTrue(currentSnapshot.isCurrentSchema)
     }
 }

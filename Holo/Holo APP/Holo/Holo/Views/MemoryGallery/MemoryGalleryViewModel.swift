@@ -160,6 +160,8 @@ class MemoryGalleryViewModel: ObservableObject {
         cachedHighlights = [:]
         cachedMilestones = []
         cacheTimestamp = nil
+        DailySenseSnapshotStore.shared.invalidateToday()
+        dailySenseSnapshot = nil
     }
 
     private func isCacheValid() -> Bool {
@@ -664,7 +666,7 @@ class MemoryGalleryViewModel: ObservableObject {
         // 加载或生成 Daily Sense
         if InsightFeatureFlags.dailySenseEnabled {
             let cached = DailySenseSnapshotStore.shared.todaySnapshot()
-            if let cached, !cached.isLegacy, !cached.signals.isEmpty {
+            if let cached, cached.isCurrentSchema, !cached.signals.isEmpty {
                 dailySenseSnapshot = cached
             } else if let snapshot = await DailySenseStateBuilder.buildToday() {
                 DailySenseSnapshotStore.shared.saveToday(snapshot)

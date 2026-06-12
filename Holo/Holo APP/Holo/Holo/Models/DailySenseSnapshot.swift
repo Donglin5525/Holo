@@ -71,8 +71,10 @@ enum DailySenseTag: String, Codable, CaseIterable {
     }
 }
 
-/// 每日状态快照（v3）
+/// 每日状态快照
 struct DailySenseSnapshot: Codable, Equatable {
+    static let currentSchemaVersion = 4
+
     let schemaVersion: Int
     let date: Date
     let state: DailySenseState
@@ -124,10 +126,19 @@ struct DailySenseSnapshot: Codable, Equatable {
         try container.encode(generatedAt, forKey: .generatedAt)
     }
 
-    // MARK: - Regular Init（v3 格式）
+    // MARK: - Regular Init（当前格式）
 
     init(date: Date, state: DailySenseState, signals: [DailySenseSignal], tags: [DailySenseTag] = [], generatedAt: Date) {
-        self.schemaVersion = 3
+        self.schemaVersion = Self.currentSchemaVersion
+        self.date = date
+        self.state = state
+        self.signals = signals
+        self.tags = tags
+        self.generatedAt = generatedAt
+    }
+
+    init(schemaVersion: Int, date: Date, state: DailySenseState, signals: [DailySenseSignal], tags: [DailySenseTag] = [], generatedAt: Date) {
+        self.schemaVersion = schemaVersion
         self.date = date
         self.state = state
         self.signals = signals
@@ -139,6 +150,9 @@ struct DailySenseSnapshot: Codable, Equatable {
 
     /// 是否为 legacy 格式（schemaVersion < 2）
     var isLegacy: Bool { schemaVersion < 2 }
+
+    /// 是否匹配当前 Daily Sense 规则版本
+    var isCurrentSchema: Bool { schemaVersion == Self.currentSchemaVersion }
 
     /// 状态标题
     var stateTitle: String {
@@ -182,6 +196,13 @@ final class DailySenseSnapshotStore {
     func todaySnapshot() -> DailySenseSnapshot? {
         let calendar = Calendar.current
         return snapshots.last { calendar.isDate($0.date, inSameDayAs: Date()) }
+    }
+
+    /// 清除今日快照，供源数据变更后重新生成
+    func invalidateToday() {
+        let calendar = Calendar.current
+        snapshots.removeAll { calendar.isDate($0.date, inSameDayAs: Date()) }
+        save()
     }
 
     /// 获取最近 N 天快照

@@ -46,16 +46,18 @@ struct DailySenseStateBuilder {
         // 习惯信号
         let brokenHabits = fetchBrokenHabitCount(in: context, asOf: todayStart)
         let recoveredHabits = fetchRecoveredHabitCount(in: context, asOf: todayStart)
-        let hasHabits = hasAnyHabits(in: context)
-        if hasHabits {
-            if brokenHabits >= 2 {
-                signals.append(DailySenseSignal(dimension: .habit, level: .warning, text: "\(brokenHabits) 个断了节奏"))
+        let habitProgress = fetchTodayHabitProgress(in: context, todayStart: todayStart)
+        if let habitSignal = buildHabitSignal(
+            todayCompleted: habitProgress.completed,
+            totalActive: habitProgress.total,
+            brokenHabits: brokenHabits,
+            recoveredHabits: recoveredHabits
+        ) {
+            signals.append(habitSignal)
+            if habitSignal.level == .warning {
                 riskScore += 0.8
-            } else if recoveredHabits > 0 {
-                signals.append(DailySenseSignal(dimension: .habit, level: .normal, text: "\(recoveredHabits) 个恢复打卡"))
+            } else if recoveredHabits > 0 || habitProgress.completed == habitProgress.total {
                 recoveryScore += 1.0
-            } else {
-                signals.append(DailySenseSignal(dimension: .habit, level: .normal, text: "打卡都完成了"))
             }
         }
 
@@ -195,17 +197,136 @@ struct DailySenseStateBuilder {
         return min(Set(todayCompleted.map(\.habitId)).count, 3)
     }
 
-    private static func hasAnyHabits(in context: NSManagedObjectContext) -> Bool {
+    static func buildHabitSignal(
+        todayCompleted: Int,
+        totalActive: Int,
+        brokenHabits: Int,
+        recoveredHabits: Int
+    ) -> DailySenseSignal? {
+        guard totalActive > 0 else { return nil }
+
+        if brokenHabits >= 2 {
+            return DailySenseSignal(dimension: .habit, level: .warning, text: "\(brokenHabits) 个断了节奏")
+        }
+
+        if todayCompleted >= totalActive {
+            return DailySenseSignal(dimension: .habit, level: .normal, text: "打卡都完成了")
+        }
+
+        if todayCompleted == 0 {
+            return DailySenseSignal(dimension: .habit, level: .normal, text: "今天还没打卡")
+        }
+
+        if recoveredHabits > 0 {
+            return DailySenseSignal(dimension: .habit, level: .normal, text: "\(todayCompleted)/\(totalActive) 已完成 · \(recoveredHabits) 个恢复打卡")
+        }
+
+        return DailySenseSignal(dimension: .habit, level: .normal, text: "\(todayCompleted)/\(totalActive) 已完成")
+    }
+
+    private static func fetchTodayHabitProgress(in context: NSManagedObjectContext, todayStart: Date) -> (completed: Int, total: Int) {
+        let calendar = Calendar.current
+        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: todayStart) else {
+            return (0, 0)
+        }
+
+        let habitRequest: NSFetchRequest<Habit> = Habit.fetchRequest()
+        habitRequest.predicate = NSPredicate(format: "isArchived == NO")
+
+        let habits = (try? context.fetch(habitRequest)) ?? []
+        guard !habits.isEmpty else { return (0, 0) }
+
+        let completedCount = habits.filter { habit in
+            isHabitCompletedToday(habit, in: context, todayStart: todayStart, tomorrow: tomorrow)
+        }.count
+
+        return (completedCount, habits.count)
+    }
+
+    private static func isHabitCompletedToday(
+        _ habit: Habit,
+        in context: NSManagedObjectContext,
+        todayStart: Date,
+        tomorrow: Date
+    ) -> Bool {
+        if habit.isCheckInType {
+            let request: NSFetchRequest<HabitRecord> = HabitRecord.fetchRequest()
+            request.predicate = NSPredicate(
+                format: "habitId == %@ AND date >= %@ AND date < %@ AND isCompleted == YES",
+                habit.id as CVarArg,
+                todayStart as CVarArg,
+                tomorrow as CVarArg
+            )
+            request.fetchLimit = 1
+            return ((try? context.count(for: request)) ?? 0) > 0
+        }
+
+        guard habit.isNumericType else { return false }
+
         let request: NSFetchRequest<HabitRecord> = HabitRecord.fetchRequest()
-        return ((try? context.count(for: request)) ?? 0) > 0
+        request.predicate = NSPredicate(
+            format: "habitId == %@ AND date >= %@ AND date < %@ AND value != nil",
+            habit.id as CVarArg,
+            todayStart as CVarArg,
+            tomorrow as CVarArg
+        )
+
+        let records = (try? context.fetch(request)) ?? []
+        guard !records.isEmpty else { return false }
+
+        if habit.isBadHabit {
+            return false
+        }
+
+        guard let targetValue = habit.targetValueDouble else {
+            return true
+        }
+
+        if habit.isCountType {
+            let total = records.compactMap(\.valueDouble).reduce(0, +)
+            return total >= targetValue
+        }
+
+        return (records.sorted { $0.date < $1.date }.last?.valueDouble ?? 0) >= targetValue
     }
 
     // MARK: - Expense Signal Fetchers
 
-    private struct ExpenseResult {
+    struct ExpenseResult {
         let todayAmount: Double
         let dailyAvg: Double
         let hasData: Bool
+    }
+
+    struct DailySenseExpenseSample {
+        let date: Date
+        let amount: Double
+    }
+
+    static func calculateExpenseDeviation(
+        samples: [DailySenseExpenseSample],
+        weekStart: Date,
+        todayStart: Date,
+        calendar: Calendar = .current
+    ) -> ExpenseResult {
+        guard let tomorrow = calendar.date(byAdding: .day, value: 1, to: todayStart) else {
+            return ExpenseResult(todayAmount: 0, dailyAvg: 0, hasData: false)
+        }
+
+        let previousWeekAmount = samples
+            .filter { $0.date >= weekStart && $0.date < todayStart }
+            .map(\.amount)
+            .reduce(0, +)
+        let days = max(calendar.dateComponents([.day], from: weekStart, to: todayStart).day ?? 1, 1)
+        let dailyAvg = previousWeekAmount / Double(days)
+
+        let todayAmount = samples
+            .filter { $0.date >= todayStart && $0.date < tomorrow }
+            .map(\.amount)
+            .reduce(0, +)
+
+        let hasData = dailyAvg > 0 || todayAmount > 0
+        return ExpenseResult(todayAmount: todayAmount, dailyAvg: dailyAvg, hasData: hasData)
     }
 
     private static func fetchExpenseDeviation(
@@ -213,31 +334,25 @@ struct DailySenseStateBuilder {
         weekStart: Date,
         todayStart: Date
     ) -> ExpenseResult {
+        guard let tomorrow = Calendar.current.date(byAdding: .day, value: 1, to: todayStart) else {
+            return ExpenseResult(todayAmount: 0, dailyAvg: 0, hasData: false)
+        }
+
         let request: NSFetchRequest<Transaction> = Transaction.fetchRequest()
         request.predicate = NSPredicate(
             format: "date >= %@ AND date < %@ AND type == %@",
             weekStart as CVarArg,
-            todayStart as CVarArg,
+            tomorrow as CVarArg,
             "expense"
         )
 
         guard let transactions = try? context.fetch(request) else {
             return ExpenseResult(todayAmount: 0, dailyAvg: 0, hasData: false)
         }
-        let totalAmount = transactions.map { $0.amount.doubleValue }.reduce(0, +)
-        let days = max(Calendar.current.dateComponents([.day], from: weekStart, to: todayStart).day ?? 1, 1)
-        let dailyAvg = totalAmount / Double(days)
-
-        let todayRequest: NSFetchRequest<Transaction> = Transaction.fetchRequest()
-        todayRequest.predicate = NSPredicate(
-            format: "date >= %@ AND type == %@",
-            todayStart as CVarArg,
-            "expense"
-        )
-        let todayAmount = ((try? context.fetch(todayRequest)) ?? []).map { $0.amount.doubleValue }.reduce(0, +)
-
-        let hasData = dailyAvg > 0 || todayAmount > 0
-        return ExpenseResult(todayAmount: todayAmount, dailyAvg: dailyAvg, hasData: hasData)
+        let samples = transactions.map {
+            DailySenseExpenseSample(date: $0.date, amount: $0.amount.doubleValue)
+        }
+        return calculateExpenseDeviation(samples: samples, weekStart: weekStart, todayStart: todayStart)
     }
 
     // MARK: - Health Signal
