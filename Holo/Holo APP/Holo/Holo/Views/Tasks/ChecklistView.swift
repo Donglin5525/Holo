@@ -49,10 +49,10 @@ struct ChecklistView: View {
                             progressCard
                         }
 
-                        // 检查项列表
+                        // 子任务列表
                         checkItemsList
 
-                        // 添加检查项
+                        // 添加子任务
                         addCheckItemCard
                     }
                     .padding(.horizontal, HoloSpacing.lg)
@@ -126,7 +126,7 @@ struct ChecklistView: View {
         }
     }
 
-    // MARK: - 检查项列表
+    // MARK: - 子任务列表
 
     private var checkItemsList: some View {
         VStack(spacing: 0) {
@@ -137,11 +137,11 @@ struct ChecklistView: View {
                         .font(.system(size: 40, weight: .light))
                         .foregroundColor(.holoTextSecondary.opacity(0.5))
 
-                    Text("暂无检查项")
+                    Text("暂无子任务")
                         .font(.holoBody)
                         .foregroundColor(.holoTextSecondary)
 
-                    Text("添加检查项来分解任务")
+                    Text("添加子任务来分解任务")
                         .font(.holoCaption)
                         .foregroundColor(.holoTextSecondary.opacity(0.7))
                 }
@@ -165,7 +165,7 @@ struct ChecklistView: View {
         }
     }
 
-    // MARK: - 检查项行
+    // MARK: - 子任务行
 
     private func checkItemRow(_ item: CheckItem) -> some View {
         HStack(spacing: HoloSpacing.sm) {
@@ -182,7 +182,7 @@ struct ChecklistView: View {
 
             // 标题（点击进入编辑）
             if editingItemId == item.id {
-                TextField("检查项内容", text: $editingTitle)
+                TextField("子任务内容", text: $editingTitle)
                     .font(.holoBody)
                     .foregroundColor(.holoTextPrimary)
                     .focused($isEditingFocused)
@@ -221,7 +221,7 @@ struct ChecklistView: View {
         .padding(.vertical, HoloSpacing.sm + 4)
     }
 
-    // MARK: - 添加检查项卡片
+    // MARK: - 添加子任务卡片
 
     private var addCheckItemCard: some View {
         HStack(spacing: HoloSpacing.sm) {
@@ -229,7 +229,7 @@ struct ChecklistView: View {
                 .font(.system(size: 20, weight: .medium))
                 .foregroundColor(.holoPrimary)
 
-            TextField("添加检查项", text: $newCheckItemTitle)
+            TextField("添加子任务", text: $newCheckItemTitle)
                 .font(.holoBody)
                 .foregroundColor(.holoTextPrimary)
                 .submitLabel(.done)
@@ -268,7 +268,7 @@ struct ChecklistView: View {
             reloadCheckItems()
             applyProgressChange(from: progressBeforeChange, to: localProgress)
         } catch {
-            Self.logger.error("切换检查项失败：\(error.localizedDescription)")
+            Self.logger.error("切换子任务失败：\(error.localizedDescription)")
         }
     }
 
@@ -285,7 +285,7 @@ struct ChecklistView: View {
             applyProgressChange(from: progressBeforeChange, to: localProgress)
             newCheckItemTitle = ""
         } catch {
-            Self.logger.error("添加检查项失败：\(error.localizedDescription)")
+            Self.logger.error("添加子任务失败：\(error.localizedDescription)")
         }
     }
 
@@ -299,7 +299,7 @@ struct ChecklistView: View {
             checkItems.removeAll { $0.id == itemID }
             applyProgressChange(from: progressBeforeChange, to: localProgress)
         } catch {
-            Self.logger.error("删除检查项失败：\(error.localizedDescription)")
+            Self.logger.error("删除子任务失败：\(error.localizedDescription)")
             reloadCheckItems()
             applyProgressChange(to: localProgress)
         }
@@ -321,7 +321,7 @@ struct ChecklistView: View {
                     checkItems[idx] = item
                 }
             } catch {
-                Self.logger.error("更新检查项标题失败：\(error.localizedDescription)")
+                Self.logger.error("更新子任务标题失败：\(error.localizedDescription)")
             }
         }
         editingItemId = nil

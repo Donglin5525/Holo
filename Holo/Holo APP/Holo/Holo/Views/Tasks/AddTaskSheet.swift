@@ -1131,7 +1131,7 @@ struct AddTaskSheet: View {
                 }
 
                 if existingTask != nil {
-                    // 编辑模式：显示已有的检查项
+                    // 编辑模式：显示已有的子任务
                     ForEach(checkItems, id: \.id) { item in
                         HStack(spacing: HoloSpacing.sm) {
                             Button {
@@ -1145,7 +1145,7 @@ struct AddTaskSheet: View {
                             .buttonStyle(PlainButtonStyle())
 
                             if editingCheckItemId == item.id {
-                                TextField("检查项内容", text: $editingCheckItemTitle)
+                                TextField("子任务内容", text: $editingCheckItemTitle)
                                     .font(.holoBody)
                                     .foregroundColor(.holoTextPrimary)
                                     .focused($isCheckItemEditing)
@@ -1187,7 +1187,7 @@ struct AddTaskSheet: View {
                         }
                     }
                 } else {
-                    // 新建模式：显示暂存的检查项
+                    // 新建模式：显示暂存的子任务
                     ForEach(pendingCheckItems) { item in
                         HStack(spacing: HoloSpacing.sm) {
                             Image(systemName: "circle")
@@ -1218,13 +1218,13 @@ struct AddTaskSheet: View {
                     }
                 }
 
-                // 添加检查项输入
+                // 添加子任务输入
                 HStack(spacing: HoloSpacing.sm) {
                     Image(systemName: "plus.circle")
                         .font(.system(size: 18, weight: .medium))
                         .foregroundColor(.holoPrimary)
 
-                    TextField("添加检查项", text: $newCheckItemTitle)
+                    TextField("添加子任务", text: $newCheckItemTitle)
                         .font(.holoBody)
                         .foregroundColor(.holoTextPrimary)
                         .submitLabel(.done)
@@ -1278,7 +1278,7 @@ struct AddTaskSheet: View {
                 checkItems.append(item)
                 applyChecklistProgressChange(from: progressBeforeChange, to: checklistProgress)
             } catch {
-                Self.logger.error("添加检查项失败：\(error.localizedDescription)")
+                Self.logger.error("添加子任务失败：\(error.localizedDescription)")
             }
         } else {
             // 新建模式：暂存
@@ -1300,7 +1300,7 @@ struct AddTaskSheet: View {
             }
             applyChecklistProgressChange(from: progressBeforeChange, to: checklistProgress)
         } catch {
-            Self.logger.error("切换检查项失败：\(error.localizedDescription)")
+            Self.logger.error("切换子任务失败：\(error.localizedDescription)")
         }
     }
 
@@ -1319,7 +1319,7 @@ struct AddTaskSheet: View {
             checkItems.removeAll { $0.id == itemID }
             applyChecklistProgressChange(from: progressBeforeChange, to: checklistProgress)
         } catch {
-            Self.logger.error("删除检查项失败：\(error.localizedDescription)")
+            Self.logger.error("删除子任务失败：\(error.localizedDescription)")
             if let task = existingTask {
                 let items = task.checkItems?.allObjects as? [CheckItem] ?? []
                 checkItems = items.sorted { $0.order < $1.order }
@@ -1370,7 +1370,7 @@ struct AddTaskSheet: View {
             do {
                 try repository.updateCheckItemTitle(item, newTitle: trimmed)
             } catch {
-                Self.logger.error("更新检查项标题失败：\(error.localizedDescription)")
+                Self.logger.error("更新子任务标题失败：\(error.localizedDescription)")
             }
         }
         editingCheckItemId = nil
@@ -2198,7 +2198,7 @@ struct AddTaskSheet: View {
                     // 记忆本次选择的清单，下次创建任务时默认使用
                     lastSelectedListId = selectedListId?.uuidString
 
-                    // 创建暂存的检查项
+                    // 创建暂存的子任务
                     for (index, item) in pendingCheckItems.enumerated() {
                         _ = try repository.addCheckItem(title: item.title, to: newTask, order: Int16(index))
                     }

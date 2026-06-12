@@ -319,7 +319,7 @@ extension CoreDataStack {
         todoTagAttributes.append(tagCreatedAt)
 
         // MARK: - CheckItem Entity
-        // 检查项实体（任务子步骤）
+        // 子任务实体（任务子步骤）
         let checkItemEntity = NSEntityDescription()
         checkItemEntity.name = "CheckItem"
         checkItemEntity.managedObjectClassName = "CheckItem"

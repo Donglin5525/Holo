@@ -636,7 +636,7 @@ class TodoRepository: ObservableObject {
 
     // MARK: - CheckItem CRUD
 
-    /// 添加检查项
+    /// 添加子任务
     @discardableResult
     func addCheckItem(title: String, to task: TodoTask, order: Int16) throws -> CheckItem {
         let item = CheckItem.create(in: context, title: title, task: task, order: order)
@@ -646,7 +646,7 @@ class TodoRepository: ObservableObject {
         return item
     }
 
-    /// 切换检查项状态
+    /// 切换子任务状态
     func toggleCheckItem(_ item: CheckItem) throws {
         item.isChecked.toggle()
         item.task?.updatedAt = Date()
@@ -655,7 +655,7 @@ class TodoRepository: ObservableObject {
         notifyDataChange()
     }
 
-    /// 删除检查项
+    /// 删除子任务
     func deleteCheckItem(_ item: CheckItem) throws {
         let task = item.task
         task?.removeCheckItems(item)
@@ -667,14 +667,14 @@ class TodoRepository: ObservableObject {
         notifyDataChange()
     }
 
-    /// 更新检查项标题
+    /// 更新子任务标题
     func updateCheckItemTitle(_ item: CheckItem, newTitle: String) throws {
         item.title = newTitle
         try context.save()
         notifyDataChange()
     }
 
-    /// 更新检查项顺序
+    /// 更新子任务顺序
     func updateCheckItemOrder(_ items: [CheckItem]) throws {
         for (index, item) in items.enumerated() {
             item.order = Int16(index)

@@ -29,7 +29,7 @@ struct TaskCardView: View {
         !checkItems.isEmpty
     }
 
-    /// 显示的检查项（最多5项，展开后显示全部）
+    /// 显示的子任务（最多5项，展开后显示全部）
     private var displayedCheckItems: [CheckItem] {
         if isChecklistExpanded {
             return checkItems
@@ -276,7 +276,7 @@ struct TaskCardView: View {
                 onToggleCompletion?()
             }
         } catch {
-            Self.logger.error("切换检查项状态失败: \(error.localizedDescription)")
+            Self.logger.error("切换子任务状态失败: \(error.localizedDescription)")
         }
     }
 }

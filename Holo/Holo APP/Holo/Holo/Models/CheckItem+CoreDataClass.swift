@@ -2,7 +2,7 @@
 //  CheckItem+CoreDataClass.swift
 //  Holo
 //
-//  检查项实体类
+//  子任务实体类
 //
 
 import Foundation

@@ -2,7 +2,7 @@
 //  CheckItem+CoreDataProperties.swift
 //  Holo
 //
-//  检查项实体属性扩展
+//  子任务实体属性扩展
 //
 
 import Foundation
