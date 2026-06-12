@@ -236,16 +236,17 @@ struct HabitListView: View {
     // MARK: - 数据加载
 
     private func loadHabits() {
-        Task { @MainActor in
-            if !repository.isReady {
-                habits = []
-                todayProgress = (0, 0)
-                return
-            }
-
-            habits = repository.activeHabits
-            todayProgress = repository.getTodayCheckInProgress()
+        // 必须同步执行：@Published activeHabits 更新会触发 objectWillChange，
+        // 导致 SwiftUI 重渲染。如果用 Task 延迟更新 habits 数组，
+        // 重渲染时 ForEach 会用旧数组（含已删除的 Core Data 对象）→ 崩溃
+        if !repository.isReady {
+            habits = []
+            todayProgress = (0, 0)
+            return
         }
+
+        habits = repository.activeHabits
+        todayProgress = repository.getTodayCheckInProgress()
     }
 
     // MARK: - 顶部导航栏

@@ -4,6 +4,14 @@
 
 ---
 
+## [2026-06-12] 修复删除习惯闪退
+
+### 修复
+- **删除习惯不再闪退**：`HabitListView.loadHabits()` 移除 `Task { @MainActor in }` 延迟包裹，改为同步更新 `habits` 数组
+- 根因：`@Published activeHabits` 更新触发 SwiftUI 重渲染，但 `Task` 延迟了本地 `habits` 数组更新，导致 `ForEach` 用旧数组渲染已删除的 Core Data 对象
+
+---
+
 ## [2026-06-12] 任务模块「检查项」更名为「子任务」
 
 ### 优化
