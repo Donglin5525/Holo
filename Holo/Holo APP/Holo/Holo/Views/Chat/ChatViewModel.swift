@@ -278,14 +278,9 @@ final class ChatViewModel: ObservableObject {
                     )
                     self.streamingText = "正在为你深度分析本地数据…"
                     let rendered = await self.analysisService.runAnalysis(question: text)
-                    let finalText: String
-                    if let rendered {
-                        var lines = [rendered.title, rendered.summary]
-                        lines.append(contentsOf: rendered.sections.map(\.body))
-                        finalText = lines.filter { !$0.isEmpty }.joined(separator: "\n")
-                    } else {
-                        finalText = "深度分析未能完成，请稍后重试。"
-                    }
+                    var lines = [rendered.title, rendered.summary]
+                    lines.append(contentsOf: rendered.sections.map(\.body))
+                    let finalText = lines.filter { !$0.isEmpty }.joined(separator: "\n")
                     self.chatRepo?.finalizeMessage(
                         aiMessageId,
                         finalContent: finalText,

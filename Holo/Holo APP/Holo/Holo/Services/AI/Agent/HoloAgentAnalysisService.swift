@@ -23,25 +23,50 @@ final class HoloAgentAnalysisService {
 
     /// 运行一次深度分析，返回渲染后的结果短文；失败或未完成返回 nil。
     /// 全程异步执行，ChatViewModel 负责展示状态与最终文本。
-    func runAnalysis(question: String) async -> HoloRenderedAgentResult? {
+    func runAnalysis(question: String) async -> HoloRenderedAgentResult {
+        logger.info("[Agent] 开始: \(question)")
+        let fail = { (reason: String) -> HoloRenderedAgentResult in
+            HoloRenderedAgentResult(title: "深度分析出错", summary: reason, sections: [], evidenceReferences: [])
+        }
         do {
-            let job = try await runtime.startAnalysisJob(question: question)
+            let job: HoloAgentJob
+            do {
+                job = try await runtime.startAnalysisJob(question: question)
+                logger.info("[Agent] ① job 已创建")
+            } catch {
+                return fail("[step1: job创建失败] \(String(describing: error))")
+            }
             let toolDescriptions = await runtime.toolDescriptions()
-            let systemTemplate = try await PromptManager.shared.loadPrompt(.agentLoop)
-            let finalJob = try await runtime.runLoop(
-                jobID: job.id,
-                systemTemplate: systemTemplate,
-                toolDescriptions: toolDescriptions
-            )
-            guard finalJob.state == .completed else { return nil }
-            guard let result = await runtime.loadLatestResult() else { return nil }
+            logger.info("[Agent] ② 工具描述就绪")
+            let systemTemplate: String
+            do {
+                systemTemplate = try await PromptManager.shared.loadPrompt(.agentLoop)
+                logger.info("[Agent] ③ prompt 已加载")
+            } catch {
+                return fail("[step3: prompt加载失败] \(String(describing: error))")
+            }
+            logger.info("[Agent] ④ 开始 runLoop…")
+            let finalJob: HoloAgentJob
+            do {
+                finalJob = try await runtime.runLoop(
+                    jobID: job.id, systemTemplate: systemTemplate, toolDescriptions: toolDescriptions
+                )
+                logger.info("[Agent] ⑤ runLoop 完成 state=\(finalJob.state.rawValue) rounds=\(finalJob.budget.consumedLLMRounds)")
+            } catch {
+                return fail("[step5: runLoop异常] \(String(describing: error))")
+            }
+            guard finalJob.state == .completed else {
+                return fail("[step5: 状态非completed] \(finalJob.state.rawValue)")
+            }
+            guard let result = await runtime.loadLatestResult() else {
+                return fail("[step6: 结果未保存] loadLatestResult nil")
+            }
+            logger.info("[Agent] ⑥ result 已加载 claims=\(result.claims.count)")
             let evidence = await runtime.loadEvidence(forIDs: result.evidenceIDs)
+            logger.info("[Agent] ⑦ evidence 已加载 → 渲染完成")
             return HoloAgentResultRenderer().render(
                 claims: result.claims, evidence: evidence, title: result.title
             )
-        } catch {
-            logger.error("Agent 深度分析失败: \(error.localizedDescription)")
-            return nil
         }
     }
 }
