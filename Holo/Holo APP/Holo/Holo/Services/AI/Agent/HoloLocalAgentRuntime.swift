@@ -15,6 +15,8 @@ actor HoloLocalAgentRuntime {
     private let jobStore: HoloAgentJobStore
     private let checkpointStore: HoloAgentCheckpointStore
     private let patternMiner = HoloPatternMiner()
+    private let llmClient: HoloAgentLLMClientProtocol?
+    private let toolExecutor: HoloAgentToolExecuting?
 
     /// mock 阶段模拟的步骤序列：plan → executeTools → minePatterns → integrateResults → persistResult。
     private static let mockSequence: [HoloAgentStep] = [
@@ -26,10 +28,14 @@ actor HoloLocalAgentRuntime {
 
     init(persistence: HoloAgentPersistenceManager,
          jobStore: HoloAgentJobStore,
-         checkpointStore: HoloAgentCheckpointStore) {
+         checkpointStore: HoloAgentCheckpointStore,
+         llmClient: HoloAgentLLMClientProtocol? = nil,
+         toolExecutor: HoloAgentToolExecuting? = nil) {
         self.persistence = persistence
         self.jobStore = jobStore
         self.checkpointStore = checkpointStore
+        self.llmClient = llmClient
+        self.toolExecutor = toolExecutor
     }
 
     /// 创建并启动一个 mock job：立即进入 running，写初始 checkpoint（step=plan）。
@@ -125,6 +131,91 @@ actor HoloLocalAgentRuntime {
         return job
     }
 
+    // MARK: - 多轮 Agent Loop
+
+    /// 多轮 agent_loop：循环调用 LLM，按 status 推进，直到 final_claims 或轮数耗尽。
+    /// 需要 llmClient 与 toolExecutor（未配置时抛 loopNotConfigured）。
+    /// 注：循环条件用 LLM 轮数，不依赖 budget.isExhausted 的 wallTime（其内部用 Date() 无法注入测试时间）。
+    func runLoop(jobID: String, systemTemplate: String, toolDescriptions: String,
+                 now: Date = Date()) async throws -> HoloAgentJob {
+        guard let llmClient, let toolExecutor else {
+            throw HoloAgentRuntimeError.loopNotConfigured
+        }
+        guard var job = await loadJob(jobID) else {
+            throw HoloAgentRuntimeError.jobNotFound(jobID)
+        }
+        guard !Self.terminalStates.contains(job.state) else { return job }
+
+        var checkpoint = await checkpointStore.latestForJob(jobID: jobID)
+            ?? Self.makeCheckpoint(jobID: jobID, step: .plan, completedSteps: [],
+                                   conversation: [], now: now)
+        var retryCount = 0
+        let maxRetries = 2
+
+        while job.budget.consumedLLMRounds < job.budget.maxLLMRounds {
+            try Task.checkCancellation()
+            job.state = .waitingForLLM
+            job.updatedAt = now
+
+            let messages = HoloAgentPromptBuilder.build(
+                systemTemplate: systemTemplate,
+                toolDescriptions: toolDescriptions,
+                evidence: [],
+                conversationState: checkpoint.conversationState,
+                userQuestion: job.userQuestion ?? ""
+            )
+            let raw = try await llmClient.next(messages: messages)
+            job.budget.consumedLLMRounds += 1
+
+            let output: HoloAgentOutput
+            do {
+                output = try HoloAgentResponseParser.parse(raw, remainingRetries: maxRetries - retryCount)
+            } catch HoloAgentError.outputParseFailure(let needsRetry) {
+                if needsRetry {
+                    retryCount += 1
+                    job.state = .retrying
+                    continue
+                }
+                job.state = .failed
+                job.errorSummary = "Agent 输出解析失败且重试耗尽"
+                job.updatedAt = now
+                try await jobStore.upsert(job)
+                return job
+            }
+
+            checkpoint.conversationState.append(Self.assistantMessage(for: output, now: now))
+
+            switch output.status {
+            case .needTools:
+                for request in output.toolRequests {
+                    let result = await toolExecutor.execute(request)
+                    checkpoint.completedToolResults.append(result)
+                }
+                checkpoint.patternSignals.append(
+                    contentsOf: patternMiner.mine(toolResults: checkpoint.completedToolResults, now: now)
+                )
+                checkpoint.conversationState.append(Self.toolResultMessage(for: output, now: now))
+                checkpoint.step = .executeTools
+                try await persistence.saveProgress(job: job, evidence: [], checkpoint: checkpoint)
+            case .needMoreAnalysis:
+                checkpoint.step = .continueOrConclude
+                try await persistence.saveProgress(job: job, evidence: [], checkpoint: checkpoint)
+            case .finalClaims:
+                checkpoint.step = .verifyClaims
+                job.state = .completed
+                job.updatedAt = now
+                try await persistence.saveProgress(job: job, evidence: [], checkpoint: checkpoint)
+                return job
+            }
+        }
+
+        job.state = .failed
+        job.errorSummary = "Agent 预算耗尽（LLM 轮数上限）"
+        job.updatedAt = now
+        try await jobStore.upsert(job)
+        return job
+    }
+
     // MARK: - 内部辅助
 
     private func loadJob(_ jobID: String) async -> HoloAgentJob? {
@@ -149,6 +240,18 @@ actor HoloLocalAgentRuntime {
         HoloAgentMessage(role: .user, content: content, toolRequestID: nil, toolName: nil,
                          timestamp: now, tokenEstimate: nil)
     }
+
+    private static func assistantMessage(for output: HoloAgentOutput, now: Date) -> HoloAgentMessage {
+        HoloAgentMessage(role: .assistant, content: output.reasoning, toolRequestID: nil, toolName: nil,
+                         timestamp: now, tokenEstimate: nil)
+    }
+
+    private static func toolResultMessage(for output: HoloAgentOutput, now: Date) -> HoloAgentMessage {
+        let toolNames = output.toolRequests.map(\.tool).joined(separator: ",")
+        let content = output.toolRequests.isEmpty ? "无工具请求" : "已执行工具：\(toolNames)"
+        return HoloAgentMessage(role: .toolResult, content: content, toolRequestID: nil, toolName: nil,
+                                timestamp: now, tokenEstimate: nil)
+    }
 }
 
 /// Runtime 错误：用中文描述，便于上层展示与日志。
@@ -156,12 +259,14 @@ enum HoloAgentRuntimeError: Error, LocalizedError {
     case jobNotFound(String)
     case checkpointMissing(String)
     case unknownStep(HoloAgentStep)
+    case loopNotConfigured
 
     var errorDescription: String? {
         switch self {
         case .jobNotFound(let id): return "找不到 Agent 任务：\(id)"
         case .checkpointMissing(let id): return "找不到任务的可恢复快照：\(id)"
         case .unknownStep(let step): return "mock 序列未覆盖步骤：\(step.rawValue)"
+        case .loopNotConfigured: return "Agent Loop 未配置 LLM client 或 tool executor"
         }
     }
 }

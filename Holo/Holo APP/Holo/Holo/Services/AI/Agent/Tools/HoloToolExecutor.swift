@@ -8,7 +8,12 @@
 
 import Foundation
 
-actor HoloToolExecutor {
+/// 工具执行协议：runtime 依赖此协议，生产用 HoloToolExecutor，测试用 fake。
+protocol HoloAgentToolExecuting: Sendable {
+    func execute(_ request: HoloToolRequest) async -> HoloDataToolResult
+}
+
+actor HoloToolExecutor: HoloAgentToolExecuting {
 
     private let registry: HoloToolRegistry
 

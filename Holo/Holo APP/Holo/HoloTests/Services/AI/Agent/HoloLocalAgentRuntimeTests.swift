@@ -26,6 +26,26 @@ actor RuntimeMockLedger: HoloEvidenceLedgerProtocol {
     }
 }
 
+/// 多轮 loop 测试专用 fake LLM client：按顺序返回预设响应。
+actor FakeAgentLLMClient: HoloAgentLLMClientProtocol {
+    private let responses: [String]
+    private(set) var callCount = 0
+    init(responses: [String]) { self.responses = responses }
+    func next(messages: [HoloAgentMessage]) async throws -> String {
+        let response = responses[min(callCount, responses.count - 1)]
+        callCount += 1
+        return response
+    }
+}
+
+/// 多轮 loop 测试专用 fake tool executor：返回成功空结果。
+actor FakeToolExecutor: HoloAgentToolExecuting {
+    func execute(_ request: HoloToolRequest) async -> HoloDataToolResult {
+        HoloDataToolResult(toolRequestID: request.id, tool: request.tool, status: .success,
+                           coverage: nil, metrics: [], events: [], warnings: [], error: nil)
+    }
+}
+
 @main
 struct HoloLocalAgentRuntimeTests {
 
@@ -38,6 +58,7 @@ struct HoloLocalAgentRuntimeTests {
         try await testCompleteCurrentStep_plan完成后推进到executeTools()
         try await testResume_重启后从checkpoint对齐到当前step()
         try await testCancel_状态变为cancelled且resume不恢复执行()
+        try await testRunLoop_needTools后finalClaims两轮完成()
         print("HoloLocalAgentRuntimeTests passed")
     }
 
@@ -67,6 +88,29 @@ struct HoloLocalAgentRuntimeTests {
             persistence: persistence,
             jobStore: jobStore,
             checkpointStore: checkpointStore
+        )
+        return (runtime, jobStore, checkpointStore)
+    }
+
+    /// 构造带 LLM client + toolExecutor 的 runtime（多轮 loop 测试用）。
+    private static func makeLoopRuntime(dir: URL, llmClient: HoloAgentLLMClientProtocol, toolExecutor: HoloAgentToolExecuting)
+        -> (runtime: HoloLocalAgentRuntime, jobStore: HoloAgentJobStore, checkpointStore: HoloAgentCheckpointStore) {
+        let ledger = RuntimeMockLedger()
+        let checkpointStore = HoloAgentCheckpointStore(directory: dir)
+        let jobStore = HoloAgentJobStore(directory: dir)
+        let resultStore = HoloAgentResultStore(directory: dir)
+        let persistence = HoloAgentPersistenceManager(
+            evidenceLedger: ledger,
+            checkpointStore: checkpointStore,
+            jobStore: jobStore,
+            resultStore: resultStore
+        )
+        let runtime = HoloLocalAgentRuntime(
+            persistence: persistence,
+            jobStore: jobStore,
+            checkpointStore: checkpointStore,
+            llmClient: llmClient,
+            toolExecutor: toolExecutor
         )
         return (runtime, jobStore, checkpointStore)
     }
@@ -142,5 +186,29 @@ struct HoloLocalAgentRuntimeTests {
         // resume 一个 cancelled job 不应恢复执行
         let resumed = try await fixture.runtime.resume(jobID: job.id, now: Date(timeIntervalSince1970: 3000))
         expect(resumed.state == .cancelled, "cancelled job resume 不应恢复执行")
+    }
+
+    /// 多轮 loop：第 1 轮 need_tools，工具执行后第 2 轮 final_claims。
+    private static func testRunLoop_needTools后finalClaims两轮完成() async throws {
+        let dir = makeTempDir()
+        let needTools = #"{"status":"need_tools","reasoning":"需要查习惯","toolRequests":[{"id":"t1","tool":"habit","query":"negative_habit_control","timeRange":null,"baseline":null,"requiredMetrics":[],"parameters":{}}],"claims":[],"warnings":[]}"#
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let client = FakeAgentLLMClient(responses: [needTools, finalClaims])
+        let executor = FakeToolExecutor()
+        let fixture = makeLoopRuntime(dir: dir, llmClient: client, toolExecutor: executor)
+
+        let job = try await fixture.runtime.startMockJob(question: "最近习惯怎么样", now: Date(timeIntervalSince1970: 1000))
+        let result = try await fixture.runtime.runLoop(
+            jobID: job.id, systemTemplate: "你是 Agent", toolDescriptions: "【habit】习惯工具",
+            now: Date(timeIntervalSince1970: 2000)
+        )
+
+        let callCount = await client.callCount
+        expect(callCount == 2, "应调用 LLM 两轮，实际 \(callCount)")
+        expect(result.state == .completed, "runLoop 完成后应为 completed，实际 \(result.state.rawValue)")
+        expect(result.budget.consumedLLMRounds == 2, "consumedLLMRounds 应为 2")
+
+        let checkpoint = await fixture.checkpointStore.latestForJob(jobID: job.id)
+        expect(checkpoint?.completedToolResults.isEmpty == false, "checkpoint 应含工具执行结果")
     }
 }
