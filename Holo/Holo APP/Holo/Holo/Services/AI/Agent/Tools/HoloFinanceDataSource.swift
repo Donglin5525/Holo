@@ -11,15 +11,13 @@ import Foundation
 
 struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
 
-    func snapshot() async -> HoloFinanceToolRecord? {
+    func snapshot(timeRange: HoloAgentTimeRange?, baseline: HoloAgentTimeRange?) async -> HoloFinanceToolRecord? {
         let repo = FinanceRepository.shared
         let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        guard let currentStart = calendar.date(byAdding: .day, value: -13, to: today),
-              let baselineEnd = calendar.date(byAdding: .day, value: -1, to: currentStart),
-              let baselineStart = calendar.date(byAdding: .day, value: -13, to: baselineEnd) else {
-            return nil
-        }
+        let today = timeRange?.end ?? calendar.startOfDay(for: Date())
+        let currentStart = timeRange?.start ?? (calendar.date(byAdding: .day, value: -13, to: today) ?? today)
+        let baselineEnd = baseline?.end ?? (calendar.date(byAdding: .day, value: -1, to: currentStart) ?? currentStart)
+        let baselineStart = baseline?.start ?? (calendar.date(byAdding: .day, value: -13, to: baselineEnd) ?? baselineEnd)
         let current: [Transaction]
         let baseline: [Transaction]
         do {

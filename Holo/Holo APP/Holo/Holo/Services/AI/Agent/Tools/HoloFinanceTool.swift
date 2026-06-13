@@ -25,7 +25,7 @@ struct HoloFinanceToolRecord: Codable, Equatable, Sendable {
 
 /// 财务数据源协议：返回 nil 表示无数据。生产实现适配真实 FinanceAnalysisContextBuilder（后续集成）。
 protocol HoloFinanceDataSource: Sendable {
-    func snapshot() async -> HoloFinanceToolRecord?
+    func snapshot(timeRange: HoloAgentTimeRange?, baseline: HoloAgentTimeRange?) async -> HoloFinanceToolRecord?
 }
 
 /// 财务工具：把聚合后的财务快照转为可信指标与证据。
@@ -57,7 +57,7 @@ struct HoloFinanceTool: HoloDataTool {
     }
 
     func execute(_ request: HoloToolRequest) async throws -> HoloDataToolResult {
-        guard let record = await dataSource.snapshot() else {
+        guard let record = await dataSource.snapshot(timeRange: request.timeRange, baseline: request.baseline) else {
             return Self.emptyResult(request)
         }
         switch request.query {

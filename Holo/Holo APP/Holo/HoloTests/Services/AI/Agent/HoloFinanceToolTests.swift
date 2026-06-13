@@ -14,7 +14,7 @@ import Foundation
 /// FinanceTool 测试专用数据源（独立命名，避免联合编译重复）。
 struct MockFinanceDataSource: HoloFinanceDataSource {
     let record: HoloFinanceToolRecord?
-    func snapshot() async -> HoloFinanceToolRecord? { record }
+    func snapshot(timeRange: HoloAgentTimeRange?, baseline: HoloAgentTimeRange?) async -> HoloFinanceToolRecord? { record }
 }
 
 @main

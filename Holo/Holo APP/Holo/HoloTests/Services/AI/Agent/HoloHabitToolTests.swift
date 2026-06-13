@@ -14,7 +14,7 @@ import Foundation
 /// HabitTool 测试专用数据源（独立命名，避免联合编译重复）。
 struct MockHabitDataSource: HoloHabitDataSource {
     let habits: [HoloHabitToolRecord]
-    func habits() async -> [HoloHabitToolRecord] { habits }
+    func habits(timeRange: HoloAgentTimeRange?) async -> [HoloHabitToolRecord] { habits }
 }
 
 @main

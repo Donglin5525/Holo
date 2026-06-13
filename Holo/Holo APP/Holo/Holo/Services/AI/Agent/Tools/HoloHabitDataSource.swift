@@ -11,15 +11,16 @@ import Foundation
 
 struct HoloDefaultHabitDataSource: HoloHabitDataSource {
 
-    func habits() async -> [HoloHabitToolRecord] {
-        await MainActor.run { Self.loadHabitsOnMain() }
+    func habits(timeRange: HoloAgentTimeRange?) async -> [HoloHabitToolRecord] {
+        await MainActor.run { Self.loadHabitsOnMain(timeRange: timeRange) }
     }
 
-    private static func loadHabitsOnMain() -> [HoloHabitToolRecord] {
+    private static func loadHabitsOnMain(timeRange: HoloAgentTimeRange?) -> [HoloHabitToolRecord] {
         let repo = HabitRepository.shared
         let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        guard let start = calendar.date(byAdding: .day, value: -13, to: today) else { return [] }
+        let today = timeRange?.end ?? calendar.startOfDay(for: Date())
+        let start = timeRange?.start ?? (calendar.date(byAdding: .day, value: -13, to: today) ?? today)
+        let dayCount = max((calendar.dateComponents([.day], from: calendar.startOfDay(for: start), to: today).day ?? 0) + 1, 1)
         repo.loadActiveHabits()
         return repo.activeHabits.map { habit in
             let records = repo.getRecords(for: habit, in: start...today)
@@ -28,7 +29,7 @@ struct HoloDefaultHabitDataSource: HoloHabitDataSource {
                 name: habit.name ?? "",
                 polarity: habit.isBadHabit ? .negative : .positive,
                 dailyGoal: goal(for: habit),
-                dailyCounts: aggregate(records: records, today: today)
+                dailyCounts: aggregate(records: records, today: today, dayCount: dayCount)
             )
         }
     }
@@ -40,9 +41,8 @@ struct HoloDefaultHabitDataSource: HoloHabitDataSource {
     }
 
     /// 按 dayOffset（0=今天）聚合近 14 天每日计数：数值型累加 value，打卡型 +1。
-    private static func aggregate(records: [HabitRecord], today: Date) -> [HoloHabitDailyCount] {
+    private static func aggregate(records: [HabitRecord], today: Date, dayCount: Int) -> [HoloHabitDailyCount] {
         let calendar = Calendar.current
-        let dayCount = 14
         var bucket = [Double](repeating: 0, count: dayCount)
         for record in records {
             let dayOffset = calendar.dateComponents([.day], from: calendar.startOfDay(for: record.date), to: today).day ?? -1

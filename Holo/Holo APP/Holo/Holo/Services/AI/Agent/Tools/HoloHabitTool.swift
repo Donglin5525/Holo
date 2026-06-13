@@ -32,7 +32,7 @@ struct HoloHabitToolRecord: Codable, Equatable, Sendable {
 
 /// 习惯数据源协议：生产实现适配真实 habit repository（后续集成），测试用 mock。
 protocol HoloHabitDataSource: Sendable {
-    func habits() async -> [HoloHabitToolRecord]
+    func habits(timeRange: HoloAgentTimeRange?) async -> [HoloHabitToolRecord]
 }
 
 /// 习惯工具：把每日打卡数据计算为可信指标与证据。
@@ -67,7 +67,7 @@ struct HoloHabitTool: HoloDataTool {
     }
 
     func execute(_ request: HoloToolRequest) async throws -> HoloDataToolResult {
-        let habits = await dataSource.habits()
+        let habits = await dataSource.habits(timeRange: request.timeRange)
         switch request.query {
         case "negative_habit_control":
             return negativeControlResult(request: request, habits: habits)

@@ -4,6 +4,18 @@
 
 ---
 
+## [2026-06-14] HoloAI Agent V3.1 数据时间范围接 ToolRequest（遗留 ③）
+
+### 修复
+- **时间范围动态化**：Habit/Finance dataSource 协议加 timeRange 参数（habits(timeRange:) / snapshot(timeRange:baseline:)），Tool.execute 从 HoloToolRequest 提取传参，生产实现用 timeRange.start/end 算日期范围（nil 默认 14 天），aggregate bucket 动态 dayCount
+- test mock 同步签名，standalone 工具测试回归绿
+
+### 说明
+- HoloAgentTimeRange 是简单 struct（start/end Date），无需枚举解析；链路：request.timeRange → execute 传 → dataSource → 动态日期范围
+- xcodebuild BUILD SUCCEEDED + standalone HabitTool/FinanceTool 回归绿
+
+---
+
 ## [2026-06-14] HoloAI Agent V3.1 修复 Agent 结果渲染（遗留 ②+①）
 
 ### 修复
