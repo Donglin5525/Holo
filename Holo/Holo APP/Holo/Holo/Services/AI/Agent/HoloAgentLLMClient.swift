@@ -20,7 +20,12 @@ actor HoloAgentLLMClient: HoloAgentLLMClientProtocol {
 
     func next(messages: [HoloAgentMessage]) async throws -> String {
         let chatMessages = messages.map {
-            ChatMessageDTO(role: $0.role.rawValue, content: $0.content)
+            let apiRole: String
+            switch $0.role {
+            case .toolResult: apiRole = "tool"
+            default: apiRole = $0.role.rawValue
+            }
+            return ChatMessageDTO(role: apiRole, content: $0.content)
         }
         // purpose=.agentLoop 走后端 agent_loop route，返回内容由后端做 JSON 校验
         return try await provider.chat(messages: chatMessages, purpose: .agentLoop)
