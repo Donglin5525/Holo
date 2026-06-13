@@ -42,6 +42,11 @@ struct AISettingsView: View {
 
             // 危险操作
             dangerSection
+
+            // Agent 调试（仅内部，flag 保护）
+            if HoloAIFeatureFlags.agentDebugModeEnabled {
+                agentDebugSection
+            }
         }
         .scrollContentBackground(.hidden)
         .background(Color.holoBackground)
@@ -62,6 +67,21 @@ struct AISettingsView: View {
             ToolbarItem(placement: .cancellationAction) {
                 Button("取消") { dismiss() }
             }
+        }
+    }
+
+    // MARK: - Agent Debug Section
+    private var agentDebugSection: some View {
+        Section {
+            NavigationLink {
+                HoloAgentDebugView()
+            } label: {
+                LabeledContent("Agent 调试入口", value: "内部")
+            }
+        } header: {
+            Text("HoloAI Agent")
+        } footer: {
+            Text("本地优先 Agent 调试入口，仅在 agentDebugModeEnabled 开启时显示。")
         }
     }
 
