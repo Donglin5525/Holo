@@ -61,6 +61,7 @@ struct HoloLocalAgentRuntimeTests {
         try await testRunLoop_needTools后finalClaims两轮完成()
         try await testPauseForBackground_运行中任务标记waitingForForeground()
         try await testResumeUnfinishedJobs_恢复未完成任务()
+        try await test后台暂停后恢复并RunLoop完成()
         print("HoloLocalAgentRuntimeTests passed")
     }
 
@@ -239,5 +240,25 @@ struct HoloLocalAgentRuntimeTests {
 
         let stored = await fixture.jobStore.load().first { $0.id == job.id }
         expect(stored?.state == .running, "恢复后应为 running，实际 \(stored?.state.rawValue ?? "nil")")
+    }
+
+    /// 后台暂停 → 前台恢复 → runLoop 从 checkpoint 续跑完成（恢复语义端到端）。
+    private static func test后台暂停后恢复并RunLoop完成() async throws {
+        let dir = makeTempDir()
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let client = FakeAgentLLMClient(responses: [finalClaims])
+        let executor = FakeToolExecutor()
+        let fixture = makeLoopRuntime(dir: dir, llmClient: client, toolExecutor: executor)
+        let job = try await fixture.runtime.startMockJob(question: "q", now: Date(timeIntervalSince1970: 1000))
+
+        try await fixture.runtime.pauseForBackground(now: Date(timeIntervalSince1970: 2000))
+        let resumed = try await fixture.runtime.resumeUnfinishedJobs(now: Date(timeIntervalSince1970: 3000))
+        expect(resumed == 1, "应恢复 1 个任务")
+
+        let result = try await fixture.runtime.runLoop(
+            jobID: job.id, systemTemplate: "你是 Agent", toolDescriptions: "tools",
+            now: Date(timeIntervalSince1970: 4000)
+        )
+        expect(result.state == .completed, "恢复后续跑应完成，实际 \(result.state.rawValue)")
     }
 }
