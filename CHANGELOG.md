@@ -4,6 +4,17 @@
 
 ---
 
+## [2026-06-14] HoloAI Agent V3.1 后台续跑接入 App 生命周期（Phase 5.1）
+
+### 新增
+- **Agent 后台续跑接线**：新建 `HoloAgentRuntimeShared`（runtime + 后台续跑管理器双 App 级单例）；`HoloApp` 监听 `scenePhase`，进后台暂存 checkpoint、回前台恢复未完成任务，全程 `agentRuntimeEnabled` 门控（默认关，不影响现有行为）
+
+### 说明
+- 仅接线场景生命周期；Agent 真正端到端运行（生产 runtime + 启动入口）在后续 Phase 6.2 接入
+- xcodebuild BUILD SUCCEEDED
+
+---
+
 ## [2026-06-13] 修复习惯信号判断与手势冲突
 
 ### 修复
