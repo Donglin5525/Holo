@@ -9,6 +9,7 @@ import { createOpenAICompatibleProvider } from "./providers/openAICompatibleProv
 import { createMockAsrProvider } from "./providers/mockAsrProvider.js";
 import { createDashScopeAsrProvider } from "./providers/dashScopeAsrProvider.js";
 import { getFinanceCategoryCatalog } from "./catalog/financeCategoryCatalog.js";
+import { validateAgentLoopContent } from "./agentResponseValidator.js";
 import { getPrompt, listPrompts, listPromptMetadata, setDatabase } from "./prompts/promptRegistry.js";
 import { loadConfig } from "./config.js";
 import { createAdminLogStore, truncateText } from "./admin/adminLogStore.js";
@@ -181,6 +182,13 @@ export function createApp(overrides = {}) {
 
       try {
         const result = await provider.complete(upstreamRequest);
+        if (purpose === "agent_loop") {
+          const agentContent = result?.choices?.[0]?.message?.content;
+          const agentValidation = validateAgentLoopContent(agentContent ?? "");
+          if (!agentValidation.valid) {
+            throw new GatewayError("INVALID_AGENT_JSON", agentValidation.error, 502);
+          }
+        }
         if (logId) {
           adminLogStore.finishAiCall(logId, {
             status: "success",
