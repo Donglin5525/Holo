@@ -165,6 +165,11 @@ actor HoloLocalAgentRuntime {
         await persistence.loadLatestResult()
     }
 
+    /// 读取指定 IDs 的 evidence 记录，供结果渲染引用（Phase 6.3 evidence 引用）。
+    func loadEvidence(forIDs ids: [String]) async -> [HoloEvidenceRecord] {
+        await persistence.loadEvidence(forIDs: ids)
+    }
+
     /// 多轮 agent_loop：循环调用 LLM，按 status 推进，直到 final_claims 或轮数耗尽。
     /// 需要 llmClient 与 toolExecutor（未配置时抛 loopNotConfigured）。
     /// 注：循环条件用 LLM 轮数，不依赖 budget.isExhausted 的 wallTime（其内部用 Date() 无法注入测试时间）。

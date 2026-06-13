@@ -277,10 +277,15 @@ final class ChatViewModel: ObservableObject {
                         analysisContext: nil
                     )
                     self.streamingText = "正在为你深度分析本地数据…"
-                    let agentJob = await self.analysisService.runAnalysis(question: text)
-                    let finalText = (agentJob?.state == .completed)
-                        ? "深度分析已完成。结果短文渲染待后续接入（Phase 6.3/结果渲染）。"
-                        : "深度分析未能完成，请稍后重试。"
+                    let rendered = await self.analysisService.runAnalysis(question: text)
+                    let finalText: String
+                    if let rendered {
+                        var lines = [rendered.title, rendered.summary]
+                        lines.append(contentsOf: rendered.sections.map(\.body))
+                        finalText = lines.filter { !$0.isEmpty }.joined(separator: "\n")
+                    } else {
+                        finalText = "深度分析未能完成，请稍后重试。"
+                    }
                     self.chatRepo?.finalizeMessage(
                         aiMessageId,
                         finalContent: finalText,

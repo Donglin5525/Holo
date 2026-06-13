@@ -4,6 +4,17 @@
 
 ---
 
+## [2026-06-14] HoloAI Agent V3.1 修复 Agent 结果渲染（遗留 ②+①）
+
+### 修复
+- **对话结果短文**（①）：AnalysisService.runAnalysis 改为返回渲染后的 HoloRenderedAgentResult，ChatViewModel 用 title/summary/claims 拼成短文，替代之前的「深度分析已完成」占位文本
+- **evidence 引用**（②）：新增 PersistenceManager.loadEvidence / runtime.loadEvidence（按 ID 从 ledger 读证据记录），记忆长廊卡片与对话短文经 HoloAgentResultRenderer 渲染时携带脱敏证据引用
+
+### 说明
+- xcodebuild BUILD SUCCEEDED + standalone PersistenceManager/AgentRuntime 回归绿
+
+---
+
 ## [2026-06-14] HoloAI Agent V3.1 Habit/Finance 工具接真实数据（Task #34）
 
 ### 新增

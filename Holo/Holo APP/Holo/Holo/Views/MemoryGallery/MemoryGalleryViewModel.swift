@@ -691,11 +691,9 @@ class MemoryGalleryViewModel: ObservableObject {
             agentRenderedResult = nil
             return
         }
-        agentRenderedResult = HoloRenderedAgentResult(
-            title: result.title,
-            summary: result.summary,
-            sections: result.claims.map { HoloRenderedAgentSection(title: $0.displayText, body: $0.displayText) },
-            evidenceReferences: []
+        let evidence = await runtime.loadEvidence(forIDs: result.evidenceIDs)
+        agentRenderedResult = HoloAgentResultRenderer().render(
+            claims: result.claims, evidence: evidence, title: result.title
         )
     }
 

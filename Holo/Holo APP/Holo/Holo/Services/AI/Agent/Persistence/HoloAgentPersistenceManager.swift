@@ -58,6 +58,12 @@ actor HoloAgentPersistenceManager {
         await resultStore.latest()
     }
 
+    /// 读取指定 IDs 的 evidence 记录，供结果渲染引用（Phase 6.3 evidence 引用）。
+    func loadEvidence(forIDs ids: [String]) async -> [HoloEvidenceRecord] {
+        let idSet = Set(ids)
+        return await evidenceLedger.load().filter { idSet.contains($0.id) }
+    }
+
     /// 校验 checkpoint 引用的 evidence 是否都存在于 ledger。
     func validateCheckpoint(_ checkpoint: HoloAgentCheckpoint) async -> Bool {
         let evidenceIDs = Set(await evidenceLedger.load().map(\.id))
