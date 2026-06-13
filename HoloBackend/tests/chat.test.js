@@ -774,3 +774,29 @@ test("chat endpoint applies per-device minute rate limit", async () => {
   assert.equal(response.status, 429);
   assert.equal((await response.json()).error.code, "RATE_LIMITED");
 });
+
+test("agent_loop purpose 被接受并返回 mock agent JSON", async () => {
+  const app = createTestApp();
+
+  const response = await app.request("/v1/ai/chat/completions", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-holo-device-id": "device-agent",
+    },
+    body: JSON.stringify({
+      purpose: "agent_loop",
+      stream: false,
+      messages: [{ role: "user", content: "分析最近的开销" }],
+    }),
+  });
+
+  assert.equal(response.status, 200);
+  const json = await response.json();
+  const content = json.choices[0].message.content;
+  const parsed = JSON.parse(content);
+  assert.ok(
+    ["need_tools", "need_more_analysis", "final_claims"].includes(parsed.status),
+    `agent_loop mock 应返回合法 status，实际 ${parsed.status}`
+  );
+});

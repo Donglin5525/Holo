@@ -66,6 +66,12 @@ const DEFAULT_CONFIG = {
       temperature: Number(process.env.HOLO_THOUGHT_ORG_TEMPERATURE ?? 0.2),
       maxTokens: Number(process.env.HOLO_THOUGHT_ORG_MAX_TOKENS ?? 512),
     },
+    agent_loop: {
+      provider: process.env.HOLO_AGENT_LOOP_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_AGENT_LOOP_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_AGENT_LOOP_TEMPERATURE ?? 0.1),
+      maxTokens: Number(process.env.HOLO_AGENT_LOOP_MAX_TOKENS ?? 2048),
+    },
   },
   providers: {
     deepseek: {
