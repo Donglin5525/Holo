@@ -58,6 +58,26 @@ actor HoloLocalAgentRuntime {
         return job
     }
 
+    /// 创建并启动一个真实深度分析 job（对话触发）：type=.deepAnalysis, trigger=.userQuestion。
+    /// 写入初始 checkpoint（含用户问题），供 runLoop 多轮推进。生产路径用。
+    func startAnalysisJob(question: String, now: Date = Date()) async throws -> HoloAgentJob {
+        var job = HoloAgentJob(
+            id: UUID().uuidString, type: .deepAnalysis, userQuestion: question,
+            trigger: .userQuestion, state: .running, currentStep: .plan,
+            createdAt: now, updatedAt: now,
+            lastForegroundRunAt: nil, timeRange: nil,
+            budget: HoloAgentBudget.normalDeep(now: now),
+            checkpointID: nil, resultID: nil, errorSummary: nil, deviceID: nil
+        )
+        let checkpoint = Self.makeCheckpoint(
+            jobID: job.id, step: .plan, completedSteps: [],
+            conversation: [Self.mockUserMessage(question, now)], now: now
+        )
+        job.checkpointID = checkpoint.id
+        try await persistence.saveProgress(job: job, evidence: [], checkpoint: checkpoint)
+        return job
+    }
+
     /// 完成当前 step，推进到序列中的下一步并写新 checkpoint。
     /// 非运行态（已取消/已完成）不推进；序列走完后进入 completed。
     @discardableResult
@@ -132,6 +152,13 @@ actor HoloLocalAgentRuntime {
     }
 
     // MARK: - 多轮 Agent Loop
+
+    /// 汇总已注册工具的 Prompt 描述，供构建 agent_loop 系统提示。
+    /// 未配置 toolExecutor 时返回空串（mock runtime 场景）。
+    func toolDescriptions() async -> String {
+        guard let toolExecutor else { return "" }
+        return await toolExecutor.promptDescription()
+    }
 
     /// 多轮 agent_loop：循环调用 LLM，按 status 推进，直到 final_claims 或轮数耗尽。
     /// 需要 llmClient 与 toolExecutor（未配置时抛 loopNotConfigured）。

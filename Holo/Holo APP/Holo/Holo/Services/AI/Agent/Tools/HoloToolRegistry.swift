@@ -10,7 +10,17 @@ import Foundation
 
 actor HoloToolRegistry {
 
-    private var tools: [String: HoloDataTool] = [:]
+    private var tools: [String: HoloDataTool]
+
+    /// 同步构造：用预设工具列表初始化（供 Factory 同步装配生产 runtime）。
+    /// register() 保留，供运行时动态注册。
+    init(tools: [HoloDataTool] = []) {
+        var dict: [String: HoloDataTool] = [:]
+        for tool in tools {
+            dict[tool.descriptor.name] = tool
+        }
+        self.tools = dict
+    }
 
     func register(_ tool: HoloDataTool) {
         tools[tool.descriptor.name] = tool

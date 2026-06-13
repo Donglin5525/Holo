@@ -11,6 +11,8 @@ import Foundation
 /// 工具执行协议：runtime 依赖此协议，生产用 HoloToolExecutor，测试用 fake。
 protocol HoloAgentToolExecuting: Sendable {
     func execute(_ request: HoloToolRequest) async -> HoloDataToolResult
+    /// 汇总已注册工具的 Prompt 描述，供 runtime 构建 agent_loop 系统提示。
+    func promptDescription() async -> String
 }
 
 actor HoloToolExecutor: HoloAgentToolExecuting {
@@ -19,6 +21,11 @@ actor HoloToolExecutor: HoloAgentToolExecuting {
 
     init(registry: HoloToolRegistry) {
         self.registry = registry
+    }
+
+    /// 汇总已注册工具的 Prompt 描述，供 runtime 构建 agent_loop 系统提示。
+    func promptDescription() async -> String {
+        await registry.promptDescription()
     }
 
     /// 执行一次工具请求，永不 throw：所有失败转为带 error 的 HoloDataToolResult。

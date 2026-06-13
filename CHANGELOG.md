@@ -4,6 +4,20 @@
 
 ---
 
+## [2026-06-14] HoloAI Agent V3.1 对话深度分析接入本地 Agent（Phase 6.2）
+
+### 新增
+- **对话→Agent 分流**：query_analysis 意图命中（agentRuntimeEnabled 灰度）时，ConversationCoordinator 分流到本地深度 Agent，ChatViewModel 启动 Agent job 并展示「正在深度分析」状态
+- **生产 Agent runtime**：`HoloLocalAgentRuntime.shared` 升级为生产 runtime（接真实后端 LLM + Memory 工具），5.1 后台续跑与 6.2 对话分析共用同一实例
+- **AnalysisService**：封装「创建 job → 构建 agent_loop 提示 → 多轮 runLoop」单一入口
+- **工具装配同步化**：HoloToolRegistry 支持 `init(tools:)` 同步构造，避开 actor 异步装配
+
+### 说明
+- 结果短文渲染（claims → 可读文本）与 Habit/Finance 工具生产数据源待后续接入
+- agentRuntimeEnabled 默认关，不影响线上；xcodebuild BUILD SUCCEEDED + standalone AgentRuntime 回归绿
+
+---
+
 ## [2026-06-14] 财务与习惯图标语义体系优化
 
 ### 优化

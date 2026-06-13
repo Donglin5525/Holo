@@ -21,6 +21,8 @@ struct ConversationProcessResult {
     let analysisContext: AnalysisContext?
     /// 灵活查询结构化结果，供 ChatViewModel 渲染
     let flexibleQueryResult: FlexibleQueryResult?
+    /// 命中本地深度 Agent 分流（query_analysis + agentRuntimeEnabled 开）。默认 false。
+    var shouldRouteToAgent: Bool = false
     /// 意图识别 LLM 调用日志
     var intentCallLog: LLMCallLog?
     /// 结构化执行 parser 调用日志
@@ -86,6 +88,24 @@ final class ConversationCoordinator {
                 shouldStreamChat: false,
                 analysisContext: nil,
                 flexibleQueryResult: nil,
+                intentCallLog: intentLog,
+                actionParserCallLog: nil
+            )
+        }
+
+        // 深度 Agent 分流（灰度，agentRuntimeEnabled 把关）：query_analysis 命中 → 走本地 Agent
+        if let firstIntent = parseBatch.first?.intent,
+           Self.shouldRouteToDeepAgent(intent: firstIntent.rawValue) {
+            return ConversationProcessResult(
+                finalText: "",
+                parsedBatch: parseBatch,
+                executionBatch: nil,
+                firstIntent: firstIntent,
+                firstExtractedData: parseBatch.first?.extractedData,
+                shouldStreamChat: false,
+                analysisContext: nil,
+                flexibleQueryResult: nil,
+                shouldRouteToAgent: true,
                 intentCallLog: intentLog,
                 actionParserCallLog: nil
             )

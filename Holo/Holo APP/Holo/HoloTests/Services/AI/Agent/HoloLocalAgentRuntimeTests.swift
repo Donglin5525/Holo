@@ -44,6 +44,8 @@ actor FakeToolExecutor: HoloAgentToolExecuting {
         HoloDataToolResult(toolRequestID: request.id, tool: request.tool, status: .success,
                            coverage: nil, metrics: [], events: [], warnings: [], error: nil)
     }
+
+    func promptDescription() async -> String { "" }
 }
 
 @main
