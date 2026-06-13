@@ -51,6 +51,13 @@ enum HoloAgentResponseParser {
                 }
                 json["claims"] = claims
             }
+            if var requests = json["toolRequests"] as? [[String: Any]] {
+                for i in 0..<requests.count {
+                    if requests[i]["requiredMetrics"] == nil { requests[i]["requiredMetrics"] = [] }
+                    if requests[i]["parameters"] == nil { requests[i]["parameters"] = [:] }
+                }
+                json["toolRequests"] = requests
+            }
             if let fixedData = try? JSONSerialization.data(withJSONObject: json),
                let output = try? JSONDecoder().decode(HoloAgentOutput.self, from: fixedData) {
                 return output
