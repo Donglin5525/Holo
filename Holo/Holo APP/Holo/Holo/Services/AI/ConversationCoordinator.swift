@@ -37,6 +37,18 @@ final class ConversationCoordinator {
         self.intentRouter = intentRouter ?? IntentRouter.shared
     }
 
+    /// 是否应把该 intent 路由到本地深度 Agent（灰度，agentRuntimeEnabled flag 保护）。
+    /// 仅 query_analysis 类分析意图、且非记账/打卡等执行动作才进 Agent。
+    static func shouldRouteToDeepAgent(intent: String) -> Bool {
+        guard HoloAIFeatureFlags.agentRuntimeEnabled else { return false }
+        let executionIntents: Set<String> = [
+            "record_expense", "record_income", "create_task", "complete_task",
+            "update_task", "delete_task", "check_in"
+        ]
+        guard !executionIntents.contains(intent) else { return false }
+        return intent == "query_analysis"
+    }
+
     // MARK: - Main Entry
 
     func process(
