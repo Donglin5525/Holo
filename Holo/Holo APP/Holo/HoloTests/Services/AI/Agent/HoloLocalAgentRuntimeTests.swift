@@ -59,6 +59,8 @@ struct HoloLocalAgentRuntimeTests {
         try await testResume_重启后从checkpoint对齐到当前step()
         try await testCancel_状态变为cancelled且resume不恢复执行()
         try await testRunLoop_needTools后finalClaims两轮完成()
+        try await testPauseForBackground_运行中任务标记waitingForForeground()
+        try await testResumeUnfinishedJobs_恢复未完成任务()
         print("HoloLocalAgentRuntimeTests passed")
     }
 
@@ -210,5 +212,32 @@ struct HoloLocalAgentRuntimeTests {
 
         let checkpoint = await fixture.checkpointStore.latestForJob(jobID: job.id)
         expect(checkpoint?.completedToolResults.isEmpty == false, "checkpoint 应含工具执行结果")
+    }
+
+    /// 进入后台：running 任务标记为 waitingForForeground。
+    private static func testPauseForBackground_运行中任务标记waitingForForeground() async throws {
+        let dir = makeTempDir()
+        let fixture = makeRuntime(dir: dir)
+        let job = try await fixture.runtime.startMockJob(question: "q", now: Date(timeIntervalSince1970: 1000))
+
+        try await fixture.runtime.pauseForBackground(now: Date(timeIntervalSince1970: 2000))
+
+        let stored = await fixture.jobStore.load().first { $0.id == job.id }
+        expect(stored?.state == .waitingForForeground, "进后台应标记 waitingForForeground，实际 \(stored?.state.rawValue ?? "nil")")
+        expect(stored?.lastForegroundRunAt != nil, "应记录最后前台时间")
+    }
+
+    /// 回前台：恢复未结束（waitingForForeground）的任务。
+    private static func testResumeUnfinishedJobs_恢复未完成任务() async throws {
+        let dir = makeTempDir()
+        let fixture = makeRuntime(dir: dir)
+        let job = try await fixture.runtime.startMockJob(question: "q", now: Date(timeIntervalSince1970: 1000))
+        try await fixture.runtime.pauseForBackground(now: Date(timeIntervalSince1970: 2000))
+
+        let count = try await fixture.runtime.resumeUnfinishedJobs(now: Date(timeIntervalSince1970: 3000))
+        expect(count == 1, "应恢复 1 个任务，实际 \(count)")
+
+        let stored = await fixture.jobStore.load().first { $0.id == job.id }
+        expect(stored?.state == .running, "恢复后应为 running，实际 \(stored?.state.rawValue ?? "nil")")
     }
 }

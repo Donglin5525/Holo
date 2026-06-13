@@ -216,6 +216,34 @@ actor HoloLocalAgentRuntime {
         return job
     }
 
+    // MARK: - 后台/前台生命周期
+
+    /// 进入后台：把运行中任务标记为 waitingForForeground，便于前台恢复。
+    func pauseForBackground(now: Date = Date()) async throws {
+        let jobs = await jobStore.load()
+        for var job in jobs where job.state == .running
+            || job.state == .waitingForLLM
+            || job.state == .retrying {
+            job.state = .waitingForForeground
+            job.lastForegroundRunAt = now
+            job.updatedAt = now
+            try await jobStore.upsert(job)
+        }
+    }
+
+    /// 回到前台：恢复所有未结束（非终态、非 running）的任务，返回恢复数量。
+    @discardableResult
+    func resumeUnfinishedJobs(now: Date = Date()) async throws -> Int {
+        let jobs = await jobStore.load()
+        var resumed = 0
+        for job in jobs
+            where !Self.terminalStates.contains(job.state) && job.state != .running {
+            _ = try? await resume(jobID: job.id, now: now)
+            resumed += 1
+        }
+        return resumed
+    }
+
     // MARK: - 内部辅助
 
     private func loadJob(_ jobID: String) async -> HoloAgentJob? {
