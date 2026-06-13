@@ -104,9 +104,7 @@ struct CardHeaderView: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: 11) {
-            Image(systemName: icon)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundColor(.holoPrimary)
+            categoryIconGlyph(icon, size: 16, color: .holoPrimary)
                 .frame(width: 34, height: 34)
                 .background(Color.holoPrimary.opacity(0.12))
                 .clipShape(Circle())

@@ -75,15 +75,15 @@ extension Category {
     static let expenseHierarchy: [CategoryGroupDef] = [
         // ━━━━━━━━━━ 1. 餐饮（蓝色系 #13A4EC）━━━━━━━━━━
         (name: "餐饮", color: "#13A4EC", children: [
-            (name: "早餐", icon: "sunrise.fill"),
-            (name: "午餐", icon: "sun.max.fill"),
-            (name: "晚餐", icon: "moon.stars.fill"),
+            (name: "早餐", icon: "holo.category.breakfast"),
+            (name: "午餐", icon: "holo.category.lunch"),
+            (name: "晚餐", icon: "holo.category.dinner"),
             (name: "夜宵", icon: "moonphase.waning.crescent"),
             (name: "零食", icon: "popcorn.fill"),
             (name: "咖啡", icon: "cup.and.saucer.fill"),
             (name: "外卖", icon: "bag.fill"),
             (name: "饮品", icon: "wineglass.fill"),
-            (name: "水果", icon: "carrot.fill"),
+            (name: "水果", icon: "holo.category.fruit"),
             (name: "酒水", icon: "wineglass"),
             (name: "超市", icon: "cart.fill"),
         ]),
@@ -242,15 +242,15 @@ extension Category {
     /// 覆盖全部 97 个自定义 SVG 图标 + 11 个父类别图标
     static let legacyIconMapping: [String: String] = [
         // ━━━ 餐饮 ━━━
-        "icon_breakfast": "sunrise.fill",
-        "icon_lunch": "sun.max.fill",
-        "icon_dinner": "moon.stars.fill",
+        "icon_breakfast": "holo.category.breakfast",
+        "icon_lunch": "holo.category.lunch",
+        "icon_dinner": "holo.category.dinner",
         "icon_late_snack": "moonphase.waning.crescent",
         "icon_snack": "popcorn.fill",
         "icon_coffee": "cup.and.saucer.fill",
         "icon_takeout": "bag.fill",
         "icon_beverage": "wineglass.fill",
-        "icon_fruit": "carrot.fill",
+        "icon_fruit": "holo.category.fruit",
         "icon_alcohol": "wineglass",
         "icon_supermarket": "cart.fill",
         // ━━━ 交通 ━━━
@@ -668,6 +668,7 @@ extension Category {
 
     private static let migrationFlag = "hasMigratedToSFSymbols_v1"
     private static let migrationV2Flag = "hasMigratedToSFSymbols_v2"
+    private static let semanticIconMigrationFlag = "hasMigratedSemanticCategoryIcons_v1"
 
     /// 将旧 icon_ 前缀图标名迁移为 SF Symbol
     /// 使用 UserDefaults 标记确保只执行一次，迁移失败不设标记下次自动重试
@@ -701,6 +702,9 @@ extension Category {
 
         // v2: 修复 v1 中使用了无效 SF Symbol 名称的图标
         migrateInvalidSymbols(in: context)
+
+        // v3: 修复语义不匹配的默认科目图标
+        migrateSemanticCategoryIcons(in: context)
     }
 
     /// 修复无效的 SF Symbol 名称（v1 迁移使用了不存在的图标名）
@@ -708,7 +712,7 @@ extension Category {
         guard !UserDefaults.standard.bool(forKey: migrationV2Flag) else { return }
 
         let fixes: [String: String] = [
-            "apple.meditation": "carrot.fill",
+            "apple.meditation": "holo.category.fruit",
             "lipstick": "sparkles",
             "couch.fill": "sofa.fill",
         ]
@@ -732,6 +736,39 @@ extension Category {
             } catch { }
         } else {
             UserDefaults.standard.set(true, forKey: migrationV2Flag)
+        }
+    }
+
+    private static func migrateSemanticCategoryIcons(in context: NSManagedObjectContext) {
+        guard !UserDefaults.standard.bool(forKey: semanticIconMigrationFlag) else { return }
+
+        let request = Category.fetchRequest()
+        request.includesSubentities = false
+        guard let all = try? context.fetch(request) else { return }
+
+        let fixes: [String: (oldIcons: Set<String>, newIcon: String)] = [
+            "早餐": (["sunrise.fill", "icon_breakfast"], "holo.category.breakfast"),
+            "午餐": (["sun.max.fill", "icon_lunch"], "holo.category.lunch"),
+            "晚餐": (["moon.stars.fill", "icon_dinner"], "holo.category.dinner"),
+            "水果": (["carrot.fill", "apple.meditation", "icon_fruit"], "holo.category.fruit"),
+        ]
+
+        var migrated = false
+        for category in all where category.type == TransactionType.expense.rawValue {
+            guard category.isDefault, let fix = fixes[category.name] else { continue }
+            if fix.oldIcons.contains(category.icon) {
+                category.icon = fix.newIcon
+                migrated = true
+            }
+        }
+
+        if migrated {
+            do {
+                try context.save()
+                UserDefaults.standard.set(true, forKey: semanticIconMigrationFlag)
+            } catch { }
+        } else {
+            UserDefaults.standard.set(true, forKey: semanticIconMigrationFlag)
         }
     }
 }

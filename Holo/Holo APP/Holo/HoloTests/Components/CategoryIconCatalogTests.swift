@@ -79,7 +79,7 @@ final class CategoryIconCatalogTests: XCTestCase {
     func testTotalIconCount() {
         let count = CategoryIconCatalog.allIcons.count
         XCTAssertGreaterThanOrEqual(count, 165, "图标总数应不少于 165")
-        XCTAssertLessThanOrEqual(count, 180, "图标总数应不超过 180")
+        XCTAssertLessThanOrEqual(count, 190, "图标总数应不超过 190")
     }
 
     // MARK: - 6. 每个 section 有图标
@@ -101,6 +101,10 @@ final class CategoryIconCatalogTests: XCTestCase {
 
         XCTAssertTrue(customIcons.contains("holo.category.generic"))
         XCTAssertTrue(customIcons.contains("holo.category.misc"))
+        XCTAssertTrue(customIcons.contains("holo.category.breakfast"))
+        XCTAssertTrue(customIcons.contains("holo.category.lunch"))
+        XCTAssertTrue(customIcons.contains("holo.category.dinner"))
+        XCTAssertTrue(customIcons.contains("holo.category.fruit"))
 
         for iconName in customIcons {
             XCTAssertTrue(CategoryIconCatalog.contains(iconName), "自绘图标 \(iconName) 应出现在图标目录中")
@@ -137,5 +141,16 @@ final class CategoryIconCatalogTests: XCTestCase {
         for iconName in expectedIcons {
             XCTAssertTrue(CategoryIconCatalog.contains(iconName), "新增科目图标 \(iconName) 应在图标目录中可选")
         }
+    }
+
+    func testMealAndFruitIconsUseSemanticCustomGlyphs() {
+        let foodIcons = CategoryIconCatalog.sections
+            .first { $0.id == "food" }?
+            .icons ?? []
+
+        XCTAssertTrue(foodIcons.contains("holo.category.breakfast"))
+        XCTAssertTrue(foodIcons.contains("holo.category.lunch"))
+        XCTAssertTrue(foodIcons.contains("holo.category.dinner"))
+        XCTAssertTrue(foodIcons.contains("holo.category.fruit"))
     }
 }

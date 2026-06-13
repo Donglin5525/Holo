@@ -27,6 +27,9 @@ enum CategoryIconCatalog {
 
     static let sections: [IconPickerSection] = [
         IconPickerSection(id: "food", title: "餐饮", icons: [
+            // Holo 自绘语义图标
+            "holo.category.breakfast", "holo.category.lunch",
+            "holo.category.dinner", "holo.category.fruit",
             // 现有 12 个
             "fork.knife", "sunrise.fill", "sun.max.fill", "moon.stars.fill",
             "moonphase.waning.crescent", "popcorn.fill", "cup.and.saucer.fill",
@@ -158,6 +161,10 @@ enum CategoryIconCatalog {
 
     /// SwiftUI 自绘图标，不是 SF Symbol
     static let customIconNames: Set<String> = [
+        "holo.category.breakfast",
+        "holo.category.lunch",
+        "holo.category.dinner",
+        "holo.category.fruit",
         "holo.category.generic",
         "holo.category.misc",
     ]

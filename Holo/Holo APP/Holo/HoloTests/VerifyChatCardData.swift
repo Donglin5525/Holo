@@ -136,7 +136,7 @@ class TestCategorySFSymbolMapper {
         "投资理财": "chart.line.uptrend.xyaxis", "工资收入": "banknote.fill",
     ]
     private static let subMapping: [String: String] = [
-        "午餐": "sun.max.fill", "早餐": "sunrise.fill", "晚餐": "moon.stars.fill",
+        "午餐": "holo.category.lunch", "早餐": "holo.category.breakfast", "晚餐": "holo.category.dinner",
         "打车": "car.side.fill", "地铁": "train.side.front.car",
         "服饰": "hanger", "数码": "desktopcomputer",
         "房租": "key.fill", "水费": "drop.fill",
@@ -326,8 +326,8 @@ func runTests() {
     // ===== CategorySFSymbolMapper =====
     print("\n📋 CategorySFSymbolMapper 图标映射\n")
 
-    test("二级分类: 餐饮→午餐 → sun.max.fill") {
-        return assertEqual(TestCategorySFSymbolMapper.icon(for: "餐饮", sub: "午餐"), "sun.max.fill")
+    test("二级分类: 餐饮→午餐 → holo.category.lunch") {
+        return assertEqual(TestCategorySFSymbolMapper.icon(for: "餐饮", sub: "午餐"), "holo.category.lunch")
     }
     test("二级分类: 交通→打车 → car.side.fill") {
         return assertEqual(TestCategorySFSymbolMapper.icon(for: "交通", sub: "打车"), "car.side.fill")

@@ -377,9 +377,11 @@ struct ImportPreviewSheet: View {
             // 匹配结果
             if let matched = result.matchedCategory {
                 HStack(spacing: 4) {
-                    Image(systemName: categoryIconName(for: matched))
-                        .font(.system(size: 14))
-                        .foregroundColor(matchTypeColor(result.matchType))
+                    categoryIconGlyph(
+                        categoryIconName(for: matched),
+                        size: 14,
+                        color: matchTypeColor(result.matchType)
+                    )
                     Text(matched.name)
                         .font(.system(size: 13, weight: .medium))
                         .foregroundColor(matchTypeColor(result.matchType))

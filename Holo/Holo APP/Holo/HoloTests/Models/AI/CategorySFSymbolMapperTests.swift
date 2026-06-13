@@ -13,7 +13,10 @@ final class CategorySFSymbolMapperTests: XCTestCase {
     // MARK: - 二级分类映射
 
     func testSubCategoryIcon() {
-        XCTAssertEqual(CategorySFSymbolMapper.icon(for: "餐饮", subCategory: "午餐"), "sun.max.fill")
+        XCTAssertEqual(CategorySFSymbolMapper.icon(for: "餐饮", subCategory: "早餐"), "holo.category.breakfast")
+        XCTAssertEqual(CategorySFSymbolMapper.icon(for: "餐饮", subCategory: "午餐"), "holo.category.lunch")
+        XCTAssertEqual(CategorySFSymbolMapper.icon(for: "餐饮", subCategory: "晚餐"), "holo.category.dinner")
+        XCTAssertEqual(CategorySFSymbolMapper.icon(for: "餐饮", subCategory: "水果"), "holo.category.fruit")
         XCTAssertEqual(CategorySFSymbolMapper.icon(for: "交通", subCategory: "打车"), "car.side.fill")
         XCTAssertEqual(CategorySFSymbolMapper.icon(for: "购物", subCategory: "数码"), "desktopcomputer")
         XCTAssertEqual(CategorySFSymbolMapper.icon(for: "居住", subCategory: "房租"), "key.fill")
@@ -83,6 +86,9 @@ final class CategorySFSymbolMapperTests: XCTestCase {
 
         for (primary, sub) in testCases {
             let iconName = CategorySFSymbolMapper.icon(for: primary, subCategory: sub)
+            if CategoryIconCatalog.isCustomIcon(iconName) {
+                continue
+            }
             // NSImage 在 iOS 上不可用，使用 UIImage
             #if os(iOS)
             let symbolExists = UIImage(systemName: iconName) != nil
