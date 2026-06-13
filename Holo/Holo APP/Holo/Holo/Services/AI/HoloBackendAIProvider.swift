@@ -421,6 +421,7 @@ enum HoloBackendPurpose: String {
     case financeActionParser = "finance_action_parser"
     case taskActionParser = "task_action_parser"
     case thoughtOrganization = "thought_organization"
+    case agentLoop = "agent_loop"
 }
 
 extension AIActionParserKind {

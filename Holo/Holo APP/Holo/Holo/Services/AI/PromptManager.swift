@@ -37,6 +37,7 @@ final class PromptManager {
         case taskActionParser = "task_action_parser"
         case categoryPatternInduction = "category_pattern_induction"
         case thoughtOrganization = "thought_organization"
+        case agentLoop = "agent_loop"
 
         var displayName: String {
             switch self {
@@ -55,6 +56,7 @@ final class PromptManager {
             case .taskActionParser: return "重复任务解析"
             case .categoryPatternInduction: return "分类模式归纳"
             case .thoughtOrganization: return "想法自动整理"
+            case .agentLoop: return "Agent Loop 推理"
             }
         }
 
@@ -75,6 +77,7 @@ final class PromptManager {
             case .taskActionParser: return "从重复任务文本中提取结构化参数"
             case .categoryPatternInduction: return "从用户分类修正样本中归纳出通用匹配模式"
             case .thoughtOrganization: return "为想法自动生成标签和主题候选"
+            case .agentLoop: return "本地 Agent 多轮推理，输出结构化 JSON"
             }
         }
 
@@ -95,6 +98,7 @@ final class PromptManager {
             case .taskActionParser: return "repeat.circle"
             case .categoryPatternInduction: return "lightbulb.circle"
             case .thoughtOrganization: return "tag.circle"
+            case .agentLoop: return "cpu"
             }
         }
     }
@@ -113,7 +117,8 @@ final class PromptManager {
         .memoryObserver: 1,             // v1: 初始版本，记忆观察引擎
         .financeActionParser: 1,        // v1: 分期记账参数解析
         .taskActionParser: 1,           // v1: 重复任务参数解析
-        .thoughtOrganization: 1        // v1: 想法自动整理
+        .thoughtOrganization: 1,        // v1: 想法自动整理
+        .agentLoop: 1                   // v1: Agent Loop 推理
     ]
 
     /// 加载指定类型的 Prompt，带缓存，优先读取 UserDefaults 自定义。
@@ -226,6 +231,38 @@ final class PromptManager {
     // MARK: - Inline Templates
 
     private let templates: [PromptType: String] = [
+        .agentLoop: """
+        你是 HoloAI 的本地 Agent Loop 推理器。
+        你不能直接查询数据，只能请求 iOS 本地工具。
+        你会收到可用工具描述、用户问题、conversationState、toolResults、patternSignals、evidenceRefs。
+        你必须只输出 JSON。
+
+        status 只能是：
+        - need_tools
+        - need_more_analysis
+        - final_claims
+
+        每个 claim 必须有 metricAssertions 和 evidenceIDs。
+        不得输出没有 evidence 的事实。
+        不得把相关写成因果。
+        不得做心理、医疗、人格判断。
+
+        表达边界：
+        - 区分事实、观察、假设和建议。
+        - 低置信判断必须使用"可能/像是/值得留意"，不能说成确定结论。
+        - 跨模块关系只能表达为并发现象，不能说"导致/证明/说明一定因为"。
+        - 不做人格、心理、医疗诊断，不使用羞辱、审判或命令式表达。
+        - 当前明确输入永远优先；长期记忆、近期状态只能辅助理解，不能覆盖本轮输入。
+
+        输出 JSON Schema：
+        {"status":"need_tools | need_more_analysis | final_claims","reasoning":"string","toolRequests":[{"id":"string","tool":"string","query":"string","parameters":{}}],"claims":[{"id":"string","text":"string","metricAssertions":[],"evidenceIDs":["string"]}],"warnings":[]}
+
+        need_tools：需要调用本地工具，必须给出 toolRequests。
+        need_more_analysis：已有信息不足以得出结论，需要继续推理。
+        final_claims：证据充分，输出最终 claims，toolRequests 必须为空数组。
+
+        只输出 JSON，不要添加其他内容。
+        """,
         .systemPrompt: """
         你是 Holo AI 助手，专注于帮用户管理个人数据。用户每次对话都应包含明确指令。
 
