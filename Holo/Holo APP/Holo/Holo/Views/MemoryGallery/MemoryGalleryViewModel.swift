@@ -83,6 +83,9 @@ class MemoryGalleryViewModel: ObservableObject {
     /// 每日状态快照
     @Published var dailySenseSnapshot: DailySenseSnapshot?
 
+    /// Agent 深度分析结果（Phase 6.3，agentMemoryGalleryEnabled 灰度）；nil 时回退旧 insight。
+    @Published var agentRenderedResult: HoloRenderedAgentResult?
+
     // MARK: - Private Properties
 
     /// 分页按天计算（每页加载 N 天的数据）
@@ -611,6 +614,11 @@ class MemoryGalleryViewModel: ObservableObject {
             return
         }
 
+        // Agent 深度分析结果（Phase 6.3，灰度）：flag 开时读取展示，nil 时继续走旧 insight
+        if MemoryInsightService.shouldReadAgentResults {
+            await loadAgentRenderedResult()
+        }
+
         // 加载周洞察（智能回退）
         let (weekStart, weekEnd, weekFallback) = MemoryInsightContextBuilder.effectivePeriodRange(
             periodType: .weekly, referenceDate: Date()
@@ -673,6 +681,22 @@ class MemoryGalleryViewModel: ObservableObject {
                 dailySenseSnapshot = snapshot
             }
         }
+    }
+
+    /// 读取最近一条 Agent 深度分析结果并渲染（Phase 6.3，agentMemoryGalleryEnabled 灰度）。
+    /// 当前展示 claims 文本；evidence 引用渲染待后续接入 evidence 读取。
+    private func loadAgentRenderedResult() async {
+        let runtime = await HoloLocalAgentRuntime.shared
+        guard let result = await runtime.loadLatestResult() else {
+            agentRenderedResult = nil
+            return
+        }
+        agentRenderedResult = HoloRenderedAgentResult(
+            title: result.title,
+            summary: result.summary,
+            sections: result.claims.map { HoloRenderedAgentSection(title: $0.displayText, body: $0.displayText) },
+            evidenceReferences: []
+        )
     }
 
     /// 生成本周 AI 回放

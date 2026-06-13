@@ -160,6 +160,11 @@ actor HoloLocalAgentRuntime {
         return await toolExecutor.promptDescription()
     }
 
+    /// 读取最近一条 Agent 结果，供记忆长廊展示（Phase 6.3）。
+    func loadLatestResult() async -> HoloAgentResult? {
+        await persistence.loadLatestResult()
+    }
+
     /// 多轮 agent_loop：循环调用 LLM，按 status 推进，直到 final_claims 或轮数耗尽。
     /// 需要 llmClient 与 toolExecutor（未配置时抛 loopNotConfigured）。
     /// 注：循环条件用 LLM 轮数，不依赖 budget.isExhausted 的 wallTime（其内部用 Date() 无法注入测试时间）。
@@ -229,6 +234,24 @@ actor HoloLocalAgentRuntime {
                 try await persistence.saveProgress(job: job, evidence: [], checkpoint: checkpoint)
             case .finalClaims:
                 checkpoint.step = .verifyClaims
+                // 构造最终结果（claims + 汇总 evidenceIDs）并持久化，供记忆长廊展示
+                let resultEvidenceIDs = Array(Set(output.claims.flatMap(\.evidenceIDs)))
+                let agentResult = HoloAgentResult(
+                    id: UUID().uuidString,
+                    jobID: job.id,
+                    title: "深度分析",
+                    summary: output.claims.isEmpty
+                        ? "本期暂无显著观察"
+                        : output.claims.map(\.displayText).joined(separator: "；"),
+                    claims: output.claims,
+                    evidenceIDs: resultEvidenceIDs,
+                    memoryCandidateIDs: [],
+                    status: "completed",
+                    generatedAt: now,
+                    updatedAt: now
+                )
+                try await persistence.saveResult(agentResult)
+                job.resultID = agentResult.id
                 job.state = .completed
                 job.updatedAt = now
                 try await persistence.saveProgress(job: job, evidence: [], checkpoint: checkpoint)

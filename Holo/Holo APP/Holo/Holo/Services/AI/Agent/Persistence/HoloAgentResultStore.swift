@@ -36,4 +36,10 @@ actor HoloAgentResultStore {
         let all = await store.load()
         return all.first { $0.jobID == jobID }
     }
+
+    /// 返回最近一条 result（按 generatedAt 降序），供记忆长廊展示。
+    func latest() async -> HoloAgentResult? {
+        let all = await store.load()
+        return all.max(by: { $0.generatedAt < $1.generatedAt })
+    }
 }

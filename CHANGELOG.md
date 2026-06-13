@@ -4,6 +4,19 @@
 
 ---
 
+## [2026-06-14] HoloAI Agent V3.1 记忆长廊展示 Agent 结果（Phase 6.3）
+
+### 新增
+- **Agent 结果落盘**：runLoop 完成 final_claims 时构造 `HoloAgentResult`（claims + 汇总 evidenceIDs）并持久化，补齐 6.2 的结果产物缺口
+- **结果读取链**：`ResultStore.latest` / `PersistenceManager.saveResult`+`loadLatestResult` / `runtime.loadLatestResult`
+- **记忆长廊展示**：MemoryGalleryViewModel 在 agentMemoryGalleryEnabled 灰度下读取最近 Agent 结果，新增 `HoloAgentResultCard` 卡片展示 verified claims；旧 insight 保留 fallback
+
+### 说明
+- evidence 引用渲染待后续接入 evidence 读取；agentMemoryGalleryEnabled 默认关，不影响线上
+- xcodebuild BUILD SUCCEEDED + standalone PersistenceManager/AgentRuntime 回归绿
+
+---
+
 ## [2026-06-14] HoloAI Agent V3.1 对话深度分析接入本地 Agent（Phase 6.2）
 
 ### 新增

@@ -48,6 +48,16 @@ actor HoloAgentPersistenceManager {
         try await jobStore.upsert(job)
     }
 
+    /// 写入 Agent 最终结果（final_claims 产出）。
+    func saveResult(_ result: HoloAgentResult) async throws {
+        try await resultStore.upsert(result)
+    }
+
+    /// 读取最近一条 Agent 结果（按 generatedAt 降序），供记忆长廊展示。
+    func loadLatestResult() async -> HoloAgentResult? {
+        await resultStore.latest()
+    }
+
     /// 校验 checkpoint 引用的 evidence 是否都存在于 ledger。
     func validateCheckpoint(_ checkpoint: HoloAgentCheckpoint) async -> Bool {
         let evidenceIDs = Set(await evidenceLedger.load().map(\.id))
