@@ -56,7 +56,8 @@ final class HoloAgentAnalysisService {
                 return fail("[step5: runLoop异常] \(String(describing: error))")
             }
             guard finalJob.state == .completed else {
-                return fail("[step5: 状态非completed] \(finalJob.state.rawValue)")
+                let detail = "state=\(finalJob.state.rawValue) rounds=\(finalJob.budget.consumedLLMRounds)/\(finalJob.budget.maxLLMRounds) error=\(finalJob.errorSummary ?? "无")"
+                return fail("[step5: 未完成] \(detail)")
             }
             guard let result = await runtime.loadLatestResult() else {
                 return fail("[step6: 结果未保存] loadLatestResult nil")

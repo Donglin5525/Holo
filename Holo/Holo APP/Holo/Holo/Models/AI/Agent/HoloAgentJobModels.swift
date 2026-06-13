@@ -95,7 +95,7 @@ extension HoloAgentBudget {
     /// 标准深度分析预算
     static func normalDeep(now: Date = Date()) -> HoloAgentBudget {
         HoloAgentBudget(
-            maxLLMRounds: 3, maxToolBatches: 3,
+            maxLLMRounds: 5, maxToolBatches: 5,
             maxInputTokens: 10_000, maxOutputTokens: 4_000,
             maxWallTimeSeconds: 120,
             consumedLLMRounds: 0, consumedToolBatches: 0,
