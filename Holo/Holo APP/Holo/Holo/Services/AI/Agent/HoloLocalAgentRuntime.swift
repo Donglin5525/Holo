@@ -214,7 +214,7 @@ actor HoloLocalAgentRuntime {
                     continue
                 }
                 job.state = .failed
-                job.errorSummary = "Agent 输出解析失败且重试耗尽"
+                job.errorSummary = "解析失败重试耗尽。模型返回(前200字): \(String(raw.prefix(200)))"
                 job.updatedAt = now
                 try await jobStore.upsert(job)
                 return job
