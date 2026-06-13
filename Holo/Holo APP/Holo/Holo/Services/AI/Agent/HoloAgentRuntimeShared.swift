@@ -29,7 +29,9 @@ extension HoloLocalAgentRuntime {
         let provider = HoloBackendAIProvider(baseURL: HoloBackendEnvironment.baseURL)
         let llmClient = HoloAgentLLMClient(provider: provider)
         let registry = HoloToolRegistry(tools: [
-            HoloMemoryTool(dataSource: HoloDefaultMemoryDataSource())
+            HoloMemoryTool(dataSource: HoloDefaultMemoryDataSource()),
+            HoloHabitTool(dataSource: HoloDefaultHabitDataSource()),
+            HoloFinanceTool(dataSource: HoloDefaultFinanceDataSource())
         ])
         let toolExecutor = HoloToolExecutor(registry: registry)
         return HoloLocalAgentRuntime(

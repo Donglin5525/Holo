@@ -4,6 +4,19 @@
 
 ---
 
+## [2026-06-14] HoloAI Agent V3.1 Habit/Finance 工具接真实数据（Task #34）
+
+### 新增
+- **习惯数据源**：HoloDefaultHabitDataSource 包裹真实 HabitRepository，按日聚合近 14 天打卡/数值记录为 dailyCounts（数值型累加 value，打卡型 +1），转 HabitTool 中性结构
+- **财务数据源**：HoloDefaultFinanceDataSource 包裹真实 FinanceRepository，聚合本期/基线（各 14 天）的晚间餐饮频次（22:00–06:00 + 餐饮关键词）、分类次数、支出金额
+- **三工具注册**：生产 runtime 现注册 Memory + Habit + Finance 三个工具，Agent 可读三域真实数据
+
+### 说明
+- 习惯同步 repo 经 MainActor.run 保证 Core Data 线程安全；财务 async getTransactions 直接 await
+- 生产 DataSource 仅随 app 编译，不进 standalone 测试；xcodebuild BUILD SUCCEEDED + standalone 工具测试回归绿
+
+---
+
 ## [2026-06-14] HoloAI Agent V3.1 Observer 自动触发深度 Agent（Phase 6.4）
 
 ### 新增
