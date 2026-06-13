@@ -4,6 +4,19 @@
 
 ---
 
+## [2026-06-13] 修复习惯信号判断与手势冲突
+
+### 修复
+- **习惯信号区分四种状态**：新增 `buildHabitSignal` 独立函数，区分「未打卡 / 部分完成 / 全部完成 / 断节奏」，不再笼统显示"打卡都完成了"
+- **DailySense 快照升级至 schema v4**：新增 `isCurrentSchema` 属性，旧版本快照自动重新生成；新增 `invalidateToday()` 供源数据变更后清除缓存
+- **手势冲突修复**：HealthDetailView / HealthView 的自定义 DragGesture 替换为统一 `swipeBackToDismiss` 修饰符
+- **首页功能按钮点击修复**：TapGesture 改为原生 Button，拖拽 minimumDistance 从 0 调至 6，避免普通点击被卷入拖拽
+
+### 新增
+- 4 份 HoloAI Agent 架构方案文档（V1 → V3.1 迭代过程）
+
+---
+
 ## [2026-06-12] 习惯统计周视图对齐为周一至周日
 
 ### 修复
