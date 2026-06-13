@@ -14,9 +14,12 @@ actor HoloLocalAgentRuntime {
     private let persistence: HoloAgentPersistenceManager
     private let jobStore: HoloAgentJobStore
     private let checkpointStore: HoloAgentCheckpointStore
+    private let patternMiner = HoloPatternMiner()
 
-    /// mock 阶段模拟的步骤序列（plan → executeTools → persistResult）。
-    private static let mockSequence: [HoloAgentStep] = [.plan, .executeTools, .persistResult]
+    /// mock 阶段模拟的步骤序列：plan → executeTools → minePatterns → integrateResults → persistResult。
+    private static let mockSequence: [HoloAgentStep] = [
+        .plan, .executeTools, .minePatterns, .integrateResults, .persistResult
+    ]
 
     /// 终态集合：resume 时遇到这些状态直接返回，不恢复执行。
     private static let terminalStates: Set<HoloAgentJobState> = [.completed, .failed, .cancelled]
@@ -67,12 +70,19 @@ actor HoloLocalAgentRuntime {
         var completedSteps = latest?.completedSteps ?? []
         if !completedSteps.contains(current) { completedSteps.append(current) }
 
+        // 完成工具执行后，在 minePatterns 步骤确定性挖掘趋势信号
+        var patternSignals = latest?.patternSignals ?? []
+        if current == .minePatterns {
+            patternSignals = patternMiner.mine(toolResults: latest?.completedToolResults ?? [], now: now)
+        }
+
         let isLast = index == Self.mockSequence.count - 1
         let nextStep = isLast ? current : Self.mockSequence[index + 1]
 
         let checkpoint = Self.makeCheckpoint(
             jobID: job.id, step: nextStep, completedSteps: completedSteps,
-            conversation: latest?.conversationState ?? [], now: now
+            conversation: latest?.conversationState ?? [],
+            patternSignals: patternSignals, now: now
         )
         job.currentStep = nextStep
         job.checkpointID = checkpoint.id
@@ -123,12 +133,13 @@ actor HoloLocalAgentRuntime {
 
     private static func makeCheckpoint(
         jobID: String, step: HoloAgentStep, completedSteps: [HoloAgentStep],
-        conversation: [HoloAgentMessage], now: Date
+        conversation: [HoloAgentMessage], patternSignals: [HoloPatternSignal] = [],
+        now: Date
     ) -> HoloAgentCheckpoint {
         HoloAgentCheckpoint(
             id: UUID().uuidString, jobID: jobID, step: step, completedSteps: completedSteps,
             conversationState: conversation, pendingToolRequests: [], completedToolResults: [],
-            patternSignals: [], evidenceRecordIDs: [], validatedClaimIDs: [],
+            patternSignals: patternSignals, evidenceRecordIDs: [], validatedClaimIDs: [],
             memoryCandidateIDs: [], retryCountByStep: [:],
             createdAt: now, updatedAt: now
         )
