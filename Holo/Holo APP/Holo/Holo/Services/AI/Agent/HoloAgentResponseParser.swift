@@ -31,10 +31,37 @@ enum HoloAgentResponseParser {
             .replacingOccurrences(of: "```", with: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
-        guard let data = cleaned.data(using: .utf8),
-              let output = try? JSONDecoder().decode(HoloAgentOutput.self, from: data) else {
+        guard let data = cleaned.data(using: .utf8) else {
             throw HoloAgentError.outputParseFailure(needsRetry: remainingRetries > 0)
         }
-        return output
+
+        // 容错：补全 deepseek 可能省略的空数组/默认值字段
+        if var json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
+            if json["toolRequests"] == nil { json["toolRequests"] = [] }
+            if json["claims"] == nil { json["claims"] = [] }
+            if json["warnings"] == nil { json["warnings"] = [] }
+            if json["reasoning"] == nil { json["reasoning"] = "" }
+            if var claims = json["claims"] as? [[String: Any]] {
+                for i in 0..<claims.count {
+                    if claims[i]["metricAssertions"] == nil { claims[i]["metricAssertions"] = [] }
+                    if claims[i]["evidenceIDs"] == nil { claims[i]["evidenceIDs"] = [] }
+                    if claims[i]["prohibitedInferences"] == nil { claims[i]["prohibitedInferences"] = [] }
+                    if claims[i]["confidence"] == nil { claims[i]["confidence"] = 0.5 }
+                    if claims[i]["type"] == nil { claims[i]["type"] = "observation" }
+                }
+                json["claims"] = claims
+            }
+            if let fixedData = try? JSONSerialization.data(withJSONObject: json),
+               let output = try? JSONDecoder().decode(HoloAgentOutput.self, from: fixedData) {
+                return output
+            }
+        }
+
+        // 回退：原始 data 直接 decode
+        if let output = try? JSONDecoder().decode(HoloAgentOutput.self, from: data) {
+            return output
+        }
+
+        throw HoloAgentError.outputParseFailure(needsRetry: remainingRetries > 0)
     }
 }
