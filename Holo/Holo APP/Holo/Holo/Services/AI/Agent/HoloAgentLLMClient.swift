@@ -28,6 +28,12 @@ actor HoloAgentLLMClient: HoloAgentLLMClientProtocol {
             return ChatMessageDTO(role: apiRole, content: $0.content)
         }
         // purpose=.agentLoop 走后端 agent_loop route，返回内容由后端做 JSON 校验
-        return try await provider.chat(messages: chatMessages, purpose: .agentLoop)
+        // deepseek 偶尔 503，加一次重试间隔 2 秒
+        do {
+            return try await provider.chat(messages: chatMessages, purpose: .agentLoop)
+        } catch {
+            try await Task.sleep(nanoseconds: 2_000_000_000)
+            return try await provider.chat(messages: chatMessages, purpose: .agentLoop)
+        }
     }
 }
