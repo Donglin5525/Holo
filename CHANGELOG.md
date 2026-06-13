@@ -4,6 +4,13 @@
 
 ---
 
+## [2026-06-14] Agent 灰度开关 UI 接入「设置 → AI」
+
+### 新增
+- 设置 → AI 新增「Agent 深度分析（灰度）」Section，四个 Toggle 一步到位开关：Agent 深度分析引擎 / 记忆长廊展示 Agent 结果 / 后台观察自动深挖 / Agent 调试入口，全部默认关
+
+---
+
 ## [2026-06-14] HoloAI Agent V3.1 数据时间范围接 ToolRequest（遗留 ③）
 
 ### 修复
