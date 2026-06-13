@@ -13,11 +13,7 @@ nonisolated enum HoloBackendEnvironment {
     }
 
     static var baseURL: String {
-#if DEBUG
-        ProcessInfo.processInfo.environment["HOLO_BACKEND_URL"] ?? "http://123.56.104.9:8787"
-#else
         ProcessInfo.processInfo.environment["HOLO_BACKEND_URL"] ?? "https://api.holoapp.cn"
-#endif
     }
 
     @MainActor
