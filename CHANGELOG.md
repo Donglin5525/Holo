@@ -4,6 +4,18 @@
 
 ---
 
+## [2026-06-14] HoloAI Agent V3.1 Observer 自动触发深度 Agent（Phase 6.4）
+
+### 新增
+- **Tier2 触发接线**：HoloMemoryObserverService 跑完 Tier1 浅观察后，在 agentObserverTier2Enabled 灰度下，将目标信号确定性映射为 goalConflict pattern，经 HoloObserverTriggerPolicy 判断（360 分钟冷却 + 严重度），命中则 fire-and-forget 启动 Tier2 深度 Agent
+- 冷却时间持久化在 UserDefaults；Tier2 在 @MainActor Task 异步跑，不阻塞 Observer
+
+### 说明
+- patterns 映射为简单规则（目标信号数 → goalConflict high pattern），语义可后续细化
+- Policy 与 standalone 测试此前已完成；本次仅接线。xcodebuild BUILD SUCCEEDED
+
+---
+
 ## [2026-06-14] HoloAI Agent V3.1 记忆长廊展示 Agent 结果（Phase 6.3）
 
 ### 新增

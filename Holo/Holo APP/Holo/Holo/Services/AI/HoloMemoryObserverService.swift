@@ -104,6 +104,42 @@ final class HoloMemoryObserverService {
             result: result,
             rejectedCount: validationResult.rejectedEntries.count
         )
+
+        // 10. Tier 2 触发策略（Phase 6.4，agentObserverTier2Enabled 灰度）
+        if HoloAIFeatureFlags.agentObserverTier2Enabled {
+            triggerTier2IfNeeded(goalSignalCount: goalSignals.count)
+        }
+    }
+
+    /// Tier 2 触发：发现目标信号（goalConflict）且冷却已过时，升级到深度 Agent。
+    /// patterns 由目标信号数量确定性构造（Observer 不跑工具，故不用 PatternMiner）；
+    /// 冷却时间持久化在 UserDefaults。Tier2 Agent 在 @MainActor Task 中异步跑（fire-and-forget），不阻塞 Observer。
+    private func triggerTier2IfNeeded(goalSignalCount: Int, now: Date = Date()) {
+        let patterns: [HoloPatternSignal] = goalSignalCount > 0 ? [
+            HoloPatternSignal(
+                id: "observer-goalConflict",
+                type: .goalConflict,
+                title: "目标进度观察",
+                metricKey: "observer.goal",
+                value: nil, baselineValue: nil,
+                severity: .high,
+                evidenceIDs: [],
+                reason: "Observer 发现 \(goalSignalCount) 条目标信号，值得深度跟进",
+                generatedAt: now
+            )
+        ] : []
+        let lastRunKey = "holo_agent_observer_tier2_last_run"
+        let lastTier2RunAt = UserDefaults.standard.object(forKey: lastRunKey) as? Date
+        let policy = HoloObserverTriggerPolicy()
+        guard policy.shouldTriggerTier2(
+            patterns: patterns, lastTier2RunAt: lastTier2RunAt, now: now, userRequested: false
+        ) else { return }
+        logger.info("Observer 触发 Tier2 深度分析（\(goalSignalCount) 条目标信号）")
+        let question = "基于最近一次记忆观察（发现 \(goalSignalCount) 条目标信号），深度分析我的目标进度与潜在冲突。"
+        Task { @MainActor in
+            _ = await HoloAgentAnalysisService().runAnalysis(question: question)
+        }
+        UserDefaults.standard.set(now, forKey: lastRunKey)
     }
 
     // MARK: - LLM Call
