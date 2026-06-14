@@ -45,6 +45,7 @@ DerivedData/
 
 # gstack 本地状态
 .superpowers/
+.worktrees/
 
 # 生成的截图与原型资源
 artifacts/*.png
