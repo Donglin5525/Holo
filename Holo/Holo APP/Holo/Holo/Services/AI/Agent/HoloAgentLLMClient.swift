@@ -21,11 +21,16 @@ actor HoloAgentLLMClient: HoloAgentLLMClientProtocol {
     func next(messages: [HoloAgentMessage]) async throws -> String {
         let chatMessages = messages.map {
             let apiRole: String
+            let content: String
             switch $0.role {
-            case .toolResult: apiRole = "tool"
-            default: apiRole = $0.role.rawValue
+            case .toolResult:
+                apiRole = "assistant"
+                content = "工具执行结果：\n\($0.content)"
+            default:
+                apiRole = $0.role.rawValue
+                content = $0.content
             }
-            return ChatMessageDTO(role: apiRole, content: $0.content)
+            return ChatMessageDTO(role: apiRole, content: content)
         }
         // purpose=.agentLoop 走后端 agent_loop route，返回内容由后端做 JSON 校验
         // deepseek 偶尔 503，加一次重试间隔 2 秒

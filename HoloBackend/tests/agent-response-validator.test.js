@@ -38,8 +38,45 @@ test("合法 JSON 返回 valid 并带 parsed", () => {
   assert.equal(result.parsed.status, "final_claims");
 });
 
+test("agent_loop 旧 claim.text 会被规范化为 displayText", () => {
+  const result = validateAgentLoopContent(
+    JSON.stringify({
+      status: "final_claims",
+      claims: [{ id: "c1", text: "餐饮消费集中在晚餐", metricAssertions: [], evidenceIDs: ["e1"] }],
+      reasoning: "证据充分",
+    })
+  );
+
+  assert.equal(result.valid, true);
+  assert.equal(result.parsed.claims[0].displayText, "餐饮消费集中在晚餐");
+  assert.equal(result.parsed.claims[0].type, "observation");
+  assert.equal(result.parsed.claims[0].confidence, 0.5);
+  assert.match(result.content, /displayText/);
+});
+
+test("final_claims claim 缺少 displayText 和 text 返回 invalid", () => {
+  const result = validateAgentLoopContent(
+    JSON.stringify({
+      status: "final_claims",
+      claims: [{ id: "c1", metricAssertions: [], evidenceIDs: ["e1"] }],
+      reasoning: "证据充分",
+    })
+  );
+
+  assert.equal(result.valid, false);
+  assert.match(result.error, /displayText/);
+});
+
 test("非法 JSON 文本返回 invalid", () => {
   const result = validateAgentLoopContent("这不是 JSON {");
   assert.equal(result.valid, false);
   assert.match(result.error, /JSON/i);
+});
+
+test("markdown code fence 包裹的 agent JSON 可以解析", () => {
+  const result = validateAgentLoopContent(
+    '```json\n{"status":"final_claims","reasoning":"ok","toolRequests":[],"claims":[],"warnings":[]}\n```'
+  );
+  assert.equal(result.valid, true);
+  assert.equal(result.parsed.status, "final_claims");
 });

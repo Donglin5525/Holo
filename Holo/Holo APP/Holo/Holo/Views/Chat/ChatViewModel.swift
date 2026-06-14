@@ -291,10 +291,7 @@ final class ChatViewModel: ObservableObject {
                         analysisContextJSON: nil,
                         rawLogJSON: nil
                     )
-                    return
-                }
-
-                if processResult.shouldStreamChat {
+                } else if processResult.shouldStreamChat {
                     if let analysisContext = processResult.analysisContext {
                         // 立即设置 intent + analysisContext → 渲染 loading 卡片
                         self.chatRepo?.setAnalysisLoadingState(

@@ -29,9 +29,11 @@ actor RuntimeMockLedger: HoloEvidenceLedgerProtocol {
 /// 多轮 loop 测试专用 fake LLM client：按顺序返回预设响应。
 actor FakeAgentLLMClient: HoloAgentLLMClientProtocol {
     private let responses: [String]
+    private(set) var messageBatches: [[HoloAgentMessage]] = []
     private(set) var callCount = 0
     init(responses: [String]) { self.responses = responses }
     func next(messages: [HoloAgentMessage]) async throws -> String {
+        messageBatches.append(messages)
         let response = responses[min(callCount, responses.count - 1)]
         callCount += 1
         return response
@@ -42,7 +44,17 @@ actor FakeAgentLLMClient: HoloAgentLLMClientProtocol {
 actor FakeToolExecutor: HoloAgentToolExecuting {
     func execute(_ request: HoloToolRequest) async -> HoloDataToolResult {
         HoloDataToolResult(toolRequestID: request.id, tool: request.tool, status: .success,
-                           coverage: nil, metrics: [], events: [], warnings: [], error: nil)
+                           coverage: nil,
+                           metrics: [
+                            HoloMetric(metricKey: "finance.meal.nighttime_count", value: 5, unit: "次",
+                                       baselineValue: 1, comparison: "increasing")
+                           ],
+                           events: [
+                            HoloEvidenceEvent(id: "event-1", occurredAt: Date(timeIntervalSince1970: 1000),
+                                              metricKey: "finance.meal.nighttime_count",
+                                              metricValue: 5, excerpt: "晚餐消费 5 次")
+                           ],
+                           warnings: [], error: nil)
     }
 
     func promptDescription() async -> String { "" }
@@ -61,6 +73,8 @@ struct HoloLocalAgentRuntimeTests {
         try await testResume_重启后从checkpoint对齐到当前step()
         try await testCancel_状态变为cancelled且resume不恢复执行()
         try await testRunLoop_needTools后finalClaims两轮完成()
+        try await testRunLoop_工具结果进入下一轮LLM上下文且不用原生tool角色()
+        try await testRunLoop_模型不收敛时用工具结果兜底完成()
         try await testPauseForBackground_运行中任务标记waitingForForeground()
         try await testResumeUnfinishedJobs_恢复未完成任务()
         try await test后台暂停后恢复并RunLoop完成()
@@ -215,6 +229,53 @@ struct HoloLocalAgentRuntimeTests {
 
         let checkpoint = await fixture.checkpointStore.latestForJob(jobID: job.id)
         expect(checkpoint?.completedToolResults.isEmpty == false, "checkpoint 应含工具执行结果")
+    }
+
+    /// 工具结果必须作为普通上下文进入下一轮 LLM，不能使用 OpenAI 原生 tool role。
+    private static func testRunLoop_工具结果进入下一轮LLM上下文且不用原生tool角色() async throws {
+        let dir = makeTempDir()
+        let needTools = #"{"status":"need_tools","reasoning":"需要查消费","toolRequests":[{"id":"t-finance","tool":"finance","query":"meal_spending","timeRange":null,"baseline":null,"requiredMetrics":[],"parameters":{}}],"claims":[],"warnings":[]}"#
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let client = FakeAgentLLMClient(responses: [needTools, finalClaims])
+        let executor = FakeToolExecutor()
+        let fixture = makeLoopRuntime(dir: dir, llmClient: client, toolExecutor: executor)
+
+        let job = try await fixture.runtime.startMockJob(question: "最近消费有什么变化", now: Date(timeIntervalSince1970: 1000))
+        _ = try await fixture.runtime.runLoop(
+            jobID: job.id, systemTemplate: "你是 Agent", toolDescriptions: "【finance】消费工具",
+            now: Date(timeIntervalSince1970: 2000)
+        )
+
+        let batches = await client.messageBatches
+        expect(batches.count == 2, "应调用 LLM 两轮，实际 \(batches.count)")
+        let secondBatch = batches[1]
+        expect(!secondBatch.contains(where: { $0.role == .toolResult }), "第二轮 LLM 上下文不应包含原生 toolResult 角色")
+        let joinedContent = secondBatch.map(\.content).joined(separator: "\n")
+        expect(joinedContent.contains("finance.meal.nighttime_count"), "第二轮 LLM 上下文应包含工具 metric")
+        expect(joinedContent.contains("晚餐消费"), "第二轮 LLM 上下文应包含工具事件摘要")
+    }
+
+    /// 模型一直不输出 final_claims 时，已有工具结果应兜底产出保守结论，避免用户看到预算耗尽。
+    private static func testRunLoop_模型不收敛时用工具结果兜底完成() async throws {
+        let dir = makeTempDir()
+        let needTools = #"{"status":"need_tools","reasoning":"需要查消费","toolRequests":[{"id":"t-finance","tool":"finance","query":"meal_spending","timeRange":null,"baseline":null,"requiredMetrics":[],"parameters":{}}],"claims":[],"warnings":[]}"#
+        let more = #"{"status":"need_more_analysis","reasoning":"还需要继续分析","toolRequests":[],"claims":[],"warnings":[]}"#
+        let client = FakeAgentLLMClient(responses: [needTools, more, more, more, more])
+        let executor = FakeToolExecutor()
+        let fixture = makeLoopRuntime(dir: dir, llmClient: client, toolExecutor: executor)
+
+        let job = try await fixture.runtime.startMockJob(question: "最近消费有什么变化", now: Date(timeIntervalSince1970: 1000))
+        let result = try await fixture.runtime.runLoop(
+            jobID: job.id, systemTemplate: "你是 Agent", toolDescriptions: "【finance】消费工具",
+            now: Date(timeIntervalSince1970: 2000)
+        )
+
+        expect(result.state == .completed, "模型不收敛但已有工具结果时应兜底完成，实际 \(result.state.rawValue)")
+        expect(result.errorSummary == nil, "兜底完成不应留下 errorSummary")
+
+        let savedResult = await fixture.runtime.loadLatestResult()
+        expect(savedResult?.claims.isEmpty == false, "兜底完成应保存至少 1 条 claim")
+        expect(savedResult?.summary.contains("晚间餐饮频次偏移") == true, "兜底 summary 应来自 pattern signal")
     }
 
     /// 进入后台：running 任务标记为 waitingForForeground。

@@ -133,11 +133,12 @@ export function createApp(overrides = {}) {
       }
 
       const deviceId = getDeviceId(context, config);
+      const requestLimits = resolveChatRequestLimits(config, route);
       const usage = usageStore.consume({
         deviceId,
         purpose,
-        minuteLimit: config.limits.chatRequestsPerMinute,
-        dailyLimit: config.limits.chatRequestsPerDay,
+        minuteLimit: requestLimits.perMinute,
+        dailyLimit: requestLimits.perDay,
       });
       if (!usage.allowed) {
         throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429);
@@ -188,6 +189,7 @@ export function createApp(overrides = {}) {
           if (!agentValidation.valid) {
             throw new GatewayError("INVALID_AGENT_JSON", agentValidation.error, 502);
           }
+          result.choices[0].message.content = agentValidation.content;
         }
         if (logId) {
           adminLogStore.finishAiCall(logId, {
@@ -473,6 +475,14 @@ function appendCapturedText(current, next, maxChars = 20_000) {
   }
 
   return truncateText(`${current}${next}`, maxChars);
+}
+
+function resolveChatRequestLimits(config, route) {
+  const routeLimits = route?.requestLimits ?? {};
+  return {
+    perMinute: Number(routeLimits.perMinute ?? config.limits.chatRequestsPerMinute),
+    perDay: Number(routeLimits.perDay ?? config.limits.chatRequestsPerDay),
+  };
 }
 
 function extractStreamChunkText(chunk) {

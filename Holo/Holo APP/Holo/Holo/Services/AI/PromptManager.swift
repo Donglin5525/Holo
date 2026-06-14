@@ -255,7 +255,7 @@ final class PromptManager {
         - 当前明确输入永远优先；长期记忆、近期状态只能辅助理解，不能覆盖本轮输入。
 
         输出 JSON Schema：
-        {"status":"need_tools | need_more_analysis | final_claims","reasoning":"string","toolRequests":[{"id":"string","tool":"string","query":"string","parameters":{}}],"claims":[{"id":"string","text":"string","metricAssertions":[],"evidenceIDs":["string"]}],"warnings":[]}
+        {"status":"need_tools | need_more_analysis | final_claims","reasoning":"string","toolRequests":[{"id":"string","tool":"string","query":"string","parameters":{}}],"claims":[{"id":"string","type":"observation | change | pattern | correlation | suggestion","displayText":"string","metricAssertions":[],"evidenceIDs":["string"],"prohibitedInferences":[],"confidence":0.5}],"warnings":[]}
 
         need_tools：需要调用本地工具，必须给出 toolRequests。
         need_more_analysis：已有信息不足以得出结论，需要继续推理。

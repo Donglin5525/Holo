@@ -43,6 +43,9 @@ enum HoloAgentResponseParser {
             if json["reasoning"] == nil { json["reasoning"] = "" }
             if var claims = json["claims"] as? [[String: Any]] {
                 for i in 0..<claims.count {
+                    if claims[i]["displayText"] == nil, let text = claims[i]["text"] as? String {
+                        claims[i]["displayText"] = text
+                    }
                     if claims[i]["metricAssertions"] == nil { claims[i]["metricAssertions"] = [] }
                     if claims[i]["evidenceIDs"] == nil { claims[i]["evidenceIDs"] = [] }
                     if claims[i]["prohibitedInferences"] == nil { claims[i]["prohibitedInferences"] = [] }

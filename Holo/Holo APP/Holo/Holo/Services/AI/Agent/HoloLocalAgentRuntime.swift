@@ -194,11 +194,16 @@ actor HoloLocalAgentRuntime {
             job.state = .waitingForLLM
             job.updatedAt = now
 
+            var conversationState = checkpoint.conversationState
+            if job.budget.maxLLMRounds - job.budget.consumedLLMRounds == 1 {
+                conversationState.append(Self.finalRoundInstruction(now: now))
+            }
+
             let messages = HoloAgentPromptBuilder.build(
                 systemTemplate: systemTemplate,
                 toolDescriptions: toolDescriptions,
                 evidence: [],
-                conversationState: checkpoint.conversationState,
+                conversationState: conversationState,
                 userQuestion: job.userQuestion ?? ""
             )
             let raw = try await llmClient.next(messages: messages)
@@ -224,6 +229,9 @@ actor HoloLocalAgentRuntime {
 
             switch output.status {
             case .needTools:
+                if !output.toolRequests.isEmpty {
+                    job.budget.consumedToolBatches += 1
+                }
                 for request in output.toolRequests {
                     let result = await toolExecutor.execute(request)
                     checkpoint.completedToolResults.append(result)
@@ -231,7 +239,11 @@ actor HoloLocalAgentRuntime {
                 checkpoint.patternSignals.append(
                     contentsOf: patternMiner.mine(toolResults: checkpoint.completedToolResults, now: now)
                 )
-                checkpoint.conversationState.append(Self.toolResultMessage(for: output, now: now))
+                checkpoint.conversationState.append(Self.toolResultMessage(
+                    toolResults: checkpoint.completedToolResults,
+                    patternSignals: checkpoint.patternSignals,
+                    now: now
+                ))
                 checkpoint.step = .executeTools
                 try await persistence.saveProgress(job: job, evidence: [], checkpoint: checkpoint)
             case .needMoreAnalysis:
@@ -239,29 +251,18 @@ actor HoloLocalAgentRuntime {
                 try await persistence.saveProgress(job: job, evidence: [], checkpoint: checkpoint)
             case .finalClaims:
                 checkpoint.step = .verifyClaims
-                // 构造最终结果（claims + 汇总 evidenceIDs）并持久化，供记忆长廊展示
-                let resultEvidenceIDs = Array(Set(output.claims.flatMap(\.evidenceIDs)))
-                let agentResult = HoloAgentResult(
-                    id: UUID().uuidString,
-                    jobID: job.id,
-                    title: "深度分析",
-                    summary: output.claims.isEmpty
-                        ? "本期暂无显著观察"
-                        : output.claims.map(\.displayText).joined(separator: "；"),
-                    claims: output.claims,
-                    evidenceIDs: resultEvidenceIDs,
-                    memoryCandidateIDs: [],
-                    status: "completed",
-                    generatedAt: now,
-                    updatedAt: now
-                )
-                try await persistence.saveResult(agentResult)
-                job.resultID = agentResult.id
-                job.state = .completed
-                job.updatedAt = now
-                try await persistence.saveProgress(job: job, evidence: [], checkpoint: checkpoint)
-                return job
+                return try await completeWithClaims(output.claims, job: &job, checkpoint: checkpoint, now: now)
             }
+        }
+
+        let fallbackClaims = Self.fallbackClaims(
+            toolResults: checkpoint.completedToolResults,
+            patternSignals: checkpoint.patternSignals
+        )
+        if !fallbackClaims.isEmpty {
+            checkpoint.conversationState.append(Self.fallbackAssistantMessage(claims: fallbackClaims, now: now))
+            checkpoint.step = .verifyClaims
+            return try await completeWithClaims(fallbackClaims, job: &job, checkpoint: checkpoint, now: now)
         }
 
         job.state = .failed
@@ -329,12 +330,156 @@ actor HoloLocalAgentRuntime {
                          timestamp: now, tokenEstimate: nil)
     }
 
-    private static func toolResultMessage(for output: HoloAgentOutput, now: Date) -> HoloAgentMessage {
-        let toolNames = output.toolRequests.map(\.tool).joined(separator: ",")
-        let content = output.toolRequests.isEmpty ? "无工具请求" : "已执行工具：\(toolNames)"
-        return HoloAgentMessage(role: .toolResult, content: content, toolRequestID: nil, toolName: nil,
+    private static func finalRoundInstruction(now: Date) -> HoloAgentMessage {
+        HoloAgentMessage(
+            role: .system,
+            content: "这是本次 Agent Loop 的最后一轮。必须基于已有工具结果输出 final_claims；不要再输出 need_tools 或 need_more_analysis。若证据有限，请给出低置信、带边界的观察。",
+            toolRequestID: nil,
+            toolName: nil,
+            timestamp: now,
+            tokenEstimate: nil
+        )
+    }
+
+    private static func fallbackAssistantMessage(claims: [HoloAgentClaim], now: Date) -> HoloAgentMessage {
+        let summary = claims.map(\.displayText).joined(separator: "；")
+        return HoloAgentMessage(
+            role: .assistant,
+            content: "模型未在预算内收敛，本地基于工具结果生成保守结论：\(summary)",
+            toolRequestID: nil,
+            toolName: nil,
+            timestamp: now,
+            tokenEstimate: nil
+        )
+    }
+
+    private static func toolResultMessage(
+        toolResults: [HoloDataToolResult],
+        patternSignals: [HoloPatternSignal],
+        now: Date
+    ) -> HoloAgentMessage {
+        let payload = HoloAgentToolContextPayload(
+            toolResults: toolResults,
+            patternSignals: patternSignals
+        )
+        let content = """
+        工具执行结果（作为上下文使用，不是原生 tool call）：
+        \(Self.encodeToolContext(payload))
+        """
+        return HoloAgentMessage(role: .assistant, content: content, toolRequestID: nil, toolName: nil,
                                 timestamp: now, tokenEstimate: nil)
     }
+
+    private static func encodeToolContext(_ payload: HoloAgentToolContextPayload) -> String {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.sortedKeys]
+        guard let data = try? encoder.encode(payload),
+              let string = String(data: data, encoding: .utf8) else {
+            return #"{"toolResults":[],"patternSignals":[]}"#
+        }
+        return string
+    }
+
+    private func completeWithClaims(
+        _ claims: [HoloAgentClaim],
+        job: inout HoloAgentJob,
+        checkpoint: HoloAgentCheckpoint,
+        now: Date
+    ) async throws -> HoloAgentJob {
+        let resultEvidenceIDs = Array(Set(claims.flatMap(\.evidenceIDs)))
+        let agentResult = HoloAgentResult(
+            id: UUID().uuidString,
+            jobID: job.id,
+            title: "深度分析",
+            summary: claims.isEmpty
+                ? "本期暂无显著观察"
+                : claims.map(\.displayText).joined(separator: "；"),
+            claims: claims,
+            evidenceIDs: resultEvidenceIDs,
+            memoryCandidateIDs: [],
+            status: "completed",
+            generatedAt: now,
+            updatedAt: now
+        )
+        try await persistence.saveResult(agentResult)
+        job.resultID = agentResult.id
+        job.state = .completed
+        job.errorSummary = nil
+        job.updatedAt = now
+        try await persistence.saveProgress(job: job, evidence: [], checkpoint: checkpoint)
+        return job
+    }
+
+    private static func fallbackClaims(
+        toolResults: [HoloDataToolResult],
+        patternSignals: [HoloPatternSignal]
+    ) -> [HoloAgentClaim] {
+        if !patternSignals.isEmpty {
+            return patternSignals.prefix(3).map { signal in
+                HoloAgentClaim(
+                    id: "fallback-\(signal.id)",
+                    type: "observation",
+                    displayText: "\(signal.title)：\(signal.reason)",
+                    metricAssertions: [
+                        HoloMetricAssertion(
+                            metricKey: signal.metricKey,
+                            value: signal.value,
+                            baselineValue: signal.baselineValue,
+                            unit: nil,
+                            comparison: nil,
+                            evidenceIDs: signal.evidenceIDs
+                        )
+                    ],
+                    evidenceIDs: signal.evidenceIDs,
+                    prohibitedInferences: ["不要把并发现象表述为因果", "不要做心理、医疗、人格判断"],
+                    confidence: 0.45
+                )
+            }
+        }
+
+        return toolResults.prefix(3).compactMap { result in
+            guard result.status == .success || result.status == .partial || result.status == .empty else {
+                return nil
+            }
+            let metric = result.metrics.first
+            let event = result.events.first
+            let text: String
+            if let metric {
+                let valueText = metric.value.map { String(format: "%.0f", $0) } ?? "已有记录"
+                text = "\(result.tool) 工具返回 \(metric.metricKey)=\(valueText)，可作为本轮分析的保守观察"
+            } else if let event {
+                text = event.excerpt
+            } else {
+                text = "\(result.tool) 工具已返回数据，但没有显著趋势"
+            }
+            return HoloAgentClaim(
+                id: "fallback-\(result.toolRequestID)",
+                type: "observation",
+                displayText: text,
+                metricAssertions: metric.map {
+                    [
+                        HoloMetricAssertion(
+                            metricKey: $0.metricKey,
+                            value: $0.value,
+                            baselineValue: $0.baselineValue,
+                            unit: $0.unit,
+                            comparison: $0.comparison,
+                            evidenceIDs: result.events.map(\.id)
+                        )
+                    ]
+                } ?? [],
+                evidenceIDs: result.events.map(\.id),
+                prohibitedInferences: ["不要把并发现象表述为因果", "不要做心理、医疗、人格判断"],
+                confidence: result.status == .empty ? 0.3 : 0.45
+            )
+        }
+    }
+}
+
+private struct HoloAgentToolContextPayload: Codable {
+    var toolResults: [HoloDataToolResult]
+    var patternSignals: [HoloPatternSignal]
 }
 
 /// Runtime 错误：用中文描述，便于上层展示与日志。

@@ -34,6 +34,7 @@ nano .env.production
 
 - `DEEPSEEK_API_KEY` — DeepSeek API Key
 - `DASHSCOPE_API_KEY` — 阿里云 DashScope API Key
+- `HOLO_AGENT_LOOP_REQUESTS_PER_MINUTE` / `HOLO_AGENT_LOOP_REQUESTS_PER_DAY` — 深度 Agent 内部 LLM 轮次限额
 - `HOLO_ADMIN_TOKEN` — 管理后台 API Token（用于 curl 调试）
 - `HOLO_ADMIN_USERNAME` / `HOLO_ADMIN_PASSWORD` — 管理后台登录凭证
 - `HOLO_ADMIN_SESSION_SECRET` — 随机字符串，用于 Cookie 签名

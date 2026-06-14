@@ -20,6 +20,7 @@ struct HoloAgentResponseParserTests {
     static func main() {
         test纯JSON解析成功()
         testMarkdownCodeBlock包裹解析成功()
+        test旧字段text可解析为displayText()
         test缺status抛outputParseFailure可重试()
         test超过重试次数不重试()
         print("HoloAgentResponseParserTests passed")
@@ -38,6 +39,15 @@ struct HoloAgentResponseParserTests {
         let output = try? HoloAgentResponseParser.parse(raw, remainingRetries: 2)
         expect(output != nil, "markdown code block 包裹应解析成功")
         expect(output?.status == .finalClaims, "status 应为 final_claims")
+    }
+
+    private static func test旧字段text可解析为displayText() {
+        let raw = #"{"status":"final_claims","reasoning":"证据充分","toolRequests":[],"claims":[{"id":"c1","text":"餐饮消费集中在晚餐","metricAssertions":[],"evidenceIDs":["e1"]}],"warnings":[]}"#
+        let output = try? HoloAgentResponseParser.parse(raw, remainingRetries: 0)
+        expect(output != nil, "旧字段 text 应兼容解析")
+        expect(output?.claims.first?.displayText == "餐饮消费集中在晚餐", "text 应映射到 displayText")
+        expect(output?.claims.first?.type == "observation", "旧响应缺 type 时应补默认值")
+        expect(output?.claims.first?.confidence == 0.5, "旧响应缺 confidence 时应补默认值")
     }
 
     private static func test缺status抛outputParseFailure可重试() {

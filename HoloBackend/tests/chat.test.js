@@ -775,6 +775,52 @@ test("chat endpoint applies per-device minute rate limit", async () => {
   assert.equal((await response.json()).error.code, "RATE_LIMITED");
 });
 
+test("agent_loop purpose uses route-specific request limits", async () => {
+  const app = createTestApp({
+    routes: {
+      agent_loop: {
+        provider: "mock",
+        model: "holo-mock",
+        temperature: 0.1,
+        maxTokens: 512,
+        requestLimits: {
+          perMinute: 3,
+          perDay: 10,
+        },
+      },
+    },
+  });
+  const body = JSON.stringify({
+    purpose: "agent_loop",
+    stream: false,
+    messages: [{ role: "user", content: "分析最近的开销" }],
+  });
+
+  for (let index = 0; index < 3; index += 1) {
+    const response = await app.request("/v1/ai/chat/completions", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-holo-device-id": "agent-loop-rate-device",
+      },
+      body,
+    });
+    assert.equal(response.status, 200);
+  }
+
+  const response = await app.request("/v1/ai/chat/completions", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-holo-device-id": "agent-loop-rate-device",
+    },
+    body,
+  });
+
+  assert.equal(response.status, 429);
+  assert.equal((await response.json()).error.code, "RATE_LIMITED");
+});
+
 test("agent_loop purpose 被接受并返回 mock agent JSON", async () => {
   const app = createTestApp();
 
@@ -799,4 +845,7 @@ test("agent_loop purpose 被接受并返回 mock agent JSON", async () => {
     ["need_tools", "need_more_analysis", "final_claims"].includes(parsed.status),
     `agent_loop mock 应返回合法 status，实际 ${parsed.status}`
   );
+  assert.equal(parsed.claims[0].displayText, "mock claim");
+  assert.equal(parsed.claims[0].type, "observation");
+  assert.equal(parsed.claims[0].confidence, 0.5);
 });

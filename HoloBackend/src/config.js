@@ -71,6 +71,10 @@ const DEFAULT_CONFIG = {
       model: process.env.HOLO_AGENT_LOOP_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_AGENT_LOOP_TEMPERATURE ?? 0.1),
       maxTokens: Number(process.env.HOLO_AGENT_LOOP_MAX_TOKENS ?? 2048),
+      requestLimits: {
+        perMinute: Number(process.env.HOLO_AGENT_LOOP_REQUESTS_PER_MINUTE ?? 60),
+        perDay: Number(process.env.HOLO_AGENT_LOOP_REQUESTS_PER_DAY ?? 500),
+      },
     },
   },
   providers: {

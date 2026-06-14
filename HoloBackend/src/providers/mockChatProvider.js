@@ -167,9 +167,12 @@ function mockAgentLoopCompletion(request) {
     claims: [
       {
         id: "c1",
-        text: "mock claim",
+        type: "observation",
+        displayText: "mock claim",
         metricAssertions: [],
         evidenceIDs: [],
+        prohibitedInferences: [],
+        confidence: 0.5,
       },
     ],
     warnings: [],
