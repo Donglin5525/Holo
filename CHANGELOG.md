@@ -4,6 +4,31 @@
 
 ---
 
+## [2026-06-14] Agent 深度分析卡片化（阶段 1）— Task P1
+
+### 修复
+- **Agent 结果渲染器修复 title/body 同值浪费**：`HoloAgentResultRenderer.render` 之前每个 section 的 `title` 和 `body` 都设成 `claim.displayText`（同值），详情页无视觉层级；改为 `title` 用「观察 N」短 kicker、`body` 用 claim 正文，多条 claim 的 title 互不相同
+- **section 暴露 confidence**：`HoloRenderedAgentSection` 新增可选 `confidence: Double?`，透传 `claim.confidence`，为阶段 2 卡片可视化（置信度色条/标签）铺路；`Codable` 向后兼容，旧 JSON 缺该字段解码为 nil
+
+### 测试
+- `HoloAgentResultRendererTests` 新增 3 个验证：title≠body、section 携带 confidence、多条 claim title 互不相同（RED→GREEN 闭环：修复前因缺 confidence 字段编译失败，修复后全通过）
+
+---
+
+## [2026-06-14] HoloBackend 模型路由分级 + 全量迁移 DeepSeek V4
+
+### 变更
+- **Agent 升级 Pro**：agent_loop 路由单独切到 `deepseek-v4-pro`（默认思考模式），配套 maxTokens 2048→8192 给思考过程留空间，否则 JSON 易被思考 token 截断触发 INVALID_AGENT_JSON；普通记账/对话/意图识别不受影响仍走 flash
+- **全量迁移 V4 新名**：chat / intent / insight 及所有回退路由（finance/task parser、voice summary、memory observer、thought org）从旧名 `deepseek-chat` 显式迁到 `deepseek-v4-flash`（官方别名，行为零变化），规避 DeepSeek 旧名 2026/07/24 弃用
+
+### 说明
+- 后端按 purpose 路由分流，iOS 端零改动、立即生效（model 由后端决定，App 无需重开）
+- 最终路由：对话/记账/意图/洞察/解析 → v4-flash（非思考）；Agent 深度推理 → v4-pro（思考）
+- 冒烟验证：pro 思考内容走 reasoning_content 不污染 JSON（4.7s 通过校验）；v4-flash chat 1.1s 正常返回
+- 服务器 .env.production 改动不入 git（被 gitignore），仅同步 env.production.example 模板
+
+---
+
 ## [2026-06-14] Agent 灰度开关 UI 接入「设置 → AI」
 
 ### 新增

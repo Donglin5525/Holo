@@ -22,6 +22,9 @@ struct HoloAgentResultRendererTests {
         test含证据引用摘要()
         test不含Markdown表格()
         test敏感Evidence用脱敏摘要()
+        testSectionTitleNotEqualToBody()
+        testSectionCarriesConfidence()
+        testMultipleClaimsHaveDistinctTitles()
         print("HoloAgentResultRendererTests passed")
     }
 
@@ -36,12 +39,17 @@ struct HoloAgentResultRendererTests {
         )
     }
 
-    private static func makeClaim(text: String, evidenceIDs: [String]) -> HoloAgentClaim {
+    private static func makeClaim(
+        text: String,
+        evidenceIDs: [String] = [],
+        id: String = "c1",
+        confidence: Double = 0.9
+    ) -> HoloAgentClaim {
         HoloAgentClaim(
-            id: "c1", type: "observation", displayText: text,
+            id: id, type: "observation", displayText: text,
             metricAssertions: [HoloMetricAssertion(metricKey: "k", value: 1, baselineValue: nil,
                                                    unit: "次", comparison: nil, evidenceIDs: evidenceIDs)],
-            evidenceIDs: evidenceIDs, prohibitedInferences: [], confidence: 0.9
+            evidenceIDs: evidenceIDs, prohibitedInferences: [], confidence: confidence
         )
     }
 
@@ -76,5 +84,37 @@ struct HoloAgentResultRendererTests {
         let flat = result.evidenceReferences.map { $0.summary }.joined()
         expect(flat.contains("脱敏摘要"), "证据引用应用 redactedExcerpt")
         expect(!flat.contains("SECRET_FULL_TEXT"), "不应暴露完整敏感原文")
+    }
+
+    // P1：修复 section.title/body 同值浪费
+    private static func testSectionTitleNotEqualToBody() {
+        let claim = makeClaim(text: "本月支出偏高，主要集中在餐饮")
+        let result = HoloAgentResultRenderer().render(claims: [claim], evidence: [])
+        expect(result.sections.count == 1, "应有 1 个 section")
+        guard let section = result.sections.first else { fatalError("section 缺失") }
+        expect(section.title != section.body, "title 不应等于 body（修复同值浪费）")
+        expect(section.body == "本月支出偏高，主要集中在餐饮", "body 应为 claim 正文")
+        expect(!section.title.isEmpty, "title 不应为空")
+    }
+
+    // P1：section 透传 claim.confidence，供阶段 2 可视化
+    private static func testSectionCarriesConfidence() {
+        let claim = makeClaim(text: "观察内容", confidence: 0.82)
+        let result = HoloAgentResultRenderer().render(claims: [claim], evidence: [])
+        guard let section = result.sections.first else { fatalError("section 缺失") }
+        guard let confidence = section.confidence else { fatalError("confidence 缺失") }
+        expect(abs(confidence - 0.82) < 0.001, "section.confidence 应等于 claim.confidence")
+    }
+
+    // P1：多条 claim 的 title 互不相同（「观察 1/2/3」）
+    private static func testMultipleClaimsHaveDistinctTitles() {
+        let claims = [
+            makeClaim(text: "观察一的内容", id: "c1"),
+            makeClaim(text: "观察二的内容", id: "c2"),
+            makeClaim(text: "观察三的内容", id: "c3")
+        ]
+        let result = HoloAgentResultRenderer().render(claims: claims, evidence: [])
+        let titles = result.sections.map(\.title)
+        expect(Set(titles).count == titles.count, "多条 claim 的 title 应互不相同")
     }
 }

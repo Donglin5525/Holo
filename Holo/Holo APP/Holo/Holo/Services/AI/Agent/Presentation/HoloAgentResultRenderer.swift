@@ -12,6 +12,8 @@ import Foundation
 struct HoloRenderedAgentSection: Codable, Equatable, Sendable {
     var title: String
     var body: String
+    /// claim 置信度，可选；旧 JSON 缺失该字段解码为 nil（向后兼容）
+    var confidence: Double?
 }
 
 struct HoloRenderedEvidenceReference: Codable, Equatable, Sendable {
@@ -33,8 +35,13 @@ struct HoloAgentResultRenderer {
                 title: String = "本期观察") -> HoloRenderedAgentResult {
         let evidenceByID = Dictionary(uniqueKeysWithValues: evidence.map { ($0.id, $0) })
 
-        let sections = claims.map { claim in
-            HoloRenderedAgentSection(title: claim.displayText, body: claim.displayText)
+        // section.title 用「观察 N」作为短 kicker，body 用 claim 正文；二者不再同值
+        let sections = claims.enumerated().map { index, claim in
+            HoloRenderedAgentSection(
+                title: "观察 \(index + 1)",
+                body: claim.displayText,
+                confidence: claim.confidence
+            )
         }
 
         // 证据引用：去重，只用 redactedExcerpt
