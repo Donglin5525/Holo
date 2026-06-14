@@ -31,6 +31,7 @@ extension ChatMessage {
     @NSManaged var analysisContextJSON: String?  // 分析上下文 JSON
     @NSManaged var rawLogJSON: String?  // LLM 调用日志 JSON
     @NSManaged var messageType: String
+    @NSManaged var agentResultJSON: String?  // Agent 深度分析结果 JSON（HoloRenderedAgentResult）
 
     // MARK: - Computed Properties
 

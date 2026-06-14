@@ -105,6 +105,12 @@ extension CoreDataStack {
         chatMessageType.defaultValue = "normal"
         chatAttributes.append(chatMessageType)
 
+        let agentResultJSON = NSAttributeDescription()
+        agentResultJSON.name = "agentResultJSON"
+        agentResultJSON.attributeType = .stringAttributeType
+        agentResultJSON.isOptional = true
+        chatAttributes.append(agentResultJSON)
+
         chatMessageEntity.properties = chatAttributes
 
         return [chatMessageEntity]

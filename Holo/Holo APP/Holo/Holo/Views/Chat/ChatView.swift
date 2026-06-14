@@ -25,10 +25,16 @@ struct ChatView: View {
 
     /// 外部传入的预填文本（如从记忆长廊"继续问AI"跳转）
     var prefillText: String? = nil
+    var opensVoiceInputOnAppear: Bool = false
 
-    init(goalPlanningRequest: Binding<GoalPlanningRequest?> = .constant(nil), prefillText: String? = nil) {
+    init(
+        goalPlanningRequest: Binding<GoalPlanningRequest?> = .constant(nil),
+        prefillText: String? = nil,
+        opensVoiceInputOnAppear: Bool = false
+    ) {
         self._goalPlanningRequest = goalPlanningRequest
         self.prefillText = prefillText
+        self.opensVoiceInputOnAppear = opensVoiceInputOnAppear
     }
 
     var body: some View {
@@ -58,6 +64,9 @@ struct ChatView: View {
             await viewModel.setup()
             if let text = prefillText, !text.isEmpty {
                 viewModel.inputText = text
+            }
+            if opensVoiceInputOnAppear {
+                activeSheet = .voiceInput
             }
         }
         .onChange(of: goalPlanningRequest) { _, request in
@@ -260,6 +269,10 @@ struct ChatView: View {
                                 guard message.metadataState == .loaded,
                                       message.analysisContext != nil else { return }
                                 activeSheet = .analysisDetail(message)
+                            },
+                            onAgentDeepAnalysisTap: {
+                                guard message.agentResult != nil else { return }
+                                activeSheet = .agentDeepAnalysis(message)
                             },
                             onGoalDraftCardTap: {
                                 viewModel.showGoalDraftReview = true
@@ -486,6 +499,10 @@ struct ChatView: View {
             }
         case .analysisDetail(let message):
             AnalysisDetailSheet(message: message)
+        case .agentDeepAnalysis(let message):
+            if let result = message.agentResult {
+                AgentDeepAnalysisDetailSheet(result: result)
+            }
         case .voiceInput:
             VoiceInputSheet(speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider()) { transcript in
                 pendingVoiceTranscriptToSend = transcript
@@ -512,6 +529,7 @@ private enum ChatSheet: Identifiable {
     case aiSettings
     case editTransaction(Transaction)
     case analysisDetail(ChatMessageViewData)
+    case agentDeepAnalysis(ChatMessageViewData)
     case voiceInput
 
     var id: String {
@@ -522,6 +540,8 @@ private enum ChatSheet: Identifiable {
             return "editTransaction-\(transaction.id)"
         case .analysisDetail(let message):
             return "analysisDetail-\(message.id)"
+        case .agentDeepAnalysis(let message):
+            return "agentDeepAnalysis-\(message.id)"
         case .voiceInput:
             return "voiceInput"
         }

@@ -75,6 +75,7 @@ final class ChatMessageRepository: ObservableObject {
                         "parsedBatchJSON",
                         "executionBatchJSON",
                         "analysisContextJSON",
+                        "agentResultJSON",
                         "rawLogJSON"
                     ]
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
@@ -116,6 +117,7 @@ final class ChatMessageRepository: ObservableObject {
                         "isStreaming",
                         "parentMessageId",
                         "analysisContextJSON",
+                        "agentResultJSON",
                         "executionBatchJSON",
                         "rawLogJSON"
                     ]
@@ -186,7 +188,7 @@ final class ChatMessageRepository: ObservableObject {
                     request.propertiesToFetch = [
                         "id", "role", "content", "timestamp",
                         "intent", "extractedDataJSON", "isStreaming", "parentMessageId",
-                        "analysisContextJSON", "executionBatchJSON", "rawLogJSON"
+                        "analysisContextJSON", "agentResultJSON", "executionBatchJSON", "rawLogJSON"
                     ]
                     request.predicate = NSPredicate(format: "id IN %@", sessionIds)
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: true)]
@@ -269,7 +271,7 @@ final class ChatMessageRepository: ObservableObject {
                     request.propertiesToFetch = [
                         "id", "role", "content", "timestamp",
                         "intent", "extractedDataJSON", "isStreaming", "parentMessageId",
-                        "analysisContextJSON", "executionBatchJSON", "rawLogJSON"
+                        "analysisContextJSON", "agentResultJSON", "executionBatchJSON", "rawLogJSON"
                     ]
                     request.predicate = NSPredicate(format: "id IN %@", sessionIds)
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: true)]
@@ -438,7 +440,8 @@ final class ChatMessageRepository: ObservableObject {
         parsedBatchJSON: String?,
         executionBatchJSON: String?,
         analysisContextJSON: String? = nil,
-        rawLogJSON: String? = nil
+        rawLogJSON: String? = nil,
+        agentResultJSON: String? = nil
     ) {
         guard let message = liveMessageCache[messageId] else { return }
 
@@ -451,6 +454,7 @@ final class ChatMessageRepository: ObservableObject {
         message.executionBatchJSON = executionBatchJSON
         message.analysisContextJSON = analysisContextJSON
         message.rawLogJSON = rawLogJSON
+        message.agentResultJSON = agentResultJSON
         save()
 
         // 解码 batch 数据（绕过 associated object 缓存）
@@ -490,6 +494,12 @@ final class ChatMessageRepository: ObservableObject {
             return try? JSONDecoder().decode(LLMLog.self, from: data)
         }
 
+        // 解码 Agent 结果
+        let decodedAgentResult: HoloRenderedAgentResult? = agentResultJSON.flatMap { json in
+            guard let data = json.data(using: .utf8) else { return nil }
+            return try? JSONDecoder().decode(HoloRenderedAgentResult.self, from: data)
+        }
+
         // 单次 snapshot 更新
         updateSnapshot(messageId) { snapshot in
             snapshot.content = finalContent
@@ -500,6 +510,7 @@ final class ChatMessageRepository: ObservableObject {
             snapshot.executionBatch = decodedExecutionBatch
             snapshot.analysisContext = decodedAnalysisContext
             snapshot.rawLog = decodedRawLog
+            snapshot.agentResult = decodedAgentResult
         }
     }
 
@@ -707,7 +718,7 @@ final class ChatMessageRepository: ObservableObject {
 
         // 后台批量查询重 JSON 字段
         do {
-            let decoded: [(UUID, AIParseBatch?, AIExecutionBatch?, AnalysisContext?, LLMLog?)] = try await Task.detached(priority: .utility) {
+            let decoded: [(UUID, AIParseBatch?, AIExecutionBatch?, AnalysisContext?, LLMLog?, HoloRenderedAgentResult?)] = try await Task.detached(priority: .utility) {
                 let context = CoreDataStack.shared.newBackgroundContext()
                 return try await context.perform {
                     let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
@@ -717,29 +728,32 @@ final class ChatMessageRepository: ObservableObject {
                         "parsedBatchJSON",
                         "executionBatchJSON",
                         "analysisContextJSON",
-                        "rawLogJSON"
+                        "rawLogJSON",
+                        "agentResultJSON"
                     ]
                     request.predicate = NSPredicate(format: "id IN %@", toLoad)
 
-                    return try context.fetch(request).compactMap { dict -> (UUID, AIParseBatch?, AIExecutionBatch?, AnalysisContext?, LLMLog?)? in
+                    return try context.fetch(request).compactMap { dict -> (UUID, AIParseBatch?, AIExecutionBatch?, AnalysisContext?, LLMLog?, HoloRenderedAgentResult?)? in
                         guard let id = dict["id"] as? UUID else { return nil }
                         let parsedBatch = ChatMessageViewData.decodeParseBatch(dict["parsedBatchJSON"] as? String)
                         let executionBatch = ChatMessageViewData.decodeExecutionBatch(dict["executionBatchJSON"] as? String)
                         let analysisContext = ChatMessageViewData.decodeAnalysisContext(dict["analysisContextJSON"] as? String)
                         let rawLog = ChatMessageViewData.decodeRawLog(dict["rawLogJSON"] as? String)
-                        return (id, parsedBatch, executionBatch, analysisContext, rawLog)
+                        let agentResult = ChatMessageViewData.decodeAgentResult(dict["agentResultJSON"] as? String)
+                        return (id, parsedBatch, executionBatch, analysisContext, rawLog, agentResult)
                     }
                 }
             }.value
 
             // 回到主线程更新 snapshot
-            for (id, parsedBatch, executionBatch, analysisContext, rawLog) in decoded {
+            for (id, parsedBatch, executionBatch, analysisContext, rawLog, agentResult) in decoded {
                 updateSnapshot(id) { snapshot in
                     snapshot.enrichMetadata(
                         parsedBatch: parsedBatch,
                         executionBatch: executionBatch,
                         analysisContext: analysisContext,
-                        rawLog: rawLog
+                        rawLog: rawLog,
+                        agentResult: agentResult
                     )
                 }
             }
