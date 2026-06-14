@@ -461,16 +461,11 @@ struct AccountDetailView: View {
     /// 分类预算行的分类图标
     private func categoryIconForBudget(_ budget: Budget) -> some View {
         let category = budget.categoryId.flatMap { BudgetRepository.shared.findCategory(by: $0) }
-        return ZStack {
-            Circle()
-                .fill((category?.swiftUIColor ?? .holoTextSecondary).opacity(0.12))
-                .frame(width: 32, height: 32)
-            categoryIconGlyph(
-                category?.icon ?? "chart.pie",
-                size: 14,
-                color: category?.swiftUIColor ?? .holoTextSecondary
-            )
-        }
+        return CategoryIconBadge(
+            iconName: category?.icon ?? "chart.pie",
+            color: category?.swiftUIColor ?? .holoTextSecondary,
+            diameter: 32
+        )
     }
 
     /// 删除分类预算
@@ -584,16 +579,11 @@ struct AccountDetailView: View {
         let cat = tx.category
         let catColor: Color = (cat?.isDeleted ?? false) ? .holoTextSecondary : (cat?.swiftUIColor ?? .holoTextSecondary)
         return HStack(spacing: HoloSpacing.md) {
-            ZStack {
-                Circle()
-                    .fill(catColor.opacity(0.1))
-                    .frame(width: 36, height: 36)
-                categoryIconGlyph(
-                    (cat?.isDeleted ?? false) ? "questionmark.folder" : (cat?.icon ?? "questionmark.circle"),
-                    size: 16,
-                    color: catColor
-                )
-            }
+            CategoryIconBadge(
+                iconName: (cat?.isDeleted ?? false) ? "questionmark.folder" : (cat?.icon ?? "questionmark.circle"),
+                color: catColor,
+                diameter: 36
+            )
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(tx.note ?? (tx.category?.name ?? "未分类"))

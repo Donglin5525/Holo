@@ -75,15 +75,15 @@ extension Category {
     static let expenseHierarchy: [CategoryGroupDef] = [
         // ━━━━━━━━━━ 1. 餐饮（蓝色系 #13A4EC）━━━━━━━━━━
         (name: "餐饮", color: "#13A4EC", children: [
-            (name: "早餐", icon: "holo.category.breakfast"),
-            (name: "午餐", icon: "holo.category.lunch"),
-            (name: "晚餐", icon: "holo.category.dinner"),
-            (name: "夜宵", icon: "moonphase.waning.crescent"),
+            (name: "早餐", icon: "sunrise.fill"),
+            (name: "午餐", icon: "fork.knife.circle.fill"),
+            (name: "晚餐", icon: "moon.stars.fill"),
+            (name: "夜宵", icon: "mug.fill"),
             (name: "零食", icon: "popcorn.fill"),
             (name: "咖啡", icon: "cup.and.saucer.fill"),
             (name: "外卖", icon: "bag.fill"),
             (name: "饮品", icon: "wineglass.fill"),
-            (name: "水果", icon: "holo.category.fruit"),
+            (name: "水果", icon: "carrot.fill"),
             (name: "酒水", icon: "wineglass"),
             (name: "超市", icon: "cart.fill"),
         ]),
@@ -100,8 +100,8 @@ extension Category {
             (name: "车辆保养", icon: "wrench.and.screwdriver.fill"),
             (name: "火车", icon: "train.side.rear.car"),
             (name: "机票", icon: "airplane.departure"),
-            (name: "旅行", icon: "figure.walk"),
-            (name: "过路费", icon: "building.columns.fill"),
+            (name: "旅行", icon: "airplane.departure"),
+            (name: "过路费", icon: "road.lanes"),
             (name: "违章罚款", icon: "exclamationmark.triangle.fill"),
         ]),
         // ━━━━━━━━━━ 3. 购物（橙色系 #F97316）━━━━━━━━━━
@@ -109,7 +109,7 @@ extension Category {
             (name: "服饰", icon: "hanger"),
             (name: "数码", icon: "desktopcomputer"),
             (name: "日用", icon: "basket.fill"),
-            (name: "美妆", icon: "sparkles"),
+            (name: "美妆", icon: "wand.and.stars"),
             (name: "家具", icon: "sofa.fill"),
             (name: "书籍", icon: "book.fill"),
             (name: "运动", icon: "sportscourt.fill"),
@@ -129,7 +129,7 @@ extension Category {
         ]),
         // ━━━━━━━━━━ 5. 居住（靛蓝色系 #6366F1）━━━━━━━━━━
         (name: "居住", color: "#6366F1", children: [
-            (name: "房租", icon: "key.fill"),
+            (name: "房租", icon: "house.lodge.fill"),
             (name: "房贷", icon: "banknote.fill"),
             (name: "水费", icon: "drop.fill"),
             (name: "电费", icon: "bolt.fill"),
@@ -138,7 +138,7 @@ extension Category {
             (name: "网费", icon: "wifi"),
             (name: "家电", icon: "tv.fill"),
             (name: "装修", icon: "paintbrush.fill"),
-            (name: "家政保洁", icon: "person.2.badge.gearshape.fill"),
+            (name: "家政保洁", icon: "bubble.left.and.bubble.right.fill"),
             (name: "搬家", icon: "shippingbox.and.arrow.backward.fill"),
         ]),
         // ━━━━━━━━━━ 6. 医疗（玫红色系 #F43F5E）━━━━━━━━━━
@@ -147,7 +147,7 @@ extension Category {
             (name: "药品", icon: "pill.fill"),
             (name: "体检", icon: "heart.text.square.fill"),
             (name: "健身房", icon: "dumbbell.fill"),
-            (name: "保健品", icon: "leaf.fill"),
+            (name: "保健品", icon: "pill.fill"),
             (name: "牙齿保健", icon: "heart.circle.fill"),
             (name: "医疗用品", icon: "cross.case.fill"),
         ]),
@@ -165,8 +165,8 @@ extension Category {
         // ━━━━━━━━━━ 8. 人情（琥珀色系 #F59E0B）━━━━━━━━━━
         (name: "人情", color: "#F59E0B", children: [
             (name: "红包礼金", icon: "yensign.circle.fill"),
-            (name: "请客", icon: "wineglass.fill"),
-            (name: "送礼", icon: "gift.fill"),
+            (name: "请客", icon: "person.2.fill"),
+            (name: "送礼", icon: "shippingbox.fill"),
             (name: "探望", icon: "figure.walk.arrival"),
             (name: "育儿", icon: "figure.and.child.holdinghands"),
             (name: "赡养", icon: "person.2.fill"),
@@ -184,7 +184,7 @@ extension Category {
             (name: "保险", icon: "shield.checkered"),
             (name: "手续费", icon: "dollarsign.arrow.circlepath"),
             (name: "税费", icon: "building.columns.circle.fill"),
-            (name: "罚款", icon: "exclamationmark.triangle.fill"),
+            (name: "罚款", icon: "yensign.circle.fill"),
             (name: "还款", icon: "arrow.uturn.backward.circle.fill"),
             (name: "转账", icon: "arrow.right.circle.fill"),
             (name: "快递", icon: "shippingbox.fill"),
@@ -368,7 +368,7 @@ extension Category {
         "餐饮": "fork.knife",
         "交通": "car.fill",
         "购物": "bag.fill",
-        "娱乐": "music.note.list",
+        "娱乐": "theatermasks.fill",
         "居住": "house.fill",
         "医疗": "heart.text.square.fill",
         "学习": "book.closed.fill",
@@ -669,6 +669,7 @@ extension Category {
     private static let migrationFlag = "hasMigratedToSFSymbols_v1"
     private static let migrationV2Flag = "hasMigratedToSFSymbols_v2"
     private static let semanticIconMigrationFlag = "hasMigratedSemanticCategoryIcons_v1"
+    private static let iconRefreshMigrationFlag = "hasMigratedRefreshedCategoryIcons_v1"
 
     /// 将旧 icon_ 前缀图标名迁移为 SF Symbol
     /// 使用 UserDefaults 标记确保只执行一次，迁移失败不设标记下次自动重试
@@ -705,6 +706,9 @@ extension Category {
 
         // v3: 修复语义不匹配的默认科目图标
         migrateSemanticCategoryIcons(in: context)
+
+        // v4: 图标系统重构 — 重选 8 个语义错位图标
+        migrateRefreshedCategoryIcons(in: context)
     }
 
     /// 修复无效的 SF Symbol 名称（v1 迁移使用了不存在的图标名）
@@ -769,6 +773,55 @@ extension Category {
             } catch { }
         } else {
             UserDefaults.standard.set(true, forKey: semanticIconMigrationFlag)
+        }
+    }
+
+    /// v4: 图标系统重构 — 重选 8 个语义错位图标（夜宵/旅行/过路费/美妆/房租/家政保洁/保健品/娱乐一级）
+    /// 按 name + isDefault + 旧 icon 三重匹配，避免误伤同名分类（如 AI工具 也用 sparkles）或用户自定义分类
+    private static func migrateRefreshedCategoryIcons(in context: NSManagedObjectContext) {
+        guard !UserDefaults.standard.bool(forKey: iconRefreshMigrationFlag) else { return }
+
+        let request = Category.fetchRequest()
+        request.includesSubentities = false
+        guard let all = try? context.fetch(request) else { return }
+
+        let fixes: [String: (oldIcons: Set<String>, newIcon: String)] = [
+            // A 类：语义错位重选
+            "夜宵": (["moonphase.waning.crescent"], "mug.fill"),
+            "旅行": (["figure.walk"], "airplane.departure"),
+            "过路费": (["building.columns.fill"], "road.lanes"),
+            "美妆": (["sparkles"], "wand.and.stars"),
+            "房租": (["key.fill"], "house.lodge.fill"),
+            "家政保洁": (["person.2.badge.gearshape.fill"], "bubble.left.and.bubble.right.fill"),
+            "保健品": (["leaf.fill"], "pill.fill"),
+            "娱乐": (["music.note.list"], "theatermasks.fill"),
+            // B 类：自绘图标换 SF Symbol
+            "早餐": (["holo.category.breakfast"], "sunrise.fill"),
+            "午餐": (["holo.category.lunch"], "fork.knife.circle.fill"),
+            "晚餐": (["holo.category.dinner"], "moon.stars.fill"),
+            "水果": (["holo.category.fruit"], "carrot.fill"),
+            // C 类：重复图标差异化
+            "请客": (["wineglass.fill"], "person.2.fill"),
+            "送礼": (["gift.fill"], "shippingbox.fill"),
+            "罚款": (["exclamationmark.triangle.fill"], "yensign.circle.fill"),
+        ]
+
+        var migrated = false
+        for category in all where category.isDefault {
+            guard let fix = fixes[category.name] else { continue }
+            if fix.oldIcons.contains(category.icon) {
+                category.icon = fix.newIcon
+                migrated = true
+            }
+        }
+
+        if migrated {
+            do {
+                try context.save()
+                UserDefaults.standard.set(true, forKey: iconRefreshMigrationFlag)
+            } catch { }
+        } else {
+            UserDefaults.standard.set(true, forKey: iconRefreshMigrationFlag)
         }
     }
 }

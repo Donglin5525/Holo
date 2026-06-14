@@ -292,31 +292,11 @@ private struct PickerCategoryButton: View {
     let isSelected: Bool
     let action: () -> Void
     
-    /// 分类图标视图：使用全局统一的 transactionCategoryIcon 渲染函数
-    @ViewBuilder
-    private var categoryIconView: some View {
-        transactionCategoryIcon(category, size: 44)
-    }
-    
     var body: some View {
         Button(action: action) {
             VStack(spacing: 8) {
-                // 图标容器
-                ZStack {
-                    Circle()
-                        .fill(category.swiftUIColor.opacity(0.1))
-                        .frame(width: 64, height: 64)
-                    
-                    // 优先从 Asset Catalog 加载（先试命名空间路径，再试短名），找不到则用 SF Symbol
-                    categoryIconView
-                }
-                .overlay(
-                    Circle()
-                        .stroke(
-                            isSelected ? category.swiftUIColor : Color.clear,
-                            lineWidth: 2
-                        )
-                )
+                // 图标徽章（统一占比 0.58 + 选中态）
+                CategoryIconBadge(category: category, diameter: 64, isSelected: isSelected)
                 
                 // 分类名称
                 Text(category.name)

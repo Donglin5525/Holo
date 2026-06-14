@@ -155,12 +155,7 @@ struct CategoryManagementView: View {
     
     private func topLevelCategoryRow(_ category: Category) -> some View {
         HStack(spacing: HoloSpacing.md) {
-            ZStack {
-                Circle()
-                    .fill(category.swiftUIColor.opacity(0.15))
-                    .frame(width: 40, height: 40)
-                transactionCategoryIcon(category, size: 22)
-            }
+            CategoryIconBadge(category: category, diameter: 40)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(category.name)
@@ -231,12 +226,7 @@ struct CategoryManagementView: View {
     @ViewBuilder
     private func categoryRow(_ category: Category) -> some View {
         HStack(spacing: HoloSpacing.md) {
-            ZStack {
-                Circle()
-                    .fill(category.swiftUIColor.opacity(0.15))
-                    .frame(width: 40, height: 40)
-                transactionCategoryIcon(category, size: 22)
-            }
+            CategoryIconBadge(category: category, diameter: 40)
 
             Text(category.name)
                 .font(.holoBody)
@@ -521,13 +511,7 @@ struct AddCategorySheet: View {
                 if let parent = parentCategory {
                     Section("所属一级分类") {
                         HStack {
-                            ZStack {
-                                Circle()
-                                    .fill(parent.swiftUIColor.opacity(0.15))
-                                    .frame(width: 32, height: 32)
-                                transactionCategoryIcon(parent, size: 16)
-                                    .foregroundColor(parent.swiftUIColor)
-                            }
+                            CategoryIconBadge(category: parent, diameter: 32)
                             Text(parent.name)
                                 .foregroundColor(.holoTextPrimary)
                         }
@@ -649,12 +633,7 @@ struct EditCategorySheet: View {
                 }
                 Section("图标") {
                     HStack(spacing: HoloSpacing.md) {
-                        ZStack {
-                            Circle()
-                                .fill(category.swiftUIColor.opacity(0.15))
-                                .frame(width: 44, height: 44)
-                            categoryIconGlyph(iconName, size: 24, color: category.swiftUIColor)
-                        }
+                        CategoryIconBadge(iconName: iconName, color: category.swiftUIColor, diameter: 44)
 
                         Text("当前图标")
                             .font(.holoBody)

@@ -42,12 +42,7 @@ struct CategoryBudgetPicker: View {
             // 已选分类提示
             if let selected = selectedCategory {
                 HStack(spacing: HoloSpacing.sm) {
-                    ZStack {
-                        Circle()
-                            .fill(selected.swiftUIColor.opacity(0.15))
-                            .frame(width: 28, height: 28)
-                        categoryIconGlyph(selected.icon, size: 13, color: selected.swiftUIColor)
-                    }
+                    CategoryIconBadge(category: selected, diameter: 28)
                     Text("已选：\(selected.name)")
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(.holoPrimary)
@@ -72,12 +67,7 @@ struct CategoryBudgetPicker: View {
         } label: {
             HStack(spacing: HoloSpacing.md) {
                 // 图标
-                ZStack {
-                    Circle()
-                        .fill(parent.swiftUIColor.opacity(0.12))
-                        .frame(width: 36, height: 36)
-                    categoryIconGlyph(parent.icon, size: 16, color: parent.swiftUIColor)
-                }
+                CategoryIconBadge(category: parent, diameter: 36)
 
                 // 名称
                 Text(parent.name)
@@ -136,16 +126,7 @@ struct CategoryBudgetPicker: View {
                     selectedCategory = child
                 } label: {
                     VStack(spacing: 4) {
-                        ZStack {
-                            Circle()
-                                .fill(child.swiftUIColor.opacity(selectedCategory?.id == child.id ? 0.15 : 0.1))
-                                .frame(width: 40, height: 40)
-                                .overlay(
-                                    Circle()
-                                        .stroke(selectedCategory?.id == child.id ? Color.holoPrimary : Color.clear, lineWidth: 2)
-                                )
-                            categoryIconGlyph(child.icon, size: 15, color: child.swiftUIColor)
-                        }
+                        CategoryIconBadge(category: child, diameter: 40, isSelected: selectedCategory?.id == child.id)
                         Text(child.name)
                             .font(.system(size: 10))
                             .foregroundColor(selectedCategory?.id == child.id ? .holoPrimary : .holoTextSecondary)

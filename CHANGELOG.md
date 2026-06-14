@@ -4,6 +4,23 @@
 
 ---
 
+## [2026-06-14] 图标系统重构（财务侧 · 占比统一 + 语义重选）
+
+### 变更
+- **统一图标占比**：新增 `CategoryIconBadge` 组件（单一占比常量 0.58、底色透明度 0.12、选中态加深+描边），替换 14 处散落的 `ZStack { Circle + icon }` 硬编码（TransactionCategoryGrid / CategoryPicker / CategoryManagementView / CategoryBudgetPicker / AccountDetailView / FinanceComponents 等），解决原 `size * 0.6` 折算导致图标占比仅 30%、小且看不清的问题
+- **重选 16 个语义错位 / 识别度差的图标**：
+  - A 类语义错位（8）：夜宵 moonphase→`mug.fill`、旅行 figure.walk→`airplane.departure`、过路费 building.columns→`road.lanes`、保健品 leaf→`pill.fill`、美妆 sparkles→`wand.and.stars`、娱乐一级 music.note→`theatermasks.fill`、房租 key→`house.lodge.fill`、家政保洁→`bubble.left.and.bubble.right.fill`
+  - B 类自绘换 SF Symbol（5）：早餐 / 午餐 / 晚餐 / 水果 从手画 Path 换成 `sunrise.fill` / `fork.knife.circle.fill` / `moon.stars.fill` / `carrot.fill`
+  - C 类重复差异化（3）：请客→`person.2.fill`、送礼→`shippingbox.fill`、罚款→`yensign.circle.fill`
+- **数据迁移 v4**：`migrateRefreshedCategoryIcons` 按 name + isDefault + 旧 icon 三重匹配，把老用户的旧图标名平滑迁移到新 SF Symbol，幂等、不误伤用户自定义分类
+
+### 说明
+- 牙齿保健（SF Symbols 无 tooth）、烟酒（无 cigarette）本轮摘出，由产品侧后续处理
+- 4 个 `holo.category.*` 自绘 Shape 代码保留兜底，但已从图标选择器候选库移除（breakfast/lunch/dinner/fruit），避免用户再选到识别度差的自绘图标
+- 习惯侧、收入侧图标留作第二阶段
+
+---
+
 ## [2026-06-14] Agent 深度分析卡片化（阶段 1）— Task P1
 
 ### 修复

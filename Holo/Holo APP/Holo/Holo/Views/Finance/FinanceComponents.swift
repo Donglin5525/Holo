@@ -282,15 +282,8 @@ struct TransactionRowView: View {
     private var categoryIcon: some View {
         let cat = transaction.category
         let color: Color = (cat?.isDeleted ?? false) ? .holoPrimary : (cat?.swiftUIColor ?? .holoPrimary)
-        return ZStack {
-            Circle()
-                .fill(color.opacity(0.08))
-                .frame(width: 48, height: 48)
-
-            if let cat {
-                transactionCategoryIcon(cat, size: 24)
-            }
-        }
+        let iconName = cat?.icon ?? "questionmark.folder.fill"
+        return CategoryIconBadge(iconName: iconName, color: color, diameter: 48)
     }
 
     private func formatTime(_ date: Date) -> String {

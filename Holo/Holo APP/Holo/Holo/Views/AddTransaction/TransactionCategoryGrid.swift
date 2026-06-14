@@ -210,21 +210,7 @@ extension AddTransactionSheet {
             }
         } label: {
             VStack(spacing: 6) {
-                ZStack {
-                    Circle()
-                        .fill(hasSelectedChild
-                              ? category.swiftUIColor.opacity(0.25)
-                              : category.swiftUIColor.opacity(0.12))
-                        .frame(width: 48, height: 48)
-
-                    if hasSelectedChild {
-                        Circle()
-                            .stroke(category.swiftUIColor, lineWidth: 2.5)
-                            .frame(width: 48, height: 48)
-                    }
-
-                    transactionCategoryIcon(category, size: 24)
-                }
+                CategoryIconBadge(category: category, diameter: 48, isSelected: hasSelectedChild)
                 Text(category.name)
                     .font(.system(size: 11))
                     .foregroundColor(hasSelectedChild ? .holoTextPrimary : .holoTextSecondary)
@@ -245,21 +231,7 @@ extension AddTransactionSheet {
             }
         } label: {
             VStack(spacing: 6) {
-                ZStack {
-                    Circle()
-                        .fill(isSelected
-                              ? parentColor.opacity(0.25)
-                              : parentColor.opacity(0.12))
-                        .frame(width: 48, height: 48)
-
-                    if isSelected {
-                        Circle()
-                            .stroke(parentColor, lineWidth: 2.5)
-                            .frame(width: 48, height: 48)
-                    }
-
-                    transactionCategoryIcon(category, size: 24)
-                }
+                CategoryIconBadge(iconName: category.icon, color: parentColor, diameter: 48, isSelected: isSelected)
                 Text(category.name)
                     .font(.system(size: 11))
                     .foregroundColor(isSelected ? .holoTextPrimary : .holoTextSecondary)
