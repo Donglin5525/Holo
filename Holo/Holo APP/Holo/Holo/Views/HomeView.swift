@@ -65,6 +65,9 @@ struct HomeView: View {
     /// AI 对话页面的预填文本
     @State private var chatPrefillText: String?
 
+    /// 是否在打开 AI 对话后自动弹出语音输入面板
+    @State private var openChatVoiceInput: Bool = false
+
     /// 目标规划请求（跨页面传递：PersonalView → ChatView）
     @State private var pendingGoalPlanningRequest: GoalPlanningRequest?
 
@@ -73,6 +76,9 @@ struct HomeView: View {
 
     /// 从 AI 对话卡片跳转到个人目标详情
     @State private var pendingGoalDetailId: UUID?
+
+    /// 从小组件跳转到想法详情
+    @State private var pendingThoughtDetailId: UUID?
 
     /// Holo One 快捷动作设置
     @AppStorage("holoOneAction") private var holoOneAction: HoloOneAction = .aiChat
@@ -200,16 +206,21 @@ struct HomeView: View {
         // 观点页面（Full Screen Cover 形式）
         .fullScreenCover(isPresented: $showThoughtsView) {
             LazyView {
-                ThoughtsView()
+                ThoughtsView(initialThoughtId: pendingThoughtDetailId)
                     .preferredColorScheme(DarkModeManager.shared.colorScheme)
             }
         }
         // AI 对话页面（Full Screen Cover 形式）
         .fullScreenCover(isPresented: $showChatView, onDismiss: {
             chatPrefillText = nil
+            openChatVoiceInput = false
         }) {
             LazyView {
-                ChatView(goalPlanningRequest: $pendingGoalPlanningRequest, prefillText: chatPrefillText)
+                ChatView(
+                    goalPlanningRequest: $pendingGoalPlanningRequest,
+                    prefillText: chatPrefillText,
+                    opensVoiceInputOnAppear: openChatVoiceInput
+                )
                     .preferredColorScheme(DarkModeManager.shared.colorScheme)
             }
         }
@@ -737,6 +748,8 @@ struct HomeView: View {
 
         // 如果目标页面已打开，不需要 dismiss，让模块内部处理跳转
         switch target {
+        case .ai:
+            if showChatView { return }
         case .taskDetail, .dailyReminder:
             if showTasksView { return }
         case .goalDetail:
@@ -745,8 +758,16 @@ struct HomeView: View {
             if showHabitsView { return }
         case .finance:
             if showFinanceView { return }
+        case .addTransaction:
+            if showAddTransactionSheet { return }
         case .tasks:
             if showTasksView { return }
+        case .addTask:
+            if showAddTaskSheet { return }
+        case .recordThought:
+            if showThoughtEditor { return }
+        case .thoughtDetail:
+            if showThoughtsView { return }
         case .memoryGallery:
             if showMemoryGallery { return }
         }
@@ -760,10 +781,15 @@ struct HomeView: View {
         showThoughtsView = false
         showChatView = false
         showPersonalView = false
+        pendingThoughtDetailId = nil
 
         // 延迟后打开目标页面（等待 dismiss 动画完成）
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             switch target {
+            case .ai(let voiceInput):
+                openChatVoiceInput = voiceInput
+                showChatView = true
+                deepLinkState.pendingTarget = nil
             case .taskDetail, .dailyReminder:
                 showTasksView = true
                 // pendingTarget 由 TaskListView.handleDeepLink() 清除
@@ -777,8 +803,21 @@ struct HomeView: View {
             case .finance:
                 showFinanceView = true
                 deepLinkState.pendingTarget = nil
+            case .addTransaction:
+                showAddTransactionSheet = true
+                deepLinkState.pendingTarget = nil
             case .tasks:
                 showTasksView = true
+                deepLinkState.pendingTarget = nil
+            case .addTask:
+                showAddTaskSheet = true
+                deepLinkState.pendingTarget = nil
+            case .recordThought:
+                showThoughtEditor = true
+                deepLinkState.pendingTarget = nil
+            case .thoughtDetail(let thoughtId):
+                pendingThoughtDetailId = thoughtId
+                showThoughtsView = true
                 deepLinkState.pendingTarget = nil
             case .memoryGallery:
                 showMemoryGallery = true

@@ -21,14 +21,23 @@
 
 ---
 
-## [2026-06-14] Agent 深度分析卡片化（阶段 1）— Task P1
+## [2026-06-14] Agent 深度分析卡片化（阶段 1：卡片化 + 排版）
+
+### 新增
+- **Agent 深度分析结果卡片化**：Agent loop 结果从「纯文本气泡」改为 Chat 内卡片承载（入口卡四态：loading/loaded/unloaded/degrade），点击进入结构化详情 Sheet（核心结论卡 + 观察段 + 数据依据段）。新增 `AgentDeepAnalysisCard` + `AgentDeepAnalysisDetailSheet`，复用底层组件（ChatCardView/CardHeaderView/HoloAIHeroMetric/HoloAIFactItem）
+- **agentResultJSON 持久化**：`ChatMessage` 新增 `agentResultJSON` Core Data 字段（轻量迁移），结构化存储 `HoloRenderedAgentResult`；`ChatMessageViewData` 加 `agentResult` 字段 + `decodeAgentResult`，4 处 init 解码 + 向后兼容
+- **XCTest test target 启用**：项目原本无 test target（HoloTests/ 孤儿目录），本次启用 HoloTests target + 修正 widget 扩展 Bundle ID（`com.holo.HoloWidgets`→`com.holo.Holo.HoloWidgets`，符合 iOS 扩展规则），test_sim 可跑标准 XCTest
 
 ### 修复
-- **Agent 结果渲染器修复 title/body 同值浪费**：`HoloAgentResultRenderer.render` 之前每个 section 的 `title` 和 `body` 都设成 `claim.displayText`（同值），详情页无视觉层级；改为 `title` 用「观察 N」短 kicker、`body` 用 claim 正文，多条 claim 的 title 互不相同
-- **section 暴露 confidence**：`HoloRenderedAgentSection` 新增可选 `confidence: Double?`，透传 `claim.confidence`，为阶段 2 卡片可视化（置信度色条/标签）铺路；`Codable` 向后兼容，旧 JSON 缺该字段解码为 nil
+- **渲染器 title/body 同值浪费**：`HoloAgentResultRenderer.render` 之前 section 的 title 和 body 都设成 `claim.displayText`（同值，无视觉层级）；改为 title 用「观察 N」短 kicker、body 用 claim 正文
+- **section 暴露 confidence**：`HoloRenderedAgentSection` 新增可选 `confidence: Double?`，透传 `claim.confidence`，为阶段 2 可视化铺路；Codable 向后兼容，旧 JSON 缺该字段解码为 nil
+- **ChatViewModel 不再拍扁结果**：Agent 路径之前用 `\n` 把 title+summary+所有 claims 拼成一坨文本塞气泡（连 markdown 都不渲染）；改为结构化存 agentResultJSON，由卡片渲染
 
 ### 测试
-- `HoloAgentResultRendererTests` 新增 3 个验证：title≠body、section 携带 confidence、多条 claim title 互不相同（RED→GREEN 闭环：修复前因缺 confidence 字段编译失败，修复后全通过）
+- test_sim 11/11 通过：渲染器 7 个（title≠body、confidence、多 claim title 互不相同 + 4 旧测试）+ ViewData 编解码 4 个（valid/nil/invalid/旧 JSON 向后兼容）
+
+### 说明
+- 阶段 2（AI 驱动可视化：预算进度条/趋势图/对比条/数据源表格）、阶段 3（目标+感受工具）、阶段 4（全局 AI→Holo 文案）待后续
 
 ---
 

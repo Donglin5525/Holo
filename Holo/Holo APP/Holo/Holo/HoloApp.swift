@@ -47,6 +47,9 @@ struct HoloApp: App {
 
         // 提前启动 CloudKit 事件监听，避免首次打开设置页时错过启动期同步事件
         _ = ICloudSyncStatusService.shared
+
+        // 监听财务/想法变更，维护桌面小组件使用的轻量快照
+        HoloWidgetSnapshotService.shared.startObserving()
     }
 
     // MARK: - Body
@@ -58,7 +61,10 @@ struct HoloApp: App {
             }
                 .preferredColorScheme(darkModeManager.colorScheme)
                 .onOpenURL { url in
-                    guard url.isFileURL else { return }
+                    guard url.isFileURL else {
+                        DeepLinkState.shared.handle(url: url)
+                        return
+                    }
                     let ext = url.pathExtension.lowercased()
                     guard ext == "csv" || ext == "txt" || ext == "tsv" else { return }
                     pendingImportURL = CSVFileURL(url: url)
@@ -83,6 +89,9 @@ struct HoloApp: App {
                     repository.backfillTagAssignmentsIfNeeded()
 
                     ThoughtOrganizationQueue.shared.rebuildFromDatabase()
+
+                    // 首屏数据准备后刷新一次小组件快照，保证冷启动后桌面数据可用
+                    await HoloWidgetSnapshotService.shared.refreshAllSnapshots()
                 }
                 .onChange(of: scenePhase) { _, phase in
                     // Agent 后台续跑：灰度 flag 关闭时直接 return，不影响现有行为

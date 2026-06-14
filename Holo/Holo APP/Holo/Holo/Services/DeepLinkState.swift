@@ -12,13 +12,18 @@ import Combine
 /// Deep Link 跳转目标
 /// 各模块通过匹配对应 case 决定是否响应跳转
 enum DeepLinkTarget: Equatable {
+    case ai(voiceInput: Bool)
     case taskDetail(taskId: UUID)
     case goalDetail(goalId: UUID)
     case dailyReminder
     case habitDetail(habitId: UUID)
     /// 从 AI Chat 卡片跳转到对应模块
     case finance
+    case addTransaction
     case tasks
+    case addTask
+    case recordThought
+    case thoughtDetail(thoughtId: UUID)
     /// 从 AI Chat 洞察标签跳转到记忆长廊
     case memoryGallery
 }
@@ -54,7 +59,29 @@ class DeepLinkState: ObservableObject {
         }
     }
 
+    func handle(url: URL) {
+        guard let widgetTarget = HoloWidgetDeepLink.parse(url) else { return }
+        navigate(to: DeepLinkTarget(widgetTarget))
+    }
+
     // MARK: - Initialization
 
     private init() {}
+}
+
+private extension DeepLinkTarget {
+    init(_ widgetTarget: HoloWidgetDeepLink) {
+        switch widgetTarget {
+        case .ai(let voiceInput):
+            self = .ai(voiceInput: voiceInput)
+        case .addTransaction:
+            self = .addTransaction
+        case .recordThought:
+            self = .recordThought
+        case .addTask:
+            self = .addTask
+        case .thoughtDetail(let id):
+            self = .thoughtDetail(thoughtId: id)
+        }
+    }
 }

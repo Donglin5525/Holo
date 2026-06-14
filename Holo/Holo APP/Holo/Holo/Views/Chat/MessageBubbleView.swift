@@ -19,6 +19,7 @@ struct MessageBubbleView: View {
     var onFlexibleQueryViewAllTap: ((FlexibleQueryChatCardData) -> Void)? = nil
     var onViewLog: ((ChatMessageViewData) -> Void)? = nil
     var onCompactAnalysisTap: (() -> Void)? = nil
+    var onAgentDeepAnalysisTap: (() -> Void)? = nil
     var onGoalDraftCardTap: (() -> Void)? = nil
     var onSavedGoalCardTap: ((UUID) -> Void)? = nil
     var onRetry: (() -> Void)? = nil
@@ -103,13 +104,13 @@ struct MessageBubbleView: View {
                         }
                     }
                 } else if message.isQueryAnalysis {
-                    if message.isStreaming {
-                        // 流式中：显示 loading 卡片
-                        AnalysisCompactChatCard(message: message) {
-                            onCompactAnalysisTap?()
+                    if message.agentResult != nil || (message.isStreaming && message.analysisContext == nil) {
+                        // Agent 深度分析路径（结果已出 或 分析中且非账单分析）
+                        AgentDeepAnalysisCard(message: message) {
+                            onAgentDeepAnalysisTap?()
                         }
                     } else if message.analysisContext != nil {
-                        // 有分析数据 → 真实卡片
+                        // 账单分析（流式 analysisContext 路径）
                         AnalysisCompactChatCard(message: message) {
                             onCompactAnalysisTap?()
                         }

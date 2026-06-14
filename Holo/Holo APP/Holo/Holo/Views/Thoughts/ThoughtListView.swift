@@ -22,6 +22,7 @@ struct ThoughtListView: View {
     let onBack: () -> Void
     @Binding var showAddThought: Bool
     let thoughtRepository: ThoughtRepository
+    let initialThoughtId: UUID?
 
     /// 筛选状态
     @State private var selectedTagName: String? = nil
@@ -109,6 +110,9 @@ struct ThoughtListView: View {
         .onAppear {
             loadThoughts()
             loadTags()
+            if let initialThoughtId {
+                selectedThoughtId = initialThoughtId
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .thoughtDataDidChange)) { _ in
             loadThoughts()

@@ -38,6 +38,11 @@ struct ThoughtsView: View {
     @State private var showAddThought: Bool = false
 
     private let thoughtRepository = ThoughtRepository()
+    let initialThoughtId: UUID?
+
+    init(initialThoughtId: UUID? = nil) {
+        self.initialThoughtId = initialThoughtId
+    }
 
     // MARK: - Body
 
@@ -51,7 +56,8 @@ struct ThoughtsView: View {
                     ThoughtListView(
                         onBack: { dismiss() },
                         showAddThought: $showAddThought,
-                        thoughtRepository: thoughtRepository
+                        thoughtRepository: thoughtRepository,
+                        initialThoughtId: initialThoughtId
                     )
                 case .add:
                     EmptyView()

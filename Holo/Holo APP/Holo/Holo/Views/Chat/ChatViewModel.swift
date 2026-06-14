@@ -276,20 +276,23 @@ final class ChatViewModel: ObservableObject {
                         intent: "query_analysis",
                         analysisContext: nil
                     )
-                    self.streamingText = "正在为你深度分析本地数据…"
+                    self.streamingText = "Holo 正在为你深度分析本地数据…"
                     let rendered = await self.analysisService.runAnalysis(question: text)
-                    var lines = [rendered.title, rendered.summary]
-                    lines.append(contentsOf: rendered.sections.map(\.body))
-                    let finalText = lines.filter { !$0.isEmpty }.joined(separator: "\n")
+                    // 不再拍扁成单段文本：结构化存 agentResultJSON，由 AgentDeepAnalysisCard 渲染
+                    // fallback 文本用于历史回看/解码失败时退化展示（标题 + 摘要）
+                    let fallbackText = [rendered.title, rendered.summary]
+                        .filter { !$0.isEmpty }
+                        .joined(separator: "\n")
                     self.chatRepo?.finalizeMessage(
                         aiMessageId,
-                        finalContent: finalText,
+                        finalContent: fallbackText,
                         intent: processResult.firstIntent?.rawValue,
                         extractedDataJSON: nil,
                         parsedBatchJSON: nil,
                         executionBatchJSON: nil,
                         analysisContextJSON: nil,
-                        rawLogJSON: nil
+                        rawLogJSON: nil,
+                        agentResultJSON: Self.encodeAgentResult(rendered)
                     )
                 } else if processResult.shouldStreamChat {
                     if let analysisContext = processResult.analysisContext {
@@ -1100,6 +1103,11 @@ final class ChatViewModel: ObservableObject {
     }
 
     /// 将 AnalysisContext 编码为 JSON 字符串
+    private static func encodeAgentResult(_ result: HoloRenderedAgentResult) -> String? {
+        guard let data = try? JSONEncoder().encode(result) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
     private static func encodeAnalysisContext(_ context: AnalysisContext) -> String? {
         do {
             let encoder = JSONEncoder()

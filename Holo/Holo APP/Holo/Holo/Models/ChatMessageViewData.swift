@@ -48,6 +48,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
     var executionBatch: AIExecutionBatch?
     var analysisContext: AnalysisContext?
     var rawLog: LLMLog?
+    var agentResult: HoloRenderedAgentResult?
     private var cachedExtractedDataDictionary: [String: String]?
     private var cachedLinkedEntityIds: [EntityCategory: UUID]
     var metadataState: ChatMessageMetadataState
@@ -65,7 +66,8 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         parsedBatch: AIParseBatch? = nil,
         executionBatch: AIExecutionBatch? = nil,
         analysisContext: AnalysisContext? = nil,
-        rawLog: LLMLog? = nil
+        rawLog: LLMLog? = nil,
+        agentResult: HoloRenderedAgentResult? = nil
     ) {
         self.id = id
         self.role = role
@@ -80,6 +82,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         self.executionBatch = executionBatch
         self.analysisContext = analysisContext
         self.rawLog = rawLog
+        self.agentResult = agentResult
         self.metadataState = .loaded
         self.cachedExtractedDataDictionary = Self.decodeExtractedData(extractedDataJSON)
         self.cachedLinkedEntityIds = Self.buildLinkedEntityIds(
@@ -102,7 +105,8 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
             parsedBatch: message.parsedBatch,
             executionBatch: message.executionBatch,
             analysisContext: Self.decodeAnalysisContext(message.analysisContextJSON),
-            rawLog: Self.decodeRawLog(message.rawLogJSON)
+            rawLog: Self.decodeRawLog(message.rawLogJSON),
+            agentResult: Self.decodeAgentResult(message.agentResultJSON)
         )
     }
 
@@ -127,7 +131,8 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
             parsedBatch: Self.decodeParseBatch(dictionary["parsedBatchJSON"] as? String),
             executionBatch: Self.decodeExecutionBatch(dictionary["executionBatchJSON"] as? String),
             analysisContext: Self.decodeAnalysisContext(dictionary["analysisContextJSON"] as? String),
-            rawLog: Self.decodeRawLog(dictionary["rawLogJSON"] as? String)
+            rawLog: Self.decodeRawLog(dictionary["rawLogJSON"] as? String),
+            agentResult: Self.decodeAgentResult(dictionary["agentResultJSON"] as? String)
         )
     }
 
@@ -155,12 +160,14 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         self.executionBatch = Self.decodeExecutionBatch(dictionary["executionBatchJSON"] as? String)
         self.rawLog = Self.decodeRawLog(dictionary["rawLogJSON"] as? String)
 
-        // queryAnalysis 消息直接解码 analysisContext，确保首帧即可渲染卡片
+        // queryAnalysis 消息直接解码 analysisContext 和 agentResult，确保首帧即可渲染卡片
         let intentStr = dictionary["intent"] as? String
         if intentStr == AIIntent.queryAnalysis.rawValue {
             self.analysisContext = Self.decodeAnalysisContext(dictionary["analysisContextJSON"] as? String)
+            self.agentResult = Self.decodeAgentResult(dictionary["agentResultJSON"] as? String)
         } else {
             self.analysisContext = nil
+            self.agentResult = nil
         }
 
         // 元数据状态：首屏轻量查询会带上卡片渲染和日志所需字段，避免等待滚动触发懒加载。
@@ -187,12 +194,14 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         parsedBatch: AIParseBatch?,
         executionBatch: AIExecutionBatch?,
         analysisContext: AnalysisContext?,
-        rawLog: LLMLog?
+        rawLog: LLMLog?,
+        agentResult: HoloRenderedAgentResult?
     ) {
         self.parsedBatch = parsedBatch
         self.executionBatch = executionBatch
         self.analysisContext = analysisContext
         self.rawLog = rawLog
+        self.agentResult = agentResult
         self.metadataState = .loaded
         recomputeLinkedEntityIds()
     }
@@ -389,6 +398,14 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
             return nil
         }
         return try? JSONDecoder().decode(LLMLog.self, from: data)
+    }
+
+    nonisolated static func decodeAgentResult(_ json: String?) -> HoloRenderedAgentResult? {
+        guard let json,
+              let data = json.data(using: .utf8) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(HoloRenderedAgentResult.self, from: data)
     }
 
     nonisolated private static func buildLinkedEntityIds(
