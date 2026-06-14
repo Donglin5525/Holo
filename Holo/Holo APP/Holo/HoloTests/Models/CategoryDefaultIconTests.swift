@@ -23,6 +23,22 @@ final class CategoryDefaultIconTests: XCTestCase {
 
     func testSubCategoryDefaultIconLookupUsesParentNameToDisambiguate() {
         XCTAssertEqual(
+            Category.defaultIconName(name: "早餐", type: .expense, parentName: "餐饮"),
+            "holo.category.breakfast"
+        )
+        XCTAssertEqual(
+            Category.defaultIconName(name: "午餐", type: .expense, parentName: "餐饮"),
+            "holo.category.lunch"
+        )
+        XCTAssertEqual(
+            Category.defaultIconName(name: "晚餐", type: .expense, parentName: "餐饮"),
+            "holo.category.dinner"
+        )
+        XCTAssertEqual(
+            Category.defaultIconName(name: "水果", type: .expense, parentName: "餐饮"),
+            "holo.category.fruit"
+        )
+        XCTAssertEqual(
             Category.defaultIconName(name: "基金", type: .income, parentName: "投资理财"),
             "chart.pie.fill"
         )

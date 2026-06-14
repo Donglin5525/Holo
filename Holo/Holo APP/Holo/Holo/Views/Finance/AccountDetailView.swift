@@ -465,9 +465,11 @@ struct AccountDetailView: View {
             Circle()
                 .fill((category?.swiftUIColor ?? .holoTextSecondary).opacity(0.12))
                 .frame(width: 32, height: 32)
-            Image(systemName: category?.icon ?? "chart.pie")
-                .font(.system(size: 14))
-                .foregroundColor(category?.swiftUIColor ?? .holoTextSecondary)
+            categoryIconGlyph(
+                category?.icon ?? "chart.pie",
+                size: 14,
+                color: category?.swiftUIColor ?? .holoTextSecondary
+            )
         }
     }
 
@@ -586,9 +588,11 @@ struct AccountDetailView: View {
                 Circle()
                     .fill(catColor.opacity(0.1))
                     .frame(width: 36, height: 36)
-                Image(systemName: (cat?.isDeleted ?? false) ? "questionmark.folder" : (cat?.icon ?? "questionmark.circle"))
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(catColor)
+                categoryIconGlyph(
+                    (cat?.isDeleted ?? false) ? "questionmark.folder" : (cat?.icon ?? "questionmark.circle"),
+                    size: 16,
+                    color: catColor
+                )
             }
 
             VStack(alignment: .leading, spacing: 2) {

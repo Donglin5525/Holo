@@ -43,6 +43,12 @@ final class HoloMemorySettings: ObservableObject {
         // Profile Snapshot Feature Flags
         static let profileSnapshotEnabled = "holo_profile_snapshotEnabled"
         static let profileAnalysisInjectionEnabled = "holo_profile_analysisInjectionEnabled"
+
+        // HoloAI Agent Feature Flags (V3.1，默认全 false)
+        static let agentRuntimeEnabled = "holo_agent_runtimeEnabled"
+        static let agentDebugModeEnabled = "holo_agent_debugModeEnabled"
+        static let agentMemoryGalleryEnabled = "holo_agent_memoryGalleryEnabled"
+        static let agentObserverTier2Enabled = "holo_agent_observerTier2Enabled"
     }
 
     @Published var longTermMemoryEnabled: Bool {
@@ -89,6 +95,28 @@ final class HoloMemorySettings: ObservableObject {
         didSet { defaults.set(profileAnalysisInjectionEnabled, forKey: Keys.profileAnalysisInjectionEnabled) }
     }
 
+    // MARK: - HoloAI Agent Feature Flags (V3.1，默认全 false)
+
+    /// 本地 Agent Runtime 是否启用（深度分析主入口灰度开关）
+    @Published var agentRuntimeEnabled: Bool {
+        didSet { defaults.set(agentRuntimeEnabled, forKey: Keys.agentRuntimeEnabled) }
+    }
+
+    /// Agent Debug 模式（内部调试入口）
+    @Published var agentDebugModeEnabled: Bool {
+        didSet { defaults.set(agentDebugModeEnabled, forKey: Keys.agentDebugModeEnabled) }
+    }
+
+    /// 记忆长廊读取 Agent Result 灰度开关
+    @Published var agentMemoryGalleryEnabled: Bool {
+        didSet { defaults.set(agentMemoryGalleryEnabled, forKey: Keys.agentMemoryGalleryEnabled) }
+    }
+
+    /// Observer Tier 2 自动触发 Agent 灰度开关
+    @Published var agentObserverTier2Enabled: Bool {
+        didSet { defaults.set(agentObserverTier2Enabled, forKey: Keys.agentObserverTier2Enabled) }
+    }
+
     private init() {
         self.longTermMemoryEnabled = defaults.object(forKey: Keys.longTermMemoryEnabled) as? Bool ?? false
         self.memoryInsightExtractionEnabled = defaults.object(forKey: Keys.memoryInsightExtractionEnabled) as? Bool ?? false
@@ -101,6 +129,12 @@ final class HoloMemorySettings: ObservableObject {
         // Profile Snapshot 默认启用（核心功能升级，非实验性）
         self.profileSnapshotEnabled = defaults.object(forKey: Keys.profileSnapshotEnabled) as? Bool ?? true
         self.profileAnalysisInjectionEnabled = defaults.object(forKey: Keys.profileAnalysisInjectionEnabled) as? Bool ?? true
+
+        // HoloAI Agent 默认全 false（灰度阶段不接入主入口）
+        self.agentRuntimeEnabled = defaults.object(forKey: Keys.agentRuntimeEnabled) as? Bool ?? false
+        self.agentDebugModeEnabled = defaults.object(forKey: Keys.agentDebugModeEnabled) as? Bool ?? false
+        self.agentMemoryGalleryEnabled = defaults.object(forKey: Keys.agentMemoryGalleryEnabled) as? Bool ?? false
+        self.agentObserverTier2Enabled = defaults.object(forKey: Keys.agentObserverTier2Enabled) as? Bool ?? false
     }
 }
 
@@ -140,5 +174,27 @@ enum HoloAIFeatureFlags {
     /// 控制分析查询 / FlexibleQuery 路径是否注入 profile
     static var profileAnalysisInjectionEnabled: Bool {
         HoloMemorySettings.shared.profileAnalysisInjectionEnabled
+    }
+
+    // MARK: - HoloAI Agent Feature Flags (V3.1，默认全 false)
+
+    /// 本地 Agent Runtime 是否启用（深度分析主入口灰度开关）
+    static var agentRuntimeEnabled: Bool {
+        HoloMemorySettings.shared.agentRuntimeEnabled
+    }
+
+    /// Agent Debug 模式
+    static var agentDebugModeEnabled: Bool {
+        HoloMemorySettings.shared.agentDebugModeEnabled
+    }
+
+    /// 记忆长廊读取 Agent Result
+    static var agentMemoryGalleryEnabled: Bool {
+        HoloMemorySettings.shared.agentMemoryGalleryEnabled
+    }
+
+    /// Observer Tier 2 自动触发
+    static var agentObserverTier2Enabled: Bool {
+        HoloMemorySettings.shared.agentObserverTier2Enabled
     }
 }

@@ -438,10 +438,10 @@ nonisolated enum CategorySFSymbolMapper {
     /// 二级分类 → SF Symbol（从 Category+CoreDataProperties 的层级定义中提取）
     private static let subMapping: [String: String] = [
         // 餐饮
-        "早餐": "sunrise.fill", "午餐": "sun.max.fill", "晚餐": "moon.stars.fill",
+        "早餐": "holo.category.breakfast", "午餐": "holo.category.lunch", "晚餐": "holo.category.dinner",
         "夜宵": "moonphase.waning.crescent", "零食": "popcorn.fill",
         "咖啡": "cup.and.saucer.fill", "外卖": "bag.fill", "饮品": "wineglass.fill",
-        "水果": "carrot.fill", "酒水": "wineglass", "超市": "cart.fill",
+        "水果": "holo.category.fruit", "酒水": "wineglass", "超市": "cart.fill",
         // 交通
         "地铁": "train.side.front.car", "打车": "car.side.fill", "公交": "bus.fill",
         "单车": "bicycle", "加油": "fuelpump.fill", "停车": "parkingsign.circle.fill",

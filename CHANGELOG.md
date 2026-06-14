@@ -4,6 +4,113 @@
 
 ---
 
+## [2026-06-14] Agent 灰度开关 UI 接入「设置 → AI」
+
+### 新增
+- 设置 → AI 新增「Agent 深度分析（灰度）」Section，四个 Toggle 一步到位开关：Agent 深度分析引擎 / 记忆长廊展示 Agent 结果 / 后台观察自动深挖 / Agent 调试入口，全部默认关
+
+---
+
+## [2026-06-14] HoloAI Agent V3.1 数据时间范围接 ToolRequest（遗留 ③）
+
+### 修复
+- **时间范围动态化**：Habit/Finance dataSource 协议加 timeRange 参数（habits(timeRange:) / snapshot(timeRange:baseline:)），Tool.execute 从 HoloToolRequest 提取传参，生产实现用 timeRange.start/end 算日期范围（nil 默认 14 天），aggregate bucket 动态 dayCount
+- test mock 同步签名，standalone 工具测试回归绿
+
+### 说明
+- HoloAgentTimeRange 是简单 struct（start/end Date），无需枚举解析；链路：request.timeRange → execute 传 → dataSource → 动态日期范围
+- xcodebuild BUILD SUCCEEDED + standalone HabitTool/FinanceTool 回归绿
+
+---
+
+## [2026-06-14] HoloAI Agent V3.1 修复 Agent 结果渲染（遗留 ②+①）
+
+### 修复
+- **对话结果短文**（①）：AnalysisService.runAnalysis 改为返回渲染后的 HoloRenderedAgentResult，ChatViewModel 用 title/summary/claims 拼成短文，替代之前的「深度分析已完成」占位文本
+- **evidence 引用**（②）：新增 PersistenceManager.loadEvidence / runtime.loadEvidence（按 ID 从 ledger 读证据记录），记忆长廊卡片与对话短文经 HoloAgentResultRenderer 渲染时携带脱敏证据引用
+
+### 说明
+- xcodebuild BUILD SUCCEEDED + standalone PersistenceManager/AgentRuntime 回归绿
+
+---
+
+## [2026-06-14] HoloAI Agent V3.1 Habit/Finance 工具接真实数据（Task #34）
+
+### 新增
+- **习惯数据源**：HoloDefaultHabitDataSource 包裹真实 HabitRepository，按日聚合近 14 天打卡/数值记录为 dailyCounts（数值型累加 value，打卡型 +1），转 HabitTool 中性结构
+- **财务数据源**：HoloDefaultFinanceDataSource 包裹真实 FinanceRepository，聚合本期/基线（各 14 天）的晚间餐饮频次（22:00–06:00 + 餐饮关键词）、分类次数、支出金额
+- **三工具注册**：生产 runtime 现注册 Memory + Habit + Finance 三个工具，Agent 可读三域真实数据
+
+### 说明
+- 习惯同步 repo 经 MainActor.run 保证 Core Data 线程安全；财务 async getTransactions 直接 await
+- 生产 DataSource 仅随 app 编译，不进 standalone 测试；xcodebuild BUILD SUCCEEDED + standalone 工具测试回归绿
+
+---
+
+## [2026-06-14] HoloAI Agent V3.1 Observer 自动触发深度 Agent（Phase 6.4）
+
+### 新增
+- **Tier2 触发接线**：HoloMemoryObserverService 跑完 Tier1 浅观察后，在 agentObserverTier2Enabled 灰度下，将目标信号确定性映射为 goalConflict pattern，经 HoloObserverTriggerPolicy 判断（360 分钟冷却 + 严重度），命中则 fire-and-forget 启动 Tier2 深度 Agent
+- 冷却时间持久化在 UserDefaults；Tier2 在 @MainActor Task 异步跑，不阻塞 Observer
+
+### 说明
+- patterns 映射为简单规则（目标信号数 → goalConflict high pattern），语义可后续细化
+- Policy 与 standalone 测试此前已完成；本次仅接线。xcodebuild BUILD SUCCEEDED
+
+---
+
+## [2026-06-14] HoloAI Agent V3.1 记忆长廊展示 Agent 结果（Phase 6.3）
+
+### 新增
+- **Agent 结果落盘**：runLoop 完成 final_claims 时构造 `HoloAgentResult`（claims + 汇总 evidenceIDs）并持久化，补齐 6.2 的结果产物缺口
+- **结果读取链**：`ResultStore.latest` / `PersistenceManager.saveResult`+`loadLatestResult` / `runtime.loadLatestResult`
+- **记忆长廊展示**：MemoryGalleryViewModel 在 agentMemoryGalleryEnabled 灰度下读取最近 Agent 结果，新增 `HoloAgentResultCard` 卡片展示 verified claims；旧 insight 保留 fallback
+
+### 说明
+- evidence 引用渲染待后续接入 evidence 读取；agentMemoryGalleryEnabled 默认关，不影响线上
+- xcodebuild BUILD SUCCEEDED + standalone PersistenceManager/AgentRuntime 回归绿
+
+---
+
+## [2026-06-14] HoloAI Agent V3.1 对话深度分析接入本地 Agent（Phase 6.2）
+
+### 新增
+- **对话→Agent 分流**：query_analysis 意图命中（agentRuntimeEnabled 灰度）时，ConversationCoordinator 分流到本地深度 Agent，ChatViewModel 启动 Agent job 并展示「正在深度分析」状态
+- **生产 Agent runtime**：`HoloLocalAgentRuntime.shared` 升级为生产 runtime（接真实后端 LLM + Memory 工具），5.1 后台续跑与 6.2 对话分析共用同一实例
+- **AnalysisService**：封装「创建 job → 构建 agent_loop 提示 → 多轮 runLoop」单一入口
+- **工具装配同步化**：HoloToolRegistry 支持 `init(tools:)` 同步构造，避开 actor 异步装配
+
+### 说明
+- 结果短文渲染（claims → 可读文本）与 Habit/Finance 工具生产数据源待后续接入
+- agentRuntimeEnabled 默认关，不影响线上；xcodebuild BUILD SUCCEEDED + standalone AgentRuntime 回归绿
+
+---
+
+## [2026-06-14] 财务与习惯图标语义体系优化
+
+### 优化
+- **财务默认科目图标重设计**：早餐 / 午餐 / 晚餐 / 水果改用 Holo 自绘语义图标，不再用日出、太阳、月亮或胡萝卜硬代替
+- **历史用户自动迁移**：已有默认餐饮科目若仍使用旧图标，会自动迁移到新语义图标；用户自定义过的非默认分类不强制覆盖
+- **聊天卡片与财务局部页面统一渲染**：分类选择器、聊天记账卡片、账户明细、预算选择、导入匹配等入口共用同一套图标渲染逻辑，避免局部空白或风格割裂
+- **习惯图标预设补齐**：感恩改为心意文本图标，减少改为中性的 minus 圆形图标；新增呼吸、拉伸、护眼、站立、编程、日记、数据复盘、控制、少刷短视频、减少咖啡因等预设
+
+### 验证
+- xcodebuild generic iOS build succeeded
+- `VerifyChatCardData.swift` standalone 校验 33/33 通过
+
+---
+
+## [2026-06-14] HoloAI Agent V3.1 后台续跑接入 App 生命周期（Phase 5.1）
+
+### 新增
+- **Agent 后台续跑接线**：新建 `HoloAgentRuntimeShared`（runtime + 后台续跑管理器双 App 级单例）；`HoloApp` 监听 `scenePhase`，进后台暂存 checkpoint、回前台恢复未完成任务，全程 `agentRuntimeEnabled` 门控（默认关，不影响现有行为）
+
+### 说明
+- 仅接线场景生命周期；Agent 真正端到端运行（生产 runtime + 启动入口）在后续 Phase 6.2 接入
+- xcodebuild BUILD SUCCEEDED
+
+---
+
 ## [2026-06-13] 修复习惯信号判断与手势冲突
 
 ### 修复
@@ -14,6 +121,24 @@
 
 ### 新增
 - 4 份 HoloAI Agent 架构方案文档（V1 → V3.1 迭代过程）
+
+---
+
+## [2026-06-13] HoloAI Agent V3.1 本地优先地基（Phase 0 + Phase 1）
+
+### 新增
+- **Agent 可恢复执行骨架**：新增本地优先的 Agent 运行时（`HoloLocalAgentRuntime`），支持任务启动、分步推进、App 重启后从断点自动恢复、随时取消，全程不依赖云端状态
+- **可信持久化层**：任务 / 断点 / 结果 / 证据分仓库原子落盘，写入顺序固定（证据 → 断点 → 任务状态），崩溃后状态保持一致；支持孤儿证据归档与断点引用校验
+- **统一数据模型**：定义 Agent 任务、预算、断点、工具请求、证据、模式信号、结果等 8 类模型，作为整个 AI 洞察体系的数据基础
+- **安全开关与止血**：4 个灰度 Feature Flag（默认全关）、旧格式浅摘要标记拦截、Agent 子系统调试快照导出（`HoloAgentDebugExporter`）
+- **Mock 生命周期验证**：用 mock 数据跑通「启动 → 推进 → 重启恢复 → 取消」完整闭环，证明可恢复承诺
+
+### 说明
+- 本阶段不接入真实 LLM 与数据工具，仅夯实确定性骨架；真实能力在后续阶段逐步接入
+- 位于分支 `feature/holoai-agent-v31-foundation`，Feature Flag 默认关闭，不影响线上功能
+
+### 验证
+- swiftc 独立测试用例全部通过 + xcodebuild BUILD SUCCEEDED
 
 ---
 

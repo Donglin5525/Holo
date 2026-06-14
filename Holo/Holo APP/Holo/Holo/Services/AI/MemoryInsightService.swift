@@ -14,6 +14,12 @@ final class MemoryInsightService {
 
     static let shared = MemoryInsightService()
 
+    /// 是否应优先从 Agent Result 读取记忆长廊（灰度，agentMemoryGalleryEnabled flag 保护）。
+    /// flag 关闭时保持现有 MemoryInsightService 流程作为 fallback。
+    static var shouldReadAgentResults: Bool {
+        HoloAIFeatureFlags.agentMemoryGalleryEnabled
+    }
+
     private let logger = Logger(subsystem: "com.holo.app", category: "MemoryInsightService")
     private let repository = MemoryInsightRepository()
     private let contextBuilder = MemoryInsightContextBuilder()

@@ -215,6 +215,10 @@ struct HabitIconPresets {
             IconItem(name: "bed.double.fill", label: "睡眠"),
             IconItem(name: "moon.fill", label: "早睡"),
             IconItem(name: "sun.max.fill", label: "早起"),
+            IconItem(name: "lungs.fill", label: "呼吸"),
+            IconItem(name: "figure.flexibility", label: "拉伸"),
+            IconItem(name: "eye.fill", label: "护眼"),
+            IconItem(name: "figure.stand", label: "站立"),
             IconItem(name: "brain.head.profile", label: "冥想"),
             IconItem(name: "heart.fill", label: "心脏"),
             IconItem(name: "pill.fill", label: "服药"),
@@ -233,13 +237,17 @@ struct HabitIconPresets {
             IconItem(name: "lightbulb.fill", label: "学习"),
             IconItem(name: "puzzlepiece.fill", label: "技能"),
             IconItem(name: "doc.text.fill", label: "文档"),
+            IconItem(name: "chevron.left.forwardslash.chevron.right", label: "编程"),
         ]),
         
         // ━━━━━━━━━━ 4. 自我提升 ━━━━━━━━━━
         HabitIconCategory(name: "自我提升", icon: "sparkles", items: [
             IconItem(name: "sparkles", label: "复盘"),
             IconItem(name: "calendar.badge.clock", label: "计划"),
-            IconItem(name: "hands.sparkles.fill", label: "感恩"),
+            IconItem(name: "heart.text.square.fill", label: "感恩"),
+            IconItem(name: "book.pages.fill", label: "日记"),
+            IconItem(name: "chart.bar.xaxis", label: "数据复盘"),
+            IconItem(name: "calendar.badge.checkmark", label: "打卡计划"),
             IconItem(name: "target", label: "目标"),
             IconItem(name: "clock.fill", label: "专注"),
             IconItem(name: "flame.fill", label: "坚持"),
@@ -284,7 +292,10 @@ struct HabitIconPresets {
             IconItem(name: "iphone.slash", label: "少玩手机"),
             IconItem(name: "moon.zzz.fill", label: "少熬夜"),
             IconItem(name: "xmark.shield.fill", label: "戒除"),
-            IconItem(name: "hand.thumbsdown.fill", label: "减少"),
+            IconItem(name: "minus.circle.fill", label: "减少"),
+            IconItem(name: "timer", label: "控制"),
+            IconItem(name: "bell.slash.fill", label: "少刷短视频"),
+            IconItem(name: "cup.and.heat.waves.fill", label: "减少咖啡因"),
         ]),
         
         // ━━━━━━━━━━ 9. 其他 ━━━━━━━━━━

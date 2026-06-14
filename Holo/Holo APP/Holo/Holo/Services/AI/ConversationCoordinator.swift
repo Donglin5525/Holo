@@ -21,6 +21,8 @@ struct ConversationProcessResult {
     let analysisContext: AnalysisContext?
     /// 灵活查询结构化结果，供 ChatViewModel 渲染
     let flexibleQueryResult: FlexibleQueryResult?
+    /// 命中本地深度 Agent 分流（query_analysis + agentRuntimeEnabled 开）。默认 false。
+    var shouldRouteToAgent: Bool = false
     /// 意图识别 LLM 调用日志
     var intentCallLog: LLMCallLog?
     /// 结构化执行 parser 调用日志
@@ -35,6 +37,18 @@ final class ConversationCoordinator {
 
     init(intentRouter: IntentRouting? = nil) {
         self.intentRouter = intentRouter ?? IntentRouter.shared
+    }
+
+    /// 是否应把该 intent 路由到本地深度 Agent（灰度，agentRuntimeEnabled flag 保护）。
+    /// 仅 query_analysis 类分析意图、且非记账/打卡等执行动作才进 Agent。
+    static func shouldRouteToDeepAgent(intent: String) -> Bool {
+        guard HoloAIFeatureFlags.agentRuntimeEnabled else { return false }
+        let executionIntents: Set<String> = [
+            "record_expense", "record_income", "create_task", "complete_task",
+            "update_task", "delete_task", "check_in"
+        ]
+        guard !executionIntents.contains(intent) else { return false }
+        return intent == "query_analysis"
     }
 
     // MARK: - Main Entry
@@ -74,6 +88,24 @@ final class ConversationCoordinator {
                 shouldStreamChat: false,
                 analysisContext: nil,
                 flexibleQueryResult: nil,
+                intentCallLog: intentLog,
+                actionParserCallLog: nil
+            )
+        }
+
+        // 深度 Agent 分流（灰度，agentRuntimeEnabled 把关）：query_analysis 命中 → 走本地 Agent
+        if let firstIntent = parseBatch.first?.intent,
+           Self.shouldRouteToDeepAgent(intent: firstIntent.rawValue) {
+            return ConversationProcessResult(
+                finalText: "",
+                parsedBatch: parseBatch,
+                executionBatch: nil,
+                firstIntent: firstIntent,
+                firstExtractedData: parseBatch.first?.extractedData,
+                shouldStreamChat: false,
+                analysisContext: nil,
+                flexibleQueryResult: nil,
+                shouldRouteToAgent: true,
                 intentCallLog: intentLog,
                 actionParserCallLog: nil
             )

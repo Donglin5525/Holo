@@ -142,6 +142,11 @@ struct MemoryGalleryView: View {
                         DailySenseStatusCard(snapshot: snapshot)
                     }
 
+                    // Agent 深度分析结果卡片（Phase 6.3，agentMemoryGalleryEnabled 灰度）
+                    if let agentResult = viewModel.agentRenderedResult {
+                        HoloAgentResultCard(result: agentResult)
+                    }
+
                     MemoryInsightHeroCard(
                         state: viewModel.insightGenerationState,
                         selectedPeriod: viewModel.selectedInsightPeriod,

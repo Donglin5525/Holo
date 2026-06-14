@@ -24,6 +24,11 @@ enum HoloMemoryPromotionPolicy {
             return .requireConfirmation(reason: "涉及\(sensitivityLabel(candidate.sensitivity))内容，需用户确认")
         }
 
+        // V3.1：旧格式浅摘要止血 — title/summary 含系统空话词且证据不足，直接丢弃不污染候选库
+        if isLegacyShallow(candidate) {
+            return .discard(reason: "旧格式浅摘要，证据不足")
+        }
+
         // 新语义类型路由
         if let semanticType = candidate.semanticType {
             return evaluateBySemanticType(candidate, semanticType: semanticType)
@@ -119,6 +124,19 @@ enum HoloMemoryPromotionPolicy {
     }
 
     // MARK: - Helper
+
+    /// 旧格式浅摘要止血关键词：AI 生成的空话式标题/摘要，evidence 不足时无保留价值
+    private static let legacyShallowKeywords = [
+        "闭环", "清零", "积压仍在", "节奏好转",
+        "支出偏高", "支出偏低", "任务完成不错"
+    ]
+
+    /// 旧格式浅摘要：title 或 summary 含系统空话词，且证据数量少于 2
+    private static func isLegacyShallow(_ candidate: HoloLongTermMemory) -> Bool {
+        guard candidate.evidence.count < 2 else { return false }
+        let text = candidate.title + candidate.summary
+        return legacyShallowKeywords.contains { text.contains($0) }
+    }
 
     private static func sensitivityLabel(_ sensitivity: HoloMemorySensitivity) -> String {
         switch sensitivity {

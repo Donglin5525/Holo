@@ -9,6 +9,7 @@ import { createOpenAICompatibleProvider } from "./providers/openAICompatibleProv
 import { createMockAsrProvider } from "./providers/mockAsrProvider.js";
 import { createDashScopeAsrProvider } from "./providers/dashScopeAsrProvider.js";
 import { getFinanceCategoryCatalog } from "./catalog/financeCategoryCatalog.js";
+import { validateAgentLoopContent } from "./agentResponseValidator.js";
 import { getPrompt, listPrompts, listPromptMetadata, setDatabase } from "./prompts/promptRegistry.js";
 import { loadConfig } from "./config.js";
 import { createAdminLogStore, truncateText } from "./admin/adminLogStore.js";
@@ -132,11 +133,12 @@ export function createApp(overrides = {}) {
       }
 
       const deviceId = getDeviceId(context, config);
+      const requestLimits = resolveChatRequestLimits(config, route);
       const usage = usageStore.consume({
         deviceId,
         purpose,
-        minuteLimit: config.limits.chatRequestsPerMinute,
-        dailyLimit: config.limits.chatRequestsPerDay,
+        minuteLimit: requestLimits.perMinute,
+        dailyLimit: requestLimits.perDay,
       });
       if (!usage.allowed) {
         throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429);
@@ -181,6 +183,14 @@ export function createApp(overrides = {}) {
 
       try {
         const result = await provider.complete(upstreamRequest);
+        if (purpose === "agent_loop") {
+          const agentContent = result?.choices?.[0]?.message?.content;
+          const agentValidation = validateAgentLoopContent(agentContent ?? "");
+          if (!agentValidation.valid) {
+            throw new GatewayError("INVALID_AGENT_JSON", agentValidation.error, 502);
+          }
+          result.choices[0].message.content = agentValidation.content;
+        }
         if (logId) {
           adminLogStore.finishAiCall(logId, {
             status: "success",
@@ -465,6 +475,14 @@ function appendCapturedText(current, next, maxChars = 20_000) {
   }
 
   return truncateText(`${current}${next}`, maxChars);
+}
+
+function resolveChatRequestLimits(config, route) {
+  const routeLimits = route?.requestLimits ?? {};
+  return {
+    perMinute: Number(routeLimits.perMinute ?? config.limits.chatRequestsPerMinute),
+    perDay: Number(routeLimits.perDay ?? config.limits.chatRequestsPerDay),
+  };
 }
 
 function extractStreamChunkText(chunk) {

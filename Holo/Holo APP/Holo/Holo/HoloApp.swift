@@ -22,6 +22,9 @@ struct HoloApp: App {
     /// 外部文件导入状态（拖拽 CSV 到模拟器 / "Open In" 打开）
     @State private var pendingImportURL: CSVFileURL?
 
+    /// 场景阶段：前后台切换驱动 Agent 后台续跑（受 agentRuntimeEnabled 门控，默认关）
+    @Environment(\.scenePhase) private var scenePhase
+
     // MARK: - Initialization
 
     init() {
@@ -80,6 +83,18 @@ struct HoloApp: App {
                     repository.backfillTagAssignmentsIfNeeded()
 
                     ThoughtOrganizationQueue.shared.rebuildFromDatabase()
+                }
+                .onChange(of: scenePhase) { _, phase in
+                    // Agent 后台续跑：灰度 flag 关闭时直接 return，不影响现有行为
+                    guard HoloAIFeatureFlags.agentRuntimeEnabled else { return }
+                    switch phase {
+                    case .background:
+                        HoloBackgroundContinuationManager.shared.appDidEnterBackground()
+                    case .active:
+                        HoloBackgroundContinuationManager.shared.appWillEnterForeground()
+                    default:
+                        break
+                    }
                 }
         }
     }

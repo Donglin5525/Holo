@@ -37,6 +37,8 @@ final class ChatViewModel: ObservableObject {
     private var currentTask: Task<Void, Never>?
     private var provider: AIProvider
     private let coordinator: ConversationCoordinator
+    /// 本地深度 Agent 分析服务（Phase 6.2 灰度，agentRuntimeEnabled 把关）
+    private let analysisService = HoloAgentAnalysisService()
     private var repositoryBootstrapTask: Task<Void, Never>?
     private var confirmingItemIds: Set<String> = []
     private var repoMessagesCancellable: AnyCancellable?
@@ -267,7 +269,29 @@ final class ChatViewModel: ObservableObject {
 
                 // ENERGY: 能量检查预留位
 
-                if processResult.shouldStreamChat {
+                // 深度 Agent 分流（Phase 6.2）：命中则启动本地 Agent，不走流式分析
+                if processResult.shouldRouteToAgent {
+                    self.chatRepo?.setAnalysisLoadingState(
+                        aiMessageId,
+                        intent: "query_analysis",
+                        analysisContext: nil
+                    )
+                    self.streamingText = "正在为你深度分析本地数据…"
+                    let rendered = await self.analysisService.runAnalysis(question: text)
+                    var lines = [rendered.title, rendered.summary]
+                    lines.append(contentsOf: rendered.sections.map(\.body))
+                    let finalText = lines.filter { !$0.isEmpty }.joined(separator: "\n")
+                    self.chatRepo?.finalizeMessage(
+                        aiMessageId,
+                        finalContent: finalText,
+                        intent: processResult.firstIntent?.rawValue,
+                        extractedDataJSON: nil,
+                        parsedBatchJSON: nil,
+                        executionBatchJSON: nil,
+                        analysisContextJSON: nil,
+                        rawLogJSON: nil
+                    )
+                } else if processResult.shouldStreamChat {
                     if let analysisContext = processResult.analysisContext {
                         // 立即设置 intent + analysisContext → 渲染 loading 卡片
                         self.chatRepo?.setAnalysisLoadingState(

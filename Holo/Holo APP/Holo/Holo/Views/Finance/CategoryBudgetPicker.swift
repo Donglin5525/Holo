@@ -46,9 +46,7 @@ struct CategoryBudgetPicker: View {
                         Circle()
                             .fill(selected.swiftUIColor.opacity(0.15))
                             .frame(width: 28, height: 28)
-                        Image(systemName: selected.icon)
-                            .font(.system(size: 13))
-                            .foregroundColor(selected.swiftUIColor)
+                        categoryIconGlyph(selected.icon, size: 13, color: selected.swiftUIColor)
                     }
                     Text("已选：\(selected.name)")
                         .font(.system(size: 14, weight: .medium))
@@ -78,9 +76,7 @@ struct CategoryBudgetPicker: View {
                     Circle()
                         .fill(parent.swiftUIColor.opacity(0.12))
                         .frame(width: 36, height: 36)
-                    Image(systemName: parent.icon)
-                        .font(.system(size: 16))
-                        .foregroundColor(parent.swiftUIColor)
+                    categoryIconGlyph(parent.icon, size: 16, color: parent.swiftUIColor)
                 }
 
                 // 名称
@@ -148,9 +144,7 @@ struct CategoryBudgetPicker: View {
                                     Circle()
                                         .stroke(selectedCategory?.id == child.id ? Color.holoPrimary : Color.clear, lineWidth: 2)
                                 )
-                            Image(systemName: child.icon)
-                                .font(.system(size: 15))
-                                .foregroundColor(child.swiftUIColor)
+                            categoryIconGlyph(child.icon, size: 15, color: child.swiftUIColor)
                         }
                         Text(child.name)
                             .font(.system(size: 10))

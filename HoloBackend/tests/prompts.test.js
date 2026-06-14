@@ -589,3 +589,18 @@ test("Prompt 测试接口需要管理员权限", async () => {
 
   assert.equal(testResponse.status, 401);
 });
+
+test("agent_loop prompt 存在并包含 Agent Loop 核心约束", async () => {
+  const app = createTestApp();
+
+  const response = await app.request("/v1/prompts/agent_loop");
+  assert.equal(response.status, 200);
+  const prompt = await response.json();
+
+  assert.match(prompt.content, /need_tools/);
+  assert.match(prompt.content, /need_more_analysis/);
+  assert.match(prompt.content, /final_claims/);
+  assert.match(prompt.content, /只输出 JSON/);
+  assert.match(prompt.content, /metricAssertions/);
+  assert.match(prompt.content, /evidenceIDs/);
+});

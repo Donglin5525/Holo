@@ -140,8 +140,7 @@ struct CategoryMatchEditor: View {
             onSelectCategory(category)
         } label: {
             HStack(spacing: 8) {
-                Image(category.icon)
-                    .resizable()
+                categoryIconGlyph(category.icon, size: 20, color: category.swiftUIColor)
                     .frame(width: 20, height: 20)
 
                 VStack(alignment: .leading, spacing: 2) {

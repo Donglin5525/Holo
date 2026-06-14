@@ -10,6 +10,9 @@ export function createMockChatProvider() {
       if (request.purpose === "task_action_parser") {
         return mockTaskActionParserCompletion(request);
       }
+      if (request.purpose === "agent_loop") {
+        return mockAgentLoopCompletion(request);
+      }
 
       return {
         id: "mock-chat-completion",
@@ -153,6 +156,35 @@ function mockTaskActionParserCompletion(request) {
     provider: "mock",
     model: request.model,
     choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }],
+  };
+}
+
+function mockAgentLoopCompletion(request) {
+  const content = JSON.stringify({
+    status: "final_claims",
+    reasoning: "mock agent loop 完成",
+    toolRequests: [],
+    claims: [
+      {
+        id: "c1",
+        type: "observation",
+        displayText: "mock claim",
+        metricAssertions: [],
+        evidenceIDs: [],
+        prohibitedInferences: [],
+        confidence: 0.5,
+      },
+    ],
+    warnings: [],
+  });
+
+  return {
+    id: "mock-agent-loop",
+    provider: "mock",
+    model: request.model,
+    choices: [
+      { index: 0, message: { role: "assistant", content }, finish_reason: "stop" },
+    ],
   };
 }
 
