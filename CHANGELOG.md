@@ -4,6 +4,15 @@
 
 ---
 
+## [2026-06-15] 健康模块补齐固定返回按钮（对齐全局 fullScreenCover 约定）
+
+### 修复
+- **健康模块此前无返回入口**：`HealthView` 隐藏了系统导航栏（`.toolbar(.hidden, for: .navigationBar)`）且 header 在 `ScrollView` 内随内容滚动消失，正常使用时只能靠右滑手势返回；而记账/习惯/待办/观点四个同级 `fullScreenCover` 模块都有 `chevron.left` 返回按钮，唯独健康漏了
+- **统一固定返回栏**：新增 `backButton` + `topBackBar` 复用组件，content 分支 `headerView`（返回 + 标题 + 同步 + 日期导航）移出 `ScrollView` 固定在顶部，对齐 `FinanceLedgerView`；权限引导 / 不可用兜底两个边界分支前置 `topBackBar`，三分支都有固定返回入口
+- 保留 `.swipeBackToDismiss` 手势作为补充；改动集中在 `HealthView.swift` 单文件
+
+---
+
 ## [2026-06-14] 图标系统重构（财务侧 · 占比统一 + 语义重选）
 
 ### 变更

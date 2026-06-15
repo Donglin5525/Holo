@@ -44,13 +44,15 @@ struct HealthView: View {
 
     var body: some View {
         NavigationStack {
-            Group {
+            VStack(spacing: 0) {
                 if shouldShowPermissionView {
+                    topBackBar
                     HealthPermissionView(
                         onAuthorize: requestPermission,
                         onDismiss: { dismiss() }
                     )
                 } else if shouldShowUnavailableView {
+                    topBackBar
                     unavailableView
                 } else {
                     healthContent
@@ -85,24 +87,54 @@ struct HealthView: View {
     }
 
     private var healthContent: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(spacing: HoloSpacing.md) {
-                headerView
-                heroCard
-                metricSummaryRow
-                dataSourceCard
-                coreInsightCard
-                lifestyleInsightCard
-                weeklyTrendCard
+        VStack(spacing: 0) {
+            headerView
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: HoloSpacing.md) {
+                    heroCard
+                    metricSummaryRow
+                    dataSourceCard
+                    coreInsightCard
+                    lifestyleInsightCard
+                    weeklyTrendCard
+                }
+                .padding(HoloSpacing.md)
             }
-            .padding(HoloSpacing.md)
         }
         .background(Color.holoBackground)
+    }
+
+    /// 返回首页按钮（对齐全局 fullScreenCover 模块约定，复用于各分支）
+    private var backButton: some View {
+        Button {
+            dismiss()
+        } label: {
+            Image(systemName: "chevron.left")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(.holoTextPrimary)
+                .frame(width: 40, height: 40)
+                .background(Color.holoCardBackground)
+                .clipShape(Circle())
+                .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 权限引导 / 不可用兜底分支的固定返回栏
+    private var topBackBar: some View {
+        HStack {
+            backButton
+            Spacer()
+        }
+        .padding(.horizontal, HoloSpacing.md)
+        .padding(.top, HoloSpacing.sm)
     }
 
     private var headerView: some View {
         VStack(spacing: HoloSpacing.sm) {
             HStack(alignment: .center, spacing: HoloSpacing.md) {
+                backButton
+
                 VStack(alignment: .leading, spacing: 4) {
                     Text("健康")
                         .font(.holoTitle)
