@@ -118,7 +118,7 @@ final class PromptManager {
         .financeActionParser: 1,        // v1: 分期记账参数解析
         .taskActionParser: 1,           // v1: 重复任务参数解析
         .thoughtOrganization: 1,        // v1: 想法自动整理
-        .agentLoop: 1                   // v1: Agent Loop 推理
+        .agentLoop: 2                   // v2: 具体消费对象趋势走 finance.keyword_trend
     ]
 
     /// 加载指定类型的 Prompt，带缓存，优先读取 UserDefaults 自定义。
@@ -246,6 +246,7 @@ final class PromptManager {
         不得输出没有 evidence 的事实。
         不得把相关写成因果。
         不得做心理、医疗、人格判断。
+        当用户询问某个具体消费对象、商品、品牌或备注词的趋势/次数/金额（例如咖啡、奶茶、星巴克）时，优先请求 finance 工具的 keyword_trend，并在 parameters.keyword 填入该关键词；不要只用分类集中度或总消费替代。
 
         表达边界：
         - 区分事实、观察、假设和建议。

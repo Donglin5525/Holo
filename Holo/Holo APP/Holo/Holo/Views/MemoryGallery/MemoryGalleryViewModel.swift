@@ -86,6 +86,9 @@ class MemoryGalleryViewModel: ObservableObject {
     /// Agent 深度分析结果（Phase 6.3，agentMemoryGalleryEnabled 灰度）；nil 时回退旧 insight。
     @Published var agentRenderedResult: HoloRenderedAgentResult?
 
+    /// 生活星图最近一次整理完成时间。
+    @Published var constellationLastUpdatedAt: Date?
+
     // MARK: - Private Properties
 
     /// 分页按天计算（每页加载 N 天的数据）
@@ -182,6 +185,7 @@ class MemoryGalleryViewModel: ObservableObject {
         computeHeatmapData()
         await loadData()
         await loadInsights()
+        constellationLastUpdatedAt = Date()
     }
 
     /// 加载更多数据
@@ -564,6 +568,170 @@ class MemoryGalleryViewModel: ObservableObject {
             tasksCompleted: tasks.filter { $0.subtitle == "已完成" }.count,
             thoughtCount: todayItems.filter { $0.type == .thought }.count
         )
+    }
+
+    // MARK: - Life Constellation
+
+    var constellationSummary: MemoryConstellationSummary {
+        if let insight = currentInsight,
+           !insight.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+           !insight.summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return MemoryConstellationSummary(
+                title: insight.title,
+                body: insight.summary
+            )
+        }
+
+        return MemoryConstellationSummary.fallback(hasInsight: totalMemoryCount > 0)
+    }
+
+    var constellationSignals: [MemoryConstellationSignal] {
+        let summaries = summariesInSelectedRange()
+        return MemoryConstellationModule.allCases.map { module in
+            switch module {
+            case .habit:
+                let total = summaries.reduce(0) { $0 + $1.habitsTotal }
+                let completed = summaries.reduce(0) { $0 + $1.habitsCompleted }
+                return MemoryConstellationSignal.module(
+                    .habit,
+                    summary: total > 0 ? "\(completed)/\(total) 次完成" : "等待习惯记录",
+                    detail: total > 0 ? "本周期的习惯记录已纳入生活星图。" : "开始打卡后，Holo 会把习惯节奏连进星图。",
+                    level: total > 0 ? .normal : .warning,
+                    isDashed: total == 0
+                )
+            case .finance:
+                let hasExpense = summaries.contains { $0.totalExpense != nil }
+                return MemoryConstellationSignal.module(
+                    .finance,
+                    summary: hasExpense ? "花费节奏已纳入" : "等待记账记录",
+                    detail: hasExpense ? "支出高点会以温和片段呈现，具体金额留在详情层。" : "记录消费后，Holo 会观察花费节奏而不是直接给压力判断。",
+                    level: hasExpense ? .normal : .warning,
+                    isDashed: !hasExpense
+                )
+            case .task:
+                let completed = summaries.reduce(0) { $0 + $1.tasksCompleted }
+                return MemoryConstellationSignal.module(
+                    .task,
+                    summary: completed > 0 ? "\(completed) 个任务完成" : "等待任务记录",
+                    detail: completed > 0 ? "完成和积压会作为节奏证据，而不是单独评价效率。" : "完成任务后，这里会显示行动节奏。",
+                    level: completed > 0 ? .normal : .warning,
+                    isDashed: completed == 0
+                )
+            case .thought:
+                let count = summaries.reduce(0) { $0 + $1.thoughtCount }
+                return MemoryConstellationSignal.module(
+                    .thought,
+                    summary: count > 0 ? "\(count) 条想法沉淀" : "等待想法记录",
+                    detail: count > 0 ? "想法会帮助 Holo 理解本期关注点。" : "记录想法后，这里会成为生活主题的线索。",
+                    level: count > 0 ? .normal : .warning,
+                    isDashed: count == 0
+                )
+            case .health:
+                return MemoryConstellationSignal.health(state: .agentPending)
+            }
+        }
+    }
+
+    var constellationSnippets: [MemoryStorySnippet] {
+        var snippets: [MemoryStorySnippet] = []
+
+        for featured in featuredNarrativeNodes(limit: 3) {
+            switch featured.node.data {
+            case .highlight(let highlight):
+                snippets.append(MemoryStorySnippet(
+                    id: featured.node.id.uuidString,
+                    title: gentleTitle(for: highlight),
+                    subtitle: featured.section.formattedDate,
+                    iconName: gentleIcon(for: highlight),
+                    module: constellationModule(for: highlight.sourceModule)
+                ))
+            case .milestone(let milestone):
+                snippets.append(MemoryStorySnippet(
+                    id: featured.node.id.uuidString,
+                    title: milestone.title,
+                    subtitle: featured.section.formattedDate,
+                    iconName: milestone.icon,
+                    module: .habit
+                ))
+            case .summary:
+                break
+            }
+        }
+
+        if snippets.isEmpty,
+           summariesInSelectedRange().contains(where: { $0.totalExpense != nil }) {
+            snippets.append(.financeSpendingPeak())
+        }
+
+        return snippets
+    }
+
+    func featuredNarrativeNodes(limit: Int = 2) -> [FeaturedMemoryNode] {
+        var stories: [FeaturedMemoryNode] = []
+        let range = selectedInsightDateRange
+
+        for section in timelineSections {
+            guard section.date >= range.start && section.date <= range.end else {
+                continue
+            }
+
+            for node in section.nodes where node.type == .milestone || node.type == .highlight {
+                stories.append(FeaturedMemoryNode(section: section, node: node))
+            }
+        }
+
+        return Array(stories.prefix(limit))
+    }
+
+    private func summariesInSelectedRange() -> [DailySummaryData] {
+        let range = selectedInsightDateRange
+
+        return timelineSections
+            .filter { $0.date >= range.start && $0.date <= range.end }
+            .flatMap(\.nodes)
+            .compactMap { node in
+                if case .summary(let summary) = node.data {
+                    return summary
+                }
+                return nil
+            }
+    }
+
+    private func gentleTitle(for highlight: HighlightData) -> String {
+        switch highlight.category {
+        case .spendingAnomaly:
+            return "这天的外出支出比较集中"
+        case .streakAchievement:
+            return "有一个习惯节奏被稳稳接住"
+        case .taskCompletion:
+            return "有一件重要事情被推进了"
+        case .habitPerfect:
+            return "这天的习惯完成得比较完整"
+        }
+    }
+
+    private func gentleIcon(for highlight: HighlightData) -> String {
+        switch highlight.category {
+        case .spendingAnomaly:
+            return "fork.knife"
+        case .streakAchievement, .habitPerfect:
+            return "sparkle"
+        case .taskCompletion:
+            return "checkmark.circle.fill"
+        }
+    }
+
+    private func constellationModule(for type: MemoryItemType) -> MemoryConstellationModule {
+        switch type {
+        case .transaction:
+            return .finance
+        case .habitRecord:
+            return .habit
+        case .task:
+            return .task
+        case .thought:
+            return .thought
+        }
     }
 
     // MARK: - Heatmap Timeline Linking

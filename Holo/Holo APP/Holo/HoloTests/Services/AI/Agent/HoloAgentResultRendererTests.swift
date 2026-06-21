@@ -87,6 +87,84 @@ final class HoloAgentResultRendererTests: XCTestCase {
         XCTAssertEqual(confidence, 0.82, accuracy: 0.001, "section.confidence 应等于 claim.confidence")
     }
 
+    /// 财务 evidence 带时间范围时，渲染结果应携带下钻路由。
+    func testFinanceEvidenceCarriesDrilldownRoute() {
+        let range = HoloAgentTimeRange(
+            label: "近两周",
+            start: Date(timeIntervalSince1970: 1000),
+            end: Date(timeIntervalSince1970: 2000)
+        )
+        let claim = makeClaim(text: "消费金额上升", evidenceIDs: ["e1"])
+        let ev = makeEvidence(
+            id: "e1",
+            redacted: "消费金额 近两周：9115 元",
+            excerpt: "原文",
+            sourceModule: .finance,
+            timeRange: range
+        )
+
+        let result = HoloAgentResultRenderer().render(claims: [claim], evidence: [ev])
+
+        let drilldown = result.evidenceReferences.first?.financeDrilldown
+        XCTAssertEqual(drilldown?.sourceEvidenceID, "e1", "应记录来源 evidence ID")
+        XCTAssertEqual(drilldown?.label, "近两周", "应保留用户口径标签")
+        XCTAssertEqual(drilldown?.start, range.start, "应保留下钻开始时间")
+        XCTAssertEqual(drilldown?.end, range.end, "应保留下钻结束时间")
+    }
+
+    /// 关键词消费 evidence 应把关键词透传给证据核对页。
+    func testFinanceKeywordEvidenceCarriesDrilldownKeyword() {
+        let range = HoloAgentTimeRange(
+            label: "最近一个月",
+            start: Date(timeIntervalSince1970: 1000),
+            end: Date(timeIntervalSince1970: 2000)
+        )
+        let baselineRange = HoloAgentTimeRange(
+            label: "上一个月",
+            start: Date(timeIntervalSince1970: 0),
+            end: Date(timeIntervalSince1970: 999)
+        )
+        let claim = makeClaim(text: "咖啡消费频率上升", evidenceIDs: ["e1"])
+        let ev = makeEvidence(
+            id: "e1",
+            redacted: "账单文本命中「咖啡」 最近一个月：8 次",
+            excerpt: "账单文本命中「咖啡」 最近一个月：8 次",
+            sourceModule: .finance,
+            timeRange: range,
+            baselineTimeRange: baselineRange,
+            metricKey: "finance.keyword.count"
+        )
+
+        let result = HoloAgentResultRenderer().render(claims: [claim], evidence: [ev])
+
+        let drilldown = result.evidenceReferences.first?.financeDrilldown
+        XCTAssertEqual(drilldown?.keyword, "咖啡", "应把咖啡作为明细核对筛选词")
+        XCTAssertEqual(drilldown?.baselineStart, baselineRange.start, "应保留对比期开始时间")
+        XCTAssertEqual(drilldown?.baselineEnd, baselineRange.end, "应保留对比期结束时间")
+    }
+
+    /// 老版本 agentResultJSON 没有 financeDrilldown 字段时仍应可解码。
+    func testLegacyAgentResultWithoutFinanceDrilldownDecodes() throws {
+        let json = """
+        {
+          "title": "深度分析",
+          "summary": "消费观察",
+          "sections": [
+            { "title": "观察 1", "body": "近一个月咖啡消费有记录", "confidence": 0.8 }
+          ],
+          "evidenceReferences": [
+            { "id": "e1", "summary": "咖啡消费 3 次" }
+          ]
+        }
+        """
+
+        let data = try XCTUnwrap(json.data(using: .utf8))
+        let result = try JSONDecoder().decode(HoloRenderedAgentResult.self, from: data)
+
+        XCTAssertEqual(result.evidenceReferences.first?.id, "e1")
+        XCTAssertNil(result.evidenceReferences.first?.financeDrilldown)
+    }
+
     // P1：多条 claim 的 title 互不相同（「观察 1/2/3」）
     /// 多条 claim 渲染出的 section title 应互不相同。
     func testMultipleClaimsHaveDistinctTitles() {
@@ -103,11 +181,21 @@ final class HoloAgentResultRendererTests: XCTestCase {
 
     // MARK: - 测试数据构造助手
 
-    private func makeEvidence(id: String, redacted: String, excerpt: String) -> HoloEvidenceRecord {
+    private func makeEvidence(
+        id: String,
+        redacted: String,
+        excerpt: String,
+        sourceModule: HoloEvidenceSourceModule = .habit,
+        timeRange: HoloAgentTimeRange? = nil,
+        baselineTimeRange: HoloAgentTimeRange? = nil,
+        metricKey: String = "k"
+    ) -> HoloEvidenceRecord {
         HoloEvidenceRecord(
-            id: id, dedupeKey: id, sourceModule: .habit, sourceID: nil, sourceKind: "kind",
-            timeRange: nil, occurredAt: nil, metricKey: "k", metricValue: 1, unit: "次",
-            baselineValue: nil, comparison: nil, excerpt: excerpt, redactedExcerpt: redacted,
+            id: id, dedupeKey: id, sourceModule: sourceModule, sourceID: nil, sourceKind: "kind",
+            timeRange: timeRange, occurredAt: nil,
+            metricKey: metricKey, metricValue: 1, unit: "次",
+            baselineValue: nil, baselineTimeRange: baselineTimeRange, comparison: nil,
+            excerpt: excerpt, redactedExcerpt: redacted,
             sensitivity: .sensitive, confidence: 1.0, status: .active,
             generatedBy: "test", generatedAt: Date(timeIntervalSince1970: 1000),
             referencedByJobIDs: [], referencedByMemoryIDs: [], deviceID: nil

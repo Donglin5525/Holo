@@ -82,7 +82,7 @@ struct IconPickerGrid: View {
 
             categoryIconGlyph(
                 iconName,
-                size: 37,
+                size: 29,
                 color: isSelected ? .holoPrimary : .holoTextSecondary
             )
 

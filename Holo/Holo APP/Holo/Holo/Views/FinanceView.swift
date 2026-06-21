@@ -41,11 +41,23 @@ struct FinanceView: View {
     // MARK: - Properties
 
     @Environment(\.dismiss) var dismiss
-    @State private var selectedTab: FinanceTab = .ledger
+    @State private var selectedTab: FinanceTab
     @State private var showAddTransaction: Bool = false
+    @State private var analysisDeepLink: FinanceAnalysisDeepLink?
+    @State private var evidenceReviewDeepLink: FinanceEvidenceReviewDeepLink?
+    @ObservedObject private var deepLinkState = DeepLinkState.shared
 
     /// 日历状态提升到此层级，避免切换 Tab 时被销毁
     @StateObject private var calendarState = CalendarState()
+
+    init(
+        initialAnalysisDeepLink: FinanceAnalysisDeepLink? = nil,
+        initialEvidenceReviewDeepLink: FinanceEvidenceReviewDeepLink? = nil
+    ) {
+        _selectedTab = State(initialValue: initialAnalysisDeepLink == nil ? .ledger : .analysis)
+        _analysisDeepLink = State(initialValue: initialAnalysisDeepLink)
+        _evidenceReviewDeepLink = State(initialValue: initialEvidenceReviewDeepLink)
+    }
 
     // MARK: - Body
 
@@ -54,17 +66,33 @@ struct FinanceView: View {
             Color.holoBackground.ignoresSafeArea()
 
             Group {
-                switch selectedTab {
-                case .analysis:
-                    FinanceAnalysisView(onBack: { dismiss() })
-                case .ledger:
-                    FinanceLedgerView(
-                        calendarState: calendarState,
+                if let evidenceReviewDeepLink {
+                    FinanceEvidenceReviewView(
+                        link: evidenceReviewDeepLink,
                         onBack: { dismiss() },
-                        showAddTransaction: $showAddTransaction
+                        onBackToAI: {
+                            dismiss()
+                            DeepLinkState.shared.navigate(to: .ai(voiceInput: false))
+                        },
+                        onOpenAnalysis: { link in
+                            selectedTab = .analysis
+                            analysisDeepLink = link
+                            self.evidenceReviewDeepLink = nil
+                        }
                     )
-                case .settings:
-                    FinanceSettingsView(onBack: { dismiss() })
+                } else {
+                    switch selectedTab {
+                    case .analysis:
+                        FinanceAnalysisView(onBack: { dismiss() }, externalDeepLink: $analysisDeepLink)
+                    case .ledger:
+                        FinanceLedgerView(
+                            calendarState: calendarState,
+                            onBack: { dismiss() },
+                            showAddTransaction: $showAddTransaction
+                        )
+                    case .settings:
+                        FinanceSettingsView(onBack: { dismiss() })
+                    }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -74,11 +102,27 @@ struct FinanceView: View {
             FinanceRepository.shared.setup()
         }
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            financeTabBarOnly
+            if evidenceReviewDeepLink == nil {
+                financeTabBarOnly
+            }
         }
         .sheet(isPresented: $showAddTransaction) {
             AddTransactionSheet(editingTransaction: nil) { _ in
                 NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+            }
+        }
+        .onChange(of: deepLinkState.pendingTarget) { _, target in
+            switch target {
+            case .financeAnalysis(let link):
+                evidenceReviewDeepLink = nil
+                selectedTab = .analysis
+                analysisDeepLink = link
+                deepLinkState.pendingTarget = nil
+            case .financeEvidenceReview(let link):
+                evidenceReviewDeepLink = link
+                deepLinkState.pendingTarget = nil
+            default:
+                return
             }
         }
     }
@@ -179,4 +223,3 @@ struct FinanceView: View {
 }
 
 // MARK: - 圆角辅助（仅指定部分角）
-

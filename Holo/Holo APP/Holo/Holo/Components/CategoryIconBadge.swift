@@ -14,8 +14,8 @@ struct CategoryIconBadge: View {
     let diameter: CGFloat
     var isSelected: Bool = false
 
-    /// 图标占圆形直径的比例（替代原 size*0.6 的 ~30% 占比）
-    static let iconRatio: CGFloat = 0.58
+    /// 图标占圆形直径的比例（0.58 实测偏满，缩小 20% 到 0.46）
+    static let iconRatio: CGFloat = 0.46
     /// 默认底色透明度（统一，替代散落的 0.1/0.12/0.15）
     static let backgroundOpacity: Double = 0.12
     /// 选中态底色透明度

@@ -4,6 +4,27 @@
 
 ---
 
+## [2026-06-21] Agent 证据核验 + 财务关键词趋势 + 记忆星图改版
+
+### 新增
+- **Agent 声明核验（防幻觉）**：Agent loop 在工具执行后即时生成 `HoloEvidenceRecord` 持久化（携带真实 `timeRange`/`baselineTimeRange`），结果阶段引入 `HoloClaimVerifier` 核验每条 claim 的证据支撑，仅保留 `acceptedClaims`——无证据支撑的声明被丢弃，杜绝 Agent 编造数据；`HoloLocalAgentRuntime` 新增 `evidenceRecords(from:)` + `sourceModule(for:)` 映射
+- **财务关键词趋势查询（keyword_trend）**：`HoloFinanceTool` 新增 keyword_trend 查询，按关键词（咖啡/奶茶/星巴克等）在 note/remark/category/tags 全文检索，返回本期 vs 对比期命中次数、金额与脱敏样例（最多 5 条）；`validate` 强制要求 `parameters.keyword`
+- **财务证据核对页**：新增 `FinanceEvidenceReviewView`（320 行），从 Agent 深度分析卡片下钻到原始账单明细（本期 + 对比期并排），支持就地编辑纠正；配套 `FinanceEvidenceReviewDeepLink` / `FinanceAnalysisDeepLink` 路由（`DeepLinkState` + `HomeView` + `FinanceView` 接入）
+- **记忆星图改版组件**：新增 `MemoryConstellationCard`（345 行，记忆星座卡片）+ `GentleHighlightNode`（78 行，柔和高亮节点），`MemoryGalleryView`/`ViewModel`/`MemoryConstellationModels` 重构星图呈现
+
+### 变更
+- **证据携带时间范围**：`HoloEvidenceEvent`/`HoloEvidenceRecord` 新增 `timeRange`/`baselineTimeRange` 字段，`HoloRenderedEvidenceReference` 新增 `financeDrilldown`（带时段 + 关键词），证据从脱离上下文的纯文本升级为可下钻的结构化引用
+- **财务时间范围边界修正**：`HoloDefaultFinanceDataSource.snapshot` 重算 currentEnd/baselineEnd（baselineEnd 由 currentStart 起算），snapshot 签名增加 `parameters` 参数，避免本期/对比期边界重叠错位
+- **agentLoop Prompt v1→v2**：PromptManager 引导 Agent 遇到具体消费对象/商品/品牌趋势查询时优先请求 `finance.keyword_trend` 并填 `parameters.keyword`，不再用分类集中度敷衍
+
+### 测试
+- `HoloFinanceToolTests`（keyword_trend 命中/金额/样例）、`HoloAgentResultRendererTests`（financeDrilldown 渲染）、`HoloLocalAgentRuntimeTests`（证据持久化 + 核验）、`ChatMessageViewDataAgentResultTests` 同步补齐
+
+### 说明
+- 预先存在的 Swift 6 actor 隔离 warning（main actor-isolated conformance）非本次引入，属历史技术债，build succeeded 无 error
+
+---
+
 ## [2026-06-15] 健康模块补齐固定返回按钮（对齐全局 fullScreenCover 约定）
 
 ### 修复

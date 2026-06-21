@@ -59,6 +59,8 @@ struct HoloEvidenceEvent: Codable, Equatable, Sendable {
     var metricKey: String?
     var metricValue: Double?
     var excerpt: String
+    var timeRange: HoloAgentTimeRange? = nil
+    var baselineTimeRange: HoloAgentTimeRange? = nil
 }
 
 /// 工具查询的数据覆盖度（判断结论可信度的依据）

@@ -9,10 +9,16 @@ import SwiftUI
 
 struct FinanceAnalysisView: View {
     let onBack: () -> Void
+    @Binding var externalDeepLink: FinanceAnalysisDeepLink?
 
     @StateObject private var state = FinanceAnalysisState()
     @State private var selectedTab: AnalysisTab = .overview
     @State private var showCustomDateSheet: Bool = false
+
+    init(onBack: @escaping () -> Void, externalDeepLink: Binding<FinanceAnalysisDeepLink?> = .constant(nil)) {
+        self.onBack = onBack
+        self._externalDeepLink = externalDeepLink
+    }
 
     var body: some View {
         VStack(spacing: 0) {
@@ -42,6 +48,18 @@ struct FinanceAnalysisView: View {
         .onReceive(NotificationCenter.default.publisher(for: .financeDataDidChange)) { _ in
             state.refresh()
         }
+        .onAppear {
+            applyExternalDeepLinkIfNeeded()
+        }
+        .onChange(of: externalDeepLink) { _, _ in
+            applyExternalDeepLinkIfNeeded()
+        }
+    }
+
+    private func applyExternalDeepLinkIfNeeded() {
+        guard let link = externalDeepLink else { return }
+        state.applyDeepLink(link)
+        externalDeepLink = nil
     }
 
     // MARK: - 顶部栏

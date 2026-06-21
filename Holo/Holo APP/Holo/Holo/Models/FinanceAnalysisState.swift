@@ -127,6 +127,16 @@ class FinanceAnalysisState: ObservableObject {
         Task { await loadData() }
     }
 
+    /// 从 Agent 深度分析等外部入口设置时间范围。
+    func applyDeepLink(_ link: FinanceAnalysisDeepLink) {
+        timeRange = .custom
+        originalTimeRange = .custom
+        customDateRange = (link.start, link.end)
+        selectedChartDate = nil
+        selectedDetailCategory = nil
+        Task { await loadData() }
+    }
+
     /// 导航到指定时间范围（保持原始类型）
     func navigateToRange(start: Date, end: Date) {
         customDateRange = (start, end)

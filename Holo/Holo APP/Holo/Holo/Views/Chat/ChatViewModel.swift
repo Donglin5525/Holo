@@ -160,6 +160,13 @@ final class ChatViewModel: ObservableObject {
     }
 
     private func ensureChatRepositoryReady() async {
+        if let repositoryBootstrapTask {
+            await repositoryBootstrapTask.value
+            if chatRepo != nil, hasLoadedMessages {
+                return
+            }
+        }
+
         let repo: ChatMessageRepository
 
         if let chatRepo {
@@ -170,6 +177,7 @@ final class ChatViewModel: ObservableObject {
         }
 
         if !hasLoadedMessages {
+            repo.cleanupOrphanedStreamingMessages()
             await repo.loadCurrentSessionLightweightMessagesAsync(limit: initialHistoryLimit)
             hasLoadedMessages = true
             syncHasEarlierSessions()

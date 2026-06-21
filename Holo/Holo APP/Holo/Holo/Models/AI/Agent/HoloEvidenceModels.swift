@@ -44,6 +44,7 @@ struct HoloEvidenceRecord: Codable, Identifiable, Equatable, Sendable {
     var metricValue: Double?
     var unit: String?
     var baselineValue: Double?
+    var baselineTimeRange: HoloAgentTimeRange? = nil
     var comparison: String?
     var excerpt: String
     /// 脱敏摘要，默认发给 LLM；完整 excerpt 仅本地 Verifier 使用

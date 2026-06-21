@@ -19,6 +19,8 @@ struct MemoryGalleryView: View {
 
     @StateObject private var viewModel = MemoryGalleryViewModel()
     @State private var selectedTab: MemoryGalleryTab = .insight
+    @State private var isReplayExpanded = false
+    @State private var isAgentAnalysisExpanded = false
 
     /// 跳转记账回调
     let onNavigateToFinance: (() -> Void)?
@@ -130,11 +132,20 @@ struct MemoryGalleryView: View {
             skeletonView
         } else if let errorMessage = viewModel.errorMessage {
             errorView(message: errorMessage)
-        } else if viewModel.timelineSections.isEmpty && viewModel.errorMessage == nil {
-            emptyView
         } else {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: HoloSpacing.lg) {
+                    MemoryConstellationCard(
+                        summary: viewModel.constellationSummary,
+                        signals: viewModel.constellationSignals,
+                        snippets: viewModel.constellationSnippets,
+                        isRefreshing: viewModel.isLoading,
+                        lastUpdatedAt: viewModel.constellationLastUpdatedAt,
+                        onRefresh: {
+                            Task { await viewModel.refresh() }
+                        }
+                    )
+
                     // Daily Sense 状态卡片
                     if InsightFeatureFlags.dailySenseEnabled,
                        let snapshot = viewModel.dailySenseSnapshot,
@@ -142,44 +153,57 @@ struct MemoryGalleryView: View {
                         DailySenseStatusCard(snapshot: snapshot)
                     }
 
-                    // Agent 深度分析结果卡片（Phase 6.3，agentMemoryGalleryEnabled 灰度）
                     if let agentResult = viewModel.agentRenderedResult {
-                        HoloAgentResultCard(result: agentResult)
+                        collapsibleInsightLayer(
+                            title: "深度分析",
+                            subtitle: "展开查看 Agent 的证据解释",
+                            icon: "doc.text.magnifyingglass",
+                            isExpanded: $isAgentAnalysisExpanded
+                        ) {
+                            HoloAgentResultCard(result: agentResult)
+                        }
                     }
 
-                    MemoryInsightHeroCard(
-                        state: viewModel.insightGenerationState,
-                        selectedPeriod: viewModel.selectedInsightPeriod,
-                        insight: viewModel.currentInsight,
-                        weeklyIsFallback: viewModel.weeklyIsFallback,
-                        monthlyIsFallback: viewModel.monthlyIsFallback,
-                        customStartDate: $viewModel.customInsightStartDate,
-                        customEndDate: $viewModel.customInsightEndDate,
-                        fallbackTitle: viewModel.fallbackReplayTitle,
-                        fallbackSummary: viewModel.fallbackReplaySummary,
-                        onPeriodChange: { period in
-                            Task { await viewModel.switchInsightPeriod(to: period) }
-                        },
-                        onCustomRangeChange: { start, end in
-                            Task { await viewModel.updateCustomInsightRange(start: start, end: end) }
-                        },
-                        onGenerate: {
-                            Task { await viewModel.generateCurrentInsight() }
-                        },
-                        onRefresh: {
-                            Task { await viewModel.refreshInsight(force: true) }
-                        },
-                        onContinueInChat: {
-                            if let prompt = viewModel.buildContinueInChatPrompt() {
-                                onNavigateToChat?(prompt)
+                    collapsibleInsightLayer(
+                        title: "AI 回放",
+                        subtitle: "展开查看周期回放和可追问内容",
+                        icon: "play.rectangle.fill",
+                        isExpanded: $isReplayExpanded
+                    ) {
+                        MemoryInsightHeroCard(
+                            state: viewModel.insightGenerationState,
+                            selectedPeriod: viewModel.selectedInsightPeriod,
+                            insight: viewModel.currentInsight,
+                            weeklyIsFallback: viewModel.weeklyIsFallback,
+                            monthlyIsFallback: viewModel.monthlyIsFallback,
+                            customStartDate: $viewModel.customInsightStartDate,
+                            customEndDate: $viewModel.customInsightEndDate,
+                            fallbackTitle: viewModel.fallbackReplayTitle,
+                            fallbackSummary: viewModel.fallbackReplaySummary,
+                            onPeriodChange: { period in
+                                Task { await viewModel.switchInsightPeriod(to: period) }
+                            },
+                            onCustomRangeChange: { start, end in
+                                Task { await viewModel.updateCustomInsightRange(start: start, end: end) }
+                            },
+                            onGenerate: {
+                                Task { await viewModel.generateCurrentInsight() }
+                            },
+                            onRefresh: {
+                                Task { await viewModel.refreshInsight(force: true) }
+                            },
+                            onContinueInChat: {
+                                if let prompt = viewModel.buildContinueInChatPrompt() {
+                                    onNavigateToChat?(prompt)
+                                }
+                            },
+                            onGoToAISettings: {
+                                #if DEBUG
+                                showAISettings = true
+                                #endif
                             }
-                        },
-                        onGoToAISettings: {
-                            #if DEBUG
-                            showAISettings = true
-                            #endif
-                        }
-                    )
+                        )
+                    }
 
                     featuredStoriesSection
                 }
@@ -330,11 +354,11 @@ struct MemoryGalleryView: View {
 
     @ViewBuilder
     private var featuredStoriesSection: some View {
-        let stories = featuredNarrativeNodes
+        let stories = viewModel.featuredNarrativeNodes()
 
         if !stories.isEmpty {
             VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                sectionHeading(title: "里程碑与高光", icon: "flag.fill")
+                sectionHeading(title: "可回看的片段", icon: "bookmark.fill")
 
                 VStack(alignment: .leading, spacing: HoloSpacing.sm) {
                     ForEach(stories) { item in
@@ -343,23 +367,6 @@ struct MemoryGalleryView: View {
                 }
             }
         }
-    }
-
-    private var featuredNarrativeNodes: [FeaturedMemoryNode] {
-        var stories: [FeaturedMemoryNode] = []
-        let range = viewModel.selectedInsightDateRange
-
-        for section in viewModel.timelineSections {
-            guard section.date >= range.start && section.date <= range.end else {
-                continue
-            }
-
-            for node in section.nodes where node.type == .milestone || node.type == .highlight {
-                stories.append(FeaturedMemoryNode(section: section, node: node))
-            }
-        }
-
-        return Array(stories.prefix(2))
     }
 
     private func sectionHeading(title: String, icon: String) -> some View {
@@ -397,11 +404,71 @@ struct MemoryGalleryView: View {
             case .milestone(let milestoneData):
                 MilestoneNode(data: milestoneData)
             case .highlight(let highlightData):
-                HighlightNode(data: highlightData)
+                GentleHighlightNode(data: highlightData)
             case .summary:
                 EmptyView()
             }
         }
+    }
+
+    private func collapsibleInsightLayer<Content: View>(
+        title: String,
+        subtitle: String,
+        icon: String,
+        isExpanded: Binding<Bool>,
+        @ViewBuilder content: @escaping () -> Content
+    ) -> some View {
+        VStack(spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.22)) {
+                    isExpanded.wrappedValue.toggle()
+                }
+            } label: {
+                HStack(spacing: HoloSpacing.sm) {
+                    Image(systemName: icon)
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.holoPrimary)
+                        .frame(width: 28, height: 28)
+                        .background(Color.holoPrimary.opacity(0.10))
+                        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(title)
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+
+                        Text(subtitle)
+                            .font(.holoTinyLabel)
+                            .foregroundColor(.holoTextPlaceholder)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.holoTextSecondary)
+                        .rotationEffect(.degrees(isExpanded.wrappedValue ? 180 : 0))
+                }
+                .padding(HoloSpacing.md)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded.wrappedValue {
+                VStack(spacing: HoloSpacing.sm) {
+                    content()
+                }
+                .padding(.horizontal, HoloSpacing.md)
+                .padding(.bottom, HoloSpacing.md)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.md)
+                .stroke(Color.holoBorder.opacity(0.45), lineWidth: 1)
+        )
     }
 
     // MARK: - 明细 Tab
@@ -688,13 +755,6 @@ private struct MemoryPreviewStatItem: Identifiable {
     let color: Color
 
     var id: String { label }
-}
-
-private struct FeaturedMemoryNode: Identifiable {
-    let section: TimelineSection
-    let node: MemoryTimelineNode
-
-    var id: UUID { node.id }
 }
 
 // MARK: - Filter Chip

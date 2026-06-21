@@ -16,9 +16,20 @@ struct HoloRenderedAgentSection: Codable, Equatable, Sendable {
     var confidence: Double?
 }
 
+struct HoloRenderedFinanceDrilldown: Codable, Equatable, Sendable {
+    var sourceEvidenceID: String
+    var label: String
+    var keyword: String?
+    var start: Date
+    var end: Date
+    var baselineStart: Date?
+    var baselineEnd: Date?
+}
+
 struct HoloRenderedEvidenceReference: Codable, Equatable, Sendable {
     var id: String
     var summary: String
+    var financeDrilldown: HoloRenderedFinanceDrilldown?
 }
 
 struct HoloRenderedAgentResult: Codable, Equatable, Sendable {
@@ -53,7 +64,8 @@ struct HoloAgentResultRenderer {
                 let record = evidenceByID[evidenceID]
                 references.append(HoloRenderedEvidenceReference(
                     id: evidenceID,
-                    summary: record?.redactedExcerpt ?? "（证据缺失）"
+                    summary: record?.redactedExcerpt ?? "（证据缺失）",
+                    financeDrilldown: record.flatMap(Self.financeDrilldown)
                 ))
             }
         }
@@ -68,5 +80,36 @@ struct HoloAgentResultRenderer {
             sections: sections,
             evidenceReferences: references
         )
+    }
+
+    private static func financeDrilldown(for record: HoloEvidenceRecord) -> HoloRenderedFinanceDrilldown? {
+        guard record.sourceModule == .finance,
+              let range = record.timeRange,
+              let start = range.start,
+              let end = range.end else {
+            return nil
+        }
+        return HoloRenderedFinanceDrilldown(
+            sourceEvidenceID: record.id,
+            label: range.label,
+            keyword: keyword(from: record),
+            start: start,
+            end: end,
+            baselineStart: record.baselineTimeRange?.start,
+            baselineEnd: record.baselineTimeRange?.end
+        )
+    }
+
+    private static func keyword(from record: HoloEvidenceRecord) -> String? {
+        guard record.metricKey.hasPrefix("finance.keyword.") else { return nil }
+        return quotedKeyword(in: record.redactedExcerpt) ?? quotedKeyword(in: record.excerpt)
+    }
+
+    private static func quotedKeyword(in text: String) -> String? {
+        guard let start = text.firstIndex(of: "「") else { return nil }
+        let afterStart = text.index(after: start)
+        guard let end = text[afterStart...].firstIndex(of: "」") else { return nil }
+        let keyword = String(text[afterStart..<end]).trimmingCharacters(in: .whitespacesAndNewlines)
+        return keyword.isEmpty ? nil : keyword
     }
 }

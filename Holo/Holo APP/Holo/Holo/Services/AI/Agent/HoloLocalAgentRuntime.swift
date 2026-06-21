@@ -235,6 +235,14 @@ actor HoloLocalAgentRuntime {
                 for request in output.toolRequests {
                     let result = await toolExecutor.execute(request)
                     checkpoint.completedToolResults.append(result)
+                    let evidence = Self.evidenceRecords(
+                        from: result,
+                        request: request,
+                        jobID: job.id,
+                        now: now
+                    )
+                    checkpoint.evidenceRecordIDs.append(contentsOf: evidence.map(\.id))
+                    try await persistence.saveProgress(job: job, evidence: evidence, checkpoint: checkpoint)
                 }
                 checkpoint.patternSignals.append(
                     contentsOf: patternMiner.mine(toolResults: checkpoint.completedToolResults, now: now)
@@ -387,15 +395,19 @@ actor HoloLocalAgentRuntime {
         checkpoint: HoloAgentCheckpoint,
         now: Date
     ) async throws -> HoloAgentJob {
-        let resultEvidenceIDs = Array(Set(claims.flatMap(\.evidenceIDs)))
+        let availableEvidenceIDs = Array(Set(checkpoint.evidenceRecordIDs + claims.flatMap(\.evidenceIDs)))
+        let evidence = await persistence.loadEvidence(forIDs: availableEvidenceIDs)
+        let verification = HoloClaimVerifier().verify(claims: claims, evidence: evidence)
+        let acceptedClaims = verification.acceptedClaims
+        let resultEvidenceIDs = Array(Set(acceptedClaims.flatMap(\.evidenceIDs)))
         let agentResult = HoloAgentResult(
             id: UUID().uuidString,
             jobID: job.id,
             title: "深度分析",
-            summary: claims.isEmpty
+            summary: acceptedClaims.isEmpty
                 ? "本期暂无显著观察"
-                : claims.map(\.displayText).joined(separator: "；"),
-            claims: claims,
+                : acceptedClaims.map(\.displayText).joined(separator: "；"),
+            claims: acceptedClaims,
             evidenceIDs: resultEvidenceIDs,
             memoryCandidateIDs: [],
             status: "completed",
@@ -409,6 +421,53 @@ actor HoloLocalAgentRuntime {
         job.updatedAt = now
         try await persistence.saveProgress(job: job, evidence: [], checkpoint: checkpoint)
         return job
+    }
+
+    private static func evidenceRecords(
+        from result: HoloDataToolResult,
+        request: HoloToolRequest,
+        jobID: String,
+        now: Date
+    ) -> [HoloEvidenceRecord] {
+        result.events.compactMap { event in
+            guard let metricKey = event.metricKey else { return nil }
+            return HoloEvidenceRecord(
+                id: event.id,
+                dedupeKey: "\(jobID):\(result.tool):\(event.id)",
+                sourceModule: sourceModule(for: result.tool),
+                sourceID: event.id,
+                sourceKind: request.query,
+                timeRange: event.timeRange ?? request.timeRange,
+                occurredAt: event.occurredAt,
+                metricKey: metricKey,
+                metricValue: event.metricValue,
+                unit: result.metrics.first { $0.metricKey == metricKey }?.unit,
+                baselineValue: result.metrics.first { $0.metricKey == metricKey }?.baselineValue,
+                baselineTimeRange: event.baselineTimeRange ?? request.baseline,
+                comparison: result.metrics.first { $0.metricKey == metricKey }?.comparison,
+                excerpt: event.excerpt,
+                redactedExcerpt: event.excerpt,
+                sensitivity: .normal,
+                confidence: result.status == .success ? 0.9 : 0.5,
+                status: result.status == .success ? .active : .partial,
+                generatedBy: "holo_agent_tool",
+                generatedAt: now,
+                referencedByJobIDs: [jobID],
+                referencedByMemoryIDs: [],
+                deviceID: nil
+            )
+        }
+    }
+
+    private static func sourceModule(for tool: String) -> HoloEvidenceSourceModule {
+        switch tool {
+        case "finance": return .finance
+        case "habit": return .habit
+        case "memory": return .memory
+        case "task": return .task
+        case "health": return .health
+        default: return .agent
+        }
     }
 
     private static func fallbackClaims(

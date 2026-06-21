@@ -37,6 +37,12 @@ struct HomeView: View {
     
     /// 是否显示财务页面
     @State private var showFinanceView: Bool = false
+
+    /// 从 Agent 等入口跳转到财务统计页时携带的时间范围
+    @State private var pendingFinanceAnalysisDeepLink: FinanceAnalysisDeepLink?
+
+    /// 从 Agent 证据引用跳转到财务证据核对页时携带的上下文
+    @State private var pendingFinanceEvidenceReviewDeepLink: FinanceEvidenceReviewDeepLink?
     
     /// 是否显示习惯页面
     @State private var showHabitsView: Bool = false
@@ -150,9 +156,15 @@ struct HomeView: View {
             loadFeatureItemsFromRepository()
             scheduleService.setup()
         }
-        .fullScreenCover(isPresented: $showFinanceView) {
+        .fullScreenCover(isPresented: $showFinanceView, onDismiss: {
+            pendingFinanceAnalysisDeepLink = nil
+            pendingFinanceEvidenceReviewDeepLink = nil
+        }) {
             LazyView {
-                FinanceView()
+                FinanceView(
+                    initialAnalysisDeepLink: pendingFinanceAnalysisDeepLink,
+                    initialEvidenceReviewDeepLink: pendingFinanceEvidenceReviewDeepLink
+                )
                     .preferredColorScheme(DarkModeManager.shared.colorScheme)
             }
         }
@@ -756,7 +768,7 @@ struct HomeView: View {
             if showPersonalView { return }
         case .habitDetail:
             if showHabitsView { return }
-        case .finance:
+        case .finance, .financeAnalysis(_), .financeEvidenceReview(_):
             if showFinanceView { return }
         case .addTransaction:
             if showAddTransactionSheet { return }
@@ -801,6 +813,18 @@ struct HomeView: View {
                 showHabitsView = true
                 // pendingTarget 由 HabitListView 处理后清除
             case .finance:
+                pendingFinanceAnalysisDeepLink = nil
+                pendingFinanceEvidenceReviewDeepLink = nil
+                showFinanceView = true
+                deepLinkState.pendingTarget = nil
+            case .financeAnalysis(let link):
+                pendingFinanceAnalysisDeepLink = link
+                pendingFinanceEvidenceReviewDeepLink = nil
+                showFinanceView = true
+                deepLinkState.pendingTarget = nil
+            case .financeEvidenceReview(let link):
+                pendingFinanceAnalysisDeepLink = nil
+                pendingFinanceEvidenceReviewDeepLink = link
                 showFinanceView = true
                 deepLinkState.pendingTarget = nil
             case .addTransaction:

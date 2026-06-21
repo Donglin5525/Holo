@@ -9,6 +9,24 @@
 import Foundation
 import Combine
 
+struct FinanceAnalysisDeepLink: Equatable {
+    var label: String
+    var start: Date
+    var end: Date
+    var sourceEvidenceID: String?
+}
+
+struct FinanceEvidenceReviewDeepLink: Equatable {
+    var title: String
+    var label: String
+    var keyword: String?
+    var start: Date
+    var end: Date
+    var baselineStart: Date?
+    var baselineEnd: Date?
+    var sourceEvidenceID: String?
+}
+
 /// Deep Link 跳转目标
 /// 各模块通过匹配对应 case 决定是否响应跳转
 enum DeepLinkTarget: Equatable {
@@ -19,6 +37,8 @@ enum DeepLinkTarget: Equatable {
     case habitDetail(habitId: UUID)
     /// 从 AI Chat 卡片跳转到对应模块
     case finance
+    case financeAnalysis(FinanceAnalysisDeepLink)
+    case financeEvidenceReview(FinanceEvidenceReviewDeepLink)
     case addTransaction
     case tasks
     case addTask

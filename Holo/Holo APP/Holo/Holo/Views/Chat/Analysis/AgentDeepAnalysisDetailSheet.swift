@@ -11,6 +11,8 @@ import SwiftUI
 struct AgentDeepAnalysisDetailSheet: View {
 
     let result: HoloRenderedAgentResult
+    var onFinanceDrilldown: ((HoloRenderedFinanceDrilldown) -> Void)?
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -103,7 +105,17 @@ struct AgentDeepAnalysisDetailSheet: View {
             HoloAISectionLabel(text: "数据依据")
             VStack(spacing: 10) {
                 ForEach(Array(result.evidenceReferences.enumerated()), id: \.offset) { _, ref in
-                    HoloAIFactItem(kicker: "依据", bodyText: ref.summary)
+                    if let drilldown = ref.financeDrilldown {
+                        Button {
+                            dismiss()
+                            onFinanceDrilldown?(drilldown)
+                        } label: {
+                            HoloAIFactItem(kicker: "依据 · 点按核对", bodyText: ref.summary)
+                        }
+                        .buttonStyle(.plain)
+                    } else {
+                        HoloAIFactItem(kicker: "依据", bodyText: ref.summary)
+                    }
                 }
             }
         }

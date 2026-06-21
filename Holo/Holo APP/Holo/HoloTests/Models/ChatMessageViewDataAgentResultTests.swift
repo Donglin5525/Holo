@@ -39,4 +39,21 @@ final class ChatMessageViewDataAgentResultTests: XCTestCase {
         let result = try XCTUnwrap(ChatMessageViewData.decodeAgentResult(legacy))
         XCTAssertNil(result.sections.first?.confidence, "旧 JSON 无 confidence 应解码为 nil")
     }
+
+    func testLightweightQueryAnalysisWithAgentResultIsLoadedWithoutRawLogOrExecutionBatch() throws {
+        let message = ChatMessageViewData(lightweightDictionary: [
+            "id": UUID(),
+            "role": "assistant",
+            "content": "本期观察",
+            "timestamp": Date(),
+            "intent": AIIntent.queryAnalysis.rawValue,
+            "extractedDataJSON": "",
+            "isStreaming": false,
+            "parentMessageId": UUID(),
+            "agentResultJSON": sampleResultJSON()
+        ])
+
+        XCTAssertEqual(message?.metadataState, .loaded)
+        XCTAssertNotNil(message?.agentResult)
+    }
 }

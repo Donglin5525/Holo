@@ -171,7 +171,10 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         }
 
         // 元数据状态：首屏轻量查询会带上卡片渲染和日志所需字段，避免等待滚动触发懒加载。
-        let hasFetchedCardMetadata = dictionary.keys.contains("executionBatchJSON") || dictionary.keys.contains("rawLogJSON")
+        let hasFetchedCardMetadata =
+            dictionary.keys.contains("executionBatchJSON") ||
+            dictionary.keys.contains("rawLogJSON") ||
+            dictionary.keys.contains("agentResultJSON")
         if role == "user" || isStreaming {
             self.metadataState = .unavailable
         } else if hasFetchedCardMetadata {

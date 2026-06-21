@@ -11,27 +11,48 @@ import Foundation
 
 struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
 
-    func snapshot(timeRange: HoloAgentTimeRange?, baseline: HoloAgentTimeRange?) async -> HoloFinanceToolRecord? {
+    func snapshot(
+        timeRange: HoloAgentTimeRange?,
+        baseline: HoloAgentTimeRange?,
+        parameters: [String: String]
+    ) async -> HoloFinanceToolRecord? {
         let repo = FinanceRepository.shared
         let calendar = Calendar.current
-        let today = timeRange?.end ?? calendar.startOfDay(for: Date())
-        let currentStart = timeRange?.start ?? (calendar.date(byAdding: .day, value: -13, to: today) ?? today)
-        let baselineEnd = baseline?.end ?? (calendar.date(byAdding: .day, value: -1, to: currentStart) ?? currentStart)
-        let baselineStart = baseline?.start ?? (calendar.date(byAdding: .day, value: -13, to: baselineEnd) ?? baselineEnd)
-        let current: [Transaction]
-        let baseline: [Transaction]
+        let todayStart = calendar.startOfDay(for: Date())
+        let defaultCurrentEnd = calendar.date(byAdding: .day, value: 1, to: todayStart) ?? Date()
+        let currentEnd = timeRange?.end ?? defaultCurrentEnd
+        let currentStart = timeRange?.start
+            ?? (calendar.date(byAdding: .day, value: -13, to: todayStart) ?? todayStart)
+        let baselineEnd = baseline?.end ?? currentStart
+        let baselineStart = baseline?.start
+            ?? (calendar.date(byAdding: .day, value: -14, to: baselineEnd) ?? baselineEnd)
+        let currentTransactions: [Transaction]
+        let baselineTransactions: [Transaction]
         do {
-            current = try await repo.getTransactions(from: currentStart, to: today)
-            baseline = try await repo.getTransactions(from: baselineStart, to: baselineEnd)
+            currentTransactions = try await repo.getTransactions(from: currentStart, to: currentEnd)
+            baselineTransactions = try await repo.getTransactions(from: baselineStart, to: baselineEnd)
         } catch {
             return nil
         }
+        let currentRange = HoloAgentTimeRange(label: timeRange?.label ?? "本期", start: currentStart, end: currentEnd)
+        let baselineRange = HoloAgentTimeRange(label: baseline?.label ?? "对比期", start: baselineStart, end: baselineEnd)
+        let keyword = Self.keyword(from: parameters)
+        let currentKeyword = Self.keywordSummary(currentTransactions, keyword: keyword)
+        let baselineKeyword = Self.keywordSummary(baselineTransactions, keyword: keyword)
         return HoloFinanceToolRecord(
-            nighttimeMealCurrent: Self.nighttimeMealCount(current),
-            nighttimeMealBaseline: Self.nighttimeMealCount(baseline),
-            categoryCounts: Self.categoryCounts(current),
-            totalCurrentAmount: Self.totalExpense(current),
-            totalBaselineAmount: Self.totalExpense(baseline)
+            nighttimeMealCurrent: Self.nighttimeMealCount(currentTransactions),
+            nighttimeMealBaseline: Self.nighttimeMealCount(baselineTransactions),
+            categoryCounts: Self.categoryCounts(currentTransactions),
+            totalCurrentAmount: Self.totalExpense(currentTransactions),
+            totalBaselineAmount: Self.totalExpense(baselineTransactions),
+            currentRange: currentRange,
+            baselineRange: baselineRange,
+            keyword: keyword.isEmpty ? nil : keyword,
+            keywordCurrentCount: currentKeyword.count,
+            keywordBaselineCount: baselineKeyword.count,
+            keywordCurrentAmount: currentKeyword.amount,
+            keywordBaselineAmount: baselineKeyword.amount,
+            keywordSampleExcerpts: currentKeyword.samples
         )
     }
 
@@ -60,5 +81,46 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
 
     private static func totalExpense(_ txs: [Transaction]) -> Double {
         txs.filter { $0.transactionType == .expense }.reduce(0.0) { $0 + $1.amount.doubleValue }
+    }
+
+    private static func keyword(from parameters: [String: String]) -> String {
+        (parameters["keyword"] ?? parameters["term"] ?? parameters["query"] ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func keywordSummary(_ txs: [Transaction], keyword: String) -> (count: Int, amount: Double, samples: [String]) {
+        guard !keyword.isEmpty else { return (0, 0, []) }
+        let matches = txs.filter { tx in
+            guard tx.transactionType == .expense else { return false }
+            return searchableText(for: tx).localizedCaseInsensitiveContains(keyword)
+        }
+        let amount = matches.reduce(0.0) { $0 + $1.amount.doubleValue }
+        let samples = matches.prefix(5).map(sampleExcerpt)
+        return (matches.count, amount, samples)
+    }
+
+    private static func searchableText(for tx: Transaction) -> String {
+        [
+            tx.note,
+            tx.remark,
+            tx.category?.name,
+            tx.tags?.joined(separator: " ")
+        ]
+            .compactMap { $0 }
+            .joined(separator: " ")
+    }
+
+    private static func sampleExcerpt(for tx: Transaction) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日"
+        let date = formatter.string(from: tx.date)
+        let category = tx.category?.name ?? "未分类"
+        let note = [tx.note, tx.remark]
+            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty } ?? "无备注"
+        let amount = tx.amount.doubleValue
+        let amountText = amount.rounded() == amount ? String(format: "%.0f", amount) : String(format: "%.2f", amount)
+        return "\(date) \(category) \(note) -¥\(amountText)"
     }
 }

@@ -74,6 +74,7 @@ struct HoloLocalAgentRuntimeTests {
         try await testCancel_状态变为cancelled且resume不恢复执行()
         try await testRunLoop_needTools后finalClaims两轮完成()
         try await testRunLoop_工具结果进入下一轮LLM上下文且不用原生tool角色()
+        try await testRunLoop_finalClaims必须经过Evidence校验()
         try await testRunLoop_模型不收敛时用工具结果兜底完成()
         try await testPauseForBackground_运行中任务标记waitingForForeground()
         try await testResumeUnfinishedJobs_恢复未完成任务()
@@ -253,6 +254,26 @@ struct HoloLocalAgentRuntimeTests {
         let joinedContent = secondBatch.map(\.content).joined(separator: "\n")
         expect(joinedContent.contains("finance.meal.nighttime_count"), "第二轮 LLM 上下文应包含工具 metric")
         expect(joinedContent.contains("晚餐消费"), "第二轮 LLM 上下文应包含工具事件摘要")
+    }
+
+    /// 模型一直不输出 final_claims 时，已有工具结果应兜底产出保守结论，避免用户看到预算耗尽。
+    private static func testRunLoop_finalClaims必须经过Evidence校验() async throws {
+        let dir = makeTempDir()
+        let unsupportedClaim = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[{"id":"c1","type":"observation","displayText":"近两周消费从约 6630 元增至 9115 元","metricAssertions":[{"metricKey":"finance.amount.change","value":9115,"baselineValue":6630,"unit":"元","comparison":"increasing","evidenceIDs":["ghost"]}],"evidenceIDs":["ghost"],"prohibitedInferences":[],"confidence":0.9}],"warnings":[]}"#
+        let client = FakeAgentLLMClient(responses: [unsupportedClaim])
+        let executor = FakeToolExecutor()
+        let fixture = makeLoopRuntime(dir: dir, llmClient: client, toolExecutor: executor)
+
+        let job = try await fixture.runtime.startMockJob(question: "分析最近消费", now: Date(timeIntervalSince1970: 1000))
+        let result = try await fixture.runtime.runLoop(
+            jobID: job.id, systemTemplate: "你是 Agent", toolDescriptions: "【finance】消费工具",
+            now: Date(timeIntervalSince1970: 2000)
+        )
+
+        expect(result.state == .completed, "无证据 claim 不应让任务失败，应完成但过滤结论")
+        let savedResult = await fixture.runtime.loadLatestResult()
+        expect(savedResult?.claims.isEmpty == true, "无证据支撑的 claim 必须被过滤")
+        expect(savedResult?.summary == "本期暂无显著观察", "过滤后应显示暂无显著观察")
     }
 
     /// 模型一直不输出 final_claims 时，已有工具结果应兜底产出保守结论，避免用户看到预算耗尽。

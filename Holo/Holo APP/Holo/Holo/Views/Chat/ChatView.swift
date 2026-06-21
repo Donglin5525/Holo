@@ -501,7 +501,21 @@ struct ChatView: View {
             AnalysisDetailSheet(message: message)
         case .agentDeepAnalysis(let message):
             if let result = message.agentResult {
-                AgentDeepAnalysisDetailSheet(result: result)
+                AgentDeepAnalysisDetailSheet(result: result) { drilldown in
+                    let keyword = drilldown.keyword?.trimmingCharacters(in: .whitespacesAndNewlines)
+                    let normalizedKeyword = keyword?.isEmpty == false ? keyword : nil
+                    DeepLinkState.shared.navigate(to: .financeEvidenceReview(FinanceEvidenceReviewDeepLink(
+                        title: normalizedKeyword.map { "\($0)数据依据" } ?? "财务数据依据",
+                        label: drilldown.label,
+                        keyword: normalizedKeyword,
+                        start: drilldown.start,
+                        end: drilldown.end,
+                        baselineStart: drilldown.baselineStart,
+                        baselineEnd: drilldown.baselineEnd,
+                        sourceEvidenceID: drilldown.sourceEvidenceID
+                    )))
+                    dismiss()
+                }
             }
         case .voiceInput:
             VoiceInputSheet(speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider()) { transcript in
