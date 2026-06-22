@@ -282,7 +282,7 @@ class FinanceAnalysisState: ObservableObject {
 
             case .day:
                 next = calendar.date(byAdding: .day, value: 1, to: current)
-                df.dateFormat = "d"
+                df.dateFormat = "M/d"
                 label = df.string(from: current)
 
             case .week:

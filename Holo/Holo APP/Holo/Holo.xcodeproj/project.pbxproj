@@ -98,8 +98,6 @@
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		49E199F62F54389E0070AE1B /* Holo */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-			);
 			path = Holo;
 			sourceTree = "<group>";
 		};

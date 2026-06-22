@@ -11,6 +11,7 @@
 | ~~中~~ | ~~生活星图数据接入：周期回退范围截断 + 聚合依赖分页漏算 + 健康卡片占位~~ | `MemoryInsightContextBuilder.swift` / `MemoryGalleryViewModel.swift` | ✅ Fixed |
 | ~~中~~ | ~~星图「更新」按钮只刷本地不调 AI，真正刷新 AI 洞察的入口藏在折叠区~~ | `MemoryGalleryViewModel.swift` / `MemoryConstellationCard.swift` / `MemoryInsightHeroCard.swift` | ✅ Fixed（统一入口 + AI 洞察每日 2 次配额） |
 | ~~低~~ | ~~今日收支小组件点击跳记账页而非财务分析页~~ | `HoloWidgets.swift` / `HoloWidgetModels.swift` / `DeepLinkState.swift` | ✅ Fixed（深链改 `holo://finance/analysis`） |
+| ~~中~~ | ~~财务分析日期选择不灵活 + 趋势图单天异常（24 小时空柱）+ 柱图与余额折线错位~~ | `CustomDateSheet.swift` / `DateRangeCalendar.swift` / `FinanceAggregation.swift` / `BarChartView.swift` | ✅ Fixed（范围月历 + 点两次完成 + 单天按天粒度 + X 轴 M/d 稀疏 + 柱叠加对齐） |
 
 ---
 

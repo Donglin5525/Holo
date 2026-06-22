@@ -93,14 +93,14 @@ enum TimeRange: String, CaseIterable, Identifiable {
 
 /// 图表 X 轴粒度（根据时间跨度自动切换）
 enum ChartGranularity {
-    case hour    // <= 1 天
-    case day     // 2-14 天
+    case hour    // 预留：按小时（当前 from 不会返回，单天改按天呈现，避免满图空柱）
+    case day     // 1-14 天
     case week    // 15-90 天
     case month   // > 90 天
 
     /// 根据天数判断粒度
     static func from(dayCount: Int) -> ChartGranularity {
-        if dayCount <= 1 { return .hour }
+        // 单天也按天呈现：财务分析不需要把一天拆成 24 小时（否则得到满图空柱）
         if dayCount <= 14 { return .day }
         if dayCount <= 90 { return .week }
         return .month

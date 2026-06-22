@@ -29,6 +29,18 @@ struct BarChartView: View {
         return dataPoints.allSatisfy { $0.expense == 0 && $0.income == 0 }
     }
 
+    /// X 轴刻度标签：数据点多（>14）时稀疏展示（最多 6 个），少时全部展示
+    private var axisMarkLabels: [String] {
+        guard dataPoints.count > 14 else { return dataPoints.map(\.label) }
+        let desiredCount = 6
+        let lastIndex = dataPoints.count - 1
+        let step = max(Double(lastIndex) / Double(desiredCount - 1), 1)
+        return (0..<desiredCount).compactMap { index in
+            let dataIndex = min(Int((Double(index) * step).rounded()), lastIndex)
+            return dataPoints[dataIndex].label
+        }
+    }
+
     /// Y 轴域：锁定为 BalanceChartScale 的收支范围，确保余额折线映射精确
     private var yAxisDomain: ClosedRange<Double> {
         if let scale = balanceScale {
@@ -75,21 +87,18 @@ struct BarChartView: View {
             let expenseVal = Double(truncating: point.expense as NSDecimalNumber)
             let incomeVal = Double(truncating: point.income as NSDecimalNumber)
 
-            // 支出柱 → 左 Y 轴 (yAxisIndex: 0)
+            // 收入柱（底，浅色）+ 支出柱（顶）同 X 叠加 —— 柱居中对齐余额折线/触摸指示线
+            BarMark(
+                x: .value("日期", point.label),
+                y: .value("收入", incomeVal)
+            )
+            .foregroundStyle(Color.holoSuccess.opacity(0.45))
+
             BarMark(
                 x: .value("日期", point.label),
                 y: .value("支出", expenseVal)
             )
             .foregroundStyle(Color.holoError.opacity(0.88))
-            .position(by: .value("类型", "支出"))
-
-            // 收入柱 → 左 Y 轴 (yAxisIndex: 0)
-            BarMark(
-                x: .value("日期", point.label),
-                y: .value("收入", incomeVal)
-            )
-            .foregroundStyle(Color.holoSuccess.opacity(0.88))
-            .position(by: .value("类型", "收入"))
 
             // 余额折线 → 右 Y 轴 (yAxisIndex: 1, 缩放后映射到左轴视觉范围)
             if showBalance {
@@ -114,9 +123,9 @@ struct BarChartView: View {
                 .zIndex(11)
             }
         }
-        // X 轴
+        // X 轴（数据点多时按 axisMarkLabels 稀疏展示）
         .chartXAxis {
-            AxisMarks { _ in
+            AxisMarks(values: axisMarkLabels) { _ in
                 AxisGridLine()
                     .foregroundStyle(Color.holoDivider)
                 AxisValueLabel()

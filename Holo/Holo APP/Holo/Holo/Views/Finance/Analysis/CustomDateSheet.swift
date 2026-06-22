@@ -2,7 +2,7 @@
 //  CustomDateSheet.swift
 //  Holo
 //
-//  自定义日期范围选择弹窗
+// 自定义日期范围选择弹窗（点两次自动完成：选开始 → 自动进入选结束 → 自动应用）
 //
 
 import SwiftUI
@@ -10,6 +10,14 @@ import SwiftUI
 // MARK: - CustomDateSheet
 
 /// 自定义日期范围选择弹窗
+///
+/// 交互流程（点两次完成筛选）：
+/// 1. 进入默认在「开始」阶段，点击日历选开始日期
+/// 2. 选完后自动切换到「结束」阶段
+/// 3. 点击日历选结束日期 → 自动应用并关闭
+///
+/// 日历用自制的 `DateRangeCalendar`（范围内铺浅品牌色 + 首尾端点圆形高亮），
+/// 原生 DatePicker(.graphical) 不支持范围高亮。
 struct CustomDateSheet: View {
     @Environment(\.dismiss) var dismiss
     @Binding var startDate: Date
@@ -19,6 +27,8 @@ struct CustomDateSheet: View {
     @State private var tempStartDate: Date
     @State private var tempEndDate: Date
     @State private var editingDate: EditingDate = .start
+    /// 防止 dismiss 过程中重复触发应用
+    @State private var hasApplied: Bool = false
 
     init(
         startDate: Binding<Date>,
@@ -33,6 +43,7 @@ struct CustomDateSheet: View {
     }
 
     // MARK: - 编辑日期类型
+
     enum EditingDate {
         case start
         case end
@@ -40,19 +51,19 @@ struct CustomDateSheet: View {
 
     var body: some View {
         NavigationView {
-            VStack(spacing: HoloSpacing.lg) {
-                // 日期范围显示
+            VStack(alignment: .center, spacing: HoloSpacing.lg) {
+                // 阶段提示
+                phaseHint
+
+                // 开始/结束卡片（点击可回到对应阶段重选）
                 dateRangeDisplay
 
-                // Tab 切换
-                tabSelector
-
-                // 日期选择器 - 分开两个
+                // 范围月历（范围内铺浅品牌色，首尾端点圆形高亮）
                 datePickerSection
 
                 Spacer()
 
-                // 确认按钮
+                // 兜底完成按钮（主流程靠自动推进，按钮作为备选）
                 confirmButton
             }
             .padding(HoloSpacing.lg)
@@ -72,135 +83,65 @@ struct CustomDateSheet: View {
         .presentationDragIndicator(.visible)
     }
 
+    // MARK: - 阶段提示
+
+    private var phaseHint: some View {
+        Text(editingDate == .start
+             ? "① 点击日历选择开始日期"
+             : "② 点击日历选择结束日期")
+            .font(.holoCaption)
+            .foregroundColor(.holoPrimary)
+    }
+
     // MARK: - 日期范围显示
 
     private var dateRangeDisplay: some View {
         HStack(spacing: HoloSpacing.md) {
             DateDisplayCard(
-                title: "开始日期",
+                title: "开始",
                 date: tempStartDate,
                 isSelected: editingDate == .start
             ) {
-                editingDate = .start
+                guard !hasApplied else { return }
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    editingDate = .start
+                }
             }
 
             Image(systemName: "arrow.right")
                 .foregroundColor(.holoTextSecondary)
 
             DateDisplayCard(
-                title: "结束日期",
+                title: "结束",
                 date: tempEndDate,
                 isSelected: editingDate == .end
             ) {
-                editingDate = .end
-            }
-        }
-    }
-
-    // MARK: - Tab 切换
-
-    private var tabSelector: some View {
-        HStack(spacing: 0) {
-            Button {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-                    editingDate = .start
-                }
-            } label: {
-                Text("开始日期")
-                    .font(.holoCaption)
-                    .foregroundColor(editingDate == .start ? .white : .holoTextPrimary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(editingDate == .start ? Color.holoPrimary : Color.clear)
-            }
-
-            Button {
-                withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+                guard !hasApplied else { return }
+                withAnimation(.easeInOut(duration: 0.2)) {
                     editingDate = .end
                 }
-            } label: {
-                Text("结束日期")
-                    .font(.holoCaption)
-                    .foregroundColor(editingDate == .end ? .white : .holoTextPrimary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 10)
-                    .background(editingDate == .end ? Color.holoPrimary : Color.clear)
             }
         }
-        .background(Color.holoCardBackground)
-        .clipShape(Capsule())
     }
 
-    // MARK: - 日期选择器
+    // MARK: - 日期选择器（范围月历）
 
     private var datePickerSection: some View {
-        ZStack {
-            // 开始日期选择器
-            DatePicker(
-                "",
-                selection: $tempStartDate,
-                in: startDateRange,
-                displayedComponents: .date
-            )
-            .datePickerStyle(.graphical)
-            .environment(\.locale, Locale(identifier: "zh_CN"))
-            .padding(HoloSpacing.sm)
-            .background(Color.holoCardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
-            .opacity(editingDate == .start ? 1 : 0)
-
-            // 结束日期选择器
-            DatePicker(
-                "",
-                selection: $tempEndDate,
-                in: endDateRange,
-                displayedComponents: .date
-            )
-            .datePickerStyle(.graphical)
-            .environment(\.locale, Locale(identifier: "zh_CN"))
-            .padding(HoloSpacing.sm)
-            .background(Color.holoCardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
-            .opacity(editingDate == .end ? 1 : 0)
+        DateRangeCalendar(
+            start: tempStartDate,
+            end: tempEndDate
+        ) { day in
+            handleSelect(day)
         }
     }
 
-    /// 开始日期可选范围
-    private var startDateRange: ClosedRange<Date> {
-        let now = Date()
-        let calendar = Calendar.current
-
-        guard let minDate = calendar.date(byAdding: .year, value: -5, to: now) else {
-            return now...now
-        }
-
-        // 开始日期不能晚于结束日期
-        return minDate...tempEndDate
-    }
-
-    /// 结束日期可选范围
-    private var endDateRange: ClosedRange<Date> {
-        let now = Date()
-        let calendar = Calendar.current
-
-        guard let maxDate = calendar.date(byAdding: .year, value: 1, to: now) else {
-            return now...now
-        }
-
-        // 结束日期不能早于开始日期
-        return tempStartDate...maxDate
-    }
-
-    // MARK: - 确认按钮
+    // MARK: - 完成按钮（兜底）
 
     private var confirmButton: some View {
         Button {
-            let start = Calendar.current.startOfDay(for: tempStartDate)
-            guard let end = Calendar.current.date(byAdding: .day, value: 1, to: tempEndDate) else { return }
-            onConfirm(start, end)
-            dismiss()
+            applyAndDismiss()
         } label: {
-            Text("确认")
+            Text("完成")
                 .font(.holoBody)
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
@@ -209,6 +150,44 @@ struct CustomDateSheet: View {
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         }
         .buttonStyle(.plain)
+    }
+
+    // MARK: - 选择处理
+
+    /// 点击日历某一天：开始阶段 → 记录并自动进入结束阶段；结束阶段 → 记录并自动应用
+    private func handleSelect(_ day: Date) {
+        guard !hasApplied else { return }
+        if editingDate == .start {
+            tempStartDate = day
+            withAnimation(.easeInOut(duration: 0.2)) {
+                editingDate = .end
+            }
+        } else {
+            tempEndDate = day
+            applyAndDismiss()
+        }
+    }
+
+    // MARK: - 应用
+
+    /// 应用所选范围并关闭：保证 start ≤ end，转成开区间 [start, end+1day)
+    private func applyAndDismiss() {
+        guard !hasApplied else { return }
+        hasApplied = true
+
+        var s = tempStartDate
+        var e = tempEndDate
+        if e < s { swap(&s, &e) }
+
+        let calendar = Calendar.current
+        let startDay = calendar.startOfDay(for: s)
+        guard let endDay = calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: e)) else {
+            hasApplied = false
+            return
+        }
+
+        onConfirm(startDay, endDay)
+        dismiss()
     }
 }
 

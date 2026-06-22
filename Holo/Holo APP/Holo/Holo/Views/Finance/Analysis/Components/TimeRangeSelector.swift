@@ -72,7 +72,6 @@ struct TimeRangeSelector: View {
 struct TimeRangeLabel: View {
     @ObservedObject var state: FinanceAnalysisState
     var onCustomTap: () -> Void
-    @State private var showDatePicker: Bool = false
 
     private var dateRangeText: String {
         let (start, end) = state.currentDateRange
@@ -96,6 +95,7 @@ struct TimeRangeLabel: View {
 
     var body: some View {
         HStack(spacing: HoloSpacing.sm) {
+            Spacer()
             // 上一时间段按钮
             if canNavigate {
                 Button {
@@ -111,15 +111,15 @@ struct TimeRangeLabel: View {
                 .buttonStyle(.plain)
             }
 
-            // 日期范围标签
+            // 日期范围标签：点击直接进入起止日期选择（融合原「自定义」入口）
             Button {
-                showDatePicker = true
+                onCustomTap()
             } label: {
                 HStack(spacing: 4) {
                     Text(dateRangeText)
                         .font(.holoCaption)
 
-                    Image(systemName: "chevron.down")
+                    Image(systemName: "calendar")
                         .font(.system(size: 10, weight: .medium))
                 }
                 .foregroundColor(.holoPrimary)
@@ -146,36 +146,9 @@ struct TimeRangeLabel: View {
             }
 
             Spacer()
-
-            // 自定义按钮
-            Button {
-                onCustomTap()
-            } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "slider.horizontal.3")
-                        .font(.system(size: 12, weight: .medium))
-                    Text("自定义")
-                        .font(.holoCaption)
-                }
-                .foregroundColor(state.timeRange == .custom ? .white : .holoTextSecondary)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(
-                    Capsule()
-                        .fill(state.timeRange == .custom ? Color.holoPrimary : Color.holoCardBackground)
-                )
-                .overlay(
-                    Capsule()
-                        .stroke(state.timeRange == .custom ? Color.clear : Color.holoDivider, lineWidth: 1)
-                )
-            }
-            .buttonStyle(.plain)
         }
         .padding(.horizontal, HoloSpacing.lg)
         .padding(.vertical, HoloSpacing.xs)
-        .sheet(isPresented: $showDatePicker) {
-            DrillDownDatePicker(state: state)
-        }
     }
 
     // MARK: - 导航方法
@@ -248,167 +221,6 @@ struct TimeRangeLabel: View {
         case .custom:
             return start
         }
-    }
-}
-
-// MARK: - Drill Down Date Picker
-
-/// 下钻日期选择器
-struct DrillDownDatePicker: View {
-    @ObservedObject var state: FinanceAnalysisState
-    @Environment(\.dismiss) var dismiss
-    @State private var selectedDate: Date = Date()
-
-    var body: some View {
-        NavigationView {
-            VStack(spacing: HoloSpacing.lg) {
-                // 提示信息
-                Text(drillDownHint)
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
-                    .padding(.horizontal)
-
-                // 日期选择器
-                DatePicker(
-                    "选择日期",
-                    selection: $selectedDate,
-                    in: dateRange,
-                    displayedComponents: .date
-                )
-                .datePickerStyle(.graphical)
-                .environment(\.locale, Locale(identifier: "zh_CN"))
-                .padding()
-
-                Spacer()
-
-                // 确认按钮
-                Button {
-                    applyDrillDown()
-                    dismiss()
-                } label: {
-                    Text("查看该\(timeUnit)数据")
-                        .font(.holoBody)
-                        .foregroundColor(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, HoloSpacing.md)
-                        .background(Color.holoPrimary)
-                        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-                }
-                .padding()
-            }
-            .background(Color.holoBackground)
-            .navigationTitle("选择\(timeUnit)")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("取消") {
-                        dismiss()
-                    }
-                    .foregroundColor(.holoTextSecondary)
-                }
-
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("确认") {
-                        applyDrillDown()
-                        dismiss()
-                    }
-                    .foregroundColor(.holoPrimary)
-                    .fontWeight(.semibold)
-                }
-            }
-        }
-        .presentationDetents([.medium])
-        .presentationDragIndicator(.visible)
-    }
-
-    /// 时间单位
-    private var timeUnit: String {
-        switch state.originalTimeRange {
-        case .week: return "周"
-        case .month: return "月"
-        case .quarter: return "季度"
-        case .year: return "年"
-        default: return "日期"
-        }
-    }
-
-    /// 下钻提示
-    private var drillDownHint: String {
-        switch state.originalTimeRange {
-        case .week:
-            return "选择某一天，查看该周的数据"
-        case .month:
-            return "选择某一天，查看该月的数据"
-        case .quarter:
-            return "选择某一天，查看该季度的数据"
-        case .year:
-            return "选择某一天，查看该年的数据"
-        default:
-            return ""
-        }
-    }
-
-    /// 可选日期范围
-    private var dateRange: ClosedRange<Date> {
-        let now = Date()
-        let calendar = Calendar.current
-
-        // 允许选择过去一年到未来的日期
-        guard let start = calendar.date(byAdding: .year, value: -1, to: now),
-              let end = calendar.date(byAdding: .year, value: 1, to: now) else {
-            return now...now
-        }
-        return start...end
-    }
-
-    /// 应用下钻
-    private func applyDrillDown() {
-        let calendar = Calendar.current
-        let newRange: (start: Date, end: Date)
-
-        // 使用 originalTimeRange 确定时间单位，因为 timeRange 可能在导航后变为 .custom
-        let effectiveRange = state.originalTimeRange
-
-        switch effectiveRange {
-        case .day:
-            let dayStart = calendar.startOfDay(for: selectedDate)
-            guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { return }
-            newRange = (dayStart, dayEnd)
-
-        case .week:
-            let weekStart = selectedDate.startOfWeek
-            guard let weekEnd = calendar.date(byAdding: .day, value: 7, to: weekStart) else { return }
-            newRange = (weekStart, weekEnd)
-
-        case .month:
-            let monthStart = selectedDate.startOfMonth
-            guard let monthEnd = calendar.date(byAdding: .month, value: 1, to: monthStart) else { return }
-            newRange = (monthStart, monthEnd)
-
-        case .quarter:
-            let month = calendar.component(.month, from: selectedDate)
-            let quarterStartMonth = ((month - 1) / 3) * 3 + 1
-            var components = calendar.dateComponents([.year], from: selectedDate)
-            components.month = quarterStartMonth
-            components.day = 1
-            guard let quarterStart = calendar.date(from: components),
-                  let quarterEnd = calendar.date(byAdding: .month, value: 3, to: quarterStart) else { return }
-            newRange = (quarterStart, quarterEnd)
-
-        case .year:
-            var components = calendar.dateComponents([.year], from: selectedDate)
-            components.month = 1
-            components.day = 1
-            guard let yearStart = calendar.date(from: components),
-                  let yearEnd = calendar.date(byAdding: .year, value: 1, to: yearStart) else { return }
-            newRange = (yearStart, yearEnd)
-
-        case .custom:
-            return
-        }
-
-        // 使用 navigateToRange 而不是 setCustomDateRange，保持 originalTimeRange 不变
-        state.navigateToRange(start: newRange.start, end: newRange.end)
     }
 }
 
