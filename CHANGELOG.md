@@ -4,6 +4,20 @@
 
 ---
 
+## [2026-06-22] HoloAI 意图识别上下文瘦身
+
+### 变更
+- **意图识别 Router 改为轻量上下文**：`AIUserContextMessageBuilder` 在 `purpose == .intentRecognition` 时不再复用聊天场景的大上下文，提前返回专用最小上下文，只保留日期、今日收支、近期交易、可用账户、默认账户和使用边界
+- **去除记账等明确动作的无关干扰**：意图识别日志不再注入用户档案、近期任务、待办积压、近期想法、近期趋势、当前目标等内容，避免简单记账请求被无关生活/任务上下文污染
+- **聊天上下文保持不变**：普通聊天仍保留用户档案、趋势、目标、记忆摘要等长期信息，不影响个性化回答和分析表达
+
+### 测试
+- `AIUserContextMessageBuilderStandaloneTests` 新增最小 Router 上下文断言，确认 intent 上下文保留财务消歧信息，并排除档案/任务/想法/趋势/目标
+- `AIUserContextMessageBuilderStandaloneTests` 通过
+- `xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -destination "generic/platform=iOS" -derivedDataPath /private/tmp/holo-deriveddata-agent-context build` 通过
+
+---
+
 ## [2026-06-22] 今日收支小组件点击跳转财务分析页
 
 ### 修复

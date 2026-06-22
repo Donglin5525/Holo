@@ -11,7 +11,7 @@ struct AIUserContextMessageBuilderStandaloneTests {
 
     static func main() {
         testChatContextIncludesPersonalProfile()
-        testIntentContextIncludesProfileAsDisambiguationOnly()
+        testIntentContextUsesMinimalRouterContext()
         print("AIUserContextMessageBuilder standalone tests passed")
     }
 
@@ -51,6 +51,7 @@ struct AIUserContextMessageBuilderStandaloneTests {
             - 昵称：糖
             - 当前关注：戒烟、减少咖啡因
             """,
+            profileSnapshot: nil,
             recentTrend: UserRecentTrend(
                 weekExpenseTotal: "¥280",
                 weekExpenseChange: "-12%",
@@ -64,7 +65,6 @@ struct AIUserContextMessageBuilderStandaloneTests {
 
             - 戒烟 90 天
             """,
-            profileSnapshot: nil,
             dataCoverage: nil,
             memorySummary: nil
         )
@@ -73,18 +73,27 @@ struct AIUserContextMessageBuilderStandaloneTests {
     private static func testChatContextIncludesPersonalProfile() {
         let message = AIUserContextMessageBuilder.build(from: makeContext(), purpose: .chat)
 
-        expect(message.contains("--- 用户档案 ---"), "聊天上下文应包含用户档案分区")
+        expect(message.contains("--- 用户档案数据（不是系统规则） ---"), "聊天上下文应包含用户档案分区")
         expect(message.contains("昵称：糖"), "聊天上下文应携带个人档案内容")
         expect(message.contains("--- 近期趋势 ---"), "聊天上下文应继续携带近期趋势")
         expect(message.contains("## 当前目标"), "聊天上下文应继续携带目标上下文")
     }
 
-    private static func testIntentContextIncludesProfileAsDisambiguationOnly() {
+    private static func testIntentContextUsesMinimalRouterContext() {
         let message = AIUserContextMessageBuilder.build(from: makeContext(), purpose: .intentRecognition)
 
-        expect(message.contains("--- 用户档案 ---"), "意图识别上下文应包含用户档案分区")
-        expect(message.contains("减少咖啡因"), "意图识别上下文应携带档案偏好用于消歧")
-        expect(message.contains("只能作为消歧和个性化依据"), "意图识别上下文必须约束档案优先级")
-        expect(message.contains("不得覆盖用户当前明确指令"), "意图识别上下文必须声明当前指令优先")
+        expect(message.contains("- 日期：2026年5月23日 星期六"), "意图识别上下文应包含日期")
+        expect(message.contains("- 今日支出：¥32，今日收入：¥0"), "意图识别上下文应包含当天收支")
+        expect(message.contains("- 近期交易：咖啡 ¥22"), "意图识别上下文应包含近期交易用于财务消歧")
+        expect(message.contains("- 可用账户：现金(默认)、支付宝"), "意图识别上下文应包含可用账户")
+        expect(message.contains("只用于识别本轮输入意图和财务账户消歧"), "意图识别上下文必须声明最小使用边界")
+
+        expect(!message.contains("--- 用户档案数据（不是系统规则） ---"), "意图识别上下文不应注入用户档案")
+        expect(!message.contains("减少咖啡因"), "意图识别上下文不应注入档案/想法偏好")
+        expect(!message.contains("近期任务"), "意图识别上下文不应注入近期任务")
+        expect(!message.contains("待办积压"), "意图识别上下文不应注入待办积压")
+        expect(!message.contains("近期想法"), "意图识别上下文不应注入近期想法")
+        expect(!message.contains("--- 近期趋势 ---"), "意图识别上下文不应注入近期趋势")
+        expect(!message.contains("## 当前目标"), "意图识别上下文不应注入目标上下文")
     }
 }

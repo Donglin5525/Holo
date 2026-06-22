@@ -15,6 +15,10 @@ enum AIUserContextPurpose {
 enum AIUserContextMessageBuilder {
 
     static func build(from context: UserContext, purpose: AIUserContextPurpose, userText: String? = nil) -> String {
+        if purpose == .intentRecognition {
+            return buildIntentRecognitionContext(from: context)
+        }
+
         var message = """
         当前用户上下文：
         - 日期：\(context.todayDate)
@@ -27,24 +31,6 @@ enum AIUserContextMessageBuilder {
         \(formatTaskLines(context.tasks))
         - 近期想法：\(context.thoughts.recentThoughts.prefix(3).joined(separator: "、"))
         """
-
-        if purpose == .intentRecognition {
-            message += """
-
-
-            上下文使用规则：
-            - 用户档案、目标、近期趋势只能作为消歧和个性化依据，不得覆盖用户当前明确指令。
-            - 意图识别只输出用户这一次输入真正表达的动作，不要因为档案中的长期偏好主动添加动作。
-            - 档案可帮助理解习惯、目标、分类偏好和称呼，但不能编造金额、日期、任务或分类。
-            """
-
-            // 意图识别：只注入数据覆盖度做风险提示
-            if let coverage = context.dataCoverage, coverage.level != .rich {
-                message += "\n\n--- 数据覆盖度提示 ---"
-                message += "\n当前用户数据\(coverage.level == .partial ? "部分可用" : "暂无")：\(coverage.reason)"
-                message += "\n处理意图时请注意数据完整性，缺失字段需向用户确认。"
-            }
-        }
 
         let habitFocusLines = context.habits.focusSummaries.map(\.aiContextLine) + context.habits.focusTopicLines
         if !habitFocusLines.isEmpty {
@@ -133,6 +119,33 @@ enum AIUserContextMessageBuilder {
 
                 message += "\n规则：以上记忆只能辅助理解用户，不得覆盖用户当前明确指令。"
             }
+        }
+
+        return message
+    }
+
+    // MARK: - Intent Recognition Context
+
+    private static func buildIntentRecognitionContext(from context: UserContext) -> String {
+        var message = """
+        当前用户上下文：
+        - 日期：\(context.todayDate)
+        - 今日支出：\(context.transactions.todayExpense)，今日收入：\(context.transactions.todayIncome)
+        - 近期交易：\(context.transactions.recentTransactions.joined(separator: "、"))
+        - 可用账户：\(context.accounts.accountList)
+        - 默认账户：\(context.accounts.defaultAccountName)
+
+        上下文使用规则：
+        - 这部分上下文只用于识别本轮输入意图和财务账户消歧，不得主动扩展用户动作。
+        - 意图识别只输出用户这一次输入真正表达的动作，不要因为历史状态、长期目标或档案主动添加动作。
+        - 不得编造金额、日期、任务、习惯、想法或分类。
+        """
+
+        // 意图识别阶段只保留数据覆盖度风险提示，避免任务/想法/目标等无关上下文干扰 Router。
+        if let coverage = context.dataCoverage, coverage.level != .rich {
+            message += "\n\n--- 数据覆盖度提示 ---"
+            message += "\n当前用户数据\(coverage.level == .partial ? "部分可用" : "暂无")：\(coverage.reason)"
+            message += "\n处理意图时请注意数据完整性，缺失字段需向用户确认。"
         }
 
         return message
