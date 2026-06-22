@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { randomUUID } from "node:crypto";
 
 import { createApp } from "../src/app.js";
+import { loadConfig } from "../src/config.js";
 import { createDatabase } from "../src/db/database.js";
 import { renderAdminLogsPage } from "../src/admin/adminLogsPage.js";
 
@@ -105,6 +106,15 @@ test("POST /v1/ai/chat/completions returns non-streaming model response", async 
       },
     ],
   });
+});
+
+test("intent route reserves enough output tokens for verbose multi-action JSON", () => {
+  const config = loadConfig();
+
+  assert.ok(
+    config.routes.intent.maxTokens >= 4096,
+    `intent maxTokens should support multi-action JSON, got ${config.routes.intent.maxTokens}`,
+  );
 });
 
 test("intent mock routes category-specific spending amount queries to flexible_data_query", async () => {
