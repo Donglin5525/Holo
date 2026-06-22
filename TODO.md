@@ -8,6 +8,7 @@
 | --- | --- | --- | --- |
 | ~~高~~ | ~~HealthKit 授权失败：真机上点击授权按钮后卡死~~ | `HealthRepository.swift` | ✅ Fixed（entitlements 修复 + 授权逻辑重写） |
 | ~~高~~ | ~~任务拍照添加附件卡死~~ | `TaskDetailView.swift` / `TaskImagePicker.swift` | ✅ Fixed |
+| ~~中~~ | ~~生活星图数据接入：周期回退范围截断 + 聚合依赖分页漏算 + 健康卡片占位~~ | `MemoryInsightContextBuilder.swift` / `MemoryGalleryViewModel.swift` | ✅ Fixed |
 
 ---
 

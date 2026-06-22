@@ -89,6 +89,9 @@ class MemoryGalleryViewModel: ObservableObject {
     /// 生活星图最近一次整理完成时间。
     @Published var constellationLastUpdatedAt: Date?
 
+    /// 星图健康卡片状态：未授权 / 已授权无数据 / 已连接（口语化摘要）。
+    @Published var constellationHealthState: MemoryConstellationHealthState = .agentPending
+
     // MARK: - Private Properties
 
     /// 分页按天计算（每页加载 N 天的数据）
@@ -545,29 +548,8 @@ class MemoryGalleryViewModel: ObservableObject {
             }.first
         }
 
-        // 如果 timeline 还没加载到今天的数据，从 cachedItems 直接算
-        let todayItems = cachedItems.filter {
-            Calendar.current.isDate($0.date, inSameDayAs: today)
-        }
-
-        guard !todayItems.isEmpty else { return nil }
-
-        let transactions = todayItems.filter { $0.type == .transaction }
-        let totalExpense = transactions.isEmpty ? nil : transactions.reduce(Decimal(0)) { sum, item in
-            guard let amount = item.amount else { return sum }
-            return sum + amount
-        }
-
-        let habits = todayItems.filter { $0.type == .habitRecord }
-        let tasks = todayItems.filter { $0.type == .task }
-
-        return DailySummaryData(
-            totalExpense: totalExpense,
-            habitsCompleted: habits.filter { $0.subtitle != "未完成" }.count,
-            habitsTotal: habits.count,
-            tasksCompleted: tasks.filter { $0.subtitle == "已完成" }.count,
-            thoughtCount: todayItems.filter { $0.type == .thought }.count
-        )
+        // 如果 timeline 还没加载到今天的数据，从 cachedItems 直接算（复用聚合 helper）
+        return Self.dailySummary(for: today, in: cachedItems)
     }
 
     // MARK: - Life Constellation
@@ -586,7 +568,7 @@ class MemoryGalleryViewModel: ObservableObject {
     }
 
     var constellationSignals: [MemoryConstellationSignal] {
-        let summaries = summariesInSelectedRange()
+        let summaries = dailySummariesInRange()
         return MemoryConstellationModule.allCases.map { module in
             switch module {
             case .habit:
@@ -627,7 +609,7 @@ class MemoryGalleryViewModel: ObservableObject {
                     isDashed: count == 0
                 )
             case .health:
-                return MemoryConstellationSignal.health(state: .agentPending)
+                return MemoryConstellationSignal.health(state: constellationHealthState)
             }
         }
     }
@@ -659,7 +641,7 @@ class MemoryGalleryViewModel: ObservableObject {
         }
 
         if snippets.isEmpty,
-           summariesInSelectedRange().contains(where: { $0.totalExpense != nil }) {
+           dailySummariesInRange().contains(where: { $0.totalExpense != nil }) {
             snippets.append(.financeSpendingPeak())
         }
 
@@ -683,18 +665,144 @@ class MemoryGalleryViewModel: ObservableObject {
         return Array(stories.prefix(limit))
     }
 
-    private func summariesInSelectedRange() -> [DailySummaryData] {
+    /// 按洞察周期直接从 cachedItems 聚合每日摘要（脱离 timelineSections 分页）。
+    ///
+    /// 星图信号卡片原本依赖 timelineSections（时间线分页，第一页仅最近 7 天），
+    /// 周期回退到上一周/月时 range 最早的几天不在第一页，导致聚合漏算、误判
+    /// 「等待记账记录」。这里直接按 selectedInsightDateRange 从 cachedItems 聚合，
+    /// 与 AI 洞察（直接查 Core Data range）取数逻辑一致，不再受分页窗口影响。
+    private func dailySummariesInRange() -> [DailySummaryData] {
         let range = selectedInsightDateRange
+        return Self.dailySummaries(items: cachedItems, in: range)
+    }
 
-        return timelineSections
-            .filter { $0.date >= range.start && $0.date <= range.end }
-            .flatMap(\.nodes)
-            .compactMap { node in
-                if case .summary(let summary) = node.data {
-                    return summary
-                }
-                return nil
+    /// 纯函数：按日期范围从给定 items 聚合每日摘要。
+    /// 提取为 static 便于单测，且不依赖实例分页状态（timelineSections）。
+    static func dailySummaries(
+        items: [MemoryItem],
+        in range: (start: Date, end: Date)
+    ) -> [DailySummaryData] {
+        let calendar = Calendar.current
+        let startDay = calendar.startOfDay(for: range.start)
+        let endDay = calendar.startOfDay(for: range.end)
+
+        var summaries: [DailySummaryData] = []
+        var current = startDay
+        while current <= endDay {
+            if let summary = dailySummary(for: current, in: items) {
+                summaries.append(summary)
             }
+            guard let next = calendar.date(byAdding: .day, value: 1, to: current) else { break }
+            current = next
+        }
+        return summaries
+    }
+
+    /// 聚合单日摘要（复用于 dailySummaries 与 todaySummary 的 fallback）。
+    private static func dailySummary(
+        for date: Date,
+        in items: [MemoryItem]
+    ) -> DailySummaryData? {
+        let calendar = Calendar.current
+        let dayStart = calendar.startOfDay(for: date)
+        guard let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { return nil }
+
+        let dayItems = items.filter { $0.date >= dayStart && $0.date < dayEnd }
+        guard !dayItems.isEmpty else { return nil }
+
+        let transactions = dayItems.filter { $0.type == .transaction }
+        let totalExpense = transactions.isEmpty ? nil : transactions.reduce(Decimal(0)) { sum, item in
+            guard let amount = item.amount else { return sum }
+            return sum + amount
+        }
+
+        let habits = dayItems.filter { $0.type == .habitRecord }
+        let tasks = dayItems.filter { $0.type == .task }
+
+        return DailySummaryData(
+            totalExpense: totalExpense,
+            habitsCompleted: habits.filter { $0.subtitle != "未完成" }.count,
+            habitsTotal: habits.count,
+            tasksCompleted: tasks.filter { $0.subtitle == "已完成" }.count,
+            thoughtCount: dayItems.filter { $0.type == .thought }.count
+        )
+    }
+
+    // MARK: - Constellation Health
+
+    /// 星图健康卡片的输入（周期日均睡眠与步数 + 周期词）。
+    struct ConstellationHealthInput {
+        let averageSleepHours: Double?
+        let averageSteps: Int?
+        let periodLabel: String
+    }
+
+    /// 把周期健康数据转成口语化摘要（星图健康卡片用）。
+    /// 阈值复用 AI 洞察侧健康信号：睡眠偏少 < 6h、步数偏低 < 3000。
+    /// 返回 nil 表示已授权但本期完全读不到睡眠和步数，由调用方走「已授权无数据」占位。
+    static func constellationHealthSummary(for input: ConstellationHealthInput) -> String? {
+        var phrases: [String] = []
+        if let sleep = input.averageSleepHours, sleep > 0 {
+            let formatted = String(format: "%.1f", sleep)
+            if sleep < 6 {
+                phrases.append("\(input.periodLabel)睡得偏少，平均才 \(formatted) 小时")
+            } else {
+                phrases.append("\(input.periodLabel)平均睡 \(formatted) 小时")
+            }
+        }
+        if let steps = input.averageSteps, steps > 0 {
+            if steps < 3000 {
+                phrases.append("\(input.periodLabel)动得不多，日均 \(steps) 步")
+            } else {
+                phrases.append("每天走 \(steps) 步左右")
+            }
+        }
+        guard !phrases.isEmpty else { return nil }
+        return phrases.joined(separator: "，")
+    }
+
+    /// 按当前洞察周期加载星图健康状态（真实 HealthKit 数据，不依赖 AI 配置）。
+    private func loadConstellationHealthState() async {
+        let repo = HealthRepository.shared
+        await repo.checkAuthorizationStatus()
+        guard repo.isAuthorized else {
+            constellationHealthState = .unauthorized
+            return
+        }
+
+        let range = selectedInsightDateRange
+        async let stepsData = repo.fetchStepsRange(from: range.start, to: range.end)
+        async let sleepData = repo.fetchSleepRange(from: range.start, to: range.end)
+        let (steps, sleep) = await (stepsData, sleepData)
+
+        let averageStepsValue = Self.average(steps.map(\.value)).map { Int($0.rounded()) }
+        let averageSleepValue = Self.average(sleep.map(\.value))
+        let periodLabel = constellationPeriodLabel
+
+        if let summary = Self.constellationHealthSummary(for: .init(
+            averageSleepHours: averageSleepValue,
+            averageSteps: averageStepsValue,
+            periodLabel: periodLabel
+        )) {
+            constellationHealthState = .connected(summary: summary)
+        } else {
+            constellationHealthState = .connected(summary: "已授权，\(periodLabel)暂无睡眠或步数记录")
+        }
+    }
+
+    private var constellationPeriodLabel: String {
+        switch selectedInsightPeriod {
+        case .weekly: return "本周"
+        case .monthly: return "本月"
+        case .quarterly, .custom: return "这段时间"
+        case .daily: return "最近"
+        }
+    }
+
+    private static func average(_ values: [Double]) -> Double? {
+        let positive = values.filter { $0 > 0 }
+        guard !positive.isEmpty else { return nil }
+        return positive.reduce(0, +) / Double(positive.count)
     }
 
     private func gentleTitle(for highlight: HighlightData) -> String {
@@ -774,6 +882,9 @@ class MemoryGalleryViewModel: ObservableObject {
 
     /// 加载本地洞察（不触发 AI 生成）
     private func loadInsights() async {
+        // 健康卡片不依赖 AI 配置，先于 early-return 加载，覆盖 refresh 与 switchInsightPeriod
+        await loadConstellationHealthState()
+
         let service = MemoryInsightService.shared
 
         // 检查 AI 配置状态

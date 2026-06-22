@@ -9,12 +9,15 @@
 /* Begin PBXBuildFile section */
 		754CE1738597753DE3A64D0E /* HoloAgentResultRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD7196A9CD6BFA044B77449 /* HoloAgentResultRendererTests.swift */; };
 		9053444F99F5887B91A43895 /* ChatMessageViewDataAgentResultTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF4F11F07B969D93AD7AFBF2 /* ChatMessageViewDataAgentResultTests.swift */; };
+		93C27F1D375A3F57C2FEBE4B /* MemoryInsightContextBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7B67CA9B85AF3DBA246CB53 /* MemoryInsightContextBuilderTests.swift */; };
 		98C2F21A6A5A421A9D79C381 /* MemoryConstellationModelsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98C2F2196A5A421A9D79C381 /* MemoryConstellationModelsTests.swift */; };
 		A10000000000000000000001 /* HoloWidgetModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000005 /* HoloWidgetModels.swift */; };
 		A10000000000000000000002 /* HoloWidgetSnapshotStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000006 /* HoloWidgetSnapshotStore.swift */; };
 		A10000000000000000000003 /* HoloWidgets.appex in Embed App Extensions */ = {isa = PBXBuildFile; fileRef = A10000000000000000000004 /* HoloWidgets.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A10000000000000000000012 /* HoloWidgetsBundle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000013 /* HoloWidgetsBundle.swift */; };
 		A10000000000000000000014 /* HoloWidgets.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000015 /* HoloWidgets.swift */; };
+		B3A89DC14955F71187EFF510 /* MemoryGalleryViewModelConstellationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18BDEA12658F19D0FA12F860 /* MemoryGalleryViewModelConstellationTests.swift */; };
+		C110F462DA29F37061991409 /* MemoryGalleryConstellationHealthTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE8F19A0C849D9A764A57DD6 /* MemoryGalleryConstellationHealthTests.swift */; };
 		DB9816B8B9B5FBCB6AFDD7DE /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = A73CDEC6A92DA7D92BF0F437 /* Foundation.framework */; };
 /* End PBXBuildFile section */
 
@@ -51,6 +54,7 @@
 
 /* Begin PBXFileReference section */
 		056D32940E925DC7DF7AE631 /* HealthDashboardStateTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthDashboardStateTests.swift; sourceTree = "<group>"; };
+		18BDEA12658F19D0FA12F860 /* MemoryGalleryViewModelConstellationTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MemoryGalleryViewModelConstellationTests.swift; sourceTree = "<group>"; };
 		1A5692DC8F9BFCC11917CEDF /* HoloTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HoloTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1EDCE631364060018D86E6FA /* HabitIconPresetsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitIconPresetsTests.swift; sourceTree = "<group>"; };
 		295E9B51FBEA12EAC64FF25F /* FinanceChartScaleTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FinanceChartScaleTests.swift; sourceTree = "<group>"; };
@@ -82,14 +86,18 @@
 		A73CDEC6A92DA7D92BF0F437 /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS18.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		B6CF638B2243E17102E84F64 /* HabitStatsDisplaySettingsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitStatsDisplaySettingsTests.swift; sourceTree = "<group>"; };
 		BDD16917F7263898559B2D49 /* UserDisplayNameSettingsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = UserDisplayNameSettingsTests.swift; sourceTree = "<group>"; };
+		DE8F19A0C849D9A764A57DD6 /* MemoryGalleryConstellationHealthTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MemoryGalleryConstellationHealthTests.swift; sourceTree = "<group>"; };
 		DF4F11F07B969D93AD7AFBF2 /* ChatMessageViewDataAgentResultTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ChatMessageViewDataAgentResultTests.swift; sourceTree = "<group>"; };
 		E4241B525E8FB37245B68C4E /* HabitFocusSummaryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitFocusSummaryTests.swift; sourceTree = "<group>"; };
+		E7B67CA9B85AF3DBA246CB53 /* MemoryInsightContextBuilderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MemoryInsightContextBuilderTests.swift; sourceTree = "<group>"; };
 		F68CE35412AA97246389429B /* HoloExpressionDecisionEngineTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloExpressionDecisionEngineTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		49E199F62F54389E0070AE1B /* Holo */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+			);
 			path = Holo;
 			sourceTree = "<group>";
 		};
@@ -127,6 +135,7 @@
 				D854A081C5075051FFEE48FD /* Agent */,
 				F68CE35412AA97246389429B /* HoloExpressionDecisionEngineTests.swift */,
 				7E3005AE966FE2E10711137A /* SubtaskParserTests.swift */,
+				E7B67CA9B85AF3DBA246CB53 /* MemoryInsightContextBuilderTests.swift */,
 			);
 			path = AI;
 			sourceTree = "<group>";
@@ -221,6 +230,8 @@
 			isa = PBXGroup;
 			children = (
 				98C2F2196A5A421A9D79C381 /* MemoryConstellationModelsTests.swift */,
+				18BDEA12658F19D0FA12F860 /* MemoryGalleryViewModelConstellationTests.swift */,
+				DE8F19A0C849D9A764A57DD6 /* MemoryGalleryConstellationHealthTests.swift */,
 			);
 			path = MemoryGallery;
 			sourceTree = "<group>";
@@ -430,6 +441,9 @@
 				754CE1738597753DE3A64D0E /* HoloAgentResultRendererTests.swift in Sources */,
 				9053444F99F5887B91A43895 /* ChatMessageViewDataAgentResultTests.swift in Sources */,
 				98C2F21A6A5A421A9D79C381 /* MemoryConstellationModelsTests.swift in Sources */,
+				93C27F1D375A3F57C2FEBE4B /* MemoryInsightContextBuilderTests.swift in Sources */,
+				B3A89DC14955F71187EFF510 /* MemoryGalleryViewModelConstellationTests.swift in Sources */,
+				C110F462DA29F37061991409 /* MemoryGalleryConstellationHealthTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

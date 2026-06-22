@@ -292,20 +292,34 @@ struct MemoryInsightContextBuilder {
 
     // MARK: - Period Range
 
-    static func periodRange(periodType: MemoryInsightPeriodType, referenceDate: Date) -> (start: Date, end: Date) {
+    /// 计算指定周期类型的日期范围。
+    ///
+    /// - Parameters:
+    ///   - periodType: 周期类型
+    ///   - referenceDate: 用于定位「所在周期」的参考日期（如本周一、本月首日）
+    ///   - now: 周期上限（默认今天）。`end` 不会超过 `now`，避免当前周期延伸到未来。
+    ///     上限用 `now` 而非 `referenceDate`：这样回退到上一周期时，`referenceDate`
+    ///     指向历史日期，仍能返回完整的历史周期范围，而非被错误截断到周期起点。
+    /// - Returns: (start, end)
+    static func periodRange(
+        periodType: MemoryInsightPeriodType,
+        referenceDate: Date,
+        now: Date = Date()
+    ) -> (start: Date, end: Date) {
+        let today = now.startOfDay
         switch periodType {
         case .weekly:
             let start = referenceDate.startOfWeek
-            let end = min(start.addingDays(6), referenceDate)
+            let end = min(start.addingDays(6), today)
             return (start.startOfDay, end.startOfDay)
         case .monthly:
             let start = referenceDate.startOfMonth
-            let end = min(start.addingDays(referenceDate.daysInMonth - 1), referenceDate)
+            let end = min(start.addingDays(referenceDate.daysInMonth - 1), today)
             return (start.startOfDay, end.startOfDay)
         case .quarterly:
             let start = referenceDate.startOfQuarter
             let fullQuarterEnd = start.addingMonths(3).addingDays(-1)
-            let end = min(fullQuarterEnd, referenceDate)
+            let end = min(fullQuarterEnd, today)
             return (start.startOfDay, end.startOfDay)
         case .custom:
             let start = referenceDate.startOfDay
@@ -321,14 +335,16 @@ struct MemoryInsightContextBuilder {
     ///   - periodType: 周期类型
     ///   - referenceDate: 参考日期（默认今天）
     ///   - minDays: 最小有效天数（周默认 3 天，月默认 7 天）
+    ///   - now: 周期上限（默认今天），透传给 `periodRange`，便于测试注入固定时刻
     /// - Returns: (start, end, isFallback)
     static func effectivePeriodRange(
         periodType: MemoryInsightPeriodType,
         referenceDate: Date = Date(),
-        minDays: Int? = nil
+        minDays: Int? = nil,
+        now: Date = Date()
     ) -> (start: Date, end: Date, isFallback: Bool) {
         let threshold = minDays ?? (periodType == .weekly ? 3 : 7)
-        let current = periodRange(periodType: periodType, referenceDate: referenceDate)
+        let current = periodRange(periodType: periodType, referenceDate: referenceDate, now: now)
         let daySpan = Calendar.current.dateComponents([.day], from: current.start, to: current.end).day ?? 0
 
         if daySpan >= threshold {
@@ -343,7 +359,7 @@ struct MemoryInsightContextBuilder {
         case .custom: prevRef = referenceDate.addingDays(-1)
         case .daily: prevRef = referenceDate.addingDays(-1)
         }
-        let prev = periodRange(periodType: periodType, referenceDate: prevRef)
+        let prev = periodRange(periodType: periodType, referenceDate: prevRef, now: now)
         return (prev.start, prev.end, true)
     }
 

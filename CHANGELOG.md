@@ -4,6 +4,28 @@
 
 ---
 
+## [2026-06-22] 记忆长廊生活星图数据接入修复 + 健康卡片接入
+
+### 修复
+- **周期回退范围被截断**：`MemoryInsightContextBuilder.periodRange` 用 `min(start.addingDays(N), referenceDate)` 截断 end，本意是「本期不超过今天」，但 `effectivePeriodRange` 回退到上一周期时传入的 `referenceDate` 是历史日期，把上一周期 end 错误截断到周期起点（只剩 1 天）——导致每周一/二/三和每月初 1-6 号时星图全显占位、AI 洞察只看 1 天数据。解耦「周期定位」（referenceDate）与「截断上限」（新增 `now` 参数），回退周期返回完整历史范围
+- **星图信号卡片聚合漏算 range 最早几天**：`constellationSignals` 从 `timelineSections`（时间线分页，第一页仅最近 7 天）取数，回退到上一周时 range 是 6/15~6/21 但分页最早只到 6/16，漏掉 6/15 → 财务/习惯/任务卡片误判「等待 XX 记录」。新增 `dailySummaries(items:in:)` 纯函数，按洞察 range 直接从 `cachedItems` 逐天聚合，脱离分页窗口，与 AI 洞察（直接查 Core Data range）取数逻辑一致
+
+### 新增
+- **星图健康卡片接入真实 HealthKit**：原先硬编码「健康证据接入中」占位（与 Agent Health 系统无关，是星图这块单独留的坑），现接入 `HealthRepository` 真实睡眠/步数——按洞察周期取日均，转口语化摘要（如「本周平均睡 7.2 小时，每天走 8521 步左右」/「本周睡得偏少，平均才 5.5 小时」），复用 AI 洞察侧健康阈值（睡眠偏少 < 6h、步数偏低 < 3000）；未授权显示「等待健康数据」引导，已授权无数据显示占位，切换洞察周期时数据与周期词（本周/本月/这段时间）同步重算
+
+### 测试
+- `MemoryInsightContextBuilderPeriodRangeTests`（4）：周一/月初回退覆盖完整上一周期 + 不回退对照
+- `MemoryGalleryViewModelConstellationTests`（4）：range 起点必覆盖、range 外不计入、空 items、多类型聚合
+- `MemoryGalleryConstellationHealthTests`（7）：正常 / 睡眠偏少 / 步数偏低 / 只睡眠 / 只步数 / 无数据 / 周期词
+- test_sim 全量 34/34 通过，0 失败 0 跳过
+
+### 说明
+- AI 洞察（生成式回放）的健康数据此前已接入 HealthKit，本次是星图信号卡片补齐
+- 星图故事片段区（`featuredNarrativeNodes` 高亮/里程碑）仍依赖 timelineSections 分页，回退周期可能少一个故事片段，但不会误判「无数据」，留作后续
+- 真机验证：模拟器走 mock 健康数据，真机才读真实 HealthKit；新测试文件用 xcodeproj gem 注册进 HoloTests target（非文件系统同步组）
+
+---
+
 ## [2026-06-21] Agent 证据核验 + 财务关键词趋势 + 记忆星图改版
 
 ### 新增
