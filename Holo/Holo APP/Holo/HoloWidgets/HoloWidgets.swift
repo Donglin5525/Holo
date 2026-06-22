@@ -12,14 +12,50 @@ import WidgetKit
 
 private enum HoloWidgetBrand {
     static let background = Color(red: 0.992, green: 0.988, blue: 0.973)
+    static let darkBackgroundTop = Color(red: 0.055, green: 0.071, blue: 0.067)
+    static let darkBackgroundBottom = Color(red: 0.109, green: 0.137, blue: 0.125)
     static let card = Color.white.opacity(0.72)
+    static let cardOnDark = Color.white.opacity(0.11)
     static let primary = Color(red: 244/255, green: 109/255, blue: 56/255)
+    static let primaryOnDark = Color(red: 1.0, green: 132/255, blue: 82/255)
     static let primaryLight = Color(red: 254/255, green: 215/255, blue: 170/255)
     static let primaryDark = Color(red: 234/255, green: 88/255, blue: 12/255)
     static let textPrimary = Color(red: 0.2, green: 0.2, blue: 0.2)
+    static let textPrimaryOnDark = Color.white.opacity(0.94)
     static let textSecondary = Color(red: 0.576, green: 0.576, blue: 0.576)
+    static let textSecondaryOnDark = Color.white.opacity(0.68)
     static let success = Color(red: 34/255, green: 197/255, blue: 94/255)
+    static let successOnDark = Color(red: 74/255, green: 222/255, blue: 128/255)
     static let error = Color(red: 239/255, green: 68/255, blue: 68/255)
+    static let progressTrackOnDark = Color.white.opacity(0.22)
+
+    static func card(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? cardOnDark : card
+    }
+
+    static func primary(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? primaryOnDark : primary
+    }
+
+    static func primarySubtle(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? primaryOnDark.opacity(0.22) : primaryLight.opacity(0.38)
+    }
+
+    static func success(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? successOnDark : success
+    }
+
+    static func textPrimary(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? textPrimaryOnDark : textPrimary
+    }
+
+    static func textSecondary(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? textSecondaryOnDark : textSecondary
+    }
+
+    static func progressTrack(for colorScheme: ColorScheme) -> Color {
+        colorScheme == .dark ? progressTrackOnDark : primaryLight.opacity(0.45)
+    }
 }
 
 private struct HoloWidgetEntry<T>: TimelineEntry {
@@ -28,16 +64,27 @@ private struct HoloWidgetEntry<T>: TimelineEntry {
 }
 
 private extension View {
-    func holoWidgetBackground() -> some View {
+    func holoWidgetBackground(colorScheme: ColorScheme) -> some View {
         containerBackground(for: .widget) {
-            LinearGradient(
-                colors: [
-                    HoloWidgetBrand.background,
-                    HoloWidgetBrand.primaryLight.opacity(0.26)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
+            if colorScheme == .dark {
+                LinearGradient(
+                    colors: [
+                        HoloWidgetBrand.darkBackgroundTop,
+                        HoloWidgetBrand.darkBackgroundBottom
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            } else {
+                LinearGradient(
+                    colors: [
+                        HoloWidgetBrand.background,
+                        HoloWidgetBrand.primaryLight.opacity(0.26)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
         }
     }
 }
@@ -93,6 +140,7 @@ private struct HoloVoiceLaunchProvider: TimelineProvider {
 
 private struct HoloVoiceLaunchView: View {
     @Environment(\.widgetFamily) private var family
+    @Environment(\.colorScheme) private var colorScheme
     let entry: HoloWidgetEntry<Date>
 
     var body: some View {
@@ -103,10 +151,10 @@ private struct HoloVoiceLaunchView: View {
                     VStack(alignment: .leading, spacing: 6) {
                         Text("问 Holo")
                             .font(.system(size: 22, weight: .semibold))
-                            .foregroundStyle(HoloWidgetBrand.textPrimary)
+                            .foregroundStyle(HoloWidgetBrand.textPrimary(for: colorScheme))
                         Text("打开语音输入")
                             .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(HoloWidgetBrand.textSecondary)
+                            .foregroundStyle(HoloWidgetBrand.textSecondary(for: colorScheme))
                     }
                     Spacer(minLength: 0)
                 }
@@ -118,17 +166,17 @@ private struct HoloVoiceLaunchView: View {
                     VStack(spacing: 3) {
                         Text("问 Holo")
                             .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(HoloWidgetBrand.textPrimary)
+                            .foregroundStyle(HoloWidgetBrand.textPrimary(for: colorScheme))
                         Text("语音输入")
                             .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(HoloWidgetBrand.textSecondary)
+                            .foregroundStyle(HoloWidgetBrand.textSecondary(for: colorScheme))
                     }
                     Spacer(minLength: 0)
                 }
                 .padding(14)
             }
         }
-        .holoWidgetBackground()
+        .holoWidgetBackground(colorScheme: colorScheme)
     }
 
     private func voiceCore(size: CGFloat) -> some View {
@@ -136,7 +184,7 @@ private struct HoloVoiceLaunchView: View {
             ForEach(0..<3) { index in
                 OrganicWaveShape(phase: Double(index) * 0.9)
                     .stroke(
-                        index == 0 ? HoloWidgetBrand.primary : HoloWidgetBrand.primary.opacity(0.22),
+                        index == 0 ? HoloWidgetBrand.primary(for: colorScheme) : HoloWidgetBrand.primary(for: colorScheme).opacity(0.22),
                         style: StrokeStyle(lineWidth: index == 0 ? 2.4 : 1.2, lineCap: .round, lineJoin: .round)
                     )
                     .frame(width: size + CGFloat(index * 18), height: size + CGFloat(index * 14))
@@ -148,8 +196,8 @@ private struct HoloVoiceLaunchView: View {
                     RadialGradient(
                         colors: [
                             Color.white,
-                            HoloWidgetBrand.primaryLight,
-                            HoloWidgetBrand.primary.opacity(0.35),
+                            colorScheme == .dark ? HoloWidgetBrand.primaryOnDark.opacity(0.86) : HoloWidgetBrand.primaryLight,
+                            HoloWidgetBrand.primary(for: colorScheme).opacity(0.35),
                             Color.clear
                         ],
                         center: .center,
@@ -162,7 +210,7 @@ private struct HoloVoiceLaunchView: View {
             Circle()
                 .fill(Color.white)
                 .frame(width: size * 0.13, height: size * 0.13)
-                .shadow(color: HoloWidgetBrand.primary.opacity(0.45), radius: 8)
+                .shadow(color: HoloWidgetBrand.primary(for: colorScheme).opacity(0.45), radius: 8)
         }
         .frame(width: size + 34, height: size + 34)
     }
@@ -231,13 +279,14 @@ private struct HoloQuickActionsProvider: TimelineProvider {
 }
 
 private struct HoloQuickActionsView: View {
+    @Environment(\.colorScheme) private var colorScheme
     let entry: HoloWidgetEntry<HoloWidgetQuickActionsSnapshot>
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             Text("Holo 快捷")
                 .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(HoloWidgetBrand.textPrimary)
+                .foregroundStyle(HoloWidgetBrand.textPrimary(for: colorScheme))
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
                 ForEach(entry.value.actions, id: \.self) { action in
@@ -245,23 +294,23 @@ private struct HoloQuickActionsView: View {
                         HStack(spacing: 8) {
                             Image(systemName: action.systemImageName)
                                 .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(HoloWidgetBrand.primary)
+                                .foregroundStyle(HoloWidgetBrand.primary(for: colorScheme))
                                 .frame(width: 24, height: 24)
                             Text(action.title)
                                 .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(HoloWidgetBrand.textPrimary)
+                                .foregroundStyle(HoloWidgetBrand.textPrimary(for: colorScheme))
                             Spacer(minLength: 0)
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 10)
-                        .background(HoloWidgetBrand.card)
+                        .background(HoloWidgetBrand.card(for: colorScheme))
                         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     }
                 }
             }
         }
         .padding(16)
-        .holoWidgetBackground()
+        .holoWidgetBackground(colorScheme: colorScheme)
     }
 }
 
@@ -310,6 +359,7 @@ private struct HoloFinanceProvider: TimelineProvider {
 
 private struct HoloFinanceView: View {
     @Environment(\.widgetFamily) private var family
+    @Environment(\.colorScheme) private var colorScheme
     let entry: HoloWidgetEntry<HoloWidgetFinanceSnapshot>
 
     var body: some View {
@@ -320,17 +370,17 @@ private struct HoloFinanceView: View {
                 financeMedium
             }
         }
-        .holoWidgetBackground()
+        .holoWidgetBackground(colorScheme: colorScheme)
     }
 
     private var financeSmall: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("今日支出")
                 .font(.system(size: 13, weight: .semibold))
-                .foregroundStyle(HoloWidgetBrand.textSecondary)
+                .foregroundStyle(financeTextSecondary)
             Text(entry.value.todayExpense.currencyText)
                 .font(.system(size: 26, weight: .bold))
-                .foregroundStyle(HoloWidgetBrand.textPrimary)
+                .foregroundStyle(expenseTint)
                 .minimumScaleFactor(0.72)
             Spacer(minLength: 0)
             budgetProgress
@@ -343,16 +393,16 @@ private struct HoloFinanceView: View {
             HStack {
                 Text("今日收支")
                     .font(.system(size: 15, weight: .semibold))
-                    .foregroundStyle(HoloWidgetBrand.textPrimary)
+                    .foregroundStyle(financeTextPrimary)
                 Spacer()
                 Text("本地")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(HoloWidgetBrand.textSecondary)
+                    .foregroundStyle(financeTextSecondary)
             }
 
             HStack(spacing: 18) {
-                financeMetric("支出", entry.value.todayExpense.currencyText, tint: HoloWidgetBrand.primary)
-                financeMetric("收入", entry.value.todayIncome.currencyText, tint: HoloWidgetBrand.success)
+                financeMetric("支出", entry.value.todayExpense.currencyText, tint: expenseTint)
+                financeMetric("收入", entry.value.todayIncome.currencyText, tint: incomeTint)
             }
 
             Spacer(minLength: 0)
@@ -365,7 +415,7 @@ private struct HoloFinanceView: View {
         VStack(alignment: .leading, spacing: 4) {
             Text(title)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(HoloWidgetBrand.textSecondary)
+                .foregroundStyle(financeTextSecondary)
             Text(value)
                 .font(.system(size: 22, weight: .bold))
                 .foregroundStyle(tint)
@@ -379,11 +429,11 @@ private struct HoloFinanceView: View {
             if let progress = entry.value.budgetProgress {
                 Text("预算已用 \(Int(progress * 100))% · 时间过了 \(Int(entry.value.timeProgress * 100))%")
                     .font(.system(size: 11, weight: .medium))
-                    .foregroundStyle(HoloWidgetBrand.textSecondary)
+                    .foregroundStyle(financeTextSecondary)
                 GeometryReader { geo in
                     ZStack(alignment: .leading) {
                         Capsule()
-                            .fill(HoloWidgetBrand.primaryLight.opacity(0.45))
+                            .fill(progressTrackTint)
                         Capsule()
                             .fill(budgetTint)
                             .frame(width: geo.size.width * min(progress, 1))
@@ -393,7 +443,7 @@ private struct HoloFinanceView: View {
             } else {
                 Text("本月支出 \(entry.value.monthExpense.currencyText)")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(HoloWidgetBrand.textSecondary)
+                    .foregroundStyle(financeTextSecondary)
             }
         }
     }
@@ -401,12 +451,32 @@ private struct HoloFinanceView: View {
     private var budgetTint: Color {
         switch entry.value.budgetStatus {
         case .noBudget, .onTrack:
-            return HoloWidgetBrand.primary
+            return expenseTint
         case .aheadOfTime:
-            return HoloWidgetBrand.primaryDark
+            return colorScheme == .dark ? HoloWidgetBrand.primaryOnDark : HoloWidgetBrand.primaryDark
         case .overBudget:
             return HoloWidgetBrand.error
         }
+    }
+
+    private var financeTextPrimary: Color {
+        HoloWidgetBrand.textPrimary(for: colorScheme)
+    }
+
+    private var financeTextSecondary: Color {
+        HoloWidgetBrand.textSecondary(for: colorScheme)
+    }
+
+    private var expenseTint: Color {
+        HoloWidgetBrand.primary(for: colorScheme)
+    }
+
+    private var incomeTint: Color {
+        HoloWidgetBrand.success(for: colorScheme)
+    }
+
+    private var progressTrackTint: Color {
+        HoloWidgetBrand.progressTrack(for: colorScheme)
     }
 }
 
@@ -453,6 +523,7 @@ private struct HoloThoughtMemoryProvider: TimelineProvider {
 }
 
 private struct HoloThoughtMemoryView: View {
+    @Environment(\.colorScheme) private var colorScheme
     let entry: HoloWidgetEntry<HoloWidgetThoughtMemorySnapshot>
 
     var body: some View {
@@ -461,20 +532,20 @@ private struct HoloThoughtMemoryView: View {
                 HStack {
                     Text("今天想起一条想法")
                         .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(HoloWidgetBrand.textPrimary)
+                        .foregroundStyle(HoloWidgetBrand.textPrimary(for: colorScheme))
                     Spacer()
                     Image(systemName: "sparkle")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(HoloWidgetBrand.primary)
+                        .foregroundStyle(HoloWidgetBrand.primary(for: colorScheme))
                 }
 
                 Text(entry.value.createdAt.widgetDateText)
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(HoloWidgetBrand.textSecondary)
+                    .foregroundStyle(HoloWidgetBrand.textSecondary(for: colorScheme))
 
                 Text(entry.value.displayText)
                     .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(HoloWidgetBrand.textPrimary)
+                    .foregroundStyle(HoloWidgetBrand.textPrimary(for: colorScheme))
                     .lineLimit(3)
                     .minimumScaleFactor(0.82)
 
@@ -484,17 +555,16 @@ private struct HoloThoughtMemoryView: View {
                     ForEach(entry.value.tags.prefix(2), id: \.self) { tag in
                         Text("#\(tag)")
                             .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(HoloWidgetBrand.primary)
+                            .foregroundStyle(HoloWidgetBrand.primary(for: colorScheme))
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(HoloWidgetBrand.primaryLight.opacity(0.38))
+                            .background(HoloWidgetBrand.primarySubtle(for: colorScheme))
                             .clipShape(Capsule())
                     }
                 }
             }
             .padding(16)
         }
-        .holoWidgetBackground()
+        .holoWidgetBackground(colorScheme: colorScheme)
     }
 }
-

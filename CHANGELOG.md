@@ -4,6 +4,19 @@
 
 ---
 
+## [2026-06-22] 主屏小组件暗色模式可读性修复
+
+### 修复
+- **所有主屏小组件适配 dark mode 高对比主题**：`HoloAI 语音启动`、`Holo 快捷控制台`、`今日收支`、`想法随机漫步` 统一读取系统 `colorScheme`，暗色模式下切换为深色背景、高对比白色文字和更亮的品牌橙，避免系统暗色/壁纸材质把浅色小组件压成灰褐色后文字看不清
+- **今日收支进度条与金额色增强**：暗色下支出橙、收入绿、预算进度轨道改为专用高对比色，保留轻扫可读性
+- **快捷入口与想法标签暗色补齐**：快捷按钮卡片、图标、想法标签底色改为暗色语义色，避免局部仍沿用浅色透明卡片
+
+### 测试
+- 四个 Widget 视图均接入 `colorScheme` 与自适应背景的静态检查通过
+- `xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -destination "generic/platform=iOS" -derivedDataPath /private/tmp/holo-widgets-dark-all-derived CODE_SIGNING_ALLOWED=NO build` 通过
+
+---
+
 ## [2026-06-22] 财务分析日期选择重构 + 趋势图修复
 
 ### 新增
