@@ -4,6 +4,26 @@
 
 ---
 
+## [2026-06-22] 今日收支小组件点击跳转财务分析页
+
+### 修复
+- **今日收支小组件跳转错误**：`HoloFinanceWidget`（今日收支）点击用 `holo://finance/add`，解析为 `.addTransaction`，HomeView 直接弹记账 sheet——想看分析却被带去记账。改为 `holo://finance/analysis`，新增 `HoloWidgetDeepLink.financeAnalysis`，路由层映射到 `.financeAnalysis(本月范围)`，打开财务页统计 Tab（`FinanceAnalysisView`）显示本月概览
+
+### 变更
+- `HoloWidgetDeepLink` 新增 `.financeAnalysis` case，`parse` 加 `holo://finance/analysis` 分支
+- `DeepLinkTarget(_ widgetTarget:)`：widget 的 `.financeAnalysis` → `.financeAnalysis(FinanceAnalysisDeepLink)`，复用 `TimeRange.month.dateRange()`（半开区间，下月首日为 end），label 标「本月收支」（`FinanceAnalysisState.applyDeepLink` 只用 start/end，label 不参与）
+- 复用现有 `.financeAnalysis` 路由，**未新增 `DeepLinkTarget` 枚举 case**，不影响 ContentView/HomeView/FinanceView 等既有 switch
+
+### 测试
+- `HoloWidgetModelsStandaloneTests` 新增 `testDeepLinkParsesFinanceAnalysis`：`holo://finance/analysis` → `.financeAnalysis`，并回归保护 `holo://finance/add` 仍为 `.addTransaction`
+- build_sim 通过（主 app + widget extension），test_sim 39/39 通过
+
+### 说明
+- `FinanceAnalysisState.applyDeepLink` 收到 link 后设本月范围、清空下钻（`selectedDetailCategory = nil`），打开即本月总览而非某类别下钻
+- widget extension 改动需重新 build & run 装机后桌面 widget 才生效（已添加的 widget 实例无需重新添加）
+
+---
+
 ## [2026-06-22] 记忆长廊刷新入口统一 + AI 洞察每日配额
 
 ### 变更

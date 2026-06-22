@@ -11,6 +11,7 @@ struct HoloWidgetModelsStandaloneTests {
 
     static func main() throws {
         testDeepLinkParsesVoiceEntry()
+        testDeepLinkParsesFinanceAnalysis()
         testDeepLinkBuildsQuickActionURLs()
         testFinanceSnapshotComparesBudgetAgainstTimeProgress()
         testThoughtMemorySnapshotProtectsPrivateContentByDefault()
@@ -22,6 +23,14 @@ struct HoloWidgetModelsStandaloneTests {
         let target = HoloWidgetDeepLink.parse(URL(string: "holo://ai?voiceInput=true")!)
 
         expect(target == .ai(voiceInput: true), "语音入口应解析为 AI + voiceInput=true")
+    }
+
+    private static func testDeepLinkParsesFinanceAnalysis() {
+        let target = HoloWidgetDeepLink.parse(URL(string: "holo://finance/analysis")!)
+
+        expect(target == .financeAnalysis, "今日收支小组件应解析为财务分析深链，而不是记账")
+        // 回归保护：记账深链仍应独立可用
+        expect(HoloWidgetDeepLink.parse(URL(string: "holo://finance/add")!) == .addTransaction, "记一笔深链不应被影响")
     }
 
     private static func testDeepLinkBuildsQuickActionURLs() {

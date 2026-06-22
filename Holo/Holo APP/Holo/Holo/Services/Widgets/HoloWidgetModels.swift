@@ -76,6 +76,8 @@ enum HoloWidgetQuickAction: String, CaseIterable, Codable, Equatable {
 enum HoloWidgetDeepLink: Equatable {
     case ai(voiceInput: Bool)
     case addTransaction
+    /// 今日收支小组件：打开财务分析页（本月概览）
+    case financeAnalysis
     case recordThought
     case addTask
     case thoughtDetail(id: UUID)
@@ -92,6 +94,8 @@ enum HoloWidgetDeepLink: Equatable {
             return .ai(voiceInput: url.queryValue(for: "voiceInput") == "true")
         case "finance/add":
             return .addTransaction
+        case "finance/analysis":
+            return .financeAnalysis
         case "thoughts/new":
             return .recordThought
         case "tasks/new":

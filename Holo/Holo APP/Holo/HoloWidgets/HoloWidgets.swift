@@ -313,7 +313,7 @@ private struct HoloFinanceView: View {
     let entry: HoloWidgetEntry<HoloWidgetFinanceSnapshot>
 
     var body: some View {
-        Link(destination: URL(string: "holo://finance/add")!) {
+        Link(destination: URL(string: "holo://finance/analysis")!) {
             if family == .systemSmall {
                 financeSmall
             } else {
