@@ -8,6 +8,8 @@ struct MemoryConstellationCard: View {
     let snippets: [MemoryStorySnippet]
     let isRefreshing: Bool
     let lastUpdatedAt: Date?
+    let insightRefreshRemaining: Int
+    let insightRefreshTotal: Int
     let onRefresh: () -> Void
 
     @State private var selectedModule: MemoryConstellationModule = .health
@@ -66,22 +68,22 @@ struct MemoryConstellationCard: View {
                             .font(.system(size: 11, weight: .semibold))
                             .rotationEffect(.degrees(isRefreshing ? 90 : 0))
 
-                        Text(isRefreshing ? "更新中" : "更新")
+                        Text(isRefreshing ? "更新中" : (quotaExhausted ? "今日已满" : "更新"))
                             .font(.holoTinyLabel)
                             .fontWeight(.semibold)
                     }
-                    .foregroundColor(isRefreshing ? .holoTextPlaceholder : accentColor)
+                    .foregroundColor((isRefreshing || quotaExhausted) ? .holoTextPlaceholder : accentColor)
                     .padding(.horizontal, HoloSpacing.sm)
                     .frame(height: 28)
-                    .background(accentColor.opacity(colorScheme == .dark ? 0.16 : 0.10))
+                    .background(accentColor.opacity(buttonBackgroundOpacity))
                     .clipShape(Capsule())
                     .overlay(
                         Capsule()
-                            .stroke(accentColor.opacity(colorScheme == .dark ? 0.28 : 0.20), lineWidth: 1)
+                            .stroke(accentColor.opacity(buttonBorderOpacity), lineWidth: 1)
                     )
                 }
                 .buttonStyle(.plain)
-                .disabled(isRefreshing)
+                .disabled(isRefreshing || quotaExhausted)
             }
 
             Text(refreshStatusText)
@@ -254,16 +256,34 @@ struct MemoryConstellationCard: View {
         colorScheme == .dark ? Color.cyan : Color.holoPrimary
     }
 
+    private var quotaExhausted: Bool {
+        insightRefreshRemaining <= 0
+    }
+
+    private var buttonBackgroundOpacity: Double {
+        if isRefreshing || quotaExhausted { return colorScheme == .dark ? 0.05 : 0.04 }
+        return colorScheme == .dark ? 0.16 : 0.10
+    }
+
+    private var buttonBorderOpacity: Double {
+        if isRefreshing || quotaExhausted { return colorScheme == .dark ? 0.10 : 0.08 }
+        return colorScheme == .dark ? 0.28 : 0.20
+    }
+
     private var refreshStatusText: String {
+        let quotaText = quotaExhausted
+            ? "AI 洞察今日已刷新完"
+            : "AI 洞察还能刷新 \(insightRefreshRemaining) 次"
+
         if isRefreshing {
             return "正在根据最新记录整理"
         }
 
         if let lastUpdatedAt {
-            return "5 个信号 · \(Self.relativeUpdateText(for: lastUpdatedAt))"
+            return "\(quotaText) · 5 个信号 · \(Self.relativeUpdateText(for: lastUpdatedAt))"
         }
 
-        return "5 个信号 · 进入时自动整理"
+        return "\(quotaText) · 5 个信号 · 进入时自动整理"
     }
 
     private static func relativeUpdateText(for date: Date) -> String {

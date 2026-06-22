@@ -4,6 +4,27 @@
 
 ---
 
+## [2026-06-22] 记忆长廊刷新入口统一 + AI 洞察每日配额
+
+### 变更
+- **星图「更新」升级为统一入口**：原先星图顶部最显眼的「更新」按钮只刷本地数据（Core Data + HealthKit），真正能重新生成 AI 洞察的「刷新洞察/重新生成」却藏在下方可折叠的「AI 回放」里——用户找不到入口、显眼按钮点了没效果。现 `refresh()` 在本地刷新后，若 AI 洞察刷新配额未满则顺带 `refreshInsight(force:true)`，配额耗尽时只刷本地不报错
+- **AI 回放「重新生成/刷新洞察」共享配额**：星图「更新」与 AI 回放两处按钮共用同一 2 次/天配额池，任一处用完两处同步 disabled（按钮变「今日已满」灰色），副标题显示「AI 洞察还能刷新 X 次 / 今日已刷新完」
+- **配额守卫位置**：放在 `refreshInsight(force:)` 开头（两入口汇聚点），过了 `generating` 守卫才 `consume()`，避免连点重扣；耗尽时静默返回、不改 `insightGenerationState`（保持已显示的洞察），UI 仅靠 `insightRefreshRemaining` 提示，不新增枚举 case
+
+### 新增
+- **`MemoryInsightRefreshQuota`**：每日 2 次配额、按自然日重置。UserDefaults 存「日期戳 + 计数」，复用 `UserDisplayNameSettings` 封装范式 + `Date.isToday`（`CalendarHelpers`）做跨天判定；`init(userDefaults:)` 可注入便于单测隔离。`maxPerDay=2`
+
+### 测试
+- `MemoryInsightRefreshQuotaTests`（5）：初始满额 / 消耗到上限 / 超限计数不涨 / 跨天重置后从 1 重新计数 / 同 defaults 新实例可见已用次数
+- test_sim 5/5 通过，0 失败；新测试文件用 ruby xcodeproj gem 注册进 HoloTests target
+
+### 说明
+- **设计决策**（东林未答取推荐默认）：配额只限 AI 洞察生成（本地刷新便宜，不限次）；全局共享 2 次/天（不分周期，符合「一天 2 次」原话）；旧「重新生成」按钮保留共享配额（诉求是入口明显，非唯一）
+- 首次生成（onGenerate，idle 态）不计配额，只限 `refreshInsight` 路径（重新生成/刷新洞察）；Agent 深度分析是独立路径，记忆长廊刷新不触发它重生成，配额不用管
+- 同日的「生活星图数据接入修复」见下方条目
+
+---
+
 ## [2026-06-22] 记忆长廊生活星图数据接入修复 + 健康卡片接入
 
 ### 修复

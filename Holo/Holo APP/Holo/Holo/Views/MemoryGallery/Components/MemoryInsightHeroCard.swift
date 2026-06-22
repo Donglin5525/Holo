@@ -25,6 +25,8 @@ struct MemoryInsightHeroCard: View {
     let onPeriodChange: (MemoryInsightPeriodType) -> Void
     let onCustomRangeChange: (Date, Date) -> Void
     let onGenerate: () -> Void
+    let insightRefreshRemaining: Int
+    let insightRefreshTotal: Int
     let onRefresh: () -> Void
     let onContinueInChat: () -> Void
     let onGoToAISettings: () -> Void
@@ -428,11 +430,13 @@ struct MemoryInsightHeroCard: View {
                 Button(action: onRefresh) {
                     actionButtonLabel("重新生成", isPrimary: false)
                 }
+                .disabled(quotaExhausted)
 
             case .stale:
                 Button(action: onRefresh) {
                     actionButtonLabel("刷新洞察", isPrimary: true)
                 }
+                .disabled(quotaExhausted)
                 Button(action: onContinueInChat) {
                     actionButtonLabel("继续问 AI", isPrimary: false)
                 }
@@ -460,6 +464,11 @@ struct MemoryInsightHeroCard: View {
                     .stroke(Color.holoPrimary, lineWidth: isPrimary ? 0 : 1)
             )
     }
+
+    /// AI 洞察刷新配额是否耗尽（与星图「更新」共享同一配额池）。
+    private var quotaExhausted: Bool {
+        insightRefreshRemaining <= 0
+    }
 }
 
 // MARK: - Preview
@@ -478,6 +487,8 @@ struct MemoryInsightHeroCard: View {
         onPeriodChange: { _ in },
         onCustomRangeChange: { _, _ in },
         onGenerate: {},
+        insightRefreshRemaining: MemoryInsightRefreshQuota.maxPerDay,
+        insightRefreshTotal: MemoryInsightRefreshQuota.maxPerDay,
         onRefresh: {},
         onContinueInChat: {},
         onGoToAISettings: {}
@@ -499,6 +510,8 @@ struct MemoryInsightHeroCard: View {
         onPeriodChange: { _ in },
         onCustomRangeChange: { _, _ in },
         onGenerate: {},
+        insightRefreshRemaining: MemoryInsightRefreshQuota.maxPerDay,
+        insightRefreshTotal: MemoryInsightRefreshQuota.maxPerDay,
         onRefresh: {},
         onContinueInChat: {},
         onGoToAISettings: {}

@@ -141,6 +141,8 @@ struct MemoryGalleryView: View {
                         snippets: viewModel.constellationSnippets,
                         isRefreshing: viewModel.isLoading,
                         lastUpdatedAt: viewModel.constellationLastUpdatedAt,
+                        insightRefreshRemaining: viewModel.insightRefreshRemaining,
+                        insightRefreshTotal: MemoryInsightRefreshQuota.maxPerDay,
                         onRefresh: {
                             Task { await viewModel.refresh() }
                         }
@@ -189,6 +191,8 @@ struct MemoryGalleryView: View {
                             onGenerate: {
                                 Task { await viewModel.generateCurrentInsight() }
                             },
+                            insightRefreshRemaining: viewModel.insightRefreshRemaining,
+                            insightRefreshTotal: MemoryInsightRefreshQuota.maxPerDay,
                             onRefresh: {
                                 Task { await viewModel.refreshInsight(force: true) }
                             },

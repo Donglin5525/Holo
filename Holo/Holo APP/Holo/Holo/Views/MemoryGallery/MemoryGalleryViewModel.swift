@@ -92,6 +92,9 @@ class MemoryGalleryViewModel: ObservableObject {
     /// 星图健康卡片状态：未授权 / 已授权无数据 / 已连接（口语化摘要）。
     @Published var constellationHealthState: MemoryConstellationHealthState = .agentPending
 
+    /// AI 洞察刷新今日剩余次数（星图「更新」与 AI 回放「重新生成」共享）。
+    @Published var insightRefreshRemaining: Int = MemoryInsightRefreshQuota.maxPerDay
+
     // MARK: - Private Properties
 
     /// 分页按天计算（每页加载 N 天的数据）
@@ -181,6 +184,9 @@ class MemoryGalleryViewModel: ObservableObject {
     // MARK: - Data Loading
 
     /// 刷新数据（重新加载第一页）
+    ///
+    /// 星图「更新」作为统一入口：本地数据（Core Data + HealthKit）始终刷新；
+    /// 若 AI 洞察刷新配额未满，顺带重新生成 AI 洞察。配额耗尽时只刷本地。
     func refresh() async {
         currentDayOffset = 0
         hasMoreData = true
@@ -188,6 +194,10 @@ class MemoryGalleryViewModel: ObservableObject {
         computeHeatmapData()
         await loadData()
         await loadInsights()
+        if quota.canRefresh() {
+            await refreshInsight(force: true)
+        }
+        insightRefreshRemaining = quota.remainingToday
         constellationLastUpdatedAt = Date()
     }
 
@@ -878,6 +888,9 @@ class MemoryGalleryViewModel: ObservableObject {
 
     /// 洞察 Repository
     private let insightRepository = MemoryInsightRepository()
+
+    /// AI 洞察刷新每日配额（一天最多 2 次，按自然日重置）。
+    private let quota = MemoryInsightRefreshQuota.shared
     private let insightGenerationTimeoutSeconds: UInt64 = 45
 
     /// 加载本地洞察（不触发 AI 生成）
@@ -992,8 +1005,20 @@ class MemoryGalleryViewModel: ObservableObject {
         await generateInsight(periodType: .monthly, start: start, end: end)
     }
 
-    /// 刷新洞察
+    /// 刷新洞察（星图「更新」与 AI 回放「重新生成」两处入口汇聚于此）
+    ///
+    /// 配额守卫：AI 洞察生成每天最多 2 次。耗尽时静默返回，不改 insightGenerationState
+    /// （保持已显示的洞察），由 UI 层据 insightRefreshRemaining 提示。
+    /// 正在生成时不消耗配额，避免连点重扣。
     func refreshInsight(force: Bool = true) async {
+        guard quota.canRefresh() else {
+            insightRefreshRemaining = 0
+            return
+        }
+        guard insightGenerationState != .generating else { return }
+        quota.consume()
+        insightRefreshRemaining = quota.remainingToday
+
         let period = selectedInsightPeriod
         let (start, end) = insightRange(for: period)
         await generateInsight(periodType: period, start: start, end: end, forceRefresh: force)
