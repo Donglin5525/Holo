@@ -42,6 +42,21 @@ struct ThoughtListView: View {
     /// 右滑展开的卡片 ID
     @State private var revealedThoughtId: UUID? = nil
 
+    /// 自动整理队列（观察批量进度）
+    @ObservedObject private var orgQueue = ThoughtOrganizationQueue.shared
+
+    /// 待整理数量（chip 徽章用）
+    @State private var unprocessedCount: Int = 0
+
+    /// 是否显示批量整理确认 Sheet
+    @State private var showBatchOrganizeSheet: Bool = false
+
+    /// 批量整理提示文案（toast，nil 不显示）
+    @State private var batchOrganizeNotice: String? = nil
+
+    /// 列表刷新节流任务（避免批量整理时通知风暴拖卡主线程）
+    @State private var refreshTask: Task<Void, Never>?
+
     // MARK: - Computed Properties
 
     /// 筛选后的想法列表
@@ -107,43 +122,87 @@ struct ThoughtListView: View {
             })
                 .presentationDetents([.medium])
         }
+        .sheet(isPresented: $showBatchOrganizeSheet) {
+            batchOrganizeConfirmationSheet
+                .presentationDetents([.medium])
+        }
+        .overlay(alignment: .top) {
+            noticeToast
+        }
         .onAppear {
             loadThoughts()
             loadTags()
+            loadUnprocessedCount()
             if let initialThoughtId {
                 selectedThoughtId = initialThoughtId
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .thoughtDataDidChange)) { _ in
-            loadThoughts()
-            loadTags()
+            // 节流：批量整理每条完成都发通知，合并 500ms 后统一刷新，避免主线程卡顿
+            refreshTask?.cancel()
+            refreshTask = Task {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                if !Task.isCancelled {
+                    loadThoughts()
+                    loadTags()
+                    loadUnprocessedCount()
+                }
+            }
         }
     }
 
     // MARK: - AI 归纳状态条
 
-    /// 是否有想法正在被 AI 处理
+    /// 是否有想法正在被 AI 处理（单条增量整理）
     private var hasProcessingThoughts: Bool {
         thoughts.contains { $0.organizedStatus == "processing" }
     }
 
-    /// 正在处理的数量
-    private var processingCount: Int {
-        thoughts.filter { $0.organizedStatus == "processing" }.count
-    }
-
-    /// AI 归纳状态条（仅在有处理中的想法时显示）
+    /// AI 归纳状态条（批量进度 / 配额耗尽 / 单条增量三态）
     private var aiOrganizationBanner: some View {
         Group {
-            if hasProcessingThoughts {
+            if orgQueue.isBatchOrganizing, let total = orgQueue.batchTotal {
+                // 批量整理进度
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .scaleEffect(0.7)
+                        .tint(.holoAI)
+
+                    Text("AI 自动归纳中（\(orgQueue.batchCompleted)/\(total)）")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+
+                    Spacer()
+                }
+                .padding(.horizontal, HoloSpacing.md)
+                .padding(.vertical, 6)
+                .background(Color.holoAI.opacity(0.06))
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            } else if orgQueue.dailyLimitHit {
+                // 配额耗尽暂停
+                HStack(spacing: 6) {
+                    Image(systemName: "moon.zzz.fill")
+                        .font(.system(size: 11))
+                        .foregroundColor(.holoAI)
+
+                    Text("今日整理配额已用尽，剩余条目明天自动续做")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+
+                    Spacer()
+                }
+                .padding(.horizontal, HoloSpacing.md)
+                .padding(.vertical, 6)
+                .background(Color.holoAI.opacity(0.06))
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            } else if hasProcessingThoughts {
+                // 单条增量整理（保存想法时）
                 HStack(spacing: 6) {
                     ProgressView()
                         .scaleEffect(0.7)
                         .tint(.holoPrimary)
 
-                    Text(processingCount == 1
-                         ? "AI 自动归纳中..."
-                         : "AI 自动归纳中（\(processingCount) 条）")
+                    Text("AI 自动归纳中...")
                         .font(.holoCaption)
                         .foregroundColor(.holoTextSecondary)
 
@@ -155,6 +214,8 @@ struct ThoughtListView: View {
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
+        .animation(.easeInOut(duration: 0.3), value: orgQueue.isBatchOrganizing)
+        .animation(.easeInOut(duration: 0.3), value: orgQueue.dailyLimitHit)
         .animation(.easeInOut(duration: 0.3), value: hasProcessingThoughts)
     }
 
@@ -215,6 +276,132 @@ struct ThoughtListView: View {
         } catch {
             logger.error("加载标签失败：\(error)")
             allTags = []
+        }
+    }
+
+    // MARK: - 批量自动整理
+
+    /// 加载待整理数量（chip 徽章）
+    private func loadUnprocessedCount() {
+        do {
+            unprocessedCount = try thoughtRepository.countUnprocessed()
+        } catch {
+            logger.error("加载未整理计数失败：\(error)")
+            unprocessedCount = 0
+        }
+    }
+
+    /// 点击「自动整理」chip
+    private func handleOrganizeChipTap() {
+        if orgQueue.isBatchOrganizing {
+            // 正在批量整理，banner 已显示进度，不重复触发
+            return
+        }
+        if orgQueue.dailyLimitHit {
+            batchOrganizeNotice = "今日整理配额已用尽，剩余条目会在明天自动续做"
+            return
+        }
+        if unprocessedCount == 0 {
+            batchOrganizeNotice = "所有想法都已整理过啦"
+            return
+        }
+        showBatchOrganizeSheet = true
+    }
+
+    /// 开始批量整理
+    private func startBatchOrganize() {
+        showBatchOrganizeSheet = false
+        do {
+            let ids = try thoughtRepository.fetchUnprocessedThoughtIds()
+            guard !ids.isEmpty else {
+                batchOrganizeNotice = "没有需要整理的想法"
+                return
+            }
+            try thoughtRepository.markBatchPending(thoughtIds: ids)
+            orgQueue.enqueueBatch(thoughtIds: ids)
+            batchOrganizeNotice = "已开始整理 \(ids.count) 条想法"
+        } catch {
+            logger.error("启动批量整理失败：\(error)")
+            batchOrganizeNotice = "启动失败，请稍后重试"
+        }
+    }
+
+    /// 批量整理确认 Sheet
+    private var batchOrganizeConfirmationSheet: some View {
+        VStack(spacing: HoloSpacing.lg) {
+            // 标题
+            HStack(spacing: HoloSpacing.sm) {
+                Image(systemName: "sparkles")
+                    .foregroundColor(.holoAI)
+                Text("批量 AI 整理")
+                    .font(.holoHeading)
+                    .foregroundColor(.holoTextPrimary)
+                Spacer()
+            }
+
+            // 说明
+            VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                Text("将为 **\(unprocessedCount)** 条未整理想法生成 AI 标签")
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextPrimary)
+                Text("每条想法会产生 ≤3 个标签建议，可在详情页确认或拒绝。")
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+
+            // 配额提示
+            HStack(alignment: .top, spacing: 8) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundColor(.holoPrimary)
+                    .font(.system(size: 12))
+                Text("后台串行整理，受每日配额限制，会占用今日整理配额（可能影响新想法当天的自动整理）；多余条目会在后续打开 App 时自动续做。")
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary)
+            }
+            .padding(HoloSpacing.md)
+            .background(Color.holoPrimary.opacity(0.06))
+            .cornerRadius(HoloRadius.md)
+
+            Spacer()
+
+            // 按钮
+            HStack(spacing: HoloSpacing.md) {
+                Button("取消") {
+                    showBatchOrganizeSheet = false
+                }
+                .buttonStyle(.bordered)
+                .frame(maxWidth: .infinity)
+
+                Button("开始整理") {
+                    startBatchOrganize()
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.holoAI)
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(HoloSpacing.lg)
+    }
+
+    /// 提示 toast（自动消失）
+    private var noticeToast: some View {
+        Group {
+            if let notice = batchOrganizeNotice {
+                Text(notice)
+                    .font(.holoCaption)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, HoloSpacing.md)
+                    .padding(.vertical, HoloSpacing.sm)
+                    .background(Color.black.opacity(0.75))
+                    .cornerRadius(HoloRadius.md)
+                    .padding(.top, HoloSpacing.xl)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .task {
+                        try? await Task.sleep(nanoseconds: 2_500_000_000)
+                        withAnimation(.easeInOut) { batchOrganizeNotice = nil }
+                    }
+            }
         }
     }
 
@@ -302,6 +489,14 @@ struct ThoughtListView: View {
                     isSelected: selectedTagName == nil
                 ) {
                     selectedTagName = nil
+                }
+
+                // 自动整理动作 chip（紫色 AI 标识，区别于筛选 chip）
+                ThoughtOrganizeActionChip(
+                    pendingCount: unprocessedCount,
+                    isOrganizing: orgQueue.isBatchOrganizing
+                ) {
+                    handleOrganizeChipTap()
                 }
 
                 // 常用标签

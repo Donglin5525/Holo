@@ -46,6 +46,8 @@ extension Color {
     static let holoInfo = Color(red: 96/255, green: 165/255, blue: 250/255)  // #60A5FA
     /// 紫色装饰
     static let holoPurple = Color(red: 192/255, green: 132/255, blue: 252/255)  // #C084FC
+    /// AI 专属色 - 紫色，用于 AI 自动整理等智能功能入口标识，与品牌橙色区分
+    static let holoAI = Color(red: 124/255, green: 92/255, blue: 252/255)  // #7C5CFC
     
     // MARK: - 图表颜色
     /// 图表颜色系列（12 色调色板，色相均匀分布，保证视觉可区分）

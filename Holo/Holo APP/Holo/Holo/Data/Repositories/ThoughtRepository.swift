@@ -714,12 +714,67 @@ class ThoughtRepository {
 
         let request = Thought.fetchRequest()
         request.predicate = NSPredicate(
-            format: "organizedStatus == 'pending' AND createdDeviceId == %@ AND isSoftDeleted == NO",
+            format: "organizedStatus == 'pending' AND createdDeviceId == %@ AND isSoftDeleted == NO AND isArchived == NO",
             currentDeviceId as CVarArg
         )
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: true)]
 
         return try context.fetch(request).map { $0.id }
+    }
+
+    // MARK: - Batch Organization Operations
+
+    /// 终态状态集合：这些状态的想法不再纳入「自动整理」批量范围
+    /// 用「排除终态」写法，使 nil/空字符串等脏值也被纳入（安全方向）
+    private static let terminalOrganizedStatuses = [
+        "organized", "pending", "processing", "skipped", "disabled", "failed"
+    ]
+
+    /// 获取所有未整理的想法 ID（排除终态，含 nil/空字符串等脏值）
+    /// 用于「自动整理」批量入口，按 createdAt 升序（老想法先整理）
+    /// - Returns: 未整理的 thoughtId 列表
+    func fetchUnprocessedThoughtIds() throws -> [UUID] {
+        let request = Thought.fetchRequest()
+        // 不按 createdDeviceId 过滤：批量整理是本地补标签操作，
+        // 老想法（createdDeviceId 为 nil 或旧 deviceId）都应纳入；已 organized 的无论哪台设备都会被排除，不会重复
+        request.predicate = NSPredicate(
+            format: "NOT (organizedStatus IN %@) AND isSoftDeleted == NO AND isArchived == NO",
+            Self.terminalOrganizedStatuses as CVarArg
+        )
+        request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: true)]
+
+        return try context.fetch(request).map { $0.id }
+    }
+
+    /// 统计未整理的想法数量（chip 徽章用，轻量 count 查询，不全量 fetch）
+    /// - Returns: 未整理数量
+    func countUnprocessed() throws -> Int {
+        let request = Thought.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "NOT (organizedStatus IN %@) AND isSoftDeleted == NO AND isArchived == NO",
+            Self.terminalOrganizedStatuses as CVarArg
+        )
+
+        return try context.count(for: request)
+    }
+
+    /// 批量将想法标记为 pending（供「自动整理」入队前调用）
+    /// 使用普通 fetch + 改属性 + save，保证 viewContext 后续读一致（不用 NSBatchUpdateRequest）
+    /// - Parameter thoughtIds: 待标记的想法 ID 列表
+    func markBatchPending(thoughtIds: [UUID]) throws {
+        guard !thoughtIds.isEmpty else { return }
+
+        let request = Thought.fetchRequest()
+        request.predicate = NSPredicate(format: "id IN %@", thoughtIds as CVarArg)
+        request.fetchLimit = thoughtIds.count
+
+        let thoughts = try context.fetch(request)
+        for thought in thoughts {
+            thought.organizedStatus = "pending"
+            thought.organizationStartedAt = nil
+        }
+        try context.save()
+        logger.info("批量标记 pending：\(thoughts.count)/\(thoughtIds.count) 条")
     }
 
     // MARK: - Aggregation

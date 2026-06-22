@@ -37,10 +37,13 @@ final class ThoughtOrganizationService {
     // MARK: - Organize Thought
 
     /// 对单条想法执行 AI 整理
+    ///
+    /// 错误契约（决定 Queue 如何处理）：
+    /// - **不抛出**（return）：`notFound`/`parseFailed` 等「这条想法本身的问题」，已标记 failed，Queue 当作处理完毕跳过，不重试（避免浪费配额）
+    /// - **抛出 `APIError.rateLimited`**：配额耗尽，Queue 应把当前条回退 pending + 当日整体暂停
+    /// - **抛出其他错误**：网络/超时等可重试错误，Queue 按 5s/30s/120s 重试
     /// - Parameter thoughtId: 想法 UUID
-    /// - Returns: 是否成功生成标签
-    @discardableResult
-    func organizeThought(thoughtId: UUID) async -> Bool {
+    func organizeThought(thoughtId: UUID) async throws {
         let repository = ThoughtRepository()
 
         // 1. 更新状态为 processing
@@ -48,7 +51,7 @@ final class ThoughtOrganizationService {
             try repository.updateOrganizedStatus(thoughtId: thoughtId, status: "processing")
         } catch {
             logger.error("更新 processing 状态失败：\(error.localizedDescription)")
-            return false
+            throw error
         }
 
         // 2. 读取想法内容（只传 ID，不跨线程持有 NSManagedObject）
@@ -59,18 +62,19 @@ final class ThoughtOrganizationService {
         do {
             guard let thought = try repository.fetchByIdInternal(thoughtId) else {
                 logger.error("想法不存在：\(thoughtId)")
-                return false
+                try? repository.updateOrganizedStatus(thoughtId: thoughtId, status: "failed")
+                return  // 想法已删除，标 failed 跳过，不重试
             }
             thoughtContent = thought.content
             existingTagExamples = repository.getRecentTagNames(limit: 20).joined(separator: ", ")
             rejectedTags = loadRejectedTagNames().joined(separator: ", ")
         } catch {
             logger.error("读取想法数据失败：\(error.localizedDescription)")
-            await markAsFailed(repository: repository, thoughtId: thoughtId)
-            return false
+            throw error
         }
 
         // 3. 构建 prompt 并调用 AI
+        let rawResponse: String
         do {
             let systemPrompt = try promptManager.loadPrompt(.thoughtOrganization)
                 .replacingOccurrences(of: "{{existingTagExamples}}", with: existingTagExamples)
@@ -81,45 +85,45 @@ final class ThoughtOrganizationService {
                 .user(thoughtContent)
             ]
 
-            // 使用 chat(messages:purpose:) 方法，通过 buildRequest 支持 responseFormat
-            let rawResponse = try await callWithJSONMode(messages: messages)
-
-            // 4. 解析 JSON
-            guard let result = parseOrganizationResponse(rawResponse) else {
-                logger.error("JSON 解析失败，原始响应：\(rawResponse.prefix(200))")
-                await markAsFailed(repository: repository, thoughtId: thoughtId)
-                return false
-            }
-
-            // 5. 创建 ThoughtTagAssignment
-            let suggestedTags = Array(result.suggestedTags.prefix(3))
-            for tagName in suggestedTags {
-                do {
-                    try repository.createTagAssignment(
-                        thoughtId: thoughtId,
-                        tagName: tagName,
-                        source: .ai,
-                        confidence: result.confidence
-                    )
-                } catch {
-                    logger.error("创建 AI 标签 assignment 失败（\(tagName)）：\(error.localizedDescription)")
-                }
-            }
-
-            // 6. 更新状态为 organized
-            try repository.updateOrganizedStatus(thoughtId: thoughtId, status: "organized")
-            logger.info("想法整理完成：\(thoughtId)，标签：\(suggestedTags.joined(separator: ", "))")
-
-            // 7. 发送数据变更通知，让 UI 刷新
-            NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
-
-            return true
-
+            // rateLimited 等错误透传给 Queue（不在此 markAsFailed，由 Queue 决定回退 pending 或重试）
+            rawResponse = try await callWithJSONMode(messages: messages)
         } catch {
             logger.error("AI 整理调用失败：\(error.localizedDescription)")
-            await markAsFailed(repository: repository, thoughtId: thoughtId)
-            return false
+            throw error
         }
+
+        // 4. 解析 JSON
+        guard let result = parseOrganizationResponse(rawResponse) else {
+            logger.error("JSON 解析失败，原始响应：\(rawResponse.prefix(200))")
+            try? repository.updateOrganizedStatus(thoughtId: thoughtId, status: "failed")
+            return  // 解析失败标 failed，不重试（避免浪费配额）
+        }
+
+        // 5. 创建 ThoughtTagAssignment
+        let suggestedTags = Array(result.suggestedTags.prefix(3))
+        for tagName in suggestedTags {
+            do {
+                try repository.createTagAssignment(
+                    thoughtId: thoughtId,
+                    tagName: tagName,
+                    source: .ai,
+                    confidence: result.confidence
+                )
+            } catch {
+                logger.error("创建 AI 标签 assignment 失败（\(tagName)）：\(error.localizedDescription)")
+            }
+        }
+
+        // 6. 更新状态为 organized
+        do {
+            try repository.updateOrganizedStatus(thoughtId: thoughtId, status: "organized")
+        } catch {
+            logger.error("更新 organized 状态失败：\(error.localizedDescription)")
+        }
+        logger.info("想法整理完成：\(thoughtId)，标签：\(suggestedTags.joined(separator: ", "))")
+
+        // 7. 发送数据变更通知，让 UI 刷新
+        NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
     }
 
     // MARK: - Reject / Confirm

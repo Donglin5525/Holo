@@ -4,6 +4,27 @@
 
 ---
 
+## [2026-06-23] 想法模块批量 AI 自动整理
+
+### 新增
+- **筛选栏「自动整理」入口**：想法列表「全部」旁新增紫色动作 chip（`sparkles` + AI 角标 + 待整理数徽章），点击弹确认 Sheet，一键给所有未整理想法批量打 AI 标签；整理时 banner 显示「X/总」进度，配额耗尽显示「明日续做」
+- **`ThoughtOrganizeActionChip` 组件** + **`Color.holoAI`**（#7C5CFC，AI 专属紫色，区别于品牌橙）
+- **`ThoughtRepository` 批量查询**：`fetchUnprocessedThoughtIds` / `countUnprocessed` / `markBatchPending`，用「排除终态」predicate 覆盖 nil/空字符串等脏值
+
+### 变更
+- **队列配额错误处理**：`ThoughtOrganizationQueue` 改 `ObservableObject`，识别 `APIError.rateLimited` 后**不重试、当前条回退 pending、当日整体暂停**（原对任何失败重试 3 次会把当天配额在重试里烧光）；条间隔 2s→4s（15/分钟，避开后端 20/分钟限额）
+- **`organizeThought` 改 `throws`**：透传 `rateLimited` 给队列；`notFound`/`parseFailed` 直接标 failed 不重试（避免浪费配额）
+- **`fetchPendingThoughtIds` 补 `isArchived` 过滤**，与批量查询一致
+
+### 修复
+- **老想法被 `createdDeviceId` 过滤导致批量整理捞不到**：`fetchUnprocessedThoughtIds` / `countUnprocessed` 去掉设备过滤——老想法（`createdDeviceId` 为 nil 或旧值）现在能正常纳入；已 `organized` 的无论哪台设备都排除，不重复
+
+### 测试
+- `ThoughtOrganizationBatchTests` 新增 7 个用例：未整理范围（纳入 unprocessed/nil、排除终态、排除归档删除）、nil deviceId 老想法回归、计数一致、批量标记状态流转、空列表安全
+- `test_sim` 通过
+
+---
+
 ## [2026-06-22] 主屏小组件暗色模式可读性修复
 
 ### 修复
