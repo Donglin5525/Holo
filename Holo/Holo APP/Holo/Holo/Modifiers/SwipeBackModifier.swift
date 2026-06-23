@@ -23,6 +23,11 @@ struct SwipeBackModifier: ViewModifier {
     /// 是否启用手势
     let isEnabled: Bool
 
+    /// 是否忽略 NavigationStack 让位逻辑
+    /// 用于隐藏了系统导航栏的 push 详情页：系统 pop 手势因导航栏隐藏而失效，
+    /// 此时本手势必须强制接管，否则用户无法返回
+    let ignoreNavigationStack: Bool
+
     /// 关闭回调
     let onDismiss: () -> Void
 
@@ -33,9 +38,11 @@ struct SwipeBackModifier: ViewModifier {
 
     init(
         isEnabled: Bool = true,
+        ignoreNavigationStack: Bool = false,
         onDismiss: @escaping () -> Void
     ) {
         self.isEnabled = isEnabled
+        self.ignoreNavigationStack = ignoreNavigationStack
         self.onDismiss = onDismiss
     }
 
@@ -55,6 +62,7 @@ struct SwipeBackModifier: ViewModifier {
             .overlay(
                 EdgeGestureOverlay(
                     isEnabled: isEnabled,
+                    ignoreNavigationStack: ignoreNavigationStack,
                     onTranslate: { rawTranslation in
                         // 阻尼效果：超过 40% 屏宽后逐渐减速，模拟物理手感
                         let threshold = screenWidth * 0.4
@@ -116,6 +124,7 @@ struct SwipeBackModifier: ViewModifier {
 private struct EdgeGestureOverlay: UIViewRepresentable {
 
     let isEnabled: Bool
+    let ignoreNavigationStack: Bool
     let onTranslate: (CGFloat) -> Void
     let onEnd: (CGFloat) -> Void
 
@@ -124,7 +133,7 @@ private struct EdgeGestureOverlay: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> EdgeGestureHostView {
-        let view = EdgeGestureHostView()
+        let view = EdgeGestureHostView(ignoreNavigationStack: ignoreNavigationStack)
 
         let recognizer = UIScreenEdgePanGestureRecognizer(
             target: context.coordinator,
@@ -199,6 +208,19 @@ private struct EdgeGestureOverlay: UIViewRepresentable {
 private class EdgeGestureHostView: UIView {
     private let edgeWidth: CGFloat = 20
 
+    /// 是否忽略 NavigationStack 让位逻辑（见 hitTest 注释）
+    let ignoreNavigationStack: Bool
+
+    init(ignoreNavigationStack: Bool) {
+        self.ignoreNavigationStack = ignoreNavigationStack
+        super.init(frame: .zero)
+    }
+
+    required init?(coder: NSCoder) {
+        self.ignoreNavigationStack = false
+        super.init(coder: coder)
+    }
+
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         guard point.x < edgeWidth,
               isUserInteractionEnabled,
@@ -208,7 +230,9 @@ private class EdgeGestureHostView: UIView {
 
         // 当 NavigationStack 有推送内容时，不拦截手势
         // 让 NavigationStack 的内置返回手势优先处理（只 pop 一层，不关闭整个页面）
-        if hasActiveNavigationStack() {
+        // 但 ignoreNavigationStack=true 时强制接管 —— 用于隐藏了系统导航栏的 push 详情页，
+        // 此时系统 pop 手势因导航栏隐藏而失效，必须由本手势接管，否则用户无法返回
+        if !ignoreNavigationStack, hasActiveNavigationStack() {
             return nil
         }
 
@@ -271,14 +295,18 @@ extension View {
     /// 添加右滑返回手势
     /// - Parameters:
     ///   - isEnabled: 是否启用手势（默认 true）
+    ///   - ignoreNavigationStack: 是否忽略 NavigationStack 让位逻辑（默认 false）。
+    ///     用于隐藏了系统导航栏的 push 详情页（系统 pop 手势失效），需强制接管时传 true
     ///   - onDismiss: 关闭回调
     /// - Returns: 应用了手势的视图
     func swipeBackToDismiss(
         isEnabled: Bool = true,
+        ignoreNavigationStack: Bool = false,
         onDismiss: @escaping () -> Void
     ) -> some View {
         self.modifier(SwipeBackModifier(
             isEnabled: isEnabled,
+            ignoreNavigationStack: ignoreNavigationStack,
             onDismiss: onDismiss
         ))
     }

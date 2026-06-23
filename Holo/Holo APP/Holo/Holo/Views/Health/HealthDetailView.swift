@@ -25,42 +25,45 @@ struct HealthDetailView: View {
     }
 
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(spacing: HoloSpacing.md) {
-                detailHeader
-                bigRingCard
-                statsSection
+        VStack(spacing: 0) {
+            detailHeader
 
-                VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                    HStack {
-                        Text("近 7 天")
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
-                        Spacer()
-                        if isLoading {
-                            ProgressView()
-                                .scaleEffect(0.75)
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: HoloSpacing.md) {
+                    bigRingCard
+                    statsSection
+
+                    VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                        HStack {
+                            Text("近 7 天")
+                                .font(.holoBody)
+                                .foregroundColor(.holoTextPrimary)
+                            Spacer()
+                            if isLoading {
+                                ProgressView()
+                                    .scaleEffect(0.75)
+                            }
                         }
-                    }
 
-                    HealthTrendChart(data: weeklyData, type: type)
+                        HealthTrendChart(data: weeklyData, type: type)
+                    }
+                    .padding(HoloSpacing.md)
+                    .background(Color.holoCardBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: HoloRadius.lg)
+                            .stroke(Color.holoBorder, lineWidth: 1)
+                    )
+
+                    insightSection
+                    relatedSection
                 }
                 .padding(HoloSpacing.md)
-                .background(Color.holoCardBackground)
-                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
-                .overlay(
-                    RoundedRectangle(cornerRadius: HoloRadius.lg)
-                        .stroke(Color.holoBorder, lineWidth: 1)
-                )
-
-                insightSection
-                relatedSection
             }
-            .padding(HoloSpacing.md)
         }
         .background(Color.holoBackground)
         .toolbar(.hidden, for: .navigationBar)
-        .swipeBackToDismiss {
+        .swipeBackToDismiss(ignoreNavigationStack: true) {
             dismiss()
         }
         .task {
@@ -71,6 +74,8 @@ struct HealthDetailView: View {
 
     private var detailHeader: some View {
         HStack(alignment: .center, spacing: HoloSpacing.md) {
+            backButton
+
             VStack(alignment: .leading, spacing: 4) {
                 Text(type.rawValue)
                     .font(.holoTitle)
@@ -91,7 +96,25 @@ struct HealthDetailView: View {
                 .background(type.color.opacity(0.12))
                 .clipShape(Capsule())
         }
+        .padding(.horizontal, HoloSpacing.md)
         .padding(.top, HoloSpacing.sm)
+        .padding(.bottom, HoloSpacing.sm)
+    }
+
+    /// 返回按钮（对齐全局 fullScreenCover 模块约定，复用 HealthView 样式）
+    private var backButton: some View {
+        Button {
+            dismiss()
+        } label: {
+            Image(systemName: "chevron.left")
+                .font(.system(size: 16, weight: .semibold))
+                .foregroundColor(.holoTextPrimary)
+                .frame(width: 40, height: 40)
+                .background(Color.holoCardBackground)
+                .clipShape(Circle())
+                .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
+        }
+        .buttonStyle(.plain)
     }
 
     private var bigRingCard: some View {

@@ -156,60 +156,79 @@ struct HealthView: View {
     }
 
     private var dateNavigationBar: some View {
-        HStack(spacing: 0) {
-            Button {
-                navigateDate(-1)
-            } label: {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.holoTextPrimary)
-                    .frame(width: 32, height: 32)
-                    .background(Color.holoCardBackground)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.holoBorder, lineWidth: 1))
-            }
-            .buttonStyle(.plain)
+        ZStack {
+            HStack {
+                Spacer()
 
-            Spacer()
-
-            Text(dateDisplayText)
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
-
-            Spacer()
-
-            Button {
-                navigateDate(1)
-            } label: {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(Calendar.current.isDateInToday(selectedDate) ? .holoTextSecondary.opacity(0.4) : .holoTextPrimary)
-                    .frame(width: 32, height: 32)
-                    .background(Color.holoCardBackground)
-                    .clipShape(Circle())
-                    .overlay(Circle().stroke(Color.holoBorder, lineWidth: 1))
-            }
-            .buttonStyle(.plain)
-            .disabled(Calendar.current.isDateInToday(selectedDate))
-
-            if !Calendar.current.isDateInToday(selectedDate) {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        selectedDate = Calendar.current.startOfDay(for: Date())
-                    }
-                } label: {
-                    Text("今天")
-                        .font(.holoLabel)
-                        .foregroundColor(.holoPrimary)
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Color.holoPrimary.opacity(0.1))
-                        .clipShape(Capsule())
+                if !Calendar.current.isDateInToday(selectedDate) {
+                    todayButton
                 }
-                .buttonStyle(.plain)
-                .padding(.leading, HoloSpacing.sm)
             }
+
+            HStack(spacing: HoloSpacing.sm) {
+                dateNavigationButton(systemName: "chevron.left", isDisabled: false) {
+                    navigateDate(-1)
+                }
+
+                Text(dateDisplayText)
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
+                    .frame(minWidth: 118)
+
+                dateNavigationButton(
+                    systemName: "chevron.right",
+                    isDisabled: Calendar.current.isDateInToday(selectedDate)
+                ) {
+                    navigateDate(1)
+                }
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 4)
+            .background(Color.holoCardBackground.opacity(0.55))
+            .clipShape(Capsule())
+            .overlay(
+                Capsule()
+                    .stroke(Color.holoBorder.opacity(0.7), lineWidth: 1)
+            )
         }
+        .padding(.horizontal, HoloSpacing.md)
+    }
+
+    private func dateNavigationButton(
+        systemName: String,
+        isDisabled: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button {
+            action()
+        } label: {
+            Image(systemName: systemName)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundColor(isDisabled ? .holoTextSecondary.opacity(0.32) : .holoTextSecondary)
+                .frame(width: 28, height: 28)
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .disabled(isDisabled)
+    }
+
+    private var todayButton: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                selectedDate = Calendar.current.startOfDay(for: Date())
+            }
+        } label: {
+            Text("今天")
+                .font(.holoLabel)
+                .foregroundColor(.holoPrimary)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .background(Color.holoPrimary.opacity(0.1))
+                .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
     }
 
     private var dateDisplayText: String {

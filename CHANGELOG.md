@@ -4,6 +4,18 @@
 
 ---
 
+## [2026-06-23] 健康页返回与日期导航优化
+
+### 变更
+- **健康首页日期切换收敛为居中控件**：把原先贴在左侧的日期左箭头收回到日期标题两侧，形成「上一天 / 当前日期 / 下一天」的一组控件，避免和顶部页面返回箭头在左上区域重复抢层级；非今日时「今天」回跳按钮保留在右侧
+- **健康详情页补显式返回入口**：详情页顶部新增与健康首页一致的圆形返回按钮，并让内容滚动区下移到 header 下方，减少 fullScreenCover / push 详情页返回路径不明确的问题
+- **边缘返回手势支持隐藏导航栏详情页**：`swipeBackToDismiss` 新增 `ignoreNavigationStack` 参数，用于健康详情页这类隐藏系统导航栏的 push 页面，避免系统返回手势失效后无法返回
+
+### 测试
+- `xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -destination "generic/platform=iOS" -derivedDataPath /private/tmp/holo-dd-health-date-nav CODE_SIGNING_ALLOWED=NO CLANG_MODULE_CACHE_PATH=/private/tmp/holo-module-cache-health-date-nav build` 通过
+
+---
+
 ## [2026-06-23] 知识架构整理：开发规范归仓库、memory 只留协作反馈
 
 ### 文档
