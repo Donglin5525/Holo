@@ -700,10 +700,9 @@ class HabitRepository: ObservableObject {
         return result.sorted { $0.date < $1.date }
     }
     
-    /// 获取今日习惯完成进度（打卡型 + 数值型达标）
+    /// 获取今日习惯完成进度（打卡型 + 数值型）
     /// - 打卡型：今日有 isCompleted==YES 记录即算完成
-    /// - 数值型：今日有记录且达到目标值即算完成（计数类求和、测量类取最新）；
-    ///   未设目标时只要有今日记录即算
+    /// - 数值型：今日有记录即算完成（功能鼓励「保持记录」，与数值大小/是否达标无关）
     func getTodayCheckInProgress(visibleHabitIds: [UUID]? = nil) -> (completed: Int, total: Int) {
         let visibleSet: Set<UUID>? = {
             guard let visible = visibleHabitIds, !visible.isEmpty else { return nil }
@@ -726,28 +725,15 @@ class HabitRepository: ObservableObject {
         let checkInCompleted = countCheckedHabits(
             ids: checkInHabits.map(\.id), from: today, to: tomorrow
         )
-        // 数值型达标数：逐个判断（数值型习惯数量通常很少，开销可接受）
-        let numericCompleted = numericHabits.filter { isHabitTargetMetToday($0) }.count
+        // 数值型完成数：今日有记录即算（功能鼓励「保持记录」，与数值大小/是否达标无关）
+        let numericCompleted = numericHabits.filter { hasTodayNumericRecord($0) }.count
 
         return (checkInCompleted + numericCompleted, total)
     }
 
-    /// 判断数值型习惯给定值是否达标（供 UI 复用，避免重复 fetch）
-    func isNumericHabitTargetMet(_ habit: Habit, value: Double) -> Bool {
-        if habit.isCountType, let target = habit.targetCountValue {
-            return value >= Double(target)
-        }
-        if habit.isMeasureType, let target = habit.targetValueDouble {
-            return value >= target
-        }
-        // 数值型但未设目标：有记录即视为完成
-        return true
-    }
-
-    /// 判断数值型习惯今日是否达成目标
-    private func isHabitTargetMetToday(_ habit: Habit) -> Bool {
-        guard let value = getTodayValue(for: habit) else { return false }
-        return isNumericHabitTargetMet(habit, value: value)
+    /// 数值型习惯今日是否有记录
+    private func hasTodayNumericRecord(_ habit: Habit) -> Bool {
+        getTodayValue(for: habit) != nil
     }
 
     /// 分正负向统计今日打卡型习惯进度

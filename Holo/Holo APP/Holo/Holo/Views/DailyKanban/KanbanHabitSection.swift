@@ -265,10 +265,8 @@ struct KanbanHabitSection: View {
             } else if habit.isNumericType {
                 if let value = habitRepo.getTodayValue(for: habit) {
                     values[habit.id] = value
-                    // 达标计入 completed，使 header 口径与进度环一致
-                    if habitRepo.isNumericHabitTargetMet(habit, value: value) {
-                        completed.insert(habit.id)
-                    }
+                    // 有记录即算完成（鼓励保持记录，与数值大小无关），使 header 口径与进度环一致
+                    completed.insert(habit.id)
                 }
             }
         }
