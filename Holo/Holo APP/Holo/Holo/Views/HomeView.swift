@@ -153,6 +153,9 @@ struct HomeView: View {
             await CoreDataStack.shared.waitUntilReady()
             iconRepository.setup()
             TodoRepository.shared.setup()
+            // 习惯仓库必须在此初始化：首页三环习惯进度依赖 activeHabits，
+            // 否则冷启动习惯环恒为 0，需进入今日看板后才被加载
+            HabitRepository.shared.setup()
             loadFeatureItemsFromRepository()
             scheduleService.setup()
         }

@@ -4,6 +4,24 @@
 
 ---
 
+## [2026-06-23] 首页进度环 + 今日看板打卡链路修复
+
+### 修复
+- **首页习惯进度环冷启动丢失**：`HomeView` 冷启动只初始化了 `TodoRepository` 漏了 `HabitRepository`，导致首页三环习惯进度依赖的 `activeHabits` 内存数组为空、习惯环恒为 0，需进入今日看板后才被加载、杀进程重进又丢失。现补 `HabitRepository.shared.setup()`，并让 `DailyKanbanEntryButton` 监听 `activeHabits.count` 变化补刷新
+- **新建每日习惯不出现在今日看板**：用户在「习惯统计设置」配置过看板显示项后，新建习惯不在白名单会被过滤。`createHabit` 现对 daily 习惯自动调用 `HabitStatsDisplaySettings.addDashboardHabitIfNeeded` 纳入白名单（白名单为空=全部显示时不处理）
+
+### 变更
+- **进度环纳入数值型习惯**：`getTodayCheckInProgress` 由「仅打卡型」扩展为「打卡型 + 数值型达标」合计——计数类求和 / 测量类取最新值达到目标即算完成，未设目标则今日有记录即算；`KanbanHabitSection` header 口径同步对齐（分母本就含数值型，现分子也含达标）
+
+### 说明
+- 数值型「达标」默认规则：计数类 sum ≥ 目标、测量类 latest ≥ 目标、无目标有记录即算；测量类「维持/减重到 X」等目标语义可能不适用 `≥`，后续按需区分正负向
+- `seedDailyRitualsForToday()` 空实现属未启用功能，本次不涉及
+
+### 测试
+- `build_sim` 编译通过（2 次）
+
+---
+
 ## [2026-06-23] 想法模块批量 AI 自动整理
 
 ### 新增

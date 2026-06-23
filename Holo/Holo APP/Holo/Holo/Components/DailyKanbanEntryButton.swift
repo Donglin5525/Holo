@@ -105,6 +105,11 @@ struct DailyKanbanEntryButton: View {
         .onChange(of: displaySettings.dashboardVisibleHabitIds) { _, _ in
             refreshProgress()
         }
+        // activeHabits 由 HomeView.task 异步 setup 加载，onAppear 时仍为空；
+        // 监听 count 变化，确保加载完成后能补刷新一次习惯进度
+        .onChange(of: habitRepo.activeHabits.count) { _, _ in
+            refreshProgress()
+        }
         .onChange(of: cachedOverallPercent) { _, newValue in
             withAnimation(.spring(response: 0.8, dampingFraction: 0.7)) {
                 animatedOverall = newValue

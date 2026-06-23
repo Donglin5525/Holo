@@ -120,8 +120,12 @@ class HabitRepository: ObservableObject {
         
         try context.save()
         loadActiveHabits()
+        // 每日习惯需出现在今日看板；看板白名单非空时自动纳入，避免新建后看不到
+        if habit.habitFrequency == .daily {
+            HabitStatsDisplaySettings.shared.addDashboardHabitIfNeeded(habit.id)
+        }
         notifyDataChange(habitId: habit.id)
-        
+
         return habit
     }
     
@@ -696,18 +700,21 @@ class HabitRepository: ObservableObject {
         return result.sorted { $0.date < $1.date }
     }
     
-    /// 获取今日打卡型习惯完成进度
+    /// 获取今日习惯完成进度（打卡型 + 数值型达标）
+    /// - 打卡型：今日有 isCompleted==YES 记录即算完成
+    /// - 数值型：今日有记录且达到目标值即算完成（计数类求和、测量类取最新）；
+    ///   未设目标时只要有今日记录即算
     func getTodayCheckInProgress(visibleHabitIds: [UUID]? = nil) -> (completed: Int, total: Int) {
-        var checkInHabitIds = activeHabits
-            .filter { $0.isCheckInType }
-            .map(\.id)
+        let visibleSet: Set<UUID>? = {
+            guard let visible = visibleHabitIds, !visible.isEmpty else { return nil }
+            return Set(visible)
+        }()
+        func isVisible(_ id: UUID) -> Bool { visibleSet?.contains(id) ?? true }
 
-        if let visible = visibleHabitIds, !visible.isEmpty {
-            let visibleSet = Set(visible)
-            checkInHabitIds = checkInHabitIds.filter { visibleSet.contains($0) }
-        }
+        let checkInHabits = activeHabits.filter { $0.isCheckInType && isVisible($0.id) }
+        let numericHabits = activeHabits.filter { $0.isNumericType && isVisible($0.id) }
 
-        let total = checkInHabitIds.count
+        let total = checkInHabits.count + numericHabits.count
         guard total > 0 else { return (0, 0) }
 
         let today = Calendar.current.startOfDay(for: Date())
@@ -715,25 +722,32 @@ class HabitRepository: ObservableObject {
             return (0, total)
         }
 
-        // 单次 fetch 统计今日完成的习惯数量（避免对每个习惯逐个 fetch）
-        let request = NSFetchRequest<NSDictionary>(entityName: "HabitRecord")
-        request.resultType = .dictionaryResultType
-        request.propertiesToFetch = ["habitId"]
-        request.returnsDistinctResults = true
-        request.predicate = NSPredicate(
-            format: "habitId IN %@ AND date >= %@ AND date < %@ AND isCompleted == YES",
-            checkInHabitIds as NSArray,
-            today as NSDate,
-            tomorrow as NSDate
+        // 打卡型完成数：单次 distinct fetch
+        let checkInCompleted = countCheckedHabits(
+            ids: checkInHabits.map(\.id), from: today, to: tomorrow
         )
+        // 数值型达标数：逐个判断（数值型习惯数量通常很少，开销可接受）
+        let numericCompleted = numericHabits.filter { isHabitTargetMetToday($0) }.count
 
-        do {
-            let results = try context.fetch(request)
-            return (results.count, total)
-        } catch {
-            logger.error("获取今日进度失败: \(error)")
-            return (0, total)
+        return (checkInCompleted + numericCompleted, total)
+    }
+
+    /// 判断数值型习惯给定值是否达标（供 UI 复用，避免重复 fetch）
+    func isNumericHabitTargetMet(_ habit: Habit, value: Double) -> Bool {
+        if habit.isCountType, let target = habit.targetCountValue {
+            return value >= Double(target)
         }
+        if habit.isMeasureType, let target = habit.targetValueDouble {
+            return value >= target
+        }
+        // 数值型但未设目标：有记录即视为完成
+        return true
+    }
+
+    /// 判断数值型习惯今日是否达成目标
+    private func isHabitTargetMetToday(_ habit: Habit) -> Bool {
+        guard let value = getTodayValue(for: habit) else { return false }
+        return isNumericHabitTargetMet(habit, value: value)
     }
 
     /// 分正负向统计今日打卡型习惯进度

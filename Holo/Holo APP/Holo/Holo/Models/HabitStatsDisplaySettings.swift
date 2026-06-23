@@ -55,6 +55,15 @@ final class HabitStatsDisplaySettings: ObservableObject {
         save(ids, forKey: dashboardVisibleKey)
     }
 
+    /// 新建习惯后调用：当看板白名单非空（用户已主动配置过显示项）时，
+    /// 自动把新习惯加入白名单，避免「新建了却在今日看板看不到」。
+    /// 白名单为空表示「显示全部」，无需处理。
+    func addDashboardHabitIfNeeded(_ id: UUID) {
+        guard !dashboardVisibleHabitIds.isEmpty else { return }
+        guard !dashboardVisibleHabitIds.contains(id) else { return }
+        setDashboardVisibleHabitIds(dashboardVisibleHabitIds + [id])
+    }
+
     func moveHabit(fromOffsets: IndexSet, toOffset: Int) {
         var copy = orderedHabitIds
         let items = fromOffsets.sorted().reversed().map { copy.remove(at: $0) }.reversed()
