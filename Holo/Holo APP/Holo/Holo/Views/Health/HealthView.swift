@@ -153,6 +153,8 @@ struct HealthView: View {
             dateNavigationBar
         }
         .padding(.top, HoloSpacing.sm)
+        // 与下方卡片、日期栏统一左右留白，避免返回/同步按钮贴屏幕边缘
+        .padding(.horizontal, HoloSpacing.md)
     }
 
     private var dateNavigationBar: some View {
@@ -193,7 +195,6 @@ struct HealthView: View {
                     .stroke(Color.holoBorder.opacity(0.7), lineWidth: 1)
             )
         }
-        .padding(.horizontal, HoloSpacing.md)
     }
 
     private func dateNavigationButton(
