@@ -120,10 +120,8 @@ class HabitRepository: ObservableObject {
         
         try context.save()
         loadActiveHabits()
-        // 每日习惯需出现在今日看板；看板白名单非空时自动纳入，避免新建后看不到
-        if habit.habitFrequency == .daily {
-            HabitStatsDisplaySettings.shared.addDashboardHabitIfNeeded(habit.id)
-        }
+        // 新建习惯需出现在今日看板；看板白名单非空时自动纳入（不限频率），避免新建后看不到
+        HabitStatsDisplaySettings.shared.addDashboardHabitIfNeeded(habit.id)
         notifyDataChange(habitId: habit.id)
 
         return habit
@@ -791,6 +789,9 @@ class HabitRepository: ObservableObject {
 
     /// 发送数据变更通知
     private func notifyDataChange(habitId: UUID? = nil) {
+        // 触发 objectWillChange，让仅依赖 @ObservedObject（未监听 NotificationCenter）的视图
+        // 如 KanbanProgressHero 在打卡后实时刷新；既有通过 .habitDataDidChange 监听的视图不受影响
+        objectWillChange.send()
         NotificationCenter.default.post(name: .habitDataDidChange, object: habitId)
     }
 }

@@ -4,6 +4,20 @@
 
 ---
 
+## [2026-06-24] 今日看板习惯展示与打卡实时刷新修复
+
+### 修复
+- **今日看板不显示每周/每月习惯**：`KanbanHabitSection` 写死只取 `.daily` 频率习惯，导致用户新建的每周/每月习惯在今日看板不可见（自引入频率维度以来一直如此）。现去掉 daily 硬过滤，列表展示所有可见习惯（含每日/每周/每月）；`createHabit` 同步改为不限频率纳入看板白名单，保证周/月新习惯自动进白名单
+- **打卡后进度环不实时刷新**：`toggleCheckIn` / `addNumericRecord` 完成后只发了 `NotificationCenter` 通知、未触发 `objectWillChange`，而 `KanbanProgressHero` 仅依赖 `@ObservedObject` 且无通知监听，导致打卡后进度环不更新、需退出重进。`notifyDataChange` 补发 `objectWillChange.send()`，一处惠及所有依赖习惯进度的视图
+
+### 变更
+- 今日看板习惯区标题「每日打卡」→「习惯打卡」、空态文案适配（列表现已含周/月习惯）
+
+### 测试
+- `build_sim` 编译通过
+
+---
+
 ## [2026-06-24] 健康页头部按钮补齐左右留白
 
 ### 修复

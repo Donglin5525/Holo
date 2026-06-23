@@ -20,11 +20,12 @@ struct KanbanHabitSection: View {
     @Binding var editingHabit: Habit?
 
     private var activeHabits: [Habit] {
-        let daily = habitRepo.activeHabits.filter { $0.habitFrequency == .daily }
+        // 今日看板展示所有可见习惯（含每日/每周/每月）：周月习惯每天打卡会推进本周/月目标，
+        // 连续性统计已按周/月聚合去重（calculatePeriodicStreak），每天打卡不会破坏 streak
         let visibleIds = displaySettings.dashboardVisibleHabitIds
-        if visibleIds.isEmpty { return daily }
+        if visibleIds.isEmpty { return habitRepo.activeHabits }
         let visibleSet = Set(visibleIds)
-        return daily.filter { visibleSet.contains($0.id) }
+        return habitRepo.activeHabits.filter { visibleSet.contains($0.id) }
     }
 
     var body: some View {
@@ -58,7 +59,7 @@ struct KanbanHabitSection: View {
     }
 
     private var emptyView: some View {
-        Text("暂无每日习惯")
+        Text("暂无习惯")
             .font(.holoCaption)
             .foregroundColor(.holoTextSecondary)
             .frame(maxWidth: .infinity)
@@ -72,7 +73,7 @@ struct KanbanHabitSection: View {
         HStack {
             Label {
                 HStack(spacing: 4) {
-                    Text("每日打卡")
+                    Text("习惯打卡")
                     Text("\(completedHabits.count)/\(activeHabits.count)")
                         .font(.holoTinyLabel)
                         .foregroundColor(.white)
