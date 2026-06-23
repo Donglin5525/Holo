@@ -120,7 +120,7 @@ test("启动时自动把默认 Prompt 登记到版本历史", async () => {
   assert.match(historyHtml, /自动登记默认 Prompt 基线/);
 });
 
-test("intent_recognition 默认 Prompt 已瘦身为核心 Router（v17）", async () => {
+test("intent_recognition 默认 Prompt 已瘦身为核心 Router（v19）", async () => {
   const app = createTestApp();
 
   const response = await app.request("/v1/prompts/intent_recognition");
@@ -128,12 +128,14 @@ test("intent_recognition 默认 Prompt 已瘦身为核心 Router（v17）", asyn
   const prompt = await response.json();
 
   // 版本号
-  assert.equal(prompt.version, 17);
+  assert.equal(prompt.version, 19);
 
-  // 长度验证：必须在 2500 字符以内
-  assert.ok(prompt.content.length < 2500, `prompt 长度 ${prompt.content.length} 超过 2500`);
+  // 长度验证：Router 允许补充必要规则，但仍防止重新膨胀为长 prompt
+  assert.ok(prompt.content.length < 3500, `prompt 长度 ${prompt.content.length} 超过 3500`);
 
   // 保留的核心字段
+  assert.match(prompt.content, /note/);
+  assert.match(prompt.content, /用户可见名称/);
   assert.match(prompt.content, /categoryCandidate/);
   assert.match(prompt.content, /normalizedCategoryCandidate/);
   assert.match(prompt.content, /semanticCategoryHint/);
