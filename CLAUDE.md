@@ -61,6 +61,7 @@
 | 金额显示（空间充足） | 用 `NumberFormatter.currency` 完整格式，仍需加 `minimumScaleFactor(0.7)` + `lineLimit(1)` 防溢出 |
 | 自定义导航栏 | HStack 必须加 `.frame(maxWidth: .infinity, minHeight: 44, maxHeight: 44)` 固定高度，仅靠 padding 无法约束 |
 | Swift Charts 坐标 | `proxy.position(forX:)` 返回 **plot area 局部坐标**，不是全局坐标。触摸转换：`touch - plotFrame.minX`；Tooltip 定位：`plotFrame.minX + proxyX`。**禁止用 `proxy.value(atX:)`** 查分类轴（不可靠），改用 `proxy.position(forX:)` + 手动最近点（详见开发规范第 11 节） |
+| 数值型习惯完成判定 | 看「今日有记录」即完成，**不看 target 达标（≥/≤）**；target 仅作展示。禁止回到达标判定思路（曾因此返工，见 commit a96bb3f） |
 
 ### UIImagePickerController + fullScreenCover
 
@@ -119,17 +120,14 @@
 
 ## 模块文档
 
-编辑某模块的 Models / Repository / Service 前，先读对应 CLAUDE.md：
+编辑某模块的 Models / Repository / Service 前，先读对应专项文档（项目只保留一份根 CLAUDE.md，不再有模块级 CLAUDE.md）：
 
-| 模块 | 路径 |
+| 模块 | 专项文档 |
 |------|------|
 | AI 对话 | `docs/_common/Chat模块文档.md` |
-| 财务 | `Views/Finance/CLAUDE.md` |
-| 待办 | `Views/Tasks/CLAUDE.md` |
-| 习惯 | `Views/Habits/CLAUDE.md` |
-| 健康 | `Views/Health/CLAUDE.md` |
-| 观点 | `Views/Thoughts/CLAUDE.md` |
-| 记忆画廊 | `Views/MemoryGallery/CLAUDE.md` |
+| 财务（饼图自绘） | `docs/_common/开发规范.md` 第 11.6 / 11.7 节 |
+
+> 其他模块（待办 / 习惯 / 健康 / 观点 / 记忆画廊）暂无专项文档，相关规则见本文件「编码约定」与开发规范通用章节。
 
 ---
 
