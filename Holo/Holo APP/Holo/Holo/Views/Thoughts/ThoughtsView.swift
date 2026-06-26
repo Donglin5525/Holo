@@ -43,6 +43,7 @@ struct ThoughtsView: View {
     @State private var drawerSelection: DrawerNode? = nil
 
     private let thoughtRepository = ThoughtRepository()
+    private let topicRepository = TopicRepository()
     let initialThoughtId: UUID?
 
     init(initialThoughtId: UUID? = nil) {
@@ -64,6 +65,7 @@ struct ThoughtsView: View {
                         showAddThought: $showAddThought,
                         drawerSelection: $drawerSelection,
                         thoughtRepository: thoughtRepository,
+                        topicRepository: topicRepository,
                         initialThoughtId: initialThoughtId
                     )
                 case .add:
@@ -82,6 +84,7 @@ struct ThoughtsView: View {
                 ThoughtKnowledgeDrawerView(
                     selection: $drawerSelection,
                     thoughtRepository: thoughtRepository,
+                    topicRepository: topicRepository,
                     onSelect: { node in drawerSelection = node }
                 )
                 .transition(.move(edge: .leading))

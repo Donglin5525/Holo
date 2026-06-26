@@ -32,11 +32,17 @@ struct ThoughtKnowledgeDrawerView: View {
     /// 数据源（查 AI 标签池聚合）
     let thoughtRepository: ThoughtRepository
 
+    /// 数据源（查主题列表）
+    let topicRepository: TopicRepository
+
     /// 点击节点回调（选中节点；不关闭抽屉，关闭由遮罩/右边缘负责）
     let onSelect: (DrawerNode) -> Void
 
     /// AI 标签池聚合（P1.2 fetchAITagBuckets）
     @State private var aiTagBuckets: [ThoughtRepository.AITagBucket] = []
+
+    /// 主题列表（P1.5.2）
+    @State private var topics: [Topic] = []
 
     /// AI 整理「功能开发中」弹窗
     @State private var showOrganizeAlert: Bool = false
@@ -72,9 +78,11 @@ struct ThoughtKnowledgeDrawerView: View {
     private func loadAIBuckets() async {
         do {
             aiTagBuckets = try thoughtRepository.fetchAITagBuckets()
+            topics = try topicRepository.fetchVisibleTopics()
         } catch {
             // 容错：保持空数组，不影响抽屉其他功能
             aiTagBuckets = []
+            topics = []
         }
     }
 
@@ -88,7 +96,7 @@ struct ThoughtKnowledgeDrawerView: View {
                 nodeRow(.unclassified, icon: "square.dashed", title: "未归类")
 
                 sectionLabel("主题")
-                topicEmpty
+                topicSection
 
                 sectionLabel(".ai 标签池")
                 aiPoolSection
@@ -162,7 +170,7 @@ struct ThoughtKnowledgeDrawerView: View {
             .padding(.bottom, HoloSpacing.xs)
     }
 
-    // MARK: - 主题区空态（P1 Topic 表为空）
+    // MARK: - 主题区空态（无 Topic 时）
 
     private var topicEmpty: some View {
         HStack(spacing: HoloSpacing.sm) {
@@ -176,6 +184,54 @@ struct ThoughtKnowledgeDrawerView: View {
         }
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, HoloSpacing.sm)
+    }
+
+    // MARK: - 主题区（P1.5.2 真实 Topic 列表）
+
+    private var topicSection: some View {
+        Group {
+            if topics.isEmpty {
+                topicEmpty
+            } else {
+                ForEach(topics, id: \.id) { topic in
+                    topicRow(topic)
+                }
+            }
+        }
+    }
+
+    private func topicRow(_ topic: Topic) -> some View {
+        let isSelected = selection == .topic(topic.id)
+        let count = (topic.thoughts as? Set<Thought>)?.count ?? 0
+        return Button {
+            onSelect(.topic(topic.id))
+        } label: {
+            HStack(spacing: HoloSpacing.sm) {
+                Image(systemName: "folder")
+                    .font(.system(size: 13))
+                    .foregroundColor(isSelected ? .holoPrimary : .holoAI)
+                    .frame(width: 26)
+
+                Text(topic.title)
+                    .font(.holoBody)
+                    .foregroundColor(isSelected ? .holoPrimary : .holoTextPrimary)
+                    .lineLimit(1)
+
+                Spacer()
+
+                Text("\(count)")
+                    .font(.holoLabel)
+                    .foregroundColor(.holoTextSecondary)
+                    .padding(.horizontal, HoloSpacing.sm)
+                    .padding(.vertical, 2)
+                    .background(Color.holoBackground)
+                    .clipShape(Capsule())
+            }
+            .padding(.horizontal, HoloSpacing.md)
+            .padding(.vertical, HoloSpacing.sm)
+            .background(isSelected ? Color.holoPrimary.opacity(0.08) : Color.clear)
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - AI 标签池（fetchAITagBuckets 真实聚合）

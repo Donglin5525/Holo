@@ -24,6 +24,7 @@ struct ThoughtListView: View {
     @Binding var showAddThought: Bool
     @Binding var drawerSelection: DrawerNode?
     let thoughtRepository: ThoughtRepository
+    let topicRepository: TopicRepository
     let initialThoughtId: UUID?
 
     /// 筛选状态
@@ -251,9 +252,8 @@ struct ThoughtListView: View {
                 thoughts = try thoughtRepository.fetchUnclassifiedThoughts()
             case .aiTag(let tagName):
                 thoughts = try thoughtRepository.fetchThoughtsByAITag(tagName)
-            case .topic:
-                // P1.5 接 fetchThoughts(byTopic:)，暂回退全部
-                thoughts = try thoughtRepository.fetchAll()
+            case .topic(let topicId):
+                thoughts = try topicRepository.fetchThoughts(byTopic: topicId)
             case .aiOrganize:
                 // 非筛选（抽屉内弹预告），不改变列表
                 return

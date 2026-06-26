@@ -17,7 +17,7 @@ final class TopicRepository {
     private let context: NSManagedObjectContext
     private let logger = Logger(subsystem: "com.holo.app", category: "TopicRepository")
 
-    init(context: NSManagedObjectContext) {
+    init(context: NSManagedObjectContext = CoreDataStack.shared.viewContext) {
         self.context = context
     }
 
@@ -149,6 +149,32 @@ final class TopicRepository {
 
     func thoughtCount(of topic: Topic) -> Int {
         (topic.thoughts as? Set<Thought>)?.count ?? 0
+    }
+
+    // MARK: - 按 Topic 查观点（P1.5.2）
+
+    /// 查某 Topic 下观点（走 Thought.topics 关系）
+    /// - Parameter includeArchived: 是否包含已归档（默认不包含）
+    func fetchThoughts(byTopic topicId: UUID, includeArchived: Bool = false) throws -> [Thought] {
+        let request = Thought.fetchRequest()
+        let topicPredicate = NSPredicate(format: "ANY topics.id == %@", topicId as CVarArg)
+        let deletePredicate = includeArchived
+            ? NSPredicate(format: "isSoftDeleted == NO")
+            : NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [topicPredicate, deletePredicate])
+        request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
+        return try context.fetch(request)
+    }
+
+    /// 在某 Topic 范围内搜索
+    func searchWithinTopic(topicId: UUID, query: String) throws -> [Thought] {
+        let request = Thought.fetchRequest()
+        let topicPredicate = NSPredicate(format: "ANY topics.id == %@", topicId as CVarArg)
+        let searchPredicate = NSPredicate(format: "content CONTAINS[cd] %@", query)
+        let deletePredicate = NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [topicPredicate, searchPredicate, deletePredicate])
+        request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
+        return try context.fetch(request)
     }
 
     // MARK: - 来源词主源（P1.5.3 扩展，此处基础版）
