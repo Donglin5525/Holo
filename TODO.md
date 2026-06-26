@@ -194,6 +194,7 @@
 | 项目 | 规划文档 | 说明 |
 |------|----------|------|
 | 观点编辑器改造 | `docs/chat/plans/04-观点编辑器体验优化方案.md` | 纯文本优先 + 智能辅助，替换当前富文本 MarkdownTextView，待确认 |
+| 知识树 + 主题归并 | `docs/superpowers/specs/2026-06-23-thought-knowledge-tree-design.md` | 左侧知识树抽屉 + AI 标签池 + 用户确认的主题归并；spec 已定稿，实施计划拆 P1/P1.5/P2，待开工（`docs/thoughts/plans/2026-06-26-Holo观点知识树-实施方案.md`） |
 
 ### 记账模块
 
