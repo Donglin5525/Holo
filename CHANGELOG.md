@@ -9,6 +9,7 @@
 ### 变更
 - **新增观点模块知识树设计 spec（定稿）**：`docs/superpowers/specs/2026-06-23-thought-knowledge-tree-design.md`，经 5 轮 GLM/GPT 交叉对抗审查收敛。核心方向：观点列表 + 左侧菜单按钮唤出的知识树抽屉 + 复用 `.ai` source 的标签补位 + 用户主动确认的主题归并。定 19 条决策（砍右滑手势 / 两层结构 / 归并不改 source / Thought+Tag+Topic 三者交集收纳判断 / P1.5 不加 canonicalKey 等）
 - **新增实施计划**：`docs/thoughts/plans/2026-06-26-Holo观点知识树-实施方案.md`，拆 P1（抽屉骨架 + AI 标签池，零后端）/ P1.5（Topic 本地闭环）/ P2（后端跨观点收敛），含文件清单、TDD 落点、验收标准
+- **实施计划补齐 P1 实施细节**（2026-06-27）：§3 核实清单补 #9-#12 字段级事实（`ThoughtTag.name` / `Assignment.{source,rejectedAt,thought,tag}` / `Thought.topics` / `fetchByTag` 走 `tags` 不走 assignment）并复核全部成立；新增 §4.6 `DrawerNode` 枚举 + §4.7 抽屉→筛选映射；Phase 1.1 补菜单按钮落点（`headerView` 返回按钮右侧）+ `sidebar.left` SF Symbol 验证 + 抽屉尺寸/层级/状态传递；Phase 1.4 补 DrawerNode→筛选映射（`.aiTag` 走 assignment、不复用 `fetchByTag`）。文档已达可无脑开工状态
 
 ### 测试
 - 纯文档，无代码改动
