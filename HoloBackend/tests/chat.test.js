@@ -187,6 +187,41 @@ test("intent mock routes direct income total queries to flexible_data_query", as
   assert.match(parsed.items[0].extractedData.rawConstraints, /收入/);
 });
 
+test("intent mock routes sleep and health status questions to health query_analysis", async () => {
+  const app = createTestApp();
+
+  const promptResponse = await app.request("/v1/prompts/intent_recognition");
+  assert.equal(promptResponse.status, 200);
+  const prompt = await promptResponse.json();
+
+  const response = await app.request("/v1/ai/chat/completions", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-holo-device-id": "intent-sleep-health-device",
+    },
+    body: JSON.stringify({
+      purpose: "intent",
+      stream: false,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: prompt.content },
+        { role: "user", content: "最近状态不好，看看睡眠咋样" },
+      ],
+    }),
+  });
+
+  assert.equal(response.status, 200);
+  const json = await response.json();
+  const parsed = JSON.parse(json.choices[0].message.content);
+  assert.equal(parsed.mode, "query");
+  assert.equal(parsed.items[0].intent, "query_analysis");
+  assert.equal(parsed.items[0].extractedData.analysisDomain, "health");
+  assert.equal(parsed.items[0].extractedData.subDomain, "sleep");
+  assert.equal(parsed.items[0].extractedData.periodLabel, "最近");
+  assert.notEqual(parsed.items[0].intent, "query_habits");
+});
+
 test("admin logs are disabled when HOLO_ADMIN_TOKEN is not configured", async () => {
   const app = createTestApp();
 
@@ -570,7 +605,7 @@ test("GET /v1/prompts/:type returns prompt content and version", async () => {
   assert.equal(response.status, 200);
   const json = await response.json();
   assert.equal(json.type, "intent_recognition");
-  assert.equal(json.version, 19);
+  assert.equal(json.version, 20);
   assert.match(json.content, /短意图 Router/);
 });
 

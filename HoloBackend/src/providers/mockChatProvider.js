@@ -201,6 +201,30 @@ function classifyIntent(input) {
     /买烟花|烟花|咖啡|打车|外卖|奶茶|香烟|买烟/.test(lowercased);
   const hasLatestQuery =
     /最近一次|上一次|哪一笔|距今多久|多久没/.test(lowercased);
+  const hasHealthAnalysisQuestion =
+    /睡眠|步数|健康|活动|状态不好|身体状态/.test(lowercased)
+    && /怎么样|咋样|分析|趋势|看看|状态|不好/.test(lowercased);
+
+  // 0. 健康状态 / 睡眠 / 步数趋势 → query_analysis
+  if (hasHealthAnalysisQuestion) {
+    return {
+      mode: "query",
+      items: [
+        {
+          id: "1",
+          intent: "query_analysis",
+          confidence: 0.9,
+          extractedData: {
+            analysisDomain: "health",
+            ...(lowercased.includes("睡眠") ? { subDomain: "sleep" } : {}),
+            periodLabel: lowercased.includes("最近") ? "最近" : "",
+          },
+        },
+      ],
+      needsClarification: false,
+      clarificationQuestion: null,
+    };
+  }
 
   // 1. 品类关键词 + 消费金额提问 → flexible_data_query
   if (hasSpendingAmountQuestion && hasCategoryConstraint) {
