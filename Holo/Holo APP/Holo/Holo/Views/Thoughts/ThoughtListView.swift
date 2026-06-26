@@ -20,6 +20,7 @@ struct ThoughtListView: View {
     // MARK: - Properties
 
     let onBack: () -> Void
+    let onMenuTap: () -> Void
     @Binding var showAddThought: Bool
     let thoughtRepository: ThoughtRepository
     let initialThoughtId: UUID?
@@ -415,6 +416,16 @@ struct ThoughtListView: View {
             } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.holoTextPrimary)
+                    .frame(width: 44, height: 44)
+            }
+
+            // 知识树抽屉入口
+            Button {
+                onMenuTap()
+            } label: {
+                Image(systemName: "sidebar.left")
+                    .font(.system(size: 18, weight: .medium))
                     .foregroundColor(.holoTextPrimary)
                     .frame(width: 44, height: 44)
             }

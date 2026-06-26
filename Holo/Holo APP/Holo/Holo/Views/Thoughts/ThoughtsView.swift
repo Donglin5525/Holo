@@ -37,6 +37,11 @@ struct ThoughtsView: View {
     @State private var selectedTab: ThoughtTab = .list
     @State private var showAddThought: Bool = false
 
+    /// 知识树抽屉开关
+    @State private var isDrawerOpen: Bool = false
+    /// 抽屉当前选中节点（右侧列表筛选意图）
+    @State private var drawerSelection: DrawerNode? = nil
+
     private let thoughtRepository = ThoughtRepository()
     let initialThoughtId: UUID?
 
@@ -55,6 +60,7 @@ struct ThoughtsView: View {
                 case .list:
                     ThoughtListView(
                         onBack: { dismiss() },
+                        onMenuTap: { openDrawer() },
                         showAddThought: $showAddThought,
                         thoughtRepository: thoughtRepository,
                         initialThoughtId: initialThoughtId
@@ -64,6 +70,20 @@ struct ThoughtsView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            // 知识树抽屉（菜单按钮唤出）
+            if isDrawerOpen {
+                Color.black.opacity(0.3)
+                    .ignoresSafeArea()
+                    .transition(.opacity)
+                    .onTapGesture { closeDrawer() }
+
+                ThoughtKnowledgeDrawerView(
+                    selection: $drawerSelection,
+                    onSelect: { node in drawerSelection = node }
+                )
+                .transition(.move(edge: .leading))
+            }
         }
         .swipeBackToDismiss { dismiss() }
         .safeAreaInset(edge: .bottom, spacing: 0) {
@@ -75,6 +95,18 @@ struct ThoughtsView: View {
                 NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
             }
         }
+    }
+
+    // MARK: - 抽屉控制
+
+    /// 打开知识树抽屉
+    private func openDrawer() {
+        withAnimation(.easeInOut(duration: 0.25)) { isDrawerOpen = true }
+    }
+
+    /// 关闭知识树抽屉
+    private func closeDrawer() {
+        withAnimation(.easeInOut(duration: 0.25)) { isDrawerOpen = false }
     }
 
     // MARK: - 底部 Tab 栏
