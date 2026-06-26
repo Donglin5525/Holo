@@ -4,6 +4,22 @@
 
 ---
 
+## [2026-06-27] 观点知识树 P1 + P1.5 本地闭环实施完成
+
+### 变更
+- **P1 抽屉骨架 + AI 标签池（1.1-1.4）**：新建 `ThoughtKnowledgeDrawerView`（`DrawerNode` 枚举 + 左侧抽屉），`ThoughtsView` 菜单按钮唤出 + overlay + 遮罩关闭；`ThoughtRepository.fetchAITagBuckets` 走 `ThoughtTagAssignment` 聚合 `.ai/.confirmedAI`（排除 `rejectedAI`/`rejectedAt`）；抽屉接真实 AI 标签池 + AI 整理预告（「待整理 N 条」/「功能开发中」）；`drawerSelection` 联动右侧筛选（`fetchThoughtsByAITag` SUBQUERY 走 assignment + `fetchUnclassifiedThoughts`），抽屉/chip 筛选互斥
+- **P1.5 Topic 本地闭环（5.1-5.7）**：新建 `TopicRepository`（创建/幂等查重 `normalizedKey`/隐藏/合并/`thoughtCount` 实时算/`fetchThoughts byTopic`/`setSourceTerms` 来源词主源/`assign` 移入移出/`mergeDuplicateTopics` 同步后去重）+ `TopicService`（`primaryDisplayTopic` 主主题展示层取 + `isAbsorbed` 三者交集收纳判断）；抽屉 Topic 区接真实 + 点 Topic 筛选；`fetchAITagBuckets(excludeAbsorbed:)` 收纳降权；`TopicPickerView` 手动移入/新建主题（卡片 contextMenu）；`RightEdgeCloseOverlay` 右边缘左滑关闭（`UIScreenEdgePanGestureRecognizer.right` + `HorizontalGestureLock`）；`ThoughtsView` 进入时 `mergeDuplicateTopics`
+- **设计遵循 spec**：归并不改 source（收纳靠 Thought+Tag+Topic 三者交集）；走 assignment 不走 `Thought.tags`（数据源割裂）；P1.5 不加 `canonicalKey`（运行时归一化 + 同步后合并）；手势 `UIViewRepresentable+UIGestureRecognizer` 禁 `DragGesture`
+
+### 测试
+- `ThoughtRepositoryAITagBucketTests`（AI 标签池聚合 + `fetchThoughtsByAITag` + `excludeAbsorbed` + 未归类，9 测试）
+- `TopicRepositoryTests`（CRUD/幂等/归一化/状态/合并/`thoughtCount`/来源词，11 测试）
+- `TopicServiceTests`（主主题 + `isAbsorbed` 三者交集各种边界，6 测试）
+- `build_sim` 编译通过；`test_sim` 全绿
+- ⚠️ 右边缘手势需真机验证不与系统返回/卡片左滑/标签横滑/列表竖滑冲突
+
+---
+
 ## [2026-06-26] 观点模块知识树设计方案定稿 + 实施计划
 
 ### 变更
