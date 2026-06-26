@@ -88,6 +88,10 @@ struct ThoughtsView: View {
                     onSelect: { node in drawerSelection = node }
                 )
                 .transition(.move(edge: .leading))
+
+                // P1.5.5: 右边缘左滑关闭抽屉
+                RightEdgeCloseOverlay(isEnabled: true) { closeDrawer() }
+                    .ignoresSafeArea()
             }
         }
         .task {
