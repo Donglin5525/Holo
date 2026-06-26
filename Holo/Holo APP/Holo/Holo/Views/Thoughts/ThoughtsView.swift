@@ -80,6 +80,7 @@ struct ThoughtsView: View {
 
                 ThoughtKnowledgeDrawerView(
                     selection: $drawerSelection,
+                    thoughtRepository: thoughtRepository,
                     onSelect: { node in drawerSelection = node }
                 )
                 .transition(.move(edge: .leading))

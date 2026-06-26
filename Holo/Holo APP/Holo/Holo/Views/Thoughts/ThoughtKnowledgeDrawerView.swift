@@ -29,8 +29,22 @@ struct ThoughtKnowledgeDrawerView: View {
     /// 当前选中节点
     @Binding var selection: DrawerNode?
 
+    /// 数据源（查 AI 标签池聚合）
+    let thoughtRepository: ThoughtRepository
+
     /// 点击节点回调（选中节点；不关闭抽屉，关闭由遮罩/右边缘负责）
     let onSelect: (DrawerNode) -> Void
+
+    /// AI 标签池聚合（P1.2 fetchAITagBuckets）
+    @State private var aiTagBuckets: [ThoughtRepository.AITagBucket] = []
+
+    /// AI 整理「功能开发中」弹窗
+    @State private var showOrganizeAlert: Bool = false
+
+    /// 待整理数 = 所有 .ai/.confirmedAI assignment 总数
+    private var pendingOrganizeCount: Int {
+        aiTagBuckets.reduce(0) { $0 + $1.assignmentCount }
+    }
 
     var body: some View {
         GeometryReader { geo in
@@ -43,6 +57,24 @@ struct ThoughtKnowledgeDrawerView: View {
                 // 右侧留白（遮罩盖住，提示可关闭）
                 Spacer(minLength: 0)
             }
+        }
+        .task {
+            await loadAIBuckets()
+        }
+        .alert("AI 整理", isPresented: $showOrganizeAlert) {
+            Button("知道了", role: .cancel) {}
+        } message: {
+            Text("积累后可一键归类，功能开发中。")
+        }
+    }
+
+    /// 加载 AI 标签池聚合
+    private func loadAIBuckets() async {
+        do {
+            aiTagBuckets = try thoughtRepository.fetchAITagBuckets()
+        } catch {
+            // 容错：保持空数组，不影响抽屉其他功能
+            aiTagBuckets = []
         }
     }
 
@@ -59,7 +91,7 @@ struct ThoughtKnowledgeDrawerView: View {
                 topicEmpty
 
                 sectionLabel(".ai 标签池")
-                aiPoolPlaceholder
+                aiPoolSection
 
                 Divider()
                     .padding(.horizontal, HoloSpacing.md)
@@ -146,10 +178,30 @@ struct ThoughtKnowledgeDrawerView: View {
         .padding(.vertical, HoloSpacing.sm)
     }
 
-    // MARK: - AI 标签池（P1.2 接 fetchAITagBuckets）
+    // MARK: - AI 标签池（fetchAITagBuckets 真实聚合）
 
-    private var aiPoolPlaceholder: some View {
-        // TODO: P1.2 接 ThoughtRepository.fetchAITagBuckets 真实聚合
+    private var aiPoolSection: some View {
+        Group {
+            if aiTagBuckets.isEmpty {
+                aiPoolEmpty
+            } else {
+                HStack {
+                    Text("共 \(aiTagBuckets.count) 个 AI 标签")
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.holoTextSecondary)
+                    Spacer()
+                }
+                .padding(.horizontal, HoloSpacing.md)
+                .padding(.bottom, HoloSpacing.xs)
+
+                ForEach(aiTagBuckets) { bucket in
+                    aiTagRow(bucket)
+                }
+            }
+        }
+    }
+
+    private var aiPoolEmpty: some View {
         HStack(spacing: HoloSpacing.sm) {
             Image(systemName: "tag")
                 .font(.system(size: 13))
@@ -163,11 +215,52 @@ struct ThoughtKnowledgeDrawerView: View {
         .padding(.vertical, HoloSpacing.sm)
     }
 
-    // MARK: - AI 整理入口（P1.3 接「待整理 N 条」）
+    private func aiTagRow(_ bucket: ThoughtRepository.AITagBucket) -> some View {
+        let isSelected = selection == .aiTag(bucket.tagName)
+        let confirmedCount = bucket.sourceBreakdown[ThoughtTagAssignment.Source.confirmedAI.rawValue] ?? 0
+        return Button {
+            onSelect(.aiTag(bucket.tagName))
+        } label: {
+            HStack(spacing: HoloSpacing.sm) {
+                Image(systemName: "tag")
+                    .font(.system(size: 13))
+                    .foregroundColor(.holoAI)
+                    .frame(width: 26)
+
+                Text(bucket.tagName)
+                    .font(.holoBody)
+                    .foregroundColor(isSelected ? .holoPrimary : .holoTextPrimary)
+                    .lineLimit(1)
+
+                // 含已确认标记（用户单条确认过的 AI 标签）
+                if confirmedCount > 0 {
+                    Image(systemName: "checkmark.seal.fill")
+                        .font(.system(size: 10))
+                        .foregroundColor(.holoAI)
+                }
+
+                Spacer()
+
+                Text("\(bucket.assignmentCount)")
+                    .font(.holoLabel)
+                    .foregroundColor(.holoTextSecondary)
+                    .padding(.horizontal, HoloSpacing.sm)
+                    .padding(.vertical, 2)
+                    .background(Color.holoBackground)
+                    .clipShape(Capsule())
+            }
+            .padding(.horizontal, HoloSpacing.md)
+            .padding(.vertical, HoloSpacing.sm)
+            .background(isSelected ? Color.holoPrimary.opacity(0.08) : Color.clear)
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - AI 整理入口（预告，P1 不触发归并）
 
     private var aiOrganizeRow: some View {
         Button {
-            onSelect(.aiOrganize)
+            showOrganizeAlert = true
         } label: {
             HStack(spacing: HoloSpacing.sm) {
                 Image(systemName: "sparkles")
@@ -181,14 +274,23 @@ struct ThoughtKnowledgeDrawerView: View {
 
                 Spacer()
 
-                // TODO: P1.3 改为「待整理 N 条 .ai 标签」
-                Text("功能开发中")
-                    .font(.holoTinyLabel)
-                    .foregroundColor(.holoTextSecondary)
-                    .padding(.horizontal, HoloSpacing.sm)
-                    .padding(.vertical, 2)
-                    .background(Color.holoBackground)
-                    .clipShape(Capsule())
+                if pendingOrganizeCount > 0 {
+                    Text("待整理 \(pendingOrganizeCount) 条")
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.holoAI)
+                        .padding(.horizontal, HoloSpacing.sm)
+                        .padding(.vertical, 2)
+                        .background(Color.holoAI.opacity(0.1))
+                        .clipShape(Capsule())
+                } else {
+                    Text("功能开发中")
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.holoTextSecondary)
+                        .padding(.horizontal, HoloSpacing.sm)
+                        .padding(.vertical, 2)
+                        .background(Color.holoBackground)
+                        .clipShape(Capsule())
+                }
             }
             .padding(.horizontal, HoloSpacing.md)
             .padding(.vertical, HoloSpacing.sm)
