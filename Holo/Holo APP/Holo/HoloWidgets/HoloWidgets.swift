@@ -323,8 +323,8 @@ struct HoloFinanceWidget: Widget {
         StaticConfiguration(kind: kind, provider: HoloFinanceProvider()) { entry in
             HoloFinanceView(entry: entry)
         }
-        .configurationDisplayName("今日收支")
-        .description("查看今日收入、支出和本月预算节奏。")
+        .configurationDisplayName("本月收支")
+        .description("查看本月收入、支出和预算节奏。")
         .supportedFamilies([.systemSmall, .systemMedium])
     }
 }
@@ -346,9 +346,8 @@ private struct HoloFinanceProvider: TimelineProvider {
 
     private var sampleFinance: HoloWidgetFinanceSnapshot {
         HoloWidgetFinanceSnapshot(
-            todayExpense: 128.5,
-            todayIncome: 0,
             monthExpense: 620,
+            monthIncome: 8_500,
             monthBudget: 1_000,
             dayOfMonth: 14,
             daysInMonth: 30,
@@ -375,10 +374,10 @@ private struct HoloFinanceView: View {
 
     private var financeSmall: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("今日支出")
+            Text("本月支出")
                 .font(.system(size: 13, weight: .semibold))
                 .foregroundStyle(financeTextSecondary)
-            Text(entry.value.todayExpense.currencyText)
+            Text(entry.value.monthExpense.currencyText)
                 .font(.system(size: 26, weight: .bold))
                 .foregroundStyle(expenseTint)
                 .minimumScaleFactor(0.72)
@@ -391,7 +390,7 @@ private struct HoloFinanceView: View {
     private var financeMedium: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack {
-                Text("今日收支")
+                Text("本月收支")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundStyle(financeTextPrimary)
                 Spacer()
@@ -401,8 +400,8 @@ private struct HoloFinanceView: View {
             }
 
             HStack(spacing: 18) {
-                financeMetric("支出", entry.value.todayExpense.currencyText, tint: expenseTint)
-                financeMetric("收入", entry.value.todayIncome.currencyText, tint: incomeTint)
+                financeMetric("支出", entry.value.monthExpense.currencyText, tint: expenseTint)
+                financeMetric("收入", entry.value.monthIncome.currencyText, tint: incomeTint)
             }
 
             Spacer(minLength: 0)

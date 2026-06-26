@@ -42,9 +42,8 @@ struct HoloWidgetModelsStandaloneTests {
 
     private static func testFinanceSnapshotComparesBudgetAgainstTimeProgress() {
         let snapshot = HoloWidgetFinanceSnapshot(
-            todayExpense: 128.5,
-            todayIncome: 0,
             monthExpense: 620,
+            monthIncome: 8_500,
             monthBudget: 1_000,
             dayOfMonth: 14,
             daysInMonth: 30,

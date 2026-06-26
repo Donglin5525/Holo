@@ -61,23 +61,20 @@ final class HoloWidgetSnapshotService {
     func refreshFinanceSnapshot(date: Date = Date()) async {
         FinanceRepository.shared.setup()
 
-        let todayTransactions = (try? await FinanceRepository.shared.getTransactionsForDay(date)) ?? []
         let calendar = Calendar.current
         let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: date)) ?? date
         let monthTransactions = (try? await FinanceRepository.shared.getTransactions(for: monthStart)) ?? []
         let budgetSummary = BudgetRepository.shared.computeGlobalTotalBudgetStatus(period: .month)
         let dayRange = calendar.range(of: .day, in: .month, for: date)
 
-        let todayExpense = todayTransactions.amountSum(for: .expense)
-        let todayIncome = todayTransactions.amountSum(for: .income)
         let monthExpense = budgetSummary?.totalSpentAmount.doubleValue
             ?? monthTransactions.amountSum(for: .expense)
+        let monthIncome = monthTransactions.amountSum(for: .income)
         let monthBudget = budgetSummary?.totalBudgetAmount.doubleValue
 
         let snapshot = HoloWidgetFinanceSnapshot(
-            todayExpense: todayExpense,
-            todayIncome: todayIncome,
             monthExpense: monthExpense,
+            monthIncome: monthIncome,
             monthBudget: monthBudget,
             dayOfMonth: calendar.component(.day, from: date),
             daysInMonth: dayRange?.count ?? 30,

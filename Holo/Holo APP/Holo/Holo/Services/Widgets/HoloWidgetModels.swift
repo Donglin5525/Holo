@@ -76,7 +76,7 @@ enum HoloWidgetQuickAction: String, CaseIterable, Codable, Equatable {
 enum HoloWidgetDeepLink: Equatable {
     case ai(voiceInput: Bool)
     case addTransaction
-    /// 今日收支小组件：打开财务分析页（本月概览）
+    /// 本月收支小组件：打开财务分析页（本月概览）
     case financeAnalysis
     case recordThought
     case addTask
@@ -120,9 +120,8 @@ enum HoloWidgetBudgetStatus: String, Codable, Equatable {
 }
 
 struct HoloWidgetFinanceSnapshot: Codable, Equatable {
-    let todayExpense: Double
-    let todayIncome: Double
     let monthExpense: Double
+    let monthIncome: Double
     let monthBudget: Double?
     let dayOfMonth: Int
     let daysInMonth: Int
