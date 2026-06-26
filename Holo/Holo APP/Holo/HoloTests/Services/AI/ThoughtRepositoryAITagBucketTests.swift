@@ -122,4 +122,44 @@ final class ThoughtRepositoryAITagBucketTests: XCTestCase {
         XCTAssertEqual(buckets.count, 1)
         XCTAssertEqual(buckets.first?.tagName, "aiTag")
     }
+
+    // MARK: - fetchThoughtsByAITag（走 assignment，SUBQUERY）
+
+    func test_按AI标签筛选观点命中ai与confirmedAI() throws {
+        let (repo, ctx) = try makeRepo()
+        let t1 = try makeThought(in: ctx)
+        let t2 = try makeThought(in: ctx)
+        let t3 = try makeThought(in: ctx)
+        try repo.createTagAssignment(thoughtId: t1, tagName: "coding", source: .ai, confidence: 0.9)
+        try repo.createTagAssignment(thoughtId: t2, tagName: "coding", source: .confirmedAI, confidence: 0.9)
+        try repo.createTagAssignment(thoughtId: t3, tagName: "other", source: .ai, confidence: 0.9)
+
+        let result = try repo.fetchThoughtsByAITag("coding")
+
+        XCTAssertEqual(Set(result.map { $0.id }), Set([t1, t2]))
+    }
+
+    func test_按AI标签筛选排除手动与rejected() throws {
+        let (repo, ctx) = try makeRepo()
+        let t1 = try makeThought(in: ctx)
+        let t2 = try makeThought(in: ctx)
+        try repo.createTagAssignment(thoughtId: t1, tagName: "coding", source: .manual, confidence: 1.0)
+        try repo.createTagAssignment(thoughtId: t2, tagName: "coding", source: .rejectedAI, confidence: 0.9)
+
+        let result = try repo.fetchThoughtsByAITag("coding")
+
+        XCTAssertTrue(result.isEmpty)
+    }
+
+    // MARK: - fetchUnclassifiedThoughts
+
+    func test_未归类P1等价全部active() throws {
+        let (repo, ctx) = try makeRepo()
+        let t1 = try makeThought(in: ctx)
+        let t2 = try makeThought(in: ctx)
+
+        let result = try repo.fetchUnclassifiedThoughts()
+
+        XCTAssertEqual(Set(result.map { $0.id }), Set([t1, t2]))
+    }
 }

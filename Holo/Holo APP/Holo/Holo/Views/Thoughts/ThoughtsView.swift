@@ -62,6 +62,7 @@ struct ThoughtsView: View {
                         onBack: { dismiss() },
                         onMenuTap: { openDrawer() },
                         showAddThought: $showAddThought,
+                        drawerSelection: $drawerSelection,
                         thoughtRepository: thoughtRepository,
                         initialThoughtId: initialThoughtId
                     )

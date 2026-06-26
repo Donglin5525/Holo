@@ -22,6 +22,7 @@ struct ThoughtListView: View {
     let onBack: () -> Void
     let onMenuTap: () -> Void
     @Binding var showAddThought: Bool
+    @Binding var drawerSelection: DrawerNode?
     let thoughtRepository: ThoughtRepository
     let initialThoughtId: UUID?
 
@@ -150,6 +151,9 @@ struct ThoughtListView: View {
                 }
             }
         }
+        .onChange(of: drawerSelection) { _, _ in
+            reloadByDrawer()
+        }
     }
 
     // MARK: - AI 归纳状态条
@@ -228,6 +232,34 @@ struct ThoughtListView: View {
             currentFilters = nil
         } catch {
             logger.error("加载想法失败：\(error)")
+            thoughts = []
+        }
+    }
+
+    /// 抽屉节点变化时按筛选意图重新加载（P1.4）
+    private func reloadByDrawer() {
+        // 互斥：抽屉主导时清 chip 标签筛选
+        if drawerSelection != nil {
+            selectedTagName = nil
+        }
+        currentFilters = nil
+        do {
+            switch drawerSelection {
+            case nil, .allNotes:
+                thoughts = try thoughtRepository.fetchAll()
+            case .unclassified:
+                thoughts = try thoughtRepository.fetchUnclassifiedThoughts()
+            case .aiTag(let tagName):
+                thoughts = try thoughtRepository.fetchThoughtsByAITag(tagName)
+            case .topic:
+                // P1.5 接 fetchThoughts(byTopic:)，暂回退全部
+                thoughts = try thoughtRepository.fetchAll()
+            case .aiOrganize:
+                // 非筛选（抽屉内弹预告），不改变列表
+                return
+            }
+        } catch {
+            logger.error("抽屉筛选加载失败：\(error)")
             thoughts = []
         }
     }
@@ -500,6 +532,7 @@ struct ThoughtListView: View {
                     isSelected: selectedTagName == nil
                 ) {
                     selectedTagName = nil
+                    drawerSelection = nil
                 }
 
                 // 自动整理动作 chip（紫色 AI 标识，区别于筛选 chip）
@@ -518,6 +551,7 @@ struct ThoughtListView: View {
                         isSelected: selectedTagName == tag.name
                     ) {
                         selectedTagName = tag.name
+                        drawerSelection = nil
                     }
                 }
 

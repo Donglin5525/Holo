@@ -642,6 +642,36 @@ class ThoughtRepository {
         }
     }
 
+    /// 按 AI 标签筛选观点：命中该 tag 的 .ai/.confirmedAI assignment 的观点
+    /// 走 ThoughtTagAssignment（SUBQUERY 保证 name+source 同一 assignment），不走 Thought.tags（spec §10-3）
+    /// - Parameter tagName: AI 标签名
+    func fetchThoughtsByAITag(_ tagName: String) throws -> [Thought] {
+        let request = Thought.fetchRequest()
+        let aiSources = [
+            ThoughtTagAssignment.Source.ai.rawValue,
+            ThoughtTagAssignment.Source.confirmedAI.rawValue
+        ]
+        let assignmentPredicate = NSPredicate(
+            format: "SUBQUERY(tagAssignments, $a, $a.tag.name == %@ AND $a.source IN %@ AND $a.rejectedAt == nil).@count > 0",
+            tagName, aiSources
+        )
+        let deletePredicate = NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [assignmentPredicate, deletePredicate])
+        request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
+        return try context.fetch(request)
+    }
+
+    /// 未归类观点：未进入任何 Topic（topics 关系为空）
+    /// P1 Topic 表空 → 等价全部 active；P1.5 有 Topic 后仅返回真正未归类的
+    func fetchUnclassifiedThoughts() throws -> [Thought] {
+        let request = Thought.fetchRequest()
+        let unclassifiedPredicate = NSPredicate(format: "topics.@count == 0")
+        let deletePredicate = NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [unclassifiedPredicate, deletePredicate])
+        request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
+        return try context.fetch(request)
+    }
+
     /// 拒绝（删除）AI 标签：将 source 改为 rejectedAI
     /// - Parameter assignmentId: 分配 ID
     func rejectTagAssignment(assignmentId: UUID) throws {
