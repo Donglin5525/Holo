@@ -584,6 +584,64 @@ class ThoughtRepository {
         )
     }
 
+    // MARK: - AI 标签池聚合（知识树抽屉）
+
+    /// AI 标签池聚合桶（按 tagName 分组）
+    struct AITagBucket: Identifiable {
+        /// 用 tagName 作唯一标识
+        var id: String { tagName }
+        /// 标签名
+        let tagName: String
+        /// 命中该标签的 .ai/.confirmedAI assignment 数
+        let assignmentCount: Int
+        /// 按来源拆分，key 为 Source.rawValue（"ai" / "confirmedAI"）
+        let sourceBreakdown: [String: Int]
+    }
+
+    /// 聚合 AI 标签池：按 source ∈ [.ai, .confirmedAI] 且 rejectedAt == nil 的 assignment 聚合
+    /// - Parameter excludeAbsorbed: true 时排除已被 Topic 收纳的 assignment（Thought+Tag+Topic 三者交集，P1.5.4 接入）
+    /// - Returns: 按 tagName 分组的桶（assignmentCount 降序，同 count 按 name 升序）
+    /// - Note: 走 ThoughtTagAssignment，不走 Thought.tags（spec §10-3 数据源割裂）
+    func fetchAITagBuckets(excludeAbsorbed: Bool = false) throws -> [AITagBucket] {
+        let request = ThoughtTagAssignment.fetchRequest()
+        let sourcePredicate = NSPredicate(
+            format: "source IN %@",
+            [ThoughtTagAssignment.Source.ai.rawValue, ThoughtTagAssignment.Source.confirmedAI.rawValue]
+        )
+        let notRejectedPredicate = NSPredicate(format: "rejectedAt == nil")
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [sourcePredicate, notRejectedPredicate])
+
+        let assignments = try context.fetch(request)
+
+        // 按 tag.name 分组计数 + 来源拆分
+        var groups: [String: (count: Int, breakdown: [String: Int])] = [:]
+        for assignment in assignments {
+            guard let tag = assignment.tag else { continue }
+            let tagName = tag.name
+            guard !tagName.isEmpty else { continue }
+            var group = groups[tagName] ?? (count: 0, breakdown: [:])
+            group.count += 1
+            group.breakdown[assignment.source, default: 0] += 1
+            groups[tagName] = group
+        }
+
+        // TODO: P1.5.4 — excludeAbsorbed == true 时排除三者交集命中的 assignment
+        // (assignment.thought ∈ activeTopic.thoughts AND assignment.tag ∈ activeTopic.associatedTags)
+        // P1 阶段无 Topic 收纳关系，暂不排除
+        if excludeAbsorbed {
+            // P1.5.4 接入
+        }
+
+        return groups.map { tagName, value in
+            AITagBucket(tagName: tagName, assignmentCount: value.count, sourceBreakdown: value.breakdown)
+        }
+        .sorted { lhs, rhs in
+            lhs.assignmentCount != rhs.assignmentCount
+                ? lhs.assignmentCount > rhs.assignmentCount
+                : lhs.tagName < rhs.tagName
+        }
+    }
+
     /// 拒绝（删除）AI 标签：将 source 改为 rejectedAI
     /// - Parameter assignmentId: 分配 ID
     func rejectTagAssignment(assignmentId: UUID) throws {
