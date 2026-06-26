@@ -177,6 +177,45 @@ final class TopicRepository {
         return try context.fetch(request)
     }
 
+    // MARK: - 手动移入/移出（P1.5.6）
+
+    enum AssignError: Error {
+        case thoughtNotFound
+        case topicNotFound
+    }
+
+    /// 把观点移入主题（手动标签 manual/inline 不动，spec 决策）
+    func assign(thoughtId: UUID, toTopic topicId: UUID) throws {
+        guard let thought = try fetchThoughtById(thoughtId) else { throw AssignError.thoughtNotFound }
+        guard let topic = try fetchTopicById(topicId) else { throw AssignError.topicNotFound }
+        topic.addThoughts(thought)
+        topic.updatedAt = Date()
+        try context.save()
+    }
+
+    /// 把观点移出主题
+    func remove(thoughtId: UUID, fromTopic topicId: UUID) throws {
+        guard let thought = try fetchThoughtById(thoughtId) else { throw AssignError.thoughtNotFound }
+        guard let topic = try fetchTopicById(topicId) else { throw AssignError.topicNotFound }
+        topic.removeThoughts(thought)
+        topic.updatedAt = Date()
+        try context.save()
+    }
+
+    private func fetchThoughtById(_ id: UUID) throws -> Thought? {
+        let request = Thought.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        request.fetchLimit = 1
+        return try context.fetch(request).first
+    }
+
+    private func fetchTopicById(_ id: UUID) throws -> Topic? {
+        let request = Topic.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        request.fetchLimit = 1
+        return try context.fetch(request).first
+    }
+
     // MARK: - 来源词主源（P1.5.3 扩展，此处基础版）
 
     /// 设置主题来源词：get-or-create ThoughtTag → 写入 associatedTags（主源）

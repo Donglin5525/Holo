@@ -45,6 +45,10 @@ struct ThoughtListView: View {
     /// 右滑展开的卡片 ID
     @State private var revealedThoughtId: UUID? = nil
 
+    /// 移入主题 sheet（P1.5.6）
+    @State private var showTopicPicker: Bool = false
+    @State private var topicPickerThoughtId: UUID? = nil
+
     /// 自动整理队列（观察批量进度）
     @ObservedObject private var orgQueue = ThoughtOrganizationQueue.shared
 
@@ -128,6 +132,13 @@ struct ThoughtListView: View {
         .sheet(isPresented: $showBatchOrganizeSheet) {
             batchOrganizeConfirmationSheet
                 .presentationDetents([.medium])
+        }
+        .sheet(isPresented: $showTopicPicker) {
+            if let thoughtId = topicPickerThoughtId {
+                TopicPickerView(thoughtId: thoughtId, topicRepository: topicRepository) {
+                    NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+                }
+            }
         }
         .overlay(alignment: .top) {
             noticeToast
@@ -594,6 +605,14 @@ struct ThoughtListView: View {
                                     revealedThoughtId = nil
                                 } else {
                                     selectedThoughtId = thought.id
+                                }
+                            }
+                            .contextMenu {
+                                Button {
+                                    topicPickerThoughtId = thought.id
+                                    showTopicPicker = true
+                                } label: {
+                                    Label("移入主题", systemImage: "folder")
                                 }
                             }
                         },
