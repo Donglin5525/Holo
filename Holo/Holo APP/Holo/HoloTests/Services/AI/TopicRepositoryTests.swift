@@ -125,4 +125,24 @@ final class TopicRepositoryTests: XCTestCase {
         let visible = try repo.fetchVisibleTopics()
         XCTAssertEqual(visible.count, 1)
     }
+
+    // MARK: - 来源词主源（P1.5.3）
+
+    func test_setSourceTerms写入associatedTags主源并派生names() throws {
+        let (repo, _) = try makeRepo()
+        let topic = try repo.create(title: "编程")
+        try repo.setSourceTerms(topic: topic, tagNames: ["coding", "vibecoding"])
+
+        let tags = topic.associatedTags as? Set<ThoughtTag> ?? []
+        XCTAssertEqual(tags.count, 2)
+        XCTAssertEqual(Set(tags.map { $0.name }), Set(["coding", "vibecoding"]))
+        XCTAssertEqual(topic.associatedTagNames, "coding,vibecoding")
+    }
+
+    func test_setSourceTerms对不存在标签getOrCreate不崩溃() throws {
+        let (repo, _) = try makeRepo()
+        let topic = try repo.create(title: "编程")
+        try repo.setSourceTerms(topic: topic, tagNames: ["全新标签"])
+        XCTAssertEqual((topic.associatedTags as? Set<ThoughtTag>)?.count, 1)
+    }
 }

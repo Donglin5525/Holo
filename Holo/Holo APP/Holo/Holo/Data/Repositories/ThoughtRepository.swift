@@ -613,9 +613,18 @@ class ThoughtRepository {
 
         let assignments = try context.fetch(request)
 
+        // P1.5.4: excludeAbsorbed == true 时排除已被 Topic 收纳的 assignment（Thought+Tag+Topic 三者交集）
+        let effectiveAssignments: [ThoughtTagAssignment]
+        if excludeAbsorbed {
+            let service = TopicService()
+            effectiveAssignments = assignments.filter { !service.isAbsorbed($0) }
+        } else {
+            effectiveAssignments = assignments
+        }
+
         // 按 tag.name 分组计数 + 来源拆分
         var groups: [String: (count: Int, breakdown: [String: Int])] = [:]
-        for assignment in assignments {
+        for assignment in effectiveAssignments {
             guard let tag = assignment.tag else { continue }
             let tagName = tag.name
             guard !tagName.isEmpty else { continue }
@@ -623,13 +632,6 @@ class ThoughtRepository {
             group.count += 1
             group.breakdown[assignment.source, default: 0] += 1
             groups[tagName] = group
-        }
-
-        // TODO: P1.5.4 — excludeAbsorbed == true 时排除三者交集命中的 assignment
-        // (assignment.thought ∈ activeTopic.thoughts AND assignment.tag ∈ activeTopic.associatedTags)
-        // P1 阶段无 Topic 收纳关系，暂不排除
-        if excludeAbsorbed {
-            // P1.5.4 接入
         }
 
         return groups.map { tagName, value in

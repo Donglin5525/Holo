@@ -162,4 +162,36 @@ final class ThoughtRepositoryAITagBucketTests: XCTestCase {
 
         XCTAssertEqual(Set(result.map { $0.id }), Set([t1, t2]))
     }
+
+    // MARK: - excludeAbsorbed（P1.5.4，三者交集）
+
+    func test_excludeAbsorbed排除被Topic收纳的assignment() throws {
+        let (repo, ctx) = try makeRepo()
+        let t1 = try makeThought(in: ctx)
+        try repo.createTagAssignment(thoughtId: t1, tagName: "coding", source: .ai, confidence: 0.9)
+
+        // 构造 Topic 收纳 t1 + coding tag（三者交集）
+        let topic = Topic(context: ctx)
+        topic.id = UUID()
+        topic.title = "编程"
+        topic.status = Topic.TopicStatus.active.rawValue
+        topic.confidence = 0
+        topic.thoughtCount = 0
+        topic.createdAt = Date()
+        topic.updatedAt = Date()
+        let thoughtRequest = Thought.fetchRequest()
+        thoughtRequest.predicate = NSPredicate(format: "id == %@", t1 as CVarArg)
+        let thought = try XCTUnwrap(try ctx.fetch(thoughtRequest).first)
+        topic.addThoughts(thought)
+        let tagRequest = ThoughtTag.fetchRequest()
+        tagRequest.predicate = NSPredicate(format: "name == %@", "coding")
+        let codingTag = try XCTUnwrap(try ctx.fetch(tagRequest).first)
+        topic.addAssociatedTags(codingTag)
+        try ctx.save()
+
+        // 不排除：coding 在池里
+        XCTAssertEqual(try repo.fetchAITagBuckets(excludeAbsorbed: false).count, 1)
+        // 排除已收纳：coding 被收纳，池空
+        XCTAssertTrue(try repo.fetchAITagBuckets(excludeAbsorbed: true).isEmpty)
+    }
 }

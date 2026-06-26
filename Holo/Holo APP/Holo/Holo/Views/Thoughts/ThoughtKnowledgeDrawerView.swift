@@ -77,7 +77,7 @@ struct ThoughtKnowledgeDrawerView: View {
     /// 加载 AI 标签池聚合
     private func loadAIBuckets() async {
         do {
-            aiTagBuckets = try thoughtRepository.fetchAITagBuckets()
+            aiTagBuckets = try thoughtRepository.fetchAITagBuckets(excludeAbsorbed: true)
             topics = try topicRepository.fetchVisibleTopics()
         } catch {
             // 容错：保持空数组，不影响抽屉其他功能
