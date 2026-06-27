@@ -8,6 +8,7 @@
 
 ### 变更
 - **P2.1 后端 thought_tag_convergence**：config.js 加 purpose 路由（temperature 0.3 / maxTokens 1024）；defaultPrompts.json 加归并 prompt（输入:N 条观点+标签聚合+Topic 列表+已拒绝建议；输出:suggestions 数组 JSON）；promptRegistry 自动识别（`PROMPT_TYPES = keys(defaultPrompts)`，无需显式注册）
+- **P2.1 iOS PromptManager 后备**：`PromptType` 加 `thoughtTagConvergence` + 后备模板（对齐后端 prompt）+ `promptVersions` v1；运行时后端 prompt 优先，本地后备兜底（双端同步策略）
 - **P2.4 归并数据迁移**：`TopicRepository.applyConvergence`（get-or-create Topic 幂等 + 来源词写 `associatedTags` 主源 + 观点关联 `Thought.topics`，**source 保持 `.ai` 不变** spec 决策 4）
 
 ### 测试
@@ -19,7 +20,6 @@
 - P2.3 归并确认 UI（`ConvergenceConfirmView`：建议展示 + 确认/改名/移动/拒绝）
 - P2.5 建议级拒绝实体 schema migration
 - P2.6 部署（`docker compose build --no-cache`）+ 端到端验收（真 AI 调用）
-- P2.1 iOS `PromptManager` fallback（后备，后端优先）
 
 ---
 

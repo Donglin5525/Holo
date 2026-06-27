@@ -38,6 +38,7 @@ final class PromptManager {
         case categoryPatternInduction = "category_pattern_induction"
         case thoughtOrganization = "thought_organization"
         case agentLoop = "agent_loop"
+        case thoughtTagConvergence = "thought_tag_convergence"
 
         var displayName: String {
             switch self {
@@ -57,6 +58,7 @@ final class PromptManager {
             case .categoryPatternInduction: return "分类模式归纳"
             case .thoughtOrganization: return "想法自动整理"
             case .agentLoop: return "Agent Loop 推理"
+            case .thoughtTagConvergence: return "观点主题归并收敛"
             }
         }
 
@@ -78,6 +80,7 @@ final class PromptManager {
             case .categoryPatternInduction: return "从用户分类修正样本中归纳出通用匹配模式"
             case .thoughtOrganization: return "为想法自动生成标签和主题候选"
             case .agentLoop: return "本地 Agent 多轮推理，输出结构化 JSON"
+            case .thoughtTagConvergence: return "从多条带碎片标签的观点里识别可收敛的长期主题归并建议"
             }
         }
 
@@ -99,6 +102,7 @@ final class PromptManager {
             case .categoryPatternInduction: return "lightbulb.circle"
             case .thoughtOrganization: return "tag.circle"
             case .agentLoop: return "cpu"
+            case .thoughtTagConvergence: return "rectangle.stack.badge.plus"
             }
         }
     }
@@ -108,7 +112,7 @@ final class PromptManager {
     /// 需要版本管理的 prompt 类型及其最低版本
     private static let promptVersions: [PromptType: Int] = [
         .systemPrompt: 2,               // v2: Sense Loop 表达边界与档案优先级
-        .intentRecognition: 18,         // v18: semanticCategoryHint 品牌必须填写规则
+        .intentRecognition: 19,         // v19: 记账 note 明确作为用户可见名称
         .memoryInsightGeneration: 7,    // v7: Sense Loop 表达边界、偏好摘要与表达强度
         .analysisPrompt: 3,             // v3: Sense Loop 表达边界与档案优先级
         .annualReview: 1,               // v1: 初始版本
@@ -118,7 +122,8 @@ final class PromptManager {
         .financeActionParser: 1,        // v1: 分期记账参数解析
         .taskActionParser: 1,           // v1: 重复任务参数解析
         .thoughtOrganization: 1,        // v1: 想法自动整理
-        .agentLoop: 2                   // v2: 具体消费对象趋势走 finance.keyword_trend
+        .agentLoop: 2,                  // v2: 具体消费对象趋势走 finance.keyword_trend
+        .thoughtTagConvergence: 1       // v1: 观点跨主题归并收敛（P2）
     ]
 
     /// 加载指定类型的 Prompt，带缓存，优先读取 UserDefaults 自定义。
@@ -294,11 +299,11 @@ final class PromptManager {
         """,
 
         .intentRecognition: """
-        你是 HoloAI 的短意图 Router。只判断用户要做什么，输出结构化 JSON。不要解释，不要闲聊。
-        当前日期：{{todayDate}}
-        当前时间：{{currentTime}}
+        你是短意图 Router。只判断用户要做什么，只输出 JSON。不要解释/闲聊。
+        日期：{{todayDate}}
+        时：{{currentTime}}
 
-        输出 JSON object：
+        输出 JSON：
         {
           "mode": "single_action | multi_action | query | clarification | unknown",
           "items": [{ "id": "1", "intent": "...", "confidence": 0.0-1.0, "extractedData": {} }],
@@ -306,46 +311,47 @@ final class PromptManager {
           "clarificationQuestion": null
         }
 
-        意图与 extractedData 关键字段：
-        - record_expense：记录支出。金额明确时填 amount，原始消费语义填 categoryCandidate，可选 normalizedCategoryCandidate（语义归一）和 semanticCategoryHint（宽泛分类）。收入语义（工资/发工资+金额）走 record_income。
-        - record_income：记录收入。填 amount、categoryCandidate。
-        - create_task：创建待办或提醒。填 title（去掉套话）；能确定日期时填 dueDate（yyyy-MM-dd 或 yyyy-MM-dd HH:mm）；用户明确说提醒时间时填 reminderDate（yyyy-MM-dd HH:mm）。多个并列待办事项时填 subtasks（逗号分隔），title 概括整体意图。填 description 补充任务说明。
-        - complete_task / update_task / delete_task：操作已有任务。填 taskKeyword。
+        意图字段：
+        - record_expense：记录支出。金额填 amount；note 填用户可见名称；categoryCandidate 填原始消费语义，可选 normalizedCategoryCandidate/semanticCategoryHint。工资/发工资+金额走 record_income。
+        - record_income：记录收入。填 amount、note、categoryCandidate。
+        - create_task：建待办/提醒。填 title；能确定日期填 dueDate（yyyy-MM-dd 或 yyyy-MM-dd HH:mm）；用户明确提醒时间填 reminderDate（yyyy-MM-dd HH:mm）。多个并列待办填 subtasks（逗号分隔），title 概括整体。填 description 补充。
+        - complete_task / update_task / delete_task：操作已有任务，填 taskKeyword。
         - check_in：习惯打卡。填 habitName / habitValue。
         - create_note / record_mood / record_weight：记录笔记、心情、体重。
         - query_tasks / query_habits：查询任务或习惯状态。
         - flexible_data_query：查确定金额、次数、最近一次、哪一笔、距今多久、最大/最小一笔、超过 N 元、关键词限定花了多少。
         - query_analysis：分析、复盘、趋势、结构、占比、总结。
-        - query：非数据类普通问答或闲聊。
+        - query：普通问答或闲聊。
         - generate_memory_insight：记忆回放。
         - unknown：无法判断。
 
-        关键分流：
+        分流：
         - 确定数字类："今年收入是多少""本月花了多少钱""今年买烟花花了多少""咖啡一共花了多少"→ flexible_data_query。
         - 分析总结类："分析今年收入结构""复盘本月消费""最近财务状态怎么样"→ query_analysis。
-        - 涉及具体数据的查询不要用 query。
+        - 具体数据查询不要用 query。
 
         规则：
         - 单动作→single_action，多动作→multi_action，纯查询→query，查询+执行混合→clarification，无法识别→unknown。
-        - categoryCandidate 始终填用户原始语义。normalizedCategoryCandidate 用常识归一品牌/口语，不确定则留空。不要编造分类。semanticCategoryHint 填写消费所属的一级分类名（餐饮、交通、购物、娱乐、居住、医疗、学习、人情、其他）。品牌类消费必须填，如"麦当劳"→"餐饮"，"优衣库"→"购物"。
+        - note 是交易名称，保留具体对象/关系/场景，不要只写分类；如"给爷爷买了两百块的彩票"→note:"给爷爷买彩票"。
+        - categoryCandidate 始终填用户原始语义。normalizedCategoryCandidate 用常识归一品牌/口语，不确定留空。不要编造分类。semanticCategoryHint 填一级分类（餐饮、交通、购物、娱乐、居住、医疗、学习、人情、其他）。品牌消费必填，如"麦当劳"→"餐饮"，"优衣库"→"购物"。
         - title 去掉"提醒我""帮我"等套话。日期：今天=当天，明天=+1。时间映射：凌晨=00-05，早上/上午=09:00，中午=12:00，下午=15:00，晚上/傍晚=20:00。
-        - 用户明确说"提醒我明天早上/下午/今晚N点"时，同时填 reminderDate 和 dueDate。
+        - 明确说"提醒我明天早上/下午/今晚N点"时，同时填 reminderDate 和 dueDate。
         - 购物清单：并列物品填 subtasks（逗号分隔），title 概括。只有 1 个事项时不填 subtasks。
-        - 多笔记账每项的 note/categoryCandidate 严格对应各自内容。
-        - 查询+执行混合时返回 clarification。
-        - 不确定就 clarification，不要编造字段。
+        - 多笔记账每项的 note/categoryCandidate 对应各自内容。
+        - 查询+执行混合时返回 clarification。不确定就 clarification，不要编造字段。
         - 复杂字段（分期、重复任务）由专用 parser 处理，不要输出 installment* / repeat* 字段。
         - 无法判断时输出 intent: "unknown", mode: "unknown"，不要输出自由文本。
 
-        示例：
-        - "今天午饭花了35" → intent: "record_expense", extractedData: { amount: "35", categoryCandidate: "午饭" }
-        - "麦当劳35" → intent: "record_expense", extractedData: { amount: "35", categoryCandidate: "麦当劳", normalizedCategoryCandidate: "快餐", semanticCategoryHint: "餐饮" }
+        例：
+        - "今天午饭花了35" → intent: "record_expense", extractedData: { amount: "35", note: "午饭", categoryCandidate: "午饭" }
+        - "麦当劳35" → intent: "record_expense", extractedData: { amount: "35", note: "麦当劳", categoryCandidate: "麦当劳", normalizedCategoryCandidate: "快餐", semanticCategoryHint: "餐饮" }
+        - "给爷爷买了两百块的彩票" → intent: "record_expense", extractedData: { amount: "200", note: "给爷爷买彩票", categoryCandidate: "给爷爷买彩票", semanticCategoryHint: "人情" }
         - "今年收入是多少" → intent: "flexible_data_query", extractedData: { queryGoal: "今年收入总额" }
         - "帮我分析一下最近的花销" → intent: "query_analysis", extractedData: { analysisDomain: "finance", periodLabel: "最近" }
         - "明天去山姆买牛奶、鸡蛋和纸巾" → intent: "create_task", extractedData: { title: "去山姆购物", subtasks: "买牛奶,买鸡蛋,买纸巾" }
         - "嗯..." → intent: "unknown", mode: "unknown"
 
-        只回复 JSON。
+        只回 JSON。
         """,
 
         .dataExtraction: """
@@ -1126,6 +1132,46 @@ final class PromptManager {
   "matchedTopicId": null,
   "confidence": 0.86,
   "reason": "一句话理由"
+}
+
+只输出 JSON，不要添加其他内容。
+""",
+
+        // MARK: - 观点跨主题归并收敛（P2 后备模板，运行时后端 prompt 优先）
+        .thoughtTagConvergence: """
+你是一个观点主题归并助手。用户积累了多条想法，每条带 AI 生成的碎片标签。你要识别哪些想法指向同一个长期主题，给出归并建议。
+
+## 输入
+
+你会收到：想法列表（每条含 id、摘要、标签）、现有主题列表、已拒绝过的建议。
+
+## 任务
+
+找出可收敛的主题归并建议：把多条想法和它们的碎片标签归到一个稳定主题节点。
+
+## 规则
+
+1. 只建议证据充分的归并（至少 3 条想法指向同一方向），不勉强凑主题。
+2. 主题名用 2-6 字稳定方向词（如「编程实践」「AI 协作」），不要用碎片标签当主题名。
+3. 优先归入现有主题（matchedTopicId 填对应 id）；确实没有才建议新主题（matchedTopicId 为 null）。
+4. sourceTerms 为被归并想法的代表性碎片标签（2-5 个）。
+5. 不建议已拒绝过的（主题名+来源词组合已拒绝）。
+6. 没有充分证据时返回空数组，不硬凑。
+
+## 输出格式
+
+严格输出 JSON（不要 markdown 代码块）：
+{
+  "suggestions": [
+    {
+      "topicTitle": "编程实践",
+      "matchedTopicId": null,
+      "thoughtIds": ["uuid1", "uuid2"],
+      "sourceTerms": ["coding", "vibecoding"],
+      "confidence": 0.85,
+      "reason": "一句话理由"
+    }
+  ]
 }
 
 只输出 JSON，不要添加其他内容。
