@@ -4,7 +4,7 @@
 
 ---
 
-## [2026-06-27] 观点知识树 P2 后端purpose+归并迁移（P2 进行中，端到端下个 session）
+## [2026-06-27] 观点知识树 P2 端到端完成（后端已部署上线）
 
 ### 变更
 - **P2.1 后端 thought_tag_convergence**：config.js 加 purpose 路由（temperature 0.3 / maxTokens 1024）；defaultPrompts.json 加归并 prompt（输入:N 条观点+标签聚合+Topic 列表+已拒绝建议；输出:suggestions 数组 JSON）；promptRegistry 自动识别（`PROMPT_TYPES = keys(defaultPrompts)`，无需显式注册）
@@ -13,6 +13,7 @@
 - **P2.5 建议级拒绝实体**：新建 `ThoughtTagConvergenceRejection`（代码定义模型，无关系独立实体，随 iCloud 同步）；幂等键=主题名+来源词集合（归一化/集合语义/不含观点 hash，spec §6.4 决策 10）；`ConvergenceRejectionRepository`（reject 幂等更新 + isRejected 过期判断 + fetchActiveRejections 供 Job 传「已拒绝建议」+ purgeExpired）
 - **P2.2 收敛任务**：新建 `ThoughtTagConvergenceJob`（@MainActor ObservableObject，状态机 idle→generating→ready/failed，**不复用单条 `ThoughtOrganizationQueue`** spec 验收14）；`ConvergenceSuggestion` 模型（topicTitle/matchedTopicId/thoughtIds/sourceTerms/confidence/reason）；`ThoughtRepository.fetchConvergenceCandidates` 取带 .ai 标签观点；`HoloBackendPurpose.thoughtTagConvergence` 注册；参考队列重试(5/30/120s)+rateLimited 不重试+已拒绝建议过滤+输入<3 静默
 - **P2.3 归并确认 UI**：新建 `ConvergenceConfirmView`（状态分支 generating/ready/failed/idle；逐条卡片：主题名+关联观点数+来源词+理由，操作 **确认归并/改名后确认/拒绝/暂不**）；接入「AI 整理」入口（替换 P1 的「功能开发中」预告）→ 关抽屉 + 触发 Job + sheet 确认页；确认走 `applyConvergence`（P2.4）、拒绝走 `ConvergenceRejectionRepository`（P2.5）
+- **P2.6 后端部署上线**：scp 同步 `config.js` + `defaultPrompts.json` 到 ECS（123.56.104.9）；`DOCKER_BUILDKIT=0 docker compose build --no-cache` 绕过 Docker Hub 坑重建镜像；`docker compose up -d` 容器 Up；`/v1/health` ok + `/v1/prompts/thought_tag_convergence` version 1 上线验证通过
 
 ### 测试
 - `TopicRepositoryTests` applyConvergence 2 测试（新建主题 / 归入现有复用）全过
@@ -20,8 +21,9 @@
 - `ThoughtTagConvergenceJobTests` 10 测试（建议产出/空建议/rateLimited/重试耗尽/重试成功/输入不足不调AI/markdown fence/已拒绝过滤/reset）全过
 - 后端 `defaultPrompts.json` JSON 有效性验证通过
 
-### 待续（下个 session）
-- P2.6 部署（`docker compose build --no-cache`）+ 端到端验收（真 AI 调用）
+### 待真机验收（东林）
+- 真机点「AI 整理」→ 调后端 `thought_tag_convergence` → 展示归并建议 → 确认 → 收纳 → AI 标签池降权
+- 真机后端指向生产 `HoloBackendEnvironment.baseURL`（Release 暂未启用，Debug 环境 + 真机连生产验证）
 
 ---
 
