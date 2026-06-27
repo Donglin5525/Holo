@@ -38,4 +38,15 @@ actor HoloAgentCheckpointStore {
             .filter { $0.jobID == jobID }
             .max(by: { $0.updatedAt < $1.updatedAt })
     }
+
+    /// 删除指定 jobIDs 的全部 checkpoint（终态清理级联用），返回删除条数。
+    @discardableResult
+    func deleteByJobIDs(_ jobIDs: [String]) async throws -> Int {
+        let idSet = Set(jobIDs)
+        return try await store.mutate { all -> Int in
+            let before = all.count
+            all.removeAll { idSet.contains($0.jobID) }
+            return before - all.count
+        }
+    }
 }

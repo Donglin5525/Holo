@@ -88,4 +88,16 @@ actor HoloAgentPersistenceManager {
         }
         return archived.map(\.id)
     }
+
+    /// 清理终态且超保留期的 job 及其关联 checkpoint/result，返回被清理的 jobIDs（§9.6 体积治理）。
+    /// evidence 的软删除由 `cleanupOrphanedEvidence` 独立按 orphaned 标记驱动，此处不重复。
+    @discardableResult
+    func cleanupTerminalJobs(policy: HoloJobCleanupPolicy, now: Date = Date()) async throws -> [String] {
+        let removedJobIDs = try await jobStore.cleanup(policy: policy, now: now)
+        if !removedJobIDs.isEmpty {
+            _ = try await checkpointStore.deleteByJobIDs(removedJobIDs)
+            _ = try await resultStore.deleteByJobIDs(removedJobIDs)
+        }
+        return removedJobIDs
+    }
 }

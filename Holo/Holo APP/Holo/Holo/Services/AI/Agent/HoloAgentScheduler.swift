@@ -42,6 +42,13 @@ actor HoloAgentScheduler {
         }
         return jobIDs.count
     }
+
+    /// 清理终态且超保留期的 job 及其关联 checkpoint/result（§9.6 体积治理）。
+    @discardableResult
+    func cleanupTerminalJobs(policy: HoloJobCleanupPolicy = HoloJobCleanupPolicy(),
+                             now: Date = Date()) async throws -> [String] {
+        try await runtime.cleanupTerminalJobs(policy: policy, now: now)
+    }
 }
 
 extension HoloAgentScheduler {

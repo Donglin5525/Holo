@@ -41,6 +41,8 @@ final class HoloBackgroundContinuationManager {
             _ = try? await scheduler.resumeAndContinue(
                 systemTemplate: systemTemplate, toolDescriptions: toolDescriptions
             )
+            // 续跑后顺手清理过期终态 job，避免 jobStore.load() 随历史线性变慢（§9.6）
+            _ = try? await scheduler.cleanupTerminalJobs()
         }
     }
 

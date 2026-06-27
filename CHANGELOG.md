@@ -25,6 +25,22 @@ HoloAgent 原本的「可恢复」承诺实际断裂：App 被系统杀掉后重
 
 ---
 
+## [2026-06-28] 全局可恢复 Agent Phase 1 续：终态 job 清理（§9.6 体积治理）
+
+闭合 §9.6 缺口：evidence/checkpoint 无上限 append 会导致 `jobStore.load()` 随历史线性变慢。
+
+### 变更
+- **CheckpointStore/ResultStore**：+ `deleteByJobIDs`（终态清理级联删除）
+- **PersistenceManager.cleanupTerminalJobs**：编排 `jobStore.cleanup` → 级联删 checkpoint/result（evidence 软删除仍由 cleanupOrphanedEvidence 独立驱动）
+- **runtime/Scheduler.cleanupTerminalJobs**：透传
+- **HoloBackgroundContinuationManager**：回前台续跑后顺手清理过期终态 job（completed 30d / failed 7d）
+
+### 测试
+- `testCleanupTerminalJobs_删终态超期job并级联清理checkpoint`（XCTest）：删终态超期 job + 级联清 checkpoint，非终态 job 保留
+- test_sim 两测试绿（N1 闭合 + 终态清理）
+
+---
+
 ## [2026-06-27] 健康洞察 LLM 生成链路（iOS 全链路完成，后端待部署）
 
 将健康页「今日核心洞察」与「生活闭环」从固定规则文案升级为基于真实证据、LLM 生成、可校验可回退的个人健康洞察。方案文档 `docs/_common/plans/2026-06-27-Holo健康洞察LLM生成方案.md`（含三轮对抗审查 P1-P14/R1-R6/N1-N5）。

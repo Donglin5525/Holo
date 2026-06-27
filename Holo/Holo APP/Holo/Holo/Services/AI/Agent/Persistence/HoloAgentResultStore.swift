@@ -42,4 +42,15 @@ actor HoloAgentResultStore {
         let all = await store.load()
         return all.max(by: { $0.generatedAt < $1.generatedAt })
     }
+
+    /// 删除指定 jobIDs 的全部 result（终态清理级联用），返回删除条数。
+    @discardableResult
+    func deleteByJobIDs(_ jobIDs: [String]) async throws -> Int {
+        let idSet = Set(jobIDs)
+        return try await store.mutate { all -> Int in
+            let before = all.count
+            all.removeAll { idSet.contains($0.jobID) }
+            return before - all.count
+        }
+    }
 }

@@ -61,6 +61,7 @@ final class HoloAgentSchedulerTests: XCTestCase {
     private struct LoopFixture {
         let runtime: HoloLocalAgentRuntime
         let jobStore: HoloAgentJobStore
+        let checkpointStore: HoloAgentCheckpointStore
     }
 
     private func makeLoopFixture(dir: URL,
@@ -83,7 +84,7 @@ final class HoloAgentSchedulerTests: XCTestCase {
             llmClient: llm,
             toolExecutor: executor
         )
-        return LoopFixture(runtime: runtime, jobStore: jobStore)
+        return LoopFixture(runtime: runtime, jobStore: jobStore, checkpointStore: checkpointStore)
     }
 
     private func makeTempDir() -> URL {
@@ -129,5 +130,36 @@ final class HoloAgentSchedulerTests: XCTestCase {
         }
         XCTAssertTrue(isTerminal(finalJob.state),
                       "未完成 job 经 Scheduler 恢复后应到达终态，实际 \(finalJob.state.rawValue)")
+    }
+
+    /// §9.6 终态清理：超保留期的终态 job 及其 checkpoint 被删除；非终态 job 保留。
+    func testCleanupTerminalJobs_删终态超期job并级联清理checkpoint() async throws {
+        let dir = makeTempDir()
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let fixture = makeLoopFixture(
+            dir: dir, llm: FakeLLM(responses: [finalClaims]), executor: FakeExecutor()
+        )
+        let now = Date(timeIntervalSince1970: 1_000_000)
+        let policy = HoloJobCleanupPolicy(completedRetentionDays: 30, failedRetentionDays: 7)
+
+        // 终态超期 job：startAnalysisJob 造 job+checkpoint，再改 completed + 40 天前（超 30 天保留期）
+        let oldJob = try await fixture.runtime.startAnalysisJob(question: "old", now: now)
+        var oldTerminal = oldJob
+        oldTerminal.state = .completed
+        oldTerminal.updatedAt = now.addingTimeInterval(-40 * 86_400)
+        try await fixture.jobStore.upsert(oldTerminal)
+
+        // 非终态 job（running，应保留）
+        let activeJob = try await fixture.runtime.startAnalysisJob(question: "active", now: now)
+
+        let removed = try await fixture.runtime.cleanupTerminalJobs(policy: policy, now: now)
+        XCTAssertEqual(removed, [oldTerminal.id], "应只清理终态超期 job")
+
+        let jobs = await fixture.jobStore.load()
+        XCTAssertFalse(jobs.contains { $0.id == oldTerminal.id }, "终态超期 job 应被删除")
+        XCTAssertTrue(jobs.contains { $0.id == activeJob.id }, "非终态 job 应保留")
+
+        let oldCheckpoint = await fixture.checkpointStore.latestForJob(jobID: oldTerminal.id)
+        XCTAssertNil(oldCheckpoint, "终态超期 job 的 checkpoint 应级联删除")
     }
 }
