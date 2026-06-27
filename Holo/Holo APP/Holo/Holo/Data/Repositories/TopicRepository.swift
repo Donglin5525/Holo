@@ -202,6 +202,39 @@ final class TopicRepository {
         try context.save()
     }
 
+    // MARK: - 应用归并建议（P2.4，归并不改 source，spec §6.3）
+
+    /// 应用跨观点归并：get-or-create Topic + 来源词写主源 + 观点关联（source 保持 .ai 不变）
+    /// - Parameters:
+    ///   - matchedTopicId: 归入现有主题 id；nil 则按 topicTitle 新建并激活
+    ///   - topicTitle: 主题名（新建或归入校验用）
+    ///   - thoughtIds: 被归并的观点 id 列表
+    ///   - sourceTerms: 来源词（写入 associatedTags 主源）
+    /// - Returns: 目标 Topic
+    @discardableResult
+    func applyConvergence(
+        matchedTopicId: UUID?,
+        topicTitle: String,
+        thoughtIds: [UUID],
+        sourceTerms: [String]
+    ) throws -> Topic {
+        let topic: Topic
+        if let matchedId = matchedTopicId, let existing = try fetchTopicById(matchedId) {
+            topic = existing
+        } else {
+            topic = try getOrCreateTopic(title: topicTitle)
+            try activate(topic)
+        }
+        if !sourceTerms.isEmpty {
+            try setSourceTerms(topic: topic, tagNames: sourceTerms)
+        }
+        // 观点关联 Topic（Thought.topics）；assignment source 保持 .ai 不变（spec 决策 4）
+        for thoughtId in thoughtIds {
+            try? assign(thoughtId: thoughtId, toTopic: topic.id)
+        }
+        return topic
+    }
+
     private func fetchThoughtById(_ id: UUID) throws -> Thought? {
         let request = Thought.fetchRequest()
         request.predicate = NSPredicate(format: "id == %@", id as CVarArg)

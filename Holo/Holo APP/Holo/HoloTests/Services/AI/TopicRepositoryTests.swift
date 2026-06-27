@@ -145,4 +145,41 @@ final class TopicRepositoryTests: XCTestCase {
         try repo.setSourceTerms(topic: topic, tagNames: ["全新标签"])
         XCTAssertEqual((topic.associatedTags as? Set<ThoughtTag>)?.count, 1)
     }
+
+    // MARK: - applyConvergence（P2.4，归并不改 source）
+
+    func test_applyConvergence新建主题关联观点写来源词() throws {
+        let (repo, ctx) = try makeRepo()
+        let t1 = try makeThought(in: ctx)
+        let t2 = try makeThought(in: ctx)
+
+        let topic = try repo.applyConvergence(
+            matchedTopicId: nil,
+            topicTitle: "编程实践",
+            thoughtIds: [t1, t2],
+            sourceTerms: ["coding", "vibecoding"]
+        )
+
+        XCTAssertEqual(topic.title, "编程实践")
+        XCTAssertEqual(topic.statusEnum, .active)
+        XCTAssertEqual(repo.thoughtCount(of: topic), 2)
+        XCTAssertEqual((topic.associatedTags as? Set<ThoughtTag>)?.count, 2)
+    }
+
+    func test_applyConvergence归入现有主题复用() throws {
+        let (repo, ctx) = try makeRepo()
+        let existing = try repo.create(title: "编程")
+        try repo.activate(existing)
+        let t1 = try makeThought(in: ctx)
+
+        let topic = try repo.applyConvergence(
+            matchedTopicId: existing.id,
+            topicTitle: "编程",
+            thoughtIds: [t1],
+            sourceTerms: ["coding"]
+        )
+
+        XCTAssertEqual(topic.id, existing.id)
+        XCTAssertEqual(repo.thoughtCount(of: topic), 1)
+    }
 }
