@@ -4,6 +4,12 @@
 
 ---
 
+## [2026-06-28] Observer Tier2 联动主闸（Phase 2 §5.2）
+
+修复 Phase 0 盘出的旁路缺陷：`HoloMemoryObserverService` Tier2 触发原只检查 `agentObserverTier2Enabled`，主闸 `agentRuntimeEnabled` 关闭时仍触发 runAnalysis，绕过灰度总闸。加 `&& agentRuntimeEnabled` 联动。
+
+---
+
 ## [2026-06-28] 全局可恢复 Agent Phase 2 启动：Scheduler 接管 Chat/Observer 入口
 
 Phase 2 第一步：`HoloAgentAnalysisService.runAnalysis` 改经 `Scheduler.start`（一次覆盖 Chat + Observer 两入口——Observer 经 `HoloMemoryObserverService:140` 也调 AnalysisService），Scheduler 成为所有 Agent 运行的统一入口（方案 §5.2）。

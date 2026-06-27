@@ -106,7 +106,8 @@ final class HoloMemoryObserverService {
         )
 
         // 10. Tier 2 触发策略（Phase 6.4，agentObserverTier2Enabled 灰度）
-        if HoloAIFeatureFlags.agentObserverTier2Enabled {
+        // 联动主闸：agentRuntimeEnabled 关闭时 Tier2 也不触发，避免 Observer 旁路总闸（Phase 2 §5.2）
+        if HoloAIFeatureFlags.agentObserverTier2Enabled && HoloAIFeatureFlags.agentRuntimeEnabled {
             triggerTier2IfNeeded(goalSignalCount: goalSignals.count)
         }
     }
