@@ -67,6 +67,10 @@ struct ThoughtKnowledgeDrawerView: View {
         .task {
             await loadAIBuckets()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .thoughtDataDidChange)) { _ in
+            // 归并确认后观点数据变更，刷新 AI 标签池 + 主题列表（P2.3 收纳降权实时反映）
+            Task { await loadAIBuckets() }
+        }
     }
 
     /// 加载 AI 标签池聚合
@@ -93,7 +97,7 @@ struct ThoughtKnowledgeDrawerView: View {
                 sectionLabel("主题")
                 topicSection
 
-                sectionLabel(".ai 标签池")
+                sectionLabel("AI 标签池")
                 aiPoolSection
 
                 Divider()

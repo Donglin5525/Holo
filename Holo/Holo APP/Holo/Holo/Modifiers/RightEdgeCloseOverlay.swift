@@ -44,29 +44,17 @@ struct RightEdgeCloseOverlay: UIViewRepresentable {
     class Coordinator {
         var parent: RightEdgeCloseOverlay
         weak var recognizer: UIScreenEdgePanGestureRecognizer?
-        private var gestureLock = HorizontalGestureLock()
 
         init(_ parent: RightEdgeCloseOverlay) { self.parent = parent }
 
         @objc func handleGesture(_ recognizer: UIScreenEdgePanGestureRecognizer) {
-            guard let view = recognizer.view else { return }
-            let translation = recognizer.translation(in: view)
-
-            switch recognizer.state {
-            case .began:
-                gestureLock.reset()
-            case .changed:
-                _ = gestureLock.update(translation: translation)
-            case .ended:
-                // 右边缘左滑：水平锁定 + translation.x < 0（向左）
-                if gestureLock.axis == .horizontal && translation.x < 0 {
-                    parent.onClose()
-                }
-                gestureLock.reset()
-            case .cancelled:
-                gestureLock.reset()
-            default:
-                break
+            // UIScreenEdgePanGestureRecognizer(.right) 固有方向：只识别从右边缘开始的平移。
+            // ended 时确认是左滑（translation.x < 0）即关闭。
+            // 不用 HorizontalGestureLock：边缘手势已定向，无需横竖判定（HorizontalGestureLock 用于 ScrollView 内方向区分）。
+            guard recognizer.state == .ended else { return }
+            let translation = recognizer.translation(in: recognizer.view)
+            if translation.x < 0 {
+                parent.onClose()
             }
         }
     }
@@ -76,7 +64,7 @@ struct RightEdgeCloseOverlay: UIViewRepresentable {
 
 /// 仅响应右侧边缘触摸的 UIView（point.x > width - edgeWidth），其余穿透
 class RightEdgeHostView: UIView {
-    private let edgeWidth: CGFloat = 20
+    private let edgeWidth: CGFloat = 36
 
     override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
         guard point.x > bounds.width - edgeWidth,

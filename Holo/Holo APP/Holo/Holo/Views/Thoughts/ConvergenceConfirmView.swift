@@ -56,11 +56,16 @@ struct ConvergenceConfirmView: View {
         case .failed(let message):
             failedView(message)
         case .ready(let suggestions):
-            let pending = suggestions.filter { !processedIds.contains($0.id) }
-            if pending.isEmpty {
-                doneView
+            if suggestions.isEmpty {
+                // AI 没给建议（数据不足或无主题）——不是"处理成功"，避免误导
+                noSuggestionView
             } else {
-                suggestionsList(pending)
+                let pending = suggestions.filter { !processedIds.contains($0.id) }
+                if pending.isEmpty {
+                    doneView
+                } else {
+                    suggestionsList(pending)
+                }
             }
         }
     }
@@ -128,6 +133,30 @@ struct ConvergenceConfirmView: View {
                 .font(.holoBody)
                 .foregroundColor(.holoTextPrimary)
             Button("完成") {
+                job.reset()
+                dismiss()
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(.horizontal, HoloSpacing.lg)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - 无建议（AI 未发现可归并主题，非"处理成功"）
+
+    private var noSuggestionView: some View {
+        VStack(spacing: HoloSpacing.md) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 40))
+                .foregroundColor(.holoAI)
+            Text("暂未发现可归并的主题")
+                .font(.holoBody)
+                .foregroundColor(.holoTextPrimary)
+            Text("继续积累观点，AI 会自动发现长期主题。")
+                .font(.holoCaption)
+                .foregroundColor(.holoTextSecondary)
+                .multilineTextAlignment(.center)
+            Button("关闭") {
                 job.reset()
                 dismiss()
             }

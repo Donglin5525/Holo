@@ -97,7 +97,10 @@ struct ThoughtsView: View {
                     selection: $drawerSelection,
                     thoughtRepository: thoughtRepository,
                     topicRepository: topicRepository,
-                    onSelect: { node in drawerSelection = node },
+                    onSelect: { node in
+                        drawerSelection = node
+                        closeDrawer()  // 点筛选节点立即收起抽屉，让用户看右侧列表
+                    },
                     onAIOrganize: {
                         closeDrawer()
                         Task { await convergenceJob.run() }
