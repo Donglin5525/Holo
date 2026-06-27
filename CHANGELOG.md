@@ -10,15 +10,16 @@
 - **P2.1 后端 thought_tag_convergence**：config.js 加 purpose 路由（temperature 0.3 / maxTokens 1024）；defaultPrompts.json 加归并 prompt（输入:N 条观点+标签聚合+Topic 列表+已拒绝建议；输出:suggestions 数组 JSON）；promptRegistry 自动识别（`PROMPT_TYPES = keys(defaultPrompts)`，无需显式注册）
 - **P2.1 iOS PromptManager 后备**：`PromptType` 加 `thoughtTagConvergence` + 后备模板（对齐后端 prompt）+ `promptVersions` v1；运行时后端 prompt 优先，本地后备兜底（双端同步策略）
 - **P2.4 归并数据迁移**：`TopicRepository.applyConvergence`（get-or-create Topic 幂等 + 来源词写 `associatedTags` 主源 + 观点关联 `Thought.topics`，**source 保持 `.ai` 不变** spec 决策 4）
+- **P2.5 建议级拒绝实体**：新建 `ThoughtTagConvergenceRejection`（代码定义模型，无关系独立实体，随 iCloud 同步）；幂等键=主题名+来源词集合（归一化/集合语义/不含观点 hash，spec §6.4 决策 10）；`ConvergenceRejectionRepository`（reject 幂等更新 + isRejected 过期判断 + fetchActiveRejections 供 Job 传「已拒绝建议」+ purgeExpired）
 
 ### 测试
 - `TopicRepositoryTests` applyConvergence 2 测试（新建主题 / 归入现有复用）全过
+- `ConvergenceRejectionRepositoryTests` 13 测试（幂等键归一化/集合语义/过期/重复拒绝/查询/清理）全过
 - 后端 `defaultPrompts.json` JSON 有效性验证通过
 
 ### 待续（下个 session）
 - P2.2 收敛 job（`ThoughtTagConvergenceJob`，调后端，不复用单条队列）
 - P2.3 归并确认 UI（`ConvergenceConfirmView`：建议展示 + 确认/改名/移动/拒绝）
-- P2.5 建议级拒绝实体 schema migration
 - P2.6 部署（`docker compose build --no-cache`）+ 端到端验收（真 AI 调用）
 
 ---

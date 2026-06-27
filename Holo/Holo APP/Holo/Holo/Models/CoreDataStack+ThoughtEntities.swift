@@ -560,7 +560,67 @@ extension CoreDataStack {
             attachmentThoughtRelation
         ]
 
-        return [thoughtEntity, thoughtTagEntity, thoughtReferenceEntity, assignmentEntity, topicEntity, thoughtAttachmentEntity]
+        // MARK: - ThoughtTagConvergenceRejection Entity
+        // P2.5 - 主题归并建议级拒绝（幂等键=主题名+来源词集合，无关系，独立实体，随 iCloud 同步）
+        let convergenceRejectionEntity = NSEntityDescription()
+        convergenceRejectionEntity.name = "ThoughtTagConvergenceRejection"
+        convergenceRejectionEntity.managedObjectClassName = "ThoughtTagConvergenceRejection"
+
+        var convergenceRejectionAttributes: [NSAttributeDescription] = []
+
+        let crId = NSAttributeDescription()
+        crId.name = "id"
+        crId.attributeType = .UUIDAttributeType
+        crId.isOptional = false
+        crId.defaultValue = UUID()
+        crId.isIndexed = true
+        convergenceRejectionAttributes.append(crId)
+
+        let crKey = NSAttributeDescription()
+        crKey.name = "suggestionKey"
+        crKey.attributeType = .stringAttributeType
+        crKey.isOptional = false
+        crKey.defaultValue = ""
+        crKey.isIndexed = true
+        convergenceRejectionAttributes.append(crKey)
+
+        let crTopicTitle = NSAttributeDescription()
+        crTopicTitle.name = "topicTitle"
+        crTopicTitle.attributeType = .stringAttributeType
+        crTopicTitle.isOptional = false
+        crTopicTitle.defaultValue = ""
+        convergenceRejectionAttributes.append(crTopicTitle)
+
+        let crSourceTerms = NSAttributeDescription()
+        crSourceTerms.name = "sourceTermsText"
+        crSourceTerms.attributeType = .stringAttributeType
+        crSourceTerms.isOptional = true
+        convergenceRejectionAttributes.append(crSourceTerms)
+
+        let crRejectedAt = NSAttributeDescription()
+        crRejectedAt.name = "rejectedAt"
+        crRejectedAt.attributeType = .dateAttributeType
+        crRejectedAt.isOptional = false
+        crRejectedAt.defaultValue = Date()
+        convergenceRejectionAttributes.append(crRejectedAt)
+
+        let crExpiresAt = NSAttributeDescription()
+        crExpiresAt.name = "expiresAt"
+        crExpiresAt.attributeType = .dateAttributeType
+        crExpiresAt.isOptional = false
+        crExpiresAt.defaultValue = Date()
+        convergenceRejectionAttributes.append(crExpiresAt)
+
+        let crCreatedAt = NSAttributeDescription()
+        crCreatedAt.name = "createdAt"
+        crCreatedAt.attributeType = .dateAttributeType
+        crCreatedAt.isOptional = false
+        crCreatedAt.defaultValue = Date()
+        convergenceRejectionAttributes.append(crCreatedAt)
+
+        convergenceRejectionEntity.properties = convergenceRejectionAttributes
+
+        return [thoughtEntity, thoughtTagEntity, thoughtReferenceEntity, assignmentEntity, topicEntity, thoughtAttachmentEntity, convergenceRejectionEntity]
     }
 
 }
