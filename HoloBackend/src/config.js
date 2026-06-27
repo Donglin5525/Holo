@@ -66,6 +66,12 @@ const DEFAULT_CONFIG = {
       temperature: Number(process.env.HOLO_THOUGHT_ORG_TEMPERATURE ?? 0.2),
       maxTokens: Number(process.env.HOLO_THOUGHT_ORG_MAX_TOKENS ?? 512),
     },
+    thought_tag_convergence: {
+      provider: process.env.HOLO_THOUGHT_CONVERGENCE_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_THOUGHT_CONVERGENCE_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_THOUGHT_CONVERGENCE_TEMPERATURE ?? 0.3),
+      maxTokens: Number(process.env.HOLO_THOUGHT_CONVERGENCE_MAX_TOKENS ?? 1024),
+    },
     agent_loop: {
       provider: process.env.HOLO_AGENT_LOOP_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_AGENT_LOOP_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
