@@ -85,6 +85,7 @@ struct ThoughtsView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .allowsHitTesting(!isDrawerOpen)  // 抽屉打开时禁用下层观点列表交互，防误触发卡片右滑删除
 
             // 知识树抽屉（菜单按钮唤出）
             if isDrawerOpen {

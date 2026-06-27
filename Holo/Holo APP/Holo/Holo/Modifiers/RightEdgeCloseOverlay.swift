@@ -31,6 +31,15 @@ struct RightEdgeCloseOverlay: UIViewRepresentable {
         recognizer.cancelsTouchesInView = false
         view.addGestureRecognizer(recognizer)
         context.coordinator.recognizer = recognizer
+
+        // 右边缘 tap 也关闭（点右边缘空白收起抽屉，与遮罩 tap 互补）
+        let tapRecognizer = UITapGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleTap)
+        )
+        tapRecognizer.cancelsTouchesInView = false
+        view.addGestureRecognizer(tapRecognizer)
+
         return view
     }
 
@@ -56,6 +65,11 @@ struct RightEdgeCloseOverlay: UIViewRepresentable {
             if translation.x < 0 {
                 parent.onClose()
             }
+        }
+
+        @objc func handleTap() {
+            // 右边缘 tap 关闭（点右边缘空白收起抽屉）
+            parent.onClose()
         }
     }
 }
