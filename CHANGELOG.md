@@ -4,6 +4,53 @@
 
 ---
 
+## [2026-06-28] 全局可恢复 Agent Phase 1：闭合恢复链断点 N1
+
+HoloAgent 原本的「可恢复」承诺实际断裂：App 被系统杀掉后重启，未完成 job 经 `resume` 只被标记 running、不重启推理，且下次回前台被 `where state != .running` 永久排除 → 晾死。本 commit 闭合该断点（方案 `docs/_common/plans/2026-06-27-Holo全局可恢复Agent运行方案.md` Phase 1，方案 §14 验收硬指标）。
+
+### 变更
+- **HoloAgentScheduler**（新，actor）：第一职责是恢复时真正重启未完成 job 的 runLoop；`resumeAndContinue` 扫描全部非终态 job（含 running 孤儿）逐个拉起 runLoop 到达终态
+- **HoloLocalAgentRuntime**：+ `collectResumableJobIDs`（含 running 孤儿、不改状态，区别于旧 `resumeUnfinishedJobs` 排除 running）
+- **HoloBackgroundContinuationManager**：`appWillEnterForeground` 改走 Scheduler（注入 systemTemplate/toolDescriptions），生产链真正闭合 N1
+- **HoloAgentSchedulerTests**（新，XCTest）+ pbxproj 接入 test target
+
+### 测试
+- TDD 闭环：RED（骨架复刻现状，job 停 running，断言终态失败）→ GREEN（Scheduler 拉起 runLoop，job 到 completed）
+- test_sim 编译通过、Scheduler 测试绿
+
+### 待办
+- Phase 1 增强：pauseForBackground 对在途 Task 的 state CAS、优先级/去重/限量恢复、终态 job 清理（§9.6）
+- Phase 2：迁移 Chat/Observer/MemoryGallery/Health 入口经 Scheduler
+- Phase 3/4：checkpoint schema/wallTime 超时；后端 runId/stepId/脱敏/断连
+
+---
+
+## [2026-06-27] 健康洞察 LLM 生成链路（iOS 全链路完成，后端待部署）
+
+将健康页「今日核心洞察」与「生活闭环」从固定规则文案升级为基于真实证据、LLM 生成、可校验可回退的个人健康洞察。方案文档 `docs/_common/plans/2026-06-27-Holo健康洞察LLM生成方案.md`（含三轮对抗审查 P1-P14/R1-R6/N1-N5）。
+
+### 变更
+- **生成模型**（Task 2）：`HealthInsightGenerationModels`（Snapshot / GeneratedHealthInsight / Evidence / 状态枚举 + LLM 宽容响应模型，Codable+Sendable）
+- **上下文 Builder**（Task 3）：`HealthInsightContextBuilder` 复用 HealthRepository/FinanceRepository 同源数据，14d 显式窗口，evidence.id 统一 `<domain>-<subKind>-<yyyyMMdd>`，跨域候选（低睡眠∩咖啡）按日集合交叉 + lift≥1.5 门槛 + |S_low|≥3
+- **后端 health_insight_generation**（Task 4）：config.js 加 route（temp 0.35 / maxTokens 1600）；defaultPrompts.json 加 prompt v1（医疗安全 + evidenceId 约束）；PROMPT_VERSIONS 登记 v1；response_format 由 iOS 请求体透传（route 不配，审查 P1）
+- **iOS 调用链路**（Task 5）：`HoloBackendPurpose.healthInsightGeneration` + `generateHealthInsight(contextJSON:)`（对齐 generateMemoryInsight，JSON mode + promptVersion 带出，N1）；`HealthInsightResponseParser`（同源 evidenceId 过滤 + 围栏提取）；`HealthInsightGenerationService` 编排
+- **Verifier + Fallback**（Task 6）：`HealthInsightVerifier`（core≥1 evidence / loop≥2 evidence 且 domain 去重≥2 / confidence≥0.55 / 长度 / 医疗因果禁词）；`HealthInsightFallbackBuilder`（诚实空态，不伪装跨模块）
+- **缓存**（Task 7）：`HealthInsightCache` JSON 文件存储 + contextHash + promptVersion 失效（N4）+ 30 分钟失败节流（P8）+ 手动 3 次/天 + 7 天清理（P7）
+- **UI 接入**（Task 8）：`HealthInsightViewModel` + HealthView coreInsightCard/lifestyleInsightCard 优先 LLM 结果回退规则文案 + `HealthInsightEvidenceSheet` 证据详情；布局不变
+
+### 测试
+- iOS 7 个测试类全过：HealthDashboardStateTests（基线 P13 结构断言）/ Models / ContextBuilder / ResponseParser / Service / Verifier / Cache
+- 后端 npm test 75 过（含 healthInsight.test.js 5 测试：route config / prompt 内容 / PROMPT_VERSIONS / response_format 请求体透传 P1 / 回归）
+- build_sim 主 target 编译通过
+
+### 待办
+- ⚠️ 后端 health_insight_generation 待部署 ECS（api.holoapp.cn）才能真机生效
+- Task 9 反馈闭环（v2）
+
+---
+
+## [2026-06-27] 观点知识树真机验收修复（抽屉交互 6 项）
+
 ## [2026-06-27] 观点知识树真机验收修复（抽屉交互 6 项）
 
 ### 变更

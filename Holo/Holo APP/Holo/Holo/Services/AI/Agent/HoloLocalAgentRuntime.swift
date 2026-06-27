@@ -296,6 +296,7 @@ actor HoloLocalAgentRuntime {
     }
 
     /// 回到前台：恢复所有未结束（非终态、非 running）的任务，返回恢复数量。
+    /// 注：本方法仅标记状态、不重启推理；真正闭合恢复链由 HoloAgentScheduler.resumeAndContinue 负责。
     @discardableResult
     func resumeUnfinishedJobs(now: Date = Date()) async throws -> Int {
         let jobs = await jobStore.load()
@@ -306,6 +307,14 @@ actor HoloLocalAgentRuntime {
             resumed += 1
         }
         return resumed
+    }
+
+    /// 收集所有非终态 job 的 ID（含 running 孤儿与 waitingForForeground），供 Scheduler 拉起 runLoop。
+    /// 与 resumeUnfinishedJobs 的区别：不排除 running（进程被硬杀的孤儿落盘仍是 running）、不修改状态——
+    /// 是否真正重启推理由 Scheduler 决定，本方法只负责给出「需要被推进」的 job 清单。
+    func collectResumableJobIDs(now: Date = Date()) async -> [String] {
+        let jobs = await jobStore.load()
+        return jobs.filter { !Self.terminalStates.contains($0.state) }.map(\.id)
     }
 
     // MARK: - 内部辅助

@@ -31,10 +31,16 @@ final class HoloBackgroundContinuationManager {
         }
     }
 
-    /// App 即将回前台：恢复所有未结束任务。
+    /// App 即将回前台：经 Scheduler 恢复并真正重启未完成 job 的 runLoop（闭合 N1）。
+    /// @MainActor 方法内同步取 shared scheduler；Scheduler 串行拉起，本 Task 后台跑不阻塞首屏。
     func appWillEnterForeground() {
-        Task { [runtime] in
-            _ = try? await runtime.resumeUnfinishedJobs()
+        let scheduler = HoloAgentScheduler.shared
+        Task { [runtime, scheduler] in
+            let toolDescriptions = await runtime.toolDescriptions()
+            let systemTemplate = (try? await PromptManager.shared.loadPrompt(.agentLoop)) ?? ""
+            _ = try? await scheduler.resumeAndContinue(
+                systemTemplate: systemTemplate, toolDescriptions: toolDescriptions
+            )
         }
     }
 

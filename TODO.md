@@ -30,8 +30,9 @@
 | 习惯模块 | 🚧 进行中 | 打卡 + 图标系统 + 统计模块重构已完成；待验证真机体验 |
 | 记账模块 | ✅ 已完成 | 交互优化 + 深色模式适配 |
 | 任务模块 | 🚧 进行中 | MVP + Phase 2 大部分完成 |
-| 健康模块 | ✅ 已完成 | HealthKit 授权 + 数据读取 + Holo 风格导航与刷新 + 仪表盘 |
+| 健康模块 | ✅ 已完成 | HealthKit 授权 + 数据读取 + Holo 风格导航与刷新 + 仪表盘 + 健康洞察 LLM 生成（iOS 全链路完成，后端 health_insight_generation 待部署 ECS） |
 | AI 对话 | 🚧 Phase 1-5 进行中 | Phase 1-4 完成，多动作批处理+Prompt 版本管理已完成，Phase 5 能量系统独立迭代 |
+| 全局可恢复 Agent | 🚧 Phase 1 核心完成 | N1 恢复链断点已闭合（HoloAgentScheduler 真正重启 runLoop，TDD RED→GREEN）；待 Phase 1 增强（CAS/优先级/清理）+ Phase 2-4 |
 | AI 分析查询 | ✅ 已完成 | 通用分析框架：财务/习惯/任务/想法/跨模块五大领域，零历史消息，持久化分析卡片 |
 | iCloud 同步 | 🚧 真机验证中 | CloudKit 私有数据库同步已配置，待双设备 E2E 验证 |
 
