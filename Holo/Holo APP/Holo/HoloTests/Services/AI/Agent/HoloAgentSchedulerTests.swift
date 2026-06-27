@@ -162,4 +162,21 @@ final class HoloAgentSchedulerTests: XCTestCase {
         let oldCheckpoint = await fixture.checkpointStore.latestForJob(jobID: oldTerminal.id)
         XCTAssertNil(oldCheckpoint, "终态超期 job 的 checkpoint 应级联删除")
     }
+
+    /// Phase 2：Scheduler.start 创建 job 并跑完 runLoop，返回终态 job（Chat/Observer 入口经 Scheduler）。
+    func testStart_创建job并跑完runLoop返回终态() async throws {
+        let dir = makeTempDir()
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let fixture = makeLoopFixture(
+            dir: dir, llm: FakeLLM(responses: [finalClaims]), executor: FakeExecutor()
+        )
+        let scheduler = HoloAgentScheduler(runtime: fixture.runtime)
+
+        let job = try await scheduler.start(
+            question: "q", systemTemplate: "你是 Agent", toolDescriptions: "tools",
+            now: Date(timeIntervalSince1970: 1000)
+        )
+        XCTAssertEqual(job.state, .completed, "start 应跑完 runLoop 到达 completed")
+        XCTAssertEqual(job.type, .deepAnalysis, "start 创建的应为 deepAnalysis job")
+    }
 }

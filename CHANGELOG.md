@@ -4,6 +4,24 @@
 
 ---
 
+## [2026-06-28] 全局可恢复 Agent Phase 2 启动：Scheduler 接管 Chat/Observer 入口
+
+Phase 2 第一步：`HoloAgentAnalysisService.runAnalysis` 改经 `Scheduler.start`（一次覆盖 Chat + Observer 两入口——Observer 经 `HoloMemoryObserverService:140` 也调 AnalysisService），Scheduler 成为所有 Agent 运行的统一入口（方案 §5.2）。
+
+### 变更
+- **HoloAgentScheduler.start**：创建 job + 拉起 runLoop + 返回终态 job（供前台同步渲染；未来在此层加 Task 池/去重/取消）
+- **HoloAgentAnalysisService**：注入 scheduler，`runAnalysis` 经 `scheduler.start`（原直接调 `runtime.startAnalysisJob` + `runtime.runLoop`）
+- **testStart**（XCTest）：验证 start 创建 deepAnalysis job 并跑完到 completed
+
+### 测试
+- test_sim 三测试绿（N1 闭合 + 终态清理 + start）
+
+### 待办
+- Observer 旁路主闸联动（`agentObserverTier2Enabled` 在主闸关闭时仍触发，待加 guard）
+- Health 入口接入（`healthInsight` job type，较大）
+
+---
+
 ## [2026-06-28] 全局可恢复 Agent Phase 1：闭合恢复链断点 N1
 
 HoloAgent 原本的「可恢复」承诺实际断裂：App 被系统杀掉后重启，未完成 job 经 `resume` 只被标记 running、不重启推理，且下次回前台被 `where state != .running` 永久排除 → 晾死。本 commit 闭合该断点（方案 `docs/_common/plans/2026-06-27-Holo全局可恢复Agent运行方案.md` Phase 1，方案 §14 验收硬指标）。

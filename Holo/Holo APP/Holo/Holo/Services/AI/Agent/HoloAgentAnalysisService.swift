@@ -16,9 +16,11 @@ final class HoloAgentAnalysisService {
 
     private let logger = Logger(subsystem: "com.holo.app", category: "AgentAnalysis")
     private let runtime: HoloLocalAgentRuntime
+    private let scheduler: HoloAgentScheduler
 
-    init(runtime: HoloLocalAgentRuntime = .shared) {
+    init(runtime: HoloLocalAgentRuntime = .shared, scheduler: HoloAgentScheduler = .shared) {
         self.runtime = runtime
+        self.scheduler = scheduler
     }
 
     /// 运行一次深度分析，返回渲染后的结果短文；失败或未完成返回 nil。
@@ -28,46 +30,34 @@ final class HoloAgentAnalysisService {
         let fail = { (reason: String) -> HoloRenderedAgentResult in
             HoloRenderedAgentResult(title: "深度分析出错", summary: reason, sections: [], evidenceReferences: [])
         }
+        let toolDescriptions = await runtime.toolDescriptions()
+        let systemTemplate: String
         do {
-            let job: HoloAgentJob
-            do {
-                job = try await runtime.startAnalysisJob(question: question)
-                logger.info("[Agent] ① job 已创建")
-            } catch {
-                return fail("[step1: job创建失败] \(String(describing: error))")
-            }
-            let toolDescriptions = await runtime.toolDescriptions()
-            logger.info("[Agent] ② 工具描述就绪")
-            let systemTemplate: String
-            do {
-                systemTemplate = try await PromptManager.shared.loadPrompt(.agentLoop)
-                logger.info("[Agent] ③ prompt 已加载")
-            } catch {
-                return fail("[step3: prompt加载失败] \(String(describing: error))")
-            }
-            logger.info("[Agent] ④ 开始 runLoop…")
-            let finalJob: HoloAgentJob
-            do {
-                finalJob = try await runtime.runLoop(
-                    jobID: job.id, systemTemplate: systemTemplate, toolDescriptions: toolDescriptions
-                )
-                logger.info("[Agent] ⑤ runLoop 完成 state=\(finalJob.state.rawValue) rounds=\(finalJob.budget.consumedLLMRounds)")
-            } catch {
-                return fail("[step5: runLoop异常] \(String(describing: error))")
-            }
-            guard finalJob.state == .completed else {
-                let detail = "state=\(finalJob.state.rawValue) rounds=\(finalJob.budget.consumedLLMRounds)/\(finalJob.budget.maxLLMRounds) error=\(finalJob.errorSummary ?? "无")"
-                return fail("[step5: 未完成] \(detail)")
-            }
-            guard let result = await runtime.loadLatestResult() else {
-                return fail("[step6: 结果未保存] loadLatestResult nil")
-            }
-            logger.info("[Agent] ⑥ result 已加载 claims=\(result.claims.count)")
-            let evidence = await runtime.loadEvidence(forIDs: result.evidenceIDs)
-            logger.info("[Agent] ⑦ evidence 已加载 → 渲染完成")
-            return HoloAgentResultRenderer().render(
-                claims: result.claims, evidence: evidence, title: result.title
-            )
+            systemTemplate = try await PromptManager.shared.loadPrompt(.agentLoop)
+        } catch {
+            return fail("[prompt加载失败] \(String(describing: error))")
         }
+        logger.info("[Agent] 经 Scheduler 启动 runLoop…")
+        let finalJob: HoloAgentJob
+        do {
+            finalJob = try await scheduler.start(
+                question: question, systemTemplate: systemTemplate, toolDescriptions: toolDescriptions
+            )
+            logger.info("[Agent] runLoop 完成 state=\(finalJob.state.rawValue) rounds=\(finalJob.budget.consumedLLMRounds)")
+        } catch {
+            return fail("[runLoop异常] \(String(describing: error))")
+        }
+        guard finalJob.state == .completed else {
+            let detail = "state=\(finalJob.state.rawValue) rounds=\(finalJob.budget.consumedLLMRounds)/\(finalJob.budget.maxLLMRounds) error=\(finalJob.errorSummary ?? "无")"
+            return fail("[未完成] \(detail)")
+        }
+        guard let result = await runtime.loadLatestResult() else {
+            return fail("[结果未保存] loadLatestResult nil")
+        }
+        logger.info("[Agent] result claims=\(result.claims.count)")
+        let evidence = await runtime.loadEvidence(forIDs: result.evidenceIDs)
+        return HoloAgentResultRenderer().render(
+            claims: result.claims, evidence: evidence, title: result.title
+        )
     }
 }

@@ -49,6 +49,16 @@ actor HoloAgentScheduler {
                              now: Date = Date()) async throws -> [String] {
         try await runtime.cleanupTerminalJobs(policy: policy, now: now)
     }
+
+    /// Phase 2：启动一个新对话深度分析 job 并跑完 runLoop，返回最终 job（供 AnalysisService 渲染）。
+    /// Chat / Observer 入口经此统一由 Scheduler 接管；未来在此层加 Task 池跟踪、同类去重、取消。
+    func start(question: String, systemTemplate: String, toolDescriptions: String,
+               now: Date = Date()) async throws -> HoloAgentJob {
+        let job = try await runtime.startAnalysisJob(question: question, now: now)
+        return try await runtime.runLoop(
+            jobID: job.id, systemTemplate: systemTemplate, toolDescriptions: toolDescriptions, now: now
+        )
+    }
 }
 
 extension HoloAgentScheduler {
