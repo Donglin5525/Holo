@@ -674,6 +674,53 @@ class ThoughtRepository {
         return try context.fetch(request)
     }
 
+    // MARK: - 跨观点收敛候选（P2.2，thought_tag_convergence 输入收集）
+
+    /// 收敛候选观点（带 .ai/.confirmedAI 标签，供 thought_tag_convergence 调用）
+    struct ConvergenceCandidate: Identifiable {
+        /// thought id
+        let id: UUID
+        /// 观点内容（原文，调用前由 Job 截断）
+        let summary: String
+        /// 该观点的 .ai/.confirmedAI 标签名
+        let tags: [String]
+    }
+
+    /// 取参与跨观点收敛的候选观点：带未拒绝的 .ai/.confirmedAI 标签、未 softDeleted/archived
+    /// - Parameter maxCount: 最多取多少条（控制 prompt 体积）
+    /// - Note: 走 ThoughtTagAssignment（SUBQUERY 保证 source+rejectedAt 同一 assignment），不走 Thought.tags
+    func fetchConvergenceCandidates(maxCount: Int = 50) throws -> [ConvergenceCandidate] {
+        let request = Thought.fetchRequest()
+        let aiSources = [
+            ThoughtTagAssignment.Source.ai.rawValue,
+            ThoughtTagAssignment.Source.confirmedAI.rawValue
+        ]
+        let assignmentPredicate = NSPredicate(
+            format: "SUBQUERY(tagAssignments, $a, $a.source IN %@ AND $a.rejectedAt == nil).@count > 0",
+            aiSources
+        )
+        let deletePredicate = NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [assignmentPredicate, deletePredicate])
+        request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
+        request.fetchLimit = maxCount
+
+        let thoughts = try context.fetch(request)
+        return thoughts.compactMap { thought in
+            let assignments = thought.tagAssignments as? Set<ThoughtTagAssignment> ?? []
+            let tags = assignments
+                .filter { assignment in
+                    let src = assignment.source
+                    return (src == ThoughtTagAssignment.Source.ai.rawValue
+                            || src == ThoughtTagAssignment.Source.confirmedAI.rawValue)
+                        && assignment.rejectedAt == nil
+                }
+                .compactMap { $0.tag?.name }
+                .filter { !$0.isEmpty }
+            guard !tags.isEmpty else { return nil }
+            return ConvergenceCandidate(id: thought.id, summary: thought.content, tags: tags)
+        }
+    }
+
     /// 拒绝（删除）AI 标签：将 source 改为 rejectedAI
     /// - Parameter assignmentId: 分配 ID
     func rejectTagAssignment(assignmentId: UUID) throws {
