@@ -42,12 +42,24 @@ struct ThoughtsView: View {
     /// 抽屉当前选中节点（右侧列表筛选意图）
     @State private var drawerSelection: DrawerNode? = nil
 
+    /// P2.3: 跨观点归并任务（「AI 整理」触发）
+    @StateObject private var convergenceJob: ThoughtTagConvergenceJob
+    /// P2.3: 归并确认页开关
+    @State private var showConvergence: Bool = false
+
     private let thoughtRepository = ThoughtRepository()
     private let topicRepository = TopicRepository()
     let initialThoughtId: UUID?
 
     init(initialThoughtId: UUID? = nil) {
         self.initialThoughtId = initialThoughtId
+        let provider = HoloBackendAIProvider()
+        self._convergenceJob = StateObject(wrappedValue: ThoughtTagConvergenceJob(
+            aiCall: { messages in try await provider.chat(messages: messages, purpose: .thoughtTagConvergence) },
+            thoughtRepository: ThoughtRepository(),
+            topicRepository: TopicRepository(),
+            rejectionRepository: ConvergenceRejectionRepository()
+        ))
     }
 
     // MARK: - Body
@@ -85,7 +97,12 @@ struct ThoughtsView: View {
                     selection: $drawerSelection,
                     thoughtRepository: thoughtRepository,
                     topicRepository: topicRepository,
-                    onSelect: { node in drawerSelection = node }
+                    onSelect: { node in drawerSelection = node },
+                    onAIOrganize: {
+                        closeDrawer()
+                        Task { await convergenceJob.run() }
+                        showConvergence = true
+                    }
                 )
                 .transition(.move(edge: .leading))
 
@@ -107,6 +124,13 @@ struct ThoughtsView: View {
                 // 保存后刷新列表
                 NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
             }
+        }
+        .sheet(isPresented: $showConvergence) {
+            ConvergenceConfirmView(
+                job: convergenceJob,
+                topicRepository: topicRepository,
+                rejectionRepository: ConvergenceRejectionRepository()
+            )
         }
     }
 

@@ -38,14 +38,14 @@ struct ThoughtKnowledgeDrawerView: View {
     /// 点击节点回调（选中节点；不关闭抽屉，关闭由遮罩/右边缘负责）
     let onSelect: (DrawerNode) -> Void
 
+    /// 点击「AI 整理」回调（P2 触发跨观点收敛 Job + 弹确认页）
+    let onAIOrganize: () -> Void
+
     /// AI 标签池聚合（P1.2 fetchAITagBuckets）
     @State private var aiTagBuckets: [ThoughtRepository.AITagBucket] = []
 
     /// 主题列表（P1.5.2）
     @State private var topics: [Topic] = []
-
-    /// AI 整理「功能开发中」弹窗
-    @State private var showOrganizeAlert: Bool = false
 
     /// 待整理数 = 所有 .ai/.confirmedAI assignment 总数
     private var pendingOrganizeCount: Int {
@@ -66,11 +66,6 @@ struct ThoughtKnowledgeDrawerView: View {
         }
         .task {
             await loadAIBuckets()
-        }
-        .alert("AI 整理", isPresented: $showOrganizeAlert) {
-            Button("知道了", role: .cancel) {}
-        } message: {
-            Text("积累后可一键归类，功能开发中。")
         }
     }
 
@@ -312,11 +307,11 @@ struct ThoughtKnowledgeDrawerView: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: - AI 整理入口（预告，P1 不触发归并）
+    // MARK: - AI 整理入口（P2 触发跨观点收敛）
 
     private var aiOrganizeRow: some View {
         Button {
-            showOrganizeAlert = true
+            onAIOrganize()
         } label: {
             HStack(spacing: HoloSpacing.sm) {
                 Image(systemName: "sparkles")
@@ -337,14 +332,6 @@ struct ThoughtKnowledgeDrawerView: View {
                         .padding(.horizontal, HoloSpacing.sm)
                         .padding(.vertical, 2)
                         .background(Color.holoAI.opacity(0.1))
-                        .clipShape(Capsule())
-                } else {
-                    Text("功能开发中")
-                        .font(.holoTinyLabel)
-                        .foregroundColor(.holoTextSecondary)
-                        .padding(.horizontal, HoloSpacing.sm)
-                        .padding(.vertical, 2)
-                        .background(Color.holoBackground)
                         .clipShape(Capsule())
                 }
             }

@@ -12,6 +12,7 @@
 - **P2.4 归并数据迁移**：`TopicRepository.applyConvergence`（get-or-create Topic 幂等 + 来源词写 `associatedTags` 主源 + 观点关联 `Thought.topics`，**source 保持 `.ai` 不变** spec 决策 4）
 - **P2.5 建议级拒绝实体**：新建 `ThoughtTagConvergenceRejection`（代码定义模型，无关系独立实体，随 iCloud 同步）；幂等键=主题名+来源词集合（归一化/集合语义/不含观点 hash，spec §6.4 决策 10）；`ConvergenceRejectionRepository`（reject 幂等更新 + isRejected 过期判断 + fetchActiveRejections 供 Job 传「已拒绝建议」+ purgeExpired）
 - **P2.2 收敛任务**：新建 `ThoughtTagConvergenceJob`（@MainActor ObservableObject，状态机 idle→generating→ready/failed，**不复用单条 `ThoughtOrganizationQueue`** spec 验收14）；`ConvergenceSuggestion` 模型（topicTitle/matchedTopicId/thoughtIds/sourceTerms/confidence/reason）；`ThoughtRepository.fetchConvergenceCandidates` 取带 .ai 标签观点；`HoloBackendPurpose.thoughtTagConvergence` 注册；参考队列重试(5/30/120s)+rateLimited 不重试+已拒绝建议过滤+输入<3 静默
+- **P2.3 归并确认 UI**：新建 `ConvergenceConfirmView`（状态分支 generating/ready/failed/idle；逐条卡片：主题名+关联观点数+来源词+理由，操作 **确认归并/改名后确认/拒绝/暂不**）；接入「AI 整理」入口（替换 P1 的「功能开发中」预告）→ 关抽屉 + 触发 Job + sheet 确认页；确认走 `applyConvergence`（P2.4）、拒绝走 `ConvergenceRejectionRepository`（P2.5）
 
 ### 测试
 - `TopicRepositoryTests` applyConvergence 2 测试（新建主题 / 归入现有复用）全过
@@ -20,7 +21,6 @@
 - 后端 `defaultPrompts.json` JSON 有效性验证通过
 
 ### 待续（下个 session）
-- P2.3 归并确认 UI（`ConvergenceConfirmView`：建议展示 + 确认/改名/移动/拒绝）
 - P2.6 部署（`docker compose build --no-cache`）+ 端到端验收（真 AI 调用）
 
 ---
