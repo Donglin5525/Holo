@@ -38,7 +38,7 @@ nonisolated enum ChatCardData: Equatable {
             guard let amount = data["amount"] else { return nil }
             return .transaction(TransactionCardData(
                 amount: amount,
-                note: data["note"],
+                note: transactionNote(from: data),
                 primaryCategory: data["primaryCategory"],
                 subCategory: data["subCategory"],
                 type: "expense",
@@ -58,7 +58,7 @@ nonisolated enum ChatCardData: Equatable {
             guard let amount = data["amount"] else { return nil }
             return .transaction(TransactionCardData(
                 amount: amount,
-                note: data["note"],
+                note: transactionNote(from: data),
                 primaryCategory: data["primaryCategory"],
                 subCategory: data["subCategory"],
                 type: "income",
@@ -119,6 +119,16 @@ nonisolated enum ChatCardData: Equatable {
         case .completeTask, .updateTask, .deleteTask, .createNote, .queryTasks, .queryHabits, .query, .queryAnalysis, .flexibleDataQuery, .generateMemoryInsight, .unknown:
             return nil
         }
+    }
+
+    nonisolated private static func transactionNote(from data: [String: String]) -> String? {
+        for key in ["note", "categoryCandidate"] {
+            if let value = data[key]?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !value.isEmpty {
+                return value
+            }
+        }
+        return nil
     }
 
     /// 关联实体 ID（从 extractedData 中获取）

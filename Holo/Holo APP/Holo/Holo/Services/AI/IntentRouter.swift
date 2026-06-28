@@ -137,12 +137,12 @@ final class IntentRouter {
             return try await handleInstallmentExpense(data: data, amount: amount, amountStr: amountStr)
         }
 
-        let note = data["note"]
         let primaryCategory = data["primaryCategory"]
         let subCategory = data["subCategory"]
         let categoryCandidate = data["categoryCandidate"]
         let normalizedCategoryCandidate = data["normalizedCategoryCandidate"]
         let semanticCategoryHint = data["semanticCategoryHint"]
+        let note = transactionNote(from: data)
 
         logger.info("AI 返回科目：primaryCategory=\(primaryCategory ?? "nil"), subCategory=\(subCategory ?? "nil"), categoryCandidate=\(categoryCandidate ?? "nil"), normalizedCategoryCandidate=\(normalizedCategoryCandidate ?? "nil"), semanticCategoryHint=\(semanticCategoryHint ?? "nil")")
 
@@ -229,12 +229,12 @@ final class IntentRouter {
             return RouteResult(text: result.responseText ?? "请告诉我具体的金额")
         }
 
-        let note = data["note"]
         let primaryCategory = data["primaryCategory"]
         let subCategory = data["subCategory"]
         let categoryCandidate = data["categoryCandidate"]
         let normalizedCategoryCandidate = data["normalizedCategoryCandidate"]
         let semanticCategoryHint = data["semanticCategoryHint"]
+        let note = transactionNote(from: data)
         let categoryRepo = FinanceRepository.shared
 
         var category = try await matchCategory(
@@ -911,6 +911,16 @@ final class IntentRouter {
         }
 
         // 无法可靠匹配，返回 nil，由调用方使用「待分类」兜底
+        return nil
+    }
+
+    private func transactionNote(from data: [String: String]) -> String? {
+        for key in ["note", "categoryCandidate"] {
+            if let value = data[key]?.trimmingCharacters(in: .whitespacesAndNewlines),
+               !value.isEmpty {
+                return value
+            }
+        }
         return nil
     }
 

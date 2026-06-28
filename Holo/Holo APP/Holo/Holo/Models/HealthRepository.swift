@@ -509,6 +509,121 @@ class HealthRepository: ObservableObject {
         }
     }
 
+    // MARK: - 运动会话（HKWorkout）
+
+    /// 获取指定日期范围的每日运动会话聚合（AI 分析用）
+    func fetchWorkoutsRange(from start: Date, to end: Date) async -> [DailyWorkoutData] {
+        if useMockData {
+            return generateMockWorkoutRange(from: start, to: end)
+        }
+
+        let calendar = Calendar.current
+        var results: [DailyWorkoutData] = []
+        var current = calendar.startOfDay(for: start)
+        let endDay = calendar.startOfDay(for: end)
+
+        while current <= endDay {
+            let data = await fetchWorkouts(for: current)
+            results.append(data)
+            guard let next = calendar.date(byAdding: .day, value: 1, to: current) else { break }
+            current = next
+        }
+        return results
+    }
+
+    /// 获取指定日期的运动会话聚合（时长/次数/主要类型）
+    private func fetchWorkouts(for date: Date) async -> DailyWorkoutData {
+        let workoutType = HKObjectType.workoutType()
+
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: date)
+        guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else {
+            return DailyWorkoutData(date: date, totalMinutes: 0, sessionCount: 0, topType: nil)
+        }
+
+        let predicate = HKQuery.predicateForSamples(withStart: startOfDay, end: endOfDay, options: .strictStartDate)
+
+        return await withCheckedContinuation { continuation in
+            let query = HKSampleQuery(
+                sampleType: workoutType,
+                predicate: predicate,
+                limit: HKObjectQueryNoLimit,
+                sortDescriptors: nil
+            ) { _, samples, _ in
+                let workouts = (samples as? [HKWorkout]) ?? []
+                let totalMinutes = workouts.reduce(0.0) { $0 + $1.duration } / 60
+                continuation.resume(returning: DailyWorkoutData(
+                    date: date,
+                    totalMinutes: totalMinutes,
+                    sessionCount: workouts.count,
+                    topType: Self.topWorkoutTypeName(workouts)
+                ))
+            }
+            healthStore.execute(query)
+        }
+    }
+
+    /// 取当日时长最长的运动类型中文名。
+    /// nonisolated：HKWorkout 属性读取线程安全，可在 HKSampleQuery 回调线程调用，无需 MainActor。
+    nonisolated private static func topWorkoutTypeName(_ workouts: [HKWorkout]) -> String? {
+        guard !workouts.isEmpty else { return nil }
+        var durationByType: [HKWorkoutActivityType: TimeInterval] = [:]
+        for workout in workouts {
+            durationByType[workout.workoutActivityType, default: 0] += workout.duration
+        }
+        let topKind = durationByType.max(by: { $0.value < $1.value })?.key ?? .other
+        return Self.workoutActivityTypeName(topKind)
+    }
+
+    /// HKWorkoutActivityType → 中文名（覆盖常见类型，未知统一「运动」）。
+    /// nonisolated：纯映射无 actor 状态依赖。
+    nonisolated static func workoutActivityTypeName(_ type: HKWorkoutActivityType) -> String {
+        switch type {
+        case .running: return "跑步"
+        case .walking: return "步行"
+        case .cycling: return "骑行"
+        case .swimming: return "游泳"
+        case .traditionalStrengthTraining, .functionalStrengthTraining: return "力量训练"
+        case .coreTraining: return "核心训练"
+        case .yoga: return "瑜伽"
+        case .pilates: return "普拉提"
+        case .flexibility: return "拉伸"
+        case .highIntensityIntervalTraining: return "HIIT"
+        case .hiking: return "徒步"
+        case .elliptical: return "椭圆机"
+        case .rowing: return "划船"
+        case .stairClimbing: return "爬楼梯"
+        case .dance: return "舞蹈"
+        case .martialArts: return "武术"
+        case .basketball: return "篮球"
+        case .soccer: return "足球"
+        case .badminton: return "羽毛球"
+        case .tennis: return "网球"
+        case .tableTennis: return "乒乓球"
+        default: return "运动"
+        }
+    }
+
+    /// 生成模拟运动范围数据（模拟器无 HealthKit）
+    private func generateMockWorkoutRange(from start: Date, to end: Date) -> [DailyWorkoutData] {
+        let calendar = Calendar.current
+        var results: [DailyWorkoutData] = []
+        var current = calendar.startOfDay(for: start)
+        let endDay = calendar.startOfDay(for: end)
+        let mockTypes = ["跑步", "步行", "骑行", "力量训练"]
+
+        while current <= endDay {
+            let hasWorkout = Int.random(in: 0...10) > 4
+            let minutes = hasWorkout ? Double(Int.random(in: 20...75)) : 0
+            let sessionCount = hasWorkout ? Int.random(in: 1...2) : 0
+            let topType = hasWorkout ? mockTypes[Int.random(in: 0..<mockTypes.count)] : nil
+            results.append(DailyWorkoutData(date: current, totalMinutes: minutes, sessionCount: sessionCount, topType: topType))
+            guard let next = calendar.date(byAdding: .day, value: 1, to: current) else { break }
+            current = next
+        }
+        return results
+    }
+
     // MARK: - 私有方法 - 模拟数据
 
     /// 加载模拟今日数据
@@ -579,7 +694,8 @@ class HealthRepository: ObservableObject {
             HKObjectType.categoryType(forIdentifier: .sleepAnalysis),
             HKObjectType.quantityType(forIdentifier: .appleStandTime),
             HKObjectType.categoryType(forIdentifier: .appleStandHour),
-            HKObjectType.quantityType(forIdentifier: .appleExerciseTime)
+            HKObjectType.quantityType(forIdentifier: .appleExerciseTime),
+            HKObjectType.workoutType()
         ].compactMap { $0 }
     }
 

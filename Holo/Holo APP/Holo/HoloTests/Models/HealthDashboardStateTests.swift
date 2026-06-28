@@ -108,4 +108,52 @@ final class HealthDashboardStateTests: XCTestCase {
         XCTAssertEqual(HealthDataSourceState.connected.subtitle, "只读同步 · 步数 / 睡眠 / 站立")
         XCTAssertEqual(HealthDataSourceState.connected.badgeText, "在线")
     }
+
+    // MARK: - 健康洞察基线（LLM 生成改造前的稳定 fallback 行为）
+    // 审查修订 P13：coreInsight 三档只锁结构 + 分档区分性，不逐字锁文案；
+    // lifestyleInsights 只锁条数与 domain 顺序，文案后续交 FallbackBuilder 统一管理。
+
+    private func makeHealthSnapshot(
+        sleepValue: Double,
+        sleepAvailability: HealthMetricAvailability
+    ) -> HealthDashboardSnapshot {
+        HealthDashboardSnapshot(
+            steps: HealthMetricSnapshot(type: .steps, value: 6_000, availability: .available),
+            sleep: HealthMetricSnapshot(type: .sleep, value: sleepValue, availability: sleepAvailability),
+            standOrActivity: HealthMetricSnapshot(type: .standHours, value: 10, availability: .available),
+            dataSourceState: .connected
+        )
+    }
+
+    func testCoreInsightHasStableTitleAndThreeDistinctBranches() {
+        let high = makeHealthSnapshot(sleepValue: 8, sleepAvailability: .available).coreInsight
+        let low = makeHealthSnapshot(sleepValue: 6, sleepAvailability: .available).coreInsight
+        let noData = makeHealthSnapshot(sleepValue: 0, sleepAvailability: .noData).coreInsight
+
+        // 标题稳定（三档共用）
+        XCTAssertEqual(high.title, "今日核心洞察")
+        XCTAssertEqual(low.title, "今日核心洞察")
+        XCTAssertEqual(noData.title, "今日核心洞察")
+
+        // 三档文案互不相同、均非空（区分性断言，不锁具体措辞）
+        XCTAssertFalse(high.detail.isEmpty)
+        XCTAssertFalse(low.detail.isEmpty)
+        XCTAssertFalse(noData.detail.isEmpty)
+        XCTAssertNotEqual(high.detail, low.detail)
+        XCTAssertNotEqual(low.detail, noData.detail)
+        XCTAssertNotEqual(high.detail, noData.detail)
+    }
+
+    func testLifestyleInsightsHasThreeItemsInStableDomainOrder() {
+        let snapshot = makeHealthSnapshot(sleepValue: 8, sleepAvailability: .available)
+        let insights = snapshot.lifestyleInsights
+
+        XCTAssertEqual(insights.count, 3)
+        XCTAssertEqual(insights.map(\.domain), ["习", "财", "想"])
+        // 每条结构完整
+        for insight in insights {
+            XCTAssertFalse(insight.title.isEmpty)
+            XCTAssertFalse(insight.detail.isEmpty)
+        }
+    }
 }

@@ -15,6 +15,12 @@ struct MemoryInsightGenerationResult: Sendable {
     let promptVersion: Int?
 }
 
+/// 健康洞察生成结果（包含原始响应和 Prompt 版本，promptVersion 供缓存判断升级失效）
+struct HealthInsightGenerationResult: Sendable {
+    let rawResponse: String
+    let promptVersion: Int?
+}
+
 /// AI 服务提供者协议
 protocol AIProvider {
     /// 最近一次 LLM 调用的日志（请求+响应），由 Provider 在每次调用后更新
@@ -49,6 +55,9 @@ protocol AIProvider {
 
     /// 生成记忆洞察（自定义 prompt + 结构化 context JSON）
     func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> MemoryInsightGenerationResult
+
+    /// 生成健康洞察（健康专用 system prompt + 结构化 context JSON，JSON mode）
+    func generateHealthInsight(contextJSON: String) async throws -> HealthInsightGenerationResult
 }
 
 /// 结构化执行解析类型
@@ -88,6 +97,11 @@ extension AIProvider {
     /// 默认实现：不支持记忆洞察
     func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> MemoryInsightGenerationResult {
         throw APIError.serverError("当前 Provider 不支持记忆洞察生成")
+    }
+
+    /// 默认实现：不支持健康洞察生成
+    func generateHealthInsight(contextJSON: String) async throws -> HealthInsightGenerationResult {
+        throw APIError.serverError("当前 Provider 不支持健康洞察生成")
     }
 
     /// 默认实现：不支持结构化执行解析

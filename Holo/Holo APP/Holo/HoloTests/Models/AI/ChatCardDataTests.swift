@@ -127,6 +127,26 @@ final class ChatCardDataTests: XCTestCase {
         XCTAssertTrue(cardData.isExpense)
     }
 
+    func testTransactionCardUsesCategoryCandidateAsNameWhenNoteMissing() {
+        let data: [String: String] = [
+            "amount": "200",
+            "categoryCandidate": "给爷爷买彩票",
+            "primaryCategory": "人情",
+            "subCategory": "人情往来",
+            "type": "expense"
+        ]
+
+        let result = ChatCardData.from(intent: .recordExpense, data: data)
+
+        guard case .transaction(let cardData) = result else {
+            XCTFail("应为 .transaction 类型")
+            return
+        }
+
+        XCTAssertEqual(cardData.note, "给爷爷买彩票")
+        XCTAssertEqual(cardData.displayTitle, "给爷爷买彩票")
+    }
+
     func testFromRecordIncome() {
         let data: [String: String] = [
             "amount": "10000",

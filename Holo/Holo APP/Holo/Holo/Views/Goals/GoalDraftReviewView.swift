@@ -67,6 +67,10 @@ struct GoalDraftReviewView: View {
                 bottomActions
             }
         }
+        .swipeBackToDismiss {
+            onCancel()
+            dismiss()
+        }
     }
 
     // MARK: - Goal Info Card

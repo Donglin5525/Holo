@@ -106,6 +106,25 @@ final class HoloBackendAIProvider: AIProvider {
         return parseActionBatchFromJSON(content, kind: kind)
     }
 
+    func generateHealthInsight(contextJSON: String) async throws -> HealthInsightGenerationResult {
+        let promptResult = await loadManagedPromptResult(.healthInsightGeneration)
+        let messages: [ChatMessageDTO] = [
+            .system(promptResult.content),
+            .user(contextJSON)
+        ]
+        let request = buildRequest(purpose: .healthInsightGeneration, messages: messages, responseFormat: .jsonObject)
+        let response: ChatCompletionResponse = try await apiClient.send(request)
+
+        guard let content = response.choices?.first?.message?.content else {
+            throw APIError.serverError("AI 未返回有效内容")
+        }
+
+        return HealthInsightGenerationResult(
+            rawResponse: content,
+            promptVersion: promptResult.version
+        )
+    }
+
     func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> MemoryInsightGenerationResult {
         let promptResult = await loadManagedPromptResult(.memoryInsightGeneration)
         let messages: [ChatMessageDTO] = [
@@ -423,6 +442,7 @@ enum HoloBackendPurpose: String {
     case thoughtOrganization = "thought_organization"
     case thoughtTagConvergence = "thought_tag_convergence"
     case agentLoop = "agent_loop"
+    case healthInsightGeneration = "health_insight_generation"
 }
 
 extension AIActionParserKind {

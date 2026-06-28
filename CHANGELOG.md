@@ -4,6 +4,23 @@
 
 ---
 
+## [2026-06-28] 健康页闪退修复（健康洞察 build 跨线程 trap）
+
+修复健康洞察接入（Task 8）引入的打开健康页直接闪退（记忆 12616/12617）。
+
+### 根因
+`HealthInsightContextBuilder.build()` 的 9 路 `async let` 并发拉取，跨域 Repository（`extractXxx` 读 `Transaction`/`Habit`/`HabitRecord`/`TodoTask`/`Thought` 等 `NSManagedObject`）在并发上下文访问主线程 `viewContext` → **CoreData 跨线程 trap**（`EXC_BAD_ACCESS`）。`ThoughtRepository` 缺 `@MainActor` 是隔离缺口。
+
+### 修复（Explore 排查 + 记忆 12724 双重确认）
+- `HealthInsightContextBuilder.build()` 加 `@MainActor`：整个构建收口主线程
+- 9 路 `async let` 并发 → **串行 `await`**：消除并发 fetch 风暴 + 跨线程
+
+### 验证
+- test_sim 健康洞察测试绿（编译 + 单元测试）
+- Core Data 跨线程难单测（需真机并发触发），建议真机复验打开健康页
+
+---
+
 ## [2026-06-28] Observer Tier2 联动主闸（Phase 2 §5.2）
 
 修复 Phase 0 盘出的旁路缺陷：`HoloMemoryObserverService` Tier2 触发原只检查 `agentObserverTier2Enabled`，主闸 `agentRuntimeEnabled` 关闭时仍触发 runAnalysis，绕过灰度总闸。加 `&& agentRuntimeEnabled` 联动。

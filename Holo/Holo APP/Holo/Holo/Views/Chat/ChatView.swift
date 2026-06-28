@@ -310,7 +310,7 @@ struct ChatView: View {
                                 pendingCategoryEditMessage = msg
                                 pendingEditPrefill = PendingTransactionPrefill(
                                     amount: renderData["amount"] ?? "0",
-                                    note: renderData["note"],
+                                    note: renderData["note"] ?? renderData["categoryCandidate"],
                                     type: type,
                                     category: nil
                                 )

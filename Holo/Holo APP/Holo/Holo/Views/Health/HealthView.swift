@@ -17,6 +17,8 @@ struct HealthView: View {
     @State private var isRefreshing = false
     @State private var selectedDate: Date = Calendar.current.startOfDay(for: Date())
     @State private var dayData: (steps: Double, sleep: Double, standHours: Double, activeMinutes: Double) = (0, 0, 0, 0)
+    @State private var insightViewModel = HealthInsightViewModel()
+    @State private var selectedEvidenceInsight: GeneratedHealthInsight?
 
     private var snapshot: HealthDashboardSnapshot {
         let stepsAvail: HealthMetricAvailability = dayData.steps > 0 ? .available : .noData
@@ -72,9 +74,13 @@ struct HealthView: View {
         }
         .task {
             await refreshAll()
+            await insightViewModel.load()
         }
         .onChange(of: selectedDate) {
             Task { await loadDateData() }
+        }
+        .sheet(item: $selectedEvidenceInsight) { insight in
+            HealthInsightEvidenceSheet(insight: insight, evidence: insightViewModel.snapshot?.evidence ?? [])
         }
     }
 
@@ -447,12 +453,19 @@ struct HealthView: View {
     }
 
     private var coreInsightCard: some View {
-        insightCard(
+        let core = displayedCoreInsight
+        return insightCard(
             iconText: "✦",
-            title: snapshot.coreInsight.title,
-            detail: snapshot.coreInsight.detail,
-            color: snapshot.coreInsight.color
+            title: core.title,
+            detail: core.detail,
+            color: .holoPrimary
         )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if let generated = insightViewModel.snapshot?.coreInsight {
+                selectedEvidenceInsight = generated
+            }
+        }
     }
 
     private var lifestyleInsightCard: some View {
@@ -462,33 +475,46 @@ struct HealthView: View {
                     .font(.holoBody)
                     .foregroundColor(.holoTextPrimary)
                 Spacer()
-                Text("\(snapshot.lifestyleInsights.count) 条关联")
+                Text("\(lifestyleRows.count) 条关联")
                     .font(.holoLabel)
                     .foregroundColor(.holoTextSecondary)
             }
 
-            VStack(spacing: HoloSpacing.sm) {
-                ForEach(snapshot.lifestyleInsights) { insight in
-                    HStack(alignment: .top, spacing: HoloSpacing.sm) {
-                        Text(insight.domain)
-                            .font(.holoLabel)
-                            .foregroundColor(.white)
-                            .frame(width: 28, height: 28)
-                            .background(insight.color)
-                            .clipShape(Circle())
-
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(insight.title)
+            if lifestyleRows.isEmpty {
+                Text("暂无跨域关联。连续记录睡眠、运动、记账、待办后，HOLO 会从中发现值得留意的规律。")
+                    .font(.holoTinyLabel)
+                    .foregroundColor(.holoTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                VStack(spacing: HoloSpacing.sm) {
+                    ForEach(Array(lifestyleRows.enumerated()), id: \.offset) { _, row in
+                        HStack(alignment: .top, spacing: HoloSpacing.sm) {
+                            Text(row.badge)
                                 .font(.holoLabel)
-                                .foregroundColor(.holoTextPrimary)
+                                .foregroundColor(.white)
+                                .frame(width: 28, height: 28)
+                                .background(row.color)
+                                .clipShape(Circle())
 
-                            Text(insight.detail)
-                                .font(.holoTinyLabel)
-                                .foregroundColor(.holoTextSecondary)
-                                .fixedSize(horizontal: false, vertical: true)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(row.title)
+                                    .font(.holoLabel)
+                                    .foregroundColor(.holoTextPrimary)
+
+                                Text(row.detail)
+                                    .font(.holoTinyLabel)
+                                    .foregroundColor(.holoTextSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+
+                            Spacer(minLength: 0)
                         }
-
-                        Spacer(minLength: 0)
+                        .contentShape(Rectangle())
+                        .onTapGesture {
+                            if let generated = row.generated {
+                                selectedEvidenceInsight = generated
+                            }
+                        }
                     }
                 }
             }
@@ -500,6 +526,48 @@ struct HealthView: View {
             RoundedRectangle(cornerRadius: HoloRadius.lg)
                 .stroke(Color.holoBorder, lineWidth: 1)
         )
+    }
+
+    // MARK: - 洞察数据源（优先 LLM 生成结果，回退现有规则文案）
+
+    private var displayedCoreInsight: (title: String, detail: String) {
+        if let core = insightViewModel.snapshot?.coreInsight {
+            return (core.title, core.summary)
+        }
+        let fallback = snapshot.coreInsight
+        return (fallback.title, fallback.detail)
+    }
+
+    private var lifestyleRows: [(badge: String, title: String, detail: String, color: Color, generated: GeneratedHealthInsight?)] {
+        if let loops = insightViewModel.snapshot?.lifestyleLoops, !loops.isEmpty {
+            return loops.map {
+                (lifestyleBadge(for: $0.domain), $0.title, $0.summary, lifestyleColor(for: $0.domain), $0)
+            }
+        }
+        // P4：无 LLM 跨域循环时不展示硬编码假洞察，返回空（卡片显示诚实占位）。
+        return []
+    }
+
+    private func lifestyleBadge(for domain: HealthInsightDomain) -> String {
+        switch domain {
+        case .health: return "健"
+        case .task: return "任"
+        case .habit: return "习"
+        case .finance: return "财"
+        case .thought: return "想"
+        case .mixed: return "联"
+        }
+    }
+
+    private func lifestyleColor(for domain: HealthInsightDomain) -> Color {
+        switch domain {
+        case .health: return .holoChart1
+        case .task: return .holoPrimary
+        case .habit: return .holoSuccess
+        case .finance: return .holoChart8
+        case .thought: return .holoChart7
+        case .mixed: return .holoPurple
+        }
     }
 
     private var weeklyTrendCard: some View {

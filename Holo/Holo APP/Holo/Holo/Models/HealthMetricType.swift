@@ -123,3 +123,17 @@ struct DailyHealthData: Identifiable {
         return formatter.string(from: date)
     }
 }
+
+// MARK: - DailyWorkoutData
+
+/// 每日运动会话数据（HKWorkout 聚合，供健康洞察跨域证据使用）。
+/// 与 DailyHealthData 区分：后者是 HealthKit 数值型指标（步数/睡眠等），此处是锻炼会话维度。
+struct DailyWorkoutData: Equatable, Sendable {
+    let date: Date
+    /// 当日所有锻炼会话时长之和（分钟）
+    let totalMinutes: Double
+    /// 当日锻炼会话条数
+    let sessionCount: Int
+    /// 当日时长最长的运动类型中文名（如「跑步」），无运动则 nil
+    let topType: String?
+}

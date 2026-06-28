@@ -236,29 +236,6 @@ struct HealthDashboardSnapshot: Equatable {
         )
     }
 
-    var lifestyleInsights: [HealthInsight] {
-        [
-            HealthInsight(
-                domain: "习",
-                title: "运动习惯正在拉动步数",
-                detail: "连续运动后，步数达标日通常会更稳定。",
-                color: .holoSuccess
-            ),
-            HealthInsight(
-                domain: "财",
-                title: "低睡眠日咖啡消费偏高",
-                detail: "睡眠不足时，咖啡和外食支出更容易上升。",
-                color: .holoChart8
-            ),
-            HealthInsight(
-                domain: "想",
-                title: "压力记录集中在久坐日",
-                detail: "站立不足时，压力类想法更值得回看。",
-                color: .holoChart7
-            )
-        ]
-    }
-
     static func standOrActivitySnapshot(
         standHours: Double,
         activeMinutes: Double,

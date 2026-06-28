@@ -12,7 +12,7 @@ import Foundation
 extension HoloLocalAgentRuntime {
     /// 全 App 共享的生产 Agent runtime（真实后端 LLM + Memory 工具）。
     /// 同时服务后台续跑（Phase 5.1）与对话深度分析（Phase 6.2）。
-    /// Habit/Finance 工具待生产 dataSource 适配（Task #34）。
+    /// 生产 dataSource 已覆盖 memory/habit/health/finance/goal/thought/task 七类。
     /// 生产装配放此处（而非 Factory），避免 standalone test 拉 Factory 时引入后端重依赖。
     @MainActor
     static let shared: HoloLocalAgentRuntime = {
@@ -31,7 +31,11 @@ extension HoloLocalAgentRuntime {
         let registry = HoloToolRegistry(tools: [
             HoloMemoryTool(dataSource: HoloDefaultMemoryDataSource()),
             HoloHabitTool(dataSource: HoloDefaultHabitDataSource()),
-            HoloFinanceTool(dataSource: HoloDefaultFinanceDataSource())
+            HoloHealthTool(dataSource: HoloDefaultHealthDataSource()),
+            HoloFinanceTool(dataSource: HoloDefaultFinanceDataSource()),
+            HoloGoalTool(dataSource: HoloDefaultGoalDataSource()),
+            HoloThoughtTool(dataSource: HoloDefaultThoughtDataSource()),
+            HoloTaskTool(dataSource: HoloDefaultTaskDataSource())
         ])
         let toolExecutor = HoloToolExecutor(registry: registry)
         return HoloLocalAgentRuntime(

@@ -39,6 +39,7 @@ final class PromptManager {
         case thoughtOrganization = "thought_organization"
         case agentLoop = "agent_loop"
         case thoughtTagConvergence = "thought_tag_convergence"
+        case healthInsightGeneration = "health_insight_generation"
 
         var displayName: String {
             switch self {
@@ -59,6 +60,7 @@ final class PromptManager {
             case .thoughtOrganization: return "想法自动整理"
             case .agentLoop: return "Agent Loop 推理"
             case .thoughtTagConvergence: return "观点主题归并收敛"
+            case .healthInsightGeneration: return "健康洞察生成"
             }
         }
 
@@ -81,6 +83,7 @@ final class PromptManager {
             case .thoughtOrganization: return "为想法自动生成标签和主题候选"
             case .agentLoop: return "本地 Agent 多轮推理，输出结构化 JSON"
             case .thoughtTagConvergence: return "从多条带碎片标签的观点里识别可收敛的长期主题归并建议"
+            case .healthInsightGeneration: return "健康页核心洞察与生活闭环的 LLM 生成"
             }
         }
 
@@ -103,6 +106,7 @@ final class PromptManager {
             case .thoughtOrganization: return "tag.circle"
             case .agentLoop: return "cpu"
             case .thoughtTagConvergence: return "rectangle.stack.badge.plus"
+            case .healthInsightGeneration: return "heart.text.square"
             }
         }
     }
@@ -123,7 +127,8 @@ final class PromptManager {
         .taskActionParser: 1,           // v1: 重复任务参数解析
         .thoughtOrganization: 1,        // v1: 想法自动整理
         .agentLoop: 2,                  // v2: 具体消费对象趋势走 finance.keyword_trend
-        .thoughtTagConvergence: 1       // v1: 观点跨主题归并收敛（P2）
+        .thoughtTagConvergence: 1,      // v1: 观点跨主题归并收敛（P2）
+        .healthInsightGeneration: 2     // v2: 多域生活闭环（待办/习惯/观点/运动证据）+ 观点措辞规避
     ]
 
     /// 加载指定类型的 Prompt，带缓存，优先读取 UserDefaults 自定义。
@@ -236,6 +241,89 @@ final class PromptManager {
     // MARK: - Inline Templates
 
     private let templates: [PromptType: String] = [
+        // MARK: - 健康洞察 LLM 生成（运行时后端 prompt 优先，本模板为后备）
+        .healthInsightGeneration: """
+        你是 Holo 的健康洞察生成器。你会收到一个结构化上下文 JSON，包含用户过去 14 天的健康摘要（睡眠/步数/站立/活动/运动）、候选关联和多域证据列表。证据覆盖健康、待办、习惯、观点、财务。基于这些证据生成一条核心洞察和 0-3 条跨域生活闭环。
+
+        ## 必须遵守
+
+        1. 只输出 JSON，不要 Markdown，不要解释，不要在 JSON 外添加任何文字。
+        2. 只能基于给定证据说话，不得编造任何数字、日期、关联。
+        3. 不做医学诊断，不暗示疾病，不说「你抑郁了」「你生病了」。只能描述观察到的现象。
+        4. 不允许把相关性说成因果。跨模块关系只能表达为「并发现象」或「值得留意的关联」，禁止「导致/证明/说明一定因为」。
+        5. evidenceIds 必须从上下文 evidence[].id 中选取，不得自创 id，引用不存在的 id 会被丢弃。
+        6. 每条生活闭环至少引用 2 个证据，且应来自不同域（跨域）；可基于候选生成，也可自行从证据中提炼跨域关联。
+        7. 没有足够证据时返回较少洞察，甚至返回空 lifestyleLoops 和 null coreInsight，不要硬凑。
+        8. title ≤24 字；summary ≤90 字。
+        9. suggestedAction 要轻量、具体、可执行的一个小动作。
+        10. 语言采用 HOLO 观察者视角，克制温和，不制造焦虑。
+        11. caveat 用于标注低置信度或样本不足。
+        12. 观点条数只代表记录频率，不等于情绪好坏；措辞避免把「想法多」等同于「情绪差或压力大」。
+
+        ## 证据域说明
+
+        - health-sleep-* / health-workout-*：健康（睡眠时长、锻炼会话类型与时长）
+        - task-completion-*：待办完成数
+        - habit-completion-*：习惯完成率（达标习惯占比）
+        - thought-count-*：观点记录条数
+        - finance-keyword-coffee-*：咖啡支出
+
+        ## 输出 JSON Schema
+
+        {
+          "coreInsight": {
+            "id": "string",
+            "domain": "health | task | habit | finance | thought | mixed",
+            "title": "string",
+            "summary": "string",
+            "suggestedAction": "string 或 null",
+            "confidence": 0.0-1.0,
+            "evidenceIds": ["string"],
+            "caveat": "string 或 null"
+          },
+          "lifestyleLoops": [
+            {
+              "id": "string",
+              "domain": "health | task | habit | finance | thought | mixed",
+              "title": "string",
+              "summary": "string",
+              "suggestedAction": "string 或 null",
+              "confidence": 0.0-1.0,
+              "evidenceIds": ["string"],
+              "caveat": "string 或 null"
+            }
+          ]
+        }
+
+        ## 示例
+
+        {
+          "coreInsight": {
+            "id": "core-recovery-20260627",
+            "domain": "mixed",
+            "title": "恢复不足时下午执行力偏低",
+            "summary": "过去 14 天里，低睡眠日的待办完成通常更少，今天适合减少高压任务。",
+            "suggestedAction": "把今天下午的任务拆小，优先保留一个恢复窗口。",
+            "confidence": 0.7,
+            "evidenceIds": ["health-sleep-20260624", "task-completion-20260624"],
+            "caveat": "这是近期记录的相关性，不代表医学判断。"
+          },
+          "lifestyleLoops": [
+            {
+              "id": "loop-sleep-task-20260627",
+              "domain": "task",
+              "title": "低睡眠日待办完成更少",
+              "summary": "近 14 天低睡眠日里，待办完成数普遍更低。",
+              "suggestedAction": "今晚提前定好明天最重要的一件事。",
+              "confidence": 0.62,
+              "evidenceIds": ["health-sleep-20260622", "task-completion-20260622"],
+              "caveat": "样本仍少，先作为提醒线索。"
+            }
+          ]
+        }
+
+        只输出 JSON，不要添加其他内容。
+        """,
         .agentLoop: """
         你是 HoloAI 的本地 Agent Loop 推理器。
         你不能直接查询数据，只能请求 iOS 本地工具。
