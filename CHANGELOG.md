@@ -4,6 +4,19 @@
 
 ---
 
+## [2026-06-28] 记账键盘增加震动与品牌色按压反馈
+
+新增记账时自绘数字键盘的点击反馈：每次按键即时轻震 + 品牌色（#F46D38）按压底色闪现，提升输入手感与交互确定性。
+
+### 变更
+- **TransactionKeypadComponents**：`KeypadButtonStyle` 增加按压色叠层 —— 数字/功能键叠加品牌橙 `holoPrimary.opacity(0.16)`，确认键 `✓` 叠加黑色遮罩变深（模拟实体键质感），保留原 `scaleEffect` 缩放
+- **TransactionNumericKeypad**：`handleKeypadPress` 入口加 `HapticManager.light()`，每次按键统一即时触觉反馈（复用项目统一封装）
+
+### 验证
+- build_sim iOS Debug 编译通过
+
+---
+
 ## [2026-06-28] 全局可恢复 Agent evidence id 撞车崩溃修复
 
 修复回前台续跑 Agent 时，重复 evidence id 触发 `Dictionary(uniqueKeysWithValues:)` fatal error，导致 App 在 Claim 校验阶段崩溃的问题。

@@ -35,6 +35,8 @@ extension AddTransactionSheet {
 
     /// 处理键盘按键
     func handleKeypadPress(_ key: String) {
+        // 每次按键即时触觉反馈，确保明确的交互震动
+        HapticManager.light()
         switch key {
         case "AC":
             amountString = "0"
