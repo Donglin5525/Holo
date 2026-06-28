@@ -437,7 +437,7 @@ struct AISettingsView: View {
                         Text("Agent 深度分析引擎")
                             .font(.holoBody)
                             .foregroundColor(.holoTextPrimary)
-                        Text("分析类问题走多轮推理，读 Memory/Habit/Finance 真实数据")
+                        Text("分析类问题走多轮推理；前台最稳，切后台后会短时间继续尝试")
                             .font(.system(size: 12))
                             .foregroundColor(.holoTextSecondary)
                     }
@@ -497,7 +497,7 @@ struct AISettingsView: View {
         } header: {
             Text("Agent 深度分析（灰度）")
         } footer: {
-            Text("全部门控默认关闭，不影响线上功能。")
+            Text("全部门控默认关闭，不影响线上功能。Agent 运行中建议停留前台；切后台或杀掉 App 后，系统可能收回后台时间，未完成任务会在回到 App 后继续尝试。")
                 .font(.caption)
                 .foregroundColor(.holoTextSecondary)
         }

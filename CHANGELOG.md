@@ -4,6 +4,21 @@
 
 ---
 
+## [2026-06-28] Agent 后台短时续跑与恢复验证
+
+修正 Agent 进入后台时立即暂停的问题：现在会先申请 iOS 后台执行时间，让在途 Agent 短时间继续推进；系统回收后台时间后再落盘为可恢复状态，回到 App 后由 Scheduler 继续 runLoop。
+
+### 变更
+- **HoloBackgroundContinuationManager**：进入后台时不再立即 `pauseForBackground`，改为持有 `UIBackgroundTask`；到期回调再标记 `waitingForForeground`
+- **Agent 文案**：Chat loading 卡、streaming 文案与 AI 设置页补充“前台最稳、切后台短时尝试、失败后回前台继续”的风险提示
+- **测试**：补充后台续跑用例，验证刚切后台保持 running、到期后才进入 `waitingForForeground`
+- **验证流程**：新增 `docs/_common/plans/2026-06-28-Agent后台能力生效验证流程.md`
+
+### 验证
+- `xcodebuild test -project 'Holo/Holo APP/Holo/Holo.xcodeproj' -scheme Holo -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:HoloTests/HoloAgentSchedulerTests -quiet`
+
+---
+
 ## [2026-06-28] 记账键盘增加震动与品牌色按压反馈
 
 新增记账时自绘数字键盘的点击反馈：每次按键即时轻震 + 品牌色（#F46D38）按压底色闪现，提升输入手感与交互确定性。

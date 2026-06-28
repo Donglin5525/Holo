@@ -11,31 +11,51 @@ import UIKit
 import Foundation
 
 @MainActor
+protocol HoloBackgroundTaskClient {
+    func beginBackgroundTask(named name: String, expirationHandler: @escaping () -> Void) -> UIBackgroundTaskIdentifier
+    func endBackgroundTask(_ identifier: UIBackgroundTaskIdentifier)
+}
+
+@MainActor
+struct UIApplicationBackgroundTaskClient: HoloBackgroundTaskClient {
+    func beginBackgroundTask(named name: String, expirationHandler: @escaping () -> Void) -> UIBackgroundTaskIdentifier {
+        UIApplication.shared.beginBackgroundTask(withName: name, expirationHandler: expirationHandler)
+    }
+
+    func endBackgroundTask(_ identifier: UIBackgroundTaskIdentifier) {
+        UIApplication.shared.endBackgroundTask(identifier)
+    }
+}
+
+@MainActor
 final class HoloBackgroundContinuationManager {
 
     private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
     private let runtime: HoloLocalAgentRuntime
+    private let backgroundTaskClient: any HoloBackgroundTaskClient
     private var resumeTask: Task<Void, Never>?
 
-    init(runtime: HoloLocalAgentRuntime) {
+    init(runtime: HoloLocalAgentRuntime,
+         backgroundTaskClient: (any HoloBackgroundTaskClient)? = nil) {
         self.runtime = runtime
+        self.backgroundTaskClient = backgroundTaskClient ?? UIApplicationBackgroundTaskClient()
     }
 
-    /// App 进入后台：cancel 在途续跑 + 标记 job 为可恢复。
+    /// App 进入后台：申请 iOS 后台执行时间，让在途 Agent 继续推进。
+    /// 只有系统到期回调触发时才落盘为 waitingForForeground，避免刚切后台就中断用户发起的 Agent。
     func appDidEnterBackground() {
-        backgroundTaskID = UIApplication.shared.beginBackgroundTask(withName: "HoloAgentFinish") { [weak self] in
-            self?.endBackgroundTask()
+        if backgroundTaskID != .invalid {
+            endBackgroundTask()
         }
-        // Phase 1 CAS：取消在途续跑 Task，避免后台继续跑浪费 token
+        backgroundTaskID = backgroundTaskClient.beginBackgroundTask(named: "HoloAgentFinish") { [weak self] in
+            self?.pauseForBackgroundExpiration()
+        }
         resumeTask?.cancel()
-        Task { [runtime] in
-            try? await runtime.pauseForBackground()
-            await MainActor.run { self.endBackgroundTask() }
-        }
     }
 
     /// App 即将回前台：cancel 旧续跑（如果有）+ 经 Scheduler 重启未完成 job 的 runLoop（闭合 N1）。
     func appWillEnterForeground() {
+        endBackgroundTask()
         resumeTask?.cancel()
         let scheduler = HoloAgentScheduler.shared
         resumeTask = Task { [runtime, scheduler] in
@@ -48,9 +68,16 @@ final class HoloBackgroundContinuationManager {
         }
     }
 
+    private func pauseForBackgroundExpiration() {
+        Task { [runtime] in
+            try? await runtime.pauseForBackground()
+            await MainActor.run { self.endBackgroundTask() }
+        }
+    }
+
     private func endBackgroundTask() {
         guard backgroundTaskID != .invalid else { return }
-        UIApplication.shared.endBackgroundTask(backgroundTaskID)
+        backgroundTaskClient.endBackgroundTask(backgroundTaskID)
         backgroundTaskID = .invalid
     }
 }

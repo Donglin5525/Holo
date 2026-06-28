@@ -284,7 +284,7 @@ final class ChatViewModel: ObservableObject {
                         intent: "query_analysis",
                         analysisContext: nil
                     )
-                    self.streamingText = "Holo 正在为你深度分析本地数据…"
+                    self.streamingText = "Holo 正在为你深度分析本地数据…建议先停留在当前界面；切到后台后会短时间继续尝试，回到 App 后可继续查看结果。"
                     let rendered = await self.analysisService.runAnalysis(question: text)
                     // 不再拍扁成单段文本：结构化存 agentResultJSON，由 AgentDeepAnalysisCard 渲染
                     // fallback 文本用于历史回看/解码失败时退化展示（标题 + 摘要）

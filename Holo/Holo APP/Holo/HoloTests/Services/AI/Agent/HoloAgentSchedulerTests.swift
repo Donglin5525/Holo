@@ -9,6 +9,7 @@
 //
 
 import XCTest
+import UIKit
 @testable import Holo
 
 final class HoloAgentSchedulerTests: XCTestCase {
@@ -56,6 +57,26 @@ final class HoloAgentSchedulerTests: XCTestCase {
         func promptDescription() async -> String { "" }
     }
 
+    @MainActor
+    private final class FakeBackgroundTaskClient: HoloBackgroundTaskClient {
+        private(set) var expirationHandler: (() -> Void)?
+        private(set) var didEnd = false
+
+        func beginBackgroundTask(named name: String,
+                                 expirationHandler: @escaping () -> Void) -> UIBackgroundTaskIdentifier {
+            self.expirationHandler = expirationHandler
+            return UIBackgroundTaskIdentifier(rawValue: 99)
+        }
+
+        func endBackgroundTask(_ identifier: UIBackgroundTaskIdentifier) {
+            didEnd = true
+        }
+
+        func expire() {
+            expirationHandler?()
+        }
+    }
+
     // MARK: - Helpers
 
     private struct LoopFixture {
@@ -96,6 +117,16 @@ final class HoloAgentSchedulerTests: XCTestCase {
 
     private func isTerminal(_ state: HoloAgentJobState) -> Bool {
         state == .completed || state == .failed || state == .cancelled
+    }
+
+    private func waitUntil(_ predicate: @escaping () async -> Bool,
+                           timeout: TimeInterval = 2.0) async -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if await predicate() { return true }
+            try? await Task.sleep(nanoseconds: 20_000_000)
+        }
+        return await predicate()
     }
 
     // MARK: - N1 回归
@@ -258,5 +289,31 @@ final class HoloAgentSchedulerTests: XCTestCase {
         )
         XCTAssertEqual(job.state, .completed, "start 应跑完 runLoop 到达 completed")
         XCTAssertEqual(job.type, .deepAnalysis, "start 创建的应为 deepAnalysis job")
+    }
+
+    /// 后台续跑：进入后台时不应立刻 pause，系统后台时间耗尽后才落盘 waitingForForeground。
+    @MainActor
+    func testBackgroundContinuation_进入后台保留运行到期后才暂停() async throws {
+        let dir = makeTempDir()
+        let fixture = makeLoopFixture(dir: dir, llm: FakeLLM(responses: []), executor: FakeExecutor())
+        let client = FakeBackgroundTaskClient()
+        let manager = HoloBackgroundContinuationManager(
+            runtime: fixture.runtime,
+            backgroundTaskClient: client
+        )
+        let job = try await fixture.runtime.startAnalysisJob(question: "q", now: Date())
+
+        manager.appDidEnterBackground()
+
+        let afterBackground = await fixture.jobStore.load().first { $0.id == job.id }
+        XCTAssertEqual(afterBackground?.state, .running, "刚切后台应保留 running，让 iOS 后台任务继续推进")
+
+        client.expire()
+        let paused = await waitUntil {
+            let stored = await fixture.jobStore.load().first { $0.id == job.id }
+            return stored?.state == .waitingForForeground
+        }
+        XCTAssertTrue(paused, "后台时间到期后应标记 waitingForForeground，等待前台恢复")
+        XCTAssertTrue(client.didEnd, "后台任务到期处理后应释放 UIBackgroundTask")
     }
 }
