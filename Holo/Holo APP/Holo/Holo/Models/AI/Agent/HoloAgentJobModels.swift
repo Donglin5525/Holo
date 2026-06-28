@@ -12,6 +12,7 @@ enum HoloAgentJobType: String, Codable, CaseIterable, Sendable {
     case memoryGallerySummary
     case observerInspection
     case memoryCuration
+    case healthInsight
     case debugMock
 }
 
@@ -19,6 +20,7 @@ enum HoloAgentTrigger: String, Codable, CaseIterable, Sendable {
     case userQuestion
     case memoryGalleryRefresh
     case observerTier2
+    case healthInsight
     case debug
 }
 

@@ -4,6 +4,20 @@
 
 ---
 
+## [2026-06-28] 全局可恢复 Agent Phase 2 Health 入口预留（jobType/trigger 扩展）
+
+`HoloAgentJobType` 加 `healthInsight` case，`HoloAgentTrigger` 加 `healthInsight` case（方案 §4.1 预留接口，不接实际链路）。`deepAnalysis` rawValue 不变（不迁移）。
+
+### 变更
+- **HoloAgentJobType**：+ `healthInsight`
+- **HoloAgentTrigger**：+ `healthInsight`
+- test_sim 五测试绿
+
+### 待办
+- Health 入口实际接入：需决定健康洞察现有独立 LLM 链路与 Agent runLoop 的关系（迁移合并 or 共存）
+
+---
+
 ## [2026-06-28] 全局可恢复 Agent CAS 取消在途续跑（Phase 1 增强）
 
 `HoloBackgroundContinuationManager` 存 `resumeTask` 引用：进后台 cancel 在途续跑 Task（避免后台浪费 token），回前台 cancel 旧续跑 + 启动新续跑。`Scheduler.resumeAndContinue` 加 `Task.isCancelled` 检查，cancel 后 break 循环。
