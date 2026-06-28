@@ -39,6 +39,7 @@ actor HoloAgentScheduler {
         var resumed = 0
         for job in toResume {
             guard await inputSnapshotMatches(job) else { continue }
+            guard !Task.isCancelled else { break }  // Phase 1 CAS：cancel 后停止循环
             _ = try? await runtime.runLoop(
                 jobID: job.id, systemTemplate: systemTemplate, toolDescriptions: toolDescriptions, now: now
             )

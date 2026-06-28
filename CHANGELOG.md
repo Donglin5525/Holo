@@ -4,6 +4,17 @@
 
 ---
 
+## [2026-06-28] 全局可恢复 Agent CAS 取消在途续跑（Phase 1 增强）
+
+`HoloBackgroundContinuationManager` 存 `resumeTask` 引用：进后台 cancel 在途续跑 Task（避免后台浪费 token），回前台 cancel 旧续跑 + 启动新续跑。`Scheduler.resumeAndContinue` 加 `Task.isCancelled` 检查，cancel 后 break 循环。
+
+### 变更
+- **HoloBackgroundContinuationManager**：+ `resumeTask` 引用，进后台/回前台 cancel 旧 Task
+- **Scheduler.resumeAndContinue**：for 循环内加 `guard !Task.isCancelled else { break }`
+- **test_sim**：五测试绿
+
+---
+
 ## [2026-06-28] 全局可恢复 Agent wallTime 超时生效（Phase 3）
 
 runLoop while 循环条件加 wallTime 超时判定（§9.6 点名缺陷：`maxWallTimeSeconds` 不生效）。循环条件从「仅判 LLM 轮数」改为「轮数 && wallTime 未超」。

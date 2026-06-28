@@ -15,33 +15,35 @@ final class HoloBackgroundContinuationManager {
 
     private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
     private let runtime: HoloLocalAgentRuntime
+    private var resumeTask: Task<Void, Never>?
 
     init(runtime: HoloLocalAgentRuntime) {
         self.runtime = runtime
     }
 
-    /// App 进入后台：申请后台时间，让 runtime 把运行中任务标记为可恢复。
+    /// App 进入后台：cancel 在途续跑 + 标记 job 为可恢复。
     func appDidEnterBackground() {
         backgroundTaskID = UIApplication.shared.beginBackgroundTask(withName: "HoloAgentFinish") { [weak self] in
             self?.endBackgroundTask()
         }
+        // Phase 1 CAS：取消在途续跑 Task，避免后台继续跑浪费 token
+        resumeTask?.cancel()
         Task { [runtime] in
             try? await runtime.pauseForBackground()
             await MainActor.run { self.endBackgroundTask() }
         }
     }
 
-    /// App 即将回前台：经 Scheduler 恢复并真正重启未完成 job 的 runLoop（闭合 N1）。
-    /// @MainActor 方法内同步取 shared scheduler；Scheduler 串行拉起，本 Task 后台跑不阻塞首屏。
+    /// App 即将回前台：cancel 旧续跑（如果有）+ 经 Scheduler 重启未完成 job 的 runLoop（闭合 N1）。
     func appWillEnterForeground() {
+        resumeTask?.cancel()
         let scheduler = HoloAgentScheduler.shared
-        Task { [runtime, scheduler] in
+        resumeTask = Task { [runtime, scheduler] in
             let toolDescriptions = await runtime.toolDescriptions()
             let systemTemplate = (try? await PromptManager.shared.loadPrompt(.agentLoop)) ?? ""
             _ = try? await scheduler.resumeAndContinue(
                 systemTemplate: systemTemplate, toolDescriptions: toolDescriptions
             )
-            // 续跑后顺手清理过期终态 job，避免 jobStore.load() 随历史线性变慢（§9.6）
             _ = try? await scheduler.cleanupTerminalJobs()
         }
     }
