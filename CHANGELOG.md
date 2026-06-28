@@ -4,6 +4,21 @@
 
 ---
 
+## [2026-06-28] 意图识别分流修复：频率/日均折算类归 query_analysis 走 Agent
+
+修复「买烟的频率怎么样 / 平均一天抽烟花多少钱」这类需要折算统计的问题，被意图识别误判为 `flexible_data_query`（轻量查询），导致没走深度 Agent 的问题。现在这类「频率、日均、平均每天、趋势折算」明确归到 `query_analysis`，由本地深度 Agent 处理。
+
+### 变更
+- **后端 intent_recognition（生效端）**：`flexible_data_query` 明确限定为「查一个确定的单值，不做折算/统计」；`query_analysis` 补充频率/日均/折算能力；分流规则新增「频率/折算类 → query_analysis」；例句新增买烟频率、日均用例
+- **iOS PromptManager（后备）**：同步上述分流规则与例句，`promptVersions .intentRecognition` 19 → 20
+- **根因**：`ConversationCoordinator.shouldRouteToDeepAgent` 仅对 `query_analysis` 路由 Agent；且 `FlexibleQueryExecutor.averageAmount` 是「总额÷笔数」（平均每笔），算不了「日均」（总额÷天数），意图分错后即使走轻量查询也答不准
+
+### 验证
+- `build_sim`（iPhone 17）编译通过
+- 待后端部署后 `curl /v1/prompts/intent_recognition` 验证版本与内容
+
+---
+
 ## [2026-06-28] Agent 进度状态改为真实 job 状态
 
 修复 HoloAI 页面退出再进入、回桌面、锁屏或杀进程后，深度分析卡片误显示“处理时意外中断”或串入旧分析结果的问题。现在 Chat 进度卡会以 Agent job 的真实状态为准：运行中继续转圈，后台时间耗尽时显示已暂停，回前台或冷启动后恢复并回填当前 job 的结果。

@@ -116,7 +116,7 @@ final class PromptManager {
     /// 需要版本管理的 prompt 类型及其最低版本
     private static let promptVersions: [PromptType: Int] = [
         .systemPrompt: 2,               // v2: Sense Loop 表达边界与档案优先级
-        .intentRecognition: 19,         // v19: 记账 note 明确作为用户可见名称
+        .intentRecognition: 20,         // v20: 频率/日均折算类归 query_analysis 走 Agent，不再误判 flexible_data_query
         .memoryInsightGeneration: 7,    // v7: Sense Loop 表达边界、偏好摘要与表达强度
         .analysisPrompt: 3,             // v3: Sense Loop 表达边界与档案优先级
         .annualReview: 1,               // v1: 初始版本
@@ -407,8 +407,8 @@ final class PromptManager {
         - check_in：习惯打卡。填 habitName / habitValue。
         - create_note / record_mood / record_weight：记录笔记、心情、体重。
         - query_tasks / query_habits：查询任务或习惯状态。
-        - flexible_data_query：查确定金额、次数、最近一次、哪一笔、距今多久、最大/最小一笔、超过 N 元、关键词限定花了多少。
-        - query_analysis：分析、复盘、趋势、结构、占比、总结。
+        - flexible_data_query：查一个确定的单值——总金额、次数、最近一次、哪一笔、距今多久、最大/最小一笔、超过 N 元、关键词花了多少。不能做需要折算或统计规律的查询。
+        - query_analysis：分析、复盘、趋势、结构、占比、总结，以及需要折算/统计规律的——频率、平均每天/每周花多少、日均、单位时间花销。
         - query：普通问答或闲聊。
         - generate_memory_insight：记忆回放。
         - unknown：无法判断。
@@ -416,6 +416,7 @@ final class PromptManager {
         分流：
         - 确定数字类："今年收入是多少""本月花了多少钱""今年买烟花花了多少""咖啡一共花了多少"→ flexible_data_query。
         - 分析总结类："分析今年收入结构""复盘本月消费""最近财务状态怎么样"→ query_analysis。
+        - 频率/折算类："买烟的频率怎么样""平均一天抽烟花多少钱""每天花多少""多久买一次"→ query_analysis（需要次数÷时间或总额÷天数，超出单值查询）。
         - 具体数据查询不要用 query。
 
         规则：
@@ -436,6 +437,8 @@ final class PromptManager {
         - "给爷爷买了两百块的彩票" → intent: "record_expense", extractedData: { amount: "200", note: "给爷爷买彩票", categoryCandidate: "给爷爷买彩票", semanticCategoryHint: "人情" }
         - "今年收入是多少" → intent: "flexible_data_query", extractedData: { queryGoal: "今年收入总额" }
         - "帮我分析一下最近的花销" → intent: "query_analysis", extractedData: { analysisDomain: "finance", periodLabel: "最近" }
+        - "买烟的频率怎么样" → intent: "query_analysis", extractedData: { analysisDomain: "finance", periodLabel: "最近" }
+        - "平均一天抽烟花多少钱" → intent: "query_analysis", extractedData: { analysisDomain: "finance", periodLabel: "最近" }
         - "明天去山姆买牛奶、鸡蛋和纸巾" → intent: "create_task", extractedData: { title: "去山姆购物", subtasks: "买牛奶,买鸡蛋,买纸巾" }
         - "嗯..." → intent: "unknown", mode: "unknown"
 
