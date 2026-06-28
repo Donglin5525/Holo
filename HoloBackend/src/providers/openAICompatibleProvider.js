@@ -12,7 +12,7 @@ export function createOpenAICompatibleProvider(config) {
         max_tokens: request.maxTokens,
         response_format: request.responseFormat,
         stream: false,
-      });
+      }, request.clientSignal);
 
       return response.json();
     },
@@ -25,7 +25,7 @@ export function createOpenAICompatibleProvider(config) {
         max_tokens: request.maxTokens,
         response_format: request.responseFormat,
         stream: true,
-      });
+      }, request.clientSignal);
 
       if (!response.body) {
         throw new GatewayError("MODEL_UNAVAILABLE", "Upstream response has no body", 503);
@@ -44,12 +44,20 @@ export function createOpenAICompatibleProvider(config) {
   };
 }
 
-async function callUpstream(config, body) {
+async function callUpstream(config, body, clientSignal) {
   if (!config.apiKey) {
     throw new GatewayError("UPSTREAM_AUTH_FAILED", "Provider API key is not configured", 503);
   }
 
   const controller = new AbortController();
+  // 客户端断开时同步 abort 上游请求，避免浪费 token（Phase 4 §6.2 断连治理）
+  if (clientSignal) {
+    if (clientSignal.aborted) {
+      controller.abort();
+    } else {
+      clientSignal.addEventListener("abort", () => controller.abort(), { once: true });
+    }
+  }
   const timeout = setTimeout(() => controller.abort(), body.stream ? 120_000 : 60_000);
 
   try {
