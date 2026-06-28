@@ -481,7 +481,7 @@ struct HealthView: View {
             }
 
             if lifestyleRows.isEmpty {
-                Text("暂无跨域关联。连续记录睡眠、运动、记账、待办后，HOLO 会从中发现值得留意的规律。")
+                Text(lifestyleEmptyHint)
                     .font(.holoTinyLabel)
                     .foregroundColor(.holoTextSecondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -546,6 +546,14 @@ struct HealthView: View {
         }
         // P4：无 LLM 跨域循环时不展示硬编码假洞察，返回空（卡片显示诚实占位）。
         return []
+    }
+
+    /// 生活闭环空态文案：区分「数据不足」与「分析过但暂无关联」，避免生硬的「0 条」体验。
+    private var lifestyleEmptyHint: String {
+        if insightViewModel.snapshot?.status == .insufficientData {
+            return "数据积累中。连续记录睡眠、运动、记账、待办，HOLO 会从中发现跨域规律。"
+        }
+        return "这 14 天没有发现明显的跨域规律。继续记录，HOLO 会持续观察。"
     }
 
     private func lifestyleBadge(for domain: HealthInsightDomain) -> String {

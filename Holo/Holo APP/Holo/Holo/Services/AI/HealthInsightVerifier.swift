@@ -6,7 +6,7 @@
 //  Parser 已做 evidenceId 同源过滤 + 基本有效性；Verifier 在此之上做质量校验：
 //  - 核心洞察 evidenceIds ≥1 命中真实证据
 //  - 生活闭环 evidenceIds ≥2 命中，且对应 evidence 的 domain 去重 ≥2（跨域，审查修订 P5）
-//  - confidence 范围 + lifestyleLoop < 0.55 丢弃
+//  - confidence 范围 + lifestyleLoop < 0.45 丢弃
 //  - title ≤24 字、summary ≤90 字
 //  - 医疗/强因果/人格判断禁词
 //  不合格的单条 loop 丢弃；core 不合格返回 nil（由 Service 走 fallback core）。
@@ -18,7 +18,9 @@ struct HealthInsightVerifier {
 
     private let maxTitleLength = 24
     private let maxSummaryLength = 90
-    private let minLoopConfidence = 0.55
+    /// loop 最低置信度。从 0.55 下调到 0.45：ContextBuilder 候选 confidenceHint 上界在 lift=1.5 时恰为 0.55，
+    /// 原阈值与候选上界临界，LLM 略低于 0.55 即全弃，导致生活闭环系统性为空（记忆 12743）。
+    private let minLoopConfidence = 0.45
 
     /// 医疗诊断 / 强因果 / 人格判断禁词。命中任一则该条洞察被丢弃。
     private let bannedTerms = [

@@ -4,6 +4,27 @@
 
 ---
 
+## [2026-06-28] 健康洞察生活闭环空态优化（Verifier 放宽 + UI 区分）
+
+修复生活闭环系统性显示 0 条（记忆 12743）。
+
+### 根因（叠加）
+- Verifier `minLoopConfidence 0.55` 与候选 `confidenceHint` 上界（lift=1.5 恰 0.55）临界，LLM loop 易全弃
+- loop 无 fallback（诚实策略「不伪跨模块」，失败必 0）
+- UI 空态不区分「数据不足」与「暂无关联」
+
+### 修复
+- `HealthInsightVerifier`: `minLoopConfidence` 0.55→0.45（破临界过滤，有 evidence+跨域背书的 loop 更易通过）
+- `HealthView.lifestyleEmptyHint`: 区分 `insufficientData`（数据积累中）vs 暂无关联，避免生硬「0 条」
+
+### 验证
+- test_sim HealthInsightVerifierTests 绿
+
+### 待办
+- 若用户数据足仍 0，需抓 `rawResponse` 确认 LLM 是否生成 loop（区分 Verifier 过滤 vs 候选空=数据不足）
+
+---
+
 ## [2026-06-28] 健康页闪退修复（健康洞察 build 跨线程 trap）
 
 修复健康洞察接入（Task 8）引入的打开健康页直接闪退（记忆 12616/12617）。
