@@ -19,6 +19,19 @@
 
 ---
 
+## [2026-06-28] Agent 深度分析修复「证据缺失」
+
+修复 Agent 深度分析结果中频繁出现「（证据缺失）」的问题。根因是 LLM 在 claim 顶层 `evidenceIDs` 容易写错 canonical ID（四段 UUID 拼接的长串），而 Verifier 只校验 `metricAssertions.evidenceIDs` 不校验顶层；render 层原先只取顶层 ID 展示，找不到就显示「证据缺失」。
+
+### 变更
+- **Renderer 方向 A**：`HoloAgentResultRenderer.render` 证据引用改为优先取 `claim.metricAssertions.flatMap(\.evidenceIDs)`（Verifier 保证有效），顶层 `claim.evidenceIDs` 仅作补充；找不到 record 的 ID 跳过，不再拼「证据缺失」
+- **回归测试**：新增 `test顶层EvidenceID无效时改用已校验证据不显示缺失`（11/11 全绿）
+
+### 验证
+- `test_sim -only-testing:HoloTests/HoloAgentResultRendererTests` 11/11 Passed
+
+---
+
 ## [2026-06-28] Agent 进度状态改为真实 job 状态
 
 修复 HoloAI 页面退出再进入、回桌面、锁屏或杀进程后，深度分析卡片误显示“处理时意外中断”或串入旧分析结果的问题。现在 Chat 进度卡会以 Agent job 的真实状态为准：运行中继续转圈，后台时间耗尽时显示已暂停，回前台或冷启动后恢复并回填当前 job 的结果。

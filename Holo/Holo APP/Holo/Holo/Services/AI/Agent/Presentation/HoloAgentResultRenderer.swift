@@ -9,14 +9,14 @@
 
 import Foundation
 
-struct HoloRenderedAgentSection: Codable, Equatable, Sendable {
+nonisolated struct HoloRenderedAgentSection: Codable, Equatable, Sendable {
     var title: String
     var body: String
     /// claim 置信度，可选；旧 JSON 缺失该字段解码为 nil（向后兼容）
     var confidence: Double?
 }
 
-struct HoloRenderedFinanceDrilldown: Codable, Equatable, Sendable {
+nonisolated struct HoloRenderedFinanceDrilldown: Codable, Equatable, Sendable {
     var sourceEvidenceID: String
     var label: String
     var keyword: String?
@@ -26,20 +26,20 @@ struct HoloRenderedFinanceDrilldown: Codable, Equatable, Sendable {
     var baselineEnd: Date?
 }
 
-struct HoloRenderedEvidenceReference: Codable, Equatable, Sendable {
+nonisolated struct HoloRenderedEvidenceReference: Codable, Equatable, Sendable {
     var id: String
     var summary: String
     var financeDrilldown: HoloRenderedFinanceDrilldown?
 }
 
-struct HoloRenderedAgentResult: Codable, Equatable, Sendable {
+nonisolated struct HoloRenderedAgentResult: Codable, Equatable, Sendable {
     var title: String
     var summary: String
     var sections: [HoloRenderedAgentSection]
     var evidenceReferences: [HoloRenderedEvidenceReference]
 }
 
-struct HoloAgentResultRenderer {
+nonisolated struct HoloAgentResultRenderer {
 
     /// 渲染校验后的 claims 与证据为手机可读结构。
     func render(claims: [HoloAgentClaim], evidence: [HoloEvidenceRecord],
@@ -55,17 +55,21 @@ struct HoloAgentResultRenderer {
             )
         }
 
-        // 证据引用：去重，只用 redactedExcerpt
+        // 证据引用：去重，只用 redactedExcerpt。
+        // 优先用 metricAssertions 里已校验有效的 evidenceIDs（Verifier 保证其存在），
+        // 顶层 claim.evidenceIDs 仅作补充。canonical evidence ID 是 UUID 拼接的长串，
+        // LLM 在顶层常写错，找不到 record 的直接跳过，不再显示「证据缺失」。
         var seen = Set<String>()
         var references: [HoloRenderedEvidenceReference] = []
         for claim in claims {
-            for evidenceID in claim.evidenceIDs where !seen.contains(evidenceID) {
+            let candidateIDs = claim.metricAssertions.flatMap(\.evidenceIDs) + claim.evidenceIDs
+            for evidenceID in candidateIDs where !seen.contains(evidenceID) {
                 seen.insert(evidenceID)
-                let record = evidenceByID[evidenceID]
+                guard let record = evidenceByID[evidenceID] else { continue }
                 references.append(HoloRenderedEvidenceReference(
                     id: evidenceID,
-                    summary: record?.redactedExcerpt ?? "（证据缺失）",
-                    financeDrilldown: record.flatMap(Self.financeDrilldown)
+                    summary: record.redactedExcerpt,
+                    financeDrilldown: Self.financeDrilldown(for: record)
                 ))
             }
         }

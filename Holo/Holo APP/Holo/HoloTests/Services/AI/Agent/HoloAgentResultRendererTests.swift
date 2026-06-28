@@ -179,6 +179,28 @@ final class HoloAgentResultRendererTests: XCTestCase {
         XCTAssertEqual(Set(titles).count, titles.count, "多条 claim 的 title 应互不相同")
     }
 
+    /// 顶层 claim.evidenceIDs 被 LLM 写错（无效 ID）时，应改用 metricAssertions 里已校验的有效证据展示，不显示「证据缺失」。
+    /// 回归：canonical evidence ID 是 UUID 拼接的长串，LLM 在顶层 evidenceIDs 常写错；
+    /// Verifier 只校验 metricAssertions 的 ID，render 原先展示顶层 ID 导致频繁「（证据缺失）」。
+    func test顶层EvidenceID无效时改用已校验证据不显示缺失() {
+        let claim = HoloAgentClaim(
+            id: "c1", type: "observation", displayText: "买烟频率约每两天一次",
+            metricAssertions: [HoloMetricAssertion(
+                metricKey: "k", value: 15, baselineValue: nil,
+                unit: "次", comparison: nil, evidenceIDs: ["e1"]
+            )],
+            evidenceIDs: ["bad-llm-id"],  // 模拟 LLM 顶层写错的无效 ID
+            prohibitedInferences: [], confidence: 0.8
+        )
+        let ev = makeEvidence(id: "e1", redacted: "买烟记录 近一个月 15 次", excerpt: "原文")
+
+        let result = HoloAgentResultRenderer().render(claims: [claim], evidence: [ev])
+
+        let summaries = result.evidenceReferences.map(\.summary).joined()
+        XCTAssertTrue(summaries.contains("买烟记录"), "应展示 metricAssertions 里已校验的有效证据")
+        XCTAssertFalse(summaries.contains("证据缺失"), "顶层无效 ID 不应导致「证据缺失」")
+    }
+
     // MARK: - 测试数据构造助手
 
     private func makeEvidence(
