@@ -555,6 +555,39 @@ final class ChatMessageRepository: ObservableObject {
         }
     }
 
+    /// Agent 进度同步：用持久化 job 的真实状态更新原 streaming 消息。
+    func updateAgentMessageProgress(_ messageId: UUID, status: HoloAgentChatStatus) {
+        let message: ChatMessage?
+        if let cached = liveMessageCache[messageId] {
+            message = cached
+        } else {
+            let request = ChatMessage.fetchRequest()
+            request.predicate = NSPredicate(format: "id == %@", messageId as CVarArg)
+            request.fetchLimit = 1
+            message = try? context.fetch(request).first
+        }
+        guard let message else { return }
+
+        liveMessageCache[messageId] = message
+        message.content = status.messageContent
+        message.isStreaming = status.keepsMessageStreaming
+        message.intent = "query_analysis"
+        if !status.keepsMessageStreaming {
+            message.agentResultJSON = nil
+        }
+        save()
+
+        updateSnapshot(messageId) { snapshot in
+            snapshot.content = status.messageContent
+            snapshot.isStreaming = status.keepsMessageStreaming
+            snapshot.intent = "query_analysis"
+            if !status.keepsMessageStreaming {
+                snapshot.agentResult = nil
+                snapshot.metadataState = .loaded
+            }
+        }
+    }
+
     /// 更新消息的意图和提取数据（含批量字段）
     func updateMessageMetadata(
         _ messageId: UUID,
@@ -606,6 +639,14 @@ final class ChatMessageRepository: ObservableObject {
         intent: String?,
         analysisContext: AnalysisContext?
     ) {
+        if let message = liveMessageCache[messageId] {
+            message.intent = intent
+            if let analysisContext,
+               let data = try? JSONEncoder().encode(analysisContext) {
+                message.analysisContextJSON = String(data: data, encoding: .utf8)
+            }
+            save()
+        }
         updateSnapshot(messageId) { snapshot in
             snapshot.intent = intent
             snapshot.analysisContext = analysisContext
@@ -815,7 +856,7 @@ final class ChatMessageRepository: ObservableObject {
 
     /// 清理所有残留的 isStreaming 消息（app 启动 / 页面进入时调用）
     /// 这些消息一定是异常残留：app 在 streaming 期间被杀或崩溃
-    func cleanupOrphanedStreamingMessages() {
+    func cleanupOrphanedStreamingMessages(preserveMessageIDs: Set<UUID> = []) {
         let request = ChatMessage.fetchRequest()
         request.predicate = NSPredicate(format: "isStreaming == YES")
 
@@ -824,7 +865,7 @@ final class ChatMessageRepository: ObservableObject {
             guard !orphans.isEmpty else { return }
 
             for message in orphans {
-                if shouldPreserveRecoverableAgentMessage(message) {
+                if preserveMessageIDs.contains(message.id) {
                     continue
                 }
                 message.isStreaming = false
@@ -835,7 +876,7 @@ final class ChatMessageRepository: ObservableObject {
             save()
 
             // 同步刷新内存中的 snapshot
-            for orphan in orphans where !shouldPreserveRecoverableAgentMessage(orphan) {
+            for orphan in orphans where !preserveMessageIDs.contains(orphan.id) {
                 liveMessageCache[orphan.id] = orphan
                 updateSnapshot(orphan.id) { snapshot in
                     snapshot.isStreaming = false
@@ -849,12 +890,6 @@ final class ChatMessageRepository: ObservableObject {
         } catch {
             logger.error("清理残留 streaming 消息失败：\(error.localizedDescription)")
         }
-    }
-
-    private func shouldPreserveRecoverableAgentMessage(_ message: ChatMessage) -> Bool {
-        HoloAIFeatureFlags.agentRuntimeEnabled &&
-            message.intent == "query_analysis" &&
-            message.agentResultJSON == nil
     }
 
     // MARK: - Private

@@ -50,5 +50,8 @@ extension HoloLocalAgentRuntime {
 
 extension HoloBackgroundContinuationManager {
     /// 全 App 共享的后台续跑管理器，绑定 shared runtime。
-    static let shared = HoloBackgroundContinuationManager(runtime: HoloLocalAgentRuntime.shared)
+    static let shared = HoloBackgroundContinuationManager(
+        runtime: HoloLocalAgentRuntime.shared,
+        scheduler: HoloAgentScheduler.shared
+    )
 }

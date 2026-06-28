@@ -129,6 +129,54 @@ final class HoloAgentSchedulerTests: XCTestCase {
         return await predicate()
     }
 
+    private func makeJob(
+        state: HoloAgentJobState,
+        step: HoloAgentStep,
+        errorSummary: String? = nil
+    ) -> HoloAgentJob {
+        HoloAgentJob(
+            id: UUID().uuidString,
+            type: .deepAnalysis,
+            userQuestion: "最近状态怎么样",
+            trigger: .userQuestion,
+            state: state,
+            currentStep: step,
+            createdAt: Date(),
+            updatedAt: Date(),
+            lastForegroundRunAt: nil,
+            timeRange: nil,
+            budget: HoloAgentBudget.normalDeep(),
+            checkpointID: nil,
+            resultID: nil,
+            errorSummary: errorSummary,
+            deviceID: nil
+        )
+    }
+
+    func testChatStatusPresenter_按Job真实状态生成进度展示() {
+        let running = HoloAgentChatStatusPresenter.status(
+            for: makeJob(state: .waitingForLLM, step: .executeTools)
+        )
+        XCTAssertTrue(running.keepsMessageStreaming)
+        XCTAssertTrue(running.showsActivityIndicator)
+        XCTAssertEqual(running.title, "Holo 正在深度分析中…")
+
+        let paused = HoloAgentChatStatusPresenter.status(
+            for: makeJob(state: .waitingForForeground, step: .executeTools)
+        )
+        XCTAssertTrue(paused.keepsMessageStreaming)
+        XCTAssertFalse(paused.showsActivityIndicator)
+        XCTAssertEqual(paused.title, "已暂停，回到 App 后继续")
+
+        let failed = HoloAgentChatStatusPresenter.status(
+            for: makeJob(state: .failed, step: .executeTools, errorSummary: "网络中断")
+        )
+        XCTAssertFalse(failed.keepsMessageStreaming)
+        XCTAssertFalse(failed.showsActivityIndicator)
+        XCTAssertEqual(failed.title, "深度分析已中断")
+        XCTAssertTrue(failed.detail.contains("网络中断"))
+    }
+
     // MARK: - N1 回归
 
     /// N1：App 被杀重启后，未完成 job 必须由 Scheduler 真正拉起 runLoop 到达终态。
@@ -338,5 +386,59 @@ final class HoloAgentSchedulerTests: XCTestCase {
         }
         XCTAssertTrue(paused, "后台时间到期后应标记 waitingForForeground，等待前台恢复")
         XCTAssertTrue(client.didEnd, "后台任务到期处理后应释放 UIBackgroundTask")
+    }
+
+    /// 快速回桌面再回来：如果后台时间还没到期，原 runLoop 仍可能在跑，前台恢复不能重复拉起第二条 runLoop。
+    @MainActor
+    func testBackgroundContinuation_未到期快速回前台不重复恢复RunningJob() async throws {
+        let dir = makeTempDir()
+        let llm = FakeLLM(responses: [
+            #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        ])
+        let fixture = makeLoopFixture(dir: dir, llm: llm, executor: FakeExecutor())
+        let client = FakeBackgroundTaskClient()
+        let manager = HoloBackgroundContinuationManager(
+            runtime: fixture.runtime,
+            backgroundTaskClient: client
+        )
+        let job = try await fixture.runtime.startAnalysisJob(question: "q", now: Date())
+
+        manager.appDidEnterBackground()
+        manager.appWillEnterForeground()
+        try? await Task.sleep(nanoseconds: 150_000_000)
+
+        let stored = await fixture.jobStore.load().first { $0.id == job.id }
+        XCTAssertEqual(stored?.state, .running, "后台时间未到期时，回前台只同步状态，不应重复 resume running job")
+        let callCount = await llm.callCount
+        XCTAssertEqual(callCount, 0, "快速切回不应额外触发 LLM 调用")
+    }
+
+    /// 后台时间到期：job 已明确暂停，回前台需要重启 runLoop 并推进到终态。
+    @MainActor
+    func testBackgroundContinuation_到期后回前台恢复暂停Job() async throws {
+        let dir = makeTempDir()
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let fixture = makeLoopFixture(dir: dir, llm: FakeLLM(responses: [finalClaims]), executor: FakeExecutor())
+        let client = FakeBackgroundTaskClient()
+        let manager = HoloBackgroundContinuationManager(
+            runtime: fixture.runtime,
+            backgroundTaskClient: client
+        )
+        let job = try await fixture.runtime.startAnalysisJob(question: "q", now: Date())
+
+        manager.appDidEnterBackground()
+        client.expire()
+        let paused = await waitUntil {
+            let stored = await fixture.jobStore.load().first { $0.id == job.id }
+            return stored?.state == .waitingForForeground
+        }
+        XCTAssertTrue(paused)
+
+        manager.appWillEnterForeground()
+        let completed = await waitUntil {
+            let stored = await fixture.jobStore.load().first { $0.id == job.id }
+            return stored?.state == .completed
+        }
+        XCTAssertTrue(completed, "后台时间到期暂停后，回前台应恢复 runLoop 并完成 job")
     }
 }

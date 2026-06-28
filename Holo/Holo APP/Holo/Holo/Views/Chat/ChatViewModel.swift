@@ -150,9 +150,12 @@ final class ChatViewModel: ObservableObject {
             guard let self = self else { return }
             let repo = ChatMessageRepository.shared
             self.bindRepository(repo)
-            repo.cleanupOrphanedStreamingMessages()
+            let preserved = await self.analysisService.syncRecoverableChatMessages(repository: repo)
+            repo.cleanupOrphanedStreamingMessages(preserveMessageIDs: preserved)
             try? await Task.sleep(nanoseconds: 250_000_000)
             await repo.loadCurrentSessionLightweightMessagesAsync(limit: self.initialHistoryLimit)
+            let refreshedPreserved = await self.analysisService.syncRecoverableChatMessages(repository: repo)
+            repo.cleanupOrphanedStreamingMessages(preserveMessageIDs: refreshedPreserved)
             self.hasLoadedMessages = true
             self.syncHasEarlierSessions()
             self.repositoryBootstrapTask = nil
@@ -177,8 +180,11 @@ final class ChatViewModel: ObservableObject {
         }
 
         if !hasLoadedMessages {
-            repo.cleanupOrphanedStreamingMessages()
+            let preserved = await analysisService.syncRecoverableChatMessages(repository: repo)
+            repo.cleanupOrphanedStreamingMessages(preserveMessageIDs: preserved)
             await repo.loadCurrentSessionLightweightMessagesAsync(limit: initialHistoryLimit)
+            let refreshedPreserved = await analysisService.syncRecoverableChatMessages(repository: repo)
+            repo.cleanupOrphanedStreamingMessages(preserveMessageIDs: refreshedPreserved)
             hasLoadedMessages = true
             syncHasEarlierSessions()
         }
@@ -193,7 +199,9 @@ final class ChatViewModel: ObservableObject {
         repoMessagesCancellable = repo.$messages
             .receive(on: DispatchQueue.main)
             .sink { [weak self] messages in
-                self?.messages = messages
+                guard let self else { return }
+                self.messages = messages
+                self.isStreaming = messages.contains { $0.isStreaming }
             }
 
         // 同步 hasEarlierSessions
@@ -279,12 +287,21 @@ final class ChatViewModel: ObservableObject {
 
                 // 深度 Agent 分流（Phase 6.2）：命中则启动本地 Agent，不走流式分析
                 if processResult.shouldRouteToAgent {
+                    self.streamingWatchdogTask?.cancel()
+                    self.streamingWatchdogTask = nil
                     self.chatRepo?.setAnalysisLoadingState(
                         aiMessageId,
                         intent: "query_analysis",
                         analysisContext: nil
                     )
-                    self.streamingText = "Holo 正在为你深度分析本地数据…建议先停留在当前界面；切到后台后会短时间继续尝试，回到 App 后可继续查看结果。"
+                    let initialStatus = HoloAgentChatStatus(
+                        title: "Holo 正在深度分析中…",
+                        detail: "正在启动本地 Agent，请保持 App 可用；切到后台后会短时间继续尝试。",
+                        keepsMessageStreaming: true,
+                        showsActivityIndicator: true
+                    )
+                    self.chatRepo?.updateAgentMessageProgress(aiMessageId, status: initialStatus)
+                    self.streamingText = initialStatus.messageContent
                     let rendered = await self.analysisService.runAnalysis(
                         question: text,
                         sourceMessageID: aiMessageId

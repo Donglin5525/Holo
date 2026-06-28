@@ -32,12 +32,16 @@ final class HoloBackgroundContinuationManager {
 
     private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid
     private let runtime: HoloLocalAgentRuntime
+    private let scheduler: HoloAgentScheduler
     private let backgroundTaskClient: any HoloBackgroundTaskClient
     private var resumeTask: Task<Void, Never>?
+    private var didExpireInBackground = false
 
     init(runtime: HoloLocalAgentRuntime,
+         scheduler: HoloAgentScheduler? = nil,
          backgroundTaskClient: (any HoloBackgroundTaskClient)? = nil) {
         self.runtime = runtime
+        self.scheduler = scheduler ?? HoloAgentScheduler(runtime: runtime)
         self.backgroundTaskClient = backgroundTaskClient ?? UIApplicationBackgroundTaskClient()
     }
 
@@ -54,25 +58,43 @@ final class HoloBackgroundContinuationManager {
             }
         }
         resumeTask?.cancel()
+        didExpireInBackground = false
     }
 
-    /// App 即将回前台：cancel 旧续跑（如果有）+ 经 Scheduler 重启未完成 job 的 runLoop（闭合 N1）。
+    /// App 即将回前台：快速切回只同步 Chat 状态；后台时间到期暂停过才重启 runLoop。
     func appWillEnterForeground() {
         endBackgroundTask()
+        if didExpireInBackground {
+            didExpireInBackground = false
+            resumeAndSyncRecoveredJobs()
+        } else {
+            resumeTask?.cancel()
+            resumeTask = Task {
+                _ = await HoloAgentAnalysisService().syncRecoverableChatMessages()
+            }
+        }
+    }
+
+    /// 冷启动/进程被杀后重新启动：没有旧进程内 runLoop，可直接恢复未完成 job。
+    func appDidLaunch() {
+        resumeAndSyncRecoveredJobs()
+    }
+
+    private func resumeAndSyncRecoveredJobs() {
         resumeTask?.cancel()
-        let scheduler = HoloAgentScheduler.shared
         resumeTask = Task { [runtime, scheduler] in
             let toolDescriptions = await runtime.toolDescriptions()
             let systemTemplate = (try? PromptManager.shared.loadPrompt(.agentLoop)) ?? ""
             _ = try? await scheduler.resumeAndContinue(
                 systemTemplate: systemTemplate, toolDescriptions: toolDescriptions
             )
-            await HoloAgentAnalysisService().finalizeRecoveredChatMessages()
+            _ = await HoloAgentAnalysisService().syncRecoverableChatMessages()
             _ = try? await scheduler.cleanupTerminalJobs()
         }
     }
 
     private func pauseForBackgroundExpiration() {
+        didExpireInBackground = true
         Task { [runtime] in
             try? await runtime.pauseForBackground()
             await MainActor.run { self.endBackgroundTask() }

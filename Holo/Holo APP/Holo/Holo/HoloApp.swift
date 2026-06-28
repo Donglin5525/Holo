@@ -92,6 +92,12 @@ struct HoloApp: App {
 
                     // 首屏数据准备后刷新一次小组件快照，保证冷启动后桌面数据可用
                     await HoloWidgetSnapshotService.shared.refreshAllSnapshots()
+
+                    if HoloAIFeatureFlags.agentRuntimeEnabled {
+                        await MainActor.run {
+                            HoloBackgroundContinuationManager.shared.appDidLaunch()
+                        }
+                    }
                 }
                 .onChange(of: scenePhase) { _, phase in
                     // Agent 后台续跑：灰度 flag 关闭时直接 return，不影响现有行为

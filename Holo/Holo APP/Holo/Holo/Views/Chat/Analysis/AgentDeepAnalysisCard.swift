@@ -65,17 +65,24 @@ struct AgentDeepAnalysisCard: View {
     // MARK: - Loading Card
 
     private var loadingCard: some View {
-        ChatCardView {
+        let status = HoloAgentChatStatusPresenter.display(from: message.content)
+        return ChatCardView {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
-                    ProgressView()
-                        .scaleEffect(0.8)
-                    Text("Holo 正在深度分析中…")
+                    if status.showsActivityIndicator {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                    } else {
+                        Image(systemName: "pause.circle")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.holoTextSecondary)
+                    }
+                    Text(status.title)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.holoTextSecondary)
                 }
 
-                Text("建议先停留在当前界面；切到后台后 Holo 会短时间继续尝试，系统收回后台时间时可能暂停，回到 App 后会继续。")
+                Text(status.detail)
                     .font(.system(size: 12))
                     .foregroundColor(.holoTextSecondary.opacity(0.78))
                     .fixedSize(horizontal: false, vertical: true)

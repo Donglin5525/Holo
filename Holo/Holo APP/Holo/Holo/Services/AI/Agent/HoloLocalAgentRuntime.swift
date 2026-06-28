@@ -185,6 +185,12 @@ actor HoloLocalAgentRuntime {
         }
     }
 
+    /// 读取所有带 Chat 来源消息的 job，供 Chat 页面重建/回前台时同步真实进度。
+    func loadChatLinkedJobs() async -> [HoloAgentJob] {
+        let jobs = await jobStore.load()
+        return jobs.filter { $0.sourceMessageID != nil }
+    }
+
     /// 多轮 agent_loop：循环调用 LLM，按 status 推进，直到 final_claims 或轮数耗尽。
     /// 需要 llmClient 与 toolExecutor（未配置时抛 loopNotConfigured）。
     /// 注：循环条件含 wallTime 超时（§9.6）；Date() 不可注入但逻辑简单，测试靠 FakeLLM 同步快避免超时。

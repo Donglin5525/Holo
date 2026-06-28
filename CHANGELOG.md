@@ -4,6 +4,23 @@
 
 ---
 
+## [2026-06-28] Agent 进度状态改为真实 job 状态
+
+修复 HoloAI 页面退出再进入、回桌面、锁屏或杀进程后，深度分析卡片误显示“处理时意外中断”或串入旧分析结果的问题。现在 Chat 进度卡会以 Agent job 的真实状态为准：运行中继续转圈，后台时间耗尽时显示已暂停，回前台或冷启动后恢复并回填当前 job 的结果。
+
+### 变更
+- **真实状态源**：Chat 进度不再依赖页面内 `streamingText`，改为由持久化 Agent job 状态同步
+- **页面重建恢复**：Agent loading 状态写入 Core Data，回首页再进入 HoloAI 仍能展示真实状态
+- **结果绑定修复**：深度分析完成后按当前 `jobID` 读取结果，避免误展示旧的“最近一次”分析
+- **生命周期修复**：快速回桌面再回来只同步状态，不重复启动 runLoop；后台时间到期或冷启动后才恢复未完成 job
+- **测试**：补充状态展示、快速回前台不重复恢复、后台到期后恢复的回归用例
+
+### 验证
+- `xcodebuild test -project 'Holo/Holo APP/Holo/Holo.xcodeproj' -scheme Holo -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:HoloTests/HoloAgentSchedulerTests -quiet`
+- `xcodebuild build -project 'Holo/Holo APP/Holo/Holo.xcodeproj' -scheme Holo -destination 'platform=iOS Simulator,name=iPhone 17' -configuration Debug -quiet`
+
+---
+
 ## [2026-06-28] Agent 后台恢复回填 Chat 消息
 
 修复真机切到桌面再回到 App 后，Agent 结果被 Chat 层误判为“处理时意外中断了”的问题。现在 Agent job 会记录来源消息，回前台恢复完成后把结果回填到原来的深度分析气泡。
