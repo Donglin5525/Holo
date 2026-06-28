@@ -60,7 +60,7 @@ actor HoloLocalAgentRuntime {
 
     /// 创建并启动一个真实深度分析 job（对话触发）：type=.deepAnalysis, trigger=.userQuestion。
     /// 写入初始 checkpoint（含用户问题），供 runLoop 多轮推进。生产路径用。
-    func startAnalysisJob(question: String, now: Date = Date()) async throws -> HoloAgentJob {
+    func startAnalysisJob(question: String, sourceMessageID: UUID? = nil, now: Date = Date()) async throws -> HoloAgentJob {
         var job = HoloAgentJob(
             id: UUID().uuidString, type: .deepAnalysis, userQuestion: question,
             trigger: .userQuestion, state: .running, currentStep: .plan,
@@ -69,6 +69,7 @@ actor HoloLocalAgentRuntime {
             budget: HoloAgentBudget.normalDeep(now: now),
             checkpointID: nil, resultID: nil, errorSummary: nil, deviceID: nil
         )
+        job.sourceMessageID = sourceMessageID
         let checkpoint = Self.makeCheckpoint(
             jobID: job.id, step: .plan, completedSteps: [],
             conversation: [Self.mockUserMessage(question, now)], now: now,
@@ -169,6 +170,19 @@ actor HoloLocalAgentRuntime {
     /// 读取指定 IDs 的 evidence 记录，供结果渲染引用（Phase 6.3 evidence 引用）。
     func loadEvidence(forIDs ids: [String]) async -> [HoloEvidenceRecord] {
         await persistence.loadEvidence(forIDs: ids)
+    }
+
+    /// 读取指定 job 的 Agent 结果，供 Chat 恢复回填。
+    func loadResult(jobID: String) async -> HoloAgentResult? {
+        await persistence.loadResult(jobID: jobID)
+    }
+
+    /// 读取已到终态且带 Chat 来源消息的 job，供回前台后回填原 streaming 消息。
+    func loadChatRecoverableTerminalJobs() async -> [HoloAgentJob] {
+        let jobs = await jobStore.load()
+        return jobs.filter { job in
+            job.sourceMessageID != nil && Self.terminalStates.contains(job.state)
+        }
     }
 
     /// 多轮 agent_loop：循环调用 LLM，按 status 推进，直到 final_claims 或轮数耗尽。

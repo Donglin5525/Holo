@@ -18,14 +18,19 @@ final class HoloAgentAnalysisService {
     private let runtime: HoloLocalAgentRuntime
     private let scheduler: HoloAgentScheduler
 
-    init(runtime: HoloLocalAgentRuntime = .shared, scheduler: HoloAgentScheduler = .shared) {
+    init() {
+        self.runtime = HoloLocalAgentRuntime.shared
+        self.scheduler = HoloAgentScheduler.shared
+    }
+
+    init(runtime: HoloLocalAgentRuntime, scheduler: HoloAgentScheduler) {
         self.runtime = runtime
         self.scheduler = scheduler
     }
 
     /// 运行一次深度分析，返回渲染后的结果短文；失败或未完成返回 nil。
     /// 全程异步执行，ChatViewModel 负责展示状态与最终文本。
-    func runAnalysis(question: String) async -> HoloRenderedAgentResult {
+    func runAnalysis(question: String, sourceMessageID: UUID? = nil) async -> HoloRenderedAgentResult {
         logger.info("[Agent] 开始: \(question)")
         let fail = { (reason: String) -> HoloRenderedAgentResult in
             HoloRenderedAgentResult(title: "深度分析出错", summary: reason, sections: [], evidenceReferences: [])
@@ -33,7 +38,7 @@ final class HoloAgentAnalysisService {
         let toolDescriptions = await runtime.toolDescriptions()
         let systemTemplate: String
         do {
-            systemTemplate = try await PromptManager.shared.loadPrompt(.agentLoop)
+            systemTemplate = try PromptManager.shared.loadPrompt(.agentLoop)
         } catch {
             return fail("[prompt加载失败] \(String(describing: error))")
         }
@@ -41,7 +46,10 @@ final class HoloAgentAnalysisService {
         let finalJob: HoloAgentJob
         do {
             finalJob = try await scheduler.start(
-                question: question, systemTemplate: systemTemplate, toolDescriptions: toolDescriptions
+                question: question,
+                systemTemplate: systemTemplate,
+                toolDescriptions: toolDescriptions,
+                sourceMessageID: sourceMessageID
             )
             logger.info("[Agent] runLoop 完成 state=\(finalJob.state.rawValue) rounds=\(finalJob.budget.consumedLLMRounds)")
         } catch {
@@ -59,5 +67,33 @@ final class HoloAgentAnalysisService {
         return HoloAgentResultRenderer().render(
             claims: result.claims, evidence: evidence, title: result.title
         )
+    }
+
+    /// 回前台/冷启动恢复后，将已完成的 Agent job 回填到原来的 Chat streaming 消息。
+    func finalizeRecoveredChatMessages(repository: ChatMessageRepository? = nil) async {
+        let repository = repository ?? ChatMessageRepository.shared
+        let jobs = await runtime.loadChatRecoverableTerminalJobs()
+        for job in jobs {
+            guard let sourceMessageID = job.sourceMessageID else { continue }
+            let rendered: HoloRenderedAgentResult
+            if job.state == .completed,
+               let result = await runtime.loadResult(jobID: job.id) {
+                let evidence = await runtime.loadEvidence(forIDs: result.evidenceIDs)
+                rendered = HoloAgentResultRenderer().render(
+                    claims: result.claims,
+                    evidence: evidence,
+                    title: result.title
+                )
+            } else {
+                let detail = job.errorSummary ?? "Agent 在恢复后未能完成。"
+                rendered = HoloRenderedAgentResult(
+                    title: "深度分析出错",
+                    summary: detail,
+                    sections: [],
+                    evidenceReferences: []
+                )
+            }
+            repository.finalizeAgentMessage(sourceMessageID, rendered: rendered, intent: "query_analysis")
+        }
     }
 }

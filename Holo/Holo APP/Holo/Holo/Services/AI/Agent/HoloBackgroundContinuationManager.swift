@@ -12,13 +12,13 @@ import Foundation
 
 @MainActor
 protocol HoloBackgroundTaskClient {
-    func beginBackgroundTask(named name: String, expirationHandler: @escaping () -> Void) -> UIBackgroundTaskIdentifier
+    func beginBackgroundTask(named name: String, expirationHandler: @escaping @Sendable () -> Void) -> UIBackgroundTaskIdentifier
     func endBackgroundTask(_ identifier: UIBackgroundTaskIdentifier)
 }
 
 @MainActor
 struct UIApplicationBackgroundTaskClient: HoloBackgroundTaskClient {
-    func beginBackgroundTask(named name: String, expirationHandler: @escaping () -> Void) -> UIBackgroundTaskIdentifier {
+    func beginBackgroundTask(named name: String, expirationHandler: @escaping @Sendable () -> Void) -> UIBackgroundTaskIdentifier {
         UIApplication.shared.beginBackgroundTask(withName: name, expirationHandler: expirationHandler)
     }
 
@@ -48,7 +48,10 @@ final class HoloBackgroundContinuationManager {
             endBackgroundTask()
         }
         backgroundTaskID = backgroundTaskClient.beginBackgroundTask(named: "HoloAgentFinish") { [weak self] in
-            self?.pauseForBackgroundExpiration()
+            guard let manager = self else { return }
+            Task { @MainActor [manager] in
+                manager.pauseForBackgroundExpiration()
+            }
         }
         resumeTask?.cancel()
     }
@@ -60,10 +63,11 @@ final class HoloBackgroundContinuationManager {
         let scheduler = HoloAgentScheduler.shared
         resumeTask = Task { [runtime, scheduler] in
             let toolDescriptions = await runtime.toolDescriptions()
-            let systemTemplate = (try? await PromptManager.shared.loadPrompt(.agentLoop)) ?? ""
+            let systemTemplate = (try? PromptManager.shared.loadPrompt(.agentLoop)) ?? ""
             _ = try? await scheduler.resumeAndContinue(
                 systemTemplate: systemTemplate, toolDescriptions: toolDescriptions
             )
+            await HoloAgentAnalysisService().finalizeRecoveredChatMessages()
             _ = try? await scheduler.cleanupTerminalJobs()
         }
     }

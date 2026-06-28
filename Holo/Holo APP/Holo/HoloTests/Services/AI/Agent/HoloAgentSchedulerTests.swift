@@ -63,7 +63,7 @@ final class HoloAgentSchedulerTests: XCTestCase {
         private(set) var didEnd = false
 
         func beginBackgroundTask(named name: String,
-                                 expirationHandler: @escaping () -> Void) -> UIBackgroundTaskIdentifier {
+                                 expirationHandler: @escaping @Sendable () -> Void) -> UIBackgroundTaskIdentifier {
             self.expirationHandler = expirationHandler
             return UIBackgroundTaskIdentifier(rawValue: 99)
         }
@@ -289,6 +289,29 @@ final class HoloAgentSchedulerTests: XCTestCase {
         )
         XCTAssertEqual(job.state, .completed, "start 应跑完 runLoop 到达 completed")
         XCTAssertEqual(job.type, .deepAnalysis, "start 创建的应为 deepAnalysis job")
+    }
+
+    /// Chat 恢复桥：用户发起的 Agent job 必须带 sourceMessageID，回前台恢复完成后才能回填原消息。
+    func testStart_保存sourceMessageID供Chat恢复回填() async throws {
+        let dir = makeTempDir()
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let fixture = makeLoopFixture(
+            dir: dir, llm: FakeLLM(responses: [finalClaims]), executor: FakeExecutor()
+        )
+        let scheduler = HoloAgentScheduler(runtime: fixture.runtime)
+        let messageID = UUID()
+
+        let job = try await scheduler.start(
+            question: "q",
+            systemTemplate: "你是 Agent",
+            toolDescriptions: "tools",
+            sourceMessageID: messageID,
+            now: Date()
+        )
+
+        XCTAssertEqual(job.sourceMessageID, messageID, "Agent job 应记录触发它的 Chat 消息 ID")
+        let stored = await fixture.jobStore.load().first { $0.id == job.id }
+        XCTAssertEqual(stored?.sourceMessageID, messageID, "sourceMessageID 应随 job 落盘，供恢复回填")
     }
 
     /// 后台续跑：进入后台时不应立刻 pause，系统后台时间耗尽后才落盘 waitingForForeground。

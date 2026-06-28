@@ -514,6 +514,47 @@ final class ChatMessageRepository: ObservableObject {
         }
     }
 
+    /// Agent 恢复回填：按 message id 结束原 streaming 消息，并写入结构化 Agent 结果。
+    func finalizeAgentMessage(_ messageId: UUID,
+                              rendered: HoloRenderedAgentResult,
+                              intent: String? = "query_analysis") {
+        let fallbackText = [rendered.title, rendered.summary]
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+        let agentResultJSON: String?
+        if let data = try? JSONEncoder().encode(rendered) {
+            agentResultJSON = String(data: data, encoding: .utf8)
+        } else {
+            agentResultJSON = nil
+        }
+
+        let message: ChatMessage?
+        if let cached = liveMessageCache[messageId] {
+            message = cached
+        } else {
+            let request = ChatMessage.fetchRequest()
+            request.predicate = NSPredicate(format: "id == %@", messageId as CVarArg)
+            request.fetchLimit = 1
+            message = try? context.fetch(request).first
+        }
+        guard let message else { return }
+
+        liveMessageCache[messageId] = message
+        message.content = fallbackText
+        message.isStreaming = false
+        message.intent = intent
+        message.agentResultJSON = agentResultJSON
+        save()
+
+        updateSnapshot(messageId) { snapshot in
+            snapshot.content = fallbackText
+            snapshot.isStreaming = false
+            snapshot.intent = intent
+            snapshot.agentResult = rendered
+            snapshot.metadataState = .loaded
+        }
+    }
+
     /// 更新消息的意图和提取数据（含批量字段）
     func updateMessageMetadata(
         _ messageId: UUID,
@@ -783,6 +824,9 @@ final class ChatMessageRepository: ObservableObject {
             guard !orphans.isEmpty else { return }
 
             for message in orphans {
+                if shouldPreserveRecoverableAgentMessage(message) {
+                    continue
+                }
                 message.isStreaming = false
                 if message.content.isEmpty {
                     message.content = "抱歉，处理时意外中断了"
@@ -791,7 +835,7 @@ final class ChatMessageRepository: ObservableObject {
             save()
 
             // 同步刷新内存中的 snapshot
-            for orphan in orphans {
+            for orphan in orphans where !shouldPreserveRecoverableAgentMessage(orphan) {
                 liveMessageCache[orphan.id] = orphan
                 updateSnapshot(orphan.id) { snapshot in
                     snapshot.isStreaming = false
@@ -805,6 +849,12 @@ final class ChatMessageRepository: ObservableObject {
         } catch {
             logger.error("清理残留 streaming 消息失败：\(error.localizedDescription)")
         }
+    }
+
+    private func shouldPreserveRecoverableAgentMessage(_ message: ChatMessage) -> Bool {
+        HoloAIFeatureFlags.agentRuntimeEnabled &&
+            message.intent == "query_analysis" &&
+            message.agentResultJSON == nil
     }
 
     // MARK: - Private

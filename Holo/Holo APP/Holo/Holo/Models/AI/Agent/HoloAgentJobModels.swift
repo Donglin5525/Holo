@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum HoloAgentJobType: String, Codable, CaseIterable, Sendable {
+nonisolated enum HoloAgentJobType: String, Codable, CaseIterable, Sendable {
     case deepAnalysis
     case memoryGallerySummary
     case observerInspection
@@ -16,7 +16,7 @@ enum HoloAgentJobType: String, Codable, CaseIterable, Sendable {
     case debugMock
 }
 
-enum HoloAgentTrigger: String, Codable, CaseIterable, Sendable {
+nonisolated enum HoloAgentTrigger: String, Codable, CaseIterable, Sendable {
     case userQuestion
     case memoryGalleryRefresh
     case observerTier2
@@ -24,7 +24,7 @@ enum HoloAgentTrigger: String, Codable, CaseIterable, Sendable {
     case debug
 }
 
-enum HoloAgentJobState: String, Codable, CaseIterable, Sendable {
+nonisolated enum HoloAgentJobState: String, Codable, CaseIterable, Sendable {
     case queued
     case running
     case waitingForLLM
@@ -36,7 +36,7 @@ enum HoloAgentJobState: String, Codable, CaseIterable, Sendable {
     case cancelled
 }
 
-enum HoloAgentStep: String, Codable, CaseIterable, Sendable {
+nonisolated enum HoloAgentStep: String, Codable, CaseIterable, Sendable {
     case plan
     case executeTools
     case minePatterns
@@ -51,7 +51,7 @@ enum HoloAgentStep: String, Codable, CaseIterable, Sendable {
 
 // MARK: - 任务
 
-struct HoloAgentJob: Codable, Identifiable, Equatable, Sendable {
+nonisolated struct HoloAgentJob: Codable, Identifiable, Equatable, Sendable {
     var id: String
     var type: HoloAgentJobType
     var userQuestion: String?
@@ -67,11 +67,12 @@ struct HoloAgentJob: Codable, Identifiable, Equatable, Sendable {
     var resultID: String?
     var errorSummary: String?
     var deviceID: String?
+    var sourceMessageID: UUID? = nil
 }
 
 // MARK: - 预算
 
-struct HoloAgentBudget: Codable, Equatable, Sendable {
+nonisolated struct HoloAgentBudget: Codable, Equatable, Sendable {
     var maxLLMRounds: Int
     var maxToolBatches: Int
     var maxInputTokens: Int

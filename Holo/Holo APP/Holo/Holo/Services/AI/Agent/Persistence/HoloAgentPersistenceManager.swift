@@ -58,6 +58,11 @@ actor HoloAgentPersistenceManager {
         await resultStore.latest()
     }
 
+    /// 读取指定 job 的结果，供 Chat 恢复时回填原消息。
+    func loadResult(jobID: String) async -> HoloAgentResult? {
+        await resultStore.forJob(jobID: jobID)
+    }
+
     /// 读取指定 IDs 的 evidence 记录，供结果渲染引用（Phase 6.3 evidence 引用）。
     func loadEvidence(forIDs ids: [String]) async -> [HoloEvidenceRecord] {
         let idSet = Set(ids)
