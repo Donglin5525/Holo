@@ -31,16 +31,27 @@ actor HoloAgentScheduler {
     /// 调用方应在后台 Task 中调用（串行恢复多个 job 时），避免阻塞首屏。
     @discardableResult
     func resumeAndContinue(systemTemplate: String, toolDescriptions: String,
-                           now: Date = Date()) async throws -> Int {
-        // 闭合 N1：扫描全部非终态 job（含 running 孤儿），逐个真正拉起 runLoop 到达终态。
-        // 与现状 resumeUnfinishedJobs 的根本区别——这里真正重启推理，而非仅标记状态。
-        let jobIDs = await runtime.collectResumableJobIDs(now: now)
-        for jobID in jobIDs {
+                           now: Date = Date(), maxResume: Int = 3) async throws -> Int {
+        // 闭合 N1：扫描非终态 job，按优先级排序，限量恢复（§9.5 避免批量恢复拖慢首屏）。
+        var jobs = await runtime.collectResumableJobs(now: now)
+        jobs.sort { priorityRank($0.trigger) < priorityRank($1.trigger) }
+        let toResume = maxResume > 0 ? Array(jobs.prefix(maxResume)) : jobs
+        for job in toResume {
             _ = try? await runtime.runLoop(
-                jobID: jobID, systemTemplate: systemTemplate, toolDescriptions: toolDescriptions, now: now
+                jobID: job.id, systemTemplate: systemTemplate, toolDescriptions: toolDescriptions, now: now
             )
         }
-        return jobIDs.count
+        return toResume.count
+    }
+
+    /// trigger 优先级：P0 用户对话 > P1 刷新 > P2/P3 Observer > 其余。
+    private nonisolated func priorityRank(_ trigger: HoloAgentTrigger) -> Int {
+        switch trigger {
+        case .userQuestion: return 0
+        case .memoryGalleryRefresh: return 1
+        case .observerTier2: return 2
+        default: return 3
+        }
     }
 
     /// 清理终态且超保留期的 job 及其关联 checkpoint/result（§9.6 体积治理）。

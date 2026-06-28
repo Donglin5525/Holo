@@ -163,6 +163,48 @@ final class HoloAgentSchedulerTests: XCTestCase {
         XCTAssertNil(oldCheckpoint, "终态超期 job 的 checkpoint 应级联删除")
     }
 
+    /// Phase 1 限量恢复：多 job 时只恢复有限个（按优先级排序），避免回前台批量恢复拖慢首屏。
+    func testResumeAndContinue_限量恢复按优先级排序() async throws {
+        let dir = makeTempDir()
+        let finalClaims = #"{"status":"final_claims","reasoning":"足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let fixture = makeLoopFixture(dir: dir, llm: FakeLLM(responses: [finalClaims]), executor: FakeExecutor())
+        let scheduler = HoloAgentScheduler(runtime: fixture.runtime)
+        let now = Date(timeIntervalSince1970: 1_000_000)
+
+        // 造 3 个 job（均 P0 userQuestion）→ 进后台 waitingForForeground → 改 trigger 制造优先级差异
+        let j0 = try await fixture.runtime.startAnalysisJob(question: "P0", now: now)
+        let j1 = try await fixture.runtime.startAnalysisJob(question: "P1", now: now)
+        let j3 = try await fixture.runtime.startAnalysisJob(question: "P3", now: now)
+        try await fixture.runtime.pauseForBackground(now: now)
+        try await upsertTrigger(fixture.jobStore, id: j1.id, trigger: .memoryGalleryRefresh)
+        try await upsertTrigger(fixture.jobStore, id: j3.id, trigger: .observerTier2)
+
+        // 限量 2：应恢复 P0(userQuestion, rank=0) + P1(memoryGalleryRefresh, rank=1)，排除 P3(observerTier2, rank=2)
+        let resumed = try await scheduler.resumeAndContinue(
+            systemTemplate: "你是 Agent", toolDescriptions: "tools", now: now, maxResume: 2
+        )
+        XCTAssertEqual(resumed, 2, "应只恢复限量 2 个")
+
+        let jobs = await fixture.jobStore.load()
+        guard let f0 = jobs.first(where: { $0.id == j0.id }),
+              let f1 = jobs.first(where: { $0.id == j1.id }),
+              let f3 = jobs.first(where: { $0.id == j3.id }) else {
+            XCTFail("jobs 应存在"); return
+        }
+        XCTAssertTrue(isTerminal(f0.state), "P0 应到达终态，实际 \(f0.state.rawValue)")
+        XCTAssertTrue(isTerminal(f1.state), "P1 应到达终态，实际 \(f1.state.rawValue)")
+        // P3 被限量排除，应保持 waitingForForeground
+        XCTAssertFalse(isTerminal(f3.state), "P3 应被限量排除，实际 \(f3.state.rawValue)")
+        XCTAssertEqual(f3.state, .waitingForForeground, "P3 应保持 waitingForForeground")
+    }
+
+    private func upsertTrigger(_ store: HoloAgentJobStore, id: String, trigger: HoloAgentTrigger) async throws {
+        let jobs = await store.load()
+        guard var job = jobs.first(where: { $0.id == id }) else { return }
+        job.trigger = trigger
+        try await store.upsert(job)
+    }
+
     /// Phase 2：Scheduler.start 创建 job 并跑完 runLoop，返回终态 job（Chat/Observer 入口经 Scheduler）。
     func testStart_创建job并跑完runLoop返回终态() async throws {
         let dir = makeTempDir()

@@ -4,6 +4,20 @@
 
 ---
 
+## [2026-06-28] 全局可恢复 Agent 限量恢复与优先级排序（Phase 1 增强）
+
+回前台时 `Scheduler.resumeAndContinue` 按 trigger 优先级排序（P0 用户对话 > P1 刷新 > 其余），限量 `maxResume=3` 恢复，避免批量恢复拖慢首屏（§9.5）。
+
+### 变更
+- **runtime**：+ `collectResumableJobs`（返回完整 job，供排序限量）
+- **Scheduler**：`priorityRank` + `maxResume` 限量 + 排序
+- **测试**：`testResumeAndContinue_限量恢复按优先级排序`（XCTest）
+
+### 测试
+- test_sim 四测试绿（N1 + 清理 + start + 限量恢复）
+
+---
+
 ## [2026-06-28] 健康洞察生活闭环空态优化（Verifier 放宽 + UI 区分）
 
 修复生活闭环系统性显示 0 条（记忆 12743）。

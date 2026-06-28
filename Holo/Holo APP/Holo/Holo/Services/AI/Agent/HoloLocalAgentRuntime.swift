@@ -317,6 +317,12 @@ actor HoloLocalAgentRuntime {
         return jobs.filter { !Self.terminalStates.contains($0.state) }.map(\.id)
     }
 
+    /// 收集所有非终态 job（含 running 孤儿），供 Scheduler 排序、限量、拉起 runLoop。
+    func collectResumableJobs(now: Date = Date()) async -> [HoloAgentJob] {
+        let jobs = await jobStore.load()
+        return jobs.filter { !Self.terminalStates.contains($0.state) }
+    }
+
     /// 清理终态且超保留期的 job 及其关联 checkpoint/result（透传 persistence，§9.6 体积治理）。
     @discardableResult
     func cleanupTerminalJobs(policy: HoloJobCleanupPolicy, now: Date = Date()) async throws -> [String] {
