@@ -4,6 +4,21 @@
 
 ---
 
+## [2026-06-28] 后端 agent_loop 日志脱敏 + runId/stepId 透传（Phase 4）
+
+agent_loop 日志不再存完整 messages 与 response（§9.4 隐私合规）。只存 runId/stepId/messageCount/summary（前 300 字），response 只存 status + usage。同时透传请求体 runId/stepId。
+
+### 变更
+- **app.js**：agent_loop request 日志脱敏（`summarizeMessages`，前 300 字）+ response 只存 `status + usage`
+- **app.js**：请求体透传 `runId` / `stepId`（供 iOS 端对接）
+- **npm test**：75/75 绿
+
+### 待办
+- iOS 端传 runId/stepId（`HoloAgentLLMClient.next` + `runLoop`）
+- 客户端断连处理（`req.on('close')` abort provider）
+
+---
+
 ## [2026-06-28] 全局可恢复 Agent checkpoint inputSnapshotHash（Phase 3）
 
 `HoloAgentCheckpoint` 加 `inputSnapshotHash`（job 输入 `userQuestion + timeRange` 的稳定 hash）。恢复时 `Scheduler.resumeAndContinue` 对比 hash：匹配则恢复，不匹配则跳过（用户改了问题/时间范围，需重新规划，§4.3）。

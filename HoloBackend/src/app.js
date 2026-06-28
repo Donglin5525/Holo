@@ -158,6 +158,7 @@ export function createApp(overrides = {}) {
         maxTokens: route.maxTokens,
         responseFormat: request.response_format,
       };
+      const isAgentLoop = purpose === "agent_loop";
       const logId = captureAiCallLogs
         ? adminLogStore.startAiCall({
             deviceId,
@@ -165,12 +166,20 @@ export function createApp(overrides = {}) {
             provider: route.provider,
             model: route.model,
             stream: upstreamRequest.stream,
-            request: {
-              messages: request.messages,
-              responseFormat: request.response_format ?? null,
-              temperature: route.temperature,
-              maxTokens: route.maxTokens,
-            },
+            request: isAgentLoop
+              ? {
+                  runId: request.runId ?? null,
+                  stepId: request.stepId ?? null,
+                  messageCount: request.messages.length,
+                  summary: summarizeMessages(request.messages),
+                  responseFormat: request.response_format ?? null,
+                }
+              : {
+                  messages: request.messages,
+                  responseFormat: request.response_format ?? null,
+                  temperature: route.temperature,
+                  maxTokens: route.maxTokens,
+                },
           })
         : null;
 
@@ -194,7 +203,9 @@ export function createApp(overrides = {}) {
         if (logId) {
           adminLogStore.finishAiCall(logId, {
             status: "success",
-            response: result,
+            response: isAgentLoop
+              ? { status: "success", usage: result?.usage ?? null }
+              : result,
           });
         }
         return context.json(result);
@@ -489,6 +500,18 @@ function extractStreamChunkText(chunk) {
   return chunk?.choices
     ?.map((choice) => choice.delta?.content ?? choice.message?.content ?? "")
     .join("") ?? "";
+}
+
+function summarizeMessages(messages) {
+  if (!Array.isArray(messages)) return "";
+  return messages
+    .map(m => {
+      const content = m.content ?? "";
+      return content.length > 120 ? content.substring(0, 120) + "…" : content;
+    })
+    .filter(Boolean)
+    .join(" | ")
+    .substring(0, 300);
 }
 
 function serializeError(error) {
