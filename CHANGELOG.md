@@ -4,6 +4,21 @@
 
 ---
 
+## [2026-06-28] Agent 后台恢复回填 Chat 消息
+
+修复真机切到桌面再回到 App 后，Agent 结果被 Chat 层误判为“处理时意外中断了”的问题。现在 Agent job 会记录来源消息，回前台恢复完成后把结果回填到原来的深度分析气泡。
+
+### 变更
+- **Chat 恢复桥接**：Agent job 新增 `sourceMessageID`，用于绑定触发它的 assistant streaming 消息
+- **ChatMessageRepository**：保护可恢复的 Agent streaming 消息，避免启动/回前台清理时提前改成“意外中断”
+- **HoloBackgroundContinuationManager**：回前台续跑完成后回填已完成的 Agent job 结果
+- **测试**：补充 Scheduler 用例，验证 `sourceMessageID` 会随 job 落盘，供恢复回填
+
+### 验证
+- `xcodebuild test -project 'Holo/Holo APP/Holo/Holo.xcodeproj' -scheme Holo -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:HoloTests/HoloAgentSchedulerTests -quiet`
+
+---
+
 ## [2026-06-28] Agent 后台短时续跑与恢复验证
 
 修正 Agent 进入后台时立即暂停的问题：现在会先申请 iOS 后台执行时间，让在途 Agent 短时间继续推进；系统回收后台时间后再落盘为可恢复状态，回到 App 后由 Scheduler 继续 runLoop。
