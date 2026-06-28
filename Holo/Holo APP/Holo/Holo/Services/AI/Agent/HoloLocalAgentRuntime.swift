@@ -235,7 +235,8 @@ actor HoloLocalAgentRuntime {
                     job.budget.consumedToolBatches += 1
                 }
                 for request in output.toolRequests {
-                    let result = await toolExecutor.execute(request)
+                    let rawResult = await toolExecutor.execute(request)
+                    let result = Self.resultWithCanonicalEvidenceIDs(rawResult, jobID: job.id)
                     checkpoint.completedToolResults.append(result)
                     let evidence = Self.evidenceRecords(
                         from: result,
@@ -497,6 +498,26 @@ actor HoloLocalAgentRuntime {
                 deviceID: nil
             )
         }
+    }
+
+    private static func resultWithCanonicalEvidenceIDs(_ result: HoloDataToolResult,
+                                                       jobID: String) -> HoloDataToolResult {
+        var updated = result
+        updated.events = result.events.map { event in
+            var updatedEvent = event
+            updatedEvent.id = evidenceRecordID(
+                jobID: jobID,
+                tool: result.tool,
+                toolRequestID: result.toolRequestID,
+                eventID: event.id
+            )
+            return updatedEvent
+        }
+        return updated
+    }
+
+    private static func evidenceRecordID(jobID: String, tool: String, toolRequestID: String, eventID: String) -> String {
+        "\(jobID):\(tool):\(toolRequestID):\(eventID)"
     }
 
     private static func sourceModule(for tool: String) -> HoloEvidenceSourceModule {

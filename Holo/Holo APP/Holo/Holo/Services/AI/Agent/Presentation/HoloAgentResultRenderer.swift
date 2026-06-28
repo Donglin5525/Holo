@@ -44,7 +44,7 @@ struct HoloAgentResultRenderer {
     /// 渲染校验后的 claims 与证据为手机可读结构。
     func render(claims: [HoloAgentClaim], evidence: [HoloEvidenceRecord],
                 title: String = "本期观察") -> HoloRenderedAgentResult {
-        let evidenceByID = Dictionary(uniqueKeysWithValues: evidence.map { ($0.id, $0) })
+        let evidenceByID = Dictionary(evidence.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
 
         // section.title 用「观察 N」作为短 kicker，body 用 claim 正文；二者不再同值
         let sections = claims.enumerated().map { index, claim in

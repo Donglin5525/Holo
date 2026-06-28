@@ -4,6 +4,22 @@
 
 ---
 
+## [2026-06-28] 全局可恢复 Agent evidence id 撞车崩溃修复
+
+修复回前台续跑 Agent 时，重复 evidence id 触发 `Dictionary(uniqueKeysWithValues:)` fatal error，导致 App 在 Claim 校验阶段崩溃的问题。
+
+### 变更
+- **runtime.runLoop**：工具结果进入 checkpoint / LLM 上下文前，将事件 id 规范化为 `jobID:tool:toolRequestID:eventID`
+- **ClaimVerifier / ResultRenderer**：兼容旧 ledger 中重复 evidence id，避免校验或渲染阶段直接崩溃
+- **测试**：补充重复 evidence id 回归测试，以及全局唯一 evidence id 贯穿 checkpoint / LLM 上下文测试
+
+### 验证
+- HoloClaimVerifierTests passed
+- HoloLocalAgentRuntimeTests passed
+- xcodebuild Holo Debug iOS build succeeded
+
+---
+
 ## [2026-06-28] 全局可恢复 Agent Phase 2 Health 入口预留（jobType/trigger 扩展）
 
 `HoloAgentJobType` 加 `healthInsight` case，`HoloAgentTrigger` 加 `healthInsight` case（方案 §4.1 预留接口，不接实际链路）。`deepAnalysis` rawValue 不变（不迁移）。

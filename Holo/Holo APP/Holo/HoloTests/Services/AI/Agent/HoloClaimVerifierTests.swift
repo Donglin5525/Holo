@@ -23,6 +23,7 @@ struct HoloClaimVerifierTests {
         testValue不一致时rejected()
         test因果词时rejected()
         test合法Claim被accepted()
+        test重复EvidenceID不会崩溃()
         print("HoloClaimVerifierTests passed")
     }
 
@@ -85,5 +86,14 @@ struct HoloClaimVerifierTests {
         let result = HoloClaimVerifier().verify(claims: [claim], evidence: [ev])
         expect(result.acceptedClaims.count == 1, "合法 claim 应 accepted")
         expect(result.rejectedClaims.isEmpty, "不应有 rejected")
+    }
+
+    private static func test重复EvidenceID不会崩溃() {
+        let ev1 = makeEvidence(id: "e1", metricKey: "habit.negative.frequency_change", metricValue: 12)
+        let ev2 = makeEvidence(id: "e1", metricKey: "habit.negative.frequency_change", metricValue: 12)
+        let claim = makeClaim(metricKey: "habit.negative.frequency_change", value: 12,
+                              evidenceIDs: ["e1"], displayText: "负向习惯发生量上升")
+        let result = HoloClaimVerifier().verify(claims: [claim], evidence: [ev1, ev2])
+        expect(result.acceptedClaims.count == 1, "重复 evidence id 不应导致校验器崩溃")
     }
 }

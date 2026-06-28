@@ -28,7 +28,7 @@ struct HoloClaimVerifier {
 
     /// 校验 claims 是否有 evidence 支撑、字段一致、文案合规。
     func verify(claims: [HoloAgentClaim], evidence: [HoloEvidenceRecord]) -> HoloClaimVerificationResult {
-        let evidenceByID = Dictionary(uniqueKeysWithValues: evidence.map { ($0.id, $0) })
+        let evidenceByID = Dictionary(evidence.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var accepted: [HoloAgentClaim] = []
         var rejected: [HoloRejectedClaim] = []
 

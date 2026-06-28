@@ -74,6 +74,7 @@ struct HoloLocalAgentRuntimeTests {
         try await testCancel_状态变为cancelled且resume不恢复执行()
         try await testRunLoop_needTools后finalClaims两轮完成()
         try await testRunLoop_工具结果进入下一轮LLM上下文且不用原生tool角色()
+        try await testRunLoop_工具上下文使用全局唯一EvidenceID()
         try await testRunLoop_finalClaims必须经过Evidence校验()
         try await testRunLoop_模型不收敛时用工具结果兜底完成()
         try await testPauseForBackground_运行中任务标记waitingForForeground()
@@ -216,11 +217,12 @@ struct HoloLocalAgentRuntimeTests {
         let client = FakeAgentLLMClient(responses: [needTools, finalClaims])
         let executor = FakeToolExecutor()
         let fixture = makeLoopRuntime(dir: dir, llmClient: client, toolExecutor: executor)
+        let now = Date()
 
-        let job = try await fixture.runtime.startMockJob(question: "最近习惯怎么样", now: Date(timeIntervalSince1970: 1000))
+        let job = try await fixture.runtime.startMockJob(question: "最近习惯怎么样", now: now)
         let result = try await fixture.runtime.runLoop(
             jobID: job.id, systemTemplate: "你是 Agent", toolDescriptions: "【habit】习惯工具",
-            now: Date(timeIntervalSince1970: 2000)
+            now: now.addingTimeInterval(1)
         )
 
         let callCount = await client.callCount
@@ -240,11 +242,12 @@ struct HoloLocalAgentRuntimeTests {
         let client = FakeAgentLLMClient(responses: [needTools, finalClaims])
         let executor = FakeToolExecutor()
         let fixture = makeLoopRuntime(dir: dir, llmClient: client, toolExecutor: executor)
+        let now = Date()
 
-        let job = try await fixture.runtime.startMockJob(question: "最近消费有什么变化", now: Date(timeIntervalSince1970: 1000))
+        let job = try await fixture.runtime.startMockJob(question: "最近消费有什么变化", now: now)
         _ = try await fixture.runtime.runLoop(
             jobID: job.id, systemTemplate: "你是 Agent", toolDescriptions: "【finance】消费工具",
-            now: Date(timeIntervalSince1970: 2000)
+            now: now.addingTimeInterval(1)
         )
 
         let batches = await client.messageBatches
@@ -256,6 +259,32 @@ struct HoloLocalAgentRuntimeTests {
         expect(joinedContent.contains("晚餐消费"), "第二轮 LLM 上下文应包含工具事件摘要")
     }
 
+    /// 工具事件进入 checkpoint/LLM 前应改写为全局唯一 evidence id，避免不同工具返回同名 event 时撞车。
+    private static func testRunLoop_工具上下文使用全局唯一EvidenceID() async throws {
+        let dir = makeTempDir()
+        let needTools = #"{"status":"need_tools","reasoning":"需要查消费","toolRequests":[{"id":"t-finance","tool":"finance","query":"meal_spending","timeRange":null,"baseline":null,"requiredMetrics":[],"parameters":{}}],"claims":[],"warnings":[]}"#
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let client = FakeAgentLLMClient(responses: [needTools, finalClaims])
+        let executor = FakeToolExecutor()
+        let fixture = makeLoopRuntime(dir: dir, llmClient: client, toolExecutor: executor)
+        let now = Date()
+
+        let job = try await fixture.runtime.startMockJob(question: "最近消费有什么变化", now: now)
+        _ = try await fixture.runtime.runLoop(
+            jobID: job.id, systemTemplate: "你是 Agent", toolDescriptions: "【finance】消费工具",
+            now: now.addingTimeInterval(1)
+        )
+
+        let expectedID = "\(job.id):finance:t-finance:event-1"
+        let checkpoint = await fixture.checkpointStore.latestForJob(jobID: job.id)
+        expect(checkpoint?.evidenceRecordIDs == [expectedID],
+               "checkpoint 应保存全局唯一 evidence id，实际 \(String(describing: checkpoint?.evidenceRecordIDs))")
+
+        let batches = await client.messageBatches
+        let joinedContent = batches[1].map(\.content).joined(separator: "\n")
+        expect(joinedContent.contains(expectedID), "第二轮 LLM 上下文应暴露全局唯一 evidence id")
+    }
+
     /// 模型一直不输出 final_claims 时，已有工具结果应兜底产出保守结论，避免用户看到预算耗尽。
     private static func testRunLoop_finalClaims必须经过Evidence校验() async throws {
         let dir = makeTempDir()
@@ -263,11 +292,12 @@ struct HoloLocalAgentRuntimeTests {
         let client = FakeAgentLLMClient(responses: [unsupportedClaim])
         let executor = FakeToolExecutor()
         let fixture = makeLoopRuntime(dir: dir, llmClient: client, toolExecutor: executor)
+        let now = Date()
 
-        let job = try await fixture.runtime.startMockJob(question: "分析最近消费", now: Date(timeIntervalSince1970: 1000))
+        let job = try await fixture.runtime.startMockJob(question: "分析最近消费", now: now)
         let result = try await fixture.runtime.runLoop(
             jobID: job.id, systemTemplate: "你是 Agent", toolDescriptions: "【finance】消费工具",
-            now: Date(timeIntervalSince1970: 2000)
+            now: now.addingTimeInterval(1)
         )
 
         expect(result.state == .completed, "无证据 claim 不应让任务失败，应完成但过滤结论")
@@ -284,11 +314,12 @@ struct HoloLocalAgentRuntimeTests {
         let client = FakeAgentLLMClient(responses: [needTools, more, more, more, more])
         let executor = FakeToolExecutor()
         let fixture = makeLoopRuntime(dir: dir, llmClient: client, toolExecutor: executor)
+        let now = Date()
 
-        let job = try await fixture.runtime.startMockJob(question: "最近消费有什么变化", now: Date(timeIntervalSince1970: 1000))
+        let job = try await fixture.runtime.startMockJob(question: "最近消费有什么变化", now: now)
         let result = try await fixture.runtime.runLoop(
             jobID: job.id, systemTemplate: "你是 Agent", toolDescriptions: "【finance】消费工具",
-            now: Date(timeIntervalSince1970: 2000)
+            now: now.addingTimeInterval(1)
         )
 
         expect(result.state == .completed, "模型不收敛但已有工具结果时应兜底完成，实际 \(result.state.rawValue)")
@@ -333,15 +364,16 @@ struct HoloLocalAgentRuntimeTests {
         let client = FakeAgentLLMClient(responses: [finalClaims])
         let executor = FakeToolExecutor()
         let fixture = makeLoopRuntime(dir: dir, llmClient: client, toolExecutor: executor)
-        let job = try await fixture.runtime.startMockJob(question: "q", now: Date(timeIntervalSince1970: 1000))
+        let now = Date()
+        let job = try await fixture.runtime.startMockJob(question: "q", now: now)
 
-        try await fixture.runtime.pauseForBackground(now: Date(timeIntervalSince1970: 2000))
-        let resumed = try await fixture.runtime.resumeUnfinishedJobs(now: Date(timeIntervalSince1970: 3000))
+        try await fixture.runtime.pauseForBackground(now: now.addingTimeInterval(1))
+        let resumed = try await fixture.runtime.resumeUnfinishedJobs(now: now.addingTimeInterval(2))
         expect(resumed == 1, "应恢复 1 个任务")
 
         let result = try await fixture.runtime.runLoop(
             jobID: job.id, systemTemplate: "你是 Agent", toolDescriptions: "tools",
-            now: Date(timeIntervalSince1970: 4000)
+            now: now.addingTimeInterval(3)
         )
         expect(result.state == .completed, "恢复后续跑应完成，实际 \(result.state.rawValue)")
     }
