@@ -345,7 +345,8 @@ actor HoloLocalAgentRuntime {
             conversationState: conversation, pendingToolRequests: [], completedToolResults: [],
             patternSignals: patternSignals, evidenceRecordIDs: [], validatedClaimIDs: [],
             memoryCandidateIDs: [], retryCountByStep: [:],
-            createdAt: now, updatedAt: now
+            createdAt: now, updatedAt: now,
+            schemaVersion: 1
         )
     }
 

@@ -4,6 +4,22 @@
 
 ---
 
+## [2026-06-28] 全局可恢复 Agent checkpoint schema 向前兼容（Phase 3）
+
+`HoloAgentCheckpoint` 加 `schemaVersion: Int?` 字段（`nil` = 旧数据迁移前，`1` = 当前版本；Codable 合成编码，旧 checkpoint 解码 `nil` 兼容）。`makeCheckpoint` 新写入设 `1`。
+
+### 变更
+- **HoloAgentCheckpoint**：+ `schemaVersion: Int?`
+- **runtime.makeCheckpoint**：设 `schemaVersion: 1`
+- **测试**：新 checkpoint `schemaVersion == 1`
+
+### 剩余 Phase 3
+- `inputSnapshotHash`（job 输入 hash，恢复时对比）
+- `wallTime` 超时（runLoop 时钟抽象 + 超时判定）
+- 旧 `deepAnalysis` rawValue 兼容（JobType 改名后，相位待 JobType 扩展时）
+
+---
+
 ## [2026-06-28] 全局可恢复 Agent 限量恢复与优先级排序（Phase 1 增强）
 
 回前台时 `Scheduler.resumeAndContinue` 按 trigger 优先级排序（P0 用户对话 > P1 刷新 > 其余），限量 `maxResume=3` 恢复，避免批量恢复拖慢首屏（§9.5）。

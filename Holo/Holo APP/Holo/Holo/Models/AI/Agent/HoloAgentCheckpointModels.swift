@@ -39,4 +39,6 @@ struct HoloAgentCheckpoint: Codable, Identifiable, Equatable, Sendable {
     var retryCountByStep: [String: Int]
     var createdAt: Date
     var updatedAt: Date
+    /// Agent checkpoint schema 版本（1 = 初始；nil = 旧数据迁移前，解码兼容）。
+    var schemaVersion: Int?
 }

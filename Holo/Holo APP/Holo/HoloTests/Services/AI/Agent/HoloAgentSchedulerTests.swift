@@ -130,6 +130,8 @@ final class HoloAgentSchedulerTests: XCTestCase {
         }
         XCTAssertTrue(isTerminal(finalJob.state),
                       "未完成 job 经 Scheduler 恢复后应到达终态，实际 \(finalJob.state.rawValue)")
+        let cp = await run2.checkpointStore.latestForJob(jobID: job.id)
+        XCTAssertEqual(cp?.schemaVersion, 1, "新 checkpoint 应设 schemaVersion=1")
     }
 
     /// §9.6 终态清理：超保留期的终态 job 及其 checkpoint 被删除；非终态 job 保留。
