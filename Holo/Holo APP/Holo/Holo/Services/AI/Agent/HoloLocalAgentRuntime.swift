@@ -173,7 +173,7 @@ actor HoloLocalAgentRuntime {
 
     /// 多轮 agent_loop：循环调用 LLM，按 status 推进，直到 final_claims 或轮数耗尽。
     /// 需要 llmClient 与 toolExecutor（未配置时抛 loopNotConfigured）。
-    /// 注：循环条件用 LLM 轮数，不依赖 budget.isExhausted 的 wallTime（其内部用 Date() 无法注入测试时间）。
+    /// 注：循环条件含 wallTime 超时（§9.6）；Date() 不可注入但逻辑简单，测试靠 FakeLLM 同步快避免超时。
     func runLoop(jobID: String, systemTemplate: String, toolDescriptions: String,
                  now: Date = Date()) async throws -> HoloAgentJob {
         guard let llmClient, let toolExecutor else {
@@ -190,7 +190,8 @@ actor HoloLocalAgentRuntime {
         var retryCount = 0
         let maxRetries = 2
 
-        while job.budget.consumedLLMRounds < job.budget.maxLLMRounds {
+        while job.budget.consumedLLMRounds < job.budget.maxLLMRounds,
+              Date().timeIntervalSince(job.budget.startedAt) < TimeInterval(job.budget.maxWallTimeSeconds) {
             try Task.checkCancellation()
             job.state = .waitingForLLM
             job.updatedAt = now

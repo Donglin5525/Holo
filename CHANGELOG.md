@@ -4,6 +4,19 @@
 
 ---
 
+## [2026-06-28] 全局可恢复 Agent wallTime 超时生效（Phase 3）
+
+runLoop while 循环条件加 wallTime 超时判定（§9.6 点名缺陷：`maxWallTimeSeconds` 不生效）。循环条件从「仅判 LLM 轮数」改为「轮数 && wallTime 未超」。
+
+### 变更
+- **runtime.runLoop**：while 循环条件加 `Date().timeIntervalSince(budget.startedAt) < maxWallTimeSeconds`
+- **测试**：`testStart` now 改用 `Date()`（避开远过去 now 与 `Date()` 的 wallTime 误判）
+
+### 测试
+- test_sim 五测试绿
+
+---
+
 ## [2026-06-28] 后端 agent_loop 日志脱敏 + runId/stepId 透传（Phase 4）
 
 agent_loop 日志不再存完整 messages 与 response（§9.4 隐私合规）。只存 runId/stepId/messageCount/summary（前 300 字），response 只存 status + usage。同时透传请求体 runId/stepId。

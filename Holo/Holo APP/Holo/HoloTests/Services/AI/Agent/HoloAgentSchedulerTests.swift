@@ -254,7 +254,7 @@ final class HoloAgentSchedulerTests: XCTestCase {
 
         let job = try await scheduler.start(
             question: "q", systemTemplate: "你是 Agent", toolDescriptions: "tools",
-            now: Date(timeIntervalSince1970: 1000)
+            now: Date()
         )
         XCTAssertEqual(job.state, .completed, "start 应跑完 runLoop 到达 completed")
         XCTAssertEqual(job.type, .deepAnalysis, "start 创建的应为 deepAnalysis job")
