@@ -41,4 +41,6 @@ struct HoloAgentCheckpoint: Codable, Identifiable, Equatable, Sendable {
     var updatedAt: Date
     /// Agent checkpoint schema 版本（1 = 初始；nil = 旧数据迁移前，解码兼容）。
     var schemaVersion: Int?
+    /// job 输入（userQuestion + timeRange）的稳定 hash，恢复时对比判断「继续还是重新规划」（§4.3）。
+    var inputSnapshotHash: String?
 }

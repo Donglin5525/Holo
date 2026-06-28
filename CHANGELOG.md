@@ -4,6 +4,21 @@
 
 ---
 
+## [2026-06-28] 全局可恢复 Agent checkpoint inputSnapshotHash（Phase 3）
+
+`HoloAgentCheckpoint` 加 `inputSnapshotHash`（job 输入 `userQuestion + timeRange` 的稳定 hash）。恢复时 `Scheduler.resumeAndContinue` 对比 hash：匹配则恢复，不匹配则跳过（用户改了问题/时间范围，需重新规划，§4.3）。
+
+### 变更
+- **HoloAgentCheckpoint**：+ `inputSnapshotHash: String?`
+- **makeCheckpoint**：加 `inputSnapshotHash` 参数（默认 nil，`startAnalysisJob` 传 `computeInputSnapshotHash`）
+- **Scheduler.resumeAndContinue**：`inputSnapshotMatches` 校验 + `computeInputSnapshotHash`（不匹配则跳过该 job）
+- **测试**：`testResumeAndContinue_hash匹配恢复不匹配跳过`（XCTest）
+
+### 测试
+- test_sim 五测试绿（N1 + 清理 + start + 限量恢复 + hash 校验）
+
+---
+
 ## [2026-06-28] 全局可恢复 Agent checkpoint schema 向前兼容（Phase 3）
 
 `HoloAgentCheckpoint` 加 `schemaVersion: Int?` 字段（`nil` = 旧数据迁移前，`1` = 当前版本；Codable 合成编码，旧 checkpoint 解码 `nil` 兼容）。`makeCheckpoint` 新写入设 `1`。

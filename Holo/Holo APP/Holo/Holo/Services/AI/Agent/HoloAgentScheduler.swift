@@ -36,12 +36,30 @@ actor HoloAgentScheduler {
         var jobs = await runtime.collectResumableJobs(now: now)
         jobs.sort { priorityRank($0.trigger) < priorityRank($1.trigger) }
         let toResume = maxResume > 0 ? Array(jobs.prefix(maxResume)) : jobs
+        var resumed = 0
         for job in toResume {
+            guard await inputSnapshotMatches(job) else { continue }
             _ = try? await runtime.runLoop(
                 jobID: job.id, systemTemplate: systemTemplate, toolDescriptions: toolDescriptions, now: now
             )
+            resumed += 1
         }
-        return toResume.count
+        return resumed
+    }
+
+    /// 对比 job 输入 hash 与 checkpoint 记录：相同才恢复，不同则跳过（用户改了问题/时间范围，需重新规划）。
+    private func inputSnapshotMatches(_ job: HoloAgentJob) async -> Bool {
+        let cp = await runtime.latestCheckpointForJob(jobID: job.id)
+        guard let hash = cp?.inputSnapshotHash else { return true }  // 无 hash → 兼容旧 checkpoint
+        return hash == computeInputSnapshotHash(for: job)
+    }
+
+    private nonisolated func computeInputSnapshotHash(for job: HoloAgentJob) -> String {
+        var hasher = Hasher()
+        hasher.combine(job.userQuestion)
+        if let start = job.timeRange?.start { hasher.combine(start) }
+        if let end = job.timeRange?.end { hasher.combine(end) }
+        return String(hasher.finalize())
     }
 
     /// trigger 优先级：P0 用户对话 > P1 刷新 > P2/P3 Observer > 其余。

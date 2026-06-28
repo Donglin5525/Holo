@@ -71,7 +71,8 @@ actor HoloLocalAgentRuntime {
         )
         let checkpoint = Self.makeCheckpoint(
             jobID: job.id, step: .plan, completedSteps: [],
-            conversation: [Self.mockUserMessage(question, now)], now: now
+            conversation: [Self.mockUserMessage(question, now)], now: now,
+            inputSnapshotHash: Self.computeInputSnapshotHash(for: job)
         )
         job.checkpointID = checkpoint.id
         try await persistence.saveProgress(job: job, evidence: [], checkpoint: checkpoint)
@@ -323,6 +324,11 @@ actor HoloLocalAgentRuntime {
         return jobs.filter { !Self.terminalStates.contains($0.state) }
     }
 
+    /// 返回某 job 的最新 checkpoint，供 Scheduler 恢复前校验 inputSnapshotHash。
+    func latestCheckpointForJob(jobID: String) async -> HoloAgentCheckpoint? {
+        await checkpointStore.latestForJob(jobID: jobID)
+    }
+
     /// 清理终态且超保留期的 job 及其关联 checkpoint/result（透传 persistence，§9.6 体积治理）。
     @discardableResult
     func cleanupTerminalJobs(policy: HoloJobCleanupPolicy, now: Date = Date()) async throws -> [String] {
@@ -338,7 +344,8 @@ actor HoloLocalAgentRuntime {
     private static func makeCheckpoint(
         jobID: String, step: HoloAgentStep, completedSteps: [HoloAgentStep],
         conversation: [HoloAgentMessage], patternSignals: [HoloPatternSignal] = [],
-        now: Date
+        now: Date,
+        inputSnapshotHash: String? = nil
     ) -> HoloAgentCheckpoint {
         HoloAgentCheckpoint(
             id: UUID().uuidString, jobID: jobID, step: step, completedSteps: completedSteps,
@@ -346,8 +353,18 @@ actor HoloLocalAgentRuntime {
             patternSignals: patternSignals, evidenceRecordIDs: [], validatedClaimIDs: [],
             memoryCandidateIDs: [], retryCountByStep: [:],
             createdAt: now, updatedAt: now,
-            schemaVersion: 1
+            schemaVersion: inputSnapshotHash == nil ? nil : 1,
+            inputSnapshotHash: inputSnapshotHash
         )
+    }
+
+    /// 基于 job 输入计算稳定 hash（userQuestion + timeRange），用于恢复时对比。
+    private static func computeInputSnapshotHash(for job: HoloAgentJob) -> String {
+        var hasher = Hasher()
+        hasher.combine(job.userQuestion)
+        if let start = job.timeRange?.start { hasher.combine(start) }
+        if let end = job.timeRange?.end { hasher.combine(end) }
+        return String(hasher.finalize())
     }
 
     private static func mockUserMessage(_ content: String, _ now: Date) -> HoloAgentMessage {

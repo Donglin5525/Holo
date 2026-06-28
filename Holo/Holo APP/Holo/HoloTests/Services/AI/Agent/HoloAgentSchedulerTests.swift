@@ -207,6 +207,42 @@ final class HoloAgentSchedulerTests: XCTestCase {
         try await store.upsert(job)
     }
 
+    private func upsertUserQuestion(_ store: HoloAgentJobStore, id: String, question: String) async throws {
+        let jobs = await store.load()
+        guard var job = jobs.first(where: { $0.id == id }) else { return }
+        job.userQuestion = question
+        try await store.upsert(job)
+    }
+
+    /// Phase 3：inputSnapshotHash 匹配则恢复，不匹配则跳过（用户改了输入，需重新规划）。
+    func testResumeAndContinue_hash匹配恢复不匹配跳过() async throws {
+        let dir = makeTempDir()
+        let finalClaims = #"{"status":"final_claims","reasoning":"足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let fixture = makeLoopFixture(dir: dir, llm: FakeLLM(responses: [finalClaims]), executor: FakeExecutor())
+        let scheduler = HoloAgentScheduler(runtime: fixture.runtime)
+        let now = Date(timeIntervalSince1970: 1_000_000)
+
+        // jobA: 原输入，hash 匹配 → 应恢复
+        let jobA = try await fixture.runtime.startAnalysisJob(question: "original", now: now)
+        // jobB: 创建后改 userQuestion → hash 不匹配 checkpoint → 应跳过
+        let jobB = try await fixture.runtime.startAnalysisJob(question: "original", now: now)
+        try await fixture.runtime.pauseForBackground(now: now)
+        try await upsertUserQuestion(fixture.jobStore, id: jobB.id, question: "changed")
+
+        let resumed = try await scheduler.resumeAndContinue(
+            systemTemplate: "你是 Agent", toolDescriptions: "tools", now: now, maxResume: 5
+        )
+        XCTAssertEqual(resumed, 1, "只有 hash 匹配的 jobA 应被恢复")
+
+        let jobs = await fixture.jobStore.load()
+        guard let fA = jobs.first(where: { $0.id == jobA.id }),
+              let fB = jobs.first(where: { $0.id == jobB.id }) else {
+            XCTFail("jobs 应存在"); return
+        }
+        XCTAssertTrue(isTerminal(fA.state), "jobA hash 匹配，应到达终态，实际 \(fA.state.rawValue)")
+        XCTAssertFalse(isTerminal(fB.state), "jobB hash 不匹配，应保持 waitingForForeground")
+    }
+
     /// Phase 2：Scheduler.start 创建 job 并跑完 runLoop，返回终态 job（Chat/Observer 入口经 Scheduler）。
     func testStart_创建job并跑完runLoop返回终态() async throws {
         let dir = makeTempDir()
