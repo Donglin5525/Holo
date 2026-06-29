@@ -4,6 +4,23 @@
 
 ---
 
+## [2026-06-29] HoloAI 深度分析详情页改为观察手记式布局
+
+重做 HoloAI 深度分析结果弹窗，去掉原先“核心结论 + 观察卡片 + 数据依据卡片瀑布”的生硬结构，改为更适合手机阅读的观察手记式页面。核心结论会拆成可阅读段落，观察内容采用更清晰的标题、字号和间距层级；数据依据默认折叠为底部轻入口，避免喧宾夺主。
+
+### 变更
+- **叙事化详情页**：新增 `AgentDeepAnalysisNarrativeModel`，把 summary、观察段和 evidence 映射为开场、信号摘要、观察章节、下一步和数据依据入口
+- **长文本拆段**：summary 优先按分号、句号、问号、感叹号和换行拆段；没有强分隔时按逗号兜底拆，减少真机上一整串文字堆叠
+- **观察卡重排**：泛化的“观察 1/2”标题不再原样展示，改为更稳定的观察编号和默认标题；移除观察旁边重复的小图标
+- **数据依据折叠**：数据依据默认显示为一条轻量入口，点开后才展示明细；带财务 drilldown 的依据仍可继续点按核对
+- **设计原型**：补充 A/C 依据入口对比稿，并按方案 A 落地
+
+### 验证
+- `xcodebuild -project 'Holo/Holo APP/Holo/Holo.xcodeproj' -scheme Holo -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:HoloTests/ChatMessageViewDataAgentResultTests test` 8/8 通过
+- `xcodebuild -project 'Holo/Holo APP/Holo/Holo.xcodeproj' -scheme Holo -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build` 编译通过
+
+---
+
 ## [2026-06-28] 意图识别分流修复：频率/日均折算类归 query_analysis 走 Agent
 
 修复「买烟的频率怎么样 / 平均一天抽烟花多少钱」这类需要折算统计的问题，被意图识别误判为 `flexible_data_query`（轻量查询），导致没走深度 Agent 的问题。现在这类「频率、日均、平均每天、趋势折算」明确归到 `query_analysis`，由本地深度 Agent 处理。

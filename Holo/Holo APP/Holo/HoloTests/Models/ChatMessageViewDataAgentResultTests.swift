@@ -56,4 +56,60 @@ final class ChatMessageViewDataAgentResultTests: XCTestCase {
         XCTAssertEqual(message?.metadataState, .loaded)
         XCTAssertNotNil(message?.agentResult)
     }
+
+    func testAgentDeepAnalysisNarrativeModelBuildsReadableChapters() {
+        let result = HoloRenderedAgentResult(
+            title: "深度分析",
+            summary: "近两周睡眠时长波动明显，戒烟习惯出现反复，消费金额明显下降。",
+            sections: [
+                HoloRenderedAgentSection(title: "观察 1", body: "睡眠时长波动明显，有两天不足 6 小时。", confidence: 0.82),
+                HoloRenderedAgentSection(title: "", body: "戒烟习惯在 6 月 27 日出现明显反复。", confidence: 0.74)
+            ],
+            evidenceReferences: []
+        )
+
+        let model = AgentDeepAnalysisNarrativeModel(result: result)
+
+        XCTAssertEqual(model.openingTitle, "这段时间，有几个信号值得回看。")
+        XCTAssertEqual(model.openingBody, result.summary)
+        XCTAssertEqual(model.openingParagraphs, ["近两周睡眠时长波动明显", "戒烟习惯出现反复", "消费金额明显下降"])
+        XCTAssertEqual(model.signalSummaries, ["睡眠时长波动明显", "戒烟习惯出现反复", "消费金额明显下降"])
+        XCTAssertEqual(model.observations.map(\.label), ["观察 01", "观察 02"])
+        XCTAssertEqual(model.observations[1].title, "值得留意的变化")
+        XCTAssertEqual(model.observations[1].body, "戒烟习惯在 6 月 27 日出现明显反复。")
+    }
+
+    func testAgentDeepAnalysisNarrativeModelSplitsLongSummaryIntoReadableParagraphs() {
+        let result = HoloRenderedAgentResult(
+            title: "深度分析",
+            summary: "近两周睡眠时长波动明显；戒烟习惯在 6 月 27 日出现明显反复；近期消费金额明显下降，可能反映消费行为或需求的调整；今天待办任务已完成，任务方面压力较小。",
+            sections: [
+                HoloRenderedAgentSection(title: "观察 1", body: "睡眠时长波动明显。", confidence: 0.82)
+            ],
+            evidenceReferences: []
+        )
+
+        let model = AgentDeepAnalysisNarrativeModel(result: result)
+
+        XCTAssertEqual(model.openingParagraphs.count, 4)
+        XCTAssertEqual(model.openingParagraphs[0], "近两周睡眠时长波动明显")
+        XCTAssertEqual(model.openingParagraphs[3], "今天待办任务已完成，任务方面压力较小")
+    }
+
+    func testAgentDeepAnalysisNarrativeModelFallsBackForEmptyResult() {
+        let result = HoloRenderedAgentResult(
+            title: "",
+            summary: "",
+            sections: [],
+            evidenceReferences: []
+        )
+
+        let model = AgentDeepAnalysisNarrativeModel(result: result)
+
+        XCTAssertEqual(model.openingBody, "本期暂无显著观察")
+        XCTAssertEqual(model.signalSummaries, ["暂无显著观察"])
+        XCTAssertEqual(model.observations.count, 1)
+        XCTAssertEqual(model.observations[0].label, "观察 01")
+        XCTAssertEqual(model.observations[0].title, "本期暂无显著观察")
+    }
 }
