@@ -4,17 +4,6 @@
 
 ---
 
-## [2026-06-29] 弹窗权限钩子开源发布
-
-将 Claude Code 的 PermissionRequest 钩子（`permission-hook.py`）和 PreToolUse Bash Gate 打包为独立开源项目 [ClaudecodePass](https://github.com/Donglin5525/ClaudecodePass)，支持 macOS + Windows 跨平台。
-
-### 变更
-- **开源发布**：弹窗钩子 + Bash 门控脚本上传至 GitHub 独立仓库
-- **跨平台支持**：弹窗/提示音/终端激活三层抽象，macOS 走 AppleScript，Windows 走 ctypes MessageBox
-- **文档齐全**：README 含安装步骤、配置示例、自定义指南
-
----
-
 ## [2026-06-29] HoloAI 深度分析详情页改为观察手记式布局
 
 重做 HoloAI 深度分析结果弹窗，去掉原先“核心结论 + 观察卡片 + 数据依据卡片瀑布”的生硬结构，改为更适合手机阅读的观察手记式页面。核心结论会拆成可阅读段落，观察内容采用更清晰的标题、字号和间距层级；数据依据默认折叠为底部轻入口，避免喧宾夺主。
@@ -29,24 +18,6 @@
 ### 验证
 - `xcodebuild -project 'Holo/Holo APP/Holo/Holo.xcodeproj' -scheme Holo -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -only-testing:HoloTests/ChatMessageViewDataAgentResultTests test` 8/8 通过
 - `xcodebuild -project 'Holo/Holo APP/Holo/Holo.xcodeproj' -scheme Holo -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build` 编译通过
-
----
-
-## [2026-06-29] 观点自动整理可用化：标签统一、主题归纳与后台恢复
-
-修复观点模块“自动整理后只有一堆 AI 标签、没有主题树”的核心体验问题。现在手动标签、正文 `#标签` 与 AI 标签会按同一标签身份归一；外层“自动整理”和知识树“归纳主题”统一走同一条主题归纳链路，自动整理完成后会继续生成/关联主题。
-
-### 变更
-- **标签身份统一**：新增标签归一化，合并 `#AI能力`、` AI能力 `、`AI能力` 这类同义写法；筛选同名标签时同时命中手动、正文和 AI 来源
-- **历史数据修复**：App 启动时幂等归一化并合并既有重复标签，避免旧数据继续拆成两套标签池
-- **AI 打标签修复**：修复 thought_organization 调用丢失 `existingTagExamples` / `rejectedTags` 的问题，减少继续生成碎标签
-- **主题归纳升级**：归纳候选从只吃 AI 标签改为吃全部可见标签，范围扩到 200 条；AI 空返回时按标签和内容关键词兜底生成主题候选
-- **后台与恢复**：观点主题归纳新增轻量持久化 job，并复用 iOS 后台短时执行能力；冷启动后会恢复未完成的自动归纳
-- **入口统一**：外层“自动整理”和知识树“归纳主题”统一触发同一个自动归纳流程，批量标签整理完成后自动继续归纳主题
-
-### 验证
-- `xcodebuild -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath /tmp/holo-derived-data build` 编译通过
-- 已补充标签统一与归纳行为测试用例；当前 `HoloTests/ThoughtRepositoryAITagBucketTests` 在 Xcode runner 中仍显示 `Executed 0 tests`，后续需单独修复测试 target 发现问题
 
 ---
 
