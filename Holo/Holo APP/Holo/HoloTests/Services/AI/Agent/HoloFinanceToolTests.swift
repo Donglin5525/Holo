@@ -32,6 +32,7 @@ struct HoloFinanceToolTests {
         try await test晚间餐饮频次相对baseline增加()
         try await test分类集中度输出top分类()
         try await test金额变化证据包含解析后的时间范围()
+        try await test本月支出拆解返回分类金额和明细依据()
         try await test关键词趋势读取账单文本命中()
         try await test无财务记录返回empty()
         print("HoloFinanceToolTests passed")
@@ -140,6 +141,57 @@ struct HoloFinanceToolTests {
         expect(result.events.first?.excerpt.contains("咖啡") == true, "证据摘要应包含关键词")
         expect(result.events.first?.excerpt.contains("6 次") == true, "证据摘要应包含当前命中次数")
         expect(result.events.first?.excerpt.contains("样例") == true, "证据摘要应包含账单样例")
+    }
+
+    private static func test本月支出拆解返回分类金额和明细依据() async throws {
+        let calendar = Calendar.current
+        func date(_ year: Int, _ month: Int, _ day: Int) -> Date {
+            calendar.date(from: DateComponents(year: year, month: month, day: day))!
+        }
+        let currentRange = HoloAgentTimeRange(
+            label: "本月",
+            start: date(2026, 6, 1),
+            end: date(2026, 7, 1)
+        )
+        let record = HoloFinanceToolRecord(
+            nighttimeMealCurrent: 0,
+            nighttimeMealBaseline: 0,
+            categoryCounts: ["交通": 8, "餐饮": 21],
+            categoryAmounts: ["交通": 5200, "餐饮": 3600, "购物": 2400],
+            totalCurrentAmount: 14_000,
+            totalBaselineAmount: 0,
+            transactionCount: 42,
+            currentRange: currentRange,
+            topExpenseExcerpts: ["6月12日 交通 停车 -¥1200", "6月18日 餐饮 聚餐 -¥680"]
+        )
+        let tool = HoloFinanceTool(dataSource: MockFinanceDataSource(record: record))
+
+        let result = try await tool.execute(makeRequest(query: "spending_breakdown"))
+
+        expect(result.status == .success, "spending_breakdown 应成功")
+        let hasTotalMetric = result.metrics.contains { metric in
+            metric.metricKey == "finance.total.amount" && metric.value == 14_000
+        }
+        let trafficMetric = result.metrics.first { metric in
+            metric.metricKey == "finance.category.amount"
+                && metric.comparison == "交通"
+        }
+        let hasTrafficMetric = trafficMetric?.value == 5200
+        let hasTotalEvent = result.events.contains { event in
+            event.metricKey == "finance.total.amount" && event.excerpt.contains("本月总支出：14000 元")
+        }
+        let hasTrafficEvent = result.events.contains { event in
+            event.metricKey == "finance.category.amount" && event.excerpt.contains("交通：5200 元")
+        }
+        let hasSampleEvent = result.events.contains { event in
+            event.metricKey == "finance.transaction.sample" && event.excerpt.contains("停车")
+        }
+        expect(hasTotalMetric, "应返回本月总支出 14000")
+        expect(hasTrafficMetric, "应返回交通分类金额")
+        expect(hasTotalEvent, "应有总额证据")
+        expect(hasTrafficEvent, "应有分类金额证据")
+        expect(hasSampleEvent, "应有可核对明细样例")
+        expect(result.events.allSatisfy { $0.timeRange == currentRange }, "所有拆解证据应携带本月时间范围")
     }
 
     /// 无财务记录返回 .empty。

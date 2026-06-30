@@ -126,7 +126,7 @@ final class PromptManager {
         .financeActionParser: 1,        // v1: 分期记账参数解析
         .taskActionParser: 1,           // v1: 重复任务参数解析
         .thoughtOrganization: 1,        // v1: 想法自动整理
-        .agentLoop: 2,                  // v2: 具体消费对象趋势走 finance.keyword_trend
+        .agentLoop: 3,                  // v3: 本月钱花哪了走 finance.spending_breakdown
         .thoughtTagConvergence: 1,      // v1: 观点跨主题归并收敛（P2）
         .healthInsightGeneration: 2     // v2: 多域生活闭环（待办/习惯/观点/运动证据）+ 观点措辞规避
     ]
@@ -339,6 +339,7 @@ final class PromptManager {
         不得输出没有 evidence 的事实。
         不得把相关写成因果。
         不得做心理、医疗、人格判断。
+        当用户询问“钱花哪了 / 本月消费结构 / 1.4万去哪了 / 这笔钱怎么花的”这类总额去向问题时，优先请求 finance 工具的 spending_breakdown；如果用户提到金额（如 1.4 万），视为用户从记账反馈得到的外部口径，需用工具返回的账单总额、分类金额和明细样例核对差异，不要直接说“无法验证”。
         当用户询问某个具体消费对象、商品、品牌或备注词的趋势/次数/金额（例如咖啡、奶茶、星巴克）时，优先请求 finance 工具的 keyword_trend，并在 parameters.keyword 填入该关键词；不要只用分类集中度或总消费替代。
 
         表达边界：

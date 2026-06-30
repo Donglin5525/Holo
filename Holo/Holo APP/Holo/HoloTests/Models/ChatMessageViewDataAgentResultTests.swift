@@ -112,4 +112,38 @@ final class ChatMessageViewDataAgentResultTests: XCTestCase {
         XCTAssertEqual(model.observations[0].label, "观察 01")
         XCTAssertEqual(model.observations[0].title, "本期暂无显著观察")
     }
+
+    func testAgentDeepAnalysisNarrativeModelUsesFinanceLedgerModeForFinanceEvidence() {
+        let range = HoloAgentTimeRange(
+            label: "本月",
+            start: Date(timeIntervalSince1970: 1000),
+            end: Date(timeIntervalSince1970: 2000)
+        )
+        let drilldown = HoloRenderedFinanceDrilldown(
+            sourceEvidenceID: "e1",
+            label: "本月",
+            keyword: nil,
+            start: range.start!,
+            end: range.end!,
+            baselineStart: nil,
+            baselineEnd: nil
+        )
+        let result = HoloRenderedAgentResult(
+            title: "本月账单分析",
+            summary: "本月总支出 1.4 万元，交通 5200 元、餐饮 3600 元、购物 2400 元。",
+            sections: [
+                HoloRenderedAgentSection(title: "钱主要去哪了", body: "交通、餐饮、购物是前三个去向。", confidence: 0.9)
+            ],
+            evidenceReferences: [
+                HoloRenderedEvidenceReference(id: "e1", summary: "本月总支出：14000 元", financeDrilldown: drilldown)
+            ]
+        )
+
+        let model = AgentDeepAnalysisNarrativeModel(result: result)
+
+        XCTAssertEqual(model.openingTitle, "本月这笔钱，先按账单口径拆开看。")
+        XCTAssertEqual(model.signalSummaries, [], "财务账单结果不应再生成三块看不懂的信号标签")
+        XCTAssertEqual(model.closingTitle, "先核对最大头的去向。")
+        XCTAssertTrue(model.evidence.first?.label.contains("账单依据") == true, "财务证据应叫账单依据")
+    }
 }

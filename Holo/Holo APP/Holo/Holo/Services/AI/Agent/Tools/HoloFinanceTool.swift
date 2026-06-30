@@ -17,10 +17,14 @@ struct HoloFinanceToolRecord: Codable, Equatable, Sendable {
     var nighttimeMealBaseline: Int
     /// 当前周期各分类次数。
     var categoryCounts: [String: Int]
+    /// 当前周期各分类支出金额。
+    var categoryAmounts: [String: Double] = [:]
     /// 当前周期总金额。
     var totalCurrentAmount: Double
     /// 基线周期总金额。
     var totalBaselineAmount: Double
+    /// 当前周期支出笔数。
+    var transactionCount: Int = 0
     /// 当前周期解析后的实际时间范围。
     var currentRange: HoloAgentTimeRange? = nil
     /// 基线周期解析后的实际时间范围。
@@ -37,6 +41,8 @@ struct HoloFinanceToolRecord: Codable, Equatable, Sendable {
     var keywordBaselineAmount: Double = 0
     /// 当前周期关键词命中的脱敏账单样例。
     var keywordSampleExcerpts: [String] = []
+    /// 当前周期金额最高的脱敏账单样例。
+    var topExpenseExcerpts: [String] = []
 }
 
 /// 财务数据源协议：返回 nil 表示无数据。生产实现适配真实 FinanceAnalysisContextBuilder（后续集成）。
@@ -53,10 +59,13 @@ struct HoloFinanceTool: HoloDataTool {
 
     let descriptor = HoloToolDescriptor(
         name: "finance",
-        description: "财务数据分析（消费模式 / 餐饮时段 / 分类集中度 / 账单文本关键词趋势；keyword_trend 需传 parameters.keyword，如 咖啡、奶茶、星巴克）",
-        supportedQueries: ["spending_pattern", "meal_time_distribution", "category_concentration", "keyword_trend"],
+        description: "财务数据分析（本月/指定周期支出拆解 / 消费趋势 / 餐饮时段 / 分类集中度 / 账单文本关键词趋势；用户问钱花哪了、1.4万去哪了、消费结构时优先用 spending_breakdown；keyword_trend 需传 parameters.keyword，如 咖啡、奶茶、星巴克）",
+        supportedQueries: ["spending_breakdown", "spending_pattern", "meal_time_distribution", "category_concentration", "keyword_trend"],
         supportedTimeRanges: [],
         outputMetrics: [
+            "finance.total.amount",
+            "finance.category.amount",
+            "finance.transaction.sample",
             "finance.meal.nighttime_count",
             "finance.category.concentration",
             "finance.amount.change",
@@ -73,7 +82,7 @@ struct HoloFinanceTool: HoloDataTool {
     }
 
     func validate(_ request: HoloToolRequest) -> HoloToolValidationResult {
-        let supported: Set<String> = ["spending_pattern", "meal_time_distribution", "category_concentration", "keyword_trend"]
+        let supported: Set<String> = ["spending_breakdown", "spending_pattern", "meal_time_distribution", "category_concentration", "keyword_trend"]
         guard supported.contains(request.query) else {
             return .invalid(reason: "不支持的查询：\(request.query)")
         }
@@ -92,6 +101,8 @@ struct HoloFinanceTool: HoloDataTool {
             return Self.emptyResult(request)
         }
         switch request.query {
+        case "spending_breakdown":
+            return spendingBreakdownResult(request: request, record: record)
         case "meal_time_distribution":
             return mealTimeResult(request: request, record: record)
         case "category_concentration":
@@ -106,6 +117,84 @@ struct HoloFinanceTool: HoloDataTool {
     }
 
     // MARK: - 各 query 实现
+
+    private func spendingBreakdownResult(request: HoloToolRequest, record: HoloFinanceToolRecord) -> HoloDataToolResult {
+        let total = record.totalCurrentAmount
+        guard total > 0 else {
+            return Self.emptyResult(request)
+        }
+
+        let currentRange = record.currentRange ?? request.timeRange
+        let transactionCountText = record.transactionCount > 0 ? "（\(record.transactionCount) 笔）" : ""
+        var metrics = [
+            HoloMetric(
+                metricKey: "finance.total.amount",
+                value: total,
+                unit: "元",
+                baselineValue: nil,
+                comparison: nil
+            )
+        ]
+        var events = [
+            HoloEvidenceEvent(
+                id: "\(request.id)-total",
+                occurredAt: nil,
+                metricKey: "finance.total.amount",
+                metricValue: total,
+                excerpt: "\(Self.rangeTitle(currentRange, fallback: "本期"))总支出：\(Self.moneyText(total)) 元\(transactionCountText)",
+                timeRange: currentRange,
+                baselineTimeRange: nil
+            )
+        ]
+
+        let rankedCategories = record.categoryAmounts
+            .filter { $0.value > 0 }
+            .sorted { lhs, rhs in
+                if lhs.value == rhs.value { return lhs.key < rhs.key }
+                return lhs.value > rhs.value
+            }
+            .prefix(5)
+
+        for (index, item) in rankedCategories.enumerated() {
+            let ratio = total > 0 ? item.value / total : 0
+            metrics.append(
+                HoloMetric(
+                    metricKey: "finance.category.amount",
+                    value: item.value,
+                    unit: "元",
+                    baselineValue: nil,
+                    comparison: item.key
+                )
+            )
+            events.append(
+                HoloEvidenceEvent(
+                    id: "\(request.id)-category-\(index + 1)",
+                    occurredAt: nil,
+                    metricKey: "finance.category.amount",
+                    metricValue: item.value,
+                    excerpt: "\(Self.rangeTitle(currentRange, fallback: "本期"))分类去向：\(item.key)：\(Self.moneyText(item.value)) 元（约 \(Self.percentText(ratio))）",
+                    timeRange: currentRange,
+                    baselineTimeRange: nil
+                )
+            )
+        }
+
+        for (index, sample) in record.topExpenseExcerpts.prefix(5).enumerated() {
+            events.append(
+                HoloEvidenceEvent(
+                    id: "\(request.id)-sample-\(index + 1)",
+                    occurredAt: nil,
+                    metricKey: "finance.transaction.sample",
+                    metricValue: nil,
+                    excerpt: "\(Self.rangeTitle(currentRange, fallback: "本期"))大额支出样例：\(sample)",
+                    timeRange: currentRange,
+                    baselineTimeRange: nil
+                )
+            )
+        }
+
+        return Self.successResult(request, metrics: metrics, events: events)
+    }
 
     private func mealTimeResult(request: HoloToolRequest, record: HoloFinanceToolRecord) -> HoloDataToolResult {
         let current = Double(record.nighttimeMealCurrent)
@@ -244,6 +333,11 @@ struct HoloFinanceTool: HoloDataTool {
         return range.label.isEmpty ? nil : range.label
     }
 
+    private static func rangeTitle(_ range: HoloAgentTimeRange?, fallback: String) -> String {
+        guard let range, !range.label.isEmpty else { return fallback }
+        return range.label
+    }
+
     private static func dateText(_ date: Date) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
@@ -253,6 +347,10 @@ struct HoloFinanceTool: HoloDataTool {
 
     private static func moneyText(_ value: Double) -> String {
         value.rounded() == value ? String(format: "%.0f", value) : String(format: "%.2f", value)
+    }
+
+    private static func percentText(_ ratio: Double) -> String {
+        String(format: "%.0f%%", ratio * 100)
     }
 
     private static func keyword(from request: HoloToolRequest) -> String {

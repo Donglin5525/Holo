@@ -29,32 +29,45 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
     var evidence: [Evidence]
     var closingTitle: String
     var closingBody: String
+    var isFinanceLedgerMode: Bool
 
     init(result: HoloRenderedAgentResult) {
         let summary = Self.clean(result.summary)
         let resolvedSummary = summary.isEmpty ? "本期暂无显著观察" : summary
         let hasContent = !summary.isEmpty || !result.sections.isEmpty
+        let isFinanceLedgerMode = result.evidenceReferences.contains { $0.financeDrilldown != nil }
 
-        self.openingTitle = hasContent
-            ? "这段时间，有几个信号值得回看。"
-            : "本期暂无显著观察"
+        if isFinanceLedgerMode {
+            self.openingTitle = "本月这笔钱，先按账单口径拆开看。"
+        } else {
+            self.openingTitle = hasContent
+                ? "这段时间，有几个信号值得回看。"
+                : "本期暂无显著观察"
+        }
         self.openingBody = resolvedSummary
         self.openingParagraphs = Self.readingParagraphs(from: resolvedSummary)
-        self.signalSummaries = Self.signalSummaries(from: resolvedSummary)
+        self.signalSummaries = isFinanceLedgerMode ? [] : Self.signalSummaries(from: resolvedSummary)
         self.observations = Self.observations(from: result.sections)
         self.evidence = result.evidenceReferences.enumerated().map { index, ref in
-            Evidence(
-                label: ref.financeDrilldown == nil ? "依据 \(Self.twoDigit(index + 1))" : "依据 \(Self.twoDigit(index + 1)) · 点按核对",
+            let labelPrefix = isFinanceLedgerMode ? "账单依据" : "依据"
+            return Evidence(
+                label: ref.financeDrilldown == nil ? "\(labelPrefix) \(Self.twoDigit(index + 1))" : "\(labelPrefix) \(Self.twoDigit(index + 1)) · 点按核对",
                 summary: Self.clean(ref.summary),
                 drilldown: ref.financeDrilldown
             )
         }
-        self.closingTitle = hasContent
-            ? "先从最容易稳定的一件事开始。"
-            : "继续记录后，Holo 会再帮你回看。"
-        self.closingBody = hasContent
-            ? "不用同时盯住所有指标。Holo 会继续观察这些信号是否重新回到稳定节奏。"
-            : "当睡眠、习惯、消费或任务出现更清晰的变化时，这里会整理成更完整的观察手记。"
+        if isFinanceLedgerMode {
+            self.closingTitle = "先核对最大头的去向。"
+            self.closingBody = "从金额最高的分类和大额记录开始核对；如果某类不对，可以点开依据回到明细。"
+        } else {
+            self.closingTitle = hasContent
+                ? "先从最容易稳定的一件事开始。"
+                : "继续记录后，Holo 会再帮你回看。"
+            self.closingBody = hasContent
+                ? "不用同时盯住所有指标。Holo 会继续观察这些信号是否重新回到稳定节奏。"
+                : "当睡眠、习惯、消费或任务出现更清晰的变化时，这里会整理成更完整的观察手记。"
+        }
+        self.isFinanceLedgerMode = isFinanceLedgerMode
     }
 
     private static func observations(from sections: [HoloRenderedAgentSection]) -> [Observation] {
@@ -187,7 +200,9 @@ struct AgentDeepAnalysisDetailSheet: View {
             VStack(alignment: .leading, spacing: 18) {
                 header
                 opening(model)
-                signalStrip(model.signalSummaries)
+                if !model.signalSummaries.isEmpty {
+                    signalStrip(model.signalSummaries)
+                }
                 observationsSection(model.observations)
                 closingSection(model)
                 evidenceSection(model.evidence)
@@ -239,7 +254,7 @@ struct AgentDeepAnalysisDetailSheet: View {
 
     private func opening(_ model: AgentDeepAnalysisNarrativeModel) -> some View {
         VStack(alignment: .leading, spacing: 13) {
-            Text("HOLO 观察手记")
+            Text(model.isFinanceLedgerMode ? "HOLO 账单复核" : "HOLO 观察手记")
                 .font(.system(size: 11, weight: .bold))
                 .foregroundColor(.holoPrimary)
 
@@ -464,35 +479,30 @@ struct AgentDeepAnalysisDetailSheet: View {
         VStack(alignment: .leading, spacing: 9) {
             Text("下一步")
                 .font(.system(size: 11, weight: .bold))
-                .foregroundColor(.white.opacity(0.58))
+                .foregroundColor(model.isFinanceLedgerMode ? Color.holoPrimary.opacity(0.82) : .white.opacity(0.58))
 
             Text(model.closingTitle)
                 .font(.system(size: 20, weight: .heavy))
-                .foregroundColor(.white)
+                .foregroundColor(model.isFinanceLedgerMode ? .holoTextPrimary : .white)
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(model.closingBody)
                 .font(.system(size: 14.5, weight: .medium))
-                .foregroundColor(.white.opacity(0.78))
+                .foregroundColor(model.isFinanceLedgerMode ? Color.holoTextPrimary.opacity(0.72) : .white.opacity(0.78))
                 .lineSpacing(6)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 19)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            LinearGradient(
-                colors: [
-                    Color(red: 0.16, green: 0.14, blue: 0.12),
-                    Color(red: 0.31, green: 0.25, blue: 0.20)
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-        )
+        .background(closingBackground(isFinanceLedgerMode: model.isFinanceLedgerMode))
         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
-        .shadow(color: Color.black.opacity(0.16), radius: 18, x: 0, y: 12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 28, style: .continuous)
+                .stroke(model.isFinanceLedgerMode ? Color.holoPrimary.opacity(0.18) : Color.clear, lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(model.isFinanceLedgerMode ? 0.045 : 0.16), radius: 18, x: 0, y: 12)
     }
 
     // MARK: - Styling Helpers
@@ -520,6 +530,30 @@ struct AgentDeepAnalysisDetailSheet: View {
             Color(red: 0.72, green: 0.52, blue: 0.38)
         ]
         return colors[index % colors.count]
+    }
+
+    private func closingBackground(isFinanceLedgerMode: Bool) -> some View {
+        Group {
+            if isFinanceLedgerMode {
+                LinearGradient(
+                    colors: [
+                        Color.white.opacity(0.94),
+                        Color(red: 0.91, green: 0.97, blue: 0.96).opacity(0.92)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            } else {
+                LinearGradient(
+                    colors: [
+                        Color(red: 0.16, green: 0.14, blue: 0.12),
+                        Color(red: 0.31, green: 0.25, blue: 0.20)
+                    ],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                )
+            }
+        }
     }
 
     private func signalTitle(_ summary: String) -> String {

@@ -43,8 +43,10 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
             nighttimeMealCurrent: Self.nighttimeMealCount(currentTransactions),
             nighttimeMealBaseline: Self.nighttimeMealCount(baselineTransactions),
             categoryCounts: Self.categoryCounts(currentTransactions),
+            categoryAmounts: Self.categoryAmounts(currentTransactions),
             totalCurrentAmount: Self.totalExpense(currentTransactions),
             totalBaselineAmount: Self.totalExpense(baselineTransactions),
+            transactionCount: Self.expenseCount(currentTransactions),
             currentRange: currentRange,
             baselineRange: baselineRange,
             keyword: keyword.isEmpty ? nil : keyword,
@@ -52,7 +54,8 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
             keywordBaselineCount: baselineKeyword.count,
             keywordCurrentAmount: currentKeyword.amount,
             keywordBaselineAmount: baselineKeyword.amount,
-            keywordSampleExcerpts: currentKeyword.samples
+            keywordSampleExcerpts: currentKeyword.samples,
+            topExpenseExcerpts: Self.topExpenseSamples(currentTransactions)
         )
     }
 
@@ -79,6 +82,20 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
         return counts
     }
 
+    /// 本期各分类支出金额。
+    private static func categoryAmounts(_ txs: [Transaction]) -> [String: Double] {
+        var amounts: [String: Double] = [:]
+        for tx in txs where tx.transactionType == .expense {
+            let name = tx.category?.name ?? "未分类"
+            amounts[name, default: 0] += tx.amount.doubleValue
+        }
+        return amounts
+    }
+
+    private static func expenseCount(_ txs: [Transaction]) -> Int {
+        txs.filter { $0.transactionType == .expense }.count
+    }
+
     private static func totalExpense(_ txs: [Transaction]) -> Double {
         txs.filter { $0.transactionType == .expense }.reduce(0.0) { $0 + $1.amount.doubleValue }
     }
@@ -99,6 +116,14 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
         return (matches.count, amount, samples)
     }
 
+    private static func topExpenseSamples(_ txs: [Transaction]) -> [String] {
+        txs
+            .filter { $0.transactionType == .expense }
+            .sorted { $0.amount.doubleValue > $1.amount.doubleValue }
+            .prefix(5)
+            .map(sampleExcerpt)
+    }
+
     private static func searchableText(for tx: Transaction) -> String {
         [
             tx.note,
@@ -110,7 +135,7 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
             .joined(separator: " ")
     }
 
-    private static func sampleExcerpt(for tx: Transaction) -> String {
+    nonisolated private static func sampleExcerpt(for tx: Transaction) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.dateFormat = "M月d日"
