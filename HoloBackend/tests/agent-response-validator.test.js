@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 
 import { validateAgentLoopContent } from "../src/agentResponseValidator.js";
+import { loadConfig } from "../src/config.js";
 
 test("缺少 status 返回 invalid", () => {
   const result = validateAgentLoopContent(JSON.stringify({ reasoning: "无 status" }));
@@ -79,4 +80,24 @@ test("markdown code fence 包裹的 agent JSON 可以解析", () => {
   );
   assert.equal(result.valid, true);
   assert.equal(result.parsed.status, "final_claims");
+});
+
+test("agent_loop 可从模型说明文本中抽取 JSON 并归一 evidenceIds", () => {
+  const result = validateAgentLoopContent(`
+    下面是分析结果：
+    {"status":"final_claims","reasoning":"证据充分","toolRequests":[],"claims":[{"id":"c1","type":"observation","displayText":"6月下半月消费约 4919 元","metricAssertions":[{"metricKey":"finance.total","value":4919,"unit":"元","evidenceIds":["e1"]}],"evidenceIds":["e1"],"prohibitedInferences":[],"confidence":0.5}],"warnings":["全月数据不足"]}
+  `);
+
+  assert.equal(result.valid, true);
+  assert.deepEqual(result.parsed.claims[0].evidenceIDs, ["e1"]);
+  assert.deepEqual(result.parsed.claims[0].metricAssertions[0].evidenceIDs, ["e1"]);
+  assert.match(result.content, /evidenceIDs/);
+});
+
+test("agent_loop 默认输出预算足够复杂 Agent JSON", () => {
+  const config = loadConfig();
+  assert.ok(
+    config.routes.agent_loop.maxTokens >= 8192,
+    `agent_loop maxTokens should support complex Agent JSON, got ${config.routes.agent_loop.maxTokens}`
+  );
 });

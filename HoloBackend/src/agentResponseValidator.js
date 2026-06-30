@@ -9,10 +9,7 @@ const AGENT_STATUSES = new Set(["need_tools", "need_more_analysis", "final_claim
  * @returns {{ valid: boolean, error?: string, parsed?: any }}
  */
 export function validateAgentLoopContent(content) {
-  const cleaned = String(content)
-    .replace(/```json/gi, "")
-    .replace(/```/g, "")
-    .trim();
+  const cleaned = extractJSONObject(String(content));
   let parsed;
   try {
     parsed = JSON.parse(cleaned);
@@ -76,6 +73,9 @@ export function validateAgentLoopContent(content) {
     if (!Array.isArray(claim.metricAssertions)) {
       claim.metricAssertions = [];
     }
+    if (!Array.isArray(claim.evidenceIDs) && Array.isArray(claim.evidenceIds)) {
+      claim.evidenceIDs = claim.evidenceIds;
+    }
     if (!Array.isArray(claim.evidenceIDs)) {
       claim.evidenceIDs = [];
     }
@@ -87,6 +87,9 @@ export function validateAgentLoopContent(content) {
     }
 
     for (const assertion of claim.metricAssertions) {
+      if (assertion && typeof assertion === "object" && !Array.isArray(assertion.evidenceIDs) && Array.isArray(assertion.evidenceIds)) {
+        assertion.evidenceIDs = assertion.evidenceIds;
+      }
       if (assertion && typeof assertion === "object" && !Array.isArray(assertion.evidenceIDs)) {
         assertion.evidenceIDs = [];
       }
@@ -94,4 +97,50 @@ export function validateAgentLoopContent(content) {
   }
 
   return { valid: true, parsed, content: JSON.stringify(parsed) };
+}
+
+function extractJSONObject(content) {
+  const cleaned = content
+    .replace(/```json/gi, "")
+    .replace(/```/g, "")
+    .trim();
+
+  const firstBrace = cleaned.indexOf("{");
+  if (firstBrace < 0) {
+    return cleaned;
+  }
+
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+
+  for (let index = firstBrace; index < cleaned.length; index += 1) {
+    const char = cleaned[index];
+
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (char === "\\") {
+      escaped = true;
+      continue;
+    }
+    if (char === "\"") {
+      inString = !inString;
+      continue;
+    }
+    if (inString) {
+      continue;
+    }
+    if (char === "{") {
+      depth += 1;
+    } else if (char === "}") {
+      depth -= 1;
+      if (depth === 0) {
+        return cleaned.slice(firstBrace, index + 1).trim();
+      }
+    }
+  }
+
+  return cleaned;
 }
