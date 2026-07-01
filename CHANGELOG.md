@@ -4,6 +4,21 @@
 
 ---
 
+## [2026-07-01] iCloud 同步运行时误判修复
+
+修复设置页显示“当前签名未启用 iCloud CloudKit，同步功能暂不可用”的问题。根因是 Debug 包在读不到 `embedded.mobileprovision` 时被运行时守卫误判为 CloudKit 不可用，导致 App 主动退回本地 Core Data 容器，iCloud 同步链路被关掉。
+
+### 变更
+- **CloudKit 可用性守卫**：Debug 下只有在明确读取到 provisioning profile 且其中缺少 CloudKit entitlement 时才禁用 CloudKit；读不到 profile 不再直接关闭同步
+- **同步后台能力**：`UIBackgroundModes` 补充 `remote-notification`，避免 Core Data + CloudKit 后台推送同步缺少系统能力声明
+- **回归测试**：新增 `CloudKitRuntimeAvailabilityTests`，覆盖无 embedded profile、profile 缺 CloudKit、profile 包含 CloudKit 三种判断路径
+
+### 验证
+- `xcodebuild test -project 'Holo/Holo APP/Holo/Holo.xcodeproj' -scheme Holo -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:HoloTests/CloudKitRuntimeAvailabilityTests -derivedDataPath /private/tmp/holo-cloudkit-runtime-final-test`
+- `xcodebuild build -project 'Holo/Holo APP/Holo/Holo.xcodeproj' -scheme Holo -destination 'generic/platform=iOS Simulator' -derivedDataPath /private/tmp/holo-cloudkit-runtime-build`
+
+---
+
 ## [2026-06-29] HoloAI 深度分析详情页改为观察手记式布局
 
 重做 HoloAI 深度分析结果弹窗，去掉原先“核心结论 + 观察卡片 + 数据依据卡片瀑布”的生硬结构，改为更适合手机阅读的观察手记式页面。核心结论会拆成可阅读段落，观察内容采用更清晰的标题、字号和间距层级；数据依据默认折叠为底部轻入口，避免喧宾夺主。

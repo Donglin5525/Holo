@@ -14,6 +14,53 @@ import OSLog
 
 private let logger = Logger(subsystem: "com.tangyuxuan.Holo", category: "ICloudSync")
 
+nonisolated enum CloudKitRuntimeAvailability {
+    static let containerIdentifier = "iCloud.com.tangyuxuan.Holo"
+
+    enum BuildConfiguration {
+        case debug
+        case release
+    }
+
+    static var isAvailable: Bool {
+        #if DEBUG
+        return isAvailable(
+            embeddedProvisionProfile: embeddedProvisionProfileText(),
+            buildConfiguration: .debug
+        )
+        #else
+        return isAvailable(
+            embeddedProvisionProfile: nil,
+            buildConfiguration: .release
+        )
+        #endif
+    }
+
+    static func isAvailable(
+        embeddedProvisionProfile profile: String?,
+        buildConfiguration: BuildConfiguration
+    ) -> Bool {
+        switch buildConfiguration {
+        case .release:
+            return true
+        case .debug:
+            guard let profile, !profile.isEmpty else {
+                return true
+            }
+            return profile.contains("<string>CloudKit</string>") &&
+                profile.contains("<string>\(containerIdentifier)</string>")
+        }
+    }
+
+    private static func embeddedProvisionProfileText() -> String? {
+        guard let url = Bundle.main.url(forResource: "embedded", withExtension: "mobileprovision"),
+              let data = try? Data(contentsOf: url) else {
+            return nil
+        }
+        return String(data: data, encoding: .ascii) ?? String(data: data, encoding: .utf8)
+    }
+}
+
 @MainActor
 final class ICloudSyncStatusService: ObservableObject {
     static let shared = ICloudSyncStatusService()
@@ -28,7 +75,10 @@ final class ICloudSyncStatusService: ObservableObject {
     @Published private(set) var lastManualSyncRequestTime: Date?
     @Published var refreshToast: String?
 
-    private let container = CKContainer(identifier: "iCloud.com.tangyuxuan.Holo")
+    private lazy var container: CKContainer? = {
+        guard CloudKitRuntimeAvailability.isAvailable else { return nil }
+        return CKContainer(identifier: CloudKitRuntimeAvailability.containerIdentifier)
+    }()
     private var observer: NSObjectProtocol?
     private let lastSyncTimeKey = "iCloudSyncStatusService.lastSyncTime"
     private let lastStatusCheckTimeKey = "iCloudSyncStatusService.lastStatusCheckTime"
@@ -162,6 +212,16 @@ final class ICloudSyncStatusService: ObservableObject {
     }
 
     private func updateAccountStatus() async {
+        guard let container else {
+            accountStatus = .couldNotDetermine
+            lastErrorMessage = "当前签名未启用 iCloud CloudKit，同步功能暂不可用"
+            lastEventDescription = "iCloud 同步未启用"
+            let checkedAt = Date()
+            lastStatusCheckTime = checkedAt
+            UserDefaults.standard.set(checkedAt, forKey: lastStatusCheckTimeKey)
+            return
+        }
+
         do {
             accountStatus = try await container.accountStatus()
             lastErrorMessage = nil
