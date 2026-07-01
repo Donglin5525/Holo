@@ -143,6 +143,63 @@ final class HoloAgentResultRendererTests: XCTestCase {
         XCTAssertEqual(drilldown?.baselineEnd, baselineRange.end, "应保留对比期结束时间")
     }
 
+    /// 财务“钱花哪了”不能只渲染总额，必须保留分类去向和可核对的大额样例。
+    func testFinanceSpendingBreakdownRendersCategoriesAndSamples() {
+        let range = HoloAgentTimeRange(
+            label: "上月",
+            start: Date(timeIntervalSince1970: 1000),
+            end: Date(timeIntervalSince1970: 2000)
+        )
+        let claims = [
+            makeClaim(
+                text: "上月账单总支出约 14598.83 元。",
+                evidenceIDs: ["total"],
+                id: "c-total"
+            ),
+            makeClaim(
+                text: "上月主要去向是 餐饮 3516 元、居住 3156 元、数码 1525 元，这些是优先核对的分类。",
+                evidenceIDs: ["meal", "rent", "digital"],
+                id: "c-categories"
+            ),
+            makeClaim(
+                text: "上月最大几笔包括：6月29日 居住 房租 -¥3156、6月16日 数码 MacBook 分期 -¥1525。",
+                evidenceIDs: ["sample-rent", "sample-digital"],
+                id: "c-samples"
+            )
+        ]
+        let evidence = [
+            makeEvidence(id: "total", redacted: "上月总支出：14598.83 元", excerpt: "上月总支出：14598.83 元",
+                         sourceModule: .finance, timeRange: range, metricKey: "finance.total.amount"),
+            makeEvidence(id: "meal", redacted: "上月分类去向：餐饮：3516 元", excerpt: "上月分类去向：餐饮：3516 元",
+                         sourceModule: .finance, timeRange: range, metricKey: "finance.category.amount"),
+            makeEvidence(id: "rent", redacted: "上月分类去向：居住：3156 元", excerpt: "上月分类去向：居住：3156 元",
+                         sourceModule: .finance, timeRange: range, metricKey: "finance.category.amount"),
+            makeEvidence(id: "digital", redacted: "上月分类去向：数码：1525 元", excerpt: "上月分类去向：数码：1525 元",
+                         sourceModule: .finance, timeRange: range, metricKey: "finance.category.amount"),
+            makeEvidence(id: "sample-rent", redacted: "6月29日 居住 房租 -¥3156", excerpt: "6月29日 居住 房租 -¥3156",
+                         sourceModule: .finance, timeRange: range, metricKey: "finance.transaction.sample"),
+            makeEvidence(id: "sample-digital", redacted: "6月16日 数码 MacBook 分期 -¥1525", excerpt: "6月16日 数码 MacBook 分期 -¥1525",
+                         sourceModule: .finance, timeRange: range, metricKey: "finance.transaction.sample")
+        ]
+
+        let result = HoloAgentResultRenderer().render(claims: claims, evidence: evidence, title: "深度分析")
+        let visibleText = "\(result.summary) \(result.sections.map(\.body).joined(separator: " ")) \(result.evidenceReferences.map(\.summary).joined(separator: " "))"
+
+        XCTAssertTrue(visibleText.contains("14598.83"), "应保留上月总额")
+        XCTAssertTrue(visibleText.contains("餐饮"), "应保留 Top 分类餐饮")
+        XCTAssertTrue(visibleText.contains("居住"), "应保留 Top 分类居住")
+        XCTAssertTrue(visibleText.contains("数码"), "应保留 Top 分类数码")
+        XCTAssertTrue(visibleText.contains("房租"), "应保留可核对大额样例")
+        XCTAssertTrue(visibleText.contains("MacBook"), "应保留可核对大额样例")
+        XCTAssertFalse(visibleText.contains("finance.total.amount"), "用户可见文本不能暴露内部 metricKey")
+        XCTAssertEqual(result.sections.count, 3, "应有总额、分类、大额样例三段观察")
+        XCTAssertEqual(result.evidenceReferences.count, 6, "应保留全部可核对账单依据")
+        XCTAssertTrue(
+            result.evidenceReferences.allSatisfy { $0.financeDrilldown?.label == "上月" },
+            "每条财务依据都应可下钻到上月账单口径"
+        )
+    }
+
     /// 老版本 agentResultJSON 没有 financeDrilldown 字段时仍应可解码。
     func testLegacyAgentResultWithoutFinanceDrilldownDecodes() throws {
         let json = """

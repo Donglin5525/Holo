@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct HoloAgentTimeRange: Codable, Equatable, Sendable {
+nonisolated struct HoloAgentTimeRange: Codable, Equatable, Sendable {
     var label: String
     var start: Date?
     var end: Date?

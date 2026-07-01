@@ -146,4 +146,59 @@ final class ChatMessageViewDataAgentResultTests: XCTestCase {
         XCTAssertEqual(model.closingTitle, "先核对最大头的去向。")
         XCTAssertTrue(model.evidence.first?.label.contains("账单依据") == true, "财务证据应叫账单依据")
     }
+
+    func testAgentDeepAnalysisNarrativeModelUsesFinanceRangeLabelInOpeningTitle() {
+        let drilldown = HoloRenderedFinanceDrilldown(
+            sourceEvidenceID: "e1",
+            label: "上月",
+            keyword: nil,
+            start: Date(timeIntervalSince1970: 1000),
+            end: Date(timeIntervalSince1970: 2000),
+            baselineStart: nil,
+            baselineEnd: nil
+        )
+        let result = HoloRenderedAgentResult(
+            title: "深度分析",
+            summary: "上月账单总支出约 14599 元。",
+            sections: [
+                HoloRenderedAgentSection(title: "账单总览", body: "上月账单总支出约 14599 元。", confidence: 0.45)
+            ],
+            evidenceReferences: [
+                HoloRenderedEvidenceReference(id: "e1", summary: "上月总支出：14599 元", financeDrilldown: drilldown)
+            ]
+        )
+
+        let model = AgentDeepAnalysisNarrativeModel(result: result)
+
+        XCTAssertEqual(model.openingTitle, "上月这笔钱，先按账单口径拆开看。")
+        XCTAssertFalse(model.openingBody.contains("finance.total.amount"), "详情页不能暴露内部 metricKey")
+    }
+
+    func testAgentDeepAnalysisNarrativeModelKeepsMoneyTokenUnbroken() {
+        let result = HoloRenderedAgentResult(
+            title: "本月账单分析",
+            summary: "记账显示本月总支出约 4981.83 元，与您提到的 1.4 万相差约 9000 元。",
+            sections: [],
+            evidenceReferences: []
+        )
+
+        let model = AgentDeepAnalysisNarrativeModel(result: result)
+        let actual = model.openingParagraphs.joined()
+        let readable = actual
+            .replacingOccurrences(of: "\u{2060}", with: "")
+            .replacingOccurrences(of: "\u{00A0}", with: " ")
+
+        XCTAssertTrue(
+            readable.contains("4981.83 元"),
+            "金额保护不能改变用户可读的小数点，实际：\(actual)"
+        )
+        XCTAssertTrue(
+            actual.contains("\u{00A0}元"),
+            "金额和单位之间应使用不可断开的空格，避免窄屏换行误读，实际：\(actual)"
+        )
+        XCTAssertFalse(
+            actual.contains("4981\u{2060}83"),
+            "金额不能丢失小数点后变成 498183，实际：\(actual)"
+        )
+    }
 }

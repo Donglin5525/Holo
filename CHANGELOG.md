@@ -4,6 +4,24 @@
 
 ---
 
+## [2026-07-01] HoloAI Agent 财务分析可靠性修复
+
+修复 HoloAI 深度分析「上个月花了 1.4 万，钱都花哪了」这类财务问题中，时间识别、数据调度和结果展示不稳定的问题。现在 Agent 会确定性解析“本月 / 上月 / 6月 / 2025年6月”等时间语义，优先调用 finance 账单拆分工具，并在模型输出格式失败时使用已验证的工具事实兜底完成，避免用户看到 `state=failed`、`解析失败` 或内部 metricKey。
+
+### 变更
+- **时间语义确定化**：新增 `HoloAgentTimeSemanticResolver`，把常见中文时间表达解析成明确的自然月/周/年范围，工具请求缺少 `timeRange` 时自动继承 job 范围
+- **财务工具强制调度**：对“钱花哪了 / 去哪了 / 消费结构 / 1.4万花哪了”等问题先执行 `finance.spending_breakdown`，不再完全依赖模型自觉发起工具调用
+- **可信结果兜底**：模型 claim 无证据或 JSON 解析失败时，只要 finance 工具已返回事实，就基于总额、Top 分类和大额样例生成可核对结论
+- **展示可读性**：财务详情页按账单口径展示，使用正确时间标签，保护金额小数不被窄屏换行误读，并隐藏内部调试字段
+
+### 验证
+- `HoloLocalAgentRuntimeTests passed`
+- `HoloAgentResponseParserTests passed`
+- `swiftc -parse HoloAgentResultRendererTests.swift`
+- `xcodebuild build -project 'Holo/Holo APP/Holo/Holo.xcodeproj' -scheme Holo -destination 'platform=iOS Simulator,name=iPhone 17,OS=26.3.1' -derivedDataPath /private/tmp/holo-derived-data-agent-parse-fallback build -quiet`
+
+---
+
 ## [2026-07-01] iCloud 同步运行时误判修复
 
 修复设置页显示“当前签名未启用 iCloud CloudKit，同步功能暂不可用”的问题。根因是 Debug 包在读不到 `embedded.mobileprovision` 时被运行时守卫误判为 CloudKit 不可用，导致 App 主动退回本地 Core Data 容器，iCloud 同步链路被关掉。

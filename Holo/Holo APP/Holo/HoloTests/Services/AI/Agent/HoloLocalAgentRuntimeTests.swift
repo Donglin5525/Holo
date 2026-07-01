@@ -42,19 +42,69 @@ actor FakeAgentLLMClient: HoloAgentLLMClientProtocol {
 
 /// 多轮 loop 测试专用 fake tool executor：返回成功空结果。
 actor FakeToolExecutor: HoloAgentToolExecuting {
+    private(set) var requests: [HoloToolRequest] = []
+
     func execute(_ request: HoloToolRequest) async -> HoloDataToolResult {
-        HoloDataToolResult(toolRequestID: request.id, tool: request.tool, status: .success,
-                           coverage: nil,
-                           metrics: [
-                            HoloMetric(metricKey: "finance.meal.nighttime_count", value: 5, unit: "次",
-                                       baselineValue: 1, comparison: "increasing")
-                           ],
-                           events: [
-                            HoloEvidenceEvent(id: "event-1", occurredAt: Date(timeIntervalSince1970: 1000),
-                                              metricKey: "finance.meal.nighttime_count",
-                                              metricValue: 5, excerpt: "晚餐消费 5 次")
-                           ],
-                           warnings: [], error: nil)
+        requests.append(request)
+        if request.query == "spending_breakdown" {
+            return HoloDataToolResult(toolRequestID: request.id, tool: request.tool, status: .success,
+                                      coverage: nil,
+                                      metrics: [
+                                        HoloMetric(metricKey: "finance.total.amount", value: 14598.83, unit: "元",
+                                                   baselineValue: nil, comparison: nil),
+                                        HoloMetric(metricKey: "finance.category.amount", value: 3516, unit: "元",
+                                                   baselineValue: nil, comparison: "餐饮"),
+                                        HoloMetric(metricKey: "finance.category.amount", value: 3156, unit: "元",
+                                                   baselineValue: nil, comparison: "居住"),
+                                        HoloMetric(metricKey: "finance.category.amount", value: 1525, unit: "元",
+                                                   baselineValue: nil, comparison: "数码")
+                                      ],
+                                      events: [
+                                        HoloEvidenceEvent(id: "event-total", occurredAt: nil,
+                                                          metricKey: "finance.total.amount",
+                                                          metricValue: 14598.83,
+                                                          excerpt: "上月总支出：14598.83 元",
+                                                          timeRange: request.timeRange),
+                                        HoloEvidenceEvent(id: "event-category-meal", occurredAt: nil,
+                                                          metricKey: "finance.category.amount",
+                                                          metricValue: 3516,
+                                                          excerpt: "上月分类去向：餐饮：3516 元（约 24%）",
+                                                          timeRange: request.timeRange),
+                                        HoloEvidenceEvent(id: "event-category-rent", occurredAt: nil,
+                                                          metricKey: "finance.category.amount",
+                                                          metricValue: 3156,
+                                                          excerpt: "上月分类去向：居住：3156 元（约 22%）",
+                                                          timeRange: request.timeRange),
+                                        HoloEvidenceEvent(id: "event-category-digital", occurredAt: nil,
+                                                          metricKey: "finance.category.amount",
+                                                          metricValue: 1525,
+                                                          excerpt: "上月分类去向：数码：1525 元（约 10%）",
+                                                          timeRange: request.timeRange),
+                                        HoloEvidenceEvent(id: "event-sample-rent", occurredAt: nil,
+                                                          metricKey: "finance.transaction.sample",
+                                                          metricValue: nil,
+                                                          excerpt: "上月大额支出样例：6月29日 居住 房租 -¥3156",
+                                                          timeRange: request.timeRange),
+                                        HoloEvidenceEvent(id: "event-sample-digital", occurredAt: nil,
+                                                          metricKey: "finance.transaction.sample",
+                                                          metricValue: nil,
+                                                          excerpt: "上月大额支出样例：6月16日 数码 MacBook 分期 -¥1525",
+                                                          timeRange: request.timeRange)
+                                      ],
+                                      warnings: [], error: nil)
+        }
+        return HoloDataToolResult(toolRequestID: request.id, tool: request.tool, status: .success,
+                                  coverage: nil,
+                                  metrics: [
+                                    HoloMetric(metricKey: "finance.meal.nighttime_count", value: 5, unit: "次",
+                                               baselineValue: 1, comparison: "increasing")
+                                  ],
+                                  events: [
+                                    HoloEvidenceEvent(id: "event-1", occurredAt: Date(timeIntervalSince1970: 1000),
+                                                      metricKey: "finance.meal.nighttime_count",
+                                                      metricValue: 5, excerpt: "晚餐消费 5 次")
+                                  ],
+                                  warnings: [], error: nil)
     }
 
     func promptDescription() async -> String { "" }
@@ -73,6 +123,14 @@ struct HoloLocalAgentRuntimeTests {
         try await testResume_重启后从checkpoint对齐到当前step()
         try await testCancel_状态变为cancelled且resume不恢复执行()
         try await testRunLoop_needTools后finalClaims两轮完成()
+        try await testStartAnalysisJob_本月问题写入整月时间范围()
+        try await testStartAnalysisJob_上个月问题写入上月整月时间范围()
+        try await testStartAnalysisJob_显式月份问题写入对应自然月范围()
+        try await testStartAnalysisJob_带年份月份问题写入指定年月范围()
+        try await testRunLoop_上个月工具请求缺少范围时继承上月范围()
+        try await testRunLoop_工具请求缺少范围时继承Job范围()
+        try await testRunLoop_财务去向问题先强制查询账单拆分()
+        try await testRunLoop_财务工具已返回但模型JSON解析失败时用工具结果完成()
         try await testRunLoop_工具结果进入下一轮LLM上下文且不用原生tool角色()
         try await testRunLoop_工具上下文使用全局唯一EvidenceID()
         try await testRunLoop_finalClaims必须经过Evidence校验()
@@ -81,6 +139,10 @@ struct HoloLocalAgentRuntimeTests {
         try await testResumeUnfinishedJobs_恢复未完成任务()
         try await test后台暂停后恢复并RunLoop完成()
         print("HoloLocalAgentRuntimeTests passed")
+    }
+
+    private static func makeDate(_ year: Int, _ month: Int, _ day: Int) -> Date {
+        Calendar.current.date(from: DateComponents(year: year, month: month, day: day))!
     }
 
     // MARK: - Helpers
@@ -232,6 +294,196 @@ struct HoloLocalAgentRuntimeTests {
 
         let checkpoint = await fixture.checkpointStore.latestForJob(jobID: job.id)
         expect(checkpoint?.completedToolResults.isEmpty == false, "checkpoint 应含工具执行结果")
+    }
+
+    /// 用户明确说“本月/这个月”时，Agent job 必须落盘整月范围，不能回退到近 14 天。
+    private static func testStartAnalysisJob_本月问题写入整月时间范围() async throws {
+        let dir = makeTempDir()
+        let fixture = makeRuntime(dir: dir)
+        let now = makeDate(2026, 6, 30)
+
+        let job = try await fixture.runtime.startAnalysisJob(
+            question: "这个月都花了 1.4 万了？钱都花哪儿去了？分析一下",
+            now: now
+        )
+
+        expect(job.timeRange?.label == "本月", "本月问题应写入 label=本月，实际 \(job.timeRange?.label ?? "nil")")
+        expect(job.timeRange?.start == makeDate(2026, 6, 1), "本月 start 应为 6/1")
+        expect(job.timeRange?.end == makeDate(2026, 7, 1), "本月 end 应为 7/1 exclusive，避免漏掉 6/30")
+    }
+
+    /// 跨月后用户说“上个月”时，Agent 必须查自然月上月，不能误用今天所在月。
+    private static func testStartAnalysisJob_上个月问题写入上月整月时间范围() async throws {
+        let dir = makeTempDir()
+        let fixture = makeRuntime(dir: dir)
+        let now = Date()
+
+        let job = try await fixture.runtime.startAnalysisJob(
+            question: "上个月都花了 1.4 万了？钱都花哪儿去了？分析一下",
+            now: now
+        )
+
+        expect(job.timeRange?.label == "上月", "上个月问题应写入 label=上月，实际 \(job.timeRange?.label ?? "nil")")
+        expect(job.timeRange?.start == makeDate(2026, 6, 1), "上个月 start 应为 6/1")
+        expect(job.timeRange?.end == makeDate(2026, 7, 1), "上个月 end 应为 7/1 exclusive，避免漏掉 6/30")
+    }
+
+    /// 用户直接说“六月/6月”时，也应确定性落到对应自然月。
+    private static func testStartAnalysisJob_显式月份问题写入对应自然月范围() async throws {
+        let dir = makeTempDir()
+        let fixture = makeRuntime(dir: dir)
+        let now = Date()
+
+        let job = try await fixture.runtime.startAnalysisJob(
+            question: "六月都花了 1.4 万了？钱都花哪儿去了？分析一下",
+            now: now
+        )
+
+        expect(job.timeRange?.label == "6月", "六月问题应写入 label=6月，实际 \(job.timeRange?.label ?? "nil")")
+        expect(job.timeRange?.start == makeDate(2026, 6, 1), "六月 start 应为 6/1")
+        expect(job.timeRange?.end == makeDate(2026, 7, 1), "六月 end 应为 7/1 exclusive")
+    }
+
+    /// 带年份的月份必须尊重用户给出的年份，不能按当前年份猜。
+    private static func testStartAnalysisJob_带年份月份问题写入指定年月范围() async throws {
+        let dir = makeTempDir()
+        let fixture = makeRuntime(dir: dir)
+        let now = makeDate(2026, 7, 1)
+
+        let job = try await fixture.runtime.startAnalysisJob(
+            question: "2025年6月都花哪儿去了？",
+            now: now
+        )
+
+        expect(job.timeRange?.label == "2025年6月", "指定年月应保留年份，实际 \(job.timeRange?.label ?? "nil")")
+        expect(job.timeRange?.start == makeDate(2025, 6, 1), "2025年6月 start 应为 2025/6/1")
+        expect(job.timeRange?.end == makeDate(2025, 7, 1), "2025年6月 end 应为 2025/7/1 exclusive")
+    }
+
+    /// 即使 LLM 忘记给工具请求带 timeRange，“上个月”也要继承 job 的上月范围。
+    private static func testRunLoop_上个月工具请求缺少范围时继承上月范围() async throws {
+        let dir = makeTempDir()
+        let needTools = #"{"status":"need_tools","reasoning":"需要查消费","toolRequests":[{"id":"t-finance","tool":"finance","query":"spending_breakdown","timeRange":null,"baseline":null,"requiredMetrics":[],"parameters":{}}],"claims":[],"warnings":[]}"#
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let client = FakeAgentLLMClient(responses: [needTools, finalClaims])
+        let executor = FakeToolExecutor()
+        let fixture = makeLoopRuntime(dir: dir, llmClient: client, toolExecutor: executor)
+        let now = Date()
+        let calendar = Calendar.current
+        let currentMonth = calendar.dateInterval(of: .month, for: now)!
+        let previousMonthStart = calendar.date(byAdding: .month, value: -1, to: currentMonth.start)!
+
+        let job = try await fixture.runtime.startAnalysisJob(question: "上个月钱花哪了", now: now)
+        _ = try await fixture.runtime.runLoop(
+            jobID: job.id, systemTemplate: "你是 Agent", toolDescriptions: "【finance】消费工具",
+            now: now.addingTimeInterval(1)
+        )
+
+        let requests = await executor.requests
+        expect(requests.count == 1, "应执行 1 次工具请求，实际 \(requests.count)")
+        let actualRange = requests.first?.timeRange
+        expect(actualRange?.label == "上月", "工具请求应继承上月范围，实际 \(String(describing: actualRange))")
+        expect(actualRange?.start == previousMonthStart, "工具请求 start 应为上月首日")
+        expect(actualRange?.end == currentMonth.start, "工具请求 end 应为本月首日 exclusive")
+    }
+
+    /// 即使 LLM toolRequest 没填 timeRange，runtime 也要把 job 范围注入工具请求。
+    private static func testRunLoop_工具请求缺少范围时继承Job范围() async throws {
+        let dir = makeTempDir()
+        let needTools = #"{"status":"need_tools","reasoning":"需要查消费","toolRequests":[{"id":"t-finance","tool":"finance","query":"spending_breakdown","timeRange":null,"baseline":null,"requiredMetrics":[],"parameters":{}}],"claims":[],"warnings":[]}"#
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let client = FakeAgentLLMClient(responses: [needTools, finalClaims])
+        let executor = FakeToolExecutor()
+        let fixture = makeLoopRuntime(dir: dir, llmClient: client, toolExecutor: executor)
+        let now = Date()
+        let month = Calendar.current.dateInterval(of: .month, for: now)!
+
+        let job = try await fixture.runtime.startAnalysisJob(question: "本月钱花哪了", now: now)
+        let storedJob = await fixture.jobStore.load().first { $0.id == job.id }
+        expect(storedJob?.timeRange?.label == "本月", "落盘 job 应保留本月范围，实际 \(String(describing: storedJob?.timeRange))")
+        _ = try await fixture.runtime.runLoop(
+            jobID: job.id, systemTemplate: "你是 Agent", toolDescriptions: "【finance】消费工具",
+            now: now.addingTimeInterval(1)
+        )
+
+        let requests = await executor.requests
+        expect(requests.count == 1, "应执行 1 次工具请求，实际 \(requests.count)")
+        let actualRange = requests.first?.timeRange
+        expect(actualRange?.label == "本月", "工具请求应继承本月范围，实际 \(String(describing: actualRange))")
+        expect(requests.first?.timeRange?.start == month.start, "工具请求 start 应为本月首日")
+        expect(requests.first?.timeRange?.end == month.end, "工具请求 end 应为下月首日 exclusive")
+    }
+
+    /// 总额去向问题不能等模型自觉请求工具：runtime 应先强制查 finance.spending_breakdown。
+    private static func testRunLoop_财务去向问题先强制查询账单拆分() async throws {
+        let dir = makeTempDir()
+        let unsupportedFinal = #"{"status":"final_claims","reasoning":"模型跳过工具","toolRequests":[],"claims":[{"id":"c1","type":"observation","displayText":"系统目前无法获取对应的支出拆分数据","metricAssertions":[],"evidenceIDs":[],"prohibitedInferences":[],"confidence":0.5}],"warnings":[]}"#
+        let client = FakeAgentLLMClient(responses: [unsupportedFinal])
+        let executor = FakeToolExecutor()
+        let fixture = makeLoopRuntime(dir: dir, llmClient: client, toolExecutor: executor)
+        let now = makeDate(2026, 7, 1)
+
+        let job = try await fixture.runtime.startAnalysisJob(
+            question: "上个月花了 1.4 万？钱都花哪儿去了？分析一下",
+            now: now
+        )
+        let result = try await fixture.runtime.runLoop(
+            jobID: job.id,
+            systemTemplate: "你是 Agent",
+            toolDescriptions: "【finance】消费工具",
+            now: now
+        )
+
+        let requests = await executor.requests
+        expect(requests.first?.tool == "finance", "财务去向问题应先调用 finance 工具")
+        expect(requests.first?.query == "spending_breakdown", "财务去向问题应强制 spending_breakdown")
+        expect(requests.first?.timeRange?.start == makeDate(2026, 6, 1), "工具请求应使用上月首日")
+        expect(requests.first?.timeRange?.end == makeDate(2026, 7, 1), "工具请求应使用本月首日 exclusive")
+        expect(result.state == .completed, "即使模型跳过工具，也应基于工具事实完成")
+
+        let savedResult = await fixture.runtime.loadLatestResult()
+        expect(savedResult?.summary.contains("14598.83") == true, "最终摘要应来自工具返回的 14598.83，而不是空口无法获取")
+        expect(savedResult?.summary.contains("餐饮") == true, "最终摘要必须回答钱花哪了，包含 Top 分类餐饮")
+        expect(savedResult?.summary.contains("居住") == true, "最终摘要必须回答钱花哪了，包含 Top 分类居住")
+        expect(savedResult?.summary.contains("数码") == true, "最终摘要必须回答钱花哪了，包含 Top 分类数码")
+        expect(savedResult?.summary.contains("房租") == true || savedResult?.summary.contains("MacBook") == true,
+               "最终摘要应包含可核对的大额样例")
+        expect(savedResult?.summary.contains("无法获取对应") == false, "无证据的模型结论不能进入最终摘要")
+        expect(savedResult?.summary.contains("finance.total.amount") == false, "最终摘要不能暴露内部 metricKey")
+        expect(savedResult?.summary.contains("finance 工具返回") == false, "最终摘要不能暴露工具调用话术")
+        expect((savedResult?.claims.count ?? 0) >= 3, "财务去向问题至少应形成总额、分类、样例三类观察")
+    }
+
+    /// 财务工具已经拿到事实时，LLM 最后一轮 JSON 格式失败不能让任务失败并把调试串展示给用户。
+    private static func testRunLoop_财务工具已返回但模型JSON解析失败时用工具结果完成() async throws {
+        let dir = makeTempDir()
+        let brokenOutput = "模型说明：工具返回上月总支出 14598.83 元，但这里不是合法 JSON。"
+        let client = FakeAgentLLMClient(responses: [brokenOutput, brokenOutput, brokenOutput])
+        let executor = FakeToolExecutor()
+        let fixture = makeLoopRuntime(dir: dir, llmClient: client, toolExecutor: executor)
+        let now = Date()
+
+        let job = try await fixture.runtime.startAnalysisJob(
+            question: "上个月花了 1.4 万？钱都花哪儿去了？分析一下",
+            now: now
+        )
+        let result = try await fixture.runtime.runLoop(
+            jobID: job.id,
+            systemTemplate: "你是 Agent",
+            toolDescriptions: "【finance】消费工具",
+            now: now
+        )
+
+        expect(result.state == .completed, "工具事实已返回时，解析失败应兜底完成而不是 failed，实际 \(result.state.rawValue)")
+        expect(result.errorSummary == nil, "兜底完成不能留下解析失败调试串")
+
+        let savedResult = await fixture.runtime.loadLatestResult()
+        expect(savedResult?.summary.contains("14598.83") == true, "兜底结果应保留财务工具总额")
+        expect(savedResult?.summary.contains("餐饮") == true, "兜底结果应保留分类去向")
+        expect(savedResult?.summary.contains("房租") == true || savedResult?.summary.contains("MacBook") == true,
+               "兜底结果应保留大额样例")
+        expect(savedResult?.summary.contains("解析失败") == false, "用户结果不能出现 parser 调试串")
+        expect(savedResult?.summary.contains("state=failed") == false, "用户结果不能出现 job 调试串")
     }
 
     /// 工具结果必须作为普通上下文进入下一轮 LLM，不能使用 OpenAI 原生 tool role。

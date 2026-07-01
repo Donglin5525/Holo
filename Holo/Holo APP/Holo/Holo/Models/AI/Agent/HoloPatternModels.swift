@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum HoloPatternType: String, Codable, CaseIterable, Sendable {
+nonisolated enum HoloPatternType: String, Codable, CaseIterable, Sendable {
     case frequencyChange = "frequency_change"
     case goalConflict = "goal_conflict"
     case streakBreak = "streak_break"
@@ -18,14 +18,14 @@ enum HoloPatternType: String, Codable, CaseIterable, Sendable {
     case recoverySignal = "recovery_signal"
 }
 
-enum HoloPatternSeverity: String, Codable, CaseIterable, Sendable {
+nonisolated enum HoloPatternSeverity: String, Codable, CaseIterable, Sendable {
     case low
     case medium
     case high
     case critical
 }
 
-struct HoloPatternSignal: Codable, Identifiable, Equatable, Sendable {
+nonisolated struct HoloPatternSignal: Codable, Identifiable, Equatable, Sendable {
     var id: String
     var type: HoloPatternType
     var title: String

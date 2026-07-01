@@ -21,7 +21,7 @@ struct HoloClaimVerificationResult: Equatable, Sendable {
     var rejectedClaims: [HoloRejectedClaim]
 }
 
-struct HoloClaimVerifier {
+nonisolated struct HoloClaimVerifier {
 
     /// 禁止的因果词：claim 文案不得用因果断言，只能描述并发。
     static let causalWords: [String] = ["导致", "证明", "说明一定因为"]
@@ -48,8 +48,18 @@ struct HoloClaimVerifier {
         for word in causalWords where claim.displayText.contains(word) {
             return "文案包含因果词「\(word)」，只能描述并发"
         }
-        // 2. metricAssertions 逐条校验
+        // 2. 所有对外展示的 claim 都必须有结构化证据，不能只靠模型文字。
+        guard !claim.metricAssertions.isEmpty else {
+            return "claim 缺少 metricAssertions"
+        }
+        guard claim.metricAssertions.contains(where: { !$0.evidenceIDs.isEmpty }) else {
+            return "claim 缺少 evidenceIDs"
+        }
+        // 3. metricAssertions 逐条校验
         for assertion in claim.metricAssertions {
+            guard !assertion.evidenceIDs.isEmpty else {
+                return "metricAssertion 缺少 evidenceIDs：\(assertion.metricKey)"
+            }
             for evidenceID in assertion.evidenceIDs {
                 guard let record = evidenceByID[evidenceID] else {
                     return "evidenceID 不存在：\(evidenceID)"

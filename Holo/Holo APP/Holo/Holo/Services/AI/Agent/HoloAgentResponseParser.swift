@@ -26,10 +26,7 @@ enum HoloAgentResponseParser {
     ///   - remainingRetries: 剩余可重试次数；为 0 时 needsRetry 返回 false。
     /// - Returns: 解析出的 HoloAgentOutput。
     static func parse(_ raw: String, remainingRetries: Int) throws -> HoloAgentOutput {
-        let cleaned = raw
-            .replacingOccurrences(of: "```json", with: "")
-            .replacingOccurrences(of: "```", with: "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let cleaned = extractJSONObject(from: raw)
 
         guard let data = cleaned.data(using: .utf8) else {
             throw HoloAgentError.outputParseFailure(needsRetry: remainingRetries > 0)
@@ -47,10 +44,25 @@ enum HoloAgentResponseParser {
                         claims[i]["displayText"] = text
                     }
                     if claims[i]["metricAssertions"] == nil { claims[i]["metricAssertions"] = [] }
+                    if claims[i]["evidenceIDs"] == nil, let evidenceIds = claims[i]["evidenceIds"] {
+                        claims[i]["evidenceIDs"] = evidenceIds
+                    }
                     if claims[i]["evidenceIDs"] == nil { claims[i]["evidenceIDs"] = [] }
                     if claims[i]["prohibitedInferences"] == nil { claims[i]["prohibitedInferences"] = [] }
                     if claims[i]["confidence"] == nil { claims[i]["confidence"] = 0.5 }
                     if claims[i]["type"] == nil { claims[i]["type"] = "observation" }
+                    if var metricAssertions = claims[i]["metricAssertions"] as? [[String: Any]] {
+                        for j in 0..<metricAssertions.count {
+                            if metricAssertions[j]["evidenceIDs"] == nil,
+                               let evidenceIds = metricAssertions[j]["evidenceIds"] {
+                                metricAssertions[j]["evidenceIDs"] = evidenceIds
+                            }
+                            if metricAssertions[j]["evidenceIDs"] == nil {
+                                metricAssertions[j]["evidenceIDs"] = []
+                            }
+                        }
+                        claims[i]["metricAssertions"] = metricAssertions
+                    }
                 }
                 json["claims"] = claims
             }
@@ -73,5 +85,55 @@ enum HoloAgentResponseParser {
         }
 
         throw HoloAgentError.outputParseFailure(needsRetry: remainingRetries > 0)
+    }
+
+    private static func extractJSONObject(from raw: String) -> String {
+        let cleaned = raw
+            .replacingOccurrences(of: "```json", with: "", options: .caseInsensitive)
+            .replacingOccurrences(of: "```", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard let start = cleaned.firstIndex(of: "{") else {
+            return cleaned
+        }
+
+        var depth = 0
+        var inString = false
+        var escaped = false
+        var index = start
+
+        while index < cleaned.endIndex {
+            let character = cleaned[index]
+
+            if escaped {
+                escaped = false
+                index = cleaned.index(after: index)
+                continue
+            }
+            if character == "\\" {
+                escaped = true
+                index = cleaned.index(after: index)
+                continue
+            }
+            if character == "\"" {
+                inString.toggle()
+                index = cleaned.index(after: index)
+                continue
+            }
+            if !inString {
+                if character == "{" {
+                    depth += 1
+                } else if character == "}" {
+                    depth -= 1
+                    if depth == 0 {
+                        return String(cleaned[start...index]).trimmingCharacters(in: .whitespacesAndNewlines)
+                    }
+                }
+            }
+
+            index = cleaned.index(after: index)
+        }
+
+        return cleaned
     }
 }

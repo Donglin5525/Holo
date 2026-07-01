@@ -9,7 +9,7 @@ import Foundation
 
 // MARK: - 工具请求
 
-struct HoloToolRequest: Codable, Identifiable, Equatable, Sendable {
+nonisolated struct HoloToolRequest: Codable, Identifiable, Equatable, Sendable {
     var id: String
     var tool: String
     var query: String
@@ -21,7 +21,7 @@ struct HoloToolRequest: Codable, Identifiable, Equatable, Sendable {
 
 // MARK: - 结果状态与错误
 
-enum HoloToolResultStatus: String, Codable, CaseIterable, Sendable {
+nonisolated enum HoloToolResultStatus: String, Codable, CaseIterable, Sendable {
     case success
     case empty
     case partial
@@ -30,13 +30,13 @@ enum HoloToolResultStatus: String, Codable, CaseIterable, Sendable {
     case timeout
 }
 
-struct HoloToolError: Codable, Equatable, Sendable {
+nonisolated struct HoloToolError: Codable, Equatable, Sendable {
     var code: String
     var message: String
     var recoverable: Bool
 }
 
-struct HoloToolWarning: Codable, Equatable, Sendable {
+nonisolated struct HoloToolWarning: Codable, Equatable, Sendable {
     var code: String
     var message: String
 }
@@ -44,7 +44,7 @@ struct HoloToolWarning: Codable, Equatable, Sendable {
 // MARK: - 工具输出度量与事件
 
 /// 工具输出的单个度量值（如 habit.negative.frequency_change = 20）
-struct HoloMetric: Codable, Equatable, Sendable {
+nonisolated struct HoloMetric: Codable, Equatable, Sendable {
     var metricKey: String
     var value: Double?
     var unit: String?
@@ -53,7 +53,7 @@ struct HoloMetric: Codable, Equatable, Sendable {
 }
 
 /// 工具输出的事件级证据（对应原始数据点，可转为 EvidenceRecord）
-struct HoloEvidenceEvent: Codable, Equatable, Sendable {
+nonisolated struct HoloEvidenceEvent: Codable, Equatable, Sendable {
     var id: String
     var occurredAt: Date?
     var metricKey: String?
@@ -64,7 +64,7 @@ struct HoloEvidenceEvent: Codable, Equatable, Sendable {
 }
 
 /// 工具查询的数据覆盖度（判断结论可信度的依据）
-struct HoloDataCoverage: Codable, Equatable, Sendable {
+nonisolated struct HoloDataCoverage: Codable, Equatable, Sendable {
     var coveredDays: Int
     var totalDays: Int
     var coverageRatio: Double?
@@ -74,7 +74,7 @@ struct HoloDataCoverage: Codable, Equatable, Sendable {
 
 // MARK: - 工具结果
 
-struct HoloDataToolResult: Codable, Equatable, Sendable {
+nonisolated struct HoloDataToolResult: Codable, Equatable, Sendable {
     var toolRequestID: String
     var tool: String
     var status: HoloToolResultStatus

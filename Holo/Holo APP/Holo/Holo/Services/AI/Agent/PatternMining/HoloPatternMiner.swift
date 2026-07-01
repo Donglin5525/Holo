@@ -9,7 +9,7 @@
 
 import Foundation
 
-struct HoloPatternMiner {
+nonisolated struct HoloPatternMiner {
 
     /// 遍历所有工具结果，按 metricKey 规则提取确定性信号。
     func mine(toolResults: [HoloDataToolResult], now: Date = Date()) -> [HoloPatternSignal] {

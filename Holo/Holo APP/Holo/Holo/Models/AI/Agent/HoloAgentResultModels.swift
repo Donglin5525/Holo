@@ -9,7 +9,7 @@ import Foundation
 
 /// Agent 任务的最终产物：面向用户展示的洞察结论。
 /// claims 引用已校验的 `HoloAgentClaim`，evidenceIDs 指向 Evidence Ledger。
-struct HoloAgentResult: Codable, Identifiable, Equatable, Sendable {
+nonisolated struct HoloAgentResult: Codable, Identifiable, Equatable, Sendable {
     var id: String
     var jobID: String
     var title: String
@@ -25,7 +25,7 @@ struct HoloAgentResult: Codable, Identifiable, Equatable, Sendable {
 /// Job 清理策略：终态 job 按保留期回收，可选级联清理关联的 checkpoint / result。
 /// `preserveReferencedEvidence` 由 Persistence Manager（Task 1.4）解读，
 /// 避免删掉仍被其它记忆/结论引用的证据。
-struct HoloJobCleanupPolicy: Codable, Equatable, Sendable {
+nonisolated struct HoloJobCleanupPolicy: Codable, Equatable, Sendable {
     var completedRetentionDays: Int = 30
     var failedRetentionDays: Int = 7
     var cascadeCheckpoint: Bool = true

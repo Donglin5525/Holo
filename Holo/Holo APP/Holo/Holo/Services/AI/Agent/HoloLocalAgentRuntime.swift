@@ -61,11 +61,12 @@ actor HoloLocalAgentRuntime {
     /// 创建并启动一个真实深度分析 job（对话触发）：type=.deepAnalysis, trigger=.userQuestion。
     /// 写入初始 checkpoint（含用户问题），供 runLoop 多轮推进。生产路径用。
     func startAnalysisJob(question: String, sourceMessageID: UUID? = nil, now: Date = Date()) async throws -> HoloAgentJob {
+        let resolvedTimeRange = Self.resolveQuestionTimeRange(question, referenceDate: now)
         var job = HoloAgentJob(
             id: UUID().uuidString, type: .deepAnalysis, userQuestion: question,
             trigger: .userQuestion, state: .running, currentStep: .plan,
             createdAt: now, updatedAt: now,
-            lastForegroundRunAt: nil, timeRange: nil,
+            lastForegroundRunAt: nil, timeRange: resolvedTimeRange,
             budget: HoloAgentBudget.normalDeep(now: now),
             checkpointID: nil, resultID: nil, errorSummary: nil, deviceID: nil
         )
@@ -203,10 +204,20 @@ actor HoloLocalAgentRuntime {
             throw HoloAgentRuntimeError.jobNotFound(jobID)
         }
         guard !Self.terminalStates.contains(job.state) else { return job }
+        if job.timeRange == nil,
+           let question = job.userQuestion,
+           let resolvedRange = Self.resolveQuestionTimeRange(question, referenceDate: now) {
+            job.timeRange = resolvedRange
+        }
 
         var checkpoint = await checkpointStore.latestForJob(jobID: jobID)
             ?? Self.makeCheckpoint(jobID: jobID, step: .plan, completedSteps: [],
                                    conversation: [], now: now)
+        try await executeDeterministicPrerequisiteToolsIfNeeded(
+            job: &job,
+            checkpoint: &checkpoint,
+            now: now
+        )
         var retryCount = 0
         let maxRetries = 2
 
@@ -240,6 +251,15 @@ actor HoloLocalAgentRuntime {
                     job.state = .retrying
                     continue
                 }
+                let fallbackClaims = Self.fallbackClaims(
+                    toolResults: checkpoint.completedToolResults,
+                    patternSignals: checkpoint.patternSignals
+                )
+                if !fallbackClaims.isEmpty {
+                    checkpoint.conversationState.append(Self.fallbackAssistantMessage(claims: fallbackClaims, now: now))
+                    checkpoint.step = .verifyClaims
+                    return try await completeWithClaims(fallbackClaims, job: &job, checkpoint: checkpoint, now: now)
+                }
                 job.state = .failed
                 job.errorSummary = "解析失败重试耗尽。len=\(raw.count) 前200=\(String(raw.prefix(200))) 尾100=\(String(raw.suffix(100)))"
                 job.updatedAt = now
@@ -255,12 +275,16 @@ actor HoloLocalAgentRuntime {
                     job.budget.consumedToolBatches += 1
                 }
                 for request in output.toolRequests {
-                    let rawResult = await toolExecutor.execute(request)
+                    if Self.hasCompletedEquivalentToolRequest(request, in: checkpoint.completedToolResults) {
+                        continue
+                    }
+                    let scopedRequest = Self.requestWithJobScope(request, job: job)
+                    let rawResult = await toolExecutor.execute(scopedRequest)
                     let result = Self.resultWithCanonicalEvidenceIDs(rawResult, jobID: job.id)
                     checkpoint.completedToolResults.append(result)
                     let evidence = Self.evidenceRecords(
                         from: result,
-                        request: request,
+                        request: scopedRequest,
                         jobID: job.id,
                         now: now
                     )
@@ -389,6 +413,107 @@ actor HoloLocalAgentRuntime {
         return String(hasher.finalize())
     }
 
+    private static func resolveQuestionTimeRange(_ question: String, referenceDate: Date) -> HoloAgentTimeRange? {
+        HoloAgentTimeSemanticResolver.resolve(question, referenceDate: referenceDate)?.timeRange
+    }
+
+    private static func requestWithJobScope(_ request: HoloToolRequest, job: HoloAgentJob) -> HoloToolRequest {
+        guard request.timeRange == nil, let jobRange = job.timeRange else {
+            return request
+        }
+        var scoped = request
+        scoped.timeRange = jobRange
+        return scoped
+    }
+
+    private static func hasCompletedEquivalentToolRequest(_ request: HoloToolRequest, in results: [HoloDataToolResult]) -> Bool {
+        results.contains { result in
+            result.tool == request.tool &&
+            result.toolRequestID.contains(request.query) &&
+            (result.status == .success || result.status == .partial || result.status == .empty)
+        }
+    }
+
+    private func executeDeterministicPrerequisiteToolsIfNeeded(
+        job: inout HoloAgentJob,
+        checkpoint: inout HoloAgentCheckpoint,
+        now: Date
+    ) async throws {
+        guard let toolExecutor,
+              let question = job.userQuestion else { return }
+
+        let plannedRequests = Self.deterministicToolRequests(for: question)
+        guard !plannedRequests.isEmpty else { return }
+
+        let completedKeys = Set(checkpoint.completedToolResults.map { "\($0.tool):\($0.toolRequestID)" })
+        var executedAny = false
+
+        for request in plannedRequests {
+            guard !completedKeys.contains("\(request.tool):\(request.id)") else { continue }
+            let scopedRequest = Self.requestWithJobScope(request, job: job)
+            let rawResult = await toolExecutor.execute(scopedRequest)
+            let result = Self.resultWithCanonicalEvidenceIDs(rawResult, jobID: job.id)
+            checkpoint.completedToolResults.append(result)
+            let evidence = Self.evidenceRecords(
+                from: result,
+                request: scopedRequest,
+                jobID: job.id,
+                now: now
+            )
+            checkpoint.evidenceRecordIDs.append(contentsOf: evidence.map(\.id))
+            try await persistence.saveProgress(job: job, evidence: evidence, checkpoint: checkpoint)
+            executedAny = true
+        }
+
+        guard executedAny else { return }
+        checkpoint.patternSignals.append(
+            contentsOf: patternMiner.mine(toolResults: checkpoint.completedToolResults, now: now)
+        )
+        checkpoint.conversationState.append(Self.toolResultMessage(
+            toolResults: checkpoint.completedToolResults,
+            patternSignals: checkpoint.patternSignals,
+            now: now
+        ))
+        checkpoint.step = .executeTools
+        try await persistence.saveProgress(job: job, evidence: [], checkpoint: checkpoint)
+    }
+
+    private static func deterministicToolRequests(for question: String) -> [HoloToolRequest] {
+        let normalized = question.lowercased()
+            .replacingOccurrences(of: " ", with: "")
+            .replacingOccurrences(of: "\n", with: "")
+            .replacingOccurrences(of: "\t", with: "")
+        let asksSpendingDestination =
+            normalized.contains("钱都花哪") ||
+            normalized.contains("钱花哪") ||
+            normalized.contains("花哪儿") ||
+            normalized.contains("花哪里") ||
+            normalized.contains("去哪了") ||
+            normalized.contains("去哪里了") ||
+            normalized.contains("消费结构") ||
+            normalized.contains("支出结构")
+        let mentionsAmountAnchor =
+            normalized.contains("1.4万") ||
+            normalized.contains("14000") ||
+            normalized.contains("一万四")
+
+        guard asksSpendingDestination || (mentionsAmountAnchor && normalized.contains("花")) else {
+            return []
+        }
+
+        return [
+            HoloToolRequest(
+                id: "deterministic-finance-spending_breakdown",
+                tool: "finance",
+                query: "spending_breakdown",
+                timeRange: nil,
+                baseline: nil,
+                requiredMetrics: ["finance.total.amount", "finance.category.amount", "finance.transaction.sample"],
+                parameters: [:]
+            )
+        ]
+    }
+
     private static func mockUserMessage(_ content: String, _ now: Date) -> HoloAgentMessage {
         HoloAgentMessage(role: .user, content: content, toolRequestID: nil, toolName: nil,
                          timestamp: now, tokenEstimate: nil)
@@ -459,7 +584,20 @@ actor HoloLocalAgentRuntime {
         let availableEvidenceIDs = Array(Set(checkpoint.evidenceRecordIDs + claims.flatMap(\.evidenceIDs)))
         let evidence = await persistence.loadEvidence(forIDs: availableEvidenceIDs)
         let verification = HoloClaimVerifier().verify(claims: claims, evidence: evidence)
-        let acceptedClaims = verification.acceptedClaims
+        var acceptedClaims = verification.acceptedClaims
+        if acceptedClaims.isEmpty {
+            let fallback = Self.fallbackClaims(
+                toolResults: checkpoint.completedToolResults,
+                patternSignals: checkpoint.patternSignals
+            )
+            if !fallback.isEmpty {
+                let fallbackEvidenceIDs = Array(Set(checkpoint.evidenceRecordIDs + fallback.flatMap(\.evidenceIDs)))
+                let fallbackEvidence = await persistence.loadEvidence(forIDs: fallbackEvidenceIDs)
+                acceptedClaims = HoloClaimVerifier()
+                    .verify(claims: fallback, evidence: fallbackEvidence)
+                    .acceptedClaims
+            }
+        }
         let resultEvidenceIDs = Array(Set(acceptedClaims.flatMap(\.evidenceIDs)))
         let agentResult = HoloAgentResult(
             id: UUID().uuidString,
@@ -578,22 +716,30 @@ actor HoloLocalAgentRuntime {
             }
         }
 
-        return toolResults.prefix(3).compactMap { result in
+        return toolResults.prefix(3).flatMap { result -> [HoloAgentClaim] in
             guard result.status == .success || result.status == .partial || result.status == .empty else {
-                return nil
+                return []
+            }
+            if result.tool == "finance", result.toolRequestID.contains("spending_breakdown") {
+                let claims = financeSpendingBreakdownFallbackClaims(from: result)
+                if !claims.isEmpty { return claims }
             }
             let metric = result.metrics.first
             let event = result.events.first
+            let evidenceIDsForMetric = metric.map { metric in
+                result.events
+                    .filter { $0.metricKey == metric.metricKey }
+                    .map(\.id)
+            } ?? []
             let text: String
             if let metric {
-                let valueText = metric.value.map { String(format: "%.0f", $0) } ?? "已有记录"
-                text = "\(result.tool) 工具返回 \(metric.metricKey)=\(valueText)，可作为本轮分析的保守观察"
+                text = Self.fallbackDisplayText(for: result, metric: metric, event: event)
             } else if let event {
                 text = event.excerpt
             } else {
                 text = "\(result.tool) 工具已返回数据，但没有显著趋势"
             }
-            return HoloAgentClaim(
+            return [HoloAgentClaim(
                 id: "fallback-\(result.toolRequestID)",
                 type: "observation",
                 displayText: text,
@@ -605,15 +751,166 @@ actor HoloLocalAgentRuntime {
                             baselineValue: $0.baselineValue,
                             unit: $0.unit,
                             comparison: $0.comparison,
-                            evidenceIDs: result.events.map(\.id)
+                            evidenceIDs: evidenceIDsForMetric
                         )
                     ]
                 } ?? [],
-                evidenceIDs: result.events.map(\.id),
+                evidenceIDs: metric == nil ? result.events.map(\.id) : evidenceIDsForMetric,
                 prohibitedInferences: ["不要把并发现象表述为因果", "不要做心理、医疗、人格判断"],
                 confidence: result.status == .empty ? 0.3 : 0.45
+            )]
+        }
+    }
+
+    private static func financeSpendingBreakdownFallbackClaims(from result: HoloDataToolResult) -> [HoloAgentClaim] {
+        let totalMetric = result.metrics.first { $0.metricKey == "finance.total.amount" }
+        let totalEvidence = result.events.first { $0.metricKey == "finance.total.amount" }
+        let categoryMetrics = result.metrics
+            .filter { $0.metricKey == "finance.category.amount" && ($0.value ?? 0) > 0 }
+            .sorted { ($0.value ?? 0) > ($1.value ?? 0) }
+            .prefix(3)
+        let sampleEvents = result.events
+            .filter { $0.metricKey == "finance.transaction.sample" }
+            .prefix(3)
+        let rangeLabel = totalEvidence?.timeRange?.label
+            ?? result.events.compactMap { $0.timeRange?.label }.first
+            ?? "本期"
+
+        var claims: [HoloAgentClaim] = []
+
+        if let totalMetric, let totalEvidence {
+            let totalText = totalMetric.value.map(moneyText) ?? "已有记录"
+            claims.append(
+                HoloAgentClaim(
+                    id: "fallback-\(result.toolRequestID)-total",
+                    type: "observation",
+                    displayText: "\(rangeLabel)账单总支出约 \(totalText) 元。",
+                    metricAssertions: [
+                        HoloMetricAssertion(
+                            metricKey: "finance.total.amount",
+                            value: totalMetric.value,
+                            baselineValue: totalMetric.baselineValue,
+                            unit: totalMetric.unit,
+                            comparison: totalMetric.comparison,
+                            evidenceIDs: [totalEvidence.id]
+                        )
+                    ],
+                    evidenceIDs: [totalEvidence.id],
+                    prohibitedInferences: ["不要把并发现象表述为因果", "不要做心理、医疗、人格判断"],
+                    confidence: 0.55
+                )
             )
         }
+
+        let categoryAssertions: [HoloMetricAssertion] = categoryMetrics.compactMap { metric in
+            guard let evidence = matchingEvidence(for: metric, in: result.events) else { return nil }
+            return HoloMetricAssertion(
+                metricKey: metric.metricKey,
+                value: metric.value,
+                baselineValue: metric.baselineValue,
+                unit: metric.unit,
+                comparison: metric.comparison,
+                evidenceIDs: [evidence.id]
+            )
+        }
+        let categoryEvidenceIDs = categoryAssertions.flatMap(\.evidenceIDs)
+        let categoryText = categoryMetrics
+            .compactMap { metric -> String? in
+                guard let category = metric.comparison, let value = metric.value else { return nil }
+                return "\(category) \(moneyText(value)) 元"
+            }
+            .joined(separator: "、")
+        if !categoryAssertions.isEmpty, !categoryText.isEmpty {
+            claims.append(
+                HoloAgentClaim(
+                    id: "fallback-\(result.toolRequestID)-categories",
+                    type: "observation",
+                    displayText: "\(rangeLabel)主要去向是 \(categoryText)，这些是优先核对的分类。",
+                    metricAssertions: categoryAssertions,
+                    evidenceIDs: categoryEvidenceIDs,
+                    prohibitedInferences: ["不要把并发现象表述为因果", "不要做心理、医疗、人格判断"],
+                    confidence: 0.55
+                )
+            )
+        }
+
+        let sampleEvidenceIDs = sampleEvents.map(\.id)
+        let sampleText = sampleEvents
+            .map { cleanupFinanceSampleExcerpt($0.excerpt, rangeLabel: rangeLabel) }
+            .filter { !$0.isEmpty }
+            .joined(separator: "、")
+        if !sampleEvidenceIDs.isEmpty, !sampleText.isEmpty {
+            claims.append(
+                HoloAgentClaim(
+                    id: "fallback-\(result.toolRequestID)-samples",
+                    type: "observation",
+                    displayText: "\(rangeLabel)最大几笔包括：\(sampleText)。",
+                    metricAssertions: [
+                        HoloMetricAssertion(
+                            metricKey: "finance.transaction.sample",
+                            value: nil,
+                            baselineValue: nil,
+                            unit: nil,
+                            comparison: nil,
+                            evidenceIDs: sampleEvidenceIDs
+                        )
+                    ],
+                    evidenceIDs: sampleEvidenceIDs,
+                    prohibitedInferences: ["不要把并发现象表述为因果", "不要做心理、医疗、人格判断"],
+                    confidence: 0.5
+                )
+            )
+        }
+
+        return claims
+    }
+
+    private static func matchingEvidence(for metric: HoloMetric, in events: [HoloEvidenceEvent]) -> HoloEvidenceEvent? {
+        events.first { event in
+            guard event.metricKey == metric.metricKey else { return false }
+            if let value = metric.value, let eventValue = event.metricValue {
+                return value == eventValue
+            }
+            return true
+        }
+    }
+
+    private static func cleanupFinanceSampleExcerpt(_ excerpt: String, rangeLabel: String) -> String {
+        excerpt
+            .replacingOccurrences(of: "\(rangeLabel)大额支出样例：", with: "")
+            .replacingOccurrences(of: "本期大额支出样例：", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private static func fallbackDisplayText(
+        for result: HoloDataToolResult,
+        metric: HoloMetric,
+        event: HoloEvidenceEvent?
+    ) -> String {
+        if result.tool == "finance" {
+            let rangeLabel = event?.timeRange?.label ?? "本期"
+            let valueText = metric.value.map { moneyText($0) } ?? "已有记录"
+            switch metric.metricKey {
+            case "finance.total.amount":
+                return "\(rangeLabel)账单总支出约 \(valueText) 元，先按账单口径核对主要去向。"
+            case "finance.category.amount":
+                let category = metric.comparison?.isEmpty == false ? metric.comparison! : "该分类"
+                return "\(rangeLabel)\(category)支出约 \(valueText) 元，是账单里值得优先核对的一项。"
+            case "finance.amount.change":
+                return "\(rangeLabel)消费金额变化约 \(valueText) 元，可作为本轮分析的账单观察。"
+            case "finance.keyword.amount":
+                return "\(rangeLabel)相关消费约 \(valueText) 元，可继续从账单明细核对。"
+            default:
+                return event?.excerpt ?? "\(rangeLabel)账单已有可核对记录。"
+            }
+        }
+
+        let valueText = metric.value.map { String(format: "%.0f", $0) } ?? "已有记录"
+        return "\(result.tool) 数据返回一项可核对观察：\(valueText)"
+    }
+
+    private static func moneyText(_ value: Double) -> String {
+        value.rounded() == value ? String(format: "%.0f", value) : String(format: "%.2f", value)
     }
 }
 

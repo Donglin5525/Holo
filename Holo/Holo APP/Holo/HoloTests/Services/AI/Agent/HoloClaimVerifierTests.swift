@@ -22,6 +22,7 @@ struct HoloClaimVerifierTests {
         testMetricKey不匹配时rejected()
         testValue不一致时rejected()
         test因果词时rejected()
+        test没有证据的Claim必须rejected()
         test合法Claim被accepted()
         test重复EvidenceID不会崩溃()
         print("HoloClaimVerifierTests passed")
@@ -77,6 +78,21 @@ struct HoloClaimVerifierTests {
                               evidenceIDs: ["e1"], displayText: "熬夜导致了开销增加")
         let result = HoloClaimVerifier().verify(claims: [claim], evidence: [ev])
         expect(result.acceptedClaims.isEmpty, "含因果词「导致」应 rejected")
+    }
+
+    private static func test没有证据的Claim必须rejected() {
+        let claim = HoloAgentClaim(
+            id: "c-empty",
+            type: "observation",
+            displayText: "系统目前无法获取对应的支出拆分数据",
+            metricAssertions: [],
+            evidenceIDs: [],
+            prohibitedInferences: [],
+            confidence: 0.5
+        )
+        let result = HoloClaimVerifier().verify(claims: [claim], evidence: [])
+        expect(result.acceptedClaims.isEmpty, "没有 metricAssertions/evidenceIDs 的 claim 必须 rejected")
+        expect(result.rejectedClaims.count == 1, "应记录 rejected 原因")
     }
 
     private static func test合法Claim被accepted() {

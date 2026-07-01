@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum HoloEvidenceSourceModule: String, Codable, CaseIterable, Sendable {
+nonisolated enum HoloEvidenceSourceModule: String, Codable, CaseIterable, Sendable {
     case finance
     case habit
     case task
@@ -19,20 +19,20 @@ enum HoloEvidenceSourceModule: String, Codable, CaseIterable, Sendable {
     case agent
 }
 
-enum HoloEvidenceStatus: String, Codable, CaseIterable, Sendable {
+nonisolated enum HoloEvidenceStatus: String, Codable, CaseIterable, Sendable {
     case active
     case partial
     case orphaned
     case archived
 }
 
-enum HoloEvidenceSensitivity: String, Codable, CaseIterable, Sendable {
+nonisolated enum HoloEvidenceSensitivity: String, Codable, CaseIterable, Sendable {
     case normal
     case highImpact
     case sensitive
 }
 
-struct HoloEvidenceRecord: Codable, Identifiable, Equatable, Sendable {
+nonisolated struct HoloEvidenceRecord: Codable, Identifiable, Equatable, Sendable {
     var id: String
     var dedupeKey: String
     var sourceModule: HoloEvidenceSourceModule

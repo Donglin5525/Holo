@@ -21,6 +21,7 @@ struct HoloAgentResponseParserTests {
         test纯JSON解析成功()
         testMarkdownCodeBlock包裹解析成功()
         test旧字段text可解析为displayText()
+        test说明文本中可抽取JSON并归一字段别名()
         test缺status抛outputParseFailure可重试()
         test超过重试次数不重试()
         print("HoloAgentResponseParserTests passed")
@@ -48,6 +49,17 @@ struct HoloAgentResponseParserTests {
         expect(output?.claims.first?.displayText == "餐饮消费集中在晚餐", "text 应映射到 displayText")
         expect(output?.claims.first?.type == "observation", "旧响应缺 type 时应补默认值")
         expect(output?.claims.first?.confidence == 0.5, "旧响应缺 confidence 时应补默认值")
+    }
+
+    private static func test说明文本中可抽取JSON并归一字段别名() {
+        let raw = """
+        分析结果如下：
+        {"status":"final_claims","reasoning":"证据充分","toolRequests":[],"claims":[{"id":"c1","type":"observation","displayText":"6月下半月消费约 4919 元","metricAssertions":[{"metricKey":"finance.total","value":4919,"unit":"元","evidenceIds":["e1"]}],"evidenceIds":["e1"],"prohibitedInferences":[],"confidence":0.5}],"warnings":["全月数据不足"]}
+        """
+        let output = try? HoloAgentResponseParser.parse(raw, remainingRetries: 0)
+        expect(output != nil, "说明文本中包裹的 JSON 应可抽取解析")
+        expect(output?.claims.first?.evidenceIDs == ["e1"], "claim evidenceIds 应归一到 evidenceIDs")
+        expect(output?.claims.first?.metricAssertions.first?.evidenceIDs == ["e1"], "metric assertion evidenceIds 应归一到 evidenceIDs")
     }
 
     private static func test缺status抛outputParseFailure可重试() {

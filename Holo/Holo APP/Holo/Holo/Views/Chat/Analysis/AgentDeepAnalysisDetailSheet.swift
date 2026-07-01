@@ -36,9 +36,10 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
         let resolvedSummary = summary.isEmpty ? "本期暂无显著观察" : summary
         let hasContent = !summary.isEmpty || !result.sections.isEmpty
         let isFinanceLedgerMode = result.evidenceReferences.contains { $0.financeDrilldown != nil }
+        let financeRangeLabel = Self.financeRangeLabel(from: result.evidenceReferences)
 
         if isFinanceLedgerMode {
-            self.openingTitle = "本月这笔钱，先按账单口径拆开看。"
+            self.openingTitle = "\(financeRangeLabel)这笔钱，先按账单口径拆开看。"
         } else {
             self.openingTitle = hasContent
                 ? "这段时间，有几个信号值得回看。"
@@ -97,6 +98,12 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
         return items
     }
 
+    private static func financeRangeLabel(from evidence: [HoloRenderedEvidenceReference]) -> String {
+        evidence
+            .compactMap { $0.financeDrilldown?.label.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty } ?? "本期"
+    }
+
     private static func signalSummaries(from summary: String) -> [String] {
         let separators = Set("，,；;。.!！?？\n")
         let parts = summary
@@ -113,7 +120,7 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
     }
 
     private static func readingParagraphs(from summary: String) -> [String] {
-        let primarySeparators = Set("；;。.!！?？\n")
+        let primarySeparators = Set("；;。!！?？\n")
         let primaryParts = summary
             .split { primarySeparators.contains($0) }
             .map { cleanParagraph(String($0)) }
@@ -160,7 +167,7 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
     }
 
     private static func clean(_ text: String) -> String {
-        text.trimmingCharacters(in: .whitespacesAndNewlines)
+        protectMoneyTokens(text.trimmingCharacters(in: .whitespacesAndNewlines))
     }
 
     private static func cleanParagraph(_ text: String) -> String {
@@ -181,6 +188,48 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
         }
         return clean(cleaned)
     }
+
+    private static func protectMoneyTokens(_ text: String) -> String {
+        guard !text.contains("\u{2060}") else { return text }
+        let pattern = #"(\d+(?:\.\d+)?)(\s*)(元|万)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return text }
+        let nsText = text as NSString
+        let matches = regex.matches(in: text, range: NSRange(location: 0, length: nsText.length))
+        guard !matches.isEmpty else { return text }
+
+        var result = text
+        for match in matches.reversed() {
+            guard match.numberOfRanges >= 4,
+                  let numberRange = Range(match.range(at: 1), in: result),
+                  let unitRange = Range(match.range(at: 3), in: result),
+                  let fullRange = Range(match.range(at: 0), in: result) else {
+                continue
+            }
+            let rawNumber = String(result[numberRange])
+            let number = protectNumber(rawNumber)
+            let unit = result[unitRange]
+            result.replaceSubrange(fullRange, with: "\(number)\u{00A0}\(unit)")
+        }
+        return result
+    }
+
+    private static func protectNumber(_ rawNumber: String) -> String {
+        var protected = ""
+        var previousWasDigit = false
+        for character in rawNumber {
+            if character == "." {
+                protected.append(character)
+                previousWasDigit = false
+                continue
+            }
+            if previousWasDigit {
+                protected.append("\u{2060}")
+            }
+            protected.append(character)
+            previousWasDigit = character.isNumber
+        }
+        return protected
+    }
 }
 
 struct AgentDeepAnalysisDetailSheet: View {
@@ -188,6 +237,7 @@ struct AgentDeepAnalysisDetailSheet: View {
     let result: HoloRenderedAgentResult
     var onFinanceDrilldown: ((HoloRenderedFinanceDrilldown) -> Void)?
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var colorScheme
     @State private var isEvidenceExpanded = false
 
     private var narrative: AgentDeepAnalysisNarrativeModel {
@@ -331,20 +381,21 @@ struct AgentDeepAnalysisDetailSheet: View {
 
     private func narrativeChapter(_ observation: AgentDeepAnalysisNarrativeModel.Observation) -> some View {
         let accent = accentColor(for: observation.accentIndex)
+        let dark = colorScheme == .dark
         return VStack(alignment: .leading, spacing: 11) {
             Text(observation.label)
                 .font(.system(size: 11, weight: .bold))
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(dark ? Color.white.opacity(0.48) : .holoTextSecondary)
 
             Text(observation.title)
                 .font(.system(size: 18, weight: .heavy))
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(dark ? .white : .holoTextPrimary)
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(observation.body)
                 .font(.system(size: 15.5, weight: .regular))
-                .foregroundColor(.holoTextPrimary.opacity(0.86))
+                .foregroundColor(dark ? Color.white.opacity(0.78) : Color.holoTextPrimary.opacity(0.86))
                 .lineSpacing(7)
                 .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
@@ -353,13 +404,7 @@ struct AgentDeepAnalysisDetailSheet: View {
         .padding(.trailing, 18)
         .padding(.vertical, 20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            LinearGradient(
-                colors: [Color.white.opacity(0.88), Color.holoCardBackground.opacity(0.9)],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
+        .background(observationBackground(isDark: dark))
         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         .overlay(alignment: .leading) {
             RoundedRectangle(cornerRadius: 2, style: .continuous)
@@ -369,9 +414,9 @@ struct AgentDeepAnalysisDetailSheet: View {
         }
         .overlay(
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(Color.holoBorder.opacity(0.48), lineWidth: 1)
+                .stroke(dark ? Color.white.opacity(0.08) : Color.holoBorder.opacity(0.48), lineWidth: 1)
         )
-        .shadow(color: Color.black.opacity(0.035), radius: 16, x: 0, y: 10)
+        .shadow(color: Color.black.opacity(dark ? 0.22 : 0.035), radius: 16, x: 0, y: 10)
     }
 
     // MARK: - Evidence
@@ -476,33 +521,34 @@ struct AgentDeepAnalysisDetailSheet: View {
     // MARK: - Closing
 
     private func closingSection(_ model: AgentDeepAnalysisNarrativeModel) -> some View {
-        VStack(alignment: .leading, spacing: 9) {
+        let dark = colorScheme == .dark
+        return VStack(alignment: .leading, spacing: 9) {
             Text("下一步")
                 .font(.system(size: 11, weight: .bold))
-                .foregroundColor(model.isFinanceLedgerMode ? Color.holoPrimary.opacity(0.82) : .white.opacity(0.58))
+                .foregroundColor(model.isFinanceLedgerMode ? Color.holoPrimary.opacity(dark ? 0.95 : 0.82) : .white.opacity(0.58))
 
             Text(model.closingTitle)
                 .font(.system(size: 20, weight: .heavy))
-                .foregroundColor(model.isFinanceLedgerMode ? .holoTextPrimary : .white)
+                .foregroundColor(model.isFinanceLedgerMode ? (dark ? .white : .holoTextPrimary) : .white)
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text(model.closingBody)
                 .font(.system(size: 14.5, weight: .medium))
-                .foregroundColor(model.isFinanceLedgerMode ? Color.holoTextPrimary.opacity(0.72) : .white.opacity(0.78))
+                .foregroundColor(model.isFinanceLedgerMode ? (dark ? Color.white.opacity(0.76) : Color.holoTextPrimary.opacity(0.72)) : .white.opacity(0.78))
                 .lineSpacing(6)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 20)
         .padding(.vertical, 19)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(closingBackground(isFinanceLedgerMode: model.isFinanceLedgerMode))
+        .background(closingBackground(isFinanceLedgerMode: model.isFinanceLedgerMode, isDark: dark))
         .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .stroke(model.isFinanceLedgerMode ? Color.holoPrimary.opacity(0.18) : Color.clear, lineWidth: 1)
+                .stroke(model.isFinanceLedgerMode ? Color.holoPrimary.opacity(dark ? 0.24 : 0.18) : Color.clear, lineWidth: 1)
         )
-        .shadow(color: Color.black.opacity(model.isFinanceLedgerMode ? 0.045 : 0.16), radius: 18, x: 0, y: 12)
+        .shadow(color: Color.black.opacity(model.isFinanceLedgerMode ? (dark ? 0.18 : 0.045) : 0.16), radius: 18, x: 0, y: 12)
     }
 
     // MARK: - Styling Helpers
@@ -532,14 +578,23 @@ struct AgentDeepAnalysisDetailSheet: View {
         return colors[index % colors.count]
     }
 
-    private func closingBackground(isFinanceLedgerMode: Bool) -> some View {
+    private func observationBackground(isDark: Bool) -> some View {
+        LinearGradient(
+            colors: isDark
+                ? [Color(red: 0.19, green: 0.19, blue: 0.20), Color(red: 0.12, green: 0.12, blue: 0.13)]
+                : [Color.white.opacity(0.88), Color.holoCardBackground.opacity(0.9)],
+            startPoint: .top,
+            endPoint: .bottom
+        )
+    }
+
+    private func closingBackground(isFinanceLedgerMode: Bool, isDark: Bool) -> some View {
         Group {
             if isFinanceLedgerMode {
                 LinearGradient(
-                    colors: [
-                        Color.white.opacity(0.94),
-                        Color(red: 0.91, green: 0.97, blue: 0.96).opacity(0.92)
-                    ],
+                    colors: isDark
+                        ? [Color(red: 0.17, green: 0.21, blue: 0.21), Color(red: 0.10, green: 0.13, blue: 0.13)]
+                        : [Color.white.opacity(0.94), Color(red: 0.91, green: 0.97, blue: 0.96).opacity(0.92)],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 )

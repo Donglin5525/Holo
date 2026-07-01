@@ -7,14 +7,14 @@
 
 import Foundation
 
-enum HoloAgentMessageRole: String, Codable, CaseIterable, Sendable {
+nonisolated enum HoloAgentMessageRole: String, Codable, CaseIterable, Sendable {
     case system
     case user
     case assistant
     case toolResult
 }
 
-struct HoloAgentMessage: Codable, Equatable, Sendable {
+nonisolated struct HoloAgentMessage: Codable, Equatable, Sendable {
     var role: HoloAgentMessageRole
     var content: String
     var toolRequestID: String?
@@ -24,7 +24,7 @@ struct HoloAgentMessage: Codable, Equatable, Sendable {
 }
 
 /// Agent 任务的可恢复快照：保存到某一步的全部上下文
-struct HoloAgentCheckpoint: Codable, Identifiable, Equatable, Sendable {
+nonisolated struct HoloAgentCheckpoint: Codable, Identifiable, Equatable, Sendable {
     var id: String
     var jobID: String
     var step: HoloAgentStep
