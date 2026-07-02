@@ -40,31 +40,8 @@ struct TransactionChatCard: View {
                     .foregroundColor(.holoTextSecondary)
             }
 
-            // 分类 + 记录日期（分类始终显示；仅历史日期时右侧露出日期）
-            if data.categoryPath != nil || data.displayDateText != nil {
-                HStack(spacing: 6) {
-                    if let path = data.categoryPath {
-                        HStack(spacing: 4) {
-                            Image(systemName: "folder")
-                                .font(.system(size: 11))
-                            Text(path)
-                                .font(.system(size: 13, weight: .medium))
-                        }
-                    }
-
-                    Spacer()
-
-                    if let dateText = data.displayDateText {
-                        HStack(spacing: 4) {
-                            Image(systemName: "calendar")
-                                .font(.system(size: 11))
-                            Text(dateText)
-                                .font(.system(size: 13, weight: .medium))
-                        }
-                    }
-                }
-                .foregroundColor(.holoTextSecondary)
-            }
+            // 分类 + 记录日期
+            categoryDateRow
 
             // 分期信息
             if data.isInstallment, data.requiresConfirmation {
@@ -242,4 +219,54 @@ struct TransactionChatCard: View {
         }
         return "+¥\(data.amount)"
     }
+
+    /// 分类 + 记录日期行
+    /// 分类始终展示；仅当日期非今天时在右侧露出（今天记账是常态，不占位）
+    @ViewBuilder private var categoryDateRow: some View {
+        let path = data.categoryPath
+        let dateText = relativeDateText
+        if path != nil || dateText != nil {
+            HStack(spacing: 6) {
+                if let path {
+                    HStack(spacing: 4) {
+                        Image(systemName: "folder")
+                            .font(.system(size: 11))
+                        Text(path)
+                            .font(.system(size: 13, weight: .medium))
+                    }
+                }
+
+                Spacer()
+
+                if let dateText {
+                    HStack(spacing: 4) {
+                        Image(systemName: "calendar")
+                            .font(.system(size: 11))
+                        Text(dateText)
+                            .font(.system(size: 13, weight: .medium))
+                    }
+                }
+            }
+            .foregroundColor(.holoTextSecondary)
+        }
+    }
+
+    /// 把 data.date 解析为相对文本：今天 → nil（不显示），昨天/前天/历史日期 → 友好文本
+    private var relativeDateText: String? {
+        guard let raw = data.date?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty,
+              let parsed = NLDateParser.parse(raw) else { return nil }
+        let calendar = Calendar.current
+        if calendar.isDateInToday(parsed) { return nil }
+        if calendar.isDateInYesterday(parsed) { return "昨天" }
+        if let dayBefore = calendar.date(byAdding: .day, value: -2, to: Date()),
+           calendar.isDate(parsed, inSameDayAs: dayBefore) { return "前天" }
+        return Self.dateFormatter.string(from: parsed)
+    }
+
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日"
+        return formatter
+    }()
 }

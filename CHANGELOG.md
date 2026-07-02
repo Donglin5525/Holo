@@ -4,6 +4,19 @@
 
 ---
 
+## [2026-07-02] 财务卡片展示记录日期
+
+记账卡片在分类行右侧露出记录日期：昨天 / 前天 / M月d日；今天记账是常态，不占位。日期格式化逻辑放在 `TransactionChatCard`（@MainActor）内部，避免在 nonisolated 的 `TransactionCardData` 上调用 `NLDateParser` / `Calendar` 产生 Swift 6 并发 warning。
+
+### 变更
+- `TransactionChatCard` 新增 `categoryDateRow` 与 `relativeDateText`，分类行右侧按需展示历史日期
+- 移除 `TransactionCardData.displayDateText`（原实现位于 nonisolated struct，触发并发 warning）
+
+### 验证
+- `xcodebuild ... build`（build_sim）通过，未引入新 Swift 6 warning
+
+---
+
 ## [2026-07-02] HoloAI 记账日期与待确认卡片修复
 
 修复 HoloAI 识别「昨天停车18」这类记账输入时，交易日期可能落成今天的问题；同时修复待确认记账卡片在消息退出重进或轻量重载后，确认/取消按钮点击无效的问题。
