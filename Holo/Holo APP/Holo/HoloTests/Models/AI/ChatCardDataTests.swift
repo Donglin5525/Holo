@@ -147,10 +147,29 @@ final class ChatCardDataTests: XCTestCase {
         XCTAssertEqual(cardData.displayTitle, "给爷爷买彩票")
     }
 
+    func testTransactionCardUsesTransactionDateAsDisplayDate() {
+        let data: [String: String] = [
+            "amount": "18",
+            "note": "停车",
+            "categoryCandidate": "停车费",
+            "transactionDate": "2026-07-01",
+            "primaryCategory": "交通",
+            "type": "expense"
+        ]
+
+        let result = ChatCardData.from(intent: .recordExpense, data: data)
+
+        guard case .transaction(let cardData) = result else {
+            XCTFail("应为 .transaction 类型")
+            return
+        }
+
+        XCTAssertEqual(cardData.date, "2026-07-01")
+    }
+
     func testFromRecordIncome() {
         let data: [String: String] = [
             "amount": "10000",
-            "note": nil,
             "primaryCategory": "工资收入",
             "subCategory": "工资"
         ]
@@ -249,7 +268,8 @@ final class ChatCardDataTests: XCTestCase {
             "dueDate": "2026-05-30",
             "reminderDate": "2026-05-31 09:00",
             "priority": "medium",
-            "subtasks": "买苹果,买胡萝卜,买哈密瓜,买水蜜桃"
+            "subtasks": "买苹果,买胡萝卜,买哈密瓜,买水蜜桃",
+            "confirmationStatus": "pending"
         ]
 
         let result = ChatCardData.from(intent: .createTask, data: data)
@@ -418,65 +438,91 @@ final class ChatCardDataTests: XCTestCase {
 
     // MARK: - TransactionCardData 计算属性
 
+    private func makeTransactionCardData(
+        amount: String = "35",
+        note: String?,
+        primaryCategory: String?,
+        subCategory: String?,
+        type: String = "expense",
+        date: String? = nil
+    ) -> TransactionCardData {
+        TransactionCardData(
+            amount: amount,
+            note: note,
+            primaryCategory: primaryCategory,
+            subCategory: subCategory,
+            type: type,
+            date: date,
+            confirmationStatus: nil,
+            confirmationError: nil,
+            installmentEnabled: false,
+            installmentTotalAmount: nil,
+            installmentPeriods: nil,
+            installmentFeePerPeriod: nil,
+            installmentSummary: nil,
+            installmentPeriodAmounts: []
+        )
+    }
+
     func testDisplayTitleWithNote() {
-        let data = TransactionCardData(
-            amount: "35", note: "午饭",
-            primaryCategory: "餐饮", subCategory: "午餐",
-            type: "expense", date: nil
+        let data = makeTransactionCardData(
+            note: "午饭",
+            primaryCategory: "餐饮",
+            subCategory: "午餐"
         )
         XCTAssertEqual(data.displayTitle, "午饭")
     }
 
     func testDisplayTitleWithoutNote() {
-        let data = TransactionCardData(
-            amount: "35", note: nil,
-            primaryCategory: "餐饮", subCategory: "午餐",
-            type: "expense", date: nil
+        let data = makeTransactionCardData(
+            note: nil,
+            primaryCategory: "餐饮",
+            subCategory: "午餐"
         )
         XCTAssertEqual(data.displayTitle, "午餐", "无 note 时应用子分类名")
     }
 
     func testDisplayTitleWithoutNoteAndSubCategory() {
-        let data = TransactionCardData(
-            amount: "35", note: nil,
-            primaryCategory: "餐饮", subCategory: nil,
-            type: "expense", date: nil
+        let data = makeTransactionCardData(
+            note: nil,
+            primaryCategory: "餐饮",
+            subCategory: nil
         )
         XCTAssertEqual(data.displayTitle, "餐饮", "无 note 和子分类时应用一级分类名")
     }
 
     func testDisplayTitleEmptyNote() {
-        let data = TransactionCardData(
-            amount: "35", note: "",
-            primaryCategory: "餐饮", subCategory: "午餐",
-            type: "expense", date: nil
+        let data = makeTransactionCardData(
+            note: "",
+            primaryCategory: "餐饮",
+            subCategory: "午餐"
         )
         XCTAssertEqual(data.displayTitle, "午餐", "空 note 时应用子分类名")
     }
 
     func testCategoryPathWithBoth() {
-        let data = TransactionCardData(
-            amount: "35", note: "午饭",
-            primaryCategory: "餐饮", subCategory: "午餐",
-            type: "expense", date: nil
+        let data = makeTransactionCardData(
+            note: "午饭",
+            primaryCategory: "餐饮",
+            subCategory: "午餐"
         )
         XCTAssertEqual(data.categoryPath, "餐饮 · 午餐")
     }
 
     func testCategoryPathPrimaryOnly() {
-        let data = TransactionCardData(
-            amount: "35", note: "午饭",
-            primaryCategory: "餐饮", subCategory: nil,
-            type: "expense", date: nil
+        let data = makeTransactionCardData(
+            note: "午饭",
+            primaryCategory: "餐饮",
+            subCategory: nil
         )
         XCTAssertEqual(data.categoryPath, "餐饮")
     }
 
     func testCategoryPathNilPrimary() {
-        let data = TransactionCardData(
-            amount: "35", note: "午饭",
-            primaryCategory: nil, subCategory: nil,
-            type: "expense", date: nil
+        let data = makeTransactionCardData(
+            note: "午饭",
+            primaryCategory: nil,
+            subCategory: nil
         )
         XCTAssertNil(data.categoryPath)
     }

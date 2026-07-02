@@ -40,13 +40,28 @@ struct TransactionChatCard: View {
                     .foregroundColor(.holoTextSecondary)
             }
 
-            // 分类（始终显示）
-            if let path = data.categoryPath {
-                HStack(spacing: 4) {
-                    Image(systemName: "folder")
-                        .font(.system(size: 11))
-                    Text(path)
-                        .font(.system(size: 13, weight: .medium))
+            // 分类 + 记录日期（分类始终显示；仅历史日期时右侧露出日期）
+            if data.categoryPath != nil || data.displayDateText != nil {
+                HStack(spacing: 6) {
+                    if let path = data.categoryPath {
+                        HStack(spacing: 4) {
+                            Image(systemName: "folder")
+                                .font(.system(size: 11))
+                            Text(path)
+                                .font(.system(size: 13, weight: .medium))
+                        }
+                    }
+
+                    Spacer()
+
+                    if let dateText = data.displayDateText {
+                        HStack(spacing: 4) {
+                            Image(systemName: "calendar")
+                                .font(.system(size: 11))
+                            Text(dateText)
+                                .font(.system(size: 13, weight: .medium))
+                        }
+                    }
                 }
                 .foregroundColor(.holoTextSecondary)
             }

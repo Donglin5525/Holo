@@ -715,26 +715,27 @@ final class ChatViewModel: ObservableObject {
                 // 重读最新消息状态，防止过期数据重复确认
                 guard let currentBatch = self.latestExecutionBatch(for: message.id),
                       let currentItems = currentBatch.items.first(where: { $0.id == itemId }),
-                      currentItems.renderData?["confirmationStatus"] == "pending" else {
+                      let currentRenderData = currentItems.renderData,
+                      currentRenderData["confirmationStatus"] == "pending" else {
                     self.confirmingItemIds.remove(itemId)
                     return
                 }
 
-                let intent: AIIntent = renderData["pendingKind"] == "transaction"
+                let intent: AIIntent = currentRenderData["pendingKind"] == "transaction"
                     ? (currentItems.intent == .recordIncome ? .recordIncome : .recordExpense)
                     : currentItems.intent
 
                 let result = ParsedResult(
                     intent: intent,
                     confidence: 1,
-                    extractedData: renderData,
+                    extractedData: currentRenderData,
                     needsClarification: false,
                     clarificationQuestion: nil,
                     responseText: nil
                 )
                 let routeResult = try await IntentRouter.shared.route(result)
 
-                var confirmedRenderData = renderData
+                var confirmedRenderData = currentRenderData
                 confirmedRenderData["confirmationStatus"] = "confirmed"
                 if let entity = routeResult.linkedEntity {
                     confirmedRenderData["entityType"] = entity.type.rawValue
@@ -752,7 +753,7 @@ final class ChatViewModel: ObservableObject {
 
                 // 写入 AI 来源标记
                 if let txId = routeResult.transactionId {
-                    self.markTransactionAsAICreated(txId, candidate: renderData["categoryCandidate"] ?? renderData["note"])
+                    self.markTransactionAsAICreated(txId, candidate: currentRenderData["categoryCandidate"] ?? currentRenderData["note"])
                 }
 
                 var updatedItems = batch.items
@@ -786,14 +787,14 @@ final class ChatViewModel: ObservableObject {
 
                 // 用户修改过分类时触发学习
                 self.recordCategoryLearningIfNeeded(
-                    renderData: renderData,
+                    renderData: currentRenderData,
                     routeResult: routeResult,
                     intent: intent
                 )
 
                 // 归纳学习：记录样本并尝试触发 LLM 归纳
                 self.recordInductionSampleIfNeeded(
-                    renderData: renderData,
+                    renderData: currentRenderData,
                     routeResult: routeResult,
                     intent: intent
                 )

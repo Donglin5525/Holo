@@ -312,7 +312,8 @@ struct ChatView: View {
                                     amount: renderData["amount"] ?? "0",
                                     note: renderData["note"] ?? renderData["categoryCandidate"],
                                     type: type,
-                                    category: nil
+                                    category: nil,
+                                    date: TransactionDateResolver.resolve(from: renderData)
                                 )
                             }
                         )

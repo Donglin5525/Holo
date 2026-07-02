@@ -409,9 +409,26 @@ final class ChatMessageRepository: ObservableObject {
 
     // MARK: - Update
 
+    private func messageForUpdate(_ messageId: UUID) -> ChatMessage? {
+        if let message = liveMessageCache[messageId] {
+            return message
+        }
+
+        let request = ChatMessage.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", messageId as CVarArg)
+        request.fetchLimit = 1
+
+        guard let message = try? context.fetch(request).first else {
+            return nil
+        }
+
+        liveMessageCache[messageId] = message
+        return message
+    }
+
     /// 更新消息内容
     func updateMessage(_ messageId: UUID, content: String) {
-        guard let message = liveMessageCache[messageId] else { return }
+        guard let message = messageForUpdate(messageId) else { return }
         message.content = content
         save()
         updateSnapshot(messageId) { snapshot in
@@ -421,7 +438,7 @@ final class ChatMessageRepository: ObservableObject {
 
     /// 结束流式状态
     func finishStreaming(_ messageId: UUID, finalContent: String) {
-        guard let message = liveMessageCache[messageId] else { return }
+        guard let message = messageForUpdate(messageId) else { return }
         message.content = finalContent
         message.isStreaming = false
         save()
@@ -443,7 +460,7 @@ final class ChatMessageRepository: ObservableObject {
         rawLogJSON: String? = nil,
         agentResultJSON: String? = nil
     ) {
-        guard let message = liveMessageCache[messageId] else { return }
+        guard let message = messageForUpdate(messageId) else { return }
 
         // Core Data 写入（单次 save）
         message.content = finalContent
@@ -596,7 +613,7 @@ final class ChatMessageRepository: ObservableObject {
         parsedBatchJSON: String? = nil,
         executionBatchJSON: String? = nil
     ) {
-        guard let message = liveMessageCache[messageId] else { return }
+        guard let message = messageForUpdate(messageId) else { return }
         message.intent = intent
         message.extractedDataJSON = extractedDataJSON
         message.parsedBatchJSON = parsedBatchJSON
@@ -747,7 +764,7 @@ final class ChatMessageRepository: ObservableObject {
 
     /// 删除单条消息
     func deleteMessage(_ messageId: UUID) {
-        guard let message = liveMessageCache[messageId] else { return }
+        guard let message = messageForUpdate(messageId) else { return }
         context.delete(message)
         save()
         liveMessageCache.removeValue(forKey: messageId)

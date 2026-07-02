@@ -605,7 +605,7 @@ test("GET /v1/prompts/:type returns prompt content and version", async () => {
   assert.equal(response.status, 200);
   const json = await response.json();
   assert.equal(json.type, "intent_recognition");
-  assert.equal(json.version, 20);
+  assert.equal(json.version, 21);
   assert.match(json.content, /短意图 Router/);
 });
 
@@ -701,6 +701,18 @@ test("golden: 今天午饭花了35 → record_expense", async () => {
   assert.equal(parsed.items[0].intent, "record_expense");
   assert.equal(parsed.items[0].extractedData.amount, "35");
   assert.equal(parsed.items[0].extractedData.categoryCandidate, "午饭");
+  assert.equal(parsed.items[0].extractedData.transactionDate, "2026-06-03");
+});
+
+test("golden: 昨天午饭花了35 → record_expense with transactionDate", async () => {
+  const app = createTestApp();
+  const parsed = await sendIntentGoldenTest(app, "昨天午饭花了35", "golden-expense-yesterday");
+
+  assert.equal(parsed.mode, "single_action");
+  assert.equal(parsed.items[0].intent, "record_expense");
+  assert.equal(parsed.items[0].extractedData.amount, "35");
+  assert.equal(parsed.items[0].extractedData.categoryCandidate, "午饭");
+  assert.equal(parsed.items[0].extractedData.transactionDate, "2026-06-02");
 });
 
 test("golden: 发工资 20000 → record_income", async () => {

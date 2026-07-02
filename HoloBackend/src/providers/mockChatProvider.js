@@ -442,6 +442,7 @@ function classifyIntent(input) {
           extractedData: {
             amount: amountMatch ? amountMatch[1] : "",
             categoryCandidate: "工资",
+            ...extractTransactionDate(input),
           },
         },
       ],
@@ -464,6 +465,7 @@ function classifyIntent(input) {
             extractedData: {
               amount: amountMatch[1],
               categoryCandidate: extractCategoryCandidate(input),
+              ...extractTransactionDate(input),
             },
           },
         ],
@@ -498,6 +500,16 @@ function extractCategoryCandidate(input) {
     if (input.includes(c)) return c;
   }
   return "";
+}
+
+function extractTransactionDate(input) {
+  if (input.includes("昨天") || input.includes("昨日")) {
+    return { transactionDate: "2026-06-02" };
+  }
+  if (input.includes("今天") || input.includes("今日")) {
+    return { transactionDate: "2026-06-03" };
+  }
+  return {};
 }
 
 function extractKeyword(input) {

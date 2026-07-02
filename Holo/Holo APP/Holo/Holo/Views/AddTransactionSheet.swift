@@ -277,6 +277,9 @@ struct AddTransactionSheet: View {
                 transactionType = prefill.type
                 amountString = prefill.amount
                 note = prefill.note ?? ""
+                if let date = prefill.date {
+                    selectedDate = date
+                }
                 loadDefaultAccount()
                 Task {
                     await loadCategories()
@@ -548,4 +551,5 @@ struct PendingTransactionPrefill {
     let note: String?
     let type: TransactionType
     let category: Category?
+    let date: Date?
 }

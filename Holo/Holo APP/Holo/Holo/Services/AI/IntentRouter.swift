@@ -178,6 +178,7 @@ final class IntentRouter {
             type: .expense,
             category: category,
             account: account,
+            date: TransactionDateResolver.resolve(from: data),
             note: note
         )
 
@@ -268,6 +269,7 @@ final class IntentRouter {
             type: .income,
             category: category,
             account: account,
+            date: TransactionDateResolver.resolve(from: data),
             note: note
         )
 

@@ -116,7 +116,7 @@ final class PromptManager {
     /// 需要版本管理的 prompt 类型及其最低版本
     private static let promptVersions: [PromptType: Int] = [
         .systemPrompt: 2,               // v2: Sense Loop 表达边界与档案优先级
-        .intentRecognition: 20,         // v20: 频率/日均折算类归 query_analysis 走 Agent，不再误判 flexible_data_query
+        .intentRecognition: 21,         // v21: 财务记账输出 transactionDate，支持昨天等相对日期落到交易日
         .memoryInsightGeneration: 7,    // v7: Sense Loop 表达边界、偏好摘要与表达强度
         .analysisPrompt: 3,             // v3: Sense Loop 表达边界与档案优先级
         .annualReview: 1,               // v1: 初始版本
@@ -401,8 +401,8 @@ final class PromptManager {
         }
 
         意图字段：
-        - record_expense：记录支出。金额填 amount；note 填用户可见名称；categoryCandidate 填原始消费语义，可选 normalizedCategoryCandidate/semanticCategoryHint。工资/发工资+金额走 record_income。
-        - record_income：记录收入。填 amount、note、categoryCandidate。
+        - record_expense：记录支出。金额填 amount；note 填用户可见名称；categoryCandidate 填原始消费语义；用户明确或相对日期填 transactionDate（YYYY-MM-DD），如昨天=交易日-1。可选 normalizedCategoryCandidate/semanticCategoryHint。工资/发工资+金额走 record_income。
+        - record_income：记录收入。填 amount、note、categoryCandidate；用户明确或相对日期填 transactionDate（YYYY-MM-DD），如昨天=交易日-1。
         - create_task：建待办/提醒。填 title；能确定日期填 dueDate（yyyy-MM-dd 或 yyyy-MM-dd HH:mm）；用户明确提醒时间填 reminderDate（yyyy-MM-dd HH:mm）。多个并列待办填 subtasks（逗号分隔），title 概括整体。填 description 补充。
         - complete_task / update_task / delete_task：操作已有任务，填 taskKeyword。
         - check_in：习惯打卡。填 habitName / habitValue。
@@ -424,7 +424,8 @@ final class PromptManager {
         - 单动作→single_action，多动作→multi_action，纯查询→query，查询+执行混合→clarification，无法识别→unknown。
         - note 是交易名称，保留具体对象/关系/场景，不要只写分类；如"给爷爷买了两百块的彩票"→note:"给爷爷买彩票"。
         - categoryCandidate 始终填用户原始语义。normalizedCategoryCandidate 用常识归一品牌/口语，不确定留空。不要编造分类。semanticCategoryHint 填一级分类（餐饮、交通、购物、娱乐、居住、医疗、学习、人情、其他）。品牌消费必填，如"麦当劳"→"餐饮"，"优衣库"→"购物"。
-        - title 去掉"提醒我""帮我"等套话。日期：今天=当天，明天=+1。时间映射：凌晨=00-05，早上/上午=09:00，中午=12:00，下午=15:00，晚上/傍晚=20:00。
+        - title 去掉"提醒我""帮我"等套话。日期：今天=当天，昨天=交易日-1，明天=+1。时间映射：凌晨=00-05，早上/上午=09:00，中午=12:00，下午=15:00，晚上/傍晚=20:00。
+        - 记账日期写入 transactionDate，不要写入 dueDate/reminderDate；任务日期才写 dueDate/reminderDate。
         - 明确说"提醒我明天早上/下午/今晚N点"时，同时填 reminderDate 和 dueDate。
         - 购物清单：并列物品填 subtasks（逗号分隔），title 概括。只有 1 个事项时不填 subtasks。
         - 多笔记账每项的 note/categoryCandidate 对应各自内容。
@@ -433,7 +434,8 @@ final class PromptManager {
         - 无法判断时输出 intent: "unknown", mode: "unknown"，不要输出自由文本。
 
         例：
-        - "今天午饭花了35" → intent: "record_expense", extractedData: { amount: "35", note: "午饭", categoryCandidate: "午饭" }
+        - "今天午饭花了35" → intent: "record_expense", extractedData: { amount: "35", note: "午饭", categoryCandidate: "午饭", transactionDate: "今天对应的 YYYY-MM-DD" }
+        - "昨天停车18" → intent: "record_expense", extractedData: { amount: "18", note: "停车", categoryCandidate: "停车", transactionDate: "昨天对应的 YYYY-MM-DD", semanticCategoryHint: "交通" }
         - "麦当劳35" → intent: "record_expense", extractedData: { amount: "35", note: "麦当劳", categoryCandidate: "麦当劳", normalizedCategoryCandidate: "快餐", semanticCategoryHint: "餐饮" }
         - "给爷爷买了两百块的彩票" → intent: "record_expense", extractedData: { amount: "200", note: "给爷爷买彩票", categoryCandidate: "给爷爷买彩票", semanticCategoryHint: "人情" }
         - "今年收入是多少" → intent: "flexible_data_query", extractedData: { queryGoal: "今年收入总额" }

@@ -4,6 +4,21 @@
 
 ---
 
+## [2026-07-02] HoloAI 记账日期与待确认卡片修复
+
+修复 HoloAI 识别「昨天停车18」这类记账输入时，交易日期可能落成今天的问题；同时修复待确认记账卡片在消息退出重进或轻量重载后，确认/取消按钮点击无效的问题。
+
+### 变更
+- **交易日期贯通**：后端与 iOS intent prompt 明确输出 `transactionDate`，iOS 记账落库、卡片展示和编辑预填都消费该字段，确保“昨天 / 今天”等相对日期落到真实交易日
+- **待确认卡片操作恢复**：消息更新不再只依赖实时缓存，确认/取消时可从 Core Data 取回消息后更新 execution batch，避免按钮点击后状态不变
+- **回归覆盖**：补充后端 golden、交易日期解析、PromptManager、ChatCardData 和消息缓存恢复测试，并把相关测试接入 HoloTests target
+
+### 验证
+- `npm test --prefix HoloBackend`
+- `xcodebuild test -project "Holo/Holo APP/Holo/Holo.xcodeproj" -scheme Holo -destination 'platform=iOS Simulator,name=iPhone 17' -only-testing:HoloTests/ChatCardDataTests -only-testing:HoloTests/TransactionDateResolverTests -only-testing:HoloTests/PromptManagerIntentRecognitionTests -only-testing:HoloTests/ChatMessageRepositoryCacheRecoveryTests`
+
+---
+
 ## [2026-07-02] 观点模块标签筛选栏稳定性修复
 
 修复观点首页切换不同标签时，选中的标签可能突然平移到其他标签旁边的问题。根因是常用标签在使用次数相同或接近时缺少稳定排序，同时「AI 整理」动作 chip 会随状态/徽章宽度变化挤动后续标签。

@@ -42,7 +42,7 @@ nonisolated enum ChatCardData: Equatable {
                 primaryCategory: data["primaryCategory"],
                 subCategory: data["subCategory"],
                 type: "expense",
-                date: data["date"],
+                date: transactionDate(from: data),
                 confirmationStatus: data["confirmationStatus"],
                 confirmationError: data["confirmationError"],
                 installmentEnabled: data["installmentEnabled"] == "true",
@@ -62,7 +62,7 @@ nonisolated enum ChatCardData: Equatable {
                 primaryCategory: data["primaryCategory"],
                 subCategory: data["subCategory"],
                 type: "income",
-                date: data["date"],
+                date: transactionDate(from: data),
                 confirmationStatus: data["confirmationStatus"],
                 confirmationError: data["confirmationError"],
                 installmentEnabled: data["installmentEnabled"] == "true",
@@ -129,6 +129,10 @@ nonisolated enum ChatCardData: Equatable {
             }
         }
         return nil
+    }
+
+    nonisolated private static func transactionDate(from data: [String: String]) -> String? {
+        data["transactionDate"] ?? data["date"]
     }
 
     /// 关联实体 ID（从 extractedData 中获取）
@@ -271,6 +275,26 @@ nonisolated struct TransactionCardData: Equatable {
         }
         return primary
     }
+
+    /// 记录日期的相对显示文本
+    /// 今天或无效日期返回 nil（不占位）；昨天/前天/历史日期返回友好文本
+    var displayDateText: String? {
+        guard let raw = date?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty,
+              let parsed = NLDateParser.parse(raw) else { return nil }
+        let calendar = Calendar.current
+        if calendar.isDateInToday(parsed) { return nil }
+        if calendar.isDateInYesterday(parsed) { return "昨天" }
+        if let dayBefore = calendar.date(byAdding: .day, value: -2, to: Date()),
+           calendar.isDate(parsed, inSameDayAs: dayBefore) { return "前天" }
+        return Self.relativeDateFormatter.string(from: parsed)
+    }
+
+    private static let relativeDateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日"
+        return formatter
+    }()
 }
 
 // MARK: - 灵活查询卡片数据
