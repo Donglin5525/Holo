@@ -23,6 +23,10 @@ struct ThoughtOrganizeActionChip: View {
     /// 点击触发
     let action: () -> Void
 
+    private var badgeText: String {
+        pendingCount > 99 ? "99+" : "\(pendingCount)"
+    }
+
     var body: some View {
         Button(action: action) {
             HStack(spacing: 4) {
@@ -47,9 +51,10 @@ struct ThoughtOrganizeActionChip: View {
 
                 // 待整理数量徽章（整理中或无待整理时隐藏）
                 if !isOrganizing && pendingCount > 0 {
-                    Text("\(pendingCount)")
+                    Text(badgeText)
                         .font(.system(size: 10, weight: .bold))
                         .foregroundColor(.white)
+                        .frame(minWidth: 18)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 1)
                         .background(Color.holoAI)
@@ -58,6 +63,7 @@ struct ThoughtOrganizeActionChip: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
+            .frame(width: 132)
             .background(
                 Capsule()
                     .fill(Color.holoAI.opacity(isOrganizing ? 0.14 : 0.08))

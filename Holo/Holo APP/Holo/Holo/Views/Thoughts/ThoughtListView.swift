@@ -90,10 +90,18 @@ struct ThoughtListView: View {
 
     /// 常用标签（使用次数前 5）
     var frequentTags: [ThoughtTag] {
-        let tagCounts = allTags.reduce(into: [ThoughtTag: Int]()) { result, tag in
-            result[tag, default: 0] += Int(tag.usageCount)
-        }
-        return tagCounts.sorted { $0.value > $1.value }.prefix(5).map { $0.key }
+        allTags
+            .sorted { lhs, rhs in
+                if lhs.usageCount != rhs.usageCount {
+                    return lhs.usageCount > rhs.usageCount
+                }
+                if lhs.name != rhs.name {
+                    return lhs.name < rhs.name
+                }
+                return lhs.id.uuidString < rhs.id.uuidString
+            }
+            .prefix(5)
+            .map { $0 }
     }
 
     // MARK: - Body

@@ -151,6 +151,22 @@ final class ThoughtRepositoryAITagBucketTests: XCTestCase {
         XCTAssertTrue(result.isEmpty)
     }
 
+    func test_getAllTags同usageCount时按名称稳定排序() throws {
+        let (repo, ctx) = try makeRepo()
+        let insertedNames = ["灵感", "AI能力", "产品"]
+        for name in insertedNames {
+            let tag = ThoughtTag(context: ctx)
+            tag.id = UUID()
+            tag.name = name
+            tag.usageCount = 3
+        }
+        try ctx.save()
+
+        let result = try repo.getAllTags().map(\.name)
+
+        XCTAssertEqual(result, ["AI能力", "产品", "灵感"])
+    }
+
     // MARK: - fetchUnclassifiedThoughts
 
     func test_未归类P1等价全部active() throws {

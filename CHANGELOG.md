@@ -4,6 +4,21 @@
 
 ---
 
+## [2026-07-02] 观点模块标签筛选栏稳定性修复
+
+修复观点首页切换不同标签时，选中的标签可能突然平移到其他标签旁边的问题。根因是常用标签在使用次数相同或接近时缺少稳定排序，同时「AI 整理」动作 chip 会随状态/徽章宽度变化挤动后续标签。
+
+### 变更
+- **常用标签稳定排序**：标签按 `usageCount desc -> name asc -> id asc` 固定顺序，避免刷新后同分标签重新洗牌
+- **筛选栏布局稳定**：AI 整理 chip 固定宽度，待整理数超过 99 显示 `99+`，减少状态切换时的横向位移
+- **回归覆盖**：补充同 usageCount 标签稳定排序测试，锁定用户数据量较大时的顺序契约
+
+### 验证
+- `xcodebuild -project 'Holo/Holo APP/Holo/Holo.xcodeproj' -scheme Holo -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath /tmp/holo-derived-data build`
+- `xcodebuild ... -only-testing:HoloTests/ThoughtRepositoryAITagBucketTests test` 当前仍显示 `Executed 0 tests`，仅能证明测试包构建，不能视为测试通过
+
+---
+
 ## [2026-07-01] HoloAI Agent 财务分析可靠性修复
 
 修复 HoloAI 深度分析「上个月花了 1.4 万，钱都花哪了」这类财务问题中，时间识别、数据调度和结果展示不稳定的问题。现在 Agent 会确定性解析“本月 / 上月 / 6月 / 2025年6月”等时间语义，优先调用 finance 账单拆分工具，并在模型输出格式失败时使用已验证的工具事实兜底完成，避免用户看到 `state=failed`、`解析失败` 或内部 metricKey。

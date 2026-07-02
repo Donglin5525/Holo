@@ -440,7 +440,11 @@ class ThoughtRepository {
     /// - Returns: ThoughtTag 数组
     func getAllTags() throws -> [ThoughtTag] {
         let request = ThoughtTag.fetchRequest()
-        request.sortDescriptors = [NSSortDescriptor(key: "usageCount", ascending: false)]
+        request.sortDescriptors = [
+            NSSortDescriptor(key: "usageCount", ascending: false),
+            NSSortDescriptor(key: "name", ascending: true),
+            NSSortDescriptor(key: "id", ascending: true)
+        ]
         return try context.fetch(request)
     }
 
