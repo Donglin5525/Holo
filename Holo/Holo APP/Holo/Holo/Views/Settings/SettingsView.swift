@@ -1041,12 +1041,14 @@ struct SettingsView: View {
                     .font(.system(size: 18))
                     .foregroundColor(.orange)
 
-                Text("诊断与数据管理")
+                Text("数据管理")
                     .font(.holoBody)
                     .fontWeight(.semibold)
                     .foregroundColor(.holoTextPrimary)
             }
 
+            #if DEBUG
+            // HealthKit 诊断页是开发自测工具（生成 raw 报告 + 复制），普通用户无价值，Release 不暴露
             settingsRow(
                 icon: "heart.text.square",
                 iconColor: .holoInfo,
@@ -1060,6 +1062,7 @@ struct SettingsView: View {
                     HealthKitDiagnosticsView()
                 }
             }
+            #endif
 
             Button {
                 showClearThoughtDataAlert = true

@@ -4,6 +4,20 @@
 
 ---
 
+## [2026-07-04] 上架前内部入口隐藏与隐私政策修订
+
+为 App Store 上架做准备：将仅供开发自测的 HealthKit 诊断入口限定在 DEBUG 构建，Release 不暴露；同步修订隐私政策以覆盖观点数据并如实反映 HealthKit 采集范围；移除与实际行为矛盾的 HealthKit 写权限声明。模型切换 / API Key / Prompt 编辑等调试入口此前已 `#if DEBUG` 隔离，本轮维持现状，首版不向普通用户暴露。
+
+### 变更
+- `SettingsView.swift`：HealthKit 诊断页入口加 `#if DEBUG`，section header 由"诊断与数据管理"改为"数据管理"
+- `LegalDocumentSheet.swift`：隐私政策 1.1 节补充"观点记录"数据条、用途表追加观点数据行；HealthKit 描述由"步数、睡眠时长和站立时长"改为"步数、睡眠、站立、运动时长等"，与实际采集对齐
+- `project.pbxproj`：删除 `NSHealthUpdateUsageDescription`（App 全量只读，写权限声明属矛盾配置）；`NSHealthShareUsageDescription` 文案同步补全运动等采集项；附带 Xcode 保存时的两处规范化（SubtaskParserTests 引用排序、UILaunchScreen_Generation 通用行去重），功能等价无影响
+
+### 验证
+- `xcodebuild ... build`（build_sim, iPhone 17）通过
+
+---
+
 ## [2026-07-03] HoloAI 对话增加微信风格时间分隔条
 
 对话界面在相邻消息间隔 ≥ 5 分钟（或首条消息）时，于较新消息上方居中显示一个时间胶囊，避免每条消息都打时间戳。几秒内的用户消息与 AI 回复天然不显示，满足「近几分钟对话不每条都显示」的诉求。时间格式：今天 `14:32` / 昨天 `昨天 14:32` / 同年 `7月3日 14:32` / 跨年 `2025年12月31日 14:32`。

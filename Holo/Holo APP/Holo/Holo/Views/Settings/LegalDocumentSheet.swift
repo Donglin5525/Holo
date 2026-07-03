@@ -141,8 +141,9 @@ enum LegalHTMLTemplates {
     <ul>
         <li><strong>账户信息</strong>：当您使用"通过 Apple 登录"时，我们会收到您的 Apple ID 关联邮箱地址和唯一用户标识符。您可以选择隐藏邮箱地址。</li>
         <li><strong>财务记录</strong>：您手动输入的记账数据，包括金额、分类、账户、日期和备注。这些数据存储在您的设备本地和您的 iCloud 中。</li>
-        <li><strong>健康数据</strong>：在您授权后，本应用会从 Apple HealthKit 读取步数、睡眠时长和站立时长数据。本应用<strong>不会写入或修改</strong>您的健康数据。</li>
+        <li><strong>健康数据</strong>：在您授权后，本应用会从 Apple HealthKit 读取步数、睡眠、站立、运动时长等健康数据。本应用<strong>不会写入或修改</strong>您的健康数据。</li>
         <li><strong>习惯与待办</strong>：您创建的习惯追踪记录和待办事项。</li>
+        <li><strong>观点记录</strong>：您创建的观点、标签和引用，存储在您的设备本地和您的 iCloud 中。</li>
         <li><strong>语音输入</strong>：当您使用语音输入功能时，音频数据会发送至我们的服务器进行语音转文字处理，处理完成后音频数据不会被保存。</li>
     </ul>
 
@@ -167,6 +168,7 @@ enum LegalHTMLTemplates {
             <tr><td>财务记录</td><td>记账功能、数据统计与展示</td></tr>
             <tr><td>健康数据（只读）</td><td>健康数据展示与趋势分析</td></tr>
             <tr><td>习惯与待办数据</td><td>习惯追踪与任务管理功能</td></tr>
+            <tr><td>观点数据</td><td>观点记录、标签与引用管理</td></tr>
             <tr><td>语音音频</td><td>语音转文字，用于记账或 AI 对话输入</td></tr>
             <tr><td>AI 对话上下文</td><td>生成数据分析、智能建议等 AI 功能</td></tr>
         </tbody>
