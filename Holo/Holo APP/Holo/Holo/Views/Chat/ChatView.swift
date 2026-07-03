@@ -245,7 +245,15 @@ struct ChatView: View {
                         loadMoreHeader(proxy: proxy)
                     }
 
-                    ForEach(viewModel.messages, id: \.id) { message in
+                    ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, message in
+                        // 时间分隔条：首条消息或距上一条 ≥ 5 分钟时显示（微信风格，非每条都打时间）
+                        if ChatTimeStampSeparator.shouldShow(
+                            current: message.timestamp,
+                            previous: index > 0 ? viewModel.messages[index - 1].timestamp : nil
+                        ) {
+                            ChatTimeStampSeparator(date: message.timestamp)
+                        }
+
                         MessageBubbleView(
                             message: message,
                             streamingText: viewModel.isStreaming && message.isStreaming ? viewModel.streamingText : nil,

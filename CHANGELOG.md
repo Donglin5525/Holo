@@ -4,6 +4,20 @@
 
 ---
 
+## [2026-07-03] HoloAI 对话增加微信风格时间分隔条
+
+对话界面在相邻消息间隔 ≥ 5 分钟（或首条消息）时，于较新消息上方居中显示一个时间胶囊，避免每条消息都打时间戳。几秒内的用户消息与 AI 回复天然不显示，满足「近几分钟对话不每条都显示」的诉求。时间格式：今天 `14:32` / 昨天 `昨天 14:32` / 同年 `7月3日 14:32` / 跨年 `2025年12月31日 14:32`。
+
+### 变更
+- 新增 `Views/Chat/ChatTimeStampSeparator.swift`：时间分隔条视图 + 5 分钟阈值判断（`shouldShow`）+ 微信式时间格式化（`DateFormatter` + `zh_CN`）
+- `ChatView.messageList` 的 `ForEach` 改为 `enumerated()`，每条消息前按需插入分隔条
+- 数据层 / ViewModel 零改动；时间格式化置于 `@MainActor` View 内部，遵循上次 `displayDateText` 的 Swift 6 隔离教训
+
+### 验证
+- `xcodebuild ... build`（build_sim, iPhone 17）通过，未引入新 Swift 6 warning
+
+---
+
 ## [2026-07-02] 财务卡片展示记录日期
 
 记账卡片在分类行右侧露出记录日期：昨天 / 前天 / M月d日；今天记账是常态，不占位。日期格式化逻辑放在 `TransactionChatCard`（@MainActor）内部，避免在 nonisolated 的 `TransactionCardData` 上调用 `NLDateParser` / `Calendar` 产生 Swift 6 并发 warning。
