@@ -19,6 +19,39 @@ import { createDatabase } from "./db/database.js";
 
 const CLIENT_ROUTING_FIELDS = ["baseURL", "baseUrl", "apiKey", "provider", "model"];
 
+function buildReleaseStatus(config) {
+  return {
+    ok: true,
+    service: "holo-ai-gateway",
+    generatedAt: new Date().toISOString(),
+    release: {
+      commit: process.env.HOLO_RELEASE_COMMIT ?? null,
+      buildTime: process.env.HOLO_RELEASE_BUILD_TIME ?? null,
+    },
+    prompts: listPromptMetadata(),
+    routes: sanitizeRoutes(config.routes),
+    database: {
+      configured: Boolean(config.dbPath),
+      path: undefined,
+    },
+  };
+}
+
+function sanitizeRoutes(routes) {
+  return Object.fromEntries(
+    Object.entries(routes).map(([purpose, route]) => [
+      purpose,
+      {
+        provider: route.provider,
+        model: route.model,
+        temperature: route.temperature,
+        maxTokens: route.maxTokens,
+        requestLimits: route.requestLimits ? { ...route.requestLimits } : undefined,
+      },
+    ]),
+  );
+}
+
 export function createApp(overrides = {}) {
   const config = loadConfig(overrides);
   const app = new Hono();
@@ -61,6 +94,10 @@ export function createApp(overrides = {}) {
       ok: true,
       service: "holo-ai-gateway",
     });
+  });
+
+  app.get("/v1/release/status", (context) => {
+    return context.json(buildReleaseStatus(config));
   });
 
   app.get("/v1/prompts", (context) => {

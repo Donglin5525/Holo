@@ -107,14 +107,27 @@ ssh -L 8787:127.0.0.1:8787 root@<你的ECS公网IP>
 
 ## 更新服务
 
+推荐在本地先同步代码到服务器，保留生产密钥和持久化数据：
+
 ```bash
-cd ~/Holo
-git pull
+rsync -az --delete \
+  --exclude node_modules \
+  --exclude .env \
+  --exclude deploy/.env.production \
+  --exclude deploy/data \
+  /Users/tangyuxuan/Desktop/Claude/HOLO/HoloBackend/ \
+  root@<你的ECS公网IP>:/root/Holo/HoloBackend/
+```
+
+然后在 ECS 上执行：
+
+```bash
 cd HoloBackend/deploy
-docker compose up -d --build
+bash deploy.sh
 ```
 
 > SQLite 数据库在 `deploy/data/` 目录下，`docker compose up --build` 不会影响数据。
+> 如果确实要在 ECS 上直接拉 GitHub，使用 `RUN_GIT_PULL=1 bash deploy.sh`；但线上链路不稳定时优先使用本地同步或 bundle。
 
 ## 数据库备份
 
@@ -131,6 +144,12 @@ ls data/backups/
 ```bash
 # 健康检查
 curl http://127.0.0.1:8787/v1/health
+
+# Release 状态摘要
+curl https://api.holoapp.cn/v1/release/status
+
+# Prompt 运行时版本
+curl https://api.holoapp.cn/v1/prompts/meta
 
 # AI 对话（需要配置真实 provider）
 curl -X POST http://127.0.0.1:8787/v1/ai/chat/completions \
