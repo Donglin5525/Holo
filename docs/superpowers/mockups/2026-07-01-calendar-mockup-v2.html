@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holo 周历 / 月历视图 · 概念稿 v2</title>
+<style>
+  :root{
+    --bg:#FCFCF8; --card:#FFFFFF; --primary:#F46D38; --primary-light:#FED7AA; --primary-dark:#EA580C;
+    --border:#F0F0F0; --divider:#F1F5F9;
+    --text:#1C1C1C; --text-2:#6B6B6B; --text-3:#9B9B9B; --placeholder:#C7C7C7;
+    --finance:#F46D38; --habit:#22C55E; --todo:#6366F1; --thought:#EC4899; --health:#3B82F6;
+    --heat0:#F5F2ED; --heat1:#FFD6C7; --heat2:#FFB499; --heat3:#FF9B7A; --heat4:#FF8C66;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased}
+  body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro",system-ui,"PingFang SC",sans-serif;
+    background:#E9E9E6;color:var(--text);padding:40px 20px 80px;}
+  .num{font-family:"SF Pro Rounded",-apple-system,system-ui,sans-serif;font-variant-numeric:tabular-nums;}
+  .wrap{max-width:920px;margin:0 auto;}
+  h1{font-size:22px;font-weight:700;text-align:center;margin-bottom:4px;}
+  .sub{text-align:center;color:var(--text-2);font-size:13px;margin-bottom:32px;}
+  .phones{display:flex;gap:28px;justify-content:center;align-items:flex-start;flex-wrap:wrap;}
+
+  .phone{width:390px;height:844px;background:var(--bg);border-radius:48px;border:11px solid #1C1C1C;
+    box-shadow:0 30px 70px rgba(0,0,0,.22);overflow:hidden;position:relative;flex-shrink:0;}
+  .screen{position:absolute;inset:0;display:flex;flex-direction:column;}
+  .screen-scroll{flex:1;overflow-y:auto;padding-bottom:24px;}
+  .screen-scroll::-webkit-scrollbar{display:none;}
+  .statusbar{height:48px;display:flex;align-items:flex-end;justify-content:space-between;padding:0 28px 6px;font-size:15px;font-weight:600;}
+  .navbar{display:flex;align-items:center;justify-content:space-between;padding:8px 20px 12px;}
+  .nav-back{width:32px;height:32px;border-radius:999px;background:var(--card);display:flex;align-items:center;justify-content:center;border:1px solid var(--border);font-size:17px;}
+  .nav-title{font-size:16px;font-weight:600;}
+  .today-pill{background:var(--primary-light);color:var(--primary-dark);font-size:12px;font-weight:600;padding:6px 12px;border-radius:999px;border:none;}
+
+  /* 周/月 segmented（外层，固定） */
+  .seg{margin:0 20px 12px;background:#EFECE6;border-radius:12px;padding:3px;display:grid;grid-template-columns:1fr 1fr;}
+  .seg button{border:none;background:transparent;font-size:13px;font-weight:600;color:var(--text-2);padding:8px 0;border-radius:9px;cursor:pointer;}
+  .seg button.on{background:var(--card);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.06);}
+
+  /* 周历内部「网格/列表」切换 */
+  .seg-mini{margin:0 20px 10px;display:flex;gap:0;border:1px solid var(--border);border-radius:10px;overflow:hidden;}
+  .seg-mini button{flex:1;border:none;background:var(--card);font-size:11px;font-weight:600;color:var(--text-2);padding:7px 0;cursor:pointer;}
+  .seg-mini button.on{background:var(--primary);color:#fff;}
+
+  .range-nav{display:flex;align-items:center;justify-content:space-between;padding:4px 20px 10px;}
+  .range-nav .chev{width:32px;height:32px;color:var(--text-2);font-size:15px;font-weight:600;display:flex;align-items:center;justify-content:center;}
+  .range-nav .chev.off{opacity:.3;}
+  .range-nav .title{font-size:15px;font-weight:600;}
+
+  .legend{display:flex;gap:14px;justify-content:center;padding:12px 0 4px;flex-wrap:wrap;}
+  .legend span{font-size:11px;color:var(--text-2);display:flex;align-items:center;gap:5px;}
+  .legend i{width:8px;height:8px;border-radius:999px;display:inline-block;}
+
+  /* ===== 周历 · 网格精简版 ===== */
+  .week-head{display:grid;grid-template-columns:40px repeat(7,1fr);padding:0 12px 6px;}
+  .week-head .h{font-size:10px;font-weight:600;color:var(--text-3);text-align:center;}
+  .week-head .h .d{font-size:15px;font-weight:700;color:var(--text);display:block;}
+  .week-head .h.today .d{color:var(--primary);}
+
+  .weekgrid{position:relative;padding-left:40px;}
+  .hours{position:absolute;left:0;top:0;width:40px;}
+  .hours div{height:42px;font-size:10px;color:var(--text-3);padding-right:8px;text-align:right;transform:translateY(-6px);font-weight:500;}
+  .daycols{display:grid;grid-template-columns:repeat(7,1fr);height:714px;
+    background-image:linear-gradient(to bottom,var(--divider) 1px,transparent 1px);background-size:100% 42px;}
+  .daycol{position:relative;border-right:1px solid var(--divider);}
+  .daycol:last-child{border-right:none;}
+  .now{position:absolute;left:0;right:0;border-top:1.5px solid var(--primary);z-index:5;}
+  .now::before{content:"";position:absolute;left:-4px;top:-4px;width:8px;height:8px;border-radius:999px;background:var(--primary);}
+
+  /* v2 事件块：单行、只核心词、字大 */
+  .ev{position:absolute;left:3px;right:3px;border-radius:6px;padding:4px 6px;border-left:3px solid;
+    min-height:26px;display:flex;align-items:center;font-size:11px;font-weight:700;color:var(--text);
+    white-space:nowrap;overflow:hidden;line-height:1.1;}
+
+  /* ===== 周历 · 横向列表版（字最大最清晰） ===== */
+  .wlist{padding:0 14px;}
+  .wlist-row{display:flex;gap:10px;padding:10px 0;border-bottom:1px solid var(--divider);align-items:stretch;}
+  .wlist-day{width:42px;text-align:center;flex-shrink:0;padding-top:3px;}
+  .wlist-day .wd{font-size:10px;color:var(--text-3);font-weight:600;}
+  .wlist-day .dd{font-size:19px;font-weight:700;color:var(--text);font-family:"SF Pro Rounded";}
+  .wlist-day.today .dd{color:var(--primary);}
+  .wlist-day.today{position:relative;}
+  .wlist-day.today::after{content:"";position:absolute;left:50%;bottom:-2px;transform:translateX(-50%);width:18px;height:2px;border-radius:2px;background:var(--primary);}
+  .wlist-evs{display:flex;gap:6px;overflow-x:auto;flex:1;padding-bottom:3px;align-items:stretch;}
+  .wlist-evs::-webkit-scrollbar{height:0;}
+  .wlev{flex-shrink:0;border-radius:9px;padding:5px 9px;border-left:3px solid;display:flex;flex-direction:column;gap:1px;min-width:74px;justify-content:center;}
+  .wlev .tm{font-size:10px;color:var(--text-2);font-weight:700;font-family:"SF Pro Rounded";}
+  .wlev .lb{font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;}
+  .wlev .mt{font-size:10px;color:var(--text-3);font-family:"SF Pro Rounded";white-space:nowrap;}
+
+  /* ===== 月历 ===== */
+  .month-head{display:grid;grid-template-columns:repeat(7,1fr);padding:0 14px 6px;}
+  .month-head div{font-size:10px;font-weight:600;color:var(--text-3);text-align:center;}
+  .monthgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;padding:0 14px;}
+  .cell{aspect-ratio:1;border-radius:9px;padding:5px 5px 0;position:relative;cursor:pointer;
+    border:1px solid rgba(0,0,0,.04);display:flex;flex-direction:column;justify-content:space-between;overflow:hidden;}
+  .cell .dn{font-size:14px;font-weight:700;font-family:"SF Pro Rounded";}
+  .cell.out{background:var(--heat0)!important;border-color:transparent;}
+  .cell.out .dn{color:var(--placeholder);}
+  .cell.today{border:1.5px solid var(--primary);}
+  .cell.today .dn{color:var(--primary);}
+  .cell.sel{box-shadow:0 0 0 2.5px var(--text);border-color:transparent;}
+  /* 底部模块色条 */
+  .bar{display:flex;gap:0;height:4px;border-radius:0 0 8px 8px;margin:0 -5px;}
+  .bar i{flex:1;}
+
+  .selected-day{margin:16px 14px 0;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.04);}
+  .sd-title{font-size:15px;font-weight:700;margin-bottom:2px;font-family:"SF Pro Rounded";}
+  .sd-sub{font-size:11px;color:var(--text-3);margin-bottom:10px;}
+  .sd-group{margin-top:10px;}
+  .sd-group-h{font-size:11px;font-weight:700;color:var(--text-3);display:flex;align-items:center;gap:5px;margin-bottom:6px;text-transform:uppercase;letter-spacing:.03em;}
+  .sd-group-h i{width:8px;height:8px;border-radius:999px;}
+  .ev-row{display:flex;align-items:center;gap:8px;padding:5px 0;font-size:13px;}
+  .ev-row .ico{width:24px;height:24px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;}
+  .ev-row .lbl{flex:1;color:var(--text);}
+  .ev-row .val{font-size:12px;color:var(--text-2);font-weight:700;font-family:"SF Pro Rounded";}
+
+  .phone-label{text-align:center;font-size:12px;color:var(--text-2);font-weight:600;margin-top:14px;}
+  .notes{max-width:860px;margin:48px auto 0;background:var(--card);border:1px solid var(--border);border-radius:16px;padding:24px 28px;}
+  .notes h2{font-size:15px;font-weight:700;margin-bottom:14px;}
+  .notes ul{list-style:none;}
+  .notes li{font-size:13px;color:var(--text-2);line-height:1.65;padding:6px 0;padding-left:18px;position:relative;}
+  .notes li::before{content:"";position:absolute;left:0;top:13px;width:5px;height:5px;border-radius:999px;background:var(--primary);}
+  .notes li b{color:var(--text);}
+  .ver-tag{display:inline-block;background:var(--primary);color:#fff;font-size:10px;font-weight:700;padding:2px 8px;border-radius:999px;margin-left:8px;vertical-align:middle;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Holo 周历 / 月历视图 · 概念稿 <span class="ver-tag">v2</span></h1>
+  <p class="sub">修复可读性：周历给两种布局切换 · 月历日期号加大 + 底部色条</p>
+
+  <div class="phones">
+
+    <!-- ============ 周历（网格/列表可切换） ============ -->
+    <div>
+    <div class="phone">
+      <div class="screen">
+        <div class="screen-scroll">
+          <div class="statusbar"><span class="num">9:41</span><span>●●● ▮ 100%</span></div>
+          <div class="navbar">
+            <div class="nav-back">‹</div>
+            <div class="nav-title">记忆长廊</div>
+            <button class="today-pill">今天</button>
+          </div>
+          <div class="seg">
+            <button class="on">周历</button>
+            <button>月历</button>
+          </div>
+
+          <!-- 内部布局切换 -->
+          <div class="seg-mini">
+            <button id="tab-grid" class="on" onclick="swap('grid')">网格视图</button>
+            <button id="tab-list" onclick="swap('list')">列表视图</button>
+          </div>
+
+          <div class="range-nav">
+            <div class="chev">‹</div>
+            <div class="title">6月29日 — 7月5日</div>
+            <div class="chev">›</div>
+          </div>
+
+          <!-- ===== 网格视图 ===== -->
+          <div id="view-grid">
+            <div class="week-head">
+              <div class="h"></div>
+              <div class="h">一<span class="d num">29</span></div>
+              <div class="h">二<span class="d num">30</span></div>
+              <div class="h today">三<span class="d num">1</span></div>
+              <div class="h">四<span class="d num">2</span></div>
+              <div class="h">五<span class="d num">3</span></div>
+              <div class="h">六<span class="d num">4</span></div>
+              <div class="h">日<span class="d num">5</span></div>
+            </div>
+            <div class="weekgrid">
+              <div class="hours">
+                <div class="num">6</div><div class="num">8</div><div class="num">10</div>
+                <div class="num">12</div><div class="num">14</div><div class="num">16</div>
+                <div class="num">18</div><div class="num">20</div><div class="num">22</div>
+              </div>
+              <div class="daycols">
+                <div class="now" style="top:252px;"></div>
+
+                <div class="daycol">
+                  <div class="ev" style="top:42px;height:26px;background:rgba(34,197,94,.14);border-color:var(--habit);">跑步</div>
+                  <div class="ev" style="top:105px;height:26px;background:rgba(99,102,241,.14);border-color:var(--todo);">简报</div>
+                  <div class="ev" style="top:252px;height:26px;background:rgba(244,109,56,.14);border-color:var(--finance);">午餐</div>
+                  <div class="ev" style="top:399px;height:26px;background:rgba(244,109,56,.14);border-color:var(--finance);">咖啡</div>
+                  <div class="ev" style="top:588px;height:26px;background:rgba(34,197,94,.14);border-color:var(--habit);">阅读</div>
+                  <div class="ev" style="top:651px;height:26px;background:rgba(236,72,153,.14);border-color:var(--thought);">想法</div>
+                </div>
+                <div class="daycol">
+                  <div class="ev" style="top:126px;height:26px;background:rgba(244,109,56,.14);border-color:var(--finance);">早餐</div>
+                  <div class="ev" style="top:336px;height:26px;background:rgba(99,102,241,.14);border-color:var(--todo);">评审</div>
+                  <div class="ev" style="top:546px;height:26px;background:rgba(34,197,94,.14);border-color:var(--habit);">冥想</div>
+                  <div class="ev" style="top:672px;height:26px;background:rgba(236,72,153,.14);border-color:var(--thought);">想法</div>
+                </div>
+                <div class="daycol">
+                  <div class="ev" style="top:63px;height:26px;background:rgba(34,197,94,.14);border-color:var(--habit);">跑步</div>
+                  <div class="ev" style="top:147px;height:26px;background:rgba(99,102,241,.14);border-color:var(--todo);">简报</div>
+                  <div class="ev" style="top:273px;height:26px;background:rgba(244,109,56,.14);border-color:var(--finance);">午餐</div>
+                  <div class="ev" style="top:378px;height:26px;background:rgba(244,109,56,.14);border-color:var(--finance);">咖啡</div>
+                  <div class="ev" style="top:504px;height:26px;background:rgba(34,197,94,.14);border-color:var(--habit);">健身</div>
+                </div>
+                <div class="daycol">
+                  <div class="ev" style="top:126px;height:26px;background:rgba(244,109,56,.14);border-color:var(--finance);">早餐</div>
+                  <div class="ev" style="top:294px;height:26px;background:rgba(99,102,241,.14);border-color:var(--todo);color:var(--text-2);">会议<span style="opacity:.5"></span></div>
+                  <div class="ev" style="top:462px;height:26px;background:rgba(244,109,56,.14);border-color:var(--finance);">打车</div>
+                  <div class="ev" style="top:588px;height:26px;background:rgba(34,197,94,.14);border-color:var(--habit);">阅读</div>
+                </div>
+                <div class="daycol">
+                  <div class="ev" style="top:84px;height:26px;background:rgba(99,102,241,.14);border-color:var(--todo);">简报</div>
+                  <div class="ev" style="top:252px;height:26px;background:rgba(244,109,56,.14);border-color:var(--finance);">午餐</div>
+                  <div class="ev" style="top:378px;height:26px;background:rgba(244,109,56,.14);border-color:var(--finance);">咖啡</div>
+                  <div class="ev" style="top:672px;height:26px;background:rgba(236,72,153,.14);border-color:var(--thought);">想法</div>
+                </div>
+                <div class="daycol">
+                  <div class="ev" style="top:168px;height:26px;background:rgba(244,109,56,.14);border-color:var(--finance);">早午餐</div>
+                  <div class="ev" style="top:420px;height:26px;background:rgba(244,109,56,.14);border-color:var(--finance);">电影</div>
+                  <div class="ev" style="top:546px;height:26px;background:rgba(244,109,56,.14);border-color:var(--finance);">聚餐</div>
+                  <div class="ev" style="top:630px;height:26px;background:rgba(236,72,153,.14);border-color:var(--thought);">想法</div>
+                </div>
+                <div class="daycol">
+                  <div class="ev" style="top:126px;height:26px;background:rgba(34,197,94,.14);border-color:var(--habit);">跑步</div>
+                  <div class="ev" style="top:336px;height:26px;background:rgba(34,197,94,.14);border-color:var(--habit);">阅读</div>
+                  <div class="ev" style="top:588px;height:26px;background:rgba(99,102,241,.14);border-color:var(--todo);">周复盘</div>
+                </div>
+              </div>
+            </div>
+            <div class="legend">
+              <span><i style="background:var(--finance)"></i>记账</span>
+              <span><i style="background:var(--habit)"></i>习惯</span>
+              <span><i style="background:var(--todo)"></i>待办</span>
+              <span><i style="background:var(--thought)"></i>想法</span>
+            </div>
+          </div>
+
+          <!-- ===== 列表视图 ===== -->
+          <div id="view-list" style="display:none;">
+            <div class="wlist">
+              <div class="wlist-row">
+                <div class="wlist-day"><div class="wd">周一</div><div class="dd">29</div></div>
+                <div class="wlist-evs">
+                  <div class="wlev" style="border-color:var(--habit);background:rgba(34,197,94,.12);"><span class="tm">07:00</span><span class="lb">跑步</span><span class="mt">5.2km</span></div>
+                  <div class="wlev" style="border-color:var(--todo);background:rgba(99,102,241,.12);"><span class="tm">08:30</span><span class="lb">晨间简报</span><span class="mt">✓ 已完成</span></div>
+                  <div class="wlev" style="border-color:var(--finance);background:rgba(244,109,56,.12);"><span class="tm">12:00</span><span class="lb">午餐</span><span class="mt">¥35.00</span></div>
+                  <div class="wlev" style="border-color:var(--finance);background:rgba(244,109,56,.12);"><span class="tm">15:30</span><span class="lb">咖啡</span><span class="mt">¥22.00</span></div>
+                  <div class="wlev" style="border-color:var(--habit);background:rgba(34,197,94,.12);"><span class="tm">20:00</span><span class="lb">阅读</span><span class="mt">30min</span></div>
+                </div>
+              </div>
+              <div class="wlist-row">
+                <div class="wlist-day"><div class="wd">周二</div><div class="dd">30</div></div>
+                <div class="wlist-evs">
+                  <div class="wlev" style="border-color:var(--finance);background:rgba(244,109,56,.12);"><span class="tm">09:00</span><span class="lb">早餐</span><span class="mt">¥18.00</span></div>
+                  <div class="wlev" style="border-color:var(--todo);background:rgba(99,102,241,.12);"><span class="tm">14:00</span><span class="lb">季度评审</span><span class="mt">✓ 已完成</span></div>
+                  <div class="wlev" style="border-color:var(--habit);background:rgba(34,197,94,.12);"><span class="tm">19:00</span><span class="lb">冥想</span><span class="mt">15min</span></div>
+                  <div class="wlev" style="border-color:var(--thought);background:rgba(236,72,153,.12);"><span class="tm">22:00</span><span class="lb">想法</span><span class="mt">该重启读书…</span></div>
+                </div>
+              </div>
+              <div class="wlist-row">
+                <div class="wlist-day today"><div class="wd" style="color:var(--primary);">周三</div><div class="dd">1</div></div>
+                <div class="wlist-evs">
+                  <div class="wlev" style="border-color:var(--habit);background:rgba(34,197,94,.12);"><span class="tm">07:30</span><span class="lb">跑步</span><span class="mt">5km</span></div>
+                  <div class="wlev" style="border-color:var(--todo);background:rgba(99,102,241,.12);"><span class="tm">09:30</span><span class="lb">晨间简报</span><span class="mt">✓ 已完成</span></div>
+                  <div class="wlev" style="border-color:var(--finance);background:rgba(244,109,56,.12);"><span class="tm">12:30</span><span class="lb">午餐</span><span class="mt">¥35.00</span></div>
+                  <div class="wlev" style="border-color:var(--finance);background:rgba(244,109,56,.12);"><span class="tm">15:00</span><span class="lb">咖啡</span><span class="mt">¥28.00</span></div>
+                  <div class="wlev" style="border-color:var(--habit);background:rgba(34,197,94,.12);"><span class="tm">18:00</span><span class="lb">健身</span><span class="mt">1h</span></div>
+                </div>
+              </div>
+              <div class="wlist-row">
+                <div class="wlist-day"><div class="wd">周四</div><div class="dd">2</div></div>
+                <div class="wlist-evs">
+                  <div class="wlev" style="border-color:var(--finance);background:rgba(244,109,56,.12);"><span class="tm">09:00</span><span class="lb">早餐</span><span class="mt">¥18.00</span></div>
+                  <div class="wlev" style="border-color:var(--todo);background:rgba(99,102,241,.12);"><span class="tm">13:00</span><span class="lb">产品会议</span><span class="mt">待办</span></div>
+                  <div class="wlev" style="border-color:var(--finance);background:rgba(244,109,56,.12);"><span class="tm">17:00</span><span class="lb">打车</span><span class="mt">¥28.00</span></div>
+                  <div class="wlev" style="border-color:var(--habit);background:rgba(34,197,94,.12);"><span class="tm">20:00</span><span class="lb">阅读</span><span class="mt">40min</span></div>
+                </div>
+              </div>
+              <div class="wlist-row">
+                <div class="wlist-day"><div class="wd">周五</div><div class="dd">3</div></div>
+                <div class="wlist-evs">
+                  <div class="wlev" style="border-color:var(--todo);background:rgba(99,102,241,.12);"><span class="tm">08:00</span><span class="lb">晨间简报</span><span class="mt">待办</span></div>
+                  <div class="wlev" style="border-color:var(--finance);background:rgba(244,109,56,.12);"><span class="tm">12:00</span><span class="lb">午餐</span><span class="mt">¥42.00</span></div>
+                  <div class="wlev" style="border-color:var(--finance);background:rgba(244,109,56,.12);"><span class="tm">15:00</span><span class="lb">咖啡</span><span class="mt">¥25.00</span></div>
+                  <div class="wlev" style="border-color:var(--thought);background:rgba(236,72,153,.12);"><span class="tm">22:00</span><span class="lb">想法</span><span class="mt">周五的状态…</span></div>
+                </div>
+              </div>
+              <div class="wlist-row">
+                <div class="wlist-day"><div class="wd">周六</div><div class="dd">4</div></div>
+                <div class="wlist-evs">
+                  <div class="wlev" style="border-color:var(--finance);background:rgba(244,109,56,.12);"><span class="tm">10:00</span><span class="lb">早午餐</span><span class="mt">¥68.00</span></div>
+                  <div class="wlev" style="border-color:var(--finance);background:rgba(244,109,56,.12);"><span class="tm">16:00</span><span class="lb">电影</span><span class="mt">¥80.00</span></div>
+                  <div class="wlev" style="border-color:var(--finance);background:rgba(244,109,56,.12);"><span class="tm">19:00</span><span class="lb">聚餐</span><span class="mt">¥158.00</span></div>
+                </div>
+              </div>
+              <div class="wlist-row">
+                <div class="wlist-day"><div class="wd">周日</div><div class="dd">5</div></div>
+                <div class="wlist-evs">
+                  <div class="wlev" style="border-color:var(--habit);background:rgba(34,197,94,.12);"><span class="tm">09:00</span><span class="lb">跑步</span><span class="mt">6km</span></div>
+                  <div class="wlev" style="border-color:var(--habit);background:rgba(34,197,94,.12);"><span class="tm">14:00</span><span class="lb">阅读</span><span class="mt">1h</span></div>
+                  <div class="wlev" style="border-color:var(--todo);background:rgba(99,102,241,.12);"><span class="tm">20:00</span><span class="lb">周复盘</span><span class="mt">待办</span></div>
+                </div>
+              </div>
+            </div>
+            <div class="legend">
+              <span><i style="background:var(--finance)"></i>记账</span>
+              <span><i style="background:var(--habit)"></i>习惯</span>
+              <span><i style="background:var(--todo)"></i>待办</span>
+              <span><i style="background:var(--thought)"></i>想法</span>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+    <div class="phone-label">周历 · 点顶部「网格 / 列表」切换两种布局</div>
+    </div>
+
+    <!-- ============ 月历 ============ -->
+    <div>
+    <div class="phone">
+      <div class="screen">
+        <div class="screen-scroll">
+          <div class="statusbar"><span class="num">9:41</span><span>●●● ▮ 100%</span></div>
+          <div class="navbar">
+            <div class="nav-back">‹</div>
+            <div class="nav-title">记忆长廊</div>
+            <button class="today-pill">今天</button>
+          </div>
+          <div class="seg">
+            <button>周历</button>
+            <button class="on">月历</button>
+          </div>
+          <div class="range-nav">
+            <div class="chev">‹</div>
+            <div class="title">2026年7月</div>
+            <div class="chev">›</div>
+          </div>
+
+          <div class="month-head">
+            <div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div><div>日</div>
+          </div>
+
+          <div class="monthgrid" id="mg"></div>
+
+          <div class="legend" style="padding-top:14px;">
+            <span><i style="background:var(--heat0)"></i>少</span>
+            <span><i style="background:var(--heat2)"></i></span>
+            <span><i style="background:var(--heat4)"></i>多</span>
+            <span style="margin-left:8px">色深=活跃度 · 底条=模块</span>
+          </div>
+
+          <div class="selected-day">
+            <div class="sd-title">7月15日 <span style="color:var(--text-2);font-weight:500;font-size:13px;">周三</span></div>
+            <div class="sd-sub">8 条记录 · 涉及 4 个模块</div>
+
+            <div class="sd-group">
+              <div class="sd-group-h"><i style="background:var(--finance)"></i>记账 · 支出 ¥139</div>
+              <div class="ev-row"><div class="ico" style="background:rgba(244,109,56,.12);">💳</div><div class="lbl">午餐 · 餐饮</div><div class="val">¥35.00</div></div>
+              <div class="ev-row"><div class="ico" style="background:rgba(244,109,56,.12);">🚕</div><div class="lbl">打车 · 交通</div><div class="val">¥28.00</div></div>
+              <div class="ev-row"><div class="ico" style="background:rgba(244,109,56,.12);">☕</div><div class="lbl">咖啡</div><div class="val">¥18.00</div></div>
+            </div>
+            <div class="sd-group">
+              <div class="sd-group-h"><i style="background:var(--habit)"></i>习惯 · 3/3</div>
+              <div class="ev-row"><div class="ico" style="background:rgba(34,197,94,.12);color:var(--habit);">✓</div><div class="lbl">跑步</div><div class="val">5.0 km</div></div>
+              <div class="ev-row"><div class="ico" style="background:rgba(34,197,94,.12);color:var(--habit);">✓</div><div class="lbl">健身</div><div class="val">1h</div></div>
+              <div class="ev-row"><div class="ico" style="background:rgba(34,197,94,.12);color:var(--habit);">✓</div><div class="lbl">阅读</div><div class="val">30min</div></div>
+            </div>
+            <div class="sd-group">
+              <div class="sd-group-h"><i style="background:var(--thought)"></i>想法 · 1条</div>
+              <div class="ev-row"><div class="ico" style="background:rgba(236,72,153,.12);">💡</div><div class="lbl">「终于把日历视图想清楚了…」</div></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="phone-label">月历 · 日期号加大 + 底部模块色条</div>
+    </div>
+
+  </div>
+
+  <div class="notes">
+    <h2>v2 改了什么</h2>
+    <ul>
+      <li><b>周历新增「列表视图」</b>：7 天每天一行，事件横向铺开，<b>12px 字 + 时间/金额/详情全显示</b>，看得最清楚。点顶部「网格 / 列表」切换。</li>
+      <li><b>周历网格视图精简</b>：事件块只留一个核心词（11px bold），时间用块的垂直位置表达、不再写在块里，金额/详情点击看。干净接近系统日历。</li>
+      <li><b>月历日期号 11→14px</b>，小色点改成<b>底部 4px 模块色条</b>（橙=记账/绿=习惯/粉=想法…），一眼看出当天涉及哪些模块。</li>
+      <li>月历当天详情：标题 13→15px、事件行 12→13px、图标 22→24px，整体更松。</li>
+    </ul>
+    <div class="dec" style="margin-top:14px;padding-top:14px;border-top:1px dashed var(--border);">
+      <p style="font-size:13px;color:var(--text-2);line-height:1.7;">
+        <b style="color:var(--primary-dark)">下一步你拍板：</b>周历主用「网格」还是「列表」？
+        —— 想要一眼看全天时间分布选<b>网格</b>，想要看清每件事的金额和详情选<b>列表</b>。
+        也可以默认列表、长按某天切网格。定了我落 spec。
+      </p>
+    </div>
+  </div>
+</div>
+
+<script>
+  // 周/月切换（演示用，仅周历戏屏内）
+  function swap(mode){
+    const g=document.getElementById('view-grid'), l=document.getElementById('view-list');
+    const tg=document.getElementById('tab-grid'), tl=document.getElementById('tab-list');
+    if(mode==='grid'){g.style.display='';l.style.display='none';tg.classList.add('on');tl.classList.remove('on');}
+    else{g.style.display='none';l.style.display='';tl.classList.add('on');tg.classList.remove('on');}
+  }
+  // 月历格子数据：[day, heatLevel(0-4), modules[], flags{today,sel,out}]
+  const M = [
+    [29,0,[],{out:1}],[30,0,[],{out:1}],
+    [1,2,['f','h','t'],{today:1}],
+    [2,1,['f','h']],[3,2,['f','P']],[4,3,['f','P']],[5,1,['h','P']],
+    [6,0,['f']],[7,1,['f','h','t']],[8,2,['f','P']],[9,3,['f','h']],[10,1,['f','P']],[11,2,['f','P']],[12,0,['h']],
+    [13,1,['f','h']],[14,2,['f','t']],[15,4,['f','h','P'],{sel:1}],[16,1,['f','h']],[17,2,['f','P']],[18,3,['f']],[19,1,['h','P']],
+    [20,2,['f','h','t']],[21,0,['f']],[22,1,['f','h']],[23,2,['f','h','P']],[24,1,['f','P']],[25,3,['f','P']],[26,0,['h']],
+    [27,1,['f','h']],[28,2,['f','P']],[29,1,['f','h']],[30,0,['f']],[31,2,['f','h','P']],
+    [1,0,[],{out:1}],[2,0,[],{out:1}]
+  ];
+  const CMAP={f:'var(--finance)',h:'var(--habit)',t:'var(--todo)',P:'var(--thought)',x:'var(--health)'};
+  const HEAT=['var(--heat0)','var(--heat1)','var(--heat2)','var(--heat3)','var(--heat4)'];
+  const mg=document.getElementById('mg');
+  M.forEach(([d,lvl,mods,fl={}])=>{
+    const c=document.createElement('div');
+    let cls='cell'; if(fl.out)cls+=' out'; if(fl.today)cls+=' today'; if(fl.sel)cls+=' sel';
+    c.className=cls;
+    c.style.background = fl.out? '' : HEAT[lvl];
+    let bar='';
+    if(!fl.out && mods.length){bar='<div class="bar">'+mods.map(m=>`<i style="background:${CMAP[m]}"></i>`).join('')+'</div>';}
+    c.innerHTML=`<span class="dn">${d}</span>${bar||'<div class="bar"></div>'}`;
+    mg.appendChild(c);
+  });
+</script>
+</body>
+</html>

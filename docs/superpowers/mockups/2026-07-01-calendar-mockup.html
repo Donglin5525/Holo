@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holo 周历 / 月历视图 · 概念稿 v1</title>
+<style>
+  :root{
+    --bg:#FCFCF8;            /* Holo 米白主背景 */
+    --card:#FFFFFF;          /* 卡片白底 */
+    --primary:#F46D38;       /* Holo 主色暖橙 */
+    --primary-light:#FED7AA;
+    --primary-dark:#EA580C;
+    --border:#F0F0F0;
+    --divider:#F1F5F9;
+    --text:#1C1C1C;
+    --text-2:#6B6B6B;
+    --text-3:#9B9B9B;
+    --placeholder:#C7C7C7;
+    /* 模块色（待办由橙改为蓝紫以避撞色） */
+    --finance:#F46D38;
+    --habit:#22C55E;
+    --todo:#6366F1;
+    --thought:#EC4899;
+    --health:#3B82F6;
+    /* 热力 5 档暖色阶（复用 MemoryHeatmapView） */
+    --heat0:#F5F2ED;
+    --heat1:#FFD6C7;
+    --heat2:#FFB499;
+    --heat3:#FF9B7A;
+    --heat4:#FF8C66;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-font-smoothing:antialiased}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","SF Pro",system-ui,"PingFang SC",sans-serif;
+    background:#E9E9E6;
+    color:var(--text);
+    padding:40px 20px 80px;
+    min-height:100vh;
+  }
+  .num{font-family:"SF Pro Rounded",-apple-system,system-ui,sans-serif;font-variant-numeric:tabular-nums;}
+
+  .wrap{max-width:920px;margin:0 auto;}
+  h1{font-size:22px;font-weight:700;letter-spacing:-.01em;text-align:center;margin-bottom:4px;}
+  .sub{text-align:center;color:var(--text-2);font-size:13px;margin-bottom:32px;}
+
+  .phones{display:flex;gap:28px;justify-content:center;align-items:flex-start;flex-wrap:wrap;}
+
+  /* iPhone 戏屏外框 */
+  .phone{
+    width:390px;height:844px;
+    background:var(--bg);
+    border-radius:48px;
+    border:11px solid #1C1C1C;
+    box-shadow:0 30px 70px rgba(0,0,0,.22),0 6px 16px rgba(0,0,0,.08);
+    overflow:hidden;position:relative;
+    flex-shrink:0;
+  }
+  .screen{position:absolute;inset:0;display:flex;flex-direction:column;}
+  .screen-scroll{flex:1;overflow-y:auto;padding-bottom:24px;}
+  .screen-scroll::-webkit-scrollbar{display:none;}
+
+  /* 状态栏 */
+  .statusbar{height:48px;display:flex;align-items:flex-end;justify-content:space-between;
+    padding:0 28px 6px;font-size:15px;font-weight:600;}
+  .statusbar .right{display:flex;gap:6px;align-items:center;font-size:13px;}
+
+  /* 顶部导航 */
+  .navbar{display:flex;align-items:center;justify-content:space-between;
+    padding:8px 20px 12px;}
+  .nav-back{width:32px;height:32px;border-radius:999px;background:var(--card);
+    display:flex;align-items:center;justify-content:center;border:1px solid var(--border);
+    color:var(--text);font-size:17px;}
+  .nav-title{font-size:16px;font-weight:600;}
+  .today-pill{background:var(--primary-light);color:var(--primary-dark);
+    font-size:12px;font-weight:600;padding:6px 12px;border-radius:999px;border:none;}
+
+  /* segmented 周/月 */
+  .seg{margin:0 20px 12px;background:#EFECE6;border-radius:12px;padding:3px;
+    display:grid;grid-template-columns:1fr 1fr;}
+  .seg button{border:none;background:transparent;font-size:13px;font-weight:600;
+    color:var(--text-2);padding:8px 0;border-radius:9px;cursor:pointer;}
+  .seg button.on{background:var(--card);color:var(--text);box-shadow:0 1px 3px rgba(0,0,0,.06);}
+
+  /* 周期导航 ◀ 标题 ▶ */
+  .range-nav{display:flex;align-items:center;justify-content:space-between;
+    padding:4px 20px 12px;}
+  .range-nav .chev{width:32px;height:32px;color:var(--text-2);font-size:15px;font-weight:600;
+    display:flex;align-items:center;justify-content:center;cursor:pointer;}
+  .range-nav .chev.off{opacity:.3;}
+  .range-nav .title{font-size:15px;font-weight:600;}
+
+  /* ===== 周历 ===== */
+  .week-head{display:grid;grid-template-columns:44px repeat(7,1fr);
+    padding:0 12px 6px;}
+  .week-head .h{font-size:10px;font-weight:600;color:var(--text-3);text-align:center;padding-bottom:2px;}
+  .week-head .h .d{font-size:14px;font-weight:700;color:var(--text);display:block;}
+  .week-head .h.today .d{color:var(--primary);}
+
+  .weekgrid{position:relative;padding-left:44px;}
+  .hours{position:absolute;left:0;top:0;width:44px;}
+  .hours div{height:42px;font-size:9px;color:var(--text-3);padding-right:8px;text-align:right;
+    transform:translateY(-5px);}
+  .daycols{display:grid;grid-template-columns:repeat(7,1fr);height:714px;
+    background-image:linear-gradient(to bottom,var(--divider) 1px,transparent 1px);
+    background-size:100% 42px;background-position:0 0;}
+  .daycol{position:relative;border-right:1px solid var(--divider);}
+  .daycol:last-child{border-right:none;}
+  .now{position:absolute;left:0;right:0;height:0;border-top:1.5px solid var(--primary);
+    z-index:5;}
+  .now::before{content:"";position:absolute;left:-4px;top:-4px;width:8px;height:8px;
+    border-radius:999px;background:var(--primary);}
+
+  .ev{position:absolute;left:3px;right:3px;border-radius:6px;padding:3px 5px;
+    overflow:hidden;border-left:3px solid;min-height:30px;}
+  .ev .t{font-size:9px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .ev .s{font-size:8px;color:var(--text-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:1px;}
+
+  .legend{display:flex;gap:14px;justify-content:center;padding:14px 0 4px;flex-wrap:wrap;}
+  .legend span{font-size:11px;color:var(--text-2);display:flex;align-items:center;gap:5px;}
+  .legend i{width:8px;height:8px;border-radius:999px;display:inline-block;}
+
+  /* ===== 月历 ===== */
+  .month-head{display:grid;grid-template-columns:repeat(7,1fr);padding:0 14px 6px;}
+  .month-head div{font-size:10px;font-weight:600;color:var(--text-3);text-align:center;}
+  .monthgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;padding:0 14px;}
+  .cell{aspect-ratio:1;border-radius:8px;padding:5px 5px 4px;position:relative;
+    display:flex;flex-direction:column;justify-content:space-between;cursor:pointer;
+    border:1px solid rgba(0,0,0,.04);}
+  .cell .dn{font-size:11px;font-weight:600;color:var(--text);}
+  .cell.out{background:var(--heat0)!important;border-color:transparent;}
+  .cell.out .dn{color:var(--placeholder);}
+  .cell.today{border:1.5px solid var(--primary);}
+  .cell.today .dn{color:var(--primary);}
+  .cell.sel{box-shadow:0 0 0 2.5px var(--text);border-color:transparent;}
+  .dots{display:flex;gap:2px;}
+  .dots i{width:5px;height:5px;border-radius:999px;display:inline-block;}
+
+  .selected-day{margin:16px 14px 0;background:var(--card);border:1px solid var(--border);
+    border-radius:16px;padding:14px 16px;box-shadow:0 1px 4px rgba(0,0,0,.04);}
+  .sd-title{font-size:13px;font-weight:700;margin-bottom:2px;}
+  .sd-sub{font-size:11px;color:var(--text-3);margin-bottom:10px;}
+  .sd-group{margin-top:8px;}
+  .sd-group-h{font-size:10px;font-weight:700;color:var(--text-3);
+    display:flex;align-items:center;gap:5px;margin-bottom:5px;text-transform:uppercase;letter-spacing:.03em;}
+  .sd-group-h i{width:7px;height:7px;border-radius:999px;}
+  .ev-row{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:12px;}
+  .ev-row .ico{width:22px;height:22px;border-radius:7px;display:flex;align-items:center;justify-content:center;
+    font-size:12px;flex-shrink:0;}
+  .ev-row .lbl{flex:1;color:var(--text);}
+  .ev-row .val{font-size:11px;color:var(--text-2);font-weight:600;}
+
+  /* 戏屏标签 */
+  .phone-label{text-align:center;font-size:12px;color:var(--text-2);font-weight:600;margin-top:14px;}
+
+  /* 决策说明 */
+  .notes{max-width:860px;margin:48px auto 0;background:var(--card);border:1px solid var(--border);
+    border-radius:16px;padding:24px 28px;}
+  .notes h2{font-size:15px;font-weight:700;margin-bottom:14px;}
+  .notes ul{list-style:none;}
+  .notes li{font-size:13px;color:var(--text-2);line-height:1.65;padding:6px 0;
+    padding-left:18px;position:relative;}
+  .notes li::before{content:"";position:absolute;left:0;top:13px;width:5px;height:5px;
+    border-radius:999px;background:var(--primary);}
+  .notes li b{color:var(--text);}
+  .notes .dec{margin-top:14px;padding-top:14px;border-top:1px dashed var(--border);}
+  .notes .dec b{color:var(--primary-dark);}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Holo 周历 / 月历视图 · 概念稿 v1</h1>
+  <p class="sub">基于 Holo 真实设计 token（暖橙 #F46D38 · 米白 #FCFCF8 · 圆角 16 · SF Pro）</p>
+
+  <div class="phones">
+
+    <!-- ============ 周历 ============ -->
+    <div>
+    <div class="phone">
+      <div class="screen">
+        <div class="screen-scroll">
+          <div class="statusbar">
+            <span class="num">9:41</span>
+            <span class="right">●●● ▮ 100%</span>
+          </div>
+          <div class="navbar">
+            <div class="nav-back">‹</div>
+            <div class="nav-title">记忆长廊</div>
+            <button class="today-pill">今天</button>
+          </div>
+
+          <div class="seg">
+            <button class="on">周历</button>
+            <button>月历</button>
+          </div>
+
+          <div class="range-nav">
+            <div class="chev">‹</div>
+            <div class="title">6月29日 — 7月5日</div>
+            <div class="chev">›</div>
+          </div>
+
+          <div class="week-head">
+            <div class="h"></div>
+            <div class="h">一<span class="d">29</span></div>
+            <div class="h">二<span class="d">30</span></div>
+            <div class="h today">三<span class="d">1</span></div>
+            <div class="h">四<span class="d">2</span></div>
+            <div class="h">五<span class="d">3</span></div>
+            <div class="h">六<span class="d">4</span></div>
+            <div class="h">日<span class="d">5</span></div>
+          </div>
+
+          <div class="weekgrid">
+            <div class="hours">
+              <div class="num">06</div><div class="num">07</div><div class="num">08</div>
+              <div class="num">09</div><div class="num">10</div><div class="num">11</div>
+              <div class="num">12</div><div class="num">13</div><div class="num">14</div>
+              <div class="num">15</div><div class="num">16</div><div class="num">17</div>
+              <div class="num">18</div><div class="num">19</div><div class="num">20</div>
+              <div class="num">21</div><div class="num">22</div><div class="num">23</div>
+            </div>
+            <div class="daycols">
+              <!-- 现在时间线（周三 ~ 中午） -->
+              <div class="now" style="top:252px;"></div>
+
+              <!-- 周一 6/29 -->
+              <div class="daycol">
+                <div class="ev" style="top:42px;background:rgba(34,197,94,.12);border-color:var(--habit);">
+                  <div class="t">07:00 跑步</div><div class="s">5.2km · 28min</div></div>
+                <div class="ev" style="top:105px;background:rgba(99,102,241,.12);border-color:var(--todo);">
+                  <div class="t">08:30 晨间简报</div><div class="s">已完成</div></div>
+                <div class="ev" style="top:252px;background:rgba(244,109,56,.12);border-color:var(--finance);">
+                  <div class="t">12:00 午餐</div><div class="s num">¥35.00 餐饮</div></div>
+                <div class="ev" style="top:399px;background:rgba(244,109,56,.12);border-color:var(--finance);">
+                  <div class="t">15:30 咖啡</div><div class="s num">¥22.00</div></div>
+                <div class="ev" style="top:588px;background:rgba(34,197,94,.12);border-color:var(--habit);">
+                  <div class="t">20:00 阅读</div><div class="s">30min</div></div>
+              </div>
+              <!-- 周二 6/30 -->
+              <div class="daycol">
+                <div class="ev" style="top:126px;background:rgba(244,109,56,.12);border-color:var(--finance);">
+                  <div class="t">09:00 早餐</div><div class="s num">¥18.00</div></div>
+                <div class="ev" style="top:336px;background:rgba(99,102,241,.12);border-color:var(--todo);">
+                  <div class="t">14:00 季度评审</div><div class="s">已完成</div></div>
+                <div class="ev" style="top:546px;background:rgba(34,197,94,.12);border-color:var(--habit);">
+                  <div class="t">19:00 冥想</div><div class="s">15min</div></div>
+                <div class="ev" style="top:672px;background:rgba(236,72,153,.12);border-color:var(--thought);">
+                  <div class="t">22:00 想法</div><div class="s">「该重启读书计划…」</div></div>
+              </div>
+              <!-- 周三 7/1 今天 -->
+              <div class="daycol">
+                <div class="ev" style="top:63px;background:rgba(34,197,94,.12);border-color:var(--habit);">
+                  <div class="t">07:30 跑步</div><div class="s">5km</div></div>
+                <div class="ev" style="top:147px;background:rgba(99,102,241,.12);border-color:var(--todo);">
+                  <div class="t">09:30 晨间简报</div><div class="s">已完成</div></div>
+                <div class="ev" style="top:273px;background:rgba(244,109,56,.12);border-color:var(--finance);">
+                  <div class="t">12:30 午餐</div><div class="s num">¥35.00</div></div>
+                <div class="ev" style="top:378px;background:rgba(244,109,56,.12);border-color:var(--finance);">
+                  <div class="t">15:00 咖啡</div><div class="s num">¥28.00</div></div>
+                <div class="ev" style="top:504px;background:rgba(34,197,94,.12);border-color:var(--habit);">
+                  <div class="t">18:00 健身</div><div class="s">1h</div></div>
+              </div>
+              <!-- 周四 7/2 -->
+              <div class="daycol">
+                <div class="ev" style="top:126px;background:rgba(244,109,56,.12);border-color:var(--finance);">
+                  <div class="t">09:00 早餐</div><div class="s num">¥18.00</div></div>
+                <div class="ev" style="top:294px;background:rgba(99,102,241,.12);border-color:var(--todo);">
+                  <div class="t">13:00 产品会议</div><div class="s">待办</div></div>
+                <div class="ev" style="top:462px;background:rgba(244,109,56,.12);border-color:var(--finance);">
+                  <div class="t">17:00 打车</div><div class="s num">¥28.00 交通</div></div>
+                <div class="ev" style="top:588px;background:rgba(34,197,94,.12);border-color:var(--habit);">
+                  <div class="t">20:00 阅读</div><div class="s">40min</div></div>
+              </div>
+              <!-- 周五 7/3 -->
+              <div class="daycol">
+                <div class="ev" style="top:84px;background:rgba(99,102,241,.12);border-color:var(--todo);">
+                  <div class="t">08:00 晨间简报</div><div class="s">待办</div></div>
+                <div class="ev" style="top:252px;background:rgba(244,109,56,.12);border-color:var(--finance);">
+                  <div class="t">12:00 午餐</div><div class="s num">¥42.00</div></div>
+                <div class="ev" style="top:378px;background:rgba(244,109,56,.12);border-color:var(--finance);">
+                  <div class="t">15:00 咖啡</div><div class="s num">¥25.00</div></div>
+                <div class="ev" style="top:672px;background:rgba(236,72,153,.12);border-color:var(--thought);">
+                  <div class="t">22:00 想法</div><div class="s">「周五的状态…」</div></div>
+              </div>
+              <!-- 周六 7/4 -->
+              <div class="daycol">
+                <div class="ev" style="top:168px;background:rgba(244,109,56,.12);border-color:var(--finance);">
+                  <div class="t">10:00 早午餐</div><div class="s num">¥68.00</div></div>
+                <div class="ev" style="top:420px;background:rgba(244,109,56,.12);border-color:var(--finance);">
+                  <div class="t">16:00 电影</div><div class="s num">¥80.00 娱乐</div></div>
+                <div class="ev" style="top:546px;background:rgba(244,109,56,.12);border-color:var(--finance);">
+                  <div class="t">19:00 聚餐</div><div class="s num">¥158.00</div></div>
+                <div class="ev" style="top:630px;background:rgba(236,72,153,.12);border-color:var(--thought);">
+                  <div class="t">21:00 想法</div><div class="s">「周末…」</div></div>
+              </div>
+              <!-- 周日 7/5 -->
+              <div class="daycol">
+                <div class="ev" style="top:126px;background:rgba(34,197,94,.12);border-color:var(--habit);">
+                  <div class="t">09:00 跑步</div><div class="s">6km</div></div>
+                <div class="ev" style="top:336px;background:rgba(34,197,94,.12);border-color:var(--habit);">
+                  <div class="t">14:00 阅读</div><div class="s">1h</div></div>
+                <div class="ev" style="top:588px;background:rgba(99,102,241,.12);border-color:var(--todo);">
+                  <div class="t">20:00 周复盘</div><div class="s">待办</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="legend">
+            <span><i style="background:var(--finance)"></i>记账</span>
+            <span><i style="background:var(--habit)"></i>习惯</span>
+            <span><i style="background:var(--todo)"></i>待办</span>
+            <span><i style="background:var(--thought)"></i>想法</span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="phone-label">周历视图 · 7天 × 24h 时间轴</div>
+    </div>
+
+    <!-- ============ 月历 ============ -->
+    <div>
+    <div class="phone">
+      <div class="screen">
+        <div class="screen-scroll">
+          <div class="statusbar">
+            <span class="num">9:41</span>
+            <span class="right">●●● ▮ 100%</span>
+          </div>
+          <div class="navbar">
+            <div class="nav-back">‹</div>
+            <div class="nav-title">记忆长廊</div>
+            <button class="today-pill">今天</button>
+          </div>
+
+          <div class="seg">
+            <button>周历</button>
+            <button class="on">月历</button>
+          </div>
+
+          <div class="range-nav">
+            <div class="chev">‹</div>
+            <div class="title">2026年7月</div>
+            <div class="chev">›</div>
+          </div>
+
+          <div class="month-head">
+            <div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div><div>日</div>
+          </div>
+
+          <div class="monthgrid">
+            <!-- 上月补位 -->
+            <div class="cell out"><span class="dn">29</span></div>
+            <div class="cell out"><span class="dn">30</span></div>
+            <!-- 7/1 今天 -->
+            <div class="cell today" style="background:var(--heat2);">
+              <span class="dn num">1</span>
+              <span class="dots"><i style="background:var(--finance)"></i><i style="background:var(--habit)"></i><i style="background:var(--todo)"></i></span>
+            </div>
+            <div class="cell" style="background:var(--heat1);">
+              <span class="dn num">2</span>
+              <span class="dots"><i style="background:var(--finance)"></i><i style="background:var(--habit)"></i></span>
+            </div>
+            <div class="cell" style="background:var(--heat2);">
+              <span class="dn num">3</span>
+              <span class="dots"><i style="background:var(--finance)"></i><i style="background:var(--thought)"></i></span>
+            </div>
+            <div class="cell" style="background:var(--heat3);">
+              <span class="dn num">4</span>
+              <span class="dots"><i style="background:var(--finance)"></i><i style="background:var(--thought)"></i></span>
+            </div>
+            <div class="cell" style="background:var(--heat1);">
+              <span class="dn num">5</span>
+              <span class="dots"><i style="background:var(--habit)"></i><i style="background:var(--thought)"></i></span>
+            </div>
+            <div class="cell" style="background:var(--heat0);">
+              <span class="dn num">6</span>
+              <span class="dots"><i style="background:var(--finance)"></i></span>
+            </div>
+            <div class="cell" style="background:var(--heat1);">
+              <span class="dn num">7</span>
+              <span class="dots"><i style="background:var(--finance)"></i><i style="background:var(--habit)"></i><i style="background:var(--todo)"></i></span>
+            </div>
+            <div class="cell" style="background:var(--heat2);">
+              <span class="dn num">8</span>
+              <span class="dots"><i style="background:var(--finance)"></i><i style="background:var(--thought)"></i></span>
+            </div>
+            <div class="cell" style="background:var(--heat3);">
+              <span class="dn num">9</span>
+              <span class="dots"><i style="background:var(--finance)"></i><i style="background:var(--habit)"></i></span>
+            </div>
+            <div class="cell" style="background:var(--heat1);">
+              <span class="dn num">10</span>
+              <span class="dots"><i style="background:var(--finance)"></i><i style="background:var(--thought)"></i></span>
+            </div>
+            <div class="cell" style="background:var(--heat2);">
+              <span class="dn num">11</span>
+              <span class="dots"><i style="background:var(--finance)"></i><i style="background:var(--thought)"></i></span>
+            </div>
+            <div class="cell" style="background:var(--heat0);">
+              <span class="dn num">12</span>
+              <span class="dots"><i style="background:var(--habit)"></i></span>
+            </div>
+            <div class="cell" style="background:var(--heat1);">
+              <span class="dn num">13</span>
+              <span class="dots"><i style="background:var(--finance)"></i><i style="background:var(--habit)"></i></span>
+            </div>
+            <div class="cell" style="background:var(--heat2);">
+              <span class="dn num">14</span>
+              <span class="dots"><i style="background:var(--finance)"></i><i style="background:var(--todo)"></i></span>
+            </div>
+            <!-- 7/15 选中 -->
+            <div class="cell sel" style="background:var(--heat4);">
+              <span class="dn num">15</span>
+              <span class="dots"><i style="background:var(--finance)"></i><i style="background:var(--habit)"></i><i style="background:var(--thought)"></i></span>
+            </div>
+            <div class="cell" style="background:var(--heat1);">
+              <span class="dn num">16</span>
+              <span class="dots"><i style="background:var(--finance)"></i><i style="background:var(--habit)"></i></span>
+            </div>
+            <div class="cell" style="background:var(--heat2);">
+              <span class="dn num">17</span>
+              <span class="dots"><i style="background:var(--finance)"></i><i style="background:var(--thought)"></i></span>
+            </div>
+            <div class="cell" style="background:var(--heat3);">
+              <span class="dn num">18</span>
+              <span class="dots"><i style="background:var(--finance)"></i></span>
+            </div>
+            <div class="cell" style="background:var(--heat1);">
+              <span class="dn num">19</span>
+              <span class="dots"><i style="background:var(--habit)"></i><i style="background:var(--thought)"></i></span>
+            </div>
+            <div class="cell" style="background:var(--heat2);">
+              <span class="dn num">20</span>
+              <span class="dots"><i style="background:var(--finance)"></i><i style="background:var(--habit)"></i><i style="background:var(--todo)"></i></span>
+            </div>
+            <div class="cell" style="background:var(--heat0);">
+              <span class="dn num">21</span>
+              <span class="dots"><i style="background:var(--finance)"></i></span>
+            </div>
+            <div class="cell" style="background:var(--heat1);">
+              <span class="dn num">22</span>
+              <span class="dots"><i style="background:var(--finance)"></i><i style="background:var(--habit)"></i></span>
+            </div>
+            <div class="cell" style="background:var(--heat2);">
+              <span class="dn num">23</span>
+              <span class="dots"><i style="background:var(--finance)"></i><i style="background:var(--habit)"></i><i style="background:var(--thought)"></i></span>
+            </div>
+            <div class="cell" style="background:var(--heat1);">
+              <span class="dn num">24</span>
+              <span class="dots"><i style="background:var(--finance)"></i><i style="background:var(--thought)"></i></span>
+            </div>
+            <div class="cell" style="background:var(--heat3);">
+              <span class="dn num">25</span>
+              <span class="dots"><i style="background:var(--finance)"></i><i style="background:var(--thought)"></i></span>
+            </div>
+            <div class="cell" style="background:var(--heat0);">
+              <span class="dn num">26</span>
+              <span class="dots"><i style="background:var(--habit)"></i></span>
+            </div>
+            <div class="cell" style="background:var(--heat1);">
+              <span class="dn num">27</span>
+              <span class="dots"><i style="background:var(--finance)"></i><i style="background:var(--habit)"></i></span>
+            </div>
+            <div class="cell" style="background:var(--heat2);">
+              <span class="dn num">28</span>
+              <span class="dots"><i style="background:var(--finance)"></i><i style="background:var(--thought)"></i></span>
+            </div>
+            <div class="cell" style="background:var(--heat1);">
+              <span class="dn num">29</span>
+              <span class="dots"><i style="background:var(--finance)"></i><i style="background:var(--habit)"></i></span>
+            </div>
+            <div class="cell" style="background:var(--heat0);">
+              <span class="dn num">30</span>
+              <span class="dots"><i style="background:var(--finance)"></i></span>
+            </div>
+            <div class="cell" style="background:var(--heat2);">
+              <span class="dn num">31</span>
+              <span class="dots"><i style="background:var(--finance)"></i><i style="background:var(--habit)"></i><i style="background:var(--thought)"></i></span>
+            </div>
+            <!-- 下月补位 -->
+            <div class="cell out"><span class="dn">1</span></div>
+            <div class="cell out"><span class="dn">2</span></div>
+          </div>
+
+          <!-- 图例 -->
+          <div class="legend" style="padding-top:12px;">
+            <span><i style="background:var(--heat0)"></i>少</span>
+            <span><i style="background:var(--heat2)"></i></span>
+            <span><i style="background:var(--heat4)"></i>多</span>
+            <span style="margin-left:8px">色深=活跃度</span>
+          </div>
+
+          <!-- 选中当天详情 -->
+          <div class="selected-day">
+            <div class="sd-title num">7月15日 <span style="color:var(--text-2);font-weight:500;">周三</span></div>
+            <div class="sd-sub">8 条记录 · 涉及 4 个模块</div>
+
+            <div class="sd-group">
+              <div class="sd-group-h"><i style="background:var(--finance)"></i>记账 · 支出 ¥139</div>
+              <div class="ev-row">
+                <div class="ico" style="background:rgba(244,109,56,.12);color:var(--finance);">💳</div>
+                <div class="lbl">午餐 · 餐饮</div><div class="val num">¥35.00</div>
+              </div>
+              <div class="ev-row">
+                <div class="ico" style="background:rgba(244,109,56,.12);color:var(--finance);">🚕</div>
+                <div class="lbl">打车 · 交通</div><div class="val num">¥28.00</div>
+              </div>
+              <div class="ev-row">
+                <div class="ico" style="background:rgba(244,109,56,.12);color:var(--finance);">☕</div>
+                <div class="lbl">咖啡</div><div class="val num">¥18.00</div>
+              </div>
+            </div>
+
+            <div class="sd-group">
+              <div class="sd-group-h"><i style="background:var(--habit)"></i>习惯 · 3/3</div>
+              <div class="ev-row">
+                <div class="ico" style="background:rgba(34,197,94,.12);color:var(--habit);">✓</div>
+                <div class="lbl">跑步</div><div class="val num">5.0 km</div>
+              </div>
+              <div class="ev-row">
+                <div class="ico" style="background:rgba(34,197,94,.12);color:var(--habit);">✓</div>
+                <div class="lbl">健身</div><div class="val">1h</div>
+              </div>
+              <div class="ev-row">
+                <div class="ico" style="background:rgba(34,197,94,.12);color:var(--habit);">✓</div>
+                <div class="lbl">阅读</div><div class="val">30min</div>
+              </div>
+            </div>
+
+            <div class="sd-group">
+              <div class="sd-group-h"><i style="background:var(--thought)"></i>想法 · 1条</div>
+              <div class="ev-row">
+                <div class="ico" style="background:rgba(236,72,153,.12);color:var(--thought);">💡</div>
+                <div class="lbl">「终于把日历视图想清楚了…」</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="phone-label">月历视图 · 31天色块 + 当天详情</div>
+    </div>
+
+  </div><!-- /phones -->
+
+  <!-- 决策说明 -->
+  <div class="notes">
+    <h2>这版做了哪些关键设计决策（待你拍板）</h2>
+    <ul>
+      <li><b>待办配色改蓝紫 #6366F1</b>：项目里记账/待办都占橙 #F46D38，日历分色会撞。这里给待办换了蓝紫（取自记账分类色「购物」），靠图标 checklist 区分。若你想保持待办=橙，就用图标区分。</li>
+      <li><b>周历时间轴 06:00–23:00</b>：夜间折叠（极少有数据）。事件块按真实时间戳绝对定位，空时段留白；橙色横线是「当前时刻」（周三中午）。</li>
+      <li><b>月历色块 = 热力色深 + 模块色点</b>：直接复用 MemoryHeatmapView 的 5 档暖色阶（#F5F2ED→#FF8C66），色点表示当天涉及哪些模块。选中当天（7/15）用深色描边，下方平铺该天全部事件、按模块分组。</li>
+      <li><b>导航复用现有语言</b>：<code>‹ 标题 ›</code> 翻页器、周/月 segmented、米白底白卡 16 圆角，全部沿用 Holo 既有组件，不另起炉灶。</li>
+      <li><b>事件块视觉</b>：左边 3px 模块色条 + 模块色 12% 浅底 + 标题/金额，和 DailySummaryNode 的 pill 语言一致。</li>
+    </ul>
+    <div class="dec">
+      <p style="font-size:13px;color:var(--text-2);line-height:1.7;">
+        <b>下一步你可以：</b>直接在这页上指哪改哪（配色 / 色块形式 / 事件密度 / 时间轴范围 / 选中态样式），
+        或者告诉我「月历再加个模块色环切换」「周历改成横向时间」之类的方向，我迭代 v2。
+        定稿后我落 spec 文档 → 拆实施计划。
+      </p>
+    </div>
+  </div>
+</div>
+</body>
+</html>
