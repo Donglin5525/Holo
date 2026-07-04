@@ -3,6 +3,7 @@
 //  Holo
 //
 //  月历：31 格色块网格（周一首）+ 选中联动 DayDetailCard
+//  P2：cellStyle 控制热力色深 / 数字徽章
 //
 
 import SwiftUI
@@ -11,6 +12,7 @@ struct MonthlyCalendarView: View {
     let monthAnchor: Date
     let eventsByDay: [Date: [CalendarEvent]]   // key = startOfDay
     let selectedDay: Date?
+    let cellStyle: MonthCellStyle              // P2
     let onSelectDay: (Date) -> Void
 
     private let weekdays = ["一", "二", "三", "四", "五", "六", "日"]
@@ -36,6 +38,7 @@ struct MonthlyCalendarView: View {
                         isThisMonth: calendar.isDate(day, equalTo: monthAnchor, toGranularity: .month),
                         isToday: calendar.isDateInToday(day),
                         isSelected: isSelected(day),
+                        cellStyle: cellStyle,
                         onTap: { onSelectDay(day) }
                     )
                 }
@@ -63,7 +66,7 @@ struct MonthlyCalendarView: View {
         eventsByDay[calendar.startOfDay(for: day)] ?? []
     }
 
-    /// 本月网格：从本月首日所在周的周一首开始，到本月末日所在周的周日，凑满整周
+    /// 本月网格：从本月首日所在周的周一首开始，凑满整周（最多 6 行）
     private var monthCells: [Date] {
         guard let monthInterval = calendar.dateInterval(of: .month, for: monthAnchor),
               let firstWeekStart = calendar.dateInterval(of: .weekOfMonth, for: monthInterval.start)?.start else {
@@ -71,11 +74,9 @@ struct MonthlyCalendarView: View {
         }
         var cells: [Date] = []
         var cursor = firstWeekStart
-        // 月历最多 6 行（42 格），覆盖所有跨月补位
         while cells.count < 42 {
             cells.append(cursor)
             cursor = calendar.date(byAdding: .day, value: 1, to: cursor) ?? cursor
-            // 已填满且超过月末则停
             if cells.count >= 35 && cursor > monthInterval.end { break }
         }
         return cells

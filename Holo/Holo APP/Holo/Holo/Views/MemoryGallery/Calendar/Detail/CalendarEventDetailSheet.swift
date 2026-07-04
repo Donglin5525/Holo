@@ -3,7 +3,10 @@
 //  Holo
 //
 //  日历事件只读详情（按 CalendarEvent 展示模块/标题/副信息/时间）
-//  「在 X 模块打开」跳转原模块编辑页留 P1B（需各模块详情路由）。
+//  P3：想法事件额外展示「相关观点」（经 Thought.topics 间接体现观点维度）
+//
+//  「在 X 模块打开」跳原模块编辑页：需 deep link / dismiss 画廊后路由，
+//  受画廊 fullScreenCover 隔离暂未接入，留 TODO（originID 已具备回查能力）。
 //
 
 import SwiftUI
@@ -18,6 +21,9 @@ struct CalendarEventDetailSheet: View {
                 VStack(spacing: HoloSpacing.md) {
                     moduleHeader
                     infoCard
+                    if let topics = event.relatedTopics, !topics.isEmpty {
+                        topicsCard(topics)
+                    }
                 }
                 .padding(HoloSpacing.md)
             }
@@ -73,6 +79,42 @@ struct CalendarEventDetailSheet: View {
                 Text(fullDateTime)
                     .font(.holoCaption)
                     .foregroundColor(.holoTextPrimary)
+            }
+        }
+        .padding(HoloSpacing.md)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.lg)
+                .stroke(Color.holoBorder, lineWidth: 1)
+        )
+    }
+
+    // MARK: - P3 相关观点（仅想法事件）
+
+    private func topicsCard(_ topics: [String]) -> some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            HStack(spacing: 5) {
+                Image(systemName: "tag.fill")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.holoPurple)
+                Text("相关观点")
+                    .font(.holoLabel)
+                    .foregroundColor(.holoTextSecondary)
+            }
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: HoloSpacing.xs) {
+                    ForEach(topics, id: \.self) { topic in
+                        Text(topic)
+                            .font(.holoLabel)
+                            .foregroundColor(.holoPurple)
+                            .padding(.horizontal, HoloSpacing.sm)
+                            .padding(.vertical, 4)
+                            .background(Color.holoPurple.opacity(0.10))
+                            .clipShape(Capsule())
+                    }
+                }
             }
         }
         .padding(HoloSpacing.md)

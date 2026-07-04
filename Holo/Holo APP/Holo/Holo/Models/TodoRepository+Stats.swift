@@ -114,6 +114,20 @@ extension TodoRepository {
         return (try? context.fetch(request)) ?? []
     }
 
+    /// 通用：按指定日期字段取任务实体（半开区间，支持 completedAt/dueDate/plannedDate）
+    ///
+    /// 用于日历 P2 待办维度切换：同一个 fetch 适配完成/到期/计划三种时间语义。
+    /// 用 %K 动态字段名；字段为 nil 的任务自动不匹配（如无 dueDate 的任务在 .due 维度被跳过）。
+    func getTasks(field: String, from start: Date, to end: Date) -> [TodoTask] {
+        let request = TodoTask.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "%K >= %@ AND %K < %@ AND deletedFlag == NO AND archived == NO",
+            field, start as NSDate, field, end as NSDate
+        )
+        request.sortDescriptors = [NSSortDescriptor(key: field, ascending: true)]
+        return (try? context.fetch(request)) ?? []
+    }
+
     /// 指定时间范围内的完成统计
     func getCompletionStats(from start: Date, to end: Date) -> TaskPeriodStats {
         // end 约定为开区间，避免把下一天 00:00 的任务误算进本周期。

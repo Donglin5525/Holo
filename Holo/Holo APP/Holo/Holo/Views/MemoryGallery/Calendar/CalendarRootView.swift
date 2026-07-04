@@ -2,7 +2,8 @@
 //  CalendarRootView.swift
 //  Holo
 //
-//  日历视图根容器：周历 / 月历 切换 + 顶部导航 + 失败态横条
+//  日历视图根容器：周历/月历切换 + 模块筛选 + 待办维度 + 失败态
+//  P2：周历列表/网格切换、月历色块形式切换
 //
 
 import SwiftUI
@@ -16,9 +17,12 @@ struct CalendarRootView: View {
         VStack(spacing: 0) {
             modeSwitch
             navBar
-            if viewModel.hasFailure {
-                failureBanner
-            }
+            CalendarFilterBar(moduleFilter: $viewModel.moduleFilter)
+                .padding(.vertical, HoloSpacing.xs)
+            if showsTodoDimensionBar { todoDimensionBar }
+            if viewModel.mode == .weekly { weekListGridSwitch }
+            if viewModel.mode == .monthly { monthCellStyleSwitch }
+            if viewModel.hasFailure { failureBanner }
             content
         }
         .background(Color.holoBackground)
@@ -35,26 +39,41 @@ struct CalendarRootView: View {
         }
     }
 
+    private var showsTodoDimensionBar: Bool {
+        viewModel.moduleFilter == nil || viewModel.moduleFilter == .todo
+    }
+
     // MARK: - 内容（周历 / 月历）
 
     @ViewBuilder
     private var content: some View {
         switch viewModel.mode {
-        case .weekly:
+        case .weekly:  weeklyContent
+        case .monthly: monthlyContent
+        }
+    }
+
+    @ViewBuilder
+    private var weeklyContent: some View {
+        switch viewModel.weekViewMode {
+        case .list:
             WeeklyListView(
                 eventsByDay: viewModel.eventsByDay,
                 isLoading: viewModel.isLoading,
                 onSelect: { selectedEvent = $0 }
             )
-        case .monthly:
-            monthlyContent
+        case .grid:
+            WeeklyGridView(
+                weekStart: viewModel.currentRange.start,
+                eventsByDay: viewModel.monthEventsByDay,
+                onSelect: { selectedEvent = $0 }
+            )
         }
     }
 
     private var monthlyContent: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: HoloSpacing.md) {
-                // 健康保底入口（月历左上）
                 HStack {
                     HealthStatusChip()
                     Spacer()
@@ -65,6 +84,7 @@ struct CalendarRootView: View {
                     monthAnchor: viewModel.anchor,
                     eventsByDay: viewModel.monthEventsByDay,
                     selectedDay: viewModel.selectedDay,
+                    cellStyle: viewModel.monthCellStyle,
                     onSelectDay: { viewModel.selectDay($0) }
                 )
                 .padding(.horizontal, HoloSpacing.md)
@@ -79,7 +99,7 @@ struct CalendarRootView: View {
         }
     }
 
-    // MARK: - 周历 / 月历 切换
+    // MARK: - 切换器
 
     private var modeSwitch: some View {
         HStack(spacing: 0) {
@@ -111,16 +131,73 @@ struct CalendarRootView: View {
         .padding(.top, HoloSpacing.sm)
     }
 
-    // MARK: - 导航 ◀ 标题 ▶ 今天
+    private var weekListGridSwitch: some View {
+        HStack {
+            Picker("", selection: $viewModel.weekViewMode) {
+                Image(systemName: "list.bullet").tag(WeekViewMode.list)
+                Image(systemName: "square.grid.2x2").tag(WeekViewMode.grid)
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 100)
+            Spacer()
+        }
+        .padding(.horizontal, HoloSpacing.md)
+        .padding(.bottom, HoloSpacing.xs)
+    }
+
+    private var monthCellStyleSwitch: some View {
+        HStack {
+            Picker("", selection: $viewModel.monthCellStyle) {
+                Text("热力").tag(MonthCellStyle.heatmap)
+                Text("徽章").tag(MonthCellStyle.badge)
+            }
+            .pickerStyle(.segmented)
+            .frame(width: 120)
+            Spacer()
+        }
+        .padding(.horizontal, HoloSpacing.md)
+        .padding(.bottom, HoloSpacing.xs)
+    }
+
+    private var todoDimensionBar: some View {
+        HStack(spacing: HoloSpacing.xs) {
+            Text("待办")
+                .font(.holoCaption)
+                .foregroundColor(.holoTextSecondary)
+            ForEach(TodoTimeDimension.allCases, id: \.self) { dim in
+                Button {
+                    viewModel.setTodoDimension(dim)
+                } label: {
+                    Text(dim.displayName)
+                        .font(.holoLabel)
+                        .foregroundColor(viewModel.todoDimension == dim ? .white : .holoTextSecondary)
+                        .padding(.horizontal, HoloSpacing.sm)
+                        .padding(.vertical, 3)
+                        .background(
+                            viewModel.todoDimension == dim
+                                ? Color.holoChart9
+                                : Color.holoChart9.opacity(0.10)
+                        )
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, HoloSpacing.md)
+        .padding(.bottom, HoloSpacing.xs)
+    }
+
+    // MARK: - 导航
 
     private var navBar: some View {
         HStack(spacing: HoloSpacing.sm) {
-            chevronButton(systemName: "chevron.left", action: viewModel.goToPrevWeek)
+            chevronButton(systemName: "chevron.left", action: viewModel.goToPrev)
             Text(viewModel.title)
                 .font(.holoBody)
                 .foregroundColor(.holoTextPrimary)
                 .frame(maxWidth: .infinity)
-            chevronButton(systemName: "chevron.right", action: viewModel.goToNextWeek)
+            chevronButton(systemName: "chevron.right", action: viewModel.goToNext)
             Button {
                 viewModel.goToToday()
             } label: {
@@ -149,7 +226,7 @@ struct CalendarRootView: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: - 失败态横条（不静默丢模块）
+    // MARK: - 失败态横条
 
     private var failureBanner: some View {
         HStack(spacing: HoloSpacing.xs) {
@@ -173,10 +250,4 @@ struct CalendarRootView: View {
         .padding(.vertical, HoloSpacing.sm)
         .background(Color.holoErrorLight.opacity(0.5))
     }
-}
-
-private extension CalendarViewModel {
-    // 导航按钮复用 goToPrev/goToNext（mode 无关命名兼容）
-    func goToPrevWeek() { goToPrev() }
-    func goToNextWeek() { goToNext() }
 }

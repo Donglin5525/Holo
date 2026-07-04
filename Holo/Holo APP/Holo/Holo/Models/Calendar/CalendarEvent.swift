@@ -25,6 +25,9 @@ struct CalendarEvent: Identifiable, Equatable {
     /// 金额 / 数值 / 摘要等副信息
     let detail: String?
 
+    /// P3：相关观点标题（仅想法模块，经 Thought.topics 间接体现观点维度）
+    let relatedTopics: [String]?
+
     /// 原始实体对象 ID（跨线程安全，用于「在 X 模块打开」回查实体；UI 不直接消费）
     let originID: NSManagedObjectID
 
@@ -33,12 +36,14 @@ struct CalendarEvent: Identifiable, Equatable {
          date: Date,
          title: String,
          detail: String? = nil,
+         relatedTopics: [String]? = nil,
          originID: NSManagedObjectID) {
         self.id = id
         self.module = module
         self.date = date
         self.title = title
         self.detail = detail
+        self.relatedTopics = relatedTopics
         self.originID = originID
     }
 

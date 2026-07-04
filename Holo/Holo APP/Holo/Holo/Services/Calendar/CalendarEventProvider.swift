@@ -8,11 +8,36 @@
 //  1. 串行调用 4 模块（非 async let 并发）——共享同一 Core Data context，并发会违反线程安全。
 //  2. 每个模块独立 do-catch，失败在 moduleStates 标 .failed，不静默丢（避免"今天没待办"误读）。
 //  3. aggregate 为纯函数，便于单测覆盖失败态/排序/empty。
+//  4. P2：待办支持 todoDimension（completed/due/planned）切换时间字段。
 //
 
 import Foundation
 import CoreData
 import os.log
+
+/// 待办时间维度（P2：日历切换查看完成/到期/计划）
+enum TodoTimeDimension: String, CaseIterable {
+    case completed
+    case due
+    case planned
+
+    /// 对应 TodoTask 实体字段名
+    var fieldName: String {
+        switch self {
+        case .completed: return "completedAt"
+        case .due:       return "dueDate"
+        case .planned:   return "plannedDate"
+        }
+    }
+
+    var displayName: String {
+        switch self {
+        case .completed: return "已完成"
+        case .due:       return "到期"
+        case .planned:   return "计划"
+        }
+    }
+}
 
 struct CalendarEventProvider {
 
@@ -33,18 +58,20 @@ struct CalendarEventProvider {
     // MARK: - 公开
 
     /// 拉取区间内的全部日历事件（4 模块聚合，含每模块加载状态）
-    func fetchEvents(in range: DateInterval) async -> CalendarEventsResult {
+    func fetchEvents(in range: DateInterval,
+                     todoDimension: TodoTimeDimension = .completed) async -> CalendarEventsResult {
         // 串行：4 模块共享同一 Core Data context，并发访问违反线程安全
         let finance = await fetchFinance(in: range)
         let habit = fetchHabit(in: range)
-        let todo = fetchTodo(in: range)
+        let todo = fetchTodo(in: range, dimension: todoDimension)
         let thought = fetchThought(in: range)
         return Self.aggregate(partials: [finance, habit, todo, thought])
     }
 
     /// 拉取某一天的日历事件（月历当天详情用）
-    func fetchDaySummary(_ date: Date) async -> CalendarEventsResult {
-        await fetchEvents(in: CalendarRangeBuilder.dayRange(date))
+    func fetchDaySummary(_ date: Date,
+                         todoDimension: TodoTimeDimension = .completed) async -> CalendarEventsResult {
+        await fetchEvents(in: CalendarRangeBuilder.dayRange(date), todoDimension: todoDimension)
     }
 
     // MARK: - 聚合（纯函数，单测入口）
@@ -113,16 +140,22 @@ struct CalendarEventProvider {
         return Partial(module: .habit, events: events, state: events.isEmpty ? .empty : .loaded)
     }
 
-    /// 待办：按 completedAt 区间取已完成实体
-    private func fetchTodo(in range: DateInterval) -> Partial {
-        let tasks = todoRepo.getTasks(completedFrom: range.start, completedTo: range.end)
+    /// 待办：按 dimension 选字段（completed/due/planned）取实体
+    private func fetchTodo(in range: DateInterval, dimension: TodoTimeDimension) -> Partial {
+        let tasks = todoRepo.getTasks(field: dimension.fieldName, from: range.start, to: range.end)
         let events: [CalendarEvent] = tasks.compactMap { task in
-            guard let completedAt = task.completedAt else { return nil }
+            let date: Date?
+            switch dimension {
+            case .completed: date = task.completedAt
+            case .due:       date = task.dueDate
+            case .planned:   date = task.plannedDate
+            }
+            guard let eventDate = date else { return nil }
             return CalendarEvent(
                 module: .todo,
-                date: completedAt,
+                date: eventDate,
                 title: task.title,
-                detail: "已完成",
+                detail: dimension.displayName,
                 originID: task.objectID
             )
         }
@@ -135,11 +168,17 @@ struct CalendarEventProvider {
             let thoughts = try thoughtRepo.fetchThoughts(from: range.start, to: range.end)
             let events: [CalendarEvent] = thoughts.map { thought in
                 let title = thought.previewText.isEmpty ? "未命名想法" : thought.previewText
+                // P3：经 Thought.topics 间接体现观点（取 active/candidate 状态的观点标题）
+                let topics = (thought.topics as? Set<Topic> ?? [])
+                    .filter { $0.statusEnum == .active || $0.statusEnum == .candidate }
+                    .map { $0.title }
+                    .sorted()
                 return CalendarEvent(
                     module: .thought,
                     date: thought.createdAt,
                     title: title,
                     detail: thought.moodType?.displayName,
+                    relatedTopics: topics.isEmpty ? nil : topics,
                     originID: thought.objectID
                 )
             }

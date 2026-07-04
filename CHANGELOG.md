@@ -4,6 +4,31 @@
 
 ---
 
+## [2026-07-05] 记忆长廊日历视图 P2+P3（筛选/维度/网格/色块形式 + 观点呈现）
+
+P1 闭环后，P2 增强日历交互，P3 补充观点间接呈现。
+
+### P2 变更
+- **模块筛选栏**（`CalendarFilterBar`）：全部 + 4 模块 chip，按模块过滤事件（`ViewModel.moduleFilter`）
+- **待办时间维度切换**：`TodoRepository` 加 `getTasks(field:from:to:)` 支持 `completedAt`/`dueDate`/`plannedDate`；`Provider.fetchEvents` 加 `todoDimension` 参数；UI 切换器（筛选含待办时显示）
+- **周历网格视图**（`WeeklyGridView`）：7 列 × 24h 时间轴，事件按 timestamp 定位；周历列表/网格切换（`WeekViewMode`）
+- **月历色块形式切换**：`MonthCell` 支持 `heatmap`（热力色深，默认）/ `badge`（数字徽章）；月历形式切换器（`MonthCellStyle`）
+
+### P3 变更
+- **观点间接呈现**：`CalendarEvent` 加 `relatedTopics`；`Provider.fetchThought` 映射 `Thought.topics`（active/candidate 标题）；详情卡显示「相关观点」chip（紫）
+- 「在 X 模块打开」跳原模块编辑页：受画廊 `fullScreenCover` 隔离 + 跨模块路由复杂，暂留 TODO（`originID` 已具备回查能力）
+- 完整 HealthKit 图层（月历每格步数/睡眠热力）：保底 chip（P1B）保持，完整图层留 TODO
+
+### 验证
+- `build_sim` 通过
+- `test_sim` 全量 85 测试通过（0 失败）
+
+### 待办（后续）
+- 详情跳原模块编辑页（需 deep link / dismiss 画廊后路由整合）
+- 完整 HealthKit 步数/睡眠图层（替代保底 chip）
+
+---
+
 ## [2026-07-05] 记忆长廊日历视图 P1C（删除生活星图 · 日历正式升主线）
 
 P1A/P1B 日历体验闭环后，删除已无实际用途的生活星图（MemoryConstellationCard），日历正式成为记忆长廊主线。旧洞察/明细 Tab 仍保留（Daily Sense / AI 回放 / 深度分析 / 时间线 / 热力图 等既有能力不受影响）。

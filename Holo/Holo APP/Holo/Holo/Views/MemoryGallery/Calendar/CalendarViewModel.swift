@@ -4,6 +4,7 @@
 //
 //  日历视图 ViewModel：周历 / 月历共用，驱动取数与导航。
 //  init 零 I/O（只注入 Repository 引用），取数由 View.task 触发（CLAUDE.md 约定）。
+//  P2：加 moduleFilter（按模块过滤）+ todoDimension（待办时间维度）。
 //
 
 import Foundation
@@ -16,6 +17,18 @@ struct DayEvents: Identifiable, Equatable {
     let day: Date               // startOfDay
     let events: [CalendarEvent]
     var id: Date { day }
+}
+
+/// 周历视图模式（P2：列表 / 网格）
+enum WeekViewMode: Hashable {
+    case list
+    case grid
+}
+
+/// 月历色块形式（P2：热力色深 / 数字徽章）
+enum MonthCellStyle: Hashable {
+    case heatmap
+    case badge
 }
 
 @MainActor
@@ -41,10 +54,21 @@ final class CalendarViewModel: ObservableObject {
     /// 是否正在加载
     @Published private(set) var isLoading: Bool = false
 
+    /// P2 模块筛选（nil = 全部）
+    @Published var moduleFilter: CalendarModule? = nil
+
+    /// P2 待办时间维度（完成/到期/计划）
+    @Published var todoDimension: TodoTimeDimension = .completed
+
+    /// P2 周历视图模式（列表 / 网格）
+    @Published var weekViewMode: WeekViewMode = .list
+
+    /// P2 月历色块形式（热力 / 徽章）
+    @Published var monthCellStyle: MonthCellStyle = .heatmap
+
     private let provider: CalendarEventProvider
 
     init(provider: CalendarEventProvider? = nil) {
-        // 默认注入 4 个 Repository（同主 context，串行访问安全）
         self.provider = provider ?? CalendarEventProvider(
             financeRepo: .shared,
             habitRepo: .shared,
@@ -66,19 +90,25 @@ final class CalendarViewModel: ObservableObject {
         switch mode {
         case .weekly:
             let range = CalendarRangeBuilder.weekRange(around: anchor)
-            let last = range.end.addingTimeInterval(-1)   // 半开区间 end 是下周一 00:00，显示前一天
+            let last = range.end.addingTimeInterval(-1)
             return "\(Self.rangeFormatter.string(from: range.start)) – \(Self.rangeFormatter.string(from: last))"
         case .monthly:
             return Self.monthFormatter.string(from: anchor)
         }
     }
 
-    // MARK: - 衍生数据
+    // MARK: - 衍生数据（按 moduleFilter 过滤）
+
+    /// 当前筛选下的事件
+    private var filteredEvents: [CalendarEvent] {
+        guard let filter = moduleFilter else { return result.events }
+        return result.events.filter { $0.module == filter }
+    }
 
     /// 周历：按天分组的事件列表（组内升序、组间升序）
     var eventsByDay: [DayEvents] {
         let cal = Calendar.current
-        return Dictionary(grouping: result.events) { cal.startOfDay(for: $0.date) }
+        return Dictionary(grouping: filteredEvents) { cal.startOfDay(for: $0.date) }
             .map { DayEvents(day: $0.key, events: $0.value.sorted { $0.date < $1.date }) }
             .sorted { $0.day < $1.day }
     }
@@ -86,7 +116,7 @@ final class CalendarViewModel: ObservableObject {
     /// 月历：按天分组的事件字典（key = startOfDay）
     var monthEventsByDay: [Date: [CalendarEvent]] {
         let cal = Calendar.current
-        return Dictionary(grouping: result.events) { cal.startOfDay(for: $0.date) }
+        return Dictionary(grouping: filteredEvents) { cal.startOfDay(for: $0.date) }
     }
 
     /// 月历选中天的详情事件
@@ -101,13 +131,22 @@ final class CalendarViewModel: ObservableObject {
 
     func load() async {
         isLoading = true
-        result = await provider.fetchEvents(in: currentRange)
+        result = await provider.fetchEvents(in: currentRange, todoDimension: todoDimension)
         isLoading = false
     }
 
     func switchMode(_ m: Mode) {
         guard mode != m else { return }
         mode = m
+        Task { await load() }
+    }
+
+    func setModuleFilter(_ filter: CalendarModule?) {
+        moduleFilter = filter
+    }
+
+    func setTodoDimension(_ d: TodoTimeDimension) {
+        todoDimension = d
         Task { await load() }
     }
 
@@ -125,7 +164,7 @@ final class CalendarViewModel: ObservableObject {
 
     func goToToday() {
         anchor = Date()
-        selectedDay = Date()    // 月历默认选中今天
+        selectedDay = Date()
         Task { await load() }
     }
 
