@@ -4,6 +4,28 @@
 
 ---
 
+## [2026-07-05] 记忆长廊日历视图 P1B（月历 + 当天详情 + 健康保底）
+
+P1A 周历列表上线后，P1B 补齐月历视图：周历/月历顶部切换；月历 31 格热力色块（5 档暖色阶）+ 底部模块色条；点格选中当天平铺详情（按模块分组）；月历顶部「健康状态 chip」保底入口（Q3，健康维度不随星图消失）。
+
+### 变更
+- 新增 `Models/Calendar/CalendarHeatmap.swift`：事件数→5 档色阶纯函数（0 条=空档，1 条起即有色，区别于热力图）
+- 新增 `Views/MemoryGallery/Calendar/Monthly/`：`MonthCell`（色深背景+底部模块色条+今天/选中态）、`MonthlyCalendarView`（周一首 7×N 网格+上下月补位）、`DayDetailCard`（选中当天按模块分组平铺）、`HealthStatusChip`（三态：未授权/已连接无数据/已连接·本周步数·睡眠）
+- `CalendarViewModel` 重构：加 `mode`（周/月）+ `anchor`（统一锚点替代 weekAnchor）+ `selectedDay` + `monthEventsByDay`/`selectedDayEvents`
+- `CalendarRootView` 重写：顶部「周历/月历」segmented + 月历视图接入 + 健康 chip（月历左上）
+- 复用 `MemoryHeatmapView` 5 档暖色阶色值（`#F5F2ED→#FF8C66`）；健康 chip 复用 `loadConstellationHealthState` 的 `HealthRepository` 调用范式（独立自取，不耦合 ViewModel）
+
+### 验证
+- `build_sim`（iPhone 17）通过
+- `test_sim` 全量测试通过，含新增 `CalendarHeatmapTests`（色阶边界 0 / 1-2 / 3-5 / 6-9 / 10+）
+
+### 待办（后续阶段）
+- **P1C**：日历升画廊主线 + 拆解星图耦合（健康聚合/featuredNarrativeNodes/AI 洞察刷新）后删星图
+- **P2**：周历网格视图 / 待办时间维度切换 / 模块筛选 / 月历色块形式切换
+- **P3**：完整 HealthKit 步数/睡眠图层（替代 P1B 保底 chip）
+
+---
+
 ## [2026-07-05] 记忆长廊日历视图 P1A（周历列表上线）
 
 生活星图实用价值低，改用「周历 + 月历」替换（方案：`docs/_common/plans/2026-07-05-Holo记忆长廊日历视图（周历+月历）方案.md`，已经过 Codex 对抗审查 + 东林拍板 A 路线）。本轮交付 P1A：记忆长廊新增「日历」Tab（默认首屏），周历列表聚合记账/习惯/待办/想法 4 模块，按天横向铺开事件；旧「洞察/明细」Tab 保留并存，生活星图隐藏不渲染、代码保留（P1C 验证后再清理）。
