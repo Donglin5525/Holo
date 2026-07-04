@@ -225,12 +225,8 @@ struct ReferenceThoughtRow: View {
                     .foregroundColor(isSelected ? .holoPrimary : .holoTextSecondary.opacity(0.5))
 
                 VStack(alignment: .leading, spacing: 4) {
-                    // 心情和日期
+                    // 日期
                     HStack(spacing: 6) {
-                        if let moodType = thought.moodType {
-                            Text(moodType.emoji)
-                                .font(.system(size: 12))
-                        }
                         Text(thought.formattedDate)
                             .font(.holoLabel)
                             .foregroundColor(.holoTextSecondary)

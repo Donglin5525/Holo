@@ -39,6 +39,9 @@ struct ThoughtsView: View {
 
     /// 知识树抽屉开关
     @State private var isDrawerOpen: Bool = false
+    /// 抽屉关闭拖拽偏移：0 为完全展开，横向拖动时跟手退出
+    @State private var drawerDragOffset: CGFloat = 0
+    @State private var drawerGestureLock = HorizontalGestureLock()
     /// 抽屉当前选中节点（右侧列表筛选意图）
     @State private var drawerSelection: DrawerNode? = nil
 
@@ -53,13 +56,7 @@ struct ThoughtsView: View {
 
     init(initialThoughtId: UUID? = nil) {
         self.initialThoughtId = initialThoughtId
-        let provider = HoloBackendAIProvider()
-        self._convergenceJob = StateObject(wrappedValue: ThoughtTagConvergenceJob(
-            aiCall: { messages in try await provider.chat(messages: messages, purpose: .thoughtTagConvergence) },
-            thoughtRepository: ThoughtRepository(),
-            topicRepository: TopicRepository(),
-            rejectionRepository: ConvergenceRejectionRepository()
-        ))
+        self._convergenceJob = StateObject(wrappedValue: ThoughtTagConvergenceJob.shared)
     }
 
     // MARK: - Body
@@ -74,11 +71,13 @@ struct ThoughtsView: View {
                     ThoughtListView(
                         onBack: { dismiss() },
                         onMenuTap: { openDrawer() },
+                        onAIOrganize: { startTopicConvergence(autoApply: true) },
                         showAddThought: $showAddThought,
                         drawerSelection: $drawerSelection,
                         thoughtRepository: thoughtRepository,
                         topicRepository: topicRepository,
-                        initialThoughtId: initialThoughtId
+                        initialThoughtId: initialThoughtId,
+                        swipeActionsEnabled: !isDrawerOpen
                     )
                 case .add:
                     EmptyView()
@@ -87,39 +86,13 @@ struct ThoughtsView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .allowsHitTesting(!isDrawerOpen)  // 抽屉打开时禁用下层观点列表交互，防误触发卡片右滑删除
 
-            // 知识树抽屉（菜单按钮唤出）
-            if isDrawerOpen {
-                Color.black.opacity(0.3)
-                    .ignoresSafeArea()
-                    .transition(.opacity)
-                    .onTapGesture { closeDrawer() }
-
-                ThoughtKnowledgeDrawerView(
-                    selection: $drawerSelection,
-                    thoughtRepository: thoughtRepository,
-                    topicRepository: topicRepository,
-                    onSelect: { node in
-                        drawerSelection = node
-                        closeDrawer()  // 点筛选节点立即收起抽屉，让用户看右侧列表
-                    },
-                    onAIOrganize: {
-                        closeDrawer()
-                        Task { await convergenceJob.run() }
-                        showConvergence = true
-                    }
-                )
-                .transition(.move(edge: .leading))
-
-                // P1.5.5: 右边缘左滑关闭抽屉
-                RightEdgeCloseOverlay(isEnabled: true) { closeDrawer() }
-                    .ignoresSafeArea()
-            }
+            drawerLayer
         }
         .task {
             // P1.5.7: 进入观点页时合并 CloudKit 同步产生的重复 Topic（幂等）
             _ = try? topicRepository.mergeDuplicateTopics()
         }
-        .swipeBackToDismiss { dismiss() }
+        .swipeBackToDismiss(isEnabled: !isDrawerOpen) { dismiss() }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             thoughtTabBar
         }
@@ -142,12 +115,103 @@ struct ThoughtsView: View {
 
     /// 打开知识树抽屉
     private func openDrawer() {
+        drawerDragOffset = 0
+        drawerGestureLock.reset()
         withAnimation(.easeInOut(duration: 0.25)) { isDrawerOpen = true }
     }
 
     /// 关闭知识树抽屉
     private func closeDrawer() {
-        withAnimation(.easeInOut(duration: 0.25)) { isDrawerOpen = false }
+        withAnimation(.easeInOut(duration: 0.25)) {
+            drawerDragOffset = 0
+            isDrawerOpen = false
+        }
+        drawerGestureLock.reset()
+    }
+
+    /// 知识树抽屉层：拖拽时跟手移动，并按进度同步遮罩透明度
+    @ViewBuilder
+    private var drawerLayer: some View {
+        if isDrawerOpen {
+            GeometryReader { geo in
+                let drawerWidth = min(320, geo.size.width * 0.82)
+                let clampedOffset = min(max(drawerDragOffset, -drawerWidth), drawerWidth)
+                let revealProgress = max(0, min(1, 1 - abs(clampedOffset) / drawerWidth))
+
+                ZStack(alignment: .leading) {
+                    Color.black.opacity(0.3 * revealProgress)
+                        .ignoresSafeArea()
+                        .onTapGesture { closeDrawer() }
+
+                    ThoughtKnowledgeDrawerView(
+                        selection: $drawerSelection,
+                        thoughtRepository: thoughtRepository,
+                        topicRepository: topicRepository,
+                        onSelect: { node in
+                            drawerSelection = node
+                            closeDrawer()  // 点筛选节点立即收起抽屉，让用户看右侧列表
+                        },
+                        onAIOrganize: {
+                            closeDrawer()
+                            startTopicConvergence(autoApply: true)
+                        }
+                    )
+                    .offset(x: clampedOffset)
+                }
+                .contentShape(Rectangle())
+                .simultaneousGesture(drawerCloseDragGesture(drawerWidth: drawerWidth))
+                .transition(.opacity)
+            }
+        }
+    }
+
+    private func drawerCloseDragGesture(drawerWidth: CGFloat) -> some Gesture {
+        DragGesture(minimumDistance: 8, coordinateSpace: .global)
+            .onChanged { value in
+                switch drawerGestureLock.update(translation: value.translation) {
+                case .horizontal:
+                    drawerDragOffset = min(max(value.translation.width, -drawerWidth), drawerWidth)
+                case .vertical, .undecided:
+                    break
+                }
+            }
+            .onEnded { value in
+                defer { drawerGestureLock.reset() }
+                guard drawerGestureLock.axis == .horizontal else {
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                        drawerDragOffset = 0
+                    }
+                    return
+                }
+
+                let shouldClose = abs(value.translation.width) > drawerWidth * 0.28
+                    || abs(value.predictedEndTranslation.width) > drawerWidth * 0.45
+
+                if shouldClose {
+                    finishInteractiveDrawerClose(toward: value.translation.width, drawerWidth: drawerWidth)
+                } else {
+                    withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
+                        drawerDragOffset = 0
+                    }
+                }
+            }
+    }
+
+    private func finishInteractiveDrawerClose(toward translation: CGFloat, drawerWidth: CGFloat) {
+        let direction: CGFloat = translation >= 0 ? 1 : -1
+        withAnimation(.easeInOut(duration: 0.18)) {
+            drawerDragOffset = direction * drawerWidth
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
+            drawerDragOffset = 0
+            isDrawerOpen = false
+        }
+    }
+
+    /// 统一的主题归纳入口：外层「自动整理」和知识树「归纳主题」都走这里
+    private func startTopicConvergence(autoApply: Bool) {
+        Task { await convergenceJob.run(autoApply: autoApply, persist: autoApply) }
+        showConvergence = true
     }
 
     // MARK: - 底部 Tab 栏

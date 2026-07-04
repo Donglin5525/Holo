@@ -3,7 +3,7 @@
 //  Holo
 //
 //  观点模块 - 筛选面板
-//  支持心情、日期范围等多维筛选
+//  支持日期范围等筛选
 //
 
 import SwiftUI
@@ -19,12 +19,11 @@ struct ThoughtFilterSheetView: View {
     let onApplyFilters: (ThoughtFilters) -> Void
 
     /// 当前筛选条件
-    @State private var selectedMood: String? = nil
     @State private var startDate: Date? = nil
     @State private var endDate: Date? = nil
 
     /// 展开状态
-    @State private var expandedSection: FilterSection? = .mood
+    @State private var expandedSection: FilterSection? = .dateRange
 
     // MARK: - Body
 
@@ -34,9 +33,6 @@ struct ThoughtFilterSheetView: View {
                 // 筛选内容
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: 16) {
-                        // 心情筛选
-                        moodFilterSection
-
                         // 日期范围筛选
                         dateRangeFilterSection
                     }
@@ -61,72 +57,6 @@ struct ThoughtFilterSheetView: View {
                 }
             }
         }
-    }
-
-    // MARK: - 心情筛选
-
-    private var moodFilterSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // 标题
-            HStack {
-                Text("心情")
-                    .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
-
-                Spacer()
-
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        expandedSection = expandedSection == .mood ? nil : .mood
-                    }
-                } label: {
-                    Image(systemName: expandedSection == .mood ? "chevron.up" : "chevron.down")
-                        .font(.system(size: 14))
-                        .foregroundColor(.holoTextSecondary)
-                }
-            }
-
-            // 心情选项
-            if expandedSection == .mood {
-                LazyVGrid(columns: [
-                    GridItem(.flexible()),
-                    GridItem(.flexible()),
-                    GridItem(.flexible())
-                ], spacing: 8) {
-                    ForEach(ThoughtMoodType.allCases, id: \.self) { moodType in
-                        moodChip(moodType)
-                    }
-                }
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-        .padding(16)
-        .background(Color.holoCardBackground)
-        .cornerRadius(HoloRadius.lg)
-    }
-
-    private func moodChip(_ moodType: ThoughtMoodType) -> some View {
-        Button {
-            selectedMood = selectedMood == moodType.rawValue ? nil : moodType.rawValue
-        } label: {
-            VStack(spacing: 6) {
-                Text(moodType.emoji)
-                    .font(.system(size: 20))
-                Text(moodType.displayName)
-                    .font(.holoTinyLabel)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: HoloRadius.md)
-                    .fill(selectedMood == moodType.rawValue ? moodType.backgroundColor : Color.holoBackground)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: HoloRadius.md)
-                    .stroke(selectedMood == moodType.rawValue ? moodType.color : Color.holoBorder, lineWidth: 1)
-            )
-        }
-        .foregroundColor(.holoTextPrimary)
     }
 
     // MARK: - 日期范围筛选
@@ -203,7 +133,6 @@ struct ThoughtFilterSheetView: View {
         HStack(spacing: 12) {
             // 重置按钮
             Button {
-                selectedMood = nil
                 startDate = nil
                 endDate = nil
             } label: {
@@ -219,7 +148,7 @@ struct ThoughtFilterSheetView: View {
             // 应用筛选按钮
             Button {
                 let filters = ThoughtFilters(
-                    mood: selectedMood,
+                    mood: nil,
                     startDate: startDate,
                     endDate: endDate
                 )
@@ -243,7 +172,6 @@ struct ThoughtFilterSheetView: View {
 // MARK: - FilterSection 枚举
 
 enum FilterSection: CaseIterable {
-    case mood
     case dateRange
 }
 

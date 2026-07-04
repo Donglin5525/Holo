@@ -207,19 +207,17 @@ class ThoughtRepository {
             thought.organizedStatus = "pending"
         }
 
-        // 合并去重标签
-        let allTagNames = Array(Set(manualTags + inlineTags))
-
         // 双写：同时写 Thought.tags（旧 UI 兼容）和 ThoughtTagAssignment（新数据源）
-        for tagName in manualTags {
+        for tagName in manualTags.map({ ThoughtTagNormalizer.displayName($0) }) where !tagName.isEmpty {
             let tag = try getOrCreateTag(name: tagName)
             thought.addTags(tag)
             createAssignmentInternal(thought: thought, tag: tag, source: .manual, confidence: 1.0)
         }
 
-        for tagName in inlineTags {
+        let normalizedManualTagKeys = Set(manualTags.map { ThoughtTagNormalizer.key($0) })
+        for tagName in inlineTags.map({ ThoughtTagNormalizer.displayName($0) }) where !tagName.isEmpty {
             // 去重：如果 manualTags 已包含该标签，不再重复创建 assignment
-            guard !manualTags.contains(tagName) else { continue }
+            guard !normalizedManualTagKeys.contains(ThoughtTagNormalizer.key(tagName)) else { continue }
             let tag = try getOrCreateTag(name: tagName)
             thought.addTags(tag)
             createAssignmentInternal(thought: thought, tag: tag, source: .inline, confidence: 1.0)
@@ -466,17 +464,22 @@ class ThoughtRepository {
     /// - Parameter name: 标签名称
     /// - Returns: ThoughtTag 对象
     private func getOrCreateTag(name: String) throws -> ThoughtTag {
+        let displayName = ThoughtTagNormalizer.displayName(name)
+        let key = ThoughtTagNormalizer.key(displayName)
         let request = ThoughtTag.fetchRequest()
-        request.predicate = NSPredicate(format: "name == %@", name)
+        let tags = try context.fetch(request)
 
-        if let tag = try context.fetch(request).first {
+        if let tag = tags.first(where: { ThoughtTagNormalizer.key($0.name) == key }) {
+            if tag.name != displayName, !displayName.isEmpty {
+                tag.name = displayName
+            }
             // 增加使用次数
             tag.usageCount += 1
             return tag
         } else {
             let tag = ThoughtTag(context: context)
             tag.id = UUID()
-            tag.name = name
+            tag.name = displayName
             tag.usageCount = 1
             return tag
         }
@@ -616,16 +619,15 @@ class ThoughtRepository {
         let sourceBreakdown: [String: Int]
     }
 
-    /// 聚合 AI 标签池：按 source ∈ [.ai, .confirmedAI] 且 rejectedAt == nil 的 assignment 聚合
+    /// 聚合标签池：按可见来源且 rejectedAt == nil 的 assignment 聚合。
+    /// 手动 / 正文 / AI 同名标签必须合并成同一标签桶，避免知识树拆成两套体系。
     /// - Parameter excludeAbsorbed: true 时排除已被 Topic 收纳的 assignment（Thought+Tag+Topic 三者交集，P1.5.4 接入）
     /// - Returns: 按 tagName 分组的桶（assignmentCount 降序，同 count 按 name 升序）
     /// - Note: 走 ThoughtTagAssignment，不走 Thought.tags（spec §10-3 数据源割裂）
     func fetchAITagBuckets(excludeAbsorbed: Bool = false) throws -> [AITagBucket] {
         let request = ThoughtTagAssignment.fetchRequest()
-        let sourcePredicate = NSPredicate(
-            format: "source IN %@",
-            [ThoughtTagAssignment.Source.ai.rawValue, ThoughtTagAssignment.Source.confirmedAI.rawValue]
-        )
+        let visibleSources = Self.visibleTagSourceValues
+        let sourcePredicate = NSPredicate(format: "source IN %@", visibleSources)
         let notRejectedPredicate = NSPredicate(format: "rejectedAt == nil")
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [sourcePredicate, notRejectedPredicate])
 
@@ -640,20 +642,21 @@ class ThoughtRepository {
             effectiveAssignments = assignments
         }
 
-        // 按 tag.name 分组计数 + 来源拆分
-        var groups: [String: (count: Int, breakdown: [String: Int])] = [:]
+        // 按归一化 tag.name 分组；assignmentCount 表示命中的去重观点数，不让同一观点同名多来源重复膨胀。
+        var groups: [String: (displayName: String, thoughtIds: Set<UUID>, breakdown: [String: Int])] = [:]
         for assignment in effectiveAssignments {
-            guard let tag = assignment.tag else { continue }
-            let tagName = tag.name
+            guard let tag = assignment.tag, let thoughtId = assignment.thought?.id else { continue }
+            let tagName = ThoughtTagNormalizer.displayName(tag.name)
             guard !tagName.isEmpty else { continue }
-            var group = groups[tagName] ?? (count: 0, breakdown: [:])
-            group.count += 1
+            let key = ThoughtTagNormalizer.key(tagName)
+            var group = groups[key] ?? (displayName: tagName, thoughtIds: [], breakdown: [:])
+            group.thoughtIds.insert(thoughtId)
             group.breakdown[assignment.source, default: 0] += 1
-            groups[tagName] = group
+            groups[key] = group
         }
 
-        return groups.map { tagName, value in
-            AITagBucket(tagName: tagName, assignmentCount: value.count, sourceBreakdown: value.breakdown)
+        return groups.map { _, value in
+            AITagBucket(tagName: value.displayName, assignmentCount: value.thoughtIds.count, sourceBreakdown: value.breakdown)
         }
         .sorted { lhs, rhs in
             lhs.assignmentCount != rhs.assignmentCount
@@ -662,23 +665,26 @@ class ThoughtRepository {
         }
     }
 
-    /// 按 AI 标签筛选观点：命中该 tag 的 .ai/.confirmedAI assignment 的观点
+    /// 按标签筛选观点：命中该 tag 的可见 assignment 的观点。
     /// 走 ThoughtTagAssignment（SUBQUERY 保证 name+source 同一 assignment），不走 Thought.tags（spec §10-3）
     /// - Parameter tagName: AI 标签名
     func fetchThoughtsByAITag(_ tagName: String) throws -> [Thought] {
         let request = Thought.fetchRequest()
-        let aiSources = [
-            ThoughtTagAssignment.Source.ai.rawValue,
-            ThoughtTagAssignment.Source.confirmedAI.rawValue
-        ]
-        let assignmentPredicate = NSPredicate(
-            format: "SUBQUERY(tagAssignments, $a, $a.tag.name == %@ AND $a.source IN %@ AND $a.rejectedAt == nil).@count > 0",
-            tagName, aiSources
-        )
+        let normalizedKey = ThoughtTagNormalizer.key(tagName)
+        let sourcePredicate = NSPredicate(format: "SUBQUERY(tagAssignments, $a, $a.source IN %@ AND $a.rejectedAt == nil).@count > 0", Self.visibleTagSourceValues)
         let deletePredicate = NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
-        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [assignmentPredicate, deletePredicate])
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [sourcePredicate, deletePredicate])
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
-        return try context.fetch(request)
+        return try context.fetch(request).filter { thought in
+            let assignments = thought.tagAssignments as? Set<ThoughtTagAssignment> ?? []
+            return assignments.contains { assignment in
+                guard assignment.rejectedAt == nil,
+                      Self.visibleTagSourceValues.contains(assignment.source),
+                      let name = assignment.tag?.name
+                else { return false }
+                return ThoughtTagNormalizer.key(name) == normalizedKey
+            }
+        }
     }
 
     /// 未归类观点：未进入任何 Topic（topics 关系为空）
@@ -694,7 +700,7 @@ class ThoughtRepository {
 
     // MARK: - 跨观点收敛候选（P2.2，thought_tag_convergence 输入收集）
 
-    /// 收敛候选观点（带 .ai/.confirmedAI 标签，供 thought_tag_convergence 调用）
+    /// 收敛候选观点（带可见标签，供 thought_tag_convergence 调用）
     struct ConvergenceCandidate: Identifiable {
         /// thought id
         let id: UUID
@@ -704,18 +710,14 @@ class ThoughtRepository {
         let tags: [String]
     }
 
-    /// 取参与跨观点收敛的候选观点：带未拒绝的 .ai/.confirmedAI 标签、未 softDeleted/archived
+    /// 取参与跨观点收敛的候选观点：带未拒绝的可见标签、未 softDeleted/archived
     /// - Parameter maxCount: 最多取多少条（控制 prompt 体积）
     /// - Note: 走 ThoughtTagAssignment（SUBQUERY 保证 source+rejectedAt 同一 assignment），不走 Thought.tags
-    func fetchConvergenceCandidates(maxCount: Int = 50) throws -> [ConvergenceCandidate] {
+    func fetchConvergenceCandidates(maxCount: Int = 200) throws -> [ConvergenceCandidate] {
         let request = Thought.fetchRequest()
-        let aiSources = [
-            ThoughtTagAssignment.Source.ai.rawValue,
-            ThoughtTagAssignment.Source.confirmedAI.rawValue
-        ]
         let assignmentPredicate = NSPredicate(
             format: "SUBQUERY(tagAssignments, $a, $a.source IN %@ AND $a.rejectedAt == nil).@count > 0",
-            aiSources
+            Self.visibleTagSourceValues
         )
         let deletePredicate = NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [assignmentPredicate, deletePredicate])
@@ -728,11 +730,10 @@ class ThoughtRepository {
             let tags = assignments
                 .filter { assignment in
                     let src = assignment.source
-                    return (src == ThoughtTagAssignment.Source.ai.rawValue
-                            || src == ThoughtTagAssignment.Source.confirmedAI.rawValue)
-                        && assignment.rejectedAt == nil
+                    return Self.visibleTagSourceValues.contains(src) && assignment.rejectedAt == nil
                 }
                 .compactMap { $0.tag?.name }
+                .map { ThoughtTagNormalizer.displayName($0) }
                 .filter { !$0.isEmpty }
             guard !tags.isEmpty else { return nil }
             return ConvergenceCandidate(id: thought.id, summary: thought.content, tags: tags)
@@ -810,6 +811,50 @@ class ThoughtRepository {
             logger.info("Backfill 完成：\(totalAssignments) 条 assignment，\(allThoughts.count) 条想法标记为 unprocessed")
         } catch {
             logger.error("Backfill 失败：\(error.localizedDescription)")
+        }
+    }
+
+    /// 归一化并合并历史标签，修复 "#AI能力" / " AI能力 " / "AI能力" 被当成多个标签的问题。
+    /// 幂等：每次启动可安全执行，数据量小，用 viewContext 同步合并即可。
+    func normalizeExistingTags() {
+        do {
+            let request = ThoughtTag.fetchRequest()
+            let tags = try context.fetch(request)
+            var keepers: [String: ThoughtTag] = [:]
+            var mergedCount = 0
+
+            for tag in tags {
+                let displayName = ThoughtTagNormalizer.displayName(tag.name)
+                guard !displayName.isEmpty else { continue }
+                let key = ThoughtTagNormalizer.key(displayName)
+
+                if let keeper = keepers[key], keeper != tag {
+                    if let thoughts = tag.thoughts as? Set<Thought> {
+                        keeper.addThoughts(thoughts)
+                    }
+                    if let assignments = tag.assignments as? Set<ThoughtTagAssignment> {
+                        for assignment in assignments {
+                            assignment.tag = keeper
+                        }
+                    }
+                    if let topics = tag.associatedTopics as? Set<Topic> {
+                        keeper.addAssociatedTopics(topics)
+                    }
+                    keeper.usageCount = max(keeper.usageCount, tag.usageCount)
+                    context.delete(tag)
+                    mergedCount += 1
+                } else {
+                    tag.name = displayName
+                    keepers[key] = tag
+                }
+            }
+
+            if context.hasChanges {
+                try context.save()
+                logger.info("历史标签归一化完成，合并 \(mergedCount) 个重复标签")
+            }
+        } catch {
+            logger.error("历史标签归一化失败：\(error.localizedDescription)")
         }
     }
 
@@ -1056,7 +1101,9 @@ class ThoughtRepository {
         source: ThoughtTagAssignment.Source,
         confidence: Double
     ) {
-        // 去重：同一条想法同一标签同一来源组不重复创建
+        // 去重：同一条想法同一标签不需要同时存在手动和 AI 两套身份。
+        // 高优先级来源（manual/inline）出现时，后续 AI 同名建议直接视为已覆盖。
+        let normalizedTagKey = ThoughtTagNormalizer.key(tag.name)
         let sourceGroup: String
         switch source {
         case .manual, .inline:
@@ -1069,7 +1116,16 @@ class ThoughtRepository {
 
         if let existing = thought.tagAssignments as? Set<ThoughtTagAssignment> {
             let duplicateExists = existing.contains { assignment in
-                assignment.tag == tag && resolveSourceGroup(assignment.source) == sourceGroup
+                guard let existingTag = assignment.tag else { return false }
+                let sameTag = ThoughtTagNormalizer.key(existingTag.name) == normalizedTagKey
+                guard sameTag else { return false }
+                if source == .ai || source == .confirmedAI {
+                    let existingSource = ThoughtTagAssignment.Source(rawValue: assignment.source)
+                    if existingSource == .manual || existingSource == .inline || existingSource == .confirmedAI || existingSource == .ai {
+                        return true
+                    }
+                }
+                return resolveSourceGroup(assignment.source) == sourceGroup
             }
             if duplicateExists { return }
         }
@@ -1092,6 +1148,13 @@ class ThoughtRepository {
         case .none: return "unknown"
         }
     }
+
+    private static let visibleTagSourceValues = [
+        ThoughtTagAssignment.Source.manual.rawValue,
+        ThoughtTagAssignment.Source.inline.rawValue,
+        ThoughtTagAssignment.Source.ai.rawValue,
+        ThoughtTagAssignment.Source.confirmedAI.rawValue
+    ]
 }
 
 // MARK: - Error Types

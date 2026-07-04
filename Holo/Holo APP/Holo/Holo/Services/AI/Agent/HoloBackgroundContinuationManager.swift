@@ -28,6 +28,47 @@ struct UIApplicationBackgroundTaskClient: HoloBackgroundTaskClient {
 }
 
 @MainActor
+final class HoloBackgroundTaskLease {
+    private var taskID: UIBackgroundTaskIdentifier = .invalid
+    private let client: any HoloBackgroundTaskClient
+    private let onExpiration: (() -> Void)?
+
+    init(
+        name: String,
+        client: (any HoloBackgroundTaskClient)? = nil,
+        onExpiration: (() -> Void)? = nil
+    ) {
+        self.client = client ?? UIApplicationBackgroundTaskClient()
+        self.onExpiration = onExpiration
+        self.taskID = self.client.beginBackgroundTask(named: name) { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.expire()
+            }
+        }
+    }
+
+    deinit {
+        let taskID = taskID
+        let client = client
+        guard taskID != .invalid else { return }
+        Task { @MainActor in
+            client.endBackgroundTask(taskID)
+        }
+    }
+
+    func end() {
+        guard taskID != .invalid else { return }
+        client.endBackgroundTask(taskID)
+        taskID = .invalid
+    }
+
+    private func expire() {
+        onExpiration?()
+        end()
+    }
+}
+
+@MainActor
 final class HoloBackgroundContinuationManager {
 
     private var backgroundTaskID: UIBackgroundTaskIdentifier = .invalid

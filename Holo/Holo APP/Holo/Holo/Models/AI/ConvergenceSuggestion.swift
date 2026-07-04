@@ -51,7 +51,11 @@ extension ConvergenceSuggestion {
     /// - matchedTopicId / thoughtIds 为字符串，需转 UUID（容错：非法 id 丢弃）
     /// - Returns: 缺主题名或无有效关联观点时返回 nil（无意义建议丢弃）
     init?(json: [String: Any]) {
-        guard let topicTitle = json["topicTitle"] as? String, !topicTitle.isEmpty else { return nil }
+        let rawTitle = (json["topicTitle"] as? String)
+            ?? (json["title"] as? String)
+            ?? (json["theme"] as? String)
+            ?? (json["topic"] as? String)
+        guard let topicTitle = rawTitle?.trimmingCharacters(in: .whitespacesAndNewlines), !topicTitle.isEmpty else { return nil }
 
         let matchedId: UUID? = {
             if let s = json["matchedTopicId"] as? String, let uuid = UUID(uuidString: s) {
@@ -60,11 +64,16 @@ extension ConvergenceSuggestion {
             return nil
         }()
 
-        let idStrings = json["thoughtIds"] as? [String] ?? []
+        let idStrings = (json["thoughtIds"] as? [String])
+            ?? (json["thoughtIDs"] as? [String])
+            ?? (json["ids"] as? [String])
+            ?? []
         let thoughtIds = idStrings.compactMap { UUID(uuidString: $0) }
         guard !thoughtIds.isEmpty else { return nil }  // 无关联观点的建议无意义
 
-        let sourceTerms = (json["sourceTerms"] as? [String])?
+        let sourceTerms = ((json["sourceTerms"] as? [String])
+            ?? (json["tags"] as? [String])
+            ?? (json["keywords"] as? [String]))?
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty } ?? []
 

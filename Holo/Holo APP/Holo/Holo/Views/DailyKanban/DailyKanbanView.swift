@@ -2,7 +2,7 @@
 //  DailyKanbanView.swift
 //  Holo
 //
-//  今日看板主视图 — 融合财务/健康/打卡/待办/心情五大模块
+//  今日看板主视图 — 融合财务/健康/打卡/待办/记录模块
 //
 
 import SwiftUI

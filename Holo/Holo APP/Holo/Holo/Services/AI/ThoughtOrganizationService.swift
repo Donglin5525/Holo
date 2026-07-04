@@ -76,7 +76,7 @@ final class ThoughtOrganizationService {
         // 3. 构建 prompt 并调用 AI
         let rawResponse: String
         do {
-            let systemPrompt = try promptManager.loadPrompt(.thoughtOrganization)
+            let systemPrompt = await loadManagedPrompt()
                 .replacingOccurrences(of: "{{existingTagExamples}}", with: existingTagExamples)
                 .replacingOccurrences(of: "{{rejectedTags}}", with: rejectedTags)
 
@@ -156,22 +156,9 @@ final class ThoughtOrganizationService {
     /// 通过 JSON mode 调用 thought_organization purpose
     /// 复用 HoloBackendAIProvider 的 buildRequest（支持 responseFormat）
     private func callWithJSONMode(messages: [ChatMessageDTO]) async throws -> String {
-        // HoloBackendAIProvider 的 chat(messages:purpose:) 不传 responseFormat
-        // 但 buildRequest 支持，所以需要走一条能传 responseFormat 的路径
-        // 使用 parseUserInputBatch 相同的模式：直接构建 request
-        let systemPrompt = try promptManager.loadPrompt(.thoughtOrganization)
-            .replacingOccurrences(of: "{{existingTagExamples}}", with: "")
-            .replacingOccurrences(of: "{{rejectedTags}}", with: "")
-
-        // 直接用 chat(messages:purpose:) — 后端 prompt 会通过 header 传入
-        // 但需要 JSON mode。改用内部方法：先加载后端 prompt，再构建带 responseFormat 的请求
-        let promptContent = await loadManagedPrompt()
-        let allMessages: [ChatMessageDTO] = [.system(promptContent)] + messages.dropFirst()
-
-        // 通过 aiProvider 的内部 buildRequest 无法直接访问
-        // 使用现有的 chat(messages:purpose:) 作为基础调用
-        // 后端对 thought_organization purpose 已配置低 temperature，prompt 要求 JSON 输出
-        return try await aiProvider.chat(messages: allMessages, purpose: .thoughtOrganization)
+        // 这里必须使用上游已经注入 existingTagExamples / rejectedTags 的 system prompt。
+        // 旧实现重新加载 prompt，导致 AI 看不到已有标签，容易持续制造碎标签。
+        return try await aiProvider.chat(messages: messages, purpose: .thoughtOrganization)
     }
 
     /// 加载后端管理的 prompt（优先后端，回退本地）

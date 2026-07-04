@@ -3,7 +3,7 @@
 //  HoloTests
 //
 //  AI 标签池聚合查询测试（P1.2）
-//  覆盖 fetchAITagBuckets：聚合 .ai/.confirmedAI、排除 rejectedAI/rejectedAt、计数与 sourceBreakdown
+//  覆盖 fetchAITagBuckets：聚合可见标签、排除 rejectedAI/rejectedAt、计数与 sourceBreakdown
 //  使用内存 Core Data 隔离
 //
 
@@ -108,19 +108,35 @@ final class ThoughtRepositoryAITagBucketTests: XCTestCase {
         XCTAssertTrue(buckets.isEmpty)
     }
 
-    // MARK: - 手动标签不计入 AI 标签池
+    // MARK: - 手动标签与 AI 标签统一进入标签池
 
-    func test_手动标签不计入AI标签池() throws {
+    func test_手动标签与AI标签同名时合并为一个标签桶() throws {
         let (repo, ctx) = try makeRepo()
         let t1 = try makeThought(in: ctx)
+        let t2 = try makeThought(in: ctx)
         try repo.createTagAssignment(thoughtId: t1, tagName: "manualTag", source: .manual, confidence: 1.0)
-        try repo.createTagAssignment(thoughtId: t1, tagName: "inlineTag", source: .inline, confidence: 1.0)
-        try repo.createTagAssignment(thoughtId: t1, tagName: "aiTag", source: .ai, confidence: 0.9)
+        try repo.createTagAssignment(thoughtId: t2, tagName: "manualTag", source: .ai, confidence: 0.9)
 
         let buckets = try repo.fetchAITagBuckets()
 
         XCTAssertEqual(buckets.count, 1)
-        XCTAssertEqual(buckets.first?.tagName, "aiTag")
+        XCTAssertEqual(buckets.first?.tagName, "manualTag")
+        XCTAssertEqual(buckets.first?.assignmentCount, 2)
+        XCTAssertEqual(buckets.first?.sourceBreakdown[ThoughtTagAssignment.Source.manual.rawValue], 1)
+        XCTAssertEqual(buckets.first?.sourceBreakdown[ThoughtTagAssignment.Source.ai.rawValue], 1)
+    }
+
+    func test_同一观点同名手动标签与AI标签不重复计数() throws {
+        let (repo, ctx) = try makeRepo()
+        let t1 = try makeThought(in: ctx)
+        try repo.createTagAssignment(thoughtId: t1, tagName: "AI能力", source: .manual, confidence: 1.0)
+        try repo.createTagAssignment(thoughtId: t1, tagName: "AI能力", source: .ai, confidence: 0.9)
+
+        let buckets = try repo.fetchAITagBuckets()
+
+        XCTAssertEqual(buckets.count, 1)
+        XCTAssertEqual(buckets.first?.tagName, "AI能力")
+        XCTAssertEqual(buckets.first?.assignmentCount, 1)
     }
 
     // MARK: - fetchThoughtsByAITag（走 assignment，SUBQUERY）
@@ -139,7 +155,7 @@ final class ThoughtRepositoryAITagBucketTests: XCTestCase {
         XCTAssertEqual(Set(result.map { $0.id }), Set([t1, t2]))
     }
 
-    func test_按AI标签筛选排除手动与rejected() throws {
+    func test_按标签筛选命中手动并排除rejected() throws {
         let (repo, ctx) = try makeRepo()
         let t1 = try makeThought(in: ctx)
         let t2 = try makeThought(in: ctx)
@@ -148,7 +164,22 @@ final class ThoughtRepositoryAITagBucketTests: XCTestCase {
 
         let result = try repo.fetchThoughtsByAITag("coding")
 
-        XCTAssertTrue(result.isEmpty)
+        XCTAssertEqual(result.map(\.id), [t1])
+    }
+
+    func test_标签名称归一化后筛选同一个标签() throws {
+        let (repo, ctx) = try makeRepo()
+        let t1 = try makeThought(in: ctx)
+        let t2 = try makeThought(in: ctx)
+        try repo.createTagAssignment(thoughtId: t1, tagName: "#AI能力", source: .manual, confidence: 1.0)
+        try repo.createTagAssignment(thoughtId: t2, tagName: " AI能力 ", source: .ai, confidence: 0.9)
+
+        let buckets = try repo.fetchAITagBuckets()
+        let result = try repo.fetchThoughtsByAITag("AI能力")
+
+        XCTAssertEqual(buckets.count, 1)
+        XCTAssertEqual(buckets.first?.tagName, "AI能力")
+        XCTAssertEqual(Set(result.map(\.id)), Set([t1, t2]))
     }
 
     func test_getAllTags同usageCount时按名称稳定排序() throws {

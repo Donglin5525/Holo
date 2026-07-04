@@ -2,16 +2,16 @@
 //  ThoughtOrganizeActionChip.swift
 //  Holo
 //
-//  想法模块「自动整理」动作芯片
-//  触发批量 AI 打标签，紫色 AI 专属色，区别于普通筛选 chip（动作触发器，非筛选器）
+//  想法模块 AI 动作芯片
+//  有未处理笔记时触发批量打标签；没有未处理笔记时触发主题归纳。
 //
 
 import SwiftUI
 
 // MARK: - ThoughtOrganizeActionChip
 
-/// 「自动整理」动作芯片
-/// 与 HoloFilterChip 区别：它是动作触发器（点击启动批量整理），带 sparkles + AI 角标 + 待整理数徽章，紫色异色
+/// AI 整理动作芯片
+/// 与 HoloFilterChip 区别：它是动作触发器，带 sparkles + AI 角标 + 待整理数徽章，紫色异色
 struct ThoughtOrganizeActionChip: View {
 
     /// 待整理数量（>0 时显示徽章）
@@ -22,6 +22,11 @@ struct ThoughtOrganizeActionChip: View {
 
     /// 点击触发
     let action: () -> Void
+
+    private var title: String {
+        if isOrganizing { return "整理中" }
+        return pendingCount > 0 ? "整理笔记" : "归纳主题"
+    }
 
     private var badgeText: String {
         pendingCount > 99 ? "99+" : "\(pendingCount)"
@@ -36,7 +41,7 @@ struct ThoughtOrganizeActionChip: View {
                     .foregroundColor(.holoAI)
 
                 // 文案
-                Text(isOrganizing ? "整理中" : "自动整理")
+                Text(title)
                     .font(.holoCaption)
                     .foregroundColor(.holoAI)
 

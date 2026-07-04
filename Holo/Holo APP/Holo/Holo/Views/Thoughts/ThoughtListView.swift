@@ -21,11 +21,13 @@ struct ThoughtListView: View {
 
     let onBack: () -> Void
     let onMenuTap: () -> Void
+    let onAIOrganize: () -> Void
     @Binding var showAddThought: Bool
     @Binding var drawerSelection: DrawerNode?
     let thoughtRepository: ThoughtRepository
     let topicRepository: TopicRepository
     let initialThoughtId: UUID?
+    let swipeActionsEnabled: Bool
 
     /// 筛选状态
     @State private var selectedTagName: String? = nil
@@ -60,6 +62,9 @@ struct ThoughtListView: View {
 
     /// 批量整理提示文案（toast，nil 不显示）
     @State private var batchOrganizeNotice: String? = nil
+
+    /// 用户从外层「自动整理」启动批量标签整理后，完成时继续归纳主题
+    @State private var shouldRunTopicConvergenceAfterBatch: Bool = false
 
     /// 列表刷新节流任务（避免批量整理时通知风暴拖卡主线程）
     @State private var refreshTask: Task<Void, Never>?
@@ -173,6 +178,19 @@ struct ThoughtListView: View {
         }
         .onChange(of: drawerSelection) { _, _ in
             reloadByDrawer()
+        }
+        .onChange(of: orgQueue.isBatchOrganizing) { oldValue, newValue in
+            guard oldValue, !newValue, shouldRunTopicConvergenceAfterBatch else { return }
+            shouldRunTopicConvergenceAfterBatch = false
+            loadUnprocessedCount()
+
+            guard !orgQueue.dailyLimitHit else {
+                batchOrganizeNotice = "标签整理已暂停，配额恢复后再继续归纳主题"
+                return
+            }
+
+            batchOrganizeNotice = "标签整理完成，正在归纳主题"
+            onAIOrganize()
         }
     }
 
@@ -295,14 +313,7 @@ struct ThoughtListView: View {
                 thoughts = try thoughtRepository.search(query: searchText, filters: filters)
             } else {
                 // 否则使用筛选方法加载
-                var allThoughts: [Thought] = []
-
-                // 按心情筛选
-                if let mood = filters.mood {
-                    allThoughts = try thoughtRepository.fetchByMood(mood)
-                } else {
-                    allThoughts = try thoughtRepository.fetchAll()
-                }
+                var allThoughts = try thoughtRepository.fetchAll()
 
                 // 按日期范围筛选
                 if let startDate = filters.startDate {
@@ -354,7 +365,8 @@ struct ThoughtListView: View {
             return
         }
         if unprocessedCount == 0 {
-            batchOrganizeNotice = "所有想法都已整理过啦"
+            batchOrganizeNotice = "正在归纳主题"
+            onAIOrganize()
             return
         }
         showBatchOrganizeSheet = true
@@ -370,8 +382,9 @@ struct ThoughtListView: View {
                 return
             }
             try thoughtRepository.markBatchPending(thoughtIds: ids)
+            shouldRunTopicConvergenceAfterBatch = true
             orgQueue.enqueueBatch(thoughtIds: ids)
-            batchOrganizeNotice = "已开始整理 \(ids.count) 条想法"
+            batchOrganizeNotice = "已开始整理 \(ids.count) 条想法，完成后会归纳主题"
         } catch {
             logger.error("启动批量整理失败：\(error)")
             batchOrganizeNotice = "启动失败，请稍后重试"
@@ -607,6 +620,7 @@ struct ThoughtListView: View {
                             get: { revealedThoughtId == thought.id },
                             set: { if $0 { revealedThoughtId = thought.id } else { revealedThoughtId = nil } }
                         ),
+                        isEnabled: swipeActionsEnabled,
                         content: {
                             ThoughtCardView(thought: thought) {
                                 if revealedThoughtId == thought.id {

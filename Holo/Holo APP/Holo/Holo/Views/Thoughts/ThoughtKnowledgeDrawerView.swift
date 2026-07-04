@@ -16,9 +16,9 @@ import SwiftUI
 enum DrawerNode: Hashable {
     case allNotes          // 全部笔记
     case unclassified      // 未归类（未进入任何 Topic）
-    case aiTag(String)     // AI 标签池某标签（tagName）
+    case aiTag(String)     // 标签池某标签（tagName，手动/正文/AI 同名统一）
     case topic(UUID)       // 某主题（topicId，P1.5）
-    case aiOrganize        // AI 整理入口（非筛选，触发预告）
+    case aiOrganize        // 归纳主题入口（非筛选，触发跨观点收敛）
 }
 
 // MARK: - ThoughtKnowledgeDrawerView
@@ -38,18 +38,27 @@ struct ThoughtKnowledgeDrawerView: View {
     /// 点击节点回调（选中节点；不关闭抽屉，关闭由遮罩/右边缘负责）
     let onSelect: (DrawerNode) -> Void
 
-    /// 点击「AI 整理」回调（P2 触发跨观点收敛 Job + 弹确认页）
+    /// 点击「归纳主题」回调（P2 触发跨观点收敛 Job + 弹确认页）
     let onAIOrganize: () -> Void
 
-    /// AI 标签池聚合（P1.2 fetchAITagBuckets）
+    /// 标签池聚合（手动 / 正文 / AI 同名统一）
     @State private var aiTagBuckets: [ThoughtRepository.AITagBucket] = []
 
     /// 主题列表（P1.5.2）
     @State private var topics: [Topic] = []
 
-    /// 待整理数 = 所有 .ai/.confirmedAI assignment 总数
-    private var pendingOrganizeCount: Int {
+    /// AI 标签池过长时默认折叠，避免抽屉需要滑很久。
+    @State private var isAIPoolExpanded: Bool = false
+
+    private let collapsedAIPoolLimit = 3
+
+    /// 待归纳线索数 = 尚未被 Topic 收纳的 .ai/.confirmedAI assignment 总数
+    private var pendingThemeClueCount: Int {
         aiTagBuckets.reduce(0) { $0 + $1.assignmentCount }
+    }
+
+    private var visibleAIBuckets: [ThoughtRepository.AITagBucket] {
+        isAIPoolExpanded ? aiTagBuckets : Array(aiTagBuckets.prefix(collapsedAIPoolLimit))
     }
 
     var body: some View {
@@ -176,7 +185,7 @@ struct ThoughtKnowledgeDrawerView: View {
             Image(systemName: "sparkles")
                 .font(.system(size: 13))
                 .foregroundColor(.holoAI)
-            Text("暂无主题，AI 整理后生成")
+            Text("暂无主题，归纳后生成")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
             Spacer()
@@ -233,27 +242,51 @@ struct ThoughtKnowledgeDrawerView: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: - AI 标签池（fetchAITagBuckets 真实聚合）
+    // MARK: - 标签池（fetchAITagBuckets 真实聚合）
 
     private var aiPoolSection: some View {
         Group {
             if aiTagBuckets.isEmpty {
                 aiPoolEmpty
             } else {
-                HStack {
-                    Text("共 \(aiTagBuckets.count) 个 AI 标签")
+                HStack(spacing: HoloSpacing.sm) {
+                    Text("共 \(aiTagBuckets.count) 个标签")
                         .font(.holoTinyLabel)
                         .foregroundColor(.holoTextSecondary)
                     Spacer()
+                    if aiTagBuckets.count > collapsedAIPoolLimit {
+                        aiPoolToggle
+                    }
                 }
                 .padding(.horizontal, HoloSpacing.md)
                 .padding(.bottom, HoloSpacing.xs)
 
-                ForEach(aiTagBuckets) { bucket in
+                ForEach(visibleAIBuckets) { bucket in
                     aiTagRow(bucket)
                 }
             }
         }
+    }
+
+    private var aiPoolToggle: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                isAIPoolExpanded.toggle()
+            }
+        } label: {
+            HStack(spacing: HoloSpacing.xs) {
+                Text(isAIPoolExpanded ? "收起" : "展开")
+                    .font(.holoTinyLabel)
+                Image(systemName: isAIPoolExpanded ? "chevron.up" : "chevron.down")
+                    .font(.system(size: 11, weight: .semibold))
+            }
+            .foregroundColor(.holoAI)
+            .padding(.horizontal, HoloSpacing.sm)
+            .padding(.vertical, 4)
+            .background(Color.holoAI.opacity(0.1))
+            .clipShape(Capsule())
+        }
+        .buttonStyle(.plain)
     }
 
     private var aiPoolEmpty: some View {
@@ -261,7 +294,7 @@ struct ThoughtKnowledgeDrawerView: View {
             Image(systemName: "tag")
                 .font(.system(size: 13))
                 .foregroundColor(.holoAI)
-            Text("暂无 AI 标签")
+            Text("暂无标签")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
             Spacer()
@@ -311,7 +344,7 @@ struct ThoughtKnowledgeDrawerView: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: - AI 整理入口（P2 触发跨观点收敛）
+    // MARK: - 归纳主题入口（P2 触发跨观点收敛）
 
     private var aiOrganizeRow: some View {
         Button {
@@ -323,14 +356,14 @@ struct ThoughtKnowledgeDrawerView: View {
                     .foregroundColor(.holoAI)
                     .frame(width: 26)
 
-                Text("AI 整理")
+                Text("归纳主题")
                     .font(.holoBody)
                     .foregroundColor(.holoTextPrimary)
 
                 Spacer()
 
-                if pendingOrganizeCount > 0 {
-                    Text("待整理 \(pendingOrganizeCount) 条")
+                if pendingThemeClueCount > 0 {
+                    Text("\(pendingThemeClueCount) 条线索")
                         .font(.holoTinyLabel)
                         .foregroundColor(.holoAI)
                         .padding(.horizontal, HoloSpacing.sm)

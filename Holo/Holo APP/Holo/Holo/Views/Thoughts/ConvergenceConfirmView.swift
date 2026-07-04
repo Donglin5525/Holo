@@ -53,6 +53,8 @@ struct ConvergenceConfirmView: View {
             idleView
         case .generating:
             generatingView
+        case .unchanged:
+            unchangedView
         case .failed(let message):
             failedView(message)
         case .ready(let suggestions):
@@ -67,6 +69,8 @@ struct ConvergenceConfirmView: View {
                     suggestionsList(pending)
                 }
             }
+        case .applied(let count):
+            appliedView(count)
         }
     }
 
@@ -102,6 +106,30 @@ struct ConvergenceConfirmView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
+    // MARK: - unchanged（输入未变化，省掉重复 AI 调用）
+
+    private var unchangedView: some View {
+        VStack(spacing: HoloSpacing.md) {
+            Image(systemName: "checkmark.seal.fill")
+                .font(.system(size: 40))
+                .foregroundColor(.holoAI)
+            Text("没有新的可归纳变化")
+                .font(.holoBody)
+                .foregroundColor(.holoTextPrimary)
+            Text("上次归纳后，观点、标签和主题没有变化，本次已跳过 AI 调用。")
+                .font(.holoCaption)
+                .foregroundColor(.holoTextSecondary)
+                .multilineTextAlignment(.center)
+            Button("关闭") {
+                job.reset()
+                dismiss()
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(.horizontal, HoloSpacing.lg)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
     // MARK: - failed
 
     private func failedView(_ message: String) -> some View {
@@ -132,6 +160,30 @@ struct ConvergenceConfirmView: View {
             Text("建议已处理完")
                 .font(.holoBody)
                 .foregroundColor(.holoTextPrimary)
+            Button("完成") {
+                job.reset()
+                dismiss()
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(.horizontal, HoloSpacing.lg)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - 自动应用完成
+
+    private func appliedView(_ count: Int) -> some View {
+        VStack(spacing: HoloSpacing.md) {
+            Image(systemName: "folder.badge.plus")
+                .font(.system(size: 44))
+                .foregroundColor(.holoPrimary)
+            Text("已生成 \(count) 个主题")
+                .font(.holoBody)
+                .foregroundColor(.holoTextPrimary)
+            Text("这些主题已经出现在观点知识树里。")
+                .font(.holoCaption)
+                .foregroundColor(.holoTextSecondary)
+                .multilineTextAlignment(.center)
             Button("完成") {
                 job.reset()
                 dismiss()

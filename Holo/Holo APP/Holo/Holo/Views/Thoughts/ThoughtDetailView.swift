@@ -136,16 +136,8 @@ struct ThoughtDetailView: View {
 
     private var contentSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            // 心情和日期
+            // 日期
             HStack {
-                if let moodType = thought?.moodType {
-                    Text(moodType.emoji)
-                        .font(.system(size: 28))
-                    Text(moodType.displayName)
-                        .font(.holoCaption)
-                        .foregroundColor(moodType.color)
-                }
-
                 Spacer()
 
                 Text(thought?.formattedDate ?? "")
@@ -399,12 +391,8 @@ struct ReferenceCardView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            // 顶部：心情 + 日期
+            // 顶部：日期
             HStack {
-                if let moodType = thought.moodType {
-                    Text(moodType.emoji)
-                        .font(.system(size: 16))
-                }
                 Text(thought.formattedDate)
                     .font(.holoTinyLabel)
                     .foregroundColor(.holoTextSecondary)

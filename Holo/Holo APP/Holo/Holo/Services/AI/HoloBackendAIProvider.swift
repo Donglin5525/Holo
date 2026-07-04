@@ -159,7 +159,8 @@ final class HoloBackendAIProvider: AIProvider {
 
     /// 使用自定义 purpose 的非流式 chat 调用（不注入 UserContext）
     func chat(messages: [ChatMessageDTO], purpose: HoloBackendPurpose) async throws -> String {
-        let request = buildRequest(purpose: purpose, messages: messages)
+        let responseFormat: ResponseFormat? = purpose == .agentLoop ? .jsonObject : nil
+        let request = buildRequest(purpose: purpose, messages: messages, responseFormat: responseFormat)
         let response: ChatCompletionResponse = try await apiClient.send(request)
 
         guard let content = response.choices?.first?.message?.content else {

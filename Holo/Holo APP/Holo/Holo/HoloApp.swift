@@ -45,8 +45,11 @@ struct HoloApp: App {
         // store 加载在后台进行，UI 先以默认值渲染，加载完成后通过 await 切换
         CoreDataStack.shared.prepareIfNeeded()
 
-        // 提前启动 CloudKit 事件监听，避免首次打开设置页时错过启动期同步事件
-        _ = ICloudSyncStatusService.shared
+        // 签名未携带 iCloud entitlement 时，CloudKit 容器初始化会触发系统 trap。
+        // 因此只在运行时确认可用后提前启动监听；设置页仍可按需展示不可用状态。
+        if CloudKitRuntimeAvailability.isAvailable {
+            _ = ICloudSyncStatusService.shared
+        }
 
         // 监听财务/想法变更，维护桌面小组件使用的轻量快照
         HoloWidgetSnapshotService.shared.startObserving()
@@ -87,8 +90,12 @@ struct HoloApp: App {
                     // AI 想法整理：首次启动 backfill + 恢复 pending 队列
                     let repository = ThoughtRepository()
                     repository.backfillTagAssignmentsIfNeeded()
+                    repository.normalizeExistingTags()
 
                     ThoughtOrganizationQueue.shared.rebuildFromDatabase()
+                    Task {
+                        await ThoughtTagConvergenceJob.shared.resumePersistedJobIfNeeded()
+                    }
 
                     // 首屏数据准备后刷新一次小组件快照，保证冷启动后桌面数据可用
                     await HoloWidgetSnapshotService.shared.refreshAllSnapshots()

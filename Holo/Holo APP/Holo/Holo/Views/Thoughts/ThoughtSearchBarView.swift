@@ -141,15 +141,9 @@ struct SearchResultRow: View {
 
     var body: some View {
         HStack(spacing: HoloSpacing.sm) {
-            // 心情图标
-            if let moodType = thought.moodType {
-                Text(moodType.emoji)
-                    .font(.system(size: 24))
-            } else {
-                Image(systemName: "lightbulb")
-                    .font(.system(size: 20))
-                    .foregroundColor(.holoPrimary.opacity(0.5))
-            }
+            Image(systemName: "text.bubble")
+                .font(.system(size: 20))
+                .foregroundColor(.holoPrimary.opacity(0.5))
 
             VStack(alignment: .leading, spacing: 4) {
                 // 预览文本

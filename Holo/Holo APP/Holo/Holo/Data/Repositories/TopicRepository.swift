@@ -25,7 +25,7 @@ final class TopicRepository {
 
     /// 标题归一化：trim + lowercased，作为运行时查重键（spec 决策 17，不加 canonicalKey）
     static func normalizedKey(title: String) -> String {
-        title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        ThoughtTagNormalizer.key(title)
     }
 
     // MARK: - 创建 / 查重
@@ -260,8 +260,10 @@ final class TopicRepository {
         }
         // get-or-create 新来源词
         var resolved: [ThoughtTag] = []
-        for name in tagNames where !name.isEmpty {
-            resolved.append(try getOrCreateTag(name: name))
+        for name in tagNames {
+            let displayName = ThoughtTagNormalizer.displayName(name)
+            guard !displayName.isEmpty else { continue }
+            resolved.append(try getOrCreateTag(name: displayName))
         }
         topic.addAssociatedTags(Set(resolved))
         topic.associatedTagNames = resolved.map { $0.name }.joined(separator: ",")
@@ -271,13 +273,19 @@ final class TopicRepository {
 
     /// get-or-create ThoughtTag（P1.5.3 提权 ThoughtRepository.getOrCreateTag 后可复用，此处本地实现）
     private func getOrCreateTag(name: String) throws -> ThoughtTag {
+        let displayName = ThoughtTagNormalizer.displayName(name)
+        let key = ThoughtTagNormalizer.key(displayName)
         let request = ThoughtTag.fetchRequest()
-        request.predicate = NSPredicate(format: "name == %@", name)
-        request.fetchLimit = 1
-        if let existing = try context.fetch(request).first { return existing }
+        let tags = try context.fetch(request)
+        if let existing = tags.first(where: { ThoughtTagNormalizer.key($0.name) == key }) {
+            if existing.name != displayName, !displayName.isEmpty {
+                existing.name = displayName
+            }
+            return existing
+        }
         let tag = ThoughtTag(context: context)
         tag.id = UUID()
-        tag.name = name
+        tag.name = displayName
         tag.usageCount = 0
         return tag
     }

@@ -14,7 +14,7 @@ import CoreData
 /// 想法卡片视图
 /// 设计参考：
 /// - 白色背景，圆角 28pt
-/// - 顶部：心情 + 日期
+/// - 顶部：日期 + 状态
 /// - 中间：内容预览（2-3 行）
 /// - 底部：标签 + 引用数
 struct ThoughtCardView: View {
@@ -29,7 +29,7 @@ struct ThoughtCardView: View {
     var body: some View {
         Button(action: { onNavigate?() }) {
             VStack(alignment: .leading, spacing: 16) {
-                // 顶部：心情 + 日期
+                // 顶部：日期 + 状态
                 headerView
 
                 // 中间：内容预览
@@ -53,22 +53,14 @@ struct ThoughtCardView: View {
 
     private var headerView: some View {
         HStack(spacing: 8) {
-            // 心情图标
-            if let moodType = thought.moodType {
-                Text(moodType.emoji)
-                    .font(.system(size: 20))
-            } else {
-                Image(systemName: "text.bubble")
-                    .font(.system(size: 16))
-                    .foregroundColor(.holoTextSecondary)
-            }
-
             // 日期
             Text(thought.formattedDate)
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
 
             Spacer()
+
+            statusBadge
 
             // 更多操作按钮（使用 onTapGesture 避免与外层导航 Button 冲突）
             Image(systemName: "ellipsis")
@@ -78,6 +70,37 @@ struct ThoughtCardView: View {
                     // TODO: 显示操作菜单
                 }
         }
+    }
+
+    private var statusBadge: some View {
+        let status = organizationDisplayStatus
+        return HStack(spacing: 4) {
+            Image(systemName: status.icon)
+                .font(.system(size: 9, weight: .semibold))
+            Text(status.title)
+                .font(.system(size: 10, weight: .semibold))
+        }
+        .foregroundColor(status.color)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 3)
+        .background(status.color.opacity(0.1))
+        .clipShape(Capsule())
+    }
+
+    private var organizationDisplayStatus: (title: String, icon: String, color: Color) {
+        if thought.hasActiveTopic {
+            return ("已入主题", "folder.fill", .holoSuccess)
+        }
+        if thought.organizedStatus == "processing" || thought.organizedStatus == "pending" {
+            return ("整理中", "sparkles", .holoAI)
+        }
+        if thought.organizedStatus == "failed" {
+            return ("整理失败", "exclamationmark.circle.fill", .holoError)
+        }
+        if !thought.visibleAITagNames.isEmpty || thought.organizedStatus == "organized" {
+            return ("已整理", "checkmark.seal.fill", .holoAI)
+        }
+        return ("待整理", "circle.dotted", .holoTextSecondary)
     }
 
     // MARK: - 内容区域

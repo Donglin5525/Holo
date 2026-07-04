@@ -63,7 +63,10 @@ nonisolated class CoreDataStack {
     nonisolated func buildContainer() -> NSPersistentContainer {
         let model = createDataModel()
 
-        let container = NSPersistentCloudKitContainer(name: "HoloDataModel", managedObjectModel: model)
+        let cloudKitAvailable = CloudKitRuntimeAvailability.isAvailable
+        let container: NSPersistentContainer = cloudKitAvailable
+            ? NSPersistentCloudKitContainer(name: "HoloDataModel", managedObjectModel: model)
+            : NSPersistentContainer(name: "HoloDataModel", managedObjectModel: model)
 
         if let description = container.persistentStoreDescriptions.first {
             description.url = URL.documentsDirectory.appendingPathComponent("HoloDataModel.sqlite")
@@ -77,9 +80,11 @@ nonisolated class CoreDataStack {
             description.setOption(true as NSNumber, forKey: NSPersistentHistoryTrackingKey)
             description.setOption(true as NSNumber, forKey: NSPersistentStoreRemoteChangeNotificationPostOptionKey)
 
-            description.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(
-                containerIdentifier: "iCloud.com.tangyuxuan.Holo"
-            )
+            if cloudKitAvailable {
+                description.cloudKitContainerOptions = NSPersistentCloudKitContainerOptions(
+                    containerIdentifier: CloudKitRuntimeAvailability.containerIdentifier
+                )
+            }
         }
 
         container.loadPersistentStores { [weak self] _, error in

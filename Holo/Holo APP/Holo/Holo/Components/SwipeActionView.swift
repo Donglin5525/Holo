@@ -29,6 +29,7 @@ struct SwipeActionView<Content: View>: View {
     // MARK: - Properties
 
     let isRevealed: Binding<Bool>
+    let isEnabled: Bool
     let content: Content
     let onArchive: () -> Void
     let onDelete: () -> Void
@@ -40,11 +41,13 @@ struct SwipeActionView<Content: View>: View {
 
     init(
         isRevealed: Binding<Bool>,
+        isEnabled: Bool = true,
         @ViewBuilder content: () -> Content,
         onArchive: @escaping () -> Void,
         onDelete: @escaping () -> Void
     ) {
         self.isRevealed = isRevealed
+        self.isEnabled = isEnabled
         self.content = content()
         self.onArchive = onArchive
         self.onDelete = onDelete
@@ -61,9 +64,14 @@ struct SwipeActionView<Content: View>: View {
                 .overlay(
                     SwipeGestureOverlay(
                         offset: $offset,
-                        isRevealed: isRevealed
+                        isRevealed: isRevealed,
+                        isEnabled: isEnabled
                     )
                 )
+        }
+        .onChange(of: isEnabled) { _, enabled in
+            guard !enabled else { return }
+            close()
         }
         .onChange(of: isRevealed.wrappedValue) { _, newValue in
             withAnimation(snapAnimation) {
@@ -145,6 +153,7 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
 
     @Binding var offset: CGFloat
     let isRevealed: Binding<Bool>
+    let isEnabled: Bool
 
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
@@ -166,6 +175,7 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
     func updateUIView(_ uiView: SwipeOverlayView, context: Context) {
         context.coordinator.parent = self
         context.coordinator.ensureGestureAttached()
+        context.coordinator.panGesture?.isEnabled = isEnabled
     }
 
     // MARK: - Coordinator
@@ -286,6 +296,7 @@ private struct SwipeGestureOverlay: UIViewRepresentable {
 
         /// 只在 overlay 区域内的触摸才响应
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+            guard parent.isEnabled else { return false }
             guard let overlay = overlayView else { return false }
             guard overlay.bounds.width > 0, overlay.bounds.height > 0 else { return false }
             let location = touch.location(in: overlay)

@@ -29,13 +29,15 @@ final class ThoughtTagConvergenceJobTests: XCTestCase {
 
     private func makeJob(
         aiCall: @escaping ([ChatMessageDTO]) async throws -> String,
-        ctx: NSManagedObjectContext
+        ctx: NSManagedObjectContext,
+        jobStore: ThoughtTagConvergenceJobStore? = nil
     ) -> ThoughtTagConvergenceJob {
         ThoughtTagConvergenceJob(
             aiCall: aiCall,
             thoughtRepository: ThoughtRepository(context: ctx),
             topicRepository: TopicRepository(context: ctx),
             rejectionRepository: ConvergenceRejectionRepository(context: ctx),
+            jobStore: jobStore,
             maxRetryCount: 2,
             retryIntervals: [0.01, 0.01]
         )
@@ -44,26 +46,34 @@ final class ThoughtTagConvergenceJobTests: XCTestCase {
     /// 灌一条带 .ai 标签的观点，返回 thoughtId
     @discardableResult
     private func seedThought(tag: String, ctx: NSManagedObjectContext) throws -> UUID {
+        try seedThought(tags: [tag], ctx: ctx)
+    }
+
+    /// 灌一条带多个 .ai 标签的观点，返回 thoughtId
+    @discardableResult
+    private func seedThought(tags: [String], ctx: NSManagedObjectContext) throws -> UUID {
         let t = Thought(context: ctx)
         t.id = UUID()
-        t.content = "关于 \(tag) 的观点"
+        t.content = "关于 \(tags.joined(separator: "、")) 的观点"
         t.createdAt = Date()
         t.updatedAt = Date()
         t.orderIndex = 0
         t.organizedStatus = "organized"
 
-        let tagEntity = ThoughtTag(context: ctx)
-        tagEntity.id = UUID()
-        tagEntity.name = tag
-        tagEntity.usageCount = 1
+        for tag in tags {
+            let tagEntity = ThoughtTag(context: ctx)
+            tagEntity.id = UUID()
+            tagEntity.name = tag
+            tagEntity.usageCount = 1
 
-        let assignment = ThoughtTagAssignment(context: ctx)
-        assignment.id = UUID()
-        assignment.source = ThoughtTagAssignment.Source.ai.rawValue
-        assignment.confidence = 0.9
-        assignment.assignedAt = Date()
-        assignment.thought = t
-        assignment.tag = tagEntity
+            let assignment = ThoughtTagAssignment(context: ctx)
+            assignment.id = UUID()
+            assignment.source = ThoughtTagAssignment.Source.ai.rawValue
+            assignment.confidence = 0.9
+            assignment.assignedAt = Date()
+            assignment.thought = t
+            assignment.tag = tagEntity
+        }
 
         try ctx.save()
         return t.id
@@ -92,11 +102,46 @@ final class ThoughtTagConvergenceJobTests: XCTestCase {
         XCTAssertNil(suggestions.first?.matchedTopicId)
     }
 
-    func test_AI返回空建议_状态ready空数组() async throws {
+    func test_AI返回空建议_有清晰重复标签时本地兜底出主题建议() async throws {
         let ctx = try makeContext()
         _ = try seedThought(tag: "coding", ctx: ctx)
         _ = try seedThought(tag: "coding", ctx: ctx)
         _ = try seedThought(tag: "coding", ctx: ctx)
+
+        let job = makeJob(aiCall: { _ in "{\"suggestions\":[]}" }, ctx: ctx)
+        await job.run()
+
+        guard case .ready(let suggestions) = job.state else {
+            return XCTFail("期望 ready，实际 \(job.state)")
+        }
+        XCTAssertEqual(suggestions.count, 1)
+        XCTAssertEqual(suggestions.first?.topicTitle, "coding")
+        XCTAssertEqual(suggestions.first?.thoughtIds.count, 3)
+        XCTAssertEqual(suggestions.first?.sourceTerms, ["coding"])
+    }
+
+    func test_AI返回空建议_重复标签不在首位时本地兜底仍能归纳() async throws {
+        let ctx = try makeContext()
+        _ = try seedThought(tags: ["日常", "AI协作"], ctx: ctx)
+        _ = try seedThought(tags: ["产品", "AI协作"], ctx: ctx)
+        _ = try seedThought(tags: ["开发", "AI协作"], ctx: ctx)
+
+        let job = makeJob(aiCall: { _ in "{\"suggestions\":[]}" }, ctx: ctx)
+        await job.run()
+
+        guard case .ready(let suggestions) = job.state else {
+            return XCTFail("期望 ready，实际 \(job.state)")
+        }
+        XCTAssertEqual(suggestions.count, 1)
+        XCTAssertEqual(suggestions.first?.topicTitle, "AI协作")
+        XCTAssertEqual(suggestions.first?.thoughtIds.count, 3)
+    }
+
+    func test_AI返回空建议_没有三条共享标签时不硬凑主题() async throws {
+        let ctx = try makeContext()
+        _ = try seedThought(tag: "coding", ctx: ctx)
+        _ = try seedThought(tag: "product", ctx: ctx)
+        _ = try seedThought(tag: "design", ctx: ctx)
 
         let job = makeJob(aiCall: { _ in "{\"suggestions\":[]}" }, ctx: ctx)
         await job.run()
@@ -226,6 +271,65 @@ final class ThoughtTagConvergenceJobTests: XCTestCase {
             return XCTFail("期望 ready，实际 \(job.state)")
         }
         XCTAssertTrue(suggestions.isEmpty)  // 唯一建议已被拒绝，过滤掉
+    }
+
+    // MARK: - Token protection
+
+    func test_输入未变化时第二次归纳不重复调用AI() async throws {
+        let ctx = try makeContext()
+        _ = try seedThought(tag: "coding", ctx: ctx)
+        _ = try seedThought(tag: "coding", ctx: ctx)
+        _ = try seedThought(tag: "coding", ctx: ctx)
+
+        let suiteName = "ThoughtTagConvergenceJobTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let store = ThoughtTagConvergenceJobStore(userDefaults: defaults)
+        var callCount = 0
+        let job = makeJob(
+            aiCall: { _ in
+                callCount += 1
+                return "{\"suggestions\":[]}"
+            },
+            ctx: ctx,
+            jobStore: store
+        )
+
+        await job.run()
+        await job.run()
+
+        XCTAssertEqual(callCount, 1)
+        XCTAssertEqual(job.state, .unchanged)
+        defaults.removePersistentDomain(forName: suiteName)
+    }
+
+    func test_自动应用生成主题后再次归纳不重复调用AI() async throws {
+        let ctx = try makeContext()
+        let id1 = try seedThought(tag: "coding", ctx: ctx)
+        let id2 = try seedThought(tag: "coding", ctx: ctx)
+        let id3 = try seedThought(tag: "coding", ctx: ctx)
+
+        let suiteName = "ThoughtTagConvergenceJobTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let store = ThoughtTagConvergenceJobStore(userDefaults: defaults)
+        let raw = """
+        {"suggestions":[{"topicTitle":"编程实践","matchedTopicId":null,"thoughtIds":["\(id1.uuidString)","\(id2.uuidString)","\(id3.uuidString)"],"sourceTerms":["coding"],"confidence":0.9,"reason":"三条都在谈编程"}]}
+        """
+        var callCount = 0
+        let job = makeJob(
+            aiCall: { _ in
+                callCount += 1
+                return raw
+            },
+            ctx: ctx,
+            jobStore: store
+        )
+
+        await job.run(autoApply: true)
+        await job.run(autoApply: true)
+
+        XCTAssertEqual(callCount, 1)
+        XCTAssertEqual(job.state, .unchanged)
+        defaults.removePersistentDomain(forName: suiteName)
     }
 
     // MARK: - reset

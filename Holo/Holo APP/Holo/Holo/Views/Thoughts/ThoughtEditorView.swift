@@ -49,7 +49,6 @@ struct ThoughtEditorView: View {
     @State private var originalReferencedThoughtIds: [UUID] = []
 
     // MARK: - UI State
-    @State private var showMoodSelector: Bool = false
     @State private var showTagInput: Bool = false
     @State private var showReferenceSelector: Bool = false
     @State private var showVoiceInput: Bool = false
@@ -89,8 +88,6 @@ struct ThoughtEditorView: View {
         NavigationView {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: HoloSpacing.md) {
-                    // 心情选择
-                    moodSection
                     // 内容编辑区
                     contentSection
                     // 标签区域
@@ -119,10 +116,6 @@ struct ThoughtEditorView: View {
                     .disabled(!canSave)
                 }
             }
-        }
-        .sheet(isPresented: $showMoodSelector) {
-            MoodSelectorView(selectedMood: $selectedMood)
-                .presentationDetents([.medium])
         }
         .sheet(isPresented: $showTagInput) {
             TagInputView(selectedTags: $selectedTags)
@@ -242,11 +235,6 @@ struct ThoughtEditorView: View {
             return true
         }
 
-        // 心情发生变化
-        if selectedMood?.rawValue != originalMood?.rawValue {
-            return true
-        }
-
         // 标签发生变化
         if Set(selectedTags) != Set(originalTags) {
             return true
@@ -266,37 +254,6 @@ struct ThoughtEditorView: View {
     }
 
     // MARK: - Sections
-
-    /// 心情选择区域
-    private var moodSection: some View {
-        Button {
-            showMoodSelector = true
-        } label: {
-            HStack {
-                if let mood = selectedMood {
-                    Text(mood.emoji)
-                        .font(.system(size: 20))
-                    Text(mood.displayName)
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
-                } else {
-                    Image(systemName: "face.smiling")
-                        .font(.system(size: 20))
-                        .foregroundColor(.holoTextSecondary)
-                    Text("选择心情（可选）")
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextSecondary)
-                }
-                Spacer()
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.holoTextSecondary)
-            }
-            .padding(HoloSpacing.md)
-            .background(Color.holoCardBackground)
-            .cornerRadius(HoloRadius.md)
-        }
-    }
 
     /// 内容编辑区域
     private var contentSection: some View {
