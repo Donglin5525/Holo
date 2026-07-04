@@ -359,6 +359,29 @@ class HabitRepository: ObservableObject {
     func getAllRecords(for habit: Habit) -> [HabitRecord] {
         return getRecords(for: habit, in: nil)
     }
+
+    /// 获取指定时间范围内的所有习惯记录（不带 habitId 过滤，跨习惯；半开区间 [start, end)）
+    ///
+    /// 用于日历聚合：遍历所有习惯打卡记录。习惯名等信息由调用方用 habitMap 反查
+    /// （不依赖 record.habit 关系，复刻 fetchHabitRecords() 的稳定做法）。
+    /// 注意：与 getRecords(for:in:) 的闭区间不同，这里用半开 [start, end) 统一日历语义。
+    func getRecords(from start: Date, to end: Date) -> [HabitRecord] {
+        let request = HabitRecord.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "date >= %@ AND date < %@",
+            start as NSDate,
+            end as NSDate
+        )
+        request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: true)]
+        return (try? context.fetch(request)) ?? []
+    }
+
+    /// 获取所有未归档习惯（用于日历聚合建 habitMap 反查 record.habitId → Habit）
+    func getActiveHabits() -> [Habit] {
+        let request = Habit.fetchRequest()
+        request.predicate = NSPredicate(format: "isArchived == NO")
+        return (try? context.fetch(request)) ?? []
+    }
     
     // MARK: - Statistics
     

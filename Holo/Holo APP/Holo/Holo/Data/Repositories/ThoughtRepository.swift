@@ -74,6 +74,20 @@ class ThoughtRepository {
         return try context.fetch(request)
     }
 
+    /// 获取指定时间范围内的想法实体（半开区间 [start, end)，按 createdAt）
+    ///
+    /// 用于日历聚合：现有 fetchAll 不支持区间，统计类方法只返回计数/分布。
+    func fetchThoughts(from start: Date, to end: Date) throws -> [Thought] {
+        let request = Thought.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "createdAt >= %@ AND createdAt < %@ AND isSoftDeleted == NO AND isArchived == NO",
+            start as NSDate,
+            end as NSDate
+        )
+        request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: true)]
+        return try context.fetch(request)
+    }
+
     /// 根据 ID 获取想法
     /// - Parameter id: UUID
     /// - Returns: Thought 对象，不存在返回 nil

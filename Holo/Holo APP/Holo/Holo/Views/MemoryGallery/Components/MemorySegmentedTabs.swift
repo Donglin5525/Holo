@@ -10,6 +10,7 @@ import SwiftUI
 
 /// 记忆长廊 Tab 类型
 enum MemoryGalleryTab: String, CaseIterable {
+    case calendar = "日历"
     case insight = "洞察"
     case detail = "明细"
 }

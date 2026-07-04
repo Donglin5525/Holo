@@ -4,6 +4,36 @@
 
 ---
 
+## [2026-07-05] 记忆长廊日历视图 P1A（周历列表上线）
+
+生活星图实用价值低，改用「周历 + 月历」替换（方案：`docs/_common/plans/2026-07-05-Holo记忆长廊日历视图（周历+月历）方案.md`，已经过 Codex 对抗审查 + 东林拍板 A 路线）。本轮交付 P1A：记忆长廊新增「日历」Tab（默认首屏），周历列表聚合记账/习惯/待办/想法 4 模块，按天横向铺开事件；旧「洞察/明细」Tab 保留并存，生活星图隐藏不渲染、代码保留（P1C 验证后再清理）。
+
+### 变更
+- 新增 `Models/Calendar/`：`CalendarModule`（5 模块分色，待办改靛蓝 `#6366F1` 避撞记账橙）、`CalendarEvent`（单条事件 1:1 实体）、`CalendarEventsResult`（含 `CalendarModuleLoadState`，失败不静默）
+- 新增 `Services/Calendar/`：`CalendarRangeBuilder`（统一半开区间 `[start,end)`、周一首）、`CalendarEventProvider`（4 模块聚合，各模块独立 do-catch，失败在 `moduleStates` 标 `.failed`，UI 据 `hasFailure` 显示「部分数据暂未载入」+ retry）
+- 新增 `Views/MemoryGallery/Calendar/`：`CalendarRootView`（周导航 + 失败态横条）、`WeeklyListView`/`WeeklyEventChip`（7 天横向事件流）、`CalendarEventDetailSheet`（只读详情）、`CalendarViewModel`
+- `HabitRepository`：新增 `getRecords(from:to:)`（不带 habitId，半开）+ `getActiveHabits()`
+- `TodoRepository+Stats`：新增 `getTasks(completedFrom:completedTo:)`（半开，返回实体而非每日计数）
+- `ThoughtRepository`：新增 `fetchThoughts(from:to:)`（现有 `fetchAll` 无 range 参数）
+- `MemoryGalleryView`：新增「日历」Tab 并设为默认，旧洞察/明细保留并存（零回归）
+- `MemorySegmentedTabs`：`MemoryGalleryTab` 加 `calendar`
+
+### 设计要点
+- 区间语义 4 模块原不一致（Finance 半开 / Habit 闭 / Todo 同文件内一半开一闭），日历统一半开 `[start,end)`，避免跨周/跨月重复计数
+- 复用 `FinanceRepository.getTransactions(from:to:)`（已半开返回实体），仅 3 模块新增 fetch 契约
+- `CalendarEventProvider` 串行调用 4 模块（共享 Core Data context，并发违反线程安全）
+
+### 验证
+- `build_sim`（iPhone 17）通过
+- `test_sim` 全量 100 测试通过，含新增 5 个测试类：`CalendarRangeBuilderTests`（半开/周一首边界）、`Habit/Todo/ThoughtRepositoryCalendarTests`（各 4 测：区间/半开边界/软删过滤/空）、`CalendarEventProviderTests`（aggregate 失败态/排序/empty + fetchEvents 集成）
+
+### 待办（后续阶段）
+- **P1B**：月历色块 + 选中当天详情 + 健康保底 chip
+- **P1C**：日历升画廊主线 + 拆解星图耦合（健康聚合/featuredNarrativeNodes/AI 洞察刷新）后删除星图代码
+- **P2**：周历网格视图 / 待办时间维度切换 / 模块筛选
+
+---
+
 ## [2026-07-04] 上架前内部入口隐藏与隐私政策修订
 
 为 App Store 上架做准备：将仅供开发自测的 HealthKit 诊断入口限定在 DEBUG 构建，Release 不暴露；同步修订隐私政策以覆盖观点数据并如实反映 HealthKit 采集范围；移除与实际行为矛盾的 HealthKit 写权限声明。模型切换 / API Key / Prompt 编辑等调试入口此前已 `#if DEBUG` 隔离，本轮维持现状，首版不向普通用户暴露。

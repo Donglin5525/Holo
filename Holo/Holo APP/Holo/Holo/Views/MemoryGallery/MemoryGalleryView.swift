@@ -18,7 +18,7 @@ struct MemoryGalleryView: View {
     // MARK: - State
 
     @StateObject private var viewModel = MemoryGalleryViewModel()
-    @State private var selectedTab: MemoryGalleryTab = .insight
+    @State private var selectedTab: MemoryGalleryTab = .calendar
     @State private var isReplayExpanded = false
     @State private var isAgentAnalysisExpanded = false
 
@@ -117,11 +117,19 @@ struct MemoryGalleryView: View {
     @ViewBuilder
     private var tabContent: some View {
         switch selectedTab {
+        case .calendar:
+            calendarTab
         case .insight:
             insightTab
         case .detail:
             detailTab
         }
+    }
+
+    // MARK: - 日历 Tab（P1A 周历列表）
+
+    private var calendarTab: some View {
+        CalendarRootView()
     }
 
     // MARK: - 洞察 Tab

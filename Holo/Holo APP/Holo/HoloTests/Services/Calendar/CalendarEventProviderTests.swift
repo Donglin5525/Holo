@@ -1,0 +1,169 @@
+//
+//  CalendarEventProviderTests.swift
+//  HoloTests
+//
+//  CalendarEventProvider 单测：
+//  - aggregate 纯函数（合并/排序/失败态/empty）
+//  - fetchEvents 集成（in-memory 4 repo，验证调度 + 想法映射）
+//
+
+import XCTest
+import CoreData
+@testable import Holo
+
+final class CalendarEventProviderTests: XCTestCase {
+
+    // MARK: - 测试 helper
+
+    /// 共享一个 in-memory context 仅为取 NSManagedObjectID（aggregate 测试用）
+    private lazy var idContext: NSManagedObjectContext = {
+        let model = CoreDataStack.shared.createDataModel()
+        let container = NSPersistentContainer(name: "ProviderIDTest", managedObjectModel: model)
+        let description = NSPersistentStoreDescription()
+        description.type = NSInMemoryStoreType
+        container.persistentStoreDescriptions = [description]
+        try? container.loadPersistentStores { _, _ in }
+        return container.viewContext
+    }()
+
+    private lazy var sharedObjectID: NSManagedObjectID = {
+        let thought = Thought(context: idContext)
+        thought.id = UUID()
+        thought.content = "占位"
+        thought.createdAt = Date()
+        try? idContext.save()
+        return thought.objectID
+    }()
+
+    private func makeDate(year: Int, month: Int, day: Int, hour: Int = 0) -> Date {
+        var c = DateComponents()
+        c.year = year
+        c.month = month
+        c.day = day
+        c.hour = hour
+        return Calendar.current.date(from: c) ?? Date()
+    }
+
+    /// 造一个 CalendarEvent（用共享 objectID，originID 内容对 aggregate 测试无关）
+    private func makeEvent(_ module: CalendarModule, day: Int, hour: Int = 0) -> CalendarEvent {
+        CalendarEvent(
+            module: module,
+            date: makeDate(year: 2026, month: 7, day: day, hour: hour),
+            title: "T\(day)",
+            detail: nil,
+            originID: sharedObjectID
+        )
+    }
+
+    // MARK: - aggregate 纯函数
+
+    func test_aggregate全成功_合并并按date升序() {
+        let partials: [CalendarEventProvider.Partial] = [
+            .init(module: .finance,
+                  events: [makeEvent(.finance, day: 2, hour: 10), makeEvent(.finance, day: 1, hour: 9)],
+                  state: .loaded),
+            .init(module: .habit,
+                  events: [makeEvent(.habit, day: 1, hour: 8)],
+                  state: .loaded)
+        ]
+        let result = CalendarEventProvider.aggregate(partials: partials)
+
+        XCTAssertEqual(result.events.count, 3)
+        XCTAssertEqual(result.events[0].date, makeDate(year: 2026, month: 7, day: 1, hour: 8))
+        XCTAssertEqual(result.events[1].date, makeDate(year: 2026, month: 7, day: 1, hour: 9))
+        XCTAssertEqual(result.events[2].date, makeDate(year: 2026, month: 7, day: 2, hour: 10))
+        XCTAssertEqual(result.moduleStates[.finance], .loaded)
+        XCTAssertEqual(result.moduleStates[.habit], .loaded)
+        XCTAssertFalse(result.hasFailure)
+    }
+
+    func test_aggregate单模块失败_不阻塞其他() {
+        let partials: [CalendarEventProvider.Partial] = [
+            .init(module: .finance, events: [makeEvent(.finance, day: 1)], state: .loaded),
+            .init(module: .todo, events: [], state: .failed(message: "待办仓储挂了"))
+        ]
+        let result = CalendarEventProvider.aggregate(partials: partials)
+
+        XCTAssertEqual(result.events.count, 1, "失败模块不计入 events，但不影响其他")
+        XCTAssertEqual(result.events.first?.module, .finance)
+        XCTAssertEqual(result.moduleStates[.finance], .loaded)
+        XCTAssertEqual(result.moduleStates[.todo], .failed(message: "待办仓储挂了"))
+        XCTAssertTrue(result.hasFailure, "应标记存在失败")
+        XCTAssertEqual(result.failedModules, [.todo])
+    }
+
+    func test_aggregate全失败_events空且全failed() {
+        let partials: [CalendarEventProvider.Partial] = [
+            .init(module: .finance, events: [], state: .failed(message: "e1")),
+            .init(module: .habit, events: [], state: .failed(message: "e2"))
+        ]
+        let result = CalendarEventProvider.aggregate(partials: partials)
+
+        XCTAssertTrue(result.events.isEmpty)
+        XCTAssertEqual(result.moduleStates[.finance], .failed(message: "e1"))
+        XCTAssertEqual(result.moduleStates[.habit], .failed(message: "e2"))
+        XCTAssertTrue(result.hasFailure)
+    }
+
+    func test_aggregate空区间_各模块empty() {
+        let partials: [CalendarEventProvider.Partial] = [
+            .init(module: .finance, events: [], state: .empty),
+            .init(module: .habit, events: [], state: .empty)
+        ]
+        let result = CalendarEventProvider.aggregate(partials: partials)
+
+        XCTAssertTrue(result.events.isEmpty)
+        XCTAssertEqual(result.moduleStates[.finance], .empty)
+        XCTAssertEqual(result.moduleStates[.habit], .empty)
+        XCTAssertFalse(result.hasFailure, "空数据不是失败")
+    }
+
+    // MARK: - fetchEvents 集成
+
+    func test_fetchEvents_想法数据正确映射且其他模块empty() async throws {
+        let (provider, _) = try makeProviderWithThought()
+
+        let result = await provider.fetchEvents(in: DateInterval(
+            start: makeDate(year: 2026, month: 7, day: 1),
+            end: makeDate(year: 2026, month: 7, day: 2)
+        ))
+
+        XCTAssertEqual(result.events.count, 1)
+        XCTAssertEqual(result.events.first?.module, .thought)
+        XCTAssertEqual(result.moduleStates[.thought], .loaded)
+        XCTAssertEqual(result.moduleStates[.finance], .empty)
+        XCTAssertEqual(result.moduleStates[.habit], .empty)
+        XCTAssertEqual(result.moduleStates[.todo], .empty)
+        XCTAssertFalse(result.hasFailure)
+    }
+
+    /// 造一个含 1 条想法的 in-memory provider
+    private func makeProviderWithThought() throws -> (CalendarEventProvider, NSManagedObjectContext) {
+        let model = CoreDataStack.shared.createDataModel()
+        let container = NSPersistentContainer(name: "ProviderIntegration", managedObjectModel: model)
+        let description = NSPersistentStoreDescription()
+        description.type = NSInMemoryStoreType
+        container.persistentStoreDescriptions = [description]
+        var storeError: Error?
+        container.loadPersistentStores { _, error in storeError = error }
+        if let storeError { throw storeError }
+        let ctx = container.viewContext
+
+        let thought = Thought(context: ctx)
+        thought.id = UUID()
+        thought.content = "测试想法"
+        thought.createdAt = makeDate(year: 2026, month: 7, day: 1, hour: 9)
+        thought.updatedAt = thought.createdAt
+        thought.orderIndex = 0
+        thought.organizedStatus = "organized"
+        try ctx.save()
+
+        let provider = CalendarEventProvider(
+            financeRepo: FinanceRepository(context: ctx),
+            habitRepo: HabitRepository(context: ctx),
+            todoRepo: TodoRepository(context: ctx),
+            thoughtRepo: ThoughtRepository(context: ctx)
+        )
+        return (provider, ctx)
+    }
+}

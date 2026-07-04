@@ -99,6 +99,21 @@ extension TodoRepository {
             .sorted { $0.date < $1.date }
     }
 
+    /// 获取指定时间范围内已完成的任务实体（半开区间 [start, end)，按 completedAt）
+    ///
+    /// 用于日历聚合：与 getCompletionTrend 不同，返回 [TodoTask] 实体而非每日计数；
+    /// 区间用半开 [start, end) 与日历其他模块统一（getCompletionTrend 用闭区间，日历不复用）。
+    func getTasks(completedFrom start: Date, completedTo end: Date) -> [TodoTask] {
+        let request = TodoTask.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "completedAt >= %@ AND completedAt < %@ AND deletedFlag == NO AND archived == NO",
+            start as NSDate,
+            end as NSDate
+        )
+        request.sortDescriptors = [NSSortDescriptor(key: "completedAt", ascending: true)]
+        return (try? context.fetch(request)) ?? []
+    }
+
     /// 指定时间范围内的完成统计
     func getCompletionStats(from start: Date, to end: Date) -> TaskPeriodStats {
         // end 约定为开区间，避免把下一天 00:00 的任务误算进本周期。
