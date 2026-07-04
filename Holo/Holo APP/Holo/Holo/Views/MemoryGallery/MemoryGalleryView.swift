@@ -143,19 +143,6 @@ struct MemoryGalleryView: View {
         } else {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: HoloSpacing.lg) {
-                    MemoryConstellationCard(
-                        summary: viewModel.constellationSummary,
-                        signals: viewModel.constellationSignals,
-                        snippets: viewModel.constellationSnippets,
-                        isRefreshing: viewModel.isLoading,
-                        lastUpdatedAt: viewModel.constellationLastUpdatedAt,
-                        insightRefreshRemaining: viewModel.insightRefreshRemaining,
-                        insightRefreshTotal: MemoryInsightRefreshQuota.maxPerDay,
-                        onRefresh: {
-                            Task { await viewModel.refresh() }
-                        }
-                    )
-
                     // Daily Sense 状态卡片
                     if InsightFeatureFlags.dailySenseEnabled,
                        let snapshot = viewModel.dailySenseSnapshot,

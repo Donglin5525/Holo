@@ -86,13 +86,7 @@ class MemoryGalleryViewModel: ObservableObject {
     /// Agent 深度分析结果（Phase 6.3，agentMemoryGalleryEnabled 灰度）；nil 时回退旧 insight。
     @Published var agentRenderedResult: HoloRenderedAgentResult?
 
-    /// 生活星图最近一次整理完成时间。
-    @Published var constellationLastUpdatedAt: Date?
-
-    /// 星图健康卡片状态：未授权 / 已授权无数据 / 已连接（口语化摘要）。
-    @Published var constellationHealthState: MemoryConstellationHealthState = .agentPending
-
-    /// AI 洞察刷新今日剩余次数（星图「更新」与 AI 回放「重新生成」共享）。
+    /// AI 洞察刷新今日剩余次数（AI 回放「重新生成」配额）。
     @Published var insightRefreshRemaining: Int = MemoryInsightRefreshQuota.maxPerDay
 
     // MARK: - Private Properties
@@ -185,8 +179,7 @@ class MemoryGalleryViewModel: ObservableObject {
 
     /// 刷新数据（重新加载第一页）
     ///
-    /// 星图「更新」作为统一入口：本地数据（Core Data + HealthKit）始终刷新；
-    /// 若 AI 洞察刷新配额未满，顺带重新生成 AI 洞察。配额耗尽时只刷本地。
+    /// 本地数据（Core Data）始终刷新；若 AI 洞察刷新配额未满，顺带重新生成。
     func refresh() async {
         currentDayOffset = 0
         hasMoreData = true
@@ -198,7 +191,6 @@ class MemoryGalleryViewModel: ObservableObject {
             await refreshInsight(force: true)
         }
         insightRefreshRemaining = quota.remainingToday
-        constellationLastUpdatedAt = Date()
     }
 
     /// 加载更多数据
@@ -562,101 +554,7 @@ class MemoryGalleryViewModel: ObservableObject {
         return Self.dailySummary(for: today, in: cachedItems)
     }
 
-    // MARK: - Life Constellation
-
-    var constellationSummary: MemoryConstellationSummary {
-        if let insight = currentInsight,
-           !insight.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-           !insight.summary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return MemoryConstellationSummary(
-                title: insight.title,
-                body: insight.summary
-            )
-        }
-
-        return MemoryConstellationSummary.fallback(hasInsight: totalMemoryCount > 0)
-    }
-
-    var constellationSignals: [MemoryConstellationSignal] {
-        let summaries = dailySummariesInRange()
-        return MemoryConstellationModule.allCases.map { module in
-            switch module {
-            case .habit:
-                let total = summaries.reduce(0) { $0 + $1.habitsTotal }
-                let completed = summaries.reduce(0) { $0 + $1.habitsCompleted }
-                return MemoryConstellationSignal.module(
-                    .habit,
-                    summary: total > 0 ? "\(completed)/\(total) 次完成" : "等待习惯记录",
-                    detail: total > 0 ? "本周期的习惯记录已纳入生活星图。" : "开始打卡后，Holo 会把习惯节奏连进星图。",
-                    level: total > 0 ? .normal : .warning,
-                    isDashed: total == 0
-                )
-            case .finance:
-                let hasExpense = summaries.contains { $0.totalExpense != nil }
-                return MemoryConstellationSignal.module(
-                    .finance,
-                    summary: hasExpense ? "花费节奏已纳入" : "等待记账记录",
-                    detail: hasExpense ? "支出高点会以温和片段呈现，具体金额留在详情层。" : "记录消费后，Holo 会观察花费节奏而不是直接给压力判断。",
-                    level: hasExpense ? .normal : .warning,
-                    isDashed: !hasExpense
-                )
-            case .task:
-                let completed = summaries.reduce(0) { $0 + $1.tasksCompleted }
-                return MemoryConstellationSignal.module(
-                    .task,
-                    summary: completed > 0 ? "\(completed) 个任务完成" : "等待任务记录",
-                    detail: completed > 0 ? "完成和积压会作为节奏证据，而不是单独评价效率。" : "完成任务后，这里会显示行动节奏。",
-                    level: completed > 0 ? .normal : .warning,
-                    isDashed: completed == 0
-                )
-            case .thought:
-                let count = summaries.reduce(0) { $0 + $1.thoughtCount }
-                return MemoryConstellationSignal.module(
-                    .thought,
-                    summary: count > 0 ? "\(count) 条想法沉淀" : "等待想法记录",
-                    detail: count > 0 ? "想法会帮助 Holo 理解本期关注点。" : "记录想法后，这里会成为生活主题的线索。",
-                    level: count > 0 ? .normal : .warning,
-                    isDashed: count == 0
-                )
-            case .health:
-                return MemoryConstellationSignal.health(state: constellationHealthState)
-            }
-        }
-    }
-
-    var constellationSnippets: [MemoryStorySnippet] {
-        var snippets: [MemoryStorySnippet] = []
-
-        for featured in featuredNarrativeNodes(limit: 3) {
-            switch featured.node.data {
-            case .highlight(let highlight):
-                snippets.append(MemoryStorySnippet(
-                    id: featured.node.id.uuidString,
-                    title: gentleTitle(for: highlight),
-                    subtitle: featured.section.formattedDate,
-                    iconName: gentleIcon(for: highlight),
-                    module: constellationModule(for: highlight.sourceModule)
-                ))
-            case .milestone(let milestone):
-                snippets.append(MemoryStorySnippet(
-                    id: featured.node.id.uuidString,
-                    title: milestone.title,
-                    subtitle: featured.section.formattedDate,
-                    iconName: milestone.icon,
-                    module: .habit
-                ))
-            case .summary:
-                break
-            }
-        }
-
-        if snippets.isEmpty,
-           dailySummariesInRange().contains(where: { $0.totalExpense != nil }) {
-            snippets.append(.financeSpendingPeak())
-        }
-
-        return snippets
-    }
+    // MARK: - Featured Narrative（"可回看的片段"用，featuredStoriesSection 消费）
 
     func featuredNarrativeNodes(limit: Int = 2) -> [FeaturedMemoryNode] {
         var stories: [FeaturedMemoryNode] = []
@@ -673,17 +571,6 @@ class MemoryGalleryViewModel: ObservableObject {
         }
 
         return Array(stories.prefix(limit))
-    }
-
-    /// 按洞察周期直接从 cachedItems 聚合每日摘要（脱离 timelineSections 分页）。
-    ///
-    /// 星图信号卡片原本依赖 timelineSections（时间线分页，第一页仅最近 7 天），
-    /// 周期回退到上一周/月时 range 最早的几天不在第一页，导致聚合漏算、误判
-    /// 「等待记账记录」。这里直接按 selectedInsightDateRange 从 cachedItems 聚合，
-    /// 与 AI 洞察（直接查 Core Data range）取数逻辑一致，不再受分页窗口影响。
-    private func dailySummariesInRange() -> [DailySummaryData] {
-        let range = selectedInsightDateRange
-        return Self.dailySummaries(items: cachedItems, in: range)
     }
 
     /// 纯函数：按日期范围从给定 items 聚合每日摘要。
@@ -738,118 +625,10 @@ class MemoryGalleryViewModel: ObservableObject {
         )
     }
 
-    // MARK: - Constellation Health
-
-    /// 星图健康卡片的输入（周期日均睡眠与步数 + 周期词）。
-    struct ConstellationHealthInput {
-        let averageSleepHours: Double?
-        let averageSteps: Int?
-        let periodLabel: String
-    }
-
-    /// 把周期健康数据转成口语化摘要（星图健康卡片用）。
-    /// 阈值复用 AI 洞察侧健康信号：睡眠偏少 < 6h、步数偏低 < 3000。
-    /// 返回 nil 表示已授权但本期完全读不到睡眠和步数，由调用方走「已授权无数据」占位。
-    static func constellationHealthSummary(for input: ConstellationHealthInput) -> String? {
-        var phrases: [String] = []
-        if let sleep = input.averageSleepHours, sleep > 0 {
-            let formatted = String(format: "%.1f", sleep)
-            if sleep < 6 {
-                phrases.append("\(input.periodLabel)睡得偏少，平均才 \(formatted) 小时")
-            } else {
-                phrases.append("\(input.periodLabel)平均睡 \(formatted) 小时")
-            }
-        }
-        if let steps = input.averageSteps, steps > 0 {
-            if steps < 3000 {
-                phrases.append("\(input.periodLabel)动得不多，日均 \(steps) 步")
-            } else {
-                phrases.append("每天走 \(steps) 步左右")
-            }
-        }
-        guard !phrases.isEmpty else { return nil }
-        return phrases.joined(separator: "，")
-    }
-
-    /// 按当前洞察周期加载星图健康状态（真实 HealthKit 数据，不依赖 AI 配置）。
-    private func loadConstellationHealthState() async {
-        let repo = HealthRepository.shared
-        await repo.checkAuthorizationStatus()
-        guard repo.isAuthorized else {
-            constellationHealthState = .unauthorized
-            return
-        }
-
-        let range = selectedInsightDateRange
-        async let stepsData = repo.fetchStepsRange(from: range.start, to: range.end)
-        async let sleepData = repo.fetchSleepRange(from: range.start, to: range.end)
-        let (steps, sleep) = await (stepsData, sleepData)
-
-        let averageStepsValue = Self.average(steps.map(\.value)).map { Int($0.rounded()) }
-        let averageSleepValue = Self.average(sleep.map(\.value))
-        let periodLabel = constellationPeriodLabel
-
-        if let summary = Self.constellationHealthSummary(for: .init(
-            averageSleepHours: averageSleepValue,
-            averageSteps: averageStepsValue,
-            periodLabel: periodLabel
-        )) {
-            constellationHealthState = .connected(summary: summary)
-        } else {
-            constellationHealthState = .connected(summary: "已授权，\(periodLabel)暂无睡眠或步数记录")
-        }
-    }
-
-    private var constellationPeriodLabel: String {
-        switch selectedInsightPeriod {
-        case .weekly: return "本周"
-        case .monthly: return "本月"
-        case .quarterly, .custom: return "这段时间"
-        case .daily: return "最近"
-        }
-    }
-
     private static func average(_ values: [Double]) -> Double? {
         let positive = values.filter { $0 > 0 }
         guard !positive.isEmpty else { return nil }
         return positive.reduce(0, +) / Double(positive.count)
-    }
-
-    private func gentleTitle(for highlight: HighlightData) -> String {
-        switch highlight.category {
-        case .spendingAnomaly:
-            return "这天的外出支出比较集中"
-        case .streakAchievement:
-            return "有一个习惯节奏被稳稳接住"
-        case .taskCompletion:
-            return "有一件重要事情被推进了"
-        case .habitPerfect:
-            return "这天的习惯完成得比较完整"
-        }
-    }
-
-    private func gentleIcon(for highlight: HighlightData) -> String {
-        switch highlight.category {
-        case .spendingAnomaly:
-            return "fork.knife"
-        case .streakAchievement, .habitPerfect:
-            return "sparkle"
-        case .taskCompletion:
-            return "checkmark.circle.fill"
-        }
-    }
-
-    private func constellationModule(for type: MemoryItemType) -> MemoryConstellationModule {
-        switch type {
-        case .transaction:
-            return .finance
-        case .habitRecord:
-            return .habit
-        case .task:
-            return .task
-        case .thought:
-            return .thought
-        }
     }
 
     // MARK: - Heatmap Timeline Linking
@@ -895,9 +674,6 @@ class MemoryGalleryViewModel: ObservableObject {
 
     /// 加载本地洞察（不触发 AI 生成）
     private func loadInsights() async {
-        // 健康卡片不依赖 AI 配置，先于 early-return 加载，覆盖 refresh 与 switchInsightPeriod
-        await loadConstellationHealthState()
-
         let service = MemoryInsightService.shared
 
         // 检查 AI 配置状态

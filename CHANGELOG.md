@@ -4,6 +4,33 @@
 
 ---
 
+## [2026-07-05] 记忆长廊日历视图 P1C（删除生活星图 · 日历正式升主线）
+
+P1A/P1B 日历体验闭环后，删除已无实际用途的生活星图（MemoryConstellationCard），日历正式成为记忆长廊主线。旧洞察/明细 Tab 仍保留（Daily Sense / AI 回放 / 深度分析 / 时间线 / 热力图 等既有能力不受影响）。
+
+### 变更
+- 删除 `Components/MemoryConstellationCard.swift`（星图卡视图）
+- 删除 `Models/MemoryConstellationModels.swift`（星图数据模型）；`FeaturedMemoryNode` 迁出到独立文件（featuredStoriesSection「可回看的片段」仍消费）
+- `MemoryGalleryViewModel` 移除 constellation* 计算属性（summary/signals/snippets/healthState/lastUpdatedAt/periodLabel）+ loadConstellationHealthState + constellationHealthSummary + constellationModule + dailySummariesInRange + gentleTitle/Icon（约 290 行）
+- `MemoryGalleryView` 移除洞察 Tab 内星图卡渲染
+- 删除 3 个星座测试文件，从 `project.pbxproj` 清理引用
+- 保留：`featuredNarrativeNodes` / `FeaturedMemoryNode`（featuredStoriesSection 用）/ `dailySummary(for:in:)` static（todaySummary 用）
+
+### 安全性（逐符号审查消费者）
+- 纯星图专属（A 类）：constellation* 属性、loadConstellationHealthState、constellationHealthSummary、MemoryConstellationModels 内 5 类型 → 删
+- 非星图专属（B 类）：featuredNarrativeNodes + FeaturedMemoryNode（featuredStoriesSection「可回看的片段」复用）、dailySummary(for:in:)（todaySummary 复用）→ 保留
+- HealthStatusChip（P1B）已确认独立，不依赖星图健康逻辑
+
+### 验证
+- `build_sim`（iPhone 17）通过
+- `test_sim` 全量 85 测试通过（删 3 个星座测试文件后剩余全绿，0 失败）
+
+### 待办（后续阶段）
+- **P2**：周历网格视图 / 待办时间维度切换 / 模块筛选 / 月历色块形式切换
+- **P3**：完整 HealthKit 步数/睡眠图层（替代 P1B 保底 chip）+ 观点经想法间接呈现
+
+---
+
 ## [2026-07-05] 记忆长廊日历视图 P1B（月历 + 当天详情 + 健康保底）
 
 P1A 周历列表上线后，P1B 补齐月历视图：周历/月历顶部切换；月历 31 格热力色块（5 档暖色阶）+ 底部模块色条；点格选中当天平铺详情（按模块分组）；月历顶部「健康状态 chip」保底入口（Q3，健康维度不随星图消失）。
