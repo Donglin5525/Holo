@@ -1,0 +1,576 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Holo 深度分析详情页 V2 方向对比</title>
+  <style>
+    :root {
+      --charcoal: #211f1c;
+      --ink: #2b2926;
+      --muted: #817b72;
+      --paper: #fffdf8;
+      --paper-2: #f8f3ea;
+      --line: rgba(45, 38, 31, 0.09);
+      --orange: #ff7048;
+      --coral: #f45f4b;
+      --teal: #2f9a91;
+      --blue: #4b7aa9;
+      --gold: #c79445;
+      --violet: #8b6fb1;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        radial-gradient(circle at 12% 5%, rgba(255, 112, 72, 0.18), transparent 30%),
+        radial-gradient(circle at 86% 8%, rgba(47, 154, 145, 0.15), transparent 28%),
+        linear-gradient(135deg, #ede6db, #f8f4ec 46%, #e9e0d2);
+      color: var(--ink);
+      font-family: "PingFang SC", "Songti SC", "Noto Serif SC", serif;
+    }
+
+    .stage {
+      width: min(1160px, 100%);
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(340px, 430px));
+      gap: 42px;
+      padding: 42px 24px;
+      justify-content: center;
+      align-items: start;
+    }
+
+    .caption {
+      margin: 0 0 14px;
+      color: rgba(33, 31, 28, 0.72);
+      font: 800 15px/1.2 "PingFang SC", sans-serif;
+      text-align: center;
+    }
+
+    .phone {
+      border-radius: 46px 46px 0 0;
+      padding: 12px 14px 0;
+      background: rgba(39, 37, 34, 0.18);
+      box-shadow: 0 34px 90px rgba(50, 39, 27, 0.2);
+    }
+
+    .sheet {
+      position: relative;
+      height: 884px;
+      overflow: hidden;
+      border-radius: 40px 40px 0 0;
+      background: var(--paper);
+      border: 1px solid rgba(255, 255, 255, 0.9);
+    }
+
+    .handle {
+      position: relative;
+      z-index: 2;
+      width: 56px;
+      height: 5px;
+      border-radius: 999px;
+      margin: 12px auto 0;
+      background: rgba(33, 31, 28, 0.18);
+    }
+
+    .content {
+      height: calc(100% - 17px);
+      overflow: auto;
+      padding: 20px 22px 38px;
+      scrollbar-width: none;
+    }
+
+    .content::-webkit-scrollbar {
+      display: none;
+    }
+
+    h1, h2, h3, p {
+      margin: 0;
+      letter-spacing: 0;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--charcoal);
+      font: 850 19px/1 "PingFang SC", sans-serif;
+    }
+
+    .brand-mark {
+      width: 32px;
+      height: 32px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: var(--orange);
+      background: #fff0e9;
+      box-shadow: inset 0 0 0 1px rgba(255, 112, 72, 0.14);
+    }
+
+    .period {
+      padding: 8px 10px;
+      border-radius: 999px;
+      color: rgba(33, 31, 28, 0.64);
+      background: rgba(255, 255, 255, 0.64);
+      border: 1px solid rgba(45, 38, 31, 0.07);
+      font: 760 11px/1 "PingFang SC", sans-serif;
+    }
+
+    /* B+C */
+    .radar-sheet {
+      background:
+        radial-gradient(circle at 54% 14%, rgba(255, 112, 72, 0.2), transparent 18%),
+        radial-gradient(circle at 16% 34%, rgba(47, 154, 145, 0.11), transparent 22%),
+        linear-gradient(180deg, #fffdfa 0%, #f7f2ea 100%);
+    }
+
+    .signal-hero {
+      position: relative;
+      min-height: 316px;
+      border-radius: 32px;
+      overflow: hidden;
+      padding: 22px;
+      color: #fffaf4;
+      background:
+        radial-gradient(circle at 52% 46%, rgba(255, 255, 255, 0.23), transparent 11%),
+        radial-gradient(circle at 76% 24%, rgba(244, 95, 75, 0.52), transparent 24%),
+        radial-gradient(circle at 28% 70%, rgba(47, 154, 145, 0.42), transparent 25%),
+        linear-gradient(145deg, #27221d 0%, #3b3029 48%, #201d1a 100%);
+      box-shadow: 0 24px 50px rgba(41, 32, 27, 0.26);
+    }
+
+    .orbit {
+      position: absolute;
+      inset: 38px 28px 38px;
+      border-radius: 50%;
+      border: 1px solid rgba(255, 250, 244, 0.16);
+      transform: rotate(-12deg);
+    }
+
+    .orbit.two {
+      inset: 76px 58px 68px;
+      border-color: rgba(255, 250, 244, 0.12);
+      transform: rotate(18deg);
+    }
+
+    .core {
+      position: absolute;
+      left: 50%;
+      top: 48%;
+      width: 122px;
+      height: 122px;
+      transform: translate(-50%, -50%);
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.95), transparent 17%),
+        radial-gradient(circle, #ff8a64, #f45f4b 58%, #b84636);
+      box-shadow: 0 0 0 14px rgba(255, 112, 72, 0.08), 0 0 48px rgba(255, 112, 72, 0.62);
+      font: 900 15px/1.2 "PingFang SC", sans-serif;
+      text-align: center;
+    }
+
+    .satellite {
+      position: absolute;
+      display: grid;
+      gap: 4px;
+      padding: 8px 10px;
+      border-radius: 16px;
+      color: #fffaf4;
+      background: rgba(255, 250, 244, 0.11);
+      border: 1px solid rgba(255, 250, 244, 0.15);
+      backdrop-filter: blur(10px);
+      font: 780 11px/1 "PingFang SC", sans-serif;
+    }
+
+    .satellite span {
+      color: rgba(255, 250, 244, 0.62);
+      font-size: 10px;
+    }
+
+    .satellite.sleep { left: 18px; top: 80px; }
+    .satellite.smoke { right: 18px; top: 62px; }
+    .satellite.money { left: 30px; bottom: 48px; }
+    .satellite.task { right: 28px; bottom: 54px; }
+
+    .hero-copy {
+      position: relative;
+      z-index: 2;
+      width: 72%;
+      padding-top: 182px;
+    }
+
+    .hero-copy .eyebrow,
+    .story-hero .eyebrow {
+      color: rgba(255, 250, 244, 0.7);
+      font: 850 11px/1 "PingFang SC", sans-serif;
+      margin-bottom: 8px;
+    }
+
+    .hero-copy p {
+      font: 760 17px/1.56 "PingFang SC", sans-serif;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 10px;
+      margin-top: 16px;
+    }
+
+    .metric {
+      padding: 14px;
+      border-radius: 22px;
+      background: rgba(255, 255, 255, 0.72);
+      border: 1px solid var(--line);
+    }
+
+    .metric strong {
+      display: block;
+      margin-bottom: 5px;
+      color: var(--charcoal);
+      font: 900 22px/1 "PingFang SC", sans-serif;
+    }
+
+    .metric span {
+      color: var(--muted);
+      font: 760 11px/1.25 "PingFang SC", sans-serif;
+    }
+
+    .bar {
+      height: 5px;
+      margin-top: 11px;
+      border-radius: 999px;
+      background: rgba(33, 31, 28, 0.08);
+      overflow: hidden;
+    }
+
+    .bar i {
+      display: block;
+      height: 100%;
+      border-radius: 999px;
+      background: linear-gradient(90deg, var(--orange), var(--teal));
+    }
+
+    .analysis-card {
+      margin-top: 14px;
+      padding: 17px;
+      border-radius: 24px;
+      background: rgba(255, 255, 255, 0.74);
+      border: 1px solid var(--line);
+      box-shadow: 0 12px 28px rgba(48, 39, 30, 0.05);
+    }
+
+    .analysis-card h3 {
+      margin-bottom: 8px;
+      color: var(--charcoal);
+      font: 850 15px/1.2 "PingFang SC", sans-serif;
+    }
+
+    .analysis-card p {
+      color: #3a3733;
+      font: 520 15px/1.68 "PingFang SC", sans-serif;
+    }
+
+    .card-line {
+      display: grid;
+      grid-template-columns: 28px 1fr;
+      gap: 10px;
+      align-items: start;
+    }
+
+    .signal-dot {
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: #fff;
+      background: linear-gradient(145deg, var(--orange), #bd5742);
+      font: 850 11px/1 "PingFang SC", sans-serif;
+      box-shadow: 0 8px 18px rgba(255, 112, 72, 0.24);
+    }
+
+    /* B+D */
+    .story-sheet {
+      background:
+        linear-gradient(180deg, rgba(255, 253, 248, 0.78), #fffdf8 35%),
+        radial-gradient(circle at 30% 10%, rgba(255, 112, 72, 0.18), transparent 28%),
+        radial-gradient(circle at 82% 18%, rgba(139, 111, 177, 0.16), transparent 26%),
+        #fffdf8;
+    }
+
+    .story-hero {
+      position: relative;
+      min-height: 336px;
+      overflow: hidden;
+      border-radius: 34px;
+      padding: 22px;
+      color: #fffaf4;
+      background:
+        linear-gradient(180deg, rgba(36, 30, 24, 0.08), rgba(36, 30, 24, 0.7)),
+        radial-gradient(circle at 50% 16%, rgba(255, 255, 255, 0.7), transparent 9%),
+        radial-gradient(circle at 26% 34%, rgba(255, 112, 72, 0.62), transparent 18%),
+        radial-gradient(circle at 80% 28%, rgba(139, 111, 177, 0.58), transparent 20%),
+        radial-gradient(circle at 48% 72%, rgba(199, 148, 69, 0.5), transparent 20%),
+        linear-gradient(145deg, #4a392d, #171513);
+      box-shadow: 0 24px 54px rgba(55, 42, 31, 0.25);
+    }
+
+    .story-hero::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255, 250, 244, 0.07) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255, 250, 244, 0.06) 1px, transparent 1px);
+      background-size: 34px 34px;
+      mask-image: linear-gradient(180deg, rgba(0,0,0,0.7), transparent 80%);
+    }
+
+    .star {
+      position: absolute;
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #fff7e9;
+      box-shadow: 0 0 18px #fff1d3;
+    }
+
+    .star.one { left: 58px; top: 82px; }
+    .star.two { right: 74px; top: 118px; }
+    .star.three { left: 148px; bottom: 96px; }
+
+    .thread {
+      position: absolute;
+      left: 60px;
+      right: 78px;
+      top: 88px;
+      height: 118px;
+      border-top: 1px solid rgba(255, 250, 244, 0.22);
+      border-right: 1px solid rgba(255, 250, 244, 0.2);
+      transform: skewY(-15deg);
+    }
+
+    .story-copy {
+      position: absolute;
+      left: 22px;
+      right: 22px;
+      bottom: 22px;
+    }
+
+    .story-copy h2 {
+      margin-bottom: 10px;
+      font: 900 28px/1.12 "PingFang SC", sans-serif;
+    }
+
+    .story-copy p {
+      width: 92%;
+      color: rgba(255, 250, 244, 0.84);
+      font: 620 15.5px/1.65 "PingFang SC", sans-serif;
+    }
+
+    .chapter {
+      margin-top: 16px;
+      padding: 18px 18px 18px 20px;
+      border-radius: 26px;
+      background: rgba(255, 255, 255, 0.78);
+      border: 1px solid var(--line);
+      box-shadow: 0 12px 30px rgba(48, 39, 30, 0.052);
+    }
+
+    .chapter-kicker {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      color: var(--muted);
+      font: 850 11px/1 "PingFang SC", sans-serif;
+    }
+
+    .chapter-mark {
+      width: 30px;
+      height: 30px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: var(--orange);
+      background: #fff0e9;
+      font-size: 14px;
+    }
+
+    .chapter h3 {
+      margin-bottom: 8px;
+      color: var(--charcoal);
+      font: 900 17px/1.25 "PingFang SC", sans-serif;
+    }
+
+    .chapter p {
+      color: #3a3733;
+      font: 500 15.5px/1.72 "PingFang SC", sans-serif;
+    }
+
+    .quote {
+      margin-top: 14px;
+      padding: 12px 13px;
+      border-left: 2px solid rgba(255, 112, 72, 0.55);
+      border-radius: 0 16px 16px 0;
+      background: rgba(255, 112, 72, 0.07);
+      color: #785143;
+      font: 650 13px/1.55 "PingFang SC", sans-serif;
+    }
+
+    @media (max-width: 880px) {
+      .stage {
+        grid-template-columns: minmax(340px, 430px);
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <section>
+      <p class="caption">B+C · 生活信号图 + 数据仪表</p>
+      <div class="phone">
+        <div class="sheet radar-sheet">
+          <div class="handle"></div>
+          <div class="content">
+            <div class="topbar">
+              <div class="brand"><span class="brand-mark">✦</span>深度分析</div>
+              <div class="period">近两周</div>
+            </div>
+
+            <section class="signal-hero">
+              <div class="orbit"></div>
+              <div class="orbit two"></div>
+              <div class="core">状态<br>交汇点</div>
+              <div class="satellite sleep">睡眠<span>波动明显</span></div>
+              <div class="satellite smoke">戒烟<span>单日反复</span></div>
+              <div class="satellite money">消费<span>显著收缩</span></div>
+              <div class="satellite task">任务<span>压力较小</span></div>
+              <div class="hero-copy">
+                <div class="eyebrow">HOLO OBSERVED</div>
+                <p>这次不是单个异常，而是几个生活信号在同一天附近发生了交汇。</p>
+              </div>
+            </section>
+
+            <section class="metric-grid">
+              <div class="metric">
+                <strong>10.3h</strong>
+                <span>6 月 27 日出现补觉峰值</span>
+                <div class="bar"><i style="width: 86%"></i></div>
+              </div>
+              <div class="metric">
+                <strong>4次</strong>
+                <span>戒烟习惯单日反复</span>
+                <div class="bar"><i style="width: 72%"></i></div>
+              </div>
+              <div class="metric">
+                <strong>-4937</strong>
+                <span>本期消费低于上期</span>
+                <div class="bar"><i style="width: 62%"></i></div>
+              </div>
+              <div class="metric">
+                <strong>低</strong>
+                <span>今日任务压力较小</span>
+                <div class="bar"><i style="width: 34%"></i></div>
+              </div>
+            </section>
+
+            <article class="analysis-card">
+              <div class="card-line">
+                <div class="signal-dot">1</div>
+                <div>
+                  <h3>优先看睡眠与戒烟的同日关系</h3>
+                  <p>6 月 27 日既有补觉峰值，也出现戒烟明显反复。这里更像状态波动下的行为回弹，建议先稳住睡眠节律，再看控制是否变轻。</p>
+                </div>
+              </div>
+            </article>
+
+            <article class="analysis-card">
+              <div class="card-line">
+                <div class="signal-dot">2</div>
+                <div>
+                  <h3>消费下降不是坏信号</h3>
+                  <p>近期消费金额下降，同时任务压力没有升高。它更像需求和行为在调整，不需要被解释成压力或异常。</p>
+                </div>
+              </div>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <p class="caption">B+D · 生活星图 + 叙事卡片</p>
+      <div class="phone">
+        <div class="sheet story-sheet">
+          <div class="handle"></div>
+          <div class="content">
+            <div class="topbar">
+              <div class="brand"><span class="brand-mark">✦</span>深度分析</div>
+              <div class="period">近两周</div>
+            </div>
+
+            <section class="story-hero">
+              <div class="thread"></div>
+              <div class="star one"></div>
+              <div class="star two"></div>
+              <div class="star three"></div>
+              <div class="story-copy">
+                <div class="eyebrow">LIFE CONSTELLATION</div>
+                <h2>状态在 6 月 27 日拐了一下</h2>
+                <p>睡眠、戒烟和消费不是孤立数据。它们像几颗靠近的星点，共同指向一次短暂的状态波动。</p>
+              </div>
+            </section>
+
+            <article class="chapter">
+              <div class="chapter-kicker">
+                <span>观察 01 · 睡眠</span>
+                <span class="chapter-mark">☾</span>
+              </div>
+              <h3>身体像是在补回前几天的缺口</h3>
+              <p>近两周睡眠时长波动明显，有两天不足 6 小时，而 6 月 27 日达到 10.3 小时。它不像稳定变差，更像一次补偿性的恢复。</p>
+              <div class="quote">Holo 建议：先把接下来两晚的睡眠时间拉平，再判断白天精力是否恢复。</div>
+            </article>
+
+            <article class="chapter">
+              <div class="chapter-kicker">
+                <span>观察 02 · 戒烟</span>
+                <span class="chapter-mark">↺</span>
+              </div>
+              <h3>反复发生在同一个状态节点附近</h3>
+              <p>6 月 27 日戒烟习惯单日发生 4 次，超过每日限制。它值得和当天的睡眠峰值一起看，而不是只当成一次失败。</p>
+              <div class="quote">Holo 建议：把这天标记为“状态波动日”，后续如果再次出现，可以回看触发条件。</div>
+            </article>
+
+            <article class="chapter">
+              <div class="chapter-kicker">
+                <span>观察 03 · 消费</span>
+                <span class="chapter-mark">◌</span>
+              </div>
+              <h3>生活开销正在收缩，但压力没有明显堆高</h3>
+              <p>本期消费比上期减少约 4937 元；今天待办已完成，任务方面压力较小。这个组合更像节奏调整，而不是危机信号。</p>
+            </article>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

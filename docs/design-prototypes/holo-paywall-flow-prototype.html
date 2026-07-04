@@ -1,0 +1,1065 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Holo 会员付费触发原型</title>
+  <style>
+    :root {
+      --paper: #f7f7f3;
+      --panel: #ffffff;
+      --ink: #202124;
+      --muted: #6b6f76;
+      --line: #dfe2e6;
+      --line-strong: #c7ccd3;
+      --plus: #157f77;
+      --plus-soft: #dff4ef;
+      --pro: #b6402c;
+      --pro-soft: #f9e5df;
+      --gold: #b98316;
+      --shadow: 0 24px 70px rgba(31, 36, 44, .18);
+      --radius: 8px;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      background:
+        linear-gradient(90deg, rgba(32,33,36,.045) 1px, transparent 1px) 0 0 / 44px 44px,
+        linear-gradient(rgba(32,33,36,.035) 1px, transparent 1px) 0 0 / 44px 44px,
+        var(--paper);
+      font-family: ui-serif, "Songti SC", "Noto Serif CJK SC", Georgia, serif;
+    }
+
+    button, input {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+    }
+
+    .shell {
+      width: min(1180px, calc(100vw - 32px));
+      margin: 0 auto;
+      padding: 26px 0 40px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+      margin-bottom: 20px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .mark {
+      width: 38px;
+      height: 38px;
+      border: 2px solid var(--ink);
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: var(--panel);
+      box-shadow: 4px 4px 0 var(--ink);
+      flex: 0 0 auto;
+    }
+
+    .mark::before {
+      content: "";
+      width: 14px;
+      height: 14px;
+      border: 2px solid var(--ink);
+      border-radius: 50%;
+      border-top-color: transparent;
+    }
+
+    h1 {
+      font-size: clamp(24px, 4vw, 42px);
+      line-height: 1.03;
+      margin: 0;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.55;
+    }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      border: 1px solid var(--line-strong);
+      background: var(--panel);
+      border-radius: 999px;
+      white-space: nowrap;
+      box-shadow: 0 8px 20px rgba(31, 36, 44, .06);
+    }
+
+    .status-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--muted);
+    }
+
+    .status-pill.plus .status-dot { background: var(--plus); }
+    .status-pill.pro .status-dot { background: var(--pro); }
+
+    .grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.15fr) minmax(330px, .85fr);
+      gap: 18px;
+      align-items: start;
+    }
+
+    .section {
+      background: rgba(255,255,255,.78);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: 0 14px 40px rgba(31, 36, 44, .08);
+      overflow: hidden;
+    }
+
+    .section-head {
+      padding: 18px 18px 14px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    h2 {
+      margin: 0;
+      font-size: 20px;
+      letter-spacing: 0;
+    }
+
+    .hint {
+      margin: 4px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.45;
+    }
+
+    .segmented {
+      display: flex;
+      padding: 4px;
+      border: 1px solid var(--line);
+      background: #f2f3f4;
+      border-radius: 999px;
+      gap: 4px;
+    }
+
+    .segmented button {
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 14px;
+      min-width: 76px;
+    }
+
+    .segmented button.active {
+      background: var(--panel);
+      color: var(--ink);
+      box-shadow: 0 3px 10px rgba(31, 36, 44, .12);
+    }
+
+    .feature-list {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+      padding: 18px;
+    }
+
+    .feature {
+      min-height: 154px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      border-radius: var(--radius);
+      padding: 15px;
+      text-align: left;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: 16px;
+      transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+    }
+
+    .feature:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 16px 34px rgba(31, 36, 44, .12);
+      border-color: var(--line-strong);
+    }
+
+    .feature-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .feature h3 {
+      margin: 0;
+      font-size: 18px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    .feature p {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .badge {
+      border-radius: 999px;
+      padding: 5px 8px;
+      font-size: 12px;
+      line-height: 1;
+      border: 1px solid var(--line-strong);
+      color: var(--muted);
+      background: #f5f6f7;
+      flex: 0 0 auto;
+    }
+
+    .badge.plus {
+      color: #0a5e58;
+      border-color: #92d3c8;
+      background: var(--plus-soft);
+    }
+
+    .badge.pro {
+      color: #8b2d1e;
+      border-color: #e5a494;
+      background: var(--pro-soft);
+    }
+
+    .feature-action {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .arrow {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      border: 1px solid var(--line-strong);
+      color: var(--ink);
+      background: #fbfbfa;
+      flex: 0 0 auto;
+    }
+
+    .side {
+      display: grid;
+      gap: 18px;
+    }
+
+    .phone {
+      padding: 20px;
+      min-height: 520px;
+      background: #22252a;
+      color: #f6f6f1;
+      border: 1px solid #111;
+      border-radius: 22px;
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .phone::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(135deg, rgba(255,255,255,.12), transparent 32%),
+        repeating-linear-gradient(90deg, rgba(255,255,255,.03) 0 1px, transparent 1px 12px);
+      pointer-events: none;
+    }
+
+    .phone-content {
+      position: relative;
+      z-index: 1;
+    }
+
+    .phone-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 18px;
+      font-size: 13px;
+      color: rgba(246,246,241,.72);
+    }
+
+    .live-card {
+      border: 1px solid rgba(255,255,255,.16);
+      background: rgba(255,255,255,.08);
+      border-radius: 8px;
+      padding: 16px;
+      margin-bottom: 12px;
+      backdrop-filter: blur(16px);
+    }
+
+    .live-card strong {
+      display: block;
+      font-size: 18px;
+      margin-bottom: 8px;
+      letter-spacing: 0;
+    }
+
+    .live-card span {
+      display: block;
+      color: rgba(246,246,241,.72);
+      font-size: 14px;
+      line-height: 1.55;
+    }
+
+    .journey {
+      padding: 18px;
+    }
+
+    .step {
+      display: grid;
+      grid-template-columns: 28px 1fr;
+      gap: 10px;
+      align-items: start;
+      padding: 10px 0;
+      position: relative;
+    }
+
+    .step:not(:last-child)::after {
+      content: "";
+      position: absolute;
+      left: 13px;
+      top: 38px;
+      bottom: -10px;
+      width: 1px;
+      background: var(--line);
+    }
+
+    .step-num {
+      width: 28px;
+      height: 28px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--ink);
+      color: #fff;
+      font-size: 13px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .step h3 {
+      margin: 2px 0 3px;
+      font-size: 15px;
+      letter-spacing: 0;
+    }
+
+    .step p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .overlay {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      background: rgba(21, 23, 27, .44);
+      z-index: 30;
+    }
+
+    .overlay.show {
+      display: flex;
+      animation: fadeIn .16s ease-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+
+    .modal {
+      width: min(760px, 100%);
+      background: var(--panel);
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      transform: translateY(8px);
+      animation: rise .2s ease-out forwards;
+    }
+
+    @keyframes rise {
+      to { transform: translateY(0); }
+    }
+
+    .modal-head {
+      padding: 20px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+    }
+
+    .modal-kicker {
+      color: var(--muted);
+      font-size: 13px;
+      margin-bottom: 6px;
+    }
+
+    .modal h2 {
+      font-size: 28px;
+      line-height: 1.1;
+    }
+
+    .close {
+      width: 34px;
+      height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 50%;
+      background: #f5f6f7;
+      color: var(--ink);
+      flex: 0 0 auto;
+    }
+
+    .modal-body {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 250px;
+      gap: 18px;
+      padding: 20px;
+    }
+
+    .benefits {
+      display: grid;
+      gap: 10px;
+    }
+
+    .benefit {
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 12px;
+      background: #fbfbfa;
+    }
+
+    .benefit strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 15px;
+    }
+
+    .benefit span {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .price-box {
+      border: 1px solid var(--line-strong);
+      border-radius: var(--radius);
+      padding: 14px;
+      background: #f6f7f8;
+      align-self: start;
+    }
+
+    .price-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .price {
+      font-size: 30px;
+      line-height: 1;
+      font-weight: 700;
+    }
+
+    .price-note {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .primary, .secondary {
+      width: 100%;
+      min-height: 44px;
+      border-radius: 8px;
+      margin-top: 10px;
+    }
+
+    .primary {
+      color: #fff;
+      background: var(--ink);
+    }
+
+    .primary.plus { background: var(--plus); }
+    .primary.pro { background: var(--pro); }
+
+    .secondary {
+      border: 1px solid var(--line-strong);
+      background: var(--panel);
+      color: var(--ink);
+    }
+
+    .pay-sheet {
+      width: min(390px, 100%);
+      background: #f9f9f7;
+      border-radius: 22px;
+      border: 1px solid rgba(0,0,0,.12);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      animation: rise .22s ease-out forwards;
+    }
+
+    .pay-top {
+      padding: 16px;
+      text-align: center;
+      border-bottom: 1px solid var(--line);
+      background: #fff;
+    }
+
+    .app-icon {
+      width: 58px;
+      height: 58px;
+      border-radius: 14px;
+      margin: 0 auto 10px;
+      background:
+        linear-gradient(135deg, #202124, #4b4f55);
+      display: grid;
+      place-items: center;
+      color: #fff;
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    .pay-top h2 {
+      font-size: 20px;
+      margin-bottom: 5px;
+    }
+
+    .pay-top p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .pay-lines {
+      padding: 14px 16px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .pay-line {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .pay-line strong {
+      color: var(--ink);
+      font-weight: 600;
+      text-align: right;
+    }
+
+    .pay-actions {
+      padding: 0 16px 16px;
+    }
+
+    .confirm {
+      width: 100%;
+      min-height: 46px;
+      border-radius: 12px;
+      background: #111;
+      color: #fff;
+      margin-bottom: 8px;
+    }
+
+    .cancel {
+      width: 100%;
+      min-height: 42px;
+      background: transparent;
+      color: var(--muted);
+    }
+
+    .toast {
+      position: fixed;
+      left: 50%;
+      bottom: 24px;
+      transform: translateX(-50%) translateY(20px);
+      padding: 12px 14px;
+      border-radius: 999px;
+      background: #111;
+      color: #fff;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .2s ease, transform .2s ease;
+      z-index: 40;
+      font-size: 14px;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    @media (max-width: 920px) {
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .feature-list {
+        grid-template-columns: 1fr;
+      }
+
+      .modal-body {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .shell {
+        width: min(100% - 20px, 1180px);
+        padding-top: 14px;
+      }
+
+      .section-head {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .segmented {
+        width: 100%;
+      }
+
+      .segmented button {
+        flex: 1;
+        min-width: 0;
+      }
+
+      .modal-head {
+        padding: 16px;
+      }
+
+      .modal h2 {
+        font-size: 23px;
+      }
+
+      .modal-body {
+        padding: 16px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="mark" aria-hidden="true"></div>
+        <div>
+          <h1>Holo 付费触发原型</h1>
+          <p class="subtitle">点击不同会员功能，观察从功能锁定、Holo 说明弹窗到系统支付确认的完整节奏。</p>
+        </div>
+      </div>
+      <div class="status-pill" id="memberStatus">
+        <span class="status-dot"></span>
+        <span id="memberText">当前：免费版</span>
+      </div>
+    </header>
+
+    <div class="grid">
+      <section class="section">
+        <div class="section-head">
+          <div>
+            <h2>功能入口模拟</h2>
+            <p class="hint">免费功能直接进入；Plus/Pro 功能先解释价值，再让用户选择是否支付。</p>
+          </div>
+          <div class="segmented" aria-label="会员状态切换">
+            <button class="active" data-plan-switch="free">免费</button>
+            <button data-plan-switch="plus">Plus</button>
+            <button data-plan-switch="pro">Pro</button>
+          </div>
+        </div>
+
+        <div class="feature-list" id="featureList">
+          <button class="feature" data-tier="free" data-title="财务记录" data-copy="收入、支出、转账、分类和备注都属于基础记录能力，不收费。">
+            <span class="feature-top">
+              <span>
+                <h3>财务记录</h3>
+                <p>记录收入支出、分类账本和基础月度汇总。</p>
+              </span>
+              <span class="badge">免费</span>
+            </span>
+            <span class="feature-action">直接进入基础功能 <span class="arrow">→</span></span>
+          </button>
+
+          <button class="feature" data-tier="plus" data-feature="财务分期" data-title="用 Plus 管理分期和周期账单">
+            <span class="feature-top">
+              <span>
+                <h3>财务分期</h3>
+                <p>管理每期还款、剩余金额、还款日和月度压力。</p>
+              </span>
+              <span class="badge plus">Plus</span>
+            </span>
+            <span class="feature-action">触发 Plus 弹窗 <span class="arrow">→</span></span>
+          </button>
+
+          <button class="feature" data-tier="plus" data-feature="桌面小组件" data-title="用 Plus 把 Holo 放到桌面上">
+            <span class="feature-top">
+              <span>
+                <h3>桌面小组件</h3>
+                <p>展示待办、习惯、财务、健康和生活星图。</p>
+              </span>
+              <span class="badge plus">Plus</span>
+            </span>
+            <span class="feature-action">触发 Plus 弹窗 <span class="arrow">→</span></span>
+          </button>
+
+          <button class="feature" data-tier="plus" data-feature="高级统计" data-title="用 Plus 看见更完整的生活趋势">
+            <span class="feature-top">
+              <span>
+                <h3>高级统计</h3>
+                <p>跨月对比、年度视图、分类趋势和自定义看板。</p>
+              </span>
+              <span class="badge plus">Plus</span>
+            </span>
+            <span class="feature-action">触发 Plus 弹窗 <span class="arrow">→</span></span>
+          </button>
+
+          <button class="feature" data-tier="pro" data-feature="AI 深度分析" data-title="让 Holo 帮你看懂最近的生活变化">
+            <span class="feature-top">
+              <span>
+                <h3>AI 深度分析</h3>
+                <p>联动财务、任务、健康、习惯和想法，解释变化原因。</p>
+              </span>
+              <span class="badge pro">Pro</span>
+            </span>
+            <span class="feature-action">触发 Pro 弹窗 <span class="arrow">→</span></span>
+          </button>
+
+          <button class="feature" data-tier="pro" data-feature="AI 自动整理想法" data-title="让 Holo 自动整理你的想法">
+            <span class="feature-top">
+              <span>
+                <h3>AI 自动整理想法</h3>
+                <p>聚类主题、生成观点树，沉淀长期想法演化。</p>
+              </span>
+              <span class="badge pro">Pro</span>
+            </span>
+            <span class="feature-action">触发 Pro 弹窗 <span class="arrow">→</span></span>
+          </button>
+        </div>
+      </section>
+
+      <aside class="side">
+        <section class="phone" aria-label="手机端效果预览">
+          <div class="phone-content">
+            <div class="phone-head">
+              <span>Holo</span>
+              <span id="phonePlan">Free</span>
+            </div>
+            <div class="live-card">
+              <strong id="liveTitle">先解释价值，再进入支付</strong>
+              <span id="liveCopy">用户点击付费能力时，Holo 先展示功能能解决什么问题，而不是立刻拉起支付。</span>
+            </div>
+            <div class="live-card">
+              <strong>Plus 的心智</strong>
+              <span>让 Holo 更好用：小组件、分期账单、高级统计、个性化工作台。</span>
+            </div>
+            <div class="live-card">
+              <strong>Pro 的心智</strong>
+              <span>让 Holo 更懂你：深度分析、长期记忆、主动洞察、AI 自动整理。</span>
+            </div>
+          </div>
+        </section>
+
+        <section class="section">
+          <div class="section-head">
+            <div>
+              <h2>推荐链路</h2>
+              <p class="hint">核心是避免“点一下就要钱”的生硬感。</p>
+            </div>
+          </div>
+          <div class="journey">
+            <div class="step">
+              <div class="step-num">1</div>
+              <div>
+                <h3>用户触发付费功能</h3>
+                <p>入口保留在真实使用场景里，而不是只藏在设置页。</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">2</div>
+              <div>
+                <h3>Holo 解释功能价值</h3>
+                <p>说明能带来的结果，给查看权益和暂时不用的退路。</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">3</div>
+              <div>
+                <h3>用户主动选择开通</h3>
+                <p>Plus 卖效率，Pro 卖理解，不把两者混在一起。</p>
+              </div>
+            </div>
+            <div class="step">
+              <div class="step-num">4</div>
+              <div>
+                <h3>再进入系统支付窗口</h3>
+                <p>系统层只负责确认交易，产品层负责讲清楚价值。</p>
+              </div>
+            </div>
+          </div>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <div class="overlay" id="paywallOverlay" role="dialog" aria-modal="true" aria-labelledby="paywallTitle">
+    <section class="modal">
+      <div class="modal-head">
+        <div>
+          <div class="modal-kicker" id="paywallKicker">Plus 功能</div>
+          <h2 id="paywallTitle">用 Plus 管理分期和周期账单</h2>
+          <p class="hint" id="paywallIntro">这个弹窗负责解释功能价值，不直接向用户要钱。</p>
+        </div>
+        <button class="close" data-close="paywall" aria-label="关闭">×</button>
+      </div>
+      <div class="modal-body">
+        <div class="benefits" id="benefitList"></div>
+        <aside class="price-box">
+          <div class="price-row">
+            <span id="planName">Plus</span>
+            <strong class="price" id="planPrice">¥18</strong>
+          </div>
+          <div class="price-note" id="planNote">按月订阅，可随时取消。价格仅用于原型占位。</div>
+          <button class="primary plus" id="subscribeButton">开通 Plus</button>
+          <button class="secondary" id="viewPlansButton">查看全部会员权益</button>
+          <button class="secondary" data-close="paywall">暂时不用</button>
+        </aside>
+      </div>
+    </section>
+  </div>
+
+  <div class="overlay" id="storeOverlay" role="dialog" aria-modal="true" aria-labelledby="storeTitle">
+    <section class="pay-sheet">
+      <div class="pay-top">
+        <div class="app-icon">H</div>
+        <h2 id="storeTitle">确认订阅</h2>
+        <p>模拟 Apple StoreKit 支付确认窗口</p>
+      </div>
+      <div class="pay-lines">
+        <div class="pay-line"><span>项目</span><strong id="storeProduct">Holo Plus</strong></div>
+        <div class="pay-line"><span>价格</span><strong id="storePrice">¥18 / 月</strong></div>
+        <div class="pay-line"><span>确认方式</span><strong>Face ID / Apple ID</strong></div>
+      </div>
+      <div class="pay-actions">
+        <button class="confirm" id="confirmPayment">模拟支付成功</button>
+        <button class="cancel" data-close="store">取消</button>
+      </div>
+    </section>
+  </div>
+
+  <div class="toast" id="toast">已解锁</div>
+
+  <script>
+    const state = {
+      plan: "free",
+      selectedTier: "plus",
+      selectedFeature: "财务分期"
+    };
+
+    const copy = {
+      plus: {
+        kicker: "Plus 功能",
+        planName: "Plus",
+        price: "¥18",
+        storeProduct: "Holo Plus",
+        storePrice: "¥18 / 月",
+        note: "按月订阅，可随时取消。价格仅用于原型占位。",
+        intro: "Plus 负责让 Holo 更好用：更少手动整理，更适合长期管理生活。",
+        benefits: [
+          ["效率增强", "小组件、分期账单、高级提醒，让常用能力离用户更近。"],
+          ["长期管理", "高级统计、跨月对比和年度视图，适合持续记录的人。"],
+          ["不增加 AI 成本压力", "Plus 主要卖体验和效率，不和 Pro 的 AI 价值打架。"]
+        ]
+      },
+      pro: {
+        kicker: "Pro 功能",
+        planName: "Pro",
+        price: "¥38",
+        storeProduct: "Holo Pro",
+        storePrice: "¥38 / 月",
+        note: "包含 Plus 全部能力和更高额度 AI。价格仅用于原型占位。",
+        intro: "Pro 负责让 Holo 更懂你：跨模块分析、长期记忆和主动洞察。",
+        benefits: [
+          ["深度理解", "联动财务、健康、任务、习惯和想法，解释生活变化。"],
+          ["长期记忆", "识别阶段变化、稳定模式和重要节点，而不是只展示报表。"],
+          ["主动洞察", "在变化发生时提醒用户，而不是等用户自己来问。"]
+        ]
+      }
+    };
+
+    const memberStatus = document.getElementById("memberStatus");
+    const memberText = document.getElementById("memberText");
+    const phonePlan = document.getElementById("phonePlan");
+    const liveTitle = document.getElementById("liveTitle");
+    const liveCopy = document.getElementById("liveCopy");
+    const paywallOverlay = document.getElementById("paywallOverlay");
+    const storeOverlay = document.getElementById("storeOverlay");
+    const toast = document.getElementById("toast");
+
+    function canUse(tier) {
+      if (tier === "free") return true;
+      if (tier === "plus") return state.plan === "plus" || state.plan === "pro";
+      if (tier === "pro") return state.plan === "pro";
+      return false;
+    }
+
+    function renderStatus() {
+      memberStatus.className = `status-pill ${state.plan === "free" ? "" : state.plan}`;
+      memberText.textContent = `当前：${state.plan === "free" ? "免费版" : state.plan === "plus" ? "Plus" : "Pro"}`;
+      phonePlan.textContent = state.plan === "free" ? "Free" : state.plan === "plus" ? "Plus" : "Pro";
+      document.querySelectorAll("[data-plan-switch]").forEach(button => {
+        button.classList.toggle("active", button.dataset.planSwitch === state.plan);
+      });
+    }
+
+    function showToast(message) {
+      toast.textContent = message;
+      toast.classList.add("show");
+      window.setTimeout(() => toast.classList.remove("show"), 1800);
+    }
+
+    function openPaywall(tier, feature, title) {
+      state.selectedTier = tier;
+      state.selectedFeature = feature;
+      const data = copy[tier];
+      document.getElementById("paywallKicker").textContent = data.kicker;
+      document.getElementById("paywallTitle").textContent = title;
+      document.getElementById("paywallIntro").textContent = data.intro;
+      document.getElementById("planName").textContent = data.planName;
+      document.getElementById("planPrice").textContent = data.price;
+      document.getElementById("planNote").textContent = data.note;
+      const subscribeButton = document.getElementById("subscribeButton");
+      subscribeButton.textContent = `开通 ${data.planName}`;
+      subscribeButton.className = `primary ${tier}`;
+
+      const list = document.getElementById("benefitList");
+      list.innerHTML = data.benefits.map(([titleText, body]) => `
+        <div class="benefit">
+          <strong>${titleText}</strong>
+          <span>${body}</span>
+        </div>
+      `).join("");
+
+      liveTitle.textContent = `已触发：${feature}`;
+      liveCopy.textContent = tier === "plus"
+        ? "Plus 弹窗强调效率和长期管理，让用户知道为什么这个功能值得付费。"
+        : "Pro 弹窗强调理解和洞察，让用户知道 AI 能力不是普通报表。";
+
+      paywallOverlay.classList.add("show");
+    }
+
+    function openStoreSheet() {
+      const data = copy[state.selectedTier];
+      document.getElementById("storeProduct").textContent = data.storeProduct;
+      document.getElementById("storePrice").textContent = data.storePrice;
+      paywallOverlay.classList.remove("show");
+      storeOverlay.classList.add("show");
+    }
+
+    document.getElementById("featureList").addEventListener("click", event => {
+      const feature = event.target.closest(".feature");
+      if (!feature) return;
+
+      const tier = feature.dataset.tier;
+      const name = feature.dataset.feature || feature.dataset.title;
+      const title = feature.dataset.title;
+
+      if (canUse(tier)) {
+        liveTitle.textContent = `已进入：${name}`;
+        liveCopy.textContent = feature.dataset.copy || "当前会员已解锁这个功能，可以直接进入，不再展示付费弹窗。";
+        showToast(`${name} 已打开`);
+        return;
+      }
+
+      openPaywall(tier, name, title);
+    });
+
+    document.querySelectorAll("[data-plan-switch]").forEach(button => {
+      button.addEventListener("click", () => {
+        state.plan = button.dataset.planSwitch;
+        renderStatus();
+        showToast(`已切换到${state.plan === "free" ? "免费版" : state.plan === "plus" ? "Plus" : "Pro"}视角`);
+      });
+    });
+
+    document.querySelectorAll("[data-close]").forEach(button => {
+      button.addEventListener("click", () => {
+        const target = button.dataset.close;
+        if (target === "paywall") paywallOverlay.classList.remove("show");
+        if (target === "store") storeOverlay.classList.remove("show");
+      });
+    });
+
+    document.getElementById("subscribeButton").addEventListener("click", openStoreSheet);
+    document.getElementById("viewPlansButton").addEventListener("click", () => {
+      showToast("这里可以跳到完整会员中心");
+    });
+
+    document.getElementById("confirmPayment").addEventListener("click", () => {
+      state.plan = state.selectedTier;
+      renderStatus();
+      storeOverlay.classList.remove("show");
+      showToast(`${copy[state.plan].planName} 已解锁，功能立即可用`);
+      liveTitle.textContent = `已解锁：${state.selectedFeature}`;
+      liveCopy.textContent = "支付成功后回到原功能入口，用户可以立刻继续刚才的任务。";
+    });
+
+    [paywallOverlay, storeOverlay].forEach(overlay => {
+      overlay.addEventListener("click", event => {
+        if (event.target === overlay) overlay.classList.remove("show");
+      });
+    });
+
+    renderStatus();
+  </script>
+</body>
+</html>

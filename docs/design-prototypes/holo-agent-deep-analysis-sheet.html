@@ -1,0 +1,348 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Holo 深度分析详情页原型</title>
+  <style>
+    :root {
+      --bg: #f7f5f1;
+      --sheet: #fffdfa;
+      --ink: #272727;
+      --muted: #8c8984;
+      --hairline: rgba(36, 31, 27, 0.08);
+      --warm: #ff7048;
+      --warm-soft: #fff1eb;
+      --warm-line: rgba(255, 112, 72, 0.28);
+      --note: #faf8f4;
+      --shadow: 0 28px 80px rgba(50, 39, 29, 0.16);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at 18% 8%, rgba(255, 112, 72, 0.11), transparent 32%),
+        radial-gradient(circle at 90% 12%, rgba(80, 67, 54, 0.08), transparent 34%),
+        var(--bg);
+      color: var(--ink);
+      font-family: "PingFang SC", "Songti SC", "Noto Serif SC", serif;
+    }
+
+    .stage {
+      width: min(1120px, 100%);
+      display: grid;
+      grid-template-columns: repeat(2, minmax(330px, 430px));
+      gap: 34px;
+      justify-content: center;
+      align-items: start;
+      padding: 42px 24px;
+    }
+
+    .phone {
+      border-radius: 42px 42px 0 0;
+      padding: 14px 18px 0;
+      background: rgba(199, 197, 190, 0.86);
+      box-shadow: var(--shadow);
+    }
+
+    .sheet {
+      height: 860px;
+      overflow: hidden;
+      border-radius: 38px 38px 0 0;
+      background: var(--sheet);
+      position: relative;
+      border: 1px solid rgba(255, 255, 255, 0.9);
+    }
+
+    .handle {
+      width: 56px;
+      height: 5px;
+      border-radius: 999px;
+      margin: 12px auto 18px;
+      background: rgba(39, 39, 39, 0.18);
+    }
+
+    .content {
+      height: calc(100% - 35px);
+      overflow: auto;
+      padding: 0 24px 38px;
+      scrollbar-width: none;
+    }
+
+    .content::-webkit-scrollbar {
+      display: none;
+    }
+
+    .masthead {
+      text-align: center;
+      margin-bottom: 22px;
+    }
+
+    .mark {
+      width: 48px;
+      height: 48px;
+      margin: 0 auto 12px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 60% 34%, rgba(255, 255, 255, 0.95), transparent 22%),
+        linear-gradient(145deg, #fff5ee, #ffe0d5);
+      color: var(--warm);
+      font: 700 25px/1 "PingFang SC", sans-serif;
+      box-shadow: inset 0 0 0 1px rgba(255, 112, 72, 0.08), 0 12px 26px rgba(255, 112, 72, 0.16);
+    }
+
+    h1 {
+      margin: 0;
+      font: 800 30px/1.1 "PingFang SC", sans-serif;
+      letter-spacing: 0;
+    }
+
+    .topic {
+      margin-top: 8px;
+      color: var(--muted);
+      font: 600 14px/1.5 "PingFang SC", sans-serif;
+    }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      border-radius: 28px;
+      padding: 22px 22px 20px;
+      background:
+        linear-gradient(135deg, rgba(255, 241, 235, 0.95), rgba(255, 253, 250, 0.98) 64%),
+        var(--sheet);
+      border: 1px solid var(--warm-line);
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      width: 128px;
+      height: 128px;
+      right: -62px;
+      top: -66px;
+      border-radius: 50%;
+      background: rgba(255, 112, 72, 0.12);
+    }
+
+    .eyebrow {
+      margin-bottom: 12px;
+      color: var(--warm);
+      font: 800 12px/1 "PingFang SC", sans-serif;
+    }
+
+    .claim {
+      margin: 0;
+      font: 750 19px/1.62 "PingFang SC", sans-serif;
+      letter-spacing: 0;
+    }
+
+    .signals {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 17px;
+    }
+
+    .pill {
+      padding: 7px 10px;
+      border-radius: 999px;
+      color: #6f3423;
+      background: rgba(255, 112, 72, 0.1);
+      font: 700 12px/1 "PingFang SC", sans-serif;
+    }
+
+    .section-title {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 30px 0 14px;
+      color: var(--muted);
+      font: 800 13px/1 "PingFang SC", sans-serif;
+    }
+
+    .section-title::before {
+      content: "";
+      width: 18px;
+      height: 1px;
+      background: var(--hairline);
+    }
+
+    .timeline {
+      display: grid;
+      gap: 13px;
+    }
+
+    .observation {
+      display: grid;
+      grid-template-columns: 34px 1fr;
+      gap: 12px;
+      padding: 17px 16px 18px 0;
+      border-radius: 24px;
+      background: linear-gradient(180deg, #ffffff, var(--note));
+      border: 1px solid var(--hairline);
+      box-shadow: 0 12px 30px rgba(42, 34, 27, 0.045);
+    }
+
+    .index {
+      position: relative;
+      display: flex;
+      justify-content: center;
+      padding-top: 5px;
+    }
+
+    .index::before {
+      content: "";
+      position: absolute;
+      top: 28px;
+      bottom: -20px;
+      width: 1px;
+      background: rgba(255, 112, 72, 0.18);
+    }
+
+    .observation:last-child .index::before {
+      display: none;
+    }
+
+    .index span {
+      width: 18px;
+      height: 18px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      background: var(--warm-soft);
+      border: 1px solid rgba(255, 112, 72, 0.22);
+      color: var(--warm);
+      font: 800 10px/1 "PingFang SC", sans-serif;
+    }
+
+    .observation h2 {
+      margin: 0 0 7px;
+      color: #77736d;
+      font: 800 14px/1.25 "PingFang SC", sans-serif;
+    }
+
+    .observation p {
+      margin: 0;
+      color: #33312f;
+      font: 500 15.5px/1.72 "PingFang SC", sans-serif;
+      letter-spacing: 0;
+    }
+
+    .source {
+      margin-top: 13px;
+      padding-top: 13px;
+      border-top: 1px solid var(--hairline);
+      color: var(--muted);
+      font: 650 12px/1.45 "PingFang SC", sans-serif;
+    }
+
+    @media (max-width: 820px) {
+      .stage {
+        grid-template-columns: minmax(330px, 430px);
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="stage">
+    <section class="phone" aria-label="短结论状态">
+      <div class="sheet">
+        <div class="handle"></div>
+        <div class="content">
+          <header class="masthead">
+            <div class="mark">✦</div>
+            <h1>深度分析</h1>
+            <div class="topic">过去 14 天 · 消费频率</div>
+          </header>
+
+          <section class="hero">
+            <div class="eyebrow">核心结论</div>
+            <p class="claim">过去 14 天买烟 3 次，节奏大约是每 4.7 天一次；总额 276 元，日均约 19.7 元。</p>
+            <div class="signals">
+              <span class="pill">3 次购买</span>
+              <span class="pill">4.7 天/次</span>
+              <span class="pill">19.7 元/天</span>
+            </div>
+          </section>
+
+          <div class="section-title">观察记录</div>
+          <section class="timeline">
+            <article class="observation">
+              <div class="index"><span>1</span></div>
+              <div>
+                <h2>频率已经能被看见</h2>
+                <p>过去 14 天里买烟共 3 次，金额合计 276 元。它不是每天发生，但已经形成可感知的重复节奏。</p>
+                <div class="source">依据 · 账单记录 6 月 15 日至 6 月 28 日</div>
+              </div>
+            </article>
+          </section>
+        </div>
+      </div>
+    </section>
+
+    <section class="phone" aria-label="长结论状态">
+      <div class="sheet">
+        <div class="handle"></div>
+        <div class="content">
+          <header class="masthead">
+            <div class="mark">✦</div>
+            <h1>深度分析</h1>
+            <div class="topic">近两周 · 睡眠、戒烟、消费与任务</div>
+          </header>
+
+          <section class="hero">
+            <div class="eyebrow">核心结论</div>
+            <p class="claim">近两周的状态不是单点异常，而是“睡眠波动 + 戒烟反复 + 消费收缩”的组合变化。最值得优先关注的是睡眠规律和戒烟控制。</p>
+            <div class="signals">
+              <span class="pill">睡眠波动</span>
+              <span class="pill">戒烟反复</span>
+              <span class="pill">消费下降</span>
+              <span class="pill">任务压力较小</span>
+            </div>
+          </section>
+
+          <div class="section-title">观察记录</div>
+          <section class="timeline">
+            <article class="observation">
+              <div class="index"><span>1</span></div>
+              <div>
+                <h2>睡眠不是稳定偏少，而是波动明显</h2>
+                <p>有两天不足 6 小时，而 6 月 27 日睡眠达到 10.3 小时，更像是在补觉。这种波动可能影响白天精力恢复。</p>
+                <div class="source">依据 · 健康数据与近两周睡眠记录</div>
+              </div>
+            </article>
+
+            <article class="observation">
+              <div class="index"><span>2</span></div>
+              <div>
+                <h2>戒烟在 6 月 27 日出现明显反复</h2>
+                <p>单日发生 4 次，超过每日限制。它值得和当天睡眠、状态波动放在一起看，而不是只当成一次孤立失败。</p>
+                <div class="source">依据 · 习惯记录与每日限制</div>
+              </div>
+            </article>
+
+            <article class="observation">
+              <div class="index"><span>3</span></div>
+              <div>
+                <h2>消费在下降，压力信号没有同步增加</h2>
+                <p>近期消费金额比上一期减少约 4937 元；今天待办已完成，任务压力较小。当前更像是行为和需求的调整期。</p>
+                <div class="source">依据 · 财务记录与待办完成情况</div>
+              </div>
+            </article>
+          </section>
+        </div>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

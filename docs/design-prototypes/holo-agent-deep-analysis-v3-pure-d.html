@@ -1,0 +1,330 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Holo 深度分析详情页 V3 纯叙事方向</title>
+  <style>
+    :root {
+      --canvas: #eee9df;
+      --sheet: #fffdfa;
+      --ink: #242321;
+      --soft-ink: #5c5750;
+      --muted: #928b81;
+      --line: rgba(40, 34, 28, 0.08);
+      --warm: #f36f4d;
+      --warm-2: #ffede5;
+      --sage: #6d8b7d;
+      --clay: #b88465;
+      --paper: #faf6ef;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      background:
+        radial-gradient(circle at 50% -10%, rgba(255, 255, 255, 0.86), transparent 30%),
+        linear-gradient(145deg, #e5ded2, #f6f0e7 42%, #dfd5c8);
+      color: var(--ink);
+      font-family: "PingFang SC", "Songti SC", "Noto Serif SC", serif;
+    }
+
+    .phone {
+      width: min(430px, calc(100vw - 28px));
+      border-radius: 48px 48px 0 0;
+      padding: 12px 14px 0;
+      background: rgba(39, 37, 34, 0.16);
+      box-shadow: 0 34px 90px rgba(52, 42, 31, 0.22);
+    }
+
+    .sheet {
+      height: 884px;
+      overflow: hidden;
+      position: relative;
+      border-radius: 40px 40px 0 0;
+      background:
+        linear-gradient(180deg, rgba(255, 253, 250, 0.76), var(--sheet) 34%),
+        var(--sheet);
+      border: 1px solid rgba(255, 255, 255, 0.9);
+    }
+
+    .sheet::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.56;
+      background-image:
+        linear-gradient(rgba(42, 35, 29, 0.026) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(42, 35, 29, 0.022) 1px, transparent 1px);
+      background-size: 24px 24px;
+      mask-image: linear-gradient(180deg, black, transparent 58%);
+    }
+
+    .handle {
+      position: relative;
+      z-index: 2;
+      width: 56px;
+      height: 5px;
+      border-radius: 999px;
+      margin: 12px auto 0;
+      background: rgba(36, 35, 33, 0.18);
+    }
+
+    .content {
+      position: relative;
+      z-index: 1;
+      height: calc(100% - 17px);
+      overflow: auto;
+      padding: 20px 23px 40px;
+      scrollbar-width: none;
+    }
+
+    .content::-webkit-scrollbar {
+      display: none;
+    }
+
+    h1, h2, h3, p {
+      margin: 0;
+      letter-spacing: 0;
+    }
+
+    .top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 26px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font: 850 19px/1 "PingFang SC", sans-serif;
+    }
+
+    .mark {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 50%;
+      color: var(--warm);
+      background: var(--warm-2);
+      box-shadow: inset 0 0 0 1px rgba(243, 111, 77, 0.16);
+    }
+
+    .range {
+      padding: 8px 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.62);
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font: 760 11px/1 "PingFang SC", sans-serif;
+    }
+
+    .opening {
+      padding: 0 4px 22px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .kicker {
+      color: var(--warm);
+      font: 850 11px/1 "PingFang SC", sans-serif;
+      margin-bottom: 12px;
+    }
+
+    .opening h1 {
+      width: 92%;
+      font: 900 33px/1.16 "PingFang SC", sans-serif;
+    }
+
+    .opening p {
+      margin-top: 16px;
+      color: var(--soft-ink);
+      font: 540 16px/1.76 "PingFang SC", sans-serif;
+    }
+
+    .mood-strip {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 8px;
+      margin: 18px 0 30px;
+    }
+
+    .mood {
+      min-height: 78px;
+      padding: 13px 11px;
+      border-radius: 22px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(250, 246, 239, 0.9));
+      border: 1px solid var(--line);
+    }
+
+    .mood strong {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--ink);
+      font: 900 15px/1 "PingFang SC", sans-serif;
+    }
+
+    .mood span {
+      color: var(--muted);
+      font: 720 11px/1.4 "PingFang SC", sans-serif;
+    }
+
+    .chapter {
+      position: relative;
+      margin-top: 14px;
+      padding: 20px 19px 20px;
+      border-radius: 28px;
+      background:
+        linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(250, 246, 239, 0.96)),
+        var(--paper);
+      border: 1px solid var(--line);
+      box-shadow: 0 16px 32px rgba(48, 39, 30, 0.05);
+    }
+
+    .chapter:first-of-type {
+      margin-top: 0;
+    }
+
+    .chapter::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 22px;
+      bottom: 22px;
+      width: 3px;
+      border-radius: 999px;
+      background: var(--accent, var(--warm));
+      opacity: 0.62;
+    }
+
+    .chapter-head {
+      margin-bottom: 12px;
+    }
+
+    .chapter-label {
+      color: var(--muted);
+      font: 850 11px/1 "PingFang SC", sans-serif;
+    }
+
+    .chapter h2 {
+      font: 900 18px/1.32 "PingFang SC", sans-serif;
+    }
+
+    .chapter p {
+      margin-top: 10px;
+      color: #383531;
+      font: 510 15.5px/1.76 "PingFang SC", sans-serif;
+    }
+
+    .note {
+      margin-top: 15px;
+      padding: 13px 14px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.64);
+      border: 1px solid rgba(40, 34, 28, 0.06);
+      color: #71594e;
+      font: 680 13px/1.58 "PingFang SC", sans-serif;
+    }
+
+    .closing {
+      margin-top: 18px;
+      padding: 19px 20px;
+      border-radius: 28px;
+      color: #fffaf5;
+      background:
+        linear-gradient(145deg, rgba(36, 32, 28, 0.94), rgba(68, 55, 45, 0.96)),
+        #2c2824;
+      box-shadow: 0 18px 42px rgba(45, 35, 28, 0.22);
+    }
+
+    .closing .kicker {
+      color: rgba(255, 250, 245, 0.58);
+    }
+
+    .closing h2 {
+      font: 900 20px/1.35 "PingFang SC", sans-serif;
+    }
+
+    .closing p {
+      margin-top: 9px;
+      color: rgba(255, 250, 245, 0.78);
+      font: 560 14.5px/1.72 "PingFang SC", sans-serif;
+    }
+  </style>
+</head>
+<body>
+  <main class="phone">
+    <section class="sheet">
+      <div class="handle"></div>
+      <div class="content">
+        <div class="top">
+          <div class="brand"><span class="mark">✦</span>深度分析</div>
+          <div class="range">近两周</div>
+        </div>
+
+        <section class="opening">
+          <div class="kicker">HOLO 观察手记</div>
+          <h1>你不是失控了，是状态在短暂摇晃。</h1>
+          <p>近两周最值得看的，不是一条单独的数据，而是睡眠、戒烟和消费在同一段时间里呈现出的生活节奏变化。</p>
+        </section>
+
+        <section class="mood-strip" aria-label="状态摘要">
+          <div class="mood">
+            <strong>睡眠</strong>
+            <span>有补觉迹象</span>
+          </div>
+          <div class="mood">
+            <strong>戒烟</strong>
+            <span>出现反复</span>
+          </div>
+          <div class="mood">
+            <strong>消费</strong>
+            <span>明显收缩</span>
+          </div>
+        </section>
+
+        <article class="chapter" style="--accent: var(--sage)">
+          <div class="chapter-head">
+            <div class="chapter-label">观察 01 · 睡眠</div>
+          </div>
+          <h2>身体像是在补回前几天的缺口</h2>
+          <p>近两周睡眠时长波动明显，有两天不足 6 小时，而 6 月 27 日达到 10.3 小时。它不像稳定变差，更像一次补偿性的恢复。</p>
+          <div class="note">先把接下来两晚的睡眠时间拉平，再判断白天精力是否真的恢复。</div>
+        </article>
+
+        <article class="chapter" style="--accent: var(--warm)">
+          <div class="chapter-head">
+            <div class="chapter-label">观察 02 · 戒烟</div>
+          </div>
+          <h2>反复发生在同一个状态节点附近</h2>
+          <p>6 月 27 日戒烟习惯单日发生 4 次，超过每日限制。它值得和当天的睡眠峰值一起看，而不是只当成一次失败。</p>
+          <div class="note">把这天标记为“状态波动日”。如果之后再出现类似反复，可以回看当天的睡眠和压力。</div>
+        </article>
+
+        <article class="chapter" style="--accent: var(--clay)">
+          <div class="chapter-head">
+            <div class="chapter-label">观察 03 · 消费</div>
+          </div>
+          <h2>开销在收缩，但压力没有同步堆高</h2>
+          <p>本期消费比上期减少约 4937 元；今天待办已完成，任务方面压力较小。这个组合更像节奏调整，而不是危机信号。</p>
+        </article>
+
+        <section class="closing">
+          <div class="kicker">下一步</div>
+          <h2>先稳住作息，再观察戒烟反复是否自然变轻。</h2>
+          <p>这比同时盯住所有指标更有效。Holo 会继续观察睡眠、习惯和消费是否重新回到稳定节奏。</p>
+        </section>
+      </div>
+    </section>
+  </main>
+</body>
+</html>
