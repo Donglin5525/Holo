@@ -2,8 +2,7 @@
 //  CalendarRootView.swift
 //  Holo
 //
-//  日历视图根容器：周历/月历切换 + 模块筛选 + 待办维度 + 失败态
-//  P2：周历列表/网格切换、月历色块形式切换
+//  日历视图根容器：周历/月历切换 + 周历布局切换 + 失败态
 //
 
 import SwiftUI
@@ -17,11 +16,10 @@ struct CalendarRootView: View {
         VStack(spacing: 0) {
             modeSwitch
             navBar
-            CalendarFilterBar(moduleFilter: $viewModel.moduleFilter)
-                .padding(.vertical, HoloSpacing.xs)
-            if showsTodoDimensionBar { todoDimensionBar }
+            CalendarObservationSummaryView(summary: viewModel.observationSummary)
+                .padding(.horizontal, HoloSpacing.md)
+                .padding(.bottom, HoloSpacing.sm)
             if viewModel.mode == .weekly { weekListGridSwitch }
-            if viewModel.mode == .monthly { monthCellStyleSwitch }
             if viewModel.hasFailure { failureBanner }
             content
         }
@@ -37,10 +35,6 @@ struct CalendarRootView: View {
         .sheet(item: $selectedEvent) { event in
             CalendarEventDetailSheet(event: event)
         }
-    }
-
-    private var showsTodoDimensionBar: Bool {
-        viewModel.moduleFilter == nil || viewModel.moduleFilter == .todo
     }
 
     // MARK: - 内容（周历 / 月历）
@@ -84,10 +78,13 @@ struct CalendarRootView: View {
                     monthAnchor: viewModel.anchor,
                     eventsByDay: viewModel.monthEventsByDay,
                     selectedDay: viewModel.selectedDay,
-                    cellStyle: viewModel.monthCellStyle,
+                    cellStyle: .heatmap,
                     onSelectDay: { viewModel.selectDay($0) }
                 )
                 .padding(.horizontal, HoloSpacing.md)
+
+                monthLegend
+                    .padding(.horizontal, HoloSpacing.md)
 
                 if let day = viewModel.selectedDay {
                     DayDetailCard(day: day, events: viewModel.selectedDayEvents)
@@ -121,7 +118,7 @@ struct CalendarRootView: View {
             }
         }
         .padding(3)
-        .background(Color.holoGlassBackground)
+        .background(Color(hex: "#EFECE6"))
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.md)
@@ -132,60 +129,39 @@ struct CalendarRootView: View {
     }
 
     private var weekListGridSwitch: some View {
-        HStack {
-            Picker("", selection: $viewModel.weekViewMode) {
-                Image(systemName: "list.bullet").tag(WeekViewMode.list)
-                Image(systemName: "square.grid.2x2").tag(WeekViewMode.grid)
-            }
-            .pickerStyle(.segmented)
-            .frame(width: 100)
-            Spacer()
+        HStack(spacing: 0) {
+            weekModeButton(.grid, title: "网格视图")
+            weekModeButton(.list, title: "列表视图")
         }
-        .padding(.horizontal, HoloSpacing.md)
-        .padding(.bottom, HoloSpacing.xs)
+        .padding(2)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.sm)
+                .stroke(Color.holoBorder.opacity(0.8), lineWidth: 1)
+        )
+        .padding(.horizontal, HoloSpacing.lg)
+        .padding(.bottom, HoloSpacing.sm)
     }
 
-    private var monthCellStyleSwitch: some View {
-        HStack {
-            Picker("", selection: $viewModel.monthCellStyle) {
-                Text("热力").tag(MonthCellStyle.heatmap)
-                Text("徽章").tag(MonthCellStyle.badge)
+    private func weekModeButton(_ mode: WeekViewMode, title: String) -> some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                viewModel.weekViewMode = mode
             }
-            .pickerStyle(.segmented)
-            .frame(width: 120)
-            Spacer()
+        } label: {
+            let isSelected = viewModel.weekViewMode == mode
+            Text(title)
+                .font(.system(size: 11, weight: isSelected ? .semibold : .medium))
+                .foregroundColor(isSelected ? .white : .holoTextSecondary)
+                .frame(maxWidth: .infinity)
+                .frame(height: 28)
+                .background(
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(isSelected ? Color.holoPrimary : Color.clear)
+                )
         }
-        .padding(.horizontal, HoloSpacing.md)
-        .padding(.bottom, HoloSpacing.xs)
-    }
-
-    private var todoDimensionBar: some View {
-        HStack(spacing: HoloSpacing.xs) {
-            Text("待办")
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
-            ForEach(TodoTimeDimension.allCases, id: \.self) { dim in
-                Button {
-                    viewModel.setTodoDimension(dim)
-                } label: {
-                    Text(dim.displayName)
-                        .font(.holoLabel)
-                        .foregroundColor(viewModel.todoDimension == dim ? .white : .holoTextSecondary)
-                        .padding(.horizontal, HoloSpacing.sm)
-                        .padding(.vertical, 3)
-                        .background(
-                            viewModel.todoDimension == dim
-                                ? Color.holoChart9
-                                : Color.holoChart9.opacity(0.10)
-                        )
-                        .clipShape(Capsule())
-                }
-                .buttonStyle(.plain)
-            }
-            Spacer()
-        }
-        .padding(.horizontal, HoloSpacing.md)
-        .padding(.bottom, HoloSpacing.xs)
+        .buttonStyle(.plain)
     }
 
     // MARK: - 导航
@@ -226,6 +202,29 @@ struct CalendarRootView: View {
         .buttonStyle(.plain)
     }
 
+    private var monthLegend: some View {
+        HStack(spacing: HoloSpacing.sm) {
+            legendDot(color: CalendarHeatmap.color(forLevel: 0))
+            Text("少")
+            legendDot(color: CalendarHeatmap.color(forLevel: 2))
+            legendDot(color: CalendarHeatmap.color(forLevel: 4))
+            Text("多")
+            Text("色深=活跃度 · 底条=模块")
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+            Spacer(minLength: 0)
+        }
+        .font(.system(size: 11, weight: .medium))
+        .foregroundColor(.holoTextSecondary)
+        .padding(.top, 2)
+    }
+
+    private func legendDot(color: Color) -> some View {
+        Circle()
+            .fill(color)
+            .frame(width: 8, height: 8)
+    }
+
     // MARK: - 失败态横条
 
     private var failureBanner: some View {
@@ -249,5 +248,66 @@ struct CalendarRootView: View {
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, HoloSpacing.sm)
         .background(Color.holoErrorLight.opacity(0.5))
+    }
+}
+
+private struct CalendarObservationSummaryView: View {
+    let summary: CalendarObservationSummary
+
+    var body: some View {
+        HStack(alignment: .top, spacing: HoloSpacing.sm) {
+            Image(systemName: iconName)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(iconColor)
+                .frame(width: 22, height: 22)
+                .background(iconColor.opacity(0.12))
+                .clipShape(Circle())
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(summary.title)
+                    .font(.system(size: 13, weight: .semibold))
+                    .foregroundColor(.holoTextPrimary)
+                    .lineLimit(2)
+                Text(summary.evidence)
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(.holoTextSecondary)
+                    .lineLimit(1)
+            }
+
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, HoloSpacing.sm)
+        .padding(.vertical, HoloSpacing.sm)
+        .background(backgroundColor)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.md)
+                .stroke(Color.holoBorder.opacity(0.65), lineWidth: 1)
+        )
+    }
+
+    private var iconName: String {
+        switch summary.tone {
+        case .empty: return "moon"
+        case .quiet: return "eye"
+        case .normal: return "sparkles"
+        case .notable: return "sparkles"
+        }
+    }
+
+    private var iconColor: Color {
+        switch summary.tone {
+        case .empty, .quiet: return .holoTextSecondary
+        case .normal: return .holoChart1
+        case .notable: return .holoPrimary
+        }
+    }
+
+    private var backgroundColor: Color {
+        switch summary.tone {
+        case .empty, .quiet: return Color.holoCardBackground
+        case .normal: return Color.holoChart1.opacity(0.06)
+        case .notable: return Color.holoPrimary.opacity(0.08)
+        }
     }
 }

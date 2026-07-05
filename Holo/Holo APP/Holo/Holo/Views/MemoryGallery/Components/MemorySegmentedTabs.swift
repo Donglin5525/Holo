@@ -47,10 +47,10 @@ struct MemorySegmentedTabs: View {
             }
         } label: {
             Text(tab.rawValue)
-                .font(.system(size: 15, weight: isSelected ? .semibold : .medium))
+                .font(.system(size: 13, weight: isSelected ? .semibold : .medium))
                 .foregroundColor(isSelected ? .white : unselectedTextColor)
                 .frame(maxWidth: .infinity)
-                .frame(height: 34)
+                .frame(height: 28)
                 .background(
                     RoundedRectangle(cornerRadius: HoloRadius.sm)
                         .fill(isSelected ? Color.holoPrimary : Color.clear)

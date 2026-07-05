@@ -61,7 +61,7 @@ final class CalendarViewModel: ObservableObject {
     @Published var todoDimension: TodoTimeDimension = .completed
 
     /// P2 周历视图模式（列表 / 网格）
-    @Published var weekViewMode: WeekViewMode = .list
+    @Published var weekViewMode: WeekViewMode = .grid
 
     /// P2 月历色块形式（热力 / 徽章）
     @Published var monthCellStyle: MonthCellStyle = .heatmap
@@ -123,6 +123,13 @@ final class CalendarViewModel: ObservableObject {
     var selectedDayEvents: [CalendarEvent] {
         guard let day = selectedDay else { return [] }
         return monthEventsByDay[Calendar.current.startOfDay(for: day)] ?? []
+    }
+
+    var observationSummary: CalendarObservationSummary {
+        CalendarObservationSummary.make(
+            events: filteredEvents,
+            scope: mode == .weekly ? .week : .month
+        )
     }
 
     var hasFailure: Bool { result.hasFailure }

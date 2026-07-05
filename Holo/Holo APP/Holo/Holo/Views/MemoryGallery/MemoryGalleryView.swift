@@ -45,7 +45,8 @@ struct MemoryGalleryView: View {
 
             // Tab 切换器
             MemorySegmentedTabs(selectedTab: $selectedTab)
-                .padding(.vertical, HoloSpacing.sm)
+                .padding(.top, HoloSpacing.xs)
+                .padding(.bottom, HoloSpacing.xs)
 
             // 主内容区
             tabContent

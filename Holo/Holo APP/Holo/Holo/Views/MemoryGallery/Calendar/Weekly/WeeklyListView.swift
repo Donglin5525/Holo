@@ -2,7 +2,7 @@
 //  WeeklyListView.swift
 //  Holo
 //
-//  周历列表视图：7 天每天一行，事件横向铺开（列表视图，默认）
+//  周历列表视图：7 天每天一行，事件横向铺开
 //  含 WeeklyDayRow 与 WeeklyEventChip
 //
 

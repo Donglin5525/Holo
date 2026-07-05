@@ -55,6 +55,22 @@ final class CalendarEventProviderTests: XCTestCase {
         )
     }
 
+    private func makeEvent(_ module: CalendarModule, day: Int, hour: Int, minute: Int) -> CalendarEvent {
+        var c = DateComponents()
+        c.year = 2026
+        c.month = 7
+        c.day = day
+        c.hour = hour
+        c.minute = minute
+        return CalendarEvent(
+            module: module,
+            date: Calendar.current.date(from: c) ?? Date(),
+            title: "T\(day)-\(hour)-\(minute)",
+            detail: nil,
+            originID: sharedObjectID
+        )
+    }
+
     // MARK: - aggregate 纯函数
 
     func test_aggregate全成功_合并并按date升序() {
@@ -116,6 +132,51 @@ final class CalendarEventProviderTests: XCTestCase {
         XCTAssertEqual(result.moduleStates[.finance], .empty)
         XCTAssertEqual(result.moduleStates[.habit], .empty)
         XCTAssertFalse(result.hasFailure, "空数据不是失败")
+    }
+
+    // MARK: - 展示层模型
+
+    func test_weeklyGridLayout同时间事件拆成并列lane避免重叠() {
+        let events = [
+            makeEvent(.finance, day: 1, hour: 15, minute: 26),
+            makeEvent(.todo, day: 1, hour: 15, minute: 26),
+            makeEvent(.thought, day: 1, hour: 15, minute: 31)
+        ]
+
+        let items = WeeklyGridEventLayout.layout(events: events, startHour: 6, endHour: 23, hourHeight: 42)
+
+        XCTAssertEqual(items.visible.count, 3)
+        XCTAssertEqual(Set(items.visible.map(\.laneCount)), [3], "同一时间簇应共享 laneCount")
+        XCTAssertEqual(Set(items.visible.map(\.lane)), [0, 1, 2], "同一时间簇应拆成不同 lane")
+    }
+
+    func test_weeklyGridLayout凌晨事件进入earlyBucket而不是夹到6点() {
+        let events = [
+            makeEvent(.finance, day: 1, hour: 0, minute: 0),
+            makeEvent(.habit, day: 1, hour: 7, minute: 30)
+        ]
+
+        let items = WeeklyGridEventLayout.layout(events: events, startHour: 6, endHour: 23, hourHeight: 42)
+
+        XCTAssertEqual(items.early.count, 1)
+        XCTAssertEqual(items.visible.count, 1)
+        XCTAssertEqual(items.visible.first?.event.module, .habit)
+    }
+
+    func test_calendarObservationSummary生成本地可信观察() {
+        let events = [
+            makeEvent(.finance, day: 1, hour: 14, minute: 0),
+            makeEvent(.finance, day: 1, hour: 15, minute: 0),
+            makeEvent(.thought, day: 2, hour: 22, minute: 0),
+            makeEvent(.habit, day: 3, hour: 8, minute: 0)
+        ]
+
+        let summary = CalendarObservationSummary.make(events: events, scope: .week)
+
+        XCTAssertEqual(summary.source, .local)
+        XCTAssertFalse(summary.title.isEmpty)
+        XCTAssertTrue(summary.evidence.contains("4 条记录"))
+        XCTAssertTrue(summary.evidence.contains("3 个模块"))
     }
 
     // MARK: - fetchEvents 集成
