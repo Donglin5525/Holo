@@ -240,6 +240,11 @@ final class ChatViewModel: ObservableObject {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
 
+        guard HoloAIFeatureFlags.aiDataProcessingConsentGranted else {
+            errorMessage = HoloAIDataProcessingConsent.requiredMessage
+            return
+        }
+
         inputText = ""
         errorMessage = nil
 

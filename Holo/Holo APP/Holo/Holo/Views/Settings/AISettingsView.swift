@@ -12,6 +12,7 @@ struct AISettingsView: View {
 
     @StateObject private var viewModel = AIConfigViewModel()
     @ObservedObject private var memorySettings = HoloMemorySettings.shared
+    @ObservedObject private var dataProcessingConsent = HoloAIDataProcessingConsent.shared
     @Environment(\.dismiss) private var dismiss
     @State private var showPromptRefreshed = false
     @State private var isObserving = false
@@ -21,6 +22,9 @@ struct AISettingsView: View {
         Form {
             // Provider 选择
             providerSection
+
+            // 数据处理授权
+            dataProcessingConsentSection
 
             // API Key
             apiKeySection
@@ -109,6 +113,38 @@ struct AISettingsView: View {
             }
         } header: {
             Text("选择 AI 服务商")
+        }
+    }
+
+    // MARK: - Data Processing Consent Section
+
+    private var dataProcessingConsentSection: some View {
+        Section {
+            Toggle(isOn: Binding(
+                get: { dataProcessingConsent.isGranted },
+                set: { isOn in
+                    if isOn {
+                        dataProcessingConsent.grant()
+                    } else {
+                        dataProcessingConsent.revoke()
+                    }
+                }
+            )) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("允许 AI 数据处理")
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+                    Text("允许 Holo 将必要输入、上下文和语音片段通过后端转发给第三方 AI/语音服务处理")
+                        .font(.system(size: 12))
+                        .foregroundColor(.holoTextSecondary)
+                }
+            }
+        } header: {
+            Text("数据处理授权")
+        } footer: {
+            Text("关闭后，HoloAI 对话、AI 洞察、自动整理和语音转文字将停止调用外部 AI/语音服务；本地记录、查看和删除数据不受影响。")
+                .font(.caption)
+                .foregroundColor(.holoTextSecondary)
         }
     }
 

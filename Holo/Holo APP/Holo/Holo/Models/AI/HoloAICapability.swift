@@ -24,6 +24,36 @@ struct HoloAICapability: Identifiable, Equatable {
     let isEnabled: Bool
 }
 
+// MARK: - AI Data Processing Consent
+
+final class HoloAIDataProcessingConsent: ObservableObject {
+    static let shared = HoloAIDataProcessingConsent()
+
+    private let defaults: UserDefaults
+    private let key = "holo_ai_dataProcessingConsentGranted"
+
+    @Published private(set) var isGranted: Bool
+
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+        self.isGranted = defaults.bool(forKey: key)
+    }
+
+    func grant() {
+        defaults.set(true, forKey: key)
+        isGranted = true
+    }
+
+    func revoke() {
+        defaults.set(false, forKey: key)
+        isGranted = false
+    }
+
+    static var requiredMessage: String {
+        "使用 HoloAI、健康洞察或语音转文字前，需要先同意将必要的输入和上下文通过 Holo 后端转发给第三方 AI/语音服务处理。你可以在 AI 设置中开启或撤回。"
+    }
+}
+
 // MARK: - Memory Settings (User-Controlled)
 
 final class HoloMemorySettings: ObservableObject {
@@ -142,6 +172,7 @@ final class HoloMemorySettings: ObservableObject {
 
 enum HoloAIFeatureFlags {
     static var capabilityLaunchpadEnabled: Bool { true }
+    static var aiDataProcessingConsentGranted: Bool { HoloAIDataProcessingConsent.shared.isGranted }
     static var memorySummaryInjectionEnabled: Bool { HoloMemorySettings.shared.memorySummaryInjectionEnabled }
     static var longTermMemoryWriteEnabled: Bool { HoloMemorySettings.shared.longTermMemoryEnabled }
     static var memoryInsightCandidateExtractionEnabled: Bool { HoloMemorySettings.shared.longTermMemoryEnabled }

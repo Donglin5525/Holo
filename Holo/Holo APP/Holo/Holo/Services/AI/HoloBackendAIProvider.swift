@@ -33,6 +33,7 @@ final class HoloBackendAIProvider: AIProvider {
     // MARK: - AIProvider
 
     func parseUserInput(_ input: String, context: UserContext) async throws -> ParsedResult {
+        try ensureDataProcessingConsent()
         let batch = try await parseUserInputBatch(input, context: context)
         return batch.first?.asParsedResult ?? ParsedResult(
             intent: .unknown,
@@ -45,6 +46,7 @@ final class HoloBackendAIProvider: AIProvider {
     }
 
     func parseUserInputBatch(_ input: String, context: UserContext) async throws -> AIParseBatch {
+        try ensureDataProcessingConsent()
         let systemPrompt = await loadManagedPrompt(.intentRecognition)
         let messages: [ChatMessageDTO] = [
             .system(systemPrompt),
@@ -78,6 +80,7 @@ final class HoloBackendAIProvider: AIProvider {
         context: UserContext,
         kind: AIActionParserKind
     ) async throws -> AIParseBatch {
+        try ensureDataProcessingConsent()
         let systemPrompt = await loadManagedPrompt(kind.promptType)
         let messages: [ChatMessageDTO] = [
             .system(systemPrompt),
@@ -107,6 +110,7 @@ final class HoloBackendAIProvider: AIProvider {
     }
 
     func generateHealthInsight(contextJSON: String) async throws -> HealthInsightGenerationResult {
+        try ensureDataProcessingConsent()
         let promptResult = await loadManagedPromptResult(.healthInsightGeneration)
         let messages: [ChatMessageDTO] = [
             .system(promptResult.content),
@@ -126,6 +130,7 @@ final class HoloBackendAIProvider: AIProvider {
     }
 
     func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> MemoryInsightGenerationResult {
+        try ensureDataProcessingConsent()
         let promptResult = await loadManagedPromptResult(.memoryInsightGeneration)
         let messages: [ChatMessageDTO] = [
             .system(promptResult.content),
@@ -146,6 +151,7 @@ final class HoloBackendAIProvider: AIProvider {
     }
 
     func chat(messages: [ChatMessageDTO], userContext: UserContext) async throws -> String {
+        try ensureDataProcessingConsent()
         let allMessages = await buildChatMessages(messages: messages, userContext: userContext)
         let request = buildRequest(purpose: .chat, messages: allMessages)
         let response: ChatCompletionResponse = try await apiClient.send(request)
@@ -159,6 +165,7 @@ final class HoloBackendAIProvider: AIProvider {
 
     /// 使用自定义 purpose 的非流式 chat 调用（不注入 UserContext）
     func chat(messages: [ChatMessageDTO], purpose: HoloBackendPurpose) async throws -> String {
+        try ensureDataProcessingConsent()
         let responseFormat: ResponseFormat? = purpose == .agentLoop ? .jsonObject : nil
         let request = buildRequest(purpose: purpose, messages: messages, responseFormat: responseFormat)
         let response: ChatCompletionResponse = try await apiClient.send(request)
@@ -187,6 +194,12 @@ final class HoloBackendAIProvider: AIProvider {
     ) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             Task {
+                do {
+                    try ensureDataProcessingConsent()
+                } catch {
+                    continuation.finish(throwing: error)
+                    return
+                }
                 let systemPrompt = await loadManagedPrompt(promptType)
                 var allMessages: [ChatMessageDTO] = [.system(systemPrompt)]
 
@@ -237,6 +250,12 @@ final class HoloBackendAIProvider: AIProvider {
     }
 
     // MARK: - Request Building
+
+    private func ensureDataProcessingConsent() throws {
+        guard HoloAIFeatureFlags.aiDataProcessingConsentGranted else {
+            throw APIError.serverError(HoloAIDataProcessingConsent.requiredMessage)
+        }
+    }
 
     private func buildRequest(
         purpose: HoloBackendPurpose,

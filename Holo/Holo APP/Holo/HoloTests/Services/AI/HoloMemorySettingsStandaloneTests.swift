@@ -12,6 +12,9 @@ struct HoloMemorySettingsStandaloneTests {
     static func main() {
         testAgentFeatureFlags_默认关闭()
         testLongTermMemoryToggleControlsCandidateExtraction()
+        testAIDataProcessingConsentDefaultsToNotGranted()
+        testAIDataProcessingConsentPersistsGrantAndRevoke()
+        testFeatureFlagReflectsAIDataProcessingConsent()
         print("HoloMemorySettings standalone tests passed")
     }
 
@@ -48,5 +51,43 @@ struct HoloMemorySettingsStandaloneTests {
         settings.longTermMemoryEnabled = true
 
         expect(HoloAIFeatureFlags.memoryInsightCandidateExtractionEnabled, "打开长期记忆后应启用洞察候选抽取")
+    }
+
+    private static func testAIDataProcessingConsentDefaultsToNotGranted() {
+        let defaults = UserDefaults(suiteName: "HoloAIDataProcessingConsentTests.default")!
+        defaults.removePersistentDomain(forName: "HoloAIDataProcessingConsentTests.default")
+
+        let consent = HoloAIDataProcessingConsent(defaults: defaults)
+
+        expect(!consent.isGranted, "第三方 AI 数据处理授权默认应未同意")
+    }
+
+    private static func testAIDataProcessingConsentPersistsGrantAndRevoke() {
+        let suiteName = "HoloAIDataProcessingConsentTests.persist"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+
+        let consent = HoloAIDataProcessingConsent(defaults: defaults)
+        consent.grant()
+
+        let reloaded = HoloAIDataProcessingConsent(defaults: defaults)
+        expect(reloaded.isGranted, "同意第三方 AI 数据处理后应持久化")
+
+        reloaded.revoke()
+        let revoked = HoloAIDataProcessingConsent(defaults: defaults)
+        expect(!revoked.isGranted, "撤回第三方 AI 数据处理授权后应持久化")
+    }
+
+    private static func testFeatureFlagReflectsAIDataProcessingConsent() {
+        let defaults = UserDefaults.standard
+        defaults.removeObject(forKey: "holo_ai_dataProcessingConsentGranted")
+
+        HoloAIDataProcessingConsent.shared.revoke()
+        expect(!HoloAIFeatureFlags.aiDataProcessingConsentGranted, "未同意时 AI 数据处理 feature flag 应关闭")
+
+        HoloAIDataProcessingConsent.shared.grant()
+        expect(HoloAIFeatureFlags.aiDataProcessingConsentGranted, "同意后 AI 数据处理 feature flag 应开启")
+
+        HoloAIDataProcessingConsent.shared.revoke()
     }
 }

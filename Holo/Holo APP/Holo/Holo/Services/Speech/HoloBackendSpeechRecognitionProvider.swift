@@ -23,6 +23,10 @@ final class HoloBackendSpeechRecognitionProvider: SpeechRecognitionProvider {
     }
 
     func transcribe(audioFileURL: URL, locale: String?) async throws -> SpeechRecognitionResult {
+        guard HoloAIFeatureFlags.aiDataProcessingConsentGranted else {
+            throw SpeechRecognitionError.serverMessage(HoloAIDataProcessingConsent.requiredMessage)
+        }
+
         guard let url = URL(string: "\(baseURL)/v1/asr/transcriptions") else {
             throw SpeechRecognitionError.serverMessage("语音识别服务地址无效")
         }

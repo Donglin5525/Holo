@@ -4,6 +4,25 @@
 
 ---
 
+## [2026-07-06] App Store 上架隐私口径、AI 授权与 ASO 文档准备
+
+为 App Store 首版提交补齐隐私合规口径、AI 数据处理授权门禁和 ASO 元数据草稿，避免“未授权上传 AI/语音数据”或“隐私政策与真实后端行为不一致”影响审核。
+
+### 变更
+- 统一网页版与 App 内隐私政策：明确 Holo 不主动保存用户发给 AI 的原始请求正文、语音音频或完整上下文作为用户资料；服务安全、限流和排障会保留最小化技术日志或摘要并按后台配置清理
+- 明确 HealthKit 数据边界：Holo 只读展示 Apple Health 授权数据，不会将 HealthKit 原始健康数据写入或同步到 Holo 的 iCloud 数据库
+- 新增 AI 数据处理授权开关：用户未开启授权前，HoloAI 聊天、AI 解析/洞察和语音转写请求会在本地拦截，不上传到 HoloBackend 或第三方 AI/ASR 服务
+- 新增 AI 数据处理授权持久化与功能开关测试，覆盖默认关闭、授权/撤销和 feature flag 读取
+- 新增 `docs/app-store/` 上架材料：App Review Notes、ASO 元数据草稿、截图建议、Support/Privacy URL 待办和 preflight 缺口报告
+- 按 ASO 策略重写 App 名称、副标题、宣传文本、描述和 100 字符以内关键词字段，避免重复标题/副标题关键词和第三方 AI 品牌词
+
+### 验证
+- `plutil -lint` 校验 PrivacyInfo、entitlements 和 Info.plist 通过
+- AI 数据处理授权 standalone 测试通过
+- `xcodebuild ... -configuration Release -destination "generic/platform=iOS" CODE_SIGNING_ALLOWED=NO build` 通过
+
+---
+
 ## [2026-07-06] 记忆长廊日历视图复刻与 Holo 化修正
 
 基于真机效果对齐设计稿方向，压缩首屏控件密度，并把周历/月历从“数据日历”拉回更符合 Holo 的记忆长廊表达。
