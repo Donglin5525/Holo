@@ -4,6 +4,20 @@
 
 ---
 
+## [2026-07-06] 修复 HoloAI 发送按钮静默失败与输入草稿丢失
+
+修复 App Store 合规批次后 HoloAI 对话出现的两个回归（未授权时点发送无提示、退出界面未发送内容丢失），并清理 Debug scheme 中错误指向本地后端的环境变量。
+
+### 变更
+- **发送按钮静默失败**：AI 数据处理授权未开启时，`sendMessage` 原先静默 `return`，且提示写进聊天界面全程不渲染的 `errorMessage`。改为触发 `showConsentPrompt`，由 `ChatView` 弹 alert 明确提示「需要开启 AI 数据处理授权」，并提供「去开启」按钮一键跳转 AI 设置页授权开关（不依赖 DEBUG 齿轮，正式版也可达）
+- **输入草稿持久化**：`ChatViewModel.inputText` 增加 `didSet` 实时写入 UserDefaults（`holo_chat_inputDraft`），`init` 时读回。退出界面再回来自动恢复未发送文字；发送成功后 `inputText` 置空会自动清空草稿
+- **清理 Debug scheme**：移除 `LaunchAction` 中错误的 `HOLO_BACKEND_URL=http://localhost:8788` 环境变量，避免本地后端未启动时 App 连不上、回退到代码默认的线上 `https://api.holoapp.cn`
+
+### 验证
+- `xcodebuild -scheme Holo -destination 'platform=iOS Simulator,name=iPhone 17' build` 通过
+
+---
+
 ## [2026-07-06] App Store 上架隐私口径、AI 授权与 ASO 文档准备
 
 为 App Store 首版提交补齐隐私合规口径、AI 数据处理授权门禁和 ASO 元数据草稿，避免“未授权上传 AI/语音数据”或“隐私政策与真实后端行为不一致”影响审核。

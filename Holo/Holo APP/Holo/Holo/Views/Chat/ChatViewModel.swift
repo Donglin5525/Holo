@@ -17,8 +17,14 @@ final class ChatViewModel: ObservableObject {
     // MARK: - Published State
 
     @Published var messages: [ChatMessageViewData] = []
-    @Published var inputText: String = ""
+    @Published var inputText: String = "" {
+        didSet {
+            UserDefaults.standard.set(inputText, forKey: Self.inputDraftKey)
+        }
+    }
     @Published var isStreaming: Bool = false
+    /// AI 数据处理授权未开启时，点发送触发此提示（替代静默失败）
+    @Published var showConsentPrompt: Bool = false
     @Published var streamingText: String = ""
     @Published var errorMessage: String?
     @Published var isConfigured: Bool = false
@@ -33,6 +39,8 @@ final class ChatViewModel: ObservableObject {
 
     private let logger = Logger(subsystem: "com.holo.app", category: "ChatViewModel")
     private let initialHistoryLimit = 30
+    /// 输入草稿持久化 key（退出界面再回来恢复未发送的文字）
+    private static let inputDraftKey = "holo_chat_inputDraft"
     private var chatRepo: ChatMessageRepository?
     private var currentTask: Task<Void, Never>?
     private var provider: AIProvider
@@ -76,6 +84,8 @@ final class ChatViewModel: ObservableObject {
         if KeychainService.hasCachedAIConfig {
             isConfigured = true
         }
+        // 恢复未发送的输入草稿
+        inputText = UserDefaults.standard.string(forKey: Self.inputDraftKey) ?? ""
     }
 
     /// 在 .task 中调用，延迟初始化仓库和加载配置
@@ -241,7 +251,7 @@ final class ChatViewModel: ObservableObject {
         guard !text.isEmpty else { return }
 
         guard HoloAIFeatureFlags.aiDataProcessingConsentGranted else {
-            errorMessage = HoloAIDataProcessingConsent.requiredMessage
+            showConsentPrompt = true
             return
         }
 

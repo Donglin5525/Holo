@@ -115,6 +115,17 @@ struct ChatView: View {
                 Text("确定删除\(pending.description)吗？此操作不可撤销。")
             }
         }
+        .alert(
+            "需要开启 AI 数据处理授权",
+            isPresented: $viewModel.showConsentPrompt
+        ) {
+            Button("去开启") {
+                activeSheet = .aiSettings
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text(HoloAIDataProcessingConsent.requiredMessage)
+        }
         .fullScreenCover(isPresented: $viewModel.showGoalDraftReview) {
             if let draft = viewModel.goalDraftForReview {
                 GoalDraftReviewView(
