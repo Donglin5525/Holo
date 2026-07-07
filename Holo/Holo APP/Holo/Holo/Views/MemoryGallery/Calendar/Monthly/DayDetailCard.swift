@@ -81,10 +81,15 @@ struct DayDetailCard: View {
                 .background(module.color.opacity(0.12))
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
             VStack(alignment: .leading, spacing: 1) {
-                Text(event.title)
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
-                    .lineLimit(1)
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    Text(Self.timeText(for: event.date))
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundColor(.holoTextSecondary)
+                    Text(event.title)
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+                        .lineLimit(1)
+                }
                 if let detail = event.detail {
                     Text(detail)
                         .font(.holoCaption)
@@ -103,5 +108,16 @@ struct DayDetailCard: View {
         f.locale = Locale(identifier: "zh_CN")
         f.dateFormat = "M月d日 EEE"
         return f.string(from: day)
+    }
+
+    private static let timeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "zh_CN")
+        f.dateFormat = "HH:mm"
+        return f
+    }()
+
+    private static func timeText(for date: Date) -> String {
+        timeFormatter.string(from: date)
     }
 }

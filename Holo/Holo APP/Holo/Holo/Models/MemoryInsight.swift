@@ -33,7 +33,19 @@ public class MemoryInsight: NSManagedObject {
     @NSManaged public var userRatingAt: Date?
     @NSManaged public var feedbackNote: String?
 
+    // 本周观察扩展字段（方案 §3.1）
+    @NSManaged public var readAt: Date?
+    @NSManaged public var snoozedUntil: Date?
+    @NSManaged public var hiddenUntil: Date?
+    @NSManaged public var observationStage: String?
+
     // MARK: - Computed Properties
+
+    /// 观察阶段枚举（旧数据 observationStage == nil 视为 .full7d/legacy，方案 §3.1）
+    var observationStageEnum: MemoryInsightObservationStage {
+        guard let raw = observationStage else { return .full7d }
+        return MemoryInsightObservationStage(rawValue: raw) ?? .full7d
+    }
 
     /// 周期类型枚举
     var insightPeriodType: MemoryInsightPeriodType {

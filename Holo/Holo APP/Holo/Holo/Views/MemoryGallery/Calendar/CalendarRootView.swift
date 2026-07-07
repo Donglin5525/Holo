@@ -11,6 +11,7 @@ struct CalendarRootView: View {
 
     @StateObject private var viewModel = CalendarViewModel()
     @State private var selectedEvent: CalendarEvent?
+    @State private var selectedEventGroup: CalendarEventGroup?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -34,6 +35,9 @@ struct CalendarRootView: View {
         }
         .sheet(item: $selectedEvent) { event in
             CalendarEventDetailSheet(event: event)
+        }
+        .sheet(item: $selectedEventGroup) { group in
+            CalendarEventGroupDetailSheet(group: group)
         }
     }
 
@@ -60,7 +64,8 @@ struct CalendarRootView: View {
             WeeklyGridView(
                 weekStart: viewModel.currentRange.start,
                 eventsByDay: viewModel.monthEventsByDay,
-                onSelect: { selectedEvent = $0 }
+                onSelect: { selectedEvent = $0 },
+                onSelectGroup: { selectedEventGroup = CalendarEventGroup(events: $0) }
             )
         }
     }
@@ -113,12 +118,13 @@ struct CalendarRootView: View {
                             RoundedRectangle(cornerRadius: HoloRadius.sm)
                                 .fill(viewModel.mode == m ? Color.holoPrimary : Color.clear)
                         )
+                        .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
             }
         }
         .padding(3)
-        .background(Color(hex: "#EFECE6"))
+        .background(Color(hex: "#F3F7FB"))
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.md)
@@ -134,7 +140,7 @@ struct CalendarRootView: View {
             weekModeButton(.list, title: "列表视图")
         }
         .padding(2)
-        .background(Color.holoCardBackground)
+        .background(Color(hex: "#F6F8FB"))
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.sm)
@@ -160,6 +166,7 @@ struct CalendarRootView: View {
                     RoundedRectangle(cornerRadius: 6)
                         .fill(isSelected ? Color.holoPrimary : Color.clear)
                 )
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
     }
@@ -177,7 +184,7 @@ struct CalendarRootView: View {
             Button {
                 viewModel.goToToday()
             } label: {
-                Text("今天")
+                Text(viewModel.mode == .weekly ? "本周" : "今天")
                     .font(.holoLabel)
                     .foregroundColor(.holoPrimaryDark)
                     .padding(.horizontal, HoloSpacing.sm)

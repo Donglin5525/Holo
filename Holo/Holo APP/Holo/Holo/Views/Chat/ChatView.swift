@@ -21,6 +21,8 @@ struct ChatView: View {
     @State private var pendingCategoryEditMessage: ChatMessageViewData?
     @State private var pendingEditPrefill: PendingTransactionPrefill?
     @State private var financeSearchRoute: FlexibleQueryFinanceSearchRoute?
+    /// 本周观察卡片重渲染触发（重试 / 关闭后刷新）
+    @State private var weeklyCardVersion = 0
     @Binding var goalPlanningRequest: GoalPlanningRequest?
 
     /// 外部传入的预填文本（如从记忆长廊"继续问AI"跳转）
@@ -213,6 +215,42 @@ struct ChatView: View {
                 statusBanner("正在连接 Holo AI 服务，你现在也可以直接发送消息")
             } else if viewModel.didTimeoutLoadingConfig {
                 statusBanner("AI 服务连接较慢，已先放开聊天交互")
+            }
+
+            // 本周观察区块（决策 1A：ChatView 展示，复用 HoloAI 卡片样式；
+            // 未授权态作为正式版统一授权入口，决策 2A，复用 .aiSettings sheet 不受 #if DEBUG 限制）
+            if WeeklyObservationCard.shouldDisplay {
+                WeeklyObservationCard(
+                    onOpenConsent: { activeSheet = .aiSettings },
+                    onViewDetail: {
+                        DeepLinkState.shared.navigate(to: .memoryGallery)
+                    },
+                    onRetry: {
+                        Task { @MainActor in
+                            await EffectiveRecordDayService.shared.refreshAndWait()
+                            let stage: MemoryInsightObservationStage = {
+                                switch EffectiveRecordDayService.shared.currentResult?.eligibility {
+                                case .lightReady: return .light3d
+                                default: return .full7d
+                                }
+                            }()
+                            let (start, end) = MemoryInsightContextBuilder.periodRange(
+                                periodType: .weekly, referenceDate: Date()
+                            )
+                            _ = try? await MemoryInsightService.shared.generateInsight(
+                                periodType: .weekly, start: start, end: end,
+                                forceRefresh: true, observationStage: stage
+                            )
+                            weeklyCardVersion += 1
+                        }
+                    },
+                    onClose: {
+                        WeeklyObservationCard.hideForToday()
+                        weeklyCardVersion += 1
+                    }
+                )
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
             }
 
             // 消息列表

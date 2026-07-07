@@ -17,9 +17,22 @@ enum TransactionDateResolver {
                   let date = NLDateParser.parse(raw, referenceDate: referenceDate) else {
                 continue
             }
-            return date
+            return NLDateParser.containsTimeComponent(raw)
+                ? date
+                : mergeDay(from: date, withTimeFrom: referenceDate)
         }
 
         return referenceDate
+    }
+
+    private static func mergeDay(from date: Date, withTimeFrom referenceDate: Date) -> Date {
+        let calendar = Calendar.current
+        var day = calendar.dateComponents([.year, .month, .day], from: date)
+        let time = calendar.dateComponents([.hour, .minute, .second, .nanosecond], from: referenceDate)
+        day.hour = time.hour
+        day.minute = time.minute
+        day.second = time.second
+        day.nanosecond = time.nanosecond
+        return calendar.date(from: day) ?? date
     }
 }

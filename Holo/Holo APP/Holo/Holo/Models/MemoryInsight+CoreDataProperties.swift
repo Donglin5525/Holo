@@ -23,7 +23,8 @@ extension MemoryInsight {
         periodType: MemoryInsightPeriodType,
         start: Date,
         end: Date,
-        snapshotHash: String
+        snapshotHash: String,
+        observationStage: MemoryInsightObservationStage = .full7d
     ) -> MemoryInsight {
         let insight = MemoryInsight(context: context)
         insight.id = UUID()
@@ -43,6 +44,10 @@ extension MemoryInsight {
         insight.userRating = 0
         insight.userRatingAt = nil
         insight.feedbackNote = nil
+        insight.observationStage = observationStage.rawValue
+        insight.readAt = nil
+        insight.snoozedUntil = nil
+        insight.hiddenUntil = nil
         return insight
     }
 
@@ -145,6 +150,13 @@ extension MemoryInsight {
     func markStale() {
         if status == MemoryInsightStatus.ready.rawValue {
             status = MemoryInsightStatus.stale.rawValue
+        }
+    }
+
+    /// 标记为已读（回写 readAt，首页不再当新观察顶置，方案 §7.5）
+    func markRead(now: Date = Date()) {
+        if readAt == nil {
+            readAt = now
         }
     }
 }

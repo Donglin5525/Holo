@@ -2,7 +2,7 @@
 //  CalendarHeatmap.swift
 //  Holo
 //
-//  月历色阶：事件数 → 等级 → 暖色（复用 MemoryHeatmapView 5 档暖色阶）
+//  月历色阶：事件数 → 等级 → Holo 冷静品牌色阶
 //  与热力图区别：0 条=空档，1 条起即有色（月历要体现单条记录）
 //
 
@@ -23,12 +23,16 @@ enum CalendarHeatmap {
 
     /// 等级 → 色值
     static func color(forLevel level: Int) -> Color {
+        Color(hex: hex(forLevel: level))
+    }
+
+    static func hex(forLevel level: Int) -> String {
         switch level {
-        case 0:  return Color(hex: "#F5F2ED")   // 空档米白
-        case 1:  return Color(hex: "#FFD6C7")
-        case 2:  return Color(hex: "#FFB499")
-        case 3:  return Color(hex: "#FF9B7A")
-        default: return Color(hex: "#FF8C66")   // 满级
+        case 0:  return "#F6F8FB"
+        case 1:  return "#EAF2FF"
+        case 2:  return "#D9ECFF"
+        case 3:  return "#CFE7F7"
+        default: return "#C8DDF8"
         }
     }
 

@@ -852,6 +852,9 @@ class MemoryGalleryViewModel: ObservableObject {
             switch error {
             case .aiNotConfigured:
                 insightGenerationState = .notConfigured
+            case .aiDataProcessingConsentRequired:
+                // 未授权：跳过 .failed，引导用户去开启 AI 数据处理授权（方案 §4.1.3）
+                insightGenerationState = .needConsent
             case .generationInProgress:
                 updateInsightGenerationStateForCurrentSelection()
             default:

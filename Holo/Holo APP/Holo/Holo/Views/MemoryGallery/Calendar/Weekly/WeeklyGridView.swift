@@ -11,21 +11,30 @@ struct WeeklyGridView: View {
     let weekStart: Date                      // 周一首
     let eventsByDay: [Date: [CalendarEvent]]
     let onSelect: (CalendarEvent) -> Void
+    let onSelectGroup: ([CalendarEvent]) -> Void
+
+    @AppStorage("holo.memoryGallery.weeklyGrid.collapseMorning")
+    private var collapseMorning: Bool = true
 
     private let hourHeight: CGFloat = 42
-    private let startHour = 6
+    private let startHour = 0
     private let endHour = 23
     private let eventHeight: CGFloat = 26
+    private let collapsedMorningHours = 0..<7
+
+    private var visibleStartHour: Int {
+        collapseMorning ? 7 : startHour
+    }
 
     private var gridHeight: CGFloat {
-        CGFloat(endHour - startHour + 1) * hourHeight
+        CGFloat(endHour - visibleStartHour + 1) * hourHeight
     }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: HoloSpacing.xs) {
                 weekHeader
-                earlyStrip
+                morningCollapseControl
                 HStack(alignment: .top, spacing: 0) {
                     timeAxis
                     ZStack(alignment: .topLeading) {
@@ -103,12 +112,16 @@ struct WeeklyGridView: View {
 
     private var timeAxis: some View {
         VStack(spacing: 0) {
-            ForEach(startHour...endHour, id: \.self) { h in
-                Text(h % 2 == 0 ? "\(h)" : "")
+            ForEach(visibleStartHour...endHour, id: \.self) { h in
+                Text(shouldShowHourLabel(h) ? "\(h)" : "")
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundColor(.holoTextSecondary)
                     .frame(width: 32, height: hourHeight, alignment: .topTrailing)
             }
+            Text("24")
+                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .foregroundColor(.holoTextSecondary)
+                .frame(width: 32, height: 1, alignment: .bottomTrailing)
         }
     }
 
@@ -120,8 +133,8 @@ struct WeeklyGridView: View {
             GeometryReader { proxy in
                 ZStack(alignment: .topLeading) {
                     gridBackground
-                    ForEach(layout.visible) { item in
-                        gridEventBlock(item, columnWidth: proxy.size.width)
+                    ForEach(layout.displayItems) { item in
+                        gridDisplayBlock(item, columnWidth: proxy.size.width)
                     }
                 }
             }
@@ -140,15 +153,16 @@ struct WeeklyGridView: View {
         let cal = Calendar.current
         return WeeklyGridEventLayout.layout(
             events: eventsByDay[cal.startOfDay(for: day)] ?? [],
-            startHour: startHour,
+            startHour: visibleStartHour,
             endHour: endHour,
-            hourHeight: hourHeight
+            hourHeight: hourHeight,
+            collapsedHours: collapseMorning ? collapsedMorningHours : nil
         )
     }
 
     private var gridBackground: some View {
         VStack(spacing: 0) {
-            ForEach(startHour...endHour, id: \.self) { _ in
+            ForEach(visibleStartHour...endHour, id: \.self) { _ in
                 Rectangle()
                     .fill(Color.clear)
                     .frame(height: hourHeight)
@@ -160,31 +174,87 @@ struct WeeklyGridView: View {
         }
     }
 
-    private func gridEventBlock(_ item: WeeklyGridEventLayout.VisibleItem, columnWidth: CGFloat) -> some View {
-        let laneCount = max(1, item.laneCount)
-        let laneWidth = columnWidth / CGFloat(laneCount)
-        return Button {
-            onSelect(item.event)
+    private var morningCollapseControl: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.18)) {
+                collapseMorning.toggle()
+            }
         } label: {
-            Text(item.event.title)
-                .font(.system(size: laneCount > 2 ? 9 : 11, weight: .bold))
-                .foregroundColor(.holoTextPrimary)
-                .lineLimit(1)
-                .padding(.leading, laneCount > 2 ? 4 : 6)
-                .padding(.trailing, 2)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .frame(height: eventHeight)
-                .background(item.event.module.color.opacity(0.14))
-                .overlay(alignment: .leading) {
-                    Rectangle()
-                        .fill(item.event.module.color)
-                        .frame(width: 3)
+            HStack(spacing: 6) {
+                Image(systemName: collapseMorning ? "chevron.right" : "chevron.down")
+                    .font(.system(size: 9, weight: .bold))
+                Text(collapseMorning ? "0:00-6:59 已收起" : "收起 0:00-6:59")
+                    .font(.system(size: 10, weight: .semibold))
+                if collapseMorning {
+                    let count = collapsedMorningCount
+                    Text(count > 0 ? "\(count) 条" : "低频时段")
+                        .font(.system(size: 10, weight: .medium))
+                        .foregroundColor(.holoTextSecondary)
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                Spacer(minLength: 0)
+            }
+            .foregroundColor(.holoTextSecondary)
+            .padding(.horizontal, HoloSpacing.sm)
+            .frame(height: 26)
+            .background(Color.holoCardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: 7))
         }
         .buttonStyle(.plain)
-        .frame(width: max(12, laneWidth - 4))
+        .padding(.leading, 32 + HoloSpacing.md)
+        .padding(.trailing, HoloSpacing.md)
+    }
+
+    private var collapsedMorningCount: Int {
+        let calendar = Calendar.current
+        return eventsByDay.values.flatMap { $0 }.filter { event in
+            collapsedMorningHours.contains(calendar.component(.hour, from: event.date))
+        }.count
+    }
+
+    private func gridDisplayBlock(_ item: WeeklyGridEventLayout.DisplayItem, columnWidth: CGFloat) -> some View {
+        let laneCount = max(1, item.laneCount)
+        let laneWidth = columnWidth / CGFloat(laneCount)
+        let blockHeight = displayBlockHeight(for: item)
+        let compactSummary = item.stackCount > 1
+        return Button {
+            if item.events.count == 1 {
+                onSelect(item.primaryEvent)
+            } else {
+                onSelectGroup(item.events)
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Text(item.displayTitle)
+                    .font(.system(size: compactSummary ? 9 : 10.5, weight: .bold))
+                    .foregroundColor(.holoTextPrimary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.68)
+                Spacer(minLength: 0)
+            }
+            .padding(.leading, compactSummary ? 5 : 6)
+            .padding(.trailing, 2)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: blockHeight)
+            .background(item.module.color.opacity(item.isSummary ? 0.12 : 0.14))
+            .overlay(alignment: .leading) {
+                Rectangle()
+                    .fill(item.module.color)
+                    .frame(width: 3)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 6))
+        }
+        .buttonStyle(.plain)
+        .frame(width: max(24, laneWidth - 4))
         .offset(x: CGFloat(item.lane) * laneWidth + 2, y: item.top)
+    }
+
+    private func displayBlockHeight(for item: WeeklyGridEventLayout.DisplayItem) -> CGFloat {
+        guard item.stackCount > 1 else { return eventHeight }
+        return max(12, min(20, hourHeight / CGFloat(item.stackCount) - 3))
+    }
+
+    private func shouldShowHourLabel(_ hour: Int) -> Bool {
+        hour == visibleStartHour || hour % 2 == 0
     }
 
     @ViewBuilder
@@ -196,11 +266,11 @@ struct WeeklyGridView: View {
         if now >= weekStart && now < weekEnd {
             let comps = calendar.dateComponents([.hour, .minute], from: now)
             let hour = comps.hour ?? startHour
-            if hour >= startHour && hour <= endHour {
+            if hour >= visibleStartHour && hour <= endHour {
                 let weekdayOffset = calendar.dateComponents([.day], from: weekStart, to: todayStart).day ?? 0
                 GeometryReader { proxy in
                     let columnWidth = proxy.size.width / 7.0
-                    let top = CGFloat(hour - startHour) * hourHeight
+                    let top = CGFloat(hour - visibleStartHour) * hourHeight
                         + CGFloat(comps.minute ?? 0) / 60.0 * hourHeight
                     ZStack(alignment: .topLeading) {
                         Rectangle()

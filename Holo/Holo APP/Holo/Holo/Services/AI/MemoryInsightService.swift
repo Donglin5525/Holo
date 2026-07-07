@@ -97,8 +97,15 @@ final class MemoryInsightService {
         periodType: MemoryInsightPeriodType,
         start: Date,
         end: Date,
-        forceRefresh: Bool = false
+        forceRefresh: Bool = false,
+        observationStage: MemoryInsightObservationStage = .full7d
     ) async throws -> MemoryInsight {
+        // consent 最终防线：未授权 AI 数据处理时一律拒绝生成，覆盖全部 8 个调用入口
+        // （手动 / Chat 意图 / 后台日周月 / 前台补偿日周月）。见本周观察方案 §4.1。
+        guard HoloAIFeatureFlags.aiDataProcessingConsentGranted else {
+            throw MemoryInsightError.aiDataProcessingConsentRequired
+        }
+
         // 并发保护
         guard !isGenerating else {
             throw MemoryInsightError.generationInProgress
@@ -149,10 +156,11 @@ final class MemoryInsightService {
             }
         }
 
-        // 4. 去重检查：与同版本近期洞察文本相似度
+        // 4. 去重检查：与同版本、同 stage 近期洞察文本相似度（方案 §4.2，避免跨 stage 误杀）
         if !forceRefresh {
             if let similar = checkSimilarityWithRecent(
                 periodType: periodType,
+                observationStage: observationStage,
                 context: context,
                 promptVersion: currentPromptVersion
             ) {
@@ -170,7 +178,8 @@ final class MemoryInsightService {
             periodType: periodType,
             start: start,
             end: end,
-            snapshotHash: snapshotHash
+            snapshotHash: snapshotHash,
+            observationStage: observationStage
         )
 
         // 7. 序列化上下文为 JSON
@@ -375,11 +384,13 @@ final class MemoryInsightService {
     /// 检查近期洞察相似度（同 promptVersion 内去重）
     private func checkSimilarityWithRecent(
         periodType: MemoryInsightPeriodType,
+        observationStage: MemoryInsightObservationStage,
         context: MemoryInsightContext,
         promptVersion: Int16
     ) -> MemoryInsight? {
         let recentInsights = repository.fetchRecentReadyInsights(
             periodType: periodType,
+            observationStage: observationStage,
             promptVersion: promptVersion,
             limit: 3
         )

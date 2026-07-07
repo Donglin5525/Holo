@@ -104,28 +104,8 @@ final class MemoryInsightBackgroundService {
             }
         }
 
-        // 生成本周洞察（使用智能回退）
-        let (weekStart, weekEnd, _) = MemoryInsightContextBuilder.effectivePeriodRange(
-            periodType: .weekly, referenceDate: Date()
-        )
-
-        if let existing = try? repository.fetchInsight(
-            periodType: .weekly, start: weekStart, end: weekEnd
-        ), existing.insightStatus == .ready {
-            logger.info("周洞察已存在且为 ready，跳过")
-        } else {
-            do {
-                let insight = try await service.generateInsight(
-                    periodType: .weekly,
-                    start: weekStart,
-                    end: weekEnd,
-                    forceRefresh: false
-                )
-                logger.info("后台周洞察生成成功：\(insight.title)")
-            } catch {
-                logger.error("后台周洞察生成失败：\(error.localizedDescription)")
-            }
-        }
+        // 生成本周观察（基于有效记录日决定 stage，禁用 effectivePeriodRange.minDays，方案 §3.4/§4.3）
+        await generateWeeklyObservation(service: service, repository: repository)
 
         // 生成月度洞察（使用智能回退）
         let (monthStart, monthEnd, monthFallback) = MemoryInsightContextBuilder.effectivePeriodRange(
@@ -200,29 +180,9 @@ final class MemoryInsightBackgroundService {
             }
         }
 
-        // 补生成周洞察（使用智能回退）
-        let (weekStart, weekEnd, _) = MemoryInsightContextBuilder.effectivePeriodRange(
-            periodType: .weekly, referenceDate: Date()
-        )
-
-        if let _ = try? repository.fetchInsight(
-            periodType: .weekly, start: weekStart, end: weekEnd
-        ) {
-            // 周洞察已存在，跳过
-        } else {
-            logger.info("前台补偿：尝试生成周洞察")
-            do {
-                _ = try await service.generateInsight(
-                    periodType: .weekly,
-                    start: weekStart,
-                    end: weekEnd,
-                    forceRefresh: false
-                )
-                logger.info("前台补偿周洞察生成成功")
-            } catch {
-                logger.error("前台补偿周洞察生成失败：\(error.localizedDescription)")
-            }
-        }
+        // 补生成本周观察（基于有效记录日决定 stage，方案 §3.4/§4.3）
+        logger.info("前台补偿：尝试生成本周观察")
+        await generateWeeklyObservation(service: service, repository: repository)
 
         // 补生成月度洞察（使用智能回退）
         let (monthStart, monthEnd, monthFallback) = MemoryInsightContextBuilder.effectivePeriodRange(
@@ -248,6 +208,54 @@ final class MemoryInsightBackgroundService {
                     logger.error("前台补偿月度洞察生成失败：\(error.localizedDescription)")
                 }
             }
+        }
+    }
+
+    // MARK: - Weekly Observation（方案 §3.4 / §4.3）
+
+    /// 生成本周观察：基于有效记录日决定 light3d / full7d，未达标则跳过（养成期不伪造洞察）
+    private func generateWeeklyObservation(
+        service: MemoryInsightService,
+        repository: MemoryInsightRepository
+    ) async {
+        // 刷新有效记录日，拿最新 eligibility
+        await EffectiveRecordDayService.shared.refreshAndWait()
+
+        let stage: MemoryInsightObservationStage
+        switch EffectiveRecordDayService.shared.currentResult?.eligibility {
+        case .fullReady:
+            stage = .full7d
+        case .lightReady:
+            stage = .light3d
+        case .nurturing, .none:
+            logger.info("有效记录日未达标，跳过本周观察生成（养成期）")
+            return
+        }
+
+        // 用 periodRange 取本周范围（禁用 effectivePeriodRange.minDays，方案 §4.3）
+        let (weekStart, weekEnd) = MemoryInsightContextBuilder.periodRange(
+            periodType: .weekly, referenceDate: Date()
+        )
+
+        // 已存在同 stage 的 ready 洞察则跳过（避免重复生成）
+        if let existing = try? repository.fetchInsight(
+            periodType: .weekly, start: weekStart, end: weekEnd
+        ), existing.insightStatus == .ready, existing.observationStageEnum == stage {
+            logger.info("本周观察（\(stage.rawValue)）已存在且 ready，跳过")
+            return
+        }
+
+        do {
+            let insight = try await service.generateInsight(
+                periodType: .weekly,
+                start: weekStart,
+                end: weekEnd,
+                forceRefresh: false,
+                observationStage: stage
+            )
+            logger.info("本周观察生成成功（\(stage.rawValue)）：\(insight.title)")
+        } catch {
+            logger.error("本周观察生成失败（\(stage.rawValue)）：\(error.localizedDescription)")
         }
     }
 }

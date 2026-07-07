@@ -18,20 +18,52 @@ struct WeeklyGridEventLayout {
         var id: UUID { event.id }
     }
 
+    struct DisplayItem: Identifiable {
+        let id = UUID()
+        let module: CalendarModule
+        let events: [CalendarEvent]
+        let top: CGFloat
+        let lane: Int
+        let laneCount: Int
+        let isSummary: Bool
+        let stackIndex: Int
+        let stackCount: Int
+
+        var primaryEvent: CalendarEvent { events[0] }
+
+        var displayTitle: String {
+            if isSummary {
+                return "\(module.displayName) +\(events.count)"
+            }
+            let base = primaryEvent.title
+            return events.count > 1 ? "\(base) +\(events.count)" : base
+        }
+    }
+
     let early: [CalendarEvent]
+    let collapsed: [CalendarEvent]
     let visible: [VisibleItem]
+    let displayItems: [DisplayItem]
 
     static func layout(events: [CalendarEvent],
                        startHour: Int,
                        endHour: Int,
                        hourHeight: CGFloat,
+                       collapsedHours: Range<Int>? = nil,
                        minimumSeparation: CGFloat = 28) -> WeeklyGridEventLayout {
         let calendar = Calendar.current
         let sorted = events.sorted { $0.date < $1.date }
-        let early = sorted.filter { calendar.component(.hour, from: $0.date) < startHour }
+        let collapsed = sorted.filter { event in
+            guard let collapsedHours else { return false }
+            return collapsedHours.contains(calendar.component(.hour, from: event.date))
+        }
+        let early = sorted.filter { event in
+            let hour = calendar.component(.hour, from: event.date)
+            return hour < startHour && !(collapsedHours?.contains(hour) ?? false)
+        }
         let candidates = sorted.filter { event in
             let hour = calendar.component(.hour, from: event.date)
-            return hour >= startHour && hour <= endHour
+            return hour >= startHour && hour <= endHour && !(collapsedHours?.contains(hour) ?? false)
         }
 
         var clusters: [[(event: CalendarEvent, top: CGFloat)]] = []
@@ -57,7 +89,51 @@ struct WeeklyGridEventLayout {
             }
         }
 
-        return WeeklyGridEventLayout(early: early, visible: visible)
+        let displayItems = makeDisplayItems(
+            from: candidates,
+            startHour: startHour,
+            hourHeight: hourHeight
+        )
+
+        return WeeklyGridEventLayout(
+            early: early,
+            collapsed: collapsed,
+            visible: visible,
+            displayItems: displayItems
+        )
+    }
+
+    private static func makeDisplayItems(from events: [CalendarEvent],
+                                         startHour: Int,
+                                         hourHeight: CGFloat) -> [DisplayItem] {
+        let calendar = Calendar.current
+        let hourlyGroups = Dictionary(grouping: events) { event in
+            calendar.component(.hour, from: event.date)
+        }
+
+        return hourlyGroups.keys.sorted().flatMap { hour in
+            let hourEvents = (hourlyGroups[hour] ?? []).sorted { $0.date < $1.date }
+            let groups = Dictionary(grouping: hourEvents) { $0.module }
+                .map { (module: $0.key, events: $0.value.sorted { $0.date < $1.date }) }
+                .sorted { $0.module.rawValue < $1.module.rawValue }
+            let multiModule = groups.count > 1
+            let stackCount = max(1, groups.count)
+            let stackStep = multiModule ? hourHeight / CGFloat(stackCount) : 0
+            let hourTop = CGFloat(hour - startHour) * hourHeight
+
+            return groups.enumerated().map { index, group in
+                DisplayItem(
+                    module: group.module,
+                    events: group.events,
+                    top: hourTop + CGFloat(index) * stackStep,
+                    lane: 0,
+                    laneCount: 1,
+                    isSummary: multiModule,
+                    stackIndex: multiModule ? index : 0,
+                    stackCount: multiModule ? stackCount : 1
+                )
+            }
+        }
     }
 
     private static func topOffset(for event: CalendarEvent,

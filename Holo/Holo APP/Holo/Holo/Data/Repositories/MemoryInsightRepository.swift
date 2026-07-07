@@ -101,7 +101,8 @@ final class MemoryInsightRepository {
         periodType: MemoryInsightPeriodType,
         start: Date,
         end: Date,
-        snapshotHash: String
+        snapshotHash: String,
+        observationStage: MemoryInsightObservationStage = .full7d
     ) throws -> MemoryInsight {
         // 清理旧的 failed 记录
         MemoryInsight.cleanupFailed(
@@ -116,7 +117,8 @@ final class MemoryInsightRepository {
             periodType: periodType,
             start: start,
             end: end,
-            snapshotHash: snapshotHash
+            snapshotHash: snapshotHash,
+            observationStage: observationStage
         )
         try context.save()
         return insight
@@ -170,6 +172,30 @@ final class MemoryInsightRepository {
             try context.save()
             Self.logger.info("洞察已标记 stale：\(periodType.rawValue)")
         }
+    }
+
+    // MARK: - Mark Read（方案 §7.5）
+
+    /// 标记洞察已读（回写 readAt，首页胶囊不再当新观察顶置）
+    func markRead(insight: MemoryInsight, now: Date = Date()) throws {
+        insight.markRead(now: now)
+        try context.save()
+    }
+
+    // MARK: - Latest Insight
+
+    /// 取最新一条洞察（按 generatedAt 降序，不限周期，排除生成中）。
+    /// 用于首页胶囊与 ChatView 本周观察区块共用同一条记录，避免按本周范围精确匹配导致两边不一致。
+    func fetchLatestReadyInsight(periodType: MemoryInsightPeriodType) -> MemoryInsight? {
+        let request = MemoryInsight.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "periodType == %@ AND status != %@",
+            periodType.rawValue,
+            MemoryInsightStatus.generating.rawValue
+        )
+        request.sortDescriptors = [NSSortDescriptor(key: "generatedAt", ascending: false)]
+        request.fetchLimit = 1
+        return (try? context.fetch(request))?.first
     }
 
     // MARK: - Feedback
@@ -263,26 +289,46 @@ final class MemoryInsightRepository {
     // MARK: - Recent Insights (Dedup & Review)
 
     /// 获取最近 N 条同 periodType 且 ready 的洞察（支持按 promptVersion 过滤）
+    /// - Parameter observationStage: 观察阶段过滤（方案 §4.2 核心修复）。
+    ///   full7d 含 legacy(nil)，light3d 严格匹配——避免 light3d 被算作 full7d 的相似历史而被复用挡住。
     func fetchRecentReadyInsights(
         periodType: MemoryInsightPeriodType,
+        observationStage: MemoryInsightObservationStage,
         promptVersion: Int16? = nil,
         limit: Int = 3
     ) -> [MemoryInsight] {
         let request = MemoryInsight.fetchRequest()
 
+        // stage 子谓词：full7d 把 nil(legacy) 也纳入；light3d 严格等值
+        let stagePredicate: NSPredicate = {
+            if observationStage == .full7d {
+                return NSPredicate(
+                    format: "observationStage == nil OR observationStage == %@",
+                    MemoryInsightObservationStage.full7d.rawValue
+                )
+            } else {
+                return NSPredicate(
+                    format: "observationStage == %@",
+                    observationStage.rawValue
+                )
+            }
+        }()
+
+        let basePredicate = NSPredicate(
+            format: "periodType == %@ AND status == %@",
+            periodType.rawValue,
+            MemoryInsightStatus.ready.rawValue
+        )
+
         if let version = promptVersion {
-            request.predicate = NSPredicate(
-                format: "periodType == %@ AND status == %@ AND promptVersion == %d",
-                periodType.rawValue,
-                MemoryInsightStatus.ready.rawValue,
-                version
-            )
+            let versionPredicate = NSPredicate(format: "promptVersion == %d", version)
+            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                basePredicate, stagePredicate, versionPredicate
+            ])
         } else {
-            request.predicate = NSPredicate(
-                format: "periodType == %@ AND status == %@",
-                periodType.rawValue,
-                MemoryInsightStatus.ready.rawValue
-            )
+            request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+                basePredicate, stagePredicate
+            ])
         }
 
         request.sortDescriptors = [NSSortDescriptor(key: "generatedAt", ascending: false)]

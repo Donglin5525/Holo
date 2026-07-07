@@ -26,6 +26,15 @@ enum MemoryInsightPeriodType: String, Codable, CaseIterable {
     case custom
 }
 
+// MARK: - Observation Stage
+
+/// 本周观察的阶段（light3d 轻量版 / full7d 完整版）
+/// 见本周观察方案 §3.2。旧数据 observationStage == nil 视为 full7d/legacy。
+enum MemoryInsightObservationStage: String, Codable {
+    case light3d   // 3 个有效记录日触发的轻量版
+    case full7d    // 7 个有效记录日触发的完整版
+}
+
 // MARK: - Status
 
 /// 洞察生成状态
@@ -203,6 +212,7 @@ enum InsightGenerationState: Equatable {
     case generating         // 正在生成
     case ready              // 已生成，可用
     case stale              // 有更新数据，旧洞察可刷新
+    case needConsent        // AI 数据处理授权未开启
     case failed(String)     // 生成失败
 }
 
@@ -215,6 +225,8 @@ enum MemoryInsightError: LocalizedError {
     case generationTimeout
     case parsingFailed(String)
     case contextBuildFailed(String)
+    /// AI 数据处理授权未开启（最终防线抛出，见本周观察方案 §4.1）
+    case aiDataProcessingConsentRequired
 
     var errorDescription: String? {
         switch self {
@@ -228,6 +240,8 @@ enum MemoryInsightError: LocalizedError {
             return "AI 返回格式异常：\(detail)"
         case .contextBuildFailed(let detail):
             return "数据聚合失败：\(detail)"
+        case .aiDataProcessingConsentRequired:
+            return "未开启 AI 数据处理授权，无法生成洞察"
         }
     }
 }

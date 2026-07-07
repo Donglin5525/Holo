@@ -163,6 +163,65 @@ final class CalendarEventProviderTests: XCTestCase {
         XCTAssertEqual(items.visible.first?.event.module, .habit)
     }
 
+    func test_weeklyGridLayout同一小时多模块合并成模块摘要() {
+        let events = [
+            makeEvent(.habit, day: 1, hour: 10, minute: 2),
+            makeEvent(.habit, day: 1, hour: 10, minute: 9),
+            makeEvent(.finance, day: 1, hour: 10, minute: 16),
+            makeEvent(.thought, day: 1, hour: 10, minute: 41)
+        ]
+
+        let items = WeeklyGridEventLayout.layout(events: events, startHour: 6, endHour: 23, hourHeight: 42)
+
+        XCTAssertEqual(items.displayItems.count, 3)
+        XCTAssertEqual(items.displayItems.map(\.module), [.finance, .habit, .thought])
+        XCTAssertEqual(items.displayItems.first(where: { $0.module == .habit })?.displayTitle, "习惯 +2")
+        XCTAssertEqual(items.displayItems.first(where: { $0.module == .habit })?.events.count, 2)
+        XCTAssertTrue(items.displayItems.allSatisfy { $0.isSummary }, "多模块拥挤时应展示模块摘要，明细进弹窗")
+        XCTAssertEqual(Set(items.displayItems.map(\.lane)), [0], "多模块摘要应纵向堆叠，避免左右挤压成省略号")
+        XCTAssertEqual(Set(items.displayItems.map(\.laneCount)), [1], "多模块摘要应占满列宽")
+        XCTAssertEqual(Set(items.displayItems.map(\.stackCount)), [3])
+        XCTAssertEqual(items.displayItems.map(\.stackIndex), [0, 1, 2])
+        XCTAssertEqual(items.displayItems.map(\.top), [168, 182, 196])
+    }
+
+    func test_weeklyGridLayout同一小时单模块保持自然胶囊() {
+        let events = [
+            makeEvent(.habit, day: 1, hour: 14, minute: 3),
+            makeEvent(.habit, day: 1, hour: 14, minute: 18),
+            makeEvent(.habit, day: 1, hour: 14, minute: 43)
+        ]
+
+        let items = WeeklyGridEventLayout.layout(events: events, startHour: 6, endHour: 23, hourHeight: 42)
+
+        XCTAssertEqual(items.displayItems.count, 1)
+        XCTAssertEqual(items.displayItems.first?.displayTitle, "T1-14-3 +3")
+        XCTAssertEqual(items.displayItems.first?.events.count, 3)
+        XCTAssertFalse(items.displayItems.first?.isSummary ?? true, "单模块拥挤时仍用胶囊表达，不退化成模块名")
+    }
+
+    func test_weeklyGridLayout零到六点折叠后七点开始展示() {
+        let events = [
+            makeEvent(.finance, day: 1, hour: 0, minute: 10),
+            makeEvent(.habit, day: 1, hour: 6, minute: 30),
+            makeEvent(.todo, day: 1, hour: 7, minute: 45),
+            makeEvent(.thought, day: 1, hour: 8, minute: 5)
+        ]
+
+        let items = WeeklyGridEventLayout.layout(
+            events: events,
+            startHour: 7,
+            endHour: 23,
+            hourHeight: 42,
+            collapsedHours: 0..<7
+        )
+
+        XCTAssertTrue(items.early.isEmpty)
+        XCTAssertEqual(items.collapsed.count, 2)
+        XCTAssertEqual(items.displayItems.map(\.module), [.todo, .thought])
+        XCTAssertEqual(items.displayItems.first?.top, 0)
+    }
+
     func test_calendarObservationSummary生成本地可信观察() {
         let events = [
             makeEvent(.finance, day: 1, hour: 14, minute: 0),

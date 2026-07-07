@@ -230,6 +230,8 @@ struct MemoryInsightHeroCard: View {
         switch state {
         case .notConfigured:
             return "AI 回放"
+        case .needConsent:
+            return "AI 回放"
         case .idle:
             return "\(periodLabel) AI 回放"
         case .generating:
@@ -268,6 +270,11 @@ struct MemoryInsightHeroCard: View {
                 .font(.holoBody)
                 .foregroundColor(.holoTextSecondary)
 
+        case .needConsent:
+            Text("开启 AI 数据处理授权后，Holo 才能为你生成本周观察")
+                .font(.holoBody)
+                .foregroundColor(.holoTextSecondary)
+
         case .idle:
             missingReplayPlaceholder
 
@@ -281,10 +288,18 @@ struct MemoryInsightHeroCard: View {
             }
 
         case .ready, .stale:
-            Text(insight?.summary ?? "")
-                .font(.holoBody)
-                .foregroundColor(.holoTextSecondary)
-                .textSelection(.enabled)
+            VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                Text(insight?.summary ?? "")
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextSecondary)
+                    .textSelection(.enabled)
+                // light3d 承诺文案：强调是初步观察，不冒充完整周报（方案 §2.3 合规）
+                if insight?.observationStageEnum == .light3d {
+                    Text("基于最近 3 个有效记录日的初步观察，持续记录到 7 天后会更完整。")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextPlaceholder)
+                }
+            }
 
         case .failed(let message):
             Text(message)
@@ -412,6 +427,12 @@ struct MemoryInsightHeroCard: View {
             case .notConfigured:
                 Button(action: onGenerate) {
                     actionButtonLabel("稍后重试", isPrimary: true)
+                }
+
+            case .needConsent:
+                // 跳转 AI 设置授权入口（方案 §4.1.3 / Phase 6）
+                Button(action: onGoToAISettings) {
+                    actionButtonLabel("开启授权", isPrimary: true)
                 }
 
             case .idle:

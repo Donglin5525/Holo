@@ -960,6 +960,17 @@ final class IntentRouter {
                     id: insight.id
                 )
             )
+        } catch let error as MemoryInsightError {
+            logger.error("Chat 触发洞察生成失败：\(error.localizedDescription)")
+            // 未授权时给出专属引导文案，其余错误沿用通用重试文案（方案 §4.1.3）
+            let text: String
+            switch error {
+            case .aiDataProcessingConsentRequired:
+                text = "开启 AI 数据处理授权后可生成本周观察。"
+            default:
+                text = "生成回放失败：\(error.localizedDescription)。请稍后重试。"
+            }
+            return RouteResult(text: text)
         } catch {
             logger.error("Chat 触发洞察生成失败：\(error.localizedDescription)")
             return RouteResult(

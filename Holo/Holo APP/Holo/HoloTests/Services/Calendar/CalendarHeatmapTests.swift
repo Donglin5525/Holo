@@ -40,4 +40,12 @@ final class CalendarHeatmapTests: XCTestCase {
         let oneColor = CalendarHeatmap.color(forCount: 1)
         XCTAssertNotEqual(zeroColor, oneColor, "1 条记录的色应区别于 0 条空档")
     }
+
+    func test_月历色阶使用Holo冷静品牌色而非大面积橙色() {
+        XCTAssertEqual(CalendarHeatmap.hex(forLevel: 0), "#F6F8FB")
+        XCTAssertEqual(CalendarHeatmap.hex(forLevel: 1), "#EAF2FF")
+        XCTAssertEqual(CalendarHeatmap.hex(forLevel: 2), "#D9ECFF")
+        XCTAssertEqual(CalendarHeatmap.hex(forLevel: 3), "#CFE7F7")
+        XCTAssertEqual(CalendarHeatmap.hex(forLevel: 4), "#C8DDF8")
+    }
 }

@@ -137,6 +137,31 @@ extension CoreDataStack {
         feedbackNote.isOptional = true
         attributes.append(feedbackNote)
 
+        // 本周观察扩展字段（方案 §3.1，自动轻量迁移，无需 mapping model）
+        let readAt = NSAttributeDescription()
+        readAt.name = "readAt"
+        readAt.attributeType = .dateAttributeType
+        readAt.isOptional = true
+        attributes.append(readAt)
+
+        let snoozedUntil = NSAttributeDescription()
+        snoozedUntil.name = "snoozedUntil"
+        snoozedUntil.attributeType = .dateAttributeType
+        snoozedUntil.isOptional = true
+        attributes.append(snoozedUntil)
+
+        let hiddenUntil = NSAttributeDescription()
+        hiddenUntil.name = "hiddenUntil"
+        hiddenUntil.attributeType = .dateAttributeType
+        hiddenUntil.isOptional = true
+        attributes.append(hiddenUntil)
+
+        let observationStage = NSAttributeDescription()
+        observationStage.name = "observationStage"
+        observationStage.attributeType = .stringAttributeType
+        observationStage.isOptional = true
+        attributes.append(observationStage)
+
         entity.properties = attributes
         return entity
     }

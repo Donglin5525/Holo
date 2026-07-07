@@ -158,6 +158,8 @@ struct HomeView: View {
             HabitRepository.shared.setup()
             loadFeatureItemsFromRepository()
             scheduleService.setup()
+            // 本周观察：有效记录日 Service（首屏读缓存，后台监听四模块刷新）
+            EffectiveRecordDayService.shared.setup()
         }
         .fullScreenCover(isPresented: $showFinanceView, onDismiss: {
             pendingFinanceAnalysisDeepLink = nil

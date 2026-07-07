@@ -72,7 +72,7 @@ struct MonthCell: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(isThisMonth ? Color.holoCardBackground : Color(hex: "#F5F2ED"))
+        .background(isThisMonth ? Color.holoCardBackground : Color(hex: CalendarHeatmap.hex(forLevel: 0)))
         .overlay(borderOverlay)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
     }
@@ -80,7 +80,7 @@ struct MonthCell: View {
     // MARK: - 共享衍生
 
     private var backgroundColor: Color {
-        isThisMonth ? CalendarHeatmap.color(forCount: events.count) : Color(hex: "#F5F2ED")
+        isThisMonth ? CalendarHeatmap.color(forCount: events.count) : Color(hex: CalendarHeatmap.hex(forLevel: 0))
     }
 
     /// 徽章色 = 活跃度色深（与热力同色阶，徽章形式仍能看出活跃度）
@@ -101,9 +101,9 @@ struct MonthCell: View {
     private var borderOverlay: some View {
         RoundedRectangle(cornerRadius: HoloRadius.sm)
             .stroke(
-                isSelected ? Color.holoTextPrimary :
-                (isToday ? Color.holoPrimary : Color.clear),
-                lineWidth: isSelected ? 2.5 : (isToday ? 1.5 : 0)
+                isSelected ? Color.holoPrimary :
+                (isToday ? Color.holoPrimary.opacity(0.65) : Color.clear),
+                lineWidth: isSelected ? 2 : (isToday ? 1.5 : 0)
             )
     }
 

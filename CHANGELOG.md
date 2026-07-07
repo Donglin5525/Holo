@@ -4,6 +4,43 @@
 
 ---
 
+## [2026-07-07] 周历网格布局优化（凌晨折叠 + 多模块纵向堆叠）
+
+优化记忆长廊周历网格的密度与可读性：默认收起 0:00-6:59 低频时段，主时间轴从 7 点开始；同一小时内多个模块不再左右挤压成省略号，改为按模块纵向堆叠占满列宽，明细进弹窗查看。
+
+### 变更
+- **凌晨时段折叠**：`WeeklyGridView` 默认折叠 0:00-6:59（可手动展开，状态持久化于 `holo.memoryGallery.weeklyGrid.collapseMorning`），主时间轴从 7 点开始，底部补「24」边界标签；移除旧的凌晨空白 bucket，减少无效占位
+- **多模块纵向堆叠**：`WeeklyGridEventLayout` 新增 `DisplayItem` 与 `displayItems`，同一小时内多模块按模块纵向堆叠并占满列宽（不再左右分 lane 挤压），堆叠时显示「模块名 +N」摘要、点击进弹窗看明细；单模块拥挤仍以胶囊表达
+- **布局行为测试**：`CalendarEventProviderTests` 补 3 个用例——同一小时多模块合并为模块摘要、单模块保持自然胶囊、0..<7 折叠后 7 点起展示
+
+### 验证
+- 新增 `CalendarEventProviderTests` 三个用例，覆盖凌晨折叠与多模块纵向堆叠的布局行为
+
+---
+
+## [2026-07-07] HoloAI 本周观察：首页胶囊统一入口 + 洞察分级 + consent 最终防线
+
+实现「本周观察首页胶囊与 Push 方案」（最终实施方案见 `docs/_common/plans/2026-07-07-Holo本周观察-最终实施方案.md`）。把首页顶部提醒胶囊升级为统一入口，承载 HoloAI 本周观察的唤起与新用户洞察养成。观察产物复用现有 `MemoryInsight(periodType:.weekly)`，分 3 天轻量版（light3d）与 7 天完整版（full7d）；Push 整体 defer 到 V1.1。
+
+### 变更
+- **consent 最终防线（Phase 0）**：`MemoryInsightService.generateInsight` 入口加 AI 数据处理授权检查，一处覆盖全部 8 个调用入口（手动 / Chat 意图 / 后台日周月 / 前台补偿日周月），未授权抛 `aiDataProcessingConsentRequired`；手动入口显示授权引导而非 `.failed`，后台/前台静默跳过。修存量「未授权时靠底层兜底显示请稍后重试」的同类 bug
+- **observationStage 字段 + 去重修复（Phase 1）**：MemoryInsight 加 `readAt`/`snoozedUntil`/`hiddenUntil`/`observationStage` 4 字段（自动轻量迁移）；`fetchRecentReadyInsights` 接入 stage 过滤，修复 light3d 被算作 full7d 相似历史、导致 full7d 复用不生成的去重陷阱
+- **有效记录日 builder（Phase 2）**：新建 `EffectiveRecordDayAggregator`（纯逻辑）+ `EffectiveRecordDayService`（缓存 + 通知驱动），跨 Finance/Todo/Habit/Thought 按天聚合去重，窗口级 ≥2 模块门槛（G6）；首页 onAppear 命中 UserDefaults 缓存不全表扫
+- **首页胶囊排序层（Phase 3）**：提取 `ScheduleRanker`（业务优先级 + 稳定 tiebreaker），weeklyObservation 给独立 P0（newInsight），不再硬编码 `.pending`；24h 保护期 + 曝光限频持久化（currentState 变化口径）；新增 `buildWeeklyObservationCandidate` 承载养成/授权/未读/失败状态
+- **生成时机接入（Phase 5）**：后台/前台 weekly 生成改为基于有效记录日 eligibility 决定 light3d/full7d，禁用 `effectivePeriodRange.minDays`，养成期不伪造洞察
+- **卡片与兜底（Phase 4/6）**：light3d 承诺文案合规（不冒充完整周报）；修 `MemoryInsightHeroCard` `.needConsent` 错绑 `onGenerate` 的 bug，改跳 AI 设置授权入口
+- **ChatView 本周观察区块（Phase 4/6 扩展，决策 1A/2A）**：ChatView 顶部新增 `WeeklyObservationCard`（复用 HoloAI 卡片视觉），承载养成/授权/未读/失败状态；未授权态作为正式版统一授权入口（复用 `.aiSettings` sheet，不受 `#if DEBUG` 限制）；新增 `MemoryInsight.markRead` 回写——卡片展示即视为已读，首页胶囊不再顶置同条观察（方案 §7.5）
+- **验收修复**：① 首页胶囊与 ChatView 卡片统一取「最新一条 weekly 观察记录」（`fetchLatestReadyInsight`），修两边查询范围不一致导致卡片查不到胶囊看到的记录；② 卡片有观察记录即展示（已读可回看）；③ 卡片右上角 × 关闭（当天不再显示）+ 失败态显示报错详情 + 「重试」按钮直接重新生成
+
+### 验证
+- `xcodebuild -scheme Holo build` 通过（iPhone 17 系列模拟器）
+- 核心纯逻辑 standalone test 全绿：`EffectiveRecordDayAggregator`（23 断言：同天去重 / G6 单模块门槛 / light-full 达标 / 未来日期排除）、`ScheduleRanker`（12 断言：P0 压过 P1 / 稳定 tiebreaker / 保护期）
+
+### 后续
+- Phase 7 App Store 合规（东林暂缓，上架前手动）：隐私问卷勾选第三方 AI 出站处理 + Review Notes + Xcode 核实 Health/Microphone usage description
+
+---
+
 ## [2026-07-06] 修复 HoloAI 发送按钮静默失败与输入草稿丢失
 
 修复 App Store 合规批次后 HoloAI 对话出现的两个回归（未授权时点发送无提示、退出界面未发送内容丢失），并清理 Debug scheme 中错误指向本地后端的环境变量。
