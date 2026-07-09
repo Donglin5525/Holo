@@ -120,7 +120,7 @@ test("启动时自动把默认 Prompt 登记到版本历史", async () => {
   assert.match(historyHtml, /自动登记默认 Prompt 基线/);
 });
 
-test("intent_recognition 默认 Prompt 已瘦身为核心 Router（v21）", async () => {
+test("intent_recognition 默认 Prompt 已瘦身为核心 Router（v22）", async () => {
   const app = createTestApp();
 
   const response = await app.request("/v1/prompts/intent_recognition");
@@ -128,7 +128,7 @@ test("intent_recognition 默认 Prompt 已瘦身为核心 Router（v21）", asyn
   const prompt = await response.json();
 
   // 版本号
-  assert.equal(prompt.version, 21);
+  assert.equal(prompt.version, 22);
 
   // 长度验证：Router 允许补充必要规则，但仍防止重新膨胀为长 prompt
   assert.ok(prompt.content.length < 3500, `prompt 长度 ${prompt.content.length} 超过 3500`);
@@ -151,6 +151,8 @@ test("intent_recognition 默认 Prompt 已瘦身为核心 Router（v21）", asyn
   assert.match(prompt.content, /今年收入是多少/);
   assert.match(prompt.content, /flexible_data_query/);
   assert.match(prompt.content, /query_analysis/);
+  assert.match(prompt.content, /平均每笔\/每次\/每顿/);
+  assert.match(prompt.content, /最近一个月吃了多少顿麦当劳/);
   assert.match(prompt.content, /睡眠/);
   assert.match(prompt.content, /analysisDomain: "health"/);
 
@@ -166,6 +168,21 @@ test("intent_recognition 默认 Prompt 已瘦身为核心 Router（v21）", asyn
   assert.doesNotMatch(prompt.content, /系统科目对照 catalog/);
   assert.doesNotMatch(prompt.content, /## 科目体系/);
   assert.doesNotMatch(prompt.content, /## 输出格式/);
+});
+
+test("flexible_query_planner supports deterministic per-meal averages", async () => {
+  const app = createTestApp();
+
+  const response = await app.request("/v1/prompts/flexible_query_planner");
+  assert.equal(response.status, 200);
+  const prompt = await response.json();
+
+  assert.equal(prompt.version, 3);
+  assert.match(prompt.content, /averageAmount/);
+  assert.match(prompt.content, /averageUnit/);
+  assert.match(prompt.content, /"operation":"sumAmount"/);
+  assert.match(prompt.content, /"averageUnit":"meal"/);
+  assert.match(prompt.content, /麦当劳/);
 });
 
 test("analysis_prompt 默认 Prompt 使用 C 端纯文本输出约束", async () => {

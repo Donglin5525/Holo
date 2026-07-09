@@ -153,6 +153,42 @@ test("intent mock routes category-specific spending amount queries to flexible_d
   assert.match(parsed.items[0].extractedData.rawConstraints, /烟花/);
 });
 
+test("intent mock routes merchant count total and per-meal average to flexible_data_query", async () => {
+  const app = createTestApp();
+
+  const promptResponse = await app.request("/v1/prompts/intent_recognition");
+  assert.equal(promptResponse.status, 200);
+  const prompt = await promptResponse.json();
+
+  const response = await app.request("/v1/ai/chat/completions", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-holo-device-id": "intent-merchant-average-device",
+    },
+    body: JSON.stringify({
+      purpose: "intent",
+      stream: false,
+      response_format: { type: "json_object" },
+      messages: [
+        { role: "system", content: prompt.content },
+        { role: "user", content: "最近一个月吃了多少吨麦当劳，花了多少钱，平均一顿多少钱" },
+      ],
+    }),
+  });
+
+  assert.equal(response.status, 200);
+  const parsed = JSON.parse((await response.json()).choices[0].message.content);
+  assert.equal(parsed.mode, "query");
+  assert.equal(parsed.items[0].intent, "flexible_data_query");
+  assert.notEqual(parsed.items[0].intent, "query_analysis");
+  assert.match(parsed.items[0].extractedData.queryGoal, /次数/);
+  assert.match(parsed.items[0].extractedData.queryGoal, /总额/);
+  assert.match(parsed.items[0].extractedData.queryGoal, /平均每顿/);
+  assert.match(parsed.items[0].extractedData.rawConstraints, /最近一个月/);
+  assert.match(parsed.items[0].extractedData.rawConstraints, /麦当劳/);
+});
+
 test("intent mock routes direct income total queries to flexible_data_query", async () => {
   const app = createTestApp();
 
@@ -605,7 +641,7 @@ test("GET /v1/prompts/:type returns prompt content and version", async () => {
   assert.equal(response.status, 200);
   const json = await response.json();
   assert.equal(json.type, "intent_recognition");
-  assert.equal(json.version, 21);
+  assert.equal(json.version, 22);
   assert.match(json.content, /短意图 Router/);
 });
 
