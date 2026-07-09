@@ -163,6 +163,21 @@ final class HoloBackendAIProvider: AIProvider {
         return content
     }
 
+    func completeFlexibleQueryPlan(prompt: String, userContext: UserContext) async throws -> String {
+        try ensureDataProcessingConsent()
+        let request = buildRequest(
+            purpose: .flexibleQueryPlanner,
+            messages: [.user(prompt)],
+            responseFormat: .jsonObject
+        )
+        let response: ChatCompletionResponse = try await apiClient.send(request)
+
+        guard let content = response.choices?.first?.message?.content, !content.isEmpty else {
+            throw APIError.serverError("AI 未返回有效查询计划")
+        }
+        return content
+    }
+
     /// 使用自定义 purpose 的非流式 chat 调用（不注入 UserContext）
     func chat(messages: [ChatMessageDTO], purpose: HoloBackendPurpose) async throws -> String {
         try ensureDataProcessingConsent()
@@ -454,6 +469,7 @@ final class HoloBackendAIProvider: AIProvider {
 enum HoloBackendPurpose: String {
     case chat
     case intent
+    case flexibleQueryPlanner = "flexible_query_planner"
     case insight
     case thoughtVoiceSummary = "thought_voice_summary"
     case memoryObserver = "memory_observer"

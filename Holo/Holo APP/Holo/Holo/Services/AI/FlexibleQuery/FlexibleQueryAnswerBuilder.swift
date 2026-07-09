@@ -7,11 +7,8 @@
 //
 
 import Foundation
-import os.log
 
-final class FlexibleQueryAnswerBuilder {
-    private let logger = Logger(subsystem: "com.holo.app", category: "FlexibleQueryAnswerBuilder")
-
+nonisolated final class FlexibleQueryAnswerBuilder {
     /// 根据 Query Result 生成自然语言回答（本地模板）
     func answer(_ result: FlexibleQueryResult) -> String {
         switch result.status {
@@ -63,7 +60,7 @@ final class FlexibleQueryAnswerBuilder {
 
         // 主结果
         let dateStr = formatDate(evidence.date)
-        let amountStr = FlexibleQueryExecutor.formatAmount(evidence.amount)
+        let amountStr = FlexibleQueryFormatting.formatAmount(evidence.amount)
         var desc = "找到"
         if plan.operation == .findLatestTransaction {
             desc = "找到最近一笔"
@@ -112,11 +109,17 @@ final class FlexibleQueryAnswerBuilder {
 
     private func buildCountAnswer(_ result: FlexibleQueryResult) -> String {
         let count = result.summary.totalMatched
-        let amountStr = result.summary.totalAmount.map { FlexibleQueryExecutor.formatAmount($0) }
+        let amountStr = result.summary.totalAmount.map { FlexibleQueryFormatting.formatAmount($0) }
+        let countUnit = result.plan.averageUnit?.countLabel ?? "笔"
+        let subject = querySubject(for: result.plan)
 
-        var text = "找到 \(count) 笔符合条件的记录"
+        var text = subject.map { "\($0)共 \(count) \(countUnit)" }
+            ?? "找到 \(count) \(countUnit)符合条件的记录"
         if let amount = amountStr {
             text += "，总计 \(amount)"
+        }
+        if let averageText = averageText(for: result) {
+            text += "，\(averageText)"
         }
         text += "。"
 
@@ -134,14 +137,38 @@ final class FlexibleQueryAnswerBuilder {
             return "没有找到符合条件的记录。"
         }
 
-        let amountStr = FlexibleQueryExecutor.formatAmount(total)
-        var text = "符合条件的交易金额合计 \(amountStr)，共 \(result.summary.totalMatched) 笔。"
+        let amountStr = FlexibleQueryFormatting.formatAmount(total)
+        let countUnit = result.plan.averageUnit?.countLabel ?? "笔"
+        let subject = querySubject(for: result.plan)
+        var text = subject.map { "\($0)共 \(result.summary.totalMatched) \(countUnit)，合计 \(amountStr)" }
+            ?? "符合条件的交易共 \(result.summary.totalMatched) \(countUnit)，合计 \(amountStr)"
+
+        if let averageText = averageText(for: result) {
+            text += "，\(averageText)"
+        }
+        text += "。"
 
         if let dateRange = result.summary.dateRange {
             text += "时间范围：\(dateRange)。"
         }
 
         return text
+    }
+
+    private func averageText(for result: FlexibleQueryResult) -> String? {
+        guard result.calculationResult?.type == .averageAmount,
+              let amount = result.calculationResult?.amount else {
+            return nil
+        }
+        let unit = result.plan.averageUnit?.averageLabel ?? "每笔"
+        return "平均\(unit) \(FlexibleQueryFormatting.formatAmount(amount))"
+    }
+
+    private func querySubject(for plan: FlexibleQueryPlan) -> String? {
+        if let keyword = plan.filters.keywords.first(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }) {
+            return keyword
+        }
+        return plan.filters.categoryNames.first(where: { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
     }
 
     // MARK: - List
@@ -164,7 +191,7 @@ final class FlexibleQueryAnswerBuilder {
 
         for evidence in result.matchedTransactions {
             let dateStr = formatDate(evidence.date)
-            let amountStr = FlexibleQueryExecutor.formatAmount(evidence.amount)
+            let amountStr = FlexibleQueryFormatting.formatAmount(evidence.amount)
             var line = "\(dateStr) \(amountStr)"
             if let note = evidence.note, !note.isEmpty {
                 line += " \(note)"
@@ -173,7 +200,7 @@ final class FlexibleQueryAnswerBuilder {
         }
 
         if let totalAmount = result.summary.totalAmount {
-            parts.append("合计：\(FlexibleQueryExecutor.formatAmount(totalAmount))")
+            parts.append("合计：\(FlexibleQueryFormatting.formatAmount(totalAmount))")
         }
 
         return parts.joined(separator: "\n")

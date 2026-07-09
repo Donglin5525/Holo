@@ -409,11 +409,7 @@ final class FlexibleQueryExecutor {
     // MARK: - Formatting
 
     static func formatAmount(_ amount: Decimal) -> String {
-        let formatter = NumberFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.numberStyle = .currency
-        formatter.maximumFractionDigits = 2
-        return formatter.string(from: amount as NSDecimalNumber) ?? "\(amount)"
+        FlexibleQueryFormatting.formatAmount(amount)
     }
 }
 

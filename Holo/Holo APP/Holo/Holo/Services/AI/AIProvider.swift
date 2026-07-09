@@ -32,6 +32,9 @@ protocol AIProvider {
     /// 非流式对话
     func chat(messages: [ChatMessageDTO], userContext: UserContext) async throws -> String
 
+    /// 灵活查询结构化规划
+    func completeFlexibleQueryPlan(prompt: String, userContext: UserContext) async throws -> String
+
     /// 流式对话
     func chatStreaming(messages: [ChatMessageDTO], userContext: UserContext) -> AsyncThrowingStream<String, Error>
 
@@ -81,6 +84,14 @@ enum AIActionParserKind: Sendable {
 }
 
 extension AIProvider {
+    /// 非 HoloBackend Provider 保持兼容，回退到现有非流式对话。
+    func completeFlexibleQueryPlan(prompt: String, userContext: UserContext) async throws -> String {
+        try await chat(
+            messages: [ChatMessageDTO(role: "user", content: prompt)],
+            userContext: userContext
+        )
+    }
+
     /// 便捷方法：不带分析参数的流式对话（向后兼容）
     func chatStreaming(
         messages: [ChatMessageDTO],

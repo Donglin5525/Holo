@@ -116,12 +116,12 @@ final class PromptManager {
     /// 需要版本管理的 prompt 类型及其最低版本
     private static let promptVersions: [PromptType: Int] = [
         .systemPrompt: 2,               // v2: Sense Loop 表达边界与档案优先级
-        .intentRecognition: 21,         // v21: 财务记账输出 transactionDate，支持昨天等相对日期落到交易日
+        .intentRecognition: 22,         // v22: 每笔/每次/每顿均价归入确定性查询
         .memoryInsightGeneration: 7,    // v7: Sense Loop 表达边界、偏好摘要与表达强度
         .analysisPrompt: 3,             // v3: Sense Loop 表达边界与档案优先级
         .annualReview: 1,               // v1: 初始版本
         .thoughtVoiceSummary: 2,        // v2: 自然分段，复杂内容才使用小标题
-        .flexibleQueryPlanner: 2,       // v2: 当前输入优先，档案不干扰硬查询
+        .flexibleQueryPlanner: 4,       // v4: 聚合查询禁止生成易破坏 JSON 的纠错说明
         .memoryObserver: 1,             // v1: 初始版本，记忆观察引擎
         .financeActionParser: 1,        // v1: 分期记账参数解析
         .taskActionParser: 1,           // v1: 重复任务参数解析
@@ -220,10 +220,18 @@ final class PromptManager {
         let timeFormatter = DateFormatter()
         timeFormatter.dateFormat = "HH:mm"
 
+        let isoDateFormatter = DateFormatter()
+        isoDateFormatter.locale = Locale(identifier: "en_US_POSIX")
+        isoDateFormatter.dateFormat = "yyyy-MM-dd"
+        let today = Date()
+        let thirtyDaysAgo = Calendar.current.date(byAdding: .day, value: -29, to: today) ?? today
+
         return [
-            "{{todayDate}}": dateFormatter.string(from: Date()),
-            "{{currentYear}}": yearFormatter.string(from: Date()),
-            "{{currentTime}}": timeFormatter.string(from: Date())
+            "{{todayDate}}": dateFormatter.string(from: today),
+            "{{todayISODate}}": isoDateFormatter.string(from: today),
+            "{{thirtyDaysAgoDate}}": isoDateFormatter.string(from: thirtyDaysAgo),
+            "{{currentYear}}": yearFormatter.string(from: today),
+            "{{currentTime}}": timeFormatter.string(from: today)
         ]
     }
 
@@ -408,14 +416,14 @@ final class PromptManager {
         - check_in：习惯打卡。填 habitName / habitValue。
         - create_note / record_mood / record_weight：记录笔记、心情、体重。
         - query_tasks / query_habits：查询任务或习惯状态。
-        - flexible_data_query：查一个确定的单值——总金额、次数、最近一次、哪一笔、距今多久、最大/最小一笔、超过 N 元、关键词花了多少。不能做需要折算或统计规律的查询。
-        - query_analysis：分析、复盘、趋势、结构、占比、总结，以及需要折算/统计规律的——频率、平均每天/每周花多少、日均、单位时间花销。
+        - flexible_data_query：查一个或一组确定结果——总金额、次数、最近一次、哪一笔、距今多久、最大/最小一笔、超过 N 元、关键词花了多少，以及同一批记录的平均每笔/每次/每顿金额。
+        - query_analysis：分析、复盘、趋势、结构、占比、总结，以及需要按时间折算或统计规律的——频率趋势、平均每天/每周花多少、日均、单位时间花销。
         - query：普通问答或闲聊。
         - generate_memory_insight：记忆回放。
         - unknown：无法判断。
 
         分流：
-        - 确定数字类："今年收入是多少""本月花了多少钱""今年买烟花花了多少""咖啡一共花了多少"→ flexible_data_query。
+        - 确定数字类："今年收入是多少""本月花了多少钱""今年买烟花花了多少""咖啡一共花了多少""最近一个月吃了多少顿麦当劳，花了多少钱，平均一顿多少钱"→ flexible_data_query。
         - 分析总结类："分析今年收入结构""复盘本月消费""最近财务状态怎么样"→ query_analysis。
         - 频率/折算类："买烟的频率怎么样""平均一天抽烟花多少钱""每天花多少""多久买一次"→ query_analysis（需要次数÷时间或总额÷天数，超出单值查询）。
         - 具体数据查询不要用 query。
@@ -439,6 +447,7 @@ final class PromptManager {
         - "麦当劳35" → intent: "record_expense", extractedData: { amount: "35", note: "麦当劳", categoryCandidate: "麦当劳", normalizedCategoryCandidate: "快餐", semanticCategoryHint: "餐饮" }
         - "给爷爷买了两百块的彩票" → intent: "record_expense", extractedData: { amount: "200", note: "给爷爷买彩票", categoryCandidate: "给爷爷买彩票", semanticCategoryHint: "人情" }
         - "今年收入是多少" → intent: "flexible_data_query", extractedData: { queryGoal: "今年收入总额" }
+        - "最近一个月吃了多少顿麦当劳，花了多少钱，平均一顿多少钱" → intent: "flexible_data_query", extractedData: { queryDomain: "finance", queryGoal: "统计麦当劳消费次数、总额、平均每顿金额", rawConstraints: "最近一个月, 麦当劳, 支出" }
         - "帮我分析一下最近的花销" → intent: "query_analysis", extractedData: { analysisDomain: "finance", periodLabel: "最近" }
         - "买烟的频率怎么样" → intent: "query_analysis", extractedData: { analysisDomain: "finance", periodLabel: "最近" }
         - "平均一天抽烟花多少钱" → intent: "query_analysis", extractedData: { analysisDomain: "finance", periodLabel: "最近" }
@@ -985,6 +994,11 @@ final class PromptManager {
         | averageAmount | 平均金额 |
         | none | 无需额外计算 |
 
+        averageUnit 只在 calculation = "averageAmount" 时使用：
+        - "transaction"：每笔
+        - "occurrence"：每次
+        - "meal"：每顿
+
         ## 排序
 
         sort: { "field": "date"|"amount", "direction": "asc"|"desc" }
@@ -1003,6 +1017,9 @@ final class PromptManager {
         6. 无日期范围时 startDate/endDate 设 null，表示查询所有历史。
         7. limit 默认 20，findLatestTransaction/findEarliestTransaction/maxTransaction/minTransaction 建议 limit=1。
         8. explanationHints 用来说明推断依据和不确定性，不要编造数据。
+        9. 用户同时问次数、总额和平均金额时，使用 operation = "sumAmount"、calculation = "averageAmount"；averageUnit 按用户原话选择。
+        10. "吨麦当劳"在“吃了多少吨/平均一顿”的上下文中按“顿”的口语误写理解，averageUnit = "meal"，不要按重量查询。
+        11. 可直接解析的 ready 计划必须让 explanationHints = []；不要记录“吨”与“顿”的纠错说明，不要在 JSON 字符串中嵌入未转义引号。
 
         ## 输出格式
 
@@ -1032,6 +1049,7 @@ final class PromptManager {
               "includeCategory": true
             },
             "calculation": "none",
+            "averageUnit": null,
             "sort": null,
             "limit": 20,
             "explanationHints": []
@@ -1055,6 +1073,11 @@ final class PromptManager {
         用户：「这个月超过50的外卖有几次」
         ```json
         {"status":"ready","clarificationQuestion":null,"plan":{"domain":"finance","operation":"countTransactions","filters":{"type":"expense","amountGreaterThan":50,"amountGreaterThanOrEqual":null,"amountLessThan":null,"amountLessThanOrEqual":null,"amountEqual":null,"keywords":["外卖","美团","饿了么","打包"],"excludedKeywords":[],"categoryNames":["外卖"],"startDate":"2026-06-01","endDate":"2026-06-30","accountNames":[],"includeNote":true,"includeRemark":true,"includeTags":true,"includeCategory":true},"calculation":"none","sort":null,"limit":20,"explanationHints":[]}}
+        ```
+
+        用户：「最近一个月吃了多少顿麦当劳，花了多少钱，平均一顿多少钱」
+        ```json
+        {"status":"ready","clarificationQuestion":null,"plan":{"domain":"finance","operation":"sumAmount","filters":{"type":"expense","amountGreaterThan":null,"amountGreaterThanOrEqual":null,"amountLessThan":null,"amountLessThanOrEqual":null,"amountEqual":null,"keywords":["麦当劳"],"excludedKeywords":[],"categoryNames":[],"startDate":"{{thirtyDaysAgoDate}}","endDate":"{{todayISODate}}","accountNames":[],"includeNote":true,"includeRemark":true,"includeTags":true,"includeCategory":true},"calculation":"averageAmount","averageUnit":"meal","sort":{"field":"date","direction":"desc"},"limit":20,"explanationHints":[]}}
         ```
 
         只回复 JSON。

@@ -141,9 +141,10 @@ final class ChatMessageViewDataAgentResultTests: XCTestCase {
 
         let model = AgentDeepAnalysisNarrativeModel(result: result)
 
-        XCTAssertEqual(model.openingTitle, "本月这笔钱，先按账单口径拆开看。")
+        XCTAssertEqual(model.openingTitle, "本月账单结果")
         XCTAssertEqual(model.signalSummaries, [], "财务账单结果不应再生成三块看不懂的信号标签")
-        XCTAssertEqual(model.closingTitle, "先核对最大头的去向。")
+        XCTAssertEqual(model.closingTitle, "从金额最高的分类开始核对。")
+        XCTAssertTrue(model.shouldShowClosing)
         XCTAssertTrue(model.evidence.first?.label.contains("账单依据") == true, "财务证据应叫账单依据")
     }
 
@@ -170,8 +171,124 @@ final class ChatMessageViewDataAgentResultTests: XCTestCase {
 
         let model = AgentDeepAnalysisNarrativeModel(result: result)
 
-        XCTAssertEqual(model.openingTitle, "上月这笔钱，先按账单口径拆开看。")
+        XCTAssertEqual(model.openingTitle, "上月账单结果")
         XCTAssertFalse(model.openingBody.contains("finance.total.amount"), "详情页不能暴露内部 metricKey")
+    }
+
+    func testMerchantAverageQueryAnswersEveryRequestedMetric() throws {
+        let result = makeMerchantAverageResult()
+
+        let answer = FlexibleQueryAnswerBuilder().answer(result)
+        let readable = answer
+            .replacingOccurrences(of: "\u{2060}", with: "")
+            .replacingOccurrences(of: "\u{00A0}", with: " ")
+
+        XCTAssertTrue(readable.contains("麦当劳"))
+        XCTAssertTrue(readable.contains("5 顿"))
+        XCTAssertTrue(readable.contains("239.00"))
+        XCTAssertTrue(readable.contains("平均每顿"))
+        XCTAssertTrue(readable.contains("47.80"))
+
+        let card = try XCTUnwrap(ChatCardData.fromFlexibleQueryResult(result))
+        guard case .flexibleQuery(let data) = card else {
+            return XCTFail("Expected flexible query card")
+        }
+        XCTAssertEqual(data.resultCountText, "5 顿")
+        XCTAssertEqual(data.averageLabelText, "平均每顿")
+        XCTAssertTrue(data.averageAmountText?.contains("47.80") == true)
+    }
+
+    func testMerchantAggregateResolverBuildsDeterministicMealPlan() throws {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(secondsFromGMT: 0))
+        let now = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026,
+            month: 7,
+            day: 9,
+            hour: 12
+        )))
+
+        let plan = try XCTUnwrap(MerchantAggregatePlanResolver.resolve(
+            userQuestion: "最近一个月吃了多少吨麦当劳，花了多少钱，平均一顿多少钱",
+            extractedData: [
+                "queryGoal": "最近一个月麦当劳的消费次数、总花费和平均每顿花费",
+                "categoryHint": "麦当劳",
+                "periodLabel": "最近一个月"
+            ],
+            now: now,
+            calendar: calendar
+        ))
+
+        XCTAssertEqual(plan.operation, .sumAmount)
+        XCTAssertEqual(plan.calculation, .averageAmount)
+        XCTAssertEqual(plan.averageUnit, .meal)
+        XCTAssertEqual(plan.filters.type, .expense)
+        XCTAssertEqual(plan.filters.keywords, ["麦当劳"])
+        XCTAssertEqual(plan.filters.startDate, "2026-06-10")
+        XCTAssertEqual(plan.filters.endDate, "2026-07-09")
+    }
+
+    func testMerchantAggregateResolverRejectsMissingMerchant() {
+        XCTAssertNil(MerchantAggregatePlanResolver.resolve(
+            userQuestion: "最近一个月吃了多少顿，花了多少钱，平均一顿多少钱",
+            extractedData: [
+                "queryGoal": "最近一个月的消费次数、总花费和平均每顿花费",
+                "periodLabel": "最近一个月"
+            ]
+        ))
+    }
+
+    func testMerchantAggregateResolverRejectsTrendAnalysis() {
+        XCTAssertNil(MerchantAggregatePlanResolver.resolve(
+            userQuestion: "最近一个月麦当劳消费趋势怎么样",
+            extractedData: [
+                "queryGoal": "分析麦当劳消费趋势",
+                "categoryHint": "麦当劳",
+                "periodLabel": "最近一个月"
+            ]
+        ))
+    }
+
+    func testKeywordFinanceNarrativeAvoidsGenericObservationAndUnrelatedNextStep() {
+        let range = HoloAgentTimeRange(
+            label: "近30天",
+            start: Date(timeIntervalSince1970: 1000),
+            end: Date(timeIntervalSince1970: 2000)
+        )
+        let drilldown = HoloRenderedFinanceDrilldown(
+            sourceEvidenceID: "e1",
+            label: "近30天",
+            keyword: "麦当劳",
+            start: range.start!,
+            end: range.end!,
+            baselineStart: nil,
+            baselineEnd: nil
+        )
+        let result = HoloRenderedAgentResult(
+            title: "深度分析",
+            summary: "近30天麦当劳 5 次，共 239 元，平均每顿 47.80 元。",
+            sections: [
+                HoloRenderedAgentSection(
+                    title: "观察 1",
+                    body: "近30天麦当劳 5 次，共 239 元，平均每顿 47.80 元。",
+                    confidence: 1
+                )
+            ],
+            evidenceReferences: [
+                HoloRenderedEvidenceReference(
+                    id: "e1",
+                    summary: "麦当劳 5 次 / 239 元",
+                    financeDrilldown: drilldown
+                )
+            ]
+        )
+
+        let model = AgentDeepAnalysisNarrativeModel(result: result)
+
+        XCTAssertEqual(model.openingTitle, "近30天「麦当劳」消费结果")
+        XCTAssertEqual(model.observations.first?.title, "账单结果")
+        XCTAssertFalse(model.shouldShowClosing)
+        XCTAssertFalse(model.closingTitle.contains("最大头"))
     }
 
     func testAgentDeepAnalysisNarrativeModelKeepsMoneyTokenUnbroken() {
@@ -199,6 +316,73 @@ final class ChatMessageViewDataAgentResultTests: XCTestCase {
         XCTAssertFalse(
             actual.contains("4981\u{2060}83"),
             "金额不能丢失小数点后变成 498183，实际：\(actual)"
+        )
+    }
+
+    private func makeMerchantAverageResult() -> FlexibleQueryResult {
+        let plan = FlexibleQueryPlan(
+            domain: .finance,
+            operation: .sumAmount,
+            filters: FinanceQueryFilters(
+                type: .expense,
+                amountGreaterThan: nil,
+                amountGreaterThanOrEqual: nil,
+                amountLessThan: nil,
+                amountLessThanOrEqual: nil,
+                amountEqual: nil,
+                keywords: ["麦当劳"],
+                excludedKeywords: [],
+                categoryNames: [],
+                startDate: "2026-06-10",
+                endDate: "2026-07-09",
+                accountNames: [],
+                includeNote: true,
+                includeRemark: true,
+                includeTags: true,
+                includeCategory: true
+            ),
+            calculation: .averageAmount,
+            averageUnit: .meal,
+            sort: nil,
+            limit: 20,
+            explanationHints: []
+        )
+        let amounts: [Decimal] = [42, 43, 57, 48, 49]
+        let transactions = amounts.enumerated().map { index, amount in
+            FlexibleTransactionEvidence(
+                id: UUID().uuidString,
+                date: "2026-07-0\(index + 1)",
+                amount: amount,
+                type: "expense",
+                note: "麦当劳",
+                remark: nil,
+                tags: [],
+                primaryCategory: "餐饮",
+                subCategory: "快餐",
+                matchedFields: ["note"],
+                matchReason: "关键词匹配"
+            )
+        }
+        return FlexibleQueryResult(
+            plan: plan,
+            status: .success,
+            summary: FlexibleQuerySummary(
+                totalMatched: 5,
+                totalAmount: 239,
+                dateRange: "2026-06-10 ~ 2026-07-09",
+                topCategory: "餐饮"
+            ),
+            matchedTransactions: transactions,
+            calculationResult: FlexibleCalculationResult(
+                type: .averageAmount,
+                valueText: "平均 ¥47.80",
+                days: nil,
+                amount: Decimal(string: "47.8"),
+                count: nil,
+                date: nil
+            ),
+            emptyReason: nil,
+            followUpSuggestion: nil
         )
     }
 }
