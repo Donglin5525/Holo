@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1B9A00110000000000000001 /* WeeklyObservationCardStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B9A00120000000000000001 /* WeeklyObservationCardStateTests.swift */; };
 		47338B8715C0527F76C6B9BC /* MemoryInsightRefreshQuotaTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 398FCBD1E9630524A051ED67 /* MemoryInsightRefreshQuotaTests.swift */; };
 		754CE1738597753DE3A64D0E /* HoloAgentResultRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD7196A9CD6BFA044B77449 /* HoloAgentResultRendererTests.swift */; };
 		7A4C1F8E2B5D4A6C9E0F1234 /* CloudKitRuntimeAvailabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A4C1F8D2B5D4A6C9E0F1234 /* CloudKitRuntimeAvailabilityTests.swift */; };
@@ -57,6 +58,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		1B9A00120000000000000001 /* WeeklyObservationCardStateTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeeklyObservationCardStateTests.swift; sourceTree = "<group>"; };
 		056D32940E925DC7DF7AE631 /* HealthDashboardStateTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthDashboardStateTests.swift; sourceTree = "<group>"; };
 		1A5692DC8F9BFCC11917CEDF /* HoloTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HoloTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1EDCE631364060018D86E6FA /* HabitIconPresetsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitIconPresetsTests.swift; sourceTree = "<group>"; };
@@ -245,10 +247,19 @@
 		9E92ACDDE05DC0E898C42AC2 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				1B9A00130000000000000001 /* Chat */,
 				98C2F2186A5A421A9D79C381 /* MemoryGallery */,
 				83A110F35E80493490927C87 /* Thoughts */,
 			);
 			path = Views;
+			sourceTree = "<group>";
+		};
+		1B9A00130000000000000001 /* Chat */ = {
+			isa = PBXGroup;
+			children = (
+				1B9A00120000000000000001 /* WeeklyObservationCardStateTests.swift */,
+			);
+			path = Chat;
 			sourceTree = "<group>";
 		};
 		A10000000000000000000007 /* HoloWidgets */ = {
@@ -446,6 +457,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1B9A00110000000000000001 /* WeeklyObservationCardStateTests.swift in Sources */,
 				754CE1738597753DE3A64D0E /* HoloAgentResultRendererTests.swift in Sources */,
 				7A4C1F8E2B5D4A6C9E0F1234 /* CloudKitRuntimeAvailabilityTests.swift in Sources */,
 				B1C2D3E4F5A60718293A4B5D /* HoloAgentSchedulerTests.swift in Sources */,
