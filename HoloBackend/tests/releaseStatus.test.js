@@ -53,6 +53,8 @@ test("GET /v1/release/status returns safe runtime summary", async () => {
   assert.equal(json.routes.intent.provider, "deepseek");
   assert.equal(json.routes.intent.model, "deepseek-chat");
   assert.equal(json.routes.intent.maxTokens, 4096);
+  assert.equal(json.routes.flexible_query_planner.maxTokens, 4096);
+  assert.equal(json.routes.flexible_query_planner.temperature, 0);
   assert.equal(json.database.configured, true);
   assert.equal(json.database.path, undefined);
 

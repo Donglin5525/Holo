@@ -177,12 +177,13 @@ test("flexible_query_planner supports deterministic per-meal averages", async ()
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  assert.equal(prompt.version, 3);
+  assert.equal(prompt.version, 4);
   assert.match(prompt.content, /averageAmount/);
   assert.match(prompt.content, /averageUnit/);
   assert.match(prompt.content, /"operation":"sumAmount"/);
   assert.match(prompt.content, /"averageUnit":"meal"/);
   assert.match(prompt.content, /麦当劳/);
+  assert.match(prompt.content, /不要记录.*吨.*顿.*纠错说明/);
 });
 
 test("analysis_prompt 默认 Prompt 使用 C 端纯文本输出约束", async () => {

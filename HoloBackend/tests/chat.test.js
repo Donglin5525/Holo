@@ -117,6 +117,36 @@ test("intent route reserves enough output tokens for verbose multi-action JSON",
   );
 });
 
+test("flexible query planner route reserves a dedicated structured output budget", () => {
+  const config = loadConfig();
+
+  assert.ok(
+    config.routes.flexible_query_planner.maxTokens >= 4096,
+    `flexible query planner maxTokens should be >= 4096, got ${config.routes.flexible_query_planner.maxTokens}`,
+  );
+  assert.equal(config.routes.flexible_query_planner.temperature, 0);
+});
+
+test("POST /v1/ai/chat/completions accepts flexible_query_planner purpose", async () => {
+  const app = createTestApp();
+
+  const response = await app.request("/v1/ai/chat/completions", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-holo-device-id": "flexible-query-planner-device",
+    },
+    body: JSON.stringify({
+      purpose: "flexible_query_planner",
+      stream: false,
+      response_format: { type: "json_object" },
+      messages: [{ role: "user", content: "输出一个查询计划" }],
+    }),
+  });
+
+  assert.equal(response.status, 200);
+});
+
 test("intent mock routes category-specific spending amount queries to flexible_data_query", async () => {
   const app = createTestApp();
 
