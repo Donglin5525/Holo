@@ -22,6 +22,18 @@ const DEFAULT_CONFIG = {
       temperature: Number(process.env.HOLO_INTENT_TEMPERATURE ?? 0),
       maxTokens: Number(process.env.HOLO_INTENT_MAX_TOKENS ?? 4096),
     },
+    flexible_query_planner: {
+      provider: process.env.HOLO_FLEXIBLE_QUERY_PLANNER_PROVIDER
+        ?? process.env.HOLO_INTENT_PROVIDER
+        ?? process.env.HOLO_CHAT_PROVIDER
+        ?? "mock",
+      model: process.env.HOLO_FLEXIBLE_QUERY_PLANNER_MODEL
+        ?? process.env.HOLO_INTENT_MODEL
+        ?? process.env.HOLO_CHAT_MODEL
+        ?? "holo-mock",
+      temperature: Number(process.env.HOLO_FLEXIBLE_QUERY_PLANNER_TEMPERATURE ?? 0),
+      maxTokens: Number(process.env.HOLO_FLEXIBLE_QUERY_PLANNER_MAX_TOKENS ?? 4096),
+    },
     insight: {
       provider: process.env.HOLO_INSIGHT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_INSIGHT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
