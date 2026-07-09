@@ -226,11 +226,17 @@ final class MemoryInsightService {
         }
         try Task.checkCancellation()
 
-        // 7. 解析 JSON
-        guard let payload = MemoryInsightResponseParser.parse(generationResult.rawResponse) else {
-            let errorMsg = String(generationResult.rawResponse.prefix(200))
-            try? repository.saveFailed(insight: insight, errorMessage: "JSON 解析失败：\(errorMsg)")
-            throw MemoryInsightError.parsingFailed(errorMsg)
+        // 7. 解析 JSON：区分空响应、非法 JSON 与 Schema 不完整，避免向用户暴露原始模型文本。
+        let payload: MemoryInsightPayload
+        switch MemoryInsightResponseParser.parseResult(generationResult.rawResponse) {
+        case .success(let parsed):
+            payload = parsed
+        case .failure(let failure):
+            try? repository.saveFailed(
+                insight: insight,
+                errorMessage: failure.userMessage
+            )
+            throw failure
         }
 
         // 8. Evidence 后处理

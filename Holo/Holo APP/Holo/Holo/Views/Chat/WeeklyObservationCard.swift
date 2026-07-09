@@ -11,6 +11,10 @@ import SwiftUI
 
 struct WeeklyObservationCard: View {
 
+    /// 正在重新生成，卡片立即显示进度并防止重复请求
+    let isRetrying: Bool
+    /// 当前页面最近一次重试错误，优先于持久化的旧错误
+    let retryErrorMessage: String?
     /// 点击「开启授权」→ 跳 AI 设置授权页（正式版可用，决策 2A）
     let onOpenConsent: () -> Void
     /// 点击「查看完整观察」→ 跳记忆长廊
@@ -138,7 +142,7 @@ struct WeeklyObservationCard: View {
                 Text("本周观察生成失败，点「重试」重新生成。")
                     .font(.holoBody)
                     .foregroundColor(.holoTextSecondary)
-                if let msg = insight.errorMessage, !msg.isEmpty {
+                if let msg = retryErrorMessage ?? insight.errorMessage, !msg.isEmpty {
                     Text(msg)
                         .font(.holoCaption)
                         .foregroundColor(.holoTextPlaceholder)
@@ -163,7 +167,23 @@ struct WeeklyObservationCard: View {
         if !consentGranted {
             primaryButton("开启授权", action: onOpenConsent)
         } else if let insight = insight, insight.insightStatus == .failed {
-            primaryButton("重试", action: onRetry)
+            if isRetrying {
+                HStack(spacing: HoloSpacing.sm) {
+                    ProgressView()
+                        .tint(.holoPrimary)
+                    Text("正在重新生成…")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoPrimary)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(Color.holoPrimary.opacity(0.12))
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                .accessibilityElement(children: .combine)
+                .accessibilityLabel("正在重新生成本周观察")
+            } else {
+                primaryButton("重试", action: onRetry)
+            }
         } else if let insight = insight,
                   insight.insightStatus == .ready || insight.insightStatus == .stale {
             primaryButton("查看完整观察", action: onViewDetail)

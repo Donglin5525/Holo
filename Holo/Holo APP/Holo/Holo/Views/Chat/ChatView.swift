@@ -21,8 +21,8 @@ struct ChatView: View {
     @State private var pendingCategoryEditMessage: ChatMessageViewData?
     @State private var pendingEditPrefill: PendingTransactionPrefill?
     @State private var financeSearchRoute: FlexibleQueryFinanceSearchRoute?
-    /// 本周观察卡片重渲染触发（重试 / 关闭后刷新）
-    @State private var weeklyCardVersion = 0
+    /// 本周观察的即时交互状态；关闭与重试不再依赖 Core Data 通知碰运气刷新。
+    @State private var weeklyObservationCardState = WeeklyObservationCardState()
     @Binding var goalPlanningRequest: GoalPlanningRequest?
 
     /// 外部传入的预填文本（如从记忆长廊"继续问AI"跳转）
@@ -219,36 +219,23 @@ struct ChatView: View {
 
             // 本周观察区块（决策 1A：ChatView 展示，复用 HoloAI 卡片样式；
             // 未授权态作为正式版统一授权入口，决策 2A，复用 .aiSettings sheet 不受 #if DEBUG 限制）
-            if WeeklyObservationCard.shouldDisplay {
+            if weeklyObservationCardState.shouldDisplay(
+                persistedDecision: WeeklyObservationCard.shouldDisplay
+            ) {
                 WeeklyObservationCard(
+                    isRetrying: weeklyObservationCardState.isRetrying,
+                    retryErrorMessage: weeklyObservationCardState.errorMessage,
                     onOpenConsent: { activeSheet = .aiSettings },
                     onViewDetail: {
                         DeepLinkState.shared.navigate(to: .memoryGallery)
                     },
-                    onRetry: {
-                        Task { @MainActor in
-                            await EffectiveRecordDayService.shared.refreshAndWait()
-                            let stage: MemoryInsightObservationStage = {
-                                switch EffectiveRecordDayService.shared.currentResult?.eligibility {
-                                case .lightReady: return .light3d
-                                default: return .full7d
-                                }
-                            }()
-                            let (start, end) = MemoryInsightContextBuilder.periodRange(
-                                periodType: .weekly, referenceDate: Date()
-                            )
-                            _ = try? await MemoryInsightService.shared.generateInsight(
-                                periodType: .weekly, start: start, end: end,
-                                forceRefresh: true, observationStage: stage
-                            )
-                            weeklyCardVersion += 1
-                        }
-                    },
+                    onRetry: retryWeeklyObservation,
                     onClose: {
+                        weeklyObservationCardState.dismiss()
                         WeeklyObservationCard.hideForToday()
-                        weeklyCardVersion += 1
                     }
                 )
+                .id(weeklyObservationCardState.revision)
                 .padding(.horizontal, 16)
                 .padding(.top, 12)
             }
@@ -266,6 +253,39 @@ struct ChatView: View {
                     activeSheet = .voiceInput
                 }
             )
+        }
+    }
+
+    @MainActor
+    private func retryWeeklyObservation() {
+        guard weeklyObservationCardState.beginRetry() else { return }
+
+        Task { @MainActor in
+            do {
+                await EffectiveRecordDayService.shared.refreshAndWait()
+                let stage: MemoryInsightObservationStage =
+                    EffectiveRecordDayService.shared.currentResult?.eligibility == .lightReady
+                    ? .light3d
+                    : .full7d
+                let range = MemoryInsightContextBuilder.periodRange(
+                    periodType: .weekly,
+                    referenceDate: Date()
+                )
+                _ = try await MemoryInsightService.shared.generateInsight(
+                    periodType: .weekly,
+                    start: range.start,
+                    end: range.end,
+                    forceRefresh: true,
+                    observationStage: stage
+                )
+                weeklyObservationCardState.finishRetry(errorMessage: nil)
+            } catch is CancellationError {
+                weeklyObservationCardState.finishRetry(errorMessage: nil)
+            } catch {
+                weeklyObservationCardState.finishRetry(
+                    errorMessage: error.localizedDescription
+                )
+            }
         }
     }
 
