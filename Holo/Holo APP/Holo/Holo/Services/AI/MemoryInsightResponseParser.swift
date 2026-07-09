@@ -9,6 +9,27 @@
 import Foundation
 import os.log
 
+enum MemoryInsightParseFailure: LocalizedError, Equatable {
+    case emptyResponse
+    case invalidJSON
+    case invalidSchema
+
+    var userMessage: String {
+        switch self {
+        case .emptyResponse:
+            return "AI 服务未返回内容，请稍后重试。"
+        case .invalidJSON:
+            return "AI 返回格式异常，请重试。"
+        case .invalidSchema:
+            return "AI 返回内容不完整，请重试。"
+        }
+    }
+
+    var errorDescription: String? {
+        userMessage
+    }
+}
+
 /// 解析 AI 返回的洞察 JSON
 enum MemoryInsightResponseParser {
 
@@ -16,29 +37,43 @@ enum MemoryInsightResponseParser {
 
     // MARK: - Parse
 
-    /// 三层降级解析：直接解析 → 代码块提取 → 花括号提取
+    /// 兼容旧调用方：解析失败时返回 nil。
     static func parse(_ raw: String) -> MemoryInsightPayload? {
-        // 1. 直接解析
-        if let payload = tryParse(raw) {
-            return validate(payload) ? payload : nil
+        try? parseResult(raw).get()
+    }
+
+    /// 三层降级解析：直接解析 → 代码块提取 → 花括号提取，并保留失败类别。
+    static func parseResult(
+        _ raw: String
+    ) -> Result<MemoryInsightPayload, MemoryInsightParseFailure> {
+        guard !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            logger.error("洞察响应为空")
+            return .failure(.emptyResponse)
         }
 
-        // 2. 提取 ```json ... ``` 代码块
-        if let extracted = extractCodeBlock(raw),
-           let payload = tryParse(extracted),
-           validate(payload) {
-            return payload
-        }
-
-        // 3. 提取第一个 { ... }
-        if let extracted = extractFirstBraces(raw),
-           let payload = tryParse(extracted),
-           validate(payload) {
-            return payload
+        for candidate in parseCandidates(raw) {
+            guard let payload = tryParse(candidate) else { continue }
+            guard validate(payload) else {
+                logger.error("洞察 JSON 可解码，但 Schema 校验失败")
+                return .failure(.invalidSchema)
+            }
+            return .success(payload)
         }
 
         logger.error("洞察 JSON 解析全部失败，原始响应前 200 字：\(raw.prefix(200))")
-        return nil
+        return .failure(.invalidJSON)
+    }
+
+    private static func parseCandidates(_ raw: String) -> [String] {
+        var candidates = [raw]
+        if let codeBlock = extractCodeBlock(raw), codeBlock != raw {
+            candidates.append(codeBlock)
+        }
+        if let braces = extractFirstBraces(raw),
+           !candidates.contains(braces) {
+            candidates.append(braces)
+        }
+        return candidates
     }
 
     // MARK: - Direct Parse
