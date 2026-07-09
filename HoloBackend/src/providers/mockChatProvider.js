@@ -198,7 +198,11 @@ function classifyIntent(input) {
   const hasDirectFinanceTotalQuestion =
     /收入.*多少|收入是多少|支出.*多少|支出是多少|花了多少钱|消费.*多少/.test(lowercased);
   const hasCategoryConstraint =
-    /买烟花|烟花|咖啡|打车|外卖|奶茶|香烟|买烟/.test(lowercased);
+    /买烟花|烟花|咖啡|打车|外卖|奶茶|香烟|买烟|麦当劳/.test(lowercased);
+  const hasMerchantAggregateQuestion =
+    /麦当劳/.test(lowercased)
+    && /多少[吨顿]|多少次|平均.*[顿次笔]/.test(lowercased)
+    && hasSpendingAmountQuestion;
   const hasLatestQuery =
     /最近一次|上一次|哪一笔|距今多久|多久没/.test(lowercased);
   const hasHealthAnalysisQuestion =
@@ -226,7 +230,28 @@ function classifyIntent(input) {
     };
   }
 
-  // 1. 品类关键词 + 消费金额提问 → flexible_data_query
+  // 1. 商户次数 + 总额 + 每次/每顿均价 → flexible_data_query
+  if (hasMerchantAggregateQuestion) {
+    return {
+      mode: "query",
+      items: [
+        {
+          id: "1",
+          intent: "flexible_data_query",
+          confidence: 0.98,
+          extractedData: {
+            queryDomain: "finance",
+            queryGoal: "统计麦当劳消费次数、总额、平均每顿金额",
+            rawConstraints: "最近一个月, 麦当劳, 支出",
+          },
+        },
+      ],
+      needsClarification: false,
+      clarificationQuestion: null,
+    };
+  }
+
+  // 2. 品类关键词 + 消费金额提问 → flexible_data_query
   if (hasSpendingAmountQuestion && hasCategoryConstraint) {
     return {
       mode: "query",
@@ -513,7 +538,7 @@ function extractTransactionDate(input) {
 }
 
 function extractKeyword(input) {
-  for (const keyword of ["烟花", "咖啡", "打车", "外卖", "奶茶", "香烟", "买烟"]) {
+  for (const keyword of ["烟花", "咖啡", "打车", "外卖", "奶茶", "香烟", "买烟", "麦当劳"]) {
     if (input.includes(keyword)) return keyword;
   }
   return input;

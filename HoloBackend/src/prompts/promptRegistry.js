@@ -6,21 +6,42 @@ import * as Diff from "diff";
 
 const PROMPT_VERSIONS = {
   system_prompt: 2,
-  intent_recognition: 21,
+  intent_recognition: 22,
   memory_insight_generation: 6,
   analysis_prompt: 3,
   annual_review: 1,
   thought_voice_summary: 2,
-  flexible_query_planner: 2,
+  flexible_query_planner: 3,
   finance_action_parser: 1,
   task_action_parser: 1,
   health_insight_generation: 2,
+};
+const PROMPT_CONTRACT_APPENDICES = {
+  intent_recognition: `
+
+[HOLO_QUERY_AGGREGATE_V22]
+平均每笔/每次/每顿及同批次数/总额→flexible_data_query；平均每天/每周、趋势/结构→query_analysis。“吃了多少吨麦当劳”同“平均一顿”按顿。例：“最近一个月吃了多少顿麦当劳，花了多少钱，平均一顿多少钱”→flexible_data_query，保留麦当劳/最近一个月。`,
+  flexible_query_planner: `
+
+[HOLO_QUERY_AGGREGATE_PLANNER_V3]
+- calculation = "averageAmount" 时必须输出 averageUnit："transaction"（每笔）、"occurrence"（每次）或 "meal"（每顿）。
+- 同时查询次数、总额和均价时，使用 operation = "sumAmount" + calculation = "averageAmount"，不要拆成多个查询，也不要让模型自行计算金额。
+- “吨麦当劳”在“吃了多少吨/平均一顿”的上下文中按“顿”的口误理解。
+- 示例：{"status":"ready","clarificationQuestion":null,"plan":{"domain":"finance","operation":"sumAmount","filters":{"type":"expense","amountGreaterThan":null,"amountGreaterThanOrEqual":null,"amountLessThan":null,"amountLessThanOrEqual":null,"amountEqual":null,"keywords":["麦当劳"],"excludedKeywords":[],"categoryNames":[],"startDate":"{{thirtyDaysAgoDate}}","endDate":"{{todayISODate}}","accountNames":[],"includeNote":true,"includeRemark":true,"includeTags":true,"includeCategory":true},"calculation":"averageAmount","averageUnit":"meal","sort":{"field":"date","direction":"desc"},"limit":20,"explanationHints":[]}}`,
 };
 const PROMPT_TYPES = Object.keys(defaultPrompts);
 const MANAGED_PROMPTS_PATH = join(dirname(fileURLToPath(import.meta.url)), "managedPrompts.json");
 
 let managedPrompts = loadManagedPrompts();
 let _db = null;
+
+function applyPromptContract(type, content) {
+  if (!content) return content;
+  const appendix = PROMPT_CONTRACT_APPENDICES[type];
+  if (!appendix) return content;
+  const marker = appendix.match(/\[([A-Z0-9_]+)\]/)?.[0];
+  return marker && content.includes(marker) ? content : `${content}${appendix}`;
+}
 
 /** 注入 SQLite 数据库连接（由 app.js 调用） */
 export function setDatabase(db) {
@@ -57,7 +78,7 @@ function syncDefaultPromptsToHistory() {
   if (!_db) return;
 
   for (const type of PROMPT_TYPES) {
-    const defaultContent = defaultPrompts[type];
+    const defaultContent = applyPromptContract(type, defaultPrompts[type]);
     if (!defaultContent) continue;
 
     try {
@@ -148,7 +169,7 @@ export function getPrompt(type) {
 
   // 降级到 JSON/默认
   const managedPrompt = managedPrompts[type];
-  const content = managedPrompt?.content ?? defaultPrompts[type];
+  const content = applyPromptContract(type, managedPrompt?.content ?? defaultPrompts[type]);
   if (!content) return null;
 
   return {
@@ -199,7 +220,7 @@ export function resetPrompt(type) {
     return null;
   }
 
-  const defaultContent = defaultPrompts[type];
+  const defaultContent = applyPromptContract(type, defaultPrompts[type]);
   if (!defaultContent) return null;
 
   const previous = getPrompt(type);
