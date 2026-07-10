@@ -120,7 +120,7 @@ test("启动时自动把默认 Prompt 登记到版本历史", async () => {
   assert.match(historyHtml, /自动登记默认 Prompt 基线/);
 });
 
-test("intent_recognition 默认 Prompt 已瘦身为核心 Router（v22）", async () => {
+test("intent_recognition 默认 Prompt 已瘦身为核心 Router（v23）", async () => {
   const app = createTestApp();
 
   const response = await app.request("/v1/prompts/intent_recognition");
@@ -128,7 +128,7 @@ test("intent_recognition 默认 Prompt 已瘦身为核心 Router（v22）", asyn
   const prompt = await response.json();
 
   // 版本号
-  assert.equal(prompt.version, 22);
+  assert.equal(prompt.version, 23);
 
   // 长度验证：Router 允许补充必要规则，但仍防止重新膨胀为长 prompt
   assert.ok(prompt.content.length < 3500, `prompt 长度 ${prompt.content.length} 超过 3500`);
@@ -153,6 +153,8 @@ test("intent_recognition 默认 Prompt 已瘦身为核心 Router（v22）", asyn
   assert.match(prompt.content, /query_analysis/);
   assert.match(prompt.content, /平均每笔\/每次\/每顿/);
   assert.match(prompt.content, /最近一个月吃了多少顿麦当劳/);
+  assert.match(prompt.content, /必须输出 single_action/);
+  assert.match(prompt.content, /不要拆成 multi_action/);
   assert.match(prompt.content, /睡眠/);
   assert.match(prompt.content, /analysisDomain: "health"/);
 
