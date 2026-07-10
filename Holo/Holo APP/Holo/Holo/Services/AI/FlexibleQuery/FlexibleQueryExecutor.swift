@@ -22,6 +22,15 @@ final class FlexibleQueryExecutor {
             try Self.fetchTransactions(plan: plan, context: context)
         }
 
+        return Self.buildResult(plan: plan, rawResults: rawResults)
+    }
+
+    /// 将完整命中集合转换成可持久化结果：聚合与 ID 快照保持完整，卡片证据单独限量。
+    static func buildResult(
+        plan: FlexibleQueryPlan,
+        rawResults: [FlexibleTransactionDTO]
+    ) -> FlexibleQueryResult {
+
         // 无约束检查
         if rawResults.isEmpty {
             return Self.buildEmptyResult(plan: plan)
@@ -43,7 +52,7 @@ final class FlexibleQueryExecutor {
 
         // 计算 summary
         let allMatched = sorted
-        let summary = Self.buildSummary(evidences: allMatched)
+        let summary = Self.buildSummary(evidences: allMatched, plan: plan)
 
         // 计算结果
         let calcResult = Self.calculate(plan: plan, evidences: allMatched)
@@ -60,7 +69,8 @@ final class FlexibleQueryExecutor {
             matchedTransactions: evidences,
             calculationResult: calcResult,
             emptyReason: nil,
-            followUpSuggestion: nil
+            followUpSuggestion: nil,
+            allMatchedTransactionIDs: allMatched.map { $0.id.uuidString }
         )
     }
 
@@ -82,14 +92,15 @@ final class FlexibleQueryExecutor {
         }
 
         // date range
-        let df = DateFormatter()
-        df.dateFormat = "yyyy-MM-dd"
-        if let startStr = plan.filters.startDate, let startDate = df.date(from: startStr) {
+        let calendar = Calendar.current
+        if let startStr = plan.filters.startDate {
+            let startDate = try FlexibleQueryDateCodec.parse(startStr, calendar: calendar)
             predicates.append(NSPredicate(format: "date >= %@", startDate as NSDate))
         }
-        if let endStr = plan.filters.endDate, let endDate = df.date(from: endStr) {
+        if let endStr = plan.filters.endDate {
+            let endDate = try FlexibleQueryDateCodec.parse(endStr, calendar: calendar)
             // 包含当天
-            let endOfDay = Calendar.current.date(byAdding: .day, value: 1, to: endDate) ?? endDate
+            let endOfDay = calendar.date(byAdding: .day, value: 1, to: endDate) ?? endDate
             predicates.append(NSPredicate(format: "date < %@", endOfDay as NSDate))
         }
 
@@ -116,9 +127,6 @@ final class FlexibleQueryExecutor {
 
         // 按日期降序预排序（后续会再排序）
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
-        // 粗筛上限 200
-        request.fetchLimit = 200
-
         let transactions = try context.fetch(request)
 
         // 批量加载分类名和父分类名缓存
@@ -275,7 +283,10 @@ final class FlexibleQueryExecutor {
 
     // MARK: - Summary
 
-    private static func buildSummary(evidences: [FlexibleTransactionDTO]) -> FlexibleQuerySummary {
+    private static func buildSummary(
+        evidences: [FlexibleTransactionDTO],
+        plan: FlexibleQueryPlan
+    ) -> FlexibleQuerySummary {
         let totalMatched = evidences.count
         let totalAmount: Decimal? = totalMatched > 0 ? evidences.reduce(Decimal(0)) { $0 + $1.amount } : nil
 
@@ -300,8 +311,22 @@ final class FlexibleQueryExecutor {
             totalMatched: totalMatched,
             totalAmount: totalAmount,
             dateRange: dateRange,
-            topCategory: topCategory
+            topCategory: topCategory,
+            queryDateRange: queryDateRange(plan: plan)
         )
+    }
+
+    private static func queryDateRange(plan: FlexibleQueryPlan) -> String? {
+        switch (plan.filters.startDate, plan.filters.endDate) {
+        case let (start?, end?):
+            return "\(start) ~ \(end)"
+        case let (start?, nil):
+            return "\(start) 起"
+        case let (nil, end?):
+            return "截至 \(end)"
+        case (nil, nil):
+            return nil
+        }
     }
 
     // MARK: - Calculation
@@ -367,11 +392,18 @@ final class FlexibleQueryExecutor {
         return FlexibleQueryResult(
             plan: plan,
             status: .empty,
-            summary: FlexibleQuerySummary(totalMatched: 0, totalAmount: nil, dateRange: nil, topCategory: nil),
+            summary: FlexibleQuerySummary(
+                totalMatched: 0,
+                totalAmount: nil,
+                dateRange: nil,
+                topCategory: nil,
+                queryDateRange: queryDateRange(plan: plan)
+            ),
             matchedTransactions: [],
             calculationResult: nil,
             emptyReason: reason,
-            followUpSuggestion: followUp
+            followUpSuggestion: followUp,
+            allMatchedTransactionIDs: []
         )
     }
 

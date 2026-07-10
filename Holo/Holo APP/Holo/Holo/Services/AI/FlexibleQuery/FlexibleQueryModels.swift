@@ -233,6 +233,28 @@ struct FlexibleQueryResult: Codable, Equatable, Sendable {
     let calculationResult: FlexibleCalculationResult?
     let emptyReason: String?
     let followUpSuggestion: FlexibleQueryFollowUp?
+    /// 本次查询完整命中集合的稳定快照；matchedTransactions 仅用于卡片预览。
+    let allMatchedTransactionIDs: [String]?
+
+    init(
+        plan: FlexibleQueryPlan,
+        status: FlexibleQueryStatus,
+        summary: FlexibleQuerySummary,
+        matchedTransactions: [FlexibleTransactionEvidence],
+        calculationResult: FlexibleCalculationResult?,
+        emptyReason: String?,
+        followUpSuggestion: FlexibleQueryFollowUp?,
+        allMatchedTransactionIDs: [String]? = nil
+    ) {
+        self.plan = plan
+        self.status = status
+        self.summary = summary
+        self.matchedTransactions = matchedTransactions
+        self.calculationResult = calculationResult
+        self.emptyReason = emptyReason
+        self.followUpSuggestion = followUpSuggestion
+        self.allMatchedTransactionIDs = allMatchedTransactionIDs
+    }
 }
 
 enum FlexibleQueryStatus: String, Codable, Sendable {
@@ -248,8 +270,25 @@ enum FlexibleQueryStatus: String, Codable, Sendable {
 struct FlexibleQuerySummary: Codable, Equatable, Sendable {
     let totalMatched: Int
     let totalAmount: Decimal?
+    /// 用户请求并实际执行的查询范围。
+    let queryDateRange: String?
+    /// 命中记录自身的最早到最晚日期，仅描述数据分布。
     let dateRange: String?
     let topCategory: String?
+
+    init(
+        totalMatched: Int,
+        totalAmount: Decimal?,
+        dateRange: String?,
+        topCategory: String?,
+        queryDateRange: String? = nil
+    ) {
+        self.totalMatched = totalMatched
+        self.totalAmount = totalAmount
+        self.queryDateRange = queryDateRange
+        self.dateRange = dateRange
+        self.topCategory = topCategory
+    }
 }
 
 // MARK: - Evidence

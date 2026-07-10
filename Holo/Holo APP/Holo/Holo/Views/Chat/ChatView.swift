@@ -82,7 +82,10 @@ struct ChatView: View {
             }
         }
         .fullScreenCover(item: $financeSearchRoute) { route in
-            FinanceSearchView(initialSearchText: route.keyword)
+            FinanceSearchView(
+                initialSearchText: route.keyword,
+                exactTransactionIDs: route.transactionIDs
+            )
         }
         .sheet(isPresented: Binding(
             get: { pendingCategoryEditMessage != nil },
@@ -493,9 +496,8 @@ struct ChatView: View {
     }
 
     private func openFlexibleQueryResults(_ data: FlexibleQueryChatCardData) {
-        if let keyword = data.searchKeyword?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !keyword.isEmpty {
-            financeSearchRoute = FlexibleQueryFinanceSearchRoute(keyword: keyword)
+        if let route = FlexibleQueryFinanceSearchRoute(cardData: data) {
+            financeSearchRoute = route
         } else {
             DeepLinkState.shared.navigate(to: .finance)
             dismiss()
@@ -640,10 +642,16 @@ private enum ChatSheet: Identifiable {
     }
 }
 
-private struct FlexibleQueryFinanceSearchRoute: Identifiable {
-    let keyword: String
+nonisolated struct FlexibleQueryFinanceSearchRoute: Identifiable {
+    let id = UUID()
+    let keyword: String?
+    let transactionIDs: [UUID]
 
-    var id: String { keyword }
+    init?(cardData: FlexibleQueryChatCardData) {
+        guard !cardData.resultTransactionIDs.isEmpty else { return nil }
+        keyword = cardData.searchKeyword
+        transactionIDs = cardData.resultTransactionIDs
+    }
 }
 
 /// 待删除卡片的信息（用于确认弹窗）

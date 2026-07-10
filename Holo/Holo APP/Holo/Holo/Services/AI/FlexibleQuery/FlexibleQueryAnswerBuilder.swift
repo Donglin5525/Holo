@@ -123,9 +123,7 @@ nonisolated final class FlexibleQueryAnswerBuilder {
         }
         text += "。"
 
-        if let dateRange = result.summary.dateRange {
-            text += "时间范围：\(dateRange)。"
-        }
+        text += dateRangeSuffix(for: result)
 
         return text
     }
@@ -148,11 +146,19 @@ nonisolated final class FlexibleQueryAnswerBuilder {
         }
         text += "。"
 
-        if let dateRange = result.summary.dateRange {
-            text += "时间范围：\(dateRange)。"
-        }
+        text += dateRangeSuffix(for: result)
 
         return text
+    }
+
+    private func dateRangeSuffix(for result: FlexibleQueryResult) -> String {
+        if let queryRange = result.summary.queryDateRange {
+            return "时间范围：\(queryRange)。"
+        }
+        if let matchedRange = result.summary.dateRange {
+            return "命中记录日期：\(matchedRange)。"
+        }
+        return ""
     }
 
     private func averageText(for result: FlexibleQueryResult) -> String? {
@@ -210,6 +216,9 @@ nonisolated final class FlexibleQueryAnswerBuilder {
 
     private func buildEmptyAnswer(_ result: FlexibleQueryResult) -> String {
         var text = result.emptyReason ?? "没有找到符合条件的记录。"
+        if let queryRange = result.summary.queryDateRange {
+            text = "在 \(queryRange) 内，\(text)"
+        }
 
         if let followUp = result.followUpSuggestion {
             text += "\n\(followUp.question)"

@@ -27,20 +27,13 @@ nonisolated enum MerchantAggregatePlanResolver {
               requestsTotal(contextText),
               let averageUnit = averageUnit(in: contextText),
               let merchant = merchantName(from: extractedData),
-              supportsThirtyDayRange(contextText) else {
+              let dateRange = FlexibleQueryDateRangeResolver.resolve(
+                text: contextText,
+                now: now,
+                calendar: calendar
+              ) else {
             return nil
         }
-
-        let endDate = calendar.startOfDay(for: now)
-        guard let startDate = calendar.date(byAdding: .day, value: -29, to: endDate) else {
-            return nil
-        }
-
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.calendar = calendar
-        formatter.timeZone = calendar.timeZone
-        formatter.dateFormat = "yyyy-MM-dd"
 
         return FlexibleQueryPlan(
             domain: .finance,
@@ -55,8 +48,8 @@ nonisolated enum MerchantAggregatePlanResolver {
                 keywords: [merchant],
                 excludedKeywords: [],
                 categoryNames: [],
-                startDate: formatter.string(from: startDate),
-                endDate: formatter.string(from: endDate),
+                startDate: dateRange.startDate,
+                endDate: dateRange.endDate,
                 accountNames: [],
                 includeNote: true,
                 includeRemark: true,
@@ -108,10 +101,6 @@ nonisolated enum MerchantAggregatePlanResolver {
         return nil
     }
 
-    private static func supportsThirtyDayRange(_ text: String) -> Bool {
-        text.contains("最近一个月") || text.contains("近30天") || text.contains("近 30 天")
-    }
-
     private static func containsTrendIntent(_ text: String) -> Bool {
         ["趋势", "变化", "结构", "占比", "复盘", "分析"].contains { text.contains($0) }
     }
@@ -133,31 +122,53 @@ final class FlexibleQueryPlanner {
 
     /// 两段式规划：用独立 prompt 让 LLM 输出结构化 Query Plan
     func plan(userQuestion: String, extractedData: [String: String]?, userContext: UserContext) async throws -> FlexiblePlannerResult {
+        let rawResult: FlexiblePlannerResult
         if let deterministicPlan = MerchantAggregatePlanResolver.resolve(
             userQuestion: userQuestion,
             extractedData: extractedData
         ) {
-            return FlexiblePlannerResult(
+            rawResult = FlexiblePlannerResult(
                 status: .ready,
                 clarificationQuestion: nil,
                 plan: deterministicPlan
             )
+        } else {
+            let prompt = try buildPlannerPrompt(userQuestion: userQuestion, extractedData: extractedData)
+
+            // 使用非流式 chat completion 获取 JSON plan
+            let plannerJSON = try await requestPlannerCompletion(prompt: prompt, userContext: userContext)
+
+            // 解码 Planner 输出
+            rawResult = try decodePlannerOutput(plannerJSON)
         }
 
-        let prompt = try buildPlannerPrompt(userQuestion: userQuestion, extractedData: extractedData)
+        return try Self.finalize(result: rawResult, userQuestion: userQuestion)
+    }
 
-        // 使用非流式 chat completion 获取 JSON plan
-        let plannerJSON = try await requestPlannerCompletion(prompt: prompt, userContext: userContext)
-
-        // 解码 Planner 输出
-        let result = try decodePlannerOutput(plannerJSON)
-
-        // ready 状态时校验 plan
-        if result.status == .ready, let plan = result.plan {
-            try Self.validate(plan: plan)
+    /// 所有 Planner 路径的统一出口：用户明确时间优先于模型推断。
+    static func finalize(
+        result: FlexiblePlannerResult,
+        userQuestion: String,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) throws -> FlexiblePlannerResult {
+        guard result.status == .ready, let rawPlan = result.plan else {
+            return result
         }
 
-        return result
+        let plan = FlexibleQueryPlanDateNormalizer.normalize(
+            plan: rawPlan,
+            userQuestion: userQuestion,
+            now: now,
+            calendar: calendar
+        )
+        try validate(plan: plan, calendar: calendar)
+
+        return FlexiblePlannerResult(
+            status: result.status,
+            clarificationQuestion: result.clarificationQuestion,
+            plan: plan
+        )
     }
 
     // MARK: - Prompt Builder
@@ -297,7 +308,10 @@ final class FlexibleQueryPlanner {
 
     // MARK: - Validator
 
-    static func validate(plan: FlexibleQueryPlan) throws {
+    static func validate(
+        plan: FlexibleQueryPlan,
+        calendar: Calendar = .current
+    ) throws {
         // 1. 只允许 finance 域
         guard plan.domain == .finance else {
             throw FlexibleQueryPlanValidationError.unsupportedDomain
@@ -308,11 +322,15 @@ final class FlexibleQueryPlanner {
             throw FlexibleQueryPlanValidationError.unsafeLimit
         }
 
-        // 3. 日期范围校验
-        if let start = plan.filters.startDate, let end = plan.filters.endDate {
-            if start > end {
-                throw FlexibleQueryPlanValidationError.invalidDateRange
-            }
+        // 3. 日期范围校验：非法日期不能被执行器静默忽略成全历史查询
+        let startDate = try plan.filters.startDate.map {
+            try FlexibleQueryDateCodec.parse($0, calendar: calendar)
+        }
+        let endDate = try plan.filters.endDate.map {
+            try FlexibleQueryDateCodec.parse($0, calendar: calendar)
+        }
+        if let startDate, let endDate, startDate > endDate {
+            throw FlexibleQueryPlanValidationError.invalidDateRange
         }
 
         // 4. keywords 数量和长度

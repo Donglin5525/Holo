@@ -107,6 +107,21 @@ class FinanceRepository {
         return try? context.fetch(request).first
     }
 
+    /// 按查询结果快照取回精确交易集合，并保持快照中的稳定顺序。
+    func findTransactions(by ids: [UUID]) -> [Transaction] {
+        guard !ids.isEmpty else { return [] }
+
+        let request = Transaction.fetchRequest()
+        request.predicate = NSPredicate(format: "id IN %@", ids)
+        guard let transactions = try? context.fetch(request) else { return [] }
+
+        var byID: [UUID: Transaction] = [:]
+        for transaction in transactions {
+            byID[transaction.id] = transaction
+        }
+        return ids.compactMap { byID[$0] }
+    }
+
     /// 根据 ID 查找分类
     func findCategory(by id: UUID) -> Category? {
         let request = Category.fetchRequest()

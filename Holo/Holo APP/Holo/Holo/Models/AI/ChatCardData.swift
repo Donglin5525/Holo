@@ -166,6 +166,16 @@ nonisolated enum ChatCardData: Equatable {
             return FlexibleQueryFormatting.formatAmount(amount)
         }
         let averageUnit = result.plan.averageUnit ?? .transaction
+        let rawSnapshotIDs = result.allMatchedTransactionIDs
+        let snapshotIDs = rawSnapshotIDs?.compactMap(UUID.init(uuidString:))
+        let hasCompleteSnapshot: Bool
+        if let rawSnapshotIDs, let snapshotIDs {
+            hasCompleteSnapshot = snapshotIDs.count == rawSnapshotIDs.count
+                && snapshotIDs.count == result.summary.totalMatched
+                && Set(snapshotIDs).count == snapshotIDs.count
+        } else {
+            hasCompleteSnapshot = false
+        }
         return .flexibleQuery(FlexibleQueryChatCardData(
             badgeText: AIIntent.flexibleDataQuery.chatDisplayLabel,
             title: flexibleQueryTitle(for: result),
@@ -176,7 +186,9 @@ nonisolated enum ChatCardData: Equatable {
             averageLabelText: "平均\(averageUnit.averageLabel)",
             averageAmountText: averageAmountText,
             searchKeyword: flexibleQuerySearchKeyword(for: result),
-            rows: rows
+            rows: rows,
+            resultTransactionIDs: snapshotIDs ?? rows.map(\.transactionId),
+            hasCompleteResultSnapshot: hasCompleteSnapshot
         ))
     }
 
@@ -206,8 +218,10 @@ nonisolated enum ChatCardData: Equatable {
 
     nonisolated private static func flexibleQuerySummaryText(for result: FlexibleQueryResult) -> String {
         var parts: [String] = []
-        if let range = result.summary.dateRange {
-            parts.append(range)
+        if let range = result.summary.queryDateRange {
+            parts.append("查询范围：\(range)")
+        } else if let range = result.summary.dateRange {
+            parts.append("记录日期：\(range)")
         }
         if let topCategory = result.summary.topCategory, topCategory != "未分类" {
             parts.append("主要分类：\(topCategory)")
@@ -299,13 +313,15 @@ nonisolated struct FlexibleQueryChatCardData: Equatable {
     let averageAmountText: String?
     let searchKeyword: String?
     let rows: [FlexibleQueryTransactionRow]
+    let resultTransactionIDs: [UUID]
+    let hasCompleteResultSnapshot: Bool
 
     var previewRows: [FlexibleQueryTransactionRow] {
         Array(rows.prefix(3))
     }
 
     var remainingRowCount: Int {
-        max(rows.count - previewRows.count, 0)
+        max(totalMatched - previewRows.count, 0)
     }
 
     var resultCountText: String {
@@ -313,7 +329,10 @@ nonisolated struct FlexibleQueryChatCardData: Equatable {
     }
 
     var viewAllText: String {
-        "查看全部 \(totalMatched) \(countUnitText)"
+        if hasCompleteResultSnapshot {
+            return "查看全部 \(totalMatched) \(countUnitText)"
+        }
+        return "查看本次保存的 \(resultTransactionIDs.count) \(countUnitText)明细"
     }
 }
 

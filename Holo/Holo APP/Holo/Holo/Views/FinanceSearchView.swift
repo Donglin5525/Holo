@@ -16,6 +16,7 @@ struct FinanceSearchView: View {
 
     private let repository = FinanceRepository.shared
     private let initialSearchText: String?
+    private let exactTransactionIDs: [UUID]?
 
     // MARK: - State
 
@@ -40,8 +41,12 @@ struct FinanceSearchView: View {
     /// 正在编辑的交易
     @State private var editingTransaction: Transaction?
 
-    init(initialSearchText: String? = nil) {
+    init(
+        initialSearchText: String? = nil,
+        exactTransactionIDs: [UUID]? = nil
+    ) {
         self.initialSearchText = initialSearchText
+        self.exactTransactionIDs = exactTransactionIDs
     }
 
     // MARK: - Computed
@@ -50,6 +55,10 @@ struct FinanceSearchView: View {
     private var recentSearchKeywords: [String] {
         guard !recentSearchData.isEmpty else { return [] }
         return recentSearchData.components(separatedBy: "|||")
+    }
+
+    private var isExactResultMode: Bool {
+        exactTransactionIDs != nil
     }
 
     // MARK: - Body
@@ -78,7 +87,11 @@ struct FinanceSearchView: View {
         .background(Color.holoBackground)
         .swipeBackToDismiss { dismiss() }
         .onAppear {
-            if let initialSearchText,
+            if let exactTransactionIDs {
+                searchText = initialSearchText ?? "本次查询结果"
+                isSearchFocused = false
+                loadExactResults(transactionIDs: exactTransactionIDs)
+            } else if let initialSearchText,
                searchText.isEmpty,
                !initialSearchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 searchText = initialSearchText
@@ -89,12 +102,18 @@ struct FinanceSearchView: View {
             }
         }
         .onChange(of: searchText) { _, newValue in
-            performDebouncedSearch(keyword: newValue)
+            if !isExactResultMode {
+                performDebouncedSearch(keyword: newValue)
+            }
         }
         .sheet(item: $editingTransaction) { transaction in
             AddTransactionSheet(editingTransaction: transaction) { _ in
-                // 编辑后重新搜索
-                performSearch(keyword: searchText)
+                if let exactTransactionIDs {
+                    loadExactResults(transactionIDs: exactTransactionIDs)
+                } else {
+                    // 编辑后重新搜索
+                    performSearch(keyword: searchText)
+                }
             }
         }
     }
@@ -123,8 +142,9 @@ struct FinanceSearchView: View {
                     .font(.holoBody)
                     .foregroundColor(.holoTextPrimary)
                     .focused($isSearchFocused)
+                    .disabled(isExactResultMode)
 
-                if !searchText.isEmpty {
+                if !searchText.isEmpty && !isExactResultMode {
                     Button {
                         searchText = ""
                         searchResults = []
@@ -288,6 +308,12 @@ struct FinanceSearchView: View {
                 isSearching = false
             }
         }
+    }
+
+    private func loadExactResults(transactionIDs: [UUID]) {
+        searchTask?.cancel()
+        isSearching = false
+        searchResults = repository.findTransactions(by: transactionIDs)
     }
 
     /// 保存最近搜索词（最多 5 条，去重）

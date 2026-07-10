@@ -17,6 +17,8 @@
 		7D89A2C742C34B9589F5338D /* ChatMessageRepositoryCacheRecoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D89A2C842C34B9589F5338D /* ChatMessageRepositoryCacheRecoveryTests.swift */; };
 		AA680905CE9A01E52DBB3E8D /* ChatMessageRepositoryOrphanCleanupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76061A59B8135AEFF89E34D6 /* ChatMessageRepositoryOrphanCleanupTests.swift */; };
 		9053444F99F5887B91A43895 /* ChatMessageViewDataAgentResultTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF4F11F07B969D93AD7AFBF2 /* ChatMessageViewDataAgentResultTests.swift */; };
+		F1E0A1B2C3D4E5F607182932 /* FlexibleQueryDateRangeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E0A1B2C3D4E5F607182931 /* FlexibleQueryDateRangeTests.swift */; };
+		F1E0A1B2C3D4E5F607182934 /* FlexibleQueryResultConsistencyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E0A1B2C3D4E5F607182933 /* FlexibleQueryResultConsistencyTests.swift */; };
 		93C27F1D375A3F57C2FEBE4B /* MemoryInsightContextBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7B67CA9B85AF3DBA246CB53 /* MemoryInsightContextBuilderTests.swift */; };
 		95619DFF0EBA0EEF490770AA /* ChatCardDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95619DFE0EBA0EEF490770AA /* ChatCardDataTests.swift */; };
 		A10000000000000000000001 /* HoloWidgetModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000005 /* HoloWidgetModels.swift */; };
@@ -104,6 +106,8 @@
 		E4241B525E8FB37245B68C4E /* HabitFocusSummaryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitFocusSummaryTests.swift; sourceTree = "<group>"; };
 		E7B67CA9B85AF3DBA246CB53 /* MemoryInsightContextBuilderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MemoryInsightContextBuilderTests.swift; sourceTree = "<group>"; };
 		F68CE35412AA97246389429B /* HoloExpressionDecisionEngineTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloExpressionDecisionEngineTests.swift; sourceTree = "<group>"; };
+		F1E0A1B2C3D4E5F607182931 /* FlexibleQueryDateRangeTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FlexibleQueryDateRangeTests.swift; sourceTree = "<group>"; };
+		F1E0A1B2C3D4E5F607182933 /* FlexibleQueryResultConsistencyTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FlexibleQueryResultConsistencyTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -150,6 +154,8 @@
 				7D89A2C342C34B9589F5338D /* TransactionDateResolverTests.swift */,
 				7D89A2C642C34B9589F5338D /* PromptManagerIntentRecognitionTests.swift */,
 				E7B67CA9B85AF3DBA246CB53 /* MemoryInsightContextBuilderTests.swift */,
+				F1E0A1B2C3D4E5F607182931 /* FlexibleQueryDateRangeTests.swift */,
+				F1E0A1B2C3D4E5F607182933 /* FlexibleQueryResultConsistencyTests.swift */,
 			);
 			path = AI;
 			sourceTree = "<group>";
@@ -476,6 +482,8 @@
 				7D89A2C742C34B9589F5338D /* ChatMessageRepositoryCacheRecoveryTests.swift in Sources */,
 				AA680905CE9A01E52DBB3E8D /* ChatMessageRepositoryOrphanCleanupTests.swift in Sources */,
 				47338B8715C0527F76C6B9BC /* MemoryInsightRefreshQuotaTests.swift in Sources */,
+				F1E0A1B2C3D4E5F607182932 /* FlexibleQueryDateRangeTests.swift in Sources */,
+				F1E0A1B2C3D4E5F607182934 /* FlexibleQueryResultConsistencyTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
