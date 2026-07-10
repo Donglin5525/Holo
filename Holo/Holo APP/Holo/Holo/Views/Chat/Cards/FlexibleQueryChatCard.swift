@@ -64,21 +64,33 @@ struct FlexibleQueryChatCard: View {
                 }
             }
 
-            if let totalAmountText = data.totalAmountText {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("合计")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundColor(.holoTextSecondary)
-
-                    Text(totalAmountText)
-                        .font(.system(size: 32, weight: .bold))
-                        .foregroundColor(.holoPrimary)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.72)
+            if data.totalAmountText != nil || data.averageAmountText != nil {
+                HStack(alignment: .bottom, spacing: 22) {
+                    if let totalAmountText = data.totalAmountText {
+                        resultMetric(label: "合计", value: totalAmountText, isPrimary: true)
+                    }
+                    if let averageAmountText = data.averageAmountText {
+                        resultMetric(label: data.averageLabelText, value: averageAmountText, isPrimary: false)
+                    }
                 }
                 .padding(.leading, 46)
             }
         }
+    }
+
+    private func resultMetric(label: String, value: String, isPrimary: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(label)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.holoTextSecondary)
+
+            Text(value)
+                .font(.system(size: isPrimary ? 28 : 20, weight: .bold))
+                .foregroundColor(isPrimary ? .holoPrimary : .holoTextPrimary)
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var previewSection: some View {

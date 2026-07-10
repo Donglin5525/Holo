@@ -115,6 +115,7 @@ final class FlexibleQueryChatCardDataTests: XCTestCase {
                 includeCategory: true
             ),
             calculation: nil,
+            averageUnit: nil,
             sort: nil,
             limit: nil,
             explanationHints: []

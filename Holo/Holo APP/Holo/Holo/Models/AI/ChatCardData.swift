@@ -160,12 +160,21 @@ nonisolated enum ChatCardData: Equatable {
         let rows = result.matchedTransactions.compactMap(FlexibleQueryTransactionRow.init(evidence:))
         guard !rows.isEmpty else { return nil }
 
-        let amountText = result.summary.totalAmount.map { FlexibleQueryExecutor.formatAmount($0) }
+        let amountText = result.summary.totalAmount.map { FlexibleQueryFormatting.formatAmount($0) }
+        let averageAmountText = result.calculationResult.flatMap { calculation -> String? in
+            guard calculation.type == .averageAmount, let amount = calculation.amount else { return nil }
+            return FlexibleQueryFormatting.formatAmount(amount)
+        }
+        let averageUnit = result.plan.averageUnit ?? .transaction
         return .flexibleQuery(FlexibleQueryChatCardData(
             badgeText: AIIntent.flexibleDataQuery.chatDisplayLabel,
             title: flexibleQueryTitle(for: result),
             summaryText: flexibleQuerySummaryText(for: result),
             totalAmountText: amountText,
+            totalMatched: result.summary.totalMatched,
+            countUnitText: averageUnit.countLabel,
+            averageLabelText: "平均\(averageUnit.averageLabel)",
+            averageAmountText: averageAmountText,
             searchKeyword: flexibleQuerySearchKeyword(for: result),
             rows: rows
         ))
@@ -284,6 +293,10 @@ nonisolated struct FlexibleQueryChatCardData: Equatable {
     let title: String
     let summaryText: String
     let totalAmountText: String?
+    let totalMatched: Int
+    let countUnitText: String
+    let averageLabelText: String
+    let averageAmountText: String?
     let searchKeyword: String?
     let rows: [FlexibleQueryTransactionRow]
 
@@ -296,11 +309,11 @@ nonisolated struct FlexibleQueryChatCardData: Equatable {
     }
 
     var resultCountText: String {
-        "\(rows.count) 笔"
+        "\(totalMatched) \(countUnitText)"
     }
 
     var viewAllText: String {
-        "查看全部 \(rows.count) 笔"
+        "查看全部 \(totalMatched) \(countUnitText)"
     }
 }
 
@@ -318,7 +331,7 @@ nonisolated struct FlexibleQueryTransactionRow: Equatable, Identifiable {
         guard let uuid = UUID(uuidString: evidence.id) else { return nil }
         self.transactionId = uuid
         self.date = evidence.date
-        self.amount = FlexibleQueryExecutor.formatAmount(evidence.amount)
+        self.amount = FlexibleQueryFormatting.formatAmount(evidence.amount)
         self.type = evidence.type
         self.title = Self.displayTitle(for: evidence)
         self.categoryPath = Self.categoryPath(for: evidence)

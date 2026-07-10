@@ -9,6 +9,118 @@
 import Foundation
 import os.log
 
+// MARK: - Deterministic Merchant Aggregate Resolver
+
+/// 只处理字段完整、无需模型推断的商户次数/总额/均价查询。
+nonisolated enum MerchantAggregatePlanResolver {
+    static func resolve(
+        userQuestion: String,
+        extractedData: [String: String]?,
+        now: Date = Date(),
+        calendar: Calendar = .current
+    ) -> FlexibleQueryPlan? {
+        let contextText = ([userQuestion] + (extractedData?.values.map { $0 } ?? []))
+            .joined(separator: " ")
+
+        guard !containsTrendIntent(contextText),
+              requestsCount(contextText),
+              requestsTotal(contextText),
+              let averageUnit = averageUnit(in: contextText),
+              let merchant = merchantName(from: extractedData),
+              supportsThirtyDayRange(contextText) else {
+            return nil
+        }
+
+        let endDate = calendar.startOfDay(for: now)
+        guard let startDate = calendar.date(byAdding: .day, value: -29, to: endDate) else {
+            return nil
+        }
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = "yyyy-MM-dd"
+
+        return FlexibleQueryPlan(
+            domain: .finance,
+            operation: .sumAmount,
+            filters: FinanceQueryFilters(
+                type: .expense,
+                amountGreaterThan: nil,
+                amountGreaterThanOrEqual: nil,
+                amountLessThan: nil,
+                amountLessThanOrEqual: nil,
+                amountEqual: nil,
+                keywords: [merchant],
+                excludedKeywords: [],
+                categoryNames: [],
+                startDate: formatter.string(from: startDate),
+                endDate: formatter.string(from: endDate),
+                accountNames: [],
+                includeNote: true,
+                includeRemark: true,
+                includeTags: true,
+                includeCategory: true
+            ),
+            calculation: .averageAmount,
+            averageUnit: averageUnit,
+            sort: FlexibleQuerySort(field: .date, direction: .desc),
+            limit: 20,
+            explanationHints: []
+        )
+    }
+
+    private static func merchantName(from extractedData: [String: String]?) -> String? {
+        let keys = ["categoryHint", "categoryCandidate", "merchant", "keyword"]
+        let genericValues: Set<String> = ["餐饮", "消费", "支出", "快餐"]
+
+        for key in keys {
+            guard let raw = extractedData?[key]?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !raw.isEmpty,
+                  !genericValues.contains(raw),
+                  raw.count <= 20 else {
+                continue
+            }
+            return raw
+        }
+        return nil
+    }
+
+    private static func requestsCount(_ text: String) -> Bool {
+        matches(text, pattern: "(多少|消费|购买|吃了).{0,4}(顿|吨|次|笔)|次数")
+    }
+
+    private static func requestsTotal(_ text: String) -> Bool {
+        matches(text, pattern: "花了多少钱|总花费|总额|合计|消费金额")
+    }
+
+    private static func averageUnit(in text: String) -> FlexibleQueryAverageUnit? {
+        if matches(text, pattern: "平均.{0,3}(顿|吨)|每顿") {
+            return .meal
+        }
+        if matches(text, pattern: "平均.{0,3}次|每次") {
+            return .occurrence
+        }
+        if matches(text, pattern: "平均.{0,3}笔|每笔") {
+            return .transaction
+        }
+        return nil
+    }
+
+    private static func supportsThirtyDayRange(_ text: String) -> Bool {
+        text.contains("最近一个月") || text.contains("近30天") || text.contains("近 30 天")
+    }
+
+    private static func containsTrendIntent(_ text: String) -> Bool {
+        ["趋势", "变化", "结构", "占比", "复盘", "分析"].contains { text.contains($0) }
+    }
+
+    private static func matches(_ text: String, pattern: String) -> Bool {
+        text.range(of: pattern, options: .regularExpression) != nil
+    }
+}
+
 // MARK: - Planner
 
 final class FlexibleQueryPlanner {
@@ -21,6 +133,17 @@ final class FlexibleQueryPlanner {
 
     /// 两段式规划：用独立 prompt 让 LLM 输出结构化 Query Plan
     func plan(userQuestion: String, extractedData: [String: String]?, userContext: UserContext) async throws -> FlexiblePlannerResult {
+        if let deterministicPlan = MerchantAggregatePlanResolver.resolve(
+            userQuestion: userQuestion,
+            extractedData: extractedData
+        ) {
+            return FlexiblePlannerResult(
+                status: .ready,
+                clarificationQuestion: nil,
+                plan: deterministicPlan
+            )
+        }
+
         let prompt = try buildPlannerPrompt(userQuestion: userQuestion, extractedData: extractedData)
 
         // 使用非流式 chat completion 获取 JSON plan
@@ -63,11 +186,7 @@ final class FlexibleQueryPlanner {
     // MARK: - LLM Completion
 
     private func requestPlannerCompletion(prompt: String, userContext: UserContext) async throws -> String {
-        let messages: [ChatMessageDTO] = [
-            ChatMessageDTO(role: "user", content: prompt)
-        ]
-
-        return try await provider.chat(messages: messages, userContext: userContext)
+        try await provider.completeFlexibleQueryPlan(prompt: prompt, userContext: userContext)
     }
 
     // MARK: - JSON Decode
@@ -108,6 +227,7 @@ final class FlexibleQueryPlanner {
         let operation: String
         let filters: FiltersDTO
         let calculation: String?
+        let averageUnit: String?
         let sort: SortDTO?
         let limit: Int?
         let explanationHints: [ExplanationHint]?
@@ -168,6 +288,7 @@ final class FlexibleQueryPlanner {
             operation: FlexibleQueryOperation(rawValue: dto.operation) ?? .listTransactions,
             filters: filters,
             calculation: dto.calculation.flatMap { FlexibleQueryCalculation(rawValue: $0) },
+            averageUnit: dto.averageUnit.flatMap { FlexibleQueryAverageUnit(rawValue: $0) },
             sort: sort,
             limit: dto.limit,
             explanationHints: dto.explanationHints ?? []

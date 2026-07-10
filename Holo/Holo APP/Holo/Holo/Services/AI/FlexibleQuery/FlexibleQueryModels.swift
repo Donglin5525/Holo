@@ -8,6 +8,16 @@
 
 import Foundation
 
+nonisolated enum FlexibleQueryFormatting {
+    static func formatAmount(_ amount: Decimal) -> String {
+        let formatter = NumberFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.numberStyle = .currency
+        formatter.maximumFractionDigits = 2
+        return formatter.string(from: amount as NSDecimalNumber) ?? "\(amount)"
+    }
+}
+
 // MARK: - Query Plan
 
 /// 灵活查询计划
@@ -16,6 +26,7 @@ struct FlexibleQueryPlan: Codable, Equatable, Sendable {
     let operation: FlexibleQueryOperation
     let filters: FinanceQueryFilters
     let calculation: FlexibleQueryCalculation?
+    let averageUnit: FlexibleQueryAverageUnit?
     let sort: FlexibleQuerySort?
     let limit: Int?
     let explanationHints: [ExplanationHint]
@@ -43,6 +54,28 @@ enum FlexibleQueryCalculation: String, Codable, Sendable {
     case daysBetweenTransactions
     case averageAmount
     case none
+}
+
+nonisolated enum FlexibleQueryAverageUnit: String, Codable, Sendable {
+    case transaction
+    case occurrence
+    case meal
+
+    var countLabel: String {
+        switch self {
+        case .transaction: return "笔"
+        case .occurrence: return "次"
+        case .meal: return "顿"
+        }
+    }
+
+    var averageLabel: String {
+        switch self {
+        case .transaction: return "每笔"
+        case .occurrence: return "每次"
+        case .meal: return "每顿"
+        }
+    }
 }
 
 // MARK: - Sort

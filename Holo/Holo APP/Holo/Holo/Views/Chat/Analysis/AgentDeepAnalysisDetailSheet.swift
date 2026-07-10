@@ -29,6 +29,7 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
     var evidence: [Evidence]
     var closingTitle: String
     var closingBody: String
+    var shouldShowClosing: Bool
     var isFinanceLedgerMode: Bool
 
     init(result: HoloRenderedAgentResult) {
@@ -37,9 +38,11 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
         let hasContent = !summary.isEmpty || !result.sections.isEmpty
         let isFinanceLedgerMode = result.evidenceReferences.contains { $0.financeDrilldown != nil }
         let financeRangeLabel = Self.financeRangeLabel(from: result.evidenceReferences)
+        let financeKeyword = Self.financeKeyword(from: result.evidenceReferences)
 
         if isFinanceLedgerMode {
-            self.openingTitle = "\(financeRangeLabel)这笔钱，先按账单口径拆开看。"
+            self.openingTitle = financeKeyword.map { "\(financeRangeLabel)「\($0)」消费结果" }
+                ?? "\(financeRangeLabel)账单结果"
         } else {
             self.openingTitle = hasContent
                 ? "这段时间，有几个信号值得回看。"
@@ -48,7 +51,10 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
         self.openingBody = resolvedSummary
         self.openingParagraphs = Self.readingParagraphs(from: resolvedSummary)
         self.signalSummaries = isFinanceLedgerMode ? [] : Self.signalSummaries(from: resolvedSummary)
-        self.observations = Self.observations(from: result.sections)
+        self.observations = Self.observations(
+            from: result.sections,
+            isFinanceLedgerMode: isFinanceLedgerMode
+        )
         self.evidence = result.evidenceReferences.enumerated().map { index, ref in
             let labelPrefix = isFinanceLedgerMode ? "账单依据" : "依据"
             return Evidence(
@@ -58,8 +64,8 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
             )
         }
         if isFinanceLedgerMode {
-            self.closingTitle = "先核对最大头的去向。"
-            self.closingBody = "从金额最高的分类和大额记录开始核对；如果某类不对，可以点开依据回到明细。"
+            self.closingTitle = "从金额最高的分类开始核对。"
+            self.closingBody = "如果分类或金额和你的认知不一致，可以点开账单依据回到对应明细。"
         } else {
             self.closingTitle = hasContent
                 ? "先从最容易稳定的一件事开始。"
@@ -68,14 +74,18 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
                 ? "不用同时盯住所有指标。Holo 会继续观察这些信号是否重新回到稳定节奏。"
                 : "当睡眠、习惯、消费或任务出现更清晰的变化时，这里会整理成更完整的观察手记。"
         }
+        self.shouldShowClosing = !isFinanceLedgerMode || financeKeyword == nil
         self.isFinanceLedgerMode = isFinanceLedgerMode
     }
 
-    private static func observations(from sections: [HoloRenderedAgentSection]) -> [Observation] {
+    private static func observations(
+        from sections: [HoloRenderedAgentSection],
+        isFinanceLedgerMode: Bool
+    ) -> [Observation] {
         let items = sections.enumerated().map { index, section in
             let rawTitle = clean(section.title)
             let body = clean(section.body)
-            let title = displayTitle(rawTitle)
+            let title = displayTitle(rawTitle, isFinanceLedgerMode: isFinanceLedgerMode)
             let label = observationLabel(index: index, rawTitle: rawTitle)
             return Observation(
                 label: label,
@@ -102,6 +112,12 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
         evidence
             .compactMap { $0.financeDrilldown?.label.trimmingCharacters(in: .whitespacesAndNewlines) }
             .first { !$0.isEmpty } ?? "本期"
+    }
+
+    private static func financeKeyword(from evidence: [HoloRenderedEvidenceReference]) -> String? {
+        evidence
+            .compactMap { $0.financeDrilldown?.keyword?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
     }
 
     private static func signalSummaries(from summary: String) -> [String] {
@@ -146,9 +162,9 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
         return "\(base) · \(rawTitle)"
     }
 
-    private static func displayTitle(_ rawTitle: String) -> String {
+    private static func displayTitle(_ rawTitle: String, isFinanceLedgerMode: Bool) -> String {
         guard !rawTitle.isEmpty, !isGenericObservationTitle(rawTitle) else {
-            return "值得留意的变化"
+            return isFinanceLedgerMode ? "账单结果" : "值得留意的变化"
         }
         return rawTitle
     }
@@ -254,7 +270,9 @@ struct AgentDeepAnalysisDetailSheet: View {
                     signalStrip(model.signalSummaries)
                 }
                 observationsSection(model.observations)
-                closingSection(model)
+                if model.shouldShowClosing {
+                    closingSection(model)
+                }
                 evidenceSection(model.evidence)
             }
             .padding(.horizontal, 23)
