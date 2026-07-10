@@ -12,6 +12,7 @@
 | ~~中~~ | ~~星图「更新」按钮只刷本地不调 AI，真正刷新 AI 洞察的入口藏在折叠区~~ | `MemoryGalleryViewModel.swift` / `MemoryConstellationCard.swift` / `MemoryInsightHeroCard.swift` | ✅ Fixed（统一入口 + AI 洞察每日 2 次配额） |
 | ~~低~~ | ~~今日收支小组件点击跳记账页而非财务分析页~~ | `HoloWidgets.swift` / `HoloWidgetModels.swift` / `DeepLinkState.swift` | ✅ Fixed（深链改 `holo://finance/analysis`） |
 | ~~中~~ | ~~财务分析日期选择不灵活 + 趋势图单天异常（24 小时空柱）+ 柱图与余额折线错位~~ | `CustomDateSheet.swift` / `DateRangeCalendar.swift` / `FinanceAggregation.swift` / `BarChartView.swift` | ✅ Fixed（范围月历 + 点两次完成 + 单天按天粒度 + X 轴 M/d 稀疏 + 柱叠加对齐） |
+| ~~中~~ | ~~观点「编辑想法」页看不到 AI 归类标签~~ | `ThoughtEditorView.swift` | ✅ Fixed（只读回显 AI 标签，保存逻辑不变） |
 
 ---
 

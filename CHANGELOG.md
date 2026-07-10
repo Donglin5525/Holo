@@ -23,6 +23,24 @@
 
 ---
 
+## [2026-07-11] 修复「编辑想法」看不到 AI 归类标签
+
+AI 自动打的标签在「编辑想法」页的标签栏里显示不出来。
+
+### 变更
+- **根因**：`ThoughtEditorView.loadEditingData` 仅用 `thought.tagArray`（手动标签，`tags` 关系）回显，对 AI 标签（`ThoughtTagAssignment`，来源 `ai`/`confirmedAI`）完全无感知。详情页已分「标签」+「AI 归类」两区正确展示，编辑页却漏了 AI 那一套。
+- **只读回显**：编辑页加载时额外调用 `fetchVisibleAIAssignments`（与详情页同源）取 AI 标签，在「标签」区下方新增「AI 归类」区域——灰色 chip + AI 角标，视觉与列表卡片、详情页一致，**只读**。
+- **保存逻辑零改动**：AI 标签只进展示态 `aiAssignments`，不进 `selectedTags`，`update()` 仍只处理手动标签，避免 AI 标签被误存为手动标签或被误删；变更检测（`hasUnsavedChanges`）同样不受影响。
+
+### 验证
+- Holo iOS（generic/iOS Simulator）完整编译通过（BUILD SUCCEEDED）
+- 手动验证路径：详情页可见 AI 归类标签的想法，进编辑页现在也能看到
+
+### 备注
+- AI 标签在编辑页暂为只读（保留/拒绝仍去详情页）。编辑能力计划与「二次分类」一起设计，避免「在编辑页删 AI 标签」的语义歧义导致返工。
+
+---
+
 ## [2026-07-10] 修复 HoloAI「返回首页再进入」深度分析/查询被误判中断
 
 发送问题后**立马返回首页、再立马进入 HoloAI**，AI 直接显示「抱歉，处理时意外中断了」，但 AI 其实仍在后台正常计算。
