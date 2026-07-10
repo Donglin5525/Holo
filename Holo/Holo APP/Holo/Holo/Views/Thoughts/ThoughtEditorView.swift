@@ -42,6 +42,9 @@ struct ThoughtEditorView: View {
     @State private var selectedTags: [String] = []
     @State private var referencedThoughtIds: [UUID] = []
 
+    /// AI 归类标签（只读回显，不参与编辑保存；来自 fetchVisibleAIAssignments）
+    @State private var aiAssignments: [ThoughtTagAssignment] = []
+
     // MARK: - Original Values (for change detection)
     @State private var originalContent: String = ""
     @State private var originalMood: ThoughtMoodType? = nil
@@ -92,6 +95,10 @@ struct ThoughtEditorView: View {
                     contentSection
                     // 标签区域
                     tagsSection
+                    // AI 归类区域（只读回显）
+                    if !aiAssignments.isEmpty {
+                        aiTagsSection
+                    }
                     // 引用区域
                     referencesSection
                 }
@@ -367,6 +374,48 @@ struct ThoughtEditorView: View {
         .cornerRadius(HoloRadius.md)
     }
 
+    /// AI 归类区域（只读回显）
+    /// 编辑能力（保留/拒绝/重新分类）留待后续与「二次分类」一起设计
+    private var aiTagsSection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            HStack(spacing: 4) {
+                Text("AI 归类")
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary)
+                Image(systemName: "sparkles")
+                    .font(.system(size: 10))
+                    .foregroundColor(.holoTextSecondary)
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(aiAssignments, id: \.id) { assignment in
+                        aiTagChip(assignment.tag?.name ?? "")
+                    }
+                }
+            }
+        }
+        .padding(HoloSpacing.md)
+        .background(Color.holoCardBackground)
+        .cornerRadius(HoloRadius.md)
+    }
+
+    /// 只读 AI 标签 chip（灰色调 + AI 角标，视觉与卡片/详情页一致）
+    private func aiTagChip(_ tagName: String) -> some View {
+        HStack(spacing: 3) {
+            Text("#\(tagName)")
+                .font(.holoLabel)
+                .foregroundColor(.holoTextSecondary)
+            Text("AI")
+                .font(.system(size: 8, weight: .semibold))
+                .foregroundColor(.holoTextSecondary.opacity(0.6))
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color.holoTextSecondary.opacity(0.08))
+        .cornerRadius(HoloRadius.sm)
+    }
+
     /// 引用区域
     private var referencesSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
@@ -505,6 +554,8 @@ struct ThoughtEditorView: View {
             selectedMood = ThoughtMoodType(from: thought.mood)
             selectedTags = thought.tagArray.map { $0.name }
             referencedThoughtIds = (thought.references as? Set<ThoughtReference>)?.compactMap { $0.targetThought?.id } ?? []
+            // AI 归类标签只读回显（不写入 selectedTags，避免被 update 当作手动标签误处理）
+            aiAssignments = (try? repo.fetchVisibleAIAssignments(thoughtId: thoughtId)) ?? []
 
             // 设置原始值（用于比较是否有修改）
             originalContent = thought.content
