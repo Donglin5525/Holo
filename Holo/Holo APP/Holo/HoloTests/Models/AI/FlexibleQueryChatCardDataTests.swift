@@ -35,7 +35,8 @@ final class FlexibleQueryChatCardDataTests: XCTestCase {
             ],
             calculationResult: nil,
             emptyReason: nil,
-            followUpSuggestion: nil
+            followUpSuggestion: nil,
+            allMatchedTransactionIDs: [transactionId.uuidString]
         )
 
         let card = try XCTUnwrap(ChatCardData.fromFlexibleQueryResult(result))
@@ -77,7 +78,8 @@ final class FlexibleQueryChatCardDataTests: XCTestCase {
             matchedTransactions: evidences,
             calculationResult: nil,
             emptyReason: nil,
-            followUpSuggestion: nil
+            followUpSuggestion: nil,
+            allMatchedTransactionIDs: evidences.map(\.id)
         )
 
         let card = try XCTUnwrap(ChatCardData.fromFlexibleQueryResult(result))

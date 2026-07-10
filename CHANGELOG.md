@@ -18,8 +18,8 @@
 
 ### 验证
 - HoloBackend 全量测试：85 tests，0 failures
-- 新增时间口径、非法日期、完整聚合、旧 JSON 兼容、查询范围和精确结果快照测试并接入 HoloTests target
-- 改动 Swift 文件语法解析与 Xcode 工程文件校验通过；完整 iOS 编译/测试待系统级 Xcode 权限恢复后补跑
+- HoloTests 全量回归：116 tests，0 failures；新增 12 项一致性测试与既有 3 项查询卡片测试均真实执行
+- Holo iOS generic device 目标完整编译通过；原本未接入 target 的 `FlexibleQueryChatCardDataTests` 已补齐工程接线
 
 ---
 

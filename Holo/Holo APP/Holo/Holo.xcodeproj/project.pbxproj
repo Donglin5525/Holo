@@ -19,6 +19,7 @@
 		9053444F99F5887B91A43895 /* ChatMessageViewDataAgentResultTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF4F11F07B969D93AD7AFBF2 /* ChatMessageViewDataAgentResultTests.swift */; };
 		F1E0A1B2C3D4E5F607182932 /* FlexibleQueryDateRangeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E0A1B2C3D4E5F607182931 /* FlexibleQueryDateRangeTests.swift */; };
 		F1E0A1B2C3D4E5F607182934 /* FlexibleQueryResultConsistencyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F1E0A1B2C3D4E5F607182933 /* FlexibleQueryResultConsistencyTests.swift */; };
+		F1E0A1B2C3D4E5F607182936 /* FlexibleQueryChatCardDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CDBA4E276B54BCF52A416D0 /* FlexibleQueryChatCardDataTests.swift */; };
 		93C27F1D375A3F57C2FEBE4B /* MemoryInsightContextBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7B67CA9B85AF3DBA246CB53 /* MemoryInsightContextBuilderTests.swift */; };
 		95619DFF0EBA0EEF490770AA /* ChatCardDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95619DFE0EBA0EEF490770AA /* ChatCardDataTests.swift */; };
 		A10000000000000000000001 /* HoloWidgetModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000005 /* HoloWidgetModels.swift */; };
@@ -484,6 +485,7 @@
 				47338B8715C0527F76C6B9BC /* MemoryInsightRefreshQuotaTests.swift in Sources */,
 				F1E0A1B2C3D4E5F607182932 /* FlexibleQueryDateRangeTests.swift in Sources */,
 				F1E0A1B2C3D4E5F607182934 /* FlexibleQueryResultConsistencyTests.swift in Sources */,
+				F1E0A1B2C3D4E5F607182936 /* FlexibleQueryChatCardDataTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
