@@ -11,12 +11,20 @@ import Foundation
 
 // MARK: - Value Types
 
+struct HoloThoughtTopicRecord: Codable, Equatable, Sendable {
+    var title: String
+    var summary: String?
+    var thoughtCount: Int
+    var associatedTagNames: [String]
+}
+
 struct HoloThoughtToolSnapshot: Codable, Equatable, Sendable {
     var totalCount: Int
     var moodDistribution: [String: Int]
     var topTags: [String]
     var snippets: [String]
     var dailyCounts: [String: Int]
+    var topics: [HoloThoughtTopicRecord] = []
 }
 
 // MARK: - DataSource Protocol
@@ -31,13 +39,14 @@ struct HoloThoughtTool: HoloDataTool {
 
     let descriptor = HoloToolDescriptor(
         name: "thought",
-        description: "想法与情绪数据分析（心情分布 / 主题摘要 / 活跃趋势）",
-        supportedQueries: ["mood_summary", "thought_theme_summary", "thought_activity_trend"],
+        description: "想法与情绪数据分析（心情分布 / 标签与摘录 / Topic 收敛主题 / 活跃趋势）",
+        supportedQueries: ["mood_summary", "thought_theme_summary", "topic_summary", "thought_activity_trend"],
         supportedTimeRanges: ["recent", "7d", "14d", "30d"],
         outputMetrics: [
             "thought.count.total",
             "thought.mood.count",
-            "thought.activity.daily_count"
+            "thought.activity.daily_count",
+            "thought.topic.count"
         ],
         sensitivityPolicy: "sensitive"
     )
@@ -61,6 +70,8 @@ struct HoloThoughtTool: HoloDataTool {
             return Self.moodSummary(request: request, snapshot: snapshot)
         case "thought_theme_summary":
             return Self.themeSummary(request: request, snapshot: snapshot)
+        case "topic_summary":
+            return Self.topicSummary(request: request, snapshot: snapshot)
         case "thought_activity_trend":
             return Self.activityTrend(request: request, snapshot: snapshot)
         default:
@@ -99,7 +110,8 @@ extension HoloThoughtTool {
         }
         return HoloDataToolResult(
             toolRequestID: request.id, tool: request.tool, status: .success,
-            coverage: nil, metrics: metrics, events: events, warnings: [], error: nil
+            coverage: nil, metrics: metrics, events: events, warnings: [], error: nil,
+            sensitivity: .sensitive
         )
     }
 
@@ -133,7 +145,51 @@ extension HoloThoughtTool {
         }
         return HoloDataToolResult(
             toolRequestID: request.id, tool: request.tool, status: .success,
-            coverage: nil, metrics: metrics, events: events, warnings: [], error: nil
+            coverage: nil, metrics: metrics, events: events, warnings: [], error: nil,
+            sensitivity: .sensitive
+        )
+    }
+
+    /// topic_summary：用户可见的长期收敛主题，不返回完整观点原文。
+    private static func topicSummary(request: HoloToolRequest, snapshot: HoloThoughtToolSnapshot) -> HoloDataToolResult {
+        guard !snapshot.topics.isEmpty else {
+            return empty(request: request, warnings: [
+                HoloToolWarning(code: "NO_THOUGHT_TOPIC_DATA", message: "没有可用的观点 Topic")
+            ])
+        }
+        let metrics = [
+            HoloMetric(
+                metricKey: "thought.topic.count",
+                value: Double(snapshot.topics.count),
+                unit: "个",
+                baselineValue: nil,
+                comparison: nil
+            )
+        ]
+        let events = snapshot.topics.enumerated().map { index, topic in
+            let summary = topic.summary?.trimmingCharacters(in: .whitespacesAndNewlines)
+            let summaryText = summary?.isEmpty == false ? "：\(summary!)" : ""
+            let tagsText = topic.associatedTagNames.isEmpty
+                ? ""
+                : "；关联标签：\(topic.associatedTagNames.joined(separator: "、"))"
+            return HoloEvidenceEvent(
+                id: "thought-topic-\(index)",
+                occurredAt: nil,
+                metricKey: "thought.topic.count",
+                metricValue: Double(topic.thoughtCount),
+                excerpt: "观点主题「\(topic.title)」含 \(topic.thoughtCount) 条想法\(summaryText)\(tagsText)"
+            )
+        }
+        return HoloDataToolResult(
+            toolRequestID: request.id,
+            tool: request.tool,
+            status: .success,
+            coverage: nil,
+            metrics: metrics,
+            events: events,
+            warnings: [],
+            error: nil,
+            sensitivity: .sensitive
         )
     }
 
@@ -160,7 +216,8 @@ extension HoloThoughtTool {
         }
         return HoloDataToolResult(
             toolRequestID: request.id, tool: request.tool, status: .success,
-            coverage: nil, metrics: metrics, events: events, warnings: [], error: nil
+            coverage: nil, metrics: metrics, events: events, warnings: [], error: nil,
+            sensitivity: .sensitive
         )
     }
 
@@ -169,7 +226,8 @@ extension HoloThoughtTool {
     private static func empty(request: HoloToolRequest, warnings: [HoloToolWarning]) -> HoloDataToolResult {
         HoloDataToolResult(
             toolRequestID: request.id, tool: request.tool, status: .empty,
-            coverage: nil, metrics: [], events: [], warnings: warnings, error: nil
+            coverage: nil, metrics: [], events: [], warnings: warnings, error: nil,
+            sensitivity: .sensitive
         )
     }
 }

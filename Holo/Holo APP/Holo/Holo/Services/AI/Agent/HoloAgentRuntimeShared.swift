@@ -12,7 +12,7 @@ import Foundation
 extension HoloLocalAgentRuntime {
     /// 全 App 共享的生产 Agent runtime（真实后端 LLM + Memory 工具）。
     /// 同时服务后台续跑（Phase 5.1）与对话深度分析（Phase 6.2）。
-    /// 生产 dataSource 已覆盖 memory/habit/health/finance/goal/thought/task 七类。
+    /// 生产 dataSource 已覆盖 10 类用户语义数据工具。
     /// 生产装配放此处（而非 Factory），避免 standalone test 拉 Factory 时引入后端重依赖。
     @MainActor
     static let shared: HoloLocalAgentRuntime = {
@@ -28,15 +28,23 @@ extension HoloLocalAgentRuntime {
         )
         let provider = HoloBackendAIProvider(baseURL: HoloBackendEnvironment.baseURL)
         let llmClient = HoloAgentLLMClient(provider: provider)
-        let registry = HoloToolRegistry(tools: [
+        let productionTools: [HoloDataTool] = [
             HoloMemoryTool(dataSource: HoloDefaultMemoryDataSource()),
             HoloHabitTool(dataSource: HoloDefaultHabitDataSource()),
             HoloHealthTool(dataSource: HoloDefaultHealthDataSource()),
             HoloFinanceTool(dataSource: HoloDefaultFinanceDataSource()),
             HoloGoalTool(dataSource: HoloDefaultGoalDataSource()),
             HoloThoughtTool(dataSource: HoloDefaultThoughtDataSource()),
-            HoloTaskTool(dataSource: HoloDefaultTaskDataSource())
-        ])
+            HoloTaskTool(dataSource: HoloDefaultTaskDataSource()),
+            HoloProfileTool(dataSource: HoloDefaultProfileDataSource()),
+            HoloConversationTool(dataSource: HoloDefaultConversationDataSource()),
+            HoloInsightTool(dataSource: HoloDefaultInsightDataSource())
+        ]
+        assert(
+            HoloAgentToolCoverage.missingToolNames(in: productionTools).isEmpty,
+            "生产 Agent 工具注册不完整"
+        )
+        let registry = HoloToolRegistry(tools: productionTools)
         let toolExecutor = HoloToolExecutor(registry: registry)
         return HoloLocalAgentRuntime(
             persistence: persistence,

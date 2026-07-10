@@ -18,13 +18,30 @@ struct HoloDefaultThoughtDataSource: HoloThoughtDataSource {
         return await MainActor.run {
             let repo = ThoughtRepository()
             let topTags = repo.getTopTags(from: start, to: end, limit: 5).map(\.name)
+            let topicRepo = TopicRepository()
+            let topics = ((try? topicRepo.fetchVisibleTopics()) ?? []).prefix(5).map { topic in
+                let relationshipNames = (topic.associatedTags as? Set<ThoughtTag>)?
+                    .map(\.name)
+                    .sorted() ?? []
+                let legacyNames = topic.associatedTagNames?
+                    .split(separator: ",")
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty } ?? []
+                return HoloThoughtTopicRecord(
+                    title: topic.title,
+                    summary: topic.summary,
+                    thoughtCount: topicRepo.thoughtCount(of: topic),
+                    associatedTagNames: relationshipNames.isEmpty ? legacyNames : relationshipNames
+                )
+            }
             return HoloThoughtToolSnapshot(
                 totalCount: repo.getThoughtCount(from: start, to: end),
                 moodDistribution: repo.getMoodDistribution(from: start, to: end),
                 topTags: topTags,
                 snippets: repo.getThoughtTexts(from: start, to: end, limit: 5)
                     .map { String($0.prefix(120)) },
-                dailyCounts: repo.getThoughtCountByDay(from: start, to: end)
+                dailyCounts: repo.getThoughtCountByDay(from: start, to: end),
+                topics: Array(topics)
             )
         }
     }

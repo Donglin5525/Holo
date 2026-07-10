@@ -633,7 +633,7 @@ actor HoloLocalAgentRuntime {
             return HoloEvidenceRecord(
                 id: event.id,
                 dedupeKey: "\(jobID):\(result.tool):\(event.id)",
-                sourceModule: sourceModule(for: result.tool),
+                sourceModule: HoloAgentEvidencePolicy.sourceModule(for: result.tool),
                 sourceID: event.id,
                 sourceKind: request.query,
                 timeRange: event.timeRange ?? request.timeRange,
@@ -646,7 +646,7 @@ actor HoloLocalAgentRuntime {
                 comparison: result.metrics.first { $0.metricKey == metricKey }?.comparison,
                 excerpt: event.excerpt,
                 redactedExcerpt: event.excerpt,
-                sensitivity: .normal,
+                sensitivity: HoloAgentEvidencePolicy.sensitivity(for: result),
                 confidence: result.status == .success ? 0.9 : 0.5,
                 status: result.status == .success ? .active : .partial,
                 generatedBy: "holo_agent_tool",
@@ -676,17 +676,6 @@ actor HoloLocalAgentRuntime {
 
     private static func evidenceRecordID(jobID: String, tool: String, toolRequestID: String, eventID: String) -> String {
         "\(jobID):\(tool):\(toolRequestID):\(eventID)"
-    }
-
-    private static func sourceModule(for tool: String) -> HoloEvidenceSourceModule {
-        switch tool {
-        case "finance": return .finance
-        case "habit": return .habit
-        case "memory": return .memory
-        case "task": return .task
-        case "health": return .health
-        default: return .agent
-        }
     }
 
     private static func fallbackClaims(

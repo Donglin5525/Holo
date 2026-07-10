@@ -126,7 +126,7 @@ final class PromptManager {
         .financeActionParser: 1,        // v1: 分期记账参数解析
         .taskActionParser: 1,           // v1: 重复任务参数解析
         .thoughtOrganization: 1,        // v1: 想法自动整理
-        .agentLoop: 3,                  // v3: 本月钱花哪了走 finance.spending_breakdown
+        .agentLoop: 4,                  // v4: 健康全指标与核心语义工具确定性选择
         .thoughtTagConvergence: 1,      // v1: 观点跨主题归并收敛（P2）
         .healthInsightGeneration: 2     // v2: 多域生活闭环（待办/习惯/观点/运动证据）+ 观点措辞规避
     ]
@@ -349,6 +349,22 @@ final class PromptManager {
         不得做心理、医疗、人格判断。
         当用户询问“钱花哪了 / 本月消费结构 / 1.4万去哪了 / 这笔钱怎么花的”这类总额去向问题时，优先请求 finance 工具的 spending_breakdown；如果用户提到金额（如 1.4 万），视为用户从记账反馈得到的外部口径，需用工具返回的账单总额、分类金额和明细样例核对差异，不要直接说“无法验证”。
         当用户询问某个具体消费对象、商品、品牌或备注词的趋势/次数/金额（例如咖啡、奶茶、星巴克）时，优先请求 finance 工具的 keyword_trend，并在 parameters.keyword 填入该关键词；不要只用分类集中度或总消费替代。
+
+        健康工具选择规则：
+        - 综合健康状态、身体状态、恢复情况 → health.health_overview。
+        - 步数、走路趋势、日均步数 → health.steps_summary。
+        - 睡眠时长、睡眠趋势、低睡眠 → health.sleep_summary。
+        - 站立小时、久坐、站立达标 → health.stand_summary。
+        - 活动分钟、无 Apple Watch 的活动替代指标 → health.activity_summary。
+        - 运动、锻炼、训练时长和次数 → health.workout_summary。
+
+        其他数据工具选择规则：
+        - 预算剩余、预算使用率、超预算 → finance.budget_status。
+        - 账户数量、资产、负债、净资产 → finance.account_summary。
+        - 观点收敛主题、Topic → thought.topic_summary。
+        - 当前关注、个人档案、沟通偏好、敏感边界 → profile 对应 query。
+        - Holo 上次/近期观察到了什么 → insight.latest_observation 或 recent_observations。
+        - 近期对话意图和会话活跃度 → conversation 对应 query；不要请求历史消息原文。
 
         表达边界：
         - 区分事实、观察、假设和建议。

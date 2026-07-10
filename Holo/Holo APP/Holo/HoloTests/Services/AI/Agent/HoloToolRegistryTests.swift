@@ -63,6 +63,7 @@ struct HoloToolRegistryTests {
         await test注册工具后可按名查找()
         await testPromptDescription包含已注册工具信息()
         await test注册多工具后描述含目标想法任务且按名排序()
+        test生产覆盖契约包含全部用户语义工具()
         print("HoloToolRegistryTests passed")
     }
 
@@ -109,5 +110,16 @@ struct HoloToolRegistryTests {
         expect(financeRange.lowerBound < goalRange.lowerBound, "finance 应排在 goal 前")
         expect(goalRange.lowerBound < taskRange.lowerBound, "goal 应排在 task 前")
         expect(taskRange.lowerBound < thoughtRange.lowerBound, "task 应排在 thought 前")
+    }
+
+    private static func test生产覆盖契约包含全部用户语义工具() {
+        let expected: Set<String> = [
+            "conversation", "finance", "goal", "habit", "health",
+            "insight", "memory", "profile", "task", "thought"
+        ]
+        expect(
+            Set(HoloAgentToolCoverage.requiredToolNames) == expected,
+            "生产工具覆盖契约应包含 10 个用户语义工具"
+        )
     }
 }

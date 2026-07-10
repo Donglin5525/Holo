@@ -26,6 +26,7 @@ struct HoloThoughtToolTests {
     static func main() async throws {
         try await test心情摘要产出分布指标与事件()
         try await test主题摘要产出标签与脱敏摘录()
+        try await testTopic摘要产出收敛主题与标签证据()
         try await test活跃趋势产出每日事件()
         try await test空想法返回empty()
         test不支持查询返回invalid()
@@ -44,14 +45,16 @@ struct HoloThoughtToolTests {
         moodDistribution: [String: Int] = [:],
         topTags: [String] = [],
         snippets: [String] = [],
-        dailyCounts: [String: Int] = [:]
+        dailyCounts: [String: Int] = [:],
+        topics: [HoloThoughtTopicRecord] = []
     ) -> HoloThoughtToolSnapshot {
         HoloThoughtToolSnapshot(
             totalCount: totalCount,
             moodDistribution: moodDistribution,
             topTags: topTags,
             snippets: snippets,
-            dailyCounts: dailyCounts
+            dailyCounts: dailyCounts,
+            topics: topics
         )
     }
 
@@ -97,6 +100,28 @@ struct HoloThoughtToolTests {
         expect(result.status == .success, "thought_activity_trend 应成功，实际 \(result.status)")
         expect(result.metrics.contains { $0.metricKey == "thought.activity.daily_count" && $0.value == 5 }, "单日最大应为 5")
         expect(result.events.count == 2, "应为每天生成一条证据，实际 \(result.events.count)")
+    }
+
+    private static func testTopic摘要产出收敛主题与标签证据() async throws {
+        let snapshot = makeSnapshot(
+            topics: [
+                HoloThoughtTopicRecord(
+                    title: "产品与长期主义",
+                    summary: "围绕产品判断和长期积累",
+                    thoughtCount: 6,
+                    associatedTagNames: ["产品", "长期主义"]
+                )
+            ]
+        )
+        let result = try await HoloThoughtTool(
+            dataSource: MockThoughtDataSource(snapshot: snapshot)
+        ).execute(makeRequest(query: "topic_summary"))
+
+        expect(result.status == .success, "topic_summary 应成功")
+        expect(result.metrics.contains { $0.metricKey == "thought.topic.count" && $0.value == 1 }, "应返回 1 个 Topic")
+        expect(result.events.first?.excerpt.contains("产品与长期主义") == true, "应包含 Topic 标题")
+        expect(result.events.first?.excerpt.contains("产品、长期主义") == true, "应包含关联标签")
+        expect(result.sensitivity == .sensitive, "观点工具结果必须标记 sensitive")
     }
 
     private static func test空想法返回empty() async throws {

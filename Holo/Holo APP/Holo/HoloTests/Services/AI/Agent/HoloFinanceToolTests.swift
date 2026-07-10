@@ -34,6 +34,8 @@ struct HoloFinanceToolTests {
         try await test金额变化证据包含解析后的时间范围()
         try await test本月支出拆解返回分类金额和明细依据()
         try await test关键词趋势读取账单文本命中()
+        try await test预算状态返回总额已用剩余与预警分类()
+        try await test账户摘要返回净资产和账户数量()
         try await test无财务记录返回empty()
         print("HoloFinanceToolTests passed")
     }
@@ -192,6 +194,58 @@ struct HoloFinanceToolTests {
         expect(hasTrafficEvent, "应有分类金额证据")
         expect(hasSampleEvent, "应有可核对明细样例")
         expect(result.events.allSatisfy { $0.timeRange == currentRange }, "所有拆解证据应携带本月时间范围")
+    }
+
+    private static func test预算状态返回总额已用剩余与预警分类() async throws {
+        let record = HoloFinanceToolRecord(
+            nighttimeMealCurrent: 0,
+            nighttimeMealBaseline: 0,
+            categoryCounts: [:],
+            totalCurrentAmount: 0,
+            totalBaselineAmount: 0,
+            budget: HoloFinanceBudgetSnapshot(
+                totalAmount: 10_000,
+                spentAmount: 8_200,
+                remainingAmount: 1_800,
+                progress: 0.82,
+                remainingDays: 7,
+                warningCategoryNames: ["餐饮"]
+            )
+        )
+        let result = try await HoloFinanceTool(
+            dataSource: MockFinanceDataSource(record: record)
+        ).execute(makeRequest(query: "budget_status"))
+
+        expect(result.status == .success, "budget_status 应成功")
+        expect(result.metrics.contains { $0.metricKey == "finance.budget.total" && $0.value == 10_000 }, "应返回预算总额")
+        expect(result.metrics.contains { $0.metricKey == "finance.budget.spent" && $0.value == 8_200 }, "应返回已用预算")
+        expect(result.metrics.contains { $0.metricKey == "finance.budget.remaining" && $0.value == 1_800 }, "应返回剩余预算")
+        expect(result.events.first?.excerpt.contains("餐饮") == true, "应提示预警分类")
+    }
+
+    private static func test账户摘要返回净资产和账户数量() async throws {
+        let record = HoloFinanceToolRecord(
+            nighttimeMealCurrent: 0,
+            nighttimeMealBaseline: 0,
+            categoryCounts: [:],
+            totalCurrentAmount: 0,
+            totalBaselineAmount: 0,
+            account: HoloFinanceAccountSnapshot(
+                activeAccountCount: 3,
+                assets: 50_000,
+                liabilities: 12_000,
+                netWorth: 38_000,
+                defaultAccountName: "日常账户"
+            )
+        )
+        let result = try await HoloFinanceTool(
+            dataSource: MockFinanceDataSource(record: record)
+        ).execute(makeRequest(query: "account_summary"))
+
+        expect(result.status == .success, "account_summary 应成功")
+        expect(result.metrics.contains { $0.metricKey == "finance.account.count" && $0.value == 3 }, "应返回账户数量")
+        expect(result.metrics.contains { $0.metricKey == "finance.account.net_worth" && $0.value == 38_000 }, "应返回净资产")
+        expect(result.events.first?.excerpt.contains("日常账户") == true, "应包含默认账户名称")
     }
 
     /// 无财务记录返回 .empty。

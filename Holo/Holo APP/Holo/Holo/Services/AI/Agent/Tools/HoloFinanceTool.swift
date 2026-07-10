@@ -9,6 +9,23 @@
 
 import Foundation
 
+struct HoloFinanceBudgetSnapshot: Codable, Equatable, Sendable {
+    var totalAmount: Double
+    var spentAmount: Double
+    var remainingAmount: Double
+    var progress: Double
+    var remainingDays: Int
+    var warningCategoryNames: [String]
+}
+
+struct HoloFinanceAccountSnapshot: Codable, Equatable, Sendable {
+    var activeAccountCount: Int
+    var assets: Double
+    var liabilities: Double
+    var netWorth: Double
+    var defaultAccountName: String?
+}
+
 /// FinanceTool 读取的财务快照（中性视图，已按周期聚合）。
 struct HoloFinanceToolRecord: Codable, Equatable, Sendable {
     /// 当前周期晚间餐饮次数。
@@ -43,6 +60,10 @@ struct HoloFinanceToolRecord: Codable, Equatable, Sendable {
     var keywordSampleExcerpts: [String] = []
     /// 当前周期金额最高的脱敏账单样例。
     var topExpenseExcerpts: [String] = []
+    /// 当前月全局预算状态。
+    var budget: HoloFinanceBudgetSnapshot? = nil
+    /// 活跃账户与净资产摘要。
+    var account: HoloFinanceAccountSnapshot? = nil
 }
 
 /// 财务数据源协议：返回 nil 表示无数据。生产实现适配真实 FinanceAnalysisContextBuilder（后续集成）。
@@ -59,8 +80,8 @@ struct HoloFinanceTool: HoloDataTool {
 
     let descriptor = HoloToolDescriptor(
         name: "finance",
-        description: "财务数据分析（本月/指定周期支出拆解 / 消费趋势 / 餐饮时段 / 分类集中度 / 账单文本关键词趋势；用户问钱花哪了、1.4万去哪了、消费结构时优先用 spending_breakdown；keyword_trend 需传 parameters.keyword，如 咖啡、奶茶、星巴克）",
-        supportedQueries: ["spending_breakdown", "spending_pattern", "meal_time_distribution", "category_concentration", "keyword_trend"],
+        description: "财务数据分析（支出拆解 / 趋势 / 关键词 / 预算 / 账户与净资产）",
+        supportedQueries: ["spending_breakdown", "spending_pattern", "meal_time_distribution", "category_concentration", "keyword_trend", "budget_status", "account_summary"],
         supportedTimeRanges: [],
         outputMetrics: [
             "finance.total.amount",
@@ -70,7 +91,15 @@ struct HoloFinanceTool: HoloDataTool {
             "finance.category.concentration",
             "finance.amount.change",
             "finance.keyword.count",
-            "finance.keyword.amount"
+            "finance.keyword.amount",
+            "finance.budget.total",
+            "finance.budget.spent",
+            "finance.budget.remaining",
+            "finance.budget.progress",
+            "finance.account.count",
+            "finance.account.assets",
+            "finance.account.liabilities",
+            "finance.account.net_worth"
         ],
         sensitivityPolicy: "normal"
     )
@@ -82,7 +111,7 @@ struct HoloFinanceTool: HoloDataTool {
     }
 
     func validate(_ request: HoloToolRequest) -> HoloToolValidationResult {
-        let supported: Set<String> = ["spending_breakdown", "spending_pattern", "meal_time_distribution", "category_concentration", "keyword_trend"]
+        let supported = Set(descriptor.supportedQueries)
         guard supported.contains(request.query) else {
             return .invalid(reason: "不支持的查询：\(request.query)")
         }
@@ -111,6 +140,10 @@ struct HoloFinanceTool: HoloDataTool {
             return spendingResult(request: request, record: record)
         case "keyword_trend":
             return keywordTrendResult(request: request, record: record)
+        case "budget_status":
+            return budgetStatusResult(request: request, record: record)
+        case "account_summary":
+            return accountSummaryResult(request: request, record: record)
         default:
             return Self.errorResult(request, reason: "不支持的查询：\(request.query)")
         }
@@ -300,6 +333,46 @@ struct HoloFinanceTool: HoloDataTool {
             ) + sampleText,
             timeRange: record.currentRange ?? request.timeRange,
             baselineTimeRange: record.baselineRange ?? request.baseline
+        )]
+        return Self.successResult(request, metrics: metrics, events: events)
+    }
+
+    private func budgetStatusResult(request: HoloToolRequest, record: HoloFinanceToolRecord) -> HoloDataToolResult {
+        guard let budget = record.budget else { return Self.emptyResult(request) }
+        let warningText = budget.warningCategoryNames.isEmpty
+            ? ""
+            : "；接近或超过预算：\(budget.warningCategoryNames.joined(separator: "、"))"
+        let metrics = [
+            HoloMetric(metricKey: "finance.budget.total", value: budget.totalAmount, unit: "元", baselineValue: nil, comparison: nil),
+            HoloMetric(metricKey: "finance.budget.spent", value: budget.spentAmount, unit: "元", baselineValue: nil, comparison: nil),
+            HoloMetric(metricKey: "finance.budget.remaining", value: budget.remainingAmount, unit: "元", baselineValue: nil, comparison: nil),
+            HoloMetric(metricKey: "finance.budget.progress", value: budget.progress, unit: "比例", baselineValue: nil, comparison: nil)
+        ]
+        let events = [HoloEvidenceEvent(
+            id: "\(request.id)-budget",
+            occurredAt: nil,
+            metricKey: "finance.budget.remaining",
+            metricValue: budget.remainingAmount,
+            excerpt: "本月预算 \(Self.moneyText(budget.totalAmount)) 元，已用 \(Self.moneyText(budget.spentAmount)) 元，剩余 \(Self.moneyText(budget.remainingAmount)) 元，周期剩余 \(budget.remainingDays) 天\(warningText)"
+        )]
+        return Self.successResult(request, metrics: metrics, events: events)
+    }
+
+    private func accountSummaryResult(request: HoloToolRequest, record: HoloFinanceToolRecord) -> HoloDataToolResult {
+        guard let account = record.account else { return Self.emptyResult(request) }
+        let defaultText = account.defaultAccountName.map { "，默认账户：\($0)" } ?? ""
+        let metrics = [
+            HoloMetric(metricKey: "finance.account.count", value: Double(account.activeAccountCount), unit: "个", baselineValue: nil, comparison: nil),
+            HoloMetric(metricKey: "finance.account.assets", value: account.assets, unit: "元", baselineValue: nil, comparison: nil),
+            HoloMetric(metricKey: "finance.account.liabilities", value: account.liabilities, unit: "元", baselineValue: nil, comparison: nil),
+            HoloMetric(metricKey: "finance.account.net_worth", value: account.netWorth, unit: "元", baselineValue: nil, comparison: nil)
+        ]
+        let events = [HoloEvidenceEvent(
+            id: "\(request.id)-account",
+            occurredAt: nil,
+            metricKey: "finance.account.net_worth",
+            metricValue: account.netWorth,
+            excerpt: "活跃账户 \(account.activeAccountCount) 个，资产 \(Self.moneyText(account.assets)) 元，负债 \(Self.moneyText(account.liabilities)) 元，净资产 \(Self.moneyText(account.netWorth)) 元\(defaultText)"
         )]
         return Self.successResult(request, metrics: metrics, events: events)
     }

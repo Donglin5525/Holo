@@ -8,6 +8,26 @@
 
 import Foundation
 
+nonisolated enum HoloAgentToolCoverage {
+    static let requiredToolNames = [
+        "conversation",
+        "finance",
+        "goal",
+        "habit",
+        "health",
+        "insight",
+        "memory",
+        "profile",
+        "task",
+        "thought"
+    ]
+
+    static func missingToolNames(in tools: [HoloDataTool]) -> [String] {
+        let registered = Set(tools.map { $0.descriptor.name })
+        return requiredToolNames.filter { !registered.contains($0) }
+    }
+}
+
 actor HoloToolRegistry {
 
     private var tools: [String: HoloDataTool]

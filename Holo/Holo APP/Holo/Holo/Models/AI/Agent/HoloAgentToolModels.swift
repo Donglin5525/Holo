@@ -83,4 +83,6 @@ nonisolated struct HoloDataToolResult: Codable, Equatable, Sendable {
     var events: [HoloEvidenceEvent]
     var warnings: [HoloToolWarning]
     var error: HoloToolError?
+    /// 可选以兼容旧持久化 JSON；nil 按 normal 处理。
+    var sensitivity: HoloEvidenceSensitivity? = nil
 }

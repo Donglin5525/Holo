@@ -36,6 +36,37 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
         }
         let currentRange = HoloAgentTimeRange(label: timeRange?.label ?? "本期", start: currentStart, end: currentEnd)
         let baselineRange = HoloAgentTimeRange(label: baseline?.label ?? "对比期", start: baselineStart, end: baselineEnd)
+        let financeMetadata = await MainActor.run { () -> (HoloFinanceBudgetSnapshot?, HoloFinanceAccountSnapshot) in
+            let budgetRepository = BudgetRepository.shared
+            let financeRepository = FinanceRepository.shared
+            let globalBudget = budgetRepository.computeGlobalTotalBudgetStatus(period: .month)
+            let warningCategories = budgetRepository
+                .getWarningCategoryBudgets(period: .month)
+                .map(\.categoryName)
+            let accounts = financeRepository.getAccounts(includeArchived: false)
+            let netWorth = financeRepository.getTotalNetWorth()
+            let defaultAccount = financeRepository.getDefaultAccountSync()
+            let budgetSnapshot = globalBudget.map {
+                HoloFinanceBudgetSnapshot(
+                    totalAmount: Self.double($0.totalBudgetAmount),
+                    spentAmount: Self.double($0.totalSpentAmount),
+                    remainingAmount: Self.double($0.totalRemainingAmount),
+                    progress: $0.progress,
+                    remainingDays: $0.remainingDays,
+                    warningCategoryNames: warningCategories
+                )
+            }
+            return (
+                budgetSnapshot,
+                HoloFinanceAccountSnapshot(
+                    activeAccountCount: accounts.count,
+                    assets: Self.double(netWorth.assets),
+                    liabilities: Self.double(netWorth.liabilities),
+                    netWorth: Self.double(netWorth.netWorth),
+                    defaultAccountName: defaultAccount?.name
+                )
+            )
+        }
         let keyword = Self.keyword(from: parameters)
         let currentKeyword = Self.keywordSummary(currentTransactions, keyword: keyword)
         let baselineKeyword = Self.keywordSummary(baselineTransactions, keyword: keyword)
@@ -55,7 +86,9 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
             keywordCurrentAmount: currentKeyword.amount,
             keywordBaselineAmount: baselineKeyword.amount,
             keywordSampleExcerpts: currentKeyword.samples,
-            topExpenseExcerpts: Self.topExpenseSamples(currentTransactions)
+            topExpenseExcerpts: Self.topExpenseSamples(currentTransactions),
+            budget: financeMetadata.0,
+            account: financeMetadata.1
         )
     }
 
@@ -147,5 +180,9 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
         let amount = tx.amount.doubleValue
         let amountText = amount.rounded() == amount ? String(format: "%.0f", amount) : String(format: "%.2f", amount)
         return "\(date) \(category) \(note) -¥\(amountText)"
+    }
+
+    private static func double(_ value: Decimal) -> Double {
+        NSDecimalNumber(decimal: value).doubleValue
     }
 }

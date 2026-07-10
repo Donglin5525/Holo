@@ -629,4 +629,10 @@ test("agent_loop prompt 存在并包含 Agent Loop 核心约束", async () => {
   assert.match(prompt.content, /只输出 JSON/);
   assert.match(prompt.content, /metricAssertions/);
   assert.match(prompt.content, /evidenceIDs/);
+  assert.match(prompt.content, /health_overview/);
+  assert.match(prompt.content, /steps_summary/);
+  assert.match(prompt.content, /sleep_summary/);
+  assert.match(prompt.content, /stand_summary/);
+  assert.match(prompt.content, /activity_summary/);
+  assert.match(prompt.content, /workout_summary/);
 });

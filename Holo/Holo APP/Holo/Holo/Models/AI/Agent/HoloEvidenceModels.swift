@@ -16,6 +16,8 @@ nonisolated enum HoloEvidenceSourceModule: String, Codable, CaseIterable, Sendab
     case health
     case memory
     case profile
+    case conversation
+    case memoryInsight
     case agent
 }
 
