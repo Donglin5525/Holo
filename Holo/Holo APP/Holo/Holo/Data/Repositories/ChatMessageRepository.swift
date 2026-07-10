@@ -871,9 +871,19 @@ final class ChatMessageRepository: ObservableObject {
 
     // MARK: - Orphan Cleanup
 
-    /// 清理所有残留的 isStreaming 消息（app 启动 / 页面进入时调用）
-    /// 这些消息一定是异常残留：app 在 streaming 期间被杀或崩溃
-    func cleanupOrphanedStreamingMessages(preserveMessageIDs: Set<UUID> = []) {
+    /// 孤儿清理宽限期，对齐 Agent normalDeep budget 上限（maxWallTimeSeconds 120s）+ 安全余量。
+    /// 宽限期内即使消息仍 isStreaming 也保留，避免误杀「刚启动、job 尚未落盘」的 Agent 深度分析消息。
+    private static let orphanCleanupGraceInterval: TimeInterval = 180
+
+    /// 清理残留的 isStreaming 消息（app 启动 / 页面进入时调用）。
+    ///
+    /// 这些消息通常是异常残留（app 在 streaming 期间被杀或崩溃）；但刚启动的 Agent 深度分析消息
+    /// 受 `orphanCleanupGraceInterval` 宽限期保护——其 job 在 Coordinator 意图识别（LLM，数秒）后才落盘，
+    /// 此刻 `syncRecoverableChatMessages` 可能读不到关联 job，导致该消息不在 preserve 集合。
+    /// 若立即清理，正在后台跑的 Agent 会被误判为「中断」。宽限期内跳过，留给 job 落盘与 runLoop 推进。
+    ///
+    /// - Parameter now: 当前时间，默认 `Date()`；测试可注入以模拟「近期 / 超期」场景。
+    func cleanupOrphanedStreamingMessages(preserveMessageIDs: Set<UUID> = [], now: Date = Date()) {
         let request = ChatMessage.fetchRequest()
         request.predicate = NSPredicate(format: "isStreaming == YES")
 
@@ -881,10 +891,17 @@ final class ChatMessageRepository: ObservableObject {
             let orphans = try context.fetch(request)
             guard !orphans.isEmpty else { return }
 
-            for message in orphans {
-                if preserveMessageIDs.contains(message.id) {
-                    continue
-                }
+            // 仅清理：未 preserve 且已过宽限期的消息（真孤儿）。
+            let cleanable = orphans.filter { message in
+                !preserveMessageIDs.contains(message.id)
+                && now.timeIntervalSince(message.timestamp) >= Self.orphanCleanupGraceInterval
+            }
+            guard !cleanable.isEmpty else {
+                logger.info("孤儿 streaming 清理：命中 \(orphans.count) 条，均已 preserve 或在宽限期内，跳过")
+                return
+            }
+
+            for message in cleanable {
                 message.isStreaming = false
                 if message.content.isEmpty {
                     message.content = "抱歉，处理时意外中断了"
@@ -892,8 +909,8 @@ final class ChatMessageRepository: ObservableObject {
             }
             save()
 
-            // 同步刷新内存中的 snapshot
-            for orphan in orphans where !preserveMessageIDs.contains(orphan.id) {
+            // 同步刷新内存中的 snapshot（仅实际被清理的消息，避免误碰宽限期内消息）
+            for orphan in cleanable {
                 liveMessageCache[orphan.id] = orphan
                 updateSnapshot(orphan.id) { snapshot in
                     snapshot.isStreaming = false
@@ -903,7 +920,7 @@ final class ChatMessageRepository: ObservableObject {
                 }
             }
 
-            logger.info("已清理 \(orphans.count) 条残留 streaming 消息")
+            logger.info("孤儿 streaming 清理：命中 \(orphans.count) 条，清理 \(cleanable.count)，其余 preserve 或宽限期内保留")
         } catch {
             logger.error("清理残留 streaming 消息失败：\(error.localizedDescription)")
         }

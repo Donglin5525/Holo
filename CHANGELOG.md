@@ -4,6 +4,23 @@
 
 ---
 
+## [2026-07-10] 修复 HoloAI「返回首页再进入」深度分析/查询被误判中断
+
+发送问题后**立马返回首页、再立马进入 HoloAI**，AI 直接显示「抱歉，处理时意外中断了」，但 AI 其实仍在后台正常计算。
+
+### 变更
+- **根因（孤儿清理竞态）**：页面进入时的孤儿 streaming 消息清理（`cleanupOrphanedStreamingMessages`）在 AI 任务结果落盘前就已执行——此时 `syncRecoverableChatMessages` 读不到关联 job，该消息不在 preserve 集合，被当成「App 崩溃残留」清理成中断文案。深度分析 job 在 Coordinator 意图识别（LLM，数秒）后才落盘；商户查询消息则根本不关联 agent job，更易被误杀。
+- **宽限期保护**：给孤儿清理加宽限期（对齐 Agent normalDeep budget 120s + 安全余量 = 180s），近期创建的 streaming 消息即使读不到关联 job 也保留，留给后台 runLoop / 查询执行推进；超期真孤儿（App 崩溃残留）仍正常清理。
+- **顺带修复 snapshot 连带误清**：原内存 snapshot 刷新会连带把宽限期内消息状态清成中断，改为只刷新实际被清理的消息。
+- **可测性**：`cleanupOrphanedStreamingMessages` 新增 `now` 参数（默认 `Date()`），支持注入时间验证近期 / 超期场景。
+- **回归测试**：新增 3 项（近期保留、超期清理、preserve 保护），并显式加入 HoloTests target。
+
+### 验证
+- Holo iOS 模拟器（iPhone 17）完整编译通过
+- 新增 3 项回归测试全部通过，现有 `ChatMessageRepositoryCacheRecoveryTests` 无回归
+
+---
+
 ## [2026-07-09] HoloAI 商户消费查询改为确定性计算
 
 修复「最近一个月吃了多少顿麦当劳，花了多少钱，平均一顿多少钱」这类基础聚合查询被错误包装成生硬深度分析、没有直接回答数字的问题。

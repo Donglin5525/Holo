@@ -15,6 +15,7 @@
 		7D89A2C442C34B9589F5338D /* TransactionDateResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D89A2C342C34B9589F5338D /* TransactionDateResolverTests.swift */; };
 		7D89A2C542C34B9589F5338D /* PromptManagerIntentRecognitionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D89A2C642C34B9589F5338D /* PromptManagerIntentRecognitionTests.swift */; };
 		7D89A2C742C34B9589F5338D /* ChatMessageRepositoryCacheRecoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D89A2C842C34B9589F5338D /* ChatMessageRepositoryCacheRecoveryTests.swift */; };
+		AA680905CE9A01E52DBB3E8D /* ChatMessageRepositoryOrphanCleanupTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76061A59B8135AEFF89E34D6 /* ChatMessageRepositoryOrphanCleanupTests.swift */; };
 		9053444F99F5887B91A43895 /* ChatMessageViewDataAgentResultTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF4F11F07B969D93AD7AFBF2 /* ChatMessageViewDataAgentResultTests.swift */; };
 		93C27F1D375A3F57C2FEBE4B /* MemoryInsightContextBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7B67CA9B85AF3DBA246CB53 /* MemoryInsightContextBuilderTests.swift */; };
 		95619DFF0EBA0EEF490770AA /* ChatCardDataTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95619DFE0EBA0EEF490770AA /* ChatCardDataTests.swift */; };
@@ -82,6 +83,7 @@
 		7D89A2C342C34B9589F5338D /* TransactionDateResolverTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TransactionDateResolverTests.swift; sourceTree = "<group>"; };
 		7D89A2C642C34B9589F5338D /* PromptManagerIntentRecognitionTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = PromptManagerIntentRecognitionTests.swift; sourceTree = "<group>"; };
 		7D89A2C842C34B9589F5338D /* ChatMessageRepositoryCacheRecoveryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ChatMessageRepositoryCacheRecoveryTests.swift; sourceTree = "<group>"; };
+		76061A59B8135AEFF89E34D6 /* ChatMessageRepositoryOrphanCleanupTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ChatMessageRepositoryOrphanCleanupTests.swift; sourceTree = "<group>"; };
 		7E3005AE966FE2E10711137A /* SubtaskParserTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SubtaskParserTests.swift; sourceTree = "<group>"; };
 		8640CCF9881B7E86AB863E88 /* MemoryObserverOutputValidatorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MemoryObserverOutputValidatorTests.swift; sourceTree = "<group>"; };
 		899281F1BCAB5C4D173DDB70 /* HoloMemoryObservationApplierTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloMemoryObservationApplierTests.swift; sourceTree = "<group>"; };
@@ -175,6 +177,7 @@
 				BDD16917F7263898559B2D49 /* UserDisplayNameSettingsTests.swift */,
 				DF4F11F07B969D93AD7AFBF2 /* ChatMessageViewDataAgentResultTests.swift */,
 				7D89A2C842C34B9589F5338D /* ChatMessageRepositoryCacheRecoveryTests.swift */,
+				76061A59B8135AEFF89E34D6 /* ChatMessageRepositoryOrphanCleanupTests.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -471,6 +474,7 @@
 				7D89A2C442C34B9589F5338D /* TransactionDateResolverTests.swift in Sources */,
 				7D89A2C542C34B9589F5338D /* PromptManagerIntentRecognitionTests.swift in Sources */,
 				7D89A2C742C34B9589F5338D /* ChatMessageRepositoryCacheRecoveryTests.swift in Sources */,
+				AA680905CE9A01E52DBB3E8D /* ChatMessageRepositoryOrphanCleanupTests.swift in Sources */,
 				47338B8715C0527F76C6B9BC /* MemoryInsightRefreshQuotaTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
