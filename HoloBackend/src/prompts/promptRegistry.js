@@ -6,7 +6,7 @@ import * as Diff from "diff";
 
 const PROMPT_VERSIONS = {
   system_prompt: 2,
-  intent_recognition: 22,
+  intent_recognition: 23,
   memory_insight_generation: 6,
   analysis_prompt: 3,
   annual_review: 1,
@@ -19,8 +19,8 @@ const PROMPT_VERSIONS = {
 const PROMPT_CONTRACT_APPENDICES = {
   intent_recognition: `
 
-[HOLO_QUERY_AGGREGATE_V22]
-平均每笔/每次/每顿及同批次数/总额→flexible_data_query；平均每天/每周、趋势/结构→query_analysis。“吃了多少吨麦当劳”同“平均一顿”按顿。例：“最近一个月吃了多少顿麦当劳，花了多少钱，平均一顿多少钱”→flexible_data_query，保留麦当劳/最近一个月。`,
+[HOLO_QUERY_AGGREGATE_V23]
+“最近一个月吃了多少顿麦当劳，花了多少钱，平均一顿多少钱”及同批次数/总额/平均每笔/每次/每顿→flexible_data_query；“吨”按顿。必须输出 single_action，items 仅 1 项，保留 categoryCandidate/periodLabel；不要拆成 multi_action。`,
   flexible_query_planner: `
 
 [HOLO_QUERY_AGGREGATE_PLANNER_V4]

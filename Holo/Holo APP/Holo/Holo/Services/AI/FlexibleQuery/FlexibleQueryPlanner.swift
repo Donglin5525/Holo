@@ -72,7 +72,7 @@ nonisolated enum MerchantAggregatePlanResolver {
     }
 
     private static func merchantName(from extractedData: [String: String]?) -> String? {
-        let keys = ["categoryHint", "merchant", "keyword"]
+        let keys = ["categoryHint", "categoryCandidate", "merchant", "keyword"]
         let genericValues: Set<String> = ["餐饮", "消费", "支出", "快餐"]
 
         for key in keys {

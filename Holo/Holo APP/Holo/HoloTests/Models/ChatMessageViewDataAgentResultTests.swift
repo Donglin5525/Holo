@@ -212,7 +212,7 @@ final class ChatMessageViewDataAgentResultTests: XCTestCase {
             userQuestion: "最近一个月吃了多少吨麦当劳，花了多少钱，平均一顿多少钱",
             extractedData: [
                 "queryGoal": "最近一个月麦当劳的消费次数、总花费和平均每顿花费",
-                "categoryHint": "麦当劳",
+                "categoryCandidate": "麦当劳",
                 "periodLabel": "最近一个月"
             ],
             now: now,

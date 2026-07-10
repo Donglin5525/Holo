@@ -116,7 +116,7 @@ final class PromptManager {
     /// 需要版本管理的 prompt 类型及其最低版本
     private static let promptVersions: [PromptType: Int] = [
         .systemPrompt: 2,               // v2: Sense Loop 表达边界与档案优先级
-        .intentRecognition: 22,         // v22: 每笔/每次/每顿均价归入确定性查询
+        .intentRecognition: 23,         // v23: 同批聚合禁止拆成 multi_action
         .memoryInsightGeneration: 7,    // v7: Sense Loop 表达边界、偏好摘要与表达强度
         .analysisPrompt: 3,             // v3: Sense Loop 表达边界与档案优先级
         .annualReview: 1,               // v1: 初始版本
@@ -430,6 +430,7 @@ final class PromptManager {
 
         规则：
         - 单动作→single_action，多动作→multi_action，纯查询→query，查询+执行混合→clarification，无法识别→unknown。
+        - 同一批账单的次数、总额和平均每笔/每次/每顿金额是一个 flexible_data_query，必须输出 single_action 且 items 只有一项；不要拆成 multi_action。
         - note 是交易名称，保留具体对象/关系/场景，不要只写分类；如"给爷爷买了两百块的彩票"→note:"给爷爷买彩票"。
         - categoryCandidate 始终填用户原始语义。normalizedCategoryCandidate 用常识归一品牌/口语，不确定留空。不要编造分类。semanticCategoryHint 填一级分类（餐饮、交通、购物、娱乐、居住、医疗、学习、人情、其他）。品牌消费必填，如"麦当劳"→"餐饮"，"优衣库"→"购物"。
         - title 去掉"提醒我""帮我"等套话。日期：今天=当天，昨天=交易日-1，明天=+1。时间映射：凌晨=00-05，早上/上午=09:00，中午=12:00，下午=15:00，晚上/傍晚=20:00。
@@ -447,7 +448,7 @@ final class PromptManager {
         - "麦当劳35" → intent: "record_expense", extractedData: { amount: "35", note: "麦当劳", categoryCandidate: "麦当劳", normalizedCategoryCandidate: "快餐", semanticCategoryHint: "餐饮" }
         - "给爷爷买了两百块的彩票" → intent: "record_expense", extractedData: { amount: "200", note: "给爷爷买彩票", categoryCandidate: "给爷爷买彩票", semanticCategoryHint: "人情" }
         - "今年收入是多少" → intent: "flexible_data_query", extractedData: { queryGoal: "今年收入总额" }
-        - "最近一个月吃了多少顿麦当劳，花了多少钱，平均一顿多少钱" → intent: "flexible_data_query", extractedData: { queryDomain: "finance", queryGoal: "统计麦当劳消费次数、总额、平均每顿金额", rawConstraints: "最近一个月, 麦当劳, 支出" }
+        - "最近一个月吃了多少顿麦当劳，花了多少钱，平均一顿多少钱" → mode: "single_action", items: [{ intent: "flexible_data_query", extractedData: { queryDomain: "finance", queryGoal: "统计麦当劳消费次数、总额、平均每顿金额", categoryCandidate: "麦当劳", periodLabel: "最近一个月", rawConstraints: "最近一个月, 麦当劳, 支出" }]
         - "帮我分析一下最近的花销" → intent: "query_analysis", extractedData: { analysisDomain: "finance", periodLabel: "最近" }
         - "买烟的频率怎么样" → intent: "query_analysis", extractedData: { analysisDomain: "finance", periodLabel: "最近" }
         - "平均一天抽烟花多少钱" → intent: "query_analysis", extractedData: { analysisDomain: "finance", periodLabel: "最近" }
