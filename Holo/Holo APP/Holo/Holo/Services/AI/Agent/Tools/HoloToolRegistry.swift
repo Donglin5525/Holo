@@ -21,10 +21,20 @@ nonisolated enum HoloAgentToolCoverage {
         "task",
         "thought"
     ]
+    static let requiredDynamicDatasets: Set<String> = [
+        "conversation.metadata", "finance.transactions", "goal.progress.daily",
+        "habit.daily", "health.steps", "health.sleep", "health.stand", "health.activity",
+        "insight.records", "memory.entries", "profile.items", "task.daily", "thought.daily"
+    ]
 
     static func missingToolNames(in tools: [HoloDataTool]) -> [String] {
         let registered = Set(tools.map { $0.descriptor.name })
         return requiredToolNames.filter { !registered.contains($0) }
+    }
+
+    static func missingDynamicDatasets(in tools: [HoloDataTool]) -> [String] {
+        let registered = Set(tools.flatMap { $0.descriptor.dynamicCatalog?.datasets.map(\.name) ?? [] })
+        return requiredDynamicDatasets.subtracting(registered).sorted()
     }
 }
 

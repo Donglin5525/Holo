@@ -306,7 +306,7 @@ final class ChatViewModel: ObservableObject {
                     self.streamingWatchdogTask = nil
                     self.chatRepo?.setAnalysisLoadingState(
                         aiMessageId,
-                        intent: "query_analysis",
+                        intent: processResult.firstIntent?.rawValue ?? "query_analysis",
                         analysisContext: nil
                     )
                     let initialStatus = HoloAgentChatStatus(

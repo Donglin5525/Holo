@@ -5,6 +5,19 @@ struct MockCrossDomainDataSource: HoloCrossDomainDataSource {
     func rows(source: String, timeRange: HoloAgentTimeRange?) async -> [HoloQueryRow] { values[source] ?? [] }
 }
 
+struct MockDynamicRowDataSource: HoloDynamicRowDataSource {
+    var values: [String: [HoloQueryRow]]
+    func rows(source: String, timeRange: HoloAgentTimeRange?) async -> [HoloQueryRow] { values[source] ?? [] }
+}
+
+struct MockDecoratedTool: HoloDataTool {
+    let descriptor = HoloToolDescriptor(name: "thought", description: "mock", supportedQueries: ["fixed"], supportedTimeRanges: [], outputMetrics: [], sensitivityPolicy: "sensitive")
+    func validate(_ request: HoloToolRequest) -> HoloToolValidationResult { request.query == "fixed" ? .valid : .invalid(reason: "unsupported") }
+    func execute(_ request: HoloToolRequest) async throws -> HoloDataToolResult {
+        HoloDataToolResult(toolRequestID: request.id, tool: request.tool, status: .success, coverage: nil, metrics: [], events: [], warnings: [], error: nil)
+    }
+}
+
 @main
 struct HoloCrossDomainToolTests {
     static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -12,13 +25,33 @@ struct HoloCrossDomainToolTests {
     }
 
     static func main() async throws {
+        HoloAgentDynamicQueryFlags.enabled = true
         try await test健康与财务按日对齐后计算相关系数()
         try await test健康与习惯只表达分组差异不表达因果()
         try await test任务与习惯支持受控关联()
         try await test目标与任务支持受控关联()
         test非法字段和未授权组合会被拒绝()
+        try await test装饰器为原工具增加动态计算且保留固定查询()
         try await test对齐天数不足返回明确空结果()
         print("HoloCrossDomainToolTests passed")
+    }
+
+    static func test装饰器为原工具增加动态计算且保留固定查询() async throws {
+        let rows = (1...3).map { row("thought-\($0)", day: $0, value: Double($0)) }
+        let tool = HoloDynamicToolDecorator(
+            base: MockDecoratedTool(), catalog: HoloAgentDynamicCatalogs.thought,
+            dataSource: MockDynamicRowDataSource(values: ["thought.daily": rows])
+        )
+        let plan = HoloDynamicQueryPlan(
+            source: "thought.daily",
+            aggregations: [HoloDynamicAggregation(id: "thought_sum", operation: .sum, field: "value", unit: "条")]
+        )
+        let dynamicRequest = HoloToolRequest(id: "dynamic-1", tool: "thought", query: "dynamic_query", timeRange: nil, baseline: nil, requiredMetrics: [], parameters: [:], dynamicPlan: plan)
+        let result = try await tool.execute(dynamicRequest)
+        expect(result.metrics.first?.value == 6, "装饰器应使用统一引擎确定性计算")
+        expect(tool.descriptor.dynamicCatalog?.schema(named: "thought.daily") != nil, "装饰器必须向模型暴露字段目录")
+        let fixed = HoloToolRequest(id: "fixed-1", tool: "thought", query: "fixed", timeRange: nil, baseline: nil, requiredMetrics: [], parameters: [:])
+        expect(tool.validate(fixed) == .valid, "固定 query 必须继续兼容")
     }
 
     static func row(_ id: String, day: Int, value: Double, textField: (String, String)? = nil) -> HoloQueryRow {

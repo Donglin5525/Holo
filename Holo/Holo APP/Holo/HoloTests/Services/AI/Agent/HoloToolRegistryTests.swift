@@ -33,14 +33,15 @@ struct MockRegistryTool: HoloDataTool {
 struct RegistryTestTool: HoloDataTool {
     let descriptor: HoloToolDescriptor
 
-    init(name: String) {
+    init(name: String, catalog: HoloDataCatalog? = nil) {
         descriptor = HoloToolDescriptor(
             name: name,
             description: "\(name) 工具",
-            supportedQueries: [],
+            supportedQueries: catalog == nil ? [] : ["dynamic_query"],
             supportedTimeRanges: [],
             outputMetrics: [],
-            sensitivityPolicy: "normal"
+            sensitivityPolicy: "normal",
+            dynamicCatalog: catalog
         )
     }
 
@@ -63,7 +64,9 @@ struct HoloToolRegistryTests {
         await test注册工具后可按名查找()
         await testPromptDescription包含已注册工具信息()
         await test注册多工具后描述含目标想法任务且按名排序()
+        await testPromptDescription公开动态字段目录()
         test生产覆盖契约包含全部用户语义工具()
+        test动态目录覆盖全部用户数据域()
         print("HoloToolRegistryTests passed")
     }
 
@@ -112,6 +115,16 @@ struct HoloToolRegistryTests {
         expect(taskRange.lowerBound < thoughtRange.lowerBound, "task 应排在 thought 前")
     }
 
+    private static func testPromptDescription公开动态字段目录() async {
+        HoloAgentDynamicQueryFlags.enabled = true
+        let registry = HoloToolRegistry()
+        await registry.register(RegistryTestTool(name: "thought", catalog: HoloAgentDynamicCatalogs.thought))
+        let description = await registry.promptDescription()
+        expect(description.contains("dynamic_query"), "动态工具描述必须公开统一 query")
+        expect(description.contains("thought.daily"), "动态工具描述必须公开数据集")
+        expect(description.contains("value:number[条]"), "动态工具描述必须公开字段类型和单位")
+    }
+
     private static func test生产覆盖契约包含全部用户语义工具() {
         let expected: Set<String> = [
             "conversation", "finance", "goal", "habit", "health",
@@ -121,5 +134,13 @@ struct HoloToolRegistryTests {
             Set(HoloAgentToolCoverage.requiredToolNames) == expected,
             "生产工具覆盖契约应包含 10 个用户语义工具"
         )
+    }
+
+    private static func test动态目录覆盖全部用户数据域() {
+        let domains = Set(HoloAgentToolCoverage.requiredDynamicDatasets.map { $0.split(separator: ".").first.map(String.init) ?? "" })
+        let expected: Set<String> = ["conversation", "finance", "goal", "habit", "health", "insight", "memory", "profile", "task", "thought"]
+        expect(domains == expected, "动态目录覆盖契约必须覆盖全部 10 个用户数据域")
+        expect(HoloAgentToolCoverage.requiredDynamicDatasets.contains("health.sleep"), "健康睡眠必须进入动态目录")
+        expect(HoloAgentToolCoverage.requiredDynamicDatasets.contains("conversation.metadata"), "对话只允许受控元数据目录")
     }
 }

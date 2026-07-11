@@ -9,7 +9,7 @@
 
 import Foundation
 
-struct HoloDefaultCrossDomainDataSource: HoloCrossDomainDataSource {
+struct HoloDefaultCrossDomainDataSource: HoloCrossDomainDataSource, HoloDynamicRowDataSource {
     func rows(source: String, timeRange: HoloAgentTimeRange?) async -> [HoloQueryRow] {
         let healthKind: HoloHealthMetricKind? = switch source {
         case "health.steps": .steps
@@ -62,7 +62,85 @@ struct HoloDefaultCrossDomainDataSource: HoloCrossDomainDataSource {
         if source == "goal.progress.daily" {
             return await Self.goalProgressRows(timeRange: timeRange)
         }
+        if source == "thought.daily" {
+            let snapshot = await HoloDefaultThoughtDataSource().snapshot(timeRange: timeRange)
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.dateFormat = "yyyy-MM-dd"
+            return snapshot.dailyCounts.compactMap { key, count in
+                guard let date = formatter.date(from: key) else { return nil }
+                return HoloQueryRow(
+                    id: "thought-day-\(key)", occurredAt: date,
+                    fields: ["date": .date(date), "value": .number(Double(count))],
+                    excerpt: "想法 \(count) 条"
+                )
+            }
+        }
+        if source == "memory.entries" {
+            let dataSource = await MainActor.run { HoloDefaultMemoryDataSource() }
+            let longTerm = await dataSource.longTermConfirmed().map { ($0, "longTerm") }
+            let episodic = await dataSource.episodicActive().map { ($0, "episodic") }
+            return (longTerm + episodic).compactMap { record, kind in
+                guard let date = record.occurredAt, Self.contains(date, in: timeRange) else { return nil }
+                return HoloQueryRow(
+                    id: record.id, occurredAt: date,
+                    fields: ["date": .date(date), "kind": .text(kind), "title": .text(record.title), "summary": .text(record.summary), "value": .number(1)],
+                    excerpt: "\(record.title)：\(record.summary)"
+                )
+            }
+        }
+        if source == "insight.records" {
+            return await HoloDefaultInsightDataSource().recentInsights(limit: 50).compactMap { record in
+                guard Self.contains(record.generatedAt, in: timeRange) else { return nil }
+                return HoloQueryRow(
+                    id: record.id.uuidString, occurredAt: record.generatedAt,
+                    fields: [
+                        "date": .date(record.generatedAt), "periodType": .text(record.periodType), "status": .text(record.status),
+                        "title": .text(record.title), "summary": .text(record.summary), "value": .number(1)
+                    ],
+                    excerpt: "\(record.title)：\(record.summary)"
+                )
+            }
+        }
+        if source == "profile.items" {
+            guard let profile = await HoloDefaultProfileDataSource().snapshot() else { return [] }
+            let now = Date()
+            let optionalItems: [(String, String?)] = [
+                ("preferredName", profile.preferredName), ("language", profile.language), ("timezone", profile.timezone),
+                ("city", profile.city), ("profession", profile.profession)
+            ]
+            var items: [(String, String)] = optionalItems.compactMap { key, value in value.map { (key, $0) } }
+            items += profile.communicationStyle.map { ("communicationStyle", $0) }
+            items += profile.currentFocus.map { ("currentFocus", $0) }
+            items += profile.lifeContext.map { ("lifeContext", $0) }
+            items += profile.healthHabitContext.map { ("healthHabitContext", $0) }
+            items += profile.sensitiveBoundaries.map { ("sensitiveBoundary", $0) }
+            return items.enumerated().map { index, item in
+                HoloQueryRow(
+                    id: "profile-\(item.0)-\(index)", occurredAt: now,
+                    fields: ["date": .date(now), "category": .text(item.0), "valueText": .text(item.1), "value": .number(1)],
+                    excerpt: "\(item.0)：\(item.1)"
+                )
+            }
+        }
+        if source == "conversation.metadata" {
+            return await HoloDefaultConversationDataSource().recentRecords(limit: 200).compactMap { record in
+                guard Self.contains(record.timestamp, in: timeRange) else { return nil }
+                return HoloQueryRow(
+                    id: "conversation-\(Int(record.timestamp.timeIntervalSince1970))-\(record.role)", occurredAt: record.timestamp,
+                    fields: ["date": .date(record.timestamp), "role": .text(record.role), "intent": .text(record.intent ?? "unknown"), "value": .number(1)],
+                    excerpt: "\(record.role) · \(record.intent ?? "unknown")"
+                )
+            }
+        }
         return []
+    }
+
+    private static func contains(_ date: Date, in range: HoloAgentTimeRange?) -> Bool {
+        guard let range else { return true }
+        if let start = range.start, date < start { return false }
+        if let end = range.end, date >= end { return false }
+        return true
     }
 
     private static func taskRows(timeRange: HoloAgentTimeRange?) async -> [HoloQueryRow] {
@@ -157,22 +235,27 @@ extension HoloLocalAgentRuntime {
         )
         let provider = HoloBackendAIProvider(baseURL: HoloBackendEnvironment.baseURL)
         let llmClient = HoloAgentLLMClient(provider: provider)
+        let dynamicDataSource = HoloDefaultCrossDomainDataSource()
         let productionTools: [HoloDataTool] = [
-            HoloMemoryTool(dataSource: HoloDefaultMemoryDataSource()),
-            HoloHabitTool(dataSource: HoloDefaultHabitDataSource()),
+            HoloDynamicToolDecorator(base: HoloMemoryTool(dataSource: HoloDefaultMemoryDataSource()), catalog: HoloAgentDynamicCatalogs.memory, dataSource: dynamicDataSource),
+            HoloDynamicToolDecorator(base: HoloHabitTool(dataSource: HoloDefaultHabitDataSource()), catalog: HoloAgentDynamicCatalogs.habit, dataSource: dynamicDataSource),
             HoloHealthTool(dataSource: HoloDefaultHealthDataSource()),
             HoloFinanceTool(dataSource: HoloDefaultFinanceDataSource()),
-            HoloGoalTool(dataSource: HoloDefaultGoalDataSource()),
-            HoloThoughtTool(dataSource: HoloDefaultThoughtDataSource()),
-            HoloTaskTool(dataSource: HoloDefaultTaskDataSource()),
-            HoloProfileTool(dataSource: HoloDefaultProfileDataSource()),
-            HoloConversationTool(dataSource: HoloDefaultConversationDataSource()),
-            HoloInsightTool(dataSource: HoloDefaultInsightDataSource()),
-            HoloCrossDomainTool(dataSource: HoloDefaultCrossDomainDataSource())
+            HoloDynamicToolDecorator(base: HoloGoalTool(dataSource: HoloDefaultGoalDataSource()), catalog: HoloAgentDynamicCatalogs.goal, dataSource: dynamicDataSource),
+            HoloDynamicToolDecorator(base: HoloThoughtTool(dataSource: HoloDefaultThoughtDataSource()), catalog: HoloAgentDynamicCatalogs.thought, dataSource: dynamicDataSource),
+            HoloDynamicToolDecorator(base: HoloTaskTool(dataSource: HoloDefaultTaskDataSource()), catalog: HoloAgentDynamicCatalogs.task, dataSource: dynamicDataSource),
+            HoloDynamicToolDecorator(base: HoloProfileTool(dataSource: HoloDefaultProfileDataSource()), catalog: HoloAgentDynamicCatalogs.profile, dataSource: dynamicDataSource),
+            HoloDynamicToolDecorator(base: HoloConversationTool(dataSource: HoloDefaultConversationDataSource()), catalog: HoloAgentDynamicCatalogs.conversation, dataSource: dynamicDataSource),
+            HoloDynamicToolDecorator(base: HoloInsightTool(dataSource: HoloDefaultInsightDataSource()), catalog: HoloAgentDynamicCatalogs.insight, dataSource: dynamicDataSource),
+            HoloCrossDomainTool(dataSource: dynamicDataSource)
         ]
         assert(
             HoloAgentToolCoverage.missingToolNames(in: productionTools).isEmpty,
             "生产 Agent 工具注册不完整"
+        )
+        assert(
+            HoloAgentToolCoverage.missingDynamicDatasets(in: productionTools).isEmpty,
+            "生产 Agent 动态数据目录注册不完整"
         )
         let registry = HoloToolRegistry(tools: productionTools)
         let toolExecutor = HoloToolExecutor(registry: registry)

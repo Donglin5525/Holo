@@ -21,7 +21,7 @@ struct ConversationProcessResult {
     let analysisContext: AnalysisContext?
     /// 灵活查询结构化结果，供 ChatViewModel 渲染
     let flexibleQueryResult: FlexibleQueryResult?
-    /// 命中本地深度 Agent 分流（query_analysis + agentRuntimeEnabled 开）。默认 false。
+    /// 命中本地 Agent 统一查询入口（query_analysis / flexible_data_query）。默认 false。
     var shouldRouteToAgent: Bool = false
     /// 意图识别 LLM 调用日志
     var intentCallLog: LLMCallLog?
@@ -40,7 +40,7 @@ final class ConversationCoordinator {
     }
 
     /// 是否应把该 intent 路由到本地深度 Agent（灰度，agentRuntimeEnabled flag 保护）。
-    /// 仅 query_analysis 类分析意图、且非记账/打卡等执行动作才进 Agent。
+    /// 分析与确定性数据查询统一进入 Agent；动态开关关闭时 flexible query 回退旧路径。
     static func shouldRouteToDeepAgent(intent: String) -> Bool {
         guard HoloAIFeatureFlags.agentRuntimeEnabled else { return false }
         let executionIntents: Set<String> = [
@@ -48,7 +48,8 @@ final class ConversationCoordinator {
             "update_task", "delete_task", "check_in"
         ]
         guard !executionIntents.contains(intent) else { return false }
-        return intent == "query_analysis"
+        if intent == "query_analysis" { return true }
+        return intent == "flexible_data_query" && HoloAgentDynamicQueryFlags.enabled
     }
 
     // MARK: - Main Entry
@@ -93,7 +94,7 @@ final class ConversationCoordinator {
             )
         }
 
-        // 深度 Agent 分流（灰度，agentRuntimeEnabled 把关）：query_analysis 命中 → 走本地 Agent
+        // Agent 统一查询入口：动态开启时 query_analysis / flexible_data_query 都走本地 Agent。
         if let firstIntent = parseBatch.first?.intent,
            Self.shouldRouteToDeepAgent(intent: firstIntent.rawValue) {
             return ConversationProcessResult(

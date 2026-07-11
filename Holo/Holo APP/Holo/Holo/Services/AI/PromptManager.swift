@@ -126,7 +126,7 @@ final class PromptManager {
         .financeActionParser: 1,        // v1: 分期记账参数解析
         .taskActionParser: 1,           // v1: 重复任务参数解析
         .thoughtOrganization: 2,        // v2: 优先复用用户认可标签（全量进 prompt），简化输出
-        .agentLoop: 7,                  // v7: 补齐任务×习惯、目标×任务受控跨域计算
+        .agentLoop: 8,                  // v8: 全域动态目录 + 统一查询入口
         .thoughtTagConvergence: 1,      // v1: 观点跨主题归并收敛（P2）
         .healthInsightGeneration: 2     // v2: 多域生活闭环（待办/习惯/观点/运动证据）+ 观点措辞规避
     ]
@@ -351,7 +351,7 @@ final class PromptManager {
         当用户询问某个具体消费对象、商品、品牌或备注词的趋势/次数/金额（例如咖啡、奶茶、星巴克）时，优先请求 finance 工具的 keyword_trend，并在 parameters.keyword 填入该关键词；不要只用分类集中度或总消费替代。
 
         动态查询规则：
-        - 财务和健康的长尾计算优先使用 query="dynamic_query"，并根据工具目录填写 dynamicPlan；常见固定问题仍可使用快捷 query。
+        - 所有数据域的长尾计算优先使用对应领域工具的 query="dynamic_query"，并根据工具目录填写 dynamicPlan；常见固定问题仍可使用快捷 query 作为降级。
         - dynamicPlan 只能引用工具目录中已声明的数据集和字段，禁止生成 SQL、代码、正则或自由表达式。
         - dynamicPlan 完整字段：source、timeRange、baseline、filters、groupBy、aggregations、derivations、sort、limit、evidenceLimit。
         - filter.operation 仅允许 equal/notEqual/greaterThan/greaterThanOrEqual/lessThan/lessThanOrEqual/contains/oneOf。
@@ -359,6 +359,8 @@ final class PromptManager {
         - filter.value 使用带类型对象，例如数字 6 写成 {"type":"number","number":6}，文本写成 {"type":"text","text":"麦当劳"}。
         - 平均睡眠示例：{"source":"health.sleep","filters":[],"groupBy":[],"aggregations":[{"id":"average_sleep","operation":"average","field":"value","unit":"小时","filters":[]}],"derivations":[],"sort":null,"limit":20,"evidenceLimit":20}。
         - 查询计划被工具以 INVALID_PARAMS 拒绝时，最多修正一次；不要改用模型心算。
+        - 可动态查询的数据域包括 finance、health、habit、task、goal、thought、memory、insight、profile、conversation；不得请求目录外字段。
+        - conversation 仅提供 role、intent、timestamp 等受控元数据，绝不能请求历史消息原文。
         - 用户明确询问两个领域的关联或条件差异时，使用 cross_domain.aligned_analysis，并填写 crossDomainPlan。
         - crossDomainPlan 只允许 health×finance、health×habit、task×habit、goal×task；数据集名称和字段必须来自 cross_domain 工具目录。
         - task.daily.value 表示每日完成任务数，goal.progress.daily.value 表示活跃目标关联任务的累计完成进度；operation 只允许 correlation、conditionalAverage、groupComparison，默认至少对齐 5 天。

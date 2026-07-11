@@ -13,11 +13,7 @@ nonisolated enum HoloAgentDynamicQueryFlags {
     static var enabled: Bool {
         get {
             if let stored = UserDefaults.standard.object(forKey: key) as? Bool { return stored }
-#if DEBUG
             return true
-#else
-            return false
-#endif
         }
         set { UserDefaults.standard.set(newValue, forKey: key) }
     }
@@ -169,6 +165,112 @@ nonisolated struct HoloCrossDomainQueryPlan: Codable, Equatable, Sendable {
 
 nonisolated protocol HoloCrossDomainDataSource: Sendable {
     func rows(source: String, timeRange: HoloAgentTimeRange?) async -> [HoloQueryRow]
+}
+
+nonisolated protocol HoloDynamicRowDataSource: Sendable {
+    func rows(source: String, timeRange: HoloAgentTimeRange?) async -> [HoloQueryRow]
+}
+
+/// 保留原工具名称与权限边界，只为其增加统一 dynamic_query 能力。
+nonisolated struct HoloDynamicToolDecorator: HoloDataTool {
+    let descriptor: HoloToolDescriptor
+    private let base: any HoloDataTool
+    private let catalog: HoloDataCatalog
+    private let dataSource: any HoloDynamicRowDataSource
+
+    init(base: any HoloDataTool, catalog: HoloDataCatalog, dataSource: any HoloDynamicRowDataSource) {
+        self.base = base
+        self.catalog = catalog
+        self.dataSource = dataSource
+        var descriptor = base.descriptor
+        if !descriptor.supportedQueries.contains("dynamic_query") { descriptor.supportedQueries.append("dynamic_query") }
+        descriptor.dynamicCatalog = catalog
+        self.descriptor = descriptor
+    }
+
+    func validate(_ request: HoloToolRequest) -> HoloToolValidationResult {
+        guard request.query == "dynamic_query" else { return base.validate(request) }
+        guard HoloAgentDynamicQueryFlags.enabled else { return .invalid(reason: "动态查询尚未开启") }
+        guard let plan = request.dynamicPlan else { return .invalid(reason: "dynamic_query 缺少 dynamicPlan") }
+        do {
+            try HoloDynamicQueryValidator.validate(plan, catalog: catalog)
+            return .valid
+        } catch {
+            return .invalid(reason: error.localizedDescription)
+        }
+    }
+
+    func execute(_ request: HoloToolRequest) async throws -> HoloDataToolResult {
+        guard request.query == "dynamic_query", var plan = request.dynamicPlan else {
+            return try await base.execute(request)
+        }
+        guard case .valid = validate(request) else {
+            return HoloDataToolResult(
+                toolRequestID: request.id, tool: request.tool, status: .error,
+                coverage: nil, metrics: [], events: [], warnings: [],
+                error: HoloToolError(code: HoloToolErrorCode.invalidParams, message: "动态查询计划无效", recoverable: true)
+            )
+        }
+        plan.timeRange = plan.timeRange ?? request.timeRange
+        plan.baseline = plan.baseline
+            ?? request.baseline
+            ?? HoloDynamicQueryRangeResolver.baselineIfNeeded(for: plan, currentRange: plan.timeRange)
+        let currentRows = await dataSource.rows(source: plan.source, timeRange: plan.timeRange)
+        let baselineRows = await dataSource.rows(source: plan.source, timeRange: plan.baseline)
+        do {
+            let output = try HoloDynamicQueryEngine.execute(
+                plan: plan, catalog: catalog, currentRows: currentRows, baselineRows: baselineRows
+            )
+            let sensitivity = catalog.schema(named: plan.source)?.sensitivity ?? .normal
+            return HoloDataToolResult(
+                toolRequestID: request.id, tool: request.tool,
+                status: output.metrics.isEmpty ? .empty : .success,
+                coverage: output.coverage, metrics: output.metrics, events: output.events,
+                warnings: output.metrics.isEmpty ? [HoloToolWarning(code: "NO_DYNAMIC_DATA", message: "该范围没有可计算数据")] : [],
+                error: nil, sensitivity: sensitivity
+            )
+        } catch {
+            return HoloDataToolResult(
+                toolRequestID: request.id, tool: request.tool, status: .error,
+                coverage: nil, metrics: [], events: [], warnings: [],
+                error: HoloToolError(code: HoloToolErrorCode.invalidParams, message: error.localizedDescription, recoverable: true)
+            )
+        }
+    }
+}
+
+nonisolated enum HoloAgentDynamicCatalogs {
+    private static func field(_ name: String, _ type: HoloDataFieldType, _ unit: String? = nil, filterable: Bool = true, groupable: Bool = true, aggregatable: Bool = false, _ description: String) -> HoloDataField {
+        HoloDataField(name: name, type: type, unit: unit, filterable: filterable, groupable: groupable, aggregatable: aggregatable, description: description)
+    }
+    private static func schema(_ name: String, domain: String, description: String, fields: [HoloDataField], sensitivity: HoloEvidenceSensitivity = .normal, maximumRangeDays: Int = 366) -> HoloDataCatalog {
+        HoloDataCatalog(datasets: [HoloDataSetSchema(name: name, domain: domain, description: description, timeField: "date", fields: fields, sensitivity: sensitivity, maximumRangeDays: maximumRangeDays)])
+    }
+
+    static let habit = HoloDataCatalog(datasets: [HoloCrossDomainTool.habitSchema])
+    static let task = HoloDataCatalog(datasets: [HoloCrossDomainTool.taskSchema])
+    static let goal = HoloDataCatalog(datasets: [HoloCrossDomainTool.goalSchema])
+    static let thought = schema("thought.daily", domain: "thought", description: "每日想法记录数", fields: [
+        field("date", .date, nil, "日期"), field("value", .number, "条", groupable: false, aggregatable: true, "每日想法数")
+    ], sensitivity: .sensitive)
+    static let memory = schema("memory.entries", domain: "memory", description: "受控记忆条目", fields: [
+        field("date", .date, nil, "记忆日期"), field("kind", .text, nil, "longTerm 或 episodic"),
+        field("title", .text, nil, groupable: false, "标题"), field("summary", .text, nil, groupable: false, "摘要"),
+        field("value", .number, "条", filterable: false, groupable: false, aggregatable: true, "条目计数")
+    ], sensitivity: .sensitive)
+    static let insight = schema("insight.records", domain: "insight", description: "历史观察摘要", fields: [
+        field("date", .date, nil, "生成日期"), field("periodType", .text, nil, "周期类型"), field("status", .text, nil, "状态"),
+        field("title", .text, nil, groupable: false, "标题"), field("summary", .text, nil, groupable: false, "摘要"),
+        field("value", .number, "条", filterable: false, groupable: false, aggregatable: true, "观察计数")
+    ], sensitivity: .sensitive)
+    static let profile = schema("profile.items", domain: "profile", description: "用户主动档案字段", fields: [
+        field("date", .date, nil, filterable: false, "读取日期"), field("category", .text, nil, "字段类别"),
+        field("valueText", .text, nil, groupable: false, "档案值"), field("value", .number, "项", filterable: false, groupable: false, aggregatable: true, "字段计数")
+    ], sensitivity: .sensitive, maximumRangeDays: 366)
+    static let conversation = schema("conversation.metadata", domain: "conversation", description: "受控对话元数据，不含消息原文", fields: [
+        field("date", .date, nil, "消息时间"), field("role", .text, nil, "角色"), field("intent", .text, nil, "意图"),
+        field("value", .number, "条", filterable: false, groupable: false, aggregatable: true, "消息计数")
+    ], sensitivity: .sensitive, maximumRangeDays: 90)
 }
 
 nonisolated struct HoloCrossDomainTool: HoloDataTool {

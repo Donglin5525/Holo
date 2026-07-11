@@ -4,6 +4,24 @@
 
 ---
 
+## [2026-07-11] Holo Agent 动态查询 Phase 3-4：全域目录与统一查询入口
+
+Agent 的动态查询能力从财务、健康扩展到 Holo 全部 10 个用户数据域。确定数字查询与深度分析统一进入同一个 Agent 规划入口，固定 query 只作为兼容快捷模板和 Feature Flag 降级路径，不再限制长尾指标能力。
+
+### 变更
+- **全域动态目录**：新增习惯、任务、目标、观点、Memory、Insight、Profile 与受控对话元数据目录；连同财务、健康覆盖全部 10 个用户数据域。
+- **统一能力装饰器**：保留原工具名称、权限和固定 query，通过统一装饰器接入同一套计划校验、行数据适配、确定性计算与证据生成逻辑。
+- **统一查询入口**：动态能力开启时，`flexible_data_query` 与 `query_analysis` 均进入本地 Agent；关闭开关时继续回退旧执行器，旧持久化结果保持兼容。
+- **目录覆盖契约**：生产启动同时校验 10 个工具与 13 个必需动态数据集，未来新增数据域未注册时在开发阶段直接暴露。
+- **隐私边界**：对话域只公开 role、intent、timestamp 等元数据，不提供历史消息原文；Profile、Memory、Insight 继续按敏感证据裁剪。
+- **默认启用动态计划**：动态查询默认开启，仍保留 UserDefaults 灰度开关用于紧急降级。
+- **Prompt v8**：iOS 与后端同步全域动态规划、统一查询入口和对话隐私约束。
+
+### 验证
+- Cross Domain / Dynamic Decorator / Tool Registry standalone 回归通过
+- HoloBackend：85 tests，85 pass
+- Holo iOS Debug / iOS Simulator 全工程编译通过（BUILD SUCCEEDED）
+
 ## [2026-07-11] Holo Agent 动态查询 Phase 2：受控跨域关联分析
 
 Agent 可以按自然日对齐健康与财务、健康与习惯、任务与习惯、目标与任务数据，现场计算相关性、条件均值和分组差异，不再依赖预先写死的跨域指标。
