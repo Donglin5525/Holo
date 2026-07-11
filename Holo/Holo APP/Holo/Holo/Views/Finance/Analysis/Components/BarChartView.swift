@@ -87,17 +87,19 @@ struct BarChartView: View {
             let expenseVal = Double(truncating: point.expense as NSDecimalNumber)
             let incomeVal = Double(truncating: point.income as NSDecimalNumber)
 
-            // 收入柱（底，浅色）+ 支出柱（顶）同 X 叠加 —— 柱居中对齐余额折线/触摸指示线
+            // 同一日期的收入/支出按类型分组并排显示，避免相同方向的柱形被自动堆叠。
             BarMark(
                 x: .value("日期", point.label),
                 y: .value("收入", incomeVal)
             )
+            .position(by: .value("类型", "收入"))
             .foregroundStyle(Color.holoSuccess.opacity(0.45))
 
             BarMark(
                 x: .value("日期", point.label),
                 y: .value("支出", expenseVal)
             )
+            .position(by: .value("类型", "支出"))
             .foregroundStyle(Color.holoError.opacity(0.88))
 
             // 余额折线 → 右 Y 轴 (yAxisIndex: 1, 缩放后映射到左轴视觉范围)
@@ -110,7 +112,8 @@ struct BarChartView: View {
                     y: .value("余额", scaledVal)
                 )
                 .foregroundStyle(Color.holoInfo)
-                .interpolationMethod(.catmullRom)
+                // 财务数据使用线性连接，避免平滑曲线在相邻点之间制造不存在的峰谷。
+                .interpolationMethod(.linear)
                 .lineStyle(StrokeStyle(lineWidth: 3, lineCap: .round, lineJoin: .round))
                 .zIndex(10)
 
@@ -123,6 +126,8 @@ struct BarChartView: View {
                 .zIndex(11)
             }
         }
+        // 给首尾数据点留出空间，避免柱形贴边后被裁切。
+        .chartXScale(range: .plotDimension(padding: 18))
         // X 轴（数据点多时按 axisMarkLabels 稀疏展示）
         .chartXAxis {
             AxisMarks(values: axisMarkLabels) { _ in

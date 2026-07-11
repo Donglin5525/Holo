@@ -37,6 +37,20 @@ final class FinanceChartScaleTests: XCTestCase {
         XCTAssertEqual(scale.scaledBalance(5_000), 230, accuracy: 0.001)
     }
 
+    func testBalanceScaleKeepsConstantBalanceVisible() {
+        let scale = BalanceChartScale(
+            amountValues: [1_000, 2_000],
+            balanceValues: [50_000, 50_000]
+        )
+
+        XCTAssertGreaterThan(scale.balanceAxisMax, scale.balanceAxisMin)
+        XCTAssertEqual(
+            scale.scaledBalance(50_000),
+            scale.amountAxisMax,
+            accuracy: 0.001
+        )
+    }
+
     func testOverviewChartUsesMatchingAxisTickCounts() {
         let scale = BalanceChartScale(
             amountValues: [8_000, 26_000],
