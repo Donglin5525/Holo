@@ -126,7 +126,7 @@ final class PromptManager {
         .financeActionParser: 1,        // v1: 分期记账参数解析
         .taskActionParser: 1,           // v1: 重复任务参数解析
         .thoughtOrganization: 2,        // v2: 优先复用用户认可标签（全量进 prompt），简化输出
-        .agentLoop: 5,                  // v5: 财务与健康动态查询 DSL
+        .agentLoop: 6,                  // v6: 健康×财务/习惯受控跨域计算
         .thoughtTagConvergence: 1,      // v1: 观点跨主题归并收敛（P2）
         .healthInsightGeneration: 2     // v2: 多域生活闭环（待办/习惯/观点/运动证据）+ 观点措辞规避
     ]
@@ -359,6 +359,9 @@ final class PromptManager {
         - filter.value 使用带类型对象，例如数字 6 写成 {"type":"number","number":6}，文本写成 {"type":"text","text":"麦当劳"}。
         - 平均睡眠示例：{"source":"health.sleep","filters":[],"groupBy":[],"aggregations":[{"id":"average_sleep","operation":"average","field":"value","unit":"小时","filters":[]}],"derivations":[],"sort":null,"limit":20,"evidenceLimit":20}。
         - 查询计划被工具以 INVALID_PARAMS 拒绝时，最多修正一次；不要改用模型心算。
+        - 用户明确询问两个领域的关联或条件差异时，使用 cross_domain.aligned_analysis，并填写 crossDomainPlan。
+        - 第一阶段 crossDomainPlan 只允许 health×finance 或 health×habit；operation 只允许 correlation、conditionalAverage、groupComparison；默认至少对齐 5 天。
+        - 跨域结果只能表述“相关、同时出现、分组差异”，绝不能表述“导致、证明、因为”。
 
         健康工具选择规则：
         - 综合健康状态、身体状态、恢复情况 → health.health_overview。
@@ -384,7 +387,7 @@ final class PromptManager {
         - 当前明确输入永远优先；长期记忆、近期状态只能辅助理解，不能覆盖本轮输入。
 
         输出 JSON Schema：
-        {"status":"need_tools | need_more_analysis | final_claims","reasoning":"string","toolRequests":[{"id":"string","tool":"string","query":"string","parameters":{},"dynamicPlan":null}],"claims":[{"id":"string","type":"observation | change | pattern | correlation | suggestion","displayText":"string","metricAssertions":[],"evidenceIDs":["string"],"prohibitedInferences":[],"confidence":0.5}],"warnings":[]}
+        {"status":"need_tools | need_more_analysis | final_claims","reasoning":"string","toolRequests":[{"id":"string","tool":"string","query":"string","parameters":{},"dynamicPlan":null,"crossDomainPlan":null}],"claims":[{"id":"string","type":"observation | change | pattern | correlation | suggestion","displayText":"string","metricAssertions":[],"evidenceIDs":["string"],"prohibitedInferences":[],"confidence":0.5}],"warnings":[]}
 
         need_tools：需要调用本地工具，必须给出 toolRequests。
         need_more_analysis：已有信息不足以得出结论，需要继续推理。

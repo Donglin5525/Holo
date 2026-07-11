@@ -150,6 +150,174 @@ nonisolated struct HoloDynamicQueryPlan: Codable, Equatable, Sendable {
     var evidenceLimit: Int = 20
 }
 
+nonisolated enum HoloCrossDomainOperation: String, Codable, Sendable {
+    case correlation, conditionalAverage, groupComparison
+}
+
+nonisolated struct HoloCrossDomainQueryPlan: Codable, Equatable, Sendable {
+    var leftSource: String
+    var leftField: String
+    var leftFilters: [HoloDynamicFilter] = []
+    var rightSource: String
+    var rightField: String
+    var rightFilters: [HoloDynamicFilter] = []
+    var operation: HoloCrossDomainOperation
+    var threshold: Double? = nil
+    var minimumAlignedDays: Int = 5
+    var timeRange: HoloAgentTimeRange? = nil
+}
+
+nonisolated protocol HoloCrossDomainDataSource: Sendable {
+    func rows(source: String, timeRange: HoloAgentTimeRange?) async -> [HoloQueryRow]
+}
+
+nonisolated struct HoloCrossDomainTool: HoloDataTool {
+    static let habitSchema = HoloDataSetSchema(
+        name: "habit.daily",
+        domain: "habit",
+        description: "习惯每日完成或发生次数",
+        timeField: "date",
+        fields: [
+            HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "日期"),
+            HoloDataField(name: "value", type: .number, unit: "次", filterable: true, groupable: false, aggregatable: true, description: "每日次数"),
+            HoloDataField(name: "habit", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "习惯名称"),
+            HoloDataField(name: "polarity", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "positive 或 negative")
+        ],
+        sensitivity: .normal,
+        maximumRangeDays: 366
+    )
+
+    let descriptor: HoloToolDescriptor
+    private let dataSource: HoloCrossDomainDataSource
+
+    init(dataSource: HoloCrossDomainDataSource) {
+        self.dataSource = dataSource
+        self.descriptor = HoloToolDescriptor(
+            name: "cross_domain",
+            description: "跨域按日关联计算（健康×财务 / 健康×习惯），只能描述关联，不能推断因果",
+            supportedQueries: ["aligned_analysis"],
+            supportedTimeRanges: ["7d", "14d", "30d", "90d"],
+            outputMetrics: ["dynamic.cross.correlation", "dynamic.cross.conditional_average", "dynamic.cross.group_difference"],
+            sensitivityPolicy: "sensitive"
+        )
+    }
+
+    func validate(_ request: HoloToolRequest) -> HoloToolValidationResult {
+        guard request.query == "aligned_analysis", let plan = request.crossDomainPlan else {
+            return .invalid(reason: "aligned_analysis 缺少 crossDomainPlan")
+        }
+        let domains = Set([plan.leftSource.split(separator: ".").first.map(String.init) ?? "", plan.rightSource.split(separator: ".").first.map(String.init) ?? ""])
+        guard domains == Set(["health", "finance"]) || domains == Set(["health", "habit"]) else {
+            return .invalid(reason: "第一阶段不支持该跨域组合")
+        }
+        guard (3...90).contains(plan.minimumAlignedDays) else { return .invalid(reason: "minimumAlignedDays 超出安全范围") }
+        return .valid
+    }
+
+    func execute(_ request: HoloToolRequest) async throws -> HoloDataToolResult {
+        guard case .valid = validate(request), var plan = request.crossDomainPlan else {
+            return Self.error(request, "跨域计划无效")
+        }
+        if plan.timeRange == nil { plan.timeRange = request.timeRange }
+        let left = await dataSource.rows(source: plan.leftSource, timeRange: plan.timeRange)
+        let right = await dataSource.rows(source: plan.rightSource, timeRange: plan.timeRange)
+        let pairs = Self.align(
+            left: left.filter { HoloDynamicQueryEngine.rowMatches($0, filters: plan.leftFilters) },
+            leftField: plan.leftField,
+            right: right.filter { HoloDynamicQueryEngine.rowMatches($0, filters: plan.rightFilters) },
+            rightField: plan.rightField
+        )
+        guard pairs.count >= plan.minimumAlignedDays else {
+            return HoloDataToolResult(
+                toolRequestID: request.id, tool: request.tool, status: .empty,
+                coverage: nil, metrics: [], events: [],
+                warnings: [HoloToolWarning(code: "INSUFFICIENT_ALIGNED_DAYS", message: "跨域对齐仅 \(pairs.count) 天，至少需要 \(plan.minimumAlignedDays) 天")],
+                error: nil, sensitivity: .sensitive
+            )
+        }
+        let calculated = Self.calculate(plan: plan, pairs: pairs)
+        guard let value = calculated.value else { return Self.error(request, "跨域数据方差不足，无法计算") }
+        let metricKey = "dynamic.cross.\(plan.operation.rawValue).\(Self.sanitize(plan.leftSource))_\(Self.sanitize(plan.rightSource))"
+        let sourceIDs = pairs.flatMap { [$0.leftID, $0.rightID] }
+        let metric = HoloMetric(
+            metricKey: metricKey,
+            value: value,
+            unit: calculated.unit,
+            baselineValue: calculated.baseline,
+            comparison: "aligned_days=\(pairs.count)",
+            formula: calculated.formula,
+            sourceRecordIDs: sourceIDs
+        )
+        let event = HoloEvidenceEvent(
+            id: "cross-\(request.id)", occurredAt: plan.timeRange?.end,
+            metricKey: metricKey, metricValue: value,
+            excerpt: calculated.excerpt,
+            timeRange: plan.timeRange,
+            formula: calculated.formula,
+            sourceRecordIDs: sourceIDs
+        )
+        return HoloDataToolResult(
+            toolRequestID: request.id, tool: request.tool, status: .success,
+            coverage: nil, metrics: [metric], events: [event], warnings: [], error: nil, sensitivity: .sensitive
+        )
+    }
+
+    private struct Pair { var left: Double; var right: Double; var leftID: String; var rightID: String }
+    private struct Calculation { var value: Double?; var baseline: Double?; var unit: String; var formula: String; var excerpt: String }
+
+    private static func align(left: [HoloQueryRow], leftField: String, right: [HoloQueryRow], rightField: String, calendar: Calendar = .current) -> [Pair] {
+        func daily(_ rows: [HoloQueryRow], field: String) -> [Date: (Double, String)] {
+            var buckets: [Date: [(Double, String)]] = [:]
+            for row in rows {
+                guard let value = row.fields[field]?.numberValue else { continue }
+                buckets[calendar.startOfDay(for: row.occurredAt), default: []].append((value, row.id))
+            }
+            return buckets.mapValues { values in
+                (values.map(\.0).reduce(0, +) / Double(values.count), values.map(\.1).joined(separator: ","))
+            }
+        }
+        let lhs = daily(left, field: leftField), rhs = daily(right, field: rightField)
+        return Set(lhs.keys).intersection(rhs.keys).sorted().compactMap { day in
+            guard let l = lhs[day], let r = rhs[day] else { return nil }
+            return Pair(left: l.0, right: r.0, leftID: l.1, rightID: r.1)
+        }
+    }
+
+    private static func calculate(plan: HoloCrossDomainQueryPlan, pairs: [Pair]) -> Calculation {
+        let threshold = plan.threshold ?? median(pairs.map(\.left))
+        switch plan.operation {
+        case .correlation:
+            let value = correlation(pairs.map { ($0.left, $0.right) })
+            return Calculation(value: value, baseline: nil, unit: "相关系数", formula: "pearson(left,right)", excerpt: "按日对齐 \(pairs.count) 天，相关系数 \(value.map { String(format: "%.3f", $0) } ?? "不可计算")；仅表示关联，不表示因果")
+        case .conditionalAverage:
+            let selected = pairs.filter { $0.left < threshold }.map(\.right)
+            let overall = pairs.map(\.right).reduce(0, +) / Double(pairs.count)
+            let value = selected.isEmpty ? nil : selected.reduce(0, +) / Double(selected.count)
+            return Calculation(value: value, baseline: overall, unit: "", formula: "average(right where left < threshold)", excerpt: "左侧指标低于 \(threshold) 的 \(selected.count) 天，右侧均值为 \(value.map { String(format: "%.2f", $0) } ?? "不可计算")；全期均值 \(String(format: "%.2f", overall))")
+        case .groupComparison:
+            let low = pairs.filter { $0.left < threshold }.map(\.right)
+            let high = pairs.filter { $0.left >= threshold }.map(\.right)
+            guard !low.isEmpty, !high.isEmpty else { return Calculation(value: nil, baseline: nil, unit: "", formula: "average(high)-average(low)", excerpt: "分组样本不足") }
+            let lowMean = low.reduce(0, +) / Double(low.count), highMean = high.reduce(0, +) / Double(high.count)
+            return Calculation(value: highMean - lowMean, baseline: lowMean, unit: "", formula: "average(right|left>=threshold)-average(right|left<threshold)", excerpt: "按左侧指标高低分组，右侧均值差为 \(String(format: "%.2f", highMean - lowMean))；仅表示分组差异，不表示因果")
+        }
+    }
+
+    private static func correlation(_ pairs: [(Double, Double)]) -> Double? {
+        guard pairs.count > 2 else { return nil }
+        let mx = pairs.map(\.0).reduce(0, +) / Double(pairs.count), my = pairs.map(\.1).reduce(0, +) / Double(pairs.count)
+        let numerator = pairs.map { ($0.0 - mx) * ($0.1 - my) }.reduce(0, +)
+        let dx = sqrt(pairs.map { pow($0.0 - mx, 2) }.reduce(0, +)), dy = sqrt(pairs.map { pow($0.1 - my, 2) }.reduce(0, +))
+        guard dx > 0, dy > 0 else { return nil }
+        return (numerator / (dx * dy) * 10_000).rounded() / 10_000
+    }
+    private static func median(_ values: [Double]) -> Double { let s = values.sorted(); return s.isEmpty ? 0 : s[s.count / 2] }
+    private static func sanitize(_ value: String) -> String { value.map { $0.isLetter || $0.isNumber ? String($0) : "_" }.joined() }
+    private static func error(_ request: HoloToolRequest, _ reason: String) -> HoloDataToolResult {
+        HoloDataToolResult(toolRequestID: request.id, tool: request.tool, status: .error, coverage: nil, metrics: [], events: [], warnings: [], error: HoloToolError(code: HoloToolErrorCode.invalidParams, message: reason, recoverable: true), sensitivity: .sensitive)
+    }
+}
+
 nonisolated enum HoloDynamicQueryValidationError: Error, Equatable, LocalizedError {
     case unknownDataset(String), unknownField(String), unsupportedFieldOperation(String)
     case invalidRange, rangeTooLarge(Int), tooComplex, unsafeLimit, unitMismatch(String)
@@ -290,6 +458,10 @@ nonisolated enum HoloDynamicQueryEngine {
             events: events,
             coverage: coverage(rows: current, range: plan.timeRange, calendar: calendar)
         )
+    }
+
+    static func rowMatches(_ row: HoloQueryRow, filters: [HoloDynamicFilter]) -> Bool {
+        matches(row, filters: filters)
     }
 
     private static func buckets(_ rows: [HoloQueryRow], grouping: HoloDynamicGrouping?, calendar: Calendar) -> [Bucket] {

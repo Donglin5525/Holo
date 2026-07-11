@@ -279,13 +279,14 @@ actor HoloLocalAgentRuntime {
                         continue
                     }
                     let scopedRequest = Self.requestWithJobScope(request, job: job)
+                    let isPlannedQuery = scopedRequest.dynamicPlan != nil || scopedRequest.crossDomainPlan != nil
                     let invalidDynamicAttempts = checkpoint.completedToolResults.filter {
                         $0.tool == scopedRequest.tool
                             && $0.error?.code == HoloToolErrorCode.invalidParams
-                            && scopedRequest.dynamicPlan != nil
+                            && isPlannedQuery
                     }.count
                     let rawResult: HoloDataToolResult
-                    if scopedRequest.dynamicPlan != nil, invalidDynamicAttempts >= 2 {
+                    if isPlannedQuery, invalidDynamicAttempts >= 2 {
                         rawResult = HoloDataToolResult(
                             toolRequestID: scopedRequest.id,
                             tool: scopedRequest.tool,
@@ -449,6 +450,10 @@ actor HoloLocalAgentRuntime {
             if plan.timeRange == nil { plan.timeRange = scoped.timeRange }
             if plan.baseline == nil { plan.baseline = scoped.baseline }
             scoped.dynamicPlan = plan
+        }
+        if var plan = scoped.crossDomainPlan {
+            if plan.timeRange == nil { plan.timeRange = scoped.timeRange }
+            scoped.crossDomainPlan = plan
         }
         return scoped
     }

@@ -104,6 +104,20 @@ enum HoloAgentResponseParser {
                         }
                         requests[i]["dynamicPlan"] = plan
                     }
+                    if var plan = requests[i]["crossDomainPlan"] as? [String: Any] {
+                        if plan["leftFilters"] == nil { plan["leftFilters"] = [] }
+                        if plan["rightFilters"] == nil { plan["rightFilters"] = [] }
+                        if plan["threshold"] == nil { plan["threshold"] = NSNull() }
+                        if plan["minimumAlignedDays"] == nil { plan["minimumAlignedDays"] = 5 }
+                        if plan["timeRange"] == nil { plan["timeRange"] = NSNull() }
+                        for key in ["leftFilters", "rightFilters"] {
+                            if var filters = plan[key] as? [[String: Any]] {
+                                for index in filters.indices where filters[index]["values"] == nil { filters[index]["values"] = [] }
+                                plan[key] = filters
+                            }
+                        }
+                        requests[i]["crossDomainPlan"] = plan
+                    }
                 }
                 json["toolRequests"] = requests
             }

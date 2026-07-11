@@ -9,6 +9,57 @@
 
 import Foundation
 
+struct HoloDefaultCrossDomainDataSource: HoloCrossDomainDataSource {
+    func rows(source: String, timeRange: HoloAgentTimeRange?) async -> [HoloQueryRow] {
+        let healthKind: HoloHealthMetricKind? = switch source {
+        case "health.steps": .steps
+        case "health.sleep": .sleep
+        case "health.stand": .stand
+        case "health.activity": .activity
+        default: nil
+        }
+        if let kind = healthKind {
+            return await HoloDefaultHealthDataSource()
+                .dailyRecords(for: kind, timeRange: timeRange)
+                .filter { $0.value > 0 }
+                .map { record in
+                    HoloQueryRow(
+                        id: "\(kind.rawValue)-\(Int(record.date.timeIntervalSince1970))",
+                        occurredAt: record.date,
+                        fields: ["date": .date(record.date), "value": .number(record.value)],
+                        excerpt: "\(kind.rawValue) \(record.value)"
+                    )
+                }
+        }
+        if source == "finance.transactions" {
+            return await HoloDefaultFinanceDataSource().queryRows(timeRange: timeRange, parameters: [:])
+        }
+        if source == "habit.daily" {
+            let habits = await HoloDefaultHabitDataSource().habits(timeRange: timeRange)
+            let calendar = Calendar.current
+            let end = timeRange?.end ?? Date()
+            let latestDay = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: end)) ?? end
+            return habits.flatMap { habit in
+                habit.dailyCounts.compactMap { count in
+                    guard let date = calendar.date(byAdding: .day, value: -count.dayOffset, to: latestDay) else { return nil }
+                    return HoloQueryRow(
+                        id: "\(habit.id)-d\(count.dayOffset)",
+                        occurredAt: date,
+                        fields: [
+                            "date": .date(date),
+                            "value": .number(count.count),
+                            "habit": .text(habit.name),
+                            "polarity": .text(habit.polarity.rawValue)
+                        ],
+                        excerpt: "\(habit.name) \(count.count) 次"
+                    )
+                }
+            }
+        }
+        return []
+    }
+}
+
 extension HoloLocalAgentRuntime {
     /// 全 App 共享的生产 Agent runtime（真实后端 LLM + Memory 工具）。
     /// 同时服务后台续跑（Phase 5.1）与对话深度分析（Phase 6.2）。
@@ -38,7 +89,8 @@ extension HoloLocalAgentRuntime {
             HoloTaskTool(dataSource: HoloDefaultTaskDataSource()),
             HoloProfileTool(dataSource: HoloDefaultProfileDataSource()),
             HoloConversationTool(dataSource: HoloDefaultConversationDataSource()),
-            HoloInsightTool(dataSource: HoloDefaultInsightDataSource())
+            HoloInsightTool(dataSource: HoloDefaultInsightDataSource()),
+            HoloCrossDomainTool(dataSource: HoloDefaultCrossDomainDataSource())
         ]
         assert(
             HoloAgentToolCoverage.missingToolNames(in: productionTools).isEmpty,

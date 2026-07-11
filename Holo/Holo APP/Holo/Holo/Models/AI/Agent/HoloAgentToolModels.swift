@@ -18,6 +18,7 @@ nonisolated struct HoloToolRequest: Codable, Identifiable, Equatable, Sendable {
     var requiredMetrics: [String]
     var parameters: [String: String]
     var dynamicPlan: HoloDynamicQueryPlan? = nil
+    var crossDomainPlan: HoloCrossDomainQueryPlan? = nil
 }
 
 // MARK: - 结果状态与错误

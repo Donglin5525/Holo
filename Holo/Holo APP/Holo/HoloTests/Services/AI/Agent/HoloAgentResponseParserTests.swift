@@ -23,6 +23,7 @@ struct HoloAgentResponseParserTests {
         test旧字段text可解析为displayText()
         test说明文本中可抽取JSON并归一字段别名()
         test动态查询计划缺省字段自动补齐()
+        test跨域查询计划缺省字段自动补齐()
         test缺status抛outputParseFailure可重试()
         test超过重试次数不重试()
         print("HoloAgentResponseParserTests passed")
@@ -35,6 +36,15 @@ struct HoloAgentResponseParserTests {
         expect(plan?.source == "health.sleep", "应解析动态数据集")
         expect(plan?.aggregations.first?.operation == .average, "应解析动态聚合")
         expect(plan?.filters.isEmpty == true && plan?.limit == 20, "缺省安全字段应自动补齐")
+    }
+
+    private static func test跨域查询计划缺省字段自动补齐() {
+        let raw = #"{"status":"need_tools","reasoning":"检查关联","toolRequests":[{"id":"cross","tool":"cross_domain","query":"aligned_analysis","crossDomainPlan":{"leftSource":"health.sleep","leftField":"value","rightSource":"finance.transactions","rightField":"amount","operation":"correlation"}}],"claims":[],"warnings":[]}"#
+        let output = try? HoloAgentResponseParser.parse(raw, remainingRetries: 0)
+        let plan = output?.toolRequests.first?.crossDomainPlan
+        expect(plan?.operation == .correlation, "应解析跨域计算操作")
+        expect(plan?.minimumAlignedDays == 5, "应补齐最少对齐天数")
+        expect(plan?.leftFilters.isEmpty == true && plan?.rightFilters.isEmpty == true, "应补齐过滤器")
     }
 
     private static let validJSON = #"{"status":"final_claims","reasoning":"证据充分","toolRequests":[],"claims":[],"warnings":[]}"#
