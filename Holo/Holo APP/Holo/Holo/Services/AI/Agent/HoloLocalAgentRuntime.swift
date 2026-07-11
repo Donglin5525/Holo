@@ -844,7 +844,9 @@ actor HoloLocalAgentRuntime {
                 metricByKey["health.sleep.core_hours"]?.value.map { "核心睡眠 \(String(format: "%.1f", $0)) 小时" },
                 metricByKey["health.sleep.rem_hours"]?.value.map { "REM \(String(format: "%.1f", $0)) 小时" },
                 metricByKey["health.sleep.efficiency"]?.value.map { "睡眠效率 \(String(format: "%.0f", $0))%" },
-                metricByKey["health.sleep.duration_variation_minutes"]?.value.map { "时长波动约 \(String(format: "%.0f", $0)) 分钟" }
+                metricByKey["health.sleep.duration_variation_minutes"]?.value.map { "时长波动约 \(String(format: "%.0f", $0)) 分钟" },
+                metricByKey["health.sleep.bedtime_variation_minutes"]?.value.map { "入睡时间波动约 \(String(format: "%.0f", $0)) 分钟" },
+                metricByKey["health.sleep.wake_variation_minutes"]?.value.map { "起床时间波动约 \(String(format: "%.0f", $0)) 分钟" }
             ].compactMap { $0 }.joined(separator: "，") : ""
             let boundary = hasStageData
                 ? "本次同时读取到睡眠阶段、效率与作息稳定性，可用于描述性质量分析。\(qualityDetails)\(qualityDetails.isEmpty ? "" : "。")"

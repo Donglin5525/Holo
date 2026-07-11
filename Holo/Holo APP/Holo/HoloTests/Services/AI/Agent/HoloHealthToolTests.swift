@@ -82,6 +82,8 @@ struct HoloHealthToolTests {
         expect(metric("health.sleep.efficiency", in: result) != nil, "应输出睡眠效率")
         expect(metric("health.sleep.average_bedtime_minutes", in: result) != nil, "应输出平均入睡时间")
         expect(metric("health.sleep.average_wake_minutes", in: result) != nil, "应输出平均起床时间")
+        expect(metric("health.sleep.bedtime_variation_minutes", in: result) != nil, "应输出入睡时间波动")
+        expect(metric("health.sleep.wake_variation_minutes", in: result) != nil, "应输出起床时间波动")
         expect(!result.warnings.contains { $0.code == "SLEEP_DURATION_ONLY" }, "阶段齐全时不应降级")
     }
 

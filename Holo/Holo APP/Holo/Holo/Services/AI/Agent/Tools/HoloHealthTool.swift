@@ -134,6 +134,8 @@ struct HoloHealthTool: HoloDataTool {
             "health.sleep.efficiency",
             "health.sleep.average_bedtime_minutes",
             "health.sleep.average_wake_minutes",
+            "health.sleep.bedtime_variation_minutes",
+            "health.sleep.wake_variation_minutes",
             "health.sleep.interruptions",
             "health.sleep.hours",
             "health.stand.average_hours",
@@ -331,8 +333,14 @@ private extension HoloHealthTool {
         if !interruptions.isEmpty {
             metrics.append(metric("health.sleep.interruptions", interruptions.reduce(0, +) / Double(interruptions.count), unit: "次"))
         }
-        if !bedtimeMinutes.isEmpty { metrics.append(metric("health.sleep.average_bedtime_minutes", Self.circularMean(bedtimeMinutes), unit: "分钟")) }
-        if !wakeMinutes.isEmpty { metrics.append(metric("health.sleep.average_wake_minutes", Self.circularMean(wakeMinutes), unit: "分钟")) }
+        if !bedtimeMinutes.isEmpty {
+            metrics.append(metric("health.sleep.average_bedtime_minutes", Self.circularMean(bedtimeMinutes), unit: "分钟"))
+            metrics.append(metric("health.sleep.bedtime_variation_minutes", Self.circularStandardDeviation(bedtimeMinutes), unit: "分钟"))
+        }
+        if !wakeMinutes.isEmpty {
+            metrics.append(metric("health.sleep.average_wake_minutes", Self.circularMean(wakeMinutes), unit: "分钟"))
+            metrics.append(metric("health.sleep.wake_variation_minutes", Self.circularStandardDeviation(wakeMinutes), unit: "分钟"))
+        }
 
         let stageNights = records.filter(\.hasStageData).count
         let modeText = stageNights > 0
@@ -619,6 +627,16 @@ private extension HoloHealthTool {
         let radians = values.map { $0 / 1440 * 2 * Double.pi }
         let angle = atan2(radians.map(sin).reduce(0, +), radians.map(cos).reduce(0, +))
         return ((angle < 0 ? angle + 2 * Double.pi : angle) / (2 * Double.pi) * 1440)
+    }
+
+    static func circularStandardDeviation(_ values: [Double]) -> Double {
+        guard values.count > 1 else { return 0 }
+        let mean = circularMean(values)
+        let distances = values.map { value -> Double in
+            let raw = abs(value - mean)
+            return min(raw, 1440 - raw)
+        }
+        return sqrt(distances.reduce(0) { $0 + $1 * $1 } / Double(distances.count))
     }
 
     static func sleepEvent(_ record: HoloSleepRecord) -> HoloEvidenceEvent {
