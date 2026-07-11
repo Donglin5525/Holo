@@ -103,13 +103,14 @@ function syncDefaultPromptsToHistory() {
         continue;
       }
 
-      if (latest.content === defaultContent) continue;
+      const baselineVersion = PROMPT_VERSIONS[type] ?? latest.version;
+      if (latest.content === defaultContent && latest.version >= baselineVersion) continue;
 
       // 代码侧声明的版本是最低基线；旧环境可能只记录了较早的历史版本，
       // 不能因为数据库历史较短而让线上版本号低于 PROMPT_VERSIONS。
       const version = Math.max(
         latest.version + 1,
-        PROMPT_VERSIONS[type] ?? latest.version + 1
+        baselineVersion
       );
       _db.prepare(
         'INSERT INTO prompt_versions (prompt_type, version, content, diff_from_prev, source, change_note) VALUES (?, ?, ?, ?, ?, ?)'
