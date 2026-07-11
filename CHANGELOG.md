@@ -4,6 +4,29 @@
 
 ---
 
+## [2026-07-11] 观点标签统一识别：AI 优先复用用户认可标签
+
+AI 给想法打标签时，现在能平等识别并优先复用全部「用户认可的标签」（手动打的、正文 # 提取的、用户确认过的 AI 标签），不再只参考「按用量前 20」导致手动标签被挤掉、不停造同义重复标签。
+
+### 变更
+- **新取数 `fetchUserRecognizedTagNames`**：DB 层用 SUBQUERY 取所有存在 `source ∈ {manual, inline, confirmedAI}` 分配记录的标签，保证用户手动建/确认的标签全量进入 AI 视野。
+- **`organizeThought` 接入新取数**：替换原 `getRecentTagNames(20)`（按用量取前 20、不分来源，手动标签被高频 AI 碎标签挤出）。
+- **prompt v2（双端同步）**：「参考已有标签风格」（软引导）→「能准确描述的必须复用，不要生成同义重复」（硬引导）；同时去掉客户端早已丢弃的废弃输出字段 `topicCandidate` / `matchedTopicId`，聚焦标签任务、省输出 token。
+- **数据模型零改动**：`ThoughtTag` / `ThoughtTagAssignment` 已满足，纯取数 + prompt 层优化。
+
+### 验证
+- Holo iOS（generic/iOS Simulator）编译通过（BUILD SUCCEEDED）
+- 后端 prompt 已部署 ECS 并验证：`/v1/prompts/thought_organization` 含「必须复用」、旧字段已清
+
+### 范围
+- 本次只做「统一标签池 + AI 平等识别」地基；7 领域大类、语义匹配（认得「工作」=「工作事业」）、Topic 层级重构留待后续立项。
+
+### 部署备忘
+- ECS（国内）git 拉 GitHub 超时（GnuTLS -110）→ 改用 scp 直传 `defaultPrompts.json`
+- buildx/buildkit 镜像存储隔离看不到本地 base 镜像 → 改用 legacy builder（`DOCKER_BUILDKIT=0`）
+
+---
+
 ## [2026-07-11] 补齐 HoloAI Agent 全数据覆盖与健康全指标读取
 
 把 Agent 从 7 类工具扩展为 10 类用户语义工具，解决“健康页有步数/站立，但 HoloAI 只能读睡眠”的断点，并补上预算、账户、观点 Topic、Profile、近期对话意图和 Memory Insight。

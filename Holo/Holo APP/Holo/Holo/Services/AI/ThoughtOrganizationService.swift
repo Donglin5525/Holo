@@ -66,7 +66,7 @@ final class ThoughtOrganizationService {
                 return  // 想法已删除，标 failed 跳过，不重试
             }
             thoughtContent = thought.content
-            existingTagExamples = repository.getRecentTagNames(limit: 20).joined(separator: ", ")
+            existingTagExamples = repository.fetchUserRecognizedTagNames().joined(separator: ", ")
             rejectedTags = loadRejectedTagNames().joined(separator: ", ")
         } catch {
             logger.error("读取想法数据失败：\(error.localizedDescription)")

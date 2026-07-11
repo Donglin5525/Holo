@@ -460,6 +460,32 @@ class ThoughtRepository {
         return try context.fetch(request)
     }
 
+    /// 获取「用户认可的标签」名称（用于 AI 打标签时优先复用）
+    /// 定义：存在至少一条 source ∈ {manual, inline, confirmedAI} 的 ThoughtTagAssignment、
+    /// 且所属想法未删除的 ThoughtTag。
+    /// 与 getRecentTagNames 的区别：后者按 usageCount 取前 N 不分来源，用户手动标签（用量低）
+    /// 会被高频 AI 碎标签挤出；本方法保证用户手动建/确认过的标签全量进入 AI 视野。
+    /// - Parameter limit: 数量上限（控 token，用户认可标签典型 <30 不会触顶）
+    /// - Returns: 标签名称数组（按 usageCount 降序、名称升序）
+    func fetchUserRecognizedTagNames(limit: Int = 60) -> [String] {
+        let request = ThoughtTag.fetchRequest()
+        let recognizedSources = [
+            ThoughtTagAssignment.Source.manual.rawValue,
+            ThoughtTagAssignment.Source.inline.rawValue,
+            ThoughtTagAssignment.Source.confirmedAI.rawValue
+        ]
+        request.predicate = NSPredicate(
+            format: "SUBQUERY(assignments, $a, $a.source IN %@ AND $a.thought.isSoftDeleted == NO).@count > 0",
+            recognizedSources
+        )
+        request.sortDescriptors = [
+            NSSortDescriptor(key: "usageCount", ascending: false),
+            NSSortDescriptor(key: "name", ascending: true)
+        ]
+        request.fetchLimit = limit
+        return (try? context.fetch(request).map { $0.name }) ?? []
+    }
+
     /// 获取或创建标签
     /// - Parameter name: 标签名称
     /// - Returns: ThoughtTag 对象

@@ -125,7 +125,7 @@ final class PromptManager {
         .memoryObserver: 1,             // v1: 初始版本，记忆观察引擎
         .financeActionParser: 1,        // v1: 分期记账参数解析
         .taskActionParser: 1,           // v1: 重复任务参数解析
-        .thoughtOrganization: 1,        // v1: 想法自动整理
+        .thoughtOrganization: 2,        // v2: 优先复用用户认可标签（全量进 prompt），简化输出
         .agentLoop: 4,                  // v4: 健康全指标与核心语义工具确定性选择
         .thoughtTagConvergence: 1,      // v1: 观点跨主题归并收敛（P2）
         .healthInsightGeneration: 2     // v2: 多域生活闭环（待办/习惯/观点/运动证据）+ 观点措辞规避
@@ -1251,19 +1251,19 @@ final class PromptManager {
 - 生成 1-3 个标签，每个标签 2-6 个字
 - 标签应该是内容关键词，不是情感分类
 - 避免过于宽泛的标签（如"生活""思考""日常""想法""记录"）
-- 参考已有标签风格：{{existingTagExamples}}
-- 不要生成以下标签（用户已拒绝）：{{rejectedTags}}
+
+## 复用规则（重要）
+
+以下标签已经存在，能准确描述本条想法的【必须复用】，不要生成同义重复的标签：
+{{existingTagExamples}}
+
+若以上都不准确，才允许新建简短标签。不要生成以下标签（用户已拒绝）：{{rejectedTags}}
 
 ## 输出格式
 
 严格输出 JSON（不要 markdown 代码块）：
 {
   "suggestedTags": ["标签1", "标签2"],
-  "topicCandidate": {
-    "title": "主题名",
-    "confidence": 0.85
-  },
-  "matchedTopicId": null,
   "confidence": 0.86,
   "reason": "一句话理由"
 }
