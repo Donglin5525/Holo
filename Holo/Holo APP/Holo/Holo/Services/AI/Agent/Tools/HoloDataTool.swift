@@ -187,6 +187,65 @@ nonisolated struct HoloCrossDomainTool: HoloDataTool {
         maximumRangeDays: 366
     )
 
+    static let taskSchema = HoloDataSetSchema(
+        name: "task.daily",
+        domain: "task",
+        description: "每日完成任务数",
+        timeField: "date",
+        fields: [
+            HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "完成日期"),
+            HoloDataField(name: "value", type: .number, unit: "个", filterable: true, groupable: false, aggregatable: true, description: "每日完成任务数"),
+            HoloDataField(name: "highPriorityValue", type: .number, unit: "个", filterable: true, groupable: false, aggregatable: true, description: "每日完成高优任务数")
+        ],
+        sensitivity: .normal,
+        maximumRangeDays: 366
+    )
+
+    static let goalSchema = HoloDataSetSchema(
+        name: "goal.progress.daily",
+        domain: "goal",
+        description: "活跃目标关联任务的每日累计完成进度",
+        timeField: "date",
+        fields: [
+            HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "日期"),
+            HoloDataField(name: "value", type: .number, unit: "%", filterable: true, groupable: false, aggregatable: true, description: "目标关联任务平均完成进度")
+        ],
+        sensitivity: .normal,
+        maximumRangeDays: 366
+    )
+
+    static let healthSchemas: [HoloDataSetSchema] = [
+        ("health.steps", "步", "每日步数"),
+        ("health.sleep", "小时", "每日睡眠时长"),
+        ("health.stand", "小时", "每日站立小时"),
+        ("health.activity", "分钟", "每日活动分钟")
+    ].map { name, unit, description in
+        HoloDataSetSchema(
+            name: name, domain: "health", description: description, timeField: "date",
+            fields: [
+                HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "记录日期"),
+                HoloDataField(name: "value", type: .number, unit: unit, filterable: true, groupable: false, aggregatable: true, description: description)
+            ],
+            sensitivity: .sensitive, maximumRangeDays: 366
+        )
+    }
+
+    static let financeSchema = HoloDataSetSchema(
+        name: "finance.transactions", domain: "finance", description: "交易明细", timeField: "date",
+        fields: [
+            HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "交易日期"),
+            HoloDataField(name: "amount", type: .number, unit: "元", filterable: true, groupable: false, aggregatable: true, description: "交易金额"),
+            HoloDataField(name: "category", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "分类"),
+            HoloDataField(name: "account", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "账户"),
+            HoloDataField(name: "text", type: .text, unit: nil, filterable: true, groupable: false, aggregatable: false, description: "商户或备注")
+        ],
+        sensitivity: .normal, maximumRangeDays: 366
+    )
+
+    static let crossDomainCatalog = HoloDataCatalog(
+        datasets: healthSchemas + [financeSchema, habitSchema, taskSchema, goalSchema]
+    )
+
     let descriptor: HoloToolDescriptor
     private let dataSource: HoloCrossDomainDataSource
 
@@ -194,11 +253,12 @@ nonisolated struct HoloCrossDomainTool: HoloDataTool {
         self.dataSource = dataSource
         self.descriptor = HoloToolDescriptor(
             name: "cross_domain",
-            description: "跨域按日关联计算（健康×财务 / 健康×习惯），只能描述关联，不能推断因果",
+            description: "跨域按日关联计算（健康×财务 / 健康×习惯 / 任务×习惯 / 目标×任务），只能描述关联，不能推断因果",
             supportedQueries: ["aligned_analysis"],
             supportedTimeRanges: ["7d", "14d", "30d", "90d"],
             outputMetrics: ["dynamic.cross.correlation", "dynamic.cross.conditional_average", "dynamic.cross.group_difference"],
-            sensitivityPolicy: "sensitive"
+            sensitivityPolicy: "sensitive",
+            dynamicCatalog: Self.crossDomainCatalog
         )
     }
 
@@ -207,8 +267,26 @@ nonisolated struct HoloCrossDomainTool: HoloDataTool {
             return .invalid(reason: "aligned_analysis 缺少 crossDomainPlan")
         }
         let domains = Set([plan.leftSource.split(separator: ".").first.map(String.init) ?? "", plan.rightSource.split(separator: ".").first.map(String.init) ?? ""])
-        guard domains == Set(["health", "finance"]) || domains == Set(["health", "habit"]) else {
-            return .invalid(reason: "第一阶段不支持该跨域组合")
+        let allowedDomainPairs: Set<Set<String>> = [
+            Set(["health", "finance"]), Set(["health", "habit"]),
+            Set(["task", "habit"]), Set(["goal", "task"])
+        ]
+        guard allowedDomainPairs.contains(domains) else {
+            return .invalid(reason: "不支持该跨域组合")
+        }
+        guard let leftSchema = Self.crossDomainCatalog.schema(named: plan.leftSource),
+              let rightSchema = Self.crossDomainCatalog.schema(named: plan.rightSource) else {
+            return .invalid(reason: "跨域计划引用了未注册数据集")
+        }
+        guard leftSchema.fields.contains(where: { $0.name == plan.leftField && $0.type == .number && $0.aggregatable }),
+              rightSchema.fields.contains(where: { $0.name == plan.rightField && $0.type == .number && $0.aggregatable }) else {
+            return .invalid(reason: "跨域计划引用了不可计算字段")
+        }
+        let allowedLeftFilters = Set(leftSchema.fields.filter(\.filterable).map(\.name))
+        let allowedRightFilters = Set(rightSchema.fields.filter(\.filterable).map(\.name))
+        guard plan.leftFilters.map(\.field).allSatisfy(allowedLeftFilters.contains),
+              plan.rightFilters.map(\.field).allSatisfy(allowedRightFilters.contains) else {
+            return .invalid(reason: "跨域计划引用了不可筛选字段")
         }
         guard (3...90).contains(plan.minimumAlignedDays) else { return .invalid(reason: "minimumAlignedDays 超出安全范围") }
         return .valid

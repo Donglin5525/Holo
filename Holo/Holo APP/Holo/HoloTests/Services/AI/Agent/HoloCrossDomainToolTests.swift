@@ -14,6 +14,9 @@ struct HoloCrossDomainToolTests {
     static func main() async throws {
         try await test健康与财务按日对齐后计算相关系数()
         try await test健康与习惯只表达分组差异不表达因果()
+        try await test任务与习惯支持受控关联()
+        try await test目标与任务支持受控关联()
+        test非法字段和未授权组合会被拒绝()
         try await test对齐天数不足返回明确空结果()
         print("HoloCrossDomainToolTests passed")
     }
@@ -50,6 +53,34 @@ struct HoloCrossDomainToolTests {
         expect(result.status == .success, "健康×习惯分组应成功")
         expect(result.events.first?.excerpt.contains("分组差异") == true, "应表述为分组差异")
         expect(result.events.first?.excerpt.contains("不表示因果") == true, "不得表述因果")
+    }
+
+    static func test任务与习惯支持受控关联() async throws {
+        let tasks = (1...7).map { row("t\($0)", day: $0, value: Double($0)) }
+        let habits = (1...7).map { row("a\($0)", day: $0, value: Double($0 * 2)) }
+        let tool = HoloCrossDomainTool(dataSource: MockCrossDomainDataSource(values: ["task.daily": tasks, "habit.daily": habits]))
+        let plan = HoloCrossDomainQueryPlan(leftSource: "task.daily", leftField: "value", rightSource: "habit.daily", rightField: "value", operation: .correlation)
+        let result = try await tool.execute(request(plan))
+        expect(result.status == .success, "任务×习惯应成功")
+        expect(result.metrics.first?.value == 1, "完全同向数据应得到确定相关系数")
+    }
+
+    static func test目标与任务支持受控关联() async throws {
+        let goals = (1...7).map { row("g\($0)", day: $0, value: Double($0 * 10)) }
+        let tasks = (1...7).map { row("t\($0)", day: $0, value: Double($0)) }
+        let tool = HoloCrossDomainTool(dataSource: MockCrossDomainDataSource(values: ["goal.progress.daily": goals, "task.daily": tasks]))
+        let plan = HoloCrossDomainQueryPlan(leftSource: "goal.progress.daily", leftField: "value", rightSource: "task.daily", rightField: "value", operation: .groupComparison)
+        let result = try await tool.execute(request(plan))
+        expect(result.status == .success, "目标×任务应成功")
+        expect(result.events.first?.excerpt.contains("不表示因果") == true, "目标×任务也必须保持非因果边界")
+    }
+
+    static func test非法字段和未授权组合会被拒绝() {
+        let tool = HoloCrossDomainTool(dataSource: MockCrossDomainDataSource(values: [:]))
+        let invalidField = request(HoloCrossDomainQueryPlan(leftSource: "task.daily", leftField: "title", rightSource: "habit.daily", rightField: "value", operation: .correlation))
+        guard case .invalid = tool.validate(invalidField) else { fatalError("未注册字段必须拒绝") }
+        let invalidPair = request(HoloCrossDomainQueryPlan(leftSource: "finance.transactions", leftField: "amount", rightSource: "task.daily", rightField: "value", operation: .correlation))
+        guard case .invalid = tool.validate(invalidPair) else { fatalError("未授权跨域组合必须拒绝") }
     }
 
     static func test对齐天数不足返回明确空结果() async throws {

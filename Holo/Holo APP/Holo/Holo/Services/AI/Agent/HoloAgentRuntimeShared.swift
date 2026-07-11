@@ -56,7 +56,85 @@ struct HoloDefaultCrossDomainDataSource: HoloCrossDomainDataSource {
                 }
             }
         }
+        if source == "task.daily" {
+            return await Self.taskRows(timeRange: timeRange)
+        }
+        if source == "goal.progress.daily" {
+            return await Self.goalProgressRows(timeRange: timeRange)
+        }
         return []
+    }
+
+    private static func taskRows(timeRange: HoloAgentTimeRange?) async -> [HoloQueryRow] {
+        let (start, end, days) = dayRange(timeRange)
+        return await MainActor.run {
+            let tasks = TodoRepository.shared.getTasks(completedFrom: start, completedTo: end)
+            let calendar = Calendar.current
+            let grouped = Dictionary(grouping: tasks) { task in
+                calendar.startOfDay(for: task.completedAt ?? start)
+            }
+            return days.map { day in
+                let records = grouped[day] ?? []
+                let sourceIDs = records.map { $0.id.uuidString }
+                return HoloQueryRow(
+                    id: sourceIDs.isEmpty ? "task-day-\(Int(day.timeIntervalSince1970))" : sourceIDs.joined(separator: ","),
+                    occurredAt: day,
+                    fields: [
+                        "date": .date(day),
+                        "value": .number(Double(records.count)),
+                        "highPriorityValue": .number(Double(records.filter { $0.priority >= 2 }.count))
+                    ],
+                    excerpt: "完成任务 \(records.count) 个，其中高优 \(records.filter { $0.priority >= 2 }.count) 个"
+                )
+            }
+        }
+    }
+
+    private static func goalProgressRows(timeRange: HoloAgentTimeRange?) async -> [HoloQueryRow] {
+        let (_, _, days) = dayRange(timeRange)
+        return await MainActor.run {
+            let calendar = Calendar.current
+            let goals = GoalRepository.shared.activeGoalsForAI(limit: 20)
+            return days.compactMap { day in
+                let nextDay = calendar.date(byAdding: .day, value: 1, to: day) ?? day
+                let progress = goals.compactMap { goal -> (Double, [String])? in
+                    guard goal.createdAt < nextDay else { return nil }
+                    let availableTasks = goal.sortedTasks.filter { $0.createdAt < nextDay }
+                    guard !availableTasks.isEmpty else { return nil }
+                    let completed = availableTasks.filter { task in
+                        guard let completedAt = task.completedAt else { return false }
+                        return completedAt < nextDay
+                    }
+                    return (
+                        Double(completed.count) / Double(availableTasks.count) * 100,
+                        [goal.id.uuidString] + completed.map { $0.id.uuidString }
+                    )
+                }
+                guard !progress.isEmpty else { return nil }
+                let value = progress.map(\.0).reduce(0, +) / Double(progress.count)
+                let sourceIDs = progress.flatMap(\.1)
+                return HoloQueryRow(
+                    id: sourceIDs.joined(separator: ","),
+                    occurredAt: day,
+                    fields: ["date": .date(day), "value": .number(value)],
+                    excerpt: "活跃目标关联任务平均完成进度 \(String(format: "%.1f", value))%"
+                )
+            }
+        }
+    }
+
+    private static func dayRange(_ timeRange: HoloAgentTimeRange?) -> (start: Date, end: Date, days: [Date]) {
+        let calendar = Calendar.current
+        let end = timeRange?.end ?? Date()
+        let start = timeRange?.start ?? (calendar.date(byAdding: .day, value: -13, to: end) ?? end)
+        var days: [Date] = []
+        var cursor = calendar.startOfDay(for: start)
+        while cursor < end, days.count < 366 {
+            days.append(cursor)
+            guard let next = calendar.date(byAdding: .day, value: 1, to: cursor) else { break }
+            cursor = next
+        }
+        return (start, end, days)
     }
 }
 

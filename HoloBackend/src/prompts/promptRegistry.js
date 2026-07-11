@@ -15,7 +15,7 @@ const PROMPT_VERSIONS = {
   finance_action_parser: 1,
   task_action_parser: 1,
   health_insight_generation: 2,
-  agent_loop: 6,
+  agent_loop: 7,
 };
 const PROMPT_CONTRACT_APPENDICES = {
   intent_recognition: `

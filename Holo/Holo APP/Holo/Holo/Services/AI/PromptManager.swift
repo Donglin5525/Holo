@@ -126,7 +126,7 @@ final class PromptManager {
         .financeActionParser: 1,        // v1: 分期记账参数解析
         .taskActionParser: 1,           // v1: 重复任务参数解析
         .thoughtOrganization: 2,        // v2: 优先复用用户认可标签（全量进 prompt），简化输出
-        .agentLoop: 6,                  // v6: 健康×财务/习惯受控跨域计算
+        .agentLoop: 7,                  // v7: 补齐任务×习惯、目标×任务受控跨域计算
         .thoughtTagConvergence: 1,      // v1: 观点跨主题归并收敛（P2）
         .healthInsightGeneration: 2     // v2: 多域生活闭环（待办/习惯/观点/运动证据）+ 观点措辞规避
     ]
@@ -360,7 +360,8 @@ final class PromptManager {
         - 平均睡眠示例：{"source":"health.sleep","filters":[],"groupBy":[],"aggregations":[{"id":"average_sleep","operation":"average","field":"value","unit":"小时","filters":[]}],"derivations":[],"sort":null,"limit":20,"evidenceLimit":20}。
         - 查询计划被工具以 INVALID_PARAMS 拒绝时，最多修正一次；不要改用模型心算。
         - 用户明确询问两个领域的关联或条件差异时，使用 cross_domain.aligned_analysis，并填写 crossDomainPlan。
-        - 第一阶段 crossDomainPlan 只允许 health×finance 或 health×habit；operation 只允许 correlation、conditionalAverage、groupComparison；默认至少对齐 5 天。
+        - crossDomainPlan 只允许 health×finance、health×habit、task×habit、goal×task；数据集名称和字段必须来自 cross_domain 工具目录。
+        - task.daily.value 表示每日完成任务数，goal.progress.daily.value 表示活跃目标关联任务的累计完成进度；operation 只允许 correlation、conditionalAverage、groupComparison，默认至少对齐 5 天。
         - 跨域结果只能表述“相关、同时出现、分组差异”，绝不能表述“导致、证明、因为”。
 
         健康工具选择规则：
