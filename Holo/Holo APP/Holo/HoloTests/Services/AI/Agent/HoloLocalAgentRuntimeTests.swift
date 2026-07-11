@@ -46,6 +46,19 @@ actor FakeToolExecutor: HoloAgentToolExecuting {
 
     func execute(_ request: HoloToolRequest) async -> HoloDataToolResult {
         requests.append(request)
+        if request.dynamicPlan != nil {
+            return HoloDataToolResult(
+                toolRequestID: request.id,
+                tool: request.tool,
+                status: .success,
+                coverage: nil,
+                metrics: [HoloMetric(metricKey: "dynamic.health_sleep.average_sleep.all", value: 7.2, unit: "小时", baselineValue: nil, comparison: nil, formula: "average(value)", sourceRecordIDs: ["sleep-1", "sleep-2"])],
+                events: [HoloEvidenceEvent(id: "dynamic-average-sleep", occurredAt: Date(), metricKey: "dynamic.health_sleep.average_sleep.all", metricValue: 7.2, excerpt: "平均睡眠 7.2 小时", formula: "average(value)", sourceRecordIDs: ["sleep-1", "sleep-2"])],
+                warnings: [],
+                error: nil,
+                sensitivity: .sensitive
+            )
+        }
         if request.query == "spending_breakdown" {
             return HoloDataToolResult(toolRequestID: request.id, tool: request.tool, status: .success,
                                       coverage: nil,
@@ -135,6 +148,7 @@ struct HoloLocalAgentRuntimeTests {
         try await testRunLoop_工具上下文使用全局唯一EvidenceID()
         try await testRunLoop_finalClaims必须经过Evidence校验()
         try await testRunLoop_模型不收敛时用工具结果兜底完成()
+        try await testRunLoop_动态查询结果经过证据校验后完成()
         try await testPauseForBackground_运行中任务标记waitingForForeground()
         try await testResumeUnfinishedJobs_恢复未完成任务()
         try await test后台暂停后恢复并RunLoop完成()
@@ -580,6 +594,21 @@ struct HoloLocalAgentRuntimeTests {
         let savedResult = await fixture.runtime.loadLatestResult()
         expect(savedResult?.claims.isEmpty == false, "兜底完成应保存至少 1 条 claim")
         expect(savedResult?.summary.contains("晚间餐饮频次偏移") == true, "兜底 summary 应来自 pattern signal")
+    }
+
+    private static func testRunLoop_动态查询结果经过证据校验后完成() async throws {
+        let dir = makeTempDir()
+        let needTools = #"{"status":"need_tools","reasoning":"需要现场计算","toolRequests":[{"id":"sleep-dynamic","tool":"health","query":"dynamic_query","dynamicPlan":{"source":"health.sleep","aggregations":[{"id":"average_sleep","operation":"average","field":"value","unit":"小时"}]}}],"claims":[],"warnings":[]}"#
+        let invalidFinal = #"{"status":"final_claims","reasoning":"完成","toolRequests":[],"claims":[{"id":"bad","type":"observation","displayText":"平均睡眠 8 小时","metricAssertions":[{"metricKey":"dynamic.health_sleep.average_sleep.all","value":8,"unit":"小时","evidenceIDs":["ghost"]}],"evidenceIDs":["ghost"],"prohibitedInferences":[],"confidence":0.9}],"warnings":[]}"#
+        let client = FakeAgentLLMClient(responses: [needTools, invalidFinal])
+        let fixture = makeLoopRuntime(dir: dir, llmClient: client, toolExecutor: FakeToolExecutor())
+        let now = Date()
+        let job = try await fixture.runtime.startMockJob(question: "最近两周平均睡眠多久", now: now)
+        let completed = try await fixture.runtime.runLoop(jobID: job.id, systemTemplate: "你是 Agent", toolDescriptions: "动态健康目录", now: now.addingTimeInterval(1))
+        let saved = await fixture.runtime.loadLatestResult()
+        expect(completed.state == .completed, "动态查询应完成")
+        expect(saved?.claims.first?.metricAssertions.first?.value == 7.2, "模型心算错误后必须回退到本地确定性结果")
+        expect(saved?.summary.contains("7.2") == true, "最终摘要应来自动态计算结果")
     }
 
     /// 进入后台：running 任务标记为 waitingForForeground。

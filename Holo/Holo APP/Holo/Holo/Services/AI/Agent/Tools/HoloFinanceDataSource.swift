@@ -11,6 +11,29 @@ import Foundation
 
 struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
 
+    func queryRows(timeRange: HoloAgentTimeRange?, parameters: [String: String]) async -> [HoloQueryRow] {
+        let calendar = Calendar.current
+        let end = timeRange?.end ?? (calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: Date())) ?? Date())
+        let start = timeRange?.start ?? (calendar.date(byAdding: .day, value: -30, to: end) ?? end)
+        guard let transactions = try? await FinanceRepository.shared.getTransactions(from: start, to: end) else { return [] }
+        return transactions.map { tx in
+            let text = [tx.note, tx.remark, tx.tags?.joined(separator: " ")].compactMap { $0 }.joined(separator: " ")
+            return HoloQueryRow(
+                id: tx.id.uuidString,
+                occurredAt: tx.date,
+                fields: [
+                    "date": .date(tx.date),
+                    "amount": .number(tx.amount.doubleValue),
+                    "type": .text(tx.transactionType == .expense ? "expense" : "income"),
+                    "category": .text(tx.category?.name ?? "未分类"),
+                    "account": .text(tx.account?.name ?? "未指定账户"),
+                    "text": .text(text)
+                ],
+                excerpt: Self.sampleExcerpt(for: tx)
+            )
+        }
+    }
+
     func snapshot(
         timeRange: HoloAgentTimeRange?,
         baseline: HoloAgentTimeRange?,

@@ -279,7 +279,30 @@ actor HoloLocalAgentRuntime {
                         continue
                     }
                     let scopedRequest = Self.requestWithJobScope(request, job: job)
-                    let rawResult = await toolExecutor.execute(scopedRequest)
+                    let invalidDynamicAttempts = checkpoint.completedToolResults.filter {
+                        $0.tool == scopedRequest.tool
+                            && $0.error?.code == HoloToolErrorCode.invalidParams
+                            && scopedRequest.dynamicPlan != nil
+                    }.count
+                    let rawResult: HoloDataToolResult
+                    if scopedRequest.dynamicPlan != nil, invalidDynamicAttempts >= 2 {
+                        rawResult = HoloDataToolResult(
+                            toolRequestID: scopedRequest.id,
+                            tool: scopedRequest.tool,
+                            status: .error,
+                            coverage: nil,
+                            metrics: [],
+                            events: [],
+                            warnings: [],
+                            error: HoloToolError(
+                                code: "DYNAMIC_PLAN_RETRY_EXHAUSTED",
+                                message: "动态查询计划已修正一次，停止继续重试",
+                                recoverable: false
+                            )
+                        )
+                    } else {
+                        rawResult = await toolExecutor.execute(scopedRequest)
+                    }
                     let result = Self.resultWithCanonicalEvidenceIDs(rawResult, jobID: job.id)
                     checkpoint.completedToolResults.append(result)
                     let evidence = Self.evidenceRecords(
@@ -418,11 +441,15 @@ actor HoloLocalAgentRuntime {
     }
 
     private static func requestWithJobScope(_ request: HoloToolRequest, job: HoloAgentJob) -> HoloToolRequest {
-        guard request.timeRange == nil, let jobRange = job.timeRange else {
-            return request
-        }
         var scoped = request
-        scoped.timeRange = jobRange
+        if scoped.timeRange == nil, let jobRange = job.timeRange {
+            scoped.timeRange = jobRange
+        }
+        if var plan = scoped.dynamicPlan {
+            if plan.timeRange == nil { plan.timeRange = scoped.timeRange }
+            if plan.baseline == nil { plan.baseline = scoped.baseline }
+            scoped.dynamicPlan = plan
+        }
         return scoped
     }
 
@@ -644,6 +671,8 @@ actor HoloLocalAgentRuntime {
                 baselineValue: result.metrics.first { $0.metricKey == metricKey }?.baselineValue,
                 baselineTimeRange: event.baselineTimeRange ?? request.baseline,
                 comparison: result.metrics.first { $0.metricKey == metricKey }?.comparison,
+                formula: event.formula ?? result.metrics.first { $0.metricKey == metricKey }?.formula,
+                sourceRecordIDs: event.sourceRecordIDs ?? result.metrics.first { $0.metricKey == metricKey }?.sourceRecordIDs,
                 excerpt: event.excerpt,
                 redactedExcerpt: event.excerpt,
                 sensitivity: HoloAgentEvidencePolicy.sensitivity(for: result),
@@ -876,6 +905,9 @@ actor HoloLocalAgentRuntime {
         metric: HoloMetric,
         event: HoloEvidenceEvent?
     ) -> String {
+        if metric.metricKey.hasPrefix("dynamic."), let event {
+            return event.excerpt
+        }
         if result.tool == "finance" {
             let rangeLabel = event?.timeRange?.label ?? "本期"
             let valueText = metric.value.map { moneyText($0) } ?? "已有记录"

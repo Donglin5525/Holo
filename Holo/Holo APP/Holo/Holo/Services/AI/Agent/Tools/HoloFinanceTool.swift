@@ -73,15 +73,39 @@ protocol HoloFinanceDataSource: Sendable {
         baseline: HoloAgentTimeRange?,
         parameters: [String: String]
     ) async -> HoloFinanceToolRecord?
+    func queryRows(timeRange: HoloAgentTimeRange?, parameters: [String: String]) async -> [HoloQueryRow]
+}
+
+extension HoloFinanceDataSource {
+    func queryRows(timeRange: HoloAgentTimeRange?, parameters: [String: String]) async -> [HoloQueryRow] { [] }
 }
 
 /// 财务工具：把聚合后的财务快照转为可信指标与证据。
 struct HoloFinanceTool: HoloDataTool {
 
+    static let dynamicCatalog = HoloDataCatalog(datasets: [
+        HoloDataSetSchema(
+            name: "finance.transactions",
+            domain: "finance",
+            description: "收入与支出交易明细",
+            timeField: "date",
+            fields: [
+                HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "交易日期"),
+                HoloDataField(name: "amount", type: .number, unit: "元", filterable: true, groupable: false, aggregatable: true, description: "交易金额"),
+                HoloDataField(name: "type", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "expense 或 income"),
+                HoloDataField(name: "category", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "交易分类"),
+                HoloDataField(name: "account", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "账户名称"),
+                HoloDataField(name: "text", type: .text, unit: nil, filterable: true, groupable: false, aggregatable: false, description: "备注、说明和标签合并文本")
+            ],
+            sensitivity: .normal,
+            maximumRangeDays: 366
+        )
+    ])
+
     let descriptor = HoloToolDescriptor(
         name: "finance",
         description: "财务数据分析（支出拆解 / 趋势 / 关键词 / 预算 / 账户与净资产）",
-        supportedQueries: ["spending_breakdown", "spending_pattern", "meal_time_distribution", "category_concentration", "keyword_trend", "budget_status", "account_summary"],
+        supportedQueries: ["spending_breakdown", "spending_pattern", "meal_time_distribution", "category_concentration", "keyword_trend", "budget_status", "account_summary", "dynamic_query"],
         supportedTimeRanges: [],
         outputMetrics: [
             "finance.total.amount",
@@ -101,7 +125,8 @@ struct HoloFinanceTool: HoloDataTool {
             "finance.account.liabilities",
             "finance.account.net_worth"
         ],
-        sensitivityPolicy: "normal"
+        sensitivityPolicy: "normal",
+        dynamicCatalog: Self.dynamicCatalog
     )
 
     private let dataSource: HoloFinanceDataSource
@@ -111,6 +136,14 @@ struct HoloFinanceTool: HoloDataTool {
     }
 
     func validate(_ request: HoloToolRequest) -> HoloToolValidationResult {
+        if request.query == "dynamic_query" {
+            guard let plan = request.dynamicPlan else { return .invalid(reason: "dynamic_query 缺少 dynamicPlan") }
+            do {
+                try HoloDynamicQueryValidator.validate(plan, catalog: Self.dynamicCatalog)
+                guard plan.source == "finance.transactions" else { return .invalid(reason: "财务工具不能访问 \(plan.source)") }
+                return .valid
+            } catch { return .invalid(reason: error.localizedDescription) }
+        }
         let supported = Set(descriptor.supportedQueries)
         guard supported.contains(request.query) else {
             return .invalid(reason: "不支持的查询：\(request.query)")
@@ -122,6 +155,9 @@ struct HoloFinanceTool: HoloDataTool {
     }
 
     func execute(_ request: HoloToolRequest) async throws -> HoloDataToolResult {
+        if request.query == "dynamic_query", let plan = request.dynamicPlan {
+            return await dynamicResult(request, plan: plan)
+        }
         guard let record = await dataSource.snapshot(
             timeRange: request.timeRange,
             baseline: request.baseline,
@@ -150,6 +186,37 @@ struct HoloFinanceTool: HoloDataTool {
     }
 
     // MARK: - 各 query 实现
+
+    private func dynamicResult(_ request: HoloToolRequest, plan: HoloDynamicQueryPlan) async -> HoloDataToolResult {
+        var scopedPlan = plan
+        scopedPlan.timeRange = plan.timeRange ?? request.timeRange
+        scopedPlan.baseline = plan.baseline
+            ?? request.baseline
+            ?? HoloDynamicQueryRangeResolver.baselineIfNeeded(for: plan, currentRange: scopedPlan.timeRange)
+        let current = await dataSource.queryRows(timeRange: scopedPlan.timeRange, parameters: request.parameters)
+        let baseline = await dataSource.queryRows(timeRange: scopedPlan.baseline, parameters: request.parameters)
+        do {
+            let output = try HoloDynamicQueryEngine.execute(
+                plan: scopedPlan,
+                catalog: Self.dynamicCatalog,
+                currentRows: current,
+                baselineRows: baseline
+            )
+            return HoloDataToolResult(
+                toolRequestID: request.id,
+                tool: request.tool,
+                status: output.metrics.isEmpty ? .empty : .success,
+                coverage: output.coverage,
+                metrics: output.metrics,
+                events: output.events,
+                warnings: [],
+                error: nil,
+                sensitivity: .normal
+            )
+        } catch {
+            return Self.errorResult(request, reason: error.localizedDescription)
+        }
+    }
 
     private func spendingBreakdownResult(request: HoloToolRequest, record: HoloFinanceToolRecord) -> HoloDataToolResult {
         let total = record.totalCurrentAmount

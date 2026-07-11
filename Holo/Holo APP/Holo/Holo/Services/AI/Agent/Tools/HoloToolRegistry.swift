@@ -55,11 +55,26 @@ actor HoloToolRegistry {
         let sorted = tools.values.sorted { $0.descriptor.name < $1.descriptor.name }
         let lines = sorted.map { tool in
             let d = tool.descriptor
+            let dynamicDescription: String
+            if HoloAgentDynamicQueryFlags.enabled, let catalog = d.dynamicCatalog {
+                dynamicDescription = catalog.datasets.map { dataset in
+                    let fields = dataset.fields.map { field in
+                        "\(field.name):\(field.type.rawValue)\(field.unit.map { "[\($0)]" } ?? "")"
+                    }.joined(separator: ",")
+                    return "  动态数据集 \(dataset.name)（最长 \(dataset.maximumRangeDays) 天）字段: \(fields)"
+                }.joined(separator: "\n")
+            } else {
+                dynamicDescription = ""
+            }
+            let visibleQueries = HoloAgentDynamicQueryFlags.enabled
+                ? d.supportedQueries
+                : d.supportedQueries.filter { $0 != "dynamic_query" }
             return "【\(d.name)】\(d.description)\n"
-                + "  支持查询: \(d.supportedQueries.joined(separator: "、"))\n"
+                + "  支持查询: \(visibleQueries.joined(separator: "、"))\n"
                 + "  支持时间范围: \(d.supportedTimeRanges.joined(separator: "、"))\n"
                 + "  输出度量: \(d.outputMetrics.joined(separator: "、"))\n"
                 + "  敏感度策略: \(d.sensitivityPolicy)"
+                + (dynamicDescription.isEmpty ? "" : "\n\(dynamicDescription)")
         }
         return lines.joined(separator: "\n")
     }

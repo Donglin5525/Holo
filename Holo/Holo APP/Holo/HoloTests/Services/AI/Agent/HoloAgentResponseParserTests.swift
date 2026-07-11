@@ -22,9 +22,19 @@ struct HoloAgentResponseParserTests {
         testMarkdownCodeBlock包裹解析成功()
         test旧字段text可解析为displayText()
         test说明文本中可抽取JSON并归一字段别名()
+        test动态查询计划缺省字段自动补齐()
         test缺status抛outputParseFailure可重试()
         test超过重试次数不重试()
         print("HoloAgentResponseParserTests passed")
+    }
+
+    private static func test动态查询计划缺省字段自动补齐() {
+        let raw = #"{"status":"need_tools","reasoning":"现场计算平均睡眠","toolRequests":[{"id":"sleep-dynamic","tool":"health","query":"dynamic_query","dynamicPlan":{"source":"health.sleep","aggregations":[{"id":"average_sleep","operation":"average","field":"value","unit":"小时"}]}}],"claims":[],"warnings":[]}"#
+        let output = try? HoloAgentResponseParser.parse(raw, remainingRetries: 0)
+        let plan = output?.toolRequests.first?.dynamicPlan
+        expect(plan?.source == "health.sleep", "应解析动态数据集")
+        expect(plan?.aggregations.first?.operation == .average, "应解析动态聚合")
+        expect(plan?.filters.isEmpty == true && plan?.limit == 20, "缺省安全字段应自动补齐")
     }
 
     private static let validJSON = #"{"status":"final_claims","reasoning":"证据充分","toolRequests":[],"claims":[],"warnings":[]}"#

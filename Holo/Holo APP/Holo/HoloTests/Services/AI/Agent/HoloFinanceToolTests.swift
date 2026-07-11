@@ -14,11 +14,13 @@ import Foundation
 /// FinanceTool 测试专用数据源（独立命名，避免联合编译重复）。
 struct MockFinanceDataSource: HoloFinanceDataSource {
     let record: HoloFinanceToolRecord?
+    var rows: [HoloQueryRow] = []
     func snapshot(
         timeRange: HoloAgentTimeRange?,
         baseline: HoloAgentTimeRange?,
         parameters: [String: String]
     ) async -> HoloFinanceToolRecord? { record }
+    func queryRows(timeRange: HoloAgentTimeRange?, parameters: [String: String]) async -> [HoloQueryRow] { rows }
 }
 
 @main
@@ -37,7 +39,59 @@ struct HoloFinanceToolTests {
         try await test预算状态返回总额已用剩余与预警分类()
         try await test账户摘要返回净资产和账户数量()
         try await test无财务记录返回empty()
+        try await test动态查询现场计算麦当劳平均每顿金额()
+        try test动态查询找出环比增长最高分类()
         print("HoloFinanceToolTests passed")
+    }
+
+    private static func test动态查询现场计算麦当劳平均每顿金额() async throws {
+        let now = Date(timeIntervalSince1970: 1_000)
+        let rows = [32.0, 48.0, 40.0].enumerated().map { index, amount in
+            HoloQueryRow(
+                id: "mcd-\(index)",
+                occurredAt: now.addingTimeInterval(Double(index) * 86_400),
+                fields: [
+                    "date": .date(now), "amount": .number(amount), "type": .text("expense"),
+                    "category": .text("餐饮"), "account": .text("默认账户"), "text": .text("麦当劳")
+                ],
+                excerpt: "麦当劳 \(amount) 元"
+            )
+        }
+        let plan = HoloDynamicQueryPlan(
+            source: "finance.transactions",
+            filters: [
+                HoloDynamicFilter(field: "type", operation: .equal, value: .text("expense")),
+                HoloDynamicFilter(field: "text", operation: .contains, value: .text("麦当劳"))
+            ],
+            aggregations: [HoloDynamicAggregation(id: "average_per_meal", operation: .average, field: "amount", unit: "元")]
+        )
+        var request = makeRequest(query: "dynamic_query")
+        request.dynamicPlan = plan
+        let tool = HoloFinanceTool(dataSource: MockFinanceDataSource(record: nil, rows: rows))
+        let result = try await tool.execute(request)
+        expect(result.status == .success, "动态财务查询应成功")
+        expect(result.metrics.first?.value == 40, "麦当劳平均每顿应为 40 元")
+        expect(result.metrics.first?.metricKey.contains("average_per_meal") == true, "动态指标不应依赖预定义 metricKey")
+    }
+
+    private static func test动态查询找出环比增长最高分类() throws {
+        func row(_ id: String, _ category: String, _ amount: Double) -> HoloQueryRow {
+            HoloQueryRow(id: id, occurredAt: Date(), fields: ["date": .date(Date()), "amount": .number(amount), "type": .text("expense"), "category": .text(category), "account": .text("默认"), "text": .text("")], excerpt: category)
+        }
+        let current = [row("c1", "餐饮", 150), row("c2", "交通", 130)]
+        let baseline = [row("b1", "餐饮", 100), row("b2", "交通", 120)]
+        let plan = HoloDynamicQueryPlan(
+            source: "finance.transactions",
+            groupBy: [HoloDynamicGrouping(type: .field, field: "category")],
+            aggregations: [HoloDynamicAggregation(id: "category_amount", operation: .sum, field: "amount", unit: "元")],
+            derivations: [HoloDynamicDerivation(id: "category_growth", operation: .percentageChange, metricID: "category_amount", unit: "比例")],
+            sort: HoloDynamicSort(metricID: "category_growth", direction: .descending),
+            limit: 1
+        )
+        let output = try HoloDynamicQueryEngine.execute(plan: plan, catalog: HoloFinanceTool.dynamicCatalog, currentRows: current, baselineRows: baseline)
+        expect(output.metrics.count == 1, "排序后只返回最高增长指标")
+        expect(output.metrics.first?.comparison == "餐饮", "餐饮环比 50% 应高于交通")
+        expect(output.metrics.first?.value == 0.5, "餐饮环比应为 0.5")
     }
 
     private static func makeRequest(query: String, parameters: [String: String] = [:]) -> HoloToolRequest {

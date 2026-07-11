@@ -48,6 +48,10 @@ nonisolated struct HoloEvidenceRecord: Codable, Identifiable, Equatable, Sendabl
     var baselineValue: Double?
     var baselineTimeRange: HoloAgentTimeRange? = nil
     var comparison: String?
+    /// 动态指标的确定性公式；旧证据为空。
+    var formula: String? = nil
+    /// 参与计算的原始记录 ID，仅本地保存，不直接发送完整原始数据。
+    var sourceRecordIDs: [String]? = nil
     var excerpt: String
     /// 脱敏摘要，默认发给 LLM；完整 excerpt 仅本地 Verifier 使用
     var redactedExcerpt: String

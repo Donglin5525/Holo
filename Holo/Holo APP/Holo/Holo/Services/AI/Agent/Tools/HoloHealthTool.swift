@@ -37,6 +37,27 @@ protocol HoloHealthDataSource: Sendable {
 
 struct HoloHealthTool: HoloDataTool {
 
+    static let dynamicCatalog = HoloDataCatalog(datasets: HoloHealthMetricKind.allCases.map { kind in
+        let config: (name: String, unit: String, description: String) = switch kind {
+        case .steps: ("health.steps", "步", "每日步数")
+        case .sleep: ("health.sleep", "小时", "每日睡眠时长")
+        case .stand: ("health.stand", "小时", "每日站立小时")
+        case .activity: ("health.activity", "分钟", "每日活动分钟")
+        }
+        return HoloDataSetSchema(
+            name: config.name,
+            domain: "health",
+            description: config.description,
+            timeField: "date",
+            fields: [
+                HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "记录日期"),
+                HoloDataField(name: "value", type: .number, unit: config.unit, filterable: true, groupable: false, aggregatable: true, description: config.description)
+            ],
+            sensitivity: .sensitive,
+            maximumRangeDays: 366
+        )
+    })
+
     let descriptor = HoloToolDescriptor(
         name: "health",
         description: "健康数据分析（综合状态 / 步数 / 睡眠 / 站立 / 活动分钟 / 运动会话）",
@@ -46,7 +67,8 @@ struct HoloHealthTool: HoloDataTool {
             "sleep_summary",
             "stand_summary",
             "activity_summary",
-            "workout_summary"
+            "workout_summary",
+            "dynamic_query"
         ],
         supportedTimeRanges: ["recent", "7d", "14d", "30d"],
         outputMetrics: [
@@ -68,7 +90,8 @@ struct HoloHealthTool: HoloDataTool {
             "health.workout.active_days",
             "health.workout.daily_minutes"
         ],
-        sensitivityPolicy: "sensitive"
+        sensitivityPolicy: "sensitive",
+        dynamicCatalog: Self.dynamicCatalog
     )
 
     private let dataSource: HoloHealthDataSource
@@ -78,12 +101,23 @@ struct HoloHealthTool: HoloDataTool {
     }
 
     func validate(_ request: HoloToolRequest) -> HoloToolValidationResult {
-        descriptor.supportedQueries.contains(request.query)
+        if request.query == "dynamic_query" {
+            guard let plan = request.dynamicPlan else { return .invalid(reason: "dynamic_query 缺少 dynamicPlan") }
+            do {
+                try HoloDynamicQueryValidator.validate(plan, catalog: Self.dynamicCatalog)
+                guard plan.source.hasPrefix("health.") else { return .invalid(reason: "健康工具不能访问 \(plan.source)") }
+                return .valid
+            } catch { return .invalid(reason: error.localizedDescription) }
+        }
+        return descriptor.supportedQueries.contains(request.query)
             ? .valid
             : .invalid(reason: "不支持的健康查询：\(request.query)")
     }
 
     func execute(_ request: HoloToolRequest) async throws -> HoloDataToolResult {
+        if request.query == "dynamic_query", let plan = request.dynamicPlan {
+            return await dynamicResult(request, plan: plan)
+        }
         switch request.query {
         case "health_overview":
             return await overview(request)
@@ -104,6 +138,61 @@ struct HoloHealthTool: HoloDataTool {
 }
 
 private extension HoloHealthTool {
+
+    func dynamicResult(_ request: HoloToolRequest, plan: HoloDynamicQueryPlan) async -> HoloDataToolResult {
+        guard let kind = Self.metricKind(for: plan.source) else { return error(request, reason: "未注册健康数据集：\(plan.source)") }
+        let currentRange = plan.timeRange ?? request.timeRange
+        let baselineRange = plan.baseline
+            ?? request.baseline
+            ?? HoloDynamicQueryRangeResolver.baselineIfNeeded(for: plan, currentRange: currentRange)
+        let current = await dataSource.dailyRecords(for: kind, timeRange: currentRange)
+        let baseline = await dataSource.dailyRecords(for: kind, timeRange: baselineRange)
+        let currentRows = current.filter { $0.value > 0 }.map { Self.queryRow($0, kind: kind) }
+        let baselineRows = baseline.filter { $0.value > 0 }.map { Self.queryRow($0, kind: kind) }
+        var scopedPlan = plan
+        scopedPlan.timeRange = currentRange
+        scopedPlan.baseline = baselineRange
+        do {
+            let output = try HoloDynamicQueryEngine.execute(
+                plan: scopedPlan,
+                catalog: Self.dynamicCatalog,
+                currentRows: currentRows,
+                baselineRows: baselineRows
+            )
+            return HoloDataToolResult(
+                toolRequestID: request.id,
+                tool: request.tool,
+                status: output.metrics.isEmpty ? .empty : .success,
+                coverage: output.coverage,
+                metrics: output.metrics,
+                events: output.events,
+                warnings: [],
+                error: nil,
+                sensitivity: .sensitive
+            )
+        } catch let caughtError {
+            return error(request, reason: caughtError.localizedDescription)
+        }
+    }
+
+    static func metricKind(for source: String) -> HoloHealthMetricKind? {
+        switch source {
+        case "health.steps": .steps
+        case "health.sleep": .sleep
+        case "health.stand": .stand
+        case "health.activity": .activity
+        default: nil
+        }
+    }
+
+    static func queryRow(_ record: HoloHealthDailyRecord, kind: HoloHealthMetricKind) -> HoloQueryRow {
+        HoloQueryRow(
+            id: "\(kind.rawValue)-\(idFormatter.string(from: record.date))",
+            occurredAt: record.date,
+            fields: ["date": .date(record.date), "value": .number(record.value)],
+            excerpt: "\(displayFormatter.string(from: record.date)) \(kind.rawValue) \(record.value)"
+        )
+    }
 
     func dailySummary(
         _ request: HoloToolRequest,

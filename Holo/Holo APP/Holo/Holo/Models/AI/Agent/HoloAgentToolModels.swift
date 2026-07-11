@@ -17,6 +17,7 @@ nonisolated struct HoloToolRequest: Codable, Identifiable, Equatable, Sendable {
     var baseline: HoloAgentTimeRange?
     var requiredMetrics: [String]
     var parameters: [String: String]
+    var dynamicPlan: HoloDynamicQueryPlan? = nil
 }
 
 // MARK: - 结果状态与错误
@@ -50,6 +51,8 @@ nonisolated struct HoloMetric: Codable, Equatable, Sendable {
     var unit: String?
     var baselineValue: Double?
     var comparison: String?
+    var formula: String? = nil
+    var sourceRecordIDs: [String]? = nil
 }
 
 /// 工具输出的事件级证据（对应原始数据点，可转为 EvidenceRecord）
@@ -61,6 +64,8 @@ nonisolated struct HoloEvidenceEvent: Codable, Equatable, Sendable {
     var excerpt: String
     var timeRange: HoloAgentTimeRange? = nil
     var baselineTimeRange: HoloAgentTimeRange? = nil
+    var formula: String? = nil
+    var sourceRecordIDs: [String]? = nil
 }
 
 /// 工具查询的数据覆盖度（判断结论可信度的依据）

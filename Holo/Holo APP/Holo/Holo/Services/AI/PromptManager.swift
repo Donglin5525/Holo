@@ -126,7 +126,7 @@ final class PromptManager {
         .financeActionParser: 1,        // v1: 分期记账参数解析
         .taskActionParser: 1,           // v1: 重复任务参数解析
         .thoughtOrganization: 2,        // v2: 优先复用用户认可标签（全量进 prompt），简化输出
-        .agentLoop: 4,                  // v4: 健康全指标与核心语义工具确定性选择
+        .agentLoop: 5,                  // v5: 财务与健康动态查询 DSL
         .thoughtTagConvergence: 1,      // v1: 观点跨主题归并收敛（P2）
         .healthInsightGeneration: 2     // v2: 多域生活闭环（待办/习惯/观点/运动证据）+ 观点措辞规避
     ]
@@ -350,6 +350,16 @@ final class PromptManager {
         当用户询问“钱花哪了 / 本月消费结构 / 1.4万去哪了 / 这笔钱怎么花的”这类总额去向问题时，优先请求 finance 工具的 spending_breakdown；如果用户提到金额（如 1.4 万），视为用户从记账反馈得到的外部口径，需用工具返回的账单总额、分类金额和明细样例核对差异，不要直接说“无法验证”。
         当用户询问某个具体消费对象、商品、品牌或备注词的趋势/次数/金额（例如咖啡、奶茶、星巴克）时，优先请求 finance 工具的 keyword_trend，并在 parameters.keyword 填入该关键词；不要只用分类集中度或总消费替代。
 
+        动态查询规则：
+        - 财务和健康的长尾计算优先使用 query="dynamic_query"，并根据工具目录填写 dynamicPlan；常见固定问题仍可使用快捷 query。
+        - dynamicPlan 只能引用工具目录中已声明的数据集和字段，禁止生成 SQL、代码、正则或自由表达式。
+        - dynamicPlan 完整字段：source、timeRange、baseline、filters、groupBy、aggregations、derivations、sort、limit、evidenceLimit。
+        - filter.operation 仅允许 equal/notEqual/greaterThan/greaterThanOrEqual/lessThan/lessThanOrEqual/contains/oneOf。
+        - aggregation.operation 仅允许 count/sum/average/min/max/distinctCount；derivation.operation 仅允许 difference/ratio/percentageChange/rate/linearTrend/coverage。
+        - filter.value 使用带类型对象，例如数字 6 写成 {"type":"number","number":6}，文本写成 {"type":"text","text":"麦当劳"}。
+        - 平均睡眠示例：{"source":"health.sleep","filters":[],"groupBy":[],"aggregations":[{"id":"average_sleep","operation":"average","field":"value","unit":"小时","filters":[]}],"derivations":[],"sort":null,"limit":20,"evidenceLimit":20}。
+        - 查询计划被工具以 INVALID_PARAMS 拒绝时，最多修正一次；不要改用模型心算。
+
         健康工具选择规则：
         - 综合健康状态、身体状态、恢复情况 → health.health_overview。
         - 步数、走路趋势、日均步数 → health.steps_summary。
@@ -374,7 +384,7 @@ final class PromptManager {
         - 当前明确输入永远优先；长期记忆、近期状态只能辅助理解，不能覆盖本轮输入。
 
         输出 JSON Schema：
-        {"status":"need_tools | need_more_analysis | final_claims","reasoning":"string","toolRequests":[{"id":"string","tool":"string","query":"string","parameters":{}}],"claims":[{"id":"string","type":"observation | change | pattern | correlation | suggestion","displayText":"string","metricAssertions":[],"evidenceIDs":["string"],"prohibitedInferences":[],"confidence":0.5}],"warnings":[]}
+        {"status":"need_tools | need_more_analysis | final_claims","reasoning":"string","toolRequests":[{"id":"string","tool":"string","query":"string","parameters":{},"dynamicPlan":null}],"claims":[{"id":"string","type":"observation | change | pattern | correlation | suggestion","displayText":"string","metricAssertions":[],"evidenceIDs":["string"],"prohibitedInferences":[],"confidence":0.5}],"warnings":[]}
 
         need_tools：需要调用本地工具，必须给出 toolRequests。
         need_more_analysis：已有信息不足以得出结论，需要继续推理。

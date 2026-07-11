@@ -47,6 +47,9 @@ struct HoloHealthToolTests {
         try await test综合健康保留已有指标并报告缺失项()
         try await test覆盖率遵循闭开时间范围()
         try await test无睡眠数据返回empty()
+        try test动态查询可现场计算平均睡眠与低睡眠占比()
+        try test动态查询可比较周末与工作日步数()
+        try test动态查询拒绝未注册字段和超长范围()
         print("HoloHealthToolTests passed")
     }
 
@@ -194,5 +197,55 @@ struct HoloHealthToolTests {
         expect(result.metrics.isEmpty, "empty 不应带 metrics")
         expect(result.events.isEmpty, "empty 不应带 events")
         expect(result.warnings.contains { $0.code == "NO_SLEEP_DATA" }, "应明确睡眠数据缺失")
+    }
+
+    private static func test动态查询可现场计算平均睡眠与低睡眠占比() throws {
+        let rows = records([5.5, 7.0, 8.2]).map { record in
+            HoloQueryRow(id: UUID().uuidString, occurredAt: record.date, fields: ["date": .date(record.date), "value": .number(record.value)], excerpt: "sleep")
+        }
+        let plan = HoloDynamicQueryPlan(
+            source: "health.sleep",
+            aggregations: [
+                HoloDynamicAggregation(id: "average_sleep", operation: .average, field: "value", unit: "小时"),
+                HoloDynamicAggregation(id: "low_days", operation: .count, filters: [HoloDynamicFilter(field: "value", operation: .lessThan, value: .number(6))]),
+                HoloDynamicAggregation(id: "total_days", operation: .count)
+            ],
+            derivations: [HoloDynamicDerivation(id: "low_ratio", operation: .rate, metricID: "low_days", denominatorMetricID: "total_days", unit: "比例")]
+        )
+        let output = try HoloDynamicQueryEngine.execute(plan: plan, catalog: HoloHealthTool.dynamicCatalog, currentRows: rows)
+        expect(output.metrics.contains { $0.metricKey.contains("average_sleep") && abs(($0.value ?? 0) - 6.9) < 0.01 }, "应现场计算平均睡眠")
+        expect(output.metrics.contains { $0.metricKey.contains("low_ratio") && abs(($0.value ?? 0) - 1.0 / 3.0) < 0.001 }, "应现场计算低睡眠占比")
+        expect(output.events.allSatisfy { $0.formula?.isEmpty == false && !($0.sourceRecordIDs ?? []).isEmpty }, "动态指标必须带公式和来源")
+    }
+
+    private static func test动态查询可比较周末与工作日步数() throws {
+        let rows = [
+            HoloQueryRow(id: "fri", occurredAt: date(3), fields: ["date": .date(date(3)), "value": .number(8_000)], excerpt: "fri"),
+            HoloQueryRow(id: "sat", occurredAt: date(4), fields: ["date": .date(date(4)), "value": .number(12_000)], excerpt: "sat"),
+            HoloQueryRow(id: "sun", occurredAt: date(5), fields: ["date": .date(date(5)), "value": .number(10_000)], excerpt: "sun")
+        ]
+        let plan = HoloDynamicQueryPlan(
+            source: "health.steps",
+            groupBy: [HoloDynamicGrouping(type: .weekend)],
+            aggregations: [HoloDynamicAggregation(id: "average_steps", operation: .average, field: "value", unit: "步")]
+        )
+        let output = try HoloDynamicQueryEngine.execute(plan: plan, catalog: HoloHealthTool.dynamicCatalog, currentRows: rows)
+        expect(output.metrics.contains { $0.comparison == "weekend" && $0.value == 11_000 }, "周末平均步数应为 11000")
+        expect(output.metrics.contains { $0.comparison == "weekday" && $0.value == 8_000 }, "工作日平均步数应为 8000")
+    }
+
+    private static func test动态查询拒绝未注册字段和超长范围() throws {
+        let invalidField = HoloDynamicQueryPlan(source: "health.sleep", aggregations: [HoloDynamicAggregation(id: "x", operation: .average, field: "heartRate")])
+        do {
+            _ = try HoloDynamicQueryEngine.execute(plan: invalidField, catalog: HoloHealthTool.dynamicCatalog, currentRows: [])
+            fatalError("未注册字段必须被拒绝")
+        } catch HoloDynamicQueryValidationError.unknownField("heartRate") {}
+
+        let range = HoloAgentTimeRange(label: "过长", start: date(1), end: Calendar.current.date(byAdding: .day, value: 400, to: date(1)))
+        let longRange = HoloDynamicQueryPlan(source: "health.sleep", timeRange: range, aggregations: [HoloDynamicAggregation(id: "count", operation: .count)])
+        do {
+            _ = try HoloDynamicQueryEngine.execute(plan: longRange, catalog: HoloHealthTool.dynamicCatalog, currentRows: [])
+            fatalError("超长范围必须被拒绝")
+        } catch HoloDynamicQueryValidationError.rangeTooLarge {}
     }
 }

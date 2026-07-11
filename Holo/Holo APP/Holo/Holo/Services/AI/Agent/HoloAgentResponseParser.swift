@@ -70,6 +70,40 @@ enum HoloAgentResponseParser {
                 for i in 0..<requests.count {
                     if requests[i]["requiredMetrics"] == nil { requests[i]["requiredMetrics"] = [] }
                     if requests[i]["parameters"] == nil { requests[i]["parameters"] = [:] }
+                    if var plan = requests[i]["dynamicPlan"] as? [String: Any] {
+                        if plan["timeRange"] == nil { plan["timeRange"] = NSNull() }
+                        if plan["baseline"] == nil { plan["baseline"] = NSNull() }
+                        if plan["filters"] == nil { plan["filters"] = [] }
+                        if plan["groupBy"] == nil { plan["groupBy"] = [] }
+                        if plan["derivations"] == nil { plan["derivations"] = [] }
+                        if plan["sort"] == nil { plan["sort"] = NSNull() }
+                        if plan["limit"] == nil { plan["limit"] = 20 }
+                        if plan["evidenceLimit"] == nil { plan["evidenceLimit"] = 20 }
+                        if var filters = plan["filters"] as? [[String: Any]] {
+                            for index in filters.indices where filters[index]["values"] == nil { filters[index]["values"] = [] }
+                            plan["filters"] = filters
+                        }
+                        if var groupings = plan["groupBy"] as? [[String: Any]] {
+                            for index in groupings.indices where groupings[index]["field"] == nil { groupings[index]["field"] = NSNull() }
+                            plan["groupBy"] = groupings
+                        }
+                        if var aggregations = plan["aggregations"] as? [[String: Any]] {
+                            for index in aggregations.indices {
+                                if aggregations[index]["field"] == nil { aggregations[index]["field"] = NSNull() }
+                                if aggregations[index]["unit"] == nil { aggregations[index]["unit"] = NSNull() }
+                                if aggregations[index]["filters"] == nil { aggregations[index]["filters"] = [] }
+                            }
+                            plan["aggregations"] = aggregations
+                        }
+                        if var derivations = plan["derivations"] as? [[String: Any]] {
+                            for index in derivations.indices {
+                                if derivations[index]["denominatorMetricID"] == nil { derivations[index]["denominatorMetricID"] = NSNull() }
+                                if derivations[index]["unit"] == nil { derivations[index]["unit"] = NSNull() }
+                            }
+                            plan["derivations"] = derivations
+                        }
+                        requests[i]["dynamicPlan"] = plan
+                    }
                 }
                 json["toolRequests"] = requests
             }
