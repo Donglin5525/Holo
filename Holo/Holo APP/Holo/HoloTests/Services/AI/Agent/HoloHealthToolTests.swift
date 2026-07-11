@@ -10,13 +10,16 @@ import Foundation
 struct MockHealthDataSource: HoloHealthDataSource {
     let daily: [HoloHealthMetricKind: [HoloHealthDailyRecord]]
     let workouts: [HoloHealthWorkoutRecord]
+    let sleeps: [HoloSleepRecord]?
 
     init(
         daily: [HoloHealthMetricKind: [HoloHealthDailyRecord]] = [:],
-        workouts: [HoloHealthWorkoutRecord] = []
+        workouts: [HoloHealthWorkoutRecord] = [],
+        sleeps: [HoloSleepRecord]? = nil
     ) {
         self.daily = daily
         self.workouts = workouts
+        self.sleeps = sleeps
     }
 
     func dailyRecords(
@@ -29,6 +32,15 @@ struct MockHealthDataSource: HoloHealthDataSource {
     func workoutRecords(timeRange: HoloAgentTimeRange?) async -> [HoloHealthWorkoutRecord] {
         workouts
     }
+
+    func sleepRecords(timeRange: HoloAgentTimeRange?) async -> [HoloSleepRecord] {
+        if let sleeps { return sleeps }
+        return (daily[.sleep] ?? []).map {
+            HoloSleepRecord(date: $0.date, totalHours: $0.value, coreHours: nil, deepHours: nil,
+                            remHours: nil, awakeHours: nil, inBedHours: nil, bedtime: nil,
+                            wakeTime: nil, interruptionCount: nil)
+        }
+    }
 }
 
 @main
@@ -40,6 +52,7 @@ struct HoloHealthToolTests {
 
     static func main() async throws {
         try await test睡眠摘要产出平均值达标天数和每日证据()
+        try await test睡眠阶段存在时输出完整质量维度()
         try await test步数摘要产出日均达标天数和每日证据()
         try await test站立摘要产出日均达标天数和每日证据()
         try await test活动摘要产出日均达标天数和每日证据()
@@ -51,6 +64,25 @@ struct HoloHealthToolTests {
         try test动态查询可比较周末与工作日步数()
         try test动态查询拒绝未注册字段和超长范围()
         print("HoloHealthToolTests passed")
+    }
+
+    private static func test睡眠阶段存在时输出完整质量维度() async throws {
+        let sleeps = [1, 2].map { day in
+            HoloSleepRecord(date: date(day), totalHours: 8, coreHours: 4, deepHours: 1.5,
+                            remHours: 2, awakeHours: 0.5, inBedHours: 8.5,
+                            bedtime: date(day).addingTimeInterval(23 * 3600),
+                            wakeTime: date(day + 1).addingTimeInterval(7.5 * 3600), interruptionCount: 2)
+        }
+        let result = try await HoloHealthTool(dataSource: MockHealthDataSource(sleeps: sleeps))
+            .execute(makeRequest(query: "sleep_summary"))
+        expect(result.status == .success, "阶段覆盖完整时应为 success")
+        expect(metric("health.sleep.deep_hours", in: result) == 1.5, "应输出深睡")
+        expect(metric("health.sleep.core_hours", in: result) == 4, "应输出核心睡眠")
+        expect(metric("health.sleep.rem_hours", in: result) == 2, "应输出 REM")
+        expect(metric("health.sleep.efficiency", in: result) != nil, "应输出睡眠效率")
+        expect(metric("health.sleep.average_bedtime_minutes", in: result) != nil, "应输出平均入睡时间")
+        expect(metric("health.sleep.average_wake_minutes", in: result) != nil, "应输出平均起床时间")
+        expect(!result.warnings.contains { $0.code == "SLEEP_DURATION_ONLY" }, "阶段齐全时不应降级")
     }
 
     private static func makeRequest(
@@ -91,14 +123,17 @@ struct HoloHealthToolTests {
 
         let result = try await tool.execute(makeRequest(query: "sleep_summary"))
 
-        expect(result.status == .success, "sleep_summary 应成功，实际 \(result.status)")
+        expect(result.status == .partial, "只有时长时应降级为 partial，实际 \(result.status)")
         expect(abs((metric("health.sleep.average_hours", in: result) ?? 0) - 6.9) < 0.01, "应计算平均睡眠 6.9 小时")
         expect(metric("health.sleep.goal_met_days", in: result) == 1, "应统计达标 1 天")
         expect(metric("health.sleep.low_days", in: result) == 1, "应统计少于 6 小时 1 天")
+        expect(metric("health.sleep.recorded_nights", in: result) == 3, "应统计 3 晚有效记录")
         expect(result.events.filter { $0.metricKey == "health.sleep.hours" }.count == 3, "应为每天睡眠生成证据")
         expect(result.events.contains { $0.metricKey == "health.sleep.average_hours" && $0.metricValue == 6.9 }, "平均睡眠指标必须有可校验的汇总证据")
         expect(result.events.contains { $0.metricKey == "health.sleep.goal_met_days" && $0.metricValue == 1 }, "睡眠达标天数必须有可校验的汇总证据")
         expect(result.sensitivity == .sensitive, "健康结果必须标记为敏感证据")
+        expect(result.warnings.contains { $0.code == "SLEEP_DURATION_ONLY" }, "只有时长时必须明确能力边界")
+        expect(result.events.contains { $0.excerpt.contains("不能完整判断睡眠质量") }, "证据必须说明不能伪装成质量分析")
     }
 
     private static func test步数摘要产出日均达标天数和每日证据() async throws {

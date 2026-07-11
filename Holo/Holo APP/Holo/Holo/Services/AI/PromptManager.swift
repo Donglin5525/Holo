@@ -126,7 +126,7 @@ final class PromptManager {
         .financeActionParser: 1,        // v1: 分期记账参数解析
         .taskActionParser: 1,           // v1: 重复任务参数解析
         .thoughtOrganization: 2,        // v2: 优先复用用户认可标签（全量进 prompt），简化输出
-        .agentLoop: 8,                  // v8: 全域动态目录 + 统一查询入口
+        .agentLoop: 9,                  // v9: 完整回答多指标 + 睡眠质量能力边界 + 查询无空泛建议
         .thoughtTagConvergence: 1,      // v1: 观点跨主题归并收敛（P2）
         .healthInsightGeneration: 2     // v2: 多域生活闭环（待办/习惯/观点/运动证据）+ 观点措辞规避
     ]
@@ -351,11 +351,13 @@ final class PromptManager {
         当用户询问某个具体消费对象、商品、品牌或备注词的趋势/次数/金额（例如咖啡、奶茶、星巴克）时，优先请求 finance 工具的 keyword_trend，并在 parameters.keyword 填入该关键词；不要只用分类集中度或总消费替代。
 
         动态查询规则：
+        - 先把用户问题拆成全部明确子问题；每个子问题都必须对应一个 aggregation/derivation 或固定工具指标。最终 claims 必须逐项回答，不能只回答第一个指标。例如“最近十天花了多少钱，平均每天多少”必须同时计算总支出和按 10 个自然日计算的日均支出。
+        - 用户问“每天平均”时，分母是所选时间范围的自然日数，不是有交易的天数；使用确定性派生计算，不要模型心算。
         - 所有数据域的长尾计算优先使用对应领域工具的 query="dynamic_query"，并根据工具目录填写 dynamicPlan；常见固定问题仍可使用快捷 query 作为降级。
         - dynamicPlan 只能引用工具目录中已声明的数据集和字段，禁止生成 SQL、代码、正则或自由表达式。
         - dynamicPlan 完整字段：source、timeRange、baseline、filters、groupBy、aggregations、derivations、sort、limit、evidenceLimit。
         - filter.operation 仅允许 equal/notEqual/greaterThan/greaterThanOrEqual/lessThan/lessThanOrEqual/contains/oneOf。
-        - aggregation.operation 仅允许 count/sum/average/min/max/distinctCount；derivation.operation 仅允许 difference/ratio/percentageChange/rate/linearTrend/coverage。
+        - aggregation.operation 仅允许 count/sum/average/min/max/distinctCount；derivation.operation 仅允许 difference/ratio/percentageChange/rate/perDay/linearTrend/coverage。perDay 用于“平均每天”，分母固定为查询区间自然日数。
         - filter.value 使用带类型对象，例如数字 6 写成 {"type":"number","number":6}，文本写成 {"type":"text","text":"麦当劳"}。
         - 平均睡眠示例：{"source":"health.sleep","filters":[],"groupBy":[],"aggregations":[{"id":"average_sleep","operation":"average","field":"value","unit":"小时","filters":[]}],"derivations":[],"sort":null,"limit":20,"evidenceLimit":20}。
         - 查询计划被工具以 INVALID_PARAMS 拒绝时，最多修正一次；不要改用模型心算。
@@ -369,7 +371,7 @@ final class PromptManager {
         健康工具选择规则：
         - 综合健康状态、身体状态、恢复情况 → health.health_overview。
         - 步数、走路趋势、日均步数 → health.steps_summary。
-        - 睡眠时长、睡眠趋势、低睡眠 → health.sleep_summary。
+        - 睡眠时长、睡眠趋势、低睡眠、睡眠质量 → health.sleep_summary。只有时长数据时必须明确“当前只能评估睡眠时长，不能完整判断睡眠质量”；只有读取到深睡/核心/REM/清醒/在床/效率/作息字段时，才可做描述性的质量分析。
         - 站立小时、久坐、站立达标 → health.stand_summary。
         - 活动分钟、无 Apple Watch 的活动替代指标 → health.activity_summary。
         - 运动、锻炼、训练时长和次数 → health.workout_summary。
@@ -383,6 +385,7 @@ final class PromptManager {
         - 近期对话意图和会话活跃度 → conversation 对应 query；不要请求历史消息原文。
 
         表达边界：
+        - 查询类问题直接回答用户要求的指标；除非用户主动询问建议，或数据中存在需要行动的明确风险，否则不要输出 suggestion claim，也不要补空泛“下一步”。
         - 区分事实、观察、假设和建议。
         - 低置信判断必须使用"可能/像是/值得留意"，不能说成确定结论。
         - 跨模块关系只能表达为并发现象，不能说"导致/证明/说明一定因为"。

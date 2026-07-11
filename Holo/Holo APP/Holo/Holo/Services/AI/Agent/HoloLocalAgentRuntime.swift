@@ -617,17 +617,38 @@ actor HoloLocalAgentRuntime {
         let evidence = await persistence.loadEvidence(forIDs: availableEvidenceIDs)
         let verification = HoloClaimVerifier().verify(claims: claims, evidence: evidence)
         var acceptedClaims = verification.acceptedClaims
-        if acceptedClaims.isEmpty {
-            let fallback = Self.fallbackClaims(
-                toolResults: checkpoint.completedToolResults,
-                patternSignals: checkpoint.patternSignals
-            )
-            if !fallback.isEmpty {
-                let fallbackEvidenceIDs = Array(Set(checkpoint.evidenceRecordIDs + fallback.flatMap(\.evidenceIDs)))
-                let fallbackEvidence = await persistence.loadEvidence(forIDs: fallbackEvidenceIDs)
-                acceptedClaims = HoloClaimVerifier()
-                    .verify(claims: fallback, evidence: fallbackEvidence)
-                    .acceptedClaims
+        let fallback = Self.fallbackClaims(
+            toolResults: checkpoint.completedToolResults,
+            patternSignals: acceptedClaims.isEmpty ? checkpoint.patternSignals : []
+        )
+        if !fallback.isEmpty {
+            let fallbackEvidenceIDs = Array(Set(checkpoint.evidenceRecordIDs + fallback.flatMap(\.evidenceIDs)))
+            let fallbackEvidence = await persistence.loadEvidence(forIDs: fallbackEvidenceIDs)
+            let verifiedFallback = HoloClaimVerifier()
+                .verify(claims: fallback, evidence: fallbackEvidence)
+                .acceptedClaims
+            if acceptedClaims.isEmpty {
+                acceptedClaims = verifiedFallback
+            } else {
+                // 模型只回答部分子问题时，用确定性结果补齐尚未覆盖的指标。
+                var coveredKeys = Set(acceptedClaims.flatMap { $0.metricAssertions.map(\.metricKey) })
+                for claim in verifiedFallback {
+                    let missingAssertions = claim.metricAssertions.filter { !coveredKeys.contains($0.metricKey) }
+                    guard !missingAssertions.isEmpty else { continue }
+                    var supplement = claim
+                    supplement.id += "-supplement"
+                    supplement.metricAssertions = missingAssertions
+                    supplement.evidenceIDs = Array(Set(missingAssertions.flatMap(\.evidenceIDs)))
+                    let missingKeys = Set(missingAssertions.map(\.metricKey))
+                    let metricText = checkpoint.completedToolResults
+                        .flatMap(\.metrics)
+                        .filter { missingKeys.contains($0.metricKey) }
+                        .compactMap(Self.readableMetricText)
+                        .joined(separator: "；")
+                    if !metricText.isEmpty { supplement.displayText = metricText }
+                    acceptedClaims.append(supplement)
+                    coveredKeys.formUnion(missingAssertions.map(\.metricKey))
+                }
             }
         }
         let resultEvidenceIDs = Array(Set(acceptedClaims.flatMap(\.evidenceIDs)))
@@ -747,6 +768,17 @@ actor HoloLocalAgentRuntime {
                 let claims = financeSpendingBreakdownFallbackClaims(from: result)
                 if !claims.isEmpty { return claims }
             }
+            if result.tool == "health" {
+                return healthFallbackClaims(from: result)
+            }
+            if result.status == .empty {
+                let message = result.warnings.first?.message ?? "所选时间范围内没有可用数据"
+                return [HoloAgentClaim(
+                    id: "fallback-\(result.toolRequestID)-empty", type: "empty",
+                    displayText: message, metricAssertions: [], evidenceIDs: [],
+                    prohibitedInferences: [], confidence: 1
+                )]
+            }
             let metric = result.metrics.first
             let event = result.events.first
             let evidenceIDsForMetric = metric.map { metric in
@@ -754,35 +786,98 @@ actor HoloLocalAgentRuntime {
                     .filter { $0.metricKey == metric.metricKey }
                     .map(\.id)
             } ?? []
+            let relevantMetrics = result.metrics.filter { $0.value != nil }
+            let assertions = relevantMetrics.compactMap { item -> HoloMetricAssertion? in
+                let evidenceIDs = result.events.filter { $0.metricKey == item.metricKey }.map(\.id)
+                guard !evidenceIDs.isEmpty else { return nil }
+                return HoloMetricAssertion(metricKey: item.metricKey, value: item.value,
+                                           baselineValue: item.baselineValue, unit: item.unit,
+                                           comparison: item.comparison, evidenceIDs: evidenceIDs)
+            }
             let text: String
-            if let metric {
+            if !assertions.isEmpty {
+                let metricTexts = relevantMetrics.compactMap { Self.readableMetricText($0) }
+                let coverage = result.coverage.map { "数据覆盖 \($0.coveredDays)/\($0.totalDays) 天" }
+                text = (metricTexts + [coverage].compactMap { $0 }).joined(separator: "；")
+            } else if let metric {
                 text = Self.fallbackDisplayText(for: result, metric: metric, event: event)
             } else if let event {
                 text = event.excerpt
             } else {
-                text = "\(result.tool) 工具已返回数据，但没有显著趋势"
+                text = "所选时间范围内没有可展示的计算结果"
             }
             return [HoloAgentClaim(
                 id: "fallback-\(result.toolRequestID)",
                 type: "observation",
                 displayText: text,
-                metricAssertions: metric.map {
-                    [
-                        HoloMetricAssertion(
-                            metricKey: $0.metricKey,
-                            value: $0.value,
-                            baselineValue: $0.baselineValue,
-                            unit: $0.unit,
-                            comparison: $0.comparison,
-                            evidenceIDs: evidenceIDsForMetric
-                        )
-                    ]
-                } ?? [],
-                evidenceIDs: metric == nil ? result.events.map(\.id) : evidenceIDsForMetric,
+                metricAssertions: assertions.isEmpty ? (metric.map {
+                    [HoloMetricAssertion(metricKey: $0.metricKey, value: $0.value,
+                                         baselineValue: $0.baselineValue, unit: $0.unit,
+                                         comparison: $0.comparison, evidenceIDs: evidenceIDsForMetric)]
+                } ?? []) : assertions,
+                evidenceIDs: assertions.isEmpty
+                    ? (metric == nil ? result.events.map(\.id) : evidenceIDsForMetric)
+                    : assertions.flatMap(\.evidenceIDs),
                 prohibitedInferences: ["不要把并发现象表述为因果", "不要做心理、医疗、人格判断"],
                 confidence: result.status == .empty ? 0.3 : 0.45
             )]
         }
+    }
+
+    private static func healthFallbackClaims(from result: HoloDataToolResult) -> [HoloAgentClaim] {
+        guard result.status != .empty else {
+            return [HoloAgentClaim(id: "fallback-\(result.toolRequestID)-empty", type: "empty",
+                                   displayText: result.warnings.first?.message ?? "所选时间范围内没有可用的健康数据",
+                                   metricAssertions: [], evidenceIDs: [], prohibitedInferences: [], confidence: 1)]
+        }
+        let metricByKey = Dictionary(result.metrics.map { ($0.metricKey, $0) }, uniquingKeysWith: { first, _ in first })
+        let sleepKeys = ["health.sleep.average_hours", "health.sleep.recorded_nights", "health.sleep.low_days"]
+        if let average = metricByKey[sleepKeys[0]]?.value {
+            let nights = Int(metricByKey[sleepKeys[1]]?.value ?? Double(result.coverage?.coveredDays ?? 0))
+            let low = Int(metricByKey[sleepKeys[2]]?.value ?? 0)
+            let change = metricByKey[sleepKeys[0]]?.baselineValue.map { average - $0 }
+            let changeText = change.map { "，相比上期\($0 >= 0 ? "增加" : "减少") \(String(format: "%.1f", abs($0))) 小时" }
+                ?? "，上期有效记录不足，暂时无法比较"
+            let hasStageData = result.metrics.contains { ["health.sleep.deep_hours", "health.sleep.core_hours", "health.sleep.rem_hours"].contains($0.metricKey) }
+            let qualityDetails: String = hasStageData ? [
+                metricByKey["health.sleep.deep_hours"]?.value.map { "平均深睡 \(String(format: "%.1f", $0)) 小时" },
+                metricByKey["health.sleep.core_hours"]?.value.map { "核心睡眠 \(String(format: "%.1f", $0)) 小时" },
+                metricByKey["health.sleep.rem_hours"]?.value.map { "REM \(String(format: "%.1f", $0)) 小时" },
+                metricByKey["health.sleep.efficiency"]?.value.map { "睡眠效率 \(String(format: "%.0f", $0))%" },
+                metricByKey["health.sleep.duration_variation_minutes"]?.value.map { "时长波动约 \(String(format: "%.0f", $0)) 分钟" }
+            ].compactMap { $0 }.joined(separator: "，") : ""
+            let boundary = hasStageData
+                ? "本次同时读取到睡眠阶段、效率与作息稳定性，可用于描述性质量分析。\(qualityDetails)\(qualityDetails.isEmpty ? "" : "。")"
+                : "当前只能评估睡眠时长，不能完整判断睡眠质量。"
+            let text = "最近平均睡眠 \(String(format: "%.1f", average)) 小时，有效记录 \(nights) 晚，低于 6 小时 \(low) 晚\(changeText)。\(boundary)"
+            let assertions = result.metrics.compactMap { item -> HoloMetricAssertion? in
+                let evidence = result.events.filter { $0.metricKey == item.metricKey }.map(\.id)
+                guard !evidence.isEmpty else { return nil }
+                return HoloMetricAssertion(metricKey: item.metricKey, value: item.value,
+                                           baselineValue: item.baselineValue, unit: item.unit,
+                                           comparison: item.comparison, evidenceIDs: evidence)
+            }
+            let capabilityIDs = result.events.filter { $0.metricKey == "health.sleep.capability" }.map(\.id)
+            return [HoloAgentClaim(id: "fallback-\(result.toolRequestID)-sleep", type: "observation",
+                                   displayText: text, metricAssertions: assertions,
+                                   evidenceIDs: assertions.flatMap(\.evidenceIDs) + capabilityIDs,
+                                   prohibitedInferences: ["不要把睡眠时长等同于完整睡眠质量", "不要做医疗诊断"], confidence: 0.8)]
+        }
+        let assertions = result.metrics.compactMap { item -> HoloMetricAssertion? in
+            let evidence = result.events.filter { $0.metricKey == item.metricKey }.map(\.id)
+            guard !evidence.isEmpty else { return nil }
+            return HoloMetricAssertion(metricKey: item.metricKey, value: item.value,
+                                       baselineValue: item.baselineValue, unit: item.unit,
+                                       comparison: item.comparison, evidenceIDs: evidence)
+        }
+        guard !assertions.isEmpty else { return [] }
+        let text = assertions.compactMap { assertion in
+            result.events.first { $0.id == assertion.evidenceIDs.first }?.excerpt
+        }.joined(separator: "；")
+        return [HoloAgentClaim(id: "fallback-\(result.toolRequestID)-health", type: "observation",
+                               displayText: text, metricAssertions: assertions,
+                               evidenceIDs: assertions.flatMap(\.evidenceIDs),
+                               prohibitedInferences: ["不要做医疗诊断"], confidence: 0.75)]
     }
 
     private static func financeSpendingBreakdownFallbackClaims(from result: HoloDataToolResult) -> [HoloAgentClaim] {
@@ -933,6 +1028,24 @@ actor HoloLocalAgentRuntime {
 
         let valueText = metric.value.map { String(format: "%.0f", $0) } ?? "已有记录"
         return "\(result.tool) 数据返回一项可核对观察：\(valueText)"
+    }
+
+    private static func readableMetricText(_ metric: HoloMetric) -> String? {
+        guard let value = metric.value else { return nil }
+        let key = metric.metricKey.lowercased()
+        let label: String
+        if key.contains("average_per_day") || key.contains("daily_average") { label = "平均每天" }
+        else if key.contains("total_spending") || key.contains("total_amount") { label = "总支出" }
+        else if key.contains("average") { label = "平均值" }
+        else if key.contains("count") { label = "数量" }
+        else if key.contains("sum") || key.contains("total") { label = "合计" }
+        else if key.contains("rate") || key.contains("ratio") { label = "占比" }
+        else if let eventLabel = metric.comparison, !eventLabel.isEmpty { label = eventLabel }
+        else { label = "计算结果" }
+        let digits = value.rounded() == value ? 0 : 2
+        let valueText = String(format: "%.*f", digits, value)
+        let baseline = metric.baselineValue.map { "，上期 \(String(format: "%.*f", digits, $0))\(metric.unit ?? "")" } ?? ""
+        return "\(label) \(valueText)\(metric.unit ?? "")\(baseline)"
     }
 
     private static func moneyText(_ value: Double) -> String {

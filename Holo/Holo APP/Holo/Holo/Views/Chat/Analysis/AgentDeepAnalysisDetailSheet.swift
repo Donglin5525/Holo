@@ -31,6 +31,7 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
     var closingBody: String
     var shouldShowClosing: Bool
     var isFinanceLedgerMode: Bool
+    var isHealthMode: Bool
     var isEmptyState: Bool
 
     init(result: HoloRenderedAgentResult) {
@@ -38,12 +39,15 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
         let resolvedSummary = summary.isEmpty ? "本期暂无显著观察" : summary
         let hasContent = !result.sections.isEmpty
         let isFinanceLedgerMode = result.evidenceReferences.contains { $0.financeDrilldown != nil }
+        let isHealthMode = result.evidenceReferences.contains { $0.sourceModule == .health }
         let financeRangeLabel = Self.financeRangeLabel(from: result.evidenceReferences)
         let financeKeyword = Self.financeKeyword(from: result.evidenceReferences)
 
         if isFinanceLedgerMode {
             self.openingTitle = financeKeyword.map { "\(financeRangeLabel)「\($0)」消费结果" }
                 ?? "\(financeRangeLabel)账单结果"
+        } else if isHealthMode {
+            self.openingTitle = hasContent ? "最近的睡眠与健康数据" : "暂无可用的健康数据"
         } else {
             self.openingTitle = hasContent
                 ? "这段时间，有几个信号值得回看。"
@@ -51,13 +55,14 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
         }
         self.openingBody = resolvedSummary
         self.openingParagraphs = Self.readingParagraphs(from: resolvedSummary)
-        self.signalSummaries = isFinanceLedgerMode ? [] : Self.signalSummaries(from: resolvedSummary)
+        self.signalSummaries = (isFinanceLedgerMode || isHealthMode) ? [] : Self.signalSummaries(from: resolvedSummary)
         self.observations = Self.observations(
             from: result.sections,
-            isFinanceLedgerMode: isFinanceLedgerMode
+            isFinanceLedgerMode: isFinanceLedgerMode,
+            isHealthMode: isHealthMode
         )
         self.evidence = result.evidenceReferences.enumerated().map { index, ref in
-            let labelPrefix = isFinanceLedgerMode ? "账单依据" : "依据"
+            let labelPrefix = isFinanceLedgerMode ? "账单依据" : (isHealthMode ? "健康依据" : "依据")
             return Evidence(
                 label: ref.financeDrilldown == nil ? "\(labelPrefix) \(Self.twoDigit(index + 1))" : "\(labelPrefix) \(Self.twoDigit(index + 1)) · 点按核对",
                 summary: Self.clean(ref.summary),
@@ -75,19 +80,22 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
                 ? "不用同时盯住所有指标。Holo 会继续观察这些信号是否重新回到稳定节奏。"
                 : "当睡眠、习惯、消费或任务出现更清晰的变化时，这里会整理成更完整的观察手记。"
         }
-        self.shouldShowClosing = !isFinanceLedgerMode || financeKeyword == nil
+        // 数据查询的职责是准确回答问题；没有明确且有证据的行动建议时，不展示通用“下一步”。
+        self.shouldShowClosing = result.evidenceReferences.isEmpty && hasContent
         self.isFinanceLedgerMode = isFinanceLedgerMode
+        self.isHealthMode = isHealthMode
         self.isEmptyState = !hasContent
     }
 
     private static func observations(
         from sections: [HoloRenderedAgentSection],
-        isFinanceLedgerMode: Bool
+        isFinanceLedgerMode: Bool,
+        isHealthMode: Bool
     ) -> [Observation] {
         let items = sections.enumerated().map { index, section in
             let rawTitle = clean(section.title)
             let body = clean(section.body)
-            let title = displayTitle(rawTitle, isFinanceLedgerMode: isFinanceLedgerMode)
+            let title = displayTitle(rawTitle, isFinanceLedgerMode: isFinanceLedgerMode, isHealthMode: isHealthMode)
             let label = observationLabel(index: index, rawTitle: rawTitle)
             return Observation(
                 label: label,
@@ -154,9 +162,11 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
         return "\(base) · \(rawTitle)"
     }
 
-    private static func displayTitle(_ rawTitle: String, isFinanceLedgerMode: Bool) -> String {
+    private static func displayTitle(_ rawTitle: String, isFinanceLedgerMode: Bool, isHealthMode: Bool) -> String {
         guard !rawTitle.isEmpty, !isGenericObservationTitle(rawTitle) else {
-            return isFinanceLedgerMode ? "账单结果" : "值得留意的变化"
+            if isFinanceLedgerMode { return "账单结果" }
+            if isHealthMode { return "健康数据结果" }
+            return "值得留意的变化"
         }
         return rawTitle
     }
@@ -303,7 +313,7 @@ struct AgentDeepAnalysisDetailSheet: View {
                     .foregroundColor(.holoTextPrimary)
                     .multilineTextAlignment(.center)
 
-                Text("数据已经读取，但现有证据不足以支持一条可靠观察。可以换个更具体的问题，或稍后再试。")
+                Text("所选时间范围内没有足够的可用数据，暂时无法形成可信结论。请确认数据权限和记录覆盖后再试。")
                     .font(.system(size: 15, weight: .medium))
                     .foregroundColor(.holoTextSecondary)
                     .lineSpacing(5)
@@ -355,7 +365,7 @@ struct AgentDeepAnalysisDetailSheet: View {
 
     private func opening(_ model: AgentDeepAnalysisNarrativeModel) -> some View {
         VStack(alignment: .leading, spacing: 13) {
-            Text(model.isFinanceLedgerMode ? "HOLO 账单复核" : "HOLO 观察手记")
+            Text(model.isFinanceLedgerMode ? "HOLO 账单复核" : (model.isHealthMode ? "HOLO 健康数据" : "HOLO 观察手记"))
                 .font(.system(size: 11, weight: .bold))
                 .foregroundColor(.holoPrimary)
 

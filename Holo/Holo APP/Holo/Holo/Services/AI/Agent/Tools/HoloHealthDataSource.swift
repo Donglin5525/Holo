@@ -51,6 +51,17 @@ struct HoloDefaultHealthDataSource: HoloHealthDataSource {
         }
     }
 
+    func sleepRecords(timeRange: HoloAgentTimeRange?) async -> [HoloSleepRecord] {
+        let window = Self.repositoryWindow(for: timeRange)
+        guard window.start <= window.inclusiveEnd else { return [] }
+        return await HealthRepository.shared.fetchSleepDetailRange(from: window.start, to: window.inclusiveEnd).map {
+            HoloSleepRecord(date: $0.date, totalHours: $0.totalHours, coreHours: $0.coreHours,
+                            deepHours: $0.deepHours, remHours: $0.remHours, awakeHours: $0.awakeHours,
+                            inBedHours: $0.inBedHours, bedtime: $0.bedtime, wakeTime: $0.wakeTime,
+                            interruptionCount: $0.interruptionCount)
+        }
+    }
+
     private static func repositoryWindow(
         for timeRange: HoloAgentTimeRange?,
         now: Date = Date(),

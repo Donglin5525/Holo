@@ -46,6 +46,23 @@ actor FakeToolExecutor: HoloAgentToolExecuting {
 
     func execute(_ request: HoloToolRequest) async -> HoloDataToolResult {
         requests.append(request)
+        if request.tool == "health", request.query == "sleep_summary" {
+            let metrics = [
+                HoloMetric(metricKey: "health.sleep.average_hours", value: 6.5, unit: "小时", baselineValue: 7, comparison: "较上期-0.5小时"),
+                HoloMetric(metricKey: "health.sleep.recorded_nights", value: 7, unit: "晚", baselineValue: nil, comparison: nil),
+                HoloMetric(metricKey: "health.sleep.low_days", value: 2, unit: "晚", baselineValue: nil, comparison: nil)
+            ]
+            let events = metrics.map { metric in
+                HoloEvidenceEvent(id: "event-\(metric.metricKey)", occurredAt: Date(), metricKey: metric.metricKey,
+                                  metricValue: metric.value, excerpt: "睡眠汇总：\(metric.metricKey) = \(metric.value ?? 0) \(metric.unit ?? "")")
+            } + [HoloEvidenceEvent(id: "sleep-capability", occurredAt: Date(), metricKey: "health.sleep.capability",
+                                   metricValue: 0, excerpt: "当前只能评估睡眠时长，不能完整判断睡眠质量")]
+            return HoloDataToolResult(toolRequestID: request.id, tool: "health", status: .partial,
+                                      coverage: HoloDataCoverage(coveredDays: 7, totalDays: 10, coverageRatio: 0.7, missingRanges: [], note: "7/10 晚"),
+                                      metrics: metrics, events: events,
+                                      warnings: [HoloToolWarning(code: "SLEEP_DURATION_ONLY", message: "当前只能评估睡眠时长，不能完整判断睡眠质量")],
+                                      error: nil, sensitivity: .sensitive)
+        }
         if request.dynamicPlan != nil {
             return HoloDataToolResult(
                 toolRequestID: request.id,
@@ -149,6 +166,7 @@ struct HoloLocalAgentRuntimeTests {
         try await testRunLoop_finalClaims必须经过Evidence校验()
         try await testRunLoop_模型不收敛时用工具结果兜底完成()
         try await testRunLoop_动态查询结果经过证据校验后完成()
+        try await testRunLoop_睡眠质量降级仍输出完整可读结论()
         try await testPauseForBackground_运行中任务标记waitingForForeground()
         try await testResumeUnfinishedJobs_恢复未完成任务()
         try await test后台暂停后恢复并RunLoop完成()
@@ -609,6 +627,26 @@ struct HoloLocalAgentRuntimeTests {
         expect(completed.state == .completed, "动态查询应完成")
         expect(saved?.claims.first?.metricAssertions.first?.value == 7.2, "模型心算错误后必须回退到本地确定性结果")
         expect(saved?.summary.contains("7.2") == true, "最终摘要应来自动态计算结果")
+    }
+
+    private static func testRunLoop_睡眠质量降级仍输出完整可读结论() async throws {
+        let dir = makeTempDir()
+        let needTools = #"{"status":"need_tools","reasoning":"查询睡眠","toolRequests":[{"id":"sleep-summary","tool":"health","query":"sleep_summary","timeRange":null,"baseline":null,"requiredMetrics":[],"parameters":{}}],"claims":[],"warnings":[]}"#
+        let broken = "不是合法 JSON"
+        let client = FakeAgentLLMClient(responses: [needTools, broken, broken])
+        let fixture = makeLoopRuntime(dir: dir, llmClient: client, toolExecutor: FakeToolExecutor())
+        let now = Date()
+        let job = try await fixture.runtime.startMockJob(question: "最近的睡眠质量怎样？", now: now)
+        _ = try await fixture.runtime.runLoop(jobID: job.id, systemTemplate: "Agent", toolDescriptions: "health", now: now)
+        let saved = await fixture.runtime.loadLatestResult()
+        let summary = saved?.summary ?? ""
+        expect(summary.contains("平均睡眠 6.5 小时"), "应输出平均睡眠")
+        expect(summary.contains("有效记录 7 晚"), "应输出有效记录")
+        expect(summary.contains("低于 6 小时 2 晚"), "应输出低睡眠晚数")
+        expect(summary.contains("相比上期减少 0.5 小时"), "应输出上期变化")
+        expect(summary.contains("当前只能评估睡眠时长，不能完整判断睡眠质量"), "必须明确能力边界")
+        expect(!summary.contains("health 数据返回"), "不能泄露工程兜底文案")
+        expect(saved?.claims.first?.metricAssertions.count == 3, "健康 fallback 必须组合全部相关指标")
     }
 
     /// 进入后台：running 任务标记为 waitingForForeground。

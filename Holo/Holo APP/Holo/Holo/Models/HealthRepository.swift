@@ -47,6 +47,19 @@ struct HealthSleepSampleAggregator {
     }
 }
 
+struct HealthSleepDetail: Sendable {
+    var date: Date
+    var totalHours: Double
+    var coreHours: Double?
+    var deepHours: Double?
+    var remHours: Double?
+    var awakeHours: Double?
+    var inBedHours: Double?
+    var bedtime: Date?
+    var wakeTime: Date?
+    var interruptionCount: Int?
+}
+
 // MARK: - HealthStandHourAggregator
 
 struct HealthStandHourAggregator {
@@ -321,6 +334,30 @@ class HealthRepository: ObservableObject {
         await fetchRange(for: .sleep, from: start, to: end)
     }
 
+    /// 获取按起床日归属的一晚睡眠明细。使用“前一日中午到当日中午”窗口，
+    /// 避免跨午夜睡眠被拆成两天；阶段缺失时保留 nil 供上层明确降级。
+    func fetchSleepDetailRange(from start: Date, to end: Date) async -> [HealthSleepDetail] {
+        if useMockData {
+            return generateMockRangeData(for: .sleep, from: start, to: end).filter { $0.value > 0 }.map {
+                HealthSleepDetail(date: $0.date, totalHours: $0.value, coreHours: nil, deepHours: nil,
+                                  remHours: nil, awakeHours: nil, inBedHours: nil, bedtime: nil,
+                                  wakeTime: nil, interruptionCount: nil)
+            }
+        }
+        let calendar = Calendar.current
+        var records: [HealthSleepDetail] = []
+        var wakeDay = calendar.startOfDay(for: start)
+        let endDay = calendar.startOfDay(for: end)
+        while wakeDay <= endDay {
+            if let detail = await fetchSleepDetail(forWakeDay: wakeDay), detail.totalHours > 0 {
+                records.append(detail)
+            }
+            guard let next = calendar.date(byAdding: .day, value: 1, to: wakeDay) else { break }
+            wakeDay = next
+        }
+        return records
+    }
+
     /// 获取指定日期范围的站立数据
     func fetchStandTimeRange(from start: Date, to end: Date) async -> [DailyHealthData] {
         await fetchRange(for: .standHours, from: start, to: end)
@@ -437,6 +474,52 @@ class HealthRepository: ObservableObject {
                 }
 
                 continuation.resume(returning: totalSleep)
+            }
+            healthStore.execute(query)
+        }
+    }
+
+    private func fetchSleepDetail(forWakeDay wakeDay: Date) async -> HealthSleepDetail? {
+        guard let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else { return nil }
+        let calendar = Calendar.current
+        guard let noon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: wakeDay),
+              let start = calendar.date(byAdding: .day, value: -1, to: noon) else { return nil }
+        let predicate = HKQuery.predicateForSamples(withStart: start, end: noon, options: [])
+        return await withCheckedContinuation { continuation in
+            let query = HKSampleQuery(sampleType: sleepType, predicate: predicate,
+                                      limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, _ in
+                let samples = (samples as? [HKCategorySample]) ?? []
+                let window = HealthSleepSampleAggregator.Interval(start: start, end: noon)
+                func intervals(_ values: Set<Int>) -> [HealthSleepSampleAggregator.Interval] {
+                    samples.compactMap { sample in
+                        guard values.contains(sample.value) else { return nil }
+                        return HealthSleepSampleAggregator.clippedInterval(start: sample.startDate, end: sample.endDate, to: window)
+                    }
+                }
+                let core = intervals([HKCategoryValueSleepAnalysis.asleepCore.rawValue])
+                let deep = intervals([HKCategoryValueSleepAnalysis.asleepDeep.rawValue])
+                let rem = intervals([HKCategoryValueSleepAnalysis.asleepREM.rawValue])
+                let unspecified = intervals([HKCategoryValueSleepAnalysis.asleepUnspecified.rawValue])
+                let awake = intervals([HKCategoryValueSleepAnalysis.awake.rawValue])
+                let inBed = intervals([HKCategoryValueSleepAnalysis.inBed.rawValue])
+                let asleep = core + deep + rem + unspecified
+                guard !asleep.isEmpty else { continuation.resume(returning: nil); return }
+                let hasStages = !core.isEmpty || !deep.isEmpty || !rem.isEmpty
+                let allIntervals = asleep + awake + inBed
+                let bedtime = allIntervals.map(\.start).min()
+                let wakeTime = allIntervals.map(\.end).max()
+                let interruptionCount = awake.filter { $0.end.timeIntervalSince($0.start) >= 120 }.count
+                continuation.resume(returning: HealthSleepDetail(
+                    date: wakeDay,
+                    totalHours: HealthSleepSampleAggregator.totalHours(for: asleep),
+                    coreHours: hasStages ? HealthSleepSampleAggregator.totalHours(for: core) : nil,
+                    deepHours: hasStages ? HealthSleepSampleAggregator.totalHours(for: deep) : nil,
+                    remHours: hasStages ? HealthSleepSampleAggregator.totalHours(for: rem) : nil,
+                    awakeHours: awake.isEmpty ? nil : HealthSleepSampleAggregator.totalHours(for: awake),
+                    inBedHours: inBed.isEmpty ? bedtime.flatMap { bed in wakeTime.map { $0.timeIntervalSince(bed) / 3600 } } : HealthSleepSampleAggregator.totalHours(for: inBed),
+                    bedtime: bedtime, wakeTime: wakeTime,
+                    interruptionCount: awake.isEmpty ? nil : interruptionCount
+                ))
             }
             healthStore.execute(query)
         }

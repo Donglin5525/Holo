@@ -144,8 +144,24 @@ final class ChatMessageViewDataAgentResultTests: XCTestCase {
         XCTAssertEqual(model.openingTitle, "本月账单结果")
         XCTAssertEqual(model.signalSummaries, [], "财务账单结果不应再生成三块看不懂的信号标签")
         XCTAssertEqual(model.closingTitle, "从金额最高的分类开始核对。")
-        XCTAssertTrue(model.shouldShowClosing)
+        XCTAssertFalse(model.shouldShowClosing, "账单查询不应强行展示下一步建议")
         XCTAssertTrue(model.evidence.first?.label.contains("账单依据") == true, "财务证据应叫账单依据")
+    }
+
+    func testHealthNarrativeUsesHealthModeAndNoGenericNextStep() {
+        let result = HoloRenderedAgentResult(
+            title: "深度分析",
+            summary: "最近平均睡眠 6.5 小时，有效记录 7 晚。当前只能评估睡眠时长，不能完整判断睡眠质量。",
+            sections: [HoloRenderedAgentSection(title: "观察 1", body: "最近平均睡眠 6.5 小时。", confidence: 0.8)],
+            evidenceReferences: [HoloRenderedEvidenceReference(id: "h1", summary: "睡眠汇总：平均 6.5 小时", financeDrilldown: nil, sourceModule: .health)]
+        )
+
+        let model = AgentDeepAnalysisNarrativeModel(result: result)
+        XCTAssertTrue(model.isHealthMode)
+        XCTAssertEqual(model.openingTitle, "最近的睡眠与健康数据")
+        XCTAssertEqual(model.signalSummaries, [])
+        XCTAssertFalse(model.shouldShowClosing, "健康查询不应展示通用下一步")
+        XCTAssertFalse(model.openingTitle.contains("信号值得回看"))
     }
 
     func testAgentDeepAnalysisNarrativeModelUsesFinanceRangeLabelInOpeningTitle() {

@@ -92,3 +92,9 @@ nonisolated struct HoloDataToolResult: Codable, Equatable, Sendable {
     /// 可选以兼容旧持久化 JSON；nil 按 normal 处理。
     var sensitivity: HoloEvidenceSensitivity? = nil
 }
+
+/// Agent Runtime 对工具执行层的最小依赖，放在共享模型层便于独立验证运行时。
+protocol HoloAgentToolExecuting: Sendable {
+    func execute(_ request: HoloToolRequest) async -> HoloDataToolResult
+    func promptDescription() async -> String
+}

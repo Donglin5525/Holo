@@ -120,7 +120,7 @@ nonisolated struct HoloDynamicAggregation: Codable, Equatable, Sendable {
     var unit: String? = nil
     var filters: [HoloDynamicFilter] = []
 }
-nonisolated enum HoloDynamicDerivationOperator: String, Codable, Sendable { case difference, ratio, percentageChange, rate, linearTrend, coverage }
+nonisolated enum HoloDynamicDerivationOperator: String, Codable, Sendable { case difference, ratio, percentageChange, rate, perDay, linearTrend, coverage }
 nonisolated struct HoloDynamicDerivation: Codable, Equatable, Sendable {
     var id: String
     var operation: HoloDynamicDerivationOperator
@@ -738,6 +738,15 @@ nonisolated enum HoloDynamicQueryEngine {
                    let denominator = metrics.first(where: { $0.metricKey.contains(".\(sanitize(denominatorID))") })?.value,
                    denominator != 0 { value = (metric.value ?? 0) / denominator } else { value = nil }
                 formula = "count / total"
+            case .perDay:
+                if let range = plan.timeRange, let start = range.start, let end = range.end {
+                    let days = max(1, calendar.dateComponents([.day], from: calendar.startOfDay(for: start), to: calendar.startOfDay(for: end)).day ?? 1)
+                    value = (metric.value ?? 0) / Double(days)
+                    formula = "value / calendar_days(\(days))"
+                } else {
+                    value = nil
+                    formula = "value / calendar_days"
+                }
             case .linearTrend:
                 let values = current.sorted { $0.occurredAt < $1.occurredAt }.compactMap { row in
                     plan.aggregations.first(where: { $0.id == spec.metricID })?.field.flatMap { row.fields[$0]?.numberValue }

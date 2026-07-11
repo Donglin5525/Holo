@@ -40,8 +40,32 @@ struct HoloFinanceToolTests {
         try await test账户摘要返回净资产和账户数量()
         try await test无财务记录返回empty()
         try await test动态查询现场计算麦当劳平均每顿金额()
+        try await test动态查询同时计算十天总额和自然日日均()
         try test动态查询找出环比增长最高分类()
         print("HoloFinanceToolTests passed")
+    }
+
+    private static func test动态查询同时计算十天总额和自然日日均() async throws {
+        let calendar = Calendar(identifier: .gregorian)
+        let start = calendar.date(from: DateComponents(year: 2026, month: 7, day: 1))!
+        let end = calendar.date(byAdding: .day, value: 10, to: start)!
+        let rows = [100.0, 200.0].enumerated().map { index, amount in
+            HoloQueryRow(id: "expense-\(index)", occurredAt: start.addingTimeInterval(Double(index) * 86_400),
+                         fields: ["date": .date(start), "amount": .number(amount), "type": .text("expense"),
+                                  "category": .text("餐饮"), "account": .text("默认"), "text": .text("")], excerpt: "支出")
+        }
+        let plan = HoloDynamicQueryPlan(
+            source: "finance.transactions", timeRange: HoloAgentTimeRange(label: "最近十天", start: start, end: end),
+            filters: [HoloDynamicFilter(field: "type", operation: .equal, value: .text("expense"))],
+            aggregations: [HoloDynamicAggregation(id: "total_spending", operation: .sum, field: "amount", unit: "元")],
+            derivations: [HoloDynamicDerivation(id: "average_per_day", operation: .perDay, metricID: "total_spending", unit: "元/天")]
+        )
+        var request = makeRequest(query: "dynamic_query")
+        request.dynamicPlan = plan
+        let result = try await HoloFinanceTool(dataSource: MockFinanceDataSource(record: nil, rows: rows)).execute(request)
+        expect(result.metrics.contains { $0.metricKey.contains("total_spending") && $0.value == 300 }, "必须回答总支出")
+        expect(result.metrics.contains { $0.metricKey.contains("average_per_day") && $0.value == 30 }, "日均必须按十个自然日计算")
+        expect(result.events.contains { $0.formula == "value / calendar_days(10)" }, "证据必须携带自然日分母公式")
     }
 
     private static func test动态查询现场计算麦当劳平均每顿金额() async throws {

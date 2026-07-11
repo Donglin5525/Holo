@@ -30,6 +30,7 @@ nonisolated struct HoloRenderedEvidenceReference: Codable, Equatable, Sendable {
     var id: String
     var summary: String
     var financeDrilldown: HoloRenderedFinanceDrilldown?
+    var sourceModule: HoloEvidenceSourceModule? = nil
 }
 
 nonisolated struct HoloRenderedAgentResult: Codable, Equatable, Sendable {
@@ -69,7 +70,8 @@ nonisolated struct HoloAgentResultRenderer {
                 references.append(HoloRenderedEvidenceReference(
                     id: evidenceID,
                     summary: record.redactedExcerpt,
-                    financeDrilldown: Self.financeDrilldown(for: record)
+                    financeDrilldown: Self.financeDrilldown(for: record),
+                    sourceModule: record.sourceModule
                 ))
             }
         }

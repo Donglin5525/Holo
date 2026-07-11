@@ -623,7 +623,7 @@ test("agent_loop prompt 存在并包含 Agent Loop 核心约束", async () => {
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  assert.equal(prompt.version, 8);
+  assert.equal(prompt.version, 9);
   assert.match(prompt.content, /need_tools/);
   assert.match(prompt.content, /need_more_analysis/);
   assert.match(prompt.content, /final_claims/);
@@ -648,4 +648,8 @@ test("agent_loop prompt 存在并包含 Agent Loop 核心约束", async () => {
   assert.match(prompt.content, /conversation/);
   assert.match(prompt.content, /历史消息原文/);
   assert.match(prompt.content, /绝不能表述/);
+  assert.match(prompt.content, /全部明确子问题/);
+  assert.match(prompt.content, /自然日数/);
+  assert.match(prompt.content, /当前只能评估睡眠时长/);
+  assert.match(prompt.content, /不要输出 suggestion claim/);
 });

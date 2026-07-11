@@ -15,9 +15,10 @@ const PROMPT_VERSIONS = {
   finance_action_parser: 1,
   task_action_parser: 1,
   health_insight_generation: 2,
-  agent_loop: 8,
+  agent_loop: 9,
 };
 const PROMPT_CONTRACT_APPENDICES = {
+  agent_loop: defaultPrompts._agent_loop_v9_contract,
   intent_recognition: `
 
 [HOLO_QUERY_AGGREGATE_V23]
@@ -31,7 +32,7 @@ const PROMPT_CONTRACT_APPENDICES = {
 - 可直接解析的 ready 计划必须输出 explanationHints: []；不要记录“吨”与“顿”的纠错说明，不要在 JSON 字符串中嵌入未转义引号。
 - 示例：{"status":"ready","clarificationQuestion":null,"plan":{"domain":"finance","operation":"sumAmount","filters":{"type":"expense","amountGreaterThan":null,"amountGreaterThanOrEqual":null,"amountLessThan":null,"amountLessThanOrEqual":null,"amountEqual":null,"keywords":["麦当劳"],"excludedKeywords":[],"categoryNames":[],"startDate":"{{thirtyDaysAgoDate}}","endDate":"{{todayISODate}}","accountNames":[],"includeNote":true,"includeRemark":true,"includeTags":true,"includeCategory":true},"calculation":"averageAmount","averageUnit":"meal","sort":{"field":"date","direction":"desc"},"limit":20,"explanationHints":[]}}`,
 };
-const PROMPT_TYPES = Object.keys(defaultPrompts);
+const PROMPT_TYPES = Object.keys(defaultPrompts).filter((type) => !type.startsWith("_"));
 const MANAGED_PROMPTS_PATH = join(dirname(fileURLToPath(import.meta.url)), "managedPrompts.json");
 
 let managedPrompts = loadManagedPrompts();
