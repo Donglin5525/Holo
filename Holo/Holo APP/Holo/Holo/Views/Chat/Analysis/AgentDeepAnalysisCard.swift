@@ -34,28 +34,50 @@ struct AgentDeepAnalysisCard: View {
             onTap?()
         } label: {
             ChatCardView {
-                CardHeaderView(
-                    icon: "sparkles",
-                    title: result.title,
-                    subtitle: primarySummary(result)
-                )
+                if result.sections.isEmpty {
+                    HStack(spacing: 14) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.holoPrimary.opacity(0.10))
+                                .frame(width: 48, height: 48)
+                            Image(systemName: "chart.line.uptrend.xyaxis")
+                                .font(.system(size: 20, weight: .semibold))
+                                .foregroundColor(.holoPrimary.opacity(0.72))
+                        }
 
-                if let first = result.sections.first {
-                    HoloAIHeroMetric(
-                        label: "核心观察",
-                        value: first.title,
-                        note: first.body,
-                        tint: .holoTextPrimary
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text(result.title)
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.holoTextPrimary)
+                            Text("这次没有形成可信结论")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(.holoTextSecondary)
+                        }
+                    }
+                } else {
+                    CardHeaderView(
+                        icon: "sparkles",
+                        title: result.title,
+                        subtitle: primarySummary(result)
                     )
-                }
 
-                HStack(spacing: 6) {
-                    Text("查看深度分析")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.holoPrimary)
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundColor(.holoPrimary)
+                    if let first = result.sections.first {
+                        HoloAIHeroMetric(
+                            label: "核心观察",
+                            value: first.title,
+                            note: first.body,
+                            tint: .holoTextPrimary
+                        )
+                    }
+
+                    HStack(spacing: 6) {
+                        Text("查看深度分析")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.holoPrimary)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.holoPrimary)
+                    }
                 }
             }
         }
@@ -112,7 +134,7 @@ struct AgentDeepAnalysisCard: View {
     private func primarySummary(_ result: HoloRenderedAgentResult) -> String {
         let count = result.sections.count
         if result.summary.isEmpty {
-            return count > 0 ? "共 \(count) 条观察" : "本期暂无显著观察"
+            return count > 0 ? "共 \(count) 条观察" : "这次没有形成可信结论"
         }
         return result.summary
     }

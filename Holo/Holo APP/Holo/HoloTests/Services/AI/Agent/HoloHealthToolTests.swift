@@ -92,8 +92,9 @@ struct HoloHealthToolTests {
         expect(abs((metric("health.sleep.average_hours", in: result) ?? 0) - 6.9) < 0.01, "应计算平均睡眠 6.9 小时")
         expect(metric("health.sleep.goal_met_days", in: result) == 1, "应统计达标 1 天")
         expect(metric("health.sleep.low_days", in: result) == 1, "应统计少于 6 小时 1 天")
-        expect(result.events.count == 3, "应为每天睡眠生成证据")
-        expect(result.events.allSatisfy { $0.metricKey == "health.sleep.hours" }, "睡眠证据 metricKey 应一致")
+        expect(result.events.filter { $0.metricKey == "health.sleep.hours" }.count == 3, "应为每天睡眠生成证据")
+        expect(result.events.contains { $0.metricKey == "health.sleep.average_hours" && $0.metricValue == 6.9 }, "平均睡眠指标必须有可校验的汇总证据")
+        expect(result.events.contains { $0.metricKey == "health.sleep.goal_met_days" && $0.metricValue == 1 }, "睡眠达标天数必须有可校验的汇总证据")
         expect(result.sensitivity == .sensitive, "健康结果必须标记为敏感证据")
     }
 
@@ -107,7 +108,8 @@ struct HoloHealthToolTests {
         expect(result.status == .success, "steps_summary 应成功")
         expect(metric("health.steps.average", in: result) == 10_000, "日均步数应为 10000")
         expect(metric("health.steps.goal_met_days", in: result) == 2, "步数达标应为 2 天")
-        expect(result.events.allSatisfy { $0.metricKey == "health.steps.daily" }, "应输出逐日步数证据")
+        expect(result.events.filter { $0.metricKey == "health.steps.daily" }.count == 3, "应输出逐日步数证据")
+        expect(result.events.contains { $0.metricKey == "health.steps.average" && $0.metricValue == 10_000 }, "日均步数必须有汇总证据")
     }
 
     private static func test站立摘要产出日均达标天数和每日证据() async throws {
@@ -120,7 +122,8 @@ struct HoloHealthToolTests {
         expect(result.status == .success, "stand_summary 应成功")
         expect(abs((metric("health.stand.average_hours", in: result) ?? 0) - 11) < 0.01, "日均站立应为 11 小时")
         expect(metric("health.stand.goal_met_days", in: result) == 2, "站立达标应为 2 天")
-        expect(result.events.allSatisfy { $0.metricKey == "health.stand.hours" }, "应输出逐日站立证据")
+        expect(result.events.filter { $0.metricKey == "health.stand.hours" }.count == 3, "应输出逐日站立证据")
+        expect(result.events.contains { $0.metricKey == "health.stand.average_hours" && $0.metricValue == 11 }, "日均站立必须有汇总证据")
     }
 
     private static func test活动摘要产出日均达标天数和每日证据() async throws {
@@ -133,7 +136,8 @@ struct HoloHealthToolTests {
         expect(result.status == .success, "activity_summary 应成功")
         expect(metric("health.activity.average_minutes", in: result) == 30, "日均活动应为 30 分钟")
         expect(metric("health.activity.goal_met_days", in: result) == 2, "活动达标应为 2 天")
-        expect(result.events.allSatisfy { $0.metricKey == "health.activity.minutes" }, "应输出逐日活动证据")
+        expect(result.events.filter { $0.metricKey == "health.activity.minutes" }.count == 3, "应输出逐日活动证据")
+        expect(result.events.contains { $0.metricKey == "health.activity.average_minutes" && $0.metricValue == 30 }, "日均活动必须有汇总证据")
     }
 
     private static func test运动摘要产出总时长会话数和每日证据() async throws {
@@ -148,7 +152,8 @@ struct HoloHealthToolTests {
         expect(metric("health.workout.total_minutes", in: result) == 75, "运动总时长应为 75 分钟")
         expect(metric("health.workout.session_count", in: result) == 3, "运动会话应为 3 次")
         expect(metric("health.workout.active_days", in: result) == 2, "运动天数应为 2 天")
-        expect(result.events.count == 2, "应输出 2 天运动证据")
+        expect(result.events.filter { $0.metricKey == "health.workout.daily_minutes" }.count == 2, "应输出 2 天运动证据")
+        expect(result.events.contains { $0.metricKey == "health.workout.total_minutes" && $0.metricValue == 75 }, "运动总时长必须有汇总证据")
     }
 
     private static func test综合健康保留已有指标并报告缺失项() async throws {

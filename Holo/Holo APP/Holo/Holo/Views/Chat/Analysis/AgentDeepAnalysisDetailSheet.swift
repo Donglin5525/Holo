@@ -31,11 +31,12 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
     var closingBody: String
     var shouldShowClosing: Bool
     var isFinanceLedgerMode: Bool
+    var isEmptyState: Bool
 
     init(result: HoloRenderedAgentResult) {
         let summary = Self.clean(result.summary)
         let resolvedSummary = summary.isEmpty ? "本期暂无显著观察" : summary
-        let hasContent = !summary.isEmpty || !result.sections.isEmpty
+        let hasContent = !result.sections.isEmpty
         let isFinanceLedgerMode = result.evidenceReferences.contains { $0.financeDrilldown != nil }
         let financeRangeLabel = Self.financeRangeLabel(from: result.evidenceReferences)
         let financeKeyword = Self.financeKeyword(from: result.evidenceReferences)
@@ -76,6 +77,7 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
         }
         self.shouldShowClosing = !isFinanceLedgerMode || financeKeyword == nil
         self.isFinanceLedgerMode = isFinanceLedgerMode
+        self.isEmptyState = !hasContent
     }
 
     private static func observations(
@@ -95,16 +97,6 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
             )
         }
 
-        if items.isEmpty {
-            return [
-                Observation(
-                    label: "观察 01",
-                    title: "本期暂无显著观察",
-                    body: "继续记录后，Holo 会在这里整理值得回看的变化。",
-                    accentIndex: 0
-                )
-            ]
-        }
         return items
     }
 
@@ -265,15 +257,19 @@ struct AgentDeepAnalysisDetailSheet: View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 18) {
                 header
-                opening(model)
-                if !model.signalSummaries.isEmpty {
-                    signalStrip(model.signalSummaries)
+                if model.isEmptyState {
+                    emptyState
+                } else {
+                    opening(model)
+                    if !model.signalSummaries.isEmpty {
+                        signalStrip(model.signalSummaries)
+                    }
+                    observationsSection(model.observations)
+                    if model.shouldShowClosing {
+                        closingSection(model)
+                    }
+                    evidenceSection(model.evidence)
                 }
-                observationsSection(model.observations)
-                if model.shouldShowClosing {
-                    closingSection(model)
-                }
-                evidenceSection(model.evidence)
             }
             .padding(.horizontal, 23)
             .padding(.top, 10)
@@ -281,6 +277,43 @@ struct AgentDeepAnalysisDetailSheet: View {
         }
         .background(sheetBackground)
         .presentationDetents([.medium, .large])
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 22) {
+            ZStack {
+                Circle()
+                    .fill(Color.holoPrimary.opacity(0.06))
+                    .frame(width: 154, height: 154)
+                Circle()
+                    .stroke(Color.holoPrimary.opacity(0.10), lineWidth: 1)
+                    .frame(width: 112, height: 112)
+                Image(systemName: "chart.line.uptrend.xyaxis")
+                    .font(.system(size: 42, weight: .medium))
+                    .foregroundColor(.holoPrimary.opacity(0.62))
+                Image(systemName: "sparkles")
+                    .font(.system(size: 19, weight: .bold))
+                    .foregroundColor(.holoPrimary)
+                    .offset(x: 45, y: -43)
+            }
+
+            VStack(spacing: 10) {
+                Text("这次没有形成可信结论")
+                    .font(.system(size: 24, weight: .heavy))
+                    .foregroundColor(.holoTextPrimary)
+                    .multilineTextAlignment(.center)
+
+                Text("数据已经读取，但现有证据不足以支持一条可靠观察。可以换个更具体的问题，或稍后再试。")
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(.holoTextSecondary)
+                    .lineSpacing(5)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 24)
+        .padding(.top, 46)
     }
 
     // MARK: - Header

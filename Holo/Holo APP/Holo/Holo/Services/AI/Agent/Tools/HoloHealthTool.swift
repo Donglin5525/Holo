@@ -117,13 +117,15 @@ private extension HoloHealthTool {
             return empty(request, warning: warning(for: metric))
         }
 
+        let summaryMetrics = metrics(for: metric, records: records)
         return HoloDataToolResult(
             toolRequestID: request.id,
             tool: request.tool,
             status: .success,
             coverage: coverage(records.map(\.date), timeRange: request.timeRange),
-            metrics: metrics(for: metric, records: records),
-            events: records.map { event(for: metric, record: $0) },
+            metrics: summaryMetrics,
+            events: summaryEvidenceEvents(summaryMetrics, metric: metric, records: records)
+                + records.map { event(for: metric, record: $0) },
             warnings: [],
             error: nil,
             sensitivity: .sensitive
@@ -144,17 +146,18 @@ private extension HoloHealthTool {
 
         let totalMinutes = records.reduce(0) { $0 + $1.totalMinutes }
         let sessionCount = records.reduce(0) { $0 + $1.sessionCount }
+        let summaryMetrics = [
+            metric("health.workout.total_minutes", totalMinutes, unit: "分钟"),
+            metric("health.workout.session_count", Double(sessionCount), unit: "次"),
+            metric("health.workout.active_days", Double(records.count), unit: "天")
+        ]
         return HoloDataToolResult(
             toolRequestID: request.id,
             tool: request.tool,
             status: .success,
             coverage: coverage(records.map(\.date), timeRange: request.timeRange),
-            metrics: [
-                metric("health.workout.total_minutes", totalMinutes, unit: "分钟"),
-                metric("health.workout.session_count", Double(sessionCount), unit: "次"),
-                metric("health.workout.active_days", Double(records.count), unit: "天")
-            ],
-            events: records.map(workoutEvent),
+            metrics: summaryMetrics,
+            events: summaryEvidenceEvents(summaryMetrics, label: "运动汇总") + records.map(workoutEvent),
             warnings: [],
             error: nil,
             sensitivity: .sensitive
@@ -225,6 +228,37 @@ private extension HoloHealthTool {
                 metric("health.activity.average_minutes", average, unit: "分钟"),
                 metric("health.activity.goal_met_days", Double(records.filter { $0.value >= 30 }.count), unit: "天")
             ]
+        }
+    }
+
+    func summaryEvidenceEvents(
+        _ metrics: [HoloMetric],
+        metric: HoloHealthMetricKind,
+        records: [HoloHealthDailyRecord]
+    ) -> [HoloEvidenceEvent] {
+        let label: String = switch metric {
+        case .steps: "步数汇总"
+        case .sleep: "睡眠汇总"
+        case .stand: "站立汇总"
+        case .activity: "活动汇总"
+        }
+        return summaryEvidenceEvents(metrics, label: label, occurredAt: records.last?.date)
+    }
+
+    func summaryEvidenceEvents(
+        _ metrics: [HoloMetric],
+        label: String,
+        occurredAt: Date? = nil
+    ) -> [HoloEvidenceEvent] {
+        metrics.map { metric in
+            let valueText = metric.value.map { String(format: "%.2f", $0) } ?? "未知"
+            return HoloEvidenceEvent(
+                id: "summary-\(metric.metricKey)",
+                occurredAt: occurredAt,
+                metricKey: metric.metricKey,
+                metricValue: metric.value,
+                excerpt: "\(label)：\(metric.metricKey) = \(valueText) \(metric.unit ?? "")"
+            )
         }
     }
 
