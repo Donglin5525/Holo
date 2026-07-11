@@ -3,7 +3,7 @@
 //  Holo
 //
 //  记账模块图标目录
-//  12 个展示分组，共 171+ 个图标
+//  13 个展示分组，共 255+ 个图标
 //  仅用于 IconPickerGrid 的 UI 展示分组，不代表业务分类
 //
 
@@ -23,7 +23,7 @@ struct IconPickerSection: Identifiable {
 /// 图标目录 — 单一数据源
 enum CategoryIconCatalog {
 
-    // MARK: - 12 个展示分组
+    // MARK: - 13 个展示分组
 
     static let sections: [IconPickerSection] = [
         IconPickerSection(id: "food", title: "餐饮", icons: [
@@ -146,6 +146,60 @@ enum CategoryIconCatalog {
             "arrow.right.arrow.left.circle.fill", "hands.clap.fill",
             "rectangle.portrait.and.arrow.right.fill", "dollarsign.arrow.circlepath",
             "holo.category.generic", "holo.category.misc",
+        ]),
+
+        // 财务重绘图标（来自 finance v3 SVG 资源包）
+        IconPickerSection(id: "financeV3", title: "财务重绘", icons: [
+            "finance_breakfast", "finance_lunch", "finance_dinner", "finance_latenight",
+            "finance_snack", "finance_coffee", "finance_takeout", "finance_drink",
+            "finance_fruit", "finance_alcohol", "finance_supermarket", "finance_subway",
+            "finance_taxi", "finance_bus", "finance_bicycle", "finance_fuel",
+            "finance_ev_charge", "finance_parking", "finance_carwash", "finance_carmaint",
+            "finance_train", "finance_flight", "finance_travel", "finance_toll",
+            "finance_fine", "finance_clothes", "finance_digital", "finance_daily",
+            "finance_cosmetics", "finance_furniture", "finance_books", "finance_sports",
+            "finance_gift", "finance_movie", "finance_game", "finance_video",
+            "finance_music", "finance_ktv", "finance_tourism", "finance_hotel",
+            "finance_ticket", "finance_gym", "finance_rent", "finance_mortgage",
+            "finance_water", "finance_electricity", "finance_gas", "finance_property",
+            "finance_internet", "finance_appliance", "finance_renovation", "finance_cleaning",
+            "finance_moving", "finance_doctor", "finance_medicine", "finance_checkup",
+            "finance_supplement", "finance_dental", "finance_medical_supply", "finance_course",
+            "finance_textbook", "finance_exam", "finance_stationery", "finance_subscription",
+            "finance_treat", "finance_present", "finance_support", "finance_social",
+            "finance_express", "finance_repayment", "finance_insurance", "finance_investment",
+            "finance_transfer", "finance_other_expense", "finance_salary", "finance_bonus",
+            "finance_parttime", "finance_invest_return", "finance_wealth_return", "finance_refund",
+            "finance_reimbursement", "finance_red_packet", "finance_transfer_in", "finance_other_income",
+        ]),
+
+        // 财务 v4 新增的一级分类与细分科目图标
+        IconPickerSection(id: "financeV4", title: "财务重绘 v4", icons: [
+            "cat_food", "cat_transport", "cat_shopping", "cat_entertain", "cat_housing",
+            "cat_medical", "cat_learning", "cat_relation", "cat_other_exp",
+            "cat_inc_invest", "cat_inc_salary", "cat_inc_relation", "cat_inc_other",
+            "finance_hotpot", "finance_bbq", "finance_dessert", "finance_beer", "finance_tea",
+            "finance_ship", "finance_ferry", "finance_scooter", "finance_car_rent",
+            "finance_shoes", "finance_jewelry", "finance_toy", "finance_pet_supply",
+            "finance_plant", "finance_food_buy", "finance_sports_event", "finance_concert",
+            "finance_exhibition", "finance_spa", "finance_escape", "finance_outdoor",
+            "finance_phone_bill", "finance_security", "finance_laundry", "finance_furniture_rent",
+            "finance_hospital", "finance_glasses", "finance_psychology", "finance_fitness_med",
+            "finance_vaccine", "finance_ai_tool", "finance_software", "finance_cloud",
+            "finance_language", "finance_music_learn", "finance_art", "finance_sport_learn",
+            "finance_certificate", "finance_red_env", "finance_visit", "finance_child",
+            "finance_donation", "finance_haircut", "finance_laundry2", "finance_phone",
+            "finance_tobacco", "finance_repair", "finance_fee", "finance_tax",
+            "finance_penalty", "finance_delivery", "finance_charity", "finance_pet", "finance_other_exp",
+            "finance_wedding", "income_interest", "income_stock", "income_fund",
+            "income_rent_in", "income_other_invest", "income_crypto", "income_dividend",
+            "income_salary", "income_bonus", "income_parttime", "income_project",
+            "income_consulting", "income_reimburse", "income_refund", "income_royalty",
+            "income_commission", "income_red_packet", "income_gift_in", "income_lottery",
+            "income_transfer_in", "income_crowd", "income_sponsor", "income_borrow",
+            "income_repay_in", "income_return_goods", "income_provident", "income_secondhand",
+            "income_manuscript", "income_subsidy", "income_tax_refund", "income_insurance_pay",
+            "income_rent_deposit", "income_award", "income_other",
         ]),
     ]
 

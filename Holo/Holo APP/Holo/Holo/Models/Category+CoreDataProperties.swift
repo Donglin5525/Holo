@@ -68,171 +68,224 @@ extension Category {
         children: [SubCategoryDef]
     )
     
-    // MARK: - 支出分类层级（9 个一级 + 86 个二级）
+    // MARK: - 支出分类层级（9 个一级 + 125 个二级）
 
     /// 支出分类体系
     /// 按 Figma 设计稿的图标分组排列，每组颜色与设计一致
     static let expenseHierarchy: [CategoryGroupDef] = [
         // ━━━━━━━━━━ 1. 餐饮（蓝色系 #13A4EC）━━━━━━━━━━
         (name: "餐饮", color: "#13A4EC", children: [
-            (name: "早餐", icon: "sunrise.fill"),
-            (name: "午餐", icon: "fork.knife.circle.fill"),
-            (name: "晚餐", icon: "moon.stars.fill"),
-            (name: "夜宵", icon: "mug.fill"),
-            (name: "零食", icon: "popcorn.fill"),
-            (name: "咖啡", icon: "cup.and.saucer.fill"),
-            (name: "外卖", icon: "bag.fill"),
-            (name: "饮品", icon: "wineglass.fill"),
-            (name: "水果", icon: "carrot.fill"),
-            (name: "酒水", icon: "wineglass"),
-            (name: "超市", icon: "cart.fill"),
+            (name: "早餐", icon: "finance_breakfast"),
+            (name: "午餐", icon: "finance_lunch"),
+            (name: "晚餐", icon: "finance_dinner"),
+            (name: "夜宵", icon: "finance_latenight"),
+            (name: "零食", icon: "finance_snack"),
+            (name: "咖啡", icon: "finance_coffee"),
+            (name: "外卖", icon: "finance_takeout"),
+            (name: "饮品", icon: "finance_drink"),
+            (name: "水果", icon: "finance_fruit"),
+            (name: "酒水", icon: "finance_alcohol"),
+            (name: "超市", icon: "finance_supermarket"),
+            (name: "火锅", icon: "finance_hotpot"),
+            (name: "烧烤", icon: "finance_bbq"),
+            (name: "甜品", icon: "finance_dessert"),
+            (name: "啤酒", icon: "finance_beer"),
+            (name: "茶饮", icon: "finance_tea"),
         ]),
         // ━━━━━━━━━━ 2. 交通（绿色系 #10B981）━━━━━━━━━━
         (name: "交通", color: "#10B981", children: [
-            (name: "地铁", icon: "train.side.front.car"),
-            (name: "打车", icon: "car.side.fill"),
-            (name: "公交", icon: "bus.fill"),
-            (name: "单车", icon: "bicycle"),
-            (name: "加油", icon: "fuelpump.fill"),
-            (name: "充电", icon: "bolt.car.fill"),
-            (name: "停车", icon: "parkingsign.circle.fill"),
-            (name: "洗车", icon: "car.rear.waves.up.fill"),
-            (name: "车辆保养", icon: "wrench.and.screwdriver.fill"),
-            (name: "火车", icon: "train.side.rear.car"),
-            (name: "机票", icon: "airplane.departure"),
-            (name: "旅行", icon: "airplane.departure"),
-            (name: "过路费", icon: "road.lanes"),
-            (name: "违章罚款", icon: "exclamationmark.triangle.fill"),
+            (name: "地铁", icon: "finance_subway"),
+            (name: "打车", icon: "finance_taxi"),
+            (name: "公交", icon: "finance_bus"),
+            (name: "单车", icon: "finance_bicycle"),
+            (name: "加油", icon: "finance_fuel"),
+            (name: "充电", icon: "finance_ev_charge"),
+            (name: "停车", icon: "finance_parking"),
+            (name: "洗车", icon: "finance_carwash"),
+            (name: "车辆保养", icon: "finance_carmaint"),
+            (name: "火车", icon: "finance_train"),
+            (name: "机票", icon: "finance_flight"),
+            (name: "旅行", icon: "finance_travel"),
+            (name: "过路费", icon: "finance_toll"),
+            (name: "违章罚款", icon: "finance_fine"),
+            (name: "船票", icon: "finance_ship"),
+            (name: "渡轮", icon: "finance_ferry"),
+            (name: "电动车", icon: "finance_scooter"),
+            (name: "租车", icon: "finance_car_rent"),
         ]),
         // ━━━━━━━━━━ 3. 购物（橙色系 #F97316）━━━━━━━━━━
         (name: "购物", color: "#F97316", children: [
-            (name: "服饰", icon: "hanger"),
-            (name: "数码", icon: "desktopcomputer"),
-            (name: "日用", icon: "basket.fill"),
-            (name: "美妆", icon: "wand.and.stars"),
-            (name: "家具", icon: "sofa.fill"),
-            (name: "书籍", icon: "book.fill"),
-            (name: "运动", icon: "sportscourt.fill"),
-            (name: "礼物", icon: "gift.fill"),
+            (name: "服饰", icon: "finance_clothes"),
+            (name: "数码", icon: "finance_digital"),
+            (name: "日用", icon: "finance_daily"),
+            (name: "美妆", icon: "finance_cosmetics"),
+            (name: "家具", icon: "finance_furniture"),
+            (name: "书籍", icon: "finance_books"),
+            (name: "运动", icon: "finance_sports"),
+            (name: "礼物", icon: "finance_gift"),
+            (name: "鞋包", icon: "finance_shoes"),
+            (name: "珠宝", icon: "finance_jewelry"),
+            (name: "玩具", icon: "finance_toy"),
+            (name: "宠物用品", icon: "finance_pet_supply"),
+            (name: "植物花卉", icon: "finance_plant"),
+            (name: "买菜", icon: "finance_food_buy"),
         ]),
         // ━━━━━━━━━━ 4. 娱乐（粉色系 #EC4899）━━━━━━━━━━
         (name: "娱乐", color: "#EC4899", children: [
-            (name: "电影", icon: "film.fill"),
-            (name: "游戏", icon: "gamecontroller.fill"),
-            (name: "视频", icon: "play.tv.fill"),
-            (name: "音乐", icon: "music.note.list"),
-            (name: "KTV", icon: "mic.fill"),
-            (name: "旅游", icon: "airplane"),
-            (name: "住宿", icon: "bed.double.fill"),
-            (name: "门票", icon: "ticket.fill"),
-            (name: "健身", icon: "figure.run"),
+            (name: "电影", icon: "finance_movie"),
+            (name: "游戏", icon: "finance_game"),
+            (name: "视频", icon: "finance_video"),
+            (name: "音乐", icon: "finance_music"),
+            (name: "KTV", icon: "finance_ktv"),
+            (name: "旅游", icon: "finance_tourism"),
+            (name: "住宿", icon: "finance_hotel"),
+            (name: "门票", icon: "finance_ticket"),
+            (name: "健身", icon: "finance_gym"),
+            (name: "体育赛事", icon: "finance_sports_event"),
+            (name: "演唱会", icon: "finance_concert"),
+            (name: "展览", icon: "finance_exhibition"),
+            (name: "SPA美容", icon: "finance_spa"),
+            (name: "密室/剧本", icon: "finance_escape"),
+            (name: "户外运动", icon: "finance_outdoor"),
         ]),
         // ━━━━━━━━━━ 5. 居住（靛蓝色系 #6366F1）━━━━━━━━━━
         (name: "居住", color: "#6366F1", children: [
-            (name: "房租", icon: "house.lodge.fill"),
-            (name: "房贷", icon: "banknote.fill"),
-            (name: "水费", icon: "drop.fill"),
-            (name: "电费", icon: "bolt.fill"),
-            (name: "燃气", icon: "flame.fill"),
-            (name: "物业", icon: "building.2.fill"),
-            (name: "网费", icon: "wifi"),
-            (name: "家电", icon: "tv.fill"),
-            (name: "装修", icon: "paintbrush.fill"),
-            (name: "家政保洁", icon: "bubble.left.and.bubble.right.fill"),
-            (name: "搬家", icon: "shippingbox.and.arrow.backward.fill"),
+            (name: "房租", icon: "finance_rent"),
+            (name: "房贷", icon: "finance_mortgage"),
+            (name: "水费", icon: "finance_water"),
+            (name: "电费", icon: "finance_electricity"),
+            (name: "燃气", icon: "finance_gas"),
+            (name: "物业", icon: "finance_property"),
+            (name: "网费", icon: "finance_internet"),
+            (name: "家电", icon: "finance_appliance"),
+            (name: "装修", icon: "finance_renovation"),
+            (name: "家政保洁", icon: "finance_cleaning"),
+            (name: "搬家", icon: "finance_moving"),
+            (name: "话费", icon: "finance_phone_bill"),
+            (name: "安防", icon: "finance_security"),
+            (name: "洗衣", icon: "finance_laundry"),
+            (name: "家具租赁", icon: "finance_furniture_rent"),
         ]),
         // ━━━━━━━━━━ 6. 医疗（玫红色系 #F43F5E）━━━━━━━━━━
         (name: "医疗", color: "#F43F5E", children: [
-            (name: "就医", icon: "stethoscope"),
-            (name: "药品", icon: "pill.fill"),
-            (name: "体检", icon: "heart.text.square.fill"),
-            (name: "健身房", icon: "dumbbell.fill"),
-            (name: "保健品", icon: "pill.fill"),
-            (name: "牙齿保健", icon: "heart.circle.fill"),
-            (name: "医疗用品", icon: "cross.case.fill"),
+            (name: "就医", icon: "finance_doctor"),
+            (name: "药品", icon: "finance_medicine"),
+            (name: "体检", icon: "finance_checkup"),
+            (name: "健身房", icon: "finance_gym"),
+            (name: "保健品", icon: "finance_supplement"),
+            (name: "牙齿保健", icon: "finance_dental"),
+            (name: "医疗用品", icon: "finance_medical_supply"),
+            (name: "住院", icon: "finance_hospital"),
+            (name: "眼镜", icon: "finance_glasses"),
+            (name: "心理咨询", icon: "finance_psychology"),
+            (name: "康复理疗", icon: "finance_fitness_med"),
+            (name: "疫苗", icon: "finance_vaccine"),
         ]),
         // ━━━━━━━━━━ 7. 学习（青色系 #06B6D4）━━━━━━━━━━
         (name: "学习", color: "#06B6D4", children: [
-            (name: "课程", icon: "book.closed.fill"),
-            (name: "教材", icon: "text.book.closed.fill"),
-            (name: "考试", icon: "checkmark.rectangle.fill"),
-            (name: "文具", icon: "pencil.line"),
-            (name: "订阅", icon: "arrow.trianglehead.clockwise"),
-            (name: "AI工具", icon: "sparkles"),
-            (name: "软件服务", icon: "laptopcomputer"),
-            (name: "云存储", icon: "cloud.fill"),
+            (name: "课程", icon: "finance_course"),
+            (name: "教材", icon: "finance_textbook"),
+            (name: "考试", icon: "finance_exam"),
+            (name: "文具", icon: "finance_stationery"),
+            (name: "订阅", icon: "finance_subscription"),
+            (name: "AI工具", icon: "finance_ai_tool"),
+            (name: "软件服务", icon: "finance_software"),
+            (name: "云存储", icon: "finance_cloud"),
+            (name: "语言学习", icon: "finance_language"),
+            (name: "乐器学习", icon: "finance_music_learn"),
+            (name: "艺术培训", icon: "finance_art"),
+            (name: "体育培训", icon: "finance_sport_learn"),
+            (name: "证书考证", icon: "finance_certificate"),
         ]),
         // ━━━━━━━━━━ 8. 人情（琥珀色系 #F59E0B）━━━━━━━━━━
         (name: "人情", color: "#F59E0B", children: [
-            (name: "红包礼金", icon: "yensign.circle.fill"),
-            (name: "请客", icon: "person.2.fill"),
-            (name: "送礼", icon: "shippingbox.fill"),
-            (name: "探望", icon: "figure.walk.arrival"),
-            (name: "育儿", icon: "figure.and.child.holdinghands"),
-            (name: "赡养", icon: "person.2.fill"),
+            (name: "红包礼金", icon: "finance_red_env"),
+            (name: "请客", icon: "finance_treat"),
+            (name: "送礼", icon: "finance_present"),
+            (name: "探望", icon: "finance_visit"),
+            (name: "育儿", icon: "finance_child"),
+            (name: "赡养", icon: "finance_support"),
             (name: "其他", icon: "ellipsis.circle.fill"),
         ]),
         // ━━━━━━━━━━ 9. 其他（灰色系 #64748B）━━━━━━━━━━
         (name: "其他", color: "#64748B", children: [
-            (name: "社交", icon: "person.2.fill"),
-            (name: "宠物", icon: "pawprint.fill"),
-            (name: "理发", icon: "scissors"),
-            (name: "洗衣", icon: "washer.fill"),
-            (name: "话费", icon: "phone.fill"),
-            (name: "烟酒", icon: "smoke.fill"),
-            (name: "维修", icon: "wrench.fill"),
-            (name: "保险", icon: "shield.checkered"),
-            (name: "手续费", icon: "dollarsign.arrow.circlepath"),
-            (name: "税费", icon: "building.columns.circle.fill"),
-            (name: "罚款", icon: "yensign.circle.fill"),
-            (name: "还款", icon: "arrow.uturn.backward.circle.fill"),
-            (name: "转账", icon: "arrow.right.circle.fill"),
-            (name: "快递", icon: "shippingbox.fill"),
-            (name: "捐赠", icon: "heart.fill"),
+            (name: "社交", icon: "finance_social"),
+            (name: "宠物", icon: "finance_pet"),
+            (name: "理发", icon: "finance_haircut"),
+            (name: "洗衣", icon: "finance_laundry2"),
+            (name: "话费", icon: "finance_phone"),
+            (name: "烟酒", icon: "finance_tobacco"),
+            (name: "维修", icon: "finance_repair"),
+            (name: "保险", icon: "finance_insurance"),
+            (name: "手续费", icon: "finance_fee"),
+            (name: "税费", icon: "finance_tax"),
+            (name: "罚款", icon: "finance_penalty"),
+            (name: "还款", icon: "finance_repayment"),
+            (name: "转账", icon: "finance_transfer"),
+            (name: "快递", icon: "finance_delivery"),
+            (name: "捐赠", icon: "finance_donation"),
+            (name: "捐赠", icon: "finance_charity"),
             (name: "其他", icon: "questionmark.folder.fill"),
+            (name: "其他支出", icon: "finance_other_exp"),
+            (name: "快递费", icon: "finance_delivery"),
+            (name: "慈善", icon: "finance_charity"),
         ]),
     ]
     
-    // MARK: - 收入分类层级（4 个一级 + 25 个二级）
+    // MARK: - 收入分类层级（4 个一级 + 39 个二级）
 
     /// 收入分类体系
     static let incomeHierarchy: [CategoryGroupDef] = [
         // ━━━━━━━━━━ 1. 投资理财（蓝色系 #3B82F6）━━━━━━━━━━
         (name: "投资理财", color: "#3B82F6", children: [
-            (name: "利息", icon: "percent"),
-            (name: "股票", icon: "chart.line.uptrend.xyaxis"),
-            (name: "基金", icon: "chart.pie.fill"),
-            (name: "房租收入", icon: "building.columns.fill"),
-            (name: "其他投资", icon: "chart.pie.fill"),
+            (name: "利息", icon: "income_interest"),
+            (name: "股票", icon: "income_stock"),
+            (name: "基金", icon: "income_fund"),
+            (name: "房租收入", icon: "income_rent_in"),
+            (name: "其他投资", icon: "income_other_invest"),
+            (name: "理财", icon: "income_other_invest"),
+            (name: "投资收益", icon: "income_dividend"),
+            (name: "理财收益", icon: "income_other_invest"),
+            (name: "数字货币", icon: "income_crypto"),
+            (name: "分红", icon: "income_dividend"),
         ]),
         // ━━━━━━━━━━ 2. 工资收入（绿色系 #22C55E）━━━━━━━━━━
         (name: "工资收入", color: "#22C55E", children: [
-            (name: "工资", icon: "banknote.fill"),
-            (name: "奖金", icon: "star.fill"),
-            (name: "兼职", icon: "briefcase.fill"),
-            (name: "项目款", icon: "briefcase.fill"),
-            (name: "咨询费", icon: "person.crop.circle.badge.checkmark"),
-            (name: "报销", icon: "arrow.uturn.backward.circle.fill"),
-            (name: "退款", icon: "arrow.counterclockwise.circle.fill"),
+            (name: "工资", icon: "income_salary"),
+            (name: "奖金", icon: "income_bonus"),
+            (name: "兼职", icon: "income_parttime"),
+            (name: "项目款", icon: "income_project"),
+            (name: "咨询费", icon: "income_consulting"),
+            (name: "报销", icon: "income_reimburse"),
+            (name: "退款", icon: "income_refund"),
+            (name: "稿费版税", icon: "income_royalty"),
+            (name: "佣金", icon: "income_commission"),
         ]),
         // ━━━━━━━━━━ 3. 人情来往（红色系 #EF4444）━━━━━━━━━━
         (name: "人情来往", color: "#EF4444", children: [
-            (name: "红包", icon: "yensign.circle.fill"),
-            (name: "礼物", icon: "gift.fill"),
-            (name: "中奖", icon: "trophy.fill"),
-            (name: "转入", icon: "arrow.left.circle.fill"),
+            (name: "红包", icon: "income_red_packet"),
+            (name: "礼物", icon: "income_gift_in"),
+            (name: "中奖", icon: "income_lottery"),
+            (name: "转入", icon: "income_transfer_in"),
+            (name: "众筹", icon: "income_crowd"),
+            (name: "赞助", icon: "income_sponsor"),
         ]),
         // ━━━━━━━━━━ 4. 其他收入（紫色系 #A855F7）━━━━━━━━━━
         (name: "其他收入", color: "#A855F7", children: [
-            (name: "借入", icon: "arrow.down.circle.fill"),
-            (name: "还款收入", icon: "arrow.uturn.forward.circle.fill"),
-            (name: "退货", icon: "shippingbox.fill"),
-            (name: "公积金", icon: "building.columns.fill"),
-            (name: "出闲置", icon: "arrow.3.trianglepath"),
-            (name: "稿费", icon: "doc.text.fill"),
-            (name: "补贴", icon: "giftcard.fill"),
-            (name: "个税退税", icon: "arrow.uturn.backward.circle.fill"),
-            (name: "其他", icon: "questionmark.folder.fill"),
+            (name: "借入", icon: "income_borrow"),
+            (name: "还款收入", icon: "income_repay_in"),
+            (name: "退货", icon: "income_return_goods"),
+            (name: "公积金", icon: "income_provident"),
+            (name: "出闲置", icon: "income_secondhand"),
+            (name: "稿费", icon: "income_manuscript"),
+            (name: "补贴", icon: "income_subsidy"),
+            (name: "个税退税", icon: "income_tax_refund"),
+            (name: "保险理赔", icon: "income_insurance_pay"),
+            (name: "押金退还", icon: "income_rent_deposit"),
+            (name: "奖励", icon: "income_award"),
+            (name: "婚礼", icon: "finance_wedding"),
+            (name: "其他收入", icon: "income_other"),
+            (name: "其他", icon: "income_other"),
         ]),
     ]
     
@@ -365,19 +418,19 @@ extension Category {
 
     /// 一级分类名称 → SF Symbol（用于种子数据和迁移）
     static let parentIconMapping: [String: String] = [
-        "餐饮": "fork.knife",
-        "交通": "car.fill",
-        "购物": "bag.fill",
-        "娱乐": "theatermasks.fill",
-        "居住": "house.fill",
-        "医疗": "heart.text.square.fill",
-        "学习": "book.closed.fill",
-        "人情": "yensign.circle.fill",
-        "其他": "questionmark.folder.fill",
-        "投资理财": "chart.line.uptrend.xyaxis",
-        "工资收入": "banknote.fill",
-        "人情来往": "gift.fill",
-        "其他收入": "plus.circle.fill",
+        "餐饮": "cat_food",
+        "交通": "cat_transport",
+        "购物": "cat_shopping",
+        "娱乐": "cat_entertain",
+        "居住": "cat_housing",
+        "医疗": "cat_medical",
+        "学习": "cat_learning",
+        "人情": "cat_relation",
+        "其他": "cat_other_exp",
+        "投资理财": "cat_inc_invest",
+        "工资收入": "cat_inc_salary",
+        "人情来往": "cat_inc_relation",
+        "其他收入": "cat_inc_other",
     ]
 
     /// 查询预设分类的默认图标，用于编辑页“恢复默认图标”。
@@ -670,6 +723,41 @@ extension Category {
     private static let migrationV2Flag = "hasMigratedToSFSymbols_v2"
     private static let semanticIconMigrationFlag = "hasMigratedSemanticCategoryIcons_v1"
     private static let iconRefreshMigrationFlag = "hasMigratedRefreshedCategoryIcons_v1"
+    private static let financeV3IconMigrationFlag = "hasMigratedFinanceV3CategoryIcons_v1"
+    private static let financeV4IconMigrationFlag = "hasMigratedFinanceV4CategoryIcons_v1"
+
+    /// 财务图标 v3 的默认科目映射；仅作用于系统默认分类，不覆盖用户自定义分类。
+    private static let financeV3IconByCategoryName: [String: String] = [
+        "早餐": "finance_breakfast", "午餐": "finance_lunch", "晚餐": "finance_dinner",
+        "夜宵": "finance_latenight", "零食": "finance_snack", "咖啡": "finance_coffee",
+        "外卖": "finance_takeout", "饮品": "finance_drink", "水果": "finance_fruit",
+        "酒水": "finance_alcohol", "超市": "finance_supermarket", "地铁": "finance_subway",
+        "打车": "finance_taxi", "公交": "finance_bus", "单车": "finance_bicycle",
+        "加油": "finance_fuel", "充电": "finance_ev_charge", "停车": "finance_parking",
+        "洗车": "finance_carwash", "车辆保养": "finance_carmaint", "火车": "finance_train",
+        "机票": "finance_flight", "旅行": "finance_travel", "过路费": "finance_toll",
+        "违章罚款": "finance_fine", "罚款": "finance_fine", "服饰": "finance_clothes",
+        "数码": "finance_digital", "日用": "finance_daily", "美妆": "finance_cosmetics",
+        "家具": "finance_furniture", "书籍": "finance_books", "运动": "finance_sports",
+        "礼物": "finance_gift", "电影": "finance_movie", "游戏": "finance_game",
+        "视频": "finance_video", "音乐": "finance_music", "KTV": "finance_ktv",
+        "旅游": "finance_tourism", "住宿": "finance_hotel", "门票": "finance_ticket",
+        "健身": "finance_gym", "健身房": "finance_gym", "房租": "finance_rent",
+        "房贷": "finance_mortgage", "水费": "finance_water", "电费": "finance_electricity",
+        "燃气": "finance_gas", "物业": "finance_property", "网费": "finance_internet",
+        "家电": "finance_appliance", "装修": "finance_renovation", "家政保洁": "finance_cleaning",
+        "搬家": "finance_moving", "就医": "finance_doctor", "药品": "finance_medicine",
+        "体检": "finance_checkup", "保健品": "finance_supplement", "牙齿保健": "finance_dental",
+        "医疗用品": "finance_medical_supply", "课程": "finance_course", "教材": "finance_textbook",
+        "考试": "finance_exam", "文具": "finance_stationery", "订阅": "finance_subscription",
+        "请客": "finance_treat", "红包礼金": "finance_red_packet", "红包": "finance_red_packet",
+        "送礼": "finance_present", "赡养": "finance_support", "社交": "finance_social",
+        "快递": "finance_express", "还款": "finance_repayment", "保险": "finance_insurance",
+        "理财": "finance_investment", "投资收益": "finance_invest_return", "理财收益": "finance_wealth_return",
+        "工资": "finance_salary", "奖金": "finance_bonus", "兼职": "finance_parttime",
+        "报销": "finance_reimbursement", "退款": "finance_refund", "转入": "finance_transfer_in",
+        "其他支出": "finance_other_expense", "其他收入": "finance_other_income",
+    ]
 
     /// 将旧 icon_ 前缀图标名迁移为 SF Symbol
     /// 使用 UserDefaults 标记确保只执行一次，迁移失败不设标记下次自动重试
@@ -709,6 +797,12 @@ extension Category {
 
         // v4: 图标系统重构 — 重选 8 个语义错位图标
         migrateRefreshedCategoryIcons(in: context)
+
+        // v5: 财务图标 v3 全量替换
+        migrateFinanceV3CategoryIcons(in: context)
+
+        // v6: 财务图标 v4（一级分类、收入图标和新增科目）全量替换
+        migrateFinanceV4CategoryIcons(in: context)
     }
 
     /// 修复无效的 SF Symbol 名称（v1 迁移使用了不存在的图标名）
@@ -822,6 +916,73 @@ extension Category {
             } catch { }
         } else {
             UserDefaults.standard.set(true, forKey: iconRefreshMigrationFlag)
+        }
+    }
+
+    /// v5：将已安装设备上的默认财务科目切换到 finance v3 资源。
+    private static func migrateFinanceV3CategoryIcons(in context: NSManagedObjectContext) {
+        guard !UserDefaults.standard.bool(forKey: financeV3IconMigrationFlag) else { return }
+
+        let request = Category.fetchRequest()
+        request.includesSubentities = false
+        guard let all = try? context.fetch(request) else { return }
+
+        var migrated = false
+        for category in all where category.isDefault {
+            let newIcon: String?
+            if category.type == TransactionType.income.rawValue && category.name == "其他" {
+                newIcon = "finance_other_income"
+            } else {
+                newIcon = financeV3IconByCategoryName[category.name]
+            }
+            guard let newIcon else { continue }
+            if category.icon != newIcon {
+                category.icon = newIcon
+                migrated = true
+            }
+        }
+
+        if migrated {
+            do {
+                try context.save()
+                UserDefaults.standard.set(true, forKey: financeV3IconMigrationFlag)
+            } catch { }
+        } else {
+            UserDefaults.standard.set(true, forKey: financeV3IconMigrationFlag)
+        }
+    }
+
+    /// v6：按当前默认目录单一数据源同步已安装设备上的默认图标。
+    private static func migrateFinanceV4CategoryIcons(in context: NSManagedObjectContext) {
+        guard !UserDefaults.standard.bool(forKey: financeV4IconMigrationFlag) else { return }
+
+        let request = Category.fetchRequest()
+        request.includesSubentities = false
+        guard let all = try? context.fetch(request) else { return }
+
+        var migrated = false
+        for category in all where category.isDefault {
+            let parentName = category.parentId.flatMap { parentID in
+                all.first { $0.id == parentID }?.name
+            }
+            guard let newIcon = defaultIconName(
+                name: category.name,
+                type: category.transactionType,
+                parentName: parentName
+            ) else { continue }
+            if category.icon != newIcon {
+                category.icon = newIcon
+                migrated = true
+            }
+        }
+
+        if migrated {
+            do {
+                try context.save()
+                UserDefaults.standard.set(true, forKey: financeV4IconMigrationFlag)
+            } catch { }
+        } else {
+            UserDefaults.standard.set(true, forKey: financeV4IconMigrationFlag)
         }
     }
 }

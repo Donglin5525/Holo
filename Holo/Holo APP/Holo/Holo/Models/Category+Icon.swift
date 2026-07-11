@@ -30,7 +30,14 @@ func transactionCategoryIcon(_ category: Category, size: CGFloat) -> some View {
 
 @ViewBuilder
 func categoryIconGlyph(_ iconName: String, size: CGFloat, color: Color) -> some View {
-    if CategoryIconCatalog.isCustomIcon(iconName) {
+    if iconName.hasPrefix("finance_") || iconName.hasPrefix("income_") || iconName.hasPrefix("cat_") {
+        Image(iconName)
+            .renderingMode(.template)
+            .resizable()
+            .scaledToFit()
+            .frame(width: size, height: size)
+            .foregroundColor(color)
+    } else if CategoryIconCatalog.isCustomIcon(iconName) {
         HoloFallbackCategoryIcon(kind: iconName, size: size)
             .foregroundColor(color)
     } else {
