@@ -140,6 +140,13 @@ extension CoreDataStack {
         aiCandidate.isOptional = true
         attributes.append(aiCandidate)
 
+        let spendingProjectId = NSAttributeDescription()
+        spendingProjectId.name = "spendingProjectId"
+        spendingProjectId.attributeType = .UUIDAttributeType
+        spendingProjectId.isOptional = true
+        spendingProjectId.isIndexed = true
+        attributes.append(spendingProjectId)
+
         transactionEntity.properties = attributes + [categoryRelation, accountRelation]
         
         // MARK: - Category Entity
@@ -490,7 +497,48 @@ extension CoreDataStack {
 
         budgetEntity.properties = budgetAttributes
 
-        return [transactionEntity, categoryEntity, accountEntity, homeIconConfigEntity, budgetEntity]
+        // MARK: - Spending Project Entity
+        let spendingProjectEntity = NSEntityDescription()
+        spendingProjectEntity.name = "SpendingProject"
+        spendingProjectEntity.managedObjectClassName = "SpendingProject"
+
+        func projectAttribute(_ name: String, _ type: NSAttributeType, optional: Bool = false, defaultValue: Any? = nil) -> NSAttributeDescription {
+            let attribute = NSAttributeDescription()
+            attribute.name = name
+            attribute.attributeType = type
+            attribute.isOptional = optional
+            attribute.defaultValue = defaultValue
+            if name == "id" || name == "kind" || name == "nextOccurrenceDate" {
+                attribute.isIndexed = true
+            }
+            return attribute
+        }
+
+        let projectAttributes: [NSAttributeDescription] = [
+            projectAttribute("id", .UUIDAttributeType, defaultValue: UUID()),
+            projectAttribute("name", .stringAttributeType, defaultValue: ""),
+            projectAttribute("kind", .stringAttributeType, defaultValue: "oneOff"),
+            projectAttribute("amount", .decimalAttributeType, defaultValue: NSDecimalNumber(value: 0)),
+            projectAttribute("frequency", .stringAttributeType, optional: true),
+            projectAttribute("startDate", .dateAttributeType, defaultValue: Date()),
+            projectAttribute("endDate", .dateAttributeType, optional: true),
+            projectAttribute("maxOccurrences", .integer32AttributeType, defaultValue: 0),
+            projectAttribute("occurrencesGenerated", .integer32AttributeType, defaultValue: 0),
+            projectAttribute("plannedLifespanDays", .integer32AttributeType, defaultValue: 0),
+            projectAttribute("nextOccurrenceDate", .dateAttributeType, optional: true),
+            projectAttribute("isPaused", .booleanAttributeType, defaultValue: false),
+            projectAttribute("autoGenerateTransaction", .booleanAttributeType, defaultValue: true),
+            projectAttribute("usageCount", .integer32AttributeType, defaultValue: 0),
+            projectAttribute("usageDayCount", .integer32AttributeType, defaultValue: 0),
+            projectAttribute("lastUsedDate", .dateAttributeType, optional: true),
+            projectAttribute("categoryId", .UUIDAttributeType, optional: true),
+            projectAttribute("accountId", .UUIDAttributeType, optional: true),
+            projectAttribute("createdAt", .dateAttributeType, defaultValue: Date()),
+            projectAttribute("updatedAt", .dateAttributeType, defaultValue: Date())
+        ]
+        spendingProjectEntity.properties = projectAttributes
+
+        return [transactionEntity, categoryEntity, accountEntity, homeIconConfigEntity, budgetEntity, spendingProjectEntity]
     }
 
 }

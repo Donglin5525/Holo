@@ -43,6 +43,14 @@ extension FinanceRepository {
         Account.getDefaultAccount(in: context)
     }
 
+    /// 根据 ID 查找账户，供长期成本自动生成流水使用
+    func findAccount(by id: UUID) -> Account? {
+        let request = Account.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
+        request.fetchLimit = 1
+        return try? context.fetch(request).first
+    }
+
     // MARK: 账户 CRUD
 
     /// 创建新账户

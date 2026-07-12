@@ -8,6 +8,7 @@
 
 import Foundation
 import CoreData
+import BackgroundTasks
 
 /// 记账功能数据仓库
 /// 使用 @MainActor 保证所有操作在主线程执行，返回的对象可在 UI 中安全使用
@@ -333,5 +334,282 @@ enum AccountError: LocalizedError {
         case .systemCategoryNotFound:
             return "系统分类「余额调整」未找到"
         }
+    }
+}
+
+// MARK: - 长期成本项目
+
+@objc(SpendingProject)
+public class SpendingProject: NSManagedObject {
+    @NSManaged public var id: UUID
+    @NSManaged public var name: String
+    @NSManaged public var kind: String
+    @NSManaged public var amount: NSDecimalNumber
+    @NSManaged public var frequency: String?
+    @NSManaged public var startDate: Date
+    @NSManaged public var endDate: Date?
+    @NSManaged public var maxOccurrences: Int32
+    @NSManaged public var occurrencesGenerated: Int32
+    @NSManaged public var plannedLifespanDays: Int32
+    @NSManaged public var nextOccurrenceDate: Date?
+    @NSManaged public var isPaused: Bool
+    @NSManaged public var autoGenerateTransaction: Bool
+    @NSManaged public var usageCount: Int32
+    @NSManaged public var usageDayCount: Int32
+    @NSManaged public var lastUsedDate: Date?
+    @NSManaged public var categoryId: UUID?
+    @NSManaged public var accountId: UUID?
+    @NSManaged public var createdAt: Date
+    @NSManaged public var updatedAt: Date
+
+    var isRecurring: Bool { kind == SpendingProjectKind.recurring.rawValue }
+    var hasRemainingOccurrences: Bool {
+        guard maxOccurrences <= 0 || occurrencesGenerated < maxOccurrences else { return false }
+        if let endDate, let nextOccurrenceDate { return nextOccurrenceDate <= endDate }
+        return true
+    }
+    var amountDecimal: Decimal { amount as Decimal }
+
+    /// 一次性购买从购买日到今天经过的完整自然日数。
+    var ownershipElapsedDays: Int {
+        let calendar = Calendar.current
+        let purchaseDay = calendar.startOfDay(for: startDate)
+        let today = calendar.startOfDay(for: Date())
+        return max(0, calendar.dateComponents([.day], from: purchaseDay, to: today).day ?? 0)
+    }
+
+    var monthlyCommitment: Decimal? {
+        guard isRecurring else { return nil }
+        switch frequency {
+        case SpendingProjectFrequency.yearly.rawValue:
+            return amountDecimal / 12
+        default:
+            return amountDecimal
+        }
+    }
+
+    var dailyCost: Decimal? {
+        guard !isRecurring else { return nil }
+        return amountDecimal / Decimal(max(ownershipElapsedDays, 1))
+    }
+
+    var perUseCost: Decimal? {
+        guard !isRecurring, usageCount > 0 else { return nil }
+        return amountDecimal / Decimal(usageCount)
+    }
+}
+
+enum SpendingProjectKind: String, CaseIterable {
+    case recurring
+    case oneOff
+}
+
+enum SpendingProjectFrequency: String, CaseIterable {
+    case monthly
+    case yearly
+
+    var title: String {
+        switch self {
+        case .monthly: return "每月"
+        case .yearly: return "每年"
+        }
+    }
+}
+
+enum SpendingProjectEndMode: String, CaseIterable {
+    case forever
+    case endDate
+    case occurrenceCount
+
+    var title: String {
+        switch self {
+        case .forever: return "无限期"
+        case .endDate: return "指定结束日期"
+        case .occurrenceCount: return "总周期数"
+        }
+    }
+}
+
+@MainActor
+final class SpendingProjectRepository {
+    static let shared = SpendingProjectRepository()
+
+    private let finance = FinanceRepository.shared
+    private var context: NSManagedObjectContext { finance.context }
+
+    private init() {}
+
+    func allProjects() -> [SpendingProject] {
+        let request = NSFetchRequest<SpendingProject>(entityName: "SpendingProject")
+        request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
+        return (try? context.fetch(request)) ?? []
+    }
+
+    @discardableResult
+    func create(
+        name: String,
+        kind: SpendingProjectKind,
+        amount: Decimal,
+        frequency: SpendingProjectFrequency? = nil,
+        startDate: Date,
+        endDate: Date? = nil,
+        maxOccurrences: Int32 = 0,
+        plannedLifespanDays: Int32 = 0,
+        category: Category? = nil,
+        account: Account? = nil,
+        autoGenerateTransaction: Bool = true
+    ) throws -> SpendingProject {
+        let project = SpendingProject(context: context)
+        project.id = UUID()
+        project.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        project.kind = kind.rawValue
+        project.amount = NSDecimalNumber(decimal: amount)
+        project.frequency = frequency?.rawValue
+        project.startDate = startDate
+        project.endDate = endDate
+        project.maxOccurrences = maxOccurrences
+        project.occurrencesGenerated = 0
+        project.plannedLifespanDays = plannedLifespanDays
+        project.nextOccurrenceDate = kind == .recurring ? startDate : nil
+        project.isPaused = false
+        project.autoGenerateTransaction = autoGenerateTransaction
+        project.usageCount = 0
+        project.usageDayCount = 0
+        project.categoryId = category?.id
+        project.accountId = account?.id
+        project.createdAt = Date()
+        project.updatedAt = Date()
+        try context.save()
+        SpendingProjectBackgroundService.shared.scheduleNextTask()
+        return project
+    }
+
+    func syncRecurringProjects(now: Date = Date()) throws {
+        let calendar = Calendar.current
+        for project in allProjects() where project.isRecurring && !project.isPaused && project.autoGenerateTransaction && project.hasRemainingOccurrences {
+            guard var nextDate = project.nextOccurrenceDate,
+                  let frequency = SpendingProjectFrequency(rawValue: project.frequency ?? "monthly") else { continue }
+
+            // 兼容首次升级：已有自动流水时先以实际流水数校准计数。
+            let countRequest = NSFetchRequest<Transaction>(entityName: "Transaction")
+            countRequest.predicate = NSPredicate(format: "spendingProjectId == %@", project.id as CVarArg)
+            project.occurrencesGenerated = Int32((try? context.count(for: countRequest)) ?? Int(project.occurrencesGenerated))
+
+            while nextDate <= now && project.hasRemainingOccurrences {
+                if let endDate = project.endDate, nextDate > endDate { break }
+                let request = NSFetchRequest<Transaction>(entityName: "Transaction")
+                request.predicate = NSPredicate(format: "spendingProjectId == %@ AND date == %@", project.id as CVarArg, nextDate as NSDate)
+                request.fetchLimit = 1
+                if (try? context.fetch(request).first) == nil {
+                    let transaction = Transaction(context: context)
+                    transaction.id = UUID()
+                    transaction.amount = project.amount
+                    transaction.type = TransactionType.expense.rawValue
+                    transaction.date = nextDate
+                    transaction.note = project.name
+                    transaction.remark = "长期成本·自动生成"
+                    transaction.createdAt = Date()
+                    transaction.updatedAt = Date()
+                    transaction.spendingProjectId = project.id
+                    if let categoryId = project.categoryId { transaction.category = finance.findCategory(by: categoryId) }
+                    if let accountId = project.accountId { transaction.account = finance.findAccount(by: accountId) }
+                    project.occurrencesGenerated += 1
+                }
+                guard let advanced = calendar.date(byAdding: frequency == .yearly ? .year : .month, value: 1, to: nextDate) else { break }
+                nextDate = advanced
+            }
+            project.nextOccurrenceDate = nextDate
+            project.updatedAt = Date()
+        }
+        try context.save()
+        SpendingProjectBackgroundService.shared.scheduleNextTask()
+        NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+    }
+
+    func recordUsage(for project: SpendingProject, date: Date = Date()) throws {
+        project.usageCount += 1
+        if project.lastUsedDate == nil || !Calendar.current.isDate(project.lastUsedDate!, inSameDayAs: date) {
+            project.usageDayCount += 1
+        }
+        project.lastUsedDate = date
+        project.updatedAt = Date()
+        try context.save()
+        SpendingProjectBackgroundService.shared.scheduleNextTask()
+    }
+
+    func updatePause(for project: SpendingProject, isPaused: Bool) throws {
+        project.isPaused = isPaused
+        project.updatedAt = Date()
+        try context.save()
+        SpendingProjectBackgroundService.shared.scheduleNextTask()
+    }
+
+    func updateEndCondition(for project: SpendingProject, endDate: Date?, maxOccurrences: Int32) throws {
+        project.endDate = endDate
+        project.maxOccurrences = maxOccurrences
+        project.updatedAt = Date()
+        try context.save()
+        SpendingProjectBackgroundService.shared.scheduleNextTask()
+    }
+
+    func updateOneOffProject(_ project: SpendingProject, name: String, amount: Decimal, purchaseDate: Date, category: Category) throws {
+        project.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        project.amount = NSDecimalNumber(decimal: amount)
+        project.startDate = purchaseDate
+        project.categoryId = category.id
+        project.updatedAt = Date()
+        try context.save()
+        NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+    }
+
+    func deleteProject(id: NSManagedObjectID) throws {
+        guard let project = try? context.existingObject(with: id) as? SpendingProject else { return }
+        context.delete(project)
+        try context.save()
+        SpendingProjectBackgroundService.shared.scheduleNextTask()
+        NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+    }
+}
+
+// MARK: - 周期性支出后台补账
+
+/// 用 BGAppRefreshTask 在系统允许的后台时机补齐周期流水。
+/// iOS 不承诺精确到分钟，因此前台启动和打开长期成本页仍会执行同一套幂等补账。
+@MainActor
+final class SpendingProjectBackgroundService {
+    static let shared = SpendingProjectBackgroundService()
+
+    private let taskIdentifier = "com.holo.app.spendingProjectRefresh"
+
+    private init() {}
+
+    func registerBackgroundTask() {
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: taskIdentifier, using: nil) { task in
+            Task { @MainActor in
+                guard let refreshTask = task as? BGAppRefreshTask else { return }
+                do {
+                    try SpendingProjectRepository.shared.syncRecurringProjects()
+                    refreshTask.setTaskCompleted(success: true)
+                } catch {
+                    refreshTask.setTaskCompleted(success: false)
+                }
+                self.scheduleNextTask()
+            }
+        }
+    }
+
+    func scheduleNextTask() {
+        BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: taskIdentifier)
+
+        let nextDate = SpendingProjectRepository.shared.allProjects()
+            .filter { $0.isRecurring && !$0.isPaused && $0.autoGenerateTransaction && $0.hasRemainingOccurrences }
+            .compactMap(\.nextOccurrenceDate)
+            .min()
+
+        guard let nextDate else { return }
+
+        let request = BGAppRefreshTaskRequest(identifier: taskIdentifier)
+        request.earliestBeginDate = max(Date().addingTimeInterval(60), nextDate)
+        try? BGTaskScheduler.shared.submit(request)
     }
 }

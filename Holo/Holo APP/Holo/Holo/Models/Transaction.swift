@@ -36,6 +36,9 @@ public class Transaction: NSManagedObject {
     @NSManaged public var isAICreated: Bool
     @NSManaged public var aiCandidate: String?
 
+    /// 由长期成本项目自动生成时，记录来源项目 ID
+    @NSManaged public var spendingProjectId: UUID?
+
     // MARK: - Computed Properties
 
     /// 是否为分期交易

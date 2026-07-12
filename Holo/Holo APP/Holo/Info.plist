@@ -5,6 +5,7 @@
 	<key>BGTaskSchedulerPermittedIdentifiers</key>
 	<array>
 		<string>com.holo.app.memoryInsightRefresh</string>
+		<string>com.holo.app.spendingProjectRefresh</string>
 	</array>
 	<key>CFBundleDocumentTypes</key>
 	<array>

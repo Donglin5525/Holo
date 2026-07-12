@@ -35,6 +35,9 @@ struct HoloApp: App {
         // 注册后台洞察生成任务
         MemoryInsightBackgroundService.shared.registerBackgroundTask()
 
+        // 注册周期性支出自动补账任务
+        SpendingProjectBackgroundService.shared.registerBackgroundTask()
+
         // 监听洞察生成完成事件，用于在长期记忆开启后抽取待确认记忆候选。
         HoloLongTermMemoryCandidateObserver.startObserving()
 
@@ -80,6 +83,11 @@ struct HoloApp: App {
                 .task {
                     // 检查通知权限状态
                     TodoNotificationService.shared.checkAuthorizationStatus()
+
+                    // Store 就绪后安排下一次周期性支出补账；具体执行仍由系统后台策略决定
+                    await CoreDataStack.shared.waitUntilReady()
+                    FinanceRepository.shared.setup()
+                    SpendingProjectBackgroundService.shared.scheduleNextTask()
 
                     // 启动时轻量聚合未消费反馈（更新 rerank 用的偏好）
                     if InsightFeatureFlags.preferenceLearningEnabled {
