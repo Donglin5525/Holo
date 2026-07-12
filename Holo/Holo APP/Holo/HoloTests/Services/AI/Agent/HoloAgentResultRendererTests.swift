@@ -258,6 +258,96 @@ final class HoloAgentResultRendererTests: XCTestCase {
         XCTAssertFalse(summaries.contains("证据缺失"), "顶层无效 ID 不应导致「证据缺失」")
     }
 
+    /// 用户只问步数时，结果必须直接回答步数，且任何可见区域都不能泄漏内部字段。
+    func test步数问题生成用户可读答案契约() {
+        let range = HoloAgentTimeRange(
+            label: "最近一个月",
+            start: Date(timeIntervalSince1970: 1_000),
+            end: Date(timeIntervalSince1970: 2_000)
+        )
+        let claim = HoloAgentClaim(
+            id: "steps",
+            type: "observation",
+            displayText: "步数汇总：health.steps.average = 6990.80 步；步数汇总：health.steps.goal_met_days = 1.00 天",
+            metricAssertions: [
+                HoloMetricAssertion(
+                    metricKey: "health.steps.average",
+                    value: 6990.8,
+                    baselineValue: nil,
+                    unit: "步",
+                    comparison: nil,
+                    evidenceIDs: ["steps-average"]
+                ),
+                HoloMetricAssertion(
+                    metricKey: "health.steps.goal_met_days",
+                    value: 1,
+                    baselineValue: nil,
+                    unit: "天",
+                    comparison: nil,
+                    evidenceIDs: ["steps-goal"]
+                )
+            ],
+            evidenceIDs: ["steps-average", "steps-goal"],
+            prohibitedInferences: [],
+            confidence: 0.9
+        )
+        let evidence = [
+            makeEvidence(
+                id: "steps-average",
+                redacted: "步数汇总：health.steps.average = 6990.80 步",
+                excerpt: "步数汇总：health.steps.average = 6990.80 步",
+                sourceModule: .health,
+                timeRange: range,
+                metricKey: "health.steps.average",
+                metricValue: 6990.8,
+                unit: "步"
+            ),
+            makeEvidence(
+                id: "steps-goal",
+                redacted: "步数汇总：health.steps.goal_met_days = 1.00 天",
+                excerpt: "步数汇总：health.steps.goal_met_days = 1.00 天",
+                sourceModule: .health,
+                timeRange: range,
+                metricKey: "health.steps.goal_met_days",
+                metricValue: 1,
+                unit: "天"
+            )
+        ]
+
+        let result = HoloAgentResultRenderer().render(
+            claims: [claim],
+            evidence: evidence,
+            title: "深度分析",
+            question: "最近一个月平均步数是多少？",
+            coverage: HoloDataCoverage(
+                coveredDays: 28,
+                totalDays: 30,
+                coverageRatio: 28.0 / 30.0,
+                missingRanges: [],
+                note: "已读取 28/30 天健康数据"
+            )
+        )
+
+        XCTAssertEqual(result.headline, "最近一个月的步数")
+        XCTAssertEqual(result.directAnswer, "最近一个月，日均 6,991 步")
+        XCTAssertTrue(result.coverageText?.contains("28/30 天") == true)
+        XCTAssertFalse(result.headline?.contains("睡眠") == true)
+        XCTAssertFalse(result.sections.contains { $0.title.range(of: #"观察\s*\d+"#, options: .regularExpression) != nil })
+
+        let visibleText = [
+            result.headline,
+            result.directAnswer,
+            result.coverageText,
+            result.summary
+        ].compactMap { $0 }.joined(separator: " ")
+            + result.sections.map { " \($0.title) \($0.body)" }.joined()
+            + result.evidenceReferences.map { " \($0.summary)" }.joined()
+
+        XCTAssertFalse(visibleText.contains("health."))
+        XCTAssertFalse(visibleText.contains("goal_met_days"))
+        XCTAssertFalse(visibleText.contains("average ="))
+    }
+
     // MARK: - 测试数据构造助手
 
     private func makeEvidence(
@@ -267,12 +357,14 @@ final class HoloAgentResultRendererTests: XCTestCase {
         sourceModule: HoloEvidenceSourceModule = .habit,
         timeRange: HoloAgentTimeRange? = nil,
         baselineTimeRange: HoloAgentTimeRange? = nil,
-        metricKey: String = "k"
+        metricKey: String = "k",
+        metricValue: Double = 1,
+        unit: String = "次"
     ) -> HoloEvidenceRecord {
         HoloEvidenceRecord(
             id: id, dedupeKey: id, sourceModule: sourceModule, sourceID: nil, sourceKind: "kind",
             timeRange: timeRange, occurredAt: nil,
-            metricKey: metricKey, metricValue: 1, unit: "次",
+            metricKey: metricKey, metricValue: metricValue, unit: unit,
             baselineValue: nil, baselineTimeRange: baselineTimeRange, comparison: nil,
             excerpt: excerpt, redactedExcerpt: redacted,
             sensitivity: .sensitive, confidence: 1.0, status: .active,

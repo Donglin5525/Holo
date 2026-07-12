@@ -40,6 +40,27 @@ final class ChatMessageViewDataAgentResultTests: XCTestCase {
         XCTAssertNil(result.sections.first?.confidence, "旧 JSON 无 confidence 应解码为 nil")
     }
 
+    func testDecodeAgentResult_legacyJSONWithoutAnswerContract() throws {
+        let legacy = #"{"title":"旧","summary":"s","sections":[],"evidenceReferences":[]}"#
+        let result = try XCTUnwrap(ChatMessageViewData.decodeAgentResult(legacy))
+
+        XCTAssertNil(result.question)
+        XCTAssertNil(result.headline)
+        XCTAssertNil(result.directAnswer)
+        XCTAssertNil(result.coverageText)
+        XCTAssertNil(result.limitations)
+    }
+
+    func testDecodeAgentResult_newAnswerContract() throws {
+        let json = #"{"title":"深度分析","summary":"日均 6991 步","sections":[],"evidenceReferences":[],"question":"最近一个月平均步数是多少？","headline":"最近一个月的步数","directAnswer":"最近一个月，日均 6,991 步","coverageText":"最近 30 天中有 28/30 天有效记录","limitations":[]}"#
+        let result = try XCTUnwrap(ChatMessageViewData.decodeAgentResult(json))
+
+        XCTAssertEqual(result.headline, "最近一个月的步数")
+        XCTAssertEqual(result.directAnswer, "最近一个月，日均 6,991 步")
+        XCTAssertEqual(result.coverageText, "最近 30 天中有 28/30 天有效记录")
+        XCTAssertEqual(result.limitations, [])
+    }
+
     func testLightweightQueryAnalysisWithAgentResultIsLoadedWithoutRawLogOrExecutionBatch() throws {
         let message = ChatMessageViewData(lightweightDictionary: [
             "id": UUID(),
@@ -74,9 +95,34 @@ final class ChatMessageViewDataAgentResultTests: XCTestCase {
         XCTAssertEqual(model.openingBody, result.summary)
         XCTAssertEqual(model.openingParagraphs, ["近两周睡眠时长波动明显", "戒烟习惯出现反复", "消费金额明显下降"])
         XCTAssertEqual(model.signalSummaries, ["睡眠时长波动明显", "戒烟习惯出现反复", "消费金额明显下降"])
-        XCTAssertEqual(model.observations.map(\.label), ["观察 01", "观察 02"])
+        XCTAssertEqual(model.observations.map(\.label), ["", ""])
         XCTAssertEqual(model.observations[1].title, "值得留意的变化")
         XCTAssertEqual(model.observations[1].body, "戒烟习惯在 6 月 27 日出现明显反复。")
+    }
+
+    func testAgentDeepAnalysisNarrativeModelUsesAnswerContractWithoutObservationNumbers() {
+        let result = HoloRenderedAgentResult(
+            title: "深度分析",
+            summary: "最近一个月，日均 6,991 步",
+            sections: [
+                HoloRenderedAgentSection(title: "平均步数", body: "最近一个月，日均 6,991 步", confidence: 0.9),
+                HoloRenderedAgentSection(title: "达标情况", body: "有 1 天达到 10,000 步", confidence: 0.9)
+            ],
+            evidenceReferences: [],
+            question: "最近一个月平均步数是多少？",
+            headline: "最近一个月的步数",
+            directAnswer: "最近一个月，日均 6,991 步",
+            coverageText: "最近 30 天中有 28/30 天有效记录",
+            limitations: []
+        )
+
+        let model = AgentDeepAnalysisNarrativeModel(result: result)
+
+        XCTAssertEqual(model.openingTitle, "最近一个月的步数")
+        XCTAssertEqual(model.openingBody, "最近一个月，日均 6,991 步")
+        XCTAssertFalse(model.observations.contains { $0.label.contains("观察") })
+        XCTAssertFalse(model.observations.contains { $0.body == model.openingBody })
+        XCTAssertEqual(model.observations.map(\.title), ["达标情况"])
     }
 
     func testAgentDeepAnalysisNarrativeModelSplitsLongSummaryIntoReadableParagraphs() {
@@ -108,9 +154,7 @@ final class ChatMessageViewDataAgentResultTests: XCTestCase {
 
         XCTAssertEqual(model.openingBody, "本期暂无显著观察")
         XCTAssertEqual(model.signalSummaries, ["暂无显著观察"])
-        XCTAssertEqual(model.observations.count, 1)
-        XCTAssertEqual(model.observations[0].label, "观察 01")
-        XCTAssertEqual(model.observations[0].title, "本期暂无显著观察")
+        XCTAssertTrue(model.observations.isEmpty)
     }
 
     func testAgentDeepAnalysisNarrativeModelUsesFinanceLedgerModeForFinanceEvidence() {
@@ -158,7 +202,7 @@ final class ChatMessageViewDataAgentResultTests: XCTestCase {
 
         let model = AgentDeepAnalysisNarrativeModel(result: result)
         XCTAssertTrue(model.isHealthMode)
-        XCTAssertEqual(model.openingTitle, "最近的睡眠与健康数据")
+        XCTAssertEqual(model.openingTitle, "本期的健康数据")
         XCTAssertEqual(model.signalSummaries, [])
         XCTAssertFalse(model.shouldShowClosing, "健康查询不应展示通用下一步")
         XCTAssertFalse(model.openingTitle.contains("信号值得回看"))

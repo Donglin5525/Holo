@@ -174,7 +174,10 @@ final class HoloAgentAnalysisService {
         logger.info("[Agent] result claims=\(result.claims.count)")
         let evidence = await runtime.loadEvidence(forIDs: result.evidenceIDs)
         return HoloAgentResultRenderer().render(
-            claims: result.claims, evidence: evidence, title: result.title
+            claims: result.claims,
+            evidence: evidence,
+            title: result.title,
+            question: question
         )
     }
 
@@ -207,7 +210,8 @@ final class HoloAgentAnalysisService {
                     let rendered = HoloAgentResultRenderer().render(
                         claims: result.claims,
                         evidence: evidence,
-                        title: result.title
+                        title: result.title,
+                        question: job.userQuestion
                     )
                     repository.finalizeAgentMessage(sourceMessageID, rendered: rendered, intent: "query_analysis")
                 } else {

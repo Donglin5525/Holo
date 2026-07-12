@@ -36,18 +36,24 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
 
     init(result: HoloRenderedAgentResult) {
         let summary = Self.clean(result.summary)
-        let resolvedSummary = summary.isEmpty ? "本期暂无显著观察" : summary
-        let hasContent = !result.sections.isEmpty
+        let directAnswer = Self.clean(result.directAnswer ?? "")
+        let resolvedSummary = !directAnswer.isEmpty
+            ? directAnswer
+            : (summary.isEmpty ? "本期暂无显著观察" : summary)
+        let hasContent = !result.sections.isEmpty || !directAnswer.isEmpty
         let isFinanceLedgerMode = result.evidenceReferences.contains { $0.financeDrilldown != nil }
         let isHealthMode = result.evidenceReferences.contains { $0.sourceModule == .health }
         let financeRangeLabel = Self.financeRangeLabel(from: result.evidenceReferences)
         let financeKeyword = Self.financeKeyword(from: result.evidenceReferences)
+        let semanticHeadline = Self.clean(result.headline ?? "")
 
-        if isFinanceLedgerMode {
+        if !semanticHeadline.isEmpty {
+            self.openingTitle = semanticHeadline
+        } else if isFinanceLedgerMode {
             self.openingTitle = financeKeyword.map { "\(financeRangeLabel)「\($0)」消费结果" }
                 ?? "\(financeRangeLabel)账单结果"
         } else if isHealthMode {
-            self.openingTitle = hasContent ? "最近的睡眠与健康数据" : "暂无可用的健康数据"
+            self.openingTitle = hasContent ? "本期的健康数据" : "暂无可用的健康数据"
         } else {
             self.openingTitle = hasContent
                 ? "这段时间，有几个信号值得回看。"
@@ -55,16 +61,19 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
         }
         self.openingBody = resolvedSummary
         self.openingParagraphs = Self.readingParagraphs(from: resolvedSummary)
-        self.signalSummaries = (isFinanceLedgerMode || isHealthMode) ? [] : Self.signalSummaries(from: resolvedSummary)
+        self.signalSummaries = (isFinanceLedgerMode || isHealthMode || !directAnswer.isEmpty)
+            ? []
+            : Self.signalSummaries(from: resolvedSummary)
         self.observations = Self.observations(
             from: result.sections,
             isFinanceLedgerMode: isFinanceLedgerMode,
-            isHealthMode: isHealthMode
+            isHealthMode: isHealthMode,
+            openingBody: resolvedSummary
         )
-        self.evidence = result.evidenceReferences.enumerated().map { index, ref in
+        self.evidence = result.evidenceReferences.map { ref in
             let labelPrefix = isFinanceLedgerMode ? "账单依据" : (isHealthMode ? "健康依据" : "依据")
             return Evidence(
-                label: ref.financeDrilldown == nil ? "\(labelPrefix) \(Self.twoDigit(index + 1))" : "\(labelPrefix) \(Self.twoDigit(index + 1)) · 点按核对",
+                label: ref.financeDrilldown == nil ? labelPrefix : "\(labelPrefix) · 点按核对",
                 summary: Self.clean(ref.summary),
                 drilldown: ref.financeDrilldown
             )
@@ -81,7 +90,7 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
                 : "当睡眠、习惯、消费或任务出现更清晰的变化时，这里会整理成更完整的观察手记。"
         }
         // 数据查询的职责是准确回答问题；没有明确且有证据的行动建议时，不展示通用“下一步”。
-        self.shouldShowClosing = result.evidenceReferences.isEmpty && hasContent
+        self.shouldShowClosing = result.question == nil && result.evidenceReferences.isEmpty && hasContent
         self.isFinanceLedgerMode = isFinanceLedgerMode
         self.isHealthMode = isHealthMode
         self.isEmptyState = !hasContent
@@ -90,22 +99,27 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
     private static func observations(
         from sections: [HoloRenderedAgentSection],
         isFinanceLedgerMode: Bool,
-        isHealthMode: Bool
+        isHealthMode: Bool,
+        openingBody: String
     ) -> [Observation] {
-        let items = sections.enumerated().map { index, section in
+        let openingNormalized = normalizedForComparison(openingBody)
+        return sections.enumerated().compactMap { index, section in
             let rawTitle = clean(section.title)
             let body = clean(section.body)
-            let title = displayTitle(rawTitle, isFinanceLedgerMode: isFinanceLedgerMode, isHealthMode: isHealthMode)
-            let label = observationLabel(index: index, rawTitle: rawTitle)
+            guard !body.isEmpty, normalizedForComparison(body) != openingNormalized else { return nil }
+            let title = displayTitle(
+                rawTitle,
+                body: body,
+                isFinanceLedgerMode: isFinanceLedgerMode,
+                isHealthMode: isHealthMode
+            )
             return Observation(
-                label: label,
+                label: "",
                 title: title,
-                body: body.isEmpty ? "暂无更多说明" : body,
+                body: body,
                 accentIndex: index
             )
         }
-
-        return items
     }
 
     private static func financeRangeLabel(from evidence: [HoloRenderedEvidenceReference]) -> String {
@@ -154,21 +168,28 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
         return fallbackParts.isEmpty ? [fallbackSummary] : fallbackParts
     }
 
-    private static func observationLabel(index: Int, rawTitle: String) -> String {
-        let base = "观察 \(twoDigit(index + 1))"
-        guard !rawTitle.isEmpty, !isGenericObservationTitle(rawTitle), rawTitle.count <= 8 else {
-            return base
-        }
-        return "\(base) · \(rawTitle)"
-    }
-
-    private static func displayTitle(_ rawTitle: String, isFinanceLedgerMode: Bool, isHealthMode: Bool) -> String {
+    private static func displayTitle(
+        _ rawTitle: String,
+        body: String,
+        isFinanceLedgerMode: Bool,
+        isHealthMode: Bool
+    ) -> String {
         guard !rawTitle.isEmpty, !isGenericObservationTitle(rawTitle) else {
             if isFinanceLedgerMode { return "账单结果" }
-            if isHealthMode { return "健康数据结果" }
+            if body.contains("步数") { return "步数" }
+            if body.contains("睡眠") { return "睡眠" }
+            if body.contains("站立") { return "站立" }
+            if body.contains("活动") || body.contains("运动") { return "活动与运动" }
+            if isHealthMode { return "健康数据" }
             return "值得留意的变化"
         }
         return rawTitle
+    }
+
+    private static func normalizedForComparison(_ text: String) -> String {
+        clean(text).lowercased().filter {
+            !$0.isWhitespace && !"，,；;。.!！?？：:".contains($0)
+        }
     }
 
     private static func isGenericObservationTitle(_ title: String) -> Bool {
