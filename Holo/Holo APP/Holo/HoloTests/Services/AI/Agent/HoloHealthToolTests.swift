@@ -150,6 +150,9 @@ struct HoloHealthToolTests {
         expect(metric("health.steps.goal_met_days", in: result) == 2, "步数达标应为 2 天")
         expect(result.events.filter { $0.metricKey == "health.steps.daily" }.count == 3, "应输出逐日步数证据")
         expect(result.events.contains { $0.metricKey == "health.steps.average" && $0.metricValue == 10_000 }, "日均步数必须有汇总证据")
+        expect(result.events.contains { $0.metricKey == "health.steps.average" && $0.excerpt.contains("平均每天 10,000 步") }, "平均步数证据必须是用户可读中文")
+        expect(result.events.contains { $0.metricKey == "health.steps.goal_met_days" && $0.excerpt.contains("达到 10,000 步 2 天") }, "达标天数证据必须说明达标口径")
+        expect(!result.events.contains { $0.excerpt.contains("health.") }, "用户证据不能暴露内部健康字段")
     }
 
     private static func test站立摘要产出日均达标天数和每日证据() async throws {

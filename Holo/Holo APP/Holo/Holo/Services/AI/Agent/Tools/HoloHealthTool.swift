@@ -479,13 +479,18 @@ private extension HoloHealthTool {
         occurredAt: Date? = nil
     ) -> [HoloEvidenceEvent] {
         metrics.map { metric in
-            let valueText = metric.value.map { String(format: "%.2f", $0) } ?? "未知"
+            let excerpt = HoloMetricSemanticCatalog.sentence(
+                metricKey: metric.metricKey,
+                value: metric.value,
+                unit: metric.unit,
+                comparison: metric.comparison
+            ) ?? "\(label)暂无可展示结果"
             return HoloEvidenceEvent(
                 id: "summary-\(metric.metricKey)",
                 occurredAt: occurredAt,
                 metricKey: metric.metricKey,
                 metricValue: metric.value,
-                excerpt: "\(label)：\(metric.metricKey) = \(valueText) \(metric.unit ?? "")"
+                excerpt: excerpt
             )
         }
     }
