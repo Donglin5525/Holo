@@ -20,6 +20,8 @@ nonisolated struct HoloAgentResult: Codable, Identifiable, Equatable, Sendable {
     var status: String
     var generatedAt: Date
     var updatedAt: Date
+    /// 本轮答案实际采用的数据覆盖；旧结果缺失时为 nil。
+    var coverage: HoloDataCoverage? = nil
 }
 
 /// Job 清理策略：终态 job 按保留期回收，可选级联清理关联的 checkpoint / result。

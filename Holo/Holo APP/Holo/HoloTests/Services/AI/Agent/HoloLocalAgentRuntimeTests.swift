@@ -63,6 +63,50 @@ actor FakeToolExecutor: HoloAgentToolExecuting {
                                       warnings: [HoloToolWarning(code: "SLEEP_DURATION_ONLY", message: "当前只能评估睡眠时长，不能完整判断睡眠质量")],
                                       error: nil, sensitivity: .sensitive)
         }
+        if request.tool == "health", request.query == "steps_summary" {
+            let metrics = [
+                HoloMetric(
+                    metricKey: "health.steps.average",
+                    value: 6990.8,
+                    unit: "步",
+                    baselineValue: nil,
+                    comparison: nil
+                ),
+                HoloMetric(
+                    metricKey: "health.steps.goal_met_days",
+                    value: 1,
+                    unit: "天",
+                    baselineValue: nil,
+                    comparison: nil
+                )
+            ]
+            let events = metrics.map { metric in
+                HoloEvidenceEvent(
+                    id: "event-\(metric.metricKey)",
+                    occurredAt: Date(),
+                    metricKey: metric.metricKey,
+                    metricValue: metric.value,
+                    excerpt: "步数汇总：\(metric.metricKey) = \(metric.value ?? 0) \(metric.unit ?? "")"
+                )
+            }
+            return HoloDataToolResult(
+                toolRequestID: request.id,
+                tool: "health",
+                status: .success,
+                coverage: HoloDataCoverage(
+                    coveredDays: 28,
+                    totalDays: 30,
+                    coverageRatio: 28.0 / 30.0,
+                    missingRanges: [],
+                    note: "已读取 28/30 天健康数据"
+                ),
+                metrics: metrics,
+                events: events,
+                warnings: [],
+                error: nil,
+                sensitivity: .sensitive
+            )
+        }
         if request.dynamicPlan != nil {
             return HoloDataToolResult(
                 toolRequestID: request.id,
@@ -167,6 +211,7 @@ struct HoloLocalAgentRuntimeTests {
         try await testRunLoop_模型不收敛时用工具结果兜底完成()
         try await testRunLoop_动态查询结果经过证据校验后完成()
         try await testRunLoop_睡眠质量降级仍输出完整可读结论()
+        try await testRunLoop_步数兜底输出完整可读结论与覆盖范围()
         try await testPauseForBackground_运行中任务标记waitingForForeground()
         try await testResumeUnfinishedJobs_恢复未完成任务()
         try await test后台暂停后恢复并RunLoop完成()
@@ -647,6 +692,36 @@ struct HoloLocalAgentRuntimeTests {
         expect(summary.contains("当前只能评估睡眠时长，不能完整判断睡眠质量"), "必须明确能力边界")
         expect(!summary.contains("health 数据返回"), "不能泄露工程兜底文案")
         expect(saved?.claims.first?.metricAssertions.count == 3, "健康 fallback 必须组合全部相关指标")
+    }
+
+    private static func testRunLoop_步数兜底输出完整可读结论与覆盖范围() async throws {
+        let dir = makeTempDir()
+        let needTools = #"{"status":"need_tools","reasoning":"查询步数","toolRequests":[{"id":"steps-summary","tool":"health","query":"steps_summary","timeRange":null,"baseline":null,"requiredMetrics":[],"parameters":{}}],"claims":[],"warnings":[]}"#
+        let broken = "不是合法 JSON"
+        let client = FakeAgentLLMClient(responses: [needTools, broken, broken])
+        let fixture = makeLoopRuntime(dir: dir, llmClient: client, toolExecutor: FakeToolExecutor())
+        let now = Date()
+        let job = try await fixture.runtime.startMockJob(question: "最近一个月平均步数是多少？", now: now)
+
+        let completed = try await fixture.runtime.runLoop(
+            jobID: job.id,
+            systemTemplate: "Agent",
+            toolDescriptions: "health",
+            now: now
+        )
+
+        let saved = await fixture.runtime.loadLatestResult()
+        let summary = saved?.summary ?? ""
+        let checkpoint = await fixture.checkpointStore.latestForJob(jobID: job.id)
+        expect(
+            summary.contains("平均每天 6,991 步"),
+            "步数 fallback 必须自然表达日均步数，state=\(completed.state.rawValue)，结果数=\(checkpoint?.completedToolResults.count ?? -1)，实际：\(summary)"
+        )
+        expect(summary.contains("达到 10,000 步 1 天"), "步数 fallback 必须完整补充达标天数")
+        expect(!summary.contains("health."), "步数 fallback 不能暴露内部字段")
+        expect(!summary.contains("建议"), "事实查询不能强行生成建议")
+        expect(saved?.coverage?.coveredDays == 28, "结果必须保存有效记录天数")
+        expect(saved?.coverage?.totalDays == 30, "结果必须保存查询总天数")
     }
 
     /// 进入后台：running 任务标记为 waitingForForeground。

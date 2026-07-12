@@ -617,6 +617,9 @@ actor HoloLocalAgentRuntime {
         let evidence = await persistence.loadEvidence(forIDs: availableEvidenceIDs)
         let verification = HoloClaimVerifier().verify(claims: claims, evidence: evidence)
         var acceptedClaims = verification.acceptedClaims
+        if Self.shouldSuppressSuggestions(for: job.userQuestion) {
+            acceptedClaims.removeAll { $0.type == "suggestion" }
+        }
         let fallback = Self.fallbackClaims(
             toolResults: checkpoint.completedToolResults,
             patternSignals: acceptedClaims.isEmpty ? checkpoint.patternSignals : []
@@ -651,7 +654,12 @@ actor HoloLocalAgentRuntime {
                 }
             }
         }
+        acceptedClaims = Self.deduplicatedClaims(acceptedClaims)
         let resultEvidenceIDs = Array(Set(acceptedClaims.flatMap(\.evidenceIDs)))
+        let coveredMetricKeys = Set(acceptedClaims.flatMap { $0.metricAssertions.map(\.metricKey) })
+        let resultCoverage = checkpoint.completedToolResults.first { toolResult in
+            toolResult.coverage != nil && toolResult.metrics.contains { coveredMetricKeys.contains($0.metricKey) }
+        }?.coverage
         let agentResult = HoloAgentResult(
             id: UUID().uuidString,
             jobID: job.id,
@@ -664,7 +672,8 @@ actor HoloLocalAgentRuntime {
             memoryCandidateIDs: [],
             status: "completed",
             generatedAt: now,
-            updatedAt: now
+            updatedAt: now,
+            coverage: resultCoverage
         )
         try await persistence.saveResult(agentResult)
         job.resultID = agentResult.id
@@ -737,30 +746,7 @@ actor HoloLocalAgentRuntime {
         toolResults: [HoloDataToolResult],
         patternSignals: [HoloPatternSignal]
     ) -> [HoloAgentClaim] {
-        if !patternSignals.isEmpty {
-            return patternSignals.prefix(3).map { signal in
-                HoloAgentClaim(
-                    id: "fallback-\(signal.id)",
-                    type: "observation",
-                    displayText: "\(signal.title)：\(signal.reason)",
-                    metricAssertions: [
-                        HoloMetricAssertion(
-                            metricKey: signal.metricKey,
-                            value: signal.value,
-                            baselineValue: signal.baselineValue,
-                            unit: nil,
-                            comparison: nil,
-                            evidenceIDs: signal.evidenceIDs
-                        )
-                    ],
-                    evidenceIDs: signal.evidenceIDs,
-                    prohibitedInferences: ["不要把并发现象表述为因果", "不要做心理、医疗、人格判断"],
-                    confidence: 0.45
-                )
-            }
-        }
-
-        return toolResults.prefix(3).flatMap { result -> [HoloAgentClaim] in
+        let toolClaims = toolResults.prefix(3).flatMap { result -> [HoloAgentClaim] in
             guard result.status == .success || result.status == .partial || result.status == .empty else {
                 return []
             }
@@ -822,6 +808,33 @@ actor HoloLocalAgentRuntime {
                 confidence: result.status == .empty ? 0.3 : 0.45
             )]
         }
+        let hasDeterministicPresentation = toolResults.contains { result in
+            result.tool == "health" ||
+                (result.tool == "finance" && result.toolRequestID.contains("spending_breakdown"))
+        }
+        if hasDeterministicPresentation, !toolClaims.isEmpty { return toolClaims }
+
+        let patternClaims = patternSignals.prefix(3).map { signal in
+            HoloAgentClaim(
+                id: "fallback-\(signal.id)",
+                type: "observation",
+                displayText: "\(signal.title)：\(signal.reason)",
+                metricAssertions: [
+                    HoloMetricAssertion(
+                        metricKey: signal.metricKey,
+                        value: signal.value,
+                        baselineValue: signal.baselineValue,
+                        unit: nil,
+                        comparison: nil,
+                        evidenceIDs: signal.evidenceIDs
+                    )
+                ],
+                evidenceIDs: signal.evidenceIDs,
+                prohibitedInferences: ["不要把并发现象表述为因果", "不要做心理、医疗、人格判断"],
+                confidence: 0.45
+            )
+        }
+        return patternClaims.isEmpty ? toolClaims : patternClaims
     }
 
     private static func healthFallbackClaims(from result: HoloDataToolResult) -> [HoloAgentClaim] {
@@ -874,7 +887,8 @@ actor HoloLocalAgentRuntime {
         }
         guard !assertions.isEmpty else { return [] }
         let text = assertions.compactMap { assertion in
-            result.events.first { $0.id == assertion.evidenceIDs.first }?.excerpt
+            guard let metric = metricByKey[assertion.metricKey] else { return nil }
+            return Self.readableMetricText(metric)
         }.joined(separator: "；")
         return [HoloAgentClaim(id: "fallback-\(result.toolRequestID)-health", type: "observation",
                                displayText: text, metricAssertions: assertions,
@@ -1033,21 +1047,49 @@ actor HoloLocalAgentRuntime {
     }
 
     private static func readableMetricText(_ metric: HoloMetric) -> String? {
-        guard let value = metric.value else { return nil }
-        let key = metric.metricKey.lowercased()
-        let label: String
-        if key.contains("average_per_day") || key.contains("daily_average") { label = "平均每天" }
-        else if key.contains("total_spending") || key.contains("total_amount") { label = "总支出" }
-        else if key.contains("average") { label = "平均值" }
-        else if key.contains("count") { label = "数量" }
-        else if key.contains("sum") || key.contains("total") { label = "合计" }
-        else if key.contains("rate") || key.contains("ratio") { label = "占比" }
-        else if let eventLabel = metric.comparison, !eventLabel.isEmpty { label = eventLabel }
-        else { label = "计算结果" }
-        let digits = value.rounded() == value ? 0 : 2
-        let valueText = String(format: "%.*f", digits, value)
-        let baseline = metric.baselineValue.map { "，上期 \(String(format: "%.*f", digits, $0))\(metric.unit ?? "")" } ?? ""
-        return "\(label) \(valueText)\(metric.unit ?? "")\(baseline)"
+        guard var text = HoloMetricSemanticCatalog.sentence(
+            metricKey: metric.metricKey,
+            value: metric.value,
+            unit: metric.unit,
+            comparison: metric.comparison
+        ) else { return nil }
+        if let baselineValue = metric.baselineValue {
+            let baseline = HoloMetricSemanticCatalog.formattedNumber(
+                baselineValue,
+                metricKey: metric.metricKey,
+                unit: metric.unit
+            )
+            text += "，上期 \(baseline)\(metric.unit ?? "")"
+        }
+        return text
+    }
+
+    private static func shouldSuppressSuggestions(for question: String?) -> Bool {
+        guard let question else { return false }
+        let suggestionKeywords = ["建议", "怎么办", "怎么改善", "如何改善", "怎么做", "下一步"]
+        return !suggestionKeywords.contains { question.contains($0) }
+    }
+
+    private static func deduplicatedClaims(_ claims: [HoloAgentClaim]) -> [HoloAgentClaim] {
+        var coveredMetricKeys = Set<String>()
+        var seenText = Set<String>()
+        var result: [HoloAgentClaim] = []
+
+        for claim in claims {
+            var deduplicated = claim
+            deduplicated.metricAssertions = claim.metricAssertions.filter {
+                coveredMetricKeys.insert($0.metricKey).inserted
+            }
+            let normalized = claim.displayText.lowercased().filter { !$0.isWhitespace }
+            guard !seenText.contains(normalized),
+                  !deduplicated.metricAssertions.isEmpty || claim.metricAssertions.isEmpty else {
+                continue
+            }
+            seenText.insert(normalized)
+            deduplicated.evidenceIDs = Array(Set(deduplicated.metricAssertions.flatMap(\.evidenceIDs) + claim.evidenceIDs))
+            result.append(deduplicated)
+        }
+        return result
     }
 
     private static func moneyText(_ value: Double) -> String {

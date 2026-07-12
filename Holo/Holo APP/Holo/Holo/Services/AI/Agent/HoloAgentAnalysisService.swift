@@ -177,7 +177,8 @@ final class HoloAgentAnalysisService {
             claims: result.claims,
             evidence: evidence,
             title: result.title,
-            question: question
+            question: question,
+            coverage: result.coverage
         )
     }
 
@@ -211,7 +212,8 @@ final class HoloAgentAnalysisService {
                         claims: result.claims,
                         evidence: evidence,
                         title: result.title,
-                        question: job.userQuestion
+                        question: job.userQuestion,
+                        coverage: result.coverage
                     )
                     repository.finalizeAgentMessage(sourceMessageID, rendered: rendered, intent: "query_analysis")
                 } else {
