@@ -27,6 +27,8 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
     var signalSummaries: [String]
     var observations: [Observation]
     var evidence: [Evidence]
+    var coverageText: String?
+    var limitations: [String]
     var closingTitle: String
     var closingBody: String
     var shouldShowClosing: Bool
@@ -60,7 +62,9 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
                 : "本期暂无显著观察"
         }
         self.openingBody = resolvedSummary
-        self.openingParagraphs = Self.readingParagraphs(from: resolvedSummary)
+        self.openingParagraphs = directAnswer.isEmpty
+            ? Self.readingParagraphs(from: resolvedSummary)
+            : [resolvedSummary]
         self.signalSummaries = (isFinanceLedgerMode || isHealthMode || !directAnswer.isEmpty)
             ? []
             : Self.signalSummaries(from: resolvedSummary)
@@ -78,6 +82,11 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
                 drilldown: ref.financeDrilldown
             )
         }
+        let cleanedCoverage = Self.clean(result.coverageText ?? "")
+        self.coverageText = cleanedCoverage.isEmpty ? nil : cleanedCoverage
+        self.limitations = (result.limitations ?? [])
+            .map(Self.clean)
+            .filter { !$0.isEmpty }
         if isFinanceLedgerMode {
             self.closingTitle = "从金额最高的分类开始核对。"
             self.closingBody = "如果分类或金额和你的认知不一致，可以点开账单依据回到对应明细。"
@@ -292,10 +301,8 @@ struct AgentDeepAnalysisDetailSheet: View {
                     emptyState
                 } else {
                     opening(model)
-                    if !model.signalSummaries.isEmpty {
-                        signalStrip(model.signalSummaries)
-                    }
                     observationsSection(model.observations)
+                    dataContextSection(model)
                     if model.shouldShowClosing {
                         closingSection(model)
                     }
@@ -366,19 +373,9 @@ struct AgentDeepAnalysisDetailSheet: View {
 
             Spacer(minLength: 12)
 
-            Text(result.title.isEmpty ? "Holo 观察" : result.title)
-                .font(.system(size: 11, weight: .bold))
+            Label("结论已核对", systemImage: "checkmark.seal.fill")
+                .font(.system(size: 10.5, weight: .bold))
                 .foregroundColor(.holoTextSecondary)
-                .lineLimit(1)
-                .minimumScaleFactor(0.75)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(Color.holoCardBackground.opacity(0.68))
-                .clipShape(Capsule())
-                .overlay(
-                    Capsule()
-                        .stroke(Color.holoBorder.opacity(0.45), lineWidth: 1)
-                )
         }
     }
 
@@ -386,7 +383,7 @@ struct AgentDeepAnalysisDetailSheet: View {
 
     private func opening(_ model: AgentDeepAnalysisNarrativeModel) -> some View {
         VStack(alignment: .leading, spacing: 13) {
-            Text(model.isFinanceLedgerMode ? "HOLO 账单复核" : (model.isHealthMode ? "HOLO 健康数据" : "HOLO 观察手记"))
+            Text(model.isFinanceLedgerMode ? "HOLO 账单复核" : "HOLO 数据分析")
                 .font(.system(size: 11, weight: .bold))
                 .foregroundColor(.holoPrimary)
 
@@ -399,8 +396,8 @@ struct AgentDeepAnalysisDetailSheet: View {
             VStack(alignment: .leading, spacing: 9) {
                 ForEach(Array(model.openingParagraphs.enumerated()), id: \.offset) { _, paragraph in
                     Text(paragraph)
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.holoTextPrimary.opacity(0.76))
+                        .font(.system(size: 18, weight: .bold))
+                        .foregroundColor(.holoTextPrimary.opacity(0.82))
                         .lineSpacing(6)
                         .fixedSize(horizontal: false, vertical: true)
                         .textSelection(.enabled)
@@ -465,9 +462,11 @@ struct AgentDeepAnalysisDetailSheet: View {
         let accent = accentColor(for: observation.accentIndex)
         let dark = colorScheme == .dark
         return VStack(alignment: .leading, spacing: 11) {
-            Text(observation.label)
-                .font(.system(size: 11, weight: .bold))
-                .foregroundColor(dark ? Color.white.opacity(0.48) : .holoTextSecondary)
+            if !observation.label.isEmpty {
+                Text(observation.label)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(dark ? Color.white.opacity(0.48) : .holoTextSecondary)
+            }
 
             Text(observation.title)
                 .font(.system(size: 18, weight: .heavy))
@@ -499,6 +498,56 @@ struct AgentDeepAnalysisDetailSheet: View {
                 .stroke(dark ? Color.white.opacity(0.08) : Color.holoBorder.opacity(0.48), lineWidth: 1)
         )
         .shadow(color: Color.black.opacity(dark ? 0.22 : 0.035), radius: 16, x: 0, y: 10)
+    }
+
+    // MARK: - Coverage & Boundaries
+
+    @ViewBuilder
+    private func dataContextSection(_ model: AgentDeepAnalysisNarrativeModel) -> some View {
+        if model.coverageText != nil || !model.limitations.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                if let coverage = model.coverageText {
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: "calendar.badge.checkmark")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.holoPrimary)
+                            .frame(width: 20)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("数据范围")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.holoTextSecondary)
+                            Text(coverage)
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.holoTextPrimary.opacity(0.8))
+                                .lineSpacing(4)
+                        }
+                    }
+                }
+
+                ForEach(Array(model.limitations.enumerated()), id: \.offset) { _, limitation in
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: "info.circle.fill")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.holoTextSecondary)
+                            .frame(width: 20)
+                        Text(limitation)
+                            .font(.system(size: 13.5, weight: .medium))
+                            .foregroundColor(.holoTextSecondary)
+                            .lineSpacing(4)
+                    }
+                }
+            }
+            .padding(.horizontal, 17)
+            .padding(.vertical, 16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.holoPrimary.opacity(0.045))
+            .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 22, style: .continuous)
+                    .stroke(Color.holoPrimary.opacity(0.11), lineWidth: 1)
+            )
+        }
     }
 
     // MARK: - Evidence

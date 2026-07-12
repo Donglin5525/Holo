@@ -120,6 +120,8 @@ final class ChatMessageViewDataAgentResultTests: XCTestCase {
 
         XCTAssertEqual(model.openingTitle, "最近一个月的步数")
         XCTAssertEqual(model.openingBody, "最近一个月，日均 6,991 步")
+        XCTAssertEqual(model.openingParagraphs, ["最近一个月，日均 6,991 步"])
+        XCTAssertEqual(model.coverageText, "最近 30 天中有 28/30 天有效记录")
         XCTAssertFalse(model.observations.contains { $0.label.contains("观察") })
         XCTAssertFalse(model.observations.contains { $0.body == model.openingBody })
         XCTAssertEqual(model.observations.map(\.title), ["达标情况"])

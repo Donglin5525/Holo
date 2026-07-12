@@ -55,23 +55,47 @@ struct AgentDeepAnalysisCard: View {
                         }
                     }
                 } else {
-                    CardHeaderView(
-                        icon: "sparkles",
-                        title: result.title,
-                        subtitle: primarySummary(result)
-                    )
+                    VStack(alignment: .leading, spacing: 13) {
+                        HStack(spacing: 9) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundColor(.holoPrimary)
+                                .frame(width: 30, height: 30)
+                                .background(Color.holoPrimary.opacity(0.11))
+                                .clipShape(Circle())
 
-                    if let first = result.sections.first {
-                        HoloAIHeroMetric(
-                            label: "核心观察",
-                            value: first.title,
-                            note: first.body,
-                            tint: .holoTextPrimary
-                        )
+                            Text(result.headline ?? result.title)
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(.holoTextPrimary)
+                                .lineLimit(2)
+
+                            Spacer(minLength: 8)
+
+                            Text("深度分析")
+                                .font(.system(size: 10.5, weight: .bold))
+                                .foregroundColor(.holoPrimary.opacity(0.8))
+                                .padding(.horizontal, 9)
+                                .padding(.vertical, 6)
+                                .background(Color.holoPrimary.opacity(0.075))
+                                .clipShape(Capsule())
+                        }
+
+                        Text(directAnswer(result))
+                            .font(.system(size: 21, weight: .heavy))
+                            .foregroundColor(.holoTextPrimary)
+                            .lineSpacing(4)
+                            .fixedSize(horizontal: false, vertical: true)
+
+                        if let coverage = result.coverageText, !coverage.isEmpty {
+                            Label(coverage, systemImage: "checkmark.seal.fill")
+                                .font(.system(size: 11.5, weight: .semibold))
+                                .foregroundColor(.holoTextSecondary)
+                                .lineLimit(2)
+                        }
                     }
 
                     HStack(spacing: 6) {
-                        Text("查看深度分析")
+                        Text("查看完整分析")
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(.holoPrimary)
                         Image(systemName: "chevron.right")
@@ -137,5 +161,17 @@ struct AgentDeepAnalysisCard: View {
             return count > 0 ? "共 \(count) 条观察" : "这次没有形成可信结论"
         }
         return result.summary
+    }
+
+    private func directAnswer(_ result: HoloRenderedAgentResult) -> String {
+        if let answer = result.directAnswer?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !answer.isEmpty {
+            return answer
+        }
+        if let first = result.sections.first?.body.trimmingCharacters(in: .whitespacesAndNewlines),
+           !first.isEmpty {
+            return first
+        }
+        return primarySummary(result)
     }
 }
