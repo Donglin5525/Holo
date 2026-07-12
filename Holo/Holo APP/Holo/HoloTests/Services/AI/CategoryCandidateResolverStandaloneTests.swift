@@ -13,6 +13,7 @@ struct CategoryCandidateResolverStandaloneTests {
         testCoffeeCandidateWinsOverDiningSemanticHint()
         testGenericMealCanStillUseMealCandidate()
         testTimeSensitivePrimariesConfig()
+        testMealSlotSubCategoriesConfig()
         testMealSubCategoryForHour()
         testBrandCandidatePreservesOriginalWithSemanticHint()
         print("CategoryCandidateResolver standalone tests passed")
@@ -59,6 +60,18 @@ struct CategoryCandidateResolverStandaloneTests {
             !CategoryCandidateResolver.timeSensitivePrimaries.contains("购物"),
             "购物不应是时间敏感分类"
         )
+    }
+
+    private static func testMealSlotSubCategoriesConfig() {
+        // 餐次：映射到这些二级时允许按时间动态重算餐段
+        expect(CategoryCandidateResolver.mealSlotSubCategories.contains("早餐"), "早餐是餐次")
+        expect(CategoryCandidateResolver.mealSlotSubCategories.contains("午餐"), "午餐是餐次")
+        expect(CategoryCandidateResolver.mealSlotSubCategories.contains("晚餐"), "晚餐是餐次")
+        expect(CategoryCandidateResolver.mealSlotSubCategories.contains("夜宵"), "夜宵是餐次")
+        // 具体品类：挂在餐饮下但不是餐次，用户映射应被尊重、不被时段覆盖
+        expect(!CategoryCandidateResolver.mealSlotSubCategories.contains("饮品"), "饮品不是餐次，奶茶映射不应被时间化")
+        expect(!CategoryCandidateResolver.mealSlotSubCategories.contains("咖啡"), "咖啡不是餐次")
+        expect(!CategoryCandidateResolver.mealSlotSubCategories.contains("零食"), "零食不是餐次")
     }
 
     private static func testMealSubCategoryForHour() {

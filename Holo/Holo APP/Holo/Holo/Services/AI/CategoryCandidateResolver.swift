@@ -9,6 +9,11 @@ enum CategoryCandidateResolver {
     /// 不锁死具体餐次，而是根据当前时间动态推断
     static let timeSensitivePrimaries: Set<String> = ["餐饮"]
 
+    /// 餐次二级分类集合
+    /// 只有当用户学习映射的目标二级是这些餐次时，才按当前时间动态重算餐段；
+    /// 若映射到具体品类（如"奶茶→饮品""星巴克→咖啡"），直接尊重用户映射，不做时段覆盖
+    static let mealSlotSubCategories: Set<String> = ["早餐", "午餐", "晚餐", "夜宵"]
+
     /// 根据小时返回餐段子分类名
     static func mealSubCategoryForHour(_ hour: Int) -> String {
         switch hour {

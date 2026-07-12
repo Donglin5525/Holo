@@ -4,6 +4,19 @@
 
 ---
 
+## [2026-07-12] 修复 AI 记账分类时段覆盖用户品类映射
+
+用户在分类映射里维护的明确品类映射（如“奶茶→饮品”）会被时段启发式覆盖：只要一级分类是餐饮，就按当前时间重算餐次，导致“奶茶21”在晚餐时段被归到“晚餐”而非用户映射的“饮品”。
+
+### 变更
+- **时段化判定修正**：`CategoryCandidateResolver` 新增餐次集合 `mealSlotSubCategories`；`IntentRouter.matchCategory` 用户学习映射分支改为按“映射目标二级是否为餐次（早/午/晚/夜宵）”决定是否按时间重算，不再因一级是餐饮就覆盖具体品类映射。
+- **餐次能力保留**：映射目标本身是餐次时（如“吃饭→晚餐”）仍按当前时间动态重算餐段。
+- **契约固化**：standalone 测试新增 `testMealSlotSubCategoriesConfig`，锁定饮品/咖啡/零食等品类不属于餐次。
+
+### 验证
+- CategoryCandidateResolver standalone 测试通过
+- Holo iOS Debug / iOS Simulator 全工程编译通过（BUILD SUCCEEDED）
+
 ## [2026-07-12] 财务长期成本管理
 
 新增“长期成本”入口，统一管理周期性支出与一次性购买，让日常账本之外的订阅承诺、耐用品成本和到期自动记账可以持续追踪。

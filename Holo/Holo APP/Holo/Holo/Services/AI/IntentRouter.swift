@@ -794,8 +794,9 @@ final class IntentRouter {
                 primaryCategory: primaryCategory ?? ""
             ) ?? CategoryLearnedMapping.lookup(candidate: candidate, type: type) {
 
-                // 时间敏感分类（如餐饮）：忽略已记录的餐段，按当前时间推断
-                if CategoryCandidateResolver.timeSensitivePrimaries.contains(learned.primary) {
+                // 仅当用户映射到的二级本身是餐次（早/午/晚/夜宵）时，才按当前时间动态重算餐段；
+                // 否则尊重用户明确映射的具体品类（如"奶茶→饮品""星巴克→咖啡"），不做时段覆盖
+                if CategoryCandidateResolver.mealSlotSubCategories.contains(learned.sub) {
                     let hour = Calendar.current.component(.hour, from: Date())
                     let mealSub = CategoryCandidateResolver.mealSubCategoryForHour(hour)
                     let parent = categories.first(where: {
@@ -807,7 +808,7 @@ final class IntentRouter {
                     }
                 }
 
-                // 非时间敏感分类：走原有精确匹配逻辑
+                // 非餐次映射（具体品类或其他一级）：走精确匹配，尊重用户映射
                 let learnedResult = CategoryMatcherService.shared.matchSingle(
                     primaryCategory: learned.primary,
                     subCategory: learned.sub,
