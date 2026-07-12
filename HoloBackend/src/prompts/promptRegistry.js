@@ -15,10 +15,10 @@ const PROMPT_VERSIONS = {
   finance_action_parser: 1,
   task_action_parser: 1,
   health_insight_generation: 2,
-  agent_loop: 9,
+  agent_loop: 10,
 };
 const PROMPT_CONTRACT_APPENDICES = {
-  agent_loop: defaultPrompts._agent_loop_v9_contract,
+  agent_loop: defaultPrompts._agent_loop_v10_contract,
   intent_recognition: `
 
 [HOLO_QUERY_AGGREGATE_V23]

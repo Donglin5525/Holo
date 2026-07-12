@@ -126,7 +126,7 @@ final class PromptManager {
         .financeActionParser: 1,        // v1: 分期记账参数解析
         .taskActionParser: 1,           // v1: 重复任务参数解析
         .thoughtOrganization: 2,        // v2: 优先复用用户认可标签（全量进 prompt），简化输出
-        .agentLoop: 9,                  // v9: 完整回答多指标 + 睡眠质量能力边界 + 查询无空泛建议
+        .agentLoop: 10,                 // v10: 完整回答 + 用户可读表达契约 + 禁止内部字段/观察编号
         .thoughtTagConvergence: 1,      // v1: 观点跨主题归并收敛（P2）
         .healthInsightGeneration: 2     // v2: 多域生活闭环（待办/习惯/观点/运动证据）+ 观点措辞规避
     ]
@@ -386,6 +386,11 @@ final class PromptManager {
 
         表达边界：
         - 查询类问题直接回答用户要求的指标；除非用户主动询问建议，或数据中存在需要行动的明确风险，否则不要输出 suggestion claim，也不要补空泛“下一步”。
+        - 每条 displayText 必须脱离 JSON 和工具上下文后仍能被普通用户直接理解，使用自然中文完整句子。
+        - 禁止在 displayText 中输出 metric key、工具名、JSON 字段、公式表达式或类似 health.steps.average、goal_met_days、average = 6990.8 的机器格式。
+        - 禁止用“观察 1 / 观察 01 / 结果 1”作为内容标题或正文前缀；直接说清楚“平均步数”“达标情况”“主要支出去向”等具体含义。
+        - 用户只问一个主题时，最终 claims 只能围绕该主题；问步数不能混入睡眠，问任务不能混入无关财务数据。
+        - 主结论先直接回答问题，再补充数据覆盖、对比或能力边界；不要重复同一句结论来凑多个 claim。
         - 区分事实、观察、假设和建议。
         - 低置信判断必须使用"可能/像是/值得留意"，不能说成确定结论。
         - 跨模块关系只能表达为并发现象，不能说"导致/证明/说明一定因为"。
