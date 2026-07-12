@@ -13,6 +13,7 @@
 | ~~低~~ | ~~今日收支小组件点击跳记账页而非财务分析页~~ | `HoloWidgets.swift` / `HoloWidgetModels.swift` / `DeepLinkState.swift` | ✅ Fixed（深链改 `holo://finance/analysis`） |
 | ~~中~~ | ~~财务分析日期选择不灵活 + 趋势图单天异常（24 小时空柱）+ 柱图与余额折线错位~~ | `CustomDateSheet.swift` / `DateRangeCalendar.swift` / `FinanceAggregation.swift` / `BarChartView.swift` | ✅ Fixed（范围月历 + 点两次完成 + 单天按天粒度 + X 轴 M/d 稀疏 + 柱叠加对齐） |
 | ~~中~~ | ~~观点「编辑想法」页看不到 AI 归类标签~~ | `ThoughtEditorView.swift` | ✅ Fixed（只读回显 AI 标签，保存逻辑不变） |
+| ~~中~~ | ~~习惯打卡误记无法撤销（计数类 +1 多打 / 测量类输错值后进度无法回退）~~ | `HabitCardView.swift` / `HabitRepository.swift` | ✅ Fixed（计数类 -1 + 测量类长按撤销今日最近一笔） |
 
 ---
 

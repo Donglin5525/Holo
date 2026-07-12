@@ -46,6 +46,13 @@ class HabitRepository: ObservableObject {
     
     private init() {}
 
+    /// 注入自定义 context（测试用 in-memory；生产仍走 shared 单例）
+    /// 与 Finance/Todo/Thought 等其他 Repository 保持一致的注入入口，
+    /// 用于在不污染单例的前提下跑隔离测试
+    init(context: NSManagedObjectContext) {
+        self.context = context
+    }
+
     func setup() {
         guard !isReady else { return }
         _ = context
@@ -281,6 +288,20 @@ class HabitRepository: ObservableObject {
         context.delete(record)
         try context.save()
         notifyDataChange(habitId: habitId)
+    }
+
+    /// 撤销今日最近一笔记录（数值型习惯误记 / 多 +1 时回退用）
+    /// - 删除今日该习惯 date 最大的一条记录，今日进度统计随之自动重算
+    /// - Returns: 是否成功删除（false = 今日无记录可删，不抛错）
+    @discardableResult
+    func removeLatestTodayRecord(for habit: Habit) throws -> Bool {
+        if !isReady { setup() }
+        // getTodayRecords 已按 date 降序，首条即今日最新一笔
+        guard let latest = getTodayRecords(for: habit).first else { return false }
+        context.delete(latest)
+        try context.save()
+        notifyDataChange(habitId: habit.id)
+        return true
     }
     
     /// 更新记录

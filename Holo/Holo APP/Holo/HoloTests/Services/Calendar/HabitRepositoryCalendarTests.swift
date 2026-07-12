@@ -48,6 +48,23 @@ final class HabitRepositoryCalendarTests: XCTestCase {
         return r
     }
 
+    /// 构造数值记录（数值型习惯），可指定时刻，用于「今日最近一笔」撤销测试
+    @discardableResult
+    private func makeNumericRecord(in ctx: NSManagedObjectContext,
+                                   habitId: UUID,
+                                   value: Double,
+                                   date: Date) throws -> HabitRecord {
+        let r = HabitRecord(context: ctx)
+        r.id = UUID()
+        r.habitId = habitId
+        r.date = date
+        r.isCompleted = false
+        r.value = NSNumber(value: value)
+        r.createdAt = date
+        try ctx.save()
+        return r
+    }
+
     func test_区间内记录返回并按时间升序() throws {
         let (repo, ctx) = try makeRepo()
         let hid = UUID()
@@ -96,5 +113,68 @@ final class HabitRepositoryCalendarTests: XCTestCase {
             to: makeDate(year: 2026, month: 7, day: 2)
         )
         XCTAssertTrue(records.isEmpty)
+    }
+
+    // MARK: - removeLatestTodayRecord（撤销今日最近一笔）
+
+    func test_撤销今日最近一笔_计数类删最新一条() throws {
+        let (repo, ctx) = try makeRepo()
+        let habit = Habit.create(in: ctx, name: "喝水", icon: "drop.fill",
+                                 color: "#3B82F6", type: .numeric, unit: "杯")
+        try ctx.save()
+
+        let now = Date()
+        try makeNumericRecord(in: ctx, habitId: habit.id, value: 1, date: now.addingTimeInterval(-3600))
+        try makeNumericRecord(in: ctx, habitId: habit.id, value: 1, date: now.addingTimeInterval(-1800))
+        try makeNumericRecord(in: ctx, habitId: habit.id, value: 1, date: now)
+
+        XCTAssertEqual(repo.getTodayValue(for: habit), 3, "前置：今日合计应为 3")
+
+        let removed = try repo.removeLatestTodayRecord(for: habit)
+        XCTAssertTrue(removed)
+        XCTAssertEqual(repo.getTodayValue(for: habit), 2, "撤销后应删掉最新一条，合计回到 2")
+        XCTAssertEqual(repo.getTodayRecords(for: habit).count, 2)
+    }
+
+    func test_撤销今日最近一笔_测量类回退到上一条() throws {
+        let (repo, ctx) = try makeRepo()
+        let habit = Habit.create(in: ctx, name: "体重", icon: "scalemass.fill",
+                                 color: "#3B82F6", type: .numeric,
+                                 aggregationType: .latest, unit: "kg")
+        try ctx.save()
+
+        let now = Date()
+        try makeNumericRecord(in: ctx, habitId: habit.id, value: 70, date: now.addingTimeInterval(-3600))
+        try makeNumericRecord(in: ctx, habitId: habit.id, value: 71, date: now)
+
+        XCTAssertEqual(repo.getTodayValue(for: habit), 71, "前置：测量类今日取最新 71")
+
+        try repo.removeLatestTodayRecord(for: habit)
+        XCTAssertEqual(repo.getTodayValue(for: habit), 70, "撤销最新后应回退到上一条 70")
+    }
+
+    func test_撤销今日无记录返回false不抛错() throws {
+        let (repo, ctx) = try makeRepo()
+        let habit = Habit.create(in: ctx, name: "喝水", icon: "drop.fill",
+                                 color: "#3B82F6", type: .numeric, unit: "杯")
+        try ctx.save()
+
+        let removed = try repo.removeLatestTodayRecord(for: habit)
+        XCTAssertFalse(removed, "今日无记录应返回 false 而非抛错")
+    }
+
+    func test_撤销只影响今日不影响昨日记录() throws {
+        let (repo, ctx) = try makeRepo()
+        let habit = Habit.create(in: ctx, name: "喝水", icon: "drop.fill",
+                                 color: "#3B82F6", type: .numeric, unit: "杯")
+        try ctx.save()
+
+        let now = Date()
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: now) ?? now
+        try makeNumericRecord(in: ctx, habitId: habit.id, value: 5, date: yesterday)
+
+        let removed = try repo.removeLatestTodayRecord(for: habit)
+        XCTAssertFalse(removed, "今日无记录（只有昨日）应返回 false")
+        XCTAssertEqual(repo.getAllRecords(for: habit).count, 1, "昨日记录不应被误删")
     }
 }

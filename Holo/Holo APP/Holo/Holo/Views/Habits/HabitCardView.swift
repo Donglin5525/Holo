@@ -33,6 +33,8 @@ struct HabitCardView: View {
     @State private var inputValue: String = ""
     /// 坏习惯超标提示文案是否可见
     @State private var showOverLimitWarning: Bool = false
+    /// 测量类长按撤销确认弹窗
+    @State private var showUndoConfirm: Bool = false
     /// 缓存的 habit ID，避免 onReceive 访问已删除对象
     @State private var cachedHabitId: UUID? = nil
     
@@ -226,6 +228,22 @@ struct HabitCardView: View {
                         .foregroundColor(isOverLimit ? .red : .holoTextPrimary)
                 }
 
+                // -1 按钮（撤销今日最近一笔，仅有记录时显示）
+                if (todayValue ?? 0) > 0 {
+                    Button {
+                        undoLatestRecord()
+                    } label: {
+                        Text("-1")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.holoTextSecondary)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(Color.holoCardBackground)
+                            .overlay(Capsule().stroke(Color.holoBorder, lineWidth: 1))
+                            .clipShape(Capsule())
+                    }
+                }
+
                 // +1 按钮
                 Button {
                     do {
@@ -291,6 +309,12 @@ struct HabitCardView: View {
                         .foregroundColor(isOverLimit ? .red : habit.habitColor)
                 }
             }
+            // 长按撤销今日最近一笔（仅有今日记录时可用）
+            .onLongPressGesture(minimumDuration: 0.5) {
+                if todayValue != nil {
+                    showUndoConfirm = true
+                }
+            }
 
             // 超标提示文案（自动消失）
             if showOverLimitWarning {
@@ -299,6 +323,16 @@ struct HabitCardView: View {
                     .foregroundColor(.red)
                     .transition(.opacity)
             }
+        }
+        .confirmationDialog(
+            "撤销今日最近一笔记录？",
+            isPresented: $showUndoConfirm,
+            titleVisibility: .visible
+        ) {
+            Button("撤销", role: .destructive) {
+                undoLatestRecord()
+            }
+            Button("取消", role: .cancel) {}
         }
     }
     
@@ -390,6 +424,26 @@ struct HabitCardView: View {
             HapticManager.success()
         } catch {
             logger.error("保存数值失败: \(error)")
+        }
+    }
+
+    // MARK: - 撤销今日最近一笔
+
+    /// 撤销今日最近一笔记录（计数类 -1、测量类长按撤销共用）
+    /// 删除后今日进度自动重算（数值型「有记录即完成」语义下，
+    /// 若今日记录被清空，该习惯完成状态随之回到未完成）
+    private func undoLatestRecord() {
+        do {
+            let removed = try HabitRepository.shared.removeLatestTodayRecord(for: habit)
+            guard removed else { return }
+            todayValue = HabitRepository.shared.getTodayValue(for: habit)
+            // 测量类撤销后今日可能为空，刷新历史最新值用于回退显示
+            if !habit.isCountType {
+                latestHistoricalValue = HabitRepository.shared.getLatestValue(for: habit)
+            }
+            HapticManager.light()
+        } catch {
+            logger.error("撤销记录失败: \(error)")
         }
     }
 
