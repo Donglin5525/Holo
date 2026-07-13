@@ -8,8 +8,18 @@
 
 import Foundation
 
+#if STANDALONE_INTERNAL_LOG_TEST
+nonisolated struct ChatMessageDTO: Codable, Equatable {
+    let role: String
+    let content: String
+    static func user(_ content: String) -> Self { Self(role: "user", content: content) }
+}
+#endif
+
 /// 单次 LLM 调用日志
 nonisolated struct LLMCallLog: Codable, Equatable {
+    /// 后端生成的不可预测请求标识，仅用于内部诊断关联。
+    var requestId: String? = nil
     /// 调用类型："intent_recognition" | "chat"
     let type: String
     /// 使用的模型名称

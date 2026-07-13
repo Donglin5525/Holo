@@ -26,8 +26,19 @@ nonisolated final class APIClient {
 
     // MARK: - 普通请求
 
+    struct Response<Value> {
+        let value: Value
+        let httpResponse: HTTPURLResponse
+    }
+
     /// 发送普通 API 请求，支持指数退避重试
     func send<T: Decodable>(_ request: APIRequest) async throws -> T {
+        let response: Response<T> = try await sendWithResponse(request)
+        return response.value
+    }
+
+    /// 发送请求并保留响应头，供内部诊断关联 requestId。
+    func sendWithResponse<T: Decodable>(_ request: APIRequest) async throws -> Response<T> {
         var lastError: Error?
 
         for attempt in 0...maxRetries {
@@ -39,9 +50,12 @@ nonisolated final class APIClient {
                 let (data, response) = try await urlSession.data(for: urlRequest)
 
                 try validateHTTPResponse(response, data: data)
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    throw APIError.networkUnavailable
+                }
 
                 let decoded = try JSONDecoder().decode(T.self, from: data)
-                return decoded
+                return Response(value: decoded, httpResponse: httpResponse)
             } catch let error as APIError {
                 lastError = error
 
@@ -75,7 +89,10 @@ nonisolated final class APIClient {
 
     /// 发送 SSE 流式请求，支持超时重试
     /// 网络请求和 SSE 解码在后台 Task 中执行，只将解码后的纯字符串通过 AsyncThrowingStream 传递
-    func sendStreaming(_ request: APIRequest) -> AsyncThrowingStream<String, Error> {
+    func sendStreaming(
+        _ request: APIRequest,
+        onResponse: (@Sendable (HTTPURLResponse) -> Void)? = nil
+    ) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             Task {
                 var lastError: Error?
@@ -93,6 +110,9 @@ nonisolated final class APIClient {
                         let (bytes, response) = try await urlSession.bytes(for: urlRequest)
 
                         try validateHTTPResponse(response, data: nil)
+                        if let httpResponse = response as? HTTPURLResponse {
+                            onResponse?(httpResponse)
+                        }
 
                         var parser = SSEParser()
 
