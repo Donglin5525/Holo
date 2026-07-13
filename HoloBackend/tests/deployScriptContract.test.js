@@ -9,6 +9,8 @@ test("deploy.sh uses production-safe rebuild and verification contract", async (
   assert.match(script, /docker compose up -d --force-recreate holo-backend/);
   assert.match(script, /PUBLIC_BASE_URL="\$\{PUBLIC_BASE_URL:-https:\/\/api\.holoapp\.cn\}"/);
   assert.match(script, /\$PUBLIC_BASE_URL\/v1\/health/);
-  assert.match(script, /\$PUBLIC_BASE_URL\/v1\/prompts\/meta/);
+  assert.match(script, /\$PUBLIC_BASE_URL\/v1\/admin\/release\/status/);
+  assert.match(script, /x-holo-admin-token/);
+  assert.doesNotMatch(script, /\$PUBLIC_BASE_URL\/v1\/prompts\/meta/);
   assert.doesNotMatch(script, /API 端点:\s+http:\/\/<ECS公网IP>/);
 });
