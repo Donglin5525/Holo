@@ -21,23 +21,34 @@ enum CalendarHeatmap {
         }
     }
 
-    /// 等级 → 色值
-    static func color(forLevel level: Int) -> Color {
-        Color(hex: hex(forLevel: level))
+    /// 等级 → 色值；Light/Dark Mode 使用独立色阶，避免深色界面出现亮白色块
+    static func color(forLevel level: Int, colorScheme: ColorScheme = .light) -> Color {
+        Color(hex: hex(forLevel: level, colorScheme: colorScheme))
     }
 
-    static func hex(forLevel level: Int) -> String {
-        switch level {
-        case 0:  return "#F6F8FB"
-        case 1:  return "#EAF2FF"
-        case 2:  return "#D9ECFF"
-        case 3:  return "#CFE7F7"
-        default: return "#C8DDF8"
+    static func hex(forLevel level: Int, colorScheme: ColorScheme = .light) -> String {
+        switch colorScheme {
+        case .dark:
+            switch level {
+            case 0:  return "#25282D"
+            case 1:  return "#283342"
+            case 2:  return "#2B4055"
+            case 3:  return "#2F4E68"
+            default: return "#345D7C"
+            }
+        default:
+            switch level {
+            case 0:  return "#F6F8FB"
+            case 1:  return "#EAF2FF"
+            case 2:  return "#D9ECFF"
+            case 3:  return "#CFE7F7"
+            default: return "#C8DDF8"
+            }
         }
     }
 
     /// 事件数 → 色值（便捷）
-    static func color(forCount count: Int) -> Color {
-        color(forLevel: level(forCount: count))
+    static func color(forCount count: Int, colorScheme: ColorScheme = .light) -> Color {
+        color(forLevel: level(forCount: count), colorScheme: colorScheme)
     }
 }

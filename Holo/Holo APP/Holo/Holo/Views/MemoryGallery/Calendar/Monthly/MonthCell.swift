@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct MonthCell: View {
+    @Environment(\.colorScheme) private var colorScheme
+
     let day: Date
     let events: [CalendarEvent]
     let isThisMonth: Bool
@@ -72,7 +74,11 @@ struct MonthCell: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(isThisMonth ? Color.holoCardBackground : Color(hex: CalendarHeatmap.hex(forLevel: 0)))
+        .background(
+            isThisMonth
+                ? Color.holoCardBackground
+                : CalendarHeatmap.color(forLevel: 0, colorScheme: colorScheme)
+        )
         .overlay(borderOverlay)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
     }
@@ -80,12 +86,14 @@ struct MonthCell: View {
     // MARK: - 共享衍生
 
     private var backgroundColor: Color {
-        isThisMonth ? CalendarHeatmap.color(forCount: events.count) : Color(hex: CalendarHeatmap.hex(forLevel: 0))
+        isThisMonth
+            ? CalendarHeatmap.color(forCount: events.count, colorScheme: colorScheme)
+            : CalendarHeatmap.color(forLevel: 0, colorScheme: colorScheme)
     }
 
     /// 徽章色 = 活跃度色深（与热力同色阶，徽章形式仍能看出活跃度）
     private var badgeColor: Color {
-        CalendarHeatmap.color(forCount: events.count)
+        CalendarHeatmap.color(forCount: events.count, colorScheme: colorScheme)
     }
 
     private var dayWeight: Font.Weight {

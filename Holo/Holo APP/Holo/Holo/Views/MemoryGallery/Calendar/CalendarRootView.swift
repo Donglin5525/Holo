@@ -9,6 +9,7 @@ import SwiftUI
 
 struct CalendarRootView: View {
 
+    @Environment(\.colorScheme) private var colorScheme
     @StateObject private var viewModel = CalendarViewModel()
     @State private var selectedEvent: CalendarEvent?
     @State private var selectedEventGroup: CalendarEventGroup?
@@ -124,7 +125,7 @@ struct CalendarRootView: View {
             }
         }
         .padding(3)
-        .background(Color(hex: "#F3F7FB"))
+        .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.md)
@@ -140,7 +141,7 @@ struct CalendarRootView: View {
             weekModeButton(.list, title: "列表视图")
         }
         .padding(2)
-        .background(Color(hex: "#F6F8FB"))
+        .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
         .overlay(
             RoundedRectangle(cornerRadius: HoloRadius.sm)
@@ -211,10 +212,10 @@ struct CalendarRootView: View {
 
     private var monthLegend: some View {
         HStack(spacing: HoloSpacing.sm) {
-            legendDot(color: CalendarHeatmap.color(forLevel: 0))
+            legendDot(color: CalendarHeatmap.color(forLevel: 0, colorScheme: colorScheme))
             Text("少")
-            legendDot(color: CalendarHeatmap.color(forLevel: 2))
-            legendDot(color: CalendarHeatmap.color(forLevel: 4))
+            legendDot(color: CalendarHeatmap.color(forLevel: 2, colorScheme: colorScheme))
+            legendDot(color: CalendarHeatmap.color(forLevel: 4, colorScheme: colorScheme))
             Text("多")
             Text("色深=活跃度 · 底条=模块")
                 .lineLimit(1)
