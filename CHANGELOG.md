@@ -4,6 +4,24 @@
 
 ---
 
+## [2026-07-13] 上线前敏感信息与内部日志收口
+
+正式版不再向用户提供模型、API Key、温度、Token、Prompt 工坊、Agent 调试等开发配置；Prompt 改由 Holo 后端按业务用途注入，公网 Prompt 与完整运行配置接口已关闭。
+
+### 变更
+- **正式版开发能力隔离**：完整 AI/语音配置、Prompt 编辑与测试、Mock Provider 仅参与 Debug 编译，Plus 会员也不会获得这些入口。
+- **原始日志默认关闭**：普通账号不再生成或持久化完整 AI 请求/响应；升级时自动清理历史 rawLog、旧模型 Keychain 配置和自定义 Prompt 缓存。
+- **仅本人日志权限**：Apple 登录凭证由后端验证，只有服务端白名单中的内部账号获得短期诊断权限；完整日志仅在本人设备保存 7 天，不进 iCloud，退出或权限失效即清除。
+- **服务端 Prompt 边界**：客户端只提交业务上下文与 purpose，托管 Prompt 永远由后端作为首条 system message 注入；公网 `/v1/prompts*` 不再开放。
+- **公网信息最小化**：公开发布状态只保留服务与版本身份，模型、温度、Token、Prompt 版本和数据库状态改为管理员鉴权后验收。
+- **用户错误脱敏**：聊天气泡不再展示 provider、model、URL、HTTP 或 JSON 解码原文，详细错误仅进入受控诊断链路。
+
+### 验证
+- HoloBackend：101 tests，101 pass
+- iOS 敏感边界 standalone：7 组全部通过
+- Holo iOS Release / iOS Simulator 全工程编译通过（BUILD SUCCEEDED）
+- Release 产物扫描未发现 Prompt 工坊、模型配置、Agent 调试、Mock 提示或 Prompt 正文特征
+
 ## [2026-07-13] 修复 Agent 结果返回后当前页面空白
 
 Agent 深度分析完成后，结果卡片现在会在当前 HoloAI 页面立即出现，不再需要退出页面后重新进入才能看到。
