@@ -1,7 +1,9 @@
 const DEFAULT_CONFIG = {
   auth: {
     enforceAppAttest: process.env.HOLO_ENFORCE_APP_ATTEST === "true",
-    appleClientIds: csv(process.env.HOLO_APPLE_CLIENT_IDS ?? "com.holo.Holo"),
+    appleClientIds: csv(
+      process.env.HOLO_APPLE_CLIENT_IDS ?? "com.tangyuxuan.holo-app,com.holo.Holo",
+    ),
     internalDiagnosticsAppleSubs: csv(process.env.HOLO_INTERNAL_DIAGNOSTICS_APPLE_SUBS ?? ""),
     sessionSecret: process.env.HOLO_SESSION_SECRET ?? "",
     sessionTtlSeconds: Number(process.env.HOLO_SESSION_TTL_SECONDS ?? 3600),

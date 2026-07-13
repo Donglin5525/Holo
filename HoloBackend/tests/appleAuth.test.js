@@ -5,10 +5,15 @@ import { SignJWT, exportJWK, generateKeyPair } from "jose";
 
 import { createAppleIdentityVerifier } from "../src/auth/appleIdentityVerifier.js";
 import { createHoloSessionService } from "../src/auth/holoSession.js";
+import { loadConfig } from "../src/config.js";
 
 const NOW = new Date("2026-07-13T00:00:00.000Z");
 const APPLE_ISSUER = "https://appleid.apple.com";
 const CLIENT_ID = "com.tangyuxuan.holo-app";
+
+test("Default Apple audience includes the physical-device bundle ID", () => {
+  assert.ok(loadConfig().auth.appleClientIds.includes(CLIENT_ID));
+});
 
 async function makeAppleFixture() {
   const { privateKey, publicKey } = await generateKeyPair("RS256");
