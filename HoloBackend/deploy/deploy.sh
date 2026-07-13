@@ -51,7 +51,7 @@ echo "[5/6] 等待服务启动..."
 sleep 3
 
 # 6. 健康检查
-echo "[6/6] 运行本机 + 公网 + Prompt 验收..."
+echo "[6/6] 运行本机 + 公网 + 管理员发布状态验收..."
 
 LOCAL_HEALTH=$(curl -fsS http://127.0.0.1:8787/v1/health)
 if ! echo "$LOCAL_HEALTH" | grep -q '"ok":true'; then
@@ -71,9 +71,15 @@ if ! echo "$RELEASE_STATUS" | grep -q '"holo-ai-gateway"'; then
   exit 1
 fi
 
-PROMPT_META=$(curl -fsS "$PUBLIC_BASE_URL/v1/prompts/meta")
-if ! echo "$PROMPT_META" | grep -q '"intent_recognition"'; then
-  echo "公网 Prompt meta 验收失败：$PROMPT_META"
+ADMIN_TOKEN=$(sed -n 's/^HOLO_ADMIN_TOKEN=//p' .env.production | tail -n 1)
+if [ -z "$ADMIN_TOKEN" ]; then
+  echo "管理员发布状态验收失败：HOLO_ADMIN_TOKEN 未配置"
+  exit 1
+fi
+
+ADMIN_RELEASE_STATUS=$(curl -fsS -H "x-holo-admin-token: $ADMIN_TOKEN" "$PUBLIC_BASE_URL/v1/admin/release/status")
+if ! echo "$ADMIN_RELEASE_STATUS" | grep -q '"intent_recognition"'; then
+  echo "管理员发布状态验收失败"
   exit 1
 fi
 
@@ -82,7 +88,7 @@ echo "部署成功，且生产入口已完成基础验收。"
 echo ""
 echo "  生产健康检查:  $PUBLIC_BASE_URL/v1/health"
 echo "  Release 状态:  $PUBLIC_BASE_URL/v1/release/status"
-echo "  Prompt Meta:   $PUBLIC_BASE_URL/v1/prompts/meta"
+echo "  管理员状态:    $PUBLIC_BASE_URL/v1/admin/release/status"
 echo "  管理后台:      ssh -L 8787:127.0.0.1:8787 root@<ECS公网IP>"
 echo "                 然后浏览器打开 http://localhost:8787/admin/logs"
 echo ""
