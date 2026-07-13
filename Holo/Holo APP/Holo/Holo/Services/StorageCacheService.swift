@@ -56,8 +56,10 @@ final class StorageCacheService: ObservableObject {
         logger.info("开始清理缓存")
 
         // 1. 清除 Prompt 缓存（内存级，几乎不占空间但一并清理）
+        #if DEBUG
         HoloBackendPromptService.shared.clearCache()
         PromptManager.shared.clearCache()
+        #endif
 
         // 2. 清除分类目录缓存
         FinanceCategoryCatalogCache.shared.clear()

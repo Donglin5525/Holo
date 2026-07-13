@@ -133,7 +133,7 @@ final class FlexibleQueryPlanner {
                 plan: deterministicPlan
             )
         } else {
-            let prompt = try buildPlannerPrompt(userQuestion: userQuestion, extractedData: extractedData)
+            let prompt = buildPlannerPrompt(userQuestion: userQuestion, extractedData: extractedData)
 
             // 使用非流式 chat completion 获取 JSON plan
             let plannerJSON = try await requestPlannerCompletion(prompt: prompt, userContext: userContext)
@@ -173,9 +173,7 @@ final class FlexibleQueryPlanner {
 
     // MARK: - Prompt Builder
 
-    private func buildPlannerPrompt(userQuestion: String, extractedData: [String: String]?) throws -> String {
-        let template = try PromptManager.shared.loadPrompt(.flexibleQueryPlanner)
-
+    private func buildPlannerPrompt(userQuestion: String, extractedData: [String: String]?) -> String {
         let intentInfo: String
         if let data = extractedData {
             let pairs = data.map { "\($0.key): \($0.value)" }.joined(separator: ", ")
@@ -185,10 +183,6 @@ final class FlexibleQueryPlanner {
         }
 
         return """
-        \(template)
-
-        ## 当前请求
-
         用户问题：「\(userQuestion)」
         \(intentInfo)
         """

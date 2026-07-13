@@ -1,7 +1,7 @@
 const DEFAULT_CONFIG = {
   auth: {
     enforceAppAttest: process.env.HOLO_ENFORCE_APP_ATTEST === "true",
-    appleClientIds: csv(process.env.HOLO_APPLE_CLIENT_IDS ?? "com.tangyuxuan.holo-app"),
+    appleClientIds: csv(process.env.HOLO_APPLE_CLIENT_IDS ?? "com.holo.Holo"),
     internalDiagnosticsAppleSubs: csv(process.env.HOLO_INTERNAL_DIAGNOSTICS_APPLE_SUBS ?? ""),
     sessionSecret: process.env.HOLO_SESSION_SECRET ?? "",
     sessionTtlSeconds: Number(process.env.HOLO_SESSION_TTL_SECONDS ?? 3600),
@@ -21,6 +21,12 @@ const DEFAULT_CONFIG = {
       model: process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_CHAT_TEMPERATURE ?? 0.2),
       maxTokens: Number(process.env.HOLO_CHAT_MAX_TOKENS ?? 1024),
+    },
+    analysis: {
+      provider: process.env.HOLO_ANALYSIS_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_ANALYSIS_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_ANALYSIS_TEMPERATURE ?? 0.2),
+      maxTokens: Number(process.env.HOLO_ANALYSIS_MAX_TOKENS ?? 4096),
     },
     intent: {
       provider: process.env.HOLO_INTENT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
@@ -95,6 +101,12 @@ const DEFAULT_CONFIG = {
       model: process.env.HOLO_THOUGHT_CONVERGENCE_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_THOUGHT_CONVERGENCE_TEMPERATURE ?? 0.3),
       maxTokens: Number(process.env.HOLO_THOUGHT_CONVERGENCE_MAX_TOKENS ?? 1024),
+    },
+    category_pattern_induction: {
+      provider: process.env.HOLO_CATEGORY_INDUCTION_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_CATEGORY_INDUCTION_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_CATEGORY_INDUCTION_TEMPERATURE ?? 0.2),
+      maxTokens: Number(process.env.HOLO_CATEGORY_INDUCTION_MAX_TOKENS ?? 1024),
     },
     agent_loop: {
       provider: process.env.HOLO_AGENT_LOOP_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",

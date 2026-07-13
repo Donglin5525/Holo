@@ -9,6 +9,8 @@ import Combine
 import Foundation
 import os.log
 
+#if DEBUG
+
 @MainActor
 final class VoiceRecognitionSettingsViewModel: ObservableObject {
     @Published var apiKey: String = ""
@@ -111,3 +113,4 @@ final class VoiceRecognitionSettingsViewModel: ObservableObject {
         )
     }
 }
+#endif

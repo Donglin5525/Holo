@@ -7,6 +7,8 @@
 
 import SwiftUI
 
+#if DEBUG
+
 struct VoiceRecognitionSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel = VoiceRecognitionSettingsViewModel()
@@ -152,3 +154,4 @@ struct VoiceRecognitionSettingsView: View {
         }
     }
 }
+#endif

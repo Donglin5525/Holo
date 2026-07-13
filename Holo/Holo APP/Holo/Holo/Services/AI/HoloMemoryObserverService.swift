@@ -54,18 +54,10 @@ final class HoloMemoryObserverService {
         )
 
         // 5. 调用 LLM
-        let prompt: String
-        do {
-            prompt = try await PromptManager.shared.loadPrompt(.memoryObserver)
-        } catch {
-            logger.error("加载 memory_observer prompt 失败: \(error.localizedDescription)")
-            return
-        }
-
         let userMessage = encodePackageAsUserMessage(package)
         let rawResponse: String
         do {
-            rawResponse = try await callObserverLLM(systemPrompt: prompt, userMessage: userMessage)
+            rawResponse = try await callObserverLLM(userMessage: userMessage)
         } catch {
             logger.error("Observer LLM 调用失败: \(error.localizedDescription)")
             return
@@ -145,12 +137,9 @@ final class HoloMemoryObserverService {
 
     // MARK: - LLM Call
 
-    private func callObserverLLM(systemPrompt: String, userMessage: String) async throws -> String {
+    private func callObserverLLM(userMessage: String) async throws -> String {
         let provider = HoloBackendAIProvider(baseURL: HoloBackendEnvironment.baseURL)
-        let messages: [ChatMessageDTO] = [
-            .system(systemPrompt),
-            .user(userMessage)
-        ]
+        let messages: [ChatMessageDTO] = [.user(userMessage)]
         return try await provider.chat(messages: messages, purpose: .memoryObserver)
     }
 

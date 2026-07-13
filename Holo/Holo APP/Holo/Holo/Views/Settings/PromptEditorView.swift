@@ -8,6 +8,8 @@
 
 import SwiftUI
 
+#if DEBUG
+
 struct PromptEditorView: View {
 
     @Environment(\.dismiss) private var dismiss
@@ -243,3 +245,4 @@ struct PromptEditorView: View {
         }
     }
 }
+#endif

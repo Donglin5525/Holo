@@ -18,9 +18,6 @@ nonisolated enum HoloBackendEnvironment {
 
     @MainActor
     static func makeDefaultProvider() -> AIProvider {
-        if isEnabledByDefault {
-            return HoloBackendAIProvider(baseURL: baseURL)
-        }
-        return MockAIProvider()
+        HoloBackendAIProvider(baseURL: baseURL)
     }
 }

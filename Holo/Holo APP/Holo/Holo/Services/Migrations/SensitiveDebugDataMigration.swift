@@ -24,7 +24,6 @@ enum SensitiveDebugDataMigration {
             }
             try? KeychainService.deleteAIConfigOffMain()
             try? KeychainService.deleteVoiceRecognitionConfigOffMain()
-            HoloBackendPromptService.shared.clearCache()
             defaults.set(true, forKey: completionKey)
         } catch {
             sensitiveMigrationLogger.warning("历史敏感调试数据清理失败，将在下次启动重试")

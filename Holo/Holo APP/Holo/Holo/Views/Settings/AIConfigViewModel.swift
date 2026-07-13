@@ -10,6 +10,8 @@ import Foundation
 import Combine
 import os.log
 
+#if DEBUG
+
 @MainActor
 final class AIConfigViewModel: ObservableObject {
 
@@ -170,3 +172,4 @@ final class AIConfigViewModel: ObservableObject {
         )
     }
 }
+#endif

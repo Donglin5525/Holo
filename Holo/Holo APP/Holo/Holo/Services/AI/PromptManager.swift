@@ -9,6 +9,7 @@
 import Foundation
 import os.log
 
+#if DEBUG
 @MainActor
 final class PromptManager {
 
@@ -1383,3 +1384,45 @@ enum PromptError: LocalizedError {
 extension Notification.Name {
     static let promptDidChange = Notification.Name("com.holo.promptDidChange")
 }
+#else
+/// Release 仅保留 purpose 类型标识；商业 Prompt 正文全部由后端持有。
+@MainActor
+final class PromptManager {
+    static let shared = PromptManager()
+    private init() {}
+
+    enum PromptType: String, CaseIterable {
+        case systemPrompt = "system_prompt"
+        case intentRecognition = "intent_recognition"
+        case dataExtraction = "data_extraction"
+        case clarification = "clarification"
+        case responseTemplate = "response_template"
+        case memoryInsightGeneration = "memory_insight_generation"
+        case annualReview = "annual_review"
+        case analysisPrompt = "analysis_prompt"
+        case thoughtVoiceSummary = "thought_voice_summary"
+        case flexibleQueryPlanner = "flexible_query_planner"
+        case memoryObserver = "memory_observer"
+        case financeActionParser = "finance_action_parser"
+        case taskActionParser = "task_action_parser"
+        case categoryPatternInduction = "category_pattern_induction"
+        case thoughtOrganization = "thought_organization"
+        case agentLoop = "agent_loop"
+        case thoughtTagConvergence = "thought_tag_convergence"
+        case healthInsightGeneration = "health_insight_generation"
+    }
+
+    func loadPrompt(_ type: PromptType) throws -> String {
+        throw PromptError.unavailableInRelease
+    }
+
+    func loadDefaultTemplate(_ type: PromptType) -> String { "" }
+    func renderTemplate(_ template: String) -> String { "" }
+    func clearCache() {}
+}
+
+enum PromptError: LocalizedError {
+    case unavailableInRelease
+    var errorDescription: String? { "Prompt 由 Holo 服务端管理" }
+}
+#endif

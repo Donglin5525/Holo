@@ -7,6 +7,8 @@
 
 import Foundation
 
+#if DEBUG
+
 final class AliyunQwenASRRealtimeProvider: StreamingSpeechRecognitionProvider {
     private let config: VoiceRecognitionConfig
     private let session: URLSession
@@ -368,26 +370,11 @@ private struct ASREvent: Decodable {
 private struct ASRError: Decodable {
     let message: String?
 }
+#endif
 
 enum SpeechRecognitionProviderFactory {
     @MainActor
     static func makeConfiguredProvider() -> SpeechRecognitionProvider {
-        if HoloBackendEnvironment.isEnabledByDefault {
-            return HoloBackendSpeechRecognitionProvider()
-        }
-
-        guard KeychainService.hasCachedVoiceRecognitionConfig,
-              let config = try? KeychainService.loadVoiceRecognitionConfigOffMain(),
-              config.isConfigured else {
-            return UnconfiguredSpeechRecognitionProvider()
-        }
-
-        return AliyunQwenASRRealtimeProvider(config: config)
-    }
-}
-
-private struct UnconfiguredSpeechRecognitionProvider: SpeechRecognitionProvider {
-    func transcribe(audioFileURL: URL, locale: String?) async throws -> SpeechRecognitionResult {
-        throw SpeechRecognitionError.serverMessage("语音识别服务暂时不可用，请稍后重试")
+        HoloBackendSpeechRecognitionProvider()
     }
 }

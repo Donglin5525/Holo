@@ -269,26 +269,6 @@ enum CategoryLearnedMapping {
 
     // MARK: 归纳数据模型
 
-    /// 默认归纳系统 Prompt（后备，优先使用 PromptManager 加载）
-    private static let defaultInductionSystemPrompt = """
-    你是一个分类模式归纳专家。分析用户的分类修正样本，找出候选词的共性规律，归纳出匹配模式。
-
-    输出格式要求（纯 JSON，不要包含 markdown 代码块）：
-    {
-      "pattern": "关键词",
-      "matchType": "contains",
-      "confidence": 0.9
-    }
-
-    matchType 可选值：
-    - "contains"：候选词包含该关键词（适用于关键词出现在任意位置的场景）
-    - "startsWith"：候选词以该关键词开头（适用于前缀匹配场景）
-    - "endsWith"：候选词以该关键词结尾（适用于后缀匹配场景）
-
-    confidence：0-1 之间的置信度，0.7 以下将被丢弃。
-    pattern：必须是简短的关键词，不要使用正则表达式。
-    """
-
     /// 归纳样本
     struct InductionSample: Codable, Equatable {
         let candidate: String
@@ -425,14 +405,10 @@ enum CategoryLearnedMapping {
 
         do {
             let provider = HoloBackendAIProvider(baseURL: HoloBackendEnvironment.baseURL)
-            let systemPrompt = (try? PromptManager.shared.loadPrompt(.categoryPatternInduction)) ?? Self.defaultInductionSystemPrompt
-            let messages = [
-                ChatMessageDTO(role: "system", content: systemPrompt),
-                ChatMessageDTO(role: "user", content: prompt)
-            ]
+            let messages = [ChatMessageDTO(role: "user", content: prompt)]
             let response = try await provider.chat(
                 messages: messages,
-                userContext: UserContext.empty
+                purpose: .categoryPatternInduction
             )
 
             try parseAndSaveInductionRule(

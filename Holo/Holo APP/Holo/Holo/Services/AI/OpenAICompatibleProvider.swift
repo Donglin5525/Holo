@@ -9,6 +9,8 @@
 import Foundation
 import os.log
 
+#if DEBUG
+
 @MainActor
 final class OpenAICompatibleProvider: AIProvider {
 
@@ -402,3 +404,4 @@ final class OpenAICompatibleProvider: AIProvider {
         return text
     }
 }
+#endif

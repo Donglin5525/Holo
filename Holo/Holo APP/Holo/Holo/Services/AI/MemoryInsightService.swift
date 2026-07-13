@@ -62,19 +62,7 @@ final class MemoryInsightService {
     /// 从 Keychain 读取 AI 配置并创建 Provider
     private func resolveProvider() throws -> AIProvider {
         if let current = currentProvider { return current }
-
-        if HoloBackendEnvironment.isEnabledByDefault {
-            let provider = HoloBackendEnvironment.makeDefaultProvider()
-            currentProvider = provider
-            return provider
-        }
-
-        guard let config = try KeychainService.shared.loadAIConfig(),
-              config.isConfigured else {
-            throw MemoryInsightError.aiNotConfigured
-        }
-
-        let provider = OpenAICompatibleProvider(config: config)
+        let provider = HoloBackendEnvironment.makeDefaultProvider()
         currentProvider = provider
         return provider
     }
@@ -132,14 +120,8 @@ final class MemoryInsightService {
         try Task.checkCancellation()
         await Task.yield()
 
-        // 2. 预加载 Prompt 版本（用于缓存检查）
-        let currentPromptVersion: Int16
-        if HoloBackendEnvironment.isEnabledByDefault {
-            let promptResult = (try? await HoloBackendPromptService.shared.loadPromptResult(.memoryInsightGeneration))
-            currentPromptVersion = Int16(promptResult?.version ?? 0)
-        } else {
-            currentPromptVersion = 0
-        }
+        // Prompt 版本不再公开下发；生成结果会记录服务端返回的版本（若有）。
+        let currentPromptVersion: Int16 = 0
         try Task.checkCancellation()
 
         // 3. 检查缓存（非强制刷新且 hash + version 一致）

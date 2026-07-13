@@ -3,6 +3,7 @@ import { getPrompt } from "./promptRegistry.js";
 
 const PURPOSE_PROMPT_TYPES = Object.freeze({
   chat: "system_prompt",
+  analysis: "analysis_prompt",
   intent: "intent_recognition",
   flexible_query_planner: "flexible_query_planner",
   insight: "memory_insight_generation",
@@ -13,6 +14,7 @@ const PURPOSE_PROMPT_TYPES = Object.freeze({
   task_action_parser: "task_action_parser",
   thought_organization: "thought_organization",
   thought_tag_convergence: "thought_tag_convergence",
+  category_pattern_induction: "category_pattern_induction",
   agent_loop: "agent_loop",
 });
 

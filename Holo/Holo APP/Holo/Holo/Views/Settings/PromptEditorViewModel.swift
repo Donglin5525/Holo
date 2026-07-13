@@ -8,6 +8,8 @@
 
 import Combine
 import Foundation
+
+#if DEBUG
 import os.log
 
 @MainActor
@@ -162,3 +164,4 @@ final class PromptEditorViewModel: ObservableObject {
         isTesting = false
     }
 }
+#endif

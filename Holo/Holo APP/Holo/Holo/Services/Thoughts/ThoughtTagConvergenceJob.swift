@@ -51,7 +51,6 @@ final class ThoughtTagConvergenceJob: ObservableObject {
     private let topicRepository: TopicRepository
     private let rejectionRepository: ConvergenceRejectionRepository
     private let jobStore: ThoughtTagConvergenceJobStore
-    private let promptManager: PromptManager
     private let logger = Logger(subsystem: "com.holo.app", category: "ConvergenceJob")
 
     // MARK: - 重试配置（参考 ThoughtOrganizationQueue：指数退避 5s→30s→120s）
@@ -65,7 +64,6 @@ final class ThoughtTagConvergenceJob: ObservableObject {
         topicRepository: TopicRepository,
         rejectionRepository: ConvergenceRejectionRepository,
         jobStore: ThoughtTagConvergenceJobStore? = nil,
-        promptManager: PromptManager = .shared,
         maxRetryCount: Int = 3,
         retryIntervals: [TimeInterval] = [5, 30, 120]
     ) {
@@ -74,7 +72,6 @@ final class ThoughtTagConvergenceJob: ObservableObject {
         self.topicRepository = topicRepository
         self.rejectionRepository = rejectionRepository
         self.jobStore = jobStore ?? ThoughtTagConvergenceJobStore.shared
-        self.promptManager = promptManager
         self.maxRetryCount = maxRetryCount
         self.retryIntervals = retryIntervals
     }
@@ -229,9 +226,8 @@ final class ThoughtTagConvergenceJob: ObservableObject {
     // MARK: - 调 AI（带重试）
 
     private func callConvergenceWithRetry(input: ConvergenceInput) async throws -> [ConvergenceSuggestion] {
-        let systemPrompt = await loadManagedPrompt()
         let userMessage = buildUserMessage(input: input)
-        let messages: [ChatMessageDTO] = [.system(systemPrompt), .user(userMessage)]
+        let messages: [ChatMessageDTO] = [.user(userMessage)]
 
         var lastError: Error?
         for attempt in 0...maxRetryCount {
@@ -253,16 +249,6 @@ final class ThoughtTagConvergenceJob: ObservableObject {
         }
         // 循环结束必有 lastError（成功已 return）
         throw lastError ?? ConvergenceFallbackError()
-    }
-
-    /// 加载后端管理的 prompt（优先后端，回退本地后备，spec 双端同步）
-    private func loadManagedPrompt() async -> String {
-        do {
-            return try await HoloBackendPromptService.shared.loadPrompt(.thoughtTagConvergence)
-        } catch {
-            logger.warning("后端 convergence prompt 加载失败，回退本地：\(error.localizedDescription)")
-            return (try? promptManager.loadPrompt(.thoughtTagConvergence)) ?? ""
-        }
     }
 
     // MARK: - 构建 user message

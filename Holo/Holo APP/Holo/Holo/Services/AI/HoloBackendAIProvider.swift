@@ -15,19 +15,16 @@ final class HoloBackendAIProvider: AIProvider {
     private let baseURL: String
     private let apiClient: APIClient
     private let deviceIdProvider: () -> String
-    private let promptService: HoloBackendPromptService
     private(set) var lastCallLog: LLMCallLog?
 
     init(
         baseURL: String = HoloBackendEnvironment.baseURL,
         apiClient: APIClient = .shared,
-        deviceIdProvider: @escaping () -> String = { HoloBackendDeviceIdentity.shared.deviceId },
-        promptService: HoloBackendPromptService? = nil
+        deviceIdProvider: @escaping () -> String = { HoloBackendDeviceIdentity.shared.deviceId }
     ) {
         self.baseURL = baseURL
         self.apiClient = apiClient
         self.deviceIdProvider = deviceIdProvider
-        self.promptService = promptService ?? .shared
     }
 
     // MARK: - AIProvider
@@ -47,9 +44,7 @@ final class HoloBackendAIProvider: AIProvider {
 
     func parseUserInputBatch(_ input: String, context: UserContext) async throws -> AIParseBatch {
         try ensureDataProcessingConsent()
-        let systemPrompt = await loadManagedPrompt(.intentRecognition)
         let messages: [ChatMessageDTO] = [
-            .system(systemPrompt),
             .system(AIUserContextMessageBuilder.build(from: context, purpose: .intentRecognition)),
             .user(input)
         ]
@@ -82,9 +77,7 @@ final class HoloBackendAIProvider: AIProvider {
         kind: AIActionParserKind
     ) async throws -> AIParseBatch {
         try ensureDataProcessingConsent()
-        let systemPrompt = await loadManagedPrompt(kind.promptType)
         let messages: [ChatMessageDTO] = [
-            .system(systemPrompt),
             .system(AIUserContextMessageBuilder.build(from: context, purpose: .intentRecognition)),
             .user(input)
         ]
@@ -113,9 +106,7 @@ final class HoloBackendAIProvider: AIProvider {
 
     func generateHealthInsight(contextJSON: String) async throws -> HealthInsightGenerationResult {
         try ensureDataProcessingConsent()
-        let promptResult = await loadManagedPromptResult(.healthInsightGeneration)
         let messages: [ChatMessageDTO] = [
-            .system(promptResult.content),
             .user(contextJSON)
         ]
         let request = buildRequest(purpose: .healthInsightGeneration, messages: messages, responseFormat: .jsonObject)
@@ -127,15 +118,13 @@ final class HoloBackendAIProvider: AIProvider {
 
         return HealthInsightGenerationResult(
             rawResponse: content,
-            promptVersion: promptResult.version
+            promptVersion: nil
         )
     }
 
     func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> MemoryInsightGenerationResult {
         try ensureDataProcessingConsent()
-        let promptResult = await loadManagedPromptResult(.memoryInsightGeneration)
         let messages: [ChatMessageDTO] = [
-            .system(promptResult.content),
             .user(contextJSON)
         ]
         let request = buildRequest(purpose: .insight, messages: messages, responseFormat: .jsonObject)
@@ -148,13 +137,13 @@ final class HoloBackendAIProvider: AIProvider {
         return MemoryInsightGenerationResult(
             rawResponse: content,
             promptType: "memory_insight_generation",
-            promptVersion: promptResult.version
+            promptVersion: nil
         )
     }
 
     func chat(messages: [ChatMessageDTO], userContext: UserContext) async throws -> String {
         try ensureDataProcessingConsent()
-        let allMessages = await buildChatMessages(messages: messages, userContext: userContext)
+        let allMessages = buildChatMessages(messages: messages, userContext: userContext)
         let request = buildRequest(purpose: .chat, messages: allMessages)
         let (response, requestId) = try await sendCompletion(request)
 
@@ -234,8 +223,7 @@ final class HoloBackendAIProvider: AIProvider {
                     continuation.finish(throwing: error)
                     return
                 }
-                let systemPrompt = await loadManagedPrompt(promptType)
-                var allMessages: [ChatMessageDTO] = [.system(systemPrompt)]
+                var allMessages: [ChatMessageDTO] = []
 
                 if let systemContextOverride {
                     // 分析模式：先注入 profile（如开启），再注入分析 context JSON
@@ -259,7 +247,7 @@ final class HoloBackendAIProvider: AIProvider {
                 allMessages.append(contentsOf: messages)
 
                 let request = buildRequest(
-                    purpose: .chat,
+                    purpose: promptType == .analysisPrompt ? .analysis : .chat,
                     messages: allMessages,
                     stream: true
                 )
@@ -327,10 +315,8 @@ final class HoloBackendAIProvider: AIProvider {
         )
     }
 
-    private func buildChatMessages(messages: [ChatMessageDTO], userContext: UserContext) async -> [ChatMessageDTO] {
-        let systemPrompt = await loadManagedPrompt(.systemPrompt)
+    private func buildChatMessages(messages: [ChatMessageDTO], userContext: UserContext) -> [ChatMessageDTO] {
         var allMessages: [ChatMessageDTO] = [
-            .system(systemPrompt),
             .system(AIUserContextMessageBuilder.build(
                 from: userContext,
                 purpose: .chat,
@@ -343,25 +329,6 @@ final class HoloBackendAIProvider: AIProvider {
 
     private static func latestUserText(in messages: [ChatMessageDTO]) -> String? {
         messages.last(where: { $0.role == "user" })?.content
-    }
-
-    private func loadManagedPrompt(_ type: PromptManager.PromptType) async -> String {
-        do {
-            return try await promptService.loadPrompt(type)
-        } catch {
-            logger.warning("后端 Prompt 加载失败，回退本地默认模板：\(type.rawValue), \(error.localizedDescription)")
-            return (try? PromptManager.shared.loadPrompt(type)) ?? PromptManager.shared.loadDefaultTemplate(type)
-        }
-    }
-
-    private func loadManagedPromptResult(_ type: PromptManager.PromptType) async -> LoadedPrompt {
-        do {
-            return try await promptService.loadPromptResult(type)
-        } catch {
-            logger.warning("后端 Prompt 加载失败，回退本地默认模板：\(type.rawValue), \(error.localizedDescription)")
-            let content = (try? PromptManager.shared.loadPrompt(type)) ?? PromptManager.shared.loadDefaultTemplate(type)
-            return LoadedPrompt(type: type, version: 0, content: content)
-        }
     }
 
     // MARK: - JSON Parsing
@@ -500,6 +467,7 @@ final class HoloBackendAIProvider: AIProvider {
 
 enum HoloBackendPurpose: String {
     case chat
+    case analysis
     case intent
     case flexibleQueryPlanner = "flexible_query_planner"
     case insight
@@ -509,6 +477,7 @@ enum HoloBackendPurpose: String {
     case taskActionParser = "task_action_parser"
     case thoughtOrganization = "thought_organization"
     case thoughtTagConvergence = "thought_tag_convergence"
+    case categoryPatternInduction = "category_pattern_induction"
     case agentLoop = "agent_loop"
     case healthInsightGeneration = "health_insight_generation"
 }

@@ -94,63 +94,14 @@ final class ChatViewModel: ObservableObject {
         if hasFinishedSetup { return }
         bootstrapChatRepositoryIfNeeded()
 
-        if HoloBackendEnvironment.isEnabledByDefault && !usesInjectedProvider {
+        if !usesInjectedProvider {
             provider = HoloBackendEnvironment.makeDefaultProvider()
-            isConfigured = true
-            isLoadingConfig = false
-            didTimeoutLoadingConfig = false
-            hasFinishedSetup = true
-            logger.info("AI 已配置为 Holo 后端网关")
-            return
         }
-
-        isLoadingConfig = true
+        isConfigured = true
+        isLoadingConfig = false
         didTimeoutLoadingConfig = false
-        defer {
-            isLoadingConfig = false
-            hasFinishedSetup = true
-        }
-
-        enum SetupResult {
-            case config(AIProviderConfig?)
-            case timeout
-        }
-
-        let result = await withTaskGroup(of: SetupResult.self) { group in
-            group.addTask {
-                let config = try? KeychainService.loadAIConfigOffMain()
-                return .config(config)
-            }
-
-            group.addTask {
-                try? await Task.sleep(nanoseconds: 1_200_000_000)
-                return .timeout
-            }
-
-            let first = await group.next() ?? .timeout
-            group.cancelAll()
-            return first
-        }
-
-        switch result {
-        case .config(let config):
-            if let config = config, config.isConfigured {
-                provider = OpenAICompatibleProvider(config: config)
-                isConfigured = true
-                KeychainService.updateCachedAIConfigPresence(true)
-                logger.info("AI 已配置为 \(config.provider.displayName)")
-            } else {
-                provider = MockAIProvider()
-                isConfigured = false
-                KeychainService.updateCachedAIConfigPresence(false)
-            }
-        case .timeout:
-            didTimeoutLoadingConfig = true
-            if KeychainService.hasCachedAIConfig {
-                isConfigured = true
-            }
-            logger.error("AI 配置读取超时，先允许页面继续渲染")
-        }
+        hasFinishedSetup = true
+        logger.info("AI 已配置为 Holo 后端网关")
     }
 
     private func bootstrapChatRepositoryIfNeeded() {
@@ -238,7 +189,7 @@ final class ChatViewModel: ObservableObject {
     }
 
     private func checkConfiguration() {
-        isConfigured = !(provider is MockAIProvider)
+        isConfigured = true
     }
 
     // MARK: - Send Message
@@ -430,15 +381,16 @@ final class ChatViewModel: ObservableObject {
                 self.chatRepo?.finishStreaming(aiMessageId, finalContent: self.streamingText)
             } catch {
                 self.logger.error("AI 处理失败：\(error.localizedDescription)")
-                self.errorMessage = error.localizedDescription
+                let userMessage = HoloAIUserErrorMapper.message(for: error)
+                self.errorMessage = userMessage
 
                 // 保留已接收的部分内容，追加错误提示而非完全覆盖
                 let partialContent = self.streamingText
                 let finalContent: String
                 if partialContent.isEmpty {
-                    finalContent = "抱歉，处理时出错了：\(error.localizedDescription)"
+                    finalContent = userMessage
                 } else {
-                    finalContent = partialContent + "\n\n---\n⚠️ 处理中断：\(error.localizedDescription)"
+                    finalContent = partialContent + "\n\n处理中断：\(userMessage)"
                 }
 
                 self.chatRepo?.finishStreaming(aiMessageId, finalContent: finalContent)
@@ -1161,39 +1113,7 @@ final class ChatViewModel: ObservableObject {
     }
 
     private func retryConfigurationLoadIfNeeded() async {
-        guard provider is MockAIProvider else { return }
-
-        enum RetryResult {
-            case config(AIProviderConfig?)
-            case timeout
-        }
-
-        let result = await withTaskGroup(of: RetryResult.self) { group in
-            group.addTask {
-                let config = try? KeychainService.loadAIConfigOffMain()
-                return .config(config)
-            }
-
-            group.addTask {
-                try? await Task.sleep(nanoseconds: 1_500_000_000)
-                return .timeout
-            }
-
-            let first = await group.next() ?? .timeout
-            group.cancelAll()
-            return first
-        }
-
-        guard case .config(let config) = result,
-              let config,
-              config.isConfigured else {
-            return
-        }
-
-        provider = OpenAICompatibleProvider(config: config)
-        isConfigured = true
-        didTimeoutLoadingConfig = false
-        KeychainService.updateCachedAIConfigPresence(true)
+        // 正式能力统一由 Holo 后端提供，不读取客户端模型配置。
     }
 
 // MARK: - Capability Tap
@@ -1299,7 +1219,7 @@ final class ChatViewModel: ObservableObject {
                     )
                 }
             } catch {
-                errorMessage = error.localizedDescription
+                errorMessage = HoloAIUserErrorMapper.message(for: error)
             }
         }
     }
@@ -1343,7 +1263,7 @@ final class ChatViewModel: ObservableObject {
                 )
             }
         } catch {
-            errorMessage = error.localizedDescription
+            errorMessage = HoloAIUserErrorMapper.message(for: error)
         }
     }
 

@@ -125,7 +125,7 @@ final class HoloBackgroundContinuationManager {
         resumeTask?.cancel()
         resumeTask = Task { [runtime, scheduler] in
             let toolDescriptions = await runtime.toolDescriptions()
-            let systemTemplate = (try? PromptManager.shared.loadPrompt(.agentLoop)) ?? ""
+            let systemTemplate = ""
             _ = try? await scheduler.resumeAndContinue(
                 systemTemplate: systemTemplate, toolDescriptions: toolDescriptions
             )

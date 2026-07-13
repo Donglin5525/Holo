@@ -9,6 +9,8 @@
 import Foundation
 import os.log
 
+#if DEBUG
+
 @MainActor
 final class MockAIProvider: AIProvider {
 
@@ -542,3 +544,4 @@ final class MockAIProvider: AIProvider {
         return "你希望把这个目标做到什么程度？"
     }
 }
+#endif

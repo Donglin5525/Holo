@@ -16,7 +16,6 @@ final class ThoughtOrganizationService {
 
     private let logger = Logger(subsystem: "com.holo.app", category: "ThoughtOrganization")
     private let aiProvider: HoloBackendAIProvider
-    private let promptManager: PromptManager
 
     // MARK: - Rejected Tags 偏好索引
 
@@ -26,12 +25,8 @@ final class ThoughtOrganizationService {
 
     // MARK: - Init
 
-    init(
-        aiProvider: HoloBackendAIProvider? = nil,
-        promptManager: PromptManager = .shared
-    ) {
+    init(aiProvider: HoloBackendAIProvider? = nil) {
         self.aiProvider = aiProvider ?? HoloBackendAIProvider()
-        self.promptManager = promptManager
     }
 
     // MARK: - Organize Thought
@@ -76,13 +71,12 @@ final class ThoughtOrganizationService {
         // 3. 构建 prompt 并调用 AI
         let rawResponse: String
         do {
-            let systemPrompt = await loadManagedPrompt()
-                .replacingOccurrences(of: "{{existingTagExamples}}", with: existingTagExamples)
-                .replacingOccurrences(of: "{{rejectedTags}}", with: rejectedTags)
-
             let messages: [ChatMessageDTO] = [
-                .system(systemPrompt),
-                .user(thoughtContent)
+                .user("""
+                用户已认可标签：\(existingTagExamples.isEmpty ? "无" : existingTagExamples)
+                用户已拒绝标签：\(rejectedTags.isEmpty ? "无" : rejectedTags)
+                想法正文：\(thoughtContent)
+                """)
             ]
 
             // rateLimited 等错误透传给 Queue（不在此 markAsFailed，由 Queue 决定回退 pending 或重试）
@@ -159,16 +153,6 @@ final class ThoughtOrganizationService {
         // 这里必须使用上游已经注入 existingTagExamples / rejectedTags 的 system prompt。
         // 旧实现重新加载 prompt，导致 AI 看不到已有标签，容易持续制造碎标签。
         return try await aiProvider.chat(messages: messages, purpose: .thoughtOrganization)
-    }
-
-    /// 加载后端管理的 prompt（优先后端，回退本地）
-    private func loadManagedPrompt() async -> String {
-        do {
-            return try await HoloBackendPromptService.shared.loadPrompt(.thoughtOrganization)
-        } catch {
-            logger.warning("后端 Prompt 加载失败，回退本地：\(error.localizedDescription)")
-            return (try? promptManager.loadPrompt(.thoughtOrganization)) ?? ""
-        }
     }
 
     // MARK: - JSON 解析

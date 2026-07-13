@@ -5,6 +5,7 @@
 //  从 Holo 后端读取托管 Prompt。失败时由调用方回退到本地默认模板。
 //
 
+#if DEBUG
 import Foundation
 import os.log
 
@@ -171,3 +172,4 @@ private struct PromptMetadata: Decodable {
 private struct HoloBackendPromptMetaResponse: Decodable {
     let prompts: [PromptMetadata]
 }
+#endif

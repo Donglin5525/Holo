@@ -145,12 +145,7 @@ final class HoloAgentAnalysisService {
             HoloRenderedAgentResult(title: "深度分析出错", summary: reason, sections: [], evidenceReferences: [])
         }
         let toolDescriptions = await runtime.toolDescriptions()
-        let systemTemplate: String
-        do {
-            systemTemplate = try PromptManager.shared.loadPrompt(.agentLoop)
-        } catch {
-            return fail("[prompt加载失败] \(String(describing: error))")
-        }
+        let systemTemplate = ""
         logger.info("[Agent] 经 Scheduler 启动 runLoop…")
         let finalJob: HoloAgentJob
         do {
