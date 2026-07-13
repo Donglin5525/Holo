@@ -244,7 +244,21 @@ final class MemoryInsightService {
                 title: processedPayload.title,
                 summary: processedPayload.summary,
                 cards: rerankedCards,
-                suggestedQuestions: processedPayload.suggestedQuestions
+                suggestedQuestions: processedPayload.suggestedQuestions,
+                usedMemoryIDs: processedPayload.usedMemoryIDs
+            )
+        }
+
+        let allowedMemoryIDs = Set(context.longTermMemoryIDs)
+        let usedMemoryIDs = (processedPayload.usedMemoryIDs ?? [])
+            .filter { allowedMemoryIDs.contains($0) }
+        processedPayload.usedMemoryIDs = Array(Set(usedMemoryIDs))
+        if !usedMemoryIDs.isEmpty {
+            HoloMemoryReceiptStore.record(
+                kind: .use,
+                channel: .insight,
+                memoryIDs: Array(Set(usedMemoryIDs)),
+                message: "本次洞察参考了 \(Set(usedMemoryIDs).count) 条长期记忆"
             )
         }
 
@@ -366,7 +380,8 @@ final class MemoryInsightService {
             title: payload.title,
             summary: payload.summary,
             cards: processedCards,
-            suggestedQuestions: payload.suggestedQuestions
+            suggestedQuestions: payload.suggestedQuestions,
+            usedMemoryIDs: payload.usedMemoryIDs
         )
     }
 

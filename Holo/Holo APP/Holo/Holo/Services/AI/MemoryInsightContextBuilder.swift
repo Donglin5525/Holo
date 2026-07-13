@@ -103,6 +103,12 @@ struct MemoryInsightContextBuilder {
         let personalProfileContext = await buildPersonalProfileContext()
         let insightPreferenceContext = buildInsightPreferenceContext()
         let lifePatternContext = HoloLifePatternService.shared.promptSummary(for: .memoryInsightGeneration)
+        let longTermMemorySummary = HoloMemorySummaryProvider.selectRelevantSummary(
+            purpose: .longTermPatterns,
+            queryText: "\(periodType.rawValue) 周期洞察 生活变化",
+            limit: 2
+        )
+        let longTermMemoryContext = HoloMemoryContextEnvelope.renderBackground(longTermMemorySummary)
         let expressionDecisionContext = buildExpressionDecisionContext(
             finance: finance,
             habits: habits,
@@ -135,6 +141,8 @@ struct MemoryInsightContextBuilder {
             insightPreferenceContext: insightPreferenceContext,
             expressionDecisionContext: expressionDecisionContext,
             lifePatternContext: lifePatternContext,
+            longTermMemoryContext: longTermMemoryContext.isEmpty ? nil : longTermMemoryContext,
+            longTermMemoryIDs: longTermMemorySummary.sourceIDs,
             health: health
         )
 
@@ -1188,6 +1196,12 @@ struct MemoryInsightContextBuilder {
         let personalProfileContext = await buildPersonalProfileContext()
         let insightPreferenceContext = buildInsightPreferenceContext()
         let lifePatternContext = HoloLifePatternService.shared.promptSummary(for: .retrospective)
+        let longTermMemorySummary = HoloMemorySummaryProvider.selectRelevantSummary(
+            purpose: .longTermPatterns,
+            queryText: "年度回顾 长期变化",
+            limit: 2
+        )
+        let longTermMemoryContext = HoloMemoryContextEnvelope.renderBackground(longTermMemorySummary)
 
         let correlations = CrossModuleCorrelator.detect(
             finance: finance,
@@ -1213,7 +1227,9 @@ struct MemoryInsightContextBuilder {
             previousPeriodReview: nil,
             personalProfileContext: personalProfileContext,
             insightPreferenceContext: insightPreferenceContext,
-            lifePatternContext: lifePatternContext
+            lifePatternContext: lifePatternContext,
+            longTermMemoryContext: longTermMemoryContext.isEmpty ? nil : longTermMemoryContext,
+            longTermMemoryIDs: longTermMemorySummary.sourceIDs
         )
 
         return Self.enforceAnnualTokenBudget(rawContext)
@@ -1412,6 +1428,8 @@ struct MemoryInsightContextBuilder {
             insightPreferenceContext: context.insightPreferenceContext,
             expressionDecisionContext: context.expressionDecisionContext,
             lifePatternContext: context.lifePatternContext,
+            longTermMemoryContext: context.longTermMemoryContext,
+            longTermMemoryIDs: context.longTermMemoryIDs,
             health: context.health
         )
     }
@@ -1445,6 +1463,8 @@ struct MemoryInsightContextBuilder {
                     insightPreferenceContext: current.insightPreferenceContext,
                     expressionDecisionContext: current.expressionDecisionContext,
                     lifePatternContext: current.lifePatternContext,
+                    longTermMemoryContext: current.longTermMemoryContext,
+                    longTermMemoryIDs: current.longTermMemoryIDs,
                     health: current.health
                 )
             }
@@ -1494,6 +1514,8 @@ struct MemoryInsightContextBuilder {
             insightPreferenceContext: context.insightPreferenceContext,
             expressionDecisionContext: context.expressionDecisionContext,
             lifePatternContext: context.lifePatternContext,
+            longTermMemoryContext: context.longTermMemoryContext,
+            longTermMemoryIDs: context.longTermMemoryIDs,
             health: context.health
         )
         guard let encoded = try? JSONEncoder().encode(stableContext) else { return "" }

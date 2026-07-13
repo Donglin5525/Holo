@@ -106,6 +106,7 @@ enum HoloLongTermMemoryCandidateObserver {
 
         // 候选进入晋升策略
         for candidate in candidates {
+            let isNewMemory = !HoloLongTermMemoryStore.load().contains { $0.id == candidate.id }
             // driftSignal 自动设置 21 天过期
             var processedCandidate = candidate
             if candidate.semanticType == .driftSignal && candidate.expiresAt == nil {
@@ -118,20 +119,34 @@ enum HoloLongTermMemoryCandidateObserver {
             }
 
             let decision = HoloMemoryPromotionPolicy.evaluate(candidate: processedCandidate)
+            var didPersist = false
+            var receiptMessage: String?
             switch decision {
             case .discard(let reason):
                 logger.info("丢弃候选 \(processedCandidate.id)：\(reason)")
             case .observe(let reason):
                 logger.info("观察候选 \(processedCandidate.id)：\(reason)")
-                HoloLongTermMemoryStore.upsertCandidate(processedCandidate)
+                didPersist = HoloLongTermMemoryStore.upsertCandidate(processedCandidate)
+                receiptMessage = "发现一条可能有用的记忆，等待更多证据：\(processedCandidate.displaySummary)"
             case .silentlyAccept(let reason):
                 logger.info("静默写入 \(processedCandidate.id)：\(reason)")
                 var accepted = processedCandidate
                 accepted.confirmationState = .silentlyAccepted
-                HoloLongTermMemoryStore.upsertCandidate(accepted)
+                didPersist = HoloLongTermMemoryStore.upsertCandidate(accepted)
+                receiptMessage = "Holo 已记住：\(accepted.displaySummary)"
             case .requireConfirmation(let reason):
                 logger.info("要求确认 \(processedCandidate.id)：\(reason)")
-                HoloLongTermMemoryStore.upsertCandidate(processedCandidate)
+                didPersist = HoloLongTermMemoryStore.upsertCandidate(processedCandidate)
+                receiptMessage = "发现一条需要你确认的记忆：\(processedCandidate.displaySummary)"
+            }
+
+            if isNewMemory, didPersist, let receiptMessage {
+                HoloMemoryReceiptStore.record(
+                    kind: .write,
+                    channel: .insight,
+                    memoryIDs: [processedCandidate.id],
+                    message: receiptMessage
+                )
             }
         }
 

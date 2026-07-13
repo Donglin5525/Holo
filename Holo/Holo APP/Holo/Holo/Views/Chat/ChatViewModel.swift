@@ -27,6 +27,7 @@ final class ChatViewModel: ObservableObject {
     @Published var showConsentPrompt: Bool = false
     @Published var streamingText: String = ""
     @Published var errorMessage: String?
+    @Published var memoryNotice: String?
     @Published var isConfigured: Bool = false
     @Published var isLoadingConfig: Bool = false
     @Published private(set) var hasFinishedSetup: Bool = false
@@ -299,13 +300,22 @@ final class ChatViewModel: ObservableObject {
 
                         // 分析查询路径：零历史消息，独立 system context
                         let contextJSON = Self.encodeAnalysisContext(analysisContext)
+                        let memorySummary = HoloMemorySummaryProvider.selectRelevantSummary(
+                            purpose: .recentAnalysis,
+                            queryText: text,
+                            requireQueryMatch: true
+                        )
+                        let memoryEnvelope = HoloMemoryContextEnvelope.render(memorySummary)
+                        let analysisSystemContext = [contextJSON, memoryEnvelope.isEmpty ? nil : memoryEnvelope]
+                            .compactMap { $0 }
+                            .joined(separator: "\n\n")
 
                         // 传递实际 userContext（含 profileSnapshot）而非 empty
                         // Provider 内部会从 userContext.profileSnapshot 读取 profile 注入
                         let stream = self.provider.chatStreaming(
                             messages: [],
                             userContext: userContext,
-                            systemContextOverride: contextJSON,
+                            systemContextOverride: analysisSystemContext,
                             promptType: .analysisPrompt
                         )
 
@@ -313,12 +323,18 @@ final class ChatViewModel: ObservableObject {
                         for try await chunk in stream {
                             if Task.isCancelled { break }
                             fullText += chunk
-                            self.streamingText = fullText
+                            self.streamingText = HoloMemoryUsageMarker.visibleTextWhileStreaming(fullText)
                         }
 
+                        let resolvedText = self.consumeMemoryUsageMarker(
+                            from: fullText,
+                            availableMemoryIDs: memorySummary.sourceIDs,
+                            channel: .analysis
+                        )
+                        self.streamingText = resolvedText
                         self.chatRepo?.finalizeMessage(
                             aiMessageId,
-                            finalContent: fullText,
+                            finalContent: resolvedText,
                             intent: processResult.firstIntent?.rawValue,
                             extractedDataJSON: Self.encodeExtractedData(processResult.firstExtractedData),
                             parsedBatchJSON: Self.encodeParseBatch(processResult.parsedBatch),
@@ -330,19 +346,30 @@ final class ChatViewModel: ObservableObject {
                         // 标准查询路径 → 流式对话
                         guard let chatRepo = self.chatRepo else { return }
                         let historyDTOs = await chatRepo.loadRecentDTOsAsync(limit: 20)
+                        let memorySummary = HoloMemorySummaryProvider.selectRelevantSummary(
+                            purpose: nil,
+                            queryText: text,
+                            requireQueryMatch: true
+                        )
                         let stream = self.provider.chatStreaming(messages: historyDTOs, userContext: userContext)
 
                         var fullText = ""
                         for try await chunk in stream {
                             if Task.isCancelled { break }
                             fullText += chunk
-                            self.streamingText = fullText
+                            self.streamingText = HoloMemoryUsageMarker.visibleTextWhileStreaming(fullText)
                         }
 
+                        let resolvedText = self.consumeMemoryUsageMarker(
+                            from: fullText,
+                            availableMemoryIDs: memorySummary.sourceIDs,
+                            channel: .chat
+                        )
+                        self.streamingText = resolvedText
                         // 原子化写入：结束流式 + 元数据，单次 save + 单次 snapshot
                         self.chatRepo?.finalizeMessage(
                             aiMessageId,
-                            finalContent: fullText,
+                            finalContent: resolvedText,
                             intent: processResult.firstIntent?.rawValue,
                             extractedDataJSON: Self.encodeExtractedData(processResult.firstExtractedData),
                             parsedBatchJSON: Self.encodeParseBatch(processResult.parsedBatch),
@@ -1112,6 +1139,34 @@ final class ChatViewModel: ObservableObject {
                 .error("编码 analysisContext 失败：\(error.localizedDescription)")
             return nil
         }
+    }
+
+    private func consumeMemoryUsageMarker(
+        from text: String,
+        availableMemoryIDs: [String],
+        channel: HoloMemoryReceiptChannel
+    ) -> String {
+        let result = HoloMemoryUsageMarker.parseAndStrip(
+            text,
+            allowedMemoryIDs: Set(availableMemoryIDs)
+        )
+        if !result.usedMemoryIDs.isEmpty {
+            let notice = "Holo 参考了 \(result.usedMemoryIDs.count) 条已记住的信息"
+            HoloMemoryReceiptStore.record(
+                kind: .use,
+                channel: channel,
+                memoryIDs: result.usedMemoryIDs,
+                message: notice
+            )
+            memoryNotice = notice
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(3))
+                if self?.memoryNotice == notice {
+                    self?.memoryNotice = nil
+                }
+            }
+        }
+        return result.cleanText
     }
 
     private func retryConfigurationLoadIfNeeded() async {

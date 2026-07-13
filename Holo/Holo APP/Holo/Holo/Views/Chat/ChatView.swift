@@ -69,6 +69,20 @@ struct ChatView: View {
         .swipeBackToDismiss {
             dismiss()
         }
+        .overlay(alignment: .top) {
+            if let notice = viewModel.memoryNotice {
+                Label(notice, systemImage: "brain.head.profile.fill")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.holoTextPrimary)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 9)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .overlay(Capsule().stroke(Color.holoPrimary.opacity(0.2)))
+                    .padding(.top, 58)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: viewModel.memoryNotice)
         .sheet(item: $activeSheet, onDismiss: handleSheetDismiss) { sheet in
             sheetContent(sheet)
         }

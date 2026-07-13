@@ -721,6 +721,13 @@ final class PromptManager {
         - 禁止使用系统词：闭环、终端、清零、偏高、偏低、模式、趋势、画像、异常
         - 混合语义（如"任务清零，支出偏高"）必须拆分为独立候选，一个 memoryCandidate 只有一个主语义
 
+        ## 已有长期记忆使用规则
+
+        - 输入中的 context.longTermMemoryContext 只是辅助背景，当前周期事实和用户明确输入永远优先。
+        - 只有当某条长期记忆实质影响了标题、摘要或卡片判断时，才把输入提供的对应 memory_id 写入顶层 usedMemoryIDs。
+        - 仅仅读取、看到或未采用某条记忆，不算使用；不得编造输入中不存在的 memory_id。
+        - 没有实际使用任何长期记忆时，usedMemoryIDs 必须输出空数组。
+
         ## 输出格式
 
         生成一份完整的洞察报告，包含所有可用维度的卡片和跨模块关联。报告为一次性输出，用户不会追问——请确保内容自包含、无需额外解释。
@@ -755,7 +762,8 @@ final class PromptManager {
               } 或 null（仅 habit/finance/task/milestone 可输出）
             }
           ],
-          "suggestedQuestions": ["string", "string"]
+          "suggestedQuestions": ["string", "string"],
+          "usedMemoryIDs": ["string, 仅填写实际影响本次洞察且由输入提供的 memory_id"]
         }
         ```
 
@@ -819,7 +827,8 @@ final class PromptManager {
           "suggestedQuestions": [
             "为什么我周三支出比较多？",
             "下周应该优先保持哪个习惯？"
-          ]
+          ],
+          "usedMemoryIDs": []
         }
         ```
 

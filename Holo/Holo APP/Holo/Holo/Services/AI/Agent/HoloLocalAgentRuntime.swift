@@ -71,13 +71,35 @@ actor HoloLocalAgentRuntime {
             checkpointID: nil, resultID: nil, errorSummary: nil, deviceID: nil
         )
         job.sourceMessageID = sourceMessageID
+        let memorySummary = HoloMemorySummaryProvider.selectRelevantSummary(
+            purpose: .longTermPatterns,
+            queryText: question,
+            requireQueryMatch: true
+        )
+        let memoryEvidence = Self.memoryEvidenceRecords(
+            from: memorySummary,
+            jobID: job.id,
+            now: now
+        )
+        var conversation: [HoloAgentMessage] = []
+        if !memoryEvidence.isEmpty {
+            conversation.append(Self.memoryContextMessage(
+                summary: memorySummary,
+                evidence: memoryEvidence,
+                now: now
+            ))
+        }
+        conversation.append(Self.mockUserMessage(question, now))
         let checkpoint = Self.makeCheckpoint(
             jobID: job.id, step: .plan, completedSteps: [],
-            conversation: [Self.mockUserMessage(question, now)], now: now,
+            conversation: conversation,
+            evidenceRecordIDs: memoryEvidence.map(\.id),
+            memoryCandidateIDs: memorySummary.sourceIDs,
+            now: now,
             inputSnapshotHash: Self.computeInputSnapshotHash(for: job)
         )
         job.checkpointID = checkpoint.id
-        try await persistence.saveProgress(job: job, evidence: [], checkpoint: checkpoint)
+        try await persistence.saveProgress(job: job, evidence: memoryEvidence, checkpoint: checkpoint)
         return job
     }
 
@@ -414,14 +436,16 @@ actor HoloLocalAgentRuntime {
     private static func makeCheckpoint(
         jobID: String, step: HoloAgentStep, completedSteps: [HoloAgentStep],
         conversation: [HoloAgentMessage], patternSignals: [HoloPatternSignal] = [],
+        evidenceRecordIDs: [String] = [],
+        memoryCandidateIDs: [String] = [],
         now: Date,
         inputSnapshotHash: String? = nil
     ) -> HoloAgentCheckpoint {
         HoloAgentCheckpoint(
             id: UUID().uuidString, jobID: jobID, step: step, completedSteps: completedSteps,
             conversationState: conversation, pendingToolRequests: [], completedToolResults: [],
-            patternSignals: patternSignals, evidenceRecordIDs: [], validatedClaimIDs: [],
-            memoryCandidateIDs: [], retryCountByStep: [:],
+            patternSignals: patternSignals, evidenceRecordIDs: evidenceRecordIDs, validatedClaimIDs: [],
+            memoryCandidateIDs: memoryCandidateIDs, retryCountByStep: [:],
             createdAt: now, updatedAt: now,
             schemaVersion: inputSnapshotHash == nil ? nil : 1,
             inputSnapshotHash: inputSnapshotHash
@@ -551,6 +575,79 @@ actor HoloLocalAgentRuntime {
                          timestamp: now, tokenEstimate: nil)
     }
 
+    private static func memoryContextMessage(
+        summary: HoloMemoryPromptSummary,
+        evidence: [HoloEvidenceRecord],
+        now: Date
+    ) -> HoloAgentMessage {
+        let evidenceByMemoryID = Dictionary(
+            uniqueKeysWithValues: evidence.compactMap { record in
+                record.referencedByMemoryIDs.first.map { ($0, record.id) }
+            }
+        )
+        let lines = summary.entries.compactMap { entry -> String? in
+            guard let evidenceID = evidenceByMemoryID[entry.id] else { return nil }
+            return "- [evidence_id=\(evidenceID)] [memory_id=\(entry.id)] \(entry.title)：\(entry.aiUseSummary)"
+        }
+        let content = """
+        长期记忆背景（确定性预取；当前问题与工具数据优先）：
+        \(lines.joined(separator: "\n"))
+        如果结论实际使用某条记忆，metricAssertion.metricKey 使用 memory.context，并引用对应 evidence_id；不得把记忆当作当前事实。
+        """
+        return HoloAgentMessage(
+            role: .system,
+            content: content,
+            toolRequestID: nil,
+            toolName: nil,
+            timestamp: now,
+            tokenEstimate: nil
+        )
+    }
+
+    private static func memoryEvidenceRecords(
+        from summary: HoloMemoryPromptSummary,
+        jobID: String,
+        now: Date
+    ) -> [HoloEvidenceRecord] {
+        let memoriesByID = Dictionary(
+            uniqueKeysWithValues: HoloLongTermMemoryStore.queryConfirmed().map { ($0.id, $0) }
+        )
+        return summary.entries.compactMap { entry in
+            guard let memory = memoriesByID[entry.id] else { return nil }
+            let evidenceID = "memory-context-\(jobID)-\(entry.id)"
+            let sensitivity: HoloEvidenceSensitivity
+            switch memory.sensitivity {
+            case .normal: sensitivity = .normal
+            case .highImpact: sensitivity = .highImpact
+            case .sensitive: sensitivity = .sensitive
+            }
+            return HoloEvidenceRecord(
+                id: evidenceID,
+                dedupeKey: "\(jobID):memory:\(entry.id)",
+                sourceModule: .memory,
+                sourceID: entry.id,
+                sourceKind: "long_term_memory",
+                timeRange: nil,
+                occurredAt: memory.updatedAt,
+                metricKey: "memory.context",
+                metricValue: nil,
+                unit: nil,
+                baselineValue: nil,
+                comparison: nil,
+                excerpt: memory.displaySummary,
+                redactedExcerpt: entry.aiUseSummary,
+                sensitivity: sensitivity,
+                confidence: memory.confidence == .high ? 0.9 : 0.7,
+                status: .active,
+                generatedBy: "holo_memory_prefetch",
+                generatedAt: now,
+                referencedByJobIDs: [jobID],
+                referencedByMemoryIDs: [entry.id],
+                deviceID: nil
+            )
+        }
+    }
+
     private static func assistantMessage(for output: HoloAgentOutput, now: Date) -> HoloAgentMessage {
         HoloAgentMessage(role: .assistant, content: output.reasoning, toolRequestID: nil, toolName: nil,
                          timestamp: now, tokenEstimate: nil)
@@ -656,6 +753,11 @@ actor HoloLocalAgentRuntime {
         }
         acceptedClaims = Self.deduplicatedClaims(acceptedClaims)
         let resultEvidenceIDs = Array(Set(acceptedClaims.flatMap(\.evidenceIDs)))
+        let usedMemoryIDs = Array(Set(
+            evidence
+                .filter { resultEvidenceIDs.contains($0.id) }
+                .flatMap(\.referencedByMemoryIDs)
+        ))
         let coveredMetricKeys = Set(acceptedClaims.flatMap { $0.metricAssertions.map(\.metricKey) })
         let resultCoverage = checkpoint.completedToolResults.first { toolResult in
             toolResult.coverage != nil && toolResult.metrics.contains { coveredMetricKeys.contains($0.metricKey) }
@@ -669,7 +771,7 @@ actor HoloLocalAgentRuntime {
                 : acceptedClaims.map(\.displayText).joined(separator: "；"),
             claims: acceptedClaims,
             evidenceIDs: resultEvidenceIDs,
-            memoryCandidateIDs: [],
+            memoryCandidateIDs: usedMemoryIDs,
             status: "completed",
             generatedAt: now,
             updatedAt: now,

@@ -97,20 +97,16 @@ enum AIUserContextMessageBuilder {
                 }
             }
 
-            if let memorySummary = context.memorySummary, !memorySummary.entries.isEmpty {
-                message += "\n\n--- 记忆摘要 ---"
-
-                for entry in memorySummary.entries {
-                    let scopeTag = entry.useScopeLabels.isEmpty
-                        ? ""
-                        : "[\(entry.useScopeLabels.joined(separator: ","))] "
-                    message += "\n- \(scopeTag)\(entry.title)：\(entry.aiUseSummary)"
-                    if !entry.prohibitedInferences.isEmpty {
-                        message += "\n  避免推断：\(entry.prohibitedInferences.joined(separator: "；"))。"
-                    }
+            if HoloAIFeatureFlags.memorySummaryInjectionEnabled {
+                let memorySummary = HoloMemorySummaryProvider.selectRelevantSummary(
+                    purpose: nil,
+                    queryText: userText,
+                    requireQueryMatch: true
+                )
+                let envelope = HoloMemoryContextEnvelope.render(memorySummary)
+                if !envelope.isEmpty {
+                    message += "\n\n" + envelope
                 }
-
-                message += "\n规则：以上记忆只能辅助理解用户，不得覆盖用户当前明确指令。"
             }
         }
 

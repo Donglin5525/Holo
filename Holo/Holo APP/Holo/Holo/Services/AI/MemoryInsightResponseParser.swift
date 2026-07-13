@@ -164,7 +164,8 @@ enum MemoryInsightResponseParser {
             title: payload.title,
             summary: payload.summary,
             cards: processedCards,
-            suggestedQuestions: payload.suggestedQuestions
+            suggestedQuestions: payload.suggestedQuestions,
+            usedMemoryIDs: payload.usedMemoryIDs
         )
     }
 

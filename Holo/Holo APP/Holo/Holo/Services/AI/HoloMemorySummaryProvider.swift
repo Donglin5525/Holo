@@ -16,8 +16,13 @@ enum HoloMemorySummaryProvider {
     ///   - limit: 最大条数
     static func selectRelevantSummary(
         purpose: HoloAICapabilityID? = nil,
+        queryText: String? = nil,
+        requireQueryMatch: Bool = false,
         limit: Int = 5
     ) -> HoloMemoryPromptSummary {
+        if requireQueryMatch, HoloMemoryRelevanceRanker.isDeterministicMetricQuery(queryText) {
+            return HoloMemoryPromptSummary(sourceIDs: [], coverage: .empty, entries: [])
+        }
         let allowedScopes = allowedUseScopes(for: purpose)
 
         let allMemories = HoloLongTermMemoryStore.load()
@@ -31,6 +36,8 @@ enum HoloMemorySummaryProvider {
         let selected = selectByUseScopes(
             allMemories: allMemories,
             allowedScopes: allowedScopes,
+            queryText: queryText,
+            requireQueryMatch: requireQueryMatch,
             limit: limit
         )
         let sourceIDs = selected.map(\.id)
@@ -67,6 +74,8 @@ enum HoloMemorySummaryProvider {
     private static func selectByUseScopes(
         allMemories: [HoloLongTermMemory],
         allowedScopes: Set<HoloMemoryUseScope>,
+        queryText: String?,
+        requireQueryMatch: Bool,
         limit: Int
     ) -> [HoloLongTermMemory] {
         let filtered = allMemories.filter { mem in
@@ -77,24 +86,22 @@ enum HoloMemorySummaryProvider {
             }
             // 至少一个 scope 在允许集合中
             let effectiveScopes = Set(scopes.filter { $0 != .displayOnly })
-            return !effectiveScopes.isEmpty
+            let scopeMatches = !effectiveScopes.isEmpty
                 ? !effectiveScopes.intersection(allowedScopes).isEmpty
                 : false
+            guard scopeMatches else { return false }
+            if mem.sensitivity != .normal {
+                return HoloMemoryRelevanceRanker.hasQueryMatch(mem, queryText: queryText)
+            }
+            return true
         }
 
-        // 排序：高置信 > 近期更新 > 非敏感 > 证据多
-        return Array(filtered.sorted { mem1, mem2 in
-            if confidenceOrder(mem1.confidence) != confidenceOrder(mem2.confidence) {
-                return confidenceOrder(mem1.confidence) < confidenceOrder(mem2.confidence)
-            }
-            if mem1.updatedAt != mem2.updatedAt {
-                return mem1.updatedAt > mem2.updatedAt
-            }
-            if sensitivityOrder(mem1.sensitivity) != sensitivityOrder(mem2.sensitivity) {
-                return sensitivityOrder(mem1.sensitivity) < sensitivityOrder(mem2.sensitivity)
-            }
-            return mem1.evidence.count > mem2.evidence.count
-        }.prefix(limit))
+        return HoloMemoryRelevanceRanker.rank(
+            filtered,
+            queryText: queryText,
+            limit: limit,
+            requireQueryMatch: requireQueryMatch
+        )
     }
 
     // MARK: - Entry 构建
@@ -109,21 +116,4 @@ enum HoloMemorySummaryProvider {
         )
     }
 
-    // MARK: - 排序辅助
-
-    private static func confidenceOrder(_ c: HoloMemoryConfidence) -> Int {
-        switch c {
-        case .high: return 0
-        case .medium: return 1
-        case .low: return 2
-        }
-    }
-
-    private static func sensitivityOrder(_ s: HoloMemorySensitivity) -> Int {
-        switch s {
-        case .normal: return 0
-        case .highImpact: return 1
-        case .sensitive: return 2
-        }
-    }
 }

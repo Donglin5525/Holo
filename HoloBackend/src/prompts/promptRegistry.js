@@ -7,7 +7,7 @@ import * as Diff from "diff";
 const PROMPT_VERSIONS = {
   system_prompt: 2,
   intent_recognition: 23,
-  memory_insight_generation: 6,
+  memory_insight_generation: 7,
   analysis_prompt: 3,
   annual_review: 1,
   thought_voice_summary: 2,
@@ -19,6 +19,7 @@ const PROMPT_VERSIONS = {
 };
 const PROMPT_CONTRACT_APPENDICES = {
   agent_loop: defaultPrompts._agent_loop_v10_contract,
+  memory_insight_generation: defaultPrompts._memory_semantic_v2_contract,
   intent_recognition: `
 
 [HOLO_QUERY_AGGREGATE_V23]
@@ -40,10 +41,21 @@ let _db = null;
 
 function applyPromptContract(type, content) {
   if (!content) return content;
+  let normalizedContent = content;
+  if (type === "memory_insight_generation") {
+    normalizedContent = normalizedContent
+      .replaceAll("memoryCandidate 包含 3 个字段：", "memoryCandidate 包含 4 个字段：")
+      .replace(
+        /(\"memoryCandidate\"\s*:\s*\{\s*)(\"semanticType\")/g,
+        '$1"subjectKey": "string, 跨周期稳定主题键，如 habit:running",\n        $2'
+      );
+  }
   const appendix = PROMPT_CONTRACT_APPENDICES[type];
-  if (!appendix) return content;
+  if (!appendix) return normalizedContent;
   const marker = appendix.match(/\[([A-Z0-9_]+)\]/)?.[0];
-  return marker && content.includes(marker) ? content : `${content}${appendix}`;
+  return marker && normalizedContent.includes(marker)
+    ? normalizedContent
+    : `${normalizedContent}${appendix}`;
 }
 
 /** 注入 SQLite 数据库连接（由 app.js 调用） */

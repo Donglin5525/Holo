@@ -166,6 +166,14 @@ final class HoloAgentAnalysisService {
         guard let result = await runtime.loadResult(jobID: finalJob.id) else {
             return fail("[结果未保存] loadResult nil job=\(finalJob.id)")
         }
+        if !result.memoryCandidateIDs.isEmpty {
+            HoloMemoryReceiptStore.record(
+                kind: .use,
+                channel: .agent,
+                memoryIDs: result.memoryCandidateIDs,
+                message: "这次深度分析参考了 \(result.memoryCandidateIDs.count) 条长期记忆"
+            )
+        }
         logger.info("[Agent] result claims=\(result.claims.count)")
         let evidence = await runtime.loadEvidence(forIDs: result.evidenceIDs)
         return HoloAgentResultRenderer().render(

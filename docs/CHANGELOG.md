@@ -5,6 +5,7 @@
 ## [Unreleased]
 
 ### Features
+- **iOS/Backend**: HoloAI 长期记忆统一为严格语义格式，移除旧格式与待确认旧入口；对话、深度分析、洞察和 Agent 按相关性使用记忆，并新增来源、写入与真实使用回执
 - **iOS/Backend**: HoloAI Sense Loop 公测人格化闭环：复用 HoloProfile、长期记忆语义类型、Daily Sense、洞察反馈与偏好画像，补齐“理解 -> 表达 -> 反馈 -> 更理解”的上下文贯穿
 - **iOS**: 洞察反馈新增“没感觉”和“少提醒这个”，将用户反馈转成 pattern 降权、fewerSuggestions 语气偏好和低价值主题沉淀
 - **iOS**: Daily Sense v3 新增状态标签（信号偏紧 / 出现新阶段），主状态仍保持 stable / atRisk / recovering，避免单一财务波动冒充生活判断

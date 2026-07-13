@@ -661,3 +661,22 @@ test("agent_loop prompt 存在并包含 Agent Loop 核心约束", async () => {
   assert.match(prompt.content, /问步数不能混入睡眠/);
   assert.match(prompt.content, /不要重复同一句结论/);
 });
+
+test("memory insight prompt 强制输出稳定主题键和四字段候选", async () => {
+  const app = createTestApp();
+
+  const response = await app.request("/v1/prompts/memory_insight_generation");
+  assert.equal(response.status, 200);
+  const prompt = await response.json();
+
+  assert.equal(prompt.version, 7);
+  assert.match(prompt.content, /HOLO_MEMORY_SEMANTIC_V2/);
+  assert.match(prompt.content, /subjectKey/);
+  assert.match(prompt.content, /跨日报、周报、月报稳定不变/);
+  assert.match(prompt.content, /context\.longTermMemoryContext/);
+  assert.match(prompt.content, /缺一则整条候选无效/);
+  assert.doesNotMatch(prompt.content, /memoryCandidate 包含 3 个字段/);
+  assert.match(prompt.content, /"subjectKey": "string, 跨周期稳定主题键/);
+  assert.match(prompt.content, /顶层必须输出 usedMemoryIDs 数组/);
+  assert.match(prompt.content, /仅看到但未使用时输出 \[\]/);
+});

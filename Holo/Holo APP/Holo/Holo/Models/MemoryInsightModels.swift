@@ -203,6 +203,7 @@ nonisolated struct MemoryInsightPayload: Codable, Equatable {
     let summary: String
     let cards: [MemoryInsightCard]
     let suggestedQuestions: [String]
+    var usedMemoryIDs: [String]? = nil
 }
 
 // MARK: - Generation State
@@ -274,6 +275,8 @@ struct MemoryInsightContext: Codable, Equatable {
     let insightPreferenceContext: String?
     let expressionDecisionContext: String?
     let lifePatternContext: String?
+    let longTermMemoryContext: String?
+    let longTermMemoryIDs: [String]
     /// 健康洞察上下文（Phase 5 新增，可选）
     let health: HealthInsightContext?
 
@@ -299,6 +302,8 @@ struct MemoryInsightContext: Codable, Equatable {
         insightPreferenceContext: String? = nil,
         expressionDecisionContext: String? = nil,
         lifePatternContext: String? = nil,
+        longTermMemoryContext: String? = nil,
+        longTermMemoryIDs: [String] = [],
         health: HealthInsightContext? = nil
     ) {
         self.periodType = periodType
@@ -322,6 +327,8 @@ struct MemoryInsightContext: Codable, Equatable {
         self.insightPreferenceContext = insightPreferenceContext
         self.expressionDecisionContext = expressionDecisionContext
         self.lifePatternContext = lifePatternContext
+        self.longTermMemoryContext = longTermMemoryContext
+        self.longTermMemoryIDs = longTermMemoryIDs
         self.health = health
     }
 }

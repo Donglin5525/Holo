@@ -12,6 +12,7 @@ struct HoloMemoryCenterView: View {
     @State private var episodicMemories: [HoloEpisodicMemory] = []
     @State private var confirmedMemories: [HoloLongTermMemory] = []
     @State private var candidates: [HoloLongTermMemory] = []
+    @State private var receipts: [HoloMemoryReceipt] = []
     @State private var selectedMemory: HoloLongTermMemory?
     @State private var selectedEpisodic: HoloEpisodicMemory?
     @Environment(\.dismiss) private var dismiss
@@ -63,6 +64,20 @@ struct HoloMemoryCenterView: View {
                         Image(systemName: "sparkle")
                             .font(.system(size: 12))
                         Text("待确认（\(candidates.count)）")
+                    }
+                }
+            }
+
+            if !receipts.isEmpty {
+                Section {
+                    ForEach(receipts.prefix(8)) { receipt in
+                        memoryReceiptRow(receipt)
+                    }
+                } header: {
+                    HStack {
+                        Image(systemName: "checkmark.message")
+                            .font(.system(size: 12))
+                        Text("记忆动态")
                     }
                 }
             }
@@ -238,6 +253,17 @@ struct HoloMemoryCenterView: View {
                     }
                 }
 
+                let memoryReceipts = HoloMemoryReceiptStore.receipts(for: memory.id)
+                if !memoryReceipts.isEmpty {
+                    Section {
+                        ForEach(memoryReceipts.prefix(10)) { receipt in
+                            memoryReceiptRow(receipt)
+                        }
+                    } header: {
+                        Text("写入与使用记录")
+                    }
+                }
+
                 Section {
                     Button(role: .destructive) {
                         deleteMemory(memory)
@@ -265,6 +291,7 @@ struct HoloMemoryCenterView: View {
         episodicMemories = HoloEpisodicMemoryStore.shared.querySuggested()
         candidates = HoloLongTermMemoryStore.queryCandidates()
         confirmedMemories = HoloLongTermMemoryStore.queryConfirmed()
+        receipts = HoloMemoryReceiptStore.load()
     }
 
     private func confirmCandidate(_ candidate: HoloLongTermMemory) {
@@ -351,5 +378,38 @@ struct HoloMemoryCenterView: View {
         case .lifeEvent: return "人生节点"
         case .statMilestone: return "轻量记录"
         }
+    }
+
+    private func memoryReceiptRow(_ receipt: HoloMemoryReceipt) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: receipt.kind == .write ? "brain.head.profile.fill" : "quote.bubble.fill")
+                .foregroundColor(receipt.kind == .write ? .holoPrimary : .blue)
+                .frame(width: 22)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(receipt.message)
+                    .font(.system(size: 13))
+                    .foregroundColor(.holoTextPrimary)
+                Text("\(receiptChannelLabel(receipt.channel)) · \(receiptDateLabel(receipt.createdAt))")
+                    .font(.system(size: 11))
+                    .foregroundColor(.holoTextSecondary)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func receiptChannelLabel(_ channel: HoloMemoryReceiptChannel) -> String {
+        switch channel {
+        case .insight: return "洞察"
+        case .chat: return "对话"
+        case .analysis: return "深度分析"
+        case .agent: return "Agent"
+        }
+    }
+
+    private func receiptDateLabel(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日 HH:mm"
+        return formatter.string(from: date)
     }
 }
