@@ -30,7 +30,7 @@ function runScript(env) {
   });
 }
 
-test("release verification script can skip intent calls for no-token checks", async () => {
+test("release verification script uses admin auth and can skip intent calls", async () => {
   const reportDir = await mkdtemp(join(tmpdir(), "holo-release-test-"));
   const binDir = join(reportDir, "bin");
   const reportPath = join(reportDir, "report.md");
@@ -63,14 +63,11 @@ case "$url" in
   */v1/health)
     body='{"ok":true,"service":"holo-ai-gateway"}'
     ;;
-  */v1/prompts/meta)
-    body='{"prompts":[{"type":"intent_recognition","version":21,"source":"default","updatedAt":null}]}'
-    ;;
   */v1/release/status)
-    body='{"ok":true,"service":"holo-ai-gateway","prompts":[{"type":"intent_recognition","version":21}],"routes":{"intent":{"provider":"mock","model":"holo-mock","maxTokens":4096}},"database":{"configured":true}}'
+    body='{"ok":true,"service":"holo-ai-gateway","release":{"commit":"abc"}}'
     ;;
-  */v1/prompts/intent_recognition)
-    body='{"type":"intent_recognition","version":21,"source":"default","updatedAt":null,"content":"transactionDate reminderDate query_analysis"}'
+  */v1/admin/release/status)
+    body='{"ok":true,"service":"holo-ai-gateway","prompts":[{"type":"intent_recognition","version":21,"content":"transactionDate reminderDate query_analysis"}],"routes":{"intent":{"provider":"mock","model":"holo-mock","maxTokens":4096}},"database":{"configured":true}}'
     ;;
   */v1/ai/chat/completions)
     body='{"choices":[{"message":{"content":"{\\"items\\":[{\\"intent\\":\\"unexpected\\",\\"extractedData\\":{}}]}"}}]}'
@@ -94,6 +91,7 @@ fi
     REPORT_PATH: reportPath,
     EXPECT_PROMPT_VERSION: "21",
     SKIP_INTENT_CASES: "1",
+    HOLO_ADMIN_TOKEN: "test-admin-token",
     PATH: `${binDir}:${process.env.PATH}`,
   });
 
@@ -106,7 +104,18 @@ fi
   );
 
   const report = await readFile(reportPath, "utf8");
-  assert.match(report, /Release status/);
+  assert.match(report, /Authenticated release evidence/);
   assert.match(report, /Intent cases skipped/);
-  assert.match(report, /no-token metadata\/prompt check/);
+  assert.doesNotMatch(report, /test-admin-token/);
+});
+
+test("release verification script fails closed without admin token", async () => {
+  const reportDir = await mkdtemp(join(tmpdir(), "holo-release-no-token-"));
+  const result = await runScript({
+    BASE_URL: "https://api.example.test",
+    REPORT_PATH: join(reportDir, "report.md"),
+    HOLO_ADMIN_TOKEN: "",
+  });
+  assert.equal(result.code, 2);
+  assert.match(result.stderr, /HOLO_ADMIN_TOKEN is required/);
 });

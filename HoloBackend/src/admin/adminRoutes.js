@@ -19,7 +19,7 @@ function htmlHeaders() {
   };
 }
 
-export function registerAdminRoutes(app, { config, logStore, runTestChat }) {
+export function registerAdminRoutes(app, { config, logStore, runTestChat, getReleaseStatus }) {
   app.get("/admin/login", (context) => {
     if (!isPasswordLoginEnabled(config)) {
       return adminJson(
@@ -277,6 +277,14 @@ export function registerAdminRoutes(app, { config, logStore, runTestChat }) {
     return adminJson(context, {
       logs: logStore.list(),
     });
+  });
+
+  app.get("/v1/admin/release/status", (context) => {
+    const auth = assertAdminAuthorized(context, config);
+    if (!auth.ok) {
+      return adminJson(context, auth.body, auth.status);
+    }
+    return adminJson(context, getReleaseStatus());
   });
 
   app.get("/v1/admin/logs/:id", (context) => {

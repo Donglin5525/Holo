@@ -38,7 +38,7 @@ function createTestApp(overrides = {}) {
   });
 }
 
-test("GET /v1/release/status returns safe runtime summary", async () => {
+test("GET /v1/release/status returns only public release identity", async () => {
   const app = createTestApp();
 
   const response = await app.request("/v1/release/status");
@@ -47,16 +47,36 @@ test("GET /v1/release/status returns safe runtime summary", async () => {
   const json = await response.json();
   assert.equal(json.ok, true);
   assert.equal(json.service, "holo-ai-gateway");
+  assert.deepEqual(Object.keys(json).sort(), ["ok", "release", "service"]);
+  assert.equal(json.prompts, undefined);
+  assert.equal(json.routes, undefined);
+  assert.equal(json.database, undefined);
+
+  const serialized = JSON.stringify(json);
+  assert.equal(serialized.includes("secret-api-key"), false);
+  assert.equal(serialized.includes("secret-admin-token"), false);
+  assert.equal(serialized.includes("secret-password"), false);
+  assert.equal(serialized.includes("secret-session"), false);
+  assert.equal(serialized.includes("/data/holo-backend.db"), false);
+});
+
+test("GET /v1/admin/release/status requires admin auth and returns deployment evidence", async () => {
+  const app = createTestApp();
+  const denied = await app.request("/v1/admin/release/status");
+  assert.equal(denied.status, 401);
+
+  const response = await app.request("/v1/admin/release/status", {
+    headers: { "x-holo-admin-token": "secret-admin-token" },
+  });
+  assert.equal(response.status, 200);
+  const json = await response.json();
   assert.ok(json.generatedAt);
-  assert.ok(Array.isArray(json.prompts));
-  assert.ok(json.prompts.some((prompt) => prompt.type === "intent_recognition"));
+  assert.ok(json.prompts.some((prompt) => prompt.type === "intent_recognition" && prompt.content));
   assert.equal(json.routes.intent.provider, "deepseek");
   assert.equal(json.routes.intent.model, "deepseek-chat");
+  assert.equal(json.routes.intent.temperature, 0);
   assert.equal(json.routes.intent.maxTokens, 4096);
-  assert.equal(json.routes.flexible_query_planner.maxTokens, 4096);
-  assert.equal(json.routes.flexible_query_planner.temperature, 0);
   assert.equal(json.database.configured, true);
-  assert.equal(json.database.path, undefined);
 
   const serialized = JSON.stringify(json);
   assert.equal(serialized.includes("secret-api-key"), false);

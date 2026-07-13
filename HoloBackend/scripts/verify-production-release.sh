@@ -6,6 +6,7 @@ PROMPT_TYPE="${PROMPT_TYPE:-intent_recognition}"
 EXPECT_PROMPT_VERSION="${EXPECT_PROMPT_VERSION:-}"
 EXPECT_PROMPT_CONTAINS="${EXPECT_PROMPT_CONTAINS:-transactionDate,reminderDate,query_analysis}"
 SKIP_INTENT_CASES="${SKIP_INTENT_CASES:-0}"
+ADMIN_TOKEN="${HOLO_ADMIN_TOKEN:-}"
 REPORT_PATH="${REPORT_PATH:-${TMPDIR:-/tmp}/holo-release-verification-$(date +%Y%m%d-%H%M%S).md}"
 DEVICE_PREFIX="release-verify-$(date +%s)"
 
@@ -72,51 +73,36 @@ console.log(JSON.stringify(health, null, 2));
 NODE
 }
 
-check_prompt_metadata() {
-  local output="$TMP_DIR/prompts-meta.json"
-  curl_json "$BASE_URL/v1/prompts/meta" "$output"
-  node - "$output" "$PROMPT_TYPE" "$EXPECT_PROMPT_VERSION" <<'NODE'
-const fs = require("node:fs");
-const [, , path, type, expectedVersion] = process.argv;
-const meta = JSON.parse(fs.readFileSync(path, "utf8"));
-const prompt = (meta.prompts || []).find((item) => item.type === type);
-if (!prompt) throw new Error(`prompt metadata not found: ${type}`);
-if (expectedVersion && String(prompt.version) !== String(expectedVersion)) {
-  throw new Error(`expected ${type} v${expectedVersion}, got v${prompt.version}`);
-}
-console.log(JSON.stringify(prompt, null, 2));
-NODE
-}
-
 check_release_status() {
   local output="$TMP_DIR/release-status.json"
   curl_json "$BASE_URL/v1/release/status" "$output"
   node - "$output" "$PROMPT_TYPE" <<'NODE'
 const fs = require("node:fs");
-const [, , path, promptType] = process.argv;
+const [, , path] = process.argv;
 const status = JSON.parse(fs.readFileSync(path, "utf8"));
 if (status.ok !== true || status.service !== "holo-ai-gateway") {
   throw new Error(`unexpected release status payload: ${JSON.stringify(status).slice(0, 500)}`);
 }
-const prompt = (status.prompts || []).find((item) => item.type === promptType);
-if (!prompt) throw new Error(`release status missing prompt summary: ${promptType}`);
-console.log(JSON.stringify({
-  service: status.service,
-  release: status.release,
-  prompt,
-  intentRoute: status.routes?.intent,
-  database: status.database,
-}, null, 2));
+for (const field of ["prompts", "routes", "database"]) {
+  if (Object.prototype.hasOwnProperty.call(status, field)) throw new Error(`public release status exposes ${field}`);
+}
+console.log(JSON.stringify(status, null, 2));
 NODE
 }
 
-check_prompt_content() {
-  local output="$TMP_DIR/prompt.json"
-  curl_json "$BASE_URL/v1/prompts/$PROMPT_TYPE" "$output"
-  node - "$output" "$EXPECT_PROMPT_CONTAINS" <<'NODE'
+check_admin_release_status() {
+  local output="$TMP_DIR/admin-release-status.json"
+  curl -fsS -H "x-holo-admin-token: $ADMIN_TOKEN" "$BASE_URL/v1/admin/release/status" -o "$output"
+  node -e 'JSON.parse(require("node:fs").readFileSync(process.argv[1], "utf8"));' "$output"
+  node - "$output" "$PROMPT_TYPE" "$EXPECT_PROMPT_VERSION" "$EXPECT_PROMPT_CONTAINS" <<'NODE'
 const fs = require("node:fs");
-const [, , path, expectedList] = process.argv;
-const prompt = JSON.parse(fs.readFileSync(path, "utf8"));
+const [, , path, promptType, expectedVersion, expectedList] = process.argv;
+const status = JSON.parse(fs.readFileSync(path, "utf8"));
+const prompt = (status.prompts || []).find((item) => item.type === promptType);
+if (!prompt) throw new Error(`admin release status missing prompt: ${promptType}`);
+if (expectedVersion && String(prompt.version) !== String(expectedVersion)) {
+  throw new Error(`expected ${promptType} v${expectedVersion}, got v${prompt.version}`);
+}
 if (!prompt.content || typeof prompt.content !== "string") {
   throw new Error("prompt content is missing");
 }
@@ -131,27 +117,24 @@ console.log(JSON.stringify({
   updatedAt: prompt.updatedAt,
   contentLength: prompt.content.length,
   expectedText: expectedList,
+  intentRoute: status.routes?.intent,
+  database: status.database,
 }, null, 2));
 NODE
 }
 
 make_intent_payload() {
   local user_input="$1"
-  local prompt_file="$TMP_DIR/prompt.json"
   local payload_file="$TMP_DIR/payload.json"
 
-  node - "$prompt_file" "$user_input" "$payload_file" <<'NODE'
+  node - "$user_input" "$payload_file" <<'NODE'
 const fs = require("node:fs");
-const [, , promptPath, userInput, payloadPath] = process.argv;
-const prompt = JSON.parse(fs.readFileSync(promptPath, "utf8"));
+const [, , userInput, payloadPath] = process.argv;
 const payload = {
   purpose: "intent",
   stream: false,
   response_format: { type: "json_object" },
-  messages: [
-    { role: "system", content: prompt.content },
-    { role: "user", content: userInput },
-  ],
+  messages: [{ role: "user", content: userInput }],
 };
 fs.writeFileSync(payloadPath, JSON.stringify(payload));
 NODE
@@ -205,6 +188,11 @@ NODE
 require_command curl
 require_command node
 
+if [[ -z "$ADMIN_TOKEN" ]]; then
+  echo "HOLO_ADMIN_TOKEN is required for authenticated release verification" >&2
+  exit 2
+fi
+
 mkdir -p "$(dirname "$REPORT_PATH")"
 cat > "$REPORT_PATH" <<EOF
 # HoloBackend Release Verification
@@ -219,9 +207,8 @@ cat > "$REPORT_PATH" <<EOF
 EOF
 
 run_step "Public health" check_health
-run_step "Release status" check_release_status
-run_step "Prompt metadata" check_prompt_metadata
-run_step "Prompt content contract" check_prompt_content
+run_step "Public release status" check_release_status
+run_step "Authenticated release evidence" check_admin_release_status
 
 if [[ "$SKIP_INTENT_CASES" == "1" ]]; then
   append_report ""
@@ -229,7 +216,7 @@ if [[ "$SKIP_INTENT_CASES" == "1" ]]; then
   append_report ""
   append_report "Status: SKIPPED"
   append_report ""
-  append_report "Reason: SKIP_INTENT_CASES=1 requested a no-token metadata/prompt check."
+  append_report "Reason: SKIP_INTENT_CASES=1 requested metadata-only authenticated verification."
 else
   run_step "Intent case: expense date contract" check_intent_case "expense" "昨天午饭花了35" "record_expense" "transactionDate"
   run_step "Intent case: task reminder contract" check_intent_case "task-reminder" "明天早上提醒我买水" "create_task" "reminderDate"

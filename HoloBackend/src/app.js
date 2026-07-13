@@ -23,7 +23,7 @@ import { injectServerPrompt } from "./prompts/serverPromptPolicy.js";
 
 const CLIENT_ROUTING_FIELDS = ["baseURL", "baseUrl", "apiKey", "provider", "model"];
 
-function buildReleaseStatus(config) {
+function buildAdminReleaseStatus(config) {
   return {
     ok: true,
     service: "holo-ai-gateway",
@@ -32,11 +32,25 @@ function buildReleaseStatus(config) {
       commit: process.env.HOLO_RELEASE_COMMIT ?? null,
       buildTime: process.env.HOLO_RELEASE_BUILD_TIME ?? null,
     },
-    prompts: listPromptMetadata(),
+    prompts: listPromptMetadata().map((metadata) => ({
+      ...metadata,
+      content: getPrompt(metadata.type)?.content ?? "",
+    })),
     routes: sanitizeRoutes(config.routes),
     database: {
       configured: Boolean(config.dbPath),
       path: undefined,
+    },
+  };
+}
+
+function buildPublicReleaseStatus() {
+  return {
+    ok: true,
+    service: "holo-ai-gateway",
+    release: {
+      commit: process.env.HOLO_RELEASE_COMMIT ?? null,
+      buildTime: process.env.HOLO_RELEASE_BUILD_TIME ?? null,
     },
   };
 }
@@ -95,7 +109,13 @@ export function createApp(overrides = {}) {
     logStore: adminLogStore,
   });
 
-  registerAdminRoutes(app, { config, logStore: adminLogStore, runTestChat: runAdminTestChat, db: database.db });
+  registerAdminRoutes(app, {
+    config,
+    logStore: adminLogStore,
+    runTestChat: runAdminTestChat,
+    getReleaseStatus: () => buildAdminReleaseStatus(config),
+    db: database.db,
+  });
 
   app.get("/v1/health", (context) => {
     return context.json({
@@ -144,7 +164,7 @@ export function createApp(overrides = {}) {
   });
 
   app.get("/v1/release/status", (context) => {
-    return context.json(buildReleaseStatus(config));
+    return context.json(buildPublicReleaseStatus());
   });
 
   if (overrides.exposePromptEndpointsForTests === true) {
