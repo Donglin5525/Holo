@@ -1,6 +1,12 @@
 const DEFAULT_CONFIG = {
   auth: {
     enforceAppAttest: process.env.HOLO_ENFORCE_APP_ATTEST === "true",
+    appleClientIds: csv(process.env.HOLO_APPLE_CLIENT_IDS ?? "com.tangyuxuan.holo-app"),
+    internalDiagnosticsAppleSubs: csv(process.env.HOLO_INTERNAL_DIAGNOSTICS_APPLE_SUBS ?? ""),
+    sessionSecret: process.env.HOLO_SESSION_SECRET ?? "",
+    sessionTtlSeconds: Number(process.env.HOLO_SESSION_TTL_SECONDS ?? 3600),
+    sessionIssuer: process.env.HOLO_SESSION_ISSUER ?? "holo-ai-gateway",
+    sessionAudience: process.env.HOLO_SESSION_AUDIENCE ?? "holo-ios",
   },
   limits: {
     chatRequestsPerMinute: Number(process.env.HOLO_CHAT_REQUESTS_PER_MINUTE ?? 20),
@@ -143,6 +149,10 @@ const DEFAULT_CONFIG = {
     enabled: process.env.HOLO_AI_CALL_LOGS_ENABLED !== "false",
   },
 };
+
+function csv(value) {
+  return [...new Set(String(value).split(",").map((item) => item.trim()).filter(Boolean))];
+}
 
 export function loadConfig(overrides = {}) {
   return {
