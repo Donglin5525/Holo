@@ -9,6 +9,8 @@
 import SwiftUI
 
 struct MessageBubbleView: View {
+    @ObservedObject private var internalAccess = HoloInternalAccessService.shared
+    @ObservedObject private var internalLogs = HoloInternalLogService.shared
 
     let message: ChatMessageViewData
     let streamingText: String?
@@ -171,8 +173,10 @@ struct MessageBubbleView: View {
                     Label("删除记录", systemImage: "trash")
                 }
             }
-            // 查看日志（保持原有）
-            if !isUser, message.metadataState == .loaded, message.rawLog != nil {
+            // 完整日志仅对后端验证的内部账号开放，不属于 Plus 权益。
+            if !isUser,
+               internalAccess.canViewAILogs,
+               internalLogs.hasLog(for: message.id) {
                 Button {
                     onViewLog?(message)
                 } label: {

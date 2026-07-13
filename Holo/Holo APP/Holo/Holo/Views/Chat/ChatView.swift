@@ -13,7 +13,7 @@ struct ChatView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel = ChatViewModel()
     @State private var activeSheet: ChatSheet?
-    @State private var viewingLogMessage: ChatMessageViewData?
+    @State private var viewingLog: LLMLog?
     @State private var didInitialScrollToBottom = false
     @State private var pendingVoiceTranscriptToSend: String?
     @State private var pendingDelete: PendingCardDelete?
@@ -76,9 +76,12 @@ struct ChatView: View {
             viewModel.startGoalPlanning(seedText: request.seedText)
             goalPlanningRequest = nil
         }
-        .fullScreenCover(item: $viewingLogMessage) { message in
-            if let log = message.rawLog {
-                ChatLogView(log: log)
+        .fullScreenCover(isPresented: Binding(
+            get: { viewingLog != nil },
+            set: { if !$0 { viewingLog = nil } }
+        )) {
+            if let viewingLog {
+                ChatLogView(log: viewingLog)
             }
         }
         .fullScreenCover(item: $financeSearchRoute) { route in
@@ -342,7 +345,7 @@ struct ChatView: View {
                                 openFlexibleQueryResults(queryData)
                             },
                             onViewLog: { msg in
-                                viewingLogMessage = msg
+                                viewingLog = HoloInternalLogService.shared.log(for: msg.id)
                             },
                             onCompactAnalysisTap: {
                                 guard message.metadataState == .loaded,

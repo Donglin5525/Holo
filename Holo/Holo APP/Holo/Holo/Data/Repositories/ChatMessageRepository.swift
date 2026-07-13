@@ -470,7 +470,8 @@ final class ChatMessageRepository: ObservableObject {
         message.parsedBatchJSON = parsedBatchJSON
         message.executionBatchJSON = executionBatchJSON
         message.analysisContextJSON = analysisContextJSON
-        message.rawLogJSON = rawLogJSON
+        // 原始 LLM 日志不得进入 Core Data / CloudKit；内部日志使用独立本机仓库。
+        message.rawLogJSON = nil
         message.agentResultJSON = agentResultJSON
         save()
 
@@ -506,10 +507,6 @@ final class ChatMessageRepository: ObservableObject {
         }
 
         // 解码 LLM 日志
-        let decodedRawLog: LLMLog? = rawLogJSON.flatMap { json in
-            guard let data = json.data(using: .utf8) else { return nil }
-            return try? JSONDecoder().decode(LLMLog.self, from: data)
-        }
 
         // 解码 Agent 结果
         let decodedAgentResult: HoloRenderedAgentResult? = agentResultJSON.flatMap { json in
@@ -526,7 +523,7 @@ final class ChatMessageRepository: ObservableObject {
             snapshot.parsedBatch = decodedParsedBatch
             snapshot.executionBatch = decodedExecutionBatch
             snapshot.analysisContext = decodedAnalysisContext
-            snapshot.rawLog = decodedRawLog
+            snapshot.rawLog = nil
             snapshot.agentResult = decodedAgentResult
             // finalizeMessage 已收到并解析完整元数据，当前快照可立即渲染结构化卡片。
             snapshot.metadataState = .loaded

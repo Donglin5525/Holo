@@ -81,6 +81,8 @@ struct HoloApp: App {
                     }
                 }
                 .task {
+                    await SensitiveDebugDataMigration.runIfNeeded()
+
                     // 检查通知权限状态
                     TodoNotificationService.shared.checkAuthorizationStatus()
 

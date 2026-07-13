@@ -123,6 +123,7 @@ final class HoloInternalAccessService: ObservableObject {
     func clear() {
         try? store.delete()
         session = nil
+        HoloInternalLogService.shared.clear()
     }
 }
 

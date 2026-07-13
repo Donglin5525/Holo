@@ -59,13 +59,14 @@ final class HoloBackendAIProvider: AIProvider {
             messages: messages,
             responseFormat: .jsonObject
         )
-        let response: ChatCompletionResponse = try await apiClient.send(request)
+        let (response, requestId) = try await sendCompletion(request)
 
         guard let content = response.choices?.first?.message?.content else {
             throw APIError.serverError("AI 未返回有效内容")
         }
 
         lastCallLog = LLMCallLog(
+            requestId: requestId,
             type: "intent_recognition",
             model: "holo-backend",
             requestMessages: messages,
@@ -93,13 +94,14 @@ final class HoloBackendAIProvider: AIProvider {
             messages: messages,
             responseFormat: .jsonObject
         )
-        let response: ChatCompletionResponse = try await apiClient.send(request)
+        let (response, requestId) = try await sendCompletion(request)
 
         guard let content = response.choices?.first?.message?.content else {
             throw APIError.serverError("AI 未返回有效内容")
         }
 
         lastCallLog = LLMCallLog(
+            requestId: requestId,
             type: kind.promptType.rawValue,
             model: "holo-backend",
             requestMessages: messages,
@@ -117,7 +119,7 @@ final class HoloBackendAIProvider: AIProvider {
             .user(contextJSON)
         ]
         let request = buildRequest(purpose: .healthInsightGeneration, messages: messages, responseFormat: .jsonObject)
-        let response: ChatCompletionResponse = try await apiClient.send(request)
+        let (response, _) = try await sendCompletion(request)
 
         guard let content = response.choices?.first?.message?.content else {
             throw APIError.serverError("AI 未返回有效内容")
@@ -137,7 +139,7 @@ final class HoloBackendAIProvider: AIProvider {
             .user(contextJSON)
         ]
         let request = buildRequest(purpose: .insight, messages: messages, responseFormat: .jsonObject)
-        let response: ChatCompletionResponse = try await apiClient.send(request)
+        let (response, _) = try await sendCompletion(request)
 
         guard let content = response.choices?.first?.message?.content else {
             throw APIError.serverError("AI 未返回有效内容")
@@ -154,11 +156,19 @@ final class HoloBackendAIProvider: AIProvider {
         try ensureDataProcessingConsent()
         let allMessages = await buildChatMessages(messages: messages, userContext: userContext)
         let request = buildRequest(purpose: .chat, messages: allMessages)
-        let response: ChatCompletionResponse = try await apiClient.send(request)
+        let (response, requestId) = try await sendCompletion(request)
 
         guard let content = response.choices?.first?.message?.content else {
             throw APIError.serverError("AI 未返回有效内容")
         }
+
+        lastCallLog = LLMCallLog(
+            requestId: requestId,
+            type: "chat",
+            model: "holo-backend",
+            requestMessages: allMessages,
+            responseText: content
+        )
 
         return content
     }
@@ -170,7 +180,7 @@ final class HoloBackendAIProvider: AIProvider {
             messages: [.user(prompt)],
             responseFormat: .jsonObject
         )
-        let response: ChatCompletionResponse = try await apiClient.send(request)
+        let (response, _) = try await sendCompletion(request)
 
         guard let content = response.choices?.first?.message?.content, !content.isEmpty else {
             throw APIError.serverError("AI 未返回有效查询计划")
@@ -183,11 +193,20 @@ final class HoloBackendAIProvider: AIProvider {
         try ensureDataProcessingConsent()
         let responseFormat: ResponseFormat? = purpose == .agentLoop ? .jsonObject : nil
         let request = buildRequest(purpose: purpose, messages: messages, responseFormat: responseFormat)
-        let response: ChatCompletionResponse = try await apiClient.send(request)
+        let (response, requestId) = try await sendCompletion(request)
 
         guard let content = response.choices?.first?.message?.content else {
             throw APIError.serverError("AI 未返回有效内容")
         }
+
+
+        lastCallLog = LLMCallLog(
+            requestId: requestId,
+            type: purpose.rawValue,
+            model: "holo-backend",
+            requestMessages: messages,
+            responseText: content
+        )
 
         return content
     }
@@ -253,7 +272,12 @@ final class HoloBackendAIProvider: AIProvider {
                 )
 
                 do {
-                    for try await chunk in apiClient.sendStreaming(request) {
+                    for try await chunk in apiClient.sendStreaming(request, onResponse: { [weak self] response in
+                        let requestId = response.value(forHTTPHeaderField: "X-Holo-Request-Id")
+                        Task { @MainActor [weak self] in
+                            self?.lastCallLog?.requestId = requestId
+                        }
+                    }) {
                         continuation.yield(chunk)
                     }
                     continuation.finish()
@@ -265,6 +289,14 @@ final class HoloBackendAIProvider: AIProvider {
     }
 
     // MARK: - Request Building
+
+    private func sendCompletion(_ request: APIRequest) async throws -> (ChatCompletionResponse, String?) {
+        let result: APIClient.Response<ChatCompletionResponse> = try await apiClient.sendWithResponse(request)
+        return (
+            result.value,
+            result.httpResponse.value(forHTTPHeaderField: "X-Holo-Request-Id")
+        )
+    }
 
     private func ensureDataProcessingConsent() throws {
         guard HoloAIFeatureFlags.aiDataProcessingConsentGranted else {
