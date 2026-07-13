@@ -36,6 +36,10 @@ export function publicMessage(code) {
   const messages = {
     // 鉴权 & 安全
     APP_ATTEST_REQUIRED: "安全校验失败，请更新 App 或稍后重试",
+    AUTH_UNAVAILABLE: "内部诊断服务暂不可用",
+    INVALID_APPLE_IDENTITY: "Apple 身份验证失败，请重新登录",
+    INTERNAL_DIAGNOSTICS_FORBIDDEN: "你没有访问内部诊断的权限",
+    INTERNAL_LOG_NOT_FOUND: "该诊断记录已过期或不存在",
     UPSTREAM_AUTH_FAILED: "模型服务暂时不可用，请稍后重试",
 
     // 请求参数

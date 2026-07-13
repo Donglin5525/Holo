@@ -185,6 +185,8 @@ export function loadConfig(overrides = {}) {
       ...overrides.aiCallLogs,
     },
     asrProvider: overrides.asrProvider,
+    appleIdentityVerifier: overrides.appleIdentityVerifier,
+    holoSessionService: overrides.holoSessionService,
     adminLogStore: overrides.adminLogStore,
     usageStore: overrides.usageStore,
     database: overrides.database ?? null,

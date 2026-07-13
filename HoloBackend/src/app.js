@@ -16,6 +16,9 @@ import { createAdminLogStore, truncateText } from "./admin/adminLogStore.js";
 import { registerAdminRoutes } from "./admin/adminRoutes.js";
 import { createRequestLogger } from "./middleware/requestLogger.js";
 import { createDatabase } from "./db/database.js";
+import { createAppleIdentityVerifier } from "./auth/appleIdentityVerifier.js";
+import { createHoloSessionService } from "./auth/holoSession.js";
+import { requireInternalDiagnostics } from "./auth/internalDiagnosticsAuth.js";
 
 const CLIENT_ROUTING_FIELDS = ["baseURL", "baseUrl", "apiKey", "provider", "model"];
 
@@ -74,6 +77,10 @@ export function createApp(overrides = {}) {
   const providers = createProviders(config);
   const asrProvider = createAsrProvider(config);
   const captureAiCallLogs = config.aiCallLogs.enabled;
+  const appleIdentityVerifier = config.appleIdentityVerifier ?? createAppleIdentityVerifier({
+    clientIds: config.auth.appleClientIds,
+  });
+  const holoSessionService = config.holoSessionService ?? createConfiguredSessionService(config.auth);
 
   // 请求耗时日志中间件
   const requestLogger = createRequestLogger(database.db);
@@ -94,6 +101,45 @@ export function createApp(overrides = {}) {
       ok: true,
       service: "holo-ai-gateway",
     });
+  });
+
+  app.post("/v1/auth/apple/session", async (context) => {
+    try {
+      if (!holoSessionService) {
+        throw new GatewayError("AUTH_UNAVAILABLE", "Holo session secret is not configured", 503);
+      }
+      const request = await readJson(context);
+      let identity;
+      try {
+        identity = await appleIdentityVerifier.verify(request.identityToken);
+      } catch {
+        throw new GatewayError("INVALID_APPLE_IDENTITY", "Apple identity token is invalid", 401);
+      }
+      const token = await holoSessionService.issue(identity.sub);
+      const session = await holoSessionService.verify(token);
+      context.header("Cache-Control", "no-store");
+      return context.json({
+        token,
+        expiresAt: session.expiresAt,
+        internalDiagnostics: session.internalDiagnostics,
+      });
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
+  app.get("/v1/internal/ai-logs/:requestId", async (context) => {
+    try {
+      await requireInternalDiagnostics(context, holoSessionService);
+      const entry = adminLogStore.get(context.req.param("requestId"));
+      if (!entry) {
+        throw new GatewayError("INTERNAL_LOG_NOT_FOUND", "Internal log is not in the hot cache", 404);
+      }
+      context.header("Cache-Control", "no-store");
+      return context.json({ log: entry });
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
   });
 
   app.get("/v1/release/status", (context) => {
@@ -221,10 +267,15 @@ export function createApp(overrides = {}) {
           })
         : null;
 
+      if (logId) {
+        context.header("X-Holo-Request-Id", logId);
+      }
+
       if (upstreamRequest.stream) {
         return streamChat(context, provider, upstreamRequest, {
           logStore: logId ? adminLogStore : null,
           logId,
+          requestId: logId,
         });
       }
 
@@ -361,6 +412,17 @@ function createProviders(config) {
   }
 
   return providers;
+}
+
+function createConfiguredSessionService(auth) {
+  if (!auth.sessionSecret) return null;
+  return createHoloSessionService({
+    secret: auth.sessionSecret,
+    internalSubjects: auth.internalDiagnosticsAppleSubs,
+    ttlSeconds: auth.sessionTtlSeconds,
+    issuer: auth.sessionIssuer,
+    audience: auth.sessionAudience,
+  });
 }
 
 function createAdminTestChatRunner({ config, providers, logStore }) {
@@ -514,6 +576,7 @@ function streamChat(context, provider, request, options = {}) {
       "cache-control": "no-cache",
       "connection": "keep-alive",
       "content-type": "text/event-stream; charset=UTF-8",
+      ...(options.requestId ? { "x-holo-request-id": options.requestId } : {}),
     },
   });
 }
