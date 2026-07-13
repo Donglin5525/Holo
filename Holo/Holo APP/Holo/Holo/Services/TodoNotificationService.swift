@@ -447,7 +447,18 @@ extension TodoNotificationService: UNUserNotificationCenterDelegate {
                 DeepLinkState.shared.navigate(to: .dailyReminder)
             case TodoNotificationCategory.memoryInsight:
                 Self.logger.info("洞察通知 Deep Link")
-                DeepLinkState.shared.pendingTarget = .memoryGallery
+                let period = WeeklyObservationPeriod.previousCompletedWeek(containing: Date())
+                let repository = MemoryInsightRepository()
+                if let insight = try? repository.fetchInsight(
+                    periodType: .weekly,
+                    start: period.start,
+                    end: period.end
+                ) {
+                    try? repository.markRead(insight: insight)
+                    DeepLinkState.shared.navigate(to: .memoryInsight(insightId: insight.id))
+                } else {
+                    DeepLinkState.shared.navigate(to: .memoryGallery)
+                }
             default:
                 break
             }

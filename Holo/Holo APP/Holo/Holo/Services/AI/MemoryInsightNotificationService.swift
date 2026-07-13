@@ -49,7 +49,7 @@ final class MemoryInsightNotificationService {
     func scheduleWeeklyReminder(weekday: Int, hour: Int) {
         let content = UNMutableNotificationContent()
         content.title = "上周记忆已准备好"
-        content.body = "打开 Holo，让 AI 帮你生成一份上周回放。"
+        content.body = "打开 Holo，查看 AI 为你整理的上周回放。"
         content.sound = .default
         content.categoryIdentifier = TodoNotificationCategory.memoryInsight
 

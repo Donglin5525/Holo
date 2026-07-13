@@ -18,6 +18,9 @@ final class MemoryInsightBackgroundService {
     private let logger = Logger(subsystem: "com.holo.app", category: "MemoryInsightBackground")
 
     private let taskIdentifier = "com.holo.app.memoryInsightRefresh"
+    private let retryWeekKey = "holo.weeklyObservation.retry.week"
+    private let retryCountKey = "holo.weeklyObservation.retry.count"
+    private let retryAfterKey = "holo.weeklyObservation.retry.after"
 
     private init() {}
 
@@ -38,6 +41,7 @@ final class MemoryInsightBackgroundService {
 
     /// 调度后台任务（用户开启后台自动生成后调用）
     func scheduleBackgroundTask() {
+        BGTaskScheduler.shared.cancel(taskRequestWithIdentifier: taskIdentifier)
         let request = BGAppRefreshTaskRequest(identifier: taskIdentifier)
         // 最早执行时间：1 小时后
         request.earliestBeginDate = Date().addingTimeInterval(3600)
@@ -65,13 +69,6 @@ final class MemoryInsightBackgroundService {
         }
 
         let settings = MemoryInsightScheduleSettings.shared
-
-        guard settings.backgroundAutoGenerationEnabled else {
-            logger.info("后台自动生成已关闭，跳过")
-            task.setTaskCompleted(success: true)
-            return
-        }
-
         let service = MemoryInsightService.shared
         guard service.isAIConfigured else {
             logger.info("AI 未配置，跳过后台生成")
@@ -80,6 +77,18 @@ final class MemoryInsightBackgroundService {
         }
 
         let repository = MemoryInsightRepository()
+
+        // 上周洞察是产品基础能力，不依赖 legacy 日/月后台生成开关。
+        await generatePreviousWeekObservationIfNeeded(
+            service: service,
+            repository: repository
+        )
+
+        guard settings.backgroundAutoGenerationEnabled else {
+            task.setTaskCompleted(success: true)
+            scheduleBackgroundTask()
+            return
+        }
 
         // 生成今日洞察（当天有足够数据时）
         let calendar = Calendar.current
@@ -103,9 +112,6 @@ final class MemoryInsightBackgroundService {
                 }
             }
         }
-
-        // 生成本周观察（基于有效记录日决定 stage，禁用 effectivePeriodRange.minDays，方案 §3.4/§4.3）
-        await generateWeeklyObservation(service: service, repository: repository)
 
         // 生成月度洞察（使用智能回退）
         let (monthStart, monthEnd, monthFallback) = MemoryInsightContextBuilder.effectivePeriodRange(
@@ -136,9 +142,7 @@ final class MemoryInsightBackgroundService {
         task.setTaskCompleted(success: true)
 
         // 调度下一次
-        if settings.backgroundAutoGenerationEnabled {
-            scheduleBackgroundTask()
-        }
+        scheduleBackgroundTask()
     }
 
     // MARK: - Foreground Compensation
@@ -147,14 +151,18 @@ final class MemoryInsightBackgroundService {
     /// 在 MemoryGalleryViewModel.refresh() 或 App 进入前台时调用
     func checkForegroundCompensation() async {
         let settings = MemoryInsightScheduleSettings.shared
-
-        guard settings.backgroundAutoGenerationEnabled else { return }
-
         let service = MemoryInsightService.shared
         guard service.isAIConfigured else { return }
         guard !service.isGenerating else { return }
 
         let repository = MemoryInsightRepository()
+
+        await generatePreviousWeekObservationIfNeeded(
+            service: service,
+            repository: repository
+        )
+
+        guard settings.backgroundAutoGenerationEnabled else { return }
 
         // 补生成今日洞察
         let calendar = Calendar.current
@@ -179,10 +187,6 @@ final class MemoryInsightBackgroundService {
                 }
             }
         }
-
-        // 补生成本周观察（基于有效记录日决定 stage，方案 §3.4/§4.3）
-        logger.info("前台补偿：尝试生成本周观察")
-        await generateWeeklyObservation(service: service, repository: repository)
 
         // 补生成月度洞察（使用智能回退）
         let (monthStart, monthEnd, monthFallback) = MemoryInsightContextBuilder.effectivePeriodRange(
@@ -213,49 +217,81 @@ final class MemoryInsightBackgroundService {
 
     // MARK: - Weekly Observation（方案 §3.4 / §4.3）
 
-    /// 生成本周观察：基于有效记录日决定 light3d / full7d，未达标则跳过（养成期不伪造洞察）
-    private func generateWeeklyObservation(
+    /// 生成上一完整自然周洞察；数据不足是正常跳过，不创建失败产物。
+    func generatePreviousWeekObservationIfNeeded(
+        referenceDate: Date = Date(),
         service: MemoryInsightService,
         repository: MemoryInsightRepository
     ) async {
-        // 刷新有效记录日，拿最新 eligibility
-        await EffectiveRecordDayService.shared.refreshAndWait()
-
-        let stage: MemoryInsightObservationStage
-        switch EffectiveRecordDayService.shared.currentResult?.eligibility {
-        case .fullReady:
-            stage = .full7d
-        case .lightReady:
-            stage = .light3d
-        case .nurturing, .none:
-            logger.info("有效记录日未达标，跳过本周观察生成（养成期）")
+        guard HoloAIFeatureFlags.aiDataProcessingConsentGranted else { return }
+        let period = WeeklyObservationPeriod.previousCompletedWeek(containing: referenceDate)
+        guard canAttemptWeeklyObservation(period: period) else { return }
+        let eligibility = await EffectiveRecordDayService.shared.result(for: period)
+        guard eligibility.eligibility != .nurturing else {
+            logger.info("上周有效记录不足，跳过洞察生成")
             return
         }
 
-        // 用 periodRange 取本周范围（禁用 effectivePeriodRange.minDays，方案 §4.3）
-        let (weekStart, weekEnd) = MemoryInsightContextBuilder.periodRange(
-            periodType: .weekly, referenceDate: Date()
-        )
-
-        // 已存在同 stage 的 ready 洞察则跳过（避免重复生成）
         if let existing = try? repository.fetchInsight(
-            periodType: .weekly, start: weekStart, end: weekEnd
-        ), existing.insightStatus == .ready, existing.observationStageEnum == stage {
-            logger.info("本周观察（\(stage.rawValue)）已存在且 ready，跳过")
+            periodType: .weekly,
+            start: period.start,
+            end: period.end
+        ), existing.insightStatus == .ready || existing.insightStatus == .stale {
+            logger.info("上周洞察已存在，跳过重复生成")
             return
         }
 
         do {
             let insight = try await service.generateInsight(
                 periodType: .weekly,
-                start: weekStart,
-                end: weekEnd,
+                start: period.start,
+                end: period.end,
                 forceRefresh: false,
-                observationStage: stage
+                observationStage: .full7d
             )
-            logger.info("本周观察生成成功（\(stage.rawValue)）：\(insight.title)")
+            logger.info("上周洞察生成成功：\(insight.title)")
+            clearWeeklyRetryState()
+            HomeScheduleService.shared.refresh()
         } catch {
-            logger.error("本周观察生成失败（\(stage.rawValue)）：\(error.localizedDescription)")
+            recordWeeklyFailure(period: period)
+            logger.error("上周洞察生成失败，等待下次前台恢复：\(error.localizedDescription)")
         }
+    }
+
+    private func canAttemptWeeklyObservation(
+        period: WeeklyObservationPeriod,
+        now: Date = Date()
+    ) -> Bool {
+        let defaults = UserDefaults.standard
+        guard let storedWeek = defaults.object(forKey: retryWeekKey) as? Date,
+              Calendar.current.isDate(storedWeek, inSameDayAs: period.start) else {
+            clearWeeklyRetryState()
+            return true
+        }
+        // 初次尝试后最多再恢复两次：1 分钟、10 分钟。
+        guard defaults.integer(forKey: retryCountKey) < 3 else { return false }
+        let retryAfter = defaults.object(forKey: retryAfterKey) as? Date ?? .distantPast
+        return now >= retryAfter
+    }
+
+    private func recordWeeklyFailure(
+        period: WeeklyObservationPeriod,
+        now: Date = Date()
+    ) {
+        let defaults = UserDefaults.standard
+        let sameWeek = (defaults.object(forKey: retryWeekKey) as? Date)
+            .map { Calendar.current.isDate($0, inSameDayAs: period.start) } ?? false
+        let count = sameWeek ? defaults.integer(forKey: retryCountKey) + 1 : 1
+        let delay: TimeInterval = count == 1 ? 60 : 10 * 60
+        defaults.set(period.start, forKey: retryWeekKey)
+        defaults.set(count, forKey: retryCountKey)
+        defaults.set(now.addingTimeInterval(delay), forKey: retryAfterKey)
+    }
+
+    private func clearWeeklyRetryState() {
+        let defaults = UserDefaults.standard
+        defaults.removeObject(forKey: retryWeekKey)
+        defaults.removeObject(forKey: retryCountKey)
+        defaults.removeObject(forKey: retryAfterKey)
     }
 }

@@ -90,6 +90,8 @@ struct HoloApp: App {
                     await CoreDataStack.shared.waitUntilReady()
                     FinanceRepository.shared.setup()
                     SpendingProjectBackgroundService.shared.scheduleNextTask()
+                    MemoryInsightBackgroundService.shared.scheduleBackgroundTask()
+                    await MemoryInsightBackgroundService.shared.checkForegroundCompensation()
 
                     // 启动时轻量聚合未消费反馈（更新 rerank 用的偏好）
                     if InsightFeatureFlags.preferenceLearningEnabled {
@@ -117,13 +119,18 @@ struct HoloApp: App {
                     }
                 }
                 .onChange(of: scenePhase) { _, phase in
-                    // Agent 后台续跑：灰度 flag 关闭时直接 return，不影响现有行为
-                    guard HoloAIFeatureFlags.agentRuntimeEnabled else { return }
                     switch phase {
                     case .background:
-                        HoloBackgroundContinuationManager.shared.appDidEnterBackground()
+                        if HoloAIFeatureFlags.agentRuntimeEnabled {
+                            HoloBackgroundContinuationManager.shared.appDidEnterBackground()
+                        }
                     case .active:
-                        HoloBackgroundContinuationManager.shared.appWillEnterForeground()
+                        Task {
+                            await MemoryInsightBackgroundService.shared.checkForegroundCompensation()
+                        }
+                        if HoloAIFeatureFlags.agentRuntimeEnabled {
+                            HoloBackgroundContinuationManager.shared.appWillEnterForeground()
+                        }
                     default:
                         break
                     }

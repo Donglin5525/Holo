@@ -89,12 +89,22 @@ final class EffectiveRecordDayService: ObservableObject {
         writeCache(result)
     }
 
+    /// 只统计指定完整周内的有效记录，用于决定是否生成「上周洞察」。
+    func result(for period: WeeklyObservationPeriod) async -> EffectiveRecordDayResult {
+        await buildResult(now: period.end, period: period)
+    }
+
     // MARK: - Build
 
-    private func buildResult(now: Date) async -> EffectiveRecordDayResult {
+    private func buildResult(
+        now: Date,
+        period: WeeklyObservationPeriod? = nil
+    ) async -> EffectiveRecordDayResult {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: now)
-        let windowStart = calendar.date(byAdding: .day, value: -Self.lookbackDays, to: today) ?? today
+        let windowStart = period?.start
+            ?? calendar.date(byAdding: .day, value: -Self.lookbackDays, to: today)
+            ?? today
 
         // Finance 是 async，用 async let 并行；其余 sync 直接取
         async let financeDays = collectFinanceDays(from: windowStart, to: today)
@@ -108,7 +118,8 @@ final class EffectiveRecordDayService: ObservableObject {
             todoDays: todoDays,
             habitDays: habitDays,
             thoughtDays: thoughtDays,
-            today: now
+            today: now,
+            period: period
         )
     }
 

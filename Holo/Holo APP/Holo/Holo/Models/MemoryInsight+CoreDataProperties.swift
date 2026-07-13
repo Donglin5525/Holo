@@ -39,6 +39,8 @@ extension MemoryInsight {
         insight.generatedAt = Date()
         insight.status = MemoryInsightStatus.generating.rawValue
         insight.errorMessage = nil
+        insight.errorCategory = nil
+        insight.requestId = nil
         insight.promptVersion = 0
         insight.providerName = nil
         insight.userRating = 0
@@ -125,7 +127,8 @@ extension MemoryInsight {
         payload: MemoryInsightPayload,
         rawResponse: String,
         providerName: String?,
-        promptVersion: Int16
+        promptVersion: Int16,
+        requestId: String? = nil
     ) {
         title = payload.title
         summary = payload.summary
@@ -137,13 +140,22 @@ extension MemoryInsight {
         status = MemoryInsightStatus.ready.rawValue
         self.providerName = providerName
         self.promptVersion = promptVersion
+        self.requestId = requestId
+        errorMessage = nil
+        errorCategory = nil
         generatedAt = Date()
     }
 
     /// 标记为 failed 状态
-    func markFailed(errorMessage: String) {
+    func markFailed(
+        errorMessage: String,
+        category: String? = nil,
+        requestId: String? = nil
+    ) {
         status = MemoryInsightStatus.failed.rawValue
         self.errorMessage = String(errorMessage.prefix(200))
+        errorCategory = category
+        self.requestId = requestId
     }
 
     /// 标记为 stale 状态

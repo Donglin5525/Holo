@@ -36,6 +36,7 @@ struct ScheduleRankerStandaloneTests {
         testStableOrdering()
         testProtectionWindow()
         testSingleCandidate()
+        testWeeklyDeliveryRequiresAvailableUnreadTargetWeek()
 
         print("✅ ScheduleRankerStandaloneTests 全部通过")
     }
@@ -130,6 +131,50 @@ struct ScheduleRankerStandaloneTests {
         expect(ScheduleRanker.isProtected(within, now: now), "保护期内 → true")
         expect(!ScheduleRanker.isProtected(expired, now: now), "保护期外 → false")
         expect(!ScheduleRanker.isProtected(none, now: now), "无保护期字段 → false")
+    }
+
+    static func testWeeklyDeliveryRequiresAvailableUnreadTargetWeek() {
+        let targetStart = date(2026, 7, 6)
+        expect(
+            WeeklyObservationDeliveryPolicy.shouldDeliver(
+                status: "ready", readAt: nil,
+                insightPeriodStart: targetStart, targetPeriodStart: targetStart,
+                calendar: cal
+            ),
+            "目标上周 ready 且未读可以投递"
+        )
+        expect(
+            WeeklyObservationDeliveryPolicy.shouldDeliver(
+                status: "stale", readAt: nil,
+                insightPeriodStart: targetStart, targetPeriodStart: targetStart,
+                calendar: cal
+            ),
+            "目标上周 stale 且未读可以投递"
+        )
+        expect(
+            !WeeklyObservationDeliveryPolicy.shouldDeliver(
+                status: "failed", readAt: nil,
+                insightPeriodStart: targetStart, targetPeriodStart: targetStart,
+                calendar: cal
+            ),
+            "failed 不投递"
+        )
+        expect(
+            !WeeklyObservationDeliveryPolicy.shouldDeliver(
+                status: "ready", readAt: date(2026, 7, 13),
+                insightPeriodStart: targetStart, targetPeriodStart: targetStart,
+                calendar: cal
+            ),
+            "已读不重复投递"
+        )
+        expect(
+            !WeeklyObservationDeliveryPolicy.shouldDeliver(
+                status: "ready", readAt: nil,
+                insightPeriodStart: date(2026, 6, 29), targetPeriodStart: targetStart,
+                calendar: cal
+            ),
+            "历史周未读洞察不重新投递"
+        )
     }
 
     // MARK: - Assert helper

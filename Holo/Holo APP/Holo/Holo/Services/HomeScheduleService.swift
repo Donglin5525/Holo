@@ -58,11 +58,6 @@ class HomeScheduleService: ObservableObject {
     /// 定时刷新间隔（秒）
     private static let refreshInterval: TimeInterval = 300  // 5 分钟
 
-    /// 本周观察胶囊每日最大曝光次数（方案 §4.4，防 refresh 刷爆）
-    private static let maxDailyWeeklyExposure = 3
-    private static let weeklyExposureCountKey = "holo.homeSchedule.weeklyExposure.count"
-    private static let weeklyExposureDateKey = "holo.homeSchedule.weeklyExposure.date"
-
     /// 零 I/O，遵循启动规范
     private init() {}
 
@@ -128,12 +123,6 @@ class HomeScheduleService: ObservableObject {
         add(buildInsightCandidate(now: now))
         add(buildWeeklyObservationCandidate(now: now))
 
-        // 曝光限频：本周观察当日达上限则移除其候选（方案 §4.4）
-        let exposure = weeklyExposureCount(today: now)
-        if exposure.count >= Self.maxDailyWeeklyExposure {
-            candidates.removeAll { $0.module == .weeklyObservation }
-        }
-
         guard let top = ScheduleRanker.topCandidate(candidates) else {
             currentState = nil
             return
@@ -147,11 +136,6 @@ class HomeScheduleService: ObservableObject {
             deepLinkTarget: deepLinks[top.id]
         )
 
-        // 曝光口径：currentState 实际切换到本周观察候选才算一次曝光
-        // （非 refresh 调用次数——后者被 5min 定时器 + 回前台 + 数据变化三路刷爆）
-        if currentState?.id != top.id && top.module == .weeklyObservation {
-            incrementWeeklyExposure(today: now)
-        }
         currentState = newState
     }
 
@@ -279,119 +263,37 @@ class HomeScheduleService: ObservableObject {
 
     // MARK: - Weekly Observation Module（方案 §2.1 / §2.4 / §4.4）
 
-    /// 构建本周观察候选（统一入口，承载养成 / 授权 / 未读 / 失败 / 就绪状态）
+    /// 仅投递上一完整周已生成且未消费的洞察。
     private func buildWeeklyObservationCandidate(now: Date) -> (ScheduleCandidate, DeepLinkTarget?)? {
-        // 未授权 → 授权引导（pending 级，不强压任务）
-        if !HoloAIFeatureFlags.aiDataProcessingConsentGranted {
-            return (
-                ScheduleCandidate(
-                    id: "weekly:consent",
-                    urgency: .pending,
-                    module: .weeklyObservation,
-                    message: "开启 HoloAI 生成本周观察",
-                    protectionUntil: nil
-                ),
-                .ai(voiceInput: false)
-            )
+        let period = WeeklyObservationPeriod.previousCompletedWeek(containing: now)
+        let repository = MemoryInsightRepository()
+        guard let insight = try? repository.fetchInsight(
+            periodType: .weekly,
+            start: period.start,
+            end: period.end
+        ), WeeklyObservationDeliveryPolicy.shouldDeliver(
+            status: insight.status,
+            readAt: insight.readAt,
+            insightPeriodStart: insight.periodStart,
+            targetPeriodStart: period.start
+        ) else {
+            return nil
         }
 
-        // 取最新 weekly 观察记录（不限本周；胶囊与 ChatView 卡片共用同一条，避免两边查询范围不一致）
-        let insight = MemoryInsightRepository().fetchLatestReadyInsight(periodType: .weekly)
-
-        // 有未读 weekly insight → newInsight（P0，24h 保护期，方案 §2.4 / §7.5）
-        if let insight = insight,
-           insight.insightStatus == .ready || insight.insightStatus == .stale,
-           insight.readAt == nil {
-            let protection = insight.generatedAt.addingTimeInterval(24 * 3600)
-            let message: String
-            switch insight.observationStageEnum {
-            case .light3d: message = "第一条观察已准备好"
-            case .full7d:  message = "本周观察已准备好"
-            }
-            return (
-                ScheduleCandidate(
-                    id: "weekly:\(insight.id.uuidString)",
-                    urgency: .newInsight,
-                    module: .weeklyObservation,
-                    message: message,
-                    protectionUntil: protection
-                ),
-                .ai(voiceInput: false)
-            )
-        }
-
-        // 养成进度候选（基于有效记录日）
-        let result = EffectiveRecordDayService.shared.currentResult
-        if let result = result {
-            switch result.eligibility {
-            case .nurturing:
-                return (
-                    ScheduleCandidate(
-                        id: "weekly:nurturing",
-                        urgency: .pending,
-                        module: .weeklyObservation,
-                        message: weeklyNurturingMessage(result: result),
-                        protectionUntil: nil
-                    ),
-                    .ai(voiceInput: false)
-                )
-            case .lightReady, .fullReady:
-                // 达标但无未读 insight：失败 → 重试；否则普通提醒
-                if let insight = insight, insight.insightStatus == .failed {
-                    return (
-                        ScheduleCandidate(
-                            id: "weekly:failed",
-                            urgency: .pending,
-                            module: .weeklyObservation,
-                            message: "本周观察待重试",
-                            protectionUntil: nil
-                        ),
-                        .ai(voiceInput: false)
-                    )
-                }
-                return (
-                    ScheduleCandidate(
-                        id: "weekly:ready",
-                        urgency: .pending,
-                        module: .weeklyObservation,
-                        message: "本周观察已准备好",
-                        protectionUntil: nil
-                    ),
-                    .ai(voiceInput: false)
-                )
-            }
-        }
-
-        // 有效记录日尚未计算（Service 未刷新）→ 不生成候选，等下次 refresh
-        return nil
-    }
-
-    /// 养成期文案（方案 §2.1）
-    private func weeklyNurturingMessage(result: EffectiveRecordDayResult) -> String {
-        if result.recordDayCount == 0 {
-            return "Holo 正在认识你"
-        }
-        return result.nurturingHint
-    }
-
-    // MARK: - Exposure Limit（方案 §4.4，跨会话持久化）
-
-    /// 当日本周观察曝光计数（跨日自动重置）
-    private func weeklyExposureCount(today: Date) -> (count: Int, date: Date) {
-        let defaults = UserDefaults.standard
-        let storedDate = defaults.object(forKey: Self.weeklyExposureDateKey) as? Date ?? .distantPast
-        let count = defaults.integer(forKey: Self.weeklyExposureCountKey)
-        if !Calendar.current.isDate(storedDate, inSameDayAs: today) {
-            return (0, today)
-        }
-        return (count, storedDate)
-    }
-
-    private func incrementWeeklyExposure(today: Date) {
-        let defaults = UserDefaults.standard
-        let (count, date) = weeklyExposureCount(today: today)
-        defaults.set(count + 1, forKey: Self.weeklyExposureCountKey)
-        defaults.set(date, forKey: Self.weeklyExposureDateKey)
+        let title = insight.title.trimmingCharacters(in: .whitespacesAndNewlines)
+        let message = title.isEmpty
+            ? "上周洞察已准备好"
+            : "上周洞察：\(truncateTitle(title))"
+        return (
+            ScheduleCandidate(
+                id: "weekly:\(insight.id.uuidString)",
+                urgency: .newInsight,
+                module: .weeklyObservation,
+                message: message,
+                protectionUntil: nil
+            ),
+            .memoryInsight(insightId: insight.id)
+        )
     }
 
     // MARK: - Formatting

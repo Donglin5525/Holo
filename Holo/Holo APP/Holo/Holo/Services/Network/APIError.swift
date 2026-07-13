@@ -17,6 +17,7 @@ enum APIError: LocalizedError {
     case timeout
     case cancelled
     case serverError(String)
+    case backendError(statusCode: Int, code: String?, message: String, requestId: String?)
 
     var errorDescription: String? {
         switch self {
@@ -36,6 +37,8 @@ enum APIError: LocalizedError {
             return "请求已取消"
         case .serverError(let message):
             return message
+        case .backendError(_, _, let message, _):
+            return message
         }
     }
 
@@ -44,10 +47,37 @@ enum APIError: LocalizedError {
         switch self {
         case .rateLimited, .timeout, .serverError:
             return true
+        case .backendError(let statusCode, let code, _, _):
+            // 洞察空响应/截断已在后端重试过一次，客户端不再放大调用次数。
+            let terminalInsightCodes = [
+                "EMPTY_MODEL_RESPONSE",
+                "TRUNCATED_MODEL_RESPONSE",
+                "INVALID_INSIGHT_JSON"
+            ]
+            return statusCode >= 500 && !terminalInsightCodes.contains(code ?? "")
         case .httpError(let statusCode, _):
             return statusCode >= 500 || statusCode == 429
         default:
             return false
         }
+    }
+
+    var diagnosticCategory: String {
+        switch self {
+        case .backendError(_, let code, _, _): return code ?? "BACKEND_ERROR"
+        case .timeout: return "TIMEOUT"
+        case .networkUnavailable: return "NETWORK_UNAVAILABLE"
+        case .rateLimited: return "RATE_LIMITED"
+        case .cancelled: return "CANCELLED"
+        case .decodingError: return "DECODING_ERROR"
+        case .httpError(let statusCode, _): return "HTTP_\(statusCode)"
+        case .invalidURL: return "INVALID_URL"
+        case .serverError: return "SERVER_ERROR"
+        }
+    }
+
+    var requestId: String? {
+        if case .backendError(_, _, _, let requestId) = self { return requestId }
+        return nil
     }
 }

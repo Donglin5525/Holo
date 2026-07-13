@@ -21,6 +21,7 @@ struct MemoryGalleryView: View {
     @State private var selectedTab: MemoryGalleryTab = .calendar
     @State private var isReplayExpanded = false
     @State private var isAgentAnalysisExpanded = false
+    @ObservedObject private var deepLinkState = DeepLinkState.shared
 
     /// 跳转记账回调
     let onNavigateToFinance: (() -> Void)?
@@ -67,6 +68,10 @@ struct MemoryGalleryView: View {
         #endif
         .task {
             await viewModel.refresh()
+            await handleInsightDeepLinkIfNeeded()
+        }
+        .onChange(of: deepLinkState.pendingTarget) { _, _ in
+            Task { await handleInsightDeepLinkIfNeeded() }
         }
     }
 
@@ -211,6 +216,15 @@ struct MemoryGalleryView: View {
                 .padding(.vertical, HoloSpacing.md)
             }
         }
+    }
+
+    @MainActor
+    private func handleInsightDeepLinkIfNeeded() async {
+        guard case .memoryInsight(let insightId) = deepLinkState.pendingTarget else { return }
+        selectedTab = .insight
+        isReplayExpanded = true
+        await viewModel.focusWeeklyInsight(id: insightId)
+        deepLinkState.pendingTarget = nil
     }
 
     /// 选中日期预览卡片

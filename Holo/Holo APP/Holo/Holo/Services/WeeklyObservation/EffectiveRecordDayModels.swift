@@ -11,6 +11,50 @@
 
 import Foundation
 
+// MARK: - Completed Week Period
+
+/// 周洞察固定分析的上一完整自然周（周一至周日）。
+struct WeeklyObservationPeriod: Equatable, Sendable {
+    let start: Date
+    let end: Date
+
+    static func previousCompletedWeek(
+        containing referenceDate: Date,
+        calendar: Calendar = .current
+    ) -> WeeklyObservationPeriod {
+        var mondayCalendar = calendar
+        mondayCalendar.firstWeekday = 2
+        mondayCalendar.minimumDaysInFirstWeek = 4
+
+        let referenceDay = mondayCalendar.startOfDay(for: referenceDate)
+        let currentWeekStart = mondayCalendar.dateInterval(
+            of: .weekOfYear,
+            for: referenceDay
+        )?.start ?? referenceDay
+        let previousWeekStart = mondayCalendar.date(
+            byAdding: .day,
+            value: -7,
+            to: currentWeekStart
+        ) ?? currentWeekStart
+        let previousWeekEnd = mondayCalendar.date(
+            byAdding: .day,
+            value: 6,
+            to: previousWeekStart
+        ) ?? previousWeekStart
+
+        return WeeklyObservationPeriod(
+            start: mondayCalendar.startOfDay(for: previousWeekStart),
+            end: mondayCalendar.startOfDay(for: previousWeekEnd)
+        )
+    }
+
+    func contains(_ date: Date, calendar: Calendar = .current) -> Bool {
+        let day = calendar.startOfDay(for: date)
+        return day >= calendar.startOfDay(for: start)
+            && day <= calendar.startOfDay(for: end)
+    }
+}
+
 // MARK: - Module
 
 /// 有效记录日来源模块（V1 四类，方案 §3.3）
@@ -102,7 +146,8 @@ enum EffectiveRecordDayAggregator {
         todoDays: Set<Date>,
         habitDays: Set<Date>,
         thoughtDays: Set<Date>,
-        today: Date
+        today: Date,
+        period: WeeklyObservationPeriod? = nil
     ) -> EffectiveRecordDayResult {
         var allDays = Set<Date>()
         var modules = Set<EffectiveRecordModule>()
@@ -119,7 +164,11 @@ enum EffectiveRecordDayAggregator {
 
         // 仅保留今天及之前的有效记录日（未来日期不计入养成进度）
         let todayStart = Calendar.current.startOfDay(for: today)
-        allDays = allDays.filter { $0 <= todayStart }
+        allDays = allDays.filter { date in
+            guard date <= todayStart else { return false }
+            guard let period else { return true }
+            return period.contains(date)
+        }
 
         let eligibility: ObservationEligibility
         if allDays.count >= fullThreshold && modules.count >= moduleThreshold {

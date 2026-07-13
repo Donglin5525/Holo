@@ -785,7 +785,7 @@ struct HomeView: View {
             if showThoughtEditor { return }
         case .thoughtDetail:
             if showThoughtsView { return }
-        case .memoryGallery:
+        case .memoryGallery, .memoryInsight(_):
             if showMemoryGallery { return }
         }
 
@@ -851,6 +851,9 @@ struct HomeView: View {
             case .memoryGallery:
                 showMemoryGallery = true
                 deepLinkState.pendingTarget = nil
+            case .memoryInsight(_):
+                // 目标由 MemoryGalleryView 在完成 Tab 切换和洞察展开后消费。
+                showMemoryGallery = true
             }
         }
     }
@@ -911,6 +914,11 @@ struct HomeView: View {
     /// 处理推送点击跳转
     private func handleScheduleTap(_ state: ScheduleReminderState) {
         guard let target = state.deepLinkTarget else { return }
+        if case .memoryInsight(let insightId) = target,
+           let insight = MemoryInsightRepository().fetchAvailableInsight(id: insightId) {
+            try? MemoryInsightRepository().markRead(insight: insight)
+            scheduleService.currentState = nil
+        }
         deepLinkState.pendingTarget = target
     }
 }

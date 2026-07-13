@@ -934,9 +934,16 @@ final class IntentRouter {
         let periodStr = data?["periodType"] ?? "weekly"
         let periodType: MemoryInsightPeriodType = periodStr == "monthly" ? .monthly : .weekly
 
-        let (start, end) = MemoryInsightContextBuilder.periodRange(
-            periodType: periodType, referenceDate: Date()
-        )
+        let (start, end): (Date, Date)
+        if periodType == .weekly {
+            let period = WeeklyObservationPeriod.previousCompletedWeek(containing: Date())
+            (start, end) = (period.start, period.end)
+        } else {
+            (start, end) = MemoryInsightContextBuilder.periodRange(
+                periodType: periodType,
+                referenceDate: Date()
+            )
+        }
 
         let service = MemoryInsightService.shared
 
@@ -953,9 +960,9 @@ final class IntentRouter {
                 end: end,
                 forceRefresh: false
             )
-            let periodLabel = periodType == .weekly ? "周" : "月"
+            let periodLabel = periodType == .weekly ? "上周" : "本月"
             return RouteResult(
-                text: "已生成本\(periodLabel)回放「\(insight.title)」，你可以在记忆长廊中查看完整内容。",
+                text: "已生成\(periodLabel)回放「\(insight.title)」，你可以在记忆长廊中查看完整内容。",
                 linkedEntity: LinkedEntity(
                     type: .memoryInsight,
                     id: insight.id

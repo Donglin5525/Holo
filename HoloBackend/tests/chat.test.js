@@ -128,6 +128,85 @@ test("flexible query planner route reserves a dedicated structured output budget
   assert.equal(config.routes.flexible_query_planner.temperature, 0);
 });
 
+test("insight route reserves enough output tokens for reasoning models", () => {
+  assert.ok(loadConfig().routes.insight.maxTokens >= 4096);
+});
+
+test("insight retries one empty response and returns the second valid result", async () => {
+  let callCount = 0;
+  const provider = {
+    async complete(request) {
+      callCount += 1;
+      assert.equal(request.responseFormat, undefined, "insight 不应强制 json_object");
+      return callCount === 1
+        ? completion("", "stop")
+        : completion('{"title":"上周","summary":"摘要","cards":[],"suggestedQuestions":[]}', "stop");
+    },
+  };
+  const app = createTestApp({
+    routes: {
+      insight: { provider: "sequence", model: "reasoning-model", temperature: 0.3, maxTokens: 4096 },
+    },
+    providerOverrides: new Map([["sequence", provider]]),
+  });
+
+  const response = await sendInsight(app, "insight-empty-retry");
+  assert.equal(response.status, 200);
+  assert.equal(callCount, 2);
+  assert.match((await response.json()).choices[0].message.content, /"title"/);
+});
+
+test("insight returns EMPTY_MODEL_RESPONSE after two empty responses", async () => {
+  const provider = { async complete() { return completion("   ", "stop"); } };
+  const app = createTestApp({
+    routes: {
+      insight: { provider: "sequence", model: "reasoning-model", temperature: 0.3, maxTokens: 4096 },
+    },
+    providerOverrides: new Map([["sequence", provider]]),
+  });
+
+  const response = await sendInsight(app, "insight-empty-terminal");
+  assert.equal(response.status, 502);
+  assert.equal((await response.json()).error.code, "EMPTY_MODEL_RESPONSE");
+});
+
+test("insight returns TRUNCATED_MODEL_RESPONSE when retry is still truncated", async () => {
+  const provider = { async complete() { return completion('{"title":"incomplete"', "length"); } };
+  const app = createTestApp({
+    routes: {
+      insight: { provider: "sequence", model: "reasoning-model", temperature: 0.3, maxTokens: 4096 },
+    },
+    providerOverrides: new Map([["sequence", provider]]),
+  });
+
+  const response = await sendInsight(app, "insight-truncated-terminal");
+  assert.equal(response.status, 502);
+  assert.equal((await response.json()).error.code, "TRUNCATED_MODEL_RESPONSE");
+});
+
+function completion(content, finishReason) {
+  return {
+    id: "test-insight",
+    choices: [{
+      index: 0,
+      message: { role: "assistant", content },
+      finish_reason: finishReason,
+    }],
+  };
+}
+
+function sendInsight(app, deviceId) {
+  return app.request("/v1/ai/chat/completions", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-holo-device-id": deviceId },
+    body: JSON.stringify({
+      purpose: "insight",
+      stream: false,
+      messages: [{ role: "user", content: "{}" }],
+    }),
+  });
+}
+
 test("POST /v1/ai/chat/completions accepts flexible_query_planner purpose", async () => {
   const app = createTestApp();
 

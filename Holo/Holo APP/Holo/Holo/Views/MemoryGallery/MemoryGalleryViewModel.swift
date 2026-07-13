@@ -670,7 +670,6 @@ class MemoryGalleryViewModel: ObservableObject {
 
     /// AI 洞察刷新每日配额（一天最多 2 次，按自然日重置）。
     private let quota = MemoryInsightRefreshQuota.shared
-    private let insightGenerationTimeoutSeconds: UInt64 = 45
 
     /// 加载本地洞察（不触发 AI 生成）
     private func loadInsights() async {
@@ -687,11 +686,11 @@ class MemoryGalleryViewModel: ObservableObject {
             await loadAgentRenderedResult()
         }
 
-        // 加载周洞察（智能回退）
-        let (weekStart, weekEnd, weekFallback) = MemoryInsightContextBuilder.effectivePeriodRange(
-            periodType: .weekly, referenceDate: Date()
-        )
-        weeklyIsFallback = weekFallback
+        // 周洞察固定读取上一完整自然周。
+        let weeklyPeriod = WeeklyObservationPeriod.previousCompletedWeek(containing: Date())
+        let weekStart = weeklyPeriod.start
+        let weekEnd = weeklyPeriod.end
+        weeklyIsFallback = true
 
         if let insight = try? insightRepository.fetchInsight(
             periodType: .weekly, start: weekStart, end: weekEnd
@@ -765,12 +764,32 @@ class MemoryGalleryViewModel: ObservableObject {
         )
     }
 
-    /// 生成本周 AI 回放
+    /// 生成上一完整周 AI 回放
     func generateWeeklyInsight() async {
-        let (start, end, _) = MemoryInsightContextBuilder.effectivePeriodRange(
-            periodType: .weekly, referenceDate: Date()
+        let period = WeeklyObservationPeriod.previousCompletedWeek(containing: Date())
+        await generateInsight(
+            periodType: .weekly,
+            start: period.start,
+            end: period.end
         )
-        await generateInsight(periodType: .weekly, start: start, end: end)
+    }
+
+    /// 从首页胶囊精准打开周洞察；目标失效时回退到上一完整周可用结果。
+    func focusWeeklyInsight(id: UUID) async {
+        selectedInsightPeriod = .weekly
+        weeklyIsFallback = true
+        let period = WeeklyObservationPeriod.previousCompletedWeek(containing: Date())
+        if let exact = insightRepository.fetchAvailableInsight(id: id),
+           Calendar.current.isDate(exact.periodStart, inSameDayAs: period.start) {
+            weeklyInsight = exact
+        } else {
+            weeklyInsight = try? insightRepository.fetchInsight(
+                periodType: .weekly,
+                start: period.start,
+                end: period.end
+            )
+        }
+        updateInsightGenerationStateForCurrentSelection()
     }
 
     /// 生成本月 AI 回放
@@ -813,27 +832,12 @@ class MemoryGalleryViewModel: ObservableObject {
 
         do {
             let service = MemoryInsightService.shared
-            let timeoutSeconds = insightGenerationTimeoutSeconds
-            let insight = try await withThrowingTaskGroup(of: MemoryInsight.self) { group in
-                group.addTask {
-                    try await service.generateInsight(
-                        periodType: periodType,
-                        start: start,
-                        end: end,
-                        forceRefresh: forceRefresh
-                    )
-                }
-                group.addTask {
-                    try await Task.sleep(nanoseconds: timeoutSeconds * 1_000_000_000)
-                    throw MemoryInsightError.generationTimeout
-                }
-
-                guard let result = try await group.next() else {
-                    throw MemoryInsightError.generationTimeout
-                }
-                group.cancelAll()
-                return result
-            }
+            let insight = try await service.generateInsight(
+                periodType: periodType,
+                start: start,
+                end: end,
+                forceRefresh: forceRefresh
+            )
 
             switch periodType {
             case .weekly:
@@ -913,6 +917,9 @@ class MemoryGalleryViewModel: ObservableObject {
 
     private func insightRange(for period: MemoryInsightPeriodType) -> (start: Date, end: Date) {
         switch period {
+        case .weekly:
+            let range = WeeklyObservationPeriod.previousCompletedWeek(containing: Date())
+            return (range.start, range.end)
         case .custom:
             return normalizedCustomInsightRange()
         default:

@@ -105,6 +105,18 @@ extension CoreDataStack {
         errorMessage.isOptional = true
         attributes.append(errorMessage)
 
+        let errorCategory = NSAttributeDescription()
+        errorCategory.name = "errorCategory"
+        errorCategory.attributeType = .stringAttributeType
+        errorCategory.isOptional = true
+        attributes.append(errorCategory)
+
+        let requestId = NSAttributeDescription()
+        requestId.name = "requestId"
+        requestId.attributeType = .stringAttributeType
+        requestId.isOptional = true
+        attributes.append(requestId)
+
         let promptVersion = NSAttributeDescription()
         promptVersion.name = "promptVersion"
         promptVersion.attributeType = .integer16AttributeType

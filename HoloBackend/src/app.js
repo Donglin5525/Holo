@@ -306,7 +306,9 @@ export function createApp(overrides = {}) {
       }
 
       try {
-        const result = await provider.complete(upstreamRequest);
+        const result = purpose === "insight"
+          ? await completeInsightWithRetry(provider, upstreamRequest)
+          : await provider.complete(upstreamRequest);
         if (purpose === "agent_loop") {
           const agentContent = result?.choices?.[0]?.message?.content;
           const agentValidation = validateAgentLoopContent(agentContent ?? "");
@@ -320,7 +322,9 @@ export function createApp(overrides = {}) {
             status: "success",
             response: isAgentLoop
               ? { status: "success", usage: result?.usage ?? null }
-              : result,
+              : purpose === "insight"
+                ? summarizeInsightResponse(result)
+                : result,
           });
         }
         return context.json(result);
@@ -437,7 +441,43 @@ function createProviders(config) {
     }
   }
 
+  for (const [name, provider] of config.providerOverrides ?? []) {
+    providers.set(name, provider);
+  }
+
   return providers;
+}
+
+async function completeInsightWithRetry(provider, request) {
+  const retryRequest = { ...request, responseFormat: undefined };
+  let result = await provider.complete(retryRequest);
+  let failure = classifyInsightResponse(result);
+  if (!failure) return result;
+
+  result = await provider.complete(retryRequest);
+  failure = classifyInsightResponse(result);
+  if (!failure) return result;
+  throw new GatewayError(failure, failure, 502);
+}
+
+function classifyInsightResponse(result) {
+  const choice = result?.choices?.[0];
+  if (choice?.finish_reason === "length") return "TRUNCATED_MODEL_RESPONSE";
+  const content = choice?.message?.content;
+  if (typeof content !== "string" || content.trim() === "") return "EMPTY_MODEL_RESPONSE";
+  if (!content.includes("{") || !content.includes("}")) return "INVALID_INSIGHT_JSON";
+  return null;
+}
+
+function summarizeInsightResponse(result) {
+  const choice = result?.choices?.[0];
+  return {
+    status: "success",
+    finishReason: choice?.finish_reason ?? null,
+    contentLength: choice?.message?.content?.length ?? 0,
+    reasoningLength: choice?.message?.reasoning_content?.length ?? 0,
+    usage: result?.usage ?? null,
+  };
 }
 
 function createConfiguredSessionService(auth) {

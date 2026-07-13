@@ -61,6 +61,9 @@ export function publicMessage(code) {
     MODEL_UNAVAILABLE: "模型服务暂时不可用，请稍后重试",
     UPSTREAM_TIMEOUT: "模型响应超时，请稍后重试",
     UPSTREAM_ERROR: "模型服务暂时不可用，请稍后重试",
+    EMPTY_MODEL_RESPONSE: "模型未返回有效内容，请稍后重试",
+    TRUNCATED_MODEL_RESPONSE: "模型返回内容不完整，请稍后重试",
+    INVALID_INSIGHT_JSON: "模型返回格式异常，请稍后重试",
 
     // 兜底
     INTERNAL_ERROR: "服务暂时不可用，请稍后重试",

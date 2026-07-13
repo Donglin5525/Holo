@@ -42,6 +42,10 @@ struct EffectiveRecordDayStandaloneTests {
         testFutureDaysExcluded(today: today)
         testNurturingHintWhenDaysEnoughButModuleShort(today: today)
         testObservationStageMapping()
+        testPreviousCompletedWeekFromMonday()
+        testPreviousCompletedWeekAcrossMonth()
+        testPreviousCompletedWeekAcrossYear()
+        testAggregationOnlyCountsTargetWeek()
 
         print("✅ EffectiveRecordDayStandaloneTests 全部通过")
     }
@@ -139,6 +143,50 @@ struct EffectiveRecordDayStandaloneTests {
         expect(ObservationEligibility.nurturing.observationStageRawValue == nil, "nurturing → nil")
         expect(ObservationEligibility.lightReady.observationStageRawValue == "light3d", "lightReady → light3d")
         expect(ObservationEligibility.fullReady.observationStageRawValue == "full7d", "fullReady → full7d")
+    }
+
+    static func testPreviousCompletedWeekFromMonday() {
+        let period = WeeklyObservationPeriod.previousCompletedWeek(
+            containing: day(2026, 7, 13),
+            calendar: cal
+        )
+        expect(period.start == day(2026, 7, 6), "周一启动仍取上一周周一")
+        expect(period.end == day(2026, 7, 12), "周一启动取上一周周日")
+    }
+
+    static func testPreviousCompletedWeekAcrossMonth() {
+        let period = WeeklyObservationPeriod.previousCompletedWeek(
+            containing: day(2026, 8, 2),
+            calendar: cal
+        )
+        expect(period.start == day(2026, 7, 20), "跨月时上一完整周起点正确")
+        expect(period.end == day(2026, 7, 26), "跨月时上一完整周终点正确")
+    }
+
+    static func testPreviousCompletedWeekAcrossYear() {
+        let period = WeeklyObservationPeriod.previousCompletedWeek(
+            containing: day(2027, 1, 1),
+            calendar: cal
+        )
+        expect(period.start == day(2026, 12, 21), "跨年时上一完整周起点正确")
+        expect(period.end == day(2026, 12, 27), "跨年时上一完整周终点正确")
+    }
+
+    static func testAggregationOnlyCountsTargetWeek() {
+        let period = WeeklyObservationPeriod(
+            start: day(2026, 7, 6),
+            end: day(2026, 7, 12)
+        )
+        let result = EffectiveRecordDayAggregator.aggregate(
+            financeDays: [day(2026, 6, 30), day(2026, 7, 6), day(2026, 7, 7)],
+            todoDays: [day(2026, 7, 8), day(2026, 7, 13)],
+            habitDays: [],
+            thoughtDays: [],
+            today: day(2026, 7, 13),
+            period: period
+        )
+        expect(result.recordDayCount == 3, "只统计目标上一周内的 3 个有效记录日")
+        expect(result.eligibility == .lightReady, "目标周 3 天 2 模块达到生成门槛")
     }
 
     // MARK: - Assert helper

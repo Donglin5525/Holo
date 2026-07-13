@@ -29,7 +29,7 @@ enum HoloAIUserErrorMapper {
             return "AI 授权已失效，请重新登录后重试"
         case .serverError(let message) where message.contains("数据处理授权"):
             return "使用 HoloAI 前，请先开启 AI 数据处理授权"
-        case .invalidURL, .decodingError, .httpError, .serverError:
+        case .invalidURL, .decodingError, .httpError, .serverError, .backendError:
             return "HoloAI 服务暂时不可用，请稍后重试"
         }
     }

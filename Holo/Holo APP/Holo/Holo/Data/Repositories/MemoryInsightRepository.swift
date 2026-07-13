@@ -73,6 +73,20 @@ final class MemoryInsightRepository {
         return (try? context.fetch(request))?.first
     }
 
+    /// 按 UUID 获取可展示洞察；生成中和失败尝试不会进入用户内容层。
+    func fetchAvailableInsight(id: UUID) -> MemoryInsight? {
+        let request = MemoryInsight.fetchRequest()
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "id == %@", id as CVarArg),
+            NSPredicate(
+                format: "status IN %@",
+                [MemoryInsightStatus.ready.rawValue, MemoryInsightStatus.stale.rawValue]
+            )
+        ])
+        request.fetchLimit = 1
+        return (try? context.fetch(request))?.first
+    }
+
     /// 获取指定年份的所有月度洞察（ready 状态）
     func fetchMonthlyInsights(for year: Int) -> [MemoryInsight] {
         let calendar = Calendar.current
@@ -132,13 +146,15 @@ final class MemoryInsightRepository {
         payload: MemoryInsightPayload,
         rawResponse: String,
         providerName: String?,
-        promptVersion: Int16
+        promptVersion: Int16,
+        requestId: String? = nil
     ) throws {
         insight.markReady(
             payload: payload,
             rawResponse: rawResponse,
             providerName: providerName,
-            promptVersion: promptVersion
+            promptVersion: promptVersion,
+            requestId: requestId
         )
         try context.save()
     }
@@ -148,9 +164,15 @@ final class MemoryInsightRepository {
     /// AI 生成失败后更新为 failed 状态
     func saveFailed(
         insight: MemoryInsight,
-        errorMessage: String
+        errorMessage: String,
+        category: String? = nil,
+        requestId: String? = nil
     ) throws {
-        insight.markFailed(errorMessage: errorMessage)
+        insight.markFailed(
+            errorMessage: errorMessage,
+            category: category,
+            requestId: requestId
+        )
         try context.save()
     }
 
@@ -184,14 +206,30 @@ final class MemoryInsightRepository {
 
     // MARK: - Latest Insight
 
-    /// 取最新一条洞察（按 generatedAt 降序，不限周期，排除生成中）。
-    /// 用于首页胶囊与 ChatView 本周观察区块共用同一条记录，避免按本周范围精确匹配导致两边不一致。
+    /// 取最新一条可展示洞察（严格只含 ready/stale）。
     func fetchLatestReadyInsight(periodType: MemoryInsightPeriodType) -> MemoryInsight? {
         let request = MemoryInsight.fetchRequest()
         request.predicate = NSPredicate(
-            format: "periodType == %@ AND status != %@",
+            format: "periodType == %@ AND status IN %@",
             periodType.rawValue,
-            MemoryInsightStatus.generating.rawValue
+            [MemoryInsightStatus.ready.rawValue, MemoryInsightStatus.stale.rawValue]
+        )
+        request.sortDescriptors = [NSSortDescriptor(key: "generatedAt", ascending: false)]
+        request.fetchLimit = 1
+        return (try? context.fetch(request))?.first
+    }
+
+    /// 取指定周期最近一次生成尝试，仅供恢复和诊断，不参与用户内容展示。
+    func fetchLatestGenerationAttempt(
+        periodType: MemoryInsightPeriodType,
+        start: Date
+    ) -> MemoryInsight? {
+        let request = MemoryInsight.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "periodType == %@ AND periodStart == %@ AND status IN %@",
+            periodType.rawValue,
+            start as CVarArg,
+            [MemoryInsightStatus.generating.rawValue, MemoryInsightStatus.failed.rawValue]
         )
         request.sortDescriptors = [NSSortDescriptor(key: "generatedAt", ascending: false)]
         request.fetchLimit = 1

@@ -172,11 +172,10 @@ nonisolated final class APIClient {
         }
     }
 
-    /// 从响应体中提取后端返回的用户友好消息
-    private func extractBackendMessage(from data: Data?) -> String? {
+    /// 从响应体中提取后端错误码与用户友好消息。
+    private func extractBackendError(from data: Data?) -> BackendErrorResponse.ErrorPayload? {
         guard let data else { return nil }
-        guard let payload = try? JSONDecoder().decode(BackendErrorResponse.self, from: data) else { return nil }
-        return payload.error.message
+        return try? JSONDecoder().decode(BackendErrorResponse.self, from: data).error
     }
 
     private func validateHTTPResponse(_ response: URLResponse?, data: Data?) throws {
@@ -184,7 +183,9 @@ nonisolated final class APIClient {
             throw APIError.networkUnavailable
         }
 
-        let backendMessage = extractBackendMessage(from: data)
+        let backendError = extractBackendError(from: data)
+        let backendMessage = backendError?.message
+        let requestId = httpResponse.value(forHTTPHeaderField: "X-Holo-Request-Id")
 
         switch httpResponse.statusCode {
         case 200...299:
@@ -196,7 +197,12 @@ nonisolated final class APIClient {
         case 400...499:
             throw APIError.httpError(statusCode: httpResponse.statusCode, message: backendMessage ?? "请求参数无效")
         case 500...599:
-            throw APIError.serverError(backendMessage ?? "服务暂时不可用，请稍后重试")
+            throw APIError.backendError(
+                statusCode: httpResponse.statusCode,
+                code: backendError?.code,
+                message: backendMessage ?? "服务暂时不可用，请稍后重试",
+                requestId: requestId
+            )
         default:
             throw APIError.httpError(statusCode: httpResponse.statusCode, message: backendMessage ?? "请求失败，请稍后重试")
         }

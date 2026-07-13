@@ -23,8 +23,6 @@ struct ChatView: View {
     @State private var pendingCategoryEditMessage: ChatMessageViewData?
     @State private var pendingEditPrefill: PendingTransactionPrefill?
     @State private var financeSearchRoute: FlexibleQueryFinanceSearchRoute?
-    /// 本周观察的即时交互状态；关闭与重试不再依赖 Core Data 通知碰运气刷新。
-    @State private var weeklyObservationCardState = WeeklyObservationCardState()
     @Binding var goalPlanningRequest: GoalPlanningRequest?
 
     /// 外部传入的预填文本（如从记忆长廊"继续问AI"跳转）
@@ -237,28 +235,6 @@ struct ChatView: View {
                 statusBanner("AI 服务连接较慢，已先放开聊天交互")
             }
 
-            // 本周观察区块；未授权态统一进入正式数据授权页。
-            if weeklyObservationCardState.shouldDisplay(
-                persistedDecision: WeeklyObservationCard.shouldDisplay
-            ) {
-                WeeklyObservationCard(
-                    isRetrying: weeklyObservationCardState.isRetrying,
-                    retryErrorMessage: weeklyObservationCardState.errorMessage,
-                    onOpenConsent: { activeSheet = .aiConsent },
-                    onViewDetail: {
-                        DeepLinkState.shared.navigate(to: .memoryGallery)
-                    },
-                    onRetry: retryWeeklyObservation,
-                    onClose: {
-                        weeklyObservationCardState.dismiss()
-                        WeeklyObservationCard.hideForToday()
-                    }
-                )
-                .id(weeklyObservationCardState.revision)
-                .padding(.horizontal, 16)
-                .padding(.top, 12)
-            }
-
             // 消息列表
             messageList
 
@@ -272,39 +248,6 @@ struct ChatView: View {
                     activeSheet = .voiceInput
                 }
             )
-        }
-    }
-
-    @MainActor
-    private func retryWeeklyObservation() {
-        guard weeklyObservationCardState.beginRetry() else { return }
-
-        Task { @MainActor in
-            do {
-                await EffectiveRecordDayService.shared.refreshAndWait()
-                let stage: MemoryInsightObservationStage =
-                    EffectiveRecordDayService.shared.currentResult?.eligibility == .lightReady
-                    ? .light3d
-                    : .full7d
-                let range = MemoryInsightContextBuilder.periodRange(
-                    periodType: .weekly,
-                    referenceDate: Date()
-                )
-                _ = try await MemoryInsightService.shared.generateInsight(
-                    periodType: .weekly,
-                    start: range.start,
-                    end: range.end,
-                    forceRefresh: true,
-                    observationStage: stage
-                )
-                weeklyObservationCardState.finishRetry(errorMessage: nil)
-            } catch is CancellationError {
-                weeklyObservationCardState.finishRetry(errorMessage: nil)
-            } catch {
-                weeklyObservationCardState.finishRetry(
-                    errorMessage: error.localizedDescription
-                )
-            }
         }
     }
 

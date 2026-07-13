@@ -46,6 +46,8 @@ enum DeepLinkTarget: Equatable {
     case thoughtDetail(thoughtId: UUID)
     /// 从 AI Chat 洞察标签跳转到记忆长廊
     case memoryGallery
+    /// 精准打开记忆长廊中的指定洞察
+    case memoryInsight(insightId: UUID)
 }
 
 /// Deep Link 状态管理器

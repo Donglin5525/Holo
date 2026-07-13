@@ -13,6 +13,19 @@ struct MemoryInsightGenerationResult: Sendable {
     let rawResponse: String
     let promptType: String
     let promptVersion: Int?
+    let requestId: String?
+
+    init(
+        rawResponse: String,
+        promptType: String,
+        promptVersion: Int?,
+        requestId: String? = nil
+    ) {
+        self.rawResponse = rawResponse
+        self.promptType = promptType
+        self.promptVersion = promptVersion
+        self.requestId = requestId
+    }
 }
 
 /// 健康洞察生成结果（包含原始响应和 Prompt 版本，promptVersion 供缓存判断升级失效）

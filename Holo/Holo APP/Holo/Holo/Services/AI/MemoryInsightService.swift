@@ -28,7 +28,7 @@ final class MemoryInsightService {
     private(set) var isGenerating: Bool = false
 
     /// 超时时间（秒）
-    private let generationTimeout: TimeInterval = 30
+    private let generationTimeout: TimeInterval = 70
 
     /// 缓存的 AI Provider
     private var currentProvider: AIProvider?
@@ -203,7 +203,13 @@ final class MemoryInsightService {
             return first
         }
         } catch {
-            try? repository.saveFailed(insight: insight, errorMessage: error.localizedDescription)
+            let apiError = error as? APIError
+            try? repository.saveFailed(
+                insight: insight,
+                errorMessage: error.localizedDescription,
+                category: apiError?.diagnosticCategory ?? String(describing: type(of: error)),
+                requestId: apiError?.requestId
+            )
             throw error
         }
         try Task.checkCancellation()
@@ -216,7 +222,9 @@ final class MemoryInsightService {
         case .failure(let failure):
             try? repository.saveFailed(
                 insight: insight,
-                errorMessage: failure.userMessage
+                errorMessage: failure.userMessage,
+                category: String(describing: failure),
+                requestId: generationResult.requestId
             )
             throw failure
         }
@@ -248,7 +256,8 @@ final class MemoryInsightService {
             payload: processedPayload,
             rawResponse: generationResult.rawResponse,
             providerName: providerName,
-            promptVersion: promptVersion
+            promptVersion: promptVersion,
+            requestId: generationResult.requestId
         )
 
         // 10. 发送洞察生成完成通知（供长期记忆候选提取使用）

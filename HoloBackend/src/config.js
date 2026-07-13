@@ -52,7 +52,7 @@ const DEFAULT_CONFIG = {
       provider: process.env.HOLO_INSIGHT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_INSIGHT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_INSIGHT_TEMPERATURE ?? 0.3),
-      maxTokens: Number(process.env.HOLO_INSIGHT_MAX_TOKENS ?? 2048),
+      maxTokens: Number(process.env.HOLO_INSIGHT_MAX_TOKENS ?? 4096),
     },
     health_insight_generation: {
       provider: process.env.HOLO_HEALTH_INSIGHT_PROVIDER ?? process.env.HOLO_INSIGHT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
@@ -203,6 +203,7 @@ export function loadConfig(overrides = {}) {
     holoSessionService: overrides.holoSessionService,
     adminLogStore: overrides.adminLogStore,
     usageStore: overrides.usageStore,
+    providerOverrides: overrides.providerOverrides,
     database: overrides.database ?? null,
     contentCaptureEnabled: process.env.HOLO_LOG_CAPTURE_CONTENT === "true",
     logRetentionDays: Number(process.env.HOLO_LOG_RETENTION_DAYS ?? 30),

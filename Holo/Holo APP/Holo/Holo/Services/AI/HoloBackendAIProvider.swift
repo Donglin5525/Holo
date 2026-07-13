@@ -127,17 +127,22 @@ final class HoloBackendAIProvider: AIProvider {
         let messages: [ChatMessageDTO] = [
             .user(contextJSON)
         ]
-        let request = buildRequest(purpose: .insight, messages: messages, responseFormat: .jsonObject)
-        let (response, _) = try await sendCompletion(request)
+        // DeepSeek 推理模型不强制 json_object；服务端 Prompt + 校验器负责结构化约束。
+        let request = buildRequest(purpose: .insight, messages: messages)
+        let (response, requestId) = try await sendCompletion(request)
 
-        guard let content = response.choices?.first?.message?.content else {
+        guard let choice = response.choices?.first,
+              choice.finishReason != "length",
+              let content = choice.message?.content,
+              !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw APIError.serverError("AI 未返回有效内容")
         }
 
         return MemoryInsightGenerationResult(
             rawResponse: content,
             promptType: "memory_insight_generation",
-            promptVersion: nil
+            promptVersion: nil,
+            requestId: requestId
         )
     }
 

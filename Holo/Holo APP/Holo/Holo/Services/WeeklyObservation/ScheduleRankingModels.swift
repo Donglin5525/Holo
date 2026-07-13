@@ -73,3 +73,19 @@ enum ScheduleRanker {
         return now < until
     }
 }
+
+// MARK: - Weekly Observation Delivery
+
+enum WeeklyObservationDeliveryPolicy {
+    static func shouldDeliver(
+        status: String,
+        readAt: Date?,
+        insightPeriodStart: Date,
+        targetPeriodStart: Date,
+        calendar: Calendar = .current
+    ) -> Bool {
+        guard status == "ready" || status == "stale" else { return false }
+        guard readAt == nil else { return false }
+        return calendar.isDate(insightPeriodStart, inSameDayAs: targetPeriodStart)
+    }
+}
