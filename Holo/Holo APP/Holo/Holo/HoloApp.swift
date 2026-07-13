@@ -62,9 +62,7 @@ struct HoloApp: App {
 
     var body: some Scene {
         WindowGroup {
-            AppStartupSplashContainer {
-                ContentView()
-            }
+            ContentView()
                 .preferredColorScheme(darkModeManager.colorScheme)
                 .onOpenURL { url in
                     guard url.isFileURL else {

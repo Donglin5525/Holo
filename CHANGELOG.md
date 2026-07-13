@@ -4,6 +4,14 @@
 
 ---
 
+## [2026-07-13] 修复冷启动闪屏问题
+
+去掉 SwiftUI 启动覆盖层（AppStartupSplashView），仅保留系统 LaunchScreen.storyboard 渲染启动图，消除双层渲染造成的闪烁。
+
+### 变更
+- **移除 AppStartupSplashView**：该 SwiftUI 视图与 LaunchScreen.storyboard 渲染同一张图片，过渡时产生视觉闪烁
+- **简化图片资源**：Contents.json 改为单一 universal 图片，不再区分 1x/2x/3x
+
 ## [2026-07-13] 上周洞察改为首页单次胶囊投递
 
 上周洞察生成完成后不再占用 HoloAI 对话页，而是在首页胶囊中单次提醒；点击后立即消费，并直达记忆长廊中对应洞察的展开内容。
