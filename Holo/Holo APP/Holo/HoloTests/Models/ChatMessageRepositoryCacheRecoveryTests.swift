@@ -56,6 +56,42 @@ final class ChatMessageRepositoryCacheRecoveryTests: XCTestCase {
         )
     }
 
+    func testFinalizeAgentMessagePublishesLoadedMetadataImmediately() throws {
+        let repo = ChatMessageRepository.shared
+        let messageId = repo.addStreamingMessage(role: "assistant")
+        let rendered = HoloRenderedAgentResult(
+            title: "深度分析",
+            summary: "最近一个月，日均 6,991 步",
+            sections: [
+                HoloRenderedAgentSection(
+                    title: "达标情况",
+                    body: "达到 10,000 步 1 天",
+                    confidence: 0.9
+                )
+            ],
+            evidenceReferences: [],
+            headline: "最近一个月的步数",
+            directAnswer: "最近一个月，日均 6,991 步"
+        )
+        let resultData = try JSONEncoder().encode(rendered)
+        let resultJSON = try XCTUnwrap(String(data: resultData, encoding: .utf8))
+
+        repo.finalizeMessage(
+            messageId,
+            finalContent: rendered.summary,
+            intent: AIIntent.queryAnalysis.rawValue,
+            extractedDataJSON: nil,
+            parsedBatchJSON: nil,
+            executionBatchJSON: nil,
+            agentResultJSON: resultJSON
+        )
+
+        let message = try XCTUnwrap(repo.messages.first(where: { $0.id == messageId }))
+        XCTAssertFalse(message.isStreaming)
+        XCTAssertNotNil(message.agentResult)
+        XCTAssertEqual(message.metadataState, .loaded)
+    }
+
     private func makeBatch(confirmationStatus: String, finalText: String) -> AIExecutionBatch {
         AIExecutionBatch(
             mode: .singleAction,

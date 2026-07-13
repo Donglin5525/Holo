@@ -528,6 +528,8 @@ final class ChatMessageRepository: ObservableObject {
             snapshot.analysisContext = decodedAnalysisContext
             snapshot.rawLog = decodedRawLog
             snapshot.agentResult = decodedAgentResult
+            // finalizeMessage 已收到并解析完整元数据，当前快照可立即渲染结构化卡片。
+            snapshot.metadataState = .loaded
         }
     }
 
