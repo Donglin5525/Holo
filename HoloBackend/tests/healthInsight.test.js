@@ -27,6 +27,7 @@ function createTestApp(overrides = {}) {
         maxTokens: 512,
       },
     },
+    exposePromptEndpointsForTests: true,
     ...overrides,
   });
 }

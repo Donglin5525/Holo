@@ -28,6 +28,7 @@ function createTestApp(overrides = {}) {
         maxTokens: 512,
       },
     },
+    exposePromptEndpointsForTests: true,
     ...overrides,
   });
 }
@@ -438,7 +439,9 @@ test("admin login sets a session cookie that can access logs and JSON details", 
     },
   });
   assert.equal(detailResponse.status, 200);
-  assert.equal((await detailResponse.json()).log.request.messages[0].content, "咖啡20");
+  const detail = await detailResponse.json();
+  assert.match(detail.log.request.messages[0].content, /Holo/);
+  assert.equal(detail.log.request.messages[1].content, "咖啡20");
 });
 
 test("admin test chat form creates a visible AI call log", async () => {
@@ -617,8 +620,9 @@ test("admin logs record non-streaming AI request and response details", async ()
   });
   assert.equal(detailResponse.status, 200);
   const { log } = await detailResponse.json();
-  assert.equal(log.request.messages[0].content, "你是 HoloAI");
-  assert.equal(log.request.messages[1].content, "午饭35");
+  assert.match(log.request.messages[0].content, /Holo/);
+  assert.equal(log.request.messages[1].content, "你是 HoloAI");
+  assert.equal(log.request.messages[2].content, "午饭35");
   assert.equal(log.response.choices[0].message.content, "Mock response for: 午饭35");
 });
 

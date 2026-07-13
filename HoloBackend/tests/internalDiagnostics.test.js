@@ -82,7 +82,8 @@ test("AI response exposes request ID and only owner session can fetch the full h
   assert.equal(allowed.headers.get("cache-control"), "no-store");
   const body = await allowed.json();
   assert.equal(body.log.id, requestId);
-  assert.equal(body.log.request.messages[0].content, "仅用于诊断的原始内容");
+  assert.match(body.log.request.messages[0].content, /Holo/);
+  assert.equal(body.log.request.messages[1].content, "仅用于诊断的原始内容");
 });
 
 test("streaming AI response also exposes the same request ID contract", async () => {

@@ -19,6 +19,7 @@ import { createDatabase } from "./db/database.js";
 import { createAppleIdentityVerifier } from "./auth/appleIdentityVerifier.js";
 import { createHoloSessionService } from "./auth/holoSession.js";
 import { requireInternalDiagnostics } from "./auth/internalDiagnosticsAuth.js";
+import { injectServerPrompt } from "./prompts/serverPromptPolicy.js";
 
 const CLIENT_ROUTING_FIELDS = ["baseURL", "baseUrl", "apiKey", "provider", "model"];
 
@@ -72,7 +73,7 @@ export function createApp(overrides = {}) {
       maxEntries: config.admin.logMaxEntries,
       maxDetailChars: config.admin.logDetailMaxChars,
       db: database.db,
-      contentCaptureEnabled: true,
+      contentCaptureEnabled: config.contentCaptureEnabled,
     });
   const providers = createProviders(config);
   const asrProvider = createAsrProvider(config);
@@ -146,29 +147,31 @@ export function createApp(overrides = {}) {
     return context.json(buildReleaseStatus(config));
   });
 
-  app.get("/v1/prompts", (context) => {
-    return context.json({
-      prompts: listPrompts(),
+  if (overrides.exposePromptEndpointsForTests === true) {
+    app.get("/v1/prompts", (context) => {
+      return context.json({
+        prompts: listPrompts(),
+      });
     });
-  });
 
-  app.get("/v1/prompts/meta", (context) => {
-    return context.json({
-      prompts: listPromptMetadata(),
+    app.get("/v1/prompts/meta", (context) => {
+      return context.json({
+        prompts: listPromptMetadata(),
+      });
     });
-  });
 
-  app.get("/v1/prompts/:type", (context) => {
-    try {
-      const prompt = getPrompt(context.req.param("type"));
-      if (!prompt) {
-        throw new GatewayError("PROMPT_NOT_FOUND", "Prompt type is not supported", 404);
+    app.get("/v1/prompts/:type", (context) => {
+      try {
+        const prompt = getPrompt(context.req.param("type"));
+        if (!prompt) {
+          throw new GatewayError("PROMPT_NOT_FOUND", "Prompt type is not supported", 404);
+        }
+        return context.json(prompt);
+      } catch (error) {
+        return createErrorResponse(context, error);
       }
-      return context.json(prompt);
-    } catch (error) {
-      return createErrorResponse(context, error);
-    }
-  });
+    });
+  }
 
   app.get("/v1/catalog/finance-categories", (context) => {
     return context.json(getFinanceCategoryCatalog());
@@ -232,9 +235,10 @@ export function createApp(overrides = {}) {
         throw new GatewayError("MODEL_UNAVAILABLE", `Provider unavailable: ${route.provider}`, 503);
       }
 
+      const serverPrompt = injectServerPrompt(purpose, request.messages);
       const upstreamRequest = {
         purpose,
-        messages: request.messages,
+        messages: serverPrompt.messages,
         stream: request.stream === true,
         model: route.model,
         temperature: route.temperature,
@@ -249,17 +253,19 @@ export function createApp(overrides = {}) {
             purpose,
             provider: route.provider,
             model: route.model,
+            promptType: serverPrompt.promptType,
+            promptVersion: serverPrompt.promptVersion,
             stream: upstreamRequest.stream,
             request: isAgentLoop
               ? {
                   runId: request.runId ?? null,
                   stepId: request.stepId ?? null,
-                  messageCount: request.messages.length,
-                  summary: summarizeMessages(request.messages),
+                  messageCount: upstreamRequest.messages.length,
+                  summary: summarizeMessages(upstreamRequest.messages),
                   responseFormat: request.response_format ?? null,
                 }
               : {
-                  messages: request.messages,
+                  messages: upstreamRequest.messages,
                   responseFormat: request.response_format ?? null,
                   temperature: route.temperature,
                   maxTokens: route.maxTokens,
