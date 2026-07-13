@@ -239,6 +239,12 @@ struct CategoryManagementView: View {
             }
         }
         .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if !category.isSystem {
+                editingCategory = category
+            }
+        }
     }
 
     private func addCategoryRow(title: String, subtitle: String) -> some View {

@@ -26,6 +26,16 @@
 - Release 产物扫描未发现 Prompt 工坊、模型配置、Agent 调试、Mock 提示或 Prompt 正文特征
 - 标准 Release 与 Internal Release 双构建通过；标准包扫描未发现日志入口、内部日志类型、内部接口或内部会话标识，Internal 包确认保留诊断链路
 
+## [2026-07-13] 修复分类管理页二级分类点击无响应
+
+分类管理页中，二级分类行没有点击交互，用户只能通过右滑找到编辑按钮。现支持点击整行直接打开编辑弹窗。
+
+### 变更
+- **CategoryManagementView**：`categoryRow` 添加 `onTapGesture`，非系统分类点击即打开编辑 Sheet；右滑编辑/删除和铅笔按钮保持不变。
+
+### 验证
+- Holo iOS Simulator 编译通过（BUILD SUCCEEDED）
+
 ## [2026-07-13] 修复 Agent 结果返回后当前页面空白
 
 Agent 深度分析完成后，结果卡片现在会在当前 HoloAI 页面立即出现，不再需要退出页面后重新进入才能看到。
