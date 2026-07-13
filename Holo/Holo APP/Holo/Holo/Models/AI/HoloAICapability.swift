@@ -50,7 +50,7 @@ final class HoloAIDataProcessingConsent: ObservableObject {
     }
 
     static var requiredMessage: String {
-        "使用 HoloAI、健康洞察或语音转文字前，需要先同意将必要的输入和上下文通过 Holo 后端转发给第三方 AI/语音服务处理。你可以在 AI 设置中开启或撤回。"
+        "使用 HoloAI、健康洞察或语音转文字前，需要先同意将必要的输入和上下文通过 Holo 后端转发给第三方 AI/语音服务处理。你可以在 HoloAI 数据授权中开启或撤回。"
     }
 }
 

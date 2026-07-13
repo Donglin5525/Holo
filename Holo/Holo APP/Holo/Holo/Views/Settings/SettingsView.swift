@@ -31,6 +31,7 @@ struct SettingsView: View {
     @ObservedObject private var storageService = StorageCacheService.shared
     @AppStorage(UserDisplayNameSettings.displayNameKey) private var userName: String = UserDisplayNameSettings.fallbackDisplayName
     @State private var showAISettings = false
+    @State private var showAIConsent = false
     @State private var showVoiceRecognitionSettings = false
     @State private var showHoloOneSettings = false
     @State private var showPrivacyPolicy = false
@@ -499,6 +500,21 @@ struct SettingsView: View {
             }
 
             // 自动整理想法开关
+            settingsRow(
+                icon: "hand.raised.square",
+                iconColor: .holoPrimary,
+                title: "HoloAI 数据授权",
+                subtitle: HoloAIFeatureFlags.aiDataProcessingConsentGranted ? "已授权，可随时撤回" : "未授权，AI 功能暂停"
+            ) {
+                showAIConsent = true
+            }
+            .sheet(isPresented: $showAIConsent) {
+                NavigationStack {
+                    AIDataProcessingConsentView()
+                }
+            }
+
+            // 自动整理想法开关
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("自动整理想法")
@@ -792,13 +808,19 @@ struct SettingsView: View {
                 icon: "info.circle",
                 iconColor: .holoInfo,
                 title: "关于 Holo",
-                subtitle: "版本 1.0.0"
+                subtitle: appVersionText
             ) {
                 // TODO: 显示关于页面
             }
 
             diagnosticsSection
         }
+    }
+
+    private var appVersionText: String {
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "-"
+        let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "-"
+        return "版本 \(version) (\(build))"
     }
 
     // MARK: - 存储与缓存

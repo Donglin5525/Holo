@@ -6,6 +6,7 @@
 //  Provider 选择、API Key、模型配置、连接测试
 //
 
+#if DEBUG
 import SwiftUI
 
 struct AISettingsView: View {
@@ -574,3 +575,4 @@ struct AISettingsView: View {
         isObserving = false
     }
 }
+#endif

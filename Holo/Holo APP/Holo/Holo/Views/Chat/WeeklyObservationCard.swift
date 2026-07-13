@@ -4,7 +4,7 @@
 //
 //  ChatView 顶部「本周观察」展示区块（方案 §4.5 / 决策 1A）
 //  复用 HoloAI 卡片视觉语言（holoCardBackground + HoloRadius + HoloSpacing）；
-//  未授权态作为正式版统一授权入口（决策 2A，复用 .aiSettings sheet，不受 #if DEBUG 限制）。
+//  未授权态统一进入正式的 HoloAI 数据授权页。
 //
 
 import SwiftUI
@@ -15,7 +15,7 @@ struct WeeklyObservationCard: View {
     let isRetrying: Bool
     /// 当前页面最近一次重试错误，优先于持久化的旧错误
     let retryErrorMessage: String?
-    /// 点击「开启授权」→ 跳 AI 设置授权页（正式版可用，决策 2A）
+    /// 点击「开启授权」→ 跳正式数据授权页
     let onOpenConsent: () -> Void
     /// 点击「查看完整观察」→ 跳记忆长廊
     let onViewDetail: () -> Void

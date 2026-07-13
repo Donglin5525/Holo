@@ -125,7 +125,7 @@ struct ChatView: View {
             isPresented: $viewModel.showConsentPrompt
         ) {
             Button("去开启") {
-                activeSheet = .aiSettings
+                activeSheet = .aiConsent
             }
             Button("取消", role: .cancel) {}
         } message: {
@@ -220,15 +220,14 @@ struct ChatView: View {
                 statusBanner("AI 服务连接较慢，已先放开聊天交互")
             }
 
-            // 本周观察区块（决策 1A：ChatView 展示，复用 HoloAI 卡片样式；
-            // 未授权态作为正式版统一授权入口，决策 2A，复用 .aiSettings sheet 不受 #if DEBUG 限制）
+            // 本周观察区块；未授权态统一进入正式数据授权页。
             if weeklyObservationCardState.shouldDisplay(
                 persistedDecision: WeeklyObservationCard.shouldDisplay
             ) {
                 WeeklyObservationCard(
                     isRetrying: weeklyObservationCardState.isRetrying,
                     retryErrorMessage: weeklyObservationCardState.errorMessage,
-                    onOpenConsent: { activeSheet = .aiSettings },
+                    onOpenConsent: { activeSheet = .aiConsent },
                     onViewDetail: {
                         DeepLinkState.shared.navigate(to: .memoryGallery)
                     },
@@ -569,10 +568,16 @@ struct ChatView: View {
     @ViewBuilder
     private func sheetContent(_ sheet: ChatSheet) -> some View {
         switch sheet {
+        case .aiConsent:
+            NavigationStack {
+                AIDataProcessingConsentView()
+            }
+        #if DEBUG
         case .aiSettings:
             NavigationStack {
                 AISettingsView()
             }
+        #endif
         case .editTransaction(let transaction):
             AddTransactionSheet(editingTransaction: transaction) { _ in
                 ChatMessageRepository.shared.refreshTransactionCard(transactionId: transaction.id)
@@ -620,7 +625,10 @@ struct ChatView: View {
 }
 
 private enum ChatSheet: Identifiable {
+    case aiConsent
+    #if DEBUG
     case aiSettings
+    #endif
     case editTransaction(Transaction)
     case analysisDetail(ChatMessageViewData)
     case agentDeepAnalysis(ChatMessageViewData)
@@ -628,8 +636,12 @@ private enum ChatSheet: Identifiable {
 
     var id: String {
         switch self {
+        case .aiConsent:
+            return "aiConsent"
+        #if DEBUG
         case .aiSettings:
             return "aiSettings"
+        #endif
         case .editTransaction(let transaction):
             return "editTransaction-\(transaction.id)"
         case .analysisDetail(let message):
