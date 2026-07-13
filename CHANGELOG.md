@@ -18,6 +18,7 @@
 
 ### 验证
 - HoloBackend：101 tests，101 pass
+- 后端生产依赖审计：0 vulnerabilities
 - iOS 敏感边界 standalone：7 组全部通过
 - Holo iOS Release / iOS Simulator 全工程编译通过（BUILD SUCCEEDED）
 - Release 产物扫描未发现 Prompt 工坊、模型配置、Agent 调试、Mock 提示或 Prompt 正文特征

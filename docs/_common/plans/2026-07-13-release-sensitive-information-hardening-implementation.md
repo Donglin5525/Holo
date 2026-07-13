@@ -1,6 +1,6 @@
 # Holo Release Sensitive Information Hardening Implementation Plan
 
-> 实施状态：Task 1-9 已完成并通过后端 101 项测试、7 组 iOS standalone 与 Release 构建；Task 10 进入生产部署和真机验收。
+> 实施状态：Task 1-10 的代码、测试、Release 扫描、推送与生产部署均已完成；仅剩东林真机 Apple subject 首次绑定和日志入口验收。
 
 > **For Claude:** REQUIRED SUB-SKILL: Use executing-plans to implement this plan task-by-task in the existing Holo working copy. Do not use subagents.
 
