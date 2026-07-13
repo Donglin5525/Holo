@@ -9,8 +9,10 @@
 import SwiftUI
 
 struct MessageBubbleView: View {
+    #if DEBUG || INTERNAL_DIAGNOSTICS
     @ObservedObject private var internalAccess = HoloInternalAccessService.shared
     @ObservedObject private var internalLogs = HoloInternalLogService.shared
+    #endif
 
     let message: ChatMessageViewData
     let streamingText: String?
@@ -173,7 +175,8 @@ struct MessageBubbleView: View {
                     Label("删除记录", systemImage: "trash")
                 }
             }
-            // 完整日志仅对后端验证的内部账号开放，不属于 Plus 权益。
+            #if DEBUG || INTERNAL_DIAGNOSTICS
+            // 完整日志仅在内部构建中开放，并继续校验后端身份，不属于 Plus 权益。
             if !isUser,
                internalAccess.canViewAILogs,
                internalLogs.hasLog(for: message.id) {
@@ -183,6 +186,7 @@ struct MessageBubbleView: View {
                     Label("查看日志", systemImage: "doc.text.magnifyingglass")
                 }
             }
+            #endif
         }
     }
 

@@ -13,7 +13,9 @@ struct ChatView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel = ChatViewModel()
     @State private var activeSheet: ChatSheet?
+    #if DEBUG || INTERNAL_DIAGNOSTICS
     @State private var viewingLog: LLMLog?
+    #endif
     @State private var didInitialScrollToBottom = false
     @State private var pendingVoiceTranscriptToSend: String?
     @State private var pendingDelete: PendingCardDelete?
@@ -28,6 +30,16 @@ struct ChatView: View {
     /// 外部传入的预填文本（如从记忆长廊"继续问AI"跳转）
     var prefillText: String? = nil
     var opensVoiceInputOnAppear: Bool = false
+
+    private var internalLogAction: ((ChatMessageViewData) -> Void)? {
+        #if DEBUG || INTERNAL_DIAGNOSTICS
+        return { message in
+            viewingLog = HoloInternalLogService.shared.log(for: message.id)
+        }
+        #else
+        return nil
+        #endif
+    }
 
     init(
         goalPlanningRequest: Binding<GoalPlanningRequest?> = .constant(nil),
@@ -76,6 +88,7 @@ struct ChatView: View {
             viewModel.startGoalPlanning(seedText: request.seedText)
             goalPlanningRequest = nil
         }
+        #if DEBUG || INTERNAL_DIAGNOSTICS
         .fullScreenCover(isPresented: Binding(
             get: { viewingLog != nil },
             set: { if !$0 { viewingLog = nil } }
@@ -84,6 +97,7 @@ struct ChatView: View {
                 ChatLogView(log: viewingLog)
             }
         }
+        #endif
         .fullScreenCover(item: $financeSearchRoute) { route in
             FinanceSearchView(
                 initialSearchText: route.keyword,
@@ -344,9 +358,7 @@ struct ChatView: View {
                             onFlexibleQueryViewAllTap: { queryData in
                                 openFlexibleQueryResults(queryData)
                             },
-                            onViewLog: { msg in
-                                viewingLog = HoloInternalLogService.shared.log(for: msg.id)
-                            },
+                            onViewLog: internalLogAction,
                             onCompactAnalysisTap: {
                                 guard message.metadataState == .loaded,
                                       message.analysisContext != nil else { return }

@@ -1,6 +1,6 @@
 # Holo Release Sensitive Information Hardening Implementation Plan
 
-> 实施状态：Task 1-10 的代码、测试、Release 扫描、推送与生产部署均已完成；仅剩东林真机 Apple subject 首次绑定和日志入口验收。
+> 实施状态：Task 1-10 已完成；Task 11 根据 App Store 审核复查追加构建级内部诊断隔离。
 
 > **For Claude:** REQUIRED SUB-SKILL: Use executing-plans to implement this plan task-by-task in the existing Holo working copy. Do not use subagents.
 
@@ -543,3 +543,70 @@ Push 当前 main 前再次核对 scoped commit 列表。
 **Step 10: 最终状态**
 
 确认工作区只剩用户原有无关修改，汇报 commit、测试数、Release build、部署版本、生产接口证据以及仍需东林真机完成的最后一步。
+
+### Task 11: App Store Release 排除内部诊断能力
+
+**Files:**
+- Modify: `Holo/Holo APP/Holo/Holo/Services/Auth/AppleSignInAuthService.swift`
+- Modify: `Holo/Holo APP/Holo/Holo/Services/Auth/HoloInternalAccessService.swift`
+- Modify: `Holo/Holo APP/Holo/Holo/Services/Diagnostics/HoloInternalLogService.swift`
+- Modify: `Holo/Holo APP/Holo/Holo/Services/Diagnostics/HoloInternalLogStore.swift`
+- Modify: `Holo/Holo APP/Holo/Holo/Views/Chat/ChatLogView.swift`
+- Modify: `Holo/Holo APP/Holo/Holo/Views/Chat/ChatView.swift`
+- Modify: `Holo/Holo APP/Holo/Holo/Views/Chat/ChatViewModel.swift`
+- Modify: `Holo/Holo APP/Holo/Holo/Views/Chat/MessageBubbleView.swift`
+- Create: `Holo/Holo APP/Holo/HoloTests/Services/Diagnostics/HoloInternalDiagnosticsBuildBoundaryStandaloneTests.swift`
+- Modify: `Holo/Holo APP/Holo/Holo/Views/Settings/AIDataProcessingConsentView.swift`
+- Modify: `Holo/Holo APP/Holo/Holo/Views/Settings/LegalDocumentSheet.swift`
+- Modify: `docs/app-store/review-notes-and-metadata.md`
+- Modify: `docs/privacy-policy.html`
+- Modify: `CHANGELOG.md`
+
+**Step 1: 写构建边界失败测试**
+
+新增 source-contract standalone test，断言 Apple 内部会话交换、日志拉取/仓库、日志页面、日志捕获和菜单均位于 `DEBUG || INTERNAL_DIAGNOSTICS` 编译条件内；审核备注不得再引用 Release 中不存在的 `AI Settings`，授权页必须明确列出可能发送的数据类别。
+
+**Step 2: 运行测试确认 RED**
+
+Run: `swift "Holo/Holo APP/Holo/HoloTests/Services/Diagnostics/HoloInternalDiagnosticsBuildBoundaryStandaloneTests.swift" "/Users/tangyuxuan/Desktop/Claude/HOLO"`
+
+Expected: FAIL，指出内部诊断仍可进入标准 Release 或审核备注仍引用开发设置。
+
+**Step 3: 最小实现构建隔离**
+
+使用 `#if DEBUG || INTERNAL_DIAGNOSTICS`：
+
+- 标准 Release 不进行 Apple 内部会话交换；
+- 不编译日志服务、日志仓库和日志页面；
+- 不捕获 requestId 对应完整日志；
+- 不渲染“查看日志”菜单和日志 sheet；
+- Debug 继续保持当前真机排障体验；
+- 显式传入 `INTERNAL_DIAGNOSTICS` 的内部 Release 构建继续支持服务端 Apple 白名单。
+
+同时把 AI 授权说明补充为问题文本、财务/习惯/待办/观点/健康摘要和语音片段等必要数据；修正 App Review Notes 的实际授权路径，删除录屏与地区选择占位符。
+
+**Step 4: 运行 targeted tests 确认 GREEN**
+
+Run:
+
+```bash
+swift "Holo/Holo APP/Holo/HoloTests/Services/Diagnostics/HoloInternalDiagnosticsBuildBoundaryStandaloneTests.swift" "/Users/tangyuxuan/Desktop/Claude/HOLO"
+swift "Holo/Holo APP/Holo/HoloTests/Services/Diagnostics/HoloInternalLogVisibilityStandaloneTests.swift" "/Users/tangyuxuan/Desktop/Claude/HOLO"
+swift "Holo/Holo APP/Holo/HoloTests/Views/Settings/ReleaseSettingsSurfaceStandaloneTests.swift" "/Users/tangyuxuan/Desktop/Claude/HOLO"
+```
+
+Expected: 三组测试全部 PASS。
+
+**Step 5: 双构建验证**
+
+Run standard Release without internal flag, then an internal Release with `SWIFT_ACTIVE_COMPILATION_CONDITIONS='$(inherited) INTERNAL_DIAGNOSTICS'`.
+
+Expected: 两次 `BUILD SUCCEEDED`；标准 Release 可执行产物不包含“查看日志”，Internal 产物保留诊断入口。
+
+**Step 6: Changelog、scoped commit 与 push**
+
+更新根目录 `CHANGELOG.md`，只暂存 Task 11 文件与计划文档。执行 `git diff --cached --check`，提交信息使用 `fix: 将内部日志移出商店正式版`。核对 origin 仍为 `git@github.com:Donglin5525/Holo.git` 后推送 `main`，不得混入现有 Memory Gallery、财务图标或其他工作区改动。
+
+本任务不修改 `HoloBackend/`，无需再次部署 ECS；现有 Apple 白名单和内部日志端点继续为 Debug/Internal 构建服务。
+
+**完成记录（2026-07-13）：** 三组 targeted standalone 测试全部 PASS；标准 Release 与 `INTERNAL_DIAGNOSTICS` Release 均 `BUILD SUCCEEDED`。标准 Release 二进制对“查看日志”、内部日志类型、内部日志接口和内部会话 Keychain 标识扫描为零命中，Internal Release 确认保留内部日志服务与接口。

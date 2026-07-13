@@ -1,3 +1,4 @@
+#if DEBUG || INTERNAL_DIAGNOSTICS
 import Combine
 import Foundation
 import OSLog
@@ -131,3 +132,4 @@ enum HoloInternalAccessError: Error {
     case invalidEndpoint
     case exchangeRejected
 }
+#endif

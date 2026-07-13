@@ -4,7 +4,7 @@
 
 ## 使用方式
 
-这份文档用于 App Store Connect 的版本信息、审核备注和截图文案准备。带有 `TODO` 的项目需要在提交前替换成真实信息。
+这份文档用于 App Store Connect 的版本信息、审核备注和截图文案准备。
 
 ## ASO 定位
 
@@ -109,11 +109,11 @@ Holo 是一款生活记录和个人管理工具，把记账、待办、习惯、
 
 ### Support URL
 
-TODO：https://holoapp.cn/support
+https://holoapp.cn/support
 
 ### Privacy Policy URL
 
-TODO：https://holoapp.cn/privacy
+https://holoapp.cn/privacy
 
 ### Copyright
 
@@ -168,7 +168,7 @@ ASO 建议：主分类选 Productivity，副分类选 Lifestyle。Holo 的核心
 
 ### 1. Screen Recording on a Physical Device
 
-TODO：请替换为真机录屏链接。
+无需额外录屏。审核员可以按以下路径直接访问全部公开功能；如审核团队需要辅助材料，可在 Resolution Center 中补充真机录屏。
 
 建议录屏内容：
 
@@ -195,7 +195,7 @@ Suggested review path:
 1. Launch the app.
 2. Sign in with Apple.
 3. Use the main dashboard to open Finance, Habits, Tasks, Thoughts, Health, and Memory Gallery.
-4. Open HoloAI. When prompted in AI Settings, enable AI data processing consent to test AI-powered features.
+4. Open HoloAI. If the consent sheet appears, enable AI data processing there; the same control is available under Settings -> HoloAI Data Authorization.
 5. To test Health features, grant Apple Health read access if health data exists on the device. If no Health data is available, the app shows an empty/unauthorized state.
 6. Open Settings -> Legal & Privacy to view Privacy Policy and Terms of Use.
 7. Open Settings -> Account & Data -> Delete Account and Holo Data to review the deletion flow.
@@ -215,14 +215,6 @@ Holo uses the following external services:
 Holo does not use third-party advertising or cross-app tracking.
 
 ### 5. Regional Differences
-
-TODO：提交前二选一。
-
-Option A, if distributing globally including mainland China:
-
-The app provides the same core features across regions. App Store metadata avoids references to specific third-party AI brands in China-visible locales.
-
-Option B, if excluding mainland China for the first submission:
 
 The app provides the same core features in all selected regions. Mainland China is not included in this initial release.
 

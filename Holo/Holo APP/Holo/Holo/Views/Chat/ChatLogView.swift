@@ -6,6 +6,7 @@
 //  展示每次 LLM 调用的请求和响应，支持一键复制
 //
 
+#if DEBUG || INTERNAL_DIAGNOSTICS
 import SwiftUI
 
 struct ChatLogView: View {
@@ -248,3 +249,4 @@ struct ChatLogView: View {
         }
     }
 }
+#endif

@@ -12,9 +12,11 @@
 - **正式版开发能力隔离**：完整 AI/语音配置、Prompt 编辑与测试、Mock Provider 仅参与 Debug 编译，Plus 会员也不会获得这些入口。
 - **原始日志默认关闭**：普通账号不再生成或持久化完整 AI 请求/响应；升级时自动清理历史 rawLog、旧模型 Keychain 配置和自定义 Prompt 缓存。
 - **仅本人日志权限**：Apple 登录凭证由后端验证，只有服务端白名单中的内部账号获得短期诊断权限；完整日志仅在本人设备保存 7 天，不进 iCloud，退出或权限失效即清除。
+- **商店包彻底移除日志**：App Store Release 不编译内部会话交换、日志抓取、日志仓库、日志页面和“查看日志”入口；Debug 与显式启用 `INTERNAL_DIAGNOSTICS` 的内部 Release 继续保留东林真机排障能力。
 - **服务端 Prompt 边界**：客户端只提交业务上下文与 purpose，托管 Prompt 永远由后端作为首条 system message 注入；公网 `/v1/prompts*` 不再开放。
 - **公网信息最小化**：公开发布状态只保留服务与版本身份，模型、温度、Token、Prompt 版本和数据库状态改为管理员鉴权后验收。
 - **用户错误脱敏**：聊天气泡不再展示 provider、model、URL、HTTP 或 JSON 解码原文，详细错误仅进入受控诊断链路。
+- **隐私与审核口径对齐**：AI 数据授权页明确说明可能发送的问题文本、业务摘要与语音片段；App 内隐私说明、网页版隐私政策和审核备注同步为真实 Release 行为与实际入口路径。
 
 ### 验证
 - HoloBackend：101 tests，101 pass
@@ -22,6 +24,7 @@
 - iOS 敏感边界 standalone：7 组全部通过
 - Holo iOS Release / iOS Simulator 全工程编译通过（BUILD SUCCEEDED）
 - Release 产物扫描未发现 Prompt 工坊、模型配置、Agent 调试、Mock 提示或 Prompt 正文特征
+- 标准 Release 与 Internal Release 双构建通过；标准包扫描未发现日志入口、内部日志类型、内部接口或内部会话标识，Internal 包确认保留诊断链路
 
 ## [2026-07-13] 修复 Agent 结果返回后当前页面空白
 

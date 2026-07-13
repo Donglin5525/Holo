@@ -1,3 +1,4 @@
+#if DEBUG || INTERNAL_DIAGNOSTICS
 import Combine
 import Foundation
 import OSLog
@@ -109,3 +110,4 @@ private struct InternalLogResponse: Decodable {
     struct Choice: Decodable { let message: ChatMessageDTO? }
     struct ErrorPayload: Decodable { let message: String? }
 }
+#endif

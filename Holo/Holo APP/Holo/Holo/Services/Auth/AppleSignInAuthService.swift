@@ -51,8 +51,11 @@ final class AppleSignInAuthService: ObservableObject {
 
     private let sessionStore: HoloAuthSessionStoring
     private let credentialProvider: ASAuthorizationAppleIDProvider
+    #if DEBUG || INTERNAL_DIAGNOSTICS
     private let internalAccessService: HoloInternalAccessService
+    #endif
 
+    #if DEBUG || INTERNAL_DIAGNOSTICS
     init(
         sessionStore: HoloAuthSessionStoring? = nil,
         credentialProvider: ASAuthorizationAppleIDProvider = ASAuthorizationAppleIDProvider(),
@@ -64,6 +67,17 @@ final class AppleSignInAuthService: ObservableObject {
         loadStoredSession()
         observeCredentialRevocation()
     }
+    #else
+    init(
+        sessionStore: HoloAuthSessionStoring? = nil,
+        credentialProvider: ASAuthorizationAppleIDProvider = ASAuthorizationAppleIDProvider()
+    ) {
+        self.sessionStore = sessionStore ?? KeychainHoloAuthSessionStore()
+        self.credentialProvider = credentialProvider
+        loadStoredSession()
+        observeCredentialRevocation()
+    }
+    #endif
 
     private func observeCredentialRevocation() {
         NotificationCenter.default.addObserver(
@@ -74,7 +88,9 @@ final class AppleSignInAuthService: ObservableObject {
                 guard let self else { return }
                 authLogger.warning("Apple ID 凭证已被用户撤销")
                 try? sessionStore.delete()
+                #if DEBUG || INTERNAL_DIAGNOSTICS
                 internalAccessService.clear()
+                #endif
                 session = nil
                 status = .credentialRevoked
                 errorMessage = "Apple 登录已失效，请重新登录"
@@ -124,12 +140,14 @@ final class AppleSignInAuthService: ObservableObject {
                 session = authSession
                 status = .signedIn
                 errorMessage = nil
+                #if DEBUG || INTERNAL_DIAGNOSTICS
                 Task {
                     await internalAccessService.establishSession(
                         identityToken: credential.identityToken,
                         authorizationCode: credential.authorizationCode
                     )
                 }
+                #endif
             } catch {
                 errorMessage = "保存登录状态失败：\(error.localizedDescription)"
                 authLogger.error("保存 Apple 登录态失败：\(error.localizedDescription)")
@@ -160,7 +178,9 @@ final class AppleSignInAuthService: ObservableObject {
                 errorMessage = nil
             case .revoked, .notFound:
                 try? sessionStore.delete()
+                #if DEBUG || INTERNAL_DIAGNOSTICS
                 internalAccessService.clear()
+                #endif
                 self.session = nil
                 status = .credentialRevoked
                 errorMessage = "Apple 登录已失效，请重新登录"
@@ -182,7 +202,9 @@ final class AppleSignInAuthService: ObservableObject {
         }
 
         session = nil
+        #if DEBUG || INTERNAL_DIAGNOSTICS
         internalAccessService.clear()
+        #endif
         status = .signedOut
         errorMessage = nil
     }
@@ -196,7 +218,9 @@ final class AppleSignInAuthService: ObservableObject {
         }
 
         session = nil
+        #if DEBUG || INTERNAL_DIAGNOSTICS
         internalAccessService.clear()
+        #endif
         status = .signedOut
         errorMessage = nil
     }

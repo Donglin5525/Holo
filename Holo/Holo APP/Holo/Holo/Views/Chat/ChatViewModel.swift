@@ -366,6 +366,7 @@ final class ChatViewModel: ObservableObject {
                     )
                 }
 
+                #if DEBUG || INTERNAL_DIAGNOSTICS
                 let internalRequestIds = [
                     processResult.intentCallLog?.requestId,
                     self.provider.lastCallLog?.requestId
@@ -374,6 +375,7 @@ final class ChatViewModel: ObservableObject {
                     messageId: aiMessageId,
                     requestIds: Array(Set(internalRequestIds))
                 )
+                #endif
 
                 // ENERGY: 能量恢复预留位
 

@@ -1,3 +1,4 @@
+#if DEBUG || INTERNAL_DIAGNOSTICS
 import Foundation
 
 struct HoloInternalLogRecord: Codable, Equatable {
@@ -81,3 +82,4 @@ final class HoloInternalLogStore {
         try data.write(to: fileURL, options: [.atomic, .completeFileProtection])
     }
 }
+#endif

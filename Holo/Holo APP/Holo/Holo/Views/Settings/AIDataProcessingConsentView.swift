@@ -13,7 +13,7 @@ struct AIDataProcessingConsentView: View {
             } header: {
                 Text("AI 数据处理授权")
             } footer: {
-                Text("开启后，只有你主动使用 AI 功能时，必要的输入、相关记录和上下文才会经 Holo 后端发送给第三方 AI 或语音服务处理。")
+                Text("开启后，仅在你使用相关 AI 功能时，你的问题，以及完成该功能所需的财务、习惯、待办、观点和健康摘要或语音片段，会经 Holo 后端发送给第三方 AI 或语音服务处理。")
             }
 
             Section("关闭后的影响") {
