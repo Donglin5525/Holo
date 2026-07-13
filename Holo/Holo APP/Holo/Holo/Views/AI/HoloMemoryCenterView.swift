@@ -170,7 +170,7 @@ struct HoloMemoryCenterView: View {
             selectedMemory = memory
         } label: {
             HStack(spacing: 12) {
-                Image(systemName: iconForType(memory.type))
+                Image(systemName: iconForSemanticType(memory.semanticType))
                     .font(.system(size: 16))
                     .foregroundColor(.holoPrimary)
                     .frame(width: 28)
@@ -182,28 +182,16 @@ struct HoloMemoryCenterView: View {
                             .foregroundColor(.holoTextPrimary)
                             .lineLimit(1)
 
-                        // 语义类型标签
-                        if let semanticType = memory.semanticType {
-                            Text(semanticTypeDisplayName(semanticType))
-                                .font(.system(size: 10))
-                                .foregroundColor(.holoPrimary)
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 1)
-                                .background(Color.holoPrimary.opacity(0.1))
-                                .cornerRadius(3)
-                        } else {
-                            Text("旧格式")
-                                .font(.system(size: 10))
-                                .foregroundColor(.holoTextSecondary)
-                                .padding(.horizontal, 5)
-                                .padding(.vertical, 1)
-                                .background(Color.holoTextSecondary.opacity(0.1))
-                                .cornerRadius(3)
-                        }
+                        Text(semanticTypeDisplayName(memory.semanticType))
+                            .font(.system(size: 10))
+                            .foregroundColor(.holoPrimary)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(Color.holoPrimary.opacity(0.1))
+                            .cornerRadius(3)
                     }
 
-                    // 优先展示 displaySummary，fallback 到 summary
-                    Text(memory.displaySummary ?? memory.summary)
+                    Text(memory.displaySummary)
                         .font(.system(size: 12))
                         .foregroundColor(.holoTextSecondary)
                         .lineLimit(2)
@@ -226,10 +214,7 @@ struct HoloMemoryCenterView: View {
         NavigationView {
             List {
                 Section {
-                    LabeledContent("类型", value: typeLabel(memory.type))
-                    if let semanticType = memory.semanticType {
-                        LabeledContent("语义类型", value: semanticTypeDisplayName(semanticType))
-                    }
+                    LabeledContent("语义类型", value: semanticTypeDisplayName(memory.semanticType))
                     LabeledContent("确认状态", value: stateLabel(memory.confirmationState))
                     LabeledContent("置信度", value: confidenceLabel(memory.confidence))
                 } header: {
@@ -330,23 +315,13 @@ struct HoloMemoryCenterView: View {
         }
     }
 
-    private func iconForType(_ type: HoloLongTermMemoryType) -> String {
+    private func iconForSemanticType(_ type: HoloMemorySemanticType) -> String {
         switch type {
-        case .explicitUserPreference: return "hand.thumbsup"
-        case .stableFeedbackPreference: return "chart.bar"
-        case .recurringPattern: return "arrow.triangle.2.circlepath"
-        case .longTermGoal: return "target"
-        case .profileBackedFact: return "person.text.rectangle"
-        }
-    }
-
-    private func typeLabel(_ type: HoloLongTermMemoryType) -> String {
-        switch type {
-        case .explicitUserPreference: return "明确偏好"
-        case .stableFeedbackPreference: return "反馈偏好"
-        case .recurringPattern: return "重复模式"
-        case .longTermGoal: return "长期目标"
-        case .profileBackedFact: return "档案事实"
+        case .phaseShift: return "arrow.triangle.2.circlepath"
+        case .stablePattern: return "chart.bar"
+        case .driftSignal: return "exclamationmark.arrow.triangle.2.circlepath"
+        case .lifeEvent: return "person.text.rectangle"
+        case .statMilestone: return "flag.checkered"
         }
     }
 

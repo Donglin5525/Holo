@@ -148,6 +148,8 @@ nonisolated struct MemoryInsightEvidence: Codable, Identifiable, Equatable {
 
 /// LLM 输出的记忆候选语义字段（嵌入在洞察卡片中）
 nonisolated struct MemoryCandidatePayload: Codable, Equatable {
+    /// 稳定主题键：同一习惯/目标/事件跨报告必须保持一致
+    let subjectKey: String
     /// 语义类型：phaseShift / stablePattern / driftSignal / lifeEvent / statMilestone
     let semanticType: String
     /// 给用户审核的事实摘要，不含建议

@@ -39,6 +39,11 @@ enum MemoryCandidateSemanticMapper {
             return nil
         }
 
+        guard let subjectKey = HoloSemanticMemoryIdentity.normalizeSubjectKey(candidate.subjectKey) else {
+            logger.warning("非法 subjectKey: \(candidate.subjectKey)，丢弃候选 \(card.id)")
+            return nil
+        }
+
         guard shouldPromote(semanticType: semanticType, card: card, candidate: candidate, evidenceCount: evidence.count) else {
             logger.info("候选 \(card.id) 不满足语义晋升边界，跳过")
             return nil
@@ -53,7 +58,6 @@ enum MemoryCandidateSemanticMapper {
             : candidate.aiUseSummary
 
         // 4. 构建候选
-        let legacyType = legacyTypeMapping(for: semanticType)
         let useScopes = defaultUseScopes(for: semanticType)
         let sensitivity = resolveSensitivity(
             llmValue: nil,
@@ -69,10 +73,13 @@ enum MemoryCandidateSemanticMapper {
         )
 
         return HoloLongTermMemory(
-            id: "candidate-\(card.id)",
-            type: legacyType,
+            id: HoloSemanticMemoryIdentity.makeID(
+                semanticType: semanticType,
+                domain: card.type.rawValue,
+                subjectKey: subjectKey
+            ),
+            subjectKey: subjectKey,
             title: card.title,
-            summary: displaySummary,
             confidence: confidence,
             confirmationState: .candidate,
             sensitivity: sensitivity,
@@ -171,22 +178,6 @@ enum MemoryCandidateSemanticMapper {
         }
 
         return inferences
-    }
-
-    /// semanticType → 旧 type 兼容映射
-    static func legacyTypeMapping(for semanticType: HoloMemorySemanticType) -> HoloLongTermMemoryType {
-        switch semanticType {
-        case .phaseShift:
-            return .profileBackedFact
-        case .stablePattern:
-            return .recurringPattern
-        case .driftSignal:
-            return .recurringPattern
-        case .lifeEvent:
-            return .profileBackedFact
-        case .statMilestone:
-            return .recurringPattern
-        }
     }
 
     /// 合并 confidence：LLM 优先，缺失时按 evidence 数量 fallback

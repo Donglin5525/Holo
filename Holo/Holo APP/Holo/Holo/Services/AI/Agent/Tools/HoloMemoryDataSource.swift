@@ -15,7 +15,7 @@ struct HoloDefaultMemoryDataSource: HoloMemoryDataSource {
     /// 长期确认记忆（confirmed + silentlyAccepted，Store 已排除过期）。
     func longTermConfirmed() async -> [HoloMemoryToolRecord] {
         HoloLongTermMemoryStore.queryConfirmed().map {
-            HoloMemoryToolRecord(id: $0.id, title: $0.title, summary: $0.summary, occurredAt: $0.updatedAt)
+            HoloMemoryToolRecord(id: $0.id, title: $0.title, summary: $0.displaySummary, occurredAt: $0.updatedAt)
         }
     }
 

@@ -12,6 +12,7 @@ enum HoloLongTermMemoryStore {
 
     private static let logger = Logger(subsystem: "com.holo.app", category: "LongTermMemoryStore")
     private static let fileName = "HoloLongTermMemories.json"
+    private static let semanticV2MigrationKey = "holo_memory_semantic_v2_migrated"
 
     // MARK: - 并发安全
 
@@ -36,7 +37,10 @@ enum HoloLongTermMemoryStore {
     // MARK: - Load
 
     static func load() -> [HoloLongTermMemory] {
-        queue.sync {
+        if !UserDefaults.standard.bool(forKey: semanticV2MigrationKey) {
+            _ = performSemanticV2MigrationIfNeeded()
+        }
+        return queue.sync {
             let fm = FileManager.default
 
             guard fm.fileExists(atPath: storeURL.path) else {
@@ -68,29 +72,75 @@ enum HoloLongTermMemoryStore {
     static func save(_ memories: [HoloLongTermMemory]) throws {
         let result: Result<Void, Error> = queue.sync(flags: .barrier) {
             do {
-                let fm = FileManager.default
-                let dir = storeURL.deletingLastPathComponent()
-
-                if !fm.fileExists(atPath: dir.path) {
-                    try fm.createDirectory(at: dir, withIntermediateDirectories: true)
-                }
-
-                let encoder = JSONEncoder()
-                encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
-                encoder.dateEncodingStrategy = .iso8601
-                let data = try encoder.encode(memories)
-
-                // 原子写入：临时文件 + 替换
-                let tempURL = dir.appendingPathComponent("HoloLongTermMemories_temp.json")
-                try data.write(to: tempURL, options: .atomic)
-                _ = try fm.replaceItemAt(storeURL, withItemAt: tempURL)
-
+                try writeMemories(memories)
                 return .success(())
             } catch {
                 return .failure(error)
             }
         }
         try result.get()
+    }
+
+    // MARK: - Semantic V2 Migration
+
+    /// 删除全部旧格式记录，只在新文件成功落盘后写完成标记。
+    @discardableResult
+    static func performSemanticV2MigrationIfNeeded(
+        defaults: UserDefaults = .standard
+    ) -> HoloLongTermMemoryMigrationResult? {
+        guard !defaults.bool(forKey: semanticV2MigrationKey) else { return nil }
+
+        let result: Result<HoloLongTermMemoryMigrationResult, Error> = queue.sync(flags: .barrier) {
+            do {
+                let fm = FileManager.default
+                guard fm.fileExists(atPath: storeURL.path) else {
+                    return .success(HoloLongTermMemoryMigrationResult(
+                        memories: [],
+                        removedLegacyCount: 0,
+                        removedInvalidCount: 0
+                    ))
+                }
+
+                let data = try Data(contentsOf: storeURL)
+                let migration = try HoloLongTermMemoryMigration.decodeAndFilter(data)
+                try writeMemories(migration.memories)
+                return .success(migration)
+            } catch {
+                return .failure(error)
+            }
+        }
+
+        switch result {
+        case .success(let migration):
+            defaults.set(true, forKey: semanticV2MigrationKey)
+            logger.info("长期记忆 V2 迁移完成：删除旧格式 \(migration.removedLegacyCount) 条，无效新格式 \(migration.removedInvalidCount) 条")
+            return migration
+        case .failure(let error):
+            logger.error("长期记忆 V2 迁移失败，将在下次启动重试：\(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    private static func writeMemories(_ memories: [HoloLongTermMemory]) throws {
+        let fm = FileManager.default
+        let dir = storeURL.deletingLastPathComponent()
+
+        if !fm.fileExists(atPath: dir.path) {
+            try fm.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(memories)
+
+        let tempURL = dir.appendingPathComponent("HoloLongTermMemories_temp.json")
+        try data.write(to: tempURL, options: .atomic)
+        if fm.fileExists(atPath: storeURL.path) {
+            _ = try fm.replaceItemAt(storeURL, withItemAt: tempURL)
+        } else {
+            try fm.moveItem(at: tempURL, to: storeURL)
+        }
     }
 
     // MARK: - Upsert Candidate
@@ -100,8 +150,28 @@ enum HoloLongTermMemoryStore {
         var memories = load()
 
         if let index = memories.firstIndex(where: { $0.id == candidate.id }) {
+            let existing = memories[index]
             var updated = candidate
+            updated.createdAt = existing.createdAt
             updated.updatedAt = Date()
+            updated.evidence = HoloLongTermMemoryEvidenceMerger.merge(existing.evidence, candidate.evidence)
+            updated.confidence = MemoryCandidateSemanticMapper.resolveConfidence(
+                llmValue: nil,
+                evidenceCount: updated.evidence.count
+            )
+
+            switch existing.confirmationState {
+            case .confirmed, .silentlyAccepted:
+                updated.confirmationState = existing.confirmationState
+                updated.title = existing.title
+                updated.displaySummary = existing.displaySummary
+                updated.aiUseSummary = existing.aiUseSummary
+                updated.prohibitedInferences = existing.prohibitedInferences
+            case .rejected, .archived:
+                updated.confirmationState = existing.confirmationState
+            case .candidate:
+                break
+            }
             memories[index] = updated
         } else {
             memories.append(candidate)
@@ -169,32 +239,6 @@ enum HoloLongTermMemoryStore {
 
     // MARK: - Query
 
-    /// 查询 Prompt 摘要，最多 limit 条，排除过期记忆
-    static func queryPromptSummary(limit: Int = 5) -> HoloMemoryPromptSummary {
-        let now = Date()
-        let memories = load()
-            .filter { mem in
-                guard mem.confirmationState == .confirmed || mem.confirmationState == .silentlyAccepted else { return false }
-                // 排除已过期的记忆
-                if let expires = mem.expiresAt, expires < now { return false }
-                return true
-            }
-            .sorted { $0.updatedAt > $1.updatedAt }
-
-        let selected = Array(memories.prefix(limit))
-        let lines = selected.map { "\($0.title)：\($0.summary)" }
-        let sourceIDs = selected.map(\.id)
-
-        let coverage: HoloMemoryCoverageLevel = selected.isEmpty ? .empty : (memories.count >= 3 ? .rich : .partial)
-
-        return HoloMemoryPromptSummary(
-            lines: lines,
-            sourceIDs: sourceIDs,
-            coverage: coverage,
-            entries: []
-        )
-    }
-
     /// 查询候选记忆（排除过期）
     static func queryCandidates() -> [HoloLongTermMemory] {
         let now = Date()
@@ -221,8 +265,6 @@ enum HoloLongTermMemoryStore {
     @discardableResult
     static func cleanupExpired(now: Date = Date()) -> Int {
         var memories = load()
-        let before = memories.count
-
         var archivedCount = 0
         for index in memories.indices {
             guard let expires = memories[index].expiresAt, expires < now else { continue }

@@ -2,7 +2,7 @@
 //  HoloLongTermMemoryStoreTests.swift
 //  HoloTests
 //
-//  测试长期记忆 Store 日期编解码、损坏恢复、旧 Schema 兼容
+//  测试长期记忆 Store 日期编解码、损坏恢复和严格 V2 迁移
 //
 
 import XCTest
@@ -20,9 +20,8 @@ final class HoloLongTermMemoryStoreTests: XCTestCase {
     ) -> HoloLongTermMemory {
         HoloLongTermMemory(
             id: id,
-            type: .explicitUserPreference,
+            subjectKey: "test:\(id)",
             title: title,
-            summary: "测试摘要",
             confidence: .medium,
             confirmationState: .candidate,
             sensitivity: .normal,
@@ -37,7 +36,12 @@ final class HoloLongTermMemoryStoreTests: XCTestCase {
             ],
             createdAt: createdAt,
             updatedAt: updatedAt,
-            expiresAt: nil
+            expiresAt: nil,
+            semanticType: .stablePattern,
+            displaySummary: "测试摘要",
+            aiUseSummary: "仅在相关测试场景使用，不扩展推断。",
+            useScopes: [.coreContext],
+            prohibitedInferences: ["不要扩展推断"]
         )
     }
 
@@ -63,9 +67,8 @@ final class HoloLongTermMemoryStoreTests: XCTestCase {
 
         let memory = HoloLongTermMemory(
             id: "date-test-1",
-            type: .recurringPattern,
+            subjectKey: "habit:date-test",
             title: "日期测试",
-            summary: "验证日期编解码一致性",
             confidence: .high,
             confirmationState: .candidate,
             sensitivity: .normal,
@@ -80,7 +83,12 @@ final class HoloLongTermMemoryStoreTests: XCTestCase {
             ],
             createdAt: expectedCreatedAt,
             updatedAt: expectedUpdatedAt,
-            expiresAt: nil
+            expiresAt: nil,
+            semanticType: .stablePattern,
+            displaySummary: "验证日期编解码一致性",
+            aiUseSummary: "仅用于验证日期，不做其他推断。",
+            useScopes: [.coreContext],
+            prohibitedInferences: ["不要扩展推断"]
         )
 
         try HoloLongTermMemoryStore.save([memory])
@@ -120,10 +128,9 @@ final class HoloLongTermMemoryStoreTests: XCTestCase {
         XCTAssertEqual(loaded.isEmpty, true)
     }
 
-    // MARK: - Task 0.3: 旧 Schema 兼容测试
+    // MARK: - 严格 V2 迁移
 
-    func testLoad_OldSchema_缺失字段不崩溃() throws {
-        // 模拟旧 Schema：只有 id/title/summary/createdAt/updatedAt
+    func testMigration_旧格式直接删除() throws {
         let minimalJSON = """
         [{
             "id": "old-1",
@@ -139,22 +146,13 @@ final class HoloLongTermMemoryStoreTests: XCTestCase {
         }]
         """
 
-        let fm = FileManager.default
-        let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let storeURL = appSupport.appendingPathComponent("Holo/HoloLongTermMemories.json")
-        let dir = storeURL.deletingLastPathComponent()
-        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
-        try Data(minimalJSON.utf8).write(to: storeURL)
-
-        let loaded = HoloLongTermMemoryStore.load()
-        XCTAssertEqual(loaded.count, 1)
-        XCTAssertEqual(loaded.first?.title, "旧记忆")
-        XCTAssertNil(loaded.first?.expiresAt)
+        let result = try HoloLongTermMemoryMigration.decodeAndFilter(Data(minimalJSON.utf8))
+        XCTAssertEqual(result.removedLegacyCount, 1)
+        XCTAssertTrue(result.memories.isEmpty)
     }
 
-    func testSaveAndLoad_SchemaVersion兼容() throws {
-        // 先写入一个旧格式记忆
-        let oldJSON = """
+    func testMigration_缺少稳定主题键的新格式直接删除() throws {
+        let invalidV2JSON = """
         [{
             "id": "compat-1",
             "type": "recurringPattern",
@@ -163,32 +161,19 @@ final class HoloLongTermMemoryStoreTests: XCTestCase {
             "confidence": "high",
             "confirmationState": "confirmed",
             "sensitivity": "normal",
-            "evidence": [],
+            "evidence": [{"id":"e1","source":"memoryInsight","sourceID":"h1","excerpt":"证据","observedAt":"2025-01-15T12:00:00Z"}],
             "createdAt": "2025-01-15T12:00:00Z",
-            "updatedAt": "2025-01-15T12:00:00Z"
+            "updatedAt": "2025-01-15T12:00:00Z",
+            "semanticType": "stablePattern",
+            "displaySummary": "稳定记录",
+            "aiUseSummary": "只在相关场景参考",
+            "useScopes": ["coreContext"],
+            "prohibitedInferences": ["不要扩展推断"]
         }]
         """
 
-        let fm = FileManager.default
-        let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
-        let storeURL = appSupport.appendingPathComponent("Holo/HoloLongTermMemories.json")
-        let dir = storeURL.deletingLastPathComponent()
-        try fm.createDirectory(at: dir, withIntermediateDirectories: true)
-        try Data(oldJSON.utf8).write(to: storeURL)
-
-        // 加载旧格式
-        var loaded = HoloLongTermMemoryStore.load()
-        XCTAssertEqual(loaded.count, 1)
-
-        // 追加新记忆并保存
-        let newMemory = makeMemory(id: "compat-2", title: "新记忆")
-        loaded.append(newMemory)
-        try HoloLongTermMemoryStore.save(loaded)
-
-        // 再次加载验证全部成功
-        let reloaded = HoloLongTermMemoryStore.load()
-        XCTAssertEqual(reloaded.count, 2)
-        XCTAssertEqual(reloaded.first?.title, "兼容性测试")
-        XCTAssertEqual(reloaded.last?.title, "新记忆")
+        let result = try HoloLongTermMemoryMigration.decodeAndFilter(Data(invalidV2JSON.utf8))
+        XCTAssertEqual(result.removedInvalidCount, 1)
+        XCTAssertTrue(result.memories.isEmpty)
     }
 }

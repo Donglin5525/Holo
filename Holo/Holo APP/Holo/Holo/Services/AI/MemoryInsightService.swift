@@ -279,6 +279,7 @@ final class MemoryInsightService {
             // 携带记忆候选语义字段
             if let mc = card.memoryCandidate {
                 payload["memoryCandidate"] = [
+                    "subjectKey": mc.subjectKey,
                     "semanticType": mc.semanticType,
                     "displaySummary": mc.displaySummary,
                     "aiUseSummary": mc.aiUseSummary

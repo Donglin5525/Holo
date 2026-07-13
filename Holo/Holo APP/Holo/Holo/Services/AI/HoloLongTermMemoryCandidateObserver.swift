@@ -44,7 +44,6 @@ enum HoloLongTermMemoryCandidateObserver {
 
         logger.info("开始从洞察 \(insightID) 提取长期记忆候选")
 
-        let useSemanticMapper = HoloAIFeatureFlags.semanticMemoryPromptEnabled
         var candidates: [HoloLongTermMemory] = []
 
         for cardData in cards {
@@ -66,60 +65,43 @@ enum HoloLongTermMemoryCandidateObserver {
                 )
             }
 
-            // 尝试使用新的语义 Mapper
-            if useSemanticMapper,
-               let mcData = cardData["memoryCandidate"] as? [String: String],
-               let semanticType = mcData["semanticType"],
-               let displaySummary = mcData["displaySummary"],
-               let aiUseSummary = mcData["aiUseSummary"] {
-
-                let mcPayload = MemoryCandidatePayload(
-                    semanticType: semanticType,
-                    displaySummary: displaySummary,
-                    aiUseSummary: aiUseSummary
-                )
-
-                // 构造临时卡片用于 Mapper
-                let cardTypeRaw = cardData["cardType"] as? String ?? "habit"
-                let cardType = MemoryInsightCardType(rawValue: cardTypeRaw) ?? .habit
-                let tempCard = MemoryInsightCard(
-                    id: cardID,
-                    type: cardType,
-                    title: title,
-                    body: summary,
-                    evidence: [],
-                    suggestedQuestion: nil,
-                    memoryCandidate: mcPayload
-                )
-
-                if let mapped = MemoryCandidateSemanticMapper.validateAndMap(
-                    candidate: mcPayload,
-                    card: tempCard,
-                    evidence: evidence
-                ) {
-                    candidates.append(mapped)
-                    continue
-                }
-                // Mapper 返回 nil → 降级到旧逻辑
-                logger.info("Mapper 丢弃候选 \(cardID)，降级到旧逻辑")
+            guard let mcData = cardData["memoryCandidate"] as? [String: String],
+                  let subjectKey = mcData["subjectKey"],
+                  let semanticType = mcData["semanticType"],
+                  let displaySummary = mcData["displaySummary"],
+                  let aiUseSummary = mcData["aiUseSummary"] else {
+                logger.info("卡片 \(cardID) 没有完整新格式 memoryCandidate，跳过")
+                continue
             }
 
-            // 旧逻辑 fallback：无 memoryCandidate 或 Mapper 降级
-            let candidate = HoloLongTermMemory(
-                id: "candidate-\(insightID)-\(cardID)",
-                type: .recurringPattern,
-                title: title,
-                summary: summary,
-                confidence: evidence.count >= 2 ? .medium : .low,
-                confirmationState: .candidate,
-                sensitivity: MemoryCandidateSemanticMapper.classifySensitivity(title: title, summary: summary),
-                evidence: evidence,
-                createdAt: Date(),
-                updatedAt: Date(),
-                expiresAt: nil
+            let mcPayload = MemoryCandidatePayload(
+                subjectKey: subjectKey,
+                semanticType: semanticType,
+                displaySummary: displaySummary,
+                aiUseSummary: aiUseSummary
             )
 
-            candidates.append(candidate)
+            let cardTypeRaw = cardData["cardType"] as? String ?? "habit"
+            let cardType = MemoryInsightCardType(rawValue: cardTypeRaw) ?? .habit
+            let tempCard = MemoryInsightCard(
+                id: cardID,
+                type: cardType,
+                title: title,
+                body: summary,
+                evidence: [],
+                suggestedQuestion: nil,
+                memoryCandidate: mcPayload
+            )
+
+            guard let mapped = MemoryCandidateSemanticMapper.validateAndMap(
+                candidate: mcPayload,
+                card: tempCard,
+                evidence: evidence
+            ) else {
+                logger.info("Mapper 丢弃不合格新格式候选 \(cardID)")
+                continue
+            }
+            candidates.append(mapped)
         }
 
         // 候选进入晋升策略

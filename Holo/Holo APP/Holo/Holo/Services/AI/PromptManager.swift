@@ -706,7 +706,8 @@ final class PromptManager {
         对 habit / finance / task / milestone 类型的卡片，如果该卡片描述的是值得长期记住的模式、变化或节点，请额外输出 memoryCandidate 子对象。
         overview / anomaly / thought / cross_domain 类型的卡片不要输出 memoryCandidate。
 
-        memoryCandidate 包含 3 个字段：
+        memoryCandidate 包含 4 个字段：
+        - subjectKey（稳定主题键，必填）：格式为“业务对象:稳定名称”，例如 habit:running、task:weekly_review。相同主题跨日报/周报/月报必须完全一致，不得包含日期、报告周期或 card id
         - semanticType（语义类型，必填）：
           - phaseShift：用户跨过了一个阶段，或长期状态出现了可被证据支撑的台阶变化
           - stablePattern：用户长期重复出现、对个性化理解有价值的行为倾向
@@ -747,6 +748,7 @@ final class PromptManager {
               "suggestedQuestion": "string 或 null",
               "anomalySeverity": "warning | critical | info 或 null（仅 anomaly 卡片必填）",
               "memoryCandidate": {
+                "subjectKey": "string, 稳定主题键, 如 habit:running",
                 "semanticType": "phaseShift | stablePattern | driftSignal | lifeEvent | statMilestone",
                 "displaySummary": "string, 用户可审核的事实摘要, ≤60字",
                 "aiUseSummary": "string, 给 HoloAI 的上下文摘要含误用边界, ≤80字"
@@ -775,6 +777,7 @@ final class PromptManager {
               ],
               "suggestedQuestion": "哪些习惯最容易中断？",
               "memoryCandidate": {
+                "subjectKey": "habit:running",
                 "semanticType": "stablePattern",
                 "displaySummary": "近两周跑步记录连续出现，频率从每周 2 天上升至 5 天。",
                 "aiUseSummary": "用户运动习惯正在恢复。健康和习惯洞察可参考此背景，但不要表述为强制偏好，需结合最近记录判断是否持续。"

@@ -38,6 +38,9 @@ struct HoloApp: App {
         // 注册周期性支出自动补账任务
         SpendingProjectBackgroundService.shared.registerBackgroundTask()
 
+        // 长期记忆只保留严格语义 V2；先清理旧格式，再允许新洞察写入候选。
+        HoloLongTermMemoryStore.performSemanticV2MigrationIfNeeded()
+
         // 监听洞察生成完成事件，用于在长期记忆开启后抽取待确认记忆候选。
         HoloLongTermMemoryCandidateObserver.startObserving()
 

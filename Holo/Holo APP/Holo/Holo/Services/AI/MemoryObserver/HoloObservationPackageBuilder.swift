@@ -123,7 +123,7 @@ struct HoloObservationPackageBuilder {
                 HoloLongTermMemorySummary(
                     id: mem.id,
                     title: mem.title,
-                    summary: mem.summary
+                    summary: mem.displaySummary
                 )
             }
 

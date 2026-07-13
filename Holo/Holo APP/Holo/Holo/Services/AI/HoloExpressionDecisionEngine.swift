@@ -75,7 +75,7 @@ enum HoloExpressionDecisionEngine {
             context.habits.totalActive > 0,
             context.tasks.dueToday > 0 || context.tasks.completedToday > 0,
             context.thoughts.totalThoughts > 0,
-            context.memorySummary?.lines.isEmpty == false
+            context.memorySummary?.entries.isEmpty == false
         ].filter { $0 }.count
 
         let asksForAdvice = userText.map { text in
@@ -111,4 +111,3 @@ enum HoloExpressionDecisionEngine {
         )
     }
 }
-
