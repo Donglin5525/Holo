@@ -24,6 +24,10 @@ nonisolated struct HoloDomainMemorySignal: Codable, Equatable, Sendable {
     var prohibitedInferences: [String]
     /// 用户原文只作为 JSON 数据字段传输，永远不参与 system instruction 拼接。
     var userText: String?
+    /// 仅当用户明确表达立场时填写，与普通原文分开。
+    var explicitUserStance: String?
+    /// AI 生成的摘要只能辅助表达，不能替代 evidence。
+    var aiSummary: String?
 }
 
 nonisolated struct HoloDomainObservationPackage: Codable, Equatable, Sendable {

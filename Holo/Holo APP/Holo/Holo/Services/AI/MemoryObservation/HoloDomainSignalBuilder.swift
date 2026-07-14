@@ -24,7 +24,9 @@ nonisolated enum HoloDomainSignalBuilder {
         anchors: [HoloMemoryAnchorRef],
         numericFacts: [String: Double] = [:],
         prohibitedInferences: [String] = [],
-        userText: String? = nil
+        userText: String? = nil,
+        explicitUserStance: String? = nil,
+        aiSummary: String? = nil
     ) throws -> HoloDomainMemorySignal {
         guard evidence.sourceDomain == domain else {
             throw HoloDomainSignalBuilderError.evidenceDomainMismatch
@@ -48,7 +50,9 @@ nonisolated enum HoloDomainSignalBuilder {
             anchors: canonicalAnchors,
             numericFacts: numericFacts,
             prohibitedInferences: prohibitedInferences.map(sanitizeUserText),
-            userText: userText.map(sanitizeUserText)
+            userText: userText.map(sanitizeUserText),
+            explicitUserStance: explicitUserStance.map(sanitizeUserText),
+            aiSummary: aiSummary.map(sanitizeUserText)
         )
     }
 
