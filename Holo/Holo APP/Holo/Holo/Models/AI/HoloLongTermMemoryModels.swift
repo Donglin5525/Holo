@@ -43,7 +43,7 @@ enum HoloMemoryConfirmationState: String, Codable, Equatable {
     case archived
 }
 
-enum HoloMemorySensitivity: String, Codable, Equatable {
+enum HoloMemorySensitivity: String, Codable, Equatable, Sendable {
     case normal
     case highImpact
     case sensitive
