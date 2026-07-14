@@ -98,6 +98,112 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
         return existing == nil ? .inserted : .updated
     }
 
+    func applyObservationBatch(
+        _ records: [HoloMemoryRecord],
+        observationKey: String,
+        domain: HoloMemoryDomain,
+        extractorVersion: Int,
+        promptVersion: Int,
+        completedAt: Date
+    ) async throws -> [HoloMemoryUpsertResult] {
+        try await withMutationLock {
+            if try await hasSuccessfulObservation(observationKey) {
+                return records.map { _ in .duplicateObservation }
+            }
+            for record in records {
+                do { try record.validate() }
+                catch { throw HoloMemoryRepositoryError.invalidRecord }
+                guard record.scope == .domain, record.primaryDomain == domain else {
+                    throw HoloMemoryRepositoryError.invalidRecord
+                }
+            }
+
+            let control = try await loadControlState()
+            var prepared: [(record: HoloMemoryRecord, previousStorage: Storage?)] = []
+            var results: [HoloMemoryUpsertResult] = []
+            for record in records {
+                if try await hasMatchingTombstone(for: record) {
+                    results.append(.rejectedByTombstone)
+                    continue
+                }
+                if let baseline = control.learningBaselineAt,
+                   record.evidenceRefs.allSatisfy({ $0.observedAt < baseline }) {
+                    results.append(.rejectedByNewerUserControl)
+                    continue
+                }
+                let existing = try await fetchStored(id: record.id)
+                var recordToPersist = record
+                if let existing {
+                    let userControlIsNewer = existing.record.userDecision != .none &&
+                        existing.record.updatedAt > record.updatedAt
+                    let existingLineages = Set(existing.record.evidenceRefs.map(\.lineageKey))
+                    let containsNewEvidence = record.evidenceRefs.contains {
+                        !existingLineages.contains($0.lineageKey)
+                    }
+                    if userControlIsNewer && !containsNewEvidence {
+                        results.append(.rejectedByNewerUserControl)
+                        continue
+                    }
+                    recordToPersist = merge(
+                        existing: existing.record,
+                        incoming: record,
+                        preserveUserControlledFields: userControlIsNewer
+                    )
+                }
+                recordToPersist.lastObservationKey = observationKey
+                prepared.append((recordToPersist, existing?.storage))
+                results.append(existing == nil ? .inserted : .updated)
+            }
+
+            guard let first = prepared.first else {
+                try await markObservationSucceeded(
+                    observationKey,
+                    domain: domain,
+                    extractorVersion: extractorVersion,
+                    promptVersion: promptVersion,
+                    completedAt: completedAt
+                )
+                return results
+            }
+            let target: Storage = requiresSensitiveLocalStorage(first.record) ? .sensitive : .main
+            guard prepared.allSatisfy({
+                (requiresSensitiveLocalStorage($0.record) ? Storage.sensitive : Storage.main) == target
+            }) else {
+                throw HoloMemoryRepositoryError.persistenceFailed
+            }
+
+            let context = container(for: target).newBackgroundContext()
+            context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+            try await context.perform {
+                for item in prepared {
+                    try Self.upsertRecord(
+                        item.record,
+                        observationKey: target == .main ? observationKey : nil,
+                        in: context
+                    )
+                }
+                do { try context.save() }
+                catch {
+                    context.rollback()
+                    throw HoloMemoryRepositoryError.persistenceFailed
+                }
+            }
+            if target == .sensitive {
+                try await markObservationSucceeded(
+                    observationKey,
+                    domain: domain,
+                    extractorVersion: extractorVersion,
+                    promptVersion: promptVersion,
+                    completedAt: completedAt
+                )
+            }
+            for item in prepared where item.previousStorage != nil && item.previousStorage != target {
+                try await deletePersistedRecord(id: item.record.id, from: item.previousStorage!)
+            }
+            return results
+        }
+    }
+
     func fetch(id: String) async throws -> HoloMemoryRecord? {
         try await fetchStored(id: id)?.record
     }
@@ -477,53 +583,7 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
         let context = container(for: storage).newBackgroundContext()
         context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
         try await context.perform {
-            let request = NSFetchRequest<HoloMemoryRecordMO>(entityName: "HoloMemoryRecordMO")
-            request.predicate = NSPredicate(format: "stableID == %@", record.id)
-            let matches = try context.fetch(request)
-            let object = matches.first ??
-                NSEntityDescription.insertNewObject(
-                    forEntityName: "HoloMemoryRecordMO",
-                    into: context
-                ) as! HoloMemoryRecordMO
-            for duplicate in matches.dropFirst() { context.delete(duplicate) }
-
-            object.stableID = record.id
-            object.recordVersion = Int64(record.recordVersion)
-            object.scope = record.scope.rawValue
-            object.state = record.state.rawValue
-            object.userDecision = record.userDecision.rawValue
-            object.hasHealthLineage = Self.requiresSensitiveLocalStorage(record)
-            object.lastObservationKey = record.lastObservationKey
-            object.recordData = try Self.encoder().encode(record)
-            object.createdAt = record.createdAt
-            object.updatedAt = record.updatedAt
-
-            let evidenceRequest = NSFetchRequest<HoloMemoryEvidenceMO>(
-                entityName: "HoloMemoryEvidenceMO"
-            )
-            evidenceRequest.predicate = NSPredicate(format: "recordID == %@", record.id)
-            for oldEvidence in try context.fetch(evidenceRequest) {
-                context.delete(oldEvidence)
-            }
-            for evidence in record.evidenceRefs + record.counterEvidenceRefs {
-                let evidenceObject = NSEntityDescription.insertNewObject(
-                    forEntityName: "HoloMemoryEvidenceMO",
-                    into: context
-                ) as! HoloMemoryEvidenceMO
-                evidenceObject.id = evidence.id
-                evidenceObject.recordID = record.id
-                evidenceObject.lineageKey = evidence.lineageKey
-                evidenceObject.evidenceData = try Self.encoder().encode(evidence)
-                evidenceObject.observedAt = evidence.observedAt
-            }
-
-            if let observationKey {
-                try Self.upsertObservation(
-                    observationKey,
-                    record: record,
-                    in: context
-                )
-            }
+            try Self.upsertRecord(record, observationKey: observationKey, in: context)
             do {
                 try context.save()
             } catch {
@@ -533,7 +593,7 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
         }
     }
 
-    private func hasSuccessfulObservation(_ key: String) async throws -> Bool {
+    func hasSuccessfulObservation(_ key: String) async throws -> Bool {
         let context = controller.mainContainer.newBackgroundContext()
         return try await context.perform {
             let request = NSFetchRequest<HoloMemoryObservationRunMO>(
@@ -561,6 +621,28 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
         }
     }
 
+    private func markObservationSucceeded(
+        _ key: String,
+        domain: HoloMemoryDomain,
+        extractorVersion: Int,
+        promptVersion: Int,
+        completedAt: Date
+    ) async throws {
+        let context = controller.mainContainer.newBackgroundContext()
+        context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+        try await context.perform {
+            try Self.upsertObservation(
+                key,
+                domain: domain.rawValue,
+                extractorVersion: extractorVersion,
+                promptVersion: promptVersion,
+                completedAt: completedAt,
+                in: context
+            )
+            try context.save()
+        }
+    }
+
     private static func upsertObservation(
         _ key: String,
         record: HoloMemoryRecord,
@@ -583,6 +665,79 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
         object.extractorVersion = Int64(record.extractorVersion)
         object.promptVersion = Int64(record.promptVersion)
         object.completedAt = record.updatedAt
+    }
+
+    private static func upsertObservation(
+        _ key: String,
+        domain: String,
+        extractorVersion: Int,
+        promptVersion: Int,
+        completedAt: Date,
+        in context: NSManagedObjectContext
+    ) throws {
+        let request = NSFetchRequest<HoloMemoryObservationRunMO>(
+            entityName: "HoloMemoryObservationRunMO"
+        )
+        request.predicate = NSPredicate(format: "observationKey == %@", key)
+        let matches = try context.fetch(request)
+        let object = matches.first ??
+            NSEntityDescription.insertNewObject(
+                forEntityName: "HoloMemoryObservationRunMO",
+                into: context
+            ) as! HoloMemoryObservationRunMO
+        for duplicate in matches.dropFirst() { context.delete(duplicate) }
+        object.observationKey = key
+        object.domain = domain
+        object.status = "succeeded"
+        object.extractorVersion = Int64(extractorVersion)
+        object.promptVersion = Int64(promptVersion)
+        object.completedAt = completedAt
+    }
+
+    private static func upsertRecord(
+        _ record: HoloMemoryRecord,
+        observationKey: String?,
+        in context: NSManagedObjectContext
+    ) throws {
+        let request = NSFetchRequest<HoloMemoryRecordMO>(entityName: "HoloMemoryRecordMO")
+        request.predicate = NSPredicate(format: "stableID == %@", record.id)
+        let matches = try context.fetch(request)
+        let object = matches.first ??
+            NSEntityDescription.insertNewObject(
+                forEntityName: "HoloMemoryRecordMO",
+                into: context
+            ) as! HoloMemoryRecordMO
+        for duplicate in matches.dropFirst() { context.delete(duplicate) }
+        object.stableID = record.id
+        object.recordVersion = Int64(record.recordVersion)
+        object.scope = record.scope.rawValue
+        object.state = record.state.rawValue
+        object.userDecision = record.userDecision.rawValue
+        object.hasHealthLineage = Self.requiresSensitiveLocalStorage(record)
+        object.lastObservationKey = record.lastObservationKey
+        object.recordData = try Self.encoder().encode(record)
+        object.createdAt = record.createdAt
+        object.updatedAt = record.updatedAt
+
+        let evidenceRequest = NSFetchRequest<HoloMemoryEvidenceMO>(
+            entityName: "HoloMemoryEvidenceMO"
+        )
+        evidenceRequest.predicate = NSPredicate(format: "recordID == %@", record.id)
+        for oldEvidence in try context.fetch(evidenceRequest) { context.delete(oldEvidence) }
+        for evidence in record.evidenceRefs + record.counterEvidenceRefs {
+            let evidenceObject = NSEntityDescription.insertNewObject(
+                forEntityName: "HoloMemoryEvidenceMO",
+                into: context
+            ) as! HoloMemoryEvidenceMO
+            evidenceObject.id = evidence.id
+            evidenceObject.recordID = record.id
+            evidenceObject.lineageKey = evidence.lineageKey
+            evidenceObject.evidenceData = try Self.encoder().encode(evidence)
+            evidenceObject.observedAt = evidence.observedAt
+        }
+        if let observationKey {
+            try Self.upsertObservation(observationKey, record: record, in: context)
+        }
     }
 
     private func hasMatchingTombstone(for record: HoloMemoryRecord) async throws -> Bool {

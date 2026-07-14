@@ -66,6 +66,20 @@ struct HoloMemoryFeedbackEntry: Codable {
 
 struct HoloObservationPackageBuilder {
 
+    static func buildDomainPackage(
+        domain: HoloMemoryDomain,
+        window: HoloMemoryObservationWindow,
+        signals: [HoloDomainMemorySignal],
+        existingMemories: [HoloMemoryRecord]
+    ) -> HoloDomainObservationPackage {
+        HoloDomainObservationPackageBuilder.build(
+            domain: domain,
+            window: window,
+            signals: signals,
+            existingMemories: existingMemories
+        )
+    }
+
     /// MVP 只支持 Habit + Goal 信号
     static func buildPackage(
         habitSignals: [HoloMemorySignal],

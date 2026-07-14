@@ -15,7 +15,8 @@ nonisolated enum HoloDomainObservationPackageBuilder {
     static func build(
         domain: HoloMemoryDomain,
         window: HoloMemoryObservationWindow,
-        signals: [HoloDomainMemorySignal]
+        signals: [HoloDomainMemorySignal],
+        existingMemories: [HoloMemoryRecord] = []
     ) -> HoloDomainObservationPackage {
         let scopedSignals = signals
             .filter { $0.domain == domain && $0.evidence.sourceDomain == domain }
@@ -27,6 +28,9 @@ nonisolated enum HoloDomainObservationPackageBuilder {
             domain: domain,
             window: window,
             signals: Array(scopedSignals),
+            existingMemories: existingMemories.filter {
+                $0.scope == .domain && $0.primaryDomain == domain
+            },
             allowedClaimKinds: [
                 .observedFact, .recurringPattern, .phaseShift,
                 .explicitPreference, .lifeEvent

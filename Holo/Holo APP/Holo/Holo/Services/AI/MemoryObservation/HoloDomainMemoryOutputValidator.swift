@@ -128,6 +128,52 @@ nonisolated enum HoloDomainMemoryOutputValidator {
                 rejections.append(.invalidRecord)
             }
         }
+
+        var existingByID = Dictionary(
+            uniqueKeysWithValues: package.existingMemories
+                .filter { $0.scope == .domain && $0.primaryDomain == package.domain }
+                .map { ($0.id, $0) }
+        )
+        for operation in envelope.counterEvidence ?? [] {
+            guard var record = existingByID[operation.memoryID] else {
+                rejections.append(.invalidExistingMemoryOperation)
+                continue
+            }
+            let evidence = Array(Set(operation.evidenceIDs)).compactMap { evidenceByID[$0] }
+            guard !evidence.isEmpty,
+                  evidence.count == Set(operation.evidenceIDs).count,
+                  evidence.allSatisfy({ $0.sourceDomain == package.domain }) else {
+                rejections.append(.forgedEvidence)
+                continue
+            }
+            for item in evidence {
+                record = HoloMemoryLifecycle.apply(.counterEvidence(item), to: record, now: now)
+            }
+            existingByID[record.id] = record
+        }
+
+        let availableReplacementIDs = Set(records.map(\.id) + existingByID.keys)
+        for operation in envelope.supersedes ?? [] {
+            guard var record = existingByID[operation.memoryID],
+                  operation.memoryID != operation.replacementMemoryID,
+                  availableReplacementIDs.contains(operation.replacementMemoryID) else {
+                rejections.append(.invalidExistingMemoryOperation)
+                continue
+            }
+            let replacementVersionID = records.first(where: {
+                $0.id == operation.replacementMemoryID
+            })?.versionID ?? operation.replacementMemoryID
+            record = HoloMemoryLifecycle.apply(
+                .superseded(byVersionID: replacementVersionID),
+                to: record,
+                now: now
+            )
+            existingByID[record.id] = record
+        }
+        let touchedIDs = Set((envelope.counterEvidence ?? []).map(\.memoryID) +
+            (envelope.supersedes ?? []).map(\.memoryID))
+        records.append(contentsOf: existingByID.values.filter { touchedIDs.contains($0.id) })
+        records = Dictionary(grouping: records, by: \.id).compactMap { $0.value.last }
         return HoloDomainMemoryValidationResult(
             validRecords: records,
             rejections: rejections

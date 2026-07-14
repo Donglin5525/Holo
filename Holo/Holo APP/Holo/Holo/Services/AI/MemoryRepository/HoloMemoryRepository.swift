@@ -67,6 +67,15 @@ protocol HoloMemoryRepository: Sendable {
         _ record: HoloMemoryRecord,
         observationKey: String?
     ) async throws -> HoloMemoryUpsertResult
+    func hasSuccessfulObservation(_ key: String) async throws -> Bool
+    func applyObservationBatch(
+        _ records: [HoloMemoryRecord],
+        observationKey: String,
+        domain: HoloMemoryDomain,
+        extractorVersion: Int,
+        promptVersion: Int,
+        completedAt: Date
+    ) async throws -> [HoloMemoryUpsertResult]
 
     func fetch(id: String) async throws -> HoloMemoryRecord?
     func query(_ query: HoloMemoryRepositoryQuery) async throws -> [HoloMemoryRecord]

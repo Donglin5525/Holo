@@ -9,6 +9,46 @@
 import Foundation
 import OSLog
 
+protocol HoloDomainMemoryObservationStore: Sendable {
+    func hasSuccessfulObservation(_ key: String) async throws -> Bool
+    func applyObservationBatch(
+        _ records: [HoloMemoryRecord],
+        observationKey: String,
+        domain: HoloMemoryDomain,
+        extractorVersion: Int,
+        promptVersion: Int,
+        completedAt: Date
+    ) async throws -> [HoloMemoryUpsertResult]
+}
+
+#if !HOLO_MEMORY_STANDALONE
+extension CoreDataHoloMemoryRepository: HoloDomainMemoryObservationStore {}
+#endif
+
+enum HoloDomainMemoryObservationApplier {
+    static func apply(
+        _ validation: HoloDomainMemoryValidationResult,
+        to store: any HoloDomainMemoryObservationStore,
+        observationKey: String,
+        domain: HoloMemoryDomain,
+        extractorVersion: Int,
+        promptVersion: Int,
+        completedAt: Date
+    ) async throws -> [HoloMemoryUpsertResult] {
+        guard validation.rejections.isEmpty else { return [] }
+        return try await store.applyObservationBatch(
+            validation.validRecords,
+            observationKey: observationKey,
+            domain: domain,
+            extractorVersion: extractorVersion,
+            promptVersion: promptVersion,
+            completedAt: completedAt
+        )
+    }
+}
+
+#if !HOLO_MEMORY_STANDALONE
+
 struct ApplyResult {
     var newCount: Int
     var hitCount: Int
@@ -141,3 +181,4 @@ final class HoloMemoryObservationApplier {
         return .low
     }
 }
+#endif

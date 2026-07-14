@@ -32,6 +32,22 @@ struct ValidatedNewMemory {
 
 enum MemoryObserverOutputValidator {
 
+    static func validateDomainOutput(
+        _ data: Data,
+        against package: HoloDomainObservationPackage,
+        now: Date,
+        extractorVersion: Int,
+        promptVersion: Int
+    ) -> HoloDomainMemoryValidationResult {
+        HoloDomainMemoryOutputValidator.decodeAndValidate(
+            data,
+            against: package,
+            now: now,
+            extractorVersion: extractorVersion,
+            promptVersion: promptVersion
+        )
+    }
+
     static func validate(
         _ output: HoloMemoryObserverOutput,
         against package: HoloObservationPackage,

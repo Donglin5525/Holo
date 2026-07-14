@@ -35,6 +35,7 @@ nonisolated struct HoloDomainObservationPackage: Codable, Equatable, Sendable {
     var domain: HoloMemoryDomain
     var window: HoloMemoryObservationWindow
     var signals: [HoloDomainMemorySignal]
+    var existingMemories: [HoloMemoryRecord]
     var allowedClaimKinds: [HoloMemoryClaimKind]
     var allowedAnchorTypes: [HoloMemoryAnchorType]
 }
@@ -78,8 +79,30 @@ nonisolated struct HoloDomainMemoryCandidateOutput: Codable, Equatable, Sendable
     }
 }
 
+nonisolated struct HoloDomainCounterEvidenceOutput: Codable, Equatable, Sendable {
+    var memoryID: String
+    var evidenceIDs: [String]
+}
+
+nonisolated struct HoloDomainSupersedeOutput: Codable, Equatable, Sendable {
+    var memoryID: String
+    var replacementMemoryID: String
+}
+
 nonisolated struct HoloDomainMemoryOutputEnvelope: Codable, Equatable, Sendable {
     var candidates: [HoloDomainMemoryCandidateOutput]
+    var counterEvidence: [HoloDomainCounterEvidenceOutput]?
+    var supersedes: [HoloDomainSupersedeOutput]?
+
+    init(
+        candidates: [HoloDomainMemoryCandidateOutput],
+        counterEvidence: [HoloDomainCounterEvidenceOutput]? = nil,
+        supersedes: [HoloDomainSupersedeOutput]? = nil
+    ) {
+        self.candidates = candidates
+        self.counterEvidence = counterEvidence
+        self.supersedes = supersedes
+    }
 }
 
 nonisolated enum HoloDomainMemoryValidationRejection: String, Equatable, Sendable {
@@ -90,6 +113,7 @@ nonisolated enum HoloDomainMemoryValidationRejection: String, Equatable, Sendabl
     case forgedEvidence
     case forgedAnchor
     case invalidSummary
+    case invalidExistingMemoryOperation
     case invalidRecord
 }
 
