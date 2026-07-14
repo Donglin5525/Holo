@@ -8,167 +8,168 @@
 import Foundation
 import OSLog
 
-final class HoloEpisodicMemoryStore {
-
+final class HoloEpisodicMemoryStore: @unchecked Sendable {
     static let shared = HoloEpisodicMemoryStore()
 
     private let logger = Logger(subsystem: "com.holo.app", category: "EpisodicMemoryStore")
-    private let fileManager = FileManager.default
+    private let fileManager: FileManager
     private let storeURL: URL
     private let backupURL: URL
     private let suppressionURL: URL
-    private let queue = DispatchQueue(label: "com.holo.episodicMemoryStore", attributes: .concurrent)
+    private let queue: DispatchQueue
 
     // 90 天硬上限
     static let maxLifetimeDays: Int = 90
 
-    private init() {
-        let dir = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Holo/Memory", isDirectory: true)
-        try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
-        storeURL = dir.appendingPathComponent("episodicMemories.json")
-        backupURL = dir.appendingPathComponent("episodicMemories.backup.json")
-        suppressionURL = dir.appendingPathComponent("episodicMemorySuppressionRules.json")
+    init(directoryURL: URL? = nil, fileManager: FileManager = .default) {
+        self.fileManager = fileManager
+        let directory: URL
+        if let directoryURL {
+            directory = directoryURL
+        } else {
+            directory = fileManager.urls(
+                for: .applicationSupportDirectory,
+                in: .userDomainMask
+            )[0].appendingPathComponent("Holo/Memory", isDirectory: true)
+        }
+        try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+        storeURL = directory.appendingPathComponent("episodicMemories.json")
+        backupURL = directory.appendingPathComponent("episodicMemories.backup.json")
+        suppressionURL = directory.appendingPathComponent("episodicMemorySuppressionRules.json")
+        queue = DispatchQueue(
+            label: "com.holo.episodicMemoryStore.\(UUID().uuidString)",
+            attributes: .concurrent
+        )
     }
 
     // MARK: - CRUD
 
     func load() -> [HoloEpisodicMemory] {
         queue.sync {
-            guard fileManager.fileExists(atPath: storeURL.path) else { return [] }
-
             do {
-                let data = try Data(contentsOf: storeURL)
-                return decode(data)
+                return try readMemoriesUnlocked()
             } catch {
+                backupCorruptedFileUnlocked()
                 logger.error("情景记忆 JSON 解码失败：\(error.localizedDescription)")
-                backupCorruptedFile()
                 return []
             }
         }
     }
 
     func save(_ memories: [HoloEpisodicMemory]) {
-        queue.sync(flags: .barrier) {
-            do {
-                let dir = storeURL.deletingLastPathComponent()
-                if !fileManager.fileExists(atPath: dir.path) {
-                    try fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
-                }
-                let data = try encode(memories)
-                let tempURL = dir.appendingPathComponent("episodicMemories_temp.json")
-                try data.write(to: tempURL, options: .atomic)
-                _ = try? fileManager.replaceItemAt(storeURL, withItemAt: tempURL)
-            } catch {
-                logger.error("保存情景记忆失败：\(error.localizedDescription)")
-            }
+        let result: Result<Void, Error> = queue.sync(flags: .barrier) {
+            Result { try writeMemoriesUnlocked(memories) }
+        }
+        if case .failure(let error) = result {
+            logger.error("保存情景记忆失败：\(error.localizedDescription)")
         }
     }
 
     func upsert(_ memory: HoloEpisodicMemory) {
-        var memories = load()
-        if let index = memories.firstIndex(where: { $0.id == memory.id }) {
-            var updated = memory
-            updated.updatedAt = Date()
-            memories[index] = updated
-        } else {
-            memories.append(memory)
+        mutate { memories in
+            if let index = memories.firstIndex(where: { $0.id == memory.id }) {
+                var updated = memory
+                updated.createdAt = memories[index].createdAt
+                updated.updatedAt = Date()
+                memories[index] = updated
+            } else {
+                memories.append(memory)
+            }
         }
-        save(memories)
     }
 
     func updateState(id: String, to newState: HoloEpisodicMemoryState) {
-        var memories = load()
-        guard let index = memories.firstIndex(where: { $0.id == id }) else { return }
-        memories[index].state = newState
-        memories[index].updatedAt = Date()
-        save(memories)
+        mutate { memories in
+            guard let index = memories.firstIndex(where: { $0.id == id }) else { return }
+            memories[index].state = newState
+            memories[index].updatedAt = Date()
+        }
     }
 
     func delete(id: String) {
-        var memories = load()
-        memories.removeAll { $0.id == id }
-        save(memories)
+        mutate { memories in
+            memories.removeAll { $0.id == id }
+        }
     }
 
     /// 批量删除已过期、已归档、已拒绝的情景记忆
     /// - Returns: (删除数量, 释放字节数)
     @discardableResult
     func deleteExpiredArchivedRejected() -> (count: Int, bytes: Int64) {
-        let memories = load()
-        let removableStates: Set<HoloEpisodicMemoryState> = [.expired, .archived, .rejected]
-        let toDelete = memories.filter { removableStates.contains($0.state) }
+        mutate { memories in
+            let removableStates: Set<HoloEpisodicMemoryState> = [.expired, .archived, .rejected]
+            let toDelete = memories.filter { removableStates.contains($0.state) }
+            guard !toDelete.isEmpty else { return (0, 0) }
 
-        guard !toDelete.isEmpty else { return (0, 0) }
-
-        var freedBytes: Int64 = 0
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        for memory in toDelete {
-            if let data = try? encoder.encode(memory) {
-                freedBytes += Int64(data.count)
+            let encoder = JSONEncoder()
+            encoder.dateEncodingStrategy = .iso8601
+            let freedBytes = toDelete.reduce(Int64(0)) { total, memory in
+                total + Int64((try? encoder.encode(memory).count) ?? 0)
             }
-        }
-
-        let remaining = memories.filter { !removableStates.contains($0.state) }
-        save(remaining)
-        logger.info("已清理 \(toDelete.count) 条过期情景记忆，释放 \(freedBytes) 字节")
-
-        return (toDelete.count, freedBytes)
+            memories.removeAll { removableStates.contains($0.state) }
+            return (toDelete.count, freedBytes)
+        } ?? (0, 0)
     }
 
     @discardableResult
     func reject(id: String) -> HoloMemorySuppressionRule? {
-        var memories = load()
-        guard let index = memories.firstIndex(where: { $0.id == id }) else { return nil }
-        let memory = memories[index]
+        let result: Result<HoloMemorySuppressionRule?, Error> = queue.sync(flags: .barrier) {
+            Result {
+                var memories = try readMemoriesUnlocked()
+                guard let index = memories.firstIndex(where: { $0.id == id }) else { return nil }
+                let memory = memories[index]
+                memories[index].state = .rejected
+                memories[index].updatedAt = Date()
 
-        memories[index].state = .rejected
-        memories[index].updatedAt = Date()
-        save(memories)
+                let keywords = extractKeywords(from: memory.title + " " + memory.summary)
+                let rule = keywords.isEmpty ? nil : HoloMemorySuppressionRule(
+                    id: UUID().uuidString,
+                    originalMemorySummary: memory.summary,
+                    keywordGroups: [keywords],
+                    suppressedUntil: Calendar.current.date(
+                        byAdding: .day,
+                        value: 30,
+                        to: Date()
+                    )!,
+                    originalRejectedAt: Date()
+                )
 
-        // 生成 suppression rule（30 天）
-        let keywords = extractKeywords(from: memory.title + " " + memory.summary)
-        guard !keywords.isEmpty else { return nil }
+                try writeMemoriesUnlocked(memories)
+                if let rule {
+                    var rules = try readSuppressionRulesUnlocked(includeExpired: false)
+                    rules.append(rule)
+                    try writeSuppressionRulesUnlocked(rules)
+                }
+                return rule
+            }
+        }
 
-        let rule = HoloMemorySuppressionRule(
-            id: UUID().uuidString,
-            originalMemorySummary: memory.summary,
-            keywordGroups: [keywords],
-            suppressedUntil: Calendar.current.date(byAdding: .day, value: 30, to: Date())!,
-            originalRejectedAt: Date()
-        )
-
-        var rules = loadSuppressionRules()
-        rules.append(rule)
-        saveSuppressionRules(rules)
-
-        return rule
+        switch result {
+        case .success(let rule):
+            return rule
+        case .failure(let error):
+            logger.error("拒绝情景记忆失败：\(error.localizedDescription)")
+            return nil
+        }
     }
 
     @discardableResult
     func markExpired() -> [String] {
-        var memories = load()
-        let now = Date()
-        var expiredIDs: [String] = []
-
-        for index in memories.indices {
-            if memories[index].expiresAt <= now,
-               memories[index].state != .expired,
-               memories[index].state != .rejected,
-               memories[index].state != .promoted {
-                memories[index].state = .expired
-                memories[index].updatedAt = now
-                expiredIDs.append(memories[index].id)
+        mutate { memories in
+            let now = Date()
+            var expiredIDs: [String] = []
+            for index in memories.indices {
+                if memories[index].expiresAt <= now,
+                   memories[index].state != .expired,
+                   memories[index].state != .rejected,
+                   memories[index].state != .promoted {
+                    memories[index].state = .expired
+                    memories[index].updatedAt = now
+                    expiredIDs.append(memories[index].id)
+                }
             }
-        }
-
-        if !expiredIDs.isEmpty {
-            save(memories)
-            logger.info("标记 \(expiredIDs.count) 条情景记忆为过期")
-        }
-
-        return expiredIDs
+            return expiredIDs
+        } ?? []
     }
 
     // MARK: - Query
@@ -188,68 +189,130 @@ final class HoloEpisodicMemoryStore {
     // MARK: - Suppression Rules
 
     func loadSuppressionRules() -> [HoloMemorySuppressionRule] {
-        guard fileManager.fileExists(atPath: suppressionURL.path) else { return [] }
-
-        do {
-            let data = try Data(contentsOf: suppressionURL)
-            let decoder = JSONDecoder()
-            decoder.dateDecodingStrategy = .iso8601
-            let rules = try decoder.decode([HoloMemorySuppressionRule].self, from: data)
-            // 清理已过期的规则
-            let now = Date()
-            let activeRules = rules.filter { $0.suppressedUntil > now }
-            if activeRules.count != rules.count {
-                saveSuppressionRules(activeRules)
+        let result: Result<[HoloMemorySuppressionRule], Error> = queue.sync(flags: .barrier) {
+            Result {
+                let rules = try readSuppressionRulesUnlocked(includeExpired: true)
+                let activeRules = rules.filter { $0.suppressedUntil > Date() }
+                if activeRules.count != rules.count {
+                    try writeSuppressionRulesUnlocked(activeRules)
+                }
+                return activeRules
             }
-            return activeRules
-        } catch {
+        }
+        switch result {
+        case .success(let rules):
+            return rules
+        case .failure(let error):
             logger.error("Suppression rules 解码失败：\(error.localizedDescription)")
             return []
         }
     }
 
     func saveSuppressionRules(_ rules: [HoloMemorySuppressionRule]) {
-        do {
-            let encoder = JSONEncoder()
-            encoder.dateEncodingStrategy = .iso8601
-            encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
-            let data = try encoder.encode(rules)
-            let dir = suppressionURL.deletingLastPathComponent()
-            if !fileManager.fileExists(atPath: dir.path) {
-                try fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
-            }
-            try data.write(to: suppressionURL, options: .atomic)
-        } catch {
+        let result: Result<Void, Error> = queue.sync(flags: .barrier) {
+            Result { try writeSuppressionRulesUnlocked(rules) }
+        }
+        if case .failure(let error) = result {
             logger.error("保存 suppression rules 失败：\(error.localizedDescription)")
         }
     }
 
     // MARK: - Private
 
-    private func encode(_ memories: [HoloEpisodicMemory]) throws -> Data {
+    /// 读取、修改、写回必须处于同一个 barrier，避免两个调用读取同一旧快照后互相覆盖。
+    private func mutate<ResultValue>(
+        _ mutation: (inout [HoloEpisodicMemory]) -> ResultValue
+    ) -> ResultValue? {
+        let result: Result<ResultValue, Error> = queue.sync(flags: .barrier) {
+            Result {
+                var memories = try readMemoriesUnlocked()
+                let value = mutation(&memories)
+                try writeMemoriesUnlocked(memories)
+                return value
+            }
+        }
+
+        switch result {
+        case .success(let value):
+            return value
+        case .failure(let error):
+            logger.error("更新情景记忆失败：\(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    private func readMemoriesUnlocked() throws -> [HoloEpisodicMemory] {
+        guard fileManager.fileExists(atPath: storeURL.path) else { return [] }
+        let data = try Data(contentsOf: storeURL)
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode([HoloEpisodicMemory].self, from: data)
+    }
+
+    private func writeMemoriesUnlocked(_ memories: [HoloEpisodicMemory]) throws {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
-        return try encoder.encode(memories)
+        let data = try encoder.encode(memories)
+        try atomicWrite(data, to: storeURL, temporaryName: "episodicMemories_temp.json")
     }
 
-    private func decode(_ data: Data) -> [HoloEpisodicMemory] {
+    private func readSuppressionRulesUnlocked(
+        includeExpired: Bool
+    ) throws -> [HoloMemorySuppressionRule] {
+        guard fileManager.fileExists(atPath: suppressionURL.path) else { return [] }
+        let data = try Data(contentsOf: suppressionURL)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        return (try? decoder.decode([HoloEpisodicMemory].self, from: data)) ?? []
+        let rules = try decoder.decode([HoloMemorySuppressionRule].self, from: data)
+        return includeExpired ? rules : rules.filter { $0.suppressedUntil > Date() }
     }
 
-    private func backupCorruptedFile() {
-        let backup = self.backupURL
-        if fileManager.fileExists(atPath: backup.path) {
-            try? fileManager.removeItem(at: backup)
+    private func writeSuppressionRulesUnlocked(_ rules: [HoloMemorySuppressionRule]) throws {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.sortedKeys, .prettyPrinted]
+        let data = try encoder.encode(rules)
+        try atomicWrite(
+            data,
+            to: suppressionURL,
+            temporaryName: "episodicMemorySuppressionRules_temp.json"
+        )
+    }
+
+    private func atomicWrite(_ data: Data, to destinationURL: URL, temporaryName: String) throws {
+        let directory = destinationURL.deletingLastPathComponent()
+        if !fileManager.fileExists(atPath: directory.path) {
+            try fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
         }
-        try? fileManager.copyItem(at: storeURL, to: backup)
-        logger.info("已备份损坏文件到 \(backup.lastPathComponent)")
+
+        let temporaryURL = directory.appendingPathComponent(temporaryName)
+        if fileManager.fileExists(atPath: temporaryURL.path) {
+            try fileManager.removeItem(at: temporaryURL)
+        }
+        try data.write(to: temporaryURL, options: .atomic)
+
+        do {
+            if fileManager.fileExists(atPath: destinationURL.path) {
+                _ = try fileManager.replaceItemAt(destinationURL, withItemAt: temporaryURL)
+            } else {
+                try fileManager.moveItem(at: temporaryURL, to: destinationURL)
+            }
+        } catch {
+            try? fileManager.removeItem(at: temporaryURL)
+            throw error
+        }
+    }
+
+    private func backupCorruptedFileUnlocked() {
+        guard fileManager.fileExists(atPath: storeURL.path) else { return }
+        if fileManager.fileExists(atPath: backupURL.path) {
+            try? fileManager.removeItem(at: backupURL)
+        }
+        try? fileManager.copyItem(at: storeURL, to: backupURL)
     }
 
     private func extractKeywords(from text: String) -> [String] {
-        // 简单关键词提取：按空格和标点分词，过滤短词
         let normalized = text.lowercased()
         let separators = CharacterSet(charactersIn: " ，。、！？,.!? \t\n")
         let words = normalized.components(separatedBy: separators).filter { $0.count >= 2 }
