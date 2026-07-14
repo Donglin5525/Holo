@@ -127,6 +127,8 @@ struct HoloMemoryRecord: Codable, Equatable, Identifiable, Sendable {
     var sensitivity: HoloMemorySensitivity
     var userDecision: HoloMemoryUserDecision
 
+    var recordVersion: Int
+    var predecessorVersionID: String?
     var supersedesMemoryID: String?
     var createdAt: Date
     var updatedAt: Date
@@ -161,6 +163,8 @@ struct HoloMemoryRecord: Codable, Equatable, Identifiable, Sendable {
         state: HoloMemoryState,
         sensitivity: HoloMemorySensitivity,
         userDecision: HoloMemoryUserDecision,
+        recordVersion: Int = 1,
+        predecessorVersionID: String? = nil,
         supersedesMemoryID: String? = nil,
         createdAt: Date,
         updatedAt: Date,
@@ -194,6 +198,8 @@ struct HoloMemoryRecord: Codable, Equatable, Identifiable, Sendable {
         self.state = state
         self.sensitivity = sensitivity
         self.userDecision = userDecision
+        self.recordVersion = recordVersion
+        self.predecessorVersionID = predecessorVersionID
         self.supersedesMemoryID = supersedesMemoryID
         self.createdAt = createdAt
         self.updatedAt = updatedAt
@@ -232,6 +238,7 @@ struct HoloMemoryRecord: Codable, Equatable, Identifiable, Sendable {
             throw HoloMemorySchemaError.invalidScore
         }
         guard schemaVersion > 0,
+              recordVersion > 0,
               scoringVersion > 0,
               extractorVersion > 0,
               promptVersion > 0 else {
@@ -241,4 +248,6 @@ struct HoloMemoryRecord: Codable, Equatable, Identifiable, Sendable {
             throw HoloMemorySchemaError.mismatchedStableID
         }
     }
+
+    var versionID: String { "\(id)@v\(recordVersion)" }
 }
