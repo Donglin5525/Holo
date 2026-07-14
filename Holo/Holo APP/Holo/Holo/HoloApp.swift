@@ -88,6 +88,7 @@ struct HoloApp: App {
                     await CoreDataStack.shared.waitUntilReady()
                     await HoloMemoryRuntime.shared.migrateLegacyMemoryIfNeeded()
                     await HoloMemorySettings.shared.reconcileWithRepository()
+                    await HoloMemoryObservationScheduler.shared.lightweightCheck(trigger: .appLaunch)
 
                     // 迁移完成后再监听旧候选链，避免迁移快照与新写入竞态。
                     HoloLongTermMemoryCandidateObserver.startObserving()
@@ -124,12 +125,20 @@ struct HoloApp: App {
                 .onChange(of: scenePhase) { _, phase in
                     switch phase {
                     case .background:
+                        Task {
+                            await HoloMemoryObservationScheduler.shared.lightweightCheck(
+                                trigger: .enteredBackground
+                            )
+                        }
                         if HoloAIFeatureFlags.agentRuntimeEnabled {
                             HoloBackgroundContinuationManager.shared.appDidEnterBackground()
                         }
                     case .active:
                         Task {
                             await MemoryInsightBackgroundService.shared.checkForegroundCompensation()
+                            await HoloMemoryObservationScheduler.shared.lightweightCheck(
+                                trigger: .becameActive
+                            )
                         }
                         if HoloAIFeatureFlags.agentRuntimeEnabled {
                             HoloBackgroundContinuationManager.shared.appWillEnterForeground()

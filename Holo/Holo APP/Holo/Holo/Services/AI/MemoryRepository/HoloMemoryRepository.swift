@@ -32,7 +32,7 @@ struct HoloMemoryStorageCounts: Equatable, Sendable {
     var sensitiveRecords: Int
 }
 
-struct HoloMemoryControlState: Codable, Equatable, Sendable {
+nonisolated struct HoloMemoryControlState: Codable, Equatable, Sendable {
     static let globalID = "global"
 
     var automaticMemoryEnabled: Bool
