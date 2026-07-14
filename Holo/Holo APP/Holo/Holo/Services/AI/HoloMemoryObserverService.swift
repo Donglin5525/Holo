@@ -21,9 +21,9 @@ final class HoloMemoryObserverService {
         habitSummaries: [HabitFocusSummary],
         goalInputs: [GoalProgressInput]
     ) async {
-        // 1. 检查 feature flag
-        guard HoloAIFeatureFlags.episodicMemoryObservationEnabled else {
-            logger.info("Episodic Memory Observer 已关闭")
+        // 1. 所有外部 AI 记忆萃取统一经过权限策略，避免服务自行旁路开关或数据授权。
+        guard HoloMemoryAccessPolicy.current.extractionDecision(for: .externalAI) == .allowedExternalAI else {
+            logger.info("Memory Observer 被统一权限策略阻止")
             return
         }
 

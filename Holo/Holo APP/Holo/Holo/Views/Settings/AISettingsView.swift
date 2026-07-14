@@ -367,7 +367,7 @@ struct AISettingsView: View {
                 }
             }
 
-            Toggle(isOn: $memorySettings.longTermMemoryEnabled) {
+            Toggle(isOn: $memorySettings.automaticMemoryEnabled) {
                 HStack(spacing: HoloSpacing.md) {
                     Image(systemName: "arrow.triangle.2.circlepath")
                         .font(.system(size: 16, weight: .medium))
@@ -375,18 +375,18 @@ struct AISettingsView: View {
                         .frame(width: 28)
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("长期记忆")
+                        Text("自动形成记忆")
                             .font(.holoBody)
                             .foregroundColor(.holoTextPrimary)
 
-                        Text("AI 自动从洞察中学习偏好与模式")
+                        Text("从各模块的数据变化中整理值得记住的内容")
                             .font(.system(size: 12))
                             .foregroundColor(.holoTextSecondary)
                     }
                 }
             }
 
-            Toggle(isOn: $memorySettings.memorySummaryInjectionEnabled) {
+            Toggle(isOn: $memorySettings.memoryAssistedAnsweringEnabled) {
                 HStack(spacing: HoloSpacing.md) {
                     Image(systemName: "text.bubble")
                         .font(.system(size: 16, weight: .medium))
@@ -394,30 +394,11 @@ struct AISettingsView: View {
                         .frame(width: 28)
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("记忆辅助对话")
+                        Text("记忆辅助回答")
                             .font(.holoBody)
                             .foregroundColor(.holoTextPrimary)
 
-                        Text("在对话中利用已记住的信息辅助回答")
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
-                    }
-                }
-            }
-
-            Toggle(isOn: $memorySettings.episodicMemoryObservationEnabled) {
-                HStack(spacing: HoloSpacing.md) {
-                    Image(systemName: "eye.circle")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.holoPrimary)
-                        .frame(width: 28)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("情景记忆观察")
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
-
-                        Text("自动从习惯和目标中识别值得记住的模式")
+                        Text("HoloAI 回答时可结合已有记忆理解你")
                             .font(.system(size: 12))
                             .foregroundColor(.holoTextSecondary)
                     }
@@ -443,7 +424,7 @@ struct AISettingsView: View {
                                 .font(.system(size: 12))
                                 .foregroundColor(result.hasPrefix("成功") ? .green : .holoTextSecondary)
                         } else {
-                            Text("立即执行一次记忆观察（忽略开关状态）")
+                            Text("按当前记忆与数据授权设置执行一次观察")
                                 .font(.system(size: 12))
                                 .foregroundColor(.holoTextSecondary)
                         }
@@ -454,7 +435,7 @@ struct AISettingsView: View {
         } header: {
             Text("记忆管理")
         } footer: {
-            Text("开启后，AI 会定期观察你的习惯和目标变化，识别有意义的模式并生成短期记忆。你可以在记忆管理中查看和管理。")
+            Text("两个开关分别控制是否形成新记忆、以及 HoloAI 回答时是否使用已有记忆。关闭不会删除已有内容。")
                 .font(.caption)
                 .foregroundColor(.holoTextSecondary)
         }

@@ -68,4 +68,26 @@ final class HoloMemoryRuntime {
             logger.error("统一记忆迁移失败：\(error.localizedDescription, privacy: .public)")
         }
     }
+
+    func loadUserControlState() async -> HoloMemoryControlState? {
+        do {
+            return try await repository().loadControlState()
+        } catch {
+            logger.error("读取记忆控制状态失败：\(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
+    func saveUserControlState(_ proposedState: HoloMemoryControlState) async {
+        do {
+            let repository = try await repository()
+            let current = try await repository.loadControlState()
+            guard proposedState.userDecisionVersion >= current.userDecisionVersion else { return }
+            var merged = proposedState
+            merged.learningBaselineAt = current.learningBaselineAt
+            try await repository.saveControlState(merged)
+        } catch {
+            logger.error("保存记忆控制状态失败：\(error.localizedDescription, privacy: .public)")
+        }
+    }
 }

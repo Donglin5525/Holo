@@ -56,12 +56,43 @@ final class HoloAIDataProcessingConsent: ObservableObject {
 
 // MARK: - Memory Settings (User-Controlled)
 
+struct HoloMemorySettingsSnapshot: Equatable, Sendable {
+    var automaticMemoryEnabled: Bool
+    var memoryAssistedAnsweringEnabled: Bool
+}
+
+enum HoloMemorySettingsMigration {
+    enum LegacyKey {
+        static let longTermMemoryEnabled = "holo_memory_longTermEnabled"
+        static let memorySummaryInjectionEnabled = "holo_memory_summaryInjectionEnabled"
+        static let episodicMemoryObservationEnabled = "holo_memory_episodicObservationEnabled"
+    }
+
+    static func resolve(from explicitlyStoredValues: [String: Bool]) -> HoloMemorySettingsSnapshot {
+        let automaticMemoryEnabled =
+            explicitlyStoredValues[LegacyKey.longTermMemoryEnabled] == true ||
+            explicitlyStoredValues[LegacyKey.episodicMemoryObservationEnabled] == true
+        let memoryAssistedAnsweringEnabled =
+            explicitlyStoredValues[LegacyKey.memorySummaryInjectionEnabled] ?? false
+
+        return HoloMemorySettingsSnapshot(
+            automaticMemoryEnabled: automaticMemoryEnabled,
+            memoryAssistedAnsweringEnabled: memoryAssistedAnsweringEnabled
+        )
+    }
+}
+
 final class HoloMemorySettings: ObservableObject {
     static let shared = HoloMemorySettings()
 
-    private let defaults = UserDefaults.standard
+    private let defaults: UserDefaults
+    private var isApplyingRemoteState = false
 
     private enum Keys {
+        static let automaticMemoryEnabled = "holo_memory_automaticMemoryEnabled_v2"
+        static let memoryAssistedAnsweringEnabled = "holo_memory_assistedAnsweringEnabled_v2"
+        static let userDecisionVersion = "holo_memory_userDecisionVersion_v2"
+        static let controlUpdatedAt = "holo_memory_controlUpdatedAt_v2"
         static let longTermMemoryEnabled = "holo_memory_longTermEnabled"
         static let memoryInsightExtractionEnabled = "holo_memory_insightExtractionEnabled"
         static let memorySummaryInjectionEnabled = "holo_memory_summaryInjectionEnabled"
@@ -78,21 +109,40 @@ final class HoloMemorySettings: ObservableObject {
         static let agentObserverTier2Enabled = "holo_agent_observerTier2Enabled"
     }
 
-    @Published var longTermMemoryEnabled: Bool {
-        didSet { defaults.set(longTermMemoryEnabled, forKey: Keys.longTermMemoryEnabled) }
+    @Published var automaticMemoryEnabled: Bool {
+        didSet {
+            defaults.set(automaticMemoryEnabled, forKey: Keys.automaticMemoryEnabled)
+            persistUserControlChangeIfNeeded()
+        }
     }
 
-    @available(*, deprecated, message: "未使用，请使用 episodicMemoryObservationEnabled")
-    @Published var memoryInsightExtractionEnabled: Bool {
-        didSet { defaults.set(memoryInsightExtractionEnabled, forKey: Keys.memoryInsightExtractionEnabled) }
+    @Published var memoryAssistedAnsweringEnabled: Bool {
+        didSet {
+            defaults.set(memoryAssistedAnsweringEnabled, forKey: Keys.memoryAssistedAnsweringEnabled)
+            persistUserControlChangeIfNeeded()
+        }
     }
 
-    @Published var memorySummaryInjectionEnabled: Bool {
-        didSet { defaults.set(memorySummaryInjectionEnabled, forKey: Keys.memorySummaryInjectionEnabled) }
+    /// 兼容旧调用方；所有旧萃取开关统一映射到“自动形成记忆”。
+    var longTermMemoryEnabled: Bool {
+        get { automaticMemoryEnabled }
+        set { automaticMemoryEnabled = newValue }
     }
 
-    @Published var episodicMemoryObservationEnabled: Bool {
-        didSet { defaults.set(episodicMemoryObservationEnabled, forKey: Keys.episodicMemoryObservationEnabled) }
+    @available(*, deprecated, message: "请使用 automaticMemoryEnabled")
+    var memoryInsightExtractionEnabled: Bool {
+        get { automaticMemoryEnabled }
+        set { automaticMemoryEnabled = newValue }
+    }
+
+    var episodicMemoryObservationEnabled: Bool {
+        get { automaticMemoryEnabled }
+        set { automaticMemoryEnabled = newValue }
+    }
+
+    var memorySummaryInjectionEnabled: Bool {
+        get { memoryAssistedAnsweringEnabled }
+        set { memoryAssistedAnsweringEnabled = newValue }
     }
 
     // MARK: - Profile Snapshot Feature Flags
@@ -129,11 +179,20 @@ final class HoloMemorySettings: ObservableObject {
         didSet { defaults.set(agentObserverTier2Enabled, forKey: Keys.agentObserverTier2Enabled) }
     }
 
-    private init() {
-        self.longTermMemoryEnabled = defaults.object(forKey: Keys.longTermMemoryEnabled) as? Bool ?? false
-        self.memoryInsightExtractionEnabled = defaults.object(forKey: Keys.memoryInsightExtractionEnabled) as? Bool ?? false
-        self.memorySummaryInjectionEnabled = defaults.object(forKey: Keys.memorySummaryInjectionEnabled) as? Bool ?? true
-        self.episodicMemoryObservationEnabled = defaults.object(forKey: Keys.episodicMemoryObservationEnabled) as? Bool ?? false
+    init(defaults: UserDefaults = .standard) {
+        self.defaults = defaults
+
+        let migrated = HoloMemorySettingsMigration.resolve(from: [
+            Keys.longTermMemoryEnabled: defaults.object(forKey: Keys.longTermMemoryEnabled) as? Bool,
+            Keys.memorySummaryInjectionEnabled: defaults.object(forKey: Keys.memorySummaryInjectionEnabled) as? Bool,
+            Keys.episodicMemoryObservationEnabled: defaults.object(forKey: Keys.episodicMemoryObservationEnabled) as? Bool
+        ].compactMapValues { $0 })
+        self.automaticMemoryEnabled =
+            defaults.object(forKey: Keys.automaticMemoryEnabled) as? Bool
+            ?? migrated.automaticMemoryEnabled
+        self.memoryAssistedAnsweringEnabled =
+            defaults.object(forKey: Keys.memoryAssistedAnsweringEnabled) as? Bool
+            ?? migrated.memoryAssistedAnsweringEnabled
         // Profile Snapshot 默认启用（核心功能升级，非实验性）
         self.profileSnapshotEnabled = defaults.object(forKey: Keys.profileSnapshotEnabled) as? Bool ?? true
         self.profileAnalysisInjectionEnabled = defaults.object(forKey: Keys.profileAnalysisInjectionEnabled) as? Bool ?? true
@@ -143,7 +202,66 @@ final class HoloMemorySettings: ObservableObject {
         self.agentDebugModeEnabled = defaults.object(forKey: Keys.agentDebugModeEnabled) as? Bool ?? false
         self.agentMemoryGalleryEnabled = defaults.object(forKey: Keys.agentMemoryGalleryEnabled) as? Bool ?? false
         self.agentObserverTier2Enabled = defaults.object(forKey: Keys.agentObserverTier2Enabled) as? Bool ?? false
+
+        defaults.set(automaticMemoryEnabled, forKey: Keys.automaticMemoryEnabled)
+        defaults.set(memoryAssistedAnsweringEnabled, forKey: Keys.memoryAssistedAnsweringEnabled)
     }
+
+    private func persistUserControlChangeIfNeeded() {
+        guard !isApplyingRemoteState else { return }
+        let nextVersion = max(
+            defaults.object(forKey: Keys.userDecisionVersion) as? Int64 ?? 0,
+            Int64(Date().timeIntervalSince1970 * 1_000)
+        ) + 1
+        let now = Date()
+        defaults.set(nextVersion, forKey: Keys.userDecisionVersion)
+        defaults.set(now.timeIntervalSince1970, forKey: Keys.controlUpdatedAt)
+
+        #if !HOLO_MEMORY_STANDALONE
+        let state = HoloMemoryControlState(
+            automaticMemoryEnabled: automaticMemoryEnabled,
+            memoryAssistedAnsweringEnabled: memoryAssistedAnsweringEnabled,
+            learningBaselineAt: nil,
+            userDecisionVersion: nextVersion,
+            updatedAt: now
+        )
+        Task { await HoloMemoryRuntime.shared.saveUserControlState(state) }
+        #endif
+    }
+
+    #if !HOLO_MEMORY_STANDALONE
+    /// 启动时与统一仓库合并控制状态；较新的用户操作胜出，后台结果不能覆盖它。
+    func reconcileWithRepository() async {
+        guard let remoteState = await HoloMemoryRuntime.shared.loadUserControlState() else { return }
+        let localVersion = defaults.object(forKey: Keys.userDecisionVersion) as? Int64 ?? 0
+
+        if remoteState.userDecisionVersion > localVersion {
+            isApplyingRemoteState = true
+            automaticMemoryEnabled = remoteState.automaticMemoryEnabled
+            memoryAssistedAnsweringEnabled = remoteState.memoryAssistedAnsweringEnabled
+            defaults.set(remoteState.userDecisionVersion, forKey: Keys.userDecisionVersion)
+            defaults.set(remoteState.updatedAt.timeIntervalSince1970, forKey: Keys.controlUpdatedAt)
+            isApplyingRemoteState = false
+        } else if localVersion > remoteState.userDecisionVersion || (
+            localVersion == 0 &&
+            (automaticMemoryEnabled != remoteState.automaticMemoryEnabled ||
+             memoryAssistedAnsweringEnabled != remoteState.memoryAssistedAnsweringEnabled)
+        ) {
+            let version = max(localVersion, 1)
+            defaults.set(version, forKey: Keys.userDecisionVersion)
+            let state = HoloMemoryControlState(
+                automaticMemoryEnabled: automaticMemoryEnabled,
+                memoryAssistedAnsweringEnabled: memoryAssistedAnsweringEnabled,
+                learningBaselineAt: remoteState.learningBaselineAt,
+                userDecisionVersion: version,
+                updatedAt: Date(
+                    timeIntervalSince1970: defaults.double(forKey: Keys.controlUpdatedAt)
+                )
+            )
+            await HoloMemoryRuntime.shared.saveUserControlState(state)
+        }
+    }
+    #endif
 }
 
 // MARK: - Feature Flags (Read from Settings)
@@ -151,10 +269,10 @@ final class HoloMemorySettings: ObservableObject {
 enum HoloAIFeatureFlags {
     static var capabilityLaunchpadEnabled: Bool { true }
     static var aiDataProcessingConsentGranted: Bool { HoloAIDataProcessingConsent.shared.isGranted }
-    static var memorySummaryInjectionEnabled: Bool { HoloMemorySettings.shared.memorySummaryInjectionEnabled }
-    static var longTermMemoryWriteEnabled: Bool { HoloMemorySettings.shared.longTermMemoryEnabled }
-    static var memoryInsightCandidateExtractionEnabled: Bool { HoloMemorySettings.shared.longTermMemoryEnabled }
-    static var episodicMemoryObservationEnabled: Bool { HoloMemorySettings.shared.episodicMemoryObservationEnabled }
+    static var memorySummaryInjectionEnabled: Bool { HoloMemorySettings.shared.memoryAssistedAnsweringEnabled }
+    static var longTermMemoryWriteEnabled: Bool { HoloMemorySettings.shared.automaticMemoryEnabled }
+    static var memoryInsightCandidateExtractionEnabled: Bool { HoloMemorySettings.shared.automaticMemoryEnabled }
+    static var episodicMemoryObservationEnabled: Bool { HoloMemorySettings.shared.automaticMemoryEnabled }
 
     // MARK: - Profile Snapshot Feature Flags
 

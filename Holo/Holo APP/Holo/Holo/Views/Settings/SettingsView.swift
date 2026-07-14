@@ -678,9 +678,9 @@ struct SettingsView: View {
                 insightToggleRow(
                     icon: "arrow.triangle.2.circlepath",
                     iconColor: .holoPrimary,
-                    title: "长期记忆",
-                    subtitle: memorySettings.longTermMemoryEnabled ? "AI 会从洞察中学习偏好与模式" : "默认关闭",
-                    isOn: $memorySettings.longTermMemoryEnabled
+                    title: "自动形成记忆",
+                    subtitle: memorySettings.automaticMemoryEnabled ? "从你的数据变化中整理值得记住的内容" : "关闭后不再形成新记忆",
+                    isOn: $memorySettings.automaticMemoryEnabled
                 )
 
                 Divider()
@@ -689,9 +689,9 @@ struct SettingsView: View {
                 insightToggleRow(
                     icon: "text.bubble",
                     iconColor: .holoInfo,
-                    title: "记忆辅助对话",
-                    subtitle: memorySettings.memorySummaryInjectionEnabled ? "对话中利用已记住的信息辅助回答" : "默认开启",
-                    isOn: $memorySettings.memorySummaryInjectionEnabled
+                    title: "记忆辅助回答",
+                    subtitle: memorySettings.memoryAssistedAnsweringEnabled ? "HoloAI 会结合已记住的信息理解你" : "关闭后回答不会读取已有记忆",
+                    isOn: $memorySettings.memoryAssistedAnsweringEnabled
                 )
 
                 Divider()

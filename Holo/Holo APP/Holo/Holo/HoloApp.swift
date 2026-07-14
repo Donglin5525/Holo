@@ -87,6 +87,7 @@ struct HoloApp: App {
                     // Store 就绪后安排下一次周期性支出补账；具体执行仍由系统后台策略决定
                     await CoreDataStack.shared.waitUntilReady()
                     await HoloMemoryRuntime.shared.migrateLegacyMemoryIfNeeded()
+                    await HoloMemorySettings.shared.reconcileWithRepository()
 
                     // 迁移完成后再监听旧候选链，避免迁移快照与新写入竞态。
                     HoloLongTermMemoryCandidateObserver.startObserving()
