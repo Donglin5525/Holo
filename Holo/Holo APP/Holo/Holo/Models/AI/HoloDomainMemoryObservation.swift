@@ -21,6 +21,7 @@ nonisolated struct HoloDomainMemorySignal: Codable, Equatable, Sendable {
     var evidence: HoloMemoryEvidenceRef
     var anchors: [HoloMemoryAnchorRef]
     var numericFacts: [String: Double]
+    var prohibitedInferences: [String]
     /// 用户原文只作为 JSON 数据字段传输，永远不参与 system instruction 拼接。
     var userText: String?
 }

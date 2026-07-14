@@ -7,6 +7,21 @@
 
 import Foundation
 
+nonisolated struct GoalDomainMemoryInput: Equatable, Sendable {
+    var id: String
+    var title: String
+    var isUserCreated: Bool
+    var isCompleted: Bool
+    var progress: Double
+    var expectedProgress: Double
+    var taskTotal: Int
+    var taskCompleted: Int
+    var deadline: Date?
+    var previousDeadline: Date?
+    var revisionDigest: String
+    var observedAt: Date
+}
+
 /// 目标进度输入（从 Goal Core Data 实体提取的轻量级结构）
 struct GoalProgressInput {
     var id: String
@@ -46,6 +61,62 @@ struct GoalProgressInput {
 }
 
 struct GoalMemorySignalBuilder {
+
+    static func buildDomainSignals(
+        from inputs: [GoalDomainMemoryInput]
+    ) -> [HoloDomainMemorySignal] {
+        inputs.flatMap { input -> [HoloDomainMemorySignal] in
+            guard input.isUserCreated, !input.id.isEmpty, !input.revisionDigest.isEmpty,
+                  (0...1).contains(input.progress),
+                  let anchor = try? HoloMemoryAnchorRef(
+                    type: .goal,
+                    value: input.id,
+                    displayLabel: input.title
+                  ) else { return [] }
+            let evidence = HoloMemoryEvidenceRef(
+                id: "goal-\(input.id)-\(input.revisionDigest)",
+                kind: .entityRef,
+                sourceDomain: .goal,
+                lineageKey: "goal:\(input.id)",
+                sourceID: input.id,
+                revisionDigest: input.revisionDigest,
+                observedAt: input.observedAt
+            )
+            let boundaries = [
+                "不得把系统建议或 AI 建议当成用户目标",
+                "不得从目标进度推断能力、人格或心理状态"
+            ]
+            var signals: [HoloDomainMemorySignal] = []
+            func append(_ suffix: String, kind: HoloDomainSignalKind, facts: [String: Double]) {
+                if let signal = try? HoloDomainSignalBuilder.make(
+                    id: "goal-\(suffix)-\(input.id)",
+                    domain: .goal,
+                    kind: kind,
+                    evidence: evidence,
+                    anchors: [anchor],
+                    numericFacts: facts,
+                    prohibitedInferences: boundaries
+                ) { signals.append(signal) }
+            }
+            append("current-focus", kind: .entity, facts: [
+                "progress": input.progress,
+                "taskTotal": Double(input.taskTotal),
+                "taskCompleted": Double(input.taskCompleted),
+                "isCompleted": input.isCompleted ? 1 : 0
+            ])
+            if input.expectedProgress > 0 {
+                append("pace", kind: .trend, facts: [
+                    "progress": input.progress,
+                    "expectedProgress": input.expectedProgress,
+                    "paceRatio": input.progress / input.expectedProgress
+                ])
+            }
+            if input.deadline != input.previousDeadline, input.previousDeadline != nil {
+                append("adjustment", kind: .entity, facts: ["deadlineAdjusted": 1])
+            }
+            return signals
+        }.sorted { $0.id < $1.id }
+    }
 
     /// 从目标进度数据生成记忆信号
     /// - Parameter goals: 目标进度输入列表（由上层从 GoalRepository 提取）

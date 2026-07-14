@@ -7,7 +7,78 @@
 
 import Foundation
 
+nonisolated struct HabitDomainMemoryInput: Equatable, Sendable {
+    var id: String
+    var name: String
+    var isBadHabit: Bool
+    var totalDays: Int
+    var completedDays: Int
+    var previousCompletionRate: Double?
+    var currentStreak: Int
+    var revisionDigest: String
+    var observedAt: Date
+}
+
 struct HabitMemorySignalBuilder {
+
+    static func buildDomainSignals(
+        from inputs: [HabitDomainMemoryInput]
+    ) -> [HoloDomainMemorySignal] {
+        inputs.flatMap { input -> [HoloDomainMemorySignal] in
+            guard input.totalDays > 0, !input.id.isEmpty, !input.revisionDigest.isEmpty,
+                  let anchor = try? HoloMemoryAnchorRef(
+                    type: .habit,
+                    value: input.id,
+                    displayLabel: input.name
+                  ) else { return [] }
+            let completionRate = Double(input.completedDays) / Double(input.totalDays)
+            let evidence = HoloMemoryEvidenceRef(
+                id: "habit-\(input.id)-\(input.revisionDigest)",
+                kind: .aggregateSnapshot,
+                sourceDomain: .habit,
+                lineageKey: "habit:\(input.id)",
+                sourceID: input.id,
+                revisionDigest: input.revisionDigest,
+                observedAt: input.observedAt,
+                aggregateDefinition: "本地计算完成天数、总天数、连续天数和前后窗口完成率",
+                sampleCount: input.totalDays
+            )
+            let boundaries = ["不得进行道德评价", "不得推断自律、能力、人格或心理状态"]
+            var signals: [HoloDomainMemorySignal] = []
+            func append(_ suffix: String, facts: [String: Double]) {
+                if let signal = try? HoloDomainSignalBuilder.make(
+                    id: "habit-\(suffix)-\(input.id)",
+                    domain: .habit,
+                    kind: .aggregate,
+                    evidence: evidence,
+                    anchors: [anchor],
+                    numericFacts: facts,
+                    prohibitedInferences: boundaries
+                ) { signals.append(signal) }
+            }
+            if input.currentStreak >= 7 {
+                append("stable-rhythm", facts: [
+                    "currentStreak": Double(input.currentStreak),
+                    "completionRate": completionRate
+                ])
+            }
+            let missedDays = input.totalDays - input.completedDays
+            if !input.isBadHabit && missedDays >= 5 {
+                append("interruption", facts: [
+                    "missedDays": Double(missedDays),
+                    "completionRate": completionRate
+                ])
+            }
+            if let previous = input.previousCompletionRate,
+               completionRate - previous >= 0.2 {
+                append("recovery", facts: [
+                    "previousCompletionRate": previous,
+                    "currentCompletionRate": completionRate
+                ])
+            }
+            return signals
+        }.sorted { $0.id < $1.id }
+    }
 
     /// 从习惯表现数据生成记忆信号
     /// - Parameter summaries: 习惯关注摘要（由上层从 HabitRepository 获取并计算）

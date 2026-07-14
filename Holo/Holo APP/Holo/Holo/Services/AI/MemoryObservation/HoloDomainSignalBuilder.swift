@@ -23,12 +23,17 @@ nonisolated enum HoloDomainSignalBuilder {
         evidence: HoloMemoryEvidenceRef,
         anchors: [HoloMemoryAnchorRef],
         numericFacts: [String: Double] = [:],
+        prohibitedInferences: [String] = [],
         userText: String? = nil
     ) throws -> HoloDomainMemorySignal {
         guard evidence.sourceDomain == domain else {
             throw HoloDomainSignalBuilderError.evidenceDomainMismatch
         }
-        let canonicalAnchors = HoloMemoryIdentity.canonicalAnchors(anchors)
+        let canonicalAnchors = HoloMemoryIdentity.canonicalAnchors(anchors).map { anchor in
+            var sanitized = anchor
+            sanitized.displayLabel = anchor.displayLabel.map(sanitizeUserText)
+            return sanitized
+        }
         guard !canonicalAnchors.isEmpty else {
             throw HoloDomainSignalBuilderError.missingAnchor
         }
@@ -42,6 +47,7 @@ nonisolated enum HoloDomainSignalBuilder {
             evidence: evidence,
             anchors: canonicalAnchors,
             numericFacts: numericFacts,
+            prohibitedInferences: prohibitedInferences.map(sanitizeUserText),
             userText: userText.map(sanitizeUserText)
         )
     }
