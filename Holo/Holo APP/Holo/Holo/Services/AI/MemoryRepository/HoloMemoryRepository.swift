@@ -52,6 +52,16 @@ struct HoloMemoryControlState: Codable, Equatable, Sendable {
     }
 }
 
+struct HoloMemoryTombstone: Codable, Equatable, Identifiable, Sendable {
+    var id: String { identityKey }
+    var identityKey: String
+    var scope: HoloMemoryScope
+    var claimKind: HoloMemoryClaimKind
+    var anchorKeys: [String]
+    var userDecisionVersion: Int64
+    var createdAt: Date
+}
+
 protocol HoloMemoryRepository: Sendable {
     func upsert(
         _ record: HoloMemoryRecord,
@@ -73,4 +83,11 @@ protocol HoloMemoryRepository: Sendable {
     func storageCounts() async throws -> HoloMemoryStorageCounts
     func loadControlState() async throws -> HoloMemoryControlState
     func saveControlState(_ state: HoloMemoryControlState) async throws
+    func saveTombstone(_ tombstone: HoloMemoryTombstone) async throws
+    func fetchTombstone(identityKey: String) async throws -> HoloMemoryTombstone?
+
+    /// 仅供版本化迁移的 journal 回滚使用，不得暴露给普通业务调用方。
+    func replaceRecordForMigration(_ record: HoloMemoryRecord) async throws
+    func hardDeleteRecordForMigration(id: String) async throws
+    func deleteTombstoneForMigration(identityKey: String) async throws
 }

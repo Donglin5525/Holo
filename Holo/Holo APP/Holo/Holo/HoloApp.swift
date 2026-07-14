@@ -41,9 +41,6 @@ struct HoloApp: App {
         // 长期记忆只保留严格语义 V2；先清理旧格式，再允许新洞察写入候选。
         HoloLongTermMemoryStore.performSemanticV2MigrationIfNeeded()
 
-        // 监听洞察生成完成事件，用于在长期记忆开启后抽取待确认记忆候选。
-        HoloLongTermMemoryCandidateObserver.startObserving()
-
         // 迁移旧格式学习映射 key（type|candidate → type|primary|candidate）
         CategoryLearnedMapping.migrateOldFormatKeys()
 
@@ -89,6 +86,10 @@ struct HoloApp: App {
 
                     // Store 就绪后安排下一次周期性支出补账；具体执行仍由系统后台策略决定
                     await CoreDataStack.shared.waitUntilReady()
+                    await HoloMemoryRuntime.shared.migrateLegacyMemoryIfNeeded()
+
+                    // 迁移完成后再监听旧候选链，避免迁移快照与新写入竞态。
+                    HoloLongTermMemoryCandidateObserver.startObserving()
                     FinanceRepository.shared.setup()
                     SpendingProjectBackgroundService.shared.scheduleNextTask()
                     MemoryInsightBackgroundService.shared.scheduleBackgroundTask()

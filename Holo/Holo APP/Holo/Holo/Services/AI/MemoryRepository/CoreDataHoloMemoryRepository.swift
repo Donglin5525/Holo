@@ -262,6 +262,109 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
         }
     }
 
+    func saveTombstone(_ tombstone: HoloMemoryTombstone) async throws {
+        try await withMutationLock {
+            try await saveTombstoneUnlocked(tombstone)
+        }
+    }
+
+    private func saveTombstoneUnlocked(_ tombstone: HoloMemoryTombstone) async throws {
+        let context = controller.mainContainer.newBackgroundContext()
+        context.mergePolicy = NSMergeByPropertyObjectTrumpMergePolicy
+        try await context.perform {
+            let request = NSFetchRequest<HoloMemoryTombstoneMO>(
+                entityName: "HoloMemoryTombstoneMO"
+            )
+            request.predicate = NSPredicate(format: "identityKey == %@", tombstone.identityKey)
+            let matches = try context.fetch(request)
+            let object = matches.first ??
+                NSEntityDescription.insertNewObject(
+                    forEntityName: "HoloMemoryTombstoneMO",
+                    into: context
+                ) as! HoloMemoryTombstoneMO
+            if object.userDecisionVersion > tombstone.userDecisionVersion { return }
+            for duplicate in matches.dropFirst() { context.delete(duplicate) }
+            object.identityKey = tombstone.identityKey
+            object.scope = tombstone.scope.rawValue
+            object.claimKind = tombstone.claimKind.rawValue
+            object.anchorKeysJSON = String(
+                data: try Self.encoder().encode(tombstone.anchorKeys.sorted()),
+                encoding: .utf8
+            ) ?? "[]"
+            object.userDecisionVersion = tombstone.userDecisionVersion
+            object.createdAt = tombstone.createdAt
+            try context.save()
+        }
+    }
+
+    func fetchTombstone(identityKey: String) async throws -> HoloMemoryTombstone? {
+        let context = controller.mainContainer.newBackgroundContext()
+        return try await context.perform {
+            let request = NSFetchRequest<HoloMemoryTombstoneMO>(
+                entityName: "HoloMemoryTombstoneMO"
+            )
+            request.predicate = NSPredicate(format: "identityKey == %@", identityKey)
+            request.sortDescriptors = [
+                NSSortDescriptor(key: "userDecisionVersion", ascending: false)
+            ]
+            request.fetchLimit = 1
+            guard let object = try context.fetch(request).first,
+                  let scope = HoloMemoryScope(rawValue: object.scope),
+                  let claimKind = HoloMemoryClaimKind(rawValue: object.claimKind) else {
+                return nil
+            }
+            let anchorKeys = (try? Self.decoder().decode(
+                [String].self,
+                from: Data(object.anchorKeysJSON.utf8)
+            )) ?? []
+            return HoloMemoryTombstone(
+                identityKey: object.identityKey,
+                scope: scope,
+                claimKind: claimKind,
+                anchorKeys: anchorKeys,
+                userDecisionVersion: object.userDecisionVersion,
+                createdAt: object.createdAt
+            )
+        }
+    }
+
+    func replaceRecordForMigration(_ record: HoloMemoryRecord) async throws {
+        do {
+            try record.validate()
+        } catch {
+            throw HoloMemoryRepositoryError.invalidRecord
+        }
+        try await withMutationLock {
+            let target: Storage = requiresSensitiveLocalStorage(record) ? .sensitive : .main
+            try await persist(record, in: target, observationKey: nil)
+            try await deletePersistedRecord(
+                id: record.id,
+                from: target == .main ? .sensitive : .main
+            )
+        }
+    }
+
+    func hardDeleteRecordForMigration(id: String) async throws {
+        try await withMutationLock {
+            try await deletePersistedRecord(id: id, from: .main)
+            try await deletePersistedRecord(id: id, from: .sensitive)
+        }
+    }
+
+    func deleteTombstoneForMigration(identityKey: String) async throws {
+        try await withMutationLock {
+            let context = controller.mainContainer.newBackgroundContext()
+            try await context.perform {
+                let request = NSFetchRequest<HoloMemoryTombstoneMO>(
+                    entityName: "HoloMemoryTombstoneMO"
+                )
+                request.predicate = NSPredicate(format: "identityKey == %@", identityKey)
+                for object in try context.fetch(request) { context.delete(object) }
+                if context.hasChanges { try context.save() }
+            }
+        }
+    }
+
     private func fetchStored(id: String) async throws -> StoredRecord? {
         let main = try await fetchRecord(id: id, in: .main)
         let sensitive = try await fetchRecord(id: id, in: .sensitive)
@@ -429,13 +532,7 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
     }
 
     private func hasTombstone(identityKey: String) async throws -> Bool {
-        let context = controller.mainContainer.newBackgroundContext()
-        return try await context.perform {
-            let request = NSFetchRequest<HoloMemoryTombstoneMO>(entityName: "HoloMemoryTombstoneMO")
-            request.predicate = NSPredicate(format: "identityKey == %@", identityKey)
-            request.fetchLimit = 1
-            return try context.count(for: request) > 0
-        }
+        try await fetchTombstone(identityKey: identityKey) != nil
     }
 
     private func countRecords(in storage: Storage) async throws -> Int {
