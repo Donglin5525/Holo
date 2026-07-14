@@ -183,6 +183,35 @@ struct HoloMemoryRepositoryIntegrationTests {
         expect(active.allSatisfy { ![.superseded, .deleted, .suppressed, .tombstoned].contains($0.state) },
                "默认查询必须排除不可用正文")
 
+        let tombstone = HoloMemoryTombstone(
+            identityKey: finance.id,
+            scope: finance.scope,
+            claimKind: finance.claimKind,
+            anchorKeys: finance.anchorRefs.map(\.stableKey),
+            userDecisionVersion: 10,
+            createdAt: Date(timeIntervalSince1970: 1_740_000_000)
+        )
+        try await repository.saveTombstone(tombstone)
+        var semanticAlias = finance
+        semanticAlias.claimKind = .phaseShift
+        semanticAlias.id = try HoloMemoryIdentity.makeStableID(for: semanticAlias)
+        semanticAlias.updatedAt = Date(timeIntervalSince1970: 1_740_000_001)
+        let semanticRecreation = try await repository.upsert(
+            semanticAlias,
+            observationKey: "semantic-recreation"
+        )
+        expect(semanticRecreation == .rejectedByTombstone,
+               "同 canonical anchors 与 claim family 的换一种说法必须被墓碑拒绝")
+
+        var control = try await repository.loadControlState()
+        control.learningBaselineAt = Date(timeIntervalSince1970: 1_750_000_000)
+        control.userDecisionVersion = 11
+        control.updatedAt = Date(timeIntervalSince1970: 1_750_000_000)
+        try await repository.saveControlState(control)
+        let afterClearVisibility = try await repository.query(.active)
+        expect(afterClearVisibility.isEmpty,
+               "学习起点写入后，旧证据必须立即从可用查询消失")
+
         let diskDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent("holo-memory-restart-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: diskDirectory) }

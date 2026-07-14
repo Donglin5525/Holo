@@ -85,6 +85,9 @@ protocol HoloMemoryRepository: Sendable {
     func saveControlState(_ state: HoloMemoryControlState) async throws
     func saveTombstone(_ tombstone: HoloMemoryTombstone) async throws
     func fetchTombstone(identityKey: String) async throws -> HoloMemoryTombstone?
+    func queryTombstones() async throws -> [HoloMemoryTombstone]
+    /// 用户忘记、清空或原始数据失效时使用；绕过自动合并，但仍执行 Schema 校验。
+    func replaceRecordForUserControl(_ record: HoloMemoryRecord) async throws
 
     /// 仅供版本化迁移的 journal 回滚使用，不得暴露给普通业务调用方。
     func replaceRecordForMigration(_ record: HoloMemoryRecord) async throws

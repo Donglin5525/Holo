@@ -50,7 +50,7 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
            try await hasSuccessfulObservation(observationKey) {
             return .duplicateObservation
         }
-        if try await hasTombstone(identityKey: record.id) {
+        if try await hasMatchingTombstone(for: record) {
             return .rejectedByTombstone
         }
 
@@ -117,14 +117,24 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
         let unavailable: Set<HoloMemoryState> = [
             .superseded, .invalidated, .archived, .suppressed, .tombstoned, .deleted
         ]
+        let control = try await loadControlState()
         return byID.values.filter { record in
+            let predatesLearningBaseline: Bool
+            if let baseline = control.learningBaselineAt {
+                predatesLearningBaseline = !record.evidenceRefs.isEmpty &&
+                    record.evidenceRefs.allSatisfy { $0.observedAt < baseline }
+            } else {
+                predatesLearningBaseline = false
+            }
             switch query {
             case .all:
                 return true
             case .active:
-                return !unavailable.contains(record.state)
+                return !predatesLearningBaseline && !unavailable.contains(record.state)
             case .domain(let domain):
-                return !unavailable.contains(record.state) && record.sourceDomains.contains(domain)
+                return !predatesLearningBaseline &&
+                    !unavailable.contains(record.state) &&
+                    record.sourceDomains.contains(domain)
             }
         }.sorted {
             if $0.updatedAt == $1.updatedAt { return $0.id < $1.id }
@@ -324,6 +334,50 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
                 anchorKeys: anchorKeys,
                 userDecisionVersion: object.userDecisionVersion,
                 createdAt: object.createdAt
+            )
+        }
+    }
+
+    func queryTombstones() async throws -> [HoloMemoryTombstone] {
+        let context = controller.mainContainer.newBackgroundContext()
+        return try await context.perform {
+            let request = NSFetchRequest<HoloMemoryTombstoneMO>(
+                entityName: "HoloMemoryTombstoneMO"
+            )
+            request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
+            return try context.fetch(request).compactMap { object in
+                guard let scope = HoloMemoryScope(rawValue: object.scope),
+                      let claimKind = HoloMemoryClaimKind(rawValue: object.claimKind) else {
+                    return nil
+                }
+                let anchorKeys = (try? Self.decoder().decode(
+                    [String].self,
+                    from: Data(object.anchorKeysJSON.utf8)
+                )) ?? []
+                return HoloMemoryTombstone(
+                    identityKey: object.identityKey,
+                    scope: scope,
+                    claimKind: claimKind,
+                    anchorKeys: anchorKeys,
+                    userDecisionVersion: object.userDecisionVersion,
+                    createdAt: object.createdAt
+                )
+            }
+        }
+    }
+
+    func replaceRecordForUserControl(_ record: HoloMemoryRecord) async throws {
+        do {
+            try record.validate()
+        } catch {
+            throw HoloMemoryRepositoryError.invalidRecord
+        }
+        try await withMutationLock {
+            let target: Storage = requiresSensitiveLocalStorage(record) ? .sensitive : .main
+            try await persist(record, in: target, observationKey: nil)
+            try await deletePersistedRecord(
+                id: record.id,
+                from: target == .main ? .sensitive : .main
             )
         }
     }
@@ -531,8 +585,11 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
         object.completedAt = record.updatedAt
     }
 
-    private func hasTombstone(identityKey: String) async throws -> Bool {
-        try await fetchTombstone(identityKey: identityKey) != nil
+    private func hasMatchingTombstone(for record: HoloMemoryRecord) async throws -> Bool {
+        if try await fetchTombstone(identityKey: record.id) != nil { return true }
+        return try await queryTombstones().contains {
+            HoloSemanticTombstoneMatcher.matches(tombstone: $0, record: record)
+        }
     }
 
     private func countRecords(in storage: Storage) async throws -> Int {
