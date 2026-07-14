@@ -123,6 +123,7 @@ nonisolated class CoreDataStack {
         entities.append(contentsOf: createSyncEntities())
         entities.append(createMemoryInsightEntity())
         entities.append(createMemoryInsightFeedbackEntity())
+        entities.append(contentsOf: HoloMemoryManagedObjectModelFactory.makeEntities())
         entities.append(goalEntity)
         model.entities = entities
         return model
