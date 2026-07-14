@@ -10,6 +10,8 @@ const PURPOSE_PROMPT_TYPES = Object.freeze({
   health_insight_generation: "health_insight_generation",
   thought_voice_summary: "thought_voice_summary",
   memory_observer: "memory_observer",
+  memory_domain_extraction: "memory_domain_extraction",
+  memory_cross_domain_fusion: "memory_cross_domain_fusion",
   finance_action_parser: "finance_action_parser",
   task_action_parser: "task_action_parser",
   thought_organization: "thought_organization",

@@ -25,7 +25,7 @@ struct HoloBackendDomainMemoryLLMClient: HoloDomainMemoryLLMClient {
         // Release Prompt 由后端 purpose 注入；客户端只发送结构化 JSON data。
         let response = try await provider.chat(
             messages: [.user(request.userDataJSON)],
-            purpose: .memoryObserver
+            purpose: .memoryDomainExtraction
         )
         return Data(response.utf8)
     }

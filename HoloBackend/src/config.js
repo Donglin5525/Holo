@@ -80,6 +80,38 @@ const DEFAULT_CONFIG = {
       temperature: Number(process.env.HOLO_MEMORY_OBSERVER_TEMPERATURE ?? 0.1),
       maxTokens: Number(process.env.HOLO_MEMORY_OBSERVER_MAX_TOKENS ?? 2048),
     },
+    memory_domain_extraction: {
+      provider: process.env.HOLO_MEMORY_DOMAIN_EXTRACTION_PROVIDER
+        ?? process.env.HOLO_MEMORY_OBSERVER_PROVIDER
+        ?? process.env.HOLO_CHAT_PROVIDER
+        ?? "mock",
+      model: process.env.HOLO_MEMORY_DOMAIN_EXTRACTION_MODEL
+        ?? process.env.HOLO_MEMORY_OBSERVER_MODEL
+        ?? process.env.HOLO_CHAT_MODEL
+        ?? "holo-mock",
+      temperature: Number(process.env.HOLO_MEMORY_DOMAIN_EXTRACTION_TEMPERATURE ?? 0.1),
+      maxTokens: Number(process.env.HOLO_MEMORY_DOMAIN_EXTRACTION_MAX_TOKENS ?? 4096),
+      requestLimits: {
+        perMinute: Number(process.env.HOLO_MEMORY_DOMAIN_EXTRACTION_REQUESTS_PER_MINUTE ?? 6),
+        perDay: Number(process.env.HOLO_MEMORY_DOMAIN_EXTRACTION_REQUESTS_PER_DAY ?? 60),
+      },
+    },
+    memory_cross_domain_fusion: {
+      provider: process.env.HOLO_MEMORY_CROSS_DOMAIN_FUSION_PROVIDER
+        ?? process.env.HOLO_MEMORY_DOMAIN_EXTRACTION_PROVIDER
+        ?? process.env.HOLO_CHAT_PROVIDER
+        ?? "mock",
+      model: process.env.HOLO_MEMORY_CROSS_DOMAIN_FUSION_MODEL
+        ?? process.env.HOLO_MEMORY_DOMAIN_EXTRACTION_MODEL
+        ?? process.env.HOLO_CHAT_MODEL
+        ?? "holo-mock",
+      temperature: Number(process.env.HOLO_MEMORY_CROSS_DOMAIN_FUSION_TEMPERATURE ?? 0.1),
+      maxTokens: Number(process.env.HOLO_MEMORY_CROSS_DOMAIN_FUSION_MAX_TOKENS ?? 4096),
+      requestLimits: {
+        perMinute: Number(process.env.HOLO_MEMORY_CROSS_DOMAIN_FUSION_REQUESTS_PER_MINUTE ?? 2),
+        perDay: Number(process.env.HOLO_MEMORY_CROSS_DOMAIN_FUSION_REQUESTS_PER_DAY ?? 10),
+      },
+    },
     finance_action_parser: {
       provider: process.env.HOLO_FINANCE_ACTION_PARSER_PROVIDER ?? process.env.HOLO_INTENT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_FINANCE_ACTION_PARSER_MODEL ?? process.env.HOLO_INTENT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",

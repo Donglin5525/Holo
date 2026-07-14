@@ -1055,3 +1055,61 @@ test("agent_loop purpose 被接受并返回 mock agent JSON", async () => {
   assert.equal(parsed.claims[0].type, "observation");
   assert.equal(parsed.claims[0].confidence, 0.5);
 });
+
+test("memory purposes have dedicated routes and request limits", () => {
+  const config = loadConfig();
+  for (const purpose of ["memory_domain_extraction", "memory_cross_domain_fusion"]) {
+    const route = config.routes[purpose];
+    assert.ok(route, purpose);
+    assert.ok(route.requestLimits.perMinute > 0, `${purpose} minute limit`);
+    assert.ok(route.requestLimits.perDay > 0, `${purpose} daily limit`);
+    assert.ok(route.maxTokens >= 1024, `${purpose} token limit`);
+  }
+});
+
+test("memory purpose gateway preserves valid and invalid JSON fixtures for local validation", async () => {
+  const fixtureProvider = {
+    async complete(request) {
+      const valid = request.purpose === "memory_domain_extraction";
+      const content = valid
+        ? JSON.stringify({ candidates: [], counterEvidence: [], supersedes: [] })
+        : JSON.stringify({ candidates: [{ evidenceIDs: ["forged-evidence"] }] });
+      return {
+        id: `fixture-${request.purpose}`,
+        provider: "fixture",
+        model: request.model,
+        choices: [{ index: 0, message: { role: "assistant", content }, finish_reason: "stop" }],
+      };
+    },
+  };
+  const app = createTestApp({
+    providerOverrides: [["fixture", fixtureProvider]],
+    routes: {
+      memory_domain_extraction: {
+        provider: "fixture", model: "memory-fixture", temperature: 0, maxTokens: 2048,
+      },
+      memory_cross_domain_fusion: {
+        provider: "fixture", model: "memory-fixture", temperature: 0, maxTokens: 2048,
+      },
+    },
+  });
+
+  for (const purpose of ["memory_domain_extraction", "memory_cross_domain_fusion"]) {
+    const response = await app.request("/v1/ai/chat/completions", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-holo-device-id": `memory-fixture-${purpose}`,
+      },
+      body: JSON.stringify({
+        purpose,
+        stream: false,
+        messages: [{ role: "user", content: "{\"schemaVersion\":1}" }],
+      }),
+    });
+    assert.equal(response.status, 200, purpose);
+    const json = await response.json();
+    const parsed = JSON.parse(json.choices[0].message.content);
+    assert.ok(Array.isArray(parsed.candidates), purpose);
+  }
+});

@@ -16,6 +16,8 @@ const PROMPT_VERSIONS = {
   task_action_parser: 1,
   health_insight_generation: 2,
   agent_loop: 10,
+  memory_domain_extraction: 1,
+  memory_cross_domain_fusion: 1,
 };
 const PROMPT_CONTRACT_APPENDICES = {
   agent_loop: defaultPrompts._agent_loop_v10_contract,

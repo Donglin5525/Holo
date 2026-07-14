@@ -478,6 +478,8 @@ enum HoloBackendPurpose: String {
     case insight
     case thoughtVoiceSummary = "thought_voice_summary"
     case memoryObserver = "memory_observer"
+    case memoryDomainExtraction = "memory_domain_extraction"
+    case memoryCrossDomainFusion = "memory_cross_domain_fusion"
     case financeActionParser = "finance_action_parser"
     case taskActionParser = "task_action_parser"
     case thoughtOrganization = "thought_organization"
