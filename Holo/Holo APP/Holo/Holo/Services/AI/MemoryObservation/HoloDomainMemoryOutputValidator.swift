@@ -204,9 +204,12 @@ nonisolated enum HoloDomainMemoryOutputValidator {
         if let dictionary = value as? [String: Any] {
             for (key, child) in dictionary {
                 let normalized = key.lowercased().replacingOccurrences(of: "_", with: "")
+                if normalized.contains("requestedaction") {
+                    guard requestedActionValueIsSafe(child) else { return false }
+                    continue
+                }
                 if normalized.contains("tool") ||
                     normalized.contains("command") ||
-                    normalized.contains("requestedaction") ||
                     normalized.contains("automaticmemoryenabled") ||
                     normalized.contains("memoryassistedansweringenabled") {
                     return false
@@ -225,5 +228,13 @@ nonisolated enum HoloDomainMemoryOutputValidator {
             return !forbiddenValues.contains { normalized.contains($0) }
         }
         return true
+    }
+
+    /// `requestedActions` 是服务端 Prompt 的固定 Schema 字段。
+    /// null/空数组代表模型没有请求动作；只有非空值才属于越权输出。
+    private static func requestedActionValueIsSafe(_ value: Any) -> Bool {
+        if value is NSNull { return true }
+        if let values = value as? [Any] { return values.isEmpty }
+        return false
     }
 }

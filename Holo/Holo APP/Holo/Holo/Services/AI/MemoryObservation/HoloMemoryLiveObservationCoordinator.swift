@@ -10,11 +10,59 @@ import Network
 import OSLog
 
 nonisolated enum HoloMemoryLiveObservationPlan {
+    private struct StableEvidence: Codable {
+        var id: String
+        var kind: HoloMemoryEvidenceKind
+        var sourceDomain: HoloMemoryDomain
+        var lineageKey: String
+        var sourceID: String?
+        var revisionDigest: String
+        var aggregateDefinition: String?
+        var sampleCount: Int?
+        var summary: String?
+    }
+
+    private struct StableSignal: Codable {
+        var id: String
+        var domain: HoloMemoryDomain
+        var kind: HoloDomainSignalKind
+        var evidence: StableEvidence
+        var anchors: [HoloMemoryAnchorRef]
+        var numericFacts: [String: Double]
+        var prohibitedInferences: [String]
+        var userText: String?
+        var explicitUserStance: String?
+        var aiSummary: String?
+    }
+
     static func signalDigest(_ signals: [HoloDomainMemorySignal]) -> String {
         let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.sortedKeys]
-        let data = (try? encoder.encode(signals.sorted { $0.id < $1.id })) ?? Data()
+        let stableSignals = signals.sorted { $0.id < $1.id }.map { signal in
+            StableSignal(
+                id: signal.id,
+                domain: signal.domain,
+                kind: signal.kind,
+                evidence: StableEvidence(
+                    id: signal.evidence.id,
+                    kind: signal.evidence.kind,
+                    sourceDomain: signal.evidence.sourceDomain,
+                    lineageKey: signal.evidence.lineageKey,
+                    sourceID: signal.evidence.sourceID,
+                    revisionDigest: signal.evidence.revisionDigest,
+                    aggregateDefinition: signal.evidence.aggregateDefinition,
+                    sampleCount: signal.evidence.sampleCount,
+                    summary: signal.evidence.summary
+                ),
+                anchors: signal.anchors.sorted { $0.stableKey < $1.stableKey },
+                numericFacts: signal.numericFacts,
+                prohibitedInferences: signal.prohibitedInferences.sorted(),
+                userText: signal.userText,
+                explicitUserStance: signal.explicitUserStance,
+                aiSummary: signal.aiSummary
+            )
+        }
+        let data = (try? encoder.encode(stableSignals)) ?? Data()
         return digest(String(decoding: data, as: UTF8.self))
     }
 
@@ -90,6 +138,13 @@ private enum HoloMemoryLiveObservationError: Error {
     case emptyCrossDomainCandidate
 }
 
+nonisolated struct HoloMemoryLiveObservationRunSummary: Equatable, Sendable {
+    var developerMessage: String
+    var changedDomainCount: Int
+    var succeededCount: Int
+    var failedCount: Int
+}
+
 actor HoloMemoryLiveObservationCoordinator {
     static let shared = HoloMemoryLiveObservationCoordinator()
 
@@ -99,12 +154,38 @@ actor HoloMemoryLiveObservationCoordinator {
     private let fusionOccurrenceKey = "holo_memory_live_fusionOccurrences_v1"
     private var isRunning = false
 
-    func run(trigger: HoloMemorySchedulerTrigger, now: Date = Date()) async {
-        guard trigger != .enteredBackground, !isRunning else { return }
+    @discardableResult
+    func run(
+        trigger: HoloMemorySchedulerTrigger,
+        now: Date = Date()
+    ) async -> HoloMemoryLiveObservationRunSummary {
+        guard trigger != .enteredBackground else {
+            return .init(
+                developerMessage: "未执行：进入后台只做轻量检查",
+                changedDomainCount: 0,
+                succeededCount: 0,
+                failedCount: 0
+            )
+        }
+        guard !isRunning else {
+            return .init(
+                developerMessage: "未执行：已有记忆任务正在运行",
+                changedDomainCount: 0,
+                succeededCount: 0,
+                failedCount: 0
+            )
+        }
         let externalAIAllowed = await MainActor.run {
             HoloMemoryAccessPolicy.current.extractionDecision(for: .externalAI) == .allowedExternalAI
         }
-        guard externalAIAllowed else { return }
+        guard externalAIAllowed else {
+            return .init(
+                developerMessage: "未执行：请先开启自动形成记忆并确认数据处理授权",
+                changedDomainCount: 0,
+                succeededCount: 0,
+                failedCount: 0
+            )
+        }
 
         isRunning = true
         _ = HoloMemoryNetworkState.shared
@@ -146,26 +227,54 @@ actor HoloMemoryLiveObservationCoordinator {
                    case .domain = job.target { return true }
                 return false
             }
-            guard completedDomainRun else { return }
+            guard completedDomainRun else {
+                return summarize(events: domainEvents, changedDomainCount: changed.count)
+            }
 
             let active = try await repository.query(.active)
             let candidates = HoloCrossDomainCandidateBuilder.build(from: active)
-            guard !candidates.isEmpty else { return }
+            guard !candidates.isEmpty else {
+                return summarize(events: domainEvents, changedDomainCount: changed.count)
+            }
             await HoloMemoryObservationScheduler.shared.markDirty(
                 target: .crossDomain,
                 sourceDigest: HoloMemoryLiveObservationPlan.crossDomainDigest(candidates),
                 now: now
             )
-            _ = await runScheduler(
+            let crossEvents = await runScheduler(
                 repository: repository,
                 signalsByDomain: signalsByDomain,
                 now: now
             )
+            return summarize(
+                events: domainEvents + crossEvents,
+                changedDomainCount: changed.count
+            )
         } catch {
             // 不记录用户数据、摘要和 evidence，仅记录错误类型。
             logger.error("静默记忆运行失败：errorType=\(String(describing: type(of: error)), privacy: .public)")
+            return .init(
+                developerMessage: "失败：记忆运行环境异常（\(String(describing: type(of: error)))）",
+                changedDomainCount: 0,
+                succeededCount: 0,
+                failedCount: 1
+            )
         }
     }
+
+    #if DEBUG
+    /// 清理 Debug 调度、退避和脱敏回执，让真机可以立即重新验收；不会删除用户记忆。
+    func debugResetValidationState() async -> Bool {
+        guard !isRunning,
+              await HoloMemoryObservationScheduler.shared.debugResetValidationState() else {
+            return false
+        }
+        defaults.removeObject(forKey: signalDigestKey)
+        defaults.removeObject(forKey: fusionOccurrenceKey)
+        await HoloMemoryTraceStore.shared.removeAll()
+        return true
+    }
+    #endif
 
     private func runScheduler(
         repository: any HoloMemoryRepository & HoloDomainMemoryObservationStore,
@@ -212,10 +321,28 @@ actor HoloMemoryLiveObservationCoordinator {
                         existingMemories: existing
                     )
                     let request = try HoloDomainObservationPackageBuilder.makeRequest(package)
-                    let output = try await HoloBackendDomainMemoryLLMClient().extract(
-                        request: request,
-                        domain: domain
-                    )
+                    let output: Data
+                    do {
+                        output = try await HoloBackendDomainMemoryLLMClient().extract(
+                            request: request,
+                            domain: domain
+                        )
+                    } catch {
+                        #if DEBUG
+                        await HoloMemoryTraceStore.shared.appendDomainPipeline(
+                            domain: domain,
+                            signalCount: signals.count,
+                            packageRecordCount: existing.count,
+                            validatorAcceptedCount: 0,
+                            plannedMutationCount: 0,
+                            aiRequestStatus: "failed:\(String(describing: type(of: error)))",
+                            validatorRejections: nil,
+                            committedMutationCount: 0,
+                            outcome: "requestFailed"
+                        )
+                        #endif
+                        throw error
+                    }
                     return try JSONEncoder().encode(HoloMemoryLiveExtractionPayload(
                         domainPackage: package,
                         crossDomainCandidates: nil,
@@ -258,17 +385,63 @@ actor HoloMemoryLiveObservationCoordinator {
                         rejected: result.rejections.count
                     )
                     guard result.rejections.isEmpty else {
+                        #if DEBUG
+                        await HoloMemoryTraceStore.shared.appendDomainPipeline(
+                            domain: domain,
+                            signalCount: package.signals.count,
+                            packageRecordCount: package.existingMemories.count,
+                            validatorAcceptedCount: result.validRecords.count,
+                            plannedMutationCount: result.validRecords.count,
+                            aiRequestStatus: "succeeded",
+                            validatorRejections: result.rejections.map(\.rawValue),
+                            committedMutationCount: 0,
+                            outcome: "validatorRejected"
+                        )
+                        #endif
                         throw HoloMemoryLiveObservationError.validationRejected
                     }
-                    _ = try await HoloDomainMemoryObservationApplier.apply(
-                        result,
-                        to: repository,
-                        observationKey: job.observationKey,
-                        domain: domain,
-                        extractorVersion: job.extractorVersion,
-                        promptVersion: job.promptVersion,
-                        completedAt: now
-                    )
+                    do {
+                        let upserts = try await HoloDomainMemoryObservationApplier.apply(
+                            result,
+                            to: repository,
+                            observationKey: job.observationKey,
+                            domain: domain,
+                            extractorVersion: job.extractorVersion,
+                            promptVersion: job.promptVersion,
+                            completedAt: now
+                        )
+                        #if DEBUG
+                        let committedCount = upserts.filter {
+                            $0 == .inserted || $0 == .updated
+                        }.count
+                        await HoloMemoryTraceStore.shared.appendDomainPipeline(
+                            domain: domain,
+                            signalCount: package.signals.count,
+                            packageRecordCount: package.existingMemories.count,
+                            validatorAcceptedCount: result.validRecords.count,
+                            plannedMutationCount: result.validRecords.count,
+                            aiRequestStatus: "succeeded",
+                            validatorRejections: [],
+                            committedMutationCount: committedCount,
+                            outcome: "succeeded"
+                        )
+                        #endif
+                    } catch {
+                        #if DEBUG
+                        await HoloMemoryTraceStore.shared.appendDomainPipeline(
+                            domain: domain,
+                            signalCount: package.signals.count,
+                            packageRecordCount: package.existingMemories.count,
+                            validatorAcceptedCount: result.validRecords.count,
+                            plannedMutationCount: result.validRecords.count,
+                            aiRequestStatus: "succeeded",
+                            validatorRejections: [],
+                            committedMutationCount: 0,
+                            outcome: "persistenceFailed:\(String(describing: type(of: error)))"
+                        )
+                        #endif
+                        throw error
+                    }
                 case .crossDomain:
                     guard let candidates = payload.crossDomainCandidates else {
                         throw HoloMemoryLiveObservationError.invalidPayload
@@ -282,6 +455,47 @@ actor HoloMemoryLiveObservationCoordinator {
                     )
                 }
             }
+        )
+    }
+
+    private func summarize(
+        events: [HoloMemorySchedulerEvent],
+        changedDomainCount: Int
+    ) -> HoloMemoryLiveObservationRunSummary {
+        let succeededCount = events.filter {
+            if case .succeeded = $0 { return true }
+            return false
+        }.count
+        let failedCount = events.filter {
+            if case .failed = $0 { return true }
+            return false
+        }.count
+        let message: String
+        if failedCount > 0 {
+            message = "失败：\(failedCount) 个任务未通过；请进入对应领域查看具体阶段"
+        } else if succeededCount > 0 {
+            message = "成功：\(succeededCount) 个任务完成，\(changedDomainCount) 个领域检测到变化"
+        } else if events.contains(.deferredByResource(.dailyBudgetExhausted)) {
+            message = "未执行：今日 8 次静默 AI 调用额度已用完"
+        } else if events.contains(.automaticMemoryDisabled) {
+            message = "未执行：自动形成记忆未开启"
+        } else if events.contains(.dataProcessingConsentMissing) {
+            message = "未执行：尚未确认数据处理授权"
+        } else if events.contains(where: {
+            if case .deferredByBackoff = $0 { return true }
+            return false
+        }) {
+            message = "未执行：任务仍在失败退避期"
+        } else if changedDomainCount == 0 {
+            message = "无需执行：没有检测到新的实质数据变化"
+        } else {
+            message = "未执行：当前设备资源或运行频率暂不满足条件"
+        }
+        return HoloMemoryLiveObservationRunSummary(
+            developerMessage: message,
+            changedDomainCount: changedDomainCount,
+            succeededCount: succeededCount,
+            failedCount: failedCount
         )
     }
 

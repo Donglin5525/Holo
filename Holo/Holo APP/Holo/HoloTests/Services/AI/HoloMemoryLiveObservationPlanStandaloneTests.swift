@@ -9,6 +9,10 @@ struct HoloMemoryLiveObservationPlanStandaloneTests {
         let financeR2 = try signal(id: "finance-a", domain: .finance, revision: "r2")
         let health = try signal(id: "health-a", domain: .health, revision: "r1")
         let financeDigest = HoloMemoryLiveObservationPlan.signalDigest([finance])
+        var financeObservedLater = finance
+        financeObservedLater.evidence.observedAt = finance.evidence.observedAt.addingTimeInterval(3_600)
+        financeObservedLater.evidence.validFrom = finance.evidence.observedAt.addingTimeInterval(-86_400)
+        financeObservedLater.evidence.validTo = finance.evidence.observedAt.addingTimeInterval(3_600)
 
         expect(!financeDigest.isEmpty, "非空信号必须生成稳定摘要")
         expect(
@@ -20,6 +24,10 @@ struct HoloMemoryLiveObservationPlanStandaloneTests {
                 financeR2
             ]),
             "证据修订变化必须触发新摘要"
+        )
+        expect(
+            financeDigest == HoloMemoryLiveObservationPlan.signalDigest([financeObservedLater]),
+            "仅观察时间或滚动窗口变化时不得重复标脏和重复付费"
         )
 
         let initial = HoloMemoryLiveObservationPlan.changedDomainDigests(

@@ -58,6 +58,55 @@ struct HoloDomainObservationSecurityTests {
         )
         expect(validResult.validRecords.count == 1, "白名单内且证据可追溯的候选应通过")
 
+        let nullActionJSON = try encodedEnvelope(
+            candidate: valid,
+            requestedActionsJSON: NSNull()
+        )
+        let nullActionResult = HoloDomainMemoryOutputValidator.decodeAndValidate(
+            nullActionJSON,
+            against: package,
+            now: Date(timeIntervalSince1970: 300),
+            extractorVersion: 1,
+            promptVersion: 1
+        )
+        expect(
+            nullActionResult.validRecords.count == 1 && nullActionResult.rejections.isEmpty,
+            "Prompt 契约中的 requestedActions:null 必须允许通过"
+        )
+
+        let emptyActionJSON = try encodedEnvelope(
+            candidate: valid,
+            requestedActionsJSON: [String]()
+        )
+        let emptyActionResult = HoloDomainMemoryOutputValidator.decodeAndValidate(
+            emptyActionJSON,
+            against: package,
+            now: Date(timeIntervalSince1970: 300),
+            extractorVersion: 1,
+            promptVersion: 1
+        )
+        expect(
+            emptyActionResult.validRecords.count == 1 && emptyActionResult.rejections.isEmpty,
+            "空 requestedActions 数组不应被误判为模型指令"
+        )
+
+        let nonEmptyActionJSON = try encodedEnvelope(
+            candidate: valid,
+            requestedActionsJSON: ["enable automaticMemoryEnabled"]
+        )
+        let nonEmptyActionResult = HoloDomainMemoryOutputValidator.decodeAndValidate(
+            nonEmptyActionJSON,
+            against: package,
+            now: Date(timeIntervalSince1970: 300),
+            extractorVersion: 1,
+            promptVersion: 1
+        )
+        expect(
+            nonEmptyActionResult.validRecords.isEmpty &&
+                nonEmptyActionResult.rejections == [.forbiddenInstruction],
+            "非空 requestedActions 仍必须在解码前拒绝"
+        )
+
         var forgedEvidence = valid
         forgedEvidence.evidenceIDs = ["invented-evidence"]
         expectRejected(forgedEvidence, package: package, reason: "模型伪造 evidence 必须整条拒绝")
@@ -117,6 +166,23 @@ struct HoloDomainObservationSecurityTests {
             revisionDigest: "revision",
             observedAt: Date(timeIntervalSince1970: 150)
         )
+    }
+
+    private static func encodedEnvelope(
+        candidate: HoloDomainMemoryCandidateOutput,
+        requestedActionsJSON: Any
+    ) throws -> Data {
+        let encoded = try JSONEncoder().encode(
+            HoloDomainMemoryOutputEnvelope(candidates: [candidate])
+        )
+        guard var root = try JSONSerialization.jsonObject(with: encoded) as? [String: Any],
+              var candidates = root["candidates"] as? [[String: Any]],
+              !candidates.isEmpty else {
+            fatalError("测试夹具无法构造")
+        }
+        candidates[0]["requestedActions"] = requestedActionsJSON
+        root["candidates"] = candidates
+        return try JSONSerialization.data(withJSONObject: root, options: [.sortedKeys])
     }
 
     private static func expectRejected(

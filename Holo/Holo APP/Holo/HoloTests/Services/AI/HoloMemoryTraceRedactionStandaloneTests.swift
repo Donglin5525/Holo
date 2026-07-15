@@ -35,8 +35,16 @@ struct HoloMemoryTraceRedactionStandaloneTests {
             signalCount: 4,
             packageRecordCount: 2,
             validatorAcceptedCount: 1,
-            plannedMutationCount: 1
+            plannedMutationCount: 1,
+            aiRequestStatus: "succeeded",
+            validatorRejections: [],
+            committedMutationCount: 1,
+            outcome: "succeeded"
         )
+        let latestHealth = await store.latestDomainPipeline(domain: .health)
+        expect(latestHealth?.aiRequestStatus == "succeeded", "实验室应读取最近一次真实 AI 请求状态")
+        expect(latestHealth?.committedMutationCount == 1, "实验室应读取真实提交数量")
+        expect(latestHealth?.outcome == "succeeded", "实验室应读取真实流水线结论")
         let secretMemoryBody = "RAW_MEMORY_BODY_DO_NOT_PERSIST"
         await store.appendSelection(trace, question: secretMemoryBody)
 
@@ -51,6 +59,28 @@ struct HoloMemoryTraceRedactionStandaloneTests {
         await store.removeAll()
         let cleared = await store.snapshot()
         expect(cleared.isEmpty, "Debug Trace 应支持主动清空")
+
+        let suiteName = "HoloMemoryTraceRedactionStandaloneTests"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            fatalError("无法创建隔离 UserDefaults")
+        }
+        defaults.removePersistentDomain(forName: suiteName)
+        let persistentStore = HoloMemoryTraceStore(now: { now }, defaults: defaults)
+        await persistentStore.appendDomainPipeline(
+            domain: .finance,
+            signalCount: 3,
+            packageRecordCount: 1,
+            validatorAcceptedCount: 1,
+            plannedMutationCount: 1,
+            aiRequestStatus: "succeeded",
+            validatorRejections: [],
+            committedMutationCount: 1,
+            outcome: "succeeded"
+        )
+        let restoredStore = HoloMemoryTraceStore(now: { now }, defaults: defaults)
+        let restored = await restoredStore.latestDomainPipeline(domain: .finance)
+        expect(restored?.signalCount == 3, "真机退出实验室后仍应保留脱敏运行回执")
+        defaults.removePersistentDomain(forName: suiteName)
 
         print("HoloMemoryTraceRedactionStandaloneTests: \(assertions) assertions passed")
     }

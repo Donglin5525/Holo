@@ -13,6 +13,7 @@ struct AIMemoryLabDomainView: View {
     let allRecords: [HoloMemoryRecord]
 
     @State private var tombstoneIDs = Set<String>()
+    @State private var latestPipeline: HoloMemoryTraceEntry?
 
     private var records: [HoloMemoryRecord] {
         switch scope {
@@ -25,6 +26,9 @@ struct AIMemoryLabDomainView: View {
 
     var body: some View {
         List {
+            if case .domain = scope {
+                livePipelineSection
+            }
             dryRunSection
             if scope == .crossDomain {
                 crossDomainAuditSection
@@ -38,20 +42,51 @@ struct AIMemoryLabDomainView: View {
 
     private var dryRunSection: some View {
         Section {
-            Label("Dry-run：不发网络请求，不写仓库", systemImage: "shield.checkered")
+            Label("只读仓库快照：不发网络请求，不写仓库", systemImage: "shield.checkered")
                 .foregroundColor(.green)
-            pipelineRow("Signal", value: "\(records.flatMap(\.evidenceRefs).count) 条证据元数据")
-            pipelineRow("Package", value: "\(records.count) 条现有记录")
-            pipelineRow("AI raw result", value: "未请求（正文不会进入普通 Trace）")
+            pipelineRow("Persisted evidence", value: "\(records.flatMap(\.evidenceRefs).count) 条证据元数据")
+            pipelineRow("Persisted records", value: "\(records.count) 条现有记录")
             pipelineRow(
-                "Validator",
+                "Repository state",
                 value: "active \(records.filter { $0.state == .active }.count) / candidate \(records.filter { $0.state == .candidate }.count)"
             )
-            pipelineRow("Planned mutation", value: "\(records.filter { $0.state == .candidate }.count) 条待评估；本次不提交")
         } header: {
-            Text("管线快照")
+            Text("当前仓库")
         } footer: {
             Text("需要查看敏感摘要时，只能进入单条记录后主动开启临时显示；退出页面即释放。")
+        }
+    }
+
+    private var livePipelineSection: some View {
+        Section {
+            if let trace = latestPipeline {
+                pipelineRow("Signal", value: "\(trace.signalCount ?? 0) 条真实输入信号")
+                pipelineRow(
+                    "Package",
+                    value: "\(trace.packageRecordCount ?? 0) 条既有记忆进入上下文"
+                )
+                pipelineRow("AI request", value: aiRequestText(trace))
+                pipelineRow("Validator", value: validatorText(trace))
+                pipelineRow(
+                    "Planned mutation",
+                    value: "\(trace.plannedMutationCount ?? 0) 条"
+                )
+                pipelineRow(
+                    "Committed mutation",
+                    value: "\(trace.committedMutationCount ?? 0) 条"
+                )
+                pipelineRow("Outcome", value: outcomeText(trace))
+                Text(trace.createdAt.formatted(.dateTime.month().day().hour().minute().second()))
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            } else {
+                Text("还没有真实运行回执。请返回实验室，先重置验证状态，再运行一次真实观察。")
+                    .foregroundColor(.secondary)
+            }
+        } header: {
+            Text("最近一次真实运行")
+        } footer: {
+            Text("这里只保存数量、阶段和拒绝代码，不保存模型原文、记忆正文或证据摘要。")
         }
     }
 
@@ -139,6 +174,33 @@ struct AIMemoryLabDomainView: View {
             .foregroundColor(passed ? .green : .orange)
     }
 
+    private func aiRequestText(_ trace: HoloMemoryTraceEntry) -> String {
+        guard let status = trace.aiRequestStatus else { return "未发起" }
+        if status == "succeeded" { return "成功返回" }
+        if status.hasPrefix("failed:") {
+            return "失败 · \(status.replacingOccurrences(of: "failed:", with: ""))"
+        }
+        return status
+    }
+
+    private func validatorText(_ trace: HoloMemoryTraceEntry) -> String {
+        let accepted = trace.validatorAcceptedCount ?? 0
+        let rejected = trace.validatorRejections ?? []
+        if rejected.isEmpty { return "通过 \(accepted) 条；无拒绝" }
+        return "通过 \(accepted) 条；拒绝：\(rejected.joined(separator: ", "))"
+    }
+
+    private func outcomeText(_ trace: HoloMemoryTraceEntry) -> String {
+        guard let outcome = trace.outcome else { return "未记录" }
+        if outcome == "succeeded" { return "成功完成" }
+        if outcome == "validatorRejected" { return "Validator 拒绝，未写入" }
+        if outcome == "requestFailed" { return "AI 请求失败，未写入" }
+        if outcome.hasPrefix("persistenceFailed:") {
+            return "仓库写入失败 · \(outcome.replacingOccurrences(of: "persistenceFailed:", with: ""))"
+        }
+        return outcome
+    }
+
     private var crossDomainAudits: [AIMemoryLabCrossDomainAudit] {
         AIMemoryLabCrossDomainAudit.build(from: allRecords)
     }
@@ -153,13 +215,7 @@ struct AIMemoryLabDomainView: View {
         }
 
         if case .domain(let domain) = scope {
-            await HoloMemoryTraceStore.shared.appendDomainPipeline(
-                domain: domain,
-                signalCount: records.flatMap(\.evidenceRefs).count,
-                packageRecordCount: records.count,
-                validatorAcceptedCount: records.filter { $0.state == .active }.count,
-                plannedMutationCount: records.filter { $0.state == .candidate }.count
-            )
+            latestPipeline = await HoloMemoryTraceStore.shared.latestDomainPipeline(domain: domain)
         }
     }
 }

@@ -44,6 +44,9 @@ struct AIMemoryLabView: View {
     @State private var traces: [HoloMemoryTraceEntry] = []
     @State private var isLoading = true
     @State private var errorMessage: String?
+    @State private var operationResult: String?
+    @State private var isRunningObservation = false
+    @State private var isResettingValidation = false
 
     var body: some View {
         List {
@@ -60,7 +63,7 @@ struct AIMemoryLabView: View {
 
     private var operatingModeSection: some View {
         Section("当前运行状态") {
-            LabeledContent("验证模式", value: "Dry-run 优先")
+            LabeledContent("验证模式", value: "手动真实运行 + 只读检查")
             LabeledContent("记忆总数", value: "\(records.count)")
             LabeledContent(
                 "今日静默 AI 调用",
@@ -77,6 +80,11 @@ struct AIMemoryLabView: View {
             if let errorMessage {
                 Label(errorMessage, systemImage: "exclamationmark.triangle")
                     .foregroundColor(.orange)
+            }
+            if let operationResult {
+                Text(operationResult)
+                    .font(.caption)
+                    .foregroundColor(operationResult.hasPrefix("成功") ? .green : .orange)
             }
         }
     }
@@ -111,12 +119,32 @@ struct AIMemoryLabView: View {
         } header: {
             Text("领域状态")
         } footer: {
-            Text("进入领域后可检查 signal → package → 模型输出 → validator → planned mutation。默认只读，不发起网络请求，也不写入记忆仓库。")
+            Text("进入领域后可检查最近一次真实阶段回执和当前仓库快照；只有上方“运行一次真实观察”会发起请求。")
         }
     }
 
     private var toolsSection: some View {
-        Section("验证工具") {
+        Section {
+            Button {
+                Task { await runLiveObservation() }
+            } label: {
+                Label(
+                    isRunningObservation ? "真实观察运行中…" : "运行一次真实观察",
+                    systemImage: "play.circle"
+                )
+            }
+            .disabled(isRunningObservation || isResettingValidation)
+
+            Button {
+                Task { await resetValidationState() }
+            } label: {
+                Label(
+                    isResettingValidation ? "正在重置…" : "重置今日验证状态",
+                    systemImage: "arrow.counterclockwise.circle"
+                )
+            }
+            .disabled(isRunningObservation || isResettingValidation)
+
             NavigationLink {
                 AIMemoryLabQuerySimulatorView()
             } label: {
@@ -132,6 +160,10 @@ struct AIMemoryLabView: View {
                 Label("清空脱敏 Trace", systemImage: "trash")
             }
             .disabled(traces.isEmpty)
+        } header: {
+            Text("验证工具")
+        } footer: {
+            Text("重置只清除 Debug 调用额度、dirty、退避和脱敏回执，不删除用户记忆或任何业务数据。")
         }
     }
 
@@ -214,6 +246,28 @@ struct AIMemoryLabView: View {
             errorMessage = "诊断数据读取失败：\(error.localizedDescription)"
         }
         isLoading = false
+    }
+
+    @MainActor
+    private func runLiveObservation() async {
+        isRunningObservation = true
+        operationResult = nil
+        let summary = await HoloMemoryLiveObservationCoordinator.shared.run(trigger: .dataChanged)
+        operationResult = summary.developerMessage
+        await refresh()
+        isRunningObservation = false
+    }
+
+    @MainActor
+    private func resetValidationState() async {
+        isResettingValidation = true
+        operationResult = nil
+        let didReset = await HoloMemoryLiveObservationCoordinator.shared.debugResetValidationState()
+        operationResult = didReset
+            ? "已重置：可以立即重新运行；用户记忆和业务数据未改动"
+            : "未重置：记忆任务正在运行，请等待完成后重试"
+        await refresh()
+        isResettingValidation = false
     }
 }
 #endif

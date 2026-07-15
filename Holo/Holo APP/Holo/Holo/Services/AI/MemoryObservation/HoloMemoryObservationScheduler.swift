@@ -162,6 +162,15 @@ actor HoloMemoryObservationScheduler {
         )
     }
 
+    /// 仅供 Debug 真机验收重新开始一次干净运行；不删除任何用户记忆或业务数据。
+    func debugResetValidationState() -> Bool {
+        guard !isRunning else { return false }
+        state = HoloMemorySchedulerPersistedState()
+        lastLightweightTrigger = nil
+        persist()
+        return true
+    }
+
     private func target(for key: String) -> HoloMemoryObservationTarget {
         if key == HoloMemoryObservationTarget.crossDomain.stableKey { return .crossDomain }
         let rawValue = key.replacingOccurrences(of: "domain:", with: "")

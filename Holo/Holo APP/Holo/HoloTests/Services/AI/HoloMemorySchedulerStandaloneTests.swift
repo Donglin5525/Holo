@@ -61,6 +61,9 @@ struct HoloMemorySchedulerStandaloneTests {
         try await testMaterialThresholdCrossDomainAndDailyBudget()
         try await testOnlyOneAIJobRunsAtATime()
         try await testControlStateRecheckBeforeCommit()
+        #if DEBUG
+        try await testDebugResetValidationState()
+        #endif
         print("HoloMemorySchedulerStandaloneTests: \(assertions) assertions passed")
     }
 
@@ -364,6 +367,37 @@ struct HoloMemorySchedulerStandaloneTests {
         await gate.release()
         _ = await first.value
     }
+
+    #if DEBUG
+    private static func testDebugResetValidationState() async throws {
+        let control = SchedulerControlBox()
+        let scheduler = HoloMemoryObservationScheduler(
+            controlStateProvider: { await control.snapshot() },
+            consentProvider: { await control.hasConsent() }
+        )
+        let now = Date(timeIntervalSince1970: 1_735_000_000)
+        await scheduler.markDirty(target: .domain(.finance), sourceDigest: "finance", now: now)
+        _ = await scheduler.runIfNeeded(
+            now: now.addingTimeInterval(10),
+            resourceSnapshot: .init(),
+            extractorVersion: 1,
+            promptVersion: 1,
+            debounce: 0,
+            materialChange: { _ in true },
+            extract: { _ in Data() },
+            commit: { _, _ in }
+        )
+        let before = await scheduler.debugSnapshot(now: now.addingTimeInterval(10))
+        expect(before.aiCallsToday == 1, "Debug 重置前应保留真实调用计数")
+
+        let didReset = await scheduler.debugResetValidationState()
+        expect(didReset, "Debug 重置应在空闲时成功")
+        let after = await scheduler.debugSnapshot(now: now.addingTimeInterval(10))
+        expect(after.aiCallsToday == 0, "Debug 重置应清空当日验证额度")
+        expect(after.targets.allSatisfy { !$0.isDirty && $0.retryAt == nil },
+               "Debug 重置应清空 dirty 与退避，但不操作用户记忆")
+    }
+    #endif
 
     enum TestError: Error { case expected }
 }

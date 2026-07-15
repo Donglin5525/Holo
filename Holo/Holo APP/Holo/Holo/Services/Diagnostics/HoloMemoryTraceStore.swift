@@ -27,24 +27,38 @@ nonisolated struct HoloMemoryTraceEntry: Codable, Equatable, Identifiable, Senda
     var packageRecordCount: Int?
     var validatorAcceptedCount: Int?
     var plannedMutationCount: Int?
+    var aiRequestStatus: String? = nil
+    var validatorRejections: [String]? = nil
+    var committedMutationCount: Int? = nil
+    var outcome: String? = nil
 }
 
 actor HoloMemoryTraceStore {
-    static let shared = HoloMemoryTraceStore()
+    static let shared = HoloMemoryTraceStore(defaults: .standard)
 
     private let maximumEntries: Int
     private let retention: TimeInterval
     private let now: @Sendable () -> Date
-    private var entries: [HoloMemoryTraceEntry] = []
+    private let defaults: UserDefaults?
+    private static let persistenceKey = "holo_memory_debug_trace_v2"
+    private var entries: [HoloMemoryTraceEntry]
 
     init(
         maximumEntries: Int = 500,
         retention: TimeInterval = 7 * 86_400,
-        now: @escaping @Sendable () -> Date = { Date() }
+        now: @escaping @Sendable () -> Date = { Date() },
+        defaults: UserDefaults? = nil
     ) {
         self.maximumEntries = max(1, maximumEntries)
         self.retention = max(0, retention)
         self.now = now
+        self.defaults = defaults
+        if let data = defaults?.data(forKey: Self.persistenceKey),
+           let restored = try? JSONDecoder().decode([HoloMemoryTraceEntry].self, from: data) {
+            entries = restored
+        } else {
+            entries = []
+        }
     }
 
     func appendSelection(
@@ -73,7 +87,11 @@ actor HoloMemoryTraceStore {
         signalCount: Int,
         packageRecordCount: Int,
         validatorAcceptedCount: Int,
-        plannedMutationCount: Int
+        plannedMutationCount: Int,
+        aiRequestStatus: String? = nil,
+        validatorRejections: [String]? = nil,
+        committedMutationCount: Int? = nil,
+        outcome: String? = nil
     ) {
         append(HoloMemoryTraceEntry(
             id: UUID(),
@@ -88,12 +106,23 @@ actor HoloMemoryTraceStore {
             signalCount: max(0, signalCount),
             packageRecordCount: max(0, packageRecordCount),
             validatorAcceptedCount: max(0, validatorAcceptedCount),
-            plannedMutationCount: max(0, plannedMutationCount)
+            plannedMutationCount: max(0, plannedMutationCount),
+            aiRequestStatus: aiRequestStatus,
+            validatorRejections: validatorRejections,
+            committedMutationCount: committedMutationCount.map { max(0, $0) },
+            outcome: outcome
         ))
+    }
+
+    func latestDomainPipeline(domain: HoloMemoryDomain) -> HoloMemoryTraceEntry? {
+        snapshot().first {
+            $0.category == .domainPipeline && $0.domain == domain.rawValue
+        }
     }
 
     func snapshot() -> [HoloMemoryTraceEntry] {
         prune(referenceDate: now())
+        persist()
         return entries.sorted { $0.createdAt > $1.createdAt }
     }
 
@@ -106,6 +135,7 @@ actor HoloMemoryTraceStore {
 
     func removeAll() {
         entries.removeAll(keepingCapacity: true)
+        persist()
     }
 
     private func append(_ entry: HoloMemoryTraceEntry) {
@@ -114,11 +144,18 @@ actor HoloMemoryTraceStore {
         if entries.count > maximumEntries {
             entries.removeFirst(entries.count - maximumEntries)
         }
+        persist()
     }
 
     private func prune(referenceDate: Date) {
         let cutoff = referenceDate.addingTimeInterval(-retention)
         entries.removeAll { $0.createdAt < cutoff }
+    }
+
+    private func persist() {
+        guard let defaults,
+              let data = try? JSONEncoder().encode(entries) else { return }
+        defaults.set(data, forKey: Self.persistenceKey)
     }
 
     private nonisolated static func fingerprint(_ value: String) -> String {
