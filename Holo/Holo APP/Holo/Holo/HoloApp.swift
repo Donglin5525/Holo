@@ -86,9 +86,21 @@ struct HoloApp: App {
 
                     // Store 就绪后安排下一次周期性支出补账；具体执行仍由系统后台策略决定
                     await CoreDataStack.shared.waitUntilReady()
-                    await HoloMemoryRuntime.shared.migrateLegacyMemoryIfNeeded()
+
+                    #if DEBUG
+                    let simulatorMemoryValidationActive =
+                        await HoloMemorySimulatorValidationScenario.runIfRequested()
+                    #else
+                    let simulatorMemoryValidationActive = false
+                    #endif
+
+                    if !simulatorMemoryValidationActive {
+                        await HoloMemoryRuntime.shared.migrateLegacyMemoryIfNeeded()
+                    }
                     await HoloMemorySettings.shared.reconcileWithRepository()
-                    await HoloMemoryObservationScheduler.shared.lightweightCheck(trigger: .appLaunch)
+                    if !simulatorMemoryValidationActive {
+                        await HoloMemoryObservationScheduler.shared.lightweightCheck(trigger: .appLaunch)
+                    }
 
                     // 迁移完成后再监听旧候选链，避免迁移快照与新写入竞态。
                     HoloLongTermMemoryCandidateObserver.startObserving()
@@ -123,6 +135,9 @@ struct HoloApp: App {
                     }
                 }
                 .onChange(of: scenePhase) { _, phase in
+                    #if DEBUG
+                    guard HoloMemorySimulatorValidationEnvironment.current == nil else { return }
+                    #endif
                     switch phase {
                     case .background:
                         Task {
