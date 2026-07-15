@@ -17,6 +17,19 @@ final class HoloMemoryRuntime {
 
     func repository() async throws -> CoreDataHoloMemoryRepository {
         if let cachedRepository { return cachedRepository }
+
+        #if DEBUG
+        if let validation = HoloMemorySimulatorValidationEnvironment.current {
+            try validation.prepareDirectories()
+            let controller = try HoloMemoryPersistenceController(
+                directoryURL: validation.storeDirectoryURL
+            )
+            let repository = CoreDataHoloMemoryRepository(controller: controller)
+            cachedRepository = repository
+            return repository
+        }
+        #endif
+
         await CoreDataStack.shared.waitUntilReady()
 
         let memoryDirectory = FileManager.default.urls(
@@ -34,6 +47,9 @@ final class HoloMemoryRuntime {
     }
 
     func migrateLegacyMemoryIfNeeded() async {
+        #if DEBUG
+        guard HoloMemorySimulatorValidationEnvironment.current == nil else { return }
+        #endif
         let stateStore = UserDefaultsHoloMemoryMigrationStateStore()
         guard stateStore.completedVersion < HoloMemoryMigrationService.currentVersion else { return }
 

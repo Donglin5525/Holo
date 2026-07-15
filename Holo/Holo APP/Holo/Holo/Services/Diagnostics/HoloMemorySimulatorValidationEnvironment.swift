@@ -38,6 +38,33 @@ nonisolated struct HoloMemorySimulatorValidationEnvironment: Equatable, Sendable
         )
     }
 
+    /// 只能重置本场景的 Store 和报告，不允许向父目录扩大删除范围。
+    func prepareDirectories(fileManager: FileManager = .default) throws {
+        let validationRoot = storeDirectoryURL.deletingLastPathComponent()
+        guard scenario == Self.supportedScenario,
+              storeDirectoryURL.lastPathComponent == scenario,
+              validationRoot.lastPathComponent == "SimulatorValidation",
+              reportURL.lastPathComponent == "\(scenario).json" else {
+            throw HoloMemorySimulatorValidationEnvironmentError.unsafeResetPath
+        }
+        if shouldReset {
+            if fileManager.fileExists(atPath: storeDirectoryURL.path) {
+                try fileManager.removeItem(at: storeDirectoryURL)
+            }
+            if fileManager.fileExists(atPath: reportURL.path) {
+                try fileManager.removeItem(at: reportURL)
+            }
+        }
+        try fileManager.createDirectory(
+            at: storeDirectoryURL,
+            withIntermediateDirectories: true
+        )
+        try fileManager.createDirectory(
+            at: reportURL.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+    }
+
     #if targetEnvironment(simulator)
     static var current: HoloMemorySimulatorValidationEnvironment? {
         let fileManager = FileManager.default
@@ -58,5 +85,9 @@ nonisolated struct HoloMemorySimulatorValidationEnvironment: Equatable, Sendable
     #else
     static var current: HoloMemorySimulatorValidationEnvironment? { nil }
     #endif
+}
+
+nonisolated enum HoloMemorySimulatorValidationEnvironmentError: Error, Equatable {
+    case unsafeResetPath
 }
 #endif
