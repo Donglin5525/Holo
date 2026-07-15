@@ -701,17 +701,7 @@ struct SettingsView: View {
                     icon: "list.bullet.rectangle",
                     iconColor: .holoPrimary,
                     title: "记忆管理",
-                    subtitle: {
-                        let confirmed = HoloLongTermMemoryStore.queryConfirmed().count
-                        let candidates = HoloLongTermMemoryStore.queryCandidates().count
-                        if confirmed == 0 && candidates == 0 {
-                            return "暂无记忆"
-                        }
-                        var parts: [String] = []
-                        if confirmed > 0 { parts.append("\(confirmed) 条已记住") }
-                        if candidates > 0 { parts.append("\(candidates) 条待确认") }
-                        return parts.joined(separator: "，")
-                    }()
+                    subtitle: "查看、纠正或停用 Holo 记住的内容"
                 ) {
                     showMemoryCenter = true
                 }
@@ -723,6 +713,10 @@ struct SettingsView: View {
             }
             .background(Color.holoCardBackground)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+
+            Text("普通记忆可随你的 iCloud 在设备间同步；健康相关记忆只保存在本机。")
+                .font(.holoTinyLabel)
+                .foregroundColor(.holoTextSecondary)
         }
     }
 

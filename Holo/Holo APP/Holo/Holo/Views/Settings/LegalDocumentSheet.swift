@@ -144,6 +144,7 @@ enum LegalHTMLTemplates {
         <li><strong>健康数据</strong>：在您授权后，本应用会从 Apple HealthKit 读取步数、睡眠、站立、运动时长等健康数据。本应用<strong>不会写入或修改</strong>您的健康数据。</li>
         <li><strong>习惯与待办</strong>：您创建的习惯追踪记录和待办事项。</li>
         <li><strong>观点记录</strong>：您创建的观点、标签和引用，存储在您的设备本地和您的 iCloud 中。</li>
+        <li><strong>AI 派生记忆</strong>：在您开启“自动形成记忆”后，Holo 会从各模块的结构化信号和汇总数据中整理领域记忆及综合观察。普通记忆可存储在您的设备本地和个人 iCloud 中；健康领域记忆及包含健康来源的综合记忆只保存在本机。</li>
         <li><strong>语音输入</strong>：当您使用语音输入功能时，音频数据会发送至我们的服务器进行语音转文字处理，处理完成后音频数据不会被保存。</li>
     </ul>
 
@@ -153,7 +154,7 @@ enum LegalHTMLTemplates {
         <li>您的问题和相关上下文数据会通过加密连接发送至我们的后端服务器。</li>
         <li>后端服务器将数据转发至第三方 AI 服务提供商进行处理。</li>
         <li>AI 服务提供商处理后返回分析结果。我们不会主动保存您发送给 AI 的原始请求正文或完整上下文作为用户资料。</li>
-        <li>生成的分析结果保存在您的设备本地。</li>
+        <li>生成的分析结果和派生记忆按上述范围保存在本机或您的个人 iCloud 中；您可在“记忆管理”中查看、纠正、停用或忘记单条记忆，也可在设置中删除账号与数据。</li>
     </ul>
 
     <h3>1.3 自动收集的信息</h3>
@@ -171,6 +172,7 @@ enum LegalHTMLTemplates {
             <tr><td>观点数据</td><td>观点记录、标签与引用管理</td></tr>
             <tr><td>语音音频</td><td>语音转文字，用于记账或 AI 对话输入</td></tr>
             <tr><td>AI 对话上下文</td><td>生成数据分析、智能建议等 AI 功能</td></tr>
+            <tr><td>AI 派生记忆</td><td>减少重复分析，并在合适的问题中提供个性化上下文</td></tr>
         </tbody>
     </table>
 
@@ -181,7 +183,7 @@ enum LegalHTMLTemplates {
     <p>App Store 正式版不会在设备上另存 AI 原始请求、完整上下文或完整响应日志。</p>
 
     <h3>3.2 iCloud 同步</h3>
-    <p>在您登录 iCloud 并启用同步后，您的 Holo 本地记录会通过 Apple CloudKit 在您的设备之间同步。数据传输和存储均受 Apple 的加密保护。我们<strong>无法访问</strong>您 iCloud 中的用户数据。Holo 不会将从 Apple HealthKit 读取的原始健康数据写入或同步到 Holo 的 iCloud 数据库。</p>
+    <p>在您登录 iCloud 并启用同步后，您的 Holo 本地记录和普通 AI 派生记忆会通过 Apple CloudKit 在您的设备之间同步。数据传输和存储均受 Apple 的加密保护。我们<strong>无法访问</strong>您 iCloud 中的用户数据。Holo 不会将从 Apple HealthKit 读取的原始健康数据、健康派生记忆或包含健康来源的综合记忆写入或同步到 Holo 的 iCloud 数据库。</p>
 
     <h3>3.3 服务器端处理</h3>
     <ul>

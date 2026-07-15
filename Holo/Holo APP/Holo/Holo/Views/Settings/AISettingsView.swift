@@ -556,23 +556,8 @@ struct AISettingsView: View {
     private func runManualObservation() async {
         isObserving = true
         observationResult = nil
-
-        let habitSummaries = MemorySignalDataAdapter.buildHabitFocusSummaries()
-        let goalInputs = MemorySignalDataAdapter.buildGoalProgressInputs()
-
-        if habitSummaries.isEmpty && goalInputs.isEmpty {
-            observationResult = "暂无习惯或目标数据"
-            isObserving = false
-            return
-        }
-
-        await HoloMemoryObserverService.shared.runObservation(
-            habitSummaries: habitSummaries,
-            goalInputs: goalInputs
-        )
-
-        let episodicCount = HoloEpisodicMemoryStore.shared.querySuggested().count
-        observationResult = "成功（信号：\(habitSummaries.count) 习惯 + \(goalInputs.count) 目标，当前建议记忆：\(episodicCount) 条）"
+        await HoloMemoryLiveObservationCoordinator.shared.run(trigger: .dataChanged)
+        observationResult = "已按当前开关执行，请在 AI 记忆实验室查看真实链路"
         isObserving = false
     }
 }

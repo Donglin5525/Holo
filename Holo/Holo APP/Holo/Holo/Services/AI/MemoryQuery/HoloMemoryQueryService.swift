@@ -210,9 +210,15 @@ struct HoloMemoryQueryService: Sendable {
            (validTo < requested.start || validFrom > requested.end) {
             applicability = 0.35
         }
+        // 持久化的新鲜度包含反证等历史降权；查询时再叠加时间衰减，避免旧结论长期占据高位。
+        let timeFreshness = HoloMemoryScorer.freshness(
+            persistenceClass: record.persistenceClass,
+            lastSupportedAt: record.lastSupportedAt,
+            now: now
+        )
         return HoloMemoryScorer.recallScore(
             relevance: min(1, relevance),
-            freshness: record.freshnessScore,
+            freshness: min(record.freshnessScore, timeFreshness),
             confidence: record.confidenceScore,
             contextApplicability: applicability
         )

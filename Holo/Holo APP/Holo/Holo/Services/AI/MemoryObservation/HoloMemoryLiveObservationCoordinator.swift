@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Network
 import OSLog
 
 nonisolated enum HoloMemoryLiveObservationPlan {
@@ -43,6 +44,39 @@ nonisolated enum HoloMemoryLiveObservationPlan {
 }
 
 #if !HOLO_MEMORY_STANDALONE
+private struct HoloMemoryNetworkSnapshot: Sendable {
+    var isAvailable: Bool
+    var isConstrained: Bool
+}
+
+private final class HoloMemoryNetworkState: @unchecked Sendable {
+    static let shared = HoloMemoryNetworkState()
+
+    private let monitor = NWPathMonitor()
+    private let queue = DispatchQueue(label: "com.holo.memory.network", qos: .utility)
+    private let lock = NSLock()
+    private var latest = HoloMemoryNetworkSnapshot(isAvailable: false, isConstrained: false)
+
+    private init() {
+        monitor.pathUpdateHandler = { [weak self] path in
+            guard let self else { return }
+            lock.lock()
+            latest = HoloMemoryNetworkSnapshot(
+                isAvailable: path.status == .satisfied,
+                isConstrained: path.isConstrained
+            )
+            lock.unlock()
+        }
+        monitor.start(queue: queue)
+    }
+
+    func snapshot() -> HoloMemoryNetworkSnapshot {
+        lock.lock()
+        defer { lock.unlock() }
+        return latest
+    }
+}
+
 private struct HoloMemoryLiveExtractionPayload: Codable, Sendable {
     var domainPackage: HoloDomainObservationPackage?
     var crossDomainCandidates: [HoloCrossDomainFusionCandidate]?
@@ -73,11 +107,17 @@ actor HoloMemoryLiveObservationCoordinator {
         guard externalAIAllowed else { return }
 
         isRunning = true
+        _ = HoloMemoryNetworkState.shared
         await HoloMemoryQualityMetrics.shared.recordConcurrentMemoryAIJobs(1)
         defer { isRunning = false }
 
         do {
             let repository = try await HoloMemoryRuntime.shared.repository()
+            // 每次轻量观察先执行容量治理；只归档可重建的自动记忆，保留用户确认事实与墓碑。
+            _ = try await HoloMemoryCompactionService().compact(
+                repository: repository,
+                now: now
+            )
             let signalsByDomain = await MemorySignalDataAdapter.buildDomainSignals(now: now)
             let previousDigests = loadStringDictionary(forKey: signalDigestKey)
             let changed = HoloMemoryLiveObservationPlan.changedDomainDigests(
@@ -133,10 +173,11 @@ actor HoloMemoryLiveObservationCoordinator {
         now: Date
     ) async -> [HoloMemorySchedulerEvent] {
         let process = ProcessInfo.processInfo
+        let network = HoloMemoryNetworkState.shared.snapshot()
         let resource = HoloMemoryResourceSnapshot(
-            networkAvailable: true,
+            networkAvailable: network.isAvailable,
             lowPowerModeEnabled: process.isLowPowerModeEnabled,
-            lowDataModeEnabled: false,
+            lowDataModeEnabled: network.isConstrained,
             foregroundCriticalOperation: false,
             thermalPressureHigh: process.thermalState == .serious || process.thermalState == .critical,
             dailyAICallCount: 0,

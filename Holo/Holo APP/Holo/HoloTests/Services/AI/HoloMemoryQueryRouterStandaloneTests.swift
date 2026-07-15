@@ -164,6 +164,40 @@ struct HoloMemoryQueryRouterStandaloneTests {
             "低新鲜度记忆应异步安排刷新"
         )
 
+        let newer = try makeRecord(
+            domains: [.finance],
+            primaryDomain: .finance,
+            scope: .domain,
+            claimKind: .recurringPattern,
+            anchor: .init(type: .merchant, value: "近期商户"),
+            summary: "近期餐饮消费较频繁",
+            freshness: 1,
+            now: now,
+            lastSupportedAt: now.addingTimeInterval(-86_400)
+        )
+        let older = try makeRecord(
+            domains: [.finance],
+            primaryDomain: .finance,
+            scope: .domain,
+            claimKind: .recurringPattern,
+            anchor: .init(type: .merchant, value: "历史商户"),
+            summary: "历史餐饮消费较频繁",
+            freshness: 1,
+            now: now,
+            lastSupportedAt: now.addingTimeInterval(-120 * 86_400)
+        )
+        let recencyService = HoloMemoryQueryService(
+            store: QueryStoreSpy(records: [older, newer]),
+            answeringAllowed: { _ in true },
+            refreshCoordinator: refresh
+        )
+        let recencyContext = try await recencyService.query(
+            question: "我最近消费状态如何",
+            now: now
+        )
+        expect(recencyContext.records.map(\.id).first == newer.id,
+               "其余条件一致时，最近被证据支持的记忆必须优先")
+
         let disabledStore = QueryStoreSpy(records: allRecords)
         let disabledService = HoloMemoryQueryService(
             store: disabledStore,
@@ -188,6 +222,7 @@ struct HoloMemoryQueryRouterStandaloneTests {
         summary: String,
         freshness: Double,
         now: Date,
+        lastSupportedAt: Date? = nil,
         upstreamIDs: [String] = []
     ) throws -> HoloMemoryRecord {
         let evidence = domains.enumerated().map { index, domain in
@@ -229,7 +264,7 @@ struct HoloMemoryQueryRouterStandaloneTests {
             counterEvidenceRefs: [],
             validFrom: now.addingTimeInterval(-14 * 86_400),
             validTo: now,
-            lastSupportedAt: now.addingTimeInterval(-86_400),
+            lastSupportedAt: lastSupportedAt ?? now.addingTimeInterval(-86_400),
             confidenceScore: 0.8,
             freshnessScore: freshness,
             scoringVersion: HoloMemoryScorer.currentVersion,
