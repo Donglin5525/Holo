@@ -149,6 +149,9 @@ struct MemoryGalleryView: View {
         } else {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: HoloSpacing.lg) {
+                    // 用户只看到可理解的记忆结论与控制，不暴露内部评分参数。
+                    DomainMemorySection()
+
                     // Daily Sense 状态卡片
                     if InsightFeatureFlags.dailySenseEnabled,
                        let snapshot = viewModel.dailySenseSnapshot,
