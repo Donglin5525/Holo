@@ -23,30 +23,36 @@ struct ThoughtCardView: View {
 
     let thought: Thought
     var onNavigate: (() -> Void)?
+    var onTagTap: ((String) -> Void)?
 
     // MARK: - Body
 
     var body: some View {
-        Button(action: { onNavigate?() }) {
-            VStack(alignment: .leading, spacing: 16) {
-                // 顶部：日期 + 状态
-                headerView
+        VStack(alignment: .leading, spacing: 16) {
+            // 顶部：日期 + 状态
+            headerView
 
-                // 中间：内容预览
-                contentView
+            // 中间：内容预览
+            contentView
 
-                // 底部：标签 + 引用信息
-                footerView
-            }
-            .padding(20)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: HoloRadius.lg)
-                    .fill(Color.holoCardBackground)
-                    .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
-            )
+            // 底部：标签 + 引用信息
+            footerView
         }
-        .buttonStyle(.plain)
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: HoloRadius.lg)
+                .fill(Color.holoCardBackground)
+                .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
+        )
+        .contentShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        .onTapGesture {
+            onNavigate?()
+        }
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction {
+            onNavigate?()
+        }
     }
 
     // MARK: - 顶部区域
@@ -122,33 +128,31 @@ struct ThoughtCardView: View {
 
     private var footerView: some View {
         HStack(spacing: 0) {
-            // 标签展示策略：
-            // 1. 有手动标签 → 展示手动标签（不变）
-            // 2. 无手动标签 + 有 AI 标签 → 展示 1-2 个 AI 标签（灰色调）
-            // 3. 正在整理 → 展示"AI 正在整理..."
             let tags = thought.tagArray
             let aiTagNames = thought.visibleAITagNames
+            let presentation = ThoughtTagPresentation.card(
+                manualNames: tags.map(\.name),
+                aiNames: aiTagNames
+            )
 
-            if !tags.isEmpty {
-                // 有手动标签：展示手动标签
+            if !presentation.isEmpty {
+                // 用户标签与 AI 标签同时展示，同名标签只展示一次。
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 6) {
-                        ForEach(tags.prefix(3)) { tag in
-                            tagChip(tag)
+                        ForEach(presentation.manualNames, id: \.self) { tagName in
+                            if let tag = tags.first(where: {
+                                ThoughtTagNormalizer.key($0.name) == ThoughtTagNormalizer.key(tagName)
+                            }) {
+                                tagChip(tag)
+                            }
                         }
-                        if tags.count > 3 {
-                            Text("+\(tags.count - 3)")
+                        ForEach(presentation.aiNames, id: \.self) { tagName in
+                            aiTagChip(tagName)
+                        }
+                        if presentation.hiddenCount > 0 {
+                            Text("+\(presentation.hiddenCount)")
                                 .font(.holoLabel)
                                 .foregroundColor(.holoTextSecondary)
-                        }
-                    }
-                }
-            } else if !aiTagNames.isEmpty {
-                // 无手动标签，有 AI 标签：灰色调展示
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 6) {
-                        ForEach(aiTagNames.prefix(2), id: \.self) { tagName in
-                            aiTagChip(tagName)
                         }
                     }
                 }
@@ -193,31 +197,43 @@ struct ThoughtCardView: View {
     // MARK: - 标签 Chip
 
     private func tagChip(_ tag: ThoughtTag) -> some View {
-        Text("#\(tag.name)")
-            .font(.holoLabel)
-            .foregroundColor(tag.tagColor)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(tag.tagColor.opacity(0.1))
-            .cornerRadius(HoloRadius.sm)
+        Button {
+            onTagTap?(tag.name)
+        } label: {
+            Text("#\(tag.name)")
+                .font(.holoLabel)
+                .foregroundColor(tag.tagColor)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(tag.tagColor.opacity(0.1))
+                .cornerRadius(HoloRadius.sm)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("按标签 \(tag.name) 筛选")
     }
 
     // MARK: - AI 标签 Chip（灰色调 + AI 角标）
 
     private func aiTagChip(_ tagName: String) -> some View {
-        HStack(spacing: 3) {
-            Text("#\(tagName)")
-                .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
+        Button {
+            onTagTap?(tagName)
+        } label: {
+            HStack(spacing: 3) {
+                Text("#\(tagName)")
+                    .font(.holoLabel)
+                    .foregroundColor(.holoTextSecondary)
 
-            Text("AI")
-                .font(.system(size: 8, weight: .semibold))
-                .foregroundColor(.holoTextSecondary.opacity(0.6))
+                Text("AI")
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundColor(.holoTextSecondary.opacity(0.6))
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color.holoTextSecondary.opacity(0.08))
+            .cornerRadius(HoloRadius.sm)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Color.holoTextSecondary.opacity(0.08))
-        .cornerRadius(HoloRadius.sm)
+        .buttonStyle(.plain)
+        .accessibilityLabel("按 AI 标签 \(tagName) 筛选")
     }
 }
 

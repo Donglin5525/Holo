@@ -78,7 +78,11 @@ struct ThoughtListView: View {
         // 按标签筛选
         if let tagName = selectedTagName {
             result = result.filter { thought in
-                thought.tagArray.contains { $0.name == tagName }
+                ThoughtTagPresentation.matches(
+                    tagName,
+                    manualNames: thought.tagArray.map(\.name),
+                    aiNames: thought.visibleAITagNames
+                )
             }
         }
 
@@ -86,7 +90,9 @@ struct ThoughtListView: View {
         if !searchText.isEmpty {
             result = result.filter { thought in
                 thought.content.localizedCaseInsensitiveContains(searchText) ||
-                thought.tagArray.contains { $0.name.localizedCaseInsensitiveContains(searchText) }
+                (thought.tagArray.map(\.name) + thought.visibleAITagNames).contains {
+                    $0.localizedCaseInsensitiveContains(searchText)
+                }
             }
         }
 
@@ -575,6 +581,20 @@ struct ThoughtListView: View {
                     handleOrganizeChipTap()
                 }
 
+                // 从卡片点击的非常用标签也要在顶部显示当前筛选状态。
+                if let selectedTagName,
+                   !frequentTags.contains(where: {
+                       ThoughtTagNormalizer.key($0.name) == ThoughtTagNormalizer.key(selectedTagName)
+                   }) {
+                    HoloFilterChip(
+                        title: selectedTagName,
+                        iconColor: .holoPrimary,
+                        isSelected: true
+                    ) {
+                        self.selectedTagName = nil
+                    }
+                }
+
                 // 常用标签
                 ForEach(frequentTags) { tag in
                     HoloFilterChip(
@@ -622,13 +642,21 @@ struct ThoughtListView: View {
                         ),
                         isEnabled: swipeActionsEnabled,
                         content: {
-                            ThoughtCardView(thought: thought) {
-                                if revealedThoughtId == thought.id {
+                            ThoughtCardView(
+                                thought: thought,
+                                onNavigate: {
+                                    if revealedThoughtId == thought.id {
+                                        revealedThoughtId = nil
+                                    } else {
+                                        selectedThoughtId = thought.id
+                                    }
+                                },
+                                onTagTap: { tagName in
+                                    selectedTagName = ThoughtTagNormalizer.displayName(tagName)
+                                    drawerSelection = nil
                                     revealedThoughtId = nil
-                                } else {
-                                    selectedThoughtId = thought.id
                                 }
-                            }
+                            )
                             .contextMenu {
                                 Button {
                                     topicPickerThoughtId = thought.id
