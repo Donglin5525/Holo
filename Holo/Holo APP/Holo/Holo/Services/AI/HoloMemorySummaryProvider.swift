@@ -2,118 +2,149 @@
 //  HoloMemorySummaryProvider.swift
 //  Holo
 //
-//  从长期记忆 Store 中选择与当前目的相关的摘要
-//  仅使用严格 V2 记忆：useScopes + aiUseSummary + prohibitedInferences
+//  兼容现有 Prompt 模型的摘要适配层；唯一数据来源是统一 Query Service。
 //
 
 import Foundation
 
 enum HoloMemorySummaryProvider {
-
-    /// 选择与当前用途相关的记忆摘要
-    /// - Parameters:
-    ///   - purpose: AI 能力场景，决定允许的 useScopes
-    ///   - limit: 最大条数
     static func selectRelevantSummary(
         purpose: HoloAICapabilityID? = nil,
         queryText: String? = nil,
         requireQueryMatch: Bool = false,
-        limit: Int = 5
-    ) -> HoloMemoryPromptSummary {
-        if requireQueryMatch, HoloMemoryRelevanceRanker.isDeterministicMetricQuery(queryText) {
-            return HoloMemoryPromptSummary(sourceIDs: [], coverage: .empty, entries: [])
-        }
-        let allowedScopes = allowedUseScopes(for: purpose)
-
-        let allMemories = HoloLongTermMemoryStore.load()
-            .filter { $0.confirmationState == .confirmed || $0.confirmationState == .silentlyAccepted }
-            .filter { mem in
-                // 排除已过期的记忆
-                if let expires = mem.expiresAt, expires < Date() { return false }
-                return true
+        limit: Int = 5,
+        consumer: HoloMemoryAnswerConsumer? = nil,
+        queryService: HoloMemoryQueryService? = nil
+    ) async -> HoloMemoryPromptSummary {
+        _ = requireQueryMatch
+        let service: HoloMemoryQueryService
+        if let queryService {
+            service = queryService
+        } else {
+            #if HOLO_MEMORY_STANDALONE
+            return emptySummary
+            #else
+            guard let live = try? await HoloMemoryQueryService.live() else {
+                return emptySummary
             }
+            service = live
+            #endif
+        }
 
-        let selected = selectByUseScopes(
-            allMemories: allMemories,
-            allowedScopes: allowedScopes,
-            queryText: queryText,
-            requireQueryMatch: requireQueryMatch,
-            limit: limit
-        )
-        let sourceIDs = selected.map(\.id)
+        let question = queryText ?? defaultQuestion(for: purpose)
+        let resolvedConsumer = consumer ?? answerConsumer(for: purpose)
+        let semanticContext = semanticContext(for: purpose)
+        guard let context = try? await service.query(
+            question: question,
+            semanticContext: semanticContext,
+            consumer: resolvedConsumer,
+            maxRecords: limit
+        ) else {
+            return emptySummary
+        }
+        return makeSummary(from: context)
+    }
 
-        let coverage: HoloMemoryCoverageLevel = selected.isEmpty
-            ? .empty
-            : (allMemories.count >= 3 ? .rich : .partial)
-
-        let entries = selected.map { buildEntry($0) }
-
+    nonisolated static func makeSummary(from context: HoloMemoryQueryContext) -> HoloMemoryPromptSummary {
+        let entries = context.records.map { record in
+            HoloMemorySummaryEntry(
+                id: record.id,
+                title: displayTitle(for: record),
+                aiUseSummary: record.aiUseSummary,
+                useScopeLabels: record.sourceDomains.map(\.rawValue),
+                prohibitedInferences: record.prohibitedInferences
+            )
+        }
+        let coverage: HoloMemoryCoverageLevel
+        if entries.isEmpty {
+            coverage = .empty
+        } else if entries.count >= 3 {
+            coverage = .rich
+        } else {
+            coverage = .partial
+        }
         return HoloMemoryPromptSummary(
-            sourceIDs: sourceIDs,
+            sourceIDs: entries.map(\.id),
             coverage: coverage,
             entries: entries
         )
     }
 
-    // MARK: - UseScope 筛选
+    nonisolated static let emptySummary = HoloMemoryPromptSummary(
+        sourceIDs: [],
+        coverage: .empty,
+        entries: []
+    )
 
-    private static func allowedUseScopes(for purpose: HoloAICapabilityID?) -> Set<HoloMemoryUseScope> {
+    private static func defaultQuestion(for purpose: HoloAICapabilityID?) -> String {
         switch purpose {
-        case .todayState, .recentAnalysis:
-            return [.coreContext, .recentInsight]
-        case .longTermPatterns:
-            return [.coreContext, .recentInsight, .goalPlanning, .retrospective]
+        case .todayState: return "我最近状态如何"
+        case .recentAnalysis: return "分析我最近的状态"
+        case .longTermPatterns: return "总结我的长期模式"
+        case .goalPlanning: return "帮我规划下一步"
+        case .onboarding: return "了解我的偏好"
+        case nil: return "我最近状态如何"
+        }
+    }
+
+    private static func semanticContext(
+        for purpose: HoloAICapabilityID?
+    ) -> HoloMemoryQuerySemanticContext? {
+        switch purpose {
         case .goalPlanning:
-            return [.coreContext, .goalPlanning]
-        default:
-            // chat 和未指定场景
-            return [.coreContext, .recentInsight]
+            return .init(
+                operation: .planning,
+                domains: [.goal, .habit, .profile, .task],
+                claimKinds: [],
+                anchors: [],
+                timeRange: nil
+            )
+        case .todayState, .recentAnalysis, .longTermPatterns:
+            return .init(
+                operation: .holistic,
+                domains: [],
+                claimKinds: [],
+                anchors: [],
+                timeRange: nil
+            )
+        case .onboarding:
+            return .init(
+                operation: .summary,
+                domains: [.profile],
+                claimKinds: [.explicitPreference, .lifeEvent],
+                anchors: [],
+                timeRange: nil
+            )
+        case nil:
+            return nil
         }
     }
 
-    private static func selectByUseScopes(
-        allMemories: [HoloLongTermMemory],
-        allowedScopes: Set<HoloMemoryUseScope>,
-        queryText: String?,
-        requireQueryMatch: Bool,
-        limit: Int
-    ) -> [HoloLongTermMemory] {
-        let filtered = allMemories.filter { mem in
-            let scopes = mem.useScopes
-            // displayOnly 且不在回顾场景 → 排除
-            if scopes.contains(.displayOnly) && !allowedScopes.contains(.retrospective) {
-                return false
-            }
-            // 至少一个 scope 在允许集合中
-            let effectiveScopes = Set(scopes.filter { $0 != .displayOnly })
-            let scopeMatches = !effectiveScopes.isEmpty
-                ? !effectiveScopes.intersection(allowedScopes).isEmpty
-                : false
-            guard scopeMatches else { return false }
-            if mem.sensitivity != .normal {
-                return HoloMemoryRelevanceRanker.hasQueryMatch(mem, queryText: queryText)
-            }
-            return true
+    private static func answerConsumer(
+        for purpose: HoloAICapabilityID?
+    ) -> HoloMemoryAnswerConsumer {
+        switch purpose {
+        case .todayState: return .capabilityTodayState
+        case .recentAnalysis: return .capabilityRecentAnalysis
+        case .longTermPatterns: return .capabilityLongTermPatterns
+        case .goalPlanning: return .capabilityGoalPlanning
+        case .onboarding: return .capabilityOnboarding
+        case nil: return .chat
         }
-
-        return HoloMemoryRelevanceRanker.rank(
-            filtered,
-            queryText: queryText,
-            limit: limit,
-            requireQueryMatch: requireQueryMatch
-        )
     }
 
-    // MARK: - Entry 构建
-
-    private static func buildEntry(_ mem: HoloLongTermMemory) -> HoloMemorySummaryEntry {
-        return HoloMemorySummaryEntry(
-            id: mem.id,
-            title: mem.title,
-            aiUseSummary: mem.aiUseSummary,
-            useScopeLabels: mem.useScopes.map(\.rawValue),
-            prohibitedInferences: mem.prohibitedInferences
-        )
+    nonisolated private static func displayTitle(for record: HoloMemoryRecord) -> String {
+        if record.scope == .crossDomain { return "跨域观察" }
+        switch record.primaryDomain {
+        case .finance: return "财务记忆"
+        case .thought: return "观点记忆"
+        case .health: return "健康记忆"
+        case .habit: return "习惯记忆"
+        case .task: return "任务记忆"
+        case .goal: return "目标记忆"
+        case .conversation: return "对话记忆"
+        case .profile: return "个人记忆"
+        case nil: return "记忆"
+        }
     }
-
 }

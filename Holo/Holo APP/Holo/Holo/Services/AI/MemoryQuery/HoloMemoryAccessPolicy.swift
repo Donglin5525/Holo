@@ -25,16 +25,6 @@ enum HoloMemoryExtractionDecision: Equatable, Sendable {
     case deniedByDataProcessingConsent
 }
 
-enum HoloMemoryAnswerConsumer: String, CaseIterable, Sendable {
-    case capabilityOnboarding
-    case capabilityTodayState
-    case capabilityRecentAnalysis
-    case capabilityLongTermPatterns
-    case capabilityGoalPlanning
-    case agent
-    case tool
-}
-
 enum HoloMemoryAnsweringDecision: Equatable, Sendable {
     case allowed
     case disabled

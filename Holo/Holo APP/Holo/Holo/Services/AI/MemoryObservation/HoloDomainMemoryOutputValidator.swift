@@ -82,6 +82,10 @@ nonisolated enum HoloDomainMemoryOutputValidator {
             }
 
             let evidence = uniqueEvidenceIDs.compactMap { evidenceByID[$0] }
+            let canActivateSilently = evidence.contains {
+                $0.kind == .explicitUserStatement ||
+                ($0.kind == .aggregateSnapshot && ($0.sampleCount ?? 0) >= 3)
+            }
             do {
                 let id = try HoloMemoryIdentity.makeStableID(
                     scope: .domain,
@@ -116,7 +120,7 @@ nonisolated enum HoloDomainMemoryOutputValidator {
                     scoreComputedAt: now,
                     extractorVersion: extractorVersion,
                     promptVersion: promptVersion,
-                    state: .candidate,
+                    state: canActivateSilently ? .active : .candidate,
                     sensitivity: package.domain == .health ? .sensitive : .normal,
                     userDecision: .none,
                     createdAt: now,

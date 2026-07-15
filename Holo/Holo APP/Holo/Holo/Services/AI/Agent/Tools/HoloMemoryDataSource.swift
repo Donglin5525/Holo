@@ -2,35 +2,49 @@
 //  HoloMemoryDataSource.swift
 //  Holo
 //
-//  HoloAI Agent V3.1 — Task 2.3 生产记忆数据源
-//  包裹真实 Store（HoloLongTermMemoryStore / HoloEpisodicMemoryStore），
-//  转为 MemoryTool 所需的中性数据结构。三个 Store 均为同步读取，这里 async 适配协议。
-//  本文件依赖真实记忆系统，仅随 app 编译（xcodebuild），不进入 standalone 测试。
+//  生产 Memory Tool 数据源：不再直读旧 Store，只调用统一 Query Service。
 //
 
 import Foundation
 
 struct HoloDefaultMemoryDataSource: HoloMemoryDataSource {
+    private let injectedQueryService: HoloMemoryQueryService?
 
-    /// 长期确认记忆（confirmed + silentlyAccepted，Store 已排除过期）。
-    func longTermConfirmed() async -> [HoloMemoryToolRecord] {
-        HoloLongTermMemoryStore.queryConfirmed().map {
-            HoloMemoryToolRecord(id: $0.id, title: $0.title, summary: $0.displaySummary, occurredAt: $0.updatedAt)
-        }
+    init(queryService: HoloMemoryQueryService? = nil) {
+        injectedQueryService = queryService
     }
 
-    /// 情景活跃记忆（active + suggested）。
-    func episodicActive() async -> [HoloMemoryToolRecord] {
-        HoloEpisodicMemoryStore.shared.queryActive().map {
-            HoloMemoryToolRecord(id: $0.id, title: $0.title, summary: $0.summary,
-                                 occurredAt: $0.lastHitAt ?? $0.updatedAt)
-        }
+    func queryRecords(
+        question: String,
+        currentStateOnly: Bool
+    ) async -> [HoloMemoryToolRecord] {
+        guard let service = await queryService(),
+              let context = try? await service.query(
+                question: question,
+                consumer: .tool
+              ) else { return [] }
+        return context.records
+            .filter { !currentStateOnly || $0.persistenceClass == .currentState }
+            .map {
+                HoloMemoryToolRecord(
+                    id: $0.id,
+                    title: $0.scope == .crossDomain
+                        ? "跨域观察"
+                        : ($0.primaryDomain?.rawValue ?? "记忆"),
+                    summary: $0.aiUseSummary,
+                    occurredAt: $0.lastSupportedAt ?? $0.updatedAt,
+                    persistenceClass: $0.persistenceClass
+                )
+            }
     }
 
-    /// 生效中的抑制规则（Store 已自动过滤过期）。
-    func suppressionRules() async -> [HoloMemoryToolSuppression] {
-        HoloEpisodicMemoryStore.shared.loadSuppressionRules().map {
-            HoloMemoryToolSuppression(id: $0.id, originalSummary: $0.originalMemorySummary)
-        }
+    func suppressionCount() async -> Int {
+        guard let service = await queryService() else { return 0 }
+        return await service.suppressionCount(consumer: .tool)
+    }
+
+    private func queryService() async -> HoloMemoryQueryService? {
+        if let injectedQueryService { return injectedQueryService }
+        return try? await HoloMemoryQueryService.live()
     }
 }

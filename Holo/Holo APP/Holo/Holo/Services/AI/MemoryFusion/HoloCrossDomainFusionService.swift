@@ -214,7 +214,7 @@ enum HoloCrossDomainFusionService {
                 scoreComputedAt: now,
                 extractorVersion: extractorVersion,
                 promptVersion: promptVersion,
-                state: userConfirmed ? .active : .candidate,
+                state: .active,
                 sensitivity: sensitivity,
                 userDecision: userConfirmed ? .confirmed : .none,
                 createdAt: now,

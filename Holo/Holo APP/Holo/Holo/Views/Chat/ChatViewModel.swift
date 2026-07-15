@@ -300,10 +300,11 @@ final class ChatViewModel: ObservableObject {
 
                         // 分析查询路径：零历史消息，独立 system context
                         let contextJSON = Self.encodeAnalysisContext(analysisContext)
-                        let memorySummary = HoloMemorySummaryProvider.selectRelevantSummary(
+                        let memorySummary = await HoloMemorySummaryProvider.selectRelevantSummary(
                             purpose: .recentAnalysis,
                             queryText: text,
-                            requireQueryMatch: true
+                            requireQueryMatch: true,
+                            consumer: .analysis
                         )
                         let memoryEnvelope = HoloMemoryContextEnvelope.render(memorySummary)
                         let analysisSystemContext = [contextJSON, memoryEnvelope.isEmpty ? nil : memoryEnvelope]
@@ -346,12 +347,18 @@ final class ChatViewModel: ObservableObject {
                         // 标准查询路径 → 流式对话
                         guard let chatRepo = self.chatRepo else { return }
                         let historyDTOs = await chatRepo.loadRecentDTOsAsync(limit: 20)
-                        let memorySummary = HoloMemorySummaryProvider.selectRelevantSummary(
+                        let memorySummary = await HoloMemorySummaryProvider.selectRelevantSummary(
                             purpose: nil,
                             queryText: text,
-                            requireQueryMatch: true
+                            requireQueryMatch: true,
+                            consumer: .chat
                         )
-                        let stream = self.provider.chatStreaming(messages: historyDTOs, userContext: userContext)
+                        var contextualUserContext = userContext
+                        contextualUserContext.memorySummary = memorySummary
+                        let stream = self.provider.chatStreaming(
+                            messages: historyDTOs,
+                            userContext: contextualUserContext
+                        )
 
                         var fullText = ""
                         for try await chunk in stream {

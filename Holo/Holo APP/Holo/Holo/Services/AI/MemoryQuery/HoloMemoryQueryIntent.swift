@@ -7,6 +7,20 @@
 
 import Foundation
 
+enum HoloMemoryAnswerConsumer: String, Codable, CaseIterable, Sendable {
+    case chat
+    case analysis
+    case insight
+    case planning
+    case capabilityOnboarding
+    case capabilityTodayState
+    case capabilityRecentAnalysis
+    case capabilityLongTermPatterns
+    case capabilityGoalPlanning
+    case agent
+    case tool
+}
+
 enum HoloMemoryQueryRoute: String, Codable, Equatable, Sendable {
     case detail
     case domainMemory

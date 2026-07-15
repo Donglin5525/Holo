@@ -103,10 +103,11 @@ struct MemoryInsightContextBuilder {
         let personalProfileContext = await buildPersonalProfileContext()
         let insightPreferenceContext = buildInsightPreferenceContext()
         let lifePatternContext = HoloLifePatternService.shared.promptSummary(for: .memoryInsightGeneration)
-        let longTermMemorySummary = HoloMemorySummaryProvider.selectRelevantSummary(
+        let longTermMemorySummary = await HoloMemorySummaryProvider.selectRelevantSummary(
             purpose: .longTermPatterns,
             queryText: "\(periodType.rawValue) 周期洞察 生活变化",
-            limit: 2
+            limit: 2,
+            consumer: .insight
         )
         let longTermMemoryContext = HoloMemoryContextEnvelope.renderBackground(longTermMemorySummary)
         let expressionDecisionContext = buildExpressionDecisionContext(
@@ -1196,10 +1197,11 @@ struct MemoryInsightContextBuilder {
         let personalProfileContext = await buildPersonalProfileContext()
         let insightPreferenceContext = buildInsightPreferenceContext()
         let lifePatternContext = HoloLifePatternService.shared.promptSummary(for: .retrospective)
-        let longTermMemorySummary = HoloMemorySummaryProvider.selectRelevantSummary(
+        let longTermMemorySummary = await HoloMemorySummaryProvider.selectRelevantSummary(
             purpose: .longTermPatterns,
             queryText: "年度回顾 长期变化",
-            limit: 2
+            limit: 2,
+            consumer: .insight
         )
         let longTermMemoryContext = HoloMemoryContextEnvelope.renderBackground(longTermMemorySummary)
 

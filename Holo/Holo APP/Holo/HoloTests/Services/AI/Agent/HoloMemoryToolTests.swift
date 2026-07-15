@@ -13,13 +13,13 @@ import Foundation
 
 /// MemoryTool 测试专用数据源（独立命名，避免联合编译重复）。
 struct MockMemoryDataSource: HoloMemoryDataSource {
-    let longTerm: [HoloMemoryToolRecord]
-    let episodic: [HoloMemoryToolRecord]
-    let suppressions: [HoloMemoryToolSuppression]
+    let records: [HoloMemoryToolRecord]
+    let suppressionTotal: Int
 
-    func longTermConfirmed() async -> [HoloMemoryToolRecord] { longTerm }
-    func episodicActive() async -> [HoloMemoryToolRecord] { episodic }
-    func suppressionRules() async -> [HoloMemoryToolSuppression] { suppressions }
+    func queryRecords(question: String, currentStateOnly: Bool) async -> [HoloMemoryToolRecord] {
+        records.filter { !currentStateOnly || $0.persistenceClass == .currentState }
+    }
+    func suppressionCount() async -> Int { suppressionTotal }
 }
 
 @main
@@ -45,18 +45,18 @@ struct HoloMemoryToolTests {
     /// recall_summary 应返回长期确认记忆，带计数 metric 与摘要 events。
     private static func testRecallSummary读取长期确认记忆() async throws {
         let source = MockMemoryDataSource(
-            longTerm: [
-                HoloMemoryToolRecord(id: "lt-1", title: "作息", summary: "用户通常早上6点起床", occurredAt: nil),
-                HoloMemoryToolRecord(id: "lt-2", title: "消费", summary: "每月餐饮预算2000", occurredAt: nil)
+            records: [
+                HoloMemoryToolRecord(id: "lt-1", title: "作息", summary: "用户通常早上6点起床", occurredAt: nil, persistenceClass: .durable),
+                HoloMemoryToolRecord(id: "lt-2", title: "消费", summary: "每月餐饮预算2000", occurredAt: nil, persistenceClass: .phase)
             ],
-            episodic: [], suppressions: []
+            suppressionTotal: 0
         )
         let tool = HoloMemoryTool(dataSource: source)
 
         let result = try await tool.execute(makeRequest(query: "recall_summary"))
 
         expect(result.status == .success, "recall_summary 应成功，实际 \(result.status)")
-        let countMetric = result.metrics.first { $0.metricKey == "memory.long_term.count" }
+        let countMetric = result.metrics.first { $0.metricKey == "memory.recall.count" }
         expect(countMetric?.value == 2, "长期记忆计数应为 2，实际 \(String(describing: countMetric?.value))")
         expect(result.events.contains { $0.excerpt.contains("6点起床") }, "events 应含长期记忆摘要")
     }
@@ -64,16 +64,15 @@ struct HoloMemoryToolTests {
     /// recent_episodic 应返回情景活跃记忆。
     private static func testRecentEpisodic读取情景活跃记忆() async throws {
         let source = MockMemoryDataSource(
-            longTerm: [],
-            episodic: [HoloMemoryToolRecord(id: "ep-1", title: "加班", summary: "本周加班明显增多", occurredAt: nil)],
-            suppressions: []
+            records: [HoloMemoryToolRecord(id: "ep-1", title: "加班", summary: "本周加班明显增多", occurredAt: nil, persistenceClass: .currentState)],
+            suppressionTotal: 0
         )
         let tool = HoloMemoryTool(dataSource: source)
 
         let result = try await tool.execute(makeRequest(query: "recent_episodic"))
 
         expect(result.status == .success, "recent_episodic 应成功")
-        let countMetric = result.metrics.first { $0.metricKey == "memory.episodic.active_count" }
+        let countMetric = result.metrics.first { $0.metricKey == "memory.current_state.count" }
         expect(countMetric?.value == 1, "情景记忆计数应为 1")
         expect(result.events.contains { $0.excerpt.contains("加班") }, "events 应含情景记忆摘要")
     }
@@ -81,8 +80,8 @@ struct HoloMemoryToolTests {
     /// suppression_summary 应返回抑制规则摘要。
     private static func testSuppressionSummary读取抑制规则() async throws {
         let source = MockMemoryDataSource(
-            longTerm: [], episodic: [],
-            suppressions: [HoloMemoryToolSuppression(id: "sup-1", originalSummary: "不再提醒「多喝热水」")]
+            records: [],
+            suppressionTotal: 1
         )
         let tool = HoloMemoryTool(dataSource: source)
 
@@ -91,12 +90,12 @@ struct HoloMemoryToolTests {
         expect(result.status == .success, "suppression_summary 应成功")
         let countMetric = result.metrics.first { $0.metricKey == "memory.suppression.active_count" }
         expect(countMetric?.value == 1, "抑制规则计数应为 1")
-        expect(result.events.contains { $0.excerpt.contains("多喝热水") }, "events 应含抑制规则摘要")
+        expect(result.events.isEmpty, "抑制状态只能返回不可逆计数，不能暴露原文")
     }
 
     /// 无记忆时应返回 .empty。
     private static func test无记忆返回empty() async throws {
-        let source = MockMemoryDataSource(longTerm: [], episodic: [], suppressions: [])
+        let source = MockMemoryDataSource(records: [], suppressionTotal: 0)
         let tool = HoloMemoryTool(dataSource: source)
 
         let result = try await tool.execute(makeRequest(query: "recall_summary"))

@@ -85,6 +85,18 @@ enum HoloMemoryRelevanceRanker {
 }
 
 enum HoloMemoryContextEnvelope {
+    static func render(_ context: HoloMemoryQueryContext) -> String {
+        let summary = HoloMemorySummaryProvider.makeSummary(from: context)
+        guard !summary.entries.isEmpty else { return "" }
+        let base = context.answerAuthority == .backgroundOnly
+            ? renderBackground(summary)
+            : render(summary)
+        if context.requiresDetailData {
+            return "\(base)\n规则：本题需要查询明细；上述记忆只能补充背景，不能提供金额、次数或精确统计。"
+        }
+        return base
+    }
+
     static func render(_ summary: HoloMemoryPromptSummary) -> String {
         guard !summary.entries.isEmpty else { return "" }
         var lines = ["--- 可用长期记忆 ---"]
@@ -108,6 +120,25 @@ enum HoloMemoryContextEnvelope {
             }
         }
         return lines.joined(separator: "\n")
+    }
+}
+
+struct HoloMemorySelectionTrace: Codable, Equatable, Sendable {
+    var route: String
+    var selectedMemoryIDs: [String]
+    var refreshDecision: String
+    var requiresDetailData: Bool
+
+    init(context: HoloMemoryQueryContext) {
+        route = context.route.rawValue
+        selectedMemoryIDs = context.records.map(\.id)
+        refreshDecision = switch context.refreshDecision {
+        case .none: "none"
+        case .disabled: "disabled"
+        case .scheduled(let targets):
+            "scheduled:\(targets.map(\.stableKey).joined(separator: ","))"
+        }
+        requiresDetailData = context.requiresDetailData
     }
 }
 

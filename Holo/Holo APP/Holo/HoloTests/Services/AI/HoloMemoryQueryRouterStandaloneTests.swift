@@ -109,7 +109,7 @@ struct HoloMemoryQueryRouterStandaloneTests {
         let refresh = HoloMemoryRefreshCoordinator(handler: { _ in })
         let service = HoloMemoryQueryService(
             store: store,
-            answeringAllowed: { true },
+            answeringAllowed: { _ in true },
             refreshCoordinator: refresh
         )
 
@@ -167,7 +167,7 @@ struct HoloMemoryQueryRouterStandaloneTests {
         let disabledStore = QueryStoreSpy(records: allRecords)
         let disabledService = HoloMemoryQueryService(
             store: disabledStore,
-            answeringAllowed: { false },
+            answeringAllowed: { _ in false },
             refreshCoordinator: refresh
         )
         let disabled = try await disabledService.query(question: "我最近状态如何", now: now)

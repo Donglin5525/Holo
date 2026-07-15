@@ -9,12 +9,21 @@ import Foundation
 
 protocol HoloMemoryQueryStore: Sendable {
     func fetchAvailableMemoryRecords() async throws -> [HoloMemoryRecord]
+    func fetchSuppressionCount() async throws -> Int
+}
+
+extension HoloMemoryQueryStore {
+    func fetchSuppressionCount() async throws -> Int { 0 }
 }
 
 #if !HOLO_MEMORY_STANDALONE
 extension CoreDataHoloMemoryRepository: HoloMemoryQueryStore {
     func fetchAvailableMemoryRecords() async throws -> [HoloMemoryRecord] {
         try await query(.active)
+    }
+
+    func fetchSuppressionCount() async throws -> Int {
+        try await queryTombstones().count
     }
 }
 #endif
@@ -29,7 +38,7 @@ struct HoloMemoryQueryContext: Equatable, Sendable {
 }
 
 struct HoloMemoryQueryService: Sendable {
-    typealias AnsweringAllowed = @Sendable () async -> Bool
+    typealias AnsweringAllowed = @Sendable (HoloMemoryAnswerConsumer) async -> Bool
 
     private let store: any HoloMemoryQueryStore
     private let answeringAllowed: AnsweringAllowed
@@ -50,9 +59,9 @@ struct HoloMemoryQueryService: Sendable {
         let repository = try await HoloMemoryRuntime.shared.repository()
         return HoloMemoryQueryService(
             store: repository,
-            answeringAllowed: {
+            answeringAllowed: { consumer in
                 await MainActor.run {
-                    HoloMemoryAccessPolicy.current.answeringDecision(for: .agent) == .allowed
+                    HoloMemoryAccessPolicy.current.answeringDecision(for: consumer) == .allowed
                 }
             },
             refreshCoordinator: .live
@@ -63,6 +72,7 @@ struct HoloMemoryQueryService: Sendable {
     func query(
         question: String,
         semanticContext: HoloMemoryQuerySemanticContext? = nil,
+        consumer: HoloMemoryAnswerConsumer = .chat,
         now: Date = Date(),
         tokenBudget: Int = 2_000,
         maxRecords: Int = 8
@@ -72,7 +82,7 @@ struct HoloMemoryQueryService: Sendable {
             semanticContext: semanticContext,
             now: now
         )
-        guard await answeringAllowed() else {
+        guard await answeringAllowed(consumer) else {
             return HoloMemoryQueryContext(
                 route: intent.route,
                 answerAuthority: intent.answerAuthority,
@@ -84,7 +94,7 @@ struct HoloMemoryQueryService: Sendable {
         }
 
         let available = try await store.fetchAvailableMemoryRecords().filter {
-            [.candidate, .active, .disputed].contains($0.state) &&
+            $0.state == .active &&
             ![.rejected, .forgotten, .markedIrrelevant].contains($0.userDecision)
         }
         let matching = available.filter { matches($0, intent: intent) }
@@ -112,6 +122,13 @@ struct HoloMemoryQueryService: Sendable {
             estimatedTokens: usedTokens,
             refreshDecision: refresh
         )
+    }
+
+    func suppressionCount(
+        consumer: HoloMemoryAnswerConsumer
+    ) async -> Int {
+        guard await answeringAllowed(consumer) else { return 0 }
+        return (try? await store.fetchSuppressionCount()) ?? 0
     }
 
     private func matches(

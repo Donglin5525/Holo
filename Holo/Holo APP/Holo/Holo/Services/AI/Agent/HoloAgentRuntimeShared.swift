@@ -78,13 +78,22 @@ struct HoloDefaultCrossDomainDataSource: HoloCrossDomainDataSource, HoloDynamicR
         }
         if source == "memory.entries" {
             let dataSource = await MainActor.run { HoloDefaultMemoryDataSource() }
-            let longTerm = await dataSource.longTermConfirmed().map { ($0, "longTerm") }
-            let episodic = await dataSource.episodicActive().map { ($0, "episodic") }
-            return (longTerm + episodic).compactMap { record, kind in
+            let records = await dataSource.queryRecords(
+                question: "查询近期与长期记忆",
+                currentStateOnly: false
+            )
+            return records.compactMap { record in
                 guard let date = record.occurredAt, Self.contains(date, in: timeRange) else { return nil }
                 return HoloQueryRow(
-                    id: record.id, occurredAt: date,
-                    fields: ["date": .date(date), "kind": .text(kind), "title": .text(record.title), "summary": .text(record.summary), "value": .number(1)],
+                    id: record.id,
+                    occurredAt: date,
+                    fields: [
+                        "date": .date(date),
+                        "kind": .text(record.persistenceClass.rawValue),
+                        "title": .text(record.title),
+                        "summary": .text(record.summary),
+                        "value": .number(1)
+                    ],
                     excerpt: "\(record.title)：\(record.summary)"
                 )
             }

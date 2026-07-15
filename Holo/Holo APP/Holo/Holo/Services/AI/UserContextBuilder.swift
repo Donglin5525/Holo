@@ -40,10 +40,13 @@ final class UserContextBuilder {
 
         let goalContext = buildGoalContext(limit: 1)
 
-        // 记忆摘要：开启时从长期记忆 Store 选取相关条目
+        // 记忆摘要只能经统一 Query Service 读取，开关关闭时返回空。
         let memorySummary: HoloMemoryPromptSummary? =
             HoloAIFeatureFlags.memorySummaryInjectionEnabled
-                ? HoloMemorySummaryProvider.selectRelevantSummary(purpose: nil)
+                ? await HoloMemorySummaryProvider.selectRelevantSummary(
+                    purpose: .todayState,
+                    consumer: .chat
+                )
                 : nil
 
         let coverage = DataCoverageEvaluator.evaluate(

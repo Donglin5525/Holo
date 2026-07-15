@@ -97,12 +97,8 @@ enum AIUserContextMessageBuilder {
                 }
             }
 
-            if HoloAIFeatureFlags.memorySummaryInjectionEnabled {
-                let memorySummary = HoloMemorySummaryProvider.selectRelevantSummary(
-                    purpose: nil,
-                    queryText: userText,
-                    requireQueryMatch: true
-                )
+            if HoloAIFeatureFlags.memorySummaryInjectionEnabled,
+               let memorySummary = context.memorySummary {
                 let envelope = HoloMemoryContextEnvelope.render(memorySummary)
                 if !envelope.isEmpty {
                     message += "\n\n" + envelope

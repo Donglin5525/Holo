@@ -17,6 +17,7 @@ actor HoloLocalAgentRuntime {
     private let patternMiner = HoloPatternMiner()
     private let llmClient: HoloAgentLLMClientProtocol?
     private let toolExecutor: HoloAgentToolExecuting?
+    private let memoryQueryService: HoloMemoryQueryService?
 
     /// mock 阶段模拟的步骤序列：plan → executeTools → minePatterns → integrateResults → persistResult。
     private static let mockSequence: [HoloAgentStep] = [
@@ -30,12 +31,14 @@ actor HoloLocalAgentRuntime {
          jobStore: HoloAgentJobStore,
          checkpointStore: HoloAgentCheckpointStore,
          llmClient: HoloAgentLLMClientProtocol? = nil,
-         toolExecutor: HoloAgentToolExecuting? = nil) {
+         toolExecutor: HoloAgentToolExecuting? = nil,
+         memoryQueryService: HoloMemoryQueryService? = nil) {
         self.persistence = persistence
         self.jobStore = jobStore
         self.checkpointStore = checkpointStore
         self.llmClient = llmClient
         self.toolExecutor = toolExecutor
+        self.memoryQueryService = memoryQueryService
     }
 
     /// 创建并启动一个 mock job：立即进入 running，写初始 checkpoint（step=plan）。
@@ -71,13 +74,27 @@ actor HoloLocalAgentRuntime {
             checkpointID: nil, resultID: nil, errorSummary: nil, deviceID: nil
         )
         job.sourceMessageID = sourceMessageID
-        let memorySummary = HoloMemorySummaryProvider.selectRelevantSummary(
-            purpose: .longTermPatterns,
-            queryText: question,
-            requireQueryMatch: true
-        )
+        let queryService: HoloMemoryQueryService?
+        if let memoryQueryService {
+            queryService = memoryQueryService
+        } else {
+            queryService = try? await HoloMemoryQueryService.live()
+        }
+        let memoryContext: HoloMemoryQueryContext?
+        if let queryService {
+            memoryContext = try? await queryService.query(
+                question: question,
+                consumer: .agent,
+                now: now
+            )
+        } else {
+            memoryContext = nil
+        }
+        let memorySummary = memoryContext.map(HoloMemorySummaryProvider.makeSummary(from:))
+            ?? HoloMemorySummaryProvider.emptySummary
         let memoryEvidence = Self.memoryEvidenceRecords(
-            from: memorySummary,
+            from: memoryContext?.records ?? [],
+            summary: memorySummary,
             jobID: job.id,
             now: now
         )
@@ -605,13 +622,12 @@ actor HoloLocalAgentRuntime {
     }
 
     private static func memoryEvidenceRecords(
-        from summary: HoloMemoryPromptSummary,
+        from memories: [HoloMemoryRecord],
+        summary: HoloMemoryPromptSummary,
         jobID: String,
         now: Date
     ) -> [HoloEvidenceRecord] {
-        let memoriesByID = Dictionary(
-            uniqueKeysWithValues: HoloLongTermMemoryStore.queryConfirmed().map { ($0.id, $0) }
-        )
+        let memoriesByID = Dictionary(uniqueKeysWithValues: memories.map { ($0.id, $0) })
         return summary.entries.compactMap { entry in
             guard let memory = memoriesByID[entry.id] else { return nil }
             let evidenceID = "memory-context-\(jobID)-\(entry.id)"
@@ -634,10 +650,10 @@ actor HoloLocalAgentRuntime {
                 unit: nil,
                 baselineValue: nil,
                 comparison: nil,
-                excerpt: memory.displaySummary,
-                redactedExcerpt: entry.aiUseSummary,
+                excerpt: sensitivity == .normal ? memory.displaySummary : "[敏感记忆摘要已脱敏]",
+                redactedExcerpt: sensitivity == .normal ? entry.aiUseSummary : "[敏感记忆摘要已脱敏]",
                 sensitivity: sensitivity,
-                confidence: memory.confidence == .high ? 0.9 : 0.7,
+                confidence: memory.confidenceScore,
                 status: .active,
                 generatedBy: "holo_memory_prefetch",
                 generatedAt: now,
