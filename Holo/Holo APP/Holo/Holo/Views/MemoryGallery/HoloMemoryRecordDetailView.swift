@@ -68,7 +68,7 @@ struct HoloMemoryRecordDetailView: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("Holo 会忘记这条内容，并阻止它被同类记录自动重新生成。你的原始业务数据不会被删除。")
+            Text("只会删除当前这条记忆。如果之后出现新的证据，Holo 仍可能重新形成相似记忆。你的原始业务数据不会被删除。")
         }
     }
 
@@ -81,10 +81,8 @@ struct HoloMemoryRecordDetailView: View {
                     .font(.holoLabel)
                     .foregroundColor(.holoTextSecondary)
                 Spacer()
-                if record.userDecision == .confirmed || record.userDecision == .corrected {
-                    Label("你已确认", systemImage: "checkmark.seal.fill")
-                        .font(.holoTinyLabel)
-                        .foregroundColor(.holoSuccess)
+                if let badge = HoloMemoryFeedbackBadge(decision: record.userDecision) {
+                    HoloMemoryFeedbackBadgeView(badge: badge)
                 }
             }
 
@@ -260,15 +258,23 @@ struct HoloMemoryRecordDetailView: View {
                 throw HoloMemoryFeedbackError.recordNotFound
             }
             switch action {
-            case .accurate:
+            case .accurate, .inaccurate:
                 if let persisted = try await repository.fetch(id: record.id) {
                     record = persisted
                 } else {
-                    record.userDecision = .confirmed
-                    record.state = .active
+                    switch action {
+                    case .accurate:
+                        record.userDecision = .confirmed
+                        record.state = .active
+                    case .inaccurate:
+                        record.userDecision = .rejected
+                        record.state = .suppressed
+                    case .noLongerUse:
+                        break
+                    }
                 }
                 onChange(.updated(record))
-            case .inaccurate, .noLongerUse:
+            case .noLongerUse:
                 onChange(.removed(record.id))
                 dismiss()
             }

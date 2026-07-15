@@ -488,6 +488,15 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
         }
     }
 
+    /// 用户仅删除当前记忆；不写 tombstone，后续新证据仍可形成同类记忆。
+    func deleteRecord(id: String) async throws -> Bool {
+        try await withMutationLock {
+            guard let stored = try await fetchStored(id: id) else { return false }
+            try await deletePersistedRecord(id: id, from: stored.storage)
+            return true
+        }
+    }
+
     func replaceRecordForMigration(_ record: HoloMemoryRecord) async throws {
         do {
             try record.validate()

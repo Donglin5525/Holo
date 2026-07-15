@@ -81,7 +81,7 @@ struct PersonalMemorySettingsView: View {
                         Text("记忆管理")
                             .font(.holoBody)
                             .foregroundColor(.holoTextPrimary)
-                        Text("查看、纠正或停用 Holo 记住的内容")
+                        Text("查看、纠正或删除 Holo 记住的内容")
                             .font(.system(size: 12))
                             .foregroundColor(.holoTextSecondary)
                     }

@@ -5,6 +5,7 @@ actor HoloMemoryFeedbackTestStore: HoloMemoryFeedbackStore {
     private var control = HoloMemoryControlState.initial(now: Date(timeIntervalSince1970: 0))
     private(set) var tombstones: [HoloMemoryTombstone] = []
     private(set) var decisions: [HoloMemoryUserDecision] = []
+    private(set) var deletedRecordIDs: [String] = []
 
     init(record: HoloMemoryRecord) {
         records = [record.id: record]
@@ -50,10 +51,16 @@ actor HoloMemoryFeedbackTestStore: HoloMemoryFeedbackStore {
     func replaceRecordForUserControl(_ record: HoloMemoryRecord) async throws {
         records[record.id] = record
     }
+    func deleteRecord(id: String) async throws -> Bool {
+        guard records.removeValue(forKey: id) != nil else { return false }
+        deletedRecordIDs.append(id)
+        return true
+    }
 
     func snapshot(id: String) -> HoloMemoryRecord? { records[id] }
     func tombstoneSnapshot() -> [HoloMemoryTombstone] { tombstones }
     func decisionSnapshot() -> [HoloMemoryUserDecision] { decisions }
+    func deletedRecordIDSnapshot() -> [String] { deletedRecordIDs }
 }
 
 @main
@@ -79,6 +86,15 @@ struct HoloMemoryFeedbackStandaloneTests {
         let inaccurate = await inaccurateStore.snapshot(id: original.id)
         expect(inaccurate?.userDecision == .rejected, "不准确反馈应被拒绝")
         expect(inaccurate?.state == .suppressed, "不准确记忆不得再进入回答")
+        let restoredSaved = try await inaccurateService.apply(
+            .accurate,
+            to: original.id,
+            now: now.addingTimeInterval(1)
+        )
+        expect(restoredSaved, "不准确记忆应允许改回准确")
+        let restored = await inaccurateStore.snapshot(id: original.id)
+        expect(restored?.userDecision == .confirmed, "重新选择准确应覆盖原有决策")
+        expect(restored?.state == .active, "重新选择准确应恢复为可用记忆")
 
         let forgetStore = HoloMemoryFeedbackTestStore(record: original)
         let forgetService = HoloMemoryFeedbackService(store: forgetStore)
@@ -86,11 +102,12 @@ struct HoloMemoryFeedbackStandaloneTests {
         expect(forgottenSaved, "不再使用应保存")
         let tombstones = await forgetStore.tombstoneSnapshot()
         let decisions = await forgetStore.decisionSnapshot()
-        expect(tombstones.count == 1, "不再使用必须先写语义墓碑")
-        expect(tombstones.first?.identityKey == original.id, "墓碑必须绑定稳定身份")
-        expect(decisions == [.forgotten], "不再使用必须调用永久忘记服务")
+        let deletedRecordIDs = await forgetStore.deletedRecordIDSnapshot()
+        expect(tombstones.isEmpty, "不再使用不应写入阻止再生成的墓碑")
+        expect(decisions.isEmpty, "不再使用不应伪装成永久忘记决策")
+        expect(deletedRecordIDs == [original.id], "不再使用应只删除当前记忆")
         let forgotten = await forgetStore.snapshot(id: original.id)
-        expect(forgotten?.displaySummary.isEmpty == true, "忘记后不得保留正文")
+        expect(forgotten == nil, "不再使用后不应保留空正文占位记录")
 
         let correctionStore = HoloMemoryFeedbackTestStore(record: original)
         let correctionService = HoloMemoryFeedbackService(store: correctionStore)

@@ -18,7 +18,10 @@ enum HoloMemoryFeedbackError: Error, Equatable {
     case emptyCorrection
 }
 
-protocol HoloMemoryFeedbackStore: HoloMemoryForgettingStore {}
+protocol HoloMemoryFeedbackStore: HoloMemoryForgettingStore {
+    /// 只删除当前记忆，不写入阻止后续重新生成的语义墓碑。
+    func deleteRecord(id: String) async throws -> Bool
+}
 
 #if !HOLO_MEMORY_STANDALONE
 extension CoreDataHoloMemoryRepository: HoloMemoryFeedbackStore {}
@@ -44,7 +47,7 @@ struct HoloMemoryFeedbackService: Sendable {
         case .inaccurate:
             didApply = try await store.markUserDecision(id: id, decision: .rejected, now: now)
         case .noLongerUse:
-            didApply = try await HoloMemoryForgettingService(store: store).forget(id: id, now: now)
+            didApply = try await store.deleteRecord(id: id)
         }
         #if !HOLO_MEMORY_STANDALONE
         if didApply {

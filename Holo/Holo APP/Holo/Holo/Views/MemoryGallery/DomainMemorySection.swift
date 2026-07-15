@@ -123,7 +123,7 @@ struct DomainMemorySection: View {
                     .foregroundColor(.holoTextPrimary)
             }
 
-            Text("这些内容会在合适的问题里自动帮上忙，你可以随时纠正或停用。")
+            Text("这些内容会在合适的问题里自动帮上忙，你可以随时评价、纠正或删除。")
                 .font(.holoTinyLabel)
                 .foregroundColor(.holoTextSecondary)
         }
@@ -162,11 +162,19 @@ struct DomainMemorySection: View {
             selectedRecord = record
         } label: {
             VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                Text(record.displaySummary)
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextPrimary)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
+                HStack(alignment: .top, spacing: HoloSpacing.sm) {
+                    Text(record.displaySummary)
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextPrimary)
+                        .multilineTextAlignment(.leading)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    Spacer(minLength: 0)
+
+                    if let badge = HoloMemoryFeedbackBadge(decision: record.userDecision) {
+                        HoloMemoryFeedbackBadgeView(badge: badge)
+                    }
+                }
 
                 HStack(spacing: HoloSpacing.xs) {
                     Text(HoloMemoryUserPresentation.timeRange(for: record))
@@ -255,8 +263,11 @@ struct DomainMemorySection: View {
     }
 
     private static func isUserVisible(_ record: HoloMemoryRecord) -> Bool {
+        if record.userDecision == .rejected {
+            return record.state == .suppressed
+        }
         guard [.active, .disputed, .invalidated].contains(record.state) else { return false }
-        return ![.rejected, .forgotten, .markedIrrelevant].contains(record.userDecision)
+        return ![.forgotten, .markedIrrelevant].contains(record.userDecision)
     }
 
     private func apply(_ change: HoloMemoryRecordDetailChange) {
@@ -273,6 +284,60 @@ struct DomainMemorySection: View {
             records.removeAll { $0.id == id }
             selectedRecord = nil
         }
+    }
+}
+
+enum HoloMemoryFeedbackBadge: Equatable {
+    case accurate
+    case inaccurate
+    case corrected
+
+    init?(decision: HoloMemoryUserDecision) {
+        switch decision {
+        case .confirmed: self = .accurate
+        case .rejected: self = .inaccurate
+        case .corrected: self = .corrected
+        case .none, .markedIrrelevant, .forgotten: return nil
+        }
+    }
+
+    var title: String {
+        switch self {
+        case .accurate: return "准确"
+        case .inaccurate: return "不准确"
+        case .corrected: return "已纠正"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .accurate: return "checkmark"
+        case .inaccurate: return "xmark"
+        case .corrected: return "pencil"
+        }
+    }
+
+    var color: Color {
+        switch self {
+        case .accurate: return .holoSuccess
+        case .inaccurate: return .orange
+        case .corrected: return .holoPrimary
+        }
+    }
+}
+
+struct HoloMemoryFeedbackBadgeView: View {
+    let badge: HoloMemoryFeedbackBadge
+
+    var body: some View {
+        Label(badge.title, systemImage: badge.icon)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundColor(badge.color)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
+            .background(badge.color.opacity(0.1))
+            .clipShape(Capsule())
+            .fixedSize()
     }
 }
 
