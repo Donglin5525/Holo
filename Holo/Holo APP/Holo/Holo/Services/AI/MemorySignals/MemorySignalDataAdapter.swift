@@ -10,6 +10,33 @@ import CoreData
 
 enum MemorySignalDataAdapter {
 
+    /// 运行时统一采集入口。只返回 Builder 允许的白名单信号；没有可靠结构化来源的领域保持为空。
+    static func buildDomainSignals(now: Date = Date()) async -> [HoloMemoryDomain: [HoloDomainMemorySignal]] {
+        async let financeInput = buildFinanceMemorySnapshotInput(now: now)
+        async let healthInputs = buildHealthMemoryAggregateInputs(now: now)
+        async let conversationInputs = buildConversationMemoryInputs(now: now)
+
+        let finance = await financeInput
+        let health = await healthInputs
+        let conversations = await conversationInputs
+        let thoughtInputs = buildThoughtMemoryInputs(now: now)
+        let taskInputs = buildTaskMemoryInputs(now: now)
+        let habitInputs = buildHabitDomainMemoryInputs(now: now)
+        let goalInputs = buildGoalDomainMemoryInputs(now: now)
+
+        return [
+            .finance: addRoutineAnchor(to: FinanceMemorySignalBuilder.build(from: finance)),
+            .thought: ThoughtMemorySignalBuilder.build(from: thoughtInputs),
+            .health: addRoutineAnchor(to: HealthMemorySignalBuilder.build(from: health)),
+            .habit: addRoutineAnchor(to: HabitMemorySignalBuilder.buildDomainSignals(from: habitInputs)),
+            .task: addRoutineAnchor(to: TaskMemorySignalBuilder.build(from: taskInputs, now: now)),
+            .goal: addRoutineAnchor(to: GoalMemorySignalBuilder.buildDomainSignals(from: goalInputs)),
+            .conversation: ConversationMemorySignalBuilder.build(from: conversations),
+            // Profile 只接受用户显式维护和旧记忆迁移，后台观察不得静默改写。
+            .profile: []
+        ]
+    }
+
     // MARK: - Finance → FinanceMemorySnapshotInput
 
     static func buildFinanceMemorySnapshotInput(
@@ -66,6 +93,169 @@ enum MemorySignalDataAdapter {
             windowStart: currentStart,
             windowEnd: now
         )
+    }
+
+    // MARK: - Thought → explicit stance only
+
+    static func buildThoughtMemoryInputs(now: Date = Date()) -> [ThoughtMemoryInput] {
+        let recentStart = Calendar.current.date(byAdding: .day, value: -180, to: now) ?? .distantPast
+        let thoughts = (try? ThoughtRepository().fetchAll(limit: 200)) ?? []
+        let stanceCues = ["我认为", "我觉得", "我的观点", "我支持", "我反对", "我不认同", "我更认同"]
+        return thoughts.compactMap { thought in
+            guard thought.updatedAt >= recentStart,
+                  stanceCues.contains(where: { thought.content.contains($0) }) else { return nil }
+            let topics = (thought.topics as? Set<Topic>)?.map(\.title).sorted() ?? []
+            let topic = topics.first ?? "个人观点"
+            return ThoughtMemoryInput(
+                id: thought.id.uuidString,
+                originalText: thought.content,
+                explicitStance: thought.content,
+                aiSummary: nil,
+                topic: topic,
+                revisionDigest: "\(thought.updatedAt.timeIntervalSince1970)-\(stableDigest(thought.content))",
+                createdAt: thought.createdAt
+            )
+        }
+    }
+
+    // MARK: - Health → local aggregates only
+
+    static func buildHealthMemoryAggregateInputs(now: Date = Date()) async -> [HealthMemoryAggregateInput] {
+        let calendar = Calendar.current
+        let start = calendar.date(byAdding: .day, value: -14, to: now) ?? now
+        let repository = await MainActor.run { HealthRepository.shared }
+        async let steps = repository.fetchStepsRange(from: start, to: now)
+        async let sleep = repository.fetchSleepRange(from: start, to: now)
+        async let stand = repository.fetchStandTimeRange(from: start, to: now)
+        async let active = repository.fetchActiveMinutesRange(from: start, to: now)
+        let (stepData, sleepData, standData, activeData) = await (steps, sleep, stand, active)
+        let values: [(String, String, [DailyHealthData])] = [
+            ("steps", "步数", stepData),
+            ("sleep", "睡眠", sleepData),
+            ("standHours", "站立时长", standData),
+            ("activeMinutes", "活动分钟", activeData)
+        ]
+        return values.compactMap { key, name, samples in
+            let valid = samples.filter { $0.value > 0 && $0.value.isFinite }
+            guard !valid.isEmpty else { return nil }
+            let rawDigest = valid
+                .map { "\(Int($0.date.timeIntervalSince1970)):\($0.value)" }
+                .sorted()
+                .joined(separator: "|")
+            let numbers = valid.map(\.value)
+            return HealthMemoryAggregateInput(
+                metricKey: key,
+                displayName: name,
+                average: numbers.reduce(0, +) / Double(numbers.count),
+                minimum: numbers.min(),
+                maximum: numbers.max(),
+                sampleCount: numbers.count,
+                windowStart: start,
+                windowEnd: now,
+                revisionDigest: stableDigest(rawDigest)
+            )
+        }
+    }
+
+    // MARK: - Task → rhythm aggregates
+
+    static func buildTaskMemoryInputs(now: Date = Date()) -> [TaskMemoryInput] {
+        let request = TodoTask.fetchRequest()
+        let start = Calendar.current.date(byAdding: .day, value: -90, to: now) ?? .distantPast
+        request.predicate = NSPredicate(
+            format: "deletedFlag == NO AND (createdAt >= %@ OR updatedAt >= %@)",
+            start as NSDate,
+            start as NSDate
+        )
+        request.fetchLimit = 500
+        let tasks = (try? CoreDataStack.shared.viewContext.fetch(request)) ?? []
+        return tasks.map { task in
+            TaskMemoryInput(
+                id: task.id.uuidString,
+                title: task.title,
+                typeKey: task.list?.id.uuidString ?? "inbox",
+                completed: task.completed,
+                createdAt: task.createdAt,
+                dueAt: task.dueDate,
+                completedAt: task.completedAt,
+                revisionDigest: "\(task.updatedAt.timeIntervalSince1970)-\(task.completed)-\(task.dueDate?.timeIntervalSince1970 ?? 0)"
+            )
+        }
+    }
+
+    // MARK: - Conversation → explicit user statements only
+
+    static func buildConversationMemoryInputs(now: Date = Date()) async -> [ConversationMemoryInput] {
+        await CoreDataStack.shared.waitUntilReady()
+        let start = Calendar.current.date(byAdding: .day, value: -180, to: now) ?? .distantPast
+        return (try? await Task.detached(priority: .utility) {
+            let context = CoreDataStack.shared.newBackgroundContext()
+            return try await context.perform {
+                let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
+                request.resultType = .dictionaryResultType
+                request.propertiesToFetch = ["id", "role", "content", "timestamp"]
+                request.predicate = NSPredicate(
+                    format: "role == %@ AND isStreaming == NO AND timestamp >= %@",
+                    "user",
+                    start as NSDate
+                )
+                request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
+                request.fetchLimit = 200
+                return try context.fetch(request).compactMap { dictionary in
+                    guard let id = dictionary["id"] as? UUID,
+                          let content = dictionary["content"] as? String,
+                          let timestamp = dictionary["timestamp"] as? Date,
+                          let kind = conversationStatementKind(for: content) else { return nil }
+                    return ConversationMemoryInput(
+                        id: id.uuidString,
+                        role: .user,
+                        statementKind: kind,
+                        text: content,
+                        revisionDigest: stableDigest(content),
+                        createdAt: timestamp,
+                        profileAnchor: nil
+                    )
+                }
+            }
+        }.value) ?? []
+    }
+
+    nonisolated private static func conversationStatementKind(
+        for content: String
+    ) -> ConversationMemoryStatementKind? {
+        let preferenceCues = ["我喜欢", "我不喜欢", "我更喜欢", "我偏好", "我更偏好"]
+        if preferenceCues.contains(where: { content.contains($0) }) { return .explicitPreference }
+        let contextCues = ["请记住", "记住我", "以后请", "以后不要", "对我来说很重要"]
+        if contextCues.contains(where: { content.contains($0) }) { return .importantContext }
+        let correctionCues = ["不是这样的", "你记错了", "纠正一下"]
+        if correctionCues.contains(where: { content.contains($0) }) { return .correction }
+        return nil
+    }
+
+    nonisolated private static func stableDigest(_ value: String) -> String {
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        for byte in value.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 1_099_511_628_211
+        }
+        return String(hash, radix: 16)
+    }
+
+    /// 周期性聚合统一带上“当前生活节奏”锚点，跨域候选仍需共同窗口和独立证据才能成立。
+    nonisolated private static func addRoutineAnchor(
+        to signals: [HoloDomainMemorySignal]
+    ) -> [HoloDomainMemorySignal] {
+        guard let routine = try? HoloMemoryAnchorRef(
+            type: .userTheme,
+            value: "current-routine",
+            displayLabel: "最近的生活节奏"
+        ) else { return signals }
+        return signals.map { signal in
+            guard signal.kind == .aggregate || signal.kind == .trend else { return signal }
+            var updated = signal
+            updated.anchors = HoloMemoryIdentity.canonicalAnchors(signal.anchors + [routine])
+            return updated
+        }
     }
 
     // MARK: - Habit → HabitFocusSummary

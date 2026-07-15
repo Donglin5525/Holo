@@ -123,6 +123,11 @@ actor HoloMemoryObservationScheduler {
     /// 生命周期事件只做常量时间检查，不等待数据库或网络，避免阻塞首屏与切前后台。
     func lightweightCheck(trigger: HoloMemorySchedulerTrigger) async {
         lastLightweightTrigger = trigger
+        #if !HOLO_MEMORY_STANDALONE
+        Task(priority: .utility) {
+            await HoloMemoryLiveObservationCoordinator.shared.run(trigger: trigger)
+        }
+        #endif
         await Task.yield()
     }
 
