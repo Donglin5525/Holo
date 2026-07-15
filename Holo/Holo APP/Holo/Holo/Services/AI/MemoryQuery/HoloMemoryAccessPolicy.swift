@@ -34,10 +34,13 @@ struct HoloMemoryAccessPolicy: Sendable {
     let state: HoloMemoryAccessState
 
     static var current: HoloMemoryAccessPolicy {
-        HoloMemoryAccessPolicy(
+        let operational = HoloMemoryOperationalControls.current()
+        return HoloMemoryAccessPolicy(
             state: HoloMemoryAccessState(
-                automaticMemoryEnabled: HoloMemorySettings.shared.automaticMemoryEnabled,
-                memoryAssistedAnsweringEnabled: HoloMemorySettings.shared.memoryAssistedAnsweringEnabled,
+                automaticMemoryEnabled: HoloMemorySettings.shared.automaticMemoryEnabled &&
+                    operational.allowsExtraction,
+                memoryAssistedAnsweringEnabled: HoloMemorySettings.shared.memoryAssistedAnsweringEnabled &&
+                    operational.allowsAnswerInjection,
                 aiDataProcessingConsentGranted: HoloAIDataProcessingConsent.shared.isGranted
             )
         )

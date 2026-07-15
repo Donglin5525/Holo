@@ -264,15 +264,93 @@ final class HoloMemorySettings: ObservableObject {
     #endif
 }
 
+// MARK: - Memory Operational Controls (Internal Rollout)
+
+enum HoloMemoryRolloutStage: String, Codable, CaseIterable, Sendable {
+    case off
+    case shadow
+    case internalAccounts
+    case limited
+    case full
+}
+
+struct HoloMemoryOperationalControlSnapshot: Equatable, Sendable {
+    var rolloutStage: HoloMemoryRolloutStage
+    var extractionEnabled: Bool
+    var fusionEnabled: Bool
+    var answerInjectionEnabled: Bool
+    var isInternalAccount: Bool
+    var isLimitedRolloutBucket: Bool
+
+    var allowsExtraction: Bool {
+        extractionEnabled && rolloutStage != .off
+    }
+
+    var allowsFusion: Bool {
+        fusionEnabled && rolloutStage != .off
+    }
+
+    /// shadow 只生成与评估，不进入任何用户回答。
+    var allowsAnswerInjection: Bool {
+        guard answerInjectionEnabled else { return false }
+        switch rolloutStage {
+        case .off, .shadow: return false
+        case .internalAccounts: return isInternalAccount
+        case .limited: return isInternalAccount || isLimitedRolloutBucket
+        case .full: return true
+        }
+    }
+
+    var isShadowEvaluation: Bool {
+        rolloutStage == .shadow && (allowsExtraction || allowsFusion)
+    }
+}
+
+enum HoloMemoryOperationalControls {
+    private enum Keys {
+        static let rolloutStage = "holo_memory_rollout_stage_v1"
+        static let extractionEnabled = "holo_memory_kill_extraction_v1"
+        static let fusionEnabled = "holo_memory_kill_fusion_v1"
+        static let answerInjectionEnabled = "holo_memory_kill_answer_injection_v1"
+        static let internalAccount = "holo_memory_internal_account_v1"
+        static let limitedBucket = "holo_memory_limited_bucket_v1"
+    }
+
+    static func current(defaults: UserDefaults = .standard) -> HoloMemoryOperationalControlSnapshot {
+        let stage = defaults.string(forKey: Keys.rolloutStage)
+            .flatMap(HoloMemoryRolloutStage.init(rawValue:)) ?? .shadow
+        return HoloMemoryOperationalControlSnapshot(
+            rolloutStage: stage,
+            extractionEnabled: defaults.object(forKey: Keys.extractionEnabled) as? Bool ?? true,
+            fusionEnabled: defaults.object(forKey: Keys.fusionEnabled) as? Bool ?? true,
+            answerInjectionEnabled: defaults.object(forKey: Keys.answerInjectionEnabled) as? Bool ?? true,
+            isInternalAccount: defaults.bool(forKey: Keys.internalAccount),
+            isLimitedRolloutBucket: defaults.bool(forKey: Keys.limitedBucket)
+        )
+    }
+}
+
 // MARK: - Feature Flags (Read from Settings)
 
 enum HoloAIFeatureFlags {
     static var capabilityLaunchpadEnabled: Bool { true }
     static var aiDataProcessingConsentGranted: Bool { HoloAIDataProcessingConsent.shared.isGranted }
-    static var memorySummaryInjectionEnabled: Bool { HoloMemorySettings.shared.memoryAssistedAnsweringEnabled }
-    static var longTermMemoryWriteEnabled: Bool { HoloMemorySettings.shared.automaticMemoryEnabled }
-    static var memoryInsightCandidateExtractionEnabled: Bool { HoloMemorySettings.shared.automaticMemoryEnabled }
-    static var episodicMemoryObservationEnabled: Bool { HoloMemorySettings.shared.automaticMemoryEnabled }
+    static var memorySummaryInjectionEnabled: Bool {
+        HoloMemorySettings.shared.memoryAssistedAnsweringEnabled &&
+        HoloMemoryOperationalControls.current().allowsAnswerInjection
+    }
+    static var longTermMemoryWriteEnabled: Bool {
+        HoloMemorySettings.shared.automaticMemoryEnabled &&
+        HoloMemoryOperationalControls.current().allowsExtraction
+    }
+    static var memoryInsightCandidateExtractionEnabled: Bool { longTermMemoryWriteEnabled }
+    static var episodicMemoryObservationEnabled: Bool { longTermMemoryWriteEnabled }
+    static var memoryCrossDomainFusionEnabled: Bool {
+        HoloMemoryOperationalControls.current().allowsFusion
+    }
+    static var memoryShadowEvaluationEnabled: Bool {
+        HoloMemoryOperationalControls.current().isShadowEvaluation
+    }
 
     // MARK: - Profile Snapshot Feature Flags
 

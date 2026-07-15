@@ -37,14 +37,24 @@ struct HoloMemoryFeedbackService: Sendable {
         to id: String,
         now: Date = Date()
     ) async throws -> Bool {
+        let didApply: Bool
         switch action {
         case .accurate:
-            return try await store.markUserDecision(id: id, decision: .confirmed, now: now)
+            didApply = try await store.markUserDecision(id: id, decision: .confirmed, now: now)
         case .inaccurate:
-            return try await store.markUserDecision(id: id, decision: .rejected, now: now)
+            didApply = try await store.markUserDecision(id: id, decision: .rejected, now: now)
         case .noLongerUse:
-            return try await HoloMemoryForgettingService(store: store).forget(id: id, now: now)
+            didApply = try await HoloMemoryForgettingService(store: store).forget(id: id, now: now)
         }
+        #if !HOLO_MEMORY_STANDALONE
+        if didApply {
+            await HoloMemoryQualityMetrics.shared.recordFeedback(
+                corrected: false,
+                rejected: action == .inaccurate
+            )
+        }
+        #endif
+        return didApply
     }
 
     /// 纠正保留可追溯证据与稳定身份，只创建一个用户确认的新版本。
@@ -71,6 +81,9 @@ struct HoloMemoryFeedbackService: Sendable {
         record.updatedAt = now
         try record.validate()
         try await store.replaceRecordForUserControl(record)
+        #if !HOLO_MEMORY_STANDALONE
+        await HoloMemoryQualityMetrics.shared.recordFeedback(corrected: true, rejected: false)
+        #endif
         return record
     }
 

@@ -65,6 +65,10 @@ enum HoloCrossDomainFusionDecision: Equatable, Sendable {
     case rejected(HoloCrossDomainFusionRejection)
 }
 
+enum HoloCrossDomainFusionOperationalError: Error, Equatable {
+    case disabledByKillSwitch
+}
+
 enum HoloCrossDomainFusionService {
     static let extractorVersion = 1
     static let promptVersion = 1
@@ -107,6 +111,9 @@ enum HoloCrossDomainFusionService {
     static func requestFusion(
         for candidates: [HoloCrossDomainFusionCandidate]
     ) async throws -> Data {
+        guard HoloAIFeatureFlags.memoryCrossDomainFusionEnabled else {
+            throw HoloCrossDomainFusionOperationalError.disabledByKillSwitch
+        }
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.sortedKeys]

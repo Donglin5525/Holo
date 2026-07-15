@@ -7,6 +7,13 @@
 
 import Foundation
 
+nonisolated enum HoloMemoryQueryBudgetPolicy {
+    static let p95LatencyTargetMilliseconds: Double = 100
+    static let defaultTokenBudget = 2_000
+    static let defaultMaximumRecords = 8
+    static let serialNetworkRoundTripsOnCriticalPath = 0
+}
+
 protocol HoloMemoryQueryStore: Sendable {
     func fetchAvailableMemoryRecords() async throws -> [HoloMemoryRecord]
     func fetchSuppressionCount() async throws -> Int
@@ -74,16 +81,17 @@ struct HoloMemoryQueryService: Sendable {
         semanticContext: HoloMemoryQuerySemanticContext? = nil,
         consumer: HoloMemoryAnswerConsumer = .chat,
         now: Date = Date(),
-        tokenBudget: Int = 2_000,
-        maxRecords: Int = 8
+        tokenBudget: Int = HoloMemoryQueryBudgetPolicy.defaultTokenBudget,
+        maxRecords: Int = HoloMemoryQueryBudgetPolicy.defaultMaximumRecords
     ) async throws -> HoloMemoryQueryContext {
+        let queryStartedAt = Date()
         let intent = HoloMemoryQueryRouter.route(
             question,
             semanticContext: semanticContext,
             now: now
         )
         guard await answeringAllowed(consumer) else {
-            return HoloMemoryQueryContext(
+            let disabledContext = HoloMemoryQueryContext(
                 route: intent.route,
                 answerAuthority: intent.answerAuthority,
                 records: [],
@@ -91,6 +99,16 @@ struct HoloMemoryQueryService: Sendable {
                 estimatedTokens: 0,
                 refreshDecision: .disabled
             )
+            #if !HOLO_MEMORY_STANDALONE
+            await HoloMemoryQualityMetrics.shared.recordQuery(
+                durationMilliseconds: Date().timeIntervalSince(queryStartedAt) * 1_000,
+                selectedCount: 0
+            )
+            if consumer == .chat {
+                await HoloMemoryQualityMetrics.shared.recordChatPath(serialNetworkRoundTrips: 0)
+            }
+            #endif
+            return disabledContext
         }
 
         let available = try await store.fetchAvailableMemoryRecords().filter {
@@ -114,7 +132,7 @@ struct HoloMemoryQueryService: Sendable {
             usedTokens += cost
         }
         let refresh = refreshCoordinator.scheduleIfNeeded(for: selected, now: now)
-        return HoloMemoryQueryContext(
+        let context = HoloMemoryQueryContext(
             route: intent.route,
             answerAuthority: intent.answerAuthority,
             records: selected,
@@ -122,6 +140,16 @@ struct HoloMemoryQueryService: Sendable {
             estimatedTokens: usedTokens,
             refreshDecision: refresh
         )
+        #if !HOLO_MEMORY_STANDALONE
+        await HoloMemoryQualityMetrics.shared.recordQuery(
+            durationMilliseconds: Date().timeIntervalSince(queryStartedAt) * 1_000,
+            selectedCount: selected.count
+        )
+        if consumer == .chat {
+            await HoloMemoryQualityMetrics.shared.recordChatPath(serialNetworkRoundTrips: 0)
+        }
+        #endif
+        return context
     }
 
     func suppressionCount(
