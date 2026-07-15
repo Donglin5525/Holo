@@ -12,6 +12,7 @@ struct PersonalView: View {
 
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var profileService = HoloProfileService.shared
+    @ObservedObject private var memorySettings = HoloMemorySettings.shared
     @AppStorage(UserDisplayNameSettings.displayNameKey) private var userName: String = UserDisplayNameSettings.fallbackDisplayName
 
     let onPlanGoal: () -> Void
@@ -35,6 +36,10 @@ struct PersonalView: View {
                 VStack(spacing: HoloSpacing.xl) {
                     profileSection
                     goalsSection
+                    memorySection
+                    #if DEBUG
+                    developerToolsSection
+                    #endif
                 }
                 .padding(.horizontal, HoloSpacing.lg)
                 .padding(.vertical, HoloSpacing.md)
@@ -187,6 +192,117 @@ struct PersonalView: View {
             .buttonStyle(PlainButtonStyle())
         }
     }
+
+    // MARK: - 我的记忆
+
+    private var memorySection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            HStack(spacing: HoloSpacing.sm) {
+                Image(systemName: "brain.head.profile")
+                    .font(.system(size: 18))
+                    .foregroundColor(.holoPrimary)
+                Text("我的记忆")
+                    .font(.holoBody)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoTextPrimary)
+            }
+
+            NavigationLink {
+                PersonalMemorySettingsView()
+            } label: {
+                HStack(spacing: HoloSpacing.md) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.holoPrimary.opacity(0.1))
+                            .frame(width: 40, height: 40)
+                        Image(systemName: "brain.head.profile")
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundColor(.holoPrimary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Holo 记住的你")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+                        Text(memoryStatusText)
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoTextSecondary)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.holoTextSecondary.opacity(0.5))
+                }
+                .padding(HoloSpacing.md)
+                .background(Color.holoCardBackground)
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var memoryStatusText: String {
+        switch (memorySettings.automaticMemoryEnabled, memorySettings.memoryAssistedAnsweringEnabled) {
+        case (true, true): return "自动整理，并在回答中帮助理解你"
+        case (true, false): return "自动整理，回答时暂不使用"
+        case (false, true): return "不再新增，回答可使用已有记忆"
+        case (false, false): return "记忆功能已关闭"
+        }
+    }
+
+    #if DEBUG
+    // MARK: - 开发者工具
+
+    private var developerToolsSection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            HStack(spacing: HoloSpacing.sm) {
+                Image(systemName: "hammer")
+                    .font(.system(size: 18))
+                    .foregroundColor(.orange)
+                Text("开发者工具")
+                    .font(.holoBody)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoTextPrimary)
+            }
+
+            NavigationLink {
+                AIMemoryLabView()
+            } label: {
+                HStack(spacing: HoloSpacing.md) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.orange.opacity(0.1))
+                            .frame(width: 40, height: 40)
+                        Image(systemName: "testtube.2")
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundColor(.orange)
+                    }
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("AI 记忆实验室")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+                        Text("验证领域萃取、跨域融合与问题召回")
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoTextSecondary)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.holoTextSecondary.opacity(0.5))
+                }
+                .padding(HoloSpacing.md)
+                .background(Color.holoCardBackground)
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+    #endif
 }
 
 #Preview {

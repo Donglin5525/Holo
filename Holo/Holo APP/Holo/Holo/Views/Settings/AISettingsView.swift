@@ -16,8 +16,6 @@ struct AISettingsView: View {
     @ObservedObject private var dataProcessingConsent = HoloAIDataProcessingConsent.shared
     @Environment(\.dismiss) private var dismiss
     @State private var showPromptRefreshed = false
-    @State private var isObserving = false
-    @State private var observationResult: String?
 
     var body: some View {
         Form {
@@ -41,9 +39,6 @@ struct AISettingsView: View {
 
             // 学习数据
             mappingSection
-
-            // 记忆管理
-            memorySection
 
             // Agent 深度分析（灰度）
             agentGrayscaleSection
@@ -340,127 +335,6 @@ struct AISettingsView: View {
         }
     }
 
-    // MARK: - Memory Section
-
-    private var memorySection: some View {
-        Section {
-            NavigationLink {
-                AIMemoryLabView()
-            } label: {
-                HStack(spacing: HoloSpacing.md) {
-                    Image(systemName: "testtube.2")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.orange)
-                        .frame(width: 28)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("AI 记忆实验室")
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
-                        Text("显性验证领域萃取、跨域融合与问题召回")
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
-                    }
-                }
-            }
-
-            NavigationLink {
-                HoloMemoryCenterView()
-            } label: {
-                HStack(spacing: HoloSpacing.md) {
-                    Image(systemName: "brain.head.profile")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.holoPrimary)
-                        .frame(width: 28)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("记忆管理")
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
-
-                        Text("查看和管理 AI 记住的内容")
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
-                    }
-
-                    Spacer()
-                }
-            }
-
-            Toggle(isOn: $memorySettings.automaticMemoryEnabled) {
-                HStack(spacing: HoloSpacing.md) {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.holoPrimary)
-                        .frame(width: 28)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("自动形成记忆")
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
-
-                        Text("从各模块的数据变化中整理值得记住的内容")
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
-                    }
-                }
-            }
-
-            Toggle(isOn: $memorySettings.memoryAssistedAnsweringEnabled) {
-                HStack(spacing: HoloSpacing.md) {
-                    Image(systemName: "text.bubble")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.holoPrimary)
-                        .frame(width: 28)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("记忆辅助回答")
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
-
-                        Text("HoloAI 回答时可结合已有记忆理解你")
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
-                    }
-                }
-            }
-
-            Button {
-                Task { await runManualObservation() }
-            } label: {
-                HStack(spacing: HoloSpacing.md) {
-                    Image(systemName: "play.circle")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.holoPrimary)
-                        .frame(width: 28)
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(isObserving ? "观察中..." : "手动触发观察")
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
-
-                        if let result = observationResult {
-                            Text(result)
-                                .font(.system(size: 12))
-                                .foregroundColor(result.hasPrefix("成功") ? .green : .holoTextSecondary)
-                        } else {
-                            Text("按当前记忆与数据授权设置执行一次观察")
-                                .font(.system(size: 12))
-                                .foregroundColor(.holoTextSecondary)
-                        }
-                    }
-                }
-            }
-            .disabled(isObserving)
-        } header: {
-            Text("记忆管理")
-        } footer: {
-            Text("两个开关分别控制是否形成新记忆、以及 HoloAI 回答时是否使用已有记忆。关闭不会删除已有内容。")
-                .font(.caption)
-                .foregroundColor(.holoTextSecondary)
-        }
-    }
-
     // MARK: - Agent 深度分析（灰度）
 
     private var agentGrayscaleSection: some View {
@@ -551,14 +425,5 @@ struct AISettingsView: View {
         }
     }
 
-    // MARK: - Manual Observation
-
-    private func runManualObservation() async {
-        isObserving = true
-        observationResult = nil
-        await HoloMemoryLiveObservationCoordinator.shared.run(trigger: .dataChanged)
-        observationResult = "已按当前开关执行，请在 AI 记忆实验室查看真实链路"
-        isObserving = false
-    }
 }
 #endif

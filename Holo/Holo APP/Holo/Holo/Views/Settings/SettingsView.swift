@@ -25,7 +25,6 @@ struct SettingsView: View {
 
     @ObservedObject private var darkModeManager = DarkModeManager.shared
     @ObservedObject private var insightSettings = MemoryInsightScheduleSettings.shared
-    @ObservedObject private var memorySettings = HoloMemorySettings.shared
     @ObservedObject private var iCloudSyncStatus = ICloudSyncStatusService.shared
     @ObservedObject private var authService = AppleSignInAuthService.shared
     @ObservedObject private var storageService = StorageCacheService.shared
@@ -36,7 +35,6 @@ struct SettingsView: View {
     @State private var showHoloOneSettings = false
     @State private var showPrivacyPolicy = false
     @State private var showTermsOfUse = false
-    @State private var showProfileEditor = false
     @State private var showHealthKitDiagnostics = false
     @State private var showSignOutConfirmation = false
     @State private var showClearCacheAlert = false
@@ -64,9 +62,6 @@ struct SettingsView: View {
 
                     // AI 回放设置
                     aiPlaybackSection
-
-                    // AI 记忆设置
-                    aiMemorySection
 
                     // 存储与缓存
                     storageSection
@@ -657,69 +652,6 @@ struct SettingsView: View {
         .padding(.vertical, 12)
     }
 
-    // MARK: - AI 记忆设置
-
-    @State private var showMemoryCenter = false
-
-    private var aiMemorySection: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            HStack(spacing: HoloSpacing.sm) {
-                Image(systemName: "brain.head.profile")
-                    .font(.system(size: 18))
-                    .foregroundColor(.holoPrimary)
-
-                Text("AI 记忆")
-                    .font(.holoBody)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.holoTextPrimary)
-            }
-
-            VStack(spacing: 0) {
-                insightToggleRow(
-                    icon: "arrow.triangle.2.circlepath",
-                    iconColor: .holoPrimary,
-                    title: "自动形成记忆",
-                    subtitle: memorySettings.automaticMemoryEnabled ? "从你的数据变化中整理值得记住的内容" : "关闭后不再形成新记忆",
-                    isOn: $memorySettings.automaticMemoryEnabled
-                )
-
-                Divider()
-                    .padding(.leading, 56)
-
-                insightToggleRow(
-                    icon: "text.bubble",
-                    iconColor: .holoInfo,
-                    title: "记忆辅助回答",
-                    subtitle: memorySettings.memoryAssistedAnsweringEnabled ? "HoloAI 会结合已记住的信息理解你" : "关闭后回答不会读取已有记忆",
-                    isOn: $memorySettings.memoryAssistedAnsweringEnabled
-                )
-
-                Divider()
-                    .padding(.leading, 56)
-
-                settingsRow(
-                    icon: "list.bullet.rectangle",
-                    iconColor: .holoPrimary,
-                    title: "记忆管理",
-                    subtitle: "查看、纠正或停用 Holo 记住的内容"
-                ) {
-                    showMemoryCenter = true
-                }
-                .sheet(isPresented: $showMemoryCenter) {
-                    NavigationStack {
-                        HoloMemoryCenterView()
-                    }
-                }
-            }
-            .background(Color.holoCardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
-
-            Text("普通记忆可随你的 iCloud 在设备间同步；健康相关记忆只保存在本机。")
-                .font(.holoTinyLabel)
-                .foregroundColor(.holoTextSecondary)
-        }
-    }
-
     // MARK: - 其他设置（占位）
 
     private var otherSettingsSection: some View {
@@ -748,21 +680,6 @@ struct SettingsView: View {
             .sheet(isPresented: $showHoloOneSettings) {
                 NavigationStack {
                     HoloOneSettingsView()
-                }
-            }
-
-            // 个人档案
-            settingsRow(
-                icon: "person.text.rectangle",
-                iconColor: .holoPrimary,
-                title: "个人档案",
-                subtitle: HoloProfileService.shared.hasProfile ? "已配置" : "未配置"
-            ) {
-                showProfileEditor = true
-            }
-            .sheet(isPresented: $showProfileEditor) {
-                NavigationStack {
-                    HoloProfileEditorView()
                 }
             }
 
