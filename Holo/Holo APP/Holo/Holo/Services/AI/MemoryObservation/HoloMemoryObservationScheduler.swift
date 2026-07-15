@@ -49,6 +49,24 @@ private nonisolated struct HoloMemorySchedulerPersistedState: Codable, Sendable 
     var aiCallDates: [Date] = []
 }
 
+#if DEBUG
+nonisolated struct HoloMemorySchedulerDebugTargetSnapshot: Equatable, Sendable {
+    var targetKey: String
+    var isDirty: Bool
+    var dirtySince: Date?
+    var changeCount: Int
+    var lastSuccessfulAt: Date?
+    var retryAt: Date?
+}
+
+nonisolated struct HoloMemorySchedulerDebugSnapshot: Equatable, Sendable {
+    var targets: [HoloMemorySchedulerDebugTargetSnapshot]
+    var aiCallsToday: Int
+    var dailyCallLimit: Int
+    var isRunning: Bool
+}
+#endif
+
 actor HoloMemoryObservationScheduler {
     typealias ControlStateProvider = @Sendable () async -> HoloMemoryControlState
     typealias ConsentProvider = @Sendable () async -> Bool
@@ -107,6 +125,44 @@ actor HoloMemoryObservationScheduler {
         lastLightweightTrigger = trigger
         await Task.yield()
     }
+
+    #if DEBUG
+    func debugSnapshot(
+        now: Date = Date(),
+        dailyCallLimit: Int = 8
+    ) -> HoloMemorySchedulerDebugSnapshot {
+        let targetKeys = HoloMemoryDomain.allCases.map {
+            HoloMemoryObservationTarget.domain($0).stableKey
+        } + [HoloMemoryObservationTarget.crossDomain.stableKey]
+        let snapshots = targetKeys.map { key in
+            let dirty = state.registry.entry(for: target(for: key))
+            let retryAt = state.retryByObservationKey
+                .filter { $0.key.hasPrefix(key + "|") }
+                .map(\.value.retryAt)
+                .max()
+            return HoloMemorySchedulerDebugTargetSnapshot(
+                targetKey: key,
+                isDirty: dirty != nil,
+                dirtySince: dirty?.firstDirtyAt,
+                changeCount: dirty?.changeCount ?? 0,
+                lastSuccessfulAt: state.lastSuccessfulAtByTarget[key],
+                retryAt: retryAt
+            )
+        }
+        return HoloMemorySchedulerDebugSnapshot(
+            targets: snapshots,
+            aiCallsToday: state.aiCallDates.filter { Self.isSameDayUTC($0, now) }.count,
+            dailyCallLimit: dailyCallLimit,
+            isRunning: isRunning
+        )
+    }
+
+    private func target(for key: String) -> HoloMemoryObservationTarget {
+        if key == HoloMemoryObservationTarget.crossDomain.stableKey { return .crossDomain }
+        let rawValue = key.replacingOccurrences(of: "domain:", with: "")
+        return .domain(HoloMemoryDomain(rawValue: rawValue) ?? .profile)
+    }
+    #endif
 
     func runIfNeeded(
         now: Date,

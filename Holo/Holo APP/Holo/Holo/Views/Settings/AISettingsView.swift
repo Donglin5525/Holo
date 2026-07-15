@@ -345,6 +345,26 @@ struct AISettingsView: View {
     private var memorySection: some View {
         Section {
             NavigationLink {
+                AIMemoryLabView()
+            } label: {
+                HStack(spacing: HoloSpacing.md) {
+                    Image(systemName: "testtube.2")
+                        .font(.system(size: 16, weight: .medium))
+                        .foregroundColor(.orange)
+                        .frame(width: 28)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("AI 记忆实验室")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+                        Text("显性验证领域萃取、跨域融合与问题召回")
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoTextSecondary)
+                    }
+                }
+            }
+
+            NavigationLink {
                 HoloMemoryCenterView()
             } label: {
                 HStack(spacing: HoloSpacing.md) {
