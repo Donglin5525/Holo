@@ -193,17 +193,32 @@ test("flexible_query_planner supports deterministic per-meal averages", async ()
   assert.match(prompt.content, /不要记录.*吨.*顿.*纠错说明/);
 });
 
-test("analysis_prompt 默认 Prompt 使用 C 端纯文本输出约束", async () => {
+test("system_prompt 默认 Prompt 使用结论先行与渐进披露约束", async () => {
+  const app = createTestApp();
+
+  const response = await app.request("/v1/prompts/system_prompt");
+  assert.equal(response.status, 200);
+  const prompt = await response.json();
+
+  assert.equal(prompt.version, 3);
+  assert.match(prompt.content, /HOLO_CONSUMER_READABLE_ANSWER_V1/);
+  assert.match(prompt.content, /第一段直接回答用户最关心的问题/);
+  assert.match(prompt.content, /一个主结论和最多三个关键点/);
+  assert.match(prompt.content, /另起‘详细分析’一行/);
+});
+
+test("analysis_prompt 默认 Prompt 使用自然阅读与渐进披露约束", async () => {
   const app = createTestApp();
 
   const response = await app.request("/v1/prompts/analysis_prompt");
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  assert.equal(prompt.version, 3);
+  assert.equal(prompt.version, 4);
   assert.match(prompt.content, /适合手机 App 阅读的中文分析文本/);
-  assert.match(prompt.content, /不要输出 Markdown 语法符号/);
-  assert.match(prompt.content, /短标题行/);
+  assert.match(prompt.content, /HOLO_CONSUMER_READABLE_ANSWER_V1/);
+  assert.match(prompt.content, /短问题用一段自然短文回答/);
+  assert.match(prompt.content, /分析回答默认 180-320 字/);
   assert.doesNotMatch(prompt.content, /只输出 Markdown 文本/);
   assert.doesNotMatch(prompt.content, /使用 Markdown 格式/);
 });

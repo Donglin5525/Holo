@@ -5,10 +5,10 @@ import { fileURLToPath } from "node:url";
 import * as Diff from "diff";
 
 const PROMPT_VERSIONS = {
-  system_prompt: 2,
+  system_prompt: 3,
   intent_recognition: 24,
   memory_insight_generation: 7,
-  analysis_prompt: 3,
+  analysis_prompt: 4,
   annual_review: 1,
   thought_voice_summary: 2,
   flexible_query_planner: 4,
@@ -20,6 +20,8 @@ const PROMPT_VERSIONS = {
   memory_cross_domain_fusion: 1,
 };
 const PROMPT_CONTRACT_APPENDICES = {
+  system_prompt: [defaultPrompts._consumer_readable_answer_v1_contract],
+  analysis_prompt: [defaultPrompts._consumer_readable_answer_v1_contract],
   agent_loop: [defaultPrompts._agent_loop_v10_contract],
   memory_insight_generation: [defaultPrompts._memory_semantic_v2_contract],
   intent_recognition: [
