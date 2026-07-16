@@ -125,7 +125,7 @@ final class PromptManager {
     /// 需要版本管理的 prompt 类型及其最低版本
     private static let promptVersions: [PromptType: Int] = [
         .systemPrompt: 2,               // v2: Sense Loop 表达边界与档案优先级
-        .intentRecognition: 23,         // v23: 同批聚合禁止拆成 multi_action
+        .intentRecognition: 24,         // v24: 个人近期整体状态稳定进入 query_analysis
         .memoryInsightGeneration: 7,    // v7: Sense Loop 表达边界、偏好摘要与表达强度
         .analysisPrompt: 3,             // v3: Sense Loop 表达边界与档案优先级
         .annualReview: 1,               // v1: 初始版本
@@ -505,6 +505,11 @@ final class PromptManager {
         - "平均一天抽烟花多少钱" → intent: "query_analysis", extractedData: { analysisDomain: "finance", periodLabel: "最近" }
         - "明天去山姆买牛奶、鸡蛋和纸巾" → intent: "create_task", extractedData: { title: "去山姆购物", subtasks: "买牛奶,买鸡蛋,买纸巾" }
         - "嗯..." → intent: "unknown", mode: "unknown"
+
+        [HOLO_PERSONAL_STATE_ROUTING_V24]
+        - 个人近期整体状态问法，如“我最近状态怎么样/如何”“最近我咋样”“帮我看看我近期整体情况”“我最近过得好不好”，必须输出 mode=query、intent=query_analysis、needsClarification=false；不得追问领域，也不得降级为普通 query。extractedData 填 analysisDomain="cross_domain"、analysisScope="holistic"、periodLabel="最近"。
+        - 明确单领域的近期状态/趋势问法仍为 query_analysis，analysisDomain 填 finance/health/habit/task/goal/thought；同时涉及两个及以上领域时填 cross_domain。睡眠问法加 subDomain="sleep"。
+        - “你最近怎么样”“今天天气怎么样”“Holo 服务状态怎么样”属于普通 query；查询与执行混合仍走 clarification。
 
         只回 JSON。
         """,
