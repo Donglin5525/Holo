@@ -6,7 +6,7 @@ import * as Diff from "diff";
 
 const PROMPT_VERSIONS = {
   system_prompt: 2,
-  intent_recognition: 23,
+  intent_recognition: 24,
   memory_insight_generation: 7,
   analysis_prompt: 3,
   annual_review: 1,
@@ -20,12 +20,15 @@ const PROMPT_VERSIONS = {
   memory_cross_domain_fusion: 1,
 };
 const PROMPT_CONTRACT_APPENDICES = {
-  agent_loop: defaultPrompts._agent_loop_v10_contract,
-  memory_insight_generation: defaultPrompts._memory_semantic_v2_contract,
-  intent_recognition: `
+  agent_loop: [defaultPrompts._agent_loop_v10_contract],
+  memory_insight_generation: [defaultPrompts._memory_semantic_v2_contract],
+  intent_recognition: [
+    `
 
 [HOLO_QUERY_AGGREGATE_V23]
 “最近一个月吃了多少顿麦当劳，花了多少钱，平均一顿多少钱”及同批次数/总额/平均每笔/每次/每顿→flexible_data_query；“吨”按顿。必须输出 single_action，items 仅 1 项，保留 categoryCandidate/periodLabel；不要拆成 multi_action。`,
+    defaultPrompts._intent_personal_state_v24_contract,
+  ],
   flexible_query_planner: `
 
 [HOLO_QUERY_AGGREGATE_PLANNER_V4]
@@ -52,12 +55,17 @@ function applyPromptContract(type, content) {
         '$1"subjectKey": "string, 跨周期稳定主题键，如 habit:running",\n        $2'
       );
   }
-  const appendix = PROMPT_CONTRACT_APPENDICES[type];
-  if (!appendix) return normalizedContent;
-  const marker = appendix.match(/\[([A-Z0-9_]+)\]/)?.[0];
-  return marker && normalizedContent.includes(marker)
-    ? normalizedContent
-    : `${normalizedContent}${appendix}`;
+  const appendices = PROMPT_CONTRACT_APPENDICES[type];
+  if (!appendices) return normalizedContent;
+  const normalizedAppendices = Array.isArray(appendices) ? appendices : [appendices];
+  for (const appendix of normalizedAppendices) {
+    if (!appendix) continue;
+    const marker = appendix.match(/\[([A-Z0-9_]+)\]/)?.[0];
+    if (!marker || !normalizedContent.includes(marker)) {
+      normalizedContent += appendix;
+    }
+  }
+  return normalizedContent;
 }
 
 /** 注入 SQLite 数据库连接（由 app.js 调用） */

@@ -20,6 +20,7 @@ import { createAppleIdentityVerifier } from "./auth/appleIdentityVerifier.js";
 import { createHoloSessionService } from "./auth/holoSession.js";
 import { requireInternalDiagnostics } from "./auth/internalDiagnosticsAuth.js";
 import { injectServerPrompt } from "./prompts/serverPromptPolicy.js";
+import { buildDeterministicIntentCompletion } from "./intentResponseStabilizer.js";
 
 const CLIENT_ROUTING_FIELDS = ["baseURL", "baseUrl", "apiKey", "provider", "model"];
 
@@ -306,9 +307,12 @@ export function createApp(overrides = {}) {
       }
 
       try {
-        const result = purpose === "insight"
+        const deterministicIntentResult = purpose === "intent"
+          ? buildDeterministicIntentCompletion(upstreamRequest.messages, route.model)
+          : null;
+        const result = deterministicIntentResult ?? (purpose === "insight"
           ? await completeInsightWithRetry(provider, upstreamRequest)
-          : await provider.complete(upstreamRequest);
+          : await provider.complete(upstreamRequest));
         if (purpose === "agent_loop") {
           const agentContent = result?.choices?.[0]?.message?.content;
           const agentValidation = validateAgentLoopContent(agentContent ?? "");

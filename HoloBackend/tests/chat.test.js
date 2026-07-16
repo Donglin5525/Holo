@@ -368,6 +368,60 @@ test("intent mock routes sleep and health status questions to health query_analy
   assert.notEqual(parsed.items[0].intent, "query_habits");
 });
 
+test("personal state queries bypass the model and stay deterministic across repeated requests", async () => {
+  let providerCallCount = 0;
+  const failingProvider = {
+    async complete() {
+      providerCallCount += 1;
+      throw new Error("明确的个人状态查询不应调用模型");
+    },
+  };
+  const app = createTestApp({
+    routes: {
+      intent: {
+        provider: "must-not-call",
+        model: "unstable-intent-model",
+        temperature: 1,
+        maxTokens: 4096,
+      },
+    },
+    providerOverrides: new Map([["must-not-call", failingProvider]]),
+  });
+  const cases = [
+    "我最近状态怎么样",
+    "我最近状态怎么样",
+    "我最近状态如何",
+    "帮我看看我近期的整体情况",
+    "我最近财务和健康状态怎么样",
+  ];
+
+  for (const [index, input] of cases.entries()) {
+    const response = await app.request("/v1/ai/chat/completions", {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-holo-device-id": `deterministic-personal-state-${index}`,
+      },
+      body: JSON.stringify({
+        purpose: "intent",
+        stream: false,
+        response_format: { type: "json_object" },
+        messages: [{ role: "user", content: input }],
+      }),
+    });
+
+    assert.equal(response.status, 200, input);
+    const json = await response.json();
+    assert.equal(json.id, "holo-deterministic-intent", input);
+    const parsed = JSON.parse(json.choices[0].message.content);
+    assert.equal(parsed.mode, "query", input);
+    assert.equal(parsed.items[0].intent, "query_analysis", input);
+    assert.equal(parsed.needsClarification, false, input);
+  }
+
+  assert.equal(providerCallCount, 0);
+});
+
 test("admin logs are disabled when HOLO_ADMIN_TOKEN is not configured", async () => {
   const app = createTestApp();
 
@@ -754,7 +808,7 @@ test("GET /v1/prompts/:type returns prompt content and version", async () => {
   assert.equal(response.status, 200);
   const json = await response.json();
   assert.equal(json.type, "intent_recognition");
-  assert.equal(json.version, 23);
+  assert.equal(json.version, 24);
   assert.match(json.content, /短意图 Router/);
 });
 

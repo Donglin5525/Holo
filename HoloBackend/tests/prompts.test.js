@@ -121,7 +121,7 @@ test("启动时自动把默认 Prompt 登记到版本历史", async () => {
   assert.match(historyHtml, /自动登记默认 Prompt 基线/);
 });
 
-test("intent_recognition 默认 Prompt 已瘦身为核心 Router（v23）", async () => {
+test("intent_recognition 默认 Prompt 已瘦身并固定个人状态路由（v24）", async () => {
   const app = createTestApp();
 
   const response = await app.request("/v1/prompts/intent_recognition");
@@ -129,10 +129,10 @@ test("intent_recognition 默认 Prompt 已瘦身为核心 Router（v23）", asyn
   const prompt = await response.json();
 
   // 版本号
-  assert.equal(prompt.version, 23);
+  assert.equal(prompt.version, 24);
 
   // 长度验证：Router 允许补充必要规则，但仍防止重新膨胀为长 prompt
-  assert.ok(prompt.content.length < 3500, `prompt 长度 ${prompt.content.length} 超过 3500`);
+  assert.ok(prompt.content.length < 4300, `prompt 长度 ${prompt.content.length} 超过 4300`);
 
   // 保留的核心字段
   assert.match(prompt.content, /note/);
@@ -158,6 +158,10 @@ test("intent_recognition 默认 Prompt 已瘦身为核心 Router（v23）", asyn
   assert.match(prompt.content, /不要拆成 multi_action/);
   assert.match(prompt.content, /睡眠/);
   assert.match(prompt.content, /analysisDomain: "health"/);
+  assert.match(prompt.content, /HOLO_PERSONAL_STATE_ROUTING_V24/);
+  assert.match(prompt.content, /我最近状态怎么样\/如何/);
+  assert.match(prompt.content, /不得追问领域/);
+  assert.match(prompt.content, /analysisDomain="cross_domain"/);
 
   // 已下沉字段不应出现在 Router prompt 中
   assert.doesNotMatch(prompt.content, /installmentEnabled/);
