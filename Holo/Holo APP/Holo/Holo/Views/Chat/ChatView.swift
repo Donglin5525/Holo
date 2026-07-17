@@ -23,6 +23,7 @@ struct ChatView: View {
     @State private var pendingCategoryEditMessage: ChatMessageViewData?
     @State private var pendingEditPrefill: PendingTransactionPrefill?
     @State private var financeSearchRoute: FlexibleQueryFinanceSearchRoute?
+    @State private var memoryInboxNotice: String?
     @Binding var goalPlanningRequest: GoalPlanningRequest?
 
     /// 外部传入的预填文本（如从记忆长廊"继续问AI"跳转）
@@ -70,7 +71,38 @@ struct ChatView: View {
             dismiss()
         }
         .overlay(alignment: .top) {
-            if let notice = viewModel.memoryNotice {
+            if let notice = memoryInboxNotice {
+                HStack(spacing: HoloSpacing.xs) {
+                    Button {
+                        HoloMemoryReceiptStore.markWriteReceiptsRead()
+                        activeSheet = .memoryCenter
+                        memoryInboxNotice = nil
+                    } label: {
+                        Label(notice, systemImage: "brain.head.profile.fill")
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundColor(.holoTextPrimary)
+                    }
+                    .buttonStyle(.plain)
+
+                    Button {
+                        HoloMemoryReceiptStore.markWriteReceiptsRead()
+                        memoryInboxNotice = nil
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.holoTextSecondary)
+                            .padding(5)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.leading, 14)
+                .padding(.trailing, 6)
+                .padding(.vertical, 7)
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay(Capsule().stroke(Color.holoPrimary.opacity(0.2)))
+                .padding(.top, 58)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            } else if let notice = viewModel.memoryNotice {
                 Label(notice, systemImage: "brain.head.profile.fill")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundColor(.holoTextPrimary)
@@ -82,12 +114,22 @@ struct ChatView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
+        .animation(.easeInOut(duration: 0.2), value: memoryInboxNotice)
         .animation(.easeInOut(duration: 0.2), value: viewModel.memoryNotice)
         .sheet(item: $activeSheet, onDismiss: handleSheetDismiss) { sheet in
             sheetContent(sheet)
         }
         .task {
             await viewModel.setup()
+            await loadMemoryInboxNoticeIfNeeded()
+            #if DEBUG
+            if HoloAppStoreScreenshotSeeder.requestedRoute == .aiAnalysis,
+               let message = viewModel.messages.last(where: {
+                   $0.metadataState == .loaded && $0.analysisContext != nil
+               }) {
+                activeSheet = .analysisDetail(message)
+            }
+            #endif
             if let text = prefillText, !text.isEmpty {
                 viewModel.inputText = text
             }
@@ -217,6 +259,8 @@ struct ChatView: View {
         .padding(.horizontal, 16)
         .padding(.top, 8)
         .padding(.bottom, 4)
+        .background(Color.holoBackground)
+        .zIndex(1)
     }
 
     // MARK: - Unconfigured View
@@ -252,8 +296,11 @@ struct ChatView: View {
             // 消息列表
             messageList
 
-            // 快捷操作栏
-            QuickActionBar(viewModel: viewModel)
+            // 能力入口只在空会话展示，进入对话后让内容与输入框保持安静。
+            if viewModel.messages.isEmpty {
+                QuickActionBar(viewModel: viewModel)
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            }
 
             // 输入栏
             ChatInputView(
@@ -263,6 +310,7 @@ struct ChatView: View {
                 }
             )
         }
+        .animation(.easeInOut(duration: 0.2), value: viewModel.messages.isEmpty)
     }
 
     private func statusBanner(_ text: String) -> some View {
@@ -574,6 +622,10 @@ struct ChatView: View {
                     dismiss()
                 }
             }
+        case .memoryCenter:
+            NavigationStack {
+                HoloMemoryCenterView()
+            }
         case .voiceInput:
             VoiceInputSheet(speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider()) { transcript in
                 pendingVoiceTranscriptToSend = transcript
@@ -594,6 +646,15 @@ struct ChatView: View {
         viewModel.inputText = transcript
         Task { await viewModel.sendMessage() }
     }
+
+    @MainActor
+    private func loadMemoryInboxNoticeIfNeeded() async {
+        let snapshot = await HoloMemoryReceiptStore.inboxSnapshot()
+        guard !snapshot.isEmpty,
+              HoloMemoryReceiptStore.shouldPresentSummary() else { return }
+        HoloMemoryReceiptStore.markSummaryPresented()
+        memoryInboxNotice = snapshot.summaryText
+    }
 }
 
 private enum ChatSheet: Identifiable {
@@ -604,6 +665,7 @@ private enum ChatSheet: Identifiable {
     case editTransaction(Transaction)
     case analysisDetail(ChatMessageViewData)
     case agentDeepAnalysis(ChatMessageViewData)
+    case memoryCenter
     case voiceInput
 
     var id: String {
@@ -620,6 +682,8 @@ private enum ChatSheet: Identifiable {
             return "analysisDetail-\(message.id)"
         case .agentDeepAnalysis(let message):
             return "agentDeepAnalysis-\(message.id)"
+        case .memoryCenter:
+            return "memoryCenter"
         case .voiceInput:
             return "voiceInput"
         }

@@ -29,6 +29,7 @@ struct MemoryInsightHeroCard: View {
     let insightRefreshTotal: Int
     let onRefresh: () -> Void
     let onContinueInChat: () -> Void
+    let onInsightActionContinueInChat: (String) -> Void
     let onGoToAISettings: () -> Void
 
     @State private var isCardsExpanded: Bool = false
@@ -382,7 +383,8 @@ struct MemoryInsightHeroCard: View {
                     card: card,
                     anomalySeverity: card.anomalySeverity,
                     insightId: insight?.id,
-                    actionCandidate: actionMap[card.id]
+                    actionCandidate: actionMap[card.id],
+                    onContinueInChat: onInsightActionContinueInChat
                 )
             }
 
@@ -512,6 +514,7 @@ struct MemoryInsightHeroCard: View {
         insightRefreshTotal: MemoryInsightRefreshQuota.maxPerDay,
         onRefresh: {},
         onContinueInChat: {},
+        onInsightActionContinueInChat: { _ in },
         onGoToAISettings: {}
     )
     .padding()
@@ -535,6 +538,7 @@ struct MemoryInsightHeroCard: View {
         insightRefreshTotal: MemoryInsightRefreshQuota.maxPerDay,
         onRefresh: {},
         onContinueInChat: {},
+        onInsightActionContinueInChat: { _ in },
         onGoToAISettings: {}
     )
     .padding()

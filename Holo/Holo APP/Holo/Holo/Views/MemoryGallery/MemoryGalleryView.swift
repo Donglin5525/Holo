@@ -67,6 +67,12 @@ struct MemoryGalleryView: View {
         }
         #endif
         .task {
+            #if DEBUG
+            if HoloAppStoreScreenshotSeeder.requestedRoute == .memoryInsight {
+                selectedTab = .insight
+                isReplayExpanded = true
+            }
+            #endif
             await viewModel.refresh()
             await handleInsightDeepLinkIfNeeded()
         }
@@ -204,6 +210,9 @@ struct MemoryGalleryView: View {
                                 if let prompt = viewModel.buildContinueInChatPrompt() {
                                     onNavigateToChat?(prompt)
                                 }
+                            },
+                            onInsightActionContinueInChat: { prompt in
+                                onNavigateToChat?(prompt)
                             },
                             onGoToAISettings: {
                                 #if DEBUG

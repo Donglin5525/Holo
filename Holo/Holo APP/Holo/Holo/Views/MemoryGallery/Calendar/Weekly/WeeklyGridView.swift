@@ -2,7 +2,7 @@
 //  WeeklyGridView.swift
 //  Holo
 //
-//  周历网格视图（P2）：7 列 × 24h 时间轴，事件按 timestamp 定位
+//  周历网格视图（P2）：7 列共享弹性时间轴，按小时密度动态拉伸
 //
 
 import SwiftUI
@@ -16,34 +16,29 @@ struct WeeklyGridView: View {
     @AppStorage("holo.memoryGallery.weeklyGrid.collapseMorning")
     private var collapseMorning: Bool = true
 
-    private let hourHeight: CGFloat = 42
     private let startHour = 0
     private let endHour = 23
-    private let eventHeight: CGFloat = 26
     private let collapsedMorningHours = 0..<7
 
     private var visibleStartHour: Int {
         collapseMorning ? 7 : startHour
     }
 
-    private var gridHeight: CGFloat {
-        CGFloat(endHour - visibleStartHour + 1) * hourHeight
-    }
-
     var body: some View {
+        let profile = axisProfile
         ScrollView(showsIndicators: false) {
             VStack(spacing: HoloSpacing.xs) {
                 weekHeader
                 morningCollapseControl
                 HStack(alignment: .top, spacing: 0) {
-                    timeAxis
+                    timeAxis(profile: profile)
                     ZStack(alignment: .topLeading) {
                         HStack(alignment: .top, spacing: 0) {
                             ForEach(0..<7, id: \.self) { dayOffset in
-                                dayColumn(dayOffset)
+                                dayColumn(dayOffset, profile: profile)
                             }
                         }
-                        nowLine
+                        nowLine(profile: profile)
                     }
                 }
                 legend
@@ -78,7 +73,7 @@ struct WeeklyGridView: View {
             Color.clear.frame(width: 32)
             ForEach(0..<7, id: \.self) { dayOffset in
                 if let day = Calendar.current.date(byAdding: .day, value: dayOffset, to: weekStart) {
-                    let early = layoutFor(day).early
+                    let early = layoutFor(day, profile: axisProfile).early
                     if early.isEmpty {
                         Color.clear
                             .frame(maxWidth: .infinity)
@@ -110,13 +105,13 @@ struct WeeklyGridView: View {
         }
     }
 
-    private var timeAxis: some View {
+    private func timeAxis(profile: WeeklyGridAxisProfile) -> some View {
         VStack(spacing: 0) {
-            ForEach(visibleStartHour...endHour, id: \.self) { h in
-                Text(shouldShowHourLabel(h) ? "\(h)" : "")
+            ForEach(profile.segments) { segment in
+                Text(shouldShowHourLabel(segment.hour) ? "\(segment.hour)" : "")
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundColor(.holoTextSecondary)
-                    .frame(width: 32, height: hourHeight, alignment: .topTrailing)
+                    .frame(width: 32, height: segment.height, alignment: .topTrailing)
             }
             Text("24")
                 .font(.system(size: 10, weight: .medium, design: .rounded))
@@ -126,19 +121,19 @@ struct WeeklyGridView: View {
     }
 
     @ViewBuilder
-    private func dayColumn(_ dayOffset: Int) -> some View {
+    private func dayColumn(_ dayOffset: Int, profile: WeeklyGridAxisProfile) -> some View {
         let cal = Calendar.current
         if let day = cal.date(byAdding: .day, value: dayOffset, to: weekStart) {
-            let layout = layoutFor(day)
+            let layout = layoutFor(day, profile: profile)
             GeometryReader { proxy in
                 ZStack(alignment: .topLeading) {
-                    gridBackground
+                    gridBackground(profile: profile)
                     ForEach(layout.displayItems) { item in
                         gridDisplayBlock(item, columnWidth: proxy.size.width)
                     }
                 }
             }
-            .frame(height: gridHeight)
+            .frame(height: profile.totalHeight)
             .frame(maxWidth: .infinity)
             .overlay(
                 Rectangle()
@@ -149,23 +144,21 @@ struct WeeklyGridView: View {
         }
     }
 
-    private func layoutFor(_ day: Date) -> WeeklyGridEventLayout {
+    private func layoutFor(_ day: Date, profile: WeeklyGridAxisProfile) -> WeeklyGridEventLayout {
         let cal = Calendar.current
         return WeeklyGridEventLayout.layout(
             events: eventsByDay[cal.startOfDay(for: day)] ?? [],
-            startHour: visibleStartHour,
-            endHour: endHour,
-            hourHeight: hourHeight,
+            axisProfile: profile,
             collapsedHours: collapseMorning ? collapsedMorningHours : nil
         )
     }
 
-    private var gridBackground: some View {
+    private func gridBackground(profile: WeeklyGridAxisProfile) -> some View {
         VStack(spacing: 0) {
-            ForEach(visibleStartHour...endHour, id: \.self) { _ in
+            ForEach(profile.segments) { segment in
                 Rectangle()
                     .fill(Color.clear)
-                    .frame(height: hourHeight)
+                    .frame(height: segment.height)
                     .overlay(
                         Rectangle().fill(Color.holoDivider).frame(height: 0.5),
                         alignment: .top
@@ -212,45 +205,37 @@ struct WeeklyGridView: View {
     }
 
     private func gridDisplayBlock(_ item: WeeklyGridEventLayout.DisplayItem, columnWidth: CGFloat) -> some View {
-        let laneCount = max(1, item.laneCount)
-        let laneWidth = columnWidth / CGFloat(laneCount)
-        let blockHeight = displayBlockHeight(for: item)
-        let compactSummary = item.stackCount > 1
+        let accentColor = item.isOverflow ? Color.holoTextSecondary : item.module.color
         return Button {
-            if item.events.count == 1 {
-                onSelect(item.primaryEvent)
-            } else {
+            if item.isOverflow {
                 onSelectGroup(item.events)
+            } else {
+                onSelect(item.primaryEvent)
             }
         } label: {
             HStack(spacing: 3) {
                 Text(item.displayTitle)
-                    .font(.system(size: compactSummary ? 9 : 10.5, weight: .bold))
-                    .foregroundColor(.holoTextPrimary)
+                    .font(.system(size: item.isOverflow ? 8.5 : 10, weight: .bold))
+                    .foregroundColor(item.isOverflow ? .holoTextSecondary : .holoTextPrimary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.68)
                 Spacer(minLength: 0)
             }
-            .padding(.leading, compactSummary ? 5 : 6)
+            .padding(.leading, item.isOverflow ? 5 : 6)
             .padding(.trailing, 2)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .frame(height: blockHeight)
-            .background(item.module.color.opacity(item.isSummary ? 0.12 : 0.14))
+            .frame(height: item.height)
+            .background(accentColor.opacity(item.isOverflow ? 0.07 : 0.14))
             .overlay(alignment: .leading) {
                 Rectangle()
-                    .fill(item.module.color)
-                    .frame(width: 3)
+                    .fill(accentColor)
+                    .frame(width: item.isOverflow ? 2 : 3)
             }
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .clipShape(RoundedRectangle(cornerRadius: item.isOverflow ? 4 : 6))
         }
         .buttonStyle(.plain)
-        .frame(width: max(24, laneWidth - 4))
-        .offset(x: CGFloat(item.lane) * laneWidth + 2, y: item.top)
-    }
-
-    private func displayBlockHeight(for item: WeeklyGridEventLayout.DisplayItem) -> CGFloat {
-        guard item.stackCount > 1 else { return eventHeight }
-        return max(12, min(20, hourHeight / CGFloat(item.stackCount) - 3))
+        .frame(width: max(24, columnWidth - 4))
+        .offset(x: 2, y: item.top)
     }
 
     private func shouldShowHourLabel(_ hour: Int) -> Bool {
@@ -258,7 +243,7 @@ struct WeeklyGridView: View {
     }
 
     @ViewBuilder
-    private var nowLine: some View {
+    private func nowLine(profile: WeeklyGridAxisProfile) -> some View {
         let calendar = Calendar.current
         let todayStart = calendar.startOfDay(for: Date())
         let weekEnd = calendar.date(byAdding: .day, value: 7, to: weekStart) ?? weekStart
@@ -270,8 +255,7 @@ struct WeeklyGridView: View {
                 let weekdayOffset = calendar.dateComponents([.day], from: weekStart, to: todayStart).day ?? 0
                 GeometryReader { proxy in
                     let columnWidth = proxy.size.width / 7.0
-                    let top = CGFloat(hour - visibleStartHour) * hourHeight
-                        + CGFloat(comps.minute ?? 0) / 60.0 * hourHeight
+                    let top = profile.yPosition(hour: hour, minute: comps.minute ?? 0)
                     ZStack(alignment: .topLeading) {
                         Rectangle()
                             .fill(Color.holoPrimary)
@@ -285,6 +269,24 @@ struct WeeklyGridView: View {
                 }
             }
         }
+    }
+
+    private var axisProfile: WeeklyGridAxisProfile {
+        let calendar = Calendar.current
+        let countsByDay: [[Int: Int]] = (0..<7).compactMap { dayOffset in
+            guard let day = calendar.date(byAdding: .day, value: dayOffset, to: weekStart) else {
+                return nil
+            }
+            let events = eventsByDay[calendar.startOfDay(for: day)] ?? []
+            return Dictionary(grouping: events) { event in
+                calendar.component(.hour, from: event.date)
+            }.mapValues(\.count)
+        }
+        return WeeklyGridAxisProfile.make(
+            eventCountsByDay: countsByDay,
+            startHour: visibleStartHour,
+            endHour: endHour
+        )
     }
 
     private var legend: some View {

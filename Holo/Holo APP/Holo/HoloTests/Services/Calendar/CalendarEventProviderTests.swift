@@ -136,18 +136,24 @@ final class CalendarEventProviderTests: XCTestCase {
 
     // MARK: - 展示层模型
 
-    func test_weeklyGridLayout同时间事件拆成并列lane避免重叠() {
+    func test_weeklyGridLayout同时间事件按顺序纵向展开() {
         let events = [
             makeEvent(.finance, day: 1, hour: 15, minute: 26),
             makeEvent(.todo, day: 1, hour: 15, minute: 26),
             makeEvent(.thought, day: 1, hour: 15, minute: 31)
         ]
+        let profile = WeeklyGridAxisProfile.make(
+            eventCountsByDay: [[15: events.count]],
+            startHour: 6,
+            endHour: 23
+        )
 
-        let items = WeeklyGridEventLayout.layout(events: events, startHour: 6, endHour: 23, hourHeight: 42)
+        let items = WeeklyGridEventLayout.layout(events: events, axisProfile: profile)
 
-        XCTAssertEqual(items.visible.count, 3)
-        XCTAssertEqual(Set(items.visible.map(\.laneCount)), [3], "同一时间簇应共享 laneCount")
-        XCTAssertEqual(Set(items.visible.map(\.lane)), [0, 1, 2], "同一时间簇应拆成不同 lane")
+        XCTAssertEqual(items.displayItems.count, 3)
+        XCTAssertEqual(items.displayItems.map(\.height), [24, 24, 24])
+        XCTAssertEqual(items.displayItems.map(\.top), [381, 408, 435])
+        XCTAssertTrue(items.displayItems.allSatisfy { !$0.isOverflow })
     }
 
     func test_weeklyGridLayout凌晨事件进入earlyBucket而不是夹到6点() {
@@ -156,48 +162,76 @@ final class CalendarEventProviderTests: XCTestCase {
             makeEvent(.habit, day: 1, hour: 7, minute: 30)
         ]
 
-        let items = WeeklyGridEventLayout.layout(events: events, startHour: 6, endHour: 23, hourHeight: 42)
+        let profile = WeeklyGridAxisProfile.make(
+            eventCountsByDay: [[7: 1]],
+            startHour: 6,
+            endHour: 23
+        )
+        let items = WeeklyGridEventLayout.layout(events: events, axisProfile: profile)
 
         XCTAssertEqual(items.early.count, 1)
-        XCTAssertEqual(items.visible.count, 1)
-        XCTAssertEqual(items.visible.first?.event.module, .habit)
+        XCTAssertEqual(items.displayItems.count, 1)
+        XCTAssertEqual(items.displayItems.first?.primaryEvent.module, .habit)
     }
 
-    func test_weeklyGridLayout同一小时多模块合并成模块摘要() {
+    func test_weeklyGridLayout同一小时多模块仍逐条展示() {
         let events = [
             makeEvent(.habit, day: 1, hour: 10, minute: 2),
             makeEvent(.habit, day: 1, hour: 10, minute: 9),
             makeEvent(.finance, day: 1, hour: 10, minute: 16),
             makeEvent(.thought, day: 1, hour: 10, minute: 41)
         ]
+        let profile = WeeklyGridAxisProfile.make(
+            eventCountsByDay: [[10: events.count]],
+            startHour: 6,
+            endHour: 23
+        )
 
-        let items = WeeklyGridEventLayout.layout(events: events, startHour: 6, endHour: 23, hourHeight: 42)
+        let items = WeeklyGridEventLayout.layout(events: events, axisProfile: profile)
 
-        XCTAssertEqual(items.displayItems.count, 3)
-        XCTAssertEqual(items.displayItems.map(\.module), [.finance, .habit, .thought])
-        XCTAssertEqual(items.displayItems.first(where: { $0.module == .habit })?.displayTitle, "习惯 +2")
-        XCTAssertEqual(items.displayItems.first(where: { $0.module == .habit })?.events.count, 2)
-        XCTAssertTrue(items.displayItems.allSatisfy { $0.isSummary }, "多模块拥挤时应展示模块摘要，明细进弹窗")
-        XCTAssertEqual(Set(items.displayItems.map(\.lane)), [0], "多模块摘要应纵向堆叠，避免左右挤压成省略号")
-        XCTAssertEqual(Set(items.displayItems.map(\.laneCount)), [1], "多模块摘要应占满列宽")
-        XCTAssertEqual(Set(items.displayItems.map(\.stackCount)), [3])
-        XCTAssertEqual(items.displayItems.map(\.stackIndex), [0, 1, 2])
-        XCTAssertEqual(items.displayItems.map(\.top), [168, 182, 196])
+        XCTAssertEqual(items.displayItems.count, 4)
+        XCTAssertEqual(items.displayItems.map(\.module), [.habit, .habit, .finance, .thought])
+        XCTAssertEqual(items.displayItems.map(\.displayTitle), events.map(\.title))
+        XCTAssertTrue(items.displayItems.allSatisfy { $0.events.count == 1 })
+        XCTAssertTrue(items.displayItems.allSatisfy { !$0.isOverflow })
     }
 
-    func test_weeklyGridLayout同一小时单模块保持自然胶囊() {
+    func test_weeklyGridLayout同一小时单模块不再合并加号摘要() {
         let events = [
             makeEvent(.habit, day: 1, hour: 14, minute: 3),
             makeEvent(.habit, day: 1, hour: 14, minute: 18),
             makeEvent(.habit, day: 1, hour: 14, minute: 43)
         ]
+        let profile = WeeklyGridAxisProfile.make(
+            eventCountsByDay: [[14: events.count]],
+            startHour: 6,
+            endHour: 23
+        )
 
-        let items = WeeklyGridEventLayout.layout(events: events, startHour: 6, endHour: 23, hourHeight: 42)
+        let items = WeeklyGridEventLayout.layout(events: events, axisProfile: profile)
 
-        XCTAssertEqual(items.displayItems.count, 1)
-        XCTAssertEqual(items.displayItems.first?.displayTitle, "T1-14-3 +3")
-        XCTAssertEqual(items.displayItems.first?.events.count, 3)
-        XCTAssertFalse(items.displayItems.first?.isSummary ?? true, "单模块拥挤时仍用胶囊表达，不退化成模块名")
+        XCTAssertEqual(items.displayItems.count, 3)
+        XCTAssertEqual(items.displayItems.map(\.displayTitle), events.map(\.title))
+        XCTAssertTrue(items.displayItems.allSatisfy { $0.events.count == 1 })
+    }
+
+    func test_weeklyGridLayout超过四条展示溢出入口且包含完整清单() {
+        let events = (0..<6).map { minute in
+            makeEvent(.todo, day: 1, hour: 18, minute: minute)
+        }
+        let profile = WeeklyGridAxisProfile.make(
+            eventCountsByDay: [[18: events.count]],
+            startHour: 6,
+            endHour: 23
+        )
+
+        let items = WeeklyGridEventLayout.layout(events: events, axisProfile: profile)
+
+        XCTAssertEqual(items.displayItems.count, 5)
+        XCTAssertEqual(items.displayItems.prefix(4).map(\.displayTitle), events.prefix(4).map(\.title))
+        XCTAssertEqual(items.displayItems.last?.displayTitle, "还有 2 条")
+        XCTAssertEqual(items.displayItems.last?.events.count, 6, "溢出入口应打开该小时完整事件清单")
+        XCTAssertEqual(items.displayItems.last?.height, 17)
     }
 
     func test_weeklyGridLayout零到六点折叠后七点开始展示() {
@@ -208,11 +242,14 @@ final class CalendarEventProviderTests: XCTestCase {
             makeEvent(.thought, day: 1, hour: 8, minute: 5)
         ]
 
+        let profile = WeeklyGridAxisProfile.make(
+            eventCountsByDay: [[7: 1, 8: 1]],
+            startHour: 7,
+            endHour: 23
+        )
         let items = WeeklyGridEventLayout.layout(
             events: events,
-            startHour: 7,
-            endHour: 23,
-            hourHeight: 42,
+            axisProfile: profile,
             collapsedHours: 0..<7
         )
 

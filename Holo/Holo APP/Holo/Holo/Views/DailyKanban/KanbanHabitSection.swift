@@ -15,6 +15,8 @@ struct KanbanHabitSection: View {
     @ObservedObject private var displaySettings = HabitStatsDisplaySettings.shared
     @State private var completedHabits: Set<UUID> = []
     @State private var todayValues: [UUID: Double] = [:]
+    /// 待撤销的习惯（测量类长按撤销确认弹窗用）
+    @State private var undoHabit: Habit? = nil
 
     @Binding var inputValue: String
     @Binding var editingHabit: Habit?
@@ -55,6 +57,20 @@ struct KanbanHabitSection: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .habitDataDidChange)) { _ in
             loadStatus()
+        }
+        .confirmationDialog(
+            undoHabit.map { "撤销「\($0.name)」今日最近一笔记录？" } ?? "",
+            isPresented: Binding(
+                get: { undoHabit != nil },
+                set: { if !$0 { undoHabit = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("撤销", role: .destructive) {
+                if let habit = undoHabit { undoLatestRecord(habit) }
+                undoHabit = nil
+            }
+            Button("取消", role: .cancel) { undoHabit = nil }
         }
     }
 
@@ -207,6 +223,21 @@ struct KanbanHabitSection: View {
                 Text(habit.formatValue(value))
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundColor(.holoTextPrimary)
+
+                // -1 撤销今日最近一笔（计数类误 +1 回退用）
+                Button {
+                    undoLatestRecord(habit)
+                } label: {
+                    Text("-1")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.holoTextSecondary)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.holoCardBackground)
+                        .overlay(Capsule().stroke(Color.holoBorder, lineWidth: 1))
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
             }
 
             Button {
@@ -250,6 +281,12 @@ struct KanbanHabitSection: View {
             }
         }
         .buttonStyle(.plain)
+        // 长按撤销今日最近一笔（仅有今日记录时可用）
+        .onLongPressGesture(minimumDuration: 0.5) {
+            if todayValues[habit.id] != nil {
+                undoHabit = habit
+            }
+        }
     }
 
     // MARK: - Actions
@@ -298,6 +335,25 @@ struct KanbanHabitSection: View {
             HapticManager.light()
         } catch {
             Logger(subsystem: "com.holo.app", category: "UI").error("计数失败: \(error.localizedDescription)")
+        }
+    }
+
+    /// 撤销今日最近一笔记录（计数类 -1、测量类长按撤销共用）
+    /// 按「数值型有记录即完成」口径刷新：记录清空则该习惯回到未完成
+    private func undoLatestRecord(_ habit: Habit) {
+        do {
+            let removed = try habitRepo.removeLatestTodayRecord(for: habit)
+            guard removed else { return }
+            if let value = habitRepo.getTodayValue(for: habit) {
+                todayValues[habit.id] = value
+                completedHabits.insert(habit.id)
+            } else {
+                todayValues.removeValue(forKey: habit.id)
+                completedHabits.remove(habit.id)
+            }
+            HapticManager.light()
+        } catch {
+            Logger(subsystem: "com.holo.app", category: "UI").error("撤销失败: \(error.localizedDescription)")
         }
     }
 }

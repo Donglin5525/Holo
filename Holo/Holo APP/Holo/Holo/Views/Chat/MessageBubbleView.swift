@@ -76,94 +76,19 @@ struct MessageBubbleView: View {
     }
 
     var body: some View {
-        // 预计算卡片数据，避免 body 中重复求值
-        let analysisCardsData = message.analysisCards
-        let hasAnalysisCards = !analysisCardsData.isEmpty
-        let cards = executionCards
-        let hasCards = !cards.isEmpty
-        let singleCard = cardData
-        let flexibleQueryCard = message.flexibleQueryCard
-
-        return HStack(alignment: .top, spacing: 8) {
+        Group {
             if isUser {
-                Spacer(minLength: 60)
-            }
-
-            if !isUser {
-                // AI 头像
-                aiAvatar
-            }
-
-            // 消息内容
-            VStack(alignment: isUser ? .trailing : .leading, spacing: 4) {
-                // 渲染优先级：已保存目标卡片 > 目标计划卡片 > 分析卡片（叠加模式） > 批处理卡片 > 单卡片 > 气泡
-                if let savedGoalCardData {
-                    GoalSavedChatCard(data: savedGoalCardData) {
-                        onSavedGoalCardTap?(savedGoalCardData.goalId)
-                    }
-                } else if isGoalDraftReady {
-                    if let draft = goalDraftForReview {
-                        GoalDraftReadyChatCard(draft: draft) {
-                            onGoalDraftCardTap?()
-                        }
-                    }
-                } else if message.isQueryAnalysis {
-                    if message.agentResult != nil || (message.isStreaming && message.analysisContext == nil) {
-                        // Agent 深度分析路径（结果已出 或 分析中且非账单分析）
-                        AgentDeepAnalysisCard(message: message) {
-                            onAgentDeepAnalysisTap?()
-                        }
-                    } else if message.analysisContext != nil {
-                        // 账单分析（流式 analysisContext 路径）
-                        AnalysisCompactChatCard(message: message) {
-                            onCompactAnalysisTap?()
-                        }
-                    } else {
-                        // 无分析数据（退化或加载失败）→ 普通气泡
-                        bubbleContent
-                    }
-                } else if hasAnalysisCards {
-                    // 分析消息：卡片 + 文本叠加渲染
-                    VStack(alignment: .leading, spacing: 8) {
-                        ForEach(Array(analysisCardsData.enumerated()), id: \.offset) { index, card in
-                            cardView(for: card)
-                        }
-                        if !displayText.isEmpty {
-                            bubbleContent
-                        }
-                    }
-                } else if let flexibleQueryCard {
-                    VStack(alignment: .leading, spacing: 8) {
-                        cardView(for: flexibleQueryCard)
-                        if !displayText.isEmpty {
-                            bubbleContent
-                        }
-                    }
-                } else if hasCards {
-                    if cards.count > 1 {
-                        multiCardView(cards: cards)
-                    } else {
-                        cardView(for: cards[0])
-                    }
-                } else if let card = singleCard {
-                    cardView(for: card)
-                } else {
-                    bubbleContent
+                HStack(alignment: .top, spacing: 8) {
+                    Spacer(minLength: 60)
+                    messageContent
+                    userAvatar
                 }
-
-                // 意图标签（卡片渲染时隐藏）
-                if let intent = message.intent, !isUser, !hasCards, singleCard == nil, flexibleQueryCard == nil, !hasAnalysisCards, !message.isQueryAnalysis {
-                    intentTag(intent)
+            } else {
+                VStack(alignment: .leading, spacing: 10) {
+                    aiHeader
+                    messageContent
                 }
-            }
-
-            if isUser {
-                // 用户头像
-                userAvatar
-            }
-
-            if !isUser {
-                Spacer(minLength: 60)
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
         .contextMenu {
@@ -188,6 +113,83 @@ struct MessageBubbleView: View {
             }
             #endif
         }
+    }
+
+    @ViewBuilder
+    private var messageContent: some View {
+        let analysisCardsData = message.analysisCards
+        let hasAnalysisCards = !analysisCardsData.isEmpty
+        let cards = executionCards
+        let hasCards = !cards.isEmpty
+        let singleCard = cardData
+        let flexibleQueryCard = message.flexibleQueryCard
+
+        VStack(alignment: isUser ? .trailing : .leading, spacing: 8) {
+            // 渲染优先级：已保存目标卡片 > 目标计划卡片 > 分析卡片 > 批处理卡片 > 单卡片 > 通用文字。
+            if let savedGoalCardData {
+                GoalSavedChatCard(data: savedGoalCardData) {
+                    onSavedGoalCardTap?(savedGoalCardData.goalId)
+                }
+            } else if isGoalDraftReady {
+                if let draft = goalDraftForReview {
+                    GoalDraftReadyChatCard(draft: draft) {
+                        onGoalDraftCardTap?()
+                    }
+                }
+            } else if message.isQueryAnalysis {
+                if message.agentResult != nil || (message.isStreaming && message.analysisContext == nil) {
+                    AgentDeepAnalysisCard(message: message) {
+                        onAgentDeepAnalysisTap?()
+                    }
+                } else if message.analysisContext != nil {
+                    AnalysisCompactChatCard(message: message) {
+                        onCompactAnalysisTap?()
+                    }
+                } else {
+                    bubbleContent
+                }
+            } else if hasAnalysisCards {
+                VStack(alignment: .leading, spacing: 12) {
+                    ForEach(Array(analysisCardsData.enumerated()), id: \.offset) { _, card in
+                        cardView(for: card)
+                    }
+                    if !displayText.isEmpty {
+                        bubbleContent
+                    }
+                }
+            } else if let flexibleQueryCard {
+                VStack(alignment: .leading, spacing: 12) {
+                    cardView(for: flexibleQueryCard)
+                    if !displayText.isEmpty {
+                        bubbleContent
+                    }
+                }
+            } else if hasCards {
+                if cards.count > 1 {
+                    multiCardView(cards: cards)
+                } else {
+                    cardView(for: cards[0])
+                }
+            } else if let card = singleCard {
+                cardView(for: card)
+            } else {
+                bubbleContent
+            }
+
+            // 意图标签只服务于可跳转结果；普通对话和未知意图不增加视觉噪声。
+            if let intent = message.intent,
+               let intentValue = AIIntent(rawValue: intent),
+               intentValue != .unknown,
+               !isUser,
+               !hasCards,
+               singleCard == nil,
+               flexibleQueryCard == nil,
+               !hasAnalysisCards,
+               !message.isQueryAnalysis {
+                intentTag(intent)
+            }
+        }
+        .frame(maxWidth: isUser ? nil : .infinity, alignment: isUser ? .trailing : .leading)
     }
 
     // MARK: - Avatars
@@ -225,6 +227,20 @@ struct MessageBubbleView: View {
             }
     }
 
+    private var aiHeader: some View {
+        HStack(spacing: 9) {
+            aiAvatar
+
+            Text("Holo")
+                .font(.subheadline.weight(.semibold))
+                .foregroundColor(.holoTextPrimary)
+
+            Spacer(minLength: 0)
+        }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("Holo")
+    }
+
     private var userAvatar: some View {
         Circle()
             .fill(Color.blue.opacity(0.15))
@@ -240,66 +256,23 @@ struct MessageBubbleView: View {
 
     @ViewBuilder
     private var bubbleContent: some View {
-        if message.isStreaming && displayText.isEmpty {
-            // 加载中指示器
-            HStack(spacing: 4) {
-                ForEach(0..<3, id: \.self) { index in
-                    Circle()
-                        .fill(Color.gray.opacity(0.5))
-                        .frame(width: 6, height: 6)
-                        .modifier(TypingDotAnimation(delay: Double(index) * 0.2))
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 12)
-            .background(bubbleBackground)
-            .clipShape(BubbleShape(isUser: isUser))
-        } else if message.isError {
-            // 错误消息：红色边框 + 重试按钮
-            VStack(alignment: .leading, spacing: 8) {
-                StreamingTextView(
-                    text: displayText,
-                    isStreaming: false
-                )
-
-                Button {
-                    onRetry?()
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 12, weight: .medium))
-                        Text("重新发送")
-                            .font(.system(size: 13, weight: .medium))
-                    }
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
-                    .background(Color.red.opacity(0.8))
-                    .cornerRadius(8)
-                }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(bubbleBackground)
-            .overlay(
-                RoundedRectangle(cornerRadius: 16)
-                    .stroke(Color.red.opacity(0.3), lineWidth: 1)
-            )
-            .clipShape(BubbleShape(isUser: isUser))
-        } else {
+        if isUser {
             StreamingTextView(
                 text: displayText,
                 isStreaming: message.isStreaming && streamingText != nil
             )
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
-            .background(bubbleBackground)
-            .clipShape(BubbleShape(isUser: isUser))
+            .background(Color.blue.opacity(0.12))
+            .clipShape(BubbleShape(isUser: true))
+        } else {
+            AIReadableResponseView(
+                text: displayText,
+                isStreaming: message.isStreaming && streamingText != nil,
+                isError: message.isError,
+                onRetry: onRetry
+            )
         }
-    }
-
-    private var bubbleBackground: Color {
-        isUser ? Color.blue.opacity(0.12) : Color.holoCardBackground
     }
 
     // MARK: - Card View
@@ -475,22 +448,5 @@ struct BubbleShape: Shape {
         }
 
         return path
-    }
-}
-
-// MARK: - Typing Animation
-
-struct TypingDotAnimation: ViewModifier {
-    let delay: Double
-
-    func body(content: Content) -> some View {
-        content
-            .opacity(0.4)
-            .animation(
-                .easeInOut(duration: 0.6)
-                    .repeatForever(autoreverses: true)
-                    .delay(delay),
-                value: true
-            )
     }
 }

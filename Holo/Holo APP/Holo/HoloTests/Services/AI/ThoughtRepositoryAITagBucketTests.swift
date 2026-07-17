@@ -241,4 +241,58 @@ final class ThoughtRepositoryAITagBucketTests: XCTestCase {
         // 排除已收纳：coding 被收纳，池空
         XCTAssertTrue(try repo.fetchAITagBuckets(excludeAbsorbed: true).isEmpty)
     }
+
+    // MARK: - fetchUnrecognizedAITagNames（推荐池 AI 分组）
+
+    func test_纯AI标签进入AI组() throws {
+        let (repo, ctx) = try makeRepo()
+        let t1 = try makeThought(in: ctx)
+        try repo.createTagAssignment(thoughtId: t1, tagName: "coding", source: .ai, confidence: 0.9)
+
+        XCTAssertEqual(repo.fetchUnrecognizedAITagNames(), ["coding"])
+    }
+
+    func test_用户认可来源标签不进AI组() throws {
+        let (repo, ctx) = try makeRepo()
+        let t1 = try makeThought(in: ctx)
+        let t2 = try makeThought(in: ctx)
+        let t3 = try makeThought(in: ctx)
+        try repo.createTagAssignment(thoughtId: t1, tagName: "manualTag", source: .manual, confidence: 1.0)
+        try repo.createTagAssignment(thoughtId: t2, tagName: "inlineTag", source: .inline, confidence: 1.0)
+        try repo.createTagAssignment(thoughtId: t3, tagName: "confirmedTag", source: .confirmedAI, confidence: 1.0)
+
+        XCTAssertTrue(repo.fetchUnrecognizedAITagNames().isEmpty)
+    }
+
+    func test_rejectedAIonly不进AI组() throws {
+        let (repo, ctx) = try makeRepo()
+        let t1 = try makeThought(in: ctx)
+        try repo.createTagAssignment(thoughtId: t1, tagName: "dropped", source: .rejectedAI, confidence: 0.9)
+
+        XCTAssertTrue(repo.fetchUnrecognizedAITagNames().isEmpty)
+    }
+
+    func test_混合来源同名归用户组不进AI组() throws {
+        let (repo, ctx) = try makeRepo()
+        let t1 = try makeThought(in: ctx)
+        let t2 = try makeThought(in: ctx)
+        try repo.createTagAssignment(thoughtId: t1, tagName: "shared", source: .manual, confidence: 1.0)
+        try repo.createTagAssignment(thoughtId: t2, tagName: "shared", source: .ai, confidence: 0.9)
+
+        // shared 有 manual 标注 → 归用户组，不进 AI 组
+        XCTAssertTrue(repo.fetchUnrecognizedAITagNames().isEmpty)
+    }
+
+    func test_AI组按usageCount降序排序() throws {
+        let (repo, ctx) = try makeRepo()
+        for _ in 0..<3 {
+            let t = try makeThought(in: ctx)
+            try repo.createTagAssignment(thoughtId: t, tagName: "coding", source: .ai, confidence: 0.9)
+        }
+        let t2 = try makeThought(in: ctx)
+        try repo.createTagAssignment(thoughtId: t2, tagName: "design", source: .ai, confidence: 0.9)
+
+        // coding(3) 在前，design(1) 在后
+        XCTAssertEqual(repo.fetchUnrecognizedAITagNames(), ["coding", "design"])
+    }
 }

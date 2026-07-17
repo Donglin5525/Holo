@@ -7,11 +7,11 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		5A202607170000000000000003 /* TopicRepositoryDeleteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A202607170000000000000004 /* TopicRepositoryDeleteTests.swift */; };
 		1B9A00110000000000000001 /* WeeklyObservationCardStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B9A00120000000000000001 /* WeeklyObservationCardStateTests.swift */; };
 		1B9A00210000000000000001 /* MemoryInsightResponseParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B9A00220000000000000001 /* MemoryInsightResponseParserTests.swift */; };
 		47338B8715C0527F76C6B9BC /* MemoryInsightRefreshQuotaTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 398FCBD1E9630524A051ED67 /* MemoryInsightRefreshQuotaTests.swift */; };
 		5A202607170000000000000001 /* ThoughtRepositoryTagManagementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A202607170000000000000002 /* ThoughtRepositoryTagManagementTests.swift */; };
+		5A202607170000000000000003 /* TopicRepositoryDeleteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A202607170000000000000004 /* TopicRepositoryDeleteTests.swift */; };
 		754CE1738597753DE3A64D0E /* HoloAgentResultRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD7196A9CD6BFA044B77449 /* HoloAgentResultRendererTests.swift */; };
 		7A4C1F8E2B5D4A6C9E0F1234 /* CloudKitRuntimeAvailabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A4C1F8D2B5D4A6C9E0F1234 /* CloudKitRuntimeAvailabilityTests.swift */; };
 		7D89A2C442C34B9589F5338D /* TransactionDateResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D89A2C342C34B9589F5338D /* TransactionDateResolverTests.swift */; };

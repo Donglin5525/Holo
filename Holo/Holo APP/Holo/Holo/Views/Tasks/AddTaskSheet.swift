@@ -338,6 +338,8 @@ struct AddTaskSheet: View {
         .unsavedChangesAlert(isPresented: $showDismissAlert) {
             dismiss()
         }
+        // 始终拦截系统 Sheet 关闭手势，统一交给页面内逻辑判断是否需要确认。
+        .interactiveDismissDisabled()
         .alert("删除任务", isPresented: $showDeleteTaskAlert) {
             Button("取消", role: .cancel) {}
             Button("删除", role: .destructive) {

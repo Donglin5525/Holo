@@ -2,147 +2,114 @@
 //  WeeklyGridEventLayout.swift
 //  Holo
 //
-//  周历网格展示布局：避免同时间事件重叠，并把凌晨记录放入边界桶。
+//  周历网格展示布局：按小时顺序展开事件，并把超出上限的记录放入完整清单入口。
 //
 
 import CoreGraphics
 import Foundation
 
 struct WeeklyGridEventLayout {
-    struct VisibleItem: Identifiable {
-        let event: CalendarEvent
-        let top: CGFloat
-        let lane: Int
-        let laneCount: Int
-
-        var id: UUID { event.id }
-    }
+    private static let maximumVisibleEvents = 4
 
     struct DisplayItem: Identifiable {
-        let id = UUID()
+        let id: String
         let module: CalendarModule
         let events: [CalendarEvent]
         let top: CGFloat
-        let lane: Int
-        let laneCount: Int
-        let isSummary: Bool
-        let stackIndex: Int
-        let stackCount: Int
+        let height: CGFloat
+        let isOverflow: Bool
+        let overflowCount: Int
 
         var primaryEvent: CalendarEvent { events[0] }
 
         var displayTitle: String {
-            if isSummary {
-                return "\(module.displayName) +\(events.count)"
-            }
-            let base = primaryEvent.title
-            return events.count > 1 ? "\(base) +\(events.count)" : base
+            isOverflow ? "还有 \(overflowCount) 条" : primaryEvent.title
         }
     }
 
     let early: [CalendarEvent]
     let collapsed: [CalendarEvent]
-    let visible: [VisibleItem]
     let displayItems: [DisplayItem]
 
     static func layout(events: [CalendarEvent],
-                       startHour: Int,
-                       endHour: Int,
-                       hourHeight: CGFloat,
-                       collapsedHours: Range<Int>? = nil,
-                       minimumSeparation: CGFloat = 28) -> WeeklyGridEventLayout {
+                       axisProfile: WeeklyGridAxisProfile,
+                       collapsedHours: Range<Int>? = nil) -> WeeklyGridEventLayout {
         let calendar = Calendar.current
-        let sorted = events.sorted { $0.date < $1.date }
+        let sorted = events.sorted(by: eventComesBefore)
         let collapsed = sorted.filter { event in
             guard let collapsedHours else { return false }
             return collapsedHours.contains(calendar.component(.hour, from: event.date))
         }
         let early = sorted.filter { event in
             let hour = calendar.component(.hour, from: event.date)
-            return hour < startHour && !(collapsedHours?.contains(hour) ?? false)
+            return hour < axisProfile.startHour && !(collapsedHours?.contains(hour) ?? false)
         }
         let candidates = sorted.filter { event in
             let hour = calendar.component(.hour, from: event.date)
-            return hour >= startHour && hour <= endHour && !(collapsedHours?.contains(hour) ?? false)
-        }
-
-        var clusters: [[(event: CalendarEvent, top: CGFloat)]] = []
-        for event in candidates {
-            let top = topOffset(for: event, startHour: startHour, hourHeight: hourHeight)
-            if let last = clusters.indices.last,
-               let clusterTop = clusters[last].last?.top,
-               abs(top - clusterTop) < minimumSeparation {
-                clusters[last].append((event, top))
-            } else {
-                clusters.append([(event, top)])
-            }
-        }
-
-        let visible = clusters.flatMap { cluster in
-            cluster.enumerated().map { index, item in
-                VisibleItem(
-                    event: item.event,
-                    top: item.top,
-                    lane: index,
-                    laneCount: cluster.count
-                )
-            }
+            return hour >= axisProfile.startHour
+                && hour <= axisProfile.endHour
+                && !(collapsedHours?.contains(hour) ?? false)
         }
 
         let displayItems = makeDisplayItems(
             from: candidates,
-            startHour: startHour,
-            hourHeight: hourHeight
+            axisProfile: axisProfile,
+            maximumVisibleEvents: maximumVisibleEvents
         )
 
         return WeeklyGridEventLayout(
             early: early,
             collapsed: collapsed,
-            visible: visible,
             displayItems: displayItems
         )
     }
 
     private static func makeDisplayItems(from events: [CalendarEvent],
-                                         startHour: Int,
-                                         hourHeight: CGFloat) -> [DisplayItem] {
+                                         axisProfile: WeeklyGridAxisProfile,
+                                         maximumVisibleEvents: Int) -> [DisplayItem] {
         let calendar = Calendar.current
         let hourlyGroups = Dictionary(grouping: events) { event in
             calendar.component(.hour, from: event.date)
         }
 
         return hourlyGroups.keys.sorted().flatMap { hour in
-            let hourEvents = (hourlyGroups[hour] ?? []).sorted { $0.date < $1.date }
-            let groups = Dictionary(grouping: hourEvents) { $0.module }
-                .map { (module: $0.key, events: $0.value.sorted { $0.date < $1.date }) }
-                .sorted { $0.module.rawValue < $1.module.rawValue }
-            let multiModule = groups.count > 1
-            let stackCount = max(1, groups.count)
-            let stackStep = multiModule ? hourHeight / CGFloat(stackCount) : 0
-            let hourTop = CGFloat(hour - startHour) * hourHeight
-
-            return groups.enumerated().map { index, group in
+            let hourEvents = (hourlyGroups[hour] ?? []).sorted(by: eventComesBefore)
+            let visibleEvents = Array(hourEvents.prefix(maximumVisibleEvents))
+            let hourTop = axisProfile.top(for: hour)
+            let topPadding: CGFloat = visibleEvents.count <= 1 ? 9 : 3
+            var items = visibleEvents.enumerated().map { index, event in
                 DisplayItem(
-                    module: group.module,
-                    events: group.events,
-                    top: hourTop + CGFloat(index) * stackStep,
-                    lane: 0,
-                    laneCount: 1,
-                    isSummary: multiModule,
-                    stackIndex: multiModule ? index : 0,
-                    stackCount: multiModule ? stackCount : 1
+                    id: "event-\(event.id.uuidString)",
+                    module: event.module,
+                    events: [event],
+                    top: hourTop + topPadding + CGFloat(index) * 27,
+                    height: 24,
+                    isOverflow: false,
+                    overflowCount: 0
                 )
             }
+
+            let overflowCount = hourEvents.count - visibleEvents.count
+            if overflowCount > 0, let first = hourEvents.first {
+                items.append(
+                    DisplayItem(
+                        id: "overflow-\(hour)",
+                        module: first.module,
+                        events: hourEvents,
+                        top: hourTop + 111,
+                        height: 17,
+                        isOverflow: true,
+                        overflowCount: overflowCount
+                    )
+                )
+            }
+            return items
         }
     }
 
-    private static func topOffset(for event: CalendarEvent,
-                                  startHour: Int,
-                                  hourHeight: CGFloat) -> CGFloat {
-        let calendar = Calendar.current
-        let comps = calendar.dateComponents([.hour, .minute], from: event.date)
-        let hour = comps.hour ?? startHour
-        return CGFloat(hour - startHour) * hourHeight
-            + CGFloat(comps.minute ?? 0) / 60.0 * hourHeight
+    nonisolated private static func eventComesBefore(_ lhs: CalendarEvent, _ rhs: CalendarEvent) -> Bool {
+        if lhs.date != rhs.date { return lhs.date < rhs.date }
+        if lhs.module.rawValue != rhs.module.rawValue { return lhs.module.rawValue < rhs.module.rawValue }
+        return lhs.id.uuidString < rhs.id.uuidString
     }
 }

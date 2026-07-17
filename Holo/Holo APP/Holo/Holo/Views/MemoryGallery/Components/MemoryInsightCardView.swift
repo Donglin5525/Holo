@@ -19,6 +19,8 @@ struct MemoryInsightCardView: View {
     var insightId: UUID?
     /// 行动候选（可选，由外部生成）
     var actionCandidate: InsightActionCandidate?
+    /// 反思类行动确认后跳转 HoloAI，并携带预填文本
+    var onContinueInChat: ((String) -> Void)?
 
     @State private var isExpanded: Bool = false
     @State private var showFeedbackSheet: Bool = false
@@ -240,6 +242,10 @@ struct MemoryInsightCardView: View {
         switch action.payload {
         case .taskDraft(let title, let dueDate, let priority):
             createTask(title: title, dueDate: dueDate, priority: priority)
+        case .reflectionQuestion:
+            if let prompt = MemoryInsightActionPromptBuilder.chatPrefill(for: action, card: card) {
+                onContinueInChat?(prompt)
+            }
         default:
             break
         }

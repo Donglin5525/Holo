@@ -45,6 +45,14 @@ nonisolated enum MarkdownAttributedStringRenderer {
         )
     }
 
+    /// 只解析行内强调和链接，不改写由阅读视图已经拆好的块结构。
+    static func parseInlineSync(_ text: String) -> AttributedString? {
+        try? AttributedString(
+            markdown: text,
+            options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+        )
+    }
+
     private static func normalizeConsumerLine(_ line: String) -> String? {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
 
