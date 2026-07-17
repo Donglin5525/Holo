@@ -58,6 +58,11 @@ struct HealthSleepDetail: Sendable {
     var bedtime: Date?
     var wakeTime: Date?
     var interruptionCount: Int?
+
+    /// 是否包含睡眠阶段数据（深睡/浅睡/REM），无 Apple Watch 类数据源时为 false
+    var hasStageData: Bool {
+        deepHours != nil || coreHours != nil || remHours != nil
+    }
 }
 
 // MARK: - HealthStandHourAggregator

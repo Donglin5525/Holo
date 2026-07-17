@@ -19,6 +19,7 @@ struct HealthDetailView: View {
     @State private var isLoading = true
     @State private var currentValue: Double = 0
     @State private var currentAvailability: HealthMetricAvailability = .noData
+    @State private var sleepDetail: HealthSleepDetail?
 
     private var metric: HealthMetricSnapshot {
         HealthMetricSnapshot(type: type, value: currentValue, availability: currentAvailability)
@@ -32,6 +33,10 @@ struct HealthDetailView: View {
                 VStack(spacing: HoloSpacing.md) {
                     bigRingCard
                     statsSection
+
+                    if type == .sleep, let sleepDetail, sleepDetail.hasStageData {
+                        SleepStagesCard(detail: sleepDetail)
+                    }
 
                     VStack(alignment: .leading, spacing: HoloSpacing.sm) {
                         HStack {
@@ -292,6 +297,8 @@ struct HealthDetailView: View {
         case .sleep:
             currentValue = data.sleep
             currentAvailability = data.sleep > 0 ? .available : .noData
+            // 复用 AI 工具已有的按晚聚合明细，无阶段数据时卡片自动隐藏
+            sleepDetail = await repository.fetchSleepDetailRange(from: selectedDate, to: selectedDate).first
         case .standHours:
             currentValue = data.standHours
             currentAvailability = data.standHours > 0 ? .available : (data.activeMinutes > 0 ? .unsupported : .noData)
