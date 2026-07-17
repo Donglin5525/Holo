@@ -63,19 +63,18 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
         let existing = try await fetchStored(id: record.id)
         var recordToPersist = record
         if let existing {
-            let userControlIsNewer = existing.record.userDecision != .none &&
-                existing.record.updatedAt > record.updatedAt
+            let hasUserControl = existing.record.userDecision != .none
             let existingLineages = Set(existing.record.evidenceRefs.map(\.lineageKey))
             let containsNewEvidence = record.evidenceRefs.contains {
                 !existingLineages.contains($0.lineageKey)
             }
-            if userControlIsNewer && !containsNewEvidence {
+            if hasUserControl && !containsNewEvidence {
                 return .rejectedByNewerUserControl
             }
             recordToPersist = merge(
                 existing: existing.record,
                 incoming: record,
-                preserveUserControlledFields: userControlIsNewer
+                preserveUserControlledFields: hasUserControl
             )
         }
         recordToPersist.lastObservationKey = observationKey
@@ -273,6 +272,12 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
         case .confirmed, .corrected:
             record.state = .active
             record.confidenceScore = max(record.confidenceScore, 0.95)
+            record.adoptionMetadata = HoloMemoryAdoptionMetadata(
+                policyVersion: HoloMemoryActivationPolicy.currentVersion,
+                disposition: .userConfirmed,
+                reason: .explicitUserConfirmation,
+                evaluatedAt: now
+            )
         case .markedIrrelevant:
             break
         case .rejected:
@@ -833,18 +838,23 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
         ).sorted()
         merged.createdAt = min(existing.createdAt, incoming.createdAt)
         merged.updatedAt = max(existing.updatedAt, incoming.updatedAt)
+        merged.lastSupportedAt = [existing.lastSupportedAt, incoming.lastSupportedAt]
+            .compactMap { $0 }
+            .max()
         merged.recordVersion = max(existing.recordVersion + 1, incoming.recordVersion)
         merged.sensitivity = stricter(existing.sensitivity, incoming.sensitivity)
 
         if preserveUserControlledFields {
+            let predecessor = existing.versionID
             merged.displaySummary = existing.displaySummary
             merged.aiUseSummary = existing.aiUseSummary
             merged.prohibitedInferences = existing.prohibitedInferences
             merged.userDecision = existing.userDecision
             merged.state = existing.state
-            merged.recordVersion = existing.recordVersion
-            merged.predecessorVersionID = existing.predecessorVersionID
-            merged.updatedAt = existing.updatedAt
+            merged.adoptionMetadata = existing.adoptionMetadata
+            merged.recordVersion = max(existing.recordVersion + 1, incoming.recordVersion)
+            merged.predecessorVersionID = predecessor
+            merged.updatedAt = max(existing.updatedAt, incoming.updatedAt)
         }
         return merged
     }

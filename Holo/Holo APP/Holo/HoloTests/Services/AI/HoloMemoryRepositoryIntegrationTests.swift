@@ -152,6 +152,63 @@ struct HoloMemoryRepositoryIntegrationTests {
         expect(merged.userDecision == .confirmed,
                "自动生成不得覆盖更新的用户决定")
 
+        var laterEvidence = finance
+        laterEvidence.evidenceRefs = [HoloMemoryEvidenceRef(
+            id: "finance-3",
+            kind: .entityRef,
+            sourceDomain: .finance,
+            lineageKey: "lineage-finance-3",
+            sourceID: "finance-3",
+            revisionDigest: "revision-finance-3",
+            observedAt: finance.updatedAt.addingTimeInterval(3)
+        )]
+        laterEvidence.lastSupportedAt = finance.updatedAt.addingTimeInterval(3)
+        laterEvidence.updatedAt = finance.updatedAt.addingTimeInterval(3)
+        _ = try await repository.upsert(
+            laterEvidence,
+            observationKey: "finance-window-v3"
+        )
+        let refreshedConfirmed = try await repository.fetch(id: finance.id)
+        expect(refreshedConfirmed?.userDecision == .confirmed &&
+               refreshedConfirmed?.state == .active &&
+               refreshedConfirmed?.evidenceRefs.contains(where: { $0.id == "finance-3" }) == true,
+               "新证据必须刷新支持信息，但不能覆盖用户确认")
+        expect(refreshedConfirmed?.lastSupportedAt == laterEvidence.lastSupportedAt,
+               "新证据命中稳定记忆时必须刷新 lastSupportedAt")
+
+        let rejectedBase = try makeRecord(
+            domain: .task,
+            anchorValue: "rejected-task-pattern",
+            evidenceID: "task-1"
+        )
+        _ = try await repository.upsert(rejectedBase, observationKey: "task-window-v1")
+        _ = try await repository.markUserDecision(
+            id: rejectedBase.id,
+            decision: .rejected,
+            now: rejectedBase.updatedAt.addingTimeInterval(1)
+        )
+        var rejectedWithNewEvidence = rejectedBase
+        rejectedWithNewEvidence.evidenceRefs = [HoloMemoryEvidenceRef(
+            id: "task-2",
+            kind: .entityRef,
+            sourceDomain: .task,
+            lineageKey: "lineage-task-2",
+            sourceID: "task-2",
+            revisionDigest: "revision-task-2",
+            observedAt: rejectedBase.updatedAt.addingTimeInterval(2)
+        )]
+        rejectedWithNewEvidence.lastSupportedAt = rejectedBase.updatedAt.addingTimeInterval(2)
+        rejectedWithNewEvidence.updatedAt = rejectedBase.updatedAt.addingTimeInterval(2)
+        _ = try await repository.upsert(
+            rejectedWithNewEvidence,
+            observationKey: "task-window-v2"
+        )
+        let stillRejected = try await repository.fetch(id: rejectedBase.id)
+        expect(stillRejected?.state == .suppressed &&
+               stillRejected?.userDecision == .rejected &&
+               stillRejected?.evidenceRefs.contains(where: { $0.id == "task-2" }) == true,
+               "新证据可合并，但不能自动恢复用户标记不准确的记忆")
+
         var staleAutomatic = finance
         staleAutomatic.displaySummary = "旧任务试图覆盖用户确认"
         staleAutomatic.updatedAt = finance.updatedAt

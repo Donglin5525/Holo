@@ -88,26 +88,31 @@ struct HoloApp: App {
                     await CoreDataStack.shared.waitUntilReady()
 
                     #if DEBUG
+                    let appStoreScreenshotModeActive =
+                        await HoloAppStoreScreenshotSeeder.runIfRequested()
                     let simulatorMemoryValidationActive =
                         await HoloMemorySimulatorValidationScenario.runIfRequested()
                     #else
+                    let appStoreScreenshotModeActive = false
                     let simulatorMemoryValidationActive = false
                     #endif
 
                     if !simulatorMemoryValidationActive {
                         await HoloMemoryRuntime.shared.migrateLegacyMemoryIfNeeded()
+                        await HoloMemoryRuntime.shared.reconcilePendingCandidatesIfNeeded()
                     }
                     await HoloMemorySettings.shared.reconcileWithRepository()
                     if !simulatorMemoryValidationActive {
                         await HoloMemoryObservationScheduler.shared.lightweightCheck(trigger: .appLaunch)
                     }
 
-                    // 迁移完成后再监听旧候选链，避免迁移快照与新写入竞态。
-                    HoloLongTermMemoryCandidateObserver.startObserving()
+                    // 统一领域记忆链是唯一写入口；旧 JSON 仅保留一个版本用于迁移回滚。
                     FinanceRepository.shared.setup()
                     SpendingProjectBackgroundService.shared.scheduleNextTask()
-                    MemoryInsightBackgroundService.shared.scheduleBackgroundTask()
-                    await MemoryInsightBackgroundService.shared.checkForegroundCompensation()
+                    if !appStoreScreenshotModeActive {
+                        MemoryInsightBackgroundService.shared.scheduleBackgroundTask()
+                        await MemoryInsightBackgroundService.shared.checkForegroundCompensation()
+                    }
 
                     // 启动时轻量聚合未消费反馈（更新 rerank 用的偏好）
                     if InsightFeatureFlags.preferenceLearningEnabled {
@@ -137,6 +142,7 @@ struct HoloApp: App {
                 .onChange(of: scenePhase) { _, phase in
                     #if DEBUG
                     guard HoloMemorySimulatorValidationEnvironment.current == nil else { return }
+                    guard !HoloAppStoreScreenshotSeeder.isRequested else { return }
                     #endif
                     switch phase {
                     case .background:

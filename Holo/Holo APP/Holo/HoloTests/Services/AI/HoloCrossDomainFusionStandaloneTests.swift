@@ -95,17 +95,20 @@ struct HoloCrossDomainFusionStandaloneTests {
             prohibitedInferences: ["causality", "medicalDiagnosis"],
             requestedStorageClass: .normal
         )
-        let transient = HoloCrossDomainFusionService.evaluate(
+        let firstCrossDomain = HoloCrossDomainFusionService.evaluate(
             safeOutput,
             for: candidate,
             priorOccurrenceCount: 0,
             userConfirmed: false,
             now: now
         )
-        guard case .transient(let preview) = transient else {
-            fatalError("首次动态状态只能组合展示，不能落盘")
+        guard case .persist(let firstCrossDomainRecord) = firstCrossDomain else {
+            fatalError("首次跨域结论应落为待确认记录")
         }
-        expect(preview.sensitivity == .sensitive, "包含健康的临时结果也必须按敏感数据处理")
+        expect(firstCrossDomainRecord.state == .candidate,
+               "首次跨域结论确认前不得生效")
+        expect(firstCrossDomainRecord.adoptionMetadata?.reason == .firstCrossDomainInference,
+               "首次跨域结论必须记录首次推断原因码")
 
         let persisted = HoloCrossDomainFusionService.evaluate(
             safeOutput,
@@ -119,7 +122,8 @@ struct HoloCrossDomainFusionStandaloneTests {
         }
         expect(record.scope == .crossDomain, "持久化记录必须是 crossDomain")
         expect(record.sourceDomains == [.finance, .health], "持久化记录必须保留来源领域")
-        expect(record.sensitivity == .sensitive, "包含 health 的跨域记忆必须 sensitiveLocal")
+        expect(record.sensitivity == .normal, "含健康的跨域记忆不再一刀切标敏感")
+        expect(record.state == .active, "重复出现的普通跨域结论应自动生效")
         expect(record.upstreamMemoryIDs.count == 2, "持久化记录必须保留上游记忆")
         try record.validate()
 
@@ -130,9 +134,60 @@ struct HoloCrossDomainFusionStandaloneTests {
             userConfirmed: true,
             now: now
         )
-        guard case .persist = confirmed else {
+        guard case .persist(let confirmedRecord) = confirmed else {
             fatalError("用户确认后应允许持久化")
         }
+        expect(confirmedRecord.state == .active && confirmedRecord.userDecision == .confirmed,
+               "用户确认的敏感跨域结论应立即生效")
+
+        let habit = try makeRecord(
+            domain: .habit,
+            anchor: anchor,
+            lineage: "habit-run-1",
+            start: now.addingTimeInterval(-6 * 86_400),
+            end: now
+        )
+        let normalCandidate = try require(
+            HoloCrossDomainCandidateBuilder.build(from: [finance, habit]).first,
+            "普通跨域候选不存在"
+        )
+        var normalOutput = safeOutput
+        normalOutput.upstreamMemoryIDs = normalCandidate.sourceMemoryIDs
+        normalOutput.evidenceIDs = normalCandidate.evidenceRefs.map(\.id)
+        normalOutput.requestedStorageClass = .normal
+        let firstNormal = HoloCrossDomainFusionService.evaluate(
+            normalOutput,
+            for: normalCandidate,
+            priorOccurrenceCount: 0,
+            userConfirmed: false,
+            now: now
+        )
+        guard case .persist(let firstNormalRecord) = firstNormal else {
+            fatalError("首次普通跨域结论应进入待确认")
+        }
+        expect(firstNormalRecord.state == .candidate &&
+               firstNormalRecord.adoptionMetadata?.reason == .firstCrossDomainInference,
+               "首次普通跨域结论必须等待确认")
+        let repeatedNormal = HoloCrossDomainFusionService.evaluate(
+            normalOutput,
+            for: normalCandidate,
+            priorOccurrenceCount: 1,
+            userConfirmed: false,
+            now: now
+        )
+        guard case .persist(let repeatedNormalRecord) = repeatedNormal else {
+            fatalError("重复支持的普通跨域结论应落盘")
+        }
+        expect(repeatedNormalRecord.state == .active &&
+               repeatedNormalRecord.adoptionMetadata?.reason == .repeatedCrossDomainInference,
+               "重复支持的普通跨域结论应自动采用")
+
+        var pendingFinance = finance
+        pendingFinance.state = .candidate
+        expect(
+            HoloCrossDomainCandidateBuilder.build(from: [pendingFinance, habit]).isEmpty,
+            "待确认记忆不得参与跨域推断"
+        )
 
         var causalOutput = safeOutput
         causalOutput.displaySummary = "晚睡导致了餐饮支出增加"
@@ -236,7 +291,7 @@ struct HoloCrossDomainFusionStandaloneTests {
             extractorVersion: 1,
             promptVersion: 1,
             state: .active,
-            sensitivity: domain == .health ? .sensitive : .normal,
+            sensitivity: .normal,
             userDecision: .none,
             createdAt: start,
             updatedAt: end

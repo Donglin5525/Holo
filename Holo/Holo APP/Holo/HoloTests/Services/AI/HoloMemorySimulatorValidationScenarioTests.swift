@@ -42,20 +42,19 @@ struct HoloMemorySimulatorValidationScenarioTests {
             "财务 active fixture 必须有足够聚合样本"
         )
         expect(
-            fixtures.first(where: { $0.role == .healthActive })?
+            fixtures.first(where: { $0.role == .healthCandidate })?
                 .package.signals.first?.evidence.sampleCount == 5,
             "健康 active fixture 必须有足够聚合样本"
         )
         expect(
-            fixtures.filter {
-                ![HoloMemorySimulatorValidationFixtureRole.financeActive, .healthActive]
-                    .contains($0.role)
-            }.allSatisfy { $0.package.signals.first?.evidence.kind == .entityRef },
-            "反馈专用 fixture 初始必须为 candidate"
+            fixtures.filter { $0.role != .healthCandidate }
+                .allSatisfy { $0.role == .financeActive ||
+                    $0.package.signals.first?.evidence.kind == .entityRef },
+            "普通领域 fixture 可直接采用，健康 fixture 单独等待确认"
         )
 
         let report = HoloMemorySimulatorValidationReport(
-            scenario: "full-chain-v1",
+            scenario: "full-chain-v2",
             startedAt: Date(timeIntervalSince1970: 1),
             completedAt: Date(timeIntervalSince1970: 2),
             status: "passed",

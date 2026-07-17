@@ -84,10 +84,21 @@ struct DomainMemorySection: View {
     @State private var isLoading = true
     @State private var loadError: String?
     @State private var selectedRecord: HoloMemoryRecord?
+    @State private var newMemoryIDs: Set<String> = []
+    @State private var inboxSnapshot = HoloMemoryInboxSnapshot(
+        newMemoryCount: 0,
+        pendingConfirmationCount: 0,
+        hasUnreadMigrationSummary: false
+    )
+    @State private var showsInboxSummary = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
             header
+
+            if showsInboxSummary, !inboxSnapshot.isEmpty {
+                inboxSummaryCard
+            }
 
             if isLoading {
                 loadingCard
@@ -96,8 +107,22 @@ struct DomainMemorySection: View {
             } else if records.isEmpty {
                 emptyCard
             } else {
+                if !pendingRecords.isEmpty {
+                    specialMemoryGroup(
+                        title: "想和你确认的",
+                        icon: "questionmark.bubble",
+                        records: pendingRecords
+                    )
+                }
                 ForEach(nonemptyGroups) { group in
                     memoryGroup(group)
+                }
+                if !archivedRecords.isEmpty {
+                    specialMemoryGroup(
+                        title: "过去记忆",
+                        icon: "archivebox",
+                        records: archivedRecords
+                    )
                 }
             }
         }
@@ -131,12 +156,24 @@ struct DomainMemorySection: View {
 
     private var nonemptyGroups: [HoloMemoryDisplayGroup] {
         HoloMemoryDisplayGroup.allCases.filter { group in
-            records.contains { HoloMemoryDisplayGroup.group(for: $0) == group }
+            currentRecords.contains { HoloMemoryDisplayGroup.group(for: $0) == group }
         }
     }
 
+    private var pendingRecords: [HoloMemoryRecord] {
+        records.filter { $0.state == .candidate }
+    }
+
+    private var archivedRecords: [HoloMemoryRecord] {
+        records.filter { $0.state == .archived }
+    }
+
+    private var currentRecords: [HoloMemoryRecord] {
+        records.filter { $0.state != .candidate && $0.state != .archived }
+    }
+
     private func memoryGroup(_ group: HoloMemoryDisplayGroup) -> some View {
-        let groupRecords = records.filter { HoloMemoryDisplayGroup.group(for: $0) == group }
+        let groupRecords = currentRecords.filter { HoloMemoryDisplayGroup.group(for: $0) == group }
         return VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             HStack(spacing: HoloSpacing.xs) {
                 Image(systemName: group.icon)
@@ -157,6 +194,30 @@ struct DomainMemorySection: View {
         }
     }
 
+    private func specialMemoryGroup(
+        title: String,
+        icon: String,
+        records: [HoloMemoryRecord]
+    ) -> some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            HStack(spacing: HoloSpacing.xs) {
+                Image(systemName: icon)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.holoPrimary)
+                Text(title)
+                    .font(.holoLabel)
+                    .foregroundColor(.holoTextSecondary)
+                Spacer()
+                Text("\(records.count) 条")
+                    .font(.holoTinyLabel)
+                    .foregroundColor(.holoTextPlaceholder)
+            }
+            ForEach(records) { record in
+                memoryCard(record)
+            }
+        }
+    }
+
     private func memoryCard(_ record: HoloMemoryRecord) -> some View {
         Button {
             selectedRecord = record
@@ -171,8 +232,17 @@ struct DomainMemorySection: View {
 
                     Spacer(minLength: 0)
 
-                    if let badge = HoloMemoryFeedbackBadge(decision: record.userDecision) {
-                        HoloMemoryFeedbackBadgeView(badge: badge)
+                    HStack(spacing: 4) {
+                        if record.state == .candidate {
+                            compactStatusBadge("待确认", icon: "questionmark", color: .orange)
+                        } else if newMemoryIDs.contains(record.id) {
+                            compactStatusBadge("新", icon: "sparkles", color: .holoPrimary)
+                        } else if record.state == .archived {
+                            compactStatusBadge("过去", icon: "archivebox", color: .holoTextSecondary)
+                        }
+                        if let badge = HoloMemoryFeedbackBadge(decision: record.userDecision) {
+                            HoloMemoryFeedbackBadgeView(badge: badge)
+                        }
                     }
                 }
 
@@ -204,6 +274,51 @@ struct DomainMemorySection: View {
             )
         }
         .buttonStyle(.plain)
+    }
+
+    private func compactStatusBadge(
+        _ title: String,
+        icon: String,
+        color: Color
+    ) -> some View {
+        Label(title, systemImage: icon)
+            .font(.system(size: 10, weight: .semibold))
+            .foregroundColor(color)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 4)
+            .background(color.opacity(0.1))
+            .clipShape(Capsule())
+            .fixedSize()
+    }
+
+    private var inboxSummaryCard: some View {
+        HStack(spacing: HoloSpacing.sm) {
+            Image(systemName: "sparkles")
+                .foregroundColor(.holoPrimary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(inboxSnapshot.summaryText)
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextPrimary)
+                Text("Holo 会默认使用普通记忆，需要确认的内容暂不会参与回答。")
+                    .font(.holoTinyLabel)
+                    .foregroundColor(.holoTextSecondary)
+            }
+            Spacer(minLength: 0)
+            Button {
+                HoloMemoryReceiptStore.markWriteReceiptsRead()
+                showsInboxSummary = false
+                newMemoryIDs = []
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.holoTextSecondary)
+                    .padding(6)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(HoloSpacing.md)
+        .background(Color.holoPrimary.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
     }
 
     private var loadingCard: some View {
@@ -253,6 +368,12 @@ struct DomainMemorySection: View {
         loadError = nil
         do {
             let repository = try await HoloMemoryRuntime.shared.repository()
+            let unread = HoloMemoryReceiptStore.unreadWriteReceipts()
+            newMemoryIDs = Set(unread.filter {
+                $0.adoptionKind == .automaticallyAdopted
+            }.flatMap(\.memoryIDs))
+            inboxSnapshot = await HoloMemoryReceiptStore.inboxSnapshot()
+            showsInboxSummary = !inboxSnapshot.isEmpty
             records = try await repository.query(.all).filter(Self.isUserVisible)
             isLoading = false
         } catch {
@@ -266,13 +387,16 @@ struct DomainMemorySection: View {
         if record.userDecision == .rejected {
             return record.state == .suppressed
         }
-        guard [.active, .disputed, .invalidated].contains(record.state) else { return false }
+        guard [.candidate, .active, .disputed, .invalidated, .archived].contains(record.state) else {
+            return false
+        }
         return ![.forgotten, .markedIrrelevant].contains(record.userDecision)
     }
 
     private func apply(_ change: HoloMemoryRecordDetailChange) {
         switch change {
         case .updated(let record):
+            newMemoryIDs.remove(record.id)
             if Self.isUserVisible(record),
                let index = records.firstIndex(where: { $0.id == record.id }) {
                 records[index] = record
@@ -281,6 +405,7 @@ struct DomainMemorySection: View {
             }
             selectedRecord = record
         case .removed(let id):
+            newMemoryIDs.remove(id)
             records.removeAll { $0.id == id }
             selectedRecord = nil
         }
@@ -370,6 +495,12 @@ enum HoloMemoryUserPresentation {
     }
 
     static func degradedStatus(for record: HoloMemoryRecord) -> String? {
+        if record.state == .candidate {
+            return "确认前不会用于 HoloAI 回答"
+        }
+        if record.state == .archived {
+            return "这条记忆已经成为过去，不再用于当前回答"
+        }
         if record.state == .invalidated {
             return "来源已经变化，这条记忆已暂停使用"
         }

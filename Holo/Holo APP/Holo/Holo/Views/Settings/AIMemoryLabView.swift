@@ -47,6 +47,11 @@ struct AIMemoryLabView: View {
     @State private var operationResult: String?
     @State private var isRunningObservation = false
     @State private var isResettingValidation = false
+    @State private var inboxSnapshot = HoloMemoryInboxSnapshot(
+        newMemoryCount: 0,
+        pendingConfirmationCount: 0,
+        hasUnreadMigrationSummary: false
+    )
 
     var body: some View {
         List {
@@ -66,6 +71,11 @@ struct AIMemoryLabView: View {
             LabeledContent("验证模式", value: "手动真实运行 + 只读检查")
             LabeledContent("记忆总数", value: "\(records.count)")
             LabeledContent(
+                "采用状态",
+                value: "自动 \(automaticCount) / 待确认 \(pendingCount) / 归档 \(archivedCount)"
+            )
+            LabeledContent("汇总回执", value: inboxSnapshot.isEmpty ? "无未读" : inboxSnapshot.summaryText)
+            LabeledContent(
                 "今日静默 AI 调用",
                 value: scheduler.map { "\($0.aiCallsToday)/\($0.dailyCallLimit)" } ?? "—"
             )
@@ -80,11 +90,6 @@ struct AIMemoryLabView: View {
             if let errorMessage {
                 Label(errorMessage, systemImage: "exclamationmark.triangle")
                     .foregroundColor(.orange)
-            }
-            if let operationResult {
-                Text(operationResult)
-                    .font(.caption)
-                    .foregroundColor(operationResult.hasPrefix("成功") ? .green : .orange)
             }
         }
     }
@@ -128,12 +133,30 @@ struct AIMemoryLabView: View {
             Button {
                 Task { await runLiveObservation() }
             } label: {
-                Label(
-                    isRunningObservation ? "真实观察运行中…" : "运行一次真实观察",
-                    systemImage: "play.circle"
-                )
+                HStack(spacing: 8) {
+                    if isRunningObservation {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Image(systemName: "play.circle")
+                    }
+                    Text(isRunningObservation ? "真实观察运行中…" : "运行一次真实观察")
+                }
             }
             .disabled(isRunningObservation || isResettingValidation)
+
+            if let operationResult {
+                Label {
+                    Text(operationResult)
+                } icon: {
+                    Image(
+                        systemName: operationResult.hasPrefix("成功")
+                            ? "checkmark.circle.fill" : "info.circle"
+                    )
+                }
+                .font(.caption)
+                .foregroundColor(operationResult.hasPrefix("成功") ? .green : .orange)
+            }
 
             Button {
                 Task { await resetValidationState() }
@@ -210,6 +233,16 @@ struct AIMemoryLabView: View {
         }
     }
 
+    private var automaticCount: Int {
+        records.filter {
+            $0.state == .active && $0.adoptionMetadata?.disposition == .automatic
+        }.count
+    }
+
+    private var pendingCount: Int { records.filter { $0.state == .candidate }.count }
+
+    private var archivedCount: Int { records.filter { $0.state == .archived }.count }
+
     private func schedulerTarget(
         _ scope: AIMemoryLabScope
     ) -> HoloMemorySchedulerDebugTargetSnapshot? {
@@ -242,6 +275,7 @@ struct AIMemoryLabView: View {
             records = try await loadedRecords
             scheduler = await loadedScheduler
             traces = await loadedTraces
+            inboxSnapshot = await HoloMemoryReceiptStore.inboxSnapshot()
         } catch {
             errorMessage = "诊断数据读取失败：\(error.localizedDescription)"
         }

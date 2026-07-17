@@ -48,7 +48,7 @@ struct AIMemoryLabDomainView: View {
             pipelineRow("Persisted records", value: "\(records.count) 条现有记录")
             pipelineRow(
                 "Repository state",
-                value: "active \(records.filter { $0.state == .active }.count) / candidate \(records.filter { $0.state == .candidate }.count)"
+                value: "active \(records.filter { $0.state == .active }.count) / candidate \(records.filter { $0.state == .candidate }.count) / archived \(records.filter { $0.state == .archived }.count)"
             )
         } header: {
             Text("当前仓库")
@@ -146,7 +146,7 @@ struct AIMemoryLabDomainView: View {
                         VStack(alignment: .leading, spacing: 4) {
                             Text(record.displaySummary.isEmpty ? "[正文已擦除]" : record.displaySummary)
                                 .lineLimit(2)
-                            Text("\(record.state.rawValue) · v\(record.recordVersion) · evidence \(record.evidenceRefs.count) · counter \(record.counterEvidenceRefs.count)")
+                            Text("\(record.state.rawValue) · \(record.adoptionMetadata?.disposition.rawValue ?? "legacy") · v\(record.recordVersion) · evidence \(record.evidenceRefs.count)")
                                 .font(.caption2.monospaced())
                                 .foregroundColor(.secondary)
                         }
@@ -293,6 +293,29 @@ private struct AIMemoryLabRecordInspectorView: View {
                 debugRow("state", record.state.rawValue)
                 debugRow("user decision", record.userDecision.rawValue)
                 debugRow("tombstone hit", tombstoneHit ? "YES" : "NO")
+            }
+
+            Section("采用与召回（仅 Debug）") {
+                debugRow("policy version", record.adoptionMetadata.map { "\($0.policyVersion)" } ?? "—")
+                debugRow("disposition", record.adoptionMetadata?.disposition.rawValue ?? "legacy")
+                debugRow("reason", record.adoptionMetadata?.reason.rawValue ?? "—")
+                debugRow(
+                    "last supported",
+                    record.lastSupportedAt?.formatted(date: .numeric, time: .standard) ?? "—"
+                )
+                debugRow(
+                    "effective freshness",
+                    String(format: "%.3f", HoloMemoryRecallPolicy.effectiveFreshness(for: record, now: Date()))
+                )
+                debugRow(
+                    "recall eligible",
+                    HoloMemoryRecallPolicy.isEligible(record, now: Date()) ? "YES" : "NO"
+                )
+                debugRow(
+                    "exclusion reason",
+                    HoloMemoryRecallPolicy.exclusionReason(for: record, now: Date())?.rawValue
+                        ?? "— (query score evaluated per question)"
+                )
             }
 
             Section("评分明细（仅 Debug）") {

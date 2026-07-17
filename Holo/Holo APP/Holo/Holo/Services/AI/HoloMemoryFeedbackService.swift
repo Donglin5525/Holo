@@ -51,6 +51,7 @@ struct HoloMemoryFeedbackService: Sendable {
         }
         #if !HOLO_MEMORY_STANDALONE
         if didApply {
+            HoloMemoryReceiptStore.markHandled(memoryID: id, now: now)
             await HoloMemoryQualityMetrics.shared.recordFeedback(
                 corrected: false,
                 rejected: action == .inaccurate
@@ -77,6 +78,12 @@ struct HoloMemoryFeedbackService: Sendable {
         record.aiUseSummary = sanitized
         record.userDecision = .corrected
         record.state = .active
+        record.adoptionMetadata = HoloMemoryAdoptionMetadata(
+            policyVersion: HoloMemoryActivationPolicy.currentVersion,
+            disposition: .userConfirmed,
+            reason: .explicitUserConfirmation,
+            evaluatedAt: now
+        )
         record.confidenceScore = max(record.confidenceScore, 0.95)
         record.freshnessScore = 1
         record.recordVersion += 1
@@ -85,6 +92,7 @@ struct HoloMemoryFeedbackService: Sendable {
         try record.validate()
         try await store.replaceRecordForUserControl(record)
         #if !HOLO_MEMORY_STANDALONE
+        HoloMemoryReceiptStore.markHandled(memoryID: id, now: now)
         await HoloMemoryQualityMetrics.shared.recordFeedback(corrected: true, rejected: false)
         #endif
         return record

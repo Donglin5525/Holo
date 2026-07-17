@@ -20,8 +20,6 @@ struct HoloCrossDomainFusionCandidate: Codable, Equatable, Sendable {
     var memories: [HoloMemoryRecord]
     var evidenceRefs: [HoloMemoryEvidenceRef]
     var commonWindow: HoloCrossDomainTimeWindow
-
-    var containsHealth: Bool { sourceDomains.contains(.health) }
 }
 
 enum HoloCrossDomainCandidateBuilder {
@@ -86,7 +84,7 @@ enum HoloCrossDomainCandidateBuilder {
         guard record.scope == .domain,
               record.primaryDomain != nil,
               record.sourceDomains.count == 1,
-              [.candidate, .active].contains(record.state) else { return false }
+              record.state == .active else { return false }
         return ![.rejected, .forgotten, .markedIrrelevant].contains(record.userDecision)
     }
 

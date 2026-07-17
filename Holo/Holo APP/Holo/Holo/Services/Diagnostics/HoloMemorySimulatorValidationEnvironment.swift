@@ -11,7 +11,7 @@ import Foundation
 nonisolated struct HoloMemorySimulatorValidationEnvironment: Equatable, Sendable {
     static let scenarioKey = "HOLO_MEMORY_SIMULATOR_SCENARIO"
     static let resetKey = "HOLO_MEMORY_SIMULATOR_RESET"
-    static let supportedScenario = "full-chain-v1"
+    static let supportedScenario = "full-chain-v2"
 
     let scenario: String
     let shouldReset: Bool

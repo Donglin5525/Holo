@@ -28,7 +28,7 @@ struct HoloMemoryMigrationStandaloneTests {
     ) -> HoloLongTermMemory {
         HoloLongTermMemory(
             id: id,
-            subjectKey: "habit:running",
+            subjectKey: "habit:running:\(id)",
             title: "跑步节奏",
             confidence: .high,
             confirmationState: state,
@@ -91,6 +91,7 @@ struct HoloMemoryMigrationStandaloneTests {
 
         let snapshot = HoloLegacyMemorySnapshot(
             longTermMemories: [
+                longTerm(id: "legacy-candidate", state: .candidate),
                 longTerm(id: "legacy-active", state: .confirmed),
                 longTerm(id: "legacy-rejected", state: .rejected)
             ],
@@ -116,8 +117,8 @@ struct HoloMemoryMigrationStandaloneTests {
         )
 
         let preview = try service.dryRun(snapshot: snapshot)
-        expect(preview.records.count == 2,
-               "有效长期记忆和有效情景记忆都必须映射到统一 record")
+        expect(preview.records.count == 3,
+               "历史候选、有效长期记忆和有效情景记忆都必须映射到统一 record")
         expect(preview.tombstones.count == 2,
                "rejected 与 suppression 必须迁移为墓碑")
         expect(preview.tombstones.allSatisfy { !$0.anchorKeys.joined().contains("这段原文") },
@@ -127,14 +128,44 @@ struct HoloMemoryMigrationStandaloneTests {
         }, "迁移不能丢失证据和禁止推断")
         expect(snapshot == originalSnapshot, "dry-run 不能修改旧 JSON 快照")
 
+        var existingCandidate = try require(
+            preview.records.first,
+            "迁移预览缺少测试记录"
+        )
+        let existingCreatedAt = Date(timeIntervalSince1970: 1_650_000_000)
+        let existingSupportedAt = Date(timeIntervalSince1970: 1_660_000_000)
+        let existingAnchor = try HoloMemoryAnchorRef(type: .userTheme, value: "existing-candidate")
+        existingCandidate.anchorRefs = [existingAnchor]
+        existingCandidate.subjectKey = existingAnchor.stableKey
+        existingCandidate.id = try HoloMemoryIdentity.makeStableID(for: existingCandidate)
+        existingCandidate.state = .candidate
+        existingCandidate.userDecision = .none
+        existingCandidate.adoptionMetadata = nil
+        existingCandidate.createdAt = existingCreatedAt
+        existingCandidate.lastSupportedAt = existingSupportedAt
+        existingCandidate.updatedAt = existingSupportedAt
+        existingCandidate.scoreComputedAt = existingSupportedAt
+        _ = try await repository.upsert(existingCandidate, observationKey: nil)
+
         let committed = try await service.commit(preview)
-        expect(committed == .committed(recordCount: 2, tombstoneCount: 2),
+        expect(committed == .committed(recordCount: 4, tombstoneCount: 2),
                "迁移提交结果不符合预期")
         expect(stateStore.completedVersion == HoloMemoryMigrationService.currentVersion,
                "成功校验后才允许标记迁移完成")
         let migratedRecords = try await repository.query(.all)
-        expect(migratedRecords.count == 2,
+        expect(migratedRecords.count == 4,
                "提交后统一 Repository 应包含迁移记录")
+        let migratedExisting = try require(
+            migratedRecords.first(where: { $0.id == existingCandidate.id }),
+            "统一仓库中的历史候选没有被迁移"
+        )
+        expect(migratedExisting.state == .active && migratedExisting.userDecision == .none,
+               "统一仓库历史候选应解除确认门槛")
+        expect(migratedExisting.createdAt == existingCreatedAt &&
+               migratedExisting.lastSupportedAt == existingSupportedAt,
+               "历史候选迁移必须保留原始时间")
+        expect(migratedExisting.adoptionMetadata?.disposition == .historicalMigration,
+               "历史候选迁移必须留下采用来源")
 
         let repeated = try await service.commit(preview)
         expect(repeated == .alreadyCompleted,
@@ -149,8 +180,8 @@ struct HoloMemoryMigrationStandaloneTests {
 
         try await service.rollback()
         let recordsAfterRollback = try await repository.query(.all)
-        expect(recordsAfterRollback.isEmpty,
-               "回滚必须恢复迁移前 Repository")
+        expect(recordsAfterRollback == [existingCandidate],
+               "回滚必须恢复迁移前的历史候选状态")
         expect(stateStore.completedVersion == 0,
                "回滚后迁移完成标记必须清除")
         expect(snapshot == originalSnapshot,
@@ -166,5 +197,10 @@ struct HoloMemoryMigrationStandaloneTests {
         expect(true, "Debug 应允许开发者重新 dry-run")
 
         print("HoloMemoryMigrationStandaloneTests passed: \(assertionCount) assertions")
+    }
+
+    private static func require<T>(_ value: T?, _ message: String) throws -> T {
+        guard let value else { throw NSError(domain: message, code: 1) }
+        return value
     }
 }

@@ -21,6 +21,13 @@ struct PersonalView: View {
     // 个人档案 sheet
     @State private var showProfileEditor = false
     @State private var showGoalList = false
+    @State private var showMemorySettings = false
+    @State private var showMemorySummaryCapsule = false
+    @State private var memoryInboxSnapshot = HoloMemoryInboxSnapshot(
+        newMemoryCount: 0,
+        pendingConfirmationCount: 0,
+        hasUnreadMigrationSummary: false
+    )
 
     init(
         onPlanGoal: @escaping () -> Void = {},
@@ -69,7 +76,19 @@ struct PersonalView: View {
                     pendingGoalDetailId: $pendingGoalDetailId
                 )
             }
+            .navigationDestination(isPresented: $showMemorySettings) {
+                PersonalMemorySettingsView()
+            }
         }
+        .overlay(alignment: .top) {
+            if showMemorySummaryCapsule, !memoryInboxSnapshot.isEmpty {
+                memorySummaryCapsule
+                    .padding(.top, 52)
+                    .padding(.horizontal, HoloSpacing.lg)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
+        .animation(.easeInOut(duration: 0.2), value: showMemorySummaryCapsule)
         .swipeBackToDismiss { dismiss() }
         .onAppear {
             _ = profileService.loadProfile()
@@ -81,6 +100,10 @@ struct PersonalView: View {
             if newValue != nil {
                 showGoalList = true
             }
+        }
+        .task { await refreshMemoryInbox(presentIfAllowed: true) }
+        .onReceive(NotificationCenter.default.publisher(for: .holoMemoryReceiptsDidChange)) { _ in
+            Task { await refreshMemoryInbox(presentIfAllowed: false) }
         }
     }
 
@@ -144,6 +167,49 @@ struct PersonalView: View {
             }
             .buttonStyle(PlainButtonStyle())
         }
+    }
+
+    private var memorySummaryCapsule: some View {
+        HStack(spacing: HoloSpacing.xs) {
+            Button {
+                HoloMemoryReceiptStore.markWriteReceiptsRead()
+                showMemorySettings = true
+                showMemorySummaryCapsule = false
+            } label: {
+                Label(memoryInboxSnapshot.summaryText, systemImage: "brain.head.profile.fill")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.holoTextPrimary)
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                HoloMemoryReceiptStore.markWriteReceiptsRead()
+                showMemorySummaryCapsule = false
+                Task { await refreshMemoryInbox(presentIfAllowed: false) }
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.holoTextSecondary)
+                    .padding(5)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, 6)
+        .padding(.vertical, 7)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay(Capsule().stroke(Color.holoPrimary.opacity(0.2)))
+        .frame(maxWidth: .infinity, alignment: .center)
+    }
+
+    @MainActor
+    private func refreshMemoryInbox(presentIfAllowed: Bool) async {
+        memoryInboxSnapshot = await HoloMemoryReceiptStore.inboxSnapshot()
+        guard presentIfAllowed,
+              !memoryInboxSnapshot.isEmpty,
+              HoloMemoryReceiptStore.shouldPresentSummary() else { return }
+        HoloMemoryReceiptStore.markSummaryPresented()
+        showMemorySummaryCapsule = true
     }
 
     // MARK: - 我的目标
@@ -230,6 +296,17 @@ struct PersonalView: View {
                     }
 
                     Spacer()
+
+                    if !memoryInboxSnapshot.isEmpty {
+                        Text(memoryInboxSnapshot.summaryText)
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.holoPrimary)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.holoPrimary.opacity(0.1))
+                            .clipShape(Capsule())
+                            .fixedSize()
+                    }
 
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .semibold))

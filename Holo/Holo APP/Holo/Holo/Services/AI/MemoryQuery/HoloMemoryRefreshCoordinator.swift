@@ -37,9 +37,7 @@ struct HoloMemoryRefreshCoordinator: Sendable {
         for records: [HoloMemoryRecord],
         now: Date
     ) -> HoloMemoryRefreshDecision {
-        let stale = records.filter {
-            $0.freshnessScore < 0.35 || ($0.expiresAt.map { $0 <= now } ?? false)
-        }
+        let stale = records.filter { HoloMemoryRecallPolicy.needsRefresh($0, now: now) }
         let targets = Array(Set(stale.map { record -> HoloMemoryRefreshTarget in
             if record.scope == .crossDomain { return .crossDomain }
             return .domain(record.primaryDomain ?? record.sourceDomains[0])

@@ -2,7 +2,7 @@
 //  HoloMemoryCompactionService.swift
 //  Holo
 //
-//  统一记忆容量治理：只归档可重建的自动记忆，不删除用户确认事实和墓碑。
+//  统一记忆容量治理：阶段状态按时效归档，永久事实和墓碑不参与自然衰减。
 //
 
 import Foundation
@@ -32,11 +32,19 @@ nonisolated struct HoloMemoryCompactionPlan: Equatable, Sendable {
 struct HoloMemoryCompactionService: Sendable {
     func plan(
         records: [HoloMemoryRecord],
-        tombstones: [HoloMemoryTombstone]
+        tombstones: [HoloMemoryTombstone],
+        now: Date = Date()
     ) -> HoloMemoryCompactionPlan {
         var archiveIDs = Set<String>()
         var retainedIDs = Set(records.map(\.id))
         var overflow: [String: Int] = [:]
+
+        let staleAutomaticOrConfirmed = records.filter {
+            $0.state == .active &&
+            $0.persistenceClass != .permanentFact &&
+            !HoloMemoryRecallPolicy.isEligible($0, now: now)
+        }
+        archiveIDs.formUnion(staleAutomaticOrConfirmed.map(\.id))
 
         for domain in HoloMemoryDomain.allCases {
             let scoped = records.filter {
@@ -84,10 +92,11 @@ struct HoloMemoryCompactionService: Sendable {
     ) async throws -> HoloMemoryCompactionPlan {
         let records = try await repository.query(.all)
         let tombstones = try await repository.queryTombstones()
-        let result = plan(records: records, tombstones: tombstones)
+        let result = plan(records: records, tombstones: tombstones, now: now)
         for id in result.archiveRecordIDs {
             guard var record = try await repository.fetch(id: id),
-                  !Self.isProtected(record) else { continue }
+                  record.state == .active,
+                  record.persistenceClass != .permanentFact else { continue }
             let predecessor = record.versionID
             record.state = .archived
             record.recordVersion += 1

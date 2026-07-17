@@ -47,6 +47,21 @@ struct HoloMemoryScorerStandaloneTests {
                "currentState 应比 durable 更快衰减")
         expect(permanentFreshness == 1,
                "永久事实的成立新鲜度不随时间衰减")
+        expect(abs(HoloMemoryScorer.freshness(
+            persistenceClass: .currentState,
+            lastSupportedAt: now.addingTimeInterval(-14 * 86_400),
+            now: now
+        ) - 0.5) < 0.0001, "近期状态半衰期必须为 14 天")
+        expect(abs(HoloMemoryScorer.freshness(
+            persistenceClass: .phase,
+            lastSupportedAt: now.addingTimeInterval(-60 * 86_400),
+            now: now
+        ) - 0.5) < 0.0001, "阶段记忆半衰期必须为 60 天")
+        expect(abs(HoloMemoryScorer.freshness(
+            persistenceClass: .durable,
+            lastSupportedAt: now.addingTimeInterval(-150 * 86_400),
+            now: now
+        ) - 0.5) < 0.0001, "稳定模式半衰期必须为 150 天")
 
         let weakNew = HoloMemoryScorer.recallScore(
             relevance: 1,

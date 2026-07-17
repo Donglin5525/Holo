@@ -68,7 +68,7 @@ final class HoloMemoryRuntime {
             let service = HoloMemoryMigrationService(
                 repository: repository,
                 stateStore: stateStore,
-                journalURL: memoryDirectory.appendingPathComponent("memory-v3-migration-journal.json"),
+                journalURL: memoryDirectory.appendingPathComponent("memory-v4-migration-journal.json"),
                 allowDestructiveRerun: allowDestructiveRerun
             )
             let snapshot = HoloLegacyMemorySnapshot(
@@ -79,9 +79,38 @@ final class HoloMemoryRuntime {
             let preview = try service.dryRun(snapshot: snapshot)
             let result = try await service.commit(preview)
             logger.info("统一记忆迁移完成：\(String(describing: result), privacy: .public)")
+            if case .committed = result {
+                let historicalIDs = try await repository.query(.all).filter {
+                    $0.adoptionMetadata?.disposition == .historicalMigration
+                }.map(\.id)
+                if !historicalIDs.isEmpty {
+                    HoloMemoryReceiptStore.record(
+                        kind: .write,
+                        channel: .insight,
+                        memoryIDs: historicalIDs,
+                        message: "已按新的记忆方式整理原有内容",
+                        adoptionKind: .historicalMigration,
+                        batchKey: "memory-migration-v\(HoloMemoryMigrationService.currentVersion)"
+                    )
+                }
+            }
         } catch {
             // 迁移失败保留旧 Store 和 journal，下次启动重试，不影响主业务。
             logger.error("统一记忆迁移失败：\(error.localizedDescription, privacy: .public)")
+        }
+    }
+
+    /// 激活策略升级后重评估存量待确认记忆（每个策略版本执行一次）。
+    func reconcilePendingCandidatesIfNeeded() async {
+        #if DEBUG
+        guard HoloMemorySimulatorValidationEnvironment.current == nil else { return }
+        #endif
+        do {
+            let repository = try await repository()
+            _ = try await HoloMemoryCandidateReconciler.reconcileIfNeeded(repository: repository)
+        } catch {
+            // 重评估失败不影响主业务，下次启动重试。
+            logger.error("待确认记忆重评估失败：\(error.localizedDescription, privacy: .public)")
         }
     }
 

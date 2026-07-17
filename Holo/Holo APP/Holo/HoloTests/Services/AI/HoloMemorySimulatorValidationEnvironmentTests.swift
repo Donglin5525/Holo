@@ -41,16 +41,16 @@ struct HoloMemorySimulatorValidationEnvironmentTests {
             applicationSupport: applicationSupport,
             documents: documents
         )
-        expect(resolved?.scenario == "full-chain-v1", "场景名必须稳定")
+        expect(resolved?.scenario == "full-chain-v2", "场景名必须稳定")
         expect(resolved?.shouldReset == false, "reset=0 应解析为 false")
         expect(
             resolved?.storeDirectoryURL.path ==
-                "/tmp/holo-app-support/Holo/SimulatorValidation/full-chain-v1",
+                "/tmp/holo-app-support/Holo/SimulatorValidation/full-chain-v2",
             "Store 必须位于固定的模拟器验收目录"
         )
         expect(
             resolved?.reportURL.path ==
-                "/tmp/holo-documents/HoloMemoryValidation/full-chain-v1.json",
+                "/tmp/holo-documents/HoloMemoryValidation/full-chain-v2.json",
             "报告必须位于 Documents 固定路径"
         )
         expect(

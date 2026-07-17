@@ -11,11 +11,11 @@ import OSLog
 
 nonisolated enum HoloMemorySimulatorValidationFixtureRole: String, Codable, CaseIterable, Sendable {
     case financeActive
-    case healthActive
-    case habitCandidate
-    case correctionCandidate
-    case rejectionCandidate
-    case forgettingCandidate
+    case healthCandidate
+    case habitActive
+    case correctionActive
+    case rejectionActive
+    case deletionActive
 }
 
 nonisolated struct HoloMemorySimulatorValidationDomainFixture: Sendable {
@@ -54,7 +54,7 @@ nonisolated struct HoloMemorySimulatorValidationReport: Codable, Equatable, Send
 }
 
 nonisolated enum HoloMemorySimulatorValidationFixtures {
-    static let namespace = "sim-validation-v1"
+    static let namespace = "sim-validation-v2"
 
     static func make(now: Date) throws -> [HoloMemorySimulatorValidationDomainFixture] {
         let window = HoloMemoryObservationWindow(
@@ -87,7 +87,7 @@ nonisolated enum HoloMemorySimulatorValidationFixtures {
                 aiUseSummary: "[模拟] 近期存在重复麦当劳消费模式"
             ),
             .init(
-                role: .healthActive,
+                role: .healthCandidate,
                 domain: .health,
                 signalKind: .aggregate,
                 evidenceKind: .aggregateSnapshot,
@@ -100,18 +100,19 @@ nonisolated enum HoloMemorySimulatorValidationFixtures {
                         displayLabel: "入睡时间"
                     )
                 ],
-                claimKind: .recurringPattern,
+                claimKind: .lifeEvent,
                 persistenceClass: .phase,
-                displaySummary: "[模拟] 近期有5天入睡时间晚于零点",
-                aiUseSummary: "[模拟] 近期入睡时间偏晚"
+                displaySummary: "[模拟] 近两周开始调整作息，入睡时间仍不稳定",
+                aiUseSummary: "[模拟] 用户处于作息调整期，入睡时间波动较大"
             ),
             .init(
-                role: .habitCandidate,
+                role: .habitActive,
                 domain: .habit,
                 signalKind: .entity,
                 evidenceKind: .entityRef,
                 sampleCount: nil,
                 anchors: [
+                    sharedGoal,
                     try HoloMemoryAnchorRef(
                         type: .habit,
                         value: "\(namespace)-reduce-weight",
@@ -124,7 +125,7 @@ nonisolated enum HoloMemorySimulatorValidationFixtures {
                 aiUseSummary: "[模拟] 减脂习惯尚未形成稳定节律"
             ),
             .init(
-                role: .correctionCandidate,
+                role: .correctionActive,
                 domain: .thought,
                 signalKind: .entity,
                 evidenceKind: .entityRef,
@@ -142,7 +143,7 @@ nonisolated enum HoloMemorySimulatorValidationFixtures {
                 aiUseSummary: "[模拟] 纠正前样本"
             ),
             .init(
-                role: .rejectionCandidate,
+                role: .rejectionActive,
                 domain: .task,
                 signalKind: .entity,
                 evidenceKind: .entityRef,
@@ -160,7 +161,7 @@ nonisolated enum HoloMemorySimulatorValidationFixtures {
                 aiUseSummary: "[模拟] 拒绝样本"
             ),
             .init(
-                role: .forgettingCandidate,
+                role: .deletionActive,
                 domain: .goal,
                 signalKind: .entity,
                 evidenceKind: .entityRef,
@@ -344,6 +345,19 @@ enum HoloMemorySimulatorValidationScenario {
                     expected: expectedInitialState(for: fixture.role).rawValue,
                     actual: generated.state.rawValue
                 )
+                HoloMemoryReceiptStore.record(
+                    kind: .write,
+                    channel: .insight,
+                    memoryIDs: [generated.id],
+                    message: generated.state == .active
+                        ? "Holo 新记住了 1 件事"
+                        : "有 1 件事想和你确认",
+                    adoptionKind: generated.state == .active
+                        ? .automaticallyAdopted
+                        : .needsConfirmation,
+                    batchKey: "\(fixture.observationKey):\(generated.state.rawValue)",
+                    now: now
+                )
             }
 
             if let financeFixture = fixtures.first(where: { $0.role == .financeActive }) {
@@ -371,6 +385,119 @@ enum HoloMemorySimulatorValidationScenario {
                 )
             }
 
+            guard var historicalCandidate = try await repository.fetch(
+                id: recordIDs[.deletionActive] ?? ""
+            ) else {
+                throw HoloMemorySimulatorValidationFixtureError.missingGeneratedRecord(.deletionActive)
+            }
+            let historicalCreatedAt = now.addingTimeInterval(-420 * 86_400)
+            let historicalSupportedAt = now.addingTimeInterval(-400 * 86_400)
+            let historicalAnchor = try HoloMemoryAnchorRef(
+                type: .goal,
+                value: "\(HoloMemorySimulatorValidationFixtures.namespace)-historical",
+                displayLabel: "[模拟] 历史候选"
+            )
+            historicalCandidate.anchorRefs = [historicalAnchor]
+            historicalCandidate.subjectKey = historicalAnchor.stableKey
+            historicalCandidate.id = try HoloMemoryIdentity.makeStableID(for: historicalCandidate)
+            historicalCandidate.displaySummary = "[模拟] 很久以前的阶段目标"
+            historicalCandidate.aiUseSummary = "[模拟] 很久以前存在阶段目标"
+            historicalCandidate.evidenceRefs = historicalCandidate.evidenceRefs.map { evidence in
+                var updated = evidence
+                updated.id = "\(HoloMemorySimulatorValidationFixtures.namespace)-historical-evidence"
+                updated.lineageKey = "\(HoloMemorySimulatorValidationFixtures.namespace)-historical-lineage"
+                updated.observedAt = historicalSupportedAt
+                updated.validFrom = historicalCreatedAt
+                updated.validTo = historicalSupportedAt
+                return updated
+            }
+            historicalCandidate.validFrom = historicalCreatedAt
+            historicalCandidate.validTo = historicalSupportedAt
+            historicalCandidate.lastSupportedAt = historicalSupportedAt
+            historicalCandidate.createdAt = historicalCreatedAt
+            historicalCandidate.updatedAt = historicalSupportedAt
+            historicalCandidate.scoreComputedAt = historicalSupportedAt
+            historicalCandidate.state = .candidate
+            historicalCandidate.userDecision = .none
+            historicalCandidate.adoptionMetadata = nil
+            _ = try await repository.upsert(historicalCandidate, observationKey: nil)
+
+            let migrationState = SimulatorMigrationStateStore()
+            let migration = HoloMemoryMigrationService(
+                repository: repository,
+                stateStore: migrationState,
+                journalURL: environment.storeDirectoryURL
+                    .appendingPathComponent("memory-v4-simulator-journal.json"),
+                allowDestructiveRerun: true,
+                now: { now }
+            )
+            let migrationPreview = try migration.dryRun(snapshot: HoloLegacyMemorySnapshot(
+                longTermMemories: [],
+                episodicMemories: [],
+                suppressionRules: []
+            ))
+            let migrationResult = try await migration.commit(migrationPreview)
+            let migratedHistorical = try await repository.fetch(id: historicalCandidate.id)
+            let preservesCreatedAt = (migratedHistorical?.createdAt).map {
+                abs($0.timeIntervalSince(historicalCreatedAt)) < 1
+            } == true
+            let preservesLastSupportedAt = (migratedHistorical?.lastSupportedAt).map {
+                abs($0.timeIntervalSince(historicalSupportedAt)) < 1
+            } == true
+            recorder.check(
+                migrationResult == .committed(recordCount: 2, tombstoneCount: 0) &&
+                    migratedHistorical?.state == .active &&
+                    preservesCreatedAt &&
+                    preservesLastSupportedAt &&
+                    migratedHistorical?.adoptionMetadata?.disposition == .historicalMigration,
+                name: "migration.historicalCandidates.activateWithoutRefreshingTime",
+                expected: "all historical candidates active/original dates/historical metadata",
+                actual: "result=\(String(describing: migrationResult)),state=\(migratedHistorical?.state.rawValue ?? "nil"),created=\(String(describing: migratedHistorical?.createdAt)),supported=\(String(describing: migratedHistorical?.lastSupportedAt))"
+            )
+            recorder.check(
+                migratedHistorical.map { !HoloMemoryRecallPolicy.isEligible($0, now: now) } == true,
+                name: "migration.oldCandidate.exitsRecallImmediately",
+                expected: "not recall eligible",
+                actual: "freshness=\(migratedHistorical.map { HoloMemoryRecallPolicy.effectiveFreshness(for: $0, now: now) } ?? -1)"
+            )
+            if let healthID = recordIDs[.healthCandidate],
+               var health = try await repository.fetch(id: healthID) {
+                let predecessor = health.versionID
+                health.state = .candidate
+                health.userDecision = .none
+                health.adoptionMetadata = HoloMemoryAdoptionMetadata(
+                    policyVersion: HoloMemoryActivationPolicy.currentVersion,
+                    disposition: .pendingConfirmation,
+                    reason: .permanentFact,
+                    evaluatedAt: now
+                )
+                health.recordVersion += 1
+                health.predecessorVersionID = predecessor
+                health.updatedAt = now
+                try await repository.replaceRecordForUserControl(health)
+            }
+            let compaction = try await HoloMemoryCompactionService().compact(
+                repository: repository,
+                now: now
+            )
+            let archivedHistorical = try await repository.fetch(id: historicalCandidate.id)
+            recorder.check(
+                compaction.archiveRecordIDs.contains(historicalCandidate.id) &&
+                    archivedHistorical?.state == .archived,
+                name: "lifecycle.staleCandidate.movesToPastMemory",
+                expected: "archived",
+                actual: String(describing: archivedHistorical?.state)
+            )
+            HoloMemoryReceiptStore.record(
+                kind: .write,
+                channel: .insight,
+                memoryIDs: [historicalCandidate.id],
+                message: "已按新的记忆方式整理原有内容",
+                adoptionKind: .historicalMigration,
+                batchKey: "\(HoloMemorySimulatorValidationFixtures.namespace)-migration",
+                now: now
+            )
+
             let initialRecords = try await repository.query(.all)
             let crossCandidates = HoloCrossDomainCandidateBuilder.build(from: initialRecords)
             recorder.check(
@@ -380,24 +507,24 @@ enum HoloMemorySimulatorValidationScenario {
                 actual: "\(crossCandidates.count)"
             )
             guard let crossCandidate = crossCandidates.first(where: {
-                Set($0.sourceDomains) == Set([.finance, .health])
+                Set($0.sourceDomains) == Set([.finance, .habit])
             }) ?? crossCandidates.first else {
                 throw HoloMemorySimulatorValidationFixtureError.missingCrossDomainCandidate
             }
             let fusionOutput = HoloCrossDomainFusionOutput(
                 claimKind: .association,
-                displaySummary: "[模拟] 减脂期间同时出现夜睡和重复快餐消费",
-                aiUseSummary: "[模拟] 减脂期间可同时参考夜睡与快餐消费记录",
+                displaySummary: "[模拟] 减脂打卡期间同时出现重复快餐消费",
+                aiUseSummary: "[模拟] 减脂习惯与快餐消费记录在同一阶段出现",
                 anchors: [crossCandidate.sharedAnchor],
                 upstreamMemoryIDs: crossCandidate.sourceMemoryIDs,
                 evidenceIDs: crossCandidate.evidenceRefs.map(\.id),
                 prohibitedInferences: ["不推断因果或医学结论"],
-                requestedStorageClass: .sensitiveLocal
+                requestedStorageClass: .normal
             )
             let fusionDecision = HoloCrossDomainFusionService.evaluate(
                 fusionOutput,
                 for: crossCandidate,
-                priorOccurrenceCount: 1,
+                priorOccurrenceCount: 0,
                 userConfirmed: false,
                 now: now
             )
@@ -409,29 +536,50 @@ enum HoloMemorySimulatorValidationScenario {
                 observationKey: "\(HoloMemorySimulatorValidationFixtures.namespace)-cross-observation"
             )
             recorder.check(
-                crossUpsert == .inserted,
-                name: "fusion.crossDomain.persisted",
-                expected: "inserted",
-                actual: String(describing: crossUpsert)
+                crossUpsert == .inserted && crossRecord.state == .candidate,
+                name: "fusion.firstCrossDomain.waitsForConfirmation",
+                expected: "inserted/candidate",
+                actual: "\(String(describing: crossUpsert))/\(crossRecord.state.rawValue)"
+            )
+            HoloMemoryReceiptStore.record(
+                kind: .write,
+                channel: .insight,
+                memoryIDs: [crossRecord.id],
+                message: "有 1 件事想和你确认",
+                adoptionKind: .needsConfirmation,
+                batchKey: "\(HoloMemorySimulatorValidationFixtures.namespace)-cross-pending",
+                now: now
             )
 
             let feedback = HoloMemoryFeedbackService(store: repository)
-            if let habitID = recordIDs[.habitCandidate] {
-                _ = try await feedback.apply(.accurate, to: habitID, now: now.addingTimeInterval(1))
+            _ = try await feedback.apply(
+                .accurate,
+                to: crossRecord.id,
+                now: now.addingTimeInterval(1)
+            )
+            let confirmedCross = try await repository.fetch(id: crossRecord.id)
+            recorder.check(
+                confirmedCross?.state == .active && confirmedCross?.userDecision == .confirmed,
+                name: "feedback.accurate.activatesFirstCrossDomain",
+                expected: "active/confirmed",
+                actual: "\(confirmedCross?.state.rawValue ?? "nil")/\(confirmedCross?.userDecision.rawValue ?? "nil")"
+            )
+            if let habitID = recordIDs[.habitActive] {
+                _ = try await feedback.apply(.accurate, to: habitID, now: now.addingTimeInterval(2))
                 let record = try await repository.fetch(id: habitID)
                 recorder.check(
                     record?.state == .active && record?.userDecision == .confirmed,
-                    name: "feedback.accurate.activatesCandidate",
+                    name: "feedback.accurate.confirmsAutomaticMemory",
                     expected: "active/confirmed",
                     actual: "\(record?.state.rawValue ?? "nil")/\(record?.userDecision.rawValue ?? "nil")"
                 )
             }
-            if let correctionID = recordIDs[.correctionCandidate] {
+            if let correctionID = recordIDs[.correctionActive] {
                 let before = try await repository.fetch(id: correctionID)
                 let corrected = try await feedback.correct(
                     id: correctionID,
                     summary: "[模拟] 这是用户纠正后的记忆",
-                    now: now.addingTimeInterval(2)
+                    now: now.addingTimeInterval(3)
                 )
                 recorder.check(
                     corrected.id == correctionID &&
@@ -443,8 +591,8 @@ enum HoloMemorySimulatorValidationScenario {
                     actual: "id=\(corrected.id),version=\(corrected.recordVersion),state=\(corrected.state.rawValue),decision=\(corrected.userDecision.rawValue)"
                 )
             }
-            if let rejectionID = recordIDs[.rejectionCandidate] {
-                _ = try await feedback.apply(.inaccurate, to: rejectionID, now: now.addingTimeInterval(3))
+            if let rejectionID = recordIDs[.rejectionActive] {
+                _ = try await feedback.apply(.inaccurate, to: rejectionID, now: now.addingTimeInterval(4))
                 let record = try await repository.fetch(id: rejectionID)
                 recorder.check(
                     record?.state == .suppressed && record?.userDecision == .rejected,
@@ -452,36 +600,48 @@ enum HoloMemorySimulatorValidationScenario {
                     expected: "suppressed/rejected",
                     actual: "\(record?.state.rawValue ?? "nil")/\(record?.userDecision.rawValue ?? "nil")"
                 )
-            }
-            if let forgettingID = recordIDs[.forgettingCandidate] {
-                let original = try await repository.fetch(id: forgettingID)
-                _ = try await feedback.apply(.noLongerUse, to: forgettingID, now: now.addingTimeInterval(4))
-                let forgotten = try await repository.fetch(id: forgettingID)
+                let activeWhileRejected = Set(try await repository.query(.active).map(\.id))
                 recorder.check(
-                    forgotten?.state == .tombstoned &&
-                        forgotten?.userDecision == .forgotten &&
-                        forgotten?.displaySummary.isEmpty == true &&
-                        forgotten?.evidenceRefs.isEmpty == true,
-                    name: "feedback.forget.erasesContent",
-                    expected: "tombstoned/forgotten/empty content",
-                    actual: "state=\(forgotten?.state.rawValue ?? "nil"),summary=\(forgotten?.displaySummary.count ?? -1),evidence=\(forgotten?.evidenceRefs.count ?? -1)"
+                    !activeWhileRejected.contains(rejectionID),
+                    name: "feedback.inaccurate.exitsRecallImmediately",
+                    expected: "absent from active query",
+                    actual: activeWhileRejected.contains(rejectionID) ? "present" : "absent"
                 )
-                let tombstone = try await repository.fetchTombstone(identityKey: forgettingID)
+                _ = try await feedback.apply(.accurate, to: rejectionID, now: now.addingTimeInterval(5))
+                let restored = try await repository.fetch(id: rejectionID)
                 recorder.check(
-                    tombstone != nil,
-                    name: "feedback.forget.createsTombstone",
-                    expected: "tombstone exists",
+                    restored?.state == .active && restored?.userDecision == .confirmed,
+                    name: "feedback.inaccurate.canBeChangedBackToAccurate",
+                    expected: "active/confirmed",
+                    actual: "\(restored?.state.rawValue ?? "nil")/\(restored?.userDecision.rawValue ?? "nil")"
+                )
+            }
+            if let deletionID = recordIDs[.deletionActive] {
+                let original = try await repository.fetch(id: deletionID)
+                _ = try await feedback.apply(.noLongerUse, to: deletionID, now: now.addingTimeInterval(6))
+                let deleted = try await repository.fetch(id: deletionID)
+                recorder.check(
+                    deleted == nil,
+                    name: "feedback.delete.removesCurrentRecord",
+                    expected: "record missing",
+                    actual: deleted == nil ? "missing" : "present"
+                )
+                let tombstone = try await repository.fetchTombstone(identityKey: deletionID)
+                recorder.check(
+                    tombstone == nil,
+                    name: "feedback.delete.doesNotCreateTombstone",
+                    expected: "no tombstone",
                     actual: tombstone == nil ? "missing" : "exists"
                 )
                 if let original {
                     let recreated = try await repository.upsert(
                         original,
-                        observationKey: "\(HoloMemorySimulatorValidationFixtures.namespace)-forget-recreate"
+                        observationKey: "\(HoloMemorySimulatorValidationFixtures.namespace)-delete-recreate"
                     )
                     recorder.check(
-                        recreated == .rejectedByTombstone,
-                        name: "feedback.forget.blocksRecreation",
-                        expected: "rejectedByTombstone",
+                        recreated == .inserted,
+                        name: "feedback.delete.allowsFutureRecreation",
+                        expected: "inserted",
                         actual: String(describing: recreated)
                     )
                 }
@@ -521,6 +681,19 @@ enum HoloMemorySimulatorValidationScenario {
                 name: "query.domain.selectsFinanceOnly",
                 expected: "domain/no fallback/finance active IDs",
                 actual: "route=\(finance.route.rawValue),fallback=\(finance.requiresDetailData),domains=\(finance.records.compactMap(\.primaryDomain).map(\.rawValue))"
+            )
+
+            let health = try await allowedQuery.query(
+                question: "我的健康状态怎么样",
+                consumer: .analysis,
+                now: now
+            )
+            queryResults.append(makeQueryResult(question: "我的健康状态怎么样", context: health))
+            recorder.check(
+                health.records.allSatisfy { $0.id != recordIDs[.healthCandidate] },
+                name: "query.pendingHealthNeverEntersAnswer",
+                expected: "pending health ID absent",
+                actual: "ids=\(health.records.map(\.id))"
             )
 
             let detail = try await allowedQuery.query(
@@ -565,19 +738,43 @@ enum HoloMemorySimulatorValidationScenario {
                 actual: "ids=\(disabled.records.count),refresh=\(String(describing: disabled.refreshDecision)),context=\(HoloMemoryContextEnvelope.render(disabled).count)"
             )
 
-            let activeIDs = Set(try await repository.query(.active).map(\.id))
+            let activeIDs = Set(try await repository.query(.active)
+                .filter { $0.state == .active }
+                .map(\.id))
             let forbiddenIDs = [
-                recordIDs[.rejectionCandidate],
-                recordIDs[.forgettingCandidate]
+                recordIDs[.healthCandidate],
+                historicalCandidate.id
             ].compactMap { $0 }
             recorder.check(
                 forbiddenIDs.allSatisfy { !activeIDs.contains($0) } &&
                     queryResults.allSatisfy { result in
                         Set(result.selectedMemoryIDs).isDisjoint(with: forbiddenIDs)
                     },
-                name: "query.excludesSuppressedAndForgotten",
-                expected: "rejected/forgotten IDs absent",
+                name: "query.excludesPendingAndArchived",
+                expected: "pending/archived IDs absent",
                 actual: "active=\(activeIDs.sorted()),forbidden=\(forbiddenIDs)"
+            )
+
+            let inbox = await HoloMemoryReceiptStore.inboxSnapshot()
+            recorder.check(
+                inbox.newMemoryCount >= 1 &&
+                    inbox.pendingConfirmationCount == 1 &&
+                    inbox.hasUnreadMigrationSummary,
+                name: "receipt.summaryAggregatesNewPendingAndMigration",
+                expected: "new>=1/pending=1/migration unread",
+                actual: "new=\(inbox.newMemoryCount),pending=\(inbox.pendingConfirmationCount),migration=\(inbox.hasUnreadMigrationSummary)"
+            )
+            let presentedAt = now.addingTimeInterval(20)
+            HoloMemoryReceiptStore.markSummaryPresented(now: presentedAt)
+            recorder.check(
+                !HoloMemoryReceiptStore.shouldPresentSummary(
+                    now: presentedAt.addingTimeInterval(3_600)
+                ) && HoloMemoryReceiptStore.shouldPresentSummary(
+                    now: presentedAt.addingTimeInterval(25 * 3_600)
+                ),
+                name: "receipt.summaryAtMostOncePer24Hours",
+                expected: "hidden at +1h/allowed at +25h",
+                actual: "oneHour=\(HoloMemoryReceiptStore.shouldPresentSummary(now: presentedAt.addingTimeInterval(3_600))),twentyFiveHours=\(HoloMemoryReceiptStore.shouldPresentSummary(now: presentedAt.addingTimeInterval(25 * 3_600)))"
             )
 
             try writeReport(
@@ -616,9 +813,9 @@ enum HoloMemorySimulatorValidationScenario {
         for role: HoloMemorySimulatorValidationFixtureRole
     ) -> HoloMemoryState {
         switch role {
-        case .financeActive, .healthActive: .active
-        case .habitCandidate, .correctionCandidate, .rejectionCandidate, .forgettingCandidate:
-            .candidate
+        case .healthCandidate: .candidate
+        case .financeActive, .habitActive, .correctionActive, .rejectionActive, .deletionActive:
+            .active
         }
     }
 
@@ -667,6 +864,11 @@ enum HoloMemorySimulatorValidationScenario {
         logger.info(
             "模拟器记忆验收完成：status=\(report.status, privacy: .public), failed=\(report.failedAssertionCount, privacy: .public)"
         )
+    }
+
+    private final class SimulatorMigrationStateStore: HoloMemoryMigrationStateStore,
+        @unchecked Sendable {
+        var completedVersion = 0
     }
 
     private struct AssertionRecorder {

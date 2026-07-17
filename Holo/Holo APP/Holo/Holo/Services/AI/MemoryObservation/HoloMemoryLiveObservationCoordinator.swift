@@ -231,7 +231,7 @@ actor HoloMemoryLiveObservationCoordinator {
                 return summarize(events: domainEvents, changedDomainCount: changed.count)
             }
 
-            let active = try await repository.query(.active)
+            let active = try await repository.query(.active).filter { $0.state == .active }
             let candidates = HoloCrossDomainCandidateBuilder.build(from: active)
             guard !candidates.isEmpty else {
                 return summarize(events: domainEvents, changedDomainCount: changed.count)
@@ -303,7 +303,8 @@ actor HoloMemoryLiveObservationCoordinator {
                 case .domain(let domain):
                     return signalsByDomain[domain]?.isEmpty == false
                 case .crossDomain:
-                    let records = (try? await repository.query(.active)) ?? []
+                    let records = ((try? await repository.query(.active)) ?? [])
+                        .filter { $0.state == .active }
                     return !HoloCrossDomainCandidateBuilder.build(from: records).isEmpty
                 }
             },
@@ -350,6 +351,7 @@ actor HoloMemoryLiveObservationCoordinator {
                     ))
                 case .crossDomain:
                     let records = try await repository.query(.active)
+                        .filter { $0.state == .active }
                     let candidates = HoloCrossDomainCandidateBuilder.build(from: records)
                     guard !candidates.isEmpty else {
                         throw HoloMemoryLiveObservationError.emptyCrossDomainCandidate
@@ -409,6 +411,12 @@ actor HoloMemoryLiveObservationCoordinator {
                             extractorVersion: job.extractorVersion,
                             promptVersion: job.promptVersion,
                             completedAt: now
+                        )
+                        await self.recordWriteReceipts(
+                            records: result.validRecords,
+                            upserts: upserts,
+                            batchKey: job.observationKey,
+                            now: now
                         )
                         #if DEBUG
                         let committedCount = upserts.filter {
@@ -529,7 +537,13 @@ actor HoloMemoryLiveObservationCoordinator {
             case .transient(let preview):
                 occurrences[preview.candidateIdentityKey, default: 0] += 1
             case .persist(let record):
-                _ = try await repository.upsert(record, observationKey: observationKey)
+                let upsert = try await repository.upsert(record, observationKey: observationKey)
+                recordWriteReceipts(
+                    records: [record],
+                    upserts: [upsert],
+                    batchKey: observationKey,
+                    now: now
+                )
                 if let candidate = candidates.first(where: {
                     Set($0.sourceMemoryIDs) == Set(record.upstreamMemoryIDs)
                 }) {
@@ -540,6 +554,42 @@ actor HoloMemoryLiveObservationCoordinator {
             }
         }
         saveIntDictionary(occurrences, forKey: fusionOccurrenceKey)
+    }
+
+    private func recordWriteReceipts(
+        records: [HoloMemoryRecord],
+        upserts: [HoloMemoryUpsertResult],
+        batchKey: String,
+        now: Date
+    ) {
+        let inserted = zip(records, upserts).compactMap { pair in
+            let (record, result) = pair
+            return result == .inserted ? record : nil
+        }
+        let automaticallyAdopted = inserted.filter { $0.state == .active }
+        let needsConfirmation = inserted.filter { $0.state == .candidate }
+        if !automaticallyAdopted.isEmpty {
+            HoloMemoryReceiptStore.record(
+                kind: .write,
+                channel: .insight,
+                memoryIDs: automaticallyAdopted.map(\.id),
+                message: "Holo 新记住了 \(automaticallyAdopted.count) 件事",
+                adoptionKind: .automaticallyAdopted,
+                batchKey: "\(batchKey):automatic",
+                now: now
+            )
+        }
+        if !needsConfirmation.isEmpty {
+            HoloMemoryReceiptStore.record(
+                kind: .write,
+                channel: .insight,
+                memoryIDs: needsConfirmation.map(\.id),
+                message: "有 \(needsConfirmation.count) 件事想和你确认",
+                adoptionKind: .needsConfirmation,
+                batchKey: "\(batchKey):confirmation",
+                now: now
+            )
+        }
     }
 
     private func loadStringDictionary(forKey key: String) -> [String: String] {

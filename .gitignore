@@ -52,3 +52,6 @@ artifacts/*.png
 
 # 临时数据
 docs/Temporarydata/
+
+# CodeGraph 本地索引，不入库
+.codegraph/

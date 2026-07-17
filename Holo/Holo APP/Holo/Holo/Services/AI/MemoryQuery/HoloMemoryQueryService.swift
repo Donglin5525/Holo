@@ -111,27 +111,30 @@ struct HoloMemoryQueryService: Sendable {
             return disabledContext
         }
 
-        let available = try await store.fetchAvailableMemoryRecords().filter {
+        let active = try await store.fetchAvailableMemoryRecords().filter {
             $0.state == .active &&
             ![.rejected, .forgotten, .markedIrrelevant].contains($0.userDecision)
         }
-        let matching = available.filter { matches($0, intent: intent) }
-        let ranked = matching.sorted {
-            let left = score($0, intent: intent, now: now)
-            let right = score($1, intent: intent, now: now)
-            if left == right { return $0.id < $1.id }
-            return left > right
+        let matching = active.filter { matches($0, intent: intent) }
+        let refresh = refreshCoordinator.scheduleIfNeeded(for: matching, now: now)
+        let ranked = matching.compactMap { record -> (HoloMemoryRecord, Double)? in
+            guard HoloMemoryRecallPolicy.isEligible(record, now: now) else { return nil }
+            let value = score(record, intent: intent, now: now)
+            guard value >= HoloMemoryRecallPolicy.minimumRecallScore else { return nil }
+            return (record, value)
+        }.sorted {
+            if $0.1 == $1.1 { return $0.0.id < $1.0.id }
+            return $0.1 > $1.1
         }
 
         var selected: [HoloMemoryRecord] = []
         var usedTokens = 0
-        for record in ranked.prefix(max(0, maxRecords)) {
+        for (record, _) in ranked.prefix(max(0, maxRecords)) {
             let cost = estimatedTokens(for: record)
             guard usedTokens + cost <= max(0, tokenBudget) else { continue }
             selected.append(record)
             usedTokens += cost
         }
-        let refresh = refreshCoordinator.scheduleIfNeeded(for: selected, now: now)
         let context = HoloMemoryQueryContext(
             route: intent.route,
             answerAuthority: intent.answerAuthority,
@@ -211,14 +214,9 @@ struct HoloMemoryQueryService: Sendable {
             applicability = 0.35
         }
         // 持久化的新鲜度包含反证等历史降权；查询时再叠加时间衰减，避免旧结论长期占据高位。
-        let timeFreshness = HoloMemoryScorer.freshness(
-            persistenceClass: record.persistenceClass,
-            lastSupportedAt: record.lastSupportedAt,
-            now: now
-        )
         return HoloMemoryScorer.recallScore(
             relevance: min(1, relevance),
-            freshness: min(record.freshnessScore, timeFreshness),
+            freshness: HoloMemoryRecallPolicy.effectiveFreshness(for: record, now: now),
             confidence: record.confidenceScore,
             contextApplicability: applicability
         )

@@ -54,7 +54,7 @@ final class UserDefaultsHoloMemoryMigrationStateStore: HoloMemoryMigrationStateS
 }
 
 final class HoloMemoryMigrationService: @unchecked Sendable {
-    static let currentVersion = 3
+    static let currentVersion = 4
 
     private struct JournalRecord: Codable {
         var id: String
@@ -157,8 +157,14 @@ final class HoloMemoryMigrationService: @unchecked Sendable {
             return .alreadyCompleted
         }
 
+        let existingCandidates = try await repository.query(.all).filter {
+            $0.state == .candidate && $0.userDecision == .none
+        }
+        let historicalCandidates = existingCandidates.map(activateHistoricalCandidate)
+        let recordsToCommit = deduplicateRecords(preview.records + historicalCandidates)
+
         var recordJournal: [JournalRecord] = []
-        for record in preview.records {
+        for record in recordsToCommit {
             recordJournal.append(JournalRecord(
                 id: record.id,
                 previous: try await repository.fetch(id: record.id)
@@ -181,7 +187,7 @@ final class HoloMemoryMigrationService: @unchecked Sendable {
         try writeJournal(journal)
 
         do {
-            for record in preview.records {
+            for record in recordsToCommit {
                 let result = try await repository.upsert(record, observationKey: nil)
                 guard result != .rejectedByNewerUserControl,
                       result != .rejectedByTombstone else {
@@ -192,7 +198,7 @@ final class HoloMemoryMigrationService: @unchecked Sendable {
                 try await repository.saveTombstone(tombstone)
             }
 
-            for record in preview.records {
+            for record in recordsToCommit {
                 guard try await repository.fetch(id: record.id) != nil else {
                     throw HoloMemoryMigrationError.verificationFailed
                 }
@@ -207,7 +213,7 @@ final class HoloMemoryMigrationService: @unchecked Sendable {
 
             stateStore.completedVersion = preview.migrationVersion
             return .committed(
-                recordCount: preview.records.count,
+                recordCount: recordsToCommit.count,
                 tombstoneCount: preview.tombstones.count
             )
         } catch {
@@ -284,7 +290,7 @@ final class HoloMemoryMigrationService: @unchecked Sendable {
         let decision: HoloMemoryUserDecision
         switch memory.confirmationState {
         case .candidate:
-            state = .candidate
+            state = .active
             decision = .none
         case .silentlyAccepted:
             state = .active
@@ -331,6 +337,9 @@ final class HoloMemoryMigrationService: @unchecked Sendable {
             state: state,
             sensitivity: memory.sensitivity,
             userDecision: decision,
+            adoptionMetadata: memory.confirmationState == .candidate
+                ? historicalAdoptionMetadata()
+                : nil,
             createdAt: memory.createdAt,
             updatedAt: memory.updatedAt,
             schemaVersion: 1
@@ -362,7 +371,7 @@ final class HoloMemoryMigrationService: @unchecked Sendable {
         let decision: HoloMemoryUserDecision
         switch memory.state {
         case .observing, .suggested, .promotionCandidate:
-            state = .candidate
+            state = .active
             decision = .none
         case .active:
             state = .active
@@ -410,6 +419,9 @@ final class HoloMemoryMigrationService: @unchecked Sendable {
             state: state,
             sensitivity: memory.sensitivity,
             userDecision: decision,
+            adoptionMetadata: [.observing, .suggested, .promotionCandidate].contains(memory.state)
+                ? historicalAdoptionMetadata()
+                : nil,
             createdAt: memory.createdAt,
             updatedAt: memory.updatedAt,
             schemaVersion: 1
@@ -468,6 +480,31 @@ final class HoloMemoryMigrationService: @unchecked Sendable {
             anchorKeys: record.anchorRefs.map(\.stableKey).sorted(),
             userDecisionVersion: Int64(createdAt.timeIntervalSince1970),
             createdAt: createdAt
+        )
+    }
+
+    private func activateHistoricalCandidate(_ record: HoloMemoryRecord) -> HoloMemoryRecord {
+        var migrated = record
+        migrated.state = .active
+        migrated.freshnessScore = HoloMemoryScorer.freshness(
+            persistenceClass: record.persistenceClass,
+            lastSupportedAt: record.lastSupportedAt ?? record.updatedAt,
+            now: now()
+        )
+        migrated.scoringVersion = HoloMemoryScorer.currentVersion
+        migrated.scoreComputedAt = now()
+        migrated.recordVersion += 1
+        migrated.predecessorVersionID = record.versionID
+        migrated.adoptionMetadata = historicalAdoptionMetadata()
+        return migrated
+    }
+
+    private func historicalAdoptionMetadata() -> HoloMemoryAdoptionMetadata {
+        HoloMemoryAdoptionMetadata(
+            policyVersion: HoloMemoryActivationPolicy.currentVersion,
+            disposition: .historicalMigration,
+            reason: .historicalCandidateMigration,
+            evaluatedAt: now()
         )
     }
 

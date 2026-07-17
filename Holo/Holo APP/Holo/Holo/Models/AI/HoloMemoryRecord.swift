@@ -66,6 +66,32 @@ enum HoloMemoryUserDecision: String, Codable, CaseIterable, Sendable {
     case forgotten
 }
 
+enum HoloMemoryAdoptionDisposition: String, Codable, CaseIterable, Sendable {
+    case automatic
+    case pendingConfirmation
+    case userConfirmed
+    case historicalMigration
+}
+
+enum HoloMemoryAdoptionReason: String, Codable, CaseIterable, Sendable {
+    case normalValidatedMemory
+    case sensitiveMemory
+    case profileOrIdentity
+    case permanentFact
+    case hypothesis
+    case firstCrossDomainInference
+    case repeatedCrossDomainInference
+    case explicitUserConfirmation
+    case historicalCandidateMigration
+}
+
+struct HoloMemoryAdoptionMetadata: Codable, Equatable, Sendable {
+    var policyVersion: Int
+    var disposition: HoloMemoryAdoptionDisposition
+    var reason: HoloMemoryAdoptionReason
+    var evaluatedAt: Date
+}
+
 enum HoloMemorySchemaError: Error, Equatable, CustomStringConvertible {
     case emptyAnchorValue
     case missingCanonicalAnchor
@@ -126,6 +152,8 @@ struct HoloMemoryRecord: Codable, Equatable, Identifiable, Sendable {
     var state: HoloMemoryState
     var sensitivity: HoloMemorySensitivity
     var userDecision: HoloMemoryUserDecision
+    /// 采用原因仅供内部追踪与 Debug 实验室展示，不向普通用户暴露评分细节。
+    var adoptionMetadata: HoloMemoryAdoptionMetadata?
 
     var recordVersion: Int
     var predecessorVersionID: String?
@@ -163,6 +191,7 @@ struct HoloMemoryRecord: Codable, Equatable, Identifiable, Sendable {
         state: HoloMemoryState,
         sensitivity: HoloMemorySensitivity,
         userDecision: HoloMemoryUserDecision,
+        adoptionMetadata: HoloMemoryAdoptionMetadata? = nil,
         recordVersion: Int = 1,
         predecessorVersionID: String? = nil,
         supersedesMemoryID: String? = nil,
@@ -198,6 +227,7 @@ struct HoloMemoryRecord: Codable, Equatable, Identifiable, Sendable {
         self.state = state
         self.sensitivity = sensitivity
         self.userDecision = userDecision
+        self.adoptionMetadata = adoptionMetadata
         self.recordVersion = recordVersion
         self.predecessorVersionID = predecessorVersionID
         self.supersedesMemoryID = supersedesMemoryID

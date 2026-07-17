@@ -172,20 +172,7 @@ enum HoloCrossDomainFusionService {
             return .rejected(.causalOrMedicalInference)
         }
 
-        let sensitivity: HoloMemorySensitivity = candidate.containsHealth ? .sensitive : .normal
-        let preview = HoloCrossDomainTransientMemory(
-            candidateIdentityKey: candidate.identityKey,
-            displaySummary: output.displaySummary,
-            aiUseSummary: output.aiUseSummary,
-            sourceDomains: candidate.sourceDomains,
-            upstreamMemoryIDs: candidate.sourceMemoryIDs,
-            evidenceRefs: selectedEvidence,
-            sensitivity: sensitivity
-        )
-        guard userConfirmed || priorOccurrenceCount >= 1 else {
-            return .transient(preview)
-        }
-
+        let sensitivity: HoloMemorySensitivity = .normal
         do {
             let id = try HoloMemoryIdentity.makeStableID(
                 scope: .crossDomain,
@@ -197,7 +184,7 @@ enum HoloCrossDomainFusionService {
             let prohibited = Array(Set(
                 output.prohibitedInferences + ["causality", "medicalDiagnosis"]
             )).sorted()
-            let record = HoloMemoryRecord(
+            var record = HoloMemoryRecord(
                 id: id,
                 scope: .crossDomain,
                 primaryDomain: nil,
@@ -221,12 +208,29 @@ enum HoloCrossDomainFusionService {
                 scoreComputedAt: now,
                 extractorVersion: extractorVersion,
                 promptVersion: promptVersion,
-                state: .active,
+                state: .candidate,
                 sensitivity: sensitivity,
                 userDecision: userConfirmed ? .confirmed : .none,
                 createdAt: now,
                 updatedAt: now
             )
+            if userConfirmed {
+                record.state = .active
+                record.adoptionMetadata = HoloMemoryAdoptionMetadata(
+                    policyVersion: HoloMemoryActivationPolicy.currentVersion,
+                    disposition: .userConfirmed,
+                    reason: .explicitUserConfirmation,
+                    evaluatedAt: now
+                )
+            } else if let adopted = HoloMemoryActivationPolicy.apply(
+                to: record,
+                isFirstCrossDomainInference: priorOccurrenceCount < 1,
+                now: now
+            ) {
+                record = adopted
+            } else {
+                return .rejected(.invalidRecord)
+            }
             try record.validate()
             return .persist(record)
         } catch {

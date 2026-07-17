@@ -71,7 +71,44 @@ struct HoloMemoryQueryRouterStandaloneTests {
             now: now,
             upstreamIDs: [finance.id, health.id]
         )
-        let allRecords = [finance, health, profile, goal, cross]
+        var pendingHealth = try makeRecord(
+            domains: [.health],
+            primaryDomain: .health,
+            scope: .domain,
+            claimKind: .recurringPattern,
+            anchor: .init(type: .healthMetric, value: "待确认心率"),
+            summary: "待确认的健康记忆",
+            freshness: 1,
+            now: now
+        )
+        pendingHealth.state = .candidate
+        let weakFinance = try makeRecord(
+            domains: [.finance],
+            primaryDomain: .finance,
+            scope: .domain,
+            claimKind: .recurringPattern,
+            anchor: .init(type: .merchant, value: "低分商户"),
+            summary: "证据很弱的财务模式",
+            freshness: 1,
+            confidence: 0.05,
+            now: now
+        )
+        let staleFinance = try makeRecord(
+            domains: [.finance],
+            primaryDomain: .finance,
+            scope: .domain,
+            claimKind: .recurringPattern,
+            anchor: .init(type: .merchant, value: "过时商户"),
+            summary: "已经过时的近期财务状态",
+            freshness: 1,
+            persistenceClass: .currentState,
+            now: now,
+            lastSupportedAt: now.addingTimeInterval(-40 * 86_400)
+        )
+        let allRecords = [
+            finance, health, profile, goal, cross,
+            pendingHealth, weakFinance, staleFinance
+        ]
 
         let exactIntent = HoloMemoryQueryRouter.route("最近14天吃了多少麦当劳")
         expect(exactIntent.route == .detail, "精确金额/次数问题必须走明细")
@@ -126,6 +163,9 @@ struct HoloMemoryQueryRouterStandaloneTests {
             now: now
         )
         expect(financeContext.records.map(\.id) == [finance.id], "领域查询不应混入无关记忆")
+        expect(!financeContext.records.contains(where: {
+            $0.id == weakFinance.id || $0.id == staleFinance.id
+        }), "低于召回分或新鲜度门槛的记忆不得注入回答")
 
         let holisticContext = try await service.query(
             question: "我最近状态如何",
@@ -159,6 +199,8 @@ struct HoloMemoryQueryRouterStandaloneTests {
             now: now
         )
         expect(healthContext.records.map(\.id) == [health.id], "过期但可用的记忆应先返回")
+        expect(!healthContext.records.contains(where: { $0.id == pendingHealth.id }),
+               "待确认健康记忆不得进入回答")
         expect(
             healthContext.refreshDecision == .scheduled([.domain(.health)]),
             "低新鲜度记忆应异步安排刷新"
@@ -221,6 +263,8 @@ struct HoloMemoryQueryRouterStandaloneTests {
         anchor: HoloMemoryAnchorRef,
         summary: String,
         freshness: Double,
+        confidence: Double = 0.8,
+        persistenceClass: HoloMemoryPersistenceClass = .phase,
         now: Date,
         lastSupportedAt: Date? = nil,
         upstreamIDs: [String] = []
@@ -255,7 +299,7 @@ struct HoloMemoryQueryRouterStandaloneTests {
             subjectKey: anchor.stableKey,
             anchorRefs: [anchor],
             claimKind: claimKind,
-            persistenceClass: .phase,
+            persistenceClass: persistenceClass,
             displaySummary: summary,
             aiUseSummary: summary,
             prohibitedInferences: [],
@@ -265,7 +309,7 @@ struct HoloMemoryQueryRouterStandaloneTests {
             validFrom: now.addingTimeInterval(-14 * 86_400),
             validTo: now,
             lastSupportedAt: lastSupportedAt ?? now.addingTimeInterval(-86_400),
-            confidenceScore: 0.8,
+            confidenceScore: confidence,
             freshnessScore: freshness,
             scoringVersion: HoloMemoryScorer.currentVersion,
             scoreComputedAt: now,

@@ -52,7 +52,7 @@ struct HoloMemorySimulatorRepositoryIsolationTests {
         ), "reset 后必须重建报告目录")
         expect(!FileManager.default.fileExists(atPath: environment.reportURL.path),
                "reset 必须清理上一轮报告")
-        expect(environment.storeDirectoryURL.path.contains("SimulatorValidation/full-chain-v1"),
+        expect(environment.storeDirectoryURL.path.contains("SimulatorValidation/full-chain-v2"),
                "Store 必须使用独立稳定场景路径")
 
         print("HoloMemorySimulatorRepositoryIsolationTests: \(assertions) assertions passed")

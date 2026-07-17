@@ -57,6 +57,10 @@ struct HoloDomainObservationSecurityTests {
             promptVersion: 1
         )
         expect(validResult.validRecords.count == 1, "白名单内且证据可追溯的候选应通过")
+        expect(validResult.validRecords.first?.state == .active,
+               "普通财务记忆通过校验后应默认采用")
+        expect(validResult.validRecords.first?.adoptionMetadata?.disposition == .automatic,
+               "自动采用必须留下内部策略元数据")
 
         let nullActionJSON = try encodedEnvelope(
             candidate: valid,
