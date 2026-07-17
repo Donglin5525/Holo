@@ -11,7 +11,7 @@ import SwiftUI
 
 struct HealthDetailView: View {
     let type: HealthMetricType
-    let selectedDate: Date
+    @Binding var selectedDate: Date
 
     @Environment(\.dismiss) private var dismiss
     @StateObject private var repository = HealthRepository.shared
@@ -75,31 +75,41 @@ struct HealthDetailView: View {
             await loadDateData()
             await loadWeeklyData()
         }
+        .onChange(of: selectedDate) {
+            Task {
+                await loadDateData()
+                await loadWeeklyData()
+            }
+        }
     }
 
     private var detailHeader: some View {
-        HStack(alignment: .center, spacing: HoloSpacing.md) {
-            backButton
+        VStack(spacing: HoloSpacing.sm) {
+            HStack(alignment: .center, spacing: HoloSpacing.md) {
+                backButton
 
-            VStack(alignment: .leading, spacing: 4) {
-                Text(type.rawValue)
-                    .font(.holoTitle)
-                    .foregroundColor(.holoTextPrimary)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(type.rawValue)
+                        .font(.holoTitle)
+                        .foregroundColor(.holoTextPrimary)
 
-                Text(detailSubtitleText)
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
+                    Text(detailSubtitleText)
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                }
+
+                Spacer()
+
+                Text(metric.statusText)
+                    .font(.holoLabel)
+                    .foregroundColor(type.color)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(type.color.opacity(0.12))
+                    .clipShape(Capsule())
             }
 
-            Spacer()
-
-            Text(metric.statusText)
-                .font(.holoLabel)
-                .foregroundColor(type.color)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(type.color.opacity(0.12))
-                .clipShape(Capsule())
+            HealthDateNavigator(selectedDate: $selectedDate)
         }
         .padding(.horizontal, HoloSpacing.md)
         .padding(.top, HoloSpacing.sm)
@@ -415,7 +425,13 @@ struct HealthDetailView: View {
 }
 
 #Preview {
-    NavigationStack {
-        HealthDetailView(type: .sleep, selectedDate: Date())
+    struct PreviewWrapper: View {
+        @State private var date = Calendar.current.startOfDay(for: Date())
+        var body: some View {
+            NavigationStack {
+                HealthDetailView(type: .sleep, selectedDate: $date)
+            }
+        }
     }
+    return PreviewWrapper()
 }
