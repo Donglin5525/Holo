@@ -100,3 +100,17 @@ extension Topic {
         set { status = newValue.rawValue }
     }
 }
+
+// MARK: - 关联标签展示缓存
+
+extension Topic {
+
+    /// 从 associatedTags 关系重算 associatedTagNames 展示缓存（逗号拼接，排序保证稳定）
+    /// 标签删除/重命名/合并后必须调用，否则 AI 对话工具会读到脏名字
+    func refreshAssociatedTagNamesCache() {
+        let names = (associatedTags as? Set<ThoughtTag>)?
+            .map(\.name)
+            .sorted() ?? []
+        associatedTagNames = names.isEmpty ? nil : names.joined(separator: ",")
+    }
+}

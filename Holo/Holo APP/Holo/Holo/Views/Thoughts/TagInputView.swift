@@ -23,11 +23,11 @@ struct TagInputView: View {
     /// 输入文本
     @State private var inputText: String = ""
 
-    /// 推荐标签（基于使用频率）
-    @State private var suggestedTags: [String] = []
+    /// 用户认可标签（手动 / 正文提取 / 已确认 AI 来源）
+    @State private var userTags: [String] = []
 
-    /// 所有标签
-    @State private var allTags: [ThoughtTag] = []
+    /// AI 分类标签（纯 AI 来源、尚未被用户认可）
+    @State private var aiTags: [String] = []
 
     /// 首次使用时的默认标签
     private static let defaultTags = ["工作", "生活", "灵感", "学习", "阅读"]
@@ -43,17 +43,22 @@ struct TagInputView: View {
                 Divider()
                     .padding(.vertical, HoloSpacing.sm)
 
-                // 已选标签
-                if !selectedTags.isEmpty {
-                    selectedTagsSection
+                // 标签区（纵向滚动，换行后内容增多也不溢出）
+                ScrollView(showsIndicators: false) {
+                    VStack(alignment: .leading, spacing: HoloSpacing.md) {
+                        if !selectedTags.isEmpty {
+                            selectedTagsSection
+                        }
+                        if !userTags.isEmpty {
+                            userTagsSection
+                        }
+                        if !aiTags.isEmpty {
+                            aiTagsSection
+                        }
+                    }
+                    .padding(.top, HoloSpacing.sm)
+                    .padding(.bottom, HoloSpacing.lg)
                 }
-
-                // 推荐标签
-                if !suggestedTags.isEmpty {
-                    suggestedTagsSection
-                }
-
-                Spacer()
             }
             .padding(.horizontal, HoloSpacing.lg)
             .padding(.top, HoloSpacing.md)
@@ -129,51 +134,68 @@ struct TagInputView: View {
         .padding(.vertical, HoloSpacing.sm)
     }
 
-    // MARK: - Suggested Tags Section
+    // MARK: - User Tags Section（用户认可标签，优先展示）
 
-    private var suggestedTagsSection: some View {
+    private var userTagsSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            Text("推荐标签")
+            Text("我的标签")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
 
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(suggestedTags, id: \.self) { tag in
-                        SuggestedTagChip(
-                            tag: tag,
-                            isSelected: selectedTags.contains(tag)
-                        ) {
-                            toggleTag(tag)
-                        }
+            FlowLayout(spacing: 8) {
+                ForEach(userTags, id: \.self) { tag in
+                    SuggestedTagChip(
+                        tag: tag,
+                        isAI: false,
+                        isSelected: selectedTags.contains(tag)
+                    ) {
+                        toggleTag(tag)
                     }
                 }
             }
         }
-        .padding(.vertical, HoloSpacing.sm)
+    }
+
+    // MARK: - AI Tags Section（AI 分类标签，换行展示 + 明确标识）
+
+    private var aiTagsSection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            HStack(spacing: 4) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 11))
+                    .foregroundColor(.holoAI)
+                Text("AI 分类标签")
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary)
+            }
+
+            FlowLayout(spacing: 8) {
+                ForEach(aiTags, id: \.self) { tag in
+                    SuggestedTagChip(
+                        tag: tag,
+                        isAI: true,
+                        isSelected: selectedTags.contains(tag)
+                    ) {
+                        toggleTag(tag)
+                    }
+                }
+            }
+        }
     }
 
     // MARK: - Actions
 
-    /// 加载标签
+    /// 加载标签：用户认可组优先，AI 分类组其次
     private func loadTags() {
-        do {
-            allTags = try thoughtRepository.getAllTags()
-            // 用 Core Data 中已有的标签名作为推荐，按使用频率排序
-            let userTagNames = allTags.map { $0.name }
-            if userTagNames.isEmpty {
-                // 首次使用，显示默认标签
-                suggestedTags = Self.defaultTags
-            } else {
-                // 显示用户创建的标签（排除已选中的），不足时补充默认标签
-                let unselectedUserTags = userTagNames.filter { !selectedTags.contains($0) }
-                let fallbackDefaults = Self.defaultTags.filter { !selectedTags.contains($0) && !userTagNames.contains($0) }
-                suggestedTags = unselectedUserTags + fallbackDefaults
-            }
-        } catch {
-            // 加载失败时回退到默认标签
-            suggestedTags = Self.defaultTags
+        // 用户认可标签；首次使用（无任何认可标签）时用默认标签兜底引导
+        var recognized = thoughtRepository.fetchUserRecognizedTagNames(limit: 60)
+        if recognized.isEmpty {
+            recognized = Self.defaultTags
         }
+        let ai = thoughtRepository.fetchUnrecognizedAITagNames(limit: 40)
+
+        userTags = recognized.filter { !selectedTags.contains($0) }
+        aiTags = ai.filter { !selectedTags.contains($0) }
     }
 
     /// 添加标签
@@ -237,35 +259,52 @@ struct SelectedTagChip: View {
 
 // MARK: - Suggested Tag Chip
 
-/// 推荐标签芯片
+/// 推荐标签芯片（isAI = true 时显示 ✨ 标识与 AI 配色，明确来源）
 struct SuggestedTagChip: View {
     let tag: String
+    let isAI: Bool
     let isSelected: Bool
     let action: () -> Void
+
+    /// 强调色：AI 标签用 holoAI，用户标签用 holoPrimary
+    private var accentColor: Color { isAI ? .holoAI : .holoPrimary }
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 4) {
+                if isAI {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundColor(accentColor.opacity(0.85))
+                }
                 Text("#\(tag)")
                     .font(.holoCaption)
-                    .foregroundColor(isSelected ? .holoPrimary : .holoTextSecondary)
+                    .foregroundColor(isSelected ? accentColor : .holoTextSecondary)
 
                 if isSelected {
                     Image(systemName: "checkmark")
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.holoPrimary)
+                        .foregroundColor(accentColor)
                 }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
-            .background(isSelected ? Color.holoPrimary.opacity(0.1) : Color.holoCardBackground)
+            .background(chipBackground)
             .cornerRadius(HoloRadius.full)
             .overlay(
                 Capsule()
-                    .stroke(isSelected ? Color.holoPrimary : Color.holoDivider, lineWidth: 1)
+                    .stroke(isSelected ? accentColor : Color.holoDivider, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
+    }
+
+    /// 芯片背景：选中加深，未选 AI 标签带淡紫底色与用户标签区分
+    private var chipBackground: Color {
+        if isSelected {
+            return accentColor.opacity(isAI ? 0.12 : 0.1)
+        }
+        return isAI ? accentColor.opacity(0.06) : Color.holoCardBackground
     }
 }
 

@@ -50,6 +50,25 @@ struct ThoughtKnowledgeDrawerView: View {
     /// AI 标签池过长时默认折叠，避免抽屉需要滑很久。
     @State private var isAIPoolExpanded: Bool = false
 
+    /// 标签管理操作对象（长按菜单触发）
+    @State private var tagActionTarget: ThoughtRepository.AITagBucket?
+    /// 重命名 alert 开关
+    @State private var showRenameAlert = false
+    /// 重命名输入
+    @State private var renameInput = ""
+    /// 删除确认 alert 开关
+    @State private var showDeleteConfirm = false
+    /// 主题管理操作对象（长按菜单触发）
+    @State private var topicActionTarget: Topic?
+    /// 主题重命名 alert 开关
+    @State private var showTopicRenameAlert = false
+    /// 主题重命名输入
+    @State private var topicRenameInput = ""
+    /// 主题删除确认 alert 开关
+    @State private var showTopicDeleteConfirm = false
+    /// 标签/主题管理操作反馈（toast，nil 不显示）
+    @State private var actionNotice: String?
+
     private let collapsedAIPoolLimit = 3
 
     /// 待归纳线索数 = 尚未被 Topic 收纳的 .ai/.confirmedAI assignment 总数
@@ -116,6 +135,34 @@ struct ThoughtKnowledgeDrawerView: View {
                 aiOrganizeRow
             }
             .padding(.vertical, HoloSpacing.md)
+        }
+        .overlay(alignment: .top) { actionToast }
+        .alert("重命名标签", isPresented: $showRenameAlert) {
+            TextField("新标签名", text: $renameInput)
+            Button("取消", role: .cancel) { renameInput = "" }
+            Button("确定") { performRename() }
+        } message: {
+            Text("为「\(tagActionTarget?.tagName ?? "")」输入新名称；若与已有标签同名，将自动合并")
+        }
+        .alert("删除标签", isPresented: $showDeleteConfirm) {
+            Button("取消", role: .cancel) {}
+            Button("删除", role: .destructive) { performDelete() }
+        } message: {
+            Text("将从 \(tagActionTarget?.assignmentCount ?? 0) 条想法移除「\(tagActionTarget?.tagName ?? "")」，AI 以后不再推荐")
+        }
+        .alert("重命名主题", isPresented: $showTopicRenameAlert) {
+            TextField("新主题名", text: $topicRenameInput)
+            Button("取消", role: .cancel) { topicRenameInput = "" }
+            Button("确定") { performRenameTopic() }
+        } message: {
+            Text("为「\(topicActionTarget?.title ?? "")」输入新名称")
+        }
+        .alert("删除主题", isPresented: $showTopicDeleteConfirm) {
+            Button("取消", role: .cancel) {}
+            Button("删除", role: .destructive) { performDeleteTopic() }
+        } message: {
+            let count = (topicActionTarget?.thoughts as? Set<Thought>)?.count ?? 0
+            Text("「\(topicActionTarget?.title ?? "")」下的 \(count) 条想法将回到未归类；AI 90 天内不会再归纳出该主题")
         }
     }
 
@@ -240,6 +287,59 @@ struct ThoughtKnowledgeDrawerView: View {
             .background(isSelected ? Color.holoPrimary.opacity(0.08) : Color.clear)
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            Button {
+                topicActionTarget = topic
+                topicRenameInput = topic.title
+                showTopicRenameAlert = true
+            } label: {
+                Label("重命名", systemImage: "pencil")
+            }
+
+            Button(role: .destructive) {
+                topicActionTarget = topic
+                showTopicDeleteConfirm = true
+            } label: {
+                Label("删除主题", systemImage: "trash")
+            }
+        }
+    }
+
+    // MARK: - 主题管理操作
+
+    /// 执行主题重命名（topic id 不变，筛选状态保持连续）
+    private func performRenameTopic() {
+        guard let topic = topicActionTarget else { return }
+        let newTitle = topicRenameInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        topicRenameInput = ""
+        guard !newTitle.isEmpty, newTitle != topic.title else { return }
+
+        do {
+            try topicRepository.updateTitle(topic, title: newTitle)
+            actionNotice = "已重命名为「\(newTitle)」"
+            HapticManager.light()
+            NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+        } catch {
+            actionNotice = "重命名失败"
+        }
+    }
+
+    /// 执行主题删除：想法回未归类 + 写归并拒绝记录（AI 90 天内不再归纳同名主题）
+    private func performDeleteTopic() {
+        guard let topic = topicActionTarget else { return }
+        let topicId = topic.id  // 删除后对象属性不可访问，先取出
+        do {
+            let result = try topicRepository.delete(topic)
+            try ConvergenceRejectionRepository().reject(topicTitle: result.title, sourceTerms: result.sourceTerms)
+            if case .topic(let selectedId) = selection, selectedId == topicId {
+                selection = .allNotes
+            }
+            actionNotice = "已删除主题「\(result.title)」，\(result.removedThoughtCount) 条想法回到未归类"
+            HapticManager.light()
+            NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+        } catch {
+            actionNotice = "删除主题失败"
+        }
     }
 
     // MARK: - 标签池（fetchAITagBuckets 真实聚合）
@@ -342,6 +442,88 @@ struct ThoughtKnowledgeDrawerView: View {
             .background(isSelected ? Color.holoPrimary.opacity(0.08) : Color.clear)
         }
         .buttonStyle(.plain)
+        .contextMenu {
+            Button {
+                tagActionTarget = bucket
+                renameInput = bucket.tagName
+                showRenameAlert = true
+            } label: {
+                Label("重命名", systemImage: "pencil")
+            }
+
+            Button(role: .destructive) {
+                tagActionTarget = bucket
+                showDeleteConfirm = true
+            } label: {
+                Label("删除标签", systemImage: "trash")
+            }
+        }
+    }
+
+    // MARK: - 标签管理操作
+
+    /// 执行全局重命名（目标已存在时自动合并）
+    private func performRename() {
+        guard let target = tagActionTarget else { return }
+        let newName = renameInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        renameInput = ""
+        guard !newName.isEmpty,
+              ThoughtTagNormalizer.key(newName) != ThoughtTagNormalizer.key(target.tagName) else { return }
+
+        let service = ThoughtOrganizationService()
+        do {
+            let outcome = try service.renameTagEverywhere(from: target.tagName, to: newName)
+            resetSelectionIfNeeded(for: target.tagName)
+            let displayName = ThoughtTagNormalizer.displayName(newName)
+            actionNotice = outcome == .merged ? "已合并到 #\(displayName)" : "已重命名为 #\(displayName)"
+            HapticManager.light()
+            // 数据变更通知由调用方 post（与详情页 reject/confirm 同惯例）
+            NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+        } catch {
+            actionNotice = (error as? ThoughtError)?.errorDescription ?? "重命名失败"
+        }
+    }
+
+    /// 执行全局删除（写拒绝偏好防 AI 再生）
+    private func performDelete() {
+        guard let target = tagActionTarget else { return }
+        let service = ThoughtOrganizationService()
+        if let result = service.deleteTagEverywhere(name: target.tagName) {
+            resetSelectionIfNeeded(for: target.tagName)
+            actionNotice = "已从 \(result.removedAssignmentCount) 条想法移除 #\(target.tagName)"
+            HapticManager.light()
+            NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+        } else {
+            actionNotice = "删除失败"
+        }
+    }
+
+    /// 删除/改名当前筛选中的标签时，重置为「全部笔记」避免空白筛选态
+    private func resetSelectionIfNeeded(for tagName: String) {
+        guard case .aiTag(let selectedName) = selection,
+              ThoughtTagNormalizer.key(selectedName) == ThoughtTagNormalizer.key(tagName) else { return }
+        selection = .allNotes
+    }
+
+    /// 操作反馈 toast（自动消失，id 绑定文案保证连续操作重置计时）
+    private var actionToast: some View {
+        Group {
+            if let notice = actionNotice {
+                Text(notice)
+                    .font(.holoCaption)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, HoloSpacing.md)
+                    .padding(.vertical, HoloSpacing.sm)
+                    .background(Color.black.opacity(0.75))
+                    .cornerRadius(HoloRadius.md)
+                    .padding(.top, HoloSpacing.xl)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .task(id: notice) {
+                        try? await Task.sleep(nanoseconds: 2_500_000_000)
+                        withAnimation(.easeInOut) { actionNotice = nil }
+                    }
+            }
+        }
     }
 
     // MARK: - 归纳主题入口（P2 触发跨观点收敛）

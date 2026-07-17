@@ -104,6 +104,40 @@ final class TopicRepository {
         try context.save()
     }
 
+    // MARK: - 删除
+
+    /// 删除主题：想法回未归类、标签关联断开、自引用清理、删除实体
+    /// 想法/标签本身不动；调用方负责用返回的 sourceTerms 写归并拒绝记录（防 AI 再造同名主题）
+    /// - Parameter topic: 待删除主题
+    /// - Returns: 删除结果（标题/来源词/摘除的想法关联数）
+    @discardableResult
+    func delete(_ topic: Topic) throws -> TopicDeletionResult {
+        let result = TopicDeletionResult(
+            title: topic.title,
+            sourceTerms: (topic.associatedTags as? Set<ThoughtTag>)?.map(\.name).sorted() ?? [],
+            removedThoughtCount: (topic.thoughts as? Set<Thought>)?.count ?? 0
+        )
+
+        // 显式断开关系（delete rule 均为 nullify 会自动处理，显式断开更稳，与 deleteTagGlobally 同风格）
+        if let thoughts = topic.thoughts as? Set<Thought> {
+            topic.removeThoughts(thoughts)
+        }
+        if let tags = topic.associatedTags as? Set<ThoughtTag> {
+            topic.removeAssociatedTags(tags)
+        }
+        // 自引用：被合并进本主题的子主题指向断开，避免悬挂
+        if let mergedFrom = topic.mergedFromTopics as? Set<Topic> {
+            for child in mergedFrom {
+                child.mergedToTopic = nil
+            }
+        }
+        topic.mergedToTopic = nil
+
+        context.delete(topic)
+        try context.save()
+        return result
+    }
+
     // MARK: - 合并（幂等去重，spec 决策 17）
 
     /// 将 duplicate 合并进 keeper：thoughts + associatedTags 归到 keeper，duplicate 标 merged
@@ -266,7 +300,7 @@ final class TopicRepository {
             resolved.append(try getOrCreateTag(name: displayName))
         }
         topic.addAssociatedTags(Set(resolved))
-        topic.associatedTagNames = resolved.map { $0.name }.joined(separator: ",")
+        topic.refreshAssociatedTagNamesCache()
         topic.updatedAt = Date()
         try context.save()
     }
@@ -289,4 +323,16 @@ final class TopicRepository {
         tag.usageCount = 0
         return tag
     }
+}
+
+// MARK: - 删除结果
+
+/// 主题删除结果（供 UI 反馈与归并拒绝记录）
+struct TopicDeletionResult {
+    /// 被删主题名
+    let title: String
+    /// 来源词集合（排序后，供 ConvergenceRejectionRepository.reject 使用）
+    let sourceTerms: [String]
+    /// 摘除的想法关联数（供 toast 反馈）
+    let removedThoughtCount: Int
 }

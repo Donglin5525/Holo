@@ -145,6 +145,48 @@ final class ThoughtOrganizationService {
         }
     }
 
+    // MARK: - 全局标签管理
+
+    /// 全局删除标签：所有想法上摘除 + 统一写拒绝偏好防 AI 再生
+    /// 不 post 数据变更通知（与 rejectAndRecord 同惯例，由调用方负责 UI 刷新）
+    /// - Parameters:
+    ///   - name: 标签名
+    ///   - repository: 数据仓储（默认主上下文，测试可注入内存仓储）
+    /// - Returns: 删除结果（失败返回 nil 并记日志）
+    @discardableResult
+    func deleteTagEverywhere(name: String, repository: ThoughtRepository = ThoughtRepository()) -> TagDeletionResult? {
+        do {
+            let result = try repository.deleteTagGlobally(name: name)
+            addRejectedTag(name: ThoughtTagNormalizer.displayName(name))
+            logger.info("全局删除标签：\(name)，摘除 \(result.removedAssignmentCount) 条 assignment")
+            return result
+        } catch {
+            logger.error("全局删除标签失败（\(name)）：\(error.localizedDescription)")
+            return nil
+        }
+    }
+
+    /// 全局重命名标签：旧名写拒绝偏好（防 AI 重打造成分裂），新名从拒绝偏好移除（避免与认可池信号矛盾）
+    /// 不 post 数据变更通知（由调用方负责 UI 刷新）
+    /// - Parameters:
+    ///   - oldName: 原标签名
+    ///   - newName: 新标签名
+    ///   - repository: 数据仓储（默认主上下文，测试可注入内存仓储）
+    /// - Returns: 重命名结果（renamed / merged，供 UI 反馈文案区分）
+    @discardableResult
+    func renameTagEverywhere(from oldName: String, to newName: String, repository: ThoughtRepository = ThoughtRepository()) throws -> TagRenameOutcome {
+        let outcome = try repository.renameTag(from: oldName, to: newName)
+        let oldDisplay = ThoughtTagNormalizer.displayName(oldName)
+        let newDisplay = ThoughtTagNormalizer.displayName(newName)
+        // 归一化同 key（仅大小写差异改名）时新旧名同源，无需动拒绝偏好
+        if ThoughtTagNormalizer.key(oldDisplay) != ThoughtTagNormalizer.key(newDisplay) {
+            addRejectedTag(name: oldDisplay)
+            removeRejectedTag(name: newDisplay)
+        }
+        logger.info("全局重命名标签：\(oldName) → \(newName)（\(outcome == .merged ? "合并" : "改名")）")
+        return outcome
+    }
+
     // MARK: - AI 调用（JSON mode）
 
     /// 通过 JSON mode 调用 thought_organization purpose
@@ -234,12 +276,13 @@ final class ThoughtOrganizationService {
             .map { $0.name }
     }
 
-    /// 添加拒绝标签记录
+    /// 添加拒绝标签记录（按归一化 key 去重，防 "ai能力"/"AI能力" 变体重复）
     func addRejectedTag(name: String) {
         var tags = loadRejectedEntries()
+        let key = ThoughtTagNormalizer.key(name)
 
         // 去重
-        tags.removeAll { $0.name == name }
+        tags.removeAll { ThoughtTagNormalizer.key($0.name) == key }
 
         // 添加新记录
         tags.append(RejectedTagEntry(name: name, rejectedAt: Date()))
@@ -249,6 +292,19 @@ final class ThoughtOrganizationService {
             tags.sort { $0.rejectedAt > $1.rejectedAt }
             tags = Array(tags.prefix(Self.rejectedTagsMaxCount))
         }
+
+        if let data = try? JSONEncoder().encode(tags) {
+            UserDefaults.standard.set(data, forKey: Self.rejectedTagsKey)
+        }
+    }
+
+    /// 从拒绝偏好移除标签名（按归一化 key 匹配）
+    func removeRejectedTag(name: String) {
+        var tags = loadRejectedEntries()
+        let key = ThoughtTagNormalizer.key(name)
+        let beforeCount = tags.count
+        tags.removeAll { ThoughtTagNormalizer.key($0.name) == key }
+        guard tags.count != beforeCount else { return }
 
         if let data = try? JSONEncoder().encode(tags) {
             UserDefaults.standard.set(data, forKey: Self.rejectedTagsKey)

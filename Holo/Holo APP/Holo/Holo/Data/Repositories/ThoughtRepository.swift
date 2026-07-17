@@ -486,6 +486,38 @@ class ThoughtRepository {
         return (try? context.fetch(request).map { $0.name }) ?? []
     }
 
+    /// 获取「未被用户认可的 AI 标签」名称（推荐池 AI 分组展示用）
+    /// 定义：存在至少一条 source == ai 的 ThoughtTagAssignment、
+    /// 且不存在任何 source ∈ {manual, inline, confirmedAI} 的 assignment 的 ThoughtTag。
+    /// 与 fetchUserRecognizedTagNames 互斥——用户认可过的标签归「我的标签」组，
+    /// 纯 AI 标签归本组；rejectedAI-only（仅被用户拒绝、无有效 ai 标注）不进入任何组。
+    /// - Parameter limit: 数量上限（控 UI 展示长度）
+    /// - Returns: 标签名称数组（按 usageCount 降序、名称升序）
+    func fetchUnrecognizedAITagNames(limit: Int = 40) -> [String] {
+        let request = ThoughtTag.fetchRequest()
+        let aiSource = ThoughtTagAssignment.Source.ai.rawValue
+        let recognizedSources = [
+            ThoughtTagAssignment.Source.manual.rawValue,
+            ThoughtTagAssignment.Source.inline.rawValue,
+            ThoughtTagAssignment.Source.confirmedAI.rawValue
+        ]
+        let hasAI = NSPredicate(
+            format: "SUBQUERY(assignments, $a, $a.source == %@ AND $a.thought.isSoftDeleted == NO).@count > 0",
+            aiSource
+        )
+        let notRecognized = NSPredicate(
+            format: "SUBQUERY(assignments, $a, $a.source IN %@ AND $a.thought.isSoftDeleted == NO).@count == 0",
+            recognizedSources
+        )
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [hasAI, notRecognized])
+        request.sortDescriptors = [
+            NSSortDescriptor(key: "usageCount", ascending: false),
+            NSSortDescriptor(key: "name", ascending: true)
+        ]
+        request.fetchLimit = limit
+        return (try? context.fetch(request).map { $0.name }) ?? []
+    }
+
     /// 获取或创建标签
     /// - Parameter name: 标签名称
     /// - Returns: ThoughtTag 对象
@@ -509,27 +541,6 @@ class ThoughtRepository {
             tag.usageCount = 1
             return tag
         }
-    }
-
-    /// 合并标签
-    /// - Parameters:
-    ///   - oldName: 原标签名
-    ///   - newName: 新标签名
-    func mergeTags(oldName: String, newName: String) throws {
-        let oldTags = try getOrCreateTag(name: oldName)
-        let newTag = try getOrCreateTag(name: newName)
-
-        // 将旧标签关联的想法转移到新标签
-        if let thoughts = oldTags.thoughts as? Set<Thought> {
-            for thought in thoughts {
-                oldTags.removeThoughts(thought)
-                newTag.addThoughts(thought)
-            }
-        }
-
-        // 删除旧标签
-        context.delete(oldTags)
-        try context.save()
     }
 
     /// 清除所有观点数据（Thought + ThoughtTag + ThoughtReference + ThoughtTagAssignment + Topic + ThoughtAttachment）
@@ -1175,7 +1186,8 @@ class ThoughtRepository {
         }
     }
 
-    private static let visibleTagSourceValues = [
+    /// 可见标签来源（标签池/usageCount 统计口径），internal 供 TagManagement 扩展复用
+    static let visibleTagSourceValues = [
         ThoughtTagAssignment.Source.manual.rawValue,
         ThoughtTagAssignment.Source.inline.rawValue,
         ThoughtTagAssignment.Source.ai.rawValue,
@@ -1189,6 +1201,7 @@ class ThoughtRepository {
 enum ThoughtError: LocalizedError {
     case notFound
     case tagInUse
+    case tagNameEmpty
     case saveFailed
     case unknown(Error)
 
@@ -1198,10 +1211,25 @@ enum ThoughtError: LocalizedError {
             return "想法不存在"
         case .tagInUse:
             return "标签正在使用中，无法删除"
+        case .tagNameEmpty:
+            return "标签名不能为空"
         case .saveFailed:
             return "保存失败"
         case .unknown(let error):
             return "未知错误：\(error.localizedDescription)"
+        }
+    }
+}
+
+extension ThoughtError: Equatable {
+    static func == (lhs: ThoughtError, rhs: ThoughtError) -> Bool {
+        switch (lhs, rhs) {
+        case (.notFound, .notFound), (.tagInUse, .tagInUse), (.tagNameEmpty, .tagNameEmpty), (.saveFailed, .saveFailed):
+            return true
+        case (.unknown(let l), .unknown(let r)):
+            return l.localizedDescription == r.localizedDescription
+        default:
+            return false
         }
     }
 }
