@@ -338,6 +338,13 @@ struct HealthView: View {
                 .padding(.vertical, 5)
                 .background(repository.dataSourceState.badgeColor.opacity(0.12))
                 .clipShape(Capsule())
+
+            // 部分连接时提示可点击进入系统设置补权限
+            if repository.dataSourceState == .partiallyConnected {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.holoTextSecondary)
+            }
         }
         .padding(HoloSpacing.md)
         .background(Color.holoCardBackground)
@@ -346,6 +353,14 @@ struct HealthView: View {
             RoundedRectangle(cornerRadius: HoloRadius.lg)
                 .stroke(Color.holoBorder, lineWidth: 1)
         )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            // 部分连接时点按跳转系统设置，引导用户补全健康权限
+            guard repository.dataSourceState == .partiallyConnected else { return }
+            if let url = URL(string: UIApplication.openSettingsURLString) {
+                UIApplication.shared.open(url)
+            }
+        }
     }
 
     private var coreInsightCard: some View {

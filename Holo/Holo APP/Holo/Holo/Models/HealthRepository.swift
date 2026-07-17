@@ -804,11 +804,17 @@ class HealthRepository: ObservableObject {
             standAvailability = .noData
         }
 
-        let states = [stepsAvailability, sleepAvailability, standAvailability]
-        if states.allSatisfy({ $0 == .available }) {
+        // 站立指标「已覆盖」的两种情形：有直接站立数据，或无 Watch 时由活动分钟兜底（unsupported）。
+        // 兜底生效时不应再判为「部分连接」。
+        let coveredStates = [
+            stepsAvailability == .available,
+            sleepAvailability == .available,
+            standAvailability == .available || standAvailability == .unsupported
+        ]
+        if coveredStates.allSatisfy({ $0 }) {
             dataSourceState = .connected
             isAuthorized = true
-        } else if states.contains(.available) {
+        } else if coveredStates.contains(true) {
             dataSourceState = .partiallyConnected
             isAuthorized = true
         } else if hasRequestedPermission {

@@ -48,7 +48,7 @@ enum HealthDataSourceState: Equatable {
         case .connected:
             return "只读同步 · 步数 / 睡眠 / 站立"
         case .partiallyConnected:
-            return "部分指标可用 · 可在系统设置中调整"
+            return "部分指标可用 · 点按前往设置补全权限"
         case .denied:
             return "请在系统设置中允许 HOLO 读取健康数据"
         case .unavailable:
