@@ -476,9 +476,8 @@ struct SettingsView: View {
 
     // MARK: - AI 整理设置
 
-    @State private var isThoughtAutoOrganizationEnabled: Bool = {
-        UserDefaults.standard.object(forKey: ThoughtRepository.autoOrganizationEnabledKey) as? Bool ?? true
-    }()
+    @AppStorage(ThoughtAIClassificationPolicy.isEnabledKey)
+    private var isThoughtAutoOrganizationEnabled: Bool = true
 
     private var aiOrganizationSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
@@ -512,13 +511,13 @@ struct SettingsView: View {
             // 自动整理想法开关
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("自动整理想法")
+                    Text("AI 自动分类")
                         .font(.holoBody)
                         .foregroundColor(.holoTextPrimary)
 
                     Text(isThoughtAutoOrganizationEnabled
-                         ? "保存想法后，AI 会自动生成标签和主题，可随时编辑"
-                         : "已关闭，手动标签和正文 #标签 仍会保留")
+                         ? "保存新想法后自动生成分类标签；主题仍由你主动归纳"
+                         : "新想法不再自动分类；历史标签和手动整理不受影响")
                         .font(.holoCaption)
                         .foregroundColor(.holoTextSecondary)
                         .lineLimit(2)
@@ -536,9 +535,6 @@ struct SettingsView: View {
         .padding(.vertical, HoloSpacing.sm)
         .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: 12))
-        .onChange(of: isThoughtAutoOrganizationEnabled) { _, newValue in
-            UserDefaults.standard.set(newValue, forKey: ThoughtRepository.autoOrganizationEnabledKey)
-        }
     }
 
     // MARK: - AI 回放设置

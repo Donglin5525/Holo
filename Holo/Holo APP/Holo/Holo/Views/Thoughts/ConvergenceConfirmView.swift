@@ -93,7 +93,7 @@ struct ConvergenceConfirmView: View {
         VStack(spacing: HoloSpacing.md) {
             Image(systemName: "sparkles")
                 .font(.system(size: 40))
-                .foregroundColor(.holoAI)
+                .foregroundColor(.holoPrimary)
             Text("观点还不足够形成主题")
                 .font(.holoBody)
                 .foregroundColor(.holoTextPrimary)
@@ -112,7 +112,7 @@ struct ConvergenceConfirmView: View {
         VStack(spacing: HoloSpacing.md) {
             Image(systemName: "checkmark.seal.fill")
                 .font(.system(size: 40))
-                .foregroundColor(.holoAI)
+                .foregroundColor(.holoPrimary)
             Text("没有新的可归纳变化")
                 .font(.holoBody)
                 .foregroundColor(.holoTextPrimary)
@@ -200,7 +200,7 @@ struct ConvergenceConfirmView: View {
         VStack(spacing: HoloSpacing.md) {
             Image(systemName: "sparkles")
                 .font(.system(size: 40))
-                .foregroundColor(.holoAI)
+                .foregroundColor(.holoPrimary)
             Text("暂未发现可归并的主题")
                 .font(.holoBody)
                 .foregroundColor(.holoTextPrimary)
@@ -305,7 +305,7 @@ private struct ConvergenceSuggestionCard: View {
                 HStack(spacing: HoloSpacing.xs) {
                     Image(systemName: "folder.badge.plus")
                         .font(.system(size: 16))
-                        .foregroundColor(.holoAI)
+                        .foregroundColor(.holoPrimary)
                     Text(suggestion.topicTitle)
                         .font(.holoHeading)
                         .foregroundColor(.holoTextPrimary)
@@ -412,11 +412,15 @@ private struct WrappingHStack: View {
             ForEach(items, id: \.self) { tag in
                 Text(tag)
                     .font(.holoTinyLabel)
-                    .foregroundColor(.holoAI)
+                    .foregroundColor(.holoTextSecondary)
                     .padding(.horizontal, HoloSpacing.sm)
                     .padding(.vertical, 3)
-                    .background(Color.holoAI.opacity(0.1))
+                    .background(Color.holoBackground)
                     .clipShape(Capsule())
+                    .overlay(
+                        Capsule()
+                            .stroke(Color.holoDivider, lineWidth: 1)
+                    )
             }
         }
     }

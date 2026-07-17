@@ -215,7 +215,7 @@ struct ThoughtListView: View {
                 HStack(spacing: 6) {
                     ProgressView()
                         .scaleEffect(0.7)
-                        .tint(.holoAI)
+                        .tint(.holoPrimary)
 
                     Text("AI 自动归纳中（\(orgQueue.batchCompleted)/\(total)）")
                         .font(.holoCaption)
@@ -225,14 +225,14 @@ struct ThoughtListView: View {
                 }
                 .padding(.horizontal, HoloSpacing.md)
                 .padding(.vertical, 6)
-                .background(Color.holoAI.opacity(0.06))
+                .background(Color.holoPrimary.opacity(0.06))
                 .transition(.opacity.combined(with: .move(edge: .top)))
             } else if orgQueue.dailyLimitHit {
                 // 配额耗尽暂停
                 HStack(spacing: 6) {
                     Image(systemName: "moon.zzz.fill")
                         .font(.system(size: 11))
-                        .foregroundColor(.holoAI)
+                        .foregroundColor(.holoTextSecondary)
 
                     Text("今日整理配额已用尽，剩余条目明天自动续做")
                         .font(.holoCaption)
@@ -242,7 +242,7 @@ struct ThoughtListView: View {
                 }
                 .padding(.horizontal, HoloSpacing.md)
                 .padding(.vertical, 6)
-                .background(Color.holoAI.opacity(0.06))
+                .background(Color.holoPrimary.opacity(0.06))
                 .transition(.opacity.combined(with: .move(edge: .top)))
             } else if hasProcessingThoughts {
                 // 单条增量整理（保存想法时）
@@ -448,7 +448,7 @@ struct ThoughtListView: View {
                     startBatchOrganize()
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.holoAI)
+                .tint(.holoPrimary)
                 .frame(maxWidth: .infinity)
             }
         }
@@ -573,7 +573,7 @@ struct ThoughtListView: View {
                     drawerSelection = nil
                 }
 
-                // 自动整理动作 chip（紫色 AI 标识，区别于筛选 chip）
+                // 自动整理动作 chip（橙色主操作 + 小型紫色 AI 来源标识）
                 ThoughtOrganizeActionChip(
                     pendingCount: unprocessedCount,
                     isOrganizing: orgQueue.isBatchOrganizing

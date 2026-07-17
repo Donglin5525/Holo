@@ -26,6 +26,9 @@ enum DrawerNode: Hashable {
 /// 观点左侧知识树抽屉
 struct ThoughtKnowledgeDrawerView: View {
 
+    @AppStorage(ThoughtAIClassificationPolicy.isEnabledKey)
+    private var isAIClassificationEnabled: Bool = true
+
     /// 当前选中节点
     @Binding var selection: DrawerNode?
 
@@ -119,6 +122,7 @@ struct ThoughtKnowledgeDrawerView: View {
         ScrollView(showsIndicators: false) {
             VStack(alignment: .leading, spacing: 0) {
                 header
+                aiClassificationToggle
                 nodeRow(.allNotes, icon: "tray.full", title: "全部笔记")
                 nodeRow(.unclassified, icon: "square.dashed", title: "未归类")
 
@@ -180,6 +184,35 @@ struct ThoughtKnowledgeDrawerView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, HoloSpacing.md)
         .padding(.bottom, HoloSpacing.md)
+    }
+
+    /// 模块内就近控制新想法的 AI 自动分类；与全局设置保持同一状态。
+    private var aiClassificationToggle: some View {
+        HStack(spacing: HoloSpacing.sm) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 14, weight: .medium))
+                .foregroundColor(.holoAI)
+                .frame(width: 26)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("AI 自动分类")
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextPrimary)
+                Text(isAIClassificationEnabled ? "新想法自动生成标签" : "已关闭，仍可手动整理")
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary)
+            }
+
+            Spacer()
+
+            Toggle("", isOn: $isAIClassificationEnabled)
+                .labelsHidden()
+                .tint(.holoPrimary)
+        }
+        .padding(.horizontal, HoloSpacing.md)
+        .padding(.vertical, HoloSpacing.sm)
+        .background(Color.holoPrimary.opacity(0.05))
+        .contentShape(Rectangle())
     }
 
     // MARK: - 通用节点行
@@ -264,7 +297,7 @@ struct ThoughtKnowledgeDrawerView: View {
             HStack(spacing: HoloSpacing.sm) {
                 Image(systemName: "folder")
                     .font(.system(size: 13))
-                    .foregroundColor(isSelected ? .holoPrimary : .holoAI)
+                    .foregroundColor(isSelected ? .holoPrimary : .holoTextSecondary)
                     .frame(width: 26)
 
                 Text(topic.title)
@@ -380,10 +413,10 @@ struct ThoughtKnowledgeDrawerView: View {
                 Image(systemName: isAIPoolExpanded ? "chevron.up" : "chevron.down")
                     .font(.system(size: 11, weight: .semibold))
             }
-            .foregroundColor(.holoAI)
+            .foregroundColor(.holoPrimary)
             .padding(.horizontal, HoloSpacing.sm)
             .padding(.vertical, 4)
-            .background(Color.holoAI.opacity(0.1))
+            .background(Color.holoPrimary.opacity(0.08))
             .clipShape(Capsule())
         }
         .buttonStyle(.plain)
@@ -393,7 +426,7 @@ struct ThoughtKnowledgeDrawerView: View {
         HStack(spacing: HoloSpacing.sm) {
             Image(systemName: "tag")
                 .font(.system(size: 13))
-                .foregroundColor(.holoAI)
+                .foregroundColor(.holoTextSecondary)
             Text("暂无标签")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
@@ -424,7 +457,7 @@ struct ThoughtKnowledgeDrawerView: View {
                 if confirmedCount > 0 {
                     Image(systemName: "checkmark.seal.fill")
                         .font(.system(size: 10))
-                        .foregroundColor(.holoAI)
+                        .foregroundColor(.holoPrimary)
                 }
 
                 Spacer()
@@ -547,10 +580,10 @@ struct ThoughtKnowledgeDrawerView: View {
                 if pendingThemeClueCount > 0 {
                     Text("\(pendingThemeClueCount) 条线索")
                         .font(.holoTinyLabel)
-                        .foregroundColor(.holoAI)
+                        .foregroundColor(.holoPrimary)
                         .padding(.horizontal, HoloSpacing.sm)
                         .padding(.vertical, 2)
-                        .background(Color.holoAI.opacity(0.1))
+                        .background(Color.holoPrimary.opacity(0.08))
                         .clipShape(Capsule())
                 }
             }

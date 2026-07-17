@@ -39,9 +39,6 @@ struct ThoughtsView: View {
 
     /// 知识树抽屉开关
     @State private var isDrawerOpen: Bool = false
-    /// 抽屉关闭拖拽偏移：0 为完全展开，横向拖动时跟手退出
-    @State private var drawerDragOffset: CGFloat = 0
-    @State private var drawerGestureLock = HorizontalGestureLock()
     /// 抽屉当前选中节点（右侧列表筛选意图）
     @State private var drawerSelection: DrawerNode? = nil
 
@@ -115,96 +112,41 @@ struct ThoughtsView: View {
 
     /// 打开知识树抽屉
     private func openDrawer() {
-        drawerDragOffset = 0
-        drawerGestureLock.reset()
         withAnimation(.easeInOut(duration: 0.25)) { isDrawerOpen = true }
     }
 
     /// 关闭知识树抽屉
     private func closeDrawer() {
-        withAnimation(.easeInOut(duration: 0.25)) {
-            drawerDragOffset = 0
-            isDrawerOpen = false
-        }
-        drawerGestureLock.reset()
+        withAnimation(.easeInOut(duration: 0.25)) { isDrawerOpen = false }
     }
 
-    /// 知识树抽屉层：拖拽时跟手移动，并按进度同步遮罩透明度
+    /// 知识树抽屉层：打开后固定吸附左侧，不跟随内容区手势漂移。
     @ViewBuilder
     private var drawerLayer: some View {
         if isDrawerOpen {
-            GeometryReader { geo in
-                let drawerWidth = min(320, geo.size.width * 0.82)
-                let clampedOffset = min(max(drawerDragOffset, -drawerWidth), drawerWidth)
-                let revealProgress = max(0, min(1, 1 - abs(clampedOffset) / drawerWidth))
+            ZStack(alignment: .leading) {
+                Color.black.opacity(0.3)
+                    .ignoresSafeArea()
+                    .onTapGesture { closeDrawer() }
 
-                ZStack(alignment: .leading) {
-                    Color.black.opacity(0.3 * revealProgress)
-                        .ignoresSafeArea()
-                        .onTapGesture { closeDrawer() }
-
-                    ThoughtKnowledgeDrawerView(
-                        selection: $drawerSelection,
-                        thoughtRepository: thoughtRepository,
-                        topicRepository: topicRepository,
-                        onSelect: { node in
-                            drawerSelection = node
-                            closeDrawer()  // 点筛选节点立即收起抽屉，让用户看右侧列表
-                        },
-                        onAIOrganize: {
-                            closeDrawer()
-                            startTopicConvergence(autoApply: true)
-                        }
-                    )
-                    .offset(x: clampedOffset)
-                }
-                .contentShape(Rectangle())
-                .simultaneousGesture(drawerCloseDragGesture(drawerWidth: drawerWidth))
-                .transition(.opacity)
-            }
-        }
-    }
-
-    private func drawerCloseDragGesture(drawerWidth: CGFloat) -> some Gesture {
-        DragGesture(minimumDistance: 8, coordinateSpace: .global)
-            .onChanged { value in
-                switch drawerGestureLock.update(translation: value.translation) {
-                case .horizontal:
-                    drawerDragOffset = min(max(value.translation.width, -drawerWidth), drawerWidth)
-                case .vertical, .undecided:
-                    break
-                }
-            }
-            .onEnded { value in
-                defer { drawerGestureLock.reset() }
-                guard drawerGestureLock.axis == .horizontal else {
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
-                        drawerDragOffset = 0
+                ThoughtKnowledgeDrawerView(
+                    selection: $drawerSelection,
+                    thoughtRepository: thoughtRepository,
+                    topicRepository: topicRepository,
+                    onSelect: { node in
+                        drawerSelection = node
+                        closeDrawer()  // 点筛选节点立即收起抽屉，让用户看右侧列表
+                    },
+                    onAIOrganize: {
+                        closeDrawer()
+                        startTopicConvergence(autoApply: true)
                     }
-                    return
-                }
+                )
 
-                let shouldClose = abs(value.translation.width) > drawerWidth * 0.28
-                    || abs(value.predictedEndTranslation.width) > drawerWidth * 0.45
-
-                if shouldClose {
-                    finishInteractiveDrawerClose(toward: value.translation.width, drawerWidth: drawerWidth)
-                } else {
-                    withAnimation(.spring(response: 0.28, dampingFraction: 0.86)) {
-                        drawerDragOffset = 0
-                    }
-                }
+                RightEdgeCloseOverlay(isEnabled: true, onClose: closeDrawer)
+                    .ignoresSafeArea()
             }
-    }
-
-    private func finishInteractiveDrawerClose(toward translation: CGFloat, drawerWidth: CGFloat) {
-        let direction: CGFloat = translation >= 0 ? 1 : -1
-        withAnimation(.easeInOut(duration: 0.18)) {
-            drawerDragOffset = direction * drawerWidth
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.18) {
-            drawerDragOffset = 0
-            isDrawerOpen = false
+            .transition(.move(edge: .leading).combined(with: .opacity))
         }
     }
 

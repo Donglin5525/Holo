@@ -57,6 +57,10 @@ final class ThoughtOrganizationQueue: ObservableObject {
     /// 将单条想法加入队列（增量整理用，保存想法时触发）
     /// - Parameter thoughtId: 想法 UUID
     func enqueue(thoughtId: UUID) {
+        guard ThoughtAIClassificationPolicy.isEnabled() else {
+            logger.info("自动分类已关闭，跳过新想法入队：\(thoughtId)")
+            return
+        }
         // 批量进行中时，新想法也计入批量总量（保证进度准确）
         if let total = batchTotal {
             self.batchTotal = total + 1
@@ -107,6 +111,12 @@ final class ThoughtOrganizationQueue: ObservableObject {
 
         // 先恢复 processing 超时
         repository.recoverStaleProcessingThoughts()
+
+        // 自动分类关闭时不恢复后台队列；用户仍可从“批量 AI 整理”主动处理。
+        guard ThoughtAIClassificationPolicy.isEnabled() else {
+            logger.info("自动分类已关闭，跳过 pending 队列恢复")
+            return
+        }
 
         // 读取 pending 想法（批量整理被配额暂停后留下的，次日续做）
         do {

@@ -98,13 +98,13 @@ struct ThoughtCardView: View {
             return ("已入主题", "folder.fill", .holoSuccess)
         }
         if thought.organizedStatus == "processing" || thought.organizedStatus == "pending" {
-            return ("整理中", "sparkles", .holoAI)
+            return ("整理中", "sparkles", .holoPrimary)
         }
         if thought.organizedStatus == "failed" {
             return ("整理失败", "exclamationmark.circle.fill", .holoError)
         }
         if !thought.visibleAITagNames.isEmpty || thought.organizedStatus == "organized" {
-            return ("已整理", "checkmark.seal.fill", .holoAI)
+            return ("已整理", "checkmark.seal.fill", .holoPrimary)
         }
         return ("待整理", "circle.dotted", .holoTextSecondary)
     }

@@ -11,7 +11,7 @@ import SwiftUI
 // MARK: - ThoughtOrganizeActionChip
 
 /// AI 整理动作芯片
-/// 与 HoloFilterChip 区别：它是动作触发器，带 sparkles + AI 角标 + 待整理数徽章，紫色异色
+/// 与 HoloFilterChip 区别：它是动作触发器；主交互使用品牌橙，紫色仅标记 AI 来源。
 struct ThoughtOrganizeActionChip: View {
 
     /// 待整理数量（>0 时显示徽章）
@@ -43,15 +43,15 @@ struct ThoughtOrganizeActionChip: View {
                 // 文案
                 Text(title)
                     .font(.holoCaption)
-                    .foregroundColor(.holoAI)
+                    .foregroundColor(.holoPrimary)
 
                 // AI 角标
                 Text("AI")
                     .font(.system(size: 8, weight: .semibold))
-                    .foregroundColor(.holoAI.opacity(0.7))
+                    .foregroundColor(.holoTextSecondary)
                     .padding(.horizontal, 3)
                     .padding(.vertical, 1)
-                    .background(Color.holoAI.opacity(0.12))
+                    .background(Color.holoBackground)
                     .cornerRadius(3)
 
                 // 待整理数量徽章（整理中或无待整理时隐藏）
@@ -62,7 +62,7 @@ struct ThoughtOrganizeActionChip: View {
                         .frame(minWidth: 18)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 1)
-                        .background(Color.holoAI)
+                        .background(Color.holoPrimary)
                         .clipShape(Capsule())
                 }
             }
@@ -71,11 +71,11 @@ struct ThoughtOrganizeActionChip: View {
             .frame(width: 132)
             .background(
                 Capsule()
-                    .fill(Color.holoAI.opacity(isOrganizing ? 0.14 : 0.08))
+                    .fill(Color.holoPrimary.opacity(isOrganizing ? 0.12 : 0.06))
             )
             .overlay(
                 Capsule()
-                    .stroke(Color.holoAI.opacity(isOrganizing ? 0.6 : 0.4), lineWidth: 1)
+                    .stroke(Color.holoPrimary.opacity(isOrganizing ? 0.55 : 0.35), lineWidth: 1)
             )
         }
         .buttonStyle(.plain)

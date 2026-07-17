@@ -757,8 +757,7 @@ struct ThoughtEditorView: View {
                 }
 
                 // AI 自动整理：新想法保存后触发（仅新建，编辑不触发）
-                let isEnabled = UserDefaults.standard.object(forKey: ThoughtRepository.autoOrganizationEnabledKey) as? Bool ?? true
-                if isEnabled && content.count >= 10 {
+                if ThoughtAIClassificationPolicy.isEnabled() && content.count >= 10 {
                     Task { @MainActor in
                         ThoughtOrganizationQueue.shared.enqueue(thoughtId: thought.id)
                     }

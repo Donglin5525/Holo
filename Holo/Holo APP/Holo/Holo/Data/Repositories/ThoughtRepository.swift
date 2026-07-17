@@ -194,18 +194,11 @@ class ThoughtRepository {
         thought.isSoftDeleted = false
         thought.createdDeviceId = HoloBackendDeviceIdentity.shared.deviceId
 
-        // 初始化 organizedStatus
-        let autoOrgEnabled = UserDefaults.standard.bool(forKey: Self.autoOrganizationEnabledKey)
-        // 首次读取时如果 key 不存在，默认为开启
-        let isEnabled = UserDefaults.standard.object(forKey: Self.autoOrganizationEnabledKey) as? Bool ?? true
-
-        if !isEnabled {
-            thought.organizedStatus = "disabled"
-        } else if content.count < 10 {
-            thought.organizedStatus = "skipped"
-        } else {
-            thought.organizedStatus = "pending"
-        }
+        // 初始化 organizedStatus：关闭自动分类时仍允许用户稍后手动整理。
+        thought.organizedStatus = ThoughtAIClassificationPolicy.initialStatus(
+            contentLength: content.count,
+            isEnabled: ThoughtAIClassificationPolicy.isEnabled()
+        )
 
         // 双写：同时写 Thought.tags（旧 UI 兼容）和 ThoughtTagAssignment（新数据源）
         for tagName in manualTags.map({ ThoughtTagNormalizer.displayName($0) }) where !tagName.isEmpty {
@@ -963,9 +956,7 @@ class ThoughtRepository {
 
     /// 终态状态集合：这些状态的想法不再纳入「自动整理」批量范围
     /// 用「排除终态」写法，使 nil/空字符串等脏值也被纳入（安全方向）
-    private static let terminalOrganizedStatuses = [
-        "organized", "pending", "processing", "skipped", "disabled", "failed"
-    ]
+    private static let terminalOrganizedStatuses = ThoughtAIClassificationPolicy.manualBatchTerminalStatuses
 
     /// 获取所有未整理的想法 ID（排除终态，含 nil/空字符串等脏值）
     /// 用于「自动整理」批量入口，按 createdAt 升序（老想法先整理）
@@ -1113,7 +1104,7 @@ class ThoughtRepository {
     // MARK: - Settings Keys
 
     /// 自动整理开关的 UserDefaults key
-    static let autoOrganizationEnabledKey = "isThoughtAutoOrganizationEnabled"
+    static let autoOrganizationEnabledKey = ThoughtAIClassificationPolicy.isEnabledKey
 
     // MARK: - Private Helpers
 

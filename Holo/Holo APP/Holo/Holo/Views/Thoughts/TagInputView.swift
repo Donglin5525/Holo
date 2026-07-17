@@ -259,15 +259,14 @@ struct SelectedTagChip: View {
 
 // MARK: - Suggested Tag Chip
 
-/// 推荐标签芯片（isAI = true 时显示 ✨ 标识与 AI 配色，明确来源）
+/// 推荐标签芯片：统一使用品牌选中态，AI 来源只由小型 sparkles 标识。
 struct SuggestedTagChip: View {
     let tag: String
     let isAI: Bool
     let isSelected: Bool
     let action: () -> Void
 
-    /// 强调色：AI 标签用 holoAI，用户标签用 holoPrimary
-    private var accentColor: Color { isAI ? .holoAI : .holoPrimary }
+    private let accentColor = Color.holoPrimary
 
     var body: some View {
         Button(action: action) {
@@ -275,7 +274,7 @@ struct SuggestedTagChip: View {
                 if isAI {
                     Image(systemName: "sparkles")
                         .font(.system(size: 9, weight: .medium))
-                        .foregroundColor(accentColor.opacity(0.85))
+                        .foregroundColor(.holoAI)
                 }
                 Text("#\(tag)")
                     .font(.holoCaption)
@@ -299,12 +298,12 @@ struct SuggestedTagChip: View {
         .buttonStyle(.plain)
     }
 
-    /// 芯片背景：选中加深，未选 AI 标签带淡紫底色与用户标签区分
+    /// 未选标签统一使用中性卡片，避免 AI 标签形成大面积异色。
     private var chipBackground: Color {
         if isSelected {
-            return accentColor.opacity(isAI ? 0.12 : 0.1)
+            return accentColor.opacity(0.1)
         }
-        return isAI ? accentColor.opacity(0.06) : Color.holoCardBackground
+        return Color.holoCardBackground
     }
 }
 

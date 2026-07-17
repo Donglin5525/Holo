@@ -53,7 +53,7 @@ struct TopicPickerView: View {
                     VStack(spacing: HoloSpacing.sm) {
                         Image(systemName: "folder")
                             .font(.system(size: 30))
-                            .foregroundColor(.holoAI)
+                            .foregroundColor(.holoPrimary)
                         Text("暂无主题")
                             .font(.holoCaption)
                             .foregroundColor(.holoTextSecondary)
@@ -70,7 +70,7 @@ struct TopicPickerView: View {
                             } label: {
                                 HStack {
                                     Image(systemName: "folder")
-                                        .foregroundColor(.holoAI)
+                                        .foregroundColor(.holoPrimary)
                                     Text(topic.title)
                                         .foregroundColor(.holoTextPrimary)
                                     Spacer()
