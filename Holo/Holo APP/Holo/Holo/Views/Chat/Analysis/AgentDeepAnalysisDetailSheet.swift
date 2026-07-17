@@ -434,7 +434,7 @@ struct AgentDeepAnalysisDetailSheet: View {
                 .frame(maxWidth: .infinity, minHeight: 78, alignment: .topLeading)
                 .background(
                     LinearGradient(
-                        colors: [Color.white.opacity(0.78), Color.holoCardBackground.opacity(0.84)],
+                        colors: [Color.holoCardBackground, Color.holoBackground.opacity(0.84)],
                         startPoint: .top,
                         endPoint: .bottom
                     )
@@ -555,6 +555,7 @@ struct AgentDeepAnalysisDetailSheet: View {
     @ViewBuilder
     private func evidenceSection(_ evidence: [AgentDeepAnalysisNarrativeModel.Evidence]) -> some View {
         if !evidence.isEmpty {
+            let dark = colorScheme == .dark
             VStack(alignment: .leading, spacing: 12) {
                 Button {
                     withAnimation(.spring(response: 0.32, dampingFraction: 0.86)) {
@@ -566,7 +567,7 @@ struct AgentDeepAnalysisDetailSheet: View {
                             HStack(spacing: 8) {
                                 Text("查看数据依据")
                                     .font(.system(size: 13, weight: .bold))
-                                    .foregroundColor(.holoTextPrimary.opacity(0.62))
+                                    .foregroundColor(.holoTextPrimary.opacity(0.82))
 
                                 HStack(spacing: 4) {
                                     ForEach(0..<min(evidence.count, 4), id: \.self) { _ in
@@ -579,16 +580,16 @@ struct AgentDeepAnalysisDetailSheet: View {
 
                             Text("\(evidence.count) 条可核对来源")
                                 .font(.system(size: 11, weight: .semibold))
-                                .foregroundColor(.holoTextSecondary.opacity(0.5))
+                                .foregroundColor(.holoTextPrimary.opacity(0.70))
                         }
 
                         Spacer(minLength: 12)
 
                         Image(systemName: "chevron.down")
                             .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(.holoTextSecondary.opacity(0.52))
+                            .foregroundColor(.holoTextSecondary)
                             .frame(width: 26, height: 26)
-                            .background(Color.holoTextPrimary.opacity(0.045))
+                            .background(Color.holoTextPrimary.opacity(dark ? 0.09 : 0.05))
                             .clipShape(Circle())
                             .rotationEffect(.degrees(isEvidenceExpanded ? 180 : 0))
                     }
@@ -623,12 +624,13 @@ struct AgentDeepAnalysisDetailSheet: View {
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
-            .background(Color.white.opacity(0.44))
+            .background(Color.holoCardBackground)
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .stroke(Color.holoBorder.opacity(0.42), lineWidth: 1)
+                    .stroke(dark ? Color.white.opacity(0.08) : Color.holoBorder.opacity(0.62), lineWidth: 1)
             )
+            .shadow(color: HoloShadow.card.opacity(dark ? 0.72 : 0.45), radius: 12, x: 0, y: 6)
         }
     }
 
@@ -689,8 +691,8 @@ struct AgentDeepAnalysisDetailSheet: View {
             Color.holoBackground
             LinearGradient(
                 colors: [
-                    Color.white.opacity(0.58),
-                    Color.holoBackground.opacity(0.2),
+                    Color.holoCardBackground.opacity(colorScheme == .dark ? 0.34 : 0.62),
+                    Color.holoBackground.opacity(colorScheme == .dark ? 0.72 : 0.30),
                     Color.holoBackground
                 ],
                 startPoint: .top,
