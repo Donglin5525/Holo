@@ -11,6 +11,7 @@
 - **@ 引用显示截断**：行内引用 Token 显示文字限制 24 字符，超出以省略号收尾，避免长标题撑破正文行（快照保留完整摘要）。
 - **Token 菜单去重**：选区恰好是完整 Token 时禁用系统复制/剪切气泡，点按 Token 只弹自定义「查看/移除」菜单。
 - **「查看记录」跳转修复**：NavigationLink 从 NavigationView 外层背景移入内部，点按引用 Token 菜单的「查看记录」可正常跳转到目标想法详情。
+- **禁用自动填充菜单**：系统 AutoFill / Writing Tools 菜单不走 canPerformAction 过滤，点按 Token 时会与自定义菜单重叠弹出；编辑器与阅读态统一关闭 writingToolsBehavior 并清空键盘助手栏按钮组。
 
 ### 验证
 - 新增 2 个截断用例，序列化器套件 17/17 通过
