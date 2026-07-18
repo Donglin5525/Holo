@@ -287,8 +287,22 @@ struct MarkdownTextView: UIViewRepresentable {
 
             refreshTypingAttributes(for: textView)
             updateTriggerState(textView)
-            updateSelectedTokenState(textView)
             lastSelectionLocation = textView.selectedRange.location
+        }
+
+        /// 是否已接管系统编辑菜单交互
+        private var didReplaceEditMenuInteraction = false
+
+        func textViewDidBeginEditing(_ textView: UITextView) {
+            // 用自定义 delegate 的交互替换系统编辑菜单交互：
+            // 选区为完整 Token 时返回空菜单（含 AutoFill 等不走 canPerformAction 的注入项）
+            if #available(iOS 16.0, *), !didReplaceEditMenuInteraction {
+                didReplaceEditMenuInteraction = true
+                for interaction in textView.interactions where interaction is UIEditMenuInteraction {
+                    textView.removeInteraction(interaction)
+                }
+                textView.addInteraction(UIEditMenuInteraction(delegate: self))
+            }
         }
 
         func textViewDidEndEditing(_ textView: UITextView) {
@@ -408,7 +422,8 @@ struct MarkdownTextView: UIViewRepresentable {
             return true
         }
 
-        /// Token 原子化选区调整：光标进入 Token 内部时吸附到边缘（键盘）或选中整个 Token（点按）；
+        /// Token 原子化选区调整：光标进入 Token 内部时吸附到较近边缘；
+        /// 点按 Token 不制造系统选区（避免触发系统编辑菜单），直接发布 Token 选中态弹自定义菜单；
         /// 选区横跨 Token 一部分时扩展为完整 Token
         /// - Returns: true 表示选区已被调整（等待重入回调）
         private func adjustSelectionForTokenAtomicity(_ textView: UITextView) -> Bool {
@@ -422,18 +437,18 @@ struct MarkdownTextView: UIViewRepresentable {
                     selection.location > $0.location && selection.location < $0.location + $0.length
                 }) else { return false }
 
-                // 移动距离 >1 视为点按：选中整个 Token；否则吸附到较近边缘
+                // 移动距离 >1 视为点按：吸附到较近边缘并直接弹 Token 菜单（不保留选区）
                 let isTap = abs(selection.location - lastSelectionLocation) > 1
-                let newSelection: NSRange
-                if isTap {
-                    newSelection = token
-                } else {
-                    let distanceToStart = selection.location - token.location
-                    let distanceToEnd = token.location + token.length - selection.location
-                    newSelection = NSRange(
-                        location: distanceToStart <= distanceToEnd ? token.location : token.location + token.length,
-                        length: 0
-                    )
+                let distanceToStart = selection.location - token.location
+                let distanceToEnd = token.location + token.length - selection.location
+                let newSelection = NSRange(
+                    location: distanceToStart <= distanceToEnd ? token.location : token.location + token.length,
+                    length: 0
+                )
+
+                if isTap,
+                   let node = MarkdownTextView.makeTokenNode(from: textView.attributedText.attributes(at: token.location, effectiveRange: nil)) {
+                    publishSelectedToken(node)
                 }
 
                 lastSelectionLocation = newSelection.location
@@ -498,26 +513,7 @@ struct MarkdownTextView: UIViewRepresentable {
             }
         }
 
-        /// 选区恰好覆盖一个完整 Token 时，向 SwiftUI 发布「Token 被选中」（弹操作菜单）
-        private func updateSelectedTokenState(_ textView: UITextView) {
-            let selection = textView.selectedRange
-            guard selection.length > 0 else {
-                publishSelectedToken(nil)
-                return
-            }
-
-            let tokenRanges = MarkdownTextView.tokenRanges(in: textView.attributedText)
-            guard let token = tokenRanges.first(where: {
-                $0.location == selection.location && $0.length == selection.length
-            }),
-                  let node = MarkdownTextView.makeTokenNode(from: textView.attributedText.attributes(at: token.location, effectiveRange: nil)) else {
-                publishSelectedToken(nil)
-                return
-            }
-
-            publishSelectedToken(node)
-        }
-
+        /// 清除 Token 选中态（菜单操作完成或编辑结束后调用）
         private func publishSelectedToken(_ node: HoloContentNode?) {
             guard node != selectedToken else { return }
             DispatchQueue.main.async { [weak self] in
@@ -1142,5 +1138,28 @@ private final class SelfSizingTextView: UITextView {
             }
         }
         return super.canPerformAction(action, withSender: sender)
+    }
+}
+
+// MARK: - UIEditMenuInteractionDelegate（选区编辑菜单兜底）
+
+@available(iOS 16.0, *)
+extension MarkdownTextView.Coordinator: UIEditMenuInteractionDelegate {
+
+    /// 选区恰好覆盖完整 Token 时返回空菜单：系统编辑菜单（含 AutoFill 等不走
+    /// canPerformAction 过滤的注入项）不再弹出，与自定义 Token 菜单互斥
+    func editMenuInteraction(
+        _ interaction: UIEditMenuInteraction,
+        menuFor configuration: UIEditMenuConfiguration,
+        suggestedActions: [UIMenuElement]
+    ) -> UIMenu? {
+        guard let textView = interaction.view as? UITextView else { return nil }
+        let selection = textView.selectedRange
+        guard selection.length > 0 else { return nil }
+
+        let isTokenSelection = MarkdownTextView.tokenRanges(in: textView.attributedText).contains {
+            $0.location == selection.location && $0.length == selection.length
+        }
+        return isTokenSelection ? UIMenu(children: []) : nil
     }
 }
