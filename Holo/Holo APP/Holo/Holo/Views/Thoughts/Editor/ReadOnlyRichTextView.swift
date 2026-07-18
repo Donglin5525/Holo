@@ -28,6 +28,12 @@ struct ReadOnlyRichTextView: UIViewRepresentable {
         textView.backgroundColor = .clear
         textView.textContainerInset = .zero
         textView.textContainer.lineFragmentPadding = 0
+        // 禁用系统「自动填充」与 Writing Tools，避免点按 Token 时弹出系统菜单
+        if #available(iOS 18.0, *) {
+            textView.writingToolsBehavior = .none
+        }
+        textView.inputAssistantItem.leadingBarButtonGroups = []
+        textView.inputAssistantItem.trailingBarButtonGroups = []
         textView.attributedText = MarkdownTextView.makeAttributedText(from: nodes, deletedReferenceIds: deletedReferenceIds)
         textView.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 

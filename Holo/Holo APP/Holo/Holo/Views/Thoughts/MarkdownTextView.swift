@@ -78,6 +78,13 @@ struct MarkdownTextView: UIViewRepresentable {
         textView.autocorrectionType = .default
         textView.spellCheckingType = .default
         textView.keyboardType = .default
+        // 禁用系统「自动填充」与 Writing Tools：不走 canPerformAction 过滤，需单独关闭，
+        // 否则点按 Token 时会与自定义 Token 菜单重叠弹出
+        if #available(iOS 18.0, *) {
+            textView.writingToolsBehavior = .none
+        }
+        textView.inputAssistantItem.leadingBarButtonGroups = []
+        textView.inputAssistantItem.trailingBarButtonGroups = []
         textView.typingAttributes = Self.baseAttributes
         let initialNodes = RichContentSerializer.nodes(richJSON: initialRichJSON, fallbackPlainText: text)
         textView.attributedText = showHighlight ? Self.makeAttributedText(from: initialNodes) : NSAttributedString(string: text, attributes: Self.baseAttributes)
