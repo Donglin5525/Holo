@@ -75,11 +75,10 @@ final class CategoryIconCatalogTests: XCTestCase {
 
     // MARK: - 5. 总图标数量在合理范围
 
-    /// 确保图标总数接近方案目标（约 171 个）
+    /// 确保原有图标与 186 个财务 Asset Catalog 图标都完整保留
     func testTotalIconCount() {
         let count = CategoryIconCatalog.allIcons.count
-        XCTAssertGreaterThanOrEqual(count, 165, "图标总数应不少于 165")
-        XCTAssertLessThanOrEqual(count, 190, "图标总数应不超过 190")
+        XCTAssertEqual(count, 366, "融合后的图标目录应包含 366 个图标")
     }
 
     // MARK: - 6. 每个 section 有图标
@@ -106,13 +105,47 @@ final class CategoryIconCatalogTests: XCTestCase {
         XCTAssertTrue(customIcons.contains("holo.category.dinner"))
         XCTAssertTrue(customIcons.contains("holo.category.fruit"))
 
-        for iconName in customIcons {
+        XCTAssertTrue(CategoryIconCatalog.contains("holo.category.generic"))
+        XCTAssertTrue(CategoryIconCatalog.contains("holo.category.misc"))
+
+        for iconName in CategoryIconCatalog.allIcons where customIcons.contains(iconName) {
             XCTAssertTrue(CategoryIconCatalog.contains(iconName), "自绘图标 \(iconName) 应出现在图标目录中")
             XCTAssertFalse(CategoryIconCatalog.sfSymbolIcons.contains(iconName), "自绘图标 \(iconName) 不应进入 SF Symbol 校验列表")
         }
     }
 
-    // MARK: - 8. 轻量增强科目需要有可选图标
+    // MARK: - 8. 财务重绘图标融入原有分组
+
+    func testFinanceAssetsAreIntegratedIntoExistingSections() {
+        XCTAssertFalse(CategoryIconCatalog.sections.contains { $0.title.contains("财务重绘") })
+
+        let expectedSectionByIcon = [
+            "cat_food": "food",
+            "finance_subway": "transport",
+            "finance_movie": "entertainment",
+            "finance_clothes": "shopping",
+            "finance_haircut": "personalCare",
+            "cat_housing": "home",
+            "cat_medical": "health",
+            "cat_learning": "learning",
+            "cat_relation": "family",
+            "finance_delivery": "lifeServices",
+            "cat_inc_salary": "income",
+            "cat_other_exp": "other",
+        ]
+
+        for (icon, expectedSectionID) in expectedSectionByIcon {
+            let actualSectionID = CategoryIconCatalog.sections.first { $0.icons.contains(icon) }?.id
+            XCTAssertEqual(actualSectionID, expectedSectionID, "\(icon) 应融入 \(expectedSectionID) 分组")
+        }
+
+        let assetIconCount = CategoryIconCatalog.allIcons.filter { icon in
+            icon.hasPrefix("finance_") || icon.hasPrefix("income_") || icon.hasPrefix("cat_")
+        }.count
+        XCTAssertEqual(assetIconCount, 186, "所有财务重绘资源都应保留且只出现一次")
+    }
+
+    // MARK: - 9. 轻量增强科目需要有可选图标
 
     func testLightweightFinanceExpansionIconsAreInCatalog() {
         let expectedIcons = [
