@@ -131,6 +131,20 @@ final class RichContentSerializerTests: XCTestCase {
         )
     }
 
+    // MARK: - @ 显示文字截断
+
+    func testTruncatedReferenceDisplayKeepsShortTitle() {
+        XCTAssertEqual(RichContentSerializer.truncatedReferenceDisplay("短标题"), "短标题")
+    }
+
+    func testTruncatedReferenceDisplayTruncatesLongTitleWithEllipsis() {
+        let long = String(repeating: "长", count: 40)
+        let result = RichContentSerializer.truncatedReferenceDisplay(long)
+
+        XCTAssertEqual(result.count, RichContentSerializer.referenceDisplayMaxLength + 1)
+        XCTAssertTrue(result.hasSuffix("…"))
+    }
+
     func testFirstLineOfEmptyNodesIsEmpty() {
         XCTAssertEqual(RichContentSerializer.firstLine(from: []), "")
     }

@@ -22,6 +22,9 @@ enum RichContentSerializer {
     /// firstLine 派生时的最大长度（超出截断，供 @ 候选列表标题使用）
     static let firstLineMaxLength = 80
 
+    /// @ 引用 Token 显示文字的最大长度（超出截断加省略号，避免行内引用过长）
+    static let referenceDisplayMaxLength = 24
+
     // MARK: - ContentNode[] → JSON
 
     static func jsonString(from nodes: [HoloContentNode]) throws -> String {
@@ -94,5 +97,11 @@ enum RichContentSerializer {
             .map { $0.trimmingCharacters(in: .whitespaces) }
             .first { !$0.isEmpty } ?? ""
         return String(first.prefix(firstLineMaxLength))
+    }
+
+    /// @ 引用 Token 显示文字：超长截断加省略号
+    static func truncatedReferenceDisplay(_ title: String) -> String {
+        guard title.count > referenceDisplayMaxLength else { return title }
+        return String(title.prefix(referenceDisplayMaxLength)) + "…"
     }
 }

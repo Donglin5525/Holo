@@ -115,26 +115,59 @@ struct ThoughtEditorView: View {
             .background(Color.holoBackground)
             .navigationTitle(isEditing ? "编辑想法" : "记录想法")
             .navigationBarTitleDisplayMode(.inline)
-            .safeAreaInset(edge: .bottom) {
-                if let triggerContext {
-                    SuggestionPanelView(
-                        context: triggerContext,
-                        viewModel: suggestionViewModel,
-                        onSelectTag: { tagId, path in
-                            pendingEditorAction = .insertTagToken(id: tagId, displayPath: path)
-                        },
-                        onCreateTag: { path in
-                            if let tag = suggestionViewModel.createTag(path: path) {
-                                pendingEditorAction = .insertTagToken(id: tag.id, displayPath: tag.name)
-                            }
-                        },
-                        onSelectReference: { thoughtId, title, snapshot in
-                            pendingEditorAction = .insertReferenceToken(id: thoughtId, displayText: title, snapshot: snapshot)
-                        },
-                        onClose: {
-                            pendingEditorAction = .dismissSuggestion
-                        }
+            // 「查看记录」跳转：NavigationLink 必须在 NavigationView 内部才生效
+            .background(
+                NavigationLink(
+                    destination: ThoughtDetailView(
+                        thoughtId: navigateToThoughtId ?? UUID(),
+                        thoughtRepository: ThoughtRepository()
+                    ),
+                    isActive: Binding(
+                        get: { navigateToThoughtId != nil },
+                        set: { if !$0 { navigateToThoughtId = nil } }
                     )
+                ) {
+                    EmptyView()
+                }
+            )
+            .safeAreaInset(edge: .bottom) {
+                // 固定底栏：候选面板（触发时）+ 编辑工具栏，始终吸附键盘上方
+                VStack(spacing: 0) {
+                    if let triggerContext {
+                        SuggestionPanelView(
+                            context: triggerContext,
+                            viewModel: suggestionViewModel,
+                            onSelectTag: { tagId, path in
+                                pendingEditorAction = .insertTagToken(id: tagId, displayPath: path)
+                            },
+                            onCreateTag: { path in
+                                if let tag = suggestionViewModel.createTag(path: path) {
+                                    pendingEditorAction = .insertTagToken(id: tag.id, displayPath: tag.name)
+                                }
+                            },
+                            onSelectReference: { thoughtId, title, snapshot in
+                                pendingEditorAction = .insertReferenceToken(
+                                    id: thoughtId,
+                                    displayText: RichContentSerializer.truncatedReferenceDisplay(title),
+                                    snapshot: snapshot
+                                )
+                            },
+                            onClose: {
+                                pendingEditorAction = .dismissSuggestion
+                            }
+                        )
+                    }
+
+                    RichTextToolbarView(pendingAction: $pendingEditorAction, formatState: typingFormatState, onAddImage: {
+                        showAttachmentSourceChoice = true
+                    })
+                        .background(Color.holoCardBackground)
+                        .overlay(
+                            Rectangle()
+                                .fill(Color.holoBorder)
+                                .frame(height: 1),
+                            alignment: .top
+                        )
                 }
             }
             .toolbar {
@@ -198,20 +231,6 @@ struct ThoughtEditorView: View {
         ) {
             tokenMenuButtons
         }
-        .background(
-            NavigationLink(
-                destination: ThoughtDetailView(
-                    thoughtId: navigateToThoughtId ?? UUID(),
-                    thoughtRepository: ThoughtRepository()
-                ),
-                isActive: Binding(
-                    get: { navigateToThoughtId != nil },
-                    set: { if !$0 { navigateToThoughtId = nil } }
-                )
-            ) {
-                EmptyView()
-            }
-        )
         // MARK: - Attachment Modifiers
         .photosPicker(
             isPresented: $showAttachmentPhotoPicker,
@@ -336,9 +355,6 @@ struct ThoughtEditorView: View {
                 RoundedRectangle(cornerRadius: HoloRadius.md)
                     .stroke(Color.holoBorder, lineWidth: 1)
             )
-            RichTextToolbarView(pendingAction: $pendingEditorAction, formatState: typingFormatState, onAddImage: {
-                showAttachmentSourceChoice = true
-            })
         }
     }
 

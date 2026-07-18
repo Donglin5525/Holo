@@ -1123,4 +1123,17 @@ private final class SelfSizingTextView: UITextView {
             }
         }
     }
+
+    /// 选区恰好是完整 Token 时禁用系统编辑菜单（复制/剪切气泡），避免与自定义 Token 菜单叠加
+    override func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
+        if selectedRange.length > 0 {
+            let isTokenSelection = MarkdownTextView.tokenRanges(in: attributedText).contains {
+                $0.location == selectedRange.location && $0.length == selectedRange.length
+            }
+            if isTokenSelection {
+                return false
+            }
+        }
+        return super.canPerformAction(action, withSender: sender)
+    }
 }
