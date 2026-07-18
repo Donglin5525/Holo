@@ -12,6 +12,7 @@
 - **Token 菜单去重**：选区恰好是完整 Token 时禁用系统复制/剪切气泡，点按 Token 只弹自定义「查看/移除」菜单。
 - **「查看记录」跳转修复**：NavigationLink 从 NavigationView 外层背景移入内部，点按引用 Token 菜单的「查看记录」可正常跳转到目标想法详情。
 - **禁用自动填充菜单**：系统 AutoFill / Writing Tools 菜单不走 canPerformAction 过滤，点按 Token 时会与自定义菜单重叠弹出；编辑器与阅读态统一关闭 writingToolsBehavior 并清空键盘助手栏按钮组。
+- **根治自动填充残留**：点按 Token 不再制造系统选区（吸附到较近边缘直接弹自定义菜单），系统编辑菜单失去触发源；拖选恰好覆盖 Token 时通过自定义 UIEditMenuInteraction 返回空菜单兜底。
 
 ### 验证
 - 新增 2 个截断用例，序列化器套件 17/17 通过
