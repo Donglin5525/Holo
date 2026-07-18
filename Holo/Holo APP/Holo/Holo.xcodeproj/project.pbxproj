@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		1B9A00110000000000000001 /* WeeklyObservationCardStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B9A00120000000000000001 /* WeeklyObservationCardStateTests.swift */; };
+		5A202607190000000000000011 /* LightweightOnboardingSettingsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A202607190000000000000012 /* LightweightOnboardingSettingsTests.swift */; };
 		1B9A00210000000000000001 /* MemoryInsightResponseParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B9A00220000000000000001 /* MemoryInsightResponseParserTests.swift */; };
 		47338B8715C0527F76C6B9BC /* MemoryInsightRefreshQuotaTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 398FCBD1E9630524A051ED67 /* MemoryInsightRefreshQuotaTests.swift */; };
 		5A202607170000000000000001 /* ThoughtRepositoryTagManagementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A202607170000000000000002 /* ThoughtRepositoryTagManagementTests.swift */; };
@@ -73,6 +74,7 @@
 		056D32940E925DC7DF7AE631 /* HealthDashboardStateTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthDashboardStateTests.swift; sourceTree = "<group>"; };
 		1A5692DC8F9BFCC11917CEDF /* HoloTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HoloTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1B9A00120000000000000001 /* WeeklyObservationCardStateTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeeklyObservationCardStateTests.swift; sourceTree = "<group>"; };
+		5A202607190000000000000012 /* LightweightOnboardingSettingsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = LightweightOnboardingSettingsTests.swift; sourceTree = "<group>"; };
 		1B9A00220000000000000001 /* MemoryInsightResponseParserTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MemoryInsightResponseParserTests.swift; sourceTree = "<group>"; };
 		1EDCE631364060018D86E6FA /* HabitIconPresetsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitIconPresetsTests.swift; sourceTree = "<group>"; };
 		295E9B51FBEA12EAC64FF25F /* FinanceChartScaleTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FinanceChartScaleTests.swift; sourceTree = "<group>"; };
@@ -207,6 +209,7 @@
 				4CF609504BAEA1DC042A448E /* HabitStatsStateTests.swift */,
 				056D32940E925DC7DF7AE631 /* HealthDashboardStateTests.swift */,
 				BDD16917F7263898559B2D49 /* UserDisplayNameSettingsTests.swift */,
+				5A202607190000000000000012 /* LightweightOnboardingSettingsTests.swift */,
 				DF4F11F07B969D93AD7AFBF2 /* ChatMessageViewDataAgentResultTests.swift */,
 				7D89A2C842C34B9589F5338D /* ChatMessageRepositoryCacheRecoveryTests.swift */,
 				76061A59B8135AEFF89E34D6 /* ChatMessageRepositoryOrphanCleanupTests.swift */,
@@ -492,6 +495,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				5A202607170000000000000001 /* ThoughtRepositoryTagManagementTests.swift in Sources */,
+				5A202607190000000000000011 /* LightweightOnboardingSettingsTests.swift in Sources */,
 				5A202607170000000000000003 /* TopicRepositoryDeleteTests.swift in Sources */,
 				1B9A00210000000000000001 /* MemoryInsightResponseParserTests.swift in Sources */,
 				1B9A00110000000000000001 /* WeeklyObservationCardStateTests.swift in Sources */,

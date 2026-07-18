@@ -20,14 +20,11 @@ struct HomeView: View {
     /// 用户昵称
     @AppStorage(UserDisplayNameSettings.displayNameKey) private var userName: String = UserDisplayNameSettings.fallbackDisplayName
 
-    /// 是否已完成首次昵称设置
-    @AppStorage(UserDisplayNameSettings.onboardingKey) private var hasCompletedUserNameOnboarding: Bool = false
+    /// 是否展示轻量新人引导
+    @State private var showOnboarding: Bool = false
 
-    /// 是否显示首次昵称设置弹窗
-    @State private var showUserNameOnboarding: Bool = false
-
-    /// 首次昵称设置输入内容
-    @State private var onboardingNameDraft: String = ""
+    /// 是否展示一次性 HoloAI 入口提示（仅本次会话，不持久化）
+    @State private var showAIEntryHint: Bool = false
 
     /// 首页推送通道服务
     @ObservedObject private var scheduleService = HomeScheduleService.shared
@@ -140,10 +137,15 @@ struct HomeView: View {
     
     var body: some View {
         ZStack {
-            // 背景色
+            // 背景色（点击空白处关闭一次性 HoloAI 入口提示）
             Color.holoBackground
                 .ignoresSafeArea()
-            
+                .onTapGesture {
+                    if showAIEntryHint {
+                        showAIEntryHint = false
+                    }
+                }
+
             homeContent
         }
         // 将 fullScreenCover 挂在整个 HomeView 上，更稳定
@@ -160,6 +162,14 @@ struct HomeView: View {
             scheduleService.setup()
             // 本周观察：有效记录日 Service（首屏读缓存，后台监听四模块刷新）
             EffectiveRecordDayService.shared.setup()
+        }
+        // 轻量新人引导（完成后触发一次 HoloAI 入口提示）
+        .fullScreenCover(isPresented: $showOnboarding, onDismiss: {
+            showAIEntryHint = true
+        }) {
+            HoloLightweightOnboardingView { _ in
+                showOnboarding = false
+            }
         }
         .fullScreenCover(isPresented: $showFinanceView, onDismiss: {
             pendingFinanceAnalysisDeepLink = nil
@@ -290,13 +300,24 @@ struct HomeView: View {
             }
         }
         // 监听 Deep Link：冷启动时 onAppear 读取已有值
+        // 方案 11：先记录是否携带 Deep Link → 处理 Deep Link → 再判断轻量 onboarding
         .onAppear {
-            presentUserNameOnboardingIfNeeded()
+            let hadPendingDeepLink = deepLinkState.pendingTarget != nil
             handleDeepLink()
+            guard !hadPendingDeepLink else { return }
+            if LightweightOnboardingSettings.shouldPresent(deepLinkPending: false) {
+                showOnboarding = true
+            }
         }
         // 监听 Deep Link：热启动/后台时 onChange 检测变化
         .onChange(of: deepLinkState.pendingTarget) { _, _ in
             handleDeepLink()
+        }
+        // 进入 AI 对话时关闭一次性 HoloAI 入口提示
+        .onChange(of: showChatView) { _, isChatOpen in
+            if isChatOpen {
+                showAIEntryHint = false
+            }
         }
         // 监听 repository 变化，自动刷新（拖拽中不刷新，避免干扰排序状态）
         .onChange(of: iconRepository.visibleConfigs) { _, _ in
@@ -304,36 +325,10 @@ struct HomeView: View {
                 loadFeatureItemsFromRepository()
             }
         }
-        .alert("我是Holo，你的个人助理。", isPresented: $showUserNameOnboarding) {
-            TextField("希望我怎么称呼您？", text: $onboardingNameDraft)
-            Button("保存") {
-                userName = UserDisplayNameSettings.standard.saveDisplayName(onboardingNameDraft)
-                hasCompletedUserNameOnboarding = true
-                onboardingNameDraft = ""
-            }
-            .disabled(UserDisplayNameSettings.normalizedDisplayName(onboardingNameDraft) == nil)
-        } message: {
-            Text("希望我怎么称呼您？")
-        }
     }
-    
+
     // MARK: - 数据加载
 
-    /// 首次打开应用时引导用户设置昵称
-    private func presentUserNameOnboardingIfNeeded() {
-        guard !hasCompletedUserNameOnboarding else { return }
-
-        if UserDisplayNameSettings.normalizedDisplayName(userName) != nil,
-           userName != UserDisplayNameSettings.fallbackDisplayName {
-            hasCompletedUserNameOnboarding = true
-            UserDisplayNameSettings.standard.markOnboardingCompleted()
-            return
-        }
-
-        onboardingNameDraft = ""
-        showUserNameOnboarding = true
-    }
-    
     /// 从 Repository 加载图标配置，转换为 FeatureButtonConfig 数组
     private func loadFeatureItemsFromRepository() {
         let orderedIds = iconRepository.getVisibleIconIds()
@@ -383,7 +378,15 @@ struct HomeView: View {
                     selectedTab = .memory
                     showMemoryGallery = true
                 },
-                onCenterTap: { showChatView = true }
+                onCenterTap: {
+                    showAIEntryHint = false
+                    showChatView = true
+                },
+                centerHintVisible: showAIEntryHint,
+                onHintTap: {
+                    showAIEntryHint = false
+                    showChatView = true
+                }
             )
         }
         .background(

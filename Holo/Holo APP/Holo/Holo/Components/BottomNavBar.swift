@@ -28,7 +28,15 @@ struct BottomNavBar: View {
 
     /// 中心按钮点击回调（Holo One 快捷动作）
     var onCenterTap: (() -> Void)? = nil
-    
+
+    /// 是否在中央 AI 按钮上方显示一次性入口提示气泡
+    var centerHintVisible: Bool = false
+
+    /// 入口提示气泡点击回调（关闭提示并进入 Chat）
+    var onHintTap: (() -> Void)? = nil
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     /// 导航项枚举
     enum TabItem: String, CaseIterable {
         case profile = "个人"
@@ -107,36 +115,43 @@ struct BottomNavBar: View {
         }
     }
     
-    /// 中央 AI 按钮
+    /// 中央 AI 按钮（上方可挂一次性入口提示气泡）
     private var centerAIButton: some View {
-        Button {
-            if let onCenterTap {
-                onCenterTap()
-            } else {
-                selectedTab = .ai
+        VStack(spacing: HoloSpacing.sm) {
+            if centerHintVisible {
+                HoloAIEntryHint(onTap: onHintTap)
             }
-        } label: {
-            VStack(spacing: 6) {
-                ZStack {
-                    // 橙色圆形背景
-                    Circle()
-                        .fill(Color.holoPrimary)
-                        .frame(width: 56, height: 56)
-                        .shadow(color: .holoPrimary.opacity(0.3), radius: 20, x: 0, y: 0)
 
-                    // AI 图标
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 24, weight: .medium))
-                        .foregroundColor(.white)
+            Button {
+                if let onCenterTap {
+                    onCenterTap()
+                } else {
+                    selectedTab = .ai
                 }
+            } label: {
+                VStack(spacing: 6) {
+                    ZStack {
+                        // 橙色圆形背景
+                        Circle()
+                            .fill(Color.holoPrimary)
+                            .frame(width: 56, height: 56)
+                            .shadow(color: .holoPrimary.opacity(0.3), radius: 20, x: 0, y: 0)
 
-                // 小黄点指示器：仅在首页时显示
-                Circle()
-                    .fill(selectedTab == .ai ? Color.holoChart8 : .clear)
-                    .frame(width: 6, height: 6)
+                        // AI 图标
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 24, weight: .medium))
+                            .foregroundColor(.white)
+                    }
+
+                    // 小黄点指示器：仅在首页时显示
+                    Circle()
+                        .fill(selectedTab == .ai ? Color.holoChart8 : .clear)
+                        .frame(width: 6, height: 6)
+                }
             }
         }
         .offset(y: -24)
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: centerHintVisible)
     }
 }
 
