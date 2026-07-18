@@ -45,6 +45,22 @@ struct ThoughtDetailView: View {
     /// AI 标签分配
     @State private var aiAssignments: [ThoughtTagAssignment] = []
 
+    /// 阅读态渲染节点（richContentJSON 非空时使用）
+    @State private var renderNodes: [HoloContentNode] = []
+
+    /// 目标已删除的引用 ID 集合（灰色「原记录已删除」样式）
+    @State private var deletedReferenceIds: Set<UUID> = []
+
+    /// 已删除引用的快照（点击灰色引用时展示）
+    @State private var deletedSnapshot: String? = nil
+
+    private var deletedSnapshotPresented: Binding<Bool> {
+        Binding(
+            get: { deletedSnapshot != nil },
+            set: { if !$0 { deletedSnapshot = nil } }
+        )
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -97,6 +113,13 @@ struct ThoughtDetailView: View {
                     thoughtRepository: thoughtRepository
                 )
             }
+            .alert("原记录已删除", isPresented: deletedSnapshotPresented) {
+                Button("知道了", role: .cancel) {
+                    deletedSnapshot = nil
+                }
+            } message: {
+                Text(deletedSnapshot ?? "")
+            }
             .sheet(isPresented: $showEditSheet) {
                 ThoughtEditorView(
                     onSave: {
@@ -127,8 +150,47 @@ struct ThoughtDetailView: View {
             references = try thoughtRepository.getReferences(for: thoughtId)
             referencedBy = try thoughtRepository.getReferencedBy(id: thoughtId)
             aiAssignments = (try? thoughtRepository.fetchVisibleAIAssignments(thoughtId: thoughtId)) ?? []
+            loadRenderNodes()
         } catch {
             logger.error("加载数据失败：\(error)")
+        }
+    }
+
+    /// 解析结构化内容并检测已删除的引用目标
+    private func loadRenderNodes() {
+        guard let thought, thought.richContentJSON != nil else {
+            renderNodes = []
+            deletedReferenceIds = []
+            return
+        }
+
+        let nodes = RichContentSerializer.nodes(richJSON: thought.richContentJSON, fallbackPlainText: thought.content)
+        renderNodes = nodes
+
+        var deleted: Set<UUID> = []
+        for node in nodes {
+            if case .reference(let noteId, _, _) = node,
+               (try? thoughtRepository.fetchById(noteId)) == nil {
+                deleted.insert(noteId)
+            }
+        }
+        deletedReferenceIds = deleted
+    }
+
+    /// 阅读态 Token 点击：标签 → 请求列表筛选；引用 → 打开目标；已删除 → 展示快照
+    private func handleTokenTap(_ node: HoloContentNode) {
+        switch node {
+        case .tag(_, let displayPath):
+            NotificationCenter.default.post(name: .thoughtRequestTagFilter, object: displayPath)
+            dismiss()
+        case .reference(let noteId, _, let snapshot):
+            if deletedReferenceIds.contains(noteId) {
+                deletedSnapshot = snapshot
+            } else {
+                selectedReferenceId = noteId
+            }
+        case .text:
+            break
         }
     }
 
@@ -145,8 +207,14 @@ struct ThoughtDetailView: View {
                     .foregroundColor(.holoTextSecondary)
             }
 
-            // 内容（Markdown 渲染）
-            if let content = thought?.content, !content.isEmpty {
+            // 内容（结构化渲染：含 Token 时走节点管线，否则 Markdown 渲染）
+            if !renderNodes.isEmpty {
+                ReadOnlyRichTextView(
+                    nodes: renderNodes,
+                    deletedReferenceIds: deletedReferenceIds,
+                    onTokenTap: handleTokenTap
+                )
+            } else if let content = thought?.content, !content.isEmpty {
                 MarkdownRenderer.render(content)
                     .multilineTextAlignment(.leading)
             } else {

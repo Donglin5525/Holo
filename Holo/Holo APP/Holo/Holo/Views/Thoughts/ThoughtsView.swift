@@ -106,6 +106,11 @@ struct ThoughtsView: View {
                 rejectionRepository: ConvergenceRejectionRepository()
             )
         }
+        .onReceive(NotificationCenter.default.publisher(for: .thoughtRequestTagFilter)) { notification in
+            // 编辑器/详情页「查看标签」：列表按该标签路径筛选
+            guard let path = notification.object as? String else { return }
+            drawerSelection = .aiTag(path)
+        }
     }
 
     // MARK: - 抽屉控制

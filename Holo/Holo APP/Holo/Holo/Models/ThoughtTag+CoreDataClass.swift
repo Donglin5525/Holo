@@ -20,6 +20,7 @@ class ThoughtTag: NSManagedObject, @unchecked Sendable {
     @NSManaged var name: String
     @NSManaged var color: String?
     @NSManaged var usageCount: Int16
+    @NSManaged var lastUsedAt: Date?              // 最近使用时间（# 候选「最近使用」排序）
 
     // MARK: - Relationships
 

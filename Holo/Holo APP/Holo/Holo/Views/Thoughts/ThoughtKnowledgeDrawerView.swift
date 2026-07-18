@@ -439,6 +439,8 @@ struct ThoughtKnowledgeDrawerView: View {
     private func aiTagRow(_ bucket: ThoughtRepository.AITagBucket) -> some View {
         let isSelected = selection == .aiTag(bucket.tagName)
         let confirmedCount = bucket.sourceBreakdown[ThoughtTagAssignment.Source.confirmedAI.rawValue] ?? 0
+        // 多级路径标签：按层级缩进，主标题显示叶段名，副标题显示完整路径
+        let depth = bucket.tagName.components(separatedBy: "/").count - 1
         return Button {
             onSelect(.aiTag(bucket.tagName))
         } label: {
@@ -448,10 +450,19 @@ struct ThoughtKnowledgeDrawerView: View {
                     .foregroundColor(.holoAI)
                     .frame(width: 26)
 
-                Text(bucket.tagName)
-                    .font(.holoBody)
-                    .foregroundColor(isSelected ? .holoPrimary : .holoTextPrimary)
-                    .lineLimit(1)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(depth > 0 ? ThoughtTagNormalizer.lastSegment(bucket.tagName) : bucket.tagName)
+                        .font(.holoBody)
+                        .foregroundColor(isSelected ? .holoPrimary : .holoTextPrimary)
+                        .lineLimit(1)
+
+                    if depth > 0 {
+                        Text(bucket.tagName)
+                            .font(.holoTinyLabel)
+                            .foregroundColor(.holoTextSecondary)
+                            .lineLimit(1)
+                    }
+                }
 
                 // 含已确认标记（用户单条确认过的 AI 标签）
                 if confirmedCount > 0 {
@@ -470,7 +481,8 @@ struct ThoughtKnowledgeDrawerView: View {
                     .background(Color.holoBackground)
                     .clipShape(Capsule())
             }
-            .padding(.horizontal, HoloSpacing.md)
+            .padding(.leading, HoloSpacing.md + CGFloat(depth) * 14)
+            .padding(.trailing, HoloSpacing.md)
             .padding(.vertical, HoloSpacing.sm)
             .background(isSelected ? Color.holoPrimary.opacity(0.08) : Color.clear)
         }

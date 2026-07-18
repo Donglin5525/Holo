@@ -167,6 +167,7 @@ final class ThoughtOrganizationService {
     }
 
     /// 全局重命名标签：旧名写拒绝偏好（防 AI 重打造成分裂），新名从拒绝偏好移除（避免与认可池信号矛盾）
+    /// 多级标签走子树语义：「工作」改名会同步「工作/Holo」等全部子路径
     /// 不 post 数据变更通知（由调用方负责 UI 刷新）
     /// - Parameters:
     ///   - oldName: 原标签名
@@ -175,7 +176,8 @@ final class ThoughtOrganizationService {
     /// - Returns: 重命名结果（renamed / merged，供 UI 反馈文案区分）
     @discardableResult
     func renameTagEverywhere(from oldName: String, to newName: String, repository: ThoughtRepository = ThoughtRepository()) throws -> TagRenameOutcome {
-        let outcome = try repository.renameTag(from: oldName, to: newName)
+        // 子树重命名（含自身与全部子路径），返回根路径的 renamed/merged 语义
+        let rootOutcome = try repository.renameTagPathPrefix(from: oldName, to: newName)
         let oldDisplay = ThoughtTagNormalizer.displayName(oldName)
         let newDisplay = ThoughtTagNormalizer.displayName(newName)
         // 归一化同 key（仅大小写差异改名）时新旧名同源，无需动拒绝偏好
@@ -183,8 +185,8 @@ final class ThoughtOrganizationService {
             addRejectedTag(name: oldDisplay)
             removeRejectedTag(name: newDisplay)
         }
-        logger.info("全局重命名标签：\(oldName) → \(newName)（\(outcome == .merged ? "合并" : "改名")）")
-        return outcome
+        logger.info("全局重命名标签：\(oldName) → \(newName)（\(rootOutcome == .merged ? "合并" : "改名")）")
+        return rootOutcome
     }
 
     // MARK: - AI 调用（JSON mode）

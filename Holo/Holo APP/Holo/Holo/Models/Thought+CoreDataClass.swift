@@ -31,6 +31,10 @@ class Thought: NSManagedObject, @unchecked Sendable {
     @NSManaged var createdDeviceId: String?        // 创建该想法的设备 ID
     @NSManaged var organizationStartedAt: Date?    // AI 整理开始时间（用于 processing 超时恢复）
 
+    // 结构化内容（#/@ Token）
+    @NSManaged var richContentJSON: String?        // 编辑器结构化事实源，nil=纯文本想法
+    @NSManaged var firstLine: String?              // 首行摘要（@ 候选标题，保存时派生）
+
     // MARK: - Relationships
 
     @NSManaged var tags: NSSet?

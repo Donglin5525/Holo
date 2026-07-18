@@ -15,6 +15,8 @@ import os.log
 extension Notification.Name {
     /// 观点数据变更通知（新增/编辑/删除想法时发送）
     static let thoughtDataDidChange = Notification.Name("thoughtDataDidChange")
+    /// 请求观点列表按标签筛选（编辑器内「查看标签」，object 为标签路径 String）
+    static let thoughtRequestTagFilter = Notification.Name("thoughtRequestTagFilter")
 }
 
 /// 观点数据仓储
@@ -174,6 +176,7 @@ class ThoughtRepository {
     ///   - manualTags: 手动选择的标签
     ///   - inlineTags: 正文内 #标签 自动提取的标签
     ///   - imageData: 图片数据
+    ///   - richContentJSON: 结构化内容（含 #/@ Token 时非空）
     /// - Returns: 创建的 Thought 对象
     @discardableResult
     func create(
@@ -181,7 +184,8 @@ class ThoughtRepository {
         mood: String? = nil,
         manualTags: [String] = [],
         inlineTags: [String] = [],
-        imageData: Data? = nil
+        imageData: Data? = nil,
+        richContentJSON: String? = nil
     ) throws -> Thought {
         let thought = Thought(context: context)
         thought.id = UUID()
@@ -193,6 +197,8 @@ class ThoughtRepository {
         thought.imageData = imageData
         thought.isSoftDeleted = false
         thought.createdDeviceId = HoloBackendDeviceIdentity.shared.deviceId
+        thought.richContentJSON = richContentJSON
+        thought.firstLine = RichContentSerializer.firstLine(fromPlainText: content)
 
         // 初始化 organizedStatus：关闭自动分类时仍允许用户稍后手动整理。
         thought.organizedStatus = ThoughtAIClassificationPolicy.initialStatus(
@@ -203,6 +209,7 @@ class ThoughtRepository {
         // 双写：同时写 Thought.tags（旧 UI 兼容）和 ThoughtTagAssignment（新数据源）
         for tagName in manualTags.map({ ThoughtTagNormalizer.displayName($0) }) where !tagName.isEmpty {
             let tag = try getOrCreateTag(name: tagName)
+            tag.lastUsedAt = Date()
             thought.addTags(tag)
             createAssignmentInternal(thought: thought, tag: tag, source: .manual, confidence: 1.0)
         }
@@ -212,6 +219,7 @@ class ThoughtRepository {
             // 去重：如果 manualTags 已包含该标签，不再重复创建 assignment
             guard !normalizedManualTagKeys.contains(ThoughtTagNormalizer.key(tagName)) else { continue }
             let tag = try getOrCreateTag(name: tagName)
+            tag.lastUsedAt = Date()
             thought.addTags(tag)
             createAssignmentInternal(thought: thought, tag: tag, source: .inline, confidence: 1.0)
         }
@@ -245,13 +253,15 @@ class ThoughtRepository {
     ///   - content: 新内容
     ///   - mood: 新心情
     ///   - tags: 新标签数组（合并后的，视为 manual）
+    ///   - richContentJSON: 双层可选：外层 nil=不改动；外层非 nil 时写入（内层 nil=清除结构化内容）
     /// - Returns: 更新后的 Thought 对象
     @discardableResult
     func update(
         _ id: UUID,
         content: String? = nil,
         mood: String? = nil,
-        tags: [String]? = nil
+        tags: [String]? = nil,
+        richContentJSON: String?? = nil
     ) throws -> Thought {
         guard let thought = try fetchById(id) else {
             throw ThoughtError.notFound
@@ -259,9 +269,13 @@ class ThoughtRepository {
 
         if let content = content {
             thought.content = content
+            thought.firstLine = RichContentSerializer.firstLine(fromPlainText: content)
         }
         if let mood = mood {
             thought.mood = mood
+        }
+        if let richContentJSON = richContentJSON {
+            thought.richContentJSON = richContentJSON
         }
 
         thought.updatedAt = Date()
@@ -278,6 +292,7 @@ class ThoughtRepository {
             // 添加新标签（双写）
             for tagName in tags {
                 let tag = try getOrCreateTag(name: tagName)
+                tag.lastUsedAt = Date()
                 thought.addTags(tag)
                 createAssignmentInternal(thought: thought, tag: tag, source: .manual, confidence: 1.0)
             }
@@ -511,10 +526,10 @@ class ThoughtRepository {
         return (try? context.fetch(request).map { $0.name }) ?? []
     }
 
-    /// 获取或创建标签
+    /// 获取或创建标签（internal 供 RichContent 扩展复用，外部调用方需自行 save）
     /// - Parameter name: 标签名称
     /// - Returns: ThoughtTag 对象
-    private func getOrCreateTag(name: String) throws -> ThoughtTag {
+    func getOrCreateTag(name: String) throws -> ThoughtTag {
         let displayName = ThoughtTagNormalizer.displayName(name)
         let key = ThoughtTagNormalizer.key(displayName)
         let request = ThoughtTag.fetchRequest()

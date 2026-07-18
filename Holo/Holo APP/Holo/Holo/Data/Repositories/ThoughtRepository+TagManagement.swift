@@ -105,6 +105,51 @@ extension ThoughtRepository {
         }
     }
 
+    // MARK: - 路径前缀重命名（多级标签子树）
+
+    /// 路径前缀重命名：「工作」→「项目」时，「工作」「工作/Holo」「工作/Holo/编辑器」整棵子树同步改名
+    /// 每个子路径独立走 rename 语义（目标已存在则合并），按路径深度升序处理（先父后子）
+    /// - Returns: 根路径的重命名结果（renamed / merged，供 UI 反馈文案区分）
+    /// - Throws: `ThoughtError.tagNameEmpty`（空白名）/ `.notFound`（源路径不存在）
+    @discardableResult
+    func renameTagPathPrefix(from oldPath: String, to newPath: String) throws -> TagRenameOutcome {
+        let oldKey = ThoughtTagNormalizer.key(oldPath)
+        let newDisplayPath = ThoughtTagNormalizer.displayPath(newPath)
+        guard !oldKey.isEmpty, !ThoughtTagNormalizer.key(newDisplayPath).isEmpty else {
+            throw ThoughtError.tagNameEmpty
+        }
+
+        // 收集整棵子树（自身 + 以 oldKey/ 为前缀的路径），按深度升序
+        let request = ThoughtTag.fetchRequest()
+        let subtree = try context.fetch(request)
+            .filter {
+                let key = ThoughtTagNormalizer.key($0.name)
+                return key == oldKey || key.hasPrefix(oldKey + "/")
+            }
+            .sorted {
+                $0.name.components(separatedBy: "/").count < $1.name.components(separatedBy: "/").count
+            }
+
+        guard !subtree.isEmpty else { throw ThoughtError.notFound }
+
+        let oldDepth = oldKey.components(separatedBy: "/").count
+        var rootOutcome: TagRenameOutcome = .renamed
+
+        for tag in subtree where !tag.isDeleted {
+            // 用原展示路径的尾段保留大小写：新路径 = newDisplayPath + 原尾段
+            let displaySegments = ThoughtTagNormalizer.displayPath(tag.name).components(separatedBy: "/")
+            let suffixSegments = displaySegments.dropFirst(oldDepth)
+            let renamedPath = ([newDisplayPath] + suffixSegments).joined(separator: "/")
+
+            let outcome = try renameTag(from: tag.name, to: renamedPath)
+            if tag === subtree.first {
+                rootOutcome = outcome
+            }
+        }
+
+        return rootOutcome
+    }
+
     // MARK: - Private Helpers
 
     /// 按归一化 key 查标签（标签量小，内存匹配即可，与 getOrCreateTag 同模式）

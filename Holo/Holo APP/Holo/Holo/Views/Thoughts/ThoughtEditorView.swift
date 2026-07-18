@@ -39,8 +39,6 @@ struct ThoughtEditorView: View {
     // MARK: - Form State
     @State private var content: String = ""
     @State private var selectedMood: ThoughtMoodType? = nil
-    @State private var selectedTags: [String] = []
-    @State private var referencedThoughtIds: [UUID] = []
 
     /// AI 归类标签（只读回显，不参与编辑保存；来自 fetchVisibleAIAssignments）
     @State private var aiAssignments: [ThoughtTagAssignment] = []
@@ -48,12 +46,24 @@ struct ThoughtEditorView: View {
     // MARK: - Original Values (for change detection)
     @State private var originalContent: String = ""
     @State private var originalMood: ThoughtMoodType? = nil
-    @State private var originalTags: [String] = []
-    @State private var originalReferencedThoughtIds: [UUID] = []
+
+    // MARK: - 结构化编辑状态（#/@ Token）
+    /// 当前 #/@ 触发上下文（候选面板数据源）
+    @State private var triggerContext: EditorTriggerContext? = nil
+    /// 当前选中的 Token（弹操作菜单）
+    @State private var selectedToken: HoloContentNode? = nil
+    /// 编辑器节点模型（onNodesChange 回调提供）
+    @State private var editorNodes: [HoloContentNode] = []
+    /// 是否已收到编辑器节点回调（区分「未编辑」与「删空」）
+    @State private var editorNodesLoaded: Bool = false
+    /// 编辑模式初始结构化内容（恢复 Token 用）
+    @State private var initialRichJSON: String? = nil
+    /// 候选面板数据层
+    @StateObject private var suggestionViewModel = SuggestionPanelViewModel()
+    /// 「查看记录」跳转目标
+    @State private var navigateToThoughtId: UUID? = nil
 
     // MARK: - UI State
-    @State private var showTagInput: Bool = false
-    @State private var showReferenceSelector: Bool = false
     @State private var showVoiceInput: Bool = false
     @State private var isSaving: Bool = false
     @State private var showDismissAlert: Bool = false
@@ -93,20 +103,40 @@ struct ThoughtEditorView: View {
                 VStack(spacing: HoloSpacing.md) {
                     // 内容编辑区
                     contentSection
-                    // 标签区域
+                    // 标签区域（只读展示正文中已识别的 # 标签）
                     tagsSection
                     // AI 归类区域（只读回显）
                     if !aiAssignments.isEmpty {
                         aiTagsSection
                     }
-                    // 引用区域
-                    referencesSection
                 }
                 .padding(.horizontal, HoloSpacing.md)
             }
             .background(Color.holoBackground)
             .navigationTitle(isEditing ? "编辑想法" : "记录想法")
             .navigationBarTitleDisplayMode(.inline)
+            .safeAreaInset(edge: .bottom) {
+                if let triggerContext {
+                    SuggestionPanelView(
+                        context: triggerContext,
+                        viewModel: suggestionViewModel,
+                        onSelectTag: { tagId, path in
+                            pendingEditorAction = .insertTagToken(id: tagId, displayPath: path)
+                        },
+                        onCreateTag: { path in
+                            if let tag = suggestionViewModel.createTag(path: path) {
+                                pendingEditorAction = .insertTagToken(id: tag.id, displayPath: tag.name)
+                            }
+                        },
+                        onSelectReference: { thoughtId, title, snapshot in
+                            pendingEditorAction = .insertReferenceToken(id: thoughtId, displayText: title, snapshot: snapshot)
+                        },
+                        onClose: {
+                            pendingEditorAction = .dismissSuggestion
+                        }
+                    )
+                }
+            }
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("取消") {
@@ -123,14 +153,6 @@ struct ThoughtEditorView: View {
                     .disabled(!canSave)
                 }
             }
-        }
-        .sheet(isPresented: $showTagInput) {
-            TagInputView(selectedTags: $selectedTags)
-                .presentationDetents([.medium])
-        }
-        .sheet(isPresented: $showReferenceSelector) {
-            ReferenceSelectorView(selectedIds: $referencedThoughtIds)
-                .presentationDetents([.large])
         }
         .sheet(isPresented: $showVoiceInput, onDismiss: insertPendingVoiceTranscript) {
             if smartSummaryEnabled {
@@ -166,6 +188,30 @@ struct ThoughtEditorView: View {
         .onAppear {
             loadEditingData()
         }
+        .onChange(of: triggerContext) { _, newValue in
+            suggestionViewModel.search(context: newValue, excludingThoughtId: editingThoughtId)
+        }
+        .confirmationDialog(
+            tokenMenuTitle,
+            isPresented: tokenMenuPresented,
+            titleVisibility: .visible
+        ) {
+            tokenMenuButtons
+        }
+        .background(
+            NavigationLink(
+                destination: ThoughtDetailView(
+                    thoughtId: navigateToThoughtId ?? UUID(),
+                    thoughtRepository: ThoughtRepository()
+                ),
+                isActive: Binding(
+                    get: { navigateToThoughtId != nil },
+                    set: { if !$0 { navigateToThoughtId = nil } }
+                )
+            ) {
+                EmptyView()
+            }
+        )
         // MARK: - Attachment Modifiers
         .photosPicker(
             isPresented: $showAttachmentPhotoPicker,
@@ -237,18 +283,8 @@ struct ThoughtEditorView: View {
         let trimmedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
         let trimmedOriginal = originalContent.trimmingCharacters(in: .whitespacesAndNewlines)
 
-        // 内容发生变化
+        // 内容发生变化（含 Token 增删，派生文本随之变化）
         if trimmedContent != trimmedOriginal {
-            return true
-        }
-
-        // 标签发生变化
-        if Set(selectedTags) != Set(originalTags) {
-            return true
-        }
-
-        // 引用发生变化
-        if Set(referencedThoughtIds) != Set(originalReferencedThoughtIds) {
             return true
         }
 
@@ -276,7 +312,14 @@ struct ThoughtEditorView: View {
                         pendingAction: $pendingEditorAction,
                         dynamicHeight: $editorHeight,
                         formatState: $typingFormatState,
-                        textContainerInset: UIEdgeInsets(top: 22, left: 16, bottom: 88, right: 16)
+                        triggerContext: $triggerContext,
+                        selectedToken: $selectedToken,
+                        textContainerInset: UIEdgeInsets(top: 22, left: 16, bottom: 88, right: 16),
+                        initialRichJSON: initialRichJSON,
+                        onNodesChange: { newNodes in
+                            editorNodes = newNodes
+                            editorNodesLoaded = true
+                        }
                     )
                         .frame(height: max(editorHeight, contentEditorMinimumHeight))
 
@@ -332,38 +375,32 @@ struct ThoughtEditorView: View {
         }
     }
 
-    /// 标签区域
+    /// 标签区域（只读展示正文中已识别的 # 标签，新增标签统一走行内 #）
     private var tagsSection: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+        let inlineTags = InlineTagDetector.extractTags(from: content)
+
+        return VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             HStack {
                 Text("标签")
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)
                 Spacer()
-                Button {
-                    showTagInput = true
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.holoPrimary)
-                }
+                Text("正文中输入 # 添加")
+                    .font(.holoLabel)
+                    .foregroundColor(.holoTextSecondary.opacity(0.6))
             }
 
-            if selectedTags.isEmpty {
-                Text("点击 + 添加标签")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary.opacity(0.7))
-            } else {
+            if !inlineTags.isEmpty {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
-                        ForEach(selectedTags, id: \.self) { tag in
-                            TagChip(
-                                text: "#\(tag)",
-                                isSelected: true,
-                                color: .holoPrimary
-                            ) {
-                                removeTag(tag)
-                            }
+                        ForEach(inlineTags, id: \.self) { tag in
+                            Text("#\(tag)")
+                                .font(.holoLabel)
+                                .foregroundColor(.holoPrimary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.holoPrimary.opacity(0.1))
+                                .cornerRadius(HoloRadius.sm)
                         }
                     }
                 }
@@ -416,36 +453,52 @@ struct ThoughtEditorView: View {
         .cornerRadius(HoloRadius.sm)
     }
 
-    /// 引用区域
-    private var referencesSection: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            HStack {
-                Text("引用")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
-                Spacer()
-                Button {
-                    showReferenceSelector = true
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.holoPrimary)
-                }
-            }
-
-            if referencedThoughtIds.isEmpty {
-                Text("点击 + 引用其他想法")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary.opacity(0.7))
-            } else {
-                Text("已引用 \(referencedThoughtIds.count) 条想法")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoPrimary)
-            }
+    /// 引用区域已收敛：引用统一通过正文行内 @ 添加，见 v2 方案 §10.4
+    /// Token 操作菜单
+    private var tokenMenuTitle: String {
+        switch selectedToken {
+        case .tag(_, let displayPath):
+            return "#\(displayPath)"
+        case .reference(_, let displayText, _):
+            return "@\(displayText)"
+        case .text, .none:
+            return "操作"
         }
-        .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
-        .cornerRadius(HoloRadius.md)
+    }
+
+    private var tokenMenuPresented: Binding<Bool> {
+        Binding(
+            get: { selectedToken != nil },
+            set: { if !$0 { selectedToken = nil } }
+        )
+    }
+
+    @ViewBuilder
+    private var tokenMenuButtons: some View {
+        switch selectedToken {
+        case .tag(_, let displayPath):
+            Button("查看标签") {
+                viewTagThoughts(displayPath)
+            }
+            Button("移除标签", role: .destructive) {
+                pendingEditorAction = .removeSelectedToken
+            }
+        case .reference(let noteId, _, _):
+            Button("查看记录") {
+                navigateToThoughtId = noteId
+            }
+            Button("取消引用", role: .destructive) {
+                pendingEditorAction = .removeSelectedToken
+            }
+        case .text, .none:
+            EmptyView()
+        }
+    }
+
+    /// 查看标签：关闭编辑器（自动保存）并请求列表按该标签筛选
+    private func viewTagThoughts(_ path: String) {
+        NotificationCenter.default.post(name: .thoughtRequestTagFilter, object: path)
+        handleDismiss()
     }
 
     // MARK: - 图片附件区域
@@ -552,16 +605,13 @@ struct ThoughtEditorView: View {
             // 设置当前值
             content = thought.content
             selectedMood = ThoughtMoodType(from: thought.mood)
-            selectedTags = thought.tagArray.map { $0.name }
-            referencedThoughtIds = (thought.references as? Set<ThoughtReference>)?.compactMap { $0.targetThought?.id } ?? []
-            // AI 归类标签只读回显（不写入 selectedTags，避免被 update 当作手动标签误处理）
+            initialRichJSON = thought.richContentJSON
+            // AI 归类标签只读回显（不写入行内标签，避免被 update 误处理）
             aiAssignments = (try? repo.fetchVisibleAIAssignments(thoughtId: thoughtId)) ?? []
 
             // 设置原始值（用于比较是否有修改）
             originalContent = thought.content
             originalMood = ThoughtMoodType(from: thought.mood)
-            originalTags = thought.tagArray.map { $0.name }
-            originalReferencedThoughtIds = (thought.references as? Set<ThoughtReference>)?.compactMap { $0.targetThought?.id } ?? []
 
             // 加载附件列表
             editingAttachments = thought.sortedAttachments.map { attachment in
@@ -575,11 +625,6 @@ struct ThoughtEditorView: View {
         } catch {
             ThoughtLog.error("加载编辑数据失败", error.localizedDescription)
         }
-    }
-
-    /// 移除标签
-    private func removeTag(_ tag: String) {
-        selectedTags.removeAll { $0 == tag }
     }
 
     // MARK: - Attachment Actions
@@ -720,31 +765,44 @@ struct ThoughtEditorView: View {
 
         let repository = ThoughtRepository()
 
+        // 结构化内容：节点模型优先，未编辑过时回退到初始 JSON/纯文本
+        let nodes = editorNodesLoaded
+            ? editorNodes
+            : RichContentSerializer.nodes(richJSON: initialRichJSON, fallbackPlainText: content)
+        let hasTokens = nodes.contains { node in
+            if case .text = node { return false }
+            return true
+        }
+        let richJSON = hasTokens ? try? RichContentSerializer.jsonString(from: nodes) : nil
+        let referenceSnapshots: [ThoughtRepository.ReferenceSnapshot] = nodes.compactMap { node in
+            guard case .reference(let noteId, let displayText, let snapshot) = node else { return nil }
+            return ThoughtRepository.ReferenceSnapshot(targetId: noteId, displayText: displayText, snapshot: snapshot)
+        }
+
         // 分离手动标签与内联 # 标签（不再合并后传入，保留来源信息）
         let inlineTags = InlineTagDetector.extractTags(from: content)
 
         do {
             if isEditing, let thoughtId = editingThoughtId {
-                // 编辑模式：更新已有想法（仍用合并标签，保留旧 UI 兼容）
-                let allTags = Array(Set(selectedTags + inlineTags))
+                // 编辑模式：更新已有想法（标签全部来自正文行内 #，保存时以当前内容重建）
                 try repository.update(
                     thoughtId,
                     content: content,
                     mood: selectedMood?.rawValue,
-                    tags: allTags
+                    tags: inlineTags,
+                    richContentJSON: .some(richJSON)
                 )
+                try repository.replaceReferences(thoughtId: thoughtId, references: referenceSnapshots)
             } else {
-                // 新建模式：分别传入 manualTags 和 inlineTags
+                // 新建模式
                 let thought = try repository.create(
                     content: content,
                     mood: selectedMood?.rawValue,
-                    manualTags: selectedTags,
-                    inlineTags: inlineTags
+                    manualTags: [],
+                    inlineTags: inlineTags,
+                    richContentJSON: richJSON
                 )
-                // 添加引用关系
-                for targetId in referencedThoughtIds {
-                    try repository.addReference(sourceId: thought.id, targetId: targetId)
-                }
+                try repository.replaceReferences(thoughtId: thought.id, references: referenceSnapshots)
 
                 // 保存待上传图片（后台逐张处理）
                 if !pendingImages.isEmpty {

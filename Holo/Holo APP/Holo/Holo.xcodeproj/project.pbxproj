@@ -12,6 +12,11 @@
 		47338B8715C0527F76C6B9BC /* MemoryInsightRefreshQuotaTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 398FCBD1E9630524A051ED67 /* MemoryInsightRefreshQuotaTests.swift */; };
 		5A202607170000000000000001 /* ThoughtRepositoryTagManagementTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A202607170000000000000002 /* ThoughtRepositoryTagManagementTests.swift */; };
 		5A202607170000000000000003 /* TopicRepositoryDeleteTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A202607170000000000000004 /* TopicRepositoryDeleteTests.swift */; };
+		5A202607180000000000000001 /* RichContentSerializerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A202607180000000000000002 /* RichContentSerializerTests.swift */; };
+		5A202607180000000000000003 /* MarkdownTextViewNodePipelineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A202607180000000000000004 /* MarkdownTextViewNodePipelineTests.swift */; };
+		5A202607180000000000000005 /* InlineTagDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A202607180000000000000006 /* InlineTagDetectorTests.swift */; };
+		5A202607180000000000000007 /* TriggerDetectorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A202607180000000000000008 /* TriggerDetectorTests.swift */; };
+		5A202607180000000000000009 /* ThoughtRichContentTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A20260718000000000000000A /* ThoughtRichContentTests.swift */; };
 		754CE1738597753DE3A64D0E /* HoloAgentResultRendererTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BD7196A9CD6BFA044B77449 /* HoloAgentResultRendererTests.swift */; };
 		7A4C1F8E2B5D4A6C9E0F1234 /* CloudKitRuntimeAvailabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A4C1F8D2B5D4A6C9E0F1234 /* CloudKitRuntimeAvailabilityTests.swift */; };
 		7D89A2C442C34B9589F5338D /* TransactionDateResolverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7D89A2C342C34B9589F5338D /* TransactionDateResolverTests.swift */; };
@@ -82,6 +87,11 @@
 		56D841A046242260A5371CA8 /* HoloLongTermMemoryStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloLongTermMemoryStoreTests.swift; sourceTree = "<group>"; };
 		5A202607170000000000000002 /* ThoughtRepositoryTagManagementTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThoughtRepositoryTagManagementTests.swift; sourceTree = "<group>"; };
 		5A202607170000000000000004 /* TopicRepositoryDeleteTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TopicRepositoryDeleteTests.swift; sourceTree = "<group>"; };
+		5A202607180000000000000002 /* RichContentSerializerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = RichContentSerializerTests.swift; sourceTree = "<group>"; };
+		5A202607180000000000000004 /* MarkdownTextViewNodePipelineTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MarkdownTextViewNodePipelineTests.swift; sourceTree = "<group>"; };
+		5A202607180000000000000006 /* InlineTagDetectorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = InlineTagDetectorTests.swift; sourceTree = "<group>"; };
+		5A202607180000000000000008 /* TriggerDetectorTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TriggerDetectorTests.swift; sourceTree = "<group>"; };
+		5A20260718000000000000000A /* ThoughtRichContentTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ThoughtRichContentTests.swift; sourceTree = "<group>"; };
 		5BD7196A9CD6BFA044B77449 /* HoloAgentResultRendererTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloAgentResultRendererTests.swift; sourceTree = "<group>"; };
 		6CC172B6E8AE092CE1F54E97 /* DailySenseSnapshotTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = DailySenseSnapshotTests.swift; sourceTree = "<group>"; };
 		70BA5FCE08E6665577909450 /* CategorySFSymbolMapperTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CategorySFSymbolMapperTests.swift; sourceTree = "<group>"; };
@@ -156,6 +166,7 @@
 				1B9A00220000000000000001 /* MemoryInsightResponseParserTests.swift */,
 				F68CE35412AA97246389429B /* HoloExpressionDecisionEngineTests.swift */,
 				5A202607170000000000000002 /* ThoughtRepositoryTagManagementTests.swift */,
+				5A20260718000000000000000A /* ThoughtRichContentTests.swift */,
 				5A202607170000000000000004 /* TopicRepositoryDeleteTests.swift */,
 				7E3005AE966FE2E10711137A /* SubtaskParserTests.swift */,
 				7D89A2C342C34B9589F5338D /* TransactionDateResolverTests.swift */,
@@ -248,6 +259,10 @@
 			isa = PBXGroup;
 			children = (
 				2B6BEFB331A0A6982A4E3E3B /* ThoughtVoiceTranscriptInsertionTests.swift */,
+				5A202607180000000000000002 /* RichContentSerializerTests.swift */,
+				5A202607180000000000000004 /* MarkdownTextViewNodePipelineTests.swift */,
+				5A202607180000000000000006 /* InlineTagDetectorTests.swift */,
+				5A202607180000000000000008 /* TriggerDetectorTests.swift */,
 			);
 			path = Thoughts;
 			sourceTree = "<group>";
@@ -494,6 +509,11 @@
 				F1E0A1B2C3D4E5F607182932 /* FlexibleQueryDateRangeTests.swift in Sources */,
 				F1E0A1B2C3D4E5F607182934 /* FlexibleQueryResultConsistencyTests.swift in Sources */,
 				F1E0A1B2C3D4E5F607182936 /* FlexibleQueryChatCardDataTests.swift in Sources */,
+				5A202607180000000000000001 /* RichContentSerializerTests.swift in Sources */,
+				5A202607180000000000000003 /* MarkdownTextViewNodePipelineTests.swift in Sources */,
+				5A202607180000000000000005 /* InlineTagDetectorTests.swift in Sources */,
+				5A202607180000000000000007 /* TriggerDetectorTests.swift in Sources */,
+				5A202607180000000000000009 /* ThoughtRichContentTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

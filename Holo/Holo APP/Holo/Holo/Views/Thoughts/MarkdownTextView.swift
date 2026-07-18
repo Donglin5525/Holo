@@ -17,6 +17,16 @@ enum MarkdownEditorAction: Equatable {
     case insertUnorderedList
     case insertOrderedList
     case insertText(String)
+    /// 工具栏 #/@ 按钮：原文插入触发字符并进入搜索态
+    case insertTriggerCharacter(String)
+    /// 候选面板选中标签：触发区间整体替换为标签 Token
+    case insertTagToken(id: UUID, displayPath: String)
+    /// 候选面板选中想法：触发区间整体替换为引用 Token
+    case insertReferenceToken(id: UUID, displayText: String, snapshot: String)
+    /// 把当前选中的 Token 转为普通文本（移除标签 / 取消引用）
+    case removeSelectedToken
+    /// 主动关闭候选面板（保留已输入文字，本次触发不再自动弹出）
+    case dismissSuggestion
 }
 
 // MARK: - TypingFormatState
@@ -38,11 +48,19 @@ struct MarkdownTextView: UIViewRepresentable {
     @Binding var dynamicHeight: CGFloat
     /// 当前光标处的格式状态，用于工具栏按钮高亮反馈
     @Binding var formatState: TypingFormatState
+    /// 当前 #/@ 触发上下文（候选面板数据源，nil=关闭面板）
+    @Binding var triggerContext: EditorTriggerContext?
+    /// 当前被选中的 Token（点按 Token 后展示操作菜单）
+    @Binding var selectedToken: HoloContentNode?
 
     /// 是否启用富文本渲染
     var showHighlight: Bool = true
     /// UIKit 文本容器内边距，便于外层悬浮按钮预留空间
     var textContainerInset: UIEdgeInsets = UIEdgeInsets(top: 8, left: 4, bottom: 8, right: 4)
+    /// 编辑已有想法时的结构化内容（恢复 Token；nil=纯文本）
+    var initialRichJSON: String? = nil
+    /// 节点模型变化回调（保存时取 richContentJSON 用）
+    var onNodesChange: (([HoloContentNode]) -> Void)? = nil
 
     func makeUIView(context: Context) -> UITextView {
         let textView = SelfSizingTextView()
@@ -61,9 +79,13 @@ struct MarkdownTextView: UIViewRepresentable {
         textView.spellCheckingType = .default
         textView.keyboardType = .default
         textView.typingAttributes = Self.baseAttributes
-        textView.attributedText = showHighlight ? Self.makeAttributedText(from: text) : NSAttributedString(string: text, attributes: Self.baseAttributes)
+        let initialNodes = RichContentSerializer.nodes(richJSON: initialRichJSON, fallbackPlainText: text)
+        textView.attributedText = showHighlight ? Self.makeAttributedText(from: initialNodes) : NSAttributedString(string: text, attributes: Self.baseAttributes)
 
-        context.coordinator.lastKnownMarkdown = text
+        // 以节点派生文本为准，保证 JSON 场景下绑定与编辑器内容一致
+        context.coordinator.lastKnownMarkdown = RichContentSerializer.plainText(from: initialNodes)
+        context.coordinator.nodes = initialNodes
+        context.coordinator.onNodesChange = onNodesChange
         context.coordinator.onHeightChange = { height in
             DispatchQueue.main.async {
                 self.dynamicHeight = height
@@ -89,46 +111,65 @@ struct MarkdownTextView: UIViewRepresentable {
            textView.markedTextRange == nil,
            text != context.coordinator.lastKnownMarkdown {
             let preservedSelection = Self.clampedRange(textView.selectedRange, for: textView.attributedText.length)
+            let newNodes = RichContentSerializer.nodes(fromPlainText: text)
             let attributedText = showHighlight
-                ? Self.makeAttributedText(from: text)
+                ? Self.makeAttributedText(from: newNodes)
                 : NSAttributedString(string: text, attributes: Self.baseAttributes)
             context.coordinator.isProgrammaticChange = true
             textView.attributedText = attributedText
             textView.selectedRange = Self.clampedRange(preservedSelection, for: attributedText.length)
             context.coordinator.isProgrammaticChange = false
             context.coordinator.lastKnownMarkdown = text
+            context.coordinator.nodes = newNodes
             context.coordinator.refreshTypingAttributes(for: textView)
         }
 
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text)
+        Coordinator(text: $text, triggerContext: $triggerContext, selectedToken: $selectedToken)
     }
 
     // MARK: - Coordinator
 
     class Coordinator: NSObject, UITextViewDelegate {
         @Binding var text: String
+        @Binding var triggerContext: EditorTriggerContext?
+        @Binding var selectedToken: HoloContentNode?
 
         var isProgrammaticChange = false
         var lastKnownMarkdown: String = ""
+        /// 编辑期结构化内容模型（事实源）：文本变化时由富文本属性重建，Token 节点不被重渲染销毁
+        var nodes: [HoloContentNode] = []
         var onHeightChange: ((CGFloat) -> Void)?
         var onFormatStateChange: ((TypingFormatState) -> Void)?
+        var onNodesChange: (([HoloContentNode]) -> Void)?
+
+        /// 当前活跃的 #/@ 触发（候选面板打开期间非空）
+        private var activeTrigger: EditorTriggerContext?
+        /// 上次选区位置（区分点按 vs 键盘移动光标）
+        private var lastSelectionLocation: Int = 0
+        /// 已发布的触发状态（避免重复写绑定触发 SwiftUI 刷新）
+        private var lastPublishedTrigger: EditorTriggerContext?
+        /// 被用户手动关闭的触发起点（同一触发片段内不再自动弹出面板）
+        private var suppressedTriggerLocation: Int?
 
         // 用户显式切换的加粗状态（Word-like sticky toggle）
         // nil = 无显式状态，走 contextual 推断
         // true = 强制开启，false = 强制关闭（覆盖 contextual）
         var explicitBold: Bool? = nil
 
-        init(text: Binding<String>) {
+        init(text: Binding<String>, triggerContext: Binding<EditorTriggerContext?>, selectedToken: Binding<HoloContentNode?>) {
             self._text = text
+            self._triggerContext = triggerContext
+            self._selectedToken = selectedToken
         }
 
         func textViewDidChange(_ textView: UITextView) {
             guard !isProgrammaticChange else { return }
             guard textView.markedTextRange == nil else { return }
             syncMarkdown(from: textView)
+            updateTriggerState(textView)
         }
 
         func textView(
@@ -136,8 +177,15 @@ struct MarkdownTextView: UIViewRepresentable {
             shouldChangeTextIn range: NSRange,
             replacementText text: String
         ) -> Bool {
+            guard !isProgrammaticChange else { return true }
+
+            // Token 原子化：编辑范围触碰 Token 时扩展为完整 Token 操作
+            if handleTokenEditInterception(textView, range: range, replacementText: text) {
+                return false
+            }
+
             // 只处理回车键的列表续行逻辑
-            guard text == "\n", !isProgrammaticChange else { return true }
+            guard text == "\n" else { return true }
 
             let currentText = textView.attributedText.string as NSString
             let cursorLocation = range.location
@@ -224,7 +272,22 @@ struct MarkdownTextView: UIViewRepresentable {
         func textViewDidChangeSelection(_ textView: UITextView) {
             // IME 组字期间不刷新 typingAttributes，防止自定义格式属性被丢弃
             guard textView.markedTextRange == nil else { return }
+
+            // Token 原子化：光标/选区进入 Token 时先调整，调整后等待重入回调
+            if !isProgrammaticChange, adjustSelectionForTokenAtomicity(textView) {
+                return
+            }
+
             refreshTypingAttributes(for: textView)
+            updateTriggerState(textView)
+            updateSelectedTokenState(textView)
+            lastSelectionLocation = textView.selectedRange.location
+        }
+
+        func textViewDidEndEditing(_ textView: UITextView) {
+            activeTrigger = nil
+            publishTrigger(nil)
+            publishSelectedToken(nil)
         }
 
         func perform(
@@ -247,6 +310,16 @@ struct MarkdownTextView: UIViewRepresentable {
                 insertAtLineStart("1. ", on: textView)
             case .insertText(let text):
                 insertText(text, on: textView)
+            case .insertTriggerCharacter(let character):
+                insertTriggerCharacter(character, on: textView)
+            case .insertTagToken(let id, let displayPath):
+                insertToken(type: .tag, id: id, displayText: displayPath, snapshot: nil, on: textView)
+            case .insertReferenceToken(let id, let displayText, let snapshot):
+                insertToken(type: .reference, id: id, displayText: displayText, snapshot: snapshot, on: textView)
+            case .removeSelectedToken:
+                removeSelectedToken(on: textView)
+            case .dismissSuggestion:
+                dismissSuggestion()
             }
 
             if textView.markedTextRange == nil {
@@ -285,9 +358,241 @@ struct MarkdownTextView: UIViewRepresentable {
         }
 
         private func syncMarkdown(from textView: UITextView) {
-            let markdown = MarkdownTextView.serializeMarkdown(from: textView.attributedText)
+            let serializedNodes = MarkdownTextView.serializeNodes(from: textView.attributedText)
+            nodes = serializedNodes
+            let markdown = RichContentSerializer.plainText(from: serializedNodes)
             lastKnownMarkdown = markdown
             text = markdown
+            onNodesChange?(serializedNodes)
+        }
+
+        // MARK: - Token 原子化
+
+        /// Token 编辑拦截：删除/替换范围触碰 Token 时扩展为完整 Token；Token 内部禁止插入
+        /// - Returns: true 表示已拦截（调用方应返回 false）
+        private func handleTokenEditInterception(_ textView: UITextView, range: NSRange, replacementText text: String) -> Bool {
+            let tokenRanges = MarkdownTextView.tokenRanges(in: textView.attributedText)
+            guard !tokenRanges.isEmpty else { return false }
+
+            // 纯插入且光标在 Token 内部 → 禁止（正常被光标吸附挡住，这里兜底）
+            if range.length == 0 {
+                return tokenRanges.contains { range.location > $0.location && range.location < $0.location + $0.length }
+            }
+
+            // 编辑范围与 Token 相交 → 扩展为完整 Token 范围执行替换
+            let intersecting = tokenRanges.filter { NSIntersectionRange($0, range).length > 0 }
+            guard !intersecting.isEmpty else { return false }
+
+            var unionRange = range
+            for tokenRange in intersecting {
+                unionRange = NSUnionRange(unionRange, tokenRange)
+            }
+
+            let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
+            mutable.replaceCharacters(in: unionRange, with: text)
+
+            isProgrammaticChange = true
+            textView.attributedText = mutable
+            textView.selectedRange = NSRange(location: unionRange.location + (text as NSString).length, length: 0)
+            isProgrammaticChange = false
+
+            syncMarkdown(from: textView)
+            updateTriggerState(textView)
+            return true
+        }
+
+        /// Token 原子化选区调整：光标进入 Token 内部时吸附到边缘（键盘）或选中整个 Token（点按）；
+        /// 选区横跨 Token 一部分时扩展为完整 Token
+        /// - Returns: true 表示选区已被调整（等待重入回调）
+        private func adjustSelectionForTokenAtomicity(_ textView: UITextView) -> Bool {
+            let tokenRanges = MarkdownTextView.tokenRanges(in: textView.attributedText)
+            guard !tokenRanges.isEmpty else { return false }
+
+            let selection = textView.selectedRange
+
+            if selection.length == 0 {
+                guard let token = tokenRanges.first(where: {
+                    selection.location > $0.location && selection.location < $0.location + $0.length
+                }) else { return false }
+
+                // 移动距离 >1 视为点按：选中整个 Token；否则吸附到较近边缘
+                let isTap = abs(selection.location - lastSelectionLocation) > 1
+                let newSelection: NSRange
+                if isTap {
+                    newSelection = token
+                } else {
+                    let distanceToStart = selection.location - token.location
+                    let distanceToEnd = token.location + token.length - selection.location
+                    newSelection = NSRange(
+                        location: distanceToStart <= distanceToEnd ? token.location : token.location + token.length,
+                        length: 0
+                    )
+                }
+
+                lastSelectionLocation = newSelection.location
+                textView.selectedRange = newSelection
+                return true
+            }
+
+            // 选区横跨 Token 一部分 → 扩展覆盖完整 Token
+            var unionRange = selection
+            var didExpand = false
+            for token in tokenRanges where NSIntersectionRange(unionRange, token).length > 0 {
+                let newUnion = NSUnionRange(unionRange, token)
+                if newUnion.location != unionRange.location || newUnion.length != unionRange.length {
+                    unionRange = newUnion
+                    didExpand = true
+                }
+            }
+
+            guard didExpand else { return false }
+            lastSelectionLocation = unionRange.location
+            textView.selectedRange = unionRange
+            return true
+        }
+
+        // MARK: - 触发检测与 Token 操作
+
+        /// 触发检测：光标处于 #/@ 片段时发布搜索上下文，否则关闭候选面板
+        private func updateTriggerState(_ textView: UITextView) {
+            guard textView.markedTextRange == nil else { return }
+            let detected = TriggerDetector.detect(
+                text: textView.attributedText.string as NSString,
+                cursor: textView.selectedRange.location
+            )
+
+            // 同一触发片段被手动关闭后保持关闭；片段消失（删除触发字符）后重置抑制
+            if let detected {
+                if detected.range.location == suppressedTriggerLocation {
+                    activeTrigger = nil
+                    publishTrigger(nil)
+                    return
+                }
+            } else {
+                suppressedTriggerLocation = nil
+            }
+
+            activeTrigger = detected
+            publishTrigger(detected)
+        }
+
+        /// 手动关闭候选面板：保留已输入文字，本次触发片段内不再弹出
+        private func dismissSuggestion() {
+            suppressedTriggerLocation = activeTrigger?.range.location
+            activeTrigger = nil
+            publishTrigger(nil)
+        }
+
+        private func publishTrigger(_ context: EditorTriggerContext?) {
+            guard context != lastPublishedTrigger else { return }
+            lastPublishedTrigger = context
+            DispatchQueue.main.async { [weak self] in
+                self?.triggerContext = context
+            }
+        }
+
+        /// 选区恰好覆盖一个完整 Token 时，向 SwiftUI 发布「Token 被选中」（弹操作菜单）
+        private func updateSelectedTokenState(_ textView: UITextView) {
+            let selection = textView.selectedRange
+            guard selection.length > 0 else {
+                publishSelectedToken(nil)
+                return
+            }
+
+            let tokenRanges = MarkdownTextView.tokenRanges(in: textView.attributedText)
+            guard let token = tokenRanges.first(where: {
+                $0.location == selection.location && $0.length == selection.length
+            }),
+                  let node = MarkdownTextView.makeTokenNode(from: textView.attributedText.attributes(at: token.location, effectiveRange: nil)) else {
+                publishSelectedToken(nil)
+                return
+            }
+
+            publishSelectedToken(node)
+        }
+
+        private func publishSelectedToken(_ node: HoloContentNode?) {
+            guard node != selectedToken else { return }
+            DispatchQueue.main.async { [weak self] in
+                self?.selectedToken = node
+            }
+        }
+
+        /// 工具栏触发按钮：在光标处插入 # 或 @，并立即进入搜索态
+        private func insertTriggerCharacter(_ character: String, on textView: UITextView) {
+            let safeRange = MarkdownTextView.clampedRange(textView.selectedRange, for: textView.attributedText.length)
+            let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
+            let insertion = NSAttributedString(
+                string: character,
+                attributes: MarkdownTextView.resolvedAttributes(from: textView.typingAttributes)
+            )
+            mutable.replaceCharacters(in: safeRange, with: insertion)
+
+            isProgrammaticChange = true
+            textView.attributedText = mutable
+            textView.selectedRange = NSRange(location: safeRange.location + (character as NSString).length, length: 0)
+            isProgrammaticChange = false
+
+            refreshTypingAttributes(for: textView)
+            syncMarkdown(from: textView)
+            updateTriggerState(textView)
+        }
+
+        /// 候选选中：把触发区间整体替换为 Token，尾随一个空格，光标移到空格后（一次完整 undo 单元）
+        private func insertToken(type: HoloTokenType, id: UUID, displayText: String, snapshot: String?, on textView: UITextView) {
+            guard let trigger = activeTrigger else { return }
+
+            let tokenText = MarkdownTextView.makeTokenAttributedText(type: type, id: id, displayText: displayText, snapshot: snapshot)
+            let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
+            let safeRange = MarkdownTextView.clampedRange(trigger.range, for: mutable.length)
+            mutable.replaceCharacters(in: safeRange, with: tokenText)
+
+            let spaceLocation = safeRange.location + tokenText.length
+            mutable.insert(NSAttributedString(string: " ", attributes: MarkdownTextView.baseAttributes), at: spaceLocation)
+
+            isProgrammaticChange = true
+            textView.attributedText = mutable
+            textView.selectedRange = NSRange(location: spaceLocation + 1, length: 0)
+            lastSelectionLocation = spaceLocation + 1
+            isProgrammaticChange = false
+
+            activeTrigger = nil
+            publishTrigger(nil)
+            refreshTypingAttributes(for: textView)
+            syncMarkdown(from: textView)
+        }
+
+        /// 把选中的 Token 转为普通文本（保留文字、去除 #/@ 前缀与 Token 关系）
+        private func removeSelectedToken(on textView: UITextView) {
+            let tokenRanges = MarkdownTextView.tokenRanges(in: textView.attributedText)
+            let selection = textView.selectedRange
+            guard let tokenRange = tokenRanges.first(where: { NSIntersectionRange($0, selection).length > 0 }),
+                  let node = MarkdownTextView.makeTokenNode(from: textView.attributedText.attributes(at: tokenRange.location, effectiveRange: nil)) else { return }
+
+            let plainText: String
+            switch node {
+            case .tag(_, let displayPath):
+                plainText = displayPath
+            case .reference(_, let displayText, _):
+                plainText = displayText
+            case .text:
+                return
+            }
+
+            let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
+            mutable.replaceCharacters(
+                in: tokenRange,
+                with: NSAttributedString(string: plainText, attributes: MarkdownTextView.baseAttributes)
+            )
+
+            isProgrammaticChange = true
+            textView.attributedText = mutable
+            textView.selectedRange = NSRange(location: tokenRange.location + (plainText as NSString).length, length: 0)
+            isProgrammaticChange = false
+
+            publishSelectedToken(nil)
+            refreshTypingAttributes(for: textView)
+            syncMarkdown(from: textView)
         }
 
         private func toggleInlineStyle(on textView: UITextView, attribute: NSAttributedString.Key, value: Bool) {
@@ -512,24 +817,133 @@ private extension MarkdownTextView {
         }
     }
 
-    static func serializeMarkdown(from attributedText: NSAttributedString) -> String {
-        guard attributedText.length > 0 else { return "" }
+}
 
-        var markdown = ""
-        attributedText.enumerateAttributes(in: NSRange(location: 0, length: attributedText.length), options: []) { attrs, range, _ in
-            let text = attributedText.attributedSubstring(from: range).string
-            let colorHex = attrs[.holoColorHex] as? String
-            let isBold = (attrs[.holoBold] as? Bool) == true
-            let isItalic = (attrs[.holoItalic] as? Bool) == true
-            let isUnderline = (attrs[.holoUnderline] as? Bool) == true
+// MARK: - 节点管线（internal，供单测验证往返一致性）
 
-            let prefix = markdownPrefix(isBold: isBold, isItalic: isItalic, isUnderline: isUnderline, colorHex: colorHex)
-            let suffix = markdownSuffix(isBold: isBold, isItalic: isItalic, isUnderline: isUnderline, colorHex: colorHex)
+extension MarkdownTextView {
 
-            markdown += prefix + text + suffix
+    /// 节点模型 → 富文本：text 节点走 Markdown 渲染，Token 节点渲染为带身份属性的整体样式
+    /// 注意：Markdown 格式仅在单个 text 节点内部生效，跨 Token 的格式（如加粗包住 Token）不展开
+    /// - Parameter deletedReferenceIds: 目标已删除的引用 ID 集合（阅读态渲染为灰色「原记录已删除」）
+    static func makeAttributedText(from nodes: [HoloContentNode], deletedReferenceIds: Set<UUID> = []) -> NSAttributedString {
+        let result = NSMutableAttributedString()
+
+        for node in nodes {
+            switch node {
+            case .text(let value):
+                result.append(makeAttributedText(from: value))
+            case .tag(let id, let displayPath):
+                result.append(makeTokenAttributedText(type: .tag, id: id, displayText: displayPath, snapshot: nil))
+            case .reference(let noteId, let displayText, let snapshot):
+                let isDeleted = deletedReferenceIds.contains(noteId)
+                result.append(makeTokenAttributedText(type: .reference, id: noteId, displayText: displayText, snapshot: snapshot, isDeleted: isDeleted))
+            }
         }
 
-        return markdown
+        if result.length == 0 {
+            return NSAttributedString(string: "", attributes: baseAttributes)
+        }
+
+        return result
+    }
+
+    /// 富文本 → 节点模型：Token 属性区间还原为 Token 节点，普通区间按 Markdown 序列化合并为 text 节点
+    /// Token 属性残缺（如被部分删除）时降级为普通文本，保证文字不丢
+    static func serializeNodes(from attributedText: NSAttributedString) -> [HoloContentNode] {
+        guard attributedText.length > 0 else { return [] }
+
+        var nodes: [HoloContentNode] = []
+        var textBuffer = ""
+
+        func flushTextBuffer() {
+            guard !textBuffer.isEmpty else { return }
+            nodes.append(.text(value: textBuffer))
+            textBuffer = ""
+        }
+
+        attributedText.enumerateAttributes(in: NSRange(location: 0, length: attributedText.length), options: []) { attrs, range, _ in
+            let text = attributedText.attributedSubstring(from: range).string
+
+            if let tokenNode = makeTokenNode(from: attrs) {
+                flushTextBuffer()
+                nodes.append(tokenNode)
+            } else {
+                textBuffer += markdownFragment(for: attrs, text: text)
+            }
+        }
+        flushTextBuffer()
+
+        return nodes
+    }
+}
+
+extension MarkdownTextView {
+
+    /// Token 行内样式：品牌色文字 + 浅色背景 + 身份属性（类型/实体 ID/展示快照）
+    /// isDeleted=true 时渲染为灰色「原记录已删除」（仅引用 Token 使用，保留身份属性供点击取快照）
+    static func makeTokenAttributedText(type: HoloTokenType, id: UUID, displayText: String, snapshot: String?, isDeleted: Bool = false) -> NSAttributedString {
+        var attributes = baseAttributes
+        if isDeleted {
+            attributes[.foregroundColor] = UIColor(Color.holoTextSecondary)
+            attributes[.backgroundColor] = UIColor(Color.holoTextSecondary.opacity(0.12))
+        } else {
+            attributes[.foregroundColor] = UIColor(Color.holoPrimary)
+            attributes[.backgroundColor] = UIColor(Color.holoPrimary.opacity(0.12))
+        }
+        attributes[.holoTokenType] = type.rawValue
+        attributes[.holoEntityId] = id.uuidString
+        attributes[.holoDisplayText] = displayText
+        if let snapshot {
+            attributes[.holoSnapshot] = snapshot
+        }
+
+        let prefix = type == .tag ? "#" : "@"
+        let visibleText = isDeleted ? "原记录已删除" : displayText
+        return NSAttributedString(string: "\(prefix)\(visibleText)", attributes: attributes)
+    }
+
+    /// 从富文本属性还原 Token 节点；属性不完整时返回 nil（降级为普通文本）
+    static func makeTokenNode(from attrs: [NSAttributedString.Key: Any]) -> HoloContentNode? {
+        guard let rawType = attrs[.holoTokenType] as? String,
+              let type = HoloTokenType(rawValue: rawType),
+              let idString = attrs[.holoEntityId] as? String,
+              let id = UUID(uuidString: idString),
+              let displayText = attrs[.holoDisplayText] as? String else {
+            return nil
+        }
+
+        switch type {
+        case .tag:
+            return .tag(id: id, displayPath: displayText)
+        case .reference:
+            return .reference(noteId: id, displayText: displayText, snapshot: attrs[.holoSnapshot] as? String ?? "")
+        }
+    }
+
+    /// 全部 Token 区间（按完整属性段枚举，相邻同类型 Token 因 ID 不同不会合并）
+    static func tokenRanges(in attributedText: NSAttributedString) -> [NSRange] {
+        guard attributedText.length > 0 else { return [] }
+        var ranges: [NSRange] = []
+        attributedText.enumerateAttributes(in: NSRange(location: 0, length: attributedText.length), options: []) { attrs, range, _ in
+            if attrs[.holoTokenType] != nil {
+                ranges.append(range)
+            }
+        }
+        return ranges
+    }
+
+    /// 单个属性区间的 Markdown 片段（含 ** / * / ++ / {color:} 标记还原）
+    static func markdownFragment(for attrs: [NSAttributedString.Key: Any], text: String) -> String {
+        let colorHex = attrs[.holoColorHex] as? String
+        let isBold = (attrs[.holoBold] as? Bool) == true
+        let isItalic = (attrs[.holoItalic] as? Bool) == true
+        let isUnderline = (attrs[.holoUnderline] as? Bool) == true
+
+        let prefix = markdownPrefix(isBold: isBold, isItalic: isItalic, isUnderline: isUnderline, colorHex: colorHex)
+        let suffix = markdownSuffix(isBold: isBold, isItalic: isItalic, isUnderline: isUnderline, colorHex: colorHex)
+
+        return prefix + text + suffix
     }
 
     static func markdownPrefix(isBold: Bool, isItalic: Bool, isUnderline: Bool, colorHex: String?) -> String {
@@ -566,7 +980,7 @@ private extension MarkdownTextView {
         return suffix
     }
 
-    static func attributes(for style: RenderStyle) -> [NSAttributedString.Key: Any] {
+    fileprivate static func attributes(for style: RenderStyle) -> [NSAttributedString.Key: Any] {
         var attributes = baseAttributes
         if style.isBold {
             attributes[.holoBold] = true

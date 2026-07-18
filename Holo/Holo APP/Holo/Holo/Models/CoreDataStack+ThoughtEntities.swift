@@ -105,6 +105,20 @@ extension CoreDataStack {
         thoughtOrganizationStartedAt.isOptional = true
         thoughtAttributes.append(thoughtOrganizationStartedAt)
 
+        // 结构化内容 JSON（含 #/@ Token 的编辑器事实源，可空=纯文本想法）
+        let thoughtRichContentJSON = NSAttributeDescription()
+        thoughtRichContentJSON.name = "richContentJSON"
+        thoughtRichContentJSON.attributeType = .stringAttributeType
+        thoughtRichContentJSON.isOptional = true
+        thoughtAttributes.append(thoughtRichContentJSON)
+
+        // 首行摘要（@ 引用候选列表标题，保存时派生）
+        let thoughtFirstLine = NSAttributeDescription()
+        thoughtFirstLine.name = "firstLine"
+        thoughtFirstLine.attributeType = .stringAttributeType
+        thoughtFirstLine.isOptional = true
+        thoughtAttributes.append(thoughtFirstLine)
+
         // MARK: - ThoughtTag Entity
         // 观点模块 - 标签实体
         let thoughtTagEntity = NSEntityDescription()
@@ -141,6 +155,13 @@ extension CoreDataStack {
         thoughtTagUsageCount.defaultValue = 0
         thoughtTagAttributes.append(thoughtTagUsageCount)
 
+        // 最近使用时间（# 候选面板「最近使用」排序）
+        let thoughtTagLastUsedAt = NSAttributeDescription()
+        thoughtTagLastUsedAt.name = "lastUsedAt"
+        thoughtTagLastUsedAt.attributeType = .dateAttributeType
+        thoughtTagLastUsedAt.isOptional = true
+        thoughtTagAttributes.append(thoughtTagLastUsedAt)
+
         // MARK: - ThoughtReference Entity
         // 观点模块 - 引用关系实体
         let thoughtReferenceEntity = NSEntityDescription()
@@ -163,6 +184,20 @@ extension CoreDataStack {
         thoughtReferenceCreatedAt.isOptional = false
         thoughtReferenceCreatedAt.defaultValue = Date()
         thoughtReferenceAttributes.append(thoughtReferenceCreatedAt)
+
+        // 插入时目标首行快照（@ 后显示的文字）
+        let thoughtReferenceDisplayText = NSAttributeDescription()
+        thoughtReferenceDisplayText.name = "displayText"
+        thoughtReferenceDisplayText.attributeType = .stringAttributeType
+        thoughtReferenceDisplayText.isOptional = true
+        thoughtReferenceAttributes.append(thoughtReferenceDisplayText)
+
+        // 插入时目标正文摘要快照（目标删除后展示）
+        let thoughtReferenceSnapshot = NSAttributeDescription()
+        thoughtReferenceSnapshot.name = "snapshot"
+        thoughtReferenceSnapshot.attributeType = .stringAttributeType
+        thoughtReferenceSnapshot.isOptional = true
+        thoughtReferenceAttributes.append(thoughtReferenceSnapshot)
 
         // MARK: - ThoughtTagAssignment Entity
         // AI 自动整理 - 标签分配中间实体

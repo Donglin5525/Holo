@@ -20,6 +20,9 @@ struct RichTextToolbarView: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: HoloSpacing.sm) {
+                tagTriggerButton
+                referenceTriggerButton
+                divider
                 boldButton
                 imageButton
                 divider
@@ -29,6 +32,22 @@ struct RichTextToolbarView: View {
             .padding(.horizontal, HoloSpacing.xs)
         }
         .padding(.vertical, HoloSpacing.xs)
+    }
+
+    // MARK: - 触发按钮
+
+    /// # 标签触发按钮
+    private var tagTriggerButton: some View {
+        ToolbarButton(icon: "number", label: "标签") {
+            pendingAction = .insertTriggerCharacter("#")
+        }
+    }
+
+    /// @ 引用触发按钮
+    private var referenceTriggerButton: some View {
+        ToolbarButton(icon: "at", label: "引用") {
+            pendingAction = .insertTriggerCharacter("@")
+        }
     }
 
     // MARK: - 格式按钮
