@@ -83,6 +83,10 @@ const status = JSON.parse(fs.readFileSync(path, "utf8"));
 if (status.ok !== true || status.service !== "holo-ai-gateway") {
   throw new Error(`unexpected release status payload: ${JSON.stringify(status).slice(0, 500)}`);
 }
+for (const field of ["commit", "sourceDigest", "buildTime"]) {
+  const value = status.release?.[field];
+  if (!value || value === "unknown") throw new Error(`release identity missing ${field}`);
+}
 for (const field of ["prompts", "routes", "database"]) {
   if (Object.prototype.hasOwnProperty.call(status, field)) throw new Error(`public release status exposes ${field}`);
 }
@@ -98,6 +102,9 @@ check_admin_release_status() {
 const fs = require("node:fs");
 const [, , path, promptType, expectedVersion, expectedList] = process.argv;
 const status = JSON.parse(fs.readFileSync(path, "utf8"));
+if (status.security?.agentStepIdempotencyResponseEncryption !== "aes-256-gcm-v1") {
+  throw new Error(`agent step response encryption is not active: ${JSON.stringify(status.security)}`);
+}
 const prompt = (status.prompts || []).find((item) => item.type === promptType);
 if (!prompt) throw new Error(`admin release status missing prompt: ${promptType}`);
 if (expectedVersion && String(prompt.version) !== String(expectedVersion)) {
@@ -119,6 +126,7 @@ console.log(JSON.stringify({
   expectedText: expectedList,
   intentRoute: status.routes?.intent,
   database: status.database,
+  security: status.security,
 }, null, 2));
 NODE
 }

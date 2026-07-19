@@ -55,6 +55,16 @@ protocol HoloHealthDataSource: Sendable {
 
     func workoutRecords(timeRange: HoloAgentTimeRange?) async -> [HoloHealthWorkoutRecord]
     func sleepRecords(timeRange: HoloAgentTimeRange?) async -> [HoloSleepRecord]
+
+    /// 严格查询（§7.1 P0-4）：生产实现必须读取 HK error，锁屏返回 waitingForUnlock，
+    /// 禁止把锁屏/查询错误伪装成空数组或 0。默认实现回落 best-effort 包装（fake/旧实现兼容）。
+    func dailyRecordsStrict(
+        for metric: HoloHealthMetricKind,
+        timeRange: HoloAgentTimeRange?
+    ) async -> HoloHealthQueryOutcome<[HoloHealthDailyRecord]>
+
+    func workoutRecordsStrict(timeRange: HoloAgentTimeRange?) async -> HoloHealthQueryOutcome<[HoloHealthWorkoutRecord]>
+    func sleepRecordsStrict(timeRange: HoloAgentTimeRange?) async -> HoloHealthQueryOutcome<[HoloSleepRecord]>
 }
 
 extension HoloHealthDataSource {
@@ -64,6 +74,26 @@ extension HoloHealthDataSource {
                             remHours: nil, awakeHours: nil, inBedHours: nil, bedtime: nil,
                             wakeTime: nil, interruptionCount: nil)
         }
+    }
+
+    /// 默认严格实现：包装 best-effort 结果为 value（空数组映射为 noData）。
+    /// 仅用于测试 fake 与未实现严格查询的数据源；生产 `HoloDefaultHealthDataSource` 必须覆盖。
+    func dailyRecordsStrict(
+        for metric: HoloHealthMetricKind,
+        timeRange: HoloAgentTimeRange?
+    ) async -> HoloHealthQueryOutcome<[HoloHealthDailyRecord]> {
+        let records = await dailyRecords(for: metric, timeRange: timeRange)
+        return records.isEmpty ? .noData : .value(records)
+    }
+
+    func workoutRecordsStrict(timeRange: HoloAgentTimeRange?) async -> HoloHealthQueryOutcome<[HoloHealthWorkoutRecord]> {
+        let records = await workoutRecords(timeRange: timeRange)
+        return records.isEmpty ? .noData : .value(records)
+    }
+
+    func sleepRecordsStrict(timeRange: HoloAgentTimeRange?) async -> HoloHealthQueryOutcome<[HoloSleepRecord]> {
+        let records = await sleepRecords(timeRange: timeRange)
+        return records.isEmpty ? .noData : .value(records)
     }
 }
 
@@ -204,16 +234,38 @@ private extension HoloHealthTool {
         let baselineRange = plan.baseline
             ?? request.baseline
             ?? HoloDynamicQueryRangeResolver.baselineIfNeeded(for: plan, currentRange: currentRange)
-        let currentRows: [HoloQueryRow]
-        let baselineRows: [HoloQueryRow]
+        // §7.1：主查询走严格接口，锁屏/权限错误显式传播
+        let currentRowsOutcome: HoloHealthQueryOutcome<[HoloQueryRow]>
+        let baselineRowsOutcome: HoloHealthQueryOutcome<[HoloQueryRow]>
         if kind == .sleep {
-            currentRows = await dataSource.sleepRecords(timeRange: currentRange).filter { $0.totalHours > 0 }.map(Self.sleepQueryRow)
-            baselineRows = await dataSource.sleepRecords(timeRange: baselineRange).filter { $0.totalHours > 0 }.map(Self.sleepQueryRow)
+            currentRowsOutcome = await dataSource.sleepRecordsStrict(timeRange: currentRange)
+                .map { $0.filter { $0.totalHours > 0 }.map(Self.sleepQueryRow) }
+            baselineRowsOutcome = await dataSource.sleepRecordsStrict(timeRange: baselineRange)
+                .map { $0.filter { $0.totalHours > 0 }.map(Self.sleepQueryRow) }
         } else {
-            let current = await dataSource.dailyRecords(for: kind, timeRange: currentRange)
-            let baseline = await dataSource.dailyRecords(for: kind, timeRange: baselineRange)
-            currentRows = current.filter { $0.value > 0 }.map { Self.queryRow($0, kind: kind) }
-            baselineRows = baseline.filter { $0.value > 0 }.map { Self.queryRow($0, kind: kind) }
+            currentRowsOutcome = await dataSource.dailyRecordsStrict(for: kind, timeRange: currentRange)
+                .map { $0.filter { $0.value > 0 }.map { Self.queryRow($0, kind: kind) } }
+            baselineRowsOutcome = await dataSource.dailyRecordsStrict(for: kind, timeRange: baselineRange)
+                .map { $0.filter { $0.value > 0 }.map { Self.queryRow($0, kind: kind) } }
+        }
+        let currentRows: [HoloQueryRow]
+        switch currentRowsOutcome {
+        case .value(let rows):
+            currentRows = rows
+        case .noData:
+            currentRows = []
+        case .waitingForUnlock:
+            return deviceLocked(request)
+        case .unavailable(let error):
+            return unavailableResult(request, error: error)
+        }
+        // 基线缺失/不可读降级为空基线，不阻塞主查询
+        let baselineRows: [HoloQueryRow]
+        switch baselineRowsOutcome {
+        case .value(let rows):
+            baselineRows = rows
+        case .noData, .waitingForUnlock, .unavailable:
+            baselineRows = []
         }
         var scopedPlan = plan
         scopedPlan.timeRange = currentRange
@@ -279,23 +331,35 @@ private extension HoloHealthTool {
         _ request: HoloToolRequest,
         metric: HoloHealthMetricKind
     ) async -> HoloDataToolResult {
-        let records = await dataSource.dailyRecords(for: metric, timeRange: request.timeRange)
+        // §7.1：走严格查询，锁屏/权限/暂时错误显式传播，不得伪装空数据
+        let records: [HoloHealthDailyRecord]
+        switch await dataSource.dailyRecordsStrict(for: metric, timeRange: request.timeRange) {
+        case .value(let value):
+            records = value
+        case .noData:
+            return empty(request, warning: warning(for: metric))
+        case .waitingForUnlock:
+            return deviceLocked(request)
+        case .unavailable(let error):
+            return unavailableResult(request, error: error)
+        }
+        let filtered = records
             .filter { $0.value > 0 }
             .sorted { $0.date < $1.date }
 
-        guard !records.isEmpty else {
+        guard !filtered.isEmpty else {
             return empty(request, warning: warning(for: metric))
         }
 
-        let summaryMetrics = metrics(for: metric, records: records)
+        let summaryMetrics = metrics(for: metric, records: filtered)
         return HoloDataToolResult(
             toolRequestID: request.id,
             tool: request.tool,
             status: .success,
-            coverage: coverage(records.map(\.date), timeRange: request.timeRange),
+            coverage: coverage(filtered.map(\.date), timeRange: request.timeRange),
             metrics: summaryMetrics,
-            events: summaryEvidenceEvents(summaryMetrics, metric: metric, records: records)
-                + records.map { event(for: metric, record: $0) },
+            events: summaryEvidenceEvents(summaryMetrics, metric: metric, records: filtered)
+                + filtered.map { event(for: metric, record: $0) },
             warnings: [],
             error: nil,
             sensitivity: .sensitive
@@ -303,13 +367,32 @@ private extension HoloHealthTool {
     }
 
     func sleepSummary(_ request: HoloToolRequest) async -> HoloDataToolResult {
-        let records = await dataSource.sleepRecords(timeRange: request.timeRange)
+        // §7.1：走严格查询，锁屏显式传播
+        let allRecords: [HoloSleepRecord]
+        switch await dataSource.sleepRecordsStrict(timeRange: request.timeRange) {
+        case .value(let value):
+            allRecords = value
+        case .noData:
+            return empty(request, warning: warning(for: .sleep))
+        case .waitingForUnlock:
+            return deviceLocked(request)
+        case .unavailable(let error):
+            return unavailableResult(request, error: error)
+        }
+        let records = allRecords
             .filter { $0.totalHours > 0 }
             .sorted { $0.date < $1.date }
         guard !records.isEmpty else { return empty(request, warning: warning(for: .sleep)) }
 
         let baselineRange = request.baseline ?? Self.previousRange(for: request.timeRange)
-        let baseline = await dataSource.sleepRecords(timeRange: baselineRange).filter { $0.totalHours > 0 }
+        // 基线缺失/不可读降级为空基线，不阻塞主查询（主查询成功即说明当前可读）
+        let baseline: [HoloSleepRecord]
+        switch await dataSource.sleepRecordsStrict(timeRange: baselineRange) {
+        case .value(let value):
+            baseline = value.filter { $0.totalHours > 0 }
+        case .noData, .waitingForUnlock, .unavailable:
+            baseline = []
+        }
         let values = records.map(\.totalHours)
         let average = values.reduce(0, +) / Double(values.count)
         let baselineAverage = baseline.isEmpty ? nil : baseline.map(\.totalHours).reduce(0, +) / Double(baseline.count)
@@ -361,7 +444,22 @@ private extension HoloHealthTool {
     }
 
     func workoutSummary(_ request: HoloToolRequest) async -> HoloDataToolResult {
-        let records = await dataSource.workoutRecords(timeRange: request.timeRange)
+        // §7.1：走严格查询
+        let allRecords: [HoloHealthWorkoutRecord]
+        switch await dataSource.workoutRecordsStrict(timeRange: request.timeRange) {
+        case .value(let value):
+            allRecords = value
+        case .noData:
+            return empty(
+                request,
+                warning: HoloToolWarning(code: "NO_WORKOUT_DATA", message: "没有可用的运动会话数据")
+            )
+        case .waitingForUnlock:
+            return deviceLocked(request)
+        case .unavailable(let error):
+            return unavailableResult(request, error: error)
+        }
+        let records = allRecords
             .filter { $0.totalMinutes > 0 || $0.sessionCount > 0 }
             .sorted { $0.date < $1.date }
 
@@ -402,6 +500,10 @@ private extension HoloHealthTool {
         let results = await [steps, sleep, stand, activity, workout]
         let available = results.filter { $0.status == .success || $0.status == .partial }
         guard !available.isEmpty else {
+            // §7.1：全部子查询都因锁屏失败 → 整体 DEVICE_LOCKED，不得伪装「无健康数据」
+            if results.allSatisfy({ $0.error?.code == HoloToolErrorCode.deviceLocked }) {
+                return deviceLocked(request)
+            }
             return HoloDataToolResult(
                 toolRequestID: request.id,
                 tool: request.tool,
@@ -581,6 +683,55 @@ private extension HoloHealthTool {
             events: [],
             warnings: [],
             error: HoloToolError(code: HoloToolErrorCode.invalidParams, message: reason, recoverable: true),
+            sensitivity: .sensitive
+        )
+    }
+
+    /// §7.1/§7.2：设备锁定，HealthKit 暂不可读（可恢复，Runtime 据此进入等待解锁）。
+    func deviceLocked(_ request: HoloToolRequest) -> HoloDataToolResult {
+        HoloDataToolResult(
+            toolRequestID: request.id,
+            tool: request.tool,
+            status: .error,
+            coverage: nil,
+            metrics: [],
+            events: [],
+            warnings: [],
+            error: HoloToolError(
+                code: HoloToolErrorCode.deviceLocked,
+                message: "设备锁定，解锁后继续读取健康数据",
+                recoverable: true
+            ),
+            sensitivity: .sensitive
+        )
+    }
+
+    /// §7.1：权限拒绝（不可恢复）与暂时性错误（可恢复）的显式映射。
+    func unavailableResult(_ request: HoloToolRequest, error: HoloHealthQueryError) -> HoloDataToolResult {
+        let toolError: HoloToolError
+        switch error {
+        case .authorizationDenied:
+            toolError = HoloToolError(
+                code: HoloToolErrorCode.healthPermissionDenied,
+                message: "未授权读取健康数据，请在系统设置中允许 Holo 读取健康数据",
+                recoverable: false
+            )
+        case .recoverable(let message):
+            toolError = HoloToolError(
+                code: HoloToolErrorCode.healthTemporarilyUnavailable,
+                message: "健康数据暂时不可用：\(message)",
+                recoverable: true
+            )
+        }
+        return HoloDataToolResult(
+            toolRequestID: request.id,
+            tool: request.tool,
+            status: .error,
+            coverage: nil,
+            metrics: [],
+            events: [],
+            warnings: [],
+            error: toolError,
             sensitivity: .sensitive
         )
     }

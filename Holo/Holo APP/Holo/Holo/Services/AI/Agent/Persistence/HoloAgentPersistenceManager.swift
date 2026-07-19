@@ -8,8 +8,9 @@
 import Foundation
 
 /// Phase 2 真实 `HoloEvidenceLedger` 将 conform 此协议；Phase 1 用 in-memory mock 隔离测试。
+/// §5.5：load 改 throws（权限/数据保护/损坏不得当空库）；非 throwing 实现仍满足该要求。
 protocol HoloEvidenceLedgerProtocol: Sendable {
-    func load() async -> [HoloEvidenceRecord]
+    func load() async throws -> [HoloEvidenceRecord]
     func upsert(_ records: [HoloEvidenceRecord]) async throws
 }
 
@@ -22,9 +23,10 @@ protocol HoloEvidenceLedgerProtocol: Sendable {
 actor HoloAgentPersistenceManager {
 
     private let evidenceLedger: HoloEvidenceLedgerProtocol
-    private let checkpointStore: HoloAgentCheckpointStore
-    private let jobStore: HoloAgentJobStore
-    private let resultStore: HoloAgentResultStore
+    /// 模块内可访问：HoloAgentConsistencyReconciler 需要直接读写三个 store（§5.4）。
+    let checkpointStore: HoloAgentCheckpointStore
+    let jobStore: HoloAgentJobStore
+    let resultStore: HoloAgentResultStore
 
     init(evidenceLedger: HoloEvidenceLedgerProtocol,
          checkpointStore: HoloAgentCheckpointStore,
@@ -54,31 +56,31 @@ actor HoloAgentPersistenceManager {
     }
 
     /// 读取最近一条 Agent 结果（按 generatedAt 降序），供记忆长廊展示。
-    func loadLatestResult() async -> HoloAgentResult? {
-        await resultStore.latest()
+    func loadLatestResult() async throws -> HoloAgentResult? {
+        try await resultStore.latest()
     }
 
     /// 读取指定 job 的结果，供 Chat 恢复时回填原消息。
-    func loadResult(jobID: String) async -> HoloAgentResult? {
-        await resultStore.forJob(jobID: jobID)
+    func loadResult(jobID: String) async throws -> HoloAgentResult? {
+        try await resultStore.forJob(jobID: jobID)
     }
 
     /// 读取指定 IDs 的 evidence 记录，供结果渲染引用（Phase 6.3 evidence 引用）。
-    func loadEvidence(forIDs ids: [String]) async -> [HoloEvidenceRecord] {
+    func loadEvidence(forIDs ids: [String]) async throws -> [HoloEvidenceRecord] {
         let idSet = Set(ids)
-        return await evidenceLedger.load().filter { idSet.contains($0.id) }
+        return try await evidenceLedger.load().filter { idSet.contains($0.id) }
     }
 
     /// 校验 checkpoint 引用的 evidence 是否都存在于 ledger。
-    func validateCheckpoint(_ checkpoint: HoloAgentCheckpoint) async -> Bool {
-        let evidenceIDs = Set(await evidenceLedger.load().map(\.id))
+    func validateCheckpoint(_ checkpoint: HoloAgentCheckpoint) async throws -> Bool {
+        let evidenceIDs = Set(try await evidenceLedger.load().map(\.id))
         return checkpoint.evidenceRecordIDs.allSatisfy { evidenceIDs.contains($0) }
     }
 
     /// 归档 orphaned 且超过保留期的证据，返回被归档的 recordIDs。
     @discardableResult
     func cleanupOrphanedEvidence(now: Date = Date(), retentionDays: Int = 7) async throws -> [String] {
-        let all = await evidenceLedger.load()
+        let all = try await evidenceLedger.load()
         var archived: [HoloEvidenceRecord] = []
         for record in all {
             if record.status == .orphaned,

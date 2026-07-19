@@ -31,12 +31,17 @@ actor HoloAgentCheckpointStore {
         }
     }
 
-    /// 返回某 job 下 updatedAt 最新的 checkpoint。
-    func latestForJob(jobID: String) async -> HoloAgentCheckpoint? {
-        let all = await store.load()
+    /// 返回某 job 下 updatedAt 最新的 checkpoint。§5.5：读失败上抛。
+    func latestForJob(jobID: String) async throws -> HoloAgentCheckpoint? {
+        let all = try await store.load()
         return all
             .filter { $0.jobID == jobID }
             .max(by: { $0.updatedAt < $1.updatedAt })
+    }
+
+    /// 读取全部 checkpoint，供一致性诊断与脱敏 Debug 导出。
+    func all() async throws -> [HoloAgentCheckpoint] {
+        try await store.load()
     }
 
     /// 删除指定 jobIDs 的全部 checkpoint（终态清理级联用），返回删除条数。

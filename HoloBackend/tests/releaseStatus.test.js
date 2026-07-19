@@ -77,6 +77,10 @@ test("GET /v1/admin/release/status requires admin auth and returns deployment ev
   assert.equal(json.routes.intent.temperature, 0);
   assert.equal(json.routes.intent.maxTokens, 4096);
   assert.equal(json.database.configured, true);
+  assert.equal(
+    json.security.agentStepIdempotencyResponseEncryption,
+    "aes-256-gcm-v1",
+  );
 
   const serialized = JSON.stringify(json);
   assert.equal(serialized.includes("secret-api-key"), false);

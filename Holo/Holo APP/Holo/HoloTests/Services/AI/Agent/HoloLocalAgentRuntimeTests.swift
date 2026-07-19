@@ -3,9 +3,31 @@
 //  HoloTests
 //
 //  Agent V3.1 — Task 1.5 Mock Runtime 测试
-//  运行：swiftc -parse-as-library \
-//    <Models/AI/Agent/*.swift> <Services/AI/Agent/Persistence/*.swift> \
-//    <Services/AI/Agent/HoloLocalAgentRuntime.swift> <Services/AI/Agent/HoloAgentRuntimeFactory.swift> \
+//  运行（在 "Holo/Holo APP/Holo" 目录下；记忆栈用项目既有 HOLO_MEMORY_STANDALONE 开关隔离生产依赖）：
+//  swiftc -parse-as-library -D HOLO_MEMORY_STANDALONE \
+//    "Holo/Models/AI/Agent/"*.swift \
+//    "Holo/Models/AI/HoloMemoryRecord.swift" "Holo/Models/AI/HoloShortTermMemoryModels.swift" \
+//    "Holo/Models/AI/HoloLongTermMemoryModels.swift" "Holo/Models/AI/HoloMemoryEvidence.swift" \
+//    "Holo/Models/AI/HoloAICapability.swift" \
+//    "Holo/Services/AI/MemoryCore/HoloMemoryIdentity.swift" \
+//    "Holo/Services/AI/MemoryCore/HoloMemoryScorer.swift" \
+//    "Holo/Services/AI/MemoryCore/HoloMemoryActivationPolicy.swift" \
+//    "Holo/Services/AI/MemoryQuery/"*.swift \
+//    "Holo/Services/AI/Agent/Persistence/"*.swift \
+//    "Holo/Services/AI/Agent/Tools/HoloDataTool.swift" \
+//    "Holo/Services/AI/Agent/Execution/HoloAgentExecutionLease.swift" \
+//    "Holo/Services/AI/Agent/HoloLocalAgentRuntime.swift" \
+//    "Holo/Services/AI/Agent/HoloAgentRuntimeFactory.swift" \
+//    "Holo/Services/AI/Agent/HoloAgentLLMClientProtocol.swift" \
+//    "Holo/Services/AI/Agent/HoloAgentPromptBuilder.swift" \
+//    "Holo/Services/AI/Agent/HoloAgentResponseParser.swift" \
+//    "Holo/Services/AI/Agent/HoloAgentEvidencePolicy.swift" \
+//    "Holo/Services/AI/Agent/HoloAgentTimeSemanticResolver.swift" \
+//    "Holo/Services/AI/Agent/HoloAgentInputSnapshotHasher.swift" \
+//    "Holo/Services/AI/Agent/PatternMining/HoloPatternMiner.swift" \
+//    "Holo/Services/AI/Agent/Verification/HoloClaimVerifier.swift" \
+//    "Holo/Services/AI/HoloMemorySummaryProvider.swift" \
+//    "Holo/Services/Network/APIError.swift" \
 //    <本测试> -o /tmp/holo_agent_runtime_test && /tmp/holo_agent_runtime_test
 //
 
@@ -31,9 +53,15 @@ actor FakeAgentLLMClient: HoloAgentLLMClientProtocol {
     private let responses: [String]
     private(set) var messageBatches: [[HoloAgentMessage]] = []
     private(set) var callCount = 0
+    /// 每次调用收到的 step record（§5.3 幂等验证用）
+    private(set) var steps: [HoloAgentLLMRequestRecord?] = []
     init(responses: [String]) { self.responses = responses }
     func next(messages: [HoloAgentMessage]) async throws -> String {
+        try await next(messages: messages, step: nil)
+    }
+    func next(messages: [HoloAgentMessage], step: HoloAgentLLMRequestRecord?) async throws -> String {
         messageBatches.append(messages)
+        steps.append(step)
         let response = responses[min(callCount, responses.count - 1)]
         callCount += 1
         return response
@@ -215,6 +243,7 @@ struct HoloLocalAgentRuntimeTests {
         try await testPauseForBackground_运行中任务标记waitingForForeground()
         try await testResumeUnfinishedJobs_恢复未完成任务()
         try await test后台暂停后恢复并RunLoop完成()
+        try await testRunLoop_step幂等请求前落prepared且完成落applied()
         print("HoloLocalAgentRuntimeTests passed")
     }
 
@@ -290,7 +319,7 @@ struct HoloLocalAgentRuntimeTests {
         expect(job.type == .debugMock, "mock job 类型应为 debugMock")
         expect(job.checkpointID != nil, "应回填 checkpointID")
 
-        let checkpoint = await fixture.checkpointStore.latestForJob(jobID: job.id)
+        let checkpoint = try await fixture.checkpointStore.latestForJob(jobID: job.id)
         expect(checkpoint != nil, "应能读到初始 checkpoint")
         expect(checkpoint?.step == .plan, "初始 checkpoint step 应为 plan")
         expect(checkpoint?.completedSteps.isEmpty ?? false, "初始 checkpoint completedSteps 应为空")
@@ -308,7 +337,7 @@ struct HoloLocalAgentRuntimeTests {
         expect(updated.currentStep == .executeTools, "plan 完成后应推进到 executeTools，实际 \(updated.currentStep)")
         expect(updated.state == .running, "推进后仍应 running")
 
-        let checkpoint = await fixture.checkpointStore.latestForJob(jobID: job.id)
+        let checkpoint = try await fixture.checkpointStore.latestForJob(jobID: job.id)
         expect(checkpoint?.step == .executeTools, "新 checkpoint step 应为 executeTools")
         expect(checkpoint?.completedSteps == [.plan], "completedSteps 应含 plan，实际 \(String(describing: checkpoint?.completedSteps))")
     }
@@ -340,7 +369,7 @@ struct HoloLocalAgentRuntimeTests {
         let cancelled = try await fixture.runtime.cancel(jobID: job.id, now: Date(timeIntervalSince1970: 2000))
         expect(cancelled.state == .cancelled, "cancel 后状态应为 cancelled")
 
-        let stored = await fixture.jobStore.load().first { $0.id == job.id }
+        let stored = try await fixture.jobStore.load().first { $0.id == job.id }
         expect(stored?.state == .cancelled, "落盘 job 状态应为 cancelled")
 
         // resume 一个 cancelled job 不应恢复执行
@@ -369,7 +398,7 @@ struct HoloLocalAgentRuntimeTests {
         expect(result.state == .completed, "runLoop 完成后应为 completed，实际 \(result.state.rawValue)")
         expect(result.budget.consumedLLMRounds == 2, "consumedLLMRounds 应为 2")
 
-        let checkpoint = await fixture.checkpointStore.latestForJob(jobID: job.id)
+        let checkpoint = try await fixture.checkpointStore.latestForJob(jobID: job.id)
         expect(checkpoint?.completedToolResults.isEmpty == false, "checkpoint 应含工具执行结果")
     }
 
@@ -476,7 +505,7 @@ struct HoloLocalAgentRuntimeTests {
         let month = Calendar.current.dateInterval(of: .month, for: now)!
 
         let job = try await fixture.runtime.startAnalysisJob(question: "本月钱花哪了", now: now)
-        let storedJob = await fixture.jobStore.load().first { $0.id == job.id }
+        let storedJob = try await fixture.jobStore.load().first { $0.id == job.id }
         expect(storedJob?.timeRange?.label == "本月", "落盘 job 应保留本月范围，实际 \(String(describing: storedJob?.timeRange))")
         _ = try await fixture.runtime.runLoop(
             jobID: job.id, systemTemplate: "你是 Agent", toolDescriptions: "【finance】消费工具",
@@ -518,7 +547,7 @@ struct HoloLocalAgentRuntimeTests {
         expect(requests.first?.timeRange?.end == makeDate(2026, 7, 1), "工具请求应使用本月首日 exclusive")
         expect(result.state == .completed, "即使模型跳过工具，也应基于工具事实完成")
 
-        let savedResult = await fixture.runtime.loadLatestResult()
+        let savedResult = try await fixture.runtime.loadLatestResult()
         expect(savedResult?.summary.contains("14598.83") == true, "最终摘要应来自工具返回的 14598.83，而不是空口无法获取")
         expect(savedResult?.summary.contains("餐饮") == true, "最终摘要必须回答钱花哪了，包含 Top 分类餐饮")
         expect(savedResult?.summary.contains("居住") == true, "最终摘要必须回答钱花哪了，包含 Top 分类居住")
@@ -554,7 +583,7 @@ struct HoloLocalAgentRuntimeTests {
         expect(result.state == .completed, "工具事实已返回时，解析失败应兜底完成而不是 failed，实际 \(result.state.rawValue)")
         expect(result.errorSummary == nil, "兜底完成不能留下解析失败调试串")
 
-        let savedResult = await fixture.runtime.loadLatestResult()
+        let savedResult = try await fixture.runtime.loadLatestResult()
         expect(savedResult?.summary.contains("14598.83") == true, "兜底结果应保留财务工具总额")
         expect(savedResult?.summary.contains("餐饮") == true, "兜底结果应保留分类去向")
         expect(savedResult?.summary.contains("房租") == true || savedResult?.summary.contains("MacBook") == true,
@@ -605,7 +634,7 @@ struct HoloLocalAgentRuntimeTests {
         )
 
         let expectedID = "\(job.id):finance:t-finance:event-1"
-        let checkpoint = await fixture.checkpointStore.latestForJob(jobID: job.id)
+        let checkpoint = try await fixture.checkpointStore.latestForJob(jobID: job.id)
         expect(checkpoint?.evidenceRecordIDs == [expectedID],
                "checkpoint 应保存全局唯一 evidence id，实际 \(String(describing: checkpoint?.evidenceRecordIDs))")
 
@@ -630,7 +659,7 @@ struct HoloLocalAgentRuntimeTests {
         )
 
         expect(result.state == .completed, "无证据 claim 不应让任务失败，应完成但过滤结论")
-        let savedResult = await fixture.runtime.loadLatestResult()
+        let savedResult = try await fixture.runtime.loadLatestResult()
         expect(savedResult?.claims.isEmpty == true, "无证据支撑的 claim 必须被过滤")
         expect(savedResult?.summary == "本期暂无显著观察", "过滤后应显示暂无显著观察")
     }
@@ -654,7 +683,7 @@ struct HoloLocalAgentRuntimeTests {
         expect(result.state == .completed, "模型不收敛但已有工具结果时应兜底完成，实际 \(result.state.rawValue)")
         expect(result.errorSummary == nil, "兜底完成不应留下 errorSummary")
 
-        let savedResult = await fixture.runtime.loadLatestResult()
+        let savedResult = try await fixture.runtime.loadLatestResult()
         expect(savedResult?.claims.isEmpty == false, "兜底完成应保存至少 1 条 claim")
         expect(savedResult?.summary.contains("晚间餐饮频次偏移") == true, "兜底 summary 应来自 pattern signal")
     }
@@ -668,7 +697,7 @@ struct HoloLocalAgentRuntimeTests {
         let now = Date()
         let job = try await fixture.runtime.startMockJob(question: "最近两周平均睡眠多久", now: now)
         let completed = try await fixture.runtime.runLoop(jobID: job.id, systemTemplate: "你是 Agent", toolDescriptions: "动态健康目录", now: now.addingTimeInterval(1))
-        let saved = await fixture.runtime.loadLatestResult()
+        let saved = try await fixture.runtime.loadLatestResult()
         expect(completed.state == .completed, "动态查询应完成")
         expect(saved?.claims.first?.metricAssertions.first?.value == 7.2, "模型心算错误后必须回退到本地确定性结果")
         expect(saved?.summary.contains("7.2") == true, "最终摘要应来自动态计算结果")
@@ -683,7 +712,7 @@ struct HoloLocalAgentRuntimeTests {
         let now = Date()
         let job = try await fixture.runtime.startMockJob(question: "最近的睡眠质量怎样？", now: now)
         _ = try await fixture.runtime.runLoop(jobID: job.id, systemTemplate: "Agent", toolDescriptions: "health", now: now)
-        let saved = await fixture.runtime.loadLatestResult()
+        let saved = try await fixture.runtime.loadLatestResult()
         let summary = saved?.summary ?? ""
         expect(summary.contains("平均睡眠 6.5 小时"), "应输出平均睡眠")
         expect(summary.contains("有效记录 7 晚"), "应输出有效记录")
@@ -710,9 +739,9 @@ struct HoloLocalAgentRuntimeTests {
             now: now
         )
 
-        let saved = await fixture.runtime.loadLatestResult()
+        let saved = try await fixture.runtime.loadLatestResult()
         let summary = saved?.summary ?? ""
-        let checkpoint = await fixture.checkpointStore.latestForJob(jobID: job.id)
+        let checkpoint = try await fixture.checkpointStore.latestForJob(jobID: job.id)
         expect(
             summary.contains("平均每天 6,991 步"),
             "步数 fallback 必须自然表达日均步数，state=\(completed.state.rawValue)，结果数=\(checkpoint?.completedToolResults.count ?? -1)，实际：\(summary)"
@@ -732,7 +761,7 @@ struct HoloLocalAgentRuntimeTests {
 
         try await fixture.runtime.pauseForBackground(now: Date(timeIntervalSince1970: 2000))
 
-        let stored = await fixture.jobStore.load().first { $0.id == job.id }
+        let stored = try await fixture.jobStore.load().first { $0.id == job.id }
         expect(stored?.state == .waitingForForeground, "进后台应标记 waitingForForeground，实际 \(stored?.state.rawValue ?? "nil")")
         expect(stored?.lastForegroundRunAt != nil, "应记录最后前台时间")
     }
@@ -747,7 +776,7 @@ struct HoloLocalAgentRuntimeTests {
         let count = try await fixture.runtime.resumeUnfinishedJobs(now: Date(timeIntervalSince1970: 3000))
         expect(count == 1, "应恢复 1 个任务，实际 \(count)")
 
-        let stored = await fixture.jobStore.load().first { $0.id == job.id }
+        let stored = try await fixture.jobStore.load().first { $0.id == job.id }
         expect(stored?.state == .running, "恢复后应为 running，实际 \(stored?.state.rawValue ?? "nil")")
     }
 
@@ -770,5 +799,38 @@ struct HoloLocalAgentRuntimeTests {
             now: now.addingTimeInterval(3)
         )
         expect(result.state == .completed, "恢复后续跑应完成，实际 \(result.state.rawValue)")
+    }
+
+    /// §5.3 step 幂等：请求前落 prepared record，完成后 checkpoint 标记 applied（灰度开启路径）。
+    private static func testRunLoop_step幂等请求前落prepared且完成落applied() async throws {
+        // 直接设置 live 单例（读路径经 HoloMemorySettings.shared，UserDefaults 只在 init 时读一次）
+        let settings = HoloMemorySettings.shared
+        let original = settings.agentStepIdempotencyEnabled
+        settings.agentStepIdempotencyEnabled = true
+        defer { settings.agentStepIdempotencyEnabled = original }
+        let dir = makeTempDir()
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let client = FakeAgentLLMClient(responses: [finalClaims])
+        let executor = FakeToolExecutor()
+        let fixture = makeLoopRuntime(dir: dir, llmClient: client, toolExecutor: executor)
+        let now = Date()
+        let job = try await fixture.runtime.startMockJob(question: "q", now: now)
+
+        _ = try await fixture.runtime.runLoop(
+            jobID: job.id, systemTemplate: "你是 Agent", toolDescriptions: "tools",
+            now: now.addingTimeInterval(1)
+        )
+
+        let steps = await client.steps
+        expect(steps.count == 1, "单轮 LLM 应一次调用，实际 \(steps.count)")
+        expect(steps[0]?.stepID == "llm-1-1", "客户端应收到 stepID llm-1-1，实际 \(String(describing: steps[0]?.stepID))")
+        expect(steps[0]?.status == .prepared, "请求发起时 record 应为 prepared")
+        expect(steps[0]?.runID == job.id, "runID 应为 jobID")
+
+        let checkpoint = try await fixture.checkpointStore.latestForJob(jobID: job.id)
+        expect(checkpoint?.pendingLLMRequest?.status == .applied,
+               "完成后 record 应为 applied，实际 \(String(describing: checkpoint?.pendingLLMRequest?.status))")
+        expect(checkpoint?.pendingLLMRequest?.responseHash != nil, "completed 应落 responseHash")
+        expect(checkpoint?.revision == 1, "revision 应为 1")
     }
 }

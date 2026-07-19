@@ -27,13 +27,13 @@ struct OnboardingAIConsentPage: View {
                         .font(.holoTitle)
                         .foregroundColor(.holoTextPrimary)
 
-                    Text("当你使用 HoloAI、AI 洞察或语音转文字时，完成这项功能所需的问题和数据摘要，会经 Holo 后端发送给第三方 AI 或语音服务处理。")
+                    Text("当你使用 HoloAI、AI 洞察、语音转文字，或另行开启“自动形成记忆”时，完成该功能所需的问题，以及财务、习惯、待办、观点、健康摘要或语音片段，会经 Holo 后端发送给第三方 AI 或语音服务处理。")
                         .font(.holoBody)
                         .foregroundColor(.holoTextSecondary)
                         .fixedSize(horizontal: false, vertical: true)
 
                     VStack(alignment: .leading, spacing: HoloSpacing.md) {
-                        consentBullet("只在你使用相关 AI 功能时处理必要数据。")
+                        consentBullet("只在你使用相关 AI 功能，或主动开启自动形成记忆后处理必要数据。")
                         consentBullet("不授权也可以继续使用本地记账、待办、习惯和观点功能。")
                         consentBullet("之后可以在 HoloAI 数据授权中随时开启或撤回。")
                     }

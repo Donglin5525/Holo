@@ -182,12 +182,26 @@ final class HoloBackendAIProvider: AIProvider {
         return content
     }
 
-    /// 使用自定义 purpose 的非流式 chat 调用（不注入 UserContext）
-    func chat(messages: [ChatMessageDTO], purpose: HoloBackendPurpose) async throws -> String {
+    /// 使用自定义 purpose 的非流式 chat 调用（不注入 UserContext）。
+    /// step 非 nil 且 purpose 为 agentLoop 时按 §8.1 携带 runId/stepId/requestHash（step 幂等）。
+    func chat(messages: [ChatMessageDTO], purpose: HoloBackendPurpose,
+              step: HoloAgentLLMRequestRecord? = nil) async throws -> String {
         try ensureDataProcessingConsent()
         let responseFormat: ResponseFormat? = purpose == .agentLoop ? .jsonObject : nil
-        let request = buildRequest(purpose: purpose, messages: messages, responseFormat: responseFormat)
-        let (response, requestId) = try await sendCompletion(request)
+        let request = buildRequest(purpose: purpose, messages: messages, responseFormat: responseFormat, step: step)
+        let completion: APIClient.Response<ChatCompletionResponse> = try await apiClient.sendWithResponse(request)
+        let response = completion.value
+        let requestId = completion.httpResponse.value(forHTTPHeaderField: "X-Holo-Request-Id")
+
+        if completion.httpResponse.value(forHTTPHeaderField: "X-Holo-Step-Idempotency") == "hit",
+           let step {
+            var event = HoloAgentTelemetryEvent(
+                name: .stepIdempotencyHit,
+                requestID: step.stepID
+            )
+            event.jobID = step.runID
+            await HoloAgentEventStore.shared.record(event)
+        }
 
         guard let content = response.choices?.first?.message?.content else {
             throw APIError.serverError("AI 未返回有效内容")
@@ -301,9 +315,12 @@ final class HoloBackendAIProvider: AIProvider {
         purpose: HoloBackendPurpose,
         messages: [ChatMessageDTO],
         stream: Bool = false,
-        responseFormat: ResponseFormat? = nil
+        responseFormat: ResponseFormat? = nil,
+        step: HoloAgentLLMRequestRecord? = nil
     ) -> APIRequest {
-        APIRequest(
+        // §8.1：step 三字段仅 agentLoop 携带；其他 purpose 保持兼容不编码
+        let includeStep = purpose == .agentLoop ? step : nil
+        return APIRequest(
             baseURL: baseURL,
             path: "/v1/ai/chat/completions",
             method: .post,
@@ -315,7 +332,10 @@ final class HoloBackendAIProvider: AIProvider {
                 purpose: purpose.rawValue,
                 messages: messages,
                 stream: stream,
-                responseFormat: responseFormat
+                responseFormat: responseFormat,
+                runId: includeStep?.runID,
+                stepId: includeStep?.stepID,
+                requestHash: includeStep?.requestHash
             )
         )
     }
@@ -503,10 +523,40 @@ struct HoloBackendChatCompletionRequest: Encodable {
     let messages: [ChatMessageDTO]
     let stream: Bool
     let responseFormat: ResponseFormat?
+    /// step 幂等三字段（§8.1）：仅 agentLoop 且 step 幂等开启时非空；
+    /// 三者必须同时编码或同时缺失（后端部分缺失会 400，全缺完全兼容无幂等）。
+    let runId: String?
+    let stepId: String?
+    let requestHash: String?
 
     enum CodingKeys: String, CodingKey {
-        case purpose, messages, stream
+        case purpose, messages, stream, runId, stepId, requestHash
         case responseFormat = "response_format"
+    }
+
+    init(purpose: String, messages: [ChatMessageDTO], stream: Bool,
+         responseFormat: ResponseFormat?,
+         runId: String? = nil, stepId: String? = nil, requestHash: String? = nil) {
+        self.purpose = purpose
+        self.messages = messages
+        self.stream = stream
+        self.responseFormat = responseFormat
+        self.runId = runId
+        self.stepId = stepId
+        self.requestHash = requestHash
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(purpose, forKey: .purpose)
+        try container.encode(messages, forKey: .messages)
+        try container.encode(stream, forKey: .stream)
+        try container.encodeIfPresent(responseFormat, forKey: .responseFormat)
+        if let runId, let stepId, let requestHash {
+            try container.encode(runId, forKey: .runId)
+            try container.encode(stepId, forKey: .stepId)
+            try container.encode(requestHash, forKey: .requestHash)
+        }
     }
 }
 

@@ -22,7 +22,7 @@ struct HoloApp: App {
     /// 外部文件导入状态（拖拽 CSV 到模拟器 / "Open In" 打开）
     @State private var pendingImportURL: CSVFileURL?
 
-    /// 场景阶段：前后台切换驱动 Agent 后台续跑（受 agentRuntimeEnabled 门控，默认关）
+    /// 场景阶段：前后台切换驱动 Agent 后台续跑（Agent Runtime 为产品默认能力）
     @Environment(\.scenePhase) private var scenePhase
 
     // MARK: - Initialization
@@ -137,6 +137,16 @@ struct HoloApp: App {
                         await MainActor.run {
                             HoloBackgroundContinuationManager.shared.appDidLaunch()
                         }
+                    }
+                }
+                // §7.2：设备解锁（protected data 可用）后由 Scheduler 恢复等待解锁的 Agent 任务
+                .onReceive(
+                    NotificationCenter.default.publisher(
+                        for: UIApplication.protectedDataDidBecomeAvailableNotification
+                    )
+                ) { _ in
+                    if HoloAIFeatureFlags.agentRuntimeEnabled {
+                        HoloBackgroundContinuationManager.shared.protectedDataDidBecomeAvailable()
                     }
                 }
                 .onChange(of: scenePhase) { _, phase in

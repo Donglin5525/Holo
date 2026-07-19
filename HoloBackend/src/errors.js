@@ -53,6 +53,10 @@ export function publicMessage(code) {
     // 频率限制
     RATE_LIMITED: "今天的 AI 使用次数已达上限，稍后再试",
 
+    // Agent step 幂等
+    STEP_ID_CONFLICT: "任务步骤与请求内容不匹配，请重新开始分析",
+    STEP_IN_PROGRESS: "该分析步骤正在执行中，请稍后重试",
+
     // 语音相关
     AUDIO_TOO_LARGE: "语音文件过大，请缩短录音后重试",
     EMPTY_TRANSCRIPT: "未能识别语音内容，请再试一次",

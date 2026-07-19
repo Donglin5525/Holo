@@ -93,6 +93,30 @@ const MIGRATIONS = [
       ALTER TABLE prompt_versions ADD COLUMN change_note TEXT;
     `,
   },
+  {
+    id: 6,
+    description: '创建 agent_step_idempotency 表（Agent step 级幂等，短期 TTL）',
+    // response 列为 TTL 敏感数据：由应用层写入 AES-256-GCM 信封密文，不存完整 messages；
+    // 由 expires_at + purgeExpired 控制保留期，不作为长期 Agent Job 表使用。
+    up: `
+      CREATE TABLE IF NOT EXISTS agent_step_idempotency (
+        run_id TEXT NOT NULL,
+        step_id TEXT NOT NULL,
+        request_hash TEXT NOT NULL,
+        status TEXT NOT NULL,
+        response TEXT,
+        usage TEXT,
+        error_code TEXT,
+        error_status INTEGER,
+        created_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        expires_at INTEGER NOT NULL,
+        PRIMARY KEY (run_id, step_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_agent_step_idempotency_expires
+        ON agent_step_idempotency(expires_at);
+    `,
+  },
 ];
 
 function computeChecksum(sql) {

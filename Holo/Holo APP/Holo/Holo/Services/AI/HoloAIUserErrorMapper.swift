@@ -31,6 +31,10 @@ enum HoloAIUserErrorMapper {
             return "使用 HoloAI 前，请先开启 AI 数据处理授权"
         case .invalidURL, .decodingError, .httpError, .serverError, .backendError:
             return "HoloAI 服务暂时不可用，请稍后重试"
+        case .stepInProgress:
+            return "相同请求正在处理中，请稍后重试"
+        case .stepIdConflict:
+            return "请求处理冲突，请稍后重试"
         }
     }
 }

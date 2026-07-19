@@ -23,8 +23,8 @@ actor HoloEvidenceLedger: HoloEvidenceLedgerProtocol {
         self.store = HoloAgentJSONStore(fileName: "evidenceLedger.json", directory: directory)
     }
 
-    func load() async -> [HoloEvidenceRecord] {
-        await store.load()
+    func load() async throws -> [HoloEvidenceRecord] {
+        try await store.load()
     }
 
     /// 按 dedupeKey 去重 upsert：同 key 用新记录覆盖，但引用关系（jobIDs / memoryIDs）与旧记录合并去重。
@@ -44,9 +44,9 @@ actor HoloEvidenceLedger: HoloEvidenceLedgerProtocol {
     }
 
     /// 按 id 批量查找，返回存在的记录（顺序不保证）。
-    func find(ids: [String]) async -> [HoloEvidenceRecord] {
+    func find(ids: [String]) async throws -> [HoloEvidenceRecord] {
         let idSet = Set(ids)
-        return await store.load().filter { idSet.contains($0.id) }
+        return try await store.load().filter { idSet.contains($0.id) }
     }
 
     /// 标记「无任何引用 + 早于 date」的证据为 orphaned。

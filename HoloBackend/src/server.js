@@ -30,6 +30,7 @@ const server = serve(
 function gracefulShutdown(signal) {
   console.log(`\n[${signal}] 正在关闭...`);
   server.close();
+  app.agentStepIdempotencyCleanup?.stop?.();
   database.close();
   console.log("[DB] 数据库已关闭");
   process.exit(0);

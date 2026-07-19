@@ -7,6 +7,12 @@
 
 import Foundation
 
+/// JobStore 错误（§6.1 generation CAS）。
+enum HoloAgentJobStoreError: Error, Equatable {
+    /// acquire generation 时 job 不存在
+    case jobNotFound(String)
+}
+
 /// 管理 `HoloAgentJob` 的持久化；所有写操作走 `HoloAgentJSONStore.mutate` 保证原子。
 actor HoloAgentJobStore {
 
@@ -32,9 +38,32 @@ actor HoloAgentJobStore {
         }
     }
 
-    /// 读取全部 job。
-    func load() async -> [HoloAgentJob] {
-        await store.load()
+    /// 读取全部 job。§5.5：读失败上抛，调用方不得当空库继续。
+    func load() async throws -> [HoloAgentJob] {
+        try await store.load()
+    }
+
+    /// 原子递增 job 的 executionGeneration 并返回新值（§6.1：load→+1→save 在 actor 内原子完成）。
+    /// 旧数据 generation 为 nil 时视为 0，首次 acquire 返回 1。
+    @discardableResult
+    func acquireExecutionGeneration(jobID: String, now: Date = Date()) async throws -> Int {
+        try await store.mutate { all -> Int in
+            guard let index = all.firstIndex(where: { $0.id == jobID }) else {
+                throw HoloAgentJobStoreError.jobNotFound(jobID)
+            }
+            let next = (all[index].executionGeneration ?? 0) + 1
+            all[index].executionGeneration = next
+            all[index].updatedAt = now
+            return next
+        }
+    }
+
+    /// CAS 读校验：job 当前 generation 是否仍等于给定值（§6.2 runLoop 写盘前调用）。
+    /// job 不存在返回 false（已被清理，不得再写回）。
+    func validateExecutionGeneration(jobID: String, generation: Int) async throws -> Bool {
+        let all = try await store.load()
+        guard let job = all.first(where: { $0.id == jobID }) else { return false }
+        return (job.executionGeneration ?? 0) == generation
     }
 
     /// 按 jobID 更新状态与时间；未找到返回 false。
@@ -68,12 +97,12 @@ actor HoloAgentJobStore {
         }
     }
 
-    /// 终态 job 的保留天数；非终态返回 nil（不清理）。
+    /// 终态 job 的保留天数；非终态返回 nil（不清理）。superseded 按失败类终态回收。
     private static func retentionDays(for state: HoloAgentJobState, policy: HoloJobCleanupPolicy) -> Int? {
         switch state {
         case .completed:
             return policy.completedRetentionDays
-        case .failed, .cancelled:
+        case .failed, .cancelled, .superseded:
             return policy.failedRetentionDays
         default:
             return nil

@@ -3,10 +3,12 @@
 //  HoloTests
 //
 //  Agent V3.1 — Task 2.1 Evidence Ledger 测试
-//  运行：swiftc -parse-as-library \
-//    <Models/AI/Agent/*.swift> <Services/AI/Agent/Persistence/HoloAgentJSONStore.swift> \
-//    <Services/AI/Agent/Persistence/HoloEvidenceLedger.swift> <本测试> \
-//    -o /tmp/holo_evidence_ledger_test && /tmp/holo_evidence_ledger_test
+//  运行（在 "Holo/Holo APP/Holo" 目录下）：
+//  swiftc -parse-as-library \
+//    "Holo/Models/AI/Agent/"*.swift \
+//    "Holo/Services/AI/Agent/Persistence/"*.swift \
+//    "Holo/Services/AI/Agent/Tools/HoloDataTool.swift" \
+//    <本测试> -o /tmp/holo_evidence_ledger_test && /tmp/holo_evidence_ledger_test
 //
 
 import Foundation
@@ -62,7 +64,7 @@ struct HoloEvidenceLedgerTests {
             makeEvidence(id: "ev-2", dedupeKey: "key-A", generatedAt: now)
         ])
 
-        let all = await ledger.load()
+        let all = try await ledger.load()
         expect(all.count == 1, "相同 dedupeKey 应只保留 1 条，实际 \(all.count)")
         expect(all.first?.id == "ev-2", "应保留后写入的 ev-2")
     }
@@ -76,7 +78,7 @@ struct HoloEvidenceLedgerTests {
         try await ledger.upsert([makeEvidence(id: "ev-1", dedupeKey: "key-A", generatedAt: now)])
         try await ledger.upsert([makeEvidence(id: "ev-2", dedupeKey: "key-B", generatedAt: now)])
 
-        let all = await ledger.load()
+        let all = try await ledger.load()
         expect(all.count == 2, "不同 dedupeKey 应都保留，实际 \(all.count)")
     }
 
@@ -93,7 +95,7 @@ struct HoloEvidenceLedgerTests {
             makeEvidence(id: "ev-2", dedupeKey: "key-A", generatedAt: now, jobIDs: ["job-1", "job-2"])
         ])
 
-        let record = await ledger.load().first
+        let record = try await ledger.load().first
         expect(record?.referencedByJobIDs.count == 2, "合并去重后应 2 个引用，实际 \(record?.referencedByJobIDs.count ?? -1)")
         expect(record?.referencedByJobIDs.contains("job-1") ?? false, "应含 job-1")
         expect(record?.referencedByJobIDs.contains("job-2") ?? false, "应含 job-2")
@@ -118,7 +120,7 @@ struct HoloEvidenceLedgerTests {
         // cutoff 设在 ev-old 与 ev-fresh 之间（now-3天）
         try await ledger.markOrphaned(olderThan: now.addingTimeInterval(-3 * day))
 
-        let all = await ledger.load()
+        let all = try await ledger.load()
         expect(all.first { $0.id == "ev-old" }?.status == .orphaned, "ev-old 无引用且过期应标记 orphaned")
         expect(all.first { $0.id == "ev-ref" }?.status == .active, "ev-ref 有引用应保持 active")
         expect(all.first { $0.id == "ev-fresh" }?.status == .active, "ev-fresh 未过期应保持 active")

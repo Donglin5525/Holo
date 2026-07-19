@@ -27,7 +27,8 @@ enum HoloAgentRuntimeFactory {
         return HoloLocalAgentRuntime(
             persistence: persistence,
             jobStore: jobStore,
-            checkpointStore: checkpointStore
+            checkpointStore: checkpointStore,
+            eventRecorder: HoloAgentEventStore.shared
         )
     }
 }

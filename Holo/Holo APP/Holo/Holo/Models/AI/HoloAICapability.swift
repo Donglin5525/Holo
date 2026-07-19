@@ -102,11 +102,25 @@ final class HoloMemorySettings: ObservableObject {
         static let profileSnapshotEnabled = "holo_profile_snapshotEnabled"
         static let profileAnalysisInjectionEnabled = "holo_profile_analysisInjectionEnabled"
 
-        // HoloAI Agent Feature Flags (V3.1，默认全 false)
+        // HoloAI Agent 内部策略键（不作为用户设置项）
         static let agentRuntimeEnabled = "holo_agent_runtimeEnabled"
         static let agentDebugModeEnabled = "holo_agent_debugModeEnabled"
         static let agentMemoryGalleryEnabled = "holo_agent_memoryGalleryEnabled"
         static let agentObserverTier2Enabled = "holo_agent_observerTier2Enabled"
+        /// Agent step 级请求幂等（§8.1，产品默认开启；保留键用于测试和紧急回退）
+        static let agentStepIdempotencyEnabled = "holo_agent_stepIdempotencyEnabled"
+        /// Agent iOS 26 持续处理（§9，产品默认开启；系统版本与授权仍会独立校验）
+        static let agentContinuedProcessingEnabled = "holo_agent_continuedProcessingEnabled"
+    }
+
+    /// Agent 能力由产品统一管理，不向普通用户暴露技术开关。
+    private enum AgentProductPolicy {
+        static let runtimeEnabled = true
+        static let debugModeEnabled = false
+        static let memoryGalleryEnabled = true
+        static let observerTier2Enabled = true
+        static let stepIdempotencyEnabled = true
+        static let continuedProcessingEnabled = true
     }
 
     @Published var automaticMemoryEnabled: Bool {
@@ -157,9 +171,9 @@ final class HoloMemorySettings: ObservableObject {
         didSet { defaults.set(profileAnalysisInjectionEnabled, forKey: Keys.profileAnalysisInjectionEnabled) }
     }
 
-    // MARK: - HoloAI Agent Feature Flags (V3.1，默认全 false)
+    // MARK: - HoloAI Agent Internal Policies
 
-    /// 本地 Agent Runtime 是否启用（深度分析主入口灰度开关）
+    /// 本地 Agent Runtime 是否启用（产品默认开启；内部可测试回退）
     @Published var agentRuntimeEnabled: Bool {
         didSet { defaults.set(agentRuntimeEnabled, forKey: Keys.agentRuntimeEnabled) }
     }
@@ -169,14 +183,24 @@ final class HoloMemorySettings: ObservableObject {
         didSet { defaults.set(agentDebugModeEnabled, forKey: Keys.agentDebugModeEnabled) }
     }
 
-    /// 记忆长廊读取 Agent Result 灰度开关
+    /// 记忆长廊读取 Agent Result（产品默认开启）
     @Published var agentMemoryGalleryEnabled: Bool {
         didSet { defaults.set(agentMemoryGalleryEnabled, forKey: Keys.agentMemoryGalleryEnabled) }
     }
 
-    /// Observer Tier 2 自动触发 Agent 灰度开关
+    /// Observer Tier 2 自动触发 Agent（产品默认开启）
     @Published var agentObserverTier2Enabled: Bool {
         didSet { defaults.set(agentObserverTier2Enabled, forKey: Keys.agentObserverTier2Enabled) }
+    }
+
+    /// Agent step 级请求幂等（§8.1，产品默认开启；依赖 agentRuntimeEnabled）
+    @Published var agentStepIdempotencyEnabled: Bool {
+        didSet { defaults.set(agentStepIdempotencyEnabled, forKey: Keys.agentStepIdempotencyEnabled) }
+    }
+
+    /// Agent iOS 26 持续处理（§9，产品默认开启；依赖 step 幂等及系统可用性）
+    @Published var agentContinuedProcessingEnabled: Bool {
+        didSet { defaults.set(agentContinuedProcessingEnabled, forKey: Keys.agentContinuedProcessingEnabled) }
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -197,14 +221,22 @@ final class HoloMemorySettings: ObservableObject {
         self.profileSnapshotEnabled = defaults.object(forKey: Keys.profileSnapshotEnabled) as? Bool ?? true
         self.profileAnalysisInjectionEnabled = defaults.object(forKey: Keys.profileAnalysisInjectionEnabled) as? Bool ?? true
 
-        // HoloAI Agent 默认全 false（灰度阶段不接入主入口）
-        self.agentRuntimeEnabled = defaults.object(forKey: Keys.agentRuntimeEnabled) as? Bool ?? false
-        self.agentDebugModeEnabled = defaults.object(forKey: Keys.agentDebugModeEnabled) as? Bool ?? false
-        self.agentMemoryGalleryEnabled = defaults.object(forKey: Keys.agentMemoryGalleryEnabled) as? Bool ?? false
-        self.agentObserverTier2Enabled = defaults.object(forKey: Keys.agentObserverTier2Enabled) as? Bool ?? false
+        // Agent 核心能力按产品策略统一开启，不沿用历史调试开关，避免升级用户被旧 false 阻断。
+        self.agentRuntimeEnabled = AgentProductPolicy.runtimeEnabled
+        self.agentDebugModeEnabled = AgentProductPolicy.debugModeEnabled
+        self.agentMemoryGalleryEnabled = AgentProductPolicy.memoryGalleryEnabled
+        self.agentObserverTier2Enabled = AgentProductPolicy.observerTier2Enabled
+        self.agentStepIdempotencyEnabled = AgentProductPolicy.stepIdempotencyEnabled
+        self.agentContinuedProcessingEnabled = AgentProductPolicy.continuedProcessingEnabled
 
         defaults.set(automaticMemoryEnabled, forKey: Keys.automaticMemoryEnabled)
         defaults.set(memoryAssistedAnsweringEnabled, forKey: Keys.memoryAssistedAnsweringEnabled)
+        defaults.set(agentRuntimeEnabled, forKey: Keys.agentRuntimeEnabled)
+        defaults.set(agentDebugModeEnabled, forKey: Keys.agentDebugModeEnabled)
+        defaults.set(agentMemoryGalleryEnabled, forKey: Keys.agentMemoryGalleryEnabled)
+        defaults.set(agentObserverTier2Enabled, forKey: Keys.agentObserverTier2Enabled)
+        defaults.set(agentStepIdempotencyEnabled, forKey: Keys.agentStepIdempotencyEnabled)
+        defaults.set(agentContinuedProcessingEnabled, forKey: Keys.agentContinuedProcessingEnabled)
     }
 
     private func persistUserControlChangeIfNeeded() {
@@ -364,9 +396,9 @@ enum HoloAIFeatureFlags {
         HoloMemorySettings.shared.profileAnalysisInjectionEnabled
     }
 
-    // MARK: - HoloAI Agent Feature Flags (V3.1，默认全 false)
+    // MARK: - HoloAI Agent Product Policies
 
-    /// 本地 Agent Runtime 是否启用（深度分析主入口灰度开关）
+    /// 本地 Agent Runtime 是否启用（产品默认开启）
     static var agentRuntimeEnabled: Bool {
         HoloMemorySettings.shared.agentRuntimeEnabled
     }
@@ -384,5 +416,17 @@ enum HoloAIFeatureFlags {
     /// Observer Tier 2 自动触发
     static var agentObserverTier2Enabled: Bool {
         HoloMemorySettings.shared.agentObserverTier2Enabled
+    }
+
+    /// Agent step 级请求幂等（§8.1 产品默认开启；仅在 agentRuntimeEnabled 开启时有意义）
+    static var agentStepIdempotencyEnabled: Bool {
+        HoloMemorySettings.shared.agentStepIdempotencyEnabled
+    }
+
+    /// Agent iOS 26 持续处理（§9 产品默认开启）。
+    /// §13.2 依赖顺序：step 幂等失效时本能力强制失效，后一个不能绕过前一个单独生效。
+    static var agentContinuedProcessingEnabled: Bool {
+        HoloMemorySettings.shared.agentContinuedProcessingEnabled
+            && HoloMemorySettings.shared.agentStepIdempotencyEnabled
     }
 }

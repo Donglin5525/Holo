@@ -64,10 +64,10 @@ case "$url" in
     body='{"ok":true,"service":"holo-ai-gateway"}'
     ;;
   */v1/release/status)
-    body='{"ok":true,"service":"holo-ai-gateway","release":{"commit":"abc"}}'
+    body='{"ok":true,"service":"holo-ai-gateway","release":{"commit":"abc","sourceDigest":"def","buildTime":"2026-07-19T00:00:00Z"}}'
     ;;
   */v1/admin/release/status)
-    body='{"ok":true,"service":"holo-ai-gateway","prompts":[{"type":"intent_recognition","version":21,"content":"transactionDate reminderDate query_analysis"}],"routes":{"intent":{"provider":"mock","model":"holo-mock","maxTokens":4096}},"database":{"configured":true}}'
+    body='{"ok":true,"service":"holo-ai-gateway","prompts":[{"type":"intent_recognition","version":21,"content":"transactionDate reminderDate query_analysis"}],"routes":{"intent":{"provider":"mock","model":"holo-mock","maxTokens":4096}},"database":{"configured":true},"security":{"agentStepIdempotencyResponseEncryption":"aes-256-gcm-v1"}}'
     ;;
   */v1/ai/chat/completions)
     body='{"choices":[{"message":{"content":"{\\"items\\":[{\\"intent\\":\\"unexpected\\",\\"extractedData\\":{}}]}"}}]}'

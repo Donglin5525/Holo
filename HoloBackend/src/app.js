@@ -10,6 +10,8 @@ import { createMockAsrProvider } from "./providers/mockAsrProvider.js";
 import { createDashScopeAsrProvider } from "./providers/dashScopeAsrProvider.js";
 import { getFinanceCategoryCatalog } from "./catalog/financeCategoryCatalog.js";
 import { validateAgentLoopContent } from "./agentResponseValidator.js";
+import { createStepIdempotencyStore } from "./agent/stepIdempotencyStore.js";
+import { createStepResponseCipher } from "./agent/stepResponseCipher.js";
 import { getPrompt, listPrompts, listPromptMetadata, setDatabase } from "./prompts/promptRegistry.js";
 import { loadConfig } from "./config.js";
 import { createAdminLogStore, truncateText } from "./admin/adminLogStore.js";
@@ -24,13 +26,14 @@ import { buildDeterministicIntentCompletion } from "./intentResponseStabilizer.j
 
 const CLIENT_ROUTING_FIELDS = ["baseURL", "baseUrl", "apiKey", "provider", "model"];
 
-function buildAdminReleaseStatus(config) {
+function buildAdminReleaseStatus(config, agentStepEncryption) {
   return {
     ok: true,
     service: "holo-ai-gateway",
     generatedAt: new Date().toISOString(),
     release: {
       commit: process.env.HOLO_RELEASE_COMMIT ?? null,
+      sourceDigest: process.env.HOLO_RELEASE_SOURCE_DIGEST ?? null,
       buildTime: process.env.HOLO_RELEASE_BUILD_TIME ?? null,
     },
     prompts: listPromptMetadata().map((metadata) => ({
@@ -42,6 +45,9 @@ function buildAdminReleaseStatus(config) {
       configured: Boolean(config.dbPath),
       path: undefined,
     },
+    security: {
+      agentStepIdempotencyResponseEncryption: agentStepEncryption?.algorithm ?? "unavailable",
+    },
   };
 }
 
@@ -51,6 +57,7 @@ function buildPublicReleaseStatus() {
     service: "holo-ai-gateway",
     release: {
       commit: process.env.HOLO_RELEASE_COMMIT ?? null,
+      sourceDigest: process.env.HOLO_RELEASE_SOURCE_DIGEST ?? null,
       buildTime: process.env.HOLO_RELEASE_BUILD_TIME ?? null,
     },
   };
@@ -75,6 +82,16 @@ export function createApp(overrides = {}) {
   const config = loadConfig(overrides);
   const app = new Hono();
 
+  // 生产必须显式注入持久密钥；开发/测试可使用进程内临时密钥。
+  // 在创建数据库前校验，避免密钥缺失时仍打开生产数据文件。
+  const stepResponseCipher = config.agentStepIdempotencyStore
+    ? null
+    : createStepResponseCipher({
+        primaryKey: config.agentStepIdempotencyEncryptionKey,
+        previousKeys: config.agentStepIdempotencyPreviousEncryptionKeys,
+        allowEphemeral: config.runtimeEnvironment !== "production",
+      });
+
   // SQLite 数据库（可选，测试时可以不传）
   const database = config.database ?? createDatabase({ dbPath: config.dbPath });
 
@@ -82,6 +99,15 @@ export function createApp(overrides = {}) {
   setDatabase(database.db);
 
   const usageStore = config.usageStore ?? createSqliteUsageStore(database.db);
+  const stepIdempotencyStore =
+    config.agentStepIdempotencyStore
+      ?? createStepIdempotencyStore(database.db, { responseCipher: stepResponseCipher });
+  app.agentStepIdempotencyEncryption = stepIdempotencyStore.encryptionMetadata?.() ?? null;
+  // TTL 清理定时器：测试注入 fake store 时不启动，避免定时器泄漏
+  const agentStepCleanup = config.agentStepIdempotencyStore
+    ? { stop() {} }
+    : startAgentStepCleanupTimer(stepIdempotencyStore, config.agentStepIdempotencyCleanupIntervalMs);
+  app.agentStepIdempotencyCleanup = agentStepCleanup;
   const adminLogStore =
     config.adminLogStore ??
     createAdminLogStore({
@@ -114,7 +140,10 @@ export function createApp(overrides = {}) {
     config,
     logStore: adminLogStore,
     runTestChat: runAdminTestChat,
-    getReleaseStatus: () => buildAdminReleaseStatus(config),
+    getReleaseStatus: () => buildAdminReleaseStatus(
+      config,
+      app.agentStepIdempotencyEncryption,
+    ),
     db: database.db,
   });
 
@@ -268,6 +297,7 @@ export function createApp(overrides = {}) {
         clientSignal: context.req.raw.signal,
       };
       const isAgentLoop = purpose === "agent_loop";
+      const stepIdentity = resolveAgentStepIdentity(isAgentLoop, request);
       const logId = captureAiCallLogs
         ? adminLogStore.startAiCall({
             deviceId,
@@ -282,7 +312,11 @@ export function createApp(overrides = {}) {
                   runId: request.runId ?? null,
                   stepId: request.stepId ?? null,
                   messageCount: upstreamRequest.messages.length,
-                  summary: summarizeMessages(upstreamRequest.messages),
+                  messageRoles: upstreamRequest.messages.map((message) => message.role),
+                  contentLength: upstreamRequest.messages.reduce(
+                    (total, message) => total + (message.content?.length ?? 0),
+                    0,
+                  ),
                   responseFormat: request.response_format ?? null,
                 }
               : {
@@ -306,7 +340,51 @@ export function createApp(overrides = {}) {
         });
       }
 
+      let acquiredStep = null;
       try {
+        if (stepIdentity) {
+          const stepGate = acquireAgentStep(
+            stepIdempotencyStore,
+            stepIdentity,
+            config.agentStepIdempotencyTtlSeconds,
+          );
+          if (stepGate.type === "conflict") {
+            logAgentStepEvent("agent_step_conflict", stepIdentity, { errorCode: "STEP_ID_CONFLICT" });
+            throw new GatewayError("STEP_ID_CONFLICT", "Step was already used with a different payload", 409);
+          }
+          if (stepGate.type === "in_progress") {
+            logAgentStepEvent("agent_step_in_progress", stepIdentity, { errorCode: "STEP_IN_PROGRESS" });
+            throw new GatewayError("STEP_IN_PROGRESS", "Step is currently in progress", 409);
+          }
+          if (stepGate.type === "failed_final") {
+            logAgentStepEvent("agent_step_failed_final_replayed", stepIdentity, {
+              errorCode: stepGate.record.errorCode ?? "UPSTREAM_ERROR",
+            });
+            throw new GatewayError(
+              stepGate.record.errorCode ?? "UPSTREAM_ERROR",
+              "Step previously failed with a terminal error",
+              stepGate.record.errorStatus ?? 502,
+            );
+          }
+          if (stepGate.type === "completed") {
+            logAgentStepEvent("agent_step_idempotency_hit", stepIdentity);
+            if (logId) {
+              adminLogStore.finishAiCall(logId, {
+                status: "success",
+                response: {
+                  status: "idempotency_hit",
+                  runId: stepIdentity.runId,
+                  stepId: stepIdentity.stepId,
+                  usage: stepGate.record.usage ?? null,
+                },
+              });
+            }
+            context.header("X-Holo-Step-Idempotency", "hit");
+            return context.json(JSON.parse(stepGate.record.response));
+          }
+          acquiredStep = stepIdentity;
+          logAgentStepEvent("agent_step_acquired", stepIdentity);
+        }
         const deterministicIntentResult = purpose === "intent"
           ? buildDeterministicIntentCompletion(upstreamRequest.messages, route.model)
           : null;
@@ -321,6 +399,18 @@ export function createApp(overrides = {}) {
           }
           result.choices[0].message.content = agentValidation.content;
         }
+        if (acquiredStep) {
+          stepIdempotencyStore.markCompleted(
+            acquiredStep.runId,
+            acquiredStep.stepId,
+            result,
+            result?.usage ?? null,
+          );
+          logAgentStepEvent("agent_step_completed", acquiredStep, {
+            inputTokens: result?.usage?.prompt_tokens ?? null,
+            outputTokens: result?.usage?.completion_tokens ?? null,
+          });
+        }
         if (logId) {
           adminLogStore.finishAiCall(logId, {
             status: "success",
@@ -333,6 +423,12 @@ export function createApp(overrides = {}) {
         }
         return context.json(result);
       } catch (error) {
+        if (acquiredStep) {
+          recordAgentStepFailure(stepIdempotencyStore, acquiredStep, error);
+          logAgentStepEvent("agent_step_failed", acquiredStep, {
+            errorCode: error instanceof GatewayError ? error.code : "UPSTREAM_ERROR",
+          });
+        }
         if (logId) {
           adminLogStore.finishAiCall(logId, {
             status: "error",
@@ -697,5 +793,125 @@ function serializeError(error) {
   return {
     code: "UPSTREAM_ERROR",
     message: error instanceof Error ? error.message : "Unknown error",
+  };
+}
+
+/**
+ * 解析 agent_loop 的 step 幂等身份。
+ * - 三字段（runId/stepId/requestHash）齐全 → 启用幂等
+ * - 三字段全缺 → 旧客户端，返回 null（走原路径，无幂等）
+ * - 部分缺失 → 协议错误，拒绝请求
+ */
+function resolveAgentStepIdentity(isAgentLoop, request) {
+  if (!isAgentLoop) return null;
+
+  const hasRunId = typeof request.runId === "string" && request.runId.length > 0;
+  const hasStepId = typeof request.stepId === "string" && request.stepId.length > 0;
+  const hasRequestHash = typeof request.requestHash === "string" && request.requestHash.length > 0;
+
+  if (!hasRunId && !hasStepId && !hasRequestHash) return null;
+  if (hasRunId && hasStepId && hasRequestHash) {
+    return { runId: request.runId, stepId: request.stepId, requestHash: request.requestHash };
+  }
+  throw new GatewayError(
+    "INVALID_REQUEST",
+    "runId, stepId and requestHash must be provided together",
+    400,
+  );
+}
+
+/**
+ * Agent step 结构化事件：只写技术 identity、状态和 token 计数。
+ * 禁止传入 messages、requestHash、模型响应或用户业务内容。
+ */
+function logAgentStepEvent(event, identity, fields = {}) {
+  console.info(JSON.stringify({
+    category: "holo_agent",
+    event,
+    timestamp: new Date().toISOString(),
+    runId: identity.runId,
+    stepId: identity.stepId,
+    ...fields,
+  }));
+}
+
+/**
+ * step 幂等门控：决定本次请求是直接返回缓存/错误，还是获得 provider 调用权。
+ * 并发下 createProcessing/reacquireProcessing 可能因唯一约束或状态竞争失败，
+ * 此时重读记录再判定；多次竞争未决兜底按 in_progress 处理（客户端退避重试）。
+ */
+function acquireAgentStep(store, identity, ttlSeconds) {
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const existing = store.get(identity.runId, identity.stepId);
+    if (!existing) {
+      if (store.createProcessing(identity.runId, identity.stepId, identity.requestHash, ttlSeconds)) {
+        return { type: "acquired" };
+      }
+      continue;
+    }
+    if (existing.requestHash !== identity.requestHash) {
+      return { type: "conflict" };
+    }
+    if (existing.status === "completed") {
+      return { type: "completed", record: existing };
+    }
+    if (existing.status === "processing") {
+      return { type: "in_progress" };
+    }
+    if (existing.status === "failed_final") {
+      return { type: "failed_final", record: existing };
+    }
+    // failed_retryable：受控重试，原子转回 processing
+    if (store.reacquireProcessing(identity.runId, identity.stepId, identity.requestHash, ttlSeconds)) {
+      return { type: "acquired" };
+    }
+  }
+  return { type: "in_progress" };
+}
+
+/** 5xx/429 与非 GatewayError 视为可重试；其余 4xx 为终态失败 */
+function isRetryableAgentStepError(error) {
+  if (error instanceof GatewayError) {
+    return error.status >= 500 || error.status === 429;
+  }
+  return true;
+}
+
+/** provider 调用失败后落幂等状态；存储失败不掩盖原始错误 */
+function recordAgentStepFailure(store, identity, error) {
+  try {
+    store.markFailed(identity.runId, identity.stepId, {
+      retryable: isRetryableAgentStepError(error),
+      errorCode: error instanceof GatewayError ? error.code : "UPSTREAM_ERROR",
+      errorStatus: error instanceof GatewayError ? error.status : 500,
+    });
+  } catch (storeError) {
+    console.error(
+      "[holo-backend] agent step 幂等状态写入失败:",
+      storeError?.message ?? storeError,
+    );
+  }
+}
+
+/** 后台 TTL 清理；unref 避免阻止进程退出，返回可关闭句柄 */
+function startAgentStepCleanupTimer(store, intervalMs) {
+  if (!Number.isFinite(intervalMs) || intervalMs <= 0) {
+    return { stop() {} };
+  }
+  const timer = setInterval(() => {
+    try {
+      const purged = store.purgeExpired(Date.now());
+      if (purged > 0) {
+        console.log(`[holo-backend] agent step 幂等记录清理 ${purged} 条`);
+      }
+    } catch (error) {
+      console.error("[holo-backend] agent step 幂等清理失败:", error?.message ?? error);
+    }
+  }, intervalMs);
+  timer.unref?.();
+  return {
+    stop() {
+      clearInterval(timer);
+    },
   };
 }

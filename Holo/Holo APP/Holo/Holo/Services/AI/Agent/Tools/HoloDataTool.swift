@@ -814,4 +814,10 @@ nonisolated enum HoloToolErrorCode {
     static let invalidParams = "INVALID_PARAMS"
     /// 执行异常（通常可恢复）
     static let executionFailure = "EXECUTION_FAILURE"
+    /// 设备锁定，受保护数据（HealthKit 等）暂不可读（可恢复，§7.2 等待解锁）
+    static let deviceLocked = "DEVICE_LOCKED"
+    /// 健康数据权限被拒绝（不可恢复，需用户授权）
+    static let healthPermissionDenied = "HEALTH_PERMISSION_DENIED"
+    /// 健康查询暂时性失败（可恢复）
+    static let healthTemporarilyUnavailable = "HEALTH_TEMPORARILY_UNAVAILABLE"
 }

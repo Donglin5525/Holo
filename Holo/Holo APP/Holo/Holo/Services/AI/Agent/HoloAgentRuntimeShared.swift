@@ -4,7 +4,7 @@
 //
 //  HoloAI Agent V3.1 — Task 5.1 接线：App 生命周期共享入口
 //  为 HoloApp scenePhase（5.1）与后续 ChatViewModel（6.2）提供单一 runtime / 续跑管理器。
-//  仅在 HoloAIFeatureFlags.agentRuntimeEnabled 开启时被访问；默认关，零副作用。
+//  仅在 HoloAIFeatureFlags.agentRuntimeEnabled 开启时被访问；产品默认开启。
 //
 
 import Foundation
@@ -273,7 +273,8 @@ extension HoloLocalAgentRuntime {
             jobStore: jobStore,
             checkpointStore: checkpointStore,
             llmClient: llmClient,
-            toolExecutor: toolExecutor
+            toolExecutor: toolExecutor,
+            eventRecorder: HoloAgentEventStore.shared
         )
     }()
 }
@@ -282,6 +283,7 @@ extension HoloBackgroundContinuationManager {
     /// 全 App 共享的后台续跑管理器，绑定 shared runtime。
     static let shared = HoloBackgroundContinuationManager(
         runtime: HoloLocalAgentRuntime.shared,
-        scheduler: HoloAgentScheduler.shared
+        scheduler: HoloAgentScheduler.shared,
+        eventRecorder: HoloAgentEventStore.shared
     )
 }

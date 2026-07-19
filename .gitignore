@@ -30,6 +30,7 @@ dist-ssr
 # Xcode / iOS
 xcuserdata/
 DerivedData/
+Holo/Holo APP/Holo/build/
 *.pbxuser
 *.mode1v3
 *.mode2v3
@@ -52,6 +53,9 @@ artifacts/*.png
 
 # 临时数据
 docs/Temporarydata/
+/findings.md
+/progress.md
+/task_plan.md
 
 # CodeGraph 本地索引，不入库
 .codegraph/

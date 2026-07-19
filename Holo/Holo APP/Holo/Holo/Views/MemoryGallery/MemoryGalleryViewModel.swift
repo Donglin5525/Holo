@@ -752,16 +752,22 @@ class MemoryGalleryViewModel: ObservableObject {
 
     /// 读取最近一条 Agent 深度分析结果并渲染（Phase 6.3，agentMemoryGalleryEnabled 灰度）。
     /// 当前展示 claims 文本；evidence 引用渲染待后续接入 evidence 读取。
+    /// §5.5：store 读失败不展示旧/伪结果，置空并记录日志。
     private func loadAgentRenderedResult() async {
         let runtime = await HoloLocalAgentRuntime.shared
-        guard let result = await runtime.loadLatestResult() else {
+        do {
+            guard let result = try await runtime.loadLatestResult() else {
+                agentRenderedResult = nil
+                return
+            }
+            let evidence = try await runtime.loadEvidence(forIDs: result.evidenceIDs)
+            agentRenderedResult = HoloAgentResultRenderer().render(
+                claims: result.claims, evidence: evidence, title: result.title
+            )
+        } catch {
+            NSLog("[Agent] 记忆长廊读取 Agent 结果失败: \(String(describing: error))")
             agentRenderedResult = nil
-            return
         }
-        let evidence = await runtime.loadEvidence(forIDs: result.evidenceIDs)
-        agentRenderedResult = HoloAgentResultRenderer().render(
-            claims: result.claims, evidence: evidence, title: result.title
-        )
     }
 
     /// 生成上一完整周 AI 回放

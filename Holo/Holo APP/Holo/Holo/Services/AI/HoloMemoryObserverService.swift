@@ -260,7 +260,10 @@ final class HoloMemoryObserverService {
         logger.info("Observer 触发 Tier2 深度分析（\(goalSignalCount) 条目标信号）")
         let question = "基于最近一次记忆观察（发现 \(goalSignalCount) 条目标信号），深度分析我的目标进度与潜在冲突。"
         Task { @MainActor in
-            _ = await HoloAgentAnalysisService().runAnalysis(question: question)
+            _ = await HoloAgentAnalysisService().runAnalysis(
+                question: question,
+                trigger: .observerTier2
+            )
         }
         UserDefaults.standard.set(now, forKey: lastRunKey)
     }

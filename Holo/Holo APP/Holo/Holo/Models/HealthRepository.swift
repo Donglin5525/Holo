@@ -401,16 +401,24 @@ class HealthRepository: ObservableObject {
 
     // MARK: - 私有方法 - 真实数据获取
 
-    /// 获取指定日期的步数
+    /// 获取指定日期的步数（best-effort：UI 语义不变，错误回落 0）
     private func fetchSteps(for date: Date) async -> Double {
+        switch await fetchStepsStrict(for: date) {
+        case .value(let value): return value
+        case .noData, .waitingForUnlock, .unavailable: return 0
+        }
+    }
+
+    /// 严格版步数查询（§7.1）：读取 HK 回调 error，锁屏返回 waitingForUnlock，不得伪装 0。
+    private func fetchStepsStrict(for date: Date) async -> HoloHealthQueryOutcome<Double> {
         guard let stepType = HKObjectType.quantityType(forIdentifier: .stepCount) else {
-            return 0
+            return .unavailable(.recoverable("步数类型不可用"))
         }
 
         let calendar = Calendar.current
         let startOfDay = calendar.startOfDay(for: date)
         guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else {
-            return 0
+            return .noData
         }
 
         let predicate = HKQuery.predicateForSamples(
@@ -424,24 +432,40 @@ class HealthRepository: ObservableObject {
                 quantityType: stepType,
                 quantitySamplePredicate: predicate,
                 options: .cumulativeSum
-            ) { _, result, _ in
-                let sum = result?.sumQuantity()?.doubleValue(for: .count()) ?? 0
-                continuation.resume(returning: sum)
+            ) { _, result, error in
+                if let failure: HoloHealthQueryOutcome<Double> = HoloStrictHealthQueryService.failure(from: error) {
+                    continuation.resume(returning: failure)
+                    return
+                }
+                // 无样本（result 为 nil）与真实零值（result 非 nil）严格区分
+                guard let result else {
+                    continuation.resume(returning: .noData)
+                    return
+                }
+                continuation.resume(returning: .value(result.sumQuantity()?.doubleValue(for: .count()) ?? 0))
             }
             healthStore.execute(query)
         }
     }
 
-    /// 获取指定日期的睡眠时长（小时）
+    /// 获取指定日期的睡眠时长（小时）（best-effort：UI 语义不变，错误回落 0）
     private func fetchSleep(for date: Date) async -> Double {
+        switch await fetchSleepStrict(for: date) {
+        case .value(let value): return value
+        case .noData, .waitingForUnlock, .unavailable: return 0
+        }
+    }
+
+    /// 严格版睡眠查询（§7.1）：读取 HK 回调 error；空样本 → noData，不得伪装 0。
+    private func fetchSleepStrict(for date: Date) async -> HoloHealthQueryOutcome<Double> {
         guard let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else {
-            return 0
+            return .unavailable(.recoverable("睡眠类型不可用"))
         }
 
         let calendar = Calendar.current
         let startOfDay = calendar.startOfDay(for: date)
         guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else {
-            return 0
+            return .noData
         }
 
         let predicate = HKQuery.predicateForSamples(
@@ -463,36 +487,54 @@ class HealthRepository: ObservableObject {
                 predicate: predicate,
                 limit: HKObjectQueryNoLimit,
                 sortDescriptors: nil
-            ) { _, samples, _ in
-                var totalSleep: Double = 0
-
-                if let samples = samples as? [HKCategorySample] {
-                    let intervals = samples.compactMap { sample -> HealthSleepSampleAggregator.Interval? in
-                        guard sleepStages.contains(sample.value) else { return nil }
-                        return HealthSleepSampleAggregator.clippedInterval(
-                            start: sample.startDate,
-                            end: sample.endDate,
-                            to: dayWindow
-                        )
-                    }
-                    totalSleep = HealthSleepSampleAggregator.totalHours(for: intervals)
+            ) { _, samples, error in
+                if let failure: HoloHealthQueryOutcome<Double> = HoloStrictHealthQueryService.failure(from: error) {
+                    continuation.resume(returning: failure)
+                    return
                 }
-
-                continuation.resume(returning: totalSleep)
+                let categorySamples = (samples as? [HKCategorySample]) ?? []
+                let intervals = categorySamples.compactMap { sample -> HealthSleepSampleAggregator.Interval? in
+                    guard sleepStages.contains(sample.value) else { return nil }
+                    return HealthSleepSampleAggregator.clippedInterval(
+                        start: sample.startDate,
+                        end: sample.endDate,
+                        to: dayWindow
+                    )
+                }
+                guard !intervals.isEmpty else {
+                    continuation.resume(returning: .noData)
+                    return
+                }
+                continuation.resume(returning: .value(HealthSleepSampleAggregator.totalHours(for: intervals)))
             }
             healthStore.execute(query)
         }
     }
 
+    /// 按起床日归属的一晚睡眠明细（best-effort：错误回落 nil）
     private func fetchSleepDetail(forWakeDay wakeDay: Date) async -> HealthSleepDetail? {
-        guard let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else { return nil }
+        switch await fetchSleepDetailStrict(forWakeDay: wakeDay) {
+        case .value(let detail): return detail
+        case .noData, .waitingForUnlock, .unavailable: return nil
+        }
+    }
+
+    /// 严格版睡眠明细查询（§7.1）：读取 HK 回调 error；无睡眠样本 → noData。
+    private func fetchSleepDetailStrict(forWakeDay wakeDay: Date) async -> HoloHealthQueryOutcome<HealthSleepDetail> {
+        guard let sleepType = HKObjectType.categoryType(forIdentifier: .sleepAnalysis) else {
+            return .unavailable(.recoverable("睡眠类型不可用"))
+        }
         let calendar = Calendar.current
         guard let noon = calendar.date(bySettingHour: 12, minute: 0, second: 0, of: wakeDay),
-              let start = calendar.date(byAdding: .day, value: -1, to: noon) else { return nil }
+              let start = calendar.date(byAdding: .day, value: -1, to: noon) else { return .noData }
         let predicate = HKQuery.predicateForSamples(withStart: start, end: noon, options: [])
         return await withCheckedContinuation { continuation in
             let query = HKSampleQuery(sampleType: sleepType, predicate: predicate,
-                                      limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, _ in
+                                      limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, samples, error in
+                if let failure: HoloHealthQueryOutcome<HealthSleepDetail> = HoloStrictHealthQueryService.failure(from: error) {
+                    continuation.resume(returning: failure)
+                    return
+                }
                 let samples = (samples as? [HKCategorySample]) ?? []
                 let window = HealthSleepSampleAggregator.Interval(start: start, end: noon)
                 func intervals(_ values: Set<Int>) -> [HealthSleepSampleAggregator.Interval] {
@@ -508,13 +550,13 @@ class HealthRepository: ObservableObject {
                 let awake = intervals([HKCategoryValueSleepAnalysis.awake.rawValue])
                 let inBed = intervals([HKCategoryValueSleepAnalysis.inBed.rawValue])
                 let asleep = core + deep + rem + unspecified
-                guard !asleep.isEmpty else { continuation.resume(returning: nil); return }
+                guard !asleep.isEmpty else { continuation.resume(returning: .noData); return }
                 let hasStages = !core.isEmpty || !deep.isEmpty || !rem.isEmpty
                 let allIntervals = asleep + awake + inBed
                 let bedtime = allIntervals.map(\.start).min()
                 let wakeTime = allIntervals.map(\.end).max()
                 let interruptionCount = awake.filter { $0.end.timeIntervalSince($0.start) >= 120 }.count
-                continuation.resume(returning: HealthSleepDetail(
+                continuation.resume(returning: .value(HealthSleepDetail(
                     date: wakeDay,
                     totalHours: HealthSleepSampleAggregator.totalHours(for: asleep),
                     coreHours: hasStages ? HealthSleepSampleAggregator.totalHours(for: core) : nil,
@@ -524,22 +566,30 @@ class HealthRepository: ObservableObject {
                     inBedHours: inBed.isEmpty ? bedtime.flatMap { bed in wakeTime.map { $0.timeIntervalSince(bed) / 3600 } } : HealthSleepSampleAggregator.totalHours(for: inBed),
                     bedtime: bedtime, wakeTime: wakeTime,
                     interruptionCount: awake.isEmpty ? nil : interruptionCount
-                ))
+                )))
             }
             healthStore.execute(query)
         }
     }
 
-    /// 获取指定日期的站立小时数
+    /// 获取指定日期的站立小时数（best-effort：UI 语义不变，错误回落 0）
     private func fetchStandTime(for date: Date) async -> Double {
+        switch await fetchStandTimeStrict(for: date) {
+        case .value(let value): return value
+        case .noData, .waitingForUnlock, .unavailable: return 0
+        }
+    }
+
+    /// 严格版站立查询（§7.1）：读取 HK 回调 error；空样本 → noData。
+    private func fetchStandTimeStrict(for date: Date) async -> HoloHealthQueryOutcome<Double> {
         guard let standType = HKObjectType.categoryType(forIdentifier: .appleStandHour) else {
-            return 0
+            return .unavailable(.recoverable("站立类型不可用"))
         }
 
         let calendar = Calendar.current
         let startOfDay = calendar.startOfDay(for: date)
         guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else {
-            return 0
+            return .noData
         }
 
         let predicate = HKQuery.predicateForSamples(
@@ -555,27 +605,44 @@ class HealthRepository: ObservableObject {
                 predicate: predicate,
                 limit: HKObjectQueryNoLimit,
                 sortDescriptors: nil
-            ) { _, samples, _ in
+            ) { _, samples, error in
+                if let failure: HoloHealthQueryOutcome<Double> = HoloStrictHealthQueryService.failure(from: error) {
+                    continuation.resume(returning: failure)
+                    return
+                }
+                let categorySamples = (samples as? [HKCategorySample]) ?? []
+                guard !categorySamples.isEmpty else {
+                    continuation.resume(returning: .noData)
+                    return
+                }
                 let standHours = HealthStandHourAggregator.stoodHours(
-                    for: (samples as? [HKCategorySample]) ?? [],
+                    for: categorySamples,
                     in: dayWindow
                 )
-                continuation.resume(returning: Double(standHours))
+                continuation.resume(returning: .value(Double(standHours)))
             }
             healthStore.execute(query)
         }
     }
 
-    /// 获取指定日期的活动分钟（用于无 Apple Watch 时替代站立环）
+    /// 获取指定日期的活动分钟（用于无 Apple Watch 时替代站立环）（best-effort：错误回落 0）
     private func fetchActiveMinutes(for date: Date) async -> Double {
+        switch await fetchActiveMinutesStrict(for: date) {
+        case .value(let value): return value
+        case .noData, .waitingForUnlock, .unavailable: return 0
+        }
+    }
+
+    /// 严格版活动分钟查询（§7.1）：读取 HK 回调 error，锁屏返回 waitingForUnlock。
+    private func fetchActiveMinutesStrict(for date: Date) async -> HoloHealthQueryOutcome<Double> {
         guard let exerciseType = HKObjectType.quantityType(forIdentifier: .appleExerciseTime) else {
-            return 0
+            return .unavailable(.recoverable("活动分钟类型不可用"))
         }
 
         let calendar = Calendar.current
         let startOfDay = calendar.startOfDay(for: date)
         guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else {
-            return 0
+            return .noData
         }
 
         let predicate = HKQuery.predicateForSamples(
@@ -589,9 +656,16 @@ class HealthRepository: ObservableObject {
                 quantityType: exerciseType,
                 quantitySamplePredicate: predicate,
                 options: .cumulativeSum
-            ) { _, result, _ in
-                let minutes = result?.sumQuantity()?.doubleValue(for: .minute()) ?? 0
-                continuation.resume(returning: minutes)
+            ) { _, result, error in
+                if let failure: HoloHealthQueryOutcome<Double> = HoloStrictHealthQueryService.failure(from: error) {
+                    continuation.resume(returning: failure)
+                    return
+                }
+                guard let result else {
+                    continuation.resume(returning: .noData)
+                    return
+                }
+                continuation.resume(returning: .value(result.sumQuantity()?.doubleValue(for: .minute()) ?? 0))
             }
             healthStore.execute(query)
         }
@@ -619,14 +693,23 @@ class HealthRepository: ObservableObject {
         return results
     }
 
-    /// 获取指定日期的运动会话聚合（时长/次数/主要类型）
+    /// 获取指定日期的运动会话聚合（时长/次数/主要类型）（best-effort：错误回落 0）
     private func fetchWorkouts(for date: Date) async -> DailyWorkoutData {
+        switch await fetchWorkoutsStrict(for: date) {
+        case .value(let data): return data
+        case .noData, .waitingForUnlock, .unavailable:
+            return DailyWorkoutData(date: date, totalMinutes: 0, sessionCount: 0, topType: nil)
+        }
+    }
+
+    /// 严格版运动会话查询（§7.1）：读取 HK 回调 error；无会话 → noData。
+    private func fetchWorkoutsStrict(for date: Date) async -> HoloHealthQueryOutcome<DailyWorkoutData> {
         let workoutType = HKObjectType.workoutType()
 
         let calendar = Calendar.current
         let startOfDay = calendar.startOfDay(for: date)
         guard let endOfDay = calendar.date(byAdding: .day, value: 1, to: startOfDay) else {
-            return DailyWorkoutData(date: date, totalMinutes: 0, sessionCount: 0, topType: nil)
+            return .noData
         }
 
         let predicate = HKQuery.predicateForSamples(withStart: startOfDay, end: endOfDay, options: .strictStartDate)
@@ -637,18 +720,100 @@ class HealthRepository: ObservableObject {
                 predicate: predicate,
                 limit: HKObjectQueryNoLimit,
                 sortDescriptors: nil
-            ) { _, samples, _ in
+            ) { _, samples, error in
+                if let failure: HoloHealthQueryOutcome<DailyWorkoutData> = HoloStrictHealthQueryService.failure(from: error) {
+                    continuation.resume(returning: failure)
+                    return
+                }
                 let workouts = (samples as? [HKWorkout]) ?? []
+                guard !workouts.isEmpty else {
+                    continuation.resume(returning: .noData)
+                    return
+                }
                 let totalMinutes = workouts.reduce(0.0) { $0 + $1.duration } / 60
-                continuation.resume(returning: DailyWorkoutData(
+                continuation.resume(returning: .value(DailyWorkoutData(
                     date: date,
                     totalMinutes: totalMinutes,
                     sessionCount: workouts.count,
                     topType: Self.topWorkoutTypeName(workouts)
-                ))
+                )))
             }
             healthStore.execute(query)
         }
+    }
+
+    // MARK: - Agent 严格范围查询（§7.1，P0-4）
+
+    /// 严格版每日指标范围查询：任一天锁屏 → 整体 waitingForUnlock（不得伪装 0/空）；
+    /// 无样本天不计入（覆盖天数自然反映真实可读范围）。UI best-effort 方法语义不变。
+    func fetchDailyRangeStrict(for type: HealthMetricType, from start: Date, to end: Date) async -> HoloHealthQueryOutcome<[DailyHealthData]> {
+        if useMockData {
+            let mock = generateMockRangeData(for: type, from: start, to: end)
+            return mock.isEmpty ? .noData : .value(mock)
+        }
+
+        let calendar = Calendar.current
+        var daily: [HoloHealthQueryOutcome<DailyHealthData>] = []
+        var current = calendar.startOfDay(for: start)
+        let endDay = calendar.startOfDay(for: end)
+
+        while current <= endDay {
+            let outcome: HoloHealthQueryOutcome<Double>
+            switch type {
+            case .steps: outcome = await fetchStepsStrict(for: current)
+            case .sleep: outcome = await fetchSleepStrict(for: current)
+            case .standHours: outcome = await fetchStandTimeStrict(for: current)
+            case .activeMinutes: outcome = await fetchActiveMinutesStrict(for: current)
+            }
+            daily.append(outcome.map { value in DailyHealthData(date: current, value: value) })
+            guard let next = calendar.date(byAdding: .day, value: 1, to: current) else { break }
+            current = next
+        }
+        return HoloStrictHealthQueryService.fold(daily)
+    }
+
+    /// 严格版睡眠明细范围查询：锁屏 → waitingForUnlock；无睡眠样本天不计入。
+    func fetchSleepDetailRangeStrict(from start: Date, to end: Date) async -> HoloHealthQueryOutcome<[HealthSleepDetail]> {
+        if useMockData {
+            let mock = generateMockRangeData(for: .sleep, from: start, to: end).filter { $0.value > 0 }.map {
+                HealthSleepDetail(date: $0.date, totalHours: $0.value, coreHours: nil, deepHours: nil,
+                                  remHours: nil, awakeHours: nil, inBedHours: nil, bedtime: nil,
+                                  wakeTime: nil, interruptionCount: nil)
+            }
+            return mock.isEmpty ? .noData : .value(mock)
+        }
+
+        let calendar = Calendar.current
+        var daily: [HoloHealthQueryOutcome<HealthSleepDetail>] = []
+        var wakeDay = calendar.startOfDay(for: start)
+        let endDay = calendar.startOfDay(for: end)
+
+        while wakeDay <= endDay {
+            daily.append(await fetchSleepDetailStrict(forWakeDay: wakeDay))
+            guard let next = calendar.date(byAdding: .day, value: 1, to: wakeDay) else { break }
+            wakeDay = next
+        }
+        return HoloStrictHealthQueryService.fold(daily)
+    }
+
+    /// 严格版运动会话范围查询：锁屏 → waitingForUnlock；无会话天不计入。
+    func fetchWorkoutsRangeStrict(from start: Date, to end: Date) async -> HoloHealthQueryOutcome<[DailyWorkoutData]> {
+        if useMockData {
+            let mock = generateMockWorkoutRange(from: start, to: end)
+            return mock.isEmpty ? .noData : .value(mock)
+        }
+
+        let calendar = Calendar.current
+        var daily: [HoloHealthQueryOutcome<DailyWorkoutData>] = []
+        var current = calendar.startOfDay(for: start)
+        let endDay = calendar.startOfDay(for: end)
+
+        while current <= endDay {
+            daily.append(await fetchWorkoutsStrict(for: current))
+            guard let next = calendar.date(byAdding: .day, value: 1, to: current) else { break }
+            current = next
+        }
+        return HoloStrictHealthQueryService.fold(daily)
     }
 
     /// 取当日时长最长的运动类型中文名。

@@ -10,7 +10,8 @@ struct HoloMemorySettingsStandaloneTests {
     }
 
     static func main() {
-        testAgentFeatureFlags_默认关闭()
+        testAgentFeatureFlags_产品默认策略()
+        testAgentFeatureFlags_历史关闭值会迁移到产品策略()
         testLongTermMemoryToggleControlsCandidateExtraction()
         testAIDataProcessingConsentDefaultsToNotGranted()
         testAIDataProcessingConsentPersistsGrantAndRevoke()
@@ -18,23 +19,54 @@ struct HoloMemorySettingsStandaloneTests {
         print("HoloMemorySettings standalone tests passed")
     }
 
-    private static func testAgentFeatureFlags_默认关闭() {
-        // 清理 UserDefaults，确保 shared 首次初始化时读到默认 false（不受残留污染）
+    private static func testAgentFeatureFlags_产品默认策略() {
+        // 清理 UserDefaults，确保 shared 首次初始化时只应用当前产品策略。
         let defaults = UserDefaults.standard
         defaults.removeObject(forKey: "holo_agent_runtimeEnabled")
         defaults.removeObject(forKey: "holo_agent_debugModeEnabled")
         defaults.removeObject(forKey: "holo_agent_memoryGalleryEnabled")
         defaults.removeObject(forKey: "holo_agent_observerTier2Enabled")
+        defaults.removeObject(forKey: "holo_agent_stepIdempotencyEnabled")
+        defaults.removeObject(forKey: "holo_agent_continuedProcessingEnabled")
 
         let settings = HoloMemorySettings.shared
-        expect(!settings.agentRuntimeEnabled, "agentRuntimeEnabled 默认应关闭")
+        expect(settings.agentRuntimeEnabled, "agentRuntimeEnabled 产品默认应开启")
         expect(!settings.agentDebugModeEnabled, "agentDebugModeEnabled 默认应关闭")
-        expect(!settings.agentMemoryGalleryEnabled, "agentMemoryGalleryEnabled 默认应关闭")
-        expect(!settings.agentObserverTier2Enabled, "agentObserverTier2Enabled 默认应关闭")
-        expect(!HoloAIFeatureFlags.agentRuntimeEnabled, "HoloAIFeatureFlags.agentRuntimeEnabled 默认应关闭")
+        expect(settings.agentMemoryGalleryEnabled, "agentMemoryGalleryEnabled 产品默认应开启")
+        expect(settings.agentObserverTier2Enabled, "agentObserverTier2Enabled 产品默认应开启")
+        expect(settings.agentStepIdempotencyEnabled, "agentStepIdempotencyEnabled 产品默认应开启")
+        expect(settings.agentContinuedProcessingEnabled, "agentContinuedProcessingEnabled 产品默认应开启")
+        expect(HoloAIFeatureFlags.agentRuntimeEnabled, "HoloAIFeatureFlags.agentRuntimeEnabled 产品默认应开启")
         expect(!HoloAIFeatureFlags.agentDebugModeEnabled, "HoloAIFeatureFlags.agentDebugModeEnabled 默认应关闭")
-        expect(!HoloAIFeatureFlags.agentMemoryGalleryEnabled, "HoloAIFeatureFlags.agentMemoryGalleryEnabled 默认应关闭")
-        expect(!HoloAIFeatureFlags.agentObserverTier2Enabled, "HoloAIFeatureFlags.agentObserverTier2Enabled 默认应关闭")
+        expect(HoloAIFeatureFlags.agentMemoryGalleryEnabled, "HoloAIFeatureFlags.agentMemoryGalleryEnabled 产品默认应开启")
+        expect(HoloAIFeatureFlags.agentObserverTier2Enabled, "HoloAIFeatureFlags.agentObserverTier2Enabled 产品默认应开启")
+        expect(HoloAIFeatureFlags.agentStepIdempotencyEnabled, "HoloAIFeatureFlags.agentStepIdempotencyEnabled 产品默认应开启")
+        expect(HoloAIFeatureFlags.agentContinuedProcessingEnabled, "HoloAIFeatureFlags.agentContinuedProcessingEnabled 产品默认应开启")
+    }
+
+    private static func testAgentFeatureFlags_历史关闭值会迁移到产品策略() {
+        let suiteName = "HoloMemorySettingsStandaloneTests.agentPolicyMigration"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defaults.removePersistentDomain(forName: suiteName)
+
+        defaults.set(false, forKey: "holo_agent_runtimeEnabled")
+        defaults.set(false, forKey: "holo_agent_memoryGalleryEnabled")
+        defaults.set(false, forKey: "holo_agent_stepIdempotencyEnabled")
+        defaults.set(false, forKey: "holo_agent_continuedProcessingEnabled")
+        defaults.set(true, forKey: "holo_agent_debugModeEnabled")
+        defaults.set(false, forKey: "holo_agent_observerTier2Enabled")
+
+        let settings = HoloMemorySettings(defaults: defaults)
+        expect(settings.agentRuntimeEnabled, "升级后 runtime 应按产品策略开启")
+        expect(settings.agentMemoryGalleryEnabled, "升级后记忆长廊 Agent 结果应按产品策略开启")
+        expect(settings.agentStepIdempotencyEnabled, "升级后请求幂等应按产品策略开启")
+        expect(settings.agentContinuedProcessingEnabled, "升级后持续处理应按产品策略开启")
+        expect(!settings.agentDebugModeEnabled, "升级后 Debug 模式不应被历史值开启")
+        expect(settings.agentObserverTier2Enabled, "升级后 Observer 自动深挖应按产品策略开启")
+        expect(defaults.bool(forKey: "holo_agent_runtimeEnabled"), "迁移结果应持久化")
+        expect(defaults.bool(forKey: "holo_agent_observerTier2Enabled"), "Observer 开启策略应持久化")
+
+        defaults.removePersistentDomain(forName: suiteName)
     }
 
     private static func testLongTermMemoryToggleControlsCandidateExtraction() {

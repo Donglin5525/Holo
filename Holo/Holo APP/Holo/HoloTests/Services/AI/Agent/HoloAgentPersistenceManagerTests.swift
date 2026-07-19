@@ -3,14 +3,18 @@
 //  HoloTests
 //
 //  Agent V3.1 — Task 1.4 Persistence Manager 测试
-//  运行：swiftc -parse-as-library \
-//    <Models/AI/Agent/*.swift> <Services/AI/Agent/Persistence/*.swift> <本测试> \
-//    -o /tmp/holo_agent_manager_test && /tmp/holo_agent_manager_test
+//  运行（在 "Holo/Holo APP/Holo" 目录下）：
+//  swiftc -parse-as-library \
+//    "Holo/Models/AI/Agent/"*.swift \
+//    "Holo/Services/AI/Agent/Persistence/"*.swift \
+//    "Holo/Services/AI/Agent/Tools/HoloDataTool.swift" \
+//    <本测试> -o /tmp/holo_agent_manager_test && /tmp/holo_agent_manager_test
 //
 
 import Foundation
 
 /// 内存版 Evidence Ledger，用于隔离测试（真实 `HoloEvidenceLedger` 在 Phase 2 实现）。
+/// 非 throwing 实现仍满足 throws 协议要求（§5.5）。
 actor MockEvidenceLedger: HoloEvidenceLedgerProtocol {
     private var records: [HoloEvidenceRecord] = []
 
@@ -34,10 +38,10 @@ struct HoloAgentPersistenceManagerTests {
         if !condition() { fatalError(message) }
     }
 
-    static func main() async {
-        await testSaveProgress_写入Evidence与Checkpoint与Job()
-        await testValidateCheckpoint_引用不存在Evidence返回false()
-        await testCleanupOrphanedEvidence_超过保留期被归档()
+    static func main() async throws {
+        try await testSaveProgress_写入Evidence与Checkpoint与Job()
+        try await testValidateCheckpoint_引用不存在Evidence返回false()
+        try await testCleanupOrphanedEvidence_超过保留期被归档()
         print("HoloAgentPersistenceManagerTests passed")
     }
 
@@ -96,7 +100,7 @@ struct HoloAgentPersistenceManagerTests {
 
     // MARK: - 用例
 
-    private static func testSaveProgress_写入Evidence与Checkpoint与Job() async {
+    private static func testSaveProgress_写入Evidence与Checkpoint与Job() async throws {
         let dir = makeTempDir()
         let ledger = MockEvidenceLedger()
         let checkpointStore = HoloAgentCheckpointStore(directory: dir)
@@ -109,7 +113,7 @@ struct HoloAgentPersistenceManagerTests {
         )
 
         let now = Date(timeIntervalSince1970: 1000)
-        try? await manager.saveProgress(
+        try await manager.saveProgress(
             job: makeJob(id: "job-1", state: .running, updatedAt: now),
             evidence: [makeEvidence(id: "ev-1", status: .active, generatedAt: now)],
             checkpoint: makeCheckpoint(id: "cp-1", jobID: "job-1", updatedAt: now)
@@ -118,14 +122,14 @@ struct HoloAgentPersistenceManagerTests {
         let evidence = await ledger.load()
         expect(evidence.contains { $0.id == "ev-1" }, "evidence 应写入 ledger")
 
-        let savedCheckpoint = await checkpointStore.latestForJob(jobID: "job-1")
+        let savedCheckpoint = try await checkpointStore.latestForJob(jobID: "job-1")
         expect(savedCheckpoint?.id == "cp-1", "checkpoint 应写入 store")
 
-        let savedJob = await jobStore.load().first { $0.id == "job-1" }
+        let savedJob = try await jobStore.load().first { $0.id == "job-1" }
         expect(savedJob?.state == .running, "job 应写入 store 且状态正确")
     }
 
-    private static func testValidateCheckpoint_引用不存在Evidence返回false() async {
+    private static func testValidateCheckpoint_引用不存在Evidence返回false() async throws {
         let dir = makeTempDir()
         let ledger = MockEvidenceLedger()
         await ledger.upsert([makeEvidence(id: "ev-1", status: .active, generatedAt: Date(timeIntervalSince1970: 1000))])
@@ -133,16 +137,16 @@ struct HoloAgentPersistenceManagerTests {
 
         var cpWithMissing = makeCheckpoint(id: "cp-x", jobID: "job-x", updatedAt: Date(timeIntervalSince1970: 1000))
         cpWithMissing.evidenceRecordIDs = ["ev-1", "ev-missing"]
-        let invalid = await manager.validateCheckpoint(cpWithMissing)
+        let invalid = try await manager.validateCheckpoint(cpWithMissing)
         expect(!invalid, "引用不存在的 ev-missing 应返回 false")
 
         var cpValid = makeCheckpoint(id: "cp-y", jobID: "job-y", updatedAt: Date(timeIntervalSince1970: 1000))
         cpValid.evidenceRecordIDs = ["ev-1"]
-        let valid = await manager.validateCheckpoint(cpValid)
+        let valid = try await manager.validateCheckpoint(cpValid)
         expect(valid, "只引用存在的 ev-1 应返回 true")
     }
 
-    private static func testCleanupOrphanedEvidence_超过保留期被归档() async {
+    private static func testCleanupOrphanedEvidence_超过保留期被归档() async throws {
         let dir = makeTempDir()
         let ledger = MockEvidenceLedger()
         let now = Date(timeIntervalSince1970: 1_000_000)
@@ -154,8 +158,8 @@ struct HoloAgentPersistenceManagerTests {
         ])
         let manager = makeManager(ledger: ledger, dir: dir)
 
-        let removed = try? await manager.cleanupOrphanedEvidence(now: now, retentionDays: 7)
-        expect(removed?.count == 1, "只应归档 1 条（ev-old），实际 \(removed?.count ?? -1)")
+        let removed = try await manager.cleanupOrphanedEvidence(now: now, retentionDays: 7)
+        expect(removed.count == 1, "只应归档 1 条（ev-old），实际 \(removed.count)")
 
         let records = await ledger.load()
         let oldStatus = records.first { $0.id == "ev-old" }?.status

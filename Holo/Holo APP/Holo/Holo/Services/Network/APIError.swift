@@ -18,6 +18,10 @@ enum APIError: LocalizedError {
     case cancelled
     case serverError(String)
     case backendError(statusCode: Int, code: String?, message: String, requestId: String?)
+    /// §8.2：409 STEP_IN_PROGRESS——后端同一 step 正在处理中，幂等协议退避重试
+    case stepInProgress(String?)
+    /// §8.2：409 STEP_ID_CONFLICT——同一 stepID 提交了不同 payload（终态协议错误，不重试）
+    case stepIdConflict(String?)
 
     var errorDescription: String? {
         switch self {
@@ -39,6 +43,10 @@ enum APIError: LocalizedError {
             return message
         case .backendError(_, _, let message, _):
             return message
+        case .stepInProgress(let message):
+            return message ?? "相同请求正在后端处理中，稍后重试"
+        case .stepIdConflict(let message):
+            return message ?? "请求步标识冲突：同一 step 提交了不同内容"
         }
     }
 
@@ -73,6 +81,8 @@ enum APIError: LocalizedError {
         case .httpError(let statusCode, _): return "HTTP_\(statusCode)"
         case .invalidURL: return "INVALID_URL"
         case .serverError: return "SERVER_ERROR"
+        case .stepInProgress: return "STEP_IN_PROGRESS"
+        case .stepIdConflict: return "STEP_ID_CONFLICT"
         }
     }
 

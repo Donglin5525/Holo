@@ -4,6 +4,36 @@
 
 ---
 
+## [2026-07-19] Holo Agent 全场景稳定执行 Phase 0–7
+
+Agent 从“页面内长任务”升级为本地优先、唯一执行、可暂停恢复的统一运行链；iOS 26 用户主动任务可申请系统 Continued Processing，回桌面、切其他 App 或锁屏后在系统接纳时继续，系统中止仍保留安全断点。iOS 17–25 保持短时后台收尾与下次打开恢复。
+
+### 稳定性
+- **Agent 能力默认开启**：Agent Runtime、请求步骤幂等、iOS 26 持续处理、记忆长廊结果和 Observer 自动深挖统一按产品策略开启，升级时覆盖历史调试期关闭值；移除 Debug 设置中的技术开关，普通用户无需配置且 Release 不显示开发入口。自动深挖的模型成本、能耗和误触发风险由信号门槛、抢占规则与运行预算约束。
+- **唯一执行权**：稳定输入摘要、execution generation/CAS、Scheduler 单 Task 注册表和统一 lease，阻止快速切前后台、冷启动与旧响应晚到造成双跑或覆盖。
+- **可靠持久化**：JSON Store 区分文件不存在与不可读/损坏，Result 按 job 唯一，并在启动时修复半完成状态。
+- **真实预算与等待**：暂停时间不再消耗 active runtime；系统容量、前台、解锁等条件有独立等待原因。
+- **健康锁屏正确性**：HealthKit 锁屏不可读进入等待，不再伪装为 0 步、0 睡眠或“没有数据”。
+- **请求级幂等**：iOS 固定 `runId/stepId/requestHash`；后端 SQLite 短 TTL 状态机处理并发、重试、冲突和容器重启，避免重复模型调用。
+- **幂等响应加密**：后端用 AES-256-GCM 加密短期结构化响应，并以 `runId/stepId/requestHash` 作为 AAD；支持旧明文事务迁移、密钥轮换重包裹和密文篡改失败关闭。生产缺少有效密钥时在打开数据库前终止，不能退化为明文或重复请求。
+
+### iOS 26 与回退
+- 接入 `BGContinuedProcessingTask`、通配 identifier、`.fail` 接纳策略、真实单调进度、通用系统标题/副标题、expiration/cancel/完成闭合。
+- Continued 只允许已授权的用户主动任务；启动请求全链路保留真实 trigger，Observer Tier 2 明确标记为自动任务，不会伪装成用户操作申请系统持续处理。系统不接纳时保留前台或回落 legacy lease。
+- 设置与 Chat 文案说明真实边界：系统支持时尽量继续，系统暂停/终止时保存进度；用户强制关闭 App 后不会继续。
+
+### 可观测性与隐私
+- 新增结构化事件、可靠性指标和 Debug 稳定性诊断导出，覆盖创建、执行权、checkpoint、等待、恢复、幂等、修复和终态。
+- Debug 快照与后端 Agent 日志只保留技术元数据，不记录用户问题、对话、工具结果、健康/金额、证据结论、`requestHash` 或原始错误文本。
+- 新人引导授权文案明确列出可能处理的财务、习惯、待办、观点、健康摘要和语音片段，并说明自动形成记忆需要用户另行主动开启；App Review Notes 补充 iOS 26 持续处理的触发、取消、回退与验收路径。
+- 增加真机与 TestFlight 分档验收清单；默认放量仍以 iOS 26 真机、HealthKit 锁屏和灰度指标为门槛。
+
+### 验证
+- iOS Agent Scheduler、Continued Processing、step 幂等、一致性修复与 JSON Store hardening 组合回归 60/60 通过；其中 Continued 普通回归 13/13（含 Observer 自动入口不提交系统任务）；Continued Address Sanitizer 13/13 通过；事件与脱敏 Debug 导出 standalone 测试通过。
+- HoloBackend 全量测试 133/133 通过；覆盖密文不可检索、旧明文迁移、密钥轮换、AAD 调包、篡改和生产缺钥失败关闭；iPhoneOS 26 SDK Release 无签名构建通过，产物确认带 Continued wildcard identifier。
+- 后端已部署生产：ECS 本机 health、公网鉴权 release 验收通过；真实相同 Agent step 第二次命中幂等缓存且响应逐字节一致。管理员状态确认 `aes-256-gcm-v1`，生产数据库 TTL 内 4/4 条完成响应为密文、明文 0 条。生产 source digest `78667682b4e1…`。
+- 真机系统调度、锁屏、系统停止与 iOS 17/18 fallback 由发布前真机清单继续验收。
+
 ## [2026-07-19] 轻量新人引导 V1：三页引导 + HoloAI 入口提示
 
 新用户首次进入 App 时展示三页轻量引导（认识 Holo → 功能与使用方式 → AI 数据处理授权），完成后在首页底部中央按钮上方出现一次性 HoloAI 入口提示。引导只让用户看懂、会用、敢授权，不在引导内要求完成真实记账或创建数据。

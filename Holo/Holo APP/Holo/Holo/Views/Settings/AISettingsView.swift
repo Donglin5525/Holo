@@ -12,7 +12,6 @@ import SwiftUI
 struct AISettingsView: View {
 
     @StateObject private var viewModel = AIConfigViewModel()
-    @ObservedObject private var memorySettings = HoloMemorySettings.shared
     @ObservedObject private var dataProcessingConsent = HoloAIDataProcessingConsent.shared
     @Environment(\.dismiss) private var dismiss
     @State private var showPromptRefreshed = false
@@ -40,16 +39,11 @@ struct AISettingsView: View {
             // 学习数据
             mappingSection
 
-            // Agent 深度分析（灰度）
-            agentGrayscaleSection
-
             // 危险操作
             dangerSection
 
-            // Agent 调试（仅内部，flag 保护）
-            if HoloAIFeatureFlags.agentDebugModeEnabled {
-                agentDebugSection
-            }
+            // Agent 调试（整个 AI 设置页仅存在于 Debug 构建）
+            agentDebugSection
         }
         .scrollContentBackground(.hidden)
         .background(Color.holoBackground)
@@ -84,7 +78,7 @@ struct AISettingsView: View {
         } header: {
             Text("HoloAI Agent")
         } footer: {
-            Text("本地优先 Agent 调试入口，仅在 agentDebugModeEnabled 开启时显示。")
+            Text("本地优先 Agent 调试入口，仅在 Debug 构建显示。Agent 核心能力、记忆长廊结果与自动深挖均为产品默认能力，不提供用户开关。")
         }
     }
 
@@ -330,86 +324,6 @@ struct AISettingsView: View {
             Text("学习数据")
         } footer: {
             Text("AI 根据你的确认自动记录分类映射，下次遇到相同分类时自动匹配")
-                .font(.caption)
-                .foregroundColor(.holoTextSecondary)
-        }
-    }
-
-    // MARK: - Agent 深度分析（灰度）
-
-    private var agentGrayscaleSection: some View {
-        Section {
-            Toggle(isOn: $memorySettings.agentRuntimeEnabled) {
-                HStack(spacing: HoloSpacing.md) {
-                    Image(systemName: "cpu")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.holoPrimary)
-                        .frame(width: 28)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Agent 深度分析引擎")
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
-                        Text("分析类问题走多轮推理；前台最稳，切后台后会短时间继续尝试")
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
-                    }
-                }
-            }
-
-            Toggle(isOn: $memorySettings.agentMemoryGalleryEnabled) {
-                HStack(spacing: HoloSpacing.md) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.holoPrimary)
-                        .frame(width: 28)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("记忆长廊展示 Agent 结果")
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
-                        Text("深度分析完成后，在长廊展示校验过的结论卡片")
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
-                    }
-                }
-            }
-
-            Toggle(isOn: $memorySettings.agentObserverTier2Enabled) {
-                HStack(spacing: HoloSpacing.md) {
-                    Image(systemName: "bolt")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.holoPrimary)
-                        .frame(width: 28)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("后台观察自动深挖")
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
-                        Text("Observer 发现目标信号后自动启动深度 Agent 跟进")
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
-                    }
-                }
-            }
-
-            Toggle(isOn: $memorySettings.agentDebugModeEnabled) {
-                HStack(spacing: HoloSpacing.md) {
-                    Image(systemName: "flag")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.holoPrimary)
-                        .frame(width: 28)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Agent 调试入口")
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
-                        Text("在设置页显示 Agent 调试入口，可跑 mock job 验证流程")
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
-                    }
-                }
-            }
-        } header: {
-            Text("Agent 深度分析（灰度）")
-        } footer: {
-            Text("全部门控默认关闭，不影响线上功能。Agent 运行中建议停留前台；切后台或杀掉 App 后，系统可能收回后台时间，未完成任务会在回到 App 后继续尝试。")
                 .font(.caption)
                 .foregroundColor(.holoTextSecondary)
         }

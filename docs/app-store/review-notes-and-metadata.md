@@ -1,6 +1,6 @@
 # Holo App Store Review Notes 与 ASO 元数据草稿
 
-更新时间：2026-07-06
+更新时间：2026-07-19
 
 ## 使用方式
 
@@ -235,6 +235,24 @@ The app includes account and data deletion under Settings -> Account & Data -> D
 ### 8. Non-Obvious Features for Reviewer
 
 - HoloAI requires explicit AI data processing consent before sending necessary input/context to external AI or speech services.
+- If the user separately enables automatic memory formation, Holo may analyze necessary structured summaries in the background. Turning this user control off stops automatic AI extraction. Automatic observation jobs do not request iOS Continued Processing.
 - Health features require Apple Health authorization and may show empty states on devices without Health data.
 - Memory Gallery insights may depend on user-created records and may be sparse on a fresh install.
 - iCloud sync depends on the reviewer being signed in to iCloud on the test device.
+
+### 9. iOS Continued Processing
+
+On iOS 26 or later, a deep analysis explicitly started by the reviewer from HoloAI may request the system Continued Processing capability. This lets the user-initiated task make progress after returning to the Home Screen, switching apps, or locking the device when iOS accepts the request.
+
+- The request is submitted only in direct response to the user's HoloAI analysis action and only after AI data processing consent.
+- iOS presents system-managed progress with a generic Holo title and gives the user a cancellation control.
+- If the system declines or terminates processing, Holo saves a checkpoint and safely resumes when the app becomes available again.
+- Force-quitting Holo does not promise continued execution.
+- Automatic Observer and scheduled jobs are explicitly excluded from Continued Processing.
+
+Suggested verification on an iOS 26 device:
+
+1. Open HoloAI and grant AI data processing consent if requested.
+2. Ask a data-analysis question that routes to deep analysis.
+3. After the progress state appears, return to the Home Screen or lock the device.
+4. Observe the system-managed Holo progress, then return to Holo to view the completed result or saved checkpoint state.

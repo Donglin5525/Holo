@@ -11,6 +11,9 @@ test("deploy.sh uses production-safe rebuild and verification contract", async (
   assert.match(script, /\$PUBLIC_BASE_URL\/v1\/health/);
   assert.match(script, /\$PUBLIC_BASE_URL\/v1\/admin\/release\/status/);
   assert.match(script, /x-holo-admin-token/);
+  assert.match(script, /HOLO_AGENT_STEP_IDEMPOTENCY_ENCRYPTION_KEY/);
+  assert.match(script, /base64 --decode/);
+  assert.match(script, /AGENT_STEP_ENCRYPTION_KEY_BYTES/);
   assert.doesNotMatch(script, /\$PUBLIC_BASE_URL\/v1\/prompts\/meta/);
   assert.doesNotMatch(script, /API 端点:\s+http:\/\/<ECS公网IP>/);
 });

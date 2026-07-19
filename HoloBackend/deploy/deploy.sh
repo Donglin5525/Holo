@@ -6,6 +6,7 @@
 set -euo pipefail
 
 DEPLOY_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_DIR="$(cd "$DEPLOY_DIR/../.." && pwd)"
 PUBLIC_BASE_URL="${PUBLIC_BASE_URL:-https://api.holoapp.cn}"
 
 cd "$DEPLOY_DIR"
@@ -14,7 +15,7 @@ echo "=== HoloBackend 部署 ==="
 echo ""
 
 # 1. 创建数据目录
-echo "[1/5] 创建数据目录..."
+echo "[1/6] 创建数据目录..."
 mkdir -p data
 
 # 2. 检查 .env.production 是否存在
@@ -28,6 +29,24 @@ if [ ! -f .env.production ]; then
   exit 1
 fi
 
+# 幂等缓存包含短期结构化模型响应，生产必须使用持久的 32 字节 Base64 密钥。
+# 这里只校验存在与格式，不输出密钥。
+AGENT_STEP_ENCRYPTION_KEY="$(sed -n 's/^HOLO_AGENT_STEP_IDEMPOTENCY_ENCRYPTION_KEY=//p' .env.production | tail -n 1)"
+if [ -z "$AGENT_STEP_ENCRYPTION_KEY" ]; then
+  echo "Agent step 响应加密配置缺失：HOLO_AGENT_STEP_IDEMPOTENCY_ENCRYPTION_KEY"
+  exit 1
+fi
+if ! AGENT_STEP_ENCRYPTION_KEY_BYTES="$(
+  printf '%s' "$AGENT_STEP_ENCRYPTION_KEY" | base64 --decode 2>/dev/null | wc -c | tr -d ' '
+)"; then
+  echo "Agent step 响应加密密钥格式无效：必须是 32 字节标准 Base64"
+  exit 1
+fi
+if [ "$AGENT_STEP_ENCRYPTION_KEY_BYTES" != "32" ]; then
+  echo "Agent step 响应加密密钥格式无效：必须是 32 字节标准 Base64"
+  exit 1
+fi
+
 # 3. 确认代码来源
 echo "[2/6] 确认代码来源..."
 if [ "${RUN_GIT_PULL:-0}" = "1" ]; then
@@ -38,6 +57,24 @@ if [ "${RUN_GIT_PULL:-0}" = "1" ]; then
 else
   echo "    跳过 git pull；默认代码已由本地 rsync 或 bundle 同步到服务器。"
 fi
+
+# 生成可复核的发布身份。rsync 发布允许工作区存在未提交改动，因此仅记录 Git SHA 不足以
+# 证明容器实际使用了哪份代码；source digest 覆盖本次 Docker context 中的全部源码，且排除
+# 生产密钥、SQLite 与依赖目录。compose 的 environment 会覆盖 .env.production 中的陈旧值。
+HOLO_RELEASE_COMMIT="$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || printf 'unknown')"
+HOLO_RELEASE_SOURCE_DIGEST="$({
+  git -C "$REPO_DIR" ls-files --cached --others --exclude-standard -- HoloBackend 2>/dev/null || true
+} | LC_ALL=C sort | while IFS= read -r relative_path; do
+  case "$relative_path" in
+    HoloBackend/node_modules/*|HoloBackend/deploy/.env.production*|HoloBackend/deploy/data/*) continue ;;
+  esac
+  [ -f "$REPO_DIR/$relative_path" ] || continue
+  file_hash="$(sha256sum "$REPO_DIR/$relative_path" | awk '{print $1}')"
+  printf '%s  %s\n' "$file_hash" "$relative_path"
+done | sha256sum | awk '{print $1}')"
+HOLO_RELEASE_BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+export HOLO_RELEASE_COMMIT HOLO_RELEASE_SOURCE_DIGEST HOLO_RELEASE_BUILD_TIME
+echo "    发布身份: ${HOLO_RELEASE_COMMIT:0:12} + source ${HOLO_RELEASE_SOURCE_DIGEST:0:12}"
 
 # 4. 构建并启动
 echo "[3/6] 构建 Docker 镜像（关闭 BuildKit，避免把本地镜像误当远端镜像拉取）..."

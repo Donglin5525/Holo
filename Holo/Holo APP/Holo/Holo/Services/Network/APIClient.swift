@@ -24,6 +24,11 @@ nonisolated final class APIClient {
         self.urlSession = URLSession(configuration: config)
     }
 
+    /// 测试注入用（§8.2 step 幂等重试验证：配 MockURLProtocol 的 session）。
+    init(urlSession: URLSession) {
+        self.urlSession = urlSession
+    }
+
     // MARK: - 普通请求
 
     struct Response<Value> {
@@ -38,10 +43,14 @@ nonisolated final class APIClient {
     }
 
     /// 发送请求并保留响应头，供内部诊断关联 requestId。
+    /// 重试归并（Phase 4 任务5）：APIClient 是唯一 HTTP 重试层；
+    /// 409 STEP_IN_PROGRESS 是幂等协议的一部分，走独立退避计数（不挤占普通重试预算）。
     func sendWithResponse<T: Decodable>(_ request: APIRequest) async throws -> Response<T> {
-        var lastError: Error?
+        var attempt = 0
+        var stepInProgressRetries = 0
+        let maxStepInProgressRetries = 3
 
-        for attempt in 0...maxRetries {
+        while true {
             do {
                 let urlRequest = try request.toURLRequest()
 
@@ -57,32 +66,37 @@ nonisolated final class APIClient {
                 let decoded = try JSONDecoder().decode(T.self, from: data)
                 return Response(value: decoded, httpResponse: httpResponse)
             } catch let error as APIError {
-                lastError = error
+                // §8.2：STEP_IN_PROGRESS——后端正在处理同一 step，独立退避重试同一请求
+                if case .stepInProgress = error, stepInProgressRetries < maxStepInProgressRetries {
+                    stepInProgressRetries += 1
+                    let delay = pow(2.0, Double(stepInProgressRetries))
+                    logger.warning("后端 step 处理中，\(delay)秒后重试同一请求（第\(stepInProgressRetries)次）")
+                    try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                    continue
+                }
 
                 // 仅对可重试的错误进行重试
                 if error.isRetryable && attempt < maxRetries {
-                    let delay = pow(2.0, Double(attempt))
-                    logger.warning("请求失败，\(delay)秒后重试（第\(attempt + 1)次）：\(error.errorDescription ?? "")")
+                    attempt += 1
+                    let delay = pow(2.0, Double(attempt - 1))
+                    logger.warning("请求失败，\(delay)秒后重试（第\(attempt)次）：\(error.errorDescription ?? "")")
                     try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                     continue
                 }
                 throw error
             } catch let urlError as URLError where urlError.code == .timedOut {
-                let apiError = APIError.timeout
-                lastError = apiError
                 if attempt < maxRetries {
-                    let delay = pow(2.0, Double(attempt))
-                    logger.warning("请求超时，\(delay)秒后重试（第\(attempt + 1)次）")
+                    attempt += 1
+                    let delay = pow(2.0, Double(attempt - 1))
+                    logger.warning("请求超时，\(delay)秒后重试（第\(attempt)次）")
                     try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                     continue
                 }
-                throw apiError
+                throw APIError.timeout
             } catch {
                 throw error
             }
         }
-
-        throw lastError ?? APIError.serverError("未知错误")
     }
 
     // MARK: - SSE 流式请求
@@ -190,6 +204,16 @@ nonisolated final class APIClient {
         switch httpResponse.statusCode {
         case 200...299:
             return
+        case 409:
+            // §8.2：step 幂等协议错误——按后端 code 映射为 typed error
+            switch backendError?.code {
+            case "STEP_IN_PROGRESS":
+                throw APIError.stepInProgress(backendMessage)
+            case "STEP_ID_CONFLICT":
+                throw APIError.stepIdConflict(backendMessage)
+            default:
+                throw APIError.httpError(statusCode: httpResponse.statusCode, message: backendMessage ?? "请求冲突，请稍后重试")
+            }
         case 429:
             throw APIError.rateLimited(backendMessage)
         case 401:

@@ -62,6 +62,55 @@ struct HoloDefaultHealthDataSource: HoloHealthDataSource {
         }
     }
 
+    // MARK: - 严格查询（§7.1 P0-4：锁屏错误必须显式传播，不得伪装空数组/0）
+
+    func dailyRecordsStrict(
+        for metric: HoloHealthMetricKind,
+        timeRange: HoloAgentTimeRange?
+    ) async -> HoloHealthQueryOutcome<[HoloHealthDailyRecord]> {
+        let window = Self.repositoryWindow(for: timeRange)
+        guard window.start <= window.inclusiveEnd else { return .noData }
+
+        let repository = HealthRepository.shared
+        let metricType: HealthMetricType
+        switch metric {
+        case .steps: metricType = .steps
+        case .sleep: metricType = .sleep
+        case .stand: metricType = .standHours
+        case .activity: metricType = .activeMinutes
+        }
+        return await repository.fetchDailyRangeStrict(for: metricType, from: window.start, to: window.inclusiveEnd)
+            .map { $0.map { HoloHealthDailyRecord(date: $0.date, value: $0.value) } }
+    }
+
+    func workoutRecordsStrict(timeRange: HoloAgentTimeRange?) async -> HoloHealthQueryOutcome<[HoloHealthWorkoutRecord]> {
+        let window = Self.repositoryWindow(for: timeRange)
+        guard window.start <= window.inclusiveEnd else { return .noData }
+
+        return await HealthRepository.shared.fetchWorkoutsRangeStrict(from: window.start, to: window.inclusiveEnd)
+            .map { $0.map {
+                HoloHealthWorkoutRecord(
+                    date: $0.date,
+                    totalMinutes: $0.totalMinutes,
+                    sessionCount: $0.sessionCount,
+                    topType: $0.topType
+                )
+            } }
+    }
+
+    func sleepRecordsStrict(timeRange: HoloAgentTimeRange?) async -> HoloHealthQueryOutcome<[HoloSleepRecord]> {
+        let window = Self.repositoryWindow(for: timeRange)
+        guard window.start <= window.inclusiveEnd else { return .noData }
+
+        return await HealthRepository.shared.fetchSleepDetailRangeStrict(from: window.start, to: window.inclusiveEnd)
+            .map { $0.map {
+                HoloSleepRecord(date: $0.date, totalHours: $0.totalHours, coreHours: $0.coreHours,
+                                deepHours: $0.deepHours, remHours: $0.remHours, awakeHours: $0.awakeHours,
+                                inBedHours: $0.inBedHours, bedtime: $0.bedtime, wakeTime: $0.wakeTime,
+                                interruptionCount: $0.interruptionCount)
+            } }
+    }
+
     private static func repositoryWindow(
         for timeRange: HoloAgentTimeRange?,
         now: Date = Date(),

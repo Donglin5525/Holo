@@ -3,6 +3,13 @@
 //  HoloTests
 //
 //  Agent V3.1 — HealthTool 全指标分析测试
+//  运行（在 "Holo/Holo APP/Holo" 目录下）：
+//  swiftc -parse-as-library \
+//    "Holo/Models/AI/Agent/"*.swift \
+//    "Holo/Services/AI/Agent/Tools/HoloDataTool.swift" \
+//    "Holo/Services/AI/Agent/Tools/HoloHealthTool.swift" \
+//    "Holo/Services/AI/Agent/Health/HoloStrictHealthQueryService.swift" \
+//    <本测试> -o /tmp/holo_health_tool_test && /tmp/holo_health_tool_test
 //
 
 import Foundation
@@ -43,6 +50,41 @@ struct MockHealthDataSource: HoloHealthDataSource {
     }
 }
 
+/// §7.1 锁屏/权限数据源：严格方法直接返回 waitingForUnlock / authorizationDenied。
+struct LockedHealthDataSource: HoloHealthDataSource {
+    enum Mode {
+        case locked
+        case permissionDenied
+    }
+    let mode: Mode
+
+    func dailyRecords(for metric: HoloHealthMetricKind, timeRange: HoloAgentTimeRange?) async -> [HoloHealthDailyRecord] { [] }
+    func workoutRecords(timeRange: HoloAgentTimeRange?) async -> [HoloHealthWorkoutRecord] { [] }
+    func sleepRecords(timeRange: HoloAgentTimeRange?) async -> [HoloSleepRecord] { [] }
+
+    private var outcome: HoloHealthQueryOutcome<[HoloSleepRecord]> {
+        switch mode {
+        case .locked: return .waitingForUnlock
+        case .permissionDenied: return .unavailable(.authorizationDenied)
+        }
+    }
+    func dailyRecordsStrict(for metric: HoloHealthMetricKind, timeRange: HoloAgentTimeRange?) async -> HoloHealthQueryOutcome<[HoloHealthDailyRecord]> {
+        switch mode {
+        case .locked: return .waitingForUnlock
+        case .permissionDenied: return .unavailable(.authorizationDenied)
+        }
+    }
+    func sleepRecordsStrict(timeRange: HoloAgentTimeRange?) async -> HoloHealthQueryOutcome<[HoloSleepRecord]> {
+        outcome
+    }
+    func workoutRecordsStrict(timeRange: HoloAgentTimeRange?) async -> HoloHealthQueryOutcome<[HoloHealthWorkoutRecord]> {
+        switch mode {
+        case .locked: return .waitingForUnlock
+        case .permissionDenied: return .unavailable(.authorizationDenied)
+        }
+    }
+}
+
 @main
 struct HoloHealthToolTests {
 
@@ -63,6 +105,8 @@ struct HoloHealthToolTests {
         try test动态查询可现场计算平均睡眠与低睡眠占比()
         try test动态查询可比较周末与工作日步数()
         try test动态查询拒绝未注册字段和超长范围()
+        try await test锁屏返回DEVICE_LOCKED不产生伪零数据()
+        try await test权限拒绝返回HEALTH_PERMISSION_DENIED不可恢复()
         print("HoloHealthToolTests passed")
     }
 
@@ -287,5 +331,34 @@ struct HoloHealthToolTests {
             _ = try HoloDynamicQueryEngine.execute(plan: longRange, catalog: HoloHealthTool.dynamicCatalog, currentRows: [])
             fatalError("超长范围必须被拒绝")
         } catch HoloDynamicQueryValidationError.rangeTooLarge {}
+    }
+
+    /// §7.1/§7.2：锁屏 → DEVICE_LOCKED 可恢复错误，不得返回 0 值/空样本伪装。
+    private static func test锁屏返回DEVICE_LOCKED不产生伪零数据() async throws {
+        let tool = HoloHealthTool(dataSource: LockedHealthDataSource(mode: .locked))
+
+        let sleepResult = try await tool.execute(makeRequest(query: "sleep_summary"))
+        expect(sleepResult.status == .error, "锁屏应为 error，实际 \(sleepResult.status)")
+        expect(sleepResult.error?.code == "DEVICE_LOCKED", "锁屏应为 DEVICE_LOCKED，实际 \(sleepResult.error?.code ?? "nil")")
+        expect(sleepResult.error?.recoverable == true, "DEVICE_LOCKED 必须可恢复（等待解锁）")
+        expect(sleepResult.metrics.isEmpty, "锁屏不得产出指标（伪零数据）")
+        expect(sleepResult.events.isEmpty, "锁屏不得产出证据（伪零数据）")
+
+        let stepsResult = try await tool.execute(makeRequest(query: "steps_summary"))
+        expect(stepsResult.error?.code == "DEVICE_LOCKED", "步数锁屏同样为 DEVICE_LOCKED")
+
+        let overviewResult = try await tool.execute(makeRequest(query: "health_overview"))
+        expect(overviewResult.error?.code == "DEVICE_LOCKED",
+               "全部子查询锁屏时 overview 必须整体 DEVICE_LOCKED，不得伪装无数据")
+    }
+
+    /// §7.1：权限拒绝 → HEALTH_PERMISSION_DENIED 不可恢复（不得当空数据）。
+    private static func test权限拒绝返回HEALTH_PERMISSION_DENIED不可恢复() async throws {
+        let tool = HoloHealthTool(dataSource: LockedHealthDataSource(mode: .permissionDenied))
+        let result = try await tool.execute(makeRequest(query: "sleep_summary"))
+        expect(result.status == .error, "权限拒绝应为 error")
+        expect(result.error?.code == "HEALTH_PERMISSION_DENIED", "应为 HEALTH_PERMISSION_DENIED")
+        expect(result.error?.recoverable == false, "权限拒绝不可自动恢复")
+        expect(result.metrics.isEmpty, "权限拒绝不得产出指标")
     }
 }

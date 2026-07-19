@@ -263,7 +263,7 @@ final class ChatViewModel: ObservableObject {
                     )
                     let initialStatus = HoloAgentChatStatus(
                         title: "Holo 正在深度分析中…",
-                        detail: "正在启动本地 Agent，请保持 App 可用；切到后台后会短时间继续尝试。",
+                        detail: "可以离开当前页面；系统支持时会继续处理，中止后会保留进度并在回到 App 后恢复。",
                         keepsMessageStreaming: true,
                         showsActivityIndicator: true
                     )

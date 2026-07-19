@@ -11,13 +11,16 @@ import Foundation
 
 actor HoloLocalAgentRuntime {
 
-    private let persistence: HoloAgentPersistenceManager
-    private let jobStore: HoloAgentJobStore
+    /// 模块内可访问：HoloBackgroundContinuationManager 装配 ConsistencyReconciler 时需要（§5.4）。
+    let persistence: HoloAgentPersistenceManager
+    /// 模块内可访问：HoloAgentScheduler 需要 generation CAS 与并发门控读 job（§6.1）。
+    let jobStore: HoloAgentJobStore
     private let checkpointStore: HoloAgentCheckpointStore
     private let patternMiner = HoloPatternMiner()
     private let llmClient: HoloAgentLLMClientProtocol?
     private let toolExecutor: HoloAgentToolExecuting?
     private let memoryQueryService: HoloMemoryQueryService?
+    private let eventRecorder: any HoloAgentEventRecording
 
     /// mock 阶段模拟的步骤序列：plan → executeTools → minePatterns → integrateResults → persistResult。
     private static let mockSequence: [HoloAgentStep] = [
@@ -25,20 +28,22 @@ actor HoloLocalAgentRuntime {
     ]
 
     /// 终态集合：resume 时遇到这些状态直接返回，不恢复执行。
-    private static let terminalStates: Set<HoloAgentJobState> = [.completed, .failed, .cancelled]
+    private static let terminalStates: Set<HoloAgentJobState> = [.completed, .failed, .cancelled, .superseded]
 
     init(persistence: HoloAgentPersistenceManager,
          jobStore: HoloAgentJobStore,
          checkpointStore: HoloAgentCheckpointStore,
          llmClient: HoloAgentLLMClientProtocol? = nil,
          toolExecutor: HoloAgentToolExecuting? = nil,
-         memoryQueryService: HoloMemoryQueryService? = nil) {
+         memoryQueryService: HoloMemoryQueryService? = nil,
+         eventRecorder: any HoloAgentEventRecording = HoloNoopAgentEventRecorder.shared) {
         self.persistence = persistence
         self.jobStore = jobStore
         self.checkpointStore = checkpointStore
         self.llmClient = llmClient
         self.toolExecutor = toolExecutor
         self.memoryQueryService = memoryQueryService
+        self.eventRecorder = eventRecorder
     }
 
     /// 创建并启动一个 mock job：立即进入 running，写初始 checkpoint（step=plan）。
@@ -49,7 +54,9 @@ actor HoloLocalAgentRuntime {
             createdAt: now, updatedAt: now,
             lastForegroundRunAt: nil, timeRange: nil,
             budget: HoloAgentBudget.normalDeep(now: now),
-            checkpointID: nil, resultID: nil, errorSummary: nil, deviceID: nil
+            checkpointID: nil, resultID: nil, errorSummary: nil, deviceID: nil,
+            referenceDate: now, snapshotCutoffAt: now,
+            absoluteDeadline: now.addingTimeInterval(HoloAgentJob.absoluteDeadlineInterval)
         )
         let checkpoint = Self.makeCheckpoint(
             jobID: job.id, step: .plan, completedSteps: [],
@@ -57,28 +64,37 @@ actor HoloLocalAgentRuntime {
         )
         job.checkpointID = checkpoint.id
         // 写入顺序由 PersistenceManager 保证：evidence → checkpoint → job
-        try await persistence.saveProgress(job: job, evidence: [], checkpoint: checkpoint)
+        try await saveProgress(job: job, evidence: [], checkpoint: checkpoint)
+        await eventRecorder.record(HoloAgentTelemetryEvent(name: .jobCreated, timestamp: now, job: job))
         return job
     }
 
-    /// 创建并启动一个真实深度分析 job（对话触发）：type=.deepAnalysis, trigger=.userQuestion。
+    /// 创建并启动一个真实深度分析 job；触发来源由入口显式传递，默认是用户对话。
     /// 写入初始 checkpoint（含用户问题），供 runLoop 多轮推进。生产路径用。
-    func startAnalysisJob(question: String, sourceMessageID: UUID? = nil, now: Date = Date()) async throws -> HoloAgentJob {
+    func startAnalysisJob(question: String, trigger: HoloAgentTrigger = .userQuestion,
+                          sourceMessageID: UUID? = nil, now: Date = Date()) async throws -> HoloAgentJob {
         let resolvedTimeRange = Self.resolveQuestionTimeRange(question, referenceDate: now)
         var job = HoloAgentJob(
             id: UUID().uuidString, type: .deepAnalysis, userQuestion: question,
-            trigger: .userQuestion, state: .running, currentStep: .plan,
+            trigger: trigger, state: .running, currentStep: .plan,
             createdAt: now, updatedAt: now,
             lastForegroundRunAt: nil, timeRange: resolvedTimeRange,
             budget: HoloAgentBudget.normalDeep(now: now),
-            checkpointID: nil, resultID: nil, errorSummary: nil, deviceID: nil
+            checkpointID: nil, resultID: nil, errorSummary: nil, deviceID: nil,
+            referenceDate: now, snapshotCutoffAt: now,
+            absoluteDeadline: now.addingTimeInterval(HoloAgentJob.absoluteDeadlineInterval)
         )
         job.sourceMessageID = sourceMessageID
         let queryService: HoloMemoryQueryService?
         if let memoryQueryService {
             queryService = memoryQueryService
         } else {
+            #if HOLO_MEMORY_STANDALONE
+            // standalone 编译不挂生产记忆栈（沿用项目既有 HOLO_MEMORY_STANDALONE 开关）
+            queryService = nil
+            #else
             queryService = try? await HoloMemoryQueryService.live()
+            #endif
         }
         let memoryContext: HoloMemoryQueryContext?
         if let queryService {
@@ -113,10 +129,11 @@ actor HoloLocalAgentRuntime {
             evidenceRecordIDs: memoryEvidence.map(\.id),
             memoryCandidateIDs: memorySummary.sourceIDs,
             now: now,
-            inputSnapshotHash: Self.computeInputSnapshotHash(for: job)
+            inputSnapshotHash: HoloAgentInputSnapshotHasher.hash(for: job)
         )
         job.checkpointID = checkpoint.id
-        try await persistence.saveProgress(job: job, evidence: memoryEvidence, checkpoint: checkpoint)
+        try await saveProgress(job: job, evidence: memoryEvidence, checkpoint: checkpoint)
+        await eventRecorder.record(HoloAgentTelemetryEvent(name: .jobCreated, timestamp: now, job: job))
         return job
     }
 
@@ -124,7 +141,7 @@ actor HoloLocalAgentRuntime {
     /// 非运行态（已取消/已完成）不推进；序列走完后进入 completed。
     @discardableResult
     func completeCurrentStep(jobID: String, now: Date = Date()) async throws -> HoloAgentJob {
-        guard var job = await loadJob(jobID) else {
+        guard var job = try await loadJob(jobID) else {
             throw HoloAgentRuntimeError.jobNotFound(jobID)
         }
         guard job.state == .running else { return job }
@@ -134,7 +151,7 @@ actor HoloLocalAgentRuntime {
             throw HoloAgentRuntimeError.unknownStep(current)
         }
 
-        let latest = await checkpointStore.latestForJob(jobID: jobID)
+        let latest = try await checkpointStore.latestForJob(jobID: jobID)
         var completedSteps = latest?.completedSteps ?? []
         if !completedSteps.contains(current) { completedSteps.append(current) }
 
@@ -156,7 +173,7 @@ actor HoloLocalAgentRuntime {
         job.checkpointID = checkpoint.id
         job.state = isLast ? .completed : .running
         job.updatedAt = now
-        try await persistence.saveProgress(job: job, evidence: [], checkpoint: checkpoint)
+        try await saveProgress(job: job, evidence: [], checkpoint: checkpoint)
         return job
     }
 
@@ -164,13 +181,13 @@ actor HoloLocalAgentRuntime {
     /// 对齐 job.currentStep 与 checkpoint.step；终态任务不恢复。
     @discardableResult
     func resume(jobID: String, now: Date = Date()) async throws -> HoloAgentJob {
-        guard var job = await loadJob(jobID) else {
+        guard var job = try await loadJob(jobID) else {
             throw HoloAgentRuntimeError.jobNotFound(jobID)
         }
         // 已结束的任务不复活
         guard !Self.terminalStates.contains(job.state) else { return job }
 
-        guard let checkpoint = await checkpointStore.latestForJob(jobID: jobID) else {
+        guard let checkpoint = try await checkpointStore.latestForJob(jobID: jobID) else {
             throw HoloAgentRuntimeError.checkpointMissing(jobID)
         }
         job.currentStep = checkpoint.step
@@ -181,14 +198,15 @@ actor HoloLocalAgentRuntime {
         return job
     }
 
-    /// 取消任务：状态置为 cancelled，不再继续执行。
+    /// 取消任务：状态置为 cancelled，不再继续执行。§5.2：结算 active runtime 段。
     @discardableResult
     func cancel(jobID: String, now: Date = Date()) async throws -> HoloAgentJob {
-        guard var job = await loadJob(jobID) else {
+        guard var job = try await loadJob(jobID) else {
             throw HoloAgentRuntimeError.jobNotFound(jobID)
         }
         job.state = .cancelled
         job.updatedAt = now
+        job.endActiveSegment(at: now)
         try await jobStore.upsert(job)
         return job
     }
@@ -203,65 +221,89 @@ actor HoloLocalAgentRuntime {
     }
 
     /// 读取最近一条 Agent 结果，供记忆长廊展示（Phase 6.3）。
-    func loadLatestResult() async -> HoloAgentResult? {
-        await persistence.loadLatestResult()
+    /// §5.5：读取失败上抛，由调用方决定降级展示，不得当空结果。
+    func loadLatestResult() async throws -> HoloAgentResult? {
+        try await persistence.loadLatestResult()
     }
 
     /// 读取指定 IDs 的 evidence 记录，供结果渲染引用（Phase 6.3 evidence 引用）。
-    func loadEvidence(forIDs ids: [String]) async -> [HoloEvidenceRecord] {
-        await persistence.loadEvidence(forIDs: ids)
+    func loadEvidence(forIDs ids: [String]) async throws -> [HoloEvidenceRecord] {
+        try await persistence.loadEvidence(forIDs: ids)
     }
 
     /// 读取指定 job 的 Agent 结果，供 Chat 恢复回填。
-    func loadResult(jobID: String) async -> HoloAgentResult? {
-        await persistence.loadResult(jobID: jobID)
+    func loadResult(jobID: String) async throws -> HoloAgentResult? {
+        try await persistence.loadResult(jobID: jobID)
     }
 
     /// 读取已到终态且带 Chat 来源消息的 job，供回前台后回填原 streaming 消息。
-    func loadChatRecoverableTerminalJobs() async -> [HoloAgentJob] {
-        let jobs = await jobStore.load()
+    func loadChatRecoverableTerminalJobs() async throws -> [HoloAgentJob] {
+        let jobs = try await jobStore.load()
         return jobs.filter { job in
             job.sourceMessageID != nil && Self.terminalStates.contains(job.state)
         }
     }
 
     /// 读取所有带 Chat 来源消息的 job，供 Chat 页面重建/回前台时同步真实进度。
-    func loadChatLinkedJobs() async -> [HoloAgentJob] {
-        let jobs = await jobStore.load()
+    func loadChatLinkedJobs() async throws -> [HoloAgentJob] {
+        let jobs = try await jobStore.load()
         return jobs.filter { $0.sourceMessageID != nil }
     }
 
     /// 多轮 agent_loop：循环调用 LLM，按 status 推进，直到 final_claims 或轮数耗尽。
     /// 需要 llmClient 与 toolExecutor（未配置时抛 loopNotConfigured）。
     /// 注：循环条件含 wallTime 超时（§9.6）；Date() 不可注入但逻辑简单，测试靠 FakeLLM 同步快避免超时。
-    func runLoop(jobID: String, systemTemplate: String, toolDescriptions: String,
+    /// - Parameter generation: 执行代次（§6.2）。生产必须经 Scheduler acquire 后传入；
+    ///   每次写 checkpoint/evidence/result 与 LLM 响应应用前校验，过期抛 staleExecution 不得写回。
+    ///   nil 仅限 mock/测试路径（不校验）。
+    /// - Parameter progressReporter: §9.4 进度上报回调（每次 checkpoint 落盘后一次，避免高频刷新；
+    ///   Scheduler 注入当前租约的 report，continued lease 据此更新系统进度）。
+    func runLoop(jobID: String, generation: Int? = nil, systemTemplate: String, toolDescriptions: String,
+                 progressReporter: (@Sendable (HoloAgentProgressSnapshot) async -> Void)? = nil,
                  now: Date = Date()) async throws -> HoloAgentJob {
         guard let llmClient, let toolExecutor else {
             throw HoloAgentRuntimeError.loopNotConfigured
         }
-        guard var job = await loadJob(jobID) else {
+        guard var job = try await loadJob(jobID) else {
             throw HoloAgentRuntimeError.jobNotFound(jobID)
         }
         guard !Self.terminalStates.contains(job.state) else { return job }
+        // §5.2：绝对截止兜底——超过截止的 job 不再启动/恢复，直接失败，防止无限等待
+        if job.isPastAbsoluteDeadline(at: now) {
+            job.state = .failed
+            job.errorSummary = "任务已超过截止时限，不再继续"
+            job.waitReason = nil
+            job.updatedAt = now
+            job.endActiveSegment(at: now)
+            try await guardExecutionGeneration(generation, jobID: jobID)
+            try await jobStore.upsert(job)
+            return job
+        }
+        // §5.2 active runtime：进入执行，开段计时并清除等待原因
+        job.beginActiveSegment(at: now)
+        job.waitReason = nil
         if job.timeRange == nil,
            let question = job.userQuestion,
            let resolvedRange = Self.resolveQuestionTimeRange(question, referenceDate: now) {
             job.timeRange = resolvedRange
         }
 
-        var checkpoint = await checkpointStore.latestForJob(jobID: jobID)
+        var checkpoint = try await checkpointStore.latestForJob(jobID: jobID)
             ?? Self.makeCheckpoint(jobID: jobID, step: .plan, completedSteps: [],
                                    conversation: [], now: now)
         try await executeDeterministicPrerequisiteToolsIfNeeded(
             job: &job,
             checkpoint: &checkpoint,
+            generation: generation,
+            progressReporter: progressReporter,
             now: now
         )
         var retryCount = 0
         let maxRetries = 2
 
+        // §5.2：预算判断改用 active runtime（锁屏/等待/暂停不计入）
         while job.budget.consumedLLMRounds < job.budget.maxLLMRounds,
-              Date().timeIntervalSince(job.budget.startedAt) < TimeInterval(job.budget.maxWallTimeSeconds) {
+              !job.isActiveRuntimeExhausted(at: now) {
             try Task.checkCancellation()
             job.state = .waitingForLLM
             job.updatedAt = now
@@ -278,8 +320,75 @@ actor HoloLocalAgentRuntime {
                 conversationState: conversationState,
                 userQuestion: job.userQuestion ?? ""
             )
-            let raw = try await llmClient.next(messages: messages)
+
+            // §5.3 step 幂等：请求前持久化 prepared request record（产品默认开启；
+            // 恢复时 pending 为 prepared/completed 且 hash 一致 → 复用同一 stepID 重新请求，
+            // 后端幂等返回同一响应；applied 或 hash 不一致 → 生成新 record）。
+            let stepRecord: HoloAgentLLMRequestRecord?
+            if stepIdempotencyEnabled {
+                let requestHash = HoloAgentInputSnapshotHasher.canonicalHash(for: messages)
+                let pending = checkpoint.pendingLLMRequest
+                if let pending, pending.status != .applied, pending.requestHash == requestHash {
+                    stepRecord = pending
+                } else {
+                    let revision = (checkpoint.revision ?? 0) + 1
+                    checkpoint.revision = revision
+                    checkpoint.executionGeneration = generation
+                    stepRecord = HoloAgentLLMRequestRecord(
+                        runID: job.id,
+                        stepID: "llm-\(job.budget.consumedLLMRounds + 1)-\(revision)",
+                        requestHash: requestHash,
+                        status: .prepared,
+                        responseHash: nil
+                    )
+                }
+                checkpoint.pendingLLMRequest = stepRecord
+                try await guardExecutionGeneration(generation, jobID: jobID)
+                try await saveProgress(job: job, evidence: [], checkpoint: checkpoint)
+                await reportProgress(job, to: progressReporter)
+            } else {
+                stepRecord = nil
+            }
+
+            let raw: String
+            do {
+                raw = try await llmClient.next(messages: messages, step: stepRecord)
+            } catch {
+                // §8.2：STEP_ID_CONFLICT（同一 stepID 不同 payload，协议冲突不可恢复）→ 置 failed
+                if let apiError = error as? APIError, case .stepIdConflict(let message) = apiError {
+                    try await guardExecutionGeneration(generation, jobID: jobID)
+                    job.state = .failed
+                    job.errorSummary = "请求步标识冲突（STEP_ID_CONFLICT）：\(message ?? "同一 step 提交了不同内容")"
+                    job.waitReason = nil
+                    job.updatedAt = now
+                    job.endActiveSegment(at: now)
+                    try await jobStore.upsert(job)
+                    return job
+                }
+                // §7.2：可恢复网络错误 → 保存 checkpoint 并进入 waitingForCondition+network，不落失败
+                if Self.isRecoverableNetworkError(error) {
+                    return try await enterWaitingForCondition(
+                        job: &job, checkpoint: checkpoint,
+                        reason: .network,
+                        failureSummary: "任务超过截止时限仍未等到网络恢复",
+                        generation: generation, now: now
+                    )
+                }
+                throw error
+            }
+            // §6.2：LLM 响应返回后、应用前校验 generation（旧代次晚返回不得写回）
+            try await guardExecutionGeneration(generation, jobID: jobID)
             job.budget.consumedLLMRounds += 1
+
+            // §5.3：响应身份落盘（completed + responseHash）
+            if stepIdempotencyEnabled, var record = stepRecord {
+                record.status = .completed
+                record.responseHash = HoloAgentInputSnapshotHasher.canonicalHash(for: raw)
+                checkpoint.pendingLLMRequest = record
+                try await guardExecutionGeneration(generation, jobID: jobID)
+                try await saveProgress(job: job, evidence: [], checkpoint: checkpoint)
+                await reportProgress(job, to: progressReporter)
+            }
 
             let output: HoloAgentOutput
             do {
@@ -288,6 +397,9 @@ actor HoloLocalAgentRuntime {
                 if needsRetry {
                     retryCount += 1
                     job.state = .retrying
+                    // §8.3：解析重试是一次新请求——丢弃已完成 record（含其 stepID），
+                    // 下一轮生成新 stepID，避免命中后端幂等缓存返回同一份无效响应
+                    checkpoint.pendingLLMRequest = nil
                     continue
                 }
                 let fallbackClaims = Self.fallbackClaims(
@@ -297,16 +409,27 @@ actor HoloLocalAgentRuntime {
                 if !fallbackClaims.isEmpty {
                     checkpoint.conversationState.append(Self.fallbackAssistantMessage(claims: fallbackClaims, now: now))
                     checkpoint.step = .verifyClaims
-                    return try await completeWithClaims(fallbackClaims, job: &job, checkpoint: checkpoint, now: now)
+                    return try await completeWithClaims(fallbackClaims, job: &job, checkpoint: checkpoint,
+                                                        generation: generation,
+                                                        progressReporter: progressReporter, now: now)
                 }
+                try await guardExecutionGeneration(generation, jobID: jobID)
                 job.state = .failed
-                job.errorSummary = "解析失败重试耗尽。len=\(raw.count) 前200=\(String(raw.prefix(200))) 尾100=\(String(raw.suffix(100)))"
+                // 错误状态可能进入持久化与 Debug 导出，不保存模型原文片段。
+                job.errorSummary = "解析失败重试耗尽（INVALID_AGENT_RESPONSE，len=\(raw.count)）"
                 job.updatedAt = now
+                job.endActiveSegment(at: now)
                 try await jobStore.upsert(job)
                 return job
             }
 
             checkpoint.conversationState.append(Self.assistantMessage(for: output, now: now))
+            // §5.3：输出已应用 → 标记 applied（随本分支下一次 saveProgress 一并落盘，不额外写盘；
+            // 之后崩溃恢复按 completed 复用重放，工具去重逻辑保证不重复执行）
+            if stepIdempotencyEnabled, var record = checkpoint.pendingLLMRequest {
+                record.status = .applied
+                checkpoint.pendingLLMRequest = record
+            }
 
             switch output.status {
             case .needTools:
@@ -343,6 +466,18 @@ actor HoloLocalAgentRuntime {
                     } else {
                         rawResult = await toolExecutor.execute(scopedRequest)
                     }
+                    // §7.2：健康数据锁屏不可读 → 保存 checkpoint 并进入等待解锁，
+                    // 不算失败、不记录该工具结果（恢复后重新查询），禁止生成伪零证据
+                    if let toolError = rawResult.error,
+                       toolError.recoverable,
+                       toolError.code == HoloToolErrorCode.deviceLocked {
+                        return try await enterWaitingForCondition(
+                            job: &job, checkpoint: checkpoint,
+                            reason: .deviceUnlock,
+                            failureSummary: "任务超过截止时限仍未等到设备解锁",
+                            generation: generation, now: now
+                        )
+                    }
                     let result = Self.resultWithCanonicalEvidenceIDs(rawResult, jobID: job.id)
                     checkpoint.completedToolResults.append(result)
                     let evidence = Self.evidenceRecords(
@@ -352,7 +487,10 @@ actor HoloLocalAgentRuntime {
                         now: now
                     )
                     checkpoint.evidenceRecordIDs.append(contentsOf: evidence.map(\.id))
-                    try await persistence.saveProgress(job: job, evidence: evidence, checkpoint: checkpoint)
+                    // §6.2：写 checkpoint/evidence 前校验 generation
+                    try await guardExecutionGeneration(generation, jobID: jobID)
+                    try await saveProgress(job: job, evidence: evidence, checkpoint: checkpoint)
+                    await reportProgress(job, to: progressReporter)
                 }
                 checkpoint.patternSignals.append(
                     contentsOf: patternMiner.mine(toolResults: checkpoint.completedToolResults, now: now)
@@ -363,13 +501,19 @@ actor HoloLocalAgentRuntime {
                     now: now
                 ))
                 checkpoint.step = .executeTools
-                try await persistence.saveProgress(job: job, evidence: [], checkpoint: checkpoint)
+                try await guardExecutionGeneration(generation, jobID: jobID)
+                try await saveProgress(job: job, evidence: [], checkpoint: checkpoint)
+                await reportProgress(job, to: progressReporter)
             case .needMoreAnalysis:
                 checkpoint.step = .continueOrConclude
-                try await persistence.saveProgress(job: job, evidence: [], checkpoint: checkpoint)
+                try await guardExecutionGeneration(generation, jobID: jobID)
+                try await saveProgress(job: job, evidence: [], checkpoint: checkpoint)
+                await reportProgress(job, to: progressReporter)
             case .finalClaims:
                 checkpoint.step = .verifyClaims
-                return try await completeWithClaims(output.claims, job: &job, checkpoint: checkpoint, now: now)
+                return try await completeWithClaims(output.claims, job: &job, checkpoint: checkpoint,
+                                                    generation: generation,
+                                                    progressReporter: progressReporter, now: now)
             }
         }
 
@@ -380,27 +524,39 @@ actor HoloLocalAgentRuntime {
         if !fallbackClaims.isEmpty {
             checkpoint.conversationState.append(Self.fallbackAssistantMessage(claims: fallbackClaims, now: now))
             checkpoint.step = .verifyClaims
-            return try await completeWithClaims(fallbackClaims, job: &job, checkpoint: checkpoint, now: now)
+            return try await completeWithClaims(fallbackClaims, job: &job, checkpoint: checkpoint,
+                                                generation: generation,
+                                                progressReporter: progressReporter, now: now)
         }
 
+        try await guardExecutionGeneration(generation, jobID: jobID)
         job.state = .failed
-        job.errorSummary = "Agent 预算耗尽（LLM 轮数上限）"
+        // §5.2：区分预算耗尽原因——active runtime 超时与 LLM 轮数耗尽文案不同
+        if job.isActiveRuntimeExhausted(at: now) {
+            job.errorSummary = "Agent 运行时长预算耗尽（实际执行时长超限）"
+        } else {
+            job.errorSummary = "Agent 预算耗尽（LLM 轮数上限）"
+        }
         job.updatedAt = now
+        job.endActiveSegment(at: now)
         try await jobStore.upsert(job)
         return job
     }
 
     // MARK: - 后台/前台生命周期
 
-    /// 进入后台：把运行中任务标记为 waitingForForeground，便于前台恢复。
+    /// 进入后台：把运行中任务标记为 waitingForForeground + waitReason=backgroundTimeExpired，便于前台恢复。
+    /// §5.2：同时结算 active runtime 段（锁屏/后台等待不计入运行预算）。
     func pauseForBackground(now: Date = Date()) async throws {
-        let jobs = await jobStore.load()
+        let jobs = try await jobStore.load()
         for var job in jobs where job.state == .running
             || job.state == .waitingForLLM
             || job.state == .retrying {
             job.state = .waitingForForeground
+            job.waitReason = .backgroundTimeExpired
             job.lastForegroundRunAt = now
             job.updatedAt = now
+            job.endActiveSegment(at: now)
             try await jobStore.upsert(job)
         }
     }
@@ -409,12 +565,17 @@ actor HoloLocalAgentRuntime {
     /// 注：本方法仅标记状态、不重启推理；真正闭合恢复链由 HoloAgentScheduler.resumeAndContinue 负责。
     @discardableResult
     func resumeUnfinishedJobs(now: Date = Date()) async throws -> Int {
-        let jobs = await jobStore.load()
+        let jobs = try await jobStore.load()
         var resumed = 0
         for job in jobs
             where !Self.terminalStates.contains(job.state) && job.state != .running {
-            _ = try? await resume(jobID: job.id, now: now)
-            resumed += 1
+            do {
+                _ = try await resume(jobID: job.id, now: now)
+                resumed += 1
+            } catch {
+                // 单 job 恢复失败不阻塞其余 job；原因落日志（不静默 try?，§十 Phase 1 任务 2）
+                NSLog("[Agent] resumeUnfinishedJobs 单任务恢复失败 jobID=\(job.id) error=\(String(describing: error))")
+            }
         }
         return resumed
     }
@@ -422,20 +583,114 @@ actor HoloLocalAgentRuntime {
     /// 收集所有非终态 job 的 ID（含 running 孤儿与 waitingForForeground），供 Scheduler 拉起 runLoop。
     /// 与 resumeUnfinishedJobs 的区别：不排除 running（进程被硬杀的孤儿落盘仍是 running）、不修改状态——
     /// 是否真正重启推理由 Scheduler 决定，本方法只负责给出「需要被推进」的 job 清单。
-    func collectResumableJobIDs(now: Date = Date()) async -> [String] {
-        let jobs = await jobStore.load()
-        return jobs.filter { !Self.terminalStates.contains($0.state) }.map(\.id)
+    /// §5.2：paused（用户明确暂停）不自动恢复；§5.5：枚举场景读失败必须上抛，不得当空库继续。
+    func collectResumableJobIDs(now: Date = Date()) async throws -> [String] {
+        let jobs = try await jobStore.load()
+        return jobs.filter { !Self.terminalStates.contains($0.state) && $0.state != .paused }.map(\.id)
     }
 
     /// 收集所有非终态 job（含 running 孤儿），供 Scheduler 排序、限量、拉起 runLoop。
-    func collectResumableJobs(now: Date = Date()) async -> [HoloAgentJob] {
-        let jobs = await jobStore.load()
-        return jobs.filter { !Self.terminalStates.contains($0.state) }
+    /// §5.2：paused 不自动恢复；§5.5：枚举场景读失败必须上抛，不得当空库继续。
+    func collectResumableJobs(now: Date = Date()) async throws -> [HoloAgentJob] {
+        let jobs = try await jobStore.load()
+        return jobs.filter { !Self.terminalStates.contains($0.state) && $0.state != .paused }
     }
 
     /// 返回某 job 的最新 checkpoint，供 Scheduler 恢复前校验 inputSnapshotHash。
-    func latestCheckpointForJob(jobID: String) async -> HoloAgentCheckpoint? {
-        await checkpointStore.latestForJob(jobID: jobID)
+    func latestCheckpointForJob(jobID: String) async throws -> HoloAgentCheckpoint? {
+        try await checkpointStore.latestForJob(jobID: jobID)
+    }
+
+    /// 把某 job 最新 checkpoint 的 inputSnapshotHash 重建为稳定 SHA-256（§5.1 兼容迁移：
+    /// 旧 Hasher 值/缺失不用于拒绝恢复，恢复前重写为稳定值）。无 checkpoint 时无操作。
+    func refreshStableInputSnapshotHash(jobID: String, hash: String, now: Date = Date()) async throws {
+        guard var checkpoint = try await checkpointStore.latestForJob(jobID: jobID) else { return }
+        checkpoint.inputSnapshotHash = hash
+        checkpoint.schemaVersion = checkpoint.schemaVersion ?? 1
+        checkpoint.updatedAt = now
+        try await checkpointStore.upsert(checkpoint)
+    }
+
+    /// 输入快照确认不匹配：把跳过原因落盘到 job（needs-replan 语义），不得静默跳过（§十 Phase 1 任务 2）。
+    func recordInputSnapshotMismatch(jobID: String, now: Date = Date()) async throws {
+        try await recordExecutionSkip(
+            jobID: jobID,
+            reason: "任务输入已变化（inputSnapshotHash 不匹配），不再自动恢复，请重新发起分析",
+            now: now
+        )
+    }
+
+    /// 执行/恢复被跳过（并发门控、恢复失败等）：把原因落盘到 job.errorSummary，不静默（§6.1）。
+    func recordExecutionSkip(jobID: String, reason: String, now: Date = Date()) async throws {
+        guard var job = try await loadJob(jobID) else { return }
+        job.errorSummary = reason
+        job.updatedAt = now
+        try await jobStore.upsert(job)
+    }
+
+    /// 把单个非终态任务标记为等待（Scheduler.pause 用；§6.4 只做状态标记 + 取消信号，
+    /// 不承担完整 checkpoint 保存——正常推进中已持续落盘）。
+    /// §5.2：结算 active runtime 段，并按原因写 waitReason。
+    @discardableResult
+    func pauseJob(jobID: String, reason: HoloAgentWaitReason = .backgroundTimeExpired, now: Date = Date()) async throws -> HoloAgentJob? {
+        guard var job = try await loadJob(jobID) else { return nil }
+        guard !Self.terminalStates.contains(job.state) else { return job }
+        if job.state == .running || job.state == .waitingForLLM || job.state == .retrying {
+            job.state = .waitingForForeground
+            job.waitReason = reason
+        }
+        job.lastForegroundRunAt = now
+        job.updatedAt = now
+        job.endActiveSegment(at: now)
+        try await jobStore.upsert(job)
+        return job
+    }
+
+    /// 把 job 置 superseded 终态（被新任务取代，§5.2；Phase 2 P0 抢占用）。
+    @discardableResult
+    func supersedeJob(jobID: String, now: Date = Date()) async throws -> HoloAgentJob? {
+        guard var job = try await loadJob(jobID) else { return nil }
+        job.state = .superseded
+        job.waitReason = .inputChanged
+        job.updatedAt = now
+        job.endActiveSegment(at: now)
+        try await jobStore.upsert(job)
+        return job
+    }
+
+    /// 把 job 置 paused（系统结束执行，§9.5 不自动复活），记录来源与 waitReason=.systemCapacity。
+    @discardableResult
+    func suspendJob(jobID: String, reason: String, now: Date = Date()) async throws -> HoloAgentJob? {
+        guard var job = try await loadJob(jobID) else { return nil }
+        guard !Self.terminalStates.contains(job.state) else { return job }
+        job.state = .paused
+        job.waitReason = .systemCapacity
+        job.errorSummary = reason
+        job.updatedAt = now
+        job.endActiveSegment(at: now)
+        try await jobStore.upsert(job)
+        return job
+    }
+
+    /// 把 job 置 failed 并写原因（绝对截止/不可恢复错误用），结算 active runtime 段。
+    @discardableResult
+    func failJob(jobID: String, reason: String, now: Date = Date()) async throws -> HoloAgentJob? {
+        guard var job = try await loadJob(jobID) else { return nil }
+        job.state = .failed
+        job.errorSummary = reason
+        job.waitReason = nil
+        job.updatedAt = now
+        job.endActiveSegment(at: now)
+        try await jobStore.upsert(job)
+        return job
+    }
+
+    /// 记录最近一次恢复/启动原因（§5.2 lastResumeReason，诊断用）。
+    func recordResumeReason(jobID: String, reason: HoloAgentResumeReason, now: Date = Date()) async throws {
+        guard var job = try await loadJob(jobID) else { return }
+        job.lastResumeReason = reason
+        job.updatedAt = now
+        try await jobStore.upsert(job)
     }
 
     /// 清理终态且超保留期的 job 及其关联 checkpoint/result（透传 persistence，§9.6 体积治理）。
@@ -446,8 +701,24 @@ actor HoloLocalAgentRuntime {
 
     // MARK: - 内部辅助
 
-    private func loadJob(_ jobID: String) async -> HoloAgentJob? {
-        await jobStore.load().first { $0.id == jobID }
+    /// 所有 checkpoint 提交统一经过此处，确保 Phase 7 诊断事件与真实落盘一一对应。
+    /// 事件只记录 step identity/计数，不读取 conversation、tool result 或 evidence 内容。
+    private func saveProgress(
+        job: HoloAgentJob,
+        evidence: [HoloEvidenceRecord],
+        checkpoint: HoloAgentCheckpoint
+    ) async throws {
+        try await persistence.saveProgress(job: job, evidence: evidence, checkpoint: checkpoint)
+        await eventRecorder.record(HoloAgentTelemetryEvent(
+            name: .checkpointCommitted,
+            job: job,
+            checkpointRevision: checkpoint.revision,
+            requestID: checkpoint.pendingLLMRequest?.stepID
+        ))
+    }
+
+    private func loadJob(_ jobID: String) async throws -> HoloAgentJob? {
+        try await jobStore.load().first { $0.id == jobID }
     }
 
     private static func makeCheckpoint(
@@ -467,15 +738,6 @@ actor HoloLocalAgentRuntime {
             schemaVersion: inputSnapshotHash == nil ? nil : 1,
             inputSnapshotHash: inputSnapshotHash
         )
-    }
-
-    /// 基于 job 输入计算稳定 hash（userQuestion + timeRange），用于恢复时对比。
-    private static func computeInputSnapshotHash(for job: HoloAgentJob) -> String {
-        var hasher = Hasher()
-        hasher.combine(job.userQuestion)
-        if let start = job.timeRange?.start { hasher.combine(start) }
-        if let end = job.timeRange?.end { hasher.combine(end) }
-        return String(hasher.finalize())
     }
 
     private static func resolveQuestionTimeRange(_ question: String, referenceDate: Date) -> HoloAgentTimeRange? {
@@ -510,6 +772,8 @@ actor HoloLocalAgentRuntime {
     private func executeDeterministicPrerequisiteToolsIfNeeded(
         job: inout HoloAgentJob,
         checkpoint: inout HoloAgentCheckpoint,
+        generation: Int? = nil,
+        progressReporter: (@Sendable (HoloAgentProgressSnapshot) async -> Void)? = nil,
         now: Date
     ) async throws {
         guard let toolExecutor,
@@ -534,7 +798,10 @@ actor HoloLocalAgentRuntime {
                 now: now
             )
             checkpoint.evidenceRecordIDs.append(contentsOf: evidence.map(\.id))
-            try await persistence.saveProgress(job: job, evidence: evidence, checkpoint: checkpoint)
+            // §6.2：写 checkpoint/evidence 前校验 generation
+            try await guardExecutionGeneration(generation, jobID: job.id)
+            try await saveProgress(job: job, evidence: evidence, checkpoint: checkpoint)
+            await reportProgress(job, to: progressReporter)
             executedAny = true
         }
 
@@ -548,7 +815,102 @@ actor HoloLocalAgentRuntime {
             now: now
         ))
         checkpoint.step = .executeTools
-        try await persistence.saveProgress(job: job, evidence: [], checkpoint: checkpoint)
+        try await guardExecutionGeneration(generation, jobID: job.id)
+        try await saveProgress(job: job, evidence: [], checkpoint: checkpoint)
+        await reportProgress(job, to: progressReporter)
+    }
+
+    /// §8.1 step 幂等内部策略（产品默认开启；关闭时走旧路径：不生成/发送 step 字段、
+    /// 不持久化 request record）。nonisolated：HoloMemorySettings 非 actor 隔离，可直接读。
+    private nonisolated var stepIdempotencyEnabled: Bool {
+        HoloAIFeatureFlags.agentStepIdempotencyEnabled
+    }
+
+    /// §6.2 generation guard：副作用写盘前校验执行未取消且 generation 仍有效，
+    /// 过期（被新执行取代）抛 `staleExecution`，已取消抛 CancellationError，
+    /// 不得写回任何 checkpoint/evidence/result/job 状态。
+    /// generation 为 nil 时（mock/测试路径）不校验代次（仍检查取消）。
+    private func guardExecutionGeneration(_ generation: Int?, jobID: String) async throws {
+        try Task.checkCancellation()
+        guard let generation else { return }
+        let valid = try await jobStore.validateExecutionGeneration(jobID: jobID, generation: generation)
+        guard valid else {
+            var event = HoloAgentTelemetryEvent(
+                name: .executionStaleRejected,
+                generation: generation,
+                errorCode: "STALE_EXECUTION"
+            )
+            event.jobID = jobID
+            await eventRecorder.record(event)
+            throw HoloAgentRuntimeError.staleExecution(jobID: jobID, generation: generation)
+        }
+    }
+
+    /// §9.4：checkpoint 落盘后上报一次进度（无 reporter 时空操作）。
+    private func reportProgress(_ job: HoloAgentJob,
+                                to reporter: (@Sendable (HoloAgentProgressSnapshot) async -> Void)?) async {
+        guard let reporter else { return }
+        await reporter(HoloAgentProgressSnapshot(job: job))
+    }
+
+    /// §7.2 等待条件一等公民：先保存 checkpoint（可恢复断点），
+    /// 再把 job 置 waitingForCondition + waitReason 落盘，正常返回（不算失败）。
+    /// 已超过绝对截止 → 置 failed（failureSummary），防止无限等待。
+    private func enterWaitingForCondition(
+        job: inout HoloAgentJob,
+        checkpoint: HoloAgentCheckpoint,
+        reason: HoloAgentWaitReason,
+        failureSummary: String,
+        generation: Int?,
+        now: Date
+    ) async throws -> HoloAgentJob {
+        try await guardExecutionGeneration(generation, jobID: job.id)
+        try await saveProgress(job: job, evidence: [], checkpoint: checkpoint)
+        job.endActiveSegment(at: now)
+        if job.isPastAbsoluteDeadline(at: now) {
+            job.state = .failed
+            job.errorSummary = failureSummary
+            job.waitReason = nil
+        } else {
+            job.state = .waitingForCondition
+            job.waitReason = reason
+            job.errorSummary = nil
+        }
+        job.updatedAt = now
+        try await guardExecutionGeneration(generation, jobID: job.id)
+        try await jobStore.upsert(job)
+        await eventRecorder.record(HoloAgentTelemetryEvent(
+            name: job.state == .waitingForCondition ? .waitingForCondition : .jobFailed,
+            timestamp: now,
+            job: job,
+            checkpointRevision: checkpoint.revision,
+            errorCode: job.state == .failed ? "WAIT_DEADLINE_EXCEEDED" : nil,
+            requestID: checkpoint.pendingLLMRequest?.stepID
+        ))
+        return job
+    }
+
+    /// §7.2 可恢复网络错误判定：APIError 的网络不可用/超时与 URLError 的连接类错误。
+    private static func isRecoverableNetworkError(_ error: Error) -> Bool {
+        if let apiError = error as? APIError {
+            switch apiError {
+            case .networkUnavailable, .timeout:
+                return true
+            default:
+                return false
+            }
+        }
+        if let urlError = error as? URLError {
+            switch urlError.code {
+            case .notConnectedToInternet, .networkConnectionLost, .timedOut,
+                 .cannotConnectToHost, .cannotFindHost, .dnsLookupFailed,
+                 .dataNotAllowed, .internationalRoamingOff, .callIsActive:
+                return true
+            default:
+                return false
+            }
+        }
+        return false
     }
 
     private static func deterministicToolRequests(for question: String) -> [HoloToolRequest] {
@@ -724,10 +1086,12 @@ actor HoloLocalAgentRuntime {
         _ claims: [HoloAgentClaim],
         job: inout HoloAgentJob,
         checkpoint: HoloAgentCheckpoint,
+        generation: Int? = nil,
+        progressReporter: (@Sendable (HoloAgentProgressSnapshot) async -> Void)? = nil,
         now: Date
     ) async throws -> HoloAgentJob {
         let availableEvidenceIDs = Array(Set(checkpoint.evidenceRecordIDs + claims.flatMap(\.evidenceIDs)))
-        let evidence = await persistence.loadEvidence(forIDs: availableEvidenceIDs)
+        let evidence = try await persistence.loadEvidence(forIDs: availableEvidenceIDs)
         let verification = HoloClaimVerifier().verify(claims: claims, evidence: evidence)
         var acceptedClaims = verification.acceptedClaims
         if Self.shouldSuppressSuggestions(for: job.userQuestion) {
@@ -739,7 +1103,7 @@ actor HoloLocalAgentRuntime {
         )
         if !fallback.isEmpty {
             let fallbackEvidenceIDs = Array(Set(checkpoint.evidenceRecordIDs + fallback.flatMap(\.evidenceIDs)))
-            let fallbackEvidence = await persistence.loadEvidence(forIDs: fallbackEvidenceIDs)
+            let fallbackEvidence = try await persistence.loadEvidence(forIDs: fallbackEvidenceIDs)
             let verifiedFallback = HoloClaimVerifier()
                 .verify(claims: fallback, evidence: fallbackEvidence)
                 .acceptedClaims
@@ -778,8 +1142,9 @@ actor HoloLocalAgentRuntime {
         let resultCoverage = checkpoint.completedToolResults.first { toolResult in
             toolResult.coverage != nil && toolResult.metrics.contains { coveredMetricKeys.contains($0.metricKey) }
         }?.coverage
+        // canonical result ID：同一 job 恒为同一 ID，配合 ResultStore 按 jobID 唯一 upsert（§5.4，P0-6）
         let agentResult = HoloAgentResult(
-            id: UUID().uuidString,
+            id: "agent-result:\(job.id)",
             jobID: job.id,
             title: "深度分析",
             summary: acceptedClaims.isEmpty
@@ -793,12 +1158,19 @@ actor HoloLocalAgentRuntime {
             updatedAt: now,
             coverage: resultCoverage
         )
+        // §6.2：Result 提交与最终状态写回前校验 generation（过期不得写回）
+        try await guardExecutionGeneration(generation, jobID: job.id)
         try await persistence.saveResult(agentResult)
+        await reportProgress(job, to: progressReporter)
         job.resultID = agentResult.id
         job.state = .completed
         job.errorSummary = nil
+        job.waitReason = nil
         job.updatedAt = now
-        try await persistence.saveProgress(job: job, evidence: [], checkpoint: checkpoint)
+        job.endActiveSegment(at: now)
+        try await guardExecutionGeneration(generation, jobID: job.id)
+        try await saveProgress(job: job, evidence: [], checkpoint: checkpoint)
+        await reportProgress(job, to: progressReporter)
         return job
     }
 
@@ -1226,6 +1598,8 @@ enum HoloAgentRuntimeError: Error, LocalizedError {
     case checkpointMissing(String)
     case unknownStep(HoloAgentStep)
     case loopNotConfigured
+    /// §6.2：执行代次已过期（被新执行取代），拒绝写回
+    case staleExecution(jobID: String, generation: Int)
 
     var errorDescription: String? {
         switch self {
@@ -1233,6 +1607,7 @@ enum HoloAgentRuntimeError: Error, LocalizedError {
         case .checkpointMissing(let id): return "找不到任务的可恢复快照：\(id)"
         case .unknownStep(let step): return "mock 序列未覆盖步骤：\(step.rawValue)"
         case .loopNotConfigured: return "Agent Loop 未配置 LLM client 或 tool executor"
+        case .staleExecution(let id, let generation): return "执行代次已过期，拒绝写回：job=\(id) generation=\(generation)"
         }
     }
 }

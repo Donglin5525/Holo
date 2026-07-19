@@ -236,6 +236,26 @@ export function loadConfig(overrides = {}) {
     adminLogStore: overrides.adminLogStore,
     usageStore: overrides.usageStore,
     providerOverrides: overrides.providerOverrides,
+    agentStepIdempotencyStore: overrides.agentStepIdempotencyStore,
+    agentStepIdempotencyEncryptionKey:
+      overrides.agentStepIdempotencyEncryptionKey
+        ?? process.env.HOLO_AGENT_STEP_IDEMPOTENCY_ENCRYPTION_KEY
+        ?? "",
+    agentStepIdempotencyPreviousEncryptionKeys:
+      overrides.agentStepIdempotencyPreviousEncryptionKeys
+        ?? process.env.HOLO_AGENT_STEP_IDEMPOTENCY_PREVIOUS_ENCRYPTION_KEYS
+        ?? "",
+    runtimeEnvironment: overrides.runtimeEnvironment ?? process.env.NODE_ENV ?? "development",
+    agentStepIdempotencyTtlSeconds: Number(
+      overrides.agentStepIdempotencyTtlSeconds
+        ?? process.env.HOLO_AGENT_STEP_IDEMPOTENCY_TTL_SECONDS
+        ?? 86_400,
+    ),
+    agentStepIdempotencyCleanupIntervalMs: Number(
+      overrides.agentStepIdempotencyCleanupIntervalMs
+        ?? process.env.HOLO_AGENT_STEP_IDEMPOTENCY_CLEANUP_INTERVAL_MS
+        ?? 3_600_000,
+    ),
     database: overrides.database ?? null,
     contentCaptureEnabled: process.env.HOLO_LOG_CAPTURE_CONTENT === "true",
     logRetentionDays: Number(process.env.HOLO_LOG_RETENTION_DAYS ?? 30),

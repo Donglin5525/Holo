@@ -7,6 +7,11 @@ services:
     restart: unless-stopped
     env_file:
       - .env.production
+    environment:
+      # deploy.sh 每次按实际同步到 ECS 的源码计算，覆盖 .env.production 中可能陈旧的发布身份。
+      HOLO_RELEASE_COMMIT: ${HOLO_RELEASE_COMMIT:-unknown}
+      HOLO_RELEASE_SOURCE_DIGEST: ${HOLO_RELEASE_SOURCE_DIGEST:-unknown}
+      HOLO_RELEASE_BUILD_TIME: ${HOLO_RELEASE_BUILD_TIME:-unknown}
     ports:
       - "127.0.0.1:8787:8787"
     volumes:
