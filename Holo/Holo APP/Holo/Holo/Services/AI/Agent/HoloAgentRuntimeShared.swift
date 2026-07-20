@@ -228,7 +228,7 @@ struct HoloDefaultCrossDomainDataSource: HoloCrossDomainDataSource, HoloDynamicR
 extension HoloLocalAgentRuntime {
     /// 全 App 共享的生产 Agent runtime（真实后端 LLM + Memory 工具）。
     /// 同时服务后台续跑（Phase 5.1）与对话深度分析（Phase 6.2）。
-    /// 生产 dataSource 已覆盖 10 类用户语义数据工具。
+    /// 生产 dataSource 已覆盖 10 类核心域工具 + 3 类结构/反馈增强工具。
     /// 生产装配放此处（而非 Factory），避免 standalone test 拉 Factory 时引入后端重依赖。
     @MainActor
     static let shared: HoloLocalAgentRuntime = {
@@ -256,6 +256,10 @@ extension HoloLocalAgentRuntime {
             HoloDynamicToolDecorator(base: HoloProfileTool(dataSource: HoloDefaultProfileDataSource()), catalog: HoloAgentDynamicCatalogs.profile, dataSource: dynamicDataSource),
             HoloDynamicToolDecorator(base: HoloConversationTool(dataSource: HoloDefaultConversationDataSource()), catalog: HoloAgentDynamicCatalogs.conversation, dataSource: dynamicDataSource),
             HoloDynamicToolDecorator(base: HoloInsightTool(dataSource: HoloDefaultInsightDataSource()), catalog: HoloAgentDynamicCatalogs.insight, dataSource: dynamicDataSource),
+            // 第一梯队增强工具：纯叠加，不进 requiredToolNames / 动态数据集，避免破坏覆盖断言
+            HoloFeedbackTool(dataSource: HoloDefaultFeedbackDataSource()),
+            HoloThoughtReferenceTool(dataSource: HoloDefaultThoughtReferenceDataSource()),
+            HoloProjectTool(dataSource: HoloDefaultProjectDataSource()),
             HoloCrossDomainTool(dataSource: dynamicDataSource)
         ]
         assert(

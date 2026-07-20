@@ -4,6 +4,33 @@
 
 ---
 
+## [2026-07-21] Agent 数据工具第一梯队：反馈闭环 / 想法引用结构 / 消费项目
+
+为本地 Agent 新增 3 个只读数据工具，覆盖此前 agent 看不到的三类"已落库但无查询入口"的数据。三个工具纯叠加注册，不改动现有 10 个核心域工具、不改覆盖断言、零新增系统权限。
+
+### 新增工具
+- **feedback（洞察反馈闭环）**：读取用户对历史洞察的评分与纠正。支持 `rating_summary`（评分分布与准确率）、`correction_themes`（按 reason 枚举和领域聚类的纠正主题，不含纠正文本）、`corrections_summary`（近期纠正脱敏摘要）。让 agent 在生成新结论前参考用户过往反馈，避免重蹈覆辙。
+- **thought_reference（想法引用结构）**：读取想法之间的 @ 引用关系。支持 `reference_density`（被引用最多的 Top5 想法）、`reference_clusters`（并查集连通分量识别引用簇）。只输出结构信号，原文一律用首行摘要或引用快照。
+- **project（消费项目）**：读取订阅 / 分期 / 周期支出 / 一次性大件。支持 `recurring_summary`（活跃订阅与月均承诺）、`upcoming_commitments`（按日期升序的下一笔周期承诺）、`oneoff_amortization`（一次性大件的日均成本摊销视角）。
+
+### 隐私边界
+- feedback 工具不碰 `MemoryInsightRepository.fetchUnconsumedFeedback` / `markConsumed`（那是 `InsightFeedbackAggregator` 的待办队列），改用后台 context 直读全量 NSDictionary 投影，只读不写 `consumedAt`，避免污染反馈聚合链路。
+- 自由文本纠正（userCorrection）仅在 `corrections_summary` 里以 ≤60 字截断 + `…` 出现，标 sensitive，且不进 dynamic_query 动态数据集，控制敏感内容扩散面。
+- thought_reference 的 sourceThought / targetThought 均过滤软删除和归档，只输出结构关系不展开全文。
+- 三个工具都不进 `requiredToolNames` 与动态数据集，作为纯增强叠加，避免破坏 `HoloAgentToolCoverage` 覆盖断言。
+
+### 后端
+- `agent_loop` prompt 升至 v11，追加 feedback / thought_reference / project 三个工具的选择规则（在"其他数据工具选择规则"段）。
+- 后端已部署生产：ECS 本机与公网 `https://api.holoapp.cn/v1/health` 健康检查通过，容器启动日志确认 `[PromptRegistry] 已同步默认 Prompt 到历史: agent_loop v11`。
+
+### 已知边界
+- `project.oneoff_amortization` 的"每次使用成本"路径暂不输出：`SpendingProject.recordUsage` 当前无 UI 调用方，`usageCount` 恒为 0，工具层已诚实化处理（`usageCount == 0` 时不追加使用相关文案），待 `recordUsage` 接入 UI 后自动激活。
+
+### 验证
+- iOS 主 target 与测试 target 均编译通过，新文件零 warning / 零 error。
+- 三个工具各配轻量单测（mock DataSource 注入），覆盖各 query 的 success / empty / 边界分支；测试沿用项目既有的 `@main` 独立可执行模式。
+- 真机验收路径：project（建订阅/大件 → 问"每月固定承诺"）→ thought_reference（@ 引用想法 → 问"引用关系"）→ feedback（生成洞察 → 打分纠正 → 问"评分/纠正主题"），均需用"分析/结构"类问法落入 `query_analysis` 才能触发 agent。
+
 ## [2026-07-19] Holo Agent 全场景稳定执行 Phase 0–7
 
 Agent 从“页面内长任务”升级为本地优先、唯一执行、可暂停恢复的统一运行链；iOS 26 用户主动任务可申请系统 Continued Processing，回桌面、切其他 App 或锁屏后在系统接纳时继续，系统中止仍保留安全断点。iOS 17–25 保持短时后台收尾与下次打开恢复。
