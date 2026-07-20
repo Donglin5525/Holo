@@ -15,6 +15,8 @@ const PROMPT_VERSIONS = {
   finance_action_parser: 1,
   task_action_parser: 1,
   health_insight_generation: 2,
+  thought_organization: 3,
+  thought_tag_convergence: 2,
   agent_loop: 10,
   memory_domain_extraction: 1,
   memory_cross_domain_fusion: 1,

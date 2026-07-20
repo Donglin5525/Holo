@@ -45,6 +45,18 @@ test("server Prompt is always the first upstream system message", () => {
   assert.deepEqual(result.messages[1], { role: "user", content: "你好" });
 });
 
+test("thought organization Prompt enforces user topics and structured output", () => {
+  createApp({ database: createDatabase({ dbPath: ":memory:" }) });
+  const result = injectServerPrompt("thought_organization", [
+    { role: "user", content: JSON.stringify({ activeTopics: ["工作与事业"], thoughtContent: "测试" }) },
+  ]);
+  assert.ok(result.promptVersion >= 3);
+  assert.match(result.messages[0].content, /activeTopics/);
+  assert.match(result.messages[0].content, /selectedTopic/);
+  assert.match(result.messages[0].content, /未分类/);
+  assert.doesNotMatch(result.messages[0].content, /\{\{existingTagExamples\}\}/);
+});
+
 test("server renders time variables without exposing raw placeholders upstream", () => {
   const rendered = renderPromptVariables(
     "{{todayISODate}}|{{thirtyDaysAgoDate}}|{{currentYear}}|{{currentTime}}",
