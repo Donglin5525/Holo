@@ -4,6 +4,47 @@
 
 ---
 
+## [2026-07-21] 想法编辑体验修复：完整页面 / 自动保存 / 标签吸附光标
+
+针对想法（Thought）模块长期积累的编辑体感问题做一次系统性修复。核心 bug 是「编辑内容时下滑误触导致内容丢失」，由此延伸出标签识别、换行保留、外部展示、候选面板样式等多个小问题。
+
+### 编辑器：从 sheet 改为完整页面
+- 4 处入口（首页 Holo One、观点列表底部 +、列表卡片点击、详情页编辑按钮）全部从 `.sheet` 改为 `.fullScreenCover`，彻底消除系统下滑手势误触关闭编辑器的路径。
+- 接入项目已有的左边缘右滑返回手势（`SwipeBackModifier`），右滑回调走统一的退出处理，不与 NavigationView 系统 pop 冲突。
+- 编辑器内部 `NavigationView` 改用 `.stack` 样式，fullScreenCover 下导航栏与工具栏行为正常。
+
+### 自动保存（防丢内容）
+- 三重防护：
+  1. 右滑返回 / 取消按钮走统一的 `handleDismiss`：有内容且有改动时自动保存，否则直接退出。
+  2. `.onDisappear` 兜底 `saveIfHasUnsavedChanges`：任何意外退出路径（系统回收、路由跳转）都不会丢用户输入。
+  3. 保存成功后立即同步 `originalContent`、清空 `pendingImages`，避免 `onDisappear` 与按钮触发的保存路径重复落库。
+- 新建模式下图片上传改为先快照到局部变量再清空 state，避免 Task 闭包迭代受 state 变更影响。
+
+### 标签：正文 #标签 现在生效
+- 放宽 `InlineTagDetector` 触发位置判定：CJK 字母前置（如「正文#标签」「今晚#工作」）允许触发；ASCII 字母 / 数字 / URL 分隔符（`/`、`:`）仍拒绝，避免 `abc#tag`、`https://x.com/#anchor`、`path/file#section` 误触发。
+- 行为与编辑器提取、卡片展示、列表筛选完全一致（共用 `isTriggerPosition`）。
+
+### 标签：打开后换行不再失效 + 重新 Token 化
+- `RichContentSerializer.nodes(fromPlainText:)` 在加载纯文本存量想法时，主动把 `#标签` 切成 `.tag` Token 节点（之前整段包成单个 text 节点，导致重新打开后标签不再高亮、保存后丢失 Token 身份）。
+- 末尾换行作为独立 text 节点保留（之前被 Markdown 块解析吞掉，导致「末尾敲了换行，重开就没了」）。
+- `MarkdownTextView.makeAttributedText(from: String)` 修复：Markdown 解析后为空但原文非空时，用原文构造，避免末尾换行在编辑器里丢失。
+- Token UUID 用 djb2 128-bit hash 基于 displayPath 确定性生成（同一标签名跨会话稳定），避免每次打开都生成新身份。
+
+### 标签：外部看不到标签的修复
+- `ThoughtRepository.update` 新增 `inlineTags` 参数，重建标签时只清理 `manual` + `inline` assignment，**保留 `ai` / `confirmedAI` / `rejectedAI`**（AI 识别结果不再被用户编辑动作清空，修复「编辑保存后 AI 标签消失」）。
+- `Thought.tags` 关系整体重建为「inline + ai + confirmedAI」并集（跳过 rejectedAI），保证旧 UI 读 `tagArray` 时口径与新数据源一致。
+- `Thought.inlineTags` 从旧解析器（不支持路径、不校验触发位置）改用 `InlineTagDetector.extractTags`，与编辑器口径完全一致。
+
+### 候选面板：从吸底硬弹窗改为光标吸附浮层
+- `SuggestionPanelView` 重写为紧凑卡片：宽 280pt，去掉原来 240pt 高的吸底硬壳和 header，行高 36，最多展示 6 项。
+- `MarkdownTextView` 新增 `caretRect` binding，每次光标移动上报 caret rect（UITextView 局部坐标）。
+- 浮层挂在 `MarkdownTextView` 的 `.overlay` 上（坐标精确对齐），用纯 `.offset` 定位到光标上方；光标太靠顶部时翻转到下方；浮层外的触摸穿透到下层编辑器，不影响输入交互。
+
+### 验证
+- 观点模块相关单测 77/77 全部通过：新增 18 个用例覆盖 CJK 前置触发、纯文本 Token 化往返、末尾换行保留、确定性 UUID、update 保留 AI assignments 等。
+- iOS 主 target 与测试 target 均编译通过，零 warning / 零 error。
+- 真机验收路径：① 新建想法输入内容后下滑（不会关闭）→ 右滑返回（自动保存）→ 列表可见；② 输入「正文#工作」→ 卡片显示 #工作；③ 「#工作\n」末尾换行 → 关闭重开换行还在；④ 输入 `#` 触发候选浮层吸附光标。
+
 ## [2026-07-21] Agent 数据工具第一梯队：反馈闭环 / 想法引用结构 / 消费项目
 
 为本地 Agent 新增 3 个只读数据工具，覆盖此前 agent 看不到的三类"已落库但无查询入口"的数据。三个工具纯叠加注册，不改动现有 10 个核心域工具、不改覆盖断言、零新增系统权限。

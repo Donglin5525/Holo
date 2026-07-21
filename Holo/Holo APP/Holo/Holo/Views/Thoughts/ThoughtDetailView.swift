@@ -120,7 +120,8 @@ struct ThoughtDetailView: View {
             } message: {
                 Text(deletedSnapshot ?? "")
             }
-            .sheet(isPresented: $showEditSheet) {
+            // fullScreenCover：编辑器作为完整页面承载，避免 sheet 下滑误触丢内容
+            .fullScreenCover(isPresented: $showEditSheet) {
                 ThoughtEditorView(
                     onSave: {
                         loadData()

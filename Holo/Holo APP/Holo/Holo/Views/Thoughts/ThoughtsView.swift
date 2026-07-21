@@ -93,7 +93,8 @@ struct ThoughtsView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             thoughtTabBar
         }
-        .sheet(isPresented: $showAddThought) {
+        // fullScreenCover：编辑器作为完整页面承载，避免 sheet 下滑误触丢内容
+        .fullScreenCover(isPresented: $showAddThought) {
             ThoughtEditorView {
                 // 保存后刷新列表
                 NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)

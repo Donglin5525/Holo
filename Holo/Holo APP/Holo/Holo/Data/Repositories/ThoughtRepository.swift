@@ -252,15 +252,22 @@ class ThoughtRepository {
     ///   - id: 想法 ID
     ///   - content: 新内容
     ///   - mood: 新心情
-    ///   - tags: 新标签数组（合并后的，视为 manual）
+    ///   - tags: 标签数组（兼容旧调用：视为 inline 来源，与正文 #标签 同等）
+    ///   - inlineTags: 正文 #标签 自动提取（与 tags 等价合并，来源标 inline）
     ///   - richContentJSON: 双层可选：外层 nil=不改动；外层非 nil 时写入（内层 nil=清除结构化内容）
     /// - Returns: 更新后的 Thought 对象
+    ///
+    /// 标签重建策略（修复「编辑后标签幽灵 / AI 标签丢失」）：
+    ///   - 清理旧的 manual + inline assignment（这些是用户可编辑的）
+    ///   - 保留 ai / confirmedAI / rejectedAI assignment（AI 识别结果不应被编辑动作清空）
+    ///   - Thought.tags 关系整体重建为「manual + inline + ai + confirmedAI」的并集
     @discardableResult
     func update(
         _ id: UUID,
         content: String? = nil,
         mood: String? = nil,
         tags: [String]? = nil,
+        inlineTags: [String]? = nil,
         richContentJSON: String?? = nil
     ) throws -> Thought {
         guard let thought = try fetchById(id) else {
@@ -280,21 +287,62 @@ class ThoughtRepository {
 
         thought.updatedAt = Date()
 
-        // 更新标签（双写）
-        if let tags = tags {
-            // 清除旧 Thought.tags 关联
+        // 合并 tags 与 inlineTags（编辑器实际只传其一；保留两个参数为向后兼容）
+        let effectiveInlineTags: [String]? = {
+            if tags == nil && inlineTags == nil { return nil }
+            var combined: [String] = []
+            if let tags { combined.append(contentsOf: tags) }
+            if let inlineTags { combined.append(contentsOf: inlineTags) }
+            return combined
+        }()
+
+        // 更新标签（双写）—— 仅当调用方显式传入 tags 或 inlineTags
+        if let effectiveInlineTags {
+            // 归一化 + 去重（保持顺序）
+            var seen = Set<String>()
+            let normalizedTags = effectiveInlineTags
+                .map { ThoughtTagNormalizer.displayName($0) }
+                .filter { !$0.isEmpty }
+                .filter { seen.insert(ThoughtTagNormalizer.key($0)).inserted }
+
+            // 1. 清理旧的 manual + inline assignment（用户可编辑身份）
+            //    保留 ai / confirmedAI / rejectedAI（AI 识别结果与本次编辑正交）
+            let userEditableSources: Set<String> = [
+                ThoughtTagAssignment.Source.manual.rawValue,
+                ThoughtTagAssignment.Source.inline.rawValue
+            ]
+            if let existingAssignments = thought.tagAssignments as? Set<ThoughtTagAssignment> {
+                for assignment in existingAssignments where userEditableSources.contains(assignment.source) {
+                    context.delete(assignment)
+                }
+            }
+
+            // 2. 清除旧 Thought.tags 关联（下面整体重建）
             thought.tags?.forEach { tag in
                 if let tag = tag as? ThoughtTag {
                     thought.removeTags(tag)
                 }
             }
 
-            // 添加新标签（双写）
-            for tagName in tags {
+            // 3. 写入新标签（inline source）
+            for tagName in normalizedTags {
                 let tag = try getOrCreateTag(name: tagName)
                 tag.lastUsedAt = Date()
                 thought.addTags(tag)
-                createAssignmentInternal(thought: thought, tag: tag, source: .manual, confidence: 1.0)
+                createAssignmentInternal(thought: thought, tag: tag, source: .inline, confidence: 1.0)
+            }
+
+            // 4. 重建 Thought.tags：把保留的 AI 标签关系也加回（旧 UI 读 tagArray）
+            let newInlineTagKeys = Set(normalizedTags.map { ThoughtTagNormalizer.key($0) })
+            if let existingAssignments = thought.tagAssignments as? Set<ThoughtTagAssignment> {
+                for assignment in existingAssignments {
+                    guard let tag = assignment.tag else { continue }
+                    let key = ThoughtTagNormalizer.key(tag.name)
+                    // 跳过刚写入的（已 addTags）和已被用户拒绝的（rejectedAI 不展示）
+                    if newInlineTagKeys.contains(key) { continue }
+                    if assignment.source == ThoughtTagAssignment.Source.rejectedAI.rawValue { continue }
+                    thought.addTags(tag)
+                }
             }
         }
 
@@ -613,6 +661,34 @@ class ThoughtRepository {
         try context.save()
     }
 
+    /// 用本次安全校验后的结果替换旧的“未确认 AI 标签”。
+    /// 手动、行内和 confirmedAI 标签均保留，避免重跑破坏用户已经认可的内容。
+    func replaceUnconfirmedAITagAssignments(
+        thoughtId: UUID,
+        tagNames: [String],
+        confidence: Double
+    ) throws {
+        guard let thought = try fetchByIdInternal(thoughtId) else {
+            throw ThoughtError.notFound
+        }
+
+        for assignment in (thought.tagAssignments as? Set<ThoughtTagAssignment>) ?? []
+        where assignment.source == ThoughtTagAssignment.Source.ai.rawValue {
+            context.delete(assignment)
+        }
+
+        for tagName in tagNames {
+            let tag = try getOrCreateTag(name: tagName)
+            createAssignmentInternal(
+                thought: thought,
+                tag: tag,
+                source: .ai,
+                confidence: confidence
+            )
+        }
+        try context.save()
+    }
+
     /// 获取想法的标签分配
     /// - Parameters:
     ///   - thoughtId: 想法 ID
@@ -732,13 +808,18 @@ class ThoughtRepository {
         }
     }
 
-    /// 未归类观点：未进入任何 Topic（topics 关系为空）
-    /// P1 Topic 表空 → 等价全部 active；P1.5 有 Topic 后仅返回真正未归类的
+    /// 未归类观点：没有进入任何“用户启用的分类主题”。
+    /// 历史 active/candidate Topic 不再污染新主题维度的未归类口径。
     func fetchUnclassifiedThoughts() throws -> [Thought] {
         let request = Thought.fetchRequest()
-        let unclassifiedPredicate = NSPredicate(format: "topics.@count == 0")
         let deletePredicate = NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
-        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [unclassifiedPredicate, deletePredicate])
+        let classificationPredicate = NSPredicate(
+            format: "SUBQUERY(topics, $topic, $topic.status == %@).@count == 0",
+            Topic.TopicStatus.classification.rawValue
+        )
+        request.predicate = NSCompoundPredicate(
+            andPredicateWithSubpredicates: [deletePredicate, classificationPredicate]
+        )
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
         return try context.fetch(request)
     }
@@ -765,10 +846,18 @@ class ThoughtRepository {
             Self.visibleTagSourceValues
         )
         let deletePredicate = NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
-        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [assignmentPredicate, deletePredicate])
+        let classificationPredicate = NSPredicate(
+            format: "SUBQUERY(topics, $topic, $topic.status == %@).@count == 0",
+            Topic.TopicStatus.classification.rawValue
+        )
+        request.predicate = NSCompoundPredicate(
+            andPredicateWithSubpredicates: [assignmentPredicate, deletePredicate, classificationPredicate]
+        )
         request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
-        request.fetchLimit = maxCount
+        request.fetchLimit = max(0, maxCount)
 
+        // 主题发现只观察当前分类维度下仍未归类的想法，避免历史 Topic 反复参与聚类。
+        // 条件必须在 fetchLimit 前由持久层过滤，否则最近的已分类数据会挤掉真正候选。
         let thoughts = try context.fetch(request)
         return thoughts.compactMap { thought in
             let assignments = thought.tagAssignments as? Set<ThoughtTagAssignment> ?? []

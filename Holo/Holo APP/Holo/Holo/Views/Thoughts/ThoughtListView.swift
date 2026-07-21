@@ -138,7 +138,8 @@ struct ThoughtListView: View {
                 thoughtListView
             }
         }
-        .sheet(item: $selectedThoughtId) { thoughtId in
+        // fullScreenCover：编辑器作为完整页面承载，避免 sheet 下滑误触丢内容
+        .fullScreenCover(item: $selectedThoughtId) { thoughtId in
             ThoughtEditorView(editingThoughtId: thoughtId)
         }
         .sheet(isPresented: $showFilterSheet) {

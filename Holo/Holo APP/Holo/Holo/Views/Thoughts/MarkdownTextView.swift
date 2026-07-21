@@ -52,6 +52,9 @@ struct MarkdownTextView: UIViewRepresentable {
     @Binding var triggerContext: EditorTriggerContext?
     /// 当前被选中的 Token（点按 Token 后展示操作菜单）
     @Binding var selectedToken: HoloContentNode?
+    /// 当前光标在编辑器视图内的 rect（编辑器局部坐标空间）
+    /// 触发时由父视图读取，把候选浮层吸附到光标上方；不触发时为 .zero
+    @Binding var caretRect: CGRect
 
     /// 是否启用富文本渲染
     var showHighlight: Bool = true
@@ -86,6 +89,8 @@ struct MarkdownTextView: UIViewRepresentable {
         textView.inputAssistantItem.leadingBarButtonGroups = []
         textView.inputAssistantItem.trailingBarButtonGroups = []
         textView.typingAttributes = Self.baseAttributes
+        // 关闭 iOS 17+ 非编辑态自动滚动到可见区域：避免候选浮层出现时编辑器意外上滚
+        textView.alwaysBounceVertical = false
         let initialNodes = RichContentSerializer.nodes(richJSON: initialRichJSON, fallbackPlainText: text)
         textView.attributedText = showHighlight ? Self.makeAttributedText(from: initialNodes) : NSAttributedString(string: text, attributes: Self.baseAttributes)
 
@@ -101,6 +106,11 @@ struct MarkdownTextView: UIViewRepresentable {
         context.coordinator.onFormatStateChange = { state in
             DispatchQueue.main.async {
                 self.formatState = state
+            }
+        }
+        context.coordinator.onCaretRectChange = { rect in
+            DispatchQueue.main.async {
+                self.caretRect = rect
             }
         }
         context.coordinator.refreshTypingAttributes(for: textView)
@@ -151,6 +161,8 @@ struct MarkdownTextView: UIViewRepresentable {
         var onHeightChange: ((CGFloat) -> Void)?
         var onFormatStateChange: ((TypingFormatState) -> Void)?
         var onNodesChange: (([HoloContentNode]) -> Void)?
+        /// 光标 rect 变化回调（编辑器局部坐标系），父视图据此吸附候选浮层
+        var onCaretRectChange: ((CGRect) -> Void)?
 
         /// 当前活跃的 #/@ 触发（候选面板打开期间非空）
         private var activeTrigger: EditorTriggerContext?
@@ -287,7 +299,20 @@ struct MarkdownTextView: UIViewRepresentable {
 
             refreshTypingAttributes(for: textView)
             updateTriggerState(textView)
+            reportCaretRect(textView)
             lastSelectionLocation = textView.selectedRange.location
+        }
+
+        /// 上报当前光标在编辑器视图坐标系内的 rect（用于候选浮层吸附）
+        func reportCaretRect(_ textView: UITextView) {
+            // selectedRange.location 可能落在 length 处（文末），用 position(from:offset:) 获取安全 UITextPosition
+            let location = min(textView.selectedRange.location, textView.attributedText.length)
+            guard let startPosition = textView.position(from: textView.beginningOfDocument, offset: location) else {
+                onCaretRectChange?(.zero)
+                return
+            }
+            let rect = textView.caretRect(for: startPosition)
+            onCaretRectChange?(rect)
         }
 
         /// 是否已接管系统编辑菜单交互
@@ -757,8 +782,13 @@ private extension MarkdownTextView {
             }
         }
 
+        // 兜底：Markdown 块解析会丢弃纯空白/换行文本（如末尾 "\n"、"\n\n"），
+        // 若解析结果为空但原文本非空，直接用原文构造，避免末尾换行在编辑器里丢失
         if result.length == 0 {
-            return NSAttributedString(string: "", attributes: baseAttributes)
+            if markdown.isEmpty {
+                return NSAttributedString(string: "", attributes: baseAttributes)
+            }
+            return NSAttributedString(string: markdown, attributes: baseAttributes)
         }
 
         return result

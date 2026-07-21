@@ -292,7 +292,8 @@ struct HomeView: View {
             }
         }
         // Holo One - 记录想法
-        .sheet(isPresented: $showThoughtEditor) {
+        // fullScreenCover：编辑器作为完整页面承载，避免 sheet 下滑误触丢内容
+        .fullScreenCover(isPresented: $showThoughtEditor) {
             LazyView {
                 ThoughtEditorView {
                     NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)

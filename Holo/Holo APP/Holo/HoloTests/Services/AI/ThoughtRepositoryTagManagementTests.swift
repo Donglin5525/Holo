@@ -243,6 +243,70 @@ final class ThoughtRepositoryTagManagementTests: XCTestCase {
         XCTAssertEqual(topicTags.map(\.name), ["工作"], "Topic 应改关联目标标签")
         XCTAssertEqual(topic.associatedTagNames, "工作", "Topic 缓存应重算为目标名")
     }
+
+    // MARK: - update 保留 AI assignments（修复「编辑保存后 AI 标签消失 / 幽灵标签」）
+
+    func test_update_用inlineTags时保留AI_assignments() async throws {
+        let (repo, ctx) = try makeRepo()
+        let tid = try makeThought(in: ctx)
+        // 预置：已有 AI 标签 + 用户行内标签
+        try repo.createTagAssignment(thoughtId: tid, tagName: "AI建议", source: .ai, confidence: 0.9)
+        try repo.createTagAssignment(thoughtId: tid, tagName: "旧手敲", source: .inline, confidence: 1.0)
+
+        // 编辑保存：正文里只有「新手敲」标签
+        _ = try repo.update(tid, content: "新内容 #新手敲", inlineTags: ["新手敲"])
+
+        let assignments = try fetchAssignments(thoughtId: tid, in: ctx)
+        // AI 标签应保留
+        XCTAssertTrue(assignments.contains { $0.source == "ai" && $0.tag?.name == "AI建议" },
+                      "AI 标签应保留，不被编辑动作清空")
+        // 旧 inline 应被清理（用户编辑了内容）
+        XCTAssertFalse(assignments.contains { $0.source == "inline" && $0.tag?.name == "旧手敲" },
+                       "旧的 inline 标签应被清理")
+        // 新 inline 应写入
+        XCTAssertTrue(assignments.contains { $0.source == "inline" && $0.tag?.name == "新手敲" },
+                      "新 inline 标签应写入，source 为 inline")
+    }
+
+    func test_update_保留confirmedAI_assignments() async throws {
+        let (repo, ctx) = try makeRepo()
+        let tid = try makeThought(in: ctx)
+        try repo.createTagAssignment(thoughtId: tid, tagName: "已确认", source: .confirmedAI, confidence: 0.95)
+
+        _ = try repo.update(tid, content: "编辑 #别的", inlineTags: ["别的"])
+
+        let assignments = try fetchAssignments(thoughtId: tid, in: ctx)
+        XCTAssertTrue(assignments.contains { $0.source == "confirmedAI" && $0.tag?.name == "已确认" },
+                      "用户确认过的 AI 标签应保留")
+    }
+
+    func test_update_tags参数兼容() async throws {
+        // 旧调用方用 tags 参数（无 inlineTags），也应走 inline 重建逻辑并保留 AI
+        let (repo, ctx) = try makeRepo()
+        let tid = try makeThought(in: ctx)
+        try repo.createTagAssignment(thoughtId: tid, tagName: "AI建议", source: .ai, confidence: 0.9)
+
+        _ = try repo.update(tid, content: "新", tags: ["手动"])  // 用 tags（兼容路径）
+
+        let assignments = try fetchAssignments(thoughtId: tid, in: ctx)
+        XCTAssertTrue(assignments.contains { $0.source == "ai" },
+                      "即使走旧 tags 参数，AI 标签也应保留")
+        XCTAssertTrue(assignments.contains { $0.source == "inline" && $0.tag?.name == "手动" },
+                      "tags 参数的标签应标 inline source（与正文 #标签 同等）")
+    }
+
+    func test_update_不传tags时不改动标签() async throws {
+        let (repo, ctx) = try makeRepo()
+        let tid = try makeThought(in: ctx)
+        try repo.createTagAssignment(thoughtId: tid, tagName: "AI建议", source: .ai, confidence: 0.9)
+        try repo.createTagAssignment(thoughtId: tid, tagName: "手敲", source: .inline, confidence: 1.0)
+
+        // 只更新内容，不传 tags/inlineTags → 标签不动
+        _ = try repo.update(tid, content: "只改内容")
+
+        let assignments = try fetchAssignments(thoughtId: tid, in: ctx)
+        XCTAssertEqual(assignments.count, 2, "未传 tags 时不应改动任何 assignment")
+    }
 }
 
 // MARK: - Service 层（拒绝偏好联动）

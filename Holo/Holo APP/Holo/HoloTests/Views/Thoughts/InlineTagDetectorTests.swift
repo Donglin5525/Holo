@@ -35,8 +35,16 @@ final class InlineTagDetectorTests: XCTestCase {
 
     // MARK: - 触发条件收紧
 
-    func testDoesNotExtractTagAfterLetter() {
+    func testDoesNotExtractTagAfterAsciiLetter() {
+        // ASCII 字母前置仍拒绝（避免 abc#tag、var#field 误触发）
         XCTAssertEqual(InlineTagDetector.extractTags(from: "abc#产品"), [])
+    }
+
+    func testExtractsTagAfterCJKLetter() {
+        // CJK 字母前置允许触发（用户随手写「正文#标签」「今晚#工作」）
+        XCTAssertEqual(InlineTagDetector.extractTags(from: "正文#标签"), ["标签"])
+        XCTAssertEqual(InlineTagDetector.extractTags(from: "今晚#工作"), ["工作"])
+        XCTAssertEqual(InlineTagDetector.extractTags(from: "做完了#工作/Holo 很开心"), ["工作/Holo"])
     }
 
     func testDoesNotExtractTagInURL() {

@@ -96,9 +96,9 @@ extension Thought {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// 内容中的内联标签名称
+    /// 内容中的内联标签名称（与编辑器提取口径一致：支持路径、CJK 前置、校验触发位置）
     var inlineTags: [String] {
-        MarkdownRenderer.extractTags(content)
+        InlineTagDetector.extractTags(from: content)
     }
 
     /// 格式化日期

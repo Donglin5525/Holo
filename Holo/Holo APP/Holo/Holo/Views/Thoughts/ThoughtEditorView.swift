@@ -71,6 +71,8 @@ struct ThoughtEditorView: View {
     @State private var pendingVoiceTranscriptToInsert: String? = nil
     @State private var editorHeight: CGFloat = 360
     @State private var typingFormatState: TypingFormatState = TypingFormatState()
+    /// 当前光标在编辑器视图局部坐标系内的 rect（由 MarkdownTextView 上报，候选浮层据此吸附）
+    @State private var caretRect: CGRect = .zero
     @AppStorage("com.holo.thought.voice.smartSummary.enabled") private var smartSummaryEnabled: Bool = true
 
     // MARK: - Attachment State
@@ -101,7 +103,7 @@ struct ThoughtEditorView: View {
         NavigationView {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: HoloSpacing.md) {
-                    // 内容编辑区
+                    // 内容编辑区（含光标吸附候选浮层）
                     contentSection
                     // 标签区域（只读展示正文中已识别的 # 标签）
                     tagsSection
@@ -111,8 +113,10 @@ struct ThoughtEditorView: View {
                     }
                 }
                 .padding(.horizontal, HoloSpacing.md)
+                .padding(.bottom, 120)  // 给底部工具栏 + 安全区留位
             }
             .background(Color.holoBackground)
+            .scrollDismissesKeyboard(.never)  // 禁止下滑自动收键盘（编辑器自己管焦点）
             .navigationTitle(isEditing ? "编辑想法" : "记录想法")
             .navigationBarTitleDisplayMode(.inline)
             // 「查看记录」跳转：NavigationLink 必须在 NavigationView 内部才生效
@@ -131,44 +135,17 @@ struct ThoughtEditorView: View {
                 }
             )
             .safeAreaInset(edge: .bottom) {
-                // 固定底栏：候选面板（触发时）+ 编辑工具栏，始终吸附键盘上方
-                VStack(spacing: 0) {
-                    if let triggerContext {
-                        SuggestionPanelView(
-                            context: triggerContext,
-                            viewModel: suggestionViewModel,
-                            onSelectTag: { tagId, path in
-                                pendingEditorAction = .insertTagToken(id: tagId, displayPath: path)
-                            },
-                            onCreateTag: { path in
-                                if let tag = suggestionViewModel.createTag(path: path) {
-                                    pendingEditorAction = .insertTagToken(id: tag.id, displayPath: tag.name)
-                                }
-                            },
-                            onSelectReference: { thoughtId, title, snapshot in
-                                pendingEditorAction = .insertReferenceToken(
-                                    id: thoughtId,
-                                    displayText: RichContentSerializer.truncatedReferenceDisplay(title),
-                                    snapshot: snapshot
-                                )
-                            },
-                            onClose: {
-                                pendingEditorAction = .dismissSuggestion
-                            }
-                        )
-                    }
-
-                    RichTextToolbarView(pendingAction: $pendingEditorAction, formatState: typingFormatState, onAddImage: {
-                        showAttachmentSourceChoice = true
-                    })
-                        .background(Color.holoCardBackground)
-                        .overlay(
-                            Rectangle()
-                                .fill(Color.holoBorder)
-                                .frame(height: 1),
-                            alignment: .top
-                        )
-                }
+                // 底栏只保留编辑工具栏（吸附键盘上方）；候选浮层已移至 contentSection 内光标吸附
+                RichTextToolbarView(pendingAction: $pendingEditorAction, formatState: typingFormatState, onAddImage: {
+                    showAttachmentSourceChoice = true
+                })
+                .background(Color.holoCardBackground)
+                .overlay(
+                    Rectangle()
+                        .fill(Color.holoBorder)
+                        .frame(height: 1),
+                    alignment: .top
+                )
             }
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
@@ -186,6 +163,12 @@ struct ThoughtEditorView: View {
                     .disabled(!canSave)
                 }
             }
+        }
+        .navigationViewStyle(.stack)
+        // 关键：接管系统返回手势 —— fullScreenCover 下无系统下滑关闭，
+        // 左边缘右滑由 SwipeBackModifier 统一处理，回调走 handleDismiss（自动保存）
+        .swipeBackToDismiss(isEnabled: true) {
+            handleDismiss()
         }
         .sheet(isPresented: $showVoiceInput, onDismiss: insertPendingVoiceTranscript) {
             if smartSummaryEnabled {
@@ -220,6 +203,10 @@ struct ThoughtEditorView: View {
         }
         .onAppear {
             loadEditingData()
+        }
+        // 兜底：视图销毁时若仍有未保存内容则强制保存（防任何意外退出路径丢数据）
+        .onDisappear {
+            saveIfHasUnsavedChanges()
         }
         .onChange(of: triggerContext) { _, newValue in
             suggestionViewModel.search(context: newValue, excludingThoughtId: editingThoughtId)
@@ -284,7 +271,8 @@ struct ThoughtEditorView: View {
         )
     }
 
-    /// 处理取消/右滑退出
+    /// 处理取消/右滑退出：有未保存内容则自动保存，否则直接退出
+    /// 这是「右滑返回 / 取消按钮」的统一出口，保证任何退出路径都不会丢内容
     private func handleDismiss() {
         if hasContent && hasUnsavedChanges {
             // 有内容且有修改时自动保存
@@ -293,6 +281,14 @@ struct ThoughtEditorView: View {
             // 无内容或无修改时直接退出
             dismiss()
         }
+    }
+
+    /// onDisappear 兜底：视图销毁时若仍有未保存修改则强制保存
+    /// 防止任何意外退出路径（系统回收、路由跳转等）丢失用户输入
+    private func saveIfHasUnsavedChanges() {
+        guard hasContent, hasUnsavedChanges, !isSaving else { return }
+        // 标记 isSaving 避免与按钮触发的 saveThought 重复保存
+        saveThought()
     }
 
     // MARK: - 未保存修改检测
@@ -333,6 +329,7 @@ struct ThoughtEditorView: View {
                         formatState: $typingFormatState,
                         triggerContext: $triggerContext,
                         selectedToken: $selectedToken,
+                        caretRect: $caretRect,
                         textContainerInset: UIEdgeInsets(top: 22, left: 16, bottom: 88, right: 16),
                         initialRichJSON: initialRichJSON,
                         onNodesChange: { newNodes in
@@ -341,6 +338,11 @@ struct ThoughtEditorView: View {
                         }
                     )
                         .frame(height: max(editorHeight, contentEditorMinimumHeight))
+                        // 光标吸附候选浮层：挂在 MarkdownTextView 自身上，
+                        // 这样 overlay 坐标系与 caretRect（UITextView 局部坐标）完全对齐
+                        .overlay(alignment: .topLeading) {
+                            suggestionOverlay
+                        }
 
                     voiceInputButton
                         .padding(.trailing, 18)
@@ -356,6 +358,65 @@ struct ThoughtEditorView: View {
                     .stroke(Color.holoBorder, lineWidth: 1)
             )
         }
+    }
+
+    /// #/@ 候选浮层（光标吸附版）
+    /// - 位置：紧贴光标上方（光标 rect 是 MarkdownTextView 局部坐标，本 overlay 与编辑器同 frame）
+    /// - 对齐：默认左对齐到光标 x，右侧溢出时右对齐
+    /// - 偏移：浮层底部距光标顶部 6pt；光标太靠顶部时翻转到光标下方
+    /// - 触摸：浮层容器只占卡片大小（offset 定位，无 Color.clear 填充），卡片外的触摸穿透到下层编辑器
+    @ViewBuilder
+    private var suggestionOverlay: some View {
+        if let triggerContext {
+            suggestionPanelContainer(triggerContext)
+        }
+    }
+
+    /// 根据光标位置计算浮层 frame 并放置 SuggestionPanelView
+    /// 纯 offset 定位（不用 GeometryReader/Color.clear），避免透明区域拦截下层触摸
+    @ViewBuilder
+    private func suggestionPanelContainer(_ context: EditorTriggerContext) -> some View {
+        let panelWidth: CGFloat = 280
+        let gap: CGFloat = 6
+        let estimatedPanelHeight: CGFloat = 200
+        // 翻转判断：光标在编辑器顶部 1/4 以上时，浮层显示在光标下方
+        let showBelow = caretRect.minY < estimatedPanelHeight + gap + 8
+        // x 边界：光标右侧对齐，超出时左移（保守估算，编辑器宽度通常 > panelWidth + 32）
+        let editorEstimatedWidth: CGFloat = max(panelWidth + 32, UIScreen.main.bounds.width - 32 - 32)  // 减去卡片左右 padding
+        let clampedX = max(0, min(caretRect.maxX, editorEstimatedWidth - panelWidth))
+        // 浮层左上角偏移：x 已裁剪；y 让浮层底部贴光标顶部（或翻转时顶部贴光标下方）
+        let offsetX = clampedX
+        let offsetY: CGFloat = showBelow
+            ? caretRect.maxY + gap
+            : max(8, caretRect.minY - estimatedPanelHeight - gap)
+
+        SuggestionPanelView(
+            context: context,
+            viewModel: suggestionViewModel,
+            onSelectTag: { tagId, path in
+                pendingEditorAction = .insertTagToken(id: tagId, displayPath: path)
+            },
+            onCreateTag: { path in
+                if let tag = suggestionViewModel.createTag(path: path) {
+                    pendingEditorAction = .insertTagToken(id: tag.id, displayPath: tag.name)
+                }
+            },
+            onSelectReference: { thoughtId, title, snapshot in
+                pendingEditorAction = .insertReferenceToken(
+                    id: thoughtId,
+                    displayText: RichContentSerializer.truncatedReferenceDisplay(title),
+                    snapshot: snapshot
+                )
+            }
+        )
+        .frame(width: panelWidth, alignment: .topLeading)
+        .offset(x: offsetX, y: offsetY)
+        .transition(
+            .asymmetric(
+                insertion: .opacity.combined(with: .scale(scale: 0.96)).animation(.easeOut(duration: 0.14)),
+                removal: .opacity.animation(.easeOut(duration: 0.1))
+            )
+        )
     }
 
     private var voiceInputButton: some View {
@@ -801,11 +862,12 @@ struct ThoughtEditorView: View {
         do {
             if isEditing, let thoughtId = editingThoughtId {
                 // 编辑模式：更新已有想法（标签全部来自正文行内 #，保存时以当前内容重建）
+                // 用 inlineTags 参数（而非 tags）让 repository 保留 AI assignments，新标签标 inline source
                 try repository.update(
                     thoughtId,
                     content: content,
                     mood: selectedMood?.rawValue,
-                    tags: inlineTags,
+                    inlineTags: inlineTags,
                     richContentJSON: .some(richJSON)
                 )
                 try repository.replaceReferences(thoughtId: thoughtId, references: referenceSnapshots)
@@ -820,10 +882,11 @@ struct ThoughtEditorView: View {
                 )
                 try repository.replaceReferences(thoughtId: thought.id, references: referenceSnapshots)
 
-                // 保存待上传图片（后台逐张处理）
-                if !pendingImages.isEmpty {
+                // 保存待上传图片（后台逐张处理）—— 先快照到局部变量，避免后续清空 state 影响迭代
+                let imagesToUpload = pendingImages
+                if !imagesToUpload.isEmpty {
                     Task { @MainActor in
-                        for image in pendingImages {
+                        for image in imagesToUpload {
                             guard let jpegData = image.jpegData(compressionQuality: 0.85) else { continue }
                             _ = try? await repository.addAttachment(imageData: jpegData, to: thought)
                         }
@@ -842,6 +905,13 @@ struct ThoughtEditorView: View {
             isSaving = false
             return
         }
+
+        // 标记为已保存：同步 originalContent，避免后续 onDisappear 兜底重复保存
+        // （saveThought 与 onDisappear 可能先后触发，必须用 originalContent 作为「干净基线」）
+        originalContent = content
+        originalMood = selectedMood
+        // 新建模式的 pendingImages 已在后台 Task 处理，清空以避免 hasUnsavedChanges 误判
+        pendingImages = []
 
         // 发送数据变更通知
         NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)

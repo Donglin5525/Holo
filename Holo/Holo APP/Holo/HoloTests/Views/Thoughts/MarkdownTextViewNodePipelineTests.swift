@@ -36,6 +36,62 @@ final class MarkdownTextViewNodePipelineTests: XCTestCase {
         XCTAssertEqual(serialized, [.text(value: markdown)])
     }
 
+    // MARK: - 纯文本含 #标签 的往返（修复「打开后标签不高亮 / 末尾换行丢失」）
+
+    func testPlainTextWithInlineTagRoundTripsAsToken() {
+        // 用户手敲 #标签（没走候选面板）→ 保存为纯文本 → 重新打开应 Token 化
+        let plain = "今天记录 #工作 的小事"
+        let nodes = RichContentSerializer.nodes(fromPlainText: plain)
+
+        // 应切分为 text + tag + text
+        XCTAssertEqual(nodes.count, 3)
+        guard nodes.count == 3 else { return }
+
+        let attributed = MarkdownTextView.makeAttributedText(from: nodes)
+        let serialized = MarkdownTextView.serializeNodes(from: attributed)
+
+        // tag 节点身份应保留（id 不变，displayPath 还原）
+        XCTAssertEqual(serialized.count, 3)
+        XCTAssertEqual(serialized[0], .text(value: "今天记录 "))
+        if case .tag(_, let displayPath) = serialized[1] {
+            XCTAssertEqual(displayPath, "工作")
+        } else {
+            XCTFail("第二节点应为 tag，实际：\(serialized[1])")
+        }
+        XCTAssertEqual(serialized[2], .text(value: " 的小事"))
+
+        // 派生平文本应与原文一致
+        XCTAssertEqual(RichContentSerializer.plainText(from: serialized), plain)
+    }
+
+    func testPlainTextWithTrailingNewlineAfterTagPreserves() {
+        // 修复「末尾换行打开后消失」：#标签\n 末尾换行应作为独立 text 节点保留
+        let plain = "#工作\n"
+        let nodes = RichContentSerializer.nodes(fromPlainText: plain)
+        XCTAssertEqual(nodes.count, 2)
+
+        let attributed = MarkdownTextView.makeAttributedText(from: nodes)
+        let serialized = MarkdownTextView.serializeNodes(from: attributed)
+        XCTAssertEqual(serialized.count, 2)
+        if case .tag = serialized[0] {} else { XCTFail("首节点应为 tag") }
+        XCTAssertEqual(serialized[1], .text(value: "\n"))
+
+        XCTAssertEqual(RichContentSerializer.plainText(from: serialized), plain)
+    }
+
+    func testPlainTextWithCJKPrefixedTagTokenizes() {
+        // 修复「正文#标签」：CJK 前置的 # 也应 Token 化
+        let plain = "正文#标签"
+        let nodes = RichContentSerializer.nodes(fromPlainText: plain)
+        XCTAssertEqual(nodes.count, 2)
+        XCTAssertEqual(nodes[0], .text(value: "正文"))
+        if case .tag(_, let displayPath) = nodes[1] {
+            XCTAssertEqual(displayPath, "标签")
+        } else {
+            XCTFail("第二节点应为 tag")
+        }
+    }
+
     // MARK: - Token 往返
 
     func testTokenRoundTripPreservesIdentity() {
