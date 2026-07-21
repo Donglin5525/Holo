@@ -68,7 +68,7 @@ struct ThoughtsView: View {
                     ThoughtListView(
                         onBack: { dismiss() },
                         onMenuTap: { openDrawer() },
-                        onAIOrganize: { startTopicConvergence(autoApply: true) },
+                        onAIOrganize: { startTopicConvergence() },
                         showAddThought: $showAddThought,
                         drawerSelection: $drawerSelection,
                         thoughtRepository: thoughtRepository,
@@ -145,7 +145,7 @@ struct ThoughtsView: View {
                     },
                     onAIOrganize: {
                         closeDrawer()
-                        startTopicConvergence(autoApply: true)
+                        startTopicConvergence()
                     }
                 )
 
@@ -157,9 +157,11 @@ struct ThoughtsView: View {
     }
 
     /// 统一的主题归纳入口：外层「自动整理」和知识树「归纳主题」都走这里
-    private func startTopicConvergence(autoApply: Bool) {
-        Task { await convergenceJob.run(autoApply: autoApply, persist: autoApply) }
+    private func startTopicConvergence() {
         showConvergence = true
+        // 自动观察已有建议时直接展示，避免重复调用覆盖 ready 状态。
+        if case .ready = convergenceJob.state { return }
+        Task { await convergenceJob.run(autoApply: false, persist: false) }
     }
 
     // MARK: - 底部 Tab 栏
