@@ -47,6 +47,7 @@
 - **iOS**: 预算卡片紧凑化：单行布局，去掉已花金额和分类预警
 
 ### Bug Fixes
+- **iOS/Backend**: 修复对比类问题（如「这个月比上个月消费多在哪」）即使有真实数据也返回「没有形成可信结论」——根因是对比期（baseline）时间窗从问题解析到工具参数的传递链路全断，baseline 被错误回退成「前 14 天」而非日历「上月」。系统性修复：时间解析器新增双窗对比解析（月/周/年配对）、`HoloAgentJob` 新增 baseline 字段打通注入管道、Claim 校验器改浮点容差、Agent Loop prompt 补对比型 dynamic_query 引导
 - **Backend**: 修复 Node 18 环境 ASR 上传处理触发 `File is not defined`，导致 `/v1/asr/transcriptions` 返回 500 的问题
 - **iOS**: 修复首次启动卡死 — Core Data 异步加载 + CheckedContinuation + 值类型 nonisolated/Sendable + dictionaryResultType 后台安全读取
 - **iOS**: 修复左滑手势与垂直滚动冲突（方向确认前不禁用 ScrollView）
