@@ -73,17 +73,20 @@ actor HoloLocalAgentRuntime {
     /// 写入初始 checkpoint（含用户问题），供 runLoop 多轮推进。生产路径用。
     func startAnalysisJob(question: String, trigger: HoloAgentTrigger = .userQuestion,
                           sourceMessageID: UUID? = nil, now: Date = Date()) async throws -> HoloAgentJob {
-        let resolvedTimeRange = Self.resolveQuestionTimeRange(question, referenceDate: now)
+        let resolvedComparison = Self.resolveQuestionComparison(question, referenceDate: now)
         var job = HoloAgentJob(
             id: UUID().uuidString, type: .deepAnalysis, userQuestion: question,
             trigger: trigger, state: .running, currentStep: .plan,
             createdAt: now, updatedAt: now,
-            lastForegroundRunAt: nil, timeRange: resolvedTimeRange,
+            lastForegroundRunAt: nil, timeRange: resolvedComparison?.current.timeRange ?? Self.resolveQuestionTimeRange(question, referenceDate: now),
             budget: HoloAgentBudget.normalDeep(now: now),
             checkpointID: nil, resultID: nil, errorSummary: nil, deviceID: nil,
             referenceDate: now, snapshotCutoffAt: now,
             absoluteDeadline: now.addingTimeInterval(HoloAgentJob.absoluteDeadlineInterval)
         )
+        if let baseline = resolvedComparison?.baseline.timeRange {
+            job.baseline = baseline
+        }
         job.sourceMessageID = sourceMessageID
         let queryService: HoloMemoryQueryService?
         if let memoryQueryService {
@@ -283,9 +286,14 @@ actor HoloLocalAgentRuntime {
         job.beginActiveSegment(at: now)
         job.waitReason = nil
         if job.timeRange == nil,
-           let question = job.userQuestion,
-           let resolvedRange = Self.resolveQuestionTimeRange(question, referenceDate: now) {
-            job.timeRange = resolvedRange
+           let question = job.userQuestion {
+            let resolvedComparison = Self.resolveQuestionComparison(question, referenceDate: now)
+            if let comparison = resolvedComparison {
+                job.timeRange = comparison.current.timeRange
+                if job.baseline == nil { job.baseline = comparison.baseline.timeRange }
+            } else if let resolvedRange = Self.resolveQuestionTimeRange(question, referenceDate: now) {
+                job.timeRange = resolvedRange
+            }
         }
 
         var checkpoint = try await checkpointStore.latestForJob(jobID: jobID)
@@ -744,10 +752,21 @@ actor HoloLocalAgentRuntime {
         HoloAgentTimeSemanticResolver.resolve(question, referenceDate: referenceDate)?.timeRange
     }
 
+    /// 解析对比类问题（如“本月比上月消费多在哪”）的双时间窗。
+    /// 命中对比配对时返回 (current, baseline)；否则返回 nil，调用方回退单窗语义。
+    private static func resolveQuestionComparison(_ question: String, referenceDate: Date) -> HoloAgentResolvedComparison? {
+        HoloAgentTimeSemanticResolver.resolveComparison(question, referenceDate: referenceDate)
+    }
+
     private static func requestWithJobScope(_ request: HoloToolRequest, job: HoloAgentJob) -> HoloToolRequest {
         var scoped = request
         if scoped.timeRange == nil, let jobRange = job.timeRange {
             scoped.timeRange = jobRange
+        }
+        // 注入对比期窗口：对比类问题（如“本月比上月”）解析出的 baseline 从 job 透传到 request。
+        // 优先级：LLM 显式 request.baseline > job.baseline（确定性解析）> DataSource 内部回退。
+        if scoped.baseline == nil, let jobBaseline = job.baseline {
+            scoped.baseline = jobBaseline
         }
         if var plan = scoped.dynamicPlan {
             if plan.timeRange == nil { plan.timeRange = scoped.timeRange }

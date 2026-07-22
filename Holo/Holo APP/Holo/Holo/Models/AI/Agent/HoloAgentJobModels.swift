@@ -66,6 +66,8 @@ nonisolated struct HoloAgentJob: Codable, Identifiable, Equatable, Sendable {
     var updatedAt: Date
     var lastForegroundRunAt: Date?
     var timeRange: HoloAgentTimeRange?
+    /// 对比期时间窗口（对比类问题如“本月比上月”时由时间解析器注入；nil 表示非对比类问题或旧数据）。
+    var baseline: HoloAgentTimeRange? = nil
     var budget: HoloAgentBudget
     var checkpointID: String?
     var resultID: String?

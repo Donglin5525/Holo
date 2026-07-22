@@ -24,6 +24,13 @@ nonisolated struct HoloAgentResolvedTimeScope: Equatable, Sendable {
     var timeRange: HoloAgentTimeRange
 }
 
+/// 对比类问题的双时间窗解析结果（本期 + 对比期）。
+/// 当问题同时包含“这个月/本月”与“上个月/上月”等配对词时返回，否则为 nil（回退单窗语义）。
+nonisolated struct HoloAgentResolvedComparison: Equatable, Sendable {
+    var current: HoloAgentResolvedTimeScope
+    var baseline: HoloAgentResolvedTimeScope
+}
+
 nonisolated enum HoloAgentTimeSemanticResolver {
 
     static func resolve(_ text: String, referenceDate: Date = Date(), calendar inputCalendar: Calendar = .current) -> HoloAgentResolvedTimeScope? {
@@ -42,6 +49,42 @@ nonisolated enum HoloAgentTimeSemanticResolver {
             return explicitMonth
         }
 
+        return nil
+    }
+
+    /// 解析对比类问题（如“这个月比上个月消费多在哪”“今年比去年”）。
+    /// 当问题同时命中 current/baseline 词法配对时返回双窗；否则返回 nil，调用方回退到 `resolve` 的单窗语义。
+    /// 这是所有对比类问题的公共基础设施——不枚举具体问法，只按词法 kind 配对。
+    static func resolveComparison(_ text: String, referenceDate: Date = Date(), calendar inputCalendar: Calendar = .current) -> HoloAgentResolvedComparison? {
+        let normalized = normalize(text)
+        guard !normalized.isEmpty else { return nil }
+
+        var calendar = inputCalendar
+        calendar.locale = Locale(identifier: "zh_CN")
+        let today = calendar.startOfDay(for: referenceDate)
+
+        let matches = allLexicalMatches(in: normalized)
+        // 按 kind 归类，同一 kind 可能多次出现，取第一个即可。
+        var kindToScope: [HoloAgentTimeSemanticKind: HoloAgentResolvedTimeScope] = [:]
+        for match in matches {
+            if let resolved = resolveLexical(match, today: today, calendar: calendar),
+               kindToScope[resolved.kind] == nil {
+                kindToScope[resolved.kind] = resolved
+            }
+        }
+
+        // 按优先级匹配对比配对：月 → 周 → 年。
+        let pairs: [(current: HoloAgentTimeSemanticKind, baseline: HoloAgentTimeSemanticKind)] = [
+            (.currentMonth, .previousMonth),
+            (.currentWeek, .previousWeek),
+            (.currentYear, .previousYear)
+        ]
+        for pair in pairs {
+            if let current = kindToScope[pair.current],
+               let baseline = kindToScope[pair.baseline] {
+                return HoloAgentResolvedComparison(current: current, baseline: baseline)
+            }
+        }
         return nil
     }
 
@@ -176,7 +219,9 @@ nonisolated enum HoloAgentTimeSemanticResolver {
             .replacingOccurrences(of: "\t", with: "")
     }
 
-    private static func earliestLexicalMatch(in text: String) -> LexicalMatch? {
+    /// 扫描文本中所有词法时间匹配（currentMonth/previousMonth/currentWeek 等）。
+    /// 同一 kind 可能出现多次（如“上个月”和“上月”同时出现），按 location 排序。
+    private static func allLexicalMatches(in text: String) -> [LexicalMatch] {
         let phrases: [(LexicalKind, [String])] = [
             (.previousMonth, ["上个月", "上月", "上一月", "前一个月"]),
             (.currentMonth, ["这个月", "本月", "这月", "当月"]),
@@ -205,7 +250,11 @@ nonisolated enum HoloAgentTimeSemanticResolver {
         return matches.sorted {
             if $0.location == $1.location { return $0.phrase.count > $1.phrase.count }
             return $0.location < $1.location
-        }.first
+        }
+    }
+
+    private static func earliestLexicalMatch(in text: String) -> LexicalMatch? {
+        allLexicalMatches(in: text).first
     }
 
     private static func firstRegexMatch(pattern: String, in text: String) -> RegexMatch? {

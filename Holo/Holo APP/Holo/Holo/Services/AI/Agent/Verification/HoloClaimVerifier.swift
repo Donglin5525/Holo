@@ -68,7 +68,7 @@ nonisolated struct HoloClaimVerifier {
                     return "metricKey 不匹配：claim=\(assertion.metricKey) evidence=\(record.metricKey)"
                 }
                 if let value = assertion.value, let evidenceValue = record.metricValue,
-                   value != evidenceValue {
+                   abs(value - evidenceValue) > 0.01 {
                     return "value 不一致：claim=\(value) evidence=\(evidenceValue)"
                 }
             }

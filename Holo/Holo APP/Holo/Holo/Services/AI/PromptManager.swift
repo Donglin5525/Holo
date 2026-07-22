@@ -371,6 +371,8 @@ final class PromptManager {
         - aggregation.operation 仅允许 count/sum/average/min/max/distinctCount；derivation.operation 仅允许 difference/ratio/percentageChange/rate/perDay/linearTrend/coverage。perDay 用于“平均每天”，分母固定为查询区间自然日数。
         - filter.value 使用带类型对象，例如数字 6 写成 {"type":"number","number":6}，文本写成 {"type":"text","text":"麦当劳"}。
         - 平均睡眠示例：{"source":"health.sleep","filters":[],"groupBy":[],"aggregations":[{"id":"average_sleep","operation":"average","field":"value","unit":"小时","filters":[]}],"derivations":[],"sort":null,"limit":20,"evidenceLimit":20}。
+        - 对比类问题（含“比”“环比”“同比”“vs”“相比”以及双时间窗如“本月比上月”“今年比去年”）必须用 dynamic_query 并填写 derivations（difference/percentageChange）；对比期已由系统自动注入 dynamicPlan.baseline，不要自行填写 baseline。先按目标维度 groupBy 再求 difference/percentageChange，并用 sort 按 derivation 降序定位“涨/跌最多的是哪一类”。
+        - 对比示例（本月比上月消费多在哪）：{"source":"finance.transactions","filters":[{"field":"type","operation":"equal","value":{"type":"text","text":"expense"}}],"groupBy":[{"type":"field","field":"category"}],"aggregations":[{"id":"category_amount","operation":"sum","field":"amount","unit":"元","filters":[]}],"derivations":[{"id":"category_growth","operation":"percentageChange","metricID":"category_amount","unit":"比例"}],"sort":{"metricID":"category_growth","direction":"descending"},"limit":3,"evidenceLimit":10}。
         - 查询计划被工具以 INVALID_PARAMS 拒绝时，最多修正一次；不要改用模型心算。
         - 可动态查询的数据域包括 finance、health、habit、task、goal、thought、memory、insight、profile、conversation；不得请求目录外字段。
         - conversation 仅提供 role、intent、timestamp 等受控元数据，绝不能请求历史消息原文。
