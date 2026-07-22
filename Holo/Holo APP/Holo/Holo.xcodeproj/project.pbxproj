@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		C07E22010000000000000001 /* HabitRepositoryCalendarTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C07E22020000000000000001 /* HabitRepositoryCalendarTests.swift */; };
 		1B9A00110000000000000001 /* WeeklyObservationCardStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B9A00120000000000000001 /* WeeklyObservationCardStateTests.swift */; };
 		1B9A00210000000000000001 /* MemoryInsightResponseParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B9A00220000000000000001 /* MemoryInsightResponseParserTests.swift */; };
 		47338B8715C0527F76C6B9BC /* MemoryInsightRefreshQuotaTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 398FCBD1E9630524A051ED67 /* MemoryInsightRefreshQuotaTests.swift */; };
@@ -76,6 +77,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		C07E22020000000000000001 /* HabitRepositoryCalendarTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitRepositoryCalendarTests.swift; sourceTree = "<group>"; };
 		056D32940E925DC7DF7AE631 /* HealthDashboardStateTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HealthDashboardStateTests.swift; sourceTree = "<group>"; };
 		1A5692DC8F9BFCC11917CEDF /* HoloTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HoloTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1B9A00120000000000000001 /* WeeklyObservationCardStateTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeeklyObservationCardStateTests.swift; sourceTree = "<group>"; };
@@ -171,6 +173,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		C07E22030000000000000001 /* Calendar */ = {
+			isa = PBXGroup;
+			children = (
+				C07E22020000000000000001 /* HabitRepositoryCalendarTests.swift */,
+			);
+			path = Calendar;
+			sourceTree = "<group>";
+		};
 		01FEFE4BD64B0BA4926A551E /* AI */ = {
 			isa = PBXGroup;
 			children = (
@@ -367,6 +377,7 @@
 			isa = PBXGroup;
 			children = (
 				01FEFE4BD64B0BA4926A551E /* AI */,
+				C07E22030000000000000001 /* Calendar */,
 				8044812C2C9B2F327A4958D4 /* Speech */,
 				7A4C1F8D2B5D4A6C9E0F1234 /* CloudKitRuntimeAvailabilityTests.swift */,
 			);
@@ -509,6 +520,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C07E22010000000000000001 /* HabitRepositoryCalendarTests.swift in Sources */,
 				5A202607170000000000000001 /* ThoughtRepositoryTagManagementTests.swift in Sources */,
 				5A202607190000000000000011 /* LightweightOnboardingSettingsTests.swift in Sources */,
 				5A202607170000000000000003 /* TopicRepositoryDeleteTests.swift in Sources */,

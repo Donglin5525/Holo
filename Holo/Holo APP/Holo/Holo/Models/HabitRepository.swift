@@ -53,6 +53,10 @@ class HabitRepository: ObservableObject {
         self.context = context
     }
 
+    /// Repository 的资源都由 ARC/Core Data 自行释放，无需切回主执行器做析构。
+    /// 显式使用 nonisolated 可避开旧系统兼容析构 thunk 在 XCTest 宿主中的重复释放崩溃。
+    nonisolated deinit {}
+
     func setup() {
         guard !isReady else { return }
         _ = context
