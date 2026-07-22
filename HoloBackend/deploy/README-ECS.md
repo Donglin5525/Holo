@@ -182,8 +182,7 @@ docker compose down
 
 ## 生产前必须补齐
 
-- 域名 + HTTPS（Certbot + Nginx SSL）
-- 真实 App Attest 校验（`HOLO_ENFORCE_APP_ATTEST=true`）
-- Secure Cookie + CSRF 防护（HTTPS 就绪后）
-- 登录失败限速（HTTPS 就绪后）
-- 移除 iOS `NSAllowsArbitraryLoads` HTTP 放行
+- 域名与 HTTPS 已使用 `https://api.holoapp.cn`；发布后需验证 `/v1/live`、`/v1/ready` 和真实业务请求。
+- App Attest 代码闭环已实现。生产启用前需提供 Team ID、Bundle ID、production 环境与容器内可信根证书路径，并完成 TestFlight/Release 真机灰度；之后再设置 `HOLO_ENFORCE_APP_ATTEST=true`。
+- 管理员 Secure Cookie 与登录失败限速已由应用层实现；公网仍建议叠加 Nginx IP allowlist 或 VPN。
+- 生产同步必须排除 `deploy/.env.production*` 和 `deploy/data`，避免 `--delete` 删除配置备份或数据库。
