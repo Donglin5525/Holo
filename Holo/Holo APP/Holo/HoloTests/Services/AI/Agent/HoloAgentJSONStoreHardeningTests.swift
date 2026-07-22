@@ -122,6 +122,57 @@ final class HoloAgentJSONStoreHardeningTests: XCTestCase {
         XCTAssertEqual(loaded, [Item(id: "first", value: 1)])
     }
 
+    /// replace 失败时旧主文件与完整 temp 都必须保留，禁止“先删旧文件再 move”的丢文件窗口。
+    func testSave_replace失败保留旧文件和temp() async throws {
+        let dir = makeTempDir()
+        let mainURL = dir.appendingPathComponent("replace.json")
+        let tempURL = dir.appendingPathComponent("replace.json.tmp")
+        let store = HoloAgentJSONStore<Item>(
+            fileName: "replace.json",
+            directory: dir,
+            fileProtection: nil,
+            replacementHandler: { _, _ in
+                throw NSError(domain: "HoloAgentJSONStoreTests", code: 1)
+            }
+        )
+        try await store.save([Item(id: "old", value: 1)])
+
+        do {
+            try await store.save([Item(id: "new", value: 2)])
+            XCTFail("注入 replace 失败后 save 应抛 writeFailed")
+        } catch let error as HoloAgentStoreError {
+            guard case .writeFailed = error else {
+                return XCTFail("应抛 writeFailed，实际 \(error)")
+            }
+        }
+
+        XCTAssertTrue(FileManager.default.fileExists(atPath: mainURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: tempURL.path))
+        XCTAssertEqual(try await store.load(), [Item(id: "old", value: 1)])
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        XCTAssertEqual(try decoder.decode([Item].self, from: Data(contentsOf: tempURL)),
+                       [Item(id: "new", value: 2)])
+    }
+
+    /// 主文件缺失但 temp 完整时，下次 load 应恢复 temp；两者并存时则永不覆盖旧主文件。
+    func testLoad_主文件缺失时恢复完整temp() async throws {
+        let dir = makeTempDir()
+        let tempURL = dir.appendingPathComponent("recover.json.tmp")
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        try encoder.encode([Item(id: "recovered", value: 3)]).write(to: tempURL, options: .atomic)
+
+        let store = HoloAgentJSONStore<Item>(
+            fileName: "recover.json",
+            directory: dir,
+            fileProtection: nil
+        )
+        XCTAssertEqual(try await store.load(), [Item(id: "recovered", value: 3)])
+        XCTAssertTrue(FileManager.default.fileExists(atPath: dir.appendingPathComponent("recover.json").path))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: tempURL.path))
+    }
+
     /// §4.2：写盘后文件与目录必须应用 .completeUntilFirstUserAuthentication 保护。
     /// iOS 模拟器会静默丢弃 protectionKey（已用 simctl spawn 验证 set 成功但读回 nil），
     /// 故用注入的 spy 验证 store 确实对文件与目录应用了保护；真机读回验证留待真机验收。

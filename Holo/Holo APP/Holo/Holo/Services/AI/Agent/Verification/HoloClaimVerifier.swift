@@ -28,7 +28,7 @@ nonisolated struct HoloClaimVerifier {
 
     /// 校验 claims 是否有 evidence 支撑、字段一致、文案合规。
     func verify(claims: [HoloAgentClaim], evidence: [HoloEvidenceRecord]) -> HoloClaimVerificationResult {
-        let evidenceByID = Dictionary(evidence.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let evidenceByID = Dictionary(grouping: evidence, by: \.id)
         var accepted: [HoloAgentClaim] = []
         var rejected: [HoloRejectedClaim] = []
 
@@ -43,7 +43,7 @@ nonisolated struct HoloClaimVerifier {
     }
 
     private static func rejectReason(for claim: HoloAgentClaim,
-                                     evidenceByID: [String: HoloEvidenceRecord]) -> String? {
+                                     evidenceByID: [String: [HoloEvidenceRecord]]) -> String? {
         // 1. 文案因果词
         for word in causalWords where claim.displayText.contains(word) {
             return "文案包含因果词「\(word)」，只能描述并发"
@@ -61,18 +61,66 @@ nonisolated struct HoloClaimVerifier {
                 return "metricAssertion 缺少 evidenceIDs：\(assertion.metricKey)"
             }
             for evidenceID in assertion.evidenceIDs {
-                guard let record = evidenceByID[evidenceID] else {
+                guard let records = evidenceByID[evidenceID], let record = records.first else {
                     return "evidenceID 不存在：\(evidenceID)"
+                }
+                if records.dropFirst().contains(where: { !evidenceEquivalent(record, $0) }) {
+                    return "evidenceID 存在冲突记录：\(evidenceID)"
+                }
+                guard record.status == .active || record.status == .partial else {
+                    return "evidence 已失效：\(evidenceID)"
                 }
                 if record.metricKey != assertion.metricKey {
                     return "metricKey 不匹配：claim=\(assertion.metricKey) evidence=\(record.metricKey)"
                 }
-                if let value = assertion.value, let evidenceValue = record.metricValue,
-                   abs(value - evidenceValue) > 0.01 {
-                    return "value 不一致：claim=\(value) evidence=\(evidenceValue)"
+                if let value = assertion.value {
+                    guard let evidenceValue = record.metricValue else {
+                        return "evidence 缺少断言所需 value：\(evidenceID)"
+                    }
+                    if !valuesMatch(value, evidenceValue) {
+                        return "value 不一致：claim=\(value) evidence=\(evidenceValue)"
+                    }
+                }
+                if let baseline = assertion.baselineValue {
+                    guard let evidenceBaseline = record.baselineValue else {
+                        return "evidence 缺少断言所需 baselineValue：\(evidenceID)"
+                    }
+                    if !valuesMatch(baseline, evidenceBaseline) {
+                        return "baselineValue 不一致：claim=\(baseline) evidence=\(evidenceBaseline)"
+                    }
+                }
+                if let unit = assertion.unit, record.unit != unit {
+                    return "unit 不一致：claim=\(unit) evidence=\(record.unit ?? "nil")"
+                }
+                if let comparison = assertion.comparison, record.comparison != comparison {
+                    return "comparison 不一致：claim=\(comparison) evidence=\(record.comparison ?? "nil")"
                 }
             }
         }
         return nil
+    }
+
+    private static func valuesMatch(_ lhs: Double, _ rhs: Double) -> Bool {
+        guard lhs.isFinite, rhs.isFinite else { return false }
+        let tolerance = max(0.000_001, max(abs(lhs), abs(rhs)) * 0.000_001)
+        return abs(lhs - rhs) <= tolerance
+    }
+
+    private static func evidenceEquivalent(_ lhs: HoloEvidenceRecord,
+                                           _ rhs: HoloEvidenceRecord) -> Bool {
+        lhs.metricKey == rhs.metricKey
+            && optionalValuesMatch(lhs.metricValue, rhs.metricValue)
+            && optionalValuesMatch(lhs.baselineValue, rhs.baselineValue)
+            && lhs.unit == rhs.unit
+            && lhs.comparison == rhs.comparison
+            && lhs.status == rhs.status
+    }
+
+    private static func optionalValuesMatch(_ lhs: Double?, _ rhs: Double?) -> Bool {
+        switch (lhs, rhs) {
+        case (.none, .none): true
+        case let (.some(left), .some(right)): valuesMatch(left, right)
+        default: false
+        }
     }
 }

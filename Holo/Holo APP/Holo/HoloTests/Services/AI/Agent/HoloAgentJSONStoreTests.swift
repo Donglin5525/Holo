@@ -11,7 +11,17 @@
 
 import Foundation
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        await HoloAgentJSONStoreTests.main()
+    }
+}
+#endif
 struct HoloAgentJSONStoreTests {
 
     static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -24,6 +34,8 @@ struct HoloAgentJSONStoreTests {
         await test损坏JSON备份并抛decodeFailed且隔离()
         await test隔离后mutate与save一律拒绝且不覆盖原文件()
         await test首次保存destination不存在时原子创建()
+        await testReplace失败保留旧文件和temp()
+        await test主文件缺失时恢复完整temp()
         await test原子写入不留temp()
         await test写盘后设置文件保护属性()
         print("HoloAgentJSONStoreTests passed")
@@ -141,6 +153,54 @@ struct HoloAgentJSONStoreTests {
         expect(FileManager.default.fileExists(atPath: mainURL.path), "首次保存后主文件应存在")
     }
 
+    private static func testReplace失败保留旧文件和temp() async {
+        let dir = makeTempDir()
+        let store = HoloAgentJSONStore<Item>(
+            fileName: "replace.json",
+            directory: dir,
+            fileProtection: nil,
+            replacementHandler: { _, _ in
+                throw NSError(domain: "HoloAgentJSONStoreTests", code: 1)
+            }
+        )
+        do {
+            try await store.save([Item(id: "old", value: 1)])
+            try await store.save([Item(id: "new", value: 2)])
+            fatalError("replace 失败应抛 writeFailed")
+        } catch let error as HoloAgentStoreError {
+            guard case .writeFailed = error else { fatalError("应抛 writeFailed，实际 \(error)") }
+        } catch {
+            fatalError("应抛 HoloAgentStoreError，实际 \(error)")
+        }
+        expect(fileManagerExists(dir.appendingPathComponent("replace.json")), "旧主文件必须保留")
+        expect(fileManagerExists(dir.appendingPathComponent("replace.json.tmp")), "完整 temp 必须保留")
+        do {
+            let loaded = try await store.load()
+            expect(loaded == [Item(id: "old", value: 1)], "replace 失败后应继续读取旧数据")
+        } catch {
+            fatalError("读取旧数据不应失败：\(error)")
+        }
+    }
+
+    private static func test主文件缺失时恢复完整temp() async {
+        let dir = makeTempDir()
+        let tempURL = dir.appendingPathComponent("recover.json.tmp")
+        do {
+            try JSONEncoder().encode([Item(id: "recovered", value: 3)]).write(to: tempURL, options: .atomic)
+            let store = HoloAgentJSONStore<Item>(fileName: "recover.json", directory: dir, fileProtection: nil)
+            let loaded = try await store.load()
+            expect(loaded == [Item(id: "recovered", value: 3)], "应恢复完整 temp")
+            expect(fileManagerExists(dir.appendingPathComponent("recover.json")), "恢复后主文件应存在")
+            expect(!fileManagerExists(tempURL), "恢复后 temp 应已移入主文件")
+        } catch {
+            fatalError("temp 恢复不应失败：\(error)")
+        }
+    }
+
+    private static func fileManagerExists(_ url: URL) -> Bool {
+        FileManager.default.fileExists(atPath: url.path)
+    }
+
     private static func test原子写入不留temp() async {
         let dir = makeTempDir()
         let store = HoloAgentJSONStore<Item>(fileName: "atomic.json", directory: dir)
@@ -154,6 +214,11 @@ struct HoloAgentJSONStoreTests {
     /// §4.2：写盘后文件与目录必须带 .completeUntilFirstUserAuthentication 保护。
     /// 注：iOS 与 macOS 对该属性的桥接类型不同（String / FileProtectionType），统一按 rawValue 比较。
     private static func test写盘后设置文件保护属性() async {
+        #if targetEnvironment(simulator)
+        // 模拟器会静默丢弃 protectionKey；HoloAgentJSONStoreHardeningTests
+        // 通过注入 protectionApplier 验证真实调用，读回属性留给真机验收。
+        return
+        #endif
         let dir = makeTempDir()
         let subdir = dir.appendingPathComponent("protected", isDirectory: true)
         let store = HoloAgentJSONStore<Item>(fileName: "protected.json", directory: subdir)

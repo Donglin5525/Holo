@@ -8,7 +8,7 @@
 //  Holo Agent 稳定执行 — Phase 1（§5.5，修 P0-5）硬化：
 //  - load() 改 throws：只有 file-not-found 返回空数组；权限/数据保护/I/O 错误原样上抛
 //  - 解码失败 → 隔离备份 + quarantined：此后任何 mutate/save 一律抛错，禁止空数组覆盖原文件
-//  - destination 不存在时首次原子创建（move tmp），存在时才 replaceItemAt（含 fallback）
+//  - destination 不存在时首次原子创建；replace 失败时同时保留旧文件与 temp，避免丢文件窗口
 //  - 显式文件保护 .completeUntilFirstUserAuthentication（§4.2：控制面首次解锁后后台可读）
 //
 
@@ -43,6 +43,7 @@ actor HoloAgentJSONStore<Element: Codable> {
     /// 文件保护应用器：默认 FileManager.setAttributes；测试可注入 spy 验证属性确实被写入
     ///（iOS 模拟器会静默丢弃 protectionKey，无法靠读回验证）。
     private let protectionApplier: (URL, FileProtectionType) throws -> Void
+    private let replacementHandler: (URL, URL) throws -> Void
 
     /// 隔离标记：解码失败后置位，此后 load/mutate/save 全部抛 `storeQuarantined`。
     private var quarantinedAt: URL?
@@ -50,7 +51,8 @@ actor HoloAgentJSONStore<Element: Codable> {
     /// 默认目录：`Application Support/Holo/Memory/Agent/`
     init(fileName: String, fileManager: FileManager = .default,
          fileProtection: FileProtectionType? = .completeUntilFirstUserAuthentication,
-         protectionApplier: ((URL, FileProtectionType) throws -> Void)? = nil) {
+         protectionApplier: ((URL, FileProtectionType) throws -> Void)? = nil,
+         replacementHandler: ((URL, URL) throws -> Void)? = nil) {
         self.fileManager = fileManager
         let dir = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Holo/Memory/Agent", isDirectory: true)
@@ -60,18 +62,25 @@ actor HoloAgentJSONStore<Element: Codable> {
         self.protectionApplier = protectionApplier ?? { url, protection in
             try fileManager.setAttributes([.protectionKey: protection], ofItemAtPath: url.path)
         }
+        self.replacementHandler = replacementHandler ?? { destination, temporary in
+            _ = try fileManager.replaceItemAt(destination, withItemAt: temporary)
+        }
     }
 
     /// 指定目录构造器：用于测试隔离，避免污染真实 Application Support。
     init(fileName: String, directory: URL, fileManager: FileManager = .default,
          fileProtection: FileProtectionType? = .completeUntilFirstUserAuthentication,
-         protectionApplier: ((URL, FileProtectionType) throws -> Void)? = nil) {
+         protectionApplier: ((URL, FileProtectionType) throws -> Void)? = nil,
+         replacementHandler: ((URL, URL) throws -> Void)? = nil) {
         self.fileManager = fileManager
         self.fileURL = directory.appendingPathComponent(fileName)
         self.backupURL = directory.appendingPathComponent(fileName + ".backup.json")
         self.fileProtection = fileProtection
         self.protectionApplier = protectionApplier ?? { url, protection in
             try fileManager.setAttributes([.protectionKey: protection], ofItemAtPath: url.path)
+        }
+        self.replacementHandler = replacementHandler ?? { destination, temporary in
+            _ = try fileManager.replaceItemAt(destination, withItemAt: temporary)
         }
     }
 
@@ -83,6 +92,7 @@ actor HoloAgentJSONStore<Element: Codable> {
         if let quarantinedAt {
             throw HoloAgentStoreError.decodeFailed(quarantinedAt: quarantinedAt.path)
         }
+        try recoverPendingTempIfNeeded()
         guard fileManager.fileExists(atPath: fileURL.path) else { return [] }
 
         let data: Data
@@ -109,7 +119,7 @@ actor HoloAgentJSONStore<Element: Codable> {
     }
 
     /// 原子写入：temp file 写盘 → 替换/移入目标位置，崩溃不留半截文件。
-    /// destination 存在走 `replaceItemAt`（失败时 fallback 先删后移）；不存在直接原子 move（首次保存）。
+    /// destination 存在走 `replaceItemAt`；替换失败时保留原文件和完整 temp，绝不先删原文件。
     func save(_ values: [Element]) throws {
         if quarantinedAt != nil {
             throw HoloAgentStoreError.storeQuarantined
@@ -129,13 +139,8 @@ actor HoloAgentJSONStore<Element: Codable> {
             let tempURL = dir.appendingPathComponent(fileURL.lastPathComponent + ".tmp")
             try data.write(to: tempURL, options: .atomic)
             if fileManager.fileExists(atPath: fileURL.path) {
-                do {
-                    _ = try fileManager.replaceItemAt(fileURL, withItemAt: tempURL)
-                } catch {
-                    // fallback：replaceItemAt 失败（如元数据场景）→ 先删后移，保证保存成功
-                    try fileManager.removeItem(at: fileURL)
-                    try fileManager.moveItem(at: tempURL, to: fileURL)
-                }
+                // replace 失败必须上抛并保留两份文件：旧主文件继续可读，temp 供下次恢复/诊断。
+                try replacementHandler(fileURL, tempURL)
             } else {
                 // 首次保存：destination 不存在，replaceItemAt 会失败，直接原子 move
                 try fileManager.moveItem(at: tempURL, to: fileURL)
@@ -144,9 +149,7 @@ actor HoloAgentJSONStore<Element: Codable> {
         } catch let error as HoloAgentStoreError {
             throw error
         } catch {
-            // 尽力清理残留 temp 文件（best-effort，不掩盖主错误）
-            try? fileManager.removeItem(at: fileURL.deletingLastPathComponent()
-                .appendingPathComponent(fileURL.lastPathComponent + ".tmp"))
+            // 不清理 temp：Data.write(.atomic) 已保证它是完整候选；保留它才能在目标缺失时恢复。
             throw HoloAgentStoreError.writeFailed(underlying: String(describing: error))
         }
     }
@@ -171,6 +174,25 @@ actor HoloAgentJSONStore<Element: Codable> {
         }
         try? fileManager.copyItem(at: fileURL, to: backupURL)
         quarantinedAt = backupURL
+    }
+
+    /// 上次进程若在 temp 完整落盘后、移入主文件前退出，且主文件确实不存在，安全恢复 temp。
+    /// 主文件仍存在时绝不自动覆盖：旧数据优先，temp 留作诊断或下一次显式保存处理。
+    private func recoverPendingTempIfNeeded() throws {
+        let tempURL = temporaryURL
+        guard !fileManager.fileExists(atPath: fileURL.path),
+              fileManager.fileExists(atPath: tempURL.path) else { return }
+        do {
+            try fileManager.moveItem(at: tempURL, to: fileURL)
+            try applyFileProtection(at: fileURL)
+        } catch {
+            throw HoloAgentStoreError.readFailed(underlying: "恢复待提交 temp 失败：\(error)")
+        }
+    }
+
+    private var temporaryURL: URL {
+        fileURL.deletingLastPathComponent()
+            .appendingPathComponent(fileURL.lastPathComponent + ".tmp")
     }
 
     /// 显式文件保护（§4.2）：控制面/数据面首次解锁后后台可读，保证锁屏恢复链。

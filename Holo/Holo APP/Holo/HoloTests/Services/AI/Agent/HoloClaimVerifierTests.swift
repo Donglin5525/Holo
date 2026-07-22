@@ -10,7 +10,17 @@
 
 import Foundation
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        HoloClaimVerifierTests.main()
+    }
+}
+#endif
 struct HoloClaimVerifierTests {
 
     static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -25,15 +35,20 @@ struct HoloClaimVerifierTests {
         test没有证据的Claim必须rejected()
         test合法Claim被accepted()
         test重复EvidenceID不会崩溃()
+        test断言有Value但Evidence缺值时rejected()
+        test重复EvidenceID内容冲突时rejected()
+        test浮点值使用相对容差()
+        test失效Evidence不可支撑Claim()
         print("HoloClaimVerifierTests passed")
     }
 
-    private static func makeEvidence(id: String, metricKey: String, metricValue: Double) -> HoloEvidenceRecord {
+    private static func makeEvidence(id: String, metricKey: String, metricValue: Double?,
+                                     status: HoloEvidenceStatus = .active) -> HoloEvidenceRecord {
         HoloEvidenceRecord(
             id: id, dedupeKey: id, sourceModule: .habit, sourceID: nil, sourceKind: "kind",
             timeRange: nil, occurredAt: nil, metricKey: metricKey, metricValue: metricValue, unit: "次",
             baselineValue: nil, comparison: nil, excerpt: "原文", redactedExcerpt: "脱敏",
-            sensitivity: .normal, confidence: 1.0, status: .active,
+            sensitivity: .normal, confidence: 1.0, status: status,
             generatedBy: "test", generatedAt: Date(timeIntervalSince1970: 1000),
             referencedByJobIDs: [], referencedByMemoryIDs: [], deviceID: nil
         )
@@ -111,5 +126,34 @@ struct HoloClaimVerifierTests {
                               evidenceIDs: ["e1"], displayText: "负向习惯发生量上升")
         let result = HoloClaimVerifier().verify(claims: [claim], evidence: [ev1, ev2])
         expect(result.acceptedClaims.count == 1, "重复 evidence id 不应导致校验器崩溃")
+    }
+
+    private static func test断言有Value但Evidence缺值时rejected() {
+        let evidence = makeEvidence(id: "e-nil", metricKey: "habit.count", metricValue: nil)
+        let claim = makeClaim(metricKey: "habit.count", value: 3, evidenceIDs: ["e-nil"])
+        let result = HoloClaimVerifier().verify(claims: [claim], evidence: [evidence])
+        expect(result.acceptedClaims.isEmpty, "断言有 value 而 evidence 无 metricValue 时必须 rejected")
+    }
+
+    private static func test重复EvidenceID内容冲突时rejected() {
+        let first = makeEvidence(id: "e-conflict", metricKey: "habit.count", metricValue: 3)
+        let second = makeEvidence(id: "e-conflict", metricKey: "habit.count", metricValue: 9)
+        let claim = makeClaim(metricKey: "habit.count", value: 3, evidenceIDs: ["e-conflict"])
+        let result = HoloClaimVerifier().verify(claims: [claim], evidence: [first, second])
+        expect(result.acceptedClaims.isEmpty, "同 ID evidence 内容冲突时必须拒绝，不能静默取第一条")
+    }
+
+    private static func test浮点值使用相对容差() {
+        let evidence = makeEvidence(id: "e-float", metricKey: "finance.total", metricValue: 1_000_000.5)
+        let claim = makeClaim(metricKey: "finance.total", value: 1_000_000, evidenceIDs: ["e-float"])
+        let result = HoloClaimVerifier().verify(claims: [claim], evidence: [evidence])
+        expect(result.acceptedClaims.count == 1, "大数值微小浮点误差应落在相对容差内")
+    }
+
+    private static func test失效Evidence不可支撑Claim() {
+        let evidence = makeEvidence(id: "e-old", metricKey: "habit.count", metricValue: 3, status: .orphaned)
+        let claim = makeClaim(metricKey: "habit.count", value: 3, evidenceIDs: ["e-old"])
+        let result = HoloClaimVerifier().verify(claims: [claim], evidence: [evidence])
+        expect(result.acceptedClaims.isEmpty, "orphaned evidence 不可继续支撑对外 claim")
     }
 }
