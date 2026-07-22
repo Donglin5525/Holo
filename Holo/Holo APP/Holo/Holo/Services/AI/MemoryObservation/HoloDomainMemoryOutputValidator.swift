@@ -39,9 +39,11 @@ nonisolated enum HoloDomainMemoryOutputValidator {
         extractorVersion: Int,
         promptVersion: Int
     ) -> HoloDomainMemoryValidationResult {
-        let evidenceByID = Dictionary(
-            uniqueKeysWithValues: package.signals.map { ($0.evidence.id, $0.evidence) }
+        let evidenceLookup = makeLosslessLookup(
+            package.signals.map { ($0.evidence.id, $0.evidence) }
         )
+        let evidenceByID = evidenceLookup.values
+        let conflictingEvidenceIDs = evidenceLookup.conflictingIDs
         let allowedAnchorKeys = Set(package.signals.flatMap { $0.anchors.map(\.stableKey) })
         let allowedAnchorTypes = Set(package.allowedAnchorTypes)
         let allowedClaims = Set(package.allowedClaimKinds)
@@ -63,6 +65,7 @@ nonisolated enum HoloDomainMemoryOutputValidator {
             }
             let uniqueEvidenceIDs = Array(Set(candidate.evidenceIDs)).sorted()
             guard !uniqueEvidenceIDs.isEmpty,
+                  conflictingEvidenceIDs.isDisjoint(with: uniqueEvidenceIDs),
                   uniqueEvidenceIDs.allSatisfy({ evidenceByID[$0]?.sourceDomain == package.domain }) else {
                 rejections.append(.forgedEvidence)
                 continue
@@ -134,19 +137,24 @@ nonisolated enum HoloDomainMemoryOutputValidator {
             }
         }
 
-        var existingByID = Dictionary(
-            uniqueKeysWithValues: package.existingMemories
+        let existingLookup = makeLosslessLookup(
+            package.existingMemories
                 .filter { $0.scope == .domain && $0.primaryDomain == package.domain }
                 .map { ($0.id, $0) }
         )
+        var existingByID = existingLookup.values
+        let conflictingExistingMemoryIDs = existingLookup.conflictingIDs
         for operation in envelope.counterEvidence ?? [] {
-            guard var record = existingByID[operation.memoryID] else {
+            guard !conflictingExistingMemoryIDs.contains(operation.memoryID),
+                  var record = existingByID[operation.memoryID] else {
                 rejections.append(.invalidExistingMemoryOperation)
                 continue
             }
-            let evidence = Array(Set(operation.evidenceIDs)).compactMap { evidenceByID[$0] }
+            let requestedEvidenceIDs = Set(operation.evidenceIDs)
+            let evidence = requestedEvidenceIDs.compactMap { evidenceByID[$0] }
             guard !evidence.isEmpty,
-                  evidence.count == Set(operation.evidenceIDs).count,
+                  conflictingEvidenceIDs.isDisjoint(with: requestedEvidenceIDs),
+                  evidence.count == requestedEvidenceIDs.count,
                   evidence.allSatisfy({ $0.sourceDomain == package.domain }) else {
                 rejections.append(.forgedEvidence)
                 continue
@@ -158,8 +166,11 @@ nonisolated enum HoloDomainMemoryOutputValidator {
         }
 
         let availableReplacementIDs = Set(records.map(\.id) + existingByID.keys)
+            .subtracting(conflictingExistingMemoryIDs)
         for operation in envelope.supersedes ?? [] {
-            guard var record = existingByID[operation.memoryID],
+            guard !conflictingExistingMemoryIDs.contains(operation.memoryID),
+                  !conflictingExistingMemoryIDs.contains(operation.replacementMemoryID),
+                  var record = existingByID[operation.memoryID],
                   operation.memoryID != operation.replacementMemoryID,
                   availableReplacementIDs.contains(operation.replacementMemoryID) else {
                 rejections.append(.invalidExistingMemoryOperation)
@@ -177,12 +188,31 @@ nonisolated enum HoloDomainMemoryOutputValidator {
         }
         let touchedIDs = Set((envelope.counterEvidence ?? []).map(\.memoryID) +
             (envelope.supersedes ?? []).map(\.memoryID))
+            .subtracting(conflictingExistingMemoryIDs)
         records.append(contentsOf: existingByID.values.filter { touchedIDs.contains($0.id) })
         records = Dictionary(grouping: records, by: \.id).compactMap { $0.value.last }
         return HoloDomainMemoryValidationResult(
             validRecords: records,
             rejections: rejections
         )
+    }
+
+    /// 同一个结构化对象可以被多条信号安全复用；相同 ID 若对应不同内容则标记冲突，交由调用方拒绝。
+    private static func makeLosslessLookup<Value: Equatable>(
+        _ entries: [(String, Value)]
+    ) -> (values: [String: Value], conflictingIDs: Set<String>) {
+        var values: [String: Value] = [:]
+        var conflictingIDs: Set<String> = []
+        for (id, value) in entries {
+            if let existing = values[id] {
+                if existing != value {
+                    conflictingIDs.insert(id)
+                }
+            } else {
+                values[id] = value
+            }
+        }
+        return (values, conflictingIDs)
     }
 
     private static func summaryIsSafe(_ value: String) -> Bool {

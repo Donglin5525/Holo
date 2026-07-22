@@ -62,6 +62,83 @@ struct HoloDomainObservationSecurityTests {
         expect(validResult.validRecords.first?.adoptionMetadata?.disposition == .automatic,
                "自动采用必须留下内部策略元数据")
 
+        let sharedEvidence = evidence(id: "shared-finance-evidence", domain: .finance)
+        let sharedAnchor = try HoloMemoryAnchorRef(type: .financeCategory, value: "daily-expense")
+        let sharedSignals = try [
+            HoloDomainSignalBuilder.make(
+                id: "finance-shared-snapshot",
+                domain: .finance,
+                kind: .aggregate,
+                evidence: sharedEvidence,
+                anchors: [sharedAnchor],
+                numericFacts: ["amount": 100]
+            ),
+            HoloDomainSignalBuilder.make(
+                id: "finance-shared-trend",
+                domain: .finance,
+                kind: .trend,
+                evidence: sharedEvidence,
+                anchors: [sharedAnchor],
+                numericFacts: ["changeRate": 0.2]
+            )
+        ]
+        let sharedPackage = HoloDomainObservationPackageBuilder.build(
+            domain: .finance,
+            window: .init(
+                start: Date(timeIntervalSince1970: 100),
+                end: Date(timeIntervalSince1970: 200)
+            ),
+            signals: sharedSignals
+        )
+        let sharedCandidate = HoloDomainMemoryCandidateOutput(
+            domain: .finance,
+            claimKind: .recurringPattern,
+            persistenceClass: .phase,
+            displaySummary: "同一份聚合证据支持快照与趋势信号",
+            aiUseSummary: "同一聚合证据可被多条信号安全复用",
+            anchors: [sharedAnchor],
+            evidenceIDs: [sharedEvidence.id],
+            prohibitedInferences: []
+        )
+        let sharedResult = HoloDomainMemoryOutputValidator.validate(
+            envelope: .init(candidates: [sharedCandidate]),
+            against: sharedPackage,
+            now: Date(timeIntervalSince1970: 300),
+            extractorVersion: 1,
+            promptVersion: 1
+        )
+        expect(
+            sharedResult.validRecords.count == 1 && sharedResult.rejections.isEmpty,
+            "完全相同的 evidence 被多条信号复用时不应崩溃或被拒绝"
+        )
+
+        var conflictingEvidence = sharedEvidence
+        conflictingEvidence.revisionDigest = "conflicting-revision"
+        let conflictingSignal = try HoloDomainSignalBuilder.make(
+            id: "finance-conflicting-evidence",
+            domain: .finance,
+            kind: .entity,
+            evidence: conflictingEvidence,
+            anchors: [sharedAnchor]
+        )
+        let conflictingPackage = HoloDomainObservationPackageBuilder.build(
+            domain: .finance,
+            window: sharedPackage.window,
+            signals: sharedSignals + [conflictingSignal]
+        )
+        let conflictingResult = HoloDomainMemoryOutputValidator.validate(
+            envelope: .init(candidates: [sharedCandidate]),
+            against: conflictingPackage,
+            now: Date(timeIntervalSince1970: 300),
+            extractorVersion: 1,
+            promptVersion: 1
+        )
+        expect(
+            conflictingResult.validRecords.isEmpty &&
+                conflictingResult.rejections == [.forgedEvidence],
+            "同一 evidence id 对应不同内容时必须安全拒绝，不能覆盖或崩溃"
+        )
+
         let nullActionJSON = try encodedEnvelope(
             candidate: valid,
             requestedActionsJSON: NSNull()
