@@ -423,7 +423,7 @@ export function createApp(overrides = {}) {
             context.header("X-Holo-Step-Idempotency", "hit");
             return context.json(JSON.parse(stepGate.record.response));
           }
-          acquiredStep = stepIdentity;
+          acquiredStep = { ...stepIdentity, generation: stepGate.generation };
           logAgentStepEvent("agent_step_acquired", stepIdentity);
         }
         const deterministicIntentResult = purpose === "intent"
@@ -446,6 +446,7 @@ export function createApp(overrides = {}) {
             acquiredStep.stepId,
             result,
             result?.usage ?? null,
+            acquiredStep.generation,
           );
           logAgentStepEvent("agent_step_completed", acquiredStep, {
             inputTokens: result?.usage?.prompt_tokens ?? null,
@@ -920,7 +921,7 @@ function acquireAgentStep(store, identity, ttlSeconds) {
     const existing = store.get(identity.runId, identity.stepId);
     if (!existing) {
       if (store.createProcessing(identity.runId, identity.stepId, identity.requestHash, ttlSeconds)) {
-        return { type: "acquired" };
+        return { type: "acquired", generation: store.get(identity.runId, identity.stepId)?.generation };
       }
       continue;
     }
@@ -938,7 +939,7 @@ function acquireAgentStep(store, identity, ttlSeconds) {
     }
     // failed_retryable：受控重试，原子转回 processing
     if (store.reacquireProcessing(identity.runId, identity.stepId, identity.requestHash, ttlSeconds)) {
-      return { type: "acquired" };
+      return { type: "acquired", generation: store.get(identity.runId, identity.stepId)?.generation };
     }
   }
   return { type: "in_progress" };
@@ -959,6 +960,8 @@ function recordAgentStepFailure(store, identity, error) {
       retryable: isRetryableAgentStepError(error),
       errorCode: error instanceof GatewayError ? error.code : "UPSTREAM_ERROR",
       errorStatus: error instanceof GatewayError ? error.status : 500,
+      requestHash: identity.requestHash,
+      expectedGeneration: identity.generation,
     });
   } catch (storeError) {
     console.error(

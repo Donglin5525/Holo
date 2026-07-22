@@ -28,7 +28,10 @@ function makeStore(database, primaryKey = TEST_ENCRYPTION_KEY, previousKeys = []
 
 const AGENT_CONTENT = JSON.stringify({
   status: "need_tools",
-  toolRequests: [{ tool: "health", arguments: {} }],
+  reasoning: "需要健康数据",
+  toolRequests: [{ id: "tool-1", tool: "health", query: "health_overview", parameters: {} }],
+  claims: [],
+  warnings: [],
 });
 
 function makeAgentCompletion(id = "agent-completion-1") {
@@ -272,6 +275,53 @@ test("createProcessing returns false on duplicate step (unique constraint)", () 
   assert.equal(store.createProcessing("run-x", "llm-0-1", "hash-x", 60), false);
 
   database.close();
+});
+
+test("generation CAS 拒绝旧一轮完成结果覆盖新一轮 processing", () => {
+  const database = createDatabase({ dbPath: ":memory:" });
+  const store = makeStore(database);
+  store.createProcessing("run-cas", "step-1", "hash-cas", 60);
+  const first = store.get("run-cas", "step-1");
+  assert.equal(first.generation, 1);
+  assert.equal(store.markFailed("run-cas", "step-1", {
+    retryable: true,
+    requestHash: "hash-cas",
+    expectedGeneration: first.generation,
+  }), true);
+  assert.equal(store.reacquireProcessing("run-cas", "step-1", "hash-cas", 60), true);
+  const second = store.get("run-cas", "step-1");
+  assert.equal(second.generation, 2);
+
+  assert.throws(
+    () => store.markCompleted("run-cas", "step-1", makeAgentCompletion("stale"), null, 1),
+    /generation/,
+  );
+  assert.equal(store.get("run-cas", "step-1").status, "processing");
+  store.markCompleted("run-cas", "step-1", makeAgentCompletion("fresh"), null, 2);
+  assert.equal(JSON.parse(store.get("run-cas", "step-1").response).id, "fresh");
+});
+
+test("失败终态写入同时校验 requestHash、processing 状态和 generation", () => {
+  const database = createDatabase({ dbPath: ":memory:" });
+  const store = makeStore(database);
+  store.createProcessing("run-fail-cas", "step-1", "hash-a", 60);
+  assert.equal(store.markFailed("run-fail-cas", "step-1", {
+    retryable: false,
+    requestHash: "hash-b",
+    expectedGeneration: 1,
+  }), false);
+  assert.equal(store.get("run-fail-cas", "step-1").status, "processing");
+  assert.equal(store.markFailed("run-fail-cas", "step-1", {
+    retryable: false,
+    requestHash: "hash-a",
+    expectedGeneration: 1,
+  }), true);
+  assert.equal(store.markFailed("run-fail-cas", "step-1", {
+    retryable: true,
+    requestHash: "hash-a",
+    expectedGeneration: 1,
+  }), false);
+  assert.equal(store.get("run-fail-cas", "step-1").status, "failed_final");
 });
 
 test("purgeExpired removes only expired records", () => {

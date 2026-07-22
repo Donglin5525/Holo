@@ -24,7 +24,7 @@ export function createStepIdempotencyStore(db, { responseCipher } = {}) {
     allowEphemeral: process.env.NODE_ENV !== "production",
   });
   const getStmt = db.prepare(`
-    SELECT run_id, step_id, request_hash, status, response, usage,
+    SELECT run_id, step_id, request_hash, status, generation, response, usage,
            error_code, error_status, created_at, updated_at, expires_at
     FROM agent_step_idempotency
     WHERE run_id = ? AND step_id = ?
@@ -43,7 +43,7 @@ export function createStepIdempotencyStore(db, { responseCipher } = {}) {
   const completeStmt = db.prepare(`
     UPDATE agent_step_idempotency
     SET status = ?, response = ?, usage = ?, error_code = NULL, error_status = NULL, updated_at = ?
-    WHERE run_id = ? AND step_id = ? AND request_hash = ?
+    WHERE run_id = ? AND step_id = ? AND request_hash = ? AND status = ? AND generation = ?
   `);
 
   const completedResponsesStmt = db.prepare(`
@@ -61,12 +61,13 @@ export function createStepIdempotencyStore(db, { responseCipher } = {}) {
   const failStmt = db.prepare(`
     UPDATE agent_step_idempotency
     SET status = ?, error_code = ?, error_status = ?, updated_at = ?
-    WHERE run_id = ? AND step_id = ?
+    WHERE run_id = ? AND step_id = ? AND request_hash = ? AND status = ? AND generation = ?
   `);
 
   const reacquireStmt = db.prepare(`
     UPDATE agent_step_idempotency
-    SET status = ?, updated_at = ?, expires_at = ?
+    SET status = ?, generation = generation + 1,
+        error_code = NULL, error_status = NULL, updated_at = ?, expires_at = ?
     WHERE run_id = ? AND step_id = ? AND request_hash = ? AND status = ?
   `);
 
@@ -105,6 +106,7 @@ export function createStepIdempotencyStore(db, { responseCipher } = {}) {
       stepId: row.step_id,
       requestHash: row.request_hash,
       status: row.status,
+      generation: row.generation,
       response: decryptResponse(row),
       usage: row.usage ? JSON.parse(row.usage) : null,
       errorCode: row.error_code,
@@ -169,12 +171,13 @@ export function createStepIdempotencyStore(db, { responseCipher } = {}) {
     },
 
     /** 标记完成，加密暂存结构化响应 JSON 与 token usage */
-    markCompleted(runId, stepId, response, usage) {
+    markCompleted(runId, stepId, response, usage, expectedGeneration = null) {
       const row = getStmt.get(runId, stepId);
       if (!row) {
         throw new Error(`Agent step 不存在，无法标记完成: ${runId}/${stepId}`);
       }
       const encryptedResponse = cipher.encrypt(JSON.stringify(response), identityFor(row));
+      const generation = expectedGeneration ?? row.generation;
       const result = completeStmt.run(
         STEP_STATUS.COMPLETED,
         encryptedResponse,
@@ -183,22 +186,36 @@ export function createStepIdempotencyStore(db, { responseCipher } = {}) {
         runId,
         stepId,
         row.request_hash,
+        STEP_STATUS.PROCESSING,
+        generation,
       );
       if (result.changes !== 1) {
-        throw new Error(`Agent step 身份变化，拒绝写入完成响应: ${runId}/${stepId}`);
+        throw new Error(`Agent step 状态或 generation 已变化，拒绝写入完成响应: ${runId}/${stepId}`);
       }
     },
 
     /** 标记失败；retryable=false 为终态失败，重放时返回相同错误 */
-    markFailed(runId, stepId, { retryable, errorCode = null, errorStatus = null } = {}) {
-      failStmt.run(
+    markFailed(runId, stepId, {
+      retryable,
+      errorCode = null,
+      errorStatus = null,
+      requestHash = null,
+      expectedGeneration = null,
+    } = {}) {
+      const row = getStmt.get(runId, stepId);
+      if (!row) return false;
+      const result = failStmt.run(
         retryable ? STEP_STATUS.FAILED_RETRYABLE : STEP_STATUS.FAILED_FINAL,
         errorCode,
         errorStatus,
         Date.now(),
         runId,
         stepId,
+        requestHash ?? row.request_hash,
+        STEP_STATUS.PROCESSING,
+        expectedGeneration ?? row.generation,
       );
+      return result.changes === 1;
     },
 
     /** 删除所有过期记录，返回删除条数 */

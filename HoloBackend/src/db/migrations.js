@@ -117,6 +117,14 @@ const MIGRATIONS = [
         ON agent_step_idempotency(expires_at);
     `,
   },
+  {
+    id: 7,
+    description: 'Agent step 幂等记录新增 generation CAS 版本',
+    up: `
+      ALTER TABLE agent_step_idempotency
+      ADD COLUMN generation INTEGER NOT NULL DEFAULT 1;
+    `,
+  },
 ];
 
 function computeChecksum(sql) {

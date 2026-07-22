@@ -17,7 +17,7 @@ test("status 不在枚举内返回 invalid", () => {
 
 test("need_tools 但 toolRequests 不是数组返回 invalid", () => {
   const result = validateAgentLoopContent(
-    JSON.stringify({ status: "need_tools", toolRequests: "not-an-array" })
+    JSON.stringify({ status: "need_tools", reasoning: "need", toolRequests: "not-an-array", claims: [], warnings: [] })
   );
   assert.equal(result.valid, false);
   assert.match(result.error, /toolRequests/i);
@@ -25,7 +25,7 @@ test("need_tools 但 toolRequests 不是数组返回 invalid", () => {
 
 test("final_claims 但 claims 不是数组返回 invalid", () => {
   const result = validateAgentLoopContent(
-    JSON.stringify({ status: "final_claims", claims: "not-an-array" })
+    JSON.stringify({ status: "final_claims", reasoning: "done", toolRequests: [], claims: "not-an-array", warnings: [] })
   );
   assert.equal(result.valid, false);
   assert.match(result.error, /claims/i);
@@ -33,7 +33,7 @@ test("final_claims 但 claims 不是数组返回 invalid", () => {
 
 test("合法 JSON 返回 valid 并带 parsed", () => {
   const result = validateAgentLoopContent(
-    JSON.stringify({ status: "final_claims", claims: [], reasoning: "证据充分" })
+    JSON.stringify({ status: "final_claims", claims: [], toolRequests: [], warnings: [], reasoning: "证据充分" })
   );
   assert.equal(result.valid, true);
   assert.equal(result.parsed.status, "final_claims");
@@ -43,14 +43,19 @@ test("agent_loop 旧 claim.text 会被规范化为 displayText", () => {
   const result = validateAgentLoopContent(
     JSON.stringify({
       status: "final_claims",
-      claims: [{ id: "c1", text: "餐饮消费集中在晚餐", metricAssertions: [], evidenceIDs: ["e1"] }],
+      toolRequests: [],
+      warnings: [],
+      claims: [{
+        id: "c1", type: "observation", text: "餐饮消费集中在晚餐",
+        metricAssertions: [{ metricKey: "finance.meal", value: 3, unit: "次", evidenceIDs: ["e1"] }],
+        evidenceIDs: ["e1"], prohibitedInferences: [], confidence: 0.5,
+      }],
       reasoning: "证据充分",
     })
   );
 
   assert.equal(result.valid, true);
   assert.equal(result.parsed.claims[0].displayText, "餐饮消费集中在晚餐");
-  assert.equal(result.parsed.claims[0].type, "observation");
   assert.equal(result.parsed.claims[0].confidence, 0.5);
   assert.match(result.content, /displayText/);
 });
@@ -59,6 +64,8 @@ test("final_claims claim 缺少 displayText 和 text 返回 invalid", () => {
   const result = validateAgentLoopContent(
     JSON.stringify({
       status: "final_claims",
+      toolRequests: [],
+      warnings: [],
       claims: [{ id: "c1", metricAssertions: [], evidenceIDs: ["e1"] }],
       reasoning: "证据充分",
     })
@@ -66,6 +73,38 @@ test("final_claims claim 缺少 displayText 和 text 返回 invalid", () => {
 
   assert.equal(result.valid, false);
   assert.match(result.error, /displayText/);
+});
+
+test("缺少顶层数组或 confidence 时不再静默补默认值", () => {
+  const missingArrays = validateAgentLoopContent(JSON.stringify({
+    status: "final_claims", reasoning: "ok", claims: [],
+  }));
+  assert.equal(missingArrays.valid, false);
+
+  const missingConfidence = validateAgentLoopContent(JSON.stringify({
+    status: "final_claims", reasoning: "ok", toolRequests: [], warnings: [],
+    claims: [{
+      id: "c1", type: "observation", displayText: "观察",
+      metricAssertions: [{ metricKey: "habit.count", value: 1, evidenceIDs: ["e1"] }],
+      evidenceIDs: ["e1"], prohibitedInferences: [],
+    }],
+  }));
+  assert.equal(missingConfidence.valid, false);
+  assert.match(missingConfidence.error, /confidence/);
+});
+
+test("need_tools 要求完整非空 toolRequest，final_claims 禁止携带工具请求", () => {
+  const incomplete = validateAgentLoopContent(JSON.stringify({
+    status: "need_tools", reasoning: "need", toolRequests: [{ tool: "health" }], claims: [], warnings: [],
+  }));
+  assert.equal(incomplete.valid, false);
+
+  const finalWithTool = validateAgentLoopContent(JSON.stringify({
+    status: "final_claims", reasoning: "done",
+    toolRequests: [{ id: "t1", tool: "health", query: "health_overview", parameters: {} }],
+    claims: [], warnings: [],
+  }));
+  assert.equal(finalWithTool.valid, false);
 });
 
 test("非法 JSON 文本返回 invalid", () => {
