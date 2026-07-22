@@ -3,7 +3,7 @@ export const navItems = [
   { label: '五大模块', href: '#modules' },
   { label: '记忆长廊', href: '#memory-gallery' },
   { label: '记忆陪伴', href: '#memory-companion' },
-  { label: '隐私与支持', href: '#privacy' },
+  { label: '隐私与支持', href: '/privacy' },
 ]
 
 export const productModules = [
@@ -77,21 +77,22 @@ export const legalLinks = [
   {
     title: '隐私政策',
     description: '说明 Holo 收集的数据类型、用途、AI 处理方式、保留期限和删除方式。',
-    href: '#privacy-policy',
+    href: '/privacy',
   },
   {
     title: '用户支持',
     description: '提供问题反馈、联系邮箱、常见问题和 App Store Support URL 承接入口。',
-    href: '#support',
+    href: '/support',
   },
   {
-    title: '数据删除',
+    title: '账号与数据删除',
     description: '说明账号删除、个人数据删除、数据导出和撤回授权的路径。',
-    href: '#data-deletion',
+    href: '/account-deletion',
   },
   {
-    title: '健康数据说明',
-    description: '说明 HealthKit 读取范围、使用目的、授权撤回方式，并明确不用于广告或出售。',
-    href: '#health-data',
+    title: '数据导出',
+    description: '说明 CSV、JSON 导出的入口、范围与敏感文件保管方式。',
+    href: '/data-export',
   },
+  { title: '用户协议', description: '说明服务边界、用户责任、AI 输出限制与终止方式。', href: '/terms' },
 ]

@@ -166,6 +166,64 @@
   box-shadow: 0 16px 38px rgba(244, 109, 56, 0.28);
 }
 
+.app-store-pending {
+  cursor: default;
+  user-select: none;
+}
+
+.sample-label {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--holo-orange-dark);
+  font-size: 11px;
+  font-weight: 900;
+}
+
+.legal-document {
+  width: min(820px, calc(100% - 40px));
+  margin: 0 auto;
+  padding: 80px 0 100px;
+}
+
+.legal-document h1 {
+  margin: 0;
+  font-size: clamp(42px, 7vw, 68px);
+}
+
+.legal-document section {
+  padding: 24px 0;
+  border-top: 1px solid var(--holo-line);
+}
+
+.legal-document section h2 {
+  margin: 0 0 10px;
+  font-size: 22px;
+}
+
+.legal-document p {
+  color: var(--holo-muted);
+  line-height: 1.8;
+}
+
+.legal-updated {
+  margin: 12px 0 28px;
+  font-size: 14px;
+}
+
+.legal-intro {
+  margin-bottom: 44px;
+  color: var(--holo-ink) !important;
+  font-size: 18px;
+}
+
+.back-link {
+  display: inline-block;
+  margin-bottom: 34px;
+  color: var(--holo-orange-dark);
+  font-weight: 800;
+  text-decoration: none;
+}
+
 .secondary-button {
   color: var(--holo-ink);
   border: 1px solid var(--holo-line);

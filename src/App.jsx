@@ -19,6 +19,7 @@ import {
   navItems,
   productModules,
 } from './landing/content'
+import { legalPages } from './landing/legalPages'
 
 const moduleIcons = {
   记账: Landmark,
@@ -50,8 +51,8 @@ function Nav() {
         ))}
       </nav>
 
-      <a className="nav-cta" href="#privacy">
-        上架合规入口
+      <a className="nav-cta" href="/support">
+        获取支持
         <ChevronRight size={16} />
       </a>
     </header>
@@ -114,11 +115,11 @@ function Hero() {
           首页的 HoloAI 球体会吸收你的日常信号，生成今日建议、长期洞察和可以继续对话的记忆陪伴。
         </p>
         <div className="hero-actions">
-          <a className="primary-button" href="#download">
-            下载 iOS App
+          <span className="primary-button app-store-pending" aria-disabled="true">
+            即将上线 App Store
             <ArrowRight size={18} />
-          </a>
-          <a className="secondary-button" href="#privacy">
+          </span>
+          <a className="secondary-button" href="/privacy">
             查看隐私政策
           </a>
         </div>
@@ -229,6 +230,7 @@ function CompanionStory() {
             </div>
           </div>
           <div className="message message-ai">
+            <span className="sample-label">示例洞察 · 非真实用户数据</span>
             你这周睡眠低于 7 小时时，第二天待办完成率明显下降。今晚要不要把明早的第一项任务提前拆小？
           </div>
           <div className="message message-user">
@@ -250,7 +252,7 @@ function PrivacySection() {
         <p className="eyebrow">App Store 上架所需入口</p>
         <h2>隐私、支持和数据控制，要放在用户看得见的地方。</h2>
         <p>
-          这些内容可以在正式站点中拆成独立页面。当前 demo 先把入口和文案边界放清楚，便于后续接入真实政策文本。
+          以下入口均为可独立访问的正式页面，便于用户和 App Store 审核直接查看。
         </p>
       </div>
 
@@ -274,10 +276,10 @@ function DownloadBand() {
         <p className="eyebrow">iOS App</p>
         <h2>一个入口，记录、理解并陪伴你的日常。</h2>
       </div>
-      <a className="primary-button" href="#privacy">
-        准备上架材料
+      <span className="primary-button app-store-pending" aria-disabled="true">
+        即将上线 App Store
         <ArrowRight size={18} />
-      </a>
+      </span>
     </section>
   )
 }
@@ -301,7 +303,32 @@ function Footer() {
   )
 }
 
+function LegalPage({ page }) {
+  return (
+    <main className="landing-page legal-page">
+      <Nav />
+      <article className="legal-document">
+        <a className="back-link" href="/">← 返回 Holo 首页</a>
+        <p className="eyebrow">Holo · 法律与支持</p>
+        <h1>{page.title}</h1>
+        <p className="legal-updated">更新日期：{page.updatedAt}</p>
+        <p className="legal-intro">{page.intro}</p>
+        {page.sections.map(([title, body]) => (
+          <section key={title}>
+            <h2>{title}</h2>
+            <p>{body}</p>
+          </section>
+        ))}
+      </article>
+      <Footer />
+    </main>
+  )
+}
+
 export default function App() {
+  const legalPage = legalPages[window.location.pathname.replace(/\/$/, '') || '/']
+  if (legalPage) return <LegalPage page={legalPage} />
+
   return (
     <main className="landing-page">
       <Nav />

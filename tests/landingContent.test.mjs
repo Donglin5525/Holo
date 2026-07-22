@@ -6,6 +6,7 @@ import {
   legalLinks,
   productModules,
 } from '../src/landing/content.js'
+import { legalPages } from '../src/landing/legalPages.js'
 
 test('landing page exposes the five Holo product modules in order', () => {
   assert.deepEqual(
@@ -39,10 +40,12 @@ test('landing page includes the required HoloAI memory narrative sections', () =
 test('landing page includes App Store review support and privacy links', () => {
   assert.deepEqual(
     legalLinks.map((link) => link.title),
-    ['隐私政策', '用户支持', '数据删除', '健康数据说明'],
+    ['隐私政策', '用户支持', '账号与数据删除', '数据导出', '用户协议'],
   )
 
-  assert.ok(
-    legalLinks.find((link) => link.title === '健康数据说明').description.includes('HealthKit'),
+  assert.deepEqual(
+    Object.keys(legalPages).sort(),
+    ['/account-deletion', '/data-export', '/privacy', '/support', '/terms'],
   )
+  for (const link of legalLinks) assert.ok(legalPages[link.href], `${link.href} should be a real page`)
 })
