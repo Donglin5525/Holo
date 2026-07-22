@@ -200,12 +200,14 @@ struct AddTransactionSheet: View {
                     // 2. 类型 Tab（支出/收入下划线样式）
                     typeTabBar
 
-                    // 3. 中间滚动区（输入 + 分类 + 信息）
+                    // 3. 固定输入区：浏览和选择科目时始终保留金额与名称
+                    transactionEntryInputs
+                        .padding(.horizontal, 16)
+                        .padding(.top, 12)
+
+                    // 4. 中间滚动区（分类 + 信息）
                     ScrollView(showsIndicators: false) {
                         VStack(spacing: 12) {
-                            transactionEntryInputs
-                                .padding(.horizontal, 16)
-
                             categoryGrid
                                 .padding(.horizontal, 16)
 
@@ -235,7 +237,7 @@ struct AddTransactionSheet: View {
                         }
                     }
 
-                    // 4. 数字键盘托盘（快捷金额 + 键盘）
+                    // 5. 数字键盘托盘（快捷金额 + 键盘）
                     if showNumericKeypad {
                         numericKeypadTray
                             .transition(.opacity.combined(with: .move(edge: .bottom)))
