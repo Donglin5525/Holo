@@ -42,6 +42,108 @@ test("POST /v1/app-attest/assert allows debug assertion when enforcement is disa
   });
 });
 
+test("App Attest issues an instance session, rejects replay, and protects AI routes", async () => {
+  const keyId = "A".repeat(43);
+  const app = createApp({
+    database: createDatabase({ dbPath: ':memory:' }),
+    auth: {
+      enforceAppAttest: true,
+      sessionSecret: "test-app-attest-session-secret-at-least-32-characters",
+      appAttestTeamId: "TEAMID1234",
+      appAttestBundleId: "com.example.holo",
+    },
+    appAttestVerifier: {
+      verifyAttestation(input) {
+        assert.equal(input.keyId, keyId);
+        assert.equal(input.attestationObject, "fake-attestation");
+        return {
+          publicKeyPem: "fake-public-key",
+          receipt: "fake-receipt",
+          signCount: 0,
+          environment: "development",
+        };
+      },
+      verifyAssertion(input) {
+        assert.equal(input.publicKeyPem, "fake-public-key");
+        assert.equal(input.assertionObject, "fake-assertion");
+        return { signCount: 1 };
+      },
+    },
+  });
+
+  const challengeResponse = await app.request("/v1/app-attest/challenge", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ keyId }),
+  });
+  const challenge = await challengeResponse.json();
+  assert.equal(challengeResponse.status, 200);
+
+  const attestationBody = {
+    keyId,
+    challengeId: challenge.challengeId,
+    challenge: challenge.challenge,
+    attestationObject: "fake-attestation",
+  };
+  const attestationResponse = await app.request("/v1/app-attest/attest", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(attestationBody),
+  });
+  assert.equal(attestationResponse.status, 200);
+  const session = await attestationResponse.json();
+  assert.equal(session.mode, "app_attest");
+  assert.equal(typeof session.token, "string");
+
+  const replayResponse = await app.request("/v1/app-attest/attest", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(attestationBody),
+  });
+  assert.equal(replayResponse.status, 409);
+  assert.equal((await replayResponse.json()).error.code, "INVALID_APP_ATTEST_CHALLENGE");
+
+  const denied = await app.request("/v1/ai/chat/completions", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-holo-device-id": "spoofed-device",
+    },
+    body: JSON.stringify({ messages: [{ role: "user", content: "hello" }] }),
+  });
+  assert.equal(denied.status, 401);
+  assert.equal((await denied.json()).error.code, "APP_ATTEST_REQUIRED");
+
+  const allowed = await app.request("/v1/ai/chat/completions", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: "Bearer " + session.token,
+    },
+    body: JSON.stringify({ messages: [{ role: "user", content: "hello" }] }),
+  });
+  assert.equal(allowed.status, 200);
+
+  const assertionChallengeResponse = await app.request("/v1/app-attest/challenge", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ keyId }),
+  });
+  const assertionChallenge = await assertionChallengeResponse.json();
+  const assertionResponse = await app.request("/v1/app-attest/assert", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      keyId,
+      challengeId: assertionChallenge.challengeId,
+      challenge: assertionChallenge.challenge,
+      assertionObject: "fake-assertion",
+    }),
+  });
+  assert.equal(assertionResponse.status, 200);
+  assert.equal((await assertionResponse.json()).mode, "app_attest");
+});
+
 test("POST /v1/asr/transcriptions returns mock transcript for uploaded audio", async () => {
   const app = createApp({
     database: createDatabase({ dbPath: ':memory:' }),

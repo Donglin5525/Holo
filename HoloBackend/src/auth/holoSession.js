@@ -20,13 +20,16 @@ export function createHoloSessionService(options = {}) {
   const now = options.now ?? (() => new Date());
 
   return {
-    async issue(subject) {
+    async issue(subject, claims = {}) {
       if (typeof subject !== "string" || subject.length === 0) {
         throw new Error("Session subject is required");
       }
       const nowSeconds = Math.floor(now().getTime() / 1000);
       return new SignJWT({
         internalDiagnostics: internalSubjects.has(subject),
+        sessionKind: claims.sessionKind ?? "apple_user",
+        appAttestKeyId: claims.appAttestKeyId,
+        appleSubject: claims.appleSubject,
       })
         .setProtectedHeader({ alg: "HS256", typ: "JWT" })
         .setSubject(subject)
@@ -52,6 +55,9 @@ export function createHoloSessionService(options = {}) {
         internalDiagnostics: payload.internalDiagnostics === true,
         issuedAt: payload.iat,
         expiresAt: payload.exp,
+        sessionKind: payload.sessionKind,
+        appAttestKeyId: payload.appAttestKeyId,
+        appleSubject: payload.appleSubject,
       };
     },
   };

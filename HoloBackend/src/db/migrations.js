@@ -125,6 +125,33 @@ const MIGRATIONS = [
       ADD COLUMN generation INTEGER NOT NULL DEFAULT 1;
     `,
   },
+  {
+    id: 8,
+    description: '创建 App Attest challenge 与实例 key 状态表',
+    up: `
+      CREATE TABLE IF NOT EXISTS app_attest_challenges (
+        id TEXT PRIMARY KEY,
+        challenge_hash TEXT NOT NULL,
+        key_id TEXT,
+        expires_at INTEGER NOT NULL,
+        consumed_at INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS idx_app_attest_challenges_expires
+        ON app_attest_challenges(expires_at);
+
+      CREATE TABLE IF NOT EXISTS app_attest_keys (
+        key_id TEXT PRIMARY KEY,
+        public_key_pem TEXT NOT NULL,
+        receipt TEXT,
+        sign_count INTEGER NOT NULL DEFAULT 0,
+        environment TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        last_seen_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_app_attest_keys_last_seen
+        ON app_attest_keys(last_seen_at);
+    `,
+  },
 ];
 
 function computeChecksum(sql) {

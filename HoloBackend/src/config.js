@@ -1,6 +1,11 @@
 const DEFAULT_CONFIG = {
   auth: {
     enforceAppAttest: process.env.HOLO_ENFORCE_APP_ATTEST === "true",
+    appAttestTeamId: process.env.HOLO_APP_ATTEST_TEAM_ID ?? "",
+    appAttestBundleId: process.env.HOLO_APP_ATTEST_BUNDLE_ID ?? "com.tangyuxuan.holo-app",
+    appAttestEnvironment: process.env.HOLO_APP_ATTEST_ENVIRONMENT ?? "production",
+    appAttestRootCertificatePath: process.env.HOLO_APP_ATTEST_ROOT_CERTIFICATE_PATH ?? "",
+    appAttestChallengeTtlSeconds: Number(process.env.HOLO_APP_ATTEST_CHALLENGE_TTL_SECONDS ?? 300),
     appleClientIds: csv(
       process.env.HOLO_APPLE_CLIENT_IDS ?? "com.tangyuxuan.holo-app,com.holo.Holo",
     ),
@@ -244,6 +249,8 @@ export function loadConfig(overrides = {}) {
     asrProvider: overrides.asrProvider,
     appleIdentityVerifier: overrides.appleIdentityVerifier,
     holoSessionService: overrides.holoSessionService,
+    appAttestVerifier: overrides.appAttestVerifier,
+    appAttestStore: overrides.appAttestStore,
     adminLogStore: overrides.adminLogStore,
     usageStore: overrides.usageStore,
     providerOverrides: overrides.providerOverrides,
@@ -320,6 +327,17 @@ export function validateRuntimeConfig(config) {
   }
   if (typeof config.auth.sessionSecret !== "string" || config.auth.sessionSecret.length < 32) {
     throw new Error("生产 HOLO_SESSION_SECRET 至少需要 32 个字符");
+  }
+  if (config.auth.enforceAppAttest) {
+    if (!config.auth.appAttestTeamId || !config.auth.appAttestBundleId) {
+      throw new Error("生产 App Attest 必须配置 Team ID 和 Bundle ID");
+    }
+    if (!["production", "development"].includes(config.auth.appAttestEnvironment)) {
+      throw new Error("HOLO_APP_ATTEST_ENVIRONMENT 只能是 production 或 development");
+    }
+    if (!config.auth.appAttestRootCertificatePath && !config.appAttestVerifier) {
+      throw new Error("生产 App Attest 必须配置可信 Apple Root CA 文件");
+    }
   }
   if (config.admin.password && config.admin.sessionSecret.length < 32) {
     throw new Error("生产管理员密码登录必须配置至少 32 字符的独立 session secret");

@@ -1,5 +1,6 @@
 import { Hono } from "hono";
-import { randomBytes } from "node:crypto";
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
 
 import { createErrorResponse, GatewayError, publicMessage } from "./errors.js";
 import { createInMemoryUsageStore } from "./usage/inMemoryUsageStore.js";
@@ -20,6 +21,8 @@ import { createRequestLogger } from "./middleware/requestLogger.js";
 import { createDatabase } from "./db/database.js";
 import { createAppleIdentityVerifier } from "./auth/appleIdentityVerifier.js";
 import { createHoloSessionService } from "./auth/holoSession.js";
+import { createAppAttestStore } from "./auth/appAttestStore.js";
+import { createAppAttestVerifier } from "./auth/appAttestVerifier.js";
 import { requireInternalDiagnostics } from "./auth/internalDiagnosticsAuth.js";
 import { injectServerPrompt } from "./prompts/serverPromptPolicy.js";
 import { buildDeterministicIntentCompletion } from "./intentResponseStabilizer.js";
@@ -136,6 +139,10 @@ export function createApp(overrides = {}) {
     clientIds: config.auth.appleClientIds,
   });
   const holoSessionService = config.holoSessionService ?? createConfiguredSessionService(config.auth);
+  const appAttestStore = config.appAttestStore ?? createAppAttestStore(database.db, {
+    challengeTtlSeconds: config.auth.appAttestChallengeTtlSeconds,
+  });
+  const appAttestVerifier = config.appAttestVerifier ?? createConfiguredAppAttestVerifier(config.auth);
 
   // 请求耗时日志中间件
   const requestLogger = createRequestLogger(database.db);
@@ -270,11 +277,45 @@ export function createApp(overrides = {}) {
 
   app.post("/v1/app-attest/challenge", async (context) => {
     try {
-      await readJson(context);
+      const request = await readJson(context);
+      const keyId = validateOptionalAppAttestKeyId(request.keyId);
+      const challenge = appAttestStore.createChallenge(keyId);
+      context.header("Cache-Control", "no-store");
       return context.json({
-        challenge: randomBytes(32).toString("base64url"),
-        expiresInSeconds: 300,
+        challengeId: challenge.id,
+        challenge: challenge.challenge,
+        expiresAt: challenge.expiresAt,
+        expiresInSeconds: challenge.expiresInSeconds,
       });
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
+  app.post("/v1/app-attest/attest", async (context) => {
+    try {
+      if (!appAttestVerifier || !holoSessionService) {
+        throw new GatewayError("APP_ATTEST_UNAVAILABLE", "App Attest is not configured", 503);
+      }
+      const request = await readJson(context);
+      const keyId = validateAppAttestKeyId(request.keyId);
+      consumeAppAttestChallenge(appAttestStore, request, keyId);
+      let verified;
+      try {
+        verified = appAttestVerifier.verifyAttestation({
+          keyId,
+          attestationObject: request.attestationObject,
+          challenge: request.challenge,
+        });
+      } catch {
+        throw new GatewayError("INVALID_APP_ATTEST_ATTESTATION", "App Attest attestation is invalid", 401);
+      }
+      try {
+        appAttestStore.registerKey({ keyId, ...verified });
+      } catch {
+        throw new GatewayError("APP_ATTEST_KEY_ALREADY_REGISTERED", "App Attest key is already registered", 409);
+      }
+      return issueInstanceSession(context, holoSessionService, keyId, verified.environment);
     } catch (error) {
       return createErrorResponse(context, error);
     }
@@ -290,8 +331,33 @@ export function createApp(overrides = {}) {
           mode: "debug",
         });
       }
-
-      throw new GatewayError("APP_ATTEST_REQUIRED", "App Attest is not implemented yet", 401);
+      if (!appAttestVerifier || !holoSessionService) {
+        throw new GatewayError("APP_ATTEST_UNAVAILABLE", "App Attest is not configured", 503);
+      }
+      const keyId = validateAppAttestKeyId(request.keyId);
+      consumeAppAttestChallenge(appAttestStore, request, keyId);
+      const registered = appAttestStore.getKey(keyId);
+      if (!registered) {
+        throw new GatewayError("APP_ATTEST_KEY_NOT_REGISTERED", "App Attest key is not registered", 401);
+      }
+      let verified;
+      try {
+        verified = appAttestVerifier.verifyAssertion({
+          publicKeyPem: registered.publicKeyPem,
+          assertionObject: request.assertionObject,
+          challenge: request.challenge,
+        });
+      } catch {
+        throw new GatewayError("INVALID_APP_ATTEST_ASSERTION", "App Attest assertion is invalid", 401);
+      }
+      if (!appAttestStore.advanceCounter({
+        keyId,
+        previousCounter: registered.signCount,
+        nextCounter: verified.signCount,
+      })) {
+        throw new GatewayError("APP_ATTEST_REPLAY_DETECTED", "App Attest assertion was already used", 409);
+      }
+      return issueInstanceSession(context, holoSessionService, keyId, registered.environment);
     } catch (error) {
       return createErrorResponse(context, error);
     }
@@ -309,7 +375,7 @@ export function createApp(overrides = {}) {
         throw new GatewayError("UNKNOWN_PURPOSE", `Unsupported purpose: ${purpose}`, 400);
       }
 
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getCallerId(context, config, holoSessionService);
       const requestLimits = resolveChatRequestLimits(config, route);
       const usage = usageStore.consume({
         deviceId,
@@ -486,7 +552,7 @@ export function createApp(overrides = {}) {
 
   app.post("/v1/asr/transcriptions", async (context) => {
     try {
-      const deviceId = getDeviceId(context, config);
+      const deviceId = await getCallerId(context, config, holoSessionService);
       const usage = usageStore.consume({
         deviceId,
         purpose: "asr",
@@ -637,6 +703,69 @@ function createConfiguredSessionService(auth) {
   });
 }
 
+function createConfiguredAppAttestVerifier(auth) {
+  if (!auth.appAttestRootCertificatePath) return null;
+  const trustedRoot = readFileSync(auth.appAttestRootCertificatePath);
+  return createAppAttestVerifier({
+    teamId: auth.appAttestTeamId,
+    bundleId: auth.appAttestBundleId,
+    environment: auth.appAttestEnvironment,
+    rootCertificates: [trustedRoot],
+  });
+}
+
+async function issueInstanceSession(context, sessionService, keyId, environment) {
+  const subject = "app-instance:" + createHash("sha256").update(keyId).digest("base64url");
+  const token = await sessionService.issue(subject, {
+    sessionKind: "app_instance",
+    appAttestKeyId: keyId,
+  });
+  const session = await sessionService.verify(token);
+  context.header("Cache-Control", "no-store");
+  return context.json({
+    ok: true,
+    mode: "app_attest",
+    environment,
+    token,
+    expiresAt: session.expiresAt,
+  });
+}
+
+function consumeAppAttestChallenge(store, request, keyId) {
+  if (
+    typeof request.challengeId !== "string"
+    || typeof request.challenge !== "string"
+    || !store.consumeChallenge({
+      id: request.challengeId,
+      challenge: request.challenge,
+      keyId,
+    })
+  ) {
+    throw new GatewayError(
+      "INVALID_APP_ATTEST_CHALLENGE",
+      "App Attest challenge is invalid, expired, or already used",
+      409,
+    );
+  }
+}
+
+function validateOptionalAppAttestKeyId(value) {
+  if (value === undefined || value === null || value === "") return null;
+  return validateAppAttestKeyId(value);
+}
+
+function validateAppAttestKeyId(value) {
+  if (
+    typeof value !== "string"
+    || value.length < 16
+    || value.length > 128
+    || !/^[A-Za-z0-9_-]+={0,2}$/.test(value)
+  ) {
+    throw new GatewayError("INVALID_APP_ATTEST_KEY_ID", "App Attest key ID is invalid", 400);
+  }
+  return value;
+}
+
 function createAdminTestChatRunner({ config, providers, logStore }) {
   return async function runAdminTestChat({ message, purpose, systemPrompt }) {
     const route = config.routes[purpose];
@@ -751,7 +880,28 @@ function rejectClientRouting(request) {
   }
 }
 
-function getDeviceId(context, config) {
+async function getCallerId(context, config, sessionService) {
+  const authorization = context.req.header("authorization") ?? "";
+  const match = authorization.match(/^Bearer\s+(.+)$/i);
+  if (match) {
+    if (!sessionService) {
+      throw new GatewayError("AUTH_UNAVAILABLE", "Instance session verification is unavailable", 503);
+    }
+    try {
+      const session = await sessionService.verify(match[1]);
+      if (config.auth.enforceAppAttest && session.sessionKind !== "app_instance") {
+        throw new Error("App instance session is required");
+      }
+      return "session:" + session.sub;
+    } catch {
+      throw new GatewayError("INVALID_HOLO_SESSION", "Holo session is invalid", 401);
+    }
+  }
+
+  if (config.auth.enforceAppAttest) {
+    throw new GatewayError("APP_ATTEST_REQUIRED", "App Attest instance session is required", 401);
+  }
+
   const deviceId = context.req.header("x-holo-device-id");
   if (deviceId) {
     if (
@@ -761,10 +911,6 @@ function getDeviceId(context, config) {
       throw new GatewayError("INVALID_DEVICE_ID", "Device ID format is invalid", 400);
     }
     return deviceId;
-  }
-
-  if (config.auth.enforceAppAttest) {
-    throw new GatewayError("APP_ATTEST_REQUIRED", "App Attest assertion is required", 401);
   }
 
   return "debug-device";
