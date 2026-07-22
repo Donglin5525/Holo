@@ -42,6 +42,9 @@ final class HoloBackendSpeechRecognitionProvider: SpeechRecognitionProvider {
         request.timeoutInterval = 90
         request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
         request.setValue(deviceIdProvider(), forHTTPHeaderField: "X-Holo-Device-Id")
+        if let authorization = try await HoloAppAttestSessionManager.shared.authorizationValue() {
+            request.setValue(authorization, forHTTPHeaderField: "Authorization")
+        }
 
         let body = Self.multipartBody(
             audioData: audioData,

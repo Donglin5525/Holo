@@ -189,7 +189,8 @@ final class HoloBackendAIProvider: AIProvider {
         try ensureDataProcessingConsent()
         let responseFormat: ResponseFormat? = purpose == .agentLoop ? .jsonObject : nil
         let request = buildRequest(purpose: purpose, messages: messages, responseFormat: responseFormat, step: step)
-        let completion: APIClient.Response<ChatCompletionResponse> = try await apiClient.sendWithResponse(request)
+        let authorizedRequest = try await HoloAppAttestSessionManager.shared.authorized(request)
+        let completion: APIClient.Response<ChatCompletionResponse> = try await apiClient.sendWithResponse(authorizedRequest)
         let response = completion.value
         let requestId = completion.httpResponse.value(forHTTPHeaderField: "X-Holo-Request-Id")
 
@@ -279,7 +280,8 @@ final class HoloBackendAIProvider: AIProvider {
                 )
 
                 do {
-                    for try await chunk in apiClient.sendStreaming(request, onResponse: { [weak self] response in
+                    let authorizedRequest = try await HoloAppAttestSessionManager.shared.authorized(request)
+                    for try await chunk in apiClient.sendStreaming(authorizedRequest, onResponse: { [weak self] response in
                         let requestId = response.value(forHTTPHeaderField: "X-Holo-Request-Id")
                         Task { @MainActor [weak self] in
                             self?.lastCallLog?.requestId = requestId
@@ -298,7 +300,8 @@ final class HoloBackendAIProvider: AIProvider {
     // MARK: - Request Building
 
     private func sendCompletion(_ request: APIRequest) async throws -> (ChatCompletionResponse, String?) {
-        let result: APIClient.Response<ChatCompletionResponse> = try await apiClient.sendWithResponse(request)
+        let authorizedRequest = try await HoloAppAttestSessionManager.shared.authorized(request)
+        let result: APIClient.Response<ChatCompletionResponse> = try await apiClient.sendWithResponse(authorizedRequest)
         return (
             result.value,
             result.httpResponse.value(forHTTPHeaderField: "X-Holo-Request-Id")
