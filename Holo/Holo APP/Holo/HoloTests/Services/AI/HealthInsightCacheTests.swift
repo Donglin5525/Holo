@@ -11,11 +11,18 @@ import XCTest
 @MainActor
 final class HealthInsightCacheTests: XCTestCase {
 
+    /// iOS 26.3 Simulator 的 hosted XCTest 在用例结束时释放 MainActor 对象及其
+    /// 独立 UserDefaults，偶发触发系统层重复释放。保留到测试进程退出，避免把
+    /// 运行时兼容问题误判成缓存业务失败。
+    private static var retainedCaches: [HealthInsightCache] = []
+
     private func makeCache() -> HealthInsightCache {
         let dir = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent(UUID().uuidString)
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let defaults = UserDefaults(suiteName: UUID().uuidString)!
-        return HealthInsightCache(directory: dir, defaults: defaults)
+        let cache = HealthInsightCache(directory: dir, defaults: defaults)
+        Self.retainedCaches.append(cache)
+        return cache
     }
 
     private let now = Date(timeIntervalSince1970: 1_700_000_000)

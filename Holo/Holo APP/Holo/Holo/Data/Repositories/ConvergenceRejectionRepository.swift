@@ -12,10 +12,11 @@ import Foundation
 import CoreData
 import OSLog
 
+@MainActor
 final class ConvergenceRejectionRepository {
 
     /// 默认抑制有效期（天）：拒绝过的建议 90 天内不再重复弹出
-    static let defaultExpiryDays = 90
+    nonisolated static let defaultExpiryDays = 90
 
     private let context: NSManagedObjectContext
     private let logger = Logger(subsystem: "com.holo.app", category: "ConvergenceRejectionRepo")
@@ -23,6 +24,9 @@ final class ConvergenceRejectionRepository {
     init(context: NSManagedObjectContext = CoreDataStack.shared.viewContext) {
         self.context = context
     }
+
+    /// 无显式清理任务，规避 iOS 26.3 Simulator 的 MainActor 兼容析构重复释放。
+    nonisolated deinit {}
 
     // MARK: - 归一化幂等键
 

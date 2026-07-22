@@ -12,17 +12,30 @@ import CoreData
 
 final class ConvergenceRejectionRepositoryTests: XCTestCase {
 
-    private func makeRepo() throws -> (ConvergenceRejectionRepository, NSManagedObjectContext) {
-        let model = CoreDataStack.shared.createDataModel()
-        let container = NSPersistentContainer(name: "ConvergenceRejectionTest", managedObjectModel: model)
-        let description = NSPersistentStoreDescription()
-        description.type = NSInMemoryStoreType
-        container.persistentStoreDescriptions = [description]
-        var storeError: Error?
-        container.loadPersistentStores { _, error in storeError = error }
-        if let storeError { throw storeError }
-        let ctx = container.viewContext
-        return (ConvergenceRejectionRepository(context: ctx), ctx)
+    private final class Fixture {
+        let container: NSPersistentContainer
+        let context: NSManagedObjectContext
+        let repo: ConvergenceRejectionRepository
+
+        init() throws {
+            let model = CoreDataStack.shared.createDataModel()
+            container = NSPersistentContainer(name: "ConvergenceRejectionTest", managedObjectModel: model)
+            let description = NSPersistentStoreDescription()
+            description.type = NSInMemoryStoreType
+            container.persistentStoreDescriptions = [description]
+            var storeError: Error?
+            container.loadPersistentStores { _, error in storeError = error }
+            if let storeError { throw storeError }
+            context = container.viewContext
+            repo = ConvergenceRejectionRepository(context: context)
+        }
+
+        /// Fixture 无显式清理任务，避免 XCTest 销毁实例时走兼容析构 thunk。
+        nonisolated deinit {}
+    }
+
+    private func makeRepo() throws -> Fixture {
+        try Fixture()
     }
 
     // MARK: - suggestionKey 归一化
@@ -55,28 +68,32 @@ final class ConvergenceRejectionRepositoryTests: XCTestCase {
     // MARK: - reject / isRejected
 
     func test_reject创建记录且可命中() throws {
-        let (repo, _) = try makeRepo()
+        let fixture = try makeRepo()
+        let repo = fixture.repo
         try repo.reject(topicTitle: "编程实践", sourceTerms: ["coding", "vibecoding"])
 
         XCTAssertTrue(repo.isRejected(topicTitle: "编程实践", sourceTerms: ["coding", "vibecoding"]))
     }
 
     func test_isRejected来源词顺序无关命中() throws {
-        let (repo, _) = try makeRepo()
+        let fixture = try makeRepo()
+        let repo = fixture.repo
         try repo.reject(topicTitle: "编程实践", sourceTerms: ["coding", "vibecoding"])
 
         XCTAssertTrue(repo.isRejected(topicTitle: "编程实践", sourceTerms: ["vibecoding", "coding"]))
     }
 
     func test_isRejected主题名不同不命中() throws {
-        let (repo, _) = try makeRepo()
+        let fixture = try makeRepo()
+        let repo = fixture.repo
         try repo.reject(topicTitle: "编程实践", sourceTerms: ["coding"])
 
         XCTAssertFalse(repo.isRejected(topicTitle: "AI协作", sourceTerms: ["coding"]))
     }
 
     func test_isRejected来源词集合不同不命中() throws {
-        let (repo, _) = try makeRepo()
+        let fixture = try makeRepo()
+        let repo = fixture.repo
         try repo.reject(topicTitle: "编程实践", sourceTerms: ["coding", "vibecoding"])
 
         XCTAssertFalse(repo.isRejected(topicTitle: "编程实践", sourceTerms: ["coding"]))
@@ -85,7 +102,8 @@ final class ConvergenceRejectionRepositoryTests: XCTestCase {
     // MARK: - 过期
 
     func test_过期rejection不命中() throws {
-        let (repo, ctx) = try makeRepo()
+        let fixture = try makeRepo()
+        let (repo, ctx) = (fixture.repo, fixture.context)
         try repo.reject(topicTitle: "编程实践", sourceTerms: ["coding"])
 
         // 手动把 expiresAt 改到过去
@@ -101,7 +119,8 @@ final class ConvergenceRejectionRepositoryTests: XCTestCase {
     // MARK: - 幂等
 
     func test_重复reject同键不重复创建且续期() throws {
-        let (repo, ctx) = try makeRepo()
+        let fixture = try makeRepo()
+        let (repo, ctx) = (fixture.repo, fixture.context)
         try repo.reject(topicTitle: "编程实践", sourceTerms: ["coding"], expiresInDays: 30)
         try repo.reject(topicTitle: "编程实践", sourceTerms: ["coding"], expiresInDays: 60)
 
@@ -113,7 +132,8 @@ final class ConvergenceRejectionRepositoryTests: XCTestCase {
     // MARK: - fetchActiveRejections
 
     func test_fetchActiveRejections排除过期() throws {
-        let (repo, ctx) = try makeRepo()
+        let fixture = try makeRepo()
+        let (repo, ctx) = (fixture.repo, fixture.context)
         try repo.reject(topicTitle: "编程实践", sourceTerms: ["coding"], expiresInDays: 30)
         try repo.reject(topicTitle: "AI协作", sourceTerms: ["agent"], expiresInDays: 30)
 
@@ -133,7 +153,8 @@ final class ConvergenceRejectionRepositoryTests: XCTestCase {
     // MARK: - purgeExpired
 
     func test_purgeExpired删除过期记录() throws {
-        let (repo, ctx) = try makeRepo()
+        let fixture = try makeRepo()
+        let (repo, ctx) = (fixture.repo, fixture.context)
         try repo.reject(topicTitle: "编程实践", sourceTerms: ["coding"], expiresInDays: 30)
 
         let request = ThoughtTagConvergenceRejection.fetchRequest()
