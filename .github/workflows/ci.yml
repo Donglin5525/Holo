@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  web-and-backend:
+    name: Web + Backend
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            HoloBackend/package-lock.json
+      - name: Install web dependencies
+        run: npm ci
+      - name: Lint web
+        run: npm run lint
+      - name: Test web
+        run: npm test
+      - name: Build web
+        run: npm run build
+      - name: Install backend dependencies
+        run: npm ci --prefix HoloBackend
+      - name: Test backend
+        run: npm test --prefix HoloBackend
+      - name: Validate server Prompt JSON
+        run: node -e "JSON.parse(require('fs').readFileSync('HoloBackend/src/prompts/defaultPrompts.json', 'utf8'))"
+
+  ios:
+    name: iOS Tests
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify generated standalone bridge
+        run: |
+          ruby scripts/generate-standalone-xctest-bridge.rb
+          git diff --exit-code -- "Holo/Holo APP/Holo/HoloTests" \
+            "Holo/Holo APP/Holo/Holo.xcodeproj/project.pbxproj"
+      - name: Check test inventory
+        run: ruby scripts/check-test-inventory.rb
+      - name: Run standalone source-boundary scripts
+        run: ruby scripts/run-standalone-tests.rb
+      - name: Select available iPhone simulator
+        id: simulator
+        run: |
+          device_id=$(xcrun simctl list devices available -j | ruby -rjson -e '
+            devices = JSON.parse(STDIN.read).fetch("devices").values.flatten
+            phone = devices.find { |device| device["isAvailable"] && device["name"].start_with?("iPhone") }
+            abort "No available iPhone simulator" unless phone
+            puts phone.fetch("udid")
+          ')
+          echo "id=$device_id" >> "$GITHUB_OUTPUT"
+      - name: Run full iOS test target
+        run: |
+          xcodebuild test \
+            -project "Holo/Holo APP/Holo/Holo.xcodeproj" \
+            -scheme Holo \
+            -destination "platform=iOS Simulator,id=${{ steps.simulator.outputs.id }}" \
+            -resultBundlePath "$RUNNER_TEMP/HoloTests.xcresult"

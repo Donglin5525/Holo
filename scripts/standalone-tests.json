@@ -1,0 +1,8 @@
+{
+  "roots": [
+    "Holo/Holo APP/Holo/HoloTests"
+  ],
+  "exclude": {
+    "Holo/Holo APP/Holo/HoloTests/Support/CoreDataTestSupport.swift": "XCTest 共用支持代码，由 HoloTests target 编译，不是独立测试入口"
+  }
+}
