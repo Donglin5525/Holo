@@ -1,6 +1,7 @@
 import "dotenv/config";
 import { serve } from "@hono/node-server";
 import { createDatabase } from "./db/database.js";
+import { closeHttpServer } from "./gracefulShutdown.js";
 
 const port = Number(process.env.PORT ?? 8787);
 
@@ -27,13 +28,24 @@ const server = serve(
   },
 );
 
-function gracefulShutdown(signal) {
+let shuttingDown = false;
+async function gracefulShutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
   console.log(`\n[${signal}] 正在关闭...`);
-  server.close();
-  app.agentStepIdempotencyCleanup?.stop?.();
-  database.close();
-  console.log("[DB] 数据库已关闭");
-  process.exit(0);
+  let exitCode = 0;
+  try {
+    await closeHttpServer(server, { timeoutMs: 10_000 });
+    app.shutdown?.();
+    database.close();
+    console.log("[DB] 数据库已关闭");
+  } catch (error) {
+    exitCode = 1;
+    console.error(`[Shutdown] ${error.message}`);
+    app.shutdown?.();
+    try { database.close(); } catch {}
+  }
+  process.exitCode = exitCode;
 }
 
 process.on("SIGINT", () => gracefulShutdown("SIGINT"));

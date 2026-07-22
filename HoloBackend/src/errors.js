@@ -47,6 +47,8 @@ export function publicMessage(code) {
     INVALID_JSON: "请求格式无效",
     INVALID_REQUEST: "请求参数无效",
     INVALID_CHAT_REQUEST: "请求参数无效",
+    INVALID_DEVICE_ID: "设备标识无效",
+    REQUEST_TOO_LARGE: "请求内容过大，请减少内容后重试",
     PROMPT_NOT_FOUND: "请求的功能暂不可用",
     UNKNOWN_PURPOSE: "请求的 AI 功能暂不可用",
 
@@ -59,6 +61,7 @@ export function publicMessage(code) {
 
     // 语音相关
     AUDIO_TOO_LARGE: "语音文件过大，请缩短录音后重试",
+    UNSUPPORTED_AUDIO_TYPE: "暂不支持该语音格式",
     EMPTY_TRANSCRIPT: "未能识别语音内容，请再试一次",
 
     // 上游服务

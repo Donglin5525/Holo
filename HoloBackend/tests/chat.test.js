@@ -29,6 +29,7 @@ function createTestApp(overrides = {}) {
       },
     },
     exposePromptEndpointsForTests: true,
+    contentCaptureEnabled: true,
     ...overrides,
   });
 }
@@ -770,7 +771,7 @@ test("admin logs page escapes logged content", async () => {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      "x-holo-device-id": "<script>alert(1)</script>",
+      "x-holo-device-id": "xss-escape-device",
     },
     body: JSON.stringify({
       purpose: "chat",

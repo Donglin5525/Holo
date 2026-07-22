@@ -54,17 +54,20 @@ export function createAdminSessionCookie(config) {
   );
   const signature = sign(payload, config);
 
-  return [
+  const attributes = [
     `${SESSION_COOKIE_NAME}=${payload}.${signature}`,
     "Path=/",
     "HttpOnly",
     "SameSite=Strict",
     `Max-Age=${SESSION_TTL_SECONDS}`,
-  ].join("; ");
+  ];
+  if (config.runtimeEnvironment === "production") attributes.push("Secure");
+  return attributes.join("; ");
 }
 
-export function clearAdminSessionCookie() {
-  return `${SESSION_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0`;
+export function clearAdminSessionCookie(config = {}) {
+  const secure = config.runtimeEnvironment === "production" ? "; Secure" : "";
+  return `${SESSION_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0${secure}`;
 }
 
 function isValidSessionCookie(cookieHeader, config) {

@@ -14,6 +14,7 @@ function createTestApp() {
   });
   const app = createApp({
     database: createDatabase({ dbPath: ":memory:" }),
+    contentCaptureEnabled: true,
     auth: { enforceAppAttest: false },
     appleIdentityVerifier: {
       async verify(token) {

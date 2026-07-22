@@ -11,11 +11,20 @@ const DEFAULT_CONFIG = {
     sessionAudience: process.env.HOLO_SESSION_AUDIENCE ?? "holo-ios",
   },
   limits: {
+    chatMaxBodyBytes: Number(process.env.HOLO_CHAT_MAX_BODY_BYTES ?? 256 * 1024),
+    chatMaxMessages: Number(process.env.HOLO_CHAT_MAX_MESSAGES ?? 100),
+    chatMaxMessageChars: Number(process.env.HOLO_CHAT_MAX_MESSAGE_CHARS ?? 64 * 1024),
+    chatMaxTotalChars: Number(process.env.HOLO_CHAT_MAX_TOTAL_CHARS ?? 200 * 1024),
+    deviceIdMaxChars: Number(process.env.HOLO_DEVICE_ID_MAX_CHARS ?? 128),
     chatRequestsPerMinute: Number(process.env.HOLO_CHAT_REQUESTS_PER_MINUTE ?? 20),
     chatRequestsPerDay: Number(process.env.HOLO_CHAT_REQUESTS_PER_DAY ?? 50),
     asrRequestsPerMinute: Number(process.env.HOLO_ASR_REQUESTS_PER_MINUTE ?? 10),
     asrRequestsPerDay: Number(process.env.HOLO_ASR_REQUESTS_PER_DAY ?? 20),
     asrMaxBytes: Number(process.env.HOLO_ASR_MAX_BYTES ?? 10 * 1024 * 1024),
+    asrAllowedMimeTypes: csv(
+      process.env.HOLO_ASR_ALLOWED_MIME_TYPES
+        ?? "audio/wav,audio/x-wav,audio/m4a,audio/mp4,audio/mpeg,audio/aac,audio/webm,audio/ogg,application/octet-stream",
+    ),
   },
   routes: {
     chat: {
@@ -190,6 +199,8 @@ const DEFAULT_CONFIG = {
     sessionSecret: process.env.HOLO_ADMIN_SESSION_SECRET ?? "",
     logMaxEntries: Number(process.env.HOLO_ADMIN_LOG_MAX_ENTRIES ?? 200),
     logDetailMaxChars: Number(process.env.HOLO_ADMIN_LOG_DETAIL_MAX_CHARS ?? 20_000),
+    loginMaxAttempts: Number(process.env.HOLO_ADMIN_LOGIN_MAX_ATTEMPTS ?? 5),
+    loginWindowSeconds: Number(process.env.HOLO_ADMIN_LOGIN_WINDOW_SECONDS ?? 900),
   },
   aiCallLogs: {
     enabled: process.env.HOLO_AI_CALL_LOGS_ENABLED !== "false",
@@ -257,8 +268,68 @@ export function loadConfig(overrides = {}) {
         ?? 3_600_000,
     ),
     database: overrides.database ?? null,
-    contentCaptureEnabled: process.env.HOLO_LOG_CAPTURE_CONTENT === "true",
-    logRetentionDays: Number(process.env.HOLO_LOG_RETENTION_DAYS ?? 30),
-    dbPath: process.env.HOLO_DB_PATH ?? "/data/holo-backend.db",
+    contentCaptureEnabled:
+      overrides.contentCaptureEnabled
+        ?? process.env.HOLO_LOG_CAPTURE_CONTENT === "true",
+    logRetentionDays: Number(overrides.logRetentionDays ?? process.env.HOLO_LOG_RETENTION_DAYS ?? 7),
+    dbPath: overrides.dbPath ?? process.env.HOLO_DB_PATH ?? "/data/holo-backend.db",
   };
+}
+
+export function validateRuntimeConfig(config) {
+  const positiveLimits = [
+    "chatMaxBodyBytes", "chatMaxMessages", "chatMaxMessageChars", "chatMaxTotalChars",
+    "deviceIdMaxChars", "chatRequestsPerMinute", "chatRequestsPerDay",
+    "asrRequestsPerMinute", "asrRequestsPerDay", "asrMaxBytes",
+  ];
+  for (const key of positiveLimits) {
+    if (!Number.isFinite(config.limits[key]) || config.limits[key] <= 0) {
+      throw new Error(`配置 ${key} 必须为正数`);
+    }
+  }
+  if (!Array.isArray(config.limits.asrAllowedMimeTypes) || config.limits.asrAllowedMimeTypes.length === 0) {
+    throw new Error("配置 asrAllowedMimeTypes 不能为空");
+  }
+
+  if (config.runtimeEnvironment !== "production") return;
+
+  const referencedProviders = new Set(Object.values(config.routes).map((route) => route.provider));
+  if (referencedProviders.has("mock")) {
+    throw new Error("生产环境禁止使用 mock AI provider");
+  }
+  for (const name of referencedProviders) {
+    const provider = config.providers[name];
+    if (!provider && !(config.providerOverrides ?? []).some(([overrideName]) => overrideName === name)) {
+      throw new Error(`生产 AI provider 未配置: ${name}`);
+    }
+    if (provider) {
+      if (!provider.apiKey) throw new Error(`生产 AI provider 缺少 API Key: ${name}`);
+      if (!isSecureURL(provider.baseURL, "https:")) {
+        throw new Error(`生产 AI provider 必须使用 HTTPS: ${name}`);
+      }
+    }
+  }
+  if (!config.asrProvider) {
+    if (config.asr.provider === "mock") throw new Error("生产环境禁止使用 mock ASR provider");
+    if (config.asr.provider === "dashscope" && !config.asr.dashscopeApiKey) {
+      throw new Error("生产 DashScope ASR 缺少 API Key");
+    }
+    if (!isSecureURL(config.asr.dashscopeWebSocketURL, "wss:")) {
+      throw new Error("生产 ASR 必须使用 WSS");
+    }
+  }
+  if (typeof config.auth.sessionSecret !== "string" || config.auth.sessionSecret.length < 32) {
+    throw new Error("生产 HOLO_SESSION_SECRET 至少需要 32 个字符");
+  }
+  if (config.admin.password && config.admin.sessionSecret.length < 32) {
+    throw new Error("生产管理员密码登录必须配置至少 32 字符的独立 session secret");
+  }
+}
+
+function isSecureURL(value, protocol) {
+  try {
+    return new URL(value).protocol === protocol;
+  } catch {
+    return false;
+  }
 }

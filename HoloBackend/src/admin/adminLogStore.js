@@ -5,6 +5,14 @@ const DEFAULT_MAX_DETAIL_CHARS = 20_000;
 const LOG_RETENTION_DAYS = 30;
 const HOT_CACHE_SIZE = 50;
 const CONTENT_CAPTURE_MAX_CHARS = 2000;
+const SENSITIVE_PURPOSE_PATTERNS = [
+  /finance/i,
+  /health/i,
+  /memory/i,
+  /habit/i,
+  /profile/i,
+  /conversation/i,
+];
 
 // 基础脱敏规则（低误伤）
 const REDACTION_PATTERNS = [
@@ -29,8 +37,9 @@ export function createAdminLogStore(options = {}) {
   const maxDetailChars = positiveNumber(options.maxDetailChars, DEFAULT_MAX_DETAIL_CHARS);
   const db = options.db ?? null;
   const contentCaptureEnabled = options.contentCaptureEnabled ?? false;
+  const retentionDays = positiveInteger(options.retentionDays, LOG_RETENTION_DAYS);
 
-  // 内存热缓存（最近 50 条完整记录，用于快速访问）
+  // 内存热缓存默认仅保存元数据；只有显式开启内容采集时才保留脱敏、截断后的正文。
   const hotCache = [];
 
   // SQLite prepared statements（延迟初始化）
@@ -61,7 +70,7 @@ export function createAdminLogStore(options = {}) {
         SELECT * FROM ai_call_logs WHERE id = ?
       `),
       cleanup: db.prepare(`
-        DELETE FROM ai_call_logs WHERE created_at < datetime('now', '-${LOG_RETENTION_DAYS} days')
+        DELETE FROM ai_call_logs WHERE created_at < datetime('now', '-${retentionDays} days')
       `),
     };
     return stmts;
@@ -71,10 +80,11 @@ export function createAdminLogStore(options = {}) {
     const now = new Date();
     const callType = input.request?.asr ? 'asr' : 'chat';
     const id = randomUUID();
+    const capturesContent = shouldCaptureContent(contentCaptureEnabled, input);
 
     // 构建请求/响应摘要
     let requestSummary = null;
-    if (contentCaptureEnabled && input.request && !input.request?.asr) {
+    if (capturesContent && input.request && !input.request?.asr) {
       requestSummary = truncateText(
         redactText(JSON.stringify(input.request)),
         CONTENT_CAPTURE_MAX_CHARS
@@ -93,11 +103,14 @@ export function createAdminLogStore(options = {}) {
       provider: input.provider,
       model: input.model,
       stream: input.stream,
-      request: truncateDeep(input.request, maxDetailChars),
+      request: capturesContent
+        ? truncateDeep(redactDeep(input.request), maxDetailChars)
+        : null,
       response: null,
       error: null,
       asrFileType: input.asrFileType ?? null,
       asrResultLength: null,
+      _capturesContent: capturesContent,
     };
 
     // 内存缓存
@@ -119,8 +132,8 @@ export function createAdminLogStore(options = {}) {
           input.promptVersion ?? null,
           requestSummary,
           null, // response_summary — 调用完成后填充
-          contentCaptureEnabled ? 1 : 0,
-          contentCaptureEnabled ? 1 : 0,
+          capturesContent ? 1 : 0,
+          capturesContent ? 1 : 0,
           input.asrFileType ?? null,
           null  // asr_result_length — 调用完成后填充
         );
@@ -141,8 +154,10 @@ export function createAdminLogStore(options = {}) {
     entry.status = result.status;
     entry.finishedAt = now.toISOString();
     entry.durationMs = now.getTime() - Date.parse(entry.startedAt);
-    entry.response = result.response == null ? null : truncateDeep(result.response, maxDetailChars);
-    entry.error = result.error == null ? null : truncateDeep(result.error, maxDetailChars);
+    entry.response = entry._capturesContent && result.response != null
+      ? truncateDeep(redactDeep(result.response), maxDetailChars)
+      : null;
+    entry.error = result.error == null ? null : sanitizeErrorMetadata(result.error);
 
     if (result.asrResultLength != null) {
       entry.asrResultLength = result.asrResultLength;
@@ -153,7 +168,7 @@ export function createAdminLogStore(options = {}) {
     if (s && entry._rowId) {
       try {
         let responseSummary = null;
-        if (contentCaptureEnabled && result.response) {
+        if (entry._capturesContent && result.response) {
           responseSummary = truncateText(
             redactText(JSON.stringify(result.response)),
             CONTENT_CAPTURE_MAX_CHARS
@@ -323,6 +338,35 @@ function truncateDeep(value, maxChars) {
   }
 
   return value;
+}
+
+function redactDeep(value) {
+  if (typeof value === "string") return redactText(value);
+  if (Array.isArray(value)) return value.map(redactDeep);
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, nestedValue]) => [key, redactDeep(nestedValue)]),
+    );
+  }
+  return value;
+}
+
+function sanitizeErrorMetadata(error) {
+  if (!error || typeof error !== "object") return null;
+  return {
+    code: typeof error.code === "string" ? truncateText(error.code, 100) : null,
+    status: Number.isFinite(error.status) ? error.status : null,
+  };
+}
+
+function shouldCaptureContent(enabled, input) {
+  if (!enabled || input.request?.asr) return false;
+  const purpose = String(input.purpose ?? "");
+  return !SENSITIVE_PURPOSE_PATTERNS.some((pattern) => pattern.test(purpose));
+}
+
+function positiveInteger(value, fallback) {
+  return Number.isInteger(value) && value > 0 ? value : fallback;
 }
 
 function positiveNumber(value, fallback) {

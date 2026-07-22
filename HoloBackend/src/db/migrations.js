@@ -147,6 +147,18 @@ export function runMigrations(db, { backupFn } = {}) {
     applied.set(row.migration_id, row.checksum);
   }
 
+  // 必须先校验全部已应用 migration；即使当前没有 pending，也不能跳过篡改检测。
+  for (const migration of MIGRATIONS) {
+    const appliedChecksum = applied.get(migration.id);
+    if (!appliedChecksum) continue;
+    const checksum = computeChecksum(migration.up);
+    if (appliedChecksum !== checksum) {
+      throw new Error(
+        `Migration #${migration.id} checksum 不匹配。已应用: ${appliedChecksum}, 当前: ${checksum}。可能被篡改，拒绝执行。`
+      );
+    }
+  }
+
   // 检查是否需要备份（有任何新 migration 需要执行）
   const pending = MIGRATIONS.filter((m) => !applied.has(m.id));
   if (pending.length === 0) return;
@@ -160,13 +172,6 @@ export function runMigrations(db, { backupFn } = {}) {
   // 逐个执行 pending migration
   for (const migration of pending) {
     const checksum = computeChecksum(migration.up);
-
-    const appliedChecksum = applied.get(migration.id);
-    if (appliedChecksum && appliedChecksum !== checksum) {
-      throw new Error(
-        `Migration #${migration.id} checksum 不匹配。已应用: ${appliedChecksum}, 当前: ${checksum}。可能被篡改，拒绝执行。`
-      );
-    }
 
     // 用事务包裹整个 migration
     const transaction = db.transaction(() => {

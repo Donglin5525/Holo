@@ -13,7 +13,7 @@ import { validateAgentLoopContent } from "./agentResponseValidator.js";
 import { createStepIdempotencyStore } from "./agent/stepIdempotencyStore.js";
 import { createStepResponseCipher } from "./agent/stepResponseCipher.js";
 import { getPrompt, listPrompts, listPromptMetadata, setDatabase } from "./prompts/promptRegistry.js";
-import { loadConfig } from "./config.js";
+import { loadConfig, validateRuntimeConfig } from "./config.js";
 import { createAdminLogStore, truncateText } from "./admin/adminLogStore.js";
 import { registerAdminRoutes } from "./admin/adminRoutes.js";
 import { createRequestLogger } from "./middleware/requestLogger.js";
@@ -24,7 +24,10 @@ import { requireInternalDiagnostics } from "./auth/internalDiagnosticsAuth.js";
 import { injectServerPrompt } from "./prompts/serverPromptPolicy.js";
 import { buildDeterministicIntentCompletion } from "./intentResponseStabilizer.js";
 
-const CLIENT_ROUTING_FIELDS = ["baseURL", "baseUrl", "apiKey", "provider", "model"];
+const CLIENT_ROUTING_FIELDS = [
+  "baseURL", "baseUrl", "apiKey", "provider", "model",
+  "temperature", "maxTokens", "max_tokens",
+];
 
 function buildAdminReleaseStatus(config, agentStepEncryption) {
   return {
@@ -91,6 +94,15 @@ export function createApp(overrides = {}) {
         previousKeys: config.agentStepIdempotencyPreviousEncryptionKeys,
         allowEphemeral: config.runtimeEnvironment !== "production",
       });
+  validateRuntimeConfig(config);
+  if (
+    !config.database
+    && config.runtimeEnvironment !== "production"
+    && !config.agentStepIdempotencyEncryptionKey
+    && config.dbPath !== ":memory:"
+  ) {
+    throw new Error("开发临时加密密钥只能配合内存数据库；持久数据库必须配置 HOLO_AGENT_STEP_IDEMPOTENCY_ENCRYPTION_KEY");
+  }
 
   // SQLite 数据库（可选，测试时可以不传）
   const database = config.database ?? createDatabase({ dbPath: config.dbPath });
@@ -115,6 +127,7 @@ export function createApp(overrides = {}) {
       maxDetailChars: config.admin.logDetailMaxChars,
       db: database.db,
       contentCaptureEnabled: config.contentCaptureEnabled,
+      retentionDays: config.logRetentionDays,
     });
   const providers = createProviders(config);
   const asrProvider = createAsrProvider(config);
@@ -129,6 +142,12 @@ export function createApp(overrides = {}) {
   app.use('*', requestLogger.middleware);
   requestLogger.startFlushTimer();
   requestLogger.cleanupOld();
+  app.requestLogger = requestLogger;
+  app.database = database;
+  app.shutdown = () => {
+    agentStepCleanup.stop?.();
+    requestLogger.shutdown();
+  };
 
   const runAdminTestChat = createAdminTestChatRunner({
     config,
@@ -152,6 +171,28 @@ export function createApp(overrides = {}) {
       ok: true,
       service: "holo-ai-gateway",
     });
+  });
+
+  app.get("/v1/live", (context) => context.json({ ok: true, service: "holo-ai-gateway" }));
+
+  app.get("/v1/ready", (context) => {
+    try {
+      database.db.prepare("SELECT 1").get();
+      return context.json({
+        ok: true,
+        service: "holo-ai-gateway",
+        checks: {
+          database: "ready",
+          appAttest: config.auth.enforceAppAttest ? "enforced" : "pending_phase_4",
+        },
+      });
+    } catch {
+      return context.json({
+        ok: false,
+        service: "holo-ai-gateway",
+        checks: { database: "unavailable" },
+      }, 503);
+    }
   });
 
   app.post("/v1/auth/apple/session", async (context) => {
@@ -258,8 +299,8 @@ export function createApp(overrides = {}) {
 
   app.post("/v1/ai/chat/completions", async (context) => {
     try {
-      const request = await readJson(context);
-      validateChatRequest(request);
+      const request = await readJson(context, config.limits.chatMaxBodyBytes);
+      validateChatRequest(request, config.limits);
       rejectClientRouting(request);
 
       const purpose = request.purpose ?? "chat";
@@ -465,6 +506,10 @@ export function createApp(overrides = {}) {
         throw new GatewayError("AUDIO_TOO_LARGE", "Audio file is too large", 413);
       }
 
+      if (!config.limits.asrAllowedMimeTypes.includes(audio.type)) {
+        throw new GatewayError("UNSUPPORTED_AUDIO_TYPE", "Audio file type is not supported", 415);
+      }
+
       const logId = captureAiCallLogs
         ? adminLogStore.startAiCall({
             deviceId,
@@ -646,19 +691,34 @@ function createAdminTestChatRunner({ config, providers, logStore }) {
   };
 }
 
-async function readJson(context) {
+async function readJson(context, maxBytes = null) {
   try {
-    return await context.req.json();
-  } catch {
+    const contentLength = Number(context.req.header("content-length"));
+    if (maxBytes && Number.isFinite(contentLength) && contentLength > maxBytes) {
+      throw new GatewayError("REQUEST_TOO_LARGE", "Request body is too large", 413);
+    }
+
+    const body = await context.req.text();
+    if (maxBytes && Buffer.byteLength(body, "utf8") > maxBytes) {
+      throw new GatewayError("REQUEST_TOO_LARGE", "Request body is too large", 413);
+    }
+    return JSON.parse(body);
+  } catch (error) {
+    if (error instanceof GatewayError) throw error;
     throw new GatewayError("INVALID_JSON", "Request body must be valid JSON", 400);
   }
 }
 
-function validateChatRequest(request) {
+function validateChatRequest(request, limits) {
   if (!Array.isArray(request.messages) || request.messages.length === 0) {
     throw new GatewayError("INVALID_REQUEST", "messages must be a non-empty array", 400);
   }
 
+  if (request.messages.length > limits.chatMaxMessages) {
+    throw new GatewayError("REQUEST_TOO_LARGE", "Too many messages", 413);
+  }
+
+  let totalChars = 0;
   for (const message of request.messages) {
     if (!["system", "user", "assistant", "tool"].includes(message.role)) {
       throw new GatewayError("INVALID_REQUEST", "message role is invalid", 400);
@@ -667,6 +727,15 @@ function validateChatRequest(request) {
     if (typeof message.content !== "string" || message.content.length === 0) {
       throw new GatewayError("INVALID_REQUEST", "message content must be a non-empty string", 400);
     }
+
+    if (message.content.length > limits.chatMaxMessageChars) {
+      throw new GatewayError("REQUEST_TOO_LARGE", "Message content is too large", 413);
+    }
+    totalChars += message.content.length;
+  }
+
+  if (totalChars > limits.chatMaxTotalChars) {
+    throw new GatewayError("REQUEST_TOO_LARGE", "Total message content is too large", 413);
   }
 }
 
@@ -684,6 +753,12 @@ function rejectClientRouting(request) {
 function getDeviceId(context, config) {
   const deviceId = context.req.header("x-holo-device-id");
   if (deviceId) {
+    if (
+      deviceId.length > config.limits.deviceIdMaxChars
+      || !/^[A-Za-z0-9][A-Za-z0-9._:-]*$/.test(deviceId)
+    ) {
+      throw new GatewayError("INVALID_DEVICE_ID", "Device ID format is invalid", 400);
+    }
     return deviceId;
   }
 

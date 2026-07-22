@@ -20,6 +20,7 @@ function htmlHeaders() {
 }
 
 export function registerAdminRoutes(app, { config, logStore, runTestChat, getReleaseStatus }) {
+  const loginLimiter = createAdminLoginLimiter(config.admin);
   app.get("/admin/login", (context) => {
     if (!isPasswordLoginEnabled(config)) {
       return adminJson(
@@ -41,17 +42,29 @@ export function registerAdminRoutes(app, { config, logStore, runTestChat, getRel
       );
     }
 
+    const clientKey = adminClientKey(context);
+    const limit = loginLimiter.check(clientKey);
+    if (!limit.allowed) {
+      return new Response(renderAdminLoginPage({ error: "尝试次数过多，请稍后再试" }), {
+        status: 429,
+        headers: { ...htmlHeaders(), "retry-after": String(limit.retryAfterSeconds) },
+      });
+    }
+
     const body = new URLSearchParams(await context.req.text());
     const ok = validateAdminLogin(config, {
       username: body.get("username") ?? "",
       password: body.get("password") ?? "",
     });
     if (!ok) {
+      loginLimiter.recordFailure(clientKey);
       return new Response(renderAdminLoginPage({ error: "账号或密码不正确" }), {
         status: 401,
         headers: htmlHeaders(),
       });
     }
+
+    loginLimiter.reset(clientKey);
 
     return redirect("/admin/logs", {
       "set-cookie": createAdminSessionCookie(config),
@@ -60,7 +73,7 @@ export function registerAdminRoutes(app, { config, logStore, runTestChat, getRel
 
   app.get("/admin/logout", () => {
     return redirect("/admin/login", {
-      "set-cookie": clearAdminSessionCookie(),
+      "set-cookie": clearAdminSessionCookie(config),
     });
   });
 
@@ -321,6 +334,48 @@ export function registerAdminRoutes(app, { config, logStore, runTestChat, getRel
       { headers: htmlHeaders() },
     );
   });
+}
+
+function createAdminLoginLimiter(adminConfig) {
+  const attempts = new Map();
+  const maxAttempts = Number.isInteger(adminConfig.loginMaxAttempts) && adminConfig.loginMaxAttempts > 0
+    ? adminConfig.loginMaxAttempts
+    : 5;
+  const windowMs = (Number.isFinite(adminConfig.loginWindowSeconds) && adminConfig.loginWindowSeconds > 0
+    ? adminConfig.loginWindowSeconds
+    : 900) * 1000;
+
+  function current(key) {
+    const value = attempts.get(key);
+    if (!value || value.expiresAt <= Date.now()) {
+      attempts.delete(key);
+      return null;
+    }
+    return value;
+  }
+
+  return {
+    check(key) {
+      const value = current(key);
+      if (!value || value.count < maxAttempts) return { allowed: true };
+      return {
+        allowed: false,
+        retryAfterSeconds: Math.max(1, Math.ceil((value.expiresAt - Date.now()) / 1000)),
+      };
+    },
+    recordFailure(key) {
+      const value = current(key);
+      attempts.set(key, value
+        ? { ...value, count: value.count + 1 }
+        : { count: 1, expiresAt: Date.now() + windowMs });
+    },
+    reset(key) { attempts.delete(key); },
+  };
+}
+
+function adminClientKey(context) {
+  const forwarded = context.req.header("x-forwarded-for")?.split(",")[0]?.trim();
+  return context.req.header("x-real-ip") ?? forwarded ?? "unknown";
 }
 
 function normalizePurpose(value, config) {
