@@ -34,6 +34,9 @@ struct ImportExportView: View {
     @State private var importResult: BatchImportResult? = nil
     /// 是否显示导入结果弹窗
     @State private var showImportResult = false
+    /// CSV 解析在后台线程执行；视图退出时可取消。
+    @State private var importParseTask: Task<Void, Never>?
+    @State private var isImporting = false
     
     var body: some View {
         VStack(spacing: HoloSpacing.md) {
@@ -63,6 +66,12 @@ struct ImportExportView: View {
                 subtitle: "从 CSV 文件导入交易记录"
             ) {
                 showFilePicker = true
+            }
+            .disabled(isImporting)
+
+            if isImporting {
+                ProgressView("正在解析 CSV…")
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
             
             // 下载导入模板
@@ -137,6 +146,10 @@ struct ImportExportView: View {
                 Text("成功导入 \(result.successCount) 条交易\(result.failedItems.isEmpty ? "" : "，\(result.failedItems.count) 条失败")\(result.newCategoriesCount > 0 ? "\n新建 \(result.newCategoriesCount) 个分类" : "")\(result.newAccountsCount > 0 ? "\n新建 \(result.newAccountsCount) 个账户" : "")")
             }
         }
+        .onDisappear {
+            importParseTask?.cancel()
+            importParseTask = nil
+        }
     }
     
     // MARK: - 设置行组件
@@ -197,14 +210,7 @@ struct ImportExportView: View {
     private func loadFromSandbox() {
         guard let docURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
         let csvURL = docURL.appendingPathComponent("holo_import.csv")
-        do {
-            let previewData = try DataImportService.shared.parseCSV(url: csvURL)
-            importPreviewData = previewData
-            showImportPreview = true
-        } catch {
-            errorMessage = "文件解析失败：\(error.localizedDescription)"
-            showError = true
-        }
+        parseCSVInBackground(url: csvURL, requiresSecurityScope: false)
     }
     
     /// 处理文件选择结果
@@ -212,26 +218,40 @@ struct ImportExportView: View {
         switch result {
         case .success(let urls):
             guard let url = urls.first else { return }
-            // 开始安全访问
-            guard url.startAccessingSecurityScopedResource() else {
-                errorMessage = "无法访问所选文件"
-                showError = true
-                return
-            }
-            defer { url.stopAccessingSecurityScopedResource() }
-            
-            do {
-                let previewData = try DataImportService.shared.parseCSV(url: url)
-                importPreviewData = previewData
-                showImportPreview = true
-            } catch {
-                errorMessage = "文件解析失败：\(error.localizedDescription)"
-                showError = true
-            }
+            parseCSVInBackground(url: url, requiresSecurityScope: true)
             
         case .failure(let error):
             errorMessage = "选择文件失败：\(error.localizedDescription)"
             showError = true
+        }
+    }
+
+    private func parseCSVInBackground(url: URL, requiresSecurityScope: Bool) {
+        importParseTask?.cancel()
+        isImporting = true
+        importParseTask = Task {
+            do {
+                let previewData = try await Task.detached(priority: .userInitiated) {
+                    let hasScope = requiresSecurityScope
+                        ? url.startAccessingSecurityScopedResource()
+                        : false
+                    if requiresSecurityScope && !hasScope {
+                        throw ImportError.invalidFormat("无法访问所选文件")
+                    }
+                    defer { if hasScope { url.stopAccessingSecurityScopedResource() } }
+                    return try DataImportService.shared.parseCSV(url: url)
+                }.value
+                guard !Task.isCancelled else { return }
+                importPreviewData = previewData
+                showImportPreview = true
+            } catch is CancellationError {
+                // 用户离开页面或重新选择文件时静默取消。
+            } catch {
+                errorMessage = "文件解析失败：\(error.localizedDescription)"
+                showError = true
+            }
+            isImporting = false
+            importParseTask = nil
         }
     }
 }

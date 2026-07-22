@@ -14,6 +14,11 @@ import UniformTypeIdentifiers
 @main
 struct HoloApp: App {
 
+    /// Hosted XCTest 会启动 App 进程，但不应执行真实冷启动迁移、CloudKit 与后台任务。
+    private static var isRunningUnitTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
+
     // MARK: - Observed Objects
 
     /// 深色模式管理器
@@ -28,41 +33,48 @@ struct HoloApp: App {
     // MARK: - Initialization
 
     init() {
-        // 同步设置通知代理，确保冷启动时 didReceive 不被错过
-        TodoNotificationService.shared.setupDelegate()
-        TodoNotificationService.shared.registerNotificationCategories()
+        guard !Self.isRunningUnitTests else { return }
 
-        // 注册后台洞察生成任务
-        MemoryInsightBackgroundService.shared.registerBackgroundTask()
+        HoloStartupCoordinator.shared.runCriticalOnce {
+            // 同步设置通知代理，确保冷启动时 didReceive 不被错过
+            TodoNotificationService.shared.setupDelegate()
+            TodoNotificationService.shared.registerNotificationCategories()
 
-        // 注册周期性支出自动补账任务
-        SpendingProjectBackgroundService.shared.registerBackgroundTask()
+            // 注册后台洞察生成任务
+            MemoryInsightBackgroundService.shared.registerBackgroundTask()
 
-        // 长期记忆只保留严格语义 V2；先清理旧格式，再允许新洞察写入候选。
-        HoloLongTermMemoryStore.performSemanticV2MigrationIfNeeded()
+            // 注册周期性支出自动补账任务
+            SpendingProjectBackgroundService.shared.registerBackgroundTask()
 
-        // 迁移旧格式学习映射 key（type|candidate → type|primary|candidate）
-        CategoryLearnedMapping.migrateOldFormatKeys()
+            // 长期记忆只保留严格语义 V2；先清理旧格式，再允许新洞察写入候选。
+            HoloLongTermMemoryStore.performSemanticV2MigrationIfNeeded()
 
-        // 触发 Core Data 异步加载（不阻塞主线程，避免首次创建 SQLite 时死锁）
-        // store 加载在后台进行，UI 先以默认值渲染，加载完成后通过 await 切换
-        CoreDataStack.shared.prepareIfNeeded()
+            // 迁移旧格式学习映射 key（type|candidate → type|primary|candidate）
+            CategoryLearnedMapping.migrateOldFormatKeys()
 
-        // 签名未携带 iCloud entitlement 时，CloudKit 容器初始化会触发系统 trap。
-        // 因此只在运行时确认可用后提前启动监听；设置页仍可按需展示不可用状态。
-        if CloudKitRuntimeAvailability.isAvailable {
-            _ = ICloudSyncStatusService.shared
+            // 触发 Core Data 异步加载（不阻塞主线程，避免首次创建 SQLite 时死锁）
+            // store 加载在后台进行，UI 先以默认值渲染，加载完成后通过 await 切换
+            CoreDataStack.shared.prepareIfNeeded()
+
+            // 签名未携带 iCloud entitlement 时，CloudKit 容器初始化会触发系统 trap。
+            // 因此只在运行时确认可用后提前启动监听；设置页仍可按需展示不可用状态。
+            if CloudKitRuntimeAvailability.isAvailable {
+                _ = ICloudSyncStatusService.shared
+            }
+
+            // 监听财务/想法变更，维护桌面小组件使用的轻量快照
+            HoloWidgetSnapshotService.shared.startObserving()
         }
-
-        // 监听财务/想法变更，维护桌面小组件使用的轻量快照
-        HoloWidgetSnapshotService.shared.startObserving()
     }
 
     // MARK: - Body
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            if Self.isRunningUnitTests {
+                EmptyView()
+            } else {
+                ContentView()
                 .preferredColorScheme(darkModeManager.colorScheme)
                 .onOpenURL { url in
                     guard url.isFileURL else {
@@ -79,64 +91,8 @@ struct HoloApp: App {
                     }
                 }
                 .task {
-                    await SensitiveDebugDataMigration.runIfNeeded()
-
-                    // 检查通知权限状态
-                    TodoNotificationService.shared.checkAuthorizationStatus()
-
-                    // Store 就绪后安排下一次周期性支出补账；具体执行仍由系统后台策略决定
-                    await CoreDataStack.shared.waitUntilReady()
-
-                    #if DEBUG
-                    let appStoreScreenshotModeActive =
-                        await HoloAppStoreScreenshotSeeder.runIfRequested()
-                    let simulatorMemoryValidationActive =
-                        await HoloMemorySimulatorValidationScenario.runIfRequested()
-                    #else
-                    let appStoreScreenshotModeActive = false
-                    let simulatorMemoryValidationActive = false
-                    #endif
-
-                    if !simulatorMemoryValidationActive {
-                        await HoloMemoryRuntime.shared.migrateLegacyMemoryIfNeeded()
-                        await HoloMemoryRuntime.shared.reconcilePendingCandidatesIfNeeded()
-                    }
-                    await HoloMemorySettings.shared.reconcileWithRepository()
-                    if !simulatorMemoryValidationActive {
-                        await HoloMemoryObservationScheduler.shared.lightweightCheck(trigger: .appLaunch)
-                    }
-
-                    // 统一领域记忆链是唯一写入口；旧 JSON 仅保留一个版本用于迁移回滚。
-                    FinanceRepository.shared.setup()
-                    SpendingProjectBackgroundService.shared.scheduleNextTask()
-                    if !appStoreScreenshotModeActive {
-                        MemoryInsightBackgroundService.shared.scheduleBackgroundTask()
-                        await MemoryInsightBackgroundService.shared.checkForegroundCompensation()
-                    }
-
-                    // 启动时轻量聚合未消费反馈（更新 rerank 用的偏好）
-                    if InsightFeatureFlags.preferenceLearningEnabled {
-                        let context = CoreDataStack.shared.viewContext
-                        InsightFeedbackAggregator.shared.aggregate(in: context)
-                    }
-
-                    // AI 想法整理：首次启动 backfill + 恢复 pending 队列
-                    let repository = ThoughtRepository()
-                    repository.backfillTagAssignmentsIfNeeded()
-                    repository.normalizeExistingTags()
-
-                    ThoughtOrganizationQueue.shared.rebuildFromDatabase()
-                    Task {
-                        await ThoughtTagConvergenceJob.shared.resumePersistedJobIfNeeded()
-                    }
-
-                    // 首屏数据准备后刷新一次小组件快照，保证冷启动后桌面数据可用
-                    await HoloWidgetSnapshotService.shared.refreshAllSnapshots()
-
-                    if HoloAIFeatureFlags.agentRuntimeEnabled {
-                        await MainActor.run {
-                            HoloBackgroundContinuationManager.shared.appDidLaunch()
-                        }
+                    await HoloStartupCoordinator.shared.runOnce(.afterFirstFrame) {
+                        await Self.runAfterFirstFrameStartup()
                     }
                 }
                 // §7.2：设备解锁（protected data 可用）后由 Scheduler 恢复等待解锁的 Agent 任务
@@ -178,6 +134,72 @@ struct HoloApp: App {
                         break
                     }
                 }
+            }
+        }
+    }
+}
+
+private extension HoloApp {
+    @MainActor
+    static func runAfterFirstFrameStartup() async {
+        await SensitiveDebugDataMigration.runIfNeeded()
+        TodoNotificationService.shared.checkAuthorizationStatus()
+        await CoreDataStack.shared.waitUntilReady()
+
+        #if DEBUG
+        let appStoreScreenshotModeActive = await HoloAppStoreScreenshotSeeder.runIfRequested()
+        let simulatorMemoryValidationActive =
+            await HoloMemorySimulatorValidationScenario.runIfRequested()
+        #else
+        let appStoreScreenshotModeActive = false
+        let simulatorMemoryValidationActive = false
+        #endif
+
+        // 回填、调和、洞察和快照不阻塞首屏任务完成；进程内只调度一次。
+        Task {
+            await HoloStartupCoordinator.shared.runOnce(.backgroundBestEffort) {
+                await runBackgroundBestEffortStartup(
+                    appStoreScreenshotModeActive: appStoreScreenshotModeActive,
+                    simulatorMemoryValidationActive: simulatorMemoryValidationActive
+                )
+            }
+        }
+    }
+
+    @MainActor
+    static func runBackgroundBestEffortStartup(
+        appStoreScreenshotModeActive: Bool,
+        simulatorMemoryValidationActive: Bool
+    ) async {
+        if !simulatorMemoryValidationActive {
+            await HoloMemoryRuntime.shared.migrateLegacyMemoryIfNeeded()
+            await HoloMemoryRuntime.shared.reconcilePendingCandidatesIfNeeded()
+        }
+        await HoloMemorySettings.shared.reconcileWithRepository()
+        if !simulatorMemoryValidationActive {
+            await HoloMemoryObservationScheduler.shared.lightweightCheck(trigger: .appLaunch)
+        }
+
+        FinanceRepository.shared.setup()
+        SpendingProjectBackgroundService.shared.scheduleNextTask()
+        if !appStoreScreenshotModeActive {
+            MemoryInsightBackgroundService.shared.scheduleBackgroundTask()
+            await MemoryInsightBackgroundService.shared.checkForegroundCompensation()
+        }
+
+        if InsightFeatureFlags.preferenceLearningEnabled {
+            InsightFeedbackAggregator.shared.aggregate(in: CoreDataStack.shared.viewContext)
+        }
+
+        let repository = ThoughtRepository()
+        repository.backfillTagAssignmentsIfNeeded()
+        repository.normalizeExistingTags()
+        ThoughtOrganizationQueue.shared.rebuildFromDatabase()
+        Task { await ThoughtTagConvergenceJob.shared.resumePersistedJobIfNeeded() }
+
+        await HoloWidgetSnapshotService.shared.refreshAllSnapshots()
+        if HoloAIFeatureFlags.agentRuntimeEnabled {
+            HoloBackgroundContinuationManager.shared.appDidLaunch()
         }
     }
 }
@@ -204,6 +226,7 @@ struct CSVQuickImportView: View {
     @State private var showError = false
     @State private var importResult: BatchImportResult?
     @State private var showImportResult = false
+    @State private var parseTask: Task<Void, Never>?
 
     var body: some View {
         Group {
@@ -220,6 +243,10 @@ struct CSVQuickImportView: View {
         }
         .onAppear {
             parseFile()
+        }
+        .onDisappear {
+            parseTask?.cancel()
+            parseTask = nil
         }
         .alert("导入失败", isPresented: $showError) {
             Button("确定") { onDismiss() }
@@ -239,22 +266,26 @@ struct CSVQuickImportView: View {
     }
 
     private func parseFile() {
-        guard fileURL.startAccessingSecurityScopedResource() else {
-            // 非安全域文件，直接解析
-            doParse(fileURL)
-            return
-        }
-        defer { fileURL.stopAccessingSecurityScopedResource() }
-        doParse(fileURL)
-    }
-
-    private func doParse(_ url: URL) {
-        do {
-            let data = try DataImportService.shared.parseCSV(url: url)
-            importPreviewData = data
-        } catch {
-            errorMessage = "文件解析失败：\(error.localizedDescription)"
-            showError = true
+        guard parseTask == nil else { return }
+        let url = fileURL
+        parseTask = Task {
+            do {
+                let data = try await Task.detached(priority: .userInitiated) {
+                    let hasSecurityScope = url.startAccessingSecurityScopedResource()
+                    defer {
+                        if hasSecurityScope { url.stopAccessingSecurityScopedResource() }
+                    }
+                    return try DataImportService.shared.parseCSV(url: url)
+                }.value
+                guard !Task.isCancelled else { return }
+                importPreviewData = data
+            } catch is CancellationError {
+                return
+            } catch {
+                errorMessage = "文件解析失败：\(error.localizedDescription)"
+                showError = true
+            }
+            parseTask = nil
         }
     }
 }

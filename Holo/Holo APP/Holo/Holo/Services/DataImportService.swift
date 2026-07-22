@@ -11,7 +11,9 @@ import Foundation
 // MARK: - DataImportService
 
 /// 数据导入服务（单例）
-class DataImportService {
+final class DataImportService: @unchecked Sendable {
+    static let maximumFileSizeBytes = 20 * 1024 * 1024
+    static let maximumDataRows = 100_000
     
     static let shared = DataImportService()
     private init() {}
@@ -29,6 +31,15 @@ class DataImportService {
      - Throws: 文件读取或解析错误
      */
     func parseCSV(url: URL) throws -> ImportPreviewData {
+        let resourceValues = try url.resourceValues(forKeys: [.fileSizeKey, .isRegularFileKey])
+        guard resourceValues.isRegularFile != false else {
+            throw ImportError.invalidFormat("请选择普通 CSV 文件")
+        }
+        if let fileSize = resourceValues.fileSize, fileSize > Self.maximumFileSizeBytes {
+            throw ImportError.fileTooLarge(maximumMegabytes: Self.maximumFileSizeBytes / 1024 / 1024)
+        }
+        try Task.checkCancellation()
+
         // 读取文件内容（尝试多种编码）
         let content = try readFileContent(url: url)
         
@@ -38,6 +49,9 @@ class DataImportService {
         
         guard lines.count >= 2 else {
             throw ImportError.emptyFile
+        }
+        guard lines.count - 1 <= Self.maximumDataRows else {
+            throw ImportError.tooManyRows(maximum: Self.maximumDataRows)
         }
         
         // 解析表头
@@ -49,6 +63,7 @@ class DataImportService {
         // 解析数据行
         var rows: [[String]] = []
         for i in 1..<lines.count {
+            if i.isMultiple(of: 256) { try Task.checkCancellation() }
             let fields = parseCSVLine(lines[i])
             // 列数对齐（不足的补空字符串，多余的截断）
             var aligned = fields
@@ -632,6 +647,8 @@ enum ImportError: LocalizedError {
     case encodingError
     case saveFailed(String)
     case dateParseFailure(String)
+    case fileTooLarge(maximumMegabytes: Int)
+    case tooManyRows(maximum: Int)
 
     var errorDescription: String? {
         switch self {
@@ -642,6 +659,8 @@ enum ImportError: LocalizedError {
         case .encodingError: return "无法识别文件编码"
         case .saveFailed(let msg): return "保存失败：\(msg)"
         case .dateParseFailure(let value): return "日期无法解析：\(value)"
+        case .fileTooLarge(let maximumMegabytes): return "文件过大，单次最多导入 \(maximumMegabytes) MB"
+        case .tooManyRows(let maximum): return "记录过多，单次最多导入 \(maximum) 条"
         }
     }
 }
