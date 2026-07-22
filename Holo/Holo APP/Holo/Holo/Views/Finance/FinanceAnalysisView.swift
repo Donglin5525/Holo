@@ -14,7 +14,6 @@ struct FinanceAnalysisView: View {
     @StateObject private var state = FinanceAnalysisState()
     @State private var selectedTab: AnalysisTab = .overview
     @State private var showCustomDateSheet: Bool = false
-    @State private var showSpendingProjects: Bool = false
 
     init(onBack: @escaping () -> Void, externalDeepLink: Binding<FinanceAnalysisDeepLink?> = .constant(nil)) {
         self.onBack = onBack
@@ -45,9 +44,6 @@ struct FinanceAnalysisView: View {
             ) { start, end in
                 state.setCustomDateRange(start: start, end: end)
             }
-        }
-        .sheet(isPresented: $showSpendingProjects) {
-            SpendingProjectsView()
         }
         .onReceive(NotificationCenter.default.publisher(for: .financeDataDidChange)) { _ in
             state.refresh()
@@ -143,9 +139,7 @@ struct FinanceAnalysisView: View {
         } else {
             switch selectedTab {
             case .overview:
-                OverviewTabView(state: state, onSpendingProjectsTap: {
-                    showSpendingProjects = true
-                }) { category in
+                OverviewTabView(state: state) { category in
                     state.selectDetailCategory(category)
                     withAnimation(.easeInOut(duration: 0.2)) {
                         selectedTab = .detail
