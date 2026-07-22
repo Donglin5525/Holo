@@ -15,15 +15,45 @@ import Foundation
 struct MockFinanceDataSource: HoloFinanceDataSource {
     let record: HoloFinanceToolRecord?
     var rows: [HoloQueryRow] = []
+    var status: HoloDataSourceReadStatus = .success
     func snapshot(
         timeRange: HoloAgentTimeRange?,
         baseline: HoloAgentTimeRange?,
         parameters: [String: String]
     ) async -> HoloFinanceToolRecord? { record }
     func queryRows(timeRange: HoloAgentTimeRange?, parameters: [String: String]) async -> [HoloQueryRow] { rows }
+    func snapshotRead(
+        timeRange: HoloAgentTimeRange?,
+        baseline: HoloAgentTimeRange?,
+        parameters: [String: String]
+    ) async -> HoloDataSourceRead<HoloFinanceToolRecord?> {
+        HoloDataSourceRead(
+            value: record,
+            status: status == .success && record == nil ? .empty : status,
+            warning: status == .unavailable ? "测试读取失败" : nil
+        )
+    }
+    func queryRowsRead(timeRange: HoloAgentTimeRange?, parameters: [String: String]) async -> HoloDataSourceRead<[HoloQueryRow]> {
+        HoloDataSourceRead(
+            value: rows,
+            status: status == .success && rows.isEmpty ? .empty : status,
+            returnedCount: rows.count,
+            warning: status == .unavailable ? "测试读取失败" : nil
+        )
+    }
 }
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        try await HoloFinanceToolTests.main()
+    }
+}
+#endif
 struct HoloFinanceToolTests {
 
     static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -39,9 +69,11 @@ struct HoloFinanceToolTests {
         try await test预算状态返回总额已用剩余与预警分类()
         try await test账户摘要返回净资产和账户数量()
         try await test无财务记录返回empty()
-        try await test动态查询现场计算麦当劳平均每顿金额()
+        try await test动态查询按分类计算平均单笔支出()
+        try test动态查询目录不暴露账户与备注字段()
         try await test动态查询同时计算十天总额和自然日日均()
         try test动态查询找出环比增长最高分类()
+        try await test读取失败不得伪装为无财务记录()
         print("HoloFinanceToolTests passed")
     }
 
@@ -68,7 +100,7 @@ struct HoloFinanceToolTests {
         expect(result.events.contains { $0.formula == "value / calendar_days(10)" }, "证据必须携带自然日分母公式")
     }
 
-    private static func test动态查询现场计算麦当劳平均每顿金额() async throws {
+    private static func test动态查询按分类计算平均单笔支出() async throws {
         let now = Date(timeIntervalSince1970: 1_000)
         let rows = [32.0, 48.0, 40.0].enumerated().map { index, amount in
             HoloQueryRow(
@@ -76,16 +108,16 @@ struct HoloFinanceToolTests {
                 occurredAt: now.addingTimeInterval(Double(index) * 86_400),
                 fields: [
                     "date": .date(now), "amount": .number(amount), "type": .text("expense"),
-                    "category": .text("餐饮"), "account": .text("默认账户"), "text": .text("麦当劳")
+                    "category": .text("餐饮")
                 ],
-                excerpt: "麦当劳 \(amount) 元"
+                excerpt: "餐饮 \(amount) 元"
             )
         }
         let plan = HoloDynamicQueryPlan(
             source: "finance.transactions",
             filters: [
                 HoloDynamicFilter(field: "type", operation: .equal, value: .text("expense")),
-                HoloDynamicFilter(field: "text", operation: .contains, value: .text("麦当劳"))
+                HoloDynamicFilter(field: "category", operation: .equal, value: .text("餐饮"))
             ],
             aggregations: [HoloDynamicAggregation(id: "average_per_meal", operation: .average, field: "amount", unit: "元")]
         )
@@ -94,8 +126,16 @@ struct HoloFinanceToolTests {
         let tool = HoloFinanceTool(dataSource: MockFinanceDataSource(record: nil, rows: rows))
         let result = try await tool.execute(request)
         expect(result.status == .success, "动态财务查询应成功")
-        expect(result.metrics.first?.value == 40, "麦当劳平均每顿应为 40 元")
+        expect(result.metrics.first?.value == 40, "餐饮平均单笔应为 40 元")
         expect(result.metrics.first?.metricKey.contains("average_per_meal") == true, "动态指标不应依赖预定义 metricKey")
+    }
+
+    private static func test动态查询目录不暴露账户与备注字段() throws {
+        let fields = Set(HoloFinanceTool.dynamicCatalog.datasets[0].fields.map(\.name))
+        expect(!fields.contains("account"), "动态财务目录不得暴露账户名称")
+        expect(!fields.contains("text"), "动态财务目录不得暴露备注原文")
+        expect(fields.isSuperset(of: ["signedAmount", "expenseAmount", "incomeAmount"]), "动态财务目录应提供明确收支方向字段")
+        expect(HoloFinanceTool.dynamicCatalog.datasets[0].sensitivity == .sensitive, "财务数据集必须标记 sensitive")
     }
 
     private static func test动态查询找出环比增长最高分类() throws {
@@ -116,6 +156,14 @@ struct HoloFinanceToolTests {
         expect(output.metrics.count == 1, "排序后只返回最高增长指标")
         expect(output.metrics.first?.comparison == "餐饮", "餐饮环比 50% 应高于交通")
         expect(output.metrics.first?.value == 0.5, "餐饮环比应为 0.5")
+    }
+
+    private static func test读取失败不得伪装为无财务记录() async throws {
+        let result = try await HoloFinanceTool(
+            dataSource: MockFinanceDataSource(record: nil, status: .unavailable)
+        ).execute(makeRequest(query: "spending_breakdown"))
+        expect(result.status == .unavailable, "财务读取失败必须返回 unavailable")
+        expect(result.error?.code == "DATA_SOURCE_UNAVAILABLE", "财务读取失败应携带可恢复错误")
     }
 
     private static func makeRequest(query: String, parameters: [String: String] = [:]) -> HoloToolRequest {
@@ -312,8 +360,7 @@ struct HoloFinanceToolTests {
                 activeAccountCount: 3,
                 assets: 50_000,
                 liabilities: 12_000,
-                netWorth: 38_000,
-                defaultAccountName: "日常账户"
+                netWorth: 38_000
             )
         )
         let result = try await HoloFinanceTool(
@@ -323,7 +370,8 @@ struct HoloFinanceToolTests {
         expect(result.status == .success, "account_summary 应成功")
         expect(result.metrics.contains { $0.metricKey == "finance.account.count" && $0.value == 3 }, "应返回账户数量")
         expect(result.metrics.contains { $0.metricKey == "finance.account.net_worth" && $0.value == 38_000 }, "应返回净资产")
-        expect(result.events.first?.excerpt.contains("日常账户") == true, "应包含默认账户名称")
+        expect(result.sensitivity == .sensitive, "财务结果必须标记 sensitive")
+        expect(result.events.allSatisfy { !$0.excerpt.contains("日常账户") }, "账户摘要不得暴露账户名称")
     }
 
     /// 无财务记录返回 .empty。

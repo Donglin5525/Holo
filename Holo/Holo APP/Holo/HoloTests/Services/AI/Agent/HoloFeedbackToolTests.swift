@@ -7,12 +7,29 @@ import Foundation
 
 struct MockFeedbackDataSource: HoloFeedbackDataSource {
     let records: [HoloFeedbackRecord]
-    func recentFeedback(limit: Int) async -> [HoloFeedbackRecord] {
-        Array(records.prefix(limit))
+    var status: HoloDataSourceReadStatus = .success
+    func recentFeedback(limit: Int) async -> HoloDataSourceRead<[HoloFeedbackRecord]> {
+        let values = Array(records.prefix(limit))
+        return HoloDataSourceRead(
+            value: values, status: status == .success && values.isEmpty ? .empty : status,
+            requestedCount: limit, returnedCount: values.count, totalCount: records.count,
+            isTruncated: records.count > values.count,
+            warning: status == .unavailable ? "测试读取失败" : nil
+        )
     }
 }
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        try await HoloFeedbackToolTests.main()
+    }
+}
+#endif
 struct HoloFeedbackToolTests {
 
     static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -24,6 +41,7 @@ struct HoloFeedbackToolTests {
         try await test纠正主题按reason与module聚类()
         try await test纠正摘要截断且标记敏感()
         try await test空反馈返回empty()
+        try await test读取失败不得伪装为空反馈()
         print("HoloFeedbackToolTests passed")
     }
 
@@ -126,5 +144,13 @@ struct HoloFeedbackToolTests {
 
         expect(result.status == .empty, "空反馈应返回 empty")
         expect(result.warnings.contains { $0.code == "NO_FEEDBACK_DATA" }, "应返回 NO_FEEDBACK_DATA")
+    }
+
+    private static func test读取失败不得伪装为空反馈() async throws {
+        let result = try await HoloFeedbackTool(
+            dataSource: MockFeedbackDataSource(records: [], status: .unavailable)
+        ).execute(request("rating_summary"))
+        expect(result.status == .unavailable, "读取失败必须返回 unavailable")
+        expect(result.error != nil, "读取失败应携带可恢复错误")
     }
 }

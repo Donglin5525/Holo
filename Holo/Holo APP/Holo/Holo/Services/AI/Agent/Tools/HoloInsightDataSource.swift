@@ -10,13 +10,21 @@ import Foundation
 
 struct HoloDefaultInsightDataSource: HoloInsightDataSource {
 
-    func recentInsights(limit: Int) async -> [HoloInsightToolRecord] {
+    func recentInsights(limit: Int) async -> HoloDataSourceRead<[HoloInsightToolRecord]> {
         await CoreDataStack.shared.waitUntilReady()
+        let cappedLimit = max(1, min(limit, 50))
 
         do {
-            return try await Task.detached(priority: .utility) {
+            let payload = try await Task.detached(priority: .utility) {
                 let context = CoreDataStack.shared.newBackgroundContext()
                 return try await context.perform {
+                    let predicate = NSPredicate(
+                        format: "status IN %@",
+                        [MemoryInsightStatus.ready.rawValue, MemoryInsightStatus.stale.rawValue]
+                    )
+                    let countRequest = NSFetchRequest<NSFetchRequestResult>(entityName: "MemoryInsight")
+                    countRequest.predicate = predicate
+                    let totalCount = try context.count(for: countRequest)
                     let request = NSFetchRequest<NSDictionary>(entityName: "MemoryInsight")
                     request.resultType = .dictionaryResultType
                     request.propertiesToFetch = [
@@ -29,14 +37,11 @@ struct HoloDefaultInsightDataSource: HoloInsightDataSource {
                         "generatedAt",
                         "status"
                     ]
-                    request.predicate = NSPredicate(
-                        format: "status IN %@",
-                        [MemoryInsightStatus.ready.rawValue, MemoryInsightStatus.stale.rawValue]
-                    )
+                    request.predicate = predicate
                     request.sortDescriptors = [NSSortDescriptor(key: "generatedAt", ascending: false)]
-                    request.fetchLimit = max(1, min(limit, 6))
+                    request.fetchLimit = cappedLimit
 
-                    return try context.fetch(request).compactMap { row in
+                    let records = try context.fetch(request).compactMap { row in
                         guard let id = row["id"] as? UUID,
                               let periodType = row["periodType"] as? String,
                               let periodStart = row["periodStart"] as? Date,
@@ -58,10 +63,16 @@ struct HoloDefaultInsightDataSource: HoloInsightDataSource {
                             status: status
                         )
                     }
+                    return (records, totalCount)
                 }
             }.value
+            return .loaded(payload.0, requestedCount: cappedLimit, totalCount: payload.1, isTruncated: payload.1 > payload.0.count)
         } catch {
-            return []
+            return HoloDataSourceRead(
+                value: [], status: .unavailable, requestedCount: cappedLimit,
+                returnedCount: 0, totalCount: nil, isTruncated: false,
+                warning: "历史观察读取失败：\(error.localizedDescription)"
+            )
         }
     }
 }

@@ -19,7 +19,7 @@ struct HoloInsightToolRecord: Codable, Equatable, Sendable {
 }
 
 protocol HoloInsightDataSource: Sendable {
-    func recentInsights(limit: Int) async -> [HoloInsightToolRecord]
+    func recentInsights(limit: Int) async -> HoloDataSourceRead<[HoloInsightToolRecord]>
 }
 
 struct HoloInsightTool: HoloDataTool {
@@ -46,8 +46,20 @@ struct HoloInsightTool: HoloDataTool {
     }
 
     func execute(_ request: HoloToolRequest) async throws -> HoloDataToolResult {
-        let records = await dataSource.recentInsights(limit: 6)
-            .sorted { $0.generatedAt > $1.generatedAt }
+        let read = await dataSource.recentInsights(limit: 6)
+        let records = read.value.sorted { $0.generatedAt > $1.generatedAt }
+        if [.unavailable, .waitingForUnlock, .error].contains(read.status) {
+            return result(
+                request,
+                status: read.status == .error ? .error : .unavailable,
+                records: [],
+                warnings: [HoloToolWarning(
+                    code: read.status == .waitingForUnlock ? "WAITING_FOR_UNLOCK" : "INSIGHT_DATA_UNAVAILABLE",
+                    message: read.warning ?? "暂时无法读取历史观察"
+                )],
+                error: HoloToolError(code: "DATA_SOURCE_UNAVAILABLE", message: read.warning ?? "历史观察读取失败", recoverable: true)
+            )
+        }
         guard !records.isEmpty else {
             return result(
                 request,
@@ -57,11 +69,12 @@ struct HoloInsightTool: HoloDataTool {
             )
         }
 
+        var output: HoloDataToolResult
         switch request.query {
         case "latest_observation":
-            return result(request, records: Array(records.prefix(1)))
+            output = result(request, records: Array(records.prefix(1)))
         case "recent_observations":
-            return result(request, records: Array(records.prefix(6)))
+            output = result(request, records: Array(records.prefix(6)))
         default:
             return HoloDataToolResult(
                 toolRequestID: request.id,
@@ -79,6 +92,14 @@ struct HoloInsightTool: HoloDataTool {
                 sensitivity: .sensitive
             )
         }
+        if read.status == .partial || read.isTruncated {
+            output.status = .partial
+            output.warnings.append(HoloToolWarning(
+                code: "INSIGHT_DATA_TRUNCATED",
+                message: read.warning ?? "仅返回最近 \(read.returnedCount ?? records.count) 条历史观察"
+            ))
+        }
+        return output
     }
 }
 
@@ -88,7 +109,8 @@ private extension HoloInsightTool {
         _ request: HoloToolRequest,
         status: HoloToolResultStatus = .success,
         records: [HoloInsightToolRecord],
-        warnings: [HoloToolWarning] = []
+        warnings: [HoloToolWarning] = [],
+        error: HoloToolError? = nil
     ) -> HoloDataToolResult {
         HoloDataToolResult(
             toolRequestID: request.id,
@@ -114,7 +136,7 @@ private extension HoloInsightTool {
                 )
             },
             warnings: warnings,
-            error: nil,
+            error: error,
             sensitivity: .sensitive
         )
     }

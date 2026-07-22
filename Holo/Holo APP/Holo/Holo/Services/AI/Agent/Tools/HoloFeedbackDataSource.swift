@@ -15,14 +15,16 @@ import Foundation
 
 struct HoloDefaultFeedbackDataSource: HoloFeedbackDataSource {
 
-    func recentFeedback(limit: Int) async -> [HoloFeedbackRecord] {
+    func recentFeedback(limit: Int) async -> HoloDataSourceRead<[HoloFeedbackRecord]> {
         await CoreDataStack.shared.waitUntilReady()
         let cappedLimit = max(1, min(limit, 50))
 
         do {
-            return try await Task.detached(priority: .utility) {
+            let payload = try await Task.detached(priority: .utility) {
                 let context = CoreDataStack.shared.newBackgroundContext()
                 return try await context.perform {
+                    let countRequest = NSFetchRequest<NSFetchRequestResult>(entityName: "MemoryInsightFeedback")
+                    let totalCount = try context.count(for: countRequest)
                     let request = NSFetchRequest<NSDictionary>(entityName: "MemoryInsightFeedback")
                     request.resultType = .dictionaryResultType
                     request.propertiesToFetch = [
@@ -39,7 +41,7 @@ struct HoloDefaultFeedbackDataSource: HoloFeedbackDataSource {
                     request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
                     request.fetchLimit = cappedLimit
 
-                    return try context.fetch(request).compactMap { row -> HoloFeedbackRecord? in
+                    let records = try context.fetch(request).compactMap { row -> HoloFeedbackRecord? in
                         guard let id = row["id"] as? UUID,
                               let insightId = row["insightId"] as? UUID,
                               let createdAt = row["createdAt"] as? Date else {
@@ -57,10 +59,16 @@ struct HoloDefaultFeedbackDataSource: HoloFeedbackDataSource {
                             createdAt: createdAt
                         )
                     }
+                    return (records, totalCount)
                 }
             }.value
+            return .loaded(payload.0, requestedCount: cappedLimit, totalCount: payload.1, isTruncated: payload.1 > payload.0.count)
         } catch {
-            return []
+            return HoloDataSourceRead(
+                value: [], status: .unavailable, requestedCount: cappedLimit,
+                returnedCount: 0, totalCount: nil, isTruncated: false,
+                warning: "洞察反馈读取失败：\(error.localizedDescription)"
+            )
         }
     }
 }

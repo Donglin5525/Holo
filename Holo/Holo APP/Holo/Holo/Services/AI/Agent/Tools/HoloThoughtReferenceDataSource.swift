@@ -14,16 +14,18 @@ import Foundation
 
 struct HoloDefaultThoughtReferenceDataSource: HoloThoughtReferenceDataSource {
 
-    func snapshot() async -> HoloThoughtReferenceSnapshot {
+    func snapshot() async -> HoloDataSourceRead<HoloThoughtReferenceSnapshot> {
         await CoreDataStack.shared.waitUntilReady()
         do {
-            return try await Task.detached(priority: .utility) {
+            let payload = try await Task.detached(priority: .utility) {
                 let context = CoreDataStack.shared.newBackgroundContext()
                 return try await context.perform {
+                    let countRequest = NSFetchRequest<NSFetchRequestResult>(entityName: "ThoughtReference")
+                    let totalCount = try context.count(for: countRequest)
                     let request = NSFetchRequest<ThoughtReference>(entityName: "ThoughtReference")
                     request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
                     request.fetchLimit = 500
-                    let refs = (try? context.fetch(request)) ?? []
+                    let refs = try context.fetch(request)
                     let links: [HoloThoughtLinkRecord] = refs.compactMap { ref in
                         guard let source = ref.sourceThought,
                               let target = ref.targetThought,
@@ -42,11 +44,24 @@ struct HoloDefaultThoughtReferenceDataSource: HoloThoughtReferenceDataSource {
                             createdAt: ref.createdAt
                         )
                     }
-                    return HoloThoughtReferenceSnapshot(links: links)
+                    return (HoloThoughtReferenceSnapshot(links: links), totalCount, refs.count)
                 }
             }.value
+            return HoloDataSourceRead(
+                value: payload.0,
+                status: payload.0.links.isEmpty ? .empty : (payload.1 > payload.2 ? .partial : .success),
+                requestedCount: 500,
+                returnedCount: payload.0.links.count,
+                totalCount: payload.1,
+                isTruncated: payload.1 > payload.2,
+                warning: payload.1 > payload.2 ? "引用关系超过 500 条，仅分析最近记录" : nil
+            )
         } catch {
-            return HoloThoughtReferenceSnapshot(links: [])
+            return HoloDataSourceRead(
+                value: HoloThoughtReferenceSnapshot(links: []), status: .unavailable,
+                requestedCount: 500, returnedCount: 0, totalCount: nil, isTruncated: false,
+                warning: "想法引用关系读取失败：\(error.localizedDescription)"
+            )
         }
     }
 }

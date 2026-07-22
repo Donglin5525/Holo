@@ -2,12 +2,29 @@ import Foundation
 
 struct MockCrossDomainDataSource: HoloCrossDomainDataSource {
     var values: [String: [HoloQueryRow]]
+    var unavailableSource: String? = nil
     func rows(source: String, timeRange: HoloAgentTimeRange?) async -> [HoloQueryRow] { values[source] ?? [] }
+    func rowsRead(source: String, timeRange: HoloAgentTimeRange?) async -> HoloDataSourceRead<[HoloQueryRow]> {
+        if source == unavailableSource {
+            return HoloDataSourceRead(value: [], status: .unavailable, warning: "测试读取失败")
+        }
+        return .loaded(values[source] ?? [])
+    }
 }
 
 struct MockDynamicRowDataSource: HoloDynamicRowDataSource {
     var values: [String: [HoloQueryRow]]
+    var status: HoloDataSourceReadStatus = .success
     func rows(source: String, timeRange: HoloAgentTimeRange?) async -> [HoloQueryRow] { values[source] ?? [] }
+    func rowsRead(source: String, timeRange: HoloAgentTimeRange?) async -> HoloDataSourceRead<[HoloQueryRow]> {
+        let rows = values[source] ?? []
+        return HoloDataSourceRead(
+            value: rows,
+            status: status == .success && rows.isEmpty ? .empty : status,
+            returnedCount: rows.count,
+            warning: status == .unavailable ? "测试读取失败" : nil
+        )
+    }
 }
 
 struct MockDecoratedTool: HoloDataTool {
@@ -18,7 +35,17 @@ struct MockDecoratedTool: HoloDataTool {
     }
 }
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        try await HoloCrossDomainToolTests.main()
+    }
+}
+#endif
 struct HoloCrossDomainToolTests {
     static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
         if !condition() { fatalError(message) }
@@ -33,6 +60,8 @@ struct HoloCrossDomainToolTests {
         test非法字段和未授权组合会被拒绝()
         try await test装饰器为原工具增加动态计算且保留固定查询()
         try await test对齐天数不足返回明确空结果()
+        try await test装饰器不把读取失败伪装为空数据()
+        try await test跨域工具不把单侧失败伪装成样本不足()
         print("HoloCrossDomainToolTests passed")
     }
 
@@ -52,6 +81,40 @@ struct HoloCrossDomainToolTests {
         expect(tool.descriptor.dynamicCatalog?.schema(named: "thought.daily") != nil, "装饰器必须向模型暴露字段目录")
         let fixed = HoloToolRequest(id: "fixed-1", tool: "thought", query: "fixed", timeRange: nil, baseline: nil, requiredMetrics: [], parameters: [:])
         expect(tool.validate(fixed) == .valid, "固定 query 必须继续兼容")
+    }
+
+    static func test装饰器不把读取失败伪装为空数据() async throws {
+        let tool = HoloDynamicToolDecorator(
+            base: MockDecoratedTool(), catalog: HoloAgentDynamicCatalogs.thought,
+            dataSource: MockDynamicRowDataSource(values: [:], status: .unavailable)
+        )
+        let plan = HoloDynamicQueryPlan(
+            source: "thought.daily",
+            aggregations: [HoloDynamicAggregation(id: "thought_sum", operation: .sum, field: "value", unit: "条")]
+        )
+        let request = HoloToolRequest(
+            id: "dynamic-failure", tool: "thought", query: "dynamic_query",
+            timeRange: nil, baseline: nil, requiredMetrics: [], parameters: [:], dynamicPlan: plan
+        )
+        let result = try await tool.execute(request)
+        expect(result.status == .unavailable, "动态数据读取失败必须返回 unavailable")
+        expect(result.error?.code == "DATA_SOURCE_UNAVAILABLE", "动态读取失败应携带可恢复错误")
+    }
+
+    static func test跨域工具不把单侧失败伪装成样本不足() async throws {
+        let health = (1...7).map { row("h\($0)", day: $0, value: Double($0)) }
+        let source = MockCrossDomainDataSource(
+            values: ["health.sleep": health],
+            unavailableSource: "finance.transactions"
+        )
+        let plan = HoloCrossDomainQueryPlan(
+            leftSource: "health.sleep", leftField: "value",
+            rightSource: "finance.transactions", rightField: "amount",
+            operation: .correlation
+        )
+        let result = try await HoloCrossDomainTool(dataSource: source).execute(request(plan))
+        expect(result.status == .unavailable, "任一侧读取失败必须返回 unavailable")
+        expect(result.error?.code == "DATA_SOURCE_UNAVAILABLE", "跨域失败应携带可恢复错误")
     }
 
     static func row(_ id: String, day: Int, value: Double, textField: (String, String)? = nil) -> HoloQueryRow {

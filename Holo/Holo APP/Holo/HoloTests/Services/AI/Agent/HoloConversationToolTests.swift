@@ -7,12 +7,33 @@ import Foundation
 
 struct MockConversationDataSource: HoloConversationDataSource {
     let records: [HoloConversationRecord]
-    func recentRecords(limit: Int) async -> [HoloConversationRecord] {
-        Array(records.prefix(limit))
+    var status: HoloDataSourceReadStatus = .success
+    var totalCount: Int? = nil
+    func recentRecords(limit: Int) async -> HoloDataSourceRead<[HoloConversationRecord]> {
+        let values = Array(records.prefix(limit))
+        return HoloDataSourceRead(
+            value: values,
+            status: status == .success && values.isEmpty ? .empty : status,
+            requestedCount: limit,
+            returnedCount: values.count,
+            totalCount: totalCount,
+            isTruncated: (totalCount ?? values.count) > values.count,
+            warning: status == .unavailable ? "测试读取失败" : nil
+        )
     }
 }
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        try await HoloConversationToolTests.main()
+    }
+}
+#endif
 struct HoloConversationToolTests {
 
     static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -23,6 +44,8 @@ struct HoloConversationToolTests {
         try await test近期意图摘要只输出元数据()
         try await test当前会话按四小时间隔截断()
         try await test空对话返回empty()
+        try await test读取失败不得伪装为空数据()
+        try await test证据ID不随排序变化()
         print("HoloConversationToolTests passed")
     }
 
@@ -34,6 +57,7 @@ struct HoloConversationToolTests {
         hoursAfterBase: Double
     ) -> HoloConversationRecord {
         HoloConversationRecord(
+            id: UUID(uuidString: String(format: "00000000-0000-0000-0000-%012d", Int(hoursAfterBase * 10) + (role == "user" ? 1 : 2)))!,
             role: role,
             intent: intent,
             timestamp: base.addingTimeInterval(hoursAfterBase * 3600)
@@ -88,5 +112,26 @@ struct HoloConversationToolTests {
 
         expect(result.status == .empty, "空对话应返回 empty")
         expect(result.warnings.contains { $0.code == "NO_CONVERSATION_DATA" }, "应返回明确 warning")
+    }
+
+    private static func test读取失败不得伪装为空数据() async throws {
+        let result = try await HoloConversationTool(
+            dataSource: MockConversationDataSource(records: [], status: .unavailable)
+        ).execute(request("recent_intent_summary"))
+
+        expect(result.status == .unavailable, "读取失败必须返回 unavailable")
+        expect(result.error?.code == "DATA_SOURCE_UNAVAILABLE", "读取失败应携带可恢复错误")
+    }
+
+    private static func test证据ID不随排序变化() async throws {
+        let records = [
+            record(role: "user", intent: "query_analysis", hoursAfterBase: 0),
+            record(role: "assistant", intent: "query_analysis", hoursAfterBase: 0.1)
+        ]
+        let first = try await HoloConversationTool(dataSource: MockConversationDataSource(records: records))
+            .execute(request("recent_intent_summary"))
+        let second = try await HoloConversationTool(dataSource: MockConversationDataSource(records: Array(records.reversed())))
+            .execute(request("recent_intent_summary"))
+        expect(first.events.map(\.id) == second.events.map(\.id), "相同意图的证据 ID 不应受数据源顺序影响")
     }
 }

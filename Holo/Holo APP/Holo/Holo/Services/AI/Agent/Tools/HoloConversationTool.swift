@@ -8,13 +8,14 @@
 import Foundation
 
 struct HoloConversationRecord: Codable, Equatable, Sendable {
+    var id: UUID
     var role: String
     var intent: String?
     var timestamp: Date
 }
 
 protocol HoloConversationDataSource: Sendable {
-    func recentRecords(limit: Int) async -> [HoloConversationRecord]
+    func recentRecords(limit: Int) async -> HoloDataSourceRead<[HoloConversationRecord]>
 }
 
 struct HoloConversationTool: HoloDataTool {
@@ -47,8 +48,9 @@ struct HoloConversationTool: HoloDataTool {
     }
 
     func execute(_ request: HoloToolRequest) async throws -> HoloDataToolResult {
-        let records = await dataSource.recentRecords(limit: 50)
-            .sorted { $0.timestamp < $1.timestamp }
+        let read = await dataSource.recentRecords(limit: 50)
+        let records = read.value.sorted { $0.timestamp < $1.timestamp }
+        if let failure = readFailure(request, read: read) { return failure }
         guard !records.isEmpty else {
             return result(
                 request,
@@ -59,11 +61,12 @@ struct HoloConversationTool: HoloDataTool {
             )
         }
 
+        let output: HoloDataToolResult
         switch request.query {
         case "recent_intent_summary":
-            return intentSummary(request, records: records)
+            output = intentSummary(request, records: records)
         case "session_activity":
-            return sessionActivity(request, records: records)
+            output = sessionActivity(request, records: records)
         default:
             return result(
                 request,
@@ -78,6 +81,7 @@ struct HoloConversationTool: HoloDataTool {
                 )
             )
         }
+        return applyingReadMetadata(output, read: read)
     }
 }
 
@@ -91,9 +95,9 @@ private extension HoloConversationTool {
         for intent in records.compactMap(\.intent).filter({ !$0.isEmpty }) {
             counts[intent, default: 0] += 1
         }
-        let events = counts.keys.sorted().enumerated().map { index, intent in
+        let events = counts.keys.sorted().map { intent in
             HoloEvidenceEvent(
-                id: "conversation-intent-\(index)",
+                id: "conversation-intent-\(Self.stableToken(intent))",
                 occurredAt: records.last?.timestamp,
                 metricKey: "conversation.intent.count",
                 metricValue: Double(counts[intent] ?? 0),
@@ -132,7 +136,7 @@ private extension HoloConversationTool {
             metrics: [metric("conversation.session.message_count", Double(currentSession.count), unit: "条")],
             events: [
                 HoloEvidenceEvent(
-                    id: "conversation-session-activity",
+                    id: "conversation-session-\(currentSession.first?.id.uuidString.lowercased() ?? "empty")",
                     occurredAt: latest,
                     metricKey: "conversation.session.message_count",
                     metricValue: Double(currentSession.count),
@@ -165,5 +169,48 @@ private extension HoloConversationTool {
 
     func metric(_ key: String, _ value: Double, unit: String) -> HoloMetric {
         HoloMetric(metricKey: key, value: value, unit: unit, baselineValue: nil, comparison: nil)
+    }
+
+    func readFailure(
+        _ request: HoloToolRequest,
+        read: HoloDataSourceRead<[HoloConversationRecord]>
+    ) -> HoloDataToolResult? {
+        guard [.unavailable, .waitingForUnlock, .error].contains(read.status) else { return nil }
+        let waiting = read.status == .waitingForUnlock
+        return result(
+            request,
+            status: waiting ? .unavailable : (read.status == .error ? .error : .unavailable),
+            metrics: [],
+            events: [],
+            warnings: [HoloToolWarning(
+                code: waiting ? "WAITING_FOR_UNLOCK" : "CONVERSATION_DATA_UNAVAILABLE",
+                message: read.warning ?? (waiting ? "设备解锁后才能读取对话元数据" : "暂时无法读取对话元数据")
+            )],
+            error: HoloToolError(
+                code: waiting ? "WAITING_FOR_UNLOCK" : "DATA_SOURCE_UNAVAILABLE",
+                message: read.warning ?? "对话数据源读取失败",
+                recoverable: true
+            )
+        )
+    }
+
+    func applyingReadMetadata(
+        _ result: HoloDataToolResult,
+        read: HoloDataSourceRead<[HoloConversationRecord]>
+    ) -> HoloDataToolResult {
+        guard read.status == .partial || read.isTruncated else { return result }
+        var updated = result
+        updated.status = .partial
+        let detail = "仅返回最近 \(read.returnedCount ?? read.value.count) 条"
+            + (read.totalCount.map { "，共 \($0) 条" } ?? "")
+        updated.warnings.append(HoloToolWarning(
+            code: "CONVERSATION_DATA_TRUNCATED",
+            message: read.warning ?? detail
+        ))
+        return updated
+    }
+
+    static func stableToken(_ value: String) -> String {
+        value.utf8.map { String(format: "%02x", $0) }.joined()
     }
 }

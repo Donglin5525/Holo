@@ -29,7 +29,7 @@ struct HoloDefaultHabitDataSource: HoloHabitDataSource {
                 name: habit.name ?? "",
                 polarity: habit.isBadHabit ? .negative : .positive,
                 dailyGoal: goal(for: habit),
-                dailyCounts: aggregate(records: records, today: today, dayCount: dayCount)
+                dailyCounts: aggregate(records: records, habit: habit, today: today, dayCount: dayCount)
             )
         }
     }
@@ -40,16 +40,40 @@ struct HoloDefaultHabitDataSource: HoloHabitDataSource {
         return nil
     }
 
-    /// 按 dayOffset（0=今天）聚合近 14 天每日计数：数值型累加 value，打卡型 +1。
-    private static func aggregate(records: [HabitRecord], today: Date, dayCount: Int) -> [HoloHabitDailyCount] {
+    /// 按 dayOffset（0=今天）聚合每日记录：计数类累加、测量类取最后一个有效值、打卡型 +1。
+    private static func aggregate(
+        records: [HabitRecord],
+        habit: Habit,
+        today: Date,
+        dayCount: Int
+    ) -> [HoloHabitDailyCount] {
         let calendar = Calendar.current
         var bucket = [Double](repeating: 0, count: dayCount)
+
+        if habit.isNumericType {
+            let dailyValues = HabitNumericAggregator.aggregateDaily(
+                samples: records.map { HabitNumericSample(date: $0.date, value: $0.valueDouble) },
+                isCountType: habit.isCountType,
+                calendar: calendar
+            )
+            for dailyValue in dailyValues {
+                let dayOffset = calendar.dateComponents(
+                    [.day],
+                    from: calendar.startOfDay(for: dailyValue.date),
+                    to: today
+                ).day ?? -1
+                guard dayOffset >= 0, dayOffset < dayCount else { continue }
+                bucket[dayOffset] = dailyValue.value
+            }
+            return bucket.enumerated().map {
+                HoloHabitDailyCount(dayOffset: $0.offset, count: $0.element)
+            }
+        }
+
         for record in records {
             let dayOffset = calendar.dateComponents([.day], from: calendar.startOfDay(for: record.date), to: today).day ?? -1
             guard dayOffset >= 0, dayOffset < dayCount else { continue }
-            if let value = record.value?.doubleValue {
-                bucket[dayOffset] += value
-            } else if record.isCompleted {
+            if record.isCompleted {
                 bucket[dayOffset] += 1
             }
         }

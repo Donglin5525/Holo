@@ -7,12 +7,32 @@ import Foundation
 
 struct MockInsightDataSource: HoloInsightDataSource {
     let records: [HoloInsightToolRecord]
-    func recentInsights(limit: Int) async -> [HoloInsightToolRecord] {
-        Array(records.prefix(limit))
+    var status: HoloDataSourceReadStatus = .success
+    func recentInsights(limit: Int) async -> HoloDataSourceRead<[HoloInsightToolRecord]> {
+        let values = Array(records.prefix(limit))
+        return HoloDataSourceRead(
+            value: values,
+            status: status == .success && values.isEmpty ? .empty : status,
+            requestedCount: limit,
+            returnedCount: values.count,
+            totalCount: records.count,
+            isTruncated: records.count > values.count,
+            warning: status == .unavailable ? "测试读取失败" : nil
+        )
     }
 }
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        try await HoloInsightToolTests.main()
+    }
+}
+#endif
 struct HoloInsightToolTests {
 
     static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -23,6 +43,7 @@ struct HoloInsightToolTests {
         try await test最新观察只返回最新一条()
         try await test近期观察最多返回六条且不含原始响应()
         try await test空洞察返回empty()
+        try await test读取失败不得伪装为空洞察()
         print("HoloInsightToolTests passed")
     }
 
@@ -77,5 +98,13 @@ struct HoloInsightToolTests {
 
         expect(result.status == .empty, "空洞察应返回 empty")
         expect(result.warnings.contains { $0.code == "NO_INSIGHT_DATA" }, "应返回明确 warning")
+    }
+
+    private static func test读取失败不得伪装为空洞察() async throws {
+        let result = try await HoloInsightTool(
+            dataSource: MockInsightDataSource(records: [], status: .unavailable)
+        ).execute(request("recent_observations"))
+        expect(result.status == .unavailable, "读取失败必须返回 unavailable")
+        expect(result.error != nil, "读取失败应携带可恢复错误")
     }
 }

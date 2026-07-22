@@ -18,6 +18,19 @@ struct HoloMemoryToolRecord: Codable, Equatable, Sendable {
 protocol HoloMemoryDataSource: Sendable {
     func queryRecords(question: String, currentStateOnly: Bool) async -> [HoloMemoryToolRecord]
     func suppressionCount() async -> Int
+    func queryRecordsRead(question: String, currentStateOnly: Bool) async -> HoloDataSourceRead<[HoloMemoryToolRecord]>
+    func suppressionCountRead() async -> HoloDataSourceRead<Int>
+}
+
+extension HoloMemoryDataSource {
+    func queryRecordsRead(question: String, currentStateOnly: Bool) async -> HoloDataSourceRead<[HoloMemoryToolRecord]> {
+        .loaded(await queryRecords(question: question, currentStateOnly: currentStateOnly))
+    }
+
+    func suppressionCountRead() async -> HoloDataSourceRead<Int> {
+        let count = await suppressionCount()
+        return HoloDataSourceRead(value: count, status: count == 0 ? .empty : .success)
+    }
 }
 
 struct HoloMemoryTool: HoloDataTool {
@@ -50,30 +63,31 @@ struct HoloMemoryTool: HoloDataTool {
         let question = request.parameters["question"] ?? "我最近状态如何"
         switch request.query {
         case "recall_summary":
-            let records = await dataSource.queryRecords(
+            let read = await dataSource.queryRecordsRead(
                 question: question,
                 currentStateOnly: false
             )
+            if let failure = Self.failureResult(request, read: read) { return failure }
             return Self.buildRecordResult(
                 request: request,
-                records: records,
+                records: read.value,
                 countMetric: "memory.recall.count"
             )
         case "recent_episodic":
-            let records = await dataSource.queryRecords(
+            let read = await dataSource.queryRecordsRead(
                 question: question,
                 currentStateOnly: true
             )
+            if let failure = Self.failureResult(request, read: read) { return failure }
             return Self.buildRecordResult(
                 request: request,
-                records: records,
+                records: read.value,
                 countMetric: "memory.current_state.count"
             )
         case "suppression_summary":
-            return Self.buildSuppressionResult(
-                request: request,
-                count: await dataSource.suppressionCount()
-            )
+            let read = await dataSource.suppressionCountRead()
+            if let failure = Self.failureResult(request, read: read) { return failure }
+            return Self.buildSuppressionResult(request: request, count: read.value)
         default:
             return HoloDataToolResult(
                 toolRequestID: request.id,
@@ -121,7 +135,8 @@ struct HoloMemoryTool: HoloDataTool {
             )],
             events: events,
             warnings: [],
-            error: nil
+            error: nil,
+            sensitivity: .sensitive
         )
     }
 
@@ -144,7 +159,8 @@ struct HoloMemoryTool: HoloDataTool {
             )],
             events: [],
             warnings: [],
-            error: nil
+            error: nil,
+            sensitivity: .sensitive
         )
     }
 
@@ -157,7 +173,29 @@ struct HoloMemoryTool: HoloDataTool {
             metrics: [],
             events: [],
             warnings: [],
-            error: nil
+            error: nil,
+            sensitivity: .sensitive
+        )
+    }
+
+    private static func failureResult<Value: Sendable>(
+        _ request: HoloToolRequest,
+        read: HoloDataSourceRead<Value>
+    ) -> HoloDataToolResult? {
+        guard [.unavailable, .waitingForUnlock, .error].contains(read.status) else { return nil }
+        return HoloDataToolResult(
+            toolRequestID: request.id,
+            tool: request.tool,
+            status: read.status == .error ? .error : .unavailable,
+            coverage: nil,
+            metrics: [],
+            events: [],
+            warnings: [HoloToolWarning(
+                code: read.status == .waitingForUnlock ? "WAITING_FOR_UNLOCK" : "MEMORY_DATA_UNAVAILABLE",
+                message: read.warning ?? "暂时无法读取记忆"
+            )],
+            error: HoloToolError(code: "DATA_SOURCE_UNAVAILABLE", message: read.warning ?? "记忆数据源读取失败", recoverable: true),
+            sensitivity: .sensitive
         )
     }
 }

@@ -32,7 +32,7 @@ struct HoloFeedbackRecord: Codable, Equatable, Sendable {
 
 protocol HoloFeedbackDataSource: Sendable {
     /// 读取最近 N 条反馈（按 createdAt 降序）。limit 上限由 DataSource 内部钳制。
-    func recentFeedback(limit: Int) async -> [HoloFeedbackRecord]
+    func recentFeedback(limit: Int) async -> HoloDataSourceRead<[HoloFeedbackRecord]>
 }
 
 // MARK: - Tool
@@ -80,24 +80,37 @@ struct HoloFeedbackTool: HoloDataTool {
         case "correction_themes": limit = 50
         default: limit = 50
         }
-        let records = await dataSource.recentFeedback(limit: limit).sorted { $0.createdAt > $1.createdAt }
+        let read = await dataSource.recentFeedback(limit: limit)
+        let records = read.value.sorted { $0.createdAt > $1.createdAt }
+        if [.unavailable, .waitingForUnlock, .error].contains(read.status) {
+            return failure(request: request, read: read)
+        }
         guard !records.isEmpty else {
             return empty(request: request, warnings: [
                 HoloToolWarning(code: "NO_FEEDBACK_DATA", message: "没有可用的洞察反馈")
             ])
         }
+        var output: HoloDataToolResult
         switch request.query {
         case "rating_summary":
-            return ratingSummary(request: request, records: records)
+            output = ratingSummary(request: request, records: records)
         case "correction_themes":
-            return correctionThemes(request: request, records: records)
+            output = correctionThemes(request: request, records: records)
         case "corrections_summary":
-            return correctionsSummary(request: request, records: records)
+            output = correctionsSummary(request: request, records: records)
         default:
             return empty(request: request, warnings: [
                 HoloToolWarning(code: "UNSUPPORTED_QUERY", message: "不支持的反馈查询：\(request.query)")
             ])
         }
+        if read.status == .partial || read.isTruncated {
+            output.status = .partial
+            output.warnings.append(HoloToolWarning(
+                code: "FEEDBACK_DATA_TRUNCATED",
+                message: read.warning ?? "仅返回最近 \(read.returnedCount ?? records.count) 条反馈"
+            ))
+        }
+        return output
     }
 }
 
@@ -233,6 +246,27 @@ private extension HoloFeedbackTool {
         HoloDataToolResult(
             toolRequestID: request.id, tool: request.tool, status: .empty,
             coverage: nil, metrics: [], events: [], warnings: warnings, error: nil,
+            sensitivity: .sensitive
+        )
+    }
+
+    func failure(
+        request: HoloToolRequest,
+        read: HoloDataSourceRead<[HoloFeedbackRecord]>
+    ) -> HoloDataToolResult {
+        let waiting = read.status == .waitingForUnlock
+        return HoloDataToolResult(
+            toolRequestID: request.id,
+            tool: request.tool,
+            status: read.status == .error ? .error : .unavailable,
+            coverage: nil,
+            metrics: [],
+            events: [],
+            warnings: [HoloToolWarning(
+                code: waiting ? "WAITING_FOR_UNLOCK" : "FEEDBACK_DATA_UNAVAILABLE",
+                message: read.warning ?? "暂时无法读取洞察反馈"
+            )],
+            error: HoloToolError(code: "DATA_SOURCE_UNAVAILABLE", message: read.warning ?? "反馈数据源读取失败", recoverable: true),
             sensitivity: .sensitive
         )
     }

@@ -12,26 +12,38 @@ import Foundation
 struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
 
     func queryRows(timeRange: HoloAgentTimeRange?, parameters: [String: String]) async -> [HoloQueryRow] {
+        await queryRowsRead(timeRange: timeRange, parameters: parameters).value
+    }
+
+    func queryRowsRead(timeRange: HoloAgentTimeRange?, parameters: [String: String]) async -> HoloDataSourceRead<[HoloQueryRow]> {
         let calendar = Calendar.current
         let end = timeRange?.end ?? (calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: Date())) ?? Date())
         let start = timeRange?.start ?? (calendar.date(byAdding: .day, value: -30, to: end) ?? end)
-        guard let transactions = try? await FinanceRepository.shared.getTransactions(from: start, to: end) else { return [] }
-        return transactions.map { tx in
-            let text = [tx.note, tx.remark, tx.tags?.joined(separator: " ")].compactMap { $0 }.joined(separator: " ")
+        let transactions: [Transaction]
+        do {
+            transactions = try await FinanceRepository.shared.getTransactions(from: start, to: end)
+        } catch {
+            return HoloDataSourceRead(value: [], status: .unavailable, warning: "财务交易读取失败：\(error.localizedDescription)")
+        }
+        let rows = transactions.map { tx in
+            let isExpense = tx.transactionType == .expense
+            let amount = tx.amount.doubleValue
             return HoloQueryRow(
                 id: tx.id.uuidString,
                 occurredAt: tx.date,
                 fields: [
                     "date": .date(tx.date),
-                    "amount": .number(tx.amount.doubleValue),
-                    "type": .text(tx.transactionType == .expense ? "expense" : "income"),
-                    "category": .text(tx.category?.name ?? "未分类"),
-                    "account": .text(tx.account?.name ?? "未指定账户"),
-                    "text": .text(text)
+                    "amount": .number(amount),
+                    "signedAmount": .number(isExpense ? -amount : amount),
+                    "expenseAmount": .number(isExpense ? amount : 0),
+                    "incomeAmount": .number(isExpense ? 0 : amount),
+                    "type": .text(isExpense ? "expense" : "income"),
+                    "category": .text(tx.category?.name ?? "未分类")
                 ],
                 excerpt: Self.sampleExcerpt(for: tx)
             )
         }
+        return .loaded(rows, totalCount: rows.count)
     }
 
     func snapshot(
@@ -39,6 +51,14 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
         baseline: HoloAgentTimeRange?,
         parameters: [String: String]
     ) async -> HoloFinanceToolRecord? {
+        await snapshotRead(timeRange: timeRange, baseline: baseline, parameters: parameters).value
+    }
+
+    func snapshotRead(
+        timeRange: HoloAgentTimeRange?,
+        baseline: HoloAgentTimeRange?,
+        parameters: [String: String]
+    ) async -> HoloDataSourceRead<HoloFinanceToolRecord?> {
         let repo = FinanceRepository.shared
         let calendar = Calendar.current
         let todayStart = calendar.startOfDay(for: Date())
@@ -55,7 +75,7 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
             currentTransactions = try await repo.getTransactions(from: currentStart, to: currentEnd)
             baselineTransactions = try await repo.getTransactions(from: baselineStart, to: baselineEnd)
         } catch {
-            return nil
+            return HoloDataSourceRead(value: nil, status: .unavailable, warning: "财务快照读取失败：\(error.localizedDescription)")
         }
         let currentRange = HoloAgentTimeRange(label: timeRange?.label ?? "本期", start: currentStart, end: currentEnd)
         let baselineRange = HoloAgentTimeRange(label: baseline?.label ?? "对比期", start: baselineStart, end: baselineEnd)
@@ -68,7 +88,6 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
                 .map(\.categoryName)
             let accounts = financeRepository.getAccounts(includeArchived: false)
             let netWorth = financeRepository.getTotalNetWorth()
-            let defaultAccount = financeRepository.getDefaultAccountSync()
             let budgetSnapshot = globalBudget.map {
                 HoloFinanceBudgetSnapshot(
                     totalAmount: Self.double($0.totalBudgetAmount),
@@ -85,15 +104,14 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
                     activeAccountCount: accounts.count,
                     assets: Self.double(netWorth.assets),
                     liabilities: Self.double(netWorth.liabilities),
-                    netWorth: Self.double(netWorth.netWorth),
-                    defaultAccountName: defaultAccount?.name
+                    netWorth: Self.double(netWorth.netWorth)
                 )
             )
         }
         let keyword = Self.keyword(from: parameters)
         let currentKeyword = Self.keywordSummary(currentTransactions, keyword: keyword)
         let baselineKeyword = Self.keywordSummary(baselineTransactions, keyword: keyword)
-        return HoloFinanceToolRecord(
+        let record = HoloFinanceToolRecord(
             nighttimeMealCurrent: Self.nighttimeMealCount(currentTransactions),
             nighttimeMealBaseline: Self.nighttimeMealCount(baselineTransactions),
             categoryCounts: Self.categoryCounts(currentTransactions),
@@ -113,6 +131,7 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
             budget: financeMetadata.0,
             account: financeMetadata.1
         )
+        return HoloDataSourceRead(value: record, status: .success)
     }
 
     /// 晚间（22:00–06:00）餐饮类支出笔数。
@@ -140,12 +159,12 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
 
     /// 本期各分类支出金额。
     private static func categoryAmounts(_ txs: [Transaction]) -> [String: Double] {
-        var amounts: [String: Double] = [:]
+        var amounts: [String: Decimal] = [:]
         for tx in txs where tx.transactionType == .expense {
             let name = tx.category?.name ?? "未分类"
-            amounts[name, default: 0] += tx.amount.doubleValue
+            amounts[name, default: 0] += tx.amount.decimalValue
         }
-        return amounts
+        return amounts.mapValues(double)
     }
 
     private static func expenseCount(_ txs: [Transaction]) -> Int {
@@ -153,7 +172,10 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
     }
 
     private static func totalExpense(_ txs: [Transaction]) -> Double {
-        txs.filter { $0.transactionType == .expense }.reduce(0.0) { $0 + $1.amount.doubleValue }
+        double(
+            txs.filter { $0.transactionType == .expense }
+                .reduce(Decimal.zero) { $0 + $1.amount.decimalValue }
+        )
     }
 
     private static func keyword(from parameters: [String: String]) -> String {
@@ -167,7 +189,7 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
             guard tx.transactionType == .expense else { return false }
             return searchableText(for: tx).localizedCaseInsensitiveContains(keyword)
         }
-        let amount = matches.reduce(0.0) { $0 + $1.amount.doubleValue }
+        let amount = double(matches.reduce(Decimal.zero) { $0 + $1.amount.decimalValue })
         let samples = matches.prefix(5).map(sampleExcerpt)
         return (matches.count, amount, samples)
     }
@@ -197,15 +219,12 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
         formatter.dateFormat = "M月d日"
         let date = formatter.string(from: tx.date)
         let category = tx.category?.name ?? "未分类"
-        let note = [tx.note, tx.remark]
-            .compactMap { $0?.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .first { !$0.isEmpty } ?? "无备注"
         let amount = tx.amount.doubleValue
         let amountText = amount.rounded() == amount ? String(format: "%.0f", amount) : String(format: "%.2f", amount)
-        return "\(date) \(category) \(note) -¥\(amountText)"
+        return "\(date) \(category) -¥\(amountText)"
     }
 
-    private static func double(_ value: Decimal) -> Double {
+    nonisolated private static func double(_ value: Decimal) -> Double {
         NSDecimalNumber(decimal: value).doubleValue
     }
 }

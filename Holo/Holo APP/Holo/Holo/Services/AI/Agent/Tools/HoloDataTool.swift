@@ -165,10 +165,24 @@ nonisolated struct HoloCrossDomainQueryPlan: Codable, Equatable, Sendable {
 
 nonisolated protocol HoloCrossDomainDataSource: Sendable {
     func rows(source: String, timeRange: HoloAgentTimeRange?) async -> [HoloQueryRow]
+    func rowsRead(source: String, timeRange: HoloAgentTimeRange?) async -> HoloDataSourceRead<[HoloQueryRow]>
+}
+
+nonisolated extension HoloCrossDomainDataSource {
+    func rowsRead(source: String, timeRange: HoloAgentTimeRange?) async -> HoloDataSourceRead<[HoloQueryRow]> {
+        .loaded(await rows(source: source, timeRange: timeRange))
+    }
 }
 
 nonisolated protocol HoloDynamicRowDataSource: Sendable {
     func rows(source: String, timeRange: HoloAgentTimeRange?) async -> [HoloQueryRow]
+    func rowsRead(source: String, timeRange: HoloAgentTimeRange?) async -> HoloDataSourceRead<[HoloQueryRow]>
+}
+
+nonisolated extension HoloDynamicRowDataSource {
+    func rowsRead(source: String, timeRange: HoloAgentTimeRange?) async -> HoloDataSourceRead<[HoloQueryRow]> {
+        .loaded(await rows(source: source, timeRange: timeRange))
+    }
 }
 
 /// 保留原工具名称与权限边界，只为其增加统一 dynamic_query 能力。
@@ -215,18 +229,52 @@ nonisolated struct HoloDynamicToolDecorator: HoloDataTool {
         plan.baseline = plan.baseline
             ?? request.baseline
             ?? HoloDynamicQueryRangeResolver.baselineIfNeeded(for: plan, currentRange: plan.timeRange)
-        let currentRows = await dataSource.rows(source: plan.source, timeRange: plan.timeRange)
-        let baselineRows = await dataSource.rows(source: plan.source, timeRange: plan.baseline)
+        let currentRead = await dataSource.rowsRead(source: plan.source, timeRange: plan.timeRange)
+        if [.unavailable, .waitingForUnlock, .error].contains(currentRead.status) {
+            return HoloDataToolResult(
+                toolRequestID: request.id,
+                tool: request.tool,
+                status: currentRead.status == .error ? .error : .unavailable,
+                coverage: nil,
+                metrics: [],
+                events: [],
+                warnings: [HoloToolWarning(
+                    code: currentRead.status == .waitingForUnlock ? "WAITING_FOR_UNLOCK" : "DYNAMIC_DATA_UNAVAILABLE",
+                    message: currentRead.warning ?? "动态查询数据源暂不可用"
+                )],
+                error: HoloToolError(code: "DATA_SOURCE_UNAVAILABLE", message: currentRead.warning ?? "动态查询数据源读取失败", recoverable: true),
+                sensitivity: catalog.schema(named: plan.source)?.sensitivity ?? .normal
+            )
+        }
+        let baselineRead = await dataSource.rowsRead(source: plan.source, timeRange: plan.baseline)
+        let baselineRows = [.success, .empty, .partial].contains(baselineRead.status) ? baselineRead.value : []
         do {
             let output = try HoloDynamicQueryEngine.execute(
-                plan: plan, catalog: catalog, currentRows: currentRows, baselineRows: baselineRows
+                plan: plan, catalog: catalog, currentRows: currentRead.value, baselineRows: baselineRows
             )
             let sensitivity = catalog.schema(named: plan.source)?.sensitivity ?? .normal
+            var coverage = output.coverage
+            coverage?.returnedRecords = currentRead.returnedCount ?? currentRead.value.count
+            coverage?.totalRecords = currentRead.totalCount ?? currentRead.value.count
+            let coverageWasTruncated = coverage?.isTruncated == true
+            coverage?.isTruncated = coverageWasTruncated || currentRead.isTruncated
+            var warnings = output.metrics.isEmpty
+                ? [HoloToolWarning(code: "NO_DYNAMIC_DATA", message: "该范围没有可计算数据")]
+                : []
+            if currentRead.status == .partial || currentRead.isTruncated || output.coverage?.isTruncated == true {
+                warnings.append(HoloToolWarning(
+                    code: "DYNAMIC_RESULT_TRUNCATED",
+                    message: currentRead.warning ?? "结果或证据超过查询上限，已返回受控子集"
+                ))
+            }
+            if ![.success, .empty, .partial].contains(baselineRead.status) {
+                warnings.append(HoloToolWarning(code: "BASELINE_UNAVAILABLE", message: baselineRead.warning ?? "对比期数据暂不可用"))
+            }
             return HoloDataToolResult(
                 toolRequestID: request.id, tool: request.tool,
-                status: output.metrics.isEmpty ? .empty : .success,
-                coverage: output.coverage, metrics: output.metrics, events: output.events,
-                warnings: output.metrics.isEmpty ? [HoloToolWarning(code: "NO_DYNAMIC_DATA", message: "该范围没有可计算数据")] : [],
+                status: output.metrics.isEmpty ? .empty : ((currentRead.status == .partial || currentRead.isTruncated) ? .partial : .success),
+                coverage: coverage, metrics: output.metrics, events: output.events,
+                warnings: warnings,
                 error: nil, sensitivity: sensitivity
             )
         } catch {
@@ -336,12 +384,14 @@ nonisolated struct HoloCrossDomainTool: HoloDataTool {
         name: "finance.transactions", domain: "finance", description: "交易明细", timeField: "date",
         fields: [
             HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "交易日期"),
-            HoloDataField(name: "amount", type: .number, unit: "元", filterable: true, groupable: false, aggregatable: true, description: "交易金额"),
+            HoloDataField(name: "amount", type: .number, unit: "元", filterable: true, groupable: false, aggregatable: true, description: "交易原始金额（兼容字段）"),
+            HoloDataField(name: "signedAmount", type: .number, unit: "元", filterable: true, groupable: false, aggregatable: true, description: "带方向金额，收入为正、支出为负"),
+            HoloDataField(name: "expenseAmount", type: .number, unit: "元", filterable: true, groupable: false, aggregatable: true, description: "支出金额"),
+            HoloDataField(name: "incomeAmount", type: .number, unit: "元", filterable: true, groupable: false, aggregatable: true, description: "收入金额"),
             HoloDataField(name: "category", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "分类"),
-            HoloDataField(name: "account", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "账户"),
-            HoloDataField(name: "text", type: .text, unit: nil, filterable: true, groupable: false, aggregatable: false, description: "商户或备注")
+            HoloDataField(name: "type", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "expense 或 income")
         ],
-        sensitivity: .normal, maximumRangeDays: 366
+        sensitivity: .sensitive, maximumRangeDays: 366
     )
 
     static let crossDomainCatalog = HoloDataCatalog(
@@ -399,8 +449,22 @@ nonisolated struct HoloCrossDomainTool: HoloDataTool {
             return Self.error(request, "跨域计划无效")
         }
         if plan.timeRange == nil { plan.timeRange = request.timeRange }
-        let left = await dataSource.rows(source: plan.leftSource, timeRange: plan.timeRange)
-        let right = await dataSource.rows(source: plan.rightSource, timeRange: plan.timeRange)
+        let leftRead = await dataSource.rowsRead(source: plan.leftSource, timeRange: plan.timeRange)
+        let rightRead = await dataSource.rowsRead(source: plan.rightSource, timeRange: plan.timeRange)
+        if let failed = [(plan.leftSource, leftRead), (plan.rightSource, rightRead)].first(where: {
+            [.unavailable, .waitingForUnlock, .error].contains($0.1.status)
+        }) {
+            return HoloDataToolResult(
+                toolRequestID: request.id, tool: request.tool,
+                status: failed.1.status == .error ? .error : .unavailable,
+                coverage: nil, metrics: [], events: [],
+                warnings: [HoloToolWarning(code: "CROSS_DOMAIN_DATA_UNAVAILABLE", message: failed.1.warning ?? "\(failed.0) 数据暂不可用")],
+                error: HoloToolError(code: "DATA_SOURCE_UNAVAILABLE", message: failed.1.warning ?? "跨域数据源读取失败", recoverable: true),
+                sensitivity: .sensitive
+            )
+        }
+        let left = leftRead.value
+        let right = rightRead.value
         let pairs = Self.align(
             left: left.filter { HoloDynamicQueryEngine.rowMatches($0, filters: plan.leftFilters) },
             leftField: plan.leftField,
@@ -436,9 +500,15 @@ nonisolated struct HoloCrossDomainTool: HoloDataTool {
             formula: calculated.formula,
             sourceRecordIDs: sourceIDs
         )
+        let partial = leftRead.status == .partial || rightRead.status == .partial
+            || leftRead.isTruncated || rightRead.isTruncated
         return HoloDataToolResult(
-            toolRequestID: request.id, tool: request.tool, status: .success,
-            coverage: nil, metrics: [metric], events: [event], warnings: [], error: nil, sensitivity: .sensitive
+            toolRequestID: request.id, tool: request.tool, status: partial ? .partial : .success,
+            coverage: nil, metrics: [metric], events: [event],
+            warnings: partial
+                ? [HoloToolWarning(code: "CROSS_DOMAIN_DATA_TRUNCATED", message: "跨域分析使用了受控数据子集")]
+                : [],
+            error: nil, sensitivity: .sensitive
         )
     }
 
@@ -618,6 +688,7 @@ nonisolated enum HoloDynamicQueryEngine {
                 return sort.direction == .ascending ? lhs < rhs : lhs > rhs
             }
         }
+        let isOutputTruncated = metrics.count > plan.limit
         metrics = Array(metrics.prefix(plan.limit))
 
         let events = metrics.map { metric in
@@ -636,7 +707,14 @@ nonisolated enum HoloDynamicQueryEngine {
         return HoloDynamicExecutionOutput(
             metrics: metrics,
             events: events,
-            coverage: coverage(rows: current, range: plan.timeRange, calendar: calendar)
+            coverage: coverage(
+                rows: current,
+                range: plan.timeRange,
+                isTruncated: isOutputTruncated || current.contains { row in
+                    metrics.contains { ($0.sourceRecordIDs?.contains(row.id) ?? false) == false }
+                },
+                calendar: calendar
+            )
         )
     }
 
@@ -771,11 +849,36 @@ nonisolated enum HoloDynamicQueryEngine {
         }
     }
 
-    private static func coverage(rows: [HoloQueryRow], range: HoloAgentTimeRange?, calendar: Calendar) -> HoloDataCoverage? {
+    private static func coverage(
+        rows: [HoloQueryRow],
+        range: HoloAgentTimeRange?,
+        isTruncated: Bool = false,
+        calendar: Calendar
+    ) -> HoloDataCoverage? {
         guard let range, let start = range.start, let end = range.end else { return nil }
         let total = max(1, calendar.dateComponents([.day], from: calendar.startOfDay(for: start), to: calendar.startOfDay(for: end)).day ?? 1)
-        let covered = Set(rows.map { calendar.startOfDay(for: $0.occurredAt) }).count
-        return HoloDataCoverage(coveredDays: covered, totalDays: total, coverageRatio: Double(covered) / Double(total), missingRanges: [], note: "已读取 \(covered)/\(total) 天数据")
+        let coveredDates = Set(rows.map { calendar.startOfDay(for: $0.occurredAt) })
+        let covered = coveredDates.count
+        let missingRanges = (0..<total).compactMap { offset -> HoloAgentTimeRange? in
+            guard let day = calendar.date(byAdding: .day, value: offset, to: calendar.startOfDay(for: start)),
+                  !coveredDates.contains(day),
+                  let next = calendar.date(byAdding: .day, value: 1, to: day) else { return nil }
+            return HoloAgentTimeRange(label: "缺失日期", start: day, end: next)
+        }
+        let actualStart = rows.map(\.occurredAt).min()
+        let actualEnd = rows.map(\.occurredAt).max().map { $0.addingTimeInterval(1) }
+        return HoloDataCoverage(
+            coveredDays: covered,
+            totalDays: total,
+            coverageRatio: Double(covered) / Double(total),
+            missingRanges: missingRanges,
+            note: "已读取 \(covered)/\(total) 天、\(rows.count) 条数据\(isTruncated ? "，输出已截断" : "")",
+            requestedRange: range,
+            actualRange: actualStart.map { HoloAgentTimeRange(label: "实际覆盖", start: $0, end: actualEnd) },
+            returnedRecords: rows.count,
+            totalRecords: rows.count,
+            isTruncated: isTruncated
+        )
     }
 
     private static func slope(_ values: [Double]) -> Double? {

@@ -7,10 +7,29 @@ import Foundation
 
 struct MockThoughtReferenceDataSource: HoloThoughtReferenceDataSource {
     let snapshot: HoloThoughtReferenceSnapshot
-    func snapshot() async -> HoloThoughtReferenceSnapshot { snapshot }
+    var status: HoloDataSourceReadStatus = .success
+    func snapshot() async -> HoloDataSourceRead<HoloThoughtReferenceSnapshot> {
+        HoloDataSourceRead(
+            value: snapshot,
+            status: status == .success && snapshot.links.isEmpty ? .empty : status,
+            returnedCount: snapshot.links.count,
+            isTruncated: false,
+            warning: status == .unavailable ? "测试读取失败" : nil
+        )
+    }
 }
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        try await HoloThoughtReferenceToolTests.main()
+    }
+}
+#endif
 struct HoloThoughtReferenceToolTests {
 
     static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -21,6 +40,7 @@ struct HoloThoughtReferenceToolTests {
         try await test引用密度统计总数与被引用Top()
         try await test引用簇识别连通分量()
         try await test空引用返回empty()
+        try await test读取失败不得伪装为空引用()
         print("HoloThoughtReferenceToolTests passed")
     }
 
@@ -99,5 +119,16 @@ struct HoloThoughtReferenceToolTests {
 
         expect(result.status == .empty, "空引用应返回 empty")
         expect(result.warnings.contains { $0.code == "NO_REFERENCE_DATA" }, "应返回 NO_REFERENCE_DATA")
+    }
+
+    private static func test读取失败不得伪装为空引用() async throws {
+        let result = try await HoloThoughtReferenceTool(
+            dataSource: MockThoughtReferenceDataSource(
+                snapshot: HoloThoughtReferenceSnapshot(links: []),
+                status: .unavailable
+            )
+        ).execute(request("reference_density"))
+        expect(result.status == .unavailable, "读取失败必须返回 unavailable")
+        expect(result.error != nil, "读取失败应携带可恢复错误")
     }
 }

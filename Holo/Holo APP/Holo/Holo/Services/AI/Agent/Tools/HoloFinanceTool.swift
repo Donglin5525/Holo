@@ -23,7 +23,6 @@ struct HoloFinanceAccountSnapshot: Codable, Equatable, Sendable {
     var assets: Double
     var liabilities: Double
     var netWorth: Double
-    var defaultAccountName: String?
 }
 
 /// FinanceTool 读取的财务快照（中性视图，已按周期聚合）。
@@ -73,11 +72,28 @@ protocol HoloFinanceDataSource: Sendable {
         baseline: HoloAgentTimeRange?,
         parameters: [String: String]
     ) async -> HoloFinanceToolRecord?
+    func snapshotRead(
+        timeRange: HoloAgentTimeRange?,
+        baseline: HoloAgentTimeRange?,
+        parameters: [String: String]
+    ) async -> HoloDataSourceRead<HoloFinanceToolRecord?>
     func queryRows(timeRange: HoloAgentTimeRange?, parameters: [String: String]) async -> [HoloQueryRow]
+    func queryRowsRead(timeRange: HoloAgentTimeRange?, parameters: [String: String]) async -> HoloDataSourceRead<[HoloQueryRow]>
 }
 
 extension HoloFinanceDataSource {
     func queryRows(timeRange: HoloAgentTimeRange?, parameters: [String: String]) async -> [HoloQueryRow] { [] }
+    func queryRowsRead(timeRange: HoloAgentTimeRange?, parameters: [String: String]) async -> HoloDataSourceRead<[HoloQueryRow]> {
+        .loaded(await queryRows(timeRange: timeRange, parameters: parameters))
+    }
+    func snapshotRead(
+        timeRange: HoloAgentTimeRange?,
+        baseline: HoloAgentTimeRange?,
+        parameters: [String: String]
+    ) async -> HoloDataSourceRead<HoloFinanceToolRecord?> {
+        let value = await snapshot(timeRange: timeRange, baseline: baseline, parameters: parameters)
+        return HoloDataSourceRead(value: value, status: value == nil ? .empty : .success)
+    }
 }
 
 /// 财务工具：把聚合后的财务快照转为可信指标与证据。
@@ -91,13 +107,14 @@ struct HoloFinanceTool: HoloDataTool {
             timeField: "date",
             fields: [
                 HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "交易日期"),
-                HoloDataField(name: "amount", type: .number, unit: "元", filterable: true, groupable: false, aggregatable: true, description: "交易金额"),
+                HoloDataField(name: "amount", type: .number, unit: "元", filterable: true, groupable: false, aggregatable: true, description: "交易原始金额（兼容字段）"),
+                HoloDataField(name: "signedAmount", type: .number, unit: "元", filterable: true, groupable: false, aggregatable: true, description: "带方向金额，收入为正、支出为负"),
+                HoloDataField(name: "expenseAmount", type: .number, unit: "元", filterable: true, groupable: false, aggregatable: true, description: "支出金额，非支出为 0"),
+                HoloDataField(name: "incomeAmount", type: .number, unit: "元", filterable: true, groupable: false, aggregatable: true, description: "收入金额，非收入为 0"),
                 HoloDataField(name: "type", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "expense 或 income"),
-                HoloDataField(name: "category", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "交易分类"),
-                HoloDataField(name: "account", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "账户名称"),
-                HoloDataField(name: "text", type: .text, unit: nil, filterable: true, groupable: false, aggregatable: false, description: "备注、说明和标签合并文本")
+                HoloDataField(name: "category", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "交易分类")
             ],
-            sensitivity: .normal,
+            sensitivity: .sensitive,
             maximumRangeDays: 366
         )
     ])
@@ -125,7 +142,7 @@ struct HoloFinanceTool: HoloDataTool {
             "finance.account.liabilities",
             "finance.account.net_worth"
         ],
-        sensitivityPolicy: "normal",
+        sensitivityPolicy: "sensitive：默认不返回账户名、备注或附言原文",
         dynamicCatalog: Self.dynamicCatalog
     )
 
@@ -158,11 +175,22 @@ struct HoloFinanceTool: HoloDataTool {
         if request.query == "dynamic_query", let plan = request.dynamicPlan {
             return await dynamicResult(request, plan: plan)
         }
-        guard let record = await dataSource.snapshot(
+        let read = await dataSource.snapshotRead(
             timeRange: request.timeRange,
             baseline: request.baseline,
             parameters: request.parameters
-        ) else {
+        )
+        if [.unavailable, .waitingForUnlock, .error].contains(read.status) {
+            return HoloDataToolResult(
+                toolRequestID: request.id, tool: request.tool,
+                status: read.status == .error ? .error : .unavailable,
+                coverage: nil, metrics: [], events: [],
+                warnings: [HoloToolWarning(code: "FINANCE_DATA_UNAVAILABLE", message: read.warning ?? "财务数据暂不可用")],
+                error: HoloToolError(code: "DATA_SOURCE_UNAVAILABLE", message: read.warning ?? "财务数据源读取失败", recoverable: true),
+                sensitivity: .sensitive
+            )
+        }
+        guard let record = read.value else {
             return Self.emptyResult(request)
         }
         switch request.query {
@@ -193,25 +221,47 @@ struct HoloFinanceTool: HoloDataTool {
         scopedPlan.baseline = plan.baseline
             ?? request.baseline
             ?? HoloDynamicQueryRangeResolver.baselineIfNeeded(for: plan, currentRange: scopedPlan.timeRange)
-        let current = await dataSource.queryRows(timeRange: scopedPlan.timeRange, parameters: request.parameters)
-        let baseline = await dataSource.queryRows(timeRange: scopedPlan.baseline, parameters: request.parameters)
+        let currentRead = await dataSource.queryRowsRead(timeRange: scopedPlan.timeRange, parameters: request.parameters)
+        if [.unavailable, .waitingForUnlock, .error].contains(currentRead.status) {
+            return HoloDataToolResult(
+                toolRequestID: request.id, tool: request.tool,
+                status: currentRead.status == .error ? .error : .unavailable,
+                coverage: nil, metrics: [], events: [],
+                warnings: [HoloToolWarning(code: "FINANCE_DATA_UNAVAILABLE", message: currentRead.warning ?? "财务数据暂不可用")],
+                error: HoloToolError(code: "DATA_SOURCE_UNAVAILABLE", message: currentRead.warning ?? "财务数据源读取失败", recoverable: true),
+                sensitivity: .sensitive
+            )
+        }
+        let baselineRead = await dataSource.queryRowsRead(timeRange: scopedPlan.baseline, parameters: request.parameters)
+        let baseline = [.success, .empty, .partial].contains(baselineRead.status) ? baselineRead.value : []
         do {
             let output = try HoloDynamicQueryEngine.execute(
                 plan: scopedPlan,
                 catalog: Self.dynamicCatalog,
-                currentRows: current,
+                currentRows: currentRead.value,
                 baselineRows: baseline
             )
+            var coverage = output.coverage
+            coverage?.returnedRecords = currentRead.returnedCount ?? currentRead.value.count
+            coverage?.totalRecords = currentRead.totalCount ?? currentRead.value.count
+            let coverageWasTruncated = coverage?.isTruncated == true
+            coverage?.isTruncated = coverageWasTruncated || currentRead.isTruncated
+            var warnings = (currentRead.status == .partial || currentRead.isTruncated || output.coverage?.isTruncated == true)
+                ? [HoloToolWarning(code: "DYNAMIC_RESULT_TRUNCATED", message: currentRead.warning ?? "结果或证据超过查询上限，已返回受控子集")]
+                : []
+            if ![.success, .empty, .partial].contains(baselineRead.status) {
+                warnings.append(HoloToolWarning(code: "BASELINE_UNAVAILABLE", message: baselineRead.warning ?? "对比期财务数据暂不可用"))
+            }
             return HoloDataToolResult(
                 toolRequestID: request.id,
                 tool: request.tool,
-                status: output.metrics.isEmpty ? .empty : .success,
-                coverage: output.coverage,
+                status: output.metrics.isEmpty ? .empty : ((currentRead.status == .partial || currentRead.isTruncated) ? .partial : .success),
+                coverage: coverage,
                 metrics: output.metrics,
                 events: output.events,
-                warnings: [],
+                warnings: warnings,
                 error: nil,
-                sensitivity: .normal
+                sensitivity: .sensitive
             )
         } catch {
             return Self.errorResult(request, reason: error.localizedDescription)
@@ -427,7 +477,6 @@ struct HoloFinanceTool: HoloDataTool {
 
     private func accountSummaryResult(request: HoloToolRequest, record: HoloFinanceToolRecord) -> HoloDataToolResult {
         guard let account = record.account else { return Self.emptyResult(request) }
-        let defaultText = account.defaultAccountName.map { "，默认账户：\($0)" } ?? ""
         let metrics = [
             HoloMetric(metricKey: "finance.account.count", value: Double(account.activeAccountCount), unit: "个", baselineValue: nil, comparison: nil),
             HoloMetric(metricKey: "finance.account.assets", value: account.assets, unit: "元", baselineValue: nil, comparison: nil),
@@ -439,7 +488,7 @@ struct HoloFinanceTool: HoloDataTool {
             occurredAt: nil,
             metricKey: "finance.account.net_worth",
             metricValue: account.netWorth,
-            excerpt: "活跃账户 \(account.activeAccountCount) 个，资产 \(Self.moneyText(account.assets)) 元，负债 \(Self.moneyText(account.liabilities)) 元，净资产 \(Self.moneyText(account.netWorth)) 元\(defaultText)"
+            excerpt: "活跃账户 \(account.activeAccountCount) 个，资产 \(Self.moneyText(account.assets)) 元，负债 \(Self.moneyText(account.liabilities)) 元，净资产 \(Self.moneyText(account.netWorth)) 元"
         )]
         return Self.successResult(request, metrics: metrics, events: events)
     }
@@ -501,19 +550,22 @@ struct HoloFinanceTool: HoloDataTool {
     private static func successResult(_ request: HoloToolRequest,
                                       metrics: [HoloMetric], events: [HoloEvidenceEvent]) -> HoloDataToolResult {
         HoloDataToolResult(toolRequestID: request.id, tool: request.tool, status: .success,
-                           coverage: nil, metrics: metrics, events: events, warnings: [], error: nil)
+                           coverage: nil, metrics: metrics, events: events, warnings: [], error: nil,
+                           sensitivity: .sensitive)
     }
 
     private static func emptyResult(_ request: HoloToolRequest) -> HoloDataToolResult {
         HoloDataToolResult(toolRequestID: request.id, tool: request.tool, status: .empty,
-                           coverage: nil, metrics: [], events: [], warnings: [], error: nil)
+                           coverage: nil, metrics: [], events: [], warnings: [], error: nil,
+                           sensitivity: .sensitive)
     }
 
     private static func errorResult(_ request: HoloToolRequest, reason: String) -> HoloDataToolResult {
         HoloDataToolResult(
             toolRequestID: request.id, tool: request.tool, status: .error,
             coverage: nil, metrics: [], events: [], warnings: [],
-            error: HoloToolError(code: HoloToolErrorCode.invalidParams, message: reason, recoverable: true)
+            error: HoloToolError(code: HoloToolErrorCode.invalidParams, message: reason, recoverable: true),
+            sensitivity: .sensitive
         )
     }
 }

@@ -15,14 +15,33 @@ import Foundation
 struct MockMemoryDataSource: HoloMemoryDataSource {
     let records: [HoloMemoryToolRecord]
     let suppressionTotal: Int
+    var readStatus: HoloDataSourceReadStatus = .success
 
     func queryRecords(question: String, currentStateOnly: Bool) async -> [HoloMemoryToolRecord] {
         records.filter { !currentStateOnly || $0.persistenceClass == .currentState }
     }
     func suppressionCount() async -> Int { suppressionTotal }
+    func queryRecordsRead(question: String, currentStateOnly: Bool) async -> HoloDataSourceRead<[HoloMemoryToolRecord]> {
+        let values = records.filter { !currentStateOnly || $0.persistenceClass == .currentState }
+        return HoloDataSourceRead(
+            value: values,
+            status: readStatus == .success && values.isEmpty ? .empty : readStatus,
+            warning: readStatus == .unavailable ? "测试读取失败" : nil
+        )
+    }
 }
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        try await HoloMemoryToolTests.main()
+    }
+}
+#endif
 struct HoloMemoryToolTests {
 
     static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -34,6 +53,7 @@ struct HoloMemoryToolTests {
         try await testRecentEpisodic读取情景活跃记忆()
         try await testSuppressionSummary读取抑制规则()
         try await test无记忆返回empty()
+        try await test读取失败不得伪装为空记忆()
         print("HoloMemoryToolTests passed")
     }
 
@@ -103,5 +123,13 @@ struct HoloMemoryToolTests {
         expect(result.status == .empty, "无记忆应返回 empty，实际 \(result.status)")
         expect(result.metrics.isEmpty, "empty 不应带 metrics")
         expect(result.events.isEmpty, "empty 不应带 events")
+    }
+
+    private static func test读取失败不得伪装为空记忆() async throws {
+        let source = MockMemoryDataSource(records: [], suppressionTotal: 0, readStatus: .unavailable)
+        let result = try await HoloMemoryTool(dataSource: source)
+            .execute(makeRequest(query: "recall_summary"))
+        expect(result.status == .unavailable, "读取失败必须返回 unavailable")
+        expect(result.error != nil, "读取失败应携带可恢复错误")
     }
 }

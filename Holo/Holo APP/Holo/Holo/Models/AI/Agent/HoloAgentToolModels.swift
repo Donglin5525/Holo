@@ -43,6 +43,67 @@ nonisolated struct HoloToolWarning: Codable, Equatable, Sendable {
     var message: String
 }
 
+// MARK: - 数据源读取语义
+
+/// 数据源层必须区分“确实无数据”和“未能读取”。工具层据此决定能否下结论。
+nonisolated enum HoloDataSourceReadStatus: String, Equatable, Sendable {
+    case success
+    case empty
+    case partial
+    case unavailable
+    case waitingForUnlock
+    case error
+}
+
+/// 带读取状态与截断信息的数据源快照，避免用空数组掩盖权限、锁屏或存储错误。
+nonisolated struct HoloDataSourceRead<Value: Sendable>: Sendable {
+    var value: Value
+    var status: HoloDataSourceReadStatus
+    var requestedCount: Int?
+    var returnedCount: Int?
+    var totalCount: Int?
+    var isTruncated: Bool
+    var warning: String?
+
+    init(
+        value: Value,
+        status: HoloDataSourceReadStatus,
+        requestedCount: Int? = nil,
+        returnedCount: Int? = nil,
+        totalCount: Int? = nil,
+        isTruncated: Bool = false,
+        warning: String? = nil
+    ) {
+        self.value = value
+        self.status = status
+        self.requestedCount = requestedCount
+        self.returnedCount = returnedCount
+        self.totalCount = totalCount
+        self.isTruncated = isTruncated
+        self.warning = warning
+    }
+}
+
+nonisolated extension HoloDataSourceRead where Value: Collection {
+    static func loaded(
+        _ value: Value,
+        requestedCount: Int? = nil,
+        totalCount: Int? = nil,
+        isTruncated: Bool = false,
+        warning: String? = nil
+    ) -> Self {
+        Self(
+            value: value,
+            status: value.isEmpty ? .empty : (isTruncated ? .partial : .success),
+            requestedCount: requestedCount,
+            returnedCount: value.count,
+            totalCount: totalCount,
+            isTruncated: isTruncated,
+            warning: warning
+        )
+    }
+}
+
 // MARK: - 工具输出度量与事件
 
 /// 工具输出的单个度量值（如 habit.negative.frequency_change = 20）
@@ -262,6 +323,11 @@ nonisolated struct HoloDataCoverage: Codable, Equatable, Sendable {
     var coverageRatio: Double?
     var missingRanges: [HoloAgentTimeRange]
     var note: String?
+    var requestedRange: HoloAgentTimeRange? = nil
+    var actualRange: HoloAgentTimeRange? = nil
+    var returnedRecords: Int? = nil
+    var totalRecords: Int? = nil
+    var isTruncated: Bool? = nil
 }
 
 // MARK: - 工具结果

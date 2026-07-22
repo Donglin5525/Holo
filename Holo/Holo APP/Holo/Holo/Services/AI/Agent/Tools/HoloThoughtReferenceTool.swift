@@ -38,7 +38,7 @@ struct HoloThoughtReferenceSnapshot: Codable, Equatable, Sendable {
 // MARK: - DataSource Protocol
 
 protocol HoloThoughtReferenceDataSource: Sendable {
-    func snapshot() async -> HoloThoughtReferenceSnapshot
+    func snapshot() async -> HoloDataSourceRead<HoloThoughtReferenceSnapshot>
 }
 
 // MARK: - Tool
@@ -72,22 +72,45 @@ struct HoloThoughtReferenceTool: HoloDataTool {
     }
 
     func execute(_ request: HoloToolRequest) async throws -> HoloDataToolResult {
-        let snapshot = await dataSource.snapshot()
+        let read = await dataSource.snapshot()
+        let snapshot = read.value
+        if [.unavailable, .waitingForUnlock, .error].contains(read.status) {
+            return HoloDataToolResult(
+                toolRequestID: request.id, tool: request.tool,
+                status: read.status == .error ? .error : .unavailable,
+                coverage: nil, metrics: [], events: [],
+                warnings: [HoloToolWarning(
+                    code: read.status == .waitingForUnlock ? "WAITING_FOR_UNLOCK" : "THOUGHT_REFERENCE_UNAVAILABLE",
+                    message: read.warning ?? "暂时无法读取想法引用关系"
+                )],
+                error: HoloToolError(code: "DATA_SOURCE_UNAVAILABLE", message: read.warning ?? "想法引用数据源读取失败", recoverable: true),
+                sensitivity: .sensitive
+            )
+        }
         guard !snapshot.links.isEmpty else {
             return empty(request: request, warnings: [
                 HoloToolWarning(code: "NO_REFERENCE_DATA", message: "没有可用的想法引用关系")
             ])
         }
+        var output: HoloDataToolResult
         switch request.query {
         case "reference_density":
-            return referenceDensity(request: request, snapshot: snapshot)
+            output = referenceDensity(request: request, snapshot: snapshot)
         case "reference_clusters":
-            return referenceClusters(request: request, snapshot: snapshot)
+            output = referenceClusters(request: request, snapshot: snapshot)
         default:
             return empty(request: request, warnings: [
                 HoloToolWarning(code: "UNSUPPORTED_QUERY", message: "不支持的想法引用查询：\(request.query)")
             ])
         }
+        if read.status == .partial || read.isTruncated {
+            output.status = .partial
+            output.warnings.append(HoloToolWarning(
+                code: "THOUGHT_REFERENCE_TRUNCATED",
+                message: read.warning ?? "仅分析最近 \(read.returnedCount ?? snapshot.links.count) 条引用关系"
+            ))
+        }
+        return output
     }
 }
 

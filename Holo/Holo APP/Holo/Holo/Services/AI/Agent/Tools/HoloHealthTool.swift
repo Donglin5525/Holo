@@ -244,9 +244,9 @@ private extension HoloHealthTool {
                 .map { $0.filter { $0.totalHours > 0 }.map(Self.sleepQueryRow) }
         } else {
             currentRowsOutcome = await dataSource.dailyRecordsStrict(for: kind, timeRange: currentRange)
-                .map { $0.filter { $0.value > 0 }.map { Self.queryRow($0, kind: kind) } }
+                .map { Self.validDailyRecords($0, for: kind).map { Self.queryRow($0, kind: kind) } }
             baselineRowsOutcome = await dataSource.dailyRecordsStrict(for: kind, timeRange: baselineRange)
-                .map { $0.filter { $0.value > 0 }.map { Self.queryRow($0, kind: kind) } }
+                .map { Self.validDailyRecords($0, for: kind).map { Self.queryRow($0, kind: kind) } }
         }
         let currentRows: [HoloQueryRow]
         switch currentRowsOutcome {
@@ -343,8 +343,7 @@ private extension HoloHealthTool {
         case .unavailable(let error):
             return unavailableResult(request, error: error)
         }
-        let filtered = records
-            .filter { $0.value > 0 }
+        let filtered = Self.validDailyRecords(records, for: metric)
             .sorted { $0.date < $1.date }
 
         guard !filtered.isEmpty else {
@@ -632,15 +631,48 @@ private extension HoloHealthTool {
 
     func coverage(_ dates: [Date], timeRange: HoloAgentTimeRange?) -> HoloDataCoverage {
         let calendar = Calendar.current
-        let uniqueDays = Set(dates.map { calendar.startOfDay(for: $0) }).count
+        let coveredDates = Set(dates.map { calendar.startOfDay(for: $0) })
+        let uniqueDays = coveredDates.count
         let totalDays = Self.expectedDays(in: timeRange, calendar: calendar)
+        let start = timeRange?.start.map { calendar.startOfDay(for: $0) }
+            ?? dates.min().map { calendar.startOfDay(for: $0) }
+        let missingRanges = start.map { start in
+            (0..<totalDays).compactMap { offset -> HoloAgentTimeRange? in
+                guard let day = calendar.date(byAdding: .day, value: offset, to: start),
+                      !coveredDates.contains(day),
+                      let next = calendar.date(byAdding: .day, value: 1, to: day) else { return nil }
+                return HoloAgentTimeRange(label: "缺失日期", start: day, end: next)
+            }
+        } ?? []
+        let actualStart = dates.min()
+        let actualEnd = dates.max().map { $0.addingTimeInterval(1) }
         return HoloDataCoverage(
             coveredDays: uniqueDays,
             totalDays: totalDays,
             coverageRatio: totalDays > 0 ? Double(uniqueDays) / Double(totalDays) : nil,
-            missingRanges: [],
-            note: "已读取 \(uniqueDays)/\(totalDays) 天健康数据"
+            missingRanges: missingRanges,
+            note: "已读取 \(uniqueDays)/\(totalDays) 天健康数据",
+            requestedRange: timeRange,
+            actualRange: actualStart.map { HoloAgentTimeRange(label: "实际覆盖", start: $0, end: actualEnd) },
+            returnedRecords: dates.count,
+            totalRecords: dates.count,
+            isTruncated: false
         )
+    }
+
+    static func validDailyRecords(
+        _ records: [HoloHealthDailyRecord],
+        for metric: HoloHealthMetricKind
+    ) -> [HoloHealthDailyRecord] {
+        records.filter { record in
+            guard record.value.isFinite else { return false }
+            switch metric {
+            case .sleep:
+                return record.value > 0
+            case .steps, .stand, .activity:
+                return record.value >= 0
+            }
+        }
     }
 
     static func expectedDays(in timeRange: HoloAgentTimeRange?, calendar: Calendar) -> Int {

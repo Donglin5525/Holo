@@ -10,6 +10,94 @@
 import Foundation
 
 struct HoloDefaultCrossDomainDataSource: HoloCrossDomainDataSource, HoloDynamicRowDataSource {
+    func rowsRead(source: String, timeRange: HoloAgentTimeRange?) async -> HoloDataSourceRead<[HoloQueryRow]> {
+        let healthKind: HoloHealthMetricKind? = switch source {
+        case "health.steps": .steps
+        case "health.sleep": .sleep
+        case "health.stand": .stand
+        case "health.activity": .activity
+        default: nil
+        }
+        if let kind = healthKind {
+            switch await HoloDefaultHealthDataSource().dailyRecordsStrict(for: kind, timeRange: timeRange) {
+            case .value(let records):
+                let valid = records.filter { record in
+                    record.value.isFinite && (kind == .sleep ? record.value > 0 : record.value >= 0)
+                }
+                return .loaded(valid.map { record in
+                    HoloQueryRow(
+                        id: "\(kind.rawValue)-\(Int(record.date.timeIntervalSince1970))",
+                        occurredAt: record.date,
+                        fields: ["date": .date(record.date), "value": .number(record.value)],
+                        excerpt: "\(kind.rawValue) \(record.value)"
+                    )
+                })
+            case .noData:
+                return .loaded([])
+            case .waitingForUnlock:
+                return HoloDataSourceRead(value: [], status: .waitingForUnlock, warning: "设备解锁后才能读取健康数据")
+            case .unavailable(let error):
+                return HoloDataSourceRead(value: [], status: .unavailable, warning: "健康数据不可用：\(error)")
+            }
+        }
+        if source == "memory.entries" {
+            let dataSource = await MainActor.run { HoloDefaultMemoryDataSource() }
+            let read = await dataSource.queryRecordsRead(question: "查询近期与长期记忆", currentStateOnly: false)
+            let rows = read.value.compactMap { record -> HoloQueryRow? in
+                guard let date = record.occurredAt, Self.contains(date, in: timeRange) else { return nil }
+                return HoloQueryRow(
+                    id: record.id, occurredAt: date,
+                    fields: [
+                        "date": .date(date), "kind": .text(record.persistenceClass.rawValue),
+                        "title": .text(record.title), "summary": .text(record.summary), "value": .number(1)
+                    ],
+                    excerpt: "\(record.title)：\(record.summary)"
+                )
+            }
+            return HoloDataSourceRead(
+                value: rows, status: read.status, requestedCount: read.requestedCount,
+                returnedCount: rows.count, totalCount: read.totalCount,
+                isTruncated: read.isTruncated, warning: read.warning
+            )
+        }
+        if source == "insight.records" {
+            let read = await HoloDefaultInsightDataSource().recentInsights(limit: 50)
+            let rows = read.value.compactMap { record -> HoloQueryRow? in
+                guard Self.contains(record.generatedAt, in: timeRange) else { return nil }
+                return HoloQueryRow(
+                    id: record.id.uuidString, occurredAt: record.generatedAt,
+                    fields: [
+                        "date": .date(record.generatedAt), "periodType": .text(record.periodType),
+                        "status": .text(record.status), "title": .text(record.title),
+                        "summary": .text(record.summary), "value": .number(1)
+                    ], excerpt: "\(record.title)：\(record.summary)"
+                )
+            }
+            return HoloDataSourceRead(
+                value: rows, status: read.status, requestedCount: read.requestedCount,
+                returnedCount: rows.count, totalCount: read.totalCount,
+                isTruncated: read.isTruncated, warning: read.warning
+            )
+        }
+        if source == "conversation.metadata" {
+            let read = await HoloDefaultConversationDataSource().recentRecords(limit: 200)
+            let rows = read.value.compactMap { record -> HoloQueryRow? in
+                guard Self.contains(record.timestamp, in: timeRange) else { return nil }
+                return HoloQueryRow(
+                    id: record.id.uuidString.lowercased(), occurredAt: record.timestamp,
+                    fields: ["date": .date(record.timestamp), "role": .text(record.role), "intent": .text(record.intent ?? "unknown"), "value": .number(1)],
+                    excerpt: "\(record.role) · \(record.intent ?? "unknown")"
+                )
+            }
+            return HoloDataSourceRead(
+                value: rows, status: read.status, requestedCount: read.requestedCount,
+                returnedCount: rows.count, totalCount: read.totalCount,
+                isTruncated: read.isTruncated, warning: read.warning
+            )
+        }
+        return .loaded(await rows(source: source, timeRange: timeRange))
+    }
+
     func rows(source: String, timeRange: HoloAgentTimeRange?) async -> [HoloQueryRow] {
         let healthKind: HoloHealthMetricKind? = switch source {
         case "health.steps": .steps
@@ -21,7 +109,7 @@ struct HoloDefaultCrossDomainDataSource: HoloCrossDomainDataSource, HoloDynamicR
         if let kind = healthKind {
             return await HoloDefaultHealthDataSource()
                 .dailyRecords(for: kind, timeRange: timeRange)
-                .filter { $0.value > 0 }
+                .filter { $0.value.isFinite && (kind == .sleep ? $0.value > 0 : $0.value >= 0) }
                 .map { record in
                     HoloQueryRow(
                         id: "\(kind.rawValue)-\(Int(record.date.timeIntervalSince1970))",
@@ -99,7 +187,7 @@ struct HoloDefaultCrossDomainDataSource: HoloCrossDomainDataSource, HoloDynamicR
             }
         }
         if source == "insight.records" {
-            return await HoloDefaultInsightDataSource().recentInsights(limit: 50).compactMap { record in
+            return await HoloDefaultInsightDataSource().recentInsights(limit: 50).value.compactMap { record in
                 guard Self.contains(record.generatedAt, in: timeRange) else { return nil }
                 return HoloQueryRow(
                     id: record.id.uuidString, occurredAt: record.generatedAt,
@@ -133,10 +221,10 @@ struct HoloDefaultCrossDomainDataSource: HoloCrossDomainDataSource, HoloDynamicR
             }
         }
         if source == "conversation.metadata" {
-            return await HoloDefaultConversationDataSource().recentRecords(limit: 200).compactMap { record in
+            return await HoloDefaultConversationDataSource().recentRecords(limit: 200).value.compactMap { record in
                 guard Self.contains(record.timestamp, in: timeRange) else { return nil }
                 return HoloQueryRow(
-                    id: "conversation-\(Int(record.timestamp.timeIntervalSince1970))-\(record.role)", occurredAt: record.timestamp,
+                    id: record.id.uuidString.lowercased(), occurredAt: record.timestamp,
                     fields: ["date": .date(record.timestamp), "role": .text(record.role), "intent": .text(record.intent ?? "unknown"), "value": .number(1)],
                     excerpt: "\(record.role) · \(record.intent ?? "unknown")"
                 )
@@ -262,14 +350,13 @@ extension HoloLocalAgentRuntime {
             HoloProjectTool(dataSource: HoloDefaultProjectDataSource()),
             HoloCrossDomainTool(dataSource: dynamicDataSource)
         ]
-        assert(
-            HoloAgentToolCoverage.missingToolNames(in: productionTools).isEmpty,
-            "生产 Agent 工具注册不完整"
-        )
-        assert(
-            HoloAgentToolCoverage.missingDynamicDatasets(in: productionTools).isEmpty,
-            "生产 Agent 动态数据目录注册不完整"
-        )
+        let missingTools = HoloAgentToolCoverage.missingToolNames(in: productionTools)
+        let missingDatasets = HoloAgentToolCoverage.missingDynamicDatasets(in: productionTools)
+        guard missingTools.isEmpty, missingDatasets.isEmpty else {
+            preconditionFailure(
+                "生产 Agent 工具注册不完整：tools=\(missingTools), datasets=\(missingDatasets)"
+            )
+        }
         let registry = HoloToolRegistry(tools: productionTools)
         let toolExecutor = HoloToolExecutor(registry: registry)
         return HoloLocalAgentRuntime(

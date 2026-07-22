@@ -85,7 +85,17 @@ struct LockedHealthDataSource: HoloHealthDataSource {
     }
 }
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        try await HoloHealthToolTests.main()
+    }
+}
+#endif
 struct HoloHealthToolTests {
 
     static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -107,6 +117,7 @@ struct HoloHealthToolTests {
         try test动态查询拒绝未注册字段和超长范围()
         try await test锁屏返回DEVICE_LOCKED不产生伪零数据()
         try await test权限拒绝返回HEALTH_PERMISSION_DENIED不可恢复()
+        try await test零步数是有效观测而零睡眠仍视为缺失()
         print("HoloHealthToolTests passed")
     }
 
@@ -156,6 +167,20 @@ struct HoloHealthToolTests {
         values.enumerated().map { index, value in
             HoloHealthDailyRecord(date: date(index + 1), value: value)
         }
+    }
+
+    private static func test零步数是有效观测而零睡眠仍视为缺失() async throws {
+        let steps = try await HoloHealthTool(
+            dataSource: MockHealthDataSource(daily: [.steps: records([0, 100])])
+        ).execute(makeRequest(query: "steps_summary"))
+        expect(steps.status == .success, "零步数应作为有效观测参与统计")
+        expect(metric("health.steps.average", in: steps) == 50, "零步数参与后平均值应为 50")
+        expect(steps.events.contains { $0.metricValue == 0 }, "应保留零步数证据")
+
+        let sleep = try await HoloHealthTool(
+            dataSource: MockHealthDataSource(daily: [.sleep: records([0])])
+        ).execute(makeRequest(query: "sleep_summary"))
+        expect(sleep.status == .empty, "零小时睡眠记录应视为缺失而非真实睡眠")
     }
 
     private static func metric(_ key: String, in result: HoloDataToolResult) -> Double? {
