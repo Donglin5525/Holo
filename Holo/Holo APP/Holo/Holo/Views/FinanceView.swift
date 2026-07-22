@@ -2,7 +2,7 @@
 //  FinanceView.swift
 //  Holo
 //
-//  记账功能首页 - 包含底部导航栏（统计/账本/设置）
+//  记账功能首页 - 包含底部导航栏（账本/统计/固定支出/设置）
 //  从首页 fullScreenCover 进入，顶部有返回按钮
 //
 
@@ -16,16 +16,19 @@ import AppKit
 // MARK: - Finance Tab 枚举
 
 /// 财务模块底部 Tab 枚举
+/// 顺序：账本（默认落地）→ 统计 → 固定支出 → 设置
 enum FinanceTab: String, CaseIterable {
-    case analysis = "统计"
     case ledger = "账本"
+    case analysis = "统计"
+    case spending = "固定支出"
     case settings = "设置"
-    
+
     /// 对应的 SF Symbol 图标名
     var icon: String {
         switch self {
-        case .analysis: return "chart.pie.fill"
         case .ledger: return "wallet.pass.fill"
+        case .analysis: return "chart.pie.fill"
+        case .spending: return "repeat"
         case .settings: return "gearshape.fill"
         }
     }
@@ -34,7 +37,7 @@ enum FinanceTab: String, CaseIterable {
 // MARK: - FinanceView
 
 /// 记账功能首页视图（容器）
-/// 管理三个子 Tab：统计分析、账本列表、设置
+/// 管理四个子 Tab：账本、统计分析、固定支出、设置
 /// 支持从左边缘向右滑动返回首页
 struct FinanceView: View {
 
@@ -90,6 +93,8 @@ struct FinanceView: View {
                             onBack: { dismiss() },
                             showAddTransaction: $showAddTransaction
                         )
+                    case .spending:
+                        SpendingProjectsView(onBack: { dismiss() })
                     case .settings:
                         FinanceSettingsView(onBack: { dismiss() })
                     }
@@ -104,6 +109,11 @@ struct FinanceView: View {
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if evidenceReviewDeepLink == nil {
                 financeTabBarOnly
+            }
+        }
+        .overlay(alignment: .bottomTrailing) {
+            if evidenceReviewDeepLink == nil {
+                addTransactionFAB
             }
         }
         .sheet(isPresented: $showAddTransaction) {
@@ -128,16 +138,15 @@ struct FinanceView: View {
     }
     
     // MARK: - 底部 Tab 栏（fixed bottom-0 left-0 w-full，无浮动圆角）
-    
-    /// 底部导航栏：吸底全宽，中间为「账本」与「+」合一
+
+    /// 底部导航栏：吸底全宽，4 个平等 Tab（账本/统计/固定支出/设置）
     private var financeTabBarOnly: some View {
         GeometryReader { geo in
             let bottomInset = max(geo.safeAreaInsets.bottom, 20)
             HStack(spacing: 0) {
-                financeTabButton(.analysis)
-                // 中间：在记账页展示 +，在统计/设置页展示账本
-                financeCenterTabButton
-                financeTabButton(.settings)
+                ForEach(FinanceTab.allCases, id: \.self) { tab in
+                    financeTabButton(tab)
+                }
             }
             .frame(maxWidth: .infinity)
             .padding(.top, 8)
@@ -153,49 +162,26 @@ struct FinanceView: View {
         .background(Color.holoCardBackground.ignoresSafeArea(edges: .bottom))
         .zIndex(40)
     }
-    
-    /// 中间 Tab：在账本页显示 +（记一笔），在统计/设置页显示账本（切回账本）
-    private var financeCenterTabButton: some View {
+
+    /// 悬浮「记一笔」按钮：浮在 Tab 栏上方右下角，任意页面均可触发
+    private var addTransactionFAB: some View {
         Button {
-            withAnimation(.easeInOut(duration: 0.15)) {
-                if selectedTab == .ledger {
-                    showAddTransaction = true
-                } else {
-                    selectedTab = .ledger
-                }
-            }
+            showAddTransaction = true
         } label: {
-            VStack(spacing: 4) {
-                Circle()
-                    .fill(selectedTab == .ledger ? Color.holoPrimary : Color.clear)
-                    .frame(width: 4, height: 4)
-                
-                Group {
-                    if selectedTab == .ledger {
-                        Image(systemName: "plus")
-                            .font(.system(size: 24, weight: .semibold))
-                            .foregroundColor(.white)
-                            .frame(width: 44, height: 44)
-                            .background(Color.holoPrimary)
-                            .clipShape(Circle())
-                    } else {
-                        Image(systemName: FinanceTab.ledger.icon)
-                            .font(.system(size: 22, weight: .medium))
-                            .foregroundColor(.holoTextSecondary)
-                    }
-                }
-                
-                Text(selectedTab == .ledger ? "记一笔" : "账本")
-                    .font(.holoTinyLabel)
-                    .fontWeight(selectedTab == .ledger ? .bold : .medium)
-                    .foregroundColor(selectedTab == .ledger ? .holoPrimary : .holoTextSecondary)
-            }
-            .frame(maxWidth: .infinity)
+            Image(systemName: "plus")
+                .font(.system(size: 24, weight: .semibold))
+                .foregroundColor(.white)
+                .frame(width: 52, height: 52)
+                .background(Color.holoPrimary)
+                .clipShape(Circle())
+                .shadow(color: Color.holoPrimary.opacity(0.4), radius: 10, x: 0, y: 4)
         }
         .buttonStyle(PlainButtonStyle())
+        .padding(.trailing, 20)
+        .padding(.bottom, 104) // 抬高到 88pt Tab 栏之上
     }
-    
-    /// 单个 Tab 按钮（统计 / 设置）
+
+    /// 单个 Tab 按钮
     private func financeTabButton(_ tab: FinanceTab) -> some View {
         Button {
             withAnimation(.easeInOut(duration: 0.15)) {
@@ -206,11 +192,11 @@ struct FinanceView: View {
                 Circle()
                     .fill(selectedTab == tab ? Color.holoPrimary : Color.clear)
                     .frame(width: 4, height: 4)
-                
+
                 Image(systemName: tab.icon)
                     .font(.system(size: 22, weight: .medium))
                     .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)
-                
+
                 Text(tab.rawValue)
                     .font(.holoTinyLabel)
                     .fontWeight(selectedTab == tab ? .bold : .medium)
