@@ -17,7 +17,7 @@ const PROMPT_VERSIONS = {
   health_insight_generation: 2,
   thought_organization: 3,
   thought_tag_convergence: 2,
-  agent_loop: 11,
+  agent_loop: 14,
   memory_domain_extraction: 2,
   memory_cross_domain_fusion: 2,
 };
@@ -27,6 +27,7 @@ const PROMPT_CONTRACT_APPENDICES = {
   agent_loop: [
     defaultPrompts._agent_loop_v10_contract,
     defaultPrompts._agent_loop_v11_contract,
+    defaultPrompts._agent_loop_v14_contract,
   ],
   memory_insight_generation: [defaultPrompts._memory_semantic_v2_contract],
   memory_domain_extraction: [defaultPrompts._memory_domain_quality_v2_contract],

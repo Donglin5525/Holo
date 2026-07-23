@@ -643,7 +643,7 @@ test("agent_loop prompt 存在并包含 Agent Loop 核心约束", async () => {
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  assert.equal(prompt.version, 11);
+  assert.equal(prompt.version, 14);
   assert.match(prompt.content, /need_tools/);
   assert.match(prompt.content, /need_more_analysis/);
   assert.match(prompt.content, /final_claims/);
@@ -674,6 +674,7 @@ test("agent_loop prompt 存在并包含 Agent Loop 核心约束", async () => {
   assert.match(prompt.content, /不要输出 suggestion claim/);
   assert.match(prompt.content, /HOLO_AGENT_READABLE_ANSWER_V10/);
   assert.match(prompt.content, /HOLO_AGENT_TOOL_REQUEST_V11/);
+  assert.match(prompt.content, /HOLO_AGENT_FINAL_CLAIMS_V14/);
   assert.match(prompt.content, /dynamicPlan 和 crossDomainPlan 必须与 parameters 同级/);
   assert.match(
     prompt.content,
@@ -685,6 +686,9 @@ test("agent_loop prompt 存在并包含 Agent Loop 核心约束", async () => {
   assert.match(prompt.content, /观察 01/);
   assert.match(prompt.content, /问步数不能混入睡眠/);
   assert.match(prompt.content, /不要重复同一句结论/);
+  assert.match(prompt.content, /final_claims 必须包含至少一条 claim/);
+  assert.match(prompt.content, /"metricKey":"string","value":0,"baselineValue":null/);
+  assert.match(prompt.content, /HOLO_AGENT_RESPONSE_RECOVERY_V1/);
 });
 
 test("memory insight prompt 强制输出稳定主题键和四字段候选", async () => {
