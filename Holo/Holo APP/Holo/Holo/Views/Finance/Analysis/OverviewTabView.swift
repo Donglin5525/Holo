@@ -467,7 +467,7 @@ struct SpendingProjectOneOffEditorSheet: View {
             return
         }
         do {
-            try SpendingProjectRepository.shared.updateOneOffProject(project, name: name, amount: value, purchaseDate: purchaseDate, category: selectedCategory)
+            try SpendingProjectRepository.shared.updateOneOffProject(project, name: name, amount: value, purchaseDate: purchaseDate, category: selectedCategory, account: nil)
             onSaved()
             dismiss()
         } catch {

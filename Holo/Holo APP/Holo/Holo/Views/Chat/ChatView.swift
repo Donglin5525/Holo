@@ -293,14 +293,17 @@ struct ChatView: View {
                 statusBanner("AI 服务连接较慢，已先放开聊天交互")
             }
 
-            // 消息列表
-            messageList
-
-            // 能力入口只在空会话展示，进入对话后让内容与输入框保持安静。
-            if viewModel.messages.isEmpty {
-                QuickActionBar(viewModel: viewModel)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
+            // 消息列表 / 空状态卡片：仅在历史消息加载完成后才显示空状态，
+            // 避免进入时「先显示空状态再突然消失」的闪烁。
+            if viewModel.isTrulyEmptyConversation {
+                ChatEmptyStateView(viewModel: viewModel)
+                    .transition(.opacity)
+            } else {
+                messageList
             }
+
+            // 输入框上方常驻能力行：对话全程可见
+            QuickActionBar(viewModel: viewModel)
 
             // 输入栏
             ChatInputView(
@@ -310,7 +313,7 @@ struct ChatView: View {
                 }
             )
         }
-        .animation(.easeInOut(duration: 0.2), value: viewModel.messages.isEmpty)
+        .animation(.easeInOut(duration: 0.2), value: viewModel.isTrulyEmptyConversation)
     }
 
     private func statusBanner(_ text: String) -> some View {
@@ -599,8 +602,12 @@ struct ChatView: View {
             }
         #endif
         case .editTransaction(let transaction):
-            AddTransactionSheet(editingTransaction: transaction) { _ in
-                ChatMessageRepository.shared.refreshTransactionCard(transactionId: transaction.id)
+            let originalTransactionID = transaction.id
+            AddTransactionSheet(editingTransaction: transaction) { savedTransaction in
+                // 回调执行时原交易可能已被转换/删除，不能再读取已删除的 Core Data 对象。
+                ChatMessageRepository.shared.refreshTransactionCard(
+                    transactionId: savedTransaction?.id ?? originalTransactionID
+                )
             }
         case .analysisDetail(let message):
             AnalysisDetailSheet(message: message)

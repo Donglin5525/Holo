@@ -4,6 +4,25 @@
 
 ---
 
+## [2026-07-24] 重构 HoloAI 空会话入口：空状态卡片 + 输入框上方常驻能力行
+
+HoloAI 首次进入主界面时，顶部会先出现一条横向胶囊 bar（使用指南、今日状态等），随后突然消失。根因是该 bar（能力启动台 QuickActionBar）只在 `messages.isEmpty` 时显示——进入瞬间消息列表是「假空」（还没加载完），后台异步加载历史消息完成后 messages 变非空，bar 随即被带动画移除，老用户几乎必现闪烁。同时 capabilities 一直用空 context 初始化，Provider 里基于 onboarding/数据的动态分支从未生效（死代码）。
+
+### 重构
+- **消除闪烁**：新增「真·空会话」判断 `isTrulyEmptyConversation = hasLoadedMessages && messages.isEmpty`，历史消息加载完成前不渲染任何空状态 UI，彻底告别「先显示后消失」。
+- **空状态卡片**：新建 `ChatEmptyStateView`，居中欢迎语 + 纵向建议问题卡片，替代原横向胶囊 bar。内容按 onboarding 状态动态区分新老用户（新用户突出「使用指南」，老用户给数据类建议），进入对话后自然消失。
+- **常驻能力行**：`QuickActionBar` 从「空会话专属」改为输入框上方常驻，对话全程可见；精简为 3 个高频能力（今日状态 / 最近分析 / 规划目标）。
+- **接通动态 context**：新增 `refreshCapabilities()`，用真实 onboarding 状态（`LightweightOnboardingSettings.isCompleted`）构建 context，在 setup 完成与消息加载后各刷新一次，让 isEmphasized/isEnabled 等动态样式真正生效。
+
+### 附带修复
+- `OverviewTabView` 编辑一次性购买时调用 `updateOneOffProject` 漏传 `account:` 参数（来自 commit 3333b02 的遗留编译错误），补 `account: nil`。
+
+### 性质
+- 纯前端 UI 重构，不涉及后端接口 / Prompt / 数据契约，无需后端发版。
+
+### 验证
+- Holo Debug 构建编译通过（iPhone 17 Pro / iOS 26.3 模拟器）。
+
 ## [2026-07-23] 修复 Agent 深度分析频繁超时报「解析失败，重试耗尽」
 
 问 AI 深度分析问题时经常报「解析失败，重试耗尽」。根因是 agent_loop 采用非流式请求，deepseek 生成期间连接上长时间无数据传输（可达 15-30 秒），被中国 ECS 到上游模型 API 之间的网络设备在 30 秒空闲后切断，后端返回 500。该问题在对比类问题（输出更长）上尤为频繁。

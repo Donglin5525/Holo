@@ -2,8 +2,8 @@
 //  QuickActionBar.swift
 //  Holo
 //
-//  能力启动台
-//  替代原有 CRUD 快捷按钮，展示高价值 AI 能力入口
+//  常驻能力行
+//  输入框上方横向滚动的 AI 能力入口，对话全程可见。
 //
 
 import SwiftUI
@@ -15,7 +15,7 @@ struct QuickActionBar: View {
     var body: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(viewModel.capabilities) { capability in
+                ForEach(viewModel.persistentCapabilities) { capability in
                     Button {
                         viewModel.handleCapabilityTap(capability)
                     } label: {

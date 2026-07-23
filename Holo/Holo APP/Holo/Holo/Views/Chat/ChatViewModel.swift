@@ -60,7 +60,35 @@ final class ChatViewModel: ObservableObject {
 
     // MARK: - Capability Launchpad
 
-    @Published var capabilities: [HoloAICapability] = HoloAICapabilityProvider.visibleCapabilities(context: .empty)
+    /// 空状态卡片使用的能力入口（含 onboarding 引导等，按用户状态动态生成）。
+    @Published private(set) var emptyStateCapabilities: [HoloAICapability] = []
+
+    /// 输入框上方常驻能力行使用的能力入口（今日状态/最近分析/规划目标等常驻项）。
+    @Published private(set) var persistentCapabilities: [HoloAICapability] = HoloAICapabilityProvider.persistentCapabilities()
+
+    /// 是否处于真正的空会话（历史消息加载完成且无消息）。
+    /// 用于区分「加载中的假空」与「加载完成的真空」，避免空状态 UI 闪烁出现又消失。
+    var isTrulyEmptyConversation: Bool {
+        hasLoadedMessages && messages.isEmpty
+    }
+
+    /// 根据当前用户状态刷新能力入口（onboarding、数据充足度、记忆状态等）。
+    /// 在 setup 完成、消息加载完成后调用，让 Provider 的动态分支真正生效。
+    private func refreshCapabilities() {
+        let context = HoloAICapabilityProviderContext(
+            hasSufficientData: hasSufficientDataForCapabilities,
+            hasLongTermMemories: hasLongTermMemoriesForCapabilities,
+            hasLongTermCandidates: hasLongTermCandidatesForCapabilities,
+            onboardingCompleted: LightweightOnboardingSettings.isCompleted
+        )
+        emptyStateCapabilities = HoloAICapabilityProvider.emptyStateCapabilities(context: context)
+        persistentCapabilities = HoloAICapabilityProvider.persistentCapabilities(context: context)
+    }
+
+    /// 数据/记忆状态判定（目前保守返回 false，后续可接入记忆仓库细化）。
+    private var hasSufficientDataForCapabilities: Bool { false }
+    private var hasLongTermMemoriesForCapabilities: Bool { false }
+    private var hasLongTermCandidatesForCapabilities: Bool { false }
 
     // MARK: - Goal Planning
 
@@ -102,6 +130,8 @@ final class ChatViewModel: ObservableObject {
         isLoadingConfig = false
         didTimeoutLoadingConfig = false
         hasFinishedSetup = true
+        // 初始化时按当前 onboarding 状态生成空状态卡片内容（消息加载后再刷新一次）
+        refreshCapabilities()
         logger.info("AI 已配置为 Holo 后端网关")
     }
 
@@ -120,6 +150,8 @@ final class ChatViewModel: ObservableObject {
             repo.cleanupOrphanedStreamingMessages(preserveMessageIDs: refreshedPreserved)
             self.hasLoadedMessages = true
             self.syncHasEarlierSessions()
+            // 消息加载完成后刷新能力入口（此时 isTrulyEmptyConversation 可靠）
+            self.refreshCapabilities()
             self.repositoryBootstrapTask = nil
         }
     }
