@@ -41,6 +41,79 @@ export function createOpenAICompatibleProvider(config) {
         yield decoder.decode(value, { stream: true });
       }
     },
+
+    /// 用流式从上游拉取（保持连接活跃、120s 超时），收集完整响应后拼成与非流式 complete 相同的结构返回。
+    /// 解决非流式请求因长时间无数据传输被中间网络设备在 30s 切断的问题（中国 ECS → deepseek）。
+    /// 调用方（app.js）对返回值无感——结构和 complete() 一致。
+    async completeViaStream(request) {
+      const response = await callUpstream(config, {
+        model: request.model,
+        messages: request.messages,
+        temperature: request.temperature,
+        max_tokens: request.maxTokens,
+        response_format: request.responseFormat,
+        // stream_options 让上游在最后一个 chunk 返回 usage，与非流式行为一致
+        stream: true,
+        stream_options: { include_usage: true },
+      }, request.clientSignal);
+
+      if (!response.body) {
+        throw new GatewayError("MODEL_UNAVAILABLE", "Upstream response has no body", 503);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let contentParts = [];
+      let reasoningParts = [];
+      let finishReason = null;
+      let usage = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) {
+          break;
+        }
+        buffer += decoder.decode(value, { stream: true });
+        // SSE 按 \n\n 分帧
+        const frames = buffer.split("\n\n");
+        buffer = frames.pop(); // 最后一段可能不完整，留到下次
+        for (const frame of frames) {
+          const line = frame.trim();
+          if (!line.startsWith("data:")) continue;
+          const payload = line.slice("data:".length).trim();
+          if (payload === "[DONE]") continue;
+          let parsed;
+          try { parsed = JSON.parse(payload); } catch { continue; }
+          const delta = parsed.choices?.[0]?.delta;
+          if (delta?.content) contentParts.push(delta.content);
+          if (delta?.reasoning_content) reasoningParts.push(delta.reasoning_content);
+          if (parsed.choices?.[0]?.finish_reason) {
+            finishReason = parsed.choices[0].finish_reason;
+          }
+          if (parsed.usage) {
+            usage = parsed.usage;
+          }
+        }
+      }
+
+      return {
+        choices: [{
+          index: 0,
+          message: {
+            role: "assistant",
+            content: contentParts.join(""),
+            ...(reasoningParts.length > 0 ? { reasoning_content: reasoningParts.join("") } : {}),
+          },
+          finish_reason: finishReason ?? "stop",
+        }],
+        usage: usage ?? {
+          prompt_tokens: 0,
+          completion_tokens: 0,
+          total_tokens: 0,
+        },
+      };
+    },
   };
 }
 

@@ -388,9 +388,14 @@ export function createApp(overrides = {}) {
         const deterministicIntentResult = purpose === "intent"
           ? buildDeterministicIntentCompletion(upstreamRequest.messages, route.model)
           : null;
+        // agent_loop 用流式拉取（provider 支持时），避免非流式长生成被 30s 网络空闲墙切断。
+        // 返回结构与 complete() 一致，下游（校验/幂等/日志）无感。
+        const upstreamComplete = isAgentLoop && typeof provider.completeViaStream === "function"
+          ? provider.completeViaStream.bind(provider)
+          : provider.complete.bind(provider);
         const result = deterministicIntentResult ?? (purpose === "insight"
           ? await completeInsightWithRetry(provider, upstreamRequest)
-          : await provider.complete(upstreamRequest));
+          : await upstreamComplete(upstreamRequest));
         if (purpose === "agent_loop") {
           const agentContent = result?.choices?.[0]?.message?.content;
           const agentValidation = validateAgentLoopContent(agentContent ?? "");
