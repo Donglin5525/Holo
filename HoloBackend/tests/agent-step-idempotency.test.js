@@ -34,7 +34,7 @@ const AGENT_CONTENT = JSON.stringify({
   warnings: [],
 });
 
-function makeAgentCompletion(id = "agent-completion-1") {
+function makeAgentCompletion(id = "agent-completion-1", content = AGENT_CONTENT) {
   return {
     id,
     provider: "fake",
@@ -42,7 +42,7 @@ function makeAgentCompletion(id = "agent-completion-1") {
     choices: [
       {
         index: 0,
-        message: { role: "assistant", content: AGENT_CONTENT },
+        message: { role: "assistant", content },
         finish_reason: "stop",
       },
     ],
@@ -84,6 +84,67 @@ function sendAgentStep(app, { runId, stepId, requestHash } = {}) {
     body: JSON.stringify(body),
   });
 }
+
+test("真实事故形状经过接口后返回可解码的同级 dynamicPlan", async () => {
+  const nestedPlanContent = JSON.stringify({
+    status: "need_tools",
+    reasoning: "比较本月和上月分类支出",
+    toolRequests: [{
+      id: "finance-comparison",
+      tool: "finance",
+      query: "dynamic_query",
+      parameters: {
+        dynamicPlan: {
+          source: "finance.transactions",
+          timeRange: {
+            label: "本月",
+            start: "2026-07-01",
+            end: "2026-08-01",
+          },
+          filters: [{
+            field: "type",
+            operation: "equal",
+            value: { type: "text", text: "expense" },
+          }],
+          groupBy: [{ type: "field", field: "category" }],
+          aggregations: [{
+            id: "category_amount",
+            operation: "sum",
+            field: "amount",
+            unit: "元",
+          }],
+          derivations: [],
+          limit: "3",
+        },
+        retry: 1,
+      },
+    }],
+    claims: [],
+    warnings: [],
+  });
+  const provider = {
+    async complete() {
+      return makeAgentCompletion("incident-shape", nestedPlanContent);
+    },
+  };
+  const app = createTestApp(provider);
+
+  const response = await sendAgentStep(app, {
+    runId: "incident-run",
+    stepId: "llm-1-1",
+    requestHash: "incident-hash",
+  });
+
+  assert.equal(response.status, 200);
+  const body = await response.json();
+  const content = JSON.parse(body.choices[0].message.content);
+  const request = content.toolRequests[0];
+  assert.equal(request.dynamicPlan.source, "finance.transactions");
+  assert.equal(request.dynamicPlan.timeRange, null);
+  assert.equal(request.dynamicPlan.limit, 3);
+  assert.equal(request.parameters.retry, "1");
+  assert.equal(request.parameters.dynamicPlan, undefined);
+});
 
 test("same runId+stepId+requestHash retry returns identical response, provider called once", async () => {
   let calls = 0;
