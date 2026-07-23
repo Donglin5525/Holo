@@ -61,7 +61,12 @@ fi
 # 生成可复核的发布身份。rsync 发布允许工作区存在未提交改动，因此仅记录 Git SHA 不足以
 # 证明容器实际使用了哪份代码；source digest 覆盖本次 Docker context 中的全部源码，且排除
 # 生产密钥、SQLite 与依赖目录。compose 的 environment 会覆盖 .env.production 中的陈旧值。
-HOLO_RELEASE_COMMIT="$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || printf 'unknown')"
+SERVER_GIT_COMMIT="$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || printf 'unknown')"
+HOLO_RELEASE_COMMIT="${HOLO_RELEASE_COMMIT_OVERRIDE:-$SERVER_GIT_COMMIT}"
+if ! printf '%s' "$HOLO_RELEASE_COMMIT" | grep -Eq '^[0-9a-f]{40}$'; then
+  echo "发布 commit 格式无效：必须是 40 位 Git SHA"
+  exit 1
+fi
 HOLO_RELEASE_SOURCE_DIGEST="$({
   git -C "$REPO_DIR" ls-files --cached --others --exclude-standard -- HoloBackend 2>/dev/null || true
 } | LC_ALL=C sort | while IFS= read -r relative_path; do
@@ -75,6 +80,9 @@ done | sha256sum | awk '{print $1}')"
 HOLO_RELEASE_BUILD_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 export HOLO_RELEASE_COMMIT HOLO_RELEASE_SOURCE_DIGEST HOLO_RELEASE_BUILD_TIME
 echo "    发布身份: ${HOLO_RELEASE_COMMIT:0:12} + source ${HOLO_RELEASE_SOURCE_DIGEST:0:12}"
+if [ "$HOLO_RELEASE_COMMIT" != "$SERVER_GIT_COMMIT" ]; then
+  echo "    Git 来源: 本地 rsync 发布显式传入（ECS Git HEAD=${SERVER_GIT_COMMIT:0:12}）"
+fi
 
 # 4. 构建并启动
 echo "[3/6] 构建 Docker 镜像（关闭 BuildKit，避免把本地镜像误当远端镜像拉取）..."

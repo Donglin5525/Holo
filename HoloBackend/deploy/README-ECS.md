@@ -186,3 +186,5 @@ docker compose down
 - App Attest 代码闭环已实现。生产启用前需提供 Team ID、Bundle ID、production 环境与容器内可信根证书路径，并完成 TestFlight/Release 真机灰度；之后再设置 `HOLO_ENFORCE_APP_ATTEST=true`。
 - 管理员 Secure Cookie 与登录失败限速已由应用层实现；公网仍建议叠加 Nginx IP allowlist 或 VPN。
 - 生产同步必须排除 `deploy/.env.production*` 和 `deploy/data`，避免 `--delete` 删除配置备份或数据库。
+- rsync 不会更新 ECS 的 Git HEAD；调用 `deploy.sh` 时必须传入本地已推送的完整 SHA：
+  `HOLO_RELEASE_COMMIT_OVERRIDE=<40位SHA> bash deploy.sh`，确保 `/v1/release/status` 的 commit 与发布源一致。
