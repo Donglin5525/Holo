@@ -146,6 +146,38 @@ test("真实事故形状经过接口后返回可解码的同级 dynamicPlan", as
   assert.equal(request.parameters.dynamicPlan, undefined);
 });
 
+test("坏 Agent JSON 返回可恢复继续轮且幂等重放，不提前终止旧客户端任务", async () => {
+  let calls = 0;
+  const provider = {
+    async complete() {
+      calls += 1;
+      return makeAgentCompletion("invalid-agent-json", "{\"status\":\"final_claims\"");
+    },
+  };
+  const app = createTestApp(provider);
+  const step = {
+    runId: "recovery-run",
+    stepId: "llm-2-2",
+    requestHash: "recovery-hash",
+  };
+
+  const first = await sendAgentStep(app, step);
+  assert.equal(first.status, 200);
+  const firstBody = await first.json();
+  const recovery = JSON.parse(firstBody.choices[0].message.content);
+  assert.equal(recovery.status, "need_more_analysis");
+  assert.deepEqual(recovery.toolRequests, []);
+  assert.deepEqual(recovery.claims, []);
+  assert.match(recovery.reasoning, /HOLO_AGENT_RESPONSE_RECOVERY_V1/);
+  assert.deepEqual(recovery.warnings, ["response_contract_recovery"]);
+
+  const replay = await sendAgentStep(app, step);
+  assert.equal(replay.status, 200);
+  assert.equal(replay.headers.get("x-holo-step-idempotency"), "hit");
+  assert.deepEqual(await replay.json(), firstBody);
+  assert.equal(calls, 1);
+});
+
 test("same runId+stepId+requestHash retry returns identical response, provider called once", async () => {
   let calls = 0;
   const provider = {

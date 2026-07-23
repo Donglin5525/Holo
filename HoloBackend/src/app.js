@@ -400,14 +400,32 @@ export function createApp(overrides = {}) {
           const agentContent = result?.choices?.[0]?.message?.content;
           const agentValidation = validateAgentLoopContent(agentContent ?? "");
           if (!agentValidation.valid) {
-            throw new GatewayError("INVALID_AGENT_JSON", agentValidation.error, 502);
-          }
-          if (stepIdentity && agentValidation.repairs?.length > 0) {
-            logAgentStepEvent("agent_response_repaired", stepIdentity, {
-              repairs: agentValidation.repairs,
+            // 向后兼容已发布客户端：Agent 模型偶发输出坏 JSON 时，不能用 502
+            // 提前终止整个用户任务。返回一个可解码的继续推理轮，让客户端正常
+            // 消耗本轮预算、提交新 step，并把恢复标记带给下一轮模型。
+            result.choices[0].message.content = JSON.stringify({
+              status: "need_more_analysis",
+              reasoning: [
+                "[HOLO_AGENT_RESPONSE_RECOVERY_V1]",
+                "上一轮输出未通过 Agent 协议校验；请丢弃坏结构并重新生成完整 JSON。",
+              ].join("\n"),
+              toolRequests: [],
+              claims: [],
+              warnings: ["response_contract_recovery"],
             });
+            if (stepIdentity) {
+              logAgentStepEvent("agent_response_recovery_envelope", stepIdentity, {
+                errorCode: "INVALID_AGENT_JSON",
+              });
+            }
+          } else {
+            if (stepIdentity && agentValidation.repairs?.length > 0) {
+              logAgentStepEvent("agent_response_repaired", stepIdentity, {
+                repairs: agentValidation.repairs,
+              });
+            }
+            result.choices[0].message.content = agentValidation.content;
           }
-          result.choices[0].message.content = agentValidation.content;
         }
         if (acquiredStep) {
           stepIdempotencyStore.markCompleted(
