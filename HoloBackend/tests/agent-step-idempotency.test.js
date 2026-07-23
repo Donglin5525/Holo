@@ -27,8 +27,11 @@ function makeStore(database, primaryKey = TEST_ENCRYPTION_KEY, previousKeys = []
 }
 
 const AGENT_CONTENT = JSON.stringify({
-  status: "need_tools",
-  toolRequests: [{ tool: "health", arguments: {} }],
+  status: "need_more_analysis",
+  reasoning: "测试幂等响应",
+  toolRequests: [],
+  claims: [],
+  warnings: [],
 });
 
 function makeAgentCompletion(id = "agent-completion-1") {
@@ -408,8 +411,10 @@ test("tampered ciphertext fails closed instead of becoming a cache miss", () => 
   const raw = database.db.prepare(`
     SELECT response FROM agent_step_idempotency WHERE run_id = ? AND step_id = ?
   `).get("run-tamper", "llm-3-1").response;
-  const last = raw.at(-1);
-  const tampered = `${raw.slice(0, -1)}${last === "A" ? "B" : "A"}`;
+  const parts = raw.split(":");
+  const firstTagCharacter = parts[4][0];
+  parts[4] = `${firstTagCharacter === "A" ? "B" : "A"}${parts[4].slice(1)}`;
+  const tampered = parts.join(":");
   database.db.prepare(`
     UPDATE agent_step_idempotency SET response = ? WHERE run_id = ? AND step_id = ?
   `).run(tampered, "run-tamper", "llm-3-1");

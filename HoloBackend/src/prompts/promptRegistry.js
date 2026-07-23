@@ -17,14 +17,17 @@ const PROMPT_VERSIONS = {
   health_insight_generation: 2,
   thought_organization: 3,
   thought_tag_convergence: 2,
-  agent_loop: 10,
+  agent_loop: 11,
   memory_domain_extraction: 2,
   memory_cross_domain_fusion: 2,
 };
 const PROMPT_CONTRACT_APPENDICES = {
   system_prompt: [defaultPrompts._consumer_readable_answer_v1_contract],
   analysis_prompt: [defaultPrompts._consumer_readable_answer_v1_contract],
-  agent_loop: [defaultPrompts._agent_loop_v10_contract],
+  agent_loop: [
+    defaultPrompts._agent_loop_v10_contract,
+    defaultPrompts._agent_loop_v11_contract,
+  ],
   memory_insight_generation: [defaultPrompts._memory_semantic_v2_contract],
   memory_domain_extraction: [defaultPrompts._memory_domain_quality_v2_contract],
   memory_cross_domain_fusion: [defaultPrompts._memory_cross_domain_quality_v2_contract],
@@ -53,6 +56,12 @@ let _db = null;
 function applyPromptContract(type, content) {
   if (!content) return content;
   let normalizedContent = content;
+  if (type === "agent_loop") {
+    normalizedContent = normalizedContent.replace(
+      '{"status":"need_tools | need_more_analysis | final_claims","reasoning":"string","toolRequests":[{"id":"string","tool":"string","query":"string","parameters":{}}],',
+      '{"status":"need_tools | need_more_analysis | final_claims","reasoning":"string","toolRequests":[{"id":"string","tool":"string","query":"string","timeRange":null,"baseline":null,"requiredMetrics":[],"parameters":{},"dynamicPlan":null,"crossDomainPlan":null}],'
+    );
+  }
   if (type === "memory_insight_generation") {
     normalizedContent = normalizedContent
       .replaceAll("memoryCandidate 包含 3 个字段：", "memoryCandidate 包含 4 个字段：")

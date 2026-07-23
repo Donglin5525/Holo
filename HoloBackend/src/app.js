@@ -402,6 +402,11 @@ export function createApp(overrides = {}) {
           if (!agentValidation.valid) {
             throw new GatewayError("INVALID_AGENT_JSON", agentValidation.error, 502);
           }
+          if (stepIdentity && agentValidation.repairs?.length > 0) {
+            logAgentStepEvent("agent_response_repaired", stepIdentity, {
+              repairs: agentValidation.repairs,
+            });
+          }
           result.choices[0].message.content = agentValidation.content;
         }
         if (acquiredStep) {

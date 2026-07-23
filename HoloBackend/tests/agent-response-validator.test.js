@@ -101,3 +101,77 @@ test("agent_loop 默认输出预算足够复杂 Agent JSON", () => {
     `agent_loop maxTokens should support complex Agent JSON, got ${config.routes.agent_loop.maxTokens}`
   );
 });
+
+test("线上故障回归：parameters 内嵌 dynamicPlan 会提升为同级并规范化", () => {
+  const result = validateAgentLoopContent(JSON.stringify({
+    status: "need_tools",
+    reasoning: "比较本月和上月分类支出",
+    toolRequests: [{
+      id: "finance-comparison",
+      tool: "finance",
+      query: "dynamic_query",
+      parameters: {
+        dynamicPlan: {
+          source: "finance.transactions",
+          timeRange: {
+            label: "本月",
+            start: "2026-07-01",
+            end: "2026-08-01",
+          },
+          filters: [{
+            field: "type",
+            operation: "equal",
+            value: { type: "text", text: "expense" },
+          }],
+          groupBy: [{ type: "field", field: "category" }],
+          aggregations: [{
+            id: "category_amount",
+            operation: "sum",
+            field: "amount",
+            unit: "元",
+          }],
+          derivations: [{
+            id: "category_growth",
+            operation: "percentage_change",
+            metricID: "category_amount",
+            unit: "比例",
+          }],
+          sort: { metricID: "category_growth", direction: "desc" },
+          limit: "3",
+          evidenceLimit: "10",
+        },
+        retry: 1,
+      },
+    }],
+    claims: [],
+    warnings: [],
+  }));
+
+  assert.equal(result.valid, true);
+  assert.equal(result.parsed.toolRequests[0].dynamicPlan.source, "finance.transactions");
+  assert.equal(result.parsed.toolRequests[0].dynamicPlan.derivations[0].operation, "percentageChange");
+  assert.equal(result.parsed.toolRequests[0].dynamicPlan.sort.direction, "descending");
+  assert.equal(result.parsed.toolRequests[0].dynamicPlan.limit, 3);
+  assert.equal(result.parsed.toolRequests[0].dynamicPlan.timeRange, null);
+  assert.equal(result.parsed.toolRequests[0].parameters.retry, "1");
+  assert.equal(result.parsed.toolRequests[0].parameters.dynamicPlan, undefined);
+  assert.ok(result.repairs.includes("dynamicPlan_promoted_from_parameters"));
+});
+
+test("dynamic_query 缺少可解码的同级 dynamicPlan 必须拒绝，不能返回 200", () => {
+  const result = validateAgentLoopContent(JSON.stringify({
+    status: "need_tools",
+    reasoning: "需要动态查询",
+    toolRequests: [{
+      id: "finance-comparison",
+      tool: "finance",
+      query: "dynamic_query",
+      parameters: {},
+    }],
+    claims: [],
+    warnings: [],
+  }));
+
+  assert.equal(result.valid, false);
+  assert.match(result.error, /dynamicPlan/);
+});
