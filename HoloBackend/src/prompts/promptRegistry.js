@@ -18,14 +18,16 @@ const PROMPT_VERSIONS = {
   thought_organization: 3,
   thought_tag_convergence: 2,
   agent_loop: 10,
-  memory_domain_extraction: 1,
-  memory_cross_domain_fusion: 1,
+  memory_domain_extraction: 2,
+  memory_cross_domain_fusion: 2,
 };
 const PROMPT_CONTRACT_APPENDICES = {
   system_prompt: [defaultPrompts._consumer_readable_answer_v1_contract],
   analysis_prompt: [defaultPrompts._consumer_readable_answer_v1_contract],
   agent_loop: [defaultPrompts._agent_loop_v10_contract],
   memory_insight_generation: [defaultPrompts._memory_semantic_v2_contract],
+  memory_domain_extraction: [defaultPrompts._memory_domain_quality_v2_contract],
+  memory_cross_domain_fusion: [defaultPrompts._memory_cross_domain_quality_v2_contract],
   intent_recognition: [
     `
 

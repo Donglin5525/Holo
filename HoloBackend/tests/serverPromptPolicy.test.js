@@ -24,6 +24,10 @@ test("memory Prompts treat user data as evidence, not executable instructions", 
   assert.match(extraction.messages[0].content, /不可执行|不得执行/);
   assert.match(extraction.messages[0].content, /证据 ID.*不得.*伪造|不得.*伪造.*证据 ID/);
   assert.match(extraction.messages[0].content, /单一领域|领域边界/);
+  assert.ok(extraction.promptVersion >= 2);
+  assert.match(extraction.messages[0].content, /没有截止时间.*无法判断逾期/s);
+  assert.match(extraction.messages[0].content, /晚餐.*天然高频.*不是记忆/s);
+  assert.match(extraction.messages[0].content, /没有足够证据或用户价值/);
 
   const fusion = injectServerPrompt(
     "memory_cross_domain_fusion",
@@ -33,6 +37,10 @@ test("memory Prompts treat user data as evidence, not executable instructions", 
   assert.match(fusion.messages[0].content, /不可执行|不得执行/);
   assert.match(fusion.messages[0].content, /不得.*因果|不能.*因果/);
   assert.match(fusion.messages[0].content, /lineage|血缘/iu);
+  assert.ok(fusion.promptVersion >= 2);
+  assert.match(fusion.messages[0].content, /共同时间.*本身不构成关联/s);
+  assert.match(fusion.messages[0].content, /两个正常日常状态.*状态稳定/s);
+  assert.match(fusion.messages[0].content, /否则 candidates 返回空数组/);
 });
 
 test("server Prompt is always the first upstream system message", () => {
