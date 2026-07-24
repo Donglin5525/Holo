@@ -63,6 +63,13 @@ nonisolated struct HoloMetric: Codable, Equatable, Sendable {
 nonisolated enum HoloMetricSemanticCatalog {
 
     static func title(for metricKey: String) -> String {
+        title(for: metricKey, comparison: nil)
+    }
+
+    static func title(for metricKey: String, comparison: String?) -> String {
+        if let dynamicTitle = dynamicTitle(for: metricKey, comparison: comparison) {
+            return dynamicTitle
+        }
         switch metricKey {
         case "health.steps.average": return "平均步数"
         case "health.steps.goal_met_days": return "达标情况"
@@ -175,6 +182,14 @@ nonisolated enum HoloMetricSemanticCatalog {
         comparison: String? = nil
     ) -> String? {
         guard let value else { return nil }
+        if let dynamicSentence = dynamicSentence(
+            metricKey: metricKey,
+            value: value,
+            unit: unit,
+            comparison: comparison
+        ) {
+            return dynamicSentence
+        }
         let valueText = formattedNumber(value, metricKey: metricKey, unit: unit)
         switch metricKey {
         case "health.steps.average": return "平均每天 \(valueText) 步"
@@ -200,7 +215,7 @@ nonisolated enum HoloMetricSemanticCatalog {
     }
 
     static func containsInternalToken(_ text: String) -> Bool {
-        if text.contains(" = ") || text.contains("_") { return true }
+        if text.contains(" = ") || text.contains("_") || text.contains("计算结果") { return true }
         let prefixes = [
             "health.", "finance.", "habit.", "task.", "goal.", "thought.",
             "memory.", "insight.", "profile.", "conversation.", "dynamic."
@@ -239,6 +254,112 @@ nonisolated enum HoloMetricSemanticCatalog {
         if normalized.contains("rate") || normalized.contains("ratio") { return "占比" }
         if normalized.contains("trend") || normalized.contains("change") { return "变化趋势" }
         return "计算结果"
+    }
+
+    private static func dynamicTitle(for metricKey: String, comparison: String?) -> String? {
+        let normalized = metricKey.lowercased()
+        guard normalized.hasPrefix("dynamic.") else { return nil }
+        let subject = dynamicGroupLabel(metricKey: metricKey, comparison: comparison)
+
+        if normalized.hasPrefix("dynamic.finance") {
+            if isPercentageChangeMetric(normalized) {
+                return subject.map { "\($0)支出增幅" } ?? "分类支出增幅"
+            }
+            if isDifferenceMetric(normalized) {
+                return subject.map { "\($0)支出变化" } ?? "分类支出变化"
+            }
+            if normalized.contains("amount") || normalized.contains("spending") {
+                return subject.map { "\($0)支出" } ?? "支出金额"
+            }
+        }
+        return nil
+    }
+
+    private static func dynamicSentence(
+        metricKey: String,
+        value: Double,
+        unit: String?,
+        comparison: String?
+    ) -> String? {
+        let normalized = metricKey.lowercased()
+        guard normalized.hasPrefix("dynamic.") else { return nil }
+        let subject = dynamicGroupLabel(metricKey: metricKey, comparison: comparison)
+
+        if normalized.hasPrefix("dynamic.finance") {
+            if isPercentageChangeMetric(normalized) {
+                let percent = abs(value) <= 1.000_001 ? value * 100 : value
+                let amount = formattedNumber(abs(percent), metricKey: metricKey, unit: "%")
+                let prefix = subject.map { "\($0)支出" } ?? "该项支出"
+                if percent > 0 { return "\(prefix)相比上期增加 \(amount)%" }
+                if percent < 0 { return "\(prefix)相比上期减少 \(amount)%" }
+                return "\(prefix)与上期基本持平"
+            }
+
+            if isDifferenceMetric(normalized) {
+                if unit == "比例" || unit == "%" {
+                    let percent = abs(value) <= 1.000_001 ? value * 100 : value
+                    let amount = formattedNumber(abs(percent), metricKey: metricKey, unit: "%")
+                    let prefix = subject.map { "\($0)支出" } ?? "该项支出"
+                    if percent > 0 { return "\(prefix)相比上期增加 \(amount)%" }
+                    if percent < 0 { return "\(prefix)相比上期减少 \(amount)%" }
+                    return "\(prefix)与上期基本持平"
+                }
+                let amount = formattedNumber(abs(value), metricKey: metricKey, unit: unit)
+                let resolvedUnit = unit?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                let prefix = subject.map { "\($0)支出" } ?? "该项支出"
+                if value > 0 { return "\(prefix)相比上期多 \(amount)\(resolvedUnit)" }
+                if value < 0 { return "\(prefix)相比上期少 \(amount)\(resolvedUnit)" }
+                return "\(prefix)与上期持平"
+            }
+
+            if normalized.contains("share") ||
+                normalized.contains("ratio") ||
+                normalized.contains("rate") ||
+                unit == "比例" ||
+                unit == "%" {
+                let percent = abs(value) <= 1.000_001 ? value * 100 : value
+                let amount = formattedNumber(percent, metricKey: metricKey, unit: "%")
+                return "\(subject ?? "该分类")支出占比 \(amount)%"
+            }
+
+            if normalized.contains("amount") || normalized.contains("spending") {
+                let amount = formattedNumber(value, metricKey: metricKey, unit: unit)
+                let resolvedUnit = unit?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+                return "\(subject ?? "该分类")支出 \(amount)\(resolvedUnit)"
+            }
+        }
+        return nil
+    }
+
+    private static func isPercentageChangeMetric(_ normalizedMetricKey: String) -> Bool {
+        normalizedMetricKey.contains("percentage_change") ||
+            normalizedMetricKey.contains("percent_change") ||
+            normalizedMetricKey.contains("ratio_change") ||
+            normalizedMetricKey.contains("growth") ||
+            normalizedMetricKey.contains("increase_rate")
+    }
+
+    private static func isDifferenceMetric(_ normalizedMetricKey: String) -> Bool {
+        normalizedMetricKey.contains("difference") ||
+            normalizedMetricKey.contains("delta") ||
+            normalizedMetricKey.contains("amount_change") ||
+            normalizedMetricKey.contains("change")
+    }
+
+    private static func dynamicGroupLabel(metricKey: String, comparison: String?) -> String? {
+        if let comparison {
+            let trimmed = comparison.trimmingCharacters(in: .whitespacesAndNewlines)
+            let excluded = ["all", "unknown", "increasing", "decreasing", "flat"]
+            if !trimmed.isEmpty, !excluded.contains(trimmed.lowercased()) {
+                return trimmed
+            }
+        }
+
+        let components = metricKey.split(separator: ".", omittingEmptySubsequences: false)
+        guard components.count >= 4 else { return nil }
+        let raw = String(components.last ?? "")
+        guard !raw.isEmpty, raw != "all", raw != "unknown" else { return nil }
+        return raw.replacingOccurrences(of: "_", with: " ")
     }
 }
 

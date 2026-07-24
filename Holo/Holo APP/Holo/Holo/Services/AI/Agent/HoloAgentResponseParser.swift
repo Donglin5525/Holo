@@ -25,6 +25,11 @@ enum HoloAgentResponseParser {
     ///   - raw: LLM 返回的原始文本（可能含 ```json 包裹）。
     ///   - remainingRetries: 剩余可重试次数；为 0 时 needsRetry 返回 false。
     /// - Returns: 解析出的 HoloAgentOutput。
+    ///
+    /// P0-D 集成：解析后经 HoloAgentContractPolicy 校验。
+    /// 兼容修复（补默认值）仍保留以维持 decode 成功，但关键违规（空 final_claims、
+    /// 事实 claim 无 evidence、confidence 越界、空 displayText）会按当前模式决定是否拒绝。
+    /// Debug 构建下任何违规都抛错；生产仅关键违规拒绝。
     static func parse(_ raw: String, remainingRetries: Int) throws -> HoloAgentOutput {
         let cleaned = extractJSONObject(from: raw)
 
@@ -145,18 +150,38 @@ enum HoloAgentResponseParser {
             }
             if let fixedData = try? JSONSerialization.data(withJSONObject: json),
                let output = try? JSONDecoder().decode(HoloAgentOutput.self, from: fixedData) {
-                return output
+                return try Self.applyContractPolicy(output, remainingRetries: remainingRetries)
             }
         }
 
         // 回退：原始 data 直接 decode
         if let output = try? JSONDecoder().decode(HoloAgentOutput.self, from: data) {
-            return output
+            return try Self.applyContractPolicy(output, remainingRetries: remainingRetries)
         }
 
         throw HoloAgentError.outputParseFailure(needsRetry: remainingRetries > 0)
     }
 
+    /// P0-D：解析成功后应用契约策略。
+    /// - Debug：任何违规（含兼容字段缺失）都失败，便于及早发现协议退化。
+    /// - 生产：仅关键违规（空 final_claims / 事实 claim 无 evidence / confidence 越界 / 空 displayText）拒绝。
+    /// 被拒绝时按剩余重试次数决定是否允许重试。
+    /// 违规和修复计数通过 HoloAgentContractViolationCounter 记录，供 telemetry 读取。
+    private static func applyContractPolicy(_ output: HoloAgentOutput, remainingRetries: Int) throws -> HoloAgentOutput {
+        let contractResult = HoloAgentContractPolicy.validate(output: output)
+        // P0-D：记录非敏感指标（违规/修复计数），供 Runtime telemetry 读取
+        if contractResult.hasViolations || !contractResult.repairs.isEmpty {
+            HoloAgentContractViolationCounter.shared.record(
+                violations: contractResult.violations.count,
+                repairs: contractResult.repairs.count
+            )
+        }
+        if contractResult.isRejected {
+            // 关键违规：不静默放过，按剩余重试次数决定是否可重试。
+            throw HoloAgentError.outputParseFailure(needsRetry: remainingRetries > 0)
+        }
+        return output
+    }
 
     private static func promoteNestedPlans(in request: inout [String: Any]) {
         guard var parameters = request["parameters"] as? [String: Any] else {

@@ -45,6 +45,13 @@ nonisolated struct HoloAgentTelemetryEvent: Codable, Equatable, Sendable {
     var errorCode: String?
     /// 仅 stepID / 网关 request id 等技术标识，不得放 requestHash 或请求正文。
     var requestID: String?
+    /// P0-D 版本语义：用于协议退化归因（非敏感技术元数据）。
+    var promptRevision: Int?
+    var agentProtocolVersion: Int?
+    var toolSchemaVersion: Int?
+    /// P0-D Contract Policy：违规/修复计数（非敏感）。
+    var contractViolationCount: Int?
+    var contractRepairCount: Int?
 
     init(
         name: HoloAgentEventName,
@@ -55,7 +62,10 @@ nonisolated struct HoloAgentTelemetryEvent: Codable, Equatable, Sendable {
         leaseKind: HoloAgentExecutionLeaseKind? = nil,
         durationMilliseconds: Int? = nil,
         errorCode: String? = nil,
-        requestID: String? = nil
+        requestID: String? = nil,
+        versionMetadata: HoloAgentVersionMetadata? = nil,
+        contractViolationCount: Int? = nil,
+        contractRepairCount: Int? = nil
     ) {
         self.id = UUID().uuidString
         self.name = name
@@ -72,6 +82,11 @@ nonisolated struct HoloAgentTelemetryEvent: Codable, Equatable, Sendable {
         self.durationMilliseconds = durationMilliseconds
         self.errorCode = errorCode
         self.requestID = requestID
+        self.promptRevision = versionMetadata?.promptRevision
+        self.agentProtocolVersion = versionMetadata?.agentProtocolVersion
+        self.toolSchemaVersion = versionMetadata?.toolSchemaVersion
+        self.contractViolationCount = contractViolationCount
+        self.contractRepairCount = contractRepairCount
     }
 }
 
@@ -89,6 +104,9 @@ nonisolated struct HoloAgentReliabilityMetrics: Codable, Equatable, Sendable {
     var reconciledResults: Int
     var completionRate: Double?
     var resumeCompletionRate: Double?
+    /// P0-D Contract Policy 指标
+    var contractViolations: Int
+    var contractRepairs: Int
 
     static func make(from events: [HoloAgentTelemetryEvent]) -> Self {
         let createdIDs = Set(events.filter { $0.name == .jobCreated }.compactMap(\.jobID))
@@ -107,7 +125,9 @@ nonisolated struct HoloAgentReliabilityMetrics: Codable, Equatable, Sendable {
             stepIdempotencyHits: events.filter { $0.name == .stepIdempotencyHit }.count,
             reconciledResults: events.filter { $0.name == .resultReconciled }.count,
             completionRate: createdIDs.isEmpty ? nil : Double(completedIDs.intersection(createdIDs).count) / Double(createdIDs.count),
-            resumeCompletionRate: resumedIDs.isEmpty ? nil : Double(resumedIDs.intersection(completedIDs).count) / Double(resumedIDs.count)
+            resumeCompletionRate: resumedIDs.isEmpty ? nil : Double(resumedIDs.intersection(completedIDs).count) / Double(resumedIDs.count),
+            contractViolations: events.compactMap(\.contractViolationCount).reduce(0, +),
+            contractRepairs: events.compactMap(\.contractRepairCount).reduce(0, +)
         )
     }
 }

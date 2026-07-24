@@ -69,12 +69,14 @@ nonisolated struct HoloAgentResultRenderer {
             question: question,
             rangeLabel: rangeLabel,
             primaryAssertion: primaryAssertion,
-            claims: claims
+            claims: claims,
+            evidenceByID: evidenceByID
         )
         let sections = Self.sections(
             claims: claims,
             primaryMetricKey: primaryAssertion?.metricKey,
-            directAnswer: directAnswer
+            directAnswer: directAnswer,
+            evidenceByID: evidenceByID
         )
 
         // 证据引用：去重，只用 redactedExcerpt。
@@ -227,14 +229,23 @@ nonisolated struct HoloAgentResultRenderer {
         question: String?,
         rangeLabel: String,
         primaryAssertion: HoloMetricAssertion?,
-        claims: [HoloAgentClaim]
+        claims: [HoloAgentClaim],
+        evidenceByID: [String: HoloEvidenceRecord]
     ) -> String? {
+        if let comparisonAnswer = financeComparisonAnswer(
+            question: question,
+            rangeLabel: rangeLabel,
+            assertions: claims.flatMap(\.metricAssertions),
+            evidenceByID: evidenceByID
+        ) {
+            return comparisonAnswer
+        }
         if let assertion = primaryAssertion,
            let sentence = HoloMetricSemanticCatalog.sentence(
                metricKey: assertion.metricKey,
-               value: assertion.value,
-               unit: assertion.unit,
-               comparison: assertion.comparison
+               value: resolvedValue(for: assertion, evidenceByID: evidenceByID),
+               unit: resolvedUnit(for: assertion, evidenceByID: evidenceByID),
+               comparison: resolvedComparison(for: assertion, evidenceByID: evidenceByID)
            ) {
             if assertion.metricKey == "health.steps.average", let value = assertion.value {
                 let number = HoloMetricSemanticCatalog.formattedNumber(
@@ -254,7 +265,8 @@ nonisolated struct HoloAgentResultRenderer {
     private static func sections(
         claims: [HoloAgentClaim],
         primaryMetricKey: String?,
-        directAnswer: String?
+        directAnswer: String?,
+        evidenceByID: [String: HoloEvidenceRecord]
     ) -> [HoloRenderedAgentSection] {
         var output: [HoloRenderedAgentSection] = []
         var seenBodies = Set<String>()
@@ -265,14 +277,18 @@ nonisolated struct HoloAgentResultRenderer {
 
             if mustRebuild {
                 for assertion in claim.metricAssertions where assertion.metricKey != primaryMetricKey {
+                    let comparison = resolvedComparison(for: assertion, evidenceByID: evidenceByID)
                     guard let body = HoloMetricSemanticCatalog.sentence(
                         metricKey: assertion.metricKey,
-                        value: assertion.value,
-                        unit: assertion.unit,
-                        comparison: assertion.comparison
+                        value: resolvedValue(for: assertion, evidenceByID: evidenceByID),
+                        unit: resolvedUnit(for: assertion, evidenceByID: evidenceByID),
+                        comparison: comparison
                     ) else { continue }
                     appendSection(
-                        title: HoloMetricSemanticCatalog.title(for: assertion.metricKey),
+                        title: HoloMetricSemanticCatalog.title(
+                            for: assertion.metricKey,
+                            comparison: comparison
+                        ),
                         body: body,
                         confidence: claim.confidence,
                         directAnswer: directAnswer,
@@ -285,7 +301,10 @@ nonisolated struct HoloAgentResultRenderer {
 
             guard !rawBody.isEmpty else { continue }
             let metricTitle = claim.metricAssertions.first.map {
-                HoloMetricSemanticCatalog.title(for: $0.metricKey)
+                HoloMetricSemanticCatalog.title(
+                    for: $0.metricKey,
+                    comparison: resolvedComparison(for: $0, evidenceByID: evidenceByID)
+                )
             }
             let resolvedTitle = metricTitle == nil || metricTitle == "计算结果"
                 ? shortTitle(from: rawBody)
@@ -300,6 +319,151 @@ nonisolated struct HoloAgentResultRenderer {
             )
         }
         return output
+    }
+
+    private static func financeComparisonAnswer(
+        question: String?,
+        rangeLabel: String,
+        assertions: [HoloMetricAssertion],
+        evidenceByID: [String: HoloEvidenceRecord]
+    ) -> String? {
+        guard let question else { return nil }
+        let normalized = question.lowercased()
+        let asksFinance = ["消费", "支出", "花钱", "花了"].contains { normalized.contains($0) }
+        let asksComparison = ["比", "相比", "环比", "同比", "vs"].contains { normalized.contains($0) }
+        guard asksFinance, asksComparison else { return nil }
+
+        let asksIncrease = ["多在哪", "多了", "增加", "上涨", "涨得"].contains { normalized.contains($0) }
+        let asksDecrease = ["少在哪", "少了", "减少", "下降", "降得"].contains { normalized.contains($0) }
+        guard asksIncrease || asksDecrease else { return nil }
+
+        let resolved = assertions.compactMap { assertion -> FinanceComparisonItem? in
+            let metricKey = assertion.metricKey.lowercased()
+            guard metricKey.hasPrefix("dynamic.finance"),
+                  metricKey.contains("growth") ||
+                    metricKey.contains("percentage_change") ||
+                    metricKey.contains("percent_change") ||
+                    metricKey.contains("difference") ||
+                    metricKey.contains("delta") ||
+                    metricKey.contains("change"),
+                  let value = resolvedValue(for: assertion, evidenceByID: evidenceByID),
+                  let category = resolvedComparison(for: assertion, evidenceByID: evidenceByID),
+                  isCategoryLabel(category) else {
+                return nil
+            }
+            if asksIncrease, value <= 0 { return nil }
+            if asksDecrease, value >= 0 { return nil }
+            return FinanceComparisonItem(
+                category: category,
+                value: value,
+                unit: resolvedUnit(for: assertion, evidenceByID: evidenceByID),
+                metricKey: assertion.metricKey
+            )
+        }
+
+        guard !resolved.isEmpty else { return nil }
+        let ranked = resolved.sorted {
+            asksDecrease ? $0.value < $1.value : $0.value > $1.value
+        }
+        let items = ranked.prefix(3).map(comparisonItemText).joined(separator: "、")
+        let baseline = baselineLabel(from: question) ?? "上期"
+        if asksDecrease {
+            return "\(rangeLabel)消费比\(baseline)主要少在\(items)"
+        }
+        return "\(rangeLabel)消费比\(baseline)主要多在\(items)"
+    }
+
+    private struct FinanceComparisonItem {
+        var category: String
+        var value: Double
+        var unit: String?
+        var metricKey: String
+    }
+
+    private static func comparisonItemText(_ item: FinanceComparisonItem) -> String {
+        let normalized = item.metricKey.lowercased()
+        if normalized.contains("growth") ||
+            normalized.contains("percentage_change") ||
+            normalized.contains("percent_change") ||
+            item.unit == "比例" ||
+            item.unit == "%" {
+            let percent = abs(item.value) <= 1.000_001 ? item.value * 100 : item.value
+            let value = HoloMetricSemanticCatalog.formattedNumber(
+                abs(percent),
+                metricKey: item.metricKey,
+                unit: "%"
+            )
+            return "\(item.category)（\(percent >= 0 ? "+" : "-")\(value)%）"
+        }
+        let value = HoloMetricSemanticCatalog.formattedNumber(
+            abs(item.value),
+            metricKey: item.metricKey,
+            unit: item.unit
+        )
+        return "\(item.category)（\(item.value >= 0 ? "多" : "少") \(value)\(item.unit ?? "")）"
+    }
+
+    private static func resolvedValue(
+        for assertion: HoloMetricAssertion,
+        evidenceByID: [String: HoloEvidenceRecord]
+    ) -> Double? {
+        if assertion.metricKey.hasPrefix("dynamic."),
+           let evidenceValue = matchingEvidence(for: assertion, evidenceByID: evidenceByID)?.metricValue {
+            return evidenceValue
+        }
+        return assertion.value ?? matchingEvidence(for: assertion, evidenceByID: evidenceByID)?.metricValue
+    }
+
+    private static func resolvedUnit(
+        for assertion: HoloMetricAssertion,
+        evidenceByID: [String: HoloEvidenceRecord]
+    ) -> String? {
+        if assertion.metricKey.hasPrefix("dynamic."),
+           let evidenceUnit = matchingEvidence(for: assertion, evidenceByID: evidenceByID)?.unit {
+            return evidenceUnit
+        }
+        return assertion.unit ?? matchingEvidence(for: assertion, evidenceByID: evidenceByID)?.unit
+    }
+
+    private static func resolvedComparison(
+        for assertion: HoloMetricAssertion,
+        evidenceByID: [String: HoloEvidenceRecord]
+    ) -> String? {
+        if assertion.metricKey.hasPrefix("dynamic."),
+           let evidenceComparison = matchingEvidence(
+               for: assertion,
+               evidenceByID: evidenceByID
+           )?.comparison?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !evidenceComparison.isEmpty {
+            return evidenceComparison
+        }
+        let comparison = assertion.comparison?.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let comparison, !comparison.isEmpty { return comparison }
+        return matchingEvidence(for: assertion, evidenceByID: evidenceByID)?.comparison
+    }
+
+    private static func matchingEvidence(
+        for assertion: HoloMetricAssertion,
+        evidenceByID: [String: HoloEvidenceRecord]
+    ) -> HoloEvidenceRecord? {
+        assertion.evidenceIDs
+            .compactMap { evidenceByID[$0] }
+            .first { $0.metricKey == assertion.metricKey }
+    }
+
+    private static func isCategoryLabel(_ label: String) -> Bool {
+        let normalized = label.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return !normalized.isEmpty &&
+            !["all", "unknown", "increasing", "decreasing", "flat"].contains(normalized)
+    }
+
+    private static func baselineLabel(from question: String) -> String? {
+        let candidates = [
+            ("上个月", "上月"), ("上月", "上月"),
+            ("上个星期", "上周"), ("上周", "上周"),
+            ("去年", "去年"), ("昨日", "昨日"), ("昨天", "昨天")
+        ]
+        return candidates.first { question.contains($0.0) }?.1
     }
 
     private static func appendSection(

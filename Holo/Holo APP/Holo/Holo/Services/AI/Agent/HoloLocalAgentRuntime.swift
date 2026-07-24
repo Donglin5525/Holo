@@ -74,12 +74,22 @@ actor HoloLocalAgentRuntime {
     func startAnalysisJob(question: String, trigger: HoloAgentTrigger = .userQuestion,
                           sourceMessageID: UUID? = nil, now: Date = Date()) async throws -> HoloAgentJob {
         let resolvedComparison = Self.resolveQuestionComparison(question, referenceDate: now)
+
+        // P0-B/P1-A 集成：构建确定性 Semantic Frame，用于任务画像和预算选择。
+        // Semantic Frame 提供域识别、歧义分级、敏感度和时间语义，不调用 LLM。
+        let semanticFrame = HoloAgentSemanticFrameBuilder.buildFrame(query: question, referenceDate: now)
+        let executionConfig = HoloAgentBudgetSelector.selectConfig(
+            for: semanticFrame.profile, frame: semanticFrame
+        )
+        // P0-D 版本语义：记录版本元数据用于可观测性归因。
+
+
         var job = HoloAgentJob(
             id: UUID().uuidString, type: .deepAnalysis, userQuestion: question,
             trigger: trigger, state: .running, currentStep: .plan,
             createdAt: now, updatedAt: now,
             lastForegroundRunAt: nil, timeRange: resolvedComparison?.current.timeRange ?? Self.resolveQuestionTimeRange(question, referenceDate: now),
-            budget: HoloAgentBudget.normalDeep(now: now),
+            budget: HoloAgentBudgetSelector.makeBudget(preset: executionConfig.budgetPreset, now: now),
             checkpointID: nil, resultID: nil, errorSummary: nil, deviceID: nil,
             referenceDate: now, snapshotCutoffAt: now,
             absoluteDeadline: now.addingTimeInterval(HoloAgentJob.absoluteDeadlineInterval)
@@ -125,6 +135,12 @@ actor HoloLocalAgentRuntime {
                 now: now
             ))
         }
+        // P1-B 集成：构建统一 AgentPolicyContext 并注入为系统消息。
+        // 让 Agent 稳定记住用户纠正和偏好（来源：InsightPreferenceProfile + 近期反馈纠正主题），
+        // 冲突顺序：当前输入 > 任务规则 > 明确纠正 > 稳定偏好 > 弱偏好 > 全局默认。
+        if let policyMessage = Self.buildPolicyContextMessage(query: question, memoryRecords: memoryContext?.records ?? [], now: now) {
+            conversation.append(policyMessage)
+        }
         conversation.append(Self.mockUserMessage(question, now))
         let checkpoint = Self.makeCheckpoint(
             jobID: job.id, step: .plan, completedSteps: [],
@@ -136,7 +152,7 @@ actor HoloLocalAgentRuntime {
         )
         job.checkpointID = checkpoint.id
         try await saveProgress(job: job, evidence: memoryEvidence, checkpoint: checkpoint)
-        await eventRecorder.record(HoloAgentTelemetryEvent(name: .jobCreated, timestamp: now, job: job))
+        await eventRecorder.record(HoloAgentTelemetryEvent(name: .jobCreated, timestamp: now, job: job, versionMetadata: HoloAgentVersionMetadata.current))
         return job
     }
 
@@ -299,6 +315,28 @@ actor HoloLocalAgentRuntime {
         var checkpoint = try await checkpointStore.latestForJob(jobID: jobID)
             ?? Self.makeCheckpoint(jobID: jobID, step: .plan, completedSteps: [],
                                    conversation: [], now: now)
+        // P0-B 集成：在进入 LLM 循环前检测高影响歧义。
+        // 高影响歧义（如"帮我看看""最近怎么样"无明确域）会产生 clarification request，
+        // 记录到 job 但仍继续执行（运行时无法阻塞等待 UI 回答）。
+        // 低/中影响歧义由系统默认处理，在回答中说明假设。
+        if let question = job.userQuestion, !question.isEmpty {
+            let frame = HoloAgentSemanticFrameBuilder.buildFrame(query: question, referenceDate: job.referenceDate ?? now)
+            if let highImpactAmbiguity = HoloAgentClarificationPolicy.clarifiableAmbiguity(from: frame.ambiguities) {
+                // 构建结构化澄清请求并附加到 checkpoint 的 warnings，
+                // 让下游表达层可以在回答中提示用户明确意图。
+                let clarification = HoloAgentClarificationPolicy.buildRequest(
+                    from: highImpactAmbiguity,
+                    originalQuery: question,
+                    originalPlan: nil
+                )
+                // 不中断执行流，但把澄清问题作为系统提示注入对话
+                let clarificationMessage = HoloAgentMessage(
+                    role: .system, content: "[系统提示] 用户问题存在高影响歧义：\(clarification.question) 候选：\(clarification.options.joined(separator: "、"))。",
+                    toolRequestID: nil, toolName: nil, timestamp: now, tokenEstimate: nil
+                )
+                checkpoint.conversationState.append(clarificationMessage)
+            }
+        }
         try await executeDeterministicPrerequisiteToolsIfNeeded(
             job: &job,
             checkpoint: &checkpoint,
@@ -1080,6 +1118,68 @@ actor HoloLocalAgentRuntime {
         )
     }
 
+    /// P1-B 集成：构建用户策略上下文系统消息。
+    /// 复用 InsightPreferenceProfile（稳定偏好）+ 近期反馈纠正主题（弱偏好），
+    /// 不新增第二套用户策略存储。只在有实际策略内容时返回消息（避免空消息浪费 token）。
+    private static func buildPolicyContextMessage(query: String, memoryRecords: [HoloMemoryRecord], now: Date) -> HoloAgentMessage? {
+        let profile = InsightPreferenceProfileService.shared.loadProfile()
+
+        // 稳定偏好：从 profile 提取有效偏好规则
+        var confirmedPreferences: [String] = []
+        if profile.preferredTone != .balanced {
+            confirmedPreferences.append("表达语气偏好：\(profile.preferredTone.rawValue)")
+        }
+        for pattern in profile.dislikedPatterns where pattern.isStable {
+            confirmedPreferences.append("不喜欢这类建议：\(pattern.patternType)")
+        }
+        for module in profile.moduleWeights where module.weight == 0 {
+            confirmedPreferences.append("不关注\(module.module.rawValue)模块的建议")
+        }
+
+        // P1-B：从 HoloMemoryRecord 提取用户明确纠正（claimKind == .explicitPreference）
+        let explicitCorrections = memoryRecords
+            .filter { $0.claimKind == .explicitPreference }
+            .prefix(5)
+            .map { $0.displaySummary }
+
+        // 弱偏好：从纠正记录中 active 状态的项提取（近期纠正主题）
+        let weakPreferences = memoryRecords
+            .filter { $0.claimKind == .explicitPreference && $0.state == .active }
+            .prefix(3)
+            .map { $0.displaySummary }
+
+        let policyContext = HoloAgentPolicyBuilder.build(
+            confirmedPreferences: confirmedPreferences,
+            explicitCorrections: Array(explicitCorrections),
+            weakPreferences: Array(weakPreferences),
+            currentInput: [],
+            domains: [],
+            now: now
+        )
+
+        // 只在有非默认策略时注入，避免无意义的系统消息
+        let activeRules = policyContext.activeRules.filter { $0.source != .globalDefault }
+        guard !activeRules.isEmpty else { return nil }
+
+        let lines = activeRules.map { rule in
+            "- [\(rule.source.rawValue)] \(rule.rule)"
+        }.joined(separator: "\n")
+
+        let content = """
+        用户偏好与纠正（请遵守，除非用户当前问题明确覆盖）：
+        \(lines)
+        """
+
+        return HoloAgentMessage(
+            role: .system,
+            content: content,
+            toolRequestID: nil,
+            toolName: nil,
+            timestamp: now,
+            tokenEstimate: nil
+        )
+    }
+
     private static func memoryEvidenceRecords(
         from memories: [HoloMemoryRecord],
         summary: HoloMemoryPromptSummary,
@@ -1213,8 +1313,36 @@ actor HoloLocalAgentRuntime {
     ) async throws -> HoloAgentJob {
         let availableEvidenceIDs = Array(Set(checkpoint.evidenceRecordIDs + claims.flatMap(\.evidenceIDs)))
         let evidence = try await persistence.loadEvidence(forIDs: availableEvidenceIDs)
-        let verification = HoloClaimVerifier().verify(claims: claims, evidence: evidence)
-        var acceptedClaims = verification.acceptedClaims
+
+        // P0-C 集成：按 TaskProfile 决定使用 V1 还是 V2 Verifier。
+        // V2 提供十维校验 + 三态输出（verified/degraded/rejected）+ 系统置信度；
+        // 简单查数（simpleLookup）保留 V1 轻量路径，其余复杂任务启用 V2。
+        let taskProfile = Self.classifyTaskProfile(for: job)
+        let useVerifierV2 = taskProfile.requiresVerifier
+
+        var acceptedClaims: [HoloAgentClaim]
+        if useVerifierV2 {
+            let v2Results = HoloClaimVerifierV2().verifyAll(claims: claims, evidence: evidence)
+            // verified + degraded 展示（degraded 带降级文案）；rejected 不展示。
+            acceptedClaims = v2Results.compactMap { result -> HoloAgentClaim? in
+                switch result.verdict {
+                case .verified:
+                    return result.claim
+                case .degraded:
+                    var degraded = result.claim
+                    if let expression = result.degradedExpression {
+                        degraded.displayText = expression
+                    }
+                    return degraded
+                case .rejected:
+                    return nil
+                }
+            }
+        } else {
+            let verification = HoloClaimVerifier().verify(claims: claims, evidence: evidence)
+            acceptedClaims = verification.acceptedClaims
+        }
+
         if Self.shouldSuppressSuggestions(for: job.userQuestion) {
             acceptedClaims.removeAll { $0.type == "suggestion" }
         }
@@ -1225,14 +1353,36 @@ actor HoloLocalAgentRuntime {
         if !fallback.isEmpty {
             let fallbackEvidenceIDs = Array(Set(checkpoint.evidenceRecordIDs + fallback.flatMap(\.evidenceIDs)))
             let fallbackEvidence = try await persistence.loadEvidence(forIDs: fallbackEvidenceIDs)
-            let verifiedFallback = HoloClaimVerifier()
-                .verify(claims: fallback, evidence: fallbackEvidence)
-                .acceptedClaims
+            let verifiedFallback: [HoloAgentClaim]
+            if useVerifierV2 {
+                let v2FallbackResults = HoloClaimVerifierV2().verifyAll(claims: fallback, evidence: fallbackEvidence)
+                verifiedFallback = v2FallbackResults.compactMap { result -> HoloAgentClaim? in
+                    switch result.verdict {
+                    case .verified:
+                        return result.claim
+                    case .degraded:
+                        var degraded = result.claim
+                        if let expression = result.degradedExpression {
+                            degraded.displayText = expression
+                        }
+                        return degraded
+                    case .rejected:
+                        return nil
+                    }
+                }
+            } else {
+                verifiedFallback = HoloClaimVerifier()
+                    .verify(claims: fallback, evidence: fallbackEvidence)
+                    .acceptedClaims
+            }
             if acceptedClaims.isEmpty {
                 acceptedClaims = verifiedFallback
             } else {
-                // 模型只回答部分子问题时，用确定性结果补齐尚未覆盖的指标。
+                // P0-B 集成：用 HoloAgentCoverageChecker 正式判定覆盖状态，
+                // 再用确定性结果补齐尚未覆盖的指标。v10 的 metric 补齐逻辑并入此处。
                 var coveredKeys = Set(acceptedClaims.flatMap { $0.metricAssertions.map(\.metricKey) })
+                // 从工具结果提取所有可用 metricKey，用于覆盖检查
+                let availableMetricKeys = Set(checkpoint.completedToolResults.flatMap(\.metrics).map(\.metricKey))
                 for claim in verifiedFallback {
                     let missingAssertions = claim.metricAssertions.filter { !coveredKeys.contains($0.metricKey) }
                     guard !missingAssertions.isEmpty else { continue }
@@ -1249,6 +1399,20 @@ actor HoloLocalAgentRuntime {
                     if !metricText.isEmpty { supplement.displayText = metricText }
                     acceptedClaims.append(supplement)
                     coveredKeys.formUnion(missingAssertions.map(\.metricKey))
+                }
+                // P0-B：补齐后仍缺失的 metricKey 通过能力边界 claim 披露，不假装有结论。
+                let stillMissing = availableMetricKeys.subtracting(coveredKeys)
+                if !stillMissing.isEmpty {
+                    let missingText = stillMissing.sorted().joined(separator: "、")
+                    acceptedClaims.append(HoloAgentClaim(
+                        id: "coverage-boundary",
+                        type: "capability_boundary",
+                        displayText: "以下指标数据不足，无法给出结论：\(missingText)",
+                        metricAssertions: [],
+                        evidenceIDs: [],
+                        prohibitedInferences: [],
+                        confidence: 0.5
+                    ))
                 }
             }
         }
@@ -1679,6 +1843,16 @@ actor HoloLocalAgentRuntime {
         guard let question else { return false }
         let suggestionKeywords = ["建议", "怎么办", "怎么改善", "如何改善", "怎么做", "下一步"]
         return !suggestionKeywords.contains { question.contains($0) }
+    }
+
+    /// P0-B/P1-A 集成：根据 job 的用户问题构建 Semantic Frame，用于决定 TaskProfile。
+    /// TaskProfile 决定是否启用 V2 Verifier、预算选择和工具能力软选择。
+    /// 此处只做确定性分类（域识别 + 比较检测 + 敏感度），不调用 LLM。
+    private static func classifyTaskProfile(for job: HoloAgentJob) -> HoloAgentTaskProfile {
+        let question = job.userQuestion ?? ""
+        guard !question.isEmpty else { return .simpleLookup }
+        let frame = HoloAgentSemanticFrameBuilder.buildFrame(query: question, referenceDate: job.referenceDate ?? Date())
+        return frame.profile
     }
 
     private static func deduplicatedClaims(_ claims: [HoloAgentClaim]) -> [HoloAgentClaim] {
