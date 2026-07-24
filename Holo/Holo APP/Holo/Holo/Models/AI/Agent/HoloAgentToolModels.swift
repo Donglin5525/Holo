@@ -134,6 +134,11 @@ nonisolated struct HoloMetricSemantic: Codable, Equatable, Sendable {
 
 /// 把稳定的内部 metric key 转换为用户能直接理解的中文。
 /// metric key 继续用于计算和校验，但任何面向用户的正文都必须经过这里。
+///
+/// ⚠️ 仅兼容层（P3 起）：本目录只服务无 `semantic` 的历史 Evidence 兜底读取，
+/// 禁止新增 case、禁止把新指标往这里登记。新结果一律由工具在产出时携带
+/// `HoloMetricSemantic`（动态链路与固定工具注册表 `HoloMetricSemanticFactory.fixedMetricTemplates`），
+/// 展示层优先消费类型化语义，不会走到这里的字符串匹配（含 dynamicTitle/dynamicSentence）。
 nonisolated enum HoloMetricSemanticCatalog {
 
     static func title(for metricKey: String) -> String {

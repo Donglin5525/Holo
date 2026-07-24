@@ -163,26 +163,29 @@ struct HoloFinanceTool: HoloDataTool {
             baseline: request.baseline,
             parameters: request.parameters
         ) else {
-            return Self.emptyResult(request)
+            return HoloMetricSemanticFactory.attachFixedToolSemantics(to: Self.emptyResult(request))
         }
+        let result: HoloDataToolResult
         switch request.query {
         case "spending_breakdown":
-            return spendingBreakdownResult(request: request, record: record)
+            result = spendingBreakdownResult(request: request, record: record)
         case "meal_time_distribution":
-            return mealTimeResult(request: request, record: record)
+            result = mealTimeResult(request: request, record: record)
         case "category_concentration":
-            return concentrationResult(request: request, record: record)
+            result = concentrationResult(request: request, record: record)
         case "spending_pattern":
-            return spendingResult(request: request, record: record)
+            result = spendingResult(request: request, record: record)
         case "keyword_trend":
-            return keywordTrendResult(request: request, record: record)
+            result = keywordTrendResult(request: request, record: record)
         case "budget_status":
-            return budgetStatusResult(request: request, record: record)
+            result = budgetStatusResult(request: request, record: record)
         case "account_summary":
-            return accountSummaryResult(request: request, record: record)
+            result = accountSummaryResult(request: request, record: record)
         default:
-            return Self.errorResult(request, reason: "不支持的查询：\(request.query)")
+            result = Self.errorResult(request, reason: "不支持的查询：\(request.query)")
         }
+        // P3：固定指标统一挂类型化语义（动态链路 P1 已覆盖，不走这里）
+        return HoloMetricSemanticFactory.attachFixedToolSemantics(to: result)
     }
 
     // MARK: - 各 query 实现
@@ -274,7 +277,15 @@ struct HoloFinanceTool: HoloDataTool {
                     metricValue: item.value,
                     excerpt: "\(Self.rangeTitle(currentRange, fallback: "本期"))分类去向：\(item.key)：\(Self.moneyText(item.value)) 元（约 \(Self.percentText(ratio))）",
                     timeRange: currentRange,
-                    baselineTimeRange: nil
+                    baselineTimeRange: nil,
+                    // 构造期挂分组语义：分类名只在此处可知，事后无法从事件反推
+                    semantic: HoloMetricSemanticFactory.fixedMetricSemantic(
+                        metricKey: "finance.category.amount",
+                        value: item.value,
+                        unit: "元",
+                        baselineValue: nil,
+                        comparison: item.key
+                    )
                 )
             )
         }

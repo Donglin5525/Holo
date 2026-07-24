@@ -116,8 +116,9 @@ nonisolated struct HoloAgentResultRenderer {
         )
 
         // MARK: P2 确定性合成与展示前验证
-        // 证据带类型化语义时，直接结论改由本地合成器产出（替代 financeComparisonAnswer/目录句），
-        // 模型文案降为解释层；无 semantic 的旧证据完全走上方旧逻辑。
+        // 证据带类型化语义时，直接结论改由本地合成器产出（P3 已删除 financeComparisonAnswer
+        // 等领域特判，比较/排名/拆解/趋势统一走合成器），模型文案降为解释层；
+        // 无 semantic 的旧证据完全走上方旧逻辑（HoloMetricSemanticCatalog 兼容层）。
         var composed: HoloComposedAnswer?
         if HoloAgentResultSemanticsFlags.typedSemanticsEnabled,
            HoloAgentResultSemanticsFlags.deterministicComposerEnabled,
@@ -356,14 +357,6 @@ nonisolated struct HoloAgentResultRenderer {
         claims: [HoloAgentClaim],
         evidenceByID: [String: HoloEvidenceRecord]
     ) -> String? {
-        if let comparisonAnswer = financeComparisonAnswer(
-            question: question,
-            rangeLabel: rangeLabel,
-            assertions: claims.flatMap(\.metricAssertions),
-            evidenceByID: evidenceByID
-        ) {
-            return comparisonAnswer
-        }
         if let assertion = primaryAssertion,
            let sentence = HoloMetricSemanticCatalog.sentence(
                metricKey: assertion.metricKey,
@@ -445,88 +438,6 @@ nonisolated struct HoloAgentResultRenderer {
         return output
     }
 
-    private static func financeComparisonAnswer(
-        question: String?,
-        rangeLabel: String,
-        assertions: [HoloMetricAssertion],
-        evidenceByID: [String: HoloEvidenceRecord]
-    ) -> String? {
-        guard let question else { return nil }
-        let normalized = question.lowercased()
-        let asksFinance = ["消费", "支出", "花钱", "花了"].contains { normalized.contains($0) }
-        let asksComparison = ["比", "相比", "环比", "同比", "vs"].contains { normalized.contains($0) }
-        guard asksFinance, asksComparison else { return nil }
-
-        let asksIncrease = ["多在哪", "多了", "增加", "上涨", "涨得"].contains { normalized.contains($0) }
-        let asksDecrease = ["少在哪", "少了", "减少", "下降", "降得"].contains { normalized.contains($0) }
-        guard asksIncrease || asksDecrease else { return nil }
-
-        let resolved = assertions.compactMap { assertion -> FinanceComparisonItem? in
-            let metricKey = assertion.metricKey.lowercased()
-            guard metricKey.hasPrefix("dynamic.finance"),
-                  metricKey.contains("growth") ||
-                    metricKey.contains("percentage_change") ||
-                    metricKey.contains("percent_change") ||
-                    metricKey.contains("difference") ||
-                    metricKey.contains("delta") ||
-                    metricKey.contains("change"),
-                  let value = resolvedValue(for: assertion, evidenceByID: evidenceByID),
-                  let category = resolvedComparison(for: assertion, evidenceByID: evidenceByID),
-                  isCategoryLabel(category) else {
-                return nil
-            }
-            if asksIncrease, value <= 0 { return nil }
-            if asksDecrease, value >= 0 { return nil }
-            return FinanceComparisonItem(
-                category: category,
-                value: value,
-                unit: resolvedUnit(for: assertion, evidenceByID: evidenceByID),
-                metricKey: assertion.metricKey
-            )
-        }
-
-        guard !resolved.isEmpty else { return nil }
-        let ranked = resolved.sorted {
-            asksDecrease ? $0.value < $1.value : $0.value > $1.value
-        }
-        let items = ranked.prefix(3).map(comparisonItemText).joined(separator: "、")
-        let baseline = baselineLabel(from: question) ?? "上期"
-        if asksDecrease {
-            return "\(rangeLabel)消费比\(baseline)主要少在\(items)"
-        }
-        return "\(rangeLabel)消费比\(baseline)主要多在\(items)"
-    }
-
-    private struct FinanceComparisonItem {
-        var category: String
-        var value: Double
-        var unit: String?
-        var metricKey: String
-    }
-
-    private static func comparisonItemText(_ item: FinanceComparisonItem) -> String {
-        let normalized = item.metricKey.lowercased()
-        if normalized.contains("growth") ||
-            normalized.contains("percentage_change") ||
-            normalized.contains("percent_change") ||
-            item.unit == "比例" ||
-            item.unit == "%" {
-            let percent = abs(item.value) <= 1.000_001 ? item.value * 100 : item.value
-            let value = HoloMetricSemanticCatalog.formattedNumber(
-                abs(percent),
-                metricKey: item.metricKey,
-                unit: "%"
-            )
-            return "\(item.category)（\(percent >= 0 ? "+" : "-")\(value)%）"
-        }
-        let value = HoloMetricSemanticCatalog.formattedNumber(
-            abs(item.value),
-            metricKey: item.metricKey,
-            unit: item.unit
-        )
-        return "\(item.category)（\(item.value >= 0 ? "多" : "少") \(value)\(item.unit ?? "")）"
-    }
-
     private static func resolvedValue(
         for assertion: HoloMetricAssertion,
         evidenceByID: [String: HoloEvidenceRecord]
@@ -573,21 +484,6 @@ nonisolated struct HoloAgentResultRenderer {
         assertion.evidenceIDs
             .compactMap { evidenceByID[$0] }
             .first { $0.metricKey == assertion.metricKey }
-    }
-
-    private static func isCategoryLabel(_ label: String) -> Bool {
-        let normalized = label.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        return !normalized.isEmpty &&
-            !["all", "unknown", "increasing", "decreasing", "flat"].contains(normalized)
-    }
-
-    private static func baselineLabel(from question: String) -> String? {
-        let candidates = [
-            ("上个月", "上月"), ("上月", "上月"),
-            ("上个星期", "上周"), ("上周", "上周"),
-            ("去年", "去年"), ("昨日", "昨日"), ("昨天", "昨天")
-        ]
-        return candidates.first { question.contains($0.0) }?.1
     }
 
     private static func appendSection(

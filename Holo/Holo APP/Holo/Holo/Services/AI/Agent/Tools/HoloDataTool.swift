@@ -807,6 +807,263 @@ nonisolated enum HoloMetricSemanticFactory {
             }
         }
     }
+
+    // MARK: - 固定工具语义注册表（P3）
+
+    /// 固定工具（finance/habit/task/health）稳定 metricKey 的语义模板。
+    /// 闭集、精确匹配、无前缀猜测；新增固定指标必须在此登记，动态指标走查询计划链路，不在此列。
+    struct FixedMetricTemplate {
+        var domain: HoloEvidenceSourceModule
+        var dataset: String
+        var operation: HoloMetricOperation
+        var valueRole: HoloMetricValueRole
+        var dimension: HoloMetricDimension? = nil
+        /// 业务量覆盖：nil 时按指标 unit 经 `measure(forUnit:)` 推导。
+        var measure: HoloMetricMeasure? = nil
+        /// comparison 字段是分组名（如分类名），过滤 "all"/"unknown"/空 后作为 groupLabel。
+        var comparisonIsGroupLabel = false
+        /// comparison 字段是方向串（increasing/decreasing/stable），解析为 direction。
+        var comparisonIsDirection = false
+    }
+
+    static let fixedMetricTemplates: [String: FixedMetricTemplate] = [
+        // 财务（finance.transactions）
+        "finance.total.amount": .init(domain: .finance, dataset: "finance.transactions", operation: .sum, valueRole: .current),
+        "finance.category.amount": .init(domain: .finance, dataset: "finance.transactions", operation: .sum, valueRole: .current, dimension: .category, comparisonIsGroupLabel: true),
+        // 仅作为事件出现（脱敏账单样例，无数值指标）；登记以保持 outputMetrics 闭集完整。
+        "finance.transaction.sample": .init(domain: .finance, dataset: "finance.transactions", operation: .count, valueRole: .current),
+        "finance.meal.nighttime_count": .init(domain: .finance, dataset: "finance.transactions", operation: .count, valueRole: .current),
+        "finance.category.concentration": .init(domain: .finance, dataset: "finance.transactions", operation: .ratio, valueRole: .share, dimension: .category, measure: .ratio, comparisonIsGroupLabel: true),
+        "finance.amount.change": .init(domain: .finance, dataset: "finance.transactions", operation: .difference, valueRole: .delta, comparisonIsDirection: true),
+        "finance.keyword.count": .init(domain: .finance, dataset: "finance.transactions", operation: .count, valueRole: .current),
+        "finance.keyword.amount": .init(domain: .finance, dataset: "finance.transactions", operation: .sum, valueRole: .current),
+        "finance.budget.total": .init(domain: .finance, dataset: "finance.transactions", operation: .sum, valueRole: .current),
+        "finance.budget.spent": .init(domain: .finance, dataset: "finance.transactions", operation: .sum, valueRole: .current),
+        "finance.budget.remaining": .init(domain: .finance, dataset: "finance.transactions", operation: .sum, valueRole: .current),
+        "finance.budget.progress": .init(domain: .finance, dataset: "finance.transactions", operation: .ratio, valueRole: .current),
+        "finance.account.count": .init(domain: .finance, dataset: "finance.transactions", operation: .count, valueRole: .current),
+        "finance.account.assets": .init(domain: .finance, dataset: "finance.transactions", operation: .sum, valueRole: .current),
+        "finance.account.liabilities": .init(domain: .finance, dataset: "finance.transactions", operation: .sum, valueRole: .current),
+        "finance.account.net_worth": .init(domain: .finance, dataset: "finance.transactions", operation: .sum, valueRole: .current),
+        // 习惯（habit.daily）
+        "habit.negative.frequency_change": .init(domain: .habit, dataset: "habit.daily", operation: .difference, valueRole: .delta, comparisonIsDirection: true),
+        "habit.negative.over_limit_days": .init(domain: .habit, dataset: "habit.daily", operation: .count, valueRole: .current),
+        "habit.negative.control_rate": .init(domain: .habit, dataset: "habit.daily", operation: .ratio, valueRole: .current, measure: .ratio),
+        "habit.negative.goal_conflict_days": .init(domain: .habit, dataset: "habit.daily", operation: .count, valueRole: .current),
+        "habit.positive.completion_rate": .init(domain: .habit, dataset: "habit.daily", operation: .ratio, valueRole: .current, measure: .ratio),
+        "habit.streak_break_days": .init(domain: .habit, dataset: "habit.daily", operation: .count, valueRole: .current),
+        // 任务（task.daily）
+        "task.today.total": .init(domain: .task, dataset: "task.daily", operation: .count, valueRole: .current),
+        "task.today.completed": .init(domain: .task, dataset: "task.daily", operation: .count, valueRole: .current),
+        "task.overdue.count": .init(domain: .task, dataset: "task.daily", operation: .count, valueRole: .current),
+        "task.backlog.active_count": .init(domain: .task, dataset: "task.daily", operation: .count, valueRole: .current),
+        "task.completion.rate": .init(domain: .task, dataset: "task.daily", operation: .ratio, valueRole: .current, measure: .ratio),
+        // 健康（health.steps / health.sleep / health.stand / health.activity / health.workout）
+        "health.steps.average": .init(domain: .health, dataset: "health.steps", operation: .average, valueRole: .current),
+        "health.steps.goal_met_days": .init(domain: .health, dataset: "health.steps", operation: .count, valueRole: .current),
+        "health.steps.daily": .init(domain: .health, dataset: "health.steps", operation: .sum, valueRole: .current, dimension: .day),
+        "health.sleep.average_hours": .init(domain: .health, dataset: "health.sleep", operation: .average, valueRole: .current),
+        "health.sleep.goal_met_days": .init(domain: .health, dataset: "health.sleep", operation: .count, valueRole: .current),
+        "health.sleep.low_days": .init(domain: .health, dataset: "health.sleep", operation: .count, valueRole: .current),
+        "health.sleep.recorded_nights": .init(domain: .health, dataset: "health.sleep", operation: .count, valueRole: .current),
+        // 波动类指标是周期内统计量，operation 枚举无 stddev，取最近聚合 average。
+        "health.sleep.duration_variation_minutes": .init(domain: .health, dataset: "health.sleep", operation: .average, valueRole: .current),
+        "health.sleep.deep_hours": .init(domain: .health, dataset: "health.sleep", operation: .average, valueRole: .current),
+        "health.sleep.core_hours": .init(domain: .health, dataset: "health.sleep", operation: .average, valueRole: .current),
+        "health.sleep.rem_hours": .init(domain: .health, dataset: "health.sleep", operation: .average, valueRole: .current),
+        "health.sleep.awake_hours": .init(domain: .health, dataset: "health.sleep", operation: .average, valueRole: .current),
+        "health.sleep.in_bed_hours": .init(domain: .health, dataset: "health.sleep", operation: .average, valueRole: .current),
+        "health.sleep.efficiency": .init(domain: .health, dataset: "health.sleep", operation: .average, valueRole: .current),
+        "health.sleep.average_bedtime_minutes": .init(domain: .health, dataset: "health.sleep", operation: .average, valueRole: .current),
+        "health.sleep.average_wake_minutes": .init(domain: .health, dataset: "health.sleep", operation: .average, valueRole: .current),
+        "health.sleep.bedtime_variation_minutes": .init(domain: .health, dataset: "health.sleep", operation: .average, valueRole: .current),
+        "health.sleep.wake_variation_minutes": .init(domain: .health, dataset: "health.sleep", operation: .average, valueRole: .current),
+        "health.sleep.interruptions": .init(domain: .health, dataset: "health.sleep", operation: .average, valueRole: .current),
+        "health.sleep.hours": .init(domain: .health, dataset: "health.sleep", operation: .sum, valueRole: .current, dimension: .day),
+        "health.stand.average_hours": .init(domain: .health, dataset: "health.stand", operation: .average, valueRole: .current),
+        "health.stand.goal_met_days": .init(domain: .health, dataset: "health.stand", operation: .count, valueRole: .current),
+        "health.stand.hours": .init(domain: .health, dataset: "health.stand", operation: .sum, valueRole: .current, dimension: .day),
+        "health.activity.average_minutes": .init(domain: .health, dataset: "health.activity", operation: .average, valueRole: .current),
+        "health.activity.goal_met_days": .init(domain: .health, dataset: "health.activity", operation: .count, valueRole: .current),
+        "health.activity.minutes": .init(domain: .health, dataset: "health.activity", operation: .sum, valueRole: .current, dimension: .day),
+        "health.workout.total_minutes": .init(domain: .health, dataset: "health.workout", operation: .sum, valueRole: .current),
+        "health.workout.session_count": .init(domain: .health, dataset: "health.workout", operation: .count, valueRole: .current),
+        "health.workout.active_days": .init(domain: .health, dataset: "health.workout", operation: .count, valueRole: .current),
+        "health.workout.daily_minutes": .init(domain: .health, dataset: "health.workout", operation: .sum, valueRole: .current, dimension: .day)
+    ]
+
+    /// 固定工具指标语义：精确命中注册表才产出，未知 key 返回 nil（不猜）。
+    /// delta 角色的 currentValue 由 value + baselineValue 复算（工具产出的是差值与基线）。
+    static func fixedMetricSemantic(
+        metricKey: String,
+        value: Double,
+        unit: String?,
+        baselineValue: Double?,
+        comparison: String?
+    ) -> HoloMetricSemantic? {
+        guard let template = fixedMetricTemplates[metricKey] else { return nil }
+        let groupLabel: String?
+        if template.comparisonIsGroupLabel {
+            let trimmed = comparison?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            groupLabel = trimmed.isEmpty
+                || trimmed.lowercased() == "all"
+                || trimmed.lowercased() == "unknown" ? nil : trimmed
+        } else {
+            groupLabel = nil
+        }
+        let direction: HoloMetricDirection?
+        if template.comparisonIsDirection {
+            switch comparison?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+            case "increasing": direction = .increase
+            case "decreasing": direction = .decrease
+            case "stable": direction = .flat
+            default: direction = nil
+            }
+        } else {
+            direction = nil
+        }
+        let currentValue = template.valueRole == .delta
+            ? baselineValue.map { value + $0 } ?? value
+            : value
+        let resolvedUnit = unit?.trimmingCharacters(in: .whitespacesAndNewlines)
+        let semantic = HoloMetricSemantic(
+            domain: template.domain,
+            dataset: template.dataset,
+            measure: template.measure ?? measure(forUnit: unit),
+            operation: template.operation,
+            valueRole: template.valueRole,
+            dimension: template.dimension,
+            groupLabel: groupLabel,
+            direction: direction,
+            currentValue: currentValue,
+            baselineValue: baselineValue,
+            resultValue: value,
+            displayUnit: resolvedUnit?.isEmpty == false ? resolvedUnit : nil
+        )
+        assertInvariants(semantic)
+        return semantic
+    }
+
+    /// 固定工具事件级语义：只覆盖事件值与同名指标含义不同的 key（每日原始数据点），
+    /// 避免 Runtime 回退把汇总/差值指标语义错挂到原始点上；其余事件返回 nil，
+    /// 由 `HoloLocalAgentRuntime.evidenceRecords` 回退到同 metricKey 的指标语义。
+    static func fixedEventSemantic(
+        for event: HoloEvidenceEvent,
+        metrics: [HoloMetric]
+    ) -> HoloMetricSemantic? {
+        guard let key = event.metricKey,
+              let value = event.metricValue,
+              value.isFinite else { return nil }
+        switch key {
+        case "health.steps.daily", "health.sleep.hours", "health.stand.hours",
+             "health.activity.minutes", "health.workout.daily_minutes":
+            // 每日原始数据点：day 维度 + 日期标签（可排序），支撑 trend 模式。
+            guard let template = fixedMetricTemplates[key] else { return nil }
+            let semantic = HoloMetricSemantic(
+                domain: template.domain,
+                dataset: template.dataset,
+                measure: template.measure ?? measure(forUnit: dailyEventUnit(for: key)),
+                operation: template.operation,
+                valueRole: .current,
+                dimension: .day,
+                groupLabel: event.occurredAt.map(dayLabel(for:)),
+                direction: nil,
+                currentValue: value,
+                baselineValue: nil,
+                resultValue: value,
+                displayUnit: dailyEventUnit(for: key)
+            )
+            assertInvariants(semantic)
+            return semantic
+        case "task.completion.rate":
+            // 事件值是每日完成数（条），同名指标是完成率（比例），语义不同必须分开。
+            let semantic = HoloMetricSemantic(
+                domain: .task,
+                dataset: "task.daily",
+                measure: .count,
+                operation: .count,
+                valueRole: .current,
+                dimension: .day,
+                groupLabel: event.occurredAt.map(dayLabel(for:)),
+                direction: nil,
+                currentValue: value,
+                baselineValue: nil,
+                resultValue: value,
+                displayUnit: "条"
+            )
+            assertInvariants(semantic)
+            return semantic
+        case "habit.negative.frequency_change", "habit.positive.completion_rate":
+            // 事件值是当日发生/完成次数，同名指标是差值/比率，语义不同必须分开。
+            let semantic = HoloMetricSemantic(
+                domain: .habit,
+                dataset: "habit.daily",
+                measure: .count,
+                operation: .count,
+                valueRole: .current,
+                dimension: nil,
+                groupLabel: nil,
+                direction: nil,
+                currentValue: value,
+                baselineValue: nil,
+                resultValue: value,
+                displayUnit: "次"
+            )
+            assertInvariants(semantic)
+            return semantic
+        default:
+            return nil
+        }
+    }
+
+    /// 固定工具结果统一挂语义：指标按注册表精确匹配；事件只处理上表列出的原始数据点 key。
+    /// 已带 semantic 的指标/事件（如构造期显式挂上的分组事件）保持不变。
+    static func attachFixedToolSemantics(to result: HoloDataToolResult) -> HoloDataToolResult {
+        var result = result
+        result.metrics = result.metrics.map { metric in
+            var metric = metric
+            if metric.semantic == nil,
+               let value = metric.value,
+               value.isFinite {
+                metric.semantic = fixedMetricSemantic(
+                    metricKey: metric.metricKey,
+                    value: value,
+                    unit: metric.unit,
+                    baselineValue: metric.baselineValue,
+                    comparison: metric.comparison
+                )
+            }
+            return metric
+        }
+        let metrics = result.metrics
+        result.events = result.events.map { event in
+            var event = event
+            if event.semantic == nil {
+                event.semantic = fixedEventSemantic(for: event, metrics: metrics)
+            }
+            return event
+        }
+        return result
+    }
+
+    /// 每日原始数据点事件的单位（事件本身不带 unit，key 与单位是编译期确定的）。
+    private static func dailyEventUnit(for metricKey: String) -> String? {
+        switch metricKey {
+        case "health.steps.daily": return "步"
+        case "health.sleep.hours", "health.stand.hours": return "小时"
+        case "health.activity.minutes", "health.workout.daily_minutes": return "分钟"
+        default: return nil
+        }
+    }
+
+    /// day 维度的分组标签：ISO 日期字典序与时间序一致，供 trend 排序。
+    private static func dayLabel(for date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.calendar = Calendar(identifier: .gregorian)
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.dateFormat = "yyyy-MM-dd"
+        return formatter.string(from: date)
+    }
 }
 
 nonisolated enum HoloDynamicQueryRangeResolver {

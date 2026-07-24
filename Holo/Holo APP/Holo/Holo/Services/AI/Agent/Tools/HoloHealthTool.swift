@@ -207,22 +207,25 @@ struct HoloHealthTool: HoloDataTool {
         if request.query == "dynamic_query", let plan = request.dynamicPlan {
             return await dynamicResult(request, plan: plan)
         }
+        let result: HoloDataToolResult
         switch request.query {
         case "health_overview":
-            return await overview(request)
+            result = await overview(request)
         case "steps_summary":
-            return await dailySummary(request, metric: .steps)
+            result = await dailySummary(request, metric: .steps)
         case "sleep_summary":
-            return await sleepSummary(request)
+            result = await sleepSummary(request)
         case "stand_summary":
-            return await dailySummary(request, metric: .stand)
+            result = await dailySummary(request, metric: .stand)
         case "activity_summary":
-            return await dailySummary(request, metric: .activity)
+            result = await dailySummary(request, metric: .activity)
         case "workout_summary":
-            return await workoutSummary(request)
+            result = await workoutSummary(request)
         default:
-            return error(request, reason: "不支持的健康查询：\(request.query)")
+            result = error(request, reason: "不支持的健康查询：\(request.query)")
         }
+        // P3：固定指标统一挂类型化语义（动态链路 P1 已覆盖，不走这里）
+        return HoloMetricSemanticFactory.attachFixedToolSemantics(to: result)
     }
 }
 

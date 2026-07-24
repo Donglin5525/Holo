@@ -122,6 +122,11 @@ nonisolated enum HoloAnswerTaskDeriver {
         if semantics.contains(where: { $0.operation == .linearTrend || $0.valueRole == .trend }) {
             return .trend
         }
+        // 显式排名意图优先于时间序列启发（P3：「哪天/哪个最多」要排名，不是趋势）
+        let allGrouped = semantics.filter { $0.dimension != nil }
+        if asksRanking(question), Set(allGrouped.compactMap(\.groupLabel)).count >= 2 {
+            return .ranking
+        }
         let timeDimensions: Set<HoloMetricDimension> = [.day, .week, .month, .weekend]
         let timeLabels = Set(semantics.filter { $0.dimension.map(timeDimensions.contains) == true }
             .compactMap(\.groupLabel))

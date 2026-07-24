@@ -68,16 +68,19 @@ struct HoloHabitTool: HoloDataTool {
 
     func execute(_ request: HoloToolRequest) async throws -> HoloDataToolResult {
         let habits = await dataSource.habits(timeRange: request.timeRange)
+        let result: HoloDataToolResult
         switch request.query {
         case "negative_habit_control":
-            return negativeControlResult(request: request, habits: habits)
+            result = negativeControlResult(request: request, habits: habits)
         case "goal_conflict":
-            return goalConflictResult(request: request, habits: habits)
+            result = goalConflictResult(request: request, habits: habits)
         case "trend_summary":
-            return trendSummaryResult(request: request, habits: habits)
+            result = trendSummaryResult(request: request, habits: habits)
         default:
-            return Self.errorResult(request, reason: "不支持的查询：\(request.query)")
+            result = Self.errorResult(request, reason: "不支持的查询：\(request.query)")
         }
+        // P3：固定指标统一挂类型化语义
+        return HoloMetricSemanticFactory.attachFixedToolSemantics(to: result)
     }
 
     // MARK: - 各 query 实现

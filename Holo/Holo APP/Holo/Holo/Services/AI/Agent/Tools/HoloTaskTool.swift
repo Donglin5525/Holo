@@ -83,19 +83,22 @@ struct HoloTaskTool: HoloDataTool {
 
     func execute(_ request: HoloToolRequest) async throws -> HoloDataToolResult {
         let snapshot = await dataSource.snapshot(timeRange: request.timeRange)
+        let result: HoloDataToolResult
         switch request.query {
         case "today_load":
-            return Self.todayLoad(request: request, snapshot: snapshot)
+            result = Self.todayLoad(request: request, snapshot: snapshot)
         case "backlog_risk":
-            return Self.backlogRisk(request: request, snapshot: snapshot)
+            result = Self.backlogRisk(request: request, snapshot: snapshot)
         case "completion_trend":
-            return Self.completionTrend(request: request, snapshot: snapshot)
+            result = Self.completionTrend(request: request, snapshot: snapshot)
         default:
-            return Self.empty(
+            result = Self.empty(
                 request: request,
                 warnings: [HoloToolWarning(code: "UNSUPPORTED_QUERY", message: "不支持的任务查询：\(request.query)")]
             )
         }
+        // P3：固定指标统一挂类型化语义
+        return HoloMetricSemanticFactory.attachFixedToolSemantics(to: result)
     }
 }
 
