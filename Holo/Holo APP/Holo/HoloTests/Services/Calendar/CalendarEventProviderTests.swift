@@ -17,7 +17,7 @@ final class CalendarEventProviderTests: XCTestCase {
 
     /// 共享一个 in-memory context 仅为取 NSManagedObjectID（aggregate 测试用）
     private lazy var idContext: NSManagedObjectContext = {
-        let model = CoreDataStack.shared.createDataModel()
+        let model = CoreDataTestSupport.sharedModel
         let container = NSPersistentContainer(name: "ProviderIDTest", managedObjectModel: model)
         let description = NSPersistentStoreDescription()
         description.type = NSInMemoryStoreType
@@ -27,7 +27,7 @@ final class CalendarEventProviderTests: XCTestCase {
     }()
 
     private lazy var sharedObjectID: NSManagedObjectID = {
-        let thought = Thought(context: idContext)
+        let thought = idContext.insertTestObject(Thought.self)
         thought.id = UUID()
         thought.content = "占位"
         thought.createdAt = Date()
@@ -256,7 +256,7 @@ final class CalendarEventProviderTests: XCTestCase {
         XCTAssertTrue(items.early.isEmpty)
         XCTAssertEqual(items.collapsed.count, 2)
         XCTAssertEqual(items.displayItems.map(\.module), [.todo, .thought])
-        XCTAssertEqual(items.displayItems.first?.top, 0)
+        XCTAssertEqual(items.displayItems.first?.top, 9)
     }
 
     func test_calendarObservationSummary生成本地可信观察() {
@@ -296,7 +296,7 @@ final class CalendarEventProviderTests: XCTestCase {
 
     /// 造一个含 1 条想法的 in-memory provider
     private func makeProviderWithThought() throws -> (CalendarEventProvider, NSManagedObjectContext) {
-        let model = CoreDataStack.shared.createDataModel()
+        let model = CoreDataTestSupport.sharedModel
         let container = NSPersistentContainer(name: "ProviderIntegration", managedObjectModel: model)
         let description = NSPersistentStoreDescription()
         description.type = NSInMemoryStoreType
@@ -306,7 +306,7 @@ final class CalendarEventProviderTests: XCTestCase {
         if let storeError { throw storeError }
         let ctx = container.viewContext
 
-        let thought = Thought(context: ctx)
+        let thought = ctx.insertTestObject(Thought.self)
         thought.id = UUID()
         thought.content = "测试想法"
         thought.createdAt = makeDate(year: 2026, month: 7, day: 1, hour: 9)

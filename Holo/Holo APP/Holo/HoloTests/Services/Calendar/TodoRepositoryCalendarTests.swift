@@ -13,7 +13,7 @@ import CoreData
 final class TodoRepositoryCalendarTests: XCTestCase {
 
     private func makeRepo() throws -> (TodoRepository, NSManagedObjectContext) {
-        let model = CoreDataStack.shared.createDataModel()
+        let model = CoreDataTestSupport.sharedModel
         let container = NSPersistentContainer(name: "TodoRepoCalendarTest", managedObjectModel: model)
         let description = NSPersistentStoreDescription()
         description.type = NSInMemoryStoreType
@@ -22,7 +22,9 @@ final class TodoRepositoryCalendarTests: XCTestCase {
         container.loadPersistentStores { _, error in storeError = error }
         if let storeError { throw storeError }
         let ctx = container.viewContext
-        return (TodoRepository(context: ctx), ctx)
+        let repository = TodoRepository(context: ctx)
+        CoreDataTestSupport.retain(container, ctx, repository)
+        return (repository, ctx)
     }
 
     private func makeDate(year: Int, month: Int, day: Int, hour: Int = 0) -> Date {
@@ -38,7 +40,7 @@ final class TodoRepositoryCalendarTests: XCTestCase {
     private func makeTask(in ctx: NSManagedObjectContext,
                           title: String,
                           completedAt: Date) throws -> TodoTask {
-        let t = TodoTask(context: ctx)
+        let t = ctx.insertTestObject(TodoTask.self)
         t.id = UUID()
         t.title = title
         t.completedAt = completedAt
@@ -76,7 +78,7 @@ final class TodoRepositoryCalendarTests: XCTestCase {
 
     func test_已删除任务被过滤() throws {
         let (repo, ctx) = try makeRepo()
-        let t = TodoTask(context: ctx)
+        let t = ctx.insertTestObject(TodoTask.self)
         t.id = UUID()
         t.title = "已删"
         t.completedAt = makeDate(year: 2026, month: 7, day: 1, hour: 9)

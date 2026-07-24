@@ -61,11 +61,12 @@ final class HabitStatsStateTests: XCTestCase {
     // MARK: - 摘要文案测试
 
     func testCheckInSummaryContainsCompletedDaysAndStreak() {
-        let summary = HabitStatsCardSummary.checkIn(completedDays: 15, streak: 7)
+        let expectedStreak = HabitStreak(value: 7, unit: .day)
+        let summary = HabitStatsCardSummary.checkIn(completedDays: 15, streak: expectedStreak)
 
         if case .checkIn(let completedDays, let streak) = summary {
             XCTAssertEqual(completedDays, 15)
-            XCTAssertEqual(streak, 7)
+            XCTAssertEqual(streak, expectedStreak)
         } else {
             XCTFail("Expected checkIn summary")
         }
@@ -103,7 +104,8 @@ final class HabitStatsStateTests: XCTestCase {
             dayNumber: 15,
             isInCurrentMonth: true,
             isToday: false,
-            hasRecord: true
+            hasRecord: true,
+            isOverLimit: false
         )
 
         XCTAssertEqual(cell.id, date)

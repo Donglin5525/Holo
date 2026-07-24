@@ -13,42 +13,42 @@ final class CategoryDefaultIconTests: XCTestCase {
     func testTopLevelDefaultIconLookup() {
         XCTAssertEqual(
             Category.defaultIconName(name: "投资理财", type: .income, parentName: nil),
-            "chart.line.uptrend.xyaxis"
+            "cat_inc_invest"
         )
         XCTAssertEqual(
             Category.defaultIconName(name: "交通", type: .expense, parentName: nil),
-            "car.fill"
+            "cat_transport"
         )
     }
 
     func testSubCategoryDefaultIconLookupUsesParentNameToDisambiguate() {
         XCTAssertEqual(
             Category.defaultIconName(name: "早餐", type: .expense, parentName: "餐饮"),
-            "holo.category.breakfast"
+            "finance_breakfast"
         )
         XCTAssertEqual(
             Category.defaultIconName(name: "午餐", type: .expense, parentName: "餐饮"),
-            "holo.category.lunch"
+            "finance_lunch"
         )
         XCTAssertEqual(
             Category.defaultIconName(name: "晚餐", type: .expense, parentName: "餐饮"),
-            "holo.category.dinner"
+            "finance_dinner"
         )
         XCTAssertEqual(
             Category.defaultIconName(name: "水果", type: .expense, parentName: "餐饮"),
-            "holo.category.fruit"
+            "finance_fruit"
         )
         XCTAssertEqual(
             Category.defaultIconName(name: "基金", type: .income, parentName: "投资理财"),
-            "chart.pie.fill"
+            "income_fund"
         )
         XCTAssertEqual(
             Category.defaultIconName(name: "礼物", type: .income, parentName: "人情来往"),
-            "gift.fill"
+            "income_gift_in"
         )
         XCTAssertEqual(
             Category.defaultIconName(name: "礼物", type: .expense, parentName: "购物"),
-            "gift.fill"
+            "finance_gift"
         )
         XCTAssertEqual(
             Category.defaultIconName(name: "其他", type: .expense, parentName: "人情"),

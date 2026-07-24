@@ -14,12 +14,12 @@ final class CategoryIconCatalogTests: XCTestCase {
 
     // MARK: - 1. 所有 SF Symbol 可解析
 
-    /// 遍历全部 SF Symbol 图标，校验 UIImage(systemSymbolName:) != nil
+    /// 遍历全部 SF Symbol 图标，校验 UIImage(systemName:) != nil
     func testAllSymbolsResolvable() {
         var failures: [String] = []
 
         for iconName in CategoryIconCatalog.sfSymbolIcons {
-            let isAvailable = UIImage(systemSymbolName: iconName, accessibilityDescription: nil) != nil
+            let isAvailable = UIImage(systemName: iconName) != nil
             if !isAvailable {
                 failures.append(iconName)
             }
@@ -181,9 +181,9 @@ final class CategoryIconCatalogTests: XCTestCase {
             .first { $0.id == "food" }?
             .icons ?? []
 
-        XCTAssertTrue(foodIcons.contains("holo.category.breakfast"))
-        XCTAssertTrue(foodIcons.contains("holo.category.lunch"))
-        XCTAssertTrue(foodIcons.contains("holo.category.dinner"))
-        XCTAssertTrue(foodIcons.contains("holo.category.fruit"))
+        XCTAssertTrue(foodIcons.contains("finance_breakfast"))
+        XCTAssertTrue(foodIcons.contains("finance_lunch"))
+        XCTAssertTrue(foodIcons.contains("finance_dinner"))
+        XCTAssertTrue(foodIcons.contains("finance_fruit"))
     }
 }

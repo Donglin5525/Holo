@@ -10,14 +10,27 @@ import XCTest
 
 final class HabitStatsDisplaySettingsTests: XCTestCase {
 
+    /// iOS 26.3 Simulator 在 hosted XCTest 中销毁局部 @Published 对象会非法释放；
+    /// 生产对象本身是长生命周期单例，这里同样保留到测试进程结束。
+    private static var retainedSettings: [HabitStatsDisplaySettings] = []
+
+    private func makeDefaults(_ label: String) -> UserDefaults {
+        UserDefaults(suiteName: "com.holo.tests.\(label).\(UUID().uuidString)")!
+    }
+
+    private func makeSettings(_ defaults: UserDefaults) -> HabitStatsDisplaySettings {
+        let settings = HabitStatsDisplaySettings(userDefaults: defaults)
+        Self.retainedSettings.append(settings)
+        return settings
+    }
+
     // MARK: - Visible Habit IDs
 
     func testSaveVisibleHabitIdsRoundTrips() {
-        let defaults = UserDefaults(suiteName: "HabitStatsDisplaySettingsTests")!
-        defaults.removePersistentDomain(forName: "HabitStatsDisplaySettingsTests")
+        let defaults = makeDefaults("visible")
         let first = UUID()
         let second = UUID()
-        let settings = HabitStatsDisplaySettings(userDefaults: defaults)
+        let settings = makeSettings(defaults)
 
         settings.setVisibleHabitIds([first, second])
 
@@ -25,10 +38,9 @@ final class HabitStatsDisplaySettingsTests: XCTestCase {
     }
 
     func testEmptyVisibleHabitIdsWhenNoneSaved() {
-        let defaults = UserDefaults(suiteName: "HabitStatsDisplaySettingsEmptyTests")!
-        defaults.removePersistentDomain(forName: "HabitStatsDisplaySettingsEmptyTests")
+        let defaults = makeDefaults("empty")
 
-        let settings = HabitStatsDisplaySettings(userDefaults: defaults)
+        let settings = makeSettings(defaults)
 
         XCTAssertTrue(settings.visibleHabitIds.isEmpty)
     }
@@ -36,12 +48,11 @@ final class HabitStatsDisplaySettingsTests: XCTestCase {
     // MARK: - Ordered Habit IDs
 
     func testOrderedHabitIdsRoundTrips() {
-        let defaults = UserDefaults(suiteName: "HabitStatsDisplaySettingsOrderTests")!
-        defaults.removePersistentDomain(forName: "HabitStatsDisplaySettingsOrderTests")
+        let defaults = makeDefaults("order")
         let a = UUID()
         let b = UUID()
         let c = UUID()
-        let settings = HabitStatsDisplaySettings(userDefaults: defaults)
+        let settings = makeSettings(defaults)
 
         settings.setOrderedHabitIds([a, b, c])
 
@@ -51,12 +62,11 @@ final class HabitStatsDisplaySettingsTests: XCTestCase {
     // MARK: - Move Habit
 
     func testMoveHabitReordersIds() {
-        let defaults = UserDefaults(suiteName: "HabitStatsDisplaySettingsMoveTests")!
-        defaults.removePersistentDomain(forName: "HabitStatsDisplaySettingsMoveTests")
+        let defaults = makeDefaults("move")
         let a = UUID()
         let b = UUID()
         let c = UUID()
-        let settings = HabitStatsDisplaySettings(userDefaults: defaults)
+        let settings = makeSettings(defaults)
         settings.setOrderedHabitIds([a, b, c])
 
         settings.moveHabit(fromOffsets: IndexSet(integer: 0), toOffset: 3)
@@ -65,18 +75,16 @@ final class HabitStatsDisplaySettingsTests: XCTestCase {
     }
 
     func testMoveHabitPersisted() {
-        let suiteName = "HabitStatsDisplaySettingsMovePersistTests"
-        let defaults = UserDefaults(suiteName: suiteName)!
-        defaults.removePersistentDomain(forName: suiteName)
+        let defaults = makeDefaults("move-persist")
         let a = UUID()
         let b = UUID()
-        let settings = HabitStatsDisplaySettings(userDefaults: defaults)
+        let settings = makeSettings(defaults)
         settings.setOrderedHabitIds([a, b])
 
         settings.moveHabit(fromOffsets: IndexSet(integer: 1), toOffset: 0)
 
         // 重新加载验证持久化
-        let reloaded = HabitStatsDisplaySettings(userDefaults: defaults)
+        let reloaded = makeSettings(defaults)
         XCTAssertEqual(reloaded.orderedHabitIds, [b, a])
     }
 }

@@ -11,6 +11,18 @@ import XCTest
 @MainActor
 final class VoiceInputViewModelTests: XCTestCase {
 
+    private func waitUntil(
+        timeout: TimeInterval = 2,
+        _ predicate: @escaping @MainActor () -> Bool
+    ) async {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if predicate() { return }
+            await Task.yield()
+        }
+        XCTFail("等待异步状态更新超时")
+    }
+
     func testStartRecordingWithPermissionMovesToRecording() async {
         let recorder = FakeVoiceRecordingService()
         recorder.permissionGranted = true
@@ -145,6 +157,7 @@ final class VoiceInputViewModelTests: XCTestCase {
 
         processor.finish()
         await processor.waitForProcessCompletion()
+        await waitUntil { viewModel.summaryTranscript != nil }
 
         XCTAssertEqual(viewModel.state, .transcriptReady("整理后的总结"))
         XCTAssertEqual(viewModel.editableTranscript, "整理后的总结")
@@ -177,6 +190,7 @@ final class VoiceInputViewModelTests: XCTestCase {
 
         processor.finish()
         await processor.waitForProcessCompletion()
+        await waitUntil { viewModel.summaryTranscript != nil }
 
         XCTAssertEqual(viewModel.editableTranscript, "总结第一句。\n\n总结第二句。")
         XCTAssertEqual(viewModel.summaryTranscript, "总结第一句。\n\n总结第二句。")
@@ -256,7 +270,9 @@ final class VoiceInputViewModelTests: XCTestCase {
         )
 
         await viewModel.startRecording()
-        await provider.waitForTranscription()
+        await waitUntil {
+            viewModel.state == .transcriptReady("自动完成测试")
+        }
 
         XCTAssertTrue(viewModel.didAutoFinishBecauseOfLimit)
         XCTAssertEqual(viewModel.state, .transcriptReady("自动完成测试"))

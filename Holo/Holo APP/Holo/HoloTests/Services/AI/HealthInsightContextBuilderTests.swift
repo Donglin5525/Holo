@@ -121,7 +121,8 @@ final class HealthInsightContextBuilderTests: XCTestCase {
 
         // 6/22 咖啡支出应为当日聚合 15 + 20 = 35
         let evidence = try XCTUnwrap(result.evidence.first { $0.id == "finance-keyword-coffee-20260622" })
-        XCTAssertEqual(evidence.metricValue, 35, accuracy: 0.001)
+        let metricValue = try XCTUnwrap(evidence.metricValue)
+        XCTAssertEqual(metricValue, 35, accuracy: 0.001)
     }
 
     // MARK: - 多域候选（P2）

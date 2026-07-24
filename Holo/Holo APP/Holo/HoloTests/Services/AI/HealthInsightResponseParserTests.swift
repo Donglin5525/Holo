@@ -119,6 +119,7 @@ final class HealthInsightResponseParserTests: XCTestCase {
         let raw = #"{"coreInsight":{"id":"c","title":"t","summary":"s","confidence":1.5}}"#
         let parsed = try parser.parse(raw, legalEvidenceIds: legalIds)
 
-        XCTAssertEqual(parsed.coreInsight?.confidence, 1.0, accuracy: 0.001)
+        let core = try XCTUnwrap(parsed.coreInsight)
+        XCTAssertEqual(core.confidence, 1.0, accuracy: 0.001)
     }
 }

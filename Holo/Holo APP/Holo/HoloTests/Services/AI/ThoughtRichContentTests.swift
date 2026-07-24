@@ -15,7 +15,7 @@ final class ThoughtRichContentTests: XCTestCase {
     // MARK: - In-Memory Core Data
 
     private func makeRepo() throws -> (ThoughtRepository, NSManagedObjectContext) {
-        let model = CoreDataStack.shared.createDataModel()
+        let model = CoreDataTestSupport.sharedModel
         let container = NSPersistentContainer(name: "RichContentTest", managedObjectModel: model)
         let description = NSPersistentStoreDescription()
         description.type = NSInMemoryStoreType
@@ -24,7 +24,9 @@ final class ThoughtRichContentTests: XCTestCase {
         container.loadPersistentStores { _, error in storeError = error }
         if let storeError { throw storeError }
         let ctx = container.viewContext
-        return (ThoughtRepository(context: ctx), ctx)
+        let repository = ThoughtRepository(context: ctx)
+        CoreDataTestSupport.retain(container, ctx, repository)
+        return (repository, ctx)
     }
 
     @discardableResult
@@ -34,7 +36,7 @@ final class ThoughtRichContentTests: XCTestCase {
 
     @discardableResult
     private func makeTag(in ctx: NSManagedObjectContext, name: String) throws -> ThoughtTag {
-        let tag = ThoughtTag(context: ctx)
+        let tag = ctx.insertTestObject(ThoughtTag.self)
         tag.id = UUID()
         tag.name = name
         tag.usageCount = 1

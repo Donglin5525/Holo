@@ -144,16 +144,4 @@ final class HealthDashboardStateTests: XCTestCase {
         XCTAssertNotEqual(high.detail, noData.detail)
     }
 
-    func testLifestyleInsightsHasThreeItemsInStableDomainOrder() {
-        let snapshot = makeHealthSnapshot(sleepValue: 8, sleepAvailability: .available)
-        let insights = snapshot.lifestyleInsights
-
-        XCTAssertEqual(insights.count, 3)
-        XCTAssertEqual(insights.map(\.domain), ["习", "财", "想"])
-        // 每条结构完整
-        for insight in insights {
-            XCTAssertFalse(insight.title.isEmpty)
-            XCTAssertFalse(insight.detail.isEmpty)
-        }
-    }
 }

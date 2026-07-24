@@ -110,7 +110,11 @@ private struct StubHealthDataSource: HealthInsightDataSource {
     func dailySteps(from start: Date, to end: Date) async -> [DailyHealthData] { [] }
     func dailyStand(from start: Date, to end: Date) async -> [DailyHealthData] { [] }
     func dailyActive(from start: Date, to end: Date) async -> [DailyHealthData] { [] }
+    func dailyWorkouts(from start: Date, to end: Date) async -> [DailyWorkoutData] { [] }
     func financeRecords(from start: Date, to end: Date) async -> [HealthInsightFinanceRecord] { [] }
+    func habitDailyCompletion(from start: Date, to end: Date) async -> [HealthInsightHabitRecord] { [] }
+    func taskDailyCompletion(from start: Date, to end: Date) async -> [HealthInsightTaskRecord] { [] }
+    func thoughtDailyCount(from start: Date, to end: Date) async -> [HealthInsightThoughtRecord] { [] }
 }
 
 /// 无任何健康数据（isDataSufficient=false）。
@@ -119,5 +123,9 @@ private struct EmptyHealthDataSource: HealthInsightDataSource {
     func dailySteps(from start: Date, to end: Date) async -> [DailyHealthData] { [] }
     func dailyStand(from start: Date, to end: Date) async -> [DailyHealthData] { [] }
     func dailyActive(from start: Date, to end: Date) async -> [DailyHealthData] { [] }
+    func dailyWorkouts(from start: Date, to end: Date) async -> [DailyWorkoutData] { [] }
     func financeRecords(from start: Date, to end: Date) async -> [HealthInsightFinanceRecord] { [] }
+    func habitDailyCompletion(from start: Date, to end: Date) async -> [HealthInsightHabitRecord] { [] }
+    func taskDailyCompletion(from start: Date, to end: Date) async -> [HealthInsightTaskRecord] { [] }
+    func thoughtDailyCount(from start: Date, to end: Date) async -> [HealthInsightThoughtRecord] { [] }
 }

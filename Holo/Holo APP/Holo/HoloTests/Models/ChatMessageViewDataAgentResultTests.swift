@@ -348,7 +348,7 @@ final class ChatMessageViewDataAgentResultTests: XCTestCase {
         let model = AgentDeepAnalysisNarrativeModel(result: result)
 
         XCTAssertEqual(model.openingTitle, "近30天「麦当劳」消费结果")
-        XCTAssertEqual(model.observations.first?.title, "账单结果")
+        XCTAssertTrue(model.observations.isEmpty, "与直接回答重复的观察不应再次展示")
         XCTAssertFalse(model.shouldShowClosing)
         XCTAssertFalse(model.closingTitle.contains("最大头"))
     }

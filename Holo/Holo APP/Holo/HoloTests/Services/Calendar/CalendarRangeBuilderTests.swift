@@ -22,9 +22,7 @@ final class CalendarRangeBuilderTests: XCTestCase {
 
     @MainActor
     func test_calendarViewModel默认打开周历网格视图() {
-        let viewModel = CalendarViewModel()
-
-        XCTAssertEqual(viewModel.weekViewMode, .grid, "周历首屏应默认展示时间轴网格，贴近日历原型")
+        XCTAssertEqual(CalendarViewModel.defaultWeekViewMode, .grid, "周历首屏应默认展示时间轴网格，贴近日历原型")
     }
 
     // MARK: - weekRange（周一首）
@@ -82,8 +80,8 @@ final class CalendarRangeBuilderTests: XCTestCase {
         let wed = makeDate(year: 2026, month: 7, day: 1, hour: 9)
         let range = CalendarRangeBuilder.weekRange(around: wed)
 
-        XCTAssertTrue(range.contains(range.start), "start 应在区间内")
-        XCTAssertFalse(range.contains(range.end), "end 应不在区间内（半开）")
+        XCTAssertTrue(CalendarRangeBuilder.contains(range.start, in: range), "start 应在区间内")
+        XCTAssertFalse(CalendarRangeBuilder.contains(range.end, in: range), "end 应不在区间内（半开）")
     }
 
     func test_半开区间_次日零点不在当日() {
@@ -92,7 +90,7 @@ final class CalendarRangeBuilderTests: XCTestCase {
         let nextDayZero = makeDate(year: 2026, month: 8, day: 1, hour: 0)
         let range = CalendarRangeBuilder.dayRange(day)
 
-        XCTAssertTrue(range.contains(day))
-        XCTAssertFalse(range.contains(nextDayZero), "次日 00:00 不应计入当日（半开上界）")
+        XCTAssertTrue(CalendarRangeBuilder.contains(day, in: range))
+        XCTAssertFalse(CalendarRangeBuilder.contains(nextDayZero, in: range), "次日 00:00 不应计入当日（半开上界）")
     }
 }

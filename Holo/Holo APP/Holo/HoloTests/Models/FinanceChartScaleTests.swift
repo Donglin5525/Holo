@@ -16,7 +16,7 @@ final class FinanceChartScaleTests: XCTestCase {
             balanceValues: [10_000, 15_000, 20_000]
         )
 
-        XCTAssertEqual(scale.amountAxisMax, 414)
+        XCTAssertEqual(scale.amountAxisMax, 414, accuracy: 0.001)
         XCTAssertEqual(scale.balanceAxisMax, 20_000)
         XCTAssertEqual(scale.scaledBalance(20_000), 414, accuracy: 0.001)
         XCTAssertEqual(scale.scaledBalance(10_000), 207, accuracy: 0.001)
@@ -29,7 +29,7 @@ final class FinanceChartScaleTests: XCTestCase {
         )
 
         XCTAssertEqual(scale.amountAxisMin, 0)
-        XCTAssertEqual(scale.amountAxisMax, 230)
+        XCTAssertEqual(scale.amountAxisMax, 230, accuracy: 0.001)
         XCTAssertEqual(scale.balanceAxisMin, -5_000)
         XCTAssertEqual(scale.balanceAxisMax, 5_000)
         XCTAssertEqual(scale.scaledBalance(-5_000), 0, accuracy: 0.001)

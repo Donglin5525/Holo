@@ -12,7 +12,7 @@ import CoreData
 final class HabitRepositoryCalendarTests: XCTestCase {
 
     private func makeRepo() throws -> (HabitRepository, NSManagedObjectContext) {
-        let model = CoreDataStack.shared.createDataModel()
+        let model = CoreDataTestSupport.sharedModel
         let container = NSPersistentContainer(name: "HabitRepoCalendarTest", managedObjectModel: model)
         let description = NSPersistentStoreDescription()
         description.type = NSInMemoryStoreType
@@ -21,7 +21,9 @@ final class HabitRepositoryCalendarTests: XCTestCase {
         container.loadPersistentStores { _, error in storeError = error }
         if let storeError { throw storeError }
         let ctx = container.viewContext
-        return (HabitRepository(context: ctx), ctx)
+        let repository = HabitRepository(context: ctx)
+        CoreDataTestSupport.retain(container, ctx, repository)
+        return (repository, ctx)
     }
 
     private func makeDate(year: Int, month: Int, day: Int, hour: Int = 0) -> Date {
@@ -33,12 +35,33 @@ final class HabitRepositoryCalendarTests: XCTestCase {
         return Calendar.current.date(from: c) ?? Date()
     }
 
+    private func makeHabit(in ctx: NSManagedObjectContext,
+                           name: String,
+                           aggregationType: HabitAggregationType = .sum,
+                           unit: String? = nil) -> Habit {
+        let habit = NSEntityDescription.insertNewObject(forEntityName: "Habit", into: ctx) as! Habit
+        habit.id = UUID()
+        habit.name = name
+        habit.icon = aggregationType == .latest ? "scalemass.fill" : "drop.fill"
+        habit.color = "#3B82F6"
+        habit.type = HabitType.numeric.rawValue
+        habit.frequency = HabitFrequency.daily.rawValue
+        habit.unit = unit
+        habit.aggregationType = aggregationType.rawValue
+        habit.isBadHabit = false
+        habit.isArchived = false
+        habit.sortOrder = 0
+        habit.createdAt = Date()
+        habit.updatedAt = Date()
+        return habit
+    }
+
     @discardableResult
     private func makeRecord(in ctx: NSManagedObjectContext,
                             habitId: UUID,
                             date: Date,
                             completed: Bool = true) throws -> HabitRecord {
-        let r = HabitRecord(context: ctx)
+        let r = NSEntityDescription.insertNewObject(forEntityName: "HabitRecord", into: ctx) as! HabitRecord
         r.id = UUID()
         r.habitId = habitId
         r.date = date
@@ -54,7 +77,7 @@ final class HabitRepositoryCalendarTests: XCTestCase {
                                    habitId: UUID,
                                    value: Double,
                                    date: Date) throws -> HabitRecord {
-        let r = HabitRecord(context: ctx)
+        let r = NSEntityDescription.insertNewObject(forEntityName: "HabitRecord", into: ctx) as! HabitRecord
         r.id = UUID()
         r.habitId = habitId
         r.date = date
@@ -119,14 +142,13 @@ final class HabitRepositoryCalendarTests: XCTestCase {
 
     func test_撤销今日最近一笔_计数类删最新一条() throws {
         let (repo, ctx) = try makeRepo()
-        let habit = Habit.create(in: ctx, name: "喝水", icon: "drop.fill",
-                                 color: "#3B82F6", type: .numeric, unit: "杯")
+        let habit = makeHabit(in: ctx, name: "喝水", unit: "杯")
         try ctx.save()
 
-        let now = Date()
-        try makeNumericRecord(in: ctx, habitId: habit.id, value: 1, date: now.addingTimeInterval(-3600))
-        try makeNumericRecord(in: ctx, habitId: habit.id, value: 1, date: now.addingTimeInterval(-1800))
-        try makeNumericRecord(in: ctx, habitId: habit.id, value: 1, date: now)
+        let today = Calendar.current.startOfDay(for: Date())
+        try makeNumericRecord(in: ctx, habitId: habit.id, value: 1, date: today.addingTimeInterval(8 * 3600))
+        try makeNumericRecord(in: ctx, habitId: habit.id, value: 1, date: today.addingTimeInterval(9 * 3600))
+        try makeNumericRecord(in: ctx, habitId: habit.id, value: 1, date: today.addingTimeInterval(10 * 3600))
 
         XCTAssertEqual(repo.getTodayValue(for: habit), 3, "前置：今日合计应为 3")
 
@@ -138,14 +160,12 @@ final class HabitRepositoryCalendarTests: XCTestCase {
 
     func test_撤销今日最近一笔_测量类回退到上一条() throws {
         let (repo, ctx) = try makeRepo()
-        let habit = Habit.create(in: ctx, name: "体重", icon: "scalemass.fill",
-                                 color: "#3B82F6", type: .numeric,
-                                 aggregationType: .latest, unit: "kg")
+        let habit = makeHabit(in: ctx, name: "体重", aggregationType: .latest, unit: "kg")
         try ctx.save()
 
-        let now = Date()
-        try makeNumericRecord(in: ctx, habitId: habit.id, value: 70, date: now.addingTimeInterval(-3600))
-        try makeNumericRecord(in: ctx, habitId: habit.id, value: 71, date: now)
+        let today = Calendar.current.startOfDay(for: Date())
+        try makeNumericRecord(in: ctx, habitId: habit.id, value: 70, date: today.addingTimeInterval(8 * 3600))
+        try makeNumericRecord(in: ctx, habitId: habit.id, value: 71, date: today.addingTimeInterval(9 * 3600))
 
         XCTAssertEqual(repo.getTodayValue(for: habit), 71, "前置：测量类今日取最新 71")
 
@@ -155,8 +175,7 @@ final class HabitRepositoryCalendarTests: XCTestCase {
 
     func test_撤销今日无记录返回false不抛错() throws {
         let (repo, ctx) = try makeRepo()
-        let habit = Habit.create(in: ctx, name: "喝水", icon: "drop.fill",
-                                 color: "#3B82F6", type: .numeric, unit: "杯")
+        let habit = makeHabit(in: ctx, name: "喝水", unit: "杯")
         try ctx.save()
 
         let removed = try repo.removeLatestTodayRecord(for: habit)
@@ -165,8 +184,7 @@ final class HabitRepositoryCalendarTests: XCTestCase {
 
     func test_撤销只影响今日不影响昨日记录() throws {
         let (repo, ctx) = try makeRepo()
-        let habit = Habit.create(in: ctx, name: "喝水", icon: "drop.fill",
-                                 color: "#3B82F6", type: .numeric, unit: "杯")
+        let habit = makeHabit(in: ctx, name: "喝水", unit: "杯")
         try ctx.save()
 
         let now = Date()
@@ -176,5 +194,86 @@ final class HabitRepositoryCalendarTests: XCTestCase {
         let removed = try repo.removeLatestTodayRecord(for: habit)
         XCTAssertFalse(removed, "今日无记录（只有昨日）应返回 false")
         XCTAssertEqual(repo.getAllRecords(for: habit).count, 1, "昨日记录不应被误删")
+    }
+
+    // MARK: - 数值统计有效值口径
+
+    func test_近90天测量统计忽略较新的空记录() throws {
+        let (repo, ctx) = try makeRepo()
+        let habit = makeHabit(in: ctx, name: "体重", aggregationType: .latest, unit: "kg")
+        try ctx.save()
+
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let oldDay = calendar.date(byAdding: .day, value: -80, to: today) ?? today
+        let recentDay = calendar.date(byAdding: .day, value: -1, to: today) ?? today
+        try makeNumericRecord(in: ctx, habitId: habit.id, value: 72.4,
+                              date: oldDay.addingTimeInterval(8 * 3600))
+        try makeRecord(in: ctx, habitId: habit.id,
+                       date: oldDay.addingTimeInterval(9 * 3600), completed: false)
+        try makeNumericRecord(in: ctx, habitId: habit.id, value: 70.1,
+                              date: recentDay.addingTimeInterval(8 * 3600))
+
+        let stats = repo.calculatePeriodStats(for: habit, range: .quarter)
+        XCTAssertEqual(stats.count, 2)
+        XCTAssertEqual(stats.min, 70.1, accuracy: 0.000_001)
+        XCTAssertEqual(stats.max, 72.4, accuracy: 0.000_001)
+        XCTAssertEqual(stats.change ?? 0, -2.3, accuracy: 0.000_001)
+        XCTAssertEqual(repo.getDailyAggregatedData(for: habit, range: .quarter).map(\.value),
+                       [72.4, 70.1])
+    }
+
+    func test_全部范围无有效值时统计为空而不是有效零值() throws {
+        let (repo, ctx) = try makeRepo()
+        let habit = makeHabit(in: ctx, name: "体重", aggregationType: .latest, unit: "kg")
+        try ctx.save()
+        try makeRecord(in: ctx, habitId: habit.id, date: Date(), completed: false)
+
+        let stats = repo.calculatePeriodStats(for: habit, range: .all)
+        XCTAssertEqual(stats.count, 0, "空值记录不能伪装成一条数值 0")
+        XCTAssertNil(stats.change)
+        XCTAssertTrue(repo.getDailyAggregatedData(for: habit, range: .all).isEmpty)
+    }
+
+    func test_今日测量值跳过最新空记录() throws {
+        let (repo, ctx) = try makeRepo()
+        let habit = makeHabit(in: ctx, name: "体重", aggregationType: .latest, unit: "kg")
+        try ctx.save()
+
+        let now = Date()
+        try makeNumericRecord(in: ctx, habitId: habit.id, value: 70.5,
+                              date: now.addingTimeInterval(-60))
+        try makeRecord(in: ctx, habitId: habit.id, date: now, completed: false)
+
+        XCTAssertEqual(repo.getTodayValue(for: habit), 70.5,
+                       "最新空记录不能遮住今日最新有效测量值")
+    }
+
+    func test_自定义周期只统计起止日期内的有效测量值() throws {
+        let (repo, ctx) = try makeRepo()
+        let habit = makeHabit(in: ctx, name: "体重", aggregationType: .latest, unit: "kg")
+        try ctx.save()
+
+        try makeNumericRecord(in: ctx, habitId: habit.id, value: 73.0,
+                              date: makeDate(year: 2026, month: 7, day: 9, hour: 12))
+        try makeNumericRecord(in: ctx, habitId: habit.id, value: 72.0,
+                              date: makeDate(year: 2026, month: 7, day: 10, hour: 8))
+        try makeNumericRecord(in: ctx, habitId: habit.id, value: 71.2,
+                              date: makeDate(year: 2026, month: 7, day: 12, hour: 23))
+        try makeNumericRecord(in: ctx, habitId: habit.id, value: 70.8,
+                              date: makeDate(year: 2026, month: 7, day: 13, hour: 8))
+
+        let start = makeDate(year: 2026, month: 7, day: 10)
+        let end = makeDate(year: 2026, month: 7, day: 12, hour: 23)
+            .addingTimeInterval(59 * 60 + 59)
+        let dateRange = start...end
+
+        let stats = repo.calculatePeriodStats(for: habit, dateRange: dateRange)
+        XCTAssertEqual(stats.count, 2)
+        XCTAssertEqual(stats.min, 71.2, accuracy: 0.000_001)
+        XCTAssertEqual(stats.max, 72.0, accuracy: 0.000_001)
+        XCTAssertEqual(stats.change ?? 0, -0.8, accuracy: 0.000_001)
+        XCTAssertEqual(repo.getDailyAggregatedData(for: habit, dateRange: dateRange).map(\.value),
+                       [72.0, 71.2])
     }
 }

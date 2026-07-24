@@ -59,7 +59,7 @@ final class DailySenseSnapshotTests: XCTestCase {
         XCTAssertFalse(decoded.isLegacy)
 
         // 验证 JSON 包含新字段
-        XCTAssertTrue(jsonString.contains("\"schemaVersion\":3"))
+        XCTAssertTrue(jsonString.contains("\"schemaVersion\":\(DailySenseSnapshot.currentSchemaVersion)"))
         XCTAssertTrue(jsonString.contains("\"signals\":["))
         XCTAssertTrue(jsonString.contains("\"tags\":["))
     }
