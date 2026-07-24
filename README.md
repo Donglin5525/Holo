@@ -1,16 +1,147 @@
-# React + Vite
+# Holo — 人生数据库
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+> 把财务、任务、想法、习惯与身体状态统一沉淀为个人数据资产，由 AI 将数据转化为可执行的计划与长期人生策略。
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 产品愿景
 
-## React Compiler
+大多数人的生活数据散落在各处：账单在记账 App，任务在便签，体重在健康 App，想法在备忘录。这些数据彼此孤立，很难产生合力。你知道自己花了多少钱，却不知道那段时间睡眠和情绪是什么状态；你记下了很多任务，却没有人告诉你哪些真正重要。
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+**Holo 想做的事情只有一件：让你的个人数据开始为你工作。**
 
-## Expanding the ESLint configuration
+它把所有数据统一沉淀在一个地方，让 AI 看见它们之间的关联——财务压力如何影响情绪，习惯断裂和任务过载是否同步发生，睡眠质量与消费行为之间有没有规律——然后把这些洞察转化为可执行的计划和长期建议。
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+**记录只是入口，AI 规划闭环才是价值所在。** 我们希望你用更少的意志力，持续变得更好。
+
+---
+
+## 设计理念
+
+### All-in-one 只是起点
+
+市面上的 All-in-one 工具大多只是把不同功能拼在一起，数据之间没有真正的联动。Holo 的目标不是"一个 App 代替多个 App"，而是让跨域的数据关联成为可能——这是单一工具永远做不到的事。
+
+### Chat-First，像和 Jarvis 说话
+
+Holo 的核心交互是对话。你不需要打开特定模块、找到对应按钮，只需要用自然语言说出你想做的事：「刚花了 68 块吃饭」「帮我建个任务明天下午三点开会」「我今天心情不太好」。AI 会自动理解意图，提取结构化数据，分类存入对应模块，并在合适的时机给出反馈。
+
+这个设计的灵感来自钢铁侠的 Jarvis：AI 不是一个被动的工具，而是一个主动的伙伴，它知道你的状态，会在你需要的时候主动开口。
+
+### 数据是资产，不是负担
+
+很多人坚持不下去记录，是因为记了没有回报。Holo 的记忆长廊会把你的日常零散数据自动聚合成可回看的个人历史——每天发生了什么、这周的状态曲线、某个习惯是从哪天开始断掉的。数据越积累，AI 对你的理解越深，给出的建议也越精准。这是一个随时间增值的个人数据资产，而不是一个需要维护的负担。
+
+### 本地优先，隐私友好
+
+所有个人数据存储在设备本地（Core Data），不强制上云。AI 调用通过自建后端网关统一代理，客户端不持有任何大模型 API Key。
+
+---
+
+## 核心功能
+
+### 数据模块
+
+Holo 覆盖了个人生活的七个核心数据域：
+
+| 模块 | 核心能力 |
+|------|----------|
+| **记账** | 收支记录与分类、预算管理、周期性支出追踪、多维图表分析（饼图/折线图/分类下钻） |
+| **习惯** | 打卡型与数值型习惯、月度热力图、连续天数统计、撤销防误触 |
+| **待办** | 任务列表与优先级、循环规则、提醒通知、附件支持、清单分类管理 |
+| **观点** | 结构化富文本编辑器（支持 #标签 和 @引用）、语音转录摘要、想法知识树与 AI 标签归并 |
+| **健康** | Apple HealthKit 深度接入（步数、睡眠阶段、站立、活动时间）、健康环形图、周度趋势 |
+| **目标** | 长期目标设定与 AI 辅助拆解、执行进度跟踪 |
+| **日程** | 月历/周历视图、跨域数据时间轴聚合 |
+
+### HoloAI 智能助理
+
+HoloAI 是 Holo 的 AI 核心，分为主动与被动两种工作方式：
+
+**主动交互**（你触发）
+
+- **自然语言录入**：支持语音与文本，内置 15+ 种意图识别，自动解析并分类入库，无需手动选择模块
+- **Agent 深度分析**：不是"你问我答"，而是 AI 自主决定查哪些数据、多轮取证、每条结论必须挂证据——像侦探破案，而不是记者速答
+- **数据查询**：用自然语言查询任何模块的数据，支持跨域组合查询
+
+**被动交互**（系统自动运行）
+
+- **记忆洞察**：自动生成日/周/月洞察报告，包含热力图、里程碑高光和行为模式分析
+- **异常检测**：消费飙升、习惯断裂、任务过载时主动预警
+- **跨域关联**：发现不同数据域之间的隐藏关联，形成系统性建议
+- **智能分类学习**：记住你的分类习惯，越用越准
+
+### 系统级特性
+
+- **今日看板**：每天打开 App 的第一眼，聚合当日预算、习惯打卡、待办进度与健康状态
+- **记忆长廊**：个人数据的时间轴视图，支持月历/周历切换与 AI 回放
+- **桌面小组件**：主屏幕数据透出与快捷入口
+- **iOS 26 持续处理**：支持 App 切后台或锁屏状态下的 AI 任务稳定执行，断点续跑
+- **数据导入导出**：支持 CSV/JSON 格式，兼容 MOZE 等主流记账 App 的历史数据迁移
+
+---
+
+## 系统架构
+
+```
+iOS App (SwiftUI)
+        │
+        ▼
+Holo AI Gateway (自建后端网关，Node.js)
+        │
+        ▼
+LLM (DeepSeek / Qwen / Moonshot 等)  +  DashScope 语音识别 (ASR)
+```
+
+**iOS 客户端**采用 SwiftUI + MVVM + Clean Architecture，Core Data 本地优先存储。
+
+**后端网关（HoloBackend）** 是 Holo 的 AI 安全层，所有 AI 调用经此统一代理：客户端不持有任何大模型 API Key，Prompt 在后端集中管理并支持热更新，内置请求级幂等性保障与 AES-256-GCM 响应加密。
+
+---
+
+## 技术栈
+
+| 层级 | 选型 |
+|------|------|
+| iOS UI | SwiftUI（iOS 16+）、Swift 5+ |
+| 架构模式 | MVVM + Clean Architecture |
+| 本地存储 | Core Data（本地优先） |
+| 图表 | Swift Charts（原生） |
+| 语音识别 | SFSpeechRecognizer + DashScope ASR |
+| 后端 | Node.js + Hono 框架，Docker Compose 部署 |
+| AI 服务 | 多 Provider 网关（DeepSeek、Qwen、Moonshot、智谱等） |
+| 数据安全 | Keychain 存储密钥，AES-256-GCM 加密 Agent 响应 |
+
+---
+
+## 仓库结构
+
+```
+Holo/
+├── Holo/Holo APP/        # iOS 客户端（Xcode 工程）
+│   ├── Holo/             #   主 App（Models / Views / Services / Data）
+│   └── HoloWidgets/      #   桌面小组件
+├── HoloBackend/          # AI 后端网关（Node.js）
+│   ├── src/              #   路由、鉴权、Prompt 库、代理逻辑
+│   └── deploy/           #   Docker Compose 部署配置
+├── docs/
+│   ├── _common/          #   PRD、AI 能力全景、开发规范
+│   └── [模块名]/          #   各子模块设计文档
+├── CLAUDE.md             # AI 结对编程协作规则与技术避坑指南
+└── CHANGELOG.md          # 版本迭代记录
+```
+
+## 关键文档
+
+| 想了解… | 请看 |
+|---------|------|
+| 产品愿景与完整需求 | [`docs/_common/HoloPRD.md`](docs/_common/HoloPRD.md) |
+| HoloAI 怎么用 | [`docs/_common/HoloAI使用说明书.md`](docs/_common/HoloAI使用说明书.md) |
+| Agent 工作原理（产品视角） | [`docs/_common/HoloAI Agent工作原理（产品视角）.md`](<docs/_common/HoloAI%20Agent工作原理（产品视角）.md>) |
+| 后端网关接口与部署 | [`HoloBackend/README.md`](HoloBackend/README.md) |
+| 开发规范与踩坑总结 | [`docs/_common/开发规范.md`](docs/_common/开发规范.md) |
+| 版本变更记录 | [`CHANGELOG.md`](CHANGELOG.md) |
+
+---
+
+*本项目由东林以 AI 结对编程方式持续开发中。*
