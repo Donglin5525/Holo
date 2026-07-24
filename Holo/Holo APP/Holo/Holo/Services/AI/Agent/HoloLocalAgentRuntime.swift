@@ -1483,6 +1483,8 @@ actor HoloLocalAgentRuntime {
                 comparison: result.metrics.first { $0.metricKey == metricKey }?.comparison,
                 formula: event.formula ?? result.metrics.first { $0.metricKey == metricKey }?.formula,
                 sourceRecordIDs: event.sourceRecordIDs ?? result.metrics.first { $0.metricKey == metricKey }?.sourceRecordIDs,
+                // P1：语义随事件产生；事件缺失时回退到同 metricKey 的 metric 语义
+                semantic: event.semantic ?? result.metrics.first { $0.metricKey == metricKey }?.semantic,
                 excerpt: event.excerpt,
                 redactedExcerpt: event.excerpt,
                 sensitivity: HoloAgentEvidencePolicy.sensitivity(for: result),

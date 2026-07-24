@@ -419,6 +419,12 @@ nonisolated struct HoloCrossDomainTool: HoloDataTool {
         guard let value = calculated.value else { return Self.error(request, "跨域数据方差不足，无法计算") }
         let metricKey = "dynamic.cross.\(plan.operation.rawValue).\(Self.sanitize(plan.leftSource))_\(Self.sanitize(plan.rightSource))"
         let sourceIDs = pairs.flatMap { [$0.leftID, $0.rightID] }
+        let semantic = HoloMetricSemanticFactory.crossDomainSemantic(
+            plan: plan,
+            value: value,
+            baselineValue: calculated.baseline,
+            unit: calculated.unit
+        )
         let metric = HoloMetric(
             metricKey: metricKey,
             value: value,
@@ -426,7 +432,8 @@ nonisolated struct HoloCrossDomainTool: HoloDataTool {
             baselineValue: calculated.baseline,
             comparison: "aligned_days=\(pairs.count)",
             formula: calculated.formula,
-            sourceRecordIDs: sourceIDs
+            sourceRecordIDs: sourceIDs,
+            semantic: semantic
         )
         let event = HoloEvidenceEvent(
             id: "cross-\(request.id)", occurredAt: plan.timeRange?.end,
@@ -434,7 +441,8 @@ nonisolated struct HoloCrossDomainTool: HoloDataTool {
             excerpt: calculated.excerpt,
             timeRange: plan.timeRange,
             formula: calculated.formula,
-            sourceRecordIDs: sourceIDs
+            sourceRecordIDs: sourceIDs,
+            semantic: semantic
         )
         return HoloDataToolResult(
             toolRequestID: request.id, tool: request.tool, status: .success,
@@ -554,6 +562,253 @@ nonisolated struct HoloDynamicExecutionOutput: Equatable, Sendable {
     var coverage: HoloDataCoverage?
 }
 
+// MARK: - 类型化结果语义构造（P1）
+
+/// 从查询计划、schema 与聚合/派生定义构造 `HoloMetricSemantic` 的唯一入口。
+/// 只接受结构化输入，不接受自由字符串，保证语义可验证、可复算。
+nonisolated enum HoloMetricSemanticFactory {
+
+    // MARK: 单位映射
+
+    /// unit 字符串 → 业务量；nil / 空 / 未知 → none。P2 展示层复用同一映射，保持 internal。
+    static func measure(forUnit unit: String?) -> HoloMetricMeasure {
+        guard let unit else { return .none }
+        switch unit.trimmingCharacters(in: .whitespacesAndNewlines) {
+        case "元": return .amount
+        case "个", "条", "项", "笔", "类", "次": return .count
+        case "小时": return .durationHours
+        case "分钟": return .durationMinutes
+        case "步": return .steps
+        case "天": return .days
+        case "晚": return .nights
+        case "%", "比例": return .ratio
+        case "元/月": return .rateMonthly
+        case "元/天": return .rateDaily
+        case "相关系数": return .correlation
+        default: return .none
+        }
+    }
+
+    // MARK: 操作映射
+
+    static func operation(forAggregation operation: HoloDynamicAggregationOperator) -> HoloMetricOperation {
+        switch operation {
+        case .count: return .count
+        case .sum: return .sum
+        case .average: return .average
+        case .min: return .minimum
+        case .max: return .maximum
+        case .distinctCount: return .distinctCount
+        }
+    }
+
+    static func operation(forDerivation operation: HoloDynamicDerivationOperator) -> HoloMetricOperation {
+        switch operation {
+        case .difference: return .difference
+        case .ratio: return .ratio
+        case .percentageChange: return .percentageChange
+        case .rate: return .rate
+        case .perDay: return .perDay
+        case .linearTrend: return .linearTrend
+        case .coverage: return .coverage
+        }
+    }
+
+    // MARK: 数值角色与方向
+
+    /// 聚合指标恒为 current；派生指标按操作决定角色。
+    static func valueRole(forDerivation operation: HoloDynamicDerivationOperator) -> HoloMetricValueRole {
+        switch operation {
+        case .difference: return .delta
+        case .percentageChange: return .changeRate
+        case .ratio: return .share
+        case .rate: return .share
+        case .perDay: return .current
+        case .linearTrend: return .trend
+        case .coverage: return .coverage
+        }
+    }
+
+    /// delta / changeRate 按结果值符号给方向（|v| < 1e-9 视为持平），其余角色无方向。
+    static func direction(forRole role: HoloMetricValueRole, resultValue: Double) -> HoloMetricDirection? {
+        guard role == .delta || role == .changeRate else { return nil }
+        if resultValue > 1e-9 { return .increase }
+        if resultValue < -1e-9 { return .decrease }
+        return .flat
+    }
+
+    // MARK: 分组维度与标签
+
+    /// 分组定义 → 维度；field 分组按字段名白名单映射，未知字段不猜、返回 nil。
+    static func dimension(forGrouping grouping: HoloDynamicGrouping?) -> HoloMetricDimension? {
+        guard let grouping else { return nil }
+        switch grouping.type {
+        case .day: return .day
+        case .week: return .week
+        case .month: return .month
+        case .weekend: return .weekend
+        case .field:
+            switch grouping.field {
+            case "category": return .category
+            case "account": return .account
+            case "transactionType": return .transactionType
+            case "habit": return .habit
+            case "polarity": return .polarity
+            case "kind": return .memoryKind
+            case "periodType": return .periodType
+            case "status": return .insightStatus
+            case "role": return .conversationRole
+            case "intent": return .conversationIntent
+            default: return nil
+            }
+        }
+    }
+
+    /// bucket key → 展示分组标签；无分组或 "all"/"unknown" 时返回 nil。
+    static func groupLabel(forBucketKey bucketKey: String, grouping: HoloDynamicGrouping?) -> String? {
+        guard grouping != nil else { return nil }
+        let trimmed = bucketKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              trimmed.lowercased() != "all",
+              trimmed.lowercased() != "unknown" else { return nil }
+        return trimmed
+    }
+
+    // MARK: 领域映射
+
+    /// schema.domain 字符串 → 来源模块；insight.records 的 domain 字符串是 "insight"，归入 memoryInsight。
+    static func domain(forDomainString domain: String) -> HoloEvidenceSourceModule {
+        if domain == "insight" { return .memoryInsight }
+        return HoloEvidenceSourceModule(rawValue: domain) ?? .agent
+    }
+
+    // MARK: 语义构造
+
+    /// 聚合指标语义：currentValue = 当前周期值，baselineValue = 对比周期值。
+    static func aggregationSemantic(
+        plan: HoloDynamicQueryPlan,
+        schema: HoloDataSetSchema?,
+        aggregation: HoloDynamicAggregation,
+        bucketKey: String,
+        value: Double,
+        baselineValue: Double?
+    ) -> HoloMetricSemantic {
+        let semantic = HoloMetricSemantic(
+            domain: domain(forDomainString: schema?.domain ?? ""),
+            dataset: schema?.name ?? plan.source,
+            measure: measure(forUnit: aggregation.unit),
+            operation: operation(forAggregation: aggregation.operation),
+            valueRole: .current,
+            dimension: dimension(forGrouping: plan.groupBy.first),
+            groupLabel: groupLabel(forBucketKey: bucketKey, grouping: plan.groupBy.first),
+            direction: nil,
+            currentValue: value,
+            baselineValue: baselineValue,
+            resultValue: value,
+            displayUnit: aggregation.unit
+        )
+        assertInvariants(semantic)
+        return semantic
+    }
+
+    /// 派生指标语义：currentValue / baselineValue 继承自被派生的源 metric。
+    static func derivationSemantic(
+        plan: HoloDynamicQueryPlan,
+        schema: HoloDataSetSchema?,
+        derivation: HoloDynamicDerivation,
+        source: HoloMetric,
+        groupKey: String,
+        value: Double
+    ) -> HoloMetricSemantic {
+        let role = valueRole(forDerivation: derivation.operation)
+        let semantic = HoloMetricSemantic(
+            domain: domain(forDomainString: schema?.domain ?? ""),
+            dataset: schema?.name ?? plan.source,
+            measure: measure(forUnit: derivation.unit),
+            operation: operation(forDerivation: derivation.operation),
+            valueRole: role,
+            dimension: dimension(forGrouping: plan.groupBy.first),
+            groupLabel: groupLabel(forBucketKey: groupKey, grouping: plan.groupBy.first),
+            direction: direction(forRole: role, resultValue: value),
+            currentValue: source.value,
+            baselineValue: source.baselineValue,
+            resultValue: value,
+            displayUnit: derivation.unit
+        )
+        assertInvariants(semantic)
+        return semantic
+    }
+
+    /// 跨域指标语义：domain 取右侧（因变量）source 前缀，dataset 为 "left+right" 组合。
+    static func crossDomainSemantic(
+        plan: HoloCrossDomainQueryPlan,
+        value: Double,
+        baselineValue: Double?,
+        unit: String
+    ) -> HoloMetricSemantic {
+        let operation: HoloMetricOperation
+        let resolvedMeasure: HoloMetricMeasure
+        switch plan.operation {
+        case .correlation:
+            operation = .correlation
+            resolvedMeasure = .correlation
+        case .conditionalAverage:
+            operation = .conditionalAverage
+            resolvedMeasure = measure(forUnit: unit)
+        case .groupComparison:
+            operation = .groupComparison
+            resolvedMeasure = measure(forUnit: unit)
+        }
+        let rightDomain = plan.rightSource.split(separator: ".").first.map(String.init) ?? ""
+        let semantic = HoloMetricSemantic(
+            domain: domain(forDomainString: rightDomain),
+            dataset: "\(plan.leftSource)+\(plan.rightSource)",
+            measure: resolvedMeasure,
+            operation: operation,
+            valueRole: .current,
+            dimension: nil,
+            groupLabel: nil,
+            direction: nil,
+            currentValue: value,
+            baselineValue: baselineValue,
+            resultValue: value,
+            displayUnit: unit.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : unit
+        )
+        assertInvariants(semantic)
+        return semantic
+    }
+
+    // MARK: 不变量断言
+
+    /// DEBUG 下校验语义不变量：delta/changeRate 必须有非 nil currentValue；direction 与 resultValue 符号一致。
+    private static func assertInvariants(_ semantic: HoloMetricSemantic) {
+        if semantic.valueRole == .delta || semantic.valueRole == .changeRate {
+            if semantic.currentValue == nil {
+                assertionFailure("HoloMetricSemantic 不变量违反：\(semantic.valueRole.rawValue) 角色缺少 currentValue（\(semantic.dataset)）")
+            }
+        }
+        if let direction = semantic.direction {
+            let value = semantic.resultValue
+            switch direction {
+            case .increase:
+                if value <= 1e-9 {
+                    assertionFailure("HoloMetricSemantic 不变量违反：direction=increase 但 resultValue=\(value)")
+                }
+            case .decrease:
+                if value >= -1e-9 {
+                    assertionFailure("HoloMetricSemantic 不变量违反：direction=decrease 但 resultValue=\(value)")
+                }
+            case .flat:
+                if abs(value) >= 1e-9 {
+                    assertionFailure("HoloMetricSemantic 不变量违反：direction=flat 但 resultValue=\(value)")
+                }
+            case .unknown:
+                break
+            }
+        }
+    }
+}
+
 nonisolated enum HoloDynamicQueryRangeResolver {
     static func baselineIfNeeded(for plan: HoloDynamicQueryPlan, currentRange: HoloAgentTimeRange?) -> HoloAgentTimeRange? {
         guard plan.baseline == nil,
@@ -581,6 +836,7 @@ nonisolated enum HoloDynamicQueryEngine {
         calendar: Calendar = .current
     ) throws -> HoloDynamicExecutionOutput {
         try HoloDynamicQueryValidator.validate(plan, catalog: catalog, calendar: calendar)
+        let schema = catalog.schema(named: plan.source)
         let current = currentRows.filter { matches($0, filters: plan.filters) }
         let baseline = baselineRows.filter { matches($0, filters: plan.filters) }
         let currentBuckets = buckets(current, grouping: plan.groupBy.first, calendar: calendar)
@@ -593,20 +849,30 @@ nonisolated enum HoloDynamicQueryEngine {
                 let baselineValue = aggregate(aggregation, rows: baselineBuckets[bucket.key] ?? [])
                 let key = metricKey(source: plan.source, id: aggregation.id, group: bucket.key)
                 let sourceIDs = Array(bucket.rows.prefix(plan.evidenceLimit).map(\.id))
+                let roundedValue = rounded(value)
+                let roundedBaseline = baselineValue.map(rounded)
                 metrics.append(HoloMetric(
                     metricKey: key,
-                    value: rounded(value),
+                    value: roundedValue,
                     unit: aggregation.unit,
-                    baselineValue: baselineValue.map(rounded),
+                    baselineValue: roundedBaseline,
                     comparison: bucket.key == "all" ? nil : bucket.key,
                     formula: formula(aggregation),
-                    sourceRecordIDs: sourceIDs
+                    sourceRecordIDs: sourceIDs,
+                    semantic: HoloMetricSemanticFactory.aggregationSemantic(
+                        plan: plan,
+                        schema: schema,
+                        aggregation: aggregation,
+                        bucketKey: bucket.key,
+                        value: roundedValue,
+                        baselineValue: roundedBaseline
+                    )
                 ))
             }
         }
 
         for derivation in plan.derivations {
-            metrics.append(contentsOf: derive(derivation, plan: plan, metrics: metrics, current: current, calendar: calendar))
+            metrics.append(contentsOf: derive(derivation, plan: plan, schema: schema, metrics: metrics, current: current, calendar: calendar))
         }
 
         if let sort = plan.sort {
@@ -630,7 +896,8 @@ nonisolated enum HoloDynamicQueryEngine {
                 timeRange: plan.timeRange,
                 baselineTimeRange: plan.baseline,
                 formula: metric.formula,
-                sourceRecordIDs: metric.sourceRecordIDs
+                sourceRecordIDs: metric.sourceRecordIDs,
+                semantic: metric.semantic
             )
         }
         return HoloDynamicExecutionOutput(
@@ -709,6 +976,7 @@ nonisolated enum HoloDynamicQueryEngine {
     private static func derive(
         _ spec: HoloDynamicDerivation,
         plan: HoloDynamicQueryPlan,
+        schema: HoloDataSetSchema?,
         metrics: [HoloMetric],
         current: [HoloQueryRow],
         calendar: Calendar
@@ -759,14 +1027,23 @@ nonisolated enum HoloDynamicQueryEngine {
             }
             guard let value else { return nil }
             let group = metric.comparison ?? "all"
+            let roundedValue = rounded(value)
             return HoloMetric(
                 metricKey: metricKey(source: plan.source, id: spec.id, group: group),
-                value: rounded(value),
+                value: roundedValue,
                 unit: spec.unit,
                 baselineValue: nil,
                 comparison: metric.comparison,
                 formula: formula,
-                sourceRecordIDs: metric.sourceRecordIDs
+                sourceRecordIDs: metric.sourceRecordIDs,
+                semantic: HoloMetricSemanticFactory.derivationSemantic(
+                    plan: plan,
+                    schema: schema,
+                    derivation: spec,
+                    source: metric,
+                    groupKey: group,
+                    value: roundedValue
+                )
             )
         }
     }
