@@ -4,6 +4,34 @@
 
 ---
 
+## [2026-07-25] 想法主题收敛 + Agent 类型化语义 + 业务功能增强
+
+### 想法主题收敛
+- **主题管理**：新增 `TopicManagementView`，用户可增删改主题；删除/重命名带级联保护，避免破坏已收敛的想法
+- **AI 收敛约束**：`ThoughtThemeConstraint` 约束 AI 组织想法时只在活跃主题范围内收敛，不再产出游离主题
+- **收敛流程**：`ThoughtTagConvergenceJob` 支持生成未归类洞察，收敛建议进入确认流程，用户拒绝会落盘记录（`ConvergenceRejectionRepository`）
+- **组织注入**：`ThoughtOrganizationService` 组织想法时注入活跃主题上下文与用户已认可/拒绝标签
+- **新人引导**：新增 `OnboardingTopicSetupPage`，新人首次设置初始主题
+
+### Agent 类型化结果语义（P1）
+- **量纲语义**：`HoloMetricSemantic` / `HoloMetricMeasure` 让工具在计算时同步产出量纲（金额/计数/时长/步数/比例等），Agent 表达更准确
+- **全链路消费**：MemorySignals（Finance/Task）、IntentRouter、ConversationCoordinator、DailySenseStateBuilder、PromptManager 消费类型化语义
+- **记忆适配**：激活策略与跨域候选 builder 按语义归并
+
+### Finance / 习惯 / 日历业务增强
+- **分期交易**：`FinanceRepository` 支持分期更新、一次性购买同步与 legacy 备注迁移；`InstallmentNoteSanitizer` 归一化分期备注
+- **数值型习惯**：`HabitRepository` 数值型习惯按日聚合与周期统计；`HabitNumericAggregation` 聚合模型；详情页与图表适配
+- **周历改版**：`WeeklyGridView` 周历网格改版；`CalendarRangeBuilder` 半开区间静态化
+- **记账加固**：`TransactionSaveHandler` / `AddTransactionSheet` 分期与账户处理加固
+
+### 测试基础设施
+- **HOLO_XCTEST_BRIDGE 桥接**：73 个 standalone 测试统一加入编译桥接，同一份测试既能 swiftc 直接执行，又能被 XCTest target 引用
+
+### 性质
+- 纯前端改动，不涉及后端接口 / Prompt / 数据契约，**无需后端发版**
+
+---
+
 ## [2026-07-24] Agent 复杂任务响应故障恢复闭环
 
 复杂分析不再因为某一轮模型返回坏 JSON、字段类型漂移、SSE 帧损坏或连接中途结束，就提前显示「解析失败重试耗尽」。只要仍在用户设置的 LLM 轮数和运行时限制内，Agent 会消耗真实轮次、换用新的幂等 step、携带结构纠错要求继续执行；App 被系统终止后，恢复状态也能从检查点继续。
