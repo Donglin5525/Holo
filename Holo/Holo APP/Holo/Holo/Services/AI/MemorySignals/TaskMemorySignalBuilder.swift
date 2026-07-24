@@ -22,18 +22,65 @@ nonisolated enum TaskMemorySignalBuilder {
     static func build(from inputs: [TaskMemoryInput], now: Date) -> [HoloDomainMemorySignal] {
         let valid = inputs.filter { !$0.id.isEmpty && !$0.revisionDigest.isEmpty }
         var signals: [HoloDomainMemorySignal] = []
-        let completed = valid.filter { $0.completed && $0.completedAt != nil }
-        if completed.count >= 5,
+
+        let completionWindowStart = Calendar.current.date(
+            byAdding: .day,
+            value: -30,
+            to: now
+        ) ?? .distantPast
+        let recentlyCompleted = valid.filter { input in
+            guard input.completed,
+                  let completedAt = input.completedAt else { return false }
+            return completedAt >= completionWindowStart && completedAt <= now
+        }
+        let activeCompletionDays = Set(recentlyCompleted.compactMap { input in
+            input.completedAt.map { Calendar.current.startOfDay(for: $0) }
+        }).count
+        if recentlyCompleted.count >= 5,
+           activeCompletionDays >= 3,
            let signal = aggregateSignal(
-            id: "task-completion-rhythm",
-            items: completed,
+            id: "task-completion-activity",
+            items: recentlyCompleted,
             now: now,
-            facts: ["completedCount": Double(completed.count)]
+            facts: [
+                "completedCount": Double(recentlyCompleted.count),
+                "activeCompletionDayCount": Double(activeCompletionDays),
+                "windowDays": 30
+            ],
+            additionalBoundaries: [
+                "完成数量只代表近期有完成活动，不得仅据此表述为节奏稳定",
+                "没有截止时间的已完成任务不得计入按时完成率"
+            ],
+            validFrom: completionWindowStart,
+            validTo: now
            ) {
             signals.append(signal)
         }
 
-        let overdue = valid.filter { !$0.completed && ($0.dueAt ?? .distantFuture) < now }
+        let open = valid.filter { !$0.completed }
+        let overdue = open.filter { input in
+            guard let dueAt = input.dueAt else { return false }
+            return dueAt < now
+        }
+        if open.count >= 10,
+           let signal = aggregateSignal(
+            id: "task-open-backlog",
+            items: open,
+            now: now,
+            facts: [
+                "openCount": Double(open.count),
+                "withDueDateCount": Double(open.filter { $0.dueAt != nil }.count),
+                "withoutDueDateCount": Double(open.filter { $0.dueAt == nil }.count),
+                "overdueCount": Double(overdue.count)
+            ],
+            additionalBoundaries: [
+                "没有截止时间只代表无法判断是否逾期，不得表述为无逾期、按时完成或节奏稳定",
+                "未完成只代表任务仍在列表中，不得断言用户完全没有推进"
+            ]
+           ) {
+            signals.append(signal)
+        }
+
         if overdue.count >= 5,
            let signal = aggregateSignal(
             id: "task-backlog",
@@ -62,7 +109,10 @@ nonisolated enum TaskMemorySignalBuilder {
         items: [TaskMemoryInput],
         now: Date,
         facts: [String: Double],
-        anchorValue: String = "task-rhythm"
+        anchorValue: String = "task-rhythm",
+        additionalBoundaries: [String] = [],
+        validFrom: Date? = nil,
+        validTo: Date? = nil
     ) -> HoloDomainMemorySignal? {
         guard let anchor = try? HoloMemoryAnchorRef(type: .task, value: anchorValue) else {
             return nil
@@ -75,6 +125,8 @@ nonisolated enum TaskMemorySignalBuilder {
             lineageKey: id,
             revisionDigest: revision,
             observedAt: now,
+            validFrom: validFrom,
+            validTo: validTo,
             aggregateDefinition: "本地按任务稳定 ID、完成状态、截止时间和类型聚合",
             sampleCount: items.count
         )
@@ -88,7 +140,7 @@ nonisolated enum TaskMemorySignalBuilder {
             prohibitedInferences: [
                 "少量逾期不得形成记忆",
                 "不得从任务积压推断拖延人格、能力、心理或疾病"
-            ]
+            ] + additionalBoundaries
         )
     }
 

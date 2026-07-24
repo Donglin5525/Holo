@@ -19,6 +19,7 @@ struct WeeklyGridView: View {
     private let startHour = 0
     private let endHour = 23
     private let collapsedMorningHours = 0..<7
+    private let timeAxisWidth: CGFloat = 36
 
     private var visibleStartHour: Int {
         collapseMorning ? 7 : startHour
@@ -50,55 +51,29 @@ struct WeeklyGridView: View {
 
     private var weekHeader: some View {
         HStack(spacing: 0) {
-            Color.clear.frame(width: 32)
+            Color.clear.frame(width: timeAxisWidth)
             ForEach(0..<7, id: \.self) { dayOffset in
                 if let day = Calendar.current.date(byAdding: .day, value: dayOffset, to: weekStart) {
                     let isToday = Calendar.current.isDateInToday(day)
-                    VStack(spacing: 2) {
+                    VStack(spacing: 3) {
                         Text(Self.weekdayText(for: day))
-                            .font(.system(size: 10, weight: .semibold))
+                            .font(.system(size: 9, weight: isToday ? .semibold : .medium))
                             .foregroundColor(isToday ? .holoPrimary : .holoTextSecondary)
                         Text(Self.dayText(for: day))
                             .font(.system(size: 15, weight: .bold, design: .rounded))
-                            .foregroundColor(isToday ? .holoPrimary : .holoTextPrimary)
+                            .foregroundColor(isToday ? .white : .holoTextPrimary)
+                            .frame(width: 28, height: 28)
+                            .background {
+                                Circle()
+                                    .fill(isToday ? Color.holoPrimary : Color.clear)
+                            }
                     }
                     .frame(maxWidth: .infinity)
-                }
-            }
-        }
-    }
-
-    private var earlyStrip: some View {
-        HStack(spacing: 0) {
-            Color.clear.frame(width: 32)
-            ForEach(0..<7, id: \.self) { dayOffset in
-                if let day = Calendar.current.date(byAdding: .day, value: dayOffset, to: weekStart) {
-                    let early = layoutFor(day, profile: axisProfile).early
-                    if early.isEmpty {
-                        Color.clear
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 22)
-                    } else {
-                        Button {
-                            if let event = early.first { onSelect(event) }
-                        } label: {
-                            HStack(spacing: 3) {
-                                Circle()
-                                    .fill(early.first?.module.color ?? .holoTextSecondary)
-                                    .frame(width: 5, height: 5)
-                                Text(early.count == 1 ? "凌晨" : "凌晨 \(early.count)")
-                                    .font(.system(size: 9, weight: .semibold))
-                                    .lineLimit(1)
-                                    .minimumScaleFactor(0.7)
-                            }
-                            .foregroundColor(.holoTextSecondary)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 22)
-                            .background(Color.holoCardBackground)
-                            .clipShape(RoundedRectangle(cornerRadius: 6))
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.horizontal, 2)
+                    .frame(height: 48)
+                    .overlay(alignment: .trailing) {
+                        Rectangle()
+                            .fill(Color.holoDivider.opacity(0.45))
+                            .frame(width: 0.5)
                     }
                 }
             }
@@ -111,12 +86,12 @@ struct WeeklyGridView: View {
                 Text(shouldShowHourLabel(segment.hour) ? "\(segment.hour)" : "")
                     .font(.system(size: 10, weight: .medium, design: .rounded))
                     .foregroundColor(.holoTextSecondary)
-                    .frame(width: 32, height: segment.height, alignment: .topTrailing)
+                    .frame(width: timeAxisWidth, height: segment.height, alignment: .topTrailing)
             }
             Text("24")
                 .font(.system(size: 10, weight: .medium, design: .rounded))
                 .foregroundColor(.holoTextSecondary)
-                .frame(width: 32, height: 1, alignment: .bottomTrailing)
+                .frame(width: timeAxisWidth, height: 1, alignment: .bottomTrailing)
         }
     }
 
@@ -168,40 +143,88 @@ struct WeeklyGridView: View {
     }
 
     private var morningCollapseControl: some View {
-        Button {
-            withAnimation(.easeInOut(duration: 0.18)) {
-                collapseMorning.toggle()
-            }
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: collapseMorning ? "chevron.right" : "chevron.down")
-                    .font(.system(size: 9, weight: .bold))
-                Text(collapseMorning ? "0:00-6:59 已收起" : "收起 0:00-6:59")
-                    .font(.system(size: 10, weight: .semibold))
-                if collapseMorning {
-                    let count = collapsedMorningCount
-                    Text(count > 0 ? "\(count) 条" : "低频时段")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.holoTextSecondary)
+        HStack(spacing: 0) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.18)) {
+                    collapseMorning.toggle()
                 }
-                Spacer(minLength: 0)
+            } label: {
+                VStack(spacing: 1) {
+                    Image(systemName: collapseMorning ? "chevron.right" : "chevron.down")
+                        .font(.system(size: 8, weight: .bold))
+                    Text("0–7")
+                        .font(.system(size: 7, weight: .semibold, design: .rounded))
+                }
+                .foregroundColor(.holoTextSecondary)
+                .frame(width: timeAxisWidth, height: 32)
+                .contentShape(Rectangle())
             }
-            .foregroundColor(.holoTextSecondary)
-            .padding(.horizontal, HoloSpacing.sm)
-            .frame(height: 26)
-            .background(Color.holoCardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: 7))
+            .buttonStyle(.plain)
+            .accessibilityLabel(collapseMorning ? "展开凌晨零点到七点" : "收起凌晨零点到七点")
+
+            ForEach(0..<7, id: \.self) { dayOffset in
+                if let day = Calendar.current.date(byAdding: .day, value: dayOffset, to: weekStart) {
+                    collapsedMorningCell(for: day)
+                }
+            }
         }
-        .buttonStyle(.plain)
-        .padding(.leading, 32 + HoloSpacing.md)
-        .padding(.trailing, HoloSpacing.md)
+        .frame(height: 32)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay {
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.holoBorder.opacity(0.55), lineWidth: 0.5)
+        }
     }
 
-    private var collapsedMorningCount: Int {
+    @ViewBuilder
+    private func collapsedMorningCell(for day: Date) -> some View {
+        let earlyEvents = morningEvents(for: day)
+        Button {
+            guard let first = earlyEvents.first else { return }
+            if earlyEvents.count == 1 {
+                onSelect(first)
+            } else {
+                onSelectGroup(earlyEvents)
+            }
+        } label: {
+            HStack(spacing: 3) {
+                if let module = earlyEvents.first?.module {
+                    Circle()
+                        .fill(module.color)
+                        .frame(width: 5, height: 5)
+                }
+                Text(earlyEvents.isEmpty ? "–" : "\(earlyEvents.count)条")
+                    .font(.system(size: 9, weight: earlyEvents.isEmpty ? .medium : .semibold, design: .rounded))
+                    .foregroundColor(.holoTextSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.75)
+            }
+            .frame(maxWidth: .infinity)
+            .frame(height: 32)
+            .contentShape(Rectangle())
+            .overlay(alignment: .trailing) {
+                Rectangle()
+                    .fill(Color.holoDivider.opacity(0.45))
+                    .frame(width: 0.5)
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(earlyEvents.isEmpty)
+        .accessibilityLabel(
+            earlyEvents.isEmpty
+                ? "\(Self.weekdayText(for: day))凌晨无记录"
+                : "\(Self.weekdayText(for: day))凌晨 \(earlyEvents.count) 条记录"
+        )
+    }
+
+    private func morningEvents(for day: Date) -> [CalendarEvent] {
         let calendar = Calendar.current
-        return eventsByDay.values.flatMap { $0 }.filter { event in
-            collapsedMorningHours.contains(calendar.component(.hour, from: event.date))
-        }.count
+        return (eventsByDay[calendar.startOfDay(for: day)] ?? [])
+            .filter { event in
+                collapsedMorningHours.contains(calendar.component(.hour, from: event.date))
+            }
+            .sorted { $0.date < $1.date }
     }
 
     private func gridDisplayBlock(_ item: WeeklyGridEventLayout.DisplayItem, columnWidth: CGFloat) -> some View {

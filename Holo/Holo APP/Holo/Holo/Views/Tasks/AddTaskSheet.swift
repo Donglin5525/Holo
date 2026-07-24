@@ -323,7 +323,11 @@ struct AddTaskSheet: View {
                 showAttachmentCamera = false
             })
         }
-        .swipeBackToDismiss {
+        // ignoreNavigationStack: true —— AddTaskSheet 自身是 NavigationStack 的根视图，
+        // 不存在 push 层级，系统 pop 无内容可 pop。
+        // 若不传，SwipeBackModifier 会因窗口内任意 push 的 NavigationStack 而让位，
+        // 导致右滑失效（与 HealthDetailView 一致，需强制接管手势）。
+        .swipeBackToDismiss(ignoreNavigationStack: true) {
             if existingTask != nil {
                 // 编辑模式：自动保存后返回
                 autoSaveAndDismiss()

@@ -344,7 +344,9 @@ final class ConversationCoordinator {
             }
 
             do {
-                let routeResult = try await intentRouter.route(item.asParsedResult)
+                // 透传原始输入文本：LLM 偶尔漏填任务的时间/日期，
+                // IntentRouter 会用 NLDateParser 对原文兜底解析
+                let routeResult = try await intentRouter.route(item.asParsedResult, originalInput: text)
                 let renderData = Self.buildRenderData(from: item, routeResult: routeResult)
 
                 logger.info("[多动作] item=\(item.id) intent=\(item.intent.rawValue) note=\(renderData?["note"] ?? "nil") candidate=\(renderData?["categoryCandidate"] ?? "nil") primary=\(renderData?["primaryCategory"] ?? "nil") sub=\(renderData?["subCategory"] ?? "nil")")

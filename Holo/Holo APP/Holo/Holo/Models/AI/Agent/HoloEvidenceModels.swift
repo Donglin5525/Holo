@@ -52,6 +52,8 @@ nonisolated struct HoloEvidenceRecord: Codable, Identifiable, Equatable, Sendabl
     var formula: String? = nil
     /// 参与计算的原始记录 ID，仅本地保存，不直接发送完整原始数据。
     var sourceRecordIDs: [String]? = nil
+    /// 类型化结果语义（P1）：可选以兼容历史 Evidence。
+    var semantic: HoloMetricSemantic? = nil
     var excerpt: String
     /// 脱敏摘要，默认发给 LLM；完整 excerpt 仅本地 Verifier 使用
     var redactedExcerpt: String

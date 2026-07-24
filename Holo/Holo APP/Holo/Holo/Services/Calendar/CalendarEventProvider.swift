@@ -168,9 +168,9 @@ struct CalendarEventProvider {
             let thoughts = try thoughtRepo.fetchThoughts(from: range.start, to: range.end)
             let events: [CalendarEvent] = thoughts.map { thought in
                 let title = thought.previewText.isEmpty ? "未命名想法" : thought.previewText
-                // P3：经 Thought.topics 间接体现观点（取 active/candidate 状态的观点标题）
+                // P3：经 Thought.topics 间接体现观点（取所有可见状态的观点标题）
                 let topics = (thought.topics as? Set<Topic> ?? [])
-                    .filter { $0.statusEnum == .active || $0.statusEnum == .candidate }
+                    .filter(\.isVisibleTopic)
                     .map { $0.title }
                     .sorted()
                 return CalendarEvent(

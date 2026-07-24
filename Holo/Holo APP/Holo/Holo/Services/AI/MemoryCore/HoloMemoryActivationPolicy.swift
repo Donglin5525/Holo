@@ -13,14 +13,56 @@ enum HoloMemoryActivationDecision: Equatable, Sendable {
     case discard
 }
 
+/// 过滤“统计上成立、但不足以改变未来回答”的低价值记忆，并让旧版本误判退出展示与召回。
+nonisolated enum HoloMemoryUsefulnessPolicy {
+    static func isEligible(_ record: HoloMemoryRecord) -> Bool {
+        // 用户明确确认或纠正过的内容优先于自动质量门，不静默撤销用户决定。
+        if [.confirmed, .corrected].contains(record.userDecision) {
+            return true
+        }
+
+        let lineages = record.evidenceRefs.map(\.lineageKey)
+        if lineages.contains(where: {
+            $0.hasPrefix("finance-repeated-category-") ||
+            $0.hasPrefix("finance-repeated-merchant-") ||
+            $0 == "task-completion-rhythm"
+        }) {
+            return false
+        }
+
+        if record.sourceDomains.contains(.finance),
+           record.evidenceRefs.contains(where: {
+               $0.lineageKey.hasPrefix("finance-fixed-expense-") &&
+               ($0.sampleCount ?? 0) > 8
+           }) {
+            return false
+        }
+
+        if record.sourceDomains.contains(.task) {
+            let text = record.displaySummary + "\n" + record.aiUseSummary
+            if text.contains("无逾期") {
+                return false
+            }
+            let activityOnlyLineages = ["task-completion-activity", "task-open-backlog"]
+            let unsupportedClaims = ["节奏稳定", "稳定完成", "按时完成", "完成稳定"]
+            if lineages.contains(where: { activityOnlyLineages.contains($0) }),
+               unsupportedClaims.contains(where: { text.contains($0) }) {
+                return false
+            }
+        }
+        return true
+    }
+}
+
 nonisolated enum HoloMemoryActivationPolicy {
-    static let currentVersion = 2
+    static let currentVersion = 3
 
     static func evaluate(
         _ record: HoloMemoryRecord,
         isFirstCrossDomainInference: Bool = false
     ) -> HoloMemoryActivationDecision {
-        guard !record.evidenceRefs.isEmpty,
+        guard HoloMemoryUsefulnessPolicy.isEligible(record),
+              !record.evidenceRefs.isEmpty,
               !record.displaySummary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
               !record.aiUseSummary.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return .discard
@@ -85,6 +127,7 @@ nonisolated enum HoloMemoryRecallPolicy {
         case stateNotActive
         case expired
         case freshnessBelowThreshold
+        case lowValueOrUnsupported
     }
 
     static let refreshFreshnessThreshold = 0.35
@@ -115,6 +158,9 @@ nonisolated enum HoloMemoryRecallPolicy {
         now: Date
     ) -> ExclusionReason? {
         guard record.state == .active else { return .stateNotActive }
+        guard HoloMemoryUsefulnessPolicy.isEligible(record) else {
+            return .lowValueOrUnsupported
+        }
         guard !isExpired(record, now: now) else { return .expired }
         guard effectiveFreshness(for: record, now: now) >= minimumFreshness else {
             return .freshnessBelowThreshold

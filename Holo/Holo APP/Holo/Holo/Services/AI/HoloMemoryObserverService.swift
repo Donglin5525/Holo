@@ -257,7 +257,27 @@ final class HoloMemoryObserverService {
         guard policy.shouldTriggerTier2(
             patterns: patterns, lastTier2RunAt: lastTier2RunAt, now: now, userRequested: false
         ) else { return }
-        logger.info("Observer 触发 Tier2 深度分析（\(goalSignalCount) 条目标信号）")
+
+        // P2 集成：用主动评分模型决定是否值得深度分析。
+        // 即使冷却已过，低价值/低置信/重复信号也不触发 tier2（默认 store/watch）。
+        // 评分维度由 goalSignalCount 和近期触发频率推导。
+        let proactivitySignal = HoloProactivitySignal(
+            value: goalSignalCount > 0 ? 0.7 : 0.2,
+            confidence: goalSignalCount > 1 ? 0.7 : 0.4,
+            actionability: 0.6,
+            novelty: estimateNovelty(lastTier2RunAt: lastTier2RunAt, now: now),
+            timingFitness: 0.6,
+            interruptionCost: 0.4,
+            repetitionPenalty: estimateRepetitionPenalty(lastTier2RunAt: lastTier2RunAt, now: now),
+            userAuthorized: true
+        )
+        let proactivityScore = HoloAgentProactivityScorer.score(proactivitySignal)
+        // 只有 store 或 notify 档才值得触发深度分析；watch/ignore 保留观察
+        guard proactivityScore.shouldStore else {
+            logger.info("Observer Tier2 信号评分 \(proactivityScore.score)（\(proactivityScore.tier.rawValue)），不值得深度分析，保留观察")
+            return
+        }
+        logger.info("Observer 触发 Tier2 深度分析（\(goalSignalCount) 条目标信号，评分 \(proactivityScore.score) \(proactivityScore.tier.rawValue)）")
         let question = "基于最近一次记忆观察（发现 \(goalSignalCount) 条目标信号），深度分析我的目标进度与潜在冲突。"
         Task { @MainActor in
             _ = await HoloAgentAnalysisService().runAnalysis(
@@ -266,6 +286,28 @@ final class HoloMemoryObserverService {
             )
         }
         UserDefaults.standard.set(now, forKey: lastRunKey)
+    }
+
+    // MARK: - P2 主动评分辅助
+
+    /// 估计新颖度：距上次触发越久越新颖（新鲜信号价值更高）。
+    private func estimateNovelty(lastTier2RunAt: Date?, now: Date) -> Double {
+        guard let lastTier2RunAt else { return 0.9 } // 从未触发过 = 高新颖
+        let hoursAgo = now.timeIntervalSince(lastTier2RunAt) / 3600
+        // 6 小时内 = 低新颖，48 小时+ = 高新颖
+        if hoursAgo < 6 { return 0.3 }
+        if hoursAgo < 24 { return 0.5 }
+        return 0.8
+    }
+
+    /// 估计重复惩罚：距上次触发越近惩罚越高。
+    private func estimateRepetitionPenalty(lastTier2RunAt: Date?, now: Date) -> Double {
+        guard let lastTier2RunAt else { return 0.1 }
+        let hoursAgo = now.timeIntervalSince(lastTier2RunAt) / 3600
+        if hoursAgo < 6 { return 0.8 }
+        if hoursAgo < 12 { return 0.5 }
+        if hoursAgo < 24 { return 0.3 }
+        return 0.1
     }
 
     // MARK: - LLM Call

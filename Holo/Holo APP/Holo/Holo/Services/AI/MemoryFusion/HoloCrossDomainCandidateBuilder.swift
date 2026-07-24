@@ -55,6 +55,9 @@ enum HoloCrossDomainCandidateBuilder {
                 let memoryIDs = memories.map(\.id).sorted()
 
                 for anchor in sharedAnchors {
+                    guard isMeaningfulSharedContext(anchor, memories: memories) else {
+                        continue
+                    }
                     let identity = [
                         anchor.stableKey,
                         domains.map(\.rawValue).joined(separator: ","),
@@ -84,8 +87,20 @@ enum HoloCrossDomainCandidateBuilder {
         guard record.scope == .domain,
               record.primaryDomain != nil,
               record.sourceDomains.count == 1,
-              record.state == .active else { return false }
+              record.state == .active,
+              HoloMemoryUsefulnessPolicy.isEligible(record) else { return false }
         return ![.rejected, .forgotten, .markedIrrelevant].contains(record.userDecision)
+    }
+
+    /// “最近的生活节奏”是所有周期聚合都会获得的通用锚点，不能单独证明两个普通状态值得融合。
+    /// 至少一个领域出现阶段变化、张力或生活事件时，才允许借此锚点进入跨域推断。
+    private static func isMeaningfulSharedContext(
+        _ anchor: HoloMemoryAnchorRef,
+        memories: [HoloMemoryRecord]
+    ) -> Bool {
+        guard anchor.stableKey == "userTheme:current-routine" else { return true }
+        let meaningfulKinds: Set<HoloMemoryClaimKind> = [.phaseShift, .tension, .lifeEvent]
+        return memories.contains { meaningfulKinds.contains($0.claimKind) }
     }
 
     private static func commonWindow(

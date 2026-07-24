@@ -58,16 +58,26 @@ class TodoRepository: ObservableObject {
 
     // MARK: - Properties
 
+    /// 测试可注入独立上下文；生产单例始终使用 CoreDataStack 的主上下文。
+    private let contextOverride: NSManagedObjectContext?
+
     /// 主上下文（主线程）
     var context: NSManagedObjectContext {
-        CoreDataStack.shared.viewContext
+        contextOverride ?? CoreDataStack.shared.viewContext
     }
 
     // MARK: - Initialization
 
     /// init 不做任何 I/O 操作，避免阻塞主线程
     /// 所有数据操作延迟到 setup() 中执行
-    private init() {}
+    private init() {
+        contextOverride = nil
+    }
+
+    /// 模块内测试入口，避免测试读写真实数据库。
+    init(context: NSManagedObjectContext) {
+        contextOverride = context
+    }
 
     /// 延迟初始化：加载所有数据
     /// 在 Core Data store 就绪后调用（HomeView.task 中）

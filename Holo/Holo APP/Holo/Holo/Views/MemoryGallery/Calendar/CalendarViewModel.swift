@@ -34,6 +34,8 @@ enum MonthCellStyle: Hashable {
 @MainActor
 final class CalendarViewModel: ObservableObject {
 
+    static let defaultWeekViewMode: WeekViewMode = .grid
+
     enum Mode: Hashable {
         case weekly
         case monthly
@@ -61,7 +63,7 @@ final class CalendarViewModel: ObservableObject {
     @Published var todoDimension: TodoTimeDimension = .completed
 
     /// P2 周历视图模式（列表 / 网格）
-    @Published var weekViewMode: WeekViewMode = .grid
+    @Published var weekViewMode: WeekViewMode = defaultWeekViewMode
 
     /// P2 月历色块形式（热力 / 徽章）
     @Published var monthCellStyle: MonthCellStyle = .heatmap

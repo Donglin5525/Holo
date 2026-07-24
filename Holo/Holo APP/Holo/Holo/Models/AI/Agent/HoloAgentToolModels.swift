@@ -54,6 +54,80 @@ nonisolated struct HoloMetric: Codable, Equatable, Sendable {
     var comparison: String?
     var formula: String? = nil
     var sourceRecordIDs: [String]? = nil
+    /// 类型化结果语义（P1）：由工具在计算时同步产出；可选以兼容旧 JSON。
+    var semantic: HoloMetricSemantic? = nil
+}
+
+// MARK: - 类型化结果语义（Typed Result Semantic，P1）
+
+/// 业务量：从代码实际用到的 unit 字符串归并而来；`displayUnit` 仍保留原始单位串。
+nonisolated enum HoloMetricMeasure: String, Codable, CaseIterable, Sendable {
+    case amount            // 元
+    case count             // 个/条/项/笔/类/次 —— 离散计数
+    case durationHours     // 小时
+    case durationMinutes   // 分钟
+    case steps             // 步
+    case days              // 天
+    case nights            // 晚
+    case ratio             // % 和 比例
+    case rateMonthly       // 元/月
+    case rateDaily         // 元/天
+    case correlation       // 相关系数（跨域）
+    case none              // 空串或未知，无量纲
+}
+
+/// 指标怎么算：合并 HoloDynamicAggregationOperator + HoloDynamicDerivationOperator，
+/// 末尾三个为跨域工具（HoloCrossDomainTool）真实存在的操作，文档枚举的最小扩展。
+nonisolated enum HoloMetricOperation: String, Codable, CaseIterable, Sendable {
+    // 聚合操作
+    case count, sum, average, minimum, maximum, distinctCount
+    // 派生操作
+    case difference, percentageChange, ratio, rate, perDay, linearTrend, coverage
+    // 跨域操作
+    case correlation, conditionalAverage, groupComparison
+}
+
+/// 数值在答案里扮演的角色。
+nonisolated enum HoloMetricValueRole: String, Codable, CaseIterable, Sendable {
+    case current, baseline, delta, changeRate, share, trend, coverage
+}
+
+/// 分组维度：4 个时间维度 + 取自各 dataset schema groupable 字段的业务维度。
+nonisolated enum HoloMetricDimension: String, Codable, CaseIterable, Sendable {
+    // 时间维度（对应 HoloDynamicGroupBy 前 4 个 case）
+    case day, week, month, weekend
+    // 业务字段维度
+    case category          // finance.transactions / profile.items
+    case account           // finance.transactions
+    case transactionType   // finance.transactions
+    case habit             // habit.daily
+    case polarity          // habit.daily
+    case memoryKind        // memory.entries
+    case periodType        // insight.records
+    case insightStatus     // insight.records
+    case conversationRole  // conversation.metadata
+    case conversationIntent// conversation.metadata
+}
+
+/// 变化方向。
+nonisolated enum HoloMetricDirection: String, Codable, CaseIterable, Sendable {
+    case increase, decrease, flat, unknown
+}
+
+/// 工具在产出指标时同步构造的类型化语义；展示层据此不再解析 metricKey/公式。
+nonisolated struct HoloMetricSemantic: Codable, Equatable, Sendable {
+    let domain: HoloEvidenceSourceModule
+    let dataset: String
+    let measure: HoloMetricMeasure
+    let operation: HoloMetricOperation
+    let valueRole: HoloMetricValueRole
+    let dimension: HoloMetricDimension?
+    let groupLabel: String?
+    let direction: HoloMetricDirection?
+    let currentValue: Double?
+    let baselineValue: Double?
+    let resultValue: Double
+    let displayUnit: String?
 }
 
 // MARK: - 用户可见指标语义
@@ -374,6 +448,8 @@ nonisolated struct HoloEvidenceEvent: Codable, Equatable, Sendable {
     var baselineTimeRange: HoloAgentTimeRange? = nil
     var formula: String? = nil
     var sourceRecordIDs: [String]? = nil
+    /// 类型化结果语义（P1）：与对应 metric 同源；可选以兼容旧 JSON。
+    var semantic: HoloMetricSemantic? = nil
 }
 
 /// 工具查询的数据覆盖度（判断结论可信度的依据）

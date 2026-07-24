@@ -143,7 +143,7 @@ struct AddTransactionSheet: View {
             return amountString != originalAmount
                 || selectedCategory != transaction.category
                 || selectedAccount?.objectID != transaction.account?.objectID
-                || note != (transaction.note ?? "")
+                || note != (InstallmentNoteSanitizer.clean(transaction.note) ?? "")
                 || !Calendar.current.isDate(selectedDate, inSameDayAs: transaction.date)
         } else {
             return amountString != "0" || selectedCategory != nil || !note.isEmpty

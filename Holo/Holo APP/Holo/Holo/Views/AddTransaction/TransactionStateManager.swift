@@ -18,14 +18,14 @@ extension AddTransactionSheet {
         amountString = formatAmount(absoluteAmount)
         selectedCategory = transaction.category
         selectedAccount = transaction.account
-        note = transaction.note ?? ""
+        note = InstallmentNoteSanitizer.clean(transaction.note) ?? ""
         remark = transaction.remark ?? ""
         selectedDate = transaction.date
 
         // 分期状态初始化
         if transaction.isInstallment {
             isInstallment = true
-            installmentPeriods = Int(transaction.installmentTotal)
+            installmentPeriods = max(Int(transaction.installmentTotal), 2)
             // 无法从存储数据恢复原始手续费，默认 0
         }
     }

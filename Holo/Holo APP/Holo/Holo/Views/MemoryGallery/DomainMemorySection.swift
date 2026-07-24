@@ -143,12 +143,12 @@ struct DomainMemorySection: View {
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(.holoPrimary)
 
-                Text("Holo 记住的你")
+                Text("Holo 的观察与记忆")
                     .font(.holoBody)
                     .foregroundColor(.holoTextPrimary)
             }
 
-            Text("这些内容会在合适的问题里自动帮上忙，你可以随时评价、纠正或删除。")
+            Text("每条都标明会记多久：近期观察会随数据变化淡出，长期记忆只保留跨周期规律或你确认的重要事实。")
                 .font(.holoTinyLabel)
                 .foregroundColor(.holoTextSecondary)
         }
@@ -247,6 +247,11 @@ struct DomainMemorySection: View {
                 }
 
                 HStack(spacing: HoloSpacing.xs) {
+                    Label(
+                        HoloMemoryUserPresentation.durationTitle(for: record),
+                        systemImage: HoloMemoryUserPresentation.durationIcon(for: record)
+                    )
+                    Text("·")
                     Text(HoloMemoryUserPresentation.timeRange(for: record))
                     Text("·")
                     Text(HoloMemoryUserPresentation.sourceSummary(for: record))
@@ -384,6 +389,7 @@ struct DomainMemorySection: View {
     }
 
     private static func isUserVisible(_ record: HoloMemoryRecord) -> Bool {
+        guard HoloMemoryUsefulnessPolicy.isEligible(record) else { return false }
         if record.userDecision == .rejected {
             return record.state == .suppressed
         }
@@ -467,6 +473,37 @@ struct HoloMemoryFeedbackBadgeView: View {
 }
 
 enum HoloMemoryUserPresentation {
+    static func durationTitle(for record: HoloMemoryRecord) -> String {
+        switch record.persistenceClass {
+        case .currentState: return "近期观察"
+        case .phase: return "当前阶段"
+        case .durable: return "长期规律"
+        case .permanentFact: return "长期事实"
+        }
+    }
+
+    static func durationIcon(for record: HoloMemoryRecord) -> String {
+        switch record.persistenceClass {
+        case .currentState: return "clock"
+        case .phase: return "calendar"
+        case .durable: return "repeat"
+        case .permanentFact: return "bookmark.fill"
+        }
+    }
+
+    static func durationExplanation(for record: HoloMemoryRecord) -> String {
+        switch record.persistenceClass {
+        case .currentState:
+            return "只代表最近一段时间，后续记录变化后会较快淡出。"
+        case .phase:
+            return "代表你当前阶段的状态，通常会保留数周到数月。"
+        case .durable:
+            return "由多个周期重复支持，会在相关问题中长期作为背景。"
+        case .permanentFact:
+            return "这是明确的重要事实；除非你纠正或删除，否则会长期保留。"
+        }
+    }
+
     static func timeRange(for record: HoloMemoryRecord) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "zh_CN")

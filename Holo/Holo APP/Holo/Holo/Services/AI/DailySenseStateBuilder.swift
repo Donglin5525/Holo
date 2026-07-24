@@ -272,7 +272,12 @@ struct DailySenseStateBuilder {
         )
 
         let records = (try? context.fetch(request)) ?? []
-        guard !records.isEmpty else { return false }
+        guard let todayValue = HabitNumericAggregator.aggregateDaily(
+            samples: records.map { HabitNumericSample(date: $0.date, value: $0.valueDouble) },
+            isCountType: habit.isCountType
+        ).first?.value else {
+            return false
+        }
 
         if habit.isBadHabit {
             return false
@@ -282,12 +287,7 @@ struct DailySenseStateBuilder {
             return true
         }
 
-        if habit.isCountType {
-            let total = records.compactMap(\.valueDouble).reduce(0, +)
-            return total >= targetValue
-        }
-
-        return (records.sorted { $0.date < $1.date }.last?.valueDouble ?? 0) >= targetValue
+        return todayValue >= targetValue
     }
 
     // MARK: - Expense Signal Fetchers

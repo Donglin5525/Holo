@@ -300,8 +300,10 @@ class HabitRepository: ObservableObject {
     @discardableResult
     func removeLatestTodayRecord(for habit: Habit) throws -> Bool {
         if !isReady { setup() }
-        // getTodayRecords 已按 date 降序，首条即今日最新一笔
-        guard let latest = getTodayRecords(for: habit).first else { return false }
+        // 历史迁移或同步可能留下空值记录；撤销只针对最新一笔有效数值记录
+        guard let latest = getTodayRecords(for: habit).first(where: { $0.valueDouble?.isFinite == true }) else {
+            return false
+        }
         context.delete(latest)
         try context.save()
         notifyDataChange(habitId: habit.id)
@@ -427,10 +429,10 @@ class HabitRepository: ObservableObject {
 
         if habit.isCountType {
             // 计数类：求和
-            return todayRecords.compactMap { $0.valueDouble }.reduce(0, +)
+            return todayRecords.compactMap { $0.valueDouble }.filter(\.isFinite).reduce(0, +)
         } else {
-            // 测量类：取最新（已按时间倒序，取第一条）
-            return todayRecords.first?.valueDouble
+            // 测量类：取最新有效值，避免空记录遮住当天真实测量值
+            return todayRecords.lazy.compactMap(\.valueDouble).first(where: \.isFinite)
         }
     }
 
@@ -642,39 +644,26 @@ class HabitRepository: ObservableObject {
 
     /// 计算周期内完成次数（打卡型）
     func calculatePeriodCompletionCount(for habit: Habit, range: HabitDateRange) -> Int {
+        calculatePeriodCompletionCount(for: habit, dateRange: range.dateRange())
+    }
+
+    /// 计算指定日期区间内完成次数（打卡型）
+    func calculatePeriodCompletionCount(for habit: Habit, dateRange: ClosedRange<Date>?) -> Int {
         guard habit.isCheckInType else { return 0 }
         
-        let records = getRecords(for: habit, in: range.dateRange())
+        let records = getRecords(for: habit, in: dateRange)
         return records.filter { $0.isCompleted }.count
     }
     
     /// 计算周期统计（数值型，基于每日聚合）
     func calculatePeriodStats(for habit: Habit, range: HabitDateRange) -> HabitPeriodStats {
-        let records = getRecords(for: habit, in: range.dateRange())
-        let calendar = Calendar.current
+        calculatePeriodStats(for: habit, dateRange: range.dateRange())
+    }
 
-        // 按日期分组
-        var groupedByDay: [Date: [HabitRecord]] = [:]
-        for record in records {
-            let dayStart = calendar.startOfDay(for: record.date)
-            groupedByDay[dayStart, default: []].append(record)
-        }
-
-        // 按天聚合（复用 getDailyAggregatedData 的逻辑）
-        var dailyValues: [(date: Date, value: Double)] = []
-        for (date, dayRecords) in groupedByDay {
-            let values = dayRecords.compactMap { $0.valueDouble }
-            guard !values.isEmpty else { continue }
-
-            let aggregatedValue: Double
-            if habit.isCountType {
-                aggregatedValue = values.reduce(0, +)
-            } else {
-                let sorted = dayRecords.sorted { $0.date > $1.date }
-                aggregatedValue = sorted.first?.valueDouble ?? 0
-            }
-            dailyValues.append((date: date, value: aggregatedValue))
-        }
+    /// 计算指定日期区间统计（数值型，基于每日聚合）
+    func calculatePeriodStats(for habit: Habit, dateRange: ClosedRange<Date>?) -> HabitPeriodStats {
+        let records = getRecords(for: habit, in: dateRange)
+        let dailyValues = aggregateDailyNumericValues(for: habit, records: records)
 
         guard !dailyValues.isEmpty else {
             return HabitPeriodStats(
@@ -695,9 +684,8 @@ class HabitRepository: ObservableObject {
         let maxVal = aggregatedValues.max() ?? 0
 
         // 按日期排序获取首尾值
-        let sortedByDate = dailyValues.sorted { $0.date < $1.date }
-        let earliest = sortedByDate.first?.value
-        let latest = sortedByDate.last?.value
+        let earliest = dailyValues.first?.value
+        let latest = dailyValues.last?.value
 
         return HabitPeriodStats(
             total: total,
@@ -712,38 +700,23 @@ class HabitRepository: ObservableObject {
     
     /// 获取按日聚合的数据（用于图表）
     func getDailyAggregatedData(for habit: Habit, range: HabitDateRange) -> [DailyHabitData] {
+        getDailyAggregatedData(for: habit, dateRange: range.dateRange())
+    }
+
+    /// 获取指定日期区间的按日聚合数据（用于图表）
+    func getDailyAggregatedData(for habit: Habit, dateRange: ClosedRange<Date>?) -> [DailyHabitData] {
         guard habit.isNumericType else { return [] }
-        
-        let records = getRecords(for: habit, in: range.dateRange())
-        let calendar = Calendar.current
-        
-        // 按日期分组
-        var groupedByDay: [Date: [HabitRecord]] = [:]
-        for record in records {
-            let dayStart = calendar.startOfDay(for: record.date)
-            groupedByDay[dayStart, default: []].append(record)
-        }
-        
-        // 聚合计算
-        var result: [DailyHabitData] = []
-        for (date, dayRecords) in groupedByDay {
-            let values = dayRecords.compactMap { $0.valueDouble }
-            guard !values.isEmpty else { continue }
-            
-            let aggregatedValue: Double
-            if habit.isCountType {
-                // 计数类：求和
-                aggregatedValue = values.reduce(0, +)
-            } else {
-                // 测量类：取当天最新值
-                let sorted = dayRecords.sorted { $0.date > $1.date }
-                aggregatedValue = sorted.first?.valueDouble ?? 0
-            }
-            
-            result.append(DailyHabitData(date: date, value: aggregatedValue))
-        }
-        
-        return result.sorted { $0.date < $1.date }
+        let records = getRecords(for: habit, in: dateRange)
+        return aggregateDailyNumericValues(for: habit, records: records)
+    }
+
+    /// 详情统计、趋势图和统计总览共享同一套数值口径。
+    func aggregateDailyNumericValues(for habit: Habit, records: [HabitRecord]) -> [DailyHabitData] {
+        HabitNumericAggregator.aggregateDaily(
+            samples: records.map { HabitNumericSample(date: $0.date, value: $0.valueDouble) },
+            isCountType: habit.isCountType
+        )
+        .map { DailyHabitData(date: $0.date, value: $0.value) }
     }
     
     /// 获取今日习惯完成进度（打卡型 + 数值型）

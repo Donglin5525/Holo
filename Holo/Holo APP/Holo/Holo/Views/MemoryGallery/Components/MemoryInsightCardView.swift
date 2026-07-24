@@ -242,10 +242,23 @@ struct MemoryInsightCardView: View {
         switch action.payload {
         case .taskDraft(let title, let dueDate, let priority):
             createTask(title: title, dueDate: dueDate, priority: priority)
+            // P2 集成：action 执行后记录 Outcome Review（不写因果）
+            HoloOutcomeReviewStore.shared.recordExecution(
+                actionID: action.id,
+                sourceCardID: action.cardId,
+                targetMetricKey: "task.completed",
+                actionExecuted: true
+            )
         case .reflectionQuestion:
             if let prompt = MemoryInsightActionPromptBuilder.chatPrefill(for: action, card: card) {
                 onContinueInChat?(prompt)
             }
+            HoloOutcomeReviewStore.shared.recordExecution(
+                actionID: action.id,
+                sourceCardID: action.cardId,
+                targetMetricKey: "thought.count",
+                actionExecuted: true
+            )
         default:
             break
         }

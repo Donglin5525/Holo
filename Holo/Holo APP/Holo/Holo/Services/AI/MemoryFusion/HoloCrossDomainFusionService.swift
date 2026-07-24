@@ -71,7 +71,7 @@ enum HoloCrossDomainFusionOperationalError: Error, Equatable {
 
 enum HoloCrossDomainFusionService {
     static let extractorVersion = 1
-    static let promptVersion = 1
+    static let promptVersion = 2
 
     static func evaluate(
         _ data: Data,

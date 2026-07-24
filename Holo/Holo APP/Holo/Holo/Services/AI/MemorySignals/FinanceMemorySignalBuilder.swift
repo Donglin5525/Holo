@@ -44,55 +44,10 @@ nonisolated enum FinanceMemorySignalBuilder {
     static func build(from snapshot: FinanceMemorySnapshotInput) -> [HoloDomainMemorySignal] {
         let current = snapshot.currentTransactions.filter(\.isExpense)
         var signals: [HoloDomainMemorySignal] = []
-        signals += repeatedMerchantSignals(current, snapshot: snapshot)
-        signals += repeatedCategorySignals(current, snapshot: snapshot)
         signals += fixedExpenseSignals(current, snapshot: snapshot)
         signals += budgetSignals(snapshot.budgets, snapshot: snapshot)
         signals += structureShiftSignals(current: current, previous: snapshot.previousTransactions.filter(\.isExpense), snapshot: snapshot)
         return Dictionary(grouping: signals, by: \.id).compactMap { $0.value.first }.sorted { $0.id < $1.id }
-    }
-
-    private static func repeatedMerchantSignals(
-        _ transactions: [FinanceMemoryTransactionInput],
-        snapshot: FinanceMemorySnapshotInput
-    ) -> [HoloDomainMemorySignal] {
-        Dictionary(grouping: transactions) { normalized($0.merchant) }
-            .compactMap { merchant, items in
-                guard !merchant.isEmpty, items.count >= 3 else { return nil }
-                return makeAggregateSignal(
-                    id: "finance-repeated-merchant-\(merchant)",
-                    items: items,
-                    snapshot: snapshot,
-                    anchorType: .merchant,
-                    anchorValue: merchant,
-                    anchorLabel: items.first?.merchant,
-                    facts: [
-                        "transactionCount": Double(items.count),
-                        "totalAmount": items.reduce(0) { $0 + $1.amount }
-                    ]
-                )
-            }
-    }
-
-    private static func repeatedCategorySignals(
-        _ transactions: [FinanceMemoryTransactionInput],
-        snapshot: FinanceMemorySnapshotInput
-    ) -> [HoloDomainMemorySignal] {
-        Dictionary(grouping: transactions, by: \.categoryID).compactMap { categoryID, items in
-            guard items.count >= 4, let first = items.first else { return nil }
-            return makeAggregateSignal(
-                id: "finance-repeated-category-\(categoryID)",
-                items: items,
-                snapshot: snapshot,
-                anchorType: .financeCategory,
-                anchorValue: categoryID,
-                anchorLabel: first.categoryName,
-                facts: [
-                    "transactionCount": Double(items.count),
-                    "totalAmount": items.reduce(0) { $0 + $1.amount }
-                ]
-            )
-        }
     }
 
     private static func fixedExpenseSignals(
@@ -103,13 +58,17 @@ nonisolated enum FinanceMemorySignalBuilder {
         calendar.timeZone = TimeZone(secondsFromGMT: 0)!
         return Dictionary(grouping: transactions) { normalized($0.merchant) }.compactMap { merchant, items in
             guard !merchant.isEmpty, items.count >= 3 else { return nil }
-            let months = Set(items.map {
+            let monthKeys = items.map {
                 let components = calendar.dateComponents([.year, .month], from: $0.occurredAt)
                 return "\(components.year ?? 0)-\(components.month ?? 0)"
-            })
+            }
+            let monthlyCounts = Dictionary(grouping: monthKeys, by: { $0 }).mapValues(\.count)
             let mean = items.reduce(0) { $0 + $1.amount } / Double(items.count)
             let maximumDeviation = items.map { abs($0.amount - mean) }.max() ?? .infinity
-            guard months.count >= 3, mean > 0, maximumDeviation / mean <= 0.1 else { return nil }
+            guard monthlyCounts.count >= 3,
+                  monthlyCounts.values.allSatisfy({ $0 <= 2 }),
+                  mean > 0,
+                  maximumDeviation / mean <= 0.1 else { return nil }
             return makeAggregateSignal(
                 id: "finance-fixed-expense-\(merchant)",
                 items: items,
@@ -119,7 +78,7 @@ nonisolated enum FinanceMemorySignalBuilder {
                 anchorLabel: items.first?.merchant,
                 facts: [
                     "occurrenceCount": Double(items.count),
-                    "monthCount": Double(months.count),
+                    "monthCount": Double(monthlyCounts.count),
                     "averageAmount": mean
                 ]
             )

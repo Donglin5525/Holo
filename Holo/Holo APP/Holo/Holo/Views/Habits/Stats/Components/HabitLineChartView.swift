@@ -16,10 +16,6 @@ struct HabitLineChartView: View {
     let data: [DailyHabitData]
     let unit: String
 
-    private var allValuesZero: Bool {
-        data.allSatisfy { $0.value == 0 }
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             // 标题
@@ -27,7 +23,7 @@ struct HabitLineChartView: View {
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
 
-            if data.isEmpty || allValuesZero {
+            if data.isEmpty {
                 emptyChartView
             } else {
                 chartContent

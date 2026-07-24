@@ -54,7 +54,7 @@ extension AddTransactionSheet {
                         // 普通交易 → 转为分期：当前金额作为总金额
                         try await repository.deleteTransaction(transaction)
                         let fee = Decimal(string: feePerPeriod) ?? 0
-                        _ = try await repository.addInstallmentTransactions(
+                        savedTransaction = try await repository.addInstallmentTransactions(
                             totalAmount: amount,
                             feePerPeriod: fee,
                             periods: installmentPeriods,
@@ -64,7 +64,7 @@ extension AddTransactionSheet {
                             startDate: selectedDate,
                             note: note.isEmpty ? nil : note,
                             remark: remark.isEmpty ? nil : remark
-                        )
+                        ).first
                     } else if !isInstallment && wasInstallment {
                         // 分期 → 取消分期：删除整组，创建单笔（当前金额作为单笔金额）
                         if let groupId = transaction.installmentGroupId {
@@ -81,23 +81,30 @@ extension AddTransactionSheet {
                             tags: nil
                         )
                     } else if isInstallment && wasInstallment {
-                        // 分期 → 修改分期参数：删除旧组，按每期金额 × 新期数重建
+                        // 分期 → 修改分期参数：原组就地更新，保留交易 ID
                         if let groupId = transaction.installmentGroupId {
-                            try await repository.deleteInstallmentGroup(groupId: groupId)
+                            let originalIndex = max(Int(transaction.installmentIndex), 1)
+                            let groupStartDate = Calendar.current.date(
+                                byAdding: .month,
+                                value: -(originalIndex - 1),
+                                to: selectedDate
+                            ) ?? selectedDate
+                            let newTotal = amount * Decimal(installmentPeriods)
+                            let fee = Decimal(string: feePerPeriod) ?? 0
+                            let updated = try await repository.updateInstallmentTransactions(
+                                groupId: groupId,
+                                totalAmount: newTotal,
+                                feePerPeriod: fee,
+                                periods: installmentPeriods,
+                                type: transactionType,
+                                category: category,
+                                account: account,
+                                startDate: groupStartDate,
+                                note: note.isEmpty ? nil : note,
+                                remark: remark.isEmpty ? nil : remark
+                            )
+                            savedTransaction = updated.first(where: { $0.id == transaction.id }) ?? updated.first
                         }
-                        let newTotal = amount * Decimal(installmentPeriods)
-                        let fee = Decimal(string: feePerPeriod) ?? 0
-                        _ = try await repository.addInstallmentTransactions(
-                            totalAmount: newTotal,
-                            feePerPeriod: fee,
-                            periods: installmentPeriods,
-                            type: transactionType,
-                            category: category,
-                            account: account,
-                            startDate: selectedDate,
-                            note: note.isEmpty ? nil : note,
-                            remark: remark.isEmpty ? nil : remark
-                        )
                     } else {
                         // 普通编辑（无分期变更）
                         let oldCategory = transaction.category
@@ -120,7 +127,7 @@ extension AddTransactionSheet {
                     }
                 } else if isInstallment {
                     let fee = Decimal(string: feePerPeriod) ?? 0
-                    _ = try await repository.addInstallmentTransactions(
+                    savedTransaction = try await repository.addInstallmentTransactions(
                         totalAmount: amount,
                         feePerPeriod: fee,
                         periods: installmentPeriods,
@@ -130,7 +137,7 @@ extension AddTransactionSheet {
                         startDate: selectedDate,
                         note: note.isEmpty ? nil : note,
                         remark: remark.isEmpty ? nil : remark
-                    )
+                    ).first
                 } else {
                     savedTransaction = try await repository.addTransaction(
                         amount: amount,
@@ -194,7 +201,7 @@ extension AddTransactionSheet {
                     // 普通交易 → 转为分期
                     try await repository.deleteTransaction(transaction)
                     let fee = Decimal(string: feePerPeriod) ?? 0
-                    _ = try await repository.addInstallmentTransactions(
+                    savedTransaction = try await repository.addInstallmentTransactions(
                         totalAmount: amount,
                         feePerPeriod: fee,
                         periods: installmentPeriods,
@@ -204,7 +211,7 @@ extension AddTransactionSheet {
                         startDate: selectedDate,
                         note: note.isEmpty ? nil : note,
                         remark: remark.isEmpty ? nil : remark
-                    )
+                    ).first
                 } else if !isInstallment && wasInstallment {
                     // 分期 → 取消分期
                     if let groupId = transaction.installmentGroupId {
@@ -221,23 +228,30 @@ extension AddTransactionSheet {
                         tags: nil
                     )
                 } else if isInstallment && wasInstallment {
-                    // 分期 → 修改分期参数
+                    // 分期 → 修改分期参数：原组就地更新，保留交易 ID
                     if let groupId = transaction.installmentGroupId {
-                        try await repository.deleteInstallmentGroup(groupId: groupId)
+                        let originalIndex = max(Int(transaction.installmentIndex), 1)
+                        let groupStartDate = Calendar.current.date(
+                            byAdding: .month,
+                            value: -(originalIndex - 1),
+                            to: selectedDate
+                        ) ?? selectedDate
+                        let newTotal = amount * Decimal(installmentPeriods)
+                        let fee = Decimal(string: feePerPeriod) ?? 0
+                        let updated = try await repository.updateInstallmentTransactions(
+                            groupId: groupId,
+                            totalAmount: newTotal,
+                            feePerPeriod: fee,
+                            periods: installmentPeriods,
+                            type: transactionType,
+                            category: category,
+                            account: account,
+                            startDate: groupStartDate,
+                            note: note.isEmpty ? nil : note,
+                            remark: remark.isEmpty ? nil : remark
+                        )
+                        savedTransaction = updated.first(where: { $0.id == transaction.id }) ?? updated.first
                     }
-                    let newTotal = amount * Decimal(installmentPeriods)
-                    let fee = Decimal(string: feePerPeriod) ?? 0
-                    _ = try await repository.addInstallmentTransactions(
-                        totalAmount: newTotal,
-                        feePerPeriod: fee,
-                        periods: installmentPeriods,
-                        type: transactionType,
-                        category: category,
-                        account: account,
-                        startDate: selectedDate,
-                        note: note.isEmpty ? nil : note,
-                        remark: remark.isEmpty ? nil : remark
-                    )
                 } else {
                     // 普通编辑（无分期变更）
                     let oldCategory = transaction.category
@@ -260,7 +274,7 @@ extension AddTransactionSheet {
                 }
             } else if isInstallment {
                 let fee = Decimal(string: feePerPeriod) ?? 0
-                _ = try await repository.addInstallmentTransactions(
+                savedTransaction = try await repository.addInstallmentTransactions(
                     totalAmount: amount,
                     feePerPeriod: fee,
                     periods: installmentPeriods,
@@ -270,7 +284,7 @@ extension AddTransactionSheet {
                     startDate: selectedDate,
                     note: note.isEmpty ? nil : note,
                     remark: remark.isEmpty ? nil : remark
-                )
+                ).first
             } else {
                 savedTransaction = try await repository.addTransaction(
                     amount: amount,

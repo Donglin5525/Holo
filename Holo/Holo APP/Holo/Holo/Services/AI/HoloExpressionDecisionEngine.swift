@@ -9,6 +9,43 @@ import Foundation
 
 enum HoloExpressionDecisionEngine {
 
+    /// P2 集成：带主动评分的表达决策。
+    /// 当主动评分为 watch/ignore 时，强制降级到 observe（不打扰用户）。
+    /// 只有 store/notify 档才允许原决策引擎的完整表达强度。
+    static func decide(
+        evidenceCount: Int,
+        independentDimensionCount: Int,
+        isRelatedToUserFocus: Bool = false,
+        userExplicitlyAsksForAdvice: Bool = false,
+        hasConfirmedMilestone: Bool = false,
+        containsSensitiveHealthOrMindSignal: Bool = false,
+        feedbackShowsAdviceUseful: Bool = false,
+        proactivityScore: HoloProactivityScore? = nil
+    ) -> HoloExpressionDecision {
+        let baseDecision = decide(
+            evidenceCount: evidenceCount,
+            independentDimensionCount: independentDimensionCount,
+            isRelatedToUserFocus: isRelatedToUserFocus,
+            userExplicitlyAsksForAdvice: userExplicitlyAsksForAdvice,
+            hasConfirmedMilestone: hasConfirmedMilestone,
+            containsSensitiveHealthOrMindSignal: containsSensitiveHealthOrMindSignal,
+            feedbackShowsAdviceUseful: feedbackShowsAdviceUseful
+        )
+
+        // P2：如果主动评分低于 store 档（watch/ignore），强制降级
+        if let score = proactivityScore, !score.shouldStore {
+            return decision(
+                level: .observe,
+                confidence: min(0.4, baseDecision.confidence),
+                evidenceCount: evidenceCount,
+                allowed: ["看到", "记录到", "先观察"],
+                reason: "主动评分低（\(String(format: "%.0f", score.score))，\(score.tier.rawValue)），降低表达强度避免打扰"
+            )
+        }
+
+        return baseDecision
+    }
+
     static func decide(
         evidenceCount: Int,
         independentDimensionCount: Int,

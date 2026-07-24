@@ -91,7 +91,18 @@ struct HoloMemoryRecordDetailView: View {
                 .foregroundColor(.holoTextPrimary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text(HoloMemoryUserPresentation.timeRange(for: record))
+            Label(
+                HoloMemoryUserPresentation.durationTitle(for: record),
+                systemImage: HoloMemoryUserPresentation.durationIcon(for: record)
+            )
+            .font(.holoCaption)
+            .foregroundColor(.holoPrimary)
+
+            Text(HoloMemoryUserPresentation.durationExplanation(for: record))
+                .font(.holoTinyLabel)
+                .foregroundColor(.holoTextSecondary)
+
+            Text("观察时间：\(HoloMemoryUserPresentation.timeRange(for: record))")
                 .font(.holoTinyLabel)
                 .foregroundColor(.holoTextPlaceholder)
 

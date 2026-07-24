@@ -11,9 +11,9 @@ import Foundation
 /// 轻量 onboarding 完成时用户做出的选择。
 /// 仅用于决定是否授予 AI 数据处理授权，以及是否保存昵称草稿。
 enum OnboardingCompletionChoice {
-    /// 第三页点击「同意并开始使用」：授予 AI 数据处理授权。
+    /// 第四页点击「同意并开始使用」：授予 AI 数据处理授权。
     case grantedAIConsent
-    /// 第三页点击「暂不授权，先进入 Holo」：保持现有 consent 状态。
+    /// 第四页点击「暂不授权，先进入 Holo」：保持现有 consent 状态。
     case skippedAIConsent
     /// 任一页点击「跳过」：不保存昵称草稿，不授予授权。
     case skippedOnboarding

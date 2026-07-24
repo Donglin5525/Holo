@@ -236,11 +236,20 @@ struct TransactionRowView: View {
                 categoryIcon
 
                 VStack(alignment: .leading, spacing: 4) {
-                    // 主标题
-                    Text(hasNote ? (transaction.note ?? "") : (transaction.category?.name ?? "未分类"))
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
-                        .lineLimit(1)
+                    // 主标题 + 分期标签
+                    HStack(spacing: 4) {
+                        Text(hasNote ? (transaction.note ?? "") : (transaction.category?.name ?? "未分类"))
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+                            .lineLimit(1)
+                            .layoutPriority(1)
+
+                        // 分期期数胶囊，如 "3/12期"
+                        if let label = transaction.installmentLabel {
+                            CardBadge(text: label, color: .holoPrimary)
+                                .fixedSize()
+                        }
+                    }
 
                     // 副标题：有备注显示备注，无备注不显示副标题
                     if hasRemark, let remark = transaction.remark {

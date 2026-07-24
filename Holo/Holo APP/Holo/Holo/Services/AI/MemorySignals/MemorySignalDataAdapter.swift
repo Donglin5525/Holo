@@ -157,17 +157,20 @@ enum MemorySignalDataAdapter {
         }
     }
 
-    // MARK: - Task → rhythm aggregates
+    // MARK: - Task → completion activity and active backlog
 
     static func buildTaskMemoryInputs(now: Date = Date()) -> [TaskMemoryInput] {
         let request = TodoTask.fetchRequest()
-        let start = Calendar.current.date(byAdding: .day, value: -90, to: now) ?? .distantPast
+        let completionWindowStart = Calendar.current.date(
+            byAdding: .day,
+            value: -30,
+            to: now
+        ) ?? .distantPast
         request.predicate = NSPredicate(
-            format: "deletedFlag == NO AND (createdAt >= %@ OR updatedAt >= %@)",
-            start as NSDate,
-            start as NSDate
+            format: "deletedFlag == NO AND archived == NO AND (completed == NO OR completedAt >= %@)",
+            completionWindowStart as NSDate
         )
-        request.fetchLimit = 500
+        request.fetchBatchSize = 200
         let tasks = (try? CoreDataStack.shared.viewContext.fetch(request)) ?? []
         return tasks.map { task in
             TaskMemoryInput(

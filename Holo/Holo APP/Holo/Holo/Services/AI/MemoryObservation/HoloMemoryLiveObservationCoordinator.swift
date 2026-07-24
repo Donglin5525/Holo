@@ -296,7 +296,7 @@ actor HoloMemoryLiveObservationCoordinator {
             now: now,
             resourceSnapshot: resource,
             extractorVersion: 1,
-            promptVersion: 1,
+            promptVersion: 2,
             debounce: 0,
             materialChange: { entry in
                 switch entry.target {

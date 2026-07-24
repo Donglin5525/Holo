@@ -12,6 +12,11 @@ import Foundation
 
 enum CalendarRangeBuilder {
 
+    /// DateInterval.contains 在系统实现中包含 end；业务查询统一使用半开区间。
+    static func contains(_ date: Date, in interval: DateInterval) -> Bool {
+        date >= interval.start && date < interval.end
+    }
+
     /// 周一首的日历（沿用 HabitRepository+Stats 的 firstWeekday=2 约定）
     private static var calendar: Calendar {
         var cal = Calendar.current

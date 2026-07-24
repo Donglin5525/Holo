@@ -51,7 +51,15 @@ struct HabitDetailView: View {
     
     @Environment(\.dismiss) var dismiss
     
-    @State private var selectedRange: HabitDateRange = .week
+    /// 非 nil 表示快捷周期；nil 表示已应用自定义周期
+    @State private var selectedRange: HabitDateRange? = .week
+    @State private var customStartDate: Date = Calendar.current.date(
+        byAdding: .day,
+        value: -29,
+        to: Calendar.current.startOfDay(for: Date())
+    ) ?? Calendar.current.startOfDay(for: Date())
+    @State private var customEndDate: Date = Date()
+    @State private var showCustomRangeSheet: Bool = false
     @State private var records: [HabitRecord] = []
     @State private var snapshot = HabitDetailSnapshot()
     @State private var showEditSheet: Bool = false
@@ -140,6 +148,21 @@ struct HabitDetailView: View {
                     refreshAll()
                 }, editingHabit: habit)
             }
+            .sheet(isPresented: $showCustomRangeSheet) {
+                HabitCustomDateRangeSheet(
+                    initialStartDate: customStartDate,
+                    initialEndDate: customEndDate
+                ) { startDate, endDate in
+                    customStartDate = startDate
+                    customEndDate = endDate
+
+                    if selectedRange == nil {
+                        refreshAll()
+                    } else {
+                        selectedRange = nil
+                    }
+                }
+            }
             .alert("确认删除", isPresented: $showDeleteAlert) {
                 Button("取消", role: .cancel) {}
                 Button("删除", role: .destructive) {
@@ -181,7 +204,7 @@ struct HabitDetailView: View {
             let repo = HabitRepository.shared
             
             // 加载记录
-            let loadedRecords = repo.getRecords(for: habit, in: selectedRange.dateRange())
+            let loadedRecords = repo.getRecords(for: habit, in: effectiveDateRange)
             
             // 构建快照
             var s = HabitDetailSnapshot()
@@ -196,13 +219,13 @@ struct HabitDetailView: View {
             
             if habit.isCheckInType {
                 s.streak = repo.calculateStreakInfo(for: habit)
-                s.completedCount = repo.calculatePeriodCompletionCount(for: habit, range: selectedRange)
-                s.totalDays = selectedRange.days ?? max(loadedRecords.count, 1)
+                s.completedCount = repo.calculatePeriodCompletionCount(for: habit, dateRange: effectiveDateRange)
+                s.totalDays = selectedPeriodDayCount ?? max(loadedRecords.count, 1)
                 s.completionRate = s.totalDays > 0
                     ? Double(s.completedCount) / Double(s.totalDays) * 100
                     : 0
             } else {
-                s.periodStats = repo.calculatePeriodStats(for: habit, range: selectedRange)
+                s.periodStats = repo.calculatePeriodStats(for: habit, dateRange: effectiveDateRange)
             }
             
             // 更新 @State 变量
@@ -247,33 +270,96 @@ struct HabitDetailView: View {
     
     // MARK: - 时间范围选择器
 
+    private var effectiveDateRange: ClosedRange<Date>? {
+        if let selectedRange {
+            return selectedRange.dateRange()
+        }
+
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: customStartDate)
+        let endDay = calendar.startOfDay(for: customEndDate)
+        let end = calendar.date(byAdding: DateComponents(day: 1, second: -1), to: endDay) ?? customEndDate
+        return min(start, end)...max(start, end)
+    }
+
+    private var selectedPeriodDayCount: Int? {
+        if let selectedRange {
+            return selectedRange.days
+        }
+
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: customStartDate)
+        let end = calendar.startOfDay(for: customEndDate)
+        return (calendar.dateComponents([.day], from: min(start, end), to: max(start, end)).day ?? 0) + 1
+    }
+
+    private var selectedRangeLabel: String {
+        if let selectedRange {
+            return selectedRange.displayName
+        }
+        return "自定义周期"
+    }
+
+    private var customRangeText: String {
+        HabitCustomDateRangeSheet.rangeText(from: customStartDate, to: customEndDate)
+    }
+
     private var rangePicker: some View {
-        HStack(spacing: 0) {
-            ForEach(HabitDateRange.allCases, id: \.self) { range in
-                Button {
-                    withAnimation(.easeInOut(duration: 0.15)) {
-                        selectedRange = range
+        VStack(spacing: 8) {
+            HStack(spacing: 0) {
+                ForEach(HabitDateRange.allCases, id: \.self) { range in
+                    rangeButton(
+                        title: range.displayName,
+                        isSelected: selectedRange == range
+                    ) {
+                        withAnimation(.easeInOut(duration: 0.15)) {
+                            selectedRange = range
+                        }
                     }
-                } label: {
-                    Text(range.displayName)
-                        .font(.holoCaption)
-                        .foregroundColor(selectedRange == range ? .white : .holoTextSecondary)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 8)
-                        .background(
-                            selectedRange == range
-                                ? Color.holoPrimary
-                                : Color.holoCardBackground
-                        )
+                }
+
+                rangeButton(title: "自定义", isSelected: selectedRange == nil) {
+                    showCustomRangeSheet = true
                 }
             }
+            .background(Color.holoCardBackground)
+            .cornerRadius(HoloRadius.sm)
+            .overlay(
+                RoundedRectangle(cornerRadius: HoloRadius.sm)
+                    .stroke(Color.holoBorder, lineWidth: 1)
+            )
+
+            if selectedRange == nil {
+                Button {
+                    showCustomRangeSheet = true
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "calendar")
+                        Text(customRangeText)
+                    }
+                    .font(.holoCaption)
+                    .foregroundColor(.holoPrimary)
+                }
+                .buttonStyle(.plain)
+            }
         }
-        .background(Color.holoCardBackground)
-        .cornerRadius(HoloRadius.sm)
-        .overlay(
-            RoundedRectangle(cornerRadius: HoloRadius.sm)
-                .stroke(Color.holoBorder, lineWidth: 1)
-        )
+    }
+
+    private func rangeButton(
+        title: String,
+        isSelected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.holoCaption)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .foregroundColor(isSelected ? .white : .holoTextSecondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 8)
+                .background(isSelected ? Color.holoPrimary : Color.holoCardBackground)
+        }
     }
     
     // MARK: - 统计摘要
@@ -306,7 +392,7 @@ struct HabitDetailView: View {
             
             statItem(
                 value: "\(snapshot.completedCount)",
-                label: "\(selectedRange.displayName)完成",
+                label: "\(selectedRangeLabel)完成",
                 icon: "checkmark.circle.fill",
                 color: .holoSuccess
             )
@@ -370,14 +456,14 @@ struct HabitDetailView: View {
                     }
                     Divider().frame(height: 40)
                     statItem(
-                        value: formatValue(stats.min),
+                        value: stats.count > 0 ? formatValue(stats.min) : "-",
                         label: "最低",
                         icon: "arrow.down",
                         color: .holoInfo
                     )
                     Divider().frame(height: 40)
                     statItem(
-                        value: formatValue(stats.max),
+                        value: stats.count > 0 ? formatValue(stats.max) : "-",
                         label: "最高",
                         icon: "arrow.up",
                         color: .holoPrimary
@@ -524,6 +610,82 @@ struct HabitDetailView: View {
         records.removeAll { $0.id == record.id }
         try? HabitRepository.shared.deleteRecord(record)
         refreshAll()
+    }
+}
+
+/// 习惯统计自定义日期面板。只有点击“应用”才会改变详情页当前周期。
+private struct HabitCustomDateRangeSheet: View {
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var startDate: Date
+    @State private var endDate: Date
+
+    let onApply: (Date, Date) -> Void
+
+    init(
+        initialStartDate: Date,
+        initialEndDate: Date,
+        onApply: @escaping (Date, Date) -> Void
+    ) {
+        _startDate = State(initialValue: initialStartDate)
+        _endDate = State(initialValue: initialEndDate)
+        self.onApply = onApply
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    DatePicker(
+                        "开始日期",
+                        selection: $startDate,
+                        in: ...min(endDate, Date()),
+                        displayedComponents: .date
+                    )
+                    DatePicker(
+                        "结束日期",
+                        selection: $endDate,
+                        in: max(startDate, .distantPast)...Date(),
+                        displayedComponents: .date
+                    )
+                } footer: {
+                    Text("共 \(dayCount) 天 · \(Self.rangeText(from: startDate, to: endDate))")
+                }
+            }
+            .navigationTitle("自定义周期")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("应用") {
+                        onApply(startDate, endDate)
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    private var dayCount: Int {
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: startDate)
+        let end = calendar.startOfDay(for: endDate)
+        return (calendar.dateComponents([.day], from: min(start, end), to: max(start, end)).day ?? 0) + 1
+    }
+
+    static func rangeText(from startDate: Date, to endDate: Date) -> String {
+        let calendar = Calendar.current
+        let start = min(startDate, endDate)
+        let end = max(startDate, endDate)
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = calendar.component(.year, from: start) == calendar.component(.year, from: end)
+            ? "M月d日"
+            : "yyyy年M月d日"
+        return "\(formatter.string(from: start)) – \(formatter.string(from: end))"
     }
 }
 

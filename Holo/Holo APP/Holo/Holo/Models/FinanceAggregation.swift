@@ -205,13 +205,10 @@ struct BalanceChartScale {
         let minBalance = balanceValues.min() ?? 0
         let maxBalance = balanceValues.max() ?? 0
 
-        if minBalance == maxBalance {
-            balanceAxisMin = min(0, minBalance)
-            balanceAxisMax = max(1, maxBalance)
-        } else {
-            balanceAxisMin = minBalance
-            balanceAxisMax = maxBalance
-        }
+        // 余额轴始终包含 0：全为正数时保留“从零开始”的金额语义，
+        // 全为负数时也保留零基线，避免最低/最高余额被误画成满幅波动。
+        balanceAxisMin = min(0, minBalance)
+        balanceAxisMax = max(1, maxBalance)
     }
 
     func scaledBalance(_ balance: Double) -> Double {

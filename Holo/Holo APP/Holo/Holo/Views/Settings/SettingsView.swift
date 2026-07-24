@@ -33,6 +33,7 @@ struct SettingsView: View {
     @State private var showAIConsent = false
     @State private var showVoiceRecognitionSettings = false
     @State private var showHoloOneSettings = false
+    @State private var showTopicManagement = false
     @State private var showPrivacyPolicy = false
     @State private var showTermsOfUse = false
     @State private var showHealthKitDiagnostics = false
@@ -516,7 +517,7 @@ struct SettingsView: View {
                         .foregroundColor(.holoTextPrimary)
 
                     Text(isThoughtAutoOrganizationEnabled
-                         ? "保存新想法后自动生成分类标签；主题仍由你主动归纳"
+                         ? "保存后从已启用主题中单选分类，无法判断则进入未归类"
                          : "新想法不再自动分类；历史标签和手动整理不受影响")
                         .font(.holoCaption)
                         .foregroundColor(.holoTextSecondary)
@@ -530,6 +531,20 @@ struct SettingsView: View {
                     .tint(.holoPrimary)
             }
             .contentShape(Rectangle())
+
+            settingsRow(
+                icon: "square.grid.2x2",
+                iconColor: .holoPrimary,
+                title: "管理分类主题",
+                subtitle: "控制 HoloAI 可以使用的顶层关注方向"
+            ) {
+                showTopicManagement = true
+            }
+            .sheet(isPresented: $showTopicManagement) {
+                NavigationStack {
+                    TopicManagementView()
+                }
+            }
         }
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, HoloSpacing.sm)

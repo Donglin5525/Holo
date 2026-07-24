@@ -81,9 +81,11 @@ final class IntentRouter {
     }
 
     /// 根据解析结果执行对应的本地操作
-    /// - Parameter result: AI 解析结果
+    /// - Parameters:
+    ///   - result: AI 解析结果
+    ///   - originalInput: 用户的原始输入文本（用于在 LLM 漏填日期/时间时，用 NLDateParser 兜底解析）
     /// - Returns: 路由结果（含文本和关联实体 ID）
-    func route(_ result: ParsedResult) async throws -> RouteResult {
+    func route(_ result: ParsedResult, originalInput: String? = nil) async throws -> RouteResult {
         logger.info("路由意图：\(result.intent.rawValue)，置信度：\(result.confidence)")
 
         // 确保 FinanceRepository 已初始化（首次使用时 seed 默认分类/账户）
@@ -95,7 +97,7 @@ final class IntentRouter {
         case .recordIncome:
             return try await handleRecordIncome(result)
         case .createTask:
-            return try handleCreateTask(result)
+            return try handleCreateTask(result, originalInput: originalInput)
         case .completeTask:
             return try handleCompleteTask(result)
         case .updateTask:
@@ -314,7 +316,7 @@ final class IntentRouter {
 
     // MARK: - Create Task
 
-    private func handleCreateTask(_ result: ParsedResult) throws -> RouteResult {
+    private func handleCreateTask(_ result: ParsedResult, originalInput: String? = nil) throws -> RouteResult {
         guard let data = result.extractedData,
               let title = data["title"], !title.isEmpty else {
             return RouteResult(text: result.responseText ?? "请告诉我任务内容")
@@ -322,15 +324,27 @@ final class IntentRouter {
 
         let todoRepo = TodoRepository.shared
         let dueDateText = data["dueDate"] ?? data["reminderDate"]
-        let dueDate = parseDate(from: dueDateText)
+
+        // 解析 dueDate 与是否含时间。
+        // LLM 偶尔会漏填时间（如「晚上10点」只返回日期），这里用原始输入做兜底：
+        // - 若 LLM 给了日期但没时间，且原文含时间表达 → 合并 LLM 的日期 + 原文解析的时间
+        // - 若 LLM 完全没给日期，且原文能解析出完整日期时间 → 直接采用
+        let (dueDate, hasTime) = resolveTaskDueDate(
+            dueDateText: dueDateText,
+            originalInput: originalInput
+        )
+
         let priority = parsePriority(data["priority"])
-        let hasTime = dueDateText.map { NLDateParser.containsTimeComponent($0) } ?? false
         let checkItemTitles = SubtaskParser.parse(data["subtasks"])
 
         // 有具体时间时，自动添加提前 15 分钟提醒
         let reminders: Set<TaskReminder>? = (hasTime && dueDate != nil)
             ? [TaskReminder(offsetMinutes: 15)]
             : nil
+
+        if originalInput != nil && dueDate != nil && hasTime {
+            logger.info("任务时间解析（含兜底）：dueDate=\(dueDate.map { String(describing: $0) } ?? "nil") hasTime=\(hasTime)")
+        }
 
         let task = try todoRepo.createTask(
             title: title,
@@ -710,6 +724,58 @@ final class IntentRouter {
     private func parseDate(from string: String?) -> Date? {
         guard let string = string else { return nil }
         return NLDateParser.parse(string)
+    }
+
+    /// 解析任务截止日期与「是否含具体时间」
+    /// - 当 LLM 返回的 dueDateText 完整含时间 → 直接采用
+    /// - 当 LLM 返回了日期但缺时间，且原始输入含时间表达 → 用 LLM 的日期 + 原文解析的时间合并
+    /// - 当 LLM 未返回日期，但原始输入能解析出完整日期时间 → 采用原文解析结果
+    /// - 返回 (nil, false) 表示无法确定日期时间（创建为无截止日期任务）
+    private func resolveTaskDueDate(
+        dueDateText: String?,
+        originalInput: String?
+    ) -> (dueDate: Date?, hasTime: Bool) {
+        let llmDate = parseDate(from: dueDateText)
+        let llmHasTime = dueDateText.map { NLDateParser.containsTimeComponent($0) } ?? false
+
+        // LLM 已给出带时间的日期 → 直接采用
+        if let date = llmDate, llmHasTime {
+            return (date, true)
+        }
+
+        // 尝试用原始输入兜底
+        guard let original = originalInput?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !original.isEmpty,
+              let originalDate = NLDateParser.parse(original) else {
+            // 无原文兜底 → 回退到 LLM 结果（可能只有日期）
+            return (llmDate, llmHasTime)
+        }
+
+        let originalHasTime = NLDateParser.containsTimeComponent(original)
+
+        if llmDate != nil && !llmHasTime {
+            // LLM 给了日期但没时间，原文含时间 → 合并：LLM 的日期 + 原文的时间
+            if originalHasTime {
+                let merged = mergeDate(llmDate!, withTimeFrom: originalDate)
+                return (merged, true)
+            }
+            // 原文也没时间 → 用 LLM 的纯日期
+            return (llmDate, false)
+        }
+
+        // LLM 完全没给日期，用原文解析结果（含或不含时间）
+        return (originalDate, originalHasTime)
+    }
+
+    /// 将 date 的时间部分替换为 source 的时分
+    private func mergeDate(_ date: Date, withTimeFrom source: Date) -> Date {
+        let calendar = Calendar.current
+        let dateComps = calendar.dateComponents([.year, .month, .day], from: date)
+        let timeComps = calendar.dateComponents([.hour, .minute], from: source)
+        var merged = dateComps
+        merged.hour = timeComps.hour
+        merged.minute = timeComps.minute
+        return calendar.date(from: merged) ?? date
     }
 
     /// 格式化日期为 M月d日

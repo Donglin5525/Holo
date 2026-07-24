@@ -187,12 +187,16 @@ struct TaskListView: View {
         .onChange(of: tasks) { _, _ in
             updateFilteredTasks()
         }
-        .sheet(item: $selectedTask) { selection in
+        .sheet(item: $selectedTask, onDismiss: {
+            // 复位选中状态，确保下次 DeepLink 命中相同 taskId 时能重新触发 sheet
+            selectedTask = nil
+        }) { selection in
             if let task = tasks.first(where: { $0.id == selection.id }) ?? repository.findTask(by: selection.id) {
                 AddTaskSheet(repository: repository, task: task)
             } else {
-                ProgressView("加载中...")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                // 找不到任务（可能落库未完成或已删除）：不能弹无返回按钮的 ProgressView，
+                // 否则用户会被困在 sheet 里无法返回。
+                TaskNotFoundView(onDismiss: { selectedTask = nil })
             }
         }
         .sheet(isPresented: $showArchiveManagement) {
@@ -744,6 +748,31 @@ private struct SectionHeaderView: View {
 // MARK: - Task Card View
 
 /// 任务卡片组件
+
+// MARK: - Task Not Found Fallback
+
+/// DeepLink 目标任务未找到时的兜底视图
+/// 短暂等待（落库可能稍后完成），仍找不到则自动关闭 sheet，避免用户被困在无返回按钮的页面
+private struct TaskNotFoundView: View {
+    let onDismiss: () -> Void
+
+    var body: some View {
+        VStack(spacing: HoloSpacing.md) {
+            ProgressView()
+            Text("正在打开任务…")
+                .font(.holoCaption)
+                .foregroundColor(.holoTextSecondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.holoBackground.ignoresSafeArea())
+        .onAppear {
+            // 等待 1.5s 后若仍由本视图承载，说明任务确实不存在，自动关闭
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                onDismiss()
+            }
+        }
+    }
+}
 
 // MARK: - Preview
 

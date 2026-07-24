@@ -3,14 +3,14 @@
 //  Holo
 //
 //  轻量新人引导 V1 主容器。
-//  协调三页切换与完成回调；不持有业务数据，不发起网络请求，不创建记录。
+//  协调四页切换与完成回调；主题页只创建本地 Topic，不发起网络请求。
 //
 
 import SwiftUI
 
 /// 轻量新人引导 V1 主容器。
 ///
-/// 三页结构：认识 Holo（选填昵称）→ 功能与使用方式 → AI 数据处理授权。
+/// 四页结构：认识 Holo（选填昵称）→ 功能与使用方式 → 主题设置 → AI 数据处理授权。
 /// 关闭前由 `finish(_:)` 统一处理昵称保存、旧 onboarding 标记、consent 授权与
 /// 轻量 completed key 写入，再通过 `onComplete` 回调通知宿主关闭并触发一次 AI 入口提示。
 struct HoloLightweightOnboardingView: View {
@@ -20,6 +20,8 @@ struct HoloLightweightOnboardingView: View {
 
     @State private var currentPage: Int = 0
     @State private var nicknameDraft: String = ""
+    @State private var selectedTopics = ThoughtThemeConstraint.defaultPresetTopics
+    @State private var topicSetupError: String?
 
     var body: some View {
         ZStack {
@@ -37,11 +39,11 @@ struct HoloLightweightOnboardingView: View {
 
     private var topBar: some View {
         ZStack {
-            OnboardingPageDots(currentPage: currentPage, pageCount: 3)
+            OnboardingPageDots(currentPage: currentPage, pageCount: 4)
 
             HStack(spacing: 0) {
                 Spacer()
-                if currentPage < 2 {
+                if currentPage < 3 {
                     Button {
                         finish(.skippedOnboarding)
                     } label: {
@@ -73,11 +75,27 @@ struct HoloLightweightOnboardingView: View {
             OnboardingCapabilitiesPage {
                 withAnimation(.easeInOut(duration: 0.25)) { currentPage = 2 }
             }
+        case 2:
+            OnboardingTopicSetupPage(
+                selectedTopics: $selectedTopics,
+                errorMessage: topicSetupError,
+                onContinue: saveTopicsAndContinue
+            )
         default:
             OnboardingAIConsentPage(
                 onGrant: { finish(.grantedAIConsent) },
                 onSkipConsent: { finish(.skippedAIConsent) }
             )
+        }
+    }
+
+    private func saveTopicsAndContinue() {
+        do {
+            _ = try TopicRepository().createClassificationTopics(titles: Array(selectedTopics))
+            topicSetupError = nil
+            withAnimation(.easeInOut(duration: 0.25)) { currentPage = 3 }
+        } catch {
+            topicSetupError = "主题保存失败，请再试一次"
         }
     }
 

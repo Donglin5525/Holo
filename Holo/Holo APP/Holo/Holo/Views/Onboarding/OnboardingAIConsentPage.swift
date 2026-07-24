@@ -2,12 +2,12 @@
 //  OnboardingAIConsentPage.swift
 //  Holo
 //
-//  轻量新人引导第三页：HoloAI 数据处理授权说明与选择。
+//  轻量新人引导第四页：HoloAI 数据处理授权说明与选择。
 //
 
 import SwiftUI
 
-/// 轻量 onboarding 第三页。
+/// 轻量 onboarding 第四页。
 struct OnboardingAIConsentPage: View {
 
     let onGrant: () -> Void

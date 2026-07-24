@@ -40,20 +40,11 @@ extension HabitRepository {
 
     private func aggregateDailyNumericValues(for habit: Habit, records: [HabitRecord], calendar: Calendar) -> [Double] {
         guard habit.isNumericType else { return [] }
-
-        var dailyValues: [Date: Double] = [:]
-        let sortedRecords = records.sorted { $0.date < $1.date }
-        for record in sortedRecords {
-            guard let value = record.valueDouble else { continue }
-            let dayStart = calendar.startOfDay(for: record.date)
-            if habit.isCountType {
-                dailyValues[dayStart, default: 0] += value
-            } else {
-                dailyValues[dayStart] = value
-            }
-        }
-
-        return dailyValues.sorted { $0.key < $1.key }.map(\.value)
+        return HabitNumericAggregator.aggregateDaily(
+            samples: records.map { HabitNumericSample(date: $0.date, value: $0.valueDouble) },
+            isCountType: habit.isCountType,
+            calendar: calendar
+        ).map(\.value)
     }
 
     /// 获取总览统计数据
@@ -151,12 +142,12 @@ extension HabitRepository {
                             nextDay as NSDate
                         )
                         if let dayRecords = try? context.fetch(request) {
-                            let aggregatedValue: Double
-                            if habit.isCountType {
-                                aggregatedValue = dayRecords.compactMap { $0.value?.doubleValue }.reduce(0, +)
-                            } else {
-                                aggregatedValue = dayRecords.last?.value?.doubleValue ?? 0
-                            }
+                            // 坏习惯当天无记录沿用 0 次发生的业务语义；有记录时统一按时间取有效值
+                            let aggregatedValue = HabitNumericAggregator.aggregateDaily(
+                                samples: dayRecords.map { HabitNumericSample(date: $0.date, value: $0.valueDouble) },
+                                isCountType: habit.isCountType,
+                                calendar: calendar
+                            ).first?.value ?? 0
                             if aggregatedValue <= targetValue {
                                 dayCompleted += 1
                             }
