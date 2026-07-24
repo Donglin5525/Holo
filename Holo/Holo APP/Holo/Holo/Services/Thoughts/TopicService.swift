@@ -11,14 +11,14 @@
 import Foundation
 import CoreData
 
-final class TopicService {
+struct TopicService {
 
-    /// 取一条观点的主展示主题：thoughts.count 最高的 active/candidate Topic；无则 nil（spec 决策 11）
+    /// 取一条观点的主展示主题：thoughts.count 最高的可见 Topic；无则 nil（spec 决策 11）
     /// - Note: 不用 updatedAt（iCloud 跨设备时钟不可靠）、不用缓存 thoughtCount
     func primaryDisplayTopic(for thought: Thought) -> Topic? {
         guard let topics = thought.topics as? Set<Topic> else { return nil }
         return topics
-            .filter { $0.statusEnum == .active || $0.statusEnum == .candidate }
+            .filter(\.isVisibleTopic)
             .max { topicThoughtCount($0) < topicThoughtCount($1) }
     }
 
@@ -35,7 +35,7 @@ final class TopicService {
         guard assignment.rejectedAt == nil else { return false }
 
         guard let topics = thought.topics as? Set<Topic> else { return false }
-        for topic in topics where topic.statusEnum == .active || topic.statusEnum == .candidate {
+        for topic in topics where topic.isVisibleTopic {
             let topicThoughts = topic.thoughts as? Set<Thought> ?? []
             let topicTags = topic.associatedTags as? Set<ThoughtTag> ?? []
             if topicThoughts.contains(thought) && topicTags.contains(tag) {

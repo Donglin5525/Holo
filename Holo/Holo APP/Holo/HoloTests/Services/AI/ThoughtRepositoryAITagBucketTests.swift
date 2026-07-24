@@ -17,7 +17,7 @@ final class ThoughtRepositoryAITagBucketTests: XCTestCase {
 
     /// 构建内存 Repository + Context（共享同一 context）
     private func makeRepo() throws -> (ThoughtRepository, NSManagedObjectContext) {
-        let model = CoreDataStack.shared.createDataModel()
+        let model = CoreDataTestSupport.sharedModel
         let container = NSPersistentContainer(name: "AITagBucketTest", managedObjectModel: model)
         let description = NSPersistentStoreDescription()
         description.type = NSInMemoryStoreType
@@ -26,13 +26,15 @@ final class ThoughtRepositoryAITagBucketTests: XCTestCase {
         container.loadPersistentStores { _, error in storeError = error }
         if let storeError { throw storeError }
         let ctx = container.viewContext
-        return (ThoughtRepository(context: ctx), ctx)
+        let repository = ThoughtRepository(context: ctx)
+        CoreDataTestSupport.retain(container, ctx, repository)
+        return (repository, ctx)
     }
 
     /// 创建测试想法
     @discardableResult
     private func makeThought(in ctx: NSManagedObjectContext) throws -> UUID {
-        let thought = Thought(context: ctx)
+        let thought = ctx.insertTestObject(Thought.self)
         let id = UUID()
         thought.id = id
         thought.content = "测试内容"
@@ -186,7 +188,7 @@ final class ThoughtRepositoryAITagBucketTests: XCTestCase {
         let (repo, ctx) = try makeRepo()
         let insertedNames = ["灵感", "AI能力", "产品"]
         for name in insertedNames {
-            let tag = ThoughtTag(context: ctx)
+            let tag = ctx.insertTestObject(ThoughtTag.self)
             tag.id = UUID()
             tag.name = name
             tag.usageCount = 3
@@ -218,7 +220,7 @@ final class ThoughtRepositoryAITagBucketTests: XCTestCase {
         try repo.createTagAssignment(thoughtId: t1, tagName: "coding", source: .ai, confidence: 0.9)
 
         // 构造 Topic 收纳 t1 + coding tag（三者交集）
-        let topic = Topic(context: ctx)
+        let topic = ctx.insertTestObject(Topic.self)
         topic.id = UUID()
         topic.title = "编程"
         topic.status = Topic.TopicStatus.active.rawValue

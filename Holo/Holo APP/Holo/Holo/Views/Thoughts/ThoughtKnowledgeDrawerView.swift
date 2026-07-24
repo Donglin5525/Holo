@@ -29,6 +29,8 @@ struct ThoughtKnowledgeDrawerView: View {
     @AppStorage(ThoughtAIClassificationPolicy.isEnabledKey)
     private var isAIClassificationEnabled: Bool = true
 
+    @ObservedObject private var convergenceJob = ThoughtTagConvergenceJob.shared
+
     /// 当前选中节点
     @Binding var selection: DrawerNode?
 
@@ -71,16 +73,38 @@ struct ThoughtKnowledgeDrawerView: View {
     @State private var showTopicDeleteConfirm = false
     /// 标签/主题管理操作反馈（toast，nil 不显示）
     @State private var actionNotice: String?
+    @State private var showTopicManagement = false
 
     private let collapsedAIPoolLimit = 3
 
-    /// 待归纳线索数 = 尚未被 Topic 收纳的 .ai/.confirmedAI assignment 总数
+    /// 待归纳线索数 = 当前虚拟“未分类”路径下的标签命中数。
     private var pendingThemeClueCount: Int {
-        aiTagBuckets.reduce(0) { $0 + $1.assignmentCount }
+        unclassifiedBuckets.reduce(0) { $0 + $1.assignmentCount }
     }
 
     private var visibleAIBuckets: [ThoughtRepository.AITagBucket] {
-        isAIPoolExpanded ? aiTagBuckets : Array(aiTagBuckets.prefix(collapsedAIPoolLimit))
+        let buckets = personalAndHistoricalBuckets
+        return isAIPoolExpanded ? buckets : Array(buckets.prefix(collapsedAIPoolLimit))
+    }
+
+    private var unclassifiedBuckets: [ThoughtRepository.AITagBucket] {
+        aiTagBuckets.filter {
+            ThoughtTagNormalizer.isPath($0.tagName, under: ThoughtThemeConstraint.unclassifiedTitle)
+        }
+    }
+
+    private var personalAndHistoricalBuckets: [ThoughtRepository.AITagBucket] {
+        aiTagBuckets.filter { bucket in
+            guard !ThoughtTagNormalizer.isPath(bucket.tagName, under: ThoughtThemeConstraint.unclassifiedTitle) else {
+                return false
+            }
+            return !topics.contains { ThoughtTagNormalizer.isPath(bucket.tagName, under: $0.title) }
+        }
+    }
+
+    private var hasReadyInsight: Bool {
+        if case .ready(let suggestions) = convergenceJob.state { return !suggestions.isEmpty }
+        return false
     }
 
     var body: some View {
@@ -102,13 +126,20 @@ struct ThoughtKnowledgeDrawerView: View {
             // 归并确认后观点数据变更，刷新 AI 标签池 + 主题列表（P2.3 收纳降权实时反映）
             Task { await loadAIBuckets() }
         }
+        .sheet(isPresented: $showTopicManagement, onDismiss: {
+            Task { await loadAIBuckets() }
+        }) {
+            NavigationStack {
+                TopicManagementView(topicRepository: topicRepository, thoughtRepository: thoughtRepository)
+            }
+        }
     }
 
     /// 加载 AI 标签池聚合
     private func loadAIBuckets() async {
         do {
-            aiTagBuckets = try thoughtRepository.fetchAITagBuckets(excludeAbsorbed: true)
-            topics = try topicRepository.fetchVisibleTopics()
+            aiTagBuckets = try thoughtRepository.fetchAITagBuckets(excludeAbsorbed: false)
+            topics = try topicRepository.fetchClassificationTopics()
         } catch {
             // 容错：保持空数组，不影响抽屉其他功能
             aiTagBuckets = []
@@ -124,13 +155,23 @@ struct ThoughtKnowledgeDrawerView: View {
                 header
                 aiClassificationToggle
                 nodeRow(.allNotes, icon: "tray.full", title: "全部笔记")
-                nodeRow(.unclassified, icon: "square.dashed", title: "未归类")
+                nodeRow(
+                    .unclassified,
+                    icon: "square.dashed",
+                    title: "未归类",
+                    badge: hasReadyInsight ? "有建议" : nil
+                )
+                ForEach(unclassifiedBuckets) { bucket in
+                    aiTagRow(bucket, baseIndent: 1)
+                }
 
-                sectionLabel("主题")
+                sectionLabel("分类主题")
                 topicSection
 
-                sectionLabel("AI 标签池")
-                aiPoolSection
+                if !personalAndHistoricalBuckets.isEmpty {
+                    sectionLabel("个人与历史标签")
+                    aiPoolSection
+                }
 
                 Divider()
                     .padding(.horizontal, HoloSpacing.md)
@@ -198,7 +239,7 @@ struct ThoughtKnowledgeDrawerView: View {
                 Text("AI 自动分类")
                     .font(.holoBody)
                     .foregroundColor(.holoTextPrimary)
-                Text(isAIClassificationEnabled ? "新想法自动生成标签" : "已关闭，仍可手动整理")
+                Text(isAIClassificationEnabled ? "按已启用主题整理新想法" : "已关闭，仍可手动整理")
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)
             }
@@ -217,7 +258,7 @@ struct ThoughtKnowledgeDrawerView: View {
 
     // MARK: - 通用节点行
 
-    private func nodeRow(_ node: DrawerNode, icon: String, title: String) -> some View {
+    private func nodeRow(_ node: DrawerNode, icon: String, title: String, badge: String? = nil) -> some View {
         let isSelected = selection == node
         return Button {
             onSelect(node)
@@ -233,6 +274,16 @@ struct ThoughtKnowledgeDrawerView: View {
                     .foregroundColor(isSelected ? .holoPrimary : .holoTextPrimary)
 
                 Spacer()
+
+                if let badge {
+                    Text(badge)
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.holoPrimary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.holoPrimary.opacity(0.1))
+                        .clipShape(Capsule())
+                }
 
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .semibold))
@@ -265,9 +316,14 @@ struct ThoughtKnowledgeDrawerView: View {
             Image(systemName: "sparkles")
                 .font(.system(size: 13))
                 .foregroundColor(.holoAI)
-            Text("暂无主题，归纳后生成")
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("还没有启用分类主题")
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary)
+                Button("设置主题") { showTopicManagement = true }
+                    .font(.holoCaption)
+                    .foregroundColor(.holoPrimary)
+            }
             Spacer()
         }
         .padding(.horizontal, HoloSpacing.md)
@@ -291,49 +347,57 @@ struct ThoughtKnowledgeDrawerView: View {
     private func topicRow(_ topic: Topic) -> some View {
         let isSelected = selection == .topic(topic.id)
         let count = (topic.thoughts as? Set<Thought>)?.count ?? 0
-        return Button {
-            onSelect(.topic(topic.id))
-        } label: {
-            HStack(spacing: HoloSpacing.sm) {
-                Image(systemName: "folder")
-                    .font(.system(size: 13))
-                    .foregroundColor(isSelected ? .holoPrimary : .holoTextSecondary)
-                    .frame(width: 26)
-
-                Text(topic.title)
-                    .font(.holoBody)
-                    .foregroundColor(isSelected ? .holoPrimary : .holoTextPrimary)
-                    .lineLimit(1)
-
-                Spacer()
-
-                Text("\(count)")
-                    .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
-                    .padding(.horizontal, HoloSpacing.sm)
-                    .padding(.vertical, 2)
-                    .background(Color.holoBackground)
-                    .clipShape(Capsule())
-            }
-            .padding(.horizontal, HoloSpacing.md)
-            .padding(.vertical, HoloSpacing.sm)
-            .background(isSelected ? Color.holoPrimary.opacity(0.08) : Color.clear)
+        let childBuckets = aiTagBuckets.filter {
+            ThoughtTagNormalizer.isPath($0.tagName, under: topic.title)
         }
-        .buttonStyle(.plain)
-        .contextMenu {
+        return VStack(alignment: .leading, spacing: 0) {
             Button {
-                topicActionTarget = topic
-                topicRenameInput = topic.title
-                showTopicRenameAlert = true
+                onSelect(.topic(topic.id))
             } label: {
-                Label("重命名", systemImage: "pencil")
+                HStack(spacing: HoloSpacing.sm) {
+                    Image(systemName: "folder.fill")
+                        .font(.system(size: 13))
+                        .foregroundColor(isSelected ? .holoPrimary : .holoTextSecondary)
+                        .frame(width: 26)
+
+                    Text(topic.title)
+                        .font(.holoBody)
+                        .foregroundColor(isSelected ? .holoPrimary : .holoTextPrimary)
+                        .lineLimit(1)
+
+                    Spacer()
+
+                    Text("\(count)")
+                        .font(.holoLabel)
+                        .foregroundColor(.holoTextSecondary)
+                        .padding(.horizontal, HoloSpacing.sm)
+                        .padding(.vertical, 2)
+                        .background(Color.holoBackground)
+                        .clipShape(Capsule())
+                }
+                .padding(.horizontal, HoloSpacing.md)
+                .padding(.vertical, HoloSpacing.sm)
+                .background(isSelected ? Color.holoPrimary.opacity(0.08) : Color.clear)
+            }
+            .buttonStyle(.plain)
+            .contextMenu {
+                Button {
+                    topicActionTarget = topic
+                    topicRenameInput = topic.title
+                    showTopicRenameAlert = true
+                } label: {
+                    Label("重命名", systemImage: "pencil")
+                }
+                Button(role: .destructive) {
+                    topicActionTarget = topic
+                    showTopicDeleteConfirm = true
+                } label: {
+                    Label("删除主题", systemImage: "trash")
+                }
             }
 
-            Button(role: .destructive) {
-                topicActionTarget = topic
-                showTopicDeleteConfirm = true
-            } label: {
-                Label("删除主题", systemImage: "trash")
+            ForEach(childBuckets) { bucket in
+                aiTagRow(bucket, baseIndent: 1)
             }
         }
     }
@@ -348,7 +412,7 @@ struct ThoughtKnowledgeDrawerView: View {
         guard !newTitle.isEmpty, newTitle != topic.title else { return }
 
         do {
-            try topicRepository.updateTitle(topic, title: newTitle)
+            try topicRepository.renameClassificationTopic(topic, to: newTitle)
             actionNotice = "已重命名为「\(newTitle)」"
             HapticManager.light()
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
@@ -362,7 +426,7 @@ struct ThoughtKnowledgeDrawerView: View {
         guard let topic = topicActionTarget else { return }
         let topicId = topic.id  // 删除后对象属性不可访问，先取出
         do {
-            let result = try topicRepository.delete(topic)
+            let result = try topicRepository.deleteClassificationTopic(topic)
             try ConvergenceRejectionRepository().reject(topicTitle: result.title, sourceTerms: result.sourceTerms)
             if case .topic(let selectedId) = selection, selectedId == topicId {
                 selection = .allNotes
@@ -379,15 +443,15 @@ struct ThoughtKnowledgeDrawerView: View {
 
     private var aiPoolSection: some View {
         Group {
-            if aiTagBuckets.isEmpty {
+            if personalAndHistoricalBuckets.isEmpty {
                 aiPoolEmpty
             } else {
                 HStack(spacing: HoloSpacing.sm) {
-                    Text("共 \(aiTagBuckets.count) 个标签")
+                    Text("共 \(personalAndHistoricalBuckets.count) 个标签")
                         .font(.holoTinyLabel)
                         .foregroundColor(.holoTextSecondary)
                     Spacer()
-                    if aiTagBuckets.count > collapsedAIPoolLimit {
+                    if personalAndHistoricalBuckets.count > collapsedAIPoolLimit {
                         aiPoolToggle
                     }
                 }
@@ -436,7 +500,7 @@ struct ThoughtKnowledgeDrawerView: View {
         .padding(.vertical, HoloSpacing.sm)
     }
 
-    private func aiTagRow(_ bucket: ThoughtRepository.AITagBucket) -> some View {
+    private func aiTagRow(_ bucket: ThoughtRepository.AITagBucket, baseIndent: Int = 0) -> some View {
         let isSelected = selection == .aiTag(bucket.tagName)
         let confirmedCount = bucket.sourceBreakdown[ThoughtTagAssignment.Source.confirmedAI.rawValue] ?? 0
         // 多级路径标签：按层级缩进，主标题显示叶段名，副标题显示完整路径
@@ -481,7 +545,7 @@ struct ThoughtKnowledgeDrawerView: View {
                     .background(Color.holoBackground)
                     .clipShape(Capsule())
             }
-            .padding(.leading, HoloSpacing.md + CGFloat(depth) * 14)
+            .padding(.leading, HoloSpacing.md + CGFloat(depth + baseIndent) * 14)
             .padding(.trailing, HoloSpacing.md)
             .padding(.vertical, HoloSpacing.sm)
             .background(isSelected ? Color.holoPrimary.opacity(0.08) : Color.clear)
@@ -583,7 +647,7 @@ struct ThoughtKnowledgeDrawerView: View {
                     .foregroundColor(.holoAI)
                     .frame(width: 26)
 
-                Text("归纳主题")
+                Text(hasReadyInsight ? "查看主题建议" : "发现新主题")
                     .font(.holoBody)
                     .foregroundColor(.holoTextPrimary)
 

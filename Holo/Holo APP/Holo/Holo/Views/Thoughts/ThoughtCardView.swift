@@ -219,7 +219,7 @@ struct ThoughtCardView: View {
             onTagTap?(tagName)
         } label: {
             HStack(spacing: 3) {
-                Text("#\(tagName)")
+                Text("#\(ThoughtTagNormalizer.lastSegment(tagName))")
                     .font(.holoLabel)
                     .foregroundColor(.holoTextSecondary)
 

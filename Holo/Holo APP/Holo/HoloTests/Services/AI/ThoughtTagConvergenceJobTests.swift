@@ -16,7 +16,7 @@ final class ThoughtTagConvergenceJobTests: XCTestCase {
     // MARK: - Scaffold
 
     private func makeContext() throws -> NSManagedObjectContext {
-        let model = CoreDataStack.shared.createDataModel()
+        let model = CoreDataTestSupport.sharedModel
         let container = NSPersistentContainer(name: "ConvergenceJobTest", managedObjectModel: model)
         let desc = NSPersistentStoreDescription()
         desc.type = NSInMemoryStoreType
@@ -24,6 +24,7 @@ final class ThoughtTagConvergenceJobTests: XCTestCase {
         var err: Error?
         container.loadPersistentStores { _, e in err = e }
         if let err { throw err }
+        CoreDataTestSupport.retain(container, container.viewContext)
         return container.viewContext
     }
 
@@ -32,15 +33,20 @@ final class ThoughtTagConvergenceJobTests: XCTestCase {
         ctx: NSManagedObjectContext,
         jobStore: ThoughtTagConvergenceJobStore? = nil
     ) -> ThoughtTagConvergenceJob {
-        ThoughtTagConvergenceJob(
+        let isolatedStore = jobStore ?? ThoughtTagConvergenceJobStore(
+            userDefaults: UserDefaults(suiteName: "ThoughtTagConvergenceJobTests.\(UUID().uuidString)")!
+        )
+        let job = ThoughtTagConvergenceJob(
             aiCall: aiCall,
             thoughtRepository: ThoughtRepository(context: ctx),
             topicRepository: TopicRepository(context: ctx),
             rejectionRepository: ConvergenceRejectionRepository(context: ctx),
-            jobStore: jobStore,
+            jobStore: isolatedStore,
             maxRetryCount: 2,
             retryIntervals: [0.01, 0.01]
         )
+        CoreDataTestSupport.retain(job)
+        return job
     }
 
     /// 灌一条带 .ai 标签的观点，返回 thoughtId
@@ -52,7 +58,7 @@ final class ThoughtTagConvergenceJobTests: XCTestCase {
     /// 灌一条带多个 .ai 标签的观点，返回 thoughtId
     @discardableResult
     private func seedThought(tags: [String], ctx: NSManagedObjectContext) throws -> UUID {
-        let t = Thought(context: ctx)
+        let t = ctx.insertTestObject(Thought.self)
         t.id = UUID()
         t.content = "关于 \(tags.joined(separator: "、")) 的观点"
         t.createdAt = Date()
@@ -61,12 +67,12 @@ final class ThoughtTagConvergenceJobTests: XCTestCase {
         t.organizedStatus = "organized"
 
         for tag in tags {
-            let tagEntity = ThoughtTag(context: ctx)
+            let tagEntity = ctx.insertTestObject(ThoughtTag.self)
             tagEntity.id = UUID()
             tagEntity.name = tag
             tagEntity.usageCount = 1
 
-            let assignment = ThoughtTagAssignment(context: ctx)
+            let assignment = ctx.insertTestObject(ThoughtTagAssignment.self)
             assignment.id = UUID()
             assignment.source = ThoughtTagAssignment.Source.ai.rawValue
             assignment.confidence = 0.9
@@ -214,10 +220,9 @@ final class ThoughtTagConvergenceJobTests: XCTestCase {
 
     // MARK: - 输入不足
 
-    func test_输入不足3条_状态idle不调AI() async throws {
+    func test_输入不足2条_状态idle不调AI() async throws {
         let ctx = try makeContext()
         _ = try seedThought(tag: "coding", ctx: ctx)
-        _ = try seedThought(tag: "coding", ctx: ctx)  // 仅 2 条
 
         var aiCalled = false
         let job = makeJob(aiCall: { _ in aiCalled = true; return "{\"suggestions\":[]}" }, ctx: ctx)
@@ -275,7 +280,7 @@ final class ThoughtTagConvergenceJobTests: XCTestCase {
 
     // MARK: - Token protection
 
-    func test_输入未变化时第二次归纳不重复调用AI() async throws {
+    func test_输入未变化时第二次归纳不重复调用AI并恢复建议() async throws {
         let ctx = try makeContext()
         _ = try seedThought(tag: "coding", ctx: ctx)
         _ = try seedThought(tag: "coding", ctx: ctx)
@@ -298,7 +303,10 @@ final class ThoughtTagConvergenceJobTests: XCTestCase {
         await job.run()
 
         XCTAssertEqual(callCount, 1)
-        XCTAssertEqual(job.state, .unchanged)
+        guard case .ready(let suggestions) = job.state else {
+            return XCTFail("期望恢复 ready，实际 \(job.state)")
+        }
+        XCTAssertEqual(suggestions.count, 1)
         defaults.removePersistentDomain(forName: suiteName)
     }
 
@@ -328,7 +336,7 @@ final class ThoughtTagConvergenceJobTests: XCTestCase {
         await job.run(autoApply: true)
 
         XCTAssertEqual(callCount, 1)
-        XCTAssertEqual(job.state, .unchanged)
+        XCTAssertEqual(job.state, .idle)
         defaults.removePersistentDomain(forName: suiteName)
     }
 
@@ -336,7 +344,6 @@ final class ThoughtTagConvergenceJobTests: XCTestCase {
 
     func test_reset状态回idle() async throws {
         let ctx = try makeContext()
-        _ = try seedThought(tag: "coding", ctx: ctx)
         _ = try seedThought(tag: "coding", ctx: ctx)
 
         let job = makeJob(aiCall: { _ in "{\"suggestions\":[]}" }, ctx: ctx)

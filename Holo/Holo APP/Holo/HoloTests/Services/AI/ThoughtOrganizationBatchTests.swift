@@ -17,7 +17,7 @@ final class ThoughtOrganizationBatchTests: XCTestCase {
 
     /// 构建内存 Context，复用项目 model 定义，隔离测试数据
     private func makeInMemoryContext() throws -> NSManagedObjectContext {
-        let model = CoreDataStack.shared.createDataModel()
+        let model = CoreDataTestSupport.sharedModel
         let container = NSPersistentContainer(name: "ThoughtBatchTest", managedObjectModel: model)
         let description = NSPersistentStoreDescription()
         description.type = NSInMemoryStoreType
@@ -29,19 +29,26 @@ final class ThoughtOrganizationBatchTests: XCTestCase {
         }
         if let storeError { throw storeError }
 
+        CoreDataTestSupport.retain(container, container.viewContext)
         return container.viewContext
     }
 
-    /// 创建测试想法（organizedStatus 可设 nil，模拟早于 backfill 的脏数据）
+    private func makeRepository(context: NSManagedObjectContext) -> ThoughtRepository {
+        let repository = ThoughtRepository(context: context)
+        CoreDataTestSupport.retain(repository)
+        return repository
+    }
+
+    /// 创建测试想法。当前模型已将 organizedStatus 设为非空并提供默认值。
     @discardableResult
     private func makeThought(
         in context: NSManagedObjectContext,
-        organizedStatus: String?,
+        organizedStatus: String = "unprocessed",
         createdAt: Date = Date(),
         isArchived: Bool = false,
         isSoftDeleted: Bool = false
     ) throws -> UUID {
-        let thought = Thought(context: context)
+        let thought = context.insertTestObject(Thought.self)
         let id = UUID()
         thought.id = id
         thought.content = "测试内容，长度足够触发整理"
@@ -58,24 +65,21 @@ final class ThoughtOrganizationBatchTests: XCTestCase {
 
     // MARK: - fetchUnprocessedThoughtIds：纳入范围
 
-    func testFetchUnprocessed_includesUnprocessedAndNil() throws {
+    func testFetchUnprocessed_includesUnprocessed() throws {
         let context = try makeInMemoryContext()
-        let repo = ThoughtRepository(context: context)
+        let repo = makeRepository(context: context)
 
         let unprocessedId = try makeThought(in: context, organizedStatus: "unprocessed")
-        let nilId = try makeThought(in: context, organizedStatus: nil)
-
         let ids = try repo.fetchUnprocessedThoughtIds()
 
         XCTAssertTrue(ids.contains(unprocessedId), "unprocessed 应纳入批量整理")
-        XCTAssertTrue(ids.contains(nilId), "nil（早于 backfill 的脏数据）应纳入")
     }
 
     // MARK: - fetchUnprocessedThoughtIds：排除终态
 
     func testFetchUnprocessed_excludesTerminalStatuses() throws {
         let context = try makeInMemoryContext()
-        let repo = ThoughtRepository(context: context)
+        let repo = makeRepository(context: context)
 
         let organizedId = try makeThought(in: context, organizedStatus: "organized")
         let pendingId = try makeThought(in: context, organizedStatus: "pending")
@@ -90,7 +94,7 @@ final class ThoughtOrganizationBatchTests: XCTestCase {
         XCTAssertFalse(ids.contains(pendingId), "pending 已在队列，应排除")
         XCTAssertFalse(ids.contains(processingId), "processing 整理中，应排除")
         XCTAssertFalse(ids.contains(skippedId), "skipped 内容太短，应排除")
-        XCTAssertFalse(ids.contains(disabledId), "disabled 用户关闭，应排除")
+        XCTAssertTrue(ids.contains(disabledId), "disabled 仅关闭自动分类，用户手动批量整理时仍应纳入")
         XCTAssertFalse(ids.contains(failedId), "failed 避免重试循环，应排除")
     }
 
@@ -98,7 +102,7 @@ final class ThoughtOrganizationBatchTests: XCTestCase {
 
     func testFetchUnprocessed_excludesArchivedAndDeleted() throws {
         let context = try makeInMemoryContext()
-        let repo = ThoughtRepository(context: context)
+        let repo = makeRepository(context: context)
 
         let archivedId = try makeThought(in: context, organizedStatus: "unprocessed", isArchived: true)
         let deletedId = try makeThought(in: context, organizedStatus: "unprocessed", isSoftDeleted: true)
@@ -115,9 +119,9 @@ final class ThoughtOrganizationBatchTests: XCTestCase {
     /// 不应被 deviceId 过滤掉——这是「自动整理」能捞到老想法的关键
     func testFetchUnprocessed_includesThoughtsWithNilDeviceId() throws {
         let context = try makeInMemoryContext()
-        let repo = ThoughtRepository(context: context)
+        let repo = makeRepository(context: context)
 
-        let thought = Thought(context: context)
+        let thought = context.insertTestObject(Thought.self)
         thought.id = UUID()
         thought.content = "老想法，createdDeviceId 为 nil"
         thought.createdAt = Date()
@@ -140,17 +144,16 @@ final class ThoughtOrganizationBatchTests: XCTestCase {
 
     func testCountUnprocessed_matchesFetchCount() throws {
         let context = try makeInMemoryContext()
-        let repo = ThoughtRepository(context: context)
+        let repo = makeRepository(context: context)
 
         _ = try makeThought(in: context, organizedStatus: "unprocessed")
-        _ = try makeThought(in: context, organizedStatus: nil)
         _ = try makeThought(in: context, organizedStatus: "organized")
         _ = try makeThought(in: context, organizedStatus: "failed")
 
         let count = try repo.countUnprocessed()
         let fetchCount = try repo.fetchUnprocessedThoughtIds().count
 
-        XCTAssertEqual(count, 2, "只有 unprocessed + nil 算未整理")
+        XCTAssertEqual(count, 1, "只有 unprocessed 算未整理")
         XCTAssertEqual(count, fetchCount, "count 与 fetch 结果应一致")
     }
 
@@ -158,10 +161,10 @@ final class ThoughtOrganizationBatchTests: XCTestCase {
 
     func testMarkBatchPending_setsStatusToPending() throws {
         let context = try makeInMemoryContext()
-        let repo = ThoughtRepository(context: context)
+        let repo = makeRepository(context: context)
 
         let id1 = try makeThought(in: context, organizedStatus: "unprocessed")
-        let id2 = try makeThought(in: context, organizedStatus: nil)
+        let id2 = try makeThought(in: context, organizedStatus: "unprocessed")
 
         try repo.markBatchPending(thoughtIds: [id1, id2])
 
@@ -178,7 +181,7 @@ final class ThoughtOrganizationBatchTests: XCTestCase {
 
     func testMarkBatchPending_emptyListDoesNotThrow() throws {
         let context = try makeInMemoryContext()
-        let repo = ThoughtRepository(context: context)
+        let repo = makeRepository(context: context)
 
         XCTAssertNoThrow(try repo.markBatchPending(thoughtIds: []), "空列表应安全跳过")
     }

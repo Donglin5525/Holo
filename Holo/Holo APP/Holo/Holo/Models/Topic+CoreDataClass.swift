@@ -89,7 +89,8 @@ extension Topic {
     /// 主题状态类型
     enum TopicStatus: String, CaseIterable {
         case candidate  // 候选主题，证据不足
-        case active     // 已达到阈值，正式展示
+        case active     // 历史正式主题：可展示，但不进入 AI 分类约束池
+        case classification // 用户明确启用的分类主题：可展示且进入 AI 单选约束池
         case hidden     // 用户隐藏
         case merged     // 已合并到其他主题
     }
@@ -98,6 +99,16 @@ extension Topic {
     var statusEnum: TopicStatus {
         get { TopicStatus(rawValue: status) ?? .candidate }
         set { status = newValue.rawValue }
+    }
+
+    /// 是否可出现在主题列表、日历和 AI 数据摘要中。
+    var isVisibleTopic: Bool {
+        statusEnum == .active || statusEnum == .candidate || statusEnum == .classification
+    }
+
+    /// 是否是用户认可、可约束新想法 AI 分类的主题。
+    var isClassificationTopic: Bool {
+        statusEnum == .classification
     }
 }
 

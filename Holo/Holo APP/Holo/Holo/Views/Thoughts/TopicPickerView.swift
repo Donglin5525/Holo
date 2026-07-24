@@ -102,7 +102,7 @@ struct TopicPickerView: View {
     }
 
     private func loadTopics() async {
-        topics = (try? topicRepository.fetchVisibleTopics()) ?? []
+        topics = (try? topicRepository.fetchClassificationTopics()) ?? []
     }
 
     private func assign(to topicId: UUID) {
@@ -119,7 +119,7 @@ struct TopicPickerView: View {
         let title = newTopicTitle.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { return }
         do {
-            let topic = try topicRepository.getOrCreateTopic(title: title)
+            let topic = try topicRepository.createClassificationTopic(title: title)
             try topicRepository.assign(thoughtId: thoughtId, toTopic: topic.id)
             onAssigned()
             dismiss()

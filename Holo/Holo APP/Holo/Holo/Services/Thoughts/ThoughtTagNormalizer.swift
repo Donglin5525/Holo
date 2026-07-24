@@ -61,6 +61,13 @@ enum ThoughtTagNormalizer {
         return String(path[path.index(after: lastSlash)...])
     }
 
+    /// 判断标签路径是否属于指定顶层主题。
+    static func isPath(_ rawValue: String, under topicTitle: String) -> Bool {
+        let pathKey = key(rawValue)
+        let topicKey = key(topicTitle)
+        return !topicKey.isEmpty && pathKey.hasPrefix(topicKey + "/")
+    }
+
     // MARK: - Private
 
     private static func segmentKey(_ segment: String) -> String {

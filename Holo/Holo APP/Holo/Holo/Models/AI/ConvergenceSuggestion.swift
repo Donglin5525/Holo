@@ -10,7 +10,7 @@
 import Foundation
 
 /// AI 跨观点归并建议（承载 thought_tag_convergence purpose 的单条输出）
-struct ConvergenceSuggestion: Identifiable, Equatable {
+struct ConvergenceSuggestion: Identifiable, Equatable, Codable {
     /// 客户端生成 id（Identifiable，UI 列表用；AI 不返回 id）
     let id: UUID
     /// 建议主题名（2-6 字稳定方向词）

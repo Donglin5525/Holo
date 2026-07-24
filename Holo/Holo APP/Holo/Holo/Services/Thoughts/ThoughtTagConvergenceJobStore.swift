@@ -21,12 +21,19 @@ struct ThoughtTagConvergenceJobRecord: Codable, Equatable {
     var updatedAt: Date
 }
 
+/// 待用户确认的主题建议必须跨冷启动保留，否则“已发现”角标会在进程结束后丢失。
+struct ThoughtTagConvergenceSuggestionRecord: Codable, Equatable {
+    let inputSignature: String
+    let suggestions: [ConvergenceSuggestion]
+}
+
 final class ThoughtTagConvergenceJobStore {
     static let shared = ThoughtTagConvergenceJobStore()
 
     private let userDefaults: UserDefaults
     private let storageKey = "holo.thoughtTagConvergence.pendingJob"
     private let lastCompletedInputSignatureKey = "holo.thoughtTagConvergence.lastCompletedInputSignature"
+    private let pendingSuggestionsKey = "holo.thoughtTagConvergence.pendingSuggestions"
 
     init(userDefaults: UserDefaults = .standard) {
         self.userDefaults = userDefaults
@@ -68,6 +75,29 @@ final class ThoughtTagConvergenceJobStore {
 
     func markInputCompleted(signature: String) {
         userDefaults.set(signature, forKey: lastCompletedInputSignatureKey)
+    }
+
+    func savePendingSuggestions(_ suggestions: [ConvergenceSuggestion], inputSignature: String) {
+        guard !suggestions.isEmpty,
+              let data = try? JSONEncoder().encode(
+                ThoughtTagConvergenceSuggestionRecord(
+                    inputSignature: inputSignature,
+                    suggestions: suggestions
+                )
+              ) else {
+            clearPendingSuggestions()
+            return
+        }
+        userDefaults.set(data, forKey: pendingSuggestionsKey)
+    }
+
+    func loadPendingSuggestions() -> ThoughtTagConvergenceSuggestionRecord? {
+        guard let data = userDefaults.data(forKey: pendingSuggestionsKey) else { return nil }
+        return try? JSONDecoder().decode(ThoughtTagConvergenceSuggestionRecord.self, from: data)
+    }
+
+    func clearPendingSuggestions() {
+        userDefaults.removeObject(forKey: pendingSuggestionsKey)
     }
 
     private func save(_ record: ThoughtTagConvergenceJobRecord) {

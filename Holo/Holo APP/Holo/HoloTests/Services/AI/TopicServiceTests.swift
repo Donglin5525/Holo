@@ -15,7 +15,7 @@ final class TopicServiceTests: XCTestCase {
     private let service = TopicService()
 
     private func makeContext() throws -> NSManagedObjectContext {
-        let model = CoreDataStack.shared.createDataModel()
+        let model = CoreDataTestSupport.sharedModel
         let container = NSPersistentContainer(name: "TopicServiceTest", managedObjectModel: model)
         let description = NSPersistentStoreDescription()
         description.type = NSInMemoryStoreType
@@ -23,12 +23,13 @@ final class TopicServiceTests: XCTestCase {
         var storeError: Error?
         container.loadPersistentStores { _, error in storeError = error }
         if let storeError { throw storeError }
+        CoreDataTestSupport.retain(container, container.viewContext)
         return container.viewContext
     }
 
     @discardableResult
     private func makeThought(in ctx: NSManagedObjectContext) throws -> Thought {
-        let t = Thought(context: ctx)
+        let t = ctx.insertTestObject(Thought.self)
         t.id = UUID()
         t.content = "测试"
         t.createdAt = Date()
@@ -45,7 +46,7 @@ final class TopicServiceTests: XCTestCase {
         title: String,
         status: Topic.TopicStatus = .active
     ) throws -> Topic {
-        let topic = Topic(context: ctx)
+        let topic = ctx.insertTestObject(Topic.self)
         topic.id = UUID()
         topic.title = title
         topic.status = status.rawValue
@@ -65,11 +66,11 @@ final class TopicServiceTests: XCTestCase {
         tagName: String,
         source: ThoughtTagAssignment.Source
     ) throws -> ThoughtTagAssignment {
-        let tag = ThoughtTag(context: ctx)
+        let tag = ctx.insertTestObject(ThoughtTag.self)
         tag.id = UUID()
         tag.name = tagName
         tag.usageCount = 0
-        let assignment = ThoughtTagAssignment(context: ctx)
+        let assignment = ctx.insertTestObject(ThoughtTagAssignment.self)
         assignment.id = UUID()
         assignment.source = source.rawValue
         assignment.confidence = 0.9
@@ -94,7 +95,6 @@ final class TopicServiceTests: XCTestCase {
         let topicB = try makeTopic(in: ctx, title: "B", status: .active)
         let t2 = try makeThought(in: ctx)
         topicA.addThoughts([thought, t2])
-        topicB.addThoughts(try makeThought(in: ctx))
         thought.addTopics([topicA, topicB])
         try ctx.save()
 

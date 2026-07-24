@@ -13,7 +13,7 @@ import CoreData
 final class TopicRepositoryTests: XCTestCase {
 
     private func makeRepo() throws -> (TopicRepository, NSManagedObjectContext) {
-        let model = CoreDataStack.shared.createDataModel()
+        let model = CoreDataTestSupport.sharedModel
         let container = NSPersistentContainer(name: "TopicRepoTest", managedObjectModel: model)
         let description = NSPersistentStoreDescription()
         description.type = NSInMemoryStoreType
@@ -22,12 +22,14 @@ final class TopicRepositoryTests: XCTestCase {
         container.loadPersistentStores { _, error in storeError = error }
         if let storeError { throw storeError }
         let ctx = container.viewContext
-        return (TopicRepository(context: ctx), ctx)
+        let repository = TopicRepository(context: ctx)
+        CoreDataTestSupport.retain(container, ctx, repository)
+        return (repository, ctx)
     }
 
     @discardableResult
     private func makeThought(in ctx: NSManagedObjectContext) throws -> Thought {
-        let t = Thought(context: ctx)
+        let t = ctx.insertTestObject(Thought.self)
         t.id = UUID()
         t.content = "测试"
         t.createdAt = Date()
@@ -80,6 +82,57 @@ final class TopicRepositoryTests: XCTestCase {
         XCTAssertEqual(topic.statusEnum, .active)
     }
 
+    func test_classification主题与历史active主题分流() throws {
+        let (repo, _) = try makeRepo()
+        let historical = try repo.create(title: "历史主题")
+        try repo.activate(historical)
+        let classification = try repo.createClassificationTopic(title: "工作与事业")
+
+        XCTAssertEqual(try repo.fetchClassificationTopics().map(\.id), [classification.id])
+        XCTAssertTrue(try repo.fetchVisibleTopics().contains(where: { $0.id == historical.id }))
+    }
+
+    func test_历史主题关系不污染未归类口径() throws {
+        let (repo, ctx) = try makeRepo()
+        let historical = try repo.create(title: "旧版主题")
+        try repo.activate(historical)
+        let thought = try makeThought(in: ctx)
+        try repo.assign(thoughtId: thought.id, toTopic: historical.id)
+
+        let thoughtRepository = ThoughtRepository(context: ctx)
+        CoreDataTestSupport.retain(thoughtRepository)
+        XCTAssertTrue(try thoughtRepository.fetchUnclassifiedThoughts().contains(where: { $0.id == thought.id }))
+    }
+
+    func test_applyClassification只保留一个分类主题且nil回未归类() throws {
+        let (repo, ctx) = try makeRepo()
+        let work = try repo.createClassificationTopic(title: "工作与事业")
+        let health = try repo.createClassificationTopic(title: "生活与健康")
+        let thought = try makeThought(in: ctx)
+
+        try repo.applyClassification(thoughtId: thought.id, topicTitle: work.title, tagPaths: ["工作与事业/规划"])
+        try repo.applyClassification(thoughtId: thought.id, topicTitle: health.title, tagPaths: ["生活与健康/跑步"])
+
+        let classificationIds = ((thought.topics as? Set<Topic>) ?? [])
+            .filter(\.isClassificationTopic)
+            .map(\.id)
+        XCTAssertEqual(classificationIds, [health.id])
+
+        try repo.applyClassification(thoughtId: thought.id, topicTitle: nil, tagPaths: ["未分类/随手记"])
+        let thoughtRepository = ThoughtRepository(context: ctx)
+        CoreDataTestSupport.retain(thoughtRepository)
+        XCTAssertTrue(try thoughtRepository.fetchUnclassifiedThoughts().contains(where: { $0.id == thought.id }))
+    }
+
+    func test_未分类保留字不能创建或改名为实体主题() throws {
+        let (repo, _) = try makeRepo()
+        XCTAssertThrowsError(try repo.createClassificationTopic(title: "未分类"))
+
+        let topic = try repo.createClassificationTopic(title: "工作与事业")
+        XCTAssertThrowsError(try repo.renameClassificationTopic(topic, to: "未分类"))
+        XCTAssertEqual(topic.title, "工作与事业")
+    }
+
     // MARK: - 合并
 
     func test_merge合并thoughts到keeper并标记merged() throws {
@@ -126,6 +179,18 @@ final class TopicRepositoryTests: XCTestCase {
         XCTAssertEqual(visible.count, 1)
     }
 
+    func test_mergeDuplicateTopics保留classification状态() throws {
+        let (repo, _) = try makeRepo()
+        let historical = try repo.create(title: "同名主题")
+        try repo.activate(historical)
+        let classification = try repo.create(title: "同名主题")
+        try repo.setClassificationEnabled(classification, isEnabled: true)
+
+        _ = try repo.mergeDuplicateTopics()
+
+        XCTAssertEqual(try repo.fetchClassificationTopics().count, 1)
+    }
+
     // MARK: - 来源词主源（P1.5.3）
 
     func test_setSourceTerms写入associatedTags主源并派生names() throws {
@@ -156,12 +221,12 @@ final class TopicRepositoryTests: XCTestCase {
         let topic = try repo.applyConvergence(
             matchedTopicId: nil,
             topicTitle: "编程实践",
-            thoughtIds: [t1, t2],
+            thoughtIds: [t1.id, t2.id],
             sourceTerms: ["coding", "vibecoding"]
         )
 
         XCTAssertEqual(topic.title, "编程实践")
-        XCTAssertEqual(topic.statusEnum, .active)
+        XCTAssertEqual(topic.statusEnum, .classification)
         XCTAssertEqual(repo.thoughtCount(of: topic), 2)
         XCTAssertEqual((topic.associatedTags as? Set<ThoughtTag>)?.count, 2)
     }
@@ -175,7 +240,7 @@ final class TopicRepositoryTests: XCTestCase {
         let topic = try repo.applyConvergence(
             matchedTopicId: existing.id,
             topicTitle: "编程",
-            thoughtIds: [t1],
+            thoughtIds: [t1.id],
             sourceTerms: ["coding"]
         )
 

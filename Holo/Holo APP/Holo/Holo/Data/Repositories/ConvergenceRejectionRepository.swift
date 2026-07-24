@@ -58,11 +58,20 @@ final class ConvergenceRejectionRepository {
             existing.rejectedAt = now
             existing.expiresAt = expiry
             try context.save()
-            logger.info("更新建议拒绝：\(key, privacy: .public)")
+            logger.info("已更新建议拒绝")
             return
         }
 
-        let rejection = ThoughtTagConvergenceRejection(context: context)
+        guard let rejection = NSEntityDescription.insertNewObject(
+            forEntityName: "ThoughtTagConvergenceRejection",
+            into: context
+        ) as? ThoughtTagConvergenceRejection else {
+            throw NSError(
+                domain: "ConvergenceRejectionRepository",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "Core Data 模型缺少 ThoughtTagConvergenceRejection 实体"]
+            )
+        }
         rejection.id = UUID()
         rejection.suggestionKey = key
         rejection.topicTitle = topicTitle.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -74,7 +83,7 @@ final class ConvergenceRejectionRepository {
         rejection.expiresAt = expiry
         rejection.createdAt = now
         try context.save()
-        logger.info("新建建议拒绝：\(key, privacy: .public)")
+        logger.info("已新建建议拒绝")
     }
 
     // MARK: - 查询
@@ -105,7 +114,7 @@ final class ConvergenceRejectionRepository {
         }
         if !expired.isEmpty {
             try context.save()
-            logger.info("清理过期建议拒绝：\(expired.count) 条")
+            logger.info("已清理过期建议拒绝")
         }
         return expired.count
     }

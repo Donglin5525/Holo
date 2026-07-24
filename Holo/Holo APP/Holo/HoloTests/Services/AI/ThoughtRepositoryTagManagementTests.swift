@@ -17,7 +17,7 @@ final class ThoughtRepositoryTagManagementTests: XCTestCase {
 
     /// 构建内存 Repository + Context（共享同一 context）
     private func makeRepo() throws -> (ThoughtRepository, NSManagedObjectContext) {
-        let model = CoreDataStack.shared.createDataModel()
+        let model = CoreDataTestSupport.sharedModel
         let container = NSPersistentContainer(name: "TagManagementTest", managedObjectModel: model)
         let description = NSPersistentStoreDescription()
         description.type = NSInMemoryStoreType
@@ -26,13 +26,15 @@ final class ThoughtRepositoryTagManagementTests: XCTestCase {
         container.loadPersistentStores { _, error in storeError = error }
         if let storeError { throw storeError }
         let ctx = container.viewContext
-        return (ThoughtRepository(context: ctx), ctx)
+        let repository = ThoughtRepository(context: ctx)
+        CoreDataTestSupport.retain(container, ctx, repository)
+        return (repository, ctx)
     }
 
     /// 创建测试想法
     @discardableResult
     private func makeThought(in ctx: NSManagedObjectContext) throws -> UUID {
-        let thought = Thought(context: ctx)
+        let thought = ctx.insertTestObject(Thought.self)
         let id = UUID()
         thought.id = id
         thought.content = "测试内容"
@@ -61,7 +63,7 @@ final class ThoughtRepositoryTagManagementTests: XCTestCase {
 
     /// 构造带关联标签的 Topic
     private func makeTopic(in ctx: NSManagedObjectContext, title: String, tags: [ThoughtTag]) throws -> Topic {
-        let topic = Topic(context: ctx)
+        let topic = ctx.insertTestObject(Topic.self)
         topic.id = UUID()
         topic.title = title
         topic.status = Topic.TopicStatus.active.rawValue
@@ -327,7 +329,7 @@ final class ThoughtTagManagementServiceTests: XCTestCase {
     }
 
     private func makeRepo() throws -> (ThoughtRepository, NSManagedObjectContext) {
-        let model = CoreDataStack.shared.createDataModel()
+        let model = CoreDataTestSupport.sharedModel
         let container = NSPersistentContainer(name: "TagManagementServiceTest", managedObjectModel: model)
         let description = NSPersistentStoreDescription()
         description.type = NSInMemoryStoreType
@@ -336,12 +338,14 @@ final class ThoughtTagManagementServiceTests: XCTestCase {
         container.loadPersistentStores { _, error in storeError = error }
         if let storeError { throw storeError }
         let ctx = container.viewContext
-        return (ThoughtRepository(context: ctx), ctx)
+        let repository = ThoughtRepository(context: ctx)
+        CoreDataTestSupport.retain(container, ctx, repository)
+        return (repository, ctx)
     }
 
     @discardableResult
     private func makeThought(in ctx: NSManagedObjectContext) throws -> UUID {
-        let thought = Thought(context: ctx)
+        let thought = ctx.insertTestObject(Thought.self)
         let id = UUID()
         thought.id = id
         thought.content = "测试内容"

@@ -591,7 +591,16 @@ class ThoughtRepository {
             tag.usageCount += 1
             return tag
         } else {
-            let tag = ThoughtTag(context: context)
+            guard let tag = NSEntityDescription.insertNewObject(
+                forEntityName: "ThoughtTag",
+                into: context
+            ) as? ThoughtTag else {
+                throw NSError(
+                    domain: "ThoughtRepository",
+                    code: 1,
+                    userInfo: [NSLocalizedDescriptionKey: "无法创建 ThoughtTag 实体"]
+                )
+            }
             tag.id = UUID()
             tag.name = displayName
             tag.usageCount = 1
@@ -1262,7 +1271,12 @@ class ThoughtRepository {
             if duplicateExists { return }
         }
 
-        let assignment = ThoughtTagAssignment(context: context)
+        guard let assignment = NSEntityDescription.insertNewObject(
+            forEntityName: "ThoughtTagAssignment",
+            into: context
+        ) as? ThoughtTagAssignment else {
+            return
+        }
         assignment.id = UUID()
         assignment.source = source.rawValue
         assignment.confidence = confidence

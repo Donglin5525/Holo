@@ -51,8 +51,9 @@ final class ThoughtOrganizationService {
 
         // 2. 读取想法内容（只传 ID，不跨线程持有 NSManagedObject）
         let thoughtContent: String
-        let existingTagExamples: String
-        let rejectedTags: String
+        let existingTagExamples: [String]
+        let rejectedTags: [String]
+        let activeTopicTitles: [String]
 
         do {
             guard let thought = try repository.fetchByIdInternal(thoughtId) else {
@@ -61,8 +62,9 @@ final class ThoughtOrganizationService {
                 return  // 想法已删除，标 failed 跳过，不重试
             }
             thoughtContent = thought.content
-            existingTagExamples = repository.fetchUserRecognizedTagNames().joined(separator: ", ")
-            rejectedTags = loadRejectedTagNames().joined(separator: ", ")
+            existingTagExamples = repository.fetchUserRecognizedTagNames()
+            rejectedTags = loadRejectedTagNames()
+            activeTopicTitles = try TopicRepository().fetchClassificationTopics().map(\.title)
         } catch {
             logger.error("读取想法数据失败：\(error.localizedDescription)")
             throw error
@@ -71,13 +73,12 @@ final class ThoughtOrganizationService {
         // 3. 构建 prompt 并调用 AI
         let rawResponse: String
         do {
-            let messages: [ChatMessageDTO] = [
-                .user("""
-                用户已认可标签：\(existingTagExamples.isEmpty ? "无" : existingTagExamples)
-                用户已拒绝标签：\(rejectedTags.isEmpty ? "无" : rejectedTags)
-                想法正文：\(thoughtContent)
-                """)
-            ]
+            let messages: [ChatMessageDTO] = [.user(buildOrganizationPayload(
+                thoughtContent: thoughtContent,
+                activeTopics: activeTopicTitles,
+                existingTags: existingTagExamples,
+                rejectedTags: rejectedTags
+            ))]
 
             // rateLimited 等错误透传给 Queue（不在此 markAsFailed，由 Queue 决定回退 pending 或重试）
             rawResponse = try await callWithJSONMode(messages: messages)
@@ -93,19 +94,32 @@ final class ThoughtOrganizationService {
             return  // 解析失败标 failed，不重试（避免浪费配额）
         }
 
-        // 5. 创建 ThoughtTagAssignment
-        let suggestedTags = Array(result.suggestedTags.prefix(3))
-        for tagName in suggestedTags {
-            do {
-                try repository.createTagAssignment(
-                    thoughtId: thoughtId,
-                    tagName: tagName,
-                    source: .ai,
-                    confidence: result.confidence
-                )
-            } catch {
-                logger.error("创建 AI 标签 assignment 失败（\(tagName)）：\(error.localizedDescription)")
-            }
+        // 5. 端侧强校验：主题只能来自约束池，未知前缀统一降级为虚拟“未分类”。
+        let validated = ThoughtThemeConstraint.validate(
+            selectedTopic: result.selectedTopic,
+            suggestedTags: result.suggestedTags,
+            activeTopics: activeTopicTitles
+        )
+        guard !validated.tagPaths.isEmpty else {
+            logger.error("AI 返回的标签均无效，想法：\(thoughtId)")
+            try? repository.updateOrganizedStatus(thoughtId: thoughtId, status: "failed")
+            return
+        }
+
+        do {
+            try repository.replaceUnconfirmedAITagAssignments(
+                thoughtId: thoughtId,
+                tagNames: validated.tagPaths,
+                confidence: result.confidence
+            )
+            try TopicRepository().applyClassification(
+                thoughtId: thoughtId,
+                topicTitle: validated.topicTitle,
+                tagPaths: validated.tagPaths
+            )
+        } catch {
+            logger.error("写入主题分类结果失败：\(error.localizedDescription)")
+            throw error
         }
 
         // 6. 更新状态为 organized
@@ -114,7 +128,7 @@ final class ThoughtOrganizationService {
         } catch {
             logger.error("更新 organized 状态失败：\(error.localizedDescription)")
         }
-        logger.info("想法整理完成：\(thoughtId)，标签：\(suggestedTags.joined(separator: ", "))")
+        logger.info("想法整理完成：\(thoughtId)，主题：\(validated.topicTitle ?? ThoughtThemeConstraint.unclassifiedTitle)，标签：\(validated.tagPaths.joined(separator: ", "))")
 
         // 7. 发送数据变更通知，让 UI 刷新
         NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
@@ -194,8 +208,7 @@ final class ThoughtOrganizationService {
     /// 通过 JSON mode 调用 thought_organization purpose
     /// 复用 HoloBackendAIProvider 的 buildRequest（支持 responseFormat）
     private func callWithJSONMode(messages: [ChatMessageDTO]) async throws -> String {
-        // 这里必须使用上游已经注入 existingTagExamples / rejectedTags 的 system prompt。
-        // 旧实现重新加载 prompt，导致 AI 看不到已有标签，容易持续制造碎标签。
+        // 后端按 purpose 注入 v3 system prompt；结构化主题/标签上下文已经放在 user JSON 中。
         return try await aiProvider.chat(messages: messages, purpose: .thoughtOrganization)
     }
 
@@ -203,6 +216,7 @@ final class ThoughtOrganizationService {
 
     /// AI 整理响应结构
     struct OrganizationResponse {
+        let selectedTopic: String?
         let suggestedTags: [String]
         let confidence: Double
     }
@@ -224,13 +238,41 @@ final class ThoughtOrganizationService {
         // 过滤空字符串和过长标签
         let filteredTags = tags
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty && $0.count <= 20 }
+            .filter { !$0.isEmpty && $0.count <= 60 }
 
         guard !filteredTags.isEmpty else { return nil }
 
         let confidence = (json["confidence"] as? Double) ?? 0.5
 
-        return OrganizationResponse(suggestedTags: filteredTags, confidence: confidence)
+        let selectedTopic = (json["selectedTopic"] as? String)
+            ?? (json["topic"] as? String)
+            ?? (json["topicTitle"] as? String)
+
+        return OrganizationResponse(
+            selectedTopic: selectedTopic,
+            suggestedTags: filteredTags,
+            confidence: confidence
+        )
+    }
+
+    /// 把用户数据编码成 JSON，避免正文中的自然语言被误当成 Prompt 指令。
+    private func buildOrganizationPayload(
+        thoughtContent: String,
+        activeTopics: [String],
+        existingTags: [String],
+        rejectedTags: [String]
+    ) -> String {
+        let payload: [String: Any] = [
+            "activeTopics": activeTopics,
+            "existingTags": existingTags,
+            "rejectedTags": rejectedTags,
+            "thoughtContent": thoughtContent
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
+              let json = String(data: data, encoding: .utf8) else {
+            return "{\"activeTopics\":[],\"thoughtContent\":\"\"}"
+        }
+        return json
     }
 
     /// 从 AI 输出中提取 JSON 字符串（处理 markdown code fence 和前后缀）

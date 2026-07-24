@@ -59,8 +59,12 @@ struct ConvergenceConfirmView: View {
             failedView(message)
         case .ready(let suggestions):
             if suggestions.isEmpty {
-                // AI 没给建议（数据不足或无主题）——不是"处理成功"，避免误导
-                noSuggestionView
+                if processedIds.isEmpty {
+                    // AI 没给建议（数据不足或无主题）——不是"处理成功"，避免误导
+                    noSuggestionView
+                } else {
+                    doneView
+                }
             } else {
                 let pending = suggestions.filter { !processedIds.contains($0.id) }
                 if pending.isEmpty {
@@ -161,7 +165,7 @@ struct ConvergenceConfirmView: View {
                 .font(.holoBody)
                 .foregroundColor(.holoTextPrimary)
             Button("完成") {
-                job.reset()
+                job.completeReview()
                 dismiss()
             }
             .buttonStyle(.borderedProminent)
@@ -248,6 +252,7 @@ struct ConvergenceConfirmView: View {
                 sourceTerms: suggestion.sourceTerms
             )
             processedIds.insert(suggestion.id)
+            job.markSuggestionReviewed(suggestion.id)
             NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
         } catch {
             errorMessage = "归并失败，请重试"
@@ -257,10 +262,12 @@ struct ConvergenceConfirmView: View {
     private func reject(_ suggestion: ConvergenceSuggestion) {
         try? rejectionRepository.reject(topicTitle: suggestion.topicTitle, sourceTerms: suggestion.sourceTerms)
         processedIds.insert(suggestion.id)
+        job.markSuggestionReviewed(suggestion.id)
     }
 
     private func skip(_ suggestion: ConvergenceSuggestion) {
         processedIds.insert(suggestion.id)
+        job.markSuggestionReviewed(suggestion.id)
     }
 }
 

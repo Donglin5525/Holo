@@ -74,6 +74,9 @@ final class ThoughtTagConvergenceJob: ObservableObject {
         self.jobStore = jobStore ?? ThoughtTagConvergenceJobStore.shared
         self.maxRetryCount = maxRetryCount
         self.retryIntervals = retryIntervals
+        if let cached = self.jobStore.loadPendingSuggestions(), !cached.suggestions.isEmpty {
+            state = .ready(cached.suggestions)
+        }
     }
 
     // MARK: - Run
@@ -106,9 +109,9 @@ final class ThoughtTagConvergenceJob: ObservableObject {
             return
         }
 
-        // 数据不足：静默回 idle（spec §6.2 prompt 规则1：至少 3 条指向同方向才建议，不勉强凑主题）
-        guard input.candidates.count >= 3 else {
-            logger.info("收敛输入不足（\(input.candidates.count) < 3），跳过")
+        // 手动发现允许从 2 条明确重复线索开始；自动触发仍由 minimumCount=5 控制。
+        guard input.candidates.count >= 2 else {
+            logger.info("收敛输入不足（\(input.candidates.count) < 2），跳过")
             state = .idle
             if persist { jobStore.clear() }
             return
@@ -116,8 +119,15 @@ final class ThoughtTagConvergenceJob: ObservableObject {
 
         let inputSignature = makeInputSignature(input)
         if jobStore.lastCompletedInputSignature() == inputSignature {
-            logger.info("收敛输入未变化，跳过重复 AI 调用")
-            state = .unchanged
+            if let cached = jobStore.loadPendingSuggestions(),
+               cached.inputSignature == inputSignature,
+               !cached.suggestions.isEmpty {
+                logger.info("收敛输入未变化，恢复待确认建议")
+                state = .ready(cached.suggestions)
+            } else {
+                logger.info("收敛输入未变化，跳过重复 AI 调用")
+                state = .unchanged
+            }
             if persist { jobStore.clear() }
             return
         }
@@ -132,11 +142,13 @@ final class ThoughtTagConvergenceJob: ObservableObject {
             if autoApply {
                 let appliedCount = applySuggestions(filtered)
                 state = appliedCount > 0 ? .applied(appliedCount) : .ready([])
+                jobStore.clearPendingSuggestions()
                 markCurrentInputCompleted(fallbackSignature: inputSignature)
                 if persist { jobStore.clear() }
                 logger.info("收敛完成并自动应用：\(appliedCount)/\(filtered.count) 条建议")
             } else {
                 state = .ready(filtered)
+                jobStore.savePendingSuggestions(filtered, inputSignature: inputSignature)
                 jobStore.markInputCompleted(signature: inputSignature)
                 if persist { jobStore.clear() }
                 logger.info("收敛完成：\(filtered.count) 条建议")
@@ -154,11 +166,40 @@ final class ThoughtTagConvergenceJob: ObservableObject {
 
     func resumePersistedJobIfNeeded() async {
         guard let record = jobStore.load() else { return }
-        await run(autoApply: record.autoApply, persist: true)
+        // 新契约禁止后台自动创建主题；旧记录也只恢复为待确认建议。
+        _ = record
+        await run(autoApply: false, persist: true)
     }
 
-    /// 消费建议后重置（UI 关闭确认页调用）
+    /// 自动整理队列清空后的轻量观察：达到阈值才生成建议，绝不自动应用。
+    func generateUnclassifiedInsightIfNeeded(minimumCount: Int = 5) async {
+        guard !isGenerating else { return }
+        if case .ready = state { return }
+        let count = (try? thoughtRepository.fetchUnclassifiedThoughts().count) ?? 0
+        guard count >= minimumCount else { return }
+        await run(autoApply: false, persist: false)
+    }
+
+    /// 关闭确认页后恢复仍未处理的缓存建议；没有待确认项才回 idle。
     func reset() {
+        if let cached = jobStore.loadPendingSuggestions(), !cached.suggestions.isEmpty {
+            state = .ready(cached.suggestions)
+        } else {
+            state = .idle
+        }
+    }
+
+    /// 单条建议已确认、拒绝或暂不：立即更新持久缓存，避免冷启动后重复出现。
+    func markSuggestionReviewed(_ suggestionId: UUID) {
+        guard let cached = jobStore.loadPendingSuggestions() else { return }
+        let remaining = cached.suggestions.filter { $0.id != suggestionId }
+        jobStore.savePendingSuggestions(remaining, inputSignature: cached.inputSignature)
+        state = .ready(remaining)
+    }
+
+    /// 本轮建议全部处理完成。
+    func completeReview() {
+        jobStore.clearPendingSuggestions()
         state = .idle
     }
 
@@ -173,7 +214,7 @@ final class ThoughtTagConvergenceJob: ObservableObject {
 
     private func collectInput() throws -> ConvergenceInput {
         let candidates = try thoughtRepository.fetchConvergenceCandidates(maxCount: 200)
-        let topics = try topicRepository.fetchVisibleTopics()
+        let topics = try topicRepository.fetchClassificationTopics()
         let existingTopics = topics.map { ($0.id, $0.title) }
         let rejections = try rejectionRepository.fetchActiveRejections()
         let rejectedTopicTitles = rejections.map { $0.topicTitle }

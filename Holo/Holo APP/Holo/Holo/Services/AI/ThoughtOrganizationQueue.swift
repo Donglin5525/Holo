@@ -198,6 +198,9 @@ final class ThoughtOrganizationQueue: ObservableObject {
             if !self.pendingItems.isEmpty && !self.dailyLimitHit {
                 try? await Task.sleep(nanoseconds: UInt64(interval * 1_000_000_000))
                 self.processNext()
+            } else if self.pendingItems.isEmpty && !self.dailyLimitHit {
+                // 只生成未归类洞察，主题仍必须由用户确认。
+                await ThoughtTagConvergenceJob.shared.generateUnclassifiedInsightIfNeeded()
             }
         }
     }

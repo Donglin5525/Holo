@@ -17,6 +17,12 @@ final class TopicRepository {
     private let context: NSManagedObjectContext
     private let logger = Logger(subsystem: "com.holo.app", category: "TopicRepository")
 
+    private static let visibleStatusValues = [
+        Topic.TopicStatus.active.rawValue,
+        Topic.TopicStatus.candidate.rawValue,
+        Topic.TopicStatus.classification.rawValue
+    ]
+
     init(context: NSManagedObjectContext = CoreDataStack.shared.viewContext) {
         self.context = context
     }
@@ -36,7 +42,16 @@ final class TopicRepository {
     ///   - sourceTerms: 来源词（写入 associatedTags 主源，可空）
     @discardableResult
     func create(title: String, sourceTerms: [String] = []) throws -> Topic {
-        let topic = Topic(context: context)
+        guard let topic = NSEntityDescription.insertNewObject(
+            forEntityName: "Topic",
+            into: context
+        ) as? Topic else {
+            throw NSError(
+                domain: "TopicRepository",
+                code: 1,
+                userInfo: [NSLocalizedDescriptionKey: "无法创建 Topic 实体"]
+            )
+        }
         topic.id = UUID()
         topic.title = title
         topic.status = Topic.TopicStatus.candidate.rawValue
@@ -59,27 +74,38 @@ final class TopicRepository {
         return try create(title: title, sourceTerms: sourceTerms)
     }
 
-    /// 按标题归一化查询（仅 active / candidate 状态，排除 hidden / merged）
+    /// 按标题归一化查询（所有可见状态，排除 hidden / merged）
     func getByTitle(_ title: String) throws -> Topic? {
         let request = Topic.fetchRequest()
         request.predicate = NSPredicate(
             format: "status IN %@",
-            [Topic.TopicStatus.active.rawValue, Topic.TopicStatus.candidate.rawValue]
+            Self.visibleStatusValues
         )
         let topics = try context.fetch(request)
         let key = Self.normalizedKey(title: title)
         return topics.first { Self.normalizedKey(title: $0.title) == key }
     }
 
-    /// 所有可展示主题（active / candidate），按 thoughtCount 降序
+    /// 所有可展示主题（含用户启用的 classification），按 thoughtCount 降序
     func fetchVisibleTopics() throws -> [Topic] {
         let request = Topic.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "status IN %@",
-            [Topic.TopicStatus.active.rawValue, Topic.TopicStatus.candidate.rawValue]
-        )
+        request.predicate = NSPredicate(format: "status IN %@", Self.visibleStatusValues)
         let topics = try context.fetch(request)
         return topics.sorted { thoughtCount(of: $0) > thoughtCount(of: $1) }
+    }
+
+    /// 用户明确启用、允许进入 AI 单选约束池的主题。
+    func fetchClassificationTopics() throws -> [Topic] {
+        let request = Topic.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "status == %@",
+            Topic.TopicStatus.classification.rawValue
+        )
+        let topics = try context.fetch(request)
+        return topics.sorted {
+            if thoughtCount(of: $0) == thoughtCount(of: $1) { return $0.title < $1.title }
+            return thoughtCount(of: $0) > thoughtCount(of: $1)
+        }
     }
 
     // MARK: - 更新 / 状态
@@ -88,6 +114,100 @@ final class TopicRepository {
         topic.title = title
         topic.updatedAt = Date()
         try context.save()
+    }
+
+    /// 新建或复用一个主题，并明确启用为 AI 分类约束。
+    @discardableResult
+    func createClassificationTopic(title: String) throws -> Topic {
+        let normalizedTitle = ThoughtTagNormalizer.displayName(title)
+        guard !normalizedTitle.isEmpty,
+              TopicRepository.normalizedKey(title: normalizedTitle) != ThoughtTagNormalizer.key(ThoughtThemeConstraint.unclassifiedTitle)
+        else { throw ThoughtError.tagNameEmpty }
+
+        let topic = try getOrCreateTopic(title: normalizedTitle)
+        topic.status = Topic.TopicStatus.classification.rawValue
+        topic.updatedAt = Date()
+        try context.save()
+        return topic
+    }
+
+    /// Onboarding 批量初始化；逐个幂等复用，最终一次返回真实 Topic。
+    func createClassificationTopics(titles: [String]) throws -> [Topic] {
+        var topics: [Topic] = []
+        var seen: Set<String> = []
+        for title in titles {
+            let displayTitle = ThoughtTagNormalizer.displayName(title)
+            let key = Self.normalizedKey(title: displayTitle)
+            guard !key.isEmpty, seen.insert(key).inserted else { continue }
+            topics.append(try createClassificationTopic(title: displayTitle))
+        }
+        return topics
+    }
+
+    /// 老用户可显式把历史 Topic 纳入或移出 AI 分类约束池。
+    func setClassificationEnabled(_ topic: Topic, isEnabled: Bool) throws {
+        if isEnabled,
+           Self.normalizedKey(title: topic.title) == ThoughtTagNormalizer.key(ThoughtThemeConstraint.unclassifiedTitle) {
+            throw ThoughtError.tagNameEmpty
+        }
+        topic.status = isEnabled
+            ? Topic.TopicStatus.classification.rawValue
+            : Topic.TopicStatus.active.rawValue
+        if isEnabled {
+            // 历史数据可能一条想法关联多个旧 Topic；显式启用时以本次主题为准，恢复单选契约。
+            for thought in (topic.thoughts as? Set<Thought>) ?? [] {
+                for other in (thought.topics as? Set<Topic>) ?? []
+                where other.id != topic.id && other.isClassificationTopic {
+                    other.removeThoughts(thought)
+                    other.updatedAt = Date()
+                }
+            }
+        }
+        topic.updatedAt = Date()
+        try context.save()
+    }
+
+    /// 分类主题改名：同步 Topic 标题与已有 `主题/子标签` 路径。
+    func renameClassificationTopic(_ topic: Topic, to newTitle: String) throws {
+        let normalizedTitle = ThoughtTagNormalizer.displayName(newTitle)
+        guard !normalizedTitle.isEmpty,
+              Self.normalizedKey(title: normalizedTitle) != ThoughtTagNormalizer.key(ThoughtThemeConstraint.unclassifiedTitle)
+        else { throw ThoughtError.tagNameEmpty }
+        if let existing = try getByTitle(normalizedTitle), existing.id != topic.id {
+            throw ThoughtError.tagInUse
+        }
+        let oldTitle = topic.title
+        if try hasTagPathPrefix(oldTitle) {
+            _ = try ThoughtRepository(context: context).renameTagPathPrefix(from: oldTitle, to: normalizedTitle)
+        }
+        topic.title = normalizedTitle
+        topic.updatedAt = Date()
+        topic.refreshAssociatedTagNamesCache()
+        try context.save()
+    }
+
+    /// 分类主题合并：标签路径、想法关系和来源词均迁移到保留主题。
+    func mergeClassificationTopics(into keeper: Topic, from duplicate: Topic) throws {
+        guard keeper != duplicate else { return }
+        if try hasTagPathPrefix(duplicate.title) {
+            _ = try ThoughtRepository(context: context).renameTagPathPrefix(from: duplicate.title, to: keeper.title)
+        }
+        keeper.status = Topic.TopicStatus.classification.rawValue
+        try merge(into: keeper, from: duplicate)
+        keeper.refreshAssociatedTagNamesCache()
+        try context.save()
+    }
+
+    /// 删除分类主题：先把路径降级为“未分类/”，再删除 Topic 关系。
+    @discardableResult
+    func deleteClassificationTopic(_ topic: Topic) throws -> TopicDeletionResult {
+        if try hasTagPathPrefix(topic.title) {
+            _ = try ThoughtRepository(context: context).renameTagPathPrefix(
+                from: topic.title,
+                to: ThoughtThemeConstraint.unclassifiedTitle
+            )
+        }
+        return try delete(topic)
     }
 
     /// 升为正式（candidate → active）
@@ -148,6 +268,12 @@ final class TopicRepository {
         if let dupTags = duplicate.associatedTags as? Set<ThoughtTag> {
             keeper.addAssociatedTags(dupTags)
         }
+        // 同步去重时不能因为抓取顺序丢掉用户已启用的 classification 状态。
+        if keeper.isClassificationTopic || duplicate.isClassificationTopic {
+            keeper.status = Topic.TopicStatus.classification.rawValue
+        } else if keeper.statusEnum == .candidate && duplicate.statusEnum == .active {
+            keeper.status = Topic.TopicStatus.active.rawValue
+        }
         duplicate.status = Topic.TopicStatus.merged.rawValue
         duplicate.mergedToTopic = keeper
         keeper.updatedAt = Date()
@@ -161,7 +287,7 @@ final class TopicRepository {
         let request = Topic.fetchRequest()
         request.predicate = NSPredicate(
             format: "status IN %@",
-            [Topic.TopicStatus.active.rawValue, Topic.TopicStatus.candidate.rawValue]
+            Self.visibleStatusValues
         )
         let topics = try context.fetch(request)
 
@@ -222,6 +348,13 @@ final class TopicRepository {
     func assign(thoughtId: UUID, toTopic topicId: UUID) throws {
         guard let thought = try fetchThoughtById(thoughtId) else { throw AssignError.thoughtNotFound }
         guard let topic = try fetchTopicById(topicId) else { throw AssignError.topicNotFound }
+        if topic.isClassificationTopic {
+            for existing in (thought.topics as? Set<Topic>) ?? []
+            where existing.isClassificationTopic && existing.id != topic.id {
+                existing.removeThoughts(thought)
+                existing.updatedAt = Date()
+            }
+        }
         topic.addThoughts(thought)
         topic.updatedAt = Date()
         try context.save()
@@ -232,6 +365,37 @@ final class TopicRepository {
         guard let thought = try fetchThoughtById(thoughtId) else { throw AssignError.thoughtNotFound }
         guard let topic = try fetchTopicById(topicId) else { throw AssignError.topicNotFound }
         topic.removeThoughts(thought)
+        topic.updatedAt = Date()
+        try context.save()
+    }
+
+    /// 写入一次 AI 分类结果。
+    /// 只替换旧 classification Topic，历史/手动 Topic 关系保持不动；nil 表示进入虚拟“未归类”。
+    func applyClassification(
+        thoughtId: UUID,
+        topicTitle: String?,
+        tagPaths: [String]
+    ) throws {
+        guard let thought = try fetchThoughtById(thoughtId) else { throw AssignError.thoughtNotFound }
+
+        for oldTopic in (thought.topics as? Set<Topic>) ?? [] where oldTopic.isClassificationTopic {
+            oldTopic.removeThoughts(thought)
+            oldTopic.updatedAt = Date()
+        }
+
+        guard let topicTitle,
+              let topic = try fetchClassificationTopics().first(where: {
+                  Self.normalizedKey(title: $0.title) == Self.normalizedKey(title: topicTitle)
+              }) else {
+            try context.save()
+            return
+        }
+
+        topic.addThoughts(thought)
+        for path in tagPaths where ThoughtThemeConstraint.isTag(path, underTopic: topic.title) {
+            topic.addAssociatedTags(try getOrCreateTag(name: path))
+        }
+        topic.refreshAssociatedTagNamesCache()
         topic.updatedAt = Date()
         try context.save()
     }
@@ -256,11 +420,12 @@ final class TopicRepository {
         if let matchedId = matchedTopicId, let existing = try fetchTopicById(matchedId) {
             topic = existing
         } else {
-            topic = try getOrCreateTopic(title: topicTitle)
-            try activate(topic)
+            topic = try createClassificationTopic(title: topicTitle)
         }
+        // 用户确认建议即代表接受其作为后续分类边界；历史 matched Topic 也在此升级。
+        topic.status = Topic.TopicStatus.classification.rawValue
         if !sourceTerms.isEmpty {
-            try setSourceTerms(topic: topic, tagNames: sourceTerms)
+            try addSourceTerms(topic: topic, tagNames: sourceTerms)
         }
         // 观点关联 Topic（Thought.topics）；assignment source 保持 .ai 不变（spec 决策 4）
         for thoughtId in thoughtIds {
@@ -281,6 +446,15 @@ final class TopicRepository {
         request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
         request.fetchLimit = 1
         return try context.fetch(request).first
+    }
+
+    private func hasTagPathPrefix(_ prefix: String) throws -> Bool {
+        let prefixKey = ThoughtTagNormalizer.key(prefix)
+        let request = ThoughtTag.fetchRequest()
+        return try context.fetch(request).contains { tag in
+            let key = ThoughtTagNormalizer.key(tag.name)
+            return key == prefixKey || key.hasPrefix(prefixKey + "/")
+        }
     }
 
     // MARK: - 来源词主源（P1.5.3 扩展，此处基础版）
@@ -305,6 +479,12 @@ final class TopicRepository {
         try context.save()
     }
 
+    /// 增量补充归纳来源词，不清空分类过程中已关联的 `主题/子标签`。
+    func addSourceTerms(topic: Topic, tagNames: [String]) throws {
+        let existingNames = (topic.associatedTags as? Set<ThoughtTag>)?.map(\.name) ?? []
+        try setSourceTerms(topic: topic, tagNames: existingNames + tagNames)
+    }
+
     /// get-or-create ThoughtTag（P1.5.3 提权 ThoughtRepository.getOrCreateTag 后可复用，此处本地实现）
     private func getOrCreateTag(name: String) throws -> ThoughtTag {
         let displayName = ThoughtTagNormalizer.displayName(name)
@@ -317,7 +497,16 @@ final class TopicRepository {
             }
             return existing
         }
-        let tag = ThoughtTag(context: context)
+        guard let tag = NSEntityDescription.insertNewObject(
+            forEntityName: "ThoughtTag",
+            into: context
+        ) as? ThoughtTag else {
+            throw NSError(
+                domain: "TopicRepository",
+                code: 2,
+                userInfo: [NSLocalizedDescriptionKey: "无法创建 ThoughtTag 实体"]
+            )
+        }
         tag.id = UUID()
         tag.name = displayName
         tag.usageCount = 0

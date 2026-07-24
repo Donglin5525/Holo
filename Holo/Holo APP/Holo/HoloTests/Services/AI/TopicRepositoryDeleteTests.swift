@@ -17,7 +17,7 @@ final class TopicRepositoryDeleteTests: XCTestCase {
 
     /// 构建内存 Repository + Context（共享同一 context）
     private func makeRepo() throws -> (TopicRepository, ThoughtRepository, NSManagedObjectContext) {
-        let model = CoreDataStack.shared.createDataModel()
+        let model = CoreDataTestSupport.sharedModel
         let container = NSPersistentContainer(name: "TopicDeleteTest", managedObjectModel: model)
         let description = NSPersistentStoreDescription()
         description.type = NSInMemoryStoreType
@@ -26,13 +26,16 @@ final class TopicRepositoryDeleteTests: XCTestCase {
         container.loadPersistentStores { _, error in storeError = error }
         if let storeError { throw storeError }
         let ctx = container.viewContext
-        return (TopicRepository(context: ctx), ThoughtRepository(context: ctx), ctx)
+        let topicRepository = TopicRepository(context: ctx)
+        let thoughtRepository = ThoughtRepository(context: ctx)
+        CoreDataTestSupport.retain(container, ctx, topicRepository, thoughtRepository)
+        return (topicRepository, thoughtRepository, ctx)
     }
 
     /// 创建测试想法
     @discardableResult
     private func makeThought(in ctx: NSManagedObjectContext) throws -> Thought {
-        let thought = Thought(context: ctx)
+        let thought = ctx.insertTestObject(Thought.self)
         thought.id = UUID()
         thought.content = "测试内容"
         thought.createdAt = Date()
@@ -45,7 +48,7 @@ final class TopicRepositoryDeleteTests: XCTestCase {
 
     /// 创建测试标签
     private func makeTag(in ctx: NSManagedObjectContext, name: String) throws -> ThoughtTag {
-        let tag = ThoughtTag(context: ctx)
+        let tag = ctx.insertTestObject(ThoughtTag.self)
         tag.id = UUID()
         tag.name = name
         tag.usageCount = 1
@@ -55,7 +58,7 @@ final class TopicRepositoryDeleteTests: XCTestCase {
 
     /// 创建测试主题
     private func makeTopic(in ctx: NSManagedObjectContext, title: String) throws -> Topic {
-        let topic = Topic(context: ctx)
+        let topic = ctx.insertTestObject(Topic.self)
         topic.id = UUID()
         topic.title = title
         topic.status = Topic.TopicStatus.active.rawValue

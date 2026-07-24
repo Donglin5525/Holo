@@ -13,7 +13,7 @@ import CoreData
 final class ThoughtRepositoryCalendarTests: XCTestCase {
 
     private func makeRepo() throws -> (ThoughtRepository, NSManagedObjectContext) {
-        let model = CoreDataStack.shared.createDataModel()
+        let model = CoreDataTestSupport.sharedModel
         let container = NSPersistentContainer(name: "ThoughtRepoCalendarTest", managedObjectModel: model)
         let description = NSPersistentStoreDescription()
         description.type = NSInMemoryStoreType
@@ -22,7 +22,9 @@ final class ThoughtRepositoryCalendarTests: XCTestCase {
         container.loadPersistentStores { _, error in storeError = error }
         if let storeError { throw storeError }
         let ctx = container.viewContext
-        return (ThoughtRepository(context: ctx), ctx)
+        let repository = ThoughtRepository(context: ctx)
+        CoreDataTestSupport.retain(container, ctx, repository)
+        return (repository, ctx)
     }
 
     private func makeDate(year: Int, month: Int, day: Int, hour: Int = 0) -> Date {
@@ -40,7 +42,7 @@ final class ThoughtRepositoryCalendarTests: XCTestCase {
                              createdAt: Date,
                              softDeleted: Bool = false,
                              archived: Bool = false) throws -> Thought {
-        let t = Thought(context: ctx)
+        let t = ctx.insertTestObject(Thought.self)
         t.id = UUID()
         t.content = content
         t.createdAt = createdAt
