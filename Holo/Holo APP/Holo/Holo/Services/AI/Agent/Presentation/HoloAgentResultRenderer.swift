@@ -103,7 +103,7 @@ nonisolated struct HoloAgentResultRenderer {
             ? "本期暂无显著观察"
             : directAnswer ?? sections.map(\.body).joined(separator: "；")
 
-        return HoloRenderedAgentResult(
+        var result = HoloRenderedAgentResult(
             title: title,
             summary: summary,
             sections: sections,
@@ -113,6 +113,130 @@ nonisolated struct HoloAgentResultRenderer {
             directAnswer: directAnswer,
             coverageText: Self.coverageText(coverage, rangeLabel: rangeLabel),
             limitations: []
+        )
+
+        // MARK: P2 确定性合成与展示前验证
+        // 证据带类型化语义时，直接结论改由本地合成器产出（替代 financeComparisonAnswer/目录句），
+        // 模型文案降为解释层；无 semantic 的旧证据完全走上方旧逻辑。
+        var composed: HoloComposedAnswer?
+        if HoloAgentResultSemanticsFlags.typedSemanticsEnabled,
+           HoloAgentResultSemanticsFlags.deterministicComposerEnabled,
+           let task = HoloAnswerTaskDeriver.derive(question: question, evidence: evidence),
+           let answer = HoloDeterministicAnswerComposer.compose(task: task, evidence: evidence, coverage: coverage) {
+            composed = answer
+            result.headline = answer.headline
+            result.directAnswer = answer.directAnswer
+            result.summary = answer.directAnswer
+            if let composedCoverage = answer.coverageText {
+                result.coverageText = composedCoverage
+            }
+            if !answer.limitations.isEmpty {
+                result.limitations = answer.limitations
+            }
+            // 解释层 section：命中内部 token 的用合成明细顶替，没有可顶替的丢弃。
+            var spareItems = answer.items
+            result.sections = result.sections.compactMap { section in
+                guard HoloAnswerCoverageVerifier.containsInternalToken(section.body)
+                        || HoloAnswerCoverageVerifier.containsInternalToken(section.title) else {
+                    return section
+                }
+                guard !spareItems.isEmpty else { return nil }
+                let replacement = spareItems.removeFirst()
+                return HoloRenderedAgentSection(title: "数据明细", body: replacement, confidence: section.confidence)
+            }
+        }
+
+        return Self.deliverVerified(result, evidence: evidence, coverage: coverage, composed: composed)
+    }
+
+    /// 展示前验证 + 自动恢复：recoverable 先修复再验一次，仍不过或 failed 一律给边界说明，
+    /// 绝不交付含内部 token 的半成品。
+    private static func deliverVerified(
+        _ result: HoloRenderedAgentResult,
+        evidence: [HoloEvidenceRecord],
+        coverage: HoloDataCoverage?,
+        composed: HoloComposedAnswer?
+    ) -> HoloRenderedAgentResult {
+        switch HoloAnswerCoverageVerifier.verify(result: result, evidence: evidence, coverage: coverage) {
+        case .pass:
+            return result
+        case .recoverable:
+            let repaired = Self.repaired(result, evidence: evidence, coverage: coverage, composed: composed)
+            let verdict = HoloAnswerCoverageVerifier.verify(result: repaired, evidence: evidence, coverage: coverage)
+            if case .pass = verdict { return repaired }
+            return Self.boundaryResult(from: repaired, evidence: evidence, composed: composed)
+        case .failed:
+            return Self.boundaryResult(from: result, evidence: evidence, composed: composed)
+        }
+    }
+
+    /// 本地修复：丢弃违规的模型事实文案；违规的 summary/directAnswer 用合成结论或兜底句替换。
+    private static func repaired(
+        _ result: HoloRenderedAgentResult,
+        evidence: [HoloEvidenceRecord],
+        coverage: HoloDataCoverage?,
+        composed: HoloComposedAnswer?
+    ) -> HoloRenderedAgentResult {
+        let knownLabels = Set(evidence.compactMap { $0.semantic?.groupLabel })
+        func violates(_ text: String) -> Bool {
+            HoloAnswerCoverageVerifier.containsInternalToken(text)
+                || HoloAnswerCoverageVerifier.hasDirectionConflict(text, knownLabels: knownLabels)
+                || !HoloAnswerCoverageVerifier.unknownGroupMentions(in: text, knownLabels: knownLabels).isEmpty
+        }
+
+        var repaired = result
+        if HoloAnswerCoverageVerifier.containsInternalToken(repaired.title) {
+            repaired.title = "本期观察"
+        }
+        if let headline = repaired.headline, violates(headline) {
+            repaired.headline = composed?.headline
+        }
+        if let answer = repaired.directAnswer, violates(answer) {
+            repaired.directAnswer = composed?.directAnswer
+        }
+        if violates(repaired.summary) {
+            repaired.summary = composed?.directAnswer ?? "本期数据结果如下"
+        }
+        if let text = repaired.coverageText, violates(text) {
+            repaired.coverageText = composed?.coverageText
+        }
+        // 覆盖不足未披露时补确定性披露句。
+        if let coverage, !HoloAnswerCoverageVerifier.coverageDisclosed(repaired.coverageText) {
+            let ratio = coverage.coverageRatio
+                ?? (coverage.totalDays > 0 ? Double(coverage.coveredDays) / Double(coverage.totalDays) : 1)
+            if ratio < 0.9 {
+                repaired.coverageText = composed?.coverageText
+                    ?? Self.coverageText(coverage, rangeLabel: "本期")
+            }
+        }
+        repaired.sections = repaired.sections.filter { !violates($0.title) && !violates($0.body) }
+        return repaired
+    }
+
+    /// 失败边界：可理解的说明 + 只保留确定性内容，不展示半成品。
+    private static func boundaryResult(
+        from result: HoloRenderedAgentResult,
+        evidence: [HoloEvidenceRecord],
+        composed: HoloComposedAnswer?
+    ) -> HoloRenderedAgentResult {
+        let boundary = "这次分析没能形成可信结论，已为你保留数据明细。"
+        var sections: [HoloRenderedAgentSection] = []
+        if let composed {
+            sections.append(HoloRenderedAgentSection(title: "已核对的数据", body: composed.directAnswer, confidence: nil))
+        }
+        let coverageText = result.coverageText.flatMap {
+            HoloAnswerCoverageVerifier.containsInternalToken($0) ? nil : $0
+        }
+        return HoloRenderedAgentResult(
+            title: HoloAnswerCoverageVerifier.containsInternalToken(result.title) ? "本期观察" : result.title,
+            summary: boundary,
+            sections: sections,
+            evidenceReferences: result.evidenceReferences,
+            question: result.question,
+            headline: nil,
+            directAnswer: boundary,
+            coverageText: coverageText,
+            limitations: result.limitations
         )
     }
 

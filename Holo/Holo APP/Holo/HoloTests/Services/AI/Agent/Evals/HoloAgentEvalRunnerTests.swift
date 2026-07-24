@@ -9,10 +9,13 @@
 //    "Holo/Models/AI/Agent/HoloAgentTimeRange.swift" \
 //    "Holo/Models/AI/Agent/HoloEvidenceModels.swift" \
 //    "Holo/Models/AI/Agent/HoloAgentOutputModels.swift" \
+//    "Holo/Models/AI/Agent/HoloAgentToolModels.swift" \
+//    "Holo/Services/AI/Agent/Tools/HoloDataTool.swift" \
 //    "Holo/Services/AI/Agent/HoloAgentTimeSemanticResolver.swift" \
+//    "Holo/Services/AI/Agent/HoloAgentTimeSemanticExtended.swift" \
 //    "Holo/Services/AI/Agent/Verification/HoloClaimVerifier.swift" \
-//    "Holo/Services/AI/Agent/Evals/"*.swift \
-//    <本测试> -o /tmp/holo_agent_eval_test && /tmp/holo_agent_eval_test
+//    "HoloTests/Services/AI/Agent/Evals/"*.swift \
+//    -o /tmp/holo_agent_eval_test && /tmp/holo_agent_eval_test
 //
 
 import Foundation
