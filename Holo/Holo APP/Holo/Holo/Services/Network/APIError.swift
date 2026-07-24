@@ -56,13 +56,18 @@ enum APIError: LocalizedError {
         case .rateLimited, .timeout, .serverError:
             return true
         case .backendError(let statusCode, let code, _, _):
-            // 洞察空响应/截断已在后端重试过一次，客户端不再放大调用次数。
-            let terminalInsightCodes = [
+            // 模型输出结构/流完整性问题不能在 HTTP 层拿同一 payload 盲重放：
+            // Agent runtime 会把它计为一轮，生成带纠错上下文的新 step，再按用户轮数预算继续。
+            // 洞察类同理，后端已做过其自身的受控重试。
+            let outputContractCodes = [
                 "EMPTY_MODEL_RESPONSE",
                 "TRUNCATED_MODEL_RESPONSE",
-                "INVALID_INSIGHT_JSON"
+                "INVALID_INSIGHT_JSON",
+                "INVALID_AGENT_JSON",
+                "UPSTREAM_SSE_INVALID_FRAME",
+                "UPSTREAM_SSE_INCOMPLETE"
             ]
-            return statusCode >= 500 && !terminalInsightCodes.contains(code ?? "")
+            return statusCode >= 500 && !outputContractCodes.contains(code ?? "")
         case .httpError(let statusCode, _):
             return statusCode >= 500 || statusCode == 429
         default:

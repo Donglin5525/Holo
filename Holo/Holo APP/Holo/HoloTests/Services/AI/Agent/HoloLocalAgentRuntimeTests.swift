@@ -48,6 +48,32 @@ actor RuntimeMockLedger: HoloEvidenceLedgerProtocol {
     }
 }
 
+/// 重启恢复测试专用磁盘 Evidence Ledger：新 runtime 实例只共享目录，不共享内存对象。
+actor RuntimeDiskLedger: HoloEvidenceLedgerProtocol {
+    private let fileURL: URL
+
+    init(directory: URL) {
+        fileURL = directory.appendingPathComponent("runtime-evidence.json")
+    }
+
+    func load() throws -> [HoloEvidenceRecord] {
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return [] }
+        return try JSONDecoder().decode([HoloEvidenceRecord].self, from: Data(contentsOf: fileURL))
+    }
+
+    func upsert(_ newRecords: [HoloEvidenceRecord]) throws {
+        var records = try load()
+        for record in newRecords {
+            if let index = records.firstIndex(where: { $0.dedupeKey == record.dedupeKey }) {
+                records[index] = record
+            } else {
+                records.append(record)
+            }
+        }
+        try JSONEncoder().encode(records).write(to: fileURL, options: .atomic)
+    }
+}
+
 /// 多轮 loop 测试专用 fake LLM client：按顺序返回预设响应。
 actor FakeAgentLLMClient: HoloAgentLLMClientProtocol {
     private let responses: [String]
@@ -65,6 +91,36 @@ actor FakeAgentLLMClient: HoloAgentLLMClientProtocol {
         let response = responses[min(callCount, responses.count - 1)]
         callCount += 1
         return response
+    }
+}
+
+/// HTTP 层受控重试耗尽后仍不可用时，runtime 应进入可恢复等待，而不是把 job 判死。
+actor TransientFailureAgentLLMClient: HoloAgentLLMClientProtocol {
+    func next(messages: [HoloAgentMessage]) async throws -> String {
+        throw APIError.backendError(
+            statusCode: 503,
+            code: "MODEL_UNAVAILABLE",
+            message: "模型暂时不可用",
+            requestId: "test-request"
+        )
+    }
+}
+
+/// 第一轮返回坏协议，第二轮模拟模型暂不可用，用于验证纠错状态跨进程持久化。
+actor ContractFailureThenNetworkAgentLLMClient: HoloAgentLLMClientProtocol {
+    private(set) var callCount = 0
+
+    func next(messages: [HoloAgentMessage]) async throws -> String {
+        callCount += 1
+        if callCount == 1 {
+            return #"{"status":"need_tools","reasoning":"结构损坏","toolRequests":"invalid","claims":[],"warnings":[]}"#
+        }
+        throw APIError.backendError(
+            statusCode: 503,
+            code: "MODEL_UNAVAILABLE",
+            message: "模型暂时不可用",
+            requestId: "persistence-test"
+        )
     }
 }
 
@@ -233,6 +289,10 @@ struct HoloLocalAgentRuntimeTests {
         try await testRunLoop_工具请求缺少范围时继承Job范围()
         try await testRunLoop_财务去向问题先强制查询账单拆分()
         try await testRunLoop_财务工具已返回但模型JSON解析失败时用工具结果完成()
+        try await testRunLoop_结构失败不会在用户轮数上限前提前终止()
+        try await testRunLoop_模型暂不可用进入等待而不是失败()
+        try await testRunLoop_结构纠错状态跨重启持久化并最终完成()
+        testAPIError_响应契约错误不在HTTP层盲重试()
         try await testRunLoop_工具结果进入下一轮LLM上下文且不用原生tool角色()
         try await testRunLoop_工具上下文使用全局唯一EvidenceID()
         try await testRunLoop_finalClaims必须经过Evidence校验()
@@ -245,6 +305,127 @@ struct HoloLocalAgentRuntimeTests {
         try await test后台暂停后恢复并RunLoop完成()
         try await testRunLoop_step幂等请求前落prepared且完成落applied()
         print("HoloLocalAgentRuntimeTests passed")
+    }
+
+    private static func testAPIError_响应契约错误不在HTTP层盲重试() {
+        for code in [
+            "INVALID_AGENT_JSON",
+            "UPSTREAM_SSE_INVALID_FRAME",
+            "UPSTREAM_SSE_INCOMPLETE",
+            "TRUNCATED_MODEL_RESPONSE",
+            "EMPTY_MODEL_RESPONSE"
+        ] {
+            let error = APIError.backendError(
+                statusCode: 502,
+                code: code,
+                message: "response contract failure",
+                requestId: nil
+            )
+            expect(!error.isRetryable, "\(code) 不应在 HTTP 层用相同请求盲重试")
+        }
+        let transient = APIError.backendError(
+            statusCode: 503,
+            code: "MODEL_UNAVAILABLE",
+            message: "temporarily unavailable",
+            requestId: nil
+        )
+        expect(transient.isRetryable, "真正的瞬时上游故障仍应保留 HTTP 重试")
+    }
+
+    private static func testRunLoop_模型暂不可用进入等待而不是失败() async throws {
+        let dir = makeTempDir()
+        let fixture = makeLoopRuntime(
+            dir: dir,
+            llmClient: TransientFailureAgentLLMClient(),
+            toolExecutor: FakeToolExecutor()
+        )
+        let now = Date()
+        let job = try await fixture.runtime.startMockJob(question: "分析最近消费变化", now: now)
+
+        let result = try await fixture.runtime.runLoop(
+            jobID: job.id,
+            systemTemplate: "你是 Agent",
+            toolDescriptions: "【finance】财务工具",
+            now: now.addingTimeInterval(1)
+        )
+
+        expect(result.state == .waitingForCondition, "模型暂不可用时应等待恢复，不能失败")
+        expect(result.waitReason == .network, "模型暂不可用应记录 network 等待原因")
+        expect(result.budget.consumedLLMRounds == 0, "没有拿到模型响应不应消耗 LLM 轮数")
+    }
+
+    private static func testRunLoop_结构纠错状态跨重启持久化并最终完成() async throws {
+        let dir = makeTempDir()
+        let firstClient = ContractFailureThenNetworkAgentLLMClient()
+        let firstRun = makeLoopRuntime(
+            dir: dir,
+            llmClient: firstClient,
+            toolExecutor: FakeToolExecutor(),
+            persistEvidenceToDisk: true
+        )
+        let now = Date()
+        let job = try await firstRun.runtime.startAnalysisJob(
+            question: "上个月花了 1.4 万？钱都花哪儿去了？分析一下",
+            now: now
+        )
+
+        let waiting = try await firstRun.runtime.runLoop(
+            jobID: job.id,
+            systemTemplate: "Agent",
+            toolDescriptions: "【finance】财务工具",
+            now: now.addingTimeInterval(1)
+        )
+        let persistedBeforeRestart = try await firstRun.checkpointStore.latestForJob(jobID: job.id)
+        let pendingStepBeforeRestart = persistedBeforeRestart?.pendingLLMRequest
+
+        expect(waiting.state == .waitingForCondition, "网络中断后应保留为可恢复等待态")
+        expect(waiting.budget.consumedLLMRounds == 1, "坏协议响应应真实记为一轮")
+        expect(persistedBeforeRestart?.retryCountByStep["response_contract"] == 1,
+               "结构纠错次数必须在重启前落盘")
+        expect(persistedBeforeRestart?.conversationState.contains {
+            $0.content.contains("[HOLO_AGENT_RESPONSE_RECOVERY_V1]")
+        } == true, "纠错指令必须在重启前落盘")
+        expect(pendingStepBeforeRestart?.status == .prepared,
+               "网络中断的纠错请求应保留 prepared step，恢复后按幂等协议复用")
+
+        // 模拟 App 被杀后重新创建 runtime：只复用磁盘目录，不复用任何内存对象。
+        let recoveredEvidenceID = "\(job.id):finance:deterministic-finance-spending_breakdown:event-total"
+        let recoveredResponse = """
+        {"status":"final_claims","reasoning":"已恢复并基于重启前落盘的工具事实完成分析","toolRequests":[],"claims":[{"id":"recovered-total","type":"observation","displayText":"上月支出总额为 14598.83 元","metricAssertions":[{"metricKey":"finance.total.amount","value":14598.83,"baselineValue":null,"unit":"元","comparison":null,"evidenceIDs":["\(recoveredEvidenceID)"]}],"evidenceIDs":["\(recoveredEvidenceID)"],"prohibitedInferences":[],"confidence":0.9}],"warnings":[]}
+        """
+        let secondClient = FakeAgentLLMClient(responses: [recoveredResponse])
+        let secondRun = makeLoopRuntime(
+            dir: dir,
+            llmClient: secondClient,
+            toolExecutor: FakeToolExecutor(),
+            persistEvidenceToDisk: true
+        )
+        _ = try await secondRun.runtime.resume(
+            jobID: job.id,
+            now: now.addingTimeInterval(2)
+        )
+        let completed = try await secondRun.runtime.runLoop(
+            jobID: job.id,
+            systemTemplate: "Agent",
+            toolDescriptions: "【finance】财务工具",
+            now: now.addingTimeInterval(3)
+        )
+
+        let resumedSteps = await secondClient.steps
+        let resumedStepID = resumedSteps.compactMap { $0 }.first?.stepID
+        let persistedAfterRecovery = try await secondRun.checkpointStore.latestForJob(jobID: job.id)
+        let savedResult = try await secondRun.runtime.loadLatestResult()
+        expect(completed.state == .completed, "重启后必须继续 runLoop 并最终完成")
+        expect(completed.budget.consumedLLMRounds == 2, "跨重启后的模型调用必须延续原预算记账")
+        expect(resumedStepID == pendingStepBeforeRestart?.stepID,
+               "恢复后的相同纠错请求必须复用落盘 stepID")
+        expect(persistedAfterRecovery?.retryCountByStep["response_contract"] == nil,
+               "成功后必须清理持久化纠错次数")
+        expect(persistedAfterRecovery?.conversationState.contains {
+            $0.content.contains("[HOLO_AGENT_RESPONSE_RECOVERY_V1]")
+        } == false, "成功后必须清理持久化纠错指令")
+        expect((savedResult?.claims.count ?? 0) > 0,
+               "重启恢复不能只改状态，必须真正产出可读分析结果")
     }
 
     private static func makeDate(_ year: Int, _ month: Int, _ day: Int) -> Date {
@@ -282,9 +463,16 @@ struct HoloLocalAgentRuntimeTests {
     }
 
     /// 构造带 LLM client + toolExecutor 的 runtime（多轮 loop 测试用）。
-    private static func makeLoopRuntime(dir: URL, llmClient: HoloAgentLLMClientProtocol, toolExecutor: HoloAgentToolExecuting)
+    private static func makeLoopRuntime(
+        dir: URL,
+        llmClient: HoloAgentLLMClientProtocol,
+        toolExecutor: HoloAgentToolExecuting,
+        persistEvidenceToDisk: Bool = false
+    )
         -> (runtime: HoloLocalAgentRuntime, jobStore: HoloAgentJobStore, checkpointStore: HoloAgentCheckpointStore) {
-        let ledger = RuntimeMockLedger()
+        let ledger: HoloEvidenceLedgerProtocol = persistEvidenceToDisk
+            ? RuntimeDiskLedger(directory: dir)
+            : RuntimeMockLedger()
         let checkpointStore = HoloAgentCheckpointStore(directory: dir)
         let jobStore = HoloAgentJobStore(directory: dir)
         let resultStore = HoloAgentResultStore(directory: dir)
@@ -590,6 +778,57 @@ struct HoloLocalAgentRuntimeTests {
                "兜底结果应保留大额样例")
         expect(savedResult?.summary.contains("解析失败") == false, "用户结果不能出现 parser 调试串")
         expect(savedResult?.summary.contains("state=failed") == false, "用户结果不能出现 job 调试串")
+    }
+
+    /// 解析错误属于可恢复单轮故障：只要用户设置的 5 轮预算尚未耗尽，就必须继续。
+    /// 旧实现有独立 maxRetries=2，会在第 3 个坏响应时提前 failed，浪费剩余 2 轮。
+    private static func testRunLoop_结构失败不会在用户轮数上限前提前终止() async throws {
+        let dir = makeTempDir()
+        let broken = #"{"status":"need_tools","reasoning":"计划位置错误","toolRequests":"invalid","claims":[],"warnings":[]}"#
+        let recoveredToolRequest = #"{"status":"need_tools","reasoning":"已恢复并查询事实","toolRequests":[{"id":"recovered-finance","tool":"finance","query":"spending_breakdown","timeRange":null,"baseline":null,"requiredMetrics":[],"parameters":{}}],"claims":[],"warnings":[]}"#
+        let client = FakeAgentLLMClient(responses: [broken, broken, broken, broken, recoveredToolRequest])
+        let executor = FakeToolExecutor()
+        let fixture = makeLoopRuntime(
+            dir: dir,
+            llmClient: client,
+            toolExecutor: executor
+        )
+        let now = Date()
+        let job = try await fixture.runtime.startAnalysisJob(
+            question: "上个月花了 1.4 万？钱都花哪儿去了？分析一下",
+            now: now
+        )
+
+        let completed = try await fixture.runtime.runLoop(
+            jobID: job.id,
+            systemTemplate: "Agent",
+            toolDescriptions: "tools",
+            now: now
+        )
+
+        let callCount = await client.callCount
+        let batches = await client.messageBatches
+        let toolRequests = await executor.requests
+        let checkpoint = try await fixture.checkpointStore.latestForJob(jobID: job.id)
+        let savedResult = try await fixture.runtime.loadLatestResult()
+        expect(callCount == 5, "结构失败后应使用全部可用轮次直到成功，实际 \(callCount)")
+        expect(completed.state == .completed, "第 5 轮在预算内恢复后任务必须完成")
+        expect(completed.budget.consumedLLMRounds == 5, "实际 LLM 调用轮数必须真实记账")
+        expect(toolRequests.count == 1, "恢复成功后必须真正执行工具，不能用空 final_claims 伪完成")
+        expect((savedResult?.claims.count ?? 0) > 0, "轮数耗尽时应基于已取得的工具事实形成结果")
+        expect(
+            batches.dropFirst().allSatisfy {
+                $0.contains { $0.content.contains("[HOLO_AGENT_RESPONSE_RECOVERY_V1]") }
+            },
+            "每次结构重试都必须携带纠错指令，不能原样重问"
+        )
+        expect(
+            checkpoint?.conversationState.contains {
+                $0.content.contains("[HOLO_AGENT_RESPONSE_RECOVERY_V1]")
+            } == false,
+            "成功解码后应清理临时纠错指令"
+        )
+        expect(checkpoint?.retryCountByStep["response_contract"] == nil, "成功后应清理持久化重试计数")
     }
 
     /// 工具结果必须作为普通上下文进入下一轮 LLM，不能使用 OpenAI 原生 tool role。

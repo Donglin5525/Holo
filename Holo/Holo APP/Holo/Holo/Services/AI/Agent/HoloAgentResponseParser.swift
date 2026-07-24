@@ -38,8 +38,12 @@ enum HoloAgentResponseParser {
             if json["claims"] == nil { json["claims"] = [] }
             if json["warnings"] == nil { json["warnings"] = [] }
             if json["reasoning"] == nil { json["reasoning"] = "" }
+            if let warnings = json["warnings"] as? [Any] {
+                json["warnings"] = warnings.compactMap(Self.stringValue)
+            }
             if var claims = json["claims"] as? [[String: Any]] {
                 for i in 0..<claims.count {
+                    if claims[i]["id"] == nil { claims[i]["id"] = "claim-\(i + 1)" }
                     if claims[i]["displayText"] == nil, let text = claims[i]["text"] as? String {
                         claims[i]["displayText"] = text
                     }
@@ -49,7 +53,9 @@ enum HoloAgentResponseParser {
                     }
                     if claims[i]["evidenceIDs"] == nil { claims[i]["evidenceIDs"] = [] }
                     if claims[i]["prohibitedInferences"] == nil { claims[i]["prohibitedInferences"] = [] }
-                    if claims[i]["confidence"] == nil { claims[i]["confidence"] = 0.5 }
+                    claims[i]["evidenceIDs"] = Self.stringArray(from: claims[i]["evidenceIDs"])
+                    claims[i]["prohibitedInferences"] = Self.stringArray(from: claims[i]["prohibitedInferences"])
+                    claims[i]["confidence"] = Self.doubleValue(claims[i]["confidence"]) ?? 0.5
                     if claims[i]["type"] == nil { claims[i]["type"] = "observation" }
                     if var metricAssertions = claims[i]["metricAssertions"] as? [[String: Any]] {
                         for j in 0..<metricAssertions.count {
@@ -57,8 +63,14 @@ enum HoloAgentResponseParser {
                                let evidenceIds = metricAssertions[j]["evidenceIds"] {
                                 metricAssertions[j]["evidenceIDs"] = evidenceIds
                             }
-                            if metricAssertions[j]["evidenceIDs"] == nil {
-                                metricAssertions[j]["evidenceIDs"] = []
+                            metricAssertions[j]["evidenceIDs"] = Self.stringArray(
+                                from: metricAssertions[j]["evidenceIDs"]
+                            )
+                            if let value = Self.doubleValue(metricAssertions[j]["value"]) {
+                                metricAssertions[j]["value"] = value
+                            }
+                            if let value = Self.doubleValue(metricAssertions[j]["baselineValue"]) {
+                                metricAssertions[j]["baselineValue"] = value
                             }
                         }
                         claims[i]["metricAssertions"] = metricAssertions
@@ -68,17 +80,23 @@ enum HoloAgentResponseParser {
             }
             if var requests = json["toolRequests"] as? [[String: Any]] {
                 for i in 0..<requests.count {
-                    if requests[i]["requiredMetrics"] == nil { requests[i]["requiredMetrics"] = [] }
-                    if requests[i]["parameters"] == nil { requests[i]["parameters"] = [:] }
+                    // 生产事故兼容：早期后端 Prompt 的输出 schema 只展示 parameters，
+                    // 模型会把 dynamicPlan/crossDomainPlan 塞进 parameters，导致
+                    // [String: String] 解码整轮失败。计划字段必须提升为 toolRequest 同级字段。
+                    Self.promoteNestedPlans(in: &requests[i])
+                    requests[i]["requiredMetrics"] = Self.stringArray(from: requests[i]["requiredMetrics"])
+                    requests[i]["parameters"] = Self.stringParameters(from: requests[i]["parameters"])
+                    Self.normalizeTimeRange(in: &requests[i], key: "timeRange")
+                    Self.normalizeTimeRange(in: &requests[i], key: "baseline")
                     if var plan = requests[i]["dynamicPlan"] as? [String: Any] {
-                        if plan["timeRange"] == nil { plan["timeRange"] = NSNull() }
-                        if plan["baseline"] == nil { plan["baseline"] = NSNull() }
+                        Self.normalizeTimeRange(in: &plan, key: "timeRange")
+                        Self.normalizeTimeRange(in: &plan, key: "baseline")
                         if plan["filters"] == nil { plan["filters"] = [] }
                         if plan["groupBy"] == nil { plan["groupBy"] = [] }
                         if plan["derivations"] == nil { plan["derivations"] = [] }
                         if plan["sort"] == nil { plan["sort"] = NSNull() }
-                        if plan["limit"] == nil { plan["limit"] = 20 }
-                        if plan["evidenceLimit"] == nil { plan["evidenceLimit"] = 20 }
+                        plan["limit"] = Self.intValue(plan["limit"]) ?? 20
+                        plan["evidenceLimit"] = Self.intValue(plan["evidenceLimit"]) ?? 20
                         if var filters = plan["filters"] as? [[String: Any]] {
                             for index in filters.indices where filters[index]["values"] == nil { filters[index]["values"] = [] }
                             plan["filters"] = filters
@@ -107,9 +125,13 @@ enum HoloAgentResponseParser {
                     if var plan = requests[i]["crossDomainPlan"] as? [String: Any] {
                         if plan["leftFilters"] == nil { plan["leftFilters"] = [] }
                         if plan["rightFilters"] == nil { plan["rightFilters"] = [] }
-                        if plan["threshold"] == nil { plan["threshold"] = NSNull() }
-                        if plan["minimumAlignedDays"] == nil { plan["minimumAlignedDays"] = 5 }
-                        if plan["timeRange"] == nil { plan["timeRange"] = NSNull() }
+                        if let threshold = Self.doubleValue(plan["threshold"]) {
+                            plan["threshold"] = threshold
+                        } else {
+                            plan["threshold"] = NSNull()
+                        }
+                        plan["minimumAlignedDays"] = Self.intValue(plan["minimumAlignedDays"]) ?? 5
+                        Self.normalizeTimeRange(in: &plan, key: "timeRange")
                         for key in ["leftFilters", "rightFilters"] {
                             if var filters = plan[key] as? [[String: Any]] {
                                 for index in filters.indices where filters[index]["values"] == nil { filters[index]["values"] = [] }
@@ -133,6 +155,89 @@ enum HoloAgentResponseParser {
         }
 
         throw HoloAgentError.outputParseFailure(needsRetry: remainingRetries > 0)
+    }
+
+
+    private static func promoteNestedPlans(in request: inout [String: Any]) {
+        guard var parameters = request["parameters"] as? [String: Any] else {
+            if request["parameters"] == nil { request["parameters"] = [:] }
+            return
+        }
+        for key in ["dynamicPlan", "crossDomainPlan"] {
+            let current = request[key]
+            let isMissing = current == nil || current is NSNull
+            if isMissing, let nested = parameters[key] as? [String: Any] {
+                request[key] = nested
+            }
+            parameters.removeValue(forKey: key)
+        }
+        request["parameters"] = parameters
+    }
+
+    private static func normalizeTimeRange(in object: inout [String: Any], key: String) {
+        guard var range = object[key] as? [String: Any] else {
+            object[key] = NSNull()
+            return
+        }
+        guard let label = range["label"] as? String else {
+            object[key] = NSNull()
+            return
+        }
+        // 只有 JSONDecoder 可直接解码的数值时间戳才接受模型窗口。
+        // ISO 字符串、空边界或仅有 label 的窗口一律丢弃，让 runtime 使用问题解析出的确定性 job 窗口，
+        // 避免“本月”这种空壳范围阻止 requestWithJobScope 注入真实 start/end。
+        guard range["start"] is NSNumber, range["end"] is NSNumber else {
+            object[key] = NSNull()
+            return
+        }
+        range["label"] = label
+        object[key] = range
+    }
+
+    private static func stringParameters(from value: Any?) -> [String: String] {
+        guard let parameters = value as? [String: Any] else { return [:] }
+        return parameters.reduce(into: [:]) { result, entry in
+            if let string = stringValue(entry.value) {
+                result[entry.key] = string
+            } else if JSONSerialization.isValidJSONObject(entry.value),
+                      let data = try? JSONSerialization.data(withJSONObject: entry.value),
+                      let string = String(data: data, encoding: .utf8) {
+                result[entry.key] = string
+            }
+        }
+    }
+
+    private static func stringArray(from value: Any?) -> [String] {
+        if let values = value as? [Any] {
+            return values.compactMap(stringValue)
+        }
+        if let single = stringValue(value) {
+            return [single]
+        }
+        return []
+    }
+
+    private static func stringValue(_ value: Any?) -> String? {
+        switch value {
+        case let string as String:
+            return string
+        case let number as NSNumber:
+            return number.stringValue
+        default:
+            return nil
+        }
+    }
+
+    private static func doubleValue(_ value: Any?) -> Double? {
+        if let number = value as? NSNumber { return number.doubleValue }
+        if let string = value as? String { return Double(string) }
+        return nil
+    }
+
+    private static func intValue(_ value: Any?) -> Int? {
+        if let number = value as? NSNumber { return number.intValue }
+        if let string = value as? String { return Int(string) }
+        return nil
     }
 
     private static func extractJSONObject(from raw: String) -> String {

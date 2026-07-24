@@ -306,8 +306,7 @@ actor HoloLocalAgentRuntime {
             progressReporter: progressReporter,
             now: now
         )
-        var retryCount = 0
-        let maxRetries = 2
+        var endedOnResponseContractFailure = false
 
         // §5.2：预算判断改用 active runtime（锁屏/等待/暂停不计入）
         while job.budget.consumedLLMRounds < job.budget.maxLLMRounds,
@@ -382,6 +381,26 @@ actor HoloLocalAgentRuntime {
                         generation: generation, now: now
                     )
                 }
+                // 坏 JSON、SSE 不完整或响应信封解码失败属于单轮契约故障，
+                // 不应直接终止整个用户任务。消耗一次 LLM 轮次后换新 step 纠错重试，
+                // 直到真正触达用户设置的轮数/运行时限制。
+                if Self.isRecoverableResponseContractError(error) {
+                    try await guardExecutionGeneration(generation, jobID: jobID)
+                    job.budget.consumedLLMRounds += 1
+                    if job.budget.consumedLLMRounds < job.budget.maxLLMRounds {
+                        try await prepareResponseContractRetry(
+                            job: &job,
+                            checkpoint: &checkpoint,
+                            generation: generation,
+                            progressReporter: progressReporter,
+                            now: now
+                        )
+                        continue
+                    }
+                    endedOnResponseContractFailure = true
+                    checkpoint.pendingLLMRequest = nil
+                    break
+                }
                 throw error
             }
             // §6.2：LLM 响应返回后、应用前校验 generation（旧代次晚返回不得写回）
@@ -400,14 +419,17 @@ actor HoloLocalAgentRuntime {
 
             let output: HoloAgentOutput
             do {
-                output = try HoloAgentResponseParser.parse(raw, remainingRetries: maxRetries - retryCount)
+                let remainingRounds = job.budget.maxLLMRounds - job.budget.consumedLLMRounds
+                output = try HoloAgentResponseParser.parse(raw, remainingRetries: remainingRounds)
             } catch HoloAgentError.outputParseFailure(let needsRetry) {
                 if needsRetry {
-                    retryCount += 1
-                    job.state = .retrying
-                    // §8.3：解析重试是一次新请求——丢弃已完成 record（含其 stepID），
-                    // 下一轮生成新 stepID，避免命中后端幂等缓存返回同一份无效响应
-                    checkpoint.pendingLLMRequest = nil
+                    try await prepareResponseContractRetry(
+                        job: &job,
+                        checkpoint: &checkpoint,
+                        generation: generation,
+                        progressReporter: progressReporter,
+                        now: now
+                    )
                     continue
                 }
                 let fallbackClaims = Self.fallbackClaims(
@@ -421,16 +443,17 @@ actor HoloLocalAgentRuntime {
                                                         generation: generation,
                                                         progressReporter: progressReporter, now: now)
                 }
-                try await guardExecutionGeneration(generation, jobID: jobID)
-                job.state = .failed
-                // 错误状态可能进入持久化与 Debug 导出，不保存模型原文片段。
-                job.errorSummary = "解析失败重试耗尽（INVALID_AGENT_RESPONSE，len=\(raw.count)）"
-                job.updatedAt = now
-                job.endActiveSegment(at: now)
-                try await jobStore.upsert(job)
-                return job
+                // 没有工具事实可兜底时，只能在 LLM 轮数真正耗尽后结束；
+                // 不再使用独立的 2 次 parser 上限提前杀死任务。
+                endedOnResponseContractFailure = true
+                checkpoint.pendingLLMRequest = nil
+                break
             }
 
+            checkpoint.retryCountByStep.removeValue(forKey: Self.responseContractRetryKey)
+            checkpoint.conversationState.removeAll {
+                $0.content.contains(Self.responseContractRecoveryMarker)
+            }
             checkpoint.conversationState.append(Self.assistantMessage(for: output, now: now))
             // §5.3：输出已应用 → 标记 applied（随本分支下一次 saveProgress 一并落盘，不额外写盘；
             // 之后崩溃恢复按 completed 复用重放，工具去重逻辑保证不重复执行）
@@ -542,6 +565,8 @@ actor HoloLocalAgentRuntime {
         // §5.2：区分预算耗尽原因——active runtime 超时与 LLM 轮数耗尽文案不同
         if job.isActiveRuntimeExhausted(at: now) {
             job.errorSummary = "Agent 运行时长预算耗尽（实际执行时长超限）"
+        } else if endedOnResponseContractFailure {
+            job.errorSummary = "Agent 预算耗尽（LLM 轮数上限；最后一轮响应未通过结构校验）"
         } else {
             job.errorSummary = "Agent 预算耗尽（LLM 轮数上限）"
         }
@@ -723,6 +748,31 @@ actor HoloLocalAgentRuntime {
             checkpointRevision: checkpoint.revision,
             requestID: checkpoint.pendingLLMRequest?.stepID
         ))
+    }
+
+    /// 响应契约失败的恢复点：持久化重试次数和纠错指令，并清掉已完成的坏 step。
+    /// 即使 App 在两轮之间被杀，恢复后也不会从后端幂等缓存重放同一份坏响应。
+    private func prepareResponseContractRetry(
+        job: inout HoloAgentJob,
+        checkpoint: inout HoloAgentCheckpoint,
+        generation: Int?,
+        progressReporter: (@Sendable (HoloAgentProgressSnapshot) async -> Void)?,
+        now: Date
+    ) async throws {
+        let attempt = (checkpoint.retryCountByStep[Self.responseContractRetryKey] ?? 0) + 1
+        checkpoint.retryCountByStep[Self.responseContractRetryKey] = attempt
+        checkpoint.pendingLLMRequest = nil
+        checkpoint.conversationState.removeAll {
+            $0.content.contains(Self.responseContractRecoveryMarker)
+        }
+        checkpoint.conversationState.append(Self.responseContractRecoveryMessage(attempt: attempt, now: now))
+        checkpoint.updatedAt = now
+        job.state = .retrying
+        job.errorSummary = nil
+        job.updatedAt = now
+        try await guardExecutionGeneration(generation, jobID: job.id)
+        try await saveProgress(job: job, evidence: [], checkpoint: checkpoint)
+        await reportProgress(job, to: progressReporter)
     }
 
     private func loadJob(_ jobID: String) async throws -> HoloAgentJob? {
@@ -913,8 +963,16 @@ actor HoloLocalAgentRuntime {
     private static func isRecoverableNetworkError(_ error: Error) -> Bool {
         if let apiError = error as? APIError {
             switch apiError {
-            case .networkUnavailable, .timeout:
+            case .networkUnavailable, .timeout, .serverError:
                 return true
+            case .backendError(let statusCode, let code, _, _):
+                let transientCodes = [
+                    "MODEL_UNAVAILABLE",
+                    "UPSTREAM_TIMEOUT",
+                    "UPSTREAM_ERROR",
+                    "SERVICE_UNAVAILABLE"
+                ]
+                return statusCode >= 500 && transientCodes.contains(code ?? "")
             default:
                 return false
             }
@@ -930,6 +988,26 @@ actor HoloLocalAgentRuntime {
             }
         }
         return false
+    }
+
+    /// 响应结构/流完整性错误可以通过新 step 重新生成，不应把整个 job 判死。
+    private static func isRecoverableResponseContractError(_ error: Error) -> Bool {
+        if error is DecodingError { return true }
+        guard let apiError = error as? APIError else { return false }
+        switch apiError {
+        case .decodingError:
+            return true
+        case .backendError(_, let code, _, _):
+            return [
+                "INVALID_AGENT_JSON",
+                "UPSTREAM_SSE_INVALID_FRAME",
+                "UPSTREAM_SSE_INCOMPLETE",
+                "TRUNCATED_MODEL_RESPONSE",
+                "EMPTY_MODEL_RESPONSE"
+            ].contains(code ?? "")
+        default:
+            return false
+        }
     }
 
     private static func deterministicToolRequests(for question: String) -> [HoloToolRequest] {
@@ -1054,6 +1132,30 @@ actor HoloLocalAgentRuntime {
         HoloAgentMessage(
             role: .system,
             content: "这是本次 Agent Loop 的最后一轮。必须基于已有工具结果输出 final_claims；不要再输出 need_tools 或 need_more_analysis。若证据有限，请给出低置信、带边界的观察。",
+            toolRequestID: nil,
+            toolName: nil,
+            timestamp: now,
+            tokenEstimate: nil
+        )
+    }
+
+    private static let responseContractRetryKey = "response_contract"
+    private static let responseContractRecoveryMarker = "[HOLO_AGENT_RESPONSE_RECOVERY_V1]"
+
+    private static func responseContractRecoveryMessage(attempt: Int, now: Date) -> HoloAgentMessage {
+        HoloAgentMessage(
+            role: .system,
+            content: """
+            \(responseContractRecoveryMarker)
+            上一轮输出未通过 Agent 协议校验，请重新生成完整 JSON，不要复述或解释错误。
+            第 \(attempt) 次结构恢复要求：
+            - toolRequests[].dynamicPlan 与 crossDomainPlan 必须和 parameters 同级，绝不能放进 parameters 内。
+            - parameters 只能包含字符串键值；动态查询结构只放在 dynamicPlan/crossDomainPlan。
+            - final_claims 必须包含至少一条 claim，toolRequests 必须为空数组。
+            - 每条 claim 必须有非空 displayText、metricAssertions 和 evidenceIDs。
+            - metricAssertions[] 必须使用 metricKey、数字或 null 的 value/baselineValue、unit、comparison、evidenceIDs；证据 ID 必须逐字复用工具结果。
+            - status、reasoning、toolRequests、claims、warnings 必须齐全；不要输出 Markdown。
+            """,
             toolRequestID: nil,
             toolName: nil,
             timestamp: now,

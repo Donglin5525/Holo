@@ -137,7 +137,7 @@ final class PromptManager {
         .financeActionParser: 1,        // v1: 分期记账参数解析
         .taskActionParser: 1,           // v1: 重复任务参数解析
         .thoughtOrganization: 2,        // v2: 优先复用用户认可标签（全量进 prompt），简化输出
-        .agentLoop: 10,                 // v10: 完整回答 + 用户可读表达契约 + 禁止内部字段/观察编号
+        .agentLoop: 14,                 // v14: 固定 final_claims/metricAssertions 完整结构与响应恢复协议
         .thoughtTagConvergence: 1,      // v1: 观点跨主题归并收敛（P2）
         .healthInsightGeneration: 2     // v2: 多域生活闭环（待办/习惯/观点/运动证据）+ 观点措辞规避
     ]
@@ -354,7 +354,10 @@ final class PromptManager {
         - need_more_analysis
         - final_claims
 
-        每个 claim 必须有 metricAssertions 和 evidenceIDs。
+        每个 claim 必须有非空 metricAssertions 和 evidenceIDs。
+        final_claims 必须包含至少一条 claim，toolRequests 必须为空数组；不得用空数组伪装完成。
+        metricAssertion 完整结构：{"metricKey":"string","value":0,"baselineValue":null,"unit":"string 或 null","comparison":"string 或 null","evidenceIDs":["工具结果中的原始 evidence ID"]}。
+        value 和 baselineValue 只能是数字或 null；evidenceIDs 只能逐字引用 toolResults/evidenceRefs 已提供的 ID。
         不得输出没有 evidence 的事实。
         不得把相关写成因果。
         不得做心理、医疗、人格判断。
@@ -365,6 +368,7 @@ final class PromptManager {
         - 先把用户问题拆成全部明确子问题；每个子问题都必须对应一个 aggregation/derivation 或固定工具指标。最终 claims 必须逐项回答，不能只回答第一个指标。例如“最近十天花了多少钱，平均每天多少”必须同时计算总支出和按 10 个自然日计算的日均支出。
         - 用户问“每天平均”时，分母是所选时间范围的自然日数，不是有交易的天数；使用确定性派生计算，不要模型心算。
         - 所有数据域的长尾计算优先使用对应领域工具的 query="dynamic_query"，并根据工具目录填写 dynamicPlan；常见固定问题仍可使用快捷 query 作为降级。
+        - dynamicPlan 和 crossDomainPlan 必须是 toolRequests[] 元素中与 parameters 同级的字段，绝不能放进 parameters；parameters 只允许字符串键值。
         - dynamicPlan 只能引用工具目录中已声明的数据集和字段，禁止生成 SQL、代码、正则或自由表达式。
         - dynamicPlan 完整字段：source、timeRange、baseline、filters、groupBy、aggregations、derivations、sort、limit、evidenceLimit。
         - filter.operation 仅允许 equal/notEqual/greaterThan/greaterThanOrEqual/lessThan/lessThanOrEqual/contains/oneOf。
@@ -411,7 +415,7 @@ final class PromptManager {
         - 当前明确输入永远优先；长期记忆、近期状态只能辅助理解，不能覆盖本轮输入。
 
         输出 JSON Schema：
-        {"status":"need_tools | need_more_analysis | final_claims","reasoning":"string","toolRequests":[{"id":"string","tool":"string","query":"string","parameters":{},"dynamicPlan":null,"crossDomainPlan":null}],"claims":[{"id":"string","type":"observation | change | pattern | correlation | suggestion","displayText":"string","metricAssertions":[],"evidenceIDs":["string"],"prohibitedInferences":[],"confidence":0.5}],"warnings":[]}
+        {"status":"need_tools | need_more_analysis | final_claims","reasoning":"string","toolRequests":[{"id":"string","tool":"string","query":"string","timeRange":null,"baseline":null,"requiredMetrics":[],"parameters":{},"dynamicPlan":null,"crossDomainPlan":null}],"claims":[{"id":"string","type":"observation | change | pattern | correlation | suggestion","displayText":"string","metricAssertions":[{"metricKey":"string","value":0,"baselineValue":null,"unit":"string 或 null","comparison":"string 或 null","evidenceIDs":["string"]}],"evidenceIDs":["string"],"prohibitedInferences":[],"confidence":0.5}],"warnings":[]}
 
         need_tools：需要调用本地工具，必须给出 toolRequests。
         need_more_analysis：已有信息不足以得出结论，需要继续推理。

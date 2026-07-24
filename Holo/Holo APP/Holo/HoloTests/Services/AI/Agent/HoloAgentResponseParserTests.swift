@@ -23,6 +23,7 @@ struct HoloAgentResponseParserTests {
         test旧字段text可解析为displayText()
         test说明文本中可抽取JSON并归一字段别名()
         test动态查询计划缺省字段自动补齐()
+        testParameters内嵌动态计划可提升为同级字段()
         test跨域查询计划缺省字段自动补齐()
         test缺status抛outputParseFailure可重试()
         test超过重试次数不重试()
@@ -36,6 +37,22 @@ struct HoloAgentResponseParserTests {
         expect(plan?.source == "health.sleep", "应解析动态数据集")
         expect(plan?.aggregations.first?.operation == .average, "应解析动态聚合")
         expect(plan?.filters.isEmpty == true && plan?.limit == 20, "缺省安全字段应自动补齐")
+    }
+
+    /// 线上真实故障回归：旧后端 schema 诱导模型把 dynamicPlan 放进 parameters，
+    /// parameters 随即不再是 [String: String]，旧 parser 会让整轮解码失败。
+    private static func testParameters内嵌动态计划可提升为同级字段() {
+        let raw = #"{"status":"need_tools","reasoning":"按分类比较环比","toolRequests":[{"id":"finance-comparison","tool":"finance","query":"dynamic_query","parameters":{"dynamicPlan":{"source":"finance.transactions","timeRange":{"label":"本月","start":"2026-07-01","end":"2026-08-01"},"filters":[{"field":"type","operation":"equal","value":{"type":"text","text":"expense"}}],"groupBy":[{"type":"field","field":"category"}],"aggregations":[{"id":"category_amount","operation":"sum","field":"amount","unit":"元"}],"derivations":[{"id":"category_growth","operation":"percentageChange","metricID":"category_amount","unit":"比例"}],"sort":{"metricID":"category_growth","direction":"descending"},"limit":"3","evidenceLimit":"10"},"retry":"1"}}],"claims":[],"warnings":[]}"#
+
+        let output = try? HoloAgentResponseParser.parse(raw, remainingRetries: 0)
+        let request = output?.toolRequests.first
+        expect(output != nil, "parameters 内嵌 dynamicPlan 应在本地白名单修复后成功解码")
+        expect(request?.dynamicPlan?.source == "finance.transactions", "内嵌 dynamicPlan 应提升为同级字段")
+        expect(request?.dynamicPlan?.limit == 3, "字符串 limit 应归一为整数")
+        expect(request?.dynamicPlan?.aggregations.first?.filters.isEmpty == true, "聚合 filters 缺省应补空数组")
+        expect(request?.dynamicPlan?.timeRange == nil, "模型提供的字符串日期不能覆盖 runtime 的确定性时间窗口")
+        expect(request?.parameters["retry"] == "1", "parameters 的标量值应保留为字符串")
+        expect(request?.parameters["dynamicPlan"] == nil, "提升后 parameters 不得残留 dynamicPlan")
     }
 
     private static func test跨域查询计划缺省字段自动补齐() {
