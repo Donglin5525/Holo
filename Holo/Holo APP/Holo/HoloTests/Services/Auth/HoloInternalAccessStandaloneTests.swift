@@ -1,6 +1,16 @@
 import Foundation
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        try HoloInternalAccessStandaloneTests.main()
+    }
+}
+#endif
 struct HoloInternalAccessStandaloneTests {
     static func main() throws {
         let now = Date(timeIntervalSince1970: 2_000_000_000)

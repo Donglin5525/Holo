@@ -1,6 +1,6 @@
 import Foundation
 
-actor HoloMemoryFeedbackTestStore: HoloMemoryFeedbackStore {
+final class HoloMemoryFeedbackTestStore: HoloMemoryFeedbackStore {
     private var records: [String: HoloMemoryRecord]
     private var control = HoloMemoryControlState.initial(now: Date(timeIntervalSince1970: 0))
     private(set) var tombstones: [HoloMemoryTombstone] = []
@@ -63,7 +63,17 @@ actor HoloMemoryFeedbackTestStore: HoloMemoryFeedbackStore {
     func deletedRecordIDSnapshot() -> [String] { deletedRecordIDs }
 }
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        try await HoloMemoryFeedbackStandaloneTests.main()
+    }
+}
+#endif
 struct HoloMemoryFeedbackStandaloneTests {
     private static var assertions = 0
 

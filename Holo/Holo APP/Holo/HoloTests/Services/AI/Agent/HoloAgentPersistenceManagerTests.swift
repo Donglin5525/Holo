@@ -31,7 +31,17 @@ actor MockEvidenceLedger: HoloEvidenceLedgerProtocol {
     }
 }
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        try await HoloAgentPersistenceManagerTests.main()
+    }
+}
+#endif
 struct HoloAgentPersistenceManagerTests {
 
     static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {

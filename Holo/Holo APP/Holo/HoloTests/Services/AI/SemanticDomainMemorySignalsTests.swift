@@ -1,6 +1,16 @@
 import Foundation
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        try SemanticDomainMemorySignalsTests.main()
+    }
+}
+#endif
 struct SemanticDomainMemorySignalsTests {
     private static var assertions = 0
 
@@ -8,6 +18,8 @@ struct SemanticDomainMemorySignalsTests {
         testHealthUsesAggregateOnlyAndTreatsMissingAsMissing()
         testThoughtSeparatesOriginalStanceAndAISummary()
         testTaskThresholdPreventsPsychologicalInference()
+        testTaskBacklogIncludesTasksWithoutDeadlines()
+        testTaskCompletionCountDoesNotClaimStableRhythm()
         try testConversationOnlyAcceptsExplicitUserStatements()
         print("SemanticDomainMemorySignalsTests: \(assertions) assertions passed")
     }
@@ -80,6 +92,54 @@ struct SemanticDomainMemorySignalsTests {
         }, "任务信号必须禁止心理和能力推断")
         expect(signals.allSatisfy { $0.evidence.kind == .aggregateSnapshot },
                "任务节奏只使用本地聚合，不把标题明细直接交给 AI")
+    }
+
+    private static func testTaskBacklogIncludesTasksWithoutDeadlines() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let openWithoutDeadlines = (0..<12).map { index in
+            TaskMemoryInput(
+                id: "open-\(index)", title: "未完成任务 \(index)", typeKey: "inbox",
+                completed: false, createdAt: now.addingTimeInterval(-20 * 86_400),
+                dueAt: nil, completedAt: nil, revisionDigest: "open-r\(index)"
+            )
+        }
+        let signals = TaskMemorySignalBuilder.build(from: openWithoutDeadlines, now: now)
+        guard let backlog = signals.first(where: { $0.id == "task-open-backlog" }) else {
+            fatalError("无截止时间任务积压信号缺失")
+        }
+        expect(backlog.numericFacts["openCount"] == 12, "未完成任务必须进入积压总数")
+        expect(backlog.numericFacts["withoutDueDateCount"] == 12,
+               "没有截止时间的任务必须单独计数")
+        expect(backlog.numericFacts["overdueCount"] == 0,
+               "没有截止时间不得被误算为逾期")
+        expect(!signals.contains(where: { $0.id == "task-backlog" }),
+               "没有截止时间时不得伪造逾期积压")
+        expect(backlog.prohibitedInferences.contains(where: {
+            $0.contains("无法判断是否逾期") && $0.contains("节奏稳定")
+        }), "任务信号必须阻止把无截止时间解释为按时完成")
+    }
+
+    private static func testTaskCompletionCountDoesNotClaimStableRhythm() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let completed = (0..<6).map { index in
+            TaskMemoryInput(
+                id: "completed-\(index)", title: "完成任务 \(index)", typeKey: "work",
+                completed: true, createdAt: now.addingTimeInterval(-20 * 86_400),
+                dueAt: nil,
+                completedAt: now.addingTimeInterval(-Double(index % 3) * 86_400),
+                revisionDigest: "completed-r\(index)"
+            )
+        }
+        let signals = TaskMemorySignalBuilder.build(from: completed, now: now)
+        guard let activity = signals.first(where: { $0.id == "task-completion-activity" }) else {
+            fatalError("近期完成活动信号缺失")
+        }
+        expect(!signals.contains(where: { $0.id == "task-completion-rhythm" }),
+               "完成总数不能继续冒充稳定节奏")
+        expect(activity.numericFacts["activeCompletionDayCount"] == 3,
+               "完成活动必须暴露实际活跃天数")
+        expect(activity.prohibitedInferences.contains(where: { $0.contains("节奏稳定") }),
+               "完成活动必须明确禁止仅凭总数推断稳定节奏")
     }
 
     private static func testConversationOnlyAcceptsExplicitUserStatements() throws {

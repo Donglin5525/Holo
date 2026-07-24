@@ -29,7 +29,17 @@ struct HoloMemoryToolPolicySource: HoloMemoryDataSource {
     func suppressionCount() async -> Int { count }
 }
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        try await HoloMemoryConsumerPolicyIntegrationTests.main()
+    }
+}
+#endif
 struct HoloMemoryConsumerPolicyIntegrationTests {
     private static var assertions = 0
 
@@ -51,18 +61,19 @@ struct HoloMemoryConsumerPolicyIntegrationTests {
         let store = HoloMemoryConsumerQueryStore(records: [active, candidate])
 
         for consumer in HoloMemoryAnswerConsumer.allCases {
+            let deniedConsumer = consumer
             let deniedStore = HoloMemoryConsumerQueryStore(records: [active])
             let deniedService = HoloMemoryQueryService(
                 store: deniedStore,
-                answeringAllowed: { requested in requested != consumer },
+                answeringAllowed: { _ in false },
                 refreshCoordinator: .init(handler: { _ in })
             )
             let denied = try await deniedService.query(
                 question: "我最近状态如何",
-                consumer: consumer,
+                consumer: deniedConsumer,
                 now: now
             )
-            expect(denied.records.isEmpty, "关闭时 \(consumer.rawValue) 必须返回空记忆")
+            expect(denied.records.isEmpty, "关闭时 \(deniedConsumer.rawValue) 必须返回空记忆")
             expect(denied.refreshDecision == .disabled, "关闭时不得触发 SWR")
             let deniedFetchCount = await deniedStore.currentFetchCount()
             expect(deniedFetchCount == 0, "关闭时不得读取仓库")

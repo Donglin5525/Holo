@@ -1,6 +1,16 @@
 import Foundation
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        try HoloCrossDomainFusionStandaloneTests.main()
+    }
+}
+#endif
 struct HoloCrossDomainFusionStandaloneTests {
     private static var assertionCount = 0
 
@@ -70,6 +80,41 @@ struct HoloCrossDomainFusionStandaloneTests {
         expect(
             HoloCrossDomainCandidateBuilder.build(from: [finance, finance]).isEmpty,
             "同一领域不得伪装成跨域候选"
+        )
+
+        let routineAnchor = try HoloMemoryAnchorRef(
+            type: .userTheme,
+            value: "current-routine"
+        )
+        let routineFinance = try makeRecord(
+            domain: .finance,
+            anchor: routineAnchor,
+            lineage: "finance-routine-1",
+            start: now.addingTimeInterval(-7 * 86_400),
+            end: now
+        )
+        let routineTask = try makeRecord(
+            domain: .task,
+            anchor: routineAnchor,
+            lineage: "task-routine-1",
+            start: now.addingTimeInterval(-7 * 86_400),
+            end: now
+        )
+        expect(
+            HoloCrossDomainCandidateBuilder.build(from: [routineFinance, routineTask]).isEmpty,
+            "两个普通日常统计不能只因共享生活节奏锚点而融合"
+        )
+        let shiftedTask = try makeRecord(
+            domain: .task,
+            anchor: routineAnchor,
+            lineage: "task-shift-1",
+            start: now.addingTimeInterval(-7 * 86_400),
+            end: now,
+            claimKind: .phaseShift
+        )
+        expect(
+            HoloCrossDomainCandidateBuilder.build(from: [routineFinance, shiftedTask]).count == 1,
+            "至少一个领域出现阶段变化时才允许融合通用生活节奏"
         )
 
         let insightBackedHealth = try makeRecord(
@@ -243,7 +288,8 @@ struct HoloCrossDomainFusionStandaloneTests {
         lineage: String,
         start: Date,
         end: Date,
-        sourceID: String? = nil
+        sourceID: String? = nil,
+        claimKind: HoloMemoryClaimKind = .recurringPattern
     ) throws -> HoloMemoryRecord {
         let evidence = HoloMemoryEvidenceRef(
             id: "evidence-\(domain.rawValue)-\(lineage)",
@@ -263,7 +309,7 @@ struct HoloCrossDomainFusionStandaloneTests {
             scope: .domain,
             primaryDomain: domain,
             sourceDomains: [domain],
-            claimKind: .recurringPattern,
+            claimKind: claimKind,
             anchors: [anchor]
         )
         return HoloMemoryRecord(
@@ -273,7 +319,7 @@ struct HoloCrossDomainFusionStandaloneTests {
             sourceDomains: [domain],
             subjectKey: anchor.stableKey,
             anchorRefs: [anchor],
-            claimKind: .recurringPattern,
+            claimKind: claimKind,
             persistenceClass: .currentState,
             displaySummary: "\(domain.rawValue) 近期状态",
             aiUseSummary: "\(domain.rawValue) 近期状态",

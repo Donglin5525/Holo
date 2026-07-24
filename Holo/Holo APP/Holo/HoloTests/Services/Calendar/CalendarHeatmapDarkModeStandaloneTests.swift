@@ -1,6 +1,16 @@
 import SwiftUI
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        CalendarHeatmapDarkModeStandaloneTests.main()
+    }
+}
+#endif
 struct CalendarHeatmapDarkModeStandaloneTests {
     static func main() {
         expect(

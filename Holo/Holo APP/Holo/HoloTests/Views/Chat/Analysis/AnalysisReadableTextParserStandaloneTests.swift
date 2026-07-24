@@ -8,7 +8,7 @@
 import Foundation
 
 @discardableResult
-private func expect(_ condition: @autoclosure () -> Bool, _ message: String) -> Bool {
+private func expectAnalysisReadableText(_ condition: @autoclosure () -> Bool, _ message: String) -> Bool {
     if !condition() {
         print("FAIL: \(message)")
         exit(1)
@@ -16,8 +16,18 @@ private func expect(_ condition: @autoclosure () -> Bool, _ message: String) -> 
     return true
 }
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
-private enum AnalysisReadableTextParserStandaloneTests {
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        AnalysisReadableTextParserStandaloneTests.main()
+    }
+}
+#endif
+enum AnalysisReadableTextParserStandaloneTests {
     static func main() {
         let sample = """
         最近 30 天，你的总支出为 20,032.73 元，日均支出 667.76 元。
@@ -32,13 +42,13 @@ private enum AnalysisReadableTextParserStandaloneTests {
             fallbackHeadline: "支出明显抬高"
         )
 
-        expect(model.headline == "支出明显抬高", "fallback headline should be preserved")
-        expect(model.facts.count == 3, "paragraphs should become three scannable facts")
-        expect(model.facts[0].kicker == "支出节奏", "first fact should describe spending rhythm")
-        expect(model.facts[1].kicker == "固定成本", "second fact should describe fixed cost")
-        expect(model.facts[2].kicker == "可调整空间", "third fact should describe adjustable room")
-        expect(model.facts[0].body.contains("20,032.73 元"), "fact body should preserve original numbers")
-        expect(model.remainingText.isEmpty, "all sample paragraphs should be consumed as facts")
+        expectAnalysisReadableText(model.headline == "支出明显抬高", "fallback headline should be preserved")
+        expectAnalysisReadableText(model.facts.count == 3, "paragraphs should become three scannable facts")
+        expectAnalysisReadableText(model.facts[0].kicker == "支出节奏", "first fact should describe spending rhythm")
+        expectAnalysisReadableText(model.facts[1].kicker == "固定成本", "second fact should describe fixed cost")
+        expectAnalysisReadableText(model.facts[2].kicker == "可调整空间", "third fact should describe adjustable room")
+        expectAnalysisReadableText(model.facts[0].body.contains("20,032.73 元"), "fact body should preserve original numbers")
+        expectAnalysisReadableText(model.remainingText.isEmpty, "all sample paragraphs should be consumed as facts")
 
         let denseSample = """
         事实
@@ -52,12 +62,12 @@ private enum AnalysisReadableTextParserStandaloneTests {
             fallbackHeadline: "最近 30 天支出明显抬高，压力主要来自居住、购物和餐饮。"
         )
 
-        expect(denseModel.facts.count == 3, "dense AI prose should still become three short facts")
-        expect(denseModel.facts[0].kicker == "支出节奏", "dense first fact should describe spending rhythm")
-        expect(denseModel.facts[0].body.hasPrefix("最近 30 天"), "heading text should not leak into fact body")
-        expect(denseModel.facts[0].body.count < 55, "first fact should stay compact")
-        expect(denseModel.facts[1].kicker == "固定成本", "dense second fact should describe fixed cost")
-        expect(denseModel.facts[2].kicker == "可调整空间", "dense third fact should describe adjustable room")
+        expectAnalysisReadableText(denseModel.facts.count == 3, "dense AI prose should still become three short facts")
+        expectAnalysisReadableText(denseModel.facts[0].kicker == "支出节奏", "dense first fact should describe spending rhythm")
+        expectAnalysisReadableText(denseModel.facts[0].body.hasPrefix("最近 30 天"), "heading text should not leak into fact body")
+        expectAnalysisReadableText(denseModel.facts[0].body.count < 55, "first fact should stay compact")
+        expectAnalysisReadableText(denseModel.facts[1].kicker == "固定成本", "dense second fact should describe fixed cost")
+        expectAnalysisReadableText(denseModel.facts[2].kicker == "可调整空间", "dense third fact should describe adjustable room")
 
         print("PASS: AnalysisReadableTextParserStandaloneTests")
     }

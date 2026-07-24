@@ -1,6 +1,16 @@
 import Foundation
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        try HoloMemoryActivationPolicyStandaloneTests.main()
+    }
+}
+#endif
 struct HoloMemoryActivationPolicyStandaloneTests {
     private static var assertions = 0
 
@@ -89,6 +99,31 @@ struct HoloMemoryActivationPolicyStandaloneTests {
         invalid.evidenceRefs = []
         expect(HoloMemoryActivationPolicy.evaluate(invalid) == .discard,
                "缺少证据的输出必须丢弃")
+
+        var legacyTaskRhythm = try makeRecord(domain: .task, now: now)
+        legacyTaskRhythm.displaySummary = "近期任务完成节奏稳定，69 个任务无逾期"
+        legacyTaskRhythm.aiUseSummary = legacyTaskRhythm.displaySummary
+        legacyTaskRhythm.evidenceRefs[0].lineageKey = "task-completion-rhythm"
+        expect(HoloMemoryActivationPolicy.evaluate(legacyTaskRhythm) == .discard,
+               "旧版把完成数量解释为稳定节奏的任务记忆必须退出")
+        expect(!HoloMemoryRecallPolicy.isEligible(legacyTaskRhythm, now: now),
+               "已经入库的旧任务误判不得继续进入 AI 回答")
+
+        var unsupportedTaskActivity = try makeRecord(domain: .task, now: now)
+        unsupportedTaskActivity.displaySummary = "近期任务完成节奏稳定"
+        unsupportedTaskActivity.aiUseSummary = unsupportedTaskActivity.displaySummary
+        unsupportedTaskActivity.evidenceRefs[0].lineageKey = "task-completion-activity"
+        expect(HoloMemoryActivationPolicy.evaluate(unsupportedTaskActivity) == .discard,
+               "新版完成活动信号也不得被模型扩写成稳定节奏")
+
+        var legacyDinner = try makeRecord(domain: .finance, now: now)
+        legacyDinner.displaySummary = "过去 3 个月晚餐支出属于频繁规律性支出"
+        legacyDinner.aiUseSummary = legacyDinner.displaySummary
+        legacyDinner.evidenceRefs[0].lineageKey = "finance-repeated-category-dinner"
+        expect(HoloMemoryActivationPolicy.evaluate(legacyDinner) == .discard,
+               "只有频次和累计金额的旧财务记忆必须退出")
+        expect(!HoloMemoryRecallPolicy.isEligible(legacyDinner, now: now),
+               "已经入库的低价值财务统计不得继续进入 AI 回答")
 
         let staleCurrent = try makeRecord(
             domain: .habit,

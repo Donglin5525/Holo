@@ -1,6 +1,16 @@
 import Foundation
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        try await HoloMemoryQualityMetricsStandaloneTests.main()
+    }
+}
+#endif
 struct HoloMemoryQualityMetricsStandaloneTests {
     private static var assertions = 0
 
@@ -104,7 +114,8 @@ struct HoloMemoryQualityMetricsStandaloneTests {
 
         let plan = HoloMemoryCompactionService().plan(
             records: records,
-            tombstones: [tombstone]
+            tombstones: [tombstone],
+            now: now
         )
         expect(plan.archiveRecordIDs.count == 10, "finance 应归档 5 条，跨域应归档 5 条")
         let confirmedIDs = Set(records.filter { $0.userDecision == .confirmed }.map(\.id))

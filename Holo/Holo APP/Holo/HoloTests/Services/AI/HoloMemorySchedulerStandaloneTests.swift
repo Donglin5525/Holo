@@ -49,7 +49,17 @@ actor ExtractionGate {
     func hasStarted() -> Bool { started }
 }
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        try await HoloMemorySchedulerStandaloneTests.main()
+    }
+}
+#endif
 struct HoloMemorySchedulerStandaloneTests {
     private static var assertions = 0
 

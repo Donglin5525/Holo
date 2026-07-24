@@ -10,7 +10,17 @@ struct MockProjectDataSource: HoloProjectDataSource {
     func snapshot() async -> HoloProjectSnapshot { snapshot }
 }
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        try await HoloProjectToolTests.main()
+    }
+}
+#endif
 struct HoloProjectToolTests {
 
     static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {

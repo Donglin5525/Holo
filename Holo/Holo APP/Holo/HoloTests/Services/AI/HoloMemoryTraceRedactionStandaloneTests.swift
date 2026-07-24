@@ -1,7 +1,17 @@
 #if DEBUG
 import Foundation
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        try await HoloMemoryTraceRedactionStandaloneTests.main()
+    }
+}
+#endif
 struct HoloMemoryTraceRedactionStandaloneTests {
     private static var assertions = 0
 

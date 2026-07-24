@@ -9,6 +9,8 @@
 //    "Holo/Models/AI/HoloMemoryRecord.swift" "Holo/Models/AI/HoloShortTermMemoryModels.swift" \
 //    "Holo/Models/AI/HoloLongTermMemoryModels.swift" "Holo/Models/AI/HoloMemoryEvidence.swift" \
 //    "Holo/Models/AI/HoloAICapability.swift" \
+//    "Holo/Models/InsightPreferenceProfile.swift" \
+//    "Holo/Services/AI/InsightPreferenceProfileService.swift" \
 //    "Holo/Services/AI/MemoryCore/HoloMemoryIdentity.swift" \
 //    "Holo/Services/AI/MemoryCore/HoloMemoryScorer.swift" \
 //    "Holo/Services/AI/MemoryCore/HoloMemoryActivationPolicy.swift" \
@@ -21,11 +23,16 @@
 //    "Holo/Services/AI/Agent/HoloAgentLLMClientProtocol.swift" \
 //    "Holo/Services/AI/Agent/HoloAgentPromptBuilder.swift" \
 //    "Holo/Services/AI/Agent/HoloAgentResponseParser.swift" \
+//    "Holo/Services/AI/Agent/HoloAgentContractPolicy.swift" \
+//    "Holo/Services/AI/Agent/HoloAgentPolicyContext.swift" \
 //    "Holo/Services/AI/Agent/HoloAgentEvidencePolicy.swift" \
 //    "Holo/Services/AI/Agent/HoloAgentTimeSemanticResolver.swift" \
+//    "Holo/Services/AI/Agent/HoloAgentSemanticFrameBuilder.swift" \
+//    "Holo/Services/AI/Agent/HoloAgentBudgetSelector.swift" \
+//    "Holo/Services/AI/Agent/HoloAgentTimeSemanticExtended.swift" \
 //    "Holo/Services/AI/Agent/HoloAgentInputSnapshotHasher.swift" \
 //    "Holo/Services/AI/Agent/PatternMining/HoloPatternMiner.swift" \
-//    "Holo/Services/AI/Agent/Verification/HoloClaimVerifier.swift" \
+//    "Holo/Services/AI/Agent/Verification/"*.swift \
 //    "Holo/Services/AI/HoloMemorySummaryProvider.swift" \
 //    "Holo/Services/Network/APIError.swift" \
 //    <本测试> -o /tmp/holo_agent_runtime_test && /tmp/holo_agent_runtime_test
@@ -268,8 +275,20 @@ actor FakeToolExecutor: HoloAgentToolExecuting {
     func promptDescription() async -> String { "" }
 }
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        try await HoloLocalAgentRuntimeTests.main()
+    }
+}
+#endif
 struct HoloLocalAgentRuntimeTests {
+
+    private static let contractValidBoundaryFinalClaims = #"{"status":"final_claims","reasoning":"证据边界已确认","toolRequests":[],"claims":[{"id":"boundary","type":"capability_boundary","displayText":"当前分析以已取得的数据为边界","metricAssertions":[],"evidenceIDs":[],"prohibitedInferences":[],"confidence":0.5}],"warnings":[]}"#
 
     static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
         if !condition() { fatalError(message) }
@@ -569,7 +588,7 @@ struct HoloLocalAgentRuntimeTests {
     private static func testRunLoop_needTools后finalClaims两轮完成() async throws {
         let dir = makeTempDir()
         let needTools = #"{"status":"need_tools","reasoning":"需要查习惯","toolRequests":[{"id":"t1","tool":"habit","query":"negative_habit_control","timeRange":null,"baseline":null,"requiredMetrics":[],"parameters":{}}],"claims":[],"warnings":[]}"#
-        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let finalClaims = contractValidBoundaryFinalClaims
         let client = FakeAgentLLMClient(responses: [needTools, finalClaims])
         let executor = FakeToolExecutor()
         let fixture = makeLoopRuntime(dir: dir, llmClient: client, toolExecutor: executor)
@@ -658,7 +677,7 @@ struct HoloLocalAgentRuntimeTests {
     private static func testRunLoop_上个月工具请求缺少范围时继承上月范围() async throws {
         let dir = makeTempDir()
         let needTools = #"{"status":"need_tools","reasoning":"需要查消费","toolRequests":[{"id":"t-finance","tool":"finance","query":"spending_breakdown","timeRange":null,"baseline":null,"requiredMetrics":[],"parameters":{}}],"claims":[],"warnings":[]}"#
-        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let finalClaims = contractValidBoundaryFinalClaims
         let client = FakeAgentLLMClient(responses: [needTools, finalClaims])
         let executor = FakeToolExecutor()
         let fixture = makeLoopRuntime(dir: dir, llmClient: client, toolExecutor: executor)
@@ -685,7 +704,7 @@ struct HoloLocalAgentRuntimeTests {
     private static func testRunLoop_工具请求缺少范围时继承Job范围() async throws {
         let dir = makeTempDir()
         let needTools = #"{"status":"need_tools","reasoning":"需要查消费","toolRequests":[{"id":"t-finance","tool":"finance","query":"spending_breakdown","timeRange":null,"baseline":null,"requiredMetrics":[],"parameters":{}}],"claims":[],"warnings":[]}"#
-        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let finalClaims = contractValidBoundaryFinalClaims
         let client = FakeAgentLLMClient(responses: [needTools, finalClaims])
         let executor = FakeToolExecutor()
         let fixture = makeLoopRuntime(dir: dir, llmClient: client, toolExecutor: executor)
@@ -835,7 +854,7 @@ struct HoloLocalAgentRuntimeTests {
     private static func testRunLoop_工具结果进入下一轮LLM上下文且不用原生tool角色() async throws {
         let dir = makeTempDir()
         let needTools = #"{"status":"need_tools","reasoning":"需要查消费","toolRequests":[{"id":"t-finance","tool":"finance","query":"meal_spending","timeRange":null,"baseline":null,"requiredMetrics":[],"parameters":{}}],"claims":[],"warnings":[]}"#
-        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let finalClaims = contractValidBoundaryFinalClaims
         let client = FakeAgentLLMClient(responses: [needTools, finalClaims])
         let executor = FakeToolExecutor()
         let fixture = makeLoopRuntime(dir: dir, llmClient: client, toolExecutor: executor)
@@ -860,7 +879,7 @@ struct HoloLocalAgentRuntimeTests {
     private static func testRunLoop_工具上下文使用全局唯一EvidenceID() async throws {
         let dir = makeTempDir()
         let needTools = #"{"status":"need_tools","reasoning":"需要查消费","toolRequests":[{"id":"t-finance","tool":"finance","query":"meal_spending","timeRange":null,"baseline":null,"requiredMetrics":[],"parameters":{}}],"claims":[],"warnings":[]}"#
-        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let finalClaims = contractValidBoundaryFinalClaims
         let client = FakeAgentLLMClient(responses: [needTools, finalClaims])
         let executor = FakeToolExecutor()
         let fixture = makeLoopRuntime(dir: dir, llmClient: client, toolExecutor: executor)
@@ -1022,7 +1041,7 @@ struct HoloLocalAgentRuntimeTests {
     /// 后台暂停 → 前台恢复 → runLoop 从 checkpoint 续跑完成（恢复语义端到端）。
     private static func test后台暂停后恢复并RunLoop完成() async throws {
         let dir = makeTempDir()
-        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let finalClaims = contractValidBoundaryFinalClaims
         let client = FakeAgentLLMClient(responses: [finalClaims])
         let executor = FakeToolExecutor()
         let fixture = makeLoopRuntime(dir: dir, llmClient: client, toolExecutor: executor)
@@ -1048,7 +1067,7 @@ struct HoloLocalAgentRuntimeTests {
         settings.agentStepIdempotencyEnabled = true
         defer { settings.agentStepIdempotencyEnabled = original }
         let dir = makeTempDir()
-        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let finalClaims = contractValidBoundaryFinalClaims
         let client = FakeAgentLLMClient(responses: [finalClaims])
         let executor = FakeToolExecutor()
         let fixture = makeLoopRuntime(dir: dir, llmClient: client, toolExecutor: executor)

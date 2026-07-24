@@ -10,7 +10,17 @@
 
 import Foundation
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        HoloAgentResponseParserTests.main()
+    }
+}
+#endif
 struct HoloAgentResponseParserTests {
 
     static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -64,7 +74,9 @@ struct HoloAgentResponseParserTests {
         expect(plan?.leftFilters.isEmpty == true && plan?.rightFilters.isEmpty == true, "应补齐过滤器")
     }
 
-    private static let validJSON = #"{"status":"final_claims","reasoning":"证据充分","toolRequests":[],"claims":[],"warnings":[]}"#
+    // P0-D 集成后，final_claims 必须含至少一条有 evidence 的 claim（Contract Policy 校验）。
+    // 空 claims 会被拒绝。此 fixture 提供合法的有证据 claim。
+    private static let validJSON = #"{"status":"final_claims","reasoning":"证据充分","toolRequests":[],"claims":[{"id":"c1","type":"observation","displayText":"本月消费3000元","metricAssertions":[{"metricKey":"finance.total","value":3000,"unit":"元","evidenceIDs":["e1"]}],"evidenceIDs":["e1"],"prohibitedInferences":[],"confidence":0.8}],"warnings":[]}"#
 
     private static func test纯JSON解析成功() {
         let output = try? HoloAgentResponseParser.parse(validJSON, remainingRetries: 2)
@@ -80,7 +92,7 @@ struct HoloAgentResponseParserTests {
     }
 
     private static func test旧字段text可解析为displayText() {
-        let raw = #"{"status":"final_claims","reasoning":"证据充分","toolRequests":[],"claims":[{"id":"c1","text":"餐饮消费集中在晚餐","metricAssertions":[],"evidenceIDs":["e1"]}],"warnings":[]}"#
+        let raw = #"{"status":"final_claims","reasoning":"证据充分","toolRequests":[],"claims":[{"id":"c1","text":"餐饮消费集中在晚餐","metricAssertions":[{"metricKey":"finance.food","value":800,"unit":"元","evidenceIDs":["e1"]}],"evidenceIDs":["e1"]}],"warnings":[]}"#
         let output = try? HoloAgentResponseParser.parse(raw, remainingRetries: 0)
         expect(output != nil, "旧字段 text 应兼容解析")
         expect(output?.claims.first?.displayText == "餐饮消费集中在晚餐", "text 应映射到 displayText")

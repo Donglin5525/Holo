@@ -44,7 +44,17 @@ struct MockExecutorTool: HoloDataTool {
     }
 }
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        await HoloToolExecutorTests.main()
+    }
+}
+#endif
 struct HoloToolExecutorTests {
 
     static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {

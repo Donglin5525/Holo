@@ -1,11 +1,22 @@
 import Foundation
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        StructuredDomainMemorySignalsTests.main()
+    }
+}
+#endif
 struct StructuredDomainMemorySignalsTests {
     private static var assertions = 0
 
     static func main() {
         testFinanceSignalsUseLocalStatisticsAndRequireRepeatedEvidence()
+        testRoutineHighFrequencySpendingDoesNotBecomeMemory()
         testFinanceBudgetEvidenceAndBoundaries()
         testHabitRhythmInterruptionAndRecovery()
         testGoalSignalsOnlyUseUserCreatedGoals()
@@ -47,6 +58,31 @@ struct StructuredDomainMemorySignalsTests {
                "财务信号必须携带收入、阶层、人格推断边界")
         expect(fixed?.prohibitedInferences.contains(where: { $0.contains("目标") && $0.contains("因果") }) == true,
                "财务领域不得写与减脂目标冲突等跨域结论")
+    }
+
+    private static func testRoutineHighFrequencySpendingDoesNotBecomeMemory() {
+        let now = Date(timeIntervalSince1970: 1_720_000_000)
+        let dinners = (0..<49).map { index in
+            FinanceMemoryTransactionInput(
+                id: "dinner-\(index)",
+                amount: 80 + Double(index % 7),
+                isExpense: true,
+                categoryID: "dinner",
+                categoryName: "晚餐",
+                merchant: "日常晚餐",
+                occurredAt: now.addingTimeInterval(-Double(index) * 86_400),
+                revisionDigest: "dinner-r\(index)"
+            )
+        }
+        let signals = FinanceMemorySignalBuilder.build(from: .init(
+            currentTransactions: dinners,
+            previousTransactions: [],
+            budgets: [],
+            windowStart: now.addingTimeInterval(-90 * 86_400),
+            windowEnd: now
+        ))
+        expect(signals.isEmpty,
+               "晚餐等天然高频日常支出只有次数和累计金额时，不得形成长期记忆")
     }
 
     private static func testFinanceBudgetEvidenceAndBoundaries() {

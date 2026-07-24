@@ -1,6 +1,16 @@
 import Foundation
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        HabitPerformanceModelsStandaloneTests.main()
+    }
+}
+#endif
 struct HabitPerformanceModelsStandaloneTests {
     static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
         if !condition() {

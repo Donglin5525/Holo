@@ -14,7 +14,17 @@ actor QueryStoreSpy: HoloMemoryQueryStore {
     func currentFetchCount() -> Int { fetchCount }
 }
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        try await HoloMemoryQueryRouterStandaloneTests.main()
+    }
+}
+#endif
 struct HoloMemoryQueryRouterStandaloneTests {
     private static var assertionCount = 0
 

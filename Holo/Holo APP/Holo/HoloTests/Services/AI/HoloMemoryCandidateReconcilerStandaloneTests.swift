@@ -55,7 +55,17 @@ final class MockCandidateReconcileRepository: HoloMemoryRepository, @unchecked S
     func deleteTombstoneForMigration(identityKey: String) async throws {}
 }
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        try await HoloMemoryCandidateReconcilerStandaloneTests.main()
+    }
+}
+#endif
 struct HoloMemoryCandidateReconcilerStandaloneTests {
     private static var assertions = 0
 

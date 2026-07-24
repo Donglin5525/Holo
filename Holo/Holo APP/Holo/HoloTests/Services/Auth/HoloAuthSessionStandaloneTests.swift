@@ -13,8 +13,18 @@ private func assertEqual(_ actual: String, _ expected: String, _ message: String
     }
 }
 
+#if HOLO_XCTEST_BRIDGE
+import XCTest
+@testable import Holo
+#else
 @main
-private enum HoloAuthSessionStandaloneTestRunner {
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        HoloAuthSessionStandaloneTestRunner.main()
+    }
+}
+#endif
+enum HoloAuthSessionStandaloneTestRunner {
     static func main() {
         let namedSession = HoloAuthSession(
             userIdentifier: "apple-user-1",
