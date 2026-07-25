@@ -4,6 +4,40 @@
 
 ---
 
+## [2026-07-26] Agent 引入「数据探查层」+ 修复多轮不收敛/停止按钮/预算耗尽
+
+本次为 HoloAI Agent 架构级改造，根源性解决"深度分析反复失败、无法形成可信结论"问题。全程基于后端真实日志逐层定位（共 5 次真机复现 + 日志追溯），修复了从数据探查、预算、协议、校验到 UI 的多个长期缺陷。
+
+### 新增：数据探查层（discover 工具）
+- **问题**：模型此前只能看静态 schema（habit.daily 有 value/habit 字段），不知道用户实际有哪些习惯、叫什么名字、什么类型。导致把"体重"猜到 profile 工具上空转 10 轮，最终绝望报告"系统中没有体重记录"。
+- **方案**：新增 `HoloDiscoverTool`，在模型写 dynamicPlan 前确定性返回用户实际数据全貌（习惯名称/类型/单位/总记录数/覆盖时段/近30天活跃度）。复杂任务在 LLM 循环前自动执行，结果注入上下文。模型据此基于事实规划查询，不再盲猜数据归属。
+- **设计要点**：discover 是纯本地确定性工具（读 Core Data，不调 LLM）；探查范围为全量数据概况（不限固定窗口，避免用户问全年却只看到近30天而误判数据不足）；指标→数据集映射可演进（今天体重在 habit、明天可能在 health，以 discover 实时返回为准，不硬编码进 prompt）。
+
+### 修复：Agent 多轮不收敛（5 层根因逐个清除）
+- **预算耗尽**：normalDeep 5轮/120s → 12轮/300s，extendedDeep 16轮/420s；按任务画像自动放行 extendedDeep（跨域/比较/单域长范围>90天）
+- **prompt 雪崩**：toolResultMessage 改增量发送，不再每轮全量重发（原实现 prompt O(N) 增长）
+- **system prompt 未接入**：AnalysisService 接入 PromptManager.agentLoop（原传空串导致模型无协议约束，claim 全被 verifier reject）
+- **数据正确性**：① 中文数字年份归一化（"二零二六年"原无法解析，退回近14天）② 测量型习惯缺失日不发射行（原零填充污染 average/trend 致 value=0）③ habit.daily.value.unit 改 nil + validator 忽略大小写（原单位写死"次"导致测量型"KG"被拒）④ limit 上限 50→200 ⑤ distinctCount 放开对 groupable 文本字段的限制
+
+### 修复：停止按钮无效
+- **问题**：停止按钮只取消了聊天流式 Task，没碰 Scheduler 的 Agent Task（两者是独立 Task 对象），导致点停止后 Agent 继续跑到预算耗尽。
+- **方案**：Scheduler 新增 cancelActiveUserQuestions，cancelStreaming 显式调用。
+
+### 修复：空结论 UI 文案误导
+- HoloAgentResult 新增 emptyReason 字段区分"无数据"vs"未通过校验"，UI 据此显示诚实文案，不再一律甩锅"数据不足"。
+
+### 后端配套
+- agent_loop 响应记录完整模型正文（原只存 usage，看不到模型每轮返回的 JSON，调试长期盲人摸象）；日志字符上限 2000→50000。
+
+### 验证
+- 5 次真机复现 + 后端日志确认 discover 生效、模型正确查询 habit.daily、最终基于真实数据返回"数据覆盖不足"的诚实结论（链路全通）。
+- App target 编译通过；resolver/budget 单测通过。
+
+### 性质
+- **iOS 端需重新编译**（prompt/工具均为本地）。后端 agent_loop 正文记录已在线上部署验证。其余后端无改动，无需发版。
+
+---
+
 ## [2026-07-25] 修复对话页「加载更早消息」不跟手 + 加载量扩到 30 条/次
 
 上滑加载更多历史消息时：① 加载出来的内容会自动把视图向前滚动到最新消息，无法停在用户当时看的那条；② 快速下滑浏览时卡片有「向下拖动」的动画感；③ 每次只加载很少几条（受 4 小时会话截断）。对齐微信/iMessage 体验。
