@@ -587,3 +587,9 @@ limit=3
 
 - Agent Eval：85（P0 seed）+ 92（P4 问法矩阵）= **177 条全绿**，覆盖 11 类场景，RunnerTests 硬断言 >=165 与全类别覆盖。
 - 同义问法组（syn-fin-inc 14 条 / syn-fin-dec 5 / syn-fin-rate 3 / syn-fin-custom 3 / syn-hab-inc / syn-hab-rank / syn-hab-trend / syn-task-cmp / syn-health-avg 3 / syn-health-trend）由 runner 交叉断言：同一 AnswerTask（除 rangeLabel 外）+ 答案数字一致。
+
+### 16.6 终验结果（2026-07-25，主会话复核）
+
+- 7 套 standalone 测试全部通过：HoloMetricSemantic / HoloFixedToolSemantic / HoloDeterministicAnswerComposer / HoloAnswerCrossDomain / HoloAgentAnswerPresentation / HoloAgentAnswerObservability / HoloAgentEvalRunner（177/177）。
+- `xcodebuild -scheme Holo -configuration Debug build` → BUILD SUCCEEDED。
+- §10.4 第 7 条性能门槛实测：`-O` 编译下 50 条 Evidence 合成 best-of-20 = **0.396ms**，远低于 20ms 目标（此前仅有 debug 编译 <50ms 的放宽断言，本条补齐实测证据）。
