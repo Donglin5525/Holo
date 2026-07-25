@@ -180,9 +180,6 @@ struct AddTaskSheet: View {
                 Color.holoBackground.ignoresSafeArea()
 
                 VStack(spacing: 0) {
-                    // 拖动指示条
-                    dragIndicator
-
                     // 顶部区域
                     headerSection
 
@@ -192,6 +189,9 @@ struct AddTaskSheet: View {
                             // 任务内容
                             taskContentSection
 
+                            // 截止日期（上移：任务之后最关键的信息，第一屏可见）
+                            dueDateSection
+
                             // 检查清单
                             checklistSection
 
@@ -200,9 +200,6 @@ struct AddTaskSheet: View {
 
                             // 属性与清单
                             metadataSection
-
-                            // 截止日期
-                            dueDateSection
 
                             // 编辑模式：删除任务
                             if existingTask != nil {
@@ -397,16 +394,6 @@ struct AddTaskSheet: View {
         return Double(completedCount) / Double(checkItems.count)
     }
 
-    // MARK: - 拖动指示条
-
-    private var dragIndicator: some View {
-        Capsule()
-            .fill(Color.holoTextSecondary.opacity(0.3))
-            .frame(width: 36, height: 5)
-            .padding(.top, 12)
-            .padding(.bottom, 8)
-    }
-
     // MARK: - 顶部区域
 
     private var headerSection: some View {
@@ -418,7 +405,8 @@ struct AddTaskSheet: View {
             Spacer()
         }
         .padding(.horizontal, HoloSpacing.lg)
-        .padding(.vertical, HoloSpacing.sm)
+        .padding(.top, HoloSpacing.sm)
+        .padding(.bottom, HoloSpacing.sm)
     }
 
     // MARK: - 任务内容

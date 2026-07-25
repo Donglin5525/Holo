@@ -4,6 +4,49 @@
 
 ---
 
+## [2026-07-25] Agent 统一结果语义契约：数字结论不再靠猜
+
+Agent 数据分析的回答从「渲染层根据内部代号猜含义」改为「计算时携带类型化语义 + 本地确定性合成答案」。用户看到的数字结论 100% 可追溯证据，同义问法答案结构一致，模型返回乱码/内部代号会在展示前被拦截并自动恢复为正确答案。
+
+### 新增
+- **类型化结果语义（P1）**：`HoloMetricSemantic` 随计算结果产出——是什么指标、怎么算的、当前值/基准值/差值角色、分组维度、单位；动态查询引擎、跨域工具与财务/习惯/任务/健康固定工具全链路携带，Evidence Ledger 持久化兼容旧数据
+- **通用答案任务 + 确定性答案合成器（P2）**：比较/排名/拆解/趋势/查数五种答案模式领域无关复用；「多在哪儿」按绝对增量取前三，「涨幅最高」按变化率，零基准不出百分比，总增组减说明抵消项，覆盖不足强制披露
+- **展示前覆盖验证（P2）**：内部代号、公式、占位词、编造分类、方向矛盾、覆盖未披露一律拦截；证据完整时丢弃模型坏文案本地重合成，证据不足时给可理解的边界说明，绝不交付半成品
+- **可观测指标（P4）**：`agent.semantic.missing` / `legacy_fallback` / `composer_used` / `model_text_discarded` / `coverage_failed` / `internal_token_blocked` 六项本地聚合，不记录用户原文与数字
+- **灰度开关**：`agentTypedResultSemanticsEnabled` / `agentDeterministicAnswerComposerEnabled` 默认开启，可经 UserDefaults 回退旧链路
+
+### 修复
+- **截图事故根治**：「这个月消费比上个月多在哪儿」不再出现「计算结果 24.3 比例」，标准答案形如「本月支出比上月增加 1,248 元，主要来自餐饮（+620 元）、交通（+386 元）和购物（+242 元）。餐饮贡献了总增量的 49.7%。」
+- **变化率超 100% 显示错误**：+242% 误显为 +2.4% 的合成器启发式已修正
+- **派生优先级**：「平均/日均」类问法不再被误判为趋势，回归查数模式
+
+### 删除
+- 财务环比专用特判 `financeComparisonAnswer`（P3），四领域统一走通用合成器；`HoloMetricSemanticCatalog` 降为旧证据兼容层，禁止新增 case
+
+### 测试
+- Agent Eval 问法矩阵新增 92 条（总量 **177 条全绿**，11 类场景）：14 条「消费环比」同义改写交叉断言同一答案、17 条坏模型文案故障注入、零基准/双零/并列/总增组减/部分月份/NaN/旧证据兼容等边界全覆盖
+- 7 套 standalone 测试全过；App Debug 构建通过；`-O` 下 50 条证据合成耗时 0.396ms（目标 <20ms）
+
+### 性质
+- 纯前端改动，不涉及后端接口 / Prompt / 数据契约，**无需后端发版**
+
+---
+
+## [2026-07-25] 首页全屏模块改 ZStack 常驻 + 财务明细排序 + 手势锁加固
+
+HomeView 历史上用 8 个 `showXxxView: Bool` + `.fullScreenCover` 分别承载财务/任务/习惯/想法/AI 等模块，模块间跳转（如 AI → 财务证据页）必须先 dismiss 再 present，会闪过一帧首页。本次把全屏模块统一改为 ZStack 平级常驻，由单一 `activeScreen` 控制可见层，跨模块跳转不再经过首页中转。同时配套财务明细页的排序能力与手势锁的小修。
+
+### 变更
+- **全屏模块 ZStack 常驻**：`HomeView` 删除 8 个 `showXxxView` 状态，改用 `activeScreen: ActiveScreen?`；新增 `holoDismiss` 自定义 Environment（`HoloScreenDismiss.swift`）作为常驻模块的统一关闭入口，未注入时 fallback 到系统 `@Environment(\.dismiss)`，兼容仍以 sheet 呈现的 PersonalView。配套 `Animation/AnyTransition.holoScreenTransition` 复刻系统模态 cover 的"上滑+淡入"手感。
+- **各模块接通 holoDismiss**：Finance/Chat/Tasks/Habits/Health/Thoughts/MemoryGallery 的返回入口从 `dismiss()` 切到 `close()`（优先 holoDismiss），保持常驻层与旧 sheet 场景都能正确关闭。`AddTaskSheet` 同步适配。
+- **财务明细排序**：明细页新增排序菜单（`FinanceDetailPresentation.swift`），支持时间↑/时间↓/金额↑/金额↓ 四种；金额排序按全局金额排列（不再只在每日内部排序），时间排序保留按日分组。`DetailTabView` / `LineChartView` / `FinanceComponents` 同步适配。
+- **手势锁加固**：`HorizontalGestureLock` 新增重置/状态查询能力并补 `HorizontalGestureLockTests`（standalone 桥接）。
+
+### 性质
+- 纯前端改动，不涉及后端接口 / Prompt / 数据契约，**无需后端发版**
+
+---
+
 ## [2026-07-25] 财务数据依据页：合计期次切换 + 科目对比视图
 
 ### 新增

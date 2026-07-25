@@ -210,6 +210,8 @@ struct DateDivider: View {
 /// 交易行视图
 struct TransactionRowView: View {
     let transaction: Transaction
+    var isCompact: Bool = false
+    var showsDate: Bool = false
     let onTap: () -> Void
 
     /// 是否有用户填写的名称
@@ -228,14 +230,31 @@ struct TransactionRowView: View {
         return false
     }
 
+    private var compactMetadataText: String? {
+        var parts: [String] = []
+
+        if showsDate {
+            parts.append(formatDateTime(transaction.date))
+        }
+        if hasRemark, let remark = transaction.remark {
+            parts.append(remark)
+        }
+        if let account = transaction.account, !account.isDefault {
+            parts.append(account.name)
+        }
+
+        let text = parts.joined(separator: " · ")
+        return text.isEmpty ? nil : text
+    }
+
     var body: some View {
         Button(action: onTap) {
             // 列表行风格：左侧分类信息，右侧金额严格对齐
-            HStack(alignment: .center, spacing: HoloSpacing.md) {
+            HStack(alignment: .center, spacing: isCompact ? 10 : HoloSpacing.md) {
                 // 分类图标
                 categoryIcon
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: isCompact ? 2 : 4) {
                     // 主标题 + 分期标签
                     HStack(spacing: 4) {
                         Text(hasNote ? (transaction.note ?? "") : (transaction.category?.name ?? "未分类"))
@@ -251,20 +270,29 @@ struct TransactionRowView: View {
                         }
                     }
 
-                    // 副标题：有备注显示备注，无备注不显示副标题
-                    if hasRemark, let remark = transaction.remark {
-                        Text(remark)
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
-                            .lineLimit(1)
-                    }
+                    if isCompact {
+                        if let compactMetadataText {
+                            Text(compactMetadataText)
+                                .font(.system(size: 11))
+                                .foregroundColor(.holoTextSecondary)
+                                .lineLimit(1)
+                        }
+                    } else {
+                        // 副标题：有备注显示备注，无备注不显示副标题
+                        if hasRemark, let remark = transaction.remark {
+                            Text(remark)
+                                .font(.system(size: 12))
+                                .foregroundColor(.holoTextSecondary)
+                                .lineLimit(1)
+                        }
 
-                    // 非默认账户时显示账户名
-                    if let account = transaction.account, !account.isDefault {
-                        Text(account.name)
-                            .font(.system(size: 11))
-                            .foregroundColor(.holoTextSecondary.opacity(0.7))
-                            .lineLimit(1)
+                        // 非默认账户时显示账户名
+                        if let account = transaction.account, !account.isDefault {
+                            Text(account.name)
+                                .font(.system(size: 11))
+                                .foregroundColor(.holoTextSecondary.opacity(0.7))
+                                .lineLimit(1)
+                        }
                     }
                 }
 
@@ -279,9 +307,9 @@ struct TransactionRowView: View {
                     .frame(alignment: .trailing)
             }
             .frame(maxWidth: .infinity)
-            .padding(.leading, 11)
-            .padding(.trailing, HoloSpacing.md)
-            .padding(.vertical, 10)
+            .padding(.leading, isCompact ? 6 : 11)
+            .padding(.trailing, isCompact ? HoloSpacing.sm : HoloSpacing.md)
+            .padding(.vertical, isCompact ? HoloSpacing.xs : 10)
             .contentShape(Rectangle())
         }
         .buttonStyle(PlainButtonStyle())
@@ -292,13 +320,13 @@ struct TransactionRowView: View {
         let cat = transaction.category
         let color: Color = (cat?.isDeleted ?? false) ? .holoPrimary : (cat?.swiftUIColor ?? .holoPrimary)
         let iconName = cat?.icon ?? "questionmark.folder.fill"
-        return CategoryIconBadge(iconName: iconName, color: color, diameter: 48)
+        return CategoryIconBadge(iconName: iconName, color: color, diameter: isCompact ? 40 : 48)
     }
 
-    private func formatTime(_ date: Date) -> String {
+    private func formatDateTime(_ date: Date) -> String {
         let f = DateFormatter()
         f.locale = Locale(identifier: "zh_CN")
-        f.dateFormat = "HH:mm"
+        f.dateFormat = "M月d日 HH:mm"
         return f.string(from: date)
     }
 }

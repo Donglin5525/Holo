@@ -11,6 +11,11 @@ import SwiftUI
 struct ChatView: View {
 
     @Environment(\.dismiss) private var dismiss
+    /// ZStack 平级常驻模式下的关闭动作（由 HomeView 注入）；
+    /// 兼容旧 sheet/cover 场景：未注入时 fallback 到 @Environment(\.dismiss)。
+    @Environment(\.holoDismiss) private var holoDismiss
+    /// 统一关闭入口：优先 holoDismiss，否则 dismiss。
+    private var close: () -> Void { holoDismiss ?? { dismiss() } }
     @StateObject private var viewModel = ChatViewModel()
     @State private var activeSheet: ChatSheet?
     #if DEBUG || INTERNAL_DIAGNOSTICS
@@ -68,7 +73,7 @@ struct ChatView: View {
             }
         }
         .swipeBackToDismiss {
-            dismiss()
+            close()
         }
         .overlay(alignment: .top) {
             if let notice = memoryInboxNotice {
@@ -222,7 +227,7 @@ struct ChatView: View {
     private var chatNavBar: some View {
         HStack {
             Button {
-                dismiss()
+                close()
             } label: {
                 Image(systemName: "xmark")
                     .font(.system(size: 16, weight: .medium))
@@ -380,8 +385,9 @@ struct ChatView: View {
                                 viewModel.showGoalDraftReview = true
                             },
                             onSavedGoalCardTap: { goalId in
+                                // HomeView 监听 deepLinkState 变化后会切换 activeScreen，
+                                // ChatView 会自动隐藏，无需手动 dismiss。
                                 DeepLinkState.shared.navigate(to: .goalDetail(goalId: goalId))
-                                dismiss()
                             },
                             onRetry: {
                                 Task { await viewModel.retryMessage(message) }
@@ -521,8 +527,9 @@ struct ChatView: View {
         if let route = FlexibleQueryFinanceSearchRoute(cardData: data) {
             financeSearchRoute = route
         } else {
+            // HomeView 监听 deepLinkState 变化后会切换 activeScreen 到 .finance，
+            // ChatView 会自动隐藏，无需手动 dismiss。
             DeepLinkState.shared.navigate(to: .finance)
-            dismiss()
         }
     }
 
@@ -533,11 +540,10 @@ struct ChatView: View {
             let transaction = FinanceRepository.shared.findTransaction(by: transactionId)
             activeSheet = transaction.map { .editTransaction($0) }
         } else if let taskId = message.resolveLinkedEntityId(for: .task) {
+            // HomeView 监听 deepLinkState 变化后自动切换 activeScreen，ChatView 自动隐藏。
             DeepLinkState.shared.navigate(to: .taskDetail(taskId: taskId))
-            dismiss()
         } else if message.hasLinkedEntity(for: .memoryInsight) {
             DeepLinkState.shared.navigate(to: .memoryGallery)
-            dismiss()
         }
     }
 
@@ -578,8 +584,8 @@ struct ChatView: View {
             }
         case .task:
             if let taskId = message.resolveLinkedEntityId(for: .task) {
+                // HomeView 监听 deepLinkState 变化后自动切换 activeScreen。
                 DeepLinkState.shared.navigate(to: .taskDetail(taskId: taskId))
-                dismiss()
             }
         case .habitCheckIn, .mood, .weight:
             break
@@ -626,7 +632,7 @@ struct ChatView: View {
                         baselineEnd: drilldown.baselineEnd,
                         sourceEvidenceID: drilldown.sourceEvidenceID
                     )))
-                    dismiss()
+                    // HomeView 监听 deepLinkState 变化后自动切换 activeScreen 到 .finance，ChatView 自动隐藏。
                 }
             }
         case .memoryCenter:

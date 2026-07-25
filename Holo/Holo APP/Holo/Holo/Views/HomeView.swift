@@ -31,38 +31,27 @@ struct HomeView: View {
 
     /// 当前选中的导航标签
     @State private var selectedTab: BottomNavBar.TabItem = .ai
-    
-    /// 是否显示财务页面
-    @State private var showFinanceView: Bool = false
+
+    /// 当前常驻全屏模块。nil 表示回到首页。
+    /// 取代了历史上 8 个 `showXxxView: Bool` 的 fullScreenCover 模式，
+    /// 改用 ZStack 平级常驻 + activeScreen 控制可见层，
+    /// 让 AI → 财务 这类跨模块跳转不再经过首页中转帧。
+    @State private var activeScreen: ActiveScreen?
 
     /// 从 Agent 等入口跳转到财务统计页时携带的时间范围
     @State private var pendingFinanceAnalysisDeepLink: FinanceAnalysisDeepLink?
 
     /// 从 Agent 证据引用跳转到财务证据核对页时携带的上下文
     @State private var pendingFinanceEvidenceReviewDeepLink: FinanceEvidenceReviewDeepLink?
-    
-    /// 是否显示习惯页面
-    @State private var showHabitsView: Bool = false
 
     /// 是否显示设置页面
     @State private var showSettingsView: Bool = false
 
-    /// 是否显示待办页面
-    @State private var showTasksView: Bool = false
+    /// 是否显示个人页面（保留 sheet 形式：内部还要弹子页面）
+    @State private var showPersonalView: Bool = false
 
-    /// 是否显示记忆长廊页面
-    @State private var showMemoryGallery: Bool = false
-
-    /// 是否显示健康页面
-    @State private var showHealthView: Bool = false
-
-    /// 是否显示观点页面
-    @State private var showThoughtsView: Bool = false
-
-    /// 是否显示 AI 对话页面
-    @State private var showChatView: Bool = false
-
-    /// 是否显示今日看板
+    /// 是否显示今日看板（保留 cover 形式：它本身就是首页的一个临时展开层，
+    /// 不参与跨模块跳转，无需常驻）
     @State private var showDailyKanban: Bool = false
 
     /// AI 对话页面的预填文本
@@ -73,9 +62,6 @@ struct HomeView: View {
 
     /// 目标规划请求（跨页面传递：PersonalView → ChatView）
     @State private var pendingGoalPlanningRequest: GoalPlanningRequest?
-
-    /// 是否显示个人页面
-    @State private var showPersonalView: Bool = false
 
     /// 从 AI 对话卡片跳转到个人目标详情
     @State private var pendingGoalDetailId: UUID?
@@ -146,7 +132,96 @@ struct HomeView: View {
                     }
                 }
 
+            // 首页内容：activeScreen 非 nil 时隐藏（但保留在视图树以维持状态）
             homeContent
+                .opacity(activeScreen == nil ? 1 : 0)
+                .zIndex(0)
+
+            // 全屏模块（ZStack 平级常驻）：activeScreen 控制谁可见。
+            // 用 if 条件保证未激活时不渲染，但 SwiftUI 会保留退出时的状态——
+            // 只要外层 view 不重建，再次切回时对话/列表状态还在。
+            Group {
+                if activeScreen == .ai {
+                    ChatView(
+                        goalPlanningRequest: $pendingGoalPlanningRequest,
+                        prefillText: chatPrefillText,
+                        opensVoiceInputOnAppear: openChatVoiceInput
+                    )
+                    .preferredColorScheme(DarkModeManager.shared.colorScheme)
+                    .transition(.holoScreenTransition)
+                }
+                if activeScreen == .finance {
+                    FinanceView(
+                        initialAnalysisDeepLink: pendingFinanceAnalysisDeepLink,
+                        initialEvidenceReviewDeepLink: pendingFinanceEvidenceReviewDeepLink
+                    )
+                    .preferredColorScheme(DarkModeManager.shared.colorScheme)
+                    .transition(.holoScreenTransition)
+                }
+                if activeScreen == .habits {
+                    HabitsView()
+                        .preferredColorScheme(DarkModeManager.shared.colorScheme)
+                        .transition(.holoScreenTransition)
+                }
+                if activeScreen == .tasks {
+                    TasksView()
+                        .preferredColorScheme(DarkModeManager.shared.colorScheme)
+                        .transition(.holoScreenTransition)
+                }
+                if activeScreen == .memoryGallery {
+                    MemoryGalleryView(
+                        onNavigateToFinance: {
+                            // 直接切换 activeScreen，跨模块跳转不再经过首页
+                            pendingFinanceAnalysisDeepLink = nil
+                            pendingFinanceEvidenceReviewDeepLink = nil
+                            withAnimation(.holoScreenTransition) {
+                                activeScreen = .finance
+                            }
+                        },
+                        onNavigateToChat: { prefillText in
+                            chatPrefillText = prefillText
+                            withAnimation(.holoScreenTransition) {
+                                activeScreen = .ai
+                            }
+                        }
+                    )
+                    .preferredColorScheme(DarkModeManager.shared.colorScheme)
+                    .transition(.holoScreenTransition)
+                }
+                if activeScreen == .health {
+                    HealthView()
+                        .preferredColorScheme(DarkModeManager.shared.colorScheme)
+                        .transition(.holoScreenTransition)
+                }
+                if activeScreen == .thoughts {
+                    ThoughtsView(initialThoughtId: pendingThoughtDetailId)
+                        .preferredColorScheme(DarkModeManager.shared.colorScheme)
+                        .transition(.holoScreenTransition)
+                }
+            }
+            .zIndex(1)
+        }
+        // 注入自定义 dismiss：模块内部用 holoDismiss?() 替代 @Environment(\.dismiss)
+        .environment(\.holoDismiss) {
+            withAnimation(.holoScreenTransition) {
+                activeScreen = nil
+            }
+        }
+        .onChange(of: activeScreen) { _, newValue in
+            // 离开 AI 对话时清理一次性预填状态
+            if newValue != .ai {
+                chatPrefillText = nil
+                openChatVoiceInput = false
+            }
+            // 离开财务页时清理 deep link 参数
+            if newValue != .finance {
+                pendingFinanceAnalysisDeepLink = nil
+                pendingFinanceEvidenceReviewDeepLink = nil
+            }
+            // 进入 AI 时关闭首页一次性提示
+            if newValue == .ai {
+                showAIEntryHint = false
+            }
         }
         // 将 fullScreenCover 挂在整个 HomeView 上，更稳定
         .task {
@@ -171,87 +246,13 @@ struct HomeView: View {
                 showOnboarding = false
             }
         }
-        .fullScreenCover(isPresented: $showFinanceView, onDismiss: {
-            pendingFinanceAnalysisDeepLink = nil
-            pendingFinanceEvidenceReviewDeepLink = nil
-        }) {
-            LazyView {
-                FinanceView(
-                    initialAnalysisDeepLink: pendingFinanceAnalysisDeepLink,
-                    initialEvidenceReviewDeepLink: pendingFinanceEvidenceReviewDeepLink
-                )
-                    .preferredColorScheme(DarkModeManager.shared.colorScheme)
-            }
-        }
-        .fullScreenCover(isPresented: $showHabitsView) {
-            LazyView {
-                HabitsView()
-                    .preferredColorScheme(DarkModeManager.shared.colorScheme)
-            }
-        }
         // 设置页面（Sheet 形式）
         .sheet(isPresented: $showSettingsView) {
             LazyView {
                 SettingsView()
             }
         }
-        // 待办页面（Full Screen Cover 形式）
-        .fullScreenCover(isPresented: $showTasksView) {
-            LazyView {
-                TasksView()
-                    .preferredColorScheme(DarkModeManager.shared.colorScheme)
-            }
-        }
-        // 记忆长廊页面（Full Screen Cover 形式）
-        .fullScreenCover(isPresented: $showMemoryGallery, onDismiss: {
-            selectedTab = .ai
-            if chatPrefillText != nil {
-                showChatView = true
-            }
-        }) {
-            LazyView {
-                MemoryGalleryView(
-                    onNavigateToFinance: {
-                        showMemoryGallery = false
-                        showFinanceView = true
-                    },
-                    onNavigateToChat: { prefillText in
-                        chatPrefillText = prefillText
-                        showMemoryGallery = false
-                    }
-                )
-                .preferredColorScheme(DarkModeManager.shared.colorScheme)
-            }
-        }
-        // 健康页面（Full Screen Cover 形式）
-        .fullScreenCover(isPresented: $showHealthView) {
-            LazyView {
-                HealthView()
-                    .preferredColorScheme(DarkModeManager.shared.colorScheme)
-            }
-        }
-        // 观点页面（Full Screen Cover 形式）
-        .fullScreenCover(isPresented: $showThoughtsView) {
-            LazyView {
-                ThoughtsView(initialThoughtId: pendingThoughtDetailId)
-                    .preferredColorScheme(DarkModeManager.shared.colorScheme)
-            }
-        }
-        // AI 对话页面（Full Screen Cover 形式）
-        .fullScreenCover(isPresented: $showChatView, onDismiss: {
-            chatPrefillText = nil
-            openChatVoiceInput = false
-        }) {
-            LazyView {
-                ChatView(
-                    goalPlanningRequest: $pendingGoalPlanningRequest,
-                    prefillText: chatPrefillText,
-                    opensVoiceInputOnAppear: openChatVoiceInput
-                )
-                    .preferredColorScheme(DarkModeManager.shared.colorScheme)
-            }
-        }
-        // 今日看板（Full Screen Cover 形式）
+        // 今日看板（Full Screen Cover：临时展开层，不参与跨模块跳转，保留 cover）
         .fullScreenCover(isPresented: $showDailyKanban) {
             LazyView {
                 DailyKanbanView()
@@ -266,7 +267,9 @@ struct HomeView: View {
                 PersonalView(onPlanGoal: {
                     pendingGoalPlanningRequest = GoalPlanningRequest(seedText: nil)
                     showPersonalView = false
-                    showChatView = true
+                    withAnimation(.holoScreenTransition) {
+                        activeScreen = .ai
+                    }
                 }, pendingGoalDetailId: $pendingGoalDetailId)
                     .preferredColorScheme(DarkModeManager.shared.colorScheme)
             }
@@ -313,12 +316,6 @@ struct HomeView: View {
         // 监听 Deep Link：热启动/后台时 onChange 检测变化
         .onChange(of: deepLinkState.pendingTarget) { _, _ in
             handleDeepLink()
-        }
-        // 进入 AI 对话时关闭一次性 HoloAI 入口提示
-        .onChange(of: showChatView) { _, isChatOpen in
-            if isChatOpen {
-                showAIEntryHint = false
-            }
         }
         // 监听 repository 变化，自动刷新（拖拽中不刷新，避免干扰排序状态）
         .onChange(of: iconRepository.visibleConfigs) { _, _ in
@@ -377,16 +374,16 @@ struct HomeView: View {
                 },
                 onMemoryTap: {
                     selectedTab = .memory
-                    showMemoryGallery = true
+                    withAnimation(.holoScreenTransition) { activeScreen = .memoryGallery }
                 },
                 onCenterTap: {
                     showAIEntryHint = false
-                    showChatView = true
+                    withAnimation(.holoScreenTransition) { activeScreen = .ai }
                 },
                 centerHintVisible: showAIEntryHint,
                 onHintTap: {
                     showAIEntryHint = false
-                    showChatView = true
+                    withAnimation(.holoScreenTransition) { activeScreen = .ai }
                 }
             )
         }
@@ -750,7 +747,7 @@ struct HomeView: View {
     private func handleHoloOneAction() {
         switch holoOneAction {
         case .aiChat:
-            showChatView = true
+            withAnimation(.holoScreenTransition) { activeScreen = .ai }
         case .addTransaction:
             showAddTransactionSheet = true
         case .addTask:
@@ -764,101 +761,73 @@ struct HomeView: View {
 
     /// 处理 Deep Link 跳转
     /// 由 .onAppear（冷启动）和 .onChange（热启动/后台）触发
+    ///
+    /// 改造说明（ZStack 平级常驻方案）：
+    /// 不再有"先关闭所有 cover → 等 0.3s → 打开目标"的中间帧。
+    /// 直接切换 activeScreen，目标模块淡入即可，首页不会闪现。
     private func handleDeepLink() {
         guard let target = deepLinkState.pendingTarget else { return }
 
-        // 如果目标页面已打开，不需要 dismiss，让模块内部处理跳转
         switch target {
-        case .ai:
-            if showChatView { return }
-        case .taskDetail, .dailyReminder:
-            if showTasksView { return }
-        case .goalDetail:
-            if showPersonalView { return }
-        case .habitDetail:
-            if showHabitsView { return }
-        case .finance, .financeAnalysis(_), .financeEvidenceReview(_):
-            if showFinanceView { return }
-        case .addTransaction:
-            if showAddTransactionSheet { return }
-        case .tasks:
-            if showTasksView { return }
-        case .addTask:
-            if showAddTaskSheet { return }
-        case .recordThought:
-            if showThoughtEditor { return }
-        case .thoughtDetail:
-            if showThoughtsView { return }
-        case .memoryGallery, .memoryInsight(_):
-            if showMemoryGallery { return }
-        }
-
-        // 先关闭所有已打开的 fullScreenCover（SwiftUI 不支持同时 present 多个）
-        showFinanceView = false
-        showHabitsView = false
-        showTasksView = false
-        showMemoryGallery = false
-        showHealthView = false
-        showThoughtsView = false
-        showChatView = false
-        showPersonalView = false
-        pendingThoughtDetailId = nil
-
-        // 延迟后打开目标页面（等待 dismiss 动画完成）
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-            switch target {
-            case .ai(let voiceInput):
+        case .ai(let voiceInput):
+            // 已在 AI 页则只更新预填参数，不重新触发转场
+            if activeScreen != .ai {
                 openChatVoiceInput = voiceInput
-                showChatView = true
-                deepLinkState.pendingTarget = nil
-            case .taskDetail, .dailyReminder:
-                showTasksView = true
-                // pendingTarget 由 TaskListView.handleDeepLink() 清除
-            case .goalDetail(let goalId):
-                pendingGoalDetailId = goalId
-                showPersonalView = true
-                deepLinkState.pendingTarget = nil
-            case .habitDetail:
-                showHabitsView = true
-                // pendingTarget 由 HabitListView 处理后清除
-            case .finance:
-                pendingFinanceAnalysisDeepLink = nil
-                pendingFinanceEvidenceReviewDeepLink = nil
-                showFinanceView = true
-                deepLinkState.pendingTarget = nil
-            case .financeAnalysis(let link):
-                pendingFinanceAnalysisDeepLink = link
-                pendingFinanceEvidenceReviewDeepLink = nil
-                showFinanceView = true
-                deepLinkState.pendingTarget = nil
-            case .financeEvidenceReview(let link):
-                pendingFinanceAnalysisDeepLink = nil
-                pendingFinanceEvidenceReviewDeepLink = link
-                showFinanceView = true
-                deepLinkState.pendingTarget = nil
-            case .addTransaction:
-                showAddTransactionSheet = true
-                deepLinkState.pendingTarget = nil
-            case .tasks:
-                showTasksView = true
-                deepLinkState.pendingTarget = nil
-            case .addTask:
-                showAddTaskSheet = true
-                deepLinkState.pendingTarget = nil
-            case .recordThought:
-                showThoughtEditor = true
-                deepLinkState.pendingTarget = nil
-            case .thoughtDetail(let thoughtId):
-                pendingThoughtDetailId = thoughtId
-                showThoughtsView = true
-                deepLinkState.pendingTarget = nil
-            case .memoryGallery:
-                showMemoryGallery = true
-                deepLinkState.pendingTarget = nil
-            case .memoryInsight(_):
-                // 目标由 MemoryGalleryView 在完成 Tab 切换和洞察展开后消费。
-                showMemoryGallery = true
+                withAnimation(.holoScreenTransition) { activeScreen = .ai }
             }
+            deepLinkState.pendingTarget = nil
+        case .taskDetail, .dailyReminder:
+            // pendingTarget 由 TaskListView.handleDeepLink() 消费清除
+            if activeScreen != .tasks {
+                withAnimation(.holoScreenTransition) { activeScreen = .tasks }
+            }
+        case .goalDetail(let goalId):
+            pendingGoalDetailId = goalId
+            showPersonalView = true
+            deepLinkState.pendingTarget = nil
+        case .habitDetail:
+            // ⚠️ 已知死链：HabitListView 未订阅 deepLinkState，pendingTarget 不会被消费。
+            // 暂保持原行为（只打开页面），由东林后续决定是补全 HabitListView 处理还是删除该 case。
+            if activeScreen != .habits {
+                withAnimation(.holoScreenTransition) { activeScreen = .habits }
+            }
+        case .finance:
+            pendingFinanceAnalysisDeepLink = nil
+            pendingFinanceEvidenceReviewDeepLink = nil
+            withAnimation(.holoScreenTransition) { activeScreen = .finance }
+            deepLinkState.pendingTarget = nil
+        case .financeAnalysis(let link):
+            pendingFinanceAnalysisDeepLink = link
+            pendingFinanceEvidenceReviewDeepLink = nil
+            withAnimation(.holoScreenTransition) { activeScreen = .finance }
+            deepLinkState.pendingTarget = nil
+        case .financeEvidenceReview(let link):
+            pendingFinanceAnalysisDeepLink = nil
+            pendingFinanceEvidenceReviewDeepLink = link
+            withAnimation(.holoScreenTransition) { activeScreen = .finance }
+            deepLinkState.pendingTarget = nil
+        case .addTransaction:
+            showAddTransactionSheet = true
+            deepLinkState.pendingTarget = nil
+        case .tasks:
+            withAnimation(.holoScreenTransition) { activeScreen = .tasks }
+            deepLinkState.pendingTarget = nil
+        case .addTask:
+            showAddTaskSheet = true
+            deepLinkState.pendingTarget = nil
+        case .recordThought:
+            showThoughtEditor = true
+            deepLinkState.pendingTarget = nil
+        case .thoughtDetail(let thoughtId):
+            pendingThoughtDetailId = thoughtId
+            withAnimation(.holoScreenTransition) { activeScreen = .thoughts }
+            deepLinkState.pendingTarget = nil
+        case .memoryGallery:
+            withAnimation(.holoScreenTransition) { activeScreen = .memoryGallery }
+            deepLinkState.pendingTarget = nil
+        case .memoryInsight(_):
+            // 目标由 MemoryGalleryView 在完成 Tab 切换和洞察展开后消费。
+            withAnimation(.holoScreenTransition) { activeScreen = .memoryGallery }
         }
     }
 
@@ -867,19 +836,18 @@ struct HomeView: View {
     /// 处理功能按钮点击事件
     /// - Parameter item: 被点击的按钮配置
     private func handleFeatureButtonTap(_ item: FeatureButtonConfig) {
-        switch item.id {
-        case "task":
-            showTasksView = true
-        case "finance":
-            showFinanceView = true
-        case "health":
-            showHealthView = true
-        case "thoughts":
-            showThoughtsView = true
-        case "habit":
-            showHabitsView = true
-        default:
-            break
+        let destination: ActiveScreen? = {
+            switch item.id {
+            case "task": return .tasks
+            case "finance": return .finance
+            case "health": return .health
+            case "thoughts": return .thoughts
+            case "habit": return .habits
+            default: return nil
+            }
+        }()
+        if let destination {
+            withAnimation(.holoScreenTransition) { activeScreen = destination }
         }
     }
     
@@ -932,3 +900,16 @@ struct HomeView: View {
 #Preview {
     HomeView()
 }
+
+// MARK: - 全屏模块标识
+
+/// HomeView 以 ZStack 平级常驻的全屏模块。
+/// `activeScreen` 控制当前可见层；nil 表示显示首页。
+/// 通过单枚举切换（而非历史上 8 个独立 Bool），
+/// SwiftUI 可在两层之间直接做转场动画，不再需要"先 dismiss 再 present"的首页中转帧。
+enum ActiveScreen: String, Identifiable, CaseIterable {
+    case ai, finance, habits, tasks, memoryGallery, health, thoughts
+
+    var id: String { rawValue }
+}
+

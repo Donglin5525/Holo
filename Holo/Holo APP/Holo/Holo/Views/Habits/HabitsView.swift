@@ -36,6 +36,11 @@ struct HabitsView: View {
     // MARK: - Properties
 
     @Environment(\.dismiss) var dismiss
+    /// ZStack 平级常驻模式下的关闭动作（由 HomeView 注入）。
+    /// 未注入时（旧 sheet/cover 场景）fallback 到 @Environment(\.dismiss)。
+    @Environment(\.holoDismiss) private var holoDismiss
+    /// 统一关闭入口：优先 holoDismiss，否则 dismiss。
+    private var close: () -> Void { holoDismiss ?? { dismiss() } }
     @State private var selectedTab: HabitTab = .habits
     @State private var previousTab: HabitTab = .habits
     @State private var showAddHabit: Bool = false
@@ -49,10 +54,10 @@ struct HabitsView: View {
             Group {
                 switch selectedTab {
                 case .stats:
-                    HabitStatsView(onBack: { dismiss() })
+                    HabitStatsView(onBack: { close() })
                 case .habits:
                     HabitListView(
-                        onBack: { dismiss() },
+                        onBack: { close() },
                         showAddHabit: $showAddHabit
                     )
                 case .settings:
@@ -65,7 +70,7 @@ struct HabitsView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .swipeBackToDismiss { dismiss() }
+        .swipeBackToDismiss { close() }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             habitTabBar
         }

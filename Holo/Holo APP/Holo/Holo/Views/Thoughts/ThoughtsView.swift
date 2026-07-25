@@ -34,6 +34,11 @@ struct ThoughtsView: View {
     // MARK: - Properties
 
     @Environment(\.dismiss) var dismiss
+    /// ZStack 平级常驻模式下的关闭动作（由 HomeView 注入）。
+    /// 未注入时（旧 sheet/cover 场景）fallback 到 @Environment(\.dismiss)。
+    @Environment(\.holoDismiss) private var holoDismiss
+    /// 统一关闭入口：优先 holoDismiss，否则 dismiss。
+    private var close: () -> Void { holoDismiss ?? { dismiss() } }
     @State private var selectedTab: ThoughtTab = .list
     @State private var showAddThought: Bool = false
 
@@ -66,7 +71,7 @@ struct ThoughtsView: View {
                 switch selectedTab {
                 case .list:
                     ThoughtListView(
-                        onBack: { dismiss() },
+                        onBack: { close() },
                         onMenuTap: { openDrawer() },
                         onAIOrganize: { startTopicConvergence() },
                         showAddThought: $showAddThought,
@@ -89,7 +94,7 @@ struct ThoughtsView: View {
             // P1.5.7: 进入观点页时合并 CloudKit 同步产生的重复 Topic（幂等）
             _ = try? topicRepository.mergeDuplicateTopics()
         }
-        .swipeBackToDismiss(isEnabled: !isDrawerOpen) { dismiss() }
+        .swipeBackToDismiss(isEnabled: !isDrawerOpen) { close() }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             thoughtTabBar
         }

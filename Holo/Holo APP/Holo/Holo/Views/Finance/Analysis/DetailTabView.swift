@@ -16,6 +16,11 @@ struct DetailTabView: View {
     @ObservedObject var state: FinanceAnalysisState
     @State private var editingTransaction: Transaction?
     @State private var selectedTrendType: TransactionType = .expense
+    @State private var sortOrder: FinanceDetailSortOrder = .timeDescending
+
+    private enum ScrollAnchor: Hashable {
+        case transactions
+    }
 
     private var filteredTransactions: [Transaction] {
         guard let category = state.selectedDetailCategory else {
@@ -23,6 +28,22 @@ struct DetailTabView: View {
         }
         return state.transactions.filter {
             state.transaction($0, matchesDetailCategory: category)
+        }
+    }
+
+    private var visibleTransactions: [Transaction] {
+        guard let selectedDate = state.selectedChartDate else {
+            return filteredTransactions
+        }
+
+        return filteredTransactions.filter {
+            Calendar.current.isDate($0.date, inSameDayAs: selectedDate)
+        }
+    }
+
+    private var sortedVisibleTransactions: [Transaction] {
+        visibleTransactions.sorted {
+            sortOrder.areInIncreasingOrder(sortValue(for: $0), sortValue(for: $1))
         }
     }
 
@@ -72,22 +93,24 @@ struct DetailTabView: View {
 
     var body: some View {
         ScrollViewReader { scrollProxy in
-            VStack(spacing: 0) {
-                fixedTrendSection(scrollProxy: scrollProxy)
-                    .padding(.horizontal, HoloSpacing.lg)
-                    .padding(.top, HoloSpacing.lg)
-                    .padding(.bottom, HoloSpacing.md)
+            ScrollView {
+                VStack(spacing: 0) {
+                    fixedTrendSection(scrollProxy: scrollProxy)
+                        .padding(.horizontal, HoloSpacing.lg)
+                        .padding(.top, HoloSpacing.md)
+                        .padding(.bottom, HoloSpacing.md)
 
-                transactionListHeader
-                    .padding(.horizontal, HoloSpacing.lg)
-                    .padding(.bottom, HoloSpacing.sm)
+                    transactionListHeader
+                        .id(ScrollAnchor.transactions)
+                        .padding(.horizontal, HoloSpacing.lg)
+                        .padding(.bottom, HoloSpacing.xs)
 
-                ScrollView {
                     transactionListContent
                         .padding(.horizontal, HoloSpacing.lg)
                         .padding(.bottom, HoloSpacing.lg)
                 }
             }
+            .scrollIndicators(.hidden)
             .background(Color.holoBackground)
         }
         .sheet(item: $editingTransaction) { transaction in
@@ -125,7 +148,7 @@ struct DetailTabView: View {
 
                 state.selectChartDate(day)
                 withAnimation(.easeInOut(duration: 0.25)) {
-                    scrollProxy.scrollTo(day, anchor: .top)
+                    scrollProxy.scrollTo(ScrollAnchor.transactions, anchor: .top)
                 }
             }
         }
@@ -138,6 +161,14 @@ struct DetailTabView: View {
         case .income:
             return point.income
         }
+    }
+
+    private func sortValue(for transaction: Transaction) -> FinanceDetailSortValue {
+        FinanceDetailSortValue(
+            id: transaction.id,
+            date: transaction.date,
+            amount: transaction.amount.decimalValue
+        )
     }
 
     // MARK: - 选中时间段的交易列表（根据粒度显示）
@@ -327,96 +358,181 @@ struct DetailTabView: View {
     // MARK: - 全部交易列表
 
     private var transactionListHeader: some View {
-        HStack {
-            Text("交易明细")
+        HStack(spacing: HoloSpacing.sm) {
+            Text(transactionListTitle)
                 .font(.holoHeading)
                 .foregroundColor(.holoTextPrimary)
 
+            Text("\(visibleTransactions.count) 笔")
+                .font(.holoTinyLabel)
+                .foregroundColor(.holoTextSecondary)
+
             Spacer()
 
-            Text("\(filteredTransactions.count) 笔")
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+            if state.selectedChartDate != nil {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        state.selectChartDate(nil)
+                    }
+                } label: {
+                    Text("全部")
+                        .font(.holoTinyLabel)
+                        .fontWeight(.semibold)
+                        .foregroundColor(.holoPrimary)
+                        .padding(.horizontal, 9)
+                        .padding(.vertical, 6)
+                        .background(Color.holoPrimary.opacity(0.1))
+                        .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("查看全部交易")
+            }
+
+            sortMenu
         }
+    }
+
+    private var transactionListTitle: String {
+        guard let selectedDate = state.selectedChartDate else {
+            return "交易明细"
+        }
+
+        let formatter = DateFormatter()
+        return "\(formatter.monthDayString(from: selectedDate))明细"
+    }
+
+    private var sortMenu: some View {
+        Menu {
+            ForEach(FinanceDetailSortOrder.allCases) { order in
+                Button {
+                    sortOrder = order
+                } label: {
+                    if sortOrder == order {
+                        Label(order.menuTitle, systemImage: "checkmark")
+                    } else {
+                        Text(order.menuTitle)
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 3) {
+                Image(systemName: sortOrder.systemImage)
+                    .font(.system(size: 9, weight: .semibold))
+                Text(sortOrder.compactTitle)
+                    .font(.holoTinyLabel)
+                    .fontWeight(.semibold)
+            }
+            .foregroundColor(.holoPrimary)
+            .padding(.horizontal, 9)
+            .padding(.vertical, 6)
+            .background(Color.holoPrimary.opacity(0.1))
+            .clipShape(Capsule())
+        }
+        .accessibilityLabel("切换交易明细排序")
+        .accessibilityValue(sortOrder.menuTitle)
     }
 
     @ViewBuilder
     private var transactionListContent: some View {
-        if filteredTransactions.isEmpty {
+        if visibleTransactions.isEmpty {
             emptyTransactionState
+        } else if sortOrder.groupsByDay {
+            groupedTransactionsView
         } else {
-            VStack(alignment: .leading, spacing: HoloSpacing.md) {
-                groupedTransactionsView
-            }
-        }
-    }
-
-    private var allTransactionsView: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            // 标题
-            transactionListHeader
-
-            // 按日期分组
-            transactionListContent
+            amountSortedTransactionsView
         }
     }
 
     // MARK: - 分组交易列表
 
     private var groupedTransactionsView: some View {
-        let grouped = Dictionary(grouping: filteredTransactions) { tx in
+        let grouped = Dictionary(grouping: visibleTransactions) { tx in
             Calendar.current.startOfDay(for: tx.date)
         }
+        let dates = grouped.keys.sorted {
+            sortOrder == .timeAscending ? $0 < $1 : $0 > $1
+        }
 
-        return ForEach(
-            grouped.keys.sorted(by: >),
-            id: \.self
-        ) { date in
-            VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                // 日期标题
-                HStack {
-                    let df = DateFormatter()
-                    Text(df.monthDayWeekdayString(from: date))
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
+        return VStack(alignment: .leading, spacing: 10) {
+            ForEach(dates, id: \.self) { date in
+                let dayTransactions = sortedTransactions(grouped[date] ?? [])
 
-                    Spacer()
-
-                    // 日汇总
-                    let dayTxns = grouped[date] ?? []
-                    let expense = dayTxns
-                        .filter { $0.transactionType == .expense }
-                        .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
-                    let income = dayTxns
-                        .filter { $0.transactionType == .income }
-                        .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
-
-                    if expense > 0 {
-                        Text("-\(NumberFormatter.currency.string(from: expense as NSDecimalNumber) ?? "")")
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoError)
-                    }
-                    if income > 0 {
-                        Text("+\(NumberFormatter.currency.string(from: income as NSDecimalNumber) ?? "")")
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoSuccess)
-                    }
-                }
-                .padding(.horizontal, HoloSpacing.xs)
-                .padding(.vertical, 2)
-                .background(
-                    RoundedRectangle(cornerRadius: HoloRadius.sm)
-                        .fill(isSelectedDay(date) ? Color.holoPrimary.opacity(0.08) : Color.clear)
-                )
-                .id(date)
-
-                // 交易列表
-                ForEach(grouped[date] ?? [], id: \.self) { tx in
-                    TransactionRowView(transaction: tx) {
-                        editingTransaction = tx
-                    }
+                VStack(alignment: .leading, spacing: 2) {
+                    dateHeader(date: date, transactions: dayTransactions)
+                    compactTransactionRows(dayTransactions, showsDate: false)
                 }
             }
+        }
+    }
+
+    private var amountSortedTransactionsView: some View {
+        compactTransactionRows(
+            sortedVisibleTransactions,
+            showsDate: state.selectedChartDate == nil
+        )
+    }
+
+    private func dateHeader(date: Date, transactions: [Transaction]) -> some View {
+        let expense = transactions
+            .filter { $0.transactionType == .expense }
+            .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+        let income = transactions
+            .filter { $0.transactionType == .income }
+            .reduce(Decimal(0)) { $0 + $1.amount.decimalValue }
+
+        return HStack(spacing: HoloSpacing.sm) {
+            let formatter = DateFormatter()
+            Text(formatter.monthDayWeekdayString(from: date))
+                .font(.holoCaption)
+                .foregroundColor(.holoTextSecondary)
+
+            Spacer()
+
+            if expense > 0 {
+                Text("-\(NumberFormatter.currency.string(from: expense as NSDecimalNumber) ?? "")")
+                    .font(.system(size: 12))
+                    .foregroundColor(.holoError)
+            }
+            if income > 0 {
+                Text("+\(NumberFormatter.currency.string(from: income as NSDecimalNumber) ?? "")")
+                    .font(.system(size: 12))
+                    .foregroundColor(.holoSuccess)
+            }
+        }
+        .padding(.horizontal, HoloSpacing.xs)
+        .padding(.vertical, 2)
+        .background(
+            RoundedRectangle(cornerRadius: HoloRadius.sm)
+                .fill(isSelectedDay(date) ? Color.holoPrimary.opacity(0.08) : Color.clear)
+        )
+    }
+
+    private func compactTransactionRows(
+        _ transactions: [Transaction],
+        showsDate: Bool
+    ) -> some View {
+        VStack(spacing: 0) {
+            ForEach(transactions) { transaction in
+                TransactionRowView(
+                    transaction: transaction,
+                    isCompact: true,
+                    showsDate: showsDate
+                ) {
+                    editingTransaction = transaction
+                }
+
+                if transaction.id != transactions.last?.id {
+                    Divider()
+                        .background(Color.holoDivider.opacity(0.55))
+                        .padding(.leading, 56)
+                }
+            }
+        }
+    }
+
+    private func sortedTransactions(_ transactions: [Transaction]) -> [Transaction] {
+        transactions.sorted {
+            sortOrder.areInIncreasingOrder(sortValue(for: $0), sortValue(for: $1))
         }
     }
 

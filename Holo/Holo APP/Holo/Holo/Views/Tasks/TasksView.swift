@@ -41,6 +41,11 @@ struct TasksView: View {
     // MARK: - Properties
 
     @Environment(\.dismiss) var dismiss
+    /// ZStack 平级常驻模式下的关闭动作（由 HomeView 注入）。
+    /// 未注入时（旧 sheet/cover 场景）fallback 到 @Environment(\.dismiss)。
+    @Environment(\.holoDismiss) private var holoDismiss
+    /// 统一关闭入口：优先 holoDismiss，否则 dismiss。
+    private var close: () -> Void { holoDismiss ?? { dismiss() } }
     @State private var selectedTab: TodoTab = .tasks
     @State private var showAddTask: Bool = false
     @State private var showNotificationSettings: Bool = false
@@ -57,16 +62,16 @@ struct TasksView: View {
             Group {
                 switch selectedTab {
                 case .stats:
-                    TaskStatsView(repository: repository, onBack: { dismiss() })
+                    TaskStatsView(repository: repository, onBack: { close() })
                 case .tasks:
-                    TaskListView(repository: repository, onBack: { dismiss() })
+                    TaskListView(repository: repository, onBack: { close() })
                 case .add:
                     EmptyView()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .swipeBackToDismiss { dismiss() }
+        .swipeBackToDismiss { close() }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             todoTabBar
         }

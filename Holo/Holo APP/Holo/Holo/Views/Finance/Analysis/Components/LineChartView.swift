@@ -8,6 +8,7 @@
 
 import SwiftUI
 import Charts
+import UIKit
 
 // MARK: - LineChartView
 
@@ -21,7 +22,6 @@ struct LineChartView: View {
     let onSelectDate: (Date?) -> Void
 
     @State private var hoveredDate: Date? = nil
-    @State private var touchGestureLock = HorizontalGestureLock()
 
     private var selectablePoints: [ChartDataPoint] {
         (selectionDataPoints ?? dataPoints).filter(\.hasTransactions)
@@ -65,7 +65,7 @@ struct LineChartView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+        VStack(alignment: .leading, spacing: 10) {
             // 图例
             chartHeader
 
@@ -76,15 +76,32 @@ struct LineChartView: View {
                 chartContent
             }
         }
-        .padding(HoloSpacing.md)
+        .padding(12)
         .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        .overlay {
+            RoundedRectangle(cornerRadius: HoloRadius.lg)
+                .stroke(Color.holoDivider.opacity(0.55), lineWidth: 0.5)
+        }
     }
 
     // MARK: - 图例
 
     private var chartHeader: some View {
         HStack(spacing: HoloSpacing.sm) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("收支趋势")
+                    .font(.holoLabel)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoTextPrimary)
+
+                Text("横向滑动选日期")
+                    .font(.system(size: 10))
+                    .foregroundColor(.holoTextSecondary)
+            }
+
+            Spacer(minLength: HoloSpacing.sm)
+
             if let displayedTypeSelection {
                 Picker("趋势类型", selection: displayedTypeSelection) {
                     Text("支出").tag(TransactionType.expense)
@@ -92,6 +109,7 @@ struct LineChartView: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
+                .frame(width: 144)
             } else {
                 LegendItem(color: lineColor, label: displayedType.displayName)
             }
@@ -102,45 +120,68 @@ struct LineChartView: View {
 
     private var chartContent: some View {
         Chart(dataPoints) { point in
+            AreaMark(
+                x: .value("日期", point.date),
+                yStart: .value("基线", 0),
+                yEnd: .value(displayedType.displayName, Double(truncating: amount(for: point) as NSDecimalNumber))
+            )
+            .foregroundStyle(
+                LinearGradient(
+                    colors: [lineColor.opacity(0.2), lineColor.opacity(0.015)],
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+            )
+            .interpolationMethod(.catmullRom)
+
             LineMark(
                 x: .value("日期", point.date),
                 y: .value(displayedType.displayName, Double(truncating: amount(for: point) as NSDecimalNumber))
             )
             .foregroundStyle(lineColor)
+            .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
             .interpolationMethod(.catmullRom)
 
             // 选中高亮
-            if let selectedDate = selectedDate,
-               pointContains(selectedDate, in: point) {
-                let yEndValue = Double(truncating: amount(for: point) as NSDecimalNumber) * 1.1
-                if yEndValue > 0 {
-                    RectangleMark(
-                        x: .value("日期", point.date),
-                        yStart: .value("底部", 0),
-                        yEnd: .value("顶部", yEndValue)
-                    )
-                    .foregroundStyle(Color.holoPrimary.opacity(0.15))
-                }
+            if let focusedDate = hoveredDate ?? selectedDate,
+               pointContains(focusedDate, in: point),
+               amount(for: point) > 0 {
+                RuleMark(x: .value("选中日期", point.date))
+                    .foregroundStyle(lineColor.opacity(0.35))
+                    .lineStyle(StrokeStyle(lineWidth: 1, dash: [3, 3]))
+
+                PointMark(
+                    x: .value("选中日期", point.date),
+                    y: .value("选中金额", Double(truncating: amount(for: point) as NSDecimalNumber))
+                )
+                .foregroundStyle(Color.holoCardBackground)
+                .symbolSize(66)
+
+                PointMark(
+                    x: .value("选中日期", point.date),
+                    y: .value("选中金额", Double(truncating: amount(for: point) as NSDecimalNumber))
+                )
+                .foregroundStyle(lineColor)
+                .symbolSize(30)
             }
         }
         .chartYScale(domain: yAxisDomain)
         .chartXAxis {
             AxisMarks(values: axisMarkDates) { value in
-                AxisGridLine()
-                    .foregroundStyle(Color.holoDivider)
                 AxisValueLabel {
                     if let date = value.as(Date.self),
                        let label = labelForAxisDate(date) {
                         Text(label)
+                            .font(.system(size: 10))
                             .foregroundStyle(Color.holoTextSecondary)
                     }
                 }
             }
         }
         .chartYAxis {
-            AxisMarks { value in
+            AxisMarks(position: .trailing, values: .automatic(desiredCount: 4)) { value in
                 AxisGridLine()
-                    .foregroundStyle(Color.holoDivider)
+                    .foregroundStyle(Color.holoDivider.opacity(0.55))
                 AxisValueLabel() {
                     if let val = value.as(Double.self) {
                         Text(formatAxisValue(val))
@@ -156,38 +197,29 @@ struct LineChartView: View {
                 let overlayFrame = geometry.frame(in: .local)
                 let plotFrame = proxy.plotFrame.map { geometry[$0] }
 
-                Rectangle()
-                    .fill(Color.clear)
-                    .contentShape(Rectangle())
-                    .gesture(
-                        DragGesture(minimumDistance: 0)
-                            .onChanged { value in
-                                let axis = touchGestureLock.update(translation: value.translation)
-                                guard axis != .vertical else {
-                                    hoveredDate = nil
-                                    return
-                                }
-                                guard axis == .horizontal || value.translation == .zero else { return }
-                                guard !selectablePoints.isEmpty, let plotFrame else { return }
-                                let touchXInPlot = value.location.x - plotFrame.minX
-                                let pointPositions = selectablePoints.compactMap { proxy.position(forX: $0.date) }
-                                guard pointPositions.count == selectablePoints.count,
-                                      let index = nearestSelectablePointIndex(
-                                        touchXInPlot: touchXInPlot,
-                                        pointXPositions: pointPositions
-                                      ) else { return }
-
-                                let point = selectablePoints[index]
-                                if hoveredDate.map({ !Calendar.current.isDate($0, inSameDayAs: point.date) }) ?? true {
-                                    hoveredDate = point.date
-                                    onSelectDate(point.date)
-                                }
-                            }
-                            .onEnded { _ in
-                                hoveredDate = nil
-                                touchGestureLock.reset()
-                            }
-                    )
+                DirectionalChartGestureOverlay(
+                    onChanged: { location in
+                        hoveredDate = selectableDate(
+                            at: location,
+                            proxy: proxy,
+                            plotFrame: plotFrame
+                        )
+                    },
+                    onEnded: { location in
+                        let date = selectableDate(
+                            at: location,
+                            proxy: proxy,
+                            plotFrame: plotFrame
+                        ) ?? hoveredDate
+                        hoveredDate = nil
+                        if let date {
+                            onSelectDate(date)
+                        }
+                    },
+                    onCancelled: {
+                        hoveredDate = nil
+                    }
+                )
 
                 // 触摸金额标注
                 if let hoveredDate,
@@ -206,7 +238,12 @@ struct LineChartView: View {
                 }
             }
         }
-        .frame(height: 160)
+        .chartPlotStyle { plotArea in
+            plotArea
+                .background(Color.holoBackground.opacity(0.28))
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
+        }
+        .frame(height: 132)
     }
 
     // MARK: - 触摸金额标注
@@ -278,6 +315,26 @@ struct LineChartView: View {
             .offset
     }
 
+    private func selectableDate(
+        at location: CGPoint,
+        proxy: ChartProxy,
+        plotFrame: CGRect?
+    ) -> Date? {
+        guard !selectablePoints.isEmpty, let plotFrame else { return nil }
+
+        let touchXInPlot = location.x - plotFrame.minX
+        guard touchXInPlot >= 0, touchXInPlot <= plotFrame.width else { return nil }
+
+        let pointPositions = selectablePoints.compactMap { proxy.position(forX: $0.date) }
+        guard pointPositions.count == selectablePoints.count,
+              let index = nearestSelectablePointIndex(
+                touchXInPlot: touchXInPlot,
+                pointXPositions: pointPositions
+              ) else { return nil }
+
+        return selectablePoints[index].date
+    }
+
     // MARK: - 空状态
 
     private var emptyChartView: some View {
@@ -290,8 +347,111 @@ struct LineChartView: View {
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
         }
-        .frame(height: 160)
+        .frame(height: 132)
         .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - 图表方向手势
+
+/// UIKit 的 pan delegate 能在识别开始前拒绝纵向拖动。
+/// 这与“识别后不处理纵向值”不同：拒绝后父级 ScrollView 可直接接管，不会出现首帧卡顿。
+private struct DirectionalChartGestureOverlay: UIViewRepresentable {
+    let onChanged: (CGPoint) -> Void
+    let onEnded: (CGPoint) -> Void
+    let onCancelled: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(
+            onChanged: onChanged,
+            onEnded: onEnded,
+            onCancelled: onCancelled
+        )
+    }
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.backgroundColor = .clear
+
+        let pan = UIPanGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handlePan(_:))
+        )
+        pan.delegate = context.coordinator
+        pan.cancelsTouchesInView = false
+
+        let tap = UITapGestureRecognizer(
+            target: context.coordinator,
+            action: #selector(Coordinator.handleTap(_:))
+        )
+        tap.delegate = context.coordinator
+        tap.cancelsTouchesInView = false
+        tap.require(toFail: pan)
+
+        view.addGestureRecognizer(pan)
+        view.addGestureRecognizer(tap)
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        context.coordinator.onChanged = onChanged
+        context.coordinator.onEnded = onEnded
+        context.coordinator.onCancelled = onCancelled
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var onChanged: (CGPoint) -> Void
+        var onEnded: (CGPoint) -> Void
+        var onCancelled: () -> Void
+
+        init(
+            onChanged: @escaping (CGPoint) -> Void,
+            onEnded: @escaping (CGPoint) -> Void,
+            onCancelled: @escaping () -> Void
+        ) {
+            self.onChanged = onChanged
+            self.onEnded = onEnded
+            self.onCancelled = onCancelled
+        }
+
+        @objc func handlePan(_ recognizer: UIPanGestureRecognizer) {
+            guard let view = recognizer.view else { return }
+            let location = recognizer.location(in: view)
+
+            switch recognizer.state {
+            case .began, .changed:
+                onChanged(location)
+            case .ended:
+                onEnded(location)
+            case .cancelled, .failed:
+                onCancelled()
+            default:
+                break
+            }
+        }
+
+        @objc func handleTap(_ recognizer: UITapGestureRecognizer) {
+            guard recognizer.state == .ended, let view = recognizer.view else { return }
+            onEnded(recognizer.location(in: view))
+        }
+
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
+                  let view = pan.view else {
+                return true
+            }
+
+            return ChartGestureArbitration.shouldBeginHorizontalPan(
+                velocity: pan.velocity(in: view)
+            )
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            true
+        }
     }
 }
 

@@ -44,4 +44,65 @@ final class HorizontalGestureLockTests: XCTestCase {
         XCTAssertEqual(lock.update(translation: CGSize(width: 11, height: 10)), .undecided)
         XCTAssertEqual(lock.update(translation: CGSize(width: 18, height: 10)), .horizontal)
     }
+
+    func testChartPanAcceptsClearlyHorizontalIntent() {
+        XCTAssertTrue(
+            ChartGestureArbitration.shouldBeginHorizontalPan(
+                velocity: CGPoint(x: 180, y: 70)
+            )
+        )
+    }
+
+    func testChartPanYieldsVerticalAndAmbiguousIntentToScrollView() {
+        XCTAssertFalse(
+            ChartGestureArbitration.shouldBeginHorizontalPan(
+                velocity: CGPoint(x: 40, y: 160)
+            )
+        )
+        XCTAssertFalse(
+            ChartGestureArbitration.shouldBeginHorizontalPan(
+                velocity: CGPoint(x: 100, y: 95)
+            )
+        )
+    }
+
+    func testFinanceDetailAmountSortUsesDateAsStableTieBreaker() {
+        let older = FinanceDetailSortValue(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
+            date: Date(timeIntervalSince1970: 100),
+            amount: 50
+        )
+        let newer = FinanceDetailSortValue(
+            id: UUID(uuidString: "00000000-0000-0000-0000-000000000002")!,
+            date: Date(timeIntervalSince1970: 200),
+            amount: 50
+        )
+
+        XCTAssertTrue(
+            FinanceDetailSortOrder.amountDescending.areInIncreasingOrder(newer, older)
+        )
+        XCTAssertTrue(
+            FinanceDetailSortOrder.amountAscending.areInIncreasingOrder(newer, older)
+        )
+    }
+
+    func testFinanceDetailTimeSortSupportsBothDirections() {
+        let older = FinanceDetailSortValue(
+            id: UUID(),
+            date: Date(timeIntervalSince1970: 100),
+            amount: 10
+        )
+        let newer = FinanceDetailSortValue(
+            id: UUID(),
+            date: Date(timeIntervalSince1970: 200),
+            amount: 20
+        )
+
+        XCTAssertTrue(
+            FinanceDetailSortOrder.timeDescending.areInIncreasingOrder(newer, older)
+        )
+        XCTAssertTrue(
+            FinanceDetailSortOrder.timeAscending.areInIncreasingOrder(older, newer)
+        )
+    }
 }

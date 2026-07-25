@@ -14,6 +14,11 @@ struct MemoryGalleryView: View {
     // MARK: - Environment
 
     @Environment(\.dismiss) private var dismiss
+    /// ZStack 平级常驻模式下的关闭动作（由 HomeView 注入）。
+    /// 未注入时（旧 sheet/cover 场景）fallback 到 @Environment(\.dismiss)。
+    @Environment(\.holoDismiss) private var holoDismiss
+    /// 统一关闭入口：优先 holoDismiss，否则 dismiss。
+    private var close: () -> Void { holoDismiss ?? { dismiss() } }
 
     // MARK: - State
 
@@ -55,7 +60,7 @@ struct MemoryGalleryView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.holoBackground.ignoresSafeArea())
-        .swipeBackToDismiss { dismiss() }
+        .swipeBackToDismiss { close() }
         .sheet(item: $selectedMemory) { memory in
             MemoryDetailView(memory: memory)
         }
@@ -86,7 +91,7 @@ struct MemoryGalleryView: View {
     private var navigationBar: some View {
         HStack {
             Button {
-                dismiss()
+                close()
             } label: {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 18, weight: .semibold))

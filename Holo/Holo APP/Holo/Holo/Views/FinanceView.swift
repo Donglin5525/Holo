@@ -44,6 +44,11 @@ struct FinanceView: View {
     // MARK: - Properties
 
     @Environment(\.dismiss) var dismiss
+    /// ZStack 平级常驻模式下的关闭动作（由 HomeView 注入）。
+    /// 未注入时（旧 sheet/cover 场景）fallback 到 @Environment(\.dismiss)。
+    @Environment(\.holoDismiss) private var holoDismiss
+    /// 统一关闭入口：优先 holoDismiss，否则 dismiss。
+    private var close: () -> Void { holoDismiss ?? { dismiss() } }
     @State private var selectedTab: FinanceTab
     @State private var showAddTransaction: Bool = false
     @State private var analysisDeepLink: FinanceAnalysisDeepLink?
@@ -72,9 +77,10 @@ struct FinanceView: View {
                 if let evidenceReviewDeepLink {
                     FinanceEvidenceReviewView(
                         link: evidenceReviewDeepLink,
-                        onBack: { dismiss() },
+                        onBack: { close() },
                         onBackToAI: {
-                            dismiss()
+                            // ZStack 常驻：navigate 触发 HomeView 切换 activeScreen 到 .ai，
+                            // FinanceView 自动隐藏，无需手动 close()。
                             DeepLinkState.shared.navigate(to: .ai(voiceInput: false))
                         },
                         onOpenAnalysis: { link in
@@ -86,23 +92,23 @@ struct FinanceView: View {
                 } else {
                     switch selectedTab {
                     case .analysis:
-                        FinanceAnalysisView(onBack: { dismiss() }, externalDeepLink: $analysisDeepLink)
+                        FinanceAnalysisView(onBack: { close() }, externalDeepLink: $analysisDeepLink)
                     case .ledger:
                         FinanceLedgerView(
                             calendarState: calendarState,
-                            onBack: { dismiss() },
+                            onBack: { close() },
                             showAddTransaction: $showAddTransaction
                         )
                     case .spending:
-                        SpendingProjectsView(onBack: { dismiss() })
+                        SpendingProjectsView(onBack: { close() })
                     case .settings:
-                        FinanceSettingsView(onBack: { dismiss() })
+                        FinanceSettingsView(onBack: { close() })
                     }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .swipeBackToDismiss { dismiss() }
+        .swipeBackToDismiss { close() }
         .task {
             FinanceRepository.shared.setup()
         }
