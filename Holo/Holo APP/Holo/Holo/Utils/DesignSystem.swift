@@ -196,3 +196,28 @@ struct HoloShadow {
     /// 浮动按钮阴影
     static let float = Color.holoPrimary.opacity(0.3)
 }
+
+// MARK: - 卡片样式
+
+/// Holo 标准卡片样式
+/// 统一全 App 卡片外观：卡片底色 + 16pt 圆角 + 0.5pt 半透明描边 + 轻投影
+/// 内容 padding 由调用方自行控制，本修饰符只管外观
+struct HoloCardStyle: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .background(Color.holoCardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+            .overlay {
+                RoundedRectangle(cornerRadius: HoloRadius.lg)
+                    .stroke(Color.holoDivider.opacity(0.4), lineWidth: 0.5)
+            }
+            .shadow(color: Color.black.opacity(0.035), radius: 8, y: 3)
+    }
+}
+
+extension View {
+    /// 应用 Holo 标准卡片外观
+    func holoCard() -> some View {
+        modifier(HoloCardStyle())
+    }
+}

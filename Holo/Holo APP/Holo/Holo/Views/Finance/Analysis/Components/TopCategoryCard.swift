@@ -60,8 +60,7 @@ struct TopCategoryCard: View {
         .padding(.horizontal, 16)
         .padding(.bottom, 18)
         .frame(maxWidth: .infinity, alignment: .topLeading)
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        .holoCard()
     }
 
     // MARK: - Segment

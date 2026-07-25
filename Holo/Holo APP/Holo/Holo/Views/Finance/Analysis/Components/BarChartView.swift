@@ -20,7 +20,6 @@ struct BarChartView: View {
     var onSelectDate: ((Date?) -> Void)? = nil
 
     @State private var hoveredLabel: String? = nil
-    @State private var touchGestureLock = HorizontalGestureLock()
 
     private var allValuesZero: Bool {
         if showBalance {
@@ -64,8 +63,7 @@ struct BarChartView: View {
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        .holoCard()
     }
 
     // MARK: - 图例
@@ -168,40 +166,33 @@ struct BarChartView: View {
                 let overlayFrame = geometry.frame(in: .local)
                 let plotFrame = proxy.plotFrame.map { geometry[$0] }
 
-                // 触摸手势：统一换算到 plot area 坐标，避免 overlay/global 坐标混用导致错位
-                Rectangle()
-                    .fill(Color.clear)
-                    .contentShape(Rectangle())
-                    .gesture(
-                        DragGesture(minimumDistance: 0)
-                            .onChanged { value in
-                                let axis = touchGestureLock.update(translation: value.translation)
-                                guard axis != .vertical else {
-                                    hoveredLabel = nil
-                                    return
-                                }
-                                guard axis == .horizontal || value.translation == .zero else { return }
-                                guard !dataPoints.isEmpty, let plotFrame else { return }
-                                let touchXInPlot = value.location.x - plotFrame.minX
-                                let pointPositions = dataPoints.compactMap { proxy.position(forX: $0.label) }
-                                guard pointPositions.count == dataPoints.count,
-                                      let index = ChartTouchSelection.nearestPointIndex(
-                                        touchXInPlot: touchXInPlot,
-                                        plotWidth: plotFrame.width,
-                                        pointXPositions: pointPositions
-                                      ) else { return }
+                // 触摸手势：方向判定覆盖层——横向拖动图表独占，纵向拖动在识别开始前交还页面滚动
+                // 统一换算到 plot area 坐标，避免 overlay/global 坐标混用导致错位
+                DirectionalChartGestureOverlay(
+                    onChanged: { location in
+                        guard !dataPoints.isEmpty, let plotFrame else { return }
+                        let touchXInPlot = location.x - plotFrame.minX
+                        let pointPositions = dataPoints.compactMap { proxy.position(forX: $0.label) }
+                        guard pointPositions.count == dataPoints.count,
+                              let index = ChartTouchSelection.nearestPointIndex(
+                                touchXInPlot: touchXInPlot,
+                                plotWidth: plotFrame.width,
+                                pointXPositions: pointPositions
+                              ) else { return }
 
-                                let point = dataPoints[index]
-                                if hoveredLabel != point.label {
-                                    hoveredLabel = point.label
-                                    onSelectDate?(point.date)
-                                }
-                            }
-                            .onEnded { _ in
-                                hoveredLabel = nil
-                                touchGestureLock.reset()
-                            }
-                    )
+                        let point = dataPoints[index]
+                        if hoveredLabel != point.label {
+                            hoveredLabel = point.label
+                            onSelectDate?(point.date)
+                        }
+                    },
+                    onEnded: { _ in
+                        hoveredLabel = nil
+                    },
+                    onCancelled: {
+                        hoveredLabel = nil
+                    }
+                )
 
                 // —— Tooltip 区域 ——
                 if let label = hoveredLabel,

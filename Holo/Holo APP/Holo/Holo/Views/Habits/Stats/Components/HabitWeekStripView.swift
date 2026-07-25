@@ -14,18 +14,22 @@ struct HabitWeekStripView: View {
     var body: some View {
         HStack(spacing: 6) {
             ForEach(week.days) { day in
-                RoundedRectangle(cornerRadius: 8)
+                RoundedRectangle(cornerRadius: 6)
                     .fill(dayBackgroundColor(day))
+                    .overlay {
+                        // 今天未打卡：描边环提示
+                        if day.isToday && !day.hasRecord && !day.isOverLimit {
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(accentColor, lineWidth: 1.5)
+                        }
+                    }
                     .overlay(alignment: .topLeading) {
                         if let number = day.dayNumber {
                             Text("\(number)")
                                 .font(.system(size: 10, weight: .medium))
-                                .foregroundColor(day.isToday ? .holoPrimary : .holoTextSecondary)
+                                .foregroundColor(dayNumberColor(day))
                                 .padding(4)
                         }
-                    }
-                    .overlay(alignment: .center) {
-                        dayCenterIcon(day)
                     }
                     .aspectRatio(1, contentMode: .fit)
             }
@@ -36,20 +40,26 @@ struct HabitWeekStripView: View {
         if day.isOverLimit {
             return Color.red.opacity(0.12)
         }
-        return day.isToday ? Color.holoPrimary.opacity(0.18) : Color.holoBackground
+        if day.hasRecord {
+            return accentColor
+        }
+        if day.isToday {
+            return accentColor.opacity(0.12)
+        }
+        return Color.holoBackground
     }
 
-    @ViewBuilder
-    private func dayCenterIcon(_ day: HabitStatsDayCell) -> some View {
+    private func dayNumberColor(_ day: HabitStatsDayCell) -> Color {
         if day.isOverLimit {
-            Image(systemName: "xmark")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundColor(.red)
-        } else if day.hasRecord {
-            Image(systemName: "checkmark")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundColor(accentColor)
+            return .red
         }
+        if day.hasRecord {
+            return .white
+        }
+        if day.isToday {
+            return accentColor
+        }
+        return .holoTextSecondary
     }
 }
 

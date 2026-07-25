@@ -69,6 +69,7 @@ struct OverviewTabView: View {
             )
 
             Divider()
+                .opacity(0.4)
                 .frame(height: 40)
 
             // 收入
@@ -80,6 +81,7 @@ struct OverviewTabView: View {
             )
 
             Divider()
+                .opacity(0.4)
                 .frame(height: 40)
 
             // 净收入
@@ -91,8 +93,7 @@ struct OverviewTabView: View {
             )
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        .holoCard()
     }
 }
 
@@ -112,9 +113,10 @@ struct PeriodSummaryItem: View {
                 .foregroundColor(.holoTextSecondary)
 
             Text(amount)
-                .font(.system(size: 16, weight: .bold))
+                .font(.system(size: 17, weight: .semibold, design: .rounded))
                 .foregroundColor(color)
                 .lineLimit(1)
+                .minimumScaleFactor(0.7)
 
             Text(subtitle)
                 .font(.system(size: 11))

@@ -9,9 +9,6 @@
 //
 
 import SwiftUI
-#if canImport(UIKit)
-import UIKit
-#endif
 
 // MARK: - PieChartView
 
@@ -105,19 +102,23 @@ struct PieChartView: View {
             .aspectRatio(1, contentMode: .fit)
             .overlay {
                 GeometryReader { geo in
-                    PieChartTouchOverlay(
-                        onTap: { location in
+                    DirectionalChartGestureOverlay(
+                        onChanged: { location in
                             let category = categoryAtPoint(location, canvasSize: geo.size)
-                            onSelectCategory?(category)
-                        },
-                        onMove: { location in
-                            let category = categoryAtPoint(location, canvasSize: geo.size)
+                            guard category?.id != highlightedCategory?.id else { return }
                             withAnimation(.easeInOut(duration: 0.12)) {
                                 highlightedCategory = category
                             }
                         },
-                        onMoveEnded: {
+                        onEnded: { _ in
                             highlightedCategory = nil
+                        },
+                        onCancelled: {
+                            highlightedCategory = nil
+                        },
+                        onTap: { location in
+                            let category = categoryAtPoint(location, canvasSize: geo.size)
+                            onSelectCategory?(category)
                         }
                     )
                         .onContinuousHover { phase in
@@ -567,94 +568,3 @@ private func SectorPath(
     .background(Color.holoBackground)
 }
 
-#if canImport(UIKit)
-private struct PieChartTouchOverlay: UIViewRepresentable {
-    let onTap: (CGPoint) -> Void
-    let onMove: (CGPoint) -> Void
-    let onMoveEnded: () -> Void
-
-    func makeUIView(context: Context) -> TouchView {
-        let view = TouchView()
-        view.backgroundColor = .clear
-
-        let tap = UITapGestureRecognizer(
-            target: context.coordinator,
-            action: #selector(Coordinator.handleTap(_:))
-        )
-        tap.cancelsTouchesInView = false
-        tap.delaysTouchesBegan = false
-        tap.delaysTouchesEnded = false
-        tap.delegate = context.coordinator
-        view.addGestureRecognizer(tap)
-
-        let pan = UIPanGestureRecognizer(
-            target: context.coordinator,
-            action: #selector(Coordinator.handlePan(_:))
-        )
-        pan.cancelsTouchesInView = false
-        pan.delaysTouchesBegan = false
-        pan.delaysTouchesEnded = false
-        pan.delegate = context.coordinator
-        view.addGestureRecognizer(pan)
-
-        return view
-    }
-
-    func updateUIView(_ uiView: TouchView, context: Context) {
-        context.coordinator.overlay = self
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator(overlay: self)
-    }
-
-    final class TouchView: UIView {
-        override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
-            bounds.contains(point)
-        }
-    }
-
-    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
-        var overlay: PieChartTouchOverlay
-
-        init(overlay: PieChartTouchOverlay) {
-            self.overlay = overlay
-        }
-
-        @objc func handleTap(_ recognizer: UITapGestureRecognizer) {
-            guard let view = recognizer.view, recognizer.state == .ended else { return }
-            overlay.onTap(recognizer.location(in: view))
-        }
-
-        @objc func handlePan(_ recognizer: UIPanGestureRecognizer) {
-            guard let view = recognizer.view else { return }
-            switch recognizer.state {
-            case .began, .changed:
-                overlay.onMove(recognizer.location(in: view))
-            case .ended, .cancelled, .failed:
-                overlay.onMoveEnded()
-            default:
-                break
-            }
-        }
-
-        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
-            guard let pan = gestureRecognizer as? UIPanGestureRecognizer,
-                  let view = pan.view else {
-                return true
-            }
-            let translation = pan.translation(in: view)
-            return PieChartInteractionStyle.shouldTrackHighlight(
-                translation: CGSize(width: translation.x, height: translation.y)
-            )
-        }
-
-        func gestureRecognizer(
-            _ gestureRecognizer: UIGestureRecognizer,
-            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
-        ) -> Bool {
-            true
-        }
-    }
-}
-#endif

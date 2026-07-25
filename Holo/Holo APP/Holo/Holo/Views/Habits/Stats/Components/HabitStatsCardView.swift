@@ -37,8 +37,7 @@ struct HabitStatsCardView: View {
                     ))
             }
         }
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        .holoCard()
     }
 
     // MARK: - 主卡片

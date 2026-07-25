@@ -49,6 +49,8 @@ struct CategoryTabView: View {
                         handleCategoryTap(category)
                     }
                 )
+                .padding(HoloSpacing.md)
+                .holoCard()
 
                 // 分类列表
                 CategoryLegendList(
@@ -58,6 +60,7 @@ struct CategoryTabView: View {
                 ) { category in
                     handleCategoryTap(category)
                 }
+                .holoCard()
 
                 // 选中分类的详情
                 if let category = selectedCategory,

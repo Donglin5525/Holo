@@ -36,18 +36,22 @@ struct HabitMonthGridView: View {
     }
 
     private func dayCell(_ day: HabitStatsDayCell) -> some View {
-        RoundedRectangle(cornerRadius: 8)
+        RoundedRectangle(cornerRadius: 6)
             .fill(dayCellBackground(day))
+            .overlay {
+                // 今天未打卡：描边环提示
+                if day.isToday && !day.hasRecord && !day.isOverLimit {
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(accentColor, lineWidth: 1.5)
+                }
+            }
             .overlay(alignment: .topLeading) {
                 if let number = day.dayNumber {
                     Text("\(number)")
                         .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(day.isInCurrentMonth ? .holoTextPrimary : .holoTextSecondary)
+                        .foregroundColor(dayNumberColor(day))
                         .padding(4)
                 }
-            }
-            .overlay(alignment: .bottomTrailing) {
-                dayIndicator(day)
             }
             .aspectRatio(1, contentMode: .fit)
     }
@@ -56,22 +60,26 @@ struct HabitMonthGridView: View {
         if day.isOverLimit {
             return Color.red.opacity(0.12)
         }
+        if day.hasRecord {
+            return accentColor
+        }
+        if day.isToday {
+            return accentColor.opacity(0.12)
+        }
         return day.isInCurrentMonth ? Color.holoBackground : Color.holoBackground.opacity(0.4)
     }
 
-    @ViewBuilder
-    private func dayIndicator(_ day: HabitStatsDayCell) -> some View {
+    private func dayNumberColor(_ day: HabitStatsDayCell) -> Color {
         if day.isOverLimit {
-            Image(systemName: "xmark")
-                .font(.system(size: 8, weight: .bold))
-                .foregroundColor(.red)
-                .padding(4)
-        } else if day.hasRecord {
-            Image(systemName: "checkmark")
-                .font(.system(size: 8, weight: .bold))
-                .foregroundColor(accentColor)
-                .padding(4)
+            return .red
         }
+        if day.hasRecord {
+            return .white
+        }
+        if day.isToday {
+            return accentColor
+        }
+        return day.isInCurrentMonth ? .holoTextPrimary : .holoTextSecondary
     }
 }
 

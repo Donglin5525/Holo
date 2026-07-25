@@ -31,8 +31,7 @@ struct HabitStatsExpandableCardView: View {
             }
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        .holoCard()
         .contentShape(Rectangle())
         .onTapGesture {
             withAnimation(.easeInOut(duration: 0.24)) {
