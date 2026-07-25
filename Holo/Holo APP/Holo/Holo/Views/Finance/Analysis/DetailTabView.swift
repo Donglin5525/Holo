@@ -17,10 +17,8 @@ struct DetailTabView: View {
     @State private var editingTransaction: Transaction?
     @State private var selectedTrendType: TransactionType = .expense
     @State private var sortOrder: FinanceDetailSortOrder = .timeDescending
-
-    private enum ScrollAnchor: Hashable {
-        case transactions
-    }
+    @State private var listScrollTarget: Date?
+    @State private var listScrollRequestID = 0
 
     private var filteredTransactions: [Transaction] {
         guard let category = state.selectedDetailCategory else {
@@ -31,18 +29,8 @@ struct DetailTabView: View {
         }
     }
 
-    private var visibleTransactions: [Transaction] {
-        guard let selectedDate = state.selectedChartDate else {
-            return filteredTransactions
-        }
-
-        return filteredTransactions.filter {
-            Calendar.current.isDate($0.date, inSameDayAs: selectedDate)
-        }
-    }
-
-    private var sortedVisibleTransactions: [Transaction] {
-        visibleTransactions.sorted {
+    private var sortedFilteredTransactions: [Transaction] {
+        filteredTransactions.sorted {
             sortOrder.areInIncreasingOrder(sortValue(for: $0), sortValue(for: $1))
         }
     }
@@ -92,20 +80,21 @@ struct DetailTabView: View {
     }
 
     var body: some View {
-        ScrollViewReader { scrollProxy in
+        GeometryReader { geometry in
             ScrollView {
                 VStack(spacing: 0) {
-                    fixedTrendSection(scrollProxy: scrollProxy)
+                    trendSection
                         .padding(.horizontal, HoloSpacing.lg)
                         .padding(.top, HoloSpacing.md)
                         .padding(.bottom, HoloSpacing.md)
 
                     transactionListHeader
-                        .id(ScrollAnchor.transactions)
                         .padding(.horizontal, HoloSpacing.lg)
                         .padding(.bottom, HoloSpacing.xs)
 
-                    transactionListContent
+                    transactionListViewport(
+                        height: max(geometry.size.height - 56, 320)
+                    )
                         .padding(.horizontal, HoloSpacing.lg)
                         .padding(.bottom, HoloSpacing.lg)
                 }
@@ -123,7 +112,7 @@ struct DetailTabView: View {
         }
     }
 
-    private func fixedTrendSection(scrollProxy: ScrollViewProxy) -> some View {
+    private var trendSection: some View {
         VStack(spacing: HoloSpacing.lg) {
             if let category = state.selectedDetailCategory {
                 categoryFilterBanner(category)
@@ -134,21 +123,50 @@ struct DetailTabView: View {
                 selectedDate: state.selectedChartDate,
                 displayedType: selectedTrendType,
                 displayedTypeSelection: $selectedTrendType,
-                selectionDataPoints: dailySelectionPoints
-            ) { date in
-                guard let date else {
-                    state.selectChartDate(nil)
-                    return
+                selectionDataPoints: dailySelectionPoints,
+                onScrubDate: selectChartDateAndScroll,
+                onSelectDate: { date in
+                    guard let date else {
+                        state.selectChartDate(nil)
+                        return
+                    }
+                    selectChartDateAndScroll(date)
                 }
+            )
+        }
+    }
 
-                let day = Calendar.current.startOfDay(for: date)
-                guard dailySelectionPoints.contains(where: { Calendar.current.isDate($0.date, inSameDayAs: day) }) else {
-                    return
-                }
+    /// 趋势图负责选择日期，明细仍保留全量数据，只改变列表当前可见位置。
+    /// 时间定位与金额排序语义冲突时自动回到“时间从新到旧”，避免日期锚点失真。
+    private func selectChartDateAndScroll(_ date: Date) {
+        let day = Calendar.current.startOfDay(for: date)
+        guard dailySelectionPoints.contains(where: {
+            Calendar.current.isDate($0.date, inSameDayAs: day)
+        }) else {
+            return
+        }
 
-                state.selectChartDate(day)
-                withAnimation(.easeInOut(duration: 0.25)) {
-                    scrollProxy.scrollTo(ScrollAnchor.transactions, anchor: .top)
+        sortOrder = sortOrder.orderForChartNavigation
+
+        state.selectChartDate(day)
+        listScrollTarget = day
+        listScrollRequestID &+= 1
+    }
+
+    private func transactionListViewport(height: CGFloat) -> some View {
+        ScrollViewReader { listProxy in
+            ScrollView {
+                transactionListContent
+                    .padding(.top, 2)
+            }
+            .scrollIndicators(.hidden)
+            .frame(height: height)
+            .onChange(of: listScrollRequestID) { _, _ in
+                guard let target = listScrollTarget else { return }
+
+                // 排序模式切换与列表重建发生在同一轮更新，下一帧再定位可确保锚点已存在。
+                DispatchQueue.main.async {
+                    listProxy.scrollTo(target, anchor: .top)
                 }
             }
         }
@@ -359,46 +377,18 @@ struct DetailTabView: View {
 
     private var transactionListHeader: some View {
         HStack(spacing: HoloSpacing.sm) {
-            Text(transactionListTitle)
+            Text("交易明细")
                 .font(.holoHeading)
                 .foregroundColor(.holoTextPrimary)
 
-            Text("\(visibleTransactions.count) 笔")
+            Text("\(filteredTransactions.count) 笔")
                 .font(.holoTinyLabel)
                 .foregroundColor(.holoTextSecondary)
 
             Spacer()
 
-            if state.selectedChartDate != nil {
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        state.selectChartDate(nil)
-                    }
-                } label: {
-                    Text("全部")
-                        .font(.holoTinyLabel)
-                        .fontWeight(.semibold)
-                        .foregroundColor(.holoPrimary)
-                        .padding(.horizontal, 9)
-                        .padding(.vertical, 6)
-                        .background(Color.holoPrimary.opacity(0.1))
-                        .clipShape(Capsule())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("查看全部交易")
-            }
-
             sortMenu
         }
-    }
-
-    private var transactionListTitle: String {
-        guard let selectedDate = state.selectedChartDate else {
-            return "交易明细"
-        }
-
-        let formatter = DateFormatter()
-        return "\(formatter.monthDayString(from: selectedDate))明细"
     }
 
     private var sortMenu: some View {
@@ -434,7 +424,7 @@ struct DetailTabView: View {
 
     @ViewBuilder
     private var transactionListContent: some View {
-        if visibleTransactions.isEmpty {
+        if filteredTransactions.isEmpty {
             emptyTransactionState
         } else if sortOrder.groupsByDay {
             groupedTransactionsView
@@ -446,7 +436,7 @@ struct DetailTabView: View {
     // MARK: - 分组交易列表
 
     private var groupedTransactionsView: some View {
-        let grouped = Dictionary(grouping: visibleTransactions) { tx in
+        let grouped = Dictionary(grouping: filteredTransactions) { tx in
             Calendar.current.startOfDay(for: tx.date)
         }
         let dates = grouped.keys.sorted {
@@ -467,8 +457,8 @@ struct DetailTabView: View {
 
     private var amountSortedTransactionsView: some View {
         compactTransactionRows(
-            sortedVisibleTransactions,
-            showsDate: state.selectedChartDate == nil
+            sortedFilteredTransactions,
+            showsDate: true
         )
     }
 
@@ -505,6 +495,7 @@ struct DetailTabView: View {
             RoundedRectangle(cornerRadius: HoloRadius.sm)
                 .fill(isSelectedDay(date) ? Color.holoPrimary.opacity(0.08) : Color.clear)
         )
+        .id(date)
     }
 
     private func compactTransactionRows(

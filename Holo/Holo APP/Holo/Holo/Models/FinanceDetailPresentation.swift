@@ -53,6 +53,11 @@ nonisolated enum FinanceDetailSortOrder: String, CaseIterable, Identifiable {
         }
     }
 
+    /// 趋势图按日期导航时必须回到时间分组，否则金额平铺列表没有稳定的日期锚点。
+    var orderForChartNavigation: FinanceDetailSortOrder {
+        groupsByDay ? self : .timeDescending
+    }
+
     func areInIncreasingOrder(
         _ lhs: FinanceDetailSortValue,
         _ rhs: FinanceDetailSortValue

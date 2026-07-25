@@ -19,6 +19,7 @@ struct LineChartView: View {
     var displayedType: TransactionType = .expense
     var displayedTypeSelection: Binding<TransactionType>? = nil
     var selectionDataPoints: [ChartDataPoint]? = nil
+    var onScrubDate: ((Date) -> Void)? = nil
     let onSelectDate: (Date?) -> Void
 
     @State private var hoveredDate: Date? = nil
@@ -56,10 +57,10 @@ struct LineChartView: View {
         let fraction = value / magnitude
         let niceFraction: Double
         switch fraction {
-        case ..<1.5:  niceFraction = 2
-        case ..<3.5:  niceFraction = 5
-        case ..<7.5:  niceFraction = 10
-        default:      niceFraction = 10
+        case ...1: niceFraction = 1
+        case ...2: niceFraction = 2
+        case ...5: niceFraction = 5
+        default: niceFraction = 10
         }
         return niceFraction * magnitude
     }
@@ -76,13 +77,15 @@ struct LineChartView: View {
                 chartContent
             }
         }
-        .padding(12)
+        .padding(.horizontal, HoloSpacing.md)
+        .padding(.vertical, 14)
         .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
         .overlay {
             RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .stroke(Color.holoDivider.opacity(0.55), lineWidth: 0.5)
+                .stroke(Color.holoDivider.opacity(0.4), lineWidth: 0.5)
         }
+        .shadow(color: Color.black.opacity(0.035), radius: 8, y: 3)
     }
 
     // MARK: - 图例
@@ -95,7 +98,7 @@ struct LineChartView: View {
                     .fontWeight(.semibold)
                     .foregroundColor(.holoTextPrimary)
 
-                Text("横向滑动选日期")
+                Text("横向滑动，明细实时定位")
                     .font(.system(size: 10))
                     .foregroundColor(.holoTextSecondary)
             }
@@ -109,7 +112,7 @@ struct LineChartView: View {
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()
-                .frame(width: 144)
+                .frame(width: 136)
             } else {
                 LegendItem(color: lineColor, label: displayedType.displayName)
             }
@@ -127,7 +130,7 @@ struct LineChartView: View {
             )
             .foregroundStyle(
                 LinearGradient(
-                    colors: [lineColor.opacity(0.2), lineColor.opacity(0.015)],
+                    colors: [lineColor.opacity(0.14), lineColor.opacity(0.005)],
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -139,7 +142,7 @@ struct LineChartView: View {
                 y: .value(displayedType.displayName, Double(truncating: amount(for: point) as NSDecimalNumber))
             )
             .foregroundStyle(lineColor)
-            .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round, lineJoin: .round))
+            .lineStyle(StrokeStyle(lineWidth: 2.25, lineCap: .round, lineJoin: .round))
             .interpolationMethod(.catmullRom)
 
             // 选中高亮
@@ -165,7 +168,13 @@ struct LineChartView: View {
                 .symbolSize(30)
             }
         }
-        .chartYScale(domain: yAxisDomain)
+        .chartXScale(
+            range: .plotDimension(startPadding: 12, endPadding: 12)
+        )
+        .chartYScale(
+            domain: yAxisDomain,
+            range: .plotDimension(startPadding: 9, endPadding: 12)
+        )
         .chartXAxis {
             AxisMarks(values: axisMarkDates) { value in
                 AxisValueLabel {
@@ -181,7 +190,7 @@ struct LineChartView: View {
         .chartYAxis {
             AxisMarks(position: .trailing, values: .automatic(desiredCount: 4)) { value in
                 AxisGridLine()
-                    .foregroundStyle(Color.holoDivider.opacity(0.55))
+                    .foregroundStyle(Color.holoDivider.opacity(0.32))
                 AxisValueLabel() {
                     if let val = value.as(Double.self) {
                         Text(formatAxisValue(val))
@@ -199,11 +208,18 @@ struct LineChartView: View {
 
                 DirectionalChartGestureOverlay(
                     onChanged: { location in
-                        hoveredDate = selectableDate(
+                        let date = selectableDate(
                             at: location,
                             proxy: proxy,
                             plotFrame: plotFrame
                         )
+                        if let date,
+                           hoveredDate.map({
+                               !Calendar.current.isDate($0, inSameDayAs: date)
+                           }) ?? true {
+                            hoveredDate = date
+                            onScrubDate?(date)
+                        }
                     },
                     onEnded: { location in
                         let date = selectableDate(
@@ -239,11 +255,9 @@ struct LineChartView: View {
             }
         }
         .chartPlotStyle { plotArea in
-            plotArea
-                .background(Color.holoBackground.opacity(0.28))
-                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
+            plotArea.background(Color.clear)
         }
-        .frame(height: 132)
+        .frame(height: 142)
     }
 
     // MARK: - 触摸金额标注
@@ -347,7 +361,7 @@ struct LineChartView: View {
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
         }
-        .frame(height: 132)
+        .frame(height: 142)
         .frame(maxWidth: .infinity)
     }
 }
@@ -356,6 +370,19 @@ struct LineChartView: View {
 
 /// UIKit 的 pan delegate 能在识别开始前拒绝纵向拖动。
 /// 这与“识别后不处理纵向值”不同：拒绝后父级 ScrollView 可直接接管，不会出现首帧卡顿。
+private final class DirectionalChartGestureView: UIView {
+    var onHierarchyReady: ((UIView) -> Void)?
+
+    override func didMoveToWindow() {
+        super.didMoveToWindow()
+        guard window != nil else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            onHierarchyReady?(self)
+        }
+    }
+}
+
 private struct DirectionalChartGestureOverlay: UIViewRepresentable {
     let onChanged: (CGPoint) -> Void
     let onEnded: (CGPoint) -> Void
@@ -370,7 +397,7 @@ private struct DirectionalChartGestureOverlay: UIViewRepresentable {
     }
 
     func makeUIView(context: Context) -> UIView {
-        let view = UIView()
+        let view = DirectionalChartGestureView()
         view.backgroundColor = .clear
 
         let pan = UIPanGestureRecognizer(
@@ -378,7 +405,8 @@ private struct DirectionalChartGestureOverlay: UIViewRepresentable {
             action: #selector(Coordinator.handlePan(_:))
         )
         pan.delegate = context.coordinator
-        pan.cancelsTouchesInView = false
+        pan.cancelsTouchesInView = true
+        context.coordinator.chartPanGesture = pan
 
         let tap = UITapGestureRecognizer(
             target: context.coordinator,
@@ -390,6 +418,9 @@ private struct DirectionalChartGestureOverlay: UIViewRepresentable {
 
         view.addGestureRecognizer(pan)
         view.addGestureRecognizer(tap)
+        view.onHierarchyReady = { [weak coordinator = context.coordinator] view in
+            coordinator?.prioritizeChartPan(overParentScrollViewFrom: view)
+        }
         return view
     }
 
@@ -397,12 +428,17 @@ private struct DirectionalChartGestureOverlay: UIViewRepresentable {
         context.coordinator.onChanged = onChanged
         context.coordinator.onEnded = onEnded
         context.coordinator.onCancelled = onCancelled
+        DispatchQueue.main.async {
+            context.coordinator.prioritizeChartPan(overParentScrollViewFrom: uiView)
+        }
     }
 
     final class Coordinator: NSObject, UIGestureRecognizerDelegate {
         var onChanged: (CGPoint) -> Void
         var onEnded: (CGPoint) -> Void
         var onCancelled: () -> Void
+        weak var chartPanGesture: UIPanGestureRecognizer?
+        weak var prioritizedParentScrollView: UIScrollView?
 
         init(
             onChanged: @escaping (CGPoint) -> Void,
@@ -446,11 +482,28 @@ private struct DirectionalChartGestureOverlay: UIViewRepresentable {
             )
         }
 
+        /// 父级滚动必须先等待图表判定方向：
+        /// 横向时图表独占，纵向或模糊方向时图表失败并立即交还页面滚动。
+        func prioritizeChartPan(overParentScrollViewFrom view: UIView) {
+            guard let chartPanGesture else { return }
+
+            var ancestor = view.superview
+            while let current = ancestor {
+                if let scrollView = current as? UIScrollView {
+                    guard prioritizedParentScrollView !== scrollView else { return }
+                    scrollView.panGestureRecognizer.require(toFail: chartPanGesture)
+                    prioritizedParentScrollView = scrollView
+                    return
+                }
+                ancestor = current.superview
+            }
+        }
+
         func gestureRecognizer(
             _ gestureRecognizer: UIGestureRecognizer,
             shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
         ) -> Bool {
-            true
+            ChartGestureArbitration.allowsSimultaneousRecognition
         }
     }
 }

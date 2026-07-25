@@ -82,6 +82,9 @@ struct HorizontalGestureLock {
 /// 图表覆盖层在手势识别前使用速度判断方向。
 /// 只有横向意图足够明确时才接管；纵向和接近 45° 的模糊手势均交给父级滚动视图。
 struct ChartGestureArbitration {
+    /// 图表与页面纵向滚动互斥，避免一次拖动同时改变两个方向。
+    static let allowsSimultaneousRecognition = false
+
     static func shouldBeginHorizontalPan(
         velocity: CGPoint,
         tuning: HorizontalGestureTuning = .global

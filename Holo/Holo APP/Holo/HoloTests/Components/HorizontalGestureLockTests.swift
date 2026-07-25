@@ -66,6 +66,25 @@ final class HorizontalGestureLockTests: XCTestCase {
         )
     }
 
+    func testChartPanNeverRecognizesSimultaneouslyWithPageScroll() {
+        XCTAssertFalse(ChartGestureArbitration.allowsSimultaneousRecognition)
+    }
+
+    func testAmountSortReturnsToTimelineWhenChartNavigatesByDate() {
+        XCTAssertEqual(
+            FinanceDetailSortOrder.amountDescending.orderForChartNavigation,
+            .timeDescending
+        )
+        XCTAssertEqual(
+            FinanceDetailSortOrder.amountAscending.orderForChartNavigation,
+            .timeDescending
+        )
+        XCTAssertEqual(
+            FinanceDetailSortOrder.timeAscending.orderForChartNavigation,
+            .timeAscending
+        )
+    }
+
     func testFinanceDetailAmountSortUsesDateAsStableTieBreaker() {
         let older = FinanceDetailSortValue(
             id: UUID(uuidString: "00000000-0000-0000-0000-000000000001")!,
