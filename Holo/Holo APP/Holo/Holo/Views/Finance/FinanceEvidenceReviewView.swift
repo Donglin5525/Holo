@@ -13,8 +13,21 @@ struct FinanceEvidenceReviewView: View {
     let onBackToAI: () -> Void
     let onOpenAnalysis: (FinanceAnalysisDeepLink) -> Void
 
+    /// 期次选择：本期 / 对比期
+    private enum EvidencePeriod {
+        case current, baseline
+    }
+
+    /// 内容模式：交易明细 / 科目对比
+    private enum EvidenceViewMode {
+        case transactions, comparison
+    }
+
     @State private var currentTransactions: [Transaction] = []
     @State private var baselineTransactions: [Transaction] = []
+    @State private var categoryInfos: [UUID: CategoryComparisonInfo] = [:]
+    @State private var selectedPeriod: EvidencePeriod = .current
+    @State private var viewMode: EvidenceViewMode = .transactions
     @State private var editingTransaction: Transaction?
     @State private var isLoading = true
     @State private var errorMessage: String?
@@ -31,10 +44,19 @@ struct FinanceEvidenceReviewView: View {
                 ScrollView {
                     VStack(spacing: HoloSpacing.lg) {
                         summaryBand
-                        transactionSection(title: "本期明细", transactions: currentTransactions)
 
-                        if link.baselineStart != nil, link.baselineEnd != nil {
-                            transactionSection(title: "对比期明细", transactions: baselineTransactions)
+                        if hasBaseline {
+                            modeSwitcher
+                        }
+
+                        if viewMode == .comparison, hasBaseline {
+                            CategoryComparisonListView(
+                                items: comparisonItems,
+                                currentTotal: totalAmount(currentTransactions),
+                                baselineTotal: totalAmount(baselineTransactions)
+                            )
+                        } else {
+                            transactionSection(title: detailTitle, transactions: selectedTransactions)
                         }
                     }
                     .padding(.horizontal, HoloSpacing.lg)
@@ -138,17 +160,36 @@ struct FinanceEvidenceReviewView: View {
 
     private var summaryBand: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            HStack {
+            HStack(alignment: .top) {
                 VStack(alignment: .leading, spacing: 4) {
                     Text(keywordTitle)
                         .font(.holoBody)
                         .fontWeight(.semibold)
                         .foregroundColor(.holoTextPrimary)
-                    Text("点明细看原账单，点合计进统计页")
+                    Text(hasBaseline ? "点合计切换期次，点明细看原账单" : "点明细看原账单")
                         .font(.holoTinyLabel)
                         .foregroundColor(.holoTextSecondary)
                 }
                 Spacer()
+
+                Button {
+                    openAnalysisForSelectedPeriod()
+                } label: {
+                    HStack(spacing: 2) {
+                        Text("统计分析")
+                            .font(.holoTinyLabel)
+                            .fontWeight(.semibold)
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 9, weight: .semibold))
+                    }
+                    .foregroundColor(.holoPrimary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.holoPrimary.opacity(0.12))
+                    .clipShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("进入统计分析页")
             }
 
             HStack(spacing: HoloSpacing.md) {
@@ -156,18 +197,20 @@ struct FinanceEvidenceReviewView: View {
                     title: "本期合计",
                     total: totalAmount(currentTransactions),
                     count: currentTransactions.count,
-                    start: link.start,
-                    end: link.end
-                )
+                    isSelected: selectedPeriod == .current
+                ) {
+                    selectedPeriod = .current
+                }
 
-                if let baselineStart = link.baselineStart, let baselineEnd = link.baselineEnd {
+                if hasBaseline {
                     totalCard(
                         title: "对比期合计",
                         total: totalAmount(baselineTransactions),
                         count: baselineTransactions.count,
-                        start: baselineStart,
-                        end: baselineEnd
-                    )
+                        isSelected: selectedPeriod == .baseline
+                    ) {
+                        selectedPeriod = .baseline
+                    }
                 }
             }
         }
@@ -177,19 +220,18 @@ struct FinanceEvidenceReviewView: View {
         .shadow(color: HoloShadow.card, radius: 8, x: 0, y: 2)
     }
 
-    private func totalCard(title: String, total: Decimal, count: Int, start: Date, end: Date) -> some View {
-        Button {
-            onOpenAnalysis(FinanceAnalysisDeepLink(
-                label: title,
-                start: start,
-                end: end,
-                sourceEvidenceID: link.sourceEvidenceID
-            ))
-        } label: {
+    private func totalCard(
+        title: String,
+        total: Decimal,
+        count: Int,
+        isSelected: Bool,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
             VStack(alignment: .leading, spacing: 6) {
                 Text(title)
                     .font(.holoTinyLabel)
-                    .foregroundColor(.holoTextSecondary)
+                    .foregroundColor(isSelected ? .holoPrimary : .holoTextSecondary)
                 Text(currency(total))
                     .font(.holoHeading)
                     .foregroundColor(.holoTextPrimary)
@@ -197,14 +239,52 @@ struct FinanceEvidenceReviewView: View {
                     .minimumScaleFactor(0.75)
                 Text("\(count) 笔")
                     .font(.holoTinyLabel)
-                    .foregroundColor(.holoPrimary)
+                    .foregroundColor(isSelected ? .holoPrimary : .holoTextSecondary)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(HoloSpacing.md)
-            .background(Color.holoBackground)
+            .background(isSelected ? Color.holoPrimary.opacity(0.08) : Color.holoBackground)
             .cornerRadius(8)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(isSelected ? Color.holoPrimary : Color.clear, lineWidth: 1.5)
+            )
         }
         .buttonStyle(PlainButtonStyle())
+    }
+
+    /// 明细 / 科目对比 分段切换（样式复用 CategoryTabView.typeSwitcher）
+    private var modeSwitcher: some View {
+        HStack(spacing: 0) {
+            modeButton(title: "明细", isSelected: viewMode == .transactions) {
+                viewMode = .transactions
+            }
+            modeButton(title: "科目对比", isSelected: viewMode == .comparison) {
+                viewMode = .comparison
+            }
+        }
+        .padding(4)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.md)
+                .stroke(Color.holoDivider, lineWidth: 1)
+        )
+    }
+
+    private func modeButton(title: String, isSelected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title)
+                .font(.holoCaption)
+                .foregroundColor(isSelected ? .white : .holoTextSecondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, HoloSpacing.sm)
+                .background(
+                    RoundedRectangle(cornerRadius: HoloRadius.sm)
+                        .fill(isSelected ? Color.holoPrimary : Color.clear)
+                )
+        }
+        .buttonStyle(.plain)
     }
 
     private func transactionSection(title: String, transactions: [Transaction]) -> some View {
@@ -261,6 +341,59 @@ struct FinanceEvidenceReviewView: View {
         return keyword.isEmpty ? nil : keyword
     }
 
+    /// 是否带对比期
+    private var hasBaseline: Bool {
+        link.baselineStart != nil && link.baselineEnd != nil
+    }
+
+    /// 当前选中期次的交易列表
+    private var selectedTransactions: [Transaction] {
+        selectedPeriod == .current ? currentTransactions : baselineTransactions
+    }
+
+    /// 明细列表标题（带日期区间，区分两期）
+    private var detailTitle: String {
+        if selectedPeriod == .current {
+            return "本期明细（\(rangeText(start: link.start, end: link.end))）"
+        }
+        if let baselineStart = link.baselineStart, let baselineEnd = link.baselineEnd {
+            return "对比期明细（\(rangeText(start: baselineStart, end: baselineEnd))）"
+        }
+        return "本期明细（\(rangeText(start: link.start, end: link.end))）"
+    }
+
+    /// 科目对比聚合结果（本地聚合，尊重关键词过滤，零新增查询）
+    private var comparisonItems: [CategoryComparisonItem] {
+        CategoryComparisonBuilder.build(
+            current: currentTransactions.map(comparisonInput),
+            baseline: baselineTransactions.map(comparisonInput),
+            categories: categoryInfos
+        )
+    }
+
+    private func comparisonInput(_ transaction: Transaction) -> CategoryComparisonInput {
+        CategoryComparisonInput(
+            categoryID: transaction.category?.id,
+            amount: transaction.amount.decimalValue
+        )
+    }
+
+    /// 以当前选中期次的时间段进入统计分析页
+    private func openAnalysisForSelectedPeriod() {
+        let range: (label: String, start: Date, end: Date)
+        if selectedPeriod == .baseline, let baselineStart = link.baselineStart, let baselineEnd = link.baselineEnd {
+            range = ("对比期合计", baselineStart, baselineEnd)
+        } else {
+            range = ("本期合计", link.start, link.end)
+        }
+        onOpenAnalysis(FinanceAnalysisDeepLink(
+            label: range.label,
+            start: range.start,
+            end: range.end,
+            sourceEvidenceID: link.sourceEvidenceID
+        ))
+    }
+
     @MainActor
     private func loadTransactions() async {
         isLoading = true
@@ -276,6 +409,18 @@ struct FinanceEvidenceReviewView: View {
             } else {
                 baselineTransactions = []
             }
+
+            // 科目对比所需的分类信息（id → 名称/层级/样式）
+            let categories = try await FinanceRepository.shared.getCategories(by: .expense)
+            categoryInfos = Dictionary(categories.map { category in
+                (category.id, CategoryComparisonInfo(
+                    id: category.id,
+                    name: category.name,
+                    icon: category.icon,
+                    color: category.color,
+                    parentID: category.parentId
+                ))
+            }, uniquingKeysWith: { first, _ in first })
         } catch {
             errorMessage = "账单明细加载失败，请稍后再试"
         }
