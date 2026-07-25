@@ -28,6 +28,13 @@ struct HoloHabitToolRecord: Codable, Equatable, Sendable {
     /// 负向习惯=每日上限；正向习惯=每日目标次数。
     var dailyGoal: Double?
     var dailyCounts: [HoloHabitDailyCount]
+    /// 数值型习惯的单位（如 kg）；打卡型为 nil，展示时按「次」处理。
+    var unit: String? = nil
+    /// 是否为测量型习惯（如体重/体脂）。
+    /// 测量型：未记录日 value=0 表示「没测」，是缺失值，统计时必须跳过，否则 average/trend 被零稀释。
+    /// 打卡/计数型：value=0 表示「今天没做」，是真实语义，必须保留。
+    /// 默认 false 以兼容旧持久化数据。
+    var isMeasureType: Bool = false
 }
 
 /// 习惯数据源协议：生产实现适配真实 habit repository（后续集成），测试用 mock。

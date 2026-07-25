@@ -43,10 +43,12 @@ nonisolated enum HoloAgentBudgetPresetName: String, Equatable, Sendable {
 nonisolated enum HoloAgentBudgetSelector {
 
     /// 根据 TaskProfile 选择执行配置。
+    /// `allowExtended` 是总闸（默认开）：开启后由 `profile + frame` 自动判断是否放行
+    /// extendedDeep；调用方若需全局禁用扩展预算可显式传 false。
     static func selectConfig(
         for profile: HoloAgentTaskProfile,
         frame: HoloAgentQuerySemanticFrame,
-        allowExtended: Bool = false
+        allowExtended: Bool = true
     ) -> HoloAgentTaskExecutionConfig {
         let budgetPreset: HoloAgentBudgetPresetName
         let enablePlan: Bool
@@ -54,6 +56,24 @@ nonisolated enum HoloAgentBudgetSelector {
         let requireVerifier: Bool
         let tokenMultiplier: Double
         let allowExtendedDeep: Bool
+
+        // 自动放行 extendedDeep 的画像级判断（在 allowExtended 总闸开启时生效）。
+        // 单域年趋势（如"2026年体重趋势"）会命中 singleDomainAnalysis + 长 range，
+        // 也需要扩展预算，否则 normalDeep 在多轮工具结果累积下仍可能撞墙。
+        let longRangeDays = extendedRangeDays(in: frame)
+        let autoExtendedByProfile: Bool = {
+            switch profile {
+            case .crossDomainAnalysis:
+                return true                       // 跨域天然重，直接放行
+            case .comparisonAnalysis:
+                return true                       // 比较分析通常双窗 + 推理重
+            case .singleDomainAnalysis:
+                return longRangeDays.map { $0 > 90 } ?? false   // 单域：仅长范围放行（年/半年趋势）
+            case .simpleLookup, .sensitiveAnalysis, .observerFollowUp:
+                return false                      // 简单查数/敏感分析/跟进保持克制
+            }
+        }()
+        let useExtended = allowExtended && autoExtendedByProfile
 
         switch profile {
         case .simpleLookup:
@@ -65,28 +85,28 @@ nonisolated enum HoloAgentBudgetSelector {
             allowExtendedDeep = false
 
         case .singleDomainAnalysis:
-            budgetPreset = .normalDeep
+            budgetPreset = useExtended ? .extendedDeep : .normalDeep
             enablePlan = true
-            maxToolRounds = 4
+            maxToolRounds = useExtended ? 6 : 4
             requireVerifier = true
-            tokenMultiplier = 1.0
-            allowExtendedDeep = false
+            tokenMultiplier = useExtended ? 1.3 : 1.0
+            allowExtendedDeep = useExtended
 
         case .comparisonAnalysis:
-            budgetPreset = .normalDeep
+            budgetPreset = useExtended ? .extendedDeep : .normalDeep
             enablePlan = true
-            maxToolRounds = 5
+            maxToolRounds = 6
             requireVerifier = true
-            tokenMultiplier = 1.2
-            allowExtendedDeep = allowExtended
+            tokenMultiplier = useExtended ? 1.5 : 1.2
+            allowExtendedDeep = useExtended
 
         case .crossDomainAnalysis:
-            budgetPreset = allowExtended ? .extendedDeep : .normalDeep
+            budgetPreset = useExtended ? .extendedDeep : .normalDeep
             enablePlan = true
-            maxToolRounds = 5
+            maxToolRounds = 6
             requireVerifier = true
             tokenMultiplier = 1.5
-            allowExtendedDeep = allowExtended
+            allowExtendedDeep = useExtended
 
         case .sensitiveAnalysis:
             budgetPreset = .normalDeep
@@ -131,6 +151,22 @@ nonisolated enum HoloAgentBudgetSelector {
         case .observerFollowUp:
             return .observerFollowUp(now: now)
         }
+    }
+
+    /// 计算当前/对比窗口中跨度较大的那个（按天）。任一端缺失返回 nil。
+    /// 用于判断"年趋势 / 半年趋势"等长范围查询，是否需要放行 extendedDeep。
+    private static func extendedRangeDays(in frame: HoloAgentQuerySemanticFrame) -> Int? {
+        let calendar = Calendar.current
+        func days(of range: HoloAgentTimeRange) -> Int? {
+            guard let start = range.start, let end = range.end else { return nil }
+            let d = calendar.dateComponents([.day], from: start, to: end).day ?? 0
+            return abs(d)
+        }
+        var candidates: [Int] = []
+        if let r = frame.resolvedTime?.scope.timeRange, let d = days(of: r) { candidates.append(d) }
+        if let r = frame.resolvedComparison?.current.timeRange, let d = days(of: r) { candidates.append(d) }
+        if let r = frame.resolvedComparison?.baseline.timeRange, let d = days(of: r) { candidates.append(d) }
+        return candidates.max()
     }
 }
 

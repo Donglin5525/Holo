@@ -29,7 +29,9 @@ struct HoloDefaultHabitDataSource: HoloHabitDataSource {
                 name: habit.name ?? "",
                 polarity: habit.isBadHabit ? .negative : .positive,
                 dailyGoal: goal(for: habit),
-                dailyCounts: aggregate(records: records, today: today, dayCount: dayCount)
+                dailyCounts: aggregate(records: records, today: today, dayCount: dayCount, isMeasureType: habit.isMeasureType),
+                unit: habit.isNumericType ? habit.unitText : nil,
+                isMeasureType: habit.isMeasureType
             )
         }
     }
@@ -40,17 +42,32 @@ struct HoloDefaultHabitDataSource: HoloHabitDataSource {
         return nil
     }
 
-    /// 按 dayOffset（0=今天）聚合近 14 天每日计数：数值型累加 value，打卡型 +1。
-    private static func aggregate(records: [HabitRecord], today: Date, dayCount: Int) -> [HoloHabitDailyCount] {
+    /// 按 dayOffset（0=参考日）聚合每日计数：计数型累加 value，打卡型 +1；
+    /// 测量型（如体重，LATEST 聚合）取当日最后一条记录值，避免一天多次记录被错误累加。
+    private static func aggregate(records: [HabitRecord], today: Date, dayCount: Int, isMeasureType: Bool) -> [HoloHabitDailyCount] {
         let calendar = Calendar.current
         var bucket = [Double](repeating: 0, count: dayCount)
-        for record in records {
-            let dayOffset = calendar.dateComponents([.day], from: calendar.startOfDay(for: record.date), to: today).day ?? -1
-            guard dayOffset >= 0, dayOffset < dayCount else { continue }
-            if let value = record.value?.doubleValue {
-                bucket[dayOffset] += value
-            } else if record.isCompleted {
-                bucket[dayOffset] += 1
+        if isMeasureType {
+            var latestDateByOffset = [Int: Date]()
+            for record in records {
+                guard let value = record.value?.doubleValue else { continue }
+                let dayOffset = calendar.dateComponents([.day], from: calendar.startOfDay(for: record.date), to: today).day ?? -1
+                guard dayOffset >= 0, dayOffset < dayCount else { continue }
+                if let existing = latestDateByOffset[dayOffset], existing >= record.date {
+                    continue
+                }
+                latestDateByOffset[dayOffset] = record.date
+                bucket[dayOffset] = value
+            }
+        } else {
+            for record in records {
+                let dayOffset = calendar.dateComponents([.day], from: calendar.startOfDay(for: record.date), to: today).day ?? -1
+                guard dayOffset >= 0, dayOffset < dayCount else { continue }
+                if let value = record.value?.doubleValue {
+                    bucket[dayOffset] += value
+                } else if record.isCompleted {
+                    bucket[dayOffset] += 1
+                }
             }
         }
         return bucket.enumerated().map { HoloHabitDailyCount(dayOffset: $0.offset, count: $0.element) }

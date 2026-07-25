@@ -253,6 +253,21 @@ actor HoloAgentScheduler {
         }
     }
 
+    /// 取消当前所有活跃的用户任务（trigger == .userQuestion）。
+    /// 供 UI「停止」按钮调用——ViewModel 无需知道具体 jobID。
+    /// 修复事故：此前停止按钮只取消了 chat 流式 Task，没碰 Scheduler 的 Task，
+    /// 导致 Agent 分析点停止后仍继续跑到预算耗尽。
+    @discardableResult
+    func cancelActiveUserQuestions(now: Date = Date()) async -> Int {
+        let userJobIDs = activeTriggers
+            .filter { $0.value == .userQuestion }
+            .map { $0.key }
+        for jobID in userJobIDs {
+            await cancel(jobID: jobID, source: .user, now: now)
+        }
+        return userJobIDs.count
+    }
+
     /// 暂停执行：取消活跃 Task（§6.4 只发取消信号 + 状态标记，不承担 checkpoint 保存——
     /// 正常推进中已持续落盘）+ 标记 waitingForForeground；注册表立即让位，
     /// 后续 runOrAttach 以新 generation 接管，旧 Task 晚返回的写回会被 stale guard 拒绝。

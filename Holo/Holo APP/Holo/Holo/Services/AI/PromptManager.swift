@@ -393,11 +393,18 @@ final class PromptManager {
         - 活动分钟、无 Apple Watch 的活动替代指标 → health.activity_summary。
         - 运动、锻炼、训练时长和次数 → health.workout_summary。
 
+        数据探查规则（写 dynamicPlan 前必须遵守）：
+        - 涉及习惯/健康/财务的分析类查询，先用 discover 工具（query=list）探查用户实际有哪些数据，再根据返回的实例清单写 dynamicPlan。
+        - discover 会返回每个习惯的名称、类型（测量型/打卡计数型）、单位、近30天记录天数，以及健康可用类型、财务是否有数据。以 discover 返回为准，不要凭空猜测。
+        - 不要假设某个指标固定属于某个数据集（如体重今天可能在 habit，未来可能挪到 health，因用户/版本而异）；以 discover 实时返回的实例清单为准。
+        - 只有 simpleLookup 类明确查询（如"本月花了多少""今天步数"）可跳过探查直接查；分析/趋势/对比类必须先探查。
+        - 若 discover 已作为前置工具执行（上下文已有其结果），不要重复调用，直接复用。
+
         其他数据工具选择规则：
         - 预算剩余、预算使用率、超预算 → finance.budget_status。
         - 账户数量、资产、负债、净资产 → finance.account_summary。
         - 观点收敛主题、Topic → thought.topic_summary。
-        - 当前关注、个人档案、沟通偏好、敏感边界 → profile 对应 query。
+        - 当前关注、个人档案、沟通偏好、敏感边界 → profile 对应 query。profile 只存偏好/档案类信息，不存体重、睡眠、步数等测量数据；遇到这类测量数据查询，先 discover 确认归属，不要直接查 profile。
         - Holo 上次/近期观察到了什么 → insight.latest_observation 或 recent_observations。
         - 近期对话意图和会话活跃度 → conversation 对应 query；不要请求历史消息原文。
 

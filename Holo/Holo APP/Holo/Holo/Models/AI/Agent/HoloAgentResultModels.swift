@@ -22,6 +22,17 @@ nonisolated struct HoloAgentResult: Codable, Identifiable, Equatable, Sendable {
     var updatedAt: Date
     /// 本轮答案实际采用的数据覆盖；旧结果缺失时为 nil。
     var coverage: HoloDataCoverage? = nil
+    /// 当 claims 为空时，记录原因。用于 UI 区分"确实没数据"与"有数据但未通过校验"，
+    /// 避免一律显示"数据不足"的误导文案。旧结果反序列化时为 nil。
+    var emptyReason: HoloAgentEmptyReason? = nil
+}
+
+/// 空结论的原因。区分两类失败，用于精准提示用户。
+nonisolated enum HoloAgentEmptyReason: String, Codable, Sendable {
+    /// 工具在所选时间范围内确实没有返回可用数据。
+    case noData
+    /// 工具返回了数据，但 claim 未通过 Verifier 校验（如证据不足、表达越界）。
+    case unverifiable
 }
 
 /// Job 清理策略：终态 job 按保留期回收，可选级联清理关联的 checkpoint / result。

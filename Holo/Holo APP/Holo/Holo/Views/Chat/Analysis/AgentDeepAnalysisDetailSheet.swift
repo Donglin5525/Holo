@@ -35,6 +35,8 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
     var isFinanceLedgerMode: Bool
     var isHealthMode: Bool
     var isEmptyState: Bool
+    /// 空结论原因。用于在空状态下区分"确实没数据"与"有数据但未通过校验"，给出诚实提示。
+    var emptyReason: HoloAgentEmptyReason?
 
     init(result: HoloRenderedAgentResult) {
         let summary = Self.clean(result.summary)
@@ -103,6 +105,7 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
         self.isFinanceLedgerMode = isFinanceLedgerMode
         self.isHealthMode = isHealthMode
         self.isEmptyState = !hasContent
+        self.emptyReason = result.emptyReason
     }
 
     private static func observations(
@@ -341,7 +344,7 @@ struct AgentDeepAnalysisDetailSheet: View {
                     .foregroundColor(.holoTextPrimary)
                     .multilineTextAlignment(.center)
 
-                Text("所选时间范围内没有足够的可用数据，暂时无法形成可信结论。请确认数据权限和记录覆盖后再试。")
+                Text(emptyStateSubtitle)
                     .font(.system(size: 15, weight: .medium))
                     .foregroundColor(.holoTextSecondary)
                     .lineSpacing(5)
@@ -352,6 +355,16 @@ struct AgentDeepAnalysisDetailSheet: View {
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 24)
         .padding(.top, 46)
+    }
+
+    /// 空状态副标题：区分"确实没数据"与"有数据但未通过校验"，避免一律甩锅"数据不足"。
+    private var emptyStateSubtitle: String {
+        switch narrative.emptyReason {
+        case .unverifiable:
+            return "已查到相关数据，但未能形成通过核验的可信结论。可以换个问法或扩大时间范围再试一次。"
+        case .noData, nil:
+            return "所选时间范围内没有足够的可用数据，暂时无法形成可信结论。请确认数据权限和记录覆盖后再试。"
+        }
     }
 
     // MARK: - Header

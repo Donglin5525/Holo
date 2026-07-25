@@ -41,13 +41,14 @@ enum HoloAgentChatStatusPresenter {
                 showsActivityIndicator: false
             )
         case .paused:
-            // §9.5：系统结束持续执行（systemCapacity）不自动复活，提示手动继续；
-            // 其他 paused（用户/产品明确暂停）同样不自动恢复
+            // systemCapacity：系统lease结束导致的暂停（非用户意愿）。
+            // 回前台时由 BackgroundContinuationManager 自动恢复（collectResumableJobs 放行）。
+            // 文案如实告知"自动继续"，不再误导"手动继续"。
             if job.waitReason == .systemCapacity {
                 return HoloAgentChatStatus(
-                    title: "系统已暂停这次分析",
-                    detail: "回到 App 后可以手动继续这次深度分析。",
-                    keepsMessageStreaming: false,
+                    title: "分析已暂停，回到 App 自动继续",
+                    detail: "系统暂时收回后台执行时间。回到 Holo 后会自动接着往下分析。",
+                    keepsMessageStreaming: true,
                     showsActivityIndicator: false
                 )
             }
@@ -202,7 +203,10 @@ final class HoloAgentAnalysisService {
             HoloRenderedAgentResult(title: "深度分析出错", summary: reason, sections: [], evidenceReferences: [])
         }
         let toolDescriptions = await runtime.toolDescriptions()
-        let systemTemplate = ""
+        // 接入 PromptManager.agentLoop 模板：该模板定义了 status 取值、JSON Schema、
+        // evidenceID 必须逐字引用等协议约束。此前传空串导致模型无协议指令，
+        // 输出的 claim 因 evidenceID 缺失/编造被 Verifier 全部 reject → "没有形成可信结论"。
+        let systemTemplate = PromptManager.shared.loadRawTemplate(.agentLoop)
         logger.info("[Agent] 经 Scheduler 启动 runLoop…")
         let finalJob: HoloAgentJob
         do {
@@ -247,7 +251,8 @@ final class HoloAgentAnalysisService {
                 evidence: evidence,
                 title: result.title,
                 question: question,
-                coverage: result.coverage
+                coverage: result.coverage,
+                emptyReason: result.emptyReason
             )
         } catch {
             return fail("[证据读取失败] \(String(describing: error))")

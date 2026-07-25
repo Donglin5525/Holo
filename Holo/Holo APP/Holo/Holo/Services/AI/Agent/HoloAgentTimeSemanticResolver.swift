@@ -14,6 +14,7 @@ nonisolated enum HoloAgentTimeSemanticKind: String, Equatable, Sendable {
     case previousWeek
     case recentDays
     case explicitMonth
+    case explicitYear
     case currentYear
     case previousYear
 }
@@ -47,6 +48,10 @@ nonisolated enum HoloAgentTimeSemanticResolver {
 
         if let explicitMonth = resolveExplicitMonth(in: normalized, today: today, calendar: calendar) {
             return explicitMonth
+        }
+
+        if let explicitYear = resolveExplicitYear(in: normalized, calendar: calendar) {
+            return explicitYear
         }
 
         return nil
@@ -173,6 +178,18 @@ nonisolated enum HoloAgentTimeSemanticResolver {
         return scope(kind: .explicitMonth, matchedText: matchedText, label: label, start: start, end: end)
     }
 
+    /// 裸年份（无月份）：如「2026年体重趋势」。必须排在 explicitMonth 之后，
+    /// 避免吃掉「2026年7月」；负向断言保证后面不紧跟月份。
+    private static func resolveExplicitYear(in text: String, calendar: Calendar) -> HoloAgentResolvedTimeScope? {
+        let pattern = #"((?:19|20)\d{2})年(?!(?:1[0-2]|[1-9])月)"#
+        guard let match = firstRegexMatch(pattern: pattern, in: text),
+              let yearText = match.captures.first,
+              let year = Int(yearText),
+              let start = calendar.date(from: DateComponents(year: year, month: 1, day: 1)),
+              let end = calendar.date(byAdding: .year, value: 1, to: start) else { return nil }
+        return scope(kind: .explicitYear, matchedText: match.matchedText, label: "\(year)年", start: start, end: end)
+    }
+
     private static func firstYearMonth(in text: String) -> (year: Int, month: Int, matchedText: String)? {
         let pattern = #"((?:19|20)\d{2})年(1[0-2]|[1-9])月份?(?!\d)"#
         guard let match = firstRegexMatch(pattern: pattern, in: text),
@@ -213,10 +230,47 @@ nonisolated enum HoloAgentTimeSemanticResolver {
     }
 
     private static func normalize(_ text: String) -> String {
-        text.lowercased()
+        let cleaned = text.lowercased()
             .replacingOccurrences(of: " ", with: "")
             .replacingOccurrences(of: "\n", with: "")
             .replacingOccurrences(of: "\t", with: "")
+            .replacingOccurrences(of: "０", with: "0")  // 全角数字归一
+            .replacingOccurrences(of: "１", with: "1")
+            .replacingOccurrences(of: "２", with: "2")
+            .replacingOccurrences(of: "３", with: "3")
+            .replacingOccurrences(of: "４", with: "4")
+            .replacingOccurrences(of: "５", with: "5")
+            .replacingOccurrences(of: "６", with: "6")
+            .replacingOccurrences(of: "７", with: "7")
+            .replacingOccurrences(of: "８", with: "8")
+            .replacingOccurrences(of: "９", with: "9")
+        return Self.normalizeChineseYearAndMonth(cleaned)
+    }
+
+    /// 把紧跟在「年」「月」「月份」前的中文数字序列归一为阿拉伯数字。
+    /// 只处理时间语境（年/月），不误伤「一个月」「第一天」等日常表达。
+    /// 例：「二零二六年」→「2026年」、「二零二六年七月」→「2026年7月」。
+    private static func normalizeChineseYearAndMonth(_ text: String) -> String {
+        let digitMap: [Character: Character] = [
+            "零": "0", "〇": "0", "一": "1", "二": "2", "三": "3", "四": "4",
+            "五": "5", "六": "6", "七": "7", "八": "8", "九": "9"
+        ]
+        // 匹配「连续中文数字 + 年 或 月 或 月份」。
+        let pattern = #"([零〇一二三四五六七八九]{1,6})(年|月份?)"#
+        guard let regex = try? NSRegularExpression(pattern: pattern) else { return text }
+        let mutable = NSMutableString(string: text)
+        let fullRange = NSRange(location: 0, length: mutable.length)
+        // 倒序替换：保证未处理 match 的 NSRange 仍指向原始位置（后面的替换只影响更靠后的偏移）。
+        let matches = regex.matches(in: mutable as String, range: fullRange).reversed()
+        for match in matches {
+            guard match.numberOfRanges >= 3 else { continue }
+            let numerals = mutable.substring(with: match.range(at: 1))
+            let suffix = mutable.substring(with: match.range(at: 2))
+            // 逐字映射：「二零二六」→「2026」。（不处理「十/百」，年份/月份场景不需要。）
+            let arabic = numerals.map { digitMap[$0].map(String.init) ?? String($0) }.joined()
+            mutable.replaceCharacters(in: match.range, with: arabic + suffix)
+        }
+        return mutable as String
     }
 
     /// 扫描文本中所有词法时间匹配（currentMonth/previousMonth/currentWeek 等）。

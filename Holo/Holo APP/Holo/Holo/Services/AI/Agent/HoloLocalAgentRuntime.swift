@@ -344,6 +344,21 @@ actor HoloLocalAgentRuntime {
             progressReporter: progressReporter,
             now: now
         )
+        // 数据探查前置：复杂任务（分析/趋势/对比）在 LLM 循环前确定性执行 discover，
+        // 让模型第 1 轮就看到用户实际有哪些数据（习惯名/类型等），避免盲猜数据归属。
+        // 事故背景：此前模型把"体重"猜到 profile，空转 10 轮未收敛。
+        // frame 由上方 L322 区块构建；此处复用同一 frame 判定 profile + domains。
+        if let question = job.userQuestion, !question.isEmpty {
+            let frame = HoloAgentSemanticFrameBuilder.buildFrame(query: question, referenceDate: job.referenceDate ?? now)
+            try await executeDiscoverPrerequisiteIfNeeded(
+                job: &job,
+                checkpoint: &checkpoint,
+                frame: frame,
+                generation: generation,
+                progressReporter: progressReporter,
+                now: now
+            )
+        }
         var endedOnResponseContractFailure = false
 
         // §5.2：预算判断改用 active runtime（锁屏/等待/暂停不计入）
@@ -505,6 +520,10 @@ actor HoloLocalAgentRuntime {
                 if !output.toolRequests.isEmpty {
                     job.budget.consumedToolBatches += 1
                 }
+                // §token-bloat fix：记录本轮工具执行前的结果数，便于稍后只发送本轮增量结果，
+                // 而不是把全部历史 completedToolResults 再次序列化进 prompt（原实现每轮 O(N) 增长，
+                // 年趋势等重型查询因此撞预算墙）。
+                let prevToolResultCount = checkpoint.completedToolResults.count
                 for request in output.toolRequests {
                     if Self.hasCompletedEquivalentToolRequest(request, in: checkpoint.completedToolResults) {
                         continue
@@ -561,12 +580,17 @@ actor HoloLocalAgentRuntime {
                     try await saveProgress(job: job, evidence: evidence, checkpoint: checkpoint)
                     await reportProgress(job, to: progressReporter)
                 }
+                // §token-bloat fix：pattern miner 对全量结果挖掘，但仅本轮新增的信号才
+                // 需要注入本轮 message（历史信号已在之前轮次发给模型）。
+                let prevPatternSignalCount = checkpoint.patternSignals.count
                 checkpoint.patternSignals.append(
                     contentsOf: patternMiner.mine(toolResults: checkpoint.completedToolResults, now: now)
                 )
+                let newToolResults = Array(checkpoint.completedToolResults.dropFirst(prevToolResultCount))
+                let newPatternSignals = Array(checkpoint.patternSignals.dropFirst(prevPatternSignalCount))
                 checkpoint.conversationState.append(Self.toolResultMessage(
-                    toolResults: checkpoint.completedToolResults,
-                    patternSignals: checkpoint.patternSignals,
+                    toolResults: newToolResults,
+                    patternSignals: newPatternSignals,
                     now: now
                 ))
                 checkpoint.step = .executeTools
@@ -654,14 +678,17 @@ actor HoloLocalAgentRuntime {
     /// 收集所有非终态 job 的 ID（含 running 孤儿与 waitingForForeground），供 Scheduler 拉起 runLoop。
     /// 与 resumeUnfinishedJobs 的区别：不排除 running（进程被硬杀的孤儿落盘仍是 running）、不修改状态——
     /// 是否真正重启推理由 Scheduler 决定，本方法只负责给出「需要被推进」的 job 清单。
-    /// §5.2：paused（用户明确暂停）不自动恢复；§5.5：枚举场景读失败必须上抛，不得当空库继续。
+    /// §5.2：paused（任何 waitReason）一律不自动恢复。曾尝试对 systemCapacity 放行，
+    /// 但会导致所有历史 paused 任务每次进 App 被反复拉起（回归事故），已回滚。
+    /// §5.5：枚举场景读失败必须上抛，不得当空库继续。
     func collectResumableJobIDs(now: Date = Date()) async throws -> [String] {
         let jobs = try await jobStore.load()
         return jobs.filter { !Self.terminalStates.contains($0.state) && $0.state != .paused }.map(\.id)
     }
 
     /// 收集所有非终态 job（含 running 孤儿），供 Scheduler 排序、限量、拉起 runLoop。
-    /// §5.2：paused 不自动恢复；§5.5：枚举场景读失败必须上抛，不得当空库继续。
+    /// §5.2：paused 一律不自动恢复（见上方说明）。
+    /// §5.5：枚举场景读失败必须上抛，不得当空库继续。
     func collectResumableJobs(now: Date = Date()) async throws -> [HoloAgentJob] {
         let jobs = try await jobStore.load()
         return jobs.filter { !Self.terminalStates.contains($0.state) && $0.state != .paused }
@@ -919,6 +946,82 @@ actor HoloLocalAgentRuntime {
         checkpoint.conversationState.append(Self.toolResultMessage(
             toolResults: checkpoint.completedToolResults,
             patternSignals: checkpoint.patternSignals,
+            now: now
+        ))
+        checkpoint.step = .executeTools
+        try await guardExecutionGeneration(generation, jobID: job.id)
+        try await saveProgress(job: job, evidence: [], checkpoint: checkpoint)
+        await reportProgress(job, to: progressReporter)
+    }
+
+    /// 数据探查前置：复杂任务在 LLM 循环前确定性执行 discover，让模型第 1 轮就看到
+    /// 用户实际有哪些数据。只对分析类 profile（singleDomain/comparison/crossDomain/sensitive）
+    /// 且涉及可探查域（habit/health/finance）的任务触发；simpleLookup 保持 fast path。
+    /// 与 executeDeterministicPrerequisiteToolsIfNeeded 并列，复用其执行+落盘+注入上下文模式。
+    private func executeDiscoverPrerequisiteIfNeeded(
+        job: inout HoloAgentJob,
+        checkpoint: inout HoloAgentCheckpoint,
+        frame: HoloAgentQuerySemanticFrame,
+        generation: Int? = nil,
+        progressReporter: (@Sendable (HoloAgentProgressSnapshot) async -> Void)? = nil,
+        now: Date
+    ) async throws {
+        guard let toolExecutor else { return }
+        // 仅复杂任务触发探查；simpleLookup/observerFollowUp 保持 fast path
+        guard frame.profile != .simpleLookup, frame.profile != .observerFollowUp else { return }
+
+        // 映射 frame.domains → discover 的 domain 参数
+        // 只对存在探查价值的域触发（habit/health/finance）；其余域（task/goal/thought 等）跳过。
+        let discoverableDomains: [String] = frame.domains.compactMap { domain in
+            switch domain {
+            case "habit", "health", "finance": return domain
+            default: return nil
+            }
+        }
+        guard !discoverableDomains.isEmpty else { return }
+
+        // 已执行过 discover 则跳过（幂等，避免恢复时重复）
+        let discoverKey = "discover:list"
+        let alreadyExecuted = checkpoint.completedToolResults.contains { "\($0.tool):\($0.toolRequestID)" == discoverKey }
+        guard !alreadyExecuted else { return }
+
+        // 对每个相关域执行 discover（单次合并为 all 也可，但分域更省 token：只探查涉及的域）
+        for domain in discoverableDomains {
+            let request = HoloToolRequest(
+                id: "list",
+                tool: "discover",
+                query: "list",
+                timeRange: nil,
+                baseline: nil,
+                requiredMetrics: [],
+                parameters: ["domain": domain]
+            )
+            let scopedRequest = Self.requestWithJobScope(request, job: job)
+            let rawResult = await toolExecutor.execute(scopedRequest)
+            let result = Self.resultWithCanonicalEvidenceIDs(rawResult, jobID: job.id)
+            checkpoint.completedToolResults.append(result)
+            let evidence = Self.evidenceRecords(
+                from: result,
+                request: scopedRequest,
+                jobID: job.id,
+                now: now
+            )
+            checkpoint.evidenceRecordIDs.append(contentsOf: evidence.map(\.id))
+            try await guardExecutionGeneration(generation, jobID: job.id)
+            try await saveProgress(job: job, evidence: evidence, checkpoint: checkpoint)
+            await reportProgress(job, to: progressReporter)
+        }
+
+        // 注入探查结果到对话上下文，让模型第 1 轮可见。
+        // 增量语义：只发本轮（探查）新增结果，与循环内 toolResultMessage 的增量模式一致。
+        let discoverResults = checkpoint.completedToolResults.filter { $0.tool == "discover" }
+        guard !discoverResults.isEmpty else { return }
+        checkpoint.patternSignals.append(
+            contentsOf: patternMiner.mine(toolResults: checkpoint.completedToolResults, now: now)
+        )
+        checkpoint.conversationState.append(Self.toolResultMessage(
+            toolResults: discoverResults,
+            patternSignals: [],
             now: now
         ))
         checkpoint.step = .executeTools
@@ -1284,8 +1387,10 @@ actor HoloLocalAgentRuntime {
             toolResults: toolResults,
             patternSignals: patternSignals
         )
+        // 增量语义提示：自 §token-bloat fix 起，每轮只携带本轮新产生的工具结果，
+        // 历史结果仍保留在之前的对话轮次里，可直接复用其 evidenceIDs。
         let content = """
-        工具执行结果（作为上下文使用，不是原生 tool call）：
+        本轮新增工具执行结果（增量；历史结果见前序轮次，可复用其 evidenceIDs；作为上下文使用，不是原生 tool call）：
         \(Self.encodeToolContext(payload))
         """
         return HoloAgentMessage(role: .assistant, content: content, toolRequestID: nil, toolName: nil,
@@ -1427,6 +1532,15 @@ actor HoloLocalAgentRuntime {
         let resultCoverage = checkpoint.completedToolResults.first { toolResult in
             toolResult.coverage != nil && toolResult.metrics.contains { coveredMetricKeys.contains($0.metricKey) }
         }?.coverage
+        // 空结论原因：区分"工具确实没数据"与"有数据但 claim 未通过校验"，
+        // 让 UI 能给出诚实提示而非一律甩锅"数据不足"。
+        var emptyReason: HoloAgentEmptyReason? = nil
+        if acceptedClaims.isEmpty {
+            let hadToolData = checkpoint.completedToolResults.contains {
+                !$0.metrics.isEmpty || !$0.events.isEmpty
+            }
+            emptyReason = hadToolData ? .unverifiable : .noData
+        }
         // canonical result ID：同一 job 恒为同一 ID，配合 ResultStore 按 jobID 唯一 upsert（§5.4，P0-6）
         let agentResult = HoloAgentResult(
             id: "agent-result:\(job.id)",
@@ -1441,7 +1555,8 @@ actor HoloLocalAgentRuntime {
             status: "completed",
             generatedAt: now,
             updatedAt: now,
-            coverage: resultCoverage
+            coverage: resultCoverage,
+            emptyReason: emptyReason
         )
         // §6.2：Result 提交与最终状态写回前校验 generation（过期不得写回）
         try await guardExecutionGeneration(generation, jobID: job.id)

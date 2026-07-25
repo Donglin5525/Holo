@@ -196,8 +196,9 @@ struct HoloAgentModelCodableTests {
 
     private static func testHoloAgentBudget_NormalDeep_可用() {
         let budget = HoloAgentBudget.normalDeep()
-        expect(budget.maxLLMRounds == 5, "normalDeep maxLLMRounds 应为 5（与 HoloAgentBudget.normalDeep 一致）")
-        expect(budget.maxToolBatches == 5, "normalDeep maxToolBatches 应为 5（与 HoloAgentBudget.normalDeep 一致）")
+        // 2026-07-25 调整：normalDeep 放宽到 12 轮 / 12 批次以支撑年趋势等重型查询
+        expect(budget.maxLLMRounds == 12, "normalDeep maxLLMRounds 应为 12（与 HoloAgentBudget.normalDeep 一致）")
+        expect(budget.maxToolBatches == 12, "normalDeep maxToolBatches 应为 12（与 HoloAgentBudget.normalDeep 一致）")
         expect(!budget.isExhausted, "全新 budget 不应耗尽")
     }
 }

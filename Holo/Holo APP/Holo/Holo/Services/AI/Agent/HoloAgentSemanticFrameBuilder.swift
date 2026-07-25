@@ -56,7 +56,7 @@ nonisolated enum HoloAgentSemanticFrameBuilder {
         let domainKeywords: [(domain: String, keywords: [String])] = [
             ("finance", ["消费", "花", "支出", "账", "钱", "买", "餐饮", "购物", "金额"]),
             ("health", ["步数", "睡眠", "运动", "健康", "站立", "心率", "锻炼", "走路", "步"]),
-            ("habit", ["习惯", "打卡", "坚持", "早起", "读书", "冥想"]),
+            ("habit", ["习惯", "打卡", "坚持", "早起", "读书", "冥想", "体重", "体脂"]),
             ("task", ["任务", "待办", "完成", "todo", "计划", "deadline"]),
             ("goal", ["目标", "达成", "进度", "计划完成"]),
             ("thought", ["笔记", "想法", "记录", "心情", "日记", "反思"]),

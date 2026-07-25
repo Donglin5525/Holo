@@ -277,11 +277,11 @@ nonisolated struct HoloCrossDomainTool: HoloDataTool {
     static let habitSchema = HoloDataSetSchema(
         name: "habit.daily",
         domain: "habit",
-        description: "习惯每日完成或发生次数",
+        description: "习惯每日完成次数或测量值",
         timeField: "date",
         fields: [
             HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "日期"),
-            HoloDataField(name: "value", type: .number, unit: "次", filterable: true, groupable: false, aggregatable: true, description: "每日次数"),
+            HoloDataField(name: "value", type: .number, unit: nil, filterable: true, groupable: false, aggregatable: true, description: "打卡/计数型为每日次数；测量型（如体重）为当日测量值，单位是习惯自身单位（如 kg）。unit 留空表示单位因习惯而异，由 discover 返回具体单位"),
             HoloDataField(name: "habit", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "习惯名称"),
             HoloDataField(name: "polarity", type: .text, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "positive 或 negative")
         ],
@@ -527,7 +527,9 @@ nonisolated enum HoloDynamicQueryValidator {
     static func validate(_ plan: HoloDynamicQueryPlan, catalog: HoloDataCatalog, calendar: Calendar = .current) throws {
         guard let schema = catalog.schema(named: plan.source) else { throw HoloDynamicQueryValidationError.unknownDataset(plan.source) }
         guard plan.aggregations.count <= 5, plan.derivations.count <= 5, plan.filters.count <= 10 else { throw HoloDynamicQueryValidationError.tooComplex }
-        guard (1...50).contains(plan.limit), (1...200).contains(plan.evidenceLimit) else { throw HoloDynamicQueryValidationError.unsafeLimit }
+        // limit 上限 200：全年趋势（按月 12、按周 52）等场景需要；按日聚合 365 天会超限，
+        // 但 prompt 已引导按月聚合。原 50 过严，导致模型 limit:100 被反复拒绝。
+        guard (1...200).contains(plan.limit), (1...200).contains(plan.evidenceLimit) else { throw HoloDynamicQueryValidationError.unsafeLimit }
         if let range = plan.timeRange, let start = range.start, let end = range.end {
             guard start < end else { throw HoloDynamicQueryValidationError.invalidRange }
             let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: start), to: calendar.startOfDay(for: end)).day ?? 0
@@ -544,8 +546,20 @@ nonisolated enum HoloDynamicQueryValidator {
         }
         for aggregation in plan.aggregations where aggregation.operation != .count {
             guard let name = aggregation.field, let field = fields[name] else { throw HoloDynamicQueryValidationError.unknownField(aggregation.field ?? "") }
-            guard field.aggregatable else { throw HoloDynamicQueryValidationError.unsupportedFieldOperation(name) }
-            if let requested = aggregation.unit, let actual = field.unit, requested != actual { throw HoloDynamicQueryValidationError.unitMismatch(name) }
+            // distinctCount 放宽：允许 aggregatable 或 groupable 的字段。
+            // groupable 的离散文本字段（如 habit 名称、finance 分类）天然适合 distinctCount，
+            // 此前要求 aggregatable 导致"用户有哪些习惯名"这类探查被拒。
+            // sum/average/min/max 仍严格要求 aggregatable（对文本无意义）。
+            if aggregation.operation == .distinctCount {
+                guard field.aggregatable || field.groupable else { throw HoloDynamicQueryValidationError.unsupportedFieldOperation(name) }
+            } else {
+                guard field.aggregatable else { throw HoloDynamicQueryValidationError.unsupportedFieldOperation(name) }
+            }
+            // unit 比对忽略大小写：模型从 discover 看到"kg"可能写成"KG"，属正常差异，不该拒绝。
+            // 字段 unit 为 nil（如 habit.daily.value 单位因习惯而异）时不校验。
+            if let requested = aggregation.unit?.lowercased(), let actual = field.unit?.lowercased(), requested != actual {
+                throw HoloDynamicQueryValidationError.unitMismatch(name)
+            }
         }
         for aggregation in plan.aggregations {
             for filter in aggregation.filters {

@@ -491,6 +491,13 @@ final class ChatViewModel: ObservableObject {
         currentTask = nil
         streamingWatchdogTask?.cancel()
         streamingWatchdogTask = nil
+        // 关键修复：Agent 深度分析跑在 Scheduler 独立 Task 上（activeTasks[jobID]），
+        // 与 chat 的 currentTask 是不同对象。此前只取消 currentTask 对 Agent 无效，
+        // 导致点「停止」后分析继续跑到预算耗尽。这里显式取消 Scheduler 上活跃的用户任务。
+        // HoloAIFeatureFlags 守卫：未启用 Agent runtime 时不触发（避免无谓的 actor 调用）。
+        if HoloAIFeatureFlags.agentRuntimeEnabled {
+            Task { await HoloAgentScheduler.shared.cancelActiveUserQuestions() }
+        }
     }
 
     // MARK: - Retry

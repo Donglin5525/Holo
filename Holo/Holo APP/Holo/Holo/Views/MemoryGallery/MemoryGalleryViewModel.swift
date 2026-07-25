@@ -762,7 +762,8 @@ class MemoryGalleryViewModel: ObservableObject {
             }
             let evidence = try await runtime.loadEvidence(forIDs: result.evidenceIDs)
             agentRenderedResult = HoloAgentResultRenderer().render(
-                claims: result.claims, evidence: evidence, title: result.title
+                claims: result.claims, evidence: evidence, title: result.title,
+                emptyReason: result.emptyReason
             )
         } catch {
             NSLog("[Agent] 记忆长廊读取 Agent 结果失败: \(String(describing: error))")

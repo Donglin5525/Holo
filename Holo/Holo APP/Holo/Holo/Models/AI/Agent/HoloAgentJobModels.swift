@@ -168,23 +168,29 @@ nonisolated struct HoloAgentBudget: Codable, Equatable, Sendable {
 
 extension HoloAgentBudget {
     /// 标准深度分析预算
+    /// 调整说明（2026-07-25）：原 5 轮 / 10K input / 120s 在年趋势、跨域等重型查询下
+    /// 频繁撞墙（体重年趋势单次工具结果可达 ~6K token，叠加每轮全量重发更易爆）。
+    /// 现放宽到 12 轮 / 80K input / 300s，可稳跑绝大多数单域分析与比较分析；
+    /// 进一步重型场景由 extendedDeep 兜底。
     static func normalDeep(now: Date = Date()) -> HoloAgentBudget {
         HoloAgentBudget(
-            maxLLMRounds: 5, maxToolBatches: 5,
-            maxInputTokens: 10_000, maxOutputTokens: 4_000,
-            maxWallTimeSeconds: 120,
+            maxLLMRounds: 12, maxToolBatches: 12,
+            maxInputTokens: 80_000, maxOutputTokens: 12_000,
+            maxWallTimeSeconds: 300,
             consumedLLMRounds: 0, consumedToolBatches: 0,
             consumedInputTokens: 0, consumedOutputTokens: 0,
             startedAt: now, updatedAt: now
         )
     }
 
-    /// 扩展深度分析预算（用户主动继续时）
+    /// 扩展深度分析预算（跨域 / 长时间范围 / 复杂比较由任务画像自动启用）
+    /// 现在真正可达（selectConfig 会按 profile + 时间范围自动放行），
+    /// 梯度需高于 normalDeep 才有意义。
     static func extendedDeep(now: Date = Date()) -> HoloAgentBudget {
         HoloAgentBudget(
-            maxLLMRounds: 5, maxToolBatches: 5,
-            maxInputTokens: 20_000, maxOutputTokens: 8_000,
-            maxWallTimeSeconds: 300,
+            maxLLMRounds: 16, maxToolBatches: 16,
+            maxInputTokens: 120_000, maxOutputTokens: 16_000,
+            maxWallTimeSeconds: 420,
             consumedLLMRounds: 0, consumedToolBatches: 0,
             consumedInputTokens: 0, consumedOutputTokens: 0,
             startedAt: now, updatedAt: now

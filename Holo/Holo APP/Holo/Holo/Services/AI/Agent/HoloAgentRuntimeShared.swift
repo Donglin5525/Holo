@@ -38,10 +38,17 @@ struct HoloDefaultCrossDomainDataSource: HoloCrossDomainDataSource, HoloDynamicR
             let habits = await HoloDefaultHabitDataSource().habits(timeRange: timeRange)
             let calendar = Calendar.current
             let end = timeRange?.end ?? Date()
-            let latestDay = calendar.date(byAdding: .day, value: -1, to: calendar.startOfDay(for: end)) ?? end
-            return habits.flatMap { habit in
-                habit.dailyCounts.compactMap { count in
-                    guard let date = calendar.date(byAdding: .day, value: -count.dayOffset, to: latestDay) else { return nil }
+            // dayOffset 的锚点是数据源里的参考日（timeRange.end 或今天 0 点），
+            // 还原日期必须用同一锚点，否则每条记录会整体早一天、边界记录被时间窗过滤掉。
+            let anchorDay = calendar.startOfDay(for: end)
+            return habits.flatMap { habit -> [HoloQueryRow] in
+                let unitText = habit.unit?.isEmpty == false ? habit.unit! : "次"
+                return habit.dailyCounts.compactMap { count -> HoloQueryRow? in
+                    // 测量型习惯（体重/体脂）：未记录日 count==0 是缺失值而非真实测量，
+                    // 若发射会污染 average/trend（如全年体重平均被 ~330 个 0 稀释到 ≈0）。
+                    // 打卡/计数型：count==0 表示"今天没做"，是真实语义，必须保留。
+                    if habit.isMeasureType, count.count == 0 { return nil }
+                    guard let date = calendar.date(byAdding: .day, value: -count.dayOffset, to: anchorDay) else { return nil }
                     return HoloQueryRow(
                         id: "\(habit.id)-d\(count.dayOffset)",
                         occurredAt: date,
@@ -51,7 +58,7 @@ struct HoloDefaultCrossDomainDataSource: HoloCrossDomainDataSource, HoloDynamicR
                             "habit": .text(habit.name),
                             "polarity": .text(habit.polarity.rawValue)
                         ],
-                        excerpt: "\(habit.name) \(count.count) 次"
+                        excerpt: "\(habit.name) \(count.count) \(unitText)"
                     )
                 }
             }
@@ -260,7 +267,10 @@ extension HoloLocalAgentRuntime {
             HoloFeedbackTool(dataSource: HoloDefaultFeedbackDataSource()),
             HoloThoughtReferenceTool(dataSource: HoloDefaultThoughtReferenceDataSource()),
             HoloProjectTool(dataSource: HoloDefaultProjectDataSource()),
-            HoloCrossDomainTool(dataSource: dynamicDataSource)
+            HoloCrossDomainTool(dataSource: dynamicDataSource),
+            // 数据探查工具：让模型在写 dynamicPlan 前先看到用户实际有哪些数据（习惯名/类型等），
+            // 避免盲猜数据归属（如把体重猜到 profile）。不进 requiredToolNames（增强非必需）。
+            HoloDiscoverTool()
         ]
         assert(
             HoloAgentToolCoverage.missingToolNames(in: productionTools).isEmpty,

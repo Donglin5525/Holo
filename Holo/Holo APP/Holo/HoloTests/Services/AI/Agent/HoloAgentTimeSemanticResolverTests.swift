@@ -37,6 +37,10 @@ struct HoloAgentTimeSemanticResolverTests {
         test单窗resolve保持不变()
         test对比问题current窗口正确()
         test对比问题baseline窗口正确()
+        test裸年份解析为全年窗口()
+        test裸年份不影响年月与今年()
+        test中文数字年份解析为全年窗口()
+        test中文数字不影响阿拉伯数字路径()
         print("HoloAgentTimeSemanticResolverTests passed")
     }
 
@@ -142,5 +146,70 @@ struct HoloAgentTimeSemanticResolverTests {
 
         // label 应为"上月"，供 evidence 文案使用。
         expect(baselineRange?.label == "上月", "baseline label 应为「上月」，实际=\(baselineRange?.label ?? "nil")")
+    }
+
+    // MARK: - 裸年份（无月份）解析
+
+    private static func test裸年份解析为全年窗口() {
+        let result = HoloAgentTimeSemanticResolver.resolve(
+            "2026年体重趋势是怎样的", referenceDate: referenceDate, calendar: calendar
+        )
+        expect(result != nil, "『2026年』应解析出全年窗口（此前返回 nil 导致只查近 14 天）")
+        expect(result?.kind == .explicitYear, "应为 explicitYear，实际=\(String(describing: result?.kind))")
+        expect(result?.timeRange.label == "2026年", "label 应为「2026年」，实际=\(result?.timeRange.label ?? "nil")")
+        let start = calendar.date(from: DateComponents(year: 2026, month: 1, day: 1))!
+        let end = calendar.date(from: DateComponents(year: 2027, month: 1, day: 1))!
+        expect(result?.timeRange.start == start, "起点应为 2026-01-01，实际=\(String(describing: result?.timeRange.start))")
+        expect(result?.timeRange.end == end, "终点应为 2027-01-01，实际=\(String(describing: result?.timeRange.end))")
+    }
+
+    private static func test裸年份不影响年月与今年() {
+        // 「2026年7月」仍应解析为显式月份，不被裸年份吃掉。
+        let monthResult = HoloAgentTimeSemanticResolver.resolve(
+            "2026年7月体重变化", referenceDate: referenceDate, calendar: calendar
+        )
+        expect(monthResult?.kind == .explicitMonth, "『2026年7月』应为 explicitMonth，实际=\(String(describing: monthResult?.kind))")
+        let monthStart = calendar.date(from: DateComponents(year: 2026, month: 7, day: 1))!
+        expect(monthResult?.timeRange.start == monthStart, "『2026年7月』起点应为 7月1日")
+
+        // 「今年」仍走词法 currentYear。
+        let thisYear = HoloAgentTimeSemanticResolver.resolve(
+            "今年体重趋势", referenceDate: referenceDate, calendar: calendar
+        )
+        expect(thisYear?.kind == .currentYear, "『今年』应为 currentYear，实际=\(String(describing: thisYear?.kind))")
+    }
+
+    // MARK: - 中文数字年份归一化
+
+    /// 「二零二六年」应与「2026年」解析出同一全年窗口。
+    /// 此前 normalize 无中文数字归一化，regex 只认阿拉伯数字 → 返回 nil → 只查近 14 天。
+    private static func test中文数字年份解析为全年窗口() {
+        let result = HoloAgentTimeSemanticResolver.resolve(
+            "二零二六年我的体重变化趋势是怎样的", referenceDate: referenceDate, calendar: calendar
+        )
+        expect(result != nil, "『二零二六年』应解析出全年窗口（归一化后等价于『2026年』）")
+        expect(result?.kind == .explicitYear, "应为 explicitYear，实际=\(String(describing: result?.kind))")
+        expect(result?.timeRange.label == "2026年", "label 应为「2026年」，实际=\(result?.timeRange.label ?? "nil")")
+        let start = calendar.date(from: DateComponents(year: 2026, month: 1, day: 1))!
+        let end = calendar.date(from: DateComponents(year: 2027, month: 1, day: 1))!
+        expect(result?.timeRange.start == start, "起点应为 2026-01-01，实际=\(String(describing: result?.timeRange.start))")
+        expect(result?.timeRange.end == end, "终点应为 2027-01-01，实际=\(String(describing: result?.timeRange.end))")
+    }
+
+    /// 归一化不得破坏阿拉伯数字路径，也不得误伤「一个月」等非时间表达。
+    private static func test中文数字不影响阿拉伯数字路径() {
+        // 阿拉伯数字仍正常
+        let arabic = HoloAgentTimeSemanticResolver.resolve(
+            "2026年体重趋势", referenceDate: referenceDate, calendar: calendar
+        )
+        expect(arabic?.kind == .explicitYear, "阿拉伯『2026年』仍应为 explicitYear")
+        expect(arabic?.timeRange.label == "2026年", "阿拉伯 label 应为「2026年」")
+
+        // 「一个月」「第一天」不应被误解析为时间范围（无『年』『月份』锚点不归一）
+        let nonTime = HoloAgentTimeSemanticResolver.resolve(
+            "养成一个习惯需要多少天", referenceDate: referenceDate, calendar: calendar
+        )
+        // 这类无时间语义的问题本就应返回 nil，不应因归一化误命中。
+        expect(nonTime?.kind != .explicitYear, "『一个习惯』不应被误判为 explicitYear")
     }
 }

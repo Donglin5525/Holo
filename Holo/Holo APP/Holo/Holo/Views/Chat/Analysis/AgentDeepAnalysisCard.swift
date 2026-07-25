@@ -49,7 +49,7 @@ struct AgentDeepAnalysisCard: View {
                             Text(result.title)
                                 .font(.system(size: 16, weight: .bold))
                                 .foregroundColor(.holoTextPrimary)
-                            Text("这次没有形成可信结论")
+                            Text(cardEmptySubtitle(for: result.emptyReason))
                                 .font(.system(size: 13, weight: .medium))
                                 .foregroundColor(.holoTextSecondary)
                         }
@@ -154,6 +154,16 @@ struct AgentDeepAnalysisCard: View {
     }
 
     // MARK: - Helpers
+
+    /// 卡片空状态副标题：简短区分两种空原因（详细文案见详情页）。
+    private func cardEmptySubtitle(for reason: HoloAgentEmptyReason?) -> String {
+        switch reason {
+        case .unverifiable?:
+            return "有数据，但结论未通过核验"
+        case .noData?, nil:
+            return "这次没有形成可信结论"
+        }
+    }
 
     private func primarySummary(_ result: HoloRenderedAgentResult) -> String {
         let count = result.sections.count

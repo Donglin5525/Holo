@@ -156,7 +156,10 @@ final class HoloBackgroundContinuationManager {
             }
             guard !Task.isCancelled else { return }
             let toolDescriptions = await runtime.toolDescriptions()
-            let systemTemplate = ""
+            // 恢复路径也必须接入 PromptManager.agentLoop，与 AnalysisService 一致。
+            // 此前传空串导致锁屏恢复后模型收不到 system prompt（裸奔），
+            // claim 因缺协议约束被 Verifier 全部 reject。
+            let systemTemplate = PromptManager.shared.loadRawTemplate(.agentLoop)
             do {
                 _ = try await scheduler.resumeEligibleJobs(
                     trigger: trigger,

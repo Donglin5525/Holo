@@ -43,6 +43,8 @@ nonisolated struct HoloRenderedAgentResult: Codable, Equatable, Sendable {
     var directAnswer: String? = nil
     var coverageText: String? = nil
     var limitations: [String]? = nil
+    /// 空结论原因（claims 为空时）。用于 UI 区分"确实没数据"与"有数据但未通过校验"。
+    var emptyReason: HoloAgentEmptyReason? = nil
 }
 
 nonisolated struct HoloAgentResultRenderer {
@@ -53,7 +55,8 @@ nonisolated struct HoloAgentResultRenderer {
         evidence: [HoloEvidenceRecord],
         title: String = "本期观察",
         question: String? = nil,
-        coverage: HoloDataCoverage? = nil
+        coverage: HoloDataCoverage? = nil,
+        emptyReason: HoloAgentEmptyReason? = nil
     ) -> HoloRenderedAgentResult {
         let evidenceByID = Dictionary(evidence.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let assertions = claims.flatMap(\.metricAssertions)
@@ -113,7 +116,8 @@ nonisolated struct HoloAgentResultRenderer {
             headline: headline,
             directAnswer: directAnswer,
             coverageText: Self.coverageText(coverage, rangeLabel: rangeLabel),
-            limitations: []
+            limitations: [],
+            emptyReason: emptyReason
         )
 
         // MARK: P4 可观测：语义缺失/旧目录兜底

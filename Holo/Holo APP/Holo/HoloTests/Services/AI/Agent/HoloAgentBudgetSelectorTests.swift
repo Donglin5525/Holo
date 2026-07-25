@@ -28,6 +28,9 @@ struct HoloAgentBudgetSelectorTests {
         test一次扩展回退始终允许()
         testToken倍率合理()
         test预算工厂映射正确()
+        test单域短范围_不扩展()
+        test单域长范围_自动扩展()
+        test跨域_默认允许扩展()
         print("HoloAgentBudgetSelectorTests passed")
     }
 
@@ -43,6 +46,32 @@ struct HoloAgentBudgetSelectorTests {
     private static func makeFrame(profile: HoloAgentTaskProfile, domains: [String]) -> HoloAgentQuerySemanticFrame {
         HoloAgentQuerySemanticFrame(
             query: "test", profile: profile, resolvedTime: nil, resolvedComparison: nil,
+            ambiguities: [], domains: domains, sensitivity: .normal
+        )
+    }
+
+    /// 构造带时间范围的 frame，用于验证"长范围自动放行 extendedDeep"。
+    private static func makeFrame(
+        profile: HoloAgentTaskProfile,
+        domains: [String],
+        rangeDays: Int
+    ) -> HoloAgentQuerySemanticFrame {
+        let end = referenceDate
+        let start = calendar.date(byAdding: .day, value: -rangeDays, to: end)!
+        let scope = HoloAgentResolvedTimeScope(
+            kind: .explicitYear, matchedText: "test range",
+            timeRange: HoloAgentTimeRange(label: "test", start: start, end: end)
+        )
+        let resolvedTime = HoloAgentResolvedTimeScopeExtended(
+            scope: scope,
+            assumption: HoloAgentTimeAssumption(
+                assumption: "test", completeness: .complete,
+                comparisonAlignment: nil, isIncompletePeriod: false
+            ),
+            extendedKind: nil
+        )
+        return HoloAgentQuerySemanticFrame(
+            query: "test", profile: profile, resolvedTime: resolvedTime, resolvedComparison: nil,
             ambiguities: [], domains: domains, sensitivity: .normal
         )
     }
@@ -167,5 +196,39 @@ struct HoloAgentBudgetSelectorTests {
         // observerFollowUp 应最少
         let observer = HoloAgentBudgetSelector.makeBudget(preset: .observerFollowUp)
         expect(observer.maxInputTokens < normal.maxInputTokens, "observerFollowUp 输入 token 应 < normalDeep")
+    }
+
+    // MARK: - 自动放行 extendedDeep（2026-07-25 新增）
+
+    /// 单域 + 短范围（30 天）→ 仍走 normalDeep，成本可控。
+    private static func test单域短范围_不扩展() {
+        let config = HoloAgentBudgetSelector.selectConfig(
+            for: .singleDomainAnalysis,
+            frame: makeFrame(profile: .singleDomainAnalysis, domains: ["habit"], rangeDays: 30)
+        )
+        expect(config.budgetPreset == .normalDeep, "单域短范围应走 normalDeep，实际 \(config.budgetPreset)")
+        expect(!config.allowExtendedDeep, "单域短范围不应放行 extendedDeep")
+    }
+
+    /// 单域 + 长范围（365 天，如"2026年体重趋势"）→ 自动放行 extendedDeep。
+    private static func test单域长范围_自动扩展() {
+        let config = HoloAgentBudgetSelector.selectConfig(
+            for: .singleDomainAnalysis,
+            frame: makeFrame(profile: .singleDomainAnalysis, domains: ["habit"], rangeDays: 365)
+        )
+        expect(config.budgetPreset == .extendedDeep, "单域长范围应自动走 extendedDeep，实际 \(config.budgetPreset)")
+        expect(config.allowExtendedDeep, "单域长范围应放行 extendedDeep")
+        expect(config.maxToolRounds >= 6, "长范围单域应给到更多工具轮次")
+    }
+
+    /// 跨域分析在默认（allowExtended=true）下自动走 extendedDeep，无需调用方显式传参。
+    private static func test跨域_默认允许扩展() {
+        let config = HoloAgentBudgetSelector.selectConfig(
+            for: .crossDomainAnalysis,
+            frame: makeFrame(profile: .crossDomainAnalysis, domains: ["finance", "health"])
+            // 注意：不显式传 allowExtended，验证默认总闸为 true
+        )
+        expect(config.budgetPreset == .extendedDeep, "跨域分析默认应走 extendedDeep，实际 \(config.budgetPreset)")
+        expect(config.allowExtendedDeep, "跨域分析默认应放行 extendedDeep")
     }
 }
