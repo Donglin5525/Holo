@@ -443,7 +443,7 @@ export function createApp(overrides = {}) {
           adminLogStore.finishAiCall(logId, {
             status: "success",
             response: isAgentLoop
-              ? { status: "success", usage: result?.usage ?? null }
+              ? summarizeAgentLoopResponse(result)
               : purpose === "insight"
                 ? summarizeInsightResponse(result)
                 : result,
@@ -604,6 +604,21 @@ function summarizeInsightResponse(result) {
     finishReason: choice?.finish_reason ?? null,
     contentLength: choice?.message?.content?.length ?? 0,
     reasoningLength: choice?.message?.reasoning_content?.length ?? 0,
+    usage: result?.usage ?? null,
+  };
+}
+
+/// agent_loop 响应摘要：记录模型正文（content）+ finish_reason + usage，
+/// 用于调试"模型每轮返回了什么 status / toolRequests / claims"。
+/// 正文受 CONTENT_CAPTURE_MAX_CHARS 截断 + redactText 脱敏（在 finishAiCall 内完成）。
+/// 注意：只有 HOLO_LOG_CAPTURE_CONTENT=true 时才会落盘（finishAiCall 判断 contentCaptureEnabled）。
+function summarizeAgentLoopResponse(result) {
+  const choice = result?.choices?.[0];
+  return {
+    status: "success",
+    finishReason: choice?.finish_reason ?? null,
+    content: choice?.message?.content ?? null,
+    contentLength: choice?.message?.content?.length ?? 0,
     usage: result?.usage ?? null,
   };
 }

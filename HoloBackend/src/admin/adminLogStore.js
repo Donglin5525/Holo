@@ -4,7 +4,9 @@ const DEFAULT_MAX_ENTRIES = 200;
 const DEFAULT_MAX_DETAIL_CHARS = 20_000;
 const LOG_RETENTION_DAYS = 30;
 const HOT_CACHE_SIZE = 50;
-const CONTENT_CAPTURE_MAX_CHARS = 2000;
+// agent_loop 等模型正文可达数 KB，2000 会截断关键的 claims/toolRequests 部分。
+// 调大到 50000 以支持 agent 调试；脱敏后仍受 logDetailMaxChars 兜底。
+const CONTENT_CAPTURE_MAX_CHARS = 50000;
 
 // 基础脱敏规则（低误伤）
 const REDACTION_PATTERNS = [
