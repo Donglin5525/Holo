@@ -22,6 +22,9 @@ struct ChatView: View {
     @State private var viewingLog: LLMLog?
     #endif
     @State private var didInitialScrollToBottom = false
+    /// 加载更早消息时记录的锚点 id（加载前首条 = 用户当时看的那条）。
+    /// 待 LazyVStack 插入新行后再 scrollTo，避免在数据刷新前定位不准。
+    @State private var pendingEarlierSessionAnchor: UUID?
     @State private var pendingVoiceTranscriptToSend: String?
     @State private var pendingDelete: PendingCardDelete?
     @State private var showDeleteConfirmation = false
@@ -449,16 +452,30 @@ struct ChatView: View {
             .refreshable {
                 await triggerLoadEarlier(proxy: proxy)
             }
-            .onChange(of: viewModel.messages.count) { _, _ in
+            .onChange(of: viewModel.messages) { _, _ in
+                // 首屏加载完成后滚到底
                 if !didInitialScrollToBottom {
                     scrollToBottom(proxy: proxy)
                     didInitialScrollToBottom = true
+                    return
+                }
+
+                // 加载历史后，待 LazyVStack 插入新行再把视图钉在原看的那条（顶部对齐）
+                if let anchorId = pendingEarlierSessionAnchor {
+                    pendingEarlierSessionAnchor = nil
+                    withAnimation(.easeOut(duration: 0.15)) {
+                        proxy.scrollTo(anchorId, anchor: .top)
+                    }
                 }
             }
             .onChange(of: viewModel.streamingText) { _, _ in
+                // 加载历史期间暂停底部自动滚动，避免锚点被流式输出抢走
+                guard !viewModel.isApplyingEarlierSession else { return }
                 scrollToBottom(proxy: proxy)
             }
             .onChange(of: viewModel.isStreaming) { _, streaming in
+                // 加载历史期间即使 isStreaming 翻转也不抢滚动
+                guard !viewModel.isApplyingEarlierSession else { return }
                 if streaming {
                     // AI 开始回复时自动收起键盘，让用户看到完整内容
                     UIApplication.shared.sendAction(
@@ -516,10 +533,17 @@ struct ChatView: View {
               viewModel.hasEarlierSessions,
               !viewModel.isLoadingEarlierSession else { return }
 
-        if let anchorId = await viewModel.loadEarlierSession() {
-            withAnimation(.easeOut(duration: 0.15)) {
-                proxy.scrollTo(anchorId, anchor: .top)
-            }
+        // 记下加载前首条消息（用户当前屏幕顶部那条）作为锚点。
+        // 加载后视图要钉在这条上，新内容出现在它上方屏幕外。
+        let anchorId = viewModel.messages.first?.id
+
+        await viewModel.loadEarlierSession()
+
+        // 不在这里直接 scrollTo：messages 经 receive(on: .main) 异步刷新，
+        // 此刻 LazyVStack 还没插入新行，定位会不准。把锚点交给 onChange(messages)，
+        // 等数据真正刷新后再定位。
+        if anchorId != nil {
+            pendingEarlierSessionAnchor = anchorId
         }
     }
 

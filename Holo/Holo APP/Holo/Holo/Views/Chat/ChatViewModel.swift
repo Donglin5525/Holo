@@ -35,6 +35,10 @@ final class ChatViewModel: ObservableObject {
     @Published private(set) var didTimeoutLoadingConfig: Bool = false
     @Published private(set) var hasEarlierSessions: Bool = false
     @Published private(set) var isLoadingEarlierSession: Bool = false
+    /// 覆盖「加载更早消息 + 视图刷新」整个窗口的标志。
+    /// 与 isLoadingEarlierSession（defer 复位过早）不同，它延迟到 messages 真正刷新后才复位，
+    /// 用于阻止 onChange(streamingText/isStreaming) 在加载历史期间抢夺滚动位置。
+    @Published private(set) var isApplyingEarlierSession: Bool = false
 
     // MARK: - Private
 
@@ -196,6 +200,15 @@ final class ChatViewModel: ObservableObject {
                 guard let self else { return }
                 self.messages = messages
                 self.isStreaming = messages.contains { $0.isStreaming }
+
+                // 加载历史期间，messages 在主队列异步刷新（晚于仓库 await 返回）。
+                // 延迟复位 isApplyingEarlierSession，确保覆盖 prepend → 插入渲染 → 锚点 scrollTo 全窗口，
+                // 期间挡住 onChange(streamingText/isStreaming) 把视图抢回底部。
+                if self.isApplyingEarlierSession {
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
+                        self?.isApplyingEarlierSession = false
+                    }
+                }
             }
 
         // 同步 hasEarlierSessions
@@ -1400,10 +1413,11 @@ final class ChatViewModel: ObservableObject {
 
     // MARK: - Session History
 
-    /// 加载更早会话，返回加载前首条消息的上一条消息 id（滚动锚点）
+    /// 加载更早会话，返回加载前首条消息的 id（滚动锚点，用于把视图钉在用户当时看的那条）
     func loadEarlierSession() async -> UUID? {
         guard !isLoadingEarlierSession else { return nil }
         isLoadingEarlierSession = true
+        isApplyingEarlierSession = true
         defer { isLoadingEarlierSession = false }
         return await chatRepo?.loadEarlierSessionLightweightMessagesAsync()
     }

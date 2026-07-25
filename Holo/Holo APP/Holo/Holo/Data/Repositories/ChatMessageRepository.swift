@@ -222,7 +222,8 @@ final class ChatMessageRepository: ObservableObject {
         }
     }
 
-    /// 加载更早的会话，prepend 到 messages 前面。返回加载前首条消息的上一条消息 id（滚动锚点）
+    /// 加载更早的会话，prepend 到 messages 前面。
+    /// 返回加载前首条消息的 id 作为滚动锚点（加载后视图钉在这条上，新内容出现在它上方屏幕外）。
     func loadEarlierSessionLightweightMessagesAsync() async -> UUID? {
         guard let cursor = oldestLoadedTimestamp else { return nil }
 
@@ -293,7 +294,6 @@ final class ChatMessageRepository: ObservableObject {
                 return anchorId
             }
 
-            let scrollTargetId = uniqueNew.last?.id ?? anchorId
             messages = uniqueNew + messages
             oldestLoadedTimestamp = uniqueNew.first?.timestamp
 
@@ -313,7 +313,8 @@ final class ChatMessageRepository: ObservableObject {
             }.value
             hasEarlierSessions = hasEarlier
 
-            return scrollTargetId
+            // 返回加载前首条 id（锚点 = 用户当时看的那条），加载后视图钉在这条上
+            return anchorId
         } catch {
             logger.error("加载更早会话失败：\(error.localizedDescription)")
             return anchorId
