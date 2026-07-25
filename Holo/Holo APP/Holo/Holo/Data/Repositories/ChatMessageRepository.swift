@@ -223,14 +223,16 @@ final class ChatMessageRepository: ObservableObject {
     }
 
     /// 加载更早的会话，prepend 到 messages 前面。
+    /// 每次取 cursor 之前最近 30 条（跨会话连续加载，不再按 4 小时截断），
     /// 返回加载前首条消息的 id 作为滚动锚点（加载后视图钉在这条上，新内容出现在它上方屏幕外）。
     func loadEarlierSessionLightweightMessagesAsync() async -> UUID? {
         guard let cursor = oldestLoadedTimestamp else { return nil }
 
         let anchorId = messages.first?.id
+        let fetchBatch = 30
 
         do {
-            // 查询 cursor 之前的一段消息
+            // 查询 cursor 之前最近 30 条（跨会话，不截断）
             let sessionIds: [UUID] = try await Task.detached(priority: .utility) {
                 let context = CoreDataStack.shared.newBackgroundContext()
                 return try await context.perform {
@@ -239,23 +241,10 @@ final class ChatMessageRepository: ObservableObject {
                     request.propertiesToFetch = ["id", "timestamp"]
                     request.predicate = NSPredicate(format: "timestamp < %@", cursor as NSDate)
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
-                    request.fetchLimit = 50
+                    request.fetchLimit = fetchBatch
 
                     let rows = try context.fetch(request)
-                    var ids: [UUID] = []
-                    var prevTimestamp: Date?
-
-                    for row in rows {
-                        guard let id = row["id"] as? UUID,
-                              let ts = row["timestamp"] as? Date else { continue }
-
-                        if let prev = prevTimestamp, prev.timeIntervalSince(ts) > self.sessionGap {
-                            break
-                        }
-                        ids.append(id)
-                        prevTimestamp = ts
-                    }
-                    return ids
+                    return rows.compactMap { $0["id"] as? UUID }
                 }
             }.value
 

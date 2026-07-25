@@ -4,6 +4,28 @@
 
 ---
 
+## [2026-07-25] 修复对话页「加载更早消息」不跟手 + 加载量扩到 30 条/次
+
+上滑加载更多历史消息时：① 加载出来的内容会自动把视图向前滚动到最新消息，无法停在用户当时看的那条；② 快速下滑浏览时卡片有「向下拖动」的动画感；③ 每次只加载很少几条（受 4 小时会话截断）。对齐微信/iMessage 体验。
+
+### 修复
+- **主因｜流式输出无条件抢滚动**：`onChange(streamingText)` 一旦流式文本变化就 `scrollToBottom`，加载历史时若 AI 正在回复会把锚点抢走。新增 `isApplyingEarlierSession` 标志（覆盖「加载 + 视图刷新」全窗口），期间 `onChange(streamingText / isStreaming / messages.count)` 一律不触发自动滚到底
+- **时序竞争｜锚点 scrollTo 跑在数据刷新前**：仓库 prepend 后 `messages` 经 `receive(on: .main)` 异步刷新，原实现紧跟 await 直接 scrollTo，LazyVStack 还没插入新行，定位不准。改为把锚点存入 `pendingEarlierSessionAnchor`，由 `onChange(messages.count)` 等数据真正刷新后再 `scrollTo(.top)`
+- **锚点语义｜改为钉死原位置**：仓库返回值从「新批次最后一条」改为「加载前首条」（用户当时看的那条），加载后视图顶部对齐这条，新内容出现在屏幕上方屏幕外
+- **快速下滑拖动感｜onChange 监听过宽**：中间版本曾改用 `onChange(of: messages)` 监听整个数组，导致流式内容更新 / 卡片确认 / 元数据加载等任何字段变化都触发闭包，与快速滑动的隐式动画作用域交互产生拖动感。改回 `onChange(of: messages.count)`，只在条数变化时触发，与快速浏览完全无关
+- **加载历史闪回｜去掉 scrollTo 动画**：LazyVStack 顶部插入新行 + 带动画的 scrollTo 重定位在动画期间互相拉扯导致闪回。去掉 `withAnimation`，瞬间定位（微信/iMessage 做法），体感最稳
+- **加载量过少｜去掉 4 小时会话截断**：原逻辑从 cursor 向前扫描，相邻消息间隔 > 4 小时即 break，导致对话节奏稀疏时每次只加载寥寥几条，甚至 cursor 前第一条就超 4 小时 → 加载 0 条 → 「加载更早」入口直接消失（隐藏 bug）。改为每次取 cursor 之前最近 30 条，跨会话连续加载；首屏加载逻辑仍保留 4 小时截断（首次进入只展示最近一个连续会话，体验不变）
+- `isApplyingEarlierSession` 的复位延迟 0.35s，确保覆盖 prepend → 插入渲染 → 锚点 scrollTo 全窗口（`isLoadingEarlierSession` 的 defer 复位过早，挡不住视图刷新那一拍）
+
+### 不受影响
+- 首次进入对话仍自动滚到最新消息
+- 正常发消息、AI 流式回复时的自动跟到底
+
+### 性质
+- 纯前端改动，不涉及后端接口 / Prompt / 数据契约，**无需后端发版**
+
+---
+
 ## [2026-07-25] 统计分析卡片视觉统一 + 图表手势对齐「明细」+ 打卡规律图重设计
 
 ### 卡片视觉统一

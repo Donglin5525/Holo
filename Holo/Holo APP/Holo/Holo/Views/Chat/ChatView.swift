@@ -452,7 +452,7 @@ struct ChatView: View {
             .refreshable {
                 await triggerLoadEarlier(proxy: proxy)
             }
-            .onChange(of: viewModel.messages) { _, _ in
+            .onChange(of: viewModel.messages.count) { _, _ in
                 // 首屏加载完成后滚到底
                 if !didInitialScrollToBottom {
                     scrollToBottom(proxy: proxy)
@@ -460,12 +460,11 @@ struct ChatView: View {
                     return
                 }
 
-                // 加载历史后，待 LazyVStack 插入新行再把视图钉在原看的那条（顶部对齐）
+                // 加载历史后，待 LazyVStack 插入新行再把视图钉在原看的那条（顶部对齐）。
+                // 无动画：插入新行 + scrollTo 重定位叠加动画会闪回，瞬间定位最稳（微信/iMessage 做法）。
                 if let anchorId = pendingEarlierSessionAnchor {
                     pendingEarlierSessionAnchor = nil
-                    withAnimation(.easeOut(duration: 0.15)) {
-                        proxy.scrollTo(anchorId, anchor: .top)
-                    }
+                    proxy.scrollTo(anchorId, anchor: .top)
                 }
             }
             .onChange(of: viewModel.streamingText) { _, _ in
