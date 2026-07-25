@@ -29,6 +29,10 @@ struct ChatView: View {
     @State private var pendingEditPrefill: PendingTransactionPrefill?
     @State private var financeSearchRoute: FlexibleQueryFinanceSearchRoute?
     @State private var memoryInboxNotice: String?
+    /// 键盘遮挡内容区的高度（已扣除底部 Home Indicator 安全区）。
+    /// ZStack 平级常驻模式下祖先视图忽略了键盘安全区，系统自动避让失效，
+    /// 因此这里手动监听键盘 frame 变化并给内容加 bottom padding。
+    @State private var keyboardOverlap: CGFloat = 0
     @Binding var goalPlanningRequest: GoalPlanningRequest?
 
     /// 外部传入的预填文本（如从记忆长廊"继续问AI"跳转）
@@ -71,6 +75,14 @@ struct ChatView: View {
                     unconfiguredView
                 }
             }
+            .padding(.bottom, keyboardOverlap)
+        }
+        // 关闭系统自动键盘避让（祖先链在 ZStack 常驻模式下已忽略键盘安全区，
+        // 系统避让本就到不了这里；统一由上面的 keyboardOverlap padding 手动控制，
+        // 避免 sheet/NavigationStack 场景下系统避让与手动 padding 叠加）
+        .ignoresSafeArea(.keyboard, edges: .bottom)
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
+            updateKeyboardOverlap(note)
         }
         .swipeBackToDismiss {
             close()
@@ -530,6 +542,40 @@ struct ChatView: View {
             // HomeView 监听 deepLinkState 变化后会切换 activeScreen 到 .finance，
             // ChatView 会自动隐藏，无需手动 dismiss。
             DeepLinkState.shared.navigate(to: .finance)
+        }
+    }
+
+    // MARK: - Keyboard Avoidance
+
+    /// 根据键盘目标 frame 计算其遮挡内容区的高度，并跟随键盘动画曲线更新。
+    private func updateKeyboardOverlap(_ note: Notification) {
+        guard let endFrame = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
+
+        let window = UIApplication.shared.connectedScenes
+            .compactMap { $0 as? UIWindowScene }
+            .first { $0.activationState == .foregroundActive }?
+            .windows.first { $0.isKeyWindow }
+        let screenBounds = window?.bounds ?? UIScreen.main.bounds
+        let bottomSafeInset = window?.safeAreaInsets.bottom ?? 0
+
+        // 只处理贴底的全宽键盘；浮动/分体键盘（iPad）不做避让
+        let isDocked = endFrame.width >= screenBounds.width - 1
+        let overlap = isDocked
+            ? max(0, screenBounds.maxY - endFrame.minY - bottomSafeInset)
+            : 0
+
+        let duration = note.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double ?? 0.25
+        let curveRaw = note.userInfo?[UIResponder.keyboardAnimationCurveUserInfoKey] as? Int
+            ?? UIView.AnimationCurve.easeInOut.rawValue
+        let animation: Animation
+        switch UIView.AnimationCurve(rawValue: curveRaw) {
+        case .easeIn: animation = .easeIn(duration: duration)
+        case .easeOut: animation = .easeOut(duration: duration)
+        case .linear: animation = .linear(duration: duration)
+        default: animation = .easeInOut(duration: duration)
+        }
+        withAnimation(animation) {
+            keyboardOverlap = overlap
         }
     }
 

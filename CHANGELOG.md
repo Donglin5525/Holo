@@ -4,6 +4,22 @@
 
 ---
 
+## [2026-07-25] 修复对话页键盘完全遮挡输入框
+
+全屏模块改 ZStack 平级常驻后，对话页弹出键盘时输入栏被完全遮挡，无法看到输入内容。
+
+### 修复
+- **根因**：ChatView 从 fullScreenCover 改为 HomeView ZStack 平级常驻后，祖先链（ContentView/HomeView）中裸写的 `ignoresSafeArea()` 默认 regions 含 `.keyboard`，键盘安全区被祖先消费，SwiftUI 自动键盘避让失效，输入栏被钉在屏幕物理底部
+- **手动接管键盘避让**：ChatView 监听 `keyboardWillChangeFrameNotification`，实时计算键盘遮挡高度（扣除 Home Indicator 安全区，仅对贴底全宽键盘生效），给内容区加 bottom padding；动画 duration/curve 直接取键盘通知，与键盘同步起落
+- 外层显式 `.ignoresSafeArea(.keyboard, edges: .bottom)`，统一由手动 padding 接管，避免 NavigationStack / sheet 场景下与系统避让叠加
+
+### 验证
+- Holo Simulator Debug 完整构建通过
+- 真机验证：键盘弹出时输入栏贴合键盘顶部同步上移，收起后回落
+
+### 性质
+- 纯前端改动，不涉及后端接口 / Prompt / 数据契约，**无需后端发版**
+
 ## [2026-07-25] 财务明细趋势图视觉与实时联动修复
 
 财务统计明细页恢复“手指在趋势图上移动、下方全量明细同步滚到对应日期”的连续交互，同时彻底拆开横向选日和纵向页面滚动，避免一次拖动同时触发两个方向。
