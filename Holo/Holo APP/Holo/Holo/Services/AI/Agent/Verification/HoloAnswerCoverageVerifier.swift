@@ -36,7 +36,11 @@ nonisolated enum HoloAnswerCoverageVerifier {
         var recoverableCodes: [String] = []
         var failedCodes: [String] = []
         let texts = userFacingTexts(of: result)
-        let knownLabels = Set(evidence.compactMap { $0.semantic?.groupLabel })
+        // 已知分组以合成器的清洗后形态为准（控制字符已剥离、内部 token 分组不可展示），
+        // 避免合成器输出的合法分组被误判为编造。
+        let knownLabels = Set(evidence.compactMap {
+            HoloDeterministicAnswerComposer.sanitizedGroupLabel($0.semantic?.groupLabel)
+        })
 
         // 内部标识 / 公式 / 占位文本
         if texts.contains(where: { containsInternalToken($0) }) {

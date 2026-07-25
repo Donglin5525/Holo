@@ -5,6 +5,8 @@
 //  HoloAI Agent 统一结果语义契约 P2 — 确定性答案合成器
 //  按「答案模式 + 类型化证据」在本地合成标题、直接结论、明细与限制说明；
 //  数字只消费 evidence.semantic，不信任模型文案；语义不足返回 nil，调用方走旧逻辑。
+//  P4：lookup 优先单一 current 聚合（无维度），避免健康汇总证据取到每日点；
+//  变化率统一按动态引擎约定的小数（fraction）×100 展示（>100% 涨幅不再被截成 2.4%）。
 //
 
 import Foundation
@@ -191,7 +193,7 @@ nonisolated enum HoloDeterministicAnswerComposer {
                 let sign = delta.resultValue >= 0 ? "+" : "-"
                 return "\(label)（\(sign)\(format(abs(delta.resultValue), unit: unit, measure: delta.measure)) \(unit ?? "")）"
             }
-            let percent = abs(rate.resultValue) <= 1.000_001 ? rate.resultValue * 100 : rate.resultValue
+            let percent = rate.resultValue * 100
             let sign = percent >= 0 ? "+" : "-"
             return "\(label)（\(sign)\(format(abs(percent), unit: "%", measure: .ratio))%）"
         }
@@ -253,7 +255,10 @@ nonisolated enum HoloDeterministicAnswerComposer {
         task: HoloAnswerTask,
         semantics: [HoloMetricSemantic]
     ) -> (String, String, String?, [String])? {
-        guard let primary = semantics.first(where: { $0.valueRole == .current }) ?? semantics.first else {
+        // P4：优先单一 current 聚合（无维度），避免健康汇总证据（聚合 + 每日点）取到某一天。
+        guard let primary = semantics.first(where: { $0.valueRole == .current && $0.dimension == nil })
+            ?? semantics.first(where: { $0.valueRole == .current })
+            ?? semantics.first else {
             return nil
         }
         let nounInfo = nounAndUnit(domain: task.domain ?? primary.domain, measure: task.measure ?? primary.measure)

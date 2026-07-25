@@ -16,6 +16,7 @@
 //    "Holo/Services/AI/Agent/Presentation/HoloDeterministicAnswerComposer.swift" \
 //    "Holo/Services/AI/Agent/Verification/HoloAnswerCoverageVerifier.swift" \
 //    "Holo/Services/AI/Agent/Presentation/HoloAgentResultRenderer.swift" \
+//    "Holo/Services/AI/Agent/HoloAgentAnswerMetricCounter.swift" \
 //    "HoloTests/Services/AI/Agent/HoloAnswerCrossDomainStandaloneTests.swift" \
 //    -o /tmp/holo_cross_domain_answer_test && /tmp/holo_cross_domain_answer_test
 //

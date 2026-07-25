@@ -65,13 +65,14 @@ nonisolated struct HoloAgentResultRenderer {
             assertions: assertions,
             fallbackTitle: title
         )
-        let directAnswer = Self.directAnswer(
+        let legacyAnswer = Self.directAnswer(
             question: question,
             rangeLabel: rangeLabel,
             primaryAssertion: primaryAssertion,
             claims: claims,
             evidenceByID: evidenceByID
         )
+        let directAnswer = legacyAnswer.text
         let sections = Self.sections(
             claims: claims,
             primaryMetricKey: primaryAssertion?.metricKey,
@@ -115,6 +116,18 @@ nonisolated struct HoloAgentResultRenderer {
             limitations: []
         )
 
+        // MARK: P4 可观测：语义缺失/旧目录兜底
+        // 有证据但全无 semantic → 走了兼容目录；旧目录产出过 catalog 句子 → 兼容适配成功。
+        if HoloAgentResultSemanticsFlags.typedSemanticsEnabled,
+           !evidence.isEmpty,
+           !evidence.contains(where: { $0.semantic != nil }) {
+            let legacyContext = evidence.first?.sourceModule.rawValue
+            HoloAgentAnswerMetricCounter.shared.increment(.semanticMissing, context: legacyContext)
+            if legacyAnswer.usedCatalog {
+                HoloAgentAnswerMetricCounter.shared.increment(.semanticLegacyFallback, context: legacyContext)
+            }
+        }
+
         // MARK: P2 确定性合成与展示前验证
         // 证据带类型化语义时，直接结论改由本地合成器产出（P3 已删除 financeComparisonAnswer
         // 等领域特判，比较/排名/拆解/趋势统一走合成器），模型文案降为解释层；
@@ -125,6 +138,7 @@ nonisolated struct HoloAgentResultRenderer {
            let task = HoloAnswerTaskDeriver.derive(question: question, evidence: evidence),
            let answer = HoloDeterministicAnswerComposer.compose(task: task, evidence: evidence, coverage: coverage) {
             composed = answer
+            HoloAgentAnswerMetricCounter.shared.increment(.composerUsed, context: task.domain?.rawValue)
             result.headline = answer.headline
             result.directAnswer = answer.directAnswer
             result.summary = answer.directAnswer
@@ -141,6 +155,8 @@ nonisolated struct HoloAgentResultRenderer {
                         || HoloAnswerCoverageVerifier.containsInternalToken(section.title) else {
                     return section
                 }
+                HoloAgentAnswerMetricCounter.shared.increment(.internalTokenBlocked, context: "section")
+                HoloAgentAnswerMetricCounter.shared.increment(.modelTextDiscarded, context: "section")
                 guard !spareItems.isEmpty else { return nil }
                 let replacement = spareItems.removeFirst()
                 return HoloRenderedAgentSection(title: "数据明细", body: replacement, confidence: section.confidence)
@@ -161,24 +177,35 @@ nonisolated struct HoloAgentResultRenderer {
         switch HoloAnswerCoverageVerifier.verify(result: result, evidence: evidence, coverage: coverage) {
         case .pass:
             return result
-        case .recoverable:
-            let repaired = Self.repaired(result, evidence: evidence, coverage: coverage, composed: composed)
-            let verdict = HoloAnswerCoverageVerifier.verify(result: repaired, evidence: evidence, coverage: coverage)
-            if case .pass = verdict { return repaired }
-            return Self.boundaryResult(from: repaired, evidence: evidence, composed: composed)
-        case .failed:
+        case .recoverable(let codes):
+            if codes.contains(HoloAnswerCoverageVerifier.codeInternalToken) {
+                HoloAgentAnswerMetricCounter.shared.increment(.internalTokenBlocked, context: "verifier")
+            }
+            let repair = Self.repaired(result, evidence: evidence, coverage: coverage, composed: composed)
+            if repair.discardedModelText {
+                HoloAgentAnswerMetricCounter.shared.increment(.modelTextDiscarded, context: "verifier_repair")
+            }
+            let verdict = HoloAnswerCoverageVerifier.verify(result: repair.result, evidence: evidence, coverage: coverage)
+            if case .pass = verdict { return repair.result }
+            return Self.boundaryResult(from: repair.result, evidence: evidence, composed: composed)
+        case .failed(let codes):
+            HoloAgentAnswerMetricCounter.shared.increment(.coverageFailed, context: codes.first ?? "UNKNOWN")
             return Self.boundaryResult(from: result, evidence: evidence, composed: composed)
         }
     }
 
     /// 本地修复：丢弃违规的模型事实文案；违规的 summary/directAnswer 用合成结论或兜底句替换。
+    /// 返回修复后的结果与是否丢弃过模型文案（供 P4 指标计数）。
     private static func repaired(
         _ result: HoloRenderedAgentResult,
         evidence: [HoloEvidenceRecord],
         coverage: HoloDataCoverage?,
         composed: HoloComposedAnswer?
-    ) -> HoloRenderedAgentResult {
-        let knownLabels = Set(evidence.compactMap { $0.semantic?.groupLabel })
+    ) -> (result: HoloRenderedAgentResult, discardedModelText: Bool) {
+        // 与 Verifier 一致：已知分组用合成器清洗后的形态，避免合法分组被误判编造。
+        let knownLabels = Set(evidence.compactMap {
+            HoloDeterministicAnswerComposer.sanitizedGroupLabel($0.semantic?.groupLabel)
+        })
         func violates(_ text: String) -> Bool {
             HoloAnswerCoverageVerifier.containsInternalToken(text)
                 || HoloAnswerCoverageVerifier.hasDirectionConflict(text, knownLabels: knownLabels)
@@ -186,20 +213,26 @@ nonisolated struct HoloAgentResultRenderer {
         }
 
         var repaired = result
+        var discarded = false
         if HoloAnswerCoverageVerifier.containsInternalToken(repaired.title) {
             repaired.title = "本期观察"
+            discarded = true
         }
         if let headline = repaired.headline, violates(headline) {
             repaired.headline = composed?.headline
+            discarded = true
         }
         if let answer = repaired.directAnswer, violates(answer) {
             repaired.directAnswer = composed?.directAnswer
+            discarded = true
         }
         if violates(repaired.summary) {
             repaired.summary = composed?.directAnswer ?? "本期数据结果如下"
+            discarded = true
         }
         if let text = repaired.coverageText, violates(text) {
             repaired.coverageText = composed?.coverageText
+            discarded = true
         }
         // 覆盖不足未披露时补确定性披露句。
         if let coverage, !HoloAnswerCoverageVerifier.coverageDisclosed(repaired.coverageText) {
@@ -210,8 +243,10 @@ nonisolated struct HoloAgentResultRenderer {
                     ?? Self.coverageText(coverage, rangeLabel: "本期")
             }
         }
-        repaired.sections = repaired.sections.filter { !violates($0.title) && !violates($0.body) }
-        return repaired
+        let keptSections = repaired.sections.filter { !violates($0.title) && !violates($0.body) }
+        if keptSections.count != repaired.sections.count { discarded = true }
+        repaired.sections = keptSections
+        return (repaired, discarded)
     }
 
     /// 失败边界：可理解的说明 + 只保留确定性内容，不展示半成品。
@@ -350,13 +385,15 @@ nonisolated struct HoloAgentResultRenderer {
         }
     }
 
+    /// 旧逻辑直接结论。`usedCatalog` 表示结论是否由兼容目录（HoloMetricSemanticCatalog）
+    /// 的句子产出（P4 指标区分「旧目录可识别适配」与「纯模型文案兜底」）。
     private static func directAnswer(
         question: String?,
         rangeLabel: String,
         primaryAssertion: HoloMetricAssertion?,
         claims: [HoloAgentClaim],
         evidenceByID: [String: HoloEvidenceRecord]
-    ) -> String? {
+    ) -> (text: String?, usedCatalog: Bool) {
         if let assertion = primaryAssertion,
            let sentence = HoloMetricSemanticCatalog.sentence(
                metricKey: assertion.metricKey,
@@ -370,13 +407,14 @@ nonisolated struct HoloAgentResultRenderer {
                     metricKey: assertion.metricKey,
                     unit: assertion.unit
                 )
-                return "\(rangeLabel)，日均 \(number) 步"
+                return ("\(rangeLabel)，日均 \(number) 步", true)
             }
-            return "\(rangeLabel)，\(sentence)"
+            return ("\(rangeLabel)，\(sentence)", true)
         }
-        return claims.map(\.displayText)
+        let fallback = claims.map(\.displayText)
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .first { !$0.isEmpty && !HoloMetricSemanticCatalog.containsInternalToken($0) }
+        return (fallback, false)
     }
 
     private static func sections(

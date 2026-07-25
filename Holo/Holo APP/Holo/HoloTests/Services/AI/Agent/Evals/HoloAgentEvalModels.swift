@@ -43,6 +43,8 @@ nonisolated enum HoloAgentEvalCategory: String, Codable, CaseIterable, Sendable 
     case userCorrectionPreferenceConflict  // 用户纠正和偏好冲突
     case clarificationNeededOrNot     // 需要澄清与不应澄清
     case sseProtocolDegradedIncomplete     // SSE/协议退化导致不完整结果
+    case answerModeConsistency        // P4：问法 → AnswerTask 派生与同义收敛（方案 §10.1/§10.2）
+    case answerPresentationRobustness // P4：坏模型文案 / 边界样例 / 降级（方案 §10.3）
 }
 
 nonisolated enum HoloAgentEvalOrigin: String, Codable, Sendable {
@@ -71,6 +73,37 @@ nonisolated struct HoloAgentEvalExpectation: Codable, Equatable {
     var expectedTools: [String]? = nil
     /// 预期 confidence 不应超过的阈值（弱证据不得强结论）。
     var maxConfidence: Double? = nil
+    /// P4：答案语义/展示维度断言（AnswerTask 派生 / 合成器输出 / 验证判定 / 无内部 token）。
+    var answerPresentation: HoloAgentEvalAnswerPresentationExpectation? = nil
+}
+
+/// P4 答案语义/展示维度的确定性硬门禁（方案 §10 验收矩阵）。
+nonisolated struct HoloAgentEvalAnswerPresentationExpectation: Codable, Equatable {
+    /// 预期派生的 AnswerMode（rawValue）；传 "nil" 表示预期派生失败（如旧证据无 semantic）。
+    var expectedMode: String? = nil
+    /// 预期派生的领域 / 方向 / 维度（rawValue）。
+    var expectedDomain: String? = nil
+    var expectedDirection: String? = nil
+    var expectedDimension: String? = nil
+    /// 预期确定性合成器产出 directAnswer 并被 Renderer 采纳。
+    var expectComposedDirectAnswer: Bool? = nil
+    /// directAnswer 必须包含 / 不得包含的子串（数字用格式化后的稳定形态，如 "1,248"）。
+    var directAnswerMustContain: [String]? = nil
+    var directAnswerMustNotContain: [String]? = nil
+    /// 全部用户可见文本不得包含的子串（如 "nan" / "inf" / 乱码片段）。
+    var userTextsMustNotContain: [String]? = nil
+    /// 预期展示前验证判定（对注入坏模型文案的原始结果）：pass / recoverable / failed。
+    var expectedVerifier: String? = nil
+    /// 预期覆盖度被披露（coverageText 含 "x/y 天" 或「覆盖」）。
+    var mustDiscloseCoverage: Bool? = nil
+    /// 预期 limitations 包含的子串。
+    var limitationsMustContain: [String]? = nil
+    /// 注入的（坏）模型文案：runner 用它构造 claim 与原始渲染结果。
+    var modelDisplayText: String? = nil
+    /// 同义问法组 ID：同组用例必须派生同一 AnswerTask（除 rangeLabel 外）且答案数字一致。
+    var synonymGroup: String? = nil
+    /// 预期渲染后 +1 的可观测指标（agent.* 全名）。
+    var expectedObservabilityMetric: String? = nil
 }
 
 nonisolated struct HoloAgentEvalTimeExpectation: Codable, Equatable {
@@ -98,6 +131,8 @@ nonisolated enum HoloAgentEvalClaimRejection: String, Codable, Sendable {
 nonisolated struct HoloAgentEvalFixtures: Codable, Equatable {
     var evidence: [HoloEvidenceRecord]?
     var toolResults: [HoloAgentEvalToolResult]?
+    /// P4：工具数据覆盖度（用于覆盖披露/降级断言）。
+    var coverage: HoloDataCoverage? = nil
 }
 
 nonisolated struct HoloAgentEvalToolResult: Codable, Equatable {

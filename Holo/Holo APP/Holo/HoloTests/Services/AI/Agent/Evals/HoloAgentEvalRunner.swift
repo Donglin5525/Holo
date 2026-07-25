@@ -10,6 +10,8 @@
 //    - 覆盖检查（requiredMetricKeys）
 //    - 澄清预期
 //    - 禁词/越界
+//    - P4 答案语义/展示门禁（AnswerTask 派生 / 合成器输出 / 展示前验证 / 无内部 token / 可观测指标）
+//    - P4 同义问法组：同组必须派生同一 AnswerTask（除 rangeLabel 外）且答案数字一致
 //  不调用 LLM；硬门禁全部确定性。自然表达由少量人工 rubric 单独处理。
 //
 
@@ -47,7 +49,12 @@ nonisolated enum HoloAgentEvalRunner {
     // MARK: - 判定
 
     static func evaluate(_ cases: [HoloAgentEvalCase], calendar: Calendar = HoloAgentEvalRunner.evalCalendar) -> [HoloAgentEvalVerdict] {
-        cases.map { evaluateCase($0, calendar: calendar) }
+        // P4 门禁走 Presentation 链路，显式固定灰度开关，避免本机 defaults 污染判定。
+        HoloAgentResultSemanticsFlags.typedSemanticsEnabled = true
+        HoloAgentResultSemanticsFlags.deterministicComposerEnabled = true
+        var verdicts = cases.map { evaluateCase($0, calendar: calendar) }
+        applySynonymGroupChecks(cases: cases, verdicts: &verdicts)
+        return verdicts
     }
 
     private static var evalCalendar: Calendar = {
@@ -157,6 +164,16 @@ nonisolated enum HoloAgentEvalRunner {
             if evidenceMax > maxConf {
                 failures.append("置信度超限：evidenceMax=\(evidenceMax) > 阈值 \(maxConf)")
             }
+        }
+
+        // 9. P4 答案语义/展示维度门禁
+        if let presentationExp = exp.answerPresentation {
+            failures.append(contentsOf: evaluateAnswerPresentation(
+                query: entry.query,
+                expectation: presentationExp,
+                evidence: evidence,
+                coverage: entry.fixtures?.coverage
+            ))
         }
 
         return HoloAgentEvalVerdict(
@@ -298,6 +315,220 @@ nonisolated enum HoloAgentEvalRunner {
                 evidenceIDs: [], prohibitedInferences: [],
                 confidence: 0.6
             )
+        }
+    }
+
+    // MARK: - P4 答案语义/展示判定
+
+    /// 对单条用例运行答案语义/展示维度门禁（方案 §10）：
+    /// AnswerTask 派生 → 确定性合成 → 完整 Renderer 渲染（含展示前验证与自动恢复）。
+    /// 注入的坏模型文案先单独过一遍展示前验证（判定 pass/recoverable/failed），
+    /// 最终用户可见文本一律取自修复后的渲染结果。
+    private static func evaluateAnswerPresentation(
+        query: String,
+        expectation: HoloAgentEvalAnswerPresentationExpectation,
+        evidence: [HoloEvidenceRecord],
+        coverage: HoloDataCoverage?
+    ) -> [String] {
+        var failures: [String] = []
+
+        // 1. AnswerTask 派生
+        let task = HoloAnswerTaskDeriver.derive(question: query, evidence: evidence)
+        if let expectedMode = expectation.expectedMode {
+            if expectedMode == "nil" {
+                if let task {
+                    failures.append("预期不派生 AnswerTask（旧证据），实际派生 \(task.mode.rawValue)")
+                }
+            } else if task?.mode.rawValue != expectedMode {
+                failures.append("AnswerMode 不符：expected=\(expectedMode) actual=\(task?.mode.rawValue ?? "nil")")
+            }
+        }
+        if let expected = expectation.expectedDomain, task?.domain?.rawValue != expected {
+            failures.append("AnswerTask.domain 不符：expected=\(expected) actual=\(task?.domain?.rawValue ?? "nil")")
+        }
+        if let expected = expectation.expectedDirection, task?.direction?.rawValue != expected {
+            failures.append("AnswerTask.direction 不符：expected=\(expected) actual=\(task?.direction?.rawValue ?? "nil")")
+        }
+        if let expected = expectation.expectedDimension, task?.dimension?.rawValue != expected {
+            failures.append("AnswerTask.dimension 不符：expected=\(expected) actual=\(task?.dimension?.rawValue ?? "nil")")
+        }
+
+        // 2. 确定性合成
+        let composed = task.flatMap {
+            HoloDeterministicAnswerComposer.compose(task: $0, evidence: evidence, coverage: coverage)
+        }
+        if let expectComposed = expectation.expectComposedDirectAnswer {
+            if expectComposed, composed == nil {
+                failures.append("预期合成器产出 directAnswer，实际 nil")
+            }
+            if !expectComposed, composed != nil {
+                failures.append("预期合成器放弃（走兼容兜底），实际产出 directAnswer")
+            }
+        }
+
+        // 3. 注入坏模型文案的原始结果 → 展示前验证判定
+        if let expectedVerifier = expectation.expectedVerifier {
+            let rawText = expectation.modelDisplayText ?? ""
+            let rawResult = HoloRenderedAgentResult(
+                title: "本期观察", summary: rawText,
+                sections: [HoloRenderedAgentSection(title: "解读", body: rawText, confidence: 0.9)],
+                evidenceReferences: [], question: query,
+                headline: rawText, directAnswer: rawText, coverageText: nil, limitations: nil
+            )
+            let actual: String
+            switch HoloAnswerCoverageVerifier.verify(result: rawResult, evidence: evidence, coverage: coverage) {
+            case .pass: actual = "pass"
+            case .recoverable: actual = "recoverable"
+            case .failed: actual = "failed"
+            }
+            if actual != expectedVerifier {
+                failures.append("展示前验证判定不符：expected=\(expectedVerifier) actual=\(actual)")
+            }
+        }
+
+        // 4. 完整 Renderer 渲染（含自动恢复），断言最终用户可见结果
+        let counter = HoloAgentAnswerMetricCounter.shared
+        counter.reset()
+        let displayText = expectation.modelDisplayText ?? "本期数据已核对。"
+        let claim = HoloAgentClaim(
+            id: "eval-claim", type: "observation", displayText: displayText,
+            metricAssertions: evidence.map {
+                HoloMetricAssertion(
+                    metricKey: $0.metricKey, value: $0.metricValue, baselineValue: nil,
+                    unit: $0.unit, comparison: nil, evidenceIDs: [$0.id]
+                )
+            },
+            evidenceIDs: evidence.map(\.id),
+            prohibitedInferences: [], confidence: 0.9
+        )
+        let rendered = HoloAgentResultRenderer().render(
+            claims: [claim], evidence: evidence, title: "本期观察", question: query, coverage: coverage
+        )
+
+        if let mustContain = expectation.directAnswerMustContain {
+            for fragment in mustContain where !(rendered.directAnswer ?? "").contains(fragment) {
+                failures.append("directAnswer 缺少「\(fragment)」，实际：\(rendered.directAnswer ?? "nil")")
+            }
+        }
+        if let mustNotContain = expectation.directAnswerMustNotContain {
+            for fragment in mustNotContain where (rendered.directAnswer ?? "").contains(fragment) {
+                failures.append("directAnswer 不得包含「\(fragment)」，实际：\(rendered.directAnswer ?? "nil")")
+            }
+        }
+        if let mustNotContain = expectation.userTextsMustNotContain {
+            let visible = HoloAnswerCoverageVerifier.userFacingTexts(of: rendered).joined(separator: " ")
+            for fragment in mustNotContain where visible.contains(fragment) {
+                failures.append("用户可见文本不得包含「\(fragment)」")
+            }
+        }
+        if expectation.mustDiscloseCoverage == true,
+           !HoloAnswerCoverageVerifier.coverageDisclosed(rendered.coverageText) {
+            failures.append("覆盖度必须披露（coverageText 含 x/y 天 或「覆盖」），实际：\(rendered.coverageText ?? "nil")")
+        }
+        if let limitationsMustContain = expectation.limitationsMustContain {
+            let limitations = (rendered.limitations ?? []).joined(separator: " ")
+            for fragment in limitationsMustContain where !limitations.contains(fragment) {
+                failures.append("limitations 缺少「\(fragment)」，实际：\(limitations)")
+            }
+        }
+        if let metricName = expectation.expectedObservabilityMetric {
+            let matched = HoloAgentAnswerMetricCounter.Metric.allCases.first { $0.rawValue == metricName }
+            guard let matched else {
+                failures.append("未知可观测指标：\(metricName)")
+                return failures
+            }
+            let count = counter.count(for: matched)
+            if count < 1 {
+                failures.append("可观测指标 \(metricName) 应 +1，实际 \(count)")
+            }
+        }
+        counter.reset()
+        return failures
+    }
+
+    // MARK: - P4 同义问法组
+
+    /// 同义问法组（方案发布门槛 3）：同组用例必须派生同一 AnswerTask
+    /// （mode/domain/measure/dimension/direction/limit 全等，rangeLabel 允许不同），
+    /// 且合成 directAnswer 的数字序列完全一致。
+    private static func applySynonymGroupChecks(
+        cases: [HoloAgentEvalCase],
+        verdicts: inout [HoloAgentEvalVerdict]
+    ) {
+        struct TaskSignature: Equatable {
+            var mode: String
+            var domain: String?
+            var measure: String?
+            var dimension: String?
+            var direction: String?
+            var limit: Int
+        }
+
+        var groups: [String: [HoloAgentEvalCase]] = [:]
+        for entry in cases {
+            if let group = entry.expectation.answerPresentation?.synonymGroup {
+                groups[group, default: []].append(entry)
+            }
+        }
+
+        func markFailure(_ caseID: String, _ message: String) {
+            guard let index = verdicts.firstIndex(where: { $0.caseID == caseID }) else { return }
+            verdicts[index].failures.append(message)
+            verdicts[index].passed = false
+        }
+
+        for (group, members) in groups {
+            guard members.count >= 2 else {
+                markFailure(members[0].id, "同义组 \(group) 只有 1 条用例，无法交叉验证")
+                continue
+            }
+            var referenceSignature: TaskSignature?
+            var referenceNumbers: [String]?
+            for entry in members {
+                let evidence = entry.fixtures?.evidence ?? []
+                guard let task = HoloAnswerTaskDeriver.derive(question: entry.query, evidence: evidence) else {
+                    markFailure(entry.id, "同义组 \(group)：AnswerTask 派生失败")
+                    continue
+                }
+                let signature = TaskSignature(
+                    mode: task.mode.rawValue,
+                    domain: task.domain?.rawValue,
+                    measure: task.measure?.rawValue,
+                    dimension: task.dimension?.rawValue,
+                    direction: task.direction?.rawValue,
+                    limit: task.limit
+                )
+                // 剥掉 rangeLabel 再抽取数字：「最近30天」这类标签本身含数字，不属于结论数字。
+                var directAnswer = HoloDeterministicAnswerComposer.compose(
+                    task: task, evidence: evidence, coverage: entry.fixtures?.coverage
+                )?.directAnswer ?? ""
+                directAnswer = directAnswer.replacingOccurrences(of: task.primaryRangeLabel, with: "")
+                if let baseline = task.baselineRangeLabel {
+                    directAnswer = directAnswer.replacingOccurrences(of: baseline, with: "")
+                }
+                let numbers = numberTokens(in: directAnswer)
+
+                if let referenceSignature, let referenceNumbers {
+                    if signature != referenceSignature {
+                        markFailure(entry.id, "同义组 \(group)：AnswerTask 漂移（\(signature)）")
+                    }
+                    if numbers != referenceNumbers {
+                        markFailure(entry.id, "同义组 \(group)：答案数字不一致（\(numbers) ≠ \(referenceNumbers)）")
+                    }
+                } else {
+                    referenceSignature = signature
+                    referenceNumbers = numbers
+                }
+            }
+        }
+    }
+
+    /// 抽取文本中的数字 token（含千分位与小数），用于跨用例比对答案数字。
+    private static func numberTokens(in text: String) -> [String] {
+        guard let regex = try? NSRegularExpression(pattern: #"\d[\d,]*(?:\.\d+)?"#) else { return [] }
+        let range = NSRange(text.startIndex..., in: text)
+        return regex.matches(in: text, range: range).compactMap {
+            Range($0.range, in: text).map { String(text[$0]) }
         }
     }
 

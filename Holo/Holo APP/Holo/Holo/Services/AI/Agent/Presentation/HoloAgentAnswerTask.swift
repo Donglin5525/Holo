@@ -5,6 +5,9 @@
 //  HoloAI Agent 统一结果语义契约 P2 — 通用答案任务（Answer Task）
 //  从 Evidence 的类型化语义 + 用户问题确定性派生领域无关的答案任务，
 //  不读 metricKey 字符串猜含义；同义问法收敛为同一任务。
+//  P4 派生优先级修正：时间多点不再自动判趋势（固定健康工具汇总证据 = 单一聚合 + 每日点，
+//  「平均/日均」问法应 lookup 聚合值），只有显式趋势意图词或 linearTrend/trend 语义才派生 trend；
+//  排名意图的「最」排除「最近」等时间副词；lookup 主语义优先单一 current 聚合。
 //
 
 import Foundation
@@ -118,7 +121,7 @@ nonisolated enum HoloAnswerTaskDeriver {
         }) {
             return .correlation
         }
-        // 显式趋势或时间维度多点 → trend
+        // 显式趋势语义（linearTrend 操作 / trend 角色）→ trend，与问法无关
         if semantics.contains(where: { $0.operation == .linearTrend || $0.valueRole == .trend }) {
             return .trend
         }
@@ -130,7 +133,13 @@ nonisolated enum HoloAnswerTaskDeriver {
         let timeDimensions: Set<HoloMetricDimension> = [.day, .week, .month, .weekend]
         let timeLabels = Set(semantics.filter { $0.dimension.map(timeDimensions.contains) == true }
             .compactMap(\.groupLabel))
-        if timeLabels.count >= 2 { return .trend }
+        if timeLabels.count >= 2 {
+            // P4 修正：时间多点本身不再自动判趋势——固定健康工具的汇总证据同时携带
+            // 单一 current 聚合（如 health.steps.average）与 day 维度每日点，
+            // 「平均步数」类问题应回答聚合值（lookup），只有显式趋势意图才派生 trend。
+            if asksTrend(question) { return .trend }
+            return .lookup
+        }
         // 业务维度多分组 → breakdown / ranking
         let grouped = semantics.filter { $0.dimension != nil }
         let distinctLabels = Set(grouped.compactMap(\.groupLabel))
@@ -140,19 +149,38 @@ nonisolated enum HoloAnswerTaskDeriver {
         return .lookup
     }
 
-    /// 排名意图词：最/排名/第一/前几/最高/最多。
+    /// 排名意图词：最（排除「最近」等时间副词）/排名/第一/前几。
     private static func asksRanking(_ question: String) -> Bool {
-        ["最", "排名", "第一", "前几", "最高", "最多"].contains { question.contains($0) }
+        if ["排名", "第一", "前几"].contains(where: { question.contains($0) }) { return true }
+        // 「最」只在修饰数量/程度时表排名（最多/最高/最快…），「最近/最终」不算。
+        var rest = question[question.startIndex...]
+        while let index = rest.firstIndex(of: "最") {
+            let next = rest.index(after: index)
+            guard next < rest.endIndex else { return true }
+            if rest[next] != "近" { return true }
+            rest = rest[next...]
+        }
+        return false
+    }
+
+    /// 趋势意图词：趋势/变化/走向/越来越（P4：时间多点只在显式意图下派生 trend）。
+    private static func asksTrend(_ question: String) -> Bool {
+        ["趋势", "变化", "走向", "越来越"].contains { question.contains($0) }
     }
 
     // MARK: 主语义
 
-    /// comparison 时取 delta/changeRate 指标的语义（问变化率时优先 changeRate），否则第一个。
+    /// comparison 时取 delta/changeRate 指标的语义（问变化率时优先 changeRate）；
+    /// lookup 时优先单一 current 聚合（无维度），避免健康汇总证据取到每日点；否则第一个。
     private static func primarySemantic(
         semantics: [HoloMetricSemantic],
         mode: HoloAnswerMode,
         question: String
     ) -> HoloMetricSemantic? {
+        if mode == .lookup,
+           let aggregate = semantics.first(where: { $0.valueRole == .current && $0.dimension == nil }) {
+            return aggregate
+        }
         guard mode == .comparison else { return semantics.first }
         let asksRate = ["涨幅", "降幅", "增长最快", "增长最慢", "变化率", "百分比"].contains { question.contains($0) }
         if asksRate, let rate = semantics.first(where: { $0.valueRole == .changeRate }) {

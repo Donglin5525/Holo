@@ -16,6 +16,7 @@
 //    "Holo/Services/AI/Agent/Presentation/HoloDeterministicAnswerComposer.swift" \
 //    "Holo/Services/AI/Agent/Verification/HoloAnswerCoverageVerifier.swift" \
 //    "Holo/Services/AI/Agent/Presentation/HoloAgentResultRenderer.swift" \
+//    "Holo/Services/AI/Agent/HoloAgentAnswerMetricCounter.swift" \
 //    "HoloTests/Services/AI/Agent/HoloDeterministicAnswerComposerStandaloneTests.swift" \
 //    -o /tmp/holo_deterministic_answer_test && /tmp/holo_deterministic_answer_test
 //

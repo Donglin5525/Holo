@@ -1,7 +1,7 @@
 # Holo Agent 统一结果语义契约方案
 
 > 日期：2026-07-24
-> 状态：待评审
+> 状态：已实施（2026-07-25，P0–P4 全部完成，实施记录见 §十六）
 > 范围：Agent 数据分析结果从工具执行到用户展示的完整链路
 > 关联问题：「这个月消费比上个月多在哪儿？」返回“计算结果 24.3 比例”等不可读内容
 
@@ -547,3 +547,43 @@ limit=3
 2. `operation` 实为两个枚举的合并抽象：`HoloDynamicAggregationOperator` + `HoloDynamicDerivationOperator`（§5.1 已补对照）。
 3. Semantic Frame 实名为 `HoloAgentQuerySemanticFrame`，且不含 mode/measure/dimension，需从 Dynamic Query Plan 派生（§6.1 已补对照与 P2 说明）。
 4. `HoloTimeRange` 不存在，实型为 `HoloAgentTimeRange`（§6.1 已改引用）。
+
+## 十六、实施记录（2026-07-25）
+
+### 16.1 各阶段落地
+
+| 阶段 | commit | 内容 |
+|---|---|---|
+| P0 | `af9b9ec` / `5b85bab` | Agent 成熟度基线（SemanticFrame / VerifierV2 / ContractPolicy / Eval 85 用例）+ Renderer/Observability/Runtime 契约链路与截图案例展示回归 |
+| P1 | `fb2c6a8` | `HoloMetricSemantic` + 枚举；`HoloMetric`/`HoloEvidenceEvent`/`HoloEvidenceRecord` 可选 `semantic`；动态引擎 `HoloMetricSemanticFactory` 从 Query Plan 构造语义并透传 Evidence Ledger |
+| P2 | `099e39c` | `HoloAnswerTaskDeriver` + `HoloDeterministicAnswerComposer` + `HoloAnswerCoverageVerifier`（三态 + 短码）全链路接入 Renderer；坏模型文案本地自动恢复 |
+| P3 | `08a268b` | 财务/习惯/任务/健康固定工具经 `fixedMetricTemplates` 注册表挂语义；删除财务特判，`HoloMetricSemanticCatalog` 降为兼容层 |
+| P4 | 本次（未提交） | Eval 问法矩阵 92 条（总量 177）、6 个可观测指标、Deriver 健康汇总 trend/lookup 修正、两处链路修正（见 16.3）、文档收口 |
+
+### 16.2 对方案文档的偏差汇总
+
+实施中与原方案条文的有意识偏差，均已验证并纳入回归：
+
+1. **`HoloMetricOperation` 增加 3 个跨域 case**：`correlation` / `conditionalAverage` / `groupComparison`（原方案只有聚合 6 + 派生 7），对应跨域工具的真实操作。
+2. **`HoloAnswerTask` 用 rangeLabel 字符串**：`primaryRangeLabel` / `baselineRangeLabel` 直接携带展示文案，而非原草案的 `HoloAgentTimeRange` 字段；时间区间真值仍在 Evidence 上。
+3. **固定工具语义走闭集注册表**：`fixedMetricTemplates`（57 个精确 metricKey，位于 `HoloDataTool.swift`），精确命中才产出语义、未知 key 返回 nil 不猜；未采用"逐工具适配函数"。
+4. **排名意图优先于 trend 启发**（P3）：「哪天/哪个最多」先判 ranking，避免时间多点被误读为趋势。
+5. **健康 measure 按 unit 推导**：固定健康工具的 measure 由 unit 字符串（步/小时/分钟）确定性映射。
+6. **`HoloMetricSemanticCatalog` 未删除**：按 §5.2 保留为旧证据兼容层；P4 用 `agent.semantic.missing` / `agent.semantic.legacy_fallback` 观测其使用频率，作为未来删除依据。
+7. **P4 Deriver 修正**：固定健康工具汇总证据（单一 current 聚合 + day 每日点）下，时间多点不再自动派生 trend——「平均/日均」类问法派生 lookup 并取聚合值；只有显式趋势意图词（趋势/变化/走向/越来越）或 linearTrend/trend 语义才派生 trend。排名意图词「最」排除「最近」等时间副词。
+
+### 16.3 P4 顺带修复的链路缺陷
+
+1. **变化率 >100% 显示错误**：动态引擎 `percentageChange` 恒为小数（fraction），合成器旧启发式把 |rate|>1 当作已百分化，+242% 会显示成 +2.4%；已统一为 `rate × 100`（`HoloDeterministicAnswerComposer.rankedRateItems`）。
+2. **Verifier 误判合成器清洗后的分组为编造**：groupLabel 含控制字符时合成器清洗后展示、Verifier 用原始 label 核对导致 UNKNOWN_GROUP 误判并降级为边界说明；Verifier 与 Renderer 修复路径的 knownLabels 统一改用合成器清洗后形态。
+
+### 16.4 灰度开关终态
+
+- `HoloAgentResultSemanticsFlags.typedSemanticsEnabled`（= §11 `agentTypedResultSemanticsEnabled`）与 `deterministicComposerEnabled`（= §11 `agentDeterministicAnswerComposerEnabled`）均 **默认 true**，可经 UserDefaults 关闭回退旧链路。
+- §11 迁移顺序 1–5 已完成；第 6 步「删除动态字符串猜测」中财务特判已于 P3 删除，`HoloMetricSemanticCatalog` 兼容层保留，待可观测指标确认旧证据流量消失后再议删除。
+- 6 个本地聚合指标由 `HoloAgentAnswerMetricCounter` 在 Renderer 决策点计数，只记录指标名 + 稳定技术上下文（domain / answer mode / 失败短码），不记录用户原文、分类名、具体数字。
+
+### 16.5 验收基线
+
+- Agent Eval：85（P0 seed）+ 92（P4 问法矩阵）= **177 条全绿**，覆盖 11 类场景，RunnerTests 硬断言 >=165 与全类别覆盖。
+- 同义问法组（syn-fin-inc 14 条 / syn-fin-dec 5 / syn-fin-rate 3 / syn-fin-custom 3 / syn-hab-inc / syn-hab-rank / syn-hab-trend / syn-task-cmp / syn-health-avg 3 / syn-health-trend）由 runner 交叉断言：同一 AnswerTask（除 rangeLabel 外）+ 答案数字一致。

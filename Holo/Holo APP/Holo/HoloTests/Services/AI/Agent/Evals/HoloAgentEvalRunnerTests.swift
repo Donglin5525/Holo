@@ -14,6 +14,11 @@
 //    "Holo/Services/AI/Agent/HoloAgentTimeSemanticResolver.swift" \
 //    "Holo/Services/AI/Agent/HoloAgentTimeSemanticExtended.swift" \
 //    "Holo/Services/AI/Agent/Verification/HoloClaimVerifier.swift" \
+//    "Holo/Services/AI/Agent/Presentation/HoloAgentAnswerTask.swift" \
+//    "Holo/Services/AI/Agent/Presentation/HoloDeterministicAnswerComposer.swift" \
+//    "Holo/Services/AI/Agent/Verification/HoloAnswerCoverageVerifier.swift" \
+//    "Holo/Services/AI/Agent/Presentation/HoloAgentResultRenderer.swift" \
+//    "Holo/Services/AI/Agent/HoloAgentAnswerMetricCounter.swift" \
 //    "HoloTests/Services/AI/Agent/Evals/"*.swift \
 //    -o /tmp/holo_agent_eval_test && /tmp/holo_agent_eval_test
 //
@@ -39,8 +44,8 @@ struct HoloAgentEvalRunnerTests {
     }
 
     static func main() throws {
-        // 加载全部 seed 用例并运行统一 runner
-        let cases = HoloAgentEvalSeedCorpus.allCases()
+        // 加载 P0 seed 用例 + P4 答案语义/展示问法矩阵，运行统一 runner
+        let cases = HoloAgentEvalSeedCorpus.allCases() + HoloAgentEvalAnswerPresentationCorpus.allCases()
         expect(!cases.isEmpty, "seed corpus 不应为空")
 
         let verdicts = HoloAgentEvalRunner.evaluate(cases)
@@ -54,13 +59,13 @@ struct HoloAgentEvalRunnerTests {
 
         expect(summary.failed == 0, "Eval 基线有 \(summary.failed) 条失败（共 \(summary.total) 条）")
 
-        // 验收：覆盖 9 类场景
+        // 验收：覆盖全部场景类别（P0 九类 + P4 答案语义/展示两类）
         let categories = Set(cases.map { $0.category })
         expect(categories.count == HoloAgentEvalCategory.allCases.count,
                "应覆盖全部 \(HoloAgentEvalCategory.allCases.count) 类场景，实际 \(categories.count)")
 
-        // 验收：达到首批 80 条基线
-        expect(cases.count >= 80, "首批 Eval 基线应 >= 80 条，实际 \(cases.count)")
+        // 验收：P0 85 条 + P4 问法矩阵 92 条，总量 >= 165（方案 §14）
+        expect(cases.count >= 165, "Eval 回归总量应 >= 165 条，实际 \(cases.count)")
 
         print("✅ HoloAgentEvalRunner passed: \(summary.passed)/\(summary.total)，覆盖 \(categories.count) 类场景")
     }
