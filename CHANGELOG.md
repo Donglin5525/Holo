@@ -4,6 +4,27 @@
 
 ---
 
+## [2026-07-27] 修复周期回放生成失败（移动网络 NAT 切断非流式长连接）
+
+选择"本月"等周期生成回放时，频繁提示"暂时无法生成本月回放，请稍后再试"。本月/本季度等长周期几乎必现，本周/今日等短周期偶发。
+
+### 根因
+insight 调用是**非流式**：iOS 发请求 → 后端用 `completeViaStream` 偷偷流式拉 DeepSeek（耗时 25-41s）→ **收完才一次性返回**。这段等待期间 iOS ↔ nginx ↔ 后端 之间没有任何字节传输，移动网络 NAT / wifi 路由器约 30s 判定连接空闲并 RST。证据闭环：nginx access log 失败请求全是 `499`（client closed request，iOS 先断），iOS 端报 `URLError -1005 networkConnectionLost`（20792 bytes 已传输，传输中途被掐）。chat 功能稳定是因为它早就是端到端流式，连接始终有数据流。
+
+### 修复
+insight 改成端到端流式，与 chat 走同一条透传路径。**后端零改动**（流式透传能力 `streamChat` + `provider.stream()` 早已就绪），改动全在 iOS 端 3 个文件：
+- `AIProvider.swift`：协议新增 `generateMemoryInsightStreaming` 流式方法 + 默认实现（回退到非流式，保护 MockAIProvider 等不破坏）
+- `HoloBackendAIProvider.swift`：实现流式版本，`buildRequest(..., stream: true)` + `apiClient.sendStreaming`，照搬现有 `chatStreaming` 模式
+- `MemoryInsightService.swift`：把非流式调用换成流式累积，收完后走原有 `MemoryInsightResponseParser`（解析 / 后处理 / rerank 逻辑全部不动），70s `generationTimeout` 竞速保留
+
+### 效果
+DeepSeek 边输出 → 后端边透传 → iOS 边收字节，连接始终活跃，NAT 永远不会判定空闲，30s 墙彻底消失。流式路径跳过后端 `completeInsightWithRetry` 重试保护，但 iOS 端 parser 本身有完整校验（失败会 `saveFailed` 提示用户），与 chat 现状一致，不产生脏数据。
+
+### 性质
+- 纯前端改动，仅 iOS 端 3 个文件，**无需后端发版**
+
+---
+
 ## [2026-07-27] 修复周期回放 Sheet 副标题串显 + 单位未对齐
 
 打开"周期回放"选择面板时，"本月""本季度"两行首次显示的日期范围与"本周"完全相同，需点击/hover 触发重渲染后才会切换到正确范围；同时"本周"行的日期缺"月""日"单位（如 "7.21"），与"本月""本季度"（如 "7月1日"）格式不一致。

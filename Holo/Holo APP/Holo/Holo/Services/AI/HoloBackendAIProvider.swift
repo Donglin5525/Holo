@@ -146,6 +146,29 @@ final class HoloBackendAIProvider: AIProvider {
         )
     }
 
+    /// 端到端流式生成记忆洞察。
+    /// iOS stream=true → 后端 streamChat 透传 DeepSeek SSE → iOS 边收边 yield。
+    /// 避免非流式长生成期间连接无数据，被移动网络 NAT 在 ~30s RST（导致 nginx 499 / iOS -1005）。
+    func generateMemoryInsightStreaming(type: InsightType, contextJSON: String) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            Task {
+                do {
+                    try ensureDataProcessingConsent()
+                    let messages: [ChatMessageDTO] = [.user(contextJSON)]
+                    let request = buildRequest(purpose: .insight, messages: messages, stream: true)
+
+                    for try await chunk in apiClient.sendStreaming(request) {
+                        if Task.isCancelled { break }
+                        continuation.yield(chunk)
+                    }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+        }
+    }
+
     func chat(messages: [ChatMessageDTO], userContext: UserContext) async throws -> String {
         try ensureDataProcessingConsent()
         let allMessages = buildChatMessages(messages: messages, userContext: userContext)

@@ -72,6 +72,12 @@ protocol AIProvider {
     /// 生成记忆洞察（自定义 prompt + 结构化 context JSON）
     func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> MemoryInsightGenerationResult
 
+    /// 生成记忆洞察（流式接收）
+    /// 端到端流式：避免非流式长生成期间连接无数据传输，被移动网络 NAT 判定空闲并 RST
+    /// （导致 nginx 499 / iOS -1005）。流式 chunk 透传给调用方累积后解析。
+    /// 不支持流式的 Provider 回退到非流式 generateMemoryInsight。
+    func generateMemoryInsightStreaming(type: InsightType, contextJSON: String) -> AsyncThrowingStream<String, Error>
+
     /// 生成健康洞察（健康专用 system prompt + 结构化 context JSON，JSON mode）
     func generateHealthInsight(contextJSON: String) async throws -> HealthInsightGenerationResult
 }
@@ -121,6 +127,21 @@ extension AIProvider {
     /// 默认实现：不支持记忆洞察
     func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> MemoryInsightGenerationResult {
         throw APIError.serverError("当前 Provider 不支持记忆洞察生成")
+    }
+
+    /// 默认实现：流式洞察回退到非流式（拼成单次 yield，调用方无感）
+    func generateMemoryInsightStreaming(type: InsightType, contextJSON: String) -> AsyncThrowingStream<String, Error> {
+        AsyncThrowingStream { continuation in
+            Task {
+                do {
+                    let result = try await generateMemoryInsight(type: type, contextJSON: contextJSON)
+                    continuation.yield(result.rawResponse)
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+        }
     }
 
     /// 默认实现：不支持健康洞察生成

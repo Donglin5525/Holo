@@ -189,7 +189,21 @@ final class MemoryInsightService {
         do {
             generationResult = try await withThrowingTaskGroup(of: MemoryInsightGenerationResult.self) { group in
             group.addTask {
-                try await provider.generateMemoryInsight(type: insightType, contextJSON: contextJSON)
+                // 端到端流式：避免非流式长生成期间连接无数据，被移动网络 NAT RST。
+                // 累积完整响应后包装成 MemoryInsightGenerationResult，下游解析逻辑不变。
+                var rawResponse = ""
+                for try await chunk in provider.generateMemoryInsightStreaming(type: insightType, contextJSON: contextJSON) {
+                    rawResponse += chunk
+                }
+                guard !rawResponse.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                    throw APIError.serverError("AI 未返回有效内容")
+                }
+                return MemoryInsightGenerationResult(
+                    rawResponse: rawResponse,
+                    promptType: "memory_insight_generation",
+                    promptVersion: nil,
+                    requestId: nil
+                )
             }
             group.addTask {
                 try await Task.sleep(nanoseconds: UInt64(self.generationTimeout) * 1_000_000_000)
