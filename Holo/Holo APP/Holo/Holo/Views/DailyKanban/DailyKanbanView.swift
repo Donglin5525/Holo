@@ -56,6 +56,8 @@ struct DailyKanbanView: View {
         .animation(.easeInOut(duration: 0.2), value: editingHabit != nil)
         .swipeBackToDismiss { dismiss() }
         .task {
+            // 等 Core Data 就绪，避免未就绪时 fetch 静默返回空、内容分批出现
+            await CoreDataStack.shared.waitUntilReady()
             habitRepo.loadActiveHabits()
             await healthRepo.fetchTodayData()
             todoRepo.seedDailyRitualsForToday()

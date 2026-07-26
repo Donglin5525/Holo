@@ -41,6 +41,9 @@ struct ThoughtListView: View {
     /// 所有想法
     @State private var thoughts: [Thought] = []
 
+    /// 是否已完成首次加载（避免入场时空态先闪现、再被列表替换的分批出现感）
+    @State private var hasLoadedOnce = false
+
     /// 所有标签
     @State private var allTags: [ThoughtTag] = []
 
@@ -132,7 +135,7 @@ struct ThoughtListView: View {
             filterBarView
 
             // 想法列表
-            if filteredThoughts.isEmpty {
+            if filteredThoughts.isEmpty && hasLoadedOnce {
                 emptyStateView
             } else {
                 thoughtListView
@@ -164,6 +167,18 @@ struct ThoughtListView: View {
             noticeToast
         }
         .onAppear {
+            // Core Data 未就绪时 fetch 静默返回空，首次加载交给 .task 等就绪后执行
+            guard CoreDataStack.shared.isReady else { return }
+            loadThoughts()
+            loadTags()
+            loadUnprocessedCount()
+            if let initialThoughtId {
+                selectedThoughtId = initialThoughtId
+            }
+        }
+        .task {
+            // 等 Core Data 就绪后再做首次加载，避免入场时空态/内容分批出现
+            await CoreDataStack.shared.waitUntilReady()
             loadThoughts()
             loadTags()
             loadUnprocessedCount()
@@ -279,6 +294,7 @@ struct ThoughtListView: View {
             logger.error("加载想法失败：\(error)")
             thoughts = []
         }
+        hasLoadedOnce = true
     }
 
     /// 抽屉节点变化时按筛选意图重新加载（P1.4）

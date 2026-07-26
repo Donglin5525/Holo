@@ -156,6 +156,8 @@ struct HabitListView: View {
     @State private var habits: [Habit] = []
     /// 今日进度
     @State private var todayProgress: (completed: Int, total: Int) = (0, 0)
+    /// 是否已完成首次加载（避免入场时空态先闪现、再被列表替换的分批出现感）
+    @State private var hasLoadedOnce = false
 
     /// 选中的习惯（用于 sheet 展示，避免删除后持有已释放对象）
     private struct HabitSelection: Identifiable, Equatable {
@@ -180,7 +182,7 @@ struct HabitListView: View {
                             }
                     }
 
-                    if habits.isEmpty {
+                    if habits.isEmpty && hasLoadedOnce {
                         emptyStateView
                     }
                 }
@@ -252,6 +254,7 @@ struct HabitListView: View {
 
         habits = repository.activeHabits
         todayProgress = repository.getTodayCheckInProgress()
+        hasLoadedOnce = true
     }
 
     // MARK: - 顶部导航栏

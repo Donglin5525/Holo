@@ -64,6 +64,8 @@ struct TaskListView: View {
 
     /// 任务列表（本地缓存）
     @State private var tasks: [TodoTask] = []
+    /// 是否已完成首次加载（避免入场时空态先闪现、再被列表替换的分批出现感）
+    @State private var hasLoadedOnce = false
     /// 今日进度
     @State private var todayProgress: (completed: Int, total: Int) = (0, 0)
     /// 当前筛选
@@ -126,7 +128,7 @@ struct TaskListView: View {
                             otherTabContent
                         }
 
-                        if cachedFilteredTasks.isEmpty {
+                        if cachedFilteredTasks.isEmpty && hasLoadedOnce {
                             emptyStateView
                         }
                     }
@@ -170,6 +172,14 @@ struct TaskListView: View {
             }
         }
         .onAppear {
+            // Core Data 未就绪时 fetch 静默返回空，首次加载交给 .task 等就绪后执行
+            guard CoreDataStack.shared.isReady else { return }
+            loadTasks()
+        }
+        .task {
+            // 等 Core Data 就绪 + 仓库初始化后再加载，避免入场时列表空态/内容分批出现
+            await CoreDataStack.shared.waitUntilReady()
+            repository.setup()
             loadTasks()
         }
         // 监听 Deep Link：冷启动时 onAppear 读取已有值
@@ -322,6 +332,7 @@ struct TaskListView: View {
         tasks = repository.activeTasks
         todayProgress = repository.getTodayTaskProgress()
         updateFilteredTasks()
+        hasLoadedOnce = true
     }
 
     // MARK: - 完成任务（带撤回）

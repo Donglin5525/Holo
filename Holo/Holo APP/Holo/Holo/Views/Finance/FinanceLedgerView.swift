@@ -41,9 +41,31 @@ struct FinanceLedgerView: View {
     /// 是否显示搜索页
     @State private var showSearch: Bool = false
 
+    /// 首屏内容是否已就绪（预算 + 日历数据全部加载完成后，内容区一次性淡入，
+    /// 避免入场转场期间各区域随 @Published 逐次更新而分批弹入）
+    @State private var isInitialContentReady = false
+
     /// 预算数据（首页卡片）
     @State private var globalBudgetSummary: GlobalBudgetSummary?
     @State private var categoryWarnings: [CategoryBudgetWarning] = []
+
+    init(
+        calendarState: CalendarState,
+        onBack: @escaping () -> Void,
+        showAddTransaction: Binding<Bool>
+    ) {
+        self.calendarState = calendarState
+        self.onBack = onBack
+        self._showAddTransaction = showAddTransaction
+        // 首帧渲染即带上预算数据：若在入场转场中途才由 .task 写入，
+        // 预算卡会作为「转场期间的新插入视图」跳过共享动画，提前以全透明度弹出
+        _globalBudgetSummary = State(
+            initialValue: BudgetRepository.shared.computeGlobalTotalBudgetStatus(period: .month)
+        )
+        _categoryWarnings = State(
+            initialValue: BudgetRepository.shared.getWarningCategoryBudgets(period: .month)
+        )
+    }
 
     /// 操作完成提示
     @State private var operationMessage: OperationMessage?
@@ -167,6 +189,7 @@ struct FinanceLedgerView: View {
                     }
             )
             }
+            .opacity(isInitialContentReady ? 1 : 0)
             .background(Color.holoCardBackground)
             .clipShape(UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24))
         }
@@ -233,8 +256,16 @@ struct FinanceLedgerView: View {
             .presentationDetents([.medium])
         }
         .task {
-            await calendarState.initialLoad()
+            // 等 Core Data store 就绪再读数：未就绪时 fetch 静默返回空，
+            // 会导致预算卡等数据在内容揭示后才补齐、分批弹入
+            await CoreDataStack.shared.waitUntilReady()
+            // 预算数据同步可得，先备好，避免内容揭示后再插入预算卡造成布局跳动
             loadBudgetData()
+            await calendarState.initialLoad()
+            // 数据全部就绪后，内容区一次性淡入（原子化揭示，避免分批弹入）
+            withAnimation(.easeIn(duration: 0.18)) {
+                isInitialContentReady = true
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .financeDataDidChange)) { _ in
             calendarState.refreshAfterDataChange()
