@@ -4,6 +4,43 @@
 
 ---
 
+## [2026-07-27] 修复周期回放 Sheet 副标题串显 + 单位未对齐
+
+打开"周期回放"选择面板时，"本月""本季度"两行首次显示的日期范围与"本周"完全相同，需点击/hover 触发重渲染后才会切换到正确范围；同时"本周"行的日期缺"月""日"单位（如 "7.21"），与"本月""本季度"（如 "7月1日"）格式不一致。
+
+### 根因
+`PeriodReplayPickerSheet` 的 `weeklySubtitle` / `monthlySubtitle` / `quarterlySubtitle` 三个计算属性共用同一个无参 `resolvedRange()`，而该方法内部 switch 的是全局 `@State selectedPeriod`（默认 `.weekly`）。因此任意时刻**所有非选中行**的副标题都被算成当前选中周期的范围——默认选中"本周"时，三行全显示本周范围；切到"本月"后，"本周"和"本季度"行又会变成本月范围（比肉眼可见的更广）。单位不一致则是 `weeklySubtitle` 用 `M.d` 格式、其余两个用 `M月d日` 格式所致。
+
+### 修复
+- `resolvedRange()` 改为 `resolvedRange(for period:)`，接收可选周期参数，缺省回退到 `selectedPeriod`（供"生成回放"按钮使用）
+- 三个副标题各自显式传入自身周期（`resolvedRange(for: .weekly)` / `.monthly` / `.quarterly`），彼此独立计算，不再依赖全局选中态
+- `weeklySubtitle` 改用 `formattedZhMonthDay()`，三个周期统一为 `M月d日` 格式
+
+### 性质
+- 纯前端改动，仅 `PeriodReplayPickerSheet.swift`，不涉及后端接口 / 数据契约，**无需后端发版**
+
+---
+
+## [2026-07-26] 修复右滑返回常驻模块时"先右滑再下滑"的重复动画
+
+财务/观点等 ZStack 常驻模块右滑返回时，页面先被手势推出右边缘，随后又快速播放一次"下滑+淡出"退出转场，观感像页面先向右压缩再迅速下滑。
+
+### 根因
+两段独立设计的动画叠加：`SwipeBackModifier` 关闭前把页面 `offset` 动画到屏幕右缘，随后 `holoDismiss` 置 `activeScreen = nil` 触发模块的 `.holoScreenTransition` 退出转场（下移+淡出，为复刻旧 fullScreenCover 模态手感而保留），右滑之后再补一次下滑，重复且突兀。
+
+### 修复
+- 新增 `holoSwipeCloseMarker` 环境值（`HoloScreenDismiss.swift`）：HomeView 注入后仅记录"本次关闭来自右滑手势"
+- `SwipeBackModifier` 新增 `isResidentScreenRoot` 参数：常驻模块根视图传 true，关闭回调前先调用标记；详情页/sheet/cover 等其余调用点不受影响
+- HomeView 按 `swipeDismissalActive` 切换 7 个常驻模块的退出转场：右滑触发时用纯淡出（页面已被手势推出屏外），返回按钮等其余路径保持原"下滑+淡出"手感；进入任一模块时复位标记
+
+### 验证
+- Holo Simulator Debug 完整构建通过
+
+### 性质
+- 纯前端改动，不涉及后端接口 / 数据契约，**无需后端发版**
+
+---
+
 ## [2026-07-26] 修复进入模块时内容分批弹入（预算进度条不随页面一起出现）
 
 从首页进入「今日账本」时，月度预算进度条不跟随页面转场，而是提前满透明度弹出，其余内容再渐进出现。经模拟器录屏逐帧定位，根因有三层，已全部修复。
