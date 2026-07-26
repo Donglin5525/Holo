@@ -388,13 +388,17 @@ export function createApp(overrides = {}) {
         const deterministicIntentResult = purpose === "intent"
           ? buildDeterministicIntentCompletion(upstreamRequest.messages, route.model)
           : null;
-        // agent_loop 用流式拉取（provider 支持时），避免非流式长生成被 30s 网络空闲墙切断。
-        // 返回结构与 complete() 一致，下游（校验/幂等/日志）无感。
-        const upstreamComplete = isAgentLoop && typeof provider.completeViaStream === "function"
+        // agent_loop / insight 用流式拉取（provider 支持时），避免非流式长生成被 30s
+        // 网络空闲墙切断。insight（周期回放）常有长 reasoning + 长结构化输出，首字节
+        // 延迟高，非流式 30s 内可能一个字节都拿不到。返回结构与 complete() 一致，
+        // 下游（校验/幂等/日志）无感。
+        const useStream = (isAgentLoop || purpose === "insight")
+          && typeof provider.completeViaStream === "function";
+        const upstreamComplete = useStream
           ? provider.completeViaStream.bind(provider)
           : provider.complete.bind(provider);
         const result = deterministicIntentResult ?? (purpose === "insight"
-          ? await completeInsightWithRetry(provider, upstreamRequest)
+          ? await completeInsightWithRetry(upstreamComplete, upstreamRequest)
           : await upstreamComplete(upstreamRequest));
         if (purpose === "agent_loop") {
           const agentContent = result?.choices?.[0]?.message?.content;
@@ -576,13 +580,13 @@ function createProviders(config) {
   return providers;
 }
 
-async function completeInsightWithRetry(provider, request) {
+async function completeInsightWithRetry(complete, request) {
   const retryRequest = { ...request, responseFormat: undefined };
-  let result = await provider.complete(retryRequest);
+  let result = await complete(retryRequest);
   let failure = classifyInsightResponse(result);
   if (!failure) return result;
 
-  result = await provider.complete(retryRequest);
+  result = await complete(retryRequest);
   failure = classifyInsightResponse(result);
   if (!failure) return result;
   throw new GatewayError(failure, failure, 502);

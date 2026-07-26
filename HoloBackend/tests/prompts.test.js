@@ -200,42 +200,74 @@ test("system_prompt 默认 Prompt 使用结论先行与渐进披露约束", asyn
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  assert.equal(prompt.version, 3);
+  assert.equal(prompt.version, 4);
+  // v4: 表达边界与档案规则由 Persona Preamble 接管，正文只保留核心能力与操作禁令；
+  // C 端阅读格式仍由 _consumer_readable_answer_v1_contract 契约片段 append。
   assert.match(prompt.content, /HOLO_CONSUMER_READABLE_ANSWER_V1/);
   assert.match(prompt.content, /第一段直接回答用户最关心的问题/);
   assert.match(prompt.content, /一个主结论和最多三个关键点/);
   assert.match(prompt.content, /另起‘详细分析’一行/);
+  assert.match(prompt.content, /禁止假装执行操作/);
+  assert.match(prompt.content, /禁止编造数据/);
 });
 
-test("analysis_prompt 默认 Prompt 使用自然阅读与渐进披露约束", async () => {
+test("analysis_prompt 默认 Prompt 使用温档洞察方法论与 few-shot", async () => {
   const app = createTestApp();
 
   const response = await app.request("/v1/prompts/analysis_prompt");
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  assert.equal(prompt.version, 4);
-  assert.match(prompt.content, /适合手机 App 阅读的中文分析文本/);
+  assert.equal(prompt.version, 5);
+  // v5: 温档——补洞察方法论 + few-shot；表达边界与输出格式段由 Persona Preamble / 契约接管。
+  assert.match(prompt.content, /洞察方法论/);
+  assert.match(prompt.content, /从数据读生活场景/);
+  assert.match(prompt.content, /工作日午饭的节奏/);
+  assert.match(prompt.content, /分析场景用温档/);
   assert.match(prompt.content, /HOLO_CONSUMER_READABLE_ANSWER_V1/);
-  assert.match(prompt.content, /短问题用一段自然短文回答/);
-  assert.match(prompt.content, /分析回答默认 180-320 字/);
-  assert.doesNotMatch(prompt.content, /只输出 Markdown 文本/);
-  assert.doesNotMatch(prompt.content, /使用 Markdown 格式/);
+  // 业务硬口径保留
+  assert.match(prompt.content, /财务分析口径/);
+  assert.match(prompt.content, /习惯分析口径/);
 });
 
-test("高曝光默认 Prompt 包含 Sense Loop 表达边界", async () => {
+test("Persona Preamble 片段含表达边界，并由 injectServerPrompt 注入到所有 purpose 前", async () => {
   const app = createTestApp();
 
-  for (const type of ["system_prompt", "memory_insight_generation", "analysis_prompt", "flexible_query_planner"]) {
+  // 1. _persona_preamble 片段本身承载了收敛后的表达边界（v4 起各 purpose 正文不再重复）
+  const preambleResponse = await app.request("/v1/prompts/system_prompt");
+  // preamble 不作为独立 prompt type 暴露在 /v1/prompts，但 injectServerPrompt 会消费它。
+  // 这里直接验证注入逻辑：injectServerPrompt 对任意 purpose 都应 prepend preamble。
+  const { injectServerPrompt } = await import("../src/prompts/serverPromptPolicy.js");
+
+  for (const purpose of ["chat", "analysis", "insight", "flexible_query_planner"]) {
+    const result = injectServerPrompt(purpose, [{ role: "user", content: "测试" }]);
+    const systemContent = result.messages[0].content;
+
+    // Persona Preamble 在 system message 最前面
+    assert.match(systemContent, /^你是 Holo，陪伴用户的生活助理/);
+    // 安全边界由 Preamble 正向表述接管（v4 起各 purpose 不再重复旧禁令式措辞）
+    assert.match(systemContent, /陪伴者，不是医生/);
+    assert.match(systemContent, /相关性，但因果留给证据/);
+    assert.match(systemContent, /人格标签/);
+    assert.match(systemContent, /可能\/像是\/值得留意/);
+    // 信息优先级
+    assert.match(systemContent, /当前这一刻用户的明确输入.*永远优先/);
+    assert.match(systemContent, /档案是用户主动告诉你的/);
+    // 姿态切换
+    assert.match(systemContent, /专业分析|情绪陪伴|日常相处/);
+    assert.doesNotMatch(systemContent, /你是一个很自律的人/);
+    // purpose 自身的任务指令接在 Preamble 之后
+    assert.ok(systemContent.includes("\n\n"), `${purpose} 的 system message 应在 preamble 和 purpose 之间有分隔`);
+  }
+
+  // 2. 各 purpose 正文不再自带表达边界块（已收敛到 Preamble）
+  for (const type of ["system_prompt", "memory_insight_generation", "analysis_prompt"]) {
     const response = await app.request(`/v1/prompts/${type}`);
     assert.equal(response.status, 200);
     const prompt = await response.json();
-
-    assert.match(prompt.content, /区分事实、观察、假设和建议/);
-    assert.match(prompt.content, /当前明确输入永远优先/);
-    assert.match(prompt.content, /HoloProfile 是用户主动档案/);
-    assert.match(prompt.content, /不能说.*导致|跨模块关系/);
-    assert.doesNotMatch(prompt.content, /你是一个很自律的人/);
+    // 正文不应再含旧的表达边界块标题（这些由 Preamble 接管）
+    assert.doesNotMatch(prompt.content, /表达边界：\n-/);
+    assert.doesNotMatch(prompt.content, /低置信判断必须使用/);
   }
 });
 
@@ -643,7 +675,7 @@ test("agent_loop prompt 存在并包含 Agent Loop 核心约束", async () => {
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  assert.equal(prompt.version, 14);
+  assert.equal(prompt.version, 15);
   assert.match(prompt.content, /need_tools/);
   assert.match(prompt.content, /need_more_analysis/);
   assert.match(prompt.content, /final_claims/);
@@ -675,6 +707,7 @@ test("agent_loop prompt 存在并包含 Agent Loop 核心约束", async () => {
   assert.match(prompt.content, /HOLO_AGENT_READABLE_ANSWER_V10/);
   assert.match(prompt.content, /HOLO_AGENT_TOOL_REQUEST_V11/);
   assert.match(prompt.content, /HOLO_AGENT_FINAL_CLAIMS_V14/);
+  assert.match(prompt.content, /HOLO_AGENT_USABLE_ANSWER_V15/);
   assert.match(prompt.content, /dynamicPlan 和 crossDomainPlan 必须与 parameters 同级/);
   assert.match(
     prompt.content,
@@ -689,6 +722,11 @@ test("agent_loop prompt 存在并包含 Agent Loop 核心约束", async () => {
   assert.match(prompt.content, /final_claims 必须包含至少一条 claim/);
   assert.match(prompt.content, /"metricKey":"string","value":0,"baselineValue":null/);
   assert.match(prompt.content, /HOLO_AGENT_RESPONSE_RECOVERY_V1/);
+  assert.match(prompt.content, /权威范围/);
+  assert.match(prompt.content, /尚未发生的分期/);
+  assert.match(prompt.content, /事件数据/);
+  assert.match(prompt.content, /type=suggestion/);
+  assert.match(prompt.content, /禁止把全部指标逐条堆砌/);
 });
 
 test("memory insight prompt 强制输出稳定主题键和四字段候选", async () => {
@@ -698,7 +736,7 @@ test("memory insight prompt 强制输出稳定主题键和四字段候选", asyn
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  assert.equal(prompt.version, 7);
+  assert.equal(prompt.version, 8);
   assert.match(prompt.content, /HOLO_MEMORY_SEMANTIC_V2/);
   assert.match(prompt.content, /subjectKey/);
   assert.match(prompt.content, /跨日报、周报、月报稳定不变/);

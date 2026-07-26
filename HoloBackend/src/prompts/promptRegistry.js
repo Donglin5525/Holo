@@ -5,10 +5,10 @@ import { fileURLToPath } from "node:url";
 import * as Diff from "diff";
 
 const PROMPT_VERSIONS = {
-  system_prompt: 3,
+  system_prompt: 4,                 // v4: 删除重复表达边界块与档案规则块，由 Persona Preamble 接管
   intent_recognition: 24,
-  memory_insight_generation: 7,
-  analysis_prompt: 4,
+  memory_insight_generation: 8,     // v8: 暖档（写作姿态+联想边界+few-shot），删重复边界块由 Preamble 接管
+  analysis_prompt: 5,               // v5: 温档（洞察方法论+few-shot），删重复边界块与输出格式段由 Preamble/契约接管
   annual_review: 1,
   thought_voice_summary: 2,
   flexible_query_planner: 4,
@@ -17,7 +17,7 @@ const PROMPT_VERSIONS = {
   health_insight_generation: 2,
   thought_organization: 3,
   thought_tag_convergence: 2,
-  agent_loop: 14,
+  agent_loop: 15,
   memory_domain_extraction: 2,
   memory_cross_domain_fusion: 2,
 };
@@ -28,6 +28,7 @@ const PROMPT_CONTRACT_APPENDICES = {
     defaultPrompts._agent_loop_v10_contract,
     defaultPrompts._agent_loop_v11_contract,
     defaultPrompts._agent_loop_v14_contract,
+    defaultPrompts._agent_loop_v15_contract,
   ],
   memory_insight_generation: [defaultPrompts._memory_semantic_v2_contract],
   memory_domain_extraction: [defaultPrompts._memory_domain_quality_v2_contract],

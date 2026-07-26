@@ -1,5 +1,15 @@
 import { GatewayError } from "../errors.js";
 import { getPrompt } from "./promptRegistry.js";
+import defaultPrompts from "./defaultPrompts.json" with { type: "json" };
+
+/**
+ * Persona Preamble —— Holo 所有 purpose 共享的人格前置层。
+ * 真源：docs/_common/PROMPT_GUIDELINES.md 第 2 节。
+ * 在每个 system prompt 前 prepend，统一人格底色与表达边界，
+ * 让各 purpose prompt 不必再各自重复"表达边界"块。
+ * 改这段必须同步改 iOS 端 PromptManager.personaPreamble + 文档单一真源。
+ */
+const PERSONA_PREAMBLE = defaultPrompts._persona_preamble ?? "";
 
 const PURPOSE_PROMPT_TYPES = Object.freeze({
   chat: "system_prompt",
@@ -31,11 +41,18 @@ export function injectServerPrompt(purpose, messages, options = {}) {
     throw new GatewayError("PROMPT_NOT_FOUND", `Server prompt is unavailable: ${promptType}`, 503);
   }
 
+  const systemContent = renderPromptVariables(prompt.content, options.now);
+  // Persona Preamble 统一 prepend：人格层在前、purpose 任务指令在后。
+  // preamble 不含 {{变量}}，无需过 renderPromptVariables。
+  const finalSystemContent = PERSONA_PREAMBLE
+    ? `${PERSONA_PREAMBLE}\n\n${systemContent}`
+    : systemContent;
+
   return {
     promptType,
     promptVersion: prompt.version,
     messages: [
-      { role: "system", content: renderPromptVariables(prompt.content, options.now) },
+      { role: "system", content: finalSystemContent },
       ...messages,
     ],
   };
