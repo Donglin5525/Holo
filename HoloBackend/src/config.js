@@ -58,7 +58,11 @@ const DEFAULT_CONFIG = {
       provider: process.env.HOLO_REPLAY_DIGEST_PROVIDER ?? process.env.HOLO_INSIGHT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_REPLAY_DIGEST_MODEL ?? process.env.HOLO_INSIGHT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_REPLAY_DIGEST_TEMPERATURE ?? 0.2),
-      maxTokens: Number(process.env.HOLO_REPLAY_DIGEST_MAX_TOKENS ?? 1024),
+      // §reasoning-budget: 跨周期归纳是复杂任务，推理模型（deepseek-v4-flash）会先在
+      // reasoning_content 里展开大量思考，再写 content。maxTokens=1024 时思维链就吃满，
+      // finish_reason=length，content 为空 → App 端报"回放摘要返回格式不正确"。
+      // 提到 4096，与 insight / memory_domain_extraction 等同类复杂任务对齐。
+      maxTokens: Number(process.env.HOLO_REPLAY_DIGEST_MAX_TOKENS ?? 4096),
       // §quota-isolation: 周期回放历史摘要归纳（后台迁移任务）原本与主聊天共用
       // 全局 chatRequestsPerDay=50，会挤占用户正常额度。此处给它独立配额桶。
       requestLimits: {
