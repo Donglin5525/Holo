@@ -39,6 +39,10 @@ struct HoloReplayDigestModel: Codable, Equatable {
     var lastUpdatedAt: Date?
     /// 历史回填格式失败次数；达到上限后跳过该期，避免每次启动反复请求同一坏数据。
     var backfillFailureCounts: [String: Int]? = nil
+    /// 回填撞 429（配额耗尽）后的冷却到期时间。冷却期内跳过整批扫描，
+    /// 避免每次启动/回前台都从头扫一遍再撞墙（冗余请求 + 刷屏日志）。
+    /// 用 UTC 日期对齐后端配额窗口（后端日切为北京 08:00 = UTC 00:00）。
+    var backfillRateLimitCooldownUntil: Date? = nil
 
     static func empty() -> HoloReplayDigestModel {
         HoloReplayDigestModel(
@@ -86,6 +90,9 @@ final class HoloReplayDigestService {
     /// 每次前台最多回填 4 期，减少启动阶段网络占用。
     private static let backfillBatchSize = 4
     private static let maxBackfillFailuresPerInsight = 2
+    /// 撞 429 后的冷却时长：覆盖一个后端配额日窗口（北京 08:00 切分）。
+    /// 取略多于 24h，保证无论何时撞墙，下一个窗口开始前都不会再扫。
+    private static let backfillRateLimitCooldown: TimeInterval = 25 * 60 * 60
 
     /// ISO8601 日期格式化（请求体里统一用这个，去掉小数秒避免后端解析歧义）
     private static let isoFormatter: ISO8601DateFormatter = {
@@ -172,6 +179,12 @@ final class HoloReplayDigestService {
     /// - Note: 失败仅 log，不阻塞启动。重复调用安全（已有有效摘要则跳过）。
     func backfillIfNeeded(historyRepo: MemoryInsightRepository) async {
         guard HoloAIFeatureFlags.aiDataProcessingConsentGranted else { return }
+        // 冷却短路：上次撞 429 后，冷却期内不再扫描，避免每次启动冗余请求。
+        if let cooldownUntil = model.backfillRateLimitCooldownUntil,
+           Date() < cooldownUntil {
+            Self.logger.info("回填处于 429 冷却期（至 \(cooldownUntil)），跳过本次扫描")
+            return
+        }
         guard activeUserReplayIDs.isEmpty else {
             Self.logger.info("用户周期回放正在生成，暂停历史摘要回填")
             return
@@ -228,6 +241,17 @@ final class HoloReplayDigestService {
                 saveToDisk()
                 Self.logger.info("回填断点已保存（累计 \(self.model.sourceInsightCount) 期）")
             } catch {
+                // 撞 429（配额耗尽）：剩余配额一定也不够，立刻 break 整批，
+                // 并写入冷却，避免每次启动/回前台都从头扫一遍再撞墙。
+                if case .rateLimited? = error as? APIError {
+                    model.backfillRateLimitCooldownUntil =
+                        Date().addingTimeInterval(Self.backfillRateLimitCooldown)
+                    saveToDisk()
+                    Self.logger.error(
+                        "回填撞配额上限，本批中止并进入冷却 25h（已回填 \(self.model.sourceInsightCount) 期）"
+                    )
+                    break
+                }
                 var counts = model.backfillFailureCounts ?? [:]
                 counts[insight.id.uuidString, default: 0] += 1
                 model.backfillFailureCounts = counts
@@ -376,7 +400,8 @@ final class HoloReplayDigestService {
             sourceInsightIDs: previous.sourceInsightIDs,
             digestVersion: max(previous.digestVersion, 1),
             lastUpdatedAt: previous.lastUpdatedAt,
-            backfillFailureCounts: previous.backfillFailureCounts
+            backfillFailureCounts: previous.backfillFailureCounts,
+            backfillRateLimitCooldownUntil: previous.backfillRateLimitCooldownUntil
         )
     }
 
