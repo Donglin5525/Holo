@@ -736,7 +736,7 @@ test("memory insight prompt 强制输出稳定主题键和四字段候选", asyn
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  assert.equal(prompt.version, 9);
+  assert.equal(prompt.version, 10);
   assert.match(prompt.content, /HOLO_MEMORY_SEMANTIC_V2/);
   assert.match(prompt.content, /subjectKey/);
   assert.match(prompt.content, /跨日报、周报、月报稳定不变/);
@@ -746,4 +746,21 @@ test("memory insight prompt 强制输出稳定主题键和四字段候选", asyn
   assert.match(prompt.content, /"subjectKey": "string, 跨周期稳定主题键/);
   assert.match(prompt.content, /顶层必须输出 usedMemoryIDs 数组/);
   assert.match(prompt.content, /仅看到但未使用时输出 \[\]/);
+  assert.match(prompt.content, /monthly：summary 90-140 字，4-6 张 cards/);
+  assert.match(prompt.content, /不得把语气推断成“职业焦虑”等心理标签/);
+  assert.match(prompt.content, /对应原始数字和周期/);
+});
+
+test("annual review prompt 提供年度回放所需的信息深度", async () => {
+  const app = createTestApp();
+
+  const response = await app.request("/v1/prompts/annual_review");
+  assert.equal(response.status, 200);
+  const prompt = await response.json();
+
+  assert.equal(prompt.version, 2);
+  assert.match(prompt.content, /summary 控制在 160-240 字/);
+  assert.match(prompt.content, /输出 6-8 张 cards/);
+  assert.match(prompt.content, /每张 body 120-180 字/);
+  assert.match(prompt.content, /跨模块关联只能表达为并发现象/);
 });
