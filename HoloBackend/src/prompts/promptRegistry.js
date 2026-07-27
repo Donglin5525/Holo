@@ -7,7 +7,8 @@ import * as Diff from "diff";
 const PROMPT_VERSIONS = {
   system_prompt: 4,                 // v4: 删除重复表达边界块与档案规则块，由 Persona Preamble 接管
   intent_recognition: 24,
-  memory_insight_generation: 8,     // v8: 暖档（写作姿态+联想边界+few-shot），删重复边界块由 Preamble 接管
+  memory_insight_generation: 9,     // v9: 上期回顾升级为历史回放归纳（近期明细+远期摘要），引用 replayHistory 字段
+  replay_digest_consolidation: 1,   // v1: 周期回放历史归纳器，每次回放后把本期并入累计摘要
   analysis_prompt: 5,               // v5: 温档（洞察方法论+few-shot），删重复边界块与输出格式段由 Preamble/契约接管
   annual_review: 1,
   thought_voice_summary: 2,

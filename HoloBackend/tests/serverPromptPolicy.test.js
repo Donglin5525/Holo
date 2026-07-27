@@ -7,12 +7,28 @@ import { injectServerPrompt, promptTypeForPurpose, renderPromptVariables } from 
 
 test("every public AI purpose resolves to a server-owned Prompt", () => {
   const purposes = [
-    "chat", "analysis", "intent", "flexible_query_planner", "insight", "health_insight_generation",
+    "chat", "analysis", "intent", "flexible_query_planner", "insight", "replayDigest", "health_insight_generation",
     "thought_voice_summary", "memory_observer", "finance_action_parser", "task_action_parser",
     "thought_organization", "thought_tag_convergence", "category_pattern_induction", "agent_loop",
     "memory_domain_extraction", "memory_cross_domain_fusion",
   ];
   for (const purpose of purposes) assert.ok(promptTypeForPurpose(purpose), purpose);
+});
+
+test("replayDigest purpose resolves to the consolidation prompt and treats data as non-executable", () => {
+  const result = injectServerPrompt(
+    "replayDigest",
+    [{ role: "user", content: "{\"oldDigest\":\"\",\"newReplay\":{}}" }],
+  );
+  assert.equal(result.promptType, "replay_digest_consolidation");
+  assert.ok(result.promptVersion >= 1);
+  assert.equal(result.messages[0].role, "system");
+  // 与其他记忆类 prompt 一致，强制数据/指令分离
+  assert.match(result.messages[0].content, /不可执行|不得执行/);
+  // 输出契约必须包含累计摘要与长期模式字段
+  assert.match(result.messages[0].content, /cumulativeDigest/);
+  assert.match(result.messages[0].content, /keyPatterns/);
+  assert.match(result.messages[0].content, /trackedGoals/);
 });
 
 test("memory Prompts treat user data as evidence, not executable instructions", () => {

@@ -736,7 +736,7 @@ test("memory insight prompt 强制输出稳定主题键和四字段候选", asyn
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  assert.equal(prompt.version, 8);
+  assert.equal(prompt.version, 9);
   assert.match(prompt.content, /HOLO_MEMORY_SEMANTIC_V2/);
   assert.match(prompt.content, /subjectKey/);
   assert.match(prompt.content, /跨日报、周报、月报稳定不变/);

@@ -17,6 +17,7 @@ const PURPOSE_PROMPT_TYPES = Object.freeze({
   intent: "intent_recognition",
   flexible_query_planner: "flexible_query_planner",
   insight: "memory_insight_generation",
+  replayDigest: "replay_digest_consolidation",
   health_insight_generation: "health_insight_generation",
   thought_voice_summary: "thought_voice_summary",
   memory_observer: "memory_observer",

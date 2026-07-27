@@ -54,6 +54,12 @@ const DEFAULT_CONFIG = {
       temperature: Number(process.env.HOLO_INSIGHT_TEMPERATURE ?? 0.3),
       maxTokens: Number(process.env.HOLO_INSIGHT_MAX_TOKENS ?? 4096),
     },
+    replayDigest: {
+      provider: process.env.HOLO_REPLAY_DIGEST_PROVIDER ?? process.env.HOLO_INSIGHT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_REPLAY_DIGEST_MODEL ?? process.env.HOLO_INSIGHT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_REPLAY_DIGEST_TEMPERATURE ?? 0.2),
+      maxTokens: Number(process.env.HOLO_REPLAY_DIGEST_MAX_TOKENS ?? 1024),
+    },
     health_insight_generation: {
       provider: process.env.HOLO_HEALTH_INSIGHT_PROVIDER ?? process.env.HOLO_INSIGHT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_HEALTH_INSIGHT_MODEL ?? process.env.HOLO_INSIGHT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
