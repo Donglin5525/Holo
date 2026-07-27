@@ -73,14 +73,13 @@ struct PeriodReplayChatCard: View {
             VStack(alignment: .leading, spacing: 14) {
                 // 标题 + 摘要
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack(alignment: .top, spacing: 10) {
+                    HStack(alignment: .center, spacing: 10) {
                         Image(systemName: "play.rectangle.fill")
                             .font(.subheadline.weight(.bold))
                             .foregroundColor(.holoPrimary)
                             .frame(width: 28, height: 28)
                             .background(Color.holoPrimary.opacity(0.09))
                             .clipShape(Circle())
-                            .padding(.top, 1)
 
                         Text(displayText(payload.title))
                             .font(.headline)
@@ -138,10 +137,14 @@ struct PeriodReplayChatCard: View {
                 if !payload.cards.isEmpty {
                     Button {
                         let nextValue = !isExpanded
-                        withAnimation(.easeInOut(duration: 0.22)) {
-                            isExpanded = nextValue
+                        // 高卡片折叠时不能做高度动画，否则 ScrollView 会保留动画前的
+                        // contentOffset，短暂落入已经不存在的内容区域，表现为整屏空白。
+                        isExpanded = nextValue
+                        Task { @MainActor in
+                            // 等卡片完成新一轮布局，再让外层校正滚动位置。
+                            await Task.yield()
+                            onExpansionChanged?(nextValue)
                         }
-                        onExpansionChanged?(nextValue)
                     } label: {
                         HStack(spacing: 5) {
                             Text(isExpanded ? "收起详细内容" : "展开 \(payload.cards.count) 张洞察")
@@ -163,14 +166,13 @@ struct PeriodReplayChatCard: View {
 
     private func insightCardRow(_ card: MemoryInsightCard, showsDetail: Bool) -> some View {
         VStack(alignment: .leading, spacing: 9) {
-            HStack(alignment: .top, spacing: 9) {
+            HStack(alignment: .center, spacing: 9) {
                 Image(systemName: cardIcon(for: card.type))
                     .font(.caption.weight(.semibold))
                     .foregroundColor(cardIconColor(for: card.type))
                     .frame(width: 24, height: 24)
                     .background(cardIconColor(for: card.type).opacity(0.08))
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
-                    .padding(.top, 1)
 
                 Text(displayText(card.title))
                     .font(.subheadline.weight(.semibold))

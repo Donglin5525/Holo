@@ -25,6 +25,8 @@ struct ChatView: View {
     /// 加载更早消息时记录的锚点 id（加载前首条 = 用户当时看的那条）。
     /// 待 LazyVStack 插入新行后再 scrollTo，避免在数据刷新前定位不准。
     @State private var pendingEarlierSessionAnchor: UUID?
+    /// 长内容收起后请求底层 UIScrollView 校正越界偏移。
+    @State private var scrollOffsetClampRequestID = 0
     @State private var pendingVoiceTranscriptToSend: String?
     @State private var pendingDelete: PendingCardDelete?
     @State private var showDeleteConfirmation = false
@@ -402,17 +404,11 @@ struct ChatView: View {
                                 guard message.agentResult != nil else { return }
                                 activeSheet = .agentDeepAnalysis(message)
                             },
-                            onPeriodReplayExpansionChanged: { message, isExpanded in
-                                // 卡片高度骤变后重新锚定，避免 LazyVStack 保留失真的滚动与命中区域。
-                                Task { @MainActor in
-                                    await Task.yield()
-                                    withAnimation(.easeInOut(duration: 0.22)) {
-                                        proxy.scrollTo(
-                                            message.id,
-                                            anchor: isExpanded ? .bottom : .center
-                                        )
-                                    }
-                                }
+                            onPeriodReplayExpansionChanged: { _, isExpanded in
+                                // 长卡片收起后，LazyVStack 可能先卸载越界内容，导致 ScrollViewReader
+                                // 找不到消息锚点。改由底层 UIScrollView 按真实 contentSize 校正。
+                                guard !isExpanded else { return }
+                                scrollOffsetClampRequestID &+= 1
                             },
                             onGoalDraftCardTap: {
                                 viewModel.showGoalDraftReview = true
@@ -466,6 +462,10 @@ struct ChatView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
+                .background(alignment: .topLeading) {
+                    ChatScrollOffsetClampProbe(requestID: scrollOffsetClampRequestID)
+                        .frame(width: 1, height: 1)
+                }
             }
             .refreshable {
                 await triggerLoadEarlier(proxy: proxy)
@@ -807,4 +807,146 @@ private struct PendingCardDelete {
     let category: EntityCategory
     let entityId: UUID
     let description: String
+}
+
+/// 观察 SwiftUI 消息列表背后的 UIScrollView。
+///
+/// 长卡片收起会让 contentSize 在单帧内大幅缩小；UIKit 偶发保留旧 contentOffset，
+/// 使整个 LazyVStack 落到视口之外。手动拖动之所以能恢复，是 UIScrollView 在拖动时
+/// 会重新把 offset 限制到合法范围。这里监听真实 contentSize，并在折叠请求后主动完成同一校正。
+private struct ChatScrollOffsetClampProbe: UIViewRepresentable {
+    let requestID: Int
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView(frame: .zero)
+        view.isUserInteractionEnabled = false
+        view.backgroundColor = .clear
+        context.coordinator.attachIfPossible(from: view)
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        context.coordinator.attachIfPossible(from: uiView)
+        context.coordinator.handleClampRequest(requestID, from: uiView)
+    }
+
+    static func dismantleUIView(_ uiView: UIView, coordinator: Coordinator) {
+        coordinator.detach()
+    }
+
+    final class Coordinator {
+        private weak var scrollView: UIScrollView?
+        private var contentSizeObservation: NSKeyValueObservation?
+        private var lastRequestID = 0
+        private var isClampPending = false
+
+        func attachIfPossible(from view: UIView) {
+            if let ancestor = enclosingScrollView(from: view) {
+                attach(to: ancestor)
+                return
+            }
+
+            // make/update 时 representable 可能尚未挂到 ScrollView 层级。
+            DispatchQueue.main.async { [weak self, weak view] in
+                guard let self, let view,
+                      let ancestor = self.enclosingScrollView(from: view) else { return }
+                self.attach(to: ancestor)
+                self.clampImmediatelyIfNeeded()
+            }
+        }
+
+        func handleClampRequest(_ requestID: Int, from view: UIView) {
+            guard requestID != lastRequestID else { return }
+            lastRequestID = requestID
+            isClampPending = true
+            attachIfPossible(from: view)
+
+            // 如果 contentSize 已先于 SwiftUI update 完成变化，当前轮直接校正；
+            // 否则保留 pending，由 contentSize KVO 在真实缩高发生时校正。
+            DispatchQueue.main.async { [weak self] in
+                self?.clampImmediatelyIfNeeded()
+            }
+        }
+
+        func detach() {
+            contentSizeObservation?.invalidate()
+            contentSizeObservation = nil
+            scrollView = nil
+            isClampPending = false
+        }
+
+        private func attach(to candidate: UIScrollView) {
+            guard scrollView !== candidate else { return }
+
+            contentSizeObservation?.invalidate()
+            scrollView = candidate
+            contentSizeObservation = candidate.observe(
+                \.contentSize,
+                options: [.new]
+            ) { [weak self] scrollView, _ in
+                guard let self, self.isClampPending else { return }
+                scrollView.layoutIfNeeded()
+                self.clampOffset(in: scrollView)
+                self.isClampPending = false
+            }
+        }
+
+        private func clampImmediatelyIfNeeded() {
+            guard isClampPending, let scrollView else { return }
+            scrollView.layoutIfNeeded()
+            if clampOffset(in: scrollView) {
+                isClampPending = false
+            }
+        }
+
+        @discardableResult
+        private func clampOffset(in scrollView: UIScrollView) -> Bool {
+            let inset = scrollView.adjustedContentInset
+            let minimumX = -inset.left
+            let minimumY = -inset.top
+            let maximumX = max(
+                minimumX,
+                scrollView.contentSize.width - scrollView.bounds.width + inset.right
+            )
+            let maximumY = max(
+                minimumY,
+                scrollView.contentSize.height - scrollView.bounds.height + inset.bottom
+            )
+            let current = scrollView.contentOffset
+            let clamped = CGPoint(
+                x: min(max(current.x, minimumX), maximumX),
+                y: min(max(current.y, minimumY), maximumY)
+            )
+
+            guard abs(clamped.x - current.x) > 0.5
+                    || abs(clamped.y - current.y) > 0.5 else {
+                // offset 已合法时仍刷新 LazyVStack 的可见区域，避免沿用旧布局缓存。
+                scrollView.setNeedsLayout()
+                scrollView.layoutIfNeeded()
+                return false
+            }
+
+            UIView.performWithoutAnimation {
+                scrollView.setContentOffset(clamped, animated: false)
+                scrollView.setNeedsLayout()
+                scrollView.layoutIfNeeded()
+            }
+            return true
+        }
+
+        private func enclosingScrollView(from view: UIView) -> UIScrollView? {
+            var ancestor = view.superview
+            while let current = ancestor {
+                if let scrollView = current as? UIScrollView {
+                    return scrollView
+                }
+                ancestor = current.superview
+            }
+            return nil
+        }
+    }
 }
