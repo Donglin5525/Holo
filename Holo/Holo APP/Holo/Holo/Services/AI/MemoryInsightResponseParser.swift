@@ -113,7 +113,7 @@ enum MemoryInsightResponseParser {
         // title 和 summary 非空
         guard !payload.title.isEmpty,
               !payload.summary.isEmpty,
-              payload.summary.count <= 100,
+              payload.summary.count <= 240,
               payload.cards.count >= 1,
               payload.cards.count <= 8 else {
             return false

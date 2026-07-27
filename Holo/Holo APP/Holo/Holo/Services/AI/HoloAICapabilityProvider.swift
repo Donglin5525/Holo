@@ -91,6 +91,13 @@ enum HoloAICapabilityProvider {
                 isEnabled: true
             ),
             HoloAICapability(
+                id: .periodReplay,
+                title: "周期回放",
+                systemImage: "play.rectangle.fill",
+                isEmphasized: false,
+                isEnabled: true
+            ),
+            HoloAICapability(
                 id: .goalPlanning,
                 title: "规划目标",
                 systemImage: "target",

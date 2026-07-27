@@ -23,6 +23,8 @@
 		18CE77872E80FFCF40DACBC0 /* CalendarRangeBuilderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 873DF286F1A7241AF0612E0D /* CalendarRangeBuilderTests.swift */; };
 		1B9A00110000000000000001 /* WeeklyObservationCardStateTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B9A00120000000000000001 /* WeeklyObservationCardStateTests.swift */; };
 		1B9A00210000000000000001 /* MemoryInsightResponseParserTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B9A00220000000000000001 /* MemoryInsightResponseParserTests.swift */; };
+		A27D00010000000000000001 /* HoloPeriodReplayJobTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A27D00020000000000000001 /* HoloPeriodReplayJobTests.swift */; };
+		A27D00030000000000000001 /* APIClientStreamingRecoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A27D00040000000000000001 /* APIClientStreamingRecoveryTests.swift */; };
 		1BCF2DB29B3C875332B40EAB /* ScheduleRankerStandaloneTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8B02CFCDAD0D5AA918A480A0 /* ScheduleRankerStandaloneTests.swift */; };
 		1D9E82E735A6F6B42C6616F5 /* HoloLongTermMemoryStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56D841A046242260A5371CA8 /* HoloLongTermMemoryStoreTests.swift */; };
 		1E46A127BDE3BF9567405A77 /* HoloConversationToolTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01D1CD88D4AF51CCA9C5425C /* HoloConversationToolTests.swift */; };
@@ -244,6 +246,8 @@
 		1A5692DC8F9BFCC11917CEDF /* HoloTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = HoloTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1B9A00120000000000000001 /* WeeklyObservationCardStateTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = WeeklyObservationCardStateTests.swift; sourceTree = "<group>"; };
 		1B9A00220000000000000001 /* MemoryInsightResponseParserTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MemoryInsightResponseParserTests.swift; sourceTree = "<group>"; };
+		A27D00020000000000000001 /* HoloPeriodReplayJobTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloPeriodReplayJobTests.swift; sourceTree = "<group>"; };
+		A27D00040000000000000001 /* APIClientStreamingRecoveryTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = Network/APIClientStreamingRecoveryTests.swift; sourceTree = "<group>"; };
 		1EDCE631364060018D86E6FA /* HabitIconPresetsTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HabitIconPresetsTests.swift; sourceTree = "<group>"; };
 		27A8CA5AB2CCAC6491B22D88 /* HoloAgentJSONStoreTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = HoloAgentJSONStoreTests.swift; sourceTree = "<group>"; };
 		295E9B51FBEA12EAC64FF25F /* FinanceChartScaleTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = FinanceChartScaleTests.swift; sourceTree = "<group>"; };
@@ -552,6 +556,7 @@
 				BDD16917F7263898559B2D49 /* UserDisplayNameSettingsTests.swift */,
 				5A202607190000000000000012 /* LightweightOnboardingSettingsTests.swift */,
 				DF4F11F07B969D93AD7AFBF2 /* ChatMessageViewDataAgentResultTests.swift */,
+				A27D00020000000000000001 /* HoloPeriodReplayJobTests.swift */,
 				7D89A2C842C34B9589F5338D /* ChatMessageRepositoryCacheRecoveryTests.swift */,
 				76061A59B8135AEFF89E34D6 /* ChatMessageRepositoryOrphanCleanupTests.swift */,
 				4C56E2AB37A815D00F57579A /* HealthInsightGenerationModelsTests.swift */,
@@ -834,6 +839,7 @@
 				8CAA563B9A91D311A7F18D4F /* WeeklyObservation */,
 				05AC4854DA6A558BBFBD7245 /* Widgets */,
 				55EFB18CF092EEBEF25127B6 /* Startup */,
+				A27D00040000000000000001 /* APIClientStreamingRecoveryTests.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -985,6 +991,8 @@
 				5A202607190000000000000011 /* LightweightOnboardingSettingsTests.swift in Sources */,
 				5A202607170000000000000003 /* TopicRepositoryDeleteTests.swift in Sources */,
 				1B9A00210000000000000001 /* MemoryInsightResponseParserTests.swift in Sources */,
+				A27D00010000000000000001 /* HoloPeriodReplayJobTests.swift in Sources */,
+				A27D00030000000000000001 /* APIClientStreamingRecoveryTests.swift in Sources */,
 				1B9A00110000000000000001 /* WeeklyObservationCardStateTests.swift in Sources */,
 				754CE1738597753DE3A64D0E /* HoloAgentResultRendererTests.swift in Sources */,
 				7A4C1F8E2B5D4A6C9E0F1234 /* CloudKitRuntimeAvailabilityTests.swift in Sources */,

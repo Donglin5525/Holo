@@ -374,30 +374,33 @@ final class MemoryInsightRepository {
         return (try? context.fetch(request)) ?? []
     }
 
-    /// 获取上一周期的 ready 洞察
-    func fetchPreviousPeriodInsight(
-        periodType: MemoryInsightPeriodType,
-        currentStart: Date
-    ) -> MemoryInsight? {
-        let calendar = Calendar.current
-        let prevStart: Date
-        switch periodType {
-        case .daily: prevStart = calendar.date(byAdding: .day, value: -1, to: currentStart) ?? currentStart
-        case .weekly: prevStart = calendar.date(byAdding: .weekOfYear, value: -1, to: currentStart) ?? currentStart
-        case .monthly: prevStart = calendar.date(byAdding: .month, value: -1, to: currentStart) ?? currentStart
-        case .quarterly: prevStart = calendar.date(byAdding: .month, value: -3, to: currentStart) ?? currentStart
-        case .custom: prevStart = calendar.date(byAdding: .day, value: -1, to: currentStart) ?? currentStart
-        }
-
+    /// 获取最近 N 期 ready 回放，**跨所有周期类型**，自然排除本期（periodStart < currentStart）。
+    /// 用于周期回放历史归纳的"近期明细"窗口。
+    /// - Note: 不锁 periodType，周/月/季/自定义回放混合返回，按 periodStart 降序。
+    func fetchRecentReadyInsightsAcrossPeriods(
+        before currentStart: Date,
+        limit: Int = 3
+    ) -> [MemoryInsight] {
         let request = MemoryInsight.fetchRequest()
         request.predicate = NSPredicate(
-            format: "periodType == %@ AND periodStart == %@ AND status == %@",
-            periodType.rawValue,
-            prevStart as CVarArg,
+            format: "status == %@ AND periodStart < %@",
+            MemoryInsightStatus.ready.rawValue,
+            currentStart as CVarArg
+        )
+        request.sortDescriptors = [NSSortDescriptor(key: "periodStart", ascending: false)]
+        request.fetchLimit = limit
+        return (try? context.fetch(request)) ?? []
+    }
+
+    /// 获取所有 ready 历史回放，**跨所有周期类型**，按 periodStart 升序。
+    /// 用于老用户首次升级时的累计摘要回填（backfill）。
+    func fetchAllReadyInsightsAcrossPeriods() -> [MemoryInsight] {
+        let request = MemoryInsight.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "status == %@",
             MemoryInsightStatus.ready.rawValue
         )
-        request.sortDescriptors = [NSSortDescriptor(key: "generatedAt", ascending: false)]
-        request.fetchLimit = 1
-        return (try? context.fetch(request))?.first
+        request.sortDescriptors = [NSSortDescriptor(key: "periodStart", ascending: true)]
+        return (try? context.fetch(request)) ?? []
     }
 }

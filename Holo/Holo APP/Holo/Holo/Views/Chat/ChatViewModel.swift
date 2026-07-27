@@ -99,6 +99,8 @@ final class ChatViewModel: ObservableObject {
     @Published private(set) var activeGoalPlanningSession: GoalPlanningSession?
     @Published var goalDraftForReview: GoalDraft?
     @Published var showGoalDraftReview = false
+    /// 周期回放选择 Sheet（从记忆长廊迁移而来）
+    @Published var showPeriodReplayPicker = false
     private let goalPlanningCoordinator = GoalPlanningCoordinator()
 
     // MARK: - Init
@@ -147,10 +149,12 @@ final class ChatViewModel: ObservableObject {
             let repo = ChatMessageRepository.shared
             self.bindRepository(repo)
             let preserved = await self.analysisService.syncRecoverableChatMessages(repository: repo)
+                .union(HoloPeriodReplayCoordinator.shared.recoverableMessageIDs())
             repo.cleanupOrphanedStreamingMessages(preserveMessageIDs: preserved)
             try? await Task.sleep(nanoseconds: 250_000_000)
             await repo.loadCurrentSessionLightweightMessagesAsync(limit: self.initialHistoryLimit)
             let refreshedPreserved = await self.analysisService.syncRecoverableChatMessages(repository: repo)
+                .union(HoloPeriodReplayCoordinator.shared.recoverableMessageIDs())
             repo.cleanupOrphanedStreamingMessages(preserveMessageIDs: refreshedPreserved)
             self.hasLoadedMessages = true
             self.syncHasEarlierSessions()
@@ -179,9 +183,11 @@ final class ChatViewModel: ObservableObject {
 
         if !hasLoadedMessages {
             let preserved = await analysisService.syncRecoverableChatMessages(repository: repo)
+                .union(HoloPeriodReplayCoordinator.shared.recoverableMessageIDs())
             repo.cleanupOrphanedStreamingMessages(preserveMessageIDs: preserved)
             await repo.loadCurrentSessionLightweightMessagesAsync(limit: initialHistoryLimit)
             let refreshedPreserved = await analysisService.syncRecoverableChatMessages(repository: repo)
+                .union(HoloPeriodReplayCoordinator.shared.recoverableMessageIDs())
             repo.cleanupOrphanedStreamingMessages(preserveMessageIDs: refreshedPreserved)
             hasLoadedMessages = true
             syncHasEarlierSessions()
@@ -1247,8 +1253,23 @@ final class ChatViewModel: ObservableObject {
         case .goalPlanning:
             startGoalPlanning(seedText: nil)
             return
+        case .periodReplay:
+            // 弹周期选择 Sheet，选完后走 startPeriodReplay（独立流程，不走 sendMessage）
+            showPeriodReplayPicker = true
+            return
         }
         Task { await sendMessage() }
+    }
+
+    // MARK: - Period Replay（周期回放，从记忆长廊迁移而来）
+
+    /// 周期回放交给应用级协调器执行，页面销毁、息屏或冷启动都能从原消息继续。
+    func startPeriodReplay(periodType: MemoryInsightPeriodType, start: Date, end: Date) async {
+        await HoloPeriodReplayCoordinator.shared.start(
+            periodType: periodType,
+            start: start,
+            end: end
+        )
     }
 
     // MARK: - Quick Actions（兼容旧入口）

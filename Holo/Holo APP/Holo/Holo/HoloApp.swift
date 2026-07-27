@@ -56,6 +56,9 @@ struct HoloApp: App {
 
         // 监听财务/想法变更，维护桌面小组件使用的轻量快照
         HoloWidgetSnapshotService.shared.startObserving()
+
+        // 监听周期回放生成，异步维护远期累计摘要（失败不影响主流程）
+        HoloReplayDigestObserver.startObserving()
     }
 
     // MARK: - Body
@@ -86,6 +89,8 @@ struct HoloApp: App {
 
                     // Store 就绪后安排下一次周期性支出补账；具体执行仍由系统后台策略决定
                     await CoreDataStack.shared.waitUntilReady()
+                    // 先恢复用户主动发起的周期回放，再执行低优先级自动洞察与历史回填。
+                    await HoloPeriodReplayCoordinator.shared.appDidLaunch()
 
                     #if DEBUG
                     let appStoreScreenshotModeActive =
@@ -133,6 +138,13 @@ struct HoloApp: App {
                     // 首屏数据准备后刷新一次小组件快照，保证冷启动后桌面数据可用
                     await HoloWidgetSnapshotService.shared.refreshAllSnapshots()
 
+                    // 老用户首次升级：回填周期回放远期累计摘要（后台执行，不阻塞 UI）
+                    Task {
+                        await HoloReplayDigestService.shared.backfillIfNeeded(
+                            historyRepo: MemoryInsightRepository()
+                        )
+                    }
+
                     if HoloAIFeatureFlags.agentRuntimeEnabled {
                         await MainActor.run {
                             HoloBackgroundContinuationManager.shared.appDidLaunch()
@@ -165,8 +177,12 @@ struct HoloApp: App {
                             HoloBackgroundContinuationManager.shared.appDidEnterBackground()
                         }
                     case .active:
+                        HoloPeriodReplayCoordinator.shared.appWillEnterForeground()
                         Task {
                             await MemoryInsightBackgroundService.shared.checkForegroundCompensation()
+                            await HoloReplayDigestService.shared.backfillIfNeeded(
+                                historyRepo: MemoryInsightRepository()
+                            )
                             await HoloMemoryObservationScheduler.shared.lightweightCheck(
                                 trigger: .becameActive
                             )

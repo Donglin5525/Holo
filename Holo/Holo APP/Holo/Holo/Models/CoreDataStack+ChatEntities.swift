@@ -111,6 +111,14 @@ extension CoreDataStack {
         agentResultJSON.isOptional = true
         chatAttributes.append(agentResultJSON)
 
+        // 周期回放洞察结果 JSON（MemoryInsightPayload 序列化）
+        // 由 Holo AI 能力 bar 的"周期回放"触发生成，渲染为 PeriodReplayChatCard
+        let insightResultJSON = NSAttributeDescription()
+        insightResultJSON.name = "insightResultJSON"
+        insightResultJSON.attributeType = .stringAttributeType
+        insightResultJSON.isOptional = true
+        chatAttributes.append(insightResultJSON)
+
         chatMessageEntity.properties = chatAttributes
 
         return [chatMessageEntity]

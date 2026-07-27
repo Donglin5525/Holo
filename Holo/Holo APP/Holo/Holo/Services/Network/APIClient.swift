@@ -84,15 +84,16 @@ nonisolated final class APIClient {
                     continue
                 }
                 throw error
-            } catch let urlError as URLError where urlError.code == .timedOut {
-                if attempt < maxRetries {
+            } catch let urlError as URLError {
+                let apiError: APIError = urlError.code == .timedOut ? .timeout : .networkUnavailable
+                if apiError.isRetryable && attempt < maxRetries {
                     attempt += 1
                     let delay = pow(2.0, Double(attempt - 1))
-                    logger.warning("请求超时，\(delay)秒后重试（第\(attempt)次）")
+                    logger.warning("网络请求中断，\(delay)秒后重试（第\(attempt)次，\(urlError.code.rawValue)）")
                     try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                     continue
                 }
-                throw APIError.timeout
+                throw apiError
             } catch {
                 throw error
             }
@@ -112,6 +113,7 @@ nonisolated final class APIClient {
                 var lastError: Error?
 
                 for attempt in 0...maxRetries {
+                    var didYieldContent = false
                     do {
                         let urlRequest = try request.toURLRequest()
 
@@ -131,9 +133,10 @@ nonisolated final class APIClient {
                         var parser = SSEParser()
 
                         for try await line in bytes.lines {
-                            if Task.isCancelled { break }
+                            try Task.checkCancellation()
 
                             if let content = parser.parse(line) {
+                                didYieldContent = true
                                 continuation.yield(content)
                             }
                         }
@@ -142,7 +145,9 @@ nonisolated final class APIClient {
                         return
                     } catch let error as APIError {
                         lastError = error
-                        if error.isRetryable && attempt < maxRetries {
+                        // 已向上游交付过内容后不能在同一流里重放，否则会把
+                        // “第一次的半截 JSON + 第二次的完整 JSON”拼成无法解析的数据。
+                        if !didYieldContent, error.isRetryable && attempt < maxRetries {
                             let delay = pow(2.0, Double(attempt))
                             logger.warning("SSE 流式失败，\(delay)秒后重试（第\(attempt + 1)次）：\(error.errorDescription ?? "")")
                             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
@@ -151,14 +156,14 @@ nonisolated final class APIClient {
                         continuation.finish(throwing: error)
                         return
                     } catch is CancellationError {
-                        continuation.finish()
+                        continuation.finish(throwing: CancellationError())
                         return
-                    } catch let urlError as URLError where urlError.code == .timedOut {
-                        let apiError = APIError.timeout
+                    } catch let urlError as URLError {
+                        let apiError: APIError = urlError.code == .timedOut ? .timeout : .networkUnavailable
                         lastError = apiError
-                        if attempt < maxRetries {
+                        if !didYieldContent, attempt < maxRetries {
                             let delay = pow(2.0, Double(attempt))
-                            logger.warning("SSE 流式超时，\(delay)秒后重试（第\(attempt + 1)次）")
+                            logger.warning("SSE 网络中断，\(delay)秒后重试（第\(attempt + 1)次，\(urlError.code.rawValue)）")
                             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                             continue
                         }

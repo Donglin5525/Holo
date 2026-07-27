@@ -83,6 +83,7 @@ enum HoloMemorySummaryProvider {
         case .longTermPatterns: return "总结我的长期模式"
         case .goalPlanning: return "帮我规划下一步"
         case .onboarding: return "了解我的偏好"
+        case .periodReplay: return "生成本周回放"
         case nil: return "我最近状态如何"
         }
     }
@@ -99,7 +100,7 @@ enum HoloMemorySummaryProvider {
                 anchors: [],
                 timeRange: nil
             )
-        case .todayState, .recentAnalysis, .longTermPatterns:
+        case .todayState, .recentAnalysis, .longTermPatterns, .periodReplay:
             return .init(
                 operation: .holistic,
                 domains: [],
@@ -129,6 +130,7 @@ enum HoloMemorySummaryProvider {
         case .longTermPatterns: return .capabilityLongTermPatterns
         case .goalPlanning: return .capabilityGoalPlanning
         case .onboarding: return .capabilityOnboarding
+        case .periodReplay: return .capabilityRecentAnalysis
         case nil: return .chat
         }
     }

@@ -80,6 +80,7 @@ private extension HoloAICapabilityID {
         case .recentAnalysis: .capabilityRecentAnalysis
         case .longTermPatterns: .capabilityLongTermPatterns
         case .goalPlanning: .capabilityGoalPlanning
+        case .periodReplay: .capabilityRecentAnalysis
         }
     }
 }

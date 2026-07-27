@@ -24,6 +24,7 @@ struct MessageBubbleView: View {
     var onViewLog: ((ChatMessageViewData) -> Void)? = nil
     var onCompactAnalysisTap: (() -> Void)? = nil
     var onAgentDeepAnalysisTap: (() -> Void)? = nil
+    var onPeriodReplayExpansionChanged: ((ChatMessageViewData, Bool) -> Void)? = nil
     var onGoalDraftCardTap: (() -> Void)? = nil
     var onSavedGoalCardTap: ((UUID) -> Void)? = nil
     var onRetry: (() -> Void)? = nil
@@ -125,7 +126,7 @@ struct MessageBubbleView: View {
         let flexibleQueryCard = message.flexibleQueryCard
 
         VStack(alignment: isUser ? .trailing : .leading, spacing: 8) {
-            // 渲染优先级：已保存目标卡片 > 目标计划卡片 > 分析卡片 > 批处理卡片 > 单卡片 > 通用文字。
+            // 渲染优先级：已保存目标卡片 > 目标计划卡片 > 周期回放 > 分析卡片 > 批处理卡片 > 单卡片 > 通用文字。
             if let savedGoalCardData {
                 GoalSavedChatCard(data: savedGoalCardData) {
                     onSavedGoalCardTap?(savedGoalCardData.goalId)
@@ -135,6 +136,14 @@ struct MessageBubbleView: View {
                     GoalDraftReadyChatCard(draft: draft) {
                         onGoalDraftCardTap?()
                     }
+                }
+            } else if message.messageType == .periodReplay {
+                if message.insightResult != nil || message.isStreaming || message.periodReplayJob != nil {
+                    PeriodReplayChatCard(message: message) { isExpanded in
+                        onPeriodReplayExpansionChanged?(message, isExpanded)
+                    }
+                } else {
+                    bubbleContent
                 }
             } else if message.isQueryAnalysis {
                 if message.agentResult != nil || (message.isStreaming && message.analysisContext == nil) {

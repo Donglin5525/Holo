@@ -53,7 +53,7 @@ enum APIError: LocalizedError {
     /// 是否可重试
     var isRetryable: Bool {
         switch self {
-        case .rateLimited, .timeout, .serverError:
+        case .networkUnavailable, .rateLimited, .timeout, .serverError:
             return true
         case .backendError(let statusCode, let code, _, _):
             // 模型输出结构/流完整性问题不能在 HTTP 层拿同一 payload 盲重放：

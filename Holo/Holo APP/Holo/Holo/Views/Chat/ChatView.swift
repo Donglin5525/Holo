@@ -222,6 +222,12 @@ struct ChatView: View {
         } message: {
             Text(HoloAIDataProcessingConsent.requiredMessage)
         }
+        .sheet(isPresented: $viewModel.showPeriodReplayPicker) {
+            PeriodReplayPickerSheet { periodType, start, end in
+                viewModel.showPeriodReplayPicker = false
+                Task { await viewModel.startPeriodReplay(periodType: periodType, start: start, end: end) }
+            }
+        }
         .fullScreenCover(isPresented: $viewModel.showGoalDraftReview) {
             if let draft = viewModel.goalDraftForReview {
                 GoalDraftReviewView(
@@ -395,6 +401,18 @@ struct ChatView: View {
                             onAgentDeepAnalysisTap: {
                                 guard message.agentResult != nil else { return }
                                 activeSheet = .agentDeepAnalysis(message)
+                            },
+                            onPeriodReplayExpansionChanged: { message, isExpanded in
+                                // 卡片高度骤变后重新锚定，避免 LazyVStack 保留失真的滚动与命中区域。
+                                Task { @MainActor in
+                                    await Task.yield()
+                                    withAnimation(.easeInOut(duration: 0.22)) {
+                                        proxy.scrollTo(
+                                            message.id,
+                                            anchor: isExpanded ? .bottom : .center
+                                        )
+                                    }
+                                }
                             },
                             onGoalDraftCardTap: {
                                 viewModel.showGoalDraftReview = true

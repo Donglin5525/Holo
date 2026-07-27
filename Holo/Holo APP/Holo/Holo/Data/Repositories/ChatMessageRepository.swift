@@ -76,6 +76,8 @@ final class ChatMessageRepository: ObservableObject {
                         "executionBatchJSON",
                         "analysisContextJSON",
                         "agentResultJSON",
+                        "insightResultJSON",
+                        "messageType",
                         "rawLogJSON"
                     ]
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
@@ -118,6 +120,8 @@ final class ChatMessageRepository: ObservableObject {
                         "parentMessageId",
                         "analysisContextJSON",
                         "agentResultJSON",
+                        "insightResultJSON",
+                        "messageType",
                         "executionBatchJSON",
                         "rawLogJSON"
                     ]
@@ -188,7 +192,8 @@ final class ChatMessageRepository: ObservableObject {
                     request.propertiesToFetch = [
                         "id", "role", "content", "timestamp",
                         "intent", "extractedDataJSON", "isStreaming", "parentMessageId",
-                        "analysisContextJSON", "agentResultJSON", "executionBatchJSON", "rawLogJSON"
+                        "messageType", "analysisContextJSON", "agentResultJSON",
+                        "insightResultJSON", "executionBatchJSON", "rawLogJSON"
                     ]
                     request.predicate = NSPredicate(format: "id IN %@", sessionIds)
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: true)]
@@ -261,7 +266,8 @@ final class ChatMessageRepository: ObservableObject {
                     request.propertiesToFetch = [
                         "id", "role", "content", "timestamp",
                         "intent", "extractedDataJSON", "isStreaming", "parentMessageId",
-                        "analysisContextJSON", "agentResultJSON", "executionBatchJSON", "rawLogJSON"
+                        "messageType", "analysisContextJSON", "agentResultJSON",
+                        "insightResultJSON", "executionBatchJSON", "rawLogJSON"
                     ]
                     request.predicate = NSPredicate(format: "id IN %@", sessionIds)
                     request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: true)]
@@ -380,7 +386,12 @@ final class ChatMessageRepository: ObservableObject {
 
     /// 添加流式占位消息
     @discardableResult
-    func addStreamingMessage(role: String, parentMessageId: UUID? = nil, messageType: ChatMessageType = .normal) -> UUID {
+    func addStreamingMessage(
+        role: String,
+        parentMessageId: UUID? = nil,
+        messageType: ChatMessageType = .normal,
+        extractedDataJSON: String? = nil
+    ) -> UUID {
         let message = ChatMessage(context: context)
         message.id = UUID()
         message.role = role
@@ -389,12 +400,80 @@ final class ChatMessageRepository: ObservableObject {
         message.isStreaming = true
         message.parentMessageId = parentMessageId
         message.messageType = messageType.rawValue
+        message.extractedDataJSON = extractedDataJSON
 
         save()
 
         liveMessageCache[message.id] = message
         messages.append(ChatMessageViewData(message: message))
         return message.id
+    }
+
+    /// 更新周期回放任务状态。任务状态和聊天消息共用一次持久化，
+    /// 这样 App 被系统结束后仍能从原消息恢复，不会另起一条重复回放。
+    func updatePeriodReplayJob(
+        _ messageId: UUID,
+        job: HoloPeriodReplayJob,
+        content: String? = nil,
+        isStreaming: Bool? = nil
+    ) {
+        guard let message = messageForUpdate(messageId) else { return }
+        let jobJSON = job.json
+        message.extractedDataJSON = jobJSON
+        if let content {
+            message.content = content
+        }
+        if let isStreaming {
+            message.isStreaming = isStreaming
+        }
+        save()
+
+        updateSnapshot(messageId) { snapshot in
+            snapshot.setExtractedDataJSON(jobJSON)
+            if let content {
+                snapshot.content = content
+            }
+            if let isStreaming {
+                snapshot.isStreaming = isStreaming
+            }
+        }
+    }
+
+    /// 查询所有仍可恢复的周期回放消息，供冷启动保护与续跑。
+    func recoverablePeriodReplayJobs() -> [(messageId: UUID, job: HoloPeriodReplayJob)] {
+        let request = ChatMessage.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "messageType == %@",
+            ChatMessageType.periodReplay.rawValue
+        )
+        request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: true)]
+
+        let messages = (try? context.fetch(request)) ?? []
+        return messages.compactMap { message in
+            guard let job = HoloPeriodReplayJob(json: message.extractedDataJSON),
+                  job.state.isRecoverable else {
+                return nil
+            }
+            return (message.id, job)
+        }
+    }
+
+    /// 找到同一周期尚未结束的回放，避免重复点击创建多条任务。
+    func recoverablePeriodReplayJob(
+        periodType: MemoryInsightPeriodType,
+        start: Date,
+        end: Date
+    ) -> (messageId: UUID, job: HoloPeriodReplayJob)? {
+        recoverablePeriodReplayJobs().last { record in
+            record.job.periodType == periodType
+                && abs(record.job.periodStart.timeIntervalSince(start)) < 1
+                && abs(record.job.periodEnd.timeIntervalSince(end)) < 1
+        }
+    }
+
+    func periodReplayJob(messageId: UUID) -> HoloPeriodReplayJob? {
+        guard let message = messageForUpdate(messageId) else { return nil }
+        return HoloPeriodReplayJob(json: message.extractedDataJSON)
     }
 
     // MARK: - Update
@@ -448,7 +527,9 @@ final class ChatMessageRepository: ObservableObject {
         executionBatchJSON: String?,
         analysisContextJSON: String? = nil,
         rawLogJSON: String? = nil,
-        agentResultJSON: String? = nil
+        agentResultJSON: String? = nil,
+        insightResultJSON: String? = nil,
+        messageType: ChatMessageType? = nil
     ) {
         guard let message = messageForUpdate(messageId) else { return }
 
@@ -463,6 +544,10 @@ final class ChatMessageRepository: ObservableObject {
         // 原始 LLM 日志不得进入 Core Data / CloudKit；内部日志使用独立本机仓库。
         message.rawLogJSON = nil
         message.agentResultJSON = agentResultJSON
+        message.insightResultJSON = insightResultJSON
+        if let messageType {
+            message.messageType = messageType.rawValue
+        }
         save()
 
         // 解码 batch 数据（绕过 associated object 缓存）
@@ -503,18 +588,23 @@ final class ChatMessageRepository: ObservableObject {
             guard let data = json.data(using: .utf8) else { return nil }
             return try? JSONDecoder().decode(HoloRenderedAgentResult.self, from: data)
         }
+        let decodedInsightResult = ChatMessageViewData.decodeInsightResult(insightResultJSON)
 
         // 单次 snapshot 更新
         updateSnapshot(messageId) { snapshot in
             snapshot.content = finalContent
             snapshot.isStreaming = false
             snapshot.intent = intent
-            snapshot.extractedDataJSON = extractedDataJSON
+            snapshot.setExtractedDataJSON(extractedDataJSON)
             snapshot.parsedBatch = decodedParsedBatch
             snapshot.executionBatch = decodedExecutionBatch
             snapshot.analysisContext = decodedAnalysisContext
             snapshot.rawLog = nil
             snapshot.agentResult = decodedAgentResult
+            snapshot.insightResult = decodedInsightResult
+            if let messageType {
+                snapshot.messageType = messageType
+            }
             // finalizeMessage 已收到并解析完整元数据，当前快照可立即渲染结构化卡片。
             snapshot.metadataState = .loaded
         }
@@ -806,7 +896,7 @@ final class ChatMessageRepository: ObservableObject {
 
         // 后台批量查询重 JSON 字段
         do {
-            let decoded: [(UUID, AIParseBatch?, AIExecutionBatch?, AnalysisContext?, LLMLog?, HoloRenderedAgentResult?)] = try await Task.detached(priority: .utility) {
+            let decoded: [(UUID, AIParseBatch?, AIExecutionBatch?, AnalysisContext?, LLMLog?, HoloRenderedAgentResult?, MemoryInsightPayload?)] = try await Task.detached(priority: .utility) {
                 let context = CoreDataStack.shared.newBackgroundContext()
                 return try await context.perform {
                     let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
@@ -817,31 +907,34 @@ final class ChatMessageRepository: ObservableObject {
                         "executionBatchJSON",
                         "analysisContextJSON",
                         "rawLogJSON",
-                        "agentResultJSON"
+                        "agentResultJSON",
+                        "insightResultJSON"
                     ]
                     request.predicate = NSPredicate(format: "id IN %@", toLoad)
 
-                    return try context.fetch(request).compactMap { dict -> (UUID, AIParseBatch?, AIExecutionBatch?, AnalysisContext?, LLMLog?, HoloRenderedAgentResult?)? in
+                    return try context.fetch(request).compactMap { dict -> (UUID, AIParseBatch?, AIExecutionBatch?, AnalysisContext?, LLMLog?, HoloRenderedAgentResult?, MemoryInsightPayload?)? in
                         guard let id = dict["id"] as? UUID else { return nil }
                         let parsedBatch = ChatMessageViewData.decodeParseBatch(dict["parsedBatchJSON"] as? String)
                         let executionBatch = ChatMessageViewData.decodeExecutionBatch(dict["executionBatchJSON"] as? String)
                         let analysisContext = ChatMessageViewData.decodeAnalysisContext(dict["analysisContextJSON"] as? String)
                         let rawLog = ChatMessageViewData.decodeRawLog(dict["rawLogJSON"] as? String)
                         let agentResult = ChatMessageViewData.decodeAgentResult(dict["agentResultJSON"] as? String)
-                        return (id, parsedBatch, executionBatch, analysisContext, rawLog, agentResult)
+                        let insightResult = ChatMessageViewData.decodeInsightResult(dict["insightResultJSON"] as? String)
+                        return (id, parsedBatch, executionBatch, analysisContext, rawLog, agentResult, insightResult)
                     }
                 }
             }.value
 
             // 回到主线程更新 snapshot
-            for (id, parsedBatch, executionBatch, analysisContext, rawLog, agentResult) in decoded {
+            for (id, parsedBatch, executionBatch, analysisContext, rawLog, agentResult, insightResult) in decoded {
                 updateSnapshot(id) { snapshot in
                     snapshot.enrichMetadata(
                         parsedBatch: parsedBatch,
                         executionBatch: executionBatch,
                         analysisContext: analysisContext,
                         rawLog: rawLog,
-                        agentResult: agentResult
+                        agentResult: agentResult,
+                        insightResult: insightResult
                     )
                 }
             }

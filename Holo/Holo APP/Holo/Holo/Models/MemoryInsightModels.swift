@@ -267,7 +267,6 @@ struct MemoryInsightContext: Codable, Equatable {
     let crossModuleCorrelations: [CrossModuleCorrelation]
     let monthlyInsightDigests: [MonthlyInsightDigest]
     let anomalies: [AnomalyObservation]
-    let previousPeriodReview: PreviousPeriodReview?
     let dailySnapshots: [DailyLifeSnapshot]?
     let lifeEvents: [LifeEvent]?
     let personalBaseline: PersonalBaseline?
@@ -279,6 +278,9 @@ struct MemoryInsightContext: Codable, Equatable {
     let longTermMemoryIDs: [String]
     /// 健康洞察上下文（Phase 5 新增，可选）
     let health: HealthInsightContext?
+    /// 周期回放历史归纳（近期明细 + 远期摘要，替换旧的 previousPeriodReview）
+    /// 注意：本字段不参与 snapshotHash（见 computeHash），避免 digest 抖动导致缓存失效。
+    let replayHistory: ReplayHistory?
 
     init(
         periodType: MemoryInsightPeriodType,
@@ -294,7 +296,6 @@ struct MemoryInsightContext: Codable, Equatable {
         crossModuleCorrelations: [CrossModuleCorrelation],
         monthlyInsightDigests: [MonthlyInsightDigest],
         anomalies: [AnomalyObservation],
-        previousPeriodReview: PreviousPeriodReview?,
         dailySnapshots: [DailyLifeSnapshot]? = nil,
         lifeEvents: [LifeEvent]? = nil,
         personalBaseline: PersonalBaseline? = nil,
@@ -304,7 +305,8 @@ struct MemoryInsightContext: Codable, Equatable {
         lifePatternContext: String? = nil,
         longTermMemoryContext: String? = nil,
         longTermMemoryIDs: [String] = [],
-        health: HealthInsightContext? = nil
+        health: HealthInsightContext? = nil,
+        replayHistory: ReplayHistory? = nil
     ) {
         self.periodType = periodType
         self.periodStart = periodStart
@@ -319,7 +321,6 @@ struct MemoryInsightContext: Codable, Equatable {
         self.crossModuleCorrelations = crossModuleCorrelations
         self.monthlyInsightDigests = monthlyInsightDigests
         self.anomalies = anomalies
-        self.previousPeriodReview = previousPeriodReview
         self.dailySnapshots = dailySnapshots
         self.lifeEvents = lifeEvents
         self.personalBaseline = personalBaseline
@@ -330,6 +331,7 @@ struct MemoryInsightContext: Codable, Equatable {
         self.longTermMemoryContext = longTermMemoryContext
         self.longTermMemoryIDs = longTermMemoryIDs
         self.health = health
+        self.replayHistory = replayHistory
     }
 }
 
@@ -494,10 +496,54 @@ struct ThoughtSentimentSummary: Codable, Equatable {
     let source: String // "mood", "text", "none"
 }
 
-struct PreviousPeriodReview: Codable, Equatable {
-    let previousSuggestions: [String]
-    let previousAnomalyTitles: [String]
-    let previousSummary: String?
+// MARK: - Replay History (周期回放历史归纳)
+
+/// 最近一期回放的明细条目（跨周期类型混合，最近 N 期各一条）
+struct RecentReplayEntry: Codable, Equatable {
+    let periodType: MemoryInsightPeriodType
+    let periodStart: Date
+    let periodEnd: Date
+    /// 该期回放的标题
+    let title: String
+    /// 该期回放的摘要（截前 240 字，控 token）
+    let summary: String
+    /// 关键卡片标题（最多 5 条，用于环比/目标追踪参照）
+    let keyCardTitles: [String]
+    /// AI 建议追问的问题（最多 3 条）
+    let suggestedQuestions: [String]
+    /// 该期 anomaly 卡片的标题（用于判断异常是否仍在）
+    let anomalyHighlights: [String]
+}
+
+/// 远期累计摘要里 AI 维护的稳定模式条目
+struct ReplayKeyPattern: Codable, Equatable {
+    /// ≤30 字的稳定行为倾向描述
+    let pattern: String
+    /// 大致时间范围，如 "3-5月"
+    let periods: String
+}
+
+/// 远期累计摘要里 AI 追踪的目标条目
+struct ReplayTrackedGoal: Codable, Equatable {
+    /// ≤15 字的目标名
+    let goalName: String
+    /// advancing / stalled / regressing / resolved
+    let status: String
+    /// ≤30 字的最新一期判断
+    let latestNote: String
+}
+
+/// 完整的回放历史归纳（替换旧的 PreviousPeriodReview）
+/// - recentReplays：最近 N 期明细（跨周期），支持环比与目标追踪
+/// - cumulativeDigest：更早期的累计摘要，恒定长度，长期视角
+struct ReplayHistory: Codable, Equatable {
+    let recentReplays: [RecentReplayEntry]
+    let cumulativeDigest: String?
+    let digestCoveredRangeStart: Date?
+    let digestCoveredRangeEnd: Date?
+    let digestSourceCount: Int
+    let keyPatterns: [ReplayKeyPattern]
+    let trackedGoals: [ReplayTrackedGoal]
 }
 
 // MARK: - Life Trajectory Models

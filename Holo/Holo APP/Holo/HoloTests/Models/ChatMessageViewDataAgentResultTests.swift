@@ -16,6 +16,31 @@ final class ChatMessageViewDataAgentResultTests: XCTestCase {
         """
     }
 
+    private func sampleInsightResultJSON() -> String {
+        """
+        {
+          "title": "支出破两万，习惯在回暖与断连之间",
+          "summary": "本月有几条生活线索值得展开回看。",
+          "cards": [
+            {
+              "id": "finance_1",
+              "type": "finance",
+              "title": "工作日支出偏高",
+              "body": "工作日消费集中，是本月最值得先核对的一项。",
+              "evidence": [],
+              "suggestedQuestion": "哪些工作日支出最高？",
+              "anomalySeverity": null,
+              "moduleHint": null,
+              "patternType": null,
+              "memoryCandidate": null
+            }
+          ],
+          "suggestedQuestions": ["哪些工作日支出最高？"],
+          "usedMemoryIDs": []
+        }
+        """
+    }
+
     func testDecodeAgentResult_validJSON() throws {
         let decoded = ChatMessageViewData.decodeAgentResult(sampleResultJSON())
         let result = try XCTUnwrap(decoded)
@@ -76,6 +101,65 @@ final class ChatMessageViewDataAgentResultTests: XCTestCase {
 
         XCTAssertEqual(message?.metadataState, .loaded)
         XCTAssertNotNil(message?.agentResult)
+    }
+
+    func testLightweightPeriodReplayKeepsMessageTypeAndStructuredCards() throws {
+        let message = ChatMessageViewData(lightweightDictionary: [
+            "id": UUID(),
+            "role": "assistant",
+            "content": "支出破两万，习惯在回暖与断连之间",
+            "timestamp": Date(),
+            "isStreaming": false,
+            "messageType": ChatMessageType.periodReplay.rawValue,
+            "insightResultJSON": sampleInsightResultJSON()
+        ])
+
+        XCTAssertEqual(message?.messageType, .periodReplay)
+        XCTAssertEqual(message?.metadataState, .loaded)
+        XCTAssertEqual(message?.insightResult?.cards.count, 1)
+        XCTAssertEqual(message?.insightResult?.cards.first?.title, "工作日支出偏高")
+    }
+
+    func testDictionaryPeriodReplayKeepsMessageTypeAndStructuredCards() throws {
+        let message = ChatMessageViewData(dictionary: [
+            "id": UUID(),
+            "role": "assistant",
+            "content": "支出破两万，习惯在回暖与断连之间",
+            "timestamp": Date(),
+            "isStreaming": false,
+            "messageType": ChatMessageType.periodReplay.rawValue,
+            "insightResultJSON": sampleInsightResultJSON()
+        ])
+
+        XCTAssertEqual(message?.messageType, .periodReplay)
+        XCTAssertEqual(message?.insightResult?.cards.count, 1)
+    }
+
+    func testEnrichMetadataRestoresPeriodReplayCards() throws {
+        let payload = try XCTUnwrap(ChatMessageViewData.decodeInsightResult(sampleInsightResultJSON()))
+        var message = ChatMessageViewData(
+            id: UUID(),
+            role: "assistant",
+            content: payload.title,
+            timestamp: Date(),
+            intent: nil,
+            extractedDataJSON: nil,
+            isStreaming: false,
+            parentMessageId: nil,
+            messageType: .periodReplay
+        )
+
+        message.enrichMetadata(
+            parsedBatch: nil,
+            executionBatch: nil,
+            analysisContext: nil,
+            rawLog: nil,
+            agentResult: nil,
+            insightResult: payload
+        )
+
+        XCTAssertEqual(message.insightResult, payload)
+        XCTAssertEqual(message.metadataState, .loaded)
     }
 
     func testAgentDeepAnalysisNarrativeModelBuildsReadableChapters() {

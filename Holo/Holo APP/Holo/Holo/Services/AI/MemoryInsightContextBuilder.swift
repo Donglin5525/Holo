@@ -89,9 +89,8 @@ struct MemoryInsightContextBuilder {
 
         let allAnomalies = Self.deduplicateAnomalies(financeAnomalies + habitAnomalies + taskAnomalies)
 
-        // 上期回顾
-        let previousReview = Self.buildPreviousPeriodReview(
-            periodType: periodType,
+        // 历史回放归纳（近期明细 + 远期摘要）
+        let replayHistory = await Self.buildReplayHistory(
             currentStart: start,
             insightRepo: insightRepo
         )
@@ -134,7 +133,6 @@ struct MemoryInsightContextBuilder {
             crossModuleCorrelations: correlations,
             monthlyInsightDigests: [],
             anomalies: allAnomalies,
-            previousPeriodReview: previousReview,
             dailySnapshots: dailySnapshots,
             lifeEvents: lifeEvents,
             personalBaseline: personalBaseline,
@@ -144,7 +142,8 @@ struct MemoryInsightContextBuilder {
             lifePatternContext: lifePatternContext,
             longTermMemoryContext: longTermMemoryContext.isEmpty ? nil : longTermMemoryContext,
             longTermMemoryIDs: longTermMemorySummary.sourceIDs,
-            health: health
+            health: health,
+            replayHistory: replayHistory
         )
 
         context = Self.enforceTokenBudget(context, periodType: periodType)
@@ -1226,7 +1225,6 @@ struct MemoryInsightContextBuilder {
             crossModuleCorrelations: correlations,
             monthlyInsightDigests: digests,
             anomalies: [],
-            previousPeriodReview: nil,
             personalProfileContext: personalProfileContext,
             insightPreferenceContext: insightPreferenceContext,
             lifePatternContext: lifePatternContext,
@@ -1275,7 +1273,6 @@ struct MemoryInsightContextBuilder {
             crossModuleCorrelations: [],
             monthlyInsightDigests: [],
             anomalies: [],
-            previousPeriodReview: nil,
             personalProfileContext: nil,
             insightPreferenceContext: nil,
             lifePatternContext: nil
@@ -1422,7 +1419,6 @@ struct MemoryInsightContextBuilder {
             crossModuleCorrelations: context.crossModuleCorrelations,
             monthlyInsightDigests: context.monthlyInsightDigests,
             anomalies: context.anomalies,
-            previousPeriodReview: context.previousPeriodReview,
             dailySnapshots: context.dailySnapshots,
             lifeEvents: lifeEvents ?? context.lifeEvents,
             personalBaseline: context.personalBaseline,
@@ -1432,7 +1428,8 @@ struct MemoryInsightContextBuilder {
             lifePatternContext: context.lifePatternContext,
             longTermMemoryContext: context.longTermMemoryContext,
             longTermMemoryIDs: context.longTermMemoryIDs,
-            health: context.health
+            health: context.health,
+            replayHistory: context.replayHistory
         )
     }
 
@@ -1457,7 +1454,6 @@ struct MemoryInsightContextBuilder {
                     crossModuleCorrelations: current.crossModuleCorrelations,
                     monthlyInsightDigests: Array(current.monthlyInsightDigests.prefix(6)),
                     anomalies: current.anomalies,
-                    previousPeriodReview: current.previousPeriodReview,
                     dailySnapshots: nil,
                     lifeEvents: nil,
                     personalBaseline: nil,
@@ -1467,7 +1463,8 @@ struct MemoryInsightContextBuilder {
                     lifePatternContext: current.lifePatternContext,
                     longTermMemoryContext: current.longTermMemoryContext,
                     longTermMemoryIDs: current.longTermMemoryIDs,
-                    health: current.health
+                    health: current.health,
+                    replayHistory: current.replayHistory
                 )
             }
         }
@@ -1493,7 +1490,9 @@ struct MemoryInsightContextBuilder {
     // MARK: - Snapshot Hash
 
     static func computeHash(_ context: MemoryInsightContext) -> String {
-        // 排除 generatedAt 运行时字段，保证相同业务数据生成稳定 hash
+        // 排除两类运行时/非确定字段，保证相同业务数据生成稳定 hash：
+        // 1. generatedAt（运行时时间戳）
+        // 2. replayHistory（含 AI 生成的远期摘要，非确定输出；纳入会让 hash 抖动、缓存频繁失效）
         let stableContext = MemoryInsightContext(
             periodType: context.periodType,
             periodStart: context.periodStart,
@@ -1508,7 +1507,6 @@ struct MemoryInsightContextBuilder {
             crossModuleCorrelations: context.crossModuleCorrelations,
             monthlyInsightDigests: context.monthlyInsightDigests,
             anomalies: context.anomalies,
-            previousPeriodReview: context.previousPeriodReview,
             dailySnapshots: context.dailySnapshots,
             lifeEvents: context.lifeEvents,
             personalBaseline: context.personalBaseline,
@@ -1518,7 +1516,8 @@ struct MemoryInsightContextBuilder {
             lifePatternContext: context.lifePatternContext,
             longTermMemoryContext: context.longTermMemoryContext,
             longTermMemoryIDs: context.longTermMemoryIDs,
-            health: context.health
+            health: context.health,
+            replayHistory: nil
         )
         guard let encoded = try? JSONEncoder().encode(stableContext) else { return "" }
         let hash = SHA256.hash(data: encoded)
@@ -1642,31 +1641,51 @@ struct MemoryInsightContextBuilder {
         return ThoughtSentimentSummary(negativeRatio: nil, source: "none")
     }
 
-    /// 构建上期回顾
-    private static func buildPreviousPeriodReview(
-        periodType: MemoryInsightPeriodType,
+    /// 构建周期回放历史归纳（近期明细 + 远期摘要）
+    /// - 近期：最近 `recentReplayLimit` 期 ready 回放，跨周期类型混合（D2/D3 决策）
+    /// - 远期：从 HoloReplayDigestService 读取全局累计摘要
+    /// - Note: 本字段不参与 snapshotHash（见 computeHash），避免 digest 抖动导致缓存失效。
+    private static let recentReplayLimit = 3
+
+    private static func buildReplayHistory(
         currentStart: Date,
         insightRepo: MemoryInsightRepository
-    ) -> PreviousPeriodReview? {
-        guard let prevInsight = insightRepo.fetchPreviousPeriodInsight(
-            periodType: periodType,
-            currentStart: currentStart
-        ) else {
-            return nil
+    ) async -> ReplayHistory? {
+        // 近期明细：跨周期拉最近 N 期，排除本期
+        let recent = insightRepo.fetchRecentReadyInsightsAcrossPeriods(
+            before: currentStart,
+            limit: recentReplayLimit
+        )
+        let recentEntries: [RecentReplayEntry] = recent.compactMap { insight in
+            guard let payload = insight.parsedPayload else { return nil }
+            return RecentReplayEntry(
+                periodType: MemoryInsightPeriodType(rawValue: insight.periodType) ?? .custom,
+                periodStart: insight.periodStart,
+                periodEnd: insight.periodEnd,
+                title: payload.title,
+                summary: String(payload.summary.prefix(240)),
+                keyCardTitles: payload.cards.prefix(5).map(\.title),
+                suggestedQuestions: Array(payload.suggestedQuestions.prefix(3)),
+                anomalyHighlights: payload.cards.filter { $0.type == .anomaly }.map(\.title)
+            )
         }
 
-        guard let payload = prevInsight.parsedPayload else { return nil }
+        // 远期摘要：从 digest service 读内存快照
+        let digest = HoloReplayDigestService.shared.currentSnapshot
 
-        let suggestions = Array(payload.suggestedQuestions.prefix(3))
-        let anomalyTitles = payload.cards
-            .filter { $0.type == .anomaly }
-            .map(\.title)
-        let summary = String(payload.summary.prefix(160))
+        // 两部分都空时不输出该字段（prompt 端会跳过历史归纳章节）
+        let hasRecent = !recentEntries.isEmpty
+        let hasDigest = (digest.cumulativeDigest?.isEmpty == false) || digest.sourceInsightCount > 0
+        guard hasRecent || hasDigest else { return nil }
 
-        return PreviousPeriodReview(
-            previousSuggestions: suggestions,
-            previousAnomalyTitles: anomalyTitles,
-            previousSummary: summary.isEmpty ? nil : summary
+        return ReplayHistory(
+            recentReplays: recentEntries,
+            cumulativeDigest: digest.cumulativeDigest?.isEmpty == false ? digest.cumulativeDigest : nil,
+            digestCoveredRangeStart: digest.coveredRangeStart,
+            digestCoveredRangeEnd: digest.coveredRangeEnd,
+            digestSourceCount: digest.sourceInsightCount,
+            keyPatterns: digest.keyPatterns,
+            trackedGoals: digest.trackedGoals
         )
     }
 

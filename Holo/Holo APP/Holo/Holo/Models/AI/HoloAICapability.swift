@@ -14,6 +14,7 @@ enum HoloAICapabilityID: String, Codable, CaseIterable, Equatable {
     case recentAnalysis
     case longTermPatterns
     case goalPlanning
+    case periodReplay   // 周期回放（原记忆长廊 AI 回放，迁移到聊天）
 }
 
 struct HoloAICapability: Identifiable, Equatable {

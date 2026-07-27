@@ -29,6 +29,7 @@ nonisolated enum ChatMessageMetadataState: Equatable, Sendable {
 enum ChatMessageType: String, Codable, Sendable {
     case normal
     case goalPlanning
+    case periodReplay   // 周期回放（原记忆长廊 AI 回放，迁移到聊天）
 }
 
 nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hashable {
@@ -49,6 +50,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
     var analysisContext: AnalysisContext?
     var rawLog: LLMLog?
     var agentResult: HoloRenderedAgentResult?
+    var insightResult: MemoryInsightPayload?
     private var cachedExtractedDataDictionary: [String: String]?
     private var cachedLinkedEntityIds: [EntityCategory: UUID]
     var metadataState: ChatMessageMetadataState
@@ -67,7 +69,8 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         executionBatch: AIExecutionBatch? = nil,
         analysisContext: AnalysisContext? = nil,
         rawLog: LLMLog? = nil,
-        agentResult: HoloRenderedAgentResult? = nil
+        agentResult: HoloRenderedAgentResult? = nil,
+        insightResult: MemoryInsightPayload? = nil
     ) {
         self.id = id
         self.role = role
@@ -83,6 +86,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         self.analysisContext = analysisContext
         self.rawLog = rawLog
         self.agentResult = agentResult
+        self.insightResult = insightResult
         self.metadataState = .loaded
         self.cachedExtractedDataDictionary = Self.decodeExtractedData(extractedDataJSON)
         self.cachedLinkedEntityIds = Self.buildLinkedEntityIds(
@@ -106,7 +110,8 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
             executionBatch: message.executionBatch,
             analysisContext: Self.decodeAnalysisContext(message.analysisContextJSON),
             rawLog: Self.decodeRawLog(message.rawLogJSON),
-            agentResult: Self.decodeAgentResult(message.agentResultJSON)
+            agentResult: Self.decodeAgentResult(message.agentResultJSON),
+            insightResult: Self.decodeInsightResult(message.insightResultJSON)
         )
     }
 
@@ -128,16 +133,20 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
             extractedDataJSON: dictionary["extractedDataJSON"] as? String,
             isStreaming: isStreaming,
             parentMessageId: dictionary["parentMessageId"] as? UUID,
+            messageType: ChatMessageType(
+                rawValue: dictionary["messageType"] as? String ?? ChatMessageType.normal.rawValue
+            ) ?? .normal,
             parsedBatch: Self.decodeParseBatch(dictionary["parsedBatchJSON"] as? String),
             executionBatch: Self.decodeExecutionBatch(dictionary["executionBatchJSON"] as? String),
             analysisContext: Self.decodeAnalysisContext(dictionary["analysisContextJSON"] as? String),
             rawLog: Self.decodeRawLog(dictionary["rawLogJSON"] as? String),
-            agentResult: Self.decodeAgentResult(dictionary["agentResultJSON"] as? String)
+            agentResult: Self.decodeAgentResult(dictionary["agentResultJSON"] as? String),
+            insightResult: Self.decodeInsightResult(dictionary["insightResultJSON"] as? String)
         )
     }
 
-    /// 轻量初始化器：只解析渲染文本气泡所需的字段，不读取重 JSON 元数据
-    /// 例外：queryAnalysis 消息直接解码 analysisContext，避免卡片渲染闪烁
+    /// 轻量初始化器：只解析首屏渲染所需字段。
+    /// queryAnalysis 与 periodReplay 直接解码结构化结果，避免卡片退化成普通文字气泡。
     init?(lightweightDictionary dictionary: [String: Any]) {
         guard let id = dictionary["id"] as? UUID,
               let role = dictionary["role"] as? String,
@@ -160,7 +169,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         self.executionBatch = Self.decodeExecutionBatch(dictionary["executionBatchJSON"] as? String)
         self.rawLog = Self.decodeRawLog(dictionary["rawLogJSON"] as? String)
 
-        // queryAnalysis 消息直接解码 analysisContext 和 agentResult，确保首帧即可渲染卡片
+        // queryAnalysis 消息直接解码 analysisContext 和 agentResult，确保首帧即可渲染卡片。
         let intentStr = dictionary["intent"] as? String
         if intentStr == AIIntent.queryAnalysis.rawValue {
             self.analysisContext = Self.decodeAnalysisContext(dictionary["analysisContextJSON"] as? String)
@@ -169,12 +178,14 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
             self.analysisContext = nil
             self.agentResult = nil
         }
+        self.insightResult = Self.decodeInsightResult(dictionary["insightResultJSON"] as? String)
 
         // 元数据状态：首屏轻量查询会带上卡片渲染和日志所需字段，避免等待滚动触发懒加载。
         let hasFetchedCardMetadata =
             dictionary.keys.contains("executionBatchJSON") ||
             dictionary.keys.contains("rawLogJSON") ||
-            dictionary.keys.contains("agentResultJSON")
+            dictionary.keys.contains("agentResultJSON") ||
+            dictionary.keys.contains("insightResultJSON")
         if role == "user" || isStreaming {
             self.metadataState = .unavailable
         } else if hasFetchedCardMetadata {
@@ -198,13 +209,15 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         executionBatch: AIExecutionBatch?,
         analysisContext: AnalysisContext?,
         rawLog: LLMLog?,
-        agentResult: HoloRenderedAgentResult?
+        agentResult: HoloRenderedAgentResult?,
+        insightResult: MemoryInsightPayload?
     ) {
         self.parsedBatch = parsedBatch
         self.executionBatch = executionBatch
         self.analysisContext = analysisContext
         self.rawLog = rawLog
         self.agentResult = agentResult
+        self.insightResult = insightResult
         self.metadataState = .loaded
         recomputeLinkedEntityIds()
     }
@@ -213,6 +226,12 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
 
     nonisolated var extractedDataDictionary: [String: String]? {
         cachedExtractedDataDictionary
+    }
+
+    mutating func setExtractedDataJSON(_ json: String?) {
+        extractedDataJSON = json
+        cachedExtractedDataDictionary = Self.decodeExtractedData(json)
+        recomputeLinkedEntityIds()
     }
 
     // MARK: - Analysis Cards
@@ -409,6 +428,14 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
             return nil
         }
         return try? JSONDecoder().decode(HoloRenderedAgentResult.self, from: data)
+    }
+
+    nonisolated static func decodeInsightResult(_ json: String?) -> MemoryInsightPayload? {
+        guard let json,
+              let data = json.data(using: .utf8) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(MemoryInsightPayload.self, from: data)
     }
 
     nonisolated private static func buildLinkedEntityIds(

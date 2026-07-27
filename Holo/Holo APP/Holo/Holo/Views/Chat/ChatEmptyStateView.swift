@@ -119,6 +119,9 @@ private extension HoloAICapability {
             return "你了解我哪些长期偏好和模式？"
         case .goalPlanning:
             return "帮我规划一个目标"
+        case .periodReplay:
+            // periodReplay 不走 sendMessage（弹 Sheet 选周期），这里只作占位
+            return "生成周期回放"
         }
     }
 }

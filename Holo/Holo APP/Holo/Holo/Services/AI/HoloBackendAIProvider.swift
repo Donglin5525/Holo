@@ -158,9 +158,10 @@ final class HoloBackendAIProvider: AIProvider {
                     let request = buildRequest(purpose: .insight, messages: messages, stream: true)
 
                     for try await chunk in apiClient.sendStreaming(request) {
-                        if Task.isCancelled { break }
+                        try Task.checkCancellation()
                         continuation.yield(chunk)
                     }
+                    try Task.checkCancellation()
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -519,6 +520,7 @@ enum HoloBackendPurpose: String {
     case intent
     case flexibleQueryPlanner = "flexible_query_planner"
     case insight
+    case replayDigest = "replayDigest"
     case thoughtVoiceSummary = "thought_voice_summary"
     case memoryObserver = "memory_observer"
     case memoryDomainExtraction = "memory_domain_extraction"

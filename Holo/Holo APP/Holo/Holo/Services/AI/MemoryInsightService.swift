@@ -322,7 +322,11 @@ final class MemoryInsightService {
                 object: nil,
                 userInfo: [
                     "insightID": insight.id.uuidString,
-                    "cards": cardPayloads
+                    "cards": cardPayloads,
+                    "periodType": periodType.rawValue,
+                    "periodStart": insight.periodStart,
+                    "periodEnd": insight.periodEnd,
+                    "payload": processedPayload
                 ]
             )
         }

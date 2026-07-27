@@ -153,6 +153,11 @@ final class MemoryInsightBackgroundService {
         let settings = MemoryInsightScheduleSettings.shared
         let service = MemoryInsightService.shared
         guard service.isAIConfigured else { return }
+        // 用户主动生成的周期回放优先，自动补偿稍后再做，避免抢占唯一生成通道。
+        guard !HoloPeriodReplayCoordinator.shared.hasActiveUserReplay else {
+            logger.info("用户周期回放正在生成，跳过本轮前台自动补偿")
+            return
+        }
         guard !service.isGenerating else { return }
 
         let repository = MemoryInsightRepository()
