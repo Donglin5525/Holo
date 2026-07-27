@@ -59,6 +59,12 @@ const DEFAULT_CONFIG = {
       model: process.env.HOLO_REPLAY_DIGEST_MODEL ?? process.env.HOLO_INSIGHT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_REPLAY_DIGEST_TEMPERATURE ?? 0.2),
       maxTokens: Number(process.env.HOLO_REPLAY_DIGEST_MAX_TOKENS ?? 1024),
+      // §quota-isolation: 周期回放历史摘要归纳（后台迁移任务）原本与主聊天共用
+      // 全局 chatRequestsPerDay=50，会挤占用户正常额度。此处给它独立配额桶。
+      requestLimits: {
+        perMinute: Number(process.env.HOLO_REPLAY_DIGEST_REQUESTS_PER_MINUTE ?? 10),
+        perDay: Number(process.env.HOLO_REPLAY_DIGEST_REQUESTS_PER_DAY ?? 30),
+      },
     },
     health_insight_generation: {
       provider: process.env.HOLO_HEALTH_INSIGHT_PROVIDER ?? process.env.HOLO_INSIGHT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
