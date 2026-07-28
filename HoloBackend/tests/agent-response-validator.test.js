@@ -39,6 +39,37 @@ test("合法 JSON 返回 valid 并带 parsed", () => {
   assert.equal(result.parsed.status, "final_claims");
 });
 
+test("final_claims 透传 title/narrativeSummary", () => {
+  const result = validateAgentLoopContent(
+    JSON.stringify({
+      status: "final_claims",
+      title: "节奏在慢慢回来",
+      narrativeSummary: "这周步数稳步回升，睡眠也回到了 7 小时以上。",
+      claims: [],
+      reasoning: "ok",
+    })
+  );
+  assert.equal(result.valid, true);
+  assert.equal(result.parsed.title, "节奏在慢慢回来");
+  assert.equal(result.parsed.narrativeSummary, "这周步数稳步回升，睡眠也回到了 7 小时以上。");
+});
+
+test("非 final_claims 状态下 title/narrativeSummary 强制为 null", () => {
+  const result = validateAgentLoopContent(
+    JSON.stringify({
+      status: "need_tools",
+      title: "不该出现",
+      narrativeSummary: "也不该出现",
+      toolRequests: [{ id: "r1", tool: "health", query: "steps_summary" }],
+      claims: [],
+      reasoning: "ok",
+    })
+  );
+  assert.equal(result.valid, true);
+  assert.equal(result.parsed.title, null);
+  assert.equal(result.parsed.narrativeSummary, null);
+});
+
 test("agent_loop 旧 claim.text 会被规范化为 displayText", () => {
   const result = validateAgentLoopContent(
     JSON.stringify({

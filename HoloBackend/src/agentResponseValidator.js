@@ -61,6 +61,22 @@ export function validateAgentLoopContent(content) {
     parsed.reasoning = "";
     repairs.push("reasoning_defaulted");
   }
+  // title / narrativeSummary：仅 final_claims 时透传给前端做有人味儿的标题和摘要。
+  // 非 final_claims 状态强制为 null（避免 need_tools 阶段误填）。
+  // 类型校验：必须是 string 或 null，其他类型归一化为 null。
+  const isFinalClaims = parsed.status === "final_claims";
+  if (isFinalClaims && typeof parsed.title === "string" && parsed.title.trim()) {
+    parsed.title = parsed.title.trim();
+  } else {
+    if (parsed.title !== undefined && parsed.title !== null) repairs.push("title_defaulted");
+    parsed.title = null;
+  }
+  if (isFinalClaims && typeof parsed.narrativeSummary === "string" && parsed.narrativeSummary.trim()) {
+    parsed.narrativeSummary = parsed.narrativeSummary.trim();
+  } else {
+    if (parsed.narrativeSummary !== undefined && parsed.narrativeSummary !== null) repairs.push("narrativeSummary_defaulted");
+    parsed.narrativeSummary = null;
+  }
 
   if (!Array.isArray(parsed.toolRequests)) {
     return { valid: false, error: "toolRequests must be an array" };

@@ -18,7 +18,7 @@ const PROMPT_VERSIONS = {
   health_insight_generation: 2,
   thought_organization: 3,
   thought_tag_convergence: 2,
-  agent_loop: 16,
+  agent_loop: 17,                  // v17: 输出加 title/narrativeSummary 顶层字段，让 LLM 产出有人味儿的标题和摘要
   memory_domain_extraction: 2,
   memory_cross_domain_fusion: 2,
 };
