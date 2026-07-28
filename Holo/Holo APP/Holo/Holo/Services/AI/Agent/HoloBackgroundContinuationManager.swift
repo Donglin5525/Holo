@@ -17,13 +17,19 @@ import Foundation
 
 @MainActor
 protocol HoloBackgroundTaskClient {
-    func beginBackgroundTask(named name: String, expirationHandler: @escaping @Sendable () -> Void) -> UIBackgroundTaskIdentifier
+    func beginBackgroundTask(
+        named name: String,
+        expirationHandler: @escaping @MainActor @Sendable () -> Void
+    ) -> UIBackgroundTaskIdentifier
     func endBackgroundTask(_ identifier: UIBackgroundTaskIdentifier)
 }
 
 @MainActor
 struct UIApplicationBackgroundTaskClient: HoloBackgroundTaskClient {
-    func beginBackgroundTask(named name: String, expirationHandler: @escaping @Sendable () -> Void) -> UIBackgroundTaskIdentifier {
+    func beginBackgroundTask(
+        named name: String,
+        expirationHandler: @escaping @MainActor @Sendable () -> Void
+    ) -> UIBackgroundTaskIdentifier {
         UIApplication.shared.beginBackgroundTask(withName: name, expirationHandler: expirationHandler)
     }
 
@@ -46,9 +52,7 @@ final class HoloBackgroundTaskLease {
         self.client = client ?? UIApplicationBackgroundTaskClient()
         self.onExpiration = onExpiration
         self.taskID = self.client.beginBackgroundTask(named: name) { [weak self] in
-            Task { @MainActor [weak self] in
-                self?.expire()
-            }
+            self?.expire()
         }
     }
 
@@ -141,6 +145,11 @@ final class HoloBackgroundContinuationManager {
         resumeTask?.cancel()
         resumeTask = Task { [runtime, scheduler, reconciler, eventRecorder] in
             if reconcileFirst {
+                do {
+                    _ = try await scheduler.reconcileContinuedProcessingRequests()
+                } catch {
+                    NSLog("[Agent] 启动 continued 请求清理失败（不阻塞启动）: \(String(describing: error))")
+                }
                 do {
                     let report = try await reconciler.reconcile()
                     if report.hasFixes {

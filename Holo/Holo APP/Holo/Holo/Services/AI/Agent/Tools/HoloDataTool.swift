@@ -59,6 +59,11 @@ nonisolated struct HoloDataSetSchema: Codable, Equatable, Sendable {
     var fields: [HoloDataField]
     var sensitivity: HoloEvidenceSensitivity
     var maximumRangeDays: Int
+    var coverageSemantics: HoloDataCoverageSemantics? = nil
+
+    var resolvedCoverageSemantics: HoloDataCoverageSemantics {
+        coverageSemantics ?? .eventRecords
+    }
 }
 
 nonisolated struct HoloDataCatalog: Codable, Equatable, Sendable {
@@ -212,9 +217,30 @@ nonisolated struct HoloDynamicToolDecorator: HoloDataTool {
             )
         }
         plan.timeRange = plan.timeRange ?? request.timeRange
-        plan.baseline = plan.baseline
+        let resolvedRange = HoloAgentHistoricalTimePolicy.resolve(plan.timeRange)
+        if resolvedRange.isEntirelyFuture {
+            return HoloDataToolResult(
+                toolRequestID: request.id,
+                tool: request.tool,
+                status: .empty,
+                coverage: nil,
+                metrics: [],
+                events: [],
+                warnings: [
+                    HoloToolWarning(
+                        code: "FUTURE_RANGE_NOT_HISTORICAL",
+                        message: "所选范围尚未发生，未把未来计划记录计入历史统计"
+                    )
+                ],
+                error: nil
+            )
+        }
+        plan.timeRange = resolvedRange.effectiveRange
+        let requestedBaseline = plan.baseline
             ?? request.baseline
             ?? HoloDynamicQueryRangeResolver.baselineIfNeeded(for: plan, currentRange: plan.timeRange)
+        let resolvedBaseline = HoloAgentHistoricalTimePolicy.resolve(requestedBaseline)
+        plan.baseline = resolvedBaseline.isEntirelyFuture ? nil : resolvedBaseline.effectiveRange
         let currentRows = await dataSource.rows(source: plan.source, timeRange: plan.timeRange)
         let baselineRows = await dataSource.rows(source: plan.source, timeRange: plan.baseline)
         do {
@@ -328,7 +354,9 @@ nonisolated struct HoloCrossDomainTool: HoloDataTool {
                 HoloDataField(name: "date", type: .date, unit: nil, filterable: true, groupable: true, aggregatable: false, description: "记录日期"),
                 HoloDataField(name: "value", type: .number, unit: unit, filterable: true, groupable: false, aggregatable: true, description: description)
             ],
-            sensitivity: .sensitive, maximumRangeDays: 366
+            sensitivity: .sensitive,
+            maximumRangeDays: 366,
+            coverageSemantics: .dailyObservations
         )
     }
 
@@ -399,6 +427,26 @@ nonisolated struct HoloCrossDomainTool: HoloDataTool {
             return Self.error(request, "跨域计划无效")
         }
         if plan.timeRange == nil { plan.timeRange = request.timeRange }
+        let historicalRange = HoloAgentHistoricalTimePolicy.resolve(plan.timeRange)
+        if historicalRange.isEntirelyFuture {
+            return HoloDataToolResult(
+                toolRequestID: request.id,
+                tool: request.tool,
+                status: .empty,
+                coverage: nil,
+                metrics: [],
+                events: [],
+                warnings: [
+                    HoloToolWarning(
+                        code: "FUTURE_RANGE_NOT_HISTORICAL",
+                        message: "所选范围尚未发生，无法计算历史跨域关系"
+                    )
+                ],
+                error: nil,
+                sensitivity: .sensitive
+            )
+        }
+        plan.timeRange = historicalRange.effectiveRange
         let left = await dataSource.rows(source: plan.leftSource, timeRange: plan.timeRange)
         let right = await dataSource.rows(source: plan.rightSource, timeRange: plan.timeRange)
         let pairs = Self.align(
@@ -855,6 +903,10 @@ nonisolated enum HoloMetricSemanticFactory {
         "finance.budget.spent": .init(domain: .finance, dataset: "finance.transactions", operation: .sum, valueRole: .current),
         "finance.budget.remaining": .init(domain: .finance, dataset: "finance.transactions", operation: .sum, valueRole: .current),
         "finance.budget.progress": .init(domain: .finance, dataset: "finance.transactions", operation: .ratio, valueRole: .current),
+        // 分类预算对比：支撑"哪类超预算"的预算口径归因。comparison 为分类名。
+        "finance.budget.category.spent": .init(domain: .finance, dataset: "finance.transactions", operation: .sum, valueRole: .current, dimension: .category, comparisonIsGroupLabel: true),
+        "finance.budget.category.remaining": .init(domain: .finance, dataset: "finance.transactions", operation: .sum, valueRole: .current, dimension: .category, comparisonIsGroupLabel: true),
+        "finance.budget.category.progress": .init(domain: .finance, dataset: "finance.transactions", operation: .ratio, valueRole: .current, dimension: .category, measure: .ratio, comparisonIsGroupLabel: true),
         "finance.account.count": .init(domain: .finance, dataset: "finance.transactions", operation: .count, valueRole: .current),
         "finance.account.assets": .init(domain: .finance, dataset: "finance.transactions", operation: .sum, valueRole: .current),
         "finance.account.liabilities": .init(domain: .finance, dataset: "finance.transactions", operation: .sum, valueRole: .current),
@@ -1174,7 +1226,12 @@ nonisolated enum HoloDynamicQueryEngine {
         return HoloDynamicExecutionOutput(
             metrics: metrics,
             events: events,
-            coverage: coverage(rows: current, range: plan.timeRange, calendar: calendar)
+            coverage: coverage(
+                rows: current,
+                range: plan.timeRange,
+                calendar: calendar,
+                semantics: schema?.resolvedCoverageSemantics ?? .eventRecords
+            )
         )
     }
 
@@ -1293,7 +1350,12 @@ nonisolated enum HoloDynamicQueryEngine {
                 value = slope(values)
                 formula = "least_squares_slope"
             case .coverage:
-                value = coverage(rows: current, range: plan.timeRange, calendar: calendar)?.coverageRatio
+                value = coverage(
+                    rows: current,
+                    range: plan.timeRange,
+                    calendar: calendar,
+                    semantics: schema?.resolvedCoverageSemantics ?? .eventRecords
+                )?.coverageRatio
                 formula = "covered_days / total_days"
             }
             guard let value else { return nil }
@@ -1319,11 +1381,24 @@ nonisolated enum HoloDynamicQueryEngine {
         }
     }
 
-    private static func coverage(rows: [HoloQueryRow], range: HoloAgentTimeRange?, calendar: Calendar) -> HoloDataCoverage? {
+    private static func coverage(
+        rows: [HoloQueryRow],
+        range: HoloAgentTimeRange?,
+        calendar: Calendar,
+        semantics: HoloDataCoverageSemantics
+    ) -> HoloDataCoverage? {
+        guard semantics == .dailyObservations else { return nil }
         guard let range, let start = range.start, let end = range.end else { return nil }
         let total = max(1, calendar.dateComponents([.day], from: calendar.startOfDay(for: start), to: calendar.startOfDay(for: end)).day ?? 1)
         let covered = Set(rows.map { calendar.startOfDay(for: $0.occurredAt) }).count
-        return HoloDataCoverage(coveredDays: covered, totalDays: total, coverageRatio: Double(covered) / Double(total), missingRanges: [], note: "已读取 \(covered)/\(total) 天数据")
+        return HoloDataCoverage(
+            coveredDays: covered,
+            totalDays: total,
+            coverageRatio: Double(covered) / Double(total),
+            missingRanges: [],
+            note: "已读取 \(covered)/\(total) 天数据",
+            semantics: .dailyObservations
+        )
     }
 
     private static func slope(_ values: [Double]) -> Double? {

@@ -754,7 +754,7 @@ class MemoryGalleryViewModel: ObservableObject {
     /// 当前展示 claims 文本；evidence 引用渲染待后续接入 evidence 读取。
     /// §5.5：store 读失败不展示旧/伪结果，置空并记录日志。
     private func loadAgentRenderedResult() async {
-        let runtime = await HoloLocalAgentRuntime.shared
+        let runtime = HoloLocalAgentRuntime.shared
         do {
             guard let result = try await runtime.loadLatestResult() else {
                 agentRenderedResult = nil
@@ -763,7 +763,8 @@ class MemoryGalleryViewModel: ObservableObject {
             let evidence = try await runtime.loadEvidence(forIDs: result.evidenceIDs)
             agentRenderedResult = HoloAgentResultRenderer().render(
                 claims: result.claims, evidence: evidence, title: result.title,
-                emptyReason: result.emptyReason
+                emptyReason: result.emptyReason,
+                requestedDeliverables: result.requestedDeliverables ?? []
             )
         } catch {
             NSLog("[Agent] 记忆长廊读取 Agent 结果失败: \(String(describing: error))")

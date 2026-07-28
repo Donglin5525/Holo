@@ -13,8 +13,10 @@ struct HoloDefaultThoughtDataSource: HoloThoughtDataSource {
 
     func snapshot(timeRange: HoloAgentTimeRange?) async -> HoloThoughtToolSnapshot {
         let calendar = Calendar.current
-        let end = timeRange?.end ?? Date()
-        let start = timeRange?.start ?? (calendar.date(byAdding: .day, value: -13, to: end) ?? end)
+        let historicalRange = HoloAgentHistoricalTimePolicy.resolve(timeRange)
+        let effectiveRange = historicalRange.effectiveRange
+        let end = effectiveRange?.end ?? Date()
+        let start = effectiveRange?.start ?? (calendar.date(byAdding: .day, value: -13, to: end) ?? end)
         return await MainActor.run {
             let repo = ThoughtRepository()
             let topTags = repo.getTopTags(from: start, to: end, limit: 5).map(\.name)

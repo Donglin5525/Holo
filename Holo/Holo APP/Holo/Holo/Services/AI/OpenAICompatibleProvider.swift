@@ -95,10 +95,14 @@ final class OpenAICompatibleProvider: AIProvider {
 
     func generateMemoryInsight(type: InsightType, contextJSON: String) async throws -> MemoryInsightGenerationResult {
         let systemPrompt = try PromptManager.shared.loadPrompt(.memoryInsightGeneration)
-        let messages: [ChatMessageDTO] = [
+        var messages: [ChatMessageDTO] = []
+        if let preamble = Self.personaPreambleMessage() {
+            messages.append(preamble)
+        }
+        messages.append(contentsOf: [
             .system(systemPrompt),
             .user(contextJSON)
-        ]
+        ])
         let request = buildRequest(messages: messages, temperature: 0.3)
         let response: ChatCompletionResponse = try await apiClient.send(request)
 
@@ -121,10 +125,12 @@ final class OpenAICompatibleProvider: AIProvider {
             userText: Self.latestUserText(in: messages)
         )
 
-        var allMessages: [ChatMessageDTO] = [
-            .system(systemPrompt),
-            .system(contextMessage)
-        ]
+        var allMessages: [ChatMessageDTO] = []
+        if let preamble = Self.personaPreambleMessage() {
+            allMessages.append(preamble)
+        }
+        allMessages.append(.system(systemPrompt))
+        allMessages.append(.system(contextMessage))
         allMessages.append(contentsOf: messages)
 
         let request = buildRequest(messages: allMessages)
@@ -155,9 +161,11 @@ final class OpenAICompatibleProvider: AIProvider {
         do {
             let systemPrompt = try PromptManager.shared.loadPrompt(promptType)
 
-            var allMessages: [ChatMessageDTO] = [
-                .system(systemPrompt)
-            ]
+            var allMessages: [ChatMessageDTO] = []
+            if let preamble = Self.personaPreambleMessage() {
+                allMessages.append(preamble)
+            }
+            allMessages.append(.system(systemPrompt))
 
             // 分析模式：注入 context JSON 作为第二条 system message
             if let contextOverride = systemContextOverride {
@@ -209,6 +217,20 @@ final class OpenAICompatibleProvider: AIProvider {
     private static func latestUserText(in messages: [ChatMessageDTO]) -> String? {
         messages.last(where: { $0.role == "user" })?.content
     }
+
+    /// 加载 Persona Preamble 作为 system message。
+    /// 仅用于生成对话/洞察的入口（chat / chatStreaming / generateMemoryInsight）；
+    /// 纯结构化解析入口（parseUserInputBatch / parseActionInput）不注入——它们只输出 JSON，
+    /// 人格叙事无价值且会增加 token、可能干扰 JSON 稳定性。
+    /// 加载失败时返回 nil（静默降级，不阻塞主流程）。
+    private static func personaPreambleMessage() -> ChatMessageDTO? {
+        guard let preamble = try? PromptManager.shared.loadPrompt(.personaPreamble),
+              !preamble.isEmpty else {
+            return nil
+        }
+        return .system(preamble)
+    }
+
 
     private func buildRequest(messages: [ChatMessageDTO], stream: Bool = false, temperature: Double? = nil, responseFormat: ResponseFormat? = nil) -> APIRequest {
         APIRequest(

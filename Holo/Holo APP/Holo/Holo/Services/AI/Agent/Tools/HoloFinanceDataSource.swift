@@ -13,8 +13,11 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
 
     func queryRows(timeRange: HoloAgentTimeRange?, parameters: [String: String]) async -> [HoloQueryRow] {
         let calendar = Calendar.current
-        let end = timeRange?.end ?? (calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: Date())) ?? Date())
-        let start = timeRange?.start ?? (calendar.date(byAdding: .day, value: -30, to: end) ?? end)
+        let resolved = HoloAgentHistoricalTimePolicy.resolve(timeRange, calendar: calendar)
+        guard !resolved.isEntirelyFuture else { return [] }
+        let effectiveRange = resolved.effectiveRange
+        let end = effectiveRange?.end ?? (calendar.date(byAdding: .day, value: 1, to: calendar.startOfDay(for: Date())) ?? Date())
+        let start = effectiveRange?.start ?? (calendar.date(byAdding: .day, value: -30, to: end) ?? end)
         guard let transactions = try? await FinanceRepository.shared.getTransactions(from: start, to: end) else { return [] }
         return transactions.map { tx in
             let text = [tx.note, tx.remark, tx.tags?.joined(separator: " ")].compactMap { $0 }.joined(separator: " ")
@@ -43,11 +46,17 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
         let calendar = Calendar.current
         let todayStart = calendar.startOfDay(for: Date())
         let defaultCurrentEnd = calendar.date(byAdding: .day, value: 1, to: todayStart) ?? Date()
-        let currentEnd = timeRange?.end ?? defaultCurrentEnd
-        let currentStart = timeRange?.start
+        let resolvedCurrent = HoloAgentHistoricalTimePolicy.resolve(timeRange, calendar: calendar)
+        guard !resolvedCurrent.isEntirelyFuture else { return nil }
+        let effectiveCurrent = resolvedCurrent.effectiveRange
+        let currentEnd = effectiveCurrent?.end ?? defaultCurrentEnd
+        let currentStart = effectiveCurrent?.start
             ?? (calendar.date(byAdding: .day, value: -13, to: todayStart) ?? todayStart)
-        let baselineEnd = baseline?.end ?? currentStart
-        let baselineStart = baseline?.start
+        let resolvedBaseline = HoloAgentHistoricalTimePolicy.resolve(baseline, calendar: calendar)
+        guard !resolvedBaseline.isEntirelyFuture else { return nil }
+        let effectiveBaseline = resolvedBaseline.effectiveRange
+        let baselineEnd = effectiveBaseline?.end ?? currentStart
+        let baselineStart = effectiveBaseline?.start
             ?? (calendar.date(byAdding: .day, value: -14, to: baselineEnd) ?? baselineEnd)
         let currentTransactions: [Transaction]
         let baselineTransactions: [Transaction]
@@ -57,8 +66,8 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
         } catch {
             return nil
         }
-        let currentRange = HoloAgentTimeRange(label: timeRange?.label ?? "本期", start: currentStart, end: currentEnd)
-        let baselineRange = HoloAgentTimeRange(label: baseline?.label ?? "对比期", start: baselineStart, end: baselineEnd)
+        let currentRange = HoloAgentTimeRange(label: effectiveCurrent?.label ?? "本期", start: currentStart, end: currentEnd)
+        let baselineRange = HoloAgentTimeRange(label: effectiveBaseline?.label ?? "对比期", start: baselineStart, end: baselineEnd)
         let financeMetadata = await MainActor.run { () -> (HoloFinanceBudgetSnapshot?, HoloFinanceAccountSnapshot) in
             let budgetRepository = BudgetRepository.shared
             let financeRepository = FinanceRepository.shared
@@ -66,7 +75,26 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
             let warningCategories = budgetRepository
                 .getWarningCategoryBudgets(period: .month)
                 .map(\.categoryName)
+            // 全量分类预算明细：不限定 progress >= 0.8，收集每类"预算 vs 实际"对比，
+            // 为"哪类超预算 / 为什么超支"归因提供预算口径原料。
+            // 已花金额取预算周期口径（computeBudgetStatus 内按预算当前周期统计），与预算对齐。
             let accounts = financeRepository.getAccounts(includeArchived: false)
+            var categoryBudgets: [HoloFinanceCategoryBudget] = []
+            for account in accounts {
+                let categoryBudgetList = budgetRepository.getCategoryBudgets(forAccount: account.id)
+                for budget in categoryBudgetList {
+                    guard let status = budgetRepository.computeBudgetStatus(budget: budget) else { continue }
+                    let category = budgetRepository.findCategory(by: budget.categoryId)
+                    categoryBudgets.append(HoloFinanceCategoryBudget(
+                        categoryName: category?.name ?? "未知分类",
+                        budgetAmount: Self.double(status.budgetAmount),
+                        spentAmount: Self.double(status.spentAmount),
+                        remainingAmount: Self.double(status.remainingAmount),
+                        progress: status.progress,
+                        isOverBudget: status.isOverBudget
+                    ))
+                }
+            }
             let netWorth = financeRepository.getTotalNetWorth()
             let defaultAccount = financeRepository.getDefaultAccountSync()
             let budgetSnapshot = globalBudget.map {
@@ -76,7 +104,8 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
                     remainingAmount: Self.double($0.totalRemainingAmount),
                     progress: $0.progress,
                     remainingDays: $0.remainingDays,
-                    warningCategoryNames: warningCategories
+                    warningCategoryNames: warningCategories,
+                    categoryBudgets: categoryBudgets
                 )
             }
             return (

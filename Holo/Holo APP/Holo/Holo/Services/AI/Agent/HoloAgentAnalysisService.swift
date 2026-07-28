@@ -252,7 +252,13 @@ final class HoloAgentAnalysisService {
                 title: result.title,
                 question: question,
                 coverage: result.coverage,
-                emptyReason: result.emptyReason
+                emptyReason: result.emptyReason,
+                answerContext: HoloAgentAnswerContext(
+                    primaryTimeRange: finalJob.timeRange,
+                    snapshotCutoffAt: finalJob.snapshotCutoffAt ?? finalJob.createdAt
+                ),
+                requestedDeliverables: result.requestedDeliverables ?? [],
+                narrativeSummary: result.narrativeSummary
             )
         } catch {
             return fail("[证据读取失败] \(String(describing: error))")
@@ -298,7 +304,13 @@ final class HoloAgentAnalysisService {
                             evidence: evidence,
                             title: result.title,
                             question: job.userQuestion,
-                            coverage: result.coverage
+                            coverage: result.coverage,
+                            emptyReason: result.emptyReason,
+                            answerContext: HoloAgentAnswerContext(
+                                primaryTimeRange: job.timeRange,
+                                snapshotCutoffAt: job.snapshotCutoffAt ?? job.createdAt
+                            ),
+                            requestedDeliverables: result.requestedDeliverables ?? []
                         )
                         repository.finalizeAgentMessage(sourceMessageID, rendered: rendered, intent: "query_analysis")
                     } else {

@@ -38,6 +38,10 @@ struct HomeView: View {
     /// 让 AI → 财务 这类跨模块跳转不再经过首页中转帧。
     @State private var activeScreen: ActiveScreen?
 
+    /// 本次模块关闭是否由右滑手势触发（由 SwipeBackModifier 通过 holoSwipeCloseMarker 标记）。
+    /// 右滑已把页面推出右边缘，退出转场改用纯淡出，避免"先右滑再下滑"的重复动画。
+    @State private var swipeDismissalActive: Bool = false
+
     /// 从 Agent 等入口跳转到财务统计页时携带的时间范围
     @State private var pendingFinanceAnalysisDeepLink: FinanceAnalysisDeepLink?
 
@@ -148,7 +152,7 @@ struct HomeView: View {
                         opensVoiceInputOnAppear: openChatVoiceInput
                     )
                     .preferredColorScheme(DarkModeManager.shared.colorScheme)
-                    .transition(.holoScreenTransition)
+                    .transition(swipeDismissalActive ? .opacity : .holoScreenTransition)
                 }
                 if activeScreen == .finance {
                     FinanceView(
@@ -156,17 +160,17 @@ struct HomeView: View {
                         initialEvidenceReviewDeepLink: pendingFinanceEvidenceReviewDeepLink
                     )
                     .preferredColorScheme(DarkModeManager.shared.colorScheme)
-                    .transition(.holoScreenTransition)
+                    .transition(swipeDismissalActive ? .opacity : .holoScreenTransition)
                 }
                 if activeScreen == .habits {
                     HabitsView()
                         .preferredColorScheme(DarkModeManager.shared.colorScheme)
-                        .transition(.holoScreenTransition)
+                        .transition(swipeDismissalActive ? .opacity : .holoScreenTransition)
                 }
                 if activeScreen == .tasks {
                     TasksView()
                         .preferredColorScheme(DarkModeManager.shared.colorScheme)
-                        .transition(.holoScreenTransition)
+                        .transition(swipeDismissalActive ? .opacity : .holoScreenTransition)
                 }
                 if activeScreen == .memoryGallery {
                     MemoryGalleryView(
@@ -186,17 +190,17 @@ struct HomeView: View {
                         }
                     )
                     .preferredColorScheme(DarkModeManager.shared.colorScheme)
-                    .transition(.holoScreenTransition)
+                    .transition(swipeDismissalActive ? .opacity : .holoScreenTransition)
                 }
                 if activeScreen == .health {
                     HealthView()
                         .preferredColorScheme(DarkModeManager.shared.colorScheme)
-                        .transition(.holoScreenTransition)
+                        .transition(swipeDismissalActive ? .opacity : .holoScreenTransition)
                 }
                 if activeScreen == .thoughts {
                     ThoughtsView(initialThoughtId: pendingThoughtDetailId)
                         .preferredColorScheme(DarkModeManager.shared.colorScheme)
-                        .transition(.holoScreenTransition)
+                        .transition(swipeDismissalActive ? .opacity : .holoScreenTransition)
                 }
             }
             .zIndex(1)
@@ -207,7 +211,16 @@ struct HomeView: View {
                 activeScreen = nil
             }
         }
+        // 注入右滑关闭标记：SwipeBackModifier 在关闭常驻模块前调用，
+        // 让下面的 .transition 切换到纯淡出（见 swipeDismissalActive）
+        .environment(\.holoSwipeCloseMarker) {
+            swipeDismissalActive = true
+        }
         .onChange(of: activeScreen) { _, newValue in
+            // 进入任一模块时复位右滑标记，保证下次退出用默认的下滑转场
+            if newValue != nil {
+                swipeDismissalActive = false
+            }
             // 离开 AI 对话时清理一次性预填状态
             if newValue != .ai {
                 chatPrefillText = nil

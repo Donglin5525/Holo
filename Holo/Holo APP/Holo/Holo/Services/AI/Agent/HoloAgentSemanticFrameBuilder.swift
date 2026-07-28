@@ -21,7 +21,11 @@ nonisolated enum HoloAgentSemanticFrameBuilder {
         let normalized = query.lowercased()
 
         // 时间解析：先尝试扩展语义（季度/YTD），再回退原有 Resolver。
-        let extended = HoloAgentTimeSemanticExtended.resolveExtended(query, referenceDate: referenceDate, calendar: calendar)
+        let extended = HoloAgentTimeSemanticExtended.resolveWithFallback(
+            query,
+            referenceDate: referenceDate,
+            calendar: calendar
+        )
         let resolvedTime = extended
         let comparison = HoloAgentTimeSemanticResolver.resolveComparison(query, referenceDate: referenceDate, calendar: calendar)
 
@@ -46,7 +50,8 @@ nonisolated enum HoloAgentSemanticFrameBuilder {
             resolvedComparison: comparison,
             ambiguities: ambiguities,
             domains: domains,
-            sensitivity: sensitivity
+            sensitivity: sensitivity,
+            requestedDeliverables: HoloAgentAnswerRequestPolicy.requestedDeliverables(for: query)
         )
     }
 
@@ -54,8 +59,11 @@ nonisolated enum HoloAgentSemanticFrameBuilder {
 
     private static func identifyDomains(in text: String) -> [String] {
         let domainKeywords: [(domain: String, keywords: [String])] = [
-            ("finance", ["消费", "花", "支出", "账", "钱", "买", "餐饮", "购物", "金额"]),
-            ("health", ["步数", "睡眠", "运动", "健康", "站立", "心率", "锻炼", "走路", "步"]),
+            ("finance", [
+                "财务", "消费", "花", "支出", "收入", "账", "钱", "买", "餐饮",
+                "购物", "金额", "预算", "账户", "净资产", "负债", "分期"
+            ]),
+            ("health", ["步数", "睡眠", "运动", "健康", "站立", "心率", "锻炼", "走路"]),
             ("habit", ["习惯", "打卡", "坚持", "早起", "读书", "冥想", "体重", "体脂"]),
             ("task", ["任务", "待办", "完成", "todo", "计划", "deadline"]),
             ("goal", ["目标", "达成", "进度", "计划完成"]),
@@ -129,7 +137,10 @@ nonisolated enum HoloAgentSemanticFrameBuilder {
         if healthKeywords.contains(where: { text.contains($0) }) {
             return .healthData
         }
-        let financeKeywords = ["消费", "花", "支出", "金额", "账"]
+        let financeKeywords = [
+            "财务", "消费", "花", "支出", "收入", "金额", "账",
+            "预算", "账户", "净资产", "负债"
+        ]
         if financeKeywords.contains(where: { text.contains($0) }) {
             return .financial
         }

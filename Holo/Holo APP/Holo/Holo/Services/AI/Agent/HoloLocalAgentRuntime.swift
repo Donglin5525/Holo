@@ -141,6 +141,11 @@ actor HoloLocalAgentRuntime {
         if let policyMessage = Self.buildPolicyContextMessage(query: question, memoryRecords: memoryContext?.records ?? [], now: now) {
             conversation.append(policyMessage)
         }
+        conversation.append(Self.answerContractMessage(
+            question: question,
+            authoritativeRange: job.timeRange,
+            now: now
+        ))
         conversation.append(Self.mockUserMessage(question, now))
         let checkpoint = Self.makeCheckpoint(
             jobID: job.id, step: .plan, completedSteps: [],
@@ -603,9 +608,30 @@ actor HoloLocalAgentRuntime {
                 try await saveProgress(job: job, evidence: [], checkpoint: checkpoint)
                 await reportProgress(job, to: progressReporter)
             case .finalClaims:
+                let missingDeliverables = HoloAgentAnswerRequestPolicy.missingDeliverables(
+                    in: output.claims,
+                    question: job.userQuestion
+                )
+                let fulfillmentAttempts = checkpoint.retryCountByStep[Self.answerFulfillmentRetryKey] ?? 0
+                if !missingDeliverables.isEmpty,
+                   fulfillmentAttempts < 1,
+                   job.budget.consumedLLMRounds < job.budget.maxLLMRounds {
+                    checkpoint.retryCountByStep[Self.answerFulfillmentRetryKey] = fulfillmentAttempts + 1
+                    checkpoint.conversationState.append(Self.answerFulfillmentRecoveryMessage(
+                        missing: missingDeliverables,
+                        now: now
+                    ))
+                    checkpoint.step = .continueOrConclude
+                    try await guardExecutionGeneration(generation, jobID: jobID)
+                    try await saveProgress(job: job, evidence: [], checkpoint: checkpoint)
+                    await reportProgress(job, to: progressReporter)
+                    continue
+                }
                 checkpoint.step = .verifyClaims
                 return try await completeWithClaims(output.claims, job: &job, checkpoint: checkpoint,
                                                     generation: generation,
+                                                    narrativeTitle: output.title,
+                                                    narrativeSummary: output.narrativeSummary,
                                                     progressReporter: progressReporter, now: now)
             }
         }
@@ -875,21 +901,22 @@ actor HoloLocalAgentRuntime {
 
     private static func requestWithJobScope(_ request: HoloToolRequest, job: HoloAgentJob) -> HoloToolRequest {
         var scoped = request
-        if scoped.timeRange == nil, let jobRange = job.timeRange {
+        // 用户原话经确定性解析得到的 job 范围是最高优先级事实。
+        // 只要 job 有明确范围，就覆盖模型自行生成的“近30天”等冲突范围。
+        if let jobRange = job.timeRange {
             scoped.timeRange = jobRange
         }
-        // 注入对比期窗口：对比类问题（如“本月比上月”）解析出的 baseline 从 job 透传到 request。
-        // 优先级：LLM 显式 request.baseline > job.baseline（确定性解析）> DataSource 内部回退。
-        if scoped.baseline == nil, let jobBaseline = job.baseline {
+        // 对比期同样由确定性解析优先，避免模型把“去年”换成任意等长窗口。
+        if let jobBaseline = job.baseline {
             scoped.baseline = jobBaseline
         }
         if var plan = scoped.dynamicPlan {
-            if plan.timeRange == nil { plan.timeRange = scoped.timeRange }
-            if plan.baseline == nil { plan.baseline = scoped.baseline }
+            if job.timeRange != nil || plan.timeRange == nil { plan.timeRange = scoped.timeRange }
+            if job.baseline != nil || plan.baseline == nil { plan.baseline = scoped.baseline }
             scoped.dynamicPlan = plan
         }
         if var plan = scoped.crossDomainPlan {
-            if plan.timeRange == nil { plan.timeRange = scoped.timeRange }
+            if job.timeRange != nil || plan.timeRange == nil { plan.timeRange = scoped.timeRange }
             scoped.crossDomainPlan = plan
         }
         return scoped
@@ -1192,6 +1219,24 @@ actor HoloLocalAgentRuntime {
                          timestamp: now, tokenEstimate: nil)
     }
 
+    private static func answerContractMessage(
+        question: String,
+        authoritativeRange: HoloAgentTimeRange?,
+        now: Date
+    ) -> HoloAgentMessage {
+        HoloAgentMessage(
+            role: .system,
+            content: HoloAgentAnswerRequestPolicy.promptInstruction(
+                question: question,
+                authoritativeRange: authoritativeRange
+            ),
+            toolRequestID: nil,
+            toolName: nil,
+            timestamp: now,
+            tokenEstimate: nil
+        )
+    }
+
     private static func memoryContextMessage(
         summary: HoloMemoryPromptSummary,
         evidence: [HoloEvidenceRecord],
@@ -1344,6 +1389,28 @@ actor HoloLocalAgentRuntime {
 
     private static let responseContractRetryKey = "response_contract"
     private static let responseContractRecoveryMarker = "[HOLO_AGENT_RESPONSE_RECOVERY_V1]"
+    private static let answerFulfillmentRetryKey = "answer_fulfillment"
+
+    private static func answerFulfillmentRecoveryMessage(
+        missing: Set<HoloAgentRequestedDeliverable>,
+        now: Date
+    ) -> HoloAgentMessage {
+        let values = missing.map(\.rawValue).sorted().joined(separator: ", ")
+        return HoloAgentMessage(
+            role: .system,
+            content: """
+            [HOLO_AGENT_ANSWER_FULFILLMENT_V1]
+            上一版 final_claims 没有完成用户明确要求的交付物：\(values)。
+            请基于已有证据重做最终答案；如证据维度确实不足，可再请求一次必要工具。
+            用户要求优化/建议时必须提供 type=suggestion 的具体行动、优先级和支撑证据，不能只复述数字。
+            建议正文中的金额、百分比、频次、天数或时长必须来自 metricAssertions/evidence；没有对应证据时改成不带数字的具体动作，禁止自行设定预算、节省金额或频次目标。
+            """,
+            toolRequestID: nil,
+            toolName: nil,
+            timestamp: now,
+            tokenEstimate: nil
+        )
+    }
 
     private static func responseContractRecoveryMessage(attempt: Int, now: Date) -> HoloAgentMessage {
         HoloAgentMessage(
@@ -1413,6 +1480,8 @@ actor HoloLocalAgentRuntime {
         job: inout HoloAgentJob,
         checkpoint: HoloAgentCheckpoint,
         generation: Int? = nil,
+        narrativeTitle: String? = nil,
+        narrativeSummary: String? = nil,
         progressReporter: (@Sendable (HoloAgentProgressSnapshot) async -> Void)? = nil,
         now: Date
     ) async throws -> HoloAgentJob {
@@ -1448,8 +1517,8 @@ actor HoloLocalAgentRuntime {
             acceptedClaims = verification.acceptedClaims
         }
 
-        if Self.shouldSuppressSuggestions(for: job.userQuestion) {
-            acceptedClaims.removeAll { $0.type == "suggestion" }
+        if !HoloAgentAnswerRequestPolicy.requestsRecommendations(job.userQuestion) {
+            acceptedClaims.removeAll { HoloAgentAnswerRequestPolicy.isRecommendationClaim($0) }
         }
         let fallback = Self.fallbackClaims(
             toolResults: checkpoint.completedToolResults,
@@ -1542,10 +1611,28 @@ actor HoloLocalAgentRuntime {
             emptyReason = hadToolData ? .unverifiable : .noData
         }
         // canonical result ID：同一 job 恒为同一 ID，配合 ResultStore 按 jobID 唯一 upsert（§5.4，P0-6）
+        // 持久化确定性交付物：让渲染层能感知"本轮是诊断/建议/对比"，不再依赖原始 question 字符串。
+        // 这是诊断意图穿越 completeWithClaims 的关键（之前在此丢失，导致渲染层失忆）。
+        let deliverables = HoloAgentAnswerRequestPolicy.requestedDeliverables(for: job.userQuestion ?? "")
+        // v17：优先用 LLM 产出的一句话标题（有人味儿），清洗掉含机器格式的脏标题。
+        // 空 claims 时不用 LLM 标题（结论都没成形，标题无意义）。
+        func cleanNarrativeText(_ text: String?) -> String? {
+            guard let trimmed = text?.trimmingCharacters(in: .whitespacesAndNewlines),
+                  !trimmed.isEmpty,
+                  !HoloMetricSemanticCatalog.containsInternalToken(trimmed) else { return nil }
+            return trimmed
+        }
+        let resolvedTitle: String
+        if !acceptedClaims.isEmpty, let llmTitle = cleanNarrativeText(narrativeTitle) {
+            resolvedTitle = llmTitle
+        } else {
+            resolvedTitle = "深度分析"
+        }
+        let cleanNarrativeSummary = cleanNarrativeText(narrativeSummary)
         let agentResult = HoloAgentResult(
             id: "agent-result:\(job.id)",
             jobID: job.id,
-            title: "深度分析",
+            title: resolvedTitle,
             summary: acceptedClaims.isEmpty
                 ? "本期暂无显著观察"
                 : acceptedClaims.map(\.displayText).joined(separator: "；"),
@@ -1556,7 +1643,9 @@ actor HoloLocalAgentRuntime {
             generatedAt: now,
             updatedAt: now,
             coverage: resultCoverage,
-            emptyReason: emptyReason
+            emptyReason: emptyReason,
+            requestedDeliverables: deliverables.isEmpty ? nil : deliverables,
+            narrativeSummary: cleanNarrativeSummary
         )
         // §6.2：Result 提交与最终状态写回前校验 generation（过期不得写回）
         try await guardExecutionGeneration(generation, jobID: job.id)
@@ -1956,12 +2045,6 @@ actor HoloLocalAgentRuntime {
         return text
     }
 
-    private static func shouldSuppressSuggestions(for question: String?) -> Bool {
-        guard let question else { return false }
-        let suggestionKeywords = ["建议", "怎么办", "怎么改善", "如何改善", "怎么做", "下一步"]
-        return !suggestionKeywords.contains { question.contains($0) }
-    }
-
     /// P0-B/P1-A 集成：根据 job 的用户问题构建 Semantic Frame，用于决定 TaskProfile。
     /// TaskProfile 决定是否启用 V2 Verifier、预算选择和工具能力软选择。
     /// 此处只做确定性分类（域识别 + 比较检测 + 敏感度），不调用 LLM。
@@ -1979,8 +2062,14 @@ actor HoloLocalAgentRuntime {
 
         for claim in claims {
             var deduplicated = claim
-            deduplicated.metricAssertions = claim.metricAssertions.filter {
-                coveredMetricKeys.insert($0.metricKey).inserted
+            // 建议与事实是不同的用户交付物：建议必须允许复用同一条已核验事实作为行动依据。
+            // 旧逻辑按 metricKey 全局去重，会把“观察 r=0.42”后的证据化建议整条删除。
+            if HoloAgentAnswerRequestPolicy.isRecommendationClaim(claim) {
+                deduplicated.metricAssertions = claim.metricAssertions
+            } else {
+                deduplicated.metricAssertions = claim.metricAssertions.filter {
+                    coveredMetricKeys.insert($0.metricKey).inserted
+                }
             }
             let normalized = claim.displayText.lowercased().filter { !$0.isWhitespace }
             guard !seenText.contains(normalized),

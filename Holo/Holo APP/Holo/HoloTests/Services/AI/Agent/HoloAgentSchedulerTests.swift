@@ -101,7 +101,7 @@ final class HoloAgentSchedulerTests: XCTestCase {
     @MainActor
     private final class FakeBackgroundTaskClient: HoloBackgroundTaskClient {
         /// id → expirationHandler（支持多租约并存，§6.3 每个活跃 job 一个 legacy 租约）
-        private(set) var handlers: [Int: () -> Void] = [:]
+        private(set) var handlers: [Int: @MainActor @Sendable () -> Void] = [:]
         /// id → name（断言租约与 jobID 绑定用）
         private(set) var names: [Int: String] = [:]
         private(set) var endedIDs: [Int] = []
@@ -110,12 +110,14 @@ final class HoloAgentSchedulerTests: XCTestCase {
         /// 兼容旧断言：任一租约被释放
         var didEnd: Bool { !endedIDs.isEmpty }
         /// 兼容旧断言：首个租约的 expirationHandler
-        var expirationHandler: (() -> Void)? { handlers.sorted { $0.key < $1.key }.first?.value }
+        var expirationHandler: (@MainActor @Sendable () -> Void)? {
+            handlers.sorted { $0.key < $1.key }.first?.value
+        }
         /// 当前未释放的租约数
         var activeLeaseCount: Int { handlers.count }
 
         func beginBackgroundTask(named name: String,
-                                 expirationHandler: @escaping @Sendable () -> Void) -> UIBackgroundTaskIdentifier {
+                                 expirationHandler: @escaping @MainActor @Sendable () -> Void) -> UIBackgroundTaskIdentifier {
             nextID += 1
             handlers[nextID] = expirationHandler
             names[nextID] = name
@@ -456,9 +458,9 @@ final class HoloAgentSchedulerTests: XCTestCase {
         XCTAssertEqual(stored?.sourceMessageID, messageID, "sourceMessageID 应随 job 落盘，供恢复回填")
     }
 
-    /// 后台续跑：进入后台时不应立刻 pause，系统后台时间耗尽后才落盘 waitingForForeground。
+    /// 没有真实活跃执行时，不申请空转的系统后台时间；磁盘孤儿运行态立即校准为等待前台。
     @MainActor
-    func testBackgroundContinuation_进入后台保留运行到期后才暂停() async throws {
+    func testBackgroundContinuation_无活跃执行不申请租约并校准孤儿状态() async throws {
         let dir = makeTempDir()
         let fixture = makeLoopFixture(dir: dir, llm: FakeLLM(responses: []), executor: FakeExecutor())
         let client = FakeBackgroundTaskClient()
@@ -469,20 +471,13 @@ final class HoloAgentSchedulerTests: XCTestCase {
         let job = try await fixture.runtime.startAnalysisJob(question: "q", now: Date())
 
         manager.appDidEnterBackground()
-        // §6.3：场景租约异步申请，先等租约登记（本例无活跃执行 → scene-sweep 兜底租约）
-        let leaseAttached = await waitUntil { client.activeLeaseCount >= 1 }
-        XCTAssertTrue(leaseAttached, "进入后台应申请 legacy 租约")
-
-        let afterBackground = try await fixture.jobStore.load().first { $0.id == job.id }
-        XCTAssertEqual(afterBackground?.state, .running, "刚切后台应保留 running，让 iOS 后台任务继续推进")
-
-        client.expire()
         let paused = await waitUntil {
             let stored = try? await fixture.jobStore.load().first { $0.id == job.id }
             return stored?.state == .waitingForForeground
         }
-        XCTAssertTrue(paused, "后台时间到期后应标记 waitingForForeground，等待前台恢复")
-        XCTAssertTrue(client.didEnd, "后台任务到期处理后应释放 UIBackgroundTask")
+        XCTAssertTrue(paused, "进入后台应把无执行承载的孤儿 running 状态校准为 waitingForForeground")
+        XCTAssertEqual(client.activeLeaseCount, 0, "没有真实活跃执行时不应申请空转后台租约")
+        XCTAssertFalse(client.didEnd, "未申请租约时不需要调用结束接口")
     }
 
     /// 快速回桌面再回来：如果后台时间还没到期，原 runLoop 仍可能在跑，前台恢复不能重复拉起第二条 runLoop。
@@ -697,6 +692,45 @@ final class HoloAgentSchedulerTests: XCTestCase {
 
         let results = try await HoloAgentResultStore(directory: dir).all()
         XCTAssertTrue(results.isEmpty, "取消后不得写入 result")
+    }
+
+    /// 用户任务已因断网进入等待态、内存注册表清理后，停止按钮仍必须从持久化层取消它。
+    func testCancelActiveUserQuestions_取消持久化等待任务且不再恢复() async throws {
+        let dir = makeTempDir()
+        let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+        let llm = FakeLLM(
+            responses: [finalClaims],
+            errorsByCallIndex: [0: URLError(.networkConnectionLost)]
+        )
+        let fixture = makeLoopFixture(dir: dir, llm: llm, executor: FakeExecutor())
+        let scheduler = HoloAgentScheduler(runtime: fixture.runtime)
+        let now = Date()
+        let job = try await fixture.runtime.startAnalysisJob(question: "q", now: now)
+
+        let waiting = try await scheduler.runOrAttach(
+            jobID: job.id,
+            reason: .userInitiated,
+            systemTemplate: "s",
+            toolDescriptions: "t",
+            now: now
+        )
+        XCTAssertEqual(waiting.state, .waitingForCondition)
+        XCTAssertEqual(waiting.waitReason, .network)
+
+        let cancelledCount = await scheduler.cancelActiveUserQuestions(now: now)
+        XCTAssertEqual(cancelledCount, 1, "持久化等待任务也必须被停止按钮命中")
+        let stored = try await fixture.jobStore.load().first { $0.id == job.id }
+        XCTAssertEqual(stored?.state, .cancelled)
+
+        let resumed = try await scheduler.resumeAndContinue(
+            systemTemplate: "s",
+            toolDescriptions: "t",
+            now: now,
+            maxResume: 3
+        )
+        XCTAssertEqual(resumed, 0, "用户取消的任务不得在恢复扫描中复活")
+        let callCount = await llm.callCount
+        XCTAssertEqual(callCount, 1, "取消后不得再次发起 LLM 请求")
     }
 
     /// generation CAS：两个并发 acquire 得到递增值，validate 只认最新（§6.1）。
@@ -1135,7 +1169,7 @@ final class HoloAgentSchedulerTests: XCTestCase {
         async let run = scheduler.runOrAttach(
             jobID: job.id, reason: .userInitiated, systemTemplate: "s", toolDescriptions: "t", now: now
         )
-        // 先等执行登记并进入 LLM 调用（否则 sceneDidEnterBackground 只看到空注册表，拿到 scene-sweep 租约）
+        // 先等执行登记并进入 LLM 调用，确保后台租约绑定到这次真实执行。
         let llmStarted = await waitUntil { await llm.callCount == 1 }
         XCTAssertTrue(llmStarted)
         await scheduler.sceneDidEnterBackground()

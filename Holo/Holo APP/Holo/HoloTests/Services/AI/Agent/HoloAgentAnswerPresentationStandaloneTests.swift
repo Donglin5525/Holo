@@ -28,6 +28,8 @@ struct HoloAgentAnswerPresentationStandaloneTests {
         test步数问题生成用户可读答案()
         test消费环比新路径由合成器产出()
         test消费环比旧证据走catalog兜底()
+        test优化问题建议优先展示()
+        test年度财务事故统一上下文()
         try test旧结果JSON保持兼容()
         print("HoloAgentAnswerPresentationStandaloneTests passed")
     }
@@ -94,7 +96,8 @@ struct HoloAgentAnswerPresentationStandaloneTests {
                 totalDays: 30,
                 coverageRatio: 28.0 / 30.0,
                 missingRanges: [],
-                note: "已读取 28/30 天健康数据"
+                note: "已读取 28/30 天健康数据",
+                semantics: .dailyObservations
             )
         )
 
@@ -292,6 +295,208 @@ struct HoloAgentAnswerPresentationStandaloneTests {
         expect(!visibleText.contains("计算结果"), "兜底路径也不能出现计算占位词")
         expect(!visibleText.contains("category_growth"), "兜底路径也不能暴露动态指标名")
         expect(visibleText.contains("餐饮"), "兜底路径分类名必须保留")
+    }
+
+    private static func test优化问题建议优先展示() {
+        let range = HoloAgentTimeRange(
+            label: "2026年（截至7月26日）",
+            start: Date(timeIntervalSince1970: 1_000),
+            end: Date(timeIntervalSince1970: 2_000)
+        )
+        let observation = HoloAgentClaim(
+            id: "observation",
+            type: "observation",
+            displayText: "2026年截至当前总支出14598.83元",
+            metricAssertions: [
+                HoloMetricAssertion(
+                    metricKey: "finance.total.amount",
+                    value: 14598.83,
+                    baselineValue: nil,
+                    unit: "元",
+                    comparison: nil,
+                    evidenceIDs: ["total"]
+                )
+            ],
+            evidenceIDs: ["total"],
+            prohibitedInferences: [],
+            confidence: 0.9
+        )
+        let suggestion = HoloAgentClaim(
+            id: "suggestion",
+            type: "suggestion",
+            displayText: "优先复核餐饮支出，并为下个月设置可执行的餐饮上限",
+            metricAssertions: [
+                HoloMetricAssertion(
+                    metricKey: "finance.category.amount",
+                    value: 3516,
+                    baselineValue: nil,
+                    unit: "元",
+                    comparison: "餐饮",
+                    evidenceIDs: ["meal"]
+                )
+            ],
+            evidenceIDs: ["meal"],
+            prohibitedInferences: [],
+            confidence: 0.84
+        )
+        let evidence = [
+            makeEvidence(
+                id: "total",
+                metricKey: "finance.total.amount",
+                metricValue: 14598.83,
+                unit: "元",
+                excerpt: "2026年截至当前总支出14598.83元",
+                range: range,
+                sourceModule: .finance
+            ),
+            makeEvidence(
+                id: "meal",
+                metricKey: "finance.category.amount",
+                metricValue: 3516,
+                unit: "元",
+                excerpt: "餐饮支出3516元",
+                range: range,
+                comparison: "餐饮",
+                sourceModule: .finance
+            )
+        ]
+        let result = HoloAgentResultRenderer().render(
+            claims: [observation, suggestion],
+            evidence: evidence,
+            question: "分析我2026年的财务数据，有哪些需要优化的地方？",
+            answerContext: HoloAgentAnswerContext(
+                primaryTimeRange: HoloAgentTimeRange(
+                    label: "2026年",
+                    start: range.start,
+                    end: range.end
+                ),
+                snapshotCutoffAt: range.end
+            )
+        )
+
+        expect(result.directAnswer?.contains("优先优化") == true, "优化问题首屏必须概括行动")
+        expect(result.directAnswer != suggestion.displayText, "第一条建议不能被拆成不同字号的开场")
+        expect(result.headline?.contains("优化建议") == true, "标题必须体现用户要的是优化")
+        expect(result.recommendations?.count == 1, "建议必须进入类型化列表")
+        expect(result.recommendations?.first?.title == "优先复核餐饮支出", "建议标题应提炼动作")
+        expect(result.sections.contains { $0.kind == "observation" }, "建议后仍要保留事实依据")
+    }
+
+    private static func test年度财务事故统一上下文() {
+        let staleRange = HoloAgentTimeRange(
+            label: "近30天",
+            start: Date(timeIntervalSince1970: 1_000),
+            end: Date(timeIntervalSince1970: 2_000)
+        )
+        let claims = [
+            HoloAgentClaim(
+                id: "fact",
+                type: "observation",
+                displayText: "礼物类支出25230.11元",
+                metricAssertions: [
+                    HoloMetricAssertion(
+                        metricKey: "finance.category.amount",
+                        value: 25230.11,
+                        baselineValue: nil,
+                        unit: "元",
+                        comparison: "礼物",
+                        evidenceIDs: ["gift"]
+                    )
+                ],
+                evidenceIDs: ["gift"],
+                prohibitedInferences: [],
+                confidence: 0.94
+            ),
+            HoloAgentClaim(
+                id: "r1",
+                type: "suggestion",
+                displayText: "建议1（高优先级）：审视礼物类大额支出。其中一笔25000元的MacBook Pro占比较高。",
+                metricAssertions: [
+                    HoloMetricAssertion(
+                        metricKey: "finance.transaction.amount",
+                        value: 25000,
+                        baselineValue: nil,
+                        unit: "元",
+                        comparison: nil,
+                        evidenceIDs: ["gift"]
+                    )
+                ],
+                evidenceIDs: ["gift"],
+                prohibitedInferences: [],
+                confidence: 0.91
+            ),
+            HoloAgentClaim(
+                id: "r2",
+                type: "suggestion",
+                displayText: "建议2（中优先级）：控制月度预算执行。本月已超支409元。",
+                metricAssertions: [
+                    HoloMetricAssertion(
+                        metricKey: "finance.budget.overrun",
+                        value: 409,
+                        baselineValue: nil,
+                        unit: "元",
+                        comparison: nil,
+                        evidenceIDs: ["budget"]
+                    )
+                ],
+                evidenceIDs: ["budget"],
+                prohibitedInferences: [],
+                confidence: 0.86
+            )
+        ]
+        let evidence = [
+            makeEvidence(
+                id: "gift",
+                metricKey: "finance.category.amount",
+                metricValue: 25230.11,
+                unit: "元",
+                excerpt: "礼物25230.11元，其中MacBook Pro 25000元",
+                range: staleRange,
+                sourceModule: .finance
+            ),
+            makeEvidence(
+                id: "budget",
+                metricKey: "finance.budget.overrun",
+                metricValue: 409,
+                unit: "元",
+                excerpt: "本月预算超支409元",
+                range: HoloAgentTimeRange(label: "本月", start: staleRange.start, end: staleRange.end),
+                sourceModule: .finance
+            )
+        ]
+        let result = HoloAgentResultRenderer().render(
+            claims: claims,
+            evidence: evidence,
+            question: "分析我2026年的财务数据，有哪些需要优化的地方？",
+            coverage: HoloDataCoverage(
+                coveredDays: 132,
+                totalDays: 365,
+                coverageRatio: 132.0 / 365.0,
+                missingRanges: [],
+                note: "132天有交易",
+                semantics: .eventRecords
+            ),
+            answerContext: HoloAgentAnswerContext(
+                primaryTimeRange: HoloAgentTimeRange(
+                    label: "2026年",
+                    start: Date(timeIntervalSince1970: 1_767_225_600),
+                    end: Date(timeIntervalSince1970: 1_798_761_600)
+                ),
+                snapshotCutoffAt: Date(timeIntervalSince1970: 1_785_033_600)
+            )
+        )
+
+        expect(result.scope?.label == "2026年", "展示范围必须来自 Job 权威上下文")
+        expect(result.headline?.contains("2026年") == true, "标题必须保留年度范围")
+        expect(result.headline?.contains("近30天") == false, "旧 evidence label 不得覆盖年度范围")
+        expect(result.coverageText == nil, "财务事件数据不得显示 132/365 覆盖")
+        expect(result.limitations?.isEmpty == true, "财务事件数据不得触发覆盖不足")
+        expect(result.recommendations?.map(\.id) == ["r1", "r2"], "两条建议必须同层且顺序稳定")
+        expect(
+            result.recommendations?.map(\.title) == ["审视礼物类大额支出", "控制月度预算执行"],
+            "建议标题必须结构化提炼"
+        )
+        expect(!result.sections.contains { $0.kind == "suggestion" }, "建议不得再从第二个 sections 来源展示")
     }
 
     private static func test旧结果JSON保持兼容() throws {

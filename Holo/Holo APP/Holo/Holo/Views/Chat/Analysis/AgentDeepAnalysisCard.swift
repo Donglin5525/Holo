@@ -34,7 +34,7 @@ struct AgentDeepAnalysisCard: View {
             onTap?()
         } label: {
             ChatCardView {
-                if result.sections.isEmpty {
+                if result.sections.isEmpty && result.recommendations?.isEmpty != false {
                     HStack(spacing: 14) {
                         ZStack {
                             Circle()
@@ -55,7 +55,7 @@ struct AgentDeepAnalysisCard: View {
                         }
                     }
                 } else {
-                    VStack(alignment: .leading, spacing: 13) {
+                    VStack(alignment: .leading, spacing: 12) {
                         HStack(spacing: 9) {
                             Image(systemName: "sparkles")
                                 .font(.system(size: 14, weight: .bold))
@@ -71,7 +71,7 @@ struct AgentDeepAnalysisCard: View {
 
                             Spacer(minLength: 8)
 
-                            Text("深度分析")
+                            Text(hasRecommendations(result) ? "优化建议" : "深度分析")
                                 .font(.system(size: 10.5, weight: .bold))
                                 .foregroundColor(.holoPrimary.opacity(0.8))
                                 .padding(.horizontal, 9)
@@ -80,11 +80,37 @@ struct AgentDeepAnalysisCard: View {
                                 .clipShape(Capsule())
                         }
 
+                        if let scope = result.scope?.displayLabel {
+                            Label(scope, systemImage: "calendar")
+                                .font(.system(size: 11.5, weight: .semibold))
+                                .foregroundColor(.holoTextSecondary)
+                        }
+
                         Text(directAnswer(result))
-                            .font(.system(size: 21, weight: .heavy))
-                            .foregroundColor(.holoTextPrimary)
-                            .lineSpacing(4)
+                            .font(.system(size: 15.5, weight: .semibold))
+                            .foregroundColor(.holoTextPrimary.opacity(0.88))
+                            .lineSpacing(5)
                             .fixedSize(horizontal: false, vertical: true)
+
+                        let titles = recommendationTitles(in: result)
+                        if !titles.isEmpty {
+                            VStack(alignment: .leading, spacing: 7) {
+                                ForEach(Array(titles.prefix(2).enumerated()), id: \.offset) { index, title in
+                                    HStack(alignment: .firstTextBaseline, spacing: 8) {
+                                        Text("\(index + 1)")
+                                            .font(.system(size: 10, weight: .bold))
+                                            .foregroundColor(.white)
+                                            .frame(width: 19, height: 19)
+                                            .background(Color.holoPrimary)
+                                            .clipShape(Circle())
+                                        Text(title)
+                                            .font(.system(size: 13, weight: .semibold))
+                                            .foregroundColor(.holoTextPrimary)
+                                            .lineLimit(2)
+                                    }
+                                }
+                            }
+                        }
 
                         if let coverage = result.coverageText, !coverage.isEmpty {
                             Label(coverage, systemImage: "checkmark.seal.fill")
@@ -183,5 +209,21 @@ struct AgentDeepAnalysisCard: View {
             return first
         }
         return primarySummary(result)
+    }
+
+    private func hasRecommendations(_ result: HoloRenderedAgentResult) -> Bool {
+        !recommendationTitles(in: result).isEmpty
+    }
+
+    private func recommendationTitles(in result: HoloRenderedAgentResult) -> [String] {
+        if let recommendations = result.recommendations, !recommendations.isEmpty {
+            return recommendations.map(\.title)
+        }
+        return result.sections.compactMap { section in
+            let kind = section.kind?.lowercased() ?? ""
+            return ["suggestion", "recommendation", "action"].contains(kind)
+                ? section.title
+                : nil
+        }
     }
 }

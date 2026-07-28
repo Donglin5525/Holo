@@ -12,6 +12,17 @@ enum HoloHealthMetricKind: String, Codable, CaseIterable, Hashable, Sendable {
     case sleep
     case stand
     case activity
+
+    /// 用户可见的中文标签。证据摘要（excerpt）必须用这个，不能用 rawValue（英文），
+    /// 否则用户会在"查看数据依据"里看到 steps/sleep/stand 这种英文。
+    var displayLabel: String {
+        switch self {
+        case .steps: return "步数"
+        case .sleep: return "睡眠"
+        case .stand: return "站立"
+        case .activity: return "活动"
+        }
+    }
 }
 
 struct HoloHealthDailyRecord: Codable, Equatable, Sendable {
@@ -130,7 +141,8 @@ struct HoloHealthTool: HoloDataTool {
             timeField: "date",
             fields: fields,
             sensitivity: .sensitive,
-            maximumRangeDays: 366
+            maximumRangeDays: 366,
+            coverageSemantics: .dailyObservations
         )
     })
 
@@ -207,22 +219,36 @@ struct HoloHealthTool: HoloDataTool {
         if request.query == "dynamic_query", let plan = request.dynamicPlan {
             return await dynamicResult(request, plan: plan)
         }
+        let historicalRange = HoloAgentHistoricalTimePolicy.resolve(request.timeRange)
+        if historicalRange.isEntirelyFuture {
+            return empty(
+                request,
+                warning: HoloToolWarning(
+                    code: "FUTURE_RANGE_NOT_HISTORICAL",
+                    message: "所选范围尚未发生，没有可分析的健康事实"
+                )
+            )
+        }
+        var scopedRequest = request
+        scopedRequest.timeRange = historicalRange.effectiveRange
+        let baselineRange = HoloAgentHistoricalTimePolicy.resolve(request.baseline)
+        scopedRequest.baseline = baselineRange.isEntirelyFuture ? nil : baselineRange.effectiveRange
         let result: HoloDataToolResult
-        switch request.query {
+        switch scopedRequest.query {
         case "health_overview":
-            result = await overview(request)
+            result = await overview(scopedRequest)
         case "steps_summary":
-            result = await dailySummary(request, metric: .steps)
+            result = await dailySummary(scopedRequest, metric: .steps)
         case "sleep_summary":
-            result = await sleepSummary(request)
+            result = await sleepSummary(scopedRequest)
         case "stand_summary":
-            result = await dailySummary(request, metric: .stand)
+            result = await dailySummary(scopedRequest, metric: .stand)
         case "activity_summary":
-            result = await dailySummary(request, metric: .activity)
+            result = await dailySummary(scopedRequest, metric: .activity)
         case "workout_summary":
-            result = await workoutSummary(request)
+            result = await workoutSummary(scopedRequest)
         default:
-            result = error(request, reason: "不支持的健康查询：\(request.query)")
+            result = error(scopedRequest, reason: "不支持的健康查询：\(scopedRequest.query)")
         }
         // P3：固定指标统一挂类型化语义（动态链路 P1 已覆盖，不走这里）
         return HoloMetricSemanticFactory.attachFixedToolSemantics(to: result)
@@ -233,10 +259,31 @@ private extension HoloHealthTool {
 
     func dynamicResult(_ request: HoloToolRequest, plan: HoloDynamicQueryPlan) async -> HoloDataToolResult {
         guard let kind = Self.metricKind(for: plan.source) else { return error(request, reason: "未注册健康数据集：\(plan.source)") }
-        let currentRange = plan.timeRange ?? request.timeRange
-        let baselineRange = plan.baseline
+        let resolvedRange = HoloAgentHistoricalTimePolicy.resolve(plan.timeRange ?? request.timeRange)
+        if resolvedRange.isEntirelyFuture {
+            return HoloDataToolResult(
+                toolRequestID: request.id,
+                tool: request.tool,
+                status: .empty,
+                coverage: nil,
+                metrics: [],
+                events: [],
+                warnings: [
+                    HoloToolWarning(
+                        code: "FUTURE_RANGE_NOT_HISTORICAL",
+                        message: "所选范围尚未发生，没有可分析的健康事实"
+                    )
+                ],
+                error: nil,
+                sensitivity: .sensitive
+            )
+        }
+        let currentRange = resolvedRange.effectiveRange
+        let requestedBaseline = plan.baseline
             ?? request.baseline
             ?? HoloDynamicQueryRangeResolver.baselineIfNeeded(for: plan, currentRange: currentRange)
+        let resolvedBaseline = HoloAgentHistoricalTimePolicy.resolve(requestedBaseline)
+        let baselineRange = resolvedBaseline.isEntirelyFuture ? nil : resolvedBaseline.effectiveRange
         // §7.1：主查询走严格接口，锁屏/权限错误显式传播
         let currentRowsOutcome: HoloHealthQueryOutcome<[HoloQueryRow]>
         let baselineRowsOutcome: HoloHealthQueryOutcome<[HoloQueryRow]>
@@ -311,7 +358,7 @@ private extension HoloHealthTool {
             id: "\(kind.rawValue)-\(idFormatter.string(from: record.date))",
             occurredAt: record.date,
             fields: ["date": .date(record.date), "value": .number(record.value)],
-            excerpt: "\(displayFormatter.string(from: record.date)) \(kind.rawValue) \(record.value)"
+            excerpt: "\(displayFormatter.string(from: record.date)) \(kind.displayLabel) \(record.value)"
         )
     }
 
@@ -642,7 +689,8 @@ private extension HoloHealthTool {
             totalDays: totalDays,
             coverageRatio: totalDays > 0 ? Double(uniqueDays) / Double(totalDays) : nil,
             missingRanges: [],
-            note: "已读取 \(uniqueDays)/\(totalDays) 天健康数据"
+            note: "已读取 \(uniqueDays)/\(totalDays) 天健康数据",
+            semantics: .dailyObservations
         )
     }
 

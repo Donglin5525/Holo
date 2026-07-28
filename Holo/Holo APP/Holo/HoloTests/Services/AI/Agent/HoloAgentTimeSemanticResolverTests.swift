@@ -41,6 +41,9 @@ struct HoloAgentTimeSemanticResolverTests {
         test裸年份不影响年月与今年()
         test中文数字年份解析为全年窗口()
         test中文数字不影响阿拉伯数字路径()
+        test当前自然年历史统计截断到快照日()
+        test已结束年份不截断()
+        test纯未来范围不伪装成历史数据()
         print("HoloAgentTimeSemanticResolverTests passed")
     }
 
@@ -211,5 +214,43 @@ struct HoloAgentTimeSemanticResolverTests {
         )
         // 这类无时间语义的问题本就应返回 nil，不应因归一化误命中。
         expect(nonTime?.kind != .explicitYear, "『一个习惯』不应被误判为 explicitYear")
+    }
+
+    // MARK: - 历史事实截止线
+
+    private static func test当前自然年历史统计截断到快照日() {
+        let fullYear = HoloAgentTimeSemanticResolver.resolve(
+            "分析我2026年的财务数据", referenceDate: referenceDate, calendar: calendar
+        )!.timeRange
+        let resolved = HoloAgentHistoricalTimePolicy.resolve(
+            fullYear, asOf: referenceDate, calendar: calendar
+        )
+        let expectedEnd = calendar.date(from: DateComponents(year: 2026, month: 7, day: 23))!
+        expect(resolved.wasCapped, "当前自然年的历史统计必须按快照日截断")
+        expect(resolved.effectiveRange?.start == fullYear.start, "截断不能改写用户要求的起点")
+        expect(resolved.effectiveRange?.end == expectedEnd, "7月22日快照应使用 7月23日 exclusive")
+        expect(resolved.effectiveRange?.label.contains("截至7月22日") == true, "展示必须明确截至日期")
+    }
+
+    private static func test已结束年份不截断() {
+        let lastYear = HoloAgentTimeSemanticResolver.resolve(
+            "分析我2025年的财务数据", referenceDate: referenceDate, calendar: calendar
+        )!.timeRange
+        let resolved = HoloAgentHistoricalTimePolicy.resolve(
+            lastYear, asOf: referenceDate, calendar: calendar
+        )
+        expect(!resolved.wasCapped, "已结束年份不应被截断")
+        expect(resolved.effectiveRange == lastYear, "已结束年份范围必须原样保留")
+    }
+
+    private static func test纯未来范围不伪装成历史数据() {
+        let future = HoloAgentTimeSemanticResolver.resolve(
+            "分析我2027年的财务数据", referenceDate: referenceDate, calendar: calendar
+        )!.timeRange
+        let resolved = HoloAgentHistoricalTimePolicy.resolve(
+            future, asOf: referenceDate, calendar: calendar
+        )
+        expect(resolved.isEntirelyFuture, "纯未来范围必须被标记，不能读取未来分期作为已发生支出")
+        expect(resolved.effectiveRange == nil, "纯未来范围不应生成历史查询窗口")
     }
 }

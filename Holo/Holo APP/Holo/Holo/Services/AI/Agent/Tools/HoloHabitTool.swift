@@ -74,17 +74,21 @@ struct HoloHabitTool: HoloDataTool {
     }
 
     func execute(_ request: HoloToolRequest) async throws -> HoloDataToolResult {
-        let habits = await dataSource.habits(timeRange: request.timeRange)
+        let historicalRange = HoloAgentHistoricalTimePolicy.resolve(request.timeRange)
+        guard !historicalRange.isEntirelyFuture else { return Self.emptyResult(request) }
+        var scopedRequest = request
+        scopedRequest.timeRange = historicalRange.effectiveRange
+        let habits = await dataSource.habits(timeRange: scopedRequest.timeRange)
         let result: HoloDataToolResult
-        switch request.query {
+        switch scopedRequest.query {
         case "negative_habit_control":
-            result = negativeControlResult(request: request, habits: habits)
+            result = negativeControlResult(request: scopedRequest, habits: habits)
         case "goal_conflict":
-            result = goalConflictResult(request: request, habits: habits)
+            result = goalConflictResult(request: scopedRequest, habits: habits)
         case "trend_summary":
-            result = trendSummaryResult(request: request, habits: habits)
+            result = trendSummaryResult(request: scopedRequest, habits: habits)
         default:
-            result = Self.errorResult(request, reason: "不支持的查询：\(request.query)")
+            result = Self.errorResult(scopedRequest, reason: "不支持的查询：\(scopedRequest.query)")
         }
         // P3：固定指标统一挂类型化语义
         return HoloMetricSemanticFactory.attachFixedToolSemantics(to: result)
@@ -206,19 +210,27 @@ struct HoloHabitTool: HoloDataTool {
     }
 
     private static func negativeEvents(habit: HoloHabitToolRecord, counts: [HoloHabitDailyCount]) -> [HoloEvidenceEvent] {
-        counts.map {
-            HoloEvidenceEvent(id: "\(habit.id)-d\($0.dayOffset)", occurredAt: nil,
-                              metricKey: "habit.negative.frequency_change",
-                              metricValue: $0.count, excerpt: "\(habit.name) 发生 \(Int($0.count)) 次")
-        }
+        // 只为 count > 0 的天生成证据（与 positiveEvents 一致）。count = 0 表示当天没发生，
+        // 生成"发生 0 次"的证据是噪音，会让 AI 误以为用户频繁触发该习惯。
+        counts
+            .filter { $0.count > 0 }
+            .map {
+                HoloEvidenceEvent(id: "\(habit.id)-d\($0.dayOffset)", occurredAt: nil,
+                                  metricKey: "habit.negative.frequency_change",
+                                  metricValue: $0.count, excerpt: "\(habit.name) 发生 \(Int($0.count)) 次")
+            }
     }
 
     private static func positiveEvents(habit: HoloHabitToolRecord, counts: [HoloHabitDailyCount]) -> [HoloEvidenceEvent] {
-        counts.map {
-            HoloEvidenceEvent(id: "\(habit.id)-d\($0.dayOffset)", occurredAt: nil,
-                              metricKey: "habit.positive.completion_rate",
-                              metricValue: $0.count, excerpt: "\(habit.name) 完成 \(Int($0.count)) 次")
-        }
+        // 只为 count > 0 的天生成证据。count = 0 表示当天没打卡，是"没做"而非"做了 0 次"；
+        // 生成"完成 0 次"的证据会制造噪音，让 AI 误以为用户频繁打卡（看到 N 条同名证据）。
+        counts
+            .filter { $0.count > 0 }
+            .map {
+                HoloEvidenceEvent(id: "\(habit.id)-d\($0.dayOffset)", occurredAt: nil,
+                                  metricKey: "habit.positive.completion_rate",
+                                  metricValue: $0.count, excerpt: "\(habit.name) 完成 \(Int($0.count)) 次")
+            }
     }
 
     private static func emptyResult(_ request: HoloToolRequest) -> HoloDataToolResult {

@@ -28,6 +28,8 @@ nonisolated struct HoloAgentQuerySemanticFrame: Equatable, Sendable {
     var domains: [String]
     /// 敏感度标记（健康/心理等需要降级表达）。
     var sensitivity: HoloAgentQuerySensitivity
+    /// 用户明确要求的交付物，由确定性策略识别，作为最终答案验收条件。
+    var requestedDeliverables: Set<HoloAgentRequestedDeliverable> = [.directAnswer]
 }
 
 nonisolated enum HoloAgentQuerySensitivity: String, Equatable, Sendable {

@@ -211,6 +211,66 @@ final class ChatMessageViewDataAgentResultTests: XCTestCase {
         XCTAssertEqual(model.observations.map(\.title), ["达标情况"])
     }
 
+    func testAgentDeepAnalysisNarrativeModelKeepsRecommendationsInOneHierarchy() {
+        let result = HoloRenderedAgentResult(
+            title: "深度分析",
+            summary: "优先处理审视礼物类大额支出；其次处理控制月度预算执行。",
+            sections: [
+                HoloRenderedAgentSection(
+                    title: "关键依据",
+                    body: "2026年礼物类支出25230.11元",
+                    confidence: 0.94,
+                    kind: "observation"
+                )
+            ],
+            evidenceReferences: [],
+            question: "分析我2026年的财务数据，有哪些需要优化的地方？",
+            headline: "2026年财务优化建议",
+            directAnswer: "优先处理审视礼物类大额支出；其次处理控制月度预算执行。",
+            coverageText: nil,
+            limitations: [],
+            scope: HoloRenderedAnswerScope(
+                label: "2026年",
+                start: nil,
+                end: nil,
+                snapshotCutoffAt: nil
+            ),
+            recommendations: [
+                HoloRenderedRecommendation(
+                    id: "r1",
+                    title: "审视礼物类大额支出",
+                    body: "先核对一次性大额项目是否符合原计划。",
+                    priorityLabel: "高优先级",
+                    confidence: 0.91,
+                    evidenceIDs: ["gift"],
+                    scopeLabel: nil
+                ),
+                HoloRenderedRecommendation(
+                    id: "r2",
+                    title: "控制月度预算执行",
+                    body: "复核礼物和餐饮分类的预算执行。",
+                    priorityLabel: "中优先级",
+                    confidence: 0.86,
+                    evidenceIDs: ["budget"],
+                    scopeLabel: "本月"
+                )
+            ]
+        )
+
+        let model = AgentDeepAnalysisNarrativeModel(result: result)
+
+        XCTAssertEqual(model.scopeLabel, "2026年")
+        XCTAssertEqual(model.recommendations.map(\.title), ["审视礼物类大额支出", "控制月度预算执行"])
+        XCTAssertEqual(model.recommendations.map(\.priority), [0, 1])
+        XCTAssertEqual(model.recommendations.map(\.priorityLabel), ["高优先级", "中优先级"])
+        XCTAssertEqual(model.recommendations[1].scopeLabel, "本月")
+        XCTAssertEqual(model.observations.map(\.title), ["关键依据"])
+        XCTAssertFalse(
+            model.recommendations.contains { $0.body == model.openingBody },
+            "开场概括不能复制任一完整建议"
+        )
+    }
+
     func testAgentDeepAnalysisNarrativeModelSplitsLongSummaryIntoReadableParagraphs() {
         let result = HoloRenderedAgentResult(
             title: "深度分析",

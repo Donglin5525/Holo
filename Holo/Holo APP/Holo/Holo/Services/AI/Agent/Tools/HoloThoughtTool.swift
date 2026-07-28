@@ -64,20 +64,32 @@ struct HoloThoughtTool: HoloDataTool {
     }
 
     func execute(_ request: HoloToolRequest) async throws -> HoloDataToolResult {
-        let snapshot = await dataSource.snapshot(timeRange: request.timeRange)
-        switch request.query {
-        case "mood_summary":
-            return Self.moodSummary(request: request, snapshot: snapshot)
-        case "thought_theme_summary":
-            return Self.themeSummary(request: request, snapshot: snapshot)
-        case "topic_summary":
-            return Self.topicSummary(request: request, snapshot: snapshot)
-        case "thought_activity_trend":
-            return Self.activityTrend(request: request, snapshot: snapshot)
-        default:
+        let historicalRange = HoloAgentHistoricalTimePolicy.resolve(request.timeRange)
+        guard !historicalRange.isEntirelyFuture else {
             return Self.empty(
                 request: request,
-                warnings: [HoloToolWarning(code: "UNSUPPORTED_QUERY", message: "不支持的想法查询：\(request.query)")]
+                warnings: [HoloToolWarning(
+                    code: "FUTURE_RANGE_NOT_HISTORICAL",
+                    message: "所选范围尚未发生，没有可分析的想法记录"
+                )]
+            )
+        }
+        var scopedRequest = request
+        scopedRequest.timeRange = historicalRange.effectiveRange
+        let snapshot = await dataSource.snapshot(timeRange: scopedRequest.timeRange)
+        switch scopedRequest.query {
+        case "mood_summary":
+            return Self.moodSummary(request: scopedRequest, snapshot: snapshot)
+        case "thought_theme_summary":
+            return Self.themeSummary(request: scopedRequest, snapshot: snapshot)
+        case "topic_summary":
+            return Self.topicSummary(request: scopedRequest, snapshot: snapshot)
+        case "thought_activity_trend":
+            return Self.activityTrend(request: scopedRequest, snapshot: snapshot)
+        default:
+            return Self.empty(
+                request: scopedRequest,
+                warnings: [HoloToolWarning(code: "UNSUPPORTED_QUERY", message: "不支持的想法查询：\(scopedRequest.query)")]
             )
         }
     }
@@ -100,12 +112,14 @@ extension HoloThoughtTool {
             HoloMetric(metricKey: "thought.mood.count", value: Double(moodCount), unit: "条", baselineValue: nil, comparison: nil)
         ]
         let events = snapshot.moodDistribution.sorted { $0.key < $1.key }.map { (mood, count) in
-            HoloEvidenceEvent(
+            // mood 存的是 ThoughtMoodType.rawValue（英文 happy/sad…），展示给用户要翻译成中文。
+            let moodLabel = ThoughtMoodType(from: mood)?.displayName ?? mood
+            return HoloEvidenceEvent(
                 id: "thought-mood-\(mood)",
                 occurredAt: nil,
                 metricKey: "thought.mood.count",
                 metricValue: Double(count),
-                excerpt: "心情「\(mood)」出现 \(count) 次"
+                excerpt: "心情「\(moodLabel)」出现 \(count) 次"
             )
         }
         return HoloDataToolResult(

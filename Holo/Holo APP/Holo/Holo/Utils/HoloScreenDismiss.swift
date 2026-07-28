@@ -22,6 +22,11 @@ private struct HoloScreenDismissKey: EnvironmentKey {
     static let defaultValue: (() -> Void)? = nil
 }
 
+private struct HoloSwipeCloseMarkerKey: EnvironmentKey {
+    /// 默认 nil：未注入时右滑关闭不携带任何标记
+    static let defaultValue: (() -> Void)? = nil
+}
+
 extension EnvironmentValues {
     /// 自定义全屏模块关闭动作。
     /// - 由 HomeView 在 ZStack 层注入：`{ activeScreen = nil }`
@@ -29,6 +34,16 @@ extension EnvironmentValues {
     var holoDismiss: (() -> Void)? {
         get { self[HoloScreenDismissKey.self] }
         set { self[HoloScreenDismissKey.self] = newValue }
+    }
+
+    /// 右滑关闭常驻模块的标记动作。
+    /// - 由 HomeView 在 ZStack 层注入：仅记录"本次关闭来自右滑手势"
+    /// - SwipeBackModifier 在触发 onDismiss 前调用它，HomeView 据此把
+    ///   退出转场从"下滑+淡出"换成纯淡出 —— 手势已把页面推出右边缘，
+    ///   再播一次下滑转场会出现"先右后下"的重复动画
+    var holoSwipeCloseMarker: (() -> Void)? {
+        get { self[HoloSwipeCloseMarkerKey.self] }
+        set { self[HoloSwipeCloseMarkerKey.self] = newValue }
     }
 }
 

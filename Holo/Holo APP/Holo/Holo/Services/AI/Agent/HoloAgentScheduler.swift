@@ -36,13 +36,9 @@ actor HoloAgentScheduler {
     private var activeTriggers: [String: HoloAgentTrigger] = [:]
 
     /// 租约注册表（§6.3）：jobID → 当前租约（foreground/legacyBackground）。
-    /// scene-sweep 兜底租约也登记在此（约定 ID，不对应真实 job）。
     private var activeLeases: [String: any HoloAgentExecutionLease] = [:]
     /// 后台期间是否有租约被系统 expiration（回前台时决定是否走恢复链）。
     private var didExpireInBackground = false
-
-    /// 场景兜底租约的约定 jobID：无活跃执行时申请，仅用于系统到期时的孤儿扫描。
-    private static let sceneSweepLeaseID = "scene-sweep"
 
     private var jobStore: HoloAgentJobStore { runtime.jobStore }
 
@@ -94,12 +90,21 @@ actor HoloAgentScheduler {
 
     /// 创建一个新对话深度分析 job 并经 runOrAttach 跑完 runLoop（Chat/Observer 入口统一走此）。
     func createAndRun(_ request: HoloAgentStartRequest) async throws -> HoloAgentJob {
+        // 用户可能在 Router/上下文准备期间已经点了停止。取消后的调用不得再落一条新 job，
+        // 否则 UI 已结束、持久化任务却会继续执行或在下次恢复时复活。
+        try Task.checkCancellation()
         let job = try await runtime.startAnalysisJob(
             question: request.question,
             trigger: request.trigger,
             sourceMessageID: request.sourceMessageID,
             now: request.now
         )
+        do {
+            try Task.checkCancellation()
+        } catch is CancellationError {
+            await cancel(jobID: job.id, source: .user, now: request.now)
+            throw CancellationError()
+        }
         return try await runOrAttach(
             jobID: job.id,
             reason: request.trigger == .userQuestion ? .userInitiated : .automaticInitiated,
@@ -253,15 +258,27 @@ actor HoloAgentScheduler {
         }
     }
 
-    /// 取消当前所有活跃的用户任务（trigger == .userQuestion）。
+    /// 取消当前所有未结束的用户任务（trigger == .userQuestion）。
     /// 供 UI「停止」按钮调用——ViewModel 无需知道具体 jobID。
-    /// 修复事故：此前停止按钮只取消了 chat 流式 Task，没碰 Scheduler 的 Task，
-    /// 导致 Agent 分析点停止后仍继续跑到预算耗尽。
+    /// 同时扫描内存注册表和持久化 Job：网络中断后进入 waiting/retrying、冷启动恢复中，
+    /// 或注册表已提前清理的任务也必须落 cancelled，不能在下次恢复时复活。
     @discardableResult
     func cancelActiveUserQuestions(now: Date = Date()) async -> Int {
-        let userJobIDs = activeTriggers
+        var userJobIDs = Set(activeTriggers
             .filter { $0.value == .userQuestion }
-            .map { $0.key }
+            .map { $0.key })
+        do {
+            let persistedJobIDs = try await jobStore.load()
+                .filter {
+                    $0.trigger == .userQuestion
+                        && !Self.terminalStates.contains($0.state)
+                }
+                .map(\.id)
+            userJobIDs.formUnion(persistedJobIDs)
+        } catch {
+            // 持久化读取失败时仍取消内存中的执行，避免一次磁盘故障让停止按钮完全失效。
+            logger.error("[Agent] 停止时读取持久化任务失败 error=\(String(describing: error), privacy: .public)")
+        }
         for jobID in userJobIDs {
             await cancel(jobID: jobID, source: .user, now: now)
         }
@@ -301,11 +318,16 @@ actor HoloAgentScheduler {
     // MARK: - §6.3 场景 × 租约协调
 
     /// App 进入后台：为每个活跃 job 申请绑定 jobID 的 legacy 租约（§9.6：租约绑定活跃 Job）。
-    /// 已被系统接管的 continued job 不回落 legacy（§9.3）；无活跃执行时申请 scene-sweep 兜底租约。
+    /// 已被系统接管的 continued job 不回落 legacy（§9.3）。
+    /// 没有活跃执行时不占用系统后台时间，只校准磁盘里的孤儿运行态。
     func sceneDidEnterBackground(now: Date = Date()) async {
         let activeJobIDs = Array(activeTasks.keys)
         guard !activeJobIDs.isEmpty else {
-            await attachLegacyLease(jobID: Self.sceneSweepLeaseID, now: now)
+            do {
+                try await runtime.pauseForBackground(now: now)
+            } catch {
+                logger.error("[Agent] 进入后台时校准孤儿运行态失败 error=\(String(describing: error), privacy: .public)")
+            }
             return
         }
         var legacyCount = 0
@@ -328,9 +350,7 @@ actor HoloAgentScheduler {
         for (jobID, lease) in legacyEntries {
             // 正常释放（非 expiration）：后台时间立即归还；job 未结束，前台继续执行
             await lease.finish(success: true)
-            if jobID == Self.sceneSweepLeaseID {
-                activeLeases[jobID] = nil
-            } else if activeTasks[jobID] != nil {
+            if activeTasks[jobID] != nil {
                 activeLeases[jobID] = HoloAgentForegroundLease()
                 var event = HoloAgentTelemetryEvent(
                     name: .leaseChanged,
@@ -358,14 +378,14 @@ actor HoloAgentScheduler {
             }
         )
         // 竞态兜底：申请期间 job 已完成的租约立即释放，不滞留
-        if jobID == Self.sceneSweepLeaseID || activeTasks[jobID] != nil {
+        if activeTasks[jobID] != nil {
             activeLeases[jobID] = lease
             var event = HoloAgentTelemetryEvent(
                 name: .leaseChanged,
                 timestamp: now,
                 leaseKind: .legacyBackground
             )
-            event.jobID = jobID == Self.sceneSweepLeaseID ? nil : jobID
+            event.jobID = jobID
             await eventRecorder.record(event)
         } else {
             await lease.finish(success: false)
@@ -382,11 +402,9 @@ actor HoloAgentScheduler {
             leaseKind: .legacyBackground,
             errorCode: "BACKGROUND_TIME_EXPIRED"
         )
-        event.jobID = jobID == Self.sceneSweepLeaseID ? nil : jobID
+        event.jobID = jobID
         await eventRecorder.record(event)
-        if jobID != Self.sceneSweepLeaseID {
-            await pause(jobID: jobID, reason: .backgroundTimeExpired)
-        }
+        await pause(jobID: jobID, reason: .backgroundTimeExpired)
         // 孤儿兜底：磁盘 running 状态但无活跃 Task 的 job 一并标记
         do {
             try await runtime.pauseForBackground()
@@ -559,6 +577,26 @@ actor HoloAgentScheduler {
         try await runtime.cleanupTerminalJobs(policy: policy, now: now)
     }
 
+    /// 冷启动清理系统里残留的 Continued Processing 请求。
+    /// 进程被杀时内存租约的 `finish` 不会执行，因此不能只看 activeLeases；
+    /// 以持久化 job 终态为事实源，逐个精确取消对应 identifier，避免失败任务长期挂在灵动岛。
+    @discardableResult
+    func reconcileContinuedProcessingRequests() async throws -> Int {
+        guard let client = await resolvedContinuedClient() else { return 0 }
+        let terminalJobs = try await jobStore.load().filter {
+            Self.terminalStates.contains($0.state)
+        }
+        for job in terminalJobs {
+            await client.cancel(
+                taskRequestWithIdentifier: HoloAgentContinuedProcessingLease.identifier(for: job.id)
+            )
+        }
+        if !terminalJobs.isEmpty {
+            logger.log("[Agent] 冷启动已清理 \(terminalJobs.count, privacy: .public) 个终态 continued 请求")
+        }
+        return terminalJobs.count
+    }
+
     // MARK: - 内部
 
     /// 对比 job 输入 hash 与 checkpoint 记录（§5.1）：
@@ -621,10 +659,7 @@ actor HoloAgentScheduler {
 
     /// Debug 导出只读取租约类型，不暴露系统 task 对象。
     func debugActiveLeaseKinds() -> [String: HoloAgentExecutionLeaseKind] {
-        activeLeases.reduce(into: [:]) { result, entry in
-            guard entry.key != Self.sceneSweepLeaseID else { return }
-            result[entry.key] = entry.value.kind
-        }
+        activeLeases.reduce(into: [:]) { $0[$1.key] = $1.value.kind }
     }
 
     private func recordExecutionEvent(

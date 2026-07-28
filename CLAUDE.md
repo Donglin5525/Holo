@@ -25,6 +25,7 @@
 |------|------|
 | `docs/_common/HoloPRD.md` | 产品需求文档 |
 | `docs/_common/开发规范.md` | 开发规范与踩坑总结（编码约定、布局、Core Data 等） |
+| `docs/_common/PROMPT_GUIDELINES.md` | **Holo 人格层与表达规范的唯一真源**（改任何 prompt 前先读） |
 | `docs/_common/notes/` | 历史问题解决方案（含 Core Data 调试） |
 | `docs/*/plans/` | 各模块实施计划（含已完成和待开发） |
 
@@ -62,6 +63,7 @@
 | 自定义导航栏 | HStack 必须加 `.frame(maxWidth: .infinity, minHeight: 44, maxHeight: 44)` 固定高度，仅靠 padding 无法约束 |
 | Swift Charts 坐标 | `proxy.position(forX:)` 返回 **plot area 局部坐标**，不是全局坐标。触摸转换：`touch - plotFrame.minX`；Tooltip 定位：`plotFrame.minX + proxyX`。**禁止用 `proxy.value(atX:)`** 查分类轴（不可靠），改用 `proxy.position(forX:)` + 手动最近点（详见开发规范第 11 节） |
 | 数值型习惯完成判定 | 看「今日有记录」即完成，**不看 target 达标（≥/≤）**；target 仅作展示。禁止回到达标判定思路（曾因此返工，见 commit a96bb3f） |
+| AI 长请求流式 | 预期耗时 >20s 的 AI 调用（insight / 健康洞察 / 长上下文生成）**必须端到端流式**（`stream=true` + `sendStreaming`）。非流式长连接会被移动网络 NAT 在 ~30s 切断（nginx 记 499）。详见开发规范第 16 节 |
 
 ### UIImagePickerController + fullScreenCover
 
@@ -95,6 +97,7 @@
 - Repository `init()` 必须零 I/O（`@StateObject` 在 body 求值时同步创建，早于 `.task`）
 - 启动阻塞的解法是「默认值先渲染 + 后台补数据」，不是「异步优化」
 - 数据变更后页面不更新 → 查开发规范第 13 节 Checklist
+- 网络连接中断 / AbortError / 请求中途失败 → **先看 nginx access log 状态码**（499 = iOS 先断，500/502 = 后端先挂），禁止只看后端 stdout 凭单点下结论。详见开发规范第 16 节
 
 ### 闪退排查
 
@@ -155,6 +158,8 @@ Holo 的 AI/ASR 调用已从客户端直连大模型改为经阿里云后端网�
 
 **部署**：Docker Compose + Nginx，配置在 `HoloBackend/deploy/`
 
+**流式硬规则**：后端的流式透传（`streamChat` + `provider.stream()`）对所有 purpose 一视同仁——只要 iOS 传 `stream=true` 就走透传。**新增任何耗时可能 >20s 的 AI purpose 时，iOS 端必须声明 `stream=true`**，否则非流式长连接会被移动网络 NAT 在 ~30s 切断（nginx 记 499）。详见开发规范第 16 节。
+
 ### HoloBackend 管理后台
 
 HoloBackend 内置内部管理后台，供开发者调试 AI 调用、查看日志和管理 Prompt，不面向普通 App 用户开放。
@@ -180,7 +185,12 @@ Prompt 管理：
 
 ### Prompt 双端同步（重要）
 
-**Prompt 加载优先级**：`HoloBackendAIProvider.loadManagedPrompt` 优先后端 API，失败才回退本地 `PromptManager`。因此 **iOS 端 PromptManager.swift 的模板只是后备**，实际运行时以后端为准。
+> 📌 **改任何 prompt 前，先读 [`docs/_common/PROMPT_GUIDELINES.md`](docs/_common/PROMPT_GUIDELINES.md)**。它是 Holo 人格层（Persona Preamble）与表达规范的唯一真源，含三姿态矩阵、安全边界、双端同步流程与改造路线图。
+
+**Prompt 加载路径（现状）**：
+- **路径 A（生产 + DEBUG 默认）**：`HoloBackendAIProvider` → `/v1/ai/chat/completions`，客户端只发 `purpose` 字符串，**不持有 prompt 正文**，后端按 purpose 自行注入 system prompt。
+- **路径 B（DEBUG 直连）**：`OpenAICompatibleProvider` 从 iOS 端 `PromptManager.swift` 拉 prompt 拼消息，完全不走后端。
+- 因此 **iOS 端 `PromptManager.swift` 的模板只是路径 B 的后备**，实际生产运行时以后端为准。
 
 **修改 Prompt 的完整流程**：
 1. 修改 iOS 端 `PromptManager.swift` 内嵌模板（后备）

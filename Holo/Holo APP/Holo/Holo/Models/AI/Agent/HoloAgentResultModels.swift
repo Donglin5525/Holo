@@ -25,6 +25,13 @@ nonisolated struct HoloAgentResult: Codable, Identifiable, Equatable, Sendable {
     /// 当 claims 为空时，记录原因。用于 UI 区分"确实没数据"与"有数据但未通过校验"，
     /// 避免一律显示"数据不足"的误导文案。旧结果反序列化时为 nil。
     var emptyReason: HoloAgentEmptyReason? = nil
+    /// 本轮用户问题识别出的确定性交付物（诊断/建议/对比/排名…）。
+    /// 驱动表达层按交付物类型组织答案（如归因诊断不被确定性合成器整段覆盖）。
+    /// 旧结果反序列化时为 nil，渲染层按"无"处理即退回旧行为。
+    var requestedDeliverables: Set<HoloAgentRequestedDeliverable>? = nil
+    /// v17：LLM 产出的有人味儿自然摘要（final_claims 时），用于详情页开场。
+    /// 旧结果反序列化时为 nil，渲染层退回用 directAnswer/summary。
+    var narrativeSummary: String? = nil
 }
 
 /// 空结论的原因。区分两类失败，用于精准提示用户。

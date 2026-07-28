@@ -28,21 +28,31 @@ struct SwipeBackModifier: ViewModifier {
     /// 此时本手势必须强制接管，否则用户无法返回
     let ignoreNavigationStack: Bool
 
+    /// 是否为 HomeView ZStack 常驻模块的根视图
+    /// 为 true 时，关闭前通过 holoSwipeCloseMarker 通知 HomeView 本次关闭来自右滑，
+    /// HomeView 据此改用纯淡出退出转场，避免手势右滑之后再叠一次下滑转场
+    let isResidentScreenRoot: Bool
+
     /// 关闭回调
     let onDismiss: () -> Void
 
     /// 当前偏移量
     @State private var offset: CGFloat = 0
 
+    /// 右滑关闭标记（由 HomeView 注入，见 isResidentScreenRoot）
+    @Environment(\.holoSwipeCloseMarker) private var swipeCloseMarker
+
     // MARK: - Init
 
     init(
         isEnabled: Bool = true,
         ignoreNavigationStack: Bool = false,
+        isResidentScreenRoot: Bool = false,
         onDismiss: @escaping () -> Void
     ) {
         self.isEnabled = isEnabled
         self.ignoreNavigationStack = ignoreNavigationStack
+        self.isResidentScreenRoot = isResidentScreenRoot
         self.onDismiss = onDismiss
     }
 
@@ -104,6 +114,10 @@ struct SwipeBackModifier: ViewModifier {
             offset = screenWidth
         }
         DispatchQueue.main.asyncAfter(deadline: .now() + max(0.15, duration) + 0.02) {
+            // 常驻模块根视图：先标记"本次关闭来自右滑"，再走正常关闭回调
+            if isResidentScreenRoot {
+                swipeCloseMarker?()
+            }
             onDismiss()
         }
     }
@@ -297,16 +311,20 @@ extension View {
     ///   - isEnabled: 是否启用手势（默认 true）
     ///   - ignoreNavigationStack: 是否忽略 NavigationStack 让位逻辑（默认 false）。
     ///     用于隐藏了系统导航栏的 push 详情页（系统 pop 手势失效），需强制接管时传 true
+    ///   - isResidentScreenRoot: 是否为 HomeView ZStack 常驻模块的根视图（默认 false）。
+    ///     传 true 时关闭前会通知 HomeView 改用纯淡出退出转场，避免右滑后再叠下滑动画
     ///   - onDismiss: 关闭回调
     /// - Returns: 应用了手势的视图
     func swipeBackToDismiss(
         isEnabled: Bool = true,
         ignoreNavigationStack: Bool = false,
+        isResidentScreenRoot: Bool = false,
         onDismiss: @escaping () -> Void
     ) -> some View {
         self.modifier(SwipeBackModifier(
             isEnabled: isEnabled,
             ignoreNavigationStack: ignoreNavigationStack,
+            isResidentScreenRoot: isResidentScreenRoot,
             onDismiss: onDismiss
         ))
     }

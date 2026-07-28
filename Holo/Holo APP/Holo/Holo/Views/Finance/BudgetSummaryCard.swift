@@ -28,6 +28,17 @@ struct BudgetSummaryCard: View {
                 .foregroundColor(.holoTextSecondary)
                 .layoutPriority(1)
 
+            if summary.isOverBudget {
+                Text("已超支")
+                    .font(.holoTinyLabel)
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.holoError)
+                    .clipShape(Capsule())
+                    .layoutPriority(1)
+            }
+
             // 进度条
             GeometryReader { geo in
                 ZStack(alignment: .leading) {
@@ -42,13 +53,21 @@ struct BudgetSummaryCard: View {
                             )
                         )
                         .frame(width: geo.size.width * min(CGFloat(summary.progress), 1.0))
+                        .overlay {
+                            if summary.isOverBudget {
+                                OverBudgetStripeOverlay()
+                                    .clipShape(RoundedRectangle(cornerRadius: 3))
+                            }
+                        }
                 }
             }
             .frame(height: 6)
 
-            Text(NumberFormatter.compactCurrency(summary.totalBudgetAmount))
+            Text(summary.isOverBudget
+                 ? "超支 \(NumberFormatter.compactCurrency(summary.totalSpentAmount - summary.totalBudgetAmount))"
+                 : NumberFormatter.compactCurrency(summary.totalBudgetAmount))
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .foregroundColor(.holoTextPrimary)
+                .foregroundColor(summary.isOverBudget ? .holoError : .holoTextPrimary)
                 .minimumScaleFactor(0.7)
                 .lineLimit(1)
                 .layoutPriority(1)
@@ -70,4 +89,3 @@ struct BudgetSummaryCard: View {
     }
 
 }
-

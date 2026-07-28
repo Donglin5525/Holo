@@ -108,7 +108,7 @@ struct FinanceView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .swipeBackToDismiss { close() }
+        .swipeBackToDismiss(isResidentScreenRoot: true) { close() }
         .task {
             FinanceRepository.shared.setup()
         }

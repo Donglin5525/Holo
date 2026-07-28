@@ -8,6 +8,14 @@
 import SwiftUI
 
 nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
+    struct Recommendation: Equatable, Sendable {
+        var title: String
+        var body: String
+        var priority: Int
+        var priorityLabel: String?
+        var scopeLabel: String?
+    }
+
     struct Observation: Equatable, Sendable {
         var label: String
         var title: String
@@ -24,7 +32,9 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
     var openingTitle: String
     var openingBody: String
     var openingParagraphs: [String]
+    var scopeLabel: String?
     var signalSummaries: [String]
+    var recommendations: [Recommendation]
     var observations: [Observation]
     var evidence: [Evidence]
     var coverageText: String?
@@ -50,8 +60,16 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
         let financeRangeLabel = Self.financeRangeLabel(from: result.evidenceReferences)
         let financeKeyword = Self.financeKeyword(from: result.evidenceReferences)
         let semanticHeadline = Self.clean(result.headline ?? "")
+        // v17：优先用 LLM 产出的一句话标题（result.title），它比关键词拼接的 headline 更有人味儿。
+        // 只在有内容且 title 不是默认占位词（"深度分析"/"本期观察"等）时采用。
+        let llmTitle = Self.clean(result.title)
+        let isPlaceholderTitle = llmTitle.isEmpty
+            || ["深度分析", "本期观察", "本期数据结果"].contains(llmTitle)
+        let resolvedTitle: String? = (hasContent && !isPlaceholderTitle) ? llmTitle : nil
 
-        if !semanticHeadline.isEmpty {
+        if let resolvedTitle {
+            self.openingTitle = resolvedTitle
+        } else if !semanticHeadline.isEmpty {
             self.openingTitle = semanticHeadline
         } else if isFinanceLedgerMode {
             self.openingTitle = financeKeyword.map { "\(financeRangeLabel)「\($0)」消费结果" }
@@ -63,13 +81,17 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
                 ? "这段时间，有几个信号值得回看。"
                 : "本期暂无显著观察"
         }
-        self.openingBody = resolvedSummary
-        self.openingParagraphs = directAnswer.isEmpty
-            ? Self.readingParagraphs(from: resolvedSummary)
-            : [resolvedSummary]
+        // v17：openingBody 优先用 LLM 的 narrativeSummary（有人味儿的自然摘要），
+        // 没有才退回 directAnswer/summary。
+        let narrativeSummary = Self.clean(result.narrativeSummary ?? "")
+        let openingBodyText = !narrativeSummary.isEmpty ? narrativeSummary : resolvedSummary
+        self.openingBody = openingBodyText
+        self.openingParagraphs = Self.readingParagraphs(from: openingBodyText)
+        self.scopeLabel = result.scope?.displayLabel
         self.signalSummaries = (isFinanceLedgerMode || isHealthMode || !directAnswer.isEmpty)
             ? []
             : Self.signalSummaries(from: resolvedSummary)
+        self.recommendations = Self.recommendations(from: result, openingBody: resolvedSummary)
         self.observations = Self.observations(
             from: result.sections,
             isFinanceLedgerMode: isFinanceLedgerMode,
@@ -92,12 +114,17 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
         if isFinanceLedgerMode {
             self.closingTitle = "从金额最高的分类开始核对。"
             self.closingBody = "如果分类或金额和你的认知不一致，可以点开账单依据回到对应明细。"
+        } else if hasContent, let firstRec = self.recommendations.first {
+            // 有具体建议（来自 LLM suggestion claim）时，收尾跟着建议走，不再千篇一律。
+            self.closingTitle = firstRec.title
+            self.closingBody = firstRec.body
         } else {
+            // 没有建议时的兜底：承认还在观察，不堆空话。
             self.closingTitle = hasContent
-                ? "先从最容易稳定的一件事开始。"
+                ? "这些信号先记着，Holo 会继续帮你盯着。"
                 : "继续记录后，Holo 会再帮你回看。"
             self.closingBody = hasContent
-                ? "不用同时盯住所有指标。Holo 会继续观察这些信号是否重新回到稳定节奏。"
+                ? "不用一次性盯住所有指标。等哪一项出现明显变化，这里会第一时间告诉你。"
                 : "当睡眠、习惯、消费或任务出现更清晰的变化时，这里会整理成更完整的观察手记。"
         }
         // 数据查询的职责是准确回答问题；没有明确且有证据的行动建议时，不展示通用“下一步”。
@@ -116,6 +143,8 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
     ) -> [Observation] {
         let openingNormalized = normalizedForComparison(openingBody)
         return sections.enumerated().compactMap { index, section in
+            let kind = section.kind?.lowercased() ?? ""
+            guard !["suggestion", "recommendation", "action"].contains(kind) else { return nil }
             let rawTitle = clean(section.title)
             let body = clean(section.body)
             guard !body.isEmpty, normalizedForComparison(body) != openingNormalized else { return nil }
@@ -131,6 +160,48 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
                 body: body,
                 accentIndex: index
             )
+        }
+    }
+
+    private static func recommendations(
+        from result: HoloRenderedAgentResult,
+        openingBody: String
+    ) -> [Recommendation] {
+        if let typed = result.recommendations, !typed.isEmpty {
+            return typed.enumerated().map { index, recommendation in
+                Recommendation(
+                    title: clean(recommendation.title),
+                    body: clean(recommendation.body),
+                    priority: index,
+                    priorityLabel: {
+                        let value = clean(recommendation.priorityLabel ?? "")
+                        return value.isEmpty ? nil : value
+                    }(),
+                    scopeLabel: {
+                        let value = clean(recommendation.scopeLabel ?? "")
+                        return value.isEmpty ? nil : value
+                    }()
+                )
+            }
+        }
+        let openingNormalized = normalizedForComparison(openingBody)
+        let filtered: [Recommendation] = result.sections.compactMap { section -> Recommendation? in
+            let kind = section.kind?.lowercased() ?? ""
+            guard ["suggestion", "recommendation", "action"].contains(kind) else { return nil }
+            let body = clean(section.body)
+            guard !body.isEmpty, normalizedForComparison(body) != openingNormalized else { return nil }
+            return Recommendation(
+                title: clean(section.title).isEmpty ? "建议" : clean(section.title),
+                body: body,
+                priority: 0,
+                priorityLabel: nil,
+                scopeLabel: nil
+            )
+        }
+        return filtered.enumerated().map { index, recommendation in
+            var recommendation = recommendation
+            recommendation.priority = index
+            return recommendation
         }
     }
 
@@ -304,6 +375,7 @@ struct AgentDeepAnalysisDetailSheet: View {
                     emptyState
                 } else {
                     opening(model)
+                    recommendationsSection(model.recommendations)
                     observationsSection(model.observations)
                     dataContextSection(model)
                     if model.shouldShowClosing {
@@ -395,13 +467,25 @@ struct AgentDeepAnalysisDetailSheet: View {
     // MARK: - Opening
 
     private func opening(_ model: AgentDeepAnalysisNarrativeModel) -> some View {
-        VStack(alignment: .leading, spacing: 13) {
-            Text(model.isFinanceLedgerMode ? "HOLO 账单复核" : "HOLO 数据分析")
-                .font(.system(size: 11, weight: .bold))
-                .foregroundColor(.holoPrimary)
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Text(model.isFinanceLedgerMode ? "HOLO 账单复核" : "HOLO 数据分析")
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(.holoPrimary)
+
+                if let scope = model.scopeLabel {
+                    Text(scope)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.holoTextSecondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.holoBackground.opacity(0.86))
+                        .clipShape(Capsule())
+                }
+            }
 
             Text(model.openingTitle)
-                .font(.system(size: 31, weight: .heavy))
+                .font(.system(size: 25, weight: .bold))
                 .foregroundColor(.holoTextPrimary)
                 .lineSpacing(3)
                 .fixedSize(horizontal: false, vertical: true)
@@ -409,9 +493,9 @@ struct AgentDeepAnalysisDetailSheet: View {
             VStack(alignment: .leading, spacing: 9) {
                 ForEach(Array(model.openingParagraphs.enumerated()), id: \.offset) { _, paragraph in
                     Text(paragraph)
-                        .font(.system(size: 18, weight: .bold))
-                        .foregroundColor(.holoTextPrimary.opacity(0.82))
-                        .lineSpacing(6)
+                        .font(.system(size: 15.5, weight: .medium))
+                        .foregroundColor(.holoTextPrimary.opacity(0.78))
+                        .lineSpacing(5)
                         .fixedSize(horizontal: false, vertical: true)
                         .textSelection(.enabled)
                 }
@@ -462,6 +546,75 @@ struct AgentDeepAnalysisDetailSheet: View {
     }
 
     // MARK: - Observations
+
+    @ViewBuilder
+    private func recommendationsSection(
+        _ recommendations: [AgentDeepAnalysisNarrativeModel.Recommendation]
+    ) -> some View {
+        if !recommendations.isEmpty {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text("优先建议")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundColor(.holoTextPrimary)
+                    Spacer()
+                    Text("\(recommendations.count) 项")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.holoTextSecondary)
+                }
+
+                ForEach(Array(recommendations.enumerated()), id: \.offset) { index, recommendation in
+                    HStack(alignment: .top, spacing: 13) {
+                        Text("\(index + 1)")
+                            .font(.system(size: 12, weight: .heavy))
+                            .foregroundColor(.white)
+                            .frame(width: 25, height: 25)
+                            .background(Color.holoPrimary)
+                            .clipShape(Circle())
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(alignment: .firstTextBaseline, spacing: 7) {
+                                Text(recommendation.title)
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundColor(.holoTextPrimary)
+
+                                if let priority = recommendation.priorityLabel {
+                                    Text(priority)
+                                        .font(.system(size: 10, weight: .bold))
+                                        .foregroundColor(.holoPrimary)
+                                        .padding(.horizontal, 7)
+                                        .padding(.vertical, 3)
+                                        .background(Color.holoPrimary.opacity(0.09))
+                                        .clipShape(Capsule())
+                                }
+                            }
+
+                            if let scope = recommendation.scopeLabel {
+                                Label(scope, systemImage: "calendar")
+                                    .font(.system(size: 11, weight: .semibold))
+                                    .foregroundColor(.holoTextSecondary)
+                            }
+
+                            Text(recommendation.body)
+                                .font(.system(size: 14.5, weight: .regular))
+                                .foregroundColor(.holoTextPrimary.opacity(0.8))
+                                .lineSpacing(5)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color.holoCardBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20, style: .continuous)
+                            .stroke(Color.holoBorder.opacity(0.55), lineWidth: 1)
+                    )
+                }
+            }
+        }
+    }
 
     private func observationsSection(_ observations: [AgentDeepAnalysisNarrativeModel.Observation]) -> some View {
         VStack(spacing: 14) {

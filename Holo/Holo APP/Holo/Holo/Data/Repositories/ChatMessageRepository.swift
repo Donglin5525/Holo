@@ -227,17 +227,21 @@ final class ChatMessageRepository: ObservableObject {
         }
     }
 
-    /// 加载更早的会话，prepend 到 messages 前面。
-    /// 每次取 cursor 之前最近 30 条（跨会话连续加载，不再按 4 小时截断），
-    /// 返回加载前首条消息的 id 作为滚动锚点（加载后视图钉在这条上，新内容出现在它上方屏幕外）。
-    func loadEarlierSessionLightweightMessagesAsync() async -> UUID? {
-        guard let cursor = oldestLoadedTimestamp else { return nil }
+    /// 加载更早的一页消息并 prepend 到 messages 前面。
+    /// 每页只取 16 条，配合顶部预取形成连续滚动，避免一次插入 30 条复杂卡片造成掉帧。
+    /// 具体视口位置由 ChatScrollController 按真实 contentSize 增量保持。
+    func loadEarlierSessionLightweightMessagesAsync(
+        limit: Int = 16
+    ) async -> ChatHistoryPageResult {
+        guard let cursor = oldestLoadedTimestamp else {
+            hasEarlierSessions = false
+            return .loaded(0, hasEarlierMessages: false)
+        }
 
-        let anchorId = messages.first?.id
-        let fetchBatch = 30
+        let fetchBatch = max(1, min(limit, 24))
 
         do {
-            // 查询 cursor 之前最近 30 条（跨会话，不截断）
+            // 查询 cursor 之前最近一小页（跨会话，不截断）
             let sessionIds: [UUID] = try await Task.detached(priority: .utility) {
                 let context = CoreDataStack.shared.newBackgroundContext()
                 return try await context.perform {
@@ -255,7 +259,7 @@ final class ChatMessageRepository: ObservableObject {
 
             guard !sessionIds.isEmpty else {
                 hasEarlierSessions = false
-                return anchorId
+                return .loaded(0, hasEarlierMessages: false)
             }
 
             let newSnapshots: [ChatMessageViewData] = try await Task.detached(priority: .utility) {
@@ -286,7 +290,7 @@ final class ChatMessageRepository: ObservableObject {
                 if let newOldest = newSnapshots.first?.timestamp {
                     oldestLoadedTimestamp = newOldest
                 }
-                return anchorId
+                return .loaded(0, hasEarlierMessages: hasEarlierSessions)
             }
 
             messages = uniqueNew + messages
@@ -308,11 +312,13 @@ final class ChatMessageRepository: ObservableObject {
             }.value
             hasEarlierSessions = hasEarlier
 
-            // 返回加载前首条 id（锚点 = 用户当时看的那条），加载后视图钉在这条上
-            return anchorId
+            return .loaded(
+                uniqueNew.count,
+                hasEarlierMessages: hasEarlier
+            )
         } catch {
             logger.error("加载更早会话失败：\(error.localizedDescription)")
-            return anchorId
+            return .failed(hasEarlierMessages: hasEarlierSessions)
         }
     }
     func loadRecentMessages(limit: Int = 50) -> [ChatMessageViewData] {

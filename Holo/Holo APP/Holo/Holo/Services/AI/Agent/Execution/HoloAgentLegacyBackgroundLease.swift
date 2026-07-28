@@ -16,7 +16,7 @@ import Foundation
 final class HoloAgentLegacyBackgroundLease: HoloAgentExecutionLease {
 
     let kind: HoloAgentExecutionLeaseKind = .legacyBackground
-    /// 绑定的 jobID（scene-sweep 为场景兜底租约的约定 ID，不对应真实 job）
+    /// 绑定的真实 jobID。
     let jobID: String
 
     private let client: any HoloBackgroundTaskClient
@@ -37,10 +37,7 @@ final class HoloAgentLegacyBackgroundLease: HoloAgentExecutionLease {
         // 后台任务名只带 jobID 短标识（不含任何用户内容，§7.4 锁屏隐私）
         let shortID = String(jobID.prefix(8))
         self.taskID = client.beginBackgroundTask(named: "HoloAgentJob-\(shortID)") { [weak self] in
-            guard let self else { return }
-            Task { @MainActor [self] in
-                self.expire()
-            }
+            self?.expire()
         }
     }
 

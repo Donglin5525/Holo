@@ -9,6 +9,17 @@
 
 import Foundation
 
+/// 单个分类的预算对比明细（预算口径，按预算当前周期统计）。
+/// 用于支撑"为什么超支 / 哪类超预算"的归因：对比每类"预算 vs 实际"。
+struct HoloFinanceCategoryBudget: Codable, Equatable, Sendable {
+    var categoryName: String
+    var budgetAmount: Double
+    var spentAmount: Double
+    var remainingAmount: Double
+    var progress: Double
+    var isOverBudget: Bool
+}
+
 struct HoloFinanceBudgetSnapshot: Codable, Equatable, Sendable {
     var totalAmount: Double
     var spentAmount: Double
@@ -16,6 +27,9 @@ struct HoloFinanceBudgetSnapshot: Codable, Equatable, Sendable {
     var progress: Double
     var remainingDays: Int
     var warningCategoryNames: [String]
+    /// 全量分类预算对比明细（不限于 progress >= 0.8 的预警分类）。
+    /// 空表示用户未设置任何分类预算。
+    var categoryBudgets: [HoloFinanceCategoryBudget] = []
 }
 
 struct HoloFinanceAccountSnapshot: Codable, Equatable, Sendable {
@@ -120,6 +134,9 @@ struct HoloFinanceTool: HoloDataTool {
             "finance.budget.spent",
             "finance.budget.remaining",
             "finance.budget.progress",
+            "finance.budget.category.spent",
+            "finance.budget.category.remaining",
+            "finance.budget.category.progress",
             "finance.account.count",
             "finance.account.assets",
             "finance.account.liabilities",
@@ -192,10 +209,24 @@ struct HoloFinanceTool: HoloDataTool {
 
     private func dynamicResult(_ request: HoloToolRequest, plan: HoloDynamicQueryPlan) async -> HoloDataToolResult {
         var scopedPlan = plan
-        scopedPlan.timeRange = plan.timeRange ?? request.timeRange
-        scopedPlan.baseline = plan.baseline
+        let requestedRange = plan.timeRange ?? request.timeRange
+        let resolvedRange = HoloAgentHistoricalTimePolicy.resolve(requestedRange)
+        if resolvedRange.isEntirelyFuture {
+            var result = Self.emptyResult(request)
+            result.warnings = [
+                HoloToolWarning(
+                    code: "FUTURE_RANGE_NOT_HISTORICAL",
+                    message: "所选范围尚未发生，未把未来分期计入历史财务统计"
+                )
+            ]
+            return result
+        }
+        scopedPlan.timeRange = resolvedRange.effectiveRange
+        let requestedBaseline = plan.baseline
             ?? request.baseline
             ?? HoloDynamicQueryRangeResolver.baselineIfNeeded(for: plan, currentRange: scopedPlan.timeRange)
+        let resolvedBaseline = HoloAgentHistoricalTimePolicy.resolve(requestedBaseline)
+        scopedPlan.baseline = resolvedBaseline.isEntirelyFuture ? nil : resolvedBaseline.effectiveRange
         let current = await dataSource.queryRows(timeRange: scopedPlan.timeRange, parameters: request.parameters)
         let baseline = await dataSource.queryRows(timeRange: scopedPlan.baseline, parameters: request.parameters)
         do {
@@ -420,19 +451,57 @@ struct HoloFinanceTool: HoloDataTool {
         let warningText = budget.warningCategoryNames.isEmpty
             ? ""
             : "；接近或超过预算：\(budget.warningCategoryNames.joined(separator: "、"))"
-        let metrics = [
+        var metrics = [
             HoloMetric(metricKey: "finance.budget.total", value: budget.totalAmount, unit: "元", baselineValue: nil, comparison: nil),
             HoloMetric(metricKey: "finance.budget.spent", value: budget.spentAmount, unit: "元", baselineValue: nil, comparison: nil),
             HoloMetric(metricKey: "finance.budget.remaining", value: budget.remainingAmount, unit: "元", baselineValue: nil, comparison: nil),
             HoloMetric(metricKey: "finance.budget.progress", value: budget.progress, unit: "比例", baselineValue: nil, comparison: nil)
         ]
-        let events = [HoloEvidenceEvent(
+        var events = [HoloEvidenceEvent(
             id: "\(request.id)-budget",
             occurredAt: nil,
             metricKey: "finance.budget.remaining",
             metricValue: budget.remainingAmount,
             excerpt: "本月预算 \(Self.moneyText(budget.totalAmount)) 元，已用 \(Self.moneyText(budget.spentAmount)) 元，剩余 \(Self.moneyText(budget.remainingAmount)) 元，周期剩余 \(budget.remainingDays) 天\(warningText)"
         )]
+
+        // 分类预算对比：为每个分类产出 budget/spent/remaining/progress 四项指标。
+        // 进度按 1.0=100% 记录（progress 直存原始比例），便于归因层按"超支/接近上限"排序。
+        // 已花金额取预算周期口径（与预算对齐），不与 spending_breakdown 的近 14 天口径混用。
+        let rankedCategoryBudgets = budget.categoryBudgets
+            .sorted { lhs, rhs in
+                if lhs.progress == rhs.progress { return lhs.spentAmount > rhs.spentAmount }
+                return lhs.progress > rhs.progress
+            }
+        for (index, item) in rankedCategoryBudgets.enumerated() {
+            let suffix = "\(index + 1)"
+            metrics.append(HoloMetric(metricKey: "finance.budget.category.spent", value: item.spentAmount, unit: "元", baselineValue: item.budgetAmount, comparison: item.categoryName))
+            metrics.append(HoloMetric(metricKey: "finance.budget.category.remaining", value: item.remainingAmount, unit: "元", baselineValue: nil, comparison: item.categoryName))
+            metrics.append(HoloMetric(metricKey: "finance.budget.category.progress", value: item.progress, unit: "比例", baselineValue: nil, comparison: item.categoryName))
+
+            let overText: String
+            if item.isOverBudget {
+                overText = "，已超预算"
+            } else if item.progress >= 0.8 {
+                overText = "，接近预算上限"
+            } else {
+                overText = ""
+            }
+            events.append(HoloEvidenceEvent(
+                id: "\(request.id)-budget-category-\(suffix)",
+                occurredAt: nil,
+                metricKey: "finance.budget.category.progress",
+                metricValue: item.progress,
+                excerpt: "分类「\(item.categoryName)」预算 \(Self.moneyText(item.budgetAmount)) 元，已花 \(Self.moneyText(item.spentAmount)) 元（\(Self.percentText(item.progress))）\(overText)",
+                semantic: HoloMetricSemanticFactory.fixedMetricSemantic(
+                    metricKey: "finance.budget.category.spent",
+                    value: item.spentAmount,
+                    unit: "元",
+                    baselineValue: item.budgetAmount,
+                    comparison: item.categoryName
+                )
+            ))
+        }
         return Self.successResult(request, metrics: metrics, events: events)
     }
 

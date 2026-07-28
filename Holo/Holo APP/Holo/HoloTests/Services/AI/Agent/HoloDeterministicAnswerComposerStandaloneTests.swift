@@ -95,7 +95,7 @@ struct HoloDeterministicAnswerComposerStandaloneTests {
             question: "这个月消费比上个月多在哪儿？",
             coverage: HoloDataCoverage(
                 coveredDays: 24, totalDays: 31, coverageRatio: 24.0 / 31.0,
-                missingRanges: [], note: nil
+                missingRanges: [], note: nil, semantics: .eventRecords
             )
         )
 
@@ -103,7 +103,7 @@ struct HoloDeterministicAnswerComposerStandaloneTests {
         expect(result.directAnswer == expected, "直接结论应由合成器产出，实际：\(result.directAnswer ?? "nil")")
         expect(result.summary == expected, "summary 不得含坏模型文案，实际：\(result.summary)")
         expect(result.headline == "本月的支出去向", "headline 应来自合成器，实际：\(result.headline ?? "nil")")
-        expect(result.coverageText?.contains("24/31 天") == true, "覆盖度必须披露")
+        expect(result.coverageText == nil, "交易事件不能按有记录天数披露覆盖度")
 
         let visible = ([result.title, result.summary]
             + [result.headline, result.directAnswer, result.coverageText].compactMap { $0 }
@@ -162,14 +162,28 @@ struct HoloDeterministicAnswerComposerStandaloneTests {
         let evidence = financeComparisonEvidence()
         let task = HoloAnswerTaskDeriver.derive(question: "这个月消费比上个月多在哪儿？", evidence: evidence)!
 
-        let partial = HoloDataCoverage(coveredDays: 24, totalDays: 31, coverageRatio: 24.0 / 31.0, missingRanges: [], note: nil)
+        let partial = HoloDataCoverage(
+            coveredDays: 24,
+            totalDays: 31,
+            coverageRatio: 24.0 / 31.0,
+            missingRanges: [],
+            note: nil,
+            semantics: .dailyObservations
+        )
         let composed = HoloDeterministicAnswerComposer.compose(task: task, evidence: evidence, coverage: partial)
-        expect(composed?.coverageText?.contains("24/31 天有有效记录") == true, "覆盖 24/31 必须披露")
+        expect(composed?.coverageText?.contains("24/31 天有有效观测") == true, "日度覆盖 24/31 必须披露")
         expect(composed?.limitations.isEmpty == true, "24/31 不应触发覆盖不足限制")
 
-        let low = HoloDataCoverage(coveredDays: 10, totalDays: 31, coverageRatio: 10.0 / 31.0, missingRanges: [], note: nil)
+        let low = HoloDataCoverage(
+            coveredDays: 10,
+            totalDays: 31,
+            coverageRatio: 10.0 / 31.0,
+            missingRanges: [],
+            note: nil,
+            semantics: .dailyObservations
+        )
         let limited = HoloDeterministicAnswerComposer.compose(task: task, evidence: evidence, coverage: low)
-        expect(limited?.limitations.contains("数据覆盖不足，结论仅供参考") == true, "覆盖 <0.6 必须有限制说明")
+        expect(limited?.limitations.contains("日度观测覆盖较少，趋势结论仅供参考") == true, "覆盖 <0.6 必须有限制说明")
     }
 
     // MARK: - d) 抵消项与无匹配方向
@@ -410,7 +424,14 @@ struct HoloDeterministicAnswerComposerStandaloneTests {
         expect(tokenVerdict == .recoverable(["INTERNAL_TOKEN"]), "内部 token 应为 recoverable，实际 \(tokenVerdict)")
 
         // 覆盖不足未披露 → recoverable / COVERAGE_UNDISCLOSED
-        let coverage = HoloDataCoverage(coveredDays: 24, totalDays: 31, coverageRatio: 24.0 / 31.0, missingRanges: [], note: nil)
+        let coverage = HoloDataCoverage(
+            coveredDays: 24,
+            totalDays: 31,
+            coverageRatio: 24.0 / 31.0,
+            missingRanges: [],
+            note: nil,
+            semantics: .dailyObservations
+        )
         let coverageVerdict = HoloAnswerCoverageVerifier.verify(
             result: result(summary: "本月支出增加"), evidence: evidence, coverage: coverage
         )

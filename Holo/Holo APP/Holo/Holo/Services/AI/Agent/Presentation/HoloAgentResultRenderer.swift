@@ -14,6 +14,8 @@ nonisolated struct HoloRenderedAgentSection: Codable, Equatable, Sendable {
     var body: String
     /// claim 置信度，可选；旧 JSON 缺失该字段解码为 nil（向后兼容）
     var confidence: Double?
+    /// 原始 claim 类型，用于 UI 区分“建议 / 观察 / 能力边界”，旧结果缺失时按观察展示。
+    var kind: String? = nil
 }
 
 nonisolated struct HoloRenderedFinanceDrilldown: Codable, Equatable, Sendable {
@@ -33,6 +35,44 @@ nonisolated struct HoloRenderedEvidenceReference: Codable, Equatable, Sendable {
     var sourceModule: HoloEvidenceSourceModule? = nil
 }
 
+/// Job 在开始执行时冻结的权威答案上下文。
+/// 时间口径只能从这里进入展示层，Renderer 不再重复解析用户原话。
+nonisolated struct HoloAgentAnswerContext: Equatable, Sendable {
+    var primaryTimeRange: HoloAgentTimeRange?
+    var snapshotCutoffAt: Date?
+}
+
+/// 可持久化的主分析范围，供摘要卡与详情页共同展示。
+nonisolated struct HoloRenderedAnswerScope: Codable, Equatable, Sendable {
+    var label: String
+    var start: Date?
+    var end: Date?
+    var snapshotCutoffAt: Date?
+
+    var displayLabel: String {
+        let trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let end, let snapshotCutoffAt, end > snapshotCutoffAt else {
+            return trimmed
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日"
+        return "\(trimmed) · 截至\(formatter.string(from: snapshotCutoffAt))"
+    }
+}
+
+/// 建议是一级展示实体，不再伪装成普通 section，也不再把第一条提升成开场正文。
+nonisolated struct HoloRenderedRecommendation: Codable, Equatable, Sendable, Identifiable {
+    var id: String
+    var title: String
+    var body: String
+    var priorityLabel: String?
+    var confidence: Double?
+    var evidenceIDs: [String]
+    /// 与主分析范围不同的建议必须显式标注自己的证据范围。
+    var scopeLabel: String?
+}
+
 nonisolated struct HoloRenderedAgentResult: Codable, Equatable, Sendable {
     var title: String
     var summary: String
@@ -45,6 +85,40 @@ nonisolated struct HoloRenderedAgentResult: Codable, Equatable, Sendable {
     var limitations: [String]? = nil
     /// 空结论原因（claims 为空时）。用于 UI 区分"确实没数据"与"有数据但未通过校验"。
     var emptyReason: HoloAgentEmptyReason? = nil
+    /// 新答案契约字段；optional 保证旧消息 JSON 可继续解码。
+    var scope: HoloRenderedAnswerScope? = nil
+    var recommendations: [HoloRenderedRecommendation]? = nil
+    /// v17：LLM 产出的有人味儿自然摘要，供 UI 开场使用。旧消息 JSON 解码为 nil。
+    var narrativeSummary: String? = nil
+}
+
+/// 覆盖度唯一展示策略。调用方只能消费这里的结果，禁止再按 ratio 自行决定文案或可信度。
+nonisolated enum HoloCoveragePresentationPolicy {
+    static func text(_ coverage: HoloDataCoverage?, rangeLabel: String) -> String? {
+        guard let coverage, coverage.semantics == .dailyObservations else { return nil }
+        return "\(rangeLabel)共 \(coverage.totalDays) 天，其中 \(coverage.coveredDays)/\(coverage.totalDays) 天有有效观测"
+    }
+
+    static func limitations(_ coverage: HoloDataCoverage?) -> [String] {
+        guard isCompletenessRelevant(coverage), let ratio = ratio(coverage) else { return [] }
+        return ratio < 0.6 ? ["日度观测覆盖较少，趋势结论仅供参考"] : []
+    }
+
+    static func requiresDisclosure(_ coverage: HoloDataCoverage?) -> Bool {
+        guard isCompletenessRelevant(coverage), let ratio = ratio(coverage) else { return false }
+        return ratio < 0.9
+    }
+
+    private static func isCompletenessRelevant(_ coverage: HoloDataCoverage?) -> Bool {
+        coverage?.semantics == .dailyObservations
+    }
+
+    private static func ratio(_ coverage: HoloDataCoverage?) -> Double? {
+        guard let coverage else { return nil }
+        if let ratio = coverage.coverageRatio { return ratio }
+        guard coverage.totalDays > 0 else { return nil }
+        return Double(coverage.coveredDays) / Double(coverage.totalDays)
+    }
 }
 
 nonisolated struct HoloAgentResultRenderer {
@@ -56,12 +130,16 @@ nonisolated struct HoloAgentResultRenderer {
         title: String = "本期观察",
         question: String? = nil,
         coverage: HoloDataCoverage? = nil,
-        emptyReason: HoloAgentEmptyReason? = nil
+        emptyReason: HoloAgentEmptyReason? = nil,
+        answerContext: HoloAgentAnswerContext? = nil,
+        requestedDeliverables: Set<HoloAgentRequestedDeliverable> = [],
+        narrativeSummary: String? = nil
     ) -> HoloRenderedAgentResult {
         let evidenceByID = Dictionary(evidence.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let assertions = claims.flatMap(\.metricAssertions)
         let primaryAssertion = Self.primaryAssertion(for: question, assertions: assertions)
-        let rangeLabel = Self.rangeLabel(question: question, evidence: evidence)
+        let scope = Self.answerScope(context: answerContext, evidence: evidence)
+        let rangeLabel = scope?.label ?? "本期"
         let headline = Self.headline(
             question: question,
             rangeLabel: rangeLabel,
@@ -115,9 +193,12 @@ nonisolated struct HoloAgentResultRenderer {
             question: question,
             headline: headline,
             directAnswer: directAnswer,
-            coverageText: Self.coverageText(coverage, rangeLabel: rangeLabel),
-            limitations: [],
-            emptyReason: emptyReason
+            coverageText: HoloCoveragePresentationPolicy.text(coverage, rangeLabel: rangeLabel),
+            limitations: HoloCoveragePresentationPolicy.limitations(coverage),
+            emptyReason: emptyReason,
+            scope: scope,
+            recommendations: nil,
+            narrativeSummary: narrativeSummary
         )
 
         // MARK: P4 可观测：语义缺失/旧目录兜底
@@ -136,38 +217,137 @@ nonisolated struct HoloAgentResultRenderer {
         // 证据带类型化语义时，直接结论改由本地合成器产出（P3 已删除 financeComparisonAnswer
         // 等领域特判，比较/排名/拆解/趋势统一走合成器），模型文案降为解释层；
         // 无 semantic 的旧证据完全走上方旧逻辑（HoloMetricSemanticCatalog 兼容层）。
+        //
+        // 诊断类问题（requestedDeliverables 含 .diagnosis）例外：用户要的是"为什么/归因"，
+        // 确定性合成器只能给数值事实句（可靠但不会归因），LLM 的诊断解读句才是用户真正要的答案。
+        // 因此诊断类改"拼接"而非"覆盖"：合成器事实句在前（数字可靠），LLM 解读句在后（自然归因），
+        // 解读句仍经 deliverVerified 清洗内部 token / 未知分组 / 方向冲突，只是不再整段丢弃。
+        let isDiagnosisRequest = requestedDeliverables.contains(.diagnosis)
         var composed: HoloComposedAnswer?
         if HoloAgentResultSemanticsFlags.typedSemanticsEnabled,
            HoloAgentResultSemanticsFlags.deterministicComposerEnabled,
-           let task = HoloAnswerTaskDeriver.derive(question: question, evidence: evidence),
-           let answer = HoloDeterministicAnswerComposer.compose(task: task, evidence: evidence, coverage: coverage) {
-            composed = answer
-            HoloAgentAnswerMetricCounter.shared.increment(.composerUsed, context: task.domain?.rawValue)
-            result.headline = answer.headline
-            result.directAnswer = answer.directAnswer
-            result.summary = answer.directAnswer
-            if let composedCoverage = answer.coverageText {
-                result.coverageText = composedCoverage
-            }
-            if !answer.limitations.isEmpty {
-                result.limitations = answer.limitations
-            }
-            // 解释层 section：命中内部 token 的用合成明细顶替，没有可顶替的丢弃。
-            var spareItems = answer.items
-            result.sections = result.sections.compactMap { section in
-                guard HoloAnswerCoverageVerifier.containsInternalToken(section.body)
-                        || HoloAnswerCoverageVerifier.containsInternalToken(section.title) else {
-                    return section
+           var task = HoloAnswerTaskDeriver.derive(question: question, evidence: evidence) {
+            // Answer Task 负责“回答什么”，Job Context 负责“回答哪个时间”。
+            // 即使 evidence 携带旧 label，也必须由权威主范围覆盖。
+            task.primaryRangeLabel = rangeLabel
+            if let answer = HoloDeterministicAnswerComposer.compose(
+                task: task,
+                evidence: evidence,
+                coverage: coverage
+            ) {
+                composed = answer
+                HoloAgentAnswerMetricCounter.shared.increment(.composerUsed, context: task.domain?.rawValue)
+                if isDiagnosisRequest {
+                    // 诊断类：headline 用合成器点题（数字可靠），directAnswer 用 LLM 归因叙述（自然）。
+                    // LLM 的诊断 claim displayText 本身已含量化归因（"主要来自餐饮，贡献65%"），
+                    // 不再硬拼合成器事实句，避免"两套话"割裂感。
+                    // 归因叙述优先用诊断类 claim 串联；LLM 未产出诊断 claim 时退回合成器事实句。
+                    result.headline = answer.headline
+                    let diagnosisNarrative = claims
+                        .filter { HoloAgentAnswerRequestPolicy.isDiagnosticClaim($0) }
+                        .map { $0.displayText.trimmingCharacters(in: .whitespacesAndNewlines) }
+                        .filter { !$0.isEmpty }
+                        .joined(separator: " ")
+                    if !diagnosisNarrative.isEmpty {
+                        result.directAnswer = diagnosisNarrative
+                    } else {
+                        result.directAnswer = answer.directAnswer
+                    }
+                    result.summary = result.directAnswer ?? ""
+                } else {
+                    // 非诊断类：headline 用合成器点题（数字可靠），但 directAnswer 优先保留 LLM 写的人话。
+                    // 只有当 directAnswer 为空或含机器格式（不干净）时，才用合成器事实句兜底。
+                    // 这样既保留人味儿（LLM 叙事），又保证 headline 的数字可靠。
+                    result.headline = answer.headline
+                    let currentDirect = result.directAnswer ?? ""
+                    let directIsClean = !currentDirect.isEmpty
+                        && !HoloMetricSemanticCatalog.containsInternalToken(currentDirect)
+                    if !directIsClean {
+                        result.directAnswer = answer.directAnswer
+                    }
+                    result.summary = result.directAnswer ?? answer.directAnswer
                 }
-                HoloAgentAnswerMetricCounter.shared.increment(.internalTokenBlocked, context: "section")
-                HoloAgentAnswerMetricCounter.shared.increment(.modelTextDiscarded, context: "section")
-                guard !spareItems.isEmpty else { return nil }
-                let replacement = spareItems.removeFirst()
-                return HoloRenderedAgentSection(title: "数据明细", body: replacement, confidence: section.confidence)
+                if let composedCoverage = answer.coverageText {
+                    result.coverageText = composedCoverage
+                }
+                if !answer.limitations.isEmpty {
+                    result.limitations = answer.limitations
+                }
+                // 解释层 section：命中内部 token 的用合成明细顶替，没有可顶替的丢弃。
+                var spareItems = answer.items
+                result.sections = result.sections.compactMap { section in
+                    guard HoloAnswerCoverageVerifier.containsInternalToken(section.body)
+                            || HoloAnswerCoverageVerifier.containsInternalToken(section.title) else {
+                        return section
+                    }
+                    HoloAgentAnswerMetricCounter.shared.increment(.internalTokenBlocked, context: "section")
+                    HoloAgentAnswerMetricCounter.shared.increment(.modelTextDiscarded, context: "section")
+                    guard !spareItems.isEmpty else { return nil }
+                    let replacement = spareItems.removeFirst()
+                    return HoloRenderedAgentSection(
+                        title: "数据明细",
+                        body: replacement,
+                        confidence: section.confidence,
+                        kind: section.kind
+                    )
+                }
             }
         }
 
+        result = Self.applyingRecommendationHierarchy(
+            to: result,
+            question: question,
+            claims: claims,
+            rangeLabel: rangeLabel,
+            evidenceByID: evidenceByID
+        )
+        // 诊断层级：归因结论由 directAnswer 承载，这里清掉 sections 里与归因重复的诊断 claim，
+        // 避免"开篇讲一遍 → 卡片再讲一遍"。判定依据是 claim 产物类型而非问法关键词，
+        // 因此用户无论问"为什么超支"还是"钱花哪了"，只要 LLM 产出诊断 claim 即介入。
+        result = Self.applyingDiagnosisHierarchy(
+            to: result,
+            claims: claims,
+            rangeLabel: rangeLabel,
+            evidenceByID: evidenceByID
+        )
         return Self.deliverVerified(result, evidence: evidence, coverage: coverage, composed: composed)
+    }
+
+    /// 诊断/归因类问题的信息层级：归因结论由 directAnswer（开篇正文）承载，
+    /// sections 只保留支撑数据，清掉与 directAnswer 重复的诊断 claim section，避免同一句归因反复出现。
+    ///
+    /// 设计原则：归因结论只在开篇出现一次。诊断类 claim（observation/diagnosis/insight/comparison）
+    /// 的 displayText 已经在覆盖块里拼进了 directAnswer，如果再作为 section 展示，用户会看到
+    /// "开篇讲一遍 → N 个同名卡片再讲一遍"的重复。因此这里把这些 section 清掉，
+    /// 只留下非诊断类 claim 产生的纯数据 section（如果有）。
+    ///
+    /// 触发依据是 claim 产物类型（isDiagnosticClaim），不依赖问法关键词。
+    private static func applyingDiagnosisHierarchy(
+        to input: HoloRenderedAgentResult,
+        claims: [HoloAgentClaim],
+        rangeLabel: String,
+        evidenceByID: [String: HoloEvidenceRecord]
+    ) -> HoloRenderedAgentResult {
+        // 没有诊断类 claim 时不介入，避免误伤纯查数场景。
+        let hasDiagnosisClaim = claims.contains { HoloAgentAnswerRequestPolicy.isDiagnosticClaim($0) }
+        guard hasDiagnosisClaim else { return input }
+
+        var result = input
+        // 收集所有诊断 claim 的正文（已拼进 directAnswer），用于从 sections 里剔除重复。
+        let diagnosisBodies = Set(claims
+            .filter { HoloAgentAnswerRequestPolicy.isDiagnosticClaim($0) }
+            .map { Self.normalize($0.displayText.trimmingCharacters(in: .whitespacesAndNewlines)) }
+            .filter { !$0.isEmpty })
+
+        // 清掉与归因结论重复的 section（body 归一化后命中诊断 claim 正文的）。
+        // 保留：建议类（被 recommendations 接管）和非重复的纯数据 section。
+        result.sections = result.sections.filter { section in
+            let kind = section.kind?.lowercased() ?? ""
+            if ["suggestion", "recommendation", "action"].contains(kind) { return true }
+            let bodyKey = Self.normalize(section.body.trimmingCharacters(in: .whitespacesAndNewlines))
+            return !diagnosisBodies.contains(bodyKey)
+        }
+        return result
     }
 
     /// 展示前验证 + 自动恢复：recoverable 先修复再验一次，仍不过或 failed 一律给边界说明，
@@ -238,14 +418,14 @@ nonisolated struct HoloAgentResultRenderer {
             repaired.coverageText = composed?.coverageText
             discarded = true
         }
-        // 覆盖不足未披露时补确定性披露句。
-        if let coverage, !HoloAnswerCoverageVerifier.coverageDisclosed(repaired.coverageText) {
-            let ratio = coverage.coverageRatio
-                ?? (coverage.totalDays > 0 ? Double(coverage.coveredDays) / Double(coverage.totalDays) : 1)
-            if ratio < 0.9 {
-                repaired.coverageText = composed?.coverageText
-                    ?? Self.coverageText(coverage, rangeLabel: "本期")
-            }
+        // 只有日度观测覆盖不足才需要披露；事件记录禁止套用日历天数完整度。
+        if HoloCoveragePresentationPolicy.requiresDisclosure(coverage),
+           !HoloAnswerCoverageVerifier.coverageDisclosed(repaired.coverageText) {
+            repaired.coverageText = composed?.coverageText
+                ?? HoloCoveragePresentationPolicy.text(
+                    coverage,
+                    rangeLabel: repaired.scope?.label ?? "本期"
+                )
         }
         let keptSections = repaired.sections.filter { !violates($0.title) && !violates($0.body) }
         if keptSections.count != repaired.sections.count { discarded = true }
@@ -253,16 +433,47 @@ nonisolated struct HoloAgentResultRenderer {
         return (repaired, discarded)
     }
 
-    /// 失败边界：可理解的说明 + 只保留确定性内容，不展示半成品。
+    /// 失败边界：可理解的说明 + 保留可核对的数据明细，不展示半成品结论。
+    /// 即使确定性合成器（composed）未产出，只要有 evidence，就用 evidence 直接拼事实句，
+    /// 让用户看到"有用的数字"而不是一句空话。文案与实际保留的内容保持一致。
     private static func boundaryResult(
         from result: HoloRenderedAgentResult,
         evidence: [HoloEvidenceRecord],
         composed: HoloComposedAnswer?
     ) -> HoloRenderedAgentResult {
-        let boundary = "这次分析没能形成可信结论，已为你保留数据明细。"
         var sections: [HoloRenderedAgentSection] = []
         if let composed {
-            sections.append(HoloRenderedAgentSection(title: "已核对的数据", body: composed.directAnswer, confidence: nil))
+            sections.append(HoloRenderedAgentSection(
+                title: "已核对的数据",
+                body: composed.directAnswer,
+                confidence: nil,
+                kind: "observation"
+            ))
+        } else if !evidence.isEmpty {
+            // composed 未产出但 evidence 非空：取前 5 条可读事实句，换行分隔（避免长串被 UI 截断）。
+            let factLines = evidence.prefix(5).compactMap { record -> String? in
+                let summary = Self.readableEvidenceSummary(record)
+                return summary.isEmpty ? nil : summary
+            }
+            if !factLines.isEmpty {
+                sections.append(HoloRenderedAgentSection(
+                    title: "已核对的数据",
+                    body: factLines.joined(separator: "\n"),
+                    confidence: nil,
+                    kind: "observation"
+                ))
+            }
+        }
+        let hasDataDetail = !sections.isEmpty
+        let boundary: String
+        if hasDataDetail, !evidence.isEmpty {
+            // 有数据明细时，承认结论未成形 + 简短引导看明细。
+            // 不堆长文案（避免和 sections 数据重复/截断），只给一句诚实的话。
+            boundary = "数据都核对过了，放在下面，但这次还不够稳定到能下明确结论。"
+        } else if hasDataDetail {
+            boundary = "这次没能形成完整结论，但已为你保留可核对的数据明细。"
+        } else {
+            boundary = "这次没有形成可信结论，可能是因为这段时间的可用数据不足。"
         }
         let coverageText = result.coverageText.flatMap {
             HoloAnswerCoverageVerifier.containsInternalToken($0) ? nil : $0
@@ -276,8 +487,37 @@ nonisolated struct HoloAgentResultRenderer {
             headline: nil,
             directAnswer: boundary,
             coverageText: coverageText,
-            limitations: result.limitations
+            limitations: result.limitations,
+            emptyReason: result.emptyReason,
+            scope: result.scope,
+            recommendations: nil
         )
+    }
+
+    /// 从 evidence 的 comparison/baseline 粗略推断整体趋势方向，供兜底文案使用。
+    /// 无法判断时返回 .stable（兜底文案对 stable 的处理是安全的）。
+    private static func inferredTrend(from evidence: [HoloEvidenceRecord]) -> Trend {
+        var ups = 0
+        var downs = 0
+        for record in evidence {
+            let comparison = (record.comparison ?? "").lowercased()
+            if comparison.contains("up") || comparison.contains("increase")
+                || comparison.contains("rise") || comparison.contains("grow") {
+                ups += 1
+            } else if comparison.contains("down") || comparison.contains("decrease")
+                || comparison.contains("fall") || comparison.contains("decline") {
+                downs += 1
+            }
+            // 有 baseline 时用数值比较补充判断
+            if let current = record.metricValue, let baseline = record.baselineValue,
+               baseline != 0 {
+                if current > baseline { ups += 1 }
+                else if current < baseline { downs += 1 }
+            }
+        }
+        if ups > downs { return .up }
+        if downs > ups { return .down }
+        return .stable
     }
 
     private static func primaryAssertion(
@@ -325,18 +565,25 @@ nonisolated struct HoloAgentResultRenderer {
         return assertions.first
     }
 
-    private static func rangeLabel(question: String?, evidence: [HoloEvidenceRecord]) -> String {
-        let text = question ?? ""
-        let candidates = [
-            "最近一个月", "近一个月", "过去一个月", "最近 30 天", "最近30天",
-            "这个月", "本月", "上个月", "上月", "最近两周", "近两周",
-            "最近一周", "近一周", "本周", "今天", "昨日", "昨天"
-        ]
-        if let matched = candidates.first(where: { text.contains($0) }) {
-            return matched == "这个月" ? "本月" : matched
+    private static func answerScope(
+        context: HoloAgentAnswerContext?,
+        evidence: [HoloEvidenceRecord]
+    ) -> HoloRenderedAnswerScope? {
+        if let range = context?.primaryTimeRange {
+            return HoloRenderedAnswerScope(
+                label: nonEmpty(range.label) ?? "本期",
+                start: range.start,
+                end: range.end,
+                snapshotCutoffAt: context?.snapshotCutoffAt
+            )
         }
-        return evidence.compactMap { $0.timeRange?.label.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .first { !$0.isEmpty } ?? "本期"
+        guard let range = evidence.compactMap(\.timeRange).first else { return nil }
+        return HoloRenderedAnswerScope(
+            label: nonEmpty(range.label) ?? "本期",
+            start: range.start,
+            end: range.end,
+            snapshotCutoffAt: context?.snapshotCutoffAt
+        )
     }
 
     private static func headline(
@@ -398,6 +645,17 @@ nonisolated struct HoloAgentResultRenderer {
         claims: [HoloAgentClaim],
         evidenceByID: [String: HoloEvidenceRecord]
     ) -> (text: String?, usedCatalog: Bool) {
+        // 优先使用 LLM 写的自然语言 displayText（人味儿来源）。
+        // 数字可靠性已由 Claim 核验器保障（unsupportedNumbers 在 verify 阶段拦截无证据数字），
+        // 这里只做格式清洗：含机器标识（metricKey/公式/下划线）的 displayText 不可直接展示，跳过。
+        // 仅当所有 displayText 都不干净时，才降级到确定性模板句子（数字可靠但无人味儿）。
+        let humanText = claims.map(\.displayText)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty && !HoloMetricSemanticCatalog.containsInternalToken($0) }
+        if let humanText {
+            return (humanText, false)
+        }
+        // 降级路径：用结构化 assertion 拼确定性事实句。
         if let assertion = primaryAssertion,
            let sentence = HoloMetricSemanticCatalog.sentence(
                metricKey: assertion.metricKey,
@@ -415,10 +673,7 @@ nonisolated struct HoloAgentResultRenderer {
             }
             return ("\(rangeLabel)，\(sentence)", true)
         }
-        let fallback = claims.map(\.displayText)
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .first { !$0.isEmpty && !HoloMetricSemanticCatalog.containsInternalToken($0) }
-        return (fallback, false)
+        return (nil, false)
     }
 
     private static func sections(
@@ -450,6 +705,7 @@ nonisolated struct HoloAgentResultRenderer {
                         ),
                         body: body,
                         confidence: claim.confidence,
+                        kind: claim.type,
                         directAnswer: directAnswer,
                         seenBodies: &seenBodies,
                         output: &output
@@ -472,6 +728,7 @@ nonisolated struct HoloAgentResultRenderer {
                 title: resolvedTitle,
                 body: rawBody,
                 confidence: claim.confidence,
+                kind: claim.type,
                 directAnswer: directAnswer,
                 seenBodies: &seenBodies,
                 output: &output
@@ -532,6 +789,7 @@ nonisolated struct HoloAgentResultRenderer {
         title: String,
         body: String,
         confidence: Double,
+        kind: String,
         directAnswer: String?,
         seenBodies: inout Set<String>,
         output: inout [HoloRenderedAgentSection]
@@ -546,7 +804,134 @@ nonisolated struct HoloAgentResultRenderer {
             uniqueTitle = shortTitle(from: body)
         }
         if uniqueTitle == body || uniqueTitle.isEmpty { uniqueTitle = "数据解读" }
-        output.append(HoloRenderedAgentSection(title: uniqueTitle, body: body, confidence: confidence))
+        output.append(HoloRenderedAgentSection(
+            title: uniqueTitle,
+            body: body,
+            confidence: confidence,
+            kind: kind
+        ))
+    }
+
+    /// 优化/建议类问题采用“行动优先、事实支撑、证据折叠”的信息层级。
+    /// 确定性合成器仍负责数值事实，但不再覆盖用户真正要求的行动答案。
+    private static func applyingRecommendationHierarchy(
+        to input: HoloRenderedAgentResult,
+        question: String?,
+        claims: [HoloAgentClaim],
+        rangeLabel: String,
+        evidenceByID: [String: HoloEvidenceRecord]
+    ) -> HoloRenderedAgentResult {
+        guard HoloAgentAnswerRequestPolicy.requestsRecommendations(question) else {
+            return input
+        }
+        let typedRecommendations = claims.compactMap {
+            renderedRecommendation(
+                from: $0,
+                primaryRangeLabel: rangeLabel,
+                evidenceByID: evidenceByID
+            )
+        }
+        guard !typedRecommendations.isEmpty else { return input }
+
+        var result = input
+        let factualAnswer = result.directAnswer?.trimmingCharacters(in: .whitespacesAndNewlines)
+        result.recommendations = typedRecommendations
+        result.headline = {
+            let current = result.headline?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            if current.contains("优化") || current.contains("建议") { return current }
+            if !current.isEmpty { return "\(current)优化建议" }
+            return "\(rangeLabel)优化建议"
+        }()
+        let actionTitles = typedRecommendations.prefix(2).map(\.title)
+        if actionTitles.count == 1 {
+            result.directAnswer = "优先优化：\(actionTitles[0])。"
+        } else if actionTitles.count >= 2 {
+            result.directAnswer = "优先处理\(actionTitles[0])；其次处理\(actionTitles[1])。"
+        }
+        result.summary = result.directAnswer ?? factualAnswer ?? result.summary
+
+        var facts = result.sections.filter {
+            let kind = $0.kind?.lowercased() ?? ""
+            return !["suggestion", "recommendation", "action"].contains(kind)
+        }
+
+        if let factualAnswer,
+           !factualAnswer.isEmpty,
+           !facts.contains(where: { normalize($0.body) == normalize(factualAnswer) }) {
+            facts.insert(HoloRenderedAgentSection(
+                title: "关键依据",
+                body: factualAnswer,
+                confidence: nil,
+                kind: "observation"
+            ), at: 0)
+        }
+
+        // 新 UI 只消费 recommendations；sections 保留事实层和旧消息兼容，不再承担建议排序。
+        result.sections = Array(facts.prefix(4))
+        return result
+    }
+
+    private static func renderedRecommendation(
+        from claim: HoloAgentClaim,
+        primaryRangeLabel: String,
+        evidenceByID: [String: HoloEvidenceRecord]
+    ) -> HoloRenderedRecommendation? {
+        guard HoloAgentAnswerRequestPolicy.isRecommendationClaim(claim) else { return nil }
+        let raw = claim.displayText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !raw.isEmpty else { return nil }
+        let parsed = recommendationCopy(from: raw)
+        let evidenceIDs = Array(Set(
+            claim.metricAssertions.flatMap(\.evidenceIDs) + claim.evidenceIDs
+        )).sorted()
+        let itemRangeLabel = evidenceIDs
+            .compactMap { evidenceByID[$0]?.timeRange?.label }
+            .compactMap(nonEmpty)
+            .first
+        let scopeLabel = itemRangeLabel.flatMap {
+            normalize($0) == normalize(primaryRangeLabel) ? nil : $0
+        }
+        return HoloRenderedRecommendation(
+            id: claim.id,
+            title: parsed.title,
+            body: parsed.body,
+            priorityLabel: parsed.priorityLabel,
+            confidence: claim.confidence,
+            evidenceIDs: evidenceIDs,
+            scopeLabel: scopeLabel
+        )
+    }
+
+    /// 旧模型把“建议序号/优先级/正文”塞在一个字符串里。这里是唯一兼容边界；
+    /// 新 UI 从此只接收结构化 Recommendation，不再自行解析或重排。
+    private static func recommendationCopy(
+        from raw: String
+    ) -> (title: String, body: String, priorityLabel: String?) {
+        let priorityLabel: String? = {
+            if raw.contains("高优先级") { return "高优先级" }
+            if raw.contains("中优先级") { return "中优先级" }
+            if raw.contains("低优先级") { return "低优先级" }
+            return nil
+        }()
+        let prefixPattern = #"^\s*建议\s*\d*\s*(?:[（(]\s*(?:高|中|低)?优先级\s*[）)])?\s*[：:]?\s*"#
+        let cleaned = raw.replacingOccurrences(
+            of: prefixPattern,
+            with: "",
+            options: .regularExpression
+        ).trimmingCharacters(in: .whitespacesAndNewlines)
+        let firstSentenceEnd = cleaned.firstIndex { "。！？!?\n".contains($0) }
+        let titleSource: String
+        let remainder: String
+        if let firstSentenceEnd {
+            titleSource = String(cleaned[..<firstSentenceEnd])
+            let after = cleaned.index(after: firstSentenceEnd)
+            remainder = String(cleaned[after...]).trimmingCharacters(in: .whitespacesAndNewlines)
+        } else {
+            titleSource = cleaned
+            remainder = ""
+        }
+        let title = shortTitle(from: titleSource)
+        let body = remainder.isEmpty ? cleaned : remainder
+        return (title, body, priorityLabel)
     }
 
     private static func shortTitle(from text: String) -> String {
@@ -565,20 +950,43 @@ nonisolated struct HoloAgentResultRenderer {
             .filter { !$0.isWhitespace && !"，,；;。.!！?？：:".contains($0) }
     }
 
-    private static func coverageText(_ coverage: HoloDataCoverage?, rangeLabel: String) -> String? {
-        guard let coverage else { return nil }
-        return "\(rangeLabel)共 \(coverage.totalDays) 天，其中 \(coverage.coveredDays)/\(coverage.totalDays) 天有有效记录"
+    private static func nonEmpty(_ text: String) -> String? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
     }
 
     private static func readableEvidenceSummary(_ record: HoloEvidenceRecord) -> String {
         let summary = record.redactedExcerpt.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard HoloMetricSemanticCatalog.containsInternalToken(summary) else { return summary }
-        return HoloMetricSemanticCatalog.sentence(
-            metricKey: record.metricKey,
-            value: record.metricValue,
-            unit: record.unit,
-            comparison: record.comparison
-        ) ?? "该数据已完成核对"
+        // 第一道：含已知内部 token（metricKey 前缀/公式/下划线）→ 走语义重写
+        if HoloMetricSemanticCatalog.containsInternalToken(summary) {
+            return HoloMetricSemanticCatalog.sentence(
+                metricKey: record.metricKey,
+                value: record.metricValue,
+                unit: record.unit,
+                comparison: record.comparison
+            ) ?? "该数据已完成核对"
+        }
+        // 第二道（纵深防御）：excerpt 里混进了裸英文工具词（steps/sleep/stand 等），
+        // 这些不含内部 token 前缀骗不过第一道，但用户看不懂。命中时也走语义重写。
+        if Self.containsRawToolWord(summary) {
+            return HoloMetricSemanticCatalog.sentence(
+                metricKey: record.metricKey,
+                value: record.metricValue,
+                unit: record.unit,
+                comparison: record.comparison
+            ) ?? "该数据已完成核对"
+        }
+        return summary
+    }
+
+    /// 检测文本是否混入了裸英文工具标识词（健康指标 rawValue 等）。
+    /// 仅检测已知会泄漏的英文单词，避免误伤用户备注里合法的英文内容。
+    private static func containsRawToolWord(_ text: String) -> Bool {
+        let rawWords = ["steps", "sleep", "stand", "activity", "workout"]
+        let lower = text.lowercased()
+        return rawWords.contains { word in
+            lower.contains(word)
+        }
     }
 
     private static func financeDrilldown(for record: HoloEvidenceRecord) -> HoloRenderedFinanceDrilldown? {

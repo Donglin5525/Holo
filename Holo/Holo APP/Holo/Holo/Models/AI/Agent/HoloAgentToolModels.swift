@@ -192,6 +192,9 @@ nonisolated enum HoloMetricSemanticCatalog {
         case "finance.budget.spent": return "已用预算"
         case "finance.budget.remaining": return "剩余预算"
         case "finance.budget.progress": return "预算使用率"
+        case "finance.budget.category.spent": return "分类已花预算"
+        case "finance.budget.category.remaining": return "分类剩余预算"
+        case "finance.budget.category.progress": return "分类预算使用率"
         case "finance.account.count": return "账户数量"
         case "finance.account.assets": return "总资产"
         case "finance.account.liabilities": return "总负债"
@@ -457,13 +460,25 @@ nonisolated struct HoloEvidenceEvent: Codable, Equatable, Sendable {
     var semantic: HoloMetricSemantic? = nil
 }
 
-/// 工具查询的数据覆盖度（判断结论可信度的依据）
+/// “覆盖率”不是所有数据集都能用同一算法解释。
+/// 只有预期每天都有观测值的数据才能用“有记录天数 / 日历天数”衡量完整度；
+/// 交易、任务、想法等事件型数据没有记录本身就是有效事实，不能据此宣称证据不足。
+nonisolated enum HoloDataCoverageSemantics: String, Codable, Equatable, Sendable {
+    case eventRecords
+    case dailyObservations
+    case currentSnapshot
+}
+
+/// 工具查询的数据覆盖度。semantics 是覆盖数字能否被解释为“完整度”的强制语义，
+/// 展示层不得再仅凭 coveredDays / totalDays 猜测可信度。
 nonisolated struct HoloDataCoverage: Codable, Equatable, Sendable {
     var coveredDays: Int
     var totalDays: Int
     var coverageRatio: Double?
     var missingRanges: [HoloAgentTimeRange]
     var note: String?
+    /// 旧数据缺失时不推断、不展示覆盖警告；新工具必须明确声明。
+    var semantics: HoloDataCoverageSemantics? = nil
 }
 
 // MARK: - 工具结果

@@ -63,6 +63,43 @@ nonisolated struct HoloAgentResolvedTimeScopeExtended: Equatable, Sendable {
 
 nonisolated enum HoloAgentTimeSemanticExtended {
 
+    /// 统一入口：扩展语义优先，未命中时必须回退基础 Resolver。
+    /// 此前 SemanticFrame 只调用 `resolveExtended`，导致“2026年/本月/近30天”等基础时间
+    /// 在任务画像中消失，预算和完成度判断与真正执行范围不一致。
+    static func resolveWithFallback(
+        _ text: String,
+        referenceDate: Date = Date(),
+        calendar: Calendar = .current
+    ) -> HoloAgentResolvedTimeScopeExtended? {
+        if let extended = resolveExtended(
+            text,
+            referenceDate: referenceDate,
+            calendar: calendar
+        ) {
+            return extended
+        }
+        guard let scope = HoloAgentTimeSemanticResolver.resolve(
+            text,
+            referenceDate: referenceDate,
+            calendar: calendar
+        ) else { return nil }
+        let historical = HoloAgentHistoricalTimePolicy.resolve(
+            scope.timeRange,
+            asOf: referenceDate,
+            calendar: calendar
+        )
+        return HoloAgentResolvedTimeScopeExtended(
+            scope: scope,
+            assumption: HoloAgentTimeAssumption(
+                assumption: "「\(scope.matchedText)」解析为\(scope.timeRange.label)",
+                completeness: historical.wasCapped ? .partial : .complete,
+                comparisonAlignment: nil,
+                isIncompletePeriod: historical.wasCapped
+            ),
+            extendedKind: nil
+        )
+    }
+
     /// 尝试解析扩展时间语义（季度、年初至今、工作日/周末、月至今）。
     /// 返回 nil 时回退到原有 Resolver 的单窗/双窗语义。
     static func resolveExtended(

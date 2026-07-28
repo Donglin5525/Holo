@@ -178,10 +178,10 @@ struct HoloDiscoverTool: HoloDataTool {
     // MARK: - Health 探查（静态，不触发 HealthKit）
 
     /// 只返回健康域支持的类型清单，不读 HealthKit（避免锁屏/授权问题）。
-    /// 模型据此知道"健康数据有 steps/sleep/stand/activity 四类"，具体有无数据要靠 health 工具查。
+    /// 模型据此知道"健康数据有 步数/睡眠/站立/活动 四类"，具体有无数据要靠 health 工具查。
     private func discoverHealthTypes(now: Date) -> DomainDiscovery {
         let kinds = HoloHealthMetricKind.allCases
-        let kindNames = kinds.map(\.rawValue).joined(separator: "、")
+        let kindNames = kinds.map(\.displayLabel).joined(separator: "、")
         let excerpt = "健康数据支持类型：\(kindNames)；具体有无数据需用 health 工具查询"
         let event = HoloEvidenceEvent(
             id: "discover-health-types",

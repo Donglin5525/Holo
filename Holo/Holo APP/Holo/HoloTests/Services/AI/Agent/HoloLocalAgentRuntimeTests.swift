@@ -101,6 +101,240 @@ actor FakeAgentLLMClient: HoloAgentLLMClientProtocol {
     }
 }
 
+/// 用户问“2026 年有哪些需要优化”时的三轮端到端脚本：
+/// 1) 模型错误请求近30天；2) 建议夹带无证据预算/节省金额；
+/// 3) 收到完成度纠错后给出不编造数字目标的证据化建议。
+actor FinanceOptimizationAgentLLMClient: HoloAgentLLMClientProtocol {
+    private(set) var callCount = 0
+
+    func next(messages: [HoloAgentMessage]) async throws -> String {
+        callCount += 1
+        if callCount == 1 {
+            return """
+            {"status":"need_tools","reasoning":"先查近30天","toolRequests":[{"id":"finance-year-analysis","tool":"finance","query":"spending_breakdown","timeRange":{"label":"近30天","start":"2026-06-27T00:00:00Z","end":"2026-07-27T00:00:00Z"},"baseline":null,"requiredMetrics":[],"parameters":{}}],"claims":[],"warnings":[]}
+            """
+        }
+
+        let context = messages.map(\.content).joined(separator: "\n")
+        let totalEvidence = evidenceID(in: context, suffix: "event-total")
+        let categoryEvidence = evidenceID(in: context, suffix: "event-category-meal")
+        let observation = """
+        {"id":"year-total","type":"observation","displayText":"2026年截至当前总支出为14598.83元，餐饮是金额最高的可优化分类之一","metricAssertions":[{"metricKey":"finance.total.amount","value":14598.83,"baselineValue":null,"unit":"元","comparison":null,"evidenceIDs":["\(totalEvidence)"]}],"evidenceIDs":["\(totalEvidence)"],"prohibitedInferences":[],"confidence":0.9}
+        """
+        if callCount == 2 {
+            let inventedSuggestion = """
+            {"id":"invented-budget","type":"suggestion","displayText":"把餐饮预算控制在每月1500元以内，预计节省600-1200元","metricAssertions":[{"metricKey":"finance.category.amount","value":3516,"baselineValue":null,"unit":"元","comparison":"餐饮","evidenceIDs":["\(categoryEvidence)"]}],"evidenceIDs":["\(categoryEvidence)"],"prohibitedInferences":[],"confidence":0.84}
+            """
+            return """
+            {"status":"final_claims","reasoning":"先给出带数字目标的建议","toolRequests":[],"claims":[\(observation),\(inventedSuggestion)],"warnings":[]}
+            """
+        }
+        let suggestion = """
+        {"id":"optimize-meals","type":"suggestion","displayText":"优先复核餐饮支出：先查看高频和大额餐饮明细，再为下个月设置可执行的餐饮上限","metricAssertions":[{"metricKey":"finance.category.amount","value":3516,"baselineValue":null,"unit":"元","comparison":"餐饮","evidenceIDs":["\(categoryEvidence)"]}],"evidenceIDs":["\(categoryEvidence)"],"prohibitedInferences":["不推断具体预算目标"],"confidence":0.84}
+        """
+        return """
+        {"status":"final_claims","reasoning":"补齐优化建议","toolRequests":[],"claims":[\(observation),\(suggestion)],"warnings":[]}
+        """
+    }
+
+    private func evidenceID(in text: String, suffix: String) -> String {
+        let pattern = #"[A-Za-z0-9-]+:finance:finance-year-analysis:[A-Za-z0-9._:-]*"# + suffix
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(
+                in: text,
+                range: NSRange(text.startIndex..<text.endIndex, in: text)
+              ),
+              let range = Range(match.range, in: text) else {
+            return "missing-\(suffix)"
+        }
+        return String(text[range])
+    }
+}
+
+/// 跨域真实多轮：睡眠 × 消费。验证完成度契约不是财务单域特判。
+actor CrossDomainOptimizationAgentLLMClient: HoloAgentLLMClientProtocol {
+    private(set) var callCount = 0
+    private(set) var messageBatches: [[HoloAgentMessage]] = []
+
+    func next(messages: [HoloAgentMessage]) async throws -> String {
+        callCount += 1
+        messageBatches.append(messages)
+        if callCount == 1 {
+            return """
+            {"status":"need_tools","reasoning":"对齐睡眠和消费","toolRequests":[{"id":"sleep-finance-2026","tool":"cross_domain","query":"aligned_analysis","crossDomainPlan":{"leftSource":"health.sleep","leftField":"value","rightSource":"finance.transactions","rightField":"amount","operation":"correlation","minimumAlignedDays":5,"timeRange":{"label":"近30天","start":"2026-06-27T00:00:00Z","end":"2026-07-27T00:00:00Z"}}}],"claims":[],"warnings":[]}
+            """
+        }
+        let context = messages.map(\.content).joined(separator: "\n")
+        let evidence = evidenceID(in: context)
+        let observation = """
+        {"id":"cross-observation","type":"observation","displayText":"2026年截至当前，睡眠时长与消费金额存在中等相关信号，但不能据此判断因果","metricAssertions":[{"metricKey":"dynamic.cross.correlation.health_sleep_finance_transactions","value":0.42,"baselineValue":null,"unit":"相关系数","comparison":"aligned_days=40","evidenceIDs":["\(evidence)"]}],"evidenceIDs":["\(evidence)"],"prohibitedInferences":["不推断睡眠导致消费"],"confidence":0.76}
+        """
+        if callCount == 2 {
+            return """
+            {"status":"final_claims","reasoning":"已经找到相关信号","toolRequests":[],"claims":[\(observation)],"warnings":[]}
+            """
+        }
+        let suggestion = """
+        {"id":"cross-suggestion","type":"suggestion","displayText":"先连续观察睡眠不足日与高消费日是否重复重合，再决定是否调整晚间消费习惯","metricAssertions":[{"metricKey":"dynamic.cross.correlation.health_sleep_finance_transactions","value":0.42,"baselineValue":null,"unit":"相关系数","comparison":"aligned_days=40","evidenceIDs":["\(evidence)"]}],"evidenceIDs":["\(evidence)"],"prohibitedInferences":["不把相关性表述为因果"],"confidence":0.72}
+        """
+        return """
+        {"status":"final_claims","reasoning":"补齐跨域行动建议","toolRequests":[],"claims":[\(observation),\(suggestion)],"warnings":[]}
+        """
+    }
+
+    private func evidenceID(in text: String) -> String {
+        let pattern = #"[A-Za-z0-9-]+:cross_domain:sleep-finance-2026:cross-health-finance"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(
+                  in: text,
+                  range: NSRange(text.startIndex..<text.endIndex, in: text)
+              ),
+              let range = Range(match.range, in: text) else {
+            return "missing-cross-evidence"
+        }
+        return String(text[range])
+    }
+}
+
+/// 单域真实多轮脚本：故意先偷换成近 30 天、再只返回事实，
+/// 用同一套协议验证健康/习惯/待办/目标/观点都能被 Runtime 纠正到用户年份并补齐建议。
+actor DomainOptimizationAgentLLMClient: HoloAgentLLMClientProtocol {
+    let tool: String
+    let query: String
+    let metricKey: String
+    let value: Double
+    let unit: String
+    let observationText: String
+    let suggestionText: String
+    private(set) var callCount = 0
+
+    init(
+        tool: String,
+        query: String,
+        metricKey: String,
+        value: Double,
+        unit: String,
+        observationText: String,
+        suggestionText: String
+    ) {
+        self.tool = tool
+        self.query = query
+        self.metricKey = metricKey
+        self.value = value
+        self.unit = unit
+        self.observationText = observationText
+        self.suggestionText = suggestionText
+    }
+
+    func next(messages: [HoloAgentMessage]) async throws -> String {
+        callCount += 1
+        if callCount == 1 {
+            return """
+            {"status":"need_tools","reasoning":"先查近30天","toolRequests":[{"id":"domain-\(tool)","tool":"\(tool)","query":"\(query)","timeRange":{"label":"近30天","start":"2026-06-27T00:00:00Z","end":"2026-07-27T00:00:00Z"},"baseline":null,"requiredMetrics":[],"parameters":{}}],"claims":[],"warnings":[]}
+            """
+        }
+
+        let context = messages.map(\.content).joined(separator: "\n")
+        let evidence = evidenceID(in: context)
+        let observation = """
+        {"id":"\(tool)-observation","type":"observation","displayText":"\(observationText)","metricAssertions":[{"metricKey":"\(metricKey)","value":\(value),"baselineValue":null,"unit":"\(unit)","comparison":null,"evidenceIDs":["\(evidence)"]}],"evidenceIDs":["\(evidence)"],"prohibitedInferences":[],"confidence":0.86}
+        """
+        if callCount == 2 {
+            return """
+            {"status":"final_claims","reasoning":"先返回数据事实","toolRequests":[],"claims":[\(observation)],"warnings":[]}
+            """
+        }
+        let suggestion = """
+        {"id":"\(tool)-suggestion","type":"suggestion","displayText":"\(suggestionText)","metricAssertions":[{"metricKey":"\(metricKey)","value":\(value),"baselineValue":null,"unit":"\(unit)","comparison":null,"evidenceIDs":["\(evidence)"]}],"evidenceIDs":["\(evidence)"],"prohibitedInferences":[],"confidence":0.8}
+        """
+        return """
+        {"status":"final_claims","reasoning":"补齐用户要求的优化动作","toolRequests":[],"claims":[\(observation),\(suggestion)],"warnings":[]}
+        """
+    }
+
+    private func evidenceID(in text: String) -> String {
+        let pattern = #"[A-Za-z0-9-]+:"# + NSRegularExpression.escapedPattern(for: tool)
+            + #":domain-"# + NSRegularExpression.escapedPattern(for: tool)
+            + #":domain-event"#
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(
+                  in: text,
+                  range: NSRange(text.startIndex..<text.endIndex, in: text)
+              ),
+              let range = Range(match.range, in: text) else {
+            return "missing-domain-evidence"
+        }
+        return String(text[range])
+    }
+}
+
+actor DomainOptimizationToolExecutor: HoloAgentToolExecuting {
+    let tool: String
+    let metricKey: String
+    let value: Double
+    let unit: String
+    private(set) var requests: [HoloToolRequest] = []
+
+    init(tool: String, metricKey: String, value: Double, unit: String) {
+        self.tool = tool
+        self.metricKey = metricKey
+        self.value = value
+        self.unit = unit
+    }
+
+    func execute(_ request: HoloToolRequest) async -> HoloDataToolResult {
+        requests.append(request)
+        if request.tool == "discover" {
+            return HoloDataToolResult(
+                toolRequestID: request.id,
+                tool: request.tool,
+                status: .success,
+                coverage: nil,
+                metrics: [],
+                events: [],
+                warnings: [],
+                error: nil
+            )
+        }
+        return HoloDataToolResult(
+            toolRequestID: request.id,
+            tool: request.tool,
+            status: .success,
+            coverage: nil,
+            metrics: [
+                HoloMetric(
+                    metricKey: metricKey,
+                    value: value,
+                    unit: unit,
+                    baselineValue: nil,
+                    comparison: nil
+                )
+            ],
+            events: [
+                HoloEvidenceEvent(
+                    id: "domain-event",
+                    occurredAt: makeEvidenceDate(),
+                    metricKey: metricKey,
+                    metricValue: value,
+                    excerpt: "\(metricKey) = \(value) \(unit)",
+                    timeRange: request.timeRange
+                )
+            ],
+            warnings: [],
+            error: nil,
+            sensitivity: tool == "health" ? .sensitive : .normal
+        )
+    }
+
+    func promptDescription() async -> String { "" }
+
+    private func makeEvidenceDate() -> Date {
+        Calendar(identifier: .gregorian).date(
+            from: DateComponents(year: 2026, month: 7, day: 20)
+        )!
+    }
+}
+
 /// HTTP 层受控重试耗尽后仍不可用时，runtime 应进入可恢复等待，而不是把 job 判死。
 actor TransientFailureAgentLLMClient: HoloAgentLLMClientProtocol {
     func next(messages: [HoloAgentMessage]) async throws -> String {
@@ -211,6 +445,39 @@ actor FakeToolExecutor: HoloAgentToolExecuting {
                 sensitivity: .sensitive
             )
         }
+        if request.crossDomainPlan != nil {
+            let metric = HoloMetric(
+                metricKey: "dynamic.cross.correlation.health_sleep_finance_transactions",
+                value: 0.42,
+                unit: "相关系数",
+                baselineValue: nil,
+                comparison: "aligned_days=40",
+                formula: "pearson_correlation",
+                sourceRecordIDs: ["sleep-1", "finance-1"]
+            )
+            return HoloDataToolResult(
+                toolRequestID: request.id,
+                tool: request.tool,
+                status: .success,
+                coverage: nil,
+                metrics: [metric],
+                events: [
+                    HoloEvidenceEvent(
+                        id: "cross-health-finance",
+                        occurredAt: Date(),
+                        metricKey: metric.metricKey,
+                        metricValue: metric.value,
+                        excerpt: "睡眠与消费相关系数 0.42，对齐 40 天",
+                        timeRange: request.timeRange,
+                        formula: metric.formula,
+                        sourceRecordIDs: metric.sourceRecordIDs
+                    )
+                ],
+                warnings: [],
+                error: nil,
+                sensitivity: .sensitive
+            )
+        }
         if request.query == "spending_breakdown" {
             return HoloDataToolResult(toolRequestID: request.id, tool: request.tool, status: .success,
                                       coverage: nil,
@@ -306,6 +573,9 @@ struct HoloLocalAgentRuntimeTests {
         try await testStartAnalysisJob_带年份月份问题写入指定年月范围()
         try await testRunLoop_上个月工具请求缺少范围时继承上月范围()
         try await testRunLoop_工具请求缺少范围时继承Job范围()
+        try await testRunLoop_用户年份覆盖模型近30天并补齐优化建议()
+        try await testRunLoop_所有单域优化都锁定年份并补齐建议()
+        try await testRunLoop_跨域优化同样锁定年份并补齐建议()
         try await testRunLoop_财务去向问题先强制查询账单拆分()
         try await testRunLoop_财务工具已返回但模型JSON解析失败时用工具结果完成()
         try await testRunLoop_结构失败不会在用户轮数上限前提前终止()
@@ -727,6 +997,177 @@ struct HoloLocalAgentRuntimeTests {
         expect(requests.first?.timeRange?.end == month.end, "工具请求 end 应为下月首日 exclusive")
     }
 
+    /// 复现真实投诉及生产评测：用户问 2026 年，模型擅自查近30天；
+    /// 随后建议又夹带无证据预算/节省金额。Runtime 必须锁定用户年份，
+    /// 并把这种“看起来具体、实际编造”的 suggestion 当作未完成，自动纠错一次。
+    private static func testRunLoop_用户年份覆盖模型近30天并补齐优化建议() async throws {
+        let dir = makeTempDir()
+        let client = FinanceOptimizationAgentLLMClient()
+        let executor = FakeToolExecutor()
+        let fixture = makeLoopRuntime(dir: dir, llmClient: client, toolExecutor: executor)
+        let now = makeDate(2026, 7, 26)
+
+        let job = try await fixture.runtime.startAnalysisJob(
+            question: "分析我2026年的财务数据，有哪些需要优化的地方？",
+            now: now
+        )
+        let completed = try await fixture.runtime.runLoop(
+            jobID: job.id,
+            systemTemplate: "你是 Agent",
+            toolDescriptions: "【finance】财务工具",
+            now: now.addingTimeInterval(1)
+        )
+
+        let requests = await executor.requests
+        let financeRequests = requests.filter { $0.tool == "finance" }
+        expect(financeRequests.count == 1, "只应执行一次财务分析查询；discover 可独立执行，实际 \(requests.count)")
+        expect(financeRequests.first?.timeRange?.label == "2026年", "用户 2026 年必须覆盖模型近30天")
+        expect(financeRequests.first?.timeRange?.start == makeDate(2026, 1, 1), "工具起点必须是 2026-01-01")
+        expect(financeRequests.first?.timeRange?.end == makeDate(2027, 1, 1), "Runtime 应完整保留用户自然年，事实工具再按快照日截断")
+        let llmCallCount = await client.callCount
+        expect(llmCallCount == 3, "第二轮建议夹带无证据数字时应自动补一轮答案完成度纠错")
+        expect(completed.state == .completed, "补齐建议后任务应完成")
+
+        let saved = try await fixture.runtime.loadLatestResult()
+        expect(saved?.claims.contains(where: { $0.type == "suggestion" }) == true, "优化问题必须保留证据化建议")
+        expect(saved?.summary.contains("优先复核餐饮支出") == true, "最终产出必须直接包含可执行优化建议")
+    }
+
+    private static func testRunLoop_跨域优化同样锁定年份并补齐建议() async throws {
+        let dir = makeTempDir()
+        let client = CrossDomainOptimizationAgentLLMClient()
+        let executor = FakeToolExecutor()
+        let fixture = makeLoopRuntime(dir: dir, llmClient: client, toolExecutor: executor)
+        let now = makeDate(2026, 7, 26)
+
+        let job = try await fixture.runtime.startAnalysisJob(
+            question: "分析我2026年的睡眠和消费数据，有哪些需要优化的地方？",
+            now: now
+        )
+        let completed = try await fixture.runtime.runLoop(
+            jobID: job.id,
+            systemTemplate: "你是跨域 Agent",
+            toolDescriptions: "cross_domain",
+            now: now.addingTimeInterval(1)
+        )
+
+        let requests = await executor.requests
+        let crossRequest = requests.first { $0.crossDomainPlan != nil }
+        expect(crossRequest?.timeRange?.label == "2026年", "跨域顶层请求必须继承用户年份")
+        expect(crossRequest?.crossDomainPlan?.timeRange?.label == "2026年", "跨域 plan 也必须覆盖模型近30天")
+        let calls = await client.callCount
+        expect(calls == 3, "跨域答案只报相关性时也必须补齐行动建议")
+        expect(completed.state == .completed, "跨域完成度纠错后应正常完成")
+
+        let saved = try await fixture.runtime.loadLatestResult()
+        expect(saved?.claims.contains(where: { $0.type == "suggestion" }) == true, "跨域优化必须产出证据化建议")
+        expect(saved?.summary.contains("连续观察") == true, "建议应是可执行观察动作，而非因果臆测")
+
+        let batches = await client.messageBatches
+        expect(
+            batches.first?.contains(where: {
+                $0.content.contains("HOLO_AGENT_ANSWER_CONTRACT_V1")
+                    && $0.content.contains("recommendations")
+            }) == true,
+            "跨域首轮必须收到确定性交付物契约"
+        )
+    }
+
+    private static func testRunLoop_所有单域优化都锁定年份并补齐建议() async throws {
+        let cases: [(
+            name: String,
+            question: String,
+            tool: String,
+            query: String,
+            metricKey: String,
+            value: Double,
+            unit: String,
+            observation: String,
+            suggestion: String
+        )] = [
+            (
+                "健康", "分析我2026年的睡眠数据，有哪些需要优化的地方？",
+                "health", "sleep_summary", "health.sleep.average_hours", 6.2, "小时",
+                "2026年截至当前平均睡眠为6.2小时",
+                "优先把固定入睡时间作为第一项调整，并连续观察两周平均睡眠是否回升"
+            ),
+            (
+                "习惯", "分析我2026年的习惯数据，有哪些需要优化的地方？",
+                "habit", "trend_summary", "habit.positive.completion_rate", 0.48, "比例",
+                "2026年截至当前核心习惯完成率为48%",
+                "优先缩小最不稳定习惯的单次目标，并固定一个容易触发的执行时段"
+            ),
+            (
+                "待办", "分析我2026年的待办数据，有哪些需要优化的地方？",
+                "task", "backlog_risk", "task.backlog.active_count", 12, "项",
+                "2026年截至当前有12项活跃积压待办",
+                "先清理或重新排期最旧的3项积压，再限制每天新增的高优先级任务"
+            ),
+            (
+                "目标", "分析我2026年的目标进展，有哪些需要优化的地方？",
+                "goal", "progress_summary", "goal.progress.rate", 0.35, "比例",
+                "2026年截至当前目标进度为35%",
+                "把当前目标拆成下一周可验收的一步，并明确对应待办与截止时间"
+            ),
+            (
+                "观点", "分析我2026年的观点和想法记录，有哪些需要优化的地方？",
+                "thought", "topic_summary", "thought.topic.unresolved_count", 9, "个",
+                "2026年截至当前有9个尚未收敛的观点主题",
+                "优先合并重复主题，并为最常出现的主题写下一条可验证的结论"
+            )
+        ]
+
+        for testCase in cases {
+            let client = DomainOptimizationAgentLLMClient(
+                tool: testCase.tool,
+                query: testCase.query,
+                metricKey: testCase.metricKey,
+                value: testCase.value,
+                unit: testCase.unit,
+                observationText: testCase.observation,
+                suggestionText: testCase.suggestion
+            )
+            let executor = DomainOptimizationToolExecutor(
+                tool: testCase.tool,
+                metricKey: testCase.metricKey,
+                value: testCase.value,
+                unit: testCase.unit
+            )
+            let fixture = makeLoopRuntime(
+                dir: makeTempDir(),
+                llmClient: client,
+                toolExecutor: executor
+            )
+            let now = makeDate(2026, 7, 26)
+            let job = try await fixture.runtime.startAnalysisJob(
+                question: testCase.question,
+                now: now
+            )
+            let completed = try await fixture.runtime.runLoop(
+                jobID: job.id,
+                systemTemplate: "你是 \(testCase.name) Agent",
+                toolDescriptions: "【\(testCase.tool)】数据工具",
+                now: now.addingTimeInterval(1)
+            )
+
+            let requests = await executor.requests
+            guard let domainRequest = requests.first(where: { $0.tool == testCase.tool }) else {
+                fatalError("\(testCase.name) 应执行对应领域工具")
+            }
+            expect(domainRequest.timeRange?.label == "2026年", "\(testCase.name) 不得把用户年份偷换为近30天")
+            expect(domainRequest.timeRange?.start == makeDate(2026, 1, 1), "\(testCase.name) 起点必须是 2026-01-01")
+            let calls = await client.callCount
+            expect(calls == 3, "\(testCase.name) 只返回事实时必须再补一轮建议")
+            expect(completed.state == .completed, "\(testCase.name) 补齐建议后应完成")
+            let saved = try await fixture.runtime.loadLatestResult()
+            expect(
+                saved?.claims.contains(where: { $0.type == "suggestion" }) == true,
+                "\(testCase.name) 必须产出证据化建议"
+            )
+            expect(saved?.summary.contains(testCase.suggestion) == true, "\(testCase.name) 最终摘要应包含行动建议")
+        }
+    }
+
     /// 总额去向问题不能等模型自觉请求工具：runtime 应先强制查 finance.spending_breakdown。
     private static func testRunLoop_财务去向问题先强制查询账单拆分() async throws {
         let dir = makeTempDir()
@@ -813,10 +1254,13 @@ struct HoloLocalAgentRuntimeTests {
             toolExecutor: executor
         )
         let now = Date()
-        let job = try await fixture.runtime.startAnalysisJob(
+        var job = try await fixture.runtime.startAnalysisJob(
             question: "上个月花了 1.4 万？钱都花哪儿去了？分析一下",
             now: now
         )
+        // 本用例验证“使用完用户给的 5 轮”，显式固定预算，避免生产预设扩容后测试语义漂移。
+        job.budget.maxLLMRounds = 5
+        try await fixture.jobStore.upsert(job)
 
         let completed = try await fixture.runtime.runLoop(
             jobID: job.id,
@@ -833,7 +1277,10 @@ struct HoloLocalAgentRuntimeTests {
         expect(callCount == 5, "结构失败后应使用全部可用轮次直到成功，实际 \(callCount)")
         expect(completed.state == .completed, "第 5 轮在预算内恢复后任务必须完成")
         expect(completed.budget.consumedLLMRounds == 5, "实际 LLM 调用轮数必须真实记账")
-        expect(toolRequests.count == 1, "恢复成功后必须真正执行工具，不能用空 final_claims 伪完成")
+        expect(
+            toolRequests.contains { $0.tool == "finance" && $0.query == "spending_breakdown" },
+            "恢复成功后必须真正执行财务工具，不能用空 final_claims 伪完成；实际请求数 \(toolRequests.count)"
+        )
         expect((savedResult?.claims.count ?? 0) > 0, "轮数耗尽时应基于已取得的工具事实形成结果")
         expect(
             batches.dropFirst().allSatisfy {
@@ -893,8 +1340,10 @@ struct HoloLocalAgentRuntimeTests {
 
         let expectedID = "\(job.id):finance:t-finance:event-1"
         let checkpoint = try await fixture.checkpointStore.latestForJob(jobID: job.id)
-        expect(checkpoint?.evidenceRecordIDs == [expectedID],
-               "checkpoint 应保存全局唯一 evidence id，实际 \(String(describing: checkpoint?.evidenceRecordIDs))")
+        expect(checkpoint?.evidenceRecordIDs.contains(expectedID) == true,
+               "checkpoint 应保存财务工具的全局唯一 evidence id，实际 \(String(describing: checkpoint?.evidenceRecordIDs))")
+        expect(Set(checkpoint?.evidenceRecordIDs ?? []).count == checkpoint?.evidenceRecordIDs.count,
+               "不同工具的 evidence id 不得发生碰撞")
 
         let batches = await client.messageBatches
         let joinedContent = batches[1].map(\.content).joined(separator: "\n")
@@ -918,8 +1367,14 @@ struct HoloLocalAgentRuntimeTests {
 
         expect(result.state == .completed, "无证据 claim 不应让任务失败，应完成但过滤结论")
         let savedResult = try await fixture.runtime.loadLatestResult()
-        expect(savedResult?.claims.isEmpty == true, "无证据支撑的 claim 必须被过滤")
-        expect(savedResult?.summary == "本期暂无显著观察", "过滤后应显示暂无显著观察")
+        expect(
+            savedResult?.claims.contains(where: { $0.evidenceIDs.contains("ghost") }) == false,
+            "引用 ghost 的无证据 claim 必须被过滤"
+        )
+        expect(
+            savedResult?.summary.contains("近两周消费从约 6630 元增至 9115 元") == false,
+            "无证据模型文案不能进入最终结果；允许系统用 discover/工具事实生成保守兜底"
+        )
     }
 
     /// 模型一直不输出 final_claims 时，已有工具结果应兜底产出保守结论，避免用户看到预算耗尽。

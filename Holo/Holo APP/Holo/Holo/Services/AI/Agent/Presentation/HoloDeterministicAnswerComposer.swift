@@ -55,8 +55,11 @@ nonisolated enum HoloDeterministicAnswerComposer {
             directAnswer: body.directAnswer,
             mainMetric: body.mainMetric,
             items: body.items,
-            coverageText: coverageText(coverage, rangeLabel: task.primaryRangeLabel),
-            limitations: limitations(coverage)
+            coverageText: HoloCoveragePresentationPolicy.text(
+                coverage,
+                rangeLabel: task.primaryRangeLabel
+            ),
+            limitations: HoloCoveragePresentationPolicy.limitations(coverage)
         )
     }
 
@@ -322,20 +325,6 @@ nonisolated enum HoloDeterministicAnswerComposer {
         let valueText = String(format: "%.2f", coefficient)
         let directAnswer = "\(task.primaryRangeLabel)，两项数据的相关系数为 \(valueText)，相关性\(strength)，仅表示关联，不表示因果。"
         return ("\(task.primaryRangeLabel)的关联分析", directAnswer, valueText, [])
-    }
-
-    // MARK: - 覆盖度
-
-    private static func coverageText(_ coverage: HoloDataCoverage?, rangeLabel: String) -> String? {
-        guard let coverage else { return nil }
-        return "\(rangeLabel)共 \(coverage.totalDays) 天，其中 \(coverage.coveredDays)/\(coverage.totalDays) 天有有效记录"
-    }
-
-    private static func limitations(_ coverage: HoloDataCoverage?) -> [String] {
-        guard let coverage else { return [] }
-        let ratio = coverage.coverageRatio
-            ?? (coverage.totalDays > 0 ? Double(coverage.coveredDays) / Double(coverage.totalDays) : 1)
-        return ratio < 0.6 ? ["数据覆盖不足，结论仅供参考"] : []
     }
 
     // MARK: - 名词与单位表

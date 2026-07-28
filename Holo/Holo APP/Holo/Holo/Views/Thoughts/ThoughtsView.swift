@@ -94,7 +94,7 @@ struct ThoughtsView: View {
             // P1.5.7: 进入观点页时合并 CloudKit 同步产生的重复 Topic（幂等）
             _ = try? topicRepository.mergeDuplicateTopics()
         }
-        .swipeBackToDismiss(isEnabled: !isDrawerOpen) { close() }
+        .swipeBackToDismiss(isEnabled: !isDrawerOpen, isResidentScreenRoot: true) { close() }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             thoughtTabBar
         }

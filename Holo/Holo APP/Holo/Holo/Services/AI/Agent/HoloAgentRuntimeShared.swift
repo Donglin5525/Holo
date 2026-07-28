@@ -11,6 +11,9 @@ import Foundation
 
 struct HoloDefaultCrossDomainDataSource: HoloCrossDomainDataSource, HoloDynamicRowDataSource {
     func rows(source: String, timeRange: HoloAgentTimeRange?) async -> [HoloQueryRow] {
+        let historicalRange = HoloAgentHistoricalTimePolicy.resolve(timeRange)
+        guard !historicalRange.isEntirelyFuture else { return [] }
+        let timeRange = historicalRange.effectiveRange
         let healthKind: HoloHealthMetricKind? = switch source {
         case "health.steps": .steps
         case "health.sleep": .sleep
@@ -38,9 +41,10 @@ struct HoloDefaultCrossDomainDataSource: HoloCrossDomainDataSource, HoloDynamicR
             let habits = await HoloDefaultHabitDataSource().habits(timeRange: timeRange)
             let calendar = Calendar.current
             let end = timeRange?.end ?? Date()
-            // dayOffset 的锚点是数据源里的参考日（timeRange.end 或今天 0 点），
-            // 还原日期必须用同一锚点，否则每条记录会整体早一天、边界记录被时间窗过滤掉。
-            let anchorDay = calendar.startOfDay(for: end)
+            // Agent 时间范围统一为 [start, end)，dailyCounts 的 dayOffset=0 对应 end 前一天。
+            let exclusiveEnd = calendar.startOfDay(for: end)
+            let anchorDay = calendar.date(byAdding: .day, value: -1, to: exclusiveEnd)
+                ?? calendar.startOfDay(for: Date())
             return habits.flatMap { habit -> [HoloQueryRow] in
                 let unitText = habit.unit?.isEmpty == false ? habit.unit! : "次"
                 return habit.dailyCounts.compactMap { count -> HoloQueryRow? in
@@ -219,8 +223,10 @@ struct HoloDefaultCrossDomainDataSource: HoloCrossDomainDataSource, HoloDynamicR
 
     private static func dayRange(_ timeRange: HoloAgentTimeRange?) -> (start: Date, end: Date, days: [Date]) {
         let calendar = Calendar.current
-        let end = timeRange?.end ?? Date()
-        let start = timeRange?.start ?? (calendar.date(byAdding: .day, value: -13, to: end) ?? end)
+        let historicalRange = HoloAgentHistoricalTimePolicy.resolve(timeRange)
+        let effectiveRange = historicalRange.effectiveRange
+        let end = effectiveRange?.end ?? Date()
+        let start = effectiveRange?.start ?? (calendar.date(byAdding: .day, value: -13, to: end) ?? end)
         var days: [Date] = []
         var cursor = calendar.startOfDay(for: start)
         while cursor < end, days.count < 366 {

@@ -82,19 +82,31 @@ struct HoloTaskTool: HoloDataTool {
     }
 
     func execute(_ request: HoloToolRequest) async throws -> HoloDataToolResult {
-        let snapshot = await dataSource.snapshot(timeRange: request.timeRange)
+        let historicalRange = HoloAgentHistoricalTimePolicy.resolve(request.timeRange)
+        guard !historicalRange.isEntirelyFuture else {
+            return Self.empty(
+                request: request,
+                warnings: [HoloToolWarning(
+                    code: "FUTURE_RANGE_NOT_HISTORICAL",
+                    message: "所选范围尚未发生，没有可分析的任务完成事实"
+                )]
+            )
+        }
+        var scopedRequest = request
+        scopedRequest.timeRange = historicalRange.effectiveRange
+        let snapshot = await dataSource.snapshot(timeRange: scopedRequest.timeRange)
         let result: HoloDataToolResult
-        switch request.query {
+        switch scopedRequest.query {
         case "today_load":
-            result = Self.todayLoad(request: request, snapshot: snapshot)
+            result = Self.todayLoad(request: scopedRequest, snapshot: snapshot)
         case "backlog_risk":
-            result = Self.backlogRisk(request: request, snapshot: snapshot)
+            result = Self.backlogRisk(request: scopedRequest, snapshot: snapshot)
         case "completion_trend":
-            result = Self.completionTrend(request: request, snapshot: snapshot)
+            result = Self.completionTrend(request: scopedRequest, snapshot: snapshot)
         default:
             result = Self.empty(
-                request: request,
-                warnings: [HoloToolWarning(code: "UNSUPPORTED_QUERY", message: "不支持的任务查询：\(request.query)")]
+                request: scopedRequest,
+                warnings: [HoloToolWarning(code: "UNSUPPORTED_QUERY", message: "不支持的任务查询：\(scopedRequest.query)")]
             )
         }
         // P3：固定指标统一挂类型化语义

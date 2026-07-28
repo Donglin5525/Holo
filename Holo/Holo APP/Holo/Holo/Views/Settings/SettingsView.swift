@@ -42,6 +42,7 @@ struct SettingsView: View {
     @State private var showDeleteAccountDataConfirmation = false
     @State private var isDeletingAccountData = false
     @State private var accountDataDeletionMessage: String?
+    @State private var showAbout = false
 
     // MARK: - Body
 
@@ -732,7 +733,12 @@ struct SettingsView: View {
                 title: "关于 Holo",
                 subtitle: appVersionText
             ) {
-                // TODO: 显示关于页面
+                showAbout = true
+            }
+            .sheet(isPresented: $showAbout) {
+                NavigationStack {
+                    AboutView()
+                }
             }
 
             diagnosticsSection

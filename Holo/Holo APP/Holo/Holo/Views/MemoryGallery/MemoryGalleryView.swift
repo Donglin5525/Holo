@@ -24,7 +24,6 @@ struct MemoryGalleryView: View {
 
     @StateObject private var viewModel = MemoryGalleryViewModel()
     @State private var selectedTab: MemoryGalleryTab = .calendar
-    @State private var isReplayExpanded = false
     @State private var isAgentAnalysisExpanded = false
     @ObservedObject private var deepLinkState = DeepLinkState.shared
 
@@ -60,7 +59,7 @@ struct MemoryGalleryView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
         .background(Color.holoBackground.ignoresSafeArea())
-        .swipeBackToDismiss { close() }
+        .swipeBackToDismiss(isResidentScreenRoot: true) { close() }
         .sheet(item: $selectedMemory) { memory in
             MemoryDetailView(memory: memory)
         }
@@ -75,14 +74,9 @@ struct MemoryGalleryView: View {
             #if DEBUG
             if HoloAppStoreScreenshotSeeder.requestedRoute == .memoryInsight {
                 selectedTab = .insight
-                isReplayExpanded = true
             }
             #endif
             await viewModel.refresh()
-            await handleInsightDeepLinkIfNeeded()
-        }
-        .onChange(of: deepLinkState.pendingTarget) { _, _ in
-            Task { await handleInsightDeepLinkIfNeeded() }
         }
     }
 
@@ -170,78 +164,12 @@ struct MemoryGalleryView: View {
                         DailySenseStatusCard(snapshot: snapshot)
                     }
 
-                    if let agentResult = viewModel.agentRenderedResult {
-                        collapsibleInsightLayer(
-                            title: "深度分析",
-                            subtitle: "展开查看 Agent 的证据解释",
-                            icon: "doc.text.magnifyingglass",
-                            isExpanded: $isAgentAnalysisExpanded
-                        ) {
-                            HoloAgentResultCard(result: agentResult)
-                        }
-                    }
-
-                    collapsibleInsightLayer(
-                        title: "AI 回放",
-                        subtitle: "展开查看周期回放和可追问内容",
-                        icon: "play.rectangle.fill",
-                        isExpanded: $isReplayExpanded
-                    ) {
-                        MemoryInsightHeroCard(
-                            state: viewModel.insightGenerationState,
-                            selectedPeriod: viewModel.selectedInsightPeriod,
-                            insight: viewModel.currentInsight,
-                            weeklyIsFallback: viewModel.weeklyIsFallback,
-                            monthlyIsFallback: viewModel.monthlyIsFallback,
-                            customStartDate: $viewModel.customInsightStartDate,
-                            customEndDate: $viewModel.customInsightEndDate,
-                            fallbackTitle: viewModel.fallbackReplayTitle,
-                            fallbackSummary: viewModel.fallbackReplaySummary,
-                            onPeriodChange: { period in
-                                Task { await viewModel.switchInsightPeriod(to: period) }
-                            },
-                            onCustomRangeChange: { start, end in
-                                Task { await viewModel.updateCustomInsightRange(start: start, end: end) }
-                            },
-                            onGenerate: {
-                                Task { await viewModel.generateCurrentInsight() }
-                            },
-                            insightRefreshRemaining: viewModel.insightRefreshRemaining,
-                            insightRefreshTotal: MemoryInsightRefreshQuota.maxPerDay,
-                            onRefresh: {
-                                Task { await viewModel.refreshInsight(force: true) }
-                            },
-                            onContinueInChat: {
-                                if let prompt = viewModel.buildContinueInChatPrompt() {
-                                    onNavigateToChat?(prompt)
-                                }
-                            },
-                            onInsightActionContinueInChat: { prompt in
-                                onNavigateToChat?(prompt)
-                            },
-                            onGoToAISettings: {
-                                #if DEBUG
-                                showAISettings = true
-                                #endif
-                            }
-                        )
-                    }
-
                     featuredStoriesSection
                 }
                 .padding(.horizontal, HoloSpacing.md)
                 .padding(.vertical, HoloSpacing.md)
             }
         }
-    }
-
-    @MainActor
-    private func handleInsightDeepLinkIfNeeded() async {
-        guard case .memoryInsight(let insightId) = deepLinkState.pendingTarget else { return }
-        selectedTab = .insight
-        isReplayExpanded = true
-        await viewModel.focusWeeklyInsight(id: insightId)
-        deepLinkState.pendingTarget = nil
     }
 
     /// 选中日期预览卡片

@@ -526,15 +526,8 @@ struct ThoughtListView: View {
 
             Spacer()
 
-            // 搜索按钮
-            Button {
-                // TODO: 聚焦搜索框
-            } label: {
-                Image(systemName: "magnifyingglass")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(.holoTextPrimary)
-                    .frame(width: 44, height: 44)
-            }
+            // 占位，与左侧两个按钮对称，保持标题居中
+            Color.clear.frame(width: 44, height: 44)
         }
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, HoloSpacing.sm)

@@ -199,19 +199,61 @@ nonisolated struct HoloClaimVerifierV2 {
     private func checkMetricRecomputable(
         claim: HoloAgentClaim, evidenceByID: [String: HoloEvidenceRecord]
     ) -> HoloDimensionCheck {
+        if !HoloAgentClaimTextGroundingPolicy.unsupportedNumbers(
+            in: claim,
+            evidence: Array(evidenceByID.values)
+        ).isEmpty {
+            return HoloDimensionCheck(
+                dimension: .metricRecomputable,
+                passed: false,
+                severity: .critical,
+                detail: "文案包含无法由 evidence 复算的数字"
+            )
+        }
         for assertion in claim.metricAssertions {
             for evID in assertion.evidenceIDs {
                 guard let record = evidenceByID[evID] else { continue }
-                if record.metricKey != assertion.metricKey {
-                    return HoloDimensionCheck(dimension: .metricRecomputable, passed: false, severity: .critical, detail: "metricKey 不匹配：claim=\(assertion.metricKey) evidence=\(record.metricKey)")
+                // metricKey 不要求逐字相等：dynamic_query 产出的 evidence metricKey 是
+                // "dynamic.health.steps.average_sleep.all" 这种动态格式，而 LLM claim 用的是
+                // 固定名 "health.steps.average"。只要两者属于同一数据域（核心 token 重叠）即可。
+                // 真正的数据可信度由下方 value 一致性检查保证。
+                if !Self.metricKeysShareDomain(assertion.metricKey, record.metricKey) {
+                    return HoloDimensionCheck(dimension: .metricRecomputable, passed: false, severity: .critical, detail: "metricKey 数据域不匹配：claim=\(assertion.metricKey) evidence=\(record.metricKey)")
                 }
                 if let value = assertion.value, let evidenceValue = record.metricValue,
-                   abs(value - evidenceValue) > 0.01 {
+                   !Self.valuesApproximatelyEqual(value, evidenceValue) {
                     return HoloDimensionCheck(dimension: .metricRecomputable, passed: false, severity: .critical, detail: "value 不一致：claim=\(value) evidence=\(evidenceValue)")
                 }
             }
         }
         return HoloDimensionCheck(dimension: .metricRecomputable, passed: true)
+    }
+
+    /// 判断两个 metricKey 是否属于同一数据域。
+    /// dynamic_query 的 metricKey 形如 "dynamic.health.steps.average_sleep.all"，
+    /// 固定指标形如 "health.steps.average"。提取各自的核心数据标识（去掉 dynamic. 前缀），
+    /// 按 . 和 _ 拆分后，只要有 ≥2 个实质 token 重叠即视为同域。
+    /// 真正的数据可信度由 value 一致性检查保证，这里只防止跨域误引。
+    private static func metricKeysShareDomain(_ claimKey: String, _ evidenceKey: String) -> Bool {
+        if claimKey == evidenceKey { return true }
+        func coreTokens(_ key: String) -> Set<String> {
+            let stripped = key.hasPrefix("dynamic.") ? String(key.dropFirst("dynamic.".count)) : key
+            return Set(stripped.split(whereSeparator: { $0 == "." || $0 == "_" }).map(String.init))
+        }
+        let claimTokens = coreTokens(claimKey)
+        let evidenceTokens = coreTokens(evidenceKey)
+        let meaningful = claimTokens.intersection(evidenceTokens).subtracting(["all", "unknown"])
+        return meaningful.count >= 2
+    }
+
+    /// value 近似相等判断：容忍 LLM 对数字的合理取整（如 7999.8 写成 8000、6.8 写成 7）。
+    /// 比例类（|value|≤2，如百分比 0.65、相关系数 0.42）用严容差 0.05；
+    /// 其余取绝对 0.5 和相对 1% 的较大者，覆盖睡眠/步数/支出/次数等。
+    static func valuesApproximatelyEqual(_ claim: Double, _ evidence: Double) -> Bool {
+        let absDiff = abs(claim - evidence)
+        let magnitude = abs(evidence)
+        if magnitude <= 2 { return absDiff <= 0.05 }
+        return absDiff <= Swift.max(0.5, magnitude * 0.01)
     }
 
     private func checkWindowComparable(

@@ -70,7 +70,7 @@ struct HealthView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
         }
-        .swipeBackToDismiss {
+        .swipeBackToDismiss(isResidentScreenRoot: true) {
             if selectedMetric != nil {
                 selectedMetric = nil
             } else {

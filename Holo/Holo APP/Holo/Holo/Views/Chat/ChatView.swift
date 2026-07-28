@@ -17,16 +17,15 @@ struct ChatView: View {
     /// 统一关闭入口：优先 holoDismiss，否则 dismiss。
     private var close: () -> Void { holoDismiss ?? { dismiss() } }
     @StateObject private var viewModel = ChatViewModel()
+    @StateObject private var scrollController = ChatScrollController()
     @State private var activeSheet: ChatSheet?
     #if DEBUG || INTERNAL_DIAGNOSTICS
     @State private var viewingLog: LLMLog?
     #endif
     @State private var didInitialScrollToBottom = false
-    /// 加载更早消息时记录的锚点 id（加载前首条 = 用户当时看的那条）。
-    /// 待 LazyVStack 插入新行后再 scrollTo，避免在数据刷新前定位不准。
-    @State private var pendingEarlierSessionAnchor: UUID?
-    /// 长内容收起后请求底层 UIScrollView 校正越界偏移。
-    @State private var scrollOffsetClampRequestID = 0
+    @State private var historyLoadGate = ChatHistoryLoadGate()
+    @State private var pendingNewMessageCount = 0
+    @State private var hasUnseenStreamingUpdate = false
     @State private var pendingVoiceTranscriptToSend: String?
     @State private var pendingDelete: PendingCardDelete?
     @State private var showDeleteConfirmation = false
@@ -89,7 +88,7 @@ struct ChatView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
             updateKeyboardOverlap(note)
         }
-        .swipeBackToDismiss {
+        .swipeBackToDismiss(isResidentScreenRoot: true) {
             close()
         }
         .overlay(alignment: .top) {
@@ -361,207 +360,326 @@ struct ChatView: View {
     // MARK: - Message List
 
     private var messageList: some View {
-        ScrollViewReader { proxy in
-            ScrollView(showsIndicators: false) {
-                LazyVStack(spacing: 12) {
-                    // 加载更早会话的入口
-                    if viewModel.hasLoadedMessages && viewModel.hasEarlierSessions {
-                        loadMoreHeader(proxy: proxy)
+        ScrollView(showsIndicators: false) {
+            LazyVStack(spacing: 12) {
+                if viewModel.hasLoadedMessages
+                    && (viewModel.hasEarlierSessions
+                        || viewModel.isLoadingEarlierSession
+                        || viewModel.earlierHistoryLoadFailed) {
+                    historyLoadingHeader
+                }
+
+                ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, message in
+                    // 首条消息或距上一条 ≥ 5 分钟时显示时间，避免时间标签制造视觉噪声。
+                    if ChatTimeStampSeparator.shouldShow(
+                        current: message.timestamp,
+                        previous: index > 0 ? viewModel.messages[index - 1].timestamp : nil
+                    ) {
+                        ChatTimeStampSeparator(date: message.timestamp)
                     }
 
-                    ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, message in
-                        // 时间分隔条：首条消息或距上一条 ≥ 5 分钟时显示（微信风格，非每条都打时间）
-                        if ChatTimeStampSeparator.shouldShow(
-                            current: message.timestamp,
-                            previous: index > 0 ? viewModel.messages[index - 1].timestamp : nil
-                        ) {
-                            ChatTimeStampSeparator(date: message.timestamp)
+                    MessageBubbleView(
+                        message: message,
+                        streamingText: viewModel.isStreaming && message.isStreaming ? viewModel.streamingText : nil,
+                        goalDraftForReview: viewModel.goalDraftForReview,
+                        onIntentTagTap: { msg in
+                            handleIntentTagTap(msg)
+                        },
+                        onCardTap: { message, cardData in
+                            handleCardTap(message: message, cardData: cardData)
+                        },
+                        onFlexibleQueryTransactionTap: { transactionId in
+                            openTransactionDetail(transactionId)
+                        },
+                        onFlexibleQueryViewAllTap: { queryData in
+                            openFlexibleQueryResults(queryData)
+                        },
+                        onViewLog: internalLogAction,
+                        onCompactAnalysisTap: {
+                            guard message.metadataState == .loaded,
+                                  message.analysisContext != nil else { return }
+                            activeSheet = .analysisDetail(message)
+                        },
+                        onAgentDeepAnalysisTap: {
+                            guard message.agentResult != nil else { return }
+                            activeSheet = .agentDeepAnalysis(message)
+                        },
+                        onPeriodReplayExpansionChanged: { _, isExpanded in
+                            guard !isExpanded else { return }
+                            scrollController.requestOffsetClamp()
+                        },
+                        onGoalDraftCardTap: {
+                            viewModel.showGoalDraftReview = true
+                        },
+                        onSavedGoalCardTap: { goalId in
+                            DeepLinkState.shared.navigate(to: .goalDetail(goalId: goalId))
+                        },
+                        onRetry: {
+                            Task { await viewModel.retryMessage(message) }
+                        },
+                        onCardDelete: { msg, category, description in
+                            guard let entityId = msg.resolveLinkedEntityId(for: category) else { return }
+                            pendingDelete = PendingCardDelete(
+                                category: category,
+                                entityId: entityId,
+                                description: description
+                            )
+                            showDeleteConfirmation = true
+                        },
+                        onTaskConfirm: { msg in
+                            viewModel.confirmPendingTask(from: msg)
+                        },
+                        onTransactionConfirm: { msg in
+                            viewModel.confirmPendingTransaction(from: msg)
+                        },
+                        onTransactionCancel: { msg in
+                            viewModel.cancelPendingTransaction(from: msg)
+                        },
+                        onTransactionModifyCategory: { msg in
+                            guard let batch = msg.executionBatch,
+                                  let item = batch.items.first(where: { $0.intent.isFinance && $0.renderData?["confirmationStatus"] == "pending" }),
+                                  let renderData = item.renderData else { return }
+                            let type: TransactionType = item.intent == .recordIncome ? .income : .expense
+                            pendingCategoryEditMessage = msg
+                            pendingEditPrefill = PendingTransactionPrefill(
+                                amount: renderData["amount"] ?? "0",
+                                note: renderData["note"] ?? renderData["categoryCandidate"],
+                                type: type,
+                                category: nil,
+                                date: TransactionDateResolver.resolve(from: renderData)
+                            )
                         }
-
-                        MessageBubbleView(
-                            message: message,
-                            streamingText: viewModel.isStreaming && message.isStreaming ? viewModel.streamingText : nil,
-                            goalDraftForReview: viewModel.goalDraftForReview,
-                            onIntentTagTap: { msg in
-                                handleIntentTagTap(msg)
-                            },
-                            onCardTap: { message, cardData in
-                                handleCardTap(message: message, cardData: cardData)
-                            },
-                            onFlexibleQueryTransactionTap: { transactionId in
-                                openTransactionDetail(transactionId)
-                            },
-                            onFlexibleQueryViewAllTap: { queryData in
-                                openFlexibleQueryResults(queryData)
-                            },
-                            onViewLog: internalLogAction,
-                            onCompactAnalysisTap: {
-                                guard message.metadataState == .loaded,
-                                      message.analysisContext != nil else { return }
-                                activeSheet = .analysisDetail(message)
-                            },
-                            onAgentDeepAnalysisTap: {
-                                guard message.agentResult != nil else { return }
-                                activeSheet = .agentDeepAnalysis(message)
-                            },
-                            onPeriodReplayExpansionChanged: { _, isExpanded in
-                                // 长卡片收起后，LazyVStack 可能先卸载越界内容，导致 ScrollViewReader
-                                // 找不到消息锚点。改由底层 UIScrollView 按真实 contentSize 校正。
-                                guard !isExpanded else { return }
-                                scrollOffsetClampRequestID &+= 1
-                            },
-                            onGoalDraftCardTap: {
-                                viewModel.showGoalDraftReview = true
-                            },
-                            onSavedGoalCardTap: { goalId in
-                                // HomeView 监听 deepLinkState 变化后会切换 activeScreen，
-                                // ChatView 会自动隐藏，无需手动 dismiss。
-                                DeepLinkState.shared.navigate(to: .goalDetail(goalId: goalId))
-                            },
-                            onRetry: {
-                                Task { await viewModel.retryMessage(message) }
-                            },
-                            onCardDelete: { msg, category, description in
-                                guard let entityId = msg.resolveLinkedEntityId(for: category) else { return }
-                                pendingDelete = PendingCardDelete(
-                                    category: category,
-                                    entityId: entityId,
-                                    description: description
-                                )
-                                showDeleteConfirmation = true
-                            },
-                            onTaskConfirm: { msg in
-                                viewModel.confirmPendingTask(from: msg)
-                            },
-                            onTransactionConfirm: { msg in
-                                viewModel.confirmPendingTransaction(from: msg)
-                            },
-                            onTransactionCancel: { msg in
-                                viewModel.cancelPendingTransaction(from: msg)
-                            },
-                            onTransactionModifyCategory: { msg in
-                                guard let batch = msg.executionBatch,
-                                      let item = batch.items.first(where: { $0.intent.isFinance && $0.renderData?["confirmationStatus"] == "pending" }),
-                                      let renderData = item.renderData else { return }
-                                let type: TransactionType = item.intent == .recordIncome ? .income : .expense
-                                pendingCategoryEditMessage = msg
-                                pendingEditPrefill = PendingTransactionPrefill(
-                                    amount: renderData["amount"] ?? "0",
-                                    note: renderData["note"] ?? renderData["categoryCandidate"],
-                                    type: type,
-                                    category: nil,
-                                    date: TransactionDateResolver.resolve(from: renderData)
-                                )
-                            }
-                        )
-                        .id(message.id)
-                        .onAppear {
-                            viewModel.loadMetadataIfNeeded(for: message.id)
-                        }
-                    }
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .background(alignment: .topLeading) {
-                    ChatScrollOffsetClampProbe(requestID: scrollOffsetClampRequestID)
-                        .frame(width: 1, height: 1)
-                }
-            }
-            .refreshable {
-                await triggerLoadEarlier(proxy: proxy)
-            }
-            .onChange(of: viewModel.messages.count) { _, _ in
-                // 首屏加载完成后滚到底
-                if !didInitialScrollToBottom {
-                    scrollToBottom(proxy: proxy)
-                    didInitialScrollToBottom = true
-                    return
-                }
-
-                // 加载历史后，待 LazyVStack 插入新行再把视图钉在原看的那条（顶部对齐）。
-                // 无动画：插入新行 + scrollTo 重定位叠加动画会闪回，瞬间定位最稳（微信/iMessage 做法）。
-                if let anchorId = pendingEarlierSessionAnchor {
-                    pendingEarlierSessionAnchor = nil
-                    proxy.scrollTo(anchorId, anchor: .top)
-                }
-            }
-            .onChange(of: viewModel.streamingText) { _, _ in
-                // 加载历史期间暂停底部自动滚动，避免锚点被流式输出抢走
-                guard !viewModel.isApplyingEarlierSession else { return }
-                scrollToBottom(proxy: proxy)
-            }
-            .onChange(of: viewModel.isStreaming) { _, streaming in
-                // 加载历史期间即使 isStreaming 翻转也不抢滚动
-                guard !viewModel.isApplyingEarlierSession else { return }
-                if streaming {
-                    // AI 开始回复时自动收起键盘，让用户看到完整内容
-                    UIApplication.shared.sendAction(
-                        #selector(UIResponder.resignFirstResponder),
-                        to: nil, from: nil, for: nil
                     )
-                    scrollToBottom(proxy: proxy)
+                    .id(message.id)
+                    .onAppear {
+                        viewModel.loadMetadataIfNeeded(for: message.id)
+                    }
                 }
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 12)
+            .background(alignment: .topLeading) {
+                ChatScrollViewBridge(controller: scrollController)
+                    .frame(width: 1, height: 1)
+            }
         }
-    }
-
-    private func scrollToBottom(proxy: ScrollViewProxy) {
-        if let lastMessage = viewModel.messages.last {
-            withAnimation(.easeOut(duration: 0.2)) {
-                proxy.scrollTo(lastMessage.id, anchor: .bottom)
+        .defaultScrollAnchor(.bottom)
+        .scrollDismissesKeyboard(.interactively)
+        .overlay(alignment: .bottomTrailing) {
+            if scrollController.viewport.showsJumpToLatest {
+                jumpToLatestButton
+                    .padding(.trailing, 14)
+                    .padding(.bottom, 12)
+                    .transition(.scale(scale: 0.82).combined(with: .opacity))
+            }
+        }
+        .animation(
+            .spring(response: 0.28, dampingFraction: 0.82),
+            value: scrollController.viewport.showsJumpToLatest
+        )
+        .onAppear {
+            performInitialScrollIfNeeded()
+        }
+        .onChange(of: messageListSignature) { previous, current in
+            handleMessageListMutation(previous: previous, current: current)
+        }
+        .onChange(of: scrollController.viewport) { _, viewport in
+            handleViewportChange(viewport)
+        }
+        .onChange(of: viewModel.streamingText) { _, _ in
+            if scrollController.viewport.showsJumpToLatest {
+                hasUnseenStreamingUpdate = true
+            }
+        }
+        .onChange(of: viewModel.isStreaming) { _, streaming in
+            guard streaming else { return }
+            // AI 开始回复时收起键盘；是否跟随到底部由当前视口决定，不打断历史浏览。
+            UIApplication.shared.sendAction(
+                #selector(UIResponder.resignFirstResponder),
+                to: nil, from: nil, for: nil
+            )
+            if scrollController.viewport.isNearBottom {
+                scrollController.scrollToBottom(animated: false)
             }
         }
     }
 
-    // MARK: - Load More Header
+    // MARK: - IM Scroll Behavior
 
     @ViewBuilder
-    private func loadMoreHeader(proxy: ScrollViewProxy) -> some View {
-        Button {
-            Task {
-                await triggerLoadEarlier(proxy: proxy)
-            }
-        } label: {
-            HStack(spacing: 6) {
-                if viewModel.isLoadingEarlierSession {
+    private var historyLoadingHeader: some View {
+        Group {
+            if viewModel.isLoadingEarlierSession {
+                HStack(spacing: 7) {
                     ProgressView()
-                        .scaleEffect(0.65)
+                        .scaleEffect(0.68)
                     Text("正在加载更早的消息")
                         .font(.system(size: 12))
                         .foregroundColor(.holoTextSecondary)
-                } else {
-                    Image(systemName: "chevron.compact.up")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.holoTextSecondary)
-                    Text("加载更早的消息")
-                        .font(.system(size: 12))
-                        .foregroundColor(.holoTextSecondary)
                 }
+                .transition(.opacity)
+            } else if viewModel.earlierHistoryLoadFailed {
+                Button {
+                    Task {
+                        await triggerLoadEarlier()
+                    }
+                } label: {
+                    Label("加载失败，点击重试", systemImage: "arrow.clockwise")
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.holoPrimary)
+                }
+                .buttonStyle(.plain)
+            } else {
+                // 视觉上保持成熟 IM 的无按钮顶部；同时保留点击和 VoiceOver 的分页入口。
+                Button {
+                    Task {
+                        await triggerLoadEarlier()
+                    }
+                } label: {
+                    Color.clear
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("加载更早的消息")
             }
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity)
         }
-        .buttonStyle(.plain)
-        .disabled(viewModel.isLoadingEarlierSession)
+        .frame(maxWidth: .infinity)
+        .frame(height: 30)
+        .animation(.easeOut(duration: 0.16), value: viewModel.isLoadingEarlierSession)
+        .animation(.easeOut(duration: 0.16), value: viewModel.earlierHistoryLoadFailed)
     }
 
-    private func triggerLoadEarlier(proxy: ScrollViewProxy) async {
+    private var jumpToLatestButton: some View {
+        Button {
+            pendingNewMessageCount = 0
+            hasUnseenStreamingUpdate = false
+            scrollController.scrollToBottom(animated: true)
+        } label: {
+            HStack(spacing: pendingLatestActivityCount > 0 ? 6 : 0) {
+                if pendingLatestActivityCount > 0 {
+                    Text(pendingLatestActivityCount > 99 ? "99+" : "\(pendingLatestActivityCount)")
+                        .font(.system(size: 11, weight: .bold, design: .rounded))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 6)
+                        .frame(minWidth: 20, minHeight: 20)
+                        .background(Color.holoPrimary, in: Capsule())
+                }
+
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundColor(.holoTextPrimary)
+                    .frame(width: 36, height: 36)
+            }
+        }
+        .buttonStyle(.plain)
+        .padding(.leading, pendingLatestActivityCount > 0 ? 7 : 0)
+        .padding(.trailing, pendingLatestActivityCount > 0 ? 2 : 0)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay {
+            Capsule()
+                .stroke(Color.holoTextSecondary.opacity(0.18), lineWidth: 0.5)
+        }
+        .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
+        .accessibilityLabel(
+            pendingLatestActivityCount > 0
+                ? "回到最新消息，\(pendingLatestActivityCount) 条新消息"
+                : "回到最新消息"
+        )
+    }
+
+    private var pendingLatestActivityCount: Int {
+        max(pendingNewMessageCount, hasUnseenStreamingUpdate ? 1 : 0)
+    }
+
+    /// 只读取 count/首尾 ID，避免流式输出每个 token 都复制整份消息 ID 数组。
+    private var messageListSignature: ChatMessageListSignature {
+        ChatMessageListSignature(
+            count: viewModel.messages.count,
+            firstID: viewModel.messages.first?.id,
+            lastID: viewModel.messages.last?.id
+        )
+    }
+
+    private func performInitialScrollIfNeeded() {
+        guard !didInitialScrollToBottom,
+              !viewModel.messages.isEmpty else { return }
+        didInitialScrollToBottom = true
+        pendingNewMessageCount = 0
+        hasUnseenStreamingUpdate = false
+        scrollController.scrollToBottom(animated: false)
+    }
+
+    private func handleMessageListMutation(
+        previous: ChatMessageListSignature,
+        current: ChatMessageListSignature
+    ) {
+        let mutation = ChatMessageListMutation.classify(
+            previous: previous,
+            current: current
+        )
+
+        switch mutation {
+        case .unchanged:
+            break
+
+        case .initial(let count):
+            guard count > 0 else { return }
+            performInitialScrollIfNeeded()
+
+        case .prepended:
+            // 仅在 prepend 已发生、但新布局尚未落地的窗口开启保护。
+            // 避免异步查询期间把底部流式增长误当成顶部插入。
+            scrollController.beginPreservingPrepend()
+            scrollController.endPreservingPrependAfterLayout()
+
+        case .appended(let count):
+            let appendedMessages = Array(viewModel.messages.suffix(count))
+            if appendedMessages.contains(where: { $0.role == "user" }) {
+                // 用户主动发送是明确的“回到当前对话”意图。
+                pendingNewMessageCount = 0
+                hasUnseenStreamingUpdate = false
+                scrollController.scrollToBottom(animated: true)
+            } else if scrollController.viewport.isNearBottom {
+                scrollController.scrollToBottom(animated: false)
+            } else {
+                pendingNewMessageCount += count
+            }
+
+        case .replaced:
+            if current.count == 0 {
+                didInitialScrollToBottom = false
+                pendingNewMessageCount = 0
+                hasUnseenStreamingUpdate = false
+            } else if !didInitialScrollToBottom {
+                performInitialScrollIfNeeded()
+            }
+        }
+    }
+
+    private func handleViewportChange(_ viewport: ChatScrollViewportState) {
+        if viewport.isNearBottom {
+            pendingNewMessageCount = 0
+            hasUnseenStreamingUpdate = false
+        }
+
+        let shouldLoad = historyLoadGate.shouldLoad(
+            viewport: viewport,
+            canLoad: didInitialScrollToBottom && viewModel.hasEarlierSessions,
+            isLoading: viewModel.isLoadingEarlierSession
+        )
+        guard shouldLoad else { return }
+
+        Task {
+            await triggerLoadEarlier()
+        }
+    }
+
+    private func triggerLoadEarlier() async {
         guard didInitialScrollToBottom,
               viewModel.hasEarlierSessions,
               !viewModel.isLoadingEarlierSession else { return }
 
-        // 记下加载前首条消息（用户当前屏幕顶部那条）作为锚点。
-        // 加载后视图要钉在这条上，新内容出现在它上方屏幕外。
-        let anchorId = viewModel.messages.first?.id
-
-        await viewModel.loadEarlierSession()
-
-        // 不在这里直接 scrollTo：messages 经 receive(on: .main) 异步刷新，
-        // 此刻 LazyVStack 还没插入新行，定位会不准。把锚点交给 onChange(messages)，
-        // 等数据真正刷新后再定位。
-        if anchorId != nil {
-            pendingEarlierSessionAnchor = anchorId
-        }
+        _ = await viewModel.loadEarlierSession()
     }
 
     // MARK: - Transaction Detail
@@ -807,146 +925,4 @@ private struct PendingCardDelete {
     let category: EntityCategory
     let entityId: UUID
     let description: String
-}
-
-/// 观察 SwiftUI 消息列表背后的 UIScrollView。
-///
-/// 长卡片收起会让 contentSize 在单帧内大幅缩小；UIKit 偶发保留旧 contentOffset，
-/// 使整个 LazyVStack 落到视口之外。手动拖动之所以能恢复，是 UIScrollView 在拖动时
-/// 会重新把 offset 限制到合法范围。这里监听真实 contentSize，并在折叠请求后主动完成同一校正。
-private struct ChatScrollOffsetClampProbe: UIViewRepresentable {
-    let requestID: Int
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
-    func makeUIView(context: Context) -> UIView {
-        let view = UIView(frame: .zero)
-        view.isUserInteractionEnabled = false
-        view.backgroundColor = .clear
-        context.coordinator.attachIfPossible(from: view)
-        return view
-    }
-
-    func updateUIView(_ uiView: UIView, context: Context) {
-        context.coordinator.attachIfPossible(from: uiView)
-        context.coordinator.handleClampRequest(requestID, from: uiView)
-    }
-
-    static func dismantleUIView(_ uiView: UIView, coordinator: Coordinator) {
-        coordinator.detach()
-    }
-
-    final class Coordinator {
-        private weak var scrollView: UIScrollView?
-        private var contentSizeObservation: NSKeyValueObservation?
-        private var lastRequestID = 0
-        private var isClampPending = false
-
-        func attachIfPossible(from view: UIView) {
-            if let ancestor = enclosingScrollView(from: view) {
-                attach(to: ancestor)
-                return
-            }
-
-            // make/update 时 representable 可能尚未挂到 ScrollView 层级。
-            DispatchQueue.main.async { [weak self, weak view] in
-                guard let self, let view,
-                      let ancestor = self.enclosingScrollView(from: view) else { return }
-                self.attach(to: ancestor)
-                self.clampImmediatelyIfNeeded()
-            }
-        }
-
-        func handleClampRequest(_ requestID: Int, from view: UIView) {
-            guard requestID != lastRequestID else { return }
-            lastRequestID = requestID
-            isClampPending = true
-            attachIfPossible(from: view)
-
-            // 如果 contentSize 已先于 SwiftUI update 完成变化，当前轮直接校正；
-            // 否则保留 pending，由 contentSize KVO 在真实缩高发生时校正。
-            DispatchQueue.main.async { [weak self] in
-                self?.clampImmediatelyIfNeeded()
-            }
-        }
-
-        func detach() {
-            contentSizeObservation?.invalidate()
-            contentSizeObservation = nil
-            scrollView = nil
-            isClampPending = false
-        }
-
-        private func attach(to candidate: UIScrollView) {
-            guard scrollView !== candidate else { return }
-
-            contentSizeObservation?.invalidate()
-            scrollView = candidate
-            contentSizeObservation = candidate.observe(
-                \.contentSize,
-                options: [.new]
-            ) { [weak self] scrollView, _ in
-                guard let self, self.isClampPending else { return }
-                scrollView.layoutIfNeeded()
-                self.clampOffset(in: scrollView)
-                self.isClampPending = false
-            }
-        }
-
-        private func clampImmediatelyIfNeeded() {
-            guard isClampPending, let scrollView else { return }
-            scrollView.layoutIfNeeded()
-            if clampOffset(in: scrollView) {
-                isClampPending = false
-            }
-        }
-
-        @discardableResult
-        private func clampOffset(in scrollView: UIScrollView) -> Bool {
-            let inset = scrollView.adjustedContentInset
-            let minimumX = -inset.left
-            let minimumY = -inset.top
-            let maximumX = max(
-                minimumX,
-                scrollView.contentSize.width - scrollView.bounds.width + inset.right
-            )
-            let maximumY = max(
-                minimumY,
-                scrollView.contentSize.height - scrollView.bounds.height + inset.bottom
-            )
-            let current = scrollView.contentOffset
-            let clamped = CGPoint(
-                x: min(max(current.x, minimumX), maximumX),
-                y: min(max(current.y, minimumY), maximumY)
-            )
-
-            guard abs(clamped.x - current.x) > 0.5
-                    || abs(clamped.y - current.y) > 0.5 else {
-                // offset 已合法时仍刷新 LazyVStack 的可见区域，避免沿用旧布局缓存。
-                scrollView.setNeedsLayout()
-                scrollView.layoutIfNeeded()
-                return false
-            }
-
-            UIView.performWithoutAnimation {
-                scrollView.setContentOffset(clamped, animated: false)
-                scrollView.setNeedsLayout()
-                scrollView.layoutIfNeeded()
-            }
-            return true
-        }
-
-        private func enclosingScrollView(from view: UIView) -> UIScrollView? {
-            var ancestor = view.superview
-            while let current = ancestor {
-                if let scrollView = current as? UIScrollView {
-                    return scrollView
-                }
-                ancestor = current.superview
-            }
-            return nil
-        }
-    }
 }

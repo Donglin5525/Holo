@@ -32,6 +32,67 @@ nonisolated struct HoloAgentResolvedComparison: Equatable, Sendable {
     var baseline: HoloAgentResolvedTimeScope
 }
 
+/// 历史事实工具的时间截断结果。用户可以询问完整自然年，但“已发生统计”只能算到
+/// 本地快照日结束；未来分期、未来任务等计划记录不得混入历史事实。
+nonisolated struct HoloAgentHistoricalRangeResolution: Equatable, Sendable {
+    var effectiveRange: HoloAgentTimeRange?
+    var wasCapped: Bool
+    var isEntirelyFuture: Bool
+}
+
+nonisolated enum HoloAgentHistoricalTimePolicy {
+
+    static func resolve(
+        _ range: HoloAgentTimeRange?,
+        asOf: Date = Date(),
+        calendar inputCalendar: Calendar = .current
+    ) -> HoloAgentHistoricalRangeResolution {
+        guard let range,
+              let requestedStart = range.start,
+              let requestedEnd = range.end else {
+            return HoloAgentHistoricalRangeResolution(
+                effectiveRange: range,
+                wasCapped: false,
+                isEntirelyFuture: false
+            )
+        }
+        var calendar = inputCalendar
+        calendar.locale = Locale(identifier: "zh_CN")
+        let today = calendar.startOfDay(for: asOf)
+        let cutoff = calendar.date(byAdding: .day, value: 1, to: today) ?? asOf
+
+        guard requestedStart < cutoff else {
+            return HoloAgentHistoricalRangeResolution(
+                effectiveRange: nil,
+                wasCapped: true,
+                isEntirelyFuture: true
+            )
+        }
+        guard requestedEnd > cutoff else {
+            return HoloAgentHistoricalRangeResolution(
+                effectiveRange: range,
+                wasCapped: false,
+                isEntirelyFuture: false
+            )
+        }
+
+        let formatter = DateFormatter()
+        formatter.calendar = calendar
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日"
+        let label = "\(range.label)（截至\(formatter.string(from: today))）"
+        return HoloAgentHistoricalRangeResolution(
+            effectiveRange: HoloAgentTimeRange(
+                label: label,
+                start: requestedStart,
+                end: cutoff
+            ),
+            wasCapped: true,
+            isEntirelyFuture: false
+        )
+    }
+}
+
 nonisolated enum HoloAgentTimeSemanticResolver {
 
     static func resolve(_ text: String, referenceDate: Date = Date(), calendar inputCalendar: Calendar = .current) -> HoloAgentResolvedTimeScope? {

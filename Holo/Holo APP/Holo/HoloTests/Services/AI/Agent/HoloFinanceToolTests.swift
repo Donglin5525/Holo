@@ -41,6 +41,7 @@ struct HoloFinanceToolTests {
         try await test无财务记录返回empty()
         try await test动态查询现场计算麦当劳平均每顿金额()
         try await test动态查询同时计算十天总额和自然日日均()
+        try await test事件型财务数据不把记录天数误判为覆盖不足()
         try test动态查询找出环比增长最高分类()
         print("HoloFinanceToolTests passed")
     }
@@ -66,6 +67,42 @@ struct HoloFinanceToolTests {
         expect(result.metrics.contains { $0.metricKey.contains("total_spending") && $0.value == 300 }, "必须回答总支出")
         expect(result.metrics.contains { $0.metricKey.contains("average_per_day") && $0.value == 30 }, "日均必须按十个自然日计算")
         expect(result.events.contains { $0.formula == "value / calendar_days(10)" }, "证据必须携带自然日分母公式")
+    }
+
+    /// 交易是事件，不是“每天应该有一条”的观测序列。132 个交易日 / 365 天不能解释为证据不足。
+    private static func test事件型财务数据不把记录天数误判为覆盖不足() async throws {
+        let calendar = Calendar(identifier: .gregorian)
+        let start = calendar.date(from: DateComponents(year: 2025, month: 1, day: 1))!
+        let end = calendar.date(from: DateComponents(year: 2026, month: 1, day: 1))!
+        let rows = (0..<132).map { index in
+            let occurredAt = calendar.date(byAdding: .day, value: index * 2, to: start)!
+            return HoloQueryRow(
+                id: "expense-day-\(index)",
+                occurredAt: occurredAt,
+                fields: [
+                    "date": .date(occurredAt),
+                    "amount": .number(100),
+                    "type": .text("expense"),
+                    "category": .text("日常"),
+                    "account": .text("默认"),
+                    "text": .text("")
+                ],
+                excerpt: "日常支出"
+            )
+        }
+        let plan = HoloDynamicQueryPlan(
+            source: "finance.transactions",
+            timeRange: HoloAgentTimeRange(label: "2025年", start: start, end: end),
+            filters: [HoloDynamicFilter(field: "type", operation: .equal, value: .text("expense"))],
+            aggregations: [HoloDynamicAggregation(id: "total", operation: .sum, field: "amount", unit: "元")]
+        )
+        let output = try HoloDynamicQueryEngine.execute(
+            plan: plan,
+            catalog: HoloFinanceTool.dynamicCatalog,
+            currentRows: rows
+        )
+        expect(output.metrics.first?.value == 13_200, "事件型数据仍应正常聚合全部支出")
+        expect(output.coverage == nil, "财务交易不能用 132/365 天作为证据覆盖率")
     }
 
     private static func test动态查询现场计算麦当劳平均每顿金额() async throws {

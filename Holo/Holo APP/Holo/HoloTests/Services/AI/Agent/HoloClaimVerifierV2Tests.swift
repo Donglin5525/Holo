@@ -20,6 +20,8 @@ struct HoloClaimVerifierV2Tests {
         test无evidence_拒绝()
         testmetricKey不匹配_拒绝()
         testvalue不一致_拒绝()
+        test建议夹带无证据数字目标_拒绝()
+        test事实文案夹带无证据数字_拒绝()
         test单位不一致_降级()
         test分母为零_拒绝()
         test弱证据强表达_降级()
@@ -112,6 +114,33 @@ struct HoloClaimVerifierV2Tests {
             evidence: [makeEvidence(id: "ev1", value: 5000)]
         )
         expect(result.verdict == .rejected, "value 不一致应拒绝，实际 \(result.verdict)")
+    }
+
+    private static func test建议夹带无证据数字目标_拒绝() {
+        let verifier = HoloClaimVerifierV2()
+        let result = verifier.verify(
+            claim: makeClaim(
+                type: "suggestion",
+                text: "建议把娱乐预算控制在每月1500元以内，预计节省600-1200元",
+                value: 12_600,
+                evidenceIDs: ["ev1"]
+            ),
+            evidence: [makeEvidence(id: "ev1", value: 12_600)]
+        )
+        expect(result.verdict == .rejected, "无证据预算/节省数字应拒绝，实际 \(result.verdict)")
+    }
+
+    private static func test事实文案夹带无证据数字_拒绝() {
+        let verifier = HoloClaimVerifierV2()
+        let result = verifier.verify(
+            claim: makeClaim(
+                text: "餐饮支出25,800元，占总支出的50%",
+                value: 25_800,
+                evidenceIDs: ["ev1"]
+            ),
+            evidence: [makeEvidence(id: "ev1", value: 25_800)]
+        )
+        expect(result.verdict == .rejected, "无法由 assertion 复算的正文数字应拒绝，实际 \(result.verdict)")
     }
 
     private static func test单位不一致_降级() {

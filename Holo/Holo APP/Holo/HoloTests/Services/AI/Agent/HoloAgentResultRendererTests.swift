@@ -57,6 +57,221 @@ final class HoloAgentResultRendererTests: XCTestCase {
         XCTAssertFalse(flat.contains("SECRET_FULL_TEXT"), "不应暴露完整敏感原文")
     }
 
+    /// 用户问“哪些地方需要优化”时，建议必须成为首要答案，事实退到支撑层。
+    func test优化问题采用行动优先的信息层级() {
+        let observation = HoloAgentClaim(
+            id: "observation",
+            type: "observation",
+            displayText: "2026年总支出14598.83元，餐饮支出3516元",
+            metricAssertions: [
+                HoloMetricAssertion(
+                    metricKey: "finance.total.amount",
+                    value: 14598.83,
+                    baselineValue: nil,
+                    unit: "元",
+                    comparison: nil,
+                    evidenceIDs: ["total"]
+                )
+            ],
+            evidenceIDs: ["total"],
+            prohibitedInferences: [],
+            confidence: 0.9
+        )
+        let suggestion = HoloAgentClaim(
+            id: "suggestion",
+            type: "suggestion",
+            displayText: "优先复核餐饮支出，并为下个月设置可执行的餐饮上限",
+            metricAssertions: [
+                HoloMetricAssertion(
+                    metricKey: "finance.category.amount",
+                    value: 3516,
+                    baselineValue: nil,
+                    unit: "元",
+                    comparison: "餐饮",
+                    evidenceIDs: ["meal"]
+                )
+            ],
+            evidenceIDs: ["meal"],
+            prohibitedInferences: [],
+            confidence: 0.84
+        )
+        let evidence = [
+            makeEvidence(
+                id: "total",
+                redacted: "2026年截至当前总支出14598.83元",
+                excerpt: "总支出",
+                sourceModule: .finance,
+                metricKey: "finance.total.amount",
+                metricValue: 14598.83,
+                unit: "元"
+            ),
+            makeEvidence(
+                id: "meal",
+                redacted: "餐饮支出3516元",
+                excerpt: "餐饮",
+                sourceModule: .finance,
+                metricKey: "finance.category.amount",
+                metricValue: 3516,
+                unit: "元"
+            )
+        ]
+
+        let result = HoloAgentResultRenderer().render(
+            claims: [observation, suggestion],
+            evidence: evidence,
+            question: "分析我2026年的财务数据，有哪些需要优化的地方？",
+            answerContext: HoloAgentAnswerContext(
+                primaryTimeRange: HoloAgentTimeRange(
+                    label: "2026年",
+                    start: Date(timeIntervalSince1970: 1_767_225_600),
+                    end: Date(timeIntervalSince1970: 1_798_761_600)
+                ),
+                snapshotCutoffAt: Date(timeIntervalSince1970: 1_774_540_800)
+            )
+        )
+
+        XCTAssertTrue(result.directAnswer?.contains("优先优化") == true, "首屏应概括行动，不复制整段建议")
+        XCTAssertFalse(result.directAnswer == suggestion.displayText, "第一条建议不得被提升成不同字号的开场正文")
+        XCTAssertTrue(result.headline?.contains("优化建议") == true)
+        XCTAssertEqual(result.recommendations?.count, 1, "建议必须进入类型化建议列表")
+        XCTAssertEqual(result.recommendations?.first?.title, "优先复核餐饮支出")
+        XCTAssertTrue(result.sections.contains { $0.kind == "observation" }, "仍要保留核验事实作为建议依据")
+    }
+
+    /// 真实事故回归：年度问题不得被 evidence 旧标签改回近 30 天；
+    /// 财务事件记录不得显示 132/365 覆盖不足；两条建议必须同层、同序展示。
+    func test年度财务优化统一答案上下文() {
+        let staleRange = HoloAgentTimeRange(
+            label: "近30天",
+            start: Date(timeIntervalSince1970: 1_772_928_000),
+            end: Date(timeIntervalSince1970: 1_775_520_000)
+        )
+        let authoritativeRange = HoloAgentTimeRange(
+            label: "2026年",
+            start: Date(timeIntervalSince1970: 1_767_225_600),
+            end: Date(timeIntervalSince1970: 1_798_761_600)
+        )
+        let claims = [
+            HoloAgentClaim(
+                id: "fact",
+                type: "observation",
+                displayText: "礼物类支出为25230.11元",
+                metricAssertions: [
+                    HoloMetricAssertion(
+                        metricKey: "finance.category.amount",
+                        value: 25230.11,
+                        baselineValue: nil,
+                        unit: "元",
+                        comparison: "礼物",
+                        evidenceIDs: ["gift"]
+                    )
+                ],
+                evidenceIDs: ["gift"],
+                prohibitedInferences: [],
+                confidence: 0.94
+            ),
+            HoloAgentClaim(
+                id: "r1",
+                type: "suggestion",
+                displayText: "建议1（高优先级）：审视礼物类大额支出。其中一笔25000元的MacBook Pro占礼物总支出99%。",
+                metricAssertions: [
+                    HoloMetricAssertion(
+                        metricKey: "finance.category.amount",
+                        value: 25230.11,
+                        baselineValue: nil,
+                        unit: "元",
+                        comparison: "礼物",
+                        evidenceIDs: ["gift"]
+                    ),
+                    HoloMetricAssertion(
+                        metricKey: "finance.transaction.amount",
+                        value: 25000,
+                        baselineValue: nil,
+                        unit: "元",
+                        comparison: "MacBook Pro",
+                        evidenceIDs: ["gift"]
+                    )
+                ],
+                evidenceIDs: ["gift"],
+                prohibitedInferences: [],
+                confidence: 0.91
+            ),
+            HoloAgentClaim(
+                id: "r2",
+                type: "suggestion",
+                displayText: "建议2（中优先级）：控制月度预算执行。本月已超支409元，可先复核礼物与餐饮分类。",
+                metricAssertions: [
+                    HoloMetricAssertion(
+                        metricKey: "finance.budget.overrun",
+                        value: 409,
+                        baselineValue: nil,
+                        unit: "元",
+                        comparison: nil,
+                        evidenceIDs: ["budget"]
+                    )
+                ],
+                evidenceIDs: ["budget"],
+                prohibitedInferences: [],
+                confidence: 0.86
+            )
+        ]
+        let evidence = [
+            makeEvidence(
+                id: "gift",
+                redacted: "礼物25230.11元，其中MacBook Pro 25000元",
+                excerpt: "礼物25230.11元，其中MacBook Pro 25000元",
+                sourceModule: .finance,
+                timeRange: staleRange,
+                metricKey: "finance.category.amount",
+                metricValue: 25230.11,
+                unit: "元"
+            ),
+            makeEvidence(
+                id: "budget",
+                redacted: "本月预算超支409元",
+                excerpt: "本月预算超支409元",
+                sourceModule: .finance,
+                timeRange: HoloAgentTimeRange(
+                    label: "本月",
+                    start: Date(timeIntervalSince1970: 1_772_928_000),
+                    end: Date(timeIntervalSince1970: 1_775_520_000)
+                ),
+                metricKey: "finance.budget.overrun",
+                metricValue: 409,
+                unit: "元"
+            )
+        ]
+
+        let result = HoloAgentResultRenderer().render(
+            claims: claims,
+            evidence: evidence,
+            question: "分析我2026年的财务数据，有哪些需要优化的地方？",
+            coverage: HoloDataCoverage(
+                coveredDays: 132,
+                totalDays: 365,
+                coverageRatio: 132.0 / 365.0,
+                missingRanges: [],
+                note: "132天有交易",
+                semantics: .eventRecords
+            ),
+            answerContext: HoloAgentAnswerContext(
+                primaryTimeRange: authoritativeRange,
+                snapshotCutoffAt: Date(timeIntervalSince1970: 1_774_540_800)
+            )
+        )
+
+        XCTAssertEqual(result.scope?.label, "2026年")
+        XCTAssertTrue(result.scope?.displayLabel.contains("截至") == true)
+        XCTAssertTrue(result.headline?.contains("2026年") == true)
+        XCTAssertFalse(result.headline?.contains("近30天") == true)
+        XCTAssertNil(result.coverageText, "事件型财务数据不得按有交易天数判断覆盖不足")
+        XCTAssertEqual(result.limitations, [])
+        XCTAssertEqual(result.recommendations?.map(\.id), ["r1", "r2"])
+        XCTAssertEqual(result.recommendations?.map(\.title), ["审视礼物类大额支出", "控制月度预算执行"])
+        XCTAssertEqual(result.recommendations?.map(\.priorityLabel), ["高优先级", "中优先级"])
+        XCTAssertFalse(result.sections.contains { $0.kind == "suggestion" }, "建议只允许一个类型化展示来源")
+    }
+
     // P1：修复 section.title/body 同值浪费
     /// section.title 用「观察 N」短 kicker，body 用 claim 正文，二者不应同值。
     func testSectionTitleNotEqualToBody() {
@@ -85,6 +300,60 @@ final class HoloAgentResultRendererTests: XCTestCase {
             XCTFail("confidence 缺失"); return
         }
         XCTAssertEqual(confidence, 0.82, accuracy: 0.001, "section.confidence 应等于 claim.confidence")
+    }
+
+    /// 归因诊断场景回归：多条诊断 claim 不应产生多个"归因解读"重复标题，
+    /// 归因结论只在 directAnswer 出现一次，sections 不重复归因正文。
+    func test诊断归因不产生重复标题且结论只在directAnswer() {
+        // 两条诊断 claim（归因结论），各自带量化数据
+        let claim1 = HoloAgentClaim(
+            id: "diag-1",
+            type: "observation",
+            displayText: "本月支出比上期增加800元，主要来自餐饮，贡献了总增量的65%",
+            metricAssertions: [
+                HoloMetricAssertion(metricKey: "finance.amount.change", value: 800, baselineValue: nil,
+                                    unit: "元", comparison: "increasing", evidenceIDs: ["e1"])
+            ],
+            evidenceIDs: ["e1"], prohibitedInferences: [], confidence: 0.9
+        )
+        let claim2 = HoloAgentClaim(
+            id: "diag-2",
+            type: "insight",
+            displayText: "预算口径下餐饮已用120%超限，娱乐接近上限",
+            metricAssertions: [
+                HoloMetricAssertion(metricKey: "finance.budget.category.progress", value: 1.2, baselineValue: nil,
+                                    unit: "比例", comparison: "餐饮", evidenceIDs: ["e2"])
+            ],
+            evidenceIDs: ["e2"], prohibitedInferences: [], confidence: 0.85
+        )
+        let evidence = [
+            makeEvidence(id: "e1", redacted: "支出增加800元", excerpt: "原文",
+                         sourceModule: .finance, metricKey: "finance.amount.change", metricValue: 800, unit: "元"),
+            makeEvidence(id: "e2", redacted: "餐饮预算进度120%", excerpt: "原文",
+                         sourceModule: .finance, metricKey: "finance.budget.category.progress", metricValue: 1.2, unit: "比例")
+        ]
+
+        let result = HoloAgentResultRenderer().render(
+            claims: [claim1, claim2],
+            evidence: evidence,
+            question: "为什么本期支出超支，有哪些因素导致？",
+            requestedDeliverables: [.diagnosis]
+        )
+
+        // 1. 不应出现任何"归因解读"标题（旧 bug：每条诊断 claim 一个同名标题）
+        let attributionTitles = result.sections.filter { $0.title == "归因解读" }
+        XCTAssertTrue(attributionTitles.isEmpty, "不应有'归因解读'重复标题，实际：\(result.sections.map(\.title))")
+
+        // 2. 归因结论应在 directAnswer 完整出现（两条诊断 claim 串联）
+        let direct = result.directAnswer ?? ""
+        XCTAssertTrue(direct.contains("餐饮"), "directAnswer 应含餐饮归因")
+        XCTAssertTrue(direct.contains("120%"), "directAnswer 应含预算超限归因")
+
+        // 3. sections 不应重复归因结论的正文（避免"开篇讲一遍→卡片再讲一遍"）
+        for section in result.sections {
+            XCTAssertFalse(section.body.contains("贡献了总增量的65%"),
+                           "sections 不应重复归因结论正文，冲突 section：\(section.title)")
+        }
     }
 
     /// 财务 evidence 带时间范围时，渲染结果应携带下钻路由。
@@ -324,7 +593,8 @@ final class HoloAgentResultRendererTests: XCTestCase {
                 totalDays: 30,
                 coverageRatio: 28.0 / 30.0,
                 missingRanges: [],
-                note: "已读取 28/30 天健康数据"
+                note: "已读取 28/30 天健康数据",
+                semantics: .dailyObservations
             )
         )
 

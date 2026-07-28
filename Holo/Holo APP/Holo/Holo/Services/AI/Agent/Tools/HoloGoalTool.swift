@@ -209,7 +209,9 @@ extension HoloGoalTool {
     }
 
     private static func excerpt(for goal: HoloGoalToolRecord) -> String {
-        var parts: [String] = ["目标「\(goal.title)」", "领域：\(goal.domain)"]
+        // goal.domain 存的是 GoalDomain.rawValue（英文 learning/career…），展示给用户要翻译成中文。
+        let domainLabel = GoalDomain(rawValue: goal.domain)?.displayName ?? "其他"
+        var parts: [String] = ["目标「\(goal.title)」", "领域：\(domainLabel)"]
         if let deadline = goal.deadline {
             parts.append("截止：\(displayFormatter.string(from: deadline))")
         }

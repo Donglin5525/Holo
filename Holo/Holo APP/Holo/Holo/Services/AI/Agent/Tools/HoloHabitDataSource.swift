@@ -18,18 +18,37 @@ struct HoloDefaultHabitDataSource: HoloHabitDataSource {
     private static func loadHabitsOnMain(timeRange: HoloAgentTimeRange?) -> [HoloHabitToolRecord] {
         let repo = HabitRepository.shared
         let calendar = Calendar.current
-        let today = timeRange?.end ?? calendar.startOfDay(for: Date())
-        let start = timeRange?.start ?? (calendar.date(byAdding: .day, value: -13, to: today) ?? today)
-        let dayCount = max((calendar.dateComponents([.day], from: calendar.startOfDay(for: start), to: today).day ?? 0) + 1, 1)
+        let historicalRange = HoloAgentHistoricalTimePolicy.resolve(timeRange)
+        guard !historicalRange.isEntirelyFuture else { return [] }
+        let effectiveRange = historicalRange.effectiveRange
+        let defaultToday = calendar.startOfDay(for: Date())
+        let defaultEnd = calendar.date(byAdding: .day, value: 1, to: defaultToday) ?? Date()
+        let exclusiveEnd = calendar.startOfDay(for: effectiveRange?.end ?? defaultEnd)
+        let referenceDay = calendar.date(byAdding: .day, value: -1, to: exclusiveEnd) ?? defaultToday
+        let start = calendar.startOfDay(
+            for: effectiveRange?.start
+                ?? calendar.date(byAdding: .day, value: -13, to: referenceDay)
+                ?? referenceDay
+        )
+        let dayCount = max(
+            (calendar.dateComponents([.day], from: start, to: referenceDay).day ?? 0) + 1,
+            1
+        )
+        let inclusiveEnd = exclusiveEnd.addingTimeInterval(-0.001)
         repo.loadActiveHabits()
         return repo.activeHabits.map { habit in
-            let records = repo.getRecords(for: habit, in: start...today)
+            let records = repo.getRecords(for: habit, in: start...inclusiveEnd)
             return HoloHabitToolRecord(
                 id: habit.id.uuidString,
-                name: habit.name ?? "",
+                name: habit.name,
                 polarity: habit.isBadHabit ? .negative : .positive,
                 dailyGoal: goal(for: habit),
-                dailyCounts: aggregate(records: records, today: today, dayCount: dayCount, isMeasureType: habit.isMeasureType),
+                dailyCounts: aggregate(
+                    records: records,
+                    today: referenceDay,
+                    dayCount: dayCount,
+                    isMeasureType: habit.isMeasureType
+                ),
                 unit: habit.isNumericType ? habit.unitText : nil,
                 isMeasureType: habit.isMeasureType
             )

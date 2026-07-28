@@ -118,9 +118,18 @@ struct HoloDefaultHealthDataSource: HoloHealthDataSource {
     ) -> (start: Date, inclusiveEnd: Date) {
         let today = calendar.startOfDay(for: now)
         let defaultEnd = calendar.date(byAdding: .day, value: 1, to: today) ?? today
-        let exclusiveEnd = calendar.startOfDay(for: timeRange?.end ?? defaultEnd)
+        let historicalRange = HoloAgentHistoricalTimePolicy.resolve(
+            timeRange,
+            asOf: now,
+            calendar: calendar
+        )
+        guard !historicalRange.isEntirelyFuture else {
+            return (defaultEnd, today)
+        }
+        let effectiveRange = historicalRange.effectiveRange
+        let exclusiveEnd = calendar.startOfDay(for: effectiveRange?.end ?? defaultEnd)
         let start = calendar.startOfDay(
-            for: timeRange?.start ?? calendar.date(byAdding: .day, value: -13, to: today) ?? today
+            for: effectiveRange?.start ?? calendar.date(byAdding: .day, value: -13, to: today) ?? today
         )
         let inclusiveEnd = calendar.date(byAdding: .day, value: -1, to: exclusiveEnd) ?? start
         return (start, inclusiveEnd)

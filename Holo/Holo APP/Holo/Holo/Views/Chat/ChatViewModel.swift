@@ -35,19 +35,20 @@ final class ChatViewModel: ObservableObject {
     @Published private(set) var didTimeoutLoadingConfig: Bool = false
     @Published private(set) var hasEarlierSessions: Bool = false
     @Published private(set) var isLoadingEarlierSession: Bool = false
-    /// 覆盖「加载更早消息 + 视图刷新」整个窗口的标志。
-    /// 与 isLoadingEarlierSession（defer 复位过早）不同，它延迟到 messages 真正刷新后才复位，
-    /// 用于阻止 onChange(streamingText/isStreaming) 在加载历史期间抢夺滚动位置。
-    @Published private(set) var isApplyingEarlierSession: Bool = false
+    @Published private(set) var earlierHistoryLoadFailed: Bool = false
 
     // MARK: - Private
 
     private let logger = Logger(subsystem: "com.holo.app", category: "ChatViewModel")
-    private let initialHistoryLimit = 30
+    /// 首屏只装载足够覆盖约 3～5 屏的内容，降低复杂卡片首次布局的尖峰。
+    private let initialHistoryLimit = 24
     /// 输入草稿持久化 key（退出界面再回来恢复未发送的文字）
     private static let inputDraftKey = "holo_chat_inputDraft"
     private var chatRepo: ChatMessageRepository?
     private var currentTask: Task<Void, Never>?
+    /// 当前请求对应的占位消息；用于停止时立即关闭持久化 streaming 状态，
+    /// 并防止已经取消的旧 Task 晚返回后覆盖下一次请求的 UI。
+    private var activeStreamingMessageID: UUID?
     private var provider: AIProvider
     private let coordinator: ConversationCoordinator
     /// 本地深度 Agent 分析服务（Phase 6.2 灰度，agentRuntimeEnabled 把关）
@@ -206,15 +207,6 @@ final class ChatViewModel: ObservableObject {
                 guard let self else { return }
                 self.messages = messages
                 self.isStreaming = messages.contains { $0.isStreaming }
-
-                // 加载历史期间，messages 在主队列异步刷新（晚于仓库 await 返回）。
-                // 延迟复位 isApplyingEarlierSession，确保覆盖 prepend → 插入渲染 → 锚点 scrollTo 全窗口，
-                // 期间挡住 onChange(streamingText/isStreaming) 把视图抢回底部。
-                if self.isApplyingEarlierSession {
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) { [weak self] in
-                        self?.isApplyingEarlierSession = false
-                    }
-                }
             }
 
         // 同步 hasEarlierSessions
@@ -282,6 +274,7 @@ final class ChatViewModel: ObservableObject {
         // 3. 处理用户输入
         isStreaming = true
         streamingText = ""
+        activeStreamingMessageID = aiMessageId
 
         startStreamingWatchdog(aiMessageId: aiMessageId)
 
@@ -300,6 +293,7 @@ final class ChatViewModel: ObservableObject {
                     userContext: userContext,
                     provider: self.provider
                 )
+                try Task.checkCancellation()
 
                 // ENERGY: 能量检查预留位
 
@@ -324,6 +318,7 @@ final class ChatViewModel: ObservableObject {
                         question: text,
                         sourceMessageID: aiMessageId
                     )
+                    try Task.checkCancellation()
                     // 不再拍扁成单段文本：结构化存 agentResultJSON，由 AgentDeepAnalysisCard 渲染
                     // fallback 文本用于历史回看/解码失败时退化展示（标题 + 摘要）
                     let fallbackText = [rendered.title, rendered.summary]
@@ -373,7 +368,7 @@ final class ChatViewModel: ObservableObject {
 
                         var fullText = ""
                         for try await chunk in stream {
-                            if Task.isCancelled { break }
+                            try Task.checkCancellation()
                             fullText += chunk
                             self.streamingText = HoloMemoryUsageMarker.visibleTextWhileStreaming(fullText)
                         }
@@ -413,7 +408,7 @@ final class ChatViewModel: ObservableObject {
 
                         var fullText = ""
                         for try await chunk in stream {
-                            if Task.isCancelled { break }
+                            try Task.checkCancellation()
                             fullText += chunk
                             self.streamingText = HoloMemoryUsageMarker.visibleTextWhileStreaming(fullText)
                         }
@@ -465,8 +460,14 @@ final class ChatViewModel: ObservableObject {
                 // ENERGY: 能量恢复预留位
 
             } catch is CancellationError {
-                self.chatRepo?.finishStreaming(aiMessageId, finalContent: self.streamingText)
+                // 用户点击停止时已经同步关闭这条消息；旧 Task 晚返回不得覆盖后续请求。
+                if self.activeStreamingMessageID == aiMessageId {
+                    self.chatRepo?.finishStreaming(aiMessageId, finalContent: self.streamingText)
+                }
             } catch {
+                // 这条请求已被用户停止，或已经有更新的请求接管输入栏。
+                // URLSession 取消偶尔会被上游包装成普通网络错误，不能再把旧错误写回界面。
+                guard self.activeStreamingMessageID == aiMessageId else { return }
                 self.logger.error("AI 处理失败：\(error.localizedDescription)")
                 let userMessage = HoloAIUserErrorMapper.message(for: error)
                 self.errorMessage = userMessage
@@ -483,20 +484,33 @@ final class ChatViewModel: ObservableObject {
                 self.chatRepo?.finishStreaming(aiMessageId, finalContent: finalContent)
             }
 
-            self.isStreaming = false
-            self.streamingText = ""
-            self.streamingWatchdogTask?.cancel()
-            self.streamingWatchdogTask = nil
+            if self.activeStreamingMessageID == aiMessageId {
+                self.isStreaming = false
+                self.streamingText = ""
+                self.streamingWatchdogTask?.cancel()
+                self.streamingWatchdogTask = nil
+                self.currentTask = nil
+                self.activeStreamingMessageID = nil
+            }
         }
     }
 
     // MARK: - Cancel
 
     func cancelStreaming() {
+        let cancelledMessageID = activeStreamingMessageID
         currentTask?.cancel()
         currentTask = nil
         streamingWatchdogTask?.cancel()
         streamingWatchdogTask = nil
+        // 点击后立即结束输入栏的运行态；底层任务取消和持久化落盘继续异步完成。
+        // 不能让按钮是否消失取决于网络请求何时响应取消。
+        isStreaming = false
+        streamingText = ""
+        activeStreamingMessageID = nil
+        if let cancelledMessageID {
+            chatRepo?.finishStreaming(cancelledMessageID, finalContent: "已停止生成")
+        }
         // 关键修复：Agent 深度分析跑在 Scheduler 独立 Task 上（activeTasks[jobID]），
         // 与 chat 的 currentTask 是不同对象。此前只取消 currentTask 对 Agent 无效，
         // 导致点「停止」后分析继续跑到预算耗尽。这里显式取消 Scheduler 上活跃的用户任务。
@@ -530,6 +544,7 @@ final class ChatViewModel: ObservableObject {
             guard let self = self else { return }
             try? await Task.sleep(nanoseconds: 90_000_000_000) // 90s
             guard !Task.isCancelled else { return }
+            guard self.activeStreamingMessageID == aiMessageId else { return }
 
             self.logger.error("Streaming watchdog 触发：90 秒超时，强制终止")
 
@@ -548,6 +563,8 @@ final class ChatViewModel: ObservableObject {
             self.isStreaming = false
             self.streamingText = ""
             self.errorMessage = "AI 响应超时"
+            self.currentTask = nil
+            self.activeStreamingMessageID = nil
         }
     }
 
@@ -754,7 +771,7 @@ final class ChatViewModel: ObservableObject {
               let pendingIndex = batch.items.firstIndex(where: {
                   $0.intent.isFinance && $0.status == .skipped && $0.renderData?["confirmationStatus"] == "pending"
               }),
-              let renderData = batch.items[pendingIndex].renderData else {
+              batch.items[pendingIndex].renderData != nil else {
             return
         }
 
@@ -1441,13 +1458,25 @@ final class ChatViewModel: ObservableObject {
 
     // MARK: - Session History
 
-    /// 加载更早会话，返回加载前首条消息的 id（滚动锚点，用于把视图钉在用户当时看的那条）
-    func loadEarlierSession() async -> UUID? {
-        guard !isLoadingEarlierSession else { return nil }
+    /// 小批量加载更早消息。视口保持由 ChatScrollController 负责，
+    /// ViewModel 只暴露明确的成功/失败状态，便于顶部提供轻量重试。
+    func loadEarlierSession() async -> ChatHistoryPageResult {
+        guard !isLoadingEarlierSession else {
+            return .loaded(0, hasEarlierMessages: hasEarlierSessions)
+        }
         isLoadingEarlierSession = true
-        isApplyingEarlierSession = true
+        earlierHistoryLoadFailed = false
         defer { isLoadingEarlierSession = false }
-        return await chatRepo?.loadEarlierSessionLightweightMessagesAsync()
+
+        guard let chatRepo else {
+            earlierHistoryLoadFailed = true
+            return .failed(hasEarlierMessages: hasEarlierSessions)
+        }
+
+        let result = await chatRepo.loadEarlierSessionLightweightMessagesAsync()
+        earlierHistoryLoadFailed = result.didFail
+        hasEarlierSessions = result.hasEarlierMessages
+        return result
     }
 }
 

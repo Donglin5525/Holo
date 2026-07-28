@@ -200,7 +200,9 @@ final class HoloAgentContinuedProcessingTests: XCTestCase {
         }
     }
 
-    private let finalClaims = #"{"status":"final_claims","reasoning":"证据足够","toolRequests":[],"claims":[],"warnings":[]}"#
+    /// Continued Processing 测试关注执行租约，不应再依赖已被响应契约拒绝的空 claims。
+    /// capability_boundary 不虚构数据，同时满足“最终答案至少有一条用户可读结论”的底线。
+    private let finalClaims = #"{"status":"final_claims","reasoning":"执行边界已确认","toolRequests":[],"claims":[{"id":"continued-boundary","type":"capability_boundary","displayText":"本次持续处理执行已完成","metricAssertions":[],"evidenceIDs":[],"prohibitedInferences":[],"confidence":0.5}],"warnings":[]}"#
 
     // MARK: - §9.1 资格矩阵（纯函数）
 
@@ -510,6 +512,41 @@ final class HoloAgentContinuedProcessingTests: XCTestCase {
         XCTAssertNotEqual(first, second)
     }
 
+    /// 进程被杀后旧租约已丢失，但终态 job 仍在磁盘；冷启动必须按完整 jobID 清掉系统残留。
+    @MainActor
+    func testContinued_冷启动清理历史失败与已完成请求() async throws {
+        let dir = makeTempDir()
+        let fixture = makeFixture(dir: dir, llm: FakeLLM(responses: [finalClaims]))
+        let client = FakeContinuedClient()
+        let scheduler = HoloAgentScheduler(runtime: fixture.runtime, continuedClient: client)
+        let now = Date()
+
+        var failed = try await fixture.runtime.startAnalysisJob(question: "失败任务", now: now)
+        failed.state = .failed
+        failed.errorSummary = "历史分析失败"
+        try await fixture.jobStore.upsert(failed)
+
+        var completed = try await fixture.runtime.startAnalysisJob(question: "完成任务", now: now)
+        completed.state = .completed
+        try await fixture.jobStore.upsert(completed)
+
+        let running = try await fixture.runtime.startAnalysisJob(question: "仍在运行", now: now)
+        let cleaned = try await scheduler.reconcileContinuedProcessingRequests()
+
+        XCTAssertEqual(cleaned, 2)
+        XCTAssertEqual(
+            Set(client.cancelled),
+            Set([
+                HoloAgentContinuedProcessingLease.identifier(for: failed.id),
+                HoloAgentContinuedProcessingLease.identifier(for: completed.id)
+            ]),
+            "只能精确清理终态任务，不得误取消仍在运行的分析"
+        )
+        XCTAssertFalse(
+            client.cancelled.contains(HoloAgentContinuedProcessingLease.identifier(for: running.id))
+        )
+    }
+
     /// §9.5：系统取消 → job 落 paused + 来源（waitReason=.systemCapacity），不自动复活；明确动作接管。
     @MainActor
     func testContinued_系统取消落paused不自动复活() async throws {
@@ -619,13 +656,13 @@ final class HoloAgentContinuedProcessingTests: XCTestCase {
     /// 与 SchedulerTests 同款的多租约 fake 后台任务 client
     @MainActor
     private final class FakeBackgroundTaskClient: HoloBackgroundTaskClient {
-        private(set) var handlers: [Int: () -> Void] = [:]
+        private(set) var handlers: [Int: @MainActor @Sendable () -> Void] = [:]
         private(set) var endedIDs: [Int] = []
         private var nextID = 0
         var activeLeaseCount: Int { handlers.count }
 
         func beginBackgroundTask(named name: String,
-                                 expirationHandler: @escaping @Sendable () -> Void) -> UIBackgroundTaskIdentifier {
+                                 expirationHandler: @escaping @MainActor @Sendable () -> Void) -> UIBackgroundTaskIdentifier {
             nextID += 1
             handlers[nextID] = expirationHandler
             return UIBackgroundTaskIdentifier(rawValue: nextID)

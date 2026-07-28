@@ -70,7 +70,7 @@ struct HabitsView: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
-        .swipeBackToDismiss { close() }
+        .swipeBackToDismiss(isResidentScreenRoot: true) { close() }
         .safeAreaInset(edge: .bottom, spacing: 0) {
             habitTabBar
         }

@@ -48,6 +48,12 @@ nonisolated struct HoloClaimVerifier {
         for word in causalWords where claim.displayText.contains(word) {
             return "文案包含因果词「\(word)」，只能描述并发"
         }
+        if !HoloAgentClaimTextGroundingPolicy.unsupportedNumbers(
+            in: claim,
+            evidence: Array(evidenceByID.values)
+        ).isEmpty {
+            return "文案包含无法由 evidence 复算的数字"
+        }
         // 2. 所有对外展示的 claim 都必须有结构化证据，不能只靠模型文字。
         guard !claim.metricAssertions.isEmpty else {
             return "claim 缺少 metricAssertions"
@@ -64,15 +70,33 @@ nonisolated struct HoloClaimVerifier {
                 guard let record = evidenceByID[evidenceID] else {
                     return "evidenceID 不存在：\(evidenceID)"
                 }
-                if record.metricKey != assertion.metricKey {
-                    return "metricKey 不匹配：claim=\(assertion.metricKey) evidence=\(record.metricKey)"
+                // metricKey 不要求逐字相等：dynamic_query 产出 "dynamic.health.steps.avg.all"，
+                // claim 用固定名 "health.steps.average"。只要同数据域即可（与 V2 保持一致）。
+                if record.metricKey != assertion.metricKey,
+                   !HoloClaimVerifier.metricKeysShareDomain(assertion.metricKey, record.metricKey) {
+                    return "metricKey 数据域不匹配：claim=\(assertion.metricKey) evidence=\(record.metricKey)"
                 }
                 if let value = assertion.value, let evidenceValue = record.metricValue,
-                   abs(value - evidenceValue) > 0.01 {
+                   !HoloClaimVerifierV2.valuesApproximatelyEqual(value, evidenceValue) {
                     return "value 不一致：claim=\(value) evidence=\(evidenceValue)"
                 }
             }
         }
         return nil
+    }
+
+    /// 判断两个 metricKey 是否属于同一数据域（与 HoloClaimVerifierV2 保持一致）。
+    /// dynamic_query 产出 "dynamic.health.steps.avg.all"，claim 用 "health.steps.average"；
+    /// 按 . 和 _ 拆分后 ≥2 个实质 token 重叠即视为同域，防止跨域误引。
+    static func metricKeysShareDomain(_ claimKey: String, _ evidenceKey: String) -> Bool {
+        if claimKey == evidenceKey { return true }
+        func coreTokens(_ key: String) -> Set<String> {
+            let stripped = key.hasPrefix("dynamic.") ? String(key.dropFirst("dynamic.".count)) : key
+            return Set(stripped.split(whereSeparator: { $0 == "." || $0 == "_" }).map(String.init))
+        }
+        let claimTokens = coreTokens(claimKey)
+        let evidenceTokens = coreTokens(evidenceKey)
+        let meaningful = claimTokens.intersection(evidenceTokens).subtracting(["all", "unknown"])
+        return meaningful.count >= 2
     }
 }

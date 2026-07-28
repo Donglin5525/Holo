@@ -26,11 +26,19 @@ struct HoloDefaultMemoryDataSource: HoloMemoryDataSource {
         return context.records
             .filter { !currentStateOnly || $0.persistenceClass == .currentState }
             .map {
-                HoloMemoryToolRecord(
+                // primaryDomain.rawValue 是英文（finance/habit…），这里翻译成中文域名称，
+                // 避免英文漏进 LLM 上下文被复述给用户。复用语义目录的 topic 映射。
+                let domainTitle: String
+                if $0.scope == .crossDomain {
+                    domainTitle = "跨域观察"
+                } else if let domain = $0.primaryDomain {
+                    domainTitle = HoloMetricSemanticCatalog.topic(for: "\(domain.rawValue).memory")
+                } else {
+                    domainTitle = "记忆"
+                }
+                return HoloMemoryToolRecord(
                     id: $0.id,
-                    title: $0.scope == .crossDomain
-                        ? "跨域观察"
-                        : ($0.primaryDomain?.rawValue ?? "记忆"),
+                    title: domainTitle,
                     summary: $0.aiUseSummary,
                     occurredAt: $0.lastSupportedAt ?? $0.updatedAt,
                     persistenceClass: $0.persistenceClass

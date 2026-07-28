@@ -23,6 +23,8 @@ struct HoloClaimVerifierTests {
         testValue不一致时rejected()
         test因果词时rejected()
         test没有证据的Claim必须rejected()
+        test建议夹带无证据数字目标必须rejected()
+        test事实文案夹带无证据数字必须rejected()
         test合法Claim被accepted()
         test重复EvidenceID不会崩溃()
         print("HoloClaimVerifierTests passed")
@@ -93,6 +95,54 @@ struct HoloClaimVerifierTests {
         let result = HoloClaimVerifier().verify(claims: [claim], evidence: [])
         expect(result.acceptedClaims.isEmpty, "没有 metricAssertions/evidenceIDs 的 claim 必须 rejected")
         expect(result.rejectedClaims.count == 1, "应记录 rejected 原因")
+    }
+
+    private static func test建议夹带无证据数字目标必须rejected() {
+        let ev = makeEvidence(id: "e1", metricKey: "finance.category.dining.amount", metricValue: 25_800)
+        let claim = HoloAgentClaim(
+            id: "c-invented-budget",
+            type: "suggestion",
+            displayText: "建议把餐饮预算控制在每月1500元以内，预计节省600-1200元",
+            metricAssertions: [
+                HoloMetricAssertion(
+                    metricKey: "finance.category.dining.amount",
+                    value: 25_800,
+                    baselineValue: nil,
+                    unit: "元",
+                    comparison: nil,
+                    evidenceIDs: ["e1"]
+                )
+            ],
+            evidenceIDs: ["e1"],
+            prohibitedInferences: [],
+            confidence: 0.9
+        )
+        let result = HoloClaimVerifier().verify(claims: [claim], evidence: [ev])
+        expect(result.acceptedClaims.isEmpty, "建议夹带无证据预算/节省数字必须 rejected")
+    }
+
+    private static func test事实文案夹带无证据数字必须rejected() {
+        let ev = makeEvidence(id: "e1", metricKey: "finance.category.dining.amount", metricValue: 25_800)
+        let claim = HoloAgentClaim(
+            id: "c-invented-share",
+            type: "observation",
+            displayText: "餐饮支出25,800元，占总支出的50%",
+            metricAssertions: [
+                HoloMetricAssertion(
+                    metricKey: "finance.category.dining.amount",
+                    value: 25_800,
+                    baselineValue: nil,
+                    unit: "元",
+                    comparison: nil,
+                    evidenceIDs: ["e1"]
+                )
+            ],
+            evidenceIDs: ["e1"],
+            prohibitedInferences: [],
+            confidence: 0.9
+        )
+        let result = HoloClaimVerifier().verify(claims: [claim], evidence: [ev])
+        expect(result.acceptedClaims.isEmpty, "事实正文夹带无法复算的占比必须 rejected")
     }
 
     private static func test合法Claim被accepted() {

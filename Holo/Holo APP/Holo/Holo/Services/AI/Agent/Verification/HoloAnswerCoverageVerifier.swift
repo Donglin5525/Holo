@@ -48,12 +48,9 @@ nonisolated enum HoloAnswerCoverageVerifier {
         }
 
         // 覆盖不足必须披露
-        if let coverage {
-            let ratio = coverage.coverageRatio
-                ?? (coverage.totalDays > 0 ? Double(coverage.coveredDays) / Double(coverage.totalDays) : 1)
-            if ratio < 0.9, !coverageDisclosed(result.coverageText) {
-                recoverableCodes.append(codeCoverageUndisclosed)
-            }
+        if HoloCoveragePresentationPolicy.requiresDisclosure(coverage),
+           !coverageDisclosed(result.coverageText) {
+            recoverableCodes.append(codeCoverageUndisclosed)
         }
 
         // 方向矛盾与编造分组只在有语义证据可核对时检查（旧证据跳过，走兼容兜底）
@@ -83,6 +80,9 @@ nonisolated enum HoloAnswerCoverageVerifier {
         texts += [result.headline, result.directAnswer, result.coverageText].compactMap { $0 }
         texts += result.limitations ?? []
         texts += result.sections.flatMap { [$0.title, $0.body] }
+        texts += (result.recommendations ?? []).flatMap {
+            [$0.title, $0.body, $0.priorityLabel, $0.scopeLabel].compactMap { $0 }
+        }
         texts += result.evidenceReferences.map(\.summary)
         return texts
     }
