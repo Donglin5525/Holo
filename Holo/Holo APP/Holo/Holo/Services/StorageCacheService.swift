@@ -162,29 +162,27 @@ final class StorageCacheService: ObservableObject {
 
     /// 清除所有 ChatMessage 的 rawLogJSON 和 analysisContextJSON 字段
     private func clearChatDebugFields() async {
-        await Task.detached(priority: .utility) {
-            let context = CoreDataStack.shared.newBackgroundContext()
+        let context = CoreDataStack.shared.newBackgroundContext()
 
-            context.performAndWait {
-                let request = NSFetchRequest<NSManagedObject>(entityName: "ChatMessage")
-                request.propertiesToFetch = ["rawLogJSON", "analysisContextJSON"]
-                request.predicate = NSPredicate(
-                    format: "rawLogJSON != nil OR analysisContextJSON != nil"
-                )
+        await context.perform {
+            let request = NSFetchRequest<NSManagedObject>(entityName: "ChatMessage")
+            request.propertiesToFetch = ["rawLogJSON", "analysisContextJSON"]
+            request.predicate = NSPredicate(
+                format: "rawLogJSON != nil OR analysisContextJSON != nil"
+            )
 
-                do {
-                    let results = try context.fetch(request)
-                    for message in results {
-                        message.setValue(nil, forKey: "rawLogJSON")
-                        message.setValue(nil, forKey: "analysisContextJSON")
-                    }
-                    try context.save()
-                    Logger(subsystem: "com.holo.app", category: "StorageCacheService")
-                        .info("已清理 \(results.count) 条消息的调试字段")
-                } catch {
-                    Logger(subsystem: "com.holo.app", category: "StorageCacheService")
-                        .error("清理调试字段失败: \(error.localizedDescription)")
+            do {
+                let results = try context.fetch(request)
+                for message in results {
+                    message.setValue(nil, forKey: "rawLogJSON")
+                    message.setValue(nil, forKey: "analysisContextJSON")
                 }
+                try context.save()
+                Logger(subsystem: "com.holo.app", category: "StorageCacheService")
+                    .info("已清理 \(results.count) 条消息的调试字段")
+            } catch {
+                Logger(subsystem: "com.holo.app", category: "StorageCacheService")
+                    .error("清理调试字段失败: \(error.localizedDescription)")
             }
         }
     }

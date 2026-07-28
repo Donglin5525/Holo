@@ -43,9 +43,9 @@ public class Account: NSManagedObject {
         customIcon.isEmpty ? accountType.icon : customIcon
     }
 
-    /// SwiftUI 颜色
+    /// SwiftUI 颜色（color 为空时回退到 slate 灰蓝；非法 hex 由 Color(hex:) 兜底为红色以暴露问题）
     var swiftUIColor: Color {
-        Color(hex: color) ?? Color(hex: "#64748B") ?? .gray
+        Color(hex: color.isEmpty ? "#64748B" : color)
     }
     
     // MARK: - Methods

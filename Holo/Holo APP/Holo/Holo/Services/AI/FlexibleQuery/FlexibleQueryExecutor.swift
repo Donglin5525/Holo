@@ -81,7 +81,7 @@ final class FlexibleQueryExecutor {
         plan: FlexibleQueryPlan,
         context: NSManagedObjectContext
     ) throws -> [FlexibleTransactionDTO] {
-        let request: NSFetchRequest<Transaction> = Transaction.fetchRequest() as? NSFetchRequest<Transaction> ?? NSFetchRequest<Transaction>(entityName: "Transaction")
+        let request: NSFetchRequest<Transaction> = Transaction.fetchRequest()
 
         // 粗筛 predicate：type + date + amount
         var predicates: [NSPredicate] = []
@@ -163,7 +163,7 @@ final class FlexibleQueryExecutor {
     // MARK: - Category Cache
 
     private static func buildCategoryCache(context: NSManagedObjectContext) -> [UUID: String] {
-        let request: NSFetchRequest<Category> = Category.fetchRequest() as? NSFetchRequest<Category> ?? NSFetchRequest<Category>(entityName: "Category")
+        let request: NSFetchRequest<Category> = Category.fetchRequest()
         guard let categories = try? context.fetch(request) else { return [:] }
         var cache: [UUID: String] = [:]
         for cat in categories {

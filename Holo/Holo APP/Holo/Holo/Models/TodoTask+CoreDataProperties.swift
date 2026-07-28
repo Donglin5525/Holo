@@ -52,7 +52,7 @@ extension TodoTask {
 
     /// 任务状态枚举值
     var taskStatus: TaskStatus {
-        get { TaskStatus(rawValue: status ?? "todo") ?? .todo }
+        get { TaskStatus(rawValue: status) ?? .todo }
         set { status = newValue.rawValue }
     }
 

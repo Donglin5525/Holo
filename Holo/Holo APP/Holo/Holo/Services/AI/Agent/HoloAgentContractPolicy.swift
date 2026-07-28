@@ -96,7 +96,7 @@ nonisolated enum HoloAgentContractPolicy {
         mode: HoloAgentContractMode = HoloAgentContractMode.current
     ) -> HoloAgentContractParseResult {
         var violations: [HoloAgentContractViolation] = []
-        var repairs: [HoloAgentContractViolation] = []
+        let repairs: [HoloAgentContractViolation] = []
 
         guard let output = output else {
             return HoloAgentContractParseResult(

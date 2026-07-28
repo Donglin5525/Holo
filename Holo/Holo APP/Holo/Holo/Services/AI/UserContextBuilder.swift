@@ -121,7 +121,6 @@ final class UserContextBuilder {
 
     private func buildHabitSummary(profileContext: String) -> HabitSummary {
         let repo = HabitRepository.shared
-        let progress = repo.getTodayCheckInProgress()
 
         // 通过 activeHabits 获取习惯列表
         let activeHabits = repo.activeHabits.filter { !$0.isArchived }

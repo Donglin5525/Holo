@@ -215,7 +215,7 @@ nonisolated enum HoloAgentCapabilitySelector {
         domains: [String]
     ) -> HoloAgentCapabilitySelection {
         // 1. 核心能力常驻
-        var core = coreCapabilities
+        let core = coreCapabilities
 
         // 2. 注入高置信相关领域
         var domainTools: Set<String> = []

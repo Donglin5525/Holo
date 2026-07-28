@@ -185,7 +185,7 @@ struct AnalysisDetailSheet: View {
 
     private var fallbackHeadline: String {
         guard let context = message.analysisContext,
-              let summary = AnalysisSummaryFormatter.format(from: context) else {
+              AnalysisSummaryFormatter.format(from: context) != nil else {
             return "这里有几条值得关注的变化。"
         }
 

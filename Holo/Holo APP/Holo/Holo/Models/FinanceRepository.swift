@@ -584,7 +584,7 @@ final class SpendingProjectRepository {
         let request = NSFetchRequest<Transaction>(entityName: "Transaction")
         request.predicate = NSPredicate(format: "spendingProjectId == %@", project.id as CVarArg)
         request.fetchLimit = 1
-        if let existing = try? context.fetch(request).first, existing != nil { return }
+        if (try? context.fetch(request).first) != nil { return }
 
         let transaction = Transaction(context: context)
         transaction.id = UUID()

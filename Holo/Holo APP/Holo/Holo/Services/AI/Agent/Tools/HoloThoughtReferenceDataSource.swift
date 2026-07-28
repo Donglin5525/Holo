@@ -19,7 +19,7 @@ struct HoloDefaultThoughtReferenceDataSource: HoloThoughtReferenceDataSource {
         do {
             return try await Task.detached(priority: .utility) {
                 let context = CoreDataStack.shared.newBackgroundContext()
-                return try await context.perform {
+                return await context.perform {
                     let request = NSFetchRequest<ThoughtReference>(entityName: "ThoughtReference")
                     request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
                     request.fetchLimit = 500
