@@ -72,6 +72,15 @@ struct HoloMemoryLiveObservationPlanStandaloneTests {
                 HoloMemoryLiveObservationPlan.crossDomainDigest([]),
             "跨域候选摘要必须稳定"
         )
+
+        // 领域提取门槛：信号数不足时不得调 API（方案 B：≥3 条才提取）
+        expect(HoloMemoryLiveObservationPlan.domainExtractionThreshold == 3, "提取门槛应为 3")
+        expect(!HoloMemoryLiveObservationPlan.shouldExtractDomain(signalCount: 0), "零信号不应提取")
+        expect(!HoloMemoryLiveObservationPlan.shouldExtractDomain(signalCount: 1), "1 条信号不应提取")
+        expect(!HoloMemoryLiveObservationPlan.shouldExtractDomain(signalCount: 2), "2 条信号不应提取")
+        expect(HoloMemoryLiveObservationPlan.shouldExtractDomain(signalCount: 3), "3 条信号应提取")
+        expect(HoloMemoryLiveObservationPlan.shouldExtractDomain(signalCount: 10), "10 条信号应提取")
+
         print("HoloMemoryLiveObservationPlanStandaloneTests: \(assertions) assertions passed")
     }
 

@@ -138,13 +138,6 @@ struct HoloApp: App {
                     // 首屏数据准备后刷新一次小组件快照，保证冷启动后桌面数据可用
                     await HoloWidgetSnapshotService.shared.refreshAllSnapshots()
 
-                    // 老用户首次升级：回填周期回放远期累计摘要（后台执行，不阻塞 UI）
-                    Task {
-                        await HoloReplayDigestService.shared.backfillIfNeeded(
-                            historyRepo: MemoryInsightRepository()
-                        )
-                    }
-
                     if HoloAIFeatureFlags.agentRuntimeEnabled {
                         await MainActor.run {
                             HoloBackgroundContinuationManager.shared.appDidLaunch()
@@ -180,9 +173,6 @@ struct HoloApp: App {
                         HoloPeriodReplayCoordinator.shared.appWillEnterForeground()
                         Task {
                             await MemoryInsightBackgroundService.shared.checkForegroundCompensation()
-                            await HoloReplayDigestService.shared.backfillIfNeeded(
-                                historyRepo: MemoryInsightRepository()
-                            )
                             await HoloMemoryObservationScheduler.shared.lightweightCheck(
                                 trigger: .becameActive
                             )

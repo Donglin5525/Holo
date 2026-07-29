@@ -10,6 +10,15 @@ import Network
 import OSLog
 
 nonisolated enum HoloMemoryLiveObservationPlan {
+    /// 单个领域触发 AI 提取的最少信号数：低于此值说明变化太少，不值得调一次 API。
+    /// 攒着等积累更多变化后再批量提取。
+    static let domainExtractionThreshold = 3
+
+    /// 判断某领域的信号数量是否达到提取门槛（纯逻辑，可 standalone 测试）。
+    static func shouldExtractDomain(signalCount: Int) -> Bool {
+        signalCount >= domainExtractionThreshold
+    }
+
     private struct StableEvidence: Codable {
         var id: String
         var kind: HoloMemoryEvidenceKind
@@ -301,7 +310,9 @@ actor HoloMemoryLiveObservationCoordinator {
             materialChange: { entry in
                 switch entry.target {
                 case .domain(let domain):
-                    return signalsByDomain[domain]?.isEmpty == false
+                    return HoloMemoryLiveObservationPlan.shouldExtractDomain(
+                        signalCount: signalsByDomain[domain]?.count ?? 0
+                    )
                 case .crossDomain:
                     let records = ((try? await repository.query(.active)) ?? [])
                         .filter { $0.state == .active }

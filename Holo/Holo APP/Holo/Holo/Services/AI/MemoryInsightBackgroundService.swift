@@ -169,7 +169,7 @@ final class MemoryInsightBackgroundService {
 
         guard settings.backgroundAutoGenerationEnabled else { return }
 
-        // 补生成今日洞察
+        // 补生成今日洞察（数据门槛：今天没有任何有效记录就不调 API）
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: Date())
         if let tomorrow = calendar.date(byAdding: .day, value: 1, to: today) {
@@ -178,17 +178,22 @@ final class MemoryInsightBackgroundService {
             ) {
                 // 日洞察已存在，跳过
             } else {
-                logger.info("前台补偿：尝试生成日洞察")
-                do {
-                    _ = try await service.generateInsight(
-                        periodType: .daily,
-                        start: today,
-                        end: tomorrow,
-                        forceRefresh: false
-                    )
-                    logger.info("前台补偿日洞察生成成功")
-                } catch {
-                    logger.error("前台补偿日洞察生成失败：\(error.localizedDescription)")
+                let hasRecordToday = await EffectiveRecordDayService.shared.hasAnyEffectiveRecord(on: today)
+                if hasRecordToday {
+                    logger.info("前台补偿：尝试生成日洞察")
+                    do {
+                        _ = try await service.generateInsight(
+                            periodType: .daily,
+                            start: today,
+                            end: tomorrow,
+                            forceRefresh: false
+                        )
+                        logger.info("前台补偿日洞察生成成功")
+                    } catch {
+                        logger.error("前台补偿日洞察生成失败：\(error.localizedDescription)")
+                    }
+                } else {
+                    logger.info("前台补偿：今日无有效记录，跳过日洞察生成")
                 }
             }
         }

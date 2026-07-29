@@ -94,6 +94,14 @@ final class EffectiveRecordDayService: ObservableObject {
         await buildResult(now: period.end, period: period)
     }
 
+    /// 检查指定日期是否有任何有效记录（四模块任一有记录即为 true）。
+    /// 用于自动洞察生成前的数据门槛：今天零记录 → 不值得调 API。
+    func hasAnyEffectiveRecord(on date: Date) async -> Bool {
+        let day = Calendar.current.startOfDay(for: date)
+        let result = await buildResult(now: day, period: WeeklyObservationPeriod(start: day, end: day))
+        return result.recordDayCount > 0
+    }
+
     // MARK: - Build
 
     private func buildResult(
