@@ -21,6 +21,10 @@ actor HoloToolExecutor: HoloAgentToolExecuting {
         await registry.promptDescription()
     }
 
+    func supportsTool(named name: String) async -> Bool {
+        await registry.tool(named: name) != nil
+    }
+
     /// 执行一次工具请求，永不 throw：所有失败转为带 error 的 HoloDataToolResult。
     func execute(_ request: HoloToolRequest) async -> HoloDataToolResult {
         guard let tool = await registry.tool(named: request.tool) else {

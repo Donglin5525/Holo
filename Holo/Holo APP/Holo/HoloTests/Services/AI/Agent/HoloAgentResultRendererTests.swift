@@ -57,6 +57,24 @@ final class HoloAgentResultRendererTests: XCTestCase {
         XCTAssertFalse(flat.contains("SECRET_FULL_TEXT"), "不应暴露完整敏感原文")
     }
 
+    func test持久展示本轮读取的档案与分层记忆来源() throws {
+        let result = HoloAgentResultRenderer().render(
+            claims: [],
+            evidence: [],
+            contextSources: [
+                HoloAgentContextSourceSummary(kind: .profile, itemCount: 4),
+                HoloAgentContextSourceSummary(kind: .currentStateMemory, itemCount: 2),
+                HoloAgentContextSourceSummary(kind: .durableMemory, itemCount: 1)
+            ]
+        )
+
+        XCTAssertEqual(result.contextSourceText, "个人档案 · 近期观察 2 条 · 长期规律 1 条")
+
+        let encoded = try JSONEncoder().encode(result)
+        let decoded = try JSONDecoder().decode(HoloRenderedAgentResult.self, from: encoded)
+        XCTAssertEqual(decoded.contextSources, result.contextSources, "来源披露应随 Agent 结果持久化")
+    }
+
     /// 用户问“哪些地方需要优化”时，建议必须成为首要答案，事实退到支撑层。
     func test优化问题采用行动优先的信息层级() {
         let observation = HoloAgentClaim(

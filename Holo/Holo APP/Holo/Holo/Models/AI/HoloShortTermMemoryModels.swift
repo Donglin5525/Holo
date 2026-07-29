@@ -2,7 +2,7 @@
 //  HoloShortTermMemoryModels.swift
 //  Holo
 //
-//  短期记忆模型：单次流程内快照，不跨会话缓存
+//  兼容旧命名的即时上下文模型：单次流程组装，不是独立记忆库，也不跨会话缓存。
 //
 
 import Foundation

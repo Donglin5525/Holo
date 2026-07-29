@@ -25,13 +25,39 @@ struct HoloAgentAnswerPresentationStandaloneTests {
     }
 
     static func main() throws {
+        if CommandLine.arguments.contains("--context-source-only") {
+            try test档案与分层记忆来源随结果持久化()
+            print("HoloAgentAnswerPresentationStandaloneTests context source passed")
+            return
+        }
         test步数问题生成用户可读答案()
         test消费环比新路径由合成器产出()
         test消费环比旧证据走catalog兜底()
         test优化问题建议优先展示()
         test年度财务事故统一上下文()
+        try test档案与分层记忆来源随结果持久化()
         try test旧结果JSON保持兼容()
         print("HoloAgentAnswerPresentationStandaloneTests passed")
+    }
+
+    private static func test档案与分层记忆来源随结果持久化() throws {
+        let result = HoloAgentResultRenderer().render(
+            claims: [],
+            evidence: [],
+            contextSources: [
+                HoloAgentContextSourceSummary(kind: .profile, itemCount: 4),
+                HoloAgentContextSourceSummary(kind: .currentStateMemory, itemCount: 2),
+                HoloAgentContextSourceSummary(kind: .durableMemory, itemCount: 1)
+            ]
+        )
+        expect(
+            result.contextSourceText == "个人档案 · 近期观察 2 条 · 长期规律 1 条",
+            "结果应以用户可理解的层级展示本轮实际读取来源"
+        )
+
+        let encoded = try JSONEncoder().encode(result)
+        let decoded = try JSONDecoder().decode(HoloRenderedAgentResult.self, from: encoded)
+        expect(decoded.contextSources == result.contextSources, "来源披露应随 Agent 结果持久化")
     }
 
     private static func test步数问题生成用户可读答案() {

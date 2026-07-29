@@ -7,6 +7,24 @@
 
 import Foundation
 
+/// Agent 在本轮启动时实际读取的个性化上下文类型。
+/// 只保存来源层级与数量，不持久化档案或记忆正文。
+nonisolated enum HoloAgentContextSourceKind: String, Codable, CaseIterable, Sendable {
+    case profile
+    case currentStateMemory
+    case phaseMemory
+    case durableMemory
+    case permanentFactMemory
+    case legacyMemory
+}
+
+nonisolated struct HoloAgentContextSourceSummary: Codable, Equatable, Sendable {
+    var kind: HoloAgentContextSourceKind
+    var itemCount: Int
+    /// 其中有多少项被最终 claim 显式引用；nil 兼容早期结果。
+    var referencedItemCount: Int? = nil
+}
+
 /// Agent 任务的最终产物：面向用户展示的洞察结论。
 /// claims 引用已校验的 `HoloAgentClaim`，evidenceIDs 指向 Evidence Ledger。
 nonisolated struct HoloAgentResult: Codable, Identifiable, Equatable, Sendable {
@@ -32,6 +50,9 @@ nonisolated struct HoloAgentResult: Codable, Identifiable, Equatable, Sendable {
     /// v17：LLM 产出的有人味儿自然摘要（final_claims 时），用于详情页开场。
     /// 旧结果反序列化时为 nil，渲染层退回用 directAnswer/summary。
     var narrativeSummary: String? = nil
+    /// 本轮实际预取进 Agent 上下文的个人档案与分层记忆来源。
+    /// 仅保存来源和数量，用于结果卡持久披露；旧结果缺失时不展示。
+    var contextSources: [HoloAgentContextSourceSummary]? = nil
 }
 
 /// 空结论的原因。区分两类失败，用于精准提示用户。

@@ -500,4 +500,12 @@ nonisolated struct HoloDataToolResult: Codable, Equatable, Sendable {
 protocol HoloAgentToolExecuting: Sendable {
     func execute(_ request: HoloToolRequest) async -> HoloDataToolResult
     func promptDescription() async -> String
+    func supportsTool(named name: String) async -> Bool
+}
+
+extension HoloAgentToolExecuting {
+    /// 独立测试执行器没有注册中心时，从其工具描述判断；生产执行器会覆盖为注册中心精确查询。
+    func supportsTool(named name: String) async -> Bool {
+        await promptDescription().contains("【\(name)】")
+    }
 }

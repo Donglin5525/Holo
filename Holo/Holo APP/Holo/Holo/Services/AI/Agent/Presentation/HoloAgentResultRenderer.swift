@@ -90,6 +90,33 @@ nonisolated struct HoloRenderedAgentResult: Codable, Equatable, Sendable {
     var recommendations: [HoloRenderedRecommendation]? = nil
     /// v17：LLM 产出的有人味儿自然摘要，供 UI 开场使用。旧消息 JSON 解码为 nil。
     var narrativeSummary: String? = nil
+    /// 本轮实际读取进 Agent 的个人档案与分层记忆来源；旧消息缺失时不展示。
+    var contextSources: [HoloAgentContextSourceSummary]? = nil
+
+    var contextSourceText: String? {
+        let labels = (contextSources ?? []).compactMap(\.displayLabel)
+        return labels.isEmpty ? nil : labels.joined(separator: " · ")
+    }
+}
+
+private extension HoloAgentContextSourceSummary {
+    var displayLabel: String? {
+        guard itemCount > 0 else { return nil }
+        switch kind {
+        case .profile:
+            return "个人档案"
+        case .currentStateMemory:
+            return "近期观察 \(itemCount) 条"
+        case .phaseMemory:
+            return "当前阶段 \(itemCount) 条"
+        case .durableMemory:
+            return "长期规律 \(itemCount) 条"
+        case .permanentFactMemory:
+            return "长期事实 \(itemCount) 条"
+        case .legacyMemory:
+            return "长期记忆 \(itemCount) 条"
+        }
+    }
 }
 
 /// 覆盖度唯一展示策略。调用方只能消费这里的结果，禁止再按 ratio 自行决定文案或可信度。
@@ -133,7 +160,8 @@ nonisolated struct HoloAgentResultRenderer {
         emptyReason: HoloAgentEmptyReason? = nil,
         answerContext: HoloAgentAnswerContext? = nil,
         requestedDeliverables: Set<HoloAgentRequestedDeliverable> = [],
-        narrativeSummary: String? = nil
+        narrativeSummary: String? = nil,
+        contextSources: [HoloAgentContextSourceSummary] = []
     ) -> HoloRenderedAgentResult {
         let evidenceByID = Dictionary(evidence.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let assertions = claims.flatMap(\.metricAssertions)
@@ -198,7 +226,8 @@ nonisolated struct HoloAgentResultRenderer {
             emptyReason: emptyReason,
             scope: scope,
             recommendations: nil,
-            narrativeSummary: narrativeSummary
+            narrativeSummary: narrativeSummary,
+            contextSources: contextSources.isEmpty ? nil : contextSources
         )
 
         // MARK: P4 可观测：语义缺失/旧目录兜底
@@ -490,7 +519,9 @@ nonisolated struct HoloAgentResultRenderer {
             limitations: result.limitations,
             emptyReason: result.emptyReason,
             scope: result.scope,
-            recommendations: nil
+            recommendations: nil,
+            narrativeSummary: result.narrativeSummary,
+            contextSources: result.contextSources
         )
     }
 

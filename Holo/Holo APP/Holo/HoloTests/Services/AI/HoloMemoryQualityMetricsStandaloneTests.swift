@@ -87,6 +87,41 @@ struct HoloMemoryQualityMetricsStandaloneTests {
         expect(!killed.allowsFusion, "fusion kill switch 应独立生效")
         killed.answerInjectionEnabled = false
         expect(!killed.allowsAnswerInjection, "answer injection kill switch 应独立生效")
+
+        let suiteName = "HoloMemoryQualityMetricsStandaloneTests.rollout"
+        guard let defaults = UserDefaults(suiteName: suiteName) else {
+            fatalError("无法创建隔离 UserDefaults")
+        }
+        defaults.removePersistentDomain(forName: suiteName)
+        let internalProductPolicy = HoloMemoryRolloutProductPolicy(
+            rolloutStage: .internalAccounts,
+            isInternalAccount: true,
+            isLimitedRolloutBucket: false
+        )
+        let internalControls = HoloMemoryOperationalControls.current(
+            defaults: defaults,
+            productPolicy: internalProductPolicy
+        )
+        expect(internalControls.allowsAnswerInjection, "内部产品策略应默认进入真实召回")
+
+        let publicProductPolicy = HoloMemoryRolloutProductPolicy(
+            rolloutStage: .internalAccounts,
+            isInternalAccount: false,
+            isLimitedRolloutBucket: false
+        )
+        let publicControls = HoloMemoryOperationalControls.current(
+            defaults: defaults,
+            productPolicy: publicProductPolicy
+        )
+        expect(!publicControls.allowsAnswerInjection, "公开用户在内部账号阶段不得注入记忆")
+
+        defaults.set(false, forKey: "holo_memory_kill_answer_injection_v1")
+        let killedInternalControls = HoloMemoryOperationalControls.current(
+            defaults: defaults,
+            productPolicy: internalProductPolicy
+        )
+        expect(!killedInternalControls.allowsAnswerInjection, "紧急关闭开关应覆盖内部产品策略")
+        defaults.removePersistentDomain(forName: suiteName)
     }
 
     private static func testCompactionAndEncodedCapacity() throws {

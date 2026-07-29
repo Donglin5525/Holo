@@ -33,6 +33,7 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
     var openingBody: String
     var openingParagraphs: [String]
     var scopeLabel: String?
+    var contextSourceText: String?
     var signalSummaries: [String]
     var recommendations: [Recommendation]
     var observations: [Observation]
@@ -88,6 +89,7 @@ nonisolated struct AgentDeepAnalysisNarrativeModel: Equatable, Sendable {
         self.openingBody = openingBodyText
         self.openingParagraphs = Self.readingParagraphs(from: openingBodyText)
         self.scopeLabel = result.scope?.displayLabel
+        self.contextSourceText = result.contextSourceText
         self.signalSummaries = (isFinanceLedgerMode || isHealthMode || !directAnswer.isEmpty)
             ? []
             : Self.signalSummaries(from: resolvedSummary)
@@ -670,8 +672,27 @@ struct AgentDeepAnalysisDetailSheet: View {
 
     @ViewBuilder
     private func dataContextSection(_ model: AgentDeepAnalysisNarrativeModel) -> some View {
-        if model.coverageText != nil || !model.limitations.isEmpty {
+        if model.contextSourceText != nil || model.coverageText != nil || !model.limitations.isEmpty {
             VStack(alignment: .leading, spacing: 10) {
+                if let context = model.contextSourceText {
+                    HStack(alignment: .top, spacing: 10) {
+                        Image(systemName: "brain.head.profile")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.holoPrimary)
+                            .frame(width: 20)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("个性化上下文")
+                                .font(.system(size: 12, weight: .bold))
+                                .foregroundColor(.holoTextSecondary)
+                            Text("本次读取：\(context)")
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.holoTextPrimary.opacity(0.8))
+                                .lineSpacing(4)
+                        }
+                    }
+                }
+
                 if let coverage = model.coverageText {
                     HStack(alignment: .top, spacing: 10) {
                         Image(systemName: "calendar.badge.checkmark")

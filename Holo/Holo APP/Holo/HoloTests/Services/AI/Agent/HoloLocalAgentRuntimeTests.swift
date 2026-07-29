@@ -542,6 +542,64 @@ actor FakeToolExecutor: HoloAgentToolExecuting {
     func promptDescription() async -> String { "" }
 }
 
+/// 仅暴露 profile 的执行器，用于验证 Agent 首轮确定性读取个人上下文。
+actor ProfileAwareToolExecutor: HoloAgentToolExecuting {
+    private(set) var requests: [HoloToolRequest] = []
+
+    func execute(_ request: HoloToolRequest) async -> HoloDataToolResult {
+        requests.append(request)
+        guard request.tool == "profile" else {
+            return HoloDataToolResult(
+                toolRequestID: request.id,
+                tool: request.tool,
+                status: .empty,
+                coverage: nil,
+                metrics: [],
+                events: [],
+                warnings: [],
+                error: nil
+            )
+        }
+        let metricKey: String
+        switch request.query {
+        case "profile_summary": metricKey = "profile.field.count"
+        case "current_focus": metricKey = "profile.focus.count"
+        default: metricKey = "profile.communication_style.count"
+        }
+        return HoloDataToolResult(
+            toolRequestID: request.id,
+            tool: request.tool,
+            status: .success,
+            coverage: nil,
+            metrics: [
+                HoloMetric(
+                    metricKey: metricKey,
+                    value: 1,
+                    unit: "项",
+                    baselineValue: nil,
+                    comparison: nil
+                )
+            ],
+            events: [
+                HoloEvidenceEvent(
+                    id: "profile-\(request.query)",
+                    occurredAt: nil,
+                    metricKey: metricKey,
+                    metricValue: nil,
+                    excerpt: "测试档案：\(request.query)"
+                )
+            ],
+            warnings: [],
+            error: nil,
+            sensitivity: .sensitive
+        )
+    }
+
+    func promptDescription() async -> String {
+        "【profile】用户主动维护的个人档案"
+    }
+}
+
 #if HOLO_XCTEST_BRIDGE
 import XCTest
 @testable import Holo
@@ -567,6 +625,8 @@ struct HoloLocalAgentRuntimeTests {
         try await testResume_重启后从checkpoint对齐到当前step()
         try await testCancel_状态变为cancelled且resume不恢复执行()
         try await testRunLoop_needTools后finalClaims两轮完成()
+        try await testRunLoop_状态问题首轮确定性读取个人档案()
+        try await testRunLoop_精确查数不读取个人档案()
         try await testStartAnalysisJob_本月问题写入整月时间范围()
         try await testStartAnalysisJob_上个月问题写入上月整月时间范围()
         try await testStartAnalysisJob_显式月份问题写入对应自然月范围()
@@ -877,6 +937,53 @@ struct HoloLocalAgentRuntimeTests {
 
         let checkpoint = try await fixture.checkpointStore.latestForJob(jobID: job.id)
         expect(checkpoint?.completedToolResults.isEmpty == false, "checkpoint 应含工具执行结果")
+    }
+
+    private static func testRunLoop_状态问题首轮确定性读取个人档案() async throws {
+        let dir = makeTempDir()
+        let client = FakeAgentLLMClient(responses: [contractValidBoundaryFinalClaims])
+        let executor = ProfileAwareToolExecutor()
+        let fixture = makeLoopRuntime(dir: dir, llmClient: client, toolExecutor: executor)
+        let now = Date()
+        let job = try await fixture.runtime.startAnalysisJob(question: "我最近状态如何", now: now)
+
+        let completed = try await fixture.runtime.runLoop(
+            jobID: job.id,
+            systemTemplate: "你是 Agent",
+            toolDescriptions: await executor.promptDescription(),
+            now: now.addingTimeInterval(1)
+        )
+
+        expect(completed.state == .completed, "状态问题应正常完成")
+        let profileRequests = (await executor.requests).filter { $0.tool == "profile" }
+        expect(profileRequests.map(\.query) == [
+            "profile_summary",
+            "current_focus",
+            "preference_boundaries"
+        ], "状态问题应在首轮读取完整个人档案上下文")
+
+        let result = try await fixture.runtime.loadResult(jobID: job.id)
+        let profileSource = result?.contextSources?.first { $0.kind == .profile }
+        expect(profileSource?.itemCount == 3, "结果应持久记录实际读取的个人档案来源")
+    }
+
+    private static func testRunLoop_精确查数不读取个人档案() async throws {
+        let dir = makeTempDir()
+        let client = FakeAgentLLMClient(responses: [contractValidBoundaryFinalClaims])
+        let executor = ProfileAwareToolExecutor()
+        let fixture = makeLoopRuntime(dir: dir, llmClient: client, toolExecutor: executor)
+        let now = Date()
+        let job = try await fixture.runtime.startAnalysisJob(question: "我本月一共花了多少钱", now: now)
+
+        _ = try await fixture.runtime.runLoop(
+            jobID: job.id,
+            systemTemplate: "你是 Agent",
+            toolDescriptions: await executor.promptDescription(),
+            now: now.addingTimeInterval(1)
+        )
+
+        let profileRequests = (await executor.requests).filter { $0.tool == "profile" }
+        expect(profileRequests.isEmpty, "精确查数不应读取个人档案干扰事实答案")
     }
 
     /// 用户明确说“本月/这个月”时，Agent job 必须落盘整月范围，不能回退到近 14 天。

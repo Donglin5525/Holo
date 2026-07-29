@@ -764,7 +764,9 @@ class MemoryGalleryViewModel: ObservableObject {
             agentRenderedResult = HoloAgentResultRenderer().render(
                 claims: result.claims, evidence: evidence, title: result.title,
                 emptyReason: result.emptyReason,
-                requestedDeliverables: result.requestedDeliverables ?? []
+                requestedDeliverables: result.requestedDeliverables ?? [],
+                narrativeSummary: result.narrativeSummary,
+                contextSources: result.contextSources ?? []
             )
         } catch {
             NSLog("[Agent] 记忆长廊读取 Agent 结果失败: \(String(describing: error))")

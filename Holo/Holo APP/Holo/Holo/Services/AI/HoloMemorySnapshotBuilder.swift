@@ -2,18 +2,31 @@
 //  HoloMemorySnapshotBuilder.swift
 //  Holo
 //
-//  单次流程内组装短期记忆快照，V1 不跨会话缓存
+//  兼容旧能力启动台的即时上下文快照；不再维护独立“短期记忆”来源。
 //
 
 import Foundation
 
 enum HoloMemorySnapshotBuilder {
 
-    /// 构建短期记忆快照，内部复用 UserContextBuilder
+    /// 构建即时上下文快照。档案、业务数据和长期记忆都复用各自唯一真相源，
+    /// 此结构只做单次组装，不产生或保存第二套记忆。
     @MainActor
     static func build(window: HoloMemoryWindow = .today, purpose: HoloAICapabilityID? = nil) async -> HoloShortTermMemorySnapshot {
         let userContext = await UserContextBuilder.shared.buildContext()
         let coverage = DataCoverageEvaluator.evaluate(from: userContext)
+        let relevantMemorySummary: HoloMemoryPromptSummary?
+        if HoloAIFeatureFlags.memorySummaryInjectionEnabled {
+            if let purpose {
+                relevantMemorySummary = await HoloMemorySummaryProvider.selectRelevantSummary(
+                    purpose: purpose
+                )
+            } else {
+                relevantMemorySummary = userContext.memorySummary
+            }
+        } else {
+            relevantMemorySummary = nil
+        }
 
         var sourceSummaries: [HoloMemorySourceSummary] = []
         var signals: [HoloRecentSignal] = []
@@ -82,7 +95,7 @@ enum HoloMemorySnapshotBuilder {
             recentSignals: signals,
             activeGoalSummary: userContext.goalContext,
             recentConversationIntent: nil,
-            relevantLongTermMemorySummary: nil
+            relevantLongTermMemorySummary: relevantMemorySummary
         )
     }
 }

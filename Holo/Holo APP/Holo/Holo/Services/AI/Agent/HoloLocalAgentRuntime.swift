@@ -589,7 +589,10 @@ actor HoloLocalAgentRuntime {
                 // 需要注入本轮 message（历史信号已在之前轮次发给模型）。
                 let prevPatternSignalCount = checkpoint.patternSignals.count
                 checkpoint.patternSignals.append(
-                    contentsOf: patternMiner.mine(toolResults: checkpoint.completedToolResults, now: now)
+                    contentsOf: patternMiner.mine(
+                        toolResults: Self.answerBearingToolResults(checkpoint.completedToolResults),
+                        now: now
+                    )
                 )
                 let newToolResults = Array(checkpoint.completedToolResults.dropFirst(prevToolResultCount))
                 let newPatternSignals = Array(checkpoint.patternSignals.dropFirst(prevPatternSignalCount))
@@ -940,7 +943,12 @@ actor HoloLocalAgentRuntime {
         guard let toolExecutor,
               let question = job.userQuestion else { return }
 
-        let plannedRequests = Self.deterministicToolRequests(for: question)
+        var plannedRequests = Self.deterministicToolRequests(for: question)
+        if HoloAIFeatureFlags.profileAnalysisInjectionEnabled,
+           Self.shouldPrefetchProfileContext(for: question),
+           await toolExecutor.supportsTool(named: "profile") {
+            plannedRequests.insert(contentsOf: Self.profileContextToolRequests(), at: 0)
+        }
         guard !plannedRequests.isEmpty else { return }
 
         let completedKeys = Set(checkpoint.completedToolResults.map { "\($0.tool):\($0.toolRequestID)" })
@@ -968,7 +976,10 @@ actor HoloLocalAgentRuntime {
 
         guard executedAny else { return }
         checkpoint.patternSignals.append(
-            contentsOf: patternMiner.mine(toolResults: checkpoint.completedToolResults, now: now)
+            contentsOf: patternMiner.mine(
+                toolResults: Self.answerBearingToolResults(checkpoint.completedToolResults),
+                now: now
+            )
         )
         checkpoint.conversationState.append(Self.toolResultMessage(
             toolResults: checkpoint.completedToolResults,
@@ -1044,7 +1055,10 @@ actor HoloLocalAgentRuntime {
         let discoverResults = checkpoint.completedToolResults.filter { $0.tool == "discover" }
         guard !discoverResults.isEmpty else { return }
         checkpoint.patternSignals.append(
-            contentsOf: patternMiner.mine(toolResults: checkpoint.completedToolResults, now: now)
+            contentsOf: patternMiner.mine(
+                toolResults: Self.answerBearingToolResults(checkpoint.completedToolResults),
+                now: now
+            )
         )
         checkpoint.conversationState.append(Self.toolResultMessage(
             toolResults: discoverResults,
@@ -1214,6 +1228,51 @@ actor HoloLocalAgentRuntime {
         ]
     }
 
+    /// 状态、规划、诊断与建议类问题在首轮 LLM 前确定性读取个人档案；
+    /// 精确查数仍只以真实业务明细为答案权威，避免档案干扰数值查询。
+    private static func shouldPrefetchProfileContext(for question: String) -> Bool {
+        let intent = HoloMemoryQueryRouter.route(question)
+        guard intent.route != .detail else { return false }
+        if intent.includeProfile { return true }
+        let deliverables = HoloAgentAnswerRequestPolicy.requestedDeliverables(for: question)
+        return !deliverables.isDisjoint(with: [.diagnosis, .recommendations])
+    }
+
+    private static func profileContextToolRequests() -> [HoloToolRequest] {
+        [
+            HoloToolRequest(
+                id: "context-profile_summary",
+                tool: "profile",
+                query: "profile_summary",
+                timeRange: nil,
+                baseline: nil,
+                requiredMetrics: ["profile.field.count"],
+                parameters: [:]
+            ),
+            HoloToolRequest(
+                id: "context-current_focus",
+                tool: "profile",
+                query: "current_focus",
+                timeRange: nil,
+                baseline: nil,
+                requiredMetrics: ["profile.focus.count"],
+                parameters: [:]
+            ),
+            HoloToolRequest(
+                id: "context-preference_boundaries",
+                tool: "profile",
+                query: "preference_boundaries",
+                timeRange: nil,
+                baseline: nil,
+                requiredMetrics: [
+                    "profile.communication_style.count",
+                    "profile.sensitive_boundary.count"
+                ],
+                parameters: [:]
+            )
+        ]
+    }
+
     private static func mockUserMessage(_ content: String, _ now: Date) -> HoloAgentMessage {
         HoloAgentMessage(role: .user, content: content, toolRequestID: nil, toolName: nil,
                          timestamp: now, tokenEstimate: nil)
@@ -1349,7 +1408,7 @@ actor HoloLocalAgentRuntime {
                 dedupeKey: "\(jobID):memory:\(entry.id)",
                 sourceModule: .memory,
                 sourceID: entry.id,
-                sourceKind: "long_term_memory",
+                sourceKind: "memory.\(memory.persistenceClass.rawValue)",
                 timeRange: nil,
                 occurredAt: memory.updatedAt,
                 metricKey: "memory.context",
@@ -1556,7 +1615,11 @@ actor HoloLocalAgentRuntime {
                 // 再用确定性结果补齐尚未覆盖的指标。v10 的 metric 补齐逻辑并入此处。
                 var coveredKeys = Set(acceptedClaims.flatMap { $0.metricAssertions.map(\.metricKey) })
                 // 从工具结果提取所有可用 metricKey，用于覆盖检查
-                let availableMetricKeys = Set(checkpoint.completedToolResults.flatMap(\.metrics).map(\.metricKey))
+                let availableMetricKeys = Set(
+                    Self.answerBearingToolResults(checkpoint.completedToolResults)
+                        .flatMap(\.metrics)
+                        .map(\.metricKey)
+                )
                 for claim in verifiedFallback {
                     let missingAssertions = claim.metricAssertions.filter { !coveredKeys.contains($0.metricKey) }
                     guard !missingAssertions.isEmpty else { continue }
@@ -1597,6 +1660,10 @@ actor HoloLocalAgentRuntime {
                 .filter { resultEvidenceIDs.contains($0.id) }
                 .flatMap(\.referencedByMemoryIDs)
         ))
+        let contextSources = Self.contextSourceSummaries(
+            from: evidence,
+            referencedEvidenceIDs: Set(resultEvidenceIDs)
+        )
         let coveredMetricKeys = Set(acceptedClaims.flatMap { $0.metricAssertions.map(\.metricKey) })
         let resultCoverage = checkpoint.completedToolResults.first { toolResult in
             toolResult.coverage != nil && toolResult.metrics.contains { coveredMetricKeys.contains($0.metricKey) }
@@ -1605,7 +1672,7 @@ actor HoloLocalAgentRuntime {
         // 让 UI 能给出诚实提示而非一律甩锅"数据不足"。
         var emptyReason: HoloAgentEmptyReason? = nil
         if acceptedClaims.isEmpty {
-            let hadToolData = checkpoint.completedToolResults.contains {
+            let hadToolData = Self.answerBearingToolResults(checkpoint.completedToolResults).contains {
                 !$0.metrics.isEmpty || !$0.events.isEmpty
             }
             emptyReason = hadToolData ? .unverifiable : .noData
@@ -1645,7 +1712,8 @@ actor HoloLocalAgentRuntime {
             coverage: resultCoverage,
             emptyReason: emptyReason,
             requestedDeliverables: deliverables.isEmpty ? nil : deliverables,
-            narrativeSummary: cleanNarrativeSummary
+            narrativeSummary: cleanNarrativeSummary,
+            contextSources: contextSources.isEmpty ? nil : contextSources
         )
         // §6.2：Result 提交与最终状态写回前校验 generation（过期不得写回）
         try await guardExecutionGeneration(generation, jobID: job.id)
@@ -1703,6 +1771,51 @@ actor HoloLocalAgentRuntime {
         }
     }
 
+    private static func contextSourceSummaries(
+        from evidence: [HoloEvidenceRecord],
+        referencedEvidenceIDs: Set<String>
+    ) -> [HoloAgentContextSourceSummary] {
+        var evidenceByKind: [HoloAgentContextSourceKind: Set<String>] = [:]
+        var referencedByKind: [HoloAgentContextSourceKind: Set<String>] = [:]
+
+        for record in evidence {
+            let kind: HoloAgentContextSourceKind?
+            switch record.sourceModule {
+            case .profile:
+                kind = .profile
+            case .memory:
+                switch record.sourceKind {
+                case "memory.\(HoloMemoryPersistenceClass.currentState.rawValue)":
+                    kind = .currentStateMemory
+                case "memory.\(HoloMemoryPersistenceClass.phase.rawValue)":
+                    kind = .phaseMemory
+                case "memory.\(HoloMemoryPersistenceClass.durable.rawValue)":
+                    kind = .durableMemory
+                case "memory.\(HoloMemoryPersistenceClass.permanentFact.rawValue)":
+                    kind = .permanentFactMemory
+                default:
+                    kind = .legacyMemory
+                }
+            default:
+                kind = nil
+            }
+            guard let kind else { continue }
+            evidenceByKind[kind, default: []].insert(record.id)
+            if referencedEvidenceIDs.contains(record.id) {
+                referencedByKind[kind, default: []].insert(record.id)
+            }
+        }
+
+        return HoloAgentContextSourceKind.allCases.compactMap { kind in
+            guard let sourceIDs = evidenceByKind[kind], !sourceIDs.isEmpty else { return nil }
+            return HoloAgentContextSourceSummary(
+                kind: kind,
+                itemCount: sourceIDs.count,
+                referencedItemCount: referencedByKind[kind]?.count ?? 0
+            )
+        }
+    }
+
     private static func resultWithCanonicalEvidenceIDs(_ result: HoloDataToolResult,
                                                        jobID: String) -> HoloDataToolResult {
         var updated = result
@@ -1727,7 +1840,8 @@ actor HoloLocalAgentRuntime {
         toolResults: [HoloDataToolResult],
         patternSignals: [HoloPatternSignal]
     ) -> [HoloAgentClaim] {
-        let toolClaims = toolResults.prefix(3).flatMap { result -> [HoloAgentClaim] in
+        let answerToolResults = Self.answerBearingToolResults(toolResults)
+        let toolClaims = answerToolResults.prefix(3).flatMap { result -> [HoloAgentClaim] in
             guard result.status == .success || result.status == .partial || result.status == .empty else {
                 return []
             }
@@ -1789,7 +1903,7 @@ actor HoloLocalAgentRuntime {
                 confidence: result.status == .empty ? 0.3 : 0.45
             )]
         }
-        let hasDeterministicPresentation = toolResults.contains { result in
+        let hasDeterministicPresentation = answerToolResults.contains { result in
             result.tool == "health" ||
                 (result.tool == "finance" && result.toolRequestID.contains("spending_breakdown"))
         }
@@ -1816,6 +1930,12 @@ actor HoloLocalAgentRuntime {
             )
         }
         return patternClaims.isEmpty ? toolClaims : patternClaims
+    }
+
+    private static func answerBearingToolResults(
+        _ toolResults: [HoloDataToolResult]
+    ) -> [HoloDataToolResult] {
+        toolResults.filter { $0.tool != "profile" && $0.tool != "discover" }
     }
 
     private static func healthFallbackClaims(from result: HoloDataToolResult) -> [HoloAgentClaim] {

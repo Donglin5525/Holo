@@ -52,6 +52,12 @@ struct AgentDeepAnalysisCard: View {
                             Text(cardEmptySubtitle(for: result.emptyReason))
                                 .font(.system(size: 13, weight: .medium))
                                 .foregroundColor(.holoTextSecondary)
+                            if let context = result.contextSourceText {
+                                Text("本次读取：\(context)")
+                                    .font(.system(size: 11.5, weight: .semibold))
+                                    .foregroundColor(.holoTextSecondary)
+                                    .lineLimit(2)
+                            }
                         }
                     }
                 } else {
@@ -84,6 +90,13 @@ struct AgentDeepAnalysisCard: View {
                             Label(scope, systemImage: "calendar")
                                 .font(.system(size: 11.5, weight: .semibold))
                                 .foregroundColor(.holoTextSecondary)
+                        }
+
+                        if let context = result.contextSourceText {
+                            Label("本次读取：\(context)", systemImage: "brain.head.profile")
+                                .font(.system(size: 11.5, weight: .semibold))
+                                .foregroundColor(.holoTextSecondary)
+                                .lineLimit(2)
                         }
 
                         Text(directAnswer(result))

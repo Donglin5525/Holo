@@ -258,7 +258,8 @@ final class HoloAgentAnalysisService {
                     snapshotCutoffAt: finalJob.snapshotCutoffAt ?? finalJob.createdAt
                 ),
                 requestedDeliverables: result.requestedDeliverables ?? [],
-                narrativeSummary: result.narrativeSummary
+                narrativeSummary: result.narrativeSummary,
+                contextSources: result.contextSources ?? []
             )
         } catch {
             return fail("[证据读取失败] \(String(describing: error))")
@@ -310,7 +311,9 @@ final class HoloAgentAnalysisService {
                                 primaryTimeRange: job.timeRange,
                                 snapshotCutoffAt: job.snapshotCutoffAt ?? job.createdAt
                             ),
-                            requestedDeliverables: result.requestedDeliverables ?? []
+                            requestedDeliverables: result.requestedDeliverables ?? [],
+                            narrativeSummary: result.narrativeSummary,
+                            contextSources: result.contextSources ?? []
                         )
                         repository.finalizeAgentMessage(sourceMessageID, rendered: rendered, intent: "query_analysis")
                     } else {

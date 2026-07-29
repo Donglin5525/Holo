@@ -307,6 +307,32 @@ enum HoloMemoryRolloutStage: String, Codable, CaseIterable, Sendable {
     case full
 }
 
+/// 记忆灰度的产品真相源。
+///
+/// 内部构建默认进入真实召回，正式构建仍停留在内部账号阶段且不命中公开用户。
+/// 这里不再依赖某台设备是否碰巧写过 UserDefaults，避免同一版本在不同设备表现不一致。
+struct HoloMemoryRolloutProductPolicy: Equatable, Sendable {
+    var rolloutStage: HoloMemoryRolloutStage
+    var isInternalAccount: Bool
+    var isLimitedRolloutBucket: Bool
+
+    static var current: Self {
+        #if DEBUG || INTERNAL_DIAGNOSTICS
+        return .init(
+            rolloutStage: .internalAccounts,
+            isInternalAccount: true,
+            isLimitedRolloutBucket: false
+        )
+        #else
+        return .init(
+            rolloutStage: .internalAccounts,
+            isInternalAccount: false,
+            isLimitedRolloutBucket: false
+        )
+        #endif
+    }
+}
+
 struct HoloMemoryOperationalControlSnapshot: Equatable, Sendable {
     var rolloutStage: HoloMemoryRolloutStage
     var extractionEnabled: Bool
@@ -341,24 +367,22 @@ struct HoloMemoryOperationalControlSnapshot: Equatable, Sendable {
 
 enum HoloMemoryOperationalControls {
     private enum Keys {
-        static let rolloutStage = "holo_memory_rollout_stage_v1"
         static let extractionEnabled = "holo_memory_kill_extraction_v1"
         static let fusionEnabled = "holo_memory_kill_fusion_v1"
         static let answerInjectionEnabled = "holo_memory_kill_answer_injection_v1"
-        static let internalAccount = "holo_memory_internal_account_v1"
-        static let limitedBucket = "holo_memory_limited_bucket_v1"
     }
 
-    static func current(defaults: UserDefaults = .standard) -> HoloMemoryOperationalControlSnapshot {
-        let stage = defaults.string(forKey: Keys.rolloutStage)
-            .flatMap(HoloMemoryRolloutStage.init(rawValue:)) ?? .shadow
+    static func current(
+        defaults: UserDefaults = .standard,
+        productPolicy: HoloMemoryRolloutProductPolicy = .current
+    ) -> HoloMemoryOperationalControlSnapshot {
         return HoloMemoryOperationalControlSnapshot(
-            rolloutStage: stage,
+            rolloutStage: productPolicy.rolloutStage,
             extractionEnabled: defaults.object(forKey: Keys.extractionEnabled) as? Bool ?? true,
             fusionEnabled: defaults.object(forKey: Keys.fusionEnabled) as? Bool ?? true,
             answerInjectionEnabled: defaults.object(forKey: Keys.answerInjectionEnabled) as? Bool ?? true,
-            isInternalAccount: defaults.bool(forKey: Keys.internalAccount),
-            isLimitedRolloutBucket: defaults.bool(forKey: Keys.limitedBucket)
+            isInternalAccount: productPolicy.isInternalAccount,
+            isLimitedRolloutBucket: productPolicy.isLimitedRolloutBucket
         )
     }
 }
