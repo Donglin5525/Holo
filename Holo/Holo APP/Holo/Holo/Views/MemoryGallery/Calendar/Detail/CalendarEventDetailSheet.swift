@@ -5,11 +5,9 @@
 //  日历事件只读详情（按 CalendarEvent 展示模块/标题/副信息/时间）
 //  P3：想法事件额外展示「相关观点」（经 Thought.topics 间接体现观点维度）
 //
-//  「在 X 模块打开」跳原模块编辑页：需 deep link / dismiss 画廊后路由，
-//  受画廊 fullScreenCover 隔离暂未接入，留 TODO（originID 已具备回查能力）。
-//
 
 import SwiftUI
+import CoreData
 
 struct CalendarEventGroup: Identifiable {
     let id = UUID()
@@ -29,6 +27,13 @@ struct CalendarEventGroup: Identifiable {
 struct CalendarEventDetailSheet: View {
     let event: CalendarEvent
     @Environment(\.dismiss) private var dismiss
+    @State private var isOpeningOrigin = false
+
+    /// 当前事件是否支持「在原模块打开」
+    /// 目前仅接入待办与想法两类（路由已就绪）；其他模块后续再扩展
+    private var supportsOpenInModule: Bool {
+        event.module == .todo || event.module == .thought
+    }
 
     var body: some View {
         NavigationStack {
@@ -39,6 +44,9 @@ struct CalendarEventDetailSheet: View {
                     if let topics = event.relatedTopics, !topics.isEmpty {
                         topicsCard(topics)
                     }
+                    if supportsOpenInModule {
+                        openInModuleButton
+                    }
                 }
                 .padding(HoloSpacing.md)
             }
@@ -48,6 +56,74 @@ struct CalendarEventDetailSheet: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button("关闭") { dismiss() }
+                }
+            }
+        }
+    }
+
+    // MARK: - 在原模块打开
+
+    private var openInModuleButton: some View {
+        Button {
+            openInOriginModule()
+        } label: {
+            HStack(spacing: HoloSpacing.sm) {
+                if isOpeningOrigin {
+                    ProgressView()
+                        .tint(event.module.color)
+                } else {
+                    Image(systemName: "arrow.up.right.square")
+                        .font(.system(size: 14, weight: .semibold))
+                }
+                Text("在\(event.module.displayName)模块打开")
+                    .font(.holoBody)
+                    .fontWeight(.medium)
+            }
+            .foregroundColor(event.module.color)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, HoloSpacing.sm)
+            .background(
+                RoundedRectangle(cornerRadius: HoloRadius.md)
+                    .fill(event.module.color.opacity(0.1))
+            )
+        }
+        .disabled(isOpeningOrigin)
+    }
+
+    /// 通过 originID 回查实体 UUID，再借助 DeepLinkState 跳转到对应模块详情。
+    /// 实体回查放在后台 context 进行，避免阻塞 UI；取到后回主线程 dismiss + 触发跳转。
+    private func openInOriginModule() {
+        guard !isOpeningOrigin else { return }
+        isOpeningOrigin = true
+
+        let originID = event.originID
+        let module = event.module
+        let backgroundContext = CoreDataStack.shared.newBackgroundContext()
+
+        Task.detached(priority: .userInitiated) {
+            let target: DeepLinkTarget? = await backgroundContext.perform {
+                guard let entity = try? backgroundContext.existingObject(with: originID) else {
+                    return nil as DeepLinkTarget?
+                }
+                switch module {
+                case .todo:
+                    guard let task = entity as? TodoTask else { return nil }
+                    return .taskDetail(taskId: task.id)
+                case .thought:
+                    guard let thought = entity as? Thought else { return nil }
+                    return .thoughtDetail(thoughtId: thought.id)
+                default:
+                    return nil
+                }
+            }
+
+            await MainActor.run {
+                isOpeningOrigin = false
+                guard let target else { return }
+                dismiss()
+                // 下一轮再触发跳转，确保 sheet dismiss 已开始、不被遮盖
+                DispatchQueue.main.async {
+                    DeepLinkState.shared.navigate(to: target)
                 }
             }
         }
