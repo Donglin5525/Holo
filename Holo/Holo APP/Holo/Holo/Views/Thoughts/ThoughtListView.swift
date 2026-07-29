@@ -665,6 +665,16 @@ struct ThoughtListView: View {
                                     selectedTagName = ThoughtTagNormalizer.displayName(tagName)
                                     drawerSelection = nil
                                     revealedThoughtId = nil
+                                },
+                                onMoveToTopic: {
+                                    topicPickerThoughtId = thought.id
+                                    showTopicPicker = true
+                                },
+                                onArchive: {
+                                    archiveThought(thought)
+                                },
+                                onDelete: {
+                                    deleteThought(thought)
                                 }
                             )
                             .contextMenu {

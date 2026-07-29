@@ -24,6 +24,15 @@ struct ThoughtCardView: View {
     let thought: Thought
     var onNavigate: (() -> Void)?
     var onTagTap: ((String) -> Void)?
+    /// 更多操作：移入主题（可选，由列表页接主题选择器）
+    var onMoveToTopic: (() -> Void)?
+    /// 更多操作：归档（可选）
+    var onArchive: (() -> Void)?
+    /// 更多操作：删除（可选）
+    var onDelete: (() -> Void)?
+
+    /// 操作菜单是否展示
+    @State private var showActionSheet = false
 
     // MARK: - Body
 
@@ -68,14 +77,35 @@ struct ThoughtCardView: View {
 
             statusBadge
 
-            // 更多操作按钮（使用 onTapGesture 避免与外层导航 Button 冲突）
-            Image(systemName: "ellipsis")
-                .font(.system(size: 16))
-                .foregroundColor(.holoTextSecondary)
-                .onTapGesture {
-                    // TODO: 显示操作菜单
-                }
+            // 更多操作按钮（仅当至少有一个可用操作时才展示）
+            if hasAvailableActions {
+                Image(systemName: "ellipsis")
+                    .font(.system(size: 16))
+                    .foregroundColor(.holoTextSecondary)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        showActionSheet = true
+                    }
+                    .accessibilityLabel("更多操作")
+                    .confirmationDialog("操作", isPresented: $showActionSheet, titleVisibility: .visible) {
+                        if let onMoveToTopic {
+                            Button("移入主题") { onMoveToTopic() }
+                        }
+                        if let onArchive {
+                            Button("归档", role: nil) { onArchive() }
+                        }
+                        if let onDelete {
+                            Button("删除", role: .destructive) { onDelete() }
+                        }
+                        Button("取消", role: .cancel) {}
+                    }
+            }
         }
+    }
+
+    /// 是否存在至少一个可用的更多操作
+    private var hasAvailableActions: Bool {
+        onMoveToTopic != nil || onArchive != nil || onDelete != nil
     }
 
     private var statusBadge: some View {
