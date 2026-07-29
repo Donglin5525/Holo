@@ -72,7 +72,10 @@ actor HoloLocalAgentRuntime {
     /// 创建并启动一个真实深度分析 job；触发来源由入口显式传递，默认是用户对话。
     /// 写入初始 checkpoint（含用户问题），供 runLoop 多轮推进。生产路径用。
     func startAnalysisJob(question: String, trigger: HoloAgentTrigger = .userQuestion,
-                          sourceMessageID: UUID? = nil, now: Date = Date()) async throws -> HoloAgentJob {
+                          sourceMessageID: UUID? = nil,
+                          lineage: HoloAgentLineage? = nil,
+                          originalUserQuestion: String? = nil,
+                          now: Date = Date()) async throws -> HoloAgentJob {
         let resolvedComparison = Self.resolveQuestionComparison(question, referenceDate: now)
 
         // P0-B/P1-A 集成：构建确定性 Semantic Frame，用于任务画像和预算选择。
@@ -98,6 +101,10 @@ actor HoloLocalAgentRuntime {
             job.baseline = baseline
         }
         job.sourceMessageID = sourceMessageID
+        // 连续追问血统：root 为 nil；child 由调用方构造后冻结，后续不可变（§8.2）。
+        job.lineage = lineage
+        // 分析链根问题：child 继承 parent 的 originalUserQuestion；root 缺省用本轮 question。
+        job.originalUserQuestion = originalUserQuestion ?? question
         let queryService: HoloMemoryQueryService?
         if let memoryQueryService {
             queryService = memoryQueryService
@@ -733,6 +740,7 @@ actor HoloLocalAgentRuntime {
     func refreshStableInputSnapshotHash(jobID: String, hash: String, now: Date = Date()) async throws {
         guard var checkpoint = try await checkpointStore.latestForJob(jobID: jobID) else { return }
         checkpoint.inputSnapshotHash = hash
+        checkpoint.inputSnapshotSchemaVersion = HoloAgentInputSnapshotHasher.currentSchemaVersion
         checkpoint.schemaVersion = checkpoint.schemaVersion ?? 1
         checkpoint.updatedAt = now
         try await checkpointStore.upsert(checkpoint)
@@ -1713,7 +1721,10 @@ actor HoloLocalAgentRuntime {
             emptyReason: emptyReason,
             requestedDeliverables: deliverables.isEmpty ? nil : deliverables,
             narrativeSummary: cleanNarrativeSummary,
-            contextSources: contextSources.isEmpty ? nil : contextSources
+            contextSources: contextSources.isEmpty ? nil : contextSources,
+            // 血统与根问题随 Result 一起持久化，保证锚定父结果后能自洽构造 child lineage。
+            lineage: job.lineage,
+            presentationStyle: nil
         )
         // §6.2：Result 提交与最终状态写回前校验 generation（过期不得写回）
         try await guardExecutionGeneration(generation, jobID: job.id)

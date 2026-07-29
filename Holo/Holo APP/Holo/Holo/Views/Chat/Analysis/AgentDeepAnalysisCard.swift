@@ -12,6 +12,8 @@ struct AgentDeepAnalysisCard: View {
 
     let message: ChatMessageViewData
     var onTap: (() -> Void)? = nil
+    /// 「继续追问」按钮回调；nil 或结果缺少身份时不展示该按钮（Phase 1）。
+    var onContinueFollowUp: (() -> Void)? = nil
 
     var body: some View {
         if message.isStreaming {
@@ -77,13 +79,24 @@ struct AgentDeepAnalysisCard: View {
 
                             Spacer(minLength: 8)
 
-                            Text(hasRecommendations(result) ? "优化建议" : "深度分析")
+                            Text(badgeText(for: result))
                                 .font(.system(size: 10.5, weight: .bold))
-                                .foregroundColor(.holoPrimary.opacity(0.8))
+                                .foregroundColor(badgeColor(for: result))
                                 .padding(.horizontal, 9)
                                 .padding(.vertical, 6)
-                                .background(Color.holoPrimary.opacity(0.075))
+                                .background(badgeBackground(for: result))
                                 .clipShape(Capsule())
+                        }
+
+                        // 追问变化标签：追问结果在标题下展示「做了什么改变」。
+                        if let changeTag = followUpChangeTag(for: result) {
+                            HStack(spacing: 5) {
+                                Image(systemName: "arrow.turn.down.right")
+                                    .font(.system(size: 10, weight: .semibold))
+                                Text(changeTag)
+                                    .font(.system(size: 11.5, weight: .semibold))
+                            }
+                            .foregroundColor(.holoTextSecondary)
                         }
 
                         if let scope = result.scope?.displayLabel {
@@ -133,18 +146,91 @@ struct AgentDeepAnalysisCard: View {
                         }
                     }
 
-                    HStack(spacing: 6) {
-                        Text("查看完整分析")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(.holoPrimary)
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.holoPrimary)
+                    HStack(spacing: 10) {
+                        HStack(spacing: 6) {
+                            Text("查看完整分析")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(.holoPrimary)
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(.holoPrimary)
+                        }
+                        if canContinueFollowUp {
+                            Spacer(minLength: 4)
+                            Text("·")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(.holoTextSecondary.opacity(0.5))
+                            // 嵌在整卡 Button 内：用 simultaneousGesture 让点击不被外层吞掉，
+                            // .buttonStyle(.plain) 去掉默认按钮视觉，保留我们自定义的文案样式。
+                            Button {
+                                onContinueFollowUp?()
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "arrow.turn.down.right")
+                                        .font(.system(size: 10, weight: .semibold))
+                                    Text("继续追问")
+                                        .font(.system(size: 13, weight: .semibold))
+                                }
+                                .foregroundColor(.holoTextSecondary)
+                            }
+                            .buttonStyle(.plain)
+                            .simultaneousGesture(TapGesture().onEnded {
+                                onContinueFollowUp?()
+                            })
+                        }
                     }
                 }
             }
         }
         .buttonStyle(CardButtonStyle())
+    }
+
+    /// 结果携带完整身份（jobID + resultID）时才允许继续追问；
+    /// 旧消息 JSON 缺身份字段，不可锚定。
+    private var canContinueFollowUp: Bool {
+        guard onContinueFollowUp != nil,
+              let result = message.agentResult,
+              result.agentJobID != nil, result.agentResultID != nil else {
+            return false
+        }
+        return true
+    }
+
+    /// 卡片角标文案：追问结果优先展示追问关系标签。
+    private func badgeText(for result: HoloRenderedAgentResult) -> String {
+        if let meta = result.continuationMetadata, meta.isFollowUp {
+            return meta.shortLabel
+        }
+        return hasRecommendations(result) ? "优化建议" : "深度分析"
+    }
+
+    private func badgeColor(for result: HoloRenderedAgentResult) -> Color {
+        if result.continuationMetadata?.isFollowUp == true {
+            return .holoTextSecondary
+        }
+        return .holoPrimary.opacity(0.8)
+    }
+
+    private func badgeBackground(for result: HoloRenderedAgentResult) -> Color {
+        if result.continuationMetadata?.isFollowUp == true {
+            return Color.holoTextSecondary.opacity(0.08)
+        }
+        return Color.holoPrimary.opacity(0.075)
+    }
+
+    /// 追问变化标签：根据 relation 生成「这次做了什么改变」的一句话。
+    /// 非追问结果返回 nil（不展示）。
+    private func followUpChangeTag(for result: HoloRenderedAgentResult) -> String? {
+        guard let meta = result.continuationMetadata, meta.isFollowUp else { return nil }
+        switch meta.relation {
+        case .explain:           return "承接上文，进一步解释"
+        case .drillDown:         return "深挖了细节"
+        case .correct:           return "按纠正后的口径重新分析"
+        case .changeScope:       return "已按新范围重新分析"
+        case .crossDomain:       return "补充了新领域的数据"
+        case .executeFromResult: return "从建议发起了行动"
+        case .newTopic, .ambiguous: return nil
+        }
     }
 
     // MARK: - Loading Card

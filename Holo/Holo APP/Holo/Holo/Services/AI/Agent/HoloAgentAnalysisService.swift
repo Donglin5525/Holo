@@ -195,18 +195,25 @@ final class HoloAgentAnalysisService {
 
     /// 运行一次深度分析，返回渲染后的结果短文；失败或未完成返回 nil。
     /// 全程异步执行，ChatViewModel 负责展示状态与最终文本。
+    /// - Parameter continuationDraft: 非 nil 时本轮为追问：构造 child lineage 透传给 job，
+    ///   并在渲染结果里填 continuationMetadata + 身份字段，供下一轮锚定。
     func runAnalysis(question: String, trigger: HoloAgentTrigger = .userQuestion,
-                     sourceMessageID: UUID? = nil) async -> HoloRenderedAgentResult {
+                     sourceMessageID: UUID? = nil,
+                     continuationDraft: HoloAgentContinuationDraft? = nil) async -> HoloRenderedAgentResult {
         // 只记录长度，不把用户问题原文写入系统日志（Phase 7 隐私契约）。
-        logger.info("[Agent] 开始 questionLength=\(question.count, privacy: .public)")
+        logger.info("[Agent] 开始 questionLength=\(question.count, privacy: .public) isFollowUp=\(continuationDraft != nil, privacy: .public)")
         let fail = { (reason: String) -> HoloRenderedAgentResult in
             HoloRenderedAgentResult(title: "深度分析出错", summary: reason, sections: [], evidenceReferences: [])
         }
         let toolDescriptions = await runtime.toolDescriptions()
-        // 接入 PromptManager.agentLoop 模板：该模板定义了 status 取值、JSON Schema、
-        // evidenceID 必须逐字引用等协议约束。此前传空串导致模型无协议指令，
-        // 输出的 claim 因 evidenceID 缺失/编造被 Verifier 全部 reject → "没有形成可信结论"。
-        let systemTemplate = PromptManager.shared.loadRawTemplate(.agentLoop)
+        // agentLoop systemTemplate 通过统一 Provider 获取：
+        // Debug 下后端优先、本地模板兜底；Release 下后端优先、安全占位兜底。
+        // 后端 injectServerPrompt 仍会注入权威 system prompt；此处 systemTemplate
+        // 保证 HoloAgentPromptBuilder 消息结构完整，并在后端异常时提供最小协议约束。
+        let systemTemplate = await HoloAgentPromptProvider.agentLoopSystemTemplate()
+        // 追问：从 draft 构造 child lineage（含防环/深度传播），透传给 child job。
+        let childLineage = continuationDraft?.makeChildLineage()
+        let rootUserQuestion = continuationDraft?.rootUserQuestion
         logger.info("[Agent] 经 Scheduler 启动 runLoop…")
         let finalJob: HoloAgentJob
         do {
@@ -216,7 +223,8 @@ final class HoloAgentAnalysisService {
                 trigger: trigger,
                 systemTemplate: systemTemplate,
                 toolDescriptions: toolDescriptions,
-                sourceMessageID: sourceMessageID
+                sourceMessageID: sourceMessageID,
+                lineage: childLineage
             ))
             logger.info("[Agent] runLoop 完成 state=\(finalJob.state.rawValue) rounds=\(finalJob.budget.consumedLLMRounds)")
         } catch {
@@ -246,7 +254,7 @@ final class HoloAgentAnalysisService {
         logger.info("[Agent] result claims=\(result.claims.count)")
         do {
             let evidence = try await runtime.loadEvidence(forIDs: result.evidenceIDs)
-            return HoloAgentResultRenderer().render(
+            var rendered = HoloAgentResultRenderer().render(
                 claims: result.claims,
                 evidence: evidence,
                 title: result.title,
@@ -259,8 +267,17 @@ final class HoloAgentAnalysisService {
                 ),
                 requestedDeliverables: result.requestedDeliverables ?? [],
                 narrativeSummary: result.narrativeSummary,
-                contextSources: result.contextSources ?? []
+                contextSources: result.contextSources ?? [],
+                lineage: result.lineage,
+                rootUserQuestion: finalJob.originalUserQuestion ?? rootUserQuestion
             )
+            // 回填身份字段：UI 卡片据此锚定父结果、自洽构造下一轮 child lineage。
+            // 即使非追问也填，让任意历史卡片都能成为追问锚点。
+            rendered.agentJobID = finalJob.id
+            rendered.agentResultID = result.id
+            rendered.lineage = result.lineage
+            rendered.rootUserQuestion = finalJob.originalUserQuestion ?? rootUserQuestion
+            return rendered
         } catch {
             return fail("[证据读取失败] \(String(describing: error))")
         }

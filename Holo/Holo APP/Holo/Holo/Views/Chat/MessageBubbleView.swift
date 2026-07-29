@@ -24,6 +24,8 @@ struct MessageBubbleView: View {
     var onViewLog: ((ChatMessageViewData) -> Void)? = nil
     var onCompactAnalysisTap: (() -> Void)? = nil
     var onAgentDeepAnalysisTap: (() -> Void)? = nil
+    /// Agent 结果卡「继续追问」：回调参数为锚定的渲染结果。
+    var onAgentContinueFollowUp: ((HoloRenderedAgentResult) -> Void)? = nil
     var onPeriodReplayExpansionChanged: ((ChatMessageViewData, Bool) -> Void)? = nil
     var onGoalDraftCardTap: (() -> Void)? = nil
     var onSavedGoalCardTap: ((UUID) -> Void)? = nil
@@ -149,6 +151,10 @@ struct MessageBubbleView: View {
                 if message.agentResult != nil || (message.isStreaming && message.analysisContext == nil) {
                     AgentDeepAnalysisCard(message: message) {
                         onAgentDeepAnalysisTap?()
+                    } onContinueFollowUp: {
+                        if let result = message.agentResult {
+                            onAgentContinueFollowUp?(result)
+                        }
                     }
                 } else if message.analysisContext != nil {
                     AnalysisCompactChatCard(message: message) {

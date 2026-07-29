@@ -27,27 +27,38 @@ actor HoloAgentPersistenceManager {
     let checkpointStore: HoloAgentCheckpointStore
     let jobStore: HoloAgentJobStore
     let resultStore: HoloAgentResultStore
+    /// 多 store 写入的事务闸门：记录写入意图，崩溃后供 Reconciler 精确恢复（§11.8）。
+    let transactionGate: HoloAgentPersistenceTransactionGate
 
     init(evidenceLedger: HoloEvidenceLedgerProtocol,
          checkpointStore: HoloAgentCheckpointStore,
          jobStore: HoloAgentJobStore,
-         resultStore: HoloAgentResultStore) {
+         resultStore: HoloAgentResultStore,
+         transactionGate: HoloAgentPersistenceTransactionGate? = nil) {
         self.evidenceLedger = evidenceLedger
         self.checkpointStore = checkpointStore
         self.jobStore = jobStore
         self.resultStore = resultStore
+        self.transactionGate = transactionGate ?? HoloAgentPersistenceTransactionGate()
     }
 
     /// 写入顺序：evidence → checkpoint → job。
     /// 先落证据可保证后续校验有据可依；最后落 job 状态，使外部观察到的 state 与已持久化的内容一致。
+    /// 每步经事务闸门记录，崩溃后 Reconciler 据残留 journal 精确恢复（§11.8）。
     func saveProgress(
         job: HoloAgentJob,
         evidence: [HoloEvidenceRecord],
         checkpoint: HoloAgentCheckpoint
     ) async throws {
+        await transactionGate.record(jobID: job.id, step: .begin)
         try await evidenceLedger.upsert(evidence)
+        await transactionGate.record(jobID: job.id, step: .evidenceWritten)
         try await checkpointStore.upsert(checkpoint)
+        await transactionGate.record(jobID: job.id, step: .checkpointWritten)
         try await jobStore.upsert(job)
+        await transactionGate.record(jobID: job.id, step: .jobWritten)
+        await transactionGate.record(jobID: job.id, step: .committed)
+        await transactionGate.clear(jobID: job.id)
     }
 
     /// 写入 Agent 最终结果（final_claims 产出）。
@@ -97,13 +108,24 @@ actor HoloAgentPersistenceManager {
     }
 
     /// 清理终态且超保留期的 job 及其关联 checkpoint/result，返回被清理的 jobIDs（§9.6 体积治理）。
-    /// evidence 的软删除由 `cleanupOrphanedEvidence` 独立按 orphaned 标记驱动，此处不重复。
+    /// 级联行为由 policy 三开关控制：
+    /// - cascadeCheckpoint：是否级联删除关联 checkpoint（默认 true）
+    /// - cascadeResult：是否级联删除关联 result（默认 true）
+    /// - preserveReferencedEvidence：true 时 evidence 由独立 orphan 流程按引用标记驱动，
+    ///   此处不触碰 evidence（默认 true）；false 时此处不额外动作（evidence 清理始终走 orphan 流程）。
     @discardableResult
     func cleanupTerminalJobs(policy: HoloJobCleanupPolicy, now: Date = Date()) async throws -> [String] {
         let removedJobIDs = try await jobStore.cleanup(policy: policy, now: now)
         if !removedJobIDs.isEmpty {
-            _ = try await checkpointStore.deleteByJobIDs(removedJobIDs)
-            _ = try await resultStore.deleteByJobIDs(removedJobIDs)
+            if policy.cascadeCheckpoint {
+                _ = try await checkpointStore.deleteByJobIDs(removedJobIDs)
+            }
+            if policy.cascadeResult {
+                _ = try await resultStore.deleteByJobIDs(removedJobIDs)
+            }
+            // evidence 始终由 cleanupOrphanedEvidence 独立按 orphaned 标记驱动；
+            // preserveReferencedEvidence 的语义已由 orphan 流程的引用计数保证——
+            // 仍被其他 job/memory 引用的 evidence 不会被标记 orphaned。
         }
         return removedJobIDs
     }

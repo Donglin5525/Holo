@@ -360,6 +360,9 @@ struct AgentDeepAnalysisDetailSheet: View {
 
     let result: HoloRenderedAgentResult
     var onFinanceDrilldown: ((HoloRenderedFinanceDrilldown) -> Void)?
+    /// 「继续追问」入口：点击后 dismiss 并把锚定态交给 ChatViewModel；
+    /// nil 或结果缺身份时不展示按钮。调用方负责做身份校验后 startContinuation。
+    var onContinueFollowUp: (() -> Void)? = nil
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
     @State private var isEvidenceExpanded = false
@@ -388,9 +391,15 @@ struct AgentDeepAnalysisDetailSheet: View {
             }
             .padding(.horizontal, 23)
             .padding(.top, 10)
-            .padding(.bottom, 38)
+            // 底部留出固定操作栏的高度，避免最后一段内容被底栏遮挡。
+            .padding(.bottom, canContinueFollowUp ? 16 : 38)
         }
         .background(sheetBackground)
+        .safeAreaInset(edge: .bottom) {
+            if canContinueFollowUp {
+                continueFollowUpBar
+            }
+        }
         .presentationDetents([.medium, .large])
     }
 
@@ -441,6 +450,49 @@ struct AgentDeepAnalysisDetailSheet: View {
         }
     }
 
+    // MARK: - Continue Follow-up
+
+    /// 只有携带完整身份（jobID + resultID）且外部提供回调时才展示继续追问入口。
+    private var canContinueFollowUp: Bool {
+        onContinueFollowUp != nil
+            && result.agentJobID != nil
+            && result.agentResultID != nil
+    }
+
+    /// 固定在详情页底部的「继续追问」操作栏（不随内容滚动）。
+    /// 用 safeAreaInset 钉底，半屏 / 全屏都能直接点到，无需上拉。
+    private var continueFollowUpBar: some View {
+        VStack(spacing: 0) {
+            // 顶部细分割线，和内容区做视觉分隔。
+            Rectangle()
+                .fill(Color.holoBorder.opacity(0.4))
+                .frame(height: 0.5)
+            Button {
+                dismiss()
+                onContinueFollowUp?()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "arrow.turn.down.right")
+                        .font(.system(size: 15, weight: .semibold))
+                    Text("在这份分析上继续追问")
+                        .font(.system(size: 15.5, weight: .semibold))
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                }
+                .foregroundColor(.holoPrimary)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 14)
+                .frame(maxWidth: .infinity)
+                .background(
+                    // 毛玻璃底栏：内容滚到下面时不会完全遮住文字。
+                    Color.holoCardBackground.opacity(0.92)
+                )
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
     // MARK: - Header
 
     private var header: some View {
@@ -453,9 +505,16 @@ struct AgentDeepAnalysisDetailSheet: View {
                     .background(Color.holoPrimary.opacity(0.12))
                     .clipShape(Circle())
 
-                Text("深度分析")
-                    .font(.system(size: 19, weight: .bold))
-                    .foregroundColor(.holoTextPrimary)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(headerTitle)
+                        .font(.system(size: 19, weight: .bold))
+                        .foregroundColor(.holoTextPrimary)
+                    if let continuation = followUpContinuationText {
+                        Text(continuation)
+                            .font(.system(size: 11.5, weight: .semibold))
+                            .foregroundColor(.holoTextSecondary)
+                    }
+                }
             }
 
             Spacer(minLength: 12)
@@ -464,6 +523,21 @@ struct AgentDeepAnalysisDetailSheet: View {
                 .font(.system(size: 10.5, weight: .bold))
                 .foregroundColor(.holoTextSecondary)
         }
+    }
+
+    /// 详情页标题：追问结果展示「继续追问」标识。
+    private var headerTitle: String {
+        if result.continuationMetadata?.isFollowUp == true {
+            return "继续追问"
+        }
+        return "深度分析"
+    }
+
+    /// 追问承接文案：「从『根问题』继续追问 · 关系」。
+    private var followUpContinuationText: String? {
+        guard let meta = result.continuationMetadata, meta.isFollowUp else { return nil }
+        let rootQ = meta.rootUserQuestion ?? result.question ?? "上一份分析"
+        return "从「\(rootQ)」\(meta.shortLabel)"
     }
 
     // MARK: - Opening

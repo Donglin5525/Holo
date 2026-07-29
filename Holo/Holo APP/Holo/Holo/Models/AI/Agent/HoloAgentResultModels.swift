@@ -53,6 +53,11 @@ nonisolated struct HoloAgentResult: Codable, Identifiable, Equatable, Sendable {
     /// 本轮实际预取进 Agent 上下文的个人档案与分层记忆来源。
     /// 仅保存来源和数量，用于结果卡持久披露；旧结果缺失时不展示。
     var contextSources: [HoloAgentContextSourceSummary]? = nil
+    /// 连续追问血统：root result 为 nil，child result 与对应 Job 的 lineage 一致。
+    /// 旧结果 nil 视为独立 root。
+    var lineage: HoloAgentLineage? = nil
+    /// 展示形态提示（如 followUpReply 轻量追问回复），供 UI 选择渲染样式；旧结果 nil。
+    var presentationStyle: String? = nil
 }
 
 /// 空结论的原因。区分两类失败，用于精准提示用户。

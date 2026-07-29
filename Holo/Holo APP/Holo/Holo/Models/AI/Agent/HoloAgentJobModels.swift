@@ -74,6 +74,12 @@ nonisolated struct HoloAgentJob: Codable, Identifiable, Equatable, Sendable {
     var errorSummary: String?
     var deviceID: String?
     var sourceMessageID: UUID? = nil
+    /// 连续追问血统（§8.2）：root job 为 nil；child job 冻结后不可变。
+    /// 旧数据 nil 视为独立 root。语义独立于 sourceMessageID（后者只表消息归属）。
+    var lineage: HoloAgentLineage? = nil
+    /// 这条分析链最初的用户问题原文（root 的 userQuestion，child 继承）。
+    /// 用于深度上下文回溯与锚定展示；旧数据 / root 缺失时为 nil。
+    var originalUserQuestion: String? = nil
     /// 证据参照时间（创建 job 时冻结 = createdAt；旧数据 nil，读取方回落 createdAt）。§5.1/§7.3
     var referenceDate: Date? = nil
     /// 数据快照截止（创建 job 时冻结 = createdAt；旧数据 nil，读取方回落 createdAt）。

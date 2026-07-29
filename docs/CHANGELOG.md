@@ -5,6 +5,10 @@
 ## [Unreleased]
 
 ### Features
+- **iOS**: Agent 连续追问：用户可在已完成分析结果上继续提问，系统建立父子血统、继承上下文、自动识别追问意图（解释/深挖/纠正/换范围/跨域/转待办），追问结果标注关系与变化标签；支持不点按钮的自然相邻追问（带确认窗口与 circuit breaker）
+- **iOS**: 追问上下文继承：父分析结论与证据冻结为快照，注入前校验证据有效性（复用 V2 Verifier orphan 语义），用隔离数据块包裹防 prompt injection
+- **iOS**: 追问意图路由：确定性 Follow-up Router 按问法判定 8 类关系，不调用模型；「转待办」直接把建议转成待办确认卡
+- **iOS**: 多 store 事务一致性：saveProgress 新增事务闸门与 journal，崩溃后精确恢复；InputSnapshot hash v2 纳入血统标识，旧 checkpoint 平滑升级
 - **iOS/Backend**: HoloAI 长期记忆统一为严格语义格式，移除旧格式与待确认旧入口；对话、深度分析、洞察和 Agent 按相关性使用记忆，并新增来源、写入与真实使用回执
 - **iOS/Backend**: HoloAI Sense Loop 公测人格化闭环：复用 HoloProfile、长期记忆语义类型、Daily Sense、洞察反馈与偏好画像，补齐“理解 -> 表达 -> 反馈 -> 更理解”的上下文贯穿
 - **iOS**: 洞察反馈新增“没感觉”和“少提醒这个”，将用户反馈转成 pattern 降权、fewerSuggestions 语气偏好和低价值主题沉淀

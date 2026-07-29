@@ -404,6 +404,9 @@ struct ChatView: View {
                             guard message.agentResult != nil else { return }
                             activeSheet = .agentDeepAnalysis(message)
                         },
+                        onAgentContinueFollowUp: { result in
+                            viewModel.startContinuation(from: result)
+                        },
                         onPeriodReplayExpansionChanged: { _, isExpanded in
                             guard !isExpanded else { return }
                             scrollController.requestOffsetClamp()
@@ -824,7 +827,7 @@ struct ChatView: View {
             AnalysisDetailSheet(message: message)
         case .agentDeepAnalysis(let message):
             if let result = message.agentResult {
-                AgentDeepAnalysisDetailSheet(result: result) { drilldown in
+                AgentDeepAnalysisDetailSheet(result: result, onFinanceDrilldown: { drilldown in
                     let keyword = drilldown.keyword?.trimmingCharacters(in: .whitespacesAndNewlines)
                     let normalizedKeyword = keyword?.isEmpty == false ? keyword : nil
                     DeepLinkState.shared.navigate(to: .financeEvidenceReview(FinanceEvidenceReviewDeepLink(
@@ -838,7 +841,9 @@ struct ChatView: View {
                         sourceEvidenceID: drilldown.sourceEvidenceID
                     )))
                     // HomeView 监听 deepLinkState 变化后自动切换 activeScreen 到 .finance，ChatView 自动隐藏。
-                }
+                }, onContinueFollowUp: {
+                    viewModel.startContinuation(from: result)
+                })
             }
         case .memoryCenter:
             NavigationStack {

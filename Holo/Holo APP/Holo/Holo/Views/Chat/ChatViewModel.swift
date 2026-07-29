@@ -36,6 +36,14 @@ final class ChatViewModel: ObservableObject {
     @Published private(set) var hasEarlierSessions: Bool = false
     @Published private(set) var isLoadingEarlierSession: Bool = false
     @Published private(set) var earlierHistoryLoadFailed: Bool = false
+    /// 连续追问锚定草稿（§7.1）：非 nil 时输入框展示锚定条，下一条消息作为 child Job 承接父 Result。
+    /// 纯内存态，不持久化——App 重启 / 页面离开后清空，避免幽灵追问。
+    @Published var continuationDraft: HoloAgentContinuationDraft? = nil
+    /// 隐式追问待确认请求（§13）：非 nil 时输入框上方展示确认条，用户可「确认追问」或「当新问题」。
+    /// 纯内存态；用户选择或换输入后清空。
+    @Published var pendingImplicitFollowUp: HoloAgentImplicitFollowUpResolution? = nil
+    /// 隐式追问 circuit breaker（§13）：发现误判后设为未来某时刻，期间不做隐式解析。
+    private var implicitFollowUpDisabledUntil: Date? = nil
 
     // MARK: - Private
 
@@ -314,9 +322,72 @@ final class ChatViewModel: ObservableObject {
                     )
                     self.chatRepo?.updateAgentMessageProgress(aiMessageId, status: initialStatus)
                     self.streamingText = initialStatus.messageContent
+                    // 隐式追问（§13）：用户没点继续追问按钮，但输入像承接上文（「那步数呢」）。
+                    // 在显式锚定为空时尝试隐式解析；命中且在确认窗口内则自动锚定。
+                    if self.continuationDraft == nil {
+                        let recent = self.mostRecentCompletedAgentResult()
+                        let resolution = HoloAgentImplicitFollowUpResolver.resolve(
+                            text: text,
+                            recentResult: recent,
+                            lastInteractionAt: self.lastAgentResultAt ?? Date.distantPast,
+                            isSameSession: true,
+                            now: Date(),
+                            disabledUntil: self.implicitFollowUpDisabledUntil
+                        )
+                        if case .resolved(let resultID, let jobID, let relation) = resolution,
+                           let recent {
+                            // 自动隐式锚定，复用显式追问的 draft 链路。
+                            self.continuationDraft = HoloAgentContinuationDraft(
+                                parentResultID: resultID,
+                                parentJobID: jobID,
+                                parentLineage: recent.lineage,
+                                rootUserQuestion: recent.rootUserQuestion ?? recent.question ?? "上一份分析",
+                                parentDomains: Self.inferredDomains(from: recent),
+                                parentHasRecommendations: !(recent.recommendations ?? []).isEmpty,
+                                parentRecommendations: (recent.recommendations ?? []).map {
+                                    HoloAgentContinuationDraft.RecommendationRef(id: $0.id, title: $0.title)
+                                },
+                                relation: relation
+                            )
+                        }
+                    }
+                    // 追问：读出当前锚定 draft，并用 FollowUpRouter 按追问文本重判 relation。
+                    // relation 不在点按钮时定死——它取决于用户实际输入的追问内容。
+                    var draft = self.continuationDraft
+                    if draft != nil {
+                        let parent = HoloAgentFollowUpParentContext(
+                            parentDomains: draft?.parentDomains ?? [],
+                            hasRecommendations: draft?.parentHasRecommendations ?? false,
+                            parentQuestion: draft?.rootUserQuestion
+                        )
+                        draft?.relation = HoloAgentFollowUpRouter.classify(
+                            followUpText: text, parent: parent
+                        )
+                    }
+                    // executeFromResult：不走深度分析，直接把建议转成待办确认卡。
+                    // 用户指着某条建议说「按这个建待办」时，洞察应直接转化为行动。
+                    if draft?.relation == .executeFromResult, let draft,
+                       let taskItem = Self.makeExecuteFromResultItem(draft: draft, followUpText: text) {
+                        let batch = AIExecutionBatch(mode: .multiAction, items: [taskItem], finalText: "已识别到待办，请确认后创建")
+                        self.chatRepo?.finalizeMessage(
+                            aiMessageId,
+                            finalContent: taskItem.summaryText,
+                            intent: processResult.firstIntent?.rawValue,
+                            extractedDataJSON: nil,
+                            parsedBatchJSON: nil,
+                            executionBatchJSON: Self.encodeExecutionBatch(batch),
+                            analysisContextJSON: nil,
+                            rawLogJSON: nil,
+                            agentResultJSON: nil
+                        )
+                        self.isStreaming = false
+                        self.continuationDraft = nil
+                        return
+                    }
                     let rendered = await self.analysisService.runAnalysis(
                         question: text,
-                        sourceMessageID: aiMessageId
+                        sourceMessageID: aiMessageId,
+                        continuationDraft: draft
                     )
                     try Task.checkCancellation()
                     // 不再拍扁成单段文本：结构化存 agentResultJSON，由 AgentDeepAnalysisCard 渲染
@@ -335,6 +406,8 @@ final class ChatViewModel: ObservableObject {
                         rawLogJSON: nil,
                         agentResultJSON: Self.encodeAgentResult(rendered)
                     )
+                    // 追问已作为 child Job 落地，清掉锚定态；用户可在新结果上再次追问。
+                    if draft != nil { self.continuationDraft = nil }
                 } else if processResult.shouldStreamChat {
                     if let analysisContext = processResult.analysisContext {
                         // 立即设置 intent + analysisContext → 渲染 loading 卡片
@@ -493,6 +566,114 @@ final class ChatViewModel: ObservableObject {
                 self.activeStreamingMessageID = nil
             }
         }
+    }
+
+    // MARK: - Continuation（连续追问锚定）
+
+    /// 从一份已完成 Result 建立追问锚定：用户在卡片 / 详情页点「继续追问」后调用。
+    /// 只在渲染结果携带了完整身份（jobID + resultID）时才锚定，否则静默忽略——
+    /// 旧消息 JSON 没有身份字段，不可锚定，避免构造出无法回溯的孤儿 lineage。
+    func startContinuation(from result: HoloRenderedAgentResult) {
+        guard let jobID = result.agentJobID, let resultID = result.agentResultID else {
+            logger.info("[Agent] 跳过追问锚定：结果缺少 jobID/resultID")
+            return
+        }
+        // 从 evidence sourceModule 推断父域，供 FollowUpRouter 判断跨域。
+        let domains = Self.inferredDomains(from: result)
+        let recs = (result.recommendations ?? []).map {
+            HoloAgentContinuationDraft.RecommendationRef(id: $0.id, title: $0.title)
+        }
+        continuationDraft = HoloAgentContinuationDraft(
+            parentResultID: resultID,
+            parentJobID: jobID,
+            parentLineage: result.lineage,
+            rootUserQuestion: result.rootUserQuestion ?? result.question ?? "上一份分析",
+            parentDomains: domains,
+            parentHasRecommendations: !recs.isEmpty,
+            parentRecommendations: recs,
+            relation: .explain
+        )
+    }
+
+    /// 从渲染结果的 evidence references 推断涉及的数据域。
+    /// sourceModule（health/finance/…）就是天然的域标识。
+    private static func inferredDomains(from result: HoloRenderedAgentResult) -> [String] {
+        var found = Set<String>()
+        for ref in result.evidenceReferences {
+            if let module = ref.sourceModule {
+                found.insert(module.rawValue)
+            }
+        }
+        return found.sorted()
+    }
+
+    /// 取消追问锚定（输入框锚定条的 × 按钮）。
+    func clearContinuationDraft() {
+        continuationDraft = nil
+    }
+
+    // MARK: - Implicit Follow-up（自然相邻追问）
+
+    /// 最近一份已完成分析的渲染结果（倒序查找最后一条带 agentResult 的消息）。
+    /// 用于隐式追问锚定。只查内存中已加载的消息。
+    private func mostRecentCompletedAgentResult() -> HoloRenderedAgentResult? {
+        for message in messages.reversed() {
+            if let result = message.agentResult,
+               let _ = result.agentJobID, let _ = result.agentResultID {
+                return result
+            }
+        }
+        return nil
+    }
+
+    /// 最近一份分析对应的消息时间，用于判断是否在隐式追问确认窗口内。
+    private var lastAgentResultAt: Date? {
+        for message in messages.reversed() {
+            if message.agentResult?.agentResultID != nil {
+                return message.timestamp
+            }
+        }
+        return nil
+    }
+
+    /// wrong-anchor circuit breaker：用户发现隐式追问锚定错误后调用，关闭隐式解析一段时间。
+    /// 取消锚定条 / 点「当新问题」时触发。
+    func disableImplicitFollowUp(for duration: TimeInterval = 3600) {
+        implicitFollowUpDisabledUntil = Date().addingTimeInterval(duration)
+    }
+
+    /// executeFromResult：把父分析的建议转成待办确认卡 item。
+    /// 解析用户指的是哪条建议（「第一条」→index 0；没指定→默认第一条）。
+    /// 无可用建议时返回 nil（调用方回退到普通追问）。
+    private static func makeExecuteFromResultItem(
+        draft: HoloAgentContinuationDraft, followUpText: String
+    ) -> AIExecutionItem? {
+        guard !draft.parentRecommendations.isEmpty else { return nil }
+        let normalized = followUpText.lowercased()
+        // 解析「第 N 条建议」
+        var index = 0
+        if normalized.contains("第二条") { index = 1 }
+        else if normalized.contains("第三条") { index = 2 }
+        if index >= draft.parentRecommendations.count { index = 0 }
+        let rec = draft.parentRecommendations[index]
+        let title = rec.title.isEmpty ? "来自分析的待办" : rec.title
+        return AIExecutionItem(
+            id: UUID().uuidString,
+            parseItemId: UUID().uuidString,
+            intent: .createTask,
+            status: .skipped,
+            summaryText: "已识别到待办「\(title)」，请确认后创建",
+            renderData: [
+                "title": title,
+                "confirmationStatus": "pending",
+                "pendingKind": "task",
+                "sourceRecommendationID": rec.id,
+                "sourceResultID": draft.parentResultID
+            ],
+            linkedEntityType: nil,
+            linkedEntityId: nil,
+            errorText: nil
+        )
     }
 
     // MARK: - Cancel

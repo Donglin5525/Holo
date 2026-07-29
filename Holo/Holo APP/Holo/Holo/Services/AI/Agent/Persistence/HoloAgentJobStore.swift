@@ -43,6 +43,25 @@ actor HoloAgentJobStore {
         try await store.load()
     }
 
+    /// 按 job ID 批量查询（连续追问链回溯、availability 批量检查）。
+    func byJobIDs(_ jobIDs: [String]) async throws -> [HoloAgentJob] {
+        guard !jobIDs.isEmpty else { return [] }
+        let idSet = Set(jobIDs)
+        let all = try await store.load()
+        return all.filter { idSet.contains($0.id) }
+    }
+
+    /// 按 sourceMessageID 批量查询（Chat 消息 ↔ job 关联恢复）。
+    func forSourceMessageIDs(_ messageIDs: [UUID]) async throws -> [HoloAgentJob] {
+        guard !messageIDs.isEmpty else { return [] }
+        let idSet = Set(messageIDs)
+        let all = try await store.load()
+        return all.filter { job in
+            guard let mid = job.sourceMessageID else { return false }
+            return idSet.contains(mid)
+        }
+    }
+
     /// 原子递增 job 的 executionGeneration 并返回新值（§6.1：load→+1→save 在 actor 内原子完成）。
     /// 旧数据 generation 为 nil 时视为 0，首次 acquire 返回 1。
     @discardableResult

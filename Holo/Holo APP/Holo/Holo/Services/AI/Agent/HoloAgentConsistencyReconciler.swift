@@ -19,10 +19,12 @@ struct HoloAgentReconcileReport: Equatable, Sendable {
     var jobsFailedMissingEvidence: Int = 0
     /// 同 job 历史多 Result（旧数据）收敛删除的 result 数
     var resultsConverged: Int = 0
+    /// 残留事务 journal 清理数（崩溃未完成的 saveProgress 痕迹）
+    var pendingTransactionsCleared: Int = 0
 
     /// 是否发生任何修复
     var hasFixes: Bool {
-        jobsCompletedByResult + jobsFailedMissingResult + jobsFailedMissingEvidence + resultsConverged > 0
+        jobsCompletedByResult + jobsFailedMissingResult + jobsFailedMissingEvidence + resultsConverged + pendingTransactionsCleared > 0
     }
 }
 
@@ -110,6 +112,16 @@ actor HoloAgentConsistencyReconciler {
                     report.jobsFailedMissingEvidence += 1
                 }
             }
+        }
+        // 5. 清理残留事务 journal：崩溃未完成的 saveProgress 会留下痕迹。
+        // 上面的状态对齐规则已修复了不一致的 job；这里只需清掉 journal 残留，
+        // 避免它们永远留在文件里干扰下一次启动的诊断。
+        let pending = await persistence.transactionGate.loadPending()
+        if !pending.isEmpty {
+            for entry in pending {
+                await persistence.transactionGate.discard(jobID: entry.jobID)
+            }
+            report.pendingTransactionsCleared = pending.count
         }
         return report
     }

@@ -16,6 +16,8 @@ nonisolated struct HoloRenderedAgentSection: Codable, Equatable, Sendable {
     var confidence: Double?
     /// 原始 claim 类型，用于 UI 区分“建议 / 观察 / 能力边界”，旧结果缺失时按观察展示。
     var kind: String? = nil
+    /// 产出该 section 的 claim id；追问锚定到具体结论时用。旧 JSON 缺失时为 nil。
+    var sourceClaimID: String? = nil
 }
 
 nonisolated struct HoloRenderedFinanceDrilldown: Codable, Equatable, Sendable {
@@ -33,6 +35,23 @@ nonisolated struct HoloRenderedEvidenceReference: Codable, Equatable, Sendable {
     var summary: String
     var financeDrilldown: HoloRenderedFinanceDrilldown?
     var sourceModule: HoloEvidenceSourceModule? = nil
+}
+
+/// 连续追问的渲染元数据。UI 据此判断「这是追问结果」并展示角标/承接文案。
+/// 仅承载展示所需的最小信息；血统全量记录在 Job/Result 的 lineage 字段。
+nonisolated struct HoloRenderedContinuationMetadata: Codable, Equatable, Sendable {
+    /// 本轮追问关系（explain/drillDown/...）；UI 据此选角标文案。
+    var relationRawValue: String
+    /// 预渲染的短标签（如「继续追问」「范围调整」），UI 可直接用。
+    var shortLabel: String
+    /// 根问题原文，用于「正在对 XX 继续追问」展示；缺失时 UI 回落到 question。
+    var rootUserQuestion: String?
+    /// 是否为追问链中的非 root 结果（depth > 0）。
+    var isFollowUp: Bool
+
+    var relation: HoloAgentFollowUpRelation {
+        HoloAgentFollowUpRelation(rawValue: relationRawValue) ?? .ambiguous
+    }
 }
 
 /// Job 在开始执行时冻结的权威答案上下文。
@@ -92,6 +111,16 @@ nonisolated struct HoloRenderedAgentResult: Codable, Equatable, Sendable {
     var narrativeSummary: String? = nil
     /// 本轮实际读取进 Agent 的个人档案与分层记忆来源；旧消息缺失时不展示。
     var contextSources: [HoloAgentContextSourceSummary]? = nil
+    /// 连续追问元数据：非 nil 表示这是一份追问结果，UI 展示承接角标与文案；旧消息 nil。
+    var continuationMetadata: HoloRenderedContinuationMetadata? = nil
+    /// 产出这份渲染结果的 Job / Result 身份。连续追问据此锚定父结果，无需额外查 store。
+    /// 旧消息 JSON 缺失时为 nil（不可锚定，UI 不展示继续追问）。
+    var agentJobID: String? = nil
+    var agentResultID: String? = nil
+    /// 血统回溯字段：锚定到具体 Result 后用于构造 child lineage。旧消息 nil。
+    var lineage: HoloAgentLineage? = nil
+    /// 本条分析链的根问题原文，用于锚定条与 child originalUserQuestion 继承。旧消息 nil。
+    var rootUserQuestion: String? = nil
 
     var contextSourceText: String? {
         let labels = (contextSources ?? []).compactMap(\.displayLabel)
@@ -151,6 +180,9 @@ nonisolated enum HoloCoveragePresentationPolicy {
 nonisolated struct HoloAgentResultRenderer {
 
     /// 渲染校验后的 claims 与证据为手机可读结构。
+    /// - Parameters:
+    ///   - lineage: 本轮血统；非 nil 时填充 continuationMetadata 供 UI 展示追问角标。
+    ///   - rootUserQuestion: 分析链根问题，用于追问承接文案；缺失时 UI 回落到 question。
     func render(
         claims: [HoloAgentClaim],
         evidence: [HoloEvidenceRecord],
@@ -161,7 +193,9 @@ nonisolated struct HoloAgentResultRenderer {
         answerContext: HoloAgentAnswerContext? = nil,
         requestedDeliverables: Set<HoloAgentRequestedDeliverable> = [],
         narrativeSummary: String? = nil,
-        contextSources: [HoloAgentContextSourceSummary] = []
+        contextSources: [HoloAgentContextSourceSummary] = [],
+        lineage: HoloAgentLineage? = nil,
+        rootUserQuestion: String? = nil
     ) -> HoloRenderedAgentResult {
         let evidenceByID = Dictionary(evidence.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let assertions = claims.flatMap(\.metricAssertions)
@@ -339,6 +373,16 @@ nonisolated struct HoloAgentResultRenderer {
             rangeLabel: rangeLabel,
             evidenceByID: evidenceByID
         )
+        // 追问元数据：有 lineage 才填。UI 据此展示「继续追问」角标与承接文案。
+        if let lineage {
+            let relation = lineage.relation
+            result.continuationMetadata = HoloRenderedContinuationMetadata(
+                relationRawValue: lineage.relationRawValue,
+                shortLabel: relation.shortLabel,
+                rootUserQuestion: rootUserQuestion,
+                isFollowUp: lineage.lineageDepth > 0
+            )
+        }
         return Self.deliverVerified(result, evidence: evidence, coverage: coverage, composed: composed)
     }
 
@@ -737,6 +781,7 @@ nonisolated struct HoloAgentResultRenderer {
                         body: body,
                         confidence: claim.confidence,
                         kind: claim.type,
+                        sourceClaimID: claim.id,
                         directAnswer: directAnswer,
                         seenBodies: &seenBodies,
                         output: &output
@@ -760,6 +805,7 @@ nonisolated struct HoloAgentResultRenderer {
                 body: rawBody,
                 confidence: claim.confidence,
                 kind: claim.type,
+                sourceClaimID: claim.id,
                 directAnswer: directAnswer,
                 seenBodies: &seenBodies,
                 output: &output
@@ -821,6 +867,7 @@ nonisolated struct HoloAgentResultRenderer {
         body: String,
         confidence: Double,
         kind: String,
+        sourceClaimID: String? = nil,
         directAnswer: String?,
         seenBodies: inout Set<String>,
         output: inout [HoloRenderedAgentSection]
@@ -839,7 +886,8 @@ nonisolated struct HoloAgentResultRenderer {
             title: uniqueTitle,
             body: body,
             confidence: confidence,
-            kind: kind
+            kind: kind,
+            sourceClaimID: sourceClaimID
         ))
     }
 

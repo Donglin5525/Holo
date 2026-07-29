@@ -17,6 +17,8 @@ struct HoloAgentStartRequest: Sendable {
     var systemTemplate: String = ""
     var toolDescriptions: String = ""
     var sourceMessageID: UUID? = nil
+    /// 连续追问血统：nil 表示独立 root；非 nil 由 ChatViewModel 从 ContinuationDraft 构造透传。
+    var lineage: HoloAgentLineage? = nil
     var now: Date = Date()
 }
 

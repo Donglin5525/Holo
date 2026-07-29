@@ -97,6 +97,8 @@ actor HoloAgentScheduler {
             question: request.question,
             trigger: request.trigger,
             sourceMessageID: request.sourceMessageID,
+            lineage: request.lineage,
+            originalUserQuestion: nil,
             now: request.now
         )
         do {
@@ -606,6 +608,13 @@ actor HoloAgentScheduler {
     private func inputSnapshotMatches(_ job: HoloAgentJob, now: Date) async throws -> Bool {
         let currentHash = HoloAgentInputSnapshotHasher.hash(for: job)
         guard let checkpoint = try await runtime.latestCheckpointForJob(jobID: job.id) else { return true }
+        // inputSnapshot schema 版本检查：旧版本（含 nil/legacy）不得用于拒绝恢复，
+        // 直接重建当前版本 hash 写回。v1→v2 升级时这条保证未完成 job 不被误判输入变化。
+        let storedSchemaVersion = checkpoint.inputSnapshotSchemaVersion ?? 0
+        if storedSchemaVersion < HoloAgentInputSnapshotHasher.currentSchemaVersion {
+            try await runtime.refreshStableInputSnapshotHash(jobID: job.id, hash: currentHash, now: now)
+            return true
+        }
         guard let stored = checkpoint.inputSnapshotHash,
               HoloAgentInputSnapshotHasher.isStableHash(stored) else {
             // 旧 checkpoint（无 hash / legacy Hasher 值）：不得用于拒绝恢复，重建稳定 hash

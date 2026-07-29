@@ -38,6 +38,23 @@ actor HoloAgentResultStore {
         return all.first { $0.jobID == jobID }
     }
 
+    /// 按 result ID 批量查询（连续追问锚定父结果后回读用）。
+    /// 单次全量 load + 内存过滤；Result 总量可控，无需建索引。
+    func byResultIDs(_ resultIDs: [String]) async throws -> [HoloAgentResult] {
+        guard !resultIDs.isEmpty else { return [] }
+        let idSet = Set(resultIDs)
+        let all = try await store.load()
+        return all.filter { idSet.contains($0.id) }
+    }
+
+    /// 按 job ID 批量查询（追问链回溯 / availability 批量检查用）。
+    func byJobIDs(_ jobIDs: [String]) async throws -> [HoloAgentResult] {
+        guard !jobIDs.isEmpty else { return [] }
+        let idSet = Set(jobIDs)
+        let all = try await store.load()
+        return all.filter { idSet.contains($0.jobID) }
+    }
+
     /// 返回最近一条 result（按 generatedAt 降序），供记忆长廊展示。
     func latest() async throws -> HoloAgentResult? {
         let all = try await store.load()
