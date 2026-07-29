@@ -87,7 +87,9 @@ final class ChatScrollController: ObservableObject {
         if isBottomPinActive {
             scheduleBottomPinFinish(after: 0.45)
         }
-        // UIViewRepresentable 的 make/update 周期内不能同步发布 ObservableObject 变化。
+        // updateViewport 内部已统一异步发布 viewport，此处可直接同步调用；
+        // 但 pinToCurrentBottomIfNeeded 涉及修改 contentOffset，若 attach 恰好落在
+        // View update 周期，仍需跳出一帧以避免同步驱动布局。
         DispatchQueue.main.async { [weak self, weak candidate] in
             guard let self, let candidate else { return }
             self.updateViewport(in: candidate)
@@ -370,7 +372,16 @@ final class ChatScrollController: ObservableObject {
         )
 
         guard next != viewport else { return }
-        viewport = next
+        // viewport 的发布统一异步跳出一帧，确保永远不会落在 SwiftUI 的 View update
+        // 周期内同步触发 objectWillChange（否则会触发"Publishing changes from within
+        // view updates is not allowed"警告）。所有调用 updateViewport 的路径
+        // （KVO contentOffset/contentSize、bounds、pan 手势、setOffset、attach）
+        // 都经由这里收敛，一处异步化即可全覆盖。
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            guard next != self.viewport else { return }
+            self.viewport = next
+        }
     }
 
     private func schedulePrependFinish(after delay: TimeInterval) {
