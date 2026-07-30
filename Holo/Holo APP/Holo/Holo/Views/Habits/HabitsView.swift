@@ -332,7 +332,7 @@ struct HabitListView: View {
 
     private var emptyStateView: some View {
         VStack(spacing: 20) {
-            Image(systemName: "checkmark.circle")
+            Image(systemName: "plus.circle")
                 .font(.system(size: 60, weight: .light))
                 .foregroundColor(.holoTextSecondary.opacity(0.5))
 

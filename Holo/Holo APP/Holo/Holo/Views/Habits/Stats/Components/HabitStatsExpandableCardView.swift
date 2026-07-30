@@ -50,7 +50,7 @@ struct HabitStatsExpandableCardView: View {
             }
             .frame(width: 32, height: 32)
             .background(accent.opacity(0.12))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(item.name)

@@ -14,12 +14,12 @@ struct HabitWeekStripView: View {
     var body: some View {
         HStack(spacing: 6) {
             ForEach(week.days) { day in
-                RoundedRectangle(cornerRadius: 6)
+                RoundedRectangle(cornerRadius: HoloRadius.sm)
                     .fill(dayBackgroundColor(day))
                     .overlay {
                         // 今天未打卡：描边环提示
                         if day.isToday && !day.hasRecord && !day.isOverLimit {
-                            RoundedRectangle(cornerRadius: 6)
+                            RoundedRectangle(cornerRadius: HoloRadius.sm)
                                 .stroke(accentColor, lineWidth: 1.5)
                         }
                     }
@@ -38,7 +38,7 @@ struct HabitWeekStripView: View {
 
     private func dayBackgroundColor(_ day: HabitStatsDayCell) -> Color {
         if day.isOverLimit {
-            return Color.red.opacity(0.12)
+            return Color.holoError.opacity(0.12)
         }
         if day.hasRecord {
             return accentColor
@@ -51,7 +51,7 @@ struct HabitWeekStripView: View {
 
     private func dayNumberColor(_ day: HabitStatsDayCell) -> Color {
         if day.isOverLimit {
-            return .red
+            return .holoError
         }
         if day.hasRecord {
             return .white

@@ -384,13 +384,29 @@ struct HealthDetailView: View {
     }
 
     private var detailSubtitle: String {
+        // 基于本周达标天数给出诚实陈述，不编造无依据的"建议"
         switch type {
         case .steps:
-            return "晚饭后 15 分钟散步，大概率能补齐今天的活动环。"
+            if weeklyData.isEmpty {
+                return "近 7 天暂无步数数据。"
+            }
+            return goalDays >= 5
+                ? "本周步数稳定，保持节奏即可。"
+                : "本周有 \(goalDays) 天达标，还可以再稳定一些。"
         case .sleep:
-            return "睡眠接近目标时，第二天更适合安排高专注任务。"
+            if weeklyData.isEmpty {
+                return "近 7 天暂无睡眠数据。"
+            }
+            return weeklyAverage >= 7
+                ? "本周平均睡眠充足，适合安排高专注任务。"
+                : "本周平均睡眠偏少，注意补充休息。"
         case .standHours:
-            return "久坐通常集中在下午，可以把站立提醒放到 14:00 后。"
+            if weeklyData.isEmpty {
+                return "近 7 天暂无站立数据。"
+            }
+            return goalDays >= 5
+                ? "本周站立规律，久坐风险较低。"
+                : "本周有 \(goalDays) 天达标，可适当增加站立时间。"
         case .activeMinutes:
             return "没有站立数据时，HOLO 用活动分钟替代站立环来估算久坐风险。"
         }

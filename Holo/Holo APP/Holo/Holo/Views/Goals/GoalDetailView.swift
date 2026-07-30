@@ -86,8 +86,7 @@ struct GoalDetailView: View {
         ))
         .font(.holoBody)
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        .holoCard()
     }
 
     private var taskSection: some View {

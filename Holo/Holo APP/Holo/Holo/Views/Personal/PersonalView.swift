@@ -13,6 +13,7 @@ struct PersonalView: View {
     @Environment(\.dismiss) private var dismiss
     @ObservedObject private var profileService = HoloProfileService.shared
     @ObservedObject private var memorySettings = HoloMemorySettings.shared
+    @ObservedObject private var entitlementState = HoloEntitlementState.shared
     @AppStorage(UserDisplayNameSettings.displayNameKey) private var userName: String = UserDisplayNameSettings.fallbackDisplayName
 
     let onPlanGoal: () -> Void
@@ -47,6 +48,7 @@ struct PersonalView: View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: HoloSpacing.xl) {
+                    plusSection
                     profileSection
                     goalsSection
                     memorySection
@@ -109,9 +111,120 @@ struct PersonalView: View {
             }
         }
         .task { await refreshMemoryInbox(presentIfAllowed: true) }
+        .task { await HoloSubscriptionService.shared.refreshStatus() }
         .onReceive(NotificationCenter.default.publisher(for: .holoMemoryReceiptsDidChange)) { _ in
             Task { await refreshMemoryInbox(presentIfAllowed: false) }
         }
+    }
+
+    // MARK: - Holo Plus
+
+    private var plusSection: some View {
+        NavigationLink {
+            HoloMembershipCenterView()
+        } label: {
+            ZStack(alignment: .topTrailing) {
+                RoundedRectangle(cornerRadius: HoloRadius.lg)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                Color(hex: "#17131F"),
+                                Color(hex: "#211329"),
+                                Color(hex: "#2E1A22")
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+
+                Circle()
+                    .fill(Color.holoPrimary.opacity(0.28))
+                    .frame(width: 120, height: 120)
+                    .blur(radius: 28)
+                    .offset(x: 34, y: -44)
+
+                VStack(alignment: .leading, spacing: HoloSpacing.lg) {
+                    HStack(alignment: .top, spacing: HoloSpacing.md) {
+                        HoloPlusEmblem(size: 58)
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(spacing: HoloSpacing.xs) {
+                                Text("Holo Plus")
+                                    .font(.holoTitle)
+                                    .foregroundColor(Color(hex: "#FFF3D7"))
+
+                                if entitlementState.isPlusActive {
+                                    Text("已生效")
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundColor(Color(hex: "#211329"))
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 4)
+                                        .background(Color(hex: "#FFE4AE"))
+                                        .clipShape(Capsule())
+                                }
+                            }
+
+                            Text(
+                                entitlementState.isPlusActive
+                                    ? "更高额度已为你开启"
+                                    : "解锁 AI、语音与记忆洞察额度"
+                            )
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(Color(hex: "#F3DEC0").opacity(0.82))
+                            .lineLimit(2)
+                        }
+
+                        Spacer(minLength: 0)
+                    }
+
+                    HStack(spacing: HoloSpacing.sm) {
+                        plusFeaturePill("HoloAI", value: "30/天")
+                        plusFeaturePill("语音", value: "5分钟")
+                        plusFeaturePill("任务", value: "50/天")
+                    }
+
+                    HStack(spacing: HoloSpacing.xs) {
+                        Text(entitlementState.isPlusActive ? "查看会员权益" : "进入会员中心")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(Color(hex: "#FFF3D7"))
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(Color(hex: "#FFF3D7").opacity(0.82))
+                    }
+                }
+                .padding(HoloSpacing.lg)
+            }
+            .frame(maxWidth: .infinity)
+            .overlay(
+                RoundedRectangle(cornerRadius: HoloRadius.lg)
+                    .stroke(Color(hex: "#FFE4AE").opacity(0.64), lineWidth: 1)
+            )
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+            .shadow(
+                color: Color(hex: "#2E1A22").opacity(0.18),
+                radius: 20,
+                x: 0,
+                y: 12
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func plusFeaturePill(_ title: String, value: String) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(title)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundColor(Color(hex: "#F3DEC0").opacity(0.72))
+            Text(value)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(Color(hex: "#FFF3D7"))
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(Color.white.opacity(0.08))
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
     }
 
     // MARK: - 个人档案
@@ -134,7 +247,7 @@ struct PersonalView: View {
             } label: {
                 HStack(spacing: HoloSpacing.md) {
                     ZStack {
-                        RoundedRectangle(cornerRadius: 10)
+                        RoundedRectangle(cornerRadius: HoloRadius.sm)
                             .fill(profileService.hasProfile
                                   ? Color.holoSuccess.opacity(0.1)
                                   : Color.holoTextSecondary.opacity(0.1))
@@ -238,7 +351,7 @@ struct PersonalView: View {
             } label: {
                 HStack(spacing: HoloSpacing.md) {
                     ZStack {
-                        RoundedRectangle(cornerRadius: 10)
+                        RoundedRectangle(cornerRadius: HoloRadius.sm)
                             .fill(Color.holoPrimary.opacity(0.1))
                             .frame(width: 40, height: 40)
                         Image(systemName: "target")
@@ -285,7 +398,7 @@ struct PersonalView: View {
             } label: {
                 HStack(spacing: HoloSpacing.md) {
                     ZStack {
-                        RoundedRectangle(cornerRadius: 10)
+                        RoundedRectangle(cornerRadius: HoloRadius.sm)
                             .fill(Color.holoPrimary.opacity(0.1))
                             .frame(width: 40, height: 40)
                         Image(systemName: "brain.head.profile")
@@ -349,7 +462,7 @@ struct PersonalView: View {
             HStack(spacing: HoloSpacing.sm) {
                 Image(systemName: "hammer")
                     .font(.system(size: 18))
-                    .foregroundColor(.orange)
+                    .foregroundColor(.holoPrimary)
                 Text("开发者工具")
                     .font(.holoBody)
                     .fontWeight(.semibold)
@@ -361,12 +474,12 @@ struct PersonalView: View {
             } label: {
                 HStack(spacing: HoloSpacing.md) {
                     ZStack {
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Color.orange.opacity(0.1))
+                        RoundedRectangle(cornerRadius: HoloRadius.sm)
+                            .fill(Color.holoPrimary.opacity(0.1))
                             .frame(width: 40, height: 40)
                         Image(systemName: "testtube.2")
                             .font(.system(size: 17, weight: .medium))
-                            .foregroundColor(.orange)
+                            .foregroundColor(.holoPrimary)
                     }
 
                     VStack(alignment: .leading, spacing: 2) {

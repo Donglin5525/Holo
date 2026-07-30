@@ -43,14 +43,12 @@ struct ThoughtEditorView: View {
 
     // MARK: - Form State
     @State private var content: String = ""
-    @State private var selectedMood: ThoughtMoodType? = nil
 
     /// AI 归类标签（只读回显，不参与编辑保存；来自 fetchVisibleAIAssignments）
     @State private var aiAssignments: [ThoughtTagAssignment] = []
 
     // MARK: - Original Values (for change detection)
     @State private var originalContent: String = ""
-    @State private var originalMood: ThoughtMoodType? = nil
 
     // MARK: - 结构化编辑状态（#/@ Token）
     /// 当前 #/@ 触发上下文（候选面板数据源）
@@ -680,14 +678,12 @@ struct ThoughtEditorView: View {
 
             // 设置当前值
             content = thought.content
-            selectedMood = ThoughtMoodType(from: thought.mood)
             initialRichJSON = thought.richContentJSON
             // AI 归类标签只读回显（不写入行内标签，避免被 update 误处理）
             aiAssignments = (try? repo.fetchVisibleAIAssignments(thoughtId: thoughtId)) ?? []
 
             // 设置原始值（用于比较是否有修改）
             originalContent = thought.content
-            originalMood = ThoughtMoodType(from: thought.mood)
 
             // 加载附件列表
             editingAttachments = thought.sortedAttachments.map { attachment in
@@ -865,7 +861,7 @@ struct ThoughtEditorView: View {
                 try repository.update(
                     thoughtId,
                     content: content,
-                    mood: selectedMood?.rawValue,
+                    mood: nil,
                     inlineTags: inlineTags,
                     richContentJSON: .some(richJSON)
                 )
@@ -874,7 +870,7 @@ struct ThoughtEditorView: View {
                 // 新建模式
                 let thought = try repository.create(
                     content: content,
-                    mood: selectedMood?.rawValue,
+                    mood: nil,
                     manualTags: [],
                     inlineTags: inlineTags,
                     richContentJSON: richJSON
@@ -885,9 +881,25 @@ struct ThoughtEditorView: View {
                 let imagesToUpload = pendingImages
                 if !imagesToUpload.isEmpty {
                     Task { @MainActor in
+                        var failedCount = 0
                         for image in imagesToUpload {
-                            guard let jpegData = image.jpegData(compressionQuality: 0.85) else { continue }
-                            _ = try? await repository.addAttachment(imageData: jpegData, to: thought)
+                            guard let jpegData = image.jpegData(compressionQuality: 0.85) else {
+                                failedCount += 1
+                                continue
+                            }
+                            do {
+                                _ = try await repository.addAttachment(imageData: jpegData, to: thought)
+                            } catch {
+                                failedCount += 1
+                            }
+                        }
+                        if failedCount > 0 {
+                            HoloToastCenter.shared.show(
+                                failedCount == imagesToUpload.count
+                                    ? "图片保存失败，请重新编辑添加"
+                                    : "\(failedCount) 张图片保存失败，部分图片可能丢失",
+                                type: .error
+                            )
                         }
                     }
                 }
@@ -907,7 +919,6 @@ struct ThoughtEditorView: View {
 
         // 标记为已保存：同步原值，保持修改检测语义准确。
         originalContent = content
-        originalMood = selectedMood
         // 新建模式的 pendingImages 已在后台 Task 处理，清空以避免 hasUnsavedChanges 误判
         pendingImages = []
 

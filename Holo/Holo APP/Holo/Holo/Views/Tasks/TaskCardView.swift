@@ -202,11 +202,11 @@ struct TaskCardView: View {
 
     private var dateColor: Color {
         if task.isOverdue {
-            return .red
+            return .holoError
         } else if task.isDueToday {
-            return .orange
+            return .holoPrimary
         } else if task.isDueTomorrow {
-            return .yellow
+            return .holoTextSecondary
         }
         return .holoTextSecondary
     }

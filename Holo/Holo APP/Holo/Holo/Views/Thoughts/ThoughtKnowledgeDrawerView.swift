@@ -19,6 +19,7 @@ enum DrawerNode: Hashable {
     case aiTag(String)     // 标签池某标签（tagName，手动/正文/AI 同名统一）
     case topic(UUID)       // 某主题（topicId，P1.5）
     case aiOrganize        // 归纳主题入口（非筛选，触发跨观点收敛）
+    case archived          // 已归档（可找回、可恢复）
 }
 
 // MARK: - ThoughtKnowledgeDrawerView
@@ -51,6 +52,9 @@ struct ThoughtKnowledgeDrawerView: View {
 
     /// 主题列表（P1.5.2）
     @State private var topics: [Topic] = []
+
+    /// 已归档想法数量（用于「已归档」节点徽章）
+    @State private var archivedCount: Int = 0
 
     /// AI 标签池过长时默认折叠，避免抽屉需要滑很久。
     @State private var isAIPoolExpanded: Bool = false
@@ -140,6 +144,7 @@ struct ThoughtKnowledgeDrawerView: View {
         do {
             aiTagBuckets = try thoughtRepository.fetchAITagBuckets(excludeAbsorbed: false)
             topics = try topicRepository.fetchClassificationTopics()
+            archivedCount = (try? thoughtRepository.fetchArchived().count) ?? 0
         } catch {
             // 容错：保持空数组，不影响抽屉其他功能
             aiTagBuckets = []
@@ -178,6 +183,13 @@ struct ThoughtKnowledgeDrawerView: View {
                     .padding(.vertical, HoloSpacing.sm)
 
                 aiOrganizeRow
+
+                nodeRow(
+                    .archived,
+                    icon: "archivebox",
+                    title: "已归档",
+                    badge: archivedCount > 0 ? "\(archivedCount)" : nil
+                )
             }
             .padding(.vertical, HoloSpacing.md)
         }

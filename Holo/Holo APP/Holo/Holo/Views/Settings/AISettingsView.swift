@@ -204,11 +204,11 @@ struct AISettingsView: View {
                 case .success(let message):
                     Label(message, systemImage: "checkmark.circle.fill")
                         .font(.caption)
-                        .foregroundColor(.green)
+                        .foregroundColor(.holoSuccess)
                 case .failure(let message):
                     Label(message, systemImage: "xmark.circle.fill")
                         .font(.caption)
-                        .foregroundColor(.red)
+                        .foregroundColor(.holoError)
                 }
             }
         } header: {

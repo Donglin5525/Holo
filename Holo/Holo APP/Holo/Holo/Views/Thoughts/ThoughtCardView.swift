@@ -30,6 +30,8 @@ struct ThoughtCardView: View {
     var onArchive: (() -> Void)?
     /// 更多操作：删除（可选）
     var onDelete: (() -> Void)?
+    /// 归档操作显示文案（默认「归档」，归档视图下传「恢复」）
+    var archiveActionTitle: String = "归档"
 
     /// 操作菜单是否展示
     @State private var showActionSheet = false
@@ -92,7 +94,7 @@ struct ThoughtCardView: View {
                             Button("移入主题") { onMoveToTopic() }
                         }
                         if let onArchive {
-                            Button("归档", role: nil) { onArchive() }
+                            Button(archiveActionTitle, role: nil) { onArchive() }
                         }
                         if let onDelete {
                             Button("删除", role: .destructive) { onDelete() }

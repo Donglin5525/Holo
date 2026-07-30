@@ -270,13 +270,17 @@ struct HealthView: View {
     private func metricSummaryChip(_ metric: HealthMetricSnapshot) -> some View {
         VStack(alignment: .leading, spacing: 7) {
             HStack {
+                Image(systemName: metric.type.icon)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(metric.type.color)
                 Text(metric.title)
                     .font(.holoLabel)
                     .foregroundColor(.holoTextSecondary)
                 Spacer()
-                Image(systemName: metric.type.icon)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(metric.type.color)
+                // chevron 暗示可点击进入详情
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.holoTextSecondary.opacity(0.5))
             }
 
             Text(metric.valueText)

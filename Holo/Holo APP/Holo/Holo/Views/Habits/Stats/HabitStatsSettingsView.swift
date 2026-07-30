@@ -110,7 +110,7 @@ struct HabitStatsSettingsView: View {
             }
             .frame(width: 28, height: 28)
             .background((Color(hex: habit.color)).opacity(0.12))
-            .clipShape(RoundedRectangle(cornerRadius: 6))
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
 
             ViewThatFits(in: .horizontal) {
                 HStack(spacing: HoloSpacing.sm) {
@@ -184,7 +184,7 @@ struct HabitStatsSettingsView: View {
     private var emptyState: some View {
         VStack(spacing: 20) {
             Spacer().frame(height: 80)
-            Image(systemName: "checkmark.circle")
+            Image(systemName: "plus.circle")
                 .font(.system(size: 60, weight: .light))
                 .foregroundColor(.holoTextSecondary.opacity(0.5))
 

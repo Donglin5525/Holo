@@ -82,10 +82,11 @@ struct BudgetSummaryCard: View {
     // MARK: - Helpers
 
     private func gradientColors(for progress: Double) -> [Color] {
-        if progress >= 1.0 { return [.holoError, Color(red: 0.97, green: 0.44, blue: 0.44)] }
-        else if progress >= 0.8 { return [.holoPrimary, Color(red: 0.98, green: 0.57, blue: 0.24)] }
-        else if progress >= 0.6 { return [.holoChart8, Color(red: 0.98, green: 0.8, blue: 0.08)] }
-        else { return [.holoSuccess, Color(red: 0.29, green: 0.87, blue: 0.50)] }
+        // 与看板 KanbanBudgetSection 预算色阶口径一致：超支红 / 80%+ 主橙 / 60%+ 主橙 / 安全线绿
+        if progress >= 1.0 { return [.holoError, .holoErrorDark] }
+        else if progress >= 0.8 { return [.holoPrimary, .holoPrimaryDark] }
+        else if progress >= 0.6 { return [.holoPrimary, .holoPrimaryDark] }
+        else { return [.holoSuccess, .holoSuccessDark] }
     }
 
 }

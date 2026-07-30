@@ -556,19 +556,19 @@ struct HabitDetailView: View {
                     .font(.holoBody)
                     .foregroundColor(.holoTextPrimary)
             }
-            
-            Button {
-                recordToDelete = record
-            } label: {
-                Image(systemName: "trash")
-                    .font(.system(size: 14))
-                    .foregroundColor(.holoError.opacity(0.7))
-            }
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 12)
         .background(Color.holoBackground.opacity(0.5))
         .cornerRadius(HoloRadius.sm)
+        .contentShape(Rectangle())
+        .contextMenu {
+            Button(role: .destructive) {
+                recordToDelete = record
+            } label: {
+                Label("删除记录", systemImage: "trash")
+            }
+        }
     }
     
     // MARK: - 操作方法

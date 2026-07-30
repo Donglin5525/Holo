@@ -36,12 +36,12 @@ struct HabitMonthGridView: View {
     }
 
     private func dayCell(_ day: HabitStatsDayCell) -> some View {
-        RoundedRectangle(cornerRadius: 6)
+        RoundedRectangle(cornerRadius: HoloRadius.sm)
             .fill(dayCellBackground(day))
             .overlay {
                 // 今天未打卡：描边环提示
                 if day.isToday && !day.hasRecord && !day.isOverLimit {
-                    RoundedRectangle(cornerRadius: 6)
+                    RoundedRectangle(cornerRadius: HoloRadius.sm)
                         .stroke(accentColor, lineWidth: 1.5)
                 }
             }
@@ -58,7 +58,7 @@ struct HabitMonthGridView: View {
 
     private func dayCellBackground(_ day: HabitStatsDayCell) -> Color {
         if day.isOverLimit {
-            return Color.red.opacity(0.12)
+            return Color.holoError.opacity(0.12)
         }
         if day.hasRecord {
             return accentColor
@@ -71,7 +71,7 @@ struct HabitMonthGridView: View {
 
     private func dayNumberColor(_ day: HabitStatsDayCell) -> Color {
         if day.isOverLimit {
-            return .red
+            return .holoError
         }
         if day.hasRecord {
             return .white

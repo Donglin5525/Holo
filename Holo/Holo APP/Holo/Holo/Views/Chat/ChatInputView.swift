@@ -53,7 +53,7 @@ struct ChatInputView: View {
                 } label: {
                     Image(systemName: "stop.circle.fill")
                         .font(.system(size: 28))
-                        .foregroundColor(.red)
+                        .foregroundColor(.holoError)
                 }
             } else {
                 Button {

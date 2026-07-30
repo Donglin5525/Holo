@@ -325,6 +325,7 @@ struct KanbanHabitSection: View {
             }
         } catch {
             Logger(subsystem: "com.holo.app", category: "UI").error("打卡失败: \(error.localizedDescription)")
+            HoloToastCenter.shared.show("打卡失败，请重试", type: .error)
         }
     }
 
@@ -335,6 +336,7 @@ struct KanbanHabitSection: View {
             HapticManager.light()
         } catch {
             Logger(subsystem: "com.holo.app", category: "UI").error("计数失败: \(error.localizedDescription)")
+            HoloToastCenter.shared.show("计数失败，请重试", type: .error)
         }
     }
 
@@ -354,6 +356,7 @@ struct KanbanHabitSection: View {
             HapticManager.light()
         } catch {
             Logger(subsystem: "com.holo.app", category: "UI").error("撤销失败: \(error.localizedDescription)")
+            HoloToastCenter.shared.show("撤销失败，请重试", type: .error)
         }
     }
 }

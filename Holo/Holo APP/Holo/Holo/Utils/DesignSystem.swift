@@ -36,10 +36,14 @@ extension Color {
     // MARK: - 功能性颜色
     /// 成功状态 - 绿色
     static let holoSuccess = Color(red: 34/255, green: 197/255, blue: 94/255)  // #22C55E
+    /// 成功状态深色（渐变收尾用）
+    static let holoSuccessDark = Color(red: 22/255, green: 163/255, blue: 74/255)  // #16A34A
     /// 成功状态浅色背景
     static let holoSuccessLight = Color(red: 209/255, green: 250/255, blue: 229/255)  // #D1FAE5
     /// 错误/支出状态 - 红色
     static let holoError = Color(red: 239/255, green: 68/255, blue: 68/255)  // #EF4444
+    /// 错误状态深色（渐变收尾用）
+    static let holoErrorDark = Color(red: 220/255, green: 38/255, blue: 38/255)  // #DC2626
     /// 错误状态浅色背景
     static let holoErrorLight = Color(red: 254/255, green: 226/255, blue: 226/255)  // #FEE2E2
     /// 信息提示 - 蓝色

@@ -157,6 +157,7 @@ extension AddTransactionSheet {
 
             } catch {
                 logger.error("保存失败：\(error.localizedDescription)")
+                HoloToastCenter.shared.show("保存失败，请重试", type: .error)
             }
 
             isSaving = false
@@ -306,6 +307,9 @@ extension AddTransactionSheet {
 
         } catch {
             logger.error("保存失败：\(error.localizedDescription)")
+            await MainActor.run {
+                HoloToastCenter.shared.show("保存失败，请重试", type: .error)
+            }
         }
 
         await MainActor.run {

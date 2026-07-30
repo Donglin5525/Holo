@@ -15,6 +15,9 @@ struct GoalListView: View {
     @State private var selectedGoalRoute: GoalDetailRoute?
     @State private var operationError: String?
 
+    /// 是否已完成首次加载（避免冷启动时空态先闪现、再被真实列表替换）
+    @State private var hasLoadedOnce = false
+
     init(
         onPlanGoal: @escaping () -> Void,
         onOpenLinkedEntity: @escaping (DeepLinkTarget) -> Void = { _ in },
@@ -28,7 +31,11 @@ struct GoalListView: View {
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: HoloSpacing.md) {
-                if repository.goals.isEmpty {
+                if !hasLoadedOnce {
+                    // 首次加载前显示轻量占位，避免空态闪现
+                    ProgressView()
+                        .padding(.top, 80)
+                } else if repository.goals.isEmpty {
                     emptyState
                 } else {
                     ForEach(repository.goals, id: \.id) { goal in
@@ -70,8 +77,20 @@ struct GoalListView: View {
             }
         }
         .onAppear {
+            // Core Data 未就绪时 fetch 静默返回空，首次加载交给 .task 等就绪后执行
+            guard CoreDataStack.shared.isReady else {
+                openPendingGoalIfNeeded()
+                return
+            }
             repository.loadGoals()
+            hasLoadedOnce = true
             openPendingGoalIfNeeded()
+        }
+        .task {
+            // 等 Core Data 就绪后再加载，避免入场时空态闪现
+            await CoreDataStack.shared.waitUntilReady()
+            repository.loadGoals()
+            hasLoadedOnce = true
         }
         .onChange(of: pendingGoalDetailId) { _, _ in
             openPendingGoalIfNeeded()
@@ -123,7 +142,7 @@ struct GoalListView: View {
                 .foregroundColor(.holoPrimary)
                 .frame(width: 40, height: 40)
                 .background(Color.holoPrimary.opacity(0.1))
-                .clipShape(RoundedRectangle(cornerRadius: 10))
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(goal.title)
@@ -141,8 +160,7 @@ struct GoalListView: View {
                 .foregroundColor(.holoTextSecondary.opacity(0.5))
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        .holoCard()
     }
 
     private func openPendingGoalIfNeeded() {

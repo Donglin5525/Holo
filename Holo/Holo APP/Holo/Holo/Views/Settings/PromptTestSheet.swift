@@ -20,7 +20,7 @@ struct PromptTestSheet: View {
     @State private var isTesting = false
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             VStack(spacing: HoloSpacing.md) {
                 inputSection
                 resultSection

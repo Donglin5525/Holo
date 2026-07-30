@@ -410,7 +410,7 @@ struct AddHabitSheet: View {
                     .padding(.vertical, 8)
                     .background(
                         RoundedRectangle(cornerRadius: HoloRadius.sm)
-                            .fill(isBadHabit == true ? Color.red : Color.holoCardBackground)
+                            .fill(isBadHabit == true ? Color.holoError : Color.holoCardBackground)
                     )
                 }
             }

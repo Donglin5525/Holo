@@ -136,7 +136,7 @@ struct HabitQuickCheckInView: View {
 
     private var emptyStateView: some View {
         VStack(spacing: HoloSpacing.md) {
-            Image(systemName: "checkmark.circle")
+            Image(systemName: "tray")
                 .font(.system(size: 40))
                 .foregroundColor(.holoTextSecondary)
 
@@ -426,7 +426,7 @@ struct HabitQuickCheckInView: View {
             todayProgress = repository.getTodayCheckInProgress()
             HapticManager.light()
         } catch {
-            // 静默失败
+            HoloToastCenter.shared.show("打卡失败，请重试", type: .error)
         }
     }
 
@@ -437,7 +437,7 @@ struct HabitQuickCheckInView: View {
             todayValues[habit.id] = repository.getTodayValue(for: habit)
             HapticManager.light()
         } catch {
-            // 静默失败
+            HoloToastCenter.shared.show("计数失败，请重试", type: .error)
         }
     }
 
@@ -451,7 +451,7 @@ struct HabitQuickCheckInView: View {
             editingHabit = nil
             HapticManager.light()
         } catch {
-            // 静默失败
+            HoloToastCenter.shared.show("保存失败，请重试", type: .error)
         }
     }
 }

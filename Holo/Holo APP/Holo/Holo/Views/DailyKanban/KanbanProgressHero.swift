@@ -15,6 +15,10 @@ struct KanbanProgressHero: View {
     let userName: String
     @ObservedObject private var displaySettings = HabitStatsDisplaySettings.shared
 
+    /// 今日支出：nil = 加载中/失败，统一显示占位符，避免误导成「¥0=没花钱」
+    @State private var todayExpense: Decimal? = nil
+    @State private var hasLoadedExpense: Bool = false
+
     private var taskProgress: (completed: Int, total: Int) {
         todoRepo.getDailyKanbanProgress()
     }
@@ -61,6 +65,9 @@ struct KanbanProgressHero: View {
                 }
             }
             .padding(20)
+        }
+        .task {
+            await loadTodayExpense()
         }
     }
 
@@ -164,6 +171,23 @@ struct KanbanProgressHero: View {
     }
 
     private var expenseText: String {
-        "¥--"
+        guard hasLoadedExpense, let todayExpense else { return "--" }
+        return NumberFormatter.currency.string(from: NSDecimalNumber(decimal: todayExpense)) ?? "¥0"
+    }
+
+    /// 拉取今日支出总额（与 KanbanBudgetSection 同一数据源：今日 0 点 ~ 次日 0 点的支出交易）
+    private func loadTodayExpense() async {
+        let calendar = Calendar.current
+        let start = calendar.startOfDay(for: Date())
+        let end = calendar.date(byAdding: .day, value: 1, to: start) ?? Date()
+        do {
+            let transactions = try await FinanceRepository.shared.getTransactions(from: start, to: end)
+            todayExpense = transactions
+                .filter { $0.transactionType == .expense }
+                .reduce(Decimal.zero) { $0 + ($1.amount as Decimal) }
+        } catch {
+            todayExpense = nil
+        }
+        hasLoadedExpense = true
     }
 }

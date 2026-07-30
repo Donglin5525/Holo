@@ -427,7 +427,7 @@ struct TaskDetailView: View {
 
     private var dateColor: Color {
         if task.isOverdue { return .holoError }
-        if task.isDueToday { return .orange }
+        if task.isDueToday { return .holoPrimary }
         return .holoTextPrimary
     }
 

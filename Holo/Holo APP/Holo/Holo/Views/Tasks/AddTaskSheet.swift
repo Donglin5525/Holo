@@ -1717,6 +1717,9 @@ struct AddTaskSheet: View {
             }
         } catch {
             Self.logger.error("自动保存任务失败: \(error.localizedDescription)")
+            HoloToastCenter.shared.show("保存失败，请重试", type: .error)
+            isSaving = false
+            return  // 保存失败时不关闭页面，保留用户改动以便重试
         }
 
         dismiss()

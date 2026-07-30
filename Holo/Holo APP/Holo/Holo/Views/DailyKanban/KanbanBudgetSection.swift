@@ -157,7 +157,7 @@ struct KanbanBudgetSection: View {
             budgetDetailItem(
                 label: "今日支出",
                 value: todayExpenseFormatted,
-                color: todayExpense == nil ? .holoTextSecondary : .holoError
+                color: .holoTextPrimary
             )
             budgetDetailItem(
                 label: "日均可用",
@@ -192,7 +192,7 @@ struct KanbanBudgetSection: View {
     private func budgetBarColor(progress: Double) -> Color {
         if progress >= 1.0 { return .holoError }
         if progress >= 0.8 { return .holoPrimary }
-        if progress >= 0.6 { return Color.orange }
+        if progress >= 0.6 { return .holoPrimary }
         return .holoSuccess
     }
 

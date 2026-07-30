@@ -252,12 +252,12 @@ struct MessageBubbleView: View {
 
     private var userAvatar: some View {
         Circle()
-            .fill(Color.blue.opacity(0.15))
+            .fill(Color.holoTextSecondary.opacity(0.15))
             .frame(width: 32, height: 32)
             .overlay {
                 Image(systemName: "person.fill")
                     .font(.system(size: 14))
-                    .foregroundColor(.blue)
+                    .foregroundColor(.holoTextSecondary)
             }
     }
 
@@ -272,7 +272,7 @@ struct MessageBubbleView: View {
             )
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
-            .background(Color.blue.opacity(0.12))
+            .background(Color.holoDivider.opacity(0.5))
             .clipShape(BubbleShape(isUser: true))
         } else {
             AIReadableResponseView(
@@ -293,7 +293,7 @@ struct MessageBubbleView: View {
             HStack(spacing: 6) {
                 Image(systemName: "checkmark.circle.fill")
                     .font(.system(size: 12))
-                    .foregroundColor(.green)
+                    .foregroundColor(.holoSuccess)
                 Text("已为你处理 \(cards.count) 件事")
                     .font(.system(size: 13, weight: .semibold))
                     .foregroundColor(.holoTextPrimary)

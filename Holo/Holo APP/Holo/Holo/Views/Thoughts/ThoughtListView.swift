@@ -314,6 +314,8 @@ struct ThoughtListView: View {
                 thoughts = try thoughtRepository.fetchThoughtsByAITag(tagName)
             case .topic(let topicId):
                 thoughts = try topicRepository.fetchThoughts(byTopic: topicId)
+            case .archived:
+                thoughts = try thoughtRepository.fetchArchived()
             case .aiOrganize:
                 // 非筛选（抽屉内弹预告），不改变列表
                 return
@@ -675,7 +677,8 @@ struct ThoughtListView: View {
                                 },
                                 onDelete: {
                                     deleteThought(thought)
-                                }
+                                },
+                                archiveActionTitle: isArchivedView ? "恢复" : "归档"
                             )
                             .contextMenu {
                                 Button {
@@ -697,7 +700,7 @@ struct ThoughtListView: View {
             }
             .padding(.horizontal, HoloSpacing.lg)
             .padding(.top, HoloSpacing.md)
-            .padding(.bottom, 100) // 底部 Tab 栏高度
+            .padding(.bottom, 90) // 给浮动按钮留位
         }
         .refreshable {
             await refresh()
@@ -716,14 +719,26 @@ struct ThoughtListView: View {
 
     // MARK: - 滑动操作
 
-    /// 归档想法
+    /// 当前是否处于「已归档」视图（决定归档/恢复操作语义）
+    private var isArchivedView: Bool {
+        if case .archived = drawerSelection { return true }
+        return false
+    }
+
+    /// 归档 / 恢复（在归档视图下自动变为恢复）
     private func archiveThought(_ thought: Thought) {
         do {
-            try thoughtRepository.archive(thought.id)
+            if isArchivedView {
+                try thoughtRepository.unarchive(thought.id)
+            } else {
+                try thoughtRepository.archive(thought.id)
+            }
             revealedThoughtId = nil
             loadThoughts()
+            NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
         } catch {
-            Logger(subsystem: "com.holo.app", category: "ThoughtListView").error("归档想法失败: \(error.localizedDescription)")
+            Logger(subsystem: "com.holo.app", category: "ThoughtListView").error("归档/恢复想法失败: \(error.localizedDescription)")
+            HoloToastCenter.shared.show("操作失败，请重试", type: .error)
         }
     }
 
@@ -751,12 +766,12 @@ struct ThoughtListView: View {
                 .font(.holoBody)
                 .foregroundColor(.holoTextSecondary)
 
-            Text("点击右下角 + 记录第一条想法")
+            Text("点右下角 + 记录第一条想法")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary.opacity(0.7))
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .padding(.bottom, 100)
+        .padding(.bottom, 40)
     }
 }
 

@@ -53,15 +53,15 @@ struct HabitCardView: View {
             // 右侧交互按钮
             actionView
         }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 17)
+        .padding(.horizontal, HoloSpacing.md)
+        .padding(.vertical, HoloSpacing.md)
         .background(
-            RoundedRectangle(cornerRadius: 28)
+            RoundedRectangle(cornerRadius: HoloRadius.lg)
                 .fill(Color.holoCardBackground)
                 .shadow(color: HoloShadow.card, radius: 10, x: 0, y: 4)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 28)
+            RoundedRectangle(cornerRadius: HoloRadius.lg)
                 .stroke(Color.holoBorder, lineWidth: 1)
         )
         .onAppear {
@@ -228,7 +228,7 @@ struct HabitCardView: View {
                 if let value = todayValue {
                     Text(habit.formatValue(value))
                         .font(.system(size: 18, weight: .semibold))
-                        .foregroundColor(isOverLimit ? .red : .holoTextPrimary)
+                        .foregroundColor(isOverLimit ? .holoError : .holoTextPrimary)
                 }
 
                 // -1 按钮（撤销今日最近一笔，仅有记录时显示）
@@ -268,7 +268,7 @@ struct HabitCardView: View {
                         .foregroundColor(.white)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 8)
-                        .background(isOverLimit ? Color.red : habit.habitColor)
+                        .background(isOverLimit ? Color.holoError : habit.habitColor)
                         .clipShape(Capsule())
                 }
             }
@@ -277,7 +277,7 @@ struct HabitCardView: View {
             if showOverLimitWarning {
                 Text("已经超过当日限额，请注意控制")
                     .font(.system(size: 10))
-                    .foregroundColor(.red)
+                    .foregroundColor(.holoError)
                     .transition(.opacity)
             }
         }
@@ -296,11 +296,11 @@ struct HabitCardView: View {
                     if let value = todayValue ?? latestHistoricalValue {
                         Text(habit.formatValue(value))
                             .font(.system(size: 18, weight: .semibold))
-                            .foregroundColor(isOverLimit ? .red : .holoTextPrimary)
+                            .foregroundColor(isOverLimit ? .holoError : .holoTextPrimary)
 
                         Text(habit.unitText)
                             .font(.holoCaption)
-                            .foregroundColor(isOverLimit ? .red : .holoTextSecondary)
+                            .foregroundColor(isOverLimit ? .holoError : .holoTextSecondary)
                     } else {
                         Text("记录")
                             .font(.holoCaption)
@@ -309,7 +309,7 @@ struct HabitCardView: View {
 
                     Image(systemName: "plus.circle.fill")
                         .font(.system(size: 20))
-                        .foregroundColor(isOverLimit ? .red : habit.habitColor)
+                        .foregroundColor(isOverLimit ? .holoError : habit.habitColor)
                 }
             }
             // 长按撤销今日最近一笔（仅有今日记录时可用）
@@ -319,11 +319,22 @@ struct HabitCardView: View {
                 }
             }
 
+            // 可见的撤销入口（仅有今日记录时显示，与计数类的 -1 按钮对齐）
+            if todayValue != nil {
+                Button {
+                    showUndoConfirm = true
+                } label: {
+                    Text("撤销")
+                        .font(.holoTinyLabel)
+                        .foregroundColor(.holoTextSecondary)
+                }
+            }
+
             // 超标提示文案（自动消失）
             if showOverLimitWarning {
                 Text("已经超过当日限额，请注意控制")
                     .font(.system(size: 10))
-                    .foregroundColor(.red)
+                    .foregroundColor(.holoError)
                     .transition(.opacity)
             }
         }

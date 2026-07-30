@@ -46,7 +46,7 @@ struct SettingsView: View {
     // MARK: - Body
 
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView {
                 VStack(spacing: HoloSpacing.lg) {
                     // 用户信息卡片
@@ -157,7 +157,7 @@ struct SettingsView: View {
             if let errorMessage = authService.errorMessage {
                 Text(errorMessage)
                     .font(.system(size: 12))
-                    .foregroundColor(.red)
+                    .foregroundColor(.holoError)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
@@ -170,10 +170,10 @@ struct SettingsView: View {
                         Text("退出登录")
                     }
                     .font(.holoBody)
-                    .foregroundColor(.red)
+                    .foregroundColor(.holoError)
                     .frame(maxWidth: .infinity)
                     .frame(height: 44)
-                    .background(Color.red.opacity(0.08))
+                    .background(Color.holoError.opacity(0.08))
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
                 }
                 .buttonStyle(PlainButtonStyle())
@@ -246,7 +246,7 @@ struct SettingsView: View {
             HStack(spacing: HoloSpacing.md) {
                 // 图标
                 ZStack {
-                    RoundedRectangle(cornerRadius: 10)
+                    RoundedRectangle(cornerRadius: HoloRadius.sm)
                         .fill(setting == darkModeManager.currentSetting
                               ? Color.holoPrimary.opacity(0.1)
                               : Color.holoBackground)
@@ -310,7 +310,7 @@ struct SettingsView: View {
                 // 账号状态
                 HStack(spacing: HoloSpacing.md) {
                     ZStack {
-                        RoundedRectangle(cornerRadius: 10)
+                        RoundedRectangle(cornerRadius: HoloRadius.sm)
                             .fill(Color.holoPrimary.opacity(0.1))
                             .frame(width: 40, height: 40)
 
@@ -340,7 +340,7 @@ struct SettingsView: View {
                 // 同步状态
                 HStack(spacing: HoloSpacing.md) {
                     ZStack {
-                        RoundedRectangle(cornerRadius: 10)
+                        RoundedRectangle(cornerRadius: HoloRadius.sm)
                             .fill(iCloudSyncStatus.isSyncing ? Color.blue.opacity(0.1) : Color.holoPrimary.opacity(0.1))
                             .frame(width: 40, height: 40)
 
@@ -380,13 +380,13 @@ struct SettingsView: View {
 
                     HStack(spacing: HoloSpacing.md) {
                         ZStack {
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(Color.red.opacity(0.1))
+                            RoundedRectangle(cornerRadius: HoloRadius.sm)
+                                .fill(Color.holoError.opacity(0.1))
                                 .frame(width: 40, height: 40)
 
                             Image(systemName: "exclamationmark.icloud")
                                 .font(.system(size: 18, weight: .medium))
-                                .foregroundColor(.red)
+                                .foregroundColor(.holoError)
                         }
 
                         VStack(alignment: .leading, spacing: 2) {
@@ -396,7 +396,7 @@ struct SettingsView: View {
 
                             Text(iCloudSyncStatus.lastErrorMessage ?? "")
                                 .font(.system(size: 12))
-                                .foregroundColor(.red)
+                                .foregroundColor(.holoError)
                                 .lineLimit(2)
                         }
 
@@ -423,7 +423,7 @@ struct SettingsView: View {
                 } label: {
                     HStack(spacing: HoloSpacing.md) {
                         ZStack {
-                            RoundedRectangle(cornerRadius: 10)
+                            RoundedRectangle(cornerRadius: HoloRadius.sm)
                                 .fill(Color.holoInfo.opacity(0.1))
                                 .frame(width: 40, height: 40)
 
@@ -550,7 +550,7 @@ struct SettingsView: View {
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, HoloSpacing.sm)
         .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
     }
 
     // MARK: - AI 回放设置
@@ -635,7 +635,7 @@ struct SettingsView: View {
     ) -> some View {
         HStack(spacing: HoloSpacing.md) {
             ZStack {
-                RoundedRectangle(cornerRadius: 10)
+                RoundedRectangle(cornerRadius: HoloRadius.sm)
                     .fill(iconColor.opacity(0.1))
                     .frame(width: 40, height: 40)
 
@@ -757,7 +757,7 @@ struct SettingsView: View {
                 // 缓存大小
                 HStack(spacing: HoloSpacing.md) {
                     ZStack {
-                        RoundedRectangle(cornerRadius: 10)
+                        RoundedRectangle(cornerRadius: HoloRadius.sm)
                             .fill(Color.holoInfo.opacity(0.1))
                             .frame(width: 40, height: 40)
 
@@ -795,26 +795,26 @@ struct SettingsView: View {
                 } label: {
                     HStack(spacing: HoloSpacing.md) {
                         ZStack {
-                            RoundedRectangle(cornerRadius: 10)
+                            RoundedRectangle(cornerRadius: HoloRadius.sm)
                                 .fill(storageService.isClearing || storageService.cacheSize == 0
                                       ? Color.holoTextSecondary.opacity(0.1)
-                                      : Color.red.opacity(0.1))
+                                      : Color.holoError.opacity(0.1))
                                 .frame(width: 40, height: 40)
 
                             if storageService.isClearing {
                                 ProgressView()
-                                    .tint(.red)
+                                    .tint(.holoError)
                             } else {
                                 Image(systemName: "trash")
                                     .font(.system(size: 18, weight: .medium))
-                                    .foregroundColor(storageService.cacheSize == 0 ? .holoTextSecondary : .red)
+                                    .foregroundColor(storageService.cacheSize == 0 ? .holoTextSecondary : .holoError)
                             }
                         }
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text("清除缓存")
                                 .font(.holoBody)
-                                .foregroundColor(storageService.cacheSize == 0 ? .holoTextSecondary : .red)
+                                .foregroundColor(storageService.cacheSize == 0 ? .holoTextSecondary : .holoError)
 
                             Text("清理诊断日志和过期数据，不会删除你的数据")
                                 .font(.system(size: 12))
@@ -891,7 +891,7 @@ struct SettingsView: View {
             HStack(spacing: HoloSpacing.sm) {
                 Image(systemName: "person.crop.circle.badge.minus")
                     .font(.system(size: 18))
-                    .foregroundColor(.red)
+                    .foregroundColor(.holoError)
 
                 Text("账号与数据")
                     .font(.holoBody)
@@ -905,24 +905,24 @@ struct SettingsView: View {
                 } label: {
                     HStack(spacing: HoloSpacing.md) {
                         ZStack {
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(isDeletingAccountData ? Color.holoTextSecondary.opacity(0.1) : Color.red.opacity(0.1))
+                            RoundedRectangle(cornerRadius: HoloRadius.sm)
+                                .fill(isDeletingAccountData ? Color.holoTextSecondary.opacity(0.1) : Color.holoError.opacity(0.1))
                                 .frame(width: 40, height: 40)
 
                             if isDeletingAccountData {
                                 ProgressView()
-                                    .tint(.red)
+                                    .tint(.holoError)
                             } else {
                                 Image(systemName: "trash.slash")
                                     .font(.system(size: 18, weight: .medium))
-                                    .foregroundColor(.red)
+                                    .foregroundColor(.holoError)
                             }
                         }
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text("删除账号与 Holo 数据")
                                 .font(.holoBody)
-                                .foregroundColor(.red)
+                                .foregroundColor(.holoError)
 
                             Text("清除本机数据、附件、AI 记忆和登录状态")
                                 .font(.system(size: 12))
@@ -1006,19 +1006,19 @@ struct SettingsView: View {
             } label: {
                 HStack(spacing: HoloSpacing.md) {
                     ZStack {
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Color.red.opacity(0.1))
+                        RoundedRectangle(cornerRadius: HoloRadius.sm)
+                            .fill(Color.holoError.opacity(0.1))
                             .frame(width: 40, height: 40)
 
                         Image(systemName: "trash.circle")
                             .font(.system(size: 18, weight: .medium))
-                            .foregroundColor(.red)
+                            .foregroundColor(.holoError)
                     }
 
                     VStack(alignment: .leading, spacing: 2) {
                         Text("清除观点数据")
                             .font(.holoBody)
-                            .foregroundColor(.red)
+                            .foregroundColor(.holoError)
 
                         Text("删除所有观点、标签和引用")
                             .font(.system(size: 12))
@@ -1065,7 +1065,7 @@ struct SettingsView: View {
             HStack(spacing: HoloSpacing.md) {
                 // 图标
                 ZStack {
-                    RoundedRectangle(cornerRadius: 10)
+                    RoundedRectangle(cornerRadius: HoloRadius.sm)
                         .fill(iconColor.opacity(0.1))
                         .frame(width: 40, height: 40)
 
