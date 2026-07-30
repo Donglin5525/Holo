@@ -11,7 +11,7 @@ import SwiftUI
 struct HabitStatsView: View {
     let onBack: () -> Void
 
-    @StateObject private var state = HabitStatsState()
+    @ObservedObject var state: HabitStatsState
     @State private var isMonthPickerPresented = false
 
     var body: some View {
@@ -162,6 +162,6 @@ struct HabitStatsView: View {
 
 #Preview("Stats View") {
     NavigationStack {
-        HabitStatsView(onBack: {})
+        HabitStatsView(onBack: {}, state: HabitStatsState())
     }
 }

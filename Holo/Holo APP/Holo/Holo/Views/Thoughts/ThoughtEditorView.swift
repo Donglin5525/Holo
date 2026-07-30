@@ -21,6 +21,11 @@ private enum ThoughtLog {
     }
 }
 
+private enum ThoughtEditorDismissDestination {
+    case close
+    case tag(String)
+}
+
 // MARK: - ThoughtEditorView
 
 /// 想法编辑器视图
@@ -67,6 +72,7 @@ struct ThoughtEditorView: View {
     @State private var showVoiceInput: Bool = false
     @State private var isSaving: Bool = false
     @State private var showDismissAlert: Bool = false
+    @State private var pendingDismissDestination: ThoughtEditorDismissDestination = .close
     @State private var pendingEditorAction: MarkdownEditorAction? = nil
     @State private var pendingVoiceTranscriptToInsert: String? = nil
     @State private var editorHeight: CGFloat = 360
@@ -91,11 +97,6 @@ struct ThoughtEditorView: View {
     /// 是否可保存
     private var canSave: Bool {
         !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSaving
-    }
-
-    /// 是否有内容（用于判断退出时是否需要保存）
-    private var hasContent: Bool {
-        !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     // MARK: - Body
@@ -166,7 +167,7 @@ struct ThoughtEditorView: View {
         }
         .navigationViewStyle(.stack)
         // 关键：接管系统返回手势 —— fullScreenCover 下无系统下滑关闭，
-        // 左边缘右滑由 SwipeBackModifier 统一处理，回调走 handleDismiss（自动保存）
+        // 左边缘右滑与「取消」共用同一套未保存修改确认语义。
         .swipeBackToDismiss(isEnabled: true) {
             handleDismiss()
         }
@@ -204,9 +205,11 @@ struct ThoughtEditorView: View {
         .onAppear {
             loadEditingData()
         }
-        // 兜底：视图销毁时若仍有未保存内容则强制保存（防任何意外退出路径丢数据）
-        .onDisappear {
-            saveIfHasUnsavedChanges()
+        .unsavedChangesAlert(isPresented: $showDismissAlert) {
+            if case .tag(let path) = pendingDismissDestination {
+                NotificationCenter.default.post(name: .thoughtRequestTagFilter, object: path)
+            }
+            dismiss()
         }
         .onChange(of: triggerContext) { _, newValue in
             suggestionViewModel.search(context: newValue, excludingThoughtId: editingThoughtId)
@@ -271,24 +274,15 @@ struct ThoughtEditorView: View {
         )
     }
 
-    /// 处理取消/右滑退出：有未保存内容则自动保存，否则直接退出
-    /// 这是「右滑返回 / 取消按钮」的统一出口，保证任何退出路径都不会丢内容
+    /// 处理取消/右滑退出：有未保存修改时必须由用户确认是否放弃。
+    /// 「保存」是唯一正式写入观点的入口，避免取消操作产生意外记录。
     private func handleDismiss() {
-        if hasContent && hasUnsavedChanges {
-            // 有内容且有修改时自动保存
-            saveThought()
+        if hasUnsavedChanges {
+            pendingDismissDestination = .close
+            showDismissAlert = true
         } else {
-            // 无内容或无修改时直接退出
             dismiss()
         }
-    }
-
-    /// onDisappear 兜底：视图销毁时若仍有未保存修改则强制保存
-    /// 防止任何意外退出路径（系统回收、路由跳转等）丢失用户输入
-    private func saveIfHasUnsavedChanges() {
-        guard hasContent, hasUnsavedChanges, !isSaving else { return }
-        // 标记 isSaving 避免与按钮触发的 saveThought 重复保存
-        saveThought()
     }
 
     // MARK: - 未保存修改检测
@@ -572,10 +566,15 @@ struct ThoughtEditorView: View {
         }
     }
 
-    /// 查看标签：关闭编辑器（自动保存）并请求列表按该标签筛选
+    /// 查看标签前仍遵循显式保存语义；存在修改时先留在编辑器确认。
     private func viewTagThoughts(_ path: String) {
+        if hasUnsavedChanges {
+            pendingDismissDestination = .tag(path)
+            showDismissAlert = true
+            return
+        }
         NotificationCenter.default.post(name: .thoughtRequestTagFilter, object: path)
-        handleDismiss()
+        dismiss()
     }
 
     // MARK: - 图片附件区域
@@ -906,8 +905,7 @@ struct ThoughtEditorView: View {
             return
         }
 
-        // 标记为已保存：同步 originalContent，避免后续 onDisappear 兜底重复保存
-        // （saveThought 与 onDisappear 可能先后触发，必须用 originalContent 作为「干净基线」）
+        // 标记为已保存：同步原值，保持修改检测语义准确。
         originalContent = content
         originalMood = selectedMood
         // 新建模式的 pendingImages 已在后台 Task 处理，清空以避免 hasUnsavedChanges 误判

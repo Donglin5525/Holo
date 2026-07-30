@@ -9,6 +9,11 @@ import SwiftUI
 
 struct PersonalMemorySettingsView: View {
     @ObservedObject private var memorySettings = HoloMemorySettings.shared
+    let onOpenMemoryGallery: () -> Void
+
+    init(onOpenMemoryGallery: @escaping () -> Void = {}) {
+        self.onOpenMemoryGallery = onOpenMemoryGallery
+    }
 
     var body: some View {
         ScrollView(showsIndicators: false) {
@@ -63,9 +68,7 @@ struct PersonalMemorySettingsView: View {
         VStack(alignment: .leading, spacing: HoloSpacing.md) {
             sectionTitle("记忆内容", icon: "list.bullet.rectangle")
 
-            NavigationLink {
-                HoloMemoryCenterView()
-            } label: {
+            Button(action: onOpenMemoryGallery) {
                 HStack(spacing: HoloSpacing.md) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 10)
@@ -78,10 +81,10 @@ struct PersonalMemorySettingsView: View {
                     }
 
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("记忆管理")
+                        Text("进入记忆长廊")
                             .font(.holoBody)
                             .foregroundColor(.holoTextPrimary)
-                        Text("查看、纠正或删除 Holo 记住的内容")
+                        Text("统一查看、纠正或删除 Holo 记住的内容")
                             .font(.system(size: 12))
                             .foregroundColor(.holoTextSecondary)
                     }

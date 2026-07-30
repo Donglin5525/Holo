@@ -12,6 +12,7 @@ struct KanbanBudgetSection: View {
     @State private var cardData: BudgetCardData?
     @State private var accounts: [Account] = []
     @State private var selectedAccountHasBudget = true
+    @State private var todayExpense: Decimal?
 
     /// 选中的账户 ID，空字符串表示"全部账户"（跨账户汇总）
     @AppStorage("kanbanBudgetSelectedAccountId") private var selectedAccountId: String = ""
@@ -155,8 +156,8 @@ struct KanbanBudgetSection: View {
         HStack(spacing: 10) {
             budgetDetailItem(
                 label: "今日支出",
-                value: "¥--",
-                color: .holoError
+                value: todayExpenseFormatted,
+                color: todayExpense == nil ? .holoTextSecondary : .holoError
             )
             budgetDetailItem(
                 label: "日均可用",
@@ -220,7 +221,27 @@ struct KanbanBudgetSection: View {
                     .computeGlobalTotalBudgetStatus(period: .month)
                     .map { BudgetCardData(summary: $0) }
             }
+
+            let calendar = Calendar.current
+            let start = calendar.startOfDay(for: Date())
+            let end = calendar.date(byAdding: .day, value: 1, to: start) ?? Date()
+            do {
+                let transactions = try await FinanceRepository.shared.getTransactions(from: start, to: end)
+                todayExpense = transactions
+                    .filter { transaction in
+                        transaction.transactionType == .expense
+                            && (selected == nil || transaction.account?.id == selected?.id)
+                    }
+                    .reduce(Decimal.zero) { $0 + ($1.amount as Decimal) }
+            } catch {
+                todayExpense = nil
+            }
         }
+    }
+
+    private var todayExpenseFormatted: String {
+        guard let todayExpense else { return "加载中" }
+        return NumberFormatter.currency.string(from: NSDecimalNumber(decimal: todayExpense)) ?? "¥0"
     }
 }
 

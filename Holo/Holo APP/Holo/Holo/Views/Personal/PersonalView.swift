@@ -16,6 +16,8 @@ struct PersonalView: View {
     @AppStorage(UserDisplayNameSettings.displayNameKey) private var userName: String = UserDisplayNameSettings.fallbackDisplayName
 
     let onPlanGoal: () -> Void
+    let onOpenMemoryGallery: () -> Void
+    let onOpenLinkedEntity: (DeepLinkTarget) -> Void
     @Binding var pendingGoalDetailId: UUID?
 
     // 个人档案 sheet
@@ -31,9 +33,13 @@ struct PersonalView: View {
 
     init(
         onPlanGoal: @escaping () -> Void = {},
+        onOpenMemoryGallery: @escaping () -> Void = {},
+        onOpenLinkedEntity: @escaping (DeepLinkTarget) -> Void = { _ in },
         pendingGoalDetailId: Binding<UUID?> = .constant(nil)
     ) {
         self.onPlanGoal = onPlanGoal
+        self.onOpenMemoryGallery = onOpenMemoryGallery
+        self.onOpenLinkedEntity = onOpenLinkedEntity
         self._pendingGoalDetailId = pendingGoalDetailId
     }
 
@@ -73,11 +79,12 @@ struct PersonalView: View {
             .navigationDestination(isPresented: $showGoalList) {
                 GoalListView(
                     onPlanGoal: onPlanGoal,
+                    onOpenLinkedEntity: onOpenLinkedEntity,
                     pendingGoalDetailId: $pendingGoalDetailId
                 )
             }
             .navigationDestination(isPresented: $showMemorySettings) {
-                PersonalMemorySettingsView()
+                PersonalMemorySettingsView(onOpenMemoryGallery: onOpenMemoryGallery)
             }
         }
         .overlay(alignment: .top) {
@@ -274,7 +281,7 @@ struct PersonalView: View {
             }
 
             NavigationLink {
-                PersonalMemorySettingsView()
+                PersonalMemorySettingsView(onOpenMemoryGallery: onOpenMemoryGallery)
             } label: {
                 HStack(spacing: HoloSpacing.md) {
                     ZStack {

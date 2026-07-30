@@ -37,6 +37,7 @@ enum DeepLinkTarget: Equatable {
     case habitDetail(habitId: UUID)
     /// 从 AI Chat 卡片跳转到对应模块
     case finance
+    case transactionDetail(transactionId: UUID)
     case financeAnalysis(FinanceAnalysisDeepLink)
     case financeEvidenceReview(FinanceEvidenceReviewDeepLink)
     case addTransaction

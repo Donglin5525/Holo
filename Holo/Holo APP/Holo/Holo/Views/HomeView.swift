@@ -32,11 +32,12 @@ struct HomeView: View {
     /// 当前选中的导航标签
     @State private var selectedTab: BottomNavBar.TabItem = .ai
 
-    /// 当前常驻全屏模块。nil 表示回到首页。
-    /// 取代了历史上 8 个 `showXxxView: Bool` 的 fullScreenCover 模式，
-    /// 改用 ZStack 平级常驻 + activeScreen 控制可见层，
-    /// 让 AI → 财务 这类跨模块跳转不再经过首页中转帧。
-    @State private var activeScreen: ActiveScreen?
+    /// 常驻全屏模块导航栈。跨模块跳转时保留来源页面及其交互状态。
+    @State private var residentNavigation = ResidentScreenRouteStack()
+
+    private var activeScreen: ActiveScreen? {
+        residentNavigation.current
+    }
 
     /// 本次模块关闭是否由右滑手势触发（由 SwipeBackModifier 通过 holoSwipeCloseMarker 标记）。
     /// 右滑已把页面推出右边缘，退出转场改用纯淡出，避免"先右滑再下滑"的重复动画。
@@ -73,13 +74,9 @@ struct HomeView: View {
     /// 从小组件跳转到想法详情
     @State private var pendingThoughtDetailId: UUID?
 
-    /// Holo One 快捷动作设置
-    @AppStorage("holoOneAction") private var holoOneAction: HoloOneAction = .aiChat
-
-    /// Holo One 快捷动作状态
+    /// 首页与 Deep Link 触发的快捷创建状态
     @State private var showAddTransactionSheet: Bool = false
     @State private var showAddTaskSheet: Bool = false
-    @State private var showHabitQuickCheckIn: Bool = false
     @State private var showThoughtEditor: Bool = false
 
     /// Deep Link 状态（通知点击跳转）
@@ -141,74 +138,21 @@ struct HomeView: View {
                 .opacity(activeScreen == nil ? 1 : 0)
                 .zIndex(0)
 
-            // 全屏模块（ZStack 平级常驻）：activeScreen 控制谁可见。
-            // 用 if 条件保证未激活时不渲染，但 SwiftUI 会保留退出时的状态——
-            // 只要外层 view 不重建，再次切回时对话/列表状态还在。
-            Group {
-                if activeScreen == .ai {
-                    ChatView(
-                        goalPlanningRequest: $pendingGoalPlanningRequest,
-                        prefillText: chatPrefillText,
-                        opensVoiceInputOnAppear: openChatVoiceInput
-                    )
-                    .preferredColorScheme(DarkModeManager.shared.colorScheme)
+            // 每一层在首次进入时创建，跳到下一模块后仅隐藏、不销毁。
+            // 因此返回来源时，对话、日期筛选、滚动位置等现场仍然存在。
+            ForEach(Array(residentNavigation.routes.enumerated()), id: \.element.id) { index, route in
+                residentDestination(for: route.screen)
+                    .opacity(index == residentNavigation.routes.count - 1 ? 1 : 0)
+                    .allowsHitTesting(index == residentNavigation.routes.count - 1)
+                    .accessibilityHidden(index != residentNavigation.routes.count - 1)
+                    .zIndex(Double(index + 1))
                     .transition(swipeDismissalActive ? .opacity : .holoScreenTransition)
-                }
-                if activeScreen == .finance {
-                    FinanceView(
-                        initialAnalysisDeepLink: pendingFinanceAnalysisDeepLink,
-                        initialEvidenceReviewDeepLink: pendingFinanceEvidenceReviewDeepLink
-                    )
-                    .preferredColorScheme(DarkModeManager.shared.colorScheme)
-                    .transition(swipeDismissalActive ? .opacity : .holoScreenTransition)
-                }
-                if activeScreen == .habits {
-                    HabitsView()
-                        .preferredColorScheme(DarkModeManager.shared.colorScheme)
-                        .transition(swipeDismissalActive ? .opacity : .holoScreenTransition)
-                }
-                if activeScreen == .tasks {
-                    TasksView()
-                        .preferredColorScheme(DarkModeManager.shared.colorScheme)
-                        .transition(swipeDismissalActive ? .opacity : .holoScreenTransition)
-                }
-                if activeScreen == .memoryGallery {
-                    MemoryGalleryView(
-                        onNavigateToFinance: {
-                            // 直接切换 activeScreen，跨模块跳转不再经过首页
-                            pendingFinanceAnalysisDeepLink = nil
-                            pendingFinanceEvidenceReviewDeepLink = nil
-                            withAnimation(.holoScreenTransition) {
-                                activeScreen = .finance
-                            }
-                        },
-                        onNavigateToChat: { prefillText in
-                            chatPrefillText = prefillText
-                            withAnimation(.holoScreenTransition) {
-                                activeScreen = .ai
-                            }
-                        }
-                    )
-                    .preferredColorScheme(DarkModeManager.shared.colorScheme)
-                    .transition(swipeDismissalActive ? .opacity : .holoScreenTransition)
-                }
-                if activeScreen == .health {
-                    HealthView()
-                        .preferredColorScheme(DarkModeManager.shared.colorScheme)
-                        .transition(swipeDismissalActive ? .opacity : .holoScreenTransition)
-                }
-                if activeScreen == .thoughts {
-                    ThoughtsView(initialThoughtId: pendingThoughtDetailId)
-                        .preferredColorScheme(DarkModeManager.shared.colorScheme)
-                        .transition(swipeDismissalActive ? .opacity : .holoScreenTransition)
-                }
             }
-            .zIndex(1)
         }
         // 注入自定义 dismiss：模块内部用 holoDismiss?() 替代 @Environment(\.dismiss)
         .environment(\.holoDismiss) {
             withAnimation(.holoScreenTransition) {
-                activeScreen = nil
+                _ = residentNavigation.dismissCurrent()
             }
         }
         // 注入右滑关闭标记：SwipeBackModifier 在关闭常驻模块前调用，
@@ -280,14 +224,24 @@ struct HomeView: View {
                 PersonalView(onPlanGoal: {
                     pendingGoalPlanningRequest = GoalPlanningRequest(seedText: nil)
                     showPersonalView = false
-                    withAnimation(.holoScreenTransition) {
-                        activeScreen = .ai
+                    DispatchQueue.main.async {
+                        openRootScreen(.ai)
+                    }
+                }, onOpenMemoryGallery: {
+                    showPersonalView = false
+                    DispatchQueue.main.async {
+                        openRootScreen(.memoryGallery)
+                    }
+                }, onOpenLinkedEntity: { target in
+                    showPersonalView = false
+                    DispatchQueue.main.async {
+                        DeepLinkState.shared.navigate(to: target)
                     }
                 }, pendingGoalDetailId: $pendingGoalDetailId)
                     .preferredColorScheme(DarkModeManager.shared.colorScheme)
             }
         }
-        // Holo One - 快速记账
+        // Deep Link / 小组件 - 快速记账
         .sheet(isPresented: $showAddTransactionSheet) {
             LazyView {
                 AddTransactionSheet(editingTransaction: nil) { _ in
@@ -295,19 +249,13 @@ struct HomeView: View {
                 }
             }
         }
-        // Holo One - 新建待办
+        // Deep Link / 小组件 - 新建待办
         .sheet(isPresented: $showAddTaskSheet) {
             LazyView {
                 AddTaskSheet(repository: TodoRepository.shared, list: nil)
             }
         }
-        // Holo One - 习惯快捷打卡
-        .sheet(isPresented: $showHabitQuickCheckIn) {
-            LazyView {
-                HabitQuickCheckInView()
-            }
-        }
-        // Holo One - 记录想法
+        // Deep Link / 小组件 - 记录想法
         // fullScreenCover：编辑器作为完整页面承载，避免 sheet 下滑误触丢内容
         .fullScreenCover(isPresented: $showThoughtEditor) {
             LazyView {
@@ -335,6 +283,72 @@ struct HomeView: View {
             if draggingItem == nil {
                 loadFeatureItemsFromRepository()
             }
+        }
+    }
+
+    // MARK: - 常驻模块导航
+
+    @ViewBuilder
+    private func residentDestination(for screen: ActiveScreen) -> some View {
+        switch screen {
+        case .ai:
+            ChatView(
+                goalPlanningRequest: $pendingGoalPlanningRequest,
+                prefillText: chatPrefillText,
+                opensVoiceInputOnAppear: openChatVoiceInput
+            )
+            .preferredColorScheme(DarkModeManager.shared.colorScheme)
+
+        case .finance:
+            FinanceView(
+                initialAnalysisDeepLink: pendingFinanceAnalysisDeepLink,
+                initialEvidenceReviewDeepLink: pendingFinanceEvidenceReviewDeepLink
+            )
+            .preferredColorScheme(DarkModeManager.shared.colorScheme)
+
+        case .habits:
+            HabitsView()
+                .preferredColorScheme(DarkModeManager.shared.colorScheme)
+
+        case .tasks:
+            TasksView()
+                .preferredColorScheme(DarkModeManager.shared.colorScheme)
+
+        case .memoryGallery:
+            MemoryGalleryView(
+                onNavigateToFinance: {
+                    pendingFinanceAnalysisDeepLink = nil
+                    pendingFinanceEvidenceReviewDeepLink = nil
+                    navigateToScreen(.finance)
+                },
+                onNavigateToChat: { prefillText in
+                    chatPrefillText = prefillText
+                    navigateToScreen(.ai)
+                }
+            )
+            .preferredColorScheme(DarkModeManager.shared.colorScheme)
+
+        case .health:
+            HealthView()
+                .preferredColorScheme(DarkModeManager.shared.colorScheme)
+
+        case .thoughts:
+            ThoughtsView(initialThoughtId: pendingThoughtDetailId)
+                .preferredColorScheme(DarkModeManager.shared.colorScheme)
+        }
+    }
+
+    /// 首页一级入口：建立新的根模块，不继承上一条已结束的浏览链路。
+    private func openRootScreen(_ screen: ActiveScreen) {
+        withAnimation(.holoScreenTransition) {
+            residentNavigation.openRoot(screen)
+        }
+    }
+
+    /// 模块间跳转：保留来源；目标已在栈内时直接回退到已有页面。
+    private func navigateToScreen(_ screen: ActiveScreen) {
+        withAnimation(.holoScreenTransition) {
+            residentNavigation.navigate(to: screen)
         }
     }
 
@@ -387,16 +401,16 @@ struct HomeView: View {
                 },
                 onMemoryTap: {
                     selectedTab = .memory
-                    withAnimation(.holoScreenTransition) { activeScreen = .memoryGallery }
+                    openRootScreen(.memoryGallery)
                 },
                 onCenterTap: {
                     showAIEntryHint = false
-                    withAnimation(.holoScreenTransition) { activeScreen = .ai }
+                    openRootScreen(.ai)
                 },
                 centerHintVisible: showAIEntryHint,
                 onHintTap: {
                     showAIEntryHint = false
-                    withAnimation(.holoScreenTransition) { activeScreen = .ai }
+                    openRootScreen(.ai)
                 }
             )
         }
@@ -538,11 +552,12 @@ struct HomeView: View {
                                 .stroke(Color.holoBorder, lineWidth: 1)
                         )
                     
-                    Image(systemName: "person.fill")
+                    Image(systemName: "gearshape.fill")
                         .font(.system(size: 18, weight: .medium))
                         .foregroundColor(.holoTextPrimary)
                 }
             }
+            .accessibilityLabel("设置")
         }
     }
     
@@ -753,25 +768,6 @@ struct HomeView: View {
     
     // MARK: - Deep Link 处理
 
-    // MARK: - Holo One 快捷动作
-
-    /// 处理 Holo One 中心按钮点击
-    /// 根据用户设置执行对应的快捷动作
-    private func handleHoloOneAction() {
-        switch holoOneAction {
-        case .aiChat:
-            withAnimation(.holoScreenTransition) { activeScreen = .ai }
-        case .addTransaction:
-            showAddTransactionSheet = true
-        case .addTask:
-            showAddTaskSheet = true
-        case .habitCheckIn:
-            showHabitQuickCheckIn = true
-        case .recordThought:
-            showThoughtEditor = true
-        }
-    }
-
     /// 处理 Deep Link 跳转
     /// 由 .onAppear（冷启动）和 .onChange（热启动/后台）触发
     ///
@@ -786,44 +782,42 @@ struct HomeView: View {
             // 已在 AI 页则只更新预填参数，不重新触发转场
             if activeScreen != .ai {
                 openChatVoiceInput = voiceInput
-                withAnimation(.holoScreenTransition) { activeScreen = .ai }
+                navigateToScreen(.ai)
             }
             deepLinkState.pendingTarget = nil
         case .taskDetail, .dailyReminder:
             // pendingTarget 由 TaskListView.handleDeepLink() 消费清除
             if activeScreen != .tasks {
-                withAnimation(.holoScreenTransition) { activeScreen = .tasks }
+                navigateToScreen(.tasks)
             }
         case .goalDetail(let goalId):
             pendingGoalDetailId = goalId
             showPersonalView = true
             deepLinkState.pendingTarget = nil
         case .habitDetail:
-            // ⚠️ 已知死链：HabitListView 未订阅 deepLinkState，pendingTarget 不会被消费。
-            // 暂保持原行为（只打开页面），由东林后续决定是补全 HabitListView 处理还是删除该 case。
             if activeScreen != .habits {
-                withAnimation(.holoScreenTransition) { activeScreen = .habits }
+                navigateToScreen(.habits)
             }
         case .finance:
             pendingFinanceAnalysisDeepLink = nil
             pendingFinanceEvidenceReviewDeepLink = nil
-            withAnimation(.holoScreenTransition) { activeScreen = .finance }
+            navigateToScreen(.finance)
             deepLinkState.pendingTarget = nil
+        case .transactionDetail:
+            navigateToScreen(.finance)
         case .financeAnalysis(let link):
             pendingFinanceAnalysisDeepLink = link
             pendingFinanceEvidenceReviewDeepLink = nil
-            withAnimation(.holoScreenTransition) { activeScreen = .finance }
-            deepLinkState.pendingTarget = nil
+            navigateToScreen(.finance)
         case .financeEvidenceReview(let link):
             pendingFinanceAnalysisDeepLink = nil
             pendingFinanceEvidenceReviewDeepLink = link
-            withAnimation(.holoScreenTransition) { activeScreen = .finance }
-            deepLinkState.pendingTarget = nil
+            navigateToScreen(.finance)
         case .addTransaction:
             showAddTransactionSheet = true
             deepLinkState.pendingTarget = nil
         case .tasks:
-            withAnimation(.holoScreenTransition) { activeScreen = .tasks }
+            navigateToScreen(.tasks)
             deepLinkState.pendingTarget = nil
         case .addTask:
             showAddTaskSheet = true
@@ -833,14 +827,14 @@ struct HomeView: View {
             deepLinkState.pendingTarget = nil
         case .thoughtDetail(let thoughtId):
             pendingThoughtDetailId = thoughtId
-            withAnimation(.holoScreenTransition) { activeScreen = .thoughts }
+            navigateToScreen(.thoughts)
             deepLinkState.pendingTarget = nil
         case .memoryGallery:
-            withAnimation(.holoScreenTransition) { activeScreen = .memoryGallery }
+            navigateToScreen(.memoryGallery)
             deepLinkState.pendingTarget = nil
         case .memoryInsight(_):
             // 目标由 MemoryGalleryView 在完成 Tab 切换和洞察展开后消费。
-            withAnimation(.holoScreenTransition) { activeScreen = .memoryGallery }
+            navigateToScreen(.memoryGallery)
         }
     }
 
@@ -860,7 +854,7 @@ struct HomeView: View {
             }
         }()
         if let destination {
-            withAnimation(.holoScreenTransition) { activeScreen = destination }
+            openRootScreen(destination)
         }
     }
     
@@ -913,16 +907,3 @@ struct HomeView: View {
 #Preview {
     HomeView()
 }
-
-// MARK: - 全屏模块标识
-
-/// HomeView 以 ZStack 平级常驻的全屏模块。
-/// `activeScreen` 控制当前可见层；nil 表示显示首页。
-/// 通过单枚举切换（而非历史上 8 个独立 Bool），
-/// SwiftUI 可在两层之间直接做转场动画，不再需要"先 dismiss 再 present"的首页中转帧。
-enum ActiveScreen: String, Identifiable, CaseIterable {
-    case ai, finance, habits, tasks, memoryGallery, health, thoughts
-
-    var id: String { rawValue }
-}
-

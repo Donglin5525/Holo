@@ -28,11 +28,14 @@ struct CalendarEventDetailSheet: View {
     let event: CalendarEvent
     @Environment(\.dismiss) private var dismiss
     @State private var isOpeningOrigin = false
+    @State private var originOpenError: String?
 
     /// 当前事件是否支持「在原模块打开」
-    /// 目前仅接入待办与想法两类（路由已就绪）；其他模块后续再扩展
     private var supportsOpenInModule: Bool {
-        event.module == .todo || event.module == .thought
+        event.module == .finance
+            || event.module == .habit
+            || event.module == .todo
+            || event.module == .thought
     }
 
     var body: some View {
@@ -58,6 +61,14 @@ struct CalendarEventDetailSheet: View {
                     Button("关闭") { dismiss() }
                 }
             }
+        }
+        .alert("无法打开原记录", isPresented: Binding(
+            get: { originOpenError != nil },
+            set: { if !$0 { originOpenError = nil } }
+        )) {
+            Button("知道了", role: .cancel) {}
+        } message: {
+            Text(originOpenError ?? "")
         }
     }
 
@@ -106,6 +117,12 @@ struct CalendarEventDetailSheet: View {
                     return nil as DeepLinkTarget?
                 }
                 switch module {
+                case .finance:
+                    guard let transaction = entity as? Transaction else { return nil }
+                    return .transactionDetail(transactionId: transaction.id)
+                case .habit:
+                    guard let record = entity as? HabitRecord else { return nil }
+                    return .habitDetail(habitId: record.habitId)
                 case .todo:
                     guard let task = entity as? TodoTask else { return nil }
                     return .taskDetail(taskId: task.id)
@@ -119,7 +136,10 @@ struct CalendarEventDetailSheet: View {
 
             await MainActor.run {
                 isOpeningOrigin = false
-                guard let target else { return }
+                guard let target else {
+                    originOpenError = "原记录可能已被删除，或当前版本暂时无法打开。"
+                    return
+                }
                 dismiss()
                 // 下一轮再触发跳转，确保 sheet dismiss 已开始、不被遮盖
                 DispatchQueue.main.async {

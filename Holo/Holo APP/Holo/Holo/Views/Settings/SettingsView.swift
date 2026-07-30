@@ -32,7 +32,6 @@ struct SettingsView: View {
     @State private var showAISettings = false
     @State private var showAIConsent = false
     @State private var showVoiceRecognitionSettings = false
-    @State private var showHoloOneSettings = false
     @State private var showTopicManagement = false
     @State private var showPrivacyPolicy = false
     @State private var showTermsOfUse = false
@@ -678,21 +677,6 @@ struct SettingsView: View {
                     .font(.holoBody)
                     .fontWeight(.semibold)
                     .foregroundColor(.holoTextPrimary)
-            }
-
-            // Holo One 设置
-            settingsRow(
-                icon: "star.circle",
-                iconColor: .holoPrimary,
-                title: "Holo One",
-                subtitle: "配置中心按钮快捷动作"
-            ) {
-                showHoloOneSettings = true
-            }
-            .sheet(isPresented: $showHoloOneSettings) {
-                NavigationStack {
-                    HoloOneSettingsView()
-                }
             }
 
             #if DEBUG

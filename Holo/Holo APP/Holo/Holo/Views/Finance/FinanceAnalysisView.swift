@@ -11,11 +11,18 @@ struct FinanceAnalysisView: View {
     let onBack: () -> Void
     @Binding var externalDeepLink: FinanceAnalysisDeepLink?
 
-    @StateObject private var state = FinanceAnalysisState()
-    @State private var selectedTab: AnalysisTab = .overview
+    @ObservedObject var state: FinanceAnalysisState
+    @Binding var selectedTab: AnalysisTab
     @State private var showCustomDateSheet: Bool = false
 
-    init(onBack: @escaping () -> Void, externalDeepLink: Binding<FinanceAnalysisDeepLink?> = .constant(nil)) {
+    init(
+        state: FinanceAnalysisState,
+        selectedTab: Binding<AnalysisTab>,
+        onBack: @escaping () -> Void,
+        externalDeepLink: Binding<FinanceAnalysisDeepLink?> = .constant(nil)
+    ) {
+        self.state = state
+        self._selectedTab = selectedTab
         self.onBack = onBack
         self._externalDeepLink = externalDeepLink
     }

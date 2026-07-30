@@ -121,26 +121,26 @@ extension Color {
 /// Holo 应用字体系统
 /// 统一管理字体大小和样式
 extension Font {
-    /// 超大标题 - 36pt Bold，用于金额显示
-    static let holoAmount = Font.system(size: 36, weight: Font.Weight.bold)
+    /// 超大标题，用于金额显示；跟随系统动态字体缩放。
+    static let holoAmount = Font.largeTitle.weight(.bold)
     
-    /// 大标题 - 28pt Bold，用于主要标题
-    static let holoTitle = Font.system(size: 28, weight: Font.Weight.bold)
+    /// 大标题，用于主要标题；跟随系统动态字体缩放。
+    static let holoTitle = Font.title.weight(.bold)
     
-    /// 页面标题 - 20pt Semibold，用于页面头部
-    static let holoHeading = Font.system(size: 20, weight: Font.Weight.semibold)
+    /// 页面标题，用于页面头部；跟随系统动态字体缩放。
+    static let holoHeading = Font.title3.weight(.semibold)
     
-    /// 正文 - 16pt Medium，用于主要内容
-    static let holoBody = Font.system(size: 16, weight: Font.Weight.medium)
+    /// 正文，用于主要内容；跟随系统动态字体缩放。
+    static let holoBody = Font.body.weight(.medium)
     
-    /// 辅助文字 - 14pt Regular，用于说明文字
-    static let holoCaption = Font.system(size: 14, weight: Font.Weight.regular)
+    /// 辅助文字，用于说明文字；跟随系统动态字体缩放。
+    static let holoCaption = Font.subheadline
     
-    /// 小标签 - 12pt Medium，用于按钮标签
-    static let holoLabel = Font.system(size: 12, weight: Font.Weight.medium)
+    /// 小标签，用于按钮标签；跟随系统动态字体缩放。
+    static let holoLabel = Font.caption.weight(.medium)
     
-    /// 超小标签 - 10pt Medium，用于底部导航标签
-    static let holoTinyLabel = Font.system(size: 10, weight: Font.Weight.medium)
+    /// 超小标签，用于底部导航标签；跟随系统动态字体缩放。
+    static let holoTinyLabel = Font.caption2.weight(.medium)
 }
 
 // MARK: - 间距系统

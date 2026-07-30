@@ -96,8 +96,8 @@ struct ChatView: View {
                 HStack(spacing: HoloSpacing.xs) {
                     Button {
                         HoloMemoryReceiptStore.markWriteReceiptsRead()
-                        activeSheet = .memoryCenter
                         memoryInboxNotice = nil
+                        DeepLinkState.shared.navigate(to: .memoryGallery)
                     } label: {
                         Label(notice, systemImage: "brain.head.profile.fill")
                             .font(.system(size: 12, weight: .medium))
@@ -840,10 +840,6 @@ struct ChatView: View {
                     // HomeView 监听 deepLinkState 变化后自动切换 activeScreen 到 .finance，ChatView 自动隐藏。
                 }
             }
-        case .memoryCenter:
-            NavigationStack {
-                HoloMemoryCenterView()
-            }
         case .voiceInput:
             VoiceInputSheet(speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider()) { transcript in
                 pendingVoiceTranscriptToSend = transcript
@@ -883,7 +879,6 @@ private enum ChatSheet: Identifiable {
     case editTransaction(Transaction)
     case analysisDetail(ChatMessageViewData)
     case agentDeepAnalysis(ChatMessageViewData)
-    case memoryCenter
     case voiceInput
 
     var id: String {
@@ -900,8 +895,6 @@ private enum ChatSheet: Identifiable {
             return "analysisDetail-\(message.id)"
         case .agentDeepAnalysis(let message):
             return "agentDeepAnalysis-\(message.id)"
-        case .memoryCenter:
-            return "memoryCenter"
         case .voiceInput:
             return "voiceInput"
         }

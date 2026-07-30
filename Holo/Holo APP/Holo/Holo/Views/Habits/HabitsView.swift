@@ -44,6 +44,10 @@ struct HabitsView: View {
     @State private var selectedTab: HabitTab = .habits
     @State private var previousTab: HabitTab = .habits
     @State private var showAddHabit: Bool = false
+    /// 统计状态由模块根视图持有，切换 Tab 后保留月份与展开项。
+    @StateObject private var statsState = HabitStatsState()
+    @ObservedObject private var deepLinkState = DeepLinkState.shared
+    @State private var requestedHabitId: UUID?
 
     // MARK: - Body
 
@@ -54,11 +58,12 @@ struct HabitsView: View {
             Group {
                 switch selectedTab {
                 case .stats:
-                    HabitStatsView(onBack: { close() })
+                    HabitStatsView(onBack: { close() }, state: statsState)
                 case .habits:
                     HabitListView(
                         onBack: { close() },
-                        showAddHabit: $showAddHabit
+                        showAddHabit: $showAddHabit,
+                        requestedHabitId: $requestedHabitId
                     )
                 case .settings:
                     HabitStatsSettingsView(onBack: {
@@ -77,6 +82,19 @@ struct HabitsView: View {
         .sheet(isPresented: $showAddHabit) {
             AddHabitSheet()
         }
+        .onAppear {
+            handleDeepLink(deepLinkState.pendingTarget)
+        }
+        .onChange(of: deepLinkState.pendingTarget) { _, target in
+            handleDeepLink(target)
+        }
+    }
+
+    private func handleDeepLink(_ target: DeepLinkTarget?) {
+        guard case .habitDetail(let habitId) = target else { return }
+        selectedTab = .habits
+        requestedHabitId = habitId
+        deepLinkState.pendingTarget = nil
     }
 
     // MARK: - 底部 Tab 栏
@@ -150,6 +168,7 @@ struct HabitListView: View {
 
     let onBack: () -> Void
     @Binding var showAddHabit: Bool
+    @Binding var requestedHabitId: UUID?
     @StateObject private var repository = HabitRepository.shared
 
     /// 习惯列表（本地缓存，避免直接绑定 @MainActor 单例）
@@ -208,6 +227,10 @@ struct HabitListView: View {
         }
         .onAppear {
             loadHabits()
+            openRequestedHabitIfNeeded()
+        }
+        .onChange(of: requestedHabitId) { _, _ in
+            openRequestedHabitIfNeeded()
         }
         .onReceive(NotificationCenter.default.publisher(for: .habitDataDidChange)) { _ in
             loadHabits()
@@ -255,6 +278,16 @@ struct HabitListView: View {
         habits = repository.activeHabits
         todayProgress = repository.getTodayCheckInProgress()
         hasLoadedOnce = true
+        openRequestedHabitIfNeeded()
+    }
+
+    private func openRequestedHabitIfNeeded() {
+        guard let requestedHabitId,
+              habits.contains(where: { $0.id == requestedHabitId }) else {
+            return
+        }
+        selectedHabit = HabitSelection(id: requestedHabitId)
+        self.requestedHabitId = nil
     }
 
     // MARK: - 顶部导航栏

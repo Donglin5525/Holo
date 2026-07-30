@@ -99,6 +99,11 @@ final class GoalRepository: ObservableObject {
         loadGoals()
     }
 
+    func deleteGoal(id: UUID) throws {
+        guard let goal = findGoal(by: id) else { return }
+        try deleteGoal(goal)
+    }
+
     private func parseDate(_ text: String?) -> Date? {
         guard let text, !text.isEmpty else { return nil }
         let formatter = DateFormatter()

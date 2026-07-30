@@ -10,14 +10,18 @@ import SwiftUI
 struct GoalListView: View {
     @ObservedObject private var repository = GoalRepository.shared
     let onPlanGoal: () -> Void
+    let onOpenLinkedEntity: (DeepLinkTarget) -> Void
     @Binding var pendingGoalDetailId: UUID?
     @State private var selectedGoalRoute: GoalDetailRoute?
+    @State private var operationError: String?
 
     init(
         onPlanGoal: @escaping () -> Void,
+        onOpenLinkedEntity: @escaping (DeepLinkTarget) -> Void = { _ in },
         pendingGoalDetailId: Binding<UUID?> = .constant(nil)
     ) {
         self.onPlanGoal = onPlanGoal
+        self.onOpenLinkedEntity = onOpenLinkedEntity
         self._pendingGoalDetailId = pendingGoalDetailId
     }
 
@@ -28,8 +32,8 @@ struct GoalListView: View {
                     emptyState
                 } else {
                     ForEach(repository.goals, id: \.id) { goal in
-                        NavigationLink {
-                            GoalDetailView(goal: goal)
+                        Button {
+                            selectedGoalRoute = GoalDetailRoute(id: goal.id)
                         } label: {
                             goalRow(goal)
                         }
@@ -42,9 +46,23 @@ struct GoalListView: View {
         .background(Color.holoBackground)
         .navigationTitle("我的目标")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    onPlanGoal()
+                } label: {
+                    Label("规划目标", systemImage: "plus")
+                }
+                .accessibilityLabel("规划新目标")
+            }
+        }
         .navigationDestination(item: $selectedGoalRoute) { route in
             if let goal = repository.findGoal(by: route.id) {
-                GoalDetailView(goal: goal)
+                GoalDetailView(
+                    goal: goal,
+                    onOpenLinkedEntity: onOpenLinkedEntity,
+                    onDeleteRequested: requestDelete
+                )
             } else {
                 Text("目标不存在或已被删除")
                     .font(.holoBody)
@@ -57,6 +75,14 @@ struct GoalListView: View {
         }
         .onChange(of: pendingGoalDetailId) { _, _ in
             openPendingGoalIfNeeded()
+        }
+        .alert("操作失败", isPresented: Binding(
+            get: { operationError != nil },
+            set: { if !$0 { operationError = nil } }
+        )) {
+            Button("知道了", role: .cancel) {}
+        } message: {
+            Text(operationError ?? "")
         }
     }
 
@@ -123,6 +149,17 @@ struct GoalListView: View {
         guard let goalId = pendingGoalDetailId else { return }
         selectedGoalRoute = GoalDetailRoute(id: goalId)
         pendingGoalDetailId = nil
+    }
+
+    private func requestDelete(_ goalId: UUID) {
+        selectedGoalRoute = nil
+        DispatchQueue.main.async {
+            do {
+                try repository.deleteGoal(id: goalId)
+            } catch {
+                operationError = error.localizedDescription
+            }
+        }
     }
 }
 

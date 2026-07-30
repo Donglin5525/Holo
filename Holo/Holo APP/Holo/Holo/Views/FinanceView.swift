@@ -51,12 +51,16 @@ struct FinanceView: View {
     private var close: () -> Void { holoDismiss ?? { dismiss() } }
     @State private var selectedTab: FinanceTab
     @State private var showAddTransaction: Bool = false
+    @State private var deepLinkedTransaction: Transaction?
     @State private var analysisDeepLink: FinanceAnalysisDeepLink?
     @State private var evidenceReviewDeepLink: FinanceEvidenceReviewDeepLink?
     @ObservedObject private var deepLinkState = DeepLinkState.shared
 
     /// 日历状态提升到此层级，避免切换 Tab 时被销毁
     @StateObject private var calendarState = CalendarState()
+    /// 统计状态由模块根视图持有，切换 Tab 或跨模块返回时保留时间范围与下钻现场。
+    @StateObject private var analysisState = FinanceAnalysisState()
+    @State private var selectedAnalysisTab: AnalysisTab = .overview
 
     init(
         initialAnalysisDeepLink: FinanceAnalysisDeepLink? = nil,
@@ -92,7 +96,12 @@ struct FinanceView: View {
                 } else {
                     switch selectedTab {
                     case .analysis:
-                        FinanceAnalysisView(onBack: { close() }, externalDeepLink: $analysisDeepLink)
+                        FinanceAnalysisView(
+                            state: analysisState,
+                            selectedTab: $selectedAnalysisTab,
+                            onBack: { close() },
+                            externalDeepLink: $analysisDeepLink
+                        )
                     case .ledger:
                         FinanceLedgerView(
                             calendarState: calendarState,
@@ -127,19 +136,35 @@ struct FinanceView: View {
                 NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
             }
         }
-        .onChange(of: deepLinkState.pendingTarget) { _, target in
-            switch target {
-            case .financeAnalysis(let link):
-                evidenceReviewDeepLink = nil
-                selectedTab = .analysis
-                analysisDeepLink = link
-                deepLinkState.pendingTarget = nil
-            case .financeEvidenceReview(let link):
-                evidenceReviewDeepLink = link
-                deepLinkState.pendingTarget = nil
-            default:
-                return
+        .sheet(item: $deepLinkedTransaction) { transaction in
+            AddTransactionSheet(editingTransaction: transaction) { _ in
+                NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
             }
+        }
+        .onAppear {
+            handleDeepLink(deepLinkState.pendingTarget)
+        }
+        .onChange(of: deepLinkState.pendingTarget) { _, target in
+            handleDeepLink(target)
+        }
+    }
+
+    private func handleDeepLink(_ target: DeepLinkTarget?) {
+        switch target {
+        case .transactionDetail(let transactionId):
+            selectedTab = .ledger
+            deepLinkedTransaction = FinanceRepository.shared.findTransaction(by: transactionId)
+            deepLinkState.pendingTarget = nil
+        case .financeAnalysis(let link):
+            evidenceReviewDeepLink = nil
+            selectedTab = .analysis
+            analysisDeepLink = link
+            deepLinkState.pendingTarget = nil
+        case .financeEvidenceReview(let link):
+            evidenceReviewDeepLink = link
+            deepLinkState.pendingTarget = nil
+        default:
+            return
         }
     }
     
