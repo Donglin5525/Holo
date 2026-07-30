@@ -103,7 +103,7 @@ struct HabitStatsSettingsView: View {
     // MARK: - 习惯行
 
     private func habitRow(_ habit: Habit) -> some View {
-        HStack(spacing: HoloSpacing.md) {
+        HStack(alignment: .top, spacing: HoloSpacing.md) {
             Group {
                 habit.iconImage(size: 16)
                     .foregroundColor(Color(hex: habit.color))
@@ -112,12 +112,39 @@ struct HabitStatsSettingsView: View {
             .background((Color(hex: habit.color)).opacity(0.12))
             .clipShape(RoundedRectangle(cornerRadius: 6))
 
-            Text(habit.name)
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: HoloSpacing.sm) {
+                    Text(habit.name)
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+                        .lineLimit(1)
 
-            Spacer()
+                    Spacer(minLength: HoloSpacing.sm)
 
+                    habitVisibilityControls(habit)
+                }
+
+                VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                    Text(habit.name)
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+                        .lineLimit(2)
+                        .fixedSize(horizontal: false, vertical: true)
+
+                    habitVisibilityControls(habit)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(1)
+        }
+        .padding(.vertical, HoloSpacing.sm)
+        .padding(.horizontal, HoloSpacing.md)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+    }
+
+    private func habitVisibilityControls(_ habit: Habit) -> some View {
+        HStack(spacing: HoloSpacing.xs) {
             visibilityPillButton(
                 title: "统计",
                 isOn: statsBinding(for: habit.id)
@@ -127,10 +154,7 @@ struct HabitStatsSettingsView: View {
                 isOn: dashboardBinding(for: habit.id)
             )
         }
-        .padding(.vertical, HoloSpacing.sm)
-        .padding(.horizontal, HoloSpacing.md)
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     private func visibilityPillButton(title: String, isOn: Binding<Bool>) -> some View {

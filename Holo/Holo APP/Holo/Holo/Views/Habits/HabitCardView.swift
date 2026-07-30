@@ -47,8 +47,8 @@ struct HabitCardView: View {
             
             // 中间信息
             infoView
-            
-            Spacer()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
             
             // 右侧交互按钮
             actionView
@@ -152,6 +152,8 @@ struct HabitCardView: View {
                 Text(habit.frequencyTargetText)
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.85)
                 
                 // 打卡型显示连续坚持信息（使用预加载的 @State 值）
                 if habit.isCheckInType && streakInfo.value > 0 {
@@ -162,6 +164,7 @@ struct HabitCardView: View {
                             .font(.holoLabel)
                     }
                     .foregroundColor(.holoPrimary)
+                    .fixedSize(horizontal: true, vertical: false)
                 }
             }
         }

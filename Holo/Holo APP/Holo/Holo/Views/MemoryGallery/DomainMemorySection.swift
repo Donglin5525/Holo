@@ -219,19 +219,23 @@ struct DomainMemorySection: View {
     }
 
     private func memoryCard(_ record: HoloMemoryRecord) -> some View {
-        Button {
+        let feedbackBadge = HoloMemoryFeedbackBadge(decision: record.userDecision)
+
+        return Button {
             selectedRecord = record
         } label: {
             VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                HStack(alignment: .top, spacing: HoloSpacing.sm) {
-                    Text(record.displaySummary)
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextPrimary)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
+                Text(record.displaySummary)
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextPrimary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
 
-                    Spacer(minLength: 0)
-
+                if record.state == .candidate
+                    || newMemoryIDs.contains(record.id)
+                    || record.state == .archived
+                    || feedbackBadge != nil {
                     HStack(spacing: 4) {
                         if record.state == .candidate {
                             compactStatusBadge("待确认", icon: "questionmark", color: .orange)
@@ -240,7 +244,7 @@ struct DomainMemorySection: View {
                         } else if record.state == .archived {
                             compactStatusBadge("过去", icon: "archivebox", color: .holoTextSecondary)
                         }
-                        if let badge = HoloMemoryFeedbackBadge(decision: record.userDecision) {
+                        if let badge = feedbackBadge {
                             HoloMemoryFeedbackBadgeView(badge: badge)
                         }
                     }
@@ -308,7 +312,11 @@ struct DomainMemorySection: View {
                     .font(.holoTinyLabel)
                     .foregroundColor(.holoTextSecondary)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(1)
+
             Spacer(minLength: 0)
+
             Button {
                 HoloMemoryReceiptStore.markWriteReceiptsRead()
                 showsInboxSummary = false

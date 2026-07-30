@@ -515,6 +515,7 @@ struct SettingsView: View {
                     Text("AI 自动分类")
                         .font(.holoBody)
                         .foregroundColor(.holoTextPrimary)
+                        .lineLimit(1)
 
                     Text(isThoughtAutoOrganizationEnabled
                          ? "保存后从已启用主题中单选分类，无法判断则进入未归类"
@@ -523,8 +524,8 @@ struct SettingsView: View {
                         .foregroundColor(.holoTextSecondary)
                         .lineLimit(2)
                 }
-
-                Spacer()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
 
                 Toggle("", isOn: $isThoughtAutoOrganizationEnabled)
                     .labelsHidden()
@@ -647,13 +648,15 @@ struct SettingsView: View {
                 Text(title)
                     .font(.holoBody)
                     .foregroundColor(.holoTextPrimary)
+                    .lineLimit(1)
 
                 Text(subtitle)
                     .font(.system(size: 12))
                     .foregroundColor(.holoTextSecondary)
+                    .lineLimit(2)
             }
-
-            Spacer()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(1)
 
             Toggle("", isOn: isOn)
                 .labelsHidden()
@@ -1076,13 +1079,15 @@ struct SettingsView: View {
                     Text(title)
                         .font(.holoBody)
                         .foregroundColor(.holoTextPrimary)
+                        .lineLimit(1)
 
                     Text(subtitle)
                         .font(.system(size: 12))
                         .foregroundColor(.holoTextSecondary)
+                        .lineLimit(2)
                 }
-
-                Spacer()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
 
                 // 箭头
                 Image(systemName: "chevron.right")

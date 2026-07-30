@@ -62,7 +62,7 @@ struct AgentDeepAnalysisCard: View {
                     }
                 } else {
                     VStack(alignment: .leading, spacing: 12) {
-                        HStack(spacing: 9) {
+                        HStack(alignment: .top, spacing: 9) {
                             Image(systemName: "sparkles")
                                 .font(.system(size: 14, weight: .bold))
                                 .foregroundColor(.holoPrimary)
@@ -70,20 +70,25 @@ struct AgentDeepAnalysisCard: View {
                                 .background(Color.holoPrimary.opacity(0.11))
                                 .clipShape(Circle())
 
-                            Text(result.headline ?? result.title)
-                                .font(.system(size: 16, weight: .bold))
-                                .foregroundColor(.holoTextPrimary)
-                                .lineLimit(2)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text(result.headline ?? result.title)
+                                    .font(.system(size: 16, weight: .bold))
+                                    .foregroundColor(.holoTextPrimary)
+                                    .lineLimit(2)
+                                    .fixedSize(horizontal: false, vertical: true)
 
-                            Spacer(minLength: 8)
-
-                            Text(hasRecommendations(result) ? "优化建议" : "深度分析")
-                                .font(.system(size: 10.5, weight: .bold))
-                                .foregroundColor(.holoPrimary.opacity(0.8))
-                                .padding(.horizontal, 9)
-                                .padding(.vertical, 6)
-                                .background(Color.holoPrimary.opacity(0.075))
-                                .clipShape(Capsule())
+                                Text(hasRecommendations(result) ? "优化建议" : "深度分析")
+                                    .font(.system(size: 10.5, weight: .bold))
+                                    .foregroundColor(.holoPrimary.opacity(0.8))
+                                    .lineLimit(1)
+                                    .padding(.horizontal, 9)
+                                    .padding(.vertical, 6)
+                                    .background(Color.holoPrimary.opacity(0.075))
+                                    .clipShape(Capsule())
+                                    .fixedSize(horizontal: true, vertical: false)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .layoutPriority(1)
                         }
 
                         if let scope = result.scope?.displayLabel {

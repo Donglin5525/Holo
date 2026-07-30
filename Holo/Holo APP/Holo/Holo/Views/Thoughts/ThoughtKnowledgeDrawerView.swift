@@ -239,12 +239,14 @@ struct ThoughtKnowledgeDrawerView: View {
                 Text("AI 自动分类")
                     .font(.holoBody)
                     .foregroundColor(.holoTextPrimary)
+                    .lineLimit(1)
                 Text(isAIClassificationEnabled ? "按已启用主题整理新想法" : "已关闭，仍可手动整理")
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)
+                    .lineLimit(2)
             }
-
-            Spacer()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(1)
 
             Toggle("", isOn: $isAIClassificationEnabled)
                 .labelsHidden()

@@ -8,10 +8,7 @@
 import SwiftUI
 
 private enum TopCategoryRankLayout {
-    static let indicatorWidth: CGFloat = 58
     static let amountColumnWidth: CGFloat = 96
-    static let contentGroupWidth: CGFloat = 244
-    static let amountColumnLeading: CGFloat = indicatorWidth + contentGroupWidth - amountColumnWidth
 }
 
 // MARK: - TopCategoryCard
@@ -35,20 +32,17 @@ struct TopCategoryCard: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             // 标题 + Segment
-            ZStack(alignment: .leading) {
+            HStack(spacing: HoloSpacing.md) {
                 Text("分类排行")
                     .font(.holoHeading)
                     .foregroundColor(.holoTextPrimary)
+                    .lineLimit(1)
 
-                HStack(spacing: 0) {
-                    Color.clear
-                        .frame(width: TopCategoryRankLayout.amountColumnLeading)
+                Spacer(minLength: HoloSpacing.sm)
 
-                    segmentControl
-                        .frame(width: TopCategoryRankLayout.amountColumnWidth, alignment: .leading)
-                }
+                segmentControl
+                    .fixedSize(horizontal: true, vertical: false)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
 
             if currentAggregations.isEmpty {
                 emptyState
@@ -154,31 +148,27 @@ struct CategoryRankRow: View {
                 // 分类图标
                 categoryIcon
 
-                HStack(spacing: 12) {
-                    // 科目名称
-                    Text(aggregation.category.name)
-                        .font(.system(size: 15, weight: .medium))
-                        .foregroundColor(.holoTextPrimary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .layoutPriority(1)
+                // 科目名称
+                Text(aggregation.category.name)
+                    .font(.system(size: 15, weight: .medium))
+                    .foregroundColor(.holoTextPrimary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .layoutPriority(1)
 
-                    // 金额
-                    Text(aggregation.formattedCompactAmount)
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundColor(accentColor)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.9)
-                        .monospacedDigit()
-                        .frame(width: TopCategoryRankLayout.amountColumnWidth, alignment: .leading)
-                        .layoutPriority(2)
-                }
-                .frame(width: TopCategoryRankLayout.contentGroupWidth, alignment: .leading)
-
-                Spacer(minLength: 0)
+                // 金额
+                Text(aggregation.formattedCompactAmount)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundColor(accentColor)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.9)
+                    .monospacedDigit()
+                    .frame(width: TopCategoryRankLayout.amountColumnWidth, alignment: .trailing)
+                    .layoutPriority(2)
             }
             .frame(height: 42)
+            .frame(maxWidth: .infinity, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

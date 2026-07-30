@@ -45,6 +45,7 @@ struct MemoryInsightCardView: View {
                     .foregroundColor(.holoTextPrimary)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
+                    .layoutPriority(1)
 
                 Spacer()
 

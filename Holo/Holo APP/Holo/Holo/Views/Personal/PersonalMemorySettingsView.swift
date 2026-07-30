@@ -140,10 +140,15 @@ struct PersonalMemorySettingsView: View {
                 Text(title)
                     .font(.holoBody)
                     .foregroundColor(.holoTextPrimary)
+                    .lineLimit(1)
+
                 Text(subtitle)
                     .font(.system(size: 12))
                     .foregroundColor(.holoTextSecondary)
+                    .lineLimit(2)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(1)
 
             Spacer(minLength: HoloSpacing.sm)
 

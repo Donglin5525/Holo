@@ -49,8 +49,8 @@ struct HabitStatsCardView: View {
 
             // 习惯信息
             habitInfo
-
-            Spacer()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
 
             // 统计数据
             statsSection
@@ -124,6 +124,7 @@ struct HabitStatsCardView: View {
                 .font(.holoLabel)
                 .foregroundColor(.holoPrimary)
         }
+        .fixedSize(horizontal: true, vertical: false)
     }
 
     // MARK: - 统计部分

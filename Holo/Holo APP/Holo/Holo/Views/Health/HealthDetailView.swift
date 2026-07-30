@@ -85,28 +85,26 @@ struct HealthDetailView: View {
 
     private var detailHeader: some View {
         VStack(spacing: HoloSpacing.sm) {
-            HStack(alignment: .center, spacing: HoloSpacing.md) {
+            HStack(alignment: .top, spacing: HoloSpacing.md) {
                 backButton
 
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(type.rawValue)
-                        .font(.holoTitle)
-                        .foregroundColor(.holoTextPrimary)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: HoloSpacing.sm) {
+                        detailHeaderText
+                            .fixedSize(horizontal: true, vertical: false)
 
-                    Text(detailSubtitleText)
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
+                        Spacer(minLength: HoloSpacing.sm)
+
+                        detailStatusBadge
+                    }
+
+                    VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                        detailHeaderText
+                        detailStatusBadge
+                    }
                 }
-
-                Spacer()
-
-                Text(metric.statusText)
-                    .font(.holoLabel)
-                    .foregroundColor(type.color)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(type.color.opacity(0.12))
-                    .clipShape(Capsule())
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .layoutPriority(1)
             }
 
             HealthDateNavigator(selectedDate: $selectedDate)
@@ -114,6 +112,32 @@ struct HealthDetailView: View {
         .padding(.horizontal, HoloSpacing.md)
         .padding(.top, HoloSpacing.sm)
         .padding(.bottom, HoloSpacing.sm)
+    }
+
+    private var detailHeaderText: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Text(type.rawValue)
+                .font(.holoTitle)
+                .foregroundColor(.holoTextPrimary)
+                .lineLimit(1)
+
+            Text(detailSubtitleText)
+                .font(.holoCaption)
+                .foregroundColor(.holoTextSecondary)
+                .lineLimit(1)
+        }
+    }
+
+    private var detailStatusBadge: some View {
+        Text(metric.statusText)
+            .font(.holoLabel)
+            .foregroundColor(type.color)
+            .lineLimit(1)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(type.color.opacity(0.12))
+            .clipShape(Capsule())
+            .fixedSize(horizontal: true, vertical: false)
     }
 
     /// 返回按钮（对齐全局 fullScreenCover 模块约定，复用 HealthView 样式）

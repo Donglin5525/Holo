@@ -55,6 +55,8 @@ struct DailySenseStatusCard: View {
                     .font(.holoCaption)
                     .fontWeight(.semibold)
                     .foregroundColor(.holoTextPrimary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 if !snapshot.tags.isEmpty {
                     Text(snapshot.tags.map(\.displayName).joined(separator: " · "))
@@ -63,8 +65,8 @@ struct DailySenseStatusCard: View {
                         .lineLimit(1)
                 }
             }
-
-            Spacer()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(1)
 
             // 彩色圆点行
             HStack(spacing: 4) {
@@ -74,6 +76,7 @@ struct DailySenseStatusCard: View {
                         .frame(width: 8, height: 8)
                 }
             }
+            .fixedSize(horizontal: true, vertical: false)
 
             // 展开/收起箭头
             Image(systemName: isExpanded ? "chevron.up" : "chevron.down")

@@ -579,6 +579,9 @@ struct AgentDeepAnalysisDetailSheet: View {
                                 Text(recommendation.title)
                                     .font(.system(size: 16, weight: .bold))
                                     .foregroundColor(.holoTextPrimary)
+                                    .lineLimit(2)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                    .layoutPriority(1)
 
                                 if let priority = recommendation.priorityLabel {
                                     Text(priority)
@@ -588,6 +591,7 @@ struct AgentDeepAnalysisDetailSheet: View {
                                         .padding(.vertical, 3)
                                         .background(Color.holoPrimary.opacity(0.09))
                                         .clipShape(Capsule())
+                                        .fixedSize(horizontal: true, vertical: false)
                                 }
                             }
 

@@ -293,27 +293,32 @@ struct PersonalView: View {
                             .foregroundColor(.holoPrimary)
                     }
 
-                    VStack(alignment: .leading, spacing: 2) {
+                    VStack(alignment: .leading, spacing: 3) {
                         Text("Holo 记住的你")
                             .font(.holoBody)
                             .foregroundColor(.holoTextPrimary)
+                            .lineLimit(1)
+
                         Text(memoryStatusText)
                             .font(.system(size: 12))
                             .foregroundColor(.holoTextSecondary)
-                    }
+                            .lineLimit(2)
 
-                    Spacer()
-
-                    if !memoryInboxSnapshot.isEmpty {
-                        Text(memoryInboxSnapshot.summaryText)
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.holoPrimary)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.holoPrimary.opacity(0.1))
-                            .clipShape(Capsule())
-                            .fixedSize()
+                        if !memoryInboxSnapshot.isEmpty {
+                            Text(memoryInboxSnapshot.summaryText)
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(.holoPrimary)
+                                .lineLimit(1)
+                                .minimumScaleFactor(0.9)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.holoPrimary.opacity(0.1))
+                                .clipShape(Capsule())
+                                .padding(.top, 3)
+                        }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .layoutPriority(1)
 
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .semibold))

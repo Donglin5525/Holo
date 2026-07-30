@@ -120,15 +120,16 @@ struct CardHeaderView: View {
                     Text(subtitle)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.holoTextSecondary)
-                        .lineLimit(1)
+                        .lineLimit(2)
+                }
+
+                if let badge {
+                    badge
+                        .padding(.top, 2)
                 }
             }
-
-            Spacer()
-
-            if let badge {
-                badge
-            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .layoutPriority(1)
         }
     }
 }
@@ -143,10 +144,12 @@ struct CardBadge: View {
         Text(text)
             .font(.system(size: 11, weight: .semibold))
             .foregroundColor(color)
+            .lineLimit(1)
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
             .background(color.opacity(0.12))
             .clipShape(Capsule())
+            .fixedSize(horizontal: true, vertical: false)
     }
 }
 
