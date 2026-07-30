@@ -101,7 +101,7 @@ final class IntentRouter {
         case .completeTask:
             return try handleCompleteTask(result)
         case .updateTask:
-            return try handleUpdateTask(result)
+            return try handleUpdateTask(result, originalInput: originalInput)
         case .deleteTask:
             return try handleDeleteTask(result)
         case .recordMood:
@@ -551,7 +551,7 @@ final class IntentRouter {
 
     // MARK: - Update Task
 
-    private func handleUpdateTask(_ result: ParsedResult) throws -> RouteResult {
+    private func handleUpdateTask(_ result: ParsedResult, originalInput: String? = nil) throws -> RouteResult {
         guard let data = result.extractedData,
               let keyword = data["taskKeyword"], !keyword.isEmpty else {
             return RouteResult(text: "请告诉我要修改哪个任务")
@@ -574,8 +574,18 @@ final class IntentRouter {
         let newTitle = data["title"]
         let newDesc = data["description"]
         let priority = parsePriority(data["priority"])
-        let dueDate = parseDate(from: data["dueDate"])
         let tags = matchTags(from: data["tags"])
+
+        // 时间解析复用 create_task 同款 resolveTaskDueDate（含原文兜底），
+        // 解决「明晚」「今晚10点」等相对时间 LLM 漏填时间时的解析问题。
+        // 用户没提到时间时 dueDateText 为 nil，返回 (nil, false)，不会误改原时间。
+        let (dueDate, hasTime) = resolveTaskDueDate(
+            dueDateText: data["dueDate"] ?? data["reminderDate"],
+            originalInput: originalInput
+        )
+
+        // 只在用户确实要改时间（dueDate 非空）时同步 isAllDay，避免误标原无截止时间任务。
+        let isAllDay: Bool? = dueDate != nil ? !hasTime : nil
 
         try todoRepo.updateTask(
             task,
@@ -583,12 +593,17 @@ final class IntentRouter {
             description: newDesc,
             priority: priority,
             dueDate: dueDate,
+            isAllDay: isAllDay,
             tags: tags.isEmpty ? nil : tags
         )
 
         logger.info("任务已更新：\(task.title)")
         return RouteResult(
-            text: "已更新任务：\(newTitle ?? task.title)",
+            text: AIResponseTextBuilder.taskUpdated(
+                title: newTitle ?? task.title,
+                dueDate: dueDate,
+                hasTime: hasTime
+            ),
             taskId: task.id,
             linkedEntity: LinkedEntity(type: .task, id: task.id)
         )

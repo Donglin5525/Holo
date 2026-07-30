@@ -75,8 +75,22 @@ enum AIResponseTextBuilder {
         return "已完成任务：\(title)"
     }
 
-    static func taskUpdated(title: String) -> String {
-        return "已更新任务：\(title)"
+    static func taskUpdated(title: String, dueDate: Date? = nil, hasTime: Bool = false) -> String {
+        var text = "已更新任务：\(title)"
+
+        if hasTime, let date = dueDate {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "zh_CN")
+            formatter.dateFormat = "M月d日 HH:mm"
+            text += "（改到 \(formatter.string(from: date))）"
+        } else if let date = dueDate {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "zh_CN")
+            formatter.dateFormat = "M月d日"
+            text += "（改到 \(formatter.string(from: date))）"
+        }
+
+        return text
     }
 
     static func taskDeleted(title: String) -> String {

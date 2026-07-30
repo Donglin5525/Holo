@@ -327,6 +327,9 @@ class TodoRepository: ObservableObject {
         if let description = description { task.desc = description }
         if let status = status { task.taskStatus = status }
         if let priority = priority { task.taskPriority = priority }
+        // 截止时间被改动时，需要把已调度的本地通知挪到新时间，
+        // 否则旧通知仍按原时间响、新通知不会建（通知是一次性绑死在固定时间点的）。
+        let dueDateChanged = dueDate != nil
         if let dueDate = dueDate { task.dueDate = dueDate }
         if let isAllDay = isAllDay { task.isAllDay = isAllDay }
         if let list = list { task.list = list }
@@ -359,6 +362,17 @@ class TodoRepository: ObservableObject {
         try context.save()
         loadActiveTasks()
         notifyDataChange()
+
+        // 截止时间改动后，把已调度的通知挪到新时间：先取消旧的，再按新时间重建。
+        // 只改 reminders 时上面已处理；这里覆盖「只改 dueDate 没动 reminders」的情况。
+        if dueDateChanged, !task.completed, !task.deletedFlag, !task.archived, task.hasReminders {
+            Task {
+                await TodoNotificationService.shared.cancelReminders(for: task)
+                try? await TodoNotificationService.shared.scheduleReminder(
+                    for: task, reminders: task.remindersArray
+                )
+            }
+        }
     }
 
     /// 切换任务完成状态
