@@ -42,8 +42,10 @@ class TodoRepository: ObservableObject {
     /// 回收站中的任务（已删除）
     @Published var trashedTasks: [TodoTask] = []
 
-    /// 所有标签列表
-    @Published var tags: [TodoTag] = []
+    /// 全局任务完成撤回状态：正在完成中（3 秒撤回窗口）的任务 ID
+    /// 跨界面共享——无论在列表还是看板完成，撤回 banner 都一致显示
+    @Published var pendingCompletionTaskId: UUID? = nil
+    private var pendingCompletionWorkItem: DispatchWorkItem? = nil
 
     /// 是否已完成初始化（供 UI 判断加载状态）
     @Published private(set) var isReady: Bool = false
@@ -86,7 +88,6 @@ class TodoRepository: ObservableObject {
         loadFolders()
         loadActiveTasks()
         loadTrashedTasks()
-        loadTags()
         isReady = true
     }
 
@@ -135,20 +136,6 @@ class TodoRepository: ObservableObject {
         } catch {
             logger.error("加载回收站失败：\(error)")
             trashedTasks = []
-        }
-    }
-
-    /// 加载标签列表
-    func loadTags() {
-        let request = TodoTag.fetchRequest()
-        request.predicate = NSPredicate(format: "deletedFlag == NO")
-        request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
-
-        do {
-            tags = try context.fetch(request)
-        } catch {
-            logger.error("加载标签失败：\(error)")
-            tags = []
         }
     }
 
@@ -270,9 +257,9 @@ class TodoRepository: ObservableObject {
         priority: TaskPriority = .medium,
         dueDate: Date? = nil,
         isAllDay: Bool = false,
-        tags: [TodoTag] = [],
         reminders: Set<TaskReminder>? = nil,
-        checkItemTitles: [String]? = nil
+        checkItemTitles: [String]? = nil,
+        sourceThought: Thought? = nil
     ) throws -> TodoTask {
         let task = TodoTask.create(
             in: context,
@@ -285,13 +272,13 @@ class TodoRepository: ObservableObject {
             reminders: reminders
         )
 
-        // 关联标签
-        for tag in tags {
-            task.addToTags(tag)
+        // 关联来源想法（想法转任务）
+        if let sourceThought = sourceThought {
+            task.sourceThought = sourceThought
         }
 
-        // 调度提醒通知
-        if let reminders = reminders, !reminders.isEmpty, dueDate != nil {
+        // 调度提醒通知（绝对提醒不需要截止日期，scheduleReminder 内部按模式分别处理）
+        if let reminders = reminders, !reminders.isEmpty {
             Task {
                 try? await TodoNotificationService.shared.scheduleReminder(for: task, reminders: Array(reminders))
             }
@@ -320,7 +307,6 @@ class TodoRepository: ObservableObject {
         dueDate: Date? = nil,
         isAllDay: Bool? = nil,
         list: TodoList? = nil,
-        tags: [TodoTag]? = nil,
         reminders: Set<TaskReminder>? = nil
     ) throws {
         if let title = title { task.title = title }
@@ -333,20 +319,6 @@ class TodoRepository: ObservableObject {
         if let dueDate = dueDate { task.dueDate = dueDate }
         if let isAllDay = isAllDay { task.isAllDay = isAllDay }
         if let list = list { task.list = list }
-
-        // 更新标签关联
-        if let tags = tags {
-            // 先移除所有现有标签
-            if let existingTags = task.tags?.allObjects as? [TodoTag] {
-                for tag in existingTags {
-                    task.removeFromTags(tag)
-                }
-            }
-            // 添加新标签
-            for tag in tags {
-                task.addToTags(tag)
-            }
-        }
 
         // 更新提醒
         if let reminders = reminders {
@@ -420,6 +392,52 @@ class TodoRepository: ObservableObject {
         rescheduleRemindersIfNeeded(for: task)
     }
 
+    // MARK: - 全局完成撤回
+
+    /// 开始完成撤回流程：乐观标记 UI，3 秒后真正落库，期间可撤回。
+    /// 跨界面共享 pendingCompletionTaskId，任何界面都能看到撤回 banner。
+    func startPendingCompletion(for task: TodoTask) {
+        // 如果有上一个待确认的任务，立即确认它
+        confirmPendingCompletion()
+
+        pendingCompletionTaskId = task.id
+
+        let taskId = task.id
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self = self else { return }
+            self.confirmPendingCompletion()
+        }
+        pendingCompletionWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: workItem)
+    }
+
+    /// 确认待完成的任务（真正落库）
+    func confirmPendingCompletion() {
+        guard let pendingId = pendingCompletionTaskId else { return }
+        pendingCompletionWorkItem?.cancel()
+        pendingCompletionWorkItem = nil
+
+        if let task = findTask(by: pendingId) {
+            do {
+                if task.repeatRule != nil {
+                    _ = try completeRepeatingTask(task)
+                } else {
+                    try completeTask(task)
+                }
+            } catch {
+                logger.error("确认完成任务失败: \(error.localizedDescription)")
+            }
+        }
+        pendingCompletionTaskId = nil
+    }
+
+    /// 撤回待完成的任务（取消 3 秒计时，不落库）
+    func undoPendingCompletion() {
+        pendingCompletionWorkItem?.cancel()
+        pendingCompletionWorkItem = nil
+        pendingCompletionTaskId = nil
+    }
+
     /// 完成重复任务并生成下一个实例
     /// - Parameter task: 要完成的重复任务
     /// - Returns: 是否生成了下一个任务实例
@@ -463,13 +481,6 @@ class TodoRepository: ObservableObject {
             isAllDay: task.isAllDay,
             reminders: task.remindersSet
         )
-
-        // 关联相同的标签
-        if let tags = task.tags?.allObjects as? [TodoTag] {
-            for tag in tags {
-                nextTask.addToTags(tag)
-            }
-        }
 
         // 关联相同的重复规则
         nextTask.repeatRule = rule
@@ -558,76 +569,16 @@ class TodoRepository: ObservableObject {
 
     // MARK: - Reminder Helpers
 
-    /// 任务恢复活跃状态时，重新调度提醒（仅当未完成、未删除、有提醒且有截止日期）
+    /// 任务恢复活跃状态时，重新调度提醒
+    /// （绝对提醒不需要截止日期；相对提醒需有截止日期才有效，scheduleReminder 内部会跳过无效项）
     private func rescheduleRemindersIfNeeded(for task: TodoTask) {
         guard !task.completed, !task.deletedFlag, !task.archived,
-              task.hasReminders, task.dueDate != nil else { return }
+              task.hasReminders else { return }
         Task {
             try? await TodoNotificationService.shared.scheduleReminder(
                 for: task, reminders: task.remindersArray
             )
         }
-    }
-
-    // MARK: - Tag CRUD
-
-    /// 创建标签
-    @discardableResult
-    func createTag(name: String, color: String) throws -> TodoTag {
-        let tag = TodoTag.create(in: context, name: name, color: color)
-        try context.save()
-        loadTags()
-        notifyDataChange()
-        return tag
-    }
-
-    /// 更新标签
-    func updateTag(_ tag: TodoTag, name: String? = nil, color: String? = nil) throws {
-        if let name = name { tag.name = name }
-        if let color = color { tag.color = color }
-
-        try context.save()
-        loadTags()
-        notifyDataChange()
-    }
-
-    /// 软删除标签（归档）
-    func deleteTag(_ tag: TodoTag) throws {
-        tag.deletedFlag = true
-        try context.save()
-        loadTags()
-        notifyDataChange()
-    }
-
-    /// 永久删除标签
-    func permanentlyDeleteTag(_ tag: TodoTag) throws {
-        context.delete(tag)
-        try context.save()
-        loadTags()
-        notifyDataChange()
-    }
-
-    /// 加载已归档标签
-    func loadArchivedTags() -> [TodoTag] {
-        let request = TodoTag.fetchRequest()
-        request.predicate = NSPredicate(format: "deletedFlag == YES")
-        request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
-
-        do {
-            return try context.fetch(request)
-        } catch {
-            logger.error("加载已归档标签失败：\(error)")
-            return []
-        }
-    }
-
-    /// 恢复归档标签
-    func restoreTag(_ tag: TodoTag) throws {
-        tag.deletedFlag = false
-
-        try context.save()
-        loadTags()
-        notifyDataChange()
     }
 
     /// 加载已归档任务
@@ -847,22 +798,12 @@ class TodoRepository: ObservableObject {
         return (try? context.fetch(request)) ?? []
     }
 
-    /// 获取指定标签的任务
-    func getTasks(tag: TodoTag) -> [TodoTask] {
-        let request = TodoTask.fetchRequest()
-        request.predicate = NSPredicate(
-            format: "deletedFlag == NO AND archived == NO AND ANY tags == %@",
-            tag as CVarArg
-        )
-        return (try? context.fetch(request)) ?? []
-    }
-
-    /// 搜索任务（按标题、描述、标签名、清单名）
+    /// 搜索任务（按标题、描述、清单名）
     func searchTasks(keyword: String) -> [TodoTask] {
         let request = TodoTask.fetchRequest()
         request.predicate = NSPredicate(
-            format: "(deletedFlag == NO AND archived == NO) AND (title CONTAINS[cd] %@ OR desc CONTAINS[cd] %@ OR ANY tags.name CONTAINS[cd] %@ OR list.name CONTAINS[cd] %@)",
-            keyword, keyword, keyword, keyword
+            format: "(deletedFlag == NO AND archived == NO) AND (title CONTAINS[cd] %@ OR desc CONTAINS[cd] %@ OR list.name CONTAINS[cd] %@)",
+            keyword, keyword, keyword
         )
         request.sortDescriptors = [
             NSSortDescriptor(key: "completed", ascending: true),

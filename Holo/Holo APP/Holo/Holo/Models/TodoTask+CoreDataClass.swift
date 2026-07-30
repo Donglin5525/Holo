@@ -40,7 +40,6 @@ class TodoTask: NSManagedObject, @unchecked Sendable {
 
     // MARK: - Kanban Properties
 
-    @NSManaged var plannedDate: Date?
     @NSManaged var isDailyRitual: Bool
 
     // MARK: - Relationships
@@ -54,6 +53,10 @@ class TodoTask: NSManagedObject, @unchecked Sendable {
     // MARK: - Goal Relationship
 
     @NSManaged var goal: Goal?
+
+    // MARK: - Source Thought Relationship（想法转任务后的来源关联）
+
+    @NSManaged var sourceThought: Thought?
 }
 
 // MARK: - Core Data Generated Accessors

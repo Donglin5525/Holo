@@ -83,9 +83,9 @@ struct TaskSearchView: View {
         }
         .sheet(item: $selectedTask) { selection in
             if let task = searchResults.first(where: { $0.id == selection.id }) {
-                AddTaskSheet(repository: repository, task: task)
+                TaskDetailView(task: task, repository: repository)
             } else if let task = repository.findTask(by: selection.id) {
-                AddTaskSheet(repository: repository, task: task)
+                TaskDetailView(task: task, repository: repository)
             } else {
                 ProgressView("加载中...")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

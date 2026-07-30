@@ -68,7 +68,9 @@ struct TaskListView: View {
     @State private var hasLoadedOnce = false
     /// 今日进度
     @State private var todayProgress: (completed: Int, total: Int) = (0, 0)
-    /// 当前筛选
+    /// 持久化的预设筛选类型（不含清单，清单每次重选）
+    @AppStorage("taskList.selectedPresetFilter") private var selectedPresetFilterRaw: String = "all"
+    /// 当前筛选（从持久化恢复）
     @State private var selectedFilter: TaskFilterType = .all
     /// 缓存的过滤结果
     @State private var cachedFilteredTasks: [TodoTask] = []
@@ -92,8 +94,6 @@ struct TaskListView: View {
     @State private var showNotificationSettings = false
     /// 是否显示搜索页面
     @State private var showSearchView = false
-    /// 是否显示标签列表页面
-    @State private var showTagListView = false
 
     /// 最近已完成是否展开
     @State private var isRecentlyCompletedExpanded = false
@@ -101,9 +101,8 @@ struct TaskListView: View {
     /// 右滑展开的卡片 ID
     @State private var revealedTaskId: UUID? = nil
 
-    /// 正在完成中的任务 ID（等待撤回窗口）
-    @State private var pendingCompletionTaskId: UUID? = nil
-    @State private var pendingCompletionWorkItem: DispatchWorkItem? = nil
+    /// 正在完成中的任务 ID（来自 repository 全局撤回状态）
+    private var pendingCompletionTaskId: UUID? { repository.pendingCompletionTaskId }
 
     /// Deep Link 状态（通知点击跳转）
     @ObservedObject private var deepLinkState = DeepLinkState.shared
@@ -118,6 +117,17 @@ struct TaskListView: View {
             filterPickerView
 
             ZStack(alignment: .bottom) {
+                // 点击空白区域收起左滑展开的行
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        if revealedTaskId != nil {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                revealedTaskId = nil
+                            }
+                        }
+                    }
+
                 ScrollView {
                     LazyVStack(spacing: 12) {
                         if selectedFilter == .completed {
@@ -172,6 +182,14 @@ struct TaskListView: View {
             }
         }
         .onAppear {
+            // 从持久化恢复筛选状态
+            switch selectedPresetFilterRaw {
+            case "inbox": selectedFilter = .inbox
+            case "today": selectedFilter = .today
+            case "completed": selectedFilter = .completed
+            case "overdue": selectedFilter = .overdue
+            default: selectedFilter = .all
+            }
             // Core Data 未就绪时 fetch 静默返回空，首次加载交给 .task 等就绪后执行
             guard CoreDataStack.shared.isReady else { return }
             loadTasks()
@@ -191,8 +209,17 @@ struct TaskListView: View {
         .onReceive(NotificationCenter.default.publisher(for: .todoDataDidChange)) { _ in
             loadTasks()
         }
-        .onChange(of: selectedFilter) { _, _ in
+        .onChange(of: selectedFilter) { _, newFilter in
             updateFilteredTasks()
+            // 持久化预设筛选（清单筛选不持久化，每次重选）
+            switch newFilter {
+            case .all: selectedPresetFilterRaw = "all"
+            case .inbox: selectedPresetFilterRaw = "inbox"
+            case .today: selectedPresetFilterRaw = "today"
+            case .completed: selectedPresetFilterRaw = "completed"
+            case .overdue: selectedPresetFilterRaw = "overdue"
+            case .list: break
+            }
         }
         .onChange(of: tasks) { _, _ in
             updateFilteredTasks()
@@ -202,7 +229,7 @@ struct TaskListView: View {
             selectedTask = nil
         }) { selection in
             if let task = tasks.first(where: { $0.id == selection.id }) ?? repository.findTask(by: selection.id) {
-                AddTaskSheet(repository: repository, task: task)
+                TaskDetailView(task: task, repository: repository)
             } else {
                 // 找不到任务（可能落库未完成或已删除）：不能弹无返回按钮的 ProgressView，
                 // 否则用户会被困在 sheet 里无法返回。
@@ -217,9 +244,6 @@ struct TaskListView: View {
         }
         .fullScreenCover(isPresented: $showSearchView) {
             TaskSearchView(repository: repository)
-        }
-        .sheet(isPresented: $showTagListView) {
-            TagListView(repository: repository)
         }
     }
 
@@ -335,70 +359,18 @@ struct TaskListView: View {
         hasLoadedOnce = true
     }
 
-    // MARK: - 完成任务（带撤回）
+    // MARK: - 完成任务（带撤回，使用全局撤回状态）
 
-    /// 处理任务完成：延迟 3 秒执行，期间可撤回
+    /// 处理任务完成：启动 3 秒撤回窗口（全局状态，跨界面一致）
     private func handleTaskCompletion(_ task: TodoTask) {
-        // 如果有上一个待完成的任务，立即确认它
-        if let previousId = pendingCompletionTaskId {
-            pendingCompletionWorkItem?.cancel()
-            pendingCompletionWorkItem = nil
-
-            // 直接完成上一个任务
-            if let previousTask = tasks.first(where: { $0.id == previousId }) {
-                do {
-                    if previousTask.repeatRule != nil {
-                        _ = try repository.completeRepeatingTask(previousTask)
-                    } else {
-                        try repository.toggleTaskCompletion(previousTask)
-                    }
-                } catch {
-                    Logger(subsystem: "com.holo.app", category: "TaskListView").error("完成任务失败: \(error.localizedDescription)")
-                }
-            }
-
-            // 清理状态并刷新
-            pendingCompletionTaskId = nil
-            tasks = repository.activeTasks
-            todayProgress = repository.getTodayTaskProgress()
-            updateFilteredTasks()
-        }
-
-        // 乐观更新 UI
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-            pendingCompletionTaskId = task.id
-        }
+        repository.startPendingCompletion(for: task)
         HapticManager.taskCompletion()
-
-        // 3 秒后执行实际完成操作
-        let workItem = DispatchWorkItem {
-            do {
-                if task.repeatRule != nil {
-                    _ = try repository.completeRepeatingTask(task)
-                } else {
-                    try repository.toggleTaskCompletion(task)
-                }
-            } catch {
-                Logger(subsystem: "com.holo.app", category: "TaskListView").error("完成任务失败: \(error.localizedDescription)")
-            }
-
-            // 直接在主线程清理（asyncAfter 已在主队列）
-            pendingCompletionTaskId = nil
-            pendingCompletionWorkItem = nil
-            tasks = repository.activeTasks
-            todayProgress = repository.getTodayTaskProgress()
-            updateFilteredTasks()
-        }
-        pendingCompletionWorkItem = workItem
-        DispatchQueue.main.asyncAfter(deadline: .now() + 3, execute: workItem)
     }
 
     /// 撤回任务完成
     private func undoCompletion() {
-        pendingCompletionWorkItem?.cancel()
-        pendingCompletionWorkItem = nil
         withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
-            pendingCompletionTaskId = nil
+            repository.undoPendingCompletion()
         }
         HapticManager.light()
     }
@@ -409,7 +381,9 @@ struct TaskListView: View {
     private func archiveTask(_ task: TodoTask) {
         do {
             try repository.archiveTask(task)
-            revealedTaskId = nil
+            withAnimation(.easeInOut(duration: 0.25)) {
+                revealedTaskId = nil
+            }
         } catch {
             Logger(subsystem: "com.holo.app", category: "TaskListView").error("归档任务失败: \(error.localizedDescription)")
         }
@@ -419,7 +393,9 @@ struct TaskListView: View {
     private func deleteTask(_ task: TodoTask) {
         do {
             try repository.deleteTask(task)
-            revealedTaskId = nil
+            withAnimation(.easeInOut(duration: 0.25)) {
+                revealedTaskId = nil
+            }
         } catch {
             Logger(subsystem: "com.holo.app", category: "TaskListView").error("删除任务失败: \(error.localizedDescription)")
         }
@@ -534,33 +510,6 @@ struct TaskListView: View {
                         }
                     }
                 }
-
-                // 标签入口
-                Button {
-                    showTagListView = true
-                } label: {
-                    HStack(spacing: 4) {
-                        Image(systemName: "tag")
-                            .font(.system(size: 12, weight: .medium))
-                        Text("标签")
-                            .font(.holoCaption)
-                    }
-                    .foregroundColor(.holoTextSecondary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(
-                        Capsule()
-                            .fill(Color.holoCardBackground)
-                            .overlay(
-                                Capsule()
-                                    .strokeBorder(
-                                        style: StrokeStyle(lineWidth: 1, dash: [4])
-                                    )
-                                    .foregroundColor(.holoDivider)
-                            )
-                    )
-                }
-                .buttonStyle(.plain)
 
                 // 归档入口
                 Button {

@@ -42,6 +42,9 @@ struct ThoughtDetailView: View {
     @State private var showAttachmentGallery: Bool = false
     @State private var galleryStartIndex: Int = 0
 
+    /// 转为任务后的成功反馈
+    @State private var showConvertToTaskSuccess: Bool = false
+
     /// AI 标签分配
     @State private var aiAssignments: [ThoughtTagAssignment] = []
 
@@ -101,10 +104,23 @@ struct ThoughtDetailView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("编辑") {
-                        showEditSheet = true
+                    Menu {
+                        Button {
+                            convertToTask()
+                        } label: {
+                            Label("转为任务", systemImage: "checkmark.square")
+                        }
+
+                        Button {
+                            showEditSheet = true
+                        } label: {
+                            Label("编辑", systemImage: "square.and.pencil")
+                        }
+                    } label: {
+                        Image(systemName: "ellipsis.circle")
+                            .font(.system(size: 18))
+                            .foregroundColor(.holoTextPrimary)
                     }
-                    .foregroundColor(.holoPrimary)
                 }
             }
             .sheet(item: $selectedReferenceId) { refId in
@@ -119,6 +135,11 @@ struct ThoughtDetailView: View {
                 }
             } message: {
                 Text(deletedSnapshot ?? "")
+            }
+            .alert("已转为任务", isPresented: $showConvertToTaskSuccess) {
+                Button("好的", role: .cancel) {}
+            } message: {
+                Text("已从这条想法创建待办任务，可在任务模块查看。")
             }
             // fullScreenCover：编辑器作为完整页面承载，避免 sheet 下滑误触丢内容
             .fullScreenCover(isPresented: $showEditSheet) {
@@ -192,6 +213,25 @@ struct ThoughtDetailView: View {
             }
         case .text:
             break
+        }
+    }
+
+    // MARK: - 转为任务
+
+    /// 将当前想法转换为待办任务，标题取想法首行，并建立来源关联
+    private func convertToTask() {
+        guard let thought = thought else { return }
+        let title = thought.firstLine ?? String(thought.content.prefix(40))
+        do {
+            _ = try TodoRepository.shared.createTask(
+                title: title,
+                description: thought.plainContent,
+                sourceThought: thought
+            )
+            HapticManager.success()
+            showConvertToTaskSuccess = true
+        } catch {
+            logger.error("想法转任务失败: \(error.localizedDescription)")
         }
     }
 

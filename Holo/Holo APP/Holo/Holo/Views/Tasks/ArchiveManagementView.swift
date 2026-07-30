@@ -14,13 +14,11 @@ import OSLog
 /// 归档类型标签页
 enum ArchiveTab: String, CaseIterable {
     case tasks = "任务"
-    case tags = "标签"
     case lists = "清单"
 
     var icon: String {
         switch self {
         case .tasks: return "checkmark.circle"
-        case .tags: return "tag"
         case .lists: return "list.bullet.rectangle"
         }
     }
@@ -43,8 +41,6 @@ struct ArchiveManagementView: View {
 
     /// 已归档任务
     @State private var archivedTasks: [TodoTask] = []
-    /// 已归档标签
-    @State private var archivedTags: [TodoTag] = []
     /// 已归档清单
     @State private var archivedLists: [TodoList] = []
 
@@ -55,13 +51,11 @@ struct ArchiveManagementView: View {
     /// 删除目标类型
     private enum DeleteTarget: Identifiable {
         case task(TodoTask)
-        case tag(TodoTag)
         case list(TodoList)
 
         var id: UUID {
             switch self {
             case .task(let task): return task.id
-            case .tag(let tag): return tag.id
             case .list(let list): return list.id
             }
         }
@@ -80,8 +74,6 @@ struct ArchiveManagementView: View {
                     switch selectedTab {
                     case .tasks:
                         tasksContentView
-                    case .tags:
-                        tagsContentView
                     case .lists:
                         listsContentView
                     }
@@ -111,7 +103,6 @@ struct ArchiveManagementView: View {
 
     private func loadArchivedData() {
         archivedTasks = repository.loadArchivedTasks()
-        archivedTags = repository.loadArchivedTags()
         archivedLists = repository.loadArchivedLists()
     }
 
@@ -201,34 +192,6 @@ struct ArchiveManagementView: View {
         }
     }
 
-    // MARK: - 标签内容视图
-
-    private var tagsContentView: some View {
-        VStack(spacing: 16) {
-            // 统计信息
-            statsHeaderView(
-                activeCount: repository.tags.count,
-                archivedCount: archivedTags.count,
-                type: "标签"
-            )
-
-            if archivedTags.isEmpty {
-                emptyStateView(message: "暂无已归档的标签")
-            } else {
-                ForEach(archivedTags, id: \.id) { tag in
-                    ArchivedTagRow(
-                        tag: tag,
-                        onRestore: { restoreTag(tag) },
-                        onDelete: {
-                            itemToDelete = .tag(tag)
-                            showDeleteConfirmation = true
-                        }
-                    )
-                }
-            }
-        }
-    }
-
     // MARK: - 清单内容视图
 
     private var listsContentView: some View {
@@ -309,15 +272,6 @@ struct ArchiveManagementView: View {
         }
     }
 
-    private func restoreTag(_ tag: TodoTag) {
-        do {
-            try repository.restoreTag(tag)
-            loadArchivedData()
-        } catch {
-            logger.error("恢复标签失败: \(error)")
-        }
-    }
-
     private func restoreList(_ list: TodoList) {
         do {
             try repository.unarchiveList(list)
@@ -334,8 +288,6 @@ struct ArchiveManagementView: View {
             switch target {
             case .task(let task):
                 try repository.permanentlyDeleteTask(task)
-            case .tag(let tag):
-                try repository.permanentlyDeleteTag(tag)
             case .list(let list):
                 try repository.deleteList(list)
             }
@@ -345,57 +297,6 @@ struct ArchiveManagementView: View {
         }
 
         itemToDelete = nil
-    }
-}
-
-// MARK: - Archived Tag Row
-
-/// 已归档标签行视图
-private struct ArchivedTagRow: View {
-    let tag: TodoTag
-    let onRestore: () -> Void
-    let onDelete: () -> Void
-
-    var body: some View {
-        HStack(spacing: 12) {
-            // 颜色指示器
-            Circle()
-                .fill(Color(hex: tag.color))
-                .frame(width: 12, height: 12)
-
-            // 标签名称
-            Text(tag.name)
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
-
-            Spacer()
-
-            // 操作按钮
-            HStack(spacing: 8) {
-                Button(action: onRestore) {
-                    Text("恢复")
-                        .font(.holoCaption)
-                        .foregroundColor(.holoPrimary)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.holoPrimary.opacity(0.1))
-                        .clipShape(Capsule())
-                }
-
-                Button(action: onDelete) {
-                    Text("删除")
-                        .font(.holoCaption)
-                        .foregroundColor(.red)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 6)
-                        .background(Color.red.opacity(0.1))
-                        .clipShape(Capsule())
-                }
-            }
-        }
-        .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
     }
 }
 

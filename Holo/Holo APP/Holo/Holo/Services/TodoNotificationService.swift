@@ -146,14 +146,13 @@ class TodoNotificationService: NSObject, ObservableObject {
             throw TodoNotificationError.permissionDenied
         }
 
-        guard let dueDate = task.dueDate else { return }
-
         for reminder in reminders {
-            try await scheduleSingleReminder(
-                task: task,
-                reminder: reminder,
-                dueDate: dueDate
-            )
+            // 绝对提醒（triggerDate）不需要 dueDate；相对提醒需要 dueDate 来推算
+            if reminder.isAbsolute {
+                try await scheduleSingleReminder(task: task, reminder: reminder, dueDate: nil)
+            } else if let dueDate = task.dueDate {
+                try await scheduleSingleReminder(task: task, reminder: reminder, dueDate: dueDate)
+            }
         }
     }
 
@@ -161,14 +160,23 @@ class TodoNotificationService: NSObject, ObservableObject {
     private func scheduleSingleReminder(
         task: TodoTask,
         reminder: TaskReminder,
-        dueDate: Date
+        dueDate: Date?
     ) async throws {
         let calendar = Calendar.current
-        guard let triggerDate = calendar.date(
-            byAdding: .minute,
-            value: -reminder.offsetMinutes,
-            to: dueDate
-        ) else { return }
+
+        // 计算触发时间：绝对模式直接用 triggerDate；相对模式用 dueDate - offsetMinutes
+        let triggerDate: Date
+        if let absoluteDate = reminder.triggerDate {
+            triggerDate = absoluteDate
+        } else {
+            guard let dueDate = dueDate else { return }
+            guard let calculated = calendar.date(
+                byAdding: .minute,
+                value: -reminder.offsetMinutes,
+                to: dueDate
+            ) else { return }
+            triggerDate = calculated
+        }
 
         // 不创建已过期的提醒
         guard triggerDate > Date() else { return }
@@ -190,8 +198,9 @@ class TodoNotificationService: NSObject, ObservableObject {
             repeats: false
         )
 
+        // 用 reminder.id 作为唯一标识（绝对模式下 offsetMinutes 可能重复）
         let request = UNNotificationRequest(
-            identifier: "\(task.id.uuidString)-\(reminder.offsetMinutes)",
+            identifier: "\(task.id.uuidString)-\(reminder.id.uuidString)",
             content: content,
             trigger: trigger
         )

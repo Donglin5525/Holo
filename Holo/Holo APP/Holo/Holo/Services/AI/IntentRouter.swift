@@ -574,7 +574,6 @@ final class IntentRouter {
         let newTitle = data["title"]
         let newDesc = data["description"]
         let priority = parsePriority(data["priority"])
-        let tags = matchTags(from: data["tags"])
 
         // 时间解析复用 create_task 同款 resolveTaskDueDate（含原文兜底），
         // 解决「明晚」「今晚10点」等相对时间 LLM 漏填时间时的解析问题。
@@ -593,8 +592,7 @@ final class IntentRouter {
             description: newDesc,
             priority: priority,
             dueDate: dueDate,
-            isAllDay: isAllDay,
-            tags: tags.isEmpty ? nil : tags
+            isAllDay: isAllDay
         )
 
         logger.info("任务已更新：\(task.title)")
@@ -817,16 +815,6 @@ final class IntentRouter {
     private func parseCSVTags(_ string: String?) -> [String] {
         guard let string = string, !string.isEmpty else { return [] }
         return string.split(separator: ",").map { $0.trimmingCharacters(in: .whitespaces) }
-    }
-
-    /// 将标签名列表匹配到已有的 TodoTag 对象
-    private func matchTags(from string: String?) -> [TodoTag] {
-        let names = parseCSVTags(string)
-        guard !names.isEmpty else { return [] }
-        let allTags = TodoRepository.shared.tags
-        return names.compactMap { name in
-            allTags.first { $0.name.lowercased() == name.lowercased() }
-        }
     }
 
     // MARK: - Category Matching

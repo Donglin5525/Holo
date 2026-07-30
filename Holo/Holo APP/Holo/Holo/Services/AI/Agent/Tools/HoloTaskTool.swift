@@ -30,7 +30,6 @@ struct HoloTaskToolRecord: Codable, Equatable, Sendable {
     var descExcerpt: String?
     var priority: Int
     var dueDate: Date?
-    var plannedDate: Date?
     var completed: Bool
 }
 
@@ -174,7 +173,7 @@ extension HoloTaskTool {
         events += snapshot.unplannedTasks.enumerated().map { index, task in
             HoloEvidenceEvent(
                 id: "task-unplanned-\(index)-\(task.id)",
-                occurredAt: task.plannedDate,
+                occurredAt: task.dueDate,
                 metricKey: "task.backlog.active_count",
                 metricValue: 1,
                 excerpt: excerpt(for: task)

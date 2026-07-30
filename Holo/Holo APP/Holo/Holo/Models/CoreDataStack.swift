@@ -115,10 +115,13 @@ nonisolated class CoreDataStack {
         let model = NSManagedObjectModel()
         var entities: [NSEntityDescription] = []
         let goalEntity = createGoalEntity()
+        // 先创建 Thought 实体，取出 thoughtEntity 供 Todo 建立 sourceThought 关联
+        let thoughtEntities = createThoughtEntities()
+        let thoughtEntity = thoughtEntities[0]
         entities.append(contentsOf: createFinanceEntities())
         entities.append(contentsOf: createHabitEntities(goalEntity: goalEntity))
-        entities.append(contentsOf: createTodoEntities(goalEntity: goalEntity))
-        entities.append(contentsOf: createThoughtEntities())
+        entities.append(contentsOf: createTodoEntities(goalEntity: goalEntity, thoughtEntity: thoughtEntity))
+        entities.append(contentsOf: thoughtEntities)
         entities.append(contentsOf: createChatEntities())
         entities.append(contentsOf: createSyncEntities())
         entities.append(createMemoryInsightEntity())

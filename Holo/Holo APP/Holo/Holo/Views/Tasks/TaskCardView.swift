@@ -72,15 +72,15 @@ struct TaskCardView: View {
                             .foregroundColor(showsCompleted ? .holoTextSecondary : .holoTextPrimary)
                             .lineLimit(2)
 
-                        // 描述（截断展示）
+                        // 描述（截断展示，默认 1 行）
                         if let desc = task.desc, !desc.isEmpty {
                             Text(desc)
                                 .font(.holoCaption)
                                 .foregroundColor(.holoTextSecondary)
-                                .lineLimit(2)
+                                .lineLimit(1)
                         }
 
-                        // 任务元信息
+                        // 任务元信息（精简：截止日 + 优先级 + 清单，其余进详情页查看）
                         HStack(spacing: 8) {
                             // 截止日期
                             if let dueDate = task.dueDate {
@@ -92,7 +92,7 @@ struct TaskCardView: View {
                                 .foregroundColor(dateColor)
                             }
 
-                            // 优先级
+                            // 优先级（仅紧急/高）
                             if task.taskPriority == .urgent || task.taskPriority == .high {
                                 Label(
                                     task.taskPriority.displayTitle,
@@ -111,32 +111,10 @@ struct TaskCardView: View {
 
                             // 清单名称
                             if let list = task.list {
-                                Label(
-                                    list.name,
-                                    systemImage: "folder"
-                                )
-                                .font(.holoTinyLabel)
-                                .foregroundColor(.holoTextSecondary)
-                            }
-
-                            // 检查清单进度
-                            if hasChecklist {
-                                Label(
-                                    task.checkItemProgress,
-                                    systemImage: "checklist"
-                                )
-                                .font(.holoTinyLabel)
-                                .foregroundColor(.holoTextSecondary)
-                            }
-
-                            // 附件指示器
-                            if let count = task.attachments?.count, count > 0 {
-                                Label(
-                                    "\(count)",
-                                    systemImage: "paperclip"
-                                )
-                                .font(.holoTinyLabel)
-                                .foregroundColor(.holoTextSecondary)
+                                Text(list.name)
+                                    .font(.holoTinyLabel)
+                                    .foregroundColor(.holoTextSecondary)
+                                    .lineLimit(1)
                             }
                         }
                     }

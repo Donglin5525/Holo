@@ -53,7 +53,6 @@ extension HoloTaskToolRecord {
             descExcerpt: task.desc.map { String($0.prefix(80)) },
             priority: Int(task.priority),
             dueDate: task.dueDate,
-            plannedDate: task.plannedDate,
             completed: task.completed
         )
     }

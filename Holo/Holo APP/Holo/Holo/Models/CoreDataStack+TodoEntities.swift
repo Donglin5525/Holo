@@ -12,7 +12,7 @@ extension CoreDataStack {
     // MARK: - Todo Entities
 
     /// 创建待办相关实体（TodoFolder, TodoList, TodoTask, TodoTag, CheckItem, RepeatRule, TaskAttachment）
-    nonisolated func createTodoEntities(goalEntity: NSEntityDescription) -> [NSEntityDescription] {
+    nonisolated func createTodoEntities(goalEntity: NSEntityDescription, thoughtEntity: NSEntityDescription) -> [NSEntityDescription] {
         // MARK: - TodoFolder Entity
         // 待办文件夹实体，顶层容器
         let todoFolderEntity = NSEntityDescription()
@@ -260,13 +260,6 @@ extension CoreDataStack {
         todoTaskAttributes.append(taskSmartReminderSchedule)
 
         // 看板相关属性
-        let taskPlannedDate = NSAttributeDescription()
-        taskPlannedDate.name = "plannedDate"
-        taskPlannedDate.attributeType = .dateAttributeType
-        taskPlannedDate.isOptional = true
-        taskPlannedDate.isIndexed = true
-        todoTaskAttributes.append(taskPlannedDate)
-
         let taskIsDailyRitual = NSAttributeDescription()
         taskIsDailyRitual.name = "isDailyRitual"
         taskIsDailyRitual.attributeType = .booleanAttributeType
@@ -657,7 +650,29 @@ extension CoreDataStack {
         taskGoalRelation.inverseRelationship = goalTasksRelation
 
         goalEntity.properties.append(goalTasksRelation)
-        todoTaskEntity.properties = todoTaskAttributes + [taskListRelation, taskTagsRelation, taskCheckItemsRelation, taskAttachmentsRelation, taskRepeatRuleRelation, taskGoalRelation]
+
+        // Thought ↔ TodoTask 关系（想法转任务后的来源关联）
+        let thoughtTasksRelation = NSRelationshipDescription()
+        thoughtTasksRelation.name = "createdTasks"
+        thoughtTasksRelation.destinationEntity = todoTaskEntity
+        thoughtTasksRelation.minCount = 0
+        thoughtTasksRelation.maxCount = 0
+        thoughtTasksRelation.deleteRule = .nullifyDeleteRule
+        thoughtTasksRelation.isOptional = true
+
+        let taskSourceThoughtRelation = NSRelationshipDescription()
+        taskSourceThoughtRelation.name = "sourceThought"
+        taskSourceThoughtRelation.destinationEntity = thoughtEntity
+        taskSourceThoughtRelation.minCount = 0
+        taskSourceThoughtRelation.maxCount = 1
+        taskSourceThoughtRelation.deleteRule = .nullifyDeleteRule
+        taskSourceThoughtRelation.isOptional = true
+
+        thoughtTasksRelation.inverseRelationship = taskSourceThoughtRelation
+        taskSourceThoughtRelation.inverseRelationship = thoughtTasksRelation
+
+        thoughtEntity.properties.append(thoughtTasksRelation)
+        todoTaskEntity.properties = todoTaskAttributes + [taskListRelation, taskTagsRelation, taskCheckItemsRelation, taskAttachmentsRelation, taskRepeatRuleRelation, taskGoalRelation, taskSourceThoughtRelation]
 
         todoFolderEntity.properties = todoFolderAttributes + [folderListsRelation]
         todoListEntity.properties = todoListAttributes + [listFolderRelation, listTasksRelation]

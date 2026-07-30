@@ -33,6 +33,7 @@ struct TaskDatePickerSheet: View {
     // MARK: - Local State
 
     @State private var showEndDatePicker = false
+    @State private var newAbsoluteReminderId: UUID? = nil
 
     // MARK: - Body
 
@@ -49,6 +50,14 @@ struct TaskDatePickerSheet: View {
                             quickDateSection
                             compactDateSection
                             timeSection
+                        }
+
+                        // 提醒：有截止日时用相对预设，无截止日时选绝对提醒时刻
+                        reminderSection
+
+                        // 重复：需要截止日
+                        if hasDueDate {
+                            repeatSection
                         }
                     }
                     .padding(.horizontal, HoloSpacing.lg)
@@ -77,6 +86,14 @@ struct TaskDatePickerSheet: View {
         }
         .presentationDetents([.height(560), .large])
         .presentationDragIndicator(.visible)
+        .onChange(of: hasDueDate) { _, isOn in
+            // 关闭截止日时，清理无效的相对提醒（只保留绝对提醒）
+            if !isOn {
+                selectedReminders = selectedReminders.filter { $0.isAbsolute }
+                hasRepeat = false
+                newAbsoluteReminderId = nil
+            }
+        }
     }
 
     // MARK: - Compact Date-Time Sections
@@ -372,19 +389,96 @@ struct TaskDatePickerSheet: View {
                 Spacer()
             }
 
-            // 预设选项
-            FlowLayout(spacing: HoloSpacing.sm) {
-                ForEach(TaskReminder.presetOptions, id: \.offsetMinutes) { reminder in
-                    ReminderChip(
-                        reminder: reminder,
-                        isSelected: selectedReminders.contains(reminder),
-                        onTap: {
-                            toggleReminder(reminder)
+            if hasDueDate {
+                // 有截止日：相对预设（截止前 N 分钟）
+                FlowLayout(spacing: HoloSpacing.sm) {
+                    ForEach(TaskReminder.presetOptions, id: \.offsetMinutes) { reminder in
+                        ReminderChip(
+                            reminder: reminder,
+                            isSelected: selectedReminders.contains(reminder),
+                            onTap: {
+                                toggleReminder(reminder)
+                            }
+                        )
+                    }
+                }
+                .padding(.top, 4)
+            } else {
+                // 无截止日：选具体提醒时刻（绝对提醒）
+                Text("没有截止日时，设置一个具体的提醒时刻")
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary)
+                    .padding(.top, 2)
+
+                // 已设的绝对提醒列表
+                let absoluteReminders = selectedReminders.filter { $0.isAbsolute }
+                ForEach(Array(absoluteReminders), id: \.id) { reminder in
+                    HStack {
+                        Image(systemName: "alarm")
+                            .font(.system(size: 14))
+                            .foregroundColor(.holoPrimary)
+
+                        Text(reminder.displayTitle)
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+
+                        Spacer()
+
+                        Button {
+                            selectedReminders.remove(reminder)
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.system(size: 18))
+                                .foregroundColor(.holoTextSecondary)
                         }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color.holoPrimary.opacity(0.08))
+                    .cornerRadius(HoloRadius.sm)
+                }
+
+                // 添加新提醒
+                Button {
+                    // 添加一个 1 小时后的绝对提醒作为默认值，用户可调整
+                    let newReminder = TaskReminder(triggerDate: Date().addingTimeInterval(3600))
+                    selectedReminders.insert(newReminder)
+                    newAbsoluteReminderId = newReminder.id
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 16))
+                        Text("添加提醒时刻")
+                            .font(.holoBody)
+                    }
+                    .foregroundColor(.holoPrimary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                }
+                .buttonStyle(.plain)
+
+                // 新增/编辑绝对提醒的 DatePicker
+                if let reminderId = newAbsoluteReminderId,
+                   let reminder = selectedReminders.first(where: { $0.id == reminderId }) {
+                    DatePicker(
+                        "提醒时间",
+                        selection: Binding(
+                            get: { reminder.triggerDate ?? Date() },
+                            set: { newDate in
+                                var updated = selectedReminders
+                                updated.remove(reminder)
+                                updated.insert(TaskReminder(id: reminderId, triggerDate: newDate))
+                                selectedReminders = updated
+                            }
+                        ),
+                        displayedComponents: [.date, .hourAndMinute]
                     )
+                    .labelsHidden()
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 4)
                 }
             }
-            .padding(.top, 4)
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)

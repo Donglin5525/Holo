@@ -15,18 +15,16 @@ import Foundation
 import CoreData
 import os.log
 
-/// 待办时间维度（P2：日历切换查看完成/到期/计划）
+/// 待办时间维度（日历切换查看完成/到期）
 enum TodoTimeDimension: String, CaseIterable {
     case completed
     case due
-    case planned
 
     /// 对应 TodoTask 实体字段名
     var fieldName: String {
         switch self {
         case .completed: return "completedAt"
         case .due:       return "dueDate"
-        case .planned:   return "plannedDate"
         }
     }
 
@@ -34,7 +32,6 @@ enum TodoTimeDimension: String, CaseIterable {
         switch self {
         case .completed: return "已完成"
         case .due:       return "到期"
-        case .planned:   return "计划"
         }
     }
 }
@@ -140,7 +137,7 @@ struct CalendarEventProvider {
         return Partial(module: .habit, events: events, state: events.isEmpty ? .empty : .loaded)
     }
 
-    /// 待办：按 dimension 选字段（completed/due/planned）取实体
+    /// 待办：按 dimension 选字段（completed/due）取实体
     private func fetchTodo(in range: DateInterval, dimension: TodoTimeDimension) -> Partial {
         let tasks = todoRepo.getTasks(field: dimension.fieldName, from: range.start, to: range.end)
         let events: [CalendarEvent] = tasks.compactMap { task in
@@ -148,7 +145,6 @@ struct CalendarEventProvider {
             switch dimension {
             case .completed: date = task.completedAt
             case .due:       date = task.dueDate
-            case .planned:   date = task.plannedDate
             }
             guard let eventDate = date else { return nil }
             return CalendarEvent(

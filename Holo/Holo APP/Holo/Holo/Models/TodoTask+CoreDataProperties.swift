@@ -21,7 +21,6 @@ extension TodoTask {
         dueDate: Date? = nil,
         isAllDay: Bool = false,
         reminders: Set<TaskReminder>? = nil,
-        plannedDate: Date? = nil,
         isDailyRitual: Bool = false
     ) -> TodoTask {
         let task = TodoTask(context: context)
@@ -32,7 +31,6 @@ extension TodoTask {
         task.priority = priority.rawValue
         task.dueDate = dueDate
         task.isAllDay = isAllDay
-        task.plannedDate = plannedDate
         task.isDailyRitual = isDailyRitual
         task.status = TaskStatus.todo.rawValue
         task.completed = false
@@ -72,12 +70,6 @@ extension TodoTask {
     var isDueToday: Bool {
         guard let dueDate = dueDate else { return false }
         return Calendar.current.isDateInToday(dueDate)
-    }
-
-    /// 判断是否已规划到今天
-    var isPlannedToday: Bool {
-        guard let plannedDate = plannedDate else { return false }
-        return Calendar.current.isDateInToday(plannedDate)
     }
 
     /// 判断是否明天到期

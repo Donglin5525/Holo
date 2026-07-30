@@ -43,6 +43,7 @@ class Thought: NSManagedObject, @unchecked Sendable {
     @NSManaged var tagAssignments: NSSet?          // ThoughtTagAssignment 中间实体
     @NSManaged var topics: NSSet?                   // Topic 多对多
     @NSManaged var attachments: NSSet?              // ThoughtAttachment 附件
+    @NSManaged var createdTasks: NSSet?             // 由本想法转换而来的任务（to-many）
 }
 
 // MARK: - Core Data Generated Accessors

@@ -351,8 +351,7 @@ enum HoloAppStoreScreenshotSeeder {
                 in: context,
                 title: sample.0,
                 priority: .medium,
-                dueDate: completedAt,
-                plannedDate: completedAt
+                dueDate: completedAt
             )
             task.completed = true
             task.status = TaskStatus.completed.rawValue
@@ -366,8 +365,7 @@ enum HoloAppStoreScreenshotSeeder {
             in: context,
             title: "明早带伞",
             priority: .medium,
-            dueDate: tomorrow,
-            plannedDate: tomorrow
+            dueDate: tomorrow
         )
         return actionTask
     }

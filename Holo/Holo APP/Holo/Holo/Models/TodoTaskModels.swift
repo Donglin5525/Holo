@@ -75,10 +75,25 @@ enum MonthlyRepeatMode: String, Codable, CaseIterable {
 // MARK: - TaskReminder
 
 /// 任务提醒
+///
+/// 两种模式：
+/// - 相对模式：`triggerDate == nil`，按 `offsetMinutes` 相对截止时间推算（如「截止前 15 分钟」）
+/// - 绝对模式：`triggerDate != nil`，直接在指定时刻触发（不依赖截止时间，可独立提醒）
 struct TaskReminder: Identifiable, Codable, Hashable {
     let id: UUID
     var offsetMinutes: Int // 相对于截止时间的分钟数（负数表示提前）
+    var triggerDate: Date? // 绝对触发时间（非 nil 时优先使用，脱离截止日）
+
+    /// 是否为独立提醒（不依赖截止日）
+    var isAbsolute: Bool { triggerDate != nil }
+
     var displayTitle: String {
+        if let triggerDate = triggerDate {
+            let f = DateFormatter()
+            f.locale = Locale(identifier: "zh_CN")
+            f.dateFormat = "M月d日 HH:mm"
+            return f.string(from: triggerDate)
+        }
         switch offsetMinutes {
         case 0: return "截止时间"
         case 5: return "5 分钟前"
@@ -90,12 +105,21 @@ struct TaskReminder: Identifiable, Codable, Hashable {
         }
     }
 
+    /// 相对模式构造
     init(id: UUID = UUID(), offsetMinutes: Int = 0) {
         self.id = id
         self.offsetMinutes = offsetMinutes
+        self.triggerDate = nil
     }
 
-    /// 预设的提醒选项
+    /// 绝对模式构造（独立提醒，不依赖截止日）
+    init(id: UUID = UUID(), triggerDate: Date) {
+        self.id = id
+        self.offsetMinutes = 0
+        self.triggerDate = triggerDate
+    }
+
+    /// 预设的提醒选项（相对模式，需配合截止时间）
     static let presetOptions: [TaskReminder] = [
         TaskReminder(offsetMinutes: 0),
         TaskReminder(offsetMinutes: 5),

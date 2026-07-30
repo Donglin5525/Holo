@@ -50,25 +50,20 @@ struct AddTaskSheet: View {
     @State private var hasDueDate = false
     @State private var hasTime = false
     @State private var selectedReminders: Set<TaskReminder> = []
-    @State private var selectedTags: Set<UUID> = []
     @State private var selectedListId: UUID? = nil
 
     @State private var showListPicker = false
-    @State private var showDateTimeSheet = false
-    @State private var showReminderSheet = false
-    @State private var showRepeatSheet = false
+    @State private var showTimeSheet = false
     @State private var showTaskVoiceInput = false
     @State private var pendingTaskVoiceTranscriptToInsert: String? = nil
-    @State private var showTagPicker = false
-    @State private var showAddTagSheet = false
     @State private var showAddListSheet = false
     @State private var showEditListSheet = false
     @State private var editingList: TodoList? = nil
     @State private var showDeleteConfirm = false
     @State private var itemToDelete: DeleteTarget? = nil
     @State private var isSaving = false
-    @State private var newTagName = ""
-    @State private var newTagColor = "#4A90D9"
+    @State private var showSaveErrorAlert = false
+    @State private var saveErrorMessage = ""
 
     // 重复相关状态
     @State private var hasRepeat = false
@@ -85,18 +80,12 @@ struct AddTaskSheet: View {
     // 删除目标类型
     private enum DeleteTarget: Identifiable {
         case list(TodoList)
-        case tag(TodoTag)
         var id: String {
             switch self {
             case .list(let l): return "list-\(l.id)"
-            case .tag(let t): return "tag-\(t.id)"
             }
         }
     }
-
-    // 编辑标签相关
-    @State private var showEditTagSheet = false
-    @State private var editingTag: TodoTag? = nil
 
     // 未保存修改确认
     @State private var showDismissAlert: Bool = false
@@ -113,6 +102,7 @@ struct AddTaskSheet: View {
     @State private var showChecklistCompletionCelebration = false
     @State private var checklistCompletionCelebrationID = UUID()
     @FocusState private var isCheckItemEditing: Bool
+    @FocusState private var isTitleFocused: Bool
 
     // 编辑模式专属
     @State private var taskStatus: TaskStatus = .todo
@@ -146,7 +136,6 @@ struct AddTaskSheet: View {
             _hasDueDate = State(initialValue: task.dueDate != nil)
             _hasTime = State(initialValue: !task.isAllDay)
             _selectedReminders = State(initialValue: task.remindersSet)
-            _selectedTags = State(initialValue: Set(task.tags?.allObjects.compactMap { ($0 as? TodoTag)?.id } ?? []))
             _selectedListId = State(initialValue: task.list?.id)
 
             // 加载重复规则
@@ -244,17 +233,8 @@ struct AddTaskSheet: View {
         .sheet(isPresented: $showListPicker) {
             listPickerSheet
         }
-        .sheet(isPresented: $showTagPicker) {
-            tagPickerSheet
-        }
-        .sheet(isPresented: $showDateTimeSheet) {
+        .sheet(isPresented: $showTimeSheet) {
             dateTimeSheet
-        }
-        .sheet(isPresented: $showReminderSheet) {
-            reminderSheet
-        }
-        .sheet(isPresented: $showRepeatSheet) {
-            repeatSheet
         }
         .sheet(isPresented: $showTaskVoiceInput, onDismiss: insertPendingTaskVoiceTranscript) {
             if smartSummaryEnabled {
@@ -349,12 +329,22 @@ struct AddTaskSheet: View {
         } message: {
             Text("确定要删除此任务吗？任务将进入回收站，30 天后可恢复。")
         }
+        .alert("保存失败", isPresented: $showSaveErrorAlert) {
+            Button("好的", role: .cancel) {}
+        } message: {
+            Text(saveErrorMessage)
+        }
         .onAppear {
             // 编辑模式：加载已有的检查清单
             if let task = existingTask {
                 let items = task.checkItems?.allObjects as? [CheckItem] ?? []
                 checkItems = items.sorted { $0.order < $1.order }
                 displayedChecklistProgress = checklistProgress
+            } else {
+                // 新建模式：自动聚焦标题输入框，弹键盘
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                    isTitleFocused = true
+                }
             }
         }
     }
@@ -369,7 +359,6 @@ struct AddTaskSheet: View {
                 || description != (task.desc ?? "")
                 || priority != task.taskPriority
                 || selectedListId != task.list?.id
-                || selectedTags != Set(task.tags?.allObjects.compactMap { ($0 as? TodoTag)?.id } ?? [])
                 || checkItems.count != (task.checkItems?.count ?? 0)
         } else {
             // 新增模式：检查是否输入了内容
@@ -377,7 +366,6 @@ struct AddTaskSheet: View {
                 || !description.isEmpty
                 || hasDueDate
                 || hasRepeat
-                || !selectedTags.isEmpty
                 || !pendingCheckItems.isEmpty
         }
     }
@@ -430,6 +418,7 @@ struct AddTaskSheet: View {
                     .font(.holoHeading)
                     .foregroundColor(.holoTextPrimary)
                     .strikethrough(existingTask?.completed == true, color: .holoTextSecondary)
+                    .focused($isTitleFocused)
             }
 
             // 编辑模式：重复任务提示
@@ -644,11 +633,6 @@ struct AddTaskSheet: View {
         return formatter.string(from: dueDate)
     }
 
-    private var reminderChipText: String {
-        guard hasDueDate else { return "不提醒" }
-        return selectedReminders.isEmpty ? "不提醒" : reminderSummaryText
-    }
-
     // MARK: - 更多属性
 
     private var advancedPropertiesSection: some View {
@@ -667,7 +651,7 @@ struct AddTaskSheet: View {
                         Text("更多属性")
                             .font(.holoBody)
                             .foregroundColor(.holoTextPrimary)
-                        Text("优先级和标签默认收起")
+                        Text("优先级默认收起")
                             .font(.holoCaption)
                             .foregroundColor(.holoTextSecondary)
                             .lineLimit(1)
@@ -682,11 +666,6 @@ struct AddTaskSheet: View {
                             .font(.holoCaption)
                             .foregroundColor(.holoTextPrimary)
                             .fontWeight(.semibold)
-
-                        Text(tagSummaryText)
-                            .font(.holoCaption)
-                            .foregroundColor(.holoTextSecondary)
-                            .lineLimit(1)
                             .minimumScaleFactor(0.8)
                     }
                     .frame(maxWidth: 116, alignment: .trailing)
@@ -706,16 +685,11 @@ struct AddTaskSheet: View {
 
                 VStack(spacing: HoloSpacing.md) {
                     prioritySection
-                    tagSection
                 }
                 .padding(12)
                 .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
-    }
-
-    private var tagSummaryText: String {
-        selectedTags.isEmpty ? "无标签" : "\(selectedTags.count) 个标签"
     }
 
     // MARK: - 所属清单
@@ -826,117 +800,64 @@ struct AddTaskSheet: View {
     private var isAllDay: Bool { !hasTime }
 
     private var dueDateSection: some View {
-        VStack(spacing: 0) {
-            // 标题行 + 开关
+        Button {
+            showTimeSheet = true
+        } label: {
             HStack(spacing: HoloSpacing.sm) {
                 Image(systemName: "calendar")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(.holoTextSecondary)
 
-                Text("截止日期")
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
-
-                Spacer()
-
-                Toggle("", isOn: $hasDueDate)
-                    .labelsHidden()
-                    .tint(.holoPrimary)
-            }
-            .frame(minHeight: 36)
-
-            if hasDueDate {
-                Divider()
-                    .padding(.vertical, HoloSpacing.xs)
-
-                Button {
-                    showDateTimeSheet = true
-                } label: {
-                    settingRow(
-                        icon: "calendar",
-                        title: "日期",
-                        value: formattedDueDateSummary,
-                        valueColor: .holoTextSecondary,
-                        showsChevron: true
-                    )
-                }
-                .buttonStyle(.plain)
-
-                Divider()
-                    .padding(.vertical, HoloSpacing.xs)
-
-                Button {
-                    showDateTimeSheet = true
-                } label: {
-                    settingRow(
-                        icon: "clock",
-                        title: "时间",
-                        value: hasTime ? formattedTime : "全天",
-                        valueColor: hasTime ? .holoPrimary : .holoTextPlaceholder,
-                        showsChevron: true
-                    )
-                }
-                .buttonStyle(.plain)
-
-                Divider()
-                    .padding(.vertical, HoloSpacing.xs)
-
-                // 提醒行
-                Button {
-                    showReminderSheet = true
-                } label: {
-                    settingRow(
-                        icon: "bell",
-                        title: "提醒",
-                        value: selectedReminders.isEmpty ? "未设置" : reminderSummaryText,
-                        valueColor: selectedReminders.isEmpty ? .holoTextPlaceholder : .holoTextSecondary,
-                        showsChevron: true
-                    )
-                }
-                .buttonStyle(.plain)
-
-                Divider()
-                    .padding(.vertical, HoloSpacing.xs)
-
-                // 重复行
-                HStack(spacing: HoloSpacing.sm) {
-                    rowIcon("repeat")
-
-                    Text("重复")
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("时间")
                         .font(.holoBody)
                         .foregroundColor(.holoTextPrimary)
 
-                    Spacer()
+                    Text(timeSummaryText)
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                        .lineLimit(1)
+                }
 
-                    if hasRepeat {
-                        Button {
-                            showRepeatSheet = true
-                        } label: {
-                            HStack(spacing: 4) {
-                                Text(repeatType.displayTitle)
-                                    .font(.holoCaption)
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 10, weight: .medium))
-                            }
-                            .foregroundColor(.white)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.holoPrimary)
-                            .clipShape(Capsule())
-                        }
-                        .buttonStyle(.plain)
+                Spacer()
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.holoTextSecondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
+            .background(Color.holoCardBackground)
+            .cornerRadius(HoloRadius.sm)
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// 时间摘要文本：一行概括日期、提醒、重复状态
+    private var timeSummaryText: String {
+        var parts: [String] = []
+        if hasDueDate {
+            parts.append(hasTime ? "\(formattedDueDateSummary) \(formattedTime)" : "\(formattedDueDateSummary)")
+        }
+        if !selectedReminders.isEmpty {
+            let absoluteCount = selectedReminders.filter { $0.isAbsolute }.count
+            if hasDueDate {
+                parts.append("提醒\(selectedReminders.count)项")
+            } else {
+                // 无截止日时，摘要直接展示绝对提醒时刻
+                let reminder = selectedReminders.first(where: { $0.isAbsolute })
+                if let reminder = reminder {
+                    parts.append("⏰ \(reminder.displayTitle)")
+                    if absoluteCount > 1 {
+                        parts[parts.count - 1] += " 等\(absoluteCount)项"
                     }
-
-                    Toggle("", isOn: $hasRepeat)
-                        .labelsHidden()
-                        .tint(.holoPrimary)
                 }
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(Color.holoCardBackground)
-        .cornerRadius(HoloRadius.sm)
+        if hasRepeat {
+            parts.append("重复\(repeatType.displayTitle)")
+        }
+        return parts.isEmpty ? "设置时间、提醒" : parts.joined(separator: " · ")
     }
 
     private func settingRow(
@@ -992,73 +913,6 @@ struct AddTaskSheet: View {
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: dueDate)
-    }
-
-    /// 提醒摘要文本
-    private var reminderSummaryText: String {
-        selectedReminders.sorted { $0.offsetMinutes > $1.offsetMinutes }
-            .map(\.displayTitle)
-            .joined(separator: "、")
-    }
-
-    // MARK: - 标签
-
-    private var tagSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("标签")
-                .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
-
-            Button {
-                showTagPicker = true
-            } label: {
-                HStack(spacing: HoloSpacing.sm) {
-                    Image(systemName: "tag")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.holoTextSecondary)
-
-                    if selectedTags.isEmpty {
-                        Text("选择标签")
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPlaceholder)
-                    } else {
-                        HStack(spacing: 4) {
-                            ForEach(Array(selectedTags.prefix(3)), id: \.self) { tagId in
-                                if let tag = repository.tags.first(where: { $0.id == tagId }) {
-                                    HStack(spacing: 4) {
-                                        Circle()
-                                            .fill(Color(hex: tag.color))
-                                            .frame(width: 8, height: 8)
-                                        Text(tag.name)
-                                            .font(.holoCaption)
-                                    }
-                                    .padding(.horizontal, 8)
-                                    .padding(.vertical, 4)
-                                    .background(Color(hex: tag.color).opacity(0.1))
-                                    .clipShape(Capsule())
-                                }
-                            }
-                            if selectedTags.count > 3 {
-                                Text("+\(selectedTags.count - 3)")
-                                    .font(.holoCaption)
-                                    .foregroundColor(.holoTextSecondary)
-                            }
-                        }
-                    }
-
-                    Spacer()
-
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.holoTextSecondary)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(Color.holoCardBackground)
-                .cornerRadius(HoloRadius.sm)
-            }
-            .buttonStyle(PlainButtonStyle())
-        }
     }
 
     // MARK: - 描述
@@ -1711,8 +1565,6 @@ struct AddTaskSheet: View {
                 switch target {
                 case .list(let list):
                     Text("确定要删除清单「\(list.name)」吗？该清单下的所有任务都将被删除。")
-                case .tag(let tag):
-                    Text("确定要永久删除标签「\(tag.name)」吗？此操作不可撤销，但已关联的任务将保留。")
                 }
             }
         }
@@ -1775,256 +1627,9 @@ struct AddTaskSheet: View {
                     selectedListId = nil
                 }
                 try repository.deleteList(list)
-            case .tag(let tag):
-                // 如果当前选中了该标签，移除选中
-                selectedTags.remove(tag.id)
-                try repository.permanentlyDeleteTag(tag)
             }
         } catch {
             Self.logger.error("删除失败: \(error.localizedDescription)")
-        }
-    }
-
-    // MARK: - 标签选择器 Sheet
-
-    private var tagPickerSheet: some View {
-        NavigationStack {
-            ZStack {
-                Color.holoBackground.ignoresSafeArea()
-
-                ScrollView {
-                    VStack(spacing: HoloSpacing.md) {
-                        // 新增标签按钮
-                        Button {
-                            showAddTagSheet = true
-                        } label: {
-                            HStack(spacing: HoloSpacing.sm) {
-                                Image(systemName: "plus.circle.fill")
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundColor(.holoPrimary)
-
-                                Text("新增标签")
-                                    .font(.holoBody)
-                                    .foregroundColor(.holoPrimary)
-
-                                Spacer()
-                            }
-                            .padding(.horizontal, HoloSpacing.lg)
-                            .padding(.vertical, HoloSpacing.md)
-                            .background(Color.holoPrimary.opacity(0.1))
-                            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-                        }
-                        .buttonStyle(PlainButtonStyle())
-
-                        Divider()
-                            .padding(.vertical, HoloSpacing.sm)
-
-                        ForEach(repository.tags, id: \.id) { tag in
-                            // 标签项（支持长按菜单）
-                            Button {
-                                if selectedTags.contains(tag.id) {
-                                    selectedTags.remove(tag.id)
-                                } else {
-                                    selectedTags.insert(tag.id)
-                                }
-                            } label: {
-                                HStack(spacing: HoloSpacing.sm) {
-                                    Circle()
-                                        .fill(Color(hex: tag.color))
-                                        .frame(width: 12, height: 12)
-
-                                    Text(tag.name)
-                                        .font(.holoBody)
-                                        .foregroundColor(.holoTextPrimary)
-
-                                    Spacer()
-
-                                    if selectedTags.contains(tag.id) {
-                                        Image(systemName: "checkmark")
-                                            .font(.system(size: 14, weight: .semibold))
-                                            .foregroundColor(.holoPrimary)
-                                    }
-                                }
-                                .padding(.horizontal, HoloSpacing.lg)
-                                .padding(.vertical, HoloSpacing.md)
-                                .background(selectedTags.contains(tag.id) ? Color(hex: tag.color).opacity(0.1) : Color.holoCardBackground)
-                                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-                            }
-                            .buttonStyle(PlainButtonStyle())
-                            .contextMenu {
-                                Button {
-                                    editingTag = tag
-                                    showEditTagSheet = true
-                                } label: {
-                                    Label("编辑标签", systemImage: "pencil")
-                                }
-
-                                Button {
-                                    archiveTag(tag)
-                                } label: {
-                                    Label("归档标签", systemImage: "archivebox")
-                                }
-
-                                Divider()
-
-                                Button(role: .destructive) {
-                                    itemToDelete = .tag(tag)
-                                    showDeleteConfirm = true
-                                } label: {
-                                    Label("删除标签", systemImage: "trash")
-                                }
-                            }
-                        }
-
-                        if repository.tags.isEmpty {
-                            VStack(spacing: HoloSpacing.md) {
-                                Image(systemName: "tag")
-                                    .font(.system(size: 40, weight: .light))
-                                    .foregroundColor(.holoTextSecondary.opacity(0.5))
-
-                                Text("暂无标签")
-                                    .font(.holoBody)
-                                    .foregroundColor(.holoTextSecondary)
-
-                                Text("点击上方\"新增标签\"创建")
-                                    .font(.holoCaption)
-                                    .foregroundColor(.holoTextSecondary.opacity(0.7))
-                            }
-                            .padding(.top, HoloSpacing.xl)
-                        }
-                    }
-                    .padding(.horizontal, HoloSpacing.lg)
-                    .padding(.top, HoloSpacing.md)
-                }
-            }
-            .navigationTitle("选择标签")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("完成") {
-                        showTagPicker = false
-                    }
-                    .foregroundColor(.holoPrimary)
-                }
-            }
-            .sheet(isPresented: $showAddTagSheet) {
-                addTagSheet
-            }
-            .sheet(isPresented: $showEditTagSheet) {
-                if let tag = editingTag {
-                    EditTagSheet(repository: repository, tag: tag)
-                }
-            }
-        }
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
-    }
-
-    // MARK: - 归档标签
-
-    private func archiveTag(_ tag: TodoTag) {
-        do {
-            // 归档 = 软删除，标签从列表中隐藏，但已关联的任务保留关联
-            try repository.deleteTag(tag)
-            // 如果当前选中了该标签，移除选中
-            selectedTags.remove(tag.id)
-        } catch {
-            Self.logger.error("归档标签失败: \(error.localizedDescription)")
-        }
-    }
-
-    // MARK: - 新增标签 Sheet
-
-    private var addTagSheet: some View {
-        NavigationStack {
-            ZStack {
-                Color.holoBackground.ignoresSafeArea()
-
-                VStack(spacing: HoloSpacing.lg) {
-                    // 标签名称
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("标签名称")
-                            .font(.holoLabel)
-                            .foregroundColor(.holoTextSecondary)
-
-                        TextField("输入标签名称", text: $newTagName)
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 10)
-                            .background(Color.holoCardBackground)
-                            .cornerRadius(HoloRadius.sm)
-                    }
-
-                    // 颜色选择
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("标签颜色")
-                            .font(.holoLabel)
-                            .foregroundColor(.holoTextSecondary)
-
-                        HStack(spacing: 8) {
-                            ForEach(["#4A90D9", "#E74C3C", "#2ECC71", "#F39C12", "#9B59B6", "#1ABC9C"], id: \.self) { color in
-                                Button {
-                                    newTagColor = color
-                                } label: {
-                                    Circle()
-                                        .fill(Color(hex: color))
-                                        .frame(width: 32, height: 32)
-                                        .overlay(
-                                            Circle()
-                                                .stroke(Color.white, lineWidth: newTagColor == color ? 3 : 0)
-                                        )
-                                }
-                                .buttonStyle(PlainButtonStyle())
-                            }
-                        }
-                    }
-
-                    Spacer()
-                }
-                .padding(.horizontal, HoloSpacing.lg)
-                .padding(.top, HoloSpacing.md)
-            }
-            .navigationTitle("新增标签")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("取消") {
-                        newTagName = ""
-                        newTagColor = "#4A90D9"
-                        showAddTagSheet = false
-                    }
-                    .foregroundColor(.holoTextSecondary)
-                }
-
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("创建") {
-                        createTag()
-                    }
-                    .foregroundColor(newTagName.trimmingCharacters(in: .whitespaces).isEmpty ? .holoTextSecondary : .holoPrimary)
-                    .fontWeight(.semibold)
-                    .disabled(newTagName.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
-            }
-        }
-        .presentationDetents([.height(280)])
-        .presentationDragIndicator(.visible)
-    }
-
-    // MARK: - 创建标签
-
-    private func createTag() {
-        let trimmedName = newTagName.trimmingCharacters(in: .whitespaces)
-        guard !trimmedName.isEmpty else { return }
-
-        do {
-            let tag = try repository.createTag(name: trimmedName, color: newTagColor)
-            selectedTags.insert(tag.id)
-            newTagName = ""
-            newTagColor = "#4A90D9"
-            showAddTagSheet = false
-        } catch {
-            Self.logger.error("创建标签失败: \(error.localizedDescription)")
         }
     }
 
@@ -2066,8 +1671,10 @@ struct AddTaskSheet: View {
         }
 
         let trimmedTitle = title.trimmingCharacters(in: .whitespaces)
-        let selectedTagObjects = repository.tags.filter { selectedTags.contains($0.id) }
-        let remindersToSave = hasDueDate ? selectedReminders : nil
+        // 无截止日时只保留绝对提醒（相对提醒依赖截止日，无意义）
+        let remindersToSave: Set<TaskReminder>? = hasDueDate
+            ? selectedReminders
+            : (selectedReminders.contains { $0.isAbsolute } ? selectedReminders.filter { $0.isAbsolute } : nil)
 
         do {
             try repository.updateTask(
@@ -2079,7 +1686,6 @@ struct AddTaskSheet: View {
                 dueDate: hasDueDate ? dueDate : nil,
                 isAllDay: !hasTime,
                 list: selectedList,
-                tags: selectedTagObjects,
                 reminders: remindersToSave
             )
 
@@ -2123,7 +1729,6 @@ struct AddTaskSheet: View {
         isSaving = true
 
         let trimmedTitle = title.trimmingCharacters(in: .whitespaces)
-        let selectedTagObjects = repository.tags.filter { selectedTags.contains($0.id) }
 
         // 只有设置了截止日期才传递提醒
         let remindersToSave = hasDueDate ? selectedReminders : nil
@@ -2143,7 +1748,6 @@ struct AddTaskSheet: View {
                         dueDate: hasDueDate ? dueDate : nil,
                         isAllDay: !hasTime,
                         list: selectedList,
-                        tags: selectedTagObjects,
                         reminders: remindersToSave
                     )
 
@@ -2185,7 +1789,6 @@ struct AddTaskSheet: View {
                         priority: priority,
                         dueDate: hasDueDate ? dueDate : nil,
                         isAllDay: !hasTime,
-                        tags: selectedTagObjects,
                         reminders: remindersToSave
                     )
 
@@ -2235,6 +1838,8 @@ struct AddTaskSheet: View {
                 Self.logger.error("保存任务失败: \(error.localizedDescription)")
                 await MainActor.run {
                     isSaving = false
+                    saveErrorMessage = "保存失败：\(error.localizedDescription)"
+                    showSaveErrorAlert = true
                 }
             }
         }
@@ -2264,78 +1869,6 @@ struct AddTaskSheet: View {
         )
     }
 
-    // MARK: - 提醒选择弹窗
-
-    private var reminderSheet: some View {
-        NavigationStack {
-            ZStack {
-                Color.holoBackground.ignoresSafeArea()
-
-                ScrollView(showsIndicators: false) {
-                    ReminderPicker(
-                        selectedReminders: $selectedReminders,
-                        isEnabled: true
-                    )
-                    .padding(.horizontal, HoloSpacing.lg)
-                    .padding(.top, HoloSpacing.md)
-                }
-            }
-            .navigationTitle("选择提醒")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("完成") {
-                        showReminderSheet = false
-                    }
-                    .foregroundColor(.holoPrimary)
-                    .fontWeight(.semibold)
-                }
-            }
-        }
-        .presentationDetents([.height(220)])
-        .presentationDragIndicator(.visible)
-    }
-
-    // MARK: - 重复设置弹窗
-
-    private var repeatSheet: some View {
-        NavigationStack {
-            ZStack {
-                Color.holoBackground.ignoresSafeArea()
-
-                ScrollView(showsIndicators: false) {
-                    RepeatPicker(
-                        hasRepeat: .constant(true),
-                        repeatType: $repeatType,
-                        selectedWeekdays: $selectedWeekdays,
-                        monthDay: $monthDay,
-                        monthWeekOrdinal: $monthWeekOrdinal,
-                        monthWeekday: $monthWeekday,
-                        monthlyRepeatMode: $monthlyRepeatMode,
-                        endConditionType: $endConditionType,
-                        endDate: $repeatEndDate,
-                        endCount: $repeatEndCount,
-                        isEnabled: true
-                    )
-                    .padding(.horizontal, HoloSpacing.lg)
-                    .padding(.top, HoloSpacing.md)
-                }
-            }
-            .navigationTitle("重复设置")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("完成") {
-                        showRepeatSheet = false
-                    }
-                    .foregroundColor(.holoPrimary)
-                    .fontWeight(.semibold)
-                }
-            }
-        }
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
-    }
 }
 
 // MARK: - TaskChecklistProgressBar

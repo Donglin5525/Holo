@@ -14,14 +14,18 @@ struct KanbanTaskSection: View {
     @State private var showAddSheet = false
     @State private var refreshTrigger = false
 
-    private var plannedTasks: [TodoTask] {
-        _ = refreshTrigger
-        return todoRepo.getPlannedTodayTasks()
-    }
+    /// 撤回窗口（来自 repository 全局状态，与 TaskListView 共享）
+    private var pendingCompletionTaskId: UUID? { todoRepo.pendingCompletionTaskId }
 
-    private var dueTodayTasks: [TodoTask] {
+    /// 选中查看详情的任务
+    private struct TaskSelection: Identifiable, Equatable {
+        let id: UUID
+    }
+    @State private var selectedTask: TaskSelection? = nil
+
+    private var todayTasks: [TodoTask] {
         _ = refreshTrigger
-        return todoRepo.getDueTodayUnplannedTasks()
+        return todoRepo.getDueTodayTasks()
     }
 
     private var recentTasks: [TodoTask] {
@@ -35,27 +39,20 @@ struct KanbanTaskSection: View {
     }
 
     private var completedCount: Int {
-        plannedTasks.filter { $0.completed }.count
+        todayTasks.filter { $0.completed }.count
     }
 
     var body: some View {
         VStack(spacing: 8) {
             sectionHeader
 
-            if plannedTasks.isEmpty && dueTodayTasks.isEmpty && recentTasks.isEmpty && openTasks.isEmpty {
+            if todayTasks.isEmpty && recentTasks.isEmpty && openTasks.isEmpty {
                 emptyView
             } else {
                 VStack(spacing: 0) {
-                    ForEach(plannedTasks, id: \.id) { task in
+                    ForEach(todayTasks, id: \.id) { task in
                         taskRow(task: task)
-                        if task.id != plannedTasks.last?.id || !dueTodayTasks.isEmpty {
-                            Divider().background(Color.holoDivider)
-                        }
-                    }
-
-                    ForEach(dueTodayTasks, id: \.id) { task in
-                        taskRow(task: task)
-                        if task.id != dueTodayTasks.last?.id {
+                        if task.id != todayTasks.last?.id {
                             Divider().background(Color.holoDivider)
                         }
                     }
@@ -68,16 +65,48 @@ struct KanbanTaskSection: View {
                 .shadow(color: HoloShadow.card, radius: 4, y: 1)
             }
 
-            if !dueTodayTasks.isEmpty {
-                dueBanner
-            }
-
             if !recentTasks.isEmpty || !openTasks.isEmpty {
                 recentSection
+            }
+
+            // 撤回 banner（与 TaskListView 一致的 3 秒撤回体验）
+            if pendingCompletionTaskId != nil {
+                HStack {
+                    HStack(spacing: 6) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 16, weight: .medium))
+                            .foregroundColor(.holoSuccess)
+                        Text("任务已完成")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+                    }
+
+                    Spacer()
+
+                    Button {
+                        undoCompletion()
+                    } label: {
+                        Text("撤回")
+                            .font(.holoBody)
+                            .foregroundColor(.holoPrimary)
+                            .fontWeight(.semibold)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .background(Color.holoCardBackground)
+                .cornerRadius(HoloRadius.md)
+                .shadow(color: Color.black.opacity(0.1), radius: 8, x: 0, y: 4)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .sheet(isPresented: $showAddSheet) {
             AddTaskSheet(repository: todoRepo, list: nil)
+        }
+        .sheet(item: $selectedTask) { selection in
+            if let task = todoRepo.findTask(by: selection.id) {
+                TaskDetailView(task: task, repository: todoRepo)
+            }
         }
         .onReceive(NotificationCenter.default.publisher(for: .todoDataDidChange)) { _ in
             refreshTrigger.toggle()
@@ -100,7 +129,7 @@ struct KanbanTaskSection: View {
             Label {
                 HStack(spacing: 4) {
                     Text("今日待办")
-                    Text("\(completedCount)/\(plannedTasks.count)")
+                    Text("\(completedCount)/\(todayTasks.count)")
                         .font(.holoTinyLabel)
                         .foregroundColor(.white)
                         .padding(.horizontal, 7)
@@ -123,44 +152,55 @@ struct KanbanTaskSection: View {
         HStack(spacing: 12) {
             taskCheckCircle(task: task)
 
-            VStack(alignment: .leading, spacing: 3) {
-                Text(task.title)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(task.completed ? .holoTextSecondary : .holoTextPrimary)
-                    .strikethrough(task.completed)
+            Button {
+                selectedTask = TaskSelection(id: task.id)
+            } label: {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(task.title)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(task.completed ? .holoTextSecondary : .holoTextPrimary)
+                        .strikethrough(task.completed)
 
-                HStack(spacing: 6) {
-                    if task.isDailyRitual {
-                        Text("仪式")
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundColor(.holoPurple)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 1)
-                            .background(Color.holoPurple.opacity(0.12))
-                            .clipShape(RoundedRectangle(cornerRadius: 4))
-                    }
-                    if let list = task.list {
-                        Text(list.name)
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.holoPrimaryDark)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 1)
-                            .background(Color.holoPrimaryLight)
-                            .clipShape(RoundedRectangle(cornerRadius: 4))
-                    }
-                    if let dueDate = task.dueDate {
-                        Text(formatTime(dueDate))
-                            .font(.holoTinyLabel)
-                            .foregroundColor(.holoTextSecondary)
+                    HStack(spacing: 6) {
+                        if task.isDailyRitual {
+                            Text("仪式")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundColor(.holoPurple)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 1)
+                                .background(Color.holoPurple.opacity(0.12))
+                                .clipShape(RoundedRectangle(cornerRadius: 4))
+                        }
+                        if let list = task.list {
+                            Text(list.name)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.holoPrimaryDark)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 1)
+                                .background(Color.holoPrimaryLight)
+                                .clipShape(RoundedRectangle(cornerRadius: 4))
+                        }
+                        if let dueDate = task.dueDate {
+                            if task.isDueToday {
+                                Text(formatTime(dueDate))
+                                    .font(.holoTinyLabel)
+                                    .foregroundColor(.holoTextSecondary)
+                            } else {
+                                // 逾期任务：红色提示
+                                Text("已逾期 · \(formatDate(dueDate))")
+                                    .font(.holoTinyLabel)
+                                    .foregroundColor(.holoError)
+                            }
+                        }
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                Circle()
+                    .fill(priorityColor(task.taskPriority))
+                    .frame(width: 6, height: 6)
             }
-
-            Spacer()
-
-            Circle()
-                .fill(priorityColor(task.taskPriority))
-                .frame(width: 6, height: 6)
+            .buttonStyle(.plain)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -201,23 +241,6 @@ struct KanbanTaskSection: View {
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
         }
-    }
-
-    private var dueBanner: some View {
-        HStack(spacing: 10) {
-            Text("⚠️")
-            Text("还有 \(dueTodayTasks.count) 项今日到期，点击添加")
-                .font(.system(size: 13, weight: .medium))
-                .foregroundColor(.holoError)
-            Spacer()
-            Image(systemName: "chevron.right")
-                .font(.system(size: 12))
-                .foregroundColor(.holoTextSecondary)
-        }
-        .padding(12)
-        .background(Color.holoErrorLight)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-        .overlay(RoundedRectangle(cornerRadius: HoloRadius.md).stroke(Color.holoError.opacity(0.15), lineWidth: 1))
     }
 
     // MARK: - 近期待办
@@ -268,34 +291,38 @@ struct KanbanTaskSection: View {
 
     private func recentTaskRow(task: TodoTask) -> some View {
         HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 3) {
-                Text(task.title)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.holoTextPrimary)
+            Button {
+                selectedTask = TaskSelection(id: task.id)
+            } label: {
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(task.title)
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(.holoTextPrimary)
 
-                HStack(spacing: 6) {
-                    if let list = task.list {
-                        Text(list.name)
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundColor(.holoPrimaryDark)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 1)
-                            .background(Color.holoPrimaryLight)
-                            .clipShape(RoundedRectangle(cornerRadius: 4))
-                    }
-                    if let dueDate = task.dueDate {
-                        Text(formatDate(dueDate))
-                            .font(.holoTinyLabel)
-                            .foregroundColor(.holoError)
-                    } else {
-                        Text("无截止日期")
-                            .font(.holoTinyLabel)
-                            .foregroundColor(.holoTextSecondary)
+                    HStack(spacing: 6) {
+                        if let list = task.list {
+                            Text(list.name)
+                                .font(.system(size: 10, weight: .medium))
+                                .foregroundColor(.holoPrimaryDark)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 1)
+                                .background(Color.holoPrimaryLight)
+                                .clipShape(RoundedRectangle(cornerRadius: 4))
+                        }
+                        if let dueDate = task.dueDate {
+                            Text(formatDate(dueDate))
+                                .font(.holoTinyLabel)
+                                .foregroundColor(.holoError)
+                        } else {
+                            Text("无截止日期")
+                                .font(.holoTinyLabel)
+                                .foregroundColor(.holoTextSecondary)
+                        }
                     }
                 }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
-
-            Spacer()
+            .buttonStyle(.plain)
 
             Button {
                 addToToday(task)
@@ -317,16 +344,27 @@ struct KanbanTaskSection: View {
     // MARK: - Helpers
 
     private func toggleTask(_ task: TodoTask) {
-        do {
-            if task.completed {
+        if task.completed {
+            // 已完成 → 直接取消完成
+            do {
                 try todoRepo.uncompleteTask(task)
-            } else {
-                try todoRepo.completeTask(task)
-                HapticManager.taskCompletion()
+                HapticManager.medium()
+            } catch {
+                Logger(subsystem: "com.holo.app", category: "UI").error("取消完成失败: \(error.localizedDescription)")
             }
-        } catch {
-            Logger(subsystem: "com.holo.app", category: "UI").error("切换任务状态失败: \(error.localizedDescription)")
+        } else {
+            // 未完成 → 走全局 3 秒撤回流程
+            todoRepo.startPendingCompletion(for: task)
+            HapticManager.taskCompletion()
         }
+    }
+
+    /// 撤回任务完成
+    private func undoCompletion() {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.7)) {
+            todoRepo.undoPendingCompletion()
+        }
+        HapticManager.light()
     }
 
     private func addToToday(_ task: TodoTask) {
