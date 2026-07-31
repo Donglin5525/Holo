@@ -462,6 +462,9 @@ struct AddTaskSheet: View {
             taskDescriptionVoiceControls
                 .frame(maxWidth: .infinity, alignment: .trailing)
         }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 14)
+        .holoCard()
     }
 
     private var taskDescriptionVoiceControls: some View {
@@ -654,8 +657,7 @@ struct AddTaskSheet: View {
 
             listRow
         }
-        .background(Color.holoCardBackground)
-        .cornerRadius(HoloRadius.sm)
+        .holoCard()
     }
 
     // MARK: - 状态选择
@@ -766,41 +768,6 @@ struct AddTaskSheet: View {
         }
     }
 
-    // MARK: - 所属清单
-
-    private var listSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("所属清单")
-                .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
-
-            Button {
-                showListPicker = true
-            } label: {
-                HStack(spacing: HoloSpacing.sm) {
-                    Image(systemName: "folder")
-                        .font(.system(size: 16, weight: .medium))
-                        .foregroundColor(.holoTextSecondary)
-
-                    Text(selectedListName)
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextPrimary)
-
-                    Spacer()
-
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 12, weight: .medium))
-                        .foregroundColor(.holoTextSecondary)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 10)
-                .background(Color.holoCardBackground)
-                .cornerRadius(HoloRadius.sm)
-            }
-            .buttonStyle(PlainButtonStyle())
-        }
-    }
-
     private var listRow: some View {
         Button {
             showListPicker = true
@@ -901,8 +868,7 @@ struct AddTaskSheet: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
-            .background(Color.holoCardBackground)
-            .cornerRadius(HoloRadius.sm)
+            .holoCard()
         }
         .buttonStyle(.plain)
     }
@@ -987,26 +953,6 @@ struct AddTaskSheet: View {
         formatter.locale = Locale(identifier: "zh_CN")
         formatter.dateFormat = "HH:mm"
         return formatter.string(from: dueDate)
-    }
-
-    // MARK: - 描述
-
-    private var descriptionSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("描述（可选）")
-                .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
-
-            TextEditor(text: $description)
-                .font(.holoBody)
-                .foregroundColor(.holoTextPrimary)
-                .frame(minHeight: 80)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(Color.holoCardBackground)
-                .cornerRadius(HoloRadius.sm)
-                .scrollContentBackground(.hidden)
-        }
     }
 
     // MARK: - 检查清单
@@ -1190,8 +1136,7 @@ struct AddTaskSheet: View {
                 .padding(.vertical, 8)
                 .animation(.easeInOut(duration: 0.16), value: newCheckItemTitle.trimmingCharacters(in: .whitespaces).isEmpty)
             }
-            .background(Color.holoCardBackground)
-            .cornerRadius(HoloRadius.sm)
+            .holoCard()
         }
     }
 
@@ -1324,8 +1269,7 @@ struct AddTaskSheet: View {
                 }
             }
             .padding()
-            .background(Color.holoCardBackground)
-            .cornerRadius(HoloRadius.lg)
+            .holoCard()
         }
         .confirmationDialog("添加附件", isPresented: $showAttachmentSourceChoice) {
             Button("拍照") {
@@ -1684,8 +1628,7 @@ struct AddTaskSheet: View {
                 Spacer()
             }
             .padding()
-            .background(Color.holoCardBackground)
-            .cornerRadius(HoloRadius.lg)
+            .holoCard()
         }
         .buttonStyle(PlainButtonStyle())
     }
