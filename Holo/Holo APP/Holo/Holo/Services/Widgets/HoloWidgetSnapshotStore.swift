@@ -26,6 +26,10 @@ struct HoloWidgetSnapshotStore {
         try write(snapshot, fileName: HoloWidgetSharedContainer.thoughtMemoryFileName)
     }
 
+    func writeEntitlement(_ snapshot: HoloWidgetEntitlementSnapshot) throws {
+        try write(snapshot, fileName: HoloWidgetSharedContainer.entitlementFileName)
+    }
+
     func readQuickActions() -> HoloWidgetQuickActionsSnapshot? {
         read(HoloWidgetQuickActionsSnapshot.self, fileName: HoloWidgetSharedContainer.quickActionsFileName)
     }
@@ -36,6 +40,10 @@ struct HoloWidgetSnapshotStore {
 
     func readThoughtMemory() -> HoloWidgetThoughtMemorySnapshot? {
         read(HoloWidgetThoughtMemorySnapshot.self, fileName: HoloWidgetSharedContainer.thoughtMemoryFileName)
+    }
+
+    func readEntitlement() -> HoloWidgetEntitlementSnapshot? {
+        read(HoloWidgetEntitlementSnapshot.self, fileName: HoloWidgetSharedContainer.entitlementFileName)
     }
 
     private func write<T: Encodable>(_ value: T, fileName: String) throws {
@@ -75,4 +83,3 @@ struct HoloWidgetSnapshotStore {
         return decoder
     }()
 }
-

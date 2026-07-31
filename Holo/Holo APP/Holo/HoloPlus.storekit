@@ -1,0 +1,89 @@
+{
+  "identifier" : "F5E5BB39-2E51-4A70-8F8E-38B7498F2F3A",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+
+  ],
+  "settings" : {
+    "_applicationInternalID" : "0",
+    "_developerTeamID" : "",
+    "_failTransactionsEnabled" : false,
+    "_lastSynchronizedDate" : 773035200,
+    "_locale" : "zh_CN",
+    "_storefront" : "CHN",
+    "_storeKitErrors" : [
+
+    ]
+  },
+  "subscriptionGroups" : [
+    {
+      "id" : "7C99A1BC-9518-4AB3-9183-59B9B7F49229",
+      "localizations" : [
+        {
+          "description" : "Holo Plus",
+          "displayName" : "Holo Plus",
+          "locale" : "zh_CN"
+        }
+      ],
+      "name" : "Holo Plus",
+      "subscriptions" : [
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "12.00",
+          "familyShareable" : false,
+          "groupNumber" : 1,
+          "internalID" : "1000000001",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Holo Plus 月度会员",
+              "displayName" : "Holo Plus 月度会员",
+              "locale" : "zh_CN"
+            }
+          ],
+          "productID" : "com.tangyuxuan.holo.plus.monthly",
+          "recurringSubscriptionPeriod" : "P1M",
+          "referenceName" : "Holo Plus Monthly",
+          "subscriptionGroupID" : "7C99A1BC-9518-4AB3-9183-59B9B7F49229",
+          "type" : "RecurringSubscription"
+        },
+        {
+          "adHocOffers" : [
+
+          ],
+          "codeOffers" : [
+
+          ],
+          "displayPrice" : "128.00",
+          "familyShareable" : false,
+          "groupNumber" : 2,
+          "internalID" : "1000000002",
+          "introductoryOffer" : null,
+          "localizations" : [
+            {
+              "description" : "Holo Plus 年度会员",
+              "displayName" : "Holo Plus 年度会员",
+              "locale" : "zh_CN"
+            }
+          ],
+          "productID" : "com.tangyuxuan.holo.plus.yearly",
+          "recurringSubscriptionPeriod" : "P1Y",
+          "referenceName" : "Holo Plus Yearly",
+          "subscriptionGroupID" : "7C99A1BC-9518-4AB3-9183-59B9B7F49229",
+          "type" : "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}

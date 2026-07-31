@@ -14,6 +14,21 @@ enum HoloWidgetSharedContainer {
     static let quickActionsFileName = "widget_quick_actions.json"
     static let financeFileName = "widget_finance_snapshot.json"
     static let thoughtMemoryFileName = "widget_thought_memory.json"
+    static let entitlementFileName = "widget_entitlement.json"
+}
+
+struct HoloWidgetEntitlementSnapshot: Codable, Equatable {
+    let isPlusActive: Bool
+    let source: String
+    let updatedAt: Date
+
+    static func free(date: Date = Date()) -> HoloWidgetEntitlementSnapshot {
+        HoloWidgetEntitlementSnapshot(isPlusActive: false, source: "unavailable", updatedAt: date)
+    }
+
+    static func plusPreview(date: Date = Date()) -> HoloWidgetEntitlementSnapshot {
+        HoloWidgetEntitlementSnapshot(isPlusActive: true, source: "preview", updatedAt: date)
+    }
 }
 
 enum HoloWidgetKind: String {

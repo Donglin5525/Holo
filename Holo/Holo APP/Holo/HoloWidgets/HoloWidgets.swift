@@ -61,6 +61,36 @@ private enum HoloWidgetBrand {
 private struct HoloWidgetEntry<T>: TimelineEntry {
     let date: Date
     let value: T
+    let entitlement: HoloWidgetEntitlementSnapshot
+}
+
+private func widgetEntitlement(for context: TimelineProviderContext) -> HoloWidgetEntitlementSnapshot {
+    if context.isPreview { return .plusPreview() }
+    return HoloWidgetSnapshotStore().readEntitlement() ?? .free()
+}
+
+private struct HoloLockedWidgetView: View {
+    @Environment(\.widgetFamily) private var family
+    @Environment(\.colorScheme) private var colorScheme
+
+    var body: some View {
+        Link(destination: URL(string: "holo://ai")!) {
+            VStack(spacing: family == .systemSmall ? 8 : 10) {
+                Image(systemName: "lock.fill")
+                    .font(.system(size: family == .systemSmall ? 20 : 24, weight: .semibold))
+                    .foregroundStyle(HoloWidgetBrand.primary(for: colorScheme))
+                Text("Holo Plus 小组件")
+                    .font(.system(size: family == .systemSmall ? 14 : 16, weight: .semibold))
+                    .foregroundStyle(HoloWidgetBrand.textPrimary(for: colorScheme))
+                Text("打开 Holo 升级后使用")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundStyle(HoloWidgetBrand.textSecondary(for: colorScheme))
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .padding(14)
+        }
+    }
 }
 
 private extension View {
@@ -125,15 +155,23 @@ struct HoloVoiceLaunchWidget: Widget {
 
 private struct HoloVoiceLaunchProvider: TimelineProvider {
     func placeholder(in context: Context) -> HoloWidgetEntry<Date> {
-        HoloWidgetEntry(date: Date(), value: Date())
+        HoloWidgetEntry(date: Date(), value: Date(), entitlement: .plusPreview())
     }
 
     func getSnapshot(in context: Context, completion: @escaping (HoloWidgetEntry<Date>) -> Void) {
-        completion(placeholder(in: context))
+        completion(HoloWidgetEntry(
+            date: Date(),
+            value: Date(),
+            entitlement: widgetEntitlement(for: context)
+        ))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<HoloWidgetEntry<Date>>) -> Void) {
-        let entry = HoloWidgetEntry(date: Date(), value: Date())
+        let entry = HoloWidgetEntry(
+            date: Date(),
+            value: Date(),
+            entitlement: HoloWidgetSnapshotStore().readEntitlement() ?? .free()
+        )
         completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(60 * 30))))
     }
 }
@@ -144,36 +182,42 @@ private struct HoloVoiceLaunchView: View {
     let entry: HoloWidgetEntry<Date>
 
     var body: some View {
-        Link(destination: URL(string: "holo://ai?voiceInput=true")!) {
-            if family == .systemMedium {
-                HStack(spacing: 18) {
-                    voiceCore(size: 86)
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("问 Holo")
-                            .font(.system(size: 22, weight: .semibold))
-                            .foregroundStyle(HoloWidgetBrand.textPrimary(for: colorScheme))
-                        Text("打开语音输入")
-                            .font(.system(size: 13, weight: .medium))
-                            .foregroundStyle(HoloWidgetBrand.textSecondary(for: colorScheme))
+        Group {
+            if entry.entitlement.isPlusActive {
+                Link(destination: URL(string: "holo://ai?voiceInput=true")!) {
+                    if family == .systemMedium {
+                        HStack(spacing: 18) {
+                            voiceCore(size: 86)
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("问 Holo")
+                                    .font(.system(size: 22, weight: .semibold))
+                                    .foregroundStyle(HoloWidgetBrand.textPrimary(for: colorScheme))
+                                Text("打开语音输入")
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundStyle(HoloWidgetBrand.textSecondary(for: colorScheme))
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(18)
+                    } else {
+                        VStack(spacing: 12) {
+                            Spacer(minLength: 0)
+                            voiceCore(size: 84)
+                            VStack(spacing: 3) {
+                                Text("问 Holo")
+                                    .font(.system(size: 17, weight: .semibold))
+                                    .foregroundStyle(HoloWidgetBrand.textPrimary(for: colorScheme))
+                                Text("语音输入")
+                                    .font(.system(size: 12, weight: .medium))
+                                    .foregroundStyle(HoloWidgetBrand.textSecondary(for: colorScheme))
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .padding(14)
                     }
-                    Spacer(minLength: 0)
                 }
-                .padding(18)
             } else {
-                VStack(spacing: 12) {
-                    Spacer(minLength: 0)
-                    voiceCore(size: 84)
-                    VStack(spacing: 3) {
-                        Text("问 Holo")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(HoloWidgetBrand.textPrimary(for: colorScheme))
-                        Text("语音输入")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundStyle(HoloWidgetBrand.textSecondary(for: colorScheme))
-                    }
-                    Spacer(minLength: 0)
-                }
-                .padding(14)
+                HoloLockedWidgetView()
             }
         }
         .holoWidgetBackground(colorScheme: colorScheme)
@@ -264,16 +308,24 @@ struct HoloQuickActionsWidget: Widget {
 
 private struct HoloQuickActionsProvider: TimelineProvider {
     func placeholder(in context: Context) -> HoloWidgetEntry<HoloWidgetQuickActionsSnapshot> {
-        HoloWidgetEntry(date: Date(), value: .defaultSnapshot())
+        HoloWidgetEntry(date: Date(), value: .defaultSnapshot(), entitlement: .plusPreview())
     }
 
     func getSnapshot(in context: Context, completion: @escaping (HoloWidgetEntry<HoloWidgetQuickActionsSnapshot>) -> Void) {
-        completion(placeholder(in: context))
+        completion(HoloWidgetEntry(
+            date: Date(),
+            value: .defaultSnapshot(),
+            entitlement: widgetEntitlement(for: context)
+        ))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<HoloWidgetEntry<HoloWidgetQuickActionsSnapshot>>) -> Void) {
         let snapshot = HoloWidgetSnapshotStore().readQuickActions() ?? .defaultSnapshot()
-        let entry = HoloWidgetEntry(date: Date(), value: snapshot)
+        let entry = HoloWidgetEntry(
+            date: Date(),
+            value: snapshot,
+            entitlement: HoloWidgetSnapshotStore().readEntitlement() ?? .free()
+        )
         completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(60 * 60))))
     }
 }
@@ -283,33 +335,39 @@ private struct HoloQuickActionsView: View {
     let entry: HoloWidgetEntry<HoloWidgetQuickActionsSnapshot>
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text("Holo 快捷")
-                .font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(HoloWidgetBrand.textPrimary(for: colorScheme))
+        Group {
+            if entry.entitlement.isPlusActive {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Holo 快捷")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundStyle(HoloWidgetBrand.textPrimary(for: colorScheme))
 
-            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
-                ForEach(entry.value.actions, id: \.self) { action in
-                    Link(destination: action.deepLink) {
-                        HStack(spacing: 8) {
-                            Image(systemName: action.systemImageName)
-                                .font(.system(size: 16, weight: .semibold))
-                                .foregroundStyle(HoloWidgetBrand.primary(for: colorScheme))
-                                .frame(width: 24, height: 24)
-                            Text(action.title)
-                                .font(.system(size: 14, weight: .semibold))
-                                .foregroundStyle(HoloWidgetBrand.textPrimary(for: colorScheme))
-                            Spacer(minLength: 0)
+                    LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 10) {
+                        ForEach(entry.value.actions, id: \.self) { action in
+                            Link(destination: action.deepLink) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: action.systemImageName)
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundStyle(HoloWidgetBrand.primary(for: colorScheme))
+                                        .frame(width: 24, height: 24)
+                                    Text(action.title)
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundStyle(HoloWidgetBrand.textPrimary(for: colorScheme))
+                                    Spacer(minLength: 0)
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 10)
+                                .background(HoloWidgetBrand.card(for: colorScheme))
+                                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                            }
                         }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 10)
-                        .background(HoloWidgetBrand.card(for: colorScheme))
-                        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                     }
                 }
+                .padding(16)
+            } else {
+                HoloLockedWidgetView()
             }
         }
-        .padding(16)
         .holoWidgetBackground(colorScheme: colorScheme)
     }
 }
@@ -331,16 +389,22 @@ struct HoloFinanceWidget: Widget {
 
 private struct HoloFinanceProvider: TimelineProvider {
     func placeholder(in context: Context) -> HoloWidgetEntry<HoloWidgetFinanceSnapshot> {
-        HoloWidgetEntry(date: Date(), value: sampleFinance)
+        HoloWidgetEntry(date: Date(), value: sampleFinance, entitlement: .plusPreview())
     }
 
     func getSnapshot(in context: Context, completion: @escaping (HoloWidgetEntry<HoloWidgetFinanceSnapshot>) -> Void) {
-        completion(placeholder(in: context))
+        completion(HoloWidgetEntry(
+            date: Date(),
+            value: sampleFinance,
+            entitlement: widgetEntitlement(for: context)
+        ))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<HoloWidgetEntry<HoloWidgetFinanceSnapshot>>) -> Void) {
-        let snapshot = HoloWidgetSnapshotStore().readFinance() ?? sampleFinance
-        let entry = HoloWidgetEntry(date: Date(), value: snapshot)
+        let store = HoloWidgetSnapshotStore()
+        let entitlement = store.readEntitlement() ?? .free()
+        let snapshot = entitlement.isPlusActive ? (store.readFinance() ?? sampleFinance) : sampleFinance
+        let entry = HoloWidgetEntry(date: Date(), value: snapshot, entitlement: entitlement)
         completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(60 * 30))))
     }
 
@@ -362,11 +426,17 @@ private struct HoloFinanceView: View {
     let entry: HoloWidgetEntry<HoloWidgetFinanceSnapshot>
 
     var body: some View {
-        Link(destination: URL(string: "holo://finance/analysis")!) {
-            if family == .systemSmall {
-                financeSmall
+        Group {
+            if entry.entitlement.isPlusActive {
+                Link(destination: URL(string: "holo://finance/analysis")!) {
+                    if family == .systemSmall {
+                        financeSmall
+                    } else {
+                        financeMedium
+                    }
+                }
             } else {
-                financeMedium
+                HoloLockedWidgetView()
             }
         }
         .holoWidgetBackground(colorScheme: colorScheme)
@@ -496,16 +566,22 @@ struct HoloThoughtMemoryWidget: Widget {
 
 private struct HoloThoughtMemoryProvider: TimelineProvider {
     func placeholder(in context: Context) -> HoloWidgetEntry<HoloWidgetThoughtMemorySnapshot> {
-        HoloWidgetEntry(date: Date(), value: sampleThought)
+        HoloWidgetEntry(date: Date(), value: sampleThought, entitlement: .plusPreview())
     }
 
     func getSnapshot(in context: Context, completion: @escaping (HoloWidgetEntry<HoloWidgetThoughtMemorySnapshot>) -> Void) {
-        completion(placeholder(in: context))
+        completion(HoloWidgetEntry(
+            date: Date(),
+            value: sampleThought,
+            entitlement: widgetEntitlement(for: context)
+        ))
     }
 
     func getTimeline(in context: Context, completion: @escaping (Timeline<HoloWidgetEntry<HoloWidgetThoughtMemorySnapshot>>) -> Void) {
-        let snapshot = HoloWidgetSnapshotStore().readThoughtMemory() ?? sampleThought
-        let entry = HoloWidgetEntry(date: Date(), value: snapshot)
+        let store = HoloWidgetSnapshotStore()
+        let entitlement = store.readEntitlement() ?? .free()
+        let snapshot = entitlement.isPlusActive ? (store.readThoughtMemory() ?? sampleThought) : sampleThought
+        let entry = HoloWidgetEntry(date: Date(), value: snapshot, entitlement: entitlement)
         completion(Timeline(entries: [entry], policy: .after(Date().addingTimeInterval(60 * 60 * 6))))
     }
 
@@ -526,43 +602,49 @@ private struct HoloThoughtMemoryView: View {
     let entry: HoloWidgetEntry<HoloWidgetThoughtMemorySnapshot>
 
     var body: some View {
-        Link(destination: entry.value.detailDeepLink) {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Text("今天想起一条想法")
-                        .font(.system(size: 15, weight: .semibold))
-                        .foregroundStyle(HoloWidgetBrand.textPrimary(for: colorScheme))
-                    Spacer()
-                    Image(systemName: "sparkle")
-                        .font(.system(size: 14, weight: .semibold))
-                        .foregroundStyle(HoloWidgetBrand.primary(for: colorScheme))
-                }
+        Group {
+            if entry.entitlement.isPlusActive {
+                Link(destination: entry.value.detailDeepLink) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        HStack {
+                            Text("今天想起一条想法")
+                                .font(.system(size: 15, weight: .semibold))
+                                .foregroundStyle(HoloWidgetBrand.textPrimary(for: colorScheme))
+                            Spacer()
+                            Image(systemName: "sparkle")
+                                .font(.system(size: 14, weight: .semibold))
+                                .foregroundStyle(HoloWidgetBrand.primary(for: colorScheme))
+                        }
 
-                Text(entry.value.createdAt.widgetDateText)
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(HoloWidgetBrand.textSecondary(for: colorScheme))
+                        Text(entry.value.createdAt.widgetDateText)
+                            .font(.system(size: 12, weight: .medium))
+                            .foregroundStyle(HoloWidgetBrand.textSecondary(for: colorScheme))
 
-                Text(entry.value.displayText)
-                    .font(.system(size: 17, weight: .semibold))
-                    .foregroundStyle(HoloWidgetBrand.textPrimary(for: colorScheme))
-                    .lineLimit(3)
-                    .minimumScaleFactor(0.82)
+                        Text(entry.value.displayText)
+                            .font(.system(size: 17, weight: .semibold))
+                            .foregroundStyle(HoloWidgetBrand.textPrimary(for: colorScheme))
+                            .lineLimit(3)
+                            .minimumScaleFactor(0.82)
 
-                Spacer(minLength: 0)
+                        Spacer(minLength: 0)
 
-                HStack(spacing: 6) {
-                    ForEach(entry.value.tags.prefix(2), id: \.self) { tag in
-                        Text("#\(tag)")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(HoloWidgetBrand.primary(for: colorScheme))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(HoloWidgetBrand.primarySubtle(for: colorScheme))
-                            .clipShape(Capsule())
+                        HStack(spacing: 6) {
+                            ForEach(entry.value.tags.prefix(2), id: \.self) { tag in
+                                Text("#\(tag)")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(HoloWidgetBrand.primary(for: colorScheme))
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 4)
+                                    .background(HoloWidgetBrand.primarySubtle(for: colorScheme))
+                                    .clipShape(Capsule())
+                            }
+                        }
                     }
+                    .padding(16)
                 }
+            } else {
+                HoloLockedWidgetView()
             }
-            .padding(16)
         }
         .holoWidgetBackground(colorScheme: colorScheme)
     }

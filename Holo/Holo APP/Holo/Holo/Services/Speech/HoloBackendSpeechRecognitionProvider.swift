@@ -5,6 +5,7 @@
 //  调用 Holo 后端网关的语音识别 Provider
 //
 
+import AVFoundation
 import Foundation
 
 final class HoloBackendSpeechRecognitionProvider: SpeechRecognitionProvider {
@@ -36,6 +37,25 @@ final class HoloBackendSpeechRecognitionProvider: SpeechRecognitionProvider {
             throw SpeechRecognitionError.emptyTranscript
         }
 
+        let duration = try await Self.audioDuration(for: audioFileURL)
+        let maxSeconds = await MainActor.run {
+            HoloEntitlementState.shared.quotas["asr"]?.maxSeconds
+                ?? (HoloEntitlementState.shared.isPlusActive ? 300 : 60)
+        }
+        if duration > maxSeconds {
+            let isPlusActive = await MainActor.run { HoloEntitlementState.shared.isPlusActive }
+            if !isPlusActive {
+                await MainActor.run {
+                    HoloPlusActionCoordinator.shared.requirePlus(context: .asrDuration)
+                }
+            }
+            throw SpeechRecognitionError.serverMessage(
+                isPlusActive
+                    ? "单次语音最长可识别 \(Int(maxSeconds)) 秒，请缩短录音后重试"
+                    : "免费版单次最多识别 \(Int(maxSeconds)) 秒，升级 Holo Plus 可识别更长语音"
+            )
+        }
+
         let boundary = "Boundary-\(UUID().uuidString)"
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
@@ -47,6 +67,8 @@ final class HoloBackendSpeechRecognitionProvider: SpeechRecognitionProvider {
             audioData: audioData,
             fileName: audioFileURL.lastPathComponent.isEmpty ? "recording.wav" : audioFileURL.lastPathComponent,
             locale: locale,
+            durationSeconds: duration,
+            usageActionId: UUID().uuidString,
             boundary: boundary
         )
 
@@ -63,8 +85,19 @@ final class HoloBackendSpeechRecognitionProvider: SpeechRecognitionProvider {
                 guard !text.isEmpty else {
                     throw SpeechRecognitionError.emptyTranscript
                 }
+                await HoloSubscriptionService.shared.refreshStatus()
                 return SpeechRecognitionResult(text: text, duration: payload.duration, confidence: payload.confidence)
             case 429:
+                if let quotaError = HoloQuotaError.decode(from: data) {
+                    if quotaError.upgradeAvailable {
+                        await MainActor.run {
+                            HoloPlusActionCoordinator.shared.requirePlus(
+                                context: quotaError.isDurationError ? .asrDuration : .asrQuota
+                            )
+                        }
+                    }
+                    throw SpeechRecognitionError.serverMessage(quotaError.userMessage)
+                }
                 throw SpeechRecognitionError.serverMessage("今天的语音识别次数已达上限，稍后再试")
             case 413:
                 throw SpeechRecognitionError.serverMessage("语音文件过大，请缩短录音后重试")
@@ -85,6 +118,8 @@ final class HoloBackendSpeechRecognitionProvider: SpeechRecognitionProvider {
         audioData: Data,
         fileName: String,
         locale: String?,
+        durationSeconds: TimeInterval,
+        usageActionId: String,
         boundary: String
     ) -> Data {
         var body = Data()
@@ -102,8 +137,29 @@ final class HoloBackendSpeechRecognitionProvider: SpeechRecognitionProvider {
             body.appendString("\r\n")
         }
 
+        appendField("durationSeconds", value: String(durationSeconds), to: &body, boundary: boundary)
+        appendField("usageActionId", value: usageActionId, to: &body, boundary: boundary)
+
         body.appendString("--\(boundary)--\r\n")
         return body
+    }
+
+    private static func appendField(
+        _ name: String,
+        value: String,
+        to body: inout Data,
+        boundary: String
+    ) {
+        body.appendString("--\(boundary)\r\n")
+        body.appendString("Content-Disposition: form-data; name=\"\(name)\"\r\n\r\n")
+        body.appendString(value)
+        body.appendString("\r\n")
+    }
+
+    private static func audioDuration(for url: URL) async throws -> TimeInterval {
+        let duration = try await AVURLAsset(url: url).load(.duration)
+        let seconds = duration.seconds
+        return seconds.isFinite && seconds >= 0 ? seconds : 0
     }
 
     private static func decodeErrorMessage(from data: Data) -> String? {
@@ -111,6 +167,13 @@ final class HoloBackendSpeechRecognitionProvider: SpeechRecognitionProvider {
             return nil
         }
         return payload.error.message
+    }
+}
+
+private extension HoloQuotaError {
+    var isDurationError: Bool {
+        if case .asrDurationExceeded = self { return true }
+        return false
     }
 }
 

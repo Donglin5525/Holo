@@ -84,7 +84,14 @@ class DeepLinkState: ObservableObject {
 
     func handle(url: URL) {
         guard let widgetTarget = HoloWidgetDeepLink.parse(url) else { return }
-        navigate(to: DeepLinkTarget(widgetTarget))
+        Task { @MainActor in
+            await HoloSubscriptionService.shared.refreshStatus()
+            guard HoloEntitlementState.shared.isPlusActive else {
+                HoloPlusActionCoordinator.shared.requirePlus(context: .desktopWidget)
+                return
+            }
+            navigate(to: DeepLinkTarget(widgetTarget))
+        }
     }
 
     // MARK: - Initialization

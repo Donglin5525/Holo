@@ -1499,6 +1499,8 @@ final class PromptManager {
         throw PromptError.unavailableInRelease
     }
 
+    /// Release 不携带商业 Prompt 正文，运行时由后端注入。
+    func loadRawTemplate(_ type: PromptType) -> String { "" }
     func loadDefaultTemplate(_ type: PromptType) -> String { "" }
     func renderTemplate(_ template: String) -> String { "" }
     func clearCache() {}

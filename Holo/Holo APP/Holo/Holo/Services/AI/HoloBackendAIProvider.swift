@@ -161,6 +161,7 @@ final class HoloBackendAIProvider: AIProvider {
                         try Task.checkCancellation()
                         continuation.yield(chunk)
                     }
+                    await HoloSubscriptionService.shared.refreshStatus()
                     try Task.checkCancellation()
                     continuation.finish()
                 } catch {
@@ -216,6 +217,9 @@ final class HoloBackendAIProvider: AIProvider {
         let completion: APIClient.Response<ChatCompletionResponse> = try await apiClient.sendWithResponse(request)
         let response = completion.value
         let requestId = completion.httpResponse.value(forHTTPHeaderField: "X-Holo-Request-Id")
+        if completion.httpResponse.value(forHTTPHeaderField: "X-Holo-Quota-Type") != nil {
+            await HoloSubscriptionService.shared.refreshStatus()
+        }
 
         if completion.httpResponse.value(forHTTPHeaderField: "X-Holo-Step-Idempotency") == "hit",
            let step {
@@ -311,6 +315,7 @@ final class HoloBackendAIProvider: AIProvider {
                     }) {
                         continuation.yield(chunk)
                     }
+                    await HoloSubscriptionService.shared.refreshStatus()
                     continuation.finish()
                 } catch {
                     continuation.finish(throwing: error)
@@ -323,6 +328,9 @@ final class HoloBackendAIProvider: AIProvider {
 
     private func sendCompletion(_ request: APIRequest) async throws -> (ChatCompletionResponse, String?) {
         let result: APIClient.Response<ChatCompletionResponse> = try await apiClient.sendWithResponse(request)
+        if result.httpResponse.value(forHTTPHeaderField: "X-Holo-Quota-Type") != nil {
+            await HoloSubscriptionService.shared.refreshStatus()
+        }
         return (
             result.value,
             result.httpResponse.value(forHTTPHeaderField: "X-Holo-Request-Id")
@@ -359,7 +367,8 @@ final class HoloBackendAIProvider: AIProvider {
                 responseFormat: responseFormat,
                 runId: includeStep?.runID,
                 stepId: includeStep?.stepID,
-                requestHash: includeStep?.requestHash
+                requestHash: includeStep?.requestHash,
+                usageActionId: includeStep?.runID ?? UUID().uuidString
             )
         )
     }
@@ -553,15 +562,17 @@ struct HoloBackendChatCompletionRequest: Encodable {
     let runId: String?
     let stepId: String?
     let requestHash: String?
+    let usageActionId: String
 
     enum CodingKeys: String, CodingKey {
-        case purpose, messages, stream, runId, stepId, requestHash
+        case purpose, messages, stream, runId, stepId, requestHash, usageActionId
         case responseFormat = "response_format"
     }
 
     init(purpose: String, messages: [ChatMessageDTO], stream: Bool,
          responseFormat: ResponseFormat?,
-         runId: String? = nil, stepId: String? = nil, requestHash: String? = nil) {
+         runId: String? = nil, stepId: String? = nil, requestHash: String? = nil,
+         usageActionId: String = UUID().uuidString) {
         self.purpose = purpose
         self.messages = messages
         self.stream = stream
@@ -569,6 +580,7 @@ struct HoloBackendChatCompletionRequest: Encodable {
         self.runId = runId
         self.stepId = stepId
         self.requestHash = requestHash
+        self.usageActionId = usageActionId
     }
 
     func encode(to encoder: Encoder) throws {
@@ -577,6 +589,7 @@ struct HoloBackendChatCompletionRequest: Encodable {
         try container.encode(messages, forKey: .messages)
         try container.encode(stream, forKey: .stream)
         try container.encodeIfPresent(responseFormat, forKey: .responseFormat)
+        try container.encode(usageActionId, forKey: .usageActionId)
         if let runId, let stepId, let requestHash {
             try container.encode(runId, forKey: .runId)
             try container.encode(stepId, forKey: .stepId)

@@ -124,7 +124,15 @@ nonisolated final class APIClient {
                         }
 
                         let (bytes, response) = try await urlSession.bytes(for: urlRequest)
-
+                        if let httpResponse = response as? HTTPURLResponse,
+                           !(200...299).contains(httpResponse.statusCode) {
+                            var errorData = Data()
+                            for try await byte in bytes {
+                                errorData.append(byte)
+                                if errorData.count >= 64 * 1024 { break }
+                            }
+                            try validateHTTPResponse(response, data: errorData)
+                        }
                         try validateHTTPResponse(response, data: nil)
                         if let httpResponse = response as? HTTPURLResponse {
                             onResponse?(httpResponse)
@@ -153,6 +161,9 @@ nonisolated final class APIClient {
                             try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                             continue
                         }
+                        continuation.finish(throwing: error)
+                        return
+                    } catch let error as HoloQuotaError {
                         continuation.finish(throwing: error)
                         return
                     } catch is CancellationError {
@@ -205,6 +216,10 @@ nonisolated final class APIClient {
         let backendError = extractBackendError(from: data)
         let backendMessage = backendError?.message
         let requestId = httpResponse.value(forHTTPHeaderField: "X-Holo-Request-Id")
+
+        if let data, let quotaError = HoloQuotaError.decode(from: data) {
+            throw quotaError
+        }
 
         switch httpResponse.statusCode {
         case 200...299:

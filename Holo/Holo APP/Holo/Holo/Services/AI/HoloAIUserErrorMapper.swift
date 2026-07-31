@@ -2,6 +2,9 @@ import Foundation
 
 enum HoloAIUserErrorMapper {
     static func message(for error: Error) -> String {
+        if let quotaError = error as? HoloQuotaError {
+            return quotaError.userMessage
+        }
         if let urlError = error as? URLError {
             switch urlError.code {
             case .timedOut:

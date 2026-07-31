@@ -48,9 +48,26 @@ final class HoloWidgetSnapshotService {
     }
 
     func refreshAllSnapshots() async {
+        refreshEntitlementSnapshot(
+            isPlusActive: HoloEntitlementState.shared.isPlusActive,
+            source: HoloEntitlementState.shared.source == .acceptance ? "acceptance" : "backend"
+        )
         writeQuickActionsSnapshot()
         await refreshFinanceSnapshot()
         refreshThoughtMemorySnapshot()
+        WidgetCenter.shared.reloadAllTimelines()
+    }
+
+    func refreshEntitlementSnapshot(
+        isPlusActive: Bool,
+        source: String,
+        date: Date = Date()
+    ) {
+        try? store.writeEntitlement(HoloWidgetEntitlementSnapshot(
+            isPlusActive: isPlusActive,
+            source: source,
+            updatedAt: date
+        ))
         WidgetCenter.shared.reloadAllTimelines()
     }
 

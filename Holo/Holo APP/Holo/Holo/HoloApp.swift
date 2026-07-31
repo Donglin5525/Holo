@@ -18,6 +18,7 @@ struct HoloApp: App {
 
     /// 深色模式管理器
     @StateObject private var darkModeManager = DarkModeManager.shared
+    @StateObject private var plusActionCoordinator = HoloPlusActionCoordinator.shared
 
     /// 外部文件导入状态（拖拽 CSV 到模拟器 / "Open In" 打开）
     @State private var pendingImportURL: CSVFileURL?
@@ -81,8 +82,12 @@ struct HoloApp: App {
                         pendingImportURL = nil
                     }
                 }
+                .sheet(isPresented: $plusActionCoordinator.isPaywallPresented) {
+                    HoloPlusPaywallView(context: plusActionCoordinator.context)
+                }
                 .task {
                     await SensitiveDebugDataMigration.runIfNeeded()
+                    await HoloSubscriptionService.shared.refreshStatus()
 
                     // 检查通知权限状态
                     TodoNotificationService.shared.checkAuthorizationStatus()
