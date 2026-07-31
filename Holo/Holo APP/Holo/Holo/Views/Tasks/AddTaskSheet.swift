@@ -102,6 +102,10 @@ struct AddTaskSheet: View {
     @State private var showChecklistCompletionCelebration = false
     @State private var checklistCompletionCelebrationID = UUID()
     @FocusState private var isCheckItemEditing: Bool
+
+    // 语音拆解子任务
+    @State private var isSplittingTaskVoice = false
+    @FocusState private var isAddingCheckItemFocused: Bool
     @FocusState private var isTitleFocused: Bool
 
     // 编辑模式专属
@@ -466,15 +470,26 @@ struct AddTaskSheet: View {
                 HapticManager.selection()
                 showTaskVoiceInput = true
             } label: {
-                Image(systemName: "mic.fill")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.white)
-                    .frame(width: 32, height: 32)
-                    .background(Color.holoPrimary)
-                    .clipShape(Circle())
-                    .shadow(color: Color.black.opacity(0.12), radius: 5, x: 0, y: 2)
+                if isSplittingTaskVoice {
+                    // AI 拆解中：用 loading 替代麦克风，避免用户重复点击
+                    ProgressView()
+                        .tint(.white)
+                        .frame(width: 32, height: 32)
+                        .background(Color.holoPrimary)
+                        .clipShape(Circle())
+                        .shadow(color: Color.black.opacity(0.12), radius: 5, x: 0, y: 2)
+                } else {
+                    Image(systemName: "mic.fill")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(width: 32, height: 32)
+                        .background(Color.holoPrimary)
+                        .clipShape(Circle())
+                        .shadow(color: Color.black.opacity(0.12), radius: 5, x: 0, y: 2)
+                }
             }
             .buttonStyle(.plain)
+            .disabled(isSplittingTaskVoice)
             .accessibilityLabel("语音输入")
             .accessibilityHint("录音并将识别结果插入到任务描述")
 
@@ -510,14 +525,73 @@ struct AddTaskSheet: View {
         let trimmed = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
+        // 尝试 AI 拆解：把"说了多个事项"的语音文本拆成 标题 + 子任务
+        splitTaskVoiceTranscript(trimmed)
+    }
+
+    /// 用 AI 拆解语音文本，成功且拆出子任务时填入标题与子任务列表；
+    /// 拆不出子任务、或调用失败时，退回"塞进任务描述"的原行为（不比现在更差）。
+    private func splitTaskVoiceTranscript(_ text: String) {
+        isSplittingTaskVoice = true
+        Task { @MainActor in
+            // 在 @MainActor 上下文内构造，避开 SwiftUI struct 属性默认值的隔离限制
+            let splitter = TaskTextSplitter()
+            do {
+                let result = try await splitter.split(text)
+
+                if !result.subtasks.isEmpty {
+                    // 拆出了子任务：标题填入标题框（为空时才填，不覆盖用户已填的），
+                    // 子任务追加进列表（新建/编辑两种模式都支持）
+                    if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        title = result.title
+                    }
+                    for subtask in result.subtasks {
+                        addSubtaskTitle(subtask)
+                    }
+                    HoloToastCenter.shared.show("已为你拆成 \(result.subtasks.count) 个子任务，可调整", type: .success)
+                } else {
+                    // 没拆出子任务：退回原行为，塞进任务描述
+                    appendTextToDescription(text)
+                }
+            } catch {
+                Self.logger.warning("语音拆解子任务失败，退回塞入描述：\(error.localizedDescription)")
+                appendTextToDescription(text)
+            }
+            isSplittingTaskVoice = false
+        }
+    }
+
+    /// 把一段文本追加进任务描述（保留原有的换行拼接逻辑）。
+    private func appendTextToDescription(_ text: String) {
         if description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            description = trimmed
+            description = text
         } else if description.hasSuffix("\n\n") {
-            description += trimmed
+            description += text
         } else if description.hasSuffix("\n") {
-            description += "\n" + trimmed
+            description += "\n" + text
         } else {
-            description += "\n\n" + trimmed
+            description += "\n\n" + text
+        }
+    }
+
+    /// 直接按标题添加一条子任务（供语音拆解批量写入用，复用两种模式的存储逻辑）。
+    private func addSubtaskTitle(_ rawTitle: String) {
+        let trimmed = rawTitle.trimmingCharacters(in: .whitespaces)
+        guard !trimmed.isEmpty else { return }
+
+        if let task = existingTask {
+            do {
+                let progressBeforeChange = checklistProgress
+                let order = Int16(checkItems.count)
+                let item = try repository.addCheckItem(title: trimmed, to: task, order: order)
+                displayedChecklistProgress = progressBeforeChange
+                checkItems.append(item)
+                applyChecklistProgressChange(from: progressBeforeChange, to: checklistProgress)
+            } catch {
+                Self.logger.error("语音拆解写入子任务失败：\(error.localizedDescription)")
+            }
+        } else {
+            pendingCheckItems.append(PendingCheckItem(title: trimmed))
         }
     }
 
@@ -939,7 +1013,7 @@ struct AddTaskSheet: View {
 
     private var checklistSection: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text("检查清单（可选）")
+            Text("子任务（可选）")
                 .font(.holoLabel)
                 .foregroundColor(.holoTextSecondary)
 
@@ -1075,9 +1149,18 @@ struct AddTaskSheet: View {
                     TextField("添加子任务", text: $newCheckItemTitle)
                         .font(.holoBody)
                         .foregroundColor(.holoTextPrimary)
+                        .focused($isAddingCheckItemFocused)
                         .submitLabel(.done)
                         .onSubmit {
                             addCheckItem()
+                            // 连续录入：提交后保持聚焦，直接接着输入下一条子任务
+                            isAddingCheckItemFocused = true
+                        }
+                        .onChange(of: isAddingCheckItemFocused) { _, focused in
+                            // 失焦时若框内仍有未提交内容，自动入列，避免切走丢字
+                            if !focused {
+                                addCheckItem()
+                            }
                         }
 
                     if newCheckItemTitle.trimmingCharacters(in: .whitespaces).isEmpty {

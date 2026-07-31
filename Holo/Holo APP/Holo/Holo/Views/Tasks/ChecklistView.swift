@@ -60,7 +60,7 @@ struct ChecklistView: View {
                     .padding(.bottom, HoloSpacing.xl)
                 }
             }
-            .navigationTitle("检查清单")
+            .navigationTitle("子任务")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
