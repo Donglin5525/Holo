@@ -49,6 +49,12 @@ extension EnvironmentValues {
 
 // MARK: - 全屏模块转场动画
 
+enum HoloScreenTransitionMetrics {
+    /// 全屏模块从首页进入或退出的统一时长。
+    /// 需要在转场结束后再展示动态内容的页面，应复用这个值，避免两套位移动画重叠。
+    static let duration: TimeInterval = 0.28
+}
+
 /// 全屏模块在 ZStack 平级常驻时的转场动画 + 过渡样式。
 ///
 /// 用法：切换 `activeScreen` 时用 `withAnimation(.holoScreenTransition) { activeScreen = .xxx }`，
@@ -58,7 +64,7 @@ extension EnvironmentValues {
 /// 让从系统模态迁移到 ZStack 常驻后的视觉差异尽可能小。
 extension Animation {
     static var holoScreenTransition: Animation {
-        .easeInOut(duration: 0.28)
+        .easeInOut(duration: HoloScreenTransitionMetrics.duration)
     }
 }
 
@@ -72,4 +78,3 @@ extension AnyTransition {
         )
     }
 }
-

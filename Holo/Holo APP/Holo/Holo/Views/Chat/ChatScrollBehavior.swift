@@ -42,6 +42,26 @@ nonisolated struct ChatMessageListSignature: Equatable, Sendable {
     }
 }
 
+/// 首次进入对话时的呈现时序。
+///
+/// 页面转场期间，历史消息可能刚好完成异步读取，复杂卡片也会分多帧确定高度。
+/// 先在不可见状态完成布局和回底，再等页面转场结束后统一展示，避免卡片像从底部二次滑入。
+nonisolated enum ChatInitialPresentationPolicy {
+    /// 给首轮 LazyVStack 布局留出数帧稳定窗口。
+    static let layoutSettlingNanoseconds: UInt64 = 120_000_000
+    /// 页面转场结束后再留少量余量，避免最后一帧仍与内容呈现重叠。
+    static let transitionSafetyMargin: TimeInterval = 0.08
+
+    static func remainingTransitionDelay(
+        startedAt: Date,
+        now: Date,
+        screenTransitionDuration: TimeInterval
+    ) -> TimeInterval {
+        let requiredInterval = max(0, screenTransitionDuration) + transitionSafetyMargin
+        return max(0, requiredInterval - now.timeIntervalSince(startedAt))
+    }
+}
+
 /// 用首尾 ID 判断列表变化来自哪里，防止 prepend 历史消息被误判为“收到新消息”。
 nonisolated enum ChatMessageListMutation: Equatable, Sendable {
     case unchanged

@@ -17,6 +17,7 @@ struct ChatScrollBehaviorStandaloneTests {
         testHistoryLoadGateOnlyTriggersOncePerTopVisit()
         testHistoryLoadGateDoesNotTriggerWithoutUserGesture()
         testScrollGeometryPreservesViewportAndHandlesShortContent()
+        testInitialPresentationWaitsForScreenTransition()
         testHistoryPageResultDistinguishesFailure()
         print("ChatScrollBehaviorStandaloneTests passed")
     }
@@ -165,6 +166,37 @@ struct ChatScrollBehaviorStandaloneTests {
                 viewportHeight: 800
             ),
             "长距离回底必须直接完成，不能让默认动画沿途加载几十秒"
+        )
+    }
+
+    private static func testInitialPresentationWaitsForScreenTransition() {
+        let start = Date(timeIntervalSince1970: 1_000)
+
+        expect(
+            abs(
+                ChatInitialPresentationPolicy.remainingTransitionDelay(
+                    startedAt: start,
+                    now: start.addingTimeInterval(0.10),
+                    screenTransitionDuration: 0.28
+                ) - 0.26
+            ) < 0.000_1,
+            "首屏内容必须等页面转场及安全余量结束后再展示"
+        )
+        expect(
+            ChatInitialPresentationPolicy.remainingTransitionDelay(
+                startedAt: start,
+                now: start.addingTimeInterval(0.50),
+                screenTransitionDuration: 0.28
+            ) == 0,
+            "异步数据本身已经晚于转场完成时不能再额外等待"
+        )
+        expect(
+            ChatInitialPresentationPolicy.remainingTransitionDelay(
+                startedAt: start,
+                now: start,
+                screenTransitionDuration: -1
+            ) == ChatInitialPresentationPolicy.transitionSafetyMargin,
+            "异常的负转场时长应收敛为安全余量"
         )
     }
 

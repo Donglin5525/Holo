@@ -23,6 +23,9 @@ struct ChatView: View {
     @State private var viewingLog: LLMLog?
     #endif
     @State private var didInitialScrollToBottom = false
+    /// 首次进入时先让历史消息在不可见状态完成布局和回底，避免与页面滑入转场叠加。
+    @State private var isInitialConversationVisible = false
+    @State private var initialPresentationStartedAt = Date()
     @State private var historyLoadGate = ChatHistoryLoadGate()
     @State private var pendingNewMessageCount = 0
     @State private var hasUnseenStreamingUpdate = false
@@ -157,6 +160,9 @@ struct ChatView: View {
             if opensVoiceInputOnAppear {
                 activeSheet = .voiceInput
             }
+        }
+        .task(id: viewModel.hasLoadedMessages) {
+            await revealInitialConversationIfReady()
         }
         .onChange(of: goalPlanningRequest) { _, request in
             guard let request else { return }
@@ -322,12 +328,19 @@ struct ChatView: View {
 
             // 消息列表 / 空状态卡片：仅在历史消息加载完成后才显示空状态，
             // 避免进入时「先显示空状态再突然消失」的闪烁。
-            if viewModel.isTrulyEmptyConversation {
-                ChatEmptyStateView(viewModel: viewModel)
-                    .transition(.opacity)
-            } else {
-                messageList
+            Group {
+                if viewModel.isTrulyEmptyConversation {
+                    ChatEmptyStateView(viewModel: viewModel)
+                        .transition(.opacity)
+                } else {
+                    messageList
+                }
             }
+            // opacity 不参与布局：消息和复杂卡片会在不可见状态完成首轮测量，
+            // reveal 时只切换可见性，不再触发第二次位移。
+            .opacity(isInitialConversationVisible ? 1 : 0)
+            .allowsHitTesting(isInitialConversationVisible)
+            .accessibilityHidden(!isInitialConversationVisible)
 
             // 输入框上方常驻能力行：对话全程可见
             QuickActionBar(viewModel: viewModel)
@@ -607,6 +620,45 @@ struct ChatView: View {
         pendingNewMessageCount = 0
         hasUnseenStreamingUpdate = false
         scrollController.scrollToBottom(animated: false)
+    }
+
+    /// 首屏内容采用“先布局、后展示”的原子呈现：
+    /// 1. 等历史消息读取完成；2. 在不可见状态完成回底和复杂卡片测量；
+    /// 3. 等页面滑入转场结束；4. 禁用隐式动画后一次性展示。
+    @MainActor
+    private func revealInitialConversationIfReady() async {
+        guard viewModel.hasLoadedMessages,
+              !isInitialConversationVisible else { return }
+
+        if !viewModel.messages.isEmpty {
+            // 第一次调用建立底部目标，第二次调用消费首轮 LazyVStack 高度修正。
+            scrollController.scrollToBottom(animated: false)
+            await Task.yield()
+            try? await Task.sleep(
+                nanoseconds: ChatInitialPresentationPolicy.layoutSettlingNanoseconds
+            )
+            guard !Task.isCancelled else { return }
+            scrollController.scrollToBottom(animated: false)
+            await Task.yield()
+        }
+
+        let remainingDelay = ChatInitialPresentationPolicy.remainingTransitionDelay(
+            startedAt: initialPresentationStartedAt,
+            now: Date(),
+            screenTransitionDuration: HoloScreenTransitionMetrics.duration
+        )
+        if remainingDelay > 0 {
+            try? await Task.sleep(
+                nanoseconds: UInt64(remainingDelay * 1_000_000_000)
+            )
+        }
+        guard !Task.isCancelled else { return }
+
+        var transaction = SwiftUI.Transaction(animation: nil)
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+            isInitialConversationVisible = true
+        }
     }
 
     private func handleMessageListMutation(
