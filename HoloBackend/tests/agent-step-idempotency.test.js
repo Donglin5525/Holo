@@ -66,7 +66,7 @@ function createTestApp(provider, overrides = {}) {
   });
 }
 
-function sendAgentStep(app, { runId, stepId, requestHash } = {}) {
+function sendAgentStep(app, { runId, stepId, requestHash } = {}, { signal } = {}) {
   const body = {
     purpose: "agent_loop",
     stream: false,
@@ -82,6 +82,7 @@ function sendAgentStep(app, { runId, stepId, requestHash } = {}) {
       "x-holo-device-id": "device-a",
     },
     body: JSON.stringify(body),
+    signal,
   });
 }
 
@@ -250,6 +251,58 @@ test("retry while step is processing returns 409 STEP_IN_PROGRESS", async () => 
   const first = await firstPromise;
   assert.equal(first.status, 200);
   assert.equal(calls, 1);
+});
+
+test("client disconnect does not abort an idempotent agent step and polling does not consume rate limit", async () => {
+  let calls = 0;
+  let usageCalls = 0;
+  let releaseProvider;
+  let markProviderStarted;
+  const providerStarted = new Promise((resolve) => {
+    markProviderStarted = resolve;
+  });
+  const provider = {
+    async complete(request) {
+      calls += 1;
+      markProviderStarted();
+      return new Promise((resolve, reject) => {
+        releaseProvider = () => resolve(makeAgentCompletion("survived-client-disconnect"));
+        request.clientSignal?.addEventListener("abort", () => {
+          reject(new DOMException("client disconnected", "AbortError"));
+        }, { once: true });
+      });
+    },
+  };
+  const usageStore = {
+    consume() {
+      usageCalls += 1;
+      return { allowed: true };
+    },
+  };
+  const app = createTestApp(provider, { usageStore });
+  const step = { runId: "run-disconnect", stepId: "llm-1-1", requestHash: "hash-disconnect" };
+  const controller = new AbortController();
+
+  const firstPromise = sendAgentStep(app, step, { signal: controller.signal });
+  await providerStarted;
+  controller.abort();
+
+  const inProgress = await sendAgentStep(app, step);
+  assert.equal(inProgress.status, 409);
+  assert.equal((await inProgress.json()).error.code, "STEP_IN_PROGRESS");
+  assert.equal(inProgress.headers.get("retry-after"), "2");
+  assert.equal(usageCalls, 1, "polling an owned step must not consume a new rate-limit slot");
+
+  releaseProvider();
+  const first = await firstPromise;
+  assert.equal(first.status, 200);
+
+  const replay = await sendAgentStep(app, step);
+  assert.equal(replay.status, 200);
+  assert.equal(replay.headers.get("x-holo-step-idempotency"), "hit");
+  assert.equal((await replay.json()).id, "survived-client-disconnect");
+  assert.equal(calls, 1, "client retry must reuse the original provider execution");
+  assert.equal(usageCalls, 1, "completed-step replay must not consume a new rate-limit slot");
 });
 
 test("retryable provider failure allows controlled retry, provider called twice", async () => {

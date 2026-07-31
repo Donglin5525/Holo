@@ -350,6 +350,42 @@ export function createApp(overrides = {}) {
         throw new GatewayError("UNKNOWN_PURPOSE", `Unsupported purpose: ${purpose}`, 400);
       }
 
+      const isAgentLoop = purpose === "agent_loop";
+      const stepIdentity = resolveAgentStepIdentity(isAgentLoop, request);
+
+      // 幂等 Agent step 的状态查询属于同一次模型执行，不是一次新的 AI 调用。
+      // 必须在限流/额度预占前返回 processing/completed，避免客户端断线轮询重复计数。
+      if (stepIdentity) {
+        const existingStep = stepIdempotencyStore.get(stepIdentity.runId, stepIdentity.stepId);
+        if (existingStep) {
+          if (existingStep.requestHash !== stepIdentity.requestHash) {
+            logAgentStepEvent("agent_step_conflict", stepIdentity, { errorCode: "STEP_ID_CONFLICT" });
+            throw new GatewayError("STEP_ID_CONFLICT", "Step was already used with a different payload", 409);
+          }
+          if (existingStep.status === "processing") {
+            logAgentStepEvent("agent_step_in_progress", stepIdentity, { errorCode: "STEP_IN_PROGRESS" });
+            context.header("Retry-After", "2");
+            throw new GatewayError("STEP_IN_PROGRESS", "Step is currently in progress", 409);
+          }
+          if (existingStep.status === "failed_final") {
+            logAgentStepEvent("agent_step_failed_final_replayed", stepIdentity, {
+              errorCode: existingStep.errorCode ?? "UPSTREAM_ERROR",
+            });
+            throw new GatewayError(
+              existingStep.errorCode ?? "UPSTREAM_ERROR",
+              "Step previously failed with a terminal error",
+              existingStep.errorStatus ?? 502,
+            );
+          }
+          if (existingStep.status === "completed") {
+            logAgentStepEvent("agent_step_idempotency_hit", stepIdentity);
+            context.header("X-Holo-Step-Idempotency", "hit");
+            return context.json(JSON.parse(existingStep.response));
+          }
+          // failed_retryable 继续进入正常调用链，并由 acquireAgentStep 原子重新获得执行权。
+        }
+      }
+
       const deviceId = getDeviceId(context, config);
       const entitlement = entitlementResolver.resolve(deviceId);
       const quotaType = quotaTypeForPurpose(purpose);
@@ -391,10 +427,10 @@ export function createApp(overrides = {}) {
         temperature: route.temperature,
         maxTokens: route.maxTokens,
         responseFormat: request.response_format,
-        clientSignal: context.req.raw.signal,
+        // 带幂等身份的 Agent step 必须独立于单次 HTTP 连接存活。
+        // 客户端/代理断开后，后端继续完成并缓存结果；App 以同一 step 轮询取回，避免重复调用模型。
+        clientSignal: stepIdentity ? undefined : context.req.raw.signal,
       };
-      const isAgentLoop = purpose === "agent_loop";
-      const stepIdentity = resolveAgentStepIdentity(isAgentLoop, request);
       const logId = captureAiCallLogs
         ? adminLogStore.startAiCall({
             deviceId,
@@ -454,6 +490,7 @@ export function createApp(overrides = {}) {
           }
           if (stepGate.type === "in_progress") {
             logAgentStepEvent("agent_step_in_progress", stepIdentity, { errorCode: "STEP_IN_PROGRESS" });
+            context.header("Retry-After", "2");
             throw new GatewayError("STEP_IN_PROGRESS", "Step is currently in progress", 409);
           }
           if (stepGate.type === "failed_final") {
