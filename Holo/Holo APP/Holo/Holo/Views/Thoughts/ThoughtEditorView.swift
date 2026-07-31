@@ -112,7 +112,7 @@ struct ThoughtEditorView: View {
                     }
                 }
                 .padding(.horizontal, HoloSpacing.md)
-                .padding(.bottom, 120)  // 给底部工具栏 + 安全区留位
+                .padding(.bottom, HoloSpacing.xl)  // 底部留白（工具栏已移至 inputAccessoryView）
             }
             .background(Color.holoBackground)
             .scrollDismissesKeyboard(.never)  // 禁止下滑自动收键盘（编辑器自己管焦点）
@@ -133,19 +133,8 @@ struct ThoughtEditorView: View {
                     EmptyView()
                 }
             )
-            .safeAreaInset(edge: .bottom) {
-                // 底栏只保留编辑工具栏（吸附键盘上方）；候选浮层已移至 contentSection 内光标吸附
-                RichTextToolbarView(pendingAction: $pendingEditorAction, formatState: typingFormatState, onAddImage: {
-                    showAttachmentSourceChoice = true
-                })
-                .background(Color.holoCardBackground)
-                .overlay(
-                    Rectangle()
-                        .fill(Color.holoBorder)
-                        .frame(height: 1),
-                    alignment: .top
-                )
-            }
+            // 工具栏已移至 UITextView.inputAccessoryView（键盘正上方），不再需要 SwiftUI 层 safeAreaInset。
+            // safeAreaInset 在 fullScreenCover 下不跟随键盘，inputAccessoryView 由 UIKit 系统保证位置。
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("取消") {
@@ -327,7 +316,8 @@ struct ThoughtEditorView: View {
                         onNodesChange: { newNodes in
                             editorNodes = newNodes
                             editorNodesLoaded = true
-                        }
+                        },
+                        onAddImage: { showAttachmentSourceChoice = true }
                     )
                         .frame(height: max(editorHeight, contentEditorMinimumHeight))
                         // 光标吸附候选浮层：挂在 MarkdownTextView 自身上，

@@ -64,6 +64,8 @@ struct MarkdownTextView: UIViewRepresentable {
     var initialRichJSON: String? = nil
     /// 节点模型变化回调（保存时取 richContentJSON 用）
     var onNodesChange: (([HoloContentNode]) -> Void)? = nil
+    /// 点击工具栏「添加图片」按钮的回调（桥接到 inputAccessoryView 内的 UIKit 工具栏）
+    var onAddImage: (() -> Void)? = nil
 
     func makeUIView(context: Context) -> UITextView {
         let textView = SelfSizingTextView()
@@ -106,6 +108,8 @@ struct MarkdownTextView: UIViewRepresentable {
         context.coordinator.onFormatStateChange = { state in
             DispatchQueue.main.async {
                 self.formatState = state
+                // 同步刷新 inputAccessoryView 工具栏的加粗按钮高亮
+                context.coordinator.accessoryToolbar?.formatState = state
             }
         }
         context.coordinator.onCaretRectChange = { rect in
@@ -114,6 +118,20 @@ struct MarkdownTextView: UIViewRepresentable {
             }
         }
         context.coordinator.refreshTypingAttributes(for: textView)
+
+        // 将纯 UIKit 工具栏作为 inputAccessoryView 挂到键盘上方。
+        // UIKit 下每个元素坐标由 AutoLayout 精确写死，系统据此在键盘上方留出对应高度空间。
+        let toolbar = RichTextToolbarAccessoryView()
+        toolbar.onTag = { [self] in pendingAction = .insertTriggerCharacter("#") }
+        toolbar.onReference = { [self] in pendingAction = .insertTriggerCharacter("@") }
+        toolbar.onBold = { [self] in pendingAction = .toggleBold }
+        toolbar.onImage = { onAddImage?() }
+        toolbar.onUnorderedList = { [self] in pendingAction = .insertUnorderedList }
+        toolbar.onOrderedList = { [self] in pendingAction = .insertOrderedList }
+        toolbar.formatState = formatState
+        context.coordinator.accessoryToolbar = toolbar
+        textView.inputAccessoryView = toolbar
+
         return textView
     }
 
@@ -163,6 +181,8 @@ struct MarkdownTextView: UIViewRepresentable {
         var onNodesChange: (([HoloContentNode]) -> Void)?
         /// 光标 rect 变化回调（编辑器局部坐标系），父视图据此吸附候选浮层
         var onCaretRectChange: ((CGRect) -> Void)?
+        /// inputAccessoryView 工具栏引用（格式状态变化时同步加粗按钮高亮）
+        weak var accessoryToolbar: RichTextToolbarAccessoryView?
 
         /// 当前活跃的 #/@ 触发（候选面板打开期间非空）
         private var activeTrigger: EditorTriggerContext?
