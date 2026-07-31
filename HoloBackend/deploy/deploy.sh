@@ -61,7 +61,7 @@ fi
 # 生成可复核的发布身份。rsync 发布允许工作区存在未提交改动，因此仅记录 Git SHA 不足以
 # 证明容器实际使用了哪份代码；source digest 覆盖本次 Docker context 中的全部源码，且排除
 # 生产密钥、SQLite 与依赖目录。compose 的 environment 会覆盖 .env.production 中的陈旧值。
-HOLO_RELEASE_COMMIT="$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || printf 'unknown')"
+HOLO_RELEASE_COMMIT="${HOLO_RELEASE_COMMIT_OVERRIDE:-$(git -C "$REPO_DIR" rev-parse HEAD 2>/dev/null || printf 'unknown')}"
 HOLO_RELEASE_SOURCE_DIGEST="$({
   git -C "$REPO_DIR" ls-files --cached --others --exclude-standard -- HoloBackend 2>/dev/null || true
 } | LC_ALL=C sort | while IFS= read -r relative_path; do

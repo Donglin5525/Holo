@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 
 import { createErrorResponse, GatewayError, publicMessage } from "./errors.js";
 import { createInMemoryUsageStore } from "./usage/inMemoryUsageStore.js";
@@ -23,6 +23,13 @@ import { createHoloSessionService } from "./auth/holoSession.js";
 import { requireInternalDiagnostics } from "./auth/internalDiagnosticsAuth.js";
 import { injectServerPrompt } from "./prompts/serverPromptPolicy.js";
 import { buildDeterministicIntentCompletion } from "./intentResponseStabilizer.js";
+import { createEntitlementStore } from "./subscription/entitlementStore.js";
+import { createAcceptanceStore } from "./subscription/acceptanceStore.js";
+import { createEntitlementResolver } from "./subscription/entitlementResolver.js";
+import { createAppleReceiptVerifier } from "./subscription/appleReceiptVerifier.js";
+import { HOLO_PLUS_PRODUCT_IDS } from "./subscription/productIds.js";
+import { createQuotaActionLedgerStore } from "./usage/quotaActionLedgerStore.js";
+import { getQuotaRule, QUOTA_TYPES } from "./usage/quotaPolicy.js";
 
 const CLIENT_ROUTING_FIELDS = ["baseURL", "baseUrl", "apiKey", "provider", "model"];
 
@@ -99,6 +106,13 @@ export function createApp(overrides = {}) {
   setDatabase(database.db);
 
   const usageStore = config.usageStore ?? createSqliteUsageStore(database.db);
+  const entitlementStore = config.entitlementStore ?? createEntitlementStore(database.db);
+  const acceptanceStore = config.acceptanceStore ?? createAcceptanceStore(database.db);
+  const entitlementResolver = createEntitlementResolver({ entitlementStore, acceptanceStore });
+  const quotaActionLedgerStore =
+    config.quotaActionLedgerStore ?? createQuotaActionLedgerStore(database.db);
+  const appleReceiptVerifier =
+    config.appleReceiptVerifier ?? createAppleReceiptVerifier(config.subscription);
   const stepIdempotencyStore =
     config.agentStepIdempotencyStore
       ?? createStepIdempotencyStore(database.db, { responseCipher: stepResponseCipher });
@@ -256,7 +270,75 @@ export function createApp(overrides = {}) {
     }
   });
 
+  const subscriptionStatusFor = (deviceId) => {
+    const entitlement = entitlementResolver.resolve(deviceId);
+    return buildSubscriptionStatus(entitlement, quotaActionLedgerStore);
+  };
+
+  app.get("/v1/subscription/status", (context) => {
+    try {
+      const deviceId = getDeviceId(context, config);
+      context.header("Cache-Control", "no-store");
+      return context.json(subscriptionStatusFor(deviceId));
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
+  app.post("/v1/subscription/sync", async (context) => {
+    try {
+      const deviceId = getDeviceId(context, config);
+      const request = await readJson(context);
+      const verified = await appleReceiptVerifier.verify(request);
+      entitlementStore.upsertVerified(deviceId, verified);
+      context.header("Cache-Control", "no-store");
+      return context.json(subscriptionStatusFor(deviceId));
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
+  app.post("/v1/subscription/acceptance", async (context) => {
+    try {
+      await requireInternalDiagnostics(context, holoSessionService);
+      const deviceId = getDeviceId(context, config);
+      const request = await readJson(context);
+      if (request.mode === "followPurchase") {
+        acceptanceStore.clear(deviceId);
+      } else if (request.mode === "free" || request.mode === "plus") {
+        acceptanceStore.set(deviceId, request.mode);
+      } else {
+        throw new GatewayError("INVALID_ACCEPTANCE_MODE", "Unsupported acceptance mode", 400);
+      }
+      context.header("Cache-Control", "no-store");
+      return context.json(subscriptionStatusFor(deviceId));
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
+  app.post("/v1/subscription/acceptance/reset", async (context) => {
+    try {
+      await requireInternalDiagnostics(context, holoSessionService);
+      const deviceId = getDeviceId(context, config);
+      const entitlement = entitlementResolver.resolve(deviceId);
+      if (entitlement.source !== "acceptance") {
+        throw new GatewayError(
+          "ACCEPTANCE_MODE_REQUIRED",
+          "Quota reset is only available in acceptance mode",
+          400,
+        );
+      }
+      quotaActionLedgerStore.reset(entitlement.usageSubjectId);
+      context.header("Cache-Control", "no-store");
+      return context.json(subscriptionStatusFor(deviceId));
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
   app.post("/v1/ai/chat/completions", async (context) => {
+    let quotaReservation = null;
     try {
       const request = await readJson(context);
       validateChatRequest(request);
@@ -269,6 +351,9 @@ export function createApp(overrides = {}) {
       }
 
       const deviceId = getDeviceId(context, config);
+      const entitlement = entitlementResolver.resolve(deviceId);
+      const quotaType = quotaTypeForPurpose(purpose);
+      const quotaActionId = resolveQuotaActionId(request, purpose);
       const requestLimits = resolveChatRequestLimits(config, route);
       const usage = usageStore.consume({
         deviceId,
@@ -283,6 +368,18 @@ export function createApp(overrides = {}) {
       const provider = providers.get(route.provider);
       if (!provider) {
         throw new GatewayError("MODEL_UNAVAILABLE", `Provider unavailable: ${route.provider}`, 503);
+      }
+
+      if (quotaType) {
+        quotaReservation = {
+          subjectId: entitlement.usageSubjectId,
+          tier: entitlement.tier,
+          quotaType,
+          actionId: quotaActionId,
+        };
+        const reservation = quotaActionLedgerStore.reserve(quotaReservation);
+        if (!reservation.allowed) throw quotaExceededError(reservation);
+        context.header("X-Holo-Quota-Type", quotaType);
       }
 
       const serverPrompt = injectServerPrompt(purpose, request.messages);
@@ -337,6 +434,9 @@ export function createApp(overrides = {}) {
           logStore: logId ? adminLogStore : null,
           logId,
           requestId: logId,
+          quotaType,
+          onSuccess: () => commitQuota(quotaActionLedgerStore, quotaReservation),
+          onFailure: () => releaseQuota(quotaActionLedgerStore, quotaReservation),
         });
       }
 
@@ -380,6 +480,7 @@ export function createApp(overrides = {}) {
               });
             }
             context.header("X-Holo-Step-Idempotency", "hit");
+            commitQuota(quotaActionLedgerStore, quotaReservation);
             return context.json(JSON.parse(stepGate.record.response));
           }
           acquiredStep = stepIdentity;
@@ -453,6 +554,7 @@ export function createApp(overrides = {}) {
                 : result,
           });
         }
+        commitQuota(quotaActionLedgerStore, quotaReservation);
         return context.json(result);
       } catch (error) {
         if (acquiredStep) {
@@ -470,13 +572,33 @@ export function createApp(overrides = {}) {
         throw error;
       }
     } catch (error) {
+      releaseQuota(quotaActionLedgerStore, quotaReservation);
       return createErrorResponse(context, error);
     }
   });
 
   app.post("/v1/asr/transcriptions", async (context) => {
+    let quotaReservation = null;
     try {
       const deviceId = getDeviceId(context, config);
+      const formData = await context.req.formData();
+      const audio = formData.get("audio");
+      if (!isUploadedFile(audio)) {
+        throw new GatewayError("INVALID_REQUEST", "audio file is required", 400);
+      }
+
+      if (audio.size > config.limits.asrMaxBytes) {
+        throw new GatewayError("AUDIO_TOO_LARGE", "Audio file is too large", 413);
+      }
+
+      const audioBuffer = await audio.arrayBuffer();
+      const entitlement = entitlementResolver.resolve(deviceId);
+      const durationSeconds = resolveAudioDurationSeconds(
+        formData.get("durationSeconds")?.toString(),
+        audioBuffer,
+      );
+      validateAsrDuration(entitlement.tier, durationSeconds);
+
       const usage = usageStore.consume({
         deviceId,
         purpose: "asr",
@@ -487,15 +609,15 @@ export function createApp(overrides = {}) {
         throw new GatewayError("RATE_LIMITED", "Device rate limit exceeded", 429);
       }
 
-      const formData = await context.req.formData();
-      const audio = formData.get("audio");
-      if (!isUploadedFile(audio)) {
-        throw new GatewayError("INVALID_REQUEST", "audio file is required", 400);
-      }
-
-      if (audio.size > config.limits.asrMaxBytes) {
-        throw new GatewayError("AUDIO_TOO_LARGE", "Audio file is too large", 413);
-      }
+      quotaReservation = {
+        subjectId: entitlement.usageSubjectId,
+        tier: entitlement.tier,
+        quotaType: QUOTA_TYPES.asr,
+        actionId: normalizedActionId(formData.get("usageActionId")?.toString()) ?? randomUUID(),
+      };
+      const reservation = quotaActionLedgerStore.reserve(quotaReservation);
+      if (!reservation.allowed) throw quotaExceededError(reservation);
+      context.header("X-Holo-Quota-Type", QUOTA_TYPES.asr);
 
       const logId = captureAiCallLogs
         ? adminLogStore.startAiCall({
@@ -511,7 +633,7 @@ export function createApp(overrides = {}) {
 
       try {
         const result = await asrProvider.transcribe({
-          audio: await audio.arrayBuffer(),
+          audio: audioBuffer,
           fileName: audio.name,
           mimeType: audio.type,
           locale: formData.get("locale")?.toString() ?? null,
@@ -524,6 +646,7 @@ export function createApp(overrides = {}) {
             asrResultLength: transcriptText.length,
           });
         }
+        commitQuota(quotaActionLedgerStore, quotaReservation);
         return context.json(result);
       } catch (error) {
         if (logId) {
@@ -535,6 +658,7 @@ export function createApp(overrides = {}) {
         throw error;
       }
     } catch (error) {
+      releaseQuota(quotaActionLedgerStore, quotaReservation);
       return createErrorResponse(context, error);
     }
   });
@@ -715,6 +839,10 @@ function validateChatRequest(request) {
       throw new GatewayError("INVALID_REQUEST", "message content must be a non-empty string", 400);
     }
   }
+
+  if (request.usageActionId !== undefined && !normalizedActionId(request.usageActionId)) {
+    throw new GatewayError("INVALID_REQUEST", "usageActionId is invalid", 400);
+  }
 }
 
 function rejectClientRouting(request) {
@@ -770,6 +898,7 @@ function streamChat(context, provider, request, options = {}) {
             text: capturedText,
           },
         });
+        options.onSuccess?.();
         controller.close();
       } catch (error) {
         const code = error instanceof GatewayError ? error.code : "UPSTREAM_ERROR";
@@ -779,6 +908,7 @@ function streamChat(context, provider, request, options = {}) {
           response: capturedText ? { text: capturedText } : null,
           error: serializeError(error),
         });
+        options.onFailure?.();
         controller.close();
       }
     },
@@ -790,8 +920,127 @@ function streamChat(context, provider, request, options = {}) {
       "connection": "keep-alive",
       "content-type": "text/event-stream; charset=UTF-8",
       ...(options.requestId ? { "x-holo-request-id": options.requestId } : {}),
+      ...(options.quotaType ? { "x-holo-quota-type": options.quotaType } : {}),
     },
   });
+}
+
+function buildSubscriptionStatus(entitlement, quotaStore) {
+  const quotas = Object.fromEntries(
+    Object.values(QUOTA_TYPES).map((quotaType) => [
+      quotaType,
+      quotaStore.peek({
+        subjectId: entitlement.usageSubjectId,
+        tier: entitlement.tier,
+        quotaType,
+      }),
+    ]),
+  );
+  return {
+    tier: entitlement.tier,
+    isPlusActive: entitlement.isPlusActive,
+    productId: entitlement.productId ?? null,
+    expiresAt: entitlement.expiresAt ?? null,
+    source: entitlement.source,
+    acceptanceMode: entitlement.acceptanceMode,
+    products: {
+      plusMonthly: HOLO_PLUS_PRODUCT_IDS.monthly,
+      plusYearly: HOLO_PLUS_PRODUCT_IDS.yearly,
+    },
+    quotas,
+  };
+}
+
+function quotaTypeForPurpose(purpose) {
+  if (["chat", "analysis", "agent_loop"].includes(purpose)) return QUOTA_TYPES.chat;
+  if (purpose === "finance_action_parser") return QUOTA_TYPES.naturalLanguageFinance;
+  if (purpose === "task_action_parser") return QUOTA_TYPES.naturalLanguageTask;
+  if (purpose === "insight") return QUOTA_TYPES.memoryInsight;
+  return null;
+}
+
+function resolveQuotaActionId(request, purpose) {
+  const explicit = normalizedActionId(request.usageActionId);
+  if (explicit) return explicit;
+  if (purpose === "agent_loop") {
+    const runId = normalizedActionId(request.runId);
+    if (runId) return runId;
+  }
+  return randomUUID();
+}
+
+function normalizedActionId(value) {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim();
+  if (!normalized || normalized.length > 128) return null;
+  return normalized;
+}
+
+function quotaExceededError(snapshot) {
+  return new GatewayError("QUOTA_EXCEEDED", "Membership quota exceeded", 429, {
+    quotaType: snapshot.quotaType,
+    tier: snapshot.tier,
+    limit: snapshot.limit,
+    used: snapshot.used,
+    remaining: snapshot.remaining,
+    resetAt: snapshot.resetAt,
+    upgradeAvailable: snapshot.tier !== "plus",
+  });
+}
+
+function commitQuota(store, reservation) {
+  if (reservation) store.commit(reservation);
+}
+
+function releaseQuota(store, reservation) {
+  if (reservation) store.release(reservation);
+}
+
+function validateAsrDuration(tier, durationSeconds) {
+  if (durationSeconds === null) return;
+  const maxSeconds = getQuotaRule(tier, QUOTA_TYPES.asr).maxSeconds;
+  if (durationSeconds <= maxSeconds) return;
+  throw new GatewayError("ASR_DURATION_EXCEEDED", "Audio duration exceeded", 429, {
+    quotaType: QUOTA_TYPES.asr,
+    tier: tier === "plus" ? "plus" : "free",
+    maxSeconds,
+    actualSeconds: durationSeconds,
+    upgradeAvailable: tier !== "plus",
+  });
+}
+
+function resolveAudioDurationSeconds(rawDuration, audioBuffer) {
+  if (rawDuration !== undefined) {
+    const value = Number(rawDuration);
+    if (Number.isFinite(value) && value >= 0) return value;
+  }
+  return wavDurationSeconds(audioBuffer);
+}
+
+function wavDurationSeconds(audioBuffer) {
+  const bytes = new Uint8Array(audioBuffer);
+  if (bytes.length < 44 || ascii(bytes, 0, 4) !== "RIFF" || ascii(bytes, 8, 4) !== "WAVE") {
+    return null;
+  }
+  const view = new DataView(audioBuffer);
+  let offset = 12;
+  let byteRate = null;
+  let dataSize = null;
+  while (offset + 8 <= bytes.length) {
+    const chunkId = ascii(bytes, offset, 4);
+    const chunkSize = view.getUint32(offset + 4, true);
+    if (chunkId === "fmt " && chunkSize >= 16 && offset + 16 <= bytes.length) {
+      byteRate = view.getUint32(offset + 12, true);
+    } else if (chunkId === "data") {
+      dataSize = Math.min(chunkSize, bytes.length - offset - 8);
+    }
+    offset += 8 + chunkSize + (chunkSize % 2);
+  }
+  return byteRate && dataSize !== null ? dataSize / byteRate : null;
+}
+
+function ascii(bytes, offset, length) {
+  return String.fromCharCode(...bytes.slice(offset, offset + length));
 }
 
 function appendCapturedText(current, next, maxChars = 20_000) {

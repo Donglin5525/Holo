@@ -210,6 +210,9 @@ const DEFAULT_CONFIG = {
   aiCallLogs: {
     enabled: process.env.HOLO_AI_CALL_LOGS_ENABLED !== "false",
   },
+  subscription: {
+    appleVerificationMode: process.env.HOLO_APPLE_VERIFICATION_MODE ?? "disabled",
+  },
 };
 
 function csv(value) {
@@ -246,11 +249,19 @@ export function loadConfig(overrides = {}) {
       ...DEFAULT_CONFIG.aiCallLogs,
       ...overrides.aiCallLogs,
     },
+    subscription: {
+      ...DEFAULT_CONFIG.subscription,
+      ...overrides.subscription,
+    },
     asrProvider: overrides.asrProvider,
     appleIdentityVerifier: overrides.appleIdentityVerifier,
     holoSessionService: overrides.holoSessionService,
     adminLogStore: overrides.adminLogStore,
     usageStore: overrides.usageStore,
+    quotaActionLedgerStore: overrides.quotaActionLedgerStore,
+    entitlementStore: overrides.entitlementStore,
+    acceptanceStore: overrides.acceptanceStore,
+    appleReceiptVerifier: overrides.appleReceiptVerifier,
     providerOverrides: overrides.providerOverrides,
     agentStepIdempotencyStore: overrides.agentStepIdempotencyStore,
     agentStepIdempotencyEncryptionKey:

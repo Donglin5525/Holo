@@ -117,6 +117,87 @@ const MIGRATIONS = [
         ON agent_step_idempotency(expires_at);
     `,
   },
+  {
+    id: 7,
+    description: 'Agent step 幂等记录新增 generation CAS 版本',
+    up: `
+      ALTER TABLE agent_step_idempotency
+      ADD COLUMN generation INTEGER NOT NULL DEFAULT 1;
+    `,
+  },
+  {
+    id: 8,
+    description: '创建 App Attest challenge 与实例 key 状态表',
+    up: `
+      CREATE TABLE IF NOT EXISTS app_attest_challenges (
+        id TEXT PRIMARY KEY,
+        challenge_hash TEXT NOT NULL,
+        key_id TEXT,
+        expires_at INTEGER NOT NULL,
+        consumed_at INTEGER
+      );
+      CREATE INDEX IF NOT EXISTS idx_app_attest_challenges_expires
+        ON app_attest_challenges(expires_at);
+
+      CREATE TABLE IF NOT EXISTS app_attest_keys (
+        key_id TEXT PRIMARY KEY,
+        public_key_pem TEXT NOT NULL,
+        receipt TEXT,
+        sign_count INTEGER NOT NULL DEFAULT 0,
+        environment TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        last_seen_at INTEGER NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_app_attest_keys_last_seen
+        ON app_attest_keys(last_seen_at);
+    `,
+  },
+  {
+    id: 9,
+    description: '创建订阅权益与真机验收覆盖表',
+    up: `
+      CREATE TABLE IF NOT EXISTS subscription_entitlements (
+        device_id TEXT PRIMARY KEY,
+        tier TEXT NOT NULL,
+        product_id TEXT,
+        original_transaction_id TEXT,
+        latest_transaction_id TEXT,
+        environment TEXT,
+        expires_at TEXT,
+        revoked_at TEXT,
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+      CREATE INDEX IF NOT EXISTS idx_subscription_entitlements_expires
+        ON subscription_entitlements(expires_at);
+
+      CREATE TABLE IF NOT EXISTS subscription_acceptance_overrides (
+        device_id TEXT PRIMARY KEY,
+        tier TEXT NOT NULL CHECK (tier IN ('free', 'plus')),
+        updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+      );
+    `,
+  },
+  {
+    id: 10,
+    description: '创建按成功动作计数的会员额度账本',
+    up: `
+      CREATE TABLE IF NOT EXISTS quota_action_ledger (
+        subject_id TEXT NOT NULL,
+        quota_type TEXT NOT NULL,
+        period_key TEXT NOT NULL,
+        action_id TEXT NOT NULL,
+        tier TEXT NOT NULL,
+        status TEXT NOT NULL CHECK (status IN ('reserved', 'committed')),
+        created_at_ms INTEGER NOT NULL,
+        updated_at_ms INTEGER NOT NULL,
+        PRIMARY KEY (subject_id, quota_type, period_key, action_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_quota_action_ledger_period
+        ON quota_action_ledger(subject_id, quota_type, period_key, status);
+      CREATE INDEX IF NOT EXISTS idx_quota_action_ledger_stale
+        ON quota_action_ledger(status, updated_at_ms);
+    `,
+  },
 ];
 
 function computeChecksum(sql) {
@@ -147,6 +228,17 @@ export function runMigrations(db, { backupFn } = {}) {
     applied.set(row.migration_id, row.checksum);
   }
 
+  // 已应用 migration 也必须核对 checksum，避免不同分支复用同一编号时静默跳过建表。
+  for (const migration of MIGRATIONS) {
+    const appliedChecksum = applied.get(migration.id);
+    const expectedChecksum = computeChecksum(migration.up);
+    if (appliedChecksum && appliedChecksum !== expectedChecksum) {
+      throw new Error(
+        `Migration #${migration.id} checksum 不匹配。已应用: ${appliedChecksum}, 当前: ${expectedChecksum}。可能存在编号冲突，拒绝启动。`
+      );
+    }
+  }
+
   // 检查是否需要备份（有任何新 migration 需要执行）
   const pending = MIGRATIONS.filter((m) => !applied.has(m.id));
   if (pending.length === 0) return;
@@ -160,13 +252,6 @@ export function runMigrations(db, { backupFn } = {}) {
   // 逐个执行 pending migration
   for (const migration of pending) {
     const checksum = computeChecksum(migration.up);
-
-    const appliedChecksum = applied.get(migration.id);
-    if (appliedChecksum && appliedChecksum !== checksum) {
-      throw new Error(
-        `Migration #${migration.id} checksum 不匹配。已应用: ${appliedChecksum}, 当前: ${checksum}。可能被篡改，拒绝执行。`
-      );
-    }
 
     // 用事务包裹整个 migration
     const transaction = db.transaction(() => {

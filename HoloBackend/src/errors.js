@@ -1,9 +1,10 @@
 export class GatewayError extends Error {
-  constructor(code, message, status = 500) {
+  constructor(code, message, status = 500, details = null) {
     super(message);
     this.name = "GatewayError";
     this.code = code;
     this.status = status;
+    this.details = details;
   }
 }
 
@@ -18,6 +19,7 @@ export function createErrorResponse(context, error) {
       error: {
         code: gatewayError.code,
         message: publicMessage(gatewayError.code),
+        ...(gatewayError.details ?? {}),
       },
     },
     gatewayError.status,
@@ -52,6 +54,15 @@ export function publicMessage(code) {
 
     // 频率限制
     RATE_LIMITED: "今天的 AI 使用次数已达上限，稍后再试",
+    QUOTA_EXCEEDED: "当前会员额度已用完",
+    ASR_DURATION_EXCEEDED: "本次录音超过当前会员可识别时长",
+
+    // 订阅与验收
+    SUBSCRIPTION_VERIFICATION_UNAVAILABLE: "订阅验证服务暂不可用",
+    INVALID_PRODUCT_ID: "订阅商品无效",
+    INVALID_TRANSACTION: "订阅交易验证失败",
+    INVALID_ACCEPTANCE_MODE: "真机验收模式无效",
+    ACCEPTANCE_MODE_REQUIRED: "请先切换到免费或 Plus 真机验收模式",
 
     // Agent step 幂等
     STEP_ID_CONFLICT: "任务步骤与请求内容不匹配，请重新开始分析",
