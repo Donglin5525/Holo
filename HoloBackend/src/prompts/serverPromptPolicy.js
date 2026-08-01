@@ -26,6 +26,7 @@ const PURPOSE_PROMPT_TYPES = Object.freeze({
   finance_action_parser: "finance_action_parser",
   task_action_parser: "task_action_parser",
   thought_organization: "thought_organization",
+  thought_task_extraction: "thought_task_extraction",
   thought_tag_convergence: "thought_tag_convergence",
   category_pattern_induction: "category_pattern_induction",
   agent_loop: "agent_loop",

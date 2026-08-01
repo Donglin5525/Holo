@@ -17,6 +17,7 @@ const PROMPT_VERSIONS = {
   task_action_parser: 1,
   health_insight_generation: 2,
   thought_organization: 3,
+  thought_task_extraction: 1,
   thought_tag_convergence: 2,
   agent_loop: 17,                  // v17: 输出加 title/narrativeSummary 顶层字段，让 LLM 产出有人味儿的标题和摘要
   memory_domain_extraction: 2,

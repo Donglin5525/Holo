@@ -9,7 +9,7 @@ test("every public AI purpose resolves to a server-owned Prompt", () => {
   const purposes = [
     "chat", "analysis", "intent", "flexible_query_planner", "insight", "replayDigest", "health_insight_generation",
     "thought_voice_summary", "memory_observer", "finance_action_parser", "task_action_parser",
-    "thought_organization", "thought_tag_convergence", "category_pattern_induction", "agent_loop",
+    "thought_organization", "thought_task_extraction", "thought_tag_convergence", "category_pattern_induction", "agent_loop",
     "memory_domain_extraction", "memory_cross_domain_fusion",
   ];
   for (const purpose of purposes) assert.ok(promptTypeForPurpose(purpose), purpose);
