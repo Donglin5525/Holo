@@ -204,6 +204,9 @@ const DEFAULT_CONFIG = {
     model: process.env.DASHSCOPE_ASR_MODEL ?? "qwen3-asr-flash-realtime",
     language: process.env.DASHSCOPE_ASR_LANGUAGE ?? "zh",
     sampleRate: Number(process.env.DASHSCOPE_ASR_SAMPLE_RATE ?? 16_000),
+    // 中文数字智能归一化：计数场景（二十元→20元）转阿拉伯数字，成语/概数保留中文。
+    // 默认开启，设 HOLO_ASR_CHINESE_NUMBER_CONVERSION=false 可关闭。
+    chineseNumberConversionEnabled: process.env.HOLO_ASR_CHINESE_NUMBER_CONVERSION !== "false",
   },
   admin: {
     token: process.env.HOLO_ADMIN_TOKEN ?? "",

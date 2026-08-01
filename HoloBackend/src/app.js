@@ -13,6 +13,7 @@ import { validateAgentLoopContent } from "./agentResponseValidator.js";
 import { createStepIdempotencyStore } from "./agent/stepIdempotencyStore.js";
 import { createStepResponseCipher } from "./agent/stepResponseCipher.js";
 import { getPrompt, listPrompts, listPromptMetadata, setDatabase } from "./prompts/promptRegistry.js";
+import { normalizeChineseNumbers } from "./chineseNumberConverter.js";
 import { loadConfig } from "./config.js";
 import { createAdminLogStore, truncateText } from "./admin/adminLogStore.js";
 import { registerAdminRoutes } from "./admin/adminRoutes.js";
@@ -638,6 +639,9 @@ export function createApp(overrides = {}) {
           mimeType: audio.type,
           locale: formData.get("locale")?.toString() ?? null,
         });
+        if (config.asr.chineseNumberConversionEnabled && typeof result.text === "string") {
+          result.text = normalizeChineseNumbers(result.text);
+        }
         if (logId) {
           const transcriptText = result.text ?? JSON.stringify(result);
           adminLogStore.finishAiCall(logId, {
