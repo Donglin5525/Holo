@@ -85,18 +85,22 @@ enum HoloProfilePromptRenderer {
         let rules = renderRules(purpose: purpose)
         parts.append(rules)
 
-        // Raw Markdown 补充（仅在 chat 模式且 token 有余量时）
-        if purpose == .chat && snapshot.hasStructuredData {
-            let usedTokens = estimateTokens(parts.joined(separator: "\n"))
-            let remainingTokens = maxTokenBudget - usedTokens
-            if remainingTokens > 200 {
-                let rawSupplement = renderRawSupplement(snapshot.rawMarkdown, tokenBudget: remainingTokens)
-                if !rawSupplement.isEmpty {
-                    parts.append(rawSupplement)
+        // Raw Markdown 注入策略：结构化是优化项，原文是底线。
+        // 用户主动写的内容（rawMarkdown）无论解析是否成功、无论哪个 purpose，都必须送达 AI。
+        if snapshot.hasStructuredData {
+            // 有结构化数据：仅 chat 模式且 token 有余量时补原文（analysis/insight 已有精简结构化）
+            if purpose == .chat {
+                let usedTokens = estimateTokens(parts.joined(separator: "\n"))
+                let remainingTokens = maxTokenBudget - usedTokens
+                if remainingTokens > 200 {
+                    let rawSupplement = renderRawSupplement(snapshot.rawMarkdown, tokenBudget: remainingTokens)
+                    if !rawSupplement.isEmpty {
+                        parts.append(rawSupplement)
+                    }
                 }
             }
-        } else if purpose == .chat && !snapshot.hasStructuredData {
-            // 无结构化数据时，直接用 raw Markdown
+        } else {
+            // 无结构化数据：所有 purpose 都用 raw Markdown 兜底，避免解析失败导致内容完全丢失
             let rawSection = renderRawSupplement(
                 snapshot.rawMarkdown,
                 tokenBudget: maxTokenBudget - estimateTokens(parts.joined(separator: "\n"))

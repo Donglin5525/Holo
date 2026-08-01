@@ -49,12 +49,13 @@ enum HoloProfileSnapshotBuilder {
 
     /// 匹配"希望称呼"类字段的模式
     private static let preferredNamePatterns: [(pattern: String, extractGroup: Int)] = [
-        // 模板格式："希望称呼：东林" / "昵称：东林"
+        // 模板格式："希望称呼：东林" / "昵称：东林"（必须带冒号）
         (pattern: "(?:希望称呼|昵称|称呼我为|名字|称呼)\\s*[:：]\\s*(.+)", 1),
-        // 自然语言："叫我东林就好" / "叫我东林"
-        (pattern: "叫(?:我|作)\\s*([^，。,\\.\\s]{1,10})(?:就好|就行|吧|好了)?(?:[，。,.\\s]|$)", 1),
-        // 自然语言："我是东林"
-        (pattern: "我(?:是|叫)\\s*([^，。,\\.\\s]{1,10})(?:[，。,.\\s]|$)", 1),
+        // 自然语言（无冒号）："称呼我为东林" / "希望称呼我东林" / "叫我东林就好" / "叫我东林"
+        // 后缀词（就好/就行/吧/好了）用懒惰组先消费，避免被名字 {1,10} 吃掉
+        (pattern: "(?:称呼我为|希望称呼我?|叫(?:我|作))\\s*([^，。,\\.\\s：:]{1,10}?)(?:就好|就行|吧|好了)?(?:[，。,.\\s]|$)", 1),
+        // 自然语言："我是东林"（限制长度，避免抓到"是一名产品经理"这种职业描述）
+        (pattern: "我(?:是|叫)\\s*([^，。,\\.\\s]{1,8})(?:[，。,.\\s]|$)", 1),
         // 英文："Call me Donglin"
         (pattern: "(?:call\\s+me|name(?:d)?(?:\\s+is)?)\\s+([\\w\\s]{1,20}?)(?:[,.]|$)", 1),
     ]
@@ -117,13 +118,25 @@ enum HoloProfileSnapshotBuilder {
         let communicationStyle = extractSectionLines(from: sections, target: .communication)
         confidence["communicationStyle"] = !communicationStyle.isEmpty
 
-        let currentFocus = extractSectionLines(from: sections, target: .focus)
+        // 当前关注：优先按 focus section 提取，为空时兜底识别"编号列表形式的目标"
+        // 覆盖"最近的目标是 1.xxx 2.xxx"这种不带 # 标题的自然语言写法
+        let currentFocus: [String] = {
+            let sectioned = extractSectionLines(from: sections, target: .focus)
+            if !sectioned.isEmpty { return sectioned }
+            return extractNumberedGoals(from: trimmed)
+        }()
         confidence["currentFocus"] = !currentFocus.isEmpty
 
         let lifeContext: [String] = []
         confidence["lifeContext"] = false
 
-        let healthHabitContext = extractSectionLines(from: sections, target: .health)
+        // 健康与习惯目标：优先按 health section 提取，为空时从已识别的编号目标里识别健康类
+        let healthHabitContext: [String] = {
+            let sectioned = extractSectionLines(from: sections, target: .health)
+            if !sectioned.isEmpty { return sectioned }
+            // 兜底：编号目标中含健康/习惯关键词的归入此类（健身、减肥、戒烟、睡眠等）
+            return currentFocus.filter { isHealthHabitRelated($0) }
+        }()
         confidence["healthHabitContext"] = !healthHabitContext.isEmpty
 
         let sensitiveBoundaries = extractSectionLines(from: sections, target: .boundaries)
@@ -316,6 +329,65 @@ enum HoloProfileSnapshotBuilder {
     }
 
     // MARK: - 正则工具
+
+    /// 从全文识别"编号列表形式的目标"，如：
+    /// "最近的目标是 \n 1.健身瘦到80KG \n 2.希望减少香烟 \n 3.正在开发HoloAPP"
+    /// 识别引子句（含"目标/计划/想要/打算"等）后面的 1.2.3. 或 ①②③ 编号项
+    private static func extractNumberedGoals(from markdown: String) -> [String] {
+        let lines = markdown.components(separatedBy: .newlines)
+        var goals: [String] = []
+        var inGoalList = false
+
+        for line in lines {
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+
+            // 检测编号项：1. / 1、 / ① 等
+            if let goal = extractNumberedItem(trimmed) {
+                inGoalList = true
+                let cleaned = goal.trimmingCharacters(in: .whitespaces)
+                if !cleaned.isEmpty && cleaned.count <= 40 {
+                    goals.append(cleaned)
+                }
+            } else if inGoalList && trimmed.isEmpty {
+                // 空行允许，继续等待后续编号项
+                continue
+            } else if inGoalList && !trimmed.hasPrefix("#") {
+                // 遇到非编号非空非标题的正文行，结束列表
+                break
+            }
+        }
+
+        // 只在检测到引子句（目标/计划/想要/打算/最近在）时才认定这些是目标
+        let hasGoalCue = markdown.range(of: "(?:最近的目标|目标|计划|想要|打算|最近在|正在努力)", options: .regularExpression) != nil
+        return hasGoalCue ? goals : []
+    }
+
+    /// 提取单个编号项的内容（1.xxx / 1、xxx / ①xxx），返回 nil 表示非编号行
+    private static func extractNumberedItem(_ line: String) -> String? {
+        let patterns: [String] = [
+            "^[0-9]+[\\.、]\\s*(.+)",        // "1.xxx" / "1、xxx"
+            "^[①②③④⑤⑥⑦⑧⑨⑩](.+)",            // "①xxx"
+            "^[（(][0-9]+[)）]\\s*(.+)",       // "(1)xxx"
+        ]
+        for pattern in patterns {
+            if let match = firstMatch(in: line, pattern: pattern, group: 1) {
+                return match
+            }
+        }
+        return nil
+    }
+
+    /// 判断目标内容是否属于健康/习惯范畴
+    private static func isHealthHabitRelated(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        let keywords = [
+            "健身", "减肥", "减脂", "增肌", "瘦身", "瘦到", "运动", "跑步",
+            "戒烟", "戒酒", "抽烟", "吸烟", "香烟", "喝酒", "饮酒", "熬夜", "睡眠", "喝水",
+            "饮食", "控制", "体重", "公斤", "kg", " calorie", "卡路里",
+            "exercise", "smoke", "sleep", "weight"
+        ]
+        return keywords.contains { lower.contains($0) }
+    }
 
     /// 正则匹配第一个 group
     private static func firstMatch(in text: String, pattern: String, group: Int) -> String? {

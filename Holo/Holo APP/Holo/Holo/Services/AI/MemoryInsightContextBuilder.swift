@@ -158,9 +158,16 @@ struct MemoryInsightContextBuilder {
             if profile.isEmpty { return nil }
 
             // 优先使用结构化 snapshot + renderer（受 feature flag 控制）
+            // 兜底条件以「snapshot 是否有结构化内容」为准：render() 返回值即使结构化全空
+            // 也会包含使用规则套话（非空），用 rendered.isEmpty 判断会让原文兜底永远不触发。
             if let snapshot = HoloProfileService.shared.loadSnapshot() {
-                let rendered = HoloProfilePromptRenderer.render(snapshot, purpose: .insight)
-                return rendered.isEmpty ? profile : rendered
+                if snapshot.hasStructuredData {
+                    let rendered = HoloProfilePromptRenderer.render(snapshot, purpose: .insight)
+                    return rendered.isEmpty ? profile : rendered
+                }
+                // 结构化为空但有原文：用安全 fallback 送达 raw markdown
+                let fallback = HoloProfilePromptRenderer.renderRawFallback(profile)
+                return fallback.isEmpty ? profile : fallback
             }
 
             // Feature flag 关闭时使用安全 fallback

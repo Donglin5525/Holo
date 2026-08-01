@@ -18,6 +18,8 @@ struct HoloProfileToolSnapshot: Codable, Equatable, Sendable {
     var lifeContext: [String]
     var healthHabitContext: [String]
     var sensitiveBoundaries: [String]
+    /// 原始档案文本。结构化字段解析失败时，作为兜底内容供工具返回，确保用户原文不丢。
+    var rawMarkdown: String
 
     var isEmpty: Bool {
         [preferredName, language, timezone, city, profession].compactMap { $0 }.isEmpty
@@ -26,6 +28,7 @@ struct HoloProfileToolSnapshot: Codable, Equatable, Sendable {
             && lifeContext.isEmpty
             && healthHabitContext.isEmpty
             && sensitiveBoundaries.isEmpty
+            && rawMarkdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 }
 
@@ -116,12 +119,21 @@ private extension HoloProfileTool {
             return (label, value)
         }
         guard !available.isEmpty else {
+            // 结构化字段全空，但用户写了原文：兜底返回原文，确保内容不丢
+            let raw = snapshot.rawMarkdown.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !raw.isEmpty else {
+                return result(
+                    request,
+                    status: .empty,
+                    metrics: [],
+                    events: [],
+                    warnings: [HoloToolWarning(code: "NO_PROFILE_SUMMARY", message: "档案中没有基础资料")]
+                )
+            }
             return result(
                 request,
-                status: .empty,
-                metrics: [],
-                events: [],
-                warnings: [HoloToolWarning(code: "NO_PROFILE_SUMMARY", message: "档案中没有基础资料")]
+                metrics: [metric("profile.field.count", 1, unit: "项")],
+                events: [event(id: "profile-field-raw", key: "profile.field", excerpt: "档案原文：\(raw)")]
             )
         }
         return result(
@@ -141,12 +153,21 @@ private extension HoloProfileTool {
             + snapshot.lifeContext.map { ("生活上下文", $0) }
             + snapshot.healthHabitContext.map { ("健康与习惯目标", $0) }
         guard !items.isEmpty else {
+            // 结构化目标全空，但用户写了原文：兜底返回原文，避免目标类提问拿不到内容
+            let raw = snapshot.rawMarkdown.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !raw.isEmpty else {
+                return result(
+                    request,
+                    status: .empty,
+                    metrics: [],
+                    events: [],
+                    warnings: [HoloToolWarning(code: "NO_PROFILE_FOCUS", message: "档案中没有当前关注或目标")]
+                )
+            }
             return result(
                 request,
-                status: .empty,
-                metrics: [],
-                events: [],
-                warnings: [HoloToolWarning(code: "NO_PROFILE_FOCUS", message: "档案中没有当前关注或目标")]
+                metrics: [metric("profile.focus.count", 1, unit: "项")],
+                events: [event(id: "profile-focus-raw", key: "profile.focus.item", excerpt: "档案原文：\(raw)")]
             )
         }
         return result(
