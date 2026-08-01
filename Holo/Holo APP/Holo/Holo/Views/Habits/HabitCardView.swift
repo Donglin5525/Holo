@@ -48,10 +48,12 @@ struct HabitCardView: View {
             // 中间信息
             infoView
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .layoutPriority(1)
             
             // 右侧交互按钮
             actionView
+                // 操作控件必须完整显示；空间不足时优先压缩中间说明文字。
+                .fixedSize(horizontal: true, vertical: false)
+                .layoutPriority(1)
         }
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, HoloSpacing.md)
@@ -100,6 +102,11 @@ struct HabitCardView: View {
                   let value = todayValue ?? latestHistoricalValue else { return false }
             return value > target
         }
+    }
+
+    /// 次数类只有存在今日记录时才能撤销，但减号按钮始终保留，避免操作区跳动。
+    private var canUndoCount: Bool {
+        (todayValue ?? 0) > 0
     }
 
     private func loadStatus() {
@@ -231,21 +238,21 @@ struct HabitCardView: View {
                         .foregroundColor(isOverLimit ? .holoError : .holoTextPrimary)
                 }
 
-                // -1 按钮（撤销今日最近一笔，仅有记录时显示）
-                if (todayValue ?? 0) > 0 {
-                    Button {
-                        undoLatestRecord()
-                    } label: {
-                        Text("-1")
-                            .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.holoTextSecondary)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 8)
-                            .background(Color.holoCardBackground)
-                            .overlay(Capsule().stroke(Color.holoBorder, lineWidth: 1))
-                            .clipShape(Capsule())
-                    }
+                // -1 按钮：始终显示；今日无记录时置灰，避免按钮凭空出现和布局跳动。
+                Button {
+                    undoLatestRecord()
+                } label: {
+                    Text("-1")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.holoTextSecondary)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color.holoCardBackground)
+                        .overlay(Capsule().stroke(Color.holoBorder, lineWidth: 1))
+                        .clipShape(Capsule())
                 }
+                .disabled(!canUndoCount)
+                .opacity(canUndoCount ? 1 : 0.35)
 
                 // +1 按钮
                 Button {
