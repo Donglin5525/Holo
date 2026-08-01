@@ -104,8 +104,6 @@ struct ThoughtEditorView: View {
                 VStack(spacing: HoloSpacing.md) {
                     // 内容编辑区（含光标吸附候选浮层）
                     contentSection
-                    // 标签区域（只读展示正文中已识别的 # 标签）
-                    tagsSection
                     // AI 归类区域（只读回显）
                     if !aiAssignments.isEmpty {
                         aiTagsSection
@@ -432,42 +430,6 @@ struct ThoughtEditorView: View {
             }
             .accessibilityLabel(smartSummaryEnabled ? "关闭智能总结" : "开启智能总结")
         }
-    }
-
-    /// 标签区域（只读展示正文中已识别的 # 标签，新增标签统一走行内 #）
-    private var tagsSection: some View {
-        let inlineTags = InlineTagDetector.extractTags(from: content)
-
-        return VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            HStack {
-                Text("标签")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
-                Spacer()
-                Text("正文中输入 # 添加")
-                    .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary.opacity(0.6))
-            }
-
-            if !inlineTags.isEmpty {
-                ScrollView(.horizontal, showsIndicators: false) {
-                    HStack(spacing: 8) {
-                        ForEach(inlineTags, id: \.self) { tag in
-                            Text("#\(tag)")
-                                .font(.holoLabel)
-                                .foregroundColor(.holoPrimary)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 4)
-                                .background(Color.holoPrimary.opacity(0.1))
-                                .cornerRadius(HoloRadius.sm)
-                        }
-                    }
-                }
-            }
-        }
-        .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
-        .cornerRadius(HoloRadius.md)
     }
 
     /// AI 归类区域（只读回显）
