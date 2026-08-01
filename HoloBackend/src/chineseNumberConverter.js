@@ -132,16 +132,22 @@ function parseChineseNumber(segment) {
   return total > 0 ? total : null;
 }
 
+// 金额 / 计数语境词——数字出现在这些词之后、且本身无单位时，
+// 判定为金额/数量（口语常见：「停车费二十」「一共五十」「花了二十」「给了五十」）。
+// 允许中间隔一个「了」字（花了二十、给了五十）。
+const AMOUNT_CONTEXT_PATTERN = /[费花付收赚销账块元角分斤吨岁百千万余共达满约给借欠退补剩找凑凑押](了)?$/;
+
 /**
  * 判断一个中文数字片段是否「应该」转换成阿拉伯数字。
  * 基于「白名单触发」：只有明确是计数场景才转。
  *
  * @param {string} segment  中文数字片段，如 "二十"
  * @param {string} before   片段前的一个字符
+ * @param {string} beforeTail 片段前的字符序列（用于判断金额语境）
  * @param {string} afterTail 片段后的剩余字符串（至少看前 3 个字符，够匹配多字量词）
  * @returns {boolean}
  */
-function shouldConvert(segment, before, afterTail) {
+function shouldConvert(segment, before, beforeTail, afterTail) {
   // 概数（三五、两三、七八）保留中文。
   if (APPROX_PATTERN.test(segment)) return false;
 
@@ -160,6 +166,10 @@ function shouldConvert(segment, before, afterTail) {
   // 触发条件 4：片段本身含大单位「万/亿」（两百万、三千万）。
   // 这类几乎一定是数值场景（相关成语已被词典保护），即使后无单位也转。
   if (BIG_UNIT_RE.test(segment)) return true;
+
+  // 触发条件 5：数字后面无单位（句末/标点前/空），但前面是金额/计数语境。
+  // 覆盖口语常见句式：「停车费二十」「一共五十」「花了二十」。
+  if (AMOUNT_CONTEXT_PATTERN.test(beforeTail)) return true;
 
   return false;
 }
@@ -190,9 +200,10 @@ export function normalizeChineseNumbers(text) {
   // 第二步：逐段扫描中文数字，按白名单规则决定转不转。
   masked = masked.replace(NUMERAL_PATTERN, (segment, offset) => {
     const before = offset > 0 ? masked[offset - 1] : "";
+    const beforeTail = masked.slice(Math.max(0, offset - 8), offset);
     const afterTail = masked.slice(offset + segment.length, offset + segment.length + 3);
 
-    if (!shouldConvert(segment, before, afterTail)) return segment;
+    if (!shouldConvert(segment, before, beforeTail, afterTail)) return segment;
 
     const value = parseChineseNumber(segment);
     if (value === null) return segment;

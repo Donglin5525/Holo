@@ -4,6 +4,23 @@
 
 ---
 
+## [2026-08-01] 修复语音识别崩溃 + 上线数字归一化
+
+语音识别在今天凌晨的提交（Holo Plus 权益验收闭环）后全面崩溃，用户唤起语音输入瞬间闪退/报「识别失败」。根因是新加的 `audioDuration` 用 `AVURLAsset.load(.duration)` 读取录音文件时长，但 `VoiceRecordingService` 产出的是裸 PCM 文件（无 WAV 容器头），AVFoundation 无法解析直接抛错，`try` 让整个识别流程中断。同时上线了语音识别中文数字归一化（后端规则引擎）。
+
+### 改动
+1. **修复 audioDuration 崩溃（iOS）**：`HoloBackendSpeechRecognitionProvider.audioDuration` 增加 fallback——`AVURLAsset` 解析失败时，按已知格式（16kHz / 单声道 / Int16 = 32000 bytes/s）用文件大小反推时长。录音逻辑（`VoiceRecordingService`）保持原样不动。
+2. **中文数字归一化（后端，需发版）**：新增 `chineseNumberConverter.js`，在 ASR 识别结果返回前做规则转换。计数场景（二十元→20元、三次→3次、停车费二十→停车费20）转阿拉伯数字，成语（一五一十、七上八下）和概数（三五个）保留中文。支持「金额语境」：数字在句末无单位、但前面是费/花/付/给/共等金额词时也转。开关 `HOLO_ASR_CHINESE_NUMBER_CONVERSION` 默认开启。
+3. **清理临时诊断日志**：移除排查期间加的 `console.log` 归一化诊断输出。
+
+### 验证与发布
+- 后端 `npm test` 181 全过，归一化单元测试 14 个场景（金额/量词/多字量词/时间/「第」前缀/万亿大单位/成语/概数/空输入）全过
+- iOS 工程全量构建成功（`BUILD SUCCEEDED`）
+- 后端已部署到生产（`https://api.holoapp.cn`），公网端到端验证通过
+- **iOS 改动需走 App 发版流程才能让所有用户受益**（当前仅 Xcode 真机调试环境生效）
+
+---
+
 ## [2026-08-01] 修复个人档案内容无法触发 AI 的问题
 
 用户在档案里用自然语言写的称呼（如「称呼我为东林」）和编号列表目标（如「最近的目标是 1.xxx 2.xxx」），在 HoloAI 的任何场景都不会生效。根因有两层：解析器只认带冒号的模板格式，用户的自由写法全部漏识别；分析对话、记忆洞察、Agent 这三个场景的「原文兜底」链路又有漏洞，解析失败后内容一个字都到不了 AI。

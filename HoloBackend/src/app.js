@@ -640,9 +640,7 @@ export function createApp(overrides = {}) {
           locale: formData.get("locale")?.toString() ?? null,
         });
         if (config.asr.chineseNumberConversionEnabled && typeof result.text === "string") {
-          const beforeNormalize = result.text;
           result.text = normalizeChineseNumbers(result.text);
-          console.log(`[ASR归一化] 原始=${beforeNormalize} | 转换后=${result.text}`);
         }
         if (logId) {
           const transcriptText = result.text ?? JSON.stringify(result);

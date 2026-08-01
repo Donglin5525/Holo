@@ -7,8 +7,10 @@
 
 import AVFoundation
 import Foundation
+import os.log
 
 final class HoloBackendSpeechRecognitionProvider: SpeechRecognitionProvider {
+    private static let logger = Logger(subsystem: "com.holo.app", category: "ASR")
     private let baseURL: String
     private let session: URLSession
     private let deviceIdProvider: () -> String
@@ -24,25 +26,40 @@ final class HoloBackendSpeechRecognitionProvider: SpeechRecognitionProvider {
     }
 
     func transcribe(audioFileURL: URL, locale: String?) async throws -> SpeechRecognitionResult {
+        Self.logger.log("transcribe 开始：file=\(audioFileURL.lastPathComponent, privacy: .public)")
+
         guard HoloAIFeatureFlags.aiDataProcessingConsentGranted else {
+            Self.logger.error("❌ 拦截：数据授权未同意")
             throw SpeechRecognitionError.serverMessage(HoloAIDataProcessingConsent.requiredMessage)
         }
 
         guard let url = URL(string: "\(baseURL)/v1/asr/transcriptions") else {
+            Self.logger.error("❌ 拦截：URL 构造失败 baseURL=\(self.baseURL, privacy: .public)")
             throw SpeechRecognitionError.serverMessage("语音识别服务地址无效")
         }
 
-        let audioData = try Data(contentsOf: audioFileURL)
+        let audioData: Data
+        do {
+            audioData = try Data(contentsOf: audioFileURL)
+        } catch {
+            Self.logger.error("❌ 读取录音文件失败：\(error.localizedDescription, privacy: .public)")
+            throw error
+        }
+        Self.logger.log("录音文件大小=\(audioData.count) bytes")
         guard !audioData.isEmpty else {
+            Self.logger.error("❌ 拦截：录音文件为空")
             throw SpeechRecognitionError.emptyTranscript
         }
 
         let duration = try await Self.audioDuration(for: audioFileURL)
+        Self.logger.log("audioDuration 返回=\(duration)s")
         let maxSeconds = await MainActor.run {
             HoloEntitlementState.shared.quotas["asr"]?.maxSeconds
                 ?? (HoloEntitlementState.shared.isPlusActive ? 300 : 60)
         }
+        Self.logger.log("maxSeconds=\(maxSeconds) duration=\(duration) isPlus=\(HoloEntitlementState.shared.isPlusActive)")
         if duration > maxSeconds {
+            Self.logger.error("❌ 拦截：时长超限 \(duration) > \(maxSeconds)")
             let isPlusActive = await MainActor.run { HoloEntitlementState.shared.isPlusActive }
             if !isPlusActive {
                 await MainActor.run {
@@ -71,23 +88,29 @@ final class HoloBackendSpeechRecognitionProvider: SpeechRecognitionProvider {
             usageActionId: UUID().uuidString,
             boundary: boundary
         )
+        Self.logger.log("准备上传：url=\(url.absoluteString, privacy: .public) body=\(body.count) bytes")
 
         do {
             let (data, response) = try await session.upload(for: request, from: body)
             guard let httpResponse = response as? HTTPURLResponse else {
+                Self.logger.error("❌ 响应非 HTTPURLResponse")
                 throw SpeechRecognitionError.networkFailure
             }
+            Self.logger.log("收到响应：status=\(httpResponse.statusCode) body=\(data.count) bytes")
 
             switch httpResponse.statusCode {
             case 200...299:
                 let payload = try JSONDecoder().decode(HoloBackendTranscriptionResponse.self, from: data)
                 let text = payload.text.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !text.isEmpty else {
+                    Self.logger.error("❌ 后端返回空文本")
                     throw SpeechRecognitionError.emptyTranscript
                 }
+                Self.logger.log("✅ 识别成功：text=\(text, privacy: .public)")
                 await HoloSubscriptionService.shared.refreshStatus()
                 return SpeechRecognitionResult(text: text, duration: payload.duration, confidence: payload.confidence)
             case 429:
+                Self.logger.error("❌ 429 配额超限")
                 if let quotaError = HoloQuotaError.decode(from: data) {
                     if quotaError.upgradeAvailable {
                         await MainActor.run {
@@ -100,16 +123,20 @@ final class HoloBackendSpeechRecognitionProvider: SpeechRecognitionProvider {
                 }
                 throw SpeechRecognitionError.serverMessage("今天的语音识别次数已达上限，稍后再试")
             case 413:
+                Self.logger.error("❌ 413 文件过大")
                 throw SpeechRecognitionError.serverMessage("语音文件过大，请缩短录音后重试")
             default:
                 let message = Self.decodeErrorMessage(from: data) ?? "语音识别失败，请稍后重试"
+                Self.logger.error("❌ HTTP \(httpResponse.statusCode)：\(message, privacy: .public)")
                 throw SpeechRecognitionError.serverMessage(message)
             }
         } catch let error as SpeechRecognitionError {
             throw error
         } catch let error as URLError where error.code == .timedOut {
+            Self.logger.error("❌ URLError 超时：\(error.code.rawValue)")
             throw SpeechRecognitionError.transcriptionTimedOut
         } catch {
+            Self.logger.error("❌ 网络异常：domain=\((error as NSError).domain, privacy: .public) code=\((error as NSError).code) \(error.localizedDescription, privacy: .public)")
             throw SpeechRecognitionError.networkFailure
         }
     }
@@ -157,9 +184,20 @@ final class HoloBackendSpeechRecognitionProvider: SpeechRecognitionProvider {
     }
 
     private static func audioDuration(for url: URL) async throws -> TimeInterval {
-        let duration = try await AVURLAsset(url: url).load(.duration)
-        let seconds = duration.seconds
-        return seconds.isFinite && seconds >= 0 ? seconds : 0
+        // 优先用 AVURLAsset 读取标准 WAV 文件的时长。
+        if let seconds = try? await AVURLAsset(url: url).load(.duration).seconds,
+           seconds.isFinite, seconds > 0 {
+            return seconds
+        }
+        // 兜底：当文件没有标准 WAV 头（裸 PCM）或解析失败时，
+        // 按已知格式（16kHz / 单声道 / Int16 = 32000 bytes/s）反推时长。
+        // 减去 44 字节 WAV 头（若有），其余按 PCM 字节计算。
+        guard let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+              let fileSize = attributes[.size] as? Int, fileSize > 0 else {
+            return 0
+        }
+        let pcmBytes = max(0, fileSize - 44)
+        return TimeInterval(pcmBytes) / 32_000
     }
 
     private static func decodeErrorMessage(from data: Data) -> String? {
