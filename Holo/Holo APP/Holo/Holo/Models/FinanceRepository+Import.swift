@@ -409,7 +409,7 @@ extension FinanceRepository {
             return .creditCard
         }
         if n.contains("银行") || n.contains("储蓄") || n.contains("card") || n.contains("bank") || n.contains("debit") {
-            return .debitCard
+            return .bank
         }
         if n.contains("现金") || n.contains("钱包") || n.contains("cash") {
             return .cash

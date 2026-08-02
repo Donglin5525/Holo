@@ -94,7 +94,7 @@ class FinanceRepository {
             transaction.category = cat
         }
         if let acc = updates.account { transaction.account = acc }
-        if let toAcc = updates.toAccount { transaction.toAccount = toAcc }
+        if let toId = updates.toAccountId { transaction.toAccountId = toId }
         if let date = updates.date { transaction.date = date }
         if let note = updates.note { transaction.note = note }
         if let remark = updates.remark { transaction.remark = remark }
@@ -116,7 +116,7 @@ class FinanceRepository {
         transaction.amount = NSDecimalNumber(decimal: amount)
         transaction.type = TransactionType.transfer.rawValue
         transaction.account = fromAccount
-        transaction.toAccount = toAccount
+        transaction.toAccountId = toAccount.id
         transaction.date = date
         transaction.note = note
         transaction.createdAt = Date()
@@ -484,7 +484,7 @@ struct TransactionUpdates {
     var amount: Decimal?
     var category: Category?
     var account: Account?
-    var toAccount: Account?
+    var toAccountId: UUID?
     var date: Date?
     var note: String?
     var remark: String?

@@ -163,38 +163,48 @@ extension FinanceRepository {
     // MARK: 余额计算
 
     /// 获取账户当前余额（实时计算：initialBalance + 收入 - 支出 ± 转账）
-    /// 转账：本账户作为转出方（account == 本账户）扣减；作为转入方（toAccount == 本账户）增加。
+    /// 转账：本账户作为转出方（account == 本账户）扣减；作为转入方（toAccountId == 本账户.id）增加。
     func getAccountBalance(_ account: Account) -> Decimal {
-        // 查与本账户相关的交易：account 是本账户的，或 toAccount 是本账户的（转账转入方）
-        let request = Transaction.fetchRequest()
-        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
-            NSCompoundPredicate(orPredicateWithSubpredicates: [
-                NSPredicate(format: "account == %@", account),
-                NSPredicate(format: "toAccount == %@", account)
-            ]),
+        // 查询分两步，避免单个复杂 predicate 在 schema 迁移期间崩溃：
+        // 1) account == 本账户 的交易（含转出转账）
+        // 2) toAccountId == 本账户.id 的交易（转入转账）
+        // 两步都用 try? 容错，任一失败不影响另一边。
+        var balance = account.initialBalance.decimalValue
+
+        // 1) 账户作为 account（转出方/普通收支）
+        let ownRequest = Transaction.fetchRequest()
+        ownRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "account == %@", account),
             FinanceTransactionOccurrencePolicy.occurredPredicate()
         ])
-
-        guard let transactions = try? context.fetch(request) else {
-            return account.initialBalance.decimalValue
-        }
-
-        var balance = account.initialBalance.decimalValue
-        for tx in transactions {
+        for tx in (try? context.fetch(ownRequest)) ?? [] {
             switch tx.transactionType {
             case .income:
                 balance += tx.amount.decimalValue
             case .expense:
                 balance -= tx.amount.decimalValue
             case .transfer:
-                // 转出方扣减，转入方增加
-                if tx.account == account {
-                    balance -= tx.amount.decimalValue
-                } else if tx.toAccount == account {
-                    balance += tx.amount.decimalValue
-                }
+                // 转出方扣减
+                balance -= tx.amount.decimalValue
             }
         }
+
+        // 2) 账户作为 toAccountId（转入方）
+        let incomingRequest = Transaction.fetchRequest()
+        incomingRequest.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "toAccountId == %@", account.id as CVarArg),
+            FinanceTransactionOccurrencePolicy.occurredPredicate()
+        ])
+        for tx in (try? context.fetch(incomingRequest)) ?? [] {
+            switch tx.transactionType {
+            case .income, .expense:
+                break // 普通收支不走 toAccountId
+            case .transfer:
+                // 转入方增加
+                balance += tx.amount.decimalValue
+            }
+        }
+
         return balance
     }
 

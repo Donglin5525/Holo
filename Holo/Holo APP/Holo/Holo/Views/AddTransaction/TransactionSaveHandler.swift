@@ -186,7 +186,7 @@ extension AddTransactionSheet {
                     var updates = TransactionUpdates()
                     updates.amount = amount
                     updates.account = fromAccount
-                    updates.toAccount = toAccount
+                    updates.toAccountId = toAccount.id
                     updates.date = selectedDate
                     updates.note = note.isEmpty ? nil : note
                     try await repository.updateTransaction(transaction, updates: updates)

@@ -26,9 +26,20 @@ public class Transaction: NSManagedObject {
     @NSManaged public var updatedAt: Date
     @NSManaged public var category: Category?
     @NSManaged public var account: Account?
-    /// 转账交易的对方账户（转入账户）。非转账交易为 nil。
-    /// 转账时 account 表示转出账户，toAccount 表示转入账户。
-    @NSManaged public var toAccount: Account?
+
+    /// 转账交易的对方账户（转入账户）ID。非转账交易为 nil。
+    /// 用 UUID 字段而非 relationship，确保 lightweight migration 可靠。
+    /// 转账时 account 表示转出账户，toAccountId 指向转入账户。
+    @NSManaged public var toAccountId: UUID?
+
+    /// 转账交易的对方账户对象（通过 toAccountId 实时查询，不经 FinanceRepository 避免 Actor 隔离）
+    var toAccount: Account? {
+        guard let toAccountId else { return nil }
+        let request = Account.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", toAccountId as CVarArg)
+        request.fetchLimit = 1
+        return try? managedObjectContext?.fetch(request).first as? Account
+    }
 
     // 分期记账字段
     @NSManaged public var installmentGroupId: UUID?

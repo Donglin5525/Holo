@@ -90,11 +90,6 @@ struct HoloApp: App {
                     await AccountModuleMigration.runIfNeeded()
                     await HoloSubscriptionService.shared.refreshStatus()
 
-                    // 净资产快照：首次回填历史，之后每月捕获当月
-                    await CoreDataStack.shared.waitUntilReady()
-                    NetWorthSnapshotService.shared.backfillHistory()
-                    NetWorthSnapshotService.shared.captureCurrentSnapshot()
-
                     // 检查通知权限状态
                     TodoNotificationService.shared.checkAuthorizationStatus()
 

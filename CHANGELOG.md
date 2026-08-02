@@ -4,6 +4,25 @@
 
 ---
 
+## [2026-08-02] 账户模块全面升级 + 闪退修复 + 视觉优化
+
+在账户升级为一级 Tab 的基础上，新增转账、信用卡、净资产曲线三大能力，修复启动闪退，并优化账户页视觉。
+
+### 改动
+1. **转账功能（iOS）**：新增 `transfer` 交易类型与 `toAccountId` 字段；记账页加「转账」第三个 Tab，转账模式选转出+转入双账户、不选分类；余额计算改造为转账转出扣、转入加，且**不计入收支统计**（不虚增收入/支出）；交易行展示「账户A → 账户B」+ 中性灰色金额；CSV 导出支持转账（新增对方账户列）。
+2. **信用卡功能（iOS）**：`AccountType` 新增 `.creditCard`（旧 `.card` 拆分：系统预置「信用卡」→ creditCard，其余 → bank 储蓄卡）；Account 新增账单日/还款日/信用额度字段；AddAccountSheet 信用卡类型多出账单日/还款日/额度输入；AccountDetailView 信用卡专属卡片（可用额度、已用进度条超80%变红、账单日/还款日）；CreditCardReminderService 还款日推送提醒（账单日+还款日各一条，按月重复）。
+3. **净资产历史曲线（iOS）**：新建 `NetWorthSnapshot` 实体按月记录净资产；NetWorthSnapshotService 进入账户页时捕获当月快照 + 首次回填历史12个月；账户页净资产卡片内嵌 Swift Charts 趋势曲线（渐变面积+坐标轴+网格线），并显示「本月变化」胶囊。
+4. **修复启动闪退（iOS）**：根因是 `getAccountBalance` 用 `toAccount == %@` 关系查询，新增 relationship 在数据库迁移未完成时 fetch 崩溃。根治：改用 `toAccountId: UUID` 轻量字段代替 relationship（与 Budget 的 accountId 同款做法，lightweight migration 100% 可靠）；余额查询拆成两次独立 `try?` 容错查询；净资产快照从 App 启动路径移到进入账户页时触发，且全部包 do-catch 容错。
+5. **修复两个「储蓄卡」类型冲突（iOS）**：`.card` 拆分时误新增 `.debitCard`，与已有 `.bank` 重复。去掉 `.debitCard`，统一用 `.bank`；迁移改为幂等扫描（非 UserDefaults 闸门），每次启动发现 `card`/`debitCard` 就修正；`accountType` 计算属性兼容历史值兜底。
+6. **账户页视觉优化（iOS）**：趋势图从手写 Path 折线升级为 Swift Charts（与分析页同级质量）；净资产卡片新增本月变化胶囊、大数字视觉重心；账户列表从散落独立卡片改为同组连续列表（Divider 分隔）。
+
+### 验证与发布
+- iOS 工程全量构建成功（`BUILD SUCCEEDED`），无新增 error
+- 纯 App 端改动，**不涉及后端发版**
+- 余额计算逻辑经多轮编译器强制穷举（switch 替代 if/else）保证无遗漏
+
+---
+
 ## [2026-08-02] 账户模块升级为一级入口 + 修复分期与预算交互问题
 
 把「账户」从设置页的二级入口提升为财务底部第 1 个 Tab（顺序：账户/账本/统计/固定支出/设置），并修复一批账户、预算、分期的交互与数据问题。

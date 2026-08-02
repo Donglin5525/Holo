@@ -23,70 +23,81 @@ final class NetWorthSnapshotService {
 
     // MARK: - 公开方法
 
-    /// 捕获当前净资产快照（当月已有则更新，无则新建）。幂等。
+    /// 捕获当前净资产快照（当月已有则更新，无则新建）。幂等。完全容错，绝不影响 App 运行。
     @discardableResult
     func captureCurrentSnapshot() -> NetWorthSnapshot? {
         let now = Date()
         let monthStart = startOfMonth(now)
 
-        // 查当月是否已有快照
-        let existing = fetchSnapshot(monthStart: monthStart)
-        let netWorth = FinanceRepository.shared.getTotalNetWorth()
-
-        let snapshot = existing ?? NetWorthSnapshot(context: context)
-        snapshot.id = existing?.id ?? UUID()
-        snapshot.monthStart = monthStart
-        snapshot.assets = NSDecimalNumber(decimal: netWorth.assets)
-        snapshot.liabilities = NSDecimalNumber(decimal: netWorth.liabilities)
-        snapshot.netWorth = NSDecimalNumber(decimal: netWorth.netWorth)
-        if existing == nil { snapshot.createdAt = now }
-
+        let netWorth: (assets: Decimal, liabilities: Decimal, netWorth: Decimal)
         do {
+            // 查当月是否已有快照（容错：实体可能尚未就绪）
+            let existingReq = NetWorthSnapshot.fetchRequest()
+            existingReq.predicate = NSPredicate(format: "monthStart == %@", monthStart as NSDate)
+            existingReq.fetchLimit = 1
+            let existing = try context.fetch(existingReq).first
+
+            netWorth = FinanceRepository.shared.getTotalNetWorth()
+
+            let snapshot = existing ?? NetWorthSnapshot(context: context)
+            snapshot.id = existing?.id ?? UUID()
+            snapshot.monthStart = monthStart
+            snapshot.assets = NSDecimalNumber(decimal: netWorth.assets)
+            snapshot.liabilities = NSDecimalNumber(decimal: netWorth.liabilities)
+            snapshot.netWorth = NSDecimalNumber(decimal: netWorth.netWorth)
+            if existing == nil { snapshot.createdAt = now }
+
             try context.save()
             return snapshot
         } catch {
-            snapshotLogger.warning("净资产快照保存失败：\(error.localizedDescription)")
+            snapshotLogger.warning("净资产快照捕获失败（已忽略，不影响App）：\(error.localizedDescription)")
             return nil
         }
     }
 
     /// 首次升级时回填历史月份快照（最多回填 12 个月）。
-    /// 用 getCumulativeBalance(before:) 估算历史净资产。
+    /// 用 getCumulativeBalance(before:) 估算历史净资产。完全容错。
     func backfillHistory() {
         let calendar = Calendar.current
         let now = Date()
         let maxMonths = 12
 
-        for i in stride(from: maxMonths, through: 1, by: -1) {
-            guard let monthDate = calendar.date(byAdding: .month, value: -i, to: now) else { continue }
-            let monthStart = startOfMonth(monthDate)
-            // 跳过已有快照的月份
-            if fetchSnapshot(monthStart: monthStart) != nil { continue }
-
-            // 用该月末的累计余额估算净资产
-            guard let monthEnd = calendar.date(byAdding: .month, value: 1, to: monthStart) else { continue }
-            let estimatedNetWorth = FinanceRepository.shared.getCumulativeBalance(before: monthEnd)
-
-            let snapshot = NetWorthSnapshot(context: context)
-            snapshot.id = UUID()
-            snapshot.monthStart = monthStart
-            // 历史回填时无法精确拆分资产/负债，统一记到 netWorth
-            if estimatedNetWorth >= 0 {
-                snapshot.assets = NSDecimalNumber(decimal: estimatedNetWorth)
-                snapshot.liabilities = NSDecimalNumber(value: 0)
-            } else {
-                snapshot.assets = NSDecimalNumber(value: 0)
-                snapshot.liabilities = NSDecimalNumber(decimal: abs(estimatedNetWorth))
-            }
-            snapshot.netWorth = NSDecimalNumber(decimal: estimatedNetWorth)
-            snapshot.createdAt = now
-        }
-
         do {
-            try context.save()
-            snapshotLogger.info("净资产历史回填完成")
+            for i in stride(from: maxMonths, through: 1, by: -1) {
+                guard let monthDate = calendar.date(byAdding: .month, value: -i, to: now) else { continue }
+                let monthStart = startOfMonth(monthDate)
+                // 跳过已有快照的月份（容错 fetch）
+                let existsReq = NetWorthSnapshot.fetchRequest()
+                existsReq.predicate = NSPredicate(format: "monthStart == %@", monthStart as NSDate)
+                existsReq.fetchLimit = 1
+                let exists = ((try? context.fetch(existsReq)) ?? []).first != nil
+                if exists { continue }
+
+                // 用该月末的累计余额估算净资产
+                guard let monthEnd = calendar.date(byAdding: .month, value: 1, to: monthStart) else { continue }
+                let estimatedNetWorth = FinanceRepository.shared.getCumulativeBalance(before: monthEnd)
+
+                let snapshot = NetWorthSnapshot(context: context)
+                snapshot.id = UUID()
+                snapshot.monthStart = monthStart
+                if estimatedNetWorth >= 0 {
+                    snapshot.assets = NSDecimalNumber(decimal: estimatedNetWorth)
+                    snapshot.liabilities = NSDecimalNumber(value: 0)
+                } else {
+                    snapshot.assets = NSDecimalNumber(value: 0)
+                    snapshot.liabilities = NSDecimalNumber(decimal: abs(estimatedNetWorth))
+                }
+                snapshot.netWorth = NSDecimalNumber(decimal: estimatedNetWorth)
+                snapshot.createdAt = now
+            }
+
+            if context.hasChanges {
+                try context.save()
+                snapshotLogger.info("净资产历史回填完成")
+            }
         } catch {
-            snapshotLogger.warning("净资产历史回填失败：\(error.localizedDescription)")
+            snapshotLogger.warning("净资产历史回填失败（已忽略，不影响App）：\(error.localizedDescription)")
+            context.rollback()
         }
     }
 
@@ -109,12 +120,5 @@ final class NetWorthSnapshotService {
     private func startOfMonth(_ date: Date) -> Date {
         let calendar = Calendar.current
         return calendar.date(from: calendar.dateComponents([.year, .month], from: date)) ?? date
-    }
-
-    private func fetchSnapshot(monthStart: Date) -> NetWorthSnapshot? {
-        let request = NetWorthSnapshot.fetchRequest()
-        request.predicate = NSPredicate(format: "monthStart == %@", monthStart as NSDate)
-        request.fetchLimit = 1
-        return try? context.fetch(request).first
     }
 }

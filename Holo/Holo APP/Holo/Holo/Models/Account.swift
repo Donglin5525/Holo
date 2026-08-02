@@ -42,8 +42,12 @@ public class Account: NSManagedObject {
     // MARK: - Computed Properties
 
     /// 账户类型枚举
+    /// 兼容历史值：旧版 "card"/"debitCard" 统一归入 .bank（储蓄卡），避免类型缺失时 fallback 到现金
     var accountType: AccountType {
-        AccountType(rawValue: type) ?? .cash
+        if type == "card" || type == "debitCard" {
+            return .bank
+        }
+        return AccountType(rawValue: type) ?? .cash
     }
 
     /// 账户图标（优先使用自定义图标，空则回退到 AccountType 默认）

@@ -90,6 +90,8 @@ nonisolated class CoreDataStack {
         container.loadPersistentStores { [weak self] _, error in
             if let error = error {
                 let nsError = error as NSError
+                // 打印详细错误信息便于排查，再 fatalError（与原行为一致）
+                NSLog("Core Data 存储加载失败：%@ userInfo：%@", error.localizedDescription, nsError.userInfo)
                 fatalError("Core Data 存储加载失败：\(error.localizedDescription)\n\(nsError)\nuserInfo: \(nsError.userInfo)")
             }
             guard let self else { return }

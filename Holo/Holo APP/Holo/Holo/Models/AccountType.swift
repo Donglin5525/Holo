@@ -8,11 +8,13 @@
 import Foundation
 
 /// 账户类型枚举
+///
+/// 旧版有 `.card` 混用储蓄卡和信用卡。现已拆分：信用卡归 `.creditCard`，其余旧 `.card` 并入 `.bank`。
+/// 储蓄卡和借记卡在中国用户语境下是同一个东西，不单独区分。
 enum AccountType: String, CaseIterable {
     case cash = "cash"                  // 现金
     case digital = "digital"            // 数字支付（微信/支付宝）
-    case bank = "bank"                  // 储蓄卡（银行储蓄账户）
-    case debitCard = "debitCard"        // 储蓄卡/借记卡
+    case bank = "bank"                  // 储蓄卡/借记卡（银行储蓄账户）
     case creditCard = "creditCard"      // 信用卡
     case other = "other"                // 其他
 
@@ -22,7 +24,6 @@ enum AccountType: String, CaseIterable {
         case .cash: return "现金"
         case .digital: return "数字钱包"
         case .bank: return "储蓄卡"
-        case .debitCard: return "储蓄卡"
         case .creditCard: return "信用卡"
         case .other: return "其他"
         }
@@ -34,7 +35,6 @@ enum AccountType: String, CaseIterable {
         case .cash: return "dollarsign"
         case .digital: return "wallet.pass"
         case .bank: return "building.columns"
-        case .debitCard: return "creditcard"
         case .creditCard: return "creditcard.fill"
         case .other: return "ellipsis.circle"
         }
@@ -46,7 +46,6 @@ enum AccountType: String, CaseIterable {
         case .cash: return "#22C55E"
         case .digital: return "#1677FF"
         case .bank: return "#6366F1"
-        case .debitCard: return "#6366F1"
         case .creditCard: return "#F59E0B"
         case .other: return "#64748B"
         }
@@ -61,9 +60,8 @@ enum AccountType: String, CaseIterable {
         case .cash: return 0
         case .digital: return 1
         case .bank: return 2
-        case .debitCard: return 3
-        case .creditCard: return 4
-        case .other: return 5
+        case .creditCard: return 3
+        case .other: return 4
         }
     }
 }

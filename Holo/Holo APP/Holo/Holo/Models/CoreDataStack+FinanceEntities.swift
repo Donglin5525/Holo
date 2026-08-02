@@ -104,15 +104,15 @@ extension CoreDataStack {
         accountRelation.isOptional = true
         accountRelation.deleteRule = .nullifyDeleteRule
 
-        // 转账交易的对方账户（转入账户）。单向 to-one，不带反向关系，降低 CloudKit 同步代价。
-        // 转账时 account 表示转出账户，toAccount 表示转入账户。
-        let toAccountRelation = NSRelationshipDescription()
-        toAccountRelation.name = "toAccount"
-        toAccountRelation.destinationEntity = nil  // 稍后在 Account 创建后设置
-        toAccountRelation.minCount = 0
-        toAccountRelation.maxCount = 1
-        toAccountRelation.isOptional = true
-        toAccountRelation.deleteRule = .nullifyDeleteRule
+        // 转账交易的对方账户（转入账户）ID。
+        // 用轻量 UUID 字段而非 relationship，确保 lightweight migration 可靠（新增 optional 字段 100% 可迁移）。
+        // 查询对方账户时用 FinanceRepository.findAccount(by:) 手动查。
+        let toAccountId = NSAttributeDescription()
+        toAccountId.name = "toAccountId"
+        toAccountId.attributeType = .UUIDAttributeType
+        toAccountId.isOptional = true
+        toAccountId.isIndexed = true
+        attributes.append(toAccountId)
         
         // 分期记账字段
         let installmentGroupId = NSAttributeDescription()
