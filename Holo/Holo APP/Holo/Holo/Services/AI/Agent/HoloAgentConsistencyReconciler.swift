@@ -10,7 +10,7 @@
 import Foundation
 
 /// 一致性修复报告：各类修复计数，便于测试断言与启动日志。
-struct HoloAgentReconcileReport: Equatable, Sendable {
+nonisolated struct HoloAgentReconcileReport: Equatable, Sendable {
     /// Result 已存在但 Job 非终态 → 补成 completed 的 job 数
     var jobsCompletedByResult: Int = 0
     /// Job completed 但 Result 缺失 → 置 failed（needs-finalization）的 job 数

@@ -77,11 +77,19 @@ actor HoloAgentScheduler {
     /// §9.1 continued 资格判断：iOS 26+ / 用户明确发起（userQuestion）/ 已同意 AI 数据处理 /
     /// 无其他 P0 持有 continued 执行权 / 开关开启。Observer/定时/自动任务被 trigger 门槛天然排除。
     private func continuedEligibility(for job: HoloAgentJob) async -> Bool {
-        HoloAgentContinuedEligibility.isEligible(
+        // 预先取齐 async 与 MainActor 隔离的值，再同步判定（避免在 isEligible 参数里混用 await）
+        let clientAvailable = await resolvedContinuedClient() != nil
+        let flags = await MainActor.run {
+            (
+                consentGranted: HoloAIFeatureFlags.aiDataProcessingConsentGranted,
+                flagEnabled: HoloAIFeatureFlags.agentContinuedProcessingEnabled
+            )
+        }
+        return HoloAgentContinuedEligibility.isEligible(
             trigger: job.trigger,
-            clientAvailable: await resolvedContinuedClient() != nil,
-            consentGranted: HoloAIFeatureFlags.aiDataProcessingConsentGranted,
-            flagEnabled: HoloAIFeatureFlags.agentContinuedProcessingEnabled,
+            clientAvailable: clientAvailable,
+            consentGranted: flags.consentGranted,
+            flagEnabled: flags.flagEnabled,
             hasActiveContinuedLease: activeLeases.values.contains { $0.kind == .continuedProcessing }
         )
     }

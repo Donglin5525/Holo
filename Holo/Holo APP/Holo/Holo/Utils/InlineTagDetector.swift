@@ -16,7 +16,7 @@ import Foundation
 // MARK: - InlineTagDetector
 
 /// 内联标签检测与提取工具
-struct InlineTagDetector {
+nonisolated struct InlineTagDetector {
 
     /// 内联标签正则：# 后跟字母/CJK 起首的路径（段内允许字母/数字/下划线/CJK，段间以 / 分隔）
     /// 示例：#产品、#工作/Holo、#工作/Holo/编辑器

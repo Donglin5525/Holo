@@ -961,7 +961,7 @@ final class ChatMessageRepository: ObservableObject {
 
     /// 孤儿清理宽限期，对齐 Agent normalDeep budget 上限（maxWallTimeSeconds 120s）+ 安全余量。
     /// 宽限期内即使消息仍 isStreaming 也保留，避免误杀「刚启动、job 尚未落盘」的 Agent 深度分析消息。
-    private static let orphanCleanupGraceInterval: TimeInterval = 180
+    private nonisolated static let orphanCleanupGraceInterval: TimeInterval = 180
 
     /// 清理残留的 isStreaming 消息（app 启动 / 页面进入时调用）。
     ///

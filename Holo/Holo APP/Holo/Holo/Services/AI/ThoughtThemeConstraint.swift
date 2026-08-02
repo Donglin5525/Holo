@@ -8,7 +8,7 @@
 
 import Foundation
 
-enum ThoughtThemeConstraint {
+nonisolated enum ThoughtThemeConstraint {
 
     /// “未归类”是虚拟节点和标签路径前缀，不创建对应 Topic 实体。
     static let unclassifiedTitle = "未分类"

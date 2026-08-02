@@ -188,11 +188,13 @@ final class MemoryInsightService {
         let generationResult: MemoryInsightGenerationResult
         do {
             generationResult = try await withThrowingTaskGroup(of: MemoryInsightGenerationResult.self) { group in
+            // 端到端流式：避免非流式长生成期间连接无数据，被移动网络 NAT RST。
+            // 累积完整响应后包装成 MemoryInsightGenerationResult，下游解析逻辑不变。
+            // stream 在 MainActor 上下文创建（provider 是 @MainActor），闭包内只做迭代消费。
+            let stream = provider.generateMemoryInsightStreaming(type: insightType, contextJSON: contextJSON)
             group.addTask {
-                // 端到端流式：避免非流式长生成期间连接无数据，被移动网络 NAT RST。
-                // 累积完整响应后包装成 MemoryInsightGenerationResult，下游解析逻辑不变。
                 var rawResponse = ""
-                for try await chunk in provider.generateMemoryInsightStreaming(type: insightType, contextJSON: contextJSON) {
+                for try await chunk in stream {
                     rawResponse += chunk
                 }
                 guard !rawResponse.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {

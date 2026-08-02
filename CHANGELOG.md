@@ -22,9 +22,11 @@
 
 免费版/Plus 额度耗尽时，原走系统错误样式（红色 error）。现改为独立的柔和提示卡片：明确这是档位限制而非出错，并提供「了解 Holo Plus」入口直达会员中心，不弹窗打扰。
 
+6. **全量编译并发 warning 彻底清零**：补齐 cold build 暴露的深层标注——纯计算类型（`HoloAgentContinuedEligibility`、`InlineTagDetector`、`ThoughtTagNormalizer` 等）、actor 内 static 方法、值类型 keyPath 宿主；并为后台 actor 读取用户配置（`HoloMemorySettings` 的 Agent 开关）提供 nonisolated 的 UserDefaults 快照入口，避免后台线程访问 MainActor 可变状态；记忆洞察生成流的 task group 闭包改为在 MainActor 上下文创建 stream 后再交给后台消费。**cold build 并发 warning 从 150 全部清零**。
+
 ### 验证与发布
-- iOS 工程增量编译 `BUILD SUCCEEDED`，0 error；增量编译并发类 warning 清零
-- 全量编译（cold build）仍残留 23 个并发 warning，集中在记忆洞察生成的并行任务组闭包，属业务逻辑层面的并发结构问题，需单独处理
+- iOS 工程全量编译（clean build）`BUILD SUCCEEDED`，0 error；并发类 warning **全部清零**（增量与全量均 0）
+- 剩余 59 个 warning 全部是 CoreData 程序化建模的 `isIndexed` 弃用提示（iOS 11+ 推荐改用 `NSEntityDescription.indexes`），不影响运行，单独处理
 - 纯 App 端改动，**不涉及后端发版**
 
 ---

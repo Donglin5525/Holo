@@ -8,7 +8,7 @@
 import Foundation
 
 /// 统一用户标签与 AI 标签的展示、去重和筛选语义。
-struct ThoughtTagPresentation: Equatable {
+nonisolated struct ThoughtTagPresentation: Equatable {
     let manualNames: [String]
     let aiNames: [String]
     let hiddenCount: Int

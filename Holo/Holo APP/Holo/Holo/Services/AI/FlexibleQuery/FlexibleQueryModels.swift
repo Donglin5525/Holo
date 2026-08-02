@@ -21,7 +21,7 @@ nonisolated enum FlexibleQueryFormatting {
 // MARK: - Query Plan
 
 /// 灵活查询计划
-struct FlexibleQueryPlan: Codable, Equatable, Sendable {
+nonisolated struct FlexibleQueryPlan: Codable, Equatable, Sendable {
     let domain: FlexibleQueryDomain
     let operation: FlexibleQueryOperation
     let filters: FinanceQueryFilters
@@ -34,11 +34,11 @@ struct FlexibleQueryPlan: Codable, Equatable, Sendable {
 
 // MARK: - Domain & Operation
 
-enum FlexibleQueryDomain: String, Codable, Sendable {
+nonisolated enum FlexibleQueryDomain: String, Codable, Sendable {
     case finance
 }
 
-enum FlexibleQueryOperation: String, Codable, Sendable {
+nonisolated enum FlexibleQueryOperation: String, Codable, Sendable {
     case findLatestTransaction
     case findEarliestTransaction
     case countTransactions
@@ -49,7 +49,7 @@ enum FlexibleQueryOperation: String, Codable, Sendable {
     case listTransactions
 }
 
-enum FlexibleQueryCalculation: String, Codable, Sendable {
+nonisolated enum FlexibleQueryCalculation: String, Codable, Sendable {
     case elapsedTimeSinceTransaction
     case daysBetweenTransactions
     case averageAmount
@@ -80,24 +80,24 @@ nonisolated enum FlexibleQueryAverageUnit: String, Codable, Sendable {
 
 // MARK: - Sort
 
-struct FlexibleQuerySort: Codable, Equatable, Sendable {
+nonisolated struct FlexibleQuerySort: Codable, Equatable, Sendable {
     let field: FlexibleQuerySortField
     let direction: FlexibleQuerySortDirection
 }
 
-enum FlexibleQuerySortField: String, Codable, Sendable {
+nonisolated enum FlexibleQuerySortField: String, Codable, Sendable {
     case date
     case amount
 }
 
-enum FlexibleQuerySortDirection: String, Codable, Sendable {
+nonisolated enum FlexibleQuerySortDirection: String, Codable, Sendable {
     case asc
     case desc
 }
 
 // MARK: - Filters
 
-struct FinanceQueryFilters: Codable, Equatable, Sendable {
+nonisolated struct FinanceQueryFilters: Codable, Equatable, Sendable {
     let type: TransactionTypeFilter?
     let amountGreaterThan: Decimal?
     let amountGreaterThanOrEqual: Decimal?
@@ -116,7 +116,7 @@ struct FinanceQueryFilters: Codable, Equatable, Sendable {
     let includeCategory: Bool
 }
 
-enum TransactionTypeFilter: String, Codable, Sendable {
+nonisolated enum TransactionTypeFilter: String, Codable, Sendable {
     case expense
     case income
     case any
@@ -126,7 +126,7 @@ enum TransactionTypeFilter: String, Codable, Sendable {
 
 /// 结构化 hint：替代自由文本，避免 planner-answer builder 隐性契约
 /// 带关联值的 enum 不能自动合成 Codable，需手写序列化
-enum ExplanationHint: Equatable, Sendable {
+nonisolated enum ExplanationHint: Equatable, Sendable {
     case approximateConstraint(field: String, reason: String)
     case lowConfidenceMatch(fields: [String])
     case inferredCategory(synonym: String, target: String)
@@ -210,13 +210,13 @@ extension ExplanationHint: Codable {
 // MARK: - Planner Result
 
 /// Planner 输出结果
-struct FlexiblePlannerResult: Equatable, Sendable {
+nonisolated struct FlexiblePlannerResult: Equatable, Sendable {
     let status: FlexiblePlannerStatus
     let clarificationQuestion: String?
     let plan: FlexibleQueryPlan?
 }
 
-enum FlexiblePlannerStatus: String, Codable, Sendable {
+nonisolated enum FlexiblePlannerStatus: String, Codable, Sendable {
     case ready
     case needsClarification = "needs_clarification"
     case unsupported
@@ -225,7 +225,7 @@ enum FlexiblePlannerStatus: String, Codable, Sendable {
 // MARK: - Query Result
 
 /// 执行器输出
-struct FlexibleQueryResult: Codable, Equatable, Sendable {
+nonisolated struct FlexibleQueryResult: Codable, Equatable, Sendable {
     let plan: FlexibleQueryPlan
     let status: FlexibleQueryStatus
     let summary: FlexibleQuerySummary
@@ -257,7 +257,7 @@ struct FlexibleQueryResult: Codable, Equatable, Sendable {
     }
 }
 
-enum FlexibleQueryStatus: String, Codable, Sendable {
+nonisolated enum FlexibleQueryStatus: String, Codable, Sendable {
     case success
     case empty
     case ambiguous
@@ -267,7 +267,7 @@ enum FlexibleQueryStatus: String, Codable, Sendable {
 
 // MARK: - Summary
 
-struct FlexibleQuerySummary: Codable, Equatable, Sendable {
+nonisolated struct FlexibleQuerySummary: Codable, Equatable, Sendable {
     let totalMatched: Int
     let totalAmount: Decimal?
     /// 用户请求并实际执行的查询范围。
@@ -293,7 +293,7 @@ struct FlexibleQuerySummary: Codable, Equatable, Sendable {
 
 // MARK: - Evidence
 
-struct FlexibleTransactionEvidence: Codable, Equatable, Sendable {
+nonisolated struct FlexibleTransactionEvidence: Codable, Equatable, Sendable {
     let id: String
     let date: String
     let amount: Decimal
@@ -309,7 +309,7 @@ struct FlexibleTransactionEvidence: Codable, Equatable, Sendable {
 
 // MARK: - Calculation Result
 
-struct FlexibleCalculationResult: Codable, Equatable, Sendable {
+nonisolated struct FlexibleCalculationResult: Codable, Equatable, Sendable {
     let type: FlexibleQueryCalculation
     let valueText: String
     let days: Int?
@@ -320,14 +320,14 @@ struct FlexibleCalculationResult: Codable, Equatable, Sendable {
 
 // MARK: - Follow Up
 
-struct FlexibleQueryFollowUp: Codable, Equatable, Sendable {
+nonisolated struct FlexibleQueryFollowUp: Codable, Equatable, Sendable {
     let question: String
     let relaxedPlan: FlexibleQueryPlan?
 }
 
 // MARK: - Validation Error
 
-enum FlexibleQueryPlanValidationError: Error, LocalizedError {
+nonisolated enum FlexibleQueryPlanValidationError: Error, LocalizedError {
     case unsupportedDomain
     case unsupportedOperation
     case missingFilters

@@ -25,14 +25,14 @@ enum HoloHealthMetricKind: String, Codable, CaseIterable, Hashable, Sendable {
     }
 }
 
-struct HoloHealthDailyRecord: Codable, Equatable, Sendable {
+nonisolated struct HoloHealthDailyRecord: Codable, Equatable, Sendable {
     var date: Date
     var value: Double
 }
 
 /// 一晚睡眠的结构化记录。阶段字段为 nil 表示设备没有提供对应数据，
 /// 此时 Agent 必须降级为时长分析，不能把时长包装成完整睡眠质量。
-struct HoloSleepRecord: Codable, Equatable, Sendable {
+nonisolated struct HoloSleepRecord: Codable, Equatable, Sendable {
     var date: Date
     var totalHours: Double
     var coreHours: Double?
@@ -51,7 +51,7 @@ struct HoloSleepRecord: Codable, Equatable, Sendable {
     }
 }
 
-struct HoloHealthWorkoutRecord: Codable, Equatable, Sendable {
+nonisolated struct HoloHealthWorkoutRecord: Codable, Equatable, Sendable {
     var date: Date
     var totalMinutes: Double
     var sessionCount: Int

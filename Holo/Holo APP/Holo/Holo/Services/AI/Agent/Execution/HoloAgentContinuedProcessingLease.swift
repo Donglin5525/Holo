@@ -16,7 +16,7 @@ import Foundation
 
 /// §9.1 continued 资格矩阵（纯函数便于单测）：
 /// iOS 26+（client 可用）/ 开关开启 / 已同意 AI 数据处理 / 用户明确发起 / 无其他 P0 持有 continued 执行权。
-enum HoloAgentContinuedEligibility {
+nonisolated enum HoloAgentContinuedEligibility {
     static func isEligible(trigger: HoloAgentTrigger,
                            clientAvailable: Bool,
                            consentGranted: Bool,

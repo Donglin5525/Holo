@@ -13,7 +13,7 @@ import Foundation
 /// 结构化内容序列化器
 /// - richContentJSON 是 Token 身份的唯一事实源
 /// - content（平文本，含 Markdown 标记与 #/@ 显示文字）由节点派生，供 AI 分类/搜索/卡片等下游消费
-enum RichContentSerializer {
+nonisolated enum RichContentSerializer {
 
     enum SerializerError: Error {
         case invalidJSON

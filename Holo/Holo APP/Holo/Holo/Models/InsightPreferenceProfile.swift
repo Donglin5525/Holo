@@ -116,7 +116,7 @@ enum InsightActionType: String, Codable {
 // MARK: - Profile
 
 /// 洞察偏好画像
-struct InsightPreferenceProfile: Codable, Equatable {
+struct InsightPreferenceProfile: Codable, Equatable, Sendable {
     var schemaVersion: Int
     var moduleWeights: [InsightModulePreference]
     var dislikedPatterns: [InsightPatternPreference]

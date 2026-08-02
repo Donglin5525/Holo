@@ -13,10 +13,10 @@ import Foundation
 struct HoloDefaultProjectDataSource: HoloProjectDataSource {
 
     func snapshot() async -> HoloProjectSnapshot {
-        let projects = await MainActor.run {
-            SpendingProjectRepository.shared.allProjects()
+        // 投影在 MainActor.run 内完成，跨 actor 边界只传值类型快照，不传 NSManagedObject
+        let records = await MainActor.run {
+            SpendingProjectRepository.shared.allProjects().map(Self.projectRecord)
         }
-        let records = projects.map(Self.projectRecord)
         return HoloProjectSnapshot(projects: records)
     }
 

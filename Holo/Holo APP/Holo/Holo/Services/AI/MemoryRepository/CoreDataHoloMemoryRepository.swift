@@ -901,7 +901,7 @@ actor CoreDataHoloMemoryRepository: HoloMemoryRepository {
         Self.requiresSensitiveLocalStorage(record)
     }
 
-    private static func requiresSensitiveLocalStorage(_ record: HoloMemoryRecord) -> Bool {
+    private nonisolated static func requiresSensitiveLocalStorage(_ record: HoloMemoryRecord) -> Bool {
         record.sensitivity == .sensitive ||
         record.primaryDomain == .health ||
         record.sourceDomains.contains(.health) ||

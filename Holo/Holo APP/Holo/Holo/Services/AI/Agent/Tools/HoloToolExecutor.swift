@@ -48,7 +48,7 @@ actor HoloToolExecutor: HoloAgentToolExecuting {
         }
     }
 
-    private static func makeError(_ request: HoloToolRequest, code: String,
+    private nonisolated static func makeError(_ request: HoloToolRequest, code: String,
                                   message: String, recoverable: Bool) -> HoloDataToolResult {
         HoloDataToolResult(
             toolRequestID: request.id, tool: request.tool, status: .error,

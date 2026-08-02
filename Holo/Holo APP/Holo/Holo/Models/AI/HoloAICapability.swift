@@ -89,7 +89,7 @@ final class HoloMemorySettings: ObservableObject {
     private let defaults: UserDefaults
     private var isApplyingRemoteState = false
 
-    private enum Keys {
+    private nonisolated enum Keys {
         static let automaticMemoryEnabled = "holo_memory_automaticMemoryEnabled_v2"
         static let memoryAssistedAnsweringEnabled = "holo_memory_assistedAnsweringEnabled_v2"
         static let userDecisionVersion = "holo_memory_userDecisionVersion_v2"
@@ -115,7 +115,7 @@ final class HoloMemorySettings: ObservableObject {
     }
 
     /// Agent 能力由产品统一管理，不向普通用户暴露技术开关。
-    private enum AgentProductPolicy {
+    private nonisolated enum AgentProductPolicy {
         static let runtimeEnabled = true
         static let debugModeEnabled = false
         static let memoryGalleryEnabled = true
@@ -238,6 +238,23 @@ final class HoloMemorySettings: ObservableObject {
         defaults.set(agentObserverTier2Enabled, forKey: Keys.agentObserverTier2Enabled)
         defaults.set(agentStepIdempotencyEnabled, forKey: Keys.agentStepIdempotencyEnabled)
         defaults.set(agentContinuedProcessingEnabled, forKey: Keys.agentContinuedProcessingEnabled)
+    }
+
+    /// 后台 actor 专用的配置快照：直接从 UserDefaults 读取（UserDefaults 本身线程安全），
+    /// 绕过 @Published 内存属性，避免后台线程访问 MainActor 隔离的可变状态。
+    /// 仅用于不会在运行中频繁变更的 Agent 策略开关。
+    private nonisolated static func agentFlagBool(_ key: String, fallback: Bool) -> Bool {
+        UserDefaults.standard.object(forKey: key) as? Bool ?? fallback
+    }
+
+    /// Agent step 幂等开关（§8.1）。后台安全读取。
+    nonisolated static var agentStepIdempotencyFlag: Bool {
+        agentFlagBool(Keys.agentStepIdempotencyEnabled, fallback: AgentProductPolicy.stepIdempotencyEnabled)
+    }
+
+    /// profile 分析注入开关。后台安全读取。
+    nonisolated static var profileAnalysisInjectionFlag: Bool {
+        agentFlagBool(Keys.profileAnalysisInjectionEnabled, fallback: true)
     }
 
     private func persistUserControlChangeIfNeeded() {

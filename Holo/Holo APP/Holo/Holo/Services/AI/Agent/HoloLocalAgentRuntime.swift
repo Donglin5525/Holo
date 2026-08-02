@@ -138,7 +138,8 @@ actor HoloLocalAgentRuntime {
         // P1-B 集成：构建统一 AgentPolicyContext 并注入为系统消息。
         // 让 Agent 稳定记住用户纠正和偏好（来源：InsightPreferenceProfile + 近期反馈纠正主题），
         // 冲突顺序：当前输入 > 任务规则 > 明确纠正 > 稳定偏好 > 弱偏好 > 全局默认。
-        if let policyMessage = Self.buildPolicyContextMessage(query: question, memoryRecords: memoryContext?.records ?? [], now: now) {
+        let preferenceProfile = await MainActor.run { InsightPreferenceProfileService.shared.loadProfile() }
+        if let policyMessage = Self.buildPolicyContextMessage(query: question, memoryRecords: memoryContext?.records ?? [], profile: preferenceProfile, now: now) {
             conversation.append(policyMessage)
         }
         conversation.append(Self.answerContractMessage(
@@ -944,7 +945,7 @@ actor HoloLocalAgentRuntime {
               let question = job.userQuestion else { return }
 
         var plannedRequests = Self.deterministicToolRequests(for: question)
-        if HoloAIFeatureFlags.profileAnalysisInjectionEnabled,
+        if HoloMemorySettings.profileAnalysisInjectionFlag,
            Self.shouldPrefetchProfileContext(for: question),
            await toolExecutor.supportsTool(named: "profile") {
             plannedRequests.insert(contentsOf: Self.profileContextToolRequests(), at: 0)
@@ -1072,9 +1073,9 @@ actor HoloLocalAgentRuntime {
     }
 
     /// §8.1 step 幂等内部策略（产品默认开启；关闭时走旧路径：不生成/发送 step 字段、
-    /// 不持久化 request record）。nonisolated：HoloMemorySettings 非 actor 隔离，可直接读。
+    /// 不持久化 request record）。nonisolated：直接读 UserDefaults 快照，后台线程安全。
     private nonisolated var stepIdempotencyEnabled: Bool {
-        HoloAIFeatureFlags.agentStepIdempotencyEnabled
+        HoloMemorySettings.agentStepIdempotencyFlag
     }
 
     /// §6.2 generation guard：副作用写盘前校验执行未取消且 generation 仍有效，
@@ -1356,9 +1357,7 @@ actor HoloLocalAgentRuntime {
     /// P1-B 集成：构建用户策略上下文系统消息。
     /// 复用 InsightPreferenceProfile（稳定偏好）+ 近期反馈纠正主题（弱偏好），
     /// 不新增第二套用户策略存储。只在有实际策略内容时返回消息（避免空消息浪费 token）。
-    private static func buildPolicyContextMessage(query: String, memoryRecords: [HoloMemoryRecord], now: Date) -> HoloAgentMessage? {
-        let profile = InsightPreferenceProfileService.shared.loadProfile()
-
+    private static func buildPolicyContextMessage(query: String, memoryRecords: [HoloMemoryRecord], profile: InsightPreferenceProfile, now: Date) -> HoloAgentMessage? {
         // 稳定偏好：从 profile 提取有效偏好规则
         var confirmedPreferences: [String] = []
         if profile.preferredTone != .balanced {

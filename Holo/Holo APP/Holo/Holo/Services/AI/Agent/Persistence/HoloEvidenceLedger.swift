@@ -64,7 +64,7 @@ actor HoloEvidenceLedger: HoloEvidenceLedgerProtocol {
     }
 
     /// 保序合并去重两个 ID 数组。
-    private static func union(_ first: [String], _ second: [String]) -> [String] {
+    private nonisolated static func union(_ first: [String], _ second: [String]) -> [String] {
         var seen = Set<String>()
         var result: [String] = []
         for id in first + second where seen.insert(id).inserted {

@@ -8,7 +8,7 @@
 
 import Foundation
 
-enum ThoughtTagNormalizer {
+nonisolated enum ThoughtTagNormalizer {
 
     // MARK: - 展示名
 

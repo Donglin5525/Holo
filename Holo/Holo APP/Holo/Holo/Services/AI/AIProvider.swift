@@ -9,7 +9,7 @@
 import Foundation
 
 /// 记忆洞察生成结果（包含原始响应和 Prompt 版本信息）
-struct MemoryInsightGenerationResult: Sendable {
+nonisolated struct MemoryInsightGenerationResult: Sendable {
     let rawResponse: String
     let promptType: String
     let promptVersion: Int?
@@ -29,7 +29,7 @@ struct MemoryInsightGenerationResult: Sendable {
 }
 
 /// 健康洞察生成结果（包含原始响应和 Prompt 版本，promptVersion 供缓存判断升级失效）
-struct HealthInsightGenerationResult: Sendable {
+nonisolated struct HealthInsightGenerationResult: Sendable {
     let rawResponse: String
     let promptVersion: Int?
 }
@@ -83,7 +83,7 @@ protocol AIProvider {
 }
 
 /// 结构化执行解析类型
-enum AIActionParserKind: Sendable {
+nonisolated enum AIActionParserKind: Sendable {
     case financeInstallment
     case taskRepeat
 

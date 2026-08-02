@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct HoloProfileToolSnapshot: Codable, Equatable, Sendable {
+nonisolated struct HoloProfileToolSnapshot: Codable, Equatable, Sendable {
     var preferredName: String?
     var language: String?
     var timezone: String?

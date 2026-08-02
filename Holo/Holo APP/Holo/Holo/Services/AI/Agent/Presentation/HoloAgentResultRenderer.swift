@@ -99,7 +99,7 @@ nonisolated struct HoloRenderedAgentResult: Codable, Equatable, Sendable {
     }
 }
 
-private extension HoloAgentContextSourceSummary {
+private nonisolated extension HoloAgentContextSourceSummary {
     var displayLabel: String? {
         guard itemCount > 0 else { return nil }
         switch kind {
