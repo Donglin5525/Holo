@@ -12,7 +12,7 @@ import SwiftUI
 /// 账户实体
 @objc(Account)
 public class Account: NSManagedObject {
-    
+
     // MARK: - Properties
 
     @NSManaged public var id: UUID
@@ -27,6 +27,14 @@ public class Account: NSManagedObject {
     @NSManaged public var notes: String?
     @NSManaged public var createdAt: Date
     @NSManaged public var updatedAt: Date
+
+    // 信用卡专属字段（非信用卡账户保持默认值 0）
+    /// 账单日（每月几号出账单，1-31，0 表示未设置）
+    @NSManaged public var billingDay: Int16
+    /// 还款日（每月几号最后还款，1-31，0 表示未设置）
+    @NSManaged public var dueDay: Int16
+    /// 信用额度（信用卡总额度，0 表示未设置）
+    @NSManaged public var creditLimit: NSDecimalNumber
 
     /// 反向关系：该账户下的所有交易（Core Data 自动维护）
     @NSManaged public var transactions: Set<Transaction>?
@@ -47,9 +55,24 @@ public class Account: NSManagedObject {
     var swiftUIColor: Color {
         Color(hex: color.isEmpty ? "#64748B" : color)
     }
-    
+
+    // MARK: - 信用卡计算属性
+
+    /// 信用额度的 Decimal 形式
+    var creditLimitDecimal: Decimal { creditLimit as Decimal }
+
+    /// 是否配置了账单日/还款日
+    var hasBillingCycle: Bool { billingDay > 0 && dueDay > 0 }
+
+    /// 信用卡可用额度 = 信用额度 + 当前余额（余额为负代表欠款，会扣减可用额度）
+    /// 非信用卡或未设额度时返回 nil。
+    func availableCredit(balance: Decimal) -> Decimal? {
+        guard accountType.isCreditCard, creditLimitDecimal > 0 else { return nil }
+        return creditLimitDecimal + balance
+    }
+
     // MARK: - Methods
-    
+
     /// 删除账户
     public func delete() {
         managedObjectContext?.delete(self)

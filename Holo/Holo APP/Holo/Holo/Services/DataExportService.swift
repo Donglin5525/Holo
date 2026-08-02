@@ -32,35 +32,48 @@ class DataExportService {
      */
     func exportToCSV(dateRange: ClosedRange<Date>? = nil) async throws -> String {
         let transactions = try await fetchTransactions(in: dateRange)
-        
+
         var csv = ""
         // 表头
-        csv += "日期,时间,类型,金额,一级分类,二级分类,账户,备注,标签\n"
-        
+        csv += "日期,时间,类型,金额,一级分类,二级分类,账户,对方账户,备注,标签\n"
+
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy/MM/dd"
         dateFormatter.locale = Locale(identifier: "zh_CN")
-        
+
         let timeFormatter = DateFormatter()
         timeFormatter.dateFormat = "HH:mm"
-        
+
         for tx in transactions {
-            guard let category = tx.category, let account = tx.account else { continue }
+            // 转账可能没有 category，但不能跳过
+            let category = tx.category
+            guard let account = tx.account else { continue }
             let dateStr = dateFormatter.string(from: tx.date)
             let timeStr = timeFormatter.string(from: tx.date)
-            let typeStr = tx.transactionType == .expense ? "支出" : "收入"
+            let typeStr: String
+            switch tx.transactionType {
+            case .expense: typeStr = "支出"
+            case .income: typeStr = "收入"
+            case .transfer: typeStr = "转账"
+            }
             let amount = abs(tx.amount.doubleValue)
 
-            // 查找一级分类名称
-            let (primaryName, subName) = categoryNames(for: category)
+            // 查找一级分类名称（转账无分类时留空）
+            let (primaryName, subName): (String, String)
+            if let category {
+                (primaryName, subName) = categoryNames(for: category)
+            } else {
+                (primaryName, subName) = ("", "")
+            }
 
             let accountName = account.name
+            let toAccountName = tx.toAccount?.name ?? ""
             let note = escapeCSVField(tx.note ?? "")
             let tags = tx.tags?.joined(separator: ";") ?? ""
-            
-            csv += "\(dateStr),\(timeStr),\(typeStr),\(String(format: "%.2f", amount)),\(escapeCSVField(primaryName)),\(escapeCSVField(subName)),\(escapeCSVField(accountName)),\(note),\(escapeCSVField(tags))\n"
+
+            csv += "\(dateStr),\(timeStr),\(typeStr),\(String(format: "%.2f", amount)),\(escapeCSVField(primaryName)),\(escapeCSVField(subName)),\(escapeCSVField(accountName)),\(escapeCSVField(toAccountName)),\(note),\(escapeCSVField(tags))\n"
         }
-        
+
         return csv
     }
     

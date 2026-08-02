@@ -27,7 +27,10 @@ extension Account {
         icon: String = "",
         color: String = "#64748B",
         sortOrder: Int16 = 0,
-        notes: String? = nil
+        notes: String? = nil,
+        billingDay: Int16 = 0,
+        dueDay: Int16 = 0,
+        creditLimit: NSDecimalNumber = NSDecimalNumber(value: 0)
     ) -> Account {
         let account = Account(context: context)
         account.id = UUID()
@@ -40,6 +43,9 @@ extension Account {
         account.sortOrder = sortOrder
         account.isArchived = false
         account.notes = notes
+        account.billingDay = billingDay
+        account.dueDay = dueDay
+        account.creditLimit = creditLimit
         account.createdAt = Date()
         account.updatedAt = Date()
 
@@ -54,7 +60,7 @@ extension Account {
         ("微信", .digital, "wallet.pass", "#07C160"),
         ("支付宝", .digital, "wallet.pass", "#1677FF"),
         ("储蓄卡", .bank, "building.columns", "#6366F1"),
-        ("信用卡", .card, "creditcard", "#F59E0B")
+        ("信用卡", .creditCard, "creditcard", "#F59E0B")
     ]
 
     /// 初始化默认账户数据

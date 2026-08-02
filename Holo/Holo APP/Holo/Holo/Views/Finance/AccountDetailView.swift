@@ -45,6 +45,11 @@ struct AccountDetailView: View {
                 // 账户信息头部
                 accountHeader
 
+                // 信用卡专属信息卡片
+                if account.accountType.isCreditCard {
+                    creditCardInfoCard
+                }
+
                 // 月度预算卡片
                 budgetCard
 
@@ -308,6 +313,99 @@ struct AccountDetailView: View {
             }
         }
         .frame(maxWidth: .infinity)
+        .padding(HoloSpacing.lg)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
+    }
+
+    // MARK: - 信用卡信息卡片
+
+    private var creditCardInfoCard: some View {
+        let currentBalance = balance
+        let limit = account.creditLimitDecimal
+        let used = max(-currentBalance, 0)  // 余额为负代表欠款
+        let available = account.availableCredit(balance: currentBalance) ?? (limit - used)
+
+        return VStack(spacing: HoloSpacing.md) {
+            // 额度总览
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("可用额度")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                    Text(formatAmount(available))
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .foregroundColor(available >= 0 ? .holoTextPrimary : .holoError)
+                }
+                Spacer()
+                if limit > 0 {
+                    VStack(alignment: .trailing, spacing: 4) {
+                        Text("信用额度")
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextSecondary)
+                        Text(formatAmount(limit))
+                            .font(.system(size: 16, weight: .semibold, design: .rounded))
+                            .foregroundColor(.holoTextPrimary)
+                    }
+                }
+            }
+
+            // 已用额度进度条
+            if limit > 0 {
+                let ratio = used / limit
+                let clamped = ratio < 0 ? Decimal(0) : (ratio > 1 ? Decimal(1) : ratio)
+                let progress = CGFloat(truncating: NSDecimalNumber(decimal: clamped))
+                let percent = Int(truncating: NSDecimalNumber(decimal: clamped * 100))
+                VStack(spacing: 4) {
+                    GeometryReader { geo in
+                        ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(Color.holoGlassBackground)
+                                .frame(height: 6)
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(progress > 0.8 ? Color.holoError : Color.holoPrimary)
+                                .frame(width: geo.size.width * progress, height: 6)
+                        }
+                    }
+                    .frame(height: 6)
+
+                    HStack {
+                        Text("已用 \(formatAmount(used))")
+                            .font(.system(size: 11))
+                            .foregroundColor(.holoTextSecondary)
+                        Spacer()
+                        Text("\(percent)%")
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(progress > 0.8 ? .holoError : .holoTextSecondary)
+                    }
+                }
+            }
+
+            // 账单日 / 还款日
+            if account.hasBillingCycle {
+                Divider()
+                HStack(spacing: HoloSpacing.xl) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("账单日")
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextSecondary)
+                        Text("每月 \(account.billingDay) 日")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+                    }
+                    Spacer()
+                    VStack(alignment: .trailing, spacing: 2) {
+                        Text("还款日")
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextSecondary)
+                        Text("每月 \(account.dueDay) 日")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+                    }
+                }
+            }
+        }
         .padding(HoloSpacing.lg)
         .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))

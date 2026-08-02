@@ -21,15 +21,18 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
                 accounts.reduce(0) { $0 + $1.initialBalance.doubleValue }
             )
         }
-        let entries = transactions.map { transaction in
-            HoloFinanceBalanceEntry(
-                amount: transaction.amount.doubleValue,
-                isIncome: transaction.transactionType == .income,
-                expenseSource: transaction.spendingProjectId == nil ? .manual : .recurring,
-                categoryName: transaction.category?.name ?? "未分类",
-                excerpt: Self.sampleExcerpt(for: transaction)
-            )
-        }
+        // 转账不参与收支余额归因（只动余额不产生收支），过滤掉避免虚增收支
+        let entries = transactions
+            .filter { !$0.transactionType.affectsBalanceOnly }
+            .map { transaction in
+                HoloFinanceBalanceEntry(
+                    amount: transaction.amount.doubleValue,
+                    isIncome: transaction.transactionType == .income,
+                    expenseSource: transaction.spendingProjectId == nil ? .manual : .recurring,
+                    categoryName: transaction.category?.name ?? "未分类",
+                    excerpt: Self.sampleExcerpt(for: transaction)
+                )
+            }
         return HoloFinanceBalanceCalculator.calculate(
             activeAccountCount: accountMetadata.count,
             openingBalance: accountMetadata.openingBalance,
@@ -53,7 +56,7 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
                 fields: [
                     "date": .date(tx.date),
                     "amount": .number(tx.amount.doubleValue),
-                    "type": .text(tx.transactionType == .expense ? "expense" : "income"),
+                    "type": .text(tx.transactionType.rawValue),
                     "category": .text(tx.category?.name ?? "未分类"),
                     "account": .text(tx.account?.name ?? "未指定账户"),
                     "text": .text(text)

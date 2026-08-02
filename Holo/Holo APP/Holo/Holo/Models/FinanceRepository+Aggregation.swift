@@ -33,9 +33,17 @@ extension FinanceRepository {
         for tx in txns {
             let key = Calendar.current.startOfDay(for: tx.date)
             var entry = map[key] ?? (0, 0, 0)
-            if tx.transactionType == .expense { entry.exp += tx.amount.decimalValue }
-            else { entry.inc += tx.amount.decimalValue }
-            entry.cnt += 1
+            switch tx.transactionType {
+            case .expense:
+                entry.exp += tx.amount.decimalValue
+                entry.cnt += 1
+            case .income:
+                entry.inc += tx.amount.decimalValue
+                entry.cnt += 1
+            case .transfer:
+                // 转账不计入收支，也不计入交易笔数统计（避免日历交易数虚高）
+                break
+            }
             map[key] = entry
         }
         var result: [Date: DailySummary] = [:]

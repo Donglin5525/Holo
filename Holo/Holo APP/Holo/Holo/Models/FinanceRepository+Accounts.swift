@@ -61,7 +61,10 @@ extension FinanceRepository {
         icon: String = "",
         color: String? = nil,
         initialBalance: Decimal = 0,
-        notes: String? = nil
+        notes: String? = nil,
+        billingDay: Int16 = 0,
+        dueDay: Int16 = 0,
+        creditLimit: Decimal = 0
     ) -> Account {
         let accountColor = color ?? type.defaultColor
         let sortOrder = Int16(getAccounts(includeArchived: true).count)
@@ -74,7 +77,10 @@ extension FinanceRepository {
             icon: icon,
             color: accountColor,
             sortOrder: sortOrder,
-            notes: notes
+            notes: notes,
+            billingDay: billingDay,
+            dueDay: dueDay,
+            creditLimit: NSDecimalNumber(decimal: creditLimit)
         )
         try? context.save()
         return account
@@ -86,12 +92,20 @@ extension FinanceRepository {
         name: String? = nil,
         icon: String? = nil,
         color: String? = nil,
-        notes: String? = nil
+        notes: String? = nil,
+        type: AccountType? = nil,
+        billingDay: Int16? = nil,
+        dueDay: Int16? = nil,
+        creditLimit: Decimal? = nil
     ) {
         if let name = name { account.name = name }
         if let icon = icon { account.customIcon = icon }
         if let color = color { account.color = color }
         if let notes = notes { account.notes = notes }
+        if let type = type { account.type = type.rawValue }
+        if let billingDay = billingDay { account.billingDay = billingDay }
+        if let dueDay = dueDay { account.dueDay = dueDay }
+        if let creditLimit = creditLimit { account.creditLimit = NSDecimalNumber(decimal: creditLimit) }
         account.updatedAt = Date()
         try? context.save()
     }
@@ -148,11 +162,16 @@ extension FinanceRepository {
 
     // MARK: 余额计算
 
-    /// 获取账户当前余额（实时计算：initialBalance + 收入 - 支出）
+    /// 获取账户当前余额（实时计算：initialBalance + 收入 - 支出 ± 转账）
+    /// 转账：本账户作为转出方（account == 本账户）扣减；作为转入方（toAccount == 本账户）增加。
     func getAccountBalance(_ account: Account) -> Decimal {
+        // 查与本账户相关的交易：account 是本账户的，或 toAccount 是本账户的（转账转入方）
         let request = Transaction.fetchRequest()
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
-            NSPredicate(format: "account == %@", account),
+            NSCompoundPredicate(orPredicateWithSubpredicates: [
+                NSPredicate(format: "account == %@", account),
+                NSPredicate(format: "toAccount == %@", account)
+            ]),
             FinanceTransactionOccurrencePolicy.occurredPredicate()
         ])
 
@@ -162,23 +181,32 @@ extension FinanceRepository {
 
         var balance = account.initialBalance.decimalValue
         for tx in transactions {
-            if tx.transactionType == .income {
+            switch tx.transactionType {
+            case .income:
                 balance += tx.amount.decimalValue
-            } else {
+            case .expense:
                 balance -= tx.amount.decimalValue
+            case .transfer:
+                // 转出方扣减，转入方增加
+                if tx.account == account {
+                    balance -= tx.amount.decimalValue
+                } else if tx.toAccount == account {
+                    balance += tx.amount.decimalValue
+                }
             }
         }
         return balance
     }
 
     /// 获取截止到指定日期的累计余额（initialBalance + 该日期之前的全部收入-支出）
+    /// 转账一进一出净值不变，但单笔方向仍需正确处理。
     func getCumulativeBalance(before date: Date) -> Decimal {
         let accounts = getAccounts(includeArchived: false)
 
         // 所有账户的初始余额之和
         var balance = accounts.reduce(Decimal(0)) { $0 + $1.initialBalance.decimalValue }
 
-        // 截止日期之前的所有交易净收入
+        // 截止日期之前的所有交易
         let request = Transaction.fetchRequest()
         request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
             NSPredicate(format: "date < %@", date as NSDate),
@@ -190,10 +218,14 @@ extension FinanceRepository {
         }
 
         for tx in transactions {
-            if tx.transactionType == .income {
+            switch tx.transactionType {
+            case .income:
                 balance += tx.amount.decimalValue
-            } else {
+            case .expense:
                 balance -= tx.amount.decimalValue
+            case .transfer:
+                // 转账不影响总净值（一进一出相抵），跳过
+                break
             }
         }
 
@@ -318,10 +350,14 @@ extension FinanceRepository {
         var income: Decimal = 0
         var expense: Decimal = 0
         for tx in transactions {
-            if tx.transactionType == .income {
+            switch tx.transactionType {
+            case .income:
                 income += tx.amount.decimalValue
-            } else {
+            case .expense:
                 expense += tx.amount.decimalValue
+            case .transfer:
+                // 转账不计入收支统计，避免虚增收入/支出
+                break
             }
         }
 

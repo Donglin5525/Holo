@@ -27,6 +27,12 @@ extension AddTransactionSheet {
             return
         }
 
+        // 转账模式：走独立的保存分支，不要求分类
+        if transactionType == .transfer {
+            saveTransferTransaction(amount: amount)
+            return
+        }
+
         guard let category = selectedCategory, category.isSubCategory else {
             return
         }
@@ -160,6 +166,47 @@ extension AddTransactionSheet {
                 HoloToastCenter.shared.show("保存失败，请重试", type: .error)
             }
 
+            isSaving = false
+        }
+    }
+
+    /// 保存转账交易（独立分支，不要求分类/分期）
+    private func saveTransferTransaction(amount: Decimal) {
+        guard let fromAccount = selectedAccount,
+              let toAccount = selectedToAccount,
+              fromAccount.objectID != toAccount.objectID else {
+            return
+        }
+        isSaving = true
+        Task {
+            var savedTransaction: Transaction?
+            do {
+                if let transaction = editingTransaction {
+                    // 编辑已有转账
+                    var updates = TransactionUpdates()
+                    updates.amount = amount
+                    updates.account = fromAccount
+                    updates.toAccount = toAccount
+                    updates.date = selectedDate
+                    updates.note = note.isEmpty ? nil : note
+                    try await repository.updateTransaction(transaction, updates: updates)
+                    savedTransaction = transaction
+                } else {
+                    savedTransaction = try await repository.addTransferTransaction(
+                        amount: amount,
+                        from: fromAccount,
+                        to: toAccount,
+                        date: selectedDate,
+                        note: note.isEmpty ? nil : note
+                    )
+                }
+                HapticManager.success()
+                onSave(savedTransaction)
+                dismiss()
+            } catch {
+                logger.error("转账保存失败：\(error.localizedDescription)")
+                HoloToastCenter.shared.show("保存失败，请重试", type: .error)
+            }
             isSaving = false
         }
     }

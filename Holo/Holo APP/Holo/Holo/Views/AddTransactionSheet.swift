@@ -82,8 +82,14 @@ struct AddTransactionSheet: View {
     /// 备注输入框是否获得焦点（用于控制键盘切换）
     @FocusState var isNoteFocused: Bool
 
-    /// 选中的账户（nil 时使用默认账户）
+    /// 选中的账户（nil 时使用默认账户）。转账模式下表示转出账户。
     @State var selectedAccount: Account?
+
+    /// 转账模式的转入账户
+    @State var selectedToAccount: Account?
+
+    /// 转入账户选择器是否展开
+    @State var showToAccountPicker: Bool = false
 
     /// 记住上次选择的账户
     @AppStorage("lastSelectedAccountId") var lastSelectedAccountId: String?
@@ -208,8 +214,11 @@ struct AddTransactionSheet: View {
                     // 4. 中间滚动区（分类 + 信息）
                     ScrollView(showsIndicators: false) {
                         VStack(spacing: 12) {
-                            categoryGrid
-                                .padding(.horizontal, 16)
+                            // 转账模式不显示分类网格（转账不需要选分类）
+                            if transactionType != .transfer {
+                                categoryGrid
+                                    .padding(.horizontal, 16)
+                            }
 
                             infoInputArea
                                 .padding(.horizontal, 16)
@@ -252,6 +261,7 @@ struct AddTransactionSheet: View {
 
                 // 弹窗覆盖层
                 if showAccountPicker { accountPopup }
+                if showToAccountPicker { toAccountPopup }
                 if showDatePicker { datePopup }
                 if showInstallmentSheet { installmentPopup }
             }
@@ -522,6 +532,15 @@ struct AddTransactionSheet: View {
         guard let amount = Decimal(string: absoluteAmountString), amount > 0,
               absoluteAmountString != "0" else {
             return false
+        }
+        if transactionType == .transfer {
+            // 转账：要求选了转入账户，且转出≠转入（不要求分类）
+            guard let toAccount = selectedToAccount,
+                  let fromAccount = selectedAccount,
+                  fromAccount.objectID != toAccount.objectID else {
+                return false
+            }
+            return true
         }
         return selectedCategory?.isSubCategory == true
     }

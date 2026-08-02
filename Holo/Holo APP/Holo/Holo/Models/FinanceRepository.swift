@@ -94,12 +94,35 @@ class FinanceRepository {
             transaction.category = cat
         }
         if let acc = updates.account { transaction.account = acc }
+        if let toAcc = updates.toAccount { transaction.toAccount = toAcc }
         if let date = updates.date { transaction.date = date }
         if let note = updates.note { transaction.note = note }
         if let remark = updates.remark { transaction.remark = remark }
         if let tags = updates.tags { transaction.tags = tags }
         transaction.updatedAt = Date()
         try context.save()
+    }
+
+    /// 创建转账交易：从 fromAccount 转出、toAccount 转入，不计入收支统计。
+    func addTransferTransaction(
+        amount: Decimal,
+        from fromAccount: Account,
+        to toAccount: Account,
+        date: Date = Date(),
+        note: String? = nil
+    ) async throws -> Transaction {
+        let transaction = Transaction(context: context)
+        transaction.id = UUID()
+        transaction.amount = NSDecimalNumber(decimal: amount)
+        transaction.type = TransactionType.transfer.rawValue
+        transaction.account = fromAccount
+        transaction.toAccount = toAccount
+        transaction.date = date
+        transaction.note = note
+        transaction.createdAt = Date()
+        transaction.updatedAt = Date()
+        try context.save()
+        return transaction
     }
     
     func deleteTransaction(_ transaction: Transaction) async throws {
@@ -461,6 +484,7 @@ struct TransactionUpdates {
     var amount: Decimal?
     var category: Category?
     var account: Account?
+    var toAccount: Account?
     var date: Date?
     var note: String?
     var remark: String?

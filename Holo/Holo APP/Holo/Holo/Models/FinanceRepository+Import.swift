@@ -404,8 +404,12 @@ extension FinanceRepository {
         if n.contains("微信") || n.contains("支付宝") || n.contains("wechat") || n.contains("alipay") {
             return .digital
         }
-        if n.contains("信用卡") || n.contains("银行") || n.contains("储蓄") || n.contains("card") || n.contains("bank") {
-            return .card
+        // 信用卡优先判断（避免被下面的"银行/储蓄"规则误归为储蓄卡）
+        if n.contains("信用卡") || n.contains("credit") {
+            return .creditCard
+        }
+        if n.contains("银行") || n.contains("储蓄") || n.contains("card") || n.contains("bank") || n.contains("debit") {
+            return .debitCard
         }
         if n.contains("现金") || n.contains("钱包") || n.contains("cash") {
             return .cash

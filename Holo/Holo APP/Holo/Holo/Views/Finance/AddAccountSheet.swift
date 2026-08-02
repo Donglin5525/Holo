@@ -27,6 +27,11 @@ struct AddAccountSheet: View {
     @State private var initialBalance: String = "0"
     @State private var notes: String = ""
 
+    // 信用卡专属字段
+    @State private var billingDay: Int = 1
+    @State private var dueDay: Int = 20
+    @State private var creditLimit: String = "0"
+
     // UI 状态
     @State private var showError = false
     @State private var errorMessage = ""
@@ -66,6 +71,11 @@ struct AddAccountSheet: View {
                         balanceSection
                     }
 
+                    // 信用卡专属字段（仅信用卡类型显示）
+                    if selectedType.isCreditCard {
+                        creditCardSection
+                    }
+
                     // 备注
                     notesSection
                 }
@@ -97,6 +107,10 @@ struct AddAccountSheet: View {
                     selectedType = account.accountType
                     selectedColor = account.color
                     notes = account.notes ?? ""
+                    billingDay = max(Int(account.billingDay), 1)
+                    dueDay = max(Int(account.dueDay), 1)
+                    let limit = account.creditLimitDecimal
+                    creditLimit = limit > 0 ? String(describing: limit) : "0"
                 } else {
                     selectedColor = selectedType.defaultColor
                 }
@@ -251,11 +265,81 @@ struct AddAccountSheet: View {
         }
     }
 
+    // MARK: - 信用卡专属字段
+
+    private var creditCardSection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            Text("信用卡信息")
+                .font(.holoLabel)
+                .foregroundColor(.holoTextSecondary)
+
+            VStack(spacing: 0) {
+                // 账单日
+                HStack {
+                    Text("账单日")
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+                    Spacer()
+                    Picker("", selection: $billingDay) {
+                        ForEach(1...31, id: \.self) { day in
+                            Text("每月 \(day) 日").tag(day)
+                        }
+                    }
+                    .labelsHidden()
+                    .tint(.holoPrimary)
+                }
+                .padding(HoloSpacing.md)
+
+                Divider().padding(.leading, HoloSpacing.md)
+
+                // 还款日
+                HStack {
+                    Text("还款日")
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+                    Spacer()
+                    Picker("", selection: $dueDay) {
+                        ForEach(1...31, id: \.self) { day in
+                            Text("每月 \(day) 日").tag(day)
+                        }
+                    }
+                    .labelsHidden()
+                    .tint(.holoPrimary)
+                }
+                .padding(HoloSpacing.md)
+
+                Divider().padding(.leading, HoloSpacing.md)
+
+                // 信用额度
+                HStack {
+                    Text("信用额度")
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+                    Spacer()
+                    TextField("0", text: $creditLimit)
+                        .font(.holoBody)
+                        .keyboardType(.decimalPad)
+                        .multilineTextAlignment(.trailing)
+                        .frame(width: 100)
+                        .foregroundColor(.holoTextPrimary)
+                    Text("元")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                }
+                .padding(HoloSpacing.md)
+            }
+            .background(Color.holoCardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+        }
+    }
+
     // MARK: - Save
 
     private func save() {
         let trimmedName = name.trimmingCharacters(in: .whitespaces)
         guard !trimmedName.isEmpty else { return }
+
+        let limit = Decimal(string: creditLimit) ?? 0
 
         switch mode {
         case .create:
@@ -265,8 +349,12 @@ struct AddAccountSheet: View {
                 type: selectedType,
                 color: selectedColor,
                 initialBalance: balance,
-                notes: notes.isEmpty ? nil : notes
+                notes: notes.isEmpty ? nil : notes,
+                billingDay: selectedType.isCreditCard ? Int16(billingDay) : 0,
+                dueDay: selectedType.isCreditCard ? Int16(dueDay) : 0,
+                creditLimit: selectedType.isCreditCard ? limit : 0
             )
+            CreditCardReminderService.shared.scheduleReminders(for: account)
             onComplete(account)
             dismiss()
 
@@ -275,8 +363,13 @@ struct AddAccountSheet: View {
                 account,
                 name: trimmedName,
                 color: selectedColor,
-                notes: notes.isEmpty ? nil : notes
+                notes: notes.isEmpty ? nil : notes,
+                type: selectedType,
+                billingDay: selectedType.isCreditCard ? Int16(billingDay) : 0,
+                dueDay: selectedType.isCreditCard ? Int16(dueDay) : 0,
+                creditLimit: selectedType.isCreditCard ? limit : 0
             )
+            CreditCardReminderService.shared.scheduleReminders(for: account)
             onComplete(account)
             dismiss()
         }

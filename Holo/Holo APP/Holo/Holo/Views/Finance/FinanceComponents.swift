@@ -257,7 +257,7 @@ struct TransactionRowView: View {
                 VStack(alignment: .leading, spacing: isCompact ? 2 : 4) {
                     // 主标题 + 分期标签
                     HStack(spacing: 4) {
-                        Text(hasNote ? (transaction.note ?? "") : (transaction.category?.name ?? "未分类"))
+                        Text(primaryTitle)
                             .font(.holoBody)
                             .foregroundColor(.holoTextPrimary)
                             .lineLimit(1)
@@ -286,8 +286,13 @@ struct TransactionRowView: View {
                                 .lineLimit(1)
                         }
 
-                        // 非默认账户时显示账户名
-                        if let account = transaction.account, !account.isDefault {
+                        // 转账显示"账户A → 账户B"；普通交易非默认账户时显示账户名
+                        if transaction.transactionType == .transfer {
+                            Text(transferRouteText)
+                                .font(.system(size: 11))
+                                .foregroundColor(.holoTextSecondary.opacity(0.7))
+                                .lineLimit(1)
+                        } else if let account = transaction.account, !account.isDefault {
                             Text(account.name)
                                 .font(.system(size: 11))
                                 .foregroundColor(.holoTextSecondary.opacity(0.7))
@@ -301,7 +306,7 @@ struct TransactionRowView: View {
                 // 金额：右侧对齐，空间不足时自动缩放
                 Text(transaction.formattedAmount)
                     .font(.holoBody)
-                    .foregroundColor(transaction.transactionType == .expense ? .holoTextPrimary : .holoSuccess)
+                    .foregroundColor(amountColor)
                     .minimumScaleFactor(0.7)
                     .lineLimit(1)
                     .frame(alignment: .trailing)
@@ -315,12 +320,43 @@ struct TransactionRowView: View {
         .buttonStyle(PlainButtonStyle())
     }
     
-    /// 分类图标
+    /// 分类图标（转账用专属图标）
     private var categoryIcon: some View {
+        if transaction.transactionType == .transfer {
+            return CategoryIconBadge(
+                iconName: "arrow.right.arrow.left",
+                color: .holoPrimary,
+                diameter: isCompact ? 40 : 48
+            )
+        }
         let cat = transaction.category
         let color: Color = (cat?.isDeleted ?? false) ? .holoPrimary : (cat?.swiftUIColor ?? .holoPrimary)
         let iconName = cat?.icon ?? "questionmark.folder.fill"
         return CategoryIconBadge(iconName: iconName, color: color, diameter: isCompact ? 40 : 48)
+    }
+
+    /// 主标题：转账显示"转出 → 转入"，其他显示备注或分类名
+    private var primaryTitle: String {
+        if transaction.transactionType == .transfer {
+            return transferRouteText
+        }
+        return hasNote ? (transaction.note ?? "") : (transaction.category?.name ?? "未分类")
+    }
+
+    /// 转账路径文案，如 "储蓄卡 → 信用卡"
+    private var transferRouteText: String {
+        let from = transaction.account?.name ?? "账户"
+        let to = transaction.toAccount?.name ?? "账户"
+        return "\(from) → \(to)"
+    }
+
+    /// 金额颜色：支出深色、收入绿色、转账中性灰
+    private var amountColor: Color {
+        switch transaction.transactionType {
+        case .expense: return .holoTextPrimary
+        case .income: return .holoSuccess
+        case .transfer: return .holoTextSecondary
+        }
     }
 
     private func formatDateTime(_ date: Date) -> String {

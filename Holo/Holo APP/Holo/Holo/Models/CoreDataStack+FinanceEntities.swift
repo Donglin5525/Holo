@@ -103,6 +103,16 @@ extension CoreDataStack {
         accountRelation.maxCount = 1
         accountRelation.isOptional = true
         accountRelation.deleteRule = .nullifyDeleteRule
+
+        // 转账交易的对方账户（转入账户）。单向 to-one，不带反向关系，降低 CloudKit 同步代价。
+        // 转账时 account 表示转出账户，toAccount 表示转入账户。
+        let toAccountRelation = NSRelationshipDescription()
+        toAccountRelation.name = "toAccount"
+        toAccountRelation.destinationEntity = nil  // 稍后在 Account 创建后设置
+        toAccountRelation.minCount = 0
+        toAccountRelation.maxCount = 1
+        toAccountRelation.isOptional = true
+        toAccountRelation.deleteRule = .nullifyDeleteRule
         
         // 分期记账字段
         let installmentGroupId = NSAttributeDescription()
@@ -346,6 +356,31 @@ extension CoreDataStack {
         accountUpdatedAt.defaultValue = Date()
         accountAttributes.append(accountUpdatedAt)
 
+        // 信用卡专属字段（非信用卡账户保持默认值 0/nil）
+        // 账单日（每月几号出账单，1-31，0 表示未设置）
+        let accountBillingDay = NSAttributeDescription()
+        accountBillingDay.name = "billingDay"
+        accountBillingDay.attributeType = .integer16AttributeType
+        accountBillingDay.isOptional = false
+        accountBillingDay.defaultValue = 0
+        accountAttributes.append(accountBillingDay)
+
+        // 还款日（每月几号最后还款，1-31，0 表示未设置）
+        let accountDueDay = NSAttributeDescription()
+        accountDueDay.name = "dueDay"
+        accountDueDay.attributeType = .integer16AttributeType
+        accountDueDay.isOptional = false
+        accountDueDay.defaultValue = 0
+        accountAttributes.append(accountDueDay)
+
+        // 信用额度（信用卡总额度，0 表示未设置）
+        let accountCreditLimit = NSAttributeDescription()
+        accountCreditLimit.name = "creditLimit"
+        accountCreditLimit.attributeType = .decimalAttributeType
+        accountCreditLimit.isOptional = false
+        accountCreditLimit.defaultValue = NSDecimalNumber(value: 0)
+        accountAttributes.append(accountCreditLimit)
+
         // Account → Transaction 反向关系（to-many）
         let accountTransactionsRelation = NSRelationshipDescription()
         accountTransactionsRelation.name = "transactions"
@@ -549,7 +584,57 @@ extension CoreDataStack {
         ]
         spendingProjectEntity.properties = projectAttributes
 
-        return [transactionEntity, categoryEntity, accountEntity, homeIconConfigEntity, budgetEntity, spendingProjectEntity]
+        // MARK: - NetWorthSnapshot Entity
+        // 净资产月末快照，用于绘制净资产历史曲线。
+        let netWorthSnapshotEntity = NSEntityDescription()
+        netWorthSnapshotEntity.name = "NetWorthSnapshot"
+        netWorthSnapshotEntity.managedObjectClassName = "NetWorthSnapshot"
+
+        let snapshotId = NSAttributeDescription()
+        snapshotId.name = "id"
+        snapshotId.attributeType = .UUIDAttributeType
+        snapshotId.isOptional = false
+        snapshotId.defaultValue = UUID()
+        snapshotId.isIndexed = true
+
+        // 快照所属月份的第一天（用于按月去重与排序）
+        let snapshotMonthStart = NSAttributeDescription()
+        snapshotMonthStart.name = "monthStart"
+        snapshotMonthStart.attributeType = .dateAttributeType
+        snapshotMonthStart.isOptional = false
+        snapshotMonthStart.defaultValue = Date()
+        snapshotMonthStart.isIndexed = true
+
+        let snapshotAssets = NSAttributeDescription()
+        snapshotAssets.name = "assets"
+        snapshotAssets.attributeType = .decimalAttributeType
+        snapshotAssets.isOptional = false
+        snapshotAssets.defaultValue = NSDecimalNumber(value: 0)
+
+        let snapshotLiabilities = NSAttributeDescription()
+        snapshotLiabilities.name = "liabilities"
+        snapshotLiabilities.attributeType = .decimalAttributeType
+        snapshotLiabilities.isOptional = false
+        snapshotLiabilities.defaultValue = NSDecimalNumber(value: 0)
+
+        let snapshotNetWorth = NSAttributeDescription()
+        snapshotNetWorth.name = "netWorth"
+        snapshotNetWorth.attributeType = .decimalAttributeType
+        snapshotNetWorth.isOptional = false
+        snapshotNetWorth.defaultValue = NSDecimalNumber(value: 0)
+
+        let snapshotCreatedAt = NSAttributeDescription()
+        snapshotCreatedAt.name = "createdAt"
+        snapshotCreatedAt.attributeType = .dateAttributeType
+        snapshotCreatedAt.isOptional = false
+        snapshotCreatedAt.defaultValue = Date()
+
+        netWorthSnapshotEntity.properties = [
+            snapshotId, snapshotMonthStart, snapshotAssets,
+            snapshotLiabilities, snapshotNetWorth, snapshotCreatedAt
+        ]
+
+        return [transactionEntity, categoryEntity, accountEntity, homeIconConfigEntity, budgetEntity, spendingProjectEntity, netWorthSnapshotEntity]
     }
 
 }

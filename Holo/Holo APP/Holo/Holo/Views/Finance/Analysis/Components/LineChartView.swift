@@ -297,6 +297,9 @@ struct LineChartView: View {
             return point.expense
         case .income:
             return point.income
+        case .transfer:
+            // 转账不参与收支趋势图
+            return 0
         }
     }
 

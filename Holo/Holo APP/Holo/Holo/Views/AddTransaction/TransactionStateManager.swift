@@ -18,6 +18,7 @@ extension AddTransactionSheet {
         amountString = formatAmount(absoluteAmount)
         selectedCategory = transaction.category
         selectedAccount = transaction.account
+        selectedToAccount = transaction.toAccount
         note = InstallmentNoteSanitizer.clean(transaction.note) ?? ""
         remark = transaction.remark ?? ""
         selectedDate = transaction.date

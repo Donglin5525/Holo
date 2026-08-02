@@ -178,6 +178,9 @@ struct DetailTabView: View {
             return point.expense
         case .income:
             return point.income
+        case .transfer:
+            // 转账不参与收支明细图
+            return 0
         }
     }
 

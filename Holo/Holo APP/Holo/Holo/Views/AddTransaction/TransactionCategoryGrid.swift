@@ -13,7 +13,7 @@ import os
 
 extension AddTransactionSheet {
 
-    /// 支出/收入切换 Tab（下划线样式）
+    /// 支出/收入/转账切换 Tab（下划线样式）
     var typeTabBar: some View {
         HStack(spacing: 0) {
             typeTabButton(title: "支出", isSelected: transactionType == .expense) {
@@ -21,6 +21,9 @@ extension AddTransactionSheet {
             }
             typeTabButton(title: "收入", isSelected: transactionType == .income) {
                 switchType(to: .income)
+            }
+            typeTabButton(title: "转账", isSelected: transactionType == .transfer) {
+                switchType(to: .transfer)
             }
         }
         .background(Color.holoCardBackground)

@@ -26,6 +26,9 @@ public class Transaction: NSManagedObject {
     @NSManaged public var updatedAt: Date
     @NSManaged public var category: Category?
     @NSManaged public var account: Account?
+    /// 转账交易的对方账户（转入账户）。非转账交易为 nil。
+    /// 转账时 account 表示转出账户，toAccount 表示转入账户。
+    @NSManaged public var toAccount: Account?
 
     // 分期记账字段
     @NSManaged public var installmentGroupId: UUID?
@@ -74,6 +77,9 @@ public class Transaction: NSManagedObject {
             return "+\(formatter.string(from: amount) ?? "")"
         case .expense:
             return "-\(formatter.string(from: amount) ?? "")"
+        case .transfer:
+            // 转账不产生收支，金额不带正负号
+            return formatter.string(from: amount) ?? ""
         }
     }
     

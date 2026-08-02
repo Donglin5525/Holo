@@ -15,13 +15,17 @@ struct AccountListView: View {
     @State private var accounts: [Account] = []
     @State private var showAddAccount = false
     @State private var netWorthData: (assets: Decimal, liabilities: Decimal, netWorth: Decimal) = (0, 0, 0)
+    @State private var netWorthSnapshots: [NetWorthSnapshot] = []
 
     var body: some View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: HoloSpacing.xl) {
-                    // 净资产总览卡片
+                    // 净资产总览卡片 + 趋势曲线
                     netWorthCard
+                    if netWorthSnapshots.count >= 2 {
+                        netWorthTrendChart
+                    }
 
                     // 按类型分组的账户列表
                     accountListSection
@@ -112,7 +116,7 @@ struct AccountListView: View {
     private var accountListSection: some View {
         VStack(spacing: HoloSpacing.md) {
             // 按类型分组
-            ForEach(groupedAccounts.keys.sorted(by: { $0.rawValue < $1.rawValue }), id: \.self) { accountType in
+            ForEach(groupedAccounts.keys.sorted(by: { $0.sortOrder < $1.sortOrder }), id: \.self) { accountType in
                 if let typeAccounts = groupedAccounts[accountType], !typeAccounts.isEmpty {
                     VStack(alignment: .leading, spacing: HoloSpacing.sm) {
                         Text(accountType.displayName)
@@ -206,6 +210,48 @@ struct AccountListView: View {
     private func loadData() {
         accounts = FinanceRepository.shared.getAccounts(includeArchived: true)
         netWorthData = FinanceRepository.shared.getTotalNetWorth()
+        netWorthSnapshots = NetWorthSnapshotService.shared.fetchRecentSnapshots(months: 6)
+    }
+
+    // MARK: - 净资产趋势曲线
+
+    private var netWorthTrendChart: some View {
+        let points = netWorthSnapshots.map { snapshot -> (date: Date, value: Double) in
+            (snapshot.monthStart, NSDecimalNumber(decimal: snapshot.netWorthDecimal).doubleValue)
+        }
+        let values = points.map(\.value)
+        let minValue = values.min() ?? 0
+        let maxValue = values.max() ?? 1
+        let range = max(maxValue - minValue, 1)
+
+        return VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            Text("净资产趋势（近 \(points.count) 个月）")
+                .font(.holoCaption)
+                .foregroundColor(.holoTextSecondary)
+
+            GeometryReader { geo in
+                let width = geo.size.width
+                let height = geo.size.height
+                Path { path in
+                    for (index, point) in points.enumerated() {
+                        let x = width * CGFloat(index) / CGFloat(max(points.count - 1, 1))
+                        let normalized = (point.value - minValue) / range
+                        let y = height * CGFloat(1 - normalized)
+                        if index == 0 {
+                            path.move(to: CGPoint(x: x, y: y))
+                        } else {
+                            path.addLine(to: CGPoint(x: x, y: y))
+                        }
+                    }
+                }
+                .stroke(Color.holoPrimary, lineWidth: 2)
+            }
+            .frame(height: 60)
+        }
+        .padding(HoloSpacing.lg)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
     }
 
     private func formatAmount(_ amount: Decimal) -> String {

@@ -15,17 +15,25 @@ extension AddTransactionSheet {
     /// 信息输入区（V3：弹窗式选择 + 固定备注框）
     var infoInputArea: some View {
         VStack(spacing: 0) {
-            // 账户行（点击弹窗选择）
+            // 账户行（点击弹窗选择）。转账模式下标签为"转出账户"
             accountRow
+
+            // 转账模式：转入账户行
+            if transactionType == .transfer {
+                Divider().padding(.leading, 44)
+                toAccountRow
+            }
 
             Divider().padding(.leading, 44)
 
             // 日期行（点击弹窗选择）
             dateRow
 
-            // 分期设置（点击弹窗）
-            Divider().padding(.leading, 44)
-            installmentRow
+            // 分期设置（点击弹窗）—— 转账模式不显示分期
+            if transactionType != .transfer {
+                Divider().padding(.leading, 44)
+                installmentRow
+            }
 
             Divider().padding(.leading, 44)
 
@@ -39,7 +47,7 @@ extension AddTransactionSheet {
 
     // MARK: - 账户选择行
 
-    /// 账户选择行（点击弹窗）
+    /// 账户选择行（点击弹窗）。转账模式下标签为"转出"。
     private var accountRow: some View {
         Button {
             withAnimation(.easeOut(duration: 0.2)) {
@@ -52,7 +60,7 @@ extension AddTransactionSheet {
                     .foregroundColor(selectedAccount?.swiftUIColor ?? .green)
                     .frame(width: 24)
 
-                Text("账户")
+                Text(transactionType == .transfer ? "转出" : "账户")
                     .font(.system(size: 15))
                     .foregroundColor(.holoTextSecondary)
                     .frame(width: 36, alignment: .leading)
@@ -63,6 +71,43 @@ extension AddTransactionSheet {
                     Text(selectedAccount?.name ?? "默认账户")
                         .font(.system(size: 15))
                         .foregroundColor(.holoTextPrimary)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.holoTextSecondary.opacity(0.5))
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 13)
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - 转入账户选择行（仅转账模式）
+
+    /// 转入账户选择行（点击弹窗）
+    private var toAccountRow: some View {
+        Button {
+            withAnimation(.easeOut(duration: 0.2)) {
+                showToAccountPicker = true
+            }
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: selectedToAccount?.icon ?? "arrow.down.to.line")
+                    .font(.system(size: 18))
+                    .foregroundColor(selectedToAccount?.swiftUIColor ?? .blue)
+                    .frame(width: 24)
+
+                Text("转入")
+                    .font(.system(size: 15))
+                    .foregroundColor(.holoTextSecondary)
+                    .frame(width: 36, alignment: .leading)
+
+                Spacer()
+
+                HStack(spacing: 4) {
+                    Text(selectedToAccount?.name ?? "选择账户")
+                        .font(.system(size: 15))
+                        .foregroundColor(selectedToAccount == nil ? .holoTextSecondary : .holoTextPrimary)
                     Image(systemName: "chevron.right")
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(.holoTextSecondary.opacity(0.5))
@@ -408,6 +453,78 @@ extension AddTransactionSheet {
                 Button("取消") {
                     withAnimation(.easeOut(duration: 0.2)) {
                         showAccountPicker = false
+                    }
+                }
+                .font(.system(size: 15, weight: .medium))
+                .foregroundColor(.holoTextSecondary)
+                .padding(.vertical, 14)
+            }
+            .frame(maxWidth: 320)
+            .background(Color.holoCardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+            .shadow(color: .black.opacity(0.15), radius: 20, y: 10)
+        }
+        .transition(.opacity)
+    }
+
+    /// 转入账户选择弹窗（排除已选的转出账户，避免自己转给自己）
+    var toAccountPopup: some View {
+        ZStack {
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+                .onTapGesture {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        showToAccountPicker = false
+                    }
+                }
+
+            VStack(spacing: 0) {
+                Text("选择转入账户")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundColor(.holoTextPrimary)
+                    .padding(.top, 20)
+                    .padding(.bottom, 12)
+
+                ScrollView(showsIndicators: false) {
+                    // 排除转出账户
+                    ForEach(accounts.filter { $0.objectID != selectedAccount?.objectID }, id: \.objectID) { account in
+                        Button {
+                            selectedToAccount = account
+                            withAnimation(.easeOut(duration: 0.2)) {
+                                showToAccountPicker = false
+                            }
+                        } label: {
+                            HStack(spacing: 12) {
+                                Image(systemName: account.icon)
+                                    .font(.system(size: 16))
+                                    .foregroundColor(account.swiftUIColor)
+                                    .frame(width: 24)
+
+                                Text(account.name)
+                                    .font(.system(size: 15))
+                                    .foregroundColor(.holoTextPrimary)
+
+                                Spacer()
+
+                                if selectedToAccount?.objectID == account.objectID {
+                                    Image(systemName: "checkmark")
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(.holoPrimary)
+                                }
+                            }
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 11)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .frame(maxHeight: 280)
+
+                Divider()
+
+                Button("取消") {
+                    withAnimation(.easeOut(duration: 0.2)) {
+                        showToAccountPicker = false
                     }
                 }
                 .font(.system(size: 15, weight: .medium))

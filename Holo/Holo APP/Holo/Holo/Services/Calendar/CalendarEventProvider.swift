@@ -90,14 +90,29 @@ struct CalendarEventProvider {
     private func fetchFinance(in range: DateInterval) async -> Partial {
         do {
             let txns = try await financeRepo.getTransactions(from: range.start, to: range.end)
-            let events: [CalendarEvent] = txns.map { txn in
+            let events: [CalendarEvent] = txns.compactMap { txn -> CalendarEvent? in
                 let amountString = NumberFormatter.currency.string(from: txn.amount as NSDecimalNumber) ?? ""
-                let sign = txn.transactionType == .expense ? "-" : "+"
+                let title: String
+                let detail: String
+                switch txn.transactionType {
+                case .expense:
+                    title = txn.category?.name ?? "未分类"
+                    detail = "-\(amountString)"
+                case .income:
+                    title = txn.category?.name ?? "未分类"
+                    detail = "+\(amountString)"
+                case .transfer:
+                    // 转账不计入收支，日历事件中性展示
+                    let from = txn.account?.name ?? ""
+                    let to = txn.toAccount?.name ?? ""
+                    title = "转账"
+                    detail = "\(from)→\(to) \(amountString)"
+                }
                 return CalendarEvent(
                     module: .finance,
                     date: txn.date,
-                    title: txn.category?.name ?? "未分类",
-                    detail: "\(sign)\(amountString)",
+                    title: title,
+                    detail: detail,
                     originID: txn.objectID
                 )
             }
