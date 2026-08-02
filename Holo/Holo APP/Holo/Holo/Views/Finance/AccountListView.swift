@@ -2,52 +2,68 @@
 //  AccountListView.swift
 //  Holo
 //
-//  账户总览页 - 展示净资产、按类型分组的账户列表
+//  账户总览页 - 财务模块底部第 1 个 Tab，展示净资产、按类型分组的账户列表
 //
 
 import SwiftUI
 
 struct AccountListView: View {
 
+    /// 返回上一级（与其他 Tab 一致的返回交互）
+    let onBack: () -> Void
+
     @State private var accounts: [Account] = []
     @State private var showAddAccount = false
     @State private var netWorthData: (assets: Decimal, liabilities: Decimal, netWorth: Decimal) = (0, 0, 0)
 
     var body: some View {
-        ScrollView(showsIndicators: false) {
-            VStack(spacing: HoloSpacing.xl) {
-                // 净资产总览卡片
-                netWorthCard
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: HoloSpacing.xl) {
+                    // 净资产总览卡片
+                    netWorthCard
 
-                // 按类型分组的账户列表
-                accountListSection
+                    // 按类型分组的账户列表
+                    accountListSection
+                }
+                .padding(HoloSpacing.lg)
             }
-            .padding(HoloSpacing.lg)
-        }
-        .background(Color.holoBackground)
-        .safeAreaInset(edge: .bottom, spacing: 0) {
-            Color.clear.frame(height: 88)
-        }
-        .navigationTitle("账户管理")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    showAddAccount = true
-                } label: {
-                    Image(systemName: "plus")
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.holoPrimary)
+            .background(Color.holoBackground)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                Color.clear.frame(height: 88)
+            }
+            .navigationTitle("账户")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarBackground(Color.holoBackground, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button {
+                        onBack()
+                    } label: {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.holoTextPrimary)
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showAddAccount = true
+                    } label: {
+                        Image(systemName: "plus")
+                            .font(.system(size: 16, weight: .semibold))
+                            .foregroundColor(.holoPrimary)
+                    }
                 }
             }
-        }
-        .sheet(isPresented: $showAddAccount) {
-            AddAccountSheet(mode: .create) { _ in
+            .sheet(isPresented: $showAddAccount) {
+                AddAccountSheet(mode: .create) { _ in
+                    loadData()
+                }
+            }
+            .onAppear {
                 loadData()
             }
-        }
-        .onAppear {
-            loadData()
         }
     }
 

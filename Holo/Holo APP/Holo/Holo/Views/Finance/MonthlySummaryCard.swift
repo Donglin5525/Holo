@@ -69,8 +69,7 @@ struct MonthlySummaryCard: View {
             }
         }
         .padding(20)
-        .background(.ultraThinMaterial)
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .holoCard()
     }
 
     // MARK: - Helper

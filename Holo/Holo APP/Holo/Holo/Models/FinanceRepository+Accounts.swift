@@ -151,7 +151,10 @@ extension FinanceRepository {
     /// 获取账户当前余额（实时计算：initialBalance + 收入 - 支出）
     func getAccountBalance(_ account: Account) -> Decimal {
         let request = Transaction.fetchRequest()
-        request.predicate = NSPredicate(format: "account == %@", account)
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "account == %@", account),
+            FinanceTransactionOccurrencePolicy.occurredPredicate()
+        ])
 
         guard let transactions = try? context.fetch(request) else {
             return account.initialBalance.decimalValue
@@ -177,7 +180,10 @@ extension FinanceRepository {
 
         // 截止日期之前的所有交易净收入
         let request = Transaction.fetchRequest()
-        request.predicate = NSPredicate(format: "date < %@", date as NSDate)
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "date < %@", date as NSDate),
+            FinanceTransactionOccurrencePolicy.occurredPredicate(asOf: min(date, Date()))
+        ])
 
         guard let transactions = try? context.fetch(request) else {
             return balance

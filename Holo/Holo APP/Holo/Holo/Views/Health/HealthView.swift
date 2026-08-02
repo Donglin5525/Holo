@@ -513,12 +513,7 @@ struct HealthView: View {
             HealthTrendChart(data: weeklySleepData, type: .sleep)
         }
         .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
-        .overlay(
-            RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .stroke(Color.holoBorder, lineWidth: 1)
-        )
+        .holoCard()
         .onTapGesture {
             selectedMetric = .sleep
         }

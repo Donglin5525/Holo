@@ -537,6 +537,7 @@ enum HoloBackendPurpose: String {
     case financeActionParser = "finance_action_parser"
     case taskActionParser = "task_action_parser"
     case thoughtOrganization = "thought_organization"
+    case thoughtTaskExtraction = "thought_task_extraction"
     case thoughtTagConvergence = "thought_tag_convergence"
     case categoryPatternInduction = "category_pattern_induction"
     case agentLoop = "agent_loop"

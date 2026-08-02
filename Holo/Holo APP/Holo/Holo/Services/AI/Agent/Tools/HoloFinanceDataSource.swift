@@ -11,6 +11,32 @@ import Foundation
 
 struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
 
+    func balanceDiagnosis() async -> HoloFinanceBalanceDiagnosis? {
+        let repository = FinanceRepository.shared
+        guard let transactions = try? await repository.getAllTransactions() else { return nil }
+        let accountMetadata = await MainActor.run { () -> (count: Int, openingBalance: Double) in
+            let accounts = repository.getAccounts(includeArchived: false)
+            return (
+                accounts.count,
+                accounts.reduce(0) { $0 + $1.initialBalance.doubleValue }
+            )
+        }
+        let entries = transactions.map { transaction in
+            HoloFinanceBalanceEntry(
+                amount: transaction.amount.doubleValue,
+                isIncome: transaction.transactionType == .income,
+                expenseSource: transaction.spendingProjectId == nil ? .manual : .recurring,
+                categoryName: transaction.category?.name ?? "未分类",
+                excerpt: Self.sampleExcerpt(for: transaction)
+            )
+        }
+        return HoloFinanceBalanceCalculator.calculate(
+            activeAccountCount: accountMetadata.count,
+            openingBalance: accountMetadata.openingBalance,
+            entries: entries
+        )
+    }
+
     func queryRows(timeRange: HoloAgentTimeRange?, parameters: [String: String]) async -> [HoloQueryRow] {
         let calendar = Calendar.current
         let resolved = HoloAgentHistoricalTimePolicy.resolve(timeRange, calendar: calendar)

@@ -68,8 +68,12 @@ struct CategoryComparisonListView: View {
                 }
             }
             .background(Color.holoCardBackground)
-            .cornerRadius(HoloRadius.lg)
-            .shadow(color: HoloShadow.card, radius: 8, x: 0, y: 2)
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+            .overlay {
+                RoundedRectangle(cornerRadius: HoloRadius.lg)
+                    .stroke(Color.holoDivider.opacity(0.4), lineWidth: 0.5)
+            }
+            .shadow(color: Color.black.opacity(0.035), radius: 8, y: 3)
         }
     }
 

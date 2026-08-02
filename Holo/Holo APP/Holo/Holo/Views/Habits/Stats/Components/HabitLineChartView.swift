@@ -17,11 +17,12 @@ struct HabitLineChartView: View {
     let unit: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+        VStack(alignment: .leading, spacing: 10) {
             // 标题
             Text("趋势变化")
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .font(.holoLabel)
+                .fontWeight(.semibold)
+                .foregroundColor(.holoTextPrimary)
 
             if data.isEmpty {
                 emptyChartView
@@ -36,24 +37,7 @@ struct HabitLineChartView: View {
 
     private var chartContent: some View {
         Chart(data) { item in
-            // 折线
-            LineMark(
-                x: .value("日期", item.date, unit: .day),
-                y: .value(unit, item.value)
-            )
-            .foregroundStyle(Color.holoPrimary)
-            .interpolationMethod(.catmullRom)
-            .lineStyle(StrokeStyle(lineWidth: 2, lineCap: .round))
-
-            // 数据点
-            PointMark(
-                x: .value("日期", item.date, unit: .day),
-                y: .value(unit, item.value)
-            )
-            .foregroundStyle(Color.holoPrimary)
-            .symbolSize(25)
-
-            // 区域填充
+            // 区域填充（先画，垫在最底层）
             AreaMark(
                 x: .value("日期", item.date, unit: .day),
                 yStart: .value("底部", yDomain.lowerBound),
@@ -62,48 +46,67 @@ struct HabitLineChartView: View {
             .foregroundStyle(
                 LinearGradient(
                     colors: [
-                        Color.holoPrimary.opacity(0.3),
-                        Color.holoPrimary.opacity(0.05)
+                        Color.holoPrimary.opacity(0.14),
+                        Color.holoPrimary.opacity(0.005)
                     ],
                     startPoint: .top,
                     endPoint: .bottom
                 )
             )
+            .interpolationMethod(.catmullRom)
+
+            // 折线
+            LineMark(
+                x: .value("日期", item.date, unit: .day),
+                y: .value(unit, item.value)
+            )
+            .foregroundStyle(Color.holoPrimary)
+            .interpolationMethod(.catmullRom)
+            .lineStyle(StrokeStyle(lineWidth: 2.25, lineCap: .round, lineJoin: .round))
+
+            // 数据点
+            PointMark(
+                x: .value("日期", item.date, unit: .day),
+                y: .value(unit, item.value)
+            )
+            .foregroundStyle(Color.holoPrimary)
+            .symbolSize(25)
         }
         .chartXAxis {
             AxisMarks(values: .automatic(desiredCount: xAxisCount)) { value in
-                AxisGridLine()
-                    .foregroundStyle(Color.holoDivider)
                 AxisValueLabel {
                     if let date = value.as(Date.self) {
                         Text(formatDate(date))
-                            .font(.holoLabel)
+                            .font(.system(size: 10))
                             .foregroundColor(.holoTextSecondary)
                     }
                 }
             }
         }
+        .chartXScale(range: .plotDimension(startPadding: 12, endPadding: 12))
         .chartYAxis {
-            AxisMarks(position: .leading, values: .automatic(desiredCount: 4)) { value in
+            AxisMarks(position: .trailing, values: .automatic(desiredCount: 4)) { value in
                 AxisGridLine()
-                    .foregroundStyle(Color.holoDivider)
+                    .foregroundStyle(Color.holoDivider.opacity(0.32))
                 AxisValueLabel {
                     if let doubleValue = value.as(Double.self) {
                         Text(formatValue(doubleValue))
-                            .font(.holoLabel)
+                            .font(.system(size: 10))
                             .foregroundColor(.holoTextSecondary)
+                            .frame(width: 40, alignment: .trailing)
                     }
                 }
             }
         }
-        .chartYScale(domain: yDomain)
-        .chartXAxisLabel("")
-        .chartYAxisLabel(unit)
+        .chartYScale(
+            domain: yDomain,
+            range: .plotDimension(startPadding: 9, endPadding: 12)
+        )
     }
 
     // MARK: - Y 轴范围
 
-    /// 根据数据范围计算紧凑的 Y 轴区间，使趋势变化更明显
+    /// 根据数据范围计算 Y 轴区间：下界取整、上界用 niceCeil 取好看整数，避免轴抖动
     private var yDomain: ClosedRange<Double> {
         guard !data.isEmpty else { return 0...100 }
 
@@ -114,12 +117,27 @@ struct HabitLineChartView: View {
         // 数据范围
         let range = maxVal - minVal
 
-        // 上下各留 30% 的余量（占数据范围的 30%），使趋势更陡峭
+        // 下界：留 30% 余量使趋势更明显，但不超过 0（测量值一般非负）
         let padding = max(range * 0.3, range > 0 ? range * 0.1 : 1.0)
-        let lower = minVal - padding
-        let upper = maxVal + padding
+        let lower = max(minVal - padding, 0)
+        let upper = niceCeil(maxVal + padding)
 
         return lower...upper
+    }
+
+    /// 向上取整到整齐的刻度值（10, 20, 50, 100, 200, 500, 1000 ...），与趋势图一致
+    private func niceCeil(_ value: Double) -> Double {
+        guard value > 0 else { return 1 }
+        let magnitude = pow(10, floor(log10(value)))
+        let fraction = value / magnitude
+        let niceFraction: Double
+        switch fraction {
+        case ...1: niceFraction = 1
+        case ...2: niceFraction = 2
+        case ...5: niceFraction = 5
+        default: niceFraction = 10
+        }
+        return niceFraction * magnitude
     }
 
     // MARK: - X 轴标签数量
@@ -153,12 +171,12 @@ struct HabitLineChartView: View {
     // MARK: - 空状态
 
     private var emptyChartView: some View {
-        VStack(spacing: HoloSpacing.sm) {
+        VStack(spacing: HoloSpacing.md) {
             Image(systemName: "chart.line.uptrend.xyaxis")
-                .font(.system(size: 28, weight: .light))
+                .font(.system(size: 40, weight: .light))
                 .foregroundColor(.holoTextSecondary.opacity(0.5))
 
-            Text("暂无数据")
+            Text("暂无数据，记一笔开始追踪吧！")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
         }

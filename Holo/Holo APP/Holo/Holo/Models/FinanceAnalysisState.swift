@@ -62,6 +62,7 @@ class FinanceAnalysisState: ObservableObject {
     // MARK: - 私有属性
 
     private let repository = FinanceRepository.shared
+    private var loadGate = FinanceAnalysisLoadGate()
 
     // MARK: - 计算属性
 
@@ -117,14 +118,15 @@ class FinanceAnalysisState: ObservableObject {
         if range != .custom {
             customDateRange = nil
         }
-        Task { await loadData() }
+        scheduleLoad()
     }
 
     /// 设置自定义时间范围
     func setCustomDateRange(start: Date, end: Date) {
         timeRange = .custom
+        originalTimeRange = .custom
         customDateRange = (start, end)
-        Task { await loadData() }
+        scheduleLoad()
     }
 
     /// 从 Agent 深度分析等外部入口设置时间范围。
@@ -134,60 +136,102 @@ class FinanceAnalysisState: ObservableObject {
         customDateRange = (link.start, link.end)
         selectedChartDate = nil
         selectedDetailCategory = nil
-        Task { await loadData() }
+        scheduleLoad()
     }
 
     /// 导航到指定时间范围（保持原始类型）
     func navigateToRange(start: Date, end: Date) {
         customDateRange = (start, end)
         // 保持原始的 timeRange 类型，不设置为 .custom
-        Task { await loadData() }
+        scheduleLoad()
+    }
+
+    /// 切换到相邻时间段。日期计算和页面加载统一由状态层处理，避免按钮连续点击时旧请求覆盖新选择。
+    func navigate(_ direction: FinanceDateRangeNavigationDirection) {
+        let range = currentDateRange
+        guard let shifted = FinanceDateRangeNavigator.shiftedRange(
+            start: range.start,
+            end: range.end,
+            timeRange: timeRange,
+            direction: direction
+        ) else { return }
+
+        navigateToRange(start: shifted.start, end: shifted.end)
     }
 
     // MARK: - 数据加载
 
     /// 加载所有数据
     func loadData() async {
+        let generation = loadGate.begin()
         isLoading = true
-
         let (start, end) = currentDateRange
+        await loadData(generation: generation, start: start, end: end)
+    }
 
+    /// 在用户操作发生的当下就让旧请求失效，避免旧请求抢在新 Task 启动前回写页面。
+    private func scheduleLoad() {
+        let generation = loadGate.begin()
+        isLoading = true
+        let (start, end) = currentDateRange
+        Task {
+            await loadData(generation: generation, start: start, end: end)
+        }
+    }
+
+    private func loadData(generation: Int, start: Date, end: Date) async {
         do {
             // 加载交易数据
             let txns = try await repository.getTransactions(from: start, to: end)
-            transactions = txns
 
             // 计算截止到时间范围起点的累计余额
             let balanceAtStart = repository.getCumulativeBalance(before: start)
 
             // 计算图表数据点（以累计余额为初始值）
-            chartDataPoints = computeChartDataPoints(from: txns, start: start, end: end, initialBalance: balanceAtStart)
+            let points = computeChartDataPoints(
+                from: txns,
+                start: start,
+                end: end,
+                initialBalance: balanceAtStart
+            )
 
             // 计算分类聚合
-            expenseCategoryAggregations = try await repository.getTopLevelCategoryAggregations(
+            let expenseAggregations = try await repository.getTopLevelCategoryAggregations(
                 from: start, to: end, type: .expense
             )
-            incomeCategoryAggregations = try await repository.getTopLevelCategoryAggregations(
+            let incomeAggregations = try await repository.getTopLevelCategoryAggregations(
                 from: start, to: end, type: .income
             )
 
             // 计算周期汇总
-            periodSummary = computePeriodSummary(from: txns)
+            let summary = computePeriodSummary(from: txns)
+
+            // 用户可能在等待期间继续切换月份；只允许最后一次选择更新界面。
+            guard loadGate.accepts(generation) else { return }
+            transactions = txns
+            chartDataPoints = points
+            expenseCategoryAggregations = expenseAggregations
+            incomeCategoryAggregations = incomeAggregations
+            periodSummary = summary
 
             // 清除下钻状态
             selectedTopCategory = nil
             drillDownAggregations = []
 
         } catch {
-            logger.error("加载数据失败: \(error)")
+            if loadGate.accepts(generation) {
+                logger.error("加载数据失败: \(error)")
+            }
         }
 
-        isLoading = false
+        if loadGate.accepts(generation) {
+            isLoading = false
+        }
     }
 
     /// 刷新数据（数据变更后调用）
     func refresh() {
-        Task { await loadData() }
+        scheduleLoad()
     }
 
     // MARK: - 下钻操作
@@ -262,7 +306,8 @@ class FinanceAnalysisState: ObservableObject {
         initialBalance: Decimal = 0
     ) -> [ChartDataPoint] {
         let calendar = Calendar.current
-        let granularity = ChartGranularity.from(dayCount: dayCount)
+        let rangeDayCount = max(calendar.dateComponents([.day], from: start, to: end).day ?? 1, 1)
+        let granularity = ChartGranularity.from(dayCount: rangeDayCount)
 
         var points: [ChartDataPoint] = []
         var current = start

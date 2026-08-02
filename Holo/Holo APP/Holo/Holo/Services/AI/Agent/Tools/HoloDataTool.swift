@@ -911,6 +911,13 @@ nonisolated enum HoloMetricSemanticFactory {
         "finance.account.assets": .init(domain: .finance, dataset: "finance.transactions", operation: .sum, valueRole: .current),
         "finance.account.liabilities": .init(domain: .finance, dataset: "finance.transactions", operation: .sum, valueRole: .current),
         "finance.account.net_worth": .init(domain: .finance, dataset: "finance.transactions", operation: .sum, valueRole: .current),
+        "finance.balance.current": .init(domain: .finance, dataset: "finance.transactions", operation: .sum, valueRole: .current),
+        "finance.balance.opening": .init(domain: .finance, dataset: "finance.transactions", operation: .sum, valueRole: .baseline),
+        "finance.balance.income_total": .init(domain: .finance, dataset: "finance.transactions", operation: .sum, valueRole: .current),
+        "finance.balance.expense_total": .init(domain: .finance, dataset: "finance.transactions", operation: .sum, valueRole: .current),
+        "finance.balance.expense.manual": .init(domain: .finance, dataset: "finance.transactions", operation: .sum, valueRole: .current),
+        "finance.balance.expense.recurring": .init(domain: .finance, dataset: "finance.transactions", operation: .sum, valueRole: .current),
+        "finance.balance.expense.category": .init(domain: .finance, dataset: "finance.transactions", operation: .sum, valueRole: .current, dimension: .category, comparisonIsGroupLabel: true),
         // 习惯（habit.daily）
         "habit.negative.frequency_change": .init(domain: .habit, dataset: "habit.daily", operation: .difference, valueRole: .delta, comparisonIsDirection: true),
         "habit.negative.over_limit_days": .init(domain: .habit, dataset: "habit.daily", operation: .count, valueRole: .current),

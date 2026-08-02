@@ -18,7 +18,10 @@ extension FinanceRepository {
         let dayStart = cal.startOfDay(for: date)
         guard let dayEnd = cal.date(byAdding: .day, value: 1, to: dayStart) else { return [] }
         let req = Transaction.fetchRequest()
-        req.predicate = NSPredicate(format: "date >= %@ AND date < %@", dayStart as NSDate, dayEnd as NSDate)
+        req.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "date >= %@ AND date < %@", dayStart as NSDate, dayEnd as NSDate),
+            FinanceTransactionOccurrencePolicy.occurredPredicate()
+        ])
         req.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
         return try context.fetch(req)
     }
@@ -47,7 +50,10 @@ extension FinanceRepository {
     /// 获取指定时间范围内的所有交易
     func getTransactions(from startDate: Date, to endDate: Date) async throws -> [Transaction] {
         let request = Transaction.fetchRequest()
-        request.predicate = NSPredicate(format: "date >= %@ AND date < %@", startDate as NSDate, endDate as NSDate)
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "date >= %@ AND date < %@", startDate as NSDate, endDate as NSDate),
+            FinanceTransactionOccurrencePolicy.occurredPredicate()
+        ])
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: true)]
         return try context.fetch(request)
     }

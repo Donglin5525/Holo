@@ -41,11 +41,19 @@ struct CategoryBudgetPicker: View {
 
             // 已选分类提示
             if let selected = selectedCategory {
+                let scopeText = selected.isTopLevel
+                    ? "覆盖全部子分类（\(childCount(of: selected)) 项）"
+                    : "仅此项"
                 HStack(spacing: HoloSpacing.sm) {
                     CategoryIconBadge(category: selected, diameter: 28)
-                    Text("已选：\(selected.name)")
-                        .font(.system(size: 14, weight: .medium))
-                        .foregroundColor(.holoPrimary)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(selected.name)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.holoPrimary)
+                        Text(scopeText)
+                            .font(.system(size: 11))
+                            .foregroundColor(.holoTextSecondary)
+                    }
                 }
                 .padding(HoloSpacing.sm)
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -58,67 +66,101 @@ struct CategoryBudgetPicker: View {
     // MARK: - Parent Category Row
 
     private func parentCategoryRow(_ parent: Category) -> some View {
-        Button {
-            if expandedParentId == parent.id {
-                expandedParentId = nil
-            } else {
-                expandedParentId = parent.id
-            }
-        } label: {
-            HStack(spacing: HoloSpacing.md) {
-                // 图标
-                CategoryIconBadge(category: parent, diameter: 36)
+        let isExpanded = expandedParentId == parent.id
+        let isSelected = selectedCategory?.id == parent.id
 
-                // 名称
-                Text(parent.name)
-                    .font(.system(size: 14, weight: .medium))
-                    .foregroundColor(.holoTextPrimary)
-
-                Spacer()
-
-                // 展开箭头
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.holoTextSecondary)
-                    .rotationEffect(.degrees(expandedParentId == parent.id ? 90 : 0))
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(selectedCategory?.id == parent.id
-                          ? Color.holoPrimary.opacity(0.06)
-                          : Color.holoCardBackground)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(selectedCategory?.id == parent.id
-                            ? Color.holoPrimary.opacity(0.3)
-                            : Color.clear, lineWidth: 1.5)
-            )
-        }
-        .buttonStyle(PlainButtonStyle())
-        // 选择父分类（长按或单独点击区域）
-        .simultaneousGesture(
-            LongPressGesture(minimumDuration: 0.5).onEnded { _ in
-                selectedCategory = parent
-            }
-        )
-        .contextMenu {
+        return HStack(spacing: 0) {
+            // 点击主体区域 = 选中该一级分类（与二级分类单击选中行为一致）
             Button {
                 selectedCategory = parent
             } label: {
-                Label("选择「\(parent.name)」作为预算分类", systemImage: "checkmark")
+                HStack(spacing: HoloSpacing.md) {
+                    // 图标
+                    CategoryIconBadge(category: parent, diameter: 36)
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        // 名称
+                        Text(parent.name)
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.holoTextPrimary)
+
+                        // 范围说明：含哪些子分类
+                        if let scope = categoryScopeText(parent) {
+                            Text(scope)
+                                .font(.system(size: 11))
+                                .foregroundColor(.holoTextSecondary)
+                                .lineLimit(1)
+                        }
+                    }
+
+                    Spacer(minLength: 0)
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             }
+            .buttonStyle(PlainButtonStyle())
+
+            // 独立的展开箭头：控制子分类显隐，不影响选中
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    expandedParentId = isExpanded ? nil : parent.id
+                }
+            } label: {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.holoTextSecondary)
+                    .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    .frame(width: 32, height: 32)
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(PlainButtonStyle())
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 12)
+                .fill(isSelected
+                      ? Color.holoPrimary.opacity(0.06)
+                      : Color.holoCardBackground)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(isSelected
+                        ? Color.holoPrimary.opacity(0.3)
+                        : Color.clear, lineWidth: 1.5)
+        )
+    }
+
+    // MARK: - Helpers
+
+    /// 某一级分类下的子分类列表
+    private func children(of parent: Category) -> [Category] {
+        categories
+            .filter { $0.parentId == parent.id }
+            .sorted { $0.sortOrder < $1.sortOrder }
+    }
+
+    /// 子分类数量
+    private func childCount(of parent: Category) -> Int {
+        children(of: parent).count
+    }
+
+    /// 一级分类的范围说明文案，如「含 餐饮·交通·购物 等 5 项」。
+    /// 子分类 ≤3 个时全部列出；>3 个时列前 3 个并显示总数。
+    private func categoryScopeText(_ parent: Category) -> String? {
+        let children = children(of: parent)
+        guard !children.isEmpty else { return nil }
+        let names = children.prefix(3).map(\.name)
+        if children.count <= 3 {
+            return "含 \(names.joined(separator: "·"))"
+        } else {
+            return "含 \(names.joined(separator: "·")) 等 \(children.count) 项"
         }
     }
 
     // MARK: - Child Category Grid
 
     private func childCategoryGrid(_ parent: Category) -> some View {
-        let children = categories
-            .filter { $0.parentId == parent.id }
-            .sorted { $0.sortOrder < $1.sortOrder }
+        let children = children(of: parent)
 
         return LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 8), count: 4), spacing: 8) {
             ForEach(children, id: \.objectID) { child in

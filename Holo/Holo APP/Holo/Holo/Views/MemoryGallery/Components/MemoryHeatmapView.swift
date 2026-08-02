@@ -7,33 +7,6 @@
 
 import SwiftUI
 
-private enum MemoryHeatmapPalette {
-    static func color(forLevel level: Int, colorScheme: ColorScheme) -> Color {
-        Color(hex: hex(forLevel: level, colorScheme: colorScheme))
-    }
-
-    private static func hex(forLevel level: Int, colorScheme: ColorScheme) -> String {
-        switch colorScheme {
-        case .dark:
-            switch level {
-            case ...1: return "#302925"
-            case 2:    return "#4A3028"
-            case 3:    return "#663A2C"
-            case 4:    return "#84462F"
-            default:   return "#A95634"
-            }
-        default:
-            switch level {
-            case ...1: return "#F5F2ED"
-            case 2:    return "#FFD6C7"
-            case 3:    return "#FFB499"
-            case 4:    return "#FF9B7A"
-            default:   return "#FF8C66"
-            }
-        }
-    }
-}
-
 struct MemoryHeatmapView: View {
     let data: [Date: Int]
     let selectedDate: Date?
@@ -181,7 +154,7 @@ struct MemoryHeatmapView: View {
     }
 
     private func color(for count: Int) -> Color {
-        MemoryHeatmapPalette.color(forLevel: level(for: count), colorScheme: colorScheme)
+        Color.holoHeatmapColor(level: level(for: count), palette: .warm, colorScheme: colorScheme)
     }
 
     private func borderColor(count: Int, isSelected: Bool) -> Color {
