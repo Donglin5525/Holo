@@ -1197,6 +1197,34 @@ actor HoloLocalAgentRuntime {
             .replacingOccurrences(of: " ", with: "")
             .replacingOccurrences(of: "\n", with: "")
             .replacingOccurrences(of: "\t", with: "")
+        let asksBalanceDiagnosis = normalized.contains("余额") && (
+            normalized.contains("为什么") ||
+            normalized.contains("怎么回事") ||
+            normalized.contains("怎么算") ||
+            normalized.contains("计算") ||
+            normalized.contains("负") ||
+            normalized.contains("多少")
+        )
+        if asksBalanceDiagnosis {
+            return [
+                HoloToolRequest(
+                    id: "deterministic-finance-balance_diagnosis",
+                    tool: "finance",
+                    query: "balance_diagnosis",
+                    timeRange: nil,
+                    baseline: nil,
+                    requiredMetrics: [
+                        "finance.balance.current",
+                        "finance.balance.opening",
+                        "finance.balance.income_total",
+                        "finance.balance.expense_total",
+                        "finance.balance.expense.manual",
+                        "finance.balance.expense.recurring"
+                    ],
+                    parameters: [:]
+                )
+            ]
+        }
         let asksSpendingDestination =
             normalized.contains("钱都花哪") ||
             normalized.contains("钱花哪") ||

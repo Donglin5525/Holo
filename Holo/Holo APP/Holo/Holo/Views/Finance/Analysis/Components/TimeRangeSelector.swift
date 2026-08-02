@@ -88,18 +88,13 @@ struct TimeRangeLabel: View {
         true
     }
 
-    /// 获取当前时间范围类型（用于导航计算）
-    private var effectiveTimeRange: TimeRange {
-        state.originalTimeRange
-    }
-
     var body: some View {
         HStack(spacing: HoloSpacing.sm) {
             Spacer()
             // 上一时间段按钮
             if canNavigate {
                 Button {
-                    navigateToPrevious()
+                    state.navigate(.previous)
                 } label: {
                     Image(systemName: "chevron.left")
                         .font(.system(size: 14, weight: .medium))
@@ -133,7 +128,7 @@ struct TimeRangeLabel: View {
             // 下一时间段按钮
             if canNavigate {
                 Button {
-                    navigateToNext()
+                    state.navigate(.next)
                 } label: {
                     Image(systemName: "chevron.right")
                         .font(.system(size: 14, weight: .medium))
@@ -151,77 +146,6 @@ struct TimeRangeLabel: View {
         .padding(.vertical, HoloSpacing.xs)
     }
 
-    // MARK: - 导航方法
-
-    private func navigateToPrevious() {
-        let calendar = Calendar.current
-        let (currentStart, _) = state.currentDateRange
-        var newStart: Date?
-
-        switch effectiveTimeRange {
-        case .day:
-            newStart = calendar.date(byAdding: .day, value: -1, to: currentStart)
-        case .week:
-            newStart = calendar.date(byAdding: .weekOfYear, value: -1, to: currentStart)
-        case .month:
-            newStart = calendar.date(byAdding: .month, value: -1, to: currentStart)
-        case .quarter:
-            newStart = calendar.date(byAdding: .month, value: -3, to: currentStart)
-        case .year:
-            newStart = calendar.date(byAdding: .year, value: -1, to: currentStart)
-        case .custom:
-            return
-        }
-
-        if let start = newStart {
-            let end = calculateEnd(for: start, timeRange: effectiveTimeRange)
-            state.navigateToRange(start: start, end: end)
-        }
-    }
-
-    private func navigateToNext() {
-        let calendar = Calendar.current
-        let (currentStart, _) = state.currentDateRange
-        var newStart: Date?
-
-        switch effectiveTimeRange {
-        case .day:
-            newStart = calendar.date(byAdding: .day, value: 1, to: currentStart)
-        case .week:
-            newStart = calendar.date(byAdding: .weekOfYear, value: 1, to: currentStart)
-        case .month:
-            newStart = calendar.date(byAdding: .month, value: 1, to: currentStart)
-        case .quarter:
-            newStart = calendar.date(byAdding: .month, value: 3, to: currentStart)
-        case .year:
-            newStart = calendar.date(byAdding: .year, value: 1, to: currentStart)
-        case .custom:
-            return
-        }
-
-        if let start = newStart {
-            let end = calculateEnd(for: start, timeRange: effectiveTimeRange)
-            state.navigateToRange(start: start, end: end)
-        }
-    }
-
-    private func calculateEnd(for start: Date, timeRange: TimeRange) -> Date {
-        let calendar = Calendar.current
-        switch timeRange {
-        case .day:
-            return calendar.date(byAdding: .day, value: 1, to: start) ?? start
-        case .week:
-            return calendar.date(byAdding: .day, value: 7, to: start) ?? start
-        case .month:
-            return calendar.date(byAdding: .month, value: 1, to: start) ?? start
-        case .quarter:
-            return calendar.date(byAdding: .month, value: 3, to: start) ?? start
-        case .year:
-            return calendar.date(byAdding: .year, value: 1, to: start) ?? start
-        case .custom:
-            return start
-        }
-    }
 }
 
 // MARK: - Preview

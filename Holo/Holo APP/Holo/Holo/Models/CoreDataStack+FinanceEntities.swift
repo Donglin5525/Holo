@@ -147,6 +147,13 @@ extension CoreDataStack {
         spendingProjectId.isIndexed = true
         attributes.append(spendingProjectId)
 
+        let projectPostingState = NSAttributeDescription()
+        projectPostingState.name = "projectPostingState"
+        projectPostingState.attributeType = .stringAttributeType
+        projectPostingState.isOptional = true
+        projectPostingState.isIndexed = true
+        attributes.append(projectPostingState)
+
         transactionEntity.properties = attributes + [categoryRelation, accountRelation]
         
         // MARK: - Category Entity
@@ -519,6 +526,10 @@ extension CoreDataStack {
             projectAttribute("name", .stringAttributeType, defaultValue: ""),
             projectAttribute("kind", .stringAttributeType, defaultValue: "oneOff"),
             projectAttribute("amount", .decimalAttributeType, defaultValue: NSDecimalNumber(value: 0)),
+            // 仅用于把旧版项目总额迁移为每期金额；新版固定写 perOccurrence。
+            projectAttribute("amountMode", .stringAttributeType, optional: true),
+            // 保留旧字段以兼容已经安装过中间版本的数据库，不再参与业务逻辑。
+            projectAttribute("paymentMode", .stringAttributeType, optional: true),
             projectAttribute("frequency", .stringAttributeType, optional: true),
             projectAttribute("startDate", .dateAttributeType, defaultValue: Date()),
             projectAttribute("endDate", .dateAttributeType, optional: true),

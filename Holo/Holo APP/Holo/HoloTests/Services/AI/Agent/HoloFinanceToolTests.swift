@@ -14,12 +14,14 @@ import Foundation
 /// FinanceTool 测试专用数据源（独立命名，避免联合编译重复）。
 struct MockFinanceDataSource: HoloFinanceDataSource {
     let record: HoloFinanceToolRecord?
+    var diagnosis: HoloFinanceBalanceDiagnosis? = nil
     var rows: [HoloQueryRow] = []
     func snapshot(
         timeRange: HoloAgentTimeRange?,
         baseline: HoloAgentTimeRange?,
         parameters: [String: String]
     ) async -> HoloFinanceToolRecord? { record }
+    func balanceDiagnosis() async -> HoloFinanceBalanceDiagnosis? { diagnosis }
     func queryRows(timeRange: HoloAgentTimeRange?, parameters: [String: String]) async -> [HoloQueryRow] { rows }
 }
 
@@ -38,6 +40,8 @@ struct HoloFinanceToolTests {
         try await test关键词趋势读取账单文本命中()
         try await test预算状态返回总额已用剩余与预警分类()
         try await test账户摘要返回净资产和账户数量()
+        try await test余额归因只统计普通流水和已发生周期流水()
+        test一次性购买永不进入统计口径()
         try await test无财务记录返回empty()
         try await test动态查询现场计算麦当劳平均每顿金额()
         try await test动态查询同时计算十天总额和自然日日均()
@@ -158,6 +162,52 @@ struct HoloFinanceToolTests {
     private static func makeRequest(query: String, parameters: [String: String] = [:]) -> HoloToolRequest {
         HoloToolRequest(id: "req-1", tool: "finance", query: query,
                         timeRange: nil, baseline: nil, requiredMetrics: [], parameters: parameters)
+    }
+
+    private static func test余额归因只统计普通流水和已发生周期流水() async throws {
+        let diagnosis = HoloFinanceBalanceCalculator.calculate(
+            activeAccountCount: 2,
+            openingBalance: 10_000,
+            entries: [
+                HoloFinanceBalanceEntry(amount: 2_000, isIncome: true, categoryName: "工资", excerpt: "收入 2000"),
+                HoloFinanceBalanceEntry(amount: 3_000, isIncome: false, expenseSource: .manual, categoryName: "餐饮", excerpt: "餐饮 3000"),
+                HoloFinanceBalanceEntry(amount: 1_200, isIncome: false, expenseSource: .recurring, categoryName: "居住", excerpt: "房租 1200")
+            ]
+        )
+        expect(diagnosis.currentBalance == 7_800, "余额必须按开户余额 + 收入 - 已发生支出计算")
+        expect(diagnosis.totalExpense == 4_200, "支出只包含普通流水和已发生周期流水")
+        expect(diagnosis.manualExpense == 3_000, "普通支出拆解错误")
+        expect(diagnosis.recurringExpense == 1_200, "周期支出拆解错误")
+
+        let tool = HoloFinanceTool(dataSource: MockFinanceDataSource(record: nil, diagnosis: diagnosis))
+        let result = try await tool.execute(makeRequest(query: "balance_diagnosis"))
+        expect(result.status == .success, "余额归因工具应成功")
+        expect(result.metrics.contains { $0.metricKey == "finance.balance.current" && $0.value == 7_800 }, "必须返回当前余额")
+        expect(result.events.contains {
+            $0.metricKey == "finance.balance.current" &&
+                $0.excerpt.contains("一次性购买项目不计入") &&
+                $0.excerpt.contains("周期项目只统计已经发生")
+        }, "AI 证据必须明确两类固定支出的统计口径")
+    }
+
+    private static func test一次性购买永不进入统计口径() {
+        let projectID = UUID()
+        expect(
+            !FinanceTransactionOccurrencePolicy.isHistoricallyEligible(
+                spendingProjectId: projectID,
+                projectPostingState: FinanceTransactionProjectPostingState.confirmed.rawValue,
+                remark: FinanceTransactionOccurrencePolicy.oneOffRemark
+            ),
+            "历史一次性购买即使曾标记 confirmed 也不能进入余额"
+        )
+        expect(
+            FinanceTransactionOccurrencePolicy.isHistoricallyEligible(
+                spendingProjectId: nil,
+                projectPostingState: nil,
+                remark: nil
+            ),
+            "普通手工流水必须保持正常统计"
+        )
     }
 
     /// last_14 晚间餐饮 4 次，previous_14 1 次 → 增加。

@@ -137,11 +137,13 @@ struct FinanceLedgerView: View {
             
             // 收支概览
             summaryCards
+                .padding(.top, HoloSpacing.sm)
 
             // 预算总览卡片
             if let summary = globalBudgetSummary {
                 BudgetSummaryCard(summary: summary, warnings: categoryWarnings)
                     .padding(.horizontal, 14)
+                    .padding(.top, HoloSpacing.sm)
                     .padding(.bottom, 8)
             }
 

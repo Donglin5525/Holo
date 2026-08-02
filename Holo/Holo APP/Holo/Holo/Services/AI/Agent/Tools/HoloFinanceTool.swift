@@ -40,6 +40,59 @@ struct HoloFinanceAccountSnapshot: Codable, Equatable, Sendable {
     var defaultAccountName: String?
 }
 
+enum HoloFinanceBalanceExpenseSource: String, Codable, Equatable, Sendable {
+    case manual
+    case recurring
+}
+
+struct HoloFinanceBalanceEntry: Codable, Equatable, Sendable {
+    var amount: Double
+    var isIncome: Bool
+    var expenseSource: HoloFinanceBalanceExpenseSource = .manual
+    var categoryName: String
+    var excerpt: String
+}
+
+struct HoloFinanceBalanceDiagnosis: Codable, Equatable, Sendable {
+    var activeAccountCount: Int
+    var openingBalance: Double
+    var totalIncome: Double
+    var totalExpense: Double
+    var currentBalance: Double
+    var manualExpense: Double
+    var recurringExpense: Double
+    var categoryAmounts: [String: Double]
+    var topExpenseExcerpts: [String]
+}
+
+nonisolated enum HoloFinanceBalanceCalculator {
+    static func calculate(
+        activeAccountCount: Int,
+        openingBalance: Double,
+        entries: [HoloFinanceBalanceEntry]
+    ) -> HoloFinanceBalanceDiagnosis {
+        let incomeEntries = entries.filter(\.isIncome)
+        let expenseEntries = entries.filter { !$0.isIncome }
+        let totalIncome = incomeEntries.reduce(0) { $0 + $1.amount }
+        let totalExpense = expenseEntries.reduce(0) { $0 + $1.amount }
+        var categoryAmounts: [String: Double] = [:]
+        for entry in expenseEntries {
+            categoryAmounts[entry.categoryName, default: 0] += entry.amount
+        }
+        return HoloFinanceBalanceDiagnosis(
+            activeAccountCount: activeAccountCount,
+            openingBalance: openingBalance,
+            totalIncome: totalIncome,
+            totalExpense: totalExpense,
+            currentBalance: openingBalance + totalIncome - totalExpense,
+            manualExpense: expenseEntries.filter { $0.expenseSource == .manual }.reduce(0) { $0 + $1.amount },
+            recurringExpense: expenseEntries.filter { $0.expenseSource == .recurring }.reduce(0) { $0 + $1.amount },
+            categoryAmounts: categoryAmounts,
+            topExpenseExcerpts: expenseEntries.sorted { $0.amount > $1.amount }.prefix(5).map(\.excerpt)
+        )
+    }
+}
+
 /// FinanceTool 读取的财务快照（中性视图，已按周期聚合）。
 struct HoloFinanceToolRecord: Codable, Equatable, Sendable {
     /// 当前周期晚间餐饮次数。
@@ -87,10 +140,12 @@ protocol HoloFinanceDataSource: Sendable {
         baseline: HoloAgentTimeRange?,
         parameters: [String: String]
     ) async -> HoloFinanceToolRecord?
+    func balanceDiagnosis() async -> HoloFinanceBalanceDiagnosis?
     func queryRows(timeRange: HoloAgentTimeRange?, parameters: [String: String]) async -> [HoloQueryRow]
 }
 
 extension HoloFinanceDataSource {
+    func balanceDiagnosis() async -> HoloFinanceBalanceDiagnosis? { nil }
     func queryRows(timeRange: HoloAgentTimeRange?, parameters: [String: String]) async -> [HoloQueryRow] { [] }
 }
 
@@ -118,8 +173,8 @@ struct HoloFinanceTool: HoloDataTool {
 
     let descriptor = HoloToolDescriptor(
         name: "finance",
-        description: "财务数据分析（支出拆解 / 趋势 / 关键词 / 预算 / 账户与净资产）",
-        supportedQueries: ["spending_breakdown", "spending_pattern", "meal_time_distribution", "category_concentration", "keyword_trend", "budget_status", "account_summary", "dynamic_query"],
+        description: "财务数据分析（支出拆解 / 余额归因 / 趋势 / 预算 / 账户与净资产）",
+        supportedQueries: ["spending_breakdown", "balance_diagnosis", "spending_pattern", "meal_time_distribution", "category_concentration", "keyword_trend", "budget_status", "account_summary", "dynamic_query"],
         supportedTimeRanges: [],
         outputMetrics: [
             "finance.total.amount",
@@ -140,7 +195,14 @@ struct HoloFinanceTool: HoloDataTool {
             "finance.account.count",
             "finance.account.assets",
             "finance.account.liabilities",
-            "finance.account.net_worth"
+            "finance.account.net_worth",
+            "finance.balance.current",
+            "finance.balance.opening",
+            "finance.balance.income_total",
+            "finance.balance.expense_total",
+            "finance.balance.expense.manual",
+            "finance.balance.expense.recurring",
+            "finance.balance.expense.category"
         ],
         sensitivityPolicy: "normal",
         dynamicCatalog: Self.dynamicCatalog
@@ -174,6 +236,14 @@ struct HoloFinanceTool: HoloDataTool {
     func execute(_ request: HoloToolRequest) async throws -> HoloDataToolResult {
         if request.query == "dynamic_query", let plan = request.dynamicPlan {
             return await dynamicResult(request, plan: plan)
+        }
+        if request.query == "balance_diagnosis" {
+            guard let diagnosis = await dataSource.balanceDiagnosis() else {
+                return HoloMetricSemanticFactory.attachFixedToolSemantics(to: Self.emptyResult(request))
+            }
+            return HoloMetricSemanticFactory.attachFixedToolSemantics(
+                to: balanceDiagnosisResult(request: request, diagnosis: diagnosis)
+            )
         }
         guard let record = await dataSource.snapshot(
             timeRange: request.timeRange,
@@ -521,6 +591,53 @@ struct HoloFinanceTool: HoloDataTool {
             metricValue: account.netWorth,
             excerpt: "活跃账户 \(account.activeAccountCount) 个，资产 \(Self.moneyText(account.assets)) 元，负债 \(Self.moneyText(account.liabilities)) 元，净资产 \(Self.moneyText(account.netWorth)) 元\(defaultText)"
         )]
+        return Self.successResult(request, metrics: metrics, events: events)
+    }
+
+    private func balanceDiagnosisResult(
+        request: HoloToolRequest,
+        diagnosis: HoloFinanceBalanceDiagnosis
+    ) -> HoloDataToolResult {
+        var metrics = [
+            HoloMetric(metricKey: "finance.balance.current", value: diagnosis.currentBalance, unit: "元", baselineValue: nil, comparison: nil),
+            HoloMetric(metricKey: "finance.balance.opening", value: diagnosis.openingBalance, unit: "元", baselineValue: nil, comparison: nil),
+            HoloMetric(metricKey: "finance.balance.income_total", value: diagnosis.totalIncome, unit: "元", baselineValue: nil, comparison: nil),
+            HoloMetric(metricKey: "finance.balance.expense_total", value: diagnosis.totalExpense, unit: "元", baselineValue: nil, comparison: nil),
+            HoloMetric(metricKey: "finance.balance.expense.manual", value: diagnosis.manualExpense, unit: "元", baselineValue: nil, comparison: nil),
+            HoloMetric(metricKey: "finance.balance.expense.recurring", value: diagnosis.recurringExpense, unit: "元", baselineValue: nil, comparison: nil)
+        ]
+        metrics += diagnosis.categoryAmounts
+            .filter { $0.value > 0 }
+            .sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }
+            .prefix(5)
+            .map { HoloMetric(metricKey: "finance.balance.expense.category", value: $0.value, unit: "元", baselineValue: nil, comparison: $0.key) }
+
+        var events = [
+            HoloEvidenceEvent(
+                id: "\(request.id)-balance-formula",
+                occurredAt: nil,
+                metricKey: "finance.balance.current",
+                metricValue: diagnosis.currentBalance,
+                excerpt: "余额 = 活跃账户开户余额 \(Self.moneyText(diagnosis.openingBalance)) 元 + 已入账收入 \(Self.moneyText(diagnosis.totalIncome)) 元 - 已入账支出 \(Self.moneyText(diagnosis.totalExpense)) 元 = \(Self.moneyText(diagnosis.currentBalance)) 元。一次性购买项目不计入；周期项目只统计已经发生的流水。",
+                formula: "opening_balance + posted_income - posted_expense"
+            ),
+            HoloEvidenceEvent(
+                id: "\(request.id)-balance-sources",
+                occurredAt: nil,
+                metricKey: "finance.balance.expense_total",
+                metricValue: diagnosis.totalExpense,
+                excerpt: "已入账支出中，普通记账 \(Self.moneyText(diagnosis.manualExpense)) 元，已发生周期支出 \(Self.moneyText(diagnosis.recurringExpense)) 元"
+            )
+        ]
+        for (index, metric) in metrics.filter({ $0.metricKey == "finance.balance.expense.category" }).enumerated() {
+            events.append(HoloEvidenceEvent(
+                id: "\(request.id)-balance-category-\(index)",
+                occurredAt: nil,
+                metricKey: metric.metricKey,
+                metricValue: metric.value,
+                excerpt: "累计支出分类「\(metric.comparison ?? "未分类")」\(Self.moneyText(metric.value ?? 0)) 元"
+            ))
+        }
         return Self.successResult(request, metrics: metrics, events: events)
     }
 

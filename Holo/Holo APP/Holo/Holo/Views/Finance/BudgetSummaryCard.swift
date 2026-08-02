@@ -74,9 +74,7 @@ struct BudgetSummaryCard: View {
         }
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, 10)
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-        .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
+        .holoCard()
     }
 
     // MARK: - Helpers
