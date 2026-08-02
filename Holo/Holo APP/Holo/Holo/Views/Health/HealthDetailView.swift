@@ -53,12 +53,7 @@ struct HealthDetailView: View {
                         HealthTrendChart(data: weeklyData, type: type)
                     }
                     .padding(HoloSpacing.md)
-                    .background(Color.holoCardBackground)
-                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: HoloRadius.lg)
-                            .stroke(Color.holoBorder, lineWidth: 1)
-                    )
+                    .holoCard()
 
                     insightSection
                     relatedSection

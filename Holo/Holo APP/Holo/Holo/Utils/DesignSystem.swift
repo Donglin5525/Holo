@@ -88,6 +88,69 @@ extension Color {
             return Color(hue: hue, saturation: 0.7, brightness: 0.85)
         }
     }
+
+    // MARK: - 热力图色阶（Heatmap）
+
+    /// 热力图色阶类型：暖橙（活跃/品牌色）或冷蓝（记录数/中性）
+    enum HoloHeatmapPalette {
+        case warm   // 活跃热力图（记忆），从背景色渐变到品牌橙
+        case cool   // 记录热力图（月历），从背景色渐变到信息蓝
+    }
+
+    /// 热力图指定等级（0=空档，1...5=由浅到深）的色值。
+    /// Light/Dark Mode 使用独立色阶，避免深色界面出现亮白色块。
+    /// 这里是全 App 热力图色阶的唯一来源，禁止在组件里硬编码 hex。
+    static func holoHeatmapColor(level: Int, palette: HoloHeatmapPalette, colorScheme: ColorScheme) -> Color {
+        Color(hex: holoHeatmapHex(level: level, palette: palette, colorScheme: colorScheme))
+    }
+
+    private static func holoHeatmapHex(level: Int, palette: HoloHeatmapPalette, colorScheme: ColorScheme) -> String {
+        switch palette {
+        case .warm:
+            // 活跃热力图：0=背景底色，1...5 由浅到深的暖橙
+            switch colorScheme {
+            case .dark:
+                switch level {
+                case 0:      return "#302925"
+                case 1:      return "#302925"
+                case 2:      return "#4A3028"
+                case 3:      return "#663A2C"
+                case 4:      return "#84462F"
+                default:     return "#A95634"
+                }
+            default:
+                switch level {
+                case 0:      return "#F5F2ED"
+                case 1:      return "#F5F2ED"
+                case 2:      return "#FFD6C7"
+                case 3:      return "#FFB499"
+                case 4:      return "#FF9B7A"
+                default:     return "#FF8C66"
+                }
+            }
+        case .cool:
+            // 记录热力图：0=空档，1...5 由浅到深的冷蓝
+            switch colorScheme {
+            case .dark:
+                switch level {
+                case 0:      return "#25282D"
+                case 1:      return "#283342"
+                case 2:      return "#2B4055"
+                case 3:      return "#2F4E68"
+                default:     return "#345D7C"
+                }
+            default:
+                switch level {
+                case 0:      return "#F6F8FB"
+                case 1:      return "#EAF2FF"
+                case 2:      return "#D9ECFF"
+                case 3:      return "#CFE7F7"
+                default:     return "#C8DDF8"
+                }
+            }
+        }
+    }
+
     
     // MARK: - 卡片/按钮背景 (支持 Dark Mode)
     /// 毛玻璃背景色

@@ -17,11 +17,12 @@ struct HabitBarChartView: View {
     let unit: String
 
     var body: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+        VStack(alignment: .leading, spacing: 10) {
             // 标题
             Text("每日\(unit)")
-                .font(.holoCaption)
-                .foregroundColor(.holoTextSecondary)
+                .font(.holoLabel)
+                .fontWeight(.semibold)
+                .foregroundColor(.holoTextPrimary)
 
             if data.isEmpty {
                 emptyChartView
@@ -45,32 +46,54 @@ struct HabitBarChartView: View {
         }
         .chartXAxis {
             AxisMarks(values: .automatic(desiredCount: xAxisCount)) { value in
-                AxisGridLine()
-                    .foregroundStyle(Color.holoDivider)
                 AxisValueLabel {
                     if let date = value.as(Date.self) {
                         Text(formatDate(date))
-                            .font(.holoLabel)
+                            .font(.system(size: 10))
                             .foregroundColor(.holoTextSecondary)
                     }
                 }
             }
         }
+        .chartXScale(range: .plotDimension(startPadding: 12, endPadding: 12))
         .chartYAxis {
-            AxisMarks(position: .leading) { value in
+            AxisMarks(position: .trailing, values: .automatic(desiredCount: 4)) { value in
                 AxisGridLine()
-                    .foregroundStyle(Color.holoDivider)
+                    .foregroundStyle(Color.holoDivider.opacity(0.32))
                 AxisValueLabel {
                     if let doubleValue = value.as(Double.self) {
                         Text(String(format: "%.0f", doubleValue))
-                            .font(.holoLabel)
+                            .font(.system(size: 10))
                             .foregroundColor(.holoTextSecondary)
+                            .frame(width: 40, alignment: .trailing)
                     }
                 }
             }
         }
-        .chartXAxisLabel("")
-        .chartYAxisLabel(unit)
+        .chartYScale(domain: yDomain)
+    }
+
+    // MARK: - Y 轴范围
+
+    /// Y 轴域：从 0 到 niceCeil(最大值)，与趋势图规范一致，避免轴抖动
+    private var yDomain: ClosedRange<Double> {
+        let maxVal = data.map(\.value).max() ?? 0
+        return 0...niceCeil(maxVal)
+    }
+
+    /// 向上取整到整齐的刻度值（10, 20, 50, 100, 200, 500, 1000 ...）
+    private func niceCeil(_ value: Double) -> Double {
+        guard value > 0 else { return 1 }
+        let magnitude = pow(10, floor(log10(value)))
+        let fraction = value / magnitude
+        let niceFraction: Double
+        switch fraction {
+        case ...1: niceFraction = 1
+        case ...2: niceFraction = 2
+        case ...5: niceFraction = 5
+        default: niceFraction = 10
+        }
+        return niceFraction * magnitude
     }
 
     // MARK: - X 轴标签数量
@@ -94,12 +117,12 @@ struct HabitBarChartView: View {
     // MARK: - 空状态
 
     private var emptyChartView: some View {
-        VStack(spacing: HoloSpacing.sm) {
+        VStack(spacing: HoloSpacing.md) {
             Image(systemName: "chart.bar.fill")
-                .font(.system(size: 28, weight: .light))
+                .font(.system(size: 40, weight: .light))
                 .foregroundColor(.holoTextSecondary.opacity(0.5))
 
-            Text("暂无数据")
+            Text("暂无数据，记一笔开始追踪吧！")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
         }
