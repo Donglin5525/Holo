@@ -16,8 +16,9 @@ import AppKit
 // MARK: - Finance Tab 枚举
 
 /// 财务模块底部 Tab 枚举
-/// 顺序：账本（默认落地）→ 统计 → 固定支出 → 设置
+/// 顺序：账户 → 账本（默认落地）→ 统计 → 固定支出 → 设置
 enum FinanceTab: String, CaseIterable {
+    case accounts = "账户"
     case ledger = "账本"
     case analysis = "统计"
     case spending = "固定支出"
@@ -26,6 +27,7 @@ enum FinanceTab: String, CaseIterable {
     /// 对应的 SF Symbol 图标名
     var icon: String {
         switch self {
+        case .accounts: return "creditcard.fill"
         case .ledger: return "wallet.pass.fill"
         case .analysis: return "chart.pie.fill"
         case .spending: return "repeat"
@@ -37,7 +39,7 @@ enum FinanceTab: String, CaseIterable {
 // MARK: - FinanceView
 
 /// 记账功能首页视图（容器）
-/// 管理四个子 Tab：账本、统计分析、固定支出、设置
+/// 管理五个子 Tab：账户、账本、统计分析、固定支出、设置
 /// 支持从左边缘向右滑动返回首页
 struct FinanceView: View {
 
@@ -95,6 +97,8 @@ struct FinanceView: View {
                     )
                 } else {
                     switch selectedTab {
+                    case .accounts:
+                        AccountListView(onBack: { close() })
                     case .analysis:
                         FinanceAnalysisView(
                             state: analysisState,
@@ -170,7 +174,7 @@ struct FinanceView: View {
     
     // MARK: - 底部 Tab 栏（fixed bottom-0 left-0 w-full，无浮动圆角）
 
-    /// 底部导航栏：吸底全宽，4 个平等 Tab（账本/统计/固定支出/设置）
+    /// 底部导航栏：吸底全宽，5 个平等 Tab（账户/账本/统计/固定支出/设置）
     private var financeTabBarOnly: some View {
         GeometryReader { geo in
             let bottomInset = max(geo.safeAreaInsets.bottom, 20)

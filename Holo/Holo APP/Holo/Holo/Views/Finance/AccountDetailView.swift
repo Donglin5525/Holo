@@ -23,6 +23,17 @@ struct AccountDetailView: View {
     @State private var errorMessage: String?
     @State private var showError = false
 
+    /// 正在编辑的交易（点击交易行进入编辑）
+    @State private var editingTransaction: Transaction?
+    /// 待删除的交易
+    @State private var transactionToDelete: Transaction?
+    /// 是否显示分期删除选项
+    @State private var showInstallmentDeleteOptions = false
+    /// 正在复制的交易
+    @State private var copyingTransaction: Transaction?
+    /// 复制目标日期
+    @State private var copyTargetDate = Date()
+
     // 分类预算相关
     @State private var categoryBudgetStatuses: [(budget: Budget, status: BudgetStatus)] = []
     @State private var showCategoryBudgetSheet = false
@@ -170,6 +181,85 @@ struct AccountDetailView: View {
             Button("确定", role: .cancel) {}
         } message: {
             Text(errorMessage ?? "未知错误")
+        }
+        // 编辑交易
+        .sheet(item: $editingTransaction) { transaction in
+            AddTransactionSheet(editingTransaction: transaction) { _ in
+                loadData()
+            }
+        }
+        // 复制交易日期选择
+        .sheet(item: $copyingTransaction) { tx in
+            NavigationStack {
+                DatePicker(
+                    "",
+                    selection: $copyTargetDate,
+                    displayedComponents: [.date]
+                )
+                .datePickerStyle(.graphical)
+                .environment(\.locale, Locale(identifier: "zh_CN"))
+                .padding(.horizontal, HoloSpacing.lg)
+                .navigationTitle("复制到")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button("取消") {
+                            copyingTransaction = nil
+                        }
+                    }
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("确认") {
+                            performCopyTransaction(tx, targetDate: copyTargetDate)
+                            copyingTransaction = nil
+                        }
+                    }
+                }
+            }
+            .presentationDetents([.medium])
+        }
+        // 普通交易删除确认
+        .confirmationDialog(
+            "确认删除",
+            isPresented: Binding(
+                get: { transactionToDelete != nil && !showInstallmentDeleteOptions },
+                set: { if !$0 { transactionToDelete = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("删除这笔交易", role: .destructive) {
+                if let tx = transactionToDelete {
+                    deleteTransaction(tx)
+                }
+            }
+            Button("取消", role: .cancel) {
+                transactionToDelete = nil
+            }
+        } message: {
+            Text("删除后无法恢复，确定要删除吗？")
+        }
+        // 分期交易删除选项
+        .confirmationDialog(
+            "删除分期交易",
+            isPresented: $showInstallmentDeleteOptions,
+            titleVisibility: .visible
+        ) {
+            Button("仅删除此期", role: .destructive) {
+                if let tx = transactionToDelete {
+                    deleteTransaction(tx)
+                }
+            }
+            Button("删除全部分期", role: .destructive) {
+                if let tx = transactionToDelete, let groupId = tx.installmentGroupId {
+                    deleteInstallmentGroup(groupId)
+                }
+            }
+            Button("取消", role: .cancel) {
+                transactionToDelete = nil
+            }
+        } message: {
+            if let tx = transactionToDelete {
+                Text("这是一笔分期交易（\(tx.installmentLabel ?? "")），请选择删除方式")
+            }
         }
         .onAppear {
             loadData()
@@ -566,48 +656,38 @@ struct AccountDetailView: View {
                                 .padding(.leading, HoloSpacing.sm)
 
                             ForEach(dayTransactions, id: \.objectID) { tx in
-                                transactionRow(tx)
+                                TransactionRowView(transaction: tx) {
+                                    editingTransaction = tx
+                                }
+                                .contextMenu {
+                                    Button {
+                                        editingTransaction = tx
+                                    } label: {
+                                        Label("编辑", systemImage: "pencil")
+                                    }
+
+                                    Button {
+                                        copyingTransaction = tx
+                                        copyTargetDate = tx.date
+                                    } label: {
+                                        Label("复制", systemImage: "doc.on.doc")
+                                    }
+
+                                    Button(role: .destructive) {
+                                        transactionToDelete = tx
+                                        if tx.isInstallment {
+                                            showInstallmentDeleteOptions = true
+                                        }
+                                    } label: {
+                                        Label("删除", systemImage: "trash")
+                                    }
+                                }
                             }
                         }
                     }
                 }
             }
         }
-    }
-
-    private func transactionRow(_ tx: Transaction) -> some View {
-        let cat = tx.category
-        let catColor: Color = (cat?.isDeleted ?? false) ? .holoTextSecondary : (cat?.swiftUIColor ?? .holoTextSecondary)
-        return HStack(spacing: HoloSpacing.md) {
-            CategoryIconBadge(
-                iconName: (cat?.isDeleted ?? false) ? "questionmark.folder" : (cat?.icon ?? "questionmark.circle"),
-                color: catColor,
-                diameter: 36
-            )
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(tx.note ?? (tx.category?.name ?? "未分类"))
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
-                    .lineLimit(1)
-
-                if tx.category?.isSystem == true {
-                    Text("[余额调整]")
-                        .font(.system(size: 10, weight: .medium))
-                        .foregroundColor(.holoTextSecondary)
-                }
-            }
-
-            Spacer()
-
-            let amount = tx.amount.decimalValue
-            Text(tx.transactionType == .income ? "+\(formatAmount(amount))" : "-\(formatAmount(amount))")
-                .font(.system(size: 15, weight: .semibold, design: .rounded))
-                .foregroundColor(tx.transactionType == .income ? .holoSuccess : .holoError)
-        }
-        .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
     }
 
     // MARK: - Helpers
@@ -656,5 +736,61 @@ struct AccountDetailView: View {
             groups[key, default: []].append(tx)
         }
         return groups
+    }
+
+    // MARK: - 交易编辑/删除/复制
+
+    /// 删除单笔交易
+    private func deleteTransaction(_ transaction: Transaction) {
+        Task {
+            do {
+                try await FinanceRepository.shared.deleteTransaction(transaction)
+                loadData()
+            } catch {
+                errorMessage = "删除失败：\(error.localizedDescription)"
+                showError = true
+            }
+            transactionToDelete = nil
+            showInstallmentDeleteOptions = false
+        }
+    }
+
+    /// 删除整个分期组
+    private func deleteInstallmentGroup(_ groupId: UUID) {
+        Task {
+            do {
+                try await FinanceRepository.shared.deleteInstallmentGroup(groupId: groupId)
+                loadData()
+            } catch {
+                errorMessage = "删除失败：\(error.localizedDescription)"
+                showError = true
+            }
+            transactionToDelete = nil
+            showInstallmentDeleteOptions = false
+        }
+    }
+
+    /// 复制交易到指定日期
+    private func performCopyTransaction(_ original: Transaction, targetDate: Date) {
+        Task {
+            do {
+                guard let category = original.category,
+                      let account = original.account else { return }
+                _ = try await FinanceRepository.shared.addTransaction(
+                    amount: abs(original.amount.decimalValue),
+                    type: original.transactionType,
+                    category: category,
+                    account: account,
+                    date: targetDate,
+                    note: original.note,
+                    remark: original.remark,
+                    tags: original.tags
+                )
+                loadData()
+            } catch {
+                errorMessage = "复制失败：\(error.localizedDescription)"
+                showError = true
+            }
+        }
     }
 }

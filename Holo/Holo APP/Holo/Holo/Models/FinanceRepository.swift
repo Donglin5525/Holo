@@ -42,6 +42,7 @@ class FinanceRepository {
         _ = context          // 触发 lazy var → CoreDataStack.shared.viewContext
         seedDefaultData()
         migrateLegacyInstallmentNotes()
+        migrateFixedExpenseSemantics()
     }
     
     // MARK: - Seed Data
@@ -146,8 +147,9 @@ class FinanceRepository {
         return (category.name, nil)
     }
 
-    func getAllTransactions() async throws -> [Transaction] {
+    func getAllTransactions(asOf snapshotDate: Date = Date()) async throws -> [Transaction] {
         let request = Transaction.fetchRequest()
+        request.predicate = FinanceTransactionOccurrencePolicy.occurredPredicate(asOf: snapshotDate)
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
         return try context.fetch(request)
     }
@@ -159,7 +161,10 @@ class FinanceRepository {
             return []
         }
         let request = Transaction.fetchRequest()
-        request.predicate = NSPredicate(format: "date >= %@ AND date < %@", monthStart as NSDate, monthEnd as NSDate)
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            NSPredicate(format: "date >= %@ AND date < %@", monthStart as NSDate, monthEnd as NSDate),
+            FinanceTransactionOccurrencePolicy.occurredPredicate()
+        ])
         request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
         return try context.fetch(request)
     }
@@ -305,6 +310,93 @@ class FinanceRepository {
         }
     }
 
+    /// 统一旧数据到当前产品口径：周期项目按每期金额入账；一次性购买只保留持有成本卡。
+    /// 只删除带 spendingProjectId 的系统关联流水，用户手工记账不会受影响。
+    @discardableResult
+    func migrateFixedExpenseSemantics() -> Int {
+        let projectRequest = NSFetchRequest<SpendingProject>(entityName: "SpendingProject")
+        guard let projects = try? context.fetch(projectRequest), !projects.isEmpty else { return 0 }
+
+        let recurringProjects = projects.filter(\.isRecurring)
+        let oneOffProjects = projects.filter { !$0.isRecurring }
+        let now = Date()
+        var changedCount = 0
+
+        for project in recurringProjects {
+            let storedMode = SpendingProjectAmountMode(rawValue: project.amountMode ?? "")
+            if storedMode == .projectTotal,
+               let perOccurrence = SpendingProjectAmountPolicy.occurrenceAmount(
+                   enteredAmount: project.amountDecimal,
+                   mode: .projectTotal,
+                   totalOccurrences: Int(project.maxOccurrences),
+                   occurrenceIndex: 0
+               ) {
+                project.amount = NSDecimalNumber(decimal: perOccurrence)
+                changedCount += 1
+            }
+            if storedMode != .perOccurrence {
+                project.amountMode = SpendingProjectAmountMode.perOccurrence.rawValue
+                changedCount += 1
+            }
+        }
+
+        let recurringIDs = recurringProjects.map(\.id)
+        if !recurringIDs.isEmpty {
+            let request = Transaction.fetchRequest()
+            request.predicate = NSPredicate(format: "spendingProjectId IN %@", recurringIDs)
+            for transaction in (try? context.fetch(request)) ?? [] {
+                var changed = false
+                if transaction.projectPostingState != FinanceTransactionProjectPostingState.confirmed.rawValue {
+                    transaction.projectPostingState = FinanceTransactionProjectPostingState.confirmed.rawValue
+                    changed = true
+                }
+                if transaction.remark != FinanceTransactionOccurrencePolicy.recurringRemark {
+                    transaction.remark = FinanceTransactionOccurrencePolicy.recurringRemark
+                    changed = true
+                }
+                if changed {
+                    transaction.updatedAt = now
+                    changedCount += 1
+                }
+            }
+        }
+
+        for project in oneOffProjects {
+            if project.autoGenerateTransaction || project.occurrencesGenerated != 0 ||
+                project.nextOccurrenceDate != nil || project.accountId != nil ||
+                project.amountMode != nil || project.paymentMode != nil {
+                project.autoGenerateTransaction = false
+                project.occurrencesGenerated = 0
+                project.nextOccurrenceDate = nil
+                project.accountId = nil
+                project.amountMode = nil
+                project.paymentMode = nil
+                project.updatedAt = now
+                changedCount += 1
+            }
+        }
+
+        let oneOffIDs = oneOffProjects.map(\.id)
+        if !oneOffIDs.isEmpty {
+            let request = Transaction.fetchRequest()
+            request.predicate = NSPredicate(format: "spendingProjectId IN %@", oneOffIDs)
+            for transaction in (try? context.fetch(request)) ?? [] {
+                context.delete(transaction)
+                changedCount += 1
+            }
+        }
+
+        guard changedCount > 0 else { return 0 }
+        do {
+            try context.save()
+            NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+            return changedCount
+        } catch {
+            context.rollback()
+            return 0
+        }
+    }
+
     private func validateTransactionCategory(_ category: Category) throws {
         guard category.isSubCategory else {
             throw FinanceError.subCategoryRequired
@@ -435,6 +527,8 @@ public class SpendingProject: NSManagedObject {
     @NSManaged public var name: String
     @NSManaged public var kind: String
     @NSManaged public var amount: NSDecimalNumber
+    @NSManaged public var amountMode: String?
+    @NSManaged public var paymentMode: String?
     @NSManaged public var frequency: String?
     @NSManaged public var startDate: Date
     @NSManaged public var endDate: Date?
@@ -459,6 +553,7 @@ public class SpendingProject: NSManagedObject {
         return true
     }
     var amountDecimal: Decimal { amount as Decimal }
+    var perOccurrenceAmount: Decimal? { isRecurring ? amountDecimal : nil }
 
     /// 一次性购买从购买日到今天经过的完整自然日数。
     var ownershipElapsedDays: Int {
@@ -492,18 +587,6 @@ public class SpendingProject: NSManagedObject {
 enum SpendingProjectKind: String, CaseIterable {
     case recurring
     case oneOff
-}
-
-enum SpendingProjectFrequency: String, CaseIterable {
-    case monthly
-    case yearly
-
-    var title: String {
-        switch self {
-        case .monthly: return "每月"
-        case .yearly: return "每年"
-        }
-    }
 }
 
 enum SpendingProjectEndMode: String, CaseIterable {
@@ -554,6 +637,8 @@ final class SpendingProjectRepository {
         project.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         project.kind = kind.rawValue
         project.amount = NSDecimalNumber(decimal: amount)
+        project.amountMode = kind == .recurring ? SpendingProjectAmountMode.perOccurrence.rawValue : nil
+        project.paymentMode = nil
         project.frequency = frequency?.rawValue
         project.startDate = startDate
         project.endDate = endDate
@@ -562,80 +647,82 @@ final class SpendingProjectRepository {
         project.plannedLifespanDays = plannedLifespanDays
         project.nextOccurrenceDate = kind == .recurring ? startDate : nil
         project.isPaused = false
-        project.autoGenerateTransaction = autoGenerateTransaction
+        project.autoGenerateTransaction = kind == .recurring && autoGenerateTransaction
         project.usageCount = 0
         project.usageDayCount = 0
         project.categoryId = category?.id
-        project.accountId = account?.id
+        project.accountId = kind == .recurring ? account?.id : nil
         project.createdAt = Date()
         project.updatedAt = Date()
-        // 一次性购买立即生成一条购买流水（购买日 = startDate），与周期项目共用同一套入账机制。
-        if kind == .oneOff, autoGenerateTransaction {
-            ensureOneOffTransaction(for: project)
-        }
         try context.save()
         SpendingProjectBackgroundService.shared.scheduleNextTask()
         return project
     }
 
-    /// 为一次性购买项目生成或补齐购买流水（幂等：已存在则跳过）。
-    /// 复用周期项目的反查机制，流水带 `spendingProjectId` 标记，自动进入账本/月度统计/分类聚合。
-    private func ensureOneOffTransaction(for project: SpendingProject) {
-        let request = NSFetchRequest<Transaction>(entityName: "Transaction")
-        request.predicate = NSPredicate(format: "spendingProjectId == %@", project.id as CVarArg)
-        request.fetchLimit = 1
-        if (try? context.fetch(request).first) != nil { return }
-
-        let transaction = Transaction(context: context)
-        transaction.id = UUID()
-        transaction.amount = project.amount
-        transaction.type = TransactionType.expense.rawValue
-        transaction.date = project.startDate
-        transaction.note = project.name
-        transaction.remark = "长期成本·一次性购买"
-        transaction.createdAt = Date()
-        transaction.updatedAt = Date()
-        transaction.spendingProjectId = project.id
-        if let categoryId = project.categoryId { transaction.category = finance.findCategory(by: categoryId) }
-        if let accountId = project.accountId { transaction.account = finance.findAccount(by: accountId) }
-        project.occurrencesGenerated = 1
-    }
-
     func syncRecurringProjects(now: Date = Date()) throws {
         let calendar = Calendar.current
-        for project in allProjects() where project.isRecurring && !project.isPaused && project.autoGenerateTransaction && project.hasRemainingOccurrences {
-            guard var nextDate = project.nextOccurrenceDate,
+        for project in allProjects() {
+            guard project.isRecurring,
+                  !project.isPaused,
+                  project.autoGenerateTransaction,
                   let frequency = SpendingProjectFrequency(rawValue: project.frequency ?? "monthly") else { continue }
 
-            // 兼容首次升级：已有自动流水时先以实际流水数校准计数。
-            let countRequest = NSFetchRequest<Transaction>(entityName: "Transaction")
-            countRequest.predicate = NSPredicate(format: "spendingProjectId == %@", project.id as CVarArg)
-            project.occurrencesGenerated = Int32((try? context.count(for: countRequest)) ?? Int(project.occurrencesGenerated))
+            // —— 1. 清理 startDate 之前的项目脏流水 ——
+            // 历史补账 bug 可能在开始日期之前造出非法流水；用户手工记账不会带 spendingProjectId，
+            // 因此带项目标记且早于 startDate 的流水一定是脏数据，安全删除。
+            let preStartRequest = Transaction.fetchRequest()
+            preStartRequest.predicate = NSPredicate(
+                format: "spendingProjectId == %@ AND date < %@",
+                project.id as CVarArg, project.startDate as NSDate
+            )
+            for tx in (try? context.fetch(preStartRequest)) ?? [] {
+                context.delete(tx)
+            }
 
-            while nextDate <= now && project.hasRemainingOccurrences {
-                if let endDate = project.endDate, nextDate > endDate { break }
-                let request = NSFetchRequest<Transaction>(entityName: "Transaction")
-                request.predicate = NSPredicate(format: "spendingProjectId == %@ AND date == %@", project.id as CVarArg, nextDate as NSDate)
-                request.fetchLimit = 1
-                if (try? context.fetch(request).first) == nil {
+            // —— 2. 以 startDate 为唯一起点，按周期从早到晚补账 ——
+            // 不再依赖可能被污染的 nextOccurrenceDate 作为起点，杜绝"往回找历史账单"。
+            let step: Calendar.Component = frequency == .yearly ? .year : .month
+            var occurrenceDate = project.startDate
+            var generatedThisSync = 0
+
+            while occurrenceDate <= now {
+                // 达到 endDate 或达上限则停
+                if let endDate = project.endDate, occurrenceDate > endDate { break }
+                if project.maxOccurrences > 0, generatedThisSync >= Int(project.maxOccurrences) { break }
+
+                // —— 3. 按"年-月"维度判断该期是否已建过 ——
+                // 不再用精确到秒的日期比较（编辑/迁移若改动时分秒会导致重复补账）。
+                if !hasOccurrence(projectId: project.id, on: occurrenceDate, calendar: calendar) {
                     let transaction = Transaction(context: context)
                     transaction.id = UUID()
                     transaction.amount = project.amount
                     transaction.type = TransactionType.expense.rawValue
-                    transaction.date = nextDate
+                    transaction.date = occurrenceDate
                     transaction.note = project.name
-                    transaction.remark = "长期成本·自动生成"
+                    transaction.remark = FinanceTransactionOccurrencePolicy.recurringRemark
                     transaction.createdAt = Date()
                     transaction.updatedAt = Date()
                     transaction.spendingProjectId = project.id
+                    transaction.projectPostingState = FinanceTransactionProjectPostingState.confirmed.rawValue
                     if let categoryId = project.categoryId { transaction.category = finance.findCategory(by: categoryId) }
                     if let accountId = project.accountId { transaction.account = finance.findAccount(by: accountId) }
-                    project.occurrencesGenerated += 1
                 }
-                guard let advanced = calendar.date(byAdding: frequency == .yearly ? .year : .month, value: 1, to: nextDate) else { break }
-                nextDate = advanced
+                generatedThisSync += 1
+
+                guard let advanced = calendar.date(byAdding: step, value: 1, to: occurrenceDate) else { break }
+                occurrenceDate = advanced
             }
-            project.nextOccurrenceDate = nextDate
+
+            // —— 4. 进度只数"已发生"的流水（date <= now），与余额/统计口径一致 ——
+            let occurredCountRequest = Transaction.fetchRequest()
+            occurredCountRequest.predicate = NSPredicate(
+                format: "spendingProjectId == %@ AND date <= %@",
+                project.id as CVarArg, now as NSDate
+            )
+            project.occurrencesGenerated = Int32((try? context.count(for: occurredCountRequest)) ?? 0)
+
+            // nextOccurrenceDate 推进到下一未到期
+            project.nextOccurrenceDate = occurrenceDate
             project.updatedAt = Date()
         }
         try context.save()
@@ -643,14 +730,24 @@ final class SpendingProjectRepository {
         NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
     }
 
-    /// 给所有缺少流水的一次性购买项目补账。仅前台触发（长期成本页刷新时），
-    /// 不进后台任务——后台任务为周期补账而生。兼容升级前创建的 oneOff 项目。
+    /// 判断某项目在指定日期所属周期（年-月 或 年）是否已存在流水。
+    /// 用"年-月"维度去重，避免精确到秒的日期比较在编辑/迁移后失效。
+    private func hasOccurrence(projectId: UUID, on date: Date, calendar: Calendar) -> Bool {
+        let comps = calendar.dateComponents([.year, .month], from: date)
+        guard let rangeStart = calendar.date(from: comps),
+              let rangeEnd = calendar.date(byAdding: .month, value: 1, to: rangeStart) else { return false }
+        let request = Transaction.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "spendingProjectId == %@ AND date >= %@ AND date < %@",
+            projectId as CVarArg, rangeStart as NSDate, rangeEnd as NSDate
+        )
+        request.fetchLimit = 1
+        return ((try? context.count(for: request)) ?? 0) > 0
+    }
+
+    /// 兼容旧调用：一次性购买不补账，只清理旧版本遗留的关联流水。
     func syncOneOffProjects() throws {
-        for project in allProjects() where !project.isRecurring {
-            ensureOneOffTransaction(for: project)
-        }
-        try context.save()
-        NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+        finance.migrateFixedExpenseSemantics()
     }
 
     func recordUsage(for project: SpendingProject, date: Date = Date()) throws {
@@ -679,29 +776,37 @@ final class SpendingProjectRepository {
         SpendingProjectBackgroundService.shared.scheduleNextTask()
     }
 
-    func updateOneOffProject(_ project: SpendingProject, name: String, amount: Decimal, purchaseDate: Date, category: Category, account: Account?) throws {
+    /// 周期项目只编辑每期金额；已发生流水保持为历史事实，新金额从下次到期生效。
+    func updateRecurringProject(_ project: SpendingProject, amount: Decimal, endDate: Date?, maxOccurrences: Int32) throws {
+        guard project.isRecurring, amount > 0 else { throw FinanceError.invalidData }
+        project.amount = NSDecimalNumber(decimal: amount)
+        project.amountMode = SpendingProjectAmountMode.perOccurrence.rawValue
+        project.endDate = endDate
+        project.maxOccurrences = maxOccurrences
+        project.updatedAt = Date()
+        try context.save()
+        SpendingProjectBackgroundService.shared.scheduleNextTask()
+        NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+    }
+
+    func updateOneOffProject(_ project: SpendingProject, name: String, amount: Decimal, purchaseDate: Date, category: Category) throws {
         project.name = name.trimmingCharacters(in: .whitespacesAndNewlines)
         project.amount = NSDecimalNumber(decimal: amount)
         project.startDate = purchaseDate
         project.categoryId = category.id
-        project.accountId = account?.id
+        project.accountId = nil
+        project.autoGenerateTransaction = false
+        project.occurrencesGenerated = 0
+        project.nextOccurrenceDate = nil
+        project.amountMode = nil
+        project.paymentMode = nil
         project.updatedAt = Date()
 
-        // 同步关联的购买流水，保证项目与账本一致。兼容升级前未生成流水的历史项目。
+        // 兼容历史版本：编辑时顺手清理曾经自动生成的关联流水。
         let request = NSFetchRequest<Transaction>(entityName: "Transaction")
         request.predicate = NSPredicate(format: "spendingProjectId == %@", project.id as CVarArg)
-        request.fetchLimit = 1
-        if let transaction = try? context.fetch(request).first {
-            transaction.amount = project.amount
-            transaction.date = purchaseDate
-            transaction.note = project.name
-            transaction.remark = "长期成本·一次性购买"
-            transaction.category = category
-            transaction.account = account
-            transaction.updatedAt = Date()
-        } else {
-            // 历史项目尚无流水：补建一条（ensureOneOffTransaction 内含幂等检查）。
-            ensureOneOffTransaction(for: project)
+        for transaction in try context.fetch(request) {
+            context.delete(transaction)
         }
 
         try context.save()
@@ -710,7 +815,7 @@ final class SpendingProjectRepository {
 
     func deleteProject(id: NSManagedObjectID) throws {
         guard let project = try? context.existingObject(with: id) as? SpendingProject else { return }
-        // 一次性购买与流水强绑定：删项目时一并删除其购买流水。周期项目保留已生成流水（现有行为）。
+        // 历史版本可能残留一次性购买关联流水；删除项目时一并兜底清理。
         if !project.isRecurring {
             let request = NSFetchRequest<Transaction>(entityName: "Transaction")
             request.predicate = NSPredicate(format: "spendingProjectId == %@", project.id as CVarArg)

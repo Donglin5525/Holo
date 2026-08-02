@@ -38,16 +38,27 @@ public class Transaction: NSManagedObject {
 
     /// 由长期成本项目自动生成时，记录来源项目 ID
     @NSManaged public var spendingProjectId: UUID?
+    /// 只有已实际发生的周期流水标为 confirmed；一次性购买不生成流水。
+    @NSManaged public var projectPostingState: String?
 
     // MARK: - Computed Properties
 
     /// 是否为分期交易
     var isInstallment: Bool { installmentGroupId != nil }
 
-    /// 分期显示文字，如 "3/12期"
+    /// 分期显示文字，如 "3/12期"；跨年分期会带上年份，如 "2027·11/12期"
     var installmentLabel: String? {
         guard isInstallment else { return nil }
-        return "\(installmentIndex)/\(installmentTotal)期"
+        let calendar = Calendar.current
+        let transactionYear = calendar.component(.year, from: date)
+        let currentYear = calendar.component(.year, from: Date())
+        let base = "\(installmentIndex)/\(installmentTotal)期"
+        // 今年的期数保持简洁；明年及以后标注年份，避免长期分期看不出归属
+        if transactionYear > currentYear {
+            return "\(transactionYear)·\(base)"
+        } else {
+            return base
+        }
     }
     
     /// 交易类型枚举
