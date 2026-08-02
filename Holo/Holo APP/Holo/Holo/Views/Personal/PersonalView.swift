@@ -124,21 +124,11 @@ struct PersonalView: View {
             HoloMembershipCenterView()
         } label: {
             ZStack(alignment: .topTrailing) {
-                RoundedRectangle(cornerRadius: HoloRadius.lg)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color(hex: "#17131F"),
-                                Color(hex: "#211329"),
-                                Color(hex: "#2E1A22")
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
+                    .fill(HoloPlusTheme.darkGradient)
 
                 Circle()
-                    .fill(Color.holoPrimary.opacity(0.28))
+                    .fill(HoloPlusTheme.glowColor)
                     .frame(width: 120, height: 120)
                     .blur(radius: 28)
                     .offset(x: 34, y: -44)
@@ -151,15 +141,15 @@ struct PersonalView: View {
                             HStack(spacing: HoloSpacing.xs) {
                                 Text("Holo Plus")
                                     .font(.holoTitle)
-                                    .foregroundColor(Color(hex: "#FFF3D7"))
+                                    .foregroundColor(HoloPlusTheme.accentText)
 
                                 if entitlementState.isPlusActive {
                                     Text("已生效")
                                         .font(.system(size: 11, weight: .bold))
-                                        .foregroundColor(Color(hex: "#211329"))
+                                        .foregroundColor(HoloPlusTheme.badgeText)
                                         .padding(.horizontal, 8)
                                         .padding(.vertical, 4)
-                                        .background(Color(hex: "#FFE4AE"))
+                                        .background(HoloPlusTheme.badgeBg)
                                         .clipShape(Capsule())
                                 }
                             }
@@ -170,7 +160,7 @@ struct PersonalView: View {
                                     : "解锁 AI、语音与记忆洞察额度"
                             )
                             .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(Color(hex: "#F3DEC0").opacity(0.82))
+                            .foregroundColor(HoloPlusTheme.subtleText)
                             .lineLimit(2)
                         }
 
@@ -178,35 +168,39 @@ struct PersonalView: View {
                     }
 
                     HStack(spacing: HoloSpacing.sm) {
-                        plusFeaturePill("HoloAI", value: "30/天")
-                        plusFeaturePill("语音", value: "5分钟")
-                        plusFeaturePill("任务", value: "50/天")
+                        plusFeaturePill(
+                            "HoloAI",
+                            value: entitlementState.isPlusActive ? "30/天" : "3/天"
+                        )
+                        plusFeaturePill(
+                            "语音",
+                            value: entitlementState.isPlusActive ? "5分钟" : "60秒"
+                        )
+                        plusFeaturePill(
+                            "任务",
+                            value: entitlementState.isPlusActive ? "50/天" : "10/天"
+                        )
                     }
 
                     HStack(spacing: HoloSpacing.xs) {
                         Text(entitlementState.isPlusActive ? "查看会员权益" : "进入会员中心")
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(Color(hex: "#FFF3D7"))
+                            .foregroundColor(HoloPlusTheme.accentText)
 
                         Image(systemName: "chevron.right")
                             .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(Color(hex: "#FFF3D7").opacity(0.82))
+                            .foregroundColor(HoloPlusTheme.accentText.opacity(0.82))
                     }
                 }
                 .padding(HoloSpacing.lg)
             }
             .frame(maxWidth: .infinity)
             .overlay(
-                RoundedRectangle(cornerRadius: HoloRadius.lg)
-                    .stroke(Color(hex: "#FFE4AE").opacity(0.64), lineWidth: 1)
+                RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
+                    .stroke(HoloPlusTheme.strokeColor, lineWidth: 1)
             )
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
-            .shadow(
-                color: Color(hex: "#2E1A22").opacity(0.18),
-                radius: 20,
-                x: 0,
-                y: 12
-            )
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
+            .shadow(color: Color.black.opacity(0.12), radius: 20, x: 0, y: 12)
         }
         .buttonStyle(.plain)
     }
@@ -215,16 +209,16 @@ struct PersonalView: View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
                 .font(.system(size: 10, weight: .medium))
-                .foregroundColor(Color(hex: "#F3DEC0").opacity(0.72))
+                .foregroundColor(HoloPlusTheme.subtleText)
             Text(value)
                 .font(.system(size: 12, weight: .bold))
-                .foregroundColor(Color(hex: "#FFF3D7"))
+                .foregroundColor(HoloPlusTheme.accentText)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(Color.white.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+        .background(Color.holoPrimary.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous))
     }
 
     // MARK: - 个人档案

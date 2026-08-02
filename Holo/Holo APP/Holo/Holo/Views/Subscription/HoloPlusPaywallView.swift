@@ -16,12 +16,15 @@ struct HoloPlusPaywallView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.openURL) private var openURL
 
+    @State private var isComparisonPresented = false
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: HoloSpacing.lg) {
                     header
                     benefits
+                    comparisonEntry
                     productSection
                     restoreButton
                     legalLinks
@@ -42,6 +45,9 @@ struct HoloPlusPaywallView: View {
             .task {
                 await subscriptionService.loadProducts()
             }
+            .sheet(isPresented: $isComparisonPresented) {
+                HoloPlusComparisonView()
+            }
         }
     }
 
@@ -61,26 +67,85 @@ struct HoloPlusPaywallView: View {
     }
 
     private var benefits: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            benefitRow(icon: "message.badge.waveform", title: "HoloAI 30 次/天")
-            benefitRow(icon: "waveform", title: "语音识别 50 次/天，单条最长 5 分钟")
-            benefitRow(icon: "sparkles.rectangle.stack", title: "智能记账与任务解析 50 次/天")
-            benefitRow(icon: "memories", title: "记忆长廊每日 AI 洞察刷新")
+        VStack(alignment: .leading, spacing: 0) {
+            benefitComparisonRow(icon: "message.badge.waveform", name: "HoloAI", free: "3/天", plus: "30/天")
+            CardDivider()
+            benefitComparisonRow(icon: "waveform", name: "语音识别", free: "20/天", plus: "50/天")
+            CardDivider()
+            benefitComparisonRow(icon: "timer", name: "语音时长", free: "60秒", plus: "5分钟")
+            CardDivider()
+            benefitComparisonRow(icon: "sparkles.rectangle.stack", name: "智能记账+任务", free: "10~20/天", plus: "50/天")
+            CardDivider()
+            benefitComparisonRow(icon: "rectangle.stack.badge.plus", name: "4 类桌面小组件", free: nil, plus: "解锁")
         }
-        .padding()
         .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 16, style: .continuous)
+                .stroke(Color.holoBorder.opacity(0.5), lineWidth: 0.5)
+        )
     }
 
-    private func benefitRow(icon: String, title: String) -> some View {
+    /// 付费墙简版对比行：免费值 → Plus 值，Plus 高亮。
+    private func benefitComparisonRow(
+        icon: String,
+        name: String,
+        free: String?,
+        plus: String
+    ) -> some View {
         HStack(spacing: HoloSpacing.sm) {
+            // 裸线条图标，无圆形底
             Image(systemName: icon)
-                .frame(width: 24, height: 24)
-                .foregroundColor(.holoPrimary)
-            Text(title)
-                .font(.holoBody)
+                .font(.system(size: 16))
+                .foregroundColor(.holoPrimary.opacity(0.8))
+                .frame(width: 20)
+
+            Text(name)
+                .font(.system(size: 15, weight: .medium))
                 .foregroundColor(.holoTextPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+            if let free {
+                Text(free)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundColor(.holoTextSecondary)
+                    .strikethrough(true, color: .holoTextSecondary.opacity(0.35))
+            } else {
+                Text("—")
+                    .font(.system(size: 13))
+                    .foregroundColor(.holoTextSecondary.opacity(0.35))
+            }
+
+            Image(systemName: "arrow.right")
+                .font(.system(size: 9, weight: .bold))
+                .foregroundColor(.holoTextSecondary.opacity(0.4))
+
+            Text(plus)
+                .font(.system(size: 15, weight: .bold))
+                .foregroundColor(.holoPrimary)
+                .frame(minWidth: 48, alignment: .trailing)
         }
+        .padding(.horizontal, HoloSpacing.md)
+        .padding(.vertical, 13)
+    }
+
+    private var comparisonEntry: some View {
+        Button {
+            isComparisonPresented = true
+        } label: {
+            HStack(spacing: HoloSpacing.xs) {
+                Text("查看完整权益对比")
+                    .font(.holoCaption)
+                    .foregroundColor(.holoTextSecondary)
+
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(.holoTextSecondary)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, HoloSpacing.xs)
+        }
+        .buttonStyle(.plain)
     }
 
     @ViewBuilder

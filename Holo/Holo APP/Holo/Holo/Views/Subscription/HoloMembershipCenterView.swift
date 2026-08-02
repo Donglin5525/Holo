@@ -2,7 +2,8 @@
 //  HoloMembershipCenterView.swift
 //  Holo
 //
-//  会员状态、额度与升级入口。
+//  会员状态、权益对比、额度与升级入口。
+//  配色统一到品牌橙系（HoloPlusTheme）。
 //
 
 import SwiftUI
@@ -15,13 +16,15 @@ struct HoloMembershipCenterView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: HoloSpacing.lg) {
                 statusCard
+                benefitComparisonSection
+                footnote
+
+                primaryAction
                 quotaSection
 
                 #if DEBUG
                 developmentAcceptanceSection
                 #endif
-
-                primaryAction
             }
             .padding(HoloSpacing.lg)
         }
@@ -33,44 +36,36 @@ struct HoloMembershipCenterView: View {
         }
     }
 
+    // MARK: - 状态卡
+
     private var statusCard: some View {
         ZStack(alignment: .topTrailing) {
-            RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(hex: "#17131F"),
-                            Color(hex: "#211329"),
-                            Color(hex: "#2E1A22")
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+            RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
+                .fill(HoloPlusTheme.darkGradient)
 
             Circle()
-                .fill(Color.holoPrimary.opacity(0.28))
+                .fill(HoloPlusTheme.glowColor)
                 .frame(width: 140, height: 140)
                 .blur(radius: 32)
                 .offset(x: 42, y: -56)
 
             VStack(alignment: .leading, spacing: HoloSpacing.md) {
                 HStack(alignment: .top, spacing: HoloSpacing.md) {
-                    HoloPlusEmblem(size: 60)
+                    HoloPlusEmblem(size: 56)
 
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 5) {
                         HStack(spacing: HoloSpacing.xs) {
                             Text(entitlementState.isPlusActive ? "Holo Plus" : "免费版")
-                                .font(.holoTitle)
-                                .foregroundColor(Color(hex: "#FFF3D7"))
+                                .font(.system(size: 24, weight: .bold))
+                                .foregroundColor(HoloPlusTheme.accentText)
 
                             if entitlementState.isPlusActive {
                                 Text("PLUS")
                                     .font(.system(size: 11, weight: .bold))
-                                    .foregroundColor(Color(hex: "#211329"))
+                                    .foregroundColor(HoloPlusTheme.badgeText)
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 4)
-                                    .background(Color(hex: "#FFE4AE"))
+                                    .background(HoloPlusTheme.badgeBg)
                                     .clipShape(Capsule())
                             }
                         }
@@ -80,8 +75,8 @@ struct HoloMembershipCenterView: View {
                                 ? "会员权益已生效"
                                 : "升级后解锁更高每日额度"
                         )
-                        .font(.holoBody)
-                        .foregroundColor(Color(hex: "#F3DEC0").opacity(0.82))
+                        .font(.system(size: 14, weight: .medium))
+                        .foregroundColor(HoloPlusTheme.subtleText)
                     }
 
                     Spacer(minLength: 0)
@@ -93,57 +88,92 @@ struct HoloMembershipCenterView: View {
                     membershipMetric("任务", entitlementState.isPlusActive ? "50/天" : "10/天")
                 }
             }
-            .padding()
+            .padding(18)
         }
         .overlay(
-            RoundedRectangle(cornerRadius: HoloRadius.lg)
-                .stroke(Color(hex: "#FFE4AE").opacity(0.64), lineWidth: 1)
+            RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous)
+                .stroke(HoloPlusTheme.strokeColor, lineWidth: 1)
         )
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
+        .shadow(color: Color.black.opacity(0.08), radius: 12, x: 0, y: 6)
     }
 
     private func membershipMetric(_ title: String, _ value: String) -> some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(title)
                 .font(.system(size: 10, weight: .medium))
-                .foregroundColor(Color(hex: "#F3DEC0").opacity(0.72))
+                .foregroundColor(HoloPlusTheme.subtleText)
+
             Text(value)
                 .font(.system(size: 12, weight: .bold))
-                .foregroundColor(Color(hex: "#FFF3D7"))
+                .foregroundColor(HoloPlusTheme.accentText)
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, minHeight: 38, alignment: .leading)
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
-        .background(Color.white.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .background(Color.holoPrimary.opacity(0.1))
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md, style: .continuous))
     }
 
-    private var quotaSection: some View {
+    // MARK: - 权益对比
+
+    private var benefitComparisonSection: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            Text("当前额度")
+            Text("完整权益对比")
                 .font(.holoBody)
                 .fontWeight(.semibold)
                 .foregroundColor(.holoTextPrimary)
 
-            ForEach(entitlementState.quotas.keys.sorted(), id: \.self) { key in
-                if let quota = entitlementState.quotas[key] {
-                    HStack {
-                        Text(displayName(for: key))
-                            .font(.holoCaption)
-                            .foregroundColor(.holoTextSecondary)
-                        Spacer()
-                        Text("已用 \(quota.used) · 剩余 \(quota.remaining)")
-                            .font(.holoCaption)
-                            .foregroundColor(.holoTextPrimary)
+            HoloPlusBenefitComparisonTable(
+                currentTierHighlight: entitlementState.isPlusActive ? .plus : .free
+            )
+        }
+    }
+
+    // MARK: - 当前额度
+
+    @ViewBuilder
+    private var quotaSection: some View {
+        if !entitlementState.quotas.isEmpty {
+            VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                Text("当前使用情况")
+                    .font(.holoBody)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoTextPrimary)
+
+                ForEach(entitlementState.quotas.keys.sorted(), id: \.self) { key in
+                    if let quota = entitlementState.quotas[key] {
+                        HStack {
+                            Text(displayName(for: key))
+                                .font(.holoCaption)
+                                .foregroundColor(.holoTextSecondary)
+
+                            Spacer()
+
+                            Text("已用 \(quota.used) · 剩余 \(quota.remaining)")
+                                .font(.holoCaption)
+                                .foregroundColor(.holoTextPrimary)
+                        }
+                        .frame(minHeight: 28)
                     }
-                    .padding(.vertical, 4)
                 }
             }
+            .padding()
+            .background(Color.holoCardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
         }
-        .padding()
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
     }
+
+    private var footnote: some View {
+        Text("记账、待办、想法等本地功能，免费版与 Plus 版完全一致。")
+            .font(.system(size: 12))
+            .foregroundColor(.holoTextSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    // MARK: - 主操作按钮
 
     private var primaryAction: some View {
         Button {
@@ -157,13 +187,23 @@ struct HoloMembershipCenterView: View {
             }
         } label: {
             Text(entitlementState.isPlusActive ? "管理会员" : "升级 Holo Plus")
-                .font(.holoBody)
-                .fontWeight(.semibold)
+                .font(.system(size: 16, weight: .semibold))
                 .foregroundColor(.white)
                 .frame(maxWidth: .infinity)
-                .padding()
+                .padding(.vertical, 15)
                 .background(Color.holoPrimary)
-                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+    }
+
+    private func displayName(for key: String) -> String {
+        switch key {
+        case "chat": return "HoloAI"
+        case "naturalLanguageFinance": return "智能记账"
+        case "naturalLanguageTask": return "智能任务"
+        case "asr": return "语音识别"
+        case "memoryInsight": return "记忆洞察"
+        default: return key
         }
     }
 
@@ -183,7 +223,7 @@ struct HoloMembershipCenterView: View {
                     .foregroundColor(.holoPrimary)
             }
 
-            Text("这里会切换服务端真实权益与独立验收额度。“跟随购买”会恢复账号的真实购买状态，不会被验收数据覆盖。")
+            Text("这里会切换服务端真实权益与独立验收额度。\"跟随购买\"会恢复账号的真实购买状态，不会被验收数据覆盖。")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -212,7 +252,7 @@ struct HoloMembershipCenterView: View {
         }
         .padding()
         .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg, style: .continuous))
     }
 
     private func acceptanceButton(
@@ -231,22 +271,11 @@ struct HoloMembershipCenterView: View {
         .padding(.vertical, 8)
         .background(mode == entitlementState.acceptanceMode ? Color.holoPrimary : Color.clear)
         .overlay(
-            RoundedRectangle(cornerRadius: HoloRadius.sm)
+            RoundedRectangle(cornerRadius: HoloRadius.sm, style: .continuous)
                 .stroke(Color.holoPrimary.opacity(0.55), lineWidth: 1)
         )
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm, style: .continuous))
         .disabled(entitlementState.isRefreshing)
     }
     #endif
-
-    private func displayName(for key: String) -> String {
-        switch key {
-        case "chat": return "HoloAI"
-        case "naturalLanguageFinance": return "智能记账"
-        case "naturalLanguageTask": return "智能任务"
-        case "asr": return "语音识别"
-        case "memoryInsight": return "记忆洞察"
-        default: return key
-        }
-    }
 }

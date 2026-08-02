@@ -264,6 +264,47 @@ struct HoloShadow {
     static let float = Color.holoPrimary.opacity(0.3)
 }
 
+// MARK: - Holo Plus 主题
+
+/// Holo Plus 模块的统一主题 token。
+/// 全 App 任何 Plus 相关页面的配色只从这里取，禁止再内联金色/橙色 hex。
+/// 配色以品牌橙（holoPrimary #F46D38）为基调，深底卡片保留高级感的暖调深色。
+enum HoloPlusTheme {
+    // MARK: 深色卡片底（状态卡 / 入口卡）
+    /// 三段暖调深色渐变（去掉了原来的冷紫调，统一到橙系暖底）
+    static let darkGradient = LinearGradient(
+        colors: [
+            Color(hex: "#1C1614"),  // 暖深褐
+            Color(hex: "#2A1B15"),  // 深咖
+            Color(hex: "#321E18")   // 焦糖暗调
+        ],
+        startPoint: .topLeading,
+        endPoint: .bottomTrailing
+    )
+
+    // MARK: 深底上的文字色
+    /// 深底上的主文字 —— 暖白偏橙
+    static let accentText = Color(hex: "#FFE8D5")
+    /// 深底上的次要文字
+    static let subtleText = Color(hex: "#F0C9A8").opacity(0.82)
+
+    // MARK: 品牌橙元素（直接复用设计系统已有色）
+    /// PLUS 徽章底色
+    static let badgeBg = Color.holoPrimaryLight   // #FED7AA
+    /// PLUS 徽章字色
+    static let badgeText = Color.holoPrimaryDark   // #EA580C
+    /// 右上角光晕
+    static let glowColor = Color.holoPrimary.opacity(0.28)
+    /// 深底卡片描边
+    static let strokeColor = Color.holoPrimaryLight.opacity(0.45)
+
+    // MARK: 浅底卡片（对比表 / 付费墙卡片）
+    /// Plus 列高亮底色
+    static let plusColumnTint = Color.holoPrimary.opacity(0.06)
+    /// Plus 列数字色
+    static let plusValueColor = Color.holoPrimary
+}
+
 // MARK: - 卡片样式
 
 /// Holo 标准卡片样式

@@ -18,9 +18,9 @@ struct HoloPlusEmblem: View {
                     .fill(
                         RadialGradient(
                             colors: [
-                                Color(hex: "#FFF1C7"),
-                                Color(hex: "#F46D38"),
-                                Color(hex: "#1B1029")
+                                Color.holoPrimaryLight,   // #FED7AA 浅橙高光
+                                Color.holoPrimary,        // #F46D38 品牌橙
+                                Color(hex: "#3A211A")     // 暖深褐收尾
                             ],
                             center: .topLeading,
                             startRadius: 4,
@@ -30,7 +30,7 @@ struct HoloPlusEmblem: View {
 
                 Circle()
                     .strokeBorder(
-                        Color(hex: "#FFE4AE").opacity(0.8),
+                        Color.holoPrimaryLight.opacity(0.8),
                         lineWidth: max(1, size * 0.035)
                     )
 
@@ -45,7 +45,7 @@ struct HoloPlusEmblem: View {
                     .font(.system(size: size * 0.36, weight: .bold))
                     .foregroundStyle(
                         LinearGradient(
-                            colors: [Color.white, Color(hex: "#FFE7B7")],
+                            colors: [Color.white, Color.holoPrimaryLight],
                             startPoint: .top,
                             endPoint: .bottom
                         )
@@ -53,7 +53,7 @@ struct HoloPlusEmblem: View {
             }
             .frame(width: size, height: size)
             .shadow(
-                color: Color(hex: "#F46D38").opacity(0.22),
+                color: Color.holoPrimary.opacity(0.22),
                 radius: size * 0.18,
                 x: 0,
                 y: size * 0.08
@@ -62,9 +62,9 @@ struct HoloPlusEmblem: View {
             if showsPlusBadge {
                 Text("+")
                     .font(.system(size: size * 0.2, weight: .black))
-                    .foregroundColor(Color(hex: "#211329"))
+                    .foregroundColor(Color.holoPrimaryDark)
                     .frame(width: size * 0.32, height: size * 0.32)
-                    .background(Color(hex: "#FFE4AE"))
+                    .background(Color.holoPrimaryLight)
                     .clipShape(Circle())
                     .overlay(Circle().stroke(Color.white.opacity(0.72), lineWidth: 1))
                     .offset(x: size * 0.04, y: size * 0.04)

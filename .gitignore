@@ -62,6 +62,7 @@ docs/Temporarydata/
 
 # Codex/AI 工具本地编译缓存，不入库
 .codex-derived/
+.codex-deriveddata/
 
 # ZCode 本地工作区（plans 等），不入库
 .zcode/
