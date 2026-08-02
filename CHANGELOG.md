@@ -4,6 +4,31 @@
 
 ---
 
+## [2026-08-03] 清理构建 issues：并发隔离标注统一 + 对话额度耗尽提示
+
+构建时有大量 warning（增量编译 200+，全量编译更多），数字看着吓人。本轮根治了其中两类问题，并把对话内的额度耗尽提示落地为独立卡片。
+
+### 改动
+
+**一、构建 issues / warning 清理**
+
+1. **修复阻断编译的错误**：`HabitStatsDisplayItem` 新增字段后 `Equatable` 合成失败。该标注在代码中并无实际比较用途，直接移除，解除增量编译中断（此前因中断导致后续文件未编译，大量 warning 被隐藏）。
+2. **移除 CoreData 模型上冗余的 `@unchecked Sendable`**（20 处）：新 SDK 已将 `NSManagedObject` 的 Sendable 标记为不可用，子类再声明即为冗余 warning。删除前已做全项目安全检查，确认无任何调用方依赖其 Sendable 性，零风险。
+3. **统一 AI 模块的并发隔离标注**（约 50 个类型）：项目构建设置开启了 `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`（Swift 6.2），导致 AI 模块里大量纯数据结构、纯计算工具被误判为「主线程专属」。后台 `actor` 一调用就报警告。给这些本就该在后台运行的类型补 `nonisolated`，增量编译并发类 warning **从 ~150 清零**。
+4. **清理死代码与弃用 API**：删除未使用变量、简化永不可达的 try/catch、把弃用的 `NavigationLink(destination:isActive:)` 升级为 `navigationDestination`、修复一处并发闭包捕获隐患。
+5. **修正默认参数隔离陷阱**：`ThoughtRepository`/`HealthInsightCache` 作为 `@MainActor` 类型出现在默认参数中，改为参数可选 + 方法体内取默认值。
+
+**二、对话额度耗尽提示卡片**
+
+免费版/Plus 额度耗尽时，原走系统错误样式（红色 error）。现改为独立的柔和提示卡片：明确这是档位限制而非出错，并提供「了解 Holo Plus」入口直达会员中心，不弹窗打扰。
+
+### 验证与发布
+- iOS 工程增量编译 `BUILD SUCCEEDED`，0 error；增量编译并发类 warning 清零
+- 全量编译（cold build）仍残留 23 个并发 warning，集中在记忆洞察生成的并行任务组闭包，属业务逻辑层面的并发结构问题，需单独处理
+- 纯 App 端改动，**不涉及后端发版**
+
+---
+
 ## [2026-08-02] 修复 Holo Plus 权益页面布局与小组件权益展示
 
 修复个人页进入 Holo Plus 后会员中心不可用的问题：原横向双方案卡片各自维护一套内容，导致权益图标错位、遮块、卡片高度不一致，也无法清楚解释 Plus 的价值。

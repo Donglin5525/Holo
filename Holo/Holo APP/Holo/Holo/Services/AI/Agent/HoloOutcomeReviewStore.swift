@@ -12,7 +12,7 @@ import Foundation
 
 /// Outcome Review 记录的轻量持久化存储。
 /// 使用 UserDefaults 存储（非敏感技术元数据：action ID、card ID、metric key、时间戳）。
-final class HoloOutcomeReviewStore: @unchecked Sendable {
+nonisolated final class HoloOutcomeReviewStore: @unchecked Sendable {
 
     static let shared = HoloOutcomeReviewStore()
 

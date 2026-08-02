@@ -9,7 +9,7 @@
 import Foundation
 
 /// Agent 运行时错误。
-enum HoloAgentError: Error, Equatable {
+nonisolated enum HoloAgentError: Error, Equatable {
     /// LLM 输出无法解析为合法 HoloAgentOutput；needsRetry 控制是否还允许重试。
     case outputParseFailure(needsRetry: Bool)
     /// 预算（轮数/token/时间）耗尽。
@@ -18,7 +18,7 @@ enum HoloAgentError: Error, Equatable {
     case cancelled
 }
 
-enum HoloAgentResponseParser {
+nonisolated enum HoloAgentResponseParser {
 
     /// 解析 LLM 原始输出。
     /// - Parameters:

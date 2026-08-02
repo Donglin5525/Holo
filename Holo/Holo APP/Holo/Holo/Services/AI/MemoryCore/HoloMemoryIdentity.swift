@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum HoloMemoryIdentity {
+nonisolated enum HoloMemoryIdentity {
     static func canonicalAnchors(_ anchors: [HoloMemoryAnchorRef]) -> [HoloMemoryAnchorRef] {
         var seen = Set<String>()
         return anchors

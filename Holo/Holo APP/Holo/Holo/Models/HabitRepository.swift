@@ -853,7 +853,7 @@ struct HabitPeriodStats {
 }
 
 /// 每日聚合数据（用于图表）
-struct DailyHabitData: Identifiable {
+struct DailyHabitData: Identifiable, Equatable {
     let date: Date
     let value: Double
     

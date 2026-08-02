@@ -1,14 +1,14 @@
 #if DEBUG || INTERNAL_DIAGNOSTICS
 import Foundation
 
-struct HoloInternalLogRecord: Codable, Equatable {
+nonisolated struct HoloInternalLogRecord: Codable, Equatable {
     let messageId: UUID
     let requestId: String
     let capturedAt: Date
     let log: LLMLog
 }
 
-final class HoloInternalLogStore {
+nonisolated final class HoloInternalLogStore {
     static let retention: TimeInterval = 7 * 24 * 60 * 60
 
     private let directoryURL: URL

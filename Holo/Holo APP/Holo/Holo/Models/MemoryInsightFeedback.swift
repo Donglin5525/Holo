@@ -26,4 +26,3 @@ public class MemoryInsightFeedback: NSManagedObject {
     @NSManaged public var consumedAt: Date?
 }
 
-extension MemoryInsightFeedback: @unchecked Sendable {}

@@ -9,7 +9,7 @@ import Foundation
 import CoreData
 
 @objc(TodoFolder)
-class TodoFolder: NSManagedObject, @unchecked Sendable {
+class TodoFolder: NSManagedObject {
     @nonobjc public class func fetchRequest() -> NSFetchRequest<TodoFolder> {
         NSFetchRequest<TodoFolder>(entityName: "TodoFolder")
     }

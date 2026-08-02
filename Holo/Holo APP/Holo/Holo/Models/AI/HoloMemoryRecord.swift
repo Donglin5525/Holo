@@ -7,12 +7,12 @@
 
 import Foundation
 
-enum HoloMemoryScope: String, Codable, CaseIterable, Sendable {
+nonisolated enum HoloMemoryScope: String, Codable, CaseIterable, Sendable {
     case domain
     case crossDomain
 }
 
-enum HoloMemoryDomain: String, Codable, CaseIterable, Comparable, Sendable {
+nonisolated enum HoloMemoryDomain: String, Codable, CaseIterable, Comparable, Sendable {
     case finance
     case thought
     case health
@@ -27,7 +27,7 @@ enum HoloMemoryDomain: String, Codable, CaseIterable, Comparable, Sendable {
     }
 }
 
-enum HoloMemoryClaimKind: String, Codable, CaseIterable, Sendable {
+nonisolated enum HoloMemoryClaimKind: String, Codable, CaseIterable, Sendable {
     case observedFact
     case recurringPattern
     case phaseShift
@@ -38,14 +38,14 @@ enum HoloMemoryClaimKind: String, Codable, CaseIterable, Sendable {
     case lifeEvent
 }
 
-enum HoloMemoryPersistenceClass: String, Codable, CaseIterable, Sendable {
+nonisolated enum HoloMemoryPersistenceClass: String, Codable, CaseIterable, Sendable {
     case currentState
     case phase
     case durable
     case permanentFact
 }
 
-enum HoloMemoryState: String, Codable, CaseIterable, Sendable {
+nonisolated enum HoloMemoryState: String, Codable, CaseIterable, Sendable {
     case candidate
     case active
     case disputed
@@ -57,7 +57,7 @@ enum HoloMemoryState: String, Codable, CaseIterable, Sendable {
     case deleted
 }
 
-enum HoloMemoryUserDecision: String, Codable, CaseIterable, Sendable {
+nonisolated enum HoloMemoryUserDecision: String, Codable, CaseIterable, Sendable {
     case none
     case confirmed
     case corrected
@@ -66,14 +66,14 @@ enum HoloMemoryUserDecision: String, Codable, CaseIterable, Sendable {
     case forgotten
 }
 
-enum HoloMemoryAdoptionDisposition: String, Codable, CaseIterable, Sendable {
+nonisolated enum HoloMemoryAdoptionDisposition: String, Codable, CaseIterable, Sendable {
     case automatic
     case pendingConfirmation
     case userConfirmed
     case historicalMigration
 }
 
-enum HoloMemoryAdoptionReason: String, Codable, CaseIterable, Sendable {
+nonisolated enum HoloMemoryAdoptionReason: String, Codable, CaseIterable, Sendable {
     case normalValidatedMemory
     case sensitiveMemory
     case profileOrIdentity
@@ -85,14 +85,14 @@ enum HoloMemoryAdoptionReason: String, Codable, CaseIterable, Sendable {
     case historicalCandidateMigration
 }
 
-struct HoloMemoryAdoptionMetadata: Codable, Equatable, Sendable {
+nonisolated struct HoloMemoryAdoptionMetadata: Codable, Equatable, Sendable {
     var policyVersion: Int
     var disposition: HoloMemoryAdoptionDisposition
     var reason: HoloMemoryAdoptionReason
     var evaluatedAt: Date
 }
 
-enum HoloMemorySchemaError: Error, Equatable, CustomStringConvertible {
+nonisolated enum HoloMemorySchemaError: Error, Equatable, CustomStringConvertible {
     case emptyAnchorValue
     case missingCanonicalAnchor
     case invalidDomainScope
@@ -118,7 +118,7 @@ enum HoloMemorySchemaError: Error, Equatable, CustomStringConvertible {
     }
 }
 
-struct HoloMemoryRecord: Codable, Equatable, Identifiable, Sendable {
+nonisolated struct HoloMemoryRecord: Codable, Equatable, Identifiable, Sendable {
     var id: String
     var scope: HoloMemoryScope
     var primaryDomain: HoloMemoryDomain?

@@ -9,7 +9,7 @@ import Foundation
 import CoreData
 
 @objc(TaskAttachment)
-class TaskAttachment: NSManagedObject, @unchecked Sendable {
+class TaskAttachment: NSManagedObject {
     @nonobjc public class func fetchRequest() -> NSFetchRequest<TaskAttachment> {
         NSFetchRequest<TaskAttachment>(entityName: "TaskAttachment")
     }

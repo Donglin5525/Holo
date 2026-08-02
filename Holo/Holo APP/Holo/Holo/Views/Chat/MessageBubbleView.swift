@@ -28,6 +28,8 @@ struct MessageBubbleView: View {
     var onGoalDraftCardTap: (() -> Void)? = nil
     var onSavedGoalCardTap: ((UUID) -> Void)? = nil
     var onRetry: (() -> Void)? = nil
+    /// 额度耗尽卡片「了解 Holo Plus」点击，由上层导航到会员中心
+    var onLearnPlus: (() -> Void)? = nil
     var onCardDelete: ((ChatMessageViewData, EntityCategory, String) -> Void)? = nil
     var onTaskConfirm: ((ChatMessageViewData) -> Void)? = nil
     var onTransactionConfirm: ((ChatMessageViewData) -> Void)? = nil
@@ -126,8 +128,10 @@ struct MessageBubbleView: View {
         let flexibleQueryCard = message.flexibleQueryCard
 
         VStack(alignment: isUser ? .trailing : .leading, spacing: 8) {
-            // 渲染优先级：已保存目标卡片 > 目标计划卡片 > 周期回放 > 分析卡片 > 批处理卡片 > 单卡片 > 通用文字。
-            if let savedGoalCardData {
+            // 渲染优先级：额度耗尽提示 > 已保存目标卡片 > 目标计划卡片 > 周期回放 > 分析卡片 > 批处理卡片 > 单卡片 > 通用文字。
+            if message.isQuotaExhausted {
+                QuotaExhaustedChatCard(message: message.content, onLearnPlus: onLearnPlus)
+            } else if let savedGoalCardData {
                 GoalSavedChatCard(data: savedGoalCardData) {
                     onSavedGoalCardTap?(savedGoalCardData.goalId)
                 }

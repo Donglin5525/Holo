@@ -142,7 +142,3 @@ public class Habit: NSManagedObject {
 // MARK: - Identifiable
 
 extension Habit: Identifiable {}
-
-// MARK: - Concurrency
-
-extension Habit: @unchecked Sendable {}

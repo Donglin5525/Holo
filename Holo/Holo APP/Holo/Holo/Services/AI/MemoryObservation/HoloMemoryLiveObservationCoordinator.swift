@@ -97,7 +97,7 @@ private struct HoloMemoryNetworkSnapshot: Sendable {
     var isConstrained: Bool
 }
 
-private final class HoloMemoryNetworkState: @unchecked Sendable {
+private nonisolated final class HoloMemoryNetworkState: @unchecked Sendable {
     static let shared = HoloMemoryNetworkState()
 
     private let monitor = NWPathMonitor()
@@ -125,7 +125,7 @@ private final class HoloMemoryNetworkState: @unchecked Sendable {
     }
 }
 
-private struct HoloMemoryLiveExtractionPayload: Codable, Sendable {
+private nonisolated struct HoloMemoryLiveExtractionPayload: Codable, Sendable {
     var domainPackage: HoloDomainObservationPackage?
     var crossDomainCandidates: [HoloCrossDomainFusionCandidate]?
     var modelOutput: Data

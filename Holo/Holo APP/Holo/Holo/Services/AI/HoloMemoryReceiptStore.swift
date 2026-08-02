@@ -7,25 +7,25 @@
 
 import Foundation
 
-enum HoloMemoryReceiptKind: String, Codable {
+nonisolated enum HoloMemoryReceiptKind: String, Codable {
     case write
     case use
 }
 
-enum HoloMemoryReceiptChannel: String, Codable {
+nonisolated enum HoloMemoryReceiptChannel: String, Codable {
     case insight
     case chat
     case analysis
     case agent
 }
 
-enum HoloMemoryReceiptAdoptionKind: String, Codable, Sendable {
+nonisolated enum HoloMemoryReceiptAdoptionKind: String, Codable, Sendable {
     case automaticallyAdopted
     case needsConfirmation
     case historicalMigration
 }
 
-struct HoloMemoryReceipt: Codable, Identifiable, Equatable {
+nonisolated struct HoloMemoryReceipt: Codable, Identifiable, Equatable {
     var id: String
     var kind: HoloMemoryReceiptKind
     var channel: HoloMemoryReceiptChannel
@@ -84,7 +84,7 @@ struct HoloMemoryReceipt: Codable, Identifiable, Equatable {
     }
 }
 
-struct HoloMemoryInboxSnapshot: Equatable, Sendable {
+nonisolated struct HoloMemoryInboxSnapshot: Equatable, Sendable {
     var newMemoryCount: Int
     var pendingConfirmationCount: Int
     var hasUnreadMigrationSummary: Bool
@@ -103,10 +103,10 @@ struct HoloMemoryInboxSnapshot: Equatable, Sendable {
 }
 
 extension Notification.Name {
-    static let holoMemoryReceiptsDidChange = Notification.Name("holoMemoryReceiptsDidChange")
+    nonisolated static let holoMemoryReceiptsDidChange = Notification.Name("holoMemoryReceiptsDidChange")
 }
 
-enum HoloMemoryReceiptStore {
+nonisolated enum HoloMemoryReceiptStore {
     private static let queue = DispatchQueue(label: "com.holo.memoryReceiptStore")
     private static let maxCount = 200
     private static let lastPresentedAtKey = "holo_memory_summary_last_presented_at"

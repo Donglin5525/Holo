@@ -9,7 +9,7 @@
 import Foundation
 
 /// Agent 记忆路由目的地。
-enum HoloAgentMemoryRoute: String, Codable, Sendable {
+nonisolated enum HoloAgentMemoryRoute: String, Codable, Sendable {
     case responseOnly
     case evidenceOnly
     case episodicMemory
@@ -19,7 +19,7 @@ enum HoloAgentMemoryRoute: String, Codable, Sendable {
 }
 
 /// Curator 输出：一个 claim 的记忆路由决策。
-struct HoloCuratedAgentMemory: Codable, Equatable, Sendable {
+nonisolated struct HoloCuratedAgentMemory: Codable, Equatable, Sendable {
     var claimID: String
     var route: HoloAgentMemoryRoute
     var title: String
@@ -28,7 +28,7 @@ struct HoloCuratedAgentMemory: Codable, Equatable, Sendable {
     var expiresInDays: Int?
 }
 
-struct HoloMemoryCurator {
+nonisolated struct HoloMemoryCurator {
 
     /// 把 claims 路由到记忆目的地。
     /// - Parameters:

@@ -7,13 +7,13 @@
 
 import Foundation
 
-enum HoloMemoryClaimFamily: String, Sendable {
+nonisolated enum HoloMemoryClaimFamily: String, Sendable {
     case fact
     case pattern
     case relationship
 }
 
-enum HoloSemanticTombstoneMatcher {
+nonisolated enum HoloSemanticTombstoneMatcher {
     static func matches(
         tombstone: HoloMemoryTombstone,
         scope: HoloMemoryScope,

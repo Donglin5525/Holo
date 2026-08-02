@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum HoloEvidenceLineageResolver {
+nonisolated enum HoloEvidenceLineageResolver {
     static func independentEvidence(
         from memories: [HoloMemoryRecord]
     ) -> [HoloMemoryEvidenceRef] {

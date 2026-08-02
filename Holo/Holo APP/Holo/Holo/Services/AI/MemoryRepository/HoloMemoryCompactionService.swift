@@ -29,7 +29,7 @@ nonisolated struct HoloMemoryCompactionPlan: Equatable, Sendable {
     var encodedFootprint: HoloMemoryEncodedFootprint
 }
 
-struct HoloMemoryCompactionService: Sendable {
+nonisolated struct HoloMemoryCompactionService: Sendable {
     func plan(
         records: [HoloMemoryRecord],
         tombstones: [HoloMemoryTombstone],

@@ -42,7 +42,7 @@ nonisolated struct HoloAgentInputSnapshot: Codable, Sendable, Equatable {
 }
 
 /// 稳定输入快照 hash 入口（§5.1）。
-enum HoloAgentInputSnapshotHasher {
+nonisolated enum HoloAgentInputSnapshotHasher {
 
     /// 当前快照 schema 版本。
     static let currentSchemaVersion = 1

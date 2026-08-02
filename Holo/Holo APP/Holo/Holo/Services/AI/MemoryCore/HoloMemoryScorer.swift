@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct HoloMemoryConfidenceInput: Equatable, Sendable {
+nonisolated struct HoloMemoryConfidenceInput: Equatable, Sendable {
     var sourceReliability: Double
     var evidenceCoverage: Double
     var crossCycleConsistency: Double
@@ -16,17 +16,17 @@ struct HoloMemoryConfidenceInput: Equatable, Sendable {
     var userDecision: HoloMemoryUserDecision
 }
 
-struct HoloMemoryRankedScore: Equatable, Sendable {
+nonisolated struct HoloMemoryRankedScore: Equatable, Sendable {
     var memoryID: String
     var value: Double
     var scoringVersion: Int
 }
 
-enum HoloMemoryScoringError: Error, Equatable {
+nonisolated enum HoloMemoryScoringError: Error, Equatable {
     case incomparableVersions
 }
 
-enum HoloMemoryScorer {
+nonisolated enum HoloMemoryScorer {
     static let currentVersion = 2
 
     static func confidence(_ input: HoloMemoryConfidenceInput) -> Double {

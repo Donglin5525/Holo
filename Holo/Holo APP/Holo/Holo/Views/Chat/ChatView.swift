@@ -36,6 +36,8 @@ struct ChatView: View {
     @State private var pendingEditPrefill: PendingTransactionPrefill?
     @State private var financeSearchRoute: FlexibleQueryFinanceSearchRoute?
     @State private var memoryInboxNotice: String?
+    /// 额度耗尽卡片「了解 Holo Plus」触发，sheet 呈现会员中心
+    @State private var showMembershipCenter = false
     /// 键盘遮挡内容区的高度（已扣除底部 Home Indicator 安全区）。
     /// ZStack 平级常驻模式下祖先视图忽略了键盘安全区，系统自动避让失效，
     /// 因此这里手动监听键盘 frame 变化并给内容加 bottom padding。
@@ -142,6 +144,11 @@ struct ChatView: View {
         .animation(.easeInOut(duration: 0.2), value: viewModel.memoryNotice)
         .sheet(item: $activeSheet, onDismiss: handleSheetDismiss) { sheet in
             sheetContent(sheet)
+        }
+        .sheet(isPresented: $showMembershipCenter) {
+            NavigationStack {
+                HoloMembershipCenterView()
+            }
         }
         .task {
             await viewModel.setup()
@@ -429,6 +436,9 @@ struct ChatView: View {
                         },
                         onRetry: {
                             Task { await viewModel.retryMessage(message) }
+                        },
+                        onLearnPlus: {
+                            showMembershipCenter = true
                         },
                         onCardDelete: { msg, category, description in
                             guard let entityId = msg.resolveLinkedEntityId(for: category) else { return }

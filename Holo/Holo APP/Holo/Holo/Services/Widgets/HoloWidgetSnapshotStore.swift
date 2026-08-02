@@ -7,7 +7,7 @@
 
 import Foundation
 
-struct HoloWidgetSnapshotStore {
+nonisolated struct HoloWidgetSnapshotStore {
     let directoryURL: URL
 
     init(directoryURL: URL = HoloWidgetSnapshotStore.defaultDirectoryURL()) {

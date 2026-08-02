@@ -7,12 +7,12 @@
 
 import Foundation
 
-struct HoloCrossDomainTimeWindow: Codable, Equatable, Sendable {
+nonisolated struct HoloCrossDomainTimeWindow: Codable, Equatable, Sendable {
     var start: Date
     var end: Date
 }
 
-struct HoloCrossDomainFusionCandidate: Codable, Equatable, Sendable {
+nonisolated struct HoloCrossDomainFusionCandidate: Codable, Equatable, Sendable {
     var identityKey: String
     var sharedAnchor: HoloMemoryAnchorRef
     var sourceMemoryIDs: [String]
@@ -22,7 +22,7 @@ struct HoloCrossDomainFusionCandidate: Codable, Equatable, Sendable {
     var commonWindow: HoloCrossDomainTimeWindow
 }
 
-enum HoloCrossDomainCandidateBuilder {
+nonisolated enum HoloCrossDomainCandidateBuilder {
     static func build(from records: [HoloMemoryRecord]) -> [HoloCrossDomainFusionCandidate] {
         let eligible = records
             .filter(isEligibleDomainMemory)

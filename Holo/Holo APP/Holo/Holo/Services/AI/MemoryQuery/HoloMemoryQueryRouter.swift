@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum HoloMemoryQueryRouter {
+nonisolated enum HoloMemoryQueryRouter {
     static func route(
         _ question: String,
         semanticContext: HoloMemoryQuerySemanticContext? = nil,

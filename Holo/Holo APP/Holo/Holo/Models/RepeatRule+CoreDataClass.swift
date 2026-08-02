@@ -9,7 +9,7 @@ import Foundation
 import CoreData
 
 @objc(RepeatRule)
-class RepeatRule: NSManagedObject, @unchecked Sendable {
+class RepeatRule: NSManagedObject {
     @nonobjc public class func fetchRequest() -> NSFetchRequest<RepeatRule> {
         NSFetchRequest<RepeatRule>(entityName: "RepeatRule")
     }

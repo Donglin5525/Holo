@@ -8,7 +8,7 @@
 
 import Foundation
 
-enum HoloAgentDebugExporter {
+nonisolated enum HoloAgentDebugExporter {
 
     /// 生成 Agent 子系统的调试快照 JSON。
     /// - Parameters:

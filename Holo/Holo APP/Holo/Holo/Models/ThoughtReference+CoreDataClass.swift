@@ -9,7 +9,7 @@ import Foundation
 import CoreData
 
 @objc(ThoughtReference)
-class ThoughtReference: NSManagedObject, @unchecked Sendable {
+class ThoughtReference: NSManagedObject {
     @nonobjc public class func fetchRequest() -> NSFetchRequest<ThoughtReference> {
         NSFetchRequest<ThoughtReference>(entityName: "ThoughtReference")
     }

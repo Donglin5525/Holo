@@ -7,12 +7,12 @@
 
 import Foundation
 
-enum HoloCrossDomainRequestedStorageClass: String, Codable, Equatable, Sendable {
+nonisolated enum HoloCrossDomainRequestedStorageClass: String, Codable, Equatable, Sendable {
     case normal
     case sensitiveLocal
 }
 
-struct HoloCrossDomainFusionOutput: Codable, Equatable, Sendable {
+nonisolated struct HoloCrossDomainFusionOutput: Codable, Equatable, Sendable {
     var claimKind: HoloMemoryClaimKind
     var displaySummary: String
     var aiUseSummary: String
@@ -29,16 +29,16 @@ struct HoloCrossDomainFusionOutput: Codable, Equatable, Sendable {
     }
 }
 
-struct HoloCrossDomainFusionOutputEnvelope: Codable, Equatable, Sendable {
+nonisolated struct HoloCrossDomainFusionOutputEnvelope: Codable, Equatable, Sendable {
     var candidates: [HoloCrossDomainFusionOutput]
 }
 
-struct HoloCrossDomainFusionRequestPackage: Codable, Equatable, Sendable {
+nonisolated struct HoloCrossDomainFusionRequestPackage: Codable, Equatable, Sendable {
     var schemaVersion = 1
     var candidates: [HoloCrossDomainFusionCandidate]
 }
 
-struct HoloCrossDomainTransientMemory: Equatable, Sendable {
+nonisolated struct HoloCrossDomainTransientMemory: Equatable, Sendable {
     var candidateIdentityKey: String
     var displaySummary: String
     var aiUseSummary: String
@@ -48,7 +48,7 @@ struct HoloCrossDomainTransientMemory: Equatable, Sendable {
     var sensitivity: HoloMemorySensitivity
 }
 
-enum HoloCrossDomainFusionRejection: String, Equatable, Sendable {
+nonisolated enum HoloCrossDomainFusionRejection: String, Equatable, Sendable {
     case malformedJSON
     case unsupportedClaimKind
     case forgedUpstreamMemory
@@ -59,17 +59,17 @@ enum HoloCrossDomainFusionRejection: String, Equatable, Sendable {
     case invalidRecord
 }
 
-enum HoloCrossDomainFusionDecision: Equatable, Sendable {
+nonisolated enum HoloCrossDomainFusionDecision: Equatable, Sendable {
     case transient(HoloCrossDomainTransientMemory)
     case persist(HoloMemoryRecord)
     case rejected(HoloCrossDomainFusionRejection)
 }
 
-enum HoloCrossDomainFusionOperationalError: Error, Equatable {
+nonisolated enum HoloCrossDomainFusionOperationalError: Error, Equatable {
     case disabledByKillSwitch
 }
 
-enum HoloCrossDomainFusionService {
+nonisolated enum HoloCrossDomainFusionService {
     static let extractorVersion = 1
     static let promptVersion = 2
 
@@ -108,6 +108,7 @@ enum HoloCrossDomainFusionService {
     }
 
     #if !HOLO_MEMORY_STANDALONE
+    @MainActor
     static func requestFusion(
         for candidates: [HoloCrossDomainFusionCandidate]
     ) async throws -> Data {

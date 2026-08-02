@@ -970,48 +970,52 @@ final class ChatMessageRepository: ObservableObject {
     /// 此刻 `syncRecoverableChatMessages` 可能读不到关联 job，导致该消息不在 preserve 集合。
     /// 若立即清理，正在后台跑的 Agent 会被误判为「中断」。宽限期内跳过，留给 job 落盘与 runLoop 推进。
     ///
+    /// 实现上走后台 context 的 `perform`，避免首屏期间在主线程 viewContext 上 fetch 阻塞 UI；
+    /// 写回完成后回到主线程同步内存 snapshot。
+    ///
     /// - Parameter now: 当前时间，默认 `Date()`；测试可注入以模拟「近期 / 超期」场景。
-    func cleanupOrphanedStreamingMessages(preserveMessageIDs: Set<UUID> = [], now: Date = Date()) {
-        let request = ChatMessage.fetchRequest()
-        request.predicate = NSPredicate(format: "isStreaming == YES")
-
-        do {
-            let orphans = try context.fetch(request)
-            guard !orphans.isEmpty else { return }
-
-            // 仅清理：未 preserve 且已过宽限期的消息（真孤儿）。
-            let cleanable = orphans.filter { message in
-                !preserveMessageIDs.contains(message.id)
-                && now.timeIntervalSince(message.timestamp) >= Self.orphanCleanupGraceInterval
-            }
-            guard !cleanable.isEmpty else {
-                logger.info("孤儿 streaming 清理：命中 \(orphans.count) 条，均已 preserve 或在宽限期内，跳过")
-                return
-            }
-
-            for message in cleanable {
-                message.isStreaming = false
-                if message.content.isEmpty {
-                    message.content = "抱歉，处理时意外中断了"
-                }
-            }
-            save()
-
-            // 同步刷新内存中的 snapshot（仅实际被清理的消息，避免误碰宽限期内消息）
-            for orphan in cleanable {
-                liveMessageCache[orphan.id] = orphan
-                updateSnapshot(orphan.id) { snapshot in
-                    snapshot.isStreaming = false
-                    if snapshot.content.isEmpty {
-                        snapshot.content = "抱歉，处理时意外中断了"
+    func cleanupOrphanedStreamingMessagesOffMain(preserveMessageIDs: Set<UUID> = [], now: Date = Date()) async {
+        await CoreDataStack.shared.waitUntilReady()
+        let cleanedIDs: [UUID] = await Task.detached(priority: .utility) {
+            let context = CoreDataStack.shared.newBackgroundContext()
+            return await context.perform {
+                let request = ChatMessage.fetchRequest()
+                request.predicate = NSPredicate(format: "isStreaming == YES")
+                do {
+                    let orphans = try context.fetch(request)
+                    let cleanable = orphans.filter { message in
+                        !preserveMessageIDs.contains(message.id)
+                            && now.timeIntervalSince(message.timestamp) >= Self.orphanCleanupGraceInterval
                     }
+                    guard !cleanable.isEmpty else { return [] }
+                    var ids: [UUID] = []
+                    for message in cleanable {
+                        message.isStreaming = false
+                        if message.content.isEmpty {
+                            message.content = "抱歉，处理时意外中断了"
+                        }
+                        ids.append(message.id)
+                    }
+                    try? context.save()
+                    return ids
+                } catch {
+                    return []
                 }
             }
+        }.value
 
-            logger.info("孤儿 streaming 清理：命中 \(orphans.count) 条，清理 \(cleanable.count)，其余 preserve 或宽限期内保留")
-        } catch {
-            logger.error("清理残留 streaming 消息失败：\(error.localizedDescription)")
+        guard !cleanedIDs.isEmpty else { return }
+        // 写回已完成，回到主线程更新内存 snapshot
+        let cleanedSet = Set(cleanedIDs)
+        for id in cleanedSet {
+            updateSnapshot(id) { snapshot in
+                snapshot.isStreaming = false
+                if snapshot.content.isEmpty {
+                    snapshot.content = "抱歉，处理时意外中断了"
+                }
+            }
         }
+        logger.info("孤儿 streaming 清理（后台）：清理 \(cleanedIDs.count) 条")
     }
 
     // MARK: - Private

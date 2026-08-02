@@ -126,7 +126,26 @@ struct HabitStatsExpandableCardView: View {
         VStack(spacing: HoloSpacing.md) {
             HabitMonthGridView(month: item.month, accentColor: accent)
 
+            // 数值型习惯：日历下方接趋势图（计数→柱状，测量→折线）
+            // 空数据时不显示，避免与日历网格形成双重空态
+            if !item.dailyData.isEmpty {
+                trendChart
+            }
+
             expandedSummary
+        }
+    }
+
+    @ViewBuilder
+    private var trendChart: some View {
+        switch item.type {
+        case .count:
+            HabitBarChartView(data: item.dailyData, unit: item.unitText)
+        case .measure:
+            HabitLineChartView(data: item.dailyData, unit: item.unitText)
+        case .checkIn:
+            // 打卡型无连续数值，不显示趋势图
+            EmptyView()
         }
     }
 
@@ -194,7 +213,11 @@ struct HabitStatsExpandableCardView: View {
             summary: .count(recordedDays: 12, totalCountText: "12次"),
             collapsedWeek: week,
             allWeeks: [],
-            month: HabitStatsMonthSection(monthStart: today, weekdaySymbols: calendar.shortWeekdaySymbols, rows: [])
+            month: HabitStatsMonthSection(monthStart: today, weekdaySymbols: calendar.shortWeekdaySymbols, rows: []),
+            dailyData: (0..<7).map { i in
+                DailyHabitData(date: calendar.date(byAdding: .day, value: i, to: today)!, value: Double(i % 3 + 1))
+            },
+            unitText: "次"
         ),
         isExpanded: false,
         onTap: {}
@@ -233,7 +256,11 @@ struct HabitStatsExpandableCardView: View {
                 monthStart: monthStart,
                 weekdaySymbols: calendar.shortWeekdaySymbols,
                 rows: [sampleRow, sampleRow, sampleRow, sampleRow]
-            )
+            ),
+            dailyData: (0..<30).map { i in
+                DailyHabitData(date: calendar.date(byAdding: .day, value: i, to: monthStart)!, value: 57.5 + Double(i % 5) * 0.3)
+            },
+            unitText: "kg"
         ),
         isExpanded: true,
         onTap: {}

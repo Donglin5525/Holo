@@ -2236,7 +2236,7 @@ actor HoloLocalAgentRuntime {
     }
 }
 
-private struct HoloAgentToolContextPayload: Codable {
+private nonisolated struct HoloAgentToolContextPayload: Codable {
     var toolResults: [HoloDataToolResult]
     var patternSignals: [HoloPatternSignal]
 }

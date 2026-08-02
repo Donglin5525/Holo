@@ -486,6 +486,10 @@ extension HabitRepository {
                 Array(monthCells[$0..<min($0 + 7, monthCells.count)])
             }
 
+            // 数值型习惯按日聚合，供展开态趋势图使用（口径与详情页一致）
+            let nextDay = calendar.date(byAdding: .day, value: 1, to: monthEnd)!
+            let dailyData = getDailyAggregatedData(for: habit, dateRange: monthStart...nextDay)
+
             return HabitStatsDisplayItem(
                 habitId: habit.id,
                 name: habit.name,
@@ -500,7 +504,9 @@ extension HabitRepository {
                     monthStart: monthStart,
                     weekdaySymbols: weekdaySymbols,
                     rows: rows
-                )
+                ),
+                dailyData: dailyData,
+                unitText: habit.unitText
             )
         }
     }

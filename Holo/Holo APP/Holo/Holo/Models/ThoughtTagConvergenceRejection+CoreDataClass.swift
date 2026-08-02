@@ -12,7 +12,7 @@ import Foundation
 import CoreData
 
 @objc(ThoughtTagConvergenceRejection)
-class ThoughtTagConvergenceRejection: NSManagedObject, @unchecked Sendable {
+class ThoughtTagConvergenceRejection: NSManagedObject {
     @nonobjc public class func fetchRequest() -> NSFetchRequest<ThoughtTagConvergenceRejection> {
         NSFetchRequest<ThoughtTagConvergenceRejection>(entityName: "ThoughtTagConvergenceRejection")
     }

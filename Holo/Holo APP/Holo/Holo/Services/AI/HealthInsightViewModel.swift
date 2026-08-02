@@ -18,7 +18,7 @@ final class HealthInsightViewModel {
     private(set) var snapshot: GeneratedHealthInsightSnapshot?
     private(set) var isLoading = false
 
-    init(service: HealthInsightGenerationService? = nil, cache: HealthInsightCache = .shared) {
+    init(service: HealthInsightGenerationService? = nil, cache: HealthInsightCache? = nil) {
         if let service {
             self.service = service
         } else {
@@ -27,7 +27,7 @@ final class HealthInsightViewModel {
                 provider: HoloBackendAIProvider()
             )
         }
-        self.cache = cache
+        self.cache = cache ?? .shared
     }
 
     /// 生成状态文案（1.1：生成中 / 今日已更新 / 数据不足 / 使用本地兜底）。

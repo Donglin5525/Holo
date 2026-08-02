@@ -11,7 +11,7 @@
 
 import Foundation
 
-final class HoloAgentContractViolationCounter: @unchecked Sendable {
+nonisolated final class HoloAgentContractViolationCounter: @unchecked Sendable {
 
     static let shared = HoloAgentContractViolationCounter()
 

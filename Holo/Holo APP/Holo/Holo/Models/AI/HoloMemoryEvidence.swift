@@ -7,13 +7,13 @@
 
 import Foundation
 
-enum HoloMemoryEvidenceKind: String, Codable, CaseIterable, Sendable {
+nonisolated enum HoloMemoryEvidenceKind: String, Codable, CaseIterable, Sendable {
     case entityRef
     case aggregateSnapshot
     case explicitUserStatement
 }
 
-struct HoloMemoryEvidenceRef: Codable, Equatable, Hashable, Identifiable, Sendable {
+nonisolated struct HoloMemoryEvidenceRef: Codable, Equatable, Hashable, Identifiable, Sendable {
     var id: String
     var kind: HoloMemoryEvidenceKind
     var sourceDomain: HoloMemoryDomain
@@ -58,7 +58,7 @@ struct HoloMemoryEvidenceRef: Codable, Equatable, Hashable, Identifiable, Sendab
     }
 }
 
-enum HoloMemoryAnchorType: String, Codable, CaseIterable, Sendable {
+nonisolated enum HoloMemoryAnchorType: String, Codable, CaseIterable, Sendable {
     case goal
     case habit
     case financeCategory
@@ -71,7 +71,7 @@ enum HoloMemoryAnchorType: String, Codable, CaseIterable, Sendable {
     case userTheme
 }
 
-struct HoloMemoryAnchorRef: Codable, Equatable, Hashable, Sendable {
+nonisolated struct HoloMemoryAnchorRef: Codable, Equatable, Hashable, Sendable {
     var type: HoloMemoryAnchorType
     var canonicalValue: String
     var displayLabel: String?

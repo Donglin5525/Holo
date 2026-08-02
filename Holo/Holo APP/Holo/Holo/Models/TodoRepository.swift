@@ -402,7 +402,6 @@ class TodoRepository: ObservableObject {
 
         pendingCompletionTaskId = task.id
 
-        let taskId = task.id
         let workItem = DispatchWorkItem { [weak self] in
             guard let self = self else { return }
             self.confirmPendingCompletion()

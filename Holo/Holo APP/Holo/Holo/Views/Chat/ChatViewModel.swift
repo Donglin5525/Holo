@@ -149,14 +149,13 @@ final class ChatViewModel: ObservableObject {
             guard let self = self else { return }
             let repo = ChatMessageRepository.shared
             self.bindRepository(repo)
+            // 先用 Agent job 的真实状态校准 streaming 消息，并据此清理孤儿。
+            // 注意：syncRecoverableChatMessages 已会回填完成的 Agent 结果，
+            // 这里跑一次即可拿到准确的 preserve 集合，无需重复执行。
             let preserved = await self.analysisService.syncRecoverableChatMessages(repository: repo)
                 .union(HoloPeriodReplayCoordinator.shared.recoverableMessageIDs())
-            repo.cleanupOrphanedStreamingMessages(preserveMessageIDs: preserved)
-            try? await Task.sleep(nanoseconds: 250_000_000)
+            await repo.cleanupOrphanedStreamingMessagesOffMain(preserveMessageIDs: preserved)
             await repo.loadCurrentSessionLightweightMessagesAsync(limit: self.initialHistoryLimit)
-            let refreshedPreserved = await self.analysisService.syncRecoverableChatMessages(repository: repo)
-                .union(HoloPeriodReplayCoordinator.shared.recoverableMessageIDs())
-            repo.cleanupOrphanedStreamingMessages(preserveMessageIDs: refreshedPreserved)
             self.hasLoadedMessages = true
             self.syncHasEarlierSessions()
             // 消息加载完成后刷新能力入口（此时 isTrulyEmptyConversation 可靠）
@@ -185,11 +184,8 @@ final class ChatViewModel: ObservableObject {
         if !hasLoadedMessages {
             let preserved = await analysisService.syncRecoverableChatMessages(repository: repo)
                 .union(HoloPeriodReplayCoordinator.shared.recoverableMessageIDs())
-            repo.cleanupOrphanedStreamingMessages(preserveMessageIDs: preserved)
+            await repo.cleanupOrphanedStreamingMessagesOffMain(preserveMessageIDs: preserved)
             await repo.loadCurrentSessionLightweightMessagesAsync(limit: initialHistoryLimit)
-            let refreshedPreserved = await analysisService.syncRecoverableChatMessages(repository: repo)
-                .union(HoloPeriodReplayCoordinator.shared.recoverableMessageIDs())
-            repo.cleanupOrphanedStreamingMessages(preserveMessageIDs: refreshedPreserved)
             hasLoadedMessages = true
             syncHasEarlierSessions()
         }
@@ -469,6 +465,23 @@ final class ChatViewModel: ObservableObject {
                 // URLSession 取消偶尔会被上游包装成普通网络错误，不能再把旧错误写回界面。
                 guard self.activeStreamingMessageID == aiMessageId else { return }
                 self.logger.error("AI 处理失败：\(error.localizedDescription)")
+
+                // 配额耗尽走专属提示：档位限制不是系统错误，用 quotaExhausted 类型标记，
+                // 渲染层据此展示柔和的额度卡片 + 「了解 Holo Plus」入口，而非红色错误样式。
+                if let quotaError = error as? HoloQuotaError {
+                    self.errorMessage = quotaError.userMessage
+                    self.chatRepo?.finalizeMessage(
+                        aiMessageId,
+                        finalContent: quotaError.userMessage,
+                        intent: nil,
+                        extractedDataJSON: nil,
+                        parsedBatchJSON: nil,
+                        executionBatchJSON: nil,
+                        messageType: .quotaExhausted
+                    )
+                    return
+                }
+
                 let userMessage = HoloAIUserErrorMapper.message(for: error)
                 self.errorMessage = userMessage
 
@@ -1373,7 +1386,17 @@ final class ChatViewModel: ObservableObject {
                     )
                 }
             } catch {
-                errorMessage = HoloAIUserErrorMapper.message(for: error)
+                if let quotaError = error as? HoloQuotaError {
+                    errorMessage = quotaError.userMessage
+                    _ = chatRepo.addMessage(
+                        role: "assistant",
+                        content: quotaError.userMessage,
+                        parentMessageId: userMessageId,
+                        messageType: .quotaExhausted
+                    )
+                } else {
+                    errorMessage = HoloAIUserErrorMapper.message(for: error)
+                }
             }
         }
     }
@@ -1417,7 +1440,17 @@ final class ChatViewModel: ObservableObject {
                 )
             }
         } catch {
-            errorMessage = HoloAIUserErrorMapper.message(for: error)
+            if let quotaError = error as? HoloQuotaError {
+                errorMessage = quotaError.userMessage
+                _ = chatRepo.addMessage(
+                    role: "assistant",
+                    content: quotaError.userMessage,
+                    parentMessageId: userMessageId,
+                    messageType: .quotaExhausted
+                )
+            } else {
+                errorMessage = HoloAIUserErrorMapper.message(for: error)
+            }
         }
     }
 

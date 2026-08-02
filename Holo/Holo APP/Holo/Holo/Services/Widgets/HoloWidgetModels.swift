@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum HoloWidgetSharedContainer {
+nonisolated enum HoloWidgetSharedContainer {
     static let appGroupIdentifier = "group.com.tangyuxuan.holo-app"
     static let directoryName = "HoloWidgetSnapshots"
 
@@ -17,7 +17,7 @@ enum HoloWidgetSharedContainer {
     static let entitlementFileName = "widget_entitlement.json"
 }
 
-struct HoloWidgetEntitlementSnapshot: Codable, Equatable {
+nonisolated struct HoloWidgetEntitlementSnapshot: Codable, Equatable {
     let isPlusActive: Bool
     let source: String
     let updatedAt: Date
@@ -31,14 +31,14 @@ struct HoloWidgetEntitlementSnapshot: Codable, Equatable {
     }
 }
 
-enum HoloWidgetKind: String {
+nonisolated enum HoloWidgetKind: String {
     case voiceLaunch = "HoloVoiceLaunchWidget"
     case quickActions = "HoloQuickActionsWidget"
     case finance = "HoloFinanceWidget"
     case thoughtMemory = "HoloThoughtMemoryWidget"
 }
 
-struct HoloWidgetQuickActionsSnapshot: Codable, Equatable {
+nonisolated struct HoloWidgetQuickActionsSnapshot: Codable, Equatable {
     let actions: [HoloWidgetQuickAction]
     let updatedAt: Date
 
@@ -50,7 +50,7 @@ struct HoloWidgetQuickActionsSnapshot: Codable, Equatable {
     }
 }
 
-enum HoloWidgetQuickAction: String, CaseIterable, Codable, Equatable {
+nonisolated enum HoloWidgetQuickAction: String, CaseIterable, Codable, Equatable {
     case askHolo
     case addTransaction
     case recordThought
@@ -88,7 +88,7 @@ enum HoloWidgetQuickAction: String, CaseIterable, Codable, Equatable {
     }
 }
 
-enum HoloWidgetDeepLink: Equatable {
+nonisolated enum HoloWidgetDeepLink: Equatable {
     case ai(voiceInput: Bool)
     case addTransaction
     /// 本月收支小组件：打开财务分析页（本月概览）
@@ -127,14 +127,14 @@ enum HoloWidgetDeepLink: Equatable {
     }
 }
 
-enum HoloWidgetBudgetStatus: String, Codable, Equatable {
+nonisolated enum HoloWidgetBudgetStatus: String, Codable, Equatable {
     case noBudget
     case onTrack
     case aheadOfTime
     case overBudget
 }
 
-struct HoloWidgetFinanceSnapshot: Codable, Equatable {
+nonisolated struct HoloWidgetFinanceSnapshot: Codable, Equatable {
     let monthExpense: Double
     let monthIncome: Double
     let monthBudget: Double?
@@ -160,7 +160,7 @@ struct HoloWidgetFinanceSnapshot: Codable, Equatable {
     }
 }
 
-struct HoloWidgetThoughtMemorySnapshot: Codable, Equatable {
+nonisolated struct HoloWidgetThoughtMemorySnapshot: Codable, Equatable {
     let thoughtId: UUID
     let createdAt: Date
     let tags: [String]
@@ -180,7 +180,7 @@ struct HoloWidgetThoughtMemorySnapshot: Codable, Equatable {
     }
 }
 
-private extension URL {
+private nonisolated extension URL {
     func queryValue(for name: String) -> String? {
         URLComponents(url: self, resolvingAgainstBaseURL: false)?
             .queryItems?

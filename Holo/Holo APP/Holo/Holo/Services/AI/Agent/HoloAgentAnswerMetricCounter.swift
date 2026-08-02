@@ -12,7 +12,7 @@
 
 import Foundation
 
-final class HoloAgentAnswerMetricCounter: @unchecked Sendable {
+nonisolated final class HoloAgentAnswerMetricCounter: @unchecked Sendable {
 
     static let shared = HoloAgentAnswerMetricCounter()
 

@@ -60,7 +60,3 @@ public class HomeIconConfig: NSManagedObject {
         updatedAt = Date()
     }
 }
-
-// MARK: - Concurrency
-
-extension HomeIconConfig: @unchecked Sendable {}

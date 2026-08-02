@@ -96,7 +96,3 @@ public class MemoryInsight: NSManagedObject {
         return now >= periodStart && now <= periodEnd
     }
 }
-
-// MARK: - Concurrency
-
-extension MemoryInsight: @unchecked Sendable {}

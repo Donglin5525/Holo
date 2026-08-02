@@ -116,21 +116,16 @@ struct ThoughtEditorView: View {
             .scrollDismissesKeyboard(.never)  // 禁止下滑自动收键盘（编辑器自己管焦点）
             .navigationTitle(isEditing ? "编辑想法" : "记录想法")
             .navigationBarTitleDisplayMode(.inline)
-            // 「查看记录」跳转：NavigationLink 必须在 NavigationView 内部才生效
-            .background(
-                NavigationLink(
-                    destination: ThoughtDetailView(
-                        thoughtId: navigateToThoughtId ?? UUID(),
-                        thoughtRepository: ThoughtRepository()
-                    ),
-                    isActive: Binding(
-                        get: { navigateToThoughtId != nil },
-                        set: { if !$0 { navigateToThoughtId = nil } }
-                    )
-                ) {
-                    EmptyView()
-                }
-            )
+            // 「查看记录」跳转：通过 navigationDestination 驱动（NavigationLink 必须在 NavigationView 内部才生效）
+            .navigationDestination(isPresented: Binding(
+                get: { navigateToThoughtId != nil },
+                set: { if !$0 { navigateToThoughtId = nil } }
+            )) {
+                ThoughtDetailView(
+                    thoughtId: navigateToThoughtId ?? UUID(),
+                    thoughtRepository: ThoughtRepository()
+                )
+            }
             // 工具栏已移至 UITextView.inputAccessoryView（键盘正上方），不再需要 SwiftUI 层 safeAreaInset。
             // safeAreaInset 在 fullScreenCover 下不跟随键盘，inputAccessoryView 由 UIKit 系统保证位置。
             .toolbar {

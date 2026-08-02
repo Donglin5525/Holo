@@ -8,7 +8,7 @@
 import CoreData
 import Foundation
 
-enum HoloMemoryManagedObjectModelFactory {
+nonisolated enum HoloMemoryManagedObjectModelFactory {
     static let entityNames = [
         "HoloMemoryRecordMO",
         "HoloMemoryEvidenceMO",

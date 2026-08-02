@@ -9,7 +9,7 @@
 
 import Foundation
 
-enum HoloAgentPromptBuilder {
+nonisolated enum HoloAgentPromptBuilder {
 
     /// 构造一轮 agent_loop 的消息序列。
     static func build(

@@ -30,6 +30,7 @@ enum ChatMessageType: String, Codable, Sendable {
     case normal
     case goalPlanning
     case periodReplay   // 周期回放（原记忆长廊 AI 回放，迁移到聊天）
+    case quotaExhausted // 免费/Plus 额度耗尽提示（非系统错误，是档位限制）
 }
 
 nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hashable {
@@ -265,6 +266,11 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
     /// 是否为错误消息（AI 处理失败、超时、watchdog 中断等）
     var isError: Bool {
         content.hasPrefix("抱歉，处理时出错了") || content.hasSuffix("处理中断") || content.hasSuffix("响应超时")
+    }
+
+    /// 是否为额度耗尽提示（档位限制，区别于系统错误 isError）
+    var isQuotaExhausted: Bool {
+        messageType == .quotaExhausted
     }
 
     // 旧路径兜底：从 extractedDataJSON 解析（新项通常为 nil）

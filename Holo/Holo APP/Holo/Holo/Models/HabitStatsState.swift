@@ -221,7 +221,7 @@ enum HabitStatsCardSummary: Equatable {
 }
 
 /// 统计页习惯展示项
-struct HabitStatsDisplayItem: Identifiable, Equatable {
+struct HabitStatsDisplayItem: Identifiable {
     let habitId: UUID
     let name: String
     let icon: String
@@ -232,6 +232,10 @@ struct HabitStatsDisplayItem: Identifiable, Equatable {
     let collapsedWeek: HabitStatsWeekSlice
     let allWeeks: [HabitStatsWeekSlice]
     let month: HabitStatsMonthSection
+    /// 数值型习惯（计数/测量）的按日聚合数据，用于展开态趋势图；打卡型为空。
+    let dailyData: [DailyHabitData]
+    /// 数值型习惯的单位文本（计数型兜底"次"）；打卡型为空串。
+    let unitText: String
     var id: UUID { habitId }
 }
 

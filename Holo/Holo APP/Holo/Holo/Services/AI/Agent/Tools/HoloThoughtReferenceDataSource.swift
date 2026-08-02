@@ -16,37 +16,33 @@ struct HoloDefaultThoughtReferenceDataSource: HoloThoughtReferenceDataSource {
 
     func snapshot() async -> HoloThoughtReferenceSnapshot {
         await CoreDataStack.shared.waitUntilReady()
-        do {
-            return try await Task.detached(priority: .utility) {
-                let context = CoreDataStack.shared.newBackgroundContext()
-                return await context.perform {
-                    let request = NSFetchRequest<ThoughtReference>(entityName: "ThoughtReference")
-                    request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
-                    request.fetchLimit = 500
-                    let refs = (try? context.fetch(request)) ?? []
-                    let links: [HoloThoughtLinkRecord] = refs.compactMap { ref in
-                        guard let source = ref.sourceThought,
-                              let target = ref.targetThought,
-                              source.isSoftDeleted == false,
-                              target.isSoftDeleted == false,
-                              source.isArchived == false,
-                              target.isArchived == false else {
-                            return nil
-                        }
-                        return HoloThoughtLinkRecord(
-                            sourceId: source.id,
-                            targetId: target.id,
-                            sourceFirstLine: source.firstLine,
-                            targetFirstLine: target.firstLine,
-                            displayText: ref.displayText,
-                            createdAt: ref.createdAt
-                        )
+        return await Task.detached(priority: .utility) {
+            let context = CoreDataStack.shared.newBackgroundContext()
+            return await context.perform {
+                let request = NSFetchRequest<ThoughtReference>(entityName: "ThoughtReference")
+                request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
+                request.fetchLimit = 500
+                let refs = (try? context.fetch(request)) ?? []
+                let links: [HoloThoughtLinkRecord] = refs.compactMap { ref in
+                    guard let source = ref.sourceThought,
+                          let target = ref.targetThought,
+                          source.isSoftDeleted == false,
+                          target.isSoftDeleted == false,
+                          source.isArchived == false,
+                          target.isArchived == false else {
+                        return nil
                     }
-                    return HoloThoughtReferenceSnapshot(links: links)
+                    return HoloThoughtLinkRecord(
+                        sourceId: source.id,
+                        targetId: target.id,
+                        sourceFirstLine: source.firstLine,
+                        targetFirstLine: target.firstLine,
+                        displayText: ref.displayText,
+                        createdAt: ref.createdAt
+                    )
                 }
-            }.value
-        } catch {
-            return HoloThoughtReferenceSnapshot(links: [])
-        }
+                return HoloThoughtReferenceSnapshot(links: links)
+            }
+        }.value
     }
 }

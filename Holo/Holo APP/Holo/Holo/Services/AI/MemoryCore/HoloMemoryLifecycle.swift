@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum HoloMemoryLifecycleEvent: Equatable, Sendable {
+nonisolated enum HoloMemoryLifecycleEvent: Equatable, Sendable {
     case supportingEvidence(HoloMemoryEvidenceRef)
     case counterEvidence(HoloMemoryEvidenceRef)
     case userConfirmed
@@ -16,12 +16,12 @@ enum HoloMemoryLifecycleEvent: Equatable, Sendable {
     case archived
 }
 
-struct HoloMemoryCorrectionResult: Equatable, Sendable {
+nonisolated struct HoloMemoryCorrectionResult: Equatable, Sendable {
     var previous: HoloMemoryRecord
     var corrected: HoloMemoryRecord
 }
 
-enum HoloMemoryLifecycle {
+nonisolated enum HoloMemoryLifecycle {
     static func apply(
         _ event: HoloMemoryLifecycleEvent,
         to record: HoloMemoryRecord,

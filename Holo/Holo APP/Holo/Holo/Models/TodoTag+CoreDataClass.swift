@@ -9,7 +9,7 @@ import Foundation
 import CoreData
 
 @objc(TodoTag)
-class TodoTag: NSManagedObject, @unchecked Sendable {
+class TodoTag: NSManagedObject {
     @nonobjc public class func fetchRequest() -> NSFetchRequest<TodoTag> {
         NSFetchRequest<TodoTag>(entityName: "TodoTag")
     }

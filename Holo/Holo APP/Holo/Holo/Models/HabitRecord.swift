@@ -89,7 +89,3 @@ public class HabitRecord: NSManagedObject {
 // MARK: - Identifiable
 
 extension HabitRecord: Identifiable {}
-
-// MARK: - Concurrency
-
-extension HabitRecord: @unchecked Sendable {}

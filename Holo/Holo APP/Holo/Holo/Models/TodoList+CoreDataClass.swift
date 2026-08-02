@@ -9,7 +9,7 @@ import Foundation
 import CoreData
 
 @objc(TodoList)
-class TodoList: NSManagedObject, @unchecked Sendable {
+class TodoList: NSManagedObject {
     @nonobjc public class func fetchRequest() -> NSFetchRequest<TodoList> {
         NSFetchRequest<TodoList>(entityName: "TodoList")
     }

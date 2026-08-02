@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum HoloMemoryUpsertResult: Equatable, Sendable {
+nonisolated enum HoloMemoryUpsertResult: Equatable, Sendable {
     case inserted
     case updated
     case duplicateObservation
@@ -15,19 +15,19 @@ enum HoloMemoryUpsertResult: Equatable, Sendable {
     case rejectedByTombstone
 }
 
-enum HoloMemoryRepositoryError: Error, Equatable {
+nonisolated enum HoloMemoryRepositoryError: Error, Equatable {
     case invalidRecord
     case encodingFailed
     case persistenceFailed
 }
 
-enum HoloMemoryRepositoryQuery: Equatable, Sendable {
+nonisolated enum HoloMemoryRepositoryQuery: Equatable, Sendable {
     case active
     case all
     case domain(HoloMemoryDomain)
 }
 
-struct HoloMemoryStorageCounts: Equatable, Sendable {
+nonisolated struct HoloMemoryStorageCounts: Equatable, Sendable {
     var mainRecords: Int
     var sensitiveRecords: Int
 }
@@ -52,7 +52,7 @@ nonisolated struct HoloMemoryControlState: Codable, Equatable, Sendable {
     }
 }
 
-struct HoloMemoryTombstone: Codable, Equatable, Identifiable, Sendable {
+nonisolated struct HoloMemoryTombstone: Codable, Equatable, Identifiable, Sendable {
     var id: String { identityKey }
     var identityKey: String
     var scope: HoloMemoryScope

@@ -10,7 +10,7 @@ import Foundation
 import CoreData
 
 @objc(Topic)
-class Topic: NSManagedObject, @unchecked Sendable {
+class Topic: NSManagedObject {
     @nonobjc public class func fetchRequest() -> NSFetchRequest<Topic> {
         NSFetchRequest<Topic>(entityName: "Topic")
     }

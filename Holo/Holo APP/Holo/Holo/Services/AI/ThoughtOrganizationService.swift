@@ -168,7 +168,8 @@ final class ThoughtOrganizationService {
     ///   - repository: 数据仓储（默认主上下文，测试可注入内存仓储）
     /// - Returns: 删除结果（失败返回 nil 并记日志）
     @discardableResult
-    func deleteTagEverywhere(name: String, repository: ThoughtRepository = ThoughtRepository()) -> TagDeletionResult? {
+    func deleteTagEverywhere(name: String, repository: ThoughtRepository? = nil) -> TagDeletionResult? {
+        let repository = repository ?? ThoughtRepository()
         do {
             let result = try repository.deleteTagGlobally(name: name)
             addRejectedTag(name: ThoughtTagNormalizer.displayName(name))
@@ -189,7 +190,8 @@ final class ThoughtOrganizationService {
     ///   - repository: 数据仓储（默认主上下文，测试可注入内存仓储）
     /// - Returns: 重命名结果（renamed / merged，供 UI 反馈文案区分）
     @discardableResult
-    func renameTagEverywhere(from oldName: String, to newName: String, repository: ThoughtRepository = ThoughtRepository()) throws -> TagRenameOutcome {
+    func renameTagEverywhere(from oldName: String, to newName: String, repository: ThoughtRepository? = nil) throws -> TagRenameOutcome {
+        let repository = repository ?? ThoughtRepository()
         // 子树重命名（含自身与全部子路径），返回根路径的 renamed/merged 语义
         let rootOutcome = try repository.renameTagPathPrefix(from: oldName, to: newName)
         let oldDisplay = ThoughtTagNormalizer.displayName(oldName)

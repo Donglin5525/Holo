@@ -93,7 +93,7 @@ nonisolated struct HoloAgentJob: Codable, Identifiable, Equatable, Sendable {
     var lastResumeReason: HoloAgentResumeReason? = nil
 }
 
-extension HoloAgentJob {
+nonisolated extension HoloAgentJob {
     /// 绝对截止上限（§5.2）：创建 job 时设 absoluteDeadline = createdAt + 该值。
     /// 取 30 分钟：远大于 active runtime 预算（normalDeep 120s），覆盖合理的锁屏/网络等待窗口。
     static let absoluteDeadlineInterval: TimeInterval = 1_800
@@ -166,7 +166,7 @@ nonisolated struct HoloAgentBudget: Codable, Equatable, Sendable {
     }
 }
 
-extension HoloAgentBudget {
+nonisolated extension HoloAgentBudget {
     /// 标准深度分析预算
     /// 调整说明（2026-07-25）：原 5 轮 / 10K input / 120s 在年趋势、跨域等重型查询下
     /// 频繁撞墙（体重年趋势单次工具结果可达 ~6K token，叠加每轮全量重发更易爆）。
