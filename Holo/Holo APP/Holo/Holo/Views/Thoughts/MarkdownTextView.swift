@@ -811,6 +811,19 @@ private extension MarkdownTextView {
             return NSAttributedString(string: markdown, attributes: baseAttributes)
         }
 
+        // 补齐 Markdown 块解析吞掉的末尾换行：
+        // 解析器 parseBlocks 会跳过空行（含末尾 "\n"、"\n\n"），导致有内容时末尾换行被丢弃。
+        // 编辑态下 updateUIView 重渲染会用丢掉换行的富文本覆盖编辑器内容，造成
+        // 「第一次换行没反应（光标回退到文末）、第二次跳两行」的状态错乱。
+        // 这里按原文末尾换行数忠实补回，保证渲染输出 = 输入。
+        let trailingNewlines = markdown.trailingNewlineCount()
+        if trailingNewlines > 0 {
+            result.append(NSAttributedString(
+                string: String(repeating: "\n", count: trailingNewlines),
+                attributes: baseAttributes
+            ))
+        }
+
         return result
     }
 
@@ -1150,6 +1163,17 @@ private extension NSAttributedString.Key {
     static let holoColorHex = NSAttributedString.Key("holoMarkdownColorHex")
 }
 
+private extension String {
+    /// 统计末尾连续换行符数量（用于补齐 Markdown 块解析吞掉的尾部换行）
+    func trailingNewlineCount() -> Int {
+        var count = 0
+        for char in reversed() {
+            if char == "\n" { count += 1 } else { break }
+        }
+        return count
+    }
+}
+
 // MARK: - SelfSizingTextView
 
 /// 自动计算内容高度的 UITextView
@@ -1169,12 +1193,14 @@ private final class SelfSizingTextView: UITextView {
         let fittedSize = sizeThatFits(targetSize)
         if fittedSize.height > 0 {
             (delegate as? MarkdownTextView.Coordinator)?.onHeightChange?(fittedSize.height)
-            // 内容不超出 frame 时禁用自身滚动，让外层 SwiftUI ScrollView 接管滚动手势
-            let needsSelfScroll = fittedSize.height > frame.height + 1
-            if isScrollEnabled != needsSelfScroll {
-                isScrollEnabled = needsSelfScroll
-            }
         }
+        // 注意：不再在此动态切换 isScrollEnabled。
+        // 原实现按「内容是否超出 frame」在 true/false 间翻转 isScrollEnabled，会让 UITextView
+        // 反复重建 text container，导致输入时光标视觉位置刷新被卡住（换行符已插入但屏幕不显示，
+        // 表现为「第一次回车没反应、第二次跳两行」）。
+        // 现在始终保持 isScrollEnabled = true（makeUIView 初始设定），高度由 dynamicHeight
+        // binding 驱动外层 .frame(height:) 把 frame 撑到与内容等高，UITextView 自身无可滚动空间，
+        // 滚动手势自然交给外层 SwiftUI ScrollView，无需翻转开关。
     }
 
     /// 选区恰好是完整 Token 时禁用系统编辑菜单（复制/剪切气泡），避免与自定义 Token 菜单叠加

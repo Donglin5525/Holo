@@ -59,6 +59,12 @@ struct ThoughtKnowledgeDrawerView: View {
     /// AI 标签池过长时默认折叠，避免抽屉需要滑很久。
     @State private var isAIPoolExpanded: Bool = false
 
+    /// 「未归类」分组的展开状态（默认展开，方便看到待归类的标签）
+    @State private var isUnclassifiedExpanded: Bool = true
+
+    /// 各主题分组的展开状态（默认收起，点标题行展开看子标签）
+    @State private var expandedTopics: Set<UUID> = []
+
     /// 标签管理操作对象（长按菜单触发）
     @State private var tagActionTarget: ThoughtRepository.AITagBucket?
     /// 重命名 alert 开关
@@ -160,14 +166,11 @@ struct ThoughtKnowledgeDrawerView: View {
                 header
                 aiClassificationToggle
                 nodeRow(.allNotes, icon: "tray.full", title: "全部笔记")
-                nodeRow(
-                    .unclassified,
-                    icon: "square.dashed",
-                    title: "未归类",
-                    badge: hasReadyInsight ? "有建议" : nil
-                )
-                ForEach(unclassifiedBuckets) { bucket in
-                    aiTagRow(bucket, baseIndent: 1)
+                unclassifiedHeader
+                if isUnclassifiedExpanded {
+                    ForEach(unclassifiedBuckets) { bucket in
+                        aiTagRow(bucket, baseIndent: 1)
+                    }
                 }
 
                 sectionLabel("分类主题")
@@ -311,6 +314,68 @@ struct ThoughtKnowledgeDrawerView: View {
         .buttonStyle(.plain)
     }
 
+    // MARK: - 「未归类」标题行（可筛选 + 可折叠分离）
+
+    /// 「未归类」标题行：主体点击=筛选未归类想法，右侧 chevron=折叠/展开（仅在有子标签时显示）
+    private var unclassifiedHeader: some View {
+        let isSelected = selection == .unclassified
+        let hasChildren = !unclassifiedBuckets.isEmpty
+        let badge = hasReadyInsight ? "有建议" : nil
+        return HStack(spacing: 0) {
+            // 主体：点击筛选未归类想法
+            Button {
+                onSelect(.unclassified)
+            } label: {
+                HStack(spacing: HoloSpacing.sm) {
+                    Image(systemName: "square.dashed")
+                        .font(.system(size: 15, weight: .medium))
+                        .foregroundColor(isSelected ? .holoPrimary : .holoTextSecondary)
+                        .frame(width: 26)
+
+                    Text("未归类")
+                        .font(.holoBody)
+                        .foregroundColor(isSelected ? .holoPrimary : .holoTextPrimary)
+
+                    Spacer(minLength: HoloSpacing.sm)
+
+                    if let badge {
+                        Text(badge)
+                            .font(.holoTinyLabel)
+                            .foregroundColor(.holoPrimary)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.holoPrimary.opacity(0.1))
+                            .clipShape(Capsule())
+                    }
+                }
+                .padding(.leading, HoloSpacing.md)
+                .padding(.trailing, hasChildren ? 0 : HoloSpacing.md)
+                .padding(.vertical, HoloSpacing.sm)
+                .background(isSelected ? Color.holoPrimary.opacity(0.08) : Color.clear)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            // 折叠/展开按钮：独立于筛选，仅在有子标签时显示
+            if hasChildren {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        isUnclassifiedExpanded.toggle()
+                    }
+                } label: {
+                    Image(systemName: isUnclassifiedExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.holoTextSecondary)
+                        .opacity(0.6)
+                        .frame(width: 36, height: 44)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .padding(.trailing, HoloSpacing.xs)
+            }
+        }
+    }
+
     // MARK: - 分组标题
 
     private func sectionLabel(_ title: String) -> some View {
@@ -364,54 +429,85 @@ struct ThoughtKnowledgeDrawerView: View {
         let childBuckets = aiTagBuckets.filter {
             ThoughtTagNormalizer.isPath($0.tagName, under: topic.title)
         }
+        let hasChildren = !childBuckets.isEmpty
+        let isExpanded = expandedTopics.contains(topic.id)
         return VStack(alignment: .leading, spacing: 0) {
-            Button {
-                onSelect(.topic(topic.id))
-            } label: {
-                HStack(spacing: HoloSpacing.sm) {
-                    Image(systemName: "folder.fill")
-                        .font(.system(size: 13))
-                        .foregroundColor(isSelected ? .holoPrimary : .holoTextSecondary)
-                        .frame(width: 26)
-
-                    Text(topic.title)
-                        .font(.holoBody)
-                        .foregroundColor(isSelected ? .holoPrimary : .holoTextPrimary)
-                        .lineLimit(1)
-
-                    Spacer()
-
-                    Text("\(count)")
-                        .font(.holoLabel)
-                        .foregroundColor(.holoTextSecondary)
-                        .padding(.horizontal, HoloSpacing.sm)
-                        .padding(.vertical, 2)
-                        .background(Color.holoBackground)
-                        .clipShape(Capsule())
-                }
-                .padding(.horizontal, HoloSpacing.md)
-                .padding(.vertical, HoloSpacing.sm)
-                .background(isSelected ? Color.holoPrimary.opacity(0.08) : Color.clear)
-            }
-            .buttonStyle(.plain)
-            .contextMenu {
+            HStack(spacing: 0) {
+                // 主体：点击筛选该主题下的想法
                 Button {
-                    topicActionTarget = topic
-                    topicRenameInput = topic.title
-                    showTopicRenameAlert = true
+                    onSelect(.topic(topic.id))
                 } label: {
-                    Label("重命名", systemImage: "pencil")
+                    HStack(spacing: HoloSpacing.sm) {
+                        Image(systemName: "folder.fill")
+                            .font(.system(size: 13))
+                            .foregroundColor(isSelected ? .holoPrimary : .holoTextSecondary)
+                            .frame(width: 26)
+
+                        Text(topic.title)
+                            .font(.holoBody)
+                            .foregroundColor(isSelected ? .holoPrimary : .holoTextPrimary)
+                            .lineLimit(1)
+
+                        Spacer(minLength: HoloSpacing.sm)
+
+                        Text("\(count)")
+                            .font(.holoLabel)
+                            .foregroundColor(.holoTextSecondary)
+                            .padding(.horizontal, HoloSpacing.sm)
+                            .padding(.vertical, 2)
+                            .background(Color.holoBackground)
+                            .clipShape(Capsule())
+                    }
+                    .padding(.leading, HoloSpacing.md)
+                    .padding(.trailing, hasChildren ? 0 : HoloSpacing.md)
+                    .padding(.vertical, HoloSpacing.sm)
+                    .background(isSelected ? Color.holoPrimary.opacity(0.08) : Color.clear)
+                    .contentShape(Rectangle())
                 }
-                Button(role: .destructive) {
-                    topicActionTarget = topic
-                    showTopicDeleteConfirm = true
-                } label: {
-                    Label("删除主题", systemImage: "trash")
+                .buttonStyle(.plain)
+                .contextMenu {
+                    Button {
+                        topicActionTarget = topic
+                        topicRenameInput = topic.title
+                        showTopicRenameAlert = true
+                    } label: {
+                        Label("重命名", systemImage: "pencil")
+                    }
+                    Button(role: .destructive) {
+                        topicActionTarget = topic
+                        showTopicDeleteConfirm = true
+                    } label: {
+                        Label("删除主题", systemImage: "trash")
+                    }
+                }
+
+                // 折叠/展开按钮：独立于筛选，仅在有子标签时显示
+                if hasChildren {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.18)) {
+                            if isExpanded {
+                                expandedTopics.remove(topic.id)
+                            } else {
+                                expandedTopics.insert(topic.id)
+                            }
+                        }
+                    } label: {
+                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.holoTextSecondary)
+                            .opacity(0.6)
+                            .frame(width: 36, height: 44)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .padding(.trailing, HoloSpacing.xs)
                 }
             }
 
-            ForEach(childBuckets) { bucket in
-                aiTagRow(bucket, baseIndent: 1)
+            if isExpanded {
+                ForEach(childBuckets) { bucket in
+                    aiTagRow(bucket, baseIndent: 1)
+                }
             }
         }
     }
