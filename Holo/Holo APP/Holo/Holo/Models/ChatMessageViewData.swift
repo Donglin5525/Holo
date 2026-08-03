@@ -12,7 +12,7 @@ import CoreData
 // MARK: - EntityCategory
 
 /// 实体类别，用于统一解析 linkedEntityId
-nonisolated enum EntityCategory: Hashable, Sendable {
+nonisolated enum EntityCategory: Hashable, Sendable, CaseIterable {
     case finance, task, habit, thought, memoryInsight, goal
 }
 
@@ -54,6 +54,8 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
     var insightResult: MemoryInsightPayload?
     private var cachedExtractedDataDictionary: [String: String]?
     private var cachedLinkedEntityIds: [EntityCategory: UUID]
+    /// 关联实体的删除态缓存（预计算，避免渲染时逐条查 Core Data）
+    private var cachedDeletionState: [EntityCategory: Bool] = [:]
     var metadataState: ChatMessageMetadataState
 
     init(
@@ -292,11 +294,16 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
 
     /// 重新计算缓存的关联实体 ID（updateSnapshot 后调用）
     mutating func recomputeLinkedEntityIds() {
+        let oldIds = cachedLinkedEntityIds
         cachedExtractedDataDictionary = Self.decodeExtractedData(extractedDataJSON)
         cachedLinkedEntityIds = Self.buildLinkedEntityIds(
             extractedDataDictionary: cachedExtractedDataDictionary,
             executionBatch: executionBatch
         )
+        // 关联实体变更时，丢弃旧的删除态缓存，待下次预填刷新
+        for category in EntityCategory.allCases where cachedLinkedEntityIds[category] != oldIds[category] {
+            cachedDeletionState.removeValue(forKey: category)
+        }
     }
 
     // MARK: - Unified Entity Resolution
@@ -313,36 +320,16 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
 
     // MARK: - Entity Deletion State
 
-    /// 检查关联实体是否已被删除
+    /// 检查关联实体是否已被删除（读预计算缓存，不再渲染期查 Core Data）
     /// - Transaction: 硬删除（不存在即为已删除）
     /// - TodoTask: 软删除（deletedFlag == true 即为已删除）
     nonisolated func isEntityDeleted(for category: EntityCategory) -> Bool {
-        guard let entityId = resolveLinkedEntityId(for: category) else { return false }
-        return !Self.entityExists(entityId, category: category)
+        cachedDeletionState[category] ?? false
     }
 
-    /// 检查指定实体是否存在（且未被软删除）
-    nonisolated private static func entityExists(_ id: UUID, category: EntityCategory) -> Bool {
-        let context = CoreDataStack.shared.viewContext
-        switch category {
-        case .finance:
-            let request = NSFetchRequest<Transaction>(entityName: "Transaction")
-            request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
-            request.fetchLimit = 1
-            return (try? context.count(for: request)) ?? 0 > 0
-        case .task:
-            let request = NSFetchRequest<TodoTask>(entityName: "TodoTask")
-            request.predicate = NSPredicate(format: "id == %@ AND deletedFlag == NO", id as CVarArg)
-            request.fetchLimit = 1
-            return (try? context.count(for: request)) ?? 0 > 0
-        case .goal:
-            let request = Goal.fetchRequest()
-            request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
-            request.fetchLimit = 1
-            return (try? context.count(for: request)) ?? 0 > 0
-        default:
-            return true
-        }
+    /// 用预计算结果刷新删除态缓存（供 Repository 批量预填 / Core Data 变更时失效）
+    mutating func setDeletionState(_ isDeleted: Bool, for category: EntityCategory) {
+        cachedDeletionState[category] = isDeleted
     }
 
     // MARK: - DTO

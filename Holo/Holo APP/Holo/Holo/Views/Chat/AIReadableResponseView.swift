@@ -15,10 +15,10 @@ struct AIReadableResponseView: View {
 
     @State private var isShowingDetails = false
     @State private var cursorVisible = false
-
-    private var document: AIReadableResponseDocument {
-        AIReadableResponseParser.parse(text)
-    }
+    /// 解析后的文档结构（异步解析一次，缓存复用，避免每次 body 都全文重算）
+    @State private var document: AIReadableResponseDocument?
+    /// 每个 block 文本对应的富文本结果缓存（避免每次 body 重复同步解析 Markdown）
+    @State private var inlineCache: [String: AttributedString] = [:]
 
     var body: some View {
         Group {
@@ -33,6 +33,42 @@ struct AIReadableResponseView: View {
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        // 非流式时异步解析文档 + 预填富文本缓存；流式分支不依赖 document。
+        .task(id: text) {
+            guard !isStreaming, !isError, !text.isEmpty else {
+                document = nil
+                inlineCache.removeAll(keepingCapacity: true)
+                return
+            }
+            let source = text
+            let (parsedDoc, parsedInline) = await Self.parseDocumentAndInline(source)
+            guard source == text else { return }
+            document = parsedDoc
+            inlineCache = parsedInline
+        }
+    }
+
+    /// 后台解析文档结构 + 预解析所有 block 的行内富文本，一次性返回缓存结果。
+    private static func parseDocumentAndInline(
+        _ text: String
+    ) async -> (AIReadableResponseDocument, [String: AttributedString]) {
+        await Task.detached(priority: .utility) {
+            let doc = AIReadableResponseParser.parse(text)
+            var inline: [String: AttributedString] = [:]
+            func cache(_ s: String) {
+                guard !s.isEmpty, inline[s] == nil else { return }
+                inline[s] = MarkdownAttributedStringRenderer.parseInlineSync(s) ?? AttributedString(s)
+            }
+            for block in doc.blocks + doc.detailBlocks {
+                switch block {
+                case .lead(let s), .paragraph(let s), .heading(let s):
+                    cache(s)
+                case .unorderedList(let items), .orderedList(let items):
+                    items.forEach(cache)
+                }
+            }
+            return (doc, inline)
+        }.value
     }
 
     private var typingIndicator: some View {
@@ -69,13 +105,24 @@ struct AIReadableResponseView: View {
         .onDisappear { cursorVisible = false }
     }
 
+    @ViewBuilder
     private var readableContent: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            blockList(document.blocks)
+        // document 解析完成前先纯文本秒开，解析完成后自动升级为结构化富文本。
+        if let document {
+            VStack(alignment: .leading, spacing: 14) {
+                blockList(document.blocks)
 
-            if document.hasDetails {
-                detailDisclosure
+                if document.hasDetails {
+                    detailDisclosure(detailBlocks: document.detailBlocks)
+                }
             }
+        } else {
+            Text(text)
+                .font(.body)
+                .foregroundColor(.holoTextPrimary)
+                .lineSpacing(5)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
         }
     }
 
@@ -108,7 +155,7 @@ struct AIReadableResponseView: View {
         }
     }
 
-    private var detailDisclosure: some View {
+    private func detailDisclosure(detailBlocks: [AIReadableResponseBlock]) -> some View {
         VStack(alignment: .leading, spacing: 14) {
             Button {
                 withAnimation(.easeInOut(duration: 0.2)) {
@@ -129,7 +176,7 @@ struct AIReadableResponseView: View {
             .accessibilityValue(isShowingDetails ? "已展开" : "已收起")
 
             if isShowingDetails {
-                blockList(document.detailBlocks)
+                blockList(detailBlocks)
                     .transition(.opacity.combined(with: .move(edge: .top)))
             }
         }
@@ -209,7 +256,13 @@ struct AIReadableResponseView: View {
     }
 
     private func inlineAttributedString(_ text: String) -> AttributedString {
-        MarkdownAttributedStringRenderer.parseInlineSync(text) ?? AttributedString(text)
+        // 优先读预填缓存（非流式）；缓存未命中（错误态等少量路径）才同步解析。
+        if let cached = inlineCache[text] {
+            return cached
+        }
+        let parsed = MarkdownAttributedStringRenderer.parseInlineSync(text) ?? AttributedString(text)
+        inlineCache[text] = parsed
+        return parsed
     }
 }
 

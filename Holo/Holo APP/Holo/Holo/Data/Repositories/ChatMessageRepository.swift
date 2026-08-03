@@ -95,6 +95,7 @@ final class ChatMessageRepository: ObservableObject {
 
         liveMessageCache.removeAll()
         messages = snapshots
+        prefillDeletionStates()
     }
 
     /// 轻量加载消息：只读取渲染文本气泡所需的字段，不读取重 JSON 元数据
@@ -140,51 +141,17 @@ final class ChatMessageRepository: ObservableObject {
 
         liveMessageCache.removeAll()
         messages = snapshots
+        prefillDeletionStates()
     }
 
     /// 加载当前会话的轻量消息：从最新消息向前扫描，遇到 4 小时间隔则截断
     func loadCurrentSessionLightweightMessagesAsync(limit: Int = 50) async {
         await CoreDataStack.shared.waitUntilReady()
 
-        let snapshots: [ChatMessageViewData]
-
         do {
-            // 两步查询：先查 id+timestamp 确定会话边界，再查轻量字段
-            let sessionIds: [UUID] = try await Task.detached(priority: .utility) {
-                let context = CoreDataStack.shared.newBackgroundContext()
-                return try await context.perform {
-                    let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
-                    request.resultType = .dictionaryResultType
-                    request.propertiesToFetch = ["id", "timestamp"]
-                    request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
-                    request.fetchLimit = limit
-
-                    let rows = try context.fetch(request)
-                    var ids: [UUID] = []
-                    var prevTimestamp: Date?
-
-                    for row in rows {
-                        guard let id = row["id"] as? UUID,
-                              let ts = row["timestamp"] as? Date else { continue }
-
-                        if let prev = prevTimestamp, prev.timeIntervalSince(ts) > self.sessionGap {
-                            break
-                        }
-                        ids.append(id)
-                        prevTimestamp = ts
-                    }
-                    return ids
-                }
-            }.value
-
-            guard !sessionIds.isEmpty else {
-                liveMessageCache.removeAll()
-                messages = []
-                hasEarlierSessions = false
-                return
-            }
-
-            snapshots = try await Task.detached(priority: .utility) {
+            // 单次查询：按时间倒序取 limit+1 条轻量字段，多取 1 条用于判断是否还有更早消息。
+            // 会话边界（4h gap）截断在内存里完成，避免原先的 3 次串行往返。
+            let (sessionSnapshots, hasEarlier) = try await Task.detached(priority: .utility) {
                 let context = CoreDataStack.shared.newBackgroundContext()
                 return try await context.perform {
                     let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
@@ -195,33 +162,46 @@ final class ChatMessageRepository: ObservableObject {
                         "messageType", "analysisContextJSON", "agentResultJSON",
                         "insightResultJSON", "executionBatchJSON", "rawLogJSON"
                     ]
-                    request.predicate = NSPredicate(format: "id IN %@", sessionIds)
-                    request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: true)]
+                    request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
+                    request.fetchLimit = limit + 1
 
-                    return try context.fetch(request)
-                        .compactMap { ChatMessageViewData(lightweightDictionary: $0 as? [String: Any] ?? [:]) }
-                }
-            }.value
+                    let rows = try context.fetch(request)
+                    var sessionRows: [[String: Any]] = []
+                    var prevTimestamp: Date?
+                    var hitGap = false
 
-            // 检查是否还有更早的消息
-            let earliestTimestamp = snapshots.first?.timestamp
-            let hasEarlier = try await Task.detached(priority: .utility) {
-                let context = CoreDataStack.shared.newBackgroundContext()
-                return try await context.perform {
-                    let countRequest = NSFetchRequest<NSNumber>(entityName: "ChatMessage")
-                    countRequest.resultType = .countResultType
-                    if let earliest = earliestTimestamp {
-                        countRequest.predicate = NSPredicate(format: "timestamp < %@", earliest as NSDate)
+                    for row in rows {
+                        guard let dict = row as? [String: Any],
+                              let ts = dict["timestamp"] as? Date else { continue }
+                        if let prev = prevTimestamp, prev.timeIntervalSince(ts) > self.sessionGap {
+                            hitGap = true
+                            break
+                        }
+                        sessionRows.append(dict)
+                        prevTimestamp = ts
                     }
-                    let result = try context.fetch(countRequest)
-                    return (result.first?.intValue ?? 0) > 0
+                    // 取满 limit+1 条且未被 gap 截断，说明还有更早消息；否则 hasEarlier 以是否触及 gap 为准
+                    let hasEarlier = hitGap || rows.count > sessionRows.count
+
+                    let snapshots = sessionRows
+                        .compactMap { ChatMessageViewData(lightweightDictionary: $0) }
+                        .sorted { $0.timestamp < $1.timestamp } // 恢复正序（旧→新）
+                    return (snapshots, hasEarlier)
                 }
             }.value
+
+            guard !sessionSnapshots.isEmpty else {
+                liveMessageCache.removeAll()
+                messages = []
+                hasEarlierSessions = false
+                return
+            }
 
             liveMessageCache.removeAll()
-            messages = snapshots
-            oldestLoadedTimestamp = snapshots.first?.timestamp
+            messages = sessionSnapshots
+            oldestLoadedTimestamp = sessionSnapshots.first?.timestamp
             hasEarlierSessions = hasEarlier
+            prefillDeletionStates()
         } catch {
             logger.error("加载当前会话消息失败：\(error.localizedDescription)")
         }
@@ -295,6 +275,7 @@ final class ChatMessageRepository: ObservableObject {
 
             messages = uniqueNew + messages
             oldestLoadedTimestamp = uniqueNew.first?.timestamp
+            prefillDeletionStates(for: uniqueNew.map(\.id))
 
             // 检查是否还有更早的消息
             let newEarliest = uniqueNew.first?.timestamp
@@ -1023,6 +1004,78 @@ final class ChatMessageRepository: ObservableObject {
             }
         }
         logger.info("孤儿 streaming 清理（后台）：清理 \(cleanedIDs.count) 条")
+    }
+
+    // MARK: - Deletion State Prefill
+
+    /// 批量预填消息卡片的删除态缓存。
+    /// 收集当前消息里关联的 finance / task 实体 ID，用 2 次查询（不存在的 Transaction、软删除的 TodoTask）
+    /// 一次性算好哪些卡片对应的实体已被删除，回填到各 snapshot，避免渲染期逐条查 Core Data。
+    func prefillDeletionStates(for snapshots: [UUID]? = nil) {
+        let idFilter = snapshots.map(Set.init)
+        var financeIDs: Set<UUID> = []
+        var taskIDs: Set<UUID> = []
+        for message in messages {
+            if let filter = idFilter, !filter.contains(message.id) { continue }
+            if let id = message.resolveLinkedEntityId(for: .finance) { financeIDs.insert(id) }
+            if let id = message.resolveLinkedEntityId(for: .task) { taskIDs.insert(id) }
+        }
+        guard !financeIDs.isEmpty || !taskIDs.isEmpty else { return }
+
+        let existingFinanceIDs = Self.fetchExistingTransactionIDs(financeIDs)
+        let existingTaskIDs = Self.fetchExistingNonDeletedTaskIDs(taskIDs)
+
+        for index in messages.indices {
+            if let filter = idFilter, !filter.contains(messages[index].id) { continue }
+            if let financeId = messages[index].resolveLinkedEntityId(for: .finance), financeIDs.contains(financeId) {
+                messages[index].setDeletionState(!existingFinanceIDs.contains(financeId), for: .finance)
+            }
+            if let taskId = messages[index].resolveLinkedEntityId(for: .task), taskIDs.contains(taskId) {
+                messages[index].setDeletionState(!existingTaskIDs.contains(taskId), for: .task)
+            }
+        }
+    }
+
+    /// 刷新单条消息的删除态缓存（Core Data 变更命中关联实体后调用）。
+    func refreshDeletionState(for messageId: UUID, affectedCategories: [EntityCategory]) {
+        guard let index = messages.firstIndex(where: { $0.id == messageId }) else { return }
+        for category in affectedCategories {
+            guard let entityId = messages[index].resolveLinkedEntityId(for: category) else { continue }
+            let exists: Bool
+            switch category {
+            case .finance:
+                exists = Self.fetchExistingTransactionIDs([entityId]).contains(entityId)
+            case .task:
+                exists = Self.fetchExistingNonDeletedTaskIDs([entityId]).contains(entityId)
+            default:
+                exists = true
+            }
+            messages[index].setDeletionState(!exists, for: category)
+        }
+    }
+
+    /// 返回给定 Transaction ID 集合中「确实存在」的子集（硬删除判定：不存在即已删除）
+    nonisolated private static func fetchExistingTransactionIDs(_ ids: Set<UUID>) -> Set<UUID> {
+        guard !ids.isEmpty else { return [] }
+        let context = CoreDataStack.shared.viewContext
+        let request = NSFetchRequest<NSDictionary>(entityName: "Transaction")
+        request.resultType = .dictionaryResultType
+        request.propertiesToFetch = ["id"]
+        request.predicate = NSPredicate(format: "id IN %@", ids)
+        let rows = (try? context.fetch(request)) ?? []
+        return Set(rows.compactMap { $0["id"] as? UUID })
+    }
+
+    /// 返回给定 TodoTask ID 集合中「存在且未软删除」的子集
+    nonisolated private static func fetchExistingNonDeletedTaskIDs(_ ids: Set<UUID>) -> Set<UUID> {
+        guard !ids.isEmpty else { return [] }
+        let context = CoreDataStack.shared.viewContext
+        let request = NSFetchRequest<NSDictionary>(entityName: "TodoTask")
+        request.resultType = .dictionaryResultType
+        request.propertiesToFetch = ["id"]
+        request.predicate = NSPredicate(format: "id IN %@ AND deletedFlag == NO", ids)
+        let rows = (try? context.fetch(request)) ?? []
+        return Set(rows.compactMap { $0["id"] as? UUID })
     }
 
     // MARK: - Private
