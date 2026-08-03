@@ -73,11 +73,22 @@ nonisolated struct HoloRenderedRecommendation: Codable, Equatable, Sendable, Ide
     var scopeLabel: String?
 }
 
+/// Agent 分析失败的原因。nil 表示成功完成（含"数据不足、没有可信结论"这种正常空结果）。
+/// 非 nil 时上层应据此走对应卡片，而非渲染普通分析结果。
+nonisolated enum HoloRenderedAgentFailure: Codable, Sendable, Equatable {
+    /// 额度耗尽（档位限制，非系统错误）——走额度卡片 + 升级入口
+    case quotaExhausted(userMessage: String)
+    /// 分析出错（网络/超时/内部异常）——提示重试
+    case analysisFailed
+}
+
 nonisolated struct HoloRenderedAgentResult: Codable, Equatable, Sendable {
     var title: String
     var summary: String
     var sections: [HoloRenderedAgentSection]
     var evidenceReferences: [HoloRenderedEvidenceReference]
+    /// 本次分析失败的原因；nil 表示成功。旧消息 JSON 解码为 nil，向后兼容。
+    var failure: HoloRenderedAgentFailure? = nil
     var question: String? = nil
     var headline: String? = nil
     var directAnswer: String? = nil
@@ -92,11 +103,21 @@ nonisolated struct HoloRenderedAgentResult: Codable, Equatable, Sendable {
     var narrativeSummary: String? = nil
     /// 本轮实际读取进 Agent 的个人档案与分层记忆来源；旧消息缺失时不展示。
     var contextSources: [HoloAgentContextSourceSummary]? = nil
+    /// 本次分析查看的数据样本摘要（最多10条），用于向用户透明展示读取了哪些数据。
+    /// 仅在 dynamic_query 附带样本时填充；旧消息 JSON 解码为 nil。
+    var dataSamplePreview: HoloRenderedDataSamplePreview? = nil
 
     var contextSourceText: String? {
         let labels = (contextSources ?? []).compactMap(\.displayLabel)
         return labels.isEmpty ? nil : labels.joined(separator: " · ")
     }
+}
+
+/// 向用户展示的数据样本摘要：简述查看了哪些数据，附最多10条脱敏样例。
+nonisolated struct HoloRenderedDataSamplePreview: Codable, Equatable, Sendable {
+    var domainLabel: String       // 如"账单"、"习惯"
+    var count: Int                // 样本条数
+    var excerpts: [String]        // 每条样本的简短描述（脱敏后）
 }
 
 private nonisolated extension HoloAgentContextSourceSummary {
@@ -161,7 +182,8 @@ nonisolated struct HoloAgentResultRenderer {
         answerContext: HoloAgentAnswerContext? = nil,
         requestedDeliverables: Set<HoloAgentRequestedDeliverable> = [],
         narrativeSummary: String? = nil,
-        contextSources: [HoloAgentContextSourceSummary] = []
+        contextSources: [HoloAgentContextSourceSummary] = [],
+        dataSamplePreview: HoloRenderedDataSamplePreview? = nil
     ) -> HoloRenderedAgentResult {
         let evidenceByID = Dictionary(evidence.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         let assertions = claims.flatMap(\.metricAssertions)
@@ -227,7 +249,8 @@ nonisolated struct HoloAgentResultRenderer {
             scope: scope,
             recommendations: nil,
             narrativeSummary: narrativeSummary,
-            contextSources: contextSources.isEmpty ? nil : contextSources
+            contextSources: contextSources.isEmpty ? nil : contextSources,
+            dataSamplePreview: dataSamplePreview
         )
 
         // MARK: P4 可观测：语义缺失/旧目录兜底
