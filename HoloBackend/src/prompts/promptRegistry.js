@@ -19,7 +19,7 @@ const PROMPT_VERSIONS = {
   thought_organization: 3,
   thought_task_extraction: 1,
   thought_tag_convergence: 2,
-  agent_loop: 19,                  // v19: _search 跨字段搜索 + 样本从过滤后数据取
+  agent_loop: 20,                  // v20: dataGapHints 遗漏数据提示 + _search 跨字段搜索
   memory_domain_extraction: 2,
   memory_cross_domain_fusion: 2,
 };
