@@ -6,11 +6,7 @@ export function createOpenAICompatibleProvider(config) {
 
     async complete(request) {
       const response = await callUpstream(config, {
-        model: request.model,
-        messages: request.messages,
-        temperature: request.temperature,
-        max_tokens: request.maxTokens,
-        response_format: request.responseFormat,
+        ...buildUpstreamBody(request),
         stream: false,
       }, request.clientSignal);
 
@@ -19,11 +15,7 @@ export function createOpenAICompatibleProvider(config) {
 
     async *stream(request) {
       const response = await callUpstream(config, {
-        model: request.model,
-        messages: request.messages,
-        temperature: request.temperature,
-        max_tokens: request.maxTokens,
-        response_format: request.responseFormat,
+        ...buildUpstreamBody(request),
         stream: true,
       }, request.clientSignal);
 
@@ -47,11 +39,7 @@ export function createOpenAICompatibleProvider(config) {
     /// 调用方（app.js）对返回值无感——结构和 complete() 一致。
     async completeViaStream(request) {
       const response = await callUpstream(config, {
-        model: request.model,
-        messages: request.messages,
-        temperature: request.temperature,
-        max_tokens: request.maxTokens,
-        response_format: request.responseFormat,
+        ...buildUpstreamBody(request),
         // stream_options 让上游在最后一个 chunk 返回 usage，与非流式行为一致
         stream: true,
         stream_options: { include_usage: true },
@@ -240,6 +228,22 @@ function extractSSEData(frame) {
     .map((line) => line.slice("data:".length).replace(/^ /, ""));
   if (dataLines.length === 0) return null;
   return dataLines.join("\n").trim();
+}
+
+/// 构建上游请求体的公共字段；reasoning_effort 仅在配置了时传递（DeepSeek 推理开关）。
+/// agent_loop 设为 "none" 可关闭推理模式，响应从 60-120 秒降到 2-5 秒。
+function buildUpstreamBody(request) {
+  const body = {
+    model: request.model,
+    messages: request.messages,
+    temperature: request.temperature,
+    max_tokens: request.maxTokens,
+    response_format: request.responseFormat,
+  };
+  if (request.reasoningEffort) {
+    body.reasoning_effort = request.reasoningEffort;
+  }
+  return body;
 }
 
 async function callUpstream(config, body, clientSignal) {
