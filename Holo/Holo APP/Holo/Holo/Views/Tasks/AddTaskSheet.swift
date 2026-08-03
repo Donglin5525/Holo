@@ -443,7 +443,11 @@ struct AddTaskSheet: View {
                     .font(.holoBody)
                     .foregroundColor(.holoTextPrimary)
                     .frame(height: descriptionEditorHeight)
-                    .scrollDisabled(descriptionEditorHeight < TaskDescriptionEditorLayout.maxHeight)
+                    // 始终允许内部滚动，不再按高度动态切换 scrollDisabled。
+                    // 原实现在 132 高度边界反复翻转 scrollDisabled（底层 UITextView.isScrollEnabled），
+                    // 会触发排版引擎反复重建，输入时光标视觉卡顿（与想法编辑器换行 bug 同源）。
+                    // 内容少时 descriptionEditorHeight 跟随内容变矮，框内无可滚动空间，
+                    // 触摸自然交给外层 ScrollView，无需翻转开关。
                     .scrollContentBackground(.hidden)
 
                 if description.isEmpty {
