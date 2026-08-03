@@ -24,7 +24,6 @@ extension CoreDataStack {
         id.attributeType = .UUIDAttributeType
         id.isOptional = false
         id.defaultValue = UUID()
-        id.isIndexed = true
         attributes.append(id)
 
         let periodType = NSAttributeDescription()
@@ -32,7 +31,6 @@ extension CoreDataStack {
         periodType.attributeType = .stringAttributeType
         periodType.isOptional = false
         periodType.defaultValue = "weekly"
-        periodType.isIndexed = true
         attributes.append(periodType)
 
         let periodStart = NSAttributeDescription()
@@ -40,7 +38,6 @@ extension CoreDataStack {
         periodStart.attributeType = .dateAttributeType
         periodStart.isOptional = false
         periodStart.defaultValue = Date()
-        periodStart.isIndexed = true
         attributes.append(periodStart)
 
         let periodEnd = NSAttributeDescription()
@@ -95,7 +92,6 @@ extension CoreDataStack {
         status.name = "status"
         status.attributeType = .stringAttributeType
         status.isOptional = false
-        status.isIndexed = true
         status.defaultValue = "generating"
         attributes.append(status)
 
@@ -175,6 +171,7 @@ extension CoreDataStack {
         attributes.append(observationStage)
 
         entity.properties = attributes
+        CoreDataStack.applyIndexes(to: entity, on: ["id": id, "periodType": periodType, "periodStart": periodStart, "status": status])
         return entity
     }
 

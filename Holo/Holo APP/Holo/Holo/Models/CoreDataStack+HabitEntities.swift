@@ -27,7 +27,6 @@ extension CoreDataStack {
         habitId.attributeType = .UUIDAttributeType
         habitId.isOptional = false
         habitId.defaultValue = UUID()
-        habitId.isIndexed = true
         habitAttributes.append(habitId)
         
         // 习惯名称
@@ -59,7 +58,6 @@ extension CoreDataStack {
         habitType.name = "type"
         habitType.attributeType = .integer16AttributeType
         habitType.isOptional = false
-        habitType.isIndexed = true
         habitType.defaultValue = 0
         habitAttributes.append(habitType)
         
@@ -113,7 +111,6 @@ extension CoreDataStack {
         habitIsArchived.name = "isArchived"
         habitIsArchived.attributeType = .booleanAttributeType
         habitIsArchived.isOptional = false
-        habitIsArchived.isIndexed = true
         habitIsArchived.defaultValue = false
         habitAttributes.append(habitIsArchived)
         
@@ -122,7 +119,6 @@ extension CoreDataStack {
         habitSortOrder.name = "sortOrder"
         habitSortOrder.attributeType = .integer16AttributeType
         habitSortOrder.isOptional = false
-        habitSortOrder.isIndexed = true
         habitSortOrder.defaultValue = 0
         habitAttributes.append(habitSortOrder)
         
@@ -156,7 +152,6 @@ extension CoreDataStack {
         recordId.attributeType = .UUIDAttributeType
         recordId.isOptional = false
         recordId.defaultValue = UUID()
-        recordId.isIndexed = true
         habitRecordAttributes.append(recordId)
         
         // 关联的习惯 ID（用于查询，关系由 relationship 维护）
@@ -165,7 +160,6 @@ extension CoreDataStack {
         recordHabitId.attributeType = .UUIDAttributeType
         recordHabitId.isOptional = false
         recordHabitId.defaultValue = UUID()
-        recordHabitId.isIndexed = true
         habitRecordAttributes.append(recordHabitId)
         
         // 记录时间（精确到秒，支持一天多次记录）
@@ -174,7 +168,6 @@ extension CoreDataStack {
         recordDate.attributeType = .dateAttributeType
         recordDate.isOptional = false
         recordDate.defaultValue = Date()
-        recordDate.isIndexed = true
         habitRecordAttributes.append(recordDate)
         
         // 打卡型完成状态
@@ -252,7 +245,9 @@ extension CoreDataStack {
 
         goalEntity.properties.append(goalHabitsRelation)
         habitEntity.properties = habitAttributes + [habitRecordsRelation, habitGoalRelation]
+        CoreDataStack.applyIndexes(to: habitEntity, on: ["id": habitId, "type": habitType, "isArchived": habitIsArchived, "sortOrder": habitSortOrder])
         habitRecordEntity.properties = habitRecordAttributes + [recordHabitRelation]
+        CoreDataStack.applyIndexes(to: habitRecordEntity, on: ["id": recordId, "habitId": recordHabitId, "date": recordDate])
 
         return [habitEntity, habitRecordEntity]
     }

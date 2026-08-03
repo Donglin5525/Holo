@@ -22,7 +22,6 @@ extension CoreDataStack {
         id.attributeType = .UUIDAttributeType
         id.isOptional = false
         id.defaultValue = UUID()
-        id.isIndexed = true
         attributes.append(id)
 
         let insightId = NSAttributeDescription()
@@ -30,7 +29,6 @@ extension CoreDataStack {
         insightId.attributeType = .UUIDAttributeType
         insightId.isOptional = false
         insightId.defaultValue = UUID()
-        insightId.isIndexed = true
         attributes.append(insightId)
 
         let cardId = NSAttributeDescription()
@@ -89,6 +87,7 @@ extension CoreDataStack {
         attributes.append(consumedAt)
 
         entity.properties = attributes
+        CoreDataStack.applyIndexes(to: entity, on: ["id": id, "insightId": insightId])
         return entity
     }
 }

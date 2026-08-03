@@ -24,7 +24,6 @@ extension CoreDataStack {
         chatId.attributeType = .UUIDAttributeType
         chatId.isOptional = false
         chatId.defaultValue = UUID()
-        chatId.isIndexed = true
         chatAttributes.append(chatId)
 
         let chatRole = NSAttributeDescription()
@@ -46,7 +45,6 @@ extension CoreDataStack {
         chatTimestamp.attributeType = .dateAttributeType
         chatTimestamp.isOptional = false
         chatTimestamp.defaultValue = Date()
-        chatTimestamp.isIndexed = true
         chatAttributes.append(chatTimestamp)
 
         let chatIntent = NSAttributeDescription()
@@ -120,6 +118,7 @@ extension CoreDataStack {
         chatAttributes.append(insightResultJSON)
 
         chatMessageEntity.properties = chatAttributes
+        CoreDataStack.applyIndexes(to: chatMessageEntity, on: ["id": chatId, "timestamp": chatTimestamp])
 
         return [chatMessageEntity]
     }

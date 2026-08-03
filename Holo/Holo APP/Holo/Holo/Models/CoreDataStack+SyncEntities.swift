@@ -21,7 +21,6 @@ extension CoreDataStack {
         id.attributeType = .UUIDAttributeType
         id.isOptional = false
         id.defaultValue = UUID(uuidString: "00000000-0000-0000-0000-000000000001")!
-        id.isIndexed = true
         attributes.append(id)
 
         let updatedAt = NSAttributeDescription()
@@ -46,6 +45,7 @@ extension CoreDataStack {
         attributes.append(nonce)
 
         syncProbeEntity.properties = attributes
+        CoreDataStack.applyIndexes(to: syncProbeEntity, on: ["id": id])
         return [syncProbeEntity]
     }
 }

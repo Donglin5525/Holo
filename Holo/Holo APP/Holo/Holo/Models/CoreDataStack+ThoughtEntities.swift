@@ -26,7 +26,6 @@ extension CoreDataStack {
         thoughtId.attributeType = .UUIDAttributeType
         thoughtId.isOptional = false
         thoughtId.defaultValue = UUID()
-        thoughtId.isIndexed = true
         thoughtAttributes.append(thoughtId)
 
         let thoughtContent = NSAttributeDescription()
@@ -132,7 +131,6 @@ extension CoreDataStack {
         thoughtTagId.attributeType = .UUIDAttributeType
         thoughtTagId.isOptional = false
         thoughtTagId.defaultValue = UUID()
-        thoughtTagId.isIndexed = true
         thoughtTagAttributes.append(thoughtTagId)
 
         let thoughtTagName = NSAttributeDescription()
@@ -175,7 +173,6 @@ extension CoreDataStack {
         thoughtReferenceId.attributeType = .UUIDAttributeType
         thoughtReferenceId.isOptional = false
         thoughtReferenceId.defaultValue = UUID()
-        thoughtReferenceId.isIndexed = true
         thoughtReferenceAttributes.append(thoughtReferenceId)
 
         let thoughtReferenceCreatedAt = NSAttributeDescription()
@@ -212,7 +209,6 @@ extension CoreDataStack {
         assignmentId.attributeType = .UUIDAttributeType
         assignmentId.isOptional = false
         assignmentId.defaultValue = UUID()
-        assignmentId.isIndexed = true
         assignmentAttributes.append(assignmentId)
 
         let assignmentSource = NSAttributeDescription()
@@ -255,7 +251,6 @@ extension CoreDataStack {
         topicId.attributeType = .UUIDAttributeType
         topicId.isOptional = false
         topicId.defaultValue = UUID()
-        topicId.isIndexed = true
         topicAttributes.append(topicId)
 
         let topicTitle = NSAttributeDescription()
@@ -490,7 +485,6 @@ extension CoreDataStack {
         taId.attributeType = .UUIDAttributeType
         taId.isOptional = false
         taId.defaultValue = UUID()
-        taId.isIndexed = true
         thoughtAttachmentAttributes.append(taId)
 
         let taFileName = NSAttributeDescription()
@@ -572,28 +566,34 @@ extension CoreDataStack {
             thoughtTopicsRelation,
             thoughtAttachmentsRelation
         ]
+        CoreDataStack.applyIndexes(to: thoughtEntity, on: ["id": thoughtId])
         thoughtTagEntity.properties = thoughtTagAttributes + [
             tagThoughtsRelation,
             tagAssignmentsRelation,
             tagAssociatedTopicsRelation
         ]
+        CoreDataStack.applyIndexes(to: thoughtTagEntity, on: ["id": thoughtTagId])
         thoughtReferenceEntity.properties = thoughtReferenceAttributes + [
             referenceSourceRelation,
             referenceTargetRelation
         ]
+        CoreDataStack.applyIndexes(to: thoughtReferenceEntity, on: ["id": thoughtReferenceId])
         assignmentEntity.properties = assignmentAttributes + [
             assignmentThoughtRelation,
             assignmentTagRelation
         ]
+        CoreDataStack.applyIndexes(to: assignmentEntity, on: ["id": assignmentId])
         topicEntity.properties = topicAttributes + [
             topicThoughtsRelation,
             topicAssociatedTagsRelation,
             topicMergedToRelation,
             topicMergedFromRelation
         ]
+        CoreDataStack.applyIndexes(to: topicEntity, on: ["id": topicId])
         thoughtAttachmentEntity.properties = thoughtAttachmentAttributes + [
             attachmentThoughtRelation
         ]
+        CoreDataStack.applyIndexes(to: thoughtAttachmentEntity, on: ["id": taId])
 
         // MARK: - ThoughtTagConvergenceRejection Entity
         // P2.5 - 主题归并建议级拒绝（幂等键=主题名+来源词集合，无关系，独立实体，随 iCloud 同步）
@@ -608,7 +608,6 @@ extension CoreDataStack {
         crId.attributeType = .UUIDAttributeType
         crId.isOptional = false
         crId.defaultValue = UUID()
-        crId.isIndexed = true
         convergenceRejectionAttributes.append(crId)
 
         let crKey = NSAttributeDescription()
@@ -616,7 +615,6 @@ extension CoreDataStack {
         crKey.attributeType = .stringAttributeType
         crKey.isOptional = false
         crKey.defaultValue = ""
-        crKey.isIndexed = true
         convergenceRejectionAttributes.append(crKey)
 
         let crTopicTitle = NSAttributeDescription()
@@ -654,6 +652,7 @@ extension CoreDataStack {
         convergenceRejectionAttributes.append(crCreatedAt)
 
         convergenceRejectionEntity.properties = convergenceRejectionAttributes
+        CoreDataStack.applyIndexes(to: convergenceRejectionEntity, on: ["id": crId, "suggestionKey": crKey])
 
         return [thoughtEntity, thoughtTagEntity, thoughtReferenceEntity, assignmentEntity, topicEntity, thoughtAttachmentEntity, convergenceRejectionEntity]
     }

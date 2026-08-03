@@ -25,7 +25,6 @@ extension CoreDataStack {
         transactionId.attributeType = .UUIDAttributeType
         transactionId.isOptional = false
         transactionId.defaultValue = UUID()
-        transactionId.isIndexed = true
         attributes.append(transactionId)
         
         let amount = NSAttributeDescription()
@@ -40,7 +39,6 @@ extension CoreDataStack {
         type.attributeType = .stringAttributeType
         type.isOptional = false
         type.defaultValue = TransactionType.expense.rawValue
-        type.isIndexed = true
         attributes.append(type)
         
         // 不再使用 categoryId/accountId 属性，仅通过 relationship category/account 关联
@@ -50,7 +48,6 @@ extension CoreDataStack {
         date.attributeType = .dateAttributeType
         date.isOptional = false
         date.defaultValue = Date()
-        date.isIndexed = true
         attributes.append(date)
         
         let note = NSAttributeDescription()
@@ -109,7 +106,6 @@ extension CoreDataStack {
         installmentGroupId.name = "installmentGroupId"
         installmentGroupId.attributeType = .UUIDAttributeType
         installmentGroupId.isOptional = true
-        installmentGroupId.isIndexed = true
         attributes.append(installmentGroupId)
 
         let installmentIndex = NSAttributeDescription()
@@ -144,17 +140,16 @@ extension CoreDataStack {
         spendingProjectId.name = "spendingProjectId"
         spendingProjectId.attributeType = .UUIDAttributeType
         spendingProjectId.isOptional = true
-        spendingProjectId.isIndexed = true
         attributes.append(spendingProjectId)
 
         let projectPostingState = NSAttributeDescription()
         projectPostingState.name = "projectPostingState"
         projectPostingState.attributeType = .stringAttributeType
         projectPostingState.isOptional = true
-        projectPostingState.isIndexed = true
         attributes.append(projectPostingState)
 
         transactionEntity.properties = attributes + [categoryRelation, accountRelation]
+        CoreDataStack.applyIndexes(to: transactionEntity, on: ["id": transactionId, "type": type, "date": date, "installmentGroupId": installmentGroupId, "spendingProjectId": spendingProjectId, "projectPostingState": projectPostingState])
         
         // MARK: - Category Entity
         let categoryEntity = NSEntityDescription()
@@ -168,7 +163,6 @@ extension CoreDataStack {
         categoryIdAttr.attributeType = .UUIDAttributeType
         categoryIdAttr.isOptional = false
         categoryIdAttr.defaultValue = UUID()
-        categoryIdAttr.isIndexed = true
         categoryAttributes.append(categoryIdAttr)
         
         let name = NSAttributeDescription()
@@ -197,7 +191,6 @@ extension CoreDataStack {
         categoryType.attributeType = .stringAttributeType
         categoryType.isOptional = false
         categoryType.defaultValue = TransactionType.expense.rawValue
-        categoryType.isIndexed = true
         categoryAttributes.append(categoryType)
         
         let isDefault = NSAttributeDescription()
@@ -205,7 +198,6 @@ extension CoreDataStack {
         isDefault.attributeType = .booleanAttributeType
         isDefault.isOptional = false
         isDefault.defaultValue = false
-        isDefault.isIndexed = true
         categoryAttributes.append(isDefault)
         
         let sortOrder = NSAttributeDescription()
@@ -213,7 +205,6 @@ extension CoreDataStack {
         sortOrder.attributeType = .integer16AttributeType
         sortOrder.isOptional = false
         sortOrder.defaultValue = 0
-        sortOrder.isIndexed = true
         categoryAttributes.append(sortOrder)
         
         // 父分类 ID（用于二级分类层级关系）
@@ -222,7 +213,6 @@ extension CoreDataStack {
         parentId.name = "parentId"
         parentId.attributeType = .UUIDAttributeType
         parentId.isOptional = true
-        parentId.isIndexed = true
         categoryAttributes.append(parentId)
 
         // 是否为系统内置分类（不可删除/编辑，如"余额调整"）
@@ -243,6 +233,7 @@ extension CoreDataStack {
         categoryTransactionsRelation.deleteRule = .nullifyDeleteRule
 
         categoryEntity.properties = categoryAttributes + [categoryTransactionsRelation]
+        CoreDataStack.applyIndexes(to: categoryEntity, on: ["id": categoryIdAttr, "type": categoryType, "isDefault": isDefault, "sortOrder": sortOrder, "parentId": parentId])
 
         // MARK: - Account Entity
         let accountEntity = NSEntityDescription()
@@ -256,7 +247,6 @@ extension CoreDataStack {
         accountIdAttr.attributeType = .UUIDAttributeType
         accountIdAttr.isOptional = false
         accountIdAttr.defaultValue = UUID()
-        accountIdAttr.isIndexed = true
         accountAttributes.append(accountIdAttr)
         
         let accountName = NSAttributeDescription()
@@ -271,7 +261,6 @@ extension CoreDataStack {
         accountType.attributeType = .stringAttributeType
         accountType.isOptional = false
         accountType.defaultValue = AccountType.cash.rawValue
-        accountType.isIndexed = true
         accountAttributes.append(accountType)
         
         let accountIsDefault = NSAttributeDescription()
@@ -279,7 +268,6 @@ extension CoreDataStack {
         accountIsDefault.attributeType = .booleanAttributeType
         accountIsDefault.isOptional = false
         accountIsDefault.defaultValue = false
-        accountIsDefault.isIndexed = true
         accountAttributes.append(accountIsDefault)
 
         // 开户余额（初始余额，用于实时计算当前余额）
@@ -312,7 +300,6 @@ extension CoreDataStack {
         accountSortOrder.attributeType = .integer16AttributeType
         accountSortOrder.isOptional = false
         accountSortOrder.defaultValue = 0
-        accountSortOrder.isIndexed = true
         accountAttributes.append(accountSortOrder)
 
         // 是否归档
@@ -356,6 +343,7 @@ extension CoreDataStack {
         accountTransactionsRelation.deleteRule = .nullifyDeleteRule
 
         accountEntity.properties = accountAttributes + [accountTransactionsRelation]
+        CoreDataStack.applyIndexes(to: accountEntity, on: ["id": accountIdAttr, "type": accountType, "isDefault": accountIsDefault, "sortOrder": accountSortOrder])
 
         // 绑定 Transaction 关系的目标实体（需在 Category/Account 创建后设置）
         categoryRelation.destinationEntity = categoryEntity
@@ -385,7 +373,6 @@ extension CoreDataStack {
         iconId.attributeType = .stringAttributeType
         iconId.isOptional = false
         iconId.defaultValue = ""
-        iconId.isIndexed = true
         homeIconAttributes.append(iconId)
         
         // 排序顺序（0-based，数字越小越靠前）
@@ -394,7 +381,6 @@ extension CoreDataStack {
         iconSortOrder.attributeType = .integer16AttributeType
         iconSortOrder.isOptional = false
         iconSortOrder.defaultValue = 0
-        iconSortOrder.isIndexed = true
         homeIconAttributes.append(iconSortOrder)
         
         // 是否显示（支持用户隐藏某些图标）
@@ -429,6 +415,7 @@ extension CoreDataStack {
         homeIconAttributes.append(iconUpdatedAt)
         
         homeIconConfigEntity.properties = homeIconAttributes
+        CoreDataStack.applyIndexes(to: homeIconConfigEntity, on: ["iconId": iconId, "sortOrder": iconSortOrder])
 
         // MARK: - Budget Entity
         // 预算实体，支持账户级月度/周度/年度支出上限设置
@@ -443,7 +430,6 @@ extension CoreDataStack {
         budgetId.attributeType = .UUIDAttributeType
         budgetId.isOptional = false
         budgetId.defaultValue = UUID()
-        budgetId.isIndexed = true
         budgetAttributes.append(budgetId)
 
         // 所属账户 ID（轻量 UUID 引用，非 Relationship）
@@ -452,7 +438,6 @@ extension CoreDataStack {
         budgetAccountId.attributeType = .UUIDAttributeType
         budgetAccountId.isOptional = false
         budgetAccountId.defaultValue = UUID()
-        budgetAccountId.isIndexed = true
         budgetAttributes.append(budgetAccountId)
 
         // 分类 ID（nil=总预算，非nil=分类预算 Phase 2）
@@ -460,7 +445,6 @@ extension CoreDataStack {
         budgetCategoryId.name = "categoryId"
         budgetCategoryId.attributeType = .UUIDAttributeType
         budgetCategoryId.isOptional = true
-        budgetCategoryId.isIndexed = true
         budgetAttributes.append(budgetCategoryId)
 
         // 预算金额
@@ -477,7 +461,6 @@ extension CoreDataStack {
         budgetPeriod.attributeType = .stringAttributeType
         budgetPeriod.isOptional = false
         budgetPeriod.defaultValue = BudgetPeriod.month.rawValue
-        budgetPeriod.isIndexed = true
         budgetAttributes.append(budgetPeriod)
 
         // 预算起始日期
@@ -503,6 +486,7 @@ extension CoreDataStack {
         budgetAttributes.append(budgetUpdatedAt)
 
         budgetEntity.properties = budgetAttributes
+        CoreDataStack.applyIndexes(to: budgetEntity, on: ["id": budgetId, "accountId": budgetAccountId, "categoryId": budgetCategoryId, "period": budgetPeriod])
 
         // MARK: - Spending Project Entity
         let spendingProjectEntity = NSEntityDescription()
@@ -515,9 +499,6 @@ extension CoreDataStack {
             attribute.attributeType = type
             attribute.isOptional = optional
             attribute.defaultValue = defaultValue
-            if name == "id" || name == "kind" || name == "nextOccurrenceDate" {
-                attribute.isIndexed = true
-            }
             return attribute
         }
 
@@ -548,6 +529,11 @@ extension CoreDataStack {
             projectAttribute("updatedAt", .dateAttributeType, defaultValue: Date())
         ]
         spendingProjectEntity.properties = projectAttributes
+        CoreDataStack.applyIndexes(to: spendingProjectEntity, on: [
+            "id": projectAttributes.first { $0.name == "id" }!,
+            "kind": projectAttributes.first { $0.name == "kind" }!,
+            "nextOccurrenceDate": projectAttributes.first { $0.name == "nextOccurrenceDate" }!
+        ])
 
         return [transactionEntity, categoryEntity, accountEntity, homeIconConfigEntity, budgetEntity, spendingProjectEntity]
     }

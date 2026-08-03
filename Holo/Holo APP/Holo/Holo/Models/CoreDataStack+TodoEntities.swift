@@ -26,7 +26,6 @@ extension CoreDataStack {
         folderId.attributeType = .UUIDAttributeType
         folderId.isOptional = false
         folderId.defaultValue = UUID()
-        folderId.isIndexed = true
         todoFolderAttributes.append(folderId)
 
         let folderName = NSAttributeDescription()
@@ -77,7 +76,6 @@ extension CoreDataStack {
         listId.attributeType = .UUIDAttributeType
         listId.isOptional = false
         listId.defaultValue = UUID()
-        listId.isIndexed = true
         todoListAttributes.append(listId)
 
         let listName = NSAttributeDescription()
@@ -134,7 +132,6 @@ extension CoreDataStack {
         taskId.attributeType = .UUIDAttributeType
         taskId.isOptional = false
         taskId.defaultValue = UUID()
-        taskId.isIndexed = true
         todoTaskAttributes.append(taskId)
 
         let taskTitle = NSAttributeDescription()
@@ -155,7 +152,6 @@ extension CoreDataStack {
         taskStatus.attributeType = .stringAttributeType
         taskStatus.isOptional = false
         taskStatus.defaultValue = "todo"
-        taskStatus.isIndexed = true
         todoTaskAttributes.append(taskStatus)
 
         let taskPriority = NSAttributeDescription()
@@ -163,14 +159,12 @@ extension CoreDataStack {
         taskPriority.attributeType = .integer16AttributeType
         taskPriority.isOptional = false
         taskPriority.defaultValue = 1
-        taskPriority.isIndexed = true
         todoTaskAttributes.append(taskPriority)
 
         let taskDueDate = NSAttributeDescription()
         taskDueDate.name = "dueDate"
         taskDueDate.attributeType = .dateAttributeType
         taskDueDate.isOptional = true
-        taskDueDate.isIndexed = true
         todoTaskAttributes.append(taskDueDate)
 
         let taskIsAllDay = NSAttributeDescription()
@@ -185,7 +179,6 @@ extension CoreDataStack {
         taskIsCompleted.attributeType = .booleanAttributeType
         taskIsCompleted.isOptional = false
         taskIsCompleted.defaultValue = false
-        taskIsCompleted.isIndexed = true
         todoTaskAttributes.append(taskIsCompleted)
 
         let taskCompletedAt = NSAttributeDescription()
@@ -199,7 +192,6 @@ extension CoreDataStack {
         taskIsArchived.attributeType = .booleanAttributeType
         taskIsArchived.isOptional = false
         taskIsArchived.defaultValue = false
-        taskIsArchived.isIndexed = true
         todoTaskAttributes.append(taskIsArchived)
 
         let taskDeletedFlag = NSAttributeDescription()
@@ -207,7 +199,6 @@ extension CoreDataStack {
         taskDeletedFlag.attributeType = .booleanAttributeType
         taskDeletedFlag.isOptional = false
         taskDeletedFlag.defaultValue = false
-        taskDeletedFlag.isIndexed = true
         todoTaskAttributes.append(taskDeletedFlag)
 
         let taskDeletedAt = NSAttributeDescription()
@@ -280,7 +271,6 @@ extension CoreDataStack {
         tagId.attributeType = .UUIDAttributeType
         tagId.isOptional = false
         tagId.defaultValue = UUID()
-        tagId.isIndexed = true
         todoTagAttributes.append(tagId)
 
         let tagName = NSAttributeDescription()
@@ -324,7 +314,6 @@ extension CoreDataStack {
         checkItemId.attributeType = .UUIDAttributeType
         checkItemId.isOptional = false
         checkItemId.defaultValue = UUID()
-        checkItemId.isIndexed = true
         checkItemAttributes.append(checkItemId)
 
         let checkItemTitle = NSAttributeDescription()
@@ -368,7 +357,6 @@ extension CoreDataStack {
         ruleId.attributeType = .UUIDAttributeType
         ruleId.isOptional = false
         ruleId.defaultValue = UUID()
-        ruleId.isIndexed = true
         repeatRuleAttributes.append(ruleId)
 
         let ruleType = NSAttributeDescription()
@@ -455,7 +443,6 @@ extension CoreDataStack {
         attachmentId.attributeType = .UUIDAttributeType
         attachmentId.isOptional = false
         attachmentId.defaultValue = UUID()
-        attachmentId.isIndexed = true
         taskAttachmentAttributes.append(attachmentId)
 
         let attachmentFileName = NSAttributeDescription()
@@ -673,13 +660,20 @@ extension CoreDataStack {
 
         thoughtEntity.properties.append(thoughtTasksRelation)
         todoTaskEntity.properties = todoTaskAttributes + [taskListRelation, taskTagsRelation, taskCheckItemsRelation, taskAttachmentsRelation, taskRepeatRuleRelation, taskGoalRelation, taskSourceThoughtRelation]
+        CoreDataStack.applyIndexes(to: todoTaskEntity, on: ["id": taskId, "status": taskStatus, "priority": taskPriority, "dueDate": taskDueDate, "completed": taskIsCompleted, "archived": taskIsArchived, "deletedFlag": taskDeletedFlag])
 
         todoFolderEntity.properties = todoFolderAttributes + [folderListsRelation]
+        CoreDataStack.applyIndexes(to: todoFolderEntity, on: ["id": folderId])
         todoListEntity.properties = todoListAttributes + [listFolderRelation, listTasksRelation]
+        CoreDataStack.applyIndexes(to: todoListEntity, on: ["id": listId])
         todoTagEntity.properties = todoTagAttributes + [tagTasksRelation]
+        CoreDataStack.applyIndexes(to: todoTagEntity, on: ["id": tagId])
         checkItemEntity.properties = checkItemAttributes + [checkItemTaskRelation]
+        CoreDataStack.applyIndexes(to: checkItemEntity, on: ["id": checkItemId])
         repeatRuleEntity.properties = repeatRuleAttributes + [ruleTaskRelation]
+        CoreDataStack.applyIndexes(to: repeatRuleEntity, on: ["id": ruleId])
         taskAttachmentEntity.properties = taskAttachmentAttributes + [attachmentTaskRelation]
+        CoreDataStack.applyIndexes(to: taskAttachmentEntity, on: ["id": attachmentId])
 
         return [todoFolderEntity, todoListEntity, todoTaskEntity, todoTagEntity, checkItemEntity, repeatRuleEntity, taskAttachmentEntity]
     }

@@ -250,6 +250,26 @@ nonisolated class CoreDataStack {
             }
         }
     }
+
+    // MARK: - 程序化模型索引工具
+
+    /// 为程序化定义的实体批量设置单属性索引，替代已弃用的 NSAttributeDescription.isIndexed。
+    /// - Parameters:
+    ///   - entity: 目标实体（需已设置 properties）
+    ///   - indexes: 索引名 → 属性 的映射；每个属性生成一个 binary 排序的单列索引
+    nonisolated static func applyIndexes(
+        to entity: NSEntityDescription,
+        on indexes: [String: NSPropertyDescription]
+    ) {
+        guard !indexes.isEmpty else { return }
+        let entityName = entity.name ?? "Entity"
+        entity.indexes = indexes.map { indexName, property in
+            NSFetchIndexDescription(
+                name: "\(entityName)_\(indexName)_idx",
+                elements: [NSFetchIndexElementDescription(property: property, collationType: .binary)]
+            )
+        }
+    }
 }
 
 // MARK: - Helper Extensions
