@@ -676,7 +676,7 @@ test("agent_loop prompt 存在并包含 Agent Loop 核心约束", async () => {
   assert.equal(response.status, 200);
   const prompt = await response.json();
 
-  assert.equal(prompt.version, 17);
+  assert.equal(prompt.version, 18);
   assert.match(prompt.content, /need_tools/);
   assert.match(prompt.content, /need_more_analysis/);
   assert.match(prompt.content, /final_claims/);
@@ -694,6 +694,9 @@ test("agent_loop prompt 存在并包含 Agent Loop 核心约束", async () => {
   assert.match(prompt.content, /workout_summary/);
   assert.match(prompt.content, /dynamic_query/);
   assert.match(prompt.content, /禁止生成 SQL/);
+  // v18: 新增 expression 派生操作（分档换算自由组合）
+  assert.match(prompt.content, /expression/);
+  assert.match(prompt.content, /分档换算/);
   assert.match(prompt.content, /percentageChange/);
   assert.match(prompt.content, /cross_domain/);
   assert.match(prompt.content, /health×finance/);
