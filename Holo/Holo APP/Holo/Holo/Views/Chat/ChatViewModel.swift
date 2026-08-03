@@ -149,18 +149,26 @@ final class ChatViewModel: ObservableObject {
             guard let self = self else { return }
             let repo = ChatMessageRepository.shared
             self.bindRepository(repo)
-            // 先用 Agent job 的真实状态校准 streaming 消息，并据此清理孤儿。
-            // 注意：syncRecoverableChatMessages 已会回填完成的 Agent 结果，
-            // 这里跑一次即可拿到准确的 preserve 集合，无需重复执行。
-            let preserved = await self.analysisService.syncRecoverableChatMessages(repository: repo)
-                .union(HoloPeriodReplayCoordinator.shared.recoverableMessageIDs())
-            await repo.cleanupOrphanedStreamingMessagesOffMain(preserveMessageIDs: preserved)
+
+            // 消息加载先行，让首屏尽早上屏；Agent 状态校准与孤儿清理并行在后台进行。
+            // sync/cleanup 完成后会通过 Repository.updateSnapshot 回主线程刷新受影响消息，
+            // 极端情况（崩溃恢复有孤儿 streaming）首屏可能短暂显示占位，随后自动收敛。
             await repo.loadCurrentSessionLightweightMessagesAsync(limit: self.initialHistoryLimit)
             self.hasLoadedMessages = true
             self.syncHasEarlierSessions()
             // 消息加载完成后刷新能力入口（此时 isTrulyEmptyConversation 可靠）
             self.refreshCapabilities()
             self.repositoryBootstrapTask = nil
+
+            // 后台并行：校准 Agent job 状态 + 清理孤儿 streaming 消息（不阻塞首屏）
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                // 注意：syncRecoverableChatMessages 已会回填完成的 Agent 结果，
+                // 这里跑一次即可拿到准确的 preserve 集合，无需重复执行。
+                let preserved = await self.analysisService.syncRecoverableChatMessages(repository: repo)
+                    .union(HoloPeriodReplayCoordinator.shared.recoverableMessageIDs())
+                await repo.cleanupOrphanedStreamingMessagesOffMain(preserveMessageIDs: preserved)
+            }
         }
     }
 
@@ -363,11 +371,19 @@ final class ChatViewModel: ObservableObject {
                         )
 
                         var fullText = ""
+                        var lastFlush = ContinuousClock.now
                         for try await chunk in stream {
                             try Task.checkCancellation()
                             fullText += chunk
-                            self.streamingText = HoloMemoryUsageMarker.visibleTextWhileStreaming(fullText)
+                            // 节流：合并到 ~30fps，避免每个 token 都触发整列表重绘
+                            let now = ContinuousClock.now
+                            if now - lastFlush > .milliseconds(33) {
+                                self.streamingText = HoloMemoryUsageMarker.visibleTextWhileStreaming(fullText)
+                                lastFlush = now
+                            }
                         }
+                        // 流式结束前补齐最终累积文本，保证 consume 前的可见内容完整
+                        self.streamingText = HoloMemoryUsageMarker.visibleTextWhileStreaming(fullText)
 
                         let resolvedText = self.consumeMemoryUsageMarker(
                             from: fullText,
@@ -403,11 +419,19 @@ final class ChatViewModel: ObservableObject {
                         )
 
                         var fullText = ""
+                        var lastFlush = ContinuousClock.now
                         for try await chunk in stream {
                             try Task.checkCancellation()
                             fullText += chunk
-                            self.streamingText = HoloMemoryUsageMarker.visibleTextWhileStreaming(fullText)
+                            // 节流：合并到 ~30fps，避免每个 token 都触发整列表重绘
+                            let now = ContinuousClock.now
+                            if now - lastFlush > .milliseconds(33) {
+                                self.streamingText = HoloMemoryUsageMarker.visibleTextWhileStreaming(fullText)
+                                lastFlush = now
+                            }
                         }
+                        // 流式结束前补齐最终累积文本，保证 consume 前的可见内容完整
+                        self.streamingText = HoloMemoryUsageMarker.visibleTextWhileStreaming(fullText)
 
                         let resolvedText = self.consumeMemoryUsageMarker(
                             from: fullText,
@@ -634,19 +658,20 @@ final class ChatViewModel: ObservableObject {
 
         guard !affectedIds.isEmpty else { return }
 
-        // 检查已加载消息中是否有匹配的关联实体
-        let hasAffectedMessages = messages.contains { message in
+        // 命中受影响实体的消息：精准刷新其删除态缓存（缓存读自 snapshot，不能只发 willChange）
+        var affectedMessageIDs: Set<UUID> = []
+        for message in messages {
             for category in [EntityCategory.finance, .task] {
                 if let entityId = message.resolveLinkedEntityId(for: category),
                    affectedIds.contains(entityId) {
-                    return true
+                    affectedMessageIDs.insert(message.id)
+                    break
                 }
             }
-            return false
         }
 
-        if hasAffectedMessages {
-            objectWillChange.send()
+        for messageID in affectedMessageIDs {
+            chatRepo?.refreshDeletionState(for: messageID, affectedCategories: [.finance, .task])
         }
     }
 

@@ -473,6 +473,7 @@ struct ChatView: View {
                             )
                         }
                     )
+                    .equatable()
                     .id(message.id)
                     .onAppear {
                         viewModel.loadMetadataIfNeeded(for: message.id)

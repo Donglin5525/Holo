@@ -439,6 +439,17 @@ struct MessageBubbleView: View {
     }
 }
 
+// MARK: - Equatable（隔离流式刷新：message 不变时跳过 body 重算）
+
+extension MessageBubbleView: Equatable {
+    /// 只比较影响渲染外观的字段，闭包不参与比较（其 identity 在 ChatView 父视图中稳定）。
+    static func == (lhs: MessageBubbleView, rhs: MessageBubbleView) -> Bool {
+        lhs.message == rhs.message
+            && lhs.streamingText == rhs.streamingText
+            && lhs.goalDraftForReview == rhs.goalDraftForReview
+    }
+}
+
 // MARK: - Bubble Shape
 
 struct BubbleShape: Shape {
