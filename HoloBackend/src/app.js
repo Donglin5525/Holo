@@ -392,6 +392,7 @@ export function createApp(overrides = {}) {
         temperature: route.temperature,
         maxTokens: route.maxTokens,
         responseFormat: request.response_format,
+        reasoningEffort: route.reasoningEffort,
         clientSignal: context.req.raw.signal,
       };
       const isAgentLoop = purpose === "agent_loop";

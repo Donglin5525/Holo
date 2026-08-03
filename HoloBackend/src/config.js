@@ -169,6 +169,9 @@ const DEFAULT_CONFIG = {
       model: process.env.HOLO_AGENT_LOOP_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_AGENT_LOOP_TEMPERATURE ?? 0.1),
       maxTokens: Number(process.env.HOLO_AGENT_LOOP_MAX_TOKENS ?? 8192),
+      // DeepSeek 推理模型默认开启 reasoning，简单问题也要 60-120 秒。
+      // agent_loop 是结构化 JSON 输出任务，不需要长思维链；关闭推理模式后 2-5 秒即可响应。
+      reasoningEffort: process.env.HOLO_AGENT_LOOP_REASONING_EFFORT ?? "none",
       requestLimits: {
         perMinute: Number(process.env.HOLO_AGENT_LOOP_REQUESTS_PER_MINUTE ?? 60),
         perDay: Number(process.env.HOLO_AGENT_LOOP_REQUESTS_PER_DAY ?? 500),
