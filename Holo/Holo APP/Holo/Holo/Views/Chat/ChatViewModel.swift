@@ -315,22 +315,39 @@ final class ChatViewModel: ObservableObject {
                         sourceMessageID: aiMessageId
                     )
                     try Task.checkCancellation()
-                    // 不再拍扁成单段文本：结构化存 agentResultJSON，由 AgentDeepAnalysisCard 渲染
-                    // fallback 文本用于历史回看/解码失败时退化展示（标题 + 摘要）
-                    let fallbackText = [rendered.title, rendered.summary]
-                        .filter { !$0.isEmpty }
-                        .joined(separator: "\n")
-                    self.chatRepo?.finalizeMessage(
-                        aiMessageId,
-                        finalContent: fallbackText,
-                        intent: processResult.firstIntent?.rawValue,
-                        extractedDataJSON: nil,
-                        parsedBatchJSON: nil,
-                        executionBatchJSON: nil,
-                        analysisContextJSON: nil,
-                        rawLogJSON: nil,
-                        agentResultJSON: Self.encodeAgentResult(rendered)
-                    )
+                    // 额度耗尽走专属卡片（与普通聊天路径一致）：档位限制不是系统错误，
+                    // 渲染 QuotaExhaustedChatCard + "了解 Holo Plus"入口，不写 agentResultJSON。
+                    if case .quotaExhausted(let userMessage)? = rendered.failure {
+                        self.chatRepo?.finalizeMessage(
+                            aiMessageId,
+                            finalContent: userMessage,
+                            intent: processResult.firstIntent?.rawValue,
+                            extractedDataJSON: nil,
+                            parsedBatchJSON: nil,
+                            executionBatchJSON: nil,
+                            analysisContextJSON: nil,
+                            rawLogJSON: nil,
+                            agentResultJSON: nil,
+                            messageType: .quotaExhausted
+                        )
+                    } else {
+                        // 不再拍扁成单段文本：结构化存 agentResultJSON，由 AgentDeepAnalysisCard 渲染
+                        // fallback 文本用于历史回看/解码失败时退化展示（标题 + 摘要）
+                        let fallbackText = [rendered.title, rendered.summary]
+                            .filter { !$0.isEmpty }
+                            .joined(separator: "\n")
+                        self.chatRepo?.finalizeMessage(
+                            aiMessageId,
+                            finalContent: fallbackText,
+                            intent: processResult.firstIntent?.rawValue,
+                            extractedDataJSON: nil,
+                            parsedBatchJSON: nil,
+                            executionBatchJSON: nil,
+                            analysisContextJSON: nil,
+                            rawLogJSON: nil,
+                            agentResultJSON: Self.encodeAgentResult(rendered)
+                        )
+                    }
                 } else if processResult.shouldStreamChat {
                     if let analysisContext = processResult.analysisContext {
                         // 立即设置 intent + analysisContext → 渲染 loading 卡片

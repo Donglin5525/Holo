@@ -124,6 +124,8 @@ enum HoloAgentChatStatusPresenter {
         let pausedOrTerminal = title.hasPrefix("已暂停") ||
             title.hasPrefix("深度分析已中断") ||
             title.hasPrefix("深度分析已取消") ||
+            title.hasPrefix("深度分析出错") ||
+            title.hasPrefix("深度分析额度已用完") ||
             title.hasPrefix("已被新的分析取代") ||
             title.hasPrefix("系统已暂停这次分析") ||
             title.hasPrefix("等待设备解锁") ||
@@ -199,8 +201,16 @@ final class HoloAgentAnalysisService {
                      sourceMessageID: UUID? = nil) async -> HoloRenderedAgentResult {
         // 只记录长度，不把用户问题原文写入系统日志（Phase 7 隐私契约）。
         logger.info("[Agent] 开始 questionLength=\(question.count, privacy: .public)")
+        // 真出错（网络/超时/内部异常）统一走 analysisFailed；额度耗尽走专属 quotaExhausted。
+        // fail 不再吞掉 HoloQuotaError——额度是档位限制，不是系统错误，上层据此渲染额度卡片。
         let fail = { (reason: String) -> HoloRenderedAgentResult in
-            HoloRenderedAgentResult(title: "深度分析出错", summary: reason, sections: [], evidenceReferences: [])
+            HoloRenderedAgentResult(
+                title: "深度分析出错",
+                summary: reason,
+                sections: [],
+                evidenceReferences: [],
+                failure: .analysisFailed
+            )
         }
         let toolDescriptions = await runtime.toolDescriptions()
         // 接入 PromptManager.agentLoop 模板：该模板定义了 status 取值、JSON Schema、
@@ -219,6 +229,16 @@ final class HoloAgentAnalysisService {
                 sourceMessageID: sourceMessageID
             ))
             logger.info("[Agent] runLoop 完成 state=\(finalJob.state.rawValue) rounds=\(finalJob.budget.consumedLLMRounds)")
+        } catch let error as HoloQuotaError {
+            // 额度耗尽：档位限制而非系统错误，透传额度文案，上层渲染额度卡片 + 升级入口。
+            logger.info("[Agent] runLoop 因额度耗尽中止 code=\(error.userMessage, privacy: .public)")
+            return HoloRenderedAgentResult(
+                title: "深度分析额度已用完",
+                summary: error.userMessage,
+                sections: [],
+                evidenceReferences: [],
+                failure: .quotaExhausted(userMessage: error.userMessage)
+            )
         } catch {
             return fail("[runLoop异常] \(String(describing: error))")
         }
@@ -259,7 +279,8 @@ final class HoloAgentAnalysisService {
                 ),
                 requestedDeliverables: result.requestedDeliverables ?? [],
                 narrativeSummary: result.narrativeSummary,
-                contextSources: result.contextSources ?? []
+                contextSources: result.contextSources ?? [],
+                dataSamplePreview: Self.makeSamplePreview(from: result.dataSampleExcerpts)
             )
         } catch {
             return fail("[证据读取失败] \(String(describing: error))")
@@ -313,7 +334,8 @@ final class HoloAgentAnalysisService {
                             ),
                             requestedDeliverables: result.requestedDeliverables ?? [],
                             narrativeSummary: result.narrativeSummary,
-                            contextSources: result.contextSources ?? []
+                            contextSources: result.contextSources ?? [],
+                            dataSamplePreview: Self.makeSamplePreview(from: result.dataSampleExcerpts)
                         )
                         repository.finalizeAgentMessage(sourceMessageID, rendered: rendered, intent: "query_analysis")
                     } else {
@@ -333,6 +355,12 @@ final class HoloAgentAnalysisService {
                     continue
                 }
             } else {
+                // 已是额度卡片的消息不被普通进度文案覆盖：额度耗尽在前台已落地为
+                // messageType=.quotaExhausted，回前台恢复时 job 可能处于 .failed 终态，
+                // 若直接 updateAgentMessageProgress 会把额度文案改成"已中断"，丢失升级入口。
+                if repository.messageType(for: sourceMessageID) == .quotaExhausted {
+                    continue
+                }
                 repository.updateAgentMessageProgress(
                     sourceMessageID,
                     status: status
@@ -340,5 +368,15 @@ final class HoloAgentAnalysisService {
             }
         }
         return preservedStreamingMessageIDs
+    }
+
+    /// 从持久化的样本摘要构造渲染预览；空或缺失返回 nil。
+    private static func makeSamplePreview(from excerpts: [String]?) -> HoloRenderedDataSamplePreview? {
+        guard let excerpts, !excerpts.isEmpty else { return nil }
+        return HoloRenderedDataSamplePreview(
+            domainLabel: "账单",
+            count: excerpts.count,
+            excerpts: excerpts
+        )
     }
 }

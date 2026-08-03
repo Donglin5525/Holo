@@ -501,6 +501,13 @@ final class ChatMessageRepository: ObservableObject {
         return message
     }
 
+    /// 查询单条消息的类型；不存在返回 nil。
+    /// 供回前台恢复逻辑判断消息是否已是额度卡片，避免被普通进度文案覆盖。
+    func messageType(for messageId: UUID) -> ChatMessageType? {
+        guard let message = messageForUpdate(messageId) else { return nil }
+        return ChatMessageType(rawValue: message.messageType)
+    }
+
     /// 更新消息内容
     func updateMessage(_ messageId: UUID, content: String) {
         guard let message = messageForUpdate(messageId) else { return }
