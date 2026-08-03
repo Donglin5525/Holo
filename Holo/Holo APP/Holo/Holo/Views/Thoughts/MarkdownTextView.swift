@@ -418,6 +418,15 @@ struct MarkdownTextView: UIViewRepresentable {
             if typingAttributes[.foregroundColor] == nil {
                 typingAttributes[.foregroundColor] = MarkdownTextView.baseTextColor
             }
+            // 光标行高修正：typingAttributes 里的 paragraphStyle 携带了 lineSpacing=8（用于文字行间距），
+            // 但空行时光标高度由 typingAttributes 决定，额外行间距会把光标撑高约 8pt（比有文字行明显大）。
+            // 这里复制一份并把 lineSpacing 清零，使光标高度仅由字体决定，与有文字行一致。
+            // 已渲染文字的行间距不受影响（那些用完整的 paragraphStyle 存在 attributedText 里）。
+            if let paragraphStyle = typingAttributes[.paragraphStyle] as? NSParagraphStyle,
+               let mutableStyle = paragraphStyle.mutableCopy() as? NSMutableParagraphStyle {
+                mutableStyle.lineSpacing = 0
+                typingAttributes[.paragraphStyle] = mutableStyle
+            }
             textView.typingAttributes = typingAttributes
 
             notifyFormatState(typingAttributes)

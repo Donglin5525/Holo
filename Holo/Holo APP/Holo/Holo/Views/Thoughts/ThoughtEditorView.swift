@@ -21,11 +21,6 @@ private enum ThoughtLog {
     }
 }
 
-private enum ThoughtEditorDismissDestination {
-    case close
-    case tag(String)
-}
-
 // MARK: - ThoughtEditorView
 
 /// 想法编辑器视图
@@ -69,8 +64,6 @@ struct ThoughtEditorView: View {
     // MARK: - UI State
     @State private var showVoiceInput: Bool = false
     @State private var isSaving: Bool = false
-    @State private var showDismissAlert: Bool = false
-    @State private var pendingDismissDestination: ThoughtEditorDismissDestination = .close
     @State private var pendingEditorAction: MarkdownEditorAction? = nil
     @State private var pendingVoiceTranscriptToInsert: String? = nil
     @State private var editorHeight: CGFloat = 360
@@ -78,6 +71,15 @@ struct ThoughtEditorView: View {
     /// 当前光标在编辑器视图局部坐标系内的 rect（由 MarkdownTextView 上报，候选浮层据此吸附）
     @State private var caretRect: CGRect = .zero
     @AppStorage("com.holo.thought.voice.smartSummary.enabled") private var smartSummaryEnabled: Bool = true
+
+    // MARK: - 自动保存
+    /// 新建模式下首次落库后拿到的草稿 ID（之后转为 update）。
+    /// 编辑模式（editingThoughtId != nil）时不使用此字段。
+    @State private var draftThoughtId: UUID? = nil
+    /// 防抖自动保存任务（用户停顿 2 秒后落库一次）
+    @State private var autoSaveTask: Task<Void, Never>? = nil
+    /// AI 分类是否已触发（每个草稿只触发一次，避免自动保存重复消耗配额）
+    @State private var didEnqueueAIClassification: Bool = false
 
     // MARK: - Attachment State
     @State private var pendingImages: [UIImage] = []
@@ -89,12 +91,20 @@ struct ThoughtEditorView: View {
     @State private var showAttachmentGallery: Bool = false
     @State private var galleryStartIndex: Int = 0
     @State private var editingAttachments: [ThoughtAttachmentGridItem] = []
-    /// 是否为编辑模式
-    private var isEditing: Bool { editingThoughtId != nil }
 
-    /// 是否可保存
+    /// 当前正在编辑的想法 ID（编辑模式用注入的 id，新建模式用草稿 id）
+    private var currentThoughtId: UUID? { editingThoughtId ?? draftThoughtId }
+    /// 是否为编辑模式（已有记录）
+    private var isEditing: Bool { currentThoughtId != nil }
+
+    /// 是否有实质内容（去空格换行后非空）
+    private var hasContent: Bool {
+        !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// 是否可手动保存（有内容且未在保存中）
     private var canSave: Bool {
-        !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !isSaving
+        hasContent && !isSaving
     }
 
     // MARK: - Body
@@ -131,7 +141,7 @@ struct ThoughtEditorView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
                     Button("取消") {
-                        handleDismiss()
+                        dismiss()
                     }
                     .foregroundColor(.holoTextSecondary)
                 }
@@ -146,10 +156,9 @@ struct ThoughtEditorView: View {
             }
         }
         .navigationViewStyle(.stack)
-        // 关键：接管系统返回手势 —— fullScreenCover 下无系统下滑关闭，
-        // 左边缘右滑与「取消」共用同一套未保存修改确认语义。
+        // 右滑退出：自动保存由 onDisappear 兜底，不再弹窗确认。
         .swipeBackToDismiss(isEnabled: true) {
-            handleDismiss()
+            dismiss()
         }
         .sheet(isPresented: $showVoiceInput, onDismiss: insertPendingVoiceTranscript) {
             if smartSummaryEnabled {
@@ -185,14 +194,18 @@ struct ThoughtEditorView: View {
         .onAppear {
             loadEditingData()
         }
-        .unsavedChangesAlert(isPresented: $showDismissAlert) {
-            if case .tag(let path) = pendingDismissDestination {
-                NotificationCenter.default.post(name: .thoughtRequestTagFilter, object: path)
-            }
-            dismiss()
+        .onDisappear {
+            // 兜底：退出时落库当前内容（防抖任务可能还没触发）。
+            // cancel 旧任务避免 dismiss 后的竞争写入。
+            autoSaveTask?.cancel()
+            autoSaveTask = nil
+            persistContent(shouldDismiss: false, notifyDataChange: true)
+        }
+        .onChange(of: content) { _, _ in
+            scheduleAutoSave()
         }
         .onChange(of: triggerContext) { _, newValue in
-            suggestionViewModel.search(context: newValue, excludingThoughtId: editingThoughtId)
+            suggestionViewModel.search(context: newValue, excludingThoughtId: currentThoughtId)
         }
         .confirmationDialog(
             tokenMenuTitle,
@@ -244,7 +257,7 @@ struct ThoughtEditorView: View {
         }
     }
 
-    // MARK: - Dismiss Handling
+    // MARK: - 自动保存
 
     private func formatThoughtVoiceTranscript(_ transcript: String) -> String {
         ThoughtVoiceTranscriptInsertion.makeInsertionText(
@@ -254,35 +267,132 @@ struct ThoughtEditorView: View {
         )
     }
 
-    /// 处理取消/右滑退出：有未保存修改时必须由用户确认是否放弃。
-    /// 「保存」是唯一正式写入观点的入口，避免取消操作产生意外记录。
-    private func handleDismiss() {
-        if hasUnsavedChanges {
-            pendingDismissDestination = .close
-            showDismissAlert = true
-        } else {
+    /// 防抖自动保存：内容变化后停顿 2 秒落库一次，避免逐字写入的性能开销。
+    private func scheduleAutoSave() {
+        autoSaveTask?.cancel()
+        autoSaveTask = Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 2_000_000_000)
+            guard !Task.isCancelled else { return }
+            persistContent(shouldDismiss: false, notifyDataChange: false)
+        }
+    }
+
+    /// 核心持久化：根据当前状态 create / update / 删除空草稿。
+    /// - Parameters:
+    ///   - shouldDismiss: 是否在保存后关闭页面（手动点保存 / 空内容退出时为 true）
+    ///   - notifyDataChange: 是否发送数据变更通知（退出时为 true；防抖中间保存为 false，
+    ///     避免 Widget 快照、列表刷新等重链路频繁触发）
+    private func persistContent(shouldDismiss: Bool, notifyDataChange: Bool) {
+        // 无内容：不创建空记录。已创建过的草稿（draftThoughtId != nil）删除回退。
+        if !hasContent {
+            if let draftId = draftThoughtId {
+                try? thoughtRepository.hardDelete(draftId)
+                draftThoughtId = nil
+            }
+            if shouldDismiss { dismiss() }
+            return
+        }
+
+        let repository = thoughtRepository
+        let nodes = editorNodesLoaded
+            ? editorNodes
+            : RichContentSerializer.nodes(richJSON: initialRichJSON, fallbackPlainText: content)
+        let hasTokens = nodes.contains { node in
+            if case .text = node { return false }
+            return true
+        }
+        let richJSON = hasTokens ? try? RichContentSerializer.jsonString(from: nodes) : nil
+        let referenceSnapshots: [ThoughtRepository.ReferenceSnapshot] = nodes.compactMap { node in
+            guard case .reference(let noteId, let displayText, let snapshot) = node else { return nil }
+            return ThoughtRepository.ReferenceSnapshot(targetId: noteId, displayText: displayText, snapshot: snapshot)
+        }
+        let inlineTags = InlineTagDetector.extractTags(from: content)
+
+        do {
+            if let thoughtId = currentThoughtId {
+                // 已有记录（编辑模式或草稿已创建）：update
+                try repository.update(
+                    thoughtId,
+                    content: content,
+                    mood: nil,
+                    inlineTags: inlineTags,
+                    richContentJSON: .some(richJSON)
+                )
+                try repository.replaceReferences(thoughtId: thoughtId, references: referenceSnapshots)
+            } else {
+                // 新建模式首次落库：create
+                let thought = try repository.create(
+                    content: content,
+                    mood: nil,
+                    manualTags: [],
+                    inlineTags: inlineTags,
+                    richContentJSON: richJSON
+                )
+                draftThoughtId = thought.id
+                try repository.replaceReferences(thoughtId: thought.id, references: referenceSnapshots)
+
+                // 上传暂存图片（新建模式首次 create 后转为编辑模式，图片落库）
+                let imagesToUpload = pendingImages
+                if !imagesToUpload.isEmpty {
+                    pendingImages = []
+                    Task { @MainActor in
+                        var failedCount = 0
+                        for image in imagesToUpload {
+                            guard let jpegData = image.jpegData(compressionQuality: 0.85) else {
+                                failedCount += 1
+                                continue
+                            }
+                            do {
+                                _ = try await repository.addAttachment(imageData: jpegData, to: thought)
+                            } catch {
+                                failedCount += 1
+                            }
+                        }
+                        if failedCount > 0 {
+                            HoloToastCenter.shared.show(
+                                failedCount == imagesToUpload.count
+                                    ? "图片保存失败，请重新编辑添加"
+                                    : "\(failedCount) 张图片保存失败，部分图片可能丢失",
+                                type: .error
+                            )
+                        }
+                    }
+                }
+
+                // AI 自动分类：每个草稿仅首次创建时触发一次
+                if !didEnqueueAIClassification,
+                   ThoughtAIClassificationPolicy.isEnabled(), content.count >= 10 {
+                    didEnqueueAIClassification = true
+                    Task { @MainActor in
+                        ThoughtOrganizationQueue.shared.enqueue(thoughtId: thought.id)
+                    }
+                }
+            }
+        } catch {
+            ThoughtLog.error("观点自动保存失败", error.localizedDescription)
+            return
+        }
+
+        // 同步修改检测基线
+        originalContent = content
+
+        if notifyDataChange {
+            NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+            onSave?()
+        }
+
+        if shouldDismiss {
             dismiss()
         }
     }
 
-    // MARK: - 未保存修改检测
-
-    /// 是否有未保存的修改
-    private var hasUnsavedChanges: Bool {
-        let trimmedContent = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        let trimmedOriginal = originalContent.trimmingCharacters(in: .whitespacesAndNewlines)
-
-        // 内容发生变化（含 Token 增删，派生文本随之变化）
-        if trimmedContent != trimmedOriginal {
-            return true
+    /// 手动点「保存」按钮：最终保存 + 退出
+    private func saveThought() {
+        guard canSave else {
+            dismiss()
+            return
         }
-
-        // 新建模式有暂存图片
-        if !isEditing && !pendingImages.isEmpty {
-            return true
-        }
-
-        return false
+        persistContent(shouldDismiss: true, notifyDataChange: true)
     }
 
     // MARK: - Sections
@@ -511,13 +621,11 @@ struct ThoughtEditorView: View {
         }
     }
 
-    /// 查看标签前仍遵循显式保存语义；存在修改时先留在编辑器确认。
+    /// 查看标签：保存当前内容后发筛选通知并退出
     private func viewTagThoughts(_ path: String) {
-        if hasUnsavedChanges {
-            pendingDismissDestination = .tag(path)
-            showDismissAlert = true
-            return
-        }
+        autoSaveTask?.cancel()
+        autoSaveTask = nil
+        persistContent(shouldDismiss: false, notifyDataChange: false)
         NotificationCenter.default.post(name: .thoughtRequestTagFilter, object: path)
         dismiss()
     }
@@ -764,115 +872,6 @@ struct ThoughtEditorView: View {
         DispatchQueue.main.async {
             insertVoiceTranscript(transcript)
         }
-    }
-
-    /// 保存想法
-    private func saveThought() {
-        guard canSave else {
-            // 如果没有内容，直接退出
-            dismiss()
-            return
-        }
-
-        // 如果是编辑模式且没有修改，直接退出
-        if isEditing && !hasUnsavedChanges {
-            dismiss()
-            return
-        }
-
-        isSaving = true
-
-        let repository = ThoughtRepository()
-
-        // 结构化内容：节点模型优先，未编辑过时回退到初始 JSON/纯文本
-        let nodes = editorNodesLoaded
-            ? editorNodes
-            : RichContentSerializer.nodes(richJSON: initialRichJSON, fallbackPlainText: content)
-        let hasTokens = nodes.contains { node in
-            if case .text = node { return false }
-            return true
-        }
-        let richJSON = hasTokens ? try? RichContentSerializer.jsonString(from: nodes) : nil
-        let referenceSnapshots: [ThoughtRepository.ReferenceSnapshot] = nodes.compactMap { node in
-            guard case .reference(let noteId, let displayText, let snapshot) = node else { return nil }
-            return ThoughtRepository.ReferenceSnapshot(targetId: noteId, displayText: displayText, snapshot: snapshot)
-        }
-
-        // 分离手动标签与内联 # 标签（不再合并后传入，保留来源信息）
-        let inlineTags = InlineTagDetector.extractTags(from: content)
-
-        do {
-            if isEditing, let thoughtId = editingThoughtId {
-                // 编辑模式：更新已有想法（标签全部来自正文行内 #，保存时以当前内容重建）
-                // 用 inlineTags 参数（而非 tags）让 repository 保留 AI assignments，新标签标 inline source
-                try repository.update(
-                    thoughtId,
-                    content: content,
-                    mood: nil,
-                    inlineTags: inlineTags,
-                    richContentJSON: .some(richJSON)
-                )
-                try repository.replaceReferences(thoughtId: thoughtId, references: referenceSnapshots)
-            } else {
-                // 新建模式
-                let thought = try repository.create(
-                    content: content,
-                    mood: nil,
-                    manualTags: [],
-                    inlineTags: inlineTags,
-                    richContentJSON: richJSON
-                )
-                try repository.replaceReferences(thoughtId: thought.id, references: referenceSnapshots)
-
-                // 保存待上传图片（后台逐张处理）—— 先快照到局部变量，避免后续清空 state 影响迭代
-                let imagesToUpload = pendingImages
-                if !imagesToUpload.isEmpty {
-                    Task { @MainActor in
-                        var failedCount = 0
-                        for image in imagesToUpload {
-                            guard let jpegData = image.jpegData(compressionQuality: 0.85) else {
-                                failedCount += 1
-                                continue
-                            }
-                            do {
-                                _ = try await repository.addAttachment(imageData: jpegData, to: thought)
-                            } catch {
-                                failedCount += 1
-                            }
-                        }
-                        if failedCount > 0 {
-                            HoloToastCenter.shared.show(
-                                failedCount == imagesToUpload.count
-                                    ? "图片保存失败，请重新编辑添加"
-                                    : "\(failedCount) 张图片保存失败，部分图片可能丢失",
-                                type: .error
-                            )
-                        }
-                    }
-                }
-
-                // AI 自动整理：新想法保存后触发（仅新建，编辑不触发）
-                if ThoughtAIClassificationPolicy.isEnabled() && content.count >= 10 {
-                    Task { @MainActor in
-                        ThoughtOrganizationQueue.shared.enqueue(thoughtId: thought.id)
-                    }
-                }
-            }
-        } catch {
-            ThoughtLog.error("观点保存失败", error.localizedDescription)
-            isSaving = false
-            return
-        }
-
-        // 标记为已保存：同步原值，保持修改检测语义准确。
-        originalContent = content
-        // 新建模式的 pendingImages 已在后台 Task 处理，清空以避免 hasUnsavedChanges 误判
-        pendingImages = []
-
-        // 发送数据变更通知
-        NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
-        onSave?()
-        dismiss()
     }
 }
 
