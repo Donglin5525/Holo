@@ -17,6 +17,7 @@ enum TodoNotificationCategory {
     static let task = "TODO_TASK"
     static let dailyReminder = "DAILY_REMINDER"
     static let memoryInsight = "MEMORY_INSIGHT"
+    static let anniversary = "ANNIVERSARY"
 }
 
 enum TodoNotificationAction: String {
@@ -134,7 +135,15 @@ class TodoNotificationService: NSObject, ObservableObject {
             options: []
         )
 
-        UNUserNotificationCenter.current().setNotificationCategories([taskCategory, dailyCategory, memoryInsightCategory])
+        // 纪念日提醒分类（无操作按钮）
+        let anniversaryCategory = UNNotificationCategory(
+            identifier: TodoNotificationCategory.anniversary,
+            actions: [],
+            intentIdentifiers: [],
+            options: []
+        )
+
+        UNUserNotificationCenter.current().setNotificationCategories([taskCategory, dailyCategory, memoryInsightCategory, anniversaryCategory])
         Self.logger.info("已注册通知分类")
     }
 
@@ -482,5 +491,121 @@ extension TodoNotificationService: UNUserNotificationCenterDelegate {
     /// 设置代理
     func setupDelegate() {
         UNUserNotificationCenter.current().delegate = self
+    }
+
+    // MARK: - 纪念日提醒
+
+    /// 纪念日通知的纯值快照（不依赖 Core Data 上下文，跨线程安全）
+    struct AnniversaryReminderPayload {
+        let id: UUID
+        let title: String
+        let date: Date
+        let repeatYearly: Bool
+        let reminderDaysBefore: Int16
+        let reminderEnabled: Bool
+
+        init(_ a: Anniversary) {
+            id = a.id
+            title = a.title
+            date = a.date
+            repeatYearly = a.repeatYearly
+            reminderDaysBefore = a.reminderDaysBefore
+            reminderEnabled = a.reminderEnabled
+        }
+    }
+
+    /// 为纪念日调度本地通知。
+    /// - 每年重复：按 DateComponents(month, day) 排一条每年触发的通知
+    /// - 不重复：按具体日期排一条一次性通知
+    func scheduleAnniversaryReminder(for payload: AnniversaryReminderPayload) async {
+        guard payload.reminderEnabled else { return }
+        let center = UNUserNotificationCenter.current()
+        let calendar = Calendar.current
+
+        // 每年重复时取下一个周年；否则取原始日期
+        let baseDate: Date
+        if payload.repeatYearly {
+            baseDate = Self.nextYearlyOccurrence(of: payload.date)
+        } else {
+            baseDate = payload.date
+        }
+        let baseComp = calendar.dateComponents([.year, .month, .day], from: baseDate)
+
+        // 提前 N 天的触发日期
+        let triggerOffset = -Int(payload.reminderDaysBefore)
+        guard let rawTrigger = calendar.date(from: baseComp),
+              let triggerDate = calendar.date(byAdding: .day, value: triggerOffset, to: rawTrigger) else { return }
+        // 若触发日已过，不排（避免立即触发历史通知）
+        guard triggerDate > Date() else { return }
+
+        let triggerComp = calendar.dateComponents([.year, .month, .day, .hour], from: triggerDate)
+        let content = UNMutableNotificationContent()
+        content.title = payload.title
+        if payload.reminderDaysBefore == 0 {
+            content.body = payload.repeatYearly ? "今天是\(payload.title)" : "\(payload.title) 就是今天"
+        } else {
+            content.body = "\(payload.title) 还有 \(payload.reminderDaysBefore) 天后"
+        }
+        content.sound = .default
+        content.categoryIdentifier = TodoNotificationCategory.anniversary
+        content.userInfo = ["anniversaryId": payload.id.uuidString]
+
+        if payload.repeatYearly {
+            // 每年重复：只取 month/day/hour，repeats=true
+            var repeatComp = DateComponents()
+            repeatComp.month = triggerComp.month
+            repeatComp.day = triggerComp.day
+            repeatComp.hour = triggerComp.hour ?? 9
+            let trigger = UNCalendarNotificationTrigger(dateMatching: repeatComp, repeats: true)
+            let request = UNNotificationRequest(identifier: anniversaryReminderId(payload.id), content: content, trigger: trigger)
+            do {
+                try await center.add(request)
+                Self.logger.info("已调度每年重复纪念日通知：\(payload.title)")
+            } catch {
+                Self.logger.error("调度纪念日通知失败：\(error.localizedDescription)")
+            }
+        } else {
+            let trigger = UNCalendarNotificationTrigger(dateMatching: triggerComp, repeats: false)
+            let request = UNNotificationRequest(identifier: anniversaryReminderId(payload.id), content: content, trigger: trigger)
+            do {
+                try await center.add(request)
+                Self.logger.info("已调度纪念日通知：\(payload.title)")
+            } catch {
+                Self.logger.error("调度纪念日通知失败：\(error.localizedDescription)")
+            }
+        }
+    }
+
+    /// 计算某日期在未来的下一个周年（含今年未到的）
+    static func nextYearlyOccurrence(of date: Date) -> Date {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let originalDay = calendar.startOfDay(for: date)
+        let origComp = calendar.dateComponents([.month, .day], from: originalDay)
+        let nowYear = calendar.dateComponents([.year], from: Date()).year ?? 0
+
+        var comp = DateComponents()
+        comp.year = nowYear
+        comp.month = origComp.month
+        comp.day = origComp.day
+        guard let thisYear = calendar.date(from: comp) else { return originalDay }
+        if calendar.startOfDay(for: thisYear) >= today {
+            return thisYear
+        }
+        comp.year = nowYear + 1
+        return calendar.date(from: comp) ?? originalDay
+    }
+
+    /// 取消纪念日的通知
+    func cancelAnniversaryReminder(for anniversaryId: UUID) {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(
+            withIdentifiers: [anniversaryReminderId(anniversaryId)]
+        )
+        Self.logger.info("已取消纪念日通知：\(anniversaryId)")
+    }
+
+    /// 纪念日通知 ID
+    private func anniversaryReminderId(_ id: UUID) -> String {
+        "holo-anniversary-\(id.uuidString)"
     }
 }

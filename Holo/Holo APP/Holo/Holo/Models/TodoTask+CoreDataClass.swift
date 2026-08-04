@@ -57,6 +57,12 @@ class TodoTask: NSManagedObject {
     // MARK: - Source Thought Relationship（想法转任务后的来源关联）
 
     @NSManaged var sourceThought: Thought?
+
+    // MARK: - Source Anniversary（纪念日自动生成任务的来源关联）
+
+    /// 标记本任务由某个纪念日自动生成。用 UUID 而非 CoreData 关系，
+    /// 解耦纪念日与任务的生命周期（删除纪念日时不强删任务）。
+    @NSManaged var sourceAnniversaryId: UUID?
 }
 
 // MARK: - Core Data Generated Accessors

@@ -14,6 +14,7 @@ import SwiftUI
 enum TodoTab: String, CaseIterable {
     case stats = "统计"
     case tasks = "任务"
+    case anniversary = "纪念日"
     case add = "新增"
 
     /// 对应的 SF Symbol 图标名
@@ -21,6 +22,7 @@ enum TodoTab: String, CaseIterable {
         switch self {
         case .stats: return "chart.bar.fill"
         case .tasks: return "checklist"
+        case .anniversary: return "heart.text.square.fill"
         case .add: return "plus"
         }
     }
@@ -65,6 +67,8 @@ struct TasksView: View {
                     TaskStatsView(repository: repository, onBack: { close() })
                 case .tasks:
                     TaskListView(repository: repository, onBack: { close() })
+                case .anniversary:
+                    AnniversaryListView(onBack: { close() })
                 case .add:
                     EmptyView()
                 }
@@ -110,7 +114,11 @@ struct TasksView: View {
     private func todoTabButton(_ tab: TodoTab) -> some View {
         Button {
             if tab.isAddButton {
-                showAddTask = true
+                // 纪念日 Tab 下底部 + 不弹 sheet：纪念日页面自带右上角 + 按钮，
+                // 避免 TasksView 与子视图各挂一个 sheet 导致不可见层拦截触摸
+                if selectedTab != .anniversary {
+                    showAddTask = true
+                }
             } else {
                 withAnimation(.easeInOut(duration: 0.15)) {
                     selectedTab = tab

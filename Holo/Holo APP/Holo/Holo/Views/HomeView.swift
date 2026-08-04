@@ -194,6 +194,9 @@ struct HomeView: View {
             scheduleService.setup()
             // 本周观察：有效记录日 Service（首屏读缓存，后台监听四模块刷新）
             EffectiveRecordDayService.shared.setup()
+            // 纪念日：初始化 + 兜底生成到期任务
+            AnniversaryRepository.shared.setup()
+            _ = await AnniversaryTaskGenerator.shared.generateDueTasks()
         }
         // 轻量新人引导（完成后触发一次 HoloAI 入口提示）
         .fullScreenCover(isPresented: $showOnboarding, onDismiss: {
@@ -819,6 +822,10 @@ struct HomeView: View {
         case .tasks:
             navigateToScreen(.tasks)
             deepLinkState.pendingTarget = nil
+        case .anniversaries:
+            navigateToScreen(.tasks)
+        case .anniversaryDetail:
+            navigateToScreen(.tasks)
         case .addTask:
             showAddTaskSheet = true
             deepLinkState.pendingTarget = nil
