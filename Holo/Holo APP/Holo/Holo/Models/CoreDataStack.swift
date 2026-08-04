@@ -127,6 +127,8 @@ nonisolated class CoreDataStack {
         entities.append(createMemoryInsightEntity())
         entities.append(createMemoryInsightFeedbackEntity())
         entities.append(contentsOf: HoloMemoryManagedObjectModelFactory.makeEntities())
+        // 纪念日模块使用程序化 Core Data 模型；必须在首屏仓库查询前注册实体。
+        entities.append(createAnniversaryEntity())
         entities.append(goalEntity)
         model.entities = entities
         return model

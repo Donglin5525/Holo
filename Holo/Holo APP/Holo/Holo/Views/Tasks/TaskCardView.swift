@@ -14,6 +14,8 @@ struct TaskCardView: View {
     var onNavigate: (() -> Void)?
     var isCompleting: Bool = false
     var onToggleCompletion: (() -> Void)?
+    /// 点击纪念日来源徽章时跳转
+    var onNavigateToAnniversary: ((UUID) -> Void)?
 
     /// 是否展开检查清单
     @State private var isChecklistExpanded = false
@@ -107,6 +109,11 @@ struct TaskCardView: View {
                                 Image(systemName: "repeat")
                                     .font(.system(size: 10, weight: .medium))
                                     .foregroundColor(.holoPrimary)
+                            }
+
+                            // 纪念日来源徽章
+                            if let anniversaryId = task.sourceAnniversaryId {
+                                anniversarySourceBadge(anniversaryId)
                             }
 
                             // 清单名称
@@ -209,6 +216,36 @@ struct TaskCardView: View {
             return .holoTextSecondary
         }
         return .holoTextSecondary
+    }
+
+    // MARK: - 纪念日来源徽章
+
+    /// 纪念日自动生成的任务，在元信息行显示来源徽章。
+    /// 点击直达纪念日详情，形成串联闭环。
+    @ViewBuilder
+    private func anniversarySourceBadge(_ anniversaryId: UUID) -> some View {
+        if let anniversary = AnniversaryRepository.shared.anniversary(by: anniversaryId) {
+            HStack(spacing: 3) {
+                Image(systemName: anniversary.icon)
+                    .font(.system(size: 10, weight: .medium))
+                Text(anniversary.title)
+                    .lineLimit(1)
+            }
+            .font(.holoTinyLabel)
+            .foregroundColor(Color(hex: anniversary.color))
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color(hex: anniversary.color).opacity(0.12))
+            .clipShape(Capsule())
+            .onTapGesture {
+                HapticManager.selection()
+                onNavigateToAnniversary?(anniversaryId)
+            }
+        } else {
+            Label("纪念日", systemImage: "heart.text.square")
+                .font(.holoTinyLabel)
+                .foregroundColor(.holoTextSecondary)
+        }
     }
 
     private func toggleCompletion() {

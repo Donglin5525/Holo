@@ -150,9 +150,12 @@ private struct ToastOverlayView: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            // 占位：让 ZStack 占满 window，Toast 固定在顶部安全区下
+            // 占位：让 ZStack 占满 window，Toast 固定在顶部安全区下。
+            // 必须禁用命中测试——否则全屏 Color.clear 会拦截下层所有触摸
+            // （ToastPassthroughWindow.hitTest 依赖这里返回 nil 才能穿透）
             Color.clear
                 .ignoresSafeArea()
+                .allowsHitTesting(false)
 
             if let message = center.current {
                 toastView(message)
@@ -162,6 +165,7 @@ private struct ToastOverlayView: View {
                     .allowsHitTesting(false)
             }
         }
+        .allowsHitTesting(false)
         .animation(.easeInOut(duration: 0.22), value: center.current)
     }
 

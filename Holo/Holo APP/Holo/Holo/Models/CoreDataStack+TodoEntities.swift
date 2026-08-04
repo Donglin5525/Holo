@@ -258,6 +258,13 @@ extension CoreDataStack {
         taskIsDailyRitual.defaultValue = false
         todoTaskAttributes.append(taskIsDailyRitual)
 
+        // 纪念日来源（纪念日自动生成任务时标记来源 ID，nil=普通任务）
+        let taskSourceAnniversaryId = NSAttributeDescription()
+        taskSourceAnniversaryId.name = "sourceAnniversaryId"
+        taskSourceAnniversaryId.attributeType = .UUIDAttributeType
+        taskSourceAnniversaryId.isOptional = true
+        todoTaskAttributes.append(taskSourceAnniversaryId)
+
         // MARK: - TodoTag Entity
         // 待办标签实体
         let todoTagEntity = NSEntityDescription()
@@ -660,7 +667,7 @@ extension CoreDataStack {
 
         thoughtEntity.properties.append(thoughtTasksRelation)
         todoTaskEntity.properties = todoTaskAttributes + [taskListRelation, taskTagsRelation, taskCheckItemsRelation, taskAttachmentsRelation, taskRepeatRuleRelation, taskGoalRelation, taskSourceThoughtRelation]
-        CoreDataStack.applyIndexes(to: todoTaskEntity, on: ["id": taskId, "status": taskStatus, "priority": taskPriority, "dueDate": taskDueDate, "completed": taskIsCompleted, "archived": taskIsArchived, "deletedFlag": taskDeletedFlag])
+        CoreDataStack.applyIndexes(to: todoTaskEntity, on: ["id": taskId, "status": taskStatus, "priority": taskPriority, "dueDate": taskDueDate, "completed": taskIsCompleted, "archived": taskIsArchived, "deletedFlag": taskDeletedFlag, "sourceAnniversaryId": taskSourceAnniversaryId])
 
         todoFolderEntity.properties = todoFolderAttributes + [folderListsRelation]
         CoreDataStack.applyIndexes(to: todoFolderEntity, on: ["id": folderId])

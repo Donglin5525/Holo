@@ -45,6 +45,9 @@ enum DeepLinkTarget: Equatable {
     case addTask
     case recordThought
     case thoughtDetail(thoughtId: UUID)
+    /// 纪念日模块
+    case anniversaries
+    case anniversaryDetail(anniversaryId: UUID)
     /// 从 AI Chat 洞察标签跳转到记忆长廊
     case memoryGallery
     /// 精准打开记忆长廊中的指定洞察
