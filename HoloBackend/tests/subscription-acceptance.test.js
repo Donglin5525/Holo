@@ -183,7 +183,8 @@ test("ASR duration and successful action count follow the active tier", async ()
 
   const tooLong = new FormData();
   tooLong.append("audio", new Blob([new Uint8Array([1, 2, 3])], { type: "audio/m4a" }), "voice.m4a");
-  tooLong.append("durationSeconds", "61");
+  // 62 秒：超出免费档 60 秒 + 1 秒容差（容差用于吸收客户端倒计时轮询导致的 60.x 秒抖动）。
+  tooLong.append("durationSeconds", "62");
   tooLong.append("usageActionId", "asr-too-long");
   const blocked = await app.request("/v1/asr/transcriptions", {
     method: "POST",

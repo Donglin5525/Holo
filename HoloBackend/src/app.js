@@ -1004,7 +1004,10 @@ function releaseQuota(store, reservation) {
 function validateAsrDuration(tier, durationSeconds) {
   if (durationSeconds === null) return;
   const maxSeconds = getQuotaRule(tier, QUOTA_TYPES.asr).maxSeconds;
-  if (durationSeconds <= maxSeconds) return;
+  // 容差：客户端录音倒计时按 200ms 轮询，到点自动停止时实际录音文件
+  // 常会比 maxSeconds 多出零点几秒。给 1 秒容差，避免 60.x 秒的抖动
+  // 被判超时——这对用户是体验上限，不是物理硬约束。
+  if (durationSeconds <= maxSeconds + 1) return;
   throw new GatewayError("ASR_DURATION_EXCEEDED", "Audio duration exceeded", 429, {
     quotaType: QUOTA_TYPES.asr,
     tier: tier === "plus" ? "plus" : "free",
