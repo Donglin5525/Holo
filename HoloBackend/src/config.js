@@ -144,25 +144,28 @@ const DEFAULT_CONFIG = {
       provider: process.env.HOLO_THOUGHT_ORG_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_THOUGHT_ORG_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_THOUGHT_ORG_TEMPERATURE ?? 0.2),
-      maxTokens: Number(process.env.HOLO_THOUGHT_ORG_MAX_TOKENS ?? 512),
+      // 原为 512：DeepSeek 推理模型思考（reasoning）也计入 maxTokens，
+      // 首次冷请求时思考极易吃满 512，导致正式答案一个字未输出（finish_reason=length、content=""）→ App 解析失败。
+      // 调到 2048 给思考留足余量，保证正式 JSON 必定输出。
+      maxTokens: Number(process.env.HOLO_THOUGHT_ORG_MAX_TOKENS ?? 2048),
     },
     thought_task_extraction: {
       provider: process.env.HOLO_THOUGHT_TASK_EXTRACTION_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_THOUGHT_TASK_EXTRACTION_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_THOUGHT_TASK_EXTRACTION_TEMPERATURE ?? 0),
-      maxTokens: Number(process.env.HOLO_THOUGHT_TASK_EXTRACTION_MAX_TOKENS ?? 512),
+      maxTokens: Number(process.env.HOLO_THOUGHT_TASK_EXTRACTION_MAX_TOKENS ?? 1024),
     },
     thought_tag_convergence: {
       provider: process.env.HOLO_THOUGHT_CONVERGENCE_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_THOUGHT_CONVERGENCE_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_THOUGHT_CONVERGENCE_TEMPERATURE ?? 0.3),
-      maxTokens: Number(process.env.HOLO_THOUGHT_CONVERGENCE_MAX_TOKENS ?? 1024),
+      maxTokens: Number(process.env.HOLO_THOUGHT_CONVERGENCE_MAX_TOKENS ?? 2048),
     },
     category_pattern_induction: {
       provider: process.env.HOLO_CATEGORY_INDUCTION_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_CATEGORY_INDUCTION_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_CATEGORY_INDUCTION_TEMPERATURE ?? 0.2),
-      maxTokens: Number(process.env.HOLO_CATEGORY_INDUCTION_MAX_TOKENS ?? 1024),
+      maxTokens: Number(process.env.HOLO_CATEGORY_INDUCTION_MAX_TOKENS ?? 2048),
     },
     agent_loop: {
       provider: process.env.HOLO_AGENT_LOOP_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
