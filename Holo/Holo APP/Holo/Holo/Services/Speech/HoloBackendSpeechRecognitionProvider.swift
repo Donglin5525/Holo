@@ -39,10 +39,11 @@ final class HoloBackendSpeechRecognitionProvider: SpeechRecognitionProvider {
 
         let duration = try await Self.audioDuration(for: audioFileURL)
         let maxSeconds = await MainActor.run {
-            HoloEntitlementState.shared.quotas["asr"]?.maxSeconds
-                ?? (HoloEntitlementState.shared.isPlusActive ? 300 : 60)
+            HoloEntitlementState.shared.currentAsrMaxSeconds
         }
-        if duration > maxSeconds {
+        // 1 秒容差：客户端倒计时按 200ms 轮询，到点自动停止时实际录音常为 60.x 秒。
+        // 与后端 validateAsrDuration 的容差保持一致，避免抖动误判。
+        if duration > maxSeconds + 1 {
             let isPlusActive = await MainActor.run { HoloEntitlementState.shared.isPlusActive }
             if !isPlusActive {
                 await MainActor.run {

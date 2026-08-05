@@ -19,6 +19,7 @@ struct VoiceInputSheet: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @StateObject private var viewModel: VoiceInputViewModel
+    @ObservedObject private var entitlementState = HoloEntitlementState.shared
 
     let readySubtitle: String
     let submitButtonTitle: String
@@ -28,7 +29,7 @@ struct VoiceInputSheet: View {
     init(
         speechProvider: SpeechRecognitionProvider = MockSpeechRecognitionProvider(),
         recordingService: VoiceRecordingServiceProviding? = nil,
-        maximumDuration: TimeInterval = 60,
+        maximumDuration: TimeInterval? = nil,
         readySubtitle: String = "确认后再发送给 HoloAI",
         submitButtonTitle: String = "发送",
         resultConfig: VoiceResultConfig? = nil,
@@ -211,7 +212,29 @@ struct VoiceInputSheet: View {
                 .buttonStyle(VoicePrimaryButtonStyle())
                 .disabled(viewModel.editableTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
+
+            // 免费用户因达到 1 分钟上限自动停止后，底部柔和引导升级 Plus。
+            // 分寸：只在转写结果出来后才出现，不遮挡内容、不打断用户确认。
+            if showsPlusUpgradeHint {
+                Button {
+                    VoiceInputHaptics.selection()
+                    HoloPlusActionCoordinator.shared.requirePlus(context: .asrDuration)
+                } label: {
+                    HStack(spacing: 4) {
+                        Text("升级 Holo Plus，可录制 5 分钟语音")
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .semibold))
+                    }
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.holoTextSecondary)
+                }
+            }
         }
+    }
+
+    /// 免费用户 + 因到时长上限自动停止 → 显示升级引导
+    private var showsPlusUpgradeHint: Bool {
+        !entitlementState.isPlusActive && viewModel.didAutoFinishBecauseOfLimit
     }
 
     private var summarizingControls: some View {

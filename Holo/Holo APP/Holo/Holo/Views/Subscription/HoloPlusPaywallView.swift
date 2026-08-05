@@ -72,7 +72,7 @@ struct HoloPlusPaywallView: View {
             CardDivider()
             benefitComparisonRow(icon: "waveform", name: "语音识别", free: "20/天", plus: "50/天")
             CardDivider()
-            benefitComparisonRow(icon: "timer", name: "语音时长", free: "60秒", plus: "5分钟")
+            benefitComparisonRow(icon: "timer", name: "语音时长", free: "60 秒", plus: "5 分钟")
             CardDivider()
             benefitComparisonRow(icon: "sparkles.rectangle.stack", name: "智能记账+任务", free: "10~20/天", plus: "50/天")
             CardDivider()

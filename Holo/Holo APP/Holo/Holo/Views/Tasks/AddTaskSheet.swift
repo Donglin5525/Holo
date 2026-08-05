@@ -244,7 +244,6 @@ struct AddTaskSheet: View {
             if smartSummaryEnabled {
                 VoiceInputSheet(
                     speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(),
-                    maximumDuration: 300,
                     readySubtitle: "确认后插入到任务描述",
                     submitButtonTitle: "插入",
                     resultConfig: VoiceResultConfig(
@@ -261,7 +260,6 @@ struct AddTaskSheet: View {
             } else {
                 VoiceInputSheet(
                     speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(),
-                    maximumDuration: 300,
                     readySubtitle: "确认后插入到任务描述",
                     submitButtonTitle: "插入",
                     transcriptFormatter: formatTaskVoiceTranscript

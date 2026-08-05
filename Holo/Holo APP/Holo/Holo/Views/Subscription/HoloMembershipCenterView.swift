@@ -84,7 +84,7 @@ struct HoloMembershipCenterView: View {
 
                 HStack(spacing: HoloSpacing.sm) {
                     membershipMetric("HoloAI", entitlementState.isPlusActive ? "30/天" : "3/天")
-                    membershipMetric("语音", entitlementState.isPlusActive ? "5分钟" : "60秒")
+                    membershipMetric("语音识别", entitlementState.isPlusActive ? "50/天" : "20/天")
                     membershipMetric("任务", entitlementState.isPlusActive ? "50/天" : "10/天")
                 }
             }

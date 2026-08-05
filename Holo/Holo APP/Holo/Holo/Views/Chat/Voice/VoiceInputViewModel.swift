@@ -103,14 +103,16 @@ final class VoiceInputViewModel: ObservableObject {
         speechProvider: SpeechRecognitionProvider,
         recordingService: VoiceRecordingServiceProviding? = nil,
         minimumDuration: TimeInterval = 0.8,
-        maximumDuration: TimeInterval = 60,
+        maximumDuration: TimeInterval? = nil,
         postProcessor: (any VoiceTranscriptPostProcessing)? = nil,
         transcriptFormatter: @escaping (String) -> String = { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
     ) {
         self.speechProvider = speechProvider
         self.recordingService = recordingService ?? VoiceRecordingService()
         self.minimumDuration = minimumDuration
-        self.maximumDuration = maximumDuration
+        // nil → 按当前会员档位决定（免费 60 秒 / Plus 300 秒）。
+        // 走默认参数无法直接读 @MainActor 的权益状态，故在 init 内解析。
+        self.maximumDuration = maximumDuration ?? HoloEntitlementState.shared.currentAsrMaxSeconds
         self.postProcessor = postProcessor
         self.transcriptFormatter = transcriptFormatter
 

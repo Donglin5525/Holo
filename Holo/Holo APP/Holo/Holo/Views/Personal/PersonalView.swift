@@ -173,8 +173,8 @@ struct PersonalView: View {
                             value: entitlementState.isPlusActive ? "30/天" : "3/天"
                         )
                         plusFeaturePill(
-                            "语音",
-                            value: entitlementState.isPlusActive ? "5分钟" : "60秒"
+                            "语音识别",
+                            value: entitlementState.isPlusActive ? "50/天" : "20/天"
                         )
                         plusFeaturePill(
                             "任务",

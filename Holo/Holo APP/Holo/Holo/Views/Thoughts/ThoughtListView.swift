@@ -386,7 +386,7 @@ struct ThoughtListView: View {
             return
         }
         if orgQueue.dailyLimitHit {
-            batchOrganizeNotice = "今日整理配额已用尽，剩余条目会在明天自动续做"
+            batchOrganizeNotice = "今日整理配额已用尽，剩余条目明天自动续做"
             return
         }
         if unprocessedCount == 0 {

@@ -164,7 +164,6 @@ struct ThoughtEditorView: View {
             if smartSummaryEnabled {
                 VoiceInputSheet(
                     speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(),
-                    maximumDuration: 300,
                     readySubtitle: "确认后插入到观点内容",
                     submitButtonTitle: "插入",
                     resultConfig: VoiceResultConfig(
@@ -181,7 +180,6 @@ struct ThoughtEditorView: View {
             } else {
                 VoiceInputSheet(
                     speechProvider: SpeechRecognitionProviderFactory.makeConfiguredProvider(),
-                    maximumDuration: 300,
                     readySubtitle: "确认后插入到观点内容",
                     submitButtonTitle: "插入",
                     transcriptFormatter: formatThoughtVoiceTranscript

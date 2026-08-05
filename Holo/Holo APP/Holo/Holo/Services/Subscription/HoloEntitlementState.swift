@@ -45,6 +45,15 @@ final class HoloEntitlementState: ObservableObject {
         lastErrorMessage = message
     }
 
+    /// 当前会员档位下的单条语音最长可识别秒数（客户端 ASR 时长的唯一来源）。
+    /// 优先用服务端下发的 quotas["asr"].maxSeconds，兜底按档位 60/300。
+    var currentAsrMaxSeconds: TimeInterval {
+        if let seconds = quotas["asr"]?.maxSeconds, seconds > 0 {
+            return seconds
+        }
+        return isPlusActive ? 300 : 60
+    }
+
     private static func acceptanceQuotas(for tier: HoloSubscriptionTier) -> [String: HoloQuotaSnapshot] {
         let limits: [String: Int] = tier == .plus
             ? [
