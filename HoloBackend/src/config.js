@@ -80,11 +80,17 @@ const DEFAULT_CONFIG = {
       provider: process.env.HOLO_THOUGHT_VOICE_SUMMARY_PROVIDER
         ?? process.env.HOLO_CHAT_PROVIDER
         ?? "mock",
+      // §model-v4-flash: 切到 v4-flash（理解力强于 deepseek-chat，能更好识别自我纠正/废话/情绪信号）。
+      // 仍允许 env 覆盖，但默认不再 fallback 到 HOLO_CHAT_MODEL，避免被旧配置拖回 deepseek-chat。
       model: process.env.HOLO_THOUGHT_VOICE_SUMMARY_MODEL
-        ?? process.env.HOLO_CHAT_MODEL
-        ?? "holo-mock",
+        ?? "deepseek-v4-flash",
       temperature: Number(process.env.HOLO_THOUGHT_VOICE_SUMMARY_TEMPERATURE ?? 0.3),
       maxTokens: Number(process.env.HOLO_THOUGHT_VOICE_SUMMARY_MAX_TOKENS ?? 1024),
+      // §reasoning-off: 语音总结是轻量文本整理任务，不需要推理模型先思考再输出。
+      // 关闭思考（reasoning_effort=none）后：① 耗时从 ~1800ms 降到 ~1000ms；
+      // ② reasoning_tokens 归零，1024 maxTokens 全部留给正式输出，不再有"思考吃满额度导致输出为空"的风险。
+      // 与 agent_loop（用 low）同属 buildUpstreamBody 的 reasoning_effort 透传机制。
+      reasoningEffort: process.env.HOLO_THOUGHT_VOICE_SUMMARY_REASONING_EFFORT ?? "none",
     },
     memory_observer: {
       provider: process.env.HOLO_MEMORY_OBSERVER_PROVIDER

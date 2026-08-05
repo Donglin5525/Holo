@@ -11,7 +11,7 @@ const PROMPT_VERSIONS = {
   replay_digest_consolidation: 1,   // v1: 周期回放历史归纳器，每次回放后把本期并入累计摘要
   analysis_prompt: 5,               // v5: 温档（洞察方法论+few-shot），删重复边界块与输出格式段由 Preamble/契约接管
   annual_review: 2,
-  thought_voice_summary: 2,
+  thought_voice_summary: 3,                 // v3: 从「保守润色」转向「主动提炼」；加情绪/状态白名单、自我纠正、口癖清单、用户小前缀保留
   flexible_query_planner: 4,
   finance_action_parser: 1,
   task_action_parser: 1,
