@@ -16,7 +16,7 @@ const PROMPT_VERSIONS = {
   finance_action_parser: 1,
   task_action_parser: 1,
   health_insight_generation: 2,
-  thought_organization: 3,
+  thought_organization: 4,                  // v4: 加 recentAITags 字段 + 标签复用软约束升级为硬约束
   thought_task_extraction: 1,
   thought_tag_convergence: 2,
   agent_loop: 20,                  // v20: dataGapHints 遗漏数据提示 + _search 跨字段搜索
