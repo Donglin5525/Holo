@@ -229,7 +229,23 @@ final class HoloAgentSchedulerTests: XCTestCase {
         )
         XCTAssertTrue(paused.keepsMessageStreaming)
         XCTAssertFalse(paused.showsActivityIndicator)
+        XCTAssertFalse(paused.isExecutionActive)
         XCTAssertEqual(paused.title, "已暂停，回到 App 后继续")
+
+        let legacySystemPaused = HoloAgentChatStatusPresenter.status(
+            for: makeJob(state: .paused, step: .executeTools)
+        )
+        XCTAssertFalse(legacySystemPaused.isExecutionActive)
+
+        var explicitPausedJob = makeJob(state: .paused, step: .executeTools)
+        explicitPausedJob.waitReason = .userPaused
+        let explicitPaused = HoloAgentChatStatusPresenter.status(for: explicitPausedJob)
+        XCTAssertEqual(explicitPaused.title, "分析已暂停")
+
+        let parsedPaused = HoloAgentChatStatusPresenter.display(
+            from: "分析已暂停\n系统收回了后台执行时间。"
+        )
+        XCTAssertFalse(parsedPaused.showsActivityIndicator, "暂停文案不能继续显示旋转加载")
 
         let failed = HoloAgentChatStatusPresenter.status(
             for: makeJob(state: .failed, step: .executeTools, errorSummary: "网络中断")

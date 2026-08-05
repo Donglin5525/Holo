@@ -622,6 +622,10 @@ final class ChatMessageRepository: ObservableObject {
         }
         guard let message else { return }
 
+        // 用户点击停止后，这条消息已经进入本地终态；旧 Job 的恢复同步不能
+        // 再把它重新打开成等待/流式状态。
+        guard !(message.content == "已停止生成" && !message.isStreaming) else { return }
+
         liveMessageCache[messageId] = message
         message.content = fallbackText
         message.isStreaming = false
@@ -650,6 +654,9 @@ final class ChatMessageRepository: ObservableObject {
             message = try? context.fetch(request).first
         }
         guard let message else { return }
+
+        // 取消是用户对这条 Chat 消息做出的终态决定，晚到的旧 job 结果不得覆盖它。
+        guard !(message.content == "已停止生成" && !message.isStreaming) else { return }
 
         liveMessageCache[messageId] = message
         message.content = status.messageContent

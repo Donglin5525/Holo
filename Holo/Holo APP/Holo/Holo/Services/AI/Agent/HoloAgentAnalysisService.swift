@@ -17,6 +17,12 @@ struct HoloAgentChatStatus: Equatable {
     let keepsMessageStreaming: Bool
     let showsActivityIndicator: Bool
 
+    /// 消息卡片仍需保留，不代表 Agent 仍在执行。
+    /// 输入栏和停止按钮只应依据这个执行态，而不是 `keepsMessageStreaming`。
+    var isExecutionActive: Bool {
+        showsActivityIndicator
+    }
+
     var messageContent: String {
         [title, detail]
             .filter { !$0.isEmpty }
@@ -34,6 +40,22 @@ enum HoloAgentChatStatusPresenter {
         case .retrying:
             return active("Holo 正在重试分析…", detail: "刚才的模型输出不完整，正在自动重试。")
         case .waitingForForeground:
+            if job.waitReason == .systemCapacity {
+                return HoloAgentChatStatus(
+                    title: "系统暂时暂停，回到 App 后继续",
+                    detail: "系统收回了后台执行时间，回到 Holo 后会从刚才的进度继续。",
+                    keepsMessageStreaming: true,
+                    showsActivityIndicator: false
+                )
+            }
+            if job.waitReason == .userPaused {
+                return HoloAgentChatStatus(
+                    title: "分析已暂停",
+                    detail: "这次分析已暂停，不会在后台自动继续。",
+                    keepsMessageStreaming: true,
+                    showsActivityIndicator: false
+                )
+            }
             return HoloAgentChatStatus(
                 title: "已暂停，回到 App 后继续",
                 detail: "系统已经收回后台执行时间，Holo 会在回到前台后继续处理。",
@@ -42,12 +64,19 @@ enum HoloAgentChatStatusPresenter {
             )
         case .paused:
             // systemCapacity：系统lease结束导致的暂停（非用户意愿）。
-            // 回前台时由 BackgroundContinuationManager 自动恢复（collectResumableJobs 放行）。
-            // 文案如实告知"自动继续"，不再误导"手动继续"。
+            // 兼容修复前已经落盘的旧任务；新任务统一落 waitingForForeground。
             if job.waitReason == .systemCapacity {
                 return HoloAgentChatStatus(
-                    title: "分析已暂停，回到 App 自动继续",
-                    detail: "系统暂时收回后台执行时间。回到 Holo 后会自动接着往下分析。",
+                    title: "系统暂时暂停，回到 App 后继续",
+                    detail: "系统收回了后台执行时间，回到 Holo 后会从刚才的进度继续。",
+                    keepsMessageStreaming: true,
+                    showsActivityIndicator: false
+                )
+            }
+            if job.waitReason == .userPaused {
+                return HoloAgentChatStatus(
+                    title: "分析已暂停",
+                    detail: "这次分析已暂停，不会在后台自动继续。",
                     keepsMessageStreaming: true,
                     showsActivityIndicator: false
                 )
@@ -122,6 +151,8 @@ enum HoloAgentChatStatusPresenter {
         let title = lines.first?.isEmpty == false ? lines[0] : "Holo 正在深度分析中…"
         let detail = lines.dropFirst().joined(separator: "\n")
         let pausedOrTerminal = title.hasPrefix("已暂停") ||
+            title.hasPrefix("分析已暂停") ||
+            title.hasPrefix("系统暂时暂停") ||
             title.hasPrefix("深度分析已中断") ||
             title.hasPrefix("深度分析已取消") ||
             title.hasPrefix("已被新的分析取代") ||
@@ -176,6 +207,13 @@ enum HoloAgentChatStatusPresenter {
     }
 }
 
+enum HoloAgentAnalysisOutcome {
+    case completed(HoloRenderedAgentResult)
+    case waiting(HoloAgentJob)
+    case cancelled(HoloAgentJob)
+    case failed(reason: String, job: HoloAgentJob?)
+}
+
 @MainActor
 final class HoloAgentAnalysisService {
 
@@ -193,15 +231,12 @@ final class HoloAgentAnalysisService {
         self.scheduler = scheduler
     }
 
-    /// 运行一次深度分析，返回渲染后的结果短文；失败或未完成返回 nil。
+    /// 运行一次深度分析，返回真实的任务结果，不把等待/取消伪装成普通失败。
     /// 全程异步执行，ChatViewModel 负责展示状态与最终文本。
     func runAnalysis(question: String, trigger: HoloAgentTrigger = .userQuestion,
-                     sourceMessageID: UUID? = nil) async -> HoloRenderedAgentResult {
+                     sourceMessageID: UUID? = nil) async -> HoloAgentAnalysisOutcome {
         // 只记录长度，不把用户问题原文写入系统日志（Phase 7 隐私契约）。
         logger.info("[Agent] 开始 questionLength=\(question.count, privacy: .public)")
-        let fail = { (reason: String) -> HoloRenderedAgentResult in
-            HoloRenderedAgentResult(title: "深度分析出错", summary: reason, sections: [], evidenceReferences: [])
-        }
         let toolDescriptions = await runtime.toolDescriptions()
         // 接入 PromptManager.agentLoop 模板：该模板定义了 status 取值、JSON Schema、
         // evidenceID 必须逐字引用等协议约束。此前传空串导致模型无协议指令，
@@ -220,20 +255,29 @@ final class HoloAgentAnalysisService {
             ))
             logger.info("[Agent] runLoop 完成 state=\(finalJob.state.rawValue) rounds=\(finalJob.budget.consumedLLMRounds)")
         } catch {
-            return fail("[runLoop异常] \(String(describing: error))")
+            return await outcomeAfterInterruption(
+                sourceMessageID: sourceMessageID,
+                fallbackReason: "[runLoop异常] \(String(describing: error))"
+            )
         }
         guard finalJob.state == .completed else {
             let detail = "state=\(finalJob.state.rawValue) rounds=\(finalJob.budget.consumedLLMRounds)/\(finalJob.budget.maxLLMRounds) error=\(finalJob.errorSummary ?? "无")"
-            return fail("[未完成] \(detail)")
+            return outcome(for: finalJob, fallbackReason: "[未完成] \(detail)")
         }
         let result: HoloAgentResult
         do {
             guard let loaded = try await runtime.loadResult(jobID: finalJob.id) else {
-                return fail("[结果未保存] loadResult nil job=\(finalJob.id)")
+                return .failed(
+                    reason: "[结果未保存] loadResult nil job=\(finalJob.id)",
+                    job: nil
+                )
             }
             result = loaded
         } catch {
-            return fail("[结果读取失败] \(String(describing: error))")
+            return .failed(
+                reason: "[结果读取失败] \(String(describing: error))",
+                job: nil
+            )
         }
         if !result.memoryCandidateIDs.isEmpty {
             HoloMemoryReceiptStore.record(
@@ -246,7 +290,7 @@ final class HoloAgentAnalysisService {
         logger.info("[Agent] result claims=\(result.claims.count)")
         do {
             let evidence = try await runtime.loadEvidence(forIDs: result.evidenceIDs)
-            return HoloAgentResultRenderer().render(
+            return .completed(HoloAgentResultRenderer().render(
                 claims: result.claims,
                 evidence: evidence,
                 title: result.title,
@@ -260,9 +304,50 @@ final class HoloAgentAnalysisService {
                 requestedDeliverables: result.requestedDeliverables ?? [],
                 narrativeSummary: result.narrativeSummary,
                 contextSources: result.contextSources ?? []
-            )
+            ))
         } catch {
-            return fail("[证据读取失败] \(String(describing: error))")
+            return .failed(
+                reason: "[证据读取失败] \(String(describing: error))",
+                job: nil
+            )
+        }
+    }
+
+    private func outcome(for job: HoloAgentJob, fallbackReason: String) -> HoloAgentAnalysisOutcome {
+        switch job.state {
+        case .waitingForForeground, .waitingForCondition, .paused:
+            return .waiting(job)
+        case .cancelled, .superseded:
+            return .cancelled(job)
+        case .failed:
+            return .failed(reason: job.errorSummary ?? fallbackReason, job: job)
+        case .completed:
+            return .failed(reason: fallbackReason, job: nil)
+        case .queued, .running, .waitingForLLM, .retrying:
+            return .failed(reason: fallbackReason, job: job)
+        }
+    }
+
+    /// 系统结束 continued 或其它取消信号会让 runLoop 抛出 CancellationError；
+    /// 这里重新读取 Job，确保 Chat 不会把可恢复等待显示成“分析失败”。
+    private func outcomeAfterInterruption(
+        sourceMessageID: UUID?,
+        fallbackReason: String
+    ) async -> HoloAgentAnalysisOutcome {
+        guard let sourceMessageID else {
+            return .failed(reason: fallbackReason, job: nil)
+        }
+        do {
+            let job = try await runtime.loadChatLinkedJobs()
+                .filter { $0.sourceMessageID == sourceMessageID }
+                .max { $0.updatedAt < $1.updatedAt }
+            guard let job else {
+                return .failed(reason: fallbackReason, job: nil)
+            }
+            return outcome(for: job, fallbackReason: fallbackReason)
+        } catch {
+            logger.error("[Agent] 中断后读取 job 状态失败: \(String(describing: error))")
+            return .failed(reason: fallbackReason, job: nil)
         }
     }
 

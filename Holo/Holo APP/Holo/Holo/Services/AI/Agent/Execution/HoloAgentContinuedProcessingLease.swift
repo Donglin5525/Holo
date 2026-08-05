@@ -152,9 +152,9 @@ final class HoloAgentContinuedProcessingLease: HoloAgentExecutionLease {
         systemTask = launchedTask
     }
 
-    /// §9.5：系统结束（expiration/取消）。真机 spike 待办：当前 SDK/真机上系统取消与资源
-    /// expiration 是否可区分尚未验证，按「不可区分」保守路径——结束本次 execution lease，
-    /// 回调 Scheduler 落 paused + 来源，不自动悄悄复活；用户回前台由恢复链/明确动作接管。
+    /// §9.5：系统结束（expiration/取消）。当前 SDK/真机上系统取消与资源 expiration
+    /// 按同一类“执行权结束”处理：系统任务向 OS 回报结束失败，App Job 由 Scheduler
+    /// 落为可恢复等待，用户回到 Holo 后自动从 checkpoint 接管。
     private func systemDidExpire() {
         guard !didFinish else { return }
         didFinish = true

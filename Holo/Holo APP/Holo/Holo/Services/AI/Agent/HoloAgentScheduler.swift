@@ -304,7 +304,10 @@ actor HoloAgentScheduler {
         }
         await finishLease(jobID: jobID, success: false)
         do {
-            _ = try await runtime.pauseJob(jobID: jobID, now: now)
+            let waitReason: HoloAgentWaitReason = reason == .userRequested
+                ? .userPaused
+                : .backgroundTimeExpired
+            _ = try await runtime.pauseJob(jobID: jobID, reason: waitReason, now: now)
         } catch {
             logger.error("[Agent] 暂停标记失败 jobID=\(jobID, privacy: .public) error=\(String(describing: error), privacy: .public)")
         }
@@ -421,9 +424,9 @@ actor HoloAgentScheduler {
         }
     }
 
-    /// §9.5 系统结束 continued task（expiration/取消，按「不可区分」保守路径）：
-    /// 结束本次 execution lease，job 进 paused 并记录来源（waitReason=.systemCapacity），
-    /// 不自动悄悄复活（paused 不参与 resumeEligibleJobs）；用户回前台由恢复链/明确动作接管。
+    /// §9.5 系统结束 continued task（expiration/取消，按「不可区分」处理）：
+    /// 结束本次 execution lease，job 进入可恢复的 waitingForForeground；回到 Holo
+    /// 后由统一恢复链从 checkpoint 继续。只有用户主动暂停才进入 paused。
     private func continuedLeaseDidEnd(jobID: String, executionToken: UUID) async {
         // expiration 回调跨 MainActor → Scheduler actor 异步投递；若期间同一 job 已由
         // 新 generation 接管，旧 lease 绝不能清掉或取消新执行。
@@ -431,6 +434,9 @@ actor HoloAgentScheduler {
             logger.log("[Agent] 忽略旧 continued lease 的结束回调 jobID=\(jobID, privacy: .public)")
             return
         }
+        // continued 结束本身就是一次系统执行权到期；即使 App 没有走 legacy lease，
+        // 回前台也必须进入恢复链，不能只同步一张已经过期的暂停卡片。
+        didExpireInBackground = true
         activeLeases[jobID] = nil
         var event = HoloAgentTelemetryEvent(
             name: .executionExpired,
@@ -444,12 +450,12 @@ actor HoloAgentScheduler {
             removeActiveTaskRegistration(jobID: jobID)
         }
         do {
-            _ = try await runtime.suspendJob(
+            _ = try await runtime.pauseJob(
                 jobID: jobID,
-                reason: "系统结束了持续后台执行，回到 App 后可以手动继续",
+                reason: .systemCapacity,
                 now: Date()
             )
-            logger.log("[Agent] continued 执行权被系统结束，job 已暂停待手动继续 jobID=\(jobID, privacy: .public)")
+            logger.log("[Agent] continued 执行权被系统结束，job 已进入等待恢复 jobID=\(jobID, privacy: .public)")
         } catch {
             logger.error("[Agent] continued 结束落盘失败 jobID=\(jobID, privacy: .public) error=\(String(describing: error), privacy: .public)")
         }

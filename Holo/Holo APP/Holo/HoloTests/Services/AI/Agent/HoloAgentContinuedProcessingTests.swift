@@ -7,7 +7,7 @@
 //  - 资格矩阵（版本/trigger/consent/开关/已有 P0 持有）
 //  - .fail 策略：接纳→continued 租约接管同 job 单 Task；拒绝→回落 foreground/legacy
 //  - 进度单调不回退、提前完成补齐、副标题无敏感内容
-//  - 系统取消 → paused + 来源，不自动复活；明确动作接管
+//  - 系统取消 → waitingForForeground + 来源，回前台自动从断点恢复
 //  - 开关依赖：step 幂等关 → continued 不可开
 //
 
@@ -547,9 +547,10 @@ final class HoloAgentContinuedProcessingTests: XCTestCase {
         )
     }
 
-    /// §9.5：系统取消 → job 落 paused + 来源（waitReason=.systemCapacity），不自动复活；明确动作接管。
+    /// §9.5：系统取消 → job 落 waitingForForeground + 来源（waitReason=.systemCapacity），
+    /// 系统任务本身回报失败，但 App Job 保持可恢复并在前台自动接管。
     @MainActor
-    func testContinued_系统取消落paused不自动复活() async throws {
+    func testContinued_系统取消进入等待并自动恢复() async throws {
         enableContinuedFlags()
         let dir = makeTempDir()
         // LLM 挂起：让系统取消发生在执行中
@@ -573,16 +574,16 @@ final class HoloAgentContinuedProcessingTests: XCTestCase {
         let systemCompleted = await waitUntil { task.completedSuccess == false }
         XCTAssertTrue(systemCompleted, "expiration handler 必须向系统回报失败完成")
 
-        let paused = await waitUntil {
+        let waiting = await waitUntil {
             let stored = try? await fixture.jobStore.load().first { $0.id == job.id }
-            return stored?.state == .paused
+            return stored?.state == .waitingForForeground
         }
-        XCTAssertTrue(paused, "系统取消后 job 应落 paused")
+        XCTAssertTrue(waiting, "系统取消后 job 应进入等待前台")
         let stored = try await fixture.jobStore.load().first { $0.id == job.id }
         XCTAssertEqual(stored?.waitReason, .systemCapacity)
-        XCTAssertNotNil(stored?.errorSummary, "必须记录来源（不静默）")
+        XCTAssertNil(stored?.errorSummary, "系统容量等待不是分析失败")
 
-        // 不自动复活：resumeEligibleJobs 不接 paused
+        // 旧执行结束后，恢复入口应从 checkpoint 自动接管，而不是要求用户再点一次。
         await hangingLLM.release()
         do {
             _ = try await run
@@ -590,17 +591,13 @@ final class HoloAgentContinuedProcessingTests: XCTestCase {
         } catch {
             // CancellationError 为预期
         }
+        await hangingLLM.setHangNext(false)
         let resumed = try await scheduler.resumeEligibleJobs(
             trigger: .foreground, systemTemplate: "s", toolDescriptions: "t", now: now
         )
-        XCTAssertEqual(resumed, 0, "paused 不得自动复活")
-
-        // 用户明确动作（runOrAttach）可接管继续
-        await hangingLLM.setHangNext(false)
-        let continued = try await scheduler.runOrAttach(
-            jobID: job.id, reason: .foregroundReturn, systemTemplate: "s", toolDescriptions: "t", now: now
-        )
-        XCTAssertEqual(continued.state, .completed, "明确动作接管后应从断点完成")
+        XCTAssertEqual(resumed, 1, "回到前台应自动接管等待任务")
+        let continued = try await fixture.jobStore.load().first { $0.id == job.id }
+        XCTAssertEqual(continued?.state, .completed, "自动接管后应从断点完成")
     }
 
     /// 非用户发起 job（Observer trigger）即使开关全开也不提交 continued 请求。

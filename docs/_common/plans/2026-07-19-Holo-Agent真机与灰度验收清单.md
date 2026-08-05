@@ -78,9 +78,9 @@ agent_job_completed / agent_job_failed / agent_job_cancelled
 ### F. 用户停止与系统结束
 
 - [ ] 从系统持续处理入口执行“停止”（以真机当前系统提供的动作/语义为准）。
-- [ ] 预期：本次 lease 结束，job 落为可解释的 paused/system-capacity，不自动静默复活。
-- [ ] 回到 Holo，执行明确的继续动作。
-- [ ] 预期：取得新 generation，从 checkpoint 继续并只生成一个结果。
+- [ ] 预期：系统任务本身可以回报结束/失败，但 App job 落为 `waitingForForeground + systemCapacity`，不能把它显示成分析失败。
+- [ ] 回到 Holo。
+- [ ] 预期：自动取得新 generation，从 checkpoint 继续并只生成一个结果，不要求用户再点一次暂停卡片。
 - [ ] 另测 Holo 内用户取消：应为 `cancelled`，之后不能自动恢复。
 
 ### G. 网络切换与重复请求

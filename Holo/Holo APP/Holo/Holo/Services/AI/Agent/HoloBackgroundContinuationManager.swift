@@ -111,19 +111,13 @@ final class HoloBackgroundContinuationManager {
         }
     }
 
-    /// App 即将回前台：有租约被系统到期过才走恢复链；快速切回只同步 Chat 状态（既有任务继续）。
+    /// App 即将回前台：统一走恢复链。Scheduler 的 runOrAttach 会复用仍在运行的任务，
+    /// 因此快速切回不会重复启动；等待中的任务则从 checkpoint 接续执行。
     func appWillEnterForeground() {
         Task { [scheduler] in
-            let expired = await scheduler.sceneWillEnterForeground()
+            _ = await scheduler.sceneWillEnterForeground()
             await MainActor.run {
-                if expired {
-                    self.resumeAndSyncRecoveredJobs(trigger: .foreground)
-                } else {
-                    self.resumeTask?.cancel()
-                    self.resumeTask = Task {
-                        _ = await HoloAgentAnalysisService().syncRecoverableChatMessages()
-                    }
-                }
+                self.resumeAndSyncRecoveredJobs(trigger: .foreground)
             }
         }
     }
@@ -144,12 +138,14 @@ final class HoloBackgroundContinuationManager {
     private func resumeAndSyncRecoveredJobs(trigger: HoloAgentResumeTrigger, reconcileFirst: Bool = false) {
         resumeTask?.cancel()
         resumeTask = Task { [runtime, scheduler, reconciler, eventRecorder] in
+            // 每次恢复都清理终态 job 对应的系统请求，避免系统任务卡片在用户
+            // 已停止/已完成后继续残留。冷启动额外执行一致性修复。
+            do {
+                _ = try await scheduler.reconcileContinuedProcessingRequests()
+            } catch {
+                NSLog("[Agent] continued 请求清理失败（不阻塞恢复）: \(String(describing: error))")
+            }
             if reconcileFirst {
-                do {
-                    _ = try await scheduler.reconcileContinuedProcessingRequests()
-                } catch {
-                    NSLog("[Agent] 启动 continued 请求清理失败（不阻塞启动）: \(String(describing: error))")
-                }
                 do {
                     let report = try await reconciler.reconcile()
                     if report.hasFixes {

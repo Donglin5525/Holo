@@ -306,6 +306,7 @@ actor HoloLocalAgentRuntime {
         }
         // §5.2 active runtime：进入执行，开段计时并清除等待原因
         job.beginActiveSegment(at: now)
+        job.state = .running
         job.waitReason = nil
         if job.timeRange == nil,
            let question = job.userQuestion {
@@ -708,20 +709,26 @@ actor HoloLocalAgentRuntime {
     /// 收集所有非终态 job 的 ID（含 running 孤儿与 waitingForForeground），供 Scheduler 拉起 runLoop。
     /// 与 resumeUnfinishedJobs 的区别：不排除 running（进程被硬杀的孤儿落盘仍是 running）、不修改状态——
     /// 是否真正重启推理由 Scheduler 决定，本方法只负责给出「需要被推进」的 job 清单。
-    /// §5.2：paused（任何 waitReason）一律不自动恢复。曾尝试对 systemCapacity 放行，
-    /// 但会导致所有历史 paused 任务每次进 App 被反复拉起（回归事故），已回滚。
+    /// §5.2：只有用户明确暂停（waitReason=.userPaused）的 paused 不自动恢复；
+    /// 兼容历史上错误落盘的 paused + systemCapacity，按系统等待任务恢复。
     /// §5.5：枚举场景读失败必须上抛，不得当空库继续。
     func collectResumableJobIDs(now: Date = Date()) async throws -> [String] {
         let jobs = try await jobStore.load()
-        return jobs.filter { !Self.terminalStates.contains($0.state) && $0.state != .paused }.map(\.id)
+        return jobs.filter { job in
+            !Self.terminalStates.contains(job.state) &&
+                (job.state != .paused || job.waitReason == .systemCapacity)
+        }.map(\.id)
     }
 
     /// 收集所有非终态 job（含 running 孤儿），供 Scheduler 排序、限量、拉起 runLoop。
-    /// §5.2：paused 一律不自动恢复（见上方说明）。
+    /// §5.2：用户明确暂停不自动恢复；历史 systemCapacity 暂停按可恢复等待处理。
     /// §5.5：枚举场景读失败必须上抛，不得当空库继续。
     func collectResumableJobs(now: Date = Date()) async throws -> [HoloAgentJob] {
         let jobs = try await jobStore.load()
-        return jobs.filter { !Self.terminalStates.contains($0.state) && $0.state != .paused }
+        return jobs.filter { job in
+            !Self.terminalStates.contains(job.state) &&
+                (job.state != .paused || job.waitReason == .systemCapacity)
+        }
     }
 
     /// 返回某 job 的最新 checkpoint，供 Scheduler 恢复前校验 inputSnapshotHash。
@@ -764,7 +771,7 @@ actor HoloLocalAgentRuntime {
         guard var job = try await loadJob(jobID) else { return nil }
         guard !Self.terminalStates.contains(job.state) else { return job }
         if job.state == .running || job.state == .waitingForLLM || job.state == .retrying {
-            job.state = .waitingForForeground
+            job.state = reason == .userPaused ? .paused : .waitingForForeground
             job.waitReason = reason
         }
         job.lastForegroundRunAt = now
@@ -786,14 +793,14 @@ actor HoloLocalAgentRuntime {
         return job
     }
 
-    /// 把 job 置 paused（系统结束执行，§9.5 不自动复活），记录来源与 waitReason=.systemCapacity。
+    /// 兼容旧调用方：系统结束执行应进入可恢复等待，而不是用户主动 paused。
     @discardableResult
     func suspendJob(jobID: String, reason: String, now: Date = Date()) async throws -> HoloAgentJob? {
         guard var job = try await loadJob(jobID) else { return nil }
         guard !Self.terminalStates.contains(job.state) else { return job }
-        job.state = .paused
+        job.state = .waitingForForeground
         job.waitReason = .systemCapacity
-        job.errorSummary = reason
+        job.errorSummary = nil
         job.updatedAt = now
         job.endActiveSegment(at: now)
         try await jobStore.upsert(job)

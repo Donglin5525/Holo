@@ -210,7 +210,9 @@ final class ChatViewModel: ObservableObject {
             .sink { [weak self] messages in
                 guard let self else { return }
                 self.messages = messages
-                self.isStreaming = messages.contains { $0.isStreaming }
+                // Agent 的等待卡片仍需保留在消息里，但等待时没有执行权，
+                // 输入栏不能继续显示“停止”按钮，也不能阻塞用户回到对话。
+                self.isStreaming = messages.contains { self.isExecutionActiveMessage($0) }
             }
 
         // 同步 hasEarlierSessions
@@ -222,6 +224,14 @@ final class ChatViewModel: ObservableObject {
             .store(in: &cancellables)
 
         startObservingCoreDataChanges()
+    }
+
+    /// `ChatMessage.isStreaming` 同时承担“保留 Agent 卡片”的历史职责。
+    /// 真正决定输入栏和停止按钮的，是状态文案对应的执行态。
+    private func isExecutionActiveMessage(_ message: ChatMessageViewData) -> Bool {
+        guard message.isStreaming else { return false }
+        guard message.isQueryAnalysis else { return true }
+        return HoloAgentChatStatusPresenter.display(from: message.content).isExecutionActive
     }
 
     private func syncHasEarlierSessions() {
@@ -318,27 +328,48 @@ final class ChatViewModel: ObservableObject {
                     )
                     self.chatRepo?.updateAgentMessageProgress(aiMessageId, status: initialStatus)
                     self.streamingText = initialStatus.messageContent
-                    let rendered = await self.analysisService.runAnalysis(
+                    let outcome = await self.analysisService.runAnalysis(
                         question: text,
                         sourceMessageID: aiMessageId
                     )
                     try Task.checkCancellation()
-                    // 不再拍扁成单段文本：结构化存 agentResultJSON，由 AgentDeepAnalysisCard 渲染
-                    // fallback 文本用于历史回看/解码失败时退化展示（标题 + 摘要）
-                    let fallbackText = [rendered.title, rendered.summary]
-                        .filter { !$0.isEmpty }
-                        .joined(separator: "\n")
-                    self.chatRepo?.finalizeMessage(
-                        aiMessageId,
-                        finalContent: fallbackText,
-                        intent: processResult.firstIntent?.rawValue,
-                        extractedDataJSON: nil,
-                        parsedBatchJSON: nil,
-                        executionBatchJSON: nil,
-                        analysisContextJSON: nil,
-                        rawLogJSON: nil,
-                        agentResultJSON: Self.encodeAgentResult(rendered)
-                    )
+                    switch outcome {
+                    case .completed(let rendered):
+                        // 不再拍扁成单段文本：结构化存 agentResultJSON，由 AgentDeepAnalysisCard 渲染
+                        // fallback 文本用于历史回看/解码失败时退化展示（标题 + 摘要）
+                        let fallbackText = [rendered.title, rendered.summary]
+                            .filter { !$0.isEmpty }
+                            .joined(separator: "\n")
+                        self.chatRepo?.finalizeMessage(
+                            aiMessageId,
+                            finalContent: fallbackText,
+                            intent: processResult.firstIntent?.rawValue,
+                            extractedDataJSON: nil,
+                            parsedBatchJSON: nil,
+                            executionBatchJSON: nil,
+                            analysisContextJSON: nil,
+                            rawLogJSON: nil,
+                            agentResultJSON: Self.encodeAgentResult(rendered)
+                        )
+                    case .waiting(let job):
+                        let status = HoloAgentChatStatusPresenter.status(for: job)
+                        self.chatRepo?.updateAgentMessageProgress(aiMessageId, status: status)
+                        self.streamingText = status.messageContent
+                    case .cancelled(let job):
+                        let status = HoloAgentChatStatusPresenter.status(for: job)
+                        self.chatRepo?.updateAgentMessageProgress(aiMessageId, status: status)
+                        self.streamingText = status.messageContent
+                    case .failed(let reason, let job):
+                        let status = job.map { HoloAgentChatStatusPresenter.status(for: $0) }
+                            ?? HoloAgentChatStatus(
+                                title: "深度分析已中断",
+                                detail: reason,
+                                keepsMessageStreaming: false,
+                                showsActivityIndicator: false
+                            )
+                        self.chatRepo?.updateAgentMessageProgress(aiMessageId, status: status)
+                        self.streamingText = status.messageContent
+                    }
                 } else if processResult.shouldStreamChat {
                     if let analysisContext = processResult.analysisContext {
                         // 立即设置 intent + analysisContext → 渲染 loading 卡片

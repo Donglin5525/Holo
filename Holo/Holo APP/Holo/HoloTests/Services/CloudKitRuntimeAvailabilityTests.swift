@@ -10,8 +10,8 @@ import XCTest
 
 final class CloudKitRuntimeAvailabilityTests: XCTestCase {
 
-    func test_debugBuildWithoutEmbeddedProvisionProfileDoesNotDisableCloudKitByDefault() {
-        XCTAssertTrue(
+    func test_debugBuildWithoutEmbeddedProvisionProfileDisablesCloudKit() {
+        XCTAssertFalse(
             CloudKitRuntimeAvailability.isAvailable(
                 embeddedProvisionProfile: nil,
                 buildConfiguration: .debug

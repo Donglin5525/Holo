@@ -44,11 +44,20 @@ nonisolated enum CloudKitRuntimeAvailability {
         case .release:
             return true
         case .debug:
+            #if targetEnvironment(simulator)
+            // 模拟器不承担 iCloud 真机同步验收；即使残留了 profile，也不应
+            // 创建 CloudKit 容器，否则系统可能在启动阶段触发 PFCloudKit trap。
+            return false
+            #else
             guard let profile, !profile.isEmpty else {
-                return true
+                // 模拟器或未签名 Debug 包没有 embedded.mobileprovision，不能
+                // 证明它携带了 CloudKit entitlement。此时创建
+                // NSPersistentCloudKitContainer 会在启动时触发系统 trap。
+                return false
             }
             return profile.contains("<string>CloudKit</string>") &&
                 profile.contains("<string>\(containerIdentifier)</string>")
+            #endif
         }
     }
 
