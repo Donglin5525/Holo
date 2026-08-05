@@ -20,6 +20,10 @@ struct DailyKanbanView: View {
     @State private var inputValue: String = ""
     @FocusState private var isInputFocused: Bool
 
+    /// 键盘高度：数值输入弹窗是手写 overlay（非系统 sheet），系统键盘避让管不到，
+    /// 这里手动监听键盘，把弹窗整体上移到键盘上方，避免输入框/保存按钮被挡。
+    @State private var keyboardHeight: CGFloat = 0
+
     var body: some View {
         ZStack {
             Color.holoBackground.ignoresSafeArea()
@@ -51,9 +55,20 @@ struct DailyKanbanView: View {
             if let habit = editingHabit {
                 numericInputPopup(habit)
                     .transition(.opacity)
+                    // 键盘弹出时把弹窗整体上移，保证输入框和保存按钮都在键盘上方可见
+                    .offset(y: -keyboardHeight / 2)
             }
         }
         .animation(.easeInOut(duration: 0.2), value: editingHabit != nil)
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillChangeFrameNotification)) { note in
+            guard let endFrame = note.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect else { return }
+            let duration = note.userInfo?[UIResponder.keyboardAnimationDurationUserInfoKey] as? Double ?? 0.25
+            // 键盘隐藏时 endFrame 贴到屏幕底缘之外，高度按 0 处理
+            let height = endFrame.origin.y >= UIScreen.main.bounds.height ? 0 : endFrame.height
+            withAnimation(.easeInOut(duration: duration)) {
+                keyboardHeight = height
+            }
+        }
         .swipeBackToDismiss { dismiss() }
         .task {
             // 等 Core Data 就绪，避免未就绪时 fetch 静默返回空、内容分批出现

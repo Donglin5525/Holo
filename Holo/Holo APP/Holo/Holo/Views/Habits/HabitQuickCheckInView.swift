@@ -28,6 +28,8 @@ struct HabitQuickCheckInView: View {
     @State private var showValueInput: Bool = false
     @State private var inputValue: String = ""
     @State private var editingHabit: Habit? = nil
+    /// 数值输入聚焦态：数字键盘没有「完成」按钮，用 keyboard toolbar 提供
+    @FocusState private var isValueInputFocused: Bool
 
     // MARK: - Body
 
@@ -332,6 +334,7 @@ struct HabitQuickCheckInView: View {
                     .font(.system(size: 32, weight: .bold, design: .rounded))
                     .multilineTextAlignment(.center)
                     .keyboardType(.decimalPad)
+                    .focused($isValueInputFocused)
                     .padding()
                     .background(Color.holoCardBackground)
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
@@ -358,6 +361,12 @@ struct HabitQuickCheckInView: View {
                     .font(.holoBody)
                     .foregroundColor(.holoPrimary)
                     .disabled(inputValue.isEmpty)
+                }
+
+                // 数字键盘没有「完成」按钮，这里在键盘正上方提供一个
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("完成") { isValueInputFocused = false }
                 }
             }
         }

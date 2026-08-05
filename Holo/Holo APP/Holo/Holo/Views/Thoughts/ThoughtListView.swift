@@ -141,6 +141,9 @@ struct ThoughtListView: View {
                 thoughtListView
             }
         }
+        // 搜索栏固定在屏幕顶部，与底部的键盘完全不重叠，
+        // 因此不需要任何键盘避让 —— 让键盘区域不参与布局，避免系统压缩列表时连带你看到输入框被挤压。
+        .ignoresSafeArea(.keyboard)
         // fullScreenCover：编辑器作为完整页面承载，避免 sheet 下滑误触丢内容
         .fullScreenCover(item: $selectedThoughtId) { thoughtId in
             ThoughtEditorView(editingThoughtId: thoughtId)
@@ -705,6 +708,7 @@ struct ThoughtListView: View {
         .refreshable {
             await refresh()
         }
+        .scrollDismissesKeyboard(.interactively)  // 下滑列表时收起键盘（跟随手指，松手才确认）
     }
 
     // MARK: - 刷新功能

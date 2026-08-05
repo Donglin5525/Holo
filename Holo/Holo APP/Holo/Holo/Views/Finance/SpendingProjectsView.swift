@@ -243,6 +243,10 @@ struct SpendingProjectEndConditionSheet: View {
     @State private var endDate: Date
     @State private var totalOccurrences: String
     @State private var errorMessage: String?
+    /// 金额/周期数输入聚焦态：数字键盘没有「完成」按钮，用 keyboard toolbar 提供
+    @FocusState private var focusedField: Field?
+
+    private enum Field { case amount, occurrences }
 
     init(project: SpendingProject, onSaved: @escaping () -> Void) {
         self.project = project
@@ -257,7 +261,7 @@ struct SpendingProjectEndConditionSheet: View {
         NavigationStack {
             Form {
                 Section("金额") {
-                    TextField("每期金额", text: $amount).keyboardType(.decimalPad)
+                    TextField("每期金额", text: $amount).keyboardType(.decimalPad).focused($focusedField, equals: .amount)
                     Text("新金额从下一次到期开始生效，已发生流水不会被改写。")
                         .font(.caption)
                         .foregroundColor(.holoTextSecondary)
@@ -265,7 +269,7 @@ struct SpendingProjectEndConditionSheet: View {
                 .listRowBackground(Color.holoCardBackground)
                 Picker("结束条件", selection: $mode) { ForEach(SpendingProjectEndMode.allCases, id: \.self) { Text($0.title).tag($0) } }
                 if mode == .endDate { DatePicker("结束日期", selection: $endDate, in: project.startDate..., displayedComponents: .date) }
-                if mode == .occurrenceCount { TextField("总周期数", text: $totalOccurrences).keyboardType(.numberPad) }
+                if mode == .occurrenceCount { TextField("总周期数", text: $totalOccurrences).keyboardType(.numberPad).focused($focusedField, equals: .occurrences) }
                 if let errorMessage { Text(errorMessage).foregroundColor(.red) }
             }
             .scrollContentBackground(.hidden)
@@ -278,6 +282,11 @@ struct SpendingProjectEndConditionSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) { Button("保存") { save() } }
+                // 数字键盘没有「完成」按钮，这里在键盘正上方提供一个
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("完成") { focusedField = nil }
+                }
             }
         }
     }
@@ -311,6 +320,8 @@ struct SpendingProjectOneOffEditorSheet: View {
     @State private var categories: [Category] = []
     @State private var selectedCategory: Category?
     @State private var errorMessage: String?
+    /// 金额输入聚焦态：数字键盘没有「完成」按钮，用 keyboard toolbar 提供
+    @FocusState private var isAmountFocused: Bool
 
     init(project: SpendingProject, onSaved: @escaping () -> Void) {
         self.project = project
@@ -325,7 +336,7 @@ struct SpendingProjectOneOffEditorSheet: View {
             Form {
                 Section("购买信息") {
                     TextField("商品名称", text: $name)
-                    TextField("购买金额", text: $amount).keyboardType(.decimalPad)
+                    TextField("购买金额", text: $amount).keyboardType(.decimalPad).focused($isAmountFocused)
                     DatePicker("购买日期", selection: $purchaseDate, displayedComponents: .date)
                     SpendingProjectCategoryMenu(categories: categories, selectedCategory: $selectedCategory)
                 }
@@ -348,6 +359,11 @@ struct SpendingProjectOneOffEditorSheet: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("取消") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) { Button("保存") { save() } }
+                // 数字键盘没有「完成」按钮，这里在键盘正上方提供一个
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("完成") { isAmountFocused = false }
+                }
             }
             .onAppear { loadCategories() }
         }

@@ -20,6 +20,9 @@ struct AdjustBalanceSheet: View {
     @State private var showError = false
     @State private var errorMessage = ""
 
+    @FocusState private var isAmountFocused: Bool
+    @FocusState private var isNoteFocused: Bool
+
     private var newBalance: Decimal {
         Decimal(string: newBalanceString) ?? 0
     }
@@ -30,82 +33,95 @@ struct AdjustBalanceSheet: View {
 
     var body: some View {
         NavigationStack {
-            VStack(spacing: HoloSpacing.xl) {
-                // 当前余额
-                VStack(spacing: HoloSpacing.xs) {
-                    Text("当前余额")
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
-                    Text(formatAmount(currentBalance))
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
-                        .foregroundColor(.holoTextPrimary)
-                }
-                .padding(HoloSpacing.lg)
-                .frame(maxWidth: .infinity)
-                .background(Color.holoCardBackground)
-                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-
-                // 实际余额输入
-                VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                    Text("实际余额")
-                        .font(.holoLabel)
-                        .foregroundColor(.holoTextSecondary)
-
-                    HStack(spacing: HoloSpacing.sm) {
-                        Text("¥")
-                            .font(.system(size: 24, weight: .bold))
-                            .foregroundColor(.holoTextPrimary)
-                        TextField("0.00", text: $newBalanceString)
-                            .font(.system(size: 24, weight: .semibold, design: .rounded))
-                            .keyboardType(.decimalPad)
-                    }
-                    .padding(HoloSpacing.md)
-                    .background(Color.holoCardBackground)
-                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-                }
-
-                // 差异显示
-                if !newBalanceString.isEmpty {
+            ScrollView {
+                VStack(spacing: HoloSpacing.xl) {
+                    // 当前余额
                     VStack(spacing: HoloSpacing.xs) {
-                        Text("差额")
+                        Text("当前余额")
                             .font(.holoCaption)
                             .foregroundColor(.holoTextSecondary)
-
-                        HStack(spacing: HoloSpacing.xs) {
-                            Image(systemName: difference > 0 ? "arrow.up.circle.fill" : difference < 0 ? "arrow.down.circle.fill" : "checkmark.circle.fill")
-                                .foregroundColor(difference > 0 ? .holoSuccess : difference < 0 ? .holoError : .holoPrimary)
-
-                            Text(difference >= 0 ? "+\(formatAmount(difference))" : formatAmount(difference))
-                                .font(.system(size: 18, weight: .semibold, design: .rounded))
-                                .foregroundColor(difference >= 0 ? .holoSuccess : .holoError)
-                        }
-
-                        Text(difference > 0 ? "将记录为一笔收入" : difference < 0 ? "将记录为一笔支出" : "余额无变化")
-                            .font(.holoCaption)
-                            .foregroundColor(.holoTextSecondary)
+                        Text(formatAmount(currentBalance))
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .foregroundColor(.holoTextPrimary)
                     }
-                    .padding(HoloSpacing.md)
+                    .padding(HoloSpacing.lg)
                     .frame(maxWidth: .infinity)
                     .background(Color.holoCardBackground)
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-                }
 
-                // 备注
-                VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                    Text("备注（可选）")
-                        .font(.holoLabel)
-                        .foregroundColor(.holoTextSecondary)
+                    // 实际余额输入
+                    VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                        Text("实际余额")
+                            .font(.holoLabel)
+                            .foregroundColor(.holoTextSecondary)
 
-                    TextField("例如：存入年终奖", text: $note)
-                        .font(.holoBody)
+                        HStack(spacing: HoloSpacing.sm) {
+                            Text("¥")
+                                .font(.system(size: 24, weight: .bold))
+                                .foregroundColor(.holoTextPrimary)
+                        TextField("0.00", text: $newBalanceString)
+                            .font(.system(size: 24, weight: .semibold, design: .rounded))
+                            .keyboardType(.decimalPad)
+                            .focused($isAmountFocused)
+                        }
                         .padding(HoloSpacing.md)
                         .background(Color.holoCardBackground)
                         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-                }
+                    }
 
-                Spacer()
+                    // 差异显示
+                    if !newBalanceString.isEmpty {
+                        VStack(spacing: HoloSpacing.xs) {
+                            Text("差额")
+                                .font(.holoCaption)
+                                .foregroundColor(.holoTextSecondary)
+
+                            HStack(spacing: HoloSpacing.xs) {
+                                Image(systemName: difference > 0 ? "arrow.up.circle.fill" : difference < 0 ? "arrow.down.circle.fill" : "checkmark.circle.fill")
+                                    .foregroundColor(difference > 0 ? .holoSuccess : difference < 0 ? .holoError : .holoPrimary)
+
+                                Text(difference >= 0 ? "+\(formatAmount(difference))" : formatAmount(difference))
+                                    .font(.system(size: 18, weight: .semibold, design: .rounded))
+                                    .foregroundColor(difference >= 0 ? .holoSuccess : .holoError)
+                            }
+
+                            Text(difference > 0 ? "将记录为一笔收入" : difference < 0 ? "将记录为一笔支出" : "余额无变化")
+                                .font(.holoCaption)
+                                .foregroundColor(.holoTextSecondary)
+                        }
+                        .padding(HoloSpacing.md)
+                        .frame(maxWidth: .infinity)
+                        .background(Color.holoCardBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                    }
+
+                    // 备注
+                    VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                        Text("备注（可选）")
+                            .font(.holoLabel)
+                            .foregroundColor(.holoTextSecondary)
+
+                    TextField("例如：存入年终奖", text: $note)
+                        .font(.holoBody)
+                        .focused($isNoteFocused)
+                        .padding(HoloSpacing.md)
+                        .background(Color.holoCardBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                    }
+                }
+                .padding(HoloSpacing.lg)
             }
-            .padding(HoloSpacing.lg)
+            .scrollDismissesKeyboard(.interactively)
+            // 数字键盘没有「完成」按钮，这里提供一个统一的收键盘入口
+            .toolbar {
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("完成") {
+                        isAmountFocused = false
+                        isNoteFocused = false
+                    }
+                }
+            }
             .background(Color.holoBackground)
             .navigationTitle("调整余额")
             .navigationBarTitleDisplayMode(.inline)

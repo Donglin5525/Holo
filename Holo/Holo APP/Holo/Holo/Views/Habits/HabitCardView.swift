@@ -37,6 +37,8 @@ struct HabitCardView: View {
     @State private var showUndoConfirm: Bool = false
     /// 缓存的 habit ID，避免 onReceive 访问已删除对象
     @State private var cachedHabitId: UUID? = nil
+    /// 数值输入聚焦态：数字键盘没有「完成」按钮，用 keyboard toolbar 提供
+    @FocusState private var isValueInputFocused: Bool
     
     // MARK: - Body
     
@@ -386,7 +388,8 @@ struct HabitCardView: View {
                             .keyboardType(.decimalPad)
                             .multilineTextAlignment(.center)
                             .foregroundColor(.holoTextPrimary)
-                        
+                            .focused($isValueInputFocused)
+
                         Text(habit.unitText)
                             .font(.holoBody)
                             .foregroundColor(.holoTextSecondary)
@@ -411,13 +414,19 @@ struct HabitCardView: View {
                     }
                     .foregroundColor(.holoTextSecondary)
                 }
-                
+
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("保存") {
                         saveValue()
                     }
                     .foregroundColor(.holoPrimary)
                     .fontWeight(.semibold)
+                }
+
+                // 数字键盘没有「完成」按钮，这里在键盘正上方提供一个
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("完成") { isValueInputFocused = false }
                 }
             }
         }
