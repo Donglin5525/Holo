@@ -24,12 +24,12 @@ final class ChatMessageRepositoryOrphanCleanupTests: XCTestCase {
     }
 
     /// 近期创建、正在跑的 streaming 消息（agent job 可能尚未落盘）不应被孤儿清理误杀。
-    func testRecentStreamingMessageSurvivesOrphanCleanup() {
+    func testRecentStreamingMessageSurvivesOrphanCleanup() async {
         let repo = ChatMessageRepository.shared
         let messageId = repo.addStreamingMessage(role: "assistant")
 
         // preserve 为空：模拟 Agent job 尚未落盘、syncRecoverableChatMessages 读不到的竞态。
-        repo.cleanupOrphanedStreamingMessages(preserveMessageIDs: [], now: Date())
+        await repo.cleanupOrphanedStreamingMessagesOffMain(preserveMessageIDs: [], now: Date())
 
         let message = repo.messages.first(where: { $0.id == messageId })
         XCTAssertNotNil(message)
@@ -40,13 +40,13 @@ final class ChatMessageRepositoryOrphanCleanupTests: XCTestCase {
     }
 
     /// 超过宽限期的 streaming 消息视为真孤儿（App 崩溃残留），应被正常清理。
-    func testStaleStreamingMessageIsCleanedAsOrphan() {
+    func testStaleStreamingMessageIsCleanedAsOrphan() async {
         let repo = ChatMessageRepository.shared
         let messageId = repo.addStreamingMessage(role: "assistant")
 
         // 注入一个远超宽限期的「现在」，模拟 App 崩溃很久后重启的场景。
         let staleNow = Date().addingTimeInterval(400)
-        repo.cleanupOrphanedStreamingMessages(preserveMessageIDs: [], now: staleNow)
+        await repo.cleanupOrphanedStreamingMessagesOffMain(preserveMessageIDs: [], now: staleNow)
 
         let message = repo.messages.first(where: { $0.id == messageId })
         XCTAssertNotNil(message)
@@ -55,12 +55,12 @@ final class ChatMessageRepositoryOrphanCleanupTests: XCTestCase {
     }
 
     /// 被 preserve 的消息（syncRecoverableChatMessages 读到关联 job）即使在宽限期外也不应被清理。
-    func testPreservedMessageIsNeverCleaned() {
+    func testPreservedMessageIsNeverCleaned() async {
         let repo = ChatMessageRepository.shared
         let messageId = repo.addStreamingMessage(role: "assistant")
 
         let staleNow = Date().addingTimeInterval(400)
-        repo.cleanupOrphanedStreamingMessages(preserveMessageIDs: [messageId], now: staleNow)
+        await repo.cleanupOrphanedStreamingMessagesOffMain(preserveMessageIDs: [messageId], now: staleNow)
 
         let message = repo.messages.first(where: { $0.id == messageId })
         XCTAssertTrue(message?.isStreaming ?? false, "preserve 集合内的消息不应被清理")
