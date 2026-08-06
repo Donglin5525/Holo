@@ -1,142 +1,128 @@
 # Holo App Store 首版上线清单
 
-> 制定时间：2026-08-07
-> 适用范围：首版（v1.0.0）发布到 App Store
+> 制定时间：2026-08-07 ｜ 最后更新：2026-08-07（凌晨自动化执行后）
+> 分支：`release/1.0.0`
 > 原则：**首版目标不是完美，是「能跑、不崩、合规、成本可控」**。体验优化全部进 v1.1。
 
 ---
 
-## 阶段总览
+## 当前进度总览
 
-| 阶段 | 内容 | 目标 |
+| 阶段 | 内容 | 状态 |
 |------|------|------|
-| **P0 今天** | 冻结功能 + 降配额 | 锁定要发的版本，止住成本风险 |
-| **P1 上线前** | 崩溃监控 + 反馈通道 | 上线后不盲飞 |
-| **P2 上线后第一周** | App Attest + 会员恢复验证 | 止住成本黑洞 + 防付费用户投诉 |
+| **P0-1** | 冻结首版功能范围 | ✅ 已完成（见下方 commit 记录） |
+| **P0-2** | 免费额度 | ✅ 经核实维持现状（无需改动） |
+| **P1-1** | MetricKit 崩溃监控 | ✅ 已完成 |
+| **P1-2** | 设置页反馈入口 | ✅ 已完成 |
+| **B 线** | 表达式引擎 | 🟡 Task 1-5 已完成，Task 6-7 待东林验证 |
+| **P2** | App Attest + 会员恢复 | ⬜ 上线后第一周 |
 
 ---
 
-## P0｜今天必须完成（决定，不是写代码）
+## release/1.0.0 分支提交记录
 
-### P0-1 冻结首版功能范围 ✅ 已调查清楚
+```
+bfe0e84  feat(agent): 表达式引擎 Task 3-5 — 采样 + Parser + Prompt
+e7f7e08  feat(agent): 表达式引擎核心 — 表达式树 + 求值器 + 校验器 + 引擎集成
+02d15b0  feat: 接入 MetricKit 崩溃监控 + 设置页反馈入口
+12fc90f  fix: 法律文档联系邮箱更正为官网地址 holoappservice@gmail.com
+90b05eb  feat: App Store 首版功能冻结
+a910db0  fix(tests): 孤儿清理测试同步方法重命名
+```
 
-**现状**：工作区 58 个改动，调查后分三桶：
-
-| 桶 | 内容 | 结论 |
-|----|------|------|
-| A1 表达式引擎 | `ExpressionEngineTests.swift`(编译不过)、`VerifyExpressionEngine.swift`、`HoloQueryRowFormatter.swift` | **❌ 半成品，必须剔除**。核心源码（`HoloExpressionNode/Evaluator/Validator`）没写，测试加进 target 会编译失败 |
-| A2 AI 体验大改 | 15 项（实时进度/停止重试/长按菜单/跨模块入口/缓存瘦身/流式中断/收藏分享等） | **✅ 已完成、有测试、可进首版** |
-| B 独立修复 | 标签空白折叠、想法整理重构、日历色阶测试、各模块零散小改 | **✅ 已完成、可进首版** |
-| C 文档 | `_tmp_screen.png`、两份 plan 文档、V3 方案文档、CLAUDE.md、开发守则 | 文档可随版；`_tmp_screen.png` **删除** |
-
-**执行步骤**：
-1. 把 A1 的三个文件从编译目标移除（或直接删掉）—— `ExpressionEngineTests.swift`、`VerifyExpressionEngine.swift`、`HoloQueryRowFormatter.swift`
-2. 删除 `docs/_tmp_screen.png`
-3. 确认 `docs/plans/2026-08-03-agent-expression-engine-plan.md` 标记为「推迟到 v1.1」
-4. 其余所有改动（A2 + B + 文档）作为一个提交：「feat: 首版功能冻结 — AI 体验大改 + 想法标签整理 + 各模块优化」
-5. 提交后跑一次完整编译 + 测试，确认绿
-
-### P0-2 降低免费 AI 额度 ✅ 一行配置
-
-**现状**：后端默认 `HOLO_CHAT_REQUESTS_PER_DAY=50`。
-**风险**：App Attest 未接入，设备 ID 可伪造，50 次/天 × 无数假设备 = 成本黑洞。
-
-**执行步骤**：
-1. 改后端生产环境变量：`HOLO_CHAT_REQUESTS_PER_DAY=15`（够用户体验，不够商用薅）
-2. 同步把 `HOLO_ASR_REQUESTS_PER_DAY` 从默认 20 降到 8
-3. **需要后端发版**（重启服务生效）
-
-**说明**：这是临时止血。真正的根治是 P2 的 App Attest，接好后可以把额度调回合理值。
+**主 App 编译状态：✅ 全部通过（Debug + Simulator 验证）**
 
 ---
 
-## P1｜上线前必须完成（写代码，但工作量小）
+## P0-1 冻结首版（已完成）
 
-### P1-1 接入崩溃监控（MetricKit，零依赖）
+**实际执行**：
+- 剔除表达式引擎的半成品测试文件（`ExpressionEngineTests.swift`，会编译失败）
+- 保留 `HoloQueryRowFormatter.swift`（已完成工具，B 线复用）和 `VerifyExpressionEngine.swift`（独立脚本，不害编译）
+- 删除 `docs/_tmp_screen.png` 临时截图
+- AI 体验大改（15 项）+ 想法标签整理 + 各模块优化 作为一个提交冻结
+- 修复了 `ChatMessageRepositoryOrphanCleanupTests` 方法名过时问题（`cleanupOrphanedStreamingMessages` → `OffMain`）
 
-**现状**：工程内无任何崩溃/性能监控。苹果自带 MetricKit 免费、零第三方依赖，能抓「崩溃 + 卡顿 + CPU/内存峰值」。
+**已知遗留**：HoloTests target 因 100+ 个 Standalone 文件含 `@main` 无法批量编译——这是长期存在的工程配置问题，不阻塞首版（主 App 编译正常）。留作上线后独立任务。
 
-**执行步骤**：
-1. 新建 `HoloMetricManager.swift`（@ObservableObject），遵循 `MXMetricManagerSubscriber`
-2. 订阅三类 payload：`MXCrashDiagnostic`、`MXHangDiagnostic`（卡顿）、`MXCPUExceptionDiagnostic`
-3. 在 `HoloApp.init()` 里 `MXMetricManager.shared.add(subscriber)`
-4. 收到 payload 时：写到本地日志文件（`FileManager`，按日期滚动）+ 落 OSLog
-5. 设置页加一个「诊断日志」入口（可复用现有 `HealthKitDiagnosticsView` 的模式），让用户能导出日志发给你
-6. **不需要后端发版**
+## P0-2 额度（经核实维持现状）
 
-**为什么不直接上 Crashlytics**：MetricKit 系统自带、零依赖、不引入第三方 SDK（对隐私审核更友好）。首版够用。等用户量上来再考虑 Crashlytics。
+**核实结论**：最初判断有误。实际上有两套独立配置：
+- `quotaPolicy.js`：**免费用户档位配额**（chat=3/天、ASR=20/天）—— 这是文案显示的数字，本来就一致
+- `config.js`：**防刷限流上限**（chat=50/天、ASR=20/天）—— 防恶意刷接口
 
-### P1-2 设置页加「用户反馈」入口
+文案与档位配额从来就对得上，无需改动。真正的成本风险在 App Attest（P2）未接入导致的设备伪造，不在配额数字。
 
-**现状**：协议里有 `support@holoapp.cn`，但设置页无明显反馈入口。没有监控时，用户反馈是唯一的线上感知渠道。
+## P1 崩溃监控 + 反馈入口（已完成）
 
-**执行步骤**：
-1. 在 `SettingsView` 的 `otherSettingsSection`（或新建一个 section）加一行「反馈与建议」
-2. 点击后用 `MFMailComposeViewController`（MessageUI），预填收件人 `support@holoapp.cn`、主题「Holo 反馈」、正文带设备型号 + 系统版本 + App 版本（方便你定位）
-3. 若用户未配置邮件账户，降级为复制邮箱 + 提示
-4. **不需要后端发版**
+**MetricKit 崩溃监控**：
+- 新增 `HoloMetricManager`（订阅崩溃/卡顿/CPU异常/磁盘写入异常）
+- 新增 `HoloDiagnosticLogger`（按天写文件，保留 7 天，自动清理）
+- HoloApp 启动时启动订阅
+- **局限**：模拟器不交付数据，真机验证留 TestFlight；非实时（按天批量）
 
----
-
-## P2｜上线后第一周完成（中等工程，不阻塞首版）
-
-### P2-1 App Attest 全链路（防伪造，止住成本黑洞）
-
-**现状调查（重要）**：后端的 App Attest **是空壳**，不是「写好了接口」：
-- `POST /v1/app-attest/challenge` ✅ 能用（返回随机 nonce，但未落库、未绑定设备、可重放）
-- `POST /v1/app-attest/assert` ❌ 所有真实请求都返回 401「not implemented yet」
-- `getDeviceId()` 只读 `x-holo-device-id` header，**不校验 attestation**，带任意字符串就能绕过强制开关
-- 后端无 CBOR/COSE 解析库，无证书链验证，无签名校验
-
-**这意味着**：App Attest 是「前后端都要补」的中等工程，不是「iOS 接一下就完」。
-
-**执行步骤（分前后端）**：
-
-**后端先做（P2-1a）**：
-1. 加 CBOR 解析依赖（如 `cbor` 或 `@peculiar`）
-2. `assert` 接口实现完整验证链：接收 attestationObject → 解 CBOR → 验 Apple 证书链 → 提取公钥 → 绑定 deviceId 落库
-3. challenge 接口改为 nonce 落库 + 一次性消费 + 绑定设备
-4. `getDeviceId()` 改为：优先读已验证的 attestation session，header 里的 deviceId 只作 fallback
-5. **需要后端发版**
-
-**iOS 后做（P2-1b）**：
-1. 新建 `HoloAppAttestService.swift`，封装 `DCAppAttestService`
-2. 启动时（或首次调 AI 接口前）：challenge → `generateKey` → `attestKey` → 上传 assert
-3. 后续受保护请求生成 assertion 附带
-4. 处理 KeyChain 持久化 keyId、过期重置等
-5. **不需要后端再次发版**（配合 P2-1a 联调）
-
-**强制开关节奏**：先软上线（`enforceAppAttest=false`，只记录不带 attestation 的请求比例），观察 1-2 天确认 iOS 端无异常，再切 true。
-
-### P2-2 验证「换设备恢复会员」全流程
-
-**现状风险**：会员状态靠 `X-Holo-Device-Id` 同步，不是靠 Apple ID。换机/重装 → deviceId 变 → 会员状态可能丢失 → 付费用户投诉/退款。
-
-**执行步骤（人工测试，非代码）**：
-1. 用 A 设备购买 Plus（沙箱或促销码）
-2. 在 B 设备装 App、用同一 Apple ID 登录
-3. 点「恢复购买」，验证：会员状态是否正确恢复、各档位功能是否解锁
-4. 测试「卸载重装」（同设备）场景
-5. 重点验证：`HoloSubscriptionService.restorePurchases()` → 后端 `/v1/subscription/sync` → 状态刷新的完整链路
-6. 若失败，定位是「deviceId 没跨设备迁移」还是「后端没按 Apple 凭证匹配」
-
-**这是排名第一的客服灾难风险点**，上线后必须第一时间盯退款投诉。
+**反馈入口**：
+- 新增 `HoloFeedbackMailer`（邮件封装，预填设备信息 + 可附诊断日志）
+- 新增 `HoloDiagnosticsView`（设置页「诊断与反馈」入口）
+- 邮箱更正为官网地址 `holoappservice@gmail.com`（原 `support@holoapp.cn` 是错的）
 
 ---
 
-## 不在本清单内的事（明确推迟到 v1.1）
+## B 线：表达式引擎（Task 1-5 完成，6-7 待验证）
 
-- Agent 表达式引擎（A1）—— 核心源码未写
-- 想法模块向量化关联推荐（V3 方案）—— 代码未落地
-- 后端 AI 多服务商自动 fallback —— DeepSeek 抖动时降级
-- Crashlytics / Sentry 升级 —— 等 MetricKit 不够用时再做
+### 已完成（编译通过）
+
+| Task | 内容 |
+|------|------|
+| 1 | 表达式树 `HoloExpressionNode`（6 种节点 + 手写 Codable）+ 求值器 + 校验器 |
+| 2 | 引擎集成：`derive()` 加 expression 分支 + `validate()` 加校验 + 语义映射 |
+| 3 | 查询结果附带 10 条样本（`HoloDynamicQuerySampler`）+ `HoloDataToolResult.sampleRows` |
+| 4 | Prompt 模板 v4→v5，加 expression 说明 + 算烟场景示例 |
+| 5 | Response Parser（自动合成 Codable，无需额外代码） |
+
+### 待东林验证（有风险，不擅自做）
+
+| Task | 内容 | 为什么留给你 |
+|------|------|------------|
+| 6 | Runtime 采样注入 + 告知卡片 UI | 改动 AI 对话主循环（runLoop），需清醒验证 |
+| 7 | 端到端真机测试 | 依赖真实 AI 是否正确生成表达式，无法模拟器验证 |
+
+**Task 6 要做的事**（醒来后做）：
+- 在 `HoloLocalAgentRuntime.runLoop` 里，执行 toolRequest 后检查 `result.sampleRows`
+- 若有样本：序列化为文本注入下一轮 context + 产出告知卡片消息
+- 新建 Chat 卡片视图展示采样列表
+
+**Task 7 要做的事**：
+- 真机问「算算我日均抽几根烟」（需先有烟相关记账数据）
+- 验证 AI 是否正确生成 expression plan + 告知卡片 + 计算结果
+
+### 需后端发版
+
+- `HoloBackend/src/prompts/promptRegistry.js` 要同步 flexibleQueryPlanner v5 的 expression 说明
 
 ---
 
-## 后端发版同步点（给东林）
+## P2 上线后第一周（未开始）
 
-本清单中**需要后端发版**的项：
-- P0-2：降低免费额度（改环境变量 + 重启）
-- P2-1a：App Attest 后端验证链
+### P2-1 App Attest（防伪造）
 
-其余项均为 iOS 单端改动或人工测试。
+**调查结论**：后端 App Attest 是**空壳**——challenge 接口能用但 nonce 未落库可重放；assert 接口返回 401「not implemented yet」；无 CBOR 解析库；`getDeviceId` 只看 header 不校验，带任意字符串即可绕过。
+
+**步骤**：
+1. 后端：加 CBOR 依赖，实现 assert 验证链（证书链 + 签名），challenge 落库 + 绑定设备
+2. iOS：封装 `DCAppAttestService`，challenge → generateKey → attestKey → assert
+3. 软上线（enforceAppAttest=false 观察）→ 确认无异常 → 切 true
+
+### P2-2 验证换设备恢复会员
+
+人工测试：A 设备购买 → B 设备同 Apple ID 登录 → 恢复购买 → 验证会员状态正确。
+
+---
+
+## ⚠️ 需要东林拍板的风险点
+
+1. **表达式引擎 Task 6-7 未完成**：当前表达式引擎核心已就绪但无法端到端验证。首版是否包含它，取决于 Task 6-7 你醒来后是否来得及做完和验证。
+2. **HoloTests target 批量测试不可用**：100+ Standalone 文件含 @main 冲突。不阻塞首版，但意味着发版前没法用测试兜底。
+3. **后端 promptRegistry.js 未同步**：表达式引擎的 prompt 改了客户端，但后端托管版没同步。如果生产以后端托管为准，Task 4 不发版不生效。
+4. **无线上崩溃监控的真实数据验证**：MetricKit 模拟器不交付，真机效果未知。
+5. **App Store 审核相关事项未核查**（ASC 后台隐私问卷、AI 备案等，见最初讨论）。
