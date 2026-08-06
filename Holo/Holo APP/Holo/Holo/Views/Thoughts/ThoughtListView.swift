@@ -141,12 +141,14 @@ struct ThoughtListView: View {
                 thoughtListView
             }
         }
-        // 搜索栏固定在屏幕顶部，与底部的键盘完全不重叠，
-        // 因此不需要任何键盘避让 —— 让键盘区域不参与布局，避免系统压缩列表时连带你看到输入框被挤压。
-        .ignoresSafeArea(.keyboard)
         // fullScreenCover：编辑器作为完整页面承载，避免 sheet 下滑误触丢内容
         .fullScreenCover(item: $selectedThoughtId) { thoughtId in
             ThoughtEditorView(editingThoughtId: thoughtId)
+        }
+        // ThoughtDetailView 点「问问 Holo」后通知关闭整个 fullScreenCover，
+        // 否则 cover 仍盖在 AI 页之上（dismiss 只能 pop 一层 NavigationStack）。
+        .onReceive(NotificationCenter.default.publisher(for: .holoRequestCloseThoughtEditor)) { _ in
+            selectedThoughtId = nil
         }
         .sheet(isPresented: $showFilterSheet) {
             ThoughtFilterSheetView(onApplyFilters: { filters in
@@ -685,6 +687,12 @@ struct ThoughtListView: View {
                             )
                             .contextMenu {
                                 Button {
+                                    askHoloAboutThought(thought)
+                                } label: {
+                                    Label("问问 Holo", systemImage: "sparkles")
+                                }
+
+                                Button {
                                     topicPickerThoughtId = thought.id
                                     showTopicPicker = true
                                 } label: {
@@ -727,6 +735,14 @@ struct ThoughtListView: View {
     private var isArchivedView: Bool {
         if case .archived = drawerSelection { return true }
         return false
+    }
+
+    /// 跨模块入口：把这条想法的上下文预填到 AI 聊天输入框，跳转到 AI 页（不自动发送）。
+    /// 想法列表的长按菜单入口——这是用户「看到一条想法想问 AI」最高频的场景。
+    private func askHoloAboutThought(_ thought: Thought) {
+        let snippet = thought.firstLine ?? String(thought.content.prefix(30))
+        let prefill = "关于这条想法「\(snippet)」，帮我展开想想，或者拆成可执行的待办"
+        DeepLinkState.shared.navigate(to: .chat(prefill: prefill))
     }
 
     /// 归档 / 恢复（在归档视图下自动变为恢复）

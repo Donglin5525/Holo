@@ -72,6 +72,10 @@ struct ThoughtsView: View {
 
             drawerLayer
         }
+        // 想法列表的输入框只有顶部的搜索框，与底部的键盘完全不重叠。
+        // HomeView 是 ZStack 常驻架构，键盘弹出时系统会压缩顶层 ZStack 的安全区，
+        // 若这里不忽略键盘区域，整个 ThoughtListView 会被向上挤压，表现为搜索框被压缩。
+        .ignoresSafeArea(.keyboard)
         .task {
             // P1.5.7: 进入观点页时合并 CloudKit 同步产生的重复 Topic（幂等）
             _ = try? topicRepository.mergeDuplicateTopics()
