@@ -5,7 +5,8 @@
 ## [Unreleased]
 
 ### Bug Fixes
-- **iOS**: 修复全局键盘避让导致输入框被挤压/遮挡的体验问题。想法首页搜索框键盘弹出时不再被压缩（`.ignoresSafeArea(.keyboard)` + 下滑列表收键盘）；今日看板习惯数值输入弹窗（手写 overlay 系统避让管不到）改为跟随键盘高度上移；调整余额备注框改为可滚动避免被遮；习惯打卡（卡片入口/快捷打卡）、周期项目编辑、一次性购买编辑的数字键盘统一补「完成」收键盘按钮
+- **iOS**: 想法首页搜索框键盘弹出被整页顶起的问题根治：根因是 iOS 17 系统对「不在 ScrollView 内的聚焦 TextField」平移整个 hosting view，`.ignoresSafeArea(.keyboard)` 不可靠；新增 `Utils/KeyboardAvoidanceDisabler`（`UIHostingController.safeAreaRegions = .container`，iOS 16.4+ 官方 API）挂 HomeView 常驻层统一关闭键盘避让，同架构的任务/财务搜索框一并受益；开发守则补充本次事故复盘与速查表条目
+- **iOS**: 修复全局键盘避让导致输入框被挤压/遮挡的体验问题。想法首页搜索框键盘弹出时不再被压缩；今日看板习惯数值输入弹窗（手写 overlay 系统避让管不到）改为跟随键盘高度上移；调整余额备注框改为可滚动避免被遮；习惯打卡（卡片入口/快捷打卡）、周期项目编辑、一次性购买编辑的数字键盘统一补「完成」收键盘按钮
 - **iOS/Backend**: 语音输入时长上限统一按会员档位（免费 60 秒 / Plus 300 秒），修复想法/任务模块硬编码 5 分钟导致免费会员录满后保存才报错、聊天模块 Plus 会员只能录 1 分钟的问题；新增 `HoloEntitlementState.currentAsrMaxSeconds` 作为客户端 ASR 时长单一来源，三个录音入口统一调用
 - **iOS/Backend**: ASR 时长校验加 1 秒容差，修复客户端倒计时 200ms 轮询导致 60.x 秒抖动被误判超时、自动停后仍弹付费墙的边界 bug（后端 `validateAsrDuration` + 客户端预校验同步调整）
 - **iOS**: 免费用户语音录到 1 分钟自动停止后，转写结果页底部增加柔和的 Plus 升级入口（不遮挡结果、不打断确认）

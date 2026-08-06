@@ -11,16 +11,17 @@
 ### 根因
 不同页面输入框被键盘挤压/遮挡，根因各不相同，需要分类对症下药：
 
-1. **想法首页搜索框**：搜索框固定在屏幕顶部、键盘在底部，两者本不重叠，但系统默认的键盘避让去压缩了底部的可滚动列表，连带整个布局错位，视觉上表现为输入框区域被挤压。
+1. **想法首页搜索框（最严重，历经三轮才根治）**：iOS 17 系统对「不在 ScrollView 内的聚焦 TextField」会**直接平移整个 hosting view**（不是通过 safeArea 调整），`.ignoresSafeArea(.keyboard)` 对此不可靠（Apple 论坛 658432 已知问题）。HomeView 是 ZStack 常驻架构（所有模块叠放），系统避让把整个图层推出屏幕，顶部搜索框首当其冲。
 2. **今日看板·数值输入弹窗**：这是一个手写的居中浮层（不是系统标准弹窗），系统的键盘避让**完全管不到**这种浮层，键盘弹出后输入框和"保存"按钮会被挡死。
 3. **调整余额**：整个页面是固定布局（不能滚动），备注框在下方，键盘弹出必然被遮。
 4. **习惯打卡 / 周期项目 / 一次性购买的数字键盘**：用的是数字键盘，但数字键盘**没有"收起"按钮**，用户输完很难把键盘收掉。
 
 ### 改动
 
-**一、想法首页搜索框（`ThoughtListView.swift`）**
-- 整页加 `.ignoresSafeArea(.keyboard)`：键盘区域不参与布局计算，页面纹丝不动。
-- 底部列表加 `.scrollDismissesKeyboard(.interactively)`：下滑列表时跟随手指收起键盘。
+**一、想法首页搜索框（根治）**
+- 新增 `Utils/KeyboardAvoidanceDisabler.swift`（`disableKeyboardAvoidance()`）：通过 UIKit 层 `UIHostingController.safeAreaRegions = .container`（iOS 16.4+ 官方 API）去掉 `.keyboard` 区域，从根源关闭系统键盘避让。
+- 挂在 `HomeView` 常驻层根上：顶部搜索框（想法/任务/财务）与底部键盘互不重叠，本就不需要避让；ChatView 手动管理键盘不受影响；sheet / fullScreenCover 有独立 hosting controller，系统避让照常生效。
+- 底部列表保留 `.scrollDismissesKeyboard(.interactively)`：下滑列表时跟随手指收起键盘。
 
 **二、今日看板·数值输入弹窗（`DailyKanbanView.swift`）**
 - 新增键盘高度监听，键盘弹出时把整个弹窗上移到键盘上方（弹窗本身居中，上移半个键盘高度即可完全露出），保证输入框和"保存"按钮都可见。
@@ -39,11 +40,12 @@
 - **AI 对话底部输入栏**（`ChatInputView`）：原作者已手写完整键盘跟随逻辑，处理专业，不贸然改动。
 - **想法编辑器**（`ThoughtEditorView`）：针对全屏页面键盘避让失效的系统坑，已用 UIKit inputAccessoryView 方案正确处理；如后续发现长文输入光标被遮再针对性处理。
 
-### 涉及文件（共 6 个 iOS 文件）
-- `ThoughtListView.swift`、`DailyKanbanView.swift`、`AdjustBalanceSheet.swift`、`HabitCardView.swift`、`HabitQuickCheckInView.swift`、`SpendingProjectsView.swift`
+### 涉及文件（共 7 个 iOS 文件）
+- `KeyboardAvoidanceDisabler.swift`（新增）、`HomeView.swift`、`ThoughtListView.swift`、`DailyKanbanView.swift`、`AdjustBalanceSheet.swift`、`HabitCardView.swift`、`HabitQuickCheckInView.swift`、`SpendingProjectsView.swift`
 
 ### 验证与发布
 - iOS 工程编译 `BUILD SUCCEEDED`
+- 想法搜索框键盘避让问题已在真机/模拟器验收通过
 - 不涉及后端发版，纯前端改动
 
 ---
