@@ -230,7 +230,7 @@ enum LegalHTMLTemplates {
 
     <h2>九、联系我们</h2>
     <ul>
-        <li>邮箱：support@holoapp.cn</li>
+        <li>邮箱：holoappservice@gmail.com</li>
         <li>网站：https://holoapp.cn</li>
     </ul>
 
@@ -327,7 +327,7 @@ enum LegalHTMLTemplates {
 
     <h2>十一、联系方式</h2>
     <ul>
-        <li>邮箱：support@holoapp.cn</li>
+        <li>邮箱：holoappservice@gmail.com</li>
         <li>网站：https://holoapp.cn</li>
     </ul>
 
