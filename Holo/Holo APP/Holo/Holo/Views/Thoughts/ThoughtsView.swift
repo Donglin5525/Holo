@@ -72,11 +72,6 @@ struct ThoughtsView: View {
 
             drawerLayer
         }
-        // 搜索框在屏幕顶部，与底部键盘完全不重叠，不需要任何避让。
-        // HomeView 是 ZStack 常驻架构，键盘弹出时系统默认会把整个图层上推；
-        // 这里照搬 ChatView 在常驻图层里的成熟做法，忽略键盘底部安全区，
-        // 阻止系统的自动上推，保证搜索框纹丝不动。
-        .ignoresSafeArea(.keyboard, edges: .bottom)
         .task {
             // P1.5.7: 进入观点页时合并 CloudKit 同步产生的重复 Topic（幂等）
             _ = try? topicRepository.mergeDuplicateTopics()

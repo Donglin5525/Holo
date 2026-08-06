@@ -149,6 +149,12 @@ struct HomeView: View {
                     .transition(swipeDismissalActive ? .opacity : .holoScreenTransition)
             }
         }
+        // 常驻层所有模块共用同一个 root hosting controller：
+        // 顶部搜索框（想法/任务/财务）与底部键盘互不重叠，本就不需要键盘避让。
+        // iOS 17 系统对「不在 ScrollView 内的聚焦 TextField」会平移整个 hosting view，
+        // .ignoresSafeArea(.keyboard) 管不住，这里从 UIKit 层统一关闭键盘避让。
+        // sheet / fullScreenCover 有独立 hosting controller，不受影响。
+        .disableKeyboardAvoidance()
         // 注入自定义 dismiss：模块内部用 holoDismiss?() 替代 @Environment(\.dismiss)
         .environment(\.holoDismiss) {
             withAnimation(.holoScreenTransition) {
@@ -785,6 +791,13 @@ struct HomeView: View {
             // 已在 AI 页则只更新预填参数，不重新触发转场
             if activeScreen != .ai {
                 openChatVoiceInput = voiceInput
+                navigateToScreen(.ai)
+            }
+            deepLinkState.pendingTarget = nil
+        case .chat(let prefill):
+            // 跨模块「就这条问问 Holo」：切到 AI 页 + 预填文本到输入框（不自动发送）
+            chatPrefillText = prefill
+            if activeScreen != .ai {
                 navigateToScreen(.ai)
             }
             deepLinkState.pendingTarget = nil
