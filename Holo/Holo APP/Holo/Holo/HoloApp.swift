@@ -60,6 +60,9 @@ struct HoloApp: App {
 
         // 监听周期回放生成，异步维护远期累计摘要（失败不影响主流程）
         HoloReplayDigestObserver.startObserving()
+
+        // 订阅 MetricKit：收集崩溃/卡顿/CPU 异常，写入本地诊断日志（保留 7 天）
+        HoloMetricManager.shared.start()
     }
 
     // MARK: - Body

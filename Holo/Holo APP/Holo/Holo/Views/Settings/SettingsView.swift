@@ -42,6 +42,7 @@ struct SettingsView: View {
     @State private var isDeletingAccountData = false
     @State private var accountDataDeletionMessage: String?
     @State private var showAbout = false
+    @State private var showDiagnostics = false
 
     // MARK: - Body
 
@@ -680,6 +681,21 @@ struct SettingsView: View {
                     .font(.holoBody)
                     .fontWeight(.semibold)
                     .foregroundColor(.holoTextPrimary)
+            }
+
+            // 诊断与反馈（上线后获取线上问题的主要渠道）
+            settingsRow(
+                icon: "ladybug.circle",
+                iconColor: .orange,
+                title: "诊断与反馈",
+                subtitle: "问题反馈、导出诊断日志"
+            ) {
+                showDiagnostics = true
+            }
+            .sheet(isPresented: $showDiagnostics) {
+                NavigationStack {
+                    HoloDiagnosticsView()
+                }
             }
 
             #if DEBUG
