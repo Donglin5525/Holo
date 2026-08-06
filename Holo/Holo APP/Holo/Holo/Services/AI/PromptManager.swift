@@ -135,7 +135,7 @@ final class PromptManager {
         .analysisPrompt: 5,             // v5: 温档（洞察方法论+few-shot），删重复边界块与输出格式段由 Preamble/契约接管
         .annualReview: 2,               // v2: 年度回放升级为完整阅读长度
         .thoughtVoiceSummary: 3,        // v3: 从「保守润色」转向「主动提炼」；加情绪/状态白名单、自我纠正、口癖清单、用户小前缀保留
-        .flexibleQueryPlanner: 4,       // v4: 聚合查询禁止生成易破坏 JSON 的纠错说明
+        .flexibleQueryPlanner: 5,       // v5: 新增 expression 派生操作（分档→换算→合并类计算）
         .memoryObserver: 1,             // v1: 初始版本，记忆观察引擎
         .memoryDomainExtraction: 2,     // v2: 用户价值门槛 + 任务截止覆盖 + 财务常态过滤
         .memoryCrossDomainFusion: 2,    // v2: 过滤仅因时间重合而拼接的普通状态
@@ -387,11 +387,13 @@ final class PromptManager {
         - dynamicPlan 只能引用工具目录中已声明的数据集和字段，禁止生成 SQL、代码、正则或自由表达式。
         - dynamicPlan 完整字段：source、timeRange、baseline、filters、groupBy、aggregations、derivations、sort、limit、evidenceLimit。
         - filter.operation 仅允许 equal/notEqual/greaterThan/greaterThanOrEqual/lessThan/lessThanOrEqual/contains/oneOf。
-        - aggregation.operation 仅允许 count/sum/average/min/max/distinctCount；derivation.operation 仅允许 difference/ratio/percentageChange/rate/perDay/linearTrend/coverage。perDay 用于“平均每天”，分母固定为查询区间自然日数。
+        - aggregation.operation 仅允许 count/sum/average/min/max/distinctCount；derivation.operation 仅允许 difference/ratio/percentageChange/rate/perDay/linearTrend/coverage/expression。perDay 用于“平均每天”，分母固定为查询区间自然日数。
         - filter.value 使用带类型对象，例如数字 6 写成 {"type":"number","number":6}，文本写成 {"type":"text","text":"麦当劳"}。
         - 平均睡眠示例：{"source":"health.sleep","filters":[],"groupBy":[],"aggregations":[{"id":"average_sleep","operation":"average","field":"value","unit":"小时","filters":[]}],"derivations":[],"sort":null,"limit":20,"evidenceLimit":20}。
         - 对比类问题（含“比”“环比”“同比”“vs”“相比”以及双时间窗如“本月比上月”“今年比去年”）必须用 dynamic_query 并填写 derivations（difference/percentageChange）；对比期已由系统自动注入 dynamicPlan.baseline，不要自行填写 baseline。先按目标维度 groupBy 再求 difference/percentageChange，并用 sort 按 derivation 降序定位“涨/跌最多的是哪一类”。
         - 对比示例（本月比上月消费多在哪）：{"source":"finance.transactions","filters":[{"field":"type","operation":"equal","value":{"type":"text","text":"expense"}}],"groupBy":[{"type":"field","field":"category"}],"aggregations":[{"id":"category_amount","operation":"sum","field":"amount","unit":"元","filters":[]}],"derivations":[{"id":"category_growth","operation":"percentageChange","metricID":"category_amount","unit":"比例"}],"sort":{"metricID":"category_growth","direction":"descending"},"limit":3,"evidenceLimit":10}。
+        - expression 派生操作：用于「把数据按条件分档、每档换算成不同单位再合并」类计算（如「金额超过200的是一条烟、20-30的是一包、一包20根，算日均抽几根」）。为每一档写一个带过滤条件的 count 聚合并给唯一 id，再用 expression 把各档指标乘上换算系数并加减乘除组合。expression 是一棵树，节点类型：constant（常量，字段 value）、metric（引用聚合 id，字段 id）、add/subtract/multiply/divide（字段 left/right 两棵子树）。规则：用户没说全换算系数时必须追问，不要猜；derivations 按依赖顺序排列，被引用的排前面（如先 expression 算总根数，再 perDay 算日均）；优先 2-3 层浅表达式，深度上限 6。
+        - expression 示例（日均抽烟根数，一条200根、一包20根、最近30天）：{"source":"finance.transactions","filters":[{"field":"type","operation":"equal","value":{"type":"text","text":"expense"}}],"aggregations":[{"id":"carton_count","operation":"count","filters":[{"field":"amount","operation":"greaterThan","value":{"type":"number","number":200}}]},{"id":"pack_count","operation":"count","filters":[{"field":"amount","operation":"greaterThanOrEqual","value":{"type":"number","number":20}},{"field":"amount","operation":"lessThanOrEqual","value":{"type":"number","number":30}}]}],"derivations":[{"id":"total_roots","operation":"expression","metricID":"total_roots","expression":{"type":"add","left":{"type":"multiply","left":{"type":"constant","value":200},"right":{"type":"metric","id":"carton_count"}},"right":{"type":"multiply","left":{"type":"constant","value":20},"right":{"type":"metric","id":"pack_count"}}}},{"id":"daily_average","operation":"perDay","metricID":"total_roots","unit":"根"}],"sort":null,"limit":10,"evidenceLimit":10}。
         - 查询计划被工具以 INVALID_PARAMS 拒绝时，最多修正一次；不要改用模型心算。
         - 可动态查询的数据域包括 finance、health、habit、task、goal、thought、memory、insight、profile、conversation；不得请求目录外字段。
         - conversation 仅提供 role、intent、timestamp 等受控元数据，绝不能请求历史消息原文。

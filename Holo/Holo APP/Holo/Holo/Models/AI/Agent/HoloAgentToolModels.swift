@@ -494,6 +494,9 @@ nonisolated struct HoloDataToolResult: Codable, Equatable, Sendable {
     var error: HoloToolError?
     /// 可选以兼容旧持久化 JSON；nil 按 normal 处理。
     var sensitivity: HoloEvidenceSensitivity? = nil
+    /// 查询返回的数据样本（最多 10 条），供模型校准表达式分档条件。
+    /// 仅 dynamic_query 在数据量较大时附带；nil 表示无样本。
+    var sampleRows: [HoloQueryRow]? = nil
 }
 
 /// Agent Runtime 对工具执行层的最小依赖，放在共享模型层便于独立验证运行时。

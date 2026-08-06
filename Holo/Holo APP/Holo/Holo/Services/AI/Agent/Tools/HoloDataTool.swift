@@ -250,12 +250,16 @@ nonisolated struct HoloDynamicToolDecorator: HoloDataTool {
                 plan: plan, catalog: catalog, currentRows: currentRows, baselineRows: baselineRows
             )
             let sensitivity = catalog.schema(named: plan.source)?.sensitivity ?? .normal
+            // 从本次查询返回的数据中采样最多 10 条，供模型校准表达式分档条件。
+            // 样本来自已加载的 currentRows，不二次查库；空或不足时不附（nil）。
+            let samples = HoloDynamicQuerySampler.sample(from: currentRows, limit: 10)
             return HoloDataToolResult(
                 toolRequestID: request.id, tool: request.tool,
                 status: output.metrics.isEmpty ? .empty : .success,
                 coverage: output.coverage, metrics: output.metrics, events: output.events,
                 warnings: output.metrics.isEmpty ? [HoloToolWarning(code: "NO_DYNAMIC_DATA", message: "该范围没有可计算数据")] : [],
-                error: nil, sensitivity: sensitivity
+                error: nil, sensitivity: sensitivity,
+                sampleRows: samples.isEmpty ? nil : samples
             )
         } catch {
             return HoloDataToolResult(
@@ -1547,4 +1551,28 @@ nonisolated enum HoloToolErrorCode {
     static let healthPermissionDenied = "HEALTH_PERMISSION_DENIED"
     /// 健康查询暂时性失败（可恢复）
     static let healthTemporarilyUnavailable = "HEALTH_TEMPORARILY_UNAVAILABLE"
+}
+
+// MARK: - 数据采样器（供表达式引擎校准分档条件）
+
+/// 从查询返回的数据中采样最多 limit 条，优先覆盖不同金额档位。
+/// 纯函数，不依赖 CoreData / 网络；样本来自引擎已加载的 rows，零额外开销。
+nonisolated enum HoloDynamicQuerySampler {
+    static func sample(from rows: [HoloQueryRow], keyword: String? = nil, limit: Int = 10) -> [HoloQueryRow] {
+        guard rows.count > limit else { return rows }
+        var selected: [HoloQueryRow] = []
+        // 1. 关键词优先（若提供）
+        if let keyword, !keyword.isEmpty {
+            selected = rows.filter { row in
+                row.fields.values.contains { $0.textValue?.localizedCaseInsensitiveContains(keyword) ?? false }
+            }
+        }
+        // 2. 按首个数值字段排序补充，确保覆盖大/中/小档位
+        if selected.count < limit {
+            let remaining = rows.filter { !selected.contains($0) }
+                .sorted { ($0.fields["amount"]?.numberValue ?? 0) > ($1.fields["amount"]?.numberValue ?? 0) }
+            selected.append(contentsOf: remaining.prefix(limit - selected.count))
+        }
+        return Array(selected.prefix(limit))
+    }
 }
