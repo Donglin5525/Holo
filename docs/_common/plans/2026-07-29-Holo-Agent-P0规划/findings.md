@@ -77,7 +77,7 @@
 
 ## 相关资源
 
-- `docs/_common/Holo-Agent研发与验收规范.md`
+- `docs/standards/Holo-Agent研发与验收规范.md`
 - `docs/_common/plans/2026-07-26-Holo-Agent统一答案展示架构ADR.md`
 - `docs/_common/plans/2026-07-19-Holo-Agent真机与灰度验收清单.md`
 - `Holo/Holo APP/Holo/Holo/Services/AI/Agent/HoloAgentAnalysisService.swift`

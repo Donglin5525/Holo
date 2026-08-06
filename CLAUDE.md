@@ -21,12 +21,14 @@
 
 ## 开发前必读
 
+> **规范中心入口：[`docs/standards/INDEX.md`](docs/standards/INDEX.md)** — 按场景索引所有规范，不知道该读哪个就从这里开始。
+
 | 文档 | 用途 |
 |------|------|
-| `docs/开发守则与事故预防措施.md` | **每次做需求前必读**：事故复盘、复现→观察→假设→验证→根治方法论、交付前自检清单、踩坑速查表 |
+| `docs/standards/开发守则与事故预防措施.md` | **每次做需求前必读**：事故复盘、复现→观察→假设→验证→根治方法论、交付前自检清单、踩坑速查表 |
 | `docs/_common/HoloPRD.md` | 产品需求文档 |
-| `docs/_common/开发规范.md` | 开发规范与踩坑总结（编码约定、布局、Core Data 等） |
-| `docs/_common/PROMPT_GUIDELINES.md` | **Holo 人格层与表达规范的唯一真源**（改任何 prompt 前先读） |
+| `docs/standards/开发规范.md` | 开发规范与踩坑总结（编码约定、布局、Core Data 等） |
+| `docs/standards/PROMPT_GUIDELINES.md` | **Holo 人格层与表达规范的唯一真源**（改任何 prompt 前先读） |
 | `docs/_common/notes/` | 历史问题解决方案（含 Core Data 调试） |
 | `docs/*/plans/` | 各模块实施计划（含已完成和待开发） |
 
@@ -78,7 +80,7 @@
 - `denyDeleteRule` 放 to-many 侧（反向），to-one 侧用 `nullifyDeleteRule`
 - 禁止 `refreshAllObjects()`，改为重新 fetch
 - 数据变更后用 `await` 刷新，禁止 fire-and-forget
-- 详见 `docs/_common/开发规范.md` 第 13 节
+- 详见 `docs/standards/开发规范.md` 第 13 节
 
 ### CoreData 线程安全
 
@@ -92,9 +94,9 @@
 
 ### 修复策略
 
-- 同一 bug 修两次未果 → **停下来找根因**，禁止叠补丁；先查 `docs/开发守则与事故预防措施.md` 和 `docs/_common/开发规范.md` 对应章节，看是否已有同类踩坑记录
-- **任何「卡死/无响应/白屏」类问题，必须先观察证据再改代码**（`sample` 抓主线程栈、`lldb` 打印 window 层级），禁止凭症状猜代码。iOS「无响应」分四类：主线程阻塞 / 触摸被拦截（全屏透明视图、toast/overlay window 残留）/ presentation 卡死 / 性能问题——先区分是哪一类。详见 `docs/开发守则与事故预防措施.md` 第二节
-- 黑屏/卡死 / 启动阻塞 → **先查 `docs/_common/开发规范.md` 第 10 节**（首次启动卡死排查规范），按 Checklist 逐项排查，不能只盯 CoreDataStack
+- 同一 bug 修两次未果 → **停下来找根因**，禁止叠补丁；先查 `docs/standards/开发守则与事故预防措施.md` 和 `docs/standards/开发规范.md` 对应章节，看是否已有同类踩坑记录
+- **任何「卡死/无响应/白屏」类问题，必须先观察证据再改代码**（`sample` 抓主线程栈、`lldb` 打印 window 层级），禁止凭症状猜代码。iOS「无响应」分四类：主线程阻塞 / 触摸被拦截（全屏透明视图、toast/overlay window 残留）/ presentation 卡死 / 性能问题——先区分是哪一类。详见 `docs/standards/开发守则与事故预防措施.md` 第二节
+- 黑屏/卡死 / 启动阻塞 → **先查 `docs/standards/开发规范.md` 第 10 节**（首次启动卡死排查规范），按 Checklist 逐项排查，不能只盯 CoreDataStack
 - "位置对不上" → 先检查是否存在两套独立的坐标/角度计算逻辑
 - Repository `init()` 必须零 I/O（`@StateObject` 在 body 求值时同步创建，早于 `.task`）
 - 启动阻塞的解法是「默认值先渲染 + 后台补数据」，不是「异步优化」
@@ -129,8 +131,8 @@
 
 | 模块 | 专项文档 |
 |------|------|
-| AI 对话 | `docs/_common/Chat模块文档.md` |
-| 财务（饼图自绘） | `docs/_common/开发规范.md` 第 11.6 / 11.7 节 |
+| AI 对话 | `docs/standards/Chat模块文档.md` |
+| 财务（饼图自绘） | `docs/standards/开发规范.md` 第 11.6 / 11.7 节 |
 
 > 其他模块（待办 / 习惯 / 健康 / 观点 / 记忆画廊）暂无专项文档，相关规则见本文件「编码约定」与开发规范通用章节。
 
@@ -187,7 +189,7 @@ Prompt 管理：
 
 ### Prompt 双端同步（重要）
 
-> 📌 **改任何 prompt 前，先读 [`docs/_common/PROMPT_GUIDELINES.md`](docs/_common/PROMPT_GUIDELINES.md)**。它是 Holo 人格层（Persona Preamble）与表达规范的唯一真源，含三姿态矩阵、安全边界、双端同步流程与改造路线图。
+> 📌 **改任何 prompt 前，先读 [`docs/standards/PROMPT_GUIDELINES.md`](docs/standards/PROMPT_GUIDELINES.md)**。它是 Holo 人格层（Persona Preamble）与表达规范的唯一真源，含三姿态矩阵、安全边界、双端同步流程与改造路线图。
 
 **Prompt 加载路径（现状）**：
 - **路径 A（生产 + DEBUG 默认）**：`HoloBackendAIProvider` → `/v1/ai/chat/completions`，客户端只发 `purpose` 字符串，**不持有 prompt 正文**，后端按 purpose 自行注入 system prompt。

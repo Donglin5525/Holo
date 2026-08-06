@@ -5,7 +5,7 @@
 > **规范级别**：长期强制规范  
 > **关联文档**：
 > - `docs/_common/plans/2026-07-26-Holo-Agent统一答案展示架构ADR.md`
-> - `docs/_common/PROMPT_GUIDELINES.md`
+> - `docs/standards/PROMPT_GUIDELINES.md`
 > - `docs/_common/plans/2026-07-19-Holo-Agent真机与灰度验收清单.md`
 
 ---

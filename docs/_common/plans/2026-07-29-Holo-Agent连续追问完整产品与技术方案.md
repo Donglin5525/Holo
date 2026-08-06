@@ -5,7 +5,7 @@
 - 适用范围：HoloAI Chat 中由用户主动发起的深度 Agent 分析
 - 不适用范围：Observer 自动任务、Memory Gallery 回放、未经确认的自动执行
 - 关联文档：
-  - `docs/_common/Holo-Agent研发与验收规范.md`
+  - `docs/standards/Holo-Agent研发与验收规范.md`
   - `docs/_common/plans/2026-07-26-Holo-Agent统一答案展示架构ADR.md`
   - `docs/_common/plans/2026-07-29-Holo-Agent-P0四项能力实施方案.md`
   - `docs/_common/plans/2026-07-19-Holo-Agent真机与灰度验收清单.md`

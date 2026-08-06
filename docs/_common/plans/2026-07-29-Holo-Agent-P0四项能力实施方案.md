@@ -4,7 +4,7 @@
 - 日期：2026-07-29
 - 适用范围：Holo Chat 深度 Agent、Agent Runtime、Evidence / Verifier、Agent Eval、HoloBackend 发布与可观测性
 - 关联规范：
-  - `docs/_common/Holo-Agent研发与验收规范.md`
+  - `docs/standards/Holo-Agent研发与验收规范.md`
   - `docs/_common/plans/2026-07-26-Holo-Agent统一答案展示架构ADR.md`
   - `docs/_common/plans/2026-07-19-Holo-Agent真机与灰度验收清单.md`
 

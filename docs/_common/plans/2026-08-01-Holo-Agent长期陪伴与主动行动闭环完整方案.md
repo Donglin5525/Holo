@@ -1185,12 +1185,12 @@ Release A 的产品承诺很清楚：
 
 ## 23. 关联规范与资料
 
-- `docs/_common/Holo-Agent研发与验收规范.md`
+- `docs/standards/Holo-Agent研发与验收规范.md`
 - `docs/_common/plans/2026-07-26-Holo-Agent统一答案展示架构ADR.md`
 - `docs/_common/plans/2026-07-29-Holo-Agent连续追问完整产品与技术方案.md`
 - `docs/_common/plans/2026-07-24-Holo-Agent成熟度审查与演进方案.md`
-- `docs/_common/PROMPT_GUIDELINES.md`
-- `docs/_common/开发规范.md`
+- `docs/standards/PROMPT_GUIDELINES.md`
+- `docs/standards/开发规范.md`
 - Replika virtual assistant boundary: <https://help.replika.com/hc/en-us/articles/5040453297293-Can-Replika-be-my-virtual-assistant>
 - Nomi proactive messaging: <https://nomi.ai/nomi-knowledge/proactive-messaging-when-your-nomi-messages-you-first/>
 - Kindroid memory: <https://kindroid.ai/docs/article/memory/>

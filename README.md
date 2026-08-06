@@ -139,7 +139,7 @@ Holo/
 | HoloAI 怎么用 | [`docs/_common/HoloAI使用说明书.md`](docs/_common/HoloAI使用说明书.md) |
 | Agent 工作原理（产品视角） | [`docs/_common/HoloAI Agent工作原理（产品视角）.md`](<docs/_common/HoloAI%20Agent工作原理（产品视角）.md>) |
 | 后端网关接口与部署 | [`HoloBackend/README.md`](HoloBackend/README.md) |
-| 开发规范与踩坑总结 | [`docs/_common/开发规范.md`](docs/_common/开发规范.md) |
+| 开发规范与踩坑总结 | [`docs/standards/开发规范.md`](docs/standards/开发规范.md) |
 | 版本变更记录 | [`CHANGELOG.md`](CHANGELOG.md) |
 
 ---
