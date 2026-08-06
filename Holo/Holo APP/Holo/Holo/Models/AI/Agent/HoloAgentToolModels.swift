@@ -82,7 +82,7 @@ nonisolated enum HoloMetricOperation: String, Codable, CaseIterable, Sendable {
     // 聚合操作
     case count, sum, average, minimum, maximum, distinctCount
     // 派生操作
-    case difference, percentageChange, ratio, rate, perDay, linearTrend, coverage
+    case difference, percentageChange, ratio, rate, perDay, linearTrend, coverage, expression
     // 跨域操作
     case correlation, conditionalAverage, groupComparison
 }

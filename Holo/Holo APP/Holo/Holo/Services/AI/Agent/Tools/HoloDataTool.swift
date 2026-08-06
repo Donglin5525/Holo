@@ -125,13 +125,15 @@ nonisolated struct HoloDynamicAggregation: Codable, Equatable, Sendable {
     var unit: String? = nil
     var filters: [HoloDynamicFilter] = []
 }
-nonisolated enum HoloDynamicDerivationOperator: String, Codable, Sendable { case difference, ratio, percentageChange, rate, perDay, linearTrend, coverage }
+nonisolated enum HoloDynamicDerivationOperator: String, Codable, Sendable { case difference, ratio, percentageChange, rate, perDay, linearTrend, coverage, expression }
 nonisolated struct HoloDynamicDerivation: Codable, Equatable, Sendable {
     var id: String
     var operation: HoloDynamicDerivationOperator
     var metricID: String
     var denominatorMetricID: String? = nil
     var unit: String? = nil
+    /// operation == .expression 时使用的表达式树；其余派生操作忽略此字段。
+    var expression: HoloExpressionNode? = nil
 }
 nonisolated enum HoloDynamicSortDirection: String, Codable, Sendable { case ascending, descending }
 nonisolated struct HoloDynamicSort: Codable, Equatable, Sendable {
@@ -615,6 +617,24 @@ nonisolated enum HoloDynamicQueryValidator {
                 guard field.filterable else { throw HoloDynamicQueryValidationError.unsupportedFieldOperation(filter.field) }
             }
         }
+        // expression 派生校验：深度/节点数/引用合法性/常量有限性
+        for derivation in plan.derivations where derivation.operation == .expression {
+            guard let node = derivation.expression else {
+                throw HoloDynamicQueryValidationError.unsupportedFieldOperation("expression 缺少表达式树")
+            }
+            let stats = HoloExpressionValidator.analyze(node)
+            guard stats.depth <= 6 else { throw HoloDynamicQueryValidationError.tooComplex }
+            guard stats.nodeCount <= 20 else { throw HoloDynamicQueryValidationError.tooComplex }
+            let definedIDs = Set(plan.aggregations.map(\.id))
+            for referencedID in stats.referencedMetricIDs {
+                guard definedIDs.contains(referencedID) else {
+                    throw HoloDynamicQueryValidationError.unknownField("表达式引用了未定义的指标：\(referencedID)")
+                }
+            }
+            for c in stats.constants where !c.isFinite {
+                throw HoloDynamicQueryValidationError.unsupportedFieldOperation("表达式包含非法常量")
+            }
+        }
     }
 }
 
@@ -673,6 +693,7 @@ nonisolated enum HoloMetricSemanticFactory {
         case .perDay: return .perDay
         case .linearTrend: return .linearTrend
         case .coverage: return .coverage
+        case .expression: return .expression
         }
     }
 
@@ -688,6 +709,7 @@ nonisolated enum HoloMetricSemanticFactory {
         case .perDay: return .current
         case .linearTrend: return .trend
         case .coverage: return .coverage
+        case .expression: return .current
         }
     }
 
@@ -1316,6 +1338,10 @@ nonisolated enum HoloDynamicQueryEngine {
         current: [HoloQueryRow],
         calendar: Calendar
     ) -> [HoloMetric] {
+        // expression 派生不依赖 matching，它引用本轮所有已算出的 aggregation，独立求值。
+        if spec.operation == .expression {
+            return deriveExpression(spec, plan: plan, schema: schema, metrics: metrics)
+        }
         let matching = metrics.filter { $0.metricKey.contains(".\(sanitize(spec.metricID))") }
         return matching.compactMap { metric in
             let value: Double?
@@ -1364,6 +1390,10 @@ nonisolated enum HoloDynamicQueryEngine {
                     semantics: schema?.resolvedCoverageSemantics ?? .eventRecords
                 )?.coverageRatio
                 formula = "covered_days / total_days"
+            case .expression:
+                // expression 在 derive() 开头已早返回处理，正常流程走不到这里
+                value = nil
+                formula = "expression(unreachable)"
             }
             guard let value else { return nil }
             let group = metric.comparison ?? "all"
@@ -1386,6 +1416,73 @@ nonisolated enum HoloDynamicQueryEngine {
                 )
             )
         }
+    }
+
+    /// expression 派生：收集本轮所有已算出的 metric，建立 id → value 索引，递归求值表达式树。
+    private static func deriveExpression(
+        _ spec: HoloDynamicDerivation,
+        plan: HoloDynamicQueryPlan,
+        schema: HoloDataSetSchema?,
+        metrics: [HoloMetric]
+    ) -> [HoloMetric] {
+        guard let node = spec.expression else { return [] }
+
+        // 建立 aggregation id → value 索引。metricKey 格式 dynamic.<source>.<id>.<group>，
+        // 同一个 aggregation 可能因 groupBy 产生多个 group，这里取所有 group 的合计。
+        var resolved: [String: Double] = [:]
+        for metric in metrics {
+            guard let value = metric.value,
+                  let id = extractAggregationID(from: metric.metricKey) else { continue }
+            resolved[id, default: 0] += value
+        }
+
+        guard let result = HoloExpressionEvaluator.evaluate(node, metrics: resolved) else { return [] }
+        let roundedValue = rounded(result)
+        // 表达式没有单一"来源 metric"，构造一个仅携带结果的占位 metric 供 derivationSemantic 取值。
+        let placeholderSource = HoloMetric(
+            metricKey: metricKey(source: plan.source, id: spec.id, group: "all"),
+            value: roundedValue,
+            unit: spec.unit,
+            baselineValue: nil,
+            comparison: nil,
+            formula: HoloExpressionEvaluator.describe(node),
+            sourceRecordIDs: [],
+            semantic: HoloMetricSemanticFactory.derivationSemantic(
+                plan: plan,
+                schema: schema,
+                derivation: spec,
+                source: metrics.first ?? placeholderSourceForEmpty,
+                groupKey: "all",
+                value: roundedValue
+            )
+        )
+        return [placeholderSource]
+    }
+
+    /// metrics 为空时 derivationSemantic 仍需一个非 nil source，此占位仅在 expression 且无任何上游聚合时兜底。
+    private static var placeholderSourceForEmpty: HoloMetric {
+        HoloMetric(
+            metricKey: "dynamic.empty.placeholder.all",
+            value: 0,
+            unit: nil,
+            baselineValue: nil,
+            comparison: nil,
+            formula: "empty",
+            sourceRecordIDs: [],
+            semantic: HoloMetricSemantic(
+                domain: .finance, dataset: "empty", measure: .count,
+                operation: .expression, valueRole: .current,
+                dimension: nil, groupLabel: nil, direction: nil,
+                currentValue: 0, baselineValue: nil, resultValue: 0, displayUnit: nil
+            )
+        )
+    }
+
+    /// metricKey 格式 dynamic.<source>.<id>.<group>，取倒数第二段为 aggregation id。
+    private static func extractAggregationID(from metricKey: String) -> String? {
+        let parts = metricKey.split(separator: ".").map(String.init)
+        guard parts.count >= 2 else { return nil }
+        return parts[parts.count - 2]
     }
 
     private static func coverage(
