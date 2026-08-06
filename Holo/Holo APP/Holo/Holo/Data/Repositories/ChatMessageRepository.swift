@@ -341,6 +341,40 @@ final class ChatMessageRepository: ObservableObject {
         }
     }
 
+    /// 按 id 集合批量查询已收藏的 AI 消息（用于「我的收藏」列表页）
+    ///
+    /// 独立于内存 messages 数组，直接走后台 context 查询，按时间倒序返回。
+    /// 用 lightweightDictionary 构造，保证 queryAnalysis 卡片也能正常渲染。
+    func loadStarredMessages(ids: Set<UUID>) async -> [ChatMessageViewData] {
+        guard !ids.isEmpty else { return [] }
+        await CoreDataStack.shared.waitUntilReady()
+
+        do {
+            return try await Task.detached(priority: .utility) {
+                let context = CoreDataStack.shared.newBackgroundContext()
+                return try await context.perform {
+                    let request = NSFetchRequest<NSDictionary>(entityName: "ChatMessage")
+                    request.resultType = .dictionaryResultType
+                    request.propertiesToFetch = [
+                        "id", "role", "content", "timestamp",
+                        "intent", "extractedDataJSON", "isStreaming", "parentMessageId",
+                        "messageType", "analysisContextJSON", "agentResultJSON",
+                        "insightResultJSON", "executionBatchJSON", "rawLogJSON"
+                    ]
+                    request.predicate = NSPredicate(format: "id IN %@", ids)
+                    // 收藏列表按时间倒序，最近收藏的/最新的在前
+                    request.sortDescriptors = [NSSortDescriptor(key: "timestamp", ascending: false)]
+
+                    return try context.fetch(request)
+                        .compactMap { ChatMessageViewData(lightweightDictionary: $0 as? [String: Any] ?? [:]) }
+                }
+            }.value
+        } catch {
+            logger.error("加载收藏消息失败：\(error.localizedDescription)")
+            return []
+        }
+    }
+
     // MARK: - Add
 
     /// 添加消息
@@ -487,6 +521,13 @@ final class ChatMessageRepository: ObservableObject {
     func messageType(for messageId: UUID) -> ChatMessageType? {
         guard let message = messageForUpdate(messageId) else { return nil }
         return ChatMessageType(rawValue: message.messageType)
+    }
+
+    /// 查询单条消息的 intent（如 query_analysis）；不存在返回 nil。
+    /// 供 cancelStreaming 区分「Agent 分析进行中」与「普通流式」分支。
+    func intent(for messageId: UUID) -> String? {
+        guard let message = messageForUpdate(messageId) else { return nil }
+        return message.intent
     }
 
     /// 更新消息内容
@@ -842,6 +883,33 @@ final class ChatMessageRepository: ObservableObject {
         save()
         liveMessageCache.removeValue(forKey: messageId)
         messages.removeAll { $0.id == messageId }
+    }
+
+    /// 编辑重发：删除从指定用户消息起、到当前会话末尾的所有消息（含其后 AI 回复、卡片等）。
+    /// 会话边界 = 4h gap（黑队审查护栏：必须带 session 边界，否则会误删后续会话的消息）。
+    /// 返回被删除消息的 id 集合，供上层取消关联的 Agent job。
+    @discardableResult
+    func deleteMessagesFromSameSession(onOrAfter messageId: UUID) -> Set<UUID> {
+        guard let anchor = messageForUpdate(messageId) else { return [] }
+        let anchorTime = anchor.timestamp
+        // 从内存 messages 里取同会话（与 anchor 间隔 < sessionGap）且 timestamp >= anchor 的消息。
+        // messages 是正序（旧→新），anchor 之后的消息都在数组后段。
+        let toDelete = messages.filter { msg in
+            msg.timestamp >= anchorTime && msg.timestamp.timeIntervalSince(anchorTime) < sessionGap
+        }
+        var deletedIds = Set<UUID>()
+        for msg in toDelete {
+            if let entity = messageForUpdate(msg.id) {
+                context.delete(entity)
+            }
+            liveMessageCache.removeValue(forKey: msg.id)
+            deletedIds.insert(msg.id)
+        }
+        if !toDelete.isEmpty {
+            save()
+            messages.removeAll { deletedIds.contains($0.id) }
+        }
+        return deletedIds
     }
 
     /// 清除所有消息

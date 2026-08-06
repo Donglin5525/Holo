@@ -79,15 +79,15 @@ struct AnniversaryListView: View {
                 detailAnniversary = nil
             }
         }
-        .confirmationDialog(
-            "确认删除",
+        .alert(
+            anniversaryToDelete.map { "删除「\($0.title)」？" } ?? "",
             isPresented: Binding(
                 get: { anniversaryToDelete != nil },
                 set: { if !$0 { anniversaryToDelete = nil } }
             ),
             presenting: anniversaryToDelete
         ) { item in
-            Button("删除纪念日及关联任务", role: .destructive) {
+            Button("连关联任务一起删除", role: .destructive) {
                 deleteAnniversary(item, deleteTasks: true)
             }
             Button("仅删除纪念日", role: .destructive) {
@@ -95,7 +95,7 @@ struct AnniversaryListView: View {
             }
             Button("取消", role: .cancel) {}
         } message: { _ in
-            Text("这个纪念日可能已生成关联任务，你想如何处理？")
+            Text("这个纪念日可能已生成关联任务，删除后无法恢复。你想如何处理？")
         }
     }
 

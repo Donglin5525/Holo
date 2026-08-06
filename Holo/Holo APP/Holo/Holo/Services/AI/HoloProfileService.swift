@@ -119,7 +119,9 @@ final class HoloProfileService: ObservableObject {
         }
         // 确保 profile 已加载
         let _ = loadProfile()
-        return currentSnapshot
+        // 桥接引导页称呼：档案没填昵称时，用引导页设的称呼兜底，保证 AI 也能用。
+        // 这是三条 AI 链路（普通聊天 / 流式分析 / Agent 工具）的共同出口。
+        return currentSnapshot?.applyingDisplayNameFallback()
     }
 
     /// 重新构建 snapshot（仅当缓存为空时）

@@ -17,6 +17,8 @@ struct TagDeletionResult {
     let removedAssignmentCount: Int
     /// 缓存已重算的 Topic ID（测试断言用）
     let affectedTopicIds: [UUID]
+    /// 受影响的非软删/非归档想法 ID（供删除后触发只重算标签的轻量重分类）
+    let affectedThoughtIds: [UUID]
 }
 
 // MARK: - Tag Rename Outcome
@@ -47,6 +49,15 @@ extension ThoughtRepository {
         let affectedTopics = (tag.associatedTopics as? Set<Topic>) ?? []
         let affectedTopicIds = affectedTopics.map(\.id).sorted { $0.uuidString < $1.uuidString }
         let assignmentCount = (tag.assignments as? Set<ThoughtTagAssignment>)?.count ?? 0
+        // 删除前先取受影响想法（删除后 assignments cascade 取不到），
+        // 过滤掉已软删/归档的想法——这些不参与删除后的标签重算。
+        let affectedThoughtIds = Set(((tag.assignments as? Set<ThoughtTagAssignment>) ?? [])
+            .compactMap { assignment -> UUID? in
+                guard let thought = assignment.thought,
+                      !thought.isSoftDeleted, !thought.isArchived else { return nil }
+                return thought.id
+            })
+            .sorted { $0.uuidString < $1.uuidString }
 
         // 显式断开 Topic 关联（比依赖 delete rule 的生效时机更稳）
         for topic in affectedTopics {
@@ -63,7 +74,11 @@ extension ThoughtRepository {
         }
 
         try context.save()
-        return TagDeletionResult(removedAssignmentCount: assignmentCount, affectedTopicIds: affectedTopicIds)
+        return TagDeletionResult(
+            removedAssignmentCount: assignmentCount,
+            affectedTopicIds: affectedTopicIds,
+            affectedThoughtIds: affectedThoughtIds
+        )
     }
 
     // MARK: - 全局重命名
@@ -89,17 +104,22 @@ extension ThoughtRepository {
             // 仅显示名差异：更新 displayName + 刷新 Topic 缓存
             sourceTag.name = newDisplayName
             refreshTopicCaches(for: sourceTag)
+            // 用户重命名 = 认可：.ai 标签升级为已确认
+            promoteAIToConfirmed(in: sourceTag)
             try context.save()
             return .renamed
         }
 
         if let targetTag = try fetchTagByKey(newKey) {
             mergeTag(source: sourceTag, into: targetTag)
+            // merge 分支不升级：合并语义不是「用户确认」，且 merge 已按 sourcePriority 去重
             try context.save()
             return .merged
         } else {
             sourceTag.name = newDisplayName
             refreshTopicCaches(for: sourceTag)
+            // 用户重命名 = 认可：.ai 标签升级为已确认
+            promoteAIToConfirmed(in: sourceTag)
             try context.save()
             return .renamed
         }
@@ -249,6 +269,17 @@ extension ThoughtRepository {
         for topic in (tag.associatedTopics as? Set<Topic>) ?? [] {
             topic.refreshAssociatedTagNamesCache()
             topic.updatedAt = Date()
+        }
+    }
+
+    /// 用户重命名标签 = 认可该标签：把其 .ai assignment 升级为 .confirmedAI。
+    /// 升级后不会被 replaceUnconfirmedAITagAssignments（只删 .ai）清掉，下次重分类也受保护。
+    /// 只升 .ai，不动 manual/inline/confirmedAI（已是高优先级或目标态）/rejectedAI（不该复活）。
+    private func promoteAIToConfirmed(in tag: ThoughtTag) {
+        for assignment in (tag.assignments as? Set<ThoughtTagAssignment>) ?? []
+        where !assignment.isDeleted
+              && assignment.source == ThoughtTagAssignment.Source.ai.rawValue {
+            assignment.source = ThoughtTagAssignment.Source.confirmedAI.rawValue
         }
     }
 }

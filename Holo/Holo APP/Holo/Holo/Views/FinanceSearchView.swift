@@ -201,7 +201,9 @@ struct FinanceSearchView: View {
 
                             Spacer()
                         }
-                        .padding(.vertical, 4)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
+                        .contentShape(Rectangle())
                     }
                     .buttonStyle(PlainButtonStyle())
                 }
@@ -257,7 +259,7 @@ struct FinanceSearchView: View {
 
             VStack(spacing: HoloSpacing.sm) {
                 ForEach(searchResults, id: \.self) { tx in
-                    TransactionRowView(transaction: tx) {
+                    TransactionSearchRowView(transaction: tx) {
                         editingTransaction = tx
                     }
                 }

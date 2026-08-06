@@ -17,12 +17,12 @@ struct MoodChatCard: View {
             CardHeaderView(
                 icon: "heart.fill",
                 title: data.mood ?? "心情记录",
-                subtitle: "刚刚记录"
+                subtitle: ""
             )
 
             HoloAIFactItem(kicker: "记录内容", bodyText: data.content, tint: .holoPrimary)
 
-            CardFooterView(timeText: "刚刚")
+            CardFooterView(timeText: "")
         }
         .accessibilityLabel("心情卡片：\(data.mood ?? "心情记录")")
     }

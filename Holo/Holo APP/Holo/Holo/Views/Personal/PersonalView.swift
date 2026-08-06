@@ -14,6 +14,7 @@ struct PersonalView: View {
     @ObservedObject private var profileService = HoloProfileService.shared
     @ObservedObject private var memorySettings = HoloMemorySettings.shared
     @ObservedObject private var entitlementState = HoloEntitlementState.shared
+    @ObservedObject private var starStore = ChatMessageStarStore.shared
     @AppStorage(UserDisplayNameSettings.displayNameKey) private var userName: String = UserDisplayNameSettings.fallbackDisplayName
 
     let onPlanGoal: () -> Void
@@ -52,6 +53,7 @@ struct PersonalView: View {
                     profileSection
                     goalsSection
                     memorySection
+                    starredSection
                     #if DEBUG
                     developerToolsSection
                     #endif
@@ -437,6 +439,64 @@ struct PersonalView: View {
             }
             .buttonStyle(.plain)
         }
+    }
+
+    // MARK: - 我的收藏
+
+    private var starredSection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            HStack(spacing: HoloSpacing.sm) {
+                Image(systemName: "star.fill")
+                    .font(.system(size: 18))
+                    .foregroundColor(.holoPrimary)
+                Text("我的收藏")
+                    .font(.holoBody)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.holoTextPrimary)
+            }
+
+            NavigationLink {
+                StarredMessagesView()
+            } label: {
+                HStack(spacing: HoloSpacing.md) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: HoloRadius.sm)
+                            .fill(Color.holoPrimary.opacity(0.1))
+                            .frame(width: 40, height: 40)
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 17, weight: .medium))
+                            .foregroundColor(.holoPrimary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("收藏的内容")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+                            .lineLimit(1)
+
+                        Text(starredCountText)
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoTextSecondary)
+                            .lineLimit(1)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .layoutPriority(1)
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundColor(.holoTextSecondary.opacity(0.5))
+                }
+                .padding(HoloSpacing.md)
+                .background(Color.holoCardBackground)
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private var starredCountText: String {
+        let count = starStore.starredMessageIDs.count
+        return count == 0 ? "长按对话内容可收藏到这里" : "已收藏 \(count) 条"
     }
 
     private var memoryStatusText: String {

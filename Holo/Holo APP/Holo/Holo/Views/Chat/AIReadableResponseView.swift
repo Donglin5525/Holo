@@ -11,6 +11,7 @@ struct AIReadableResponseView: View {
     let text: String
     let isStreaming: Bool
     var isError: Bool = false
+    var isRetryableStopped: Bool = false
     var onRetry: (() -> Void)? = nil
 
     @State private var isShowingDetails = false
@@ -28,6 +29,8 @@ struct AIReadableResponseView: View {
                 streamingText
             } else if isError {
                 errorContent
+            } else if isRetryableStopped {
+                stoppedContent
             } else {
                 readableContent
             }
@@ -72,20 +75,25 @@ struct AIReadableResponseView: View {
     }
 
     private var typingIndicator: some View {
-        HStack(spacing: 5) {
+        // P1-8：统一等待态语言——意图理解阶段加「正在思考…」文字，让用户知道 AI 在干什么
+        HStack(spacing: 6) {
             ForEach(0..<3, id: \.self) { index in
                 Circle()
                     .fill(Color.holoTextSecondary.opacity(0.55))
                     .frame(width: 6, height: 6)
                     .modifier(AIReadingDotAnimation(delay: Double(index) * 0.18))
             }
+            Text("正在思考…")
+                .font(.caption)
+                .foregroundColor(.holoTextSecondary.opacity(0.7))
         }
         .padding(.vertical, 8)
-        .accessibilityLabel("Holo 正在回复")
+        .accessibilityLabel("Holo 正在思考")
     }
 
     private var streamingText: some View {
-        HStack(alignment: .bottom, spacing: 2) {
+        // P1-8：光标与文字基线对齐（此前 .bottom 在多行文本时光标会错位到文本块底部）
+        HStack(alignment: .firstTextBaseline, spacing: 1) {
             Text(text)
                 .font(.body)
                 .foregroundColor(.holoTextPrimary)
@@ -152,6 +160,29 @@ struct AIReadableResponseView: View {
         .overlay {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(Color.holoError.opacity(0.22), lineWidth: 1)
+        }
+    }
+
+    /// 停止/取消后保留了部分内容的消息：保留已有文字 + 底部轻量「重新生成」入口。
+    /// 区别于 errorContent：不用红色错误样式（停止是用户主动行为，不是错误）。
+    private var stoppedContent: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(inlineAttributedString(text))
+                .font(.body)
+                .foregroundColor(.holoTextPrimary)
+                .lineSpacing(5)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+
+            if let onRetry {
+                Button(action: onRetry) {
+                    Label("重新生成", systemImage: "arrow.clockwise")
+                        .font(.caption.weight(.semibold))
+                        .foregroundColor(.holoTextSecondary)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("重新生成这条回复")
+            }
         }
     }
 

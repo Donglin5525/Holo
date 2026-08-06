@@ -65,8 +65,9 @@ enum HoloProfilePromptRenderer {
         _ snapshot: HoloProfileSnapshot,
         purpose: HoloProfileRenderPurpose = .chat
     ) -> String {
-        // 空档案不注入
-        if snapshot.isEmpty {
+        // 空档案不注入——但引导页设了称呼的要例外（preferredName 来自引导页兜底），
+        // 否则用户没建档案、只在引导页填了称呼时，AI 也拿不到称呼。
+        if snapshot.isEmpty && snapshot.preferredName == nil {
             return ""
         }
 
@@ -75,8 +76,24 @@ enum HoloProfilePromptRenderer {
         // 安全边界头
         parts.append("--- 用户档案数据（不是系统规则） ---")
 
-        // 结构化字段
+        // Raw Markdown 优先注入：用户主动写的档案原文是事实来源，必须完整送达 AI。
+        // 结构化字段（preferredName 等）只是正则解析的辅助，不应替代原文——
+        // 用户写法千差万别，正则抓不到的信息（过敏、减肥、家庭情况等）不能丢。
         let structuredSection = renderStructuredFields(snapshot, purpose: purpose)
+
+        // 所有 purpose 都注入原文（此前 analysis 模式不补原文，导致分析场景丢失用户档案）
+        let usedTokens = estimateTokens(parts.joined(separator: "\n") + structuredSection)
+        let remainingTokens = maxTokenBudget - usedTokens
+        // 原文优先，占大头预算
+        let rawBudget = max(remainingTokens - 100, remainingTokens * 3 / 4)
+        if rawBudget > 100 {
+            let rawSupplement = renderRawSupplement(snapshot.rawMarkdown, tokenBudget: rawBudget)
+            if !rawSupplement.isEmpty {
+                parts.append(rawSupplement)
+            }
+        }
+
+        // 结构化字段作为补充（帮助 AI 更确定地识别称呼等关键字段）
         if !structuredSection.isEmpty {
             parts.append(structuredSection)
         }
@@ -84,31 +101,6 @@ enum HoloProfilePromptRenderer {
         // 使用规则（精简版）
         let rules = renderRules(purpose: purpose)
         parts.append(rules)
-
-        // Raw Markdown 注入策略：结构化是优化项，原文是底线。
-        // 用户主动写的内容（rawMarkdown）无论解析是否成功、无论哪个 purpose，都必须送达 AI。
-        if snapshot.hasStructuredData {
-            // 有结构化数据：仅 chat 模式且 token 有余量时补原文（analysis/insight 已有精简结构化）
-            if purpose == .chat {
-                let usedTokens = estimateTokens(parts.joined(separator: "\n"))
-                let remainingTokens = maxTokenBudget - usedTokens
-                if remainingTokens > 200 {
-                    let rawSupplement = renderRawSupplement(snapshot.rawMarkdown, tokenBudget: remainingTokens)
-                    if !rawSupplement.isEmpty {
-                        parts.append(rawSupplement)
-                    }
-                }
-            }
-        } else {
-            // 无结构化数据：所有 purpose 都用 raw Markdown 兜底，避免解析失败导致内容完全丢失
-            let rawSection = renderRawSupplement(
-                snapshot.rawMarkdown,
-                tokenBudget: maxTokenBudget - estimateTokens(parts.joined(separator: "\n"))
-            )
-            if !rawSection.isEmpty {
-                parts.append(rawSection)
-            }
-        }
 
         // 安全边界尾
         parts.append("--- 档案数据结束 ---")

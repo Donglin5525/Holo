@@ -51,11 +51,48 @@ struct ChatEmptyStateView: View {
                     }
                 }
 
+                // P1-10：生活化示例——用真实可点的短句降低首次开口成本。
+                // 区别于上方的「能力卡片」（走 handleCapabilityTap），这些直接回填输入框。
+                if !viewModel.emptyStateCapabilities.isEmpty {
+                    VStack(alignment: .leading, spacing: HoloSpacing.xs) {
+                        Text("或者直接说")
+                            .font(.system(size: 12, weight: .semibold))
+                            .foregroundColor(.holoTextSecondary.opacity(0.7))
+
+                        FlowLayout(spacing: 8) {
+                            ForEach(examplePrompts, id: \.self) { prompt in
+                                Button {
+                                    viewModel.inputText = prompt
+                                } label: {
+                                    Text(prompt)
+                                        .font(.system(size: 13))
+                                        .foregroundColor(.holoTextSecondary)
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 7)
+                                        .background(Color.holoCardBackground)
+                                        .clipShape(Capsule())
+                                        .overlay(Capsule().stroke(Color.holoBorder.opacity(0.5), lineWidth: 0.5))
+                                }
+                                .buttonStyle(.plain)
+                                .disabled(viewModel.isStreaming)
+                            }
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                }
+
                 Spacer(minLength: HoloSpacing.xl)
             }
             .padding(.horizontal, HoloSpacing.md)
         }
         .animation(.easeInOut(duration: 0.2), value: viewModel.emptyStateCapabilities)
+    }
+
+    /// P1-10：生活化示例短句，降低新用户「我能怎么说」的开口门槛。
+    private var examplePrompts: [String] {
+        isNewUser
+            ? ["午餐花了 38", "提醒我明天开会", "记一下现在的心情"]
+            : ["这个月哪类花得最多", "今天待办完成了吗", "分析一下我最近的睡眠"]
     }
 
     @ViewBuilder

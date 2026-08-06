@@ -266,8 +266,25 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
     }
 
     /// 是否为错误消息（AI 处理失败、超时、watchdog 中断等）
+    /// 注意：用 contains 而非 hasSuffix，因为 watchdog 超时文案后缀不固定
+    /// （空超时="抱歉，AI 响应超时了，请稍后重试"，部分超时="...以上为已接收的部分内容"）。
     var isError: Bool {
-        content.hasPrefix("抱歉，处理时出错了") || content.hasSuffix("处理中断") || content.hasSuffix("响应超时")
+        content.hasPrefix("抱歉，处理时出错了")
+            || content.hasSuffix("处理中断")
+            || content.contains("响应超时")
+    }
+
+    /// 是否为「手动停止但已保留部分内容」的可重试 AI 消息（非错误、非额度耗尽）。
+    /// 用于在消息底部显示轻量「重新生成」入口——区别于 isError 的红色错误重试。
+    /// 注意：用 contains 匹配「深度分析已取消」，避免 syncRecoverableChatMessages
+    /// 把文案改成多行变体后精确匹配失效。
+    var isRetryableStopped: Bool {
+        guard !isStreaming else { return false }
+        guard parentMessageId != nil else { return false }
+        // isError 优先（超时是错误，不是「手动停止」）；这里只覆盖手动停止
+        guard !isError else { return false }
+        return content.contains("已停止生成")
+            || content.contains("深度分析已取消")
     }
 
     /// 是否为额度耗尽提示（档位限制，区别于系统错误 isError）

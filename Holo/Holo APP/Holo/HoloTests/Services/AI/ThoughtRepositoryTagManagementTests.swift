@@ -139,7 +139,7 @@ final class ThoughtRepositoryTagManagementTests: XCTestCase {
 
     // MARK: - 重命名（目标名不存在）
 
-    func test_重命名到新名_改名且assignment保持() async throws {
+    func test_重命名到新名_改名且assignment保持并升级为已认可() async throws {
         let (repo, ctx) = try makeRepo()
         let t1 = try makeThought(in: ctx)
         try repo.createTagAssignment(thoughtId: t1, tagName: "工作事业", source: .ai, confidence: 0.9)
@@ -151,7 +151,84 @@ final class ThoughtRepositoryTagManagementTests: XCTestCase {
         let assignments = try fetchAssignments(thoughtId: t1, in: ctx)
         XCTAssertEqual(assignments.count, 1)
         XCTAssertEqual(assignments.first?.tag?.name, "事业")
-        XCTAssertEqual(assignments.first?.source, ThoughtTagAssignment.Source.ai.rawValue, "来源应保持")
+        // 用户重命名 = 认可：.ai 升级为 .confirmedAI（不会被后续重分类清掉）
+        XCTAssertEqual(assignments.first?.source, ThoughtTagAssignment.Source.confirmedAI.rawValue, "重命名后 .ai 应升级为 confirmedAI")
+    }
+
+    /// 重命名时 manual/inline 来源的 assignment 不应被改动（只升 .ai）
+    func test_重命名_只升ai_不动manual来源() async throws {
+        let (repo, ctx) = try makeRepo()
+        let t1 = try makeThought(in: ctx)
+        try repo.createTagAssignment(thoughtId: t1, tagName: "工作事业", source: .manual, confidence: 1.0)
+
+        try repo.renameTag(from: "工作事业", to: "事业")
+
+        let assignments = try fetchAssignments(thoughtId: t1, in: ctx)
+        XCTAssertEqual(assignments.first?.source, ThoughtTagAssignment.Source.manual.rawValue, "manual 来源不应被升级")
+    }
+
+    /// merge 分支不升级 source（合并语义不是用户确认）
+    func test_重命名_merge分支_不升级source() async throws {
+        let (repo, ctx) = try makeRepo()
+        let t1 = try makeThought(in: ctx)
+        // 先建目标标签（带 .ai assignment）
+        try repo.createTagAssignment(thoughtId: t1, tagName: "事业", source: .ai, confidence: 0.9)
+        // 再把「工作事业」合并进「事业」
+        try repo.createTagAssignment(thoughtId: t1, tagName: "工作事业", source: .ai, confidence: 0.8)
+
+        try repo.renameTag(from: "工作事业", to: "事业")
+
+        // merge 分支：目标「事业」上原有的 .ai 不应被升级
+        let assignments = try fetchAssignments(thoughtId: t1, in: ctx)
+        let aiAssignments = assignments.filter { $0.source == ThoughtTagAssignment.Source.ai.rawValue }
+        XCTAssertFalse(aiAssignments.isEmpty, "merge 分支 .ai 应保持为 ai，不升级")
+    }
+
+    // MARK: - 删除返回受影响想法（删除后触发只重算标签重分类）
+
+    func test_全局删除_返回受影响想法Ids() async throws {
+        let (repo, ctx) = try makeRepo()
+        let t1 = try makeThought(in: ctx)
+        let t2 = try makeThought(in: ctx)
+        try repo.createTagAssignment(thoughtId: t1, tagName: "work", source: .ai, confidence: 0.9)
+        try repo.createTagAssignment(thoughtId: t2, tagName: "work", source: .ai, confidence: 0.8)
+
+        let result = try repo.deleteTagGlobally(name: "work")
+
+        XCTAssertEqual(Set(result.affectedThoughtIds), Set([t1, t2]), "受影响想法应返回 t1 和 t2")
+    }
+
+    func test_全局删除_软删除想法不计入受影响Ids() async throws {
+        let (repo, ctx) = try makeRepo()
+        let t1 = try makeThought(in: ctx)
+        let t2 = try makeThought(in: ctx)
+        try repo.createTagAssignment(thoughtId: t1, tagName: "work", source: .ai, confidence: 0.9)
+        try repo.createTagAssignment(thoughtId: t2, tagName: "work", source: .ai, confidence: 0.8)
+        // t2 软删除
+        let t2Obj = try XCTUnwrap(try repo.fetchByIdInternal(t2))
+        t2Obj.isSoftDeleted = true
+        try ctx.save()
+
+        let result = try repo.deleteTagGlobally(name: "work")
+
+        XCTAssertEqual(result.affectedThoughtIds, [t1], "软删除想法不应计入受影响 Ids")
+    }
+
+    // MARK: - getOrCreateTag 命中存量不再改名（本次改动）
+
+    func test_getOrCreateTag_命中存量不覆盖name() throws {
+        let (repo, ctx) = try makeRepo()
+        let t1 = try makeThought(in: ctx)
+        // 先建一个「AI能力」（带空格的展示名）
+        try repo.createTagAssignment(thoughtId: t1, tagName: "AI 能力", source: .manual, confidence: 1.0)
+        let original = try XCTUnwrap(fetchTag(named: "AI 能力", in: ctx))
+        XCTAssertEqual(original.name, "AI 能力")
+
+        // 用「AI能力」（不带空格）命中——不应覆盖存量展示名
+        _ = try repo.getOrCreateTag(name: "AI能力")
+
+        let after = try XCTUnwrap(fetchTag(named: "AI 能力", in: ctx))
+        XCTAssertEqual(after.name, "AI 能力", "命中存量时不应被入参拼写反向覆盖展示名")
     }
 
     func test_重命名_仅显示差异_更新displayName且不新建tag() async throws {

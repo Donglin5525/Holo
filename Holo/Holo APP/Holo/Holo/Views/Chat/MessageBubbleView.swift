@@ -24,6 +24,8 @@ struct MessageBubbleView: View {
     var onViewLog: ((ChatMessageViewData) -> Void)? = nil
     var onCompactAnalysisTap: (() -> Void)? = nil
     var onAgentDeepAnalysisTap: (() -> Void)? = nil
+    /// P1-12：Agent 分析失败后的重试入口
+    var onAgentDeepAnalysisRetry: (() -> Void)? = nil
     var onPeriodReplayExpansionChanged: ((ChatMessageViewData, Bool) -> Void)? = nil
     var onGoalDraftCardTap: (() -> Void)? = nil
     var onSavedGoalCardTap: ((UUID) -> Void)? = nil
@@ -35,9 +37,64 @@ struct MessageBubbleView: View {
     var onTransactionConfirm: ((ChatMessageViewData) -> Void)? = nil
     var onTransactionCancel: ((ChatMessageViewData) -> Void)? = nil
     var onTransactionModifyCategory: ((ChatMessageViewData) -> Void)? = nil
+    var onCopy: ((ChatMessageViewData) -> Void)? = nil
+    var onEdit: ((ChatMessageViewData) -> Void)? = nil
+    var onRegenerate: ((ChatMessageViewData) -> Void)? = nil
+    /// P1-11：收藏/取消收藏
+    var onToggleStar: ((ChatMessageViewData) -> Void)? = nil
+    /// 分享消息文本（系统分享面板）
+    var onShare: ((ChatMessageViewData) -> Void)? = nil
+    /// 分享卡片截图（系统分享面板）
+    var onShareCard: ((ChatMessageViewData) -> Void)? = nil
 
     private var displayText: String {
         streamingText ?? message.content
+    }
+
+    /// 可复制：非流式中的文本消息（卡片消息有自己的操作入口，不在此复制）
+    private var canCopy: Bool {
+        guard !message.isStreaming else { return false }
+        // 卡片/分析/额度消息不复制（它们有结构化展示，复制文本意义不大）
+        if !isUser, message.isQuotaExhausted { return false }
+        if !isUser, message.isQueryAnalysis { return false }
+        if !executionCards.isEmpty || cardData != nil { return false }
+        if !message.analysisCards.isEmpty { return false }
+        return !displayText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// 可编辑：仅普通用户消息（非 goalPlanning/periodReplay 等会话状态机消息）
+    private var canEdit: Bool {
+        isUser && !message.isStreaming && message.messageType == .normal
+    }
+
+    /// 可重新生成：AI 文本消息（非卡片、非分析、非额度），有父消息可重发
+    private var canRegenerate: Bool {
+        guard !isUser, !message.isStreaming else { return false }
+        guard message.parentMessageId != nil else { return false }
+        if message.isQuotaExhausted || message.isQueryAnalysis { return false }
+        if !executionCards.isEmpty || cardData != nil { return false }
+        if !message.analysisCards.isEmpty { return false }
+        return !message.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    /// P1-11：可收藏（AI 消息均可，含卡片/分析——收藏的是「这条消息整体」而非数据结构）
+    private var canStar: Bool {
+        guard !isUser, !message.isStreaming else { return false }
+        guard message.parentMessageId != nil else { return false }
+        // 额度耗尽提示不收藏（它是提示卡片不是内容）
+        guard !message.isQuotaExhausted else { return false }
+        return !message.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            || message.agentResult != nil
+            || !executionCards.isEmpty
+            || cardData != nil
+    }
+
+    /// 可分享：与复制同条件（有文字内容的非流式消息，用户/AI 都行）
+    private var canShare: Bool { canCopy }
+
+    /// 当前是否已收藏
+    private var isStarred: Bool {
+        ChatMessageStarStore.shared.isStarred(message.id)
     }
 
     /// 是否为目标计划草稿就绪消息（需要渲染为卡片而非气泡）
@@ -81,22 +138,100 @@ struct MessageBubbleView: View {
     var body: some View {
         Group {
             if isUser {
+                // 用户消息：长按菜单（复制/编辑/分享），无三个点
                 HStack(alignment: .top, spacing: 8) {
                     Spacer(minLength: 60)
                     messageContent
                     userAvatar
                 }
+                .contextMenu { textMessageMenu }
+            } else if isCardMessage {
+                // AI 卡片消息：卡片右上角叠三个点（收藏/分享/删除），独立控件不与卡片点击冲突
+                VStack(alignment: .leading, spacing: 10) {
+                    aiHeader
+                    ZStack(alignment: .topTrailing) {
+                        messageContent
+                        if cardMenuHasAction {
+                            cardActionsMenu
+                                .padding(.top, 6)
+                                .padding(.trailing, 6)
+                                .zIndex(1)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
             } else {
+                // AI 文字消息：长按菜单（复制/重新生成/收藏/分享）
                 VStack(alignment: .leading, spacing: 10) {
                     aiHeader
                     messageContent
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .contextMenu { textMessageMenu }
             }
         }
-        .contextMenu {
+    }
+
+    // MARK: - 是否卡片消息
+
+    /// 是否为 AI 卡片消息（用于决定用三个点菜单还是长按菜单）。
+    /// 额度耗尽不算（它是提示卡片不是内容）。
+    private var isCardMessage: Bool {
+        guard !isUser, !message.isQuotaExhausted else { return false }
+        return message.isQueryAnalysis
+            || !executionCards.isEmpty
+            || cardData != nil
+            || !message.analysisCards.isEmpty
+            || message.messageType == .periodReplay
+            || savedGoalCardData != nil
+            || isGoalDraftReady
+    }
+
+    // MARK: - 卡片右上角三个点菜单
+
+    /// 卡片三个点是否需要显示（至少一个可用操作）
+    private var cardMenuHasAction: Bool {
+        if canStar { return true }
+        if canShareCard { return true }
+        if firstDeletableCard != nil { return true }
+        #if DEBUG || INTERNAL_DIAGNOSTICS
+        if internalAccess.canViewAILogs, internalLogs.hasLog(for: message.id) { return true }
+        #endif
+        return false
+    }
+
+    /// 卡片可分享：非流式的卡片消息均可截图分享。
+    /// Goal 类卡片暂不支持分享（截图重建依赖外部数据，且私人目标分享价值低）。
+    private var canShareCard: Bool {
+        guard !message.isStreaming else { return false }
+        if savedGoalCardData != nil { return false }
+        if isGoalDraftReady { return false }
+        return true
+    }
+
+    /// 卡片三个点菜单
+    @ViewBuilder
+    private var cardActionsMenu: some View {
+        Menu {
+            // 收藏/取消收藏
+            if canStar {
+                Button {
+                    onToggleStar?(message)
+                } label: {
+                    Label(isStarred ? "取消收藏" : "收藏",
+                          systemImage: isStarred ? "star.fill" : "star")
+                }
+            }
+            // 分享（卡片截图）
+            if canShareCard {
+                Button {
+                    onShareCard?(message)
+                } label: {
+                    Label("分享", systemImage: "square.and.arrow.up")
+                }
+            }
             // 删除记录（仅有关联实体且未删除的卡片消息）
-            if !isUser, let info = firstDeletableCard {
+            if let info = firstDeletableCard {
                 Button(role: .destructive) {
                     onCardDelete?(message, info.category, info.description)
                 } label: {
@@ -104,10 +239,7 @@ struct MessageBubbleView: View {
                 }
             }
             #if DEBUG || INTERNAL_DIAGNOSTICS
-            // 完整日志仅在内部构建中开放，并继续校验后端身份，不属于 Plus 权益。
-            if !isUser,
-               internalAccess.canViewAILogs,
-               internalLogs.hasLog(for: message.id) {
+            if internalAccess.canViewAILogs, internalLogs.hasLog(for: message.id) {
                 Button {
                     onViewLog?(message)
                 } label: {
@@ -115,7 +247,75 @@ struct MessageBubbleView: View {
                 }
             }
             #endif
+        } label: {
+            Image(systemName: "ellipsis")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.holoTextSecondary)
+                .frame(width: 26, height: 26)
+                .background(Color.holoCardBackground.opacity(0.9))
+                .clipShape(Circle())
+                .contentShape(Circle())
         }
+    }
+
+    // MARK: - 文字消息长按菜单
+
+    /// 文字消息长按菜单内容（复制/编辑/重新生成/收藏/分享/查看日志）
+    @ViewBuilder
+    private var textMessageMenu: some View {
+        // 复制：对用户/AI 文本消息都可用（流式中、卡片消息、额度卡片除外）
+        if canCopy {
+            Button {
+                onCopy?(message)
+            } label: {
+                Label("复制", systemImage: "doc.on.doc")
+            }
+        }
+        // 编辑后重发：仅普通用户消息
+        if canEdit {
+            Button {
+                onEdit?(message)
+            } label: {
+                Label("编辑", systemImage: "pencil")
+            }
+        }
+        // 重新生成：仅 AI 文本消息（非卡片、非分析、非额度、非流式中）
+        if canRegenerate {
+            Button {
+                onRegenerate?(message)
+            } label: {
+                Label("重新生成", systemImage: "arrow.clockwise")
+            }
+        }
+        // 收藏/取消收藏（AI 文字消息）
+        if canStar {
+            Button {
+                onToggleStar?(message)
+            } label: {
+                Label(isStarred ? "取消收藏" : "收藏",
+                      systemImage: isStarred ? "star.fill" : "star")
+            }
+        }
+        // 分享：与复制同条件（有文字内容的非流式消息）
+        if canShare {
+            Button {
+                onShare?(message)
+            } label: {
+                Label("分享", systemImage: "square.and.arrow.up")
+            }
+        }
+        #if DEBUG || INTERNAL_DIAGNOSTICS
+        // 完整日志仅在内部构建中开放，并继续校验后端身份，不属于 Plus 权益。
+        if !isUser,
+           internalAccess.canViewAILogs,
+           internalLogs.hasLog(for: message.id) {
+            Button {
+                onViewLog?(message)
+            } label: {
+                Label("查看日志", systemImage: "doc.text.magnifyingglass")
+            }
+        }
+        #endif
     }
 
     @ViewBuilder
@@ -153,6 +353,8 @@ struct MessageBubbleView: View {
                 if message.agentResult != nil || (message.isStreaming && message.analysisContext == nil) {
                     AgentDeepAnalysisCard(message: message) {
                         onAgentDeepAnalysisTap?()
+                    } onRetry: {
+                        onAgentDeepAnalysisRetry?()
                     }
                 } else if message.analysisContext != nil {
                     AnalysisCompactChatCard(message: message) {
@@ -247,8 +449,6 @@ struct MessageBubbleView: View {
             Text("Holo")
                 .font(.subheadline.weight(.semibold))
                 .foregroundColor(.holoTextPrimary)
-
-            Spacer(minLength: 0)
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("Holo")
@@ -283,6 +483,7 @@ struct MessageBubbleView: View {
                 text: displayText,
                 isStreaming: message.isStreaming && streamingText != nil,
                 isError: message.isError,
+                isRetryableStopped: message.isRetryableStopped,
                 onRetry: onRetry
             )
         }

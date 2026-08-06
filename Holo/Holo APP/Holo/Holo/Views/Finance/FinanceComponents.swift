@@ -331,6 +331,94 @@ struct TransactionRowView: View {
     }
 }
 
+// MARK: - Transaction Search Row View
+
+/// 搜索结果专属行视图：强制显示时间，副标题串联「科目 · 时间 · 备注」
+/// 与账单页通用的 TransactionRowView 区分开——搜索是跨日期检索，时间是识别每笔费用的关键信息，必须常驻。
+struct TransactionSearchRowView: View {
+    let transaction: Transaction
+    let onTap: () -> Void
+
+    var body: some View {
+        Button(action: onTap) {
+            HStack(alignment: .center, spacing: HoloSpacing.md) {
+                // 分类图标
+                categoryIcon
+
+                VStack(alignment: .leading, spacing: 4) {
+                    // 主标题：优先用户填的名字，没有则用科目名兜底
+                    Text(primaryTitle)
+                        .font(.holoBody)
+                        .foregroundColor(.holoTextPrimary)
+                        .lineLimit(1)
+                        .layoutPriority(1)
+
+                    // 副标题：科目名 · 时间 · 备注（任一缺失自动跳过，不产生多余分隔符）
+                    if let subtitleText {
+                        Text(subtitleText)
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoTextSecondary)
+                            .lineLimit(1)
+                    }
+                }
+
+                Spacer(minLength: 0)
+
+                // 金额：支出主色、收入绿色
+                Text(transaction.formattedAmount)
+                    .font(.holoBody)
+                    .foregroundColor(transaction.transactionType == .expense ? .holoTextPrimary : .holoSuccess)
+                    .minimumScaleFactor(0.7)
+                    .lineLimit(1)
+                    .frame(alignment: .trailing)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.leading, 11)
+            .padding(.trailing, HoloSpacing.md)
+            .padding(.vertical, 10)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(PlainButtonStyle())
+    }
+
+    /// 主标题：有用户填的名字用名字，否则用科目名
+    private var primaryTitle: String {
+        if let note = transaction.note, !note.isEmpty {
+            return note
+        }
+        return transaction.category?.name ?? "未分类"
+    }
+
+    /// 副标题：科目名 · 时间 · 备注（空字段自动跳过）
+    private var subtitleText: String? {
+        var parts: [String] = []
+        if let categoryName = transaction.category?.name {
+            parts.append(categoryName)
+        }
+        parts.append(formatDateTime(transaction.date))
+        if let remark = transaction.remark, !remark.isEmpty {
+            parts.append(remark)
+        }
+        let text = parts.joined(separator: " · ")
+        return text.isEmpty ? nil : text
+    }
+
+    /// 分类图标
+    private var categoryIcon: some View {
+        let cat = transaction.category
+        let color: Color = (cat?.isDeleted ?? false) ? .holoPrimary : (cat?.swiftUIColor ?? .holoPrimary)
+        let iconName = cat?.icon ?? "questionmark.folder.fill"
+        return CategoryIconBadge(iconName: iconName, color: color, diameter: 48)
+    }
+
+    private func formatDateTime(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "zh_CN")
+        f.dateFormat = "M月d日 HH:mm"
+        return f.string(from: date)
+    }
+}
+
 // MARK: - Empty State View
 
 /// 空状态视图

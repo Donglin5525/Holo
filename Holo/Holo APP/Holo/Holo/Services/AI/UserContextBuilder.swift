@@ -16,10 +16,54 @@ final class UserContextBuilder {
 
     private let logger = Logger(subsystem: "com.holo.app", category: "UserContextBuilder")
 
-    private init() {}
+    /// 短 TTL 缓存：用户连续对话时避免每条消息都全量重查 6+ Repository。
+    /// 黑队审查护栏：监听 .profileDidChange 主动失效，避免改了称呼后 AI 用旧 profile。
+    private var cachedContext: UserContext?
+    private var cachedAt: Date?
+    private var cacheDay: Date?
+    private let cacheTTL: TimeInterval = 20  // 秒；连续对话场景天然命中
 
-    /// 构建当前用户上下文
+    private init() {
+        // profile 变更（称呼/沟通偏好/敏感边界）后立即失效缓存，
+        // 否则用户改完设置回来问，AI 还在用旧 profile——强感知回归。
+        NotificationCenter.default.addObserver(
+            forName: .profileDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.invalidateCache() }
+        }
+    }
+
+    /// 失效缓存：用户记账/打卡/改 profile 后主动调用，保证下一轮 buildContext 拿到最新数据。
+    /// 注意：本轮已发出的 LLM 请求不受影响（它基于旧 context 已答完），invalidate 只对下一轮生效。
+    func invalidateCache() {
+        cachedContext = nil
+        cachedAt = nil
+        cacheDay = nil
+    }
+
+    /// 构建当前用户上下文（带短 TTL 缓存）
     func buildContext() async -> UserContext {
+        // 缓存命中检查：同一天 + 未超 TTL
+        let today = Calendar.current.startOfDay(for: Date())
+        if let cachedContext,
+           let cachedAt,
+           let cacheDay,
+           cacheDay == today,
+           Date().timeIntervalSince(cachedAt) < cacheTTL {
+            return cachedContext
+        }
+
+        let context = await buildContextUncached()
+        cachedContext = context
+        cachedAt = Date()
+        cacheDay = today
+        return context
+    }
+
+    /// 全量构建用户上下文（无缓存）。拆出便于未来按子模块缓存增量更新。
+    private func buildContextUncached() async -> UserContext {
         let dateFormatter = DateFormatter()
         dateFormatter.locale = Locale(identifier: "zh_CN")
         dateFormatter.dateFormat = "yyyy年M月d日 EEEE"

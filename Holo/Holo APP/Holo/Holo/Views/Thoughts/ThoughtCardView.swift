@@ -110,7 +110,25 @@ struct ThoughtCardView: View {
         onMoveToTopic != nil || onArchive != nil || onDelete != nil
     }
 
+    @ViewBuilder
     private var statusBadge: some View {
+        // 失败时，胶囊本身就是「重新整理」入口：点击 → 改回 pending → 重新入队
+        // （状态改回 pending 后 canRetryOrganize 自动变 false，天然防连点）
+        if canRetryOrganize {
+            Button {
+                retryOrganize()
+            } label: {
+                statusCapsule
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("重新整理")
+        } else {
+            statusCapsule
+        }
+    }
+
+    /// 状态胶囊的纯展示样式
+    private var statusCapsule: some View {
         let status = organizationDisplayStatus
         return HStack(spacing: 4) {
             Image(systemName: status.icon)
@@ -123,6 +141,26 @@ struct ThoughtCardView: View {
         .padding(.vertical, 3)
         .background(status.color.opacity(0.1))
         .clipShape(Capsule())
+    }
+
+    /// 整理失败时可点击重试（已归入主题或非 failed 态则保持纯展示）
+    private var canRetryOrganize: Bool {
+        thought.organizedStatus == "failed" && !thought.hasActiveTopic
+    }
+
+    /// 重新整理当前想法：把状态改回 pending 并重新入队
+    /// 用 enqueue 的 ignoreEnabledSwitch 主动入口——用户主动点击重试是明确意愿，
+    /// 不受「自动分类开关」拦截；且走单条路径，不触发批量进度 UI。
+    private func retryOrganize() {
+        let repository = ThoughtRepository()
+        do {
+            try repository.updateOrganizedStatus(thoughtId: thought.id, status: "pending")
+            // 通知列表刷新，让胶囊立即变回「整理中」
+            NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+            ThoughtOrganizationQueue.shared.enqueue(thoughtId: thought.id, ignoreEnabledSwitch: true)
+        } catch {
+            // 本地写入失败极少见；胶囊保持「整理失败」，用户可再次点击重试
+        }
     }
 
     private var organizationDisplayStatus: (title: String, icon: String, color: Color) {
@@ -145,10 +183,18 @@ struct ThoughtCardView: View {
 
     private var contentView: some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            ExpandableText(
-                text: thought.plainContent,
-                lineLimit: 7
-            )
+            // 有结构化内容时走富文本渲染（#/@ Token 显示橙底），否则降级纯文本
+            if thought.richContentJSON != nil {
+                ExpandableText(
+                    nodes: RichContentSerializer.nodes(richJSON: thought.richContentJSON, fallbackPlainText: thought.content),
+                    lineLimit: 7
+                )
+            } else {
+                ExpandableText(
+                    text: thought.plainContent,
+                    lineLimit: 7
+                )
+            }
 
             if !thought.sortedAttachments.isEmpty {
                 inlineAttachmentsView

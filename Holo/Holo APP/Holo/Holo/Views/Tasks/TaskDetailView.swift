@@ -19,6 +19,8 @@ struct TaskDetailView: View {
     @State private var showEditSheet = false
     @State private var showDeleteAlert = false
     @State private var selectedAttachmentIndex: Int? = nil
+    /// 来源想法预览（点「来自想法」卡片弹出阅读态详情）
+    @State private var previewThoughtId: UUID? = nil
 
     private static let logger = Logger(subsystem: "com.holo.app", category: "TaskDetailView")
 
@@ -72,6 +74,13 @@ struct TaskDetailView: View {
                 attachments: sortedAttachments,
                 startIndex: wrapper.index,
                 taskId: task.id
+            )
+        }
+        .sheet(item: $previewThoughtId) { thoughtId in
+            // 叠层预览来源想法（阅读态详情），与 ThoughtDetailView 点引用跳转的成熟模式一致
+            ThoughtDetailView(
+                thoughtId: thoughtId,
+                thoughtRepository: ThoughtRepository()
             )
         }
     }
@@ -234,33 +243,39 @@ struct TaskDetailView: View {
     @ViewBuilder
     private var sourceThoughtSection: some View {
         if let thought = task.sourceThought {
-            HStack(spacing: 12) {
-                Image(systemName: "lightbulb")
-                    .font(.system(size: 16))
-                    .foregroundColor(.holoPrimary)
-                    .frame(width: 24)
+            Button {
+                previewThoughtId = thought.id
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "lightbulb")
+                        .font(.system(size: 16))
+                        .foregroundColor(.holoPrimary)
+                        .frame(width: 24)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("来自想法")
-                        .font(.holoBody)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("来自想法")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextSecondary)
+                        Text(thought.firstLine ?? String(thought.content.prefix(30)))
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextPrimary)
+                            .lineLimit(1)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.holoTextSecondary)
-                    Text(thought.firstLine ?? String(thought.content.prefix(30)))
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextPrimary)
-                        .lineLimit(1)
                 }
-
-                Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.holoTextSecondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 14)
+                .background(Color.holoCardBackground)
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
+                .overlay(RoundedRectangle(cornerRadius: HoloRadius.lg).stroke(Color.holoBorder, lineWidth: 1))
+                .contentShape(Rectangle())
             }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 14)
-            .background(Color.holoCardBackground)
-            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
-            .overlay(RoundedRectangle(cornerRadius: HoloRadius.lg).stroke(Color.holoBorder, lineWidth: 1))
+            .buttonStyle(.plain)
         }
     }
 

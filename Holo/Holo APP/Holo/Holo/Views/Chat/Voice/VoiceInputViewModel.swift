@@ -351,9 +351,11 @@ final class VoiceInputViewModel: ObservableObject {
                 guard !Task.isCancelled else { return }
                 try? await streamingSession.appendAudio(data)
             }
-        } else {
-            pendingAudioBuffers.append(data)
         }
+        // P1-9 死代码清理：流式 session 未就绪时不再缓冲 PCM 数据。
+        // 生产环境 provider 不实现 StreamingSpeechRecognitionProvider（isSessionReady 恒 false），
+        // 此前无条件 append 导致录满 5 分钟累计约 9.6MB 无用驻留内存。
+        // 若未来启用生产流式 ASR，在 connectStreamingSession 成功分支里恢复缓冲即可。
     }
 
     private func finishStreamingTranscription() {

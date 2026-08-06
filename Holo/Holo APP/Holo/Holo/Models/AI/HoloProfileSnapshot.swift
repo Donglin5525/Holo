@@ -111,6 +111,46 @@ struct HoloProfileSnapshot: Codable, Equatable {
             updatedAt: Date()
         )
     }
+
+    // MARK: - 称呼兜底
+
+    /// 当档案里没解析到 preferredName 时，用引导页设的称呼兜底。
+    ///
+    /// 背景：用户在引导页输入的称呼存在 UserDisplayNameSettings（UserDefaults "userName"），
+    /// 而 AI 只读档案里的 preferredName——两套系统互不相通。
+    /// 此方法把引导页称呼桥接进 snapshot，让 AI 也能用。
+    ///
+    /// 优先级：档案里填了昵称（preferredName != nil）就用档案的；
+    /// 档案没填但引导页填了真实称呼，用引导页的；
+    /// 引导页也没填（displayName 是占位符「你」），不兜底——否则 AI 会把「你」当名字叫。
+    func applyingDisplayNameFallback() -> HoloProfileSnapshot {
+        // 档案里已有称呼，无需兜底
+        guard preferredName == nil else { return self }
+
+        let displayName = UserDisplayNameSettings.standard.displayName
+        // "你" 是用户没填时的占位符，不是真实称呼，不能喂给 AI
+        guard displayName != UserDisplayNameSettings.fallbackDisplayName else { return self }
+
+        // 同步更新 parseConfidence：preferredName 现在有值了（来自引导页兜底）
+        var updatedConfidence = parseConfidence
+        updatedConfidence["preferredName"] = true
+
+        return HoloProfileSnapshot(
+            rawMarkdown: rawMarkdown,
+            preferredName: displayName,
+            language: language,
+            timezone: timezone,
+            city: city,
+            profession: profession,
+            communicationStyle: communicationStyle,
+            currentFocus: currentFocus,
+            lifeContext: lifeContext,
+            healthHabitContext: healthHabitContext,
+            sensitiveBoundaries: sensitiveBoundaries,
+            parseConfidence: updatedConfidence,
+            updatedAt: updatedAt
+        )
+    }
 }
 
 // MARK: - String Extension (Stable Hash)

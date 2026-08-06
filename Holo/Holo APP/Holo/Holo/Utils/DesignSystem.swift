@@ -104,7 +104,9 @@ extension Color {
         Color(hex: holoHeatmapHex(level: level, palette: palette, colorScheme: colorScheme))
     }
 
-    private static func holoHeatmapHex(level: Int, palette: HoloHeatmapPalette, colorScheme: ColorScheme) -> String {
+    /// 热力图色阶的原始 hex（全 App 唯一来源）。
+    /// 对测试可见：色阶回归测试直接断言此方法，避免在组件里重复硬编码 hex。
+    static func holoHeatmapHex(level: Int, palette: HoloHeatmapPalette, colorScheme: ColorScheme) -> String {
         switch palette {
         case .warm:
             // 活跃热力图：0=背景底色，1...5 由浅到深的暖橙

@@ -9,6 +9,7 @@
 import Foundation
 import Combine
 import CoreData
+import UIKit
 import os.log
 
 @MainActor
@@ -25,11 +26,22 @@ final class ChatViewModel: ObservableObject {
     @Published var isStreaming: Bool = false
     /// AI 数据处理授权未开启时，点发送触发此提示（替代静默失败）
     @Published var showConsentPrompt: Bool = false
-    @Published var streamingText: String = ""
+    @Published var streamingText: String = "" {
+        didSet {
+            // 收到第一个 token 后清除「响应较慢」提示
+            if streamingSlowHint && !streamingText.isEmpty {
+                streamingSlowHint = false
+            }
+        }
+    }
+    /// P1-7：首字延迟超过 15s 时置 true，供输入栏提示「响应较慢」
+    @Published var streamingSlowHint: Bool = false
     @Published var errorMessage: String?
     @Published var memoryNotice: String?
     @Published var isConfigured: Bool = false
     @Published var isLoadingConfig: Bool = false
+    /// 正在编辑的用户消息 id（非 nil 时输入框显示「编辑中」提示，发送时走截断重发）
+    @Published var editingMessageId: UUID?
     @Published private(set) var hasFinishedSetup: Bool = false
     @Published private(set) var hasLoadedMessages: Bool = false
     @Published private(set) var didTimeoutLoadingConfig: Bool = false
@@ -320,9 +332,23 @@ final class ChatViewModel: ObservableObject {
                     self.streamingText = initialStatus.messageContent
                     let rendered = await self.analysisService.runAnalysis(
                         question: text,
-                        sourceMessageID: aiMessageId
+                        sourceMessageID: aiMessageId,
+                        onProgress: { [weak self] job in
+                            // Scheduler 是 actor，onProgress 是 @Sendable；hop 到 MainActor 更新 UI。
+                            await MainActor.run {
+                                guard let self else { return }
+                                let status = HoloAgentChatStatusPresenter.status(for: job)
+                                // 终态（completed/failed/cancelled/superseded）的最终结果由
+                                // runAnalysis 返回值负责写入，这里只更新进行中的进度文案。
+                                guard status.keepsMessageStreaming else { return }
+                                self.chatRepo?.updateAgentMessageProgress(aiMessageId, status: status)
+                            }
+                        }
                     )
                     try Task.checkCancellation()
+                    // 黑队审查护栏：Agent 结果回写前，确认这条消息未被取消/取代
+                    // （用户可能在分析期间点了停止或发了新消息）。
+                    guard self.activeStreamingMessageID == aiMessageId else { return }
                     // 额度耗尽走专属卡片（与普通聊天路径一致）：档位限制不是系统错误，
                     // 渲染 QuotaExhaustedChatCard + "了解 Holo Plus"入口，不写 agentResultJSON。
                     if case .quotaExhausted(let userMessage)? = rendered.failure {
@@ -494,6 +520,12 @@ final class ChatViewModel: ObservableObject {
                 )
                 #endif
 
+                // P0-5：本轮若产生了记账/打卡/任务变更，失效 UserContext 缓存。
+                // 本轮 LLM 已基于旧 context 答完，invalidate 只保证下一轮拿到最新数据。
+                if Self.hasDataMutation(in: processResult) {
+                    UserContextBuilder.shared.invalidateCache()
+                }
+
                 // ENERGY: 能量恢复预留位
 
             } catch is CancellationError {
@@ -553,6 +585,11 @@ final class ChatViewModel: ObservableObject {
 
     func cancelStreaming() {
         let cancelledMessageID = activeStreamingMessageID
+        // 先捕获已生成的部分内容，再清空状态（黑队审查：避免 catch 分支二次写入覆盖）。
+        let partial = streamingText
+        // Agent 分析进行中的消息 intent 为 query_analysis 且仍在 streaming，
+        // 用专属文案避免把 Agent 卡片退化为普通文本。
+        let isAgentAnalysis = cancelledMessageID.flatMap { chatRepo?.intent(for: $0) } == "query_analysis"
         currentTask?.cancel()
         currentTask = nil
         streamingWatchdogTask?.cancel()
@@ -563,7 +600,17 @@ final class ChatViewModel: ObservableObject {
         streamingText = ""
         activeStreamingMessageID = nil
         if let cancelledMessageID {
-            chatRepo?.finishStreaming(cancelledMessageID, finalContent: "已停止生成")
+            // 停止时保留已生成的部分内容（此前直接清掉，信息丢失）。
+            // Agent 分析路径显示专属文案；普通流式保留 partial + 停止标记。
+            let finalContent: String
+            if isAgentAnalysis {
+                finalContent = "深度分析已取消"
+            } else if partial.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                finalContent = "已停止生成"
+            } else {
+                finalContent = partial + "\n\n_已停止生成_"
+            }
+            chatRepo?.finishStreaming(cancelledMessageID, finalContent: finalContent)
         }
         // 关键修复：Agent 深度分析跑在 Scheduler 独立 Task 上（activeTasks[jobID]），
         // 与 chat 的 currentTask 是不同对象。此前只取消 currentTask 对 Agent 无效，
@@ -589,25 +636,100 @@ final class ChatViewModel: ObservableObject {
         await sendMessage()
     }
 
+    // MARK: - Copy / Edit / Regenerate
+
+    /// 复制消息文本到剪贴板
+    func copyMessageContent(_ message: ChatMessageViewData) {
+        UIPasteboard.general.string = message.content
+    }
+
+    /// 开始编辑一条用户消息：回填到输入框并标记 editingMessageId。
+    /// 只对普通用户消息（messageType == .normal）开放。
+    func startEditing(_ message: ChatMessageViewData) {
+        guard message.role == "user",
+              message.messageType == .normal,
+              !message.isStreaming else { return }
+        editingMessageId = message.id
+        inputText = message.content
+    }
+
+    /// 取消编辑（清空标记，不修改消息）
+    func cancelEditing() {
+        editingMessageId = nil
+        inputText = ""
+    }
+
+    /// 编辑后重发：删除该用户消息及其后的同会话消息，然后正常发送当前输入。
+    /// 如果被删消息关联了 Agent job（有 sourceMessageID），取消对应 job 避免孤儿。
+    func sendMessageWithEditTruncation() async {
+        guard let editingId = editingMessageId else {
+            await sendMessage()
+            return
+        }
+        // 若后台还有 streaming/Agent 分析在跑（比如上一条 AI 回复还没回来就编辑了用户消息），
+        // 先清理状态避免旧 Task 晚返回干扰新请求（靠 guard 自愈但状态不干净）。
+        if isStreaming {
+            cancelStreaming()
+        }
+        let deletedIds = chatRepo?.deleteMessagesFromSameSession(onOrAfter: editingId) ?? []
+        editingMessageId = nil
+        // 取消被删消息关联的 Agent job（黑队审查护栏：避免孤儿 job 跑完后回填已删消息）
+        if HoloAIFeatureFlags.agentRuntimeEnabled, !deletedIds.isEmpty {
+            Task { await HoloAgentScheduler.shared.cancelJobs(forSourceMessageIDs: deletedIds) }
+        }
+        await sendMessage()
+    }
+
+    /// 重新生成 AI 回复：删除该 AI 消息，用其父用户消息重发
+    func regenerateResponse(_ aiMessage: ChatMessageViewData) async {
+        guard let parentId = aiMessage.parentMessageId,
+              let userMessage = messages.first(where: { $0.id == parentId }) else { return }
+        chatRepo?.deleteMessage(aiMessage.id)
+        inputText = userMessage.content
+        await sendMessage()
+    }
+
+    /// P1-12：重试深度分析——复用原始问题，删旧 AI 消息重发。
+    /// 避免用户失败后只能重新打字整段重问。
+    func retryAnalysis(_ aiMessage: ChatMessageViewData) async {
+        guard let parentId = aiMessage.parentMessageId,
+              let userMessage = messages.first(where: { $0.id == parentId }) else { return }
+        chatRepo?.deleteMessage(aiMessage.id)
+        inputText = userMessage.content
+        await sendMessage()
+    }
+
     // MARK: - Streaming Watchdog
 
-    /// 90 秒超时守护：如果 streaming 未在预期时间内完成，强制终止并恢复 UI
+    /// 超时守护（P1-7：90s → 45s，且超时后保留部分内容 + 标记可重试）。
+    /// 首字延迟超过 15s 时提示「响应较慢」，但不终止（让用户决定是否继续等）。
     private func startStreamingWatchdog(aiMessageId: UUID) {
         streamingWatchdogTask?.cancel()
         streamingWatchdogTask = Task { [weak self] in
             guard let self = self else { return }
-            try? await Task.sleep(nanoseconds: 90_000_000_000) // 90s
+
+            // 阶段一：15s 首字检查——若仍无任何内容，提示用户「响应较慢」
+            try? await Task.sleep(nanoseconds: 15_000_000_000) // 15s
+            guard !Task.isCancelled else { return }
+            guard self.activeStreamingMessageID == aiMessageId else { return }
+            if self.streamingText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                self.streamingSlowHint = true
+            }
+
+            // 阶段二：再等 30s（共 45s）仍未完成则超时终止
+            try? await Task.sleep(nanoseconds: 30_000_000_000) // +30s = 45s total
             guard !Task.isCancelled else { return }
             guard self.activeStreamingMessageID == aiMessageId else { return }
 
-            self.logger.error("Streaming watchdog 触发：90 秒超时，强制终止")
+            self.logger.error("Streaming watchdog 触发：45 秒超时，强制终止")
 
             self.currentTask?.cancel()
             self.currentTask = nil
 
+            // P0-2 一致性：超时也保留已生成的部分内容，并让消息可重试。
             let partialContent = self.streamingText
             let finalContent: String
-            if partialContent.isEmpty {
+            if partialContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 finalContent = "抱歉，AI 响应超时了，请稍后重试"
             } else {
                 finalContent = partialContent + "\n\n---\n⚠️ AI 响应超时，以上为已接收的部分内容"
@@ -616,6 +738,7 @@ final class ChatViewModel: ObservableObject {
             self.chatRepo?.finishStreaming(aiMessageId, finalContent: finalContent)
             self.isStreaming = false
             self.streamingText = ""
+            self.streamingSlowHint = false
             self.errorMessage = "AI 响应超时"
             self.currentTask = nil
             self.activeStreamingMessageID = nil
@@ -1211,6 +1334,13 @@ final class ChatViewModel: ObservableObject {
     }
 
     // MARK: - Helpers
+
+    /// 判断本轮处理是否产生了数据变更（记账/打卡/任务创建等），用于失效 UserContext 缓存。
+    private static func hasDataMutation(in result: ConversationProcessResult) -> Bool {
+        // executionBatch 有 success 状态的项 = 真正写入了数据
+        guard let batch = result.executionBatch else { return false }
+        return batch.items.contains { $0.status == .success }
+    }
 
     /// 将 extractedData 字典编码为 JSON 字符串
     private static func encodeExtractedData(

@@ -197,8 +197,11 @@ final class HoloAgentAnalysisService {
 
     /// 运行一次深度分析，返回渲染后的结果短文；失败或未完成返回 nil。
     /// 全程异步执行，ChatViewModel 负责展示状态与最终文本。
+    /// - Parameter onProgress: 每个 checkpoint 后回调一次完整 job（含 currentStep/waitReason），
+    ///   供上层实时更新聊天消息的进度文案。闭包是 @Sendable，调用方需自行 hop MainActor。
     func runAnalysis(question: String, trigger: HoloAgentTrigger = .userQuestion,
-                     sourceMessageID: UUID? = nil) async -> HoloRenderedAgentResult {
+                     sourceMessageID: UUID? = nil,
+                     onProgress: (@Sendable (HoloAgentJob) async -> Void)? = nil) async -> HoloRenderedAgentResult {
         // 只记录长度，不把用户问题原文写入系统日志（Phase 7 隐私契约）。
         logger.info("[Agent] 开始 questionLength=\(question.count, privacy: .public)")
         // 真出错（网络/超时/内部异常）统一走 analysisFailed；额度耗尽走专属 quotaExhausted。
@@ -227,7 +230,7 @@ final class HoloAgentAnalysisService {
                 systemTemplate: systemTemplate,
                 toolDescriptions: toolDescriptions,
                 sourceMessageID: sourceMessageID
-            ))
+            ), onProgress: onProgress)
             logger.info("[Agent] runLoop 完成 state=\(finalJob.state.rawValue) rounds=\(finalJob.budget.consumedLLMRounds)")
         } catch let error as HoloQuotaError {
             // 额度耗尽：档位限制而非系统错误，透传额度文案，上层渲染额度卡片 + 升级入口。
@@ -279,8 +282,7 @@ final class HoloAgentAnalysisService {
                 ),
                 requestedDeliverables: result.requestedDeliverables ?? [],
                 narrativeSummary: result.narrativeSummary,
-                contextSources: result.contextSources ?? [],
-                dataSamplePreview: Self.makeSamplePreview(from: result.dataSampleExcerpts)
+                contextSources: result.contextSources ?? []
             )
         } catch {
             return fail("[证据读取失败] \(String(describing: error))")
@@ -334,8 +336,7 @@ final class HoloAgentAnalysisService {
                             ),
                             requestedDeliverables: result.requestedDeliverables ?? [],
                             narrativeSummary: result.narrativeSummary,
-                            contextSources: result.contextSources ?? [],
-                            dataSamplePreview: Self.makeSamplePreview(from: result.dataSampleExcerpts)
+                            contextSources: result.contextSources ?? []
                         )
                         repository.finalizeAgentMessage(sourceMessageID, rendered: rendered, intent: "query_analysis")
                     } else {
@@ -368,15 +369,5 @@ final class HoloAgentAnalysisService {
             }
         }
         return preservedStreamingMessageIDs
-    }
-
-    /// 从持久化的样本摘要构造渲染预览；空或缺失返回 nil。
-    private static func makeSamplePreview(from excerpts: [String]?) -> HoloRenderedDataSamplePreview? {
-        guard let excerpts, !excerpts.isEmpty else { return nil }
-        return HoloRenderedDataSamplePreview(
-            domainLabel: "账单",
-            count: excerpts.count,
-            excerpts: excerpts
-        )
     }
 }

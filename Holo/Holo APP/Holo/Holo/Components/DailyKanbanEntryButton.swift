@@ -186,14 +186,14 @@ struct DailyKanbanEntryButton: View {
                     )
                     .opacity(0.8)
 
-                // 外环（80pt）— 总体进度
-                progressOrbit(size: 80, progress: animatedOverall, opacity: 0.9, lineWidth: 5, rotation: ringRotation1)
+                // 外环（80 → 104pt，×1.3）— 总体进度
+                progressOrbit(size: 104, progress: animatedOverall, opacity: 0.9, lineWidth: 5, rotation: ringRotation1)
 
-                // 中环（58pt）— 习惯进度
-                progressOrbit(size: 58, progress: animatedHabit, opacity: 0.6, lineWidth: 4, rotation: ringRotation2)
+                // 中环（58 → 75.5pt，×1.3）— 习惯进度
+                progressOrbit(size: 75.5, progress: animatedHabit, opacity: 0.6, lineWidth: 4, rotation: ringRotation2)
 
-                // 内环（38pt）— 任务进度
-                progressOrbit(size: 38, progress: animatedTask, opacity: 0.4, lineWidth: 3, rotation: ringRotation3)
+                // 内环（38 → 49.5pt，×1.3）— 任务进度
+                progressOrbit(size: 49.5, progress: animatedTask, opacity: 0.4, lineWidth: 3, rotation: ringRotation3)
 
                 // 中心呼吸光点
                 Circle()
@@ -205,7 +205,7 @@ struct DailyKanbanEntryButton: View {
                             endRadius: 10
                         )
                     )
-                    .frame(width: 20, height: 20)
+                    .frame(width: 23, height: 23)
                     .scaleEffect(centerPulse)
             }
         }

@@ -574,6 +574,41 @@ class ThoughtRepository {
         return (try? context.fetch(request).map { $0.name }) ?? []
     }
 
+    /// 获取「AI 生成、使用次数 ≥ minUsage、未被用户认可」的标签名。
+    /// 用于喂回 AI 做复用参考，避免 AI 看不到自己造过的标签而盲目再造近义词。
+    /// 与 fetchUserRecognizedTagNames 互斥（不取 manual/inline/confirmedAI），
+    /// 与 fetchUnrecognizedAITagNames 同构，多一道 usageCount ≥ minUsage 频次过滤，
+    /// 只回喂有一定使用历史的 AI 标签，避免把一次性偶发标签当复用候选。
+    /// - Parameters:
+    ///   - minUsage: 最小使用次数（默认 2）
+    ///   - limit: 数量上限
+    /// - Returns: 标签名称数组（按 usageCount 降序、名称升序）
+    func fetchAIRetagCandidates(minUsage: Int = 2, limit: Int = 40) -> [String] {
+        let request = ThoughtTag.fetchRequest()
+        let aiSource = ThoughtTagAssignment.Source.ai.rawValue
+        let recognizedSources = [
+            ThoughtTagAssignment.Source.manual.rawValue,
+            ThoughtTagAssignment.Source.inline.rawValue,
+            ThoughtTagAssignment.Source.confirmedAI.rawValue
+        ]
+        let hasAI = NSPredicate(
+            format: "SUBQUERY(assignments, $a, $a.source == %@ AND $a.thought.isSoftDeleted == NO).@count > 0",
+            aiSource
+        )
+        let notRecognized = NSPredicate(
+            format: "SUBQUERY(assignments, $a, $a.source IN %@ AND $a.thought.isSoftDeleted == NO).@count == 0",
+            recognizedSources
+        )
+        let frequent = NSPredicate(format: "usageCount >= %d", minUsage)
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [hasAI, notRecognized, frequent])
+        request.sortDescriptors = [
+            NSSortDescriptor(key: "usageCount", ascending: false),
+            NSSortDescriptor(key: "name", ascending: true)
+        ]
+        request.fetchLimit = limit
+        return (try? context.fetch(request).map { $0.name }) ?? []
+    }
+
     /// 获取或创建标签（internal 供 RichContent 扩展复用，外部调用方需自行 save）
     /// - Parameter name: 标签名称
     /// - Returns: ThoughtTag 对象
@@ -584,10 +619,8 @@ class ThoughtRepository {
         let tags = try context.fetch(request)
 
         if let tag = tags.first(where: { ThoughtTagNormalizer.key($0.name) == key }) {
-            if tag.name != displayName, !displayName.isEmpty {
-                tag.name = displayName
-            }
-            // 增加使用次数
+            // 命中即复用，不覆盖存量 name：避免 AI 返回的拼写（大小写/全半角/空格变体）
+            // 反向污染用户已认可的展示名。展示名规范化由 displayPath 在提取/保存层独立完成。
             tag.usageCount += 1
             return tag
         } else {
@@ -962,6 +995,13 @@ class ThoughtRepository {
     func normalizeExistingTags() {
         do {
             let request = ThoughtTag.fetchRequest()
+            // 确定性排序：usageCount 降序、name 升序。
+            // 合并时 keeper 取遍历到的第一个，排序后即「用得最多的；一样多则名字字典序最小」，
+            // 避免无排序 fetch 导致 keeper 选择随机、合并后展示名跳变。
+            request.sortDescriptors = [
+                NSSortDescriptor(key: "usageCount", ascending: false),
+                NSSortDescriptor(key: "name", ascending: true)
+            ]
             let tags = try context.fetch(request)
             var keepers: [String: ThoughtTag] = [:]
             var mergedCount = 0

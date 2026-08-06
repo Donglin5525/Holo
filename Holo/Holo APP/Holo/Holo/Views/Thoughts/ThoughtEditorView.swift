@@ -64,6 +64,10 @@ struct ThoughtEditorView: View {
     // MARK: - UI State
     @State private var showVoiceInput: Bool = false
     @State private var isSaving: Bool = false
+    /// 转任务相关：AI 批量提取任务面板
+    @State private var showTaskExtraction: Bool = false
+    /// 单条「转为任务」成功提示
+    @State private var showConvertToTaskSuccess: Bool = false
     @State private var pendingEditorAction: MarkdownEditorAction? = nil
     @State private var pendingVoiceTranscriptToInsert: String? = nil
     @State private var editorHeight: CGFloat = 360
@@ -109,7 +113,7 @@ struct ThoughtEditorView: View {
 
     // MARK: - Body
     var body: some View {
-        NavigationView {
+        NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: HoloSpacing.md) {
                     // 内容编辑区（含光标吸附候选浮层）
@@ -126,16 +130,6 @@ struct ThoughtEditorView: View {
             .scrollDismissesKeyboard(.never)  // 禁止下滑自动收键盘（编辑器自己管焦点）
             .navigationTitle(isEditing ? "编辑想法" : "记录想法")
             .navigationBarTitleDisplayMode(.inline)
-            // 「查看记录」跳转：通过 navigationDestination 驱动（NavigationLink 必须在 NavigationView 内部才生效）
-            .navigationDestination(isPresented: Binding(
-                get: { navigateToThoughtId != nil },
-                set: { if !$0 { navigateToThoughtId = nil } }
-            )) {
-                ThoughtDetailView(
-                    thoughtId: navigateToThoughtId ?? UUID(),
-                    thoughtRepository: ThoughtRepository()
-                )
-            }
             // 工具栏已移至 UITextView.inputAccessoryView（键盘正上方），不再需要 SwiftUI 层 safeAreaInset。
             // safeAreaInset 在 fullScreenCover 下不跟随键盘，inputAccessoryView 由 UIKit 系统保证位置。
             .toolbar {
@@ -146,16 +140,62 @@ struct ThoughtEditorView: View {
                     .foregroundColor(.holoTextSecondary)
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("保存") {
-                        saveThought()
+                    HStack(spacing: 4) {
+                        // 转任务菜单：仅编辑模式（已落库的想法）可用，避免草稿态转任务的混乱
+                        if isEditing {
+                            Menu {
+                                Button {
+                                    convertToTask()
+                                } label: {
+                                    Label("转为任务", systemImage: "checkmark.square")
+                                }
+                                Button {
+                                    showTaskExtraction = true
+                                } label: {
+                                    Label("AI 提取多个任务", systemImage: "sparkles")
+                                }
+                            } label: {
+                                Image(systemName: "ellipsis.circle")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.holoTextPrimary)
+                            }
+                        }
+                        Button("保存") {
+                            saveThought()
+                        }
+                        .foregroundColor(canSave ? .holoPrimary : .holoTextSecondary)
+                        .fontWeight(.semibold)
+                        .disabled(!canSave)
                     }
-                    .foregroundColor(canSave ? .holoPrimary : .holoTextSecondary)
-                    .fontWeight(.semibold)
-                    .disabled(!canSave)
                 }
             }
         }
-        .navigationViewStyle(.stack)
+        // 「查看记录」：点引用 Token 后弹出目标想法详情（sheet 模式，与 ThoughtDetailView 内部弹引用目标一致）
+        // 不用 navigationDestination push —— ThoughtDetailView 自带 NavigationView，push 会嵌套导航栏。
+        .sheet(item: $navigateToThoughtId) { noteId in
+            ThoughtDetailView(
+                thoughtId: noteId,
+                thoughtRepository: ThoughtRepository()
+            )
+        }
+        .sheet(isPresented: $showTaskExtraction) {
+            if let thought = currentEditingThought {
+                ThoughtTaskExtractionSheet(
+                    plainContent: thought.plainContent,
+                    sourceThought: thought,
+                    onDismiss: { showTaskExtraction = false },
+                    onCreated: {
+                        showTaskExtraction = false
+                        NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+                    }
+                )
+            }
+        }
+        .alert("已转为任务", isPresented: $showConvertToTaskSuccess) {
+            Button("好的", role: .cancel) {}
+        } message: {
+            Text("已从这条想法创建待办任务，可在任务模块查看。")
+        }
         // 右滑退出：自动保存由 onDisappear 兜底，不再弹窗确认。
         .swipeBackToDismiss(isEnabled: true) {
             dismiss()
@@ -391,6 +431,27 @@ struct ThoughtEditorView: View {
             return
         }
         persistContent(shouldDismiss: true, notifyDataChange: true)
+    }
+
+    /// 单条「转为任务」：先把当前编辑内容落库（防丢失），再用首行做标题、全文做描述建一条待办
+    private func convertToTask() {
+        guard let thought = currentEditingThought else { return }
+        // 先落库当前编辑内容，避免转任务时丢掉未保存的修改
+        persistContent(shouldDismiss: false, notifyDataChange: false)
+        // currentEditingThought 是每次重新 fetch 的，落库后再取一次拿最新内容
+        guard let latest = try? ThoughtRepository().fetchById(thought.id) else { return }
+        let title = latest.firstLine ?? String(latest.content.prefix(40))
+        do {
+            _ = try TodoRepository.shared.createTask(
+                title: title,
+                description: latest.plainContent,
+                sourceThought: latest
+            )
+            HapticManager.success()
+            showConvertToTaskSuccess = true
+        } catch {
+            ThoughtLog.error("想法转任务失败", error.localizedDescription)
+        }
     }
 
     // MARK: - Sections

@@ -10,6 +10,12 @@ import SwiftUI
 import CoreData
 import os.log
 
+/// ThoughtDetailView 在 fullScreenCover 内 NavigationStack 里，点「问问 Holo」后
+/// 需要关闭整个 cover。用它通知 ThoughtListView 置 selectedThoughtId = nil。
+extension Notification.Name {
+    static let holoRequestCloseThoughtEditor = Notification.Name("com.holo.requestCloseThoughtEditor")
+}
+
 // MARK: - ThoughtDetailView
 
 /// 想法详情视图
@@ -105,6 +111,12 @@ struct ThoughtDetailView: View {
             .toolbar {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
+                        Button {
+                            askHoloAboutThisThought()
+                        } label: {
+                            Label("问问 Holo", systemImage: "sparkles")
+                        }
+
                         Button {
                             convertToTask()
                         } label: {
@@ -233,6 +245,19 @@ struct ThoughtDetailView: View {
         } catch {
             logger.error("想法转任务失败: \(error.localizedDescription)")
         }
+    }
+
+    // MARK: - 问问 Holo
+
+    /// 跨模块入口：把这条想法的上下文预填到 AI 聊天输入框，跳转到 AI 页（不自动发送）
+    /// ThoughtDetailView 在 fullScreenCover 嵌套的 NavigationStack 里，dismiss 只 pop 一层，
+    /// 无法关闭整个 cover。用通知让 ThoughtListView 关 cover，再导航到 AI 页。
+    private func askHoloAboutThisThought() {
+        guard let thought = thought else { return }
+        let snippet = thought.firstLine ?? String(thought.content.prefix(30))
+        let prefill = "关于这条想法「\(snippet)」，帮我展开想想，或者拆成可执行的待办"
+        NotificationCenter.default.post(name: .holoRequestCloseThoughtEditor, object: nil)
+        DeepLinkState.shared.navigate(to: .chat(prefill: prefill))
     }
 
     // MARK: - 内容区域

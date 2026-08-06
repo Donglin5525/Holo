@@ -21,6 +21,9 @@ nonisolated final class APIClient {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 60
         config.timeoutIntervalForResource = 120
+        // P2-15：弱网/切网络时不立刻报错，等连接恢复（移动场景更友好）。
+        // resource timeout(120s) 仍兜底，不会无限等待。
+        config.waitsForConnectivity = true
         self.urlSession = URLSession(configuration: config)
     }
 

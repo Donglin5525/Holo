@@ -49,68 +49,17 @@ final class ThoughtOrganizationService {
             throw error
         }
 
-        // 2. 读取想法内容（只传 ID，不跨线程持有 NSManagedObject）
-        let thoughtContent: String
-        let existingTagExamples: [String]
-        let rejectedTags: [String]
-        let activeTopicTitles: [String]
-
-        do {
-            guard let thought = try repository.fetchByIdInternal(thoughtId) else {
-                logger.error("想法不存在：\(thoughtId)")
-                try? repository.updateOrganizedStatus(thoughtId: thoughtId, status: "failed")
-                return  // 想法已删除，标 failed 跳过，不重试
-            }
-            thoughtContent = thought.content
-            existingTagExamples = repository.fetchUserRecognizedTagNames()
-            rejectedTags = loadRejectedTagNames()
-            activeTopicTitles = try TopicRepository().fetchClassificationTopics().map(\.title)
-        } catch {
-            logger.error("读取想法数据失败：\(error.localizedDescription)")
-            throw error
+        // 2. 读取想法 → 构建 prompt → 调 AI → 解析 → 端侧强校验
+        guard let (validated, confidence) = try await prepareValidatedTags(thoughtId: thoughtId) else {
+            return  // prepareValidatedTags 内部已标 failed 并 return
         }
 
-        // 3. 构建 prompt 并调用 AI
-        let rawResponse: String
-        do {
-            let messages: [ChatMessageDTO] = [.user(buildOrganizationPayload(
-                thoughtContent: thoughtContent,
-                activeTopics: activeTopicTitles,
-                existingTags: existingTagExamples,
-                rejectedTags: rejectedTags
-            ))]
-
-            // rateLimited 等错误透传给 Queue（不在此 markAsFailed，由 Queue 决定回退 pending 或重试）
-            rawResponse = try await callWithJSONMode(messages: messages)
-        } catch {
-            logger.error("AI 整理调用失败：\(error.localizedDescription)")
-            throw error
-        }
-
-        // 4. 解析 JSON
-        guard let result = parseOrganizationResponse(rawResponse) else {
-            logger.error("JSON 解析失败，原始响应：\(rawResponse.prefix(200))")
-            try? repository.updateOrganizedStatus(thoughtId: thoughtId, status: "failed")
-            return  // 解析失败标 failed，不重试（避免浪费配额）
-        }
-
-        // 5. 端侧强校验：主题只能来自约束池，未知前缀统一降级为虚拟“未分类”。
-        let validated = ThoughtThemeConstraint.validate(
-            selectedTopic: result.selectedTopic,
-            suggestedTags: result.suggestedTags,
-            activeTopics: activeTopicTitles
-        )
-        guard !validated.tagPaths.isEmpty else {
-            logger.error("AI 返回的标签均无效，想法：\(thoughtId)")
-            try? repository.updateOrganizedStatus(thoughtId: thoughtId, status: "failed")
-            return
-        }
-
+        // 3. 写入：标签 + 主题分类（完整路径）
         do {
             try repository.replaceUnconfirmedAITagAssignments(
                 thoughtId: thoughtId,
                 tagNames: validated.tagPaths,
-                confidence: result.confidence
+                confidence: confidence
             )
             try TopicRepository().applyClassification(
                 thoughtId: thoughtId,
@@ -122,7 +71,7 @@ final class ThoughtOrganizationService {
             throw error
         }
 
-        // 6. 更新状态为 organized
+        // 4. 更新状态为 organized
         do {
             try repository.updateOrganizedStatus(thoughtId: thoughtId, status: "organized")
         } catch {
@@ -130,8 +79,121 @@ final class ThoughtOrganizationService {
         }
         logger.info("想法整理完成：\(thoughtId)，主题：\(validated.topicTitle ?? ThoughtThemeConstraint.unclassifiedTitle)，标签：\(validated.tagPaths.joined(separator: ", "))")
 
-        // 7. 发送数据变更通知，让 UI 刷新
+        // 5. 发送数据变更通知，让 UI 刷新
         NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+    }
+
+    /// 只重算标签、完全不碰主题的轻量整理路径。
+    /// 用于「用户删除/重命名标签后，受影响想法重新打标签」场景：
+    /// 复用 organizeThought 的读数据→调AI→校验前半段，但只调 replaceUnconfirmedAITagAssignments，
+    /// **不调 applyClassification**——无论用户手动归的还是 AI 归的主题，一律保持不动。
+    /// 调用前需由调用方把状态改为 processing / 调用后改 organized（与 organizeThought 对称）。
+    func reorganizeTagsOnly(thoughtId: UUID) async throws {
+        let repository = ThoughtRepository()
+
+        // 1. 更新状态为 processing
+        do {
+            try repository.updateOrganizedStatus(thoughtId: thoughtId, status: "processing")
+        } catch {
+            logger.error("更新 processing 状态失败：\(error.localizedDescription)")
+            throw error
+        }
+
+        // 2. 读取想法 → 构建 prompt → 调 AI → 解析 → 端侧强校验
+        guard let (validated, confidence) = try await prepareValidatedTags(thoughtId: thoughtId) else {
+            return  // prepareValidatedTags 内部已标 failed 并 return
+        }
+
+        // 3. 只写标签，不碰主题
+        do {
+            try repository.replaceUnconfirmedAITagAssignments(
+                thoughtId: thoughtId,
+                tagNames: validated.tagPaths,
+                confidence: confidence
+            )
+        } catch {
+            logger.error("写入标签失败：\(error.localizedDescription)")
+            throw error
+        }
+
+        // 4. 更新状态为 organized
+        do {
+            try repository.updateOrganizedStatus(thoughtId: thoughtId, status: "organized")
+        } catch {
+            logger.error("更新 organized 状态失败：\(error.localizedDescription)")
+        }
+        logger.info("想法标签重算完成（主题未动）：\(thoughtId)，标签：\(validated.tagPaths.joined(separator: ", "))")
+
+        // 5. 发送数据变更通知，让 UI 刷新
+        NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+    }
+
+    /// 读取想法 → 构建 payload → 调 AI → 解析 → 端侧强校验，返回 (validated 结果, confidence)。
+    /// 供 organizeThought（完整路径）与 reorganizeTagsOnly（只重算标签）共享前半段。
+    /// 失败时（想法不存在/解析失败/标签全无效）标 failed 并返回 nil。
+    private func prepareValidatedTags(thoughtId: UUID) async throws -> (ThoughtThemeConstraint.ValidatedResult, Double)? {
+        let repository = ThoughtRepository()
+
+        let thoughtContent: String
+        let existingTagExamples: [String]
+        let recentAITagExamples: [String]
+        let rejectedTags: [String]
+        let activeTopicTitles: [String]
+
+        do {
+            guard let thought = try repository.fetchByIdInternal(thoughtId) else {
+                logger.error("想法不存在：\(thoughtId)")
+                try? repository.updateOrganizedStatus(thoughtId: thoughtId, status: "failed")
+                return nil  // 想法已删除，标 failed 跳过，不重试
+            }
+            thoughtContent = thought.content
+            existingTagExamples = repository.fetchUserRecognizedTagNames()
+            recentAITagExamples = repository.fetchAIRetagCandidates()
+            rejectedTags = loadRejectedTagNames()
+            activeTopicTitles = try TopicRepository().fetchClassificationTopics().map(\.title)
+        } catch {
+            logger.error("读取想法数据失败：\(error.localizedDescription)")
+            throw error
+        }
+
+        // 构建 prompt 并调用 AI
+        let rawResponse: String
+        do {
+            let messages: [ChatMessageDTO] = [.user(buildOrganizationPayload(
+                thoughtContent: thoughtContent,
+                activeTopics: activeTopicTitles,
+                existingTags: existingTagExamples,
+                recentAITags: recentAITagExamples,
+                rejectedTags: rejectedTags
+            ))]
+
+            // rateLimited 等错误透传给 Queue（不在此 markAsFailed，由 Queue 决定回退 pending 或重试）
+            rawResponse = try await callWithJSONMode(messages: messages)
+        } catch {
+            logger.error("AI 整理调用失败：\(error.localizedDescription)")
+            throw error
+        }
+
+        // 解析 JSON
+        guard let result = parseOrganizationResponse(rawResponse) else {
+            logger.error("JSON 解析失败，原始响应：\(rawResponse.prefix(200))")
+            try? repository.updateOrganizedStatus(thoughtId: thoughtId, status: "failed")
+            return nil  // 解析失败标 failed，不重试（避免浪费配额）
+        }
+
+        // 端侧强校验：主题只能来自约束池，未知前缀统一降级为虚拟"未分类"。
+        let validated = ThoughtThemeConstraint.validate(
+            selectedTopic: result.selectedTopic,
+            suggestedTags: result.suggestedTags,
+            activeTopics: activeTopicTitles
+        )
+        guard !validated.tagPaths.isEmpty else {
+            logger.error("AI 返回的标签均无效，想法：\(thoughtId)")
+            try? repository.updateOrganizedStatus(thoughtId: thoughtId, status: "failed")
+            return nil
+        }
+
+        return (validated, result.confidence)
     }
 
     // MARK: - Reject / Confirm
@@ -174,6 +236,16 @@ final class ThoughtOrganizationService {
             let result = try repository.deleteTagGlobally(name: name)
             addRejectedTag(name: ThoughtTagNormalizer.displayName(name))
             logger.info("全局删除标签：\(name)，摘除 \(result.removedAssignmentCount) 条 assignment")
+
+            // 删除标签后，受影响想法重新打标签（只重算标签，不碰主题）。
+            // 被删的标签名已进拒绝池，AI 重算时会避开它、给新标签。
+            if !result.affectedThoughtIds.isEmpty {
+                try? repository.markBatchPending(thoughtIds: result.affectedThoughtIds)
+                let ids = result.affectedThoughtIds
+                Task { @MainActor in
+                    ThoughtOrganizationQueue.shared.enqueueBatchForTagsOnly(thoughtIds: ids)
+                }
+            }
             return result
         } catch {
             logger.error("全局删除标签失败（\(name)）：\(error.localizedDescription)")
@@ -262,17 +334,19 @@ final class ThoughtOrganizationService {
         thoughtContent: String,
         activeTopics: [String],
         existingTags: [String],
+        recentAITags: [String],
         rejectedTags: [String]
     ) -> String {
         let payload: [String: Any] = [
             "activeTopics": activeTopics,
             "existingTags": existingTags,
+            "recentAITags": recentAITags,
             "rejectedTags": rejectedTags,
             "thoughtContent": thoughtContent
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
               let json = String(data: data, encoding: .utf8) else {
-            return "{\"activeTopics\":[],\"thoughtContent\":\"\"}"
+            return "{\"activeTopics\":[],\"existingTags\":[],\"recentAITags\":[],\"rejectedTags\":[],\"thoughtContent\":\"\"}"
         }
         return json
     }

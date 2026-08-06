@@ -97,7 +97,10 @@ actor HoloAgentScheduler {
     // MARK: - §6.1 对外接口
 
     /// 创建一个新对话深度分析 job 并经 runOrAttach 跑完 runLoop（Chat/Observer 入口统一走此）。
-    func createAndRun(_ request: HoloAgentStartRequest) async throws -> HoloAgentJob {
+    /// - Parameter onProgress: 每个 checkpoint 后回调一次完整 job，供 Chat 实时更新进度文案。
+    ///   闭包 @Sendable，Scheduler 不绑定 MainActor，调用方自行 hop。
+    func createAndRun(_ request: HoloAgentStartRequest,
+                      onProgress: (@Sendable (HoloAgentJob) async -> Void)? = nil) async throws -> HoloAgentJob {
         // 用户可能在 Router/上下文准备期间已经点了停止。取消后的调用不得再落一条新 job，
         // 否则 UI 已结束、持久化任务却会继续执行或在下次恢复时复活。
         try Task.checkCancellation()
@@ -118,6 +121,7 @@ actor HoloAgentScheduler {
             reason: request.trigger == .userQuestion ? .userInitiated : .automaticInitiated,
             systemTemplate: request.systemTemplate,
             toolDescriptions: request.toolDescriptions,
+            onProgress: onProgress,
             now: request.now
         )
     }
@@ -128,6 +132,7 @@ actor HoloAgentScheduler {
     @discardableResult
     func runOrAttach(jobID: String, reason: HoloAgentResumeReason,
                      systemTemplate: String = "", toolDescriptions: String = "",
+                     onProgress: (@Sendable (HoloAgentJob) async -> Void)? = nil,
                      now: Date = Date()) async throws -> HoloAgentJob {
         if let existing = activeTasks[jobID] {
             logger.log("[Agent] attach 已有执行 jobID=\(jobID, privacy: .public) reason=\(reason.rawValue, privacy: .public)")
@@ -207,6 +212,19 @@ actor HoloAgentScheduler {
             ) {
                 await self?.adoptContinuedLease(jobID: jobID, lease: lease)
                 reporter = leaseReporter
+            }
+            // 进度推送：在 continued reporter 之外，为 Chat 组装一个额外的进度回调。
+            // chatReporter 收到 snapshot 时从 jobStore 读完整 job（含 currentStep/waitReason，
+            // 这些是 HoloAgentProgressSnapshot 不携带但生成文案必需的字段），再调 onProgress。
+            // 节流：runtime checkpoint 已稀疏，但 jobStore.load() 是全量 JSON 读解码，
+            // 故在闭包内设 2 秒最小间隔，未到直接 return，绝不先 load（避免长任务下 IO 放大）。
+            if let onProgress {
+                let chatReporter = Self.makeChatProgressReporter(
+                    jobID: jobID,
+                    jobStore: jobStore,
+                    onProgress: onProgress
+                )
+                reporter = Self.mergeReporters(reporter, chatReporter)
             }
             return try await runtime.runLoop(
                 jobID: jobID, generation: generation,
@@ -291,6 +309,30 @@ actor HoloAgentScheduler {
             await cancel(jobID: jobID, source: .user, now: now)
         }
         return userJobIDs.count
+    }
+
+    /// 取消关联到指定 Chat 消息的未结束 Agent job（编辑重发删除消息时避免孤儿 job）。
+    /// 与 cancelActiveUserQuestions 不同：这里按 sourceMessageID 精确定位，不波及其他用户任务。
+    @discardableResult
+    func cancelJobs(forSourceMessageIDs messageIDs: Set<UUID>, now: Date = Date()) async -> Int {
+        guard !messageIDs.isEmpty else { return 0 }
+        let targetIDs = messageIDs.map(\.uuidString)
+        var jobIDs: [String] = []
+        do {
+            jobIDs = try await jobStore.load()
+                .filter { job in
+                    guard let sourceID = job.sourceMessageID else { return false }
+                    return targetIDs.contains(sourceID.uuidString)
+                        && !Self.terminalStates.contains(job.state)
+                }
+                .map(\.id)
+        } catch {
+            logger.error("[Agent] 按 sourceMessageID 取消时读取持久化失败 error=\(String(describing: error), privacy: .public)")
+        }
+        for jobID in jobIDs {
+            await cancel(jobID: jobID, source: .user, now: now)
+        }
+        return jobIDs.count
     }
 
     /// 暂停执行：取消活跃 Task（§6.4 只发取消信号 + 状态标记，不承担 checkpoint 保存——
@@ -603,6 +645,60 @@ actor HoloAgentScheduler {
             logger.log("[Agent] 冷启动已清理 \(terminalJobs.count, privacy: .public) 个终态 continued 请求")
         }
         return terminalJobs.count
+    }
+
+    // MARK: - 进度推送组装
+
+    /// 为 Chat 进度回调组装一个 reporter：收到 snapshot 时从 jobStore 读完整 job 再调 onProgress。
+    /// snapshot 本身不含 currentStep/waitReason（那是生成步骤文案必需的），所以必须回读 job。
+    /// 2 秒节流：未到阈值直接 return，绝不先 load（避免全量 JSON 读解码的 IO 放大）。
+    /// box 用 class 持有可变 lastReportAt，让 @Sendable 闭包能跨 actor 读写（class + 内部同步）。
+    private static func makeChatProgressReporter(
+        jobID: String,
+        jobStore: HoloAgentJobStore,
+        onProgress: @escaping @Sendable (HoloAgentJob) async -> Void
+    ) -> @Sendable (HoloAgentProgressSnapshot) async -> Void {
+        // actor 隔离的节流计时器，线程安全。
+        actor ThrottleState {
+            var lastReportAt: Date = .distantPast
+            func shouldReport(now: Date, minInterval: TimeInterval) -> Bool {
+                guard now.timeIntervalSince(lastReportAt) >= minInterval else { return false }
+                lastReportAt = now
+                return true
+            }
+        }
+        let throttle = ThrottleState()
+        return { snapshot in
+            // 黑队审查护栏：第一行判节流，未到阈值直接 return，绝不先 load。
+            let now = Date()
+            let should = await throttle.shouldReport(now: now, minInterval: 2.0)
+            guard should else { return }
+            guard snapshot.jobID == jobID else { return }
+            // reportProgress 在 checkpoint save 之后调，此时 jobStore 一定有最新 job。
+            guard let job = try? await jobStore.load().first(where: { $0.id == snapshot.jobID }) else { return }
+            await onProgress(job)
+        }
+    }
+
+    /// 合并两个 reporter：依次调用（continued 系统租约在前，Chat 回调在后）。
+    /// 两者都可选；任一为 nil 则返回另一个。
+    private static func mergeReporters(
+        _ a: (@Sendable (HoloAgentProgressSnapshot) async -> Void)?,
+        _ b: (@Sendable (HoloAgentProgressSnapshot) async -> Void)?
+    ) -> (@Sendable (HoloAgentProgressSnapshot) async -> Void)? {
+        switch (a, b) {
+        case let (a?, b?):
+            return { snapshot in
+                await a(snapshot)
+                await b(snapshot)
+            }
+        case (let a?, nil):
+            return a
+        case (nil, let b?):
+            return b
+        case (nil, nil):
+            return nil
+        }
     }
 
     // MARK: - 内部

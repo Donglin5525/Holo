@@ -34,7 +34,7 @@ struct HabitCheckInChatCard: View {
                 HoloAIFactItem(kicker: "今日状态", bodyText: "已完成今天的打卡。", tint: .holoSuccess)
             }
 
-            CardFooterView(timeText: "今天")
+            CardFooterView(timeText: "")
         }
         .accessibilityLabel("打卡卡片：\(data.habitName)\(data.completed ? "，已完成" : "")")
     }

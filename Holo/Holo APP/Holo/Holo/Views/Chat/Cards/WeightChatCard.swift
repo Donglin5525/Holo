@@ -17,7 +17,7 @@ struct WeightChatCard: View {
             CardHeaderView(
                 icon: "scalemass.fill",
                 title: "体重记录",
-                subtitle: "刚刚记录"
+                subtitle: ""
             )
 
             HoloAIHeroMetric(
@@ -26,7 +26,7 @@ struct WeightChatCard: View {
                 tint: .holoTextPrimary
             )
 
-            CardFooterView(timeText: "刚刚")
+            CardFooterView(timeText: "")
         }
         .accessibilityLabel("体重卡片：\(data.weight) \(data.unit)")
     }

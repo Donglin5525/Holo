@@ -36,6 +36,10 @@ struct ChatView: View {
     @State private var pendingEditPrefill: PendingTransactionPrefill?
     @State private var financeSearchRoute: FlexibleQueryFinanceSearchRoute?
     @State private var memoryInboxNotice: String?
+    /// 待分享的消息文本（非 nil 时弹出系统分享面板）—— 文字消息用
+    @State private var pendingShareText: String?
+    /// 待分享的卡片截图（非 nil 时弹出系统分享面板）—— 卡片消息用
+    @State private var pendingShareImage: UIImage?
     /// 额度耗尽卡片「了解 Holo Plus」触发，sheet 呈现会员中心
     @State private var showMembershipCenter = false
     /// 键盘遮挡内容区的高度（已扣除底部 Home Indicator 安全区）。
@@ -168,6 +172,12 @@ struct ChatView: View {
                 activeSheet = .voiceInput
             }
         }
+        // P0-4 关键修复：ChatView 是常驻视图，.task 只消费 prefillText 一次。
+        // 用户已在 AI 页时外部再设 prefillText 不会触发 .task，必须用 onChange 监听变化。
+        .onChange(of: prefillText) { _, newText in
+            guard let newText, !newText.isEmpty else { return }
+            viewModel.inputText = newText
+        }
         .task(id: viewModel.hasLoadedMessages) {
             await revealInitialConversationIfReady()
         }
@@ -241,6 +251,16 @@ struct ChatView: View {
                 viewModel.showPeriodReplayPicker = false
                 Task { await viewModel.startPeriodReplay(periodType: periodType, start: start, end: end) }
             }
+        }
+        // 分享面板：pendingShareText 非 nil 时弹出系统分享（文字消息）
+        .onChange(of: pendingShareText) { _, newText in
+            guard newText != nil else { return }
+            presentShareSheet(text: newText!)
+        }
+        // 分享面板：pendingShareImage 非 nil 时弹出系统分享（卡片截图）
+        .onChange(of: pendingShareImage) { _, newImage in
+            guard newImage != nil else { return }
+            presentImageShareSheet(image: newImage!)
         }
         .fullScreenCover(isPresented: $viewModel.showGoalDraftReview) {
             if let draft = viewModel.goalDraftForReview {
@@ -424,6 +444,9 @@ struct ChatView: View {
                             guard message.agentResult != nil else { return }
                             activeSheet = .agentDeepAnalysis(message)
                         },
+                        onAgentDeepAnalysisRetry: {
+                            Task { await viewModel.retryAnalysis(message) }
+                        },
                         onPeriodReplayExpansionChanged: { _, isExpanded in
                             guard !isExpanded else { return }
                             scrollController.requestOffsetClamp()
@@ -471,6 +494,29 @@ struct ChatView: View {
                                 category: nil,
                                 date: TransactionDateResolver.resolve(from: renderData)
                             )
+                        },
+                        onCopy: { msg in
+                            viewModel.copyMessageContent(msg)
+                        },
+                        onEdit: { msg in
+                            viewModel.startEditing(msg)
+                        },
+                        onRegenerate: { msg in
+                            Task { await viewModel.regenerateResponse(msg) }
+                        },
+                        onToggleStar: { msg in
+                            let willStar = !ChatMessageStarStore.shared.isStarred(msg.id)
+                            ChatMessageStarStore.shared.toggle(msg.id)
+                            HoloToastCenter.shared.show(
+                                willStar ? "已收藏" : "已取消收藏",
+                                type: willStar ? .success : .info
+                            )
+                        },
+                        onShare: { msg in
+                            pendingShareText = msg.content
+                        },
+                        onShareCard: { msg in
+                            pendingShareImage = CardShareImageRenderer.render(message: msg)
                         }
                     )
                     .equatable()
@@ -554,14 +600,20 @@ struct ChatView: View {
                 }
                 .buttonStyle(.plain)
             } else {
-                // 视觉上保持成熟 IM 的无按钮顶部；同时保留点击和 VoiceOver 的分页入口。
+                // P2-14：加载入口可见化——此前是完全透明的隐形按钮，用户不知道能往上翻历史。
+                // 滑到顶部时显示轻量「以上是较早的消息」提示，点击仍可手动加载更多。
                 Button {
                     Task {
                         await triggerLoadEarlier()
                     }
                 } label: {
-                    Color.clear
-                        .contentShape(Rectangle())
+                    HStack(spacing: 6) {
+                        Image(systemName: "chevron.up")
+                            .font(.system(size: 9, weight: .semibold))
+                        Text("更早的消息")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundColor(.holoTextSecondary.opacity(0.6))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("加载更早的消息")
@@ -931,6 +983,61 @@ struct ChatView: View {
               HoloMemoryReceiptStore.shouldPresentSummary() else { return }
         HoloMemoryReceiptStore.markSummaryPresented()
         memoryInboxNotice = snapshot.summaryText
+    }
+
+    // MARK: - Share
+
+    /// 弹出系统分享面板，分享消息文本
+    private func presentShareSheet(text: String) {
+        guard let scene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first(where: { $0.activationState == .foregroundActive }),
+              let root = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController else {
+            pendingShareText = nil
+            return
+        }
+        // 找到最顶层 presented VC（避免被当前 sheet 遮挡）
+        var topVC = root
+        while let presented = topVC.presentedViewController {
+            topVC = presented
+        }
+        let activityVC = UIActivityViewController(
+            activityItems: [text],
+            applicationActivities: nil
+        )
+        activityVC.completionWithItemsHandler = { [self] _, _, _, _ in
+            pendingShareText = nil
+        }
+        topVC.present(activityVC, animated: true)
+    }
+
+    /// 弹出系统分享面板，分享卡片截图
+    private func presentImageShareSheet(image: UIImage) {
+        guard let scene = UIApplication.shared.connectedScenes
+            .compactMap({ $0 as? UIWindowScene })
+            .first(where: { $0.activationState == .foregroundActive }),
+              let root = scene.windows.first(where: { $0.isKeyWindow })?.rootViewController else {
+            pendingShareImage = nil
+            return
+        }
+        var topVC = root
+        while let presented = topVC.presentedViewController {
+            topVC = presented
+        }
+        let activityVC = UIActivityViewController(
+            activityItems: [image],
+            applicationActivities: nil
+        )
+        activityVC.completionWithItemsHandler = { [self] _, _, _, _ in
+            pendingShareImage = nil
+        }
+        // iPad 适配：分享面板需要 popover 锚点
+        if let pop = activityVC.popoverPresentationController {
+            pop.sourceView = topVC.view
+            pop.sourceRect = CGRect(x: topVC.view.bounds.midX, y: topVC.view.bounds.midY, width: 0, height: 0)
+            pop.permittedArrowDirections = []
+        }
+        topVC.present(activityVC, animated: true)
     }
 }
 

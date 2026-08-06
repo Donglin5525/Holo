@@ -55,11 +55,16 @@ final class ThoughtOrganizationQueue: ObservableObject {
     // MARK: - Queue Operations
 
     /// 将单条想法加入队列（增量整理用，保存想法时触发）
-    /// - Parameter thoughtId: 想法 UUID
-    func enqueue(thoughtId: UUID) {
-        guard ThoughtAIClassificationPolicy.isEnabled() else {
-            logger.info("自动分类已关闭，跳过新想法入队：\(thoughtId)")
-            return
+    /// - Parameters:
+    ///   - thoughtId: 想法 UUID
+    ///   - ignoreEnabledSwitch: 主动重试场景传 true，跳过「自动分类开关」检查——
+    ///     开关的语义是「不自动整理新想法」，而非禁止任何整理；用户主动点击重试是明确意愿。
+    func enqueue(thoughtId: UUID, ignoreEnabledSwitch: Bool = false) {
+        if !ignoreEnabledSwitch {
+            guard ThoughtAIClassificationPolicy.isEnabled() else {
+                logger.info("自动分类已关闭，跳过新想法入队：\(thoughtId)")
+                return
+            }
         }
         // 批量进行中时，新想法也计入批量总量（保证进度准确）
         if let total = batchTotal {
@@ -94,14 +99,39 @@ final class ThoughtOrganizationQueue: ObservableObject {
         processNext()
     }
 
+    /// 只重算标签的批量入队（删除标签后触发，不碰主题）。
+    /// 与 enqueueBatch 同构，区别是 QueueItem.tagsOnly = true，processNext 据此走 reorganizeTagsOnly。
+    /// - Parameter thoughtIds: 受影响想法 ID 列表
+    func enqueueBatchForTagsOnly(thoughtIds: [UUID]) {
+        guard !thoughtIds.isEmpty else { return }
+
+        // 用户主动删标签触发，重置配额暂停标记
+        self.dailyLimitHit = false
+
+        let isFreshBatch = batchTotal == nil || (pendingItems.isEmpty && currentItem == nil && !isProcessing)
+        if isFreshBatch {
+            self.batchTotal = thoughtIds.count
+            self.batchCompleted = 0
+        } else {
+            self.batchTotal = (batchTotal ?? 0) + thoughtIds.count
+        }
+
+        for thoughtId in thoughtIds {
+            appendIfNotQueued(thoughtId, tagsOnly: true)
+        }
+        logger.info("批量入队（仅标签重算）：\(thoughtIds.count) 条，总量：\(self.batchTotal ?? 0)")
+
+        processNext()
+    }
+
     /// 去重追加（enqueue/enqueueBatch 共用）
     @discardableResult
-    private func appendIfNotQueued(_ thoughtId: UUID) -> Bool {
+    private func appendIfNotQueued(_ thoughtId: UUID, tagsOnly: Bool = false) -> Bool {
         let alreadyQueued = pendingItems.contains { $0.thoughtId == thoughtId }
         let isCurrent = currentItem?.thoughtId == thoughtId
         guard !alreadyQueued && !isCurrent else { return false }
 
-        pendingItems.append(QueueItem(thoughtId: thoughtId, retryCount: 0))
+        pendingItems.append(QueueItem(thoughtId: thoughtId, retryCount: 0, tagsOnly: tagsOnly))
         return true
     }
 
@@ -124,7 +154,7 @@ final class ThoughtOrganizationQueue: ObservableObject {
             for id in pendingIds {
                 let alreadyQueued = pendingItems.contains { $0.thoughtId == id }
                 if !alreadyQueued {
-                    pendingItems.append(QueueItem(thoughtId: id, retryCount: 0))
+                    pendingItems.append(QueueItem(thoughtId: id, retryCount: 0, tagsOnly: false))
                 }
             }
             if !pendingIds.isEmpty {
@@ -157,17 +187,24 @@ final class ThoughtOrganizationQueue: ObservableObject {
 
         let thoughtId = item.thoughtId
         let retryCount = item.retryCount
+        let tagsOnly = item.tagsOnly
         let maxRetries = maxRetryCount
         let intervals = retryIntervals
         let interval = itemInterval
 
-        logger.info("开始处理：\(thoughtId)，重试次数：\(retryCount)")
+        logger.info("开始处理：\(thoughtId)，重试次数：\(retryCount)，仅标签：\(tagsOnly)")
 
         Task { [weak self] in
             guard let self = self else { return }
 
             do {
-                try await self.service.organizeThought(thoughtId: thoughtId)
+                // tagsOnly：只重算标签、不碰主题（删除标签触发的重分类）
+                // 否则：完整整理（标签 + 主题）
+                if tagsOnly {
+                    try await self.service.reorganizeTagsOnly(thoughtId: thoughtId)
+                } else {
+                    try await self.service.organizeThought(thoughtId: thoughtId)
+                }
                 self.logger.info("处理成功：\(thoughtId)")
                 self.onItemDone(isTerminal: true)
             } catch let error as APIError {
@@ -180,14 +217,16 @@ final class ThoughtOrganizationQueue: ObservableObject {
                     // 其他 API 错误（网络/超时/serverError），可重试
                     self.handleFailure(
                         thoughtId: thoughtId, error: error,
-                        retryCount: retryCount, maxRetries: maxRetries, intervals: intervals
+                        retryCount: retryCount, maxRetries: maxRetries, intervals: intervals,
+                        tagsOnly: tagsOnly
                     )
                 }
             } catch {
                 // 其他错误，可重试
                 self.handleFailure(
                     thoughtId: thoughtId, error: error,
-                    retryCount: retryCount, maxRetries: maxRetries, intervals: intervals
+                    retryCount: retryCount, maxRetries: maxRetries, intervals: intervals,
+                    tagsOnly: tagsOnly
                 )
             }
 
@@ -226,7 +265,8 @@ final class ThoughtOrganizationQueue: ObservableObject {
         error: Error,
         retryCount: Int,
         maxRetries: Int,
-        intervals: [TimeInterval]
+        intervals: [TimeInterval],
+        tagsOnly: Bool
     ) {
         let nextRetry = retryCount + 1
 
@@ -235,7 +275,7 @@ final class ThoughtOrganizationQueue: ObservableObject {
             let interval = intervals[min(retryCount, intervals.count - 1)]
             logger.info("重试 \(nextRetry)/\(maxRetries)：\(thoughtId)，等待 \(interval)s，错误：\(error.localizedDescription)")
 
-            let retryItem = QueueItem(thoughtId: thoughtId, retryCount: nextRetry)
+            let retryItem = QueueItem(thoughtId: thoughtId, retryCount: nextRetry, tagsOnly: tagsOnly)
 
             Task { [weak self] in
                 guard let self = self else { return }
@@ -296,4 +336,6 @@ final class ThoughtOrganizationQueue: ObservableObject {
 private struct QueueItem {
     let thoughtId: UUID
     let retryCount: Int
+    /// 是否只重算标签、不碰主题（删除标签触发的重分类用）
+    let tagsOnly: Bool
 }

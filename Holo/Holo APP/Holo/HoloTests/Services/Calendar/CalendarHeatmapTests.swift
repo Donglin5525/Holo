@@ -6,6 +6,7 @@
 //
 
 import XCTest
+import SwiftUI
 @testable import Holo
 
 final class CalendarHeatmapTests: XCTestCase {
@@ -42,10 +43,12 @@ final class CalendarHeatmapTests: XCTestCase {
     }
 
     func test_月历色阶使用Holo冷静品牌色而非大面积橙色() {
-        XCTAssertEqual(CalendarHeatmap.hex(forLevel: 0), "#F6F8FB")
-        XCTAssertEqual(CalendarHeatmap.hex(forLevel: 1), "#EAF2FF")
-        XCTAssertEqual(CalendarHeatmap.hex(forLevel: 2), "#D9ECFF")
-        XCTAssertEqual(CalendarHeatmap.hex(forLevel: 3), "#CFE7F7")
-        XCTAssertEqual(CalendarHeatmap.hex(forLevel: 4), "#C8DDF8")
+        // 色阶唯一来源是 DesignSystem 的 cool palette（见 e270e4c 重构）；
+        // CalendarHeatmap.color 走的就是这条路径，这里直接断言底层 hex 不变。
+        XCTAssertEqual(Color.holoHeatmapHex(level: 0, palette: .cool, colorScheme: .light), "#F6F8FB")
+        XCTAssertEqual(Color.holoHeatmapHex(level: 1, palette: .cool, colorScheme: .light), "#EAF2FF")
+        XCTAssertEqual(Color.holoHeatmapHex(level: 2, palette: .cool, colorScheme: .light), "#D9ECFF")
+        XCTAssertEqual(Color.holoHeatmapHex(level: 3, palette: .cool, colorScheme: .light), "#CFE7F7")
+        XCTAssertEqual(Color.holoHeatmapHex(level: 4, palette: .cool, colorScheme: .light), "#C8DDF8")
     }
 }

@@ -12,19 +12,65 @@ struct AgentDeepAnalysisCard: View {
 
     let message: ChatMessageViewData
     var onTap: (() -> Void)? = nil
+    /// P1-12：分析失败时的重试入口（复用 sourceMessageID 重发同一问题）
+    var onRetry: (() -> Void)? = nil
 
     var body: some View {
         if message.isStreaming {
             // 分析中：loading 卡片
             loadingCard
         } else if message.metadataState == .loaded, let result = message.agentResult {
-            // 已加载且有结果：真实卡片
-            realCard(result: result)
+            // 分析失败：渲染失败卡片 + 重试入口（有 onRetry 时）
+            if result.failure != nil {
+                failureCard(result: result)
+            } else {
+                // 已加载且有结果：真实卡片
+                realCard(result: result)
+            }
         } else if message.metadataState == .unloaded || message.metadataState == .loading {
             // 元数据加载中：占位
             placeholderCard
         }
         // .loaded 但 agentResult == nil → 不渲染（退化文本气泡，由 MessageBubbleView 处理）
+    }
+
+    // MARK: - Failure Card
+
+    /// 分析失败卡片：给出失败原因 + 重试入口，避免用户只能重新打字整段重问。
+    private func failureCard(result: HoloRenderedAgentResult) -> some View {
+        ChatCardView {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack(spacing: 9) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 14))
+                        .foregroundColor(.holoError)
+                        .frame(width: 30, height: 30)
+                        .background(Color.holoError.opacity(0.1))
+                        .clipShape(Circle())
+
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(result.title.isEmpty ? "深度分析未完成" : result.title)
+                            .font(.system(size: 15, weight: .bold))
+                            .foregroundColor(.holoTextPrimary)
+                        Text(result.summary.isEmpty ? "这次分析没能完成，可以重试一次。" : result.summary)
+                            .font(.system(size: 13))
+                            .foregroundColor(.holoTextSecondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                }
+
+                if let onRetry {
+                    Button {
+                        onRetry()
+                    } label: {
+                        Label("重新分析", systemImage: "arrow.clockwise")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.holoPrimary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
     }
 
     // MARK: - Real Card

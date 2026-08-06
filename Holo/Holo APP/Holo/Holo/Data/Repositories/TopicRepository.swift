@@ -492,9 +492,7 @@ final class TopicRepository {
         let request = ThoughtTag.fetchRequest()
         let tags = try context.fetch(request)
         if let existing = tags.first(where: { ThoughtTagNormalizer.key($0.name) == key }) {
-            if existing.name != displayName, !displayName.isEmpty {
-                existing.name = displayName
-            }
+            // 命中即复用，不覆盖存量 name（与 ThoughtRepository.getOrCreateTag 保持一致）
             return existing
         }
         guard let tag = NSEntityDescription.insertNewObject(

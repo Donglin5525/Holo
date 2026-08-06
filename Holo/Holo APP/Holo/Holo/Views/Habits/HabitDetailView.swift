@@ -101,19 +101,25 @@ struct HabitDetailView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
                         Button {
+                            askHoloAboutThisHabit()
+                        } label: {
+                            Label("问问 Holo", systemImage: "sparkles")
+                        }
+
+                        Button {
                             showEditSheet = true
                         } label: {
                             Label("编辑", systemImage: "pencil")
                         }
-                        
+
                         Button {
                             archiveHabit()
                         } label: {
                             Label("归档", systemImage: "archivebox")
                         }
-                        
+
                         Divider()
-                        
+
                         Button(role: .destructive) {
                             showDeleteAlert = true
                         } label: {
@@ -572,7 +578,15 @@ struct HabitDetailView: View {
     }
     
     // MARK: - 操作方法
-    
+
+    /// 跨模块入口：把这个习惯的上下文预填到 AI 聊天输入框，跳转到 AI 页（不自动发送）
+    private func askHoloAboutThisHabit() {
+        let prefill = "我最近的「\(habit.name)」怎么样？帮我分析一下完成趋势"
+        // 先关 sheet 再导航，否则 sheet 仍盖在 AI 页之上
+        dismiss()
+        DeepLinkState.shared.navigate(to: .chat(prefill: prefill))
+    }
+
     private func archiveHabit() {
         let habitId = habit.id
         isDeletingOrArchiving = true  // 立即标记，阻止 onReceive 处理通知

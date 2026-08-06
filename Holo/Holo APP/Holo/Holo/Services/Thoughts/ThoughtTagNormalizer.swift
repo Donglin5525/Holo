@@ -73,6 +73,7 @@ nonisolated enum ThoughtTagNormalizer {
     private static func segmentKey(_ segment: String) -> String {
         segment
             .folding(options: [.caseInsensitive, .widthInsensitive, .diacriticInsensitive], locale: .current)
+            .filter { !$0.isWhitespace }   // 折叠所有空白（含全角空格 U+3000、段内中间空格、Tab）
             .lowercased()
     }
 }
