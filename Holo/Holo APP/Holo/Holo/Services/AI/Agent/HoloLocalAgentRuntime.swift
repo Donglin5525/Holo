@@ -597,6 +597,11 @@ actor HoloLocalAgentRuntime {
                 )
                 let newToolResults = Array(checkpoint.completedToolResults.dropFirst(prevToolResultCount))
                 let newPatternSignals = Array(checkpoint.patternSignals.dropFirst(prevPatternSignalCount))
+                // 表达式引擎：若本轮 dynamic_query 结果附带数据样本，追加一条强语义提示，
+                // 让模型意识到样本存在并据此校准 expression 分档条件。
+                // sampleRows 本身已随工具结果 JSON 进了 context，这里只做显性强调。
+                let sampleHint = Self.sampleCalibrationHint(from: newToolResults, now: now)
+                if let sampleHint { checkpoint.conversationState.append(sampleHint) }
                 checkpoint.conversationState.append(Self.toolResultMessage(
                     toolResults: newToolResults,
                     patternSignals: newPatternSignals,
@@ -1547,6 +1552,21 @@ actor HoloLocalAgentRuntime {
         \(Self.encodeToolContext(payload))
         """
         return HoloAgentMessage(role: .assistant, content: content, toolRequestID: nil, toolName: nil,
+                                timestamp: now, tokenEstimate: nil)
+    }
+
+    /// 从本轮工具结果中提取数据样本，产出一条 system 提示，引导模型用样本校准 expression 分档。
+    /// 无样本时返回 nil（不注入）。最多取 5 条预览，避免 context 膨胀。
+    private static func sampleCalibrationHint(from toolResults: [HoloDataToolResult], now: Date) -> HoloAgentMessage? {
+        let allSamples = toolResults.compactMap { $0.sampleRows }.flatMap { $0 }
+        guard !allSamples.isEmpty else { return nil }
+        let previewLines = allSamples.prefix(5).map { "· \(HoloQueryRowFormatter.summary($0))" }
+        let content = """
+        [数据样本·用于校准表达式分档]
+        上面工具结果附带了 \(allSamples.count) 条原始数据样本，请对照样本确认你的分档条件（如金额区间）匹配真实数据分布。样本预览：
+        \(previewLines.joined(separator: "\n"))
+        """
+        return HoloAgentMessage(role: .system, content: content, toolRequestID: nil, toolName: nil,
                                 timestamp: now, tokenEstimate: nil)
     }
 
