@@ -176,7 +176,7 @@ nonisolated extension HoloAgentBudget {
         HoloAgentBudget(
             maxLLMRounds: 12, maxToolBatches: 12,
             maxInputTokens: 80_000, maxOutputTokens: 12_000,
-            maxWallTimeSeconds: 300,
+            maxWallTimeSeconds: 360,
             consumedLLMRounds: 0, consumedToolBatches: 0,
             consumedInputTokens: 0, consumedOutputTokens: 0,
             startedAt: now, updatedAt: now
@@ -190,7 +190,7 @@ nonisolated extension HoloAgentBudget {
         HoloAgentBudget(
             maxLLMRounds: 16, maxToolBatches: 16,
             maxInputTokens: 120_000, maxOutputTokens: 16_000,
-            maxWallTimeSeconds: 420,
+            maxWallTimeSeconds: 480,
             consumedLLMRounds: 0, consumedToolBatches: 0,
             consumedInputTokens: 0, consumedOutputTokens: 0,
             startedAt: now, updatedAt: now

@@ -586,6 +586,30 @@ actor HoloLocalAgentRuntime {
                     try await saveProgress(job: job, evidence: evidence, checkpoint: checkpoint)
                     await reportProgress(job, to: progressReporter)
                 }
+                // 死循环判定器：检测 AI 是否在原地打转（连续多轮无新进展）。
+                // 判据：本轮 completedToolResults 是否增长 + 新结果是否有成功/部分状态。
+                // 若 AI 请求了工具但全被 hasCompletedEquivalentToolRequest 跳过（重复查已查过的数据），
+                // 或全失败（invalidParams），视为无进展。连续 3 轮无进展 → 止损。
+                let stallKey = "tool_progress_stall"
+                let resultsGrew = checkpoint.completedToolResults.count > prevToolResultCount
+                if resultsGrew {
+                    let newResults = checkpoint.completedToolResults[prevToolResultCount...]
+                    let hasProgress = newResults.contains { $0.status == .success || $0.status == .partial }
+                    if hasProgress {
+                        checkpoint.retryCountByStep.removeValue(forKey: stallKey)
+                    } else {
+                        let attempts = (checkpoint.retryCountByStep[stallKey] ?? 0) + 1
+                        checkpoint.retryCountByStep[stallKey] = attempts
+                    }
+                } else if !output.toolRequests.isEmpty {
+                    // AI 请求了工具但没产生任何新结果（全被跳过/重复）
+                    let attempts = (checkpoint.retryCountByStep[stallKey] ?? 0) + 1
+                    checkpoint.retryCountByStep[stallKey] = attempts
+                }
+                if (checkpoint.retryCountByStep[stallKey] ?? 0) >= 3 {
+                    // 连续 3 轮无进展 → 止损，跳到兜底（和轮次耗尽同一路径）
+                    break
+                }
                 // §token-bloat fix：pattern miner 对全量结果挖掘，但仅本轮新增的信号才
                 // 需要注入本轮 message（历史信号已在之前轮次发给模型）。
                 let prevPatternSignalCount = checkpoint.patternSignals.count
@@ -1715,6 +1739,38 @@ actor HoloLocalAgentRuntime {
         let resultCoverage = checkpoint.completedToolResults.first { toolResult in
             toolResult.coverage != nil && toolResult.metrics.contains { coveredMetricKeys.contains($0.metricKey) }
         }?.coverage
+        // 兜底增强：当所有 claim 都被 verifier 拒绝（含 fallback），但工具确实查到了 metric 数据时，
+        // 追加一条 capability_boundary claim 如实报告已有数据。不经过 verifier（此处已是 verifier 之后）。
+        // 这避免了「AI 查了数据但用户看到空白失败」的体验——轮次耗尽/死循环止损时尤其重要。
+        if acceptedClaims.isEmpty {
+            let dataBearingMetrics = Self.answerBearingToolResults(checkpoint.completedToolResults)
+                .filter { $0.status == .success || $0.status == .partial }
+                .flatMap(\.metrics)
+                .filter { $0.value != nil }
+            if !dataBearingMetrics.isEmpty {
+                let metricTexts = dataBearingMetrics.prefix(5).compactMap { metric -> String? in
+                    let valueText: String
+                    if let value = metric.value {
+                        valueText = value.rounded() == value
+                            ? String(format: "%.0f", value)
+                            : String(format: "%.1f", value)
+                    } else { return nil }
+                    let unitText = metric.unit ?? ""
+                    return "\(valueText)\(unitText)"
+                }
+                if !metricTexts.isEmpty {
+                    acceptedClaims.append(HoloAgentClaim(
+                        id: "fallback-partial-data",
+                        type: "capability_boundary",
+                        displayText: "分析未全部完成，但已查到部分数据：\(metricTexts.joined(separator: "、"))。完整结论请稍后重试。",
+                        metricAssertions: [],
+                        evidenceIDs: [],
+                        prohibitedInferences: [],
+                        confidence: 0.4
+                    ))
+                }
+            }
+        }
         // 空结论原因：区分"工具确实没数据"与"有数据但 claim 未通过校验"，
         // 让 UI 能给出诚实提示而非一律甩锅"数据不足"。
         var emptyReason: HoloAgentEmptyReason? = nil
