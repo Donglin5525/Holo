@@ -37,9 +37,9 @@ private struct CardShareContentView: View {
     let message: ChatMessageViewData
 
     var body: some View {
-        // 深度分析卡片（最常见的分享场景）
-        if message.isQueryAnalysis, message.agentResult != nil {
-            AgentDeepAnalysisCard(message: message)
+        // 深度分析卡片：分享完整详情长图（不是聊天里的折叠入口卡片）
+        if message.isQueryAnalysis, let result = message.agentResult {
+            AgentDeepAnalysisShareContentView(result: result)
         }
         // 紧凑分析卡片
         else if message.isQueryAnalysis, message.analysisContext != nil {

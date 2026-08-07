@@ -14,6 +14,10 @@ struct MessageBubbleView: View {
     @ObservedObject private var internalLogs = HoloInternalLogService.shared
     #endif
 
+    /// 订阅收藏状态：收藏态存在外部单例 ChatMessageStarStore（不在 message 里），
+    /// 若不订阅，收藏/取消后 Equatable 判等会跳过 body 重算，菜单文案不切换。
+    @ObservedObject private var starStore = ChatMessageStarStore.shared
+
     let message: ChatMessageViewData
     let streamingText: String?
     let goalDraftForReview: GoalDraft?
