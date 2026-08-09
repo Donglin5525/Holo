@@ -12,12 +12,26 @@
 
 ## [Unreleased]
 
+### Features
+- **iOS**: 想法转任务全面改造——确认环节 + 选中转化 + AI 提炼 + ✅ 标记
+  - 转任务不再一键直转，弹出底部确认面板，可逐条编辑标题、勾选后再创建
+  - 支持**选中文字转化**：在正文选中一段文字，系统编辑菜单 / 键盘工具栏 ✅ 按钮均可触发，只转选中的那一段
+  - 支持 **AI 智能识别**：点确认面板顶部「AI 智能识别」，AI 从想法/选中文字里自动提炼多条待办
+  - 选中文字转任务后，正文里被转的文字末尾出现 ✅ 标记，点击可查看任务或取消标记
+  - 转任务入口从隐蔽的详情页迁移到编辑器键盘工具栏（与 # @ 加粗并列）
+  - 接入已有的休眠代码（`ThoughtTaskExtractionSheet` + `ThoughtTaskExtractor` + 后端 `thought_task_extraction` purpose），后端无需发版
+
 ### Bug Fixes
 - **iOS**: 修复全局键盘避让导致输入框被挤压/遮挡的体验问题。想法首页搜索框键盘弹出时不再被压缩；今日看板习惯数值输入弹窗（手写 overlay 系统避让管不到）改为跟随键盘高度上移；调整余额备注框改为可滚动避免被遮；习惯打卡（卡片入口/快捷打卡）、周期项目编辑、一次性购买编辑的数字键盘统一补「完成」收键盘按钮
+- **iOS**: 修复确认面板预勾选失效——传入内容被提前去掉列表标记（`-`/`1.`），导致列表型想法进入面板后一条都没勾；改为传原始 markdown 内容
+- **iOS**: 修复选中文字转任务首次打开识别为整篇的问题——`.sheet(isPresented:)` 内容闭包在状态变量更新前被预创建，读到中间态（nil）；改用 `.sheet(item:)` 一次性构建完整参数
 
 ### Improvements
 - **docs**: 规范文档归类重组——创建 `docs/standards/` 规范中心，集中 6 个开发/Prompt/图表/Agent 规范文档，新增 `INDEX.md` 按场景索引；清理根目录临时过程文件（findings/progress/task_plan/memory）
 - **docs**: 键盘避让事故复盘沉淀进开发守则（三轮误判错误模式、`KeyboardAvoidanceDisabler` 修复方案）；速查表加「键盘弹出输入框被顶起」条目；自检清单加键盘检查项
+
+### Notes
+- **CloudKit**: `TodoTask` 新增可选字段 `sourceTextSnippet`（记录选中转化时的来源文字快照），需一次 CloudKit schema 部署（Development → Production）
 
 ---
 

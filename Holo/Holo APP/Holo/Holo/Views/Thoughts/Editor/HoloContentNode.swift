@@ -19,6 +19,8 @@ enum HoloContentNode: Equatable {
     case tag(id: UUID, displayPath: String)
     /// 引用 Token：noteId 为目标想法主键，displayText 为目标首行快照，snapshot 为正文摘要快照
     case reference(noteId: UUID, displayText: String, snapshot: String)
+    /// 任务标记 Token：选中文字转任务后插入。id 为 Token 自身 ID，taskId 为关联任务 ID，displayText 为被转文字快照
+    case taskMark(id: UUID, taskId: UUID, displayText: String)
 }
 
 // MARK: - Codable（自定义 type 判别，保证 JSON 格式稳定可读）
@@ -33,12 +35,14 @@ extension HoloContentNode: Codable {
         case noteId
         case displayText
         case snapshot
+        case taskId
     }
 
     private enum NodeType: String, Codable {
         case text
         case tag
         case reference
+        case taskMark
     }
 
     init(from decoder: Decoder) throws {
@@ -59,6 +63,12 @@ extension HoloContentNode: Codable {
                 displayText: try container.decode(String.self, forKey: .displayText),
                 snapshot: try container.decode(String.self, forKey: .snapshot)
             )
+        case .taskMark:
+            self = .taskMark(
+                id: try container.decode(UUID.self, forKey: .id),
+                taskId: try container.decode(UUID.self, forKey: .taskId),
+                displayText: try container.decode(String.self, forKey: .displayText)
+            )
         }
     }
 
@@ -78,6 +88,11 @@ extension HoloContentNode: Codable {
             try container.encode(noteId, forKey: .noteId)
             try container.encode(displayText, forKey: .displayText)
             try container.encode(snapshot, forKey: .snapshot)
+        case .taskMark(let id, let taskId, let displayText):
+            try container.encode(NodeType.taskMark, forKey: .type)
+            try container.encode(id, forKey: .id)
+            try container.encode(taskId, forKey: .taskId)
+            try container.encode(displayText, forKey: .displayText)
         }
     }
 }
@@ -88,12 +103,13 @@ extension HoloContentNode: Codable {
 enum HoloTokenType: String {
     case tag
     case reference
+    case taskMark
 }
 
 // MARK: - Token 富文本属性键
 
 extension NSAttributedString.Key {
-    /// Token 类型（"tag" / "reference"），无此属性的区间为普通文本
+    /// Token 类型（"tag" / "reference" / "taskMark"），无此属性的区间为普通文本
     static let holoTokenType = NSAttributedString.Key("holoTokenType")
     /// Token 关联实体 ID（ThoughtTag.id 或 Thought.id 的 uuidString）
     static let holoEntityId = NSAttributedString.Key("holoEntityId")
@@ -101,4 +117,6 @@ extension NSAttributedString.Key {
     static let holoDisplayText = NSAttributedString.Key("holoDisplayText")
     /// 引用 Token 的正文摘要快照（仅 reference 使用）
     static let holoSnapshot = NSAttributedString.Key("holoSnapshot")
+    /// 任务标记 Token 关联的任务 ID（仅 taskMark 使用，TodoTask.id 的 uuidString）
+    static let holoTaskId = NSAttributedString.Key("holoTaskId")
 }

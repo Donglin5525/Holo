@@ -280,7 +280,7 @@ final class HoloAgentAnalysisService {
                 requestedDeliverables: result.requestedDeliverables ?? [],
                 narrativeSummary: result.narrativeSummary,
                 contextSources: result.contextSources ?? [],
-                dataSamplePreview: Self.makeSamplePreview(from: result.dataSampleExcerpts)
+                dataSamplePreview: Self.makeSamplePreview(from: nil)
             )
         } catch {
             return fail("[证据读取失败] \(String(describing: error))")
@@ -335,7 +335,7 @@ final class HoloAgentAnalysisService {
                             requestedDeliverables: result.requestedDeliverables ?? [],
                             narrativeSummary: result.narrativeSummary,
                             contextSources: result.contextSources ?? [],
-                            dataSamplePreview: Self.makeSamplePreview(from: result.dataSampleExcerpts)
+                            dataSamplePreview: Self.makeSamplePreview(from: nil)
                         )
                         repository.finalizeAgentMessage(sourceMessageID, rendered: rendered, intent: "query_analysis")
                     } else {

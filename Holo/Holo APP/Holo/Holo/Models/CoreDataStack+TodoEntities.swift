@@ -265,6 +265,13 @@ extension CoreDataStack {
         taskSourceAnniversaryId.isOptional = true
         todoTaskAttributes.append(taskSourceAnniversaryId)
 
+        // 想法转任务的来源文字快照（选中文字转化时记录，供正文 ✅ 标记反向定位；nil=非选中转化）
+        let taskSourceTextSnippet = NSAttributeDescription()
+        taskSourceTextSnippet.name = "sourceTextSnippet"
+        taskSourceTextSnippet.attributeType = .stringAttributeType
+        taskSourceTextSnippet.isOptional = true
+        todoTaskAttributes.append(taskSourceTextSnippet)
+
         // MARK: - TodoTag Entity
         // 待办标签实体
         let todoTagEntity = NSEntityDescription()

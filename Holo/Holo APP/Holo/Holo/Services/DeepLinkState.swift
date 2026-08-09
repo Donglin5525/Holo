@@ -31,6 +31,8 @@ struct FinanceEvidenceReviewDeepLink: Equatable {
 /// 各模块通过匹配对应 case 决定是否响应跳转
 enum DeepLinkTarget: Equatable {
     case ai(voiceInput: Bool)
+    /// 跨模块跳转到 AI 对话页，可预填文本（如「就这条问问 Holo」）
+    case chat(prefill: String?)
     case taskDetail(taskId: UUID)
     case goalDetail(goalId: UUID)
     case dailyReminder

@@ -27,14 +27,19 @@ struct ThoughtTaskExtractionSheet: View {
     /// 来源想法（每条任务都关联它）
     private let sourceThought: Thought
 
-    /// 想法纯文本（供 AI 提取用）
-    private let plainContent: String
+    /// 想法原始内容（保留 markdown 标记，既供 AI 提取，也用于按行拆分预勾选）。
+    /// 必须传原始 content，不能传 plainContent —— plainContent 已被 stripFormatting
+    /// 去掉行首列表标记（- / 1. ），会导致 isListLine 永远 false、预勾选失效。
+    private let rawContent: String
 
     /// 关闭回调
     private let onDismiss: () -> Void
 
-    /// 成功创建后刷新来源数据
-    private let onCreated: () -> Void
+    /// 成功创建后回调，参数为创建的任务 ID 数组（供调用方插入 ✅ 标记 / 刷新数据）
+    private let onCreated: ([UUID]) -> Void
+
+    /// 是否来自"选中文字转化"（影响顶部说明文案）
+    private let isFromSelection: Bool
 
     /// 是否正在批量创建
     @State private var isCreating = false
@@ -48,18 +53,22 @@ struct ThoughtTaskExtractionSheet: View {
     /// 成功提示
     @State private var createdCount = 0
     @State private var showSuccess = false
+    /// 本批创建的任务 ID（供 onCreated 回调传出，调用方据此插入 ✅ 标记）
+    @State private var createdTaskIds: [UUID] = []
 
     init(
-        plainContent: String,
+        content: String,
         sourceThought: Thought,
+        isFromSelection: Bool = false,
         onDismiss: @escaping () -> Void,
-        onCreated: @escaping () -> Void
+        onCreated: @escaping ([UUID]) -> Void
     ) {
         self.sourceThought = sourceThought
-        self.plainContent = plainContent
+        self.rawContent = content
+        self.isFromSelection = isFromSelection
         self.onDismiss = onDismiss
         self.onCreated = onCreated
-        _candidates = State(initialValue: Self.buildCandidates(from: plainContent))
+        _candidates = State(initialValue: Self.buildCandidates(from: content, defaultSelected: isFromSelection))
     }
 
     var body: some View {
@@ -118,7 +127,7 @@ struct ThoughtTaskExtractionSheet: View {
             }
             .alert("已创建 \(createdCount) 个任务", isPresented: $showSuccess) {
                 Button("好的", role: .cancel) {
-                    onCreated()
+                    onCreated(createdTaskIds)
                     onDismiss()
                 }
             } message: {
@@ -137,7 +146,7 @@ struct ThoughtTaskExtractionSheet: View {
     private var candidateList: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                Text("已自动识别列表内容并勾选，可逐行调整。")
+                Text(hintText)
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)
                     .padding(.horizontal, HoloSpacing.md)
@@ -190,6 +199,14 @@ struct ThoughtTaskExtractionSheet: View {
         candidates.filter { $0.isSelected && !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count
     }
 
+    /// 顶部说明文案：根据来源（选中文字 / 整篇想法）动态显示
+    private var hintText: String {
+        if isFromSelection {
+            return "选中了 \(candidates.count) 段文字，可编辑后确认转为任务。"
+        }
+        return "已自动识别列表内容并勾选，可逐行调整。"
+    }
+
     /// 批量创建任务
     private func createTasks() {
         let picked = candidates
@@ -200,21 +217,27 @@ struct ThoughtTaskExtractionSheet: View {
         guard !picked.isEmpty else { return }
         isCreating = true
 
+        var succeeded = 0
+        var taskIds: [UUID] = []
         for title in picked {
             do {
-                _ = try TodoRepository.shared.createTask(
+                let task = try TodoRepository.shared.createTask(
                     title: title,
                     description: nil,
-                    sourceThought: sourceThought
+                    sourceThought: sourceThought,
+                    sourceTextSnippet: isFromSelection ? title : nil
                 )
+                succeeded += 1
+                taskIds.append(task.id)
             } catch {
                 continue
             }
         }
 
         isCreating = false
-        createdCount = picked.count
-        showSuccess = true
+        createdCount = succeeded
+        createdTaskIds = taskIds
+        showSuccess = succeeded > 0
         HapticManager.success()
     }
 
@@ -228,7 +251,7 @@ struct ThoughtTaskExtractionSheet: View {
 
         do {
             let extractor = ThoughtTaskExtractor()
-            let result = try await extractor.extract(from: plainContent)
+            let result = try await extractor.extract(from: rawContent)
 
             guard !result.titles.isEmpty else {
                 extractError = true
@@ -245,8 +268,10 @@ struct ThoughtTaskExtractionSheet: View {
 
     // MARK: - 文本拆分逻辑
 
-    /// 把纯文本按行拆成候选行，识别列表型内容并预勾选
-    static func buildCandidates(from plainContent: String) -> [TaskCandidateRow] {
+    /// 把纯文本按行拆成候选行。
+    /// - defaultSelected=false（整篇转化）：仅列表型行预勾选
+    /// - defaultSelected=true（选中转化）：用户选中的就是要转的内容，全部预勾选
+    static func buildCandidates(from plainContent: String, defaultSelected: Bool = false) -> [TaskCandidateRow] {
         let lines = plainContent
             .components(separatedBy: "\n")
             .map { $0.trimmingCharacters(in: .whitespaces) }
@@ -256,7 +281,7 @@ struct ThoughtTaskExtractionSheet: View {
             let cleaned = Self.stripListMarker(line)
             return TaskCandidateRow(
                 text: cleaned,
-                isSelected: Self.isListLine(line)
+                isSelected: defaultSelected || Self.isListLine(line)
             )
         }
         .filter { !$0.text.isEmpty }

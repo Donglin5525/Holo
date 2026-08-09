@@ -259,7 +259,8 @@ class TodoRepository: ObservableObject {
         isAllDay: Bool = false,
         reminders: Set<TaskReminder>? = nil,
         checkItemTitles: [String]? = nil,
-        sourceThought: Thought? = nil
+        sourceThought: Thought? = nil,
+        sourceTextSnippet: String? = nil
     ) throws -> TodoTask {
         let task = TodoTask.create(
             in: context,
@@ -276,6 +277,8 @@ class TodoRepository: ObservableObject {
         if let sourceThought = sourceThought {
             task.sourceThought = sourceThought
         }
+        // 记录来源文字快照（选中文字转化时，供正文 ✅ 标记反向定位）
+        task.sourceTextSnippet = sourceTextSnippet
 
         // 调度提醒通知（绝对提醒不需要截止日期，scheduleReminder 内部按模式分别处理）
         if let reminders = reminders, !reminders.isEmpty {

@@ -72,6 +72,18 @@ struct ThoughtEditorView: View {
     @State private var caretRect: CGRect = .zero
     @AppStorage("com.holo.thought.voice.smartSummary.enabled") private var smartSummaryEnabled: Bool = true
 
+    // MARK: - 转为任务
+    /// 提取确认面板的参数（用 item 模式确保弹窗拿到的参数是一次性写好的、自洽的）
+    @State private var taskExtractionRequest: TaskExtractionRequest? = nil
+
+    /// 转任务面板所需参数（content + sourceThought 一次性确定，避免 sheet 闭包读到中间态）
+    private struct TaskExtractionRequest: Identifiable {
+        let id = UUID()
+        let content: String
+        let sourceThought: Thought
+        let isFromSelection: Bool
+    }
+
     // MARK: - 自动保存
     /// 新建模式下首次落库后拿到的草稿 ID（之后转为 update）。
     /// 编辑模式（editingThoughtId != nil）时不使用此字段。
@@ -159,6 +171,25 @@ struct ThoughtEditorView: View {
         // 右滑退出：自动保存由 onDisappear 兜底，不再弹窗确认。
         .swipeBackToDismiss(isEnabled: true) {
             dismiss()
+        }
+        .sheet(item: $taskExtractionRequest) { request in
+            ThoughtTaskExtractionSheet(
+                content: request.content,
+                sourceThought: request.sourceThought,
+                isFromSelection: request.isFromSelection,
+                onDismiss: {
+                    taskExtractionRequest = nil
+                },
+                onCreated: { createdTaskIds in
+                    taskExtractionRequest = nil
+                    // 选中转化：在选中文字末尾插入 ✅ 标记
+                    if request.isFromSelection,
+                       let firstTaskId = createdTaskIds.first {
+                        pendingEditorAction = .insertTaskMark(taskId: firstTaskId, displayText: request.content)
+                    }
+                    NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+                }
+            )
         }
         .sheet(isPresented: $showVoiceInput, onDismiss: insertPendingVoiceTranscript) {
             if smartSummaryEnabled {
@@ -393,6 +424,35 @@ struct ThoughtEditorView: View {
         persistContent(shouldDismiss: true, notifyDataChange: true)
     }
 
+    // MARK: - 转为任务
+
+    /// 触发「转为任务」：先落库（含草稿首次创建），再弹确认面板。
+    /// 整篇转化（selectedText=nil）和选中文字转化共用此入口。
+    private func startTaskExtraction(selectedText: String? = nil) {
+        guard hasContent else { return }
+        persistContent(shouldDismiss: false, notifyDataChange: false)
+        guard let thoughtId = currentThoughtId,
+              let thought = try? thoughtRepository.fetchById(thoughtId) else { return }
+        // 一次性构建完整请求，避免 sheet 闭包分两步读状态导致拿到中间态
+        taskExtractionRequest = TaskExtractionRequest(
+            content: selectedText ?? thought.content,
+            sourceThought: thought,
+            isFromSelection: selectedText != nil
+        )
+    }
+
+    /// 转任务面板所需的来源 Thought
+    private var resolvedThoughtForExtraction: Thought? {
+        guard let thoughtId = currentThoughtId else { return nil }
+        return try? thoughtRepository.fetchById(thoughtId)
+    }
+
+    /// 查看任务：通过 deep link 跳转到任务详情（与 ChatView 跳转任务同一路径）
+    private func viewTask(_ taskId: UUID) {
+        DeepLinkState.shared.navigate(to: .taskDetail(taskId: taskId))
+        dismiss()
+    }
+
     // MARK: - Sections
 
     /// 内容编辑区域
@@ -418,7 +478,9 @@ struct ThoughtEditorView: View {
                             editorNodes = newNodes
                             editorNodesLoaded = true
                         },
-                        onAddImage: { showAttachmentSourceChoice = true }
+                        onAddImage: { showAttachmentSourceChoice = true },
+                        onConvertToTask: { startTaskExtraction() },
+                        onConvertSelection: startTaskExtraction(selectedText:)
                     )
                         .frame(height: max(editorHeight, contentEditorMinimumHeight))
                         // 光标吸附候选浮层：挂在 MarkdownTextView 自身上，
@@ -585,6 +647,8 @@ struct ThoughtEditorView: View {
             return "#\(displayPath)"
         case .reference(_, let displayText, _):
             return "@\(displayText)"
+        case .taskMark(_, _, let displayText):
+            return "已转任务：\(displayText)"
         case .text, .none:
             return "操作"
         }
@@ -612,6 +676,13 @@ struct ThoughtEditorView: View {
                 navigateToThoughtId = noteId
             }
             Button("取消引用", role: .destructive) {
+                pendingEditorAction = .removeSelectedToken
+            }
+        case .taskMark(_, let taskId, _):
+            Button("查看任务") {
+                viewTask(taskId)
+            }
+            Button("取消标记", role: .destructive) {
                 pendingEditorAction = .removeSelectedToken
             }
         case .text, .none:

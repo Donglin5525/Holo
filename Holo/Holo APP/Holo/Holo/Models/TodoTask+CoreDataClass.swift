@@ -63,6 +63,12 @@ class TodoTask: NSManagedObject {
     /// 标记本任务由某个纪念日自动生成。用 UUID 而非 CoreData 关系，
     /// 解耦纪念日与任务的生命周期（删除纪念日时不强删任务）。
     @NSManaged var sourceAnniversaryId: UUID?
+
+    // MARK: - Source Text Snippet（想法转任务的来源文字快照）
+
+    /// 选中文字转任务时，被选中的文字原文快照。用于正文 ✅ 标记反向定位。
+    /// nil = 非选中转化（整篇转化或纪念日生成等）。
+    @NSManaged var sourceTextSnippet: String?
 }
 
 // MARK: - Core Data Generated Accessors

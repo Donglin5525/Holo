@@ -95,6 +95,9 @@ enum TriggerDetector {
             return .tag(range: range, query: query)
         case .reference:
             return .reference(range: range, query: query)
+        case .taskMark:
+            // taskMark 不通过 #/@ 触发字符产生，此处不可达
+            return nil
         }
     }
 }

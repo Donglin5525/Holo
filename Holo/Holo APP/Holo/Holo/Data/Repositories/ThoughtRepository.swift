@@ -17,6 +17,8 @@ extension Notification.Name {
     static let thoughtDataDidChange = Notification.Name("thoughtDataDidChange")
     /// 请求观点列表按标签筛选（编辑器内「查看标签」，object 为标签路径 String）
     static let thoughtRequestTagFilter = Notification.Name("thoughtRequestTagFilter")
+    /// 请求关闭想法编辑器 fullScreenCover（详情页跳转 AI 后通知列表层关闭 cover）
+    static let holoRequestCloseThoughtEditor = Notification.Name("holoRequestCloseThoughtEditor")
 }
 
 /// 观点数据仓储

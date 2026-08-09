@@ -42,8 +42,8 @@ struct ThoughtDetailView: View {
     @State private var showAttachmentGallery: Bool = false
     @State private var galleryStartIndex: Int = 0
 
-    /// 转为任务后的成功反馈
-    @State private var showConvertToTaskSuccess: Bool = false
+    /// 转为任务：弹确认面板（AI 提炼 / 手动勾选），不直接建任务
+    @State private var showTaskExtraction: Bool = false
 
     /// AI 标签分配
     @State private var aiAssignments: [ThoughtTagAssignment] = []
@@ -106,7 +106,7 @@ struct ThoughtDetailView: View {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Menu {
                         Button {
-                            convertToTask()
+                            showTaskExtraction = true
                         } label: {
                             Label("转为任务", systemImage: "checkmark.square")
                         }
@@ -136,10 +136,19 @@ struct ThoughtDetailView: View {
             } message: {
                 Text(deletedSnapshot ?? "")
             }
-            .alert("已转为任务", isPresented: $showConvertToTaskSuccess) {
-                Button("好的", role: .cancel) {}
-            } message: {
-                Text("已从这条想法创建待办任务，可在任务模块查看。")
+            .sheet(isPresented: $showTaskExtraction) {
+                if let thought = thought {
+                    ThoughtTaskExtractionSheet(
+                        content: thought.content,
+                        sourceThought: thought,
+                        isFromSelection: false,
+                        onDismiss: { showTaskExtraction = false },
+                        onCreated: { _ in
+                            showTaskExtraction = false
+                            NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+                        }
+                    )
+                }
             }
             // fullScreenCover：编辑器作为完整页面承载，避免 sheet 下滑误触丢内容
             .fullScreenCover(isPresented: $showEditSheet) {
@@ -199,7 +208,7 @@ struct ThoughtDetailView: View {
         deletedReferenceIds = deleted
     }
 
-    /// 阅读态 Token 点击：标签 → 请求列表筛选；引用 → 打开目标；已删除 → 展示快照
+    /// 阅读态 Token 点击：标签 → 请求列表筛选；引用 → 打开目标；已删除 → 展示快照；任务标记 → 跳转任务
     private func handleTokenTap(_ node: HoloContentNode) {
         switch node {
         case .tag(_, let displayPath):
@@ -211,29 +220,17 @@ struct ThoughtDetailView: View {
             } else {
                 selectedReferenceId = noteId
             }
+        case .taskMark(_, let taskId, _):
+            DeepLinkState.shared.navigate(to: .taskDetail(taskId: taskId))
+            dismiss()
         case .text:
             break
         }
     }
 
     // MARK: - 转为任务
-
-    /// 将当前想法转换为待办任务，标题取想法首行，并建立来源关联
-    private func convertToTask() {
-        guard let thought = thought else { return }
-        let title = thought.firstLine ?? String(thought.content.prefix(40))
-        do {
-            _ = try TodoRepository.shared.createTask(
-                title: title,
-                description: thought.plainContent,
-                sourceThought: thought
-            )
-            HapticManager.success()
-            showConvertToTaskSuccess = true
-        } catch {
-            logger.error("想法转任务失败: \(error.localizedDescription)")
-        }
-    }
+    // 详情页转任务入口改为弹出 ThoughtTaskExtractionSheet 确认面板，
+    // 与编辑器入口统一，不再直接建任务。
 
     // MARK: - 内容区域
 

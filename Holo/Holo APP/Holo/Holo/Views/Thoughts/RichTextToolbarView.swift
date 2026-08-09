@@ -131,6 +131,8 @@ final class RichTextToolbarAccessoryView: UIView {
     var onImage: (() -> Void)?
     var onUnorderedList: (() -> Void)?
     var onOrderedList: (() -> Void)?
+    /// 转为任务（整篇转化入口，弹出确认面板）
+    var onConvertToTask: (() -> Void)?
 
     private var buttons: [UIButton] = []
     private var boldButton: UIButton?
@@ -222,6 +224,9 @@ final class RichTextToolbarAccessoryView: UIView {
         for item in lastGroups {
             stack.addArrangedSubview(makeButton(icon: item.icon, action: item.action, isBold: item.isBold))
         }
+        // 转为任务：与格式按钮分隔，放在最右侧
+        stack.addArrangedSubview(makeDivider())
+        stack.addArrangedSubview(makeButton(icon: "checkmark.square", action: { self.onConvertToTask?() }, isBold: false))
 
         // inputAccessoryView 必需：跟随键盘宽度自适应
         autoresizingMask = .flexibleWidth

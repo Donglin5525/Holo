@@ -23,6 +23,8 @@ enum MarkdownEditorAction: Equatable {
     case insertTagToken(id: UUID, displayPath: String)
     /// 候选面板选中想法：触发区间整体替换为引用 Token
     case insertReferenceToken(id: UUID, displayText: String, snapshot: String)
+    /// 选中文字转任务后，在选区末尾插入 ✅ 任务标记 Token
+    case insertTaskMark(taskId: UUID, displayText: String)
     /// 把当前选中的 Token 转为普通文本（移除标签 / 取消引用）
     case removeSelectedToken
     /// 主动关闭候选面板（保留已输入文字，本次触发不再自动弹出）
@@ -66,6 +68,10 @@ struct MarkdownTextView: UIViewRepresentable {
     var onNodesChange: (([HoloContentNode]) -> Void)? = nil
     /// 点击工具栏「添加图片」按钮的回调（桥接到 inputAccessoryView 内的 UIKit 工具栏）
     var onAddImage: (() -> Void)? = nil
+    /// 键盘工具栏「转为任务」回调：整篇转化入口
+    var onConvertToTask: (() -> Void)? = nil
+    /// 选区菜单「转为任务」回调：用户选中文字后点「转为任务」时触发，参数为选中的纯文本
+    var onConvertSelection: ((String) -> Void)? = nil
 
     func makeUIView(context: Context) -> UITextView {
         let textView = SelfSizingTextView()
@@ -100,6 +106,8 @@ struct MarkdownTextView: UIViewRepresentable {
         context.coordinator.lastKnownMarkdown = RichContentSerializer.plainText(from: initialNodes)
         context.coordinator.nodes = initialNodes
         context.coordinator.onNodesChange = onNodesChange
+        context.coordinator.onConvertSelection = onConvertSelection
+        context.coordinator.onConvertToTask = onConvertToTask
         context.coordinator.onHeightChange = { height in
             DispatchQueue.main.async {
                 self.dynamicHeight = height
@@ -126,16 +134,35 @@ struct MarkdownTextView: UIViewRepresentable {
         toolbar.onReference = { [self] in pendingAction = .insertTriggerCharacter("@") }
         toolbar.onBold = { [self] in pendingAction = .toggleBold }
         toolbar.onImage = { onAddImage?() }
+        toolbar.onConvertToTask = { [self] in
+            // 点工具栏 ✅ 时先检查有没有选中文字：有就只转选中的，没有就转整篇。
+            // 闭包里通过 coordinator 读最新引用（首次渲染快照不会随 SwiftUI 重建更新）。
+            let sel = context.coordinator.hostTextView?.selectedRange ?? NSRange(location: 0, length: 0)
+            if sel.length > 0,
+               let textView = context.coordinator.hostTextView,
+               let sub = textView.attributedText?.attributedSubstring(from: sel) {
+                let trimmed = sub.string.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    context.coordinator.onConvertSelection?(trimmed)
+                    return
+                }
+            }
+            context.coordinator.onConvertToTask?()
+        }
         toolbar.onUnorderedList = { [self] in pendingAction = .insertUnorderedList }
         toolbar.onOrderedList = { [self] in pendingAction = .insertOrderedList }
         toolbar.formatState = formatState
         context.coordinator.accessoryToolbar = toolbar
+        context.coordinator.hostTextView = textView
         textView.inputAccessoryView = toolbar
 
         return textView
     }
 
     func updateUIView(_ textView: UITextView, context: Context) {
+        // 同步可能变化的闭包引用（父视图重建时保持最新）
+        context.coordinator.onConvertSelection = onConvertSelection
+        context.coordinator.onConvertToTask = onConvertToTask
         if let action = pendingAction {
             pendingAction = nil
             context.coordinator.perform(action: action, on: textView, markdown: $text)
@@ -181,8 +208,14 @@ struct MarkdownTextView: UIViewRepresentable {
         var onNodesChange: (([HoloContentNode]) -> Void)?
         /// 光标 rect 变化回调（编辑器局部坐标系），父视图据此吸附候选浮层
         var onCaretRectChange: ((CGRect) -> Void)?
+        /// 选区菜单「转为任务」回调
+        var onConvertSelection: ((String) -> Void)?
+        /// 工具栏「转为任务」（整篇）回调
+        var onConvertToTask: (() -> Void)?
         /// inputAccessoryView 工具栏引用（格式状态变化时同步加粗按钮高亮）
         weak var accessoryToolbar: RichTextToolbarAccessoryView?
+        /// 宿主 UITextView 弱引用（工具栏回调需要读取当前选区）
+        weak var hostTextView: UITextView?
 
         /// 当前活跃的 #/@ 触发（候选面板打开期间非空）
         private var activeTrigger: EditorTriggerContext?
@@ -382,6 +415,8 @@ struct MarkdownTextView: UIViewRepresentable {
                 insertToken(type: .tag, id: id, displayText: displayPath, snapshot: nil, on: textView)
             case .insertReferenceToken(let id, let displayText, let snapshot):
                 insertToken(type: .reference, id: id, displayText: displayText, snapshot: snapshot, on: textView)
+            case .insertTaskMark(let taskId, let displayText):
+                insertTaskMark(taskId: taskId, displayText: displayText, on: textView)
             case .removeSelectedToken:
                 removeSelectedToken(on: textView)
             case .dismissSuggestion:
@@ -487,8 +522,9 @@ struct MarkdownTextView: UIViewRepresentable {
             let selection = textView.selectedRange
 
             if selection.length == 0 {
+                // 含起点（>=）：兼容单字符 Token（如 ✅ taskMark），开区间会让单字符 Token 永远吸附不到
                 guard let token = tokenRanges.first(where: {
-                    selection.location > $0.location && selection.location < $0.location + $0.length
+                    selection.location >= $0.location && selection.location < $0.location + $0.length
                 }) else { return false }
 
                 // 移动距离 >1 视为点按：吸附到较近边缘并直接弹 Token 菜单（不保留选区）
@@ -619,6 +655,32 @@ struct MarkdownTextView: UIViewRepresentable {
             syncMarkdown(from: textView)
         }
 
+        /// 选中文字转任务：保留选区文字，在其末尾追加 ✅ Token（一次 undo 单元）
+        /// 与 insertToken 不同：不依赖触发区间，直接定位到选区末尾插入
+        private func insertTaskMark(taskId: UUID, displayText: String, on textView: UITextView) {
+            let selection = textView.selectedRange
+            // 插入点 = 选区末尾（selection.length==0 时直接在光标处插）
+            let insertLocation = selection.location + selection.length
+            guard insertLocation <= textView.attributedText.length else { return }
+
+            let tokenText = MarkdownTextView.makeTaskMarkAttributedText(
+                id: UUID(),
+                taskId: taskId,
+                displayText: displayText
+            )
+            let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
+            mutable.insert(tokenText, at: insertLocation)
+
+            isProgrammaticChange = true
+            textView.attributedText = mutable
+            textView.selectedRange = NSRange(location: insertLocation + tokenText.length, length: 0)
+            lastSelectionLocation = insertLocation + tokenText.length
+            isProgrammaticChange = false
+
+            refreshTypingAttributes(for: textView)
+            syncMarkdown(from: textView)
+        }
+
         /// 把选中的 Token 转为普通文本（保留文字、去除 #/@ 前缀与 Token 关系）
         private func removeSelectedToken(on textView: UITextView) {
             let tokenRanges = MarkdownTextView.tokenRanges(in: textView.attributedText)
@@ -626,25 +688,33 @@ struct MarkdownTextView: UIViewRepresentable {
             guard let tokenRange = tokenRanges.first(where: { NSIntersectionRange($0, selection).length > 0 }),
                   let node = MarkdownTextView.makeTokenNode(from: textView.attributedText.attributes(at: tokenRange.location, effectiveRange: nil)) else { return }
 
-            let plainText: String
+            let plainText: String?
             switch node {
             case .tag(_, let displayPath):
                 plainText = displayPath
             case .reference(_, let displayText, _):
                 plainText = displayText
+            case .taskMark:
+                // ✅ 是纯标记，取消时直接删除，不保留任何文字
+                plainText = nil
             case .text:
                 return
             }
 
             let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
-            mutable.replaceCharacters(
-                in: tokenRange,
-                with: NSAttributedString(string: plainText, attributes: MarkdownTextView.baseAttributes)
-            )
+            if let plainText {
+                mutable.replaceCharacters(
+                    in: tokenRange,
+                    with: NSAttributedString(string: plainText, attributes: MarkdownTextView.baseAttributes)
+                )
+            } else {
+                mutable.deleteCharacters(in: tokenRange)
+            }
 
             isProgrammaticChange = true
             textView.attributedText = mutable
-            textView.selectedRange = NSRange(location: tokenRange.location + (plainText as NSString).length, length: 0)
+            let replacementLength = plainText.map { ($0 as NSString).length } ?? 0
+            textView.selectedRange = NSRange(location: tokenRange.location + replacementLength, length: 0)
             isProgrammaticChange = false
 
             publishSelectedToken(nil)
@@ -913,6 +983,8 @@ extension MarkdownTextView {
             case .reference(let noteId, let displayText, let snapshot):
                 let isDeleted = deletedReferenceIds.contains(noteId)
                 result.append(makeTokenAttributedText(type: .reference, id: noteId, displayText: displayText, snapshot: snapshot, isDeleted: isDeleted))
+            case .taskMark(let id, let taskId, let displayText):
+                result.append(makeTaskMarkAttributedText(id: id, taskId: taskId, displayText: displayText))
             }
         }
 
@@ -978,6 +1050,19 @@ extension MarkdownTextView {
         return NSAttributedString(string: "\(prefix)\(visibleText)", attributes: attributes)
     }
 
+    /// 任务标记 Token：渲染为 ✅ emoji，携带 taskMark 身份属性。
+    /// 用 emoji 而非 NSTextAttachment —— 复用现有属性体系，序列化/原子化/点击全部兼容，
+    /// 避免 attachment 的单字符选区、U+FFFC 渗入纯文本等问题。
+    static func makeTaskMarkAttributedText(id: UUID, taskId: UUID, displayText: String) -> NSAttributedString {
+        var attributes = baseAttributes
+        attributes[.foregroundColor] = UIColor(Color.holoPrimary)
+        attributes[.holoTokenType] = HoloTokenType.taskMark.rawValue
+        attributes[.holoEntityId] = id.uuidString
+        attributes[.holoTaskId] = taskId.uuidString
+        attributes[.holoDisplayText] = displayText
+        return NSAttributedString(string: " ✅ ", attributes: attributes)
+    }
+
     /// 从富文本属性还原 Token 节点；属性不完整时返回 nil（降级为普通文本）
     static func makeTokenNode(from attrs: [NSAttributedString.Key: Any]) -> HoloContentNode? {
         guard let rawType = attrs[.holoTokenType] as? String,
@@ -993,6 +1078,12 @@ extension MarkdownTextView {
             return .tag(id: id, displayPath: displayText)
         case .reference:
             return .reference(noteId: id, displayText: displayText, snapshot: attrs[.holoSnapshot] as? String ?? "")
+        case .taskMark:
+            guard let taskIdString = attrs[.holoTaskId] as? String,
+                  let taskId = UUID(uuidString: taskIdString) else {
+                return nil
+            }
+            return .taskMark(id: id, taskId: taskId, displayText: displayText)
         }
     }
 
@@ -1231,8 +1322,9 @@ private final class SelfSizingTextView: UITextView {
 @available(iOS 16.0, *)
 extension MarkdownTextView.Coordinator: UIEditMenuInteractionDelegate {
 
-    /// 选区恰好覆盖完整 Token 时返回空菜单：系统编辑菜单（含 AutoFill 等不走
-    /// canPerformAction 过滤的注入项）不再弹出，与自定义 Token 菜单互斥
+    /// 选区编辑菜单：
+    /// - 完整 Token 选区 → 返回空菜单（与自定义 Token 菜单互斥）
+    /// - 普通文字选区 → 系统菜单（复制/剪切等）+ 追加「转为任务」
     func editMenuInteraction(
         _ interaction: UIEditMenuInteraction,
         menuFor configuration: UIEditMenuConfiguration,
@@ -1245,6 +1337,19 @@ extension MarkdownTextView.Coordinator: UIEditMenuInteractionDelegate {
         let isTokenSelection = MarkdownTextView.tokenRanges(in: textView.attributedText).contains {
             $0.location == selection.location && $0.length == selection.length
         }
-        return isTokenSelection ? UIMenu(children: []) : nil
+        if isTokenSelection { return UIMenu(children: []) }
+
+        // 在菜单构建时立刻捕获选区文字（闭包执行时 selectedRange 可能已被系统改变）
+        guard let attrSubstring = textView.attributedText?.attributedSubstring(from: selection),
+              !attrSubstring.string.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return UIMenu(children: suggestedActions)
+        }
+        let capturedText = attrSubstring.string.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // 普通选区：在系统建议菜单后追加「转为任务」
+        let convertAction = UIAction(title: "转为任务", image: UIImage(systemName: "checkmark.square")) { [weak self] _ in
+            self?.onConvertSelection?(capturedText)
+        }
+        return UIMenu(children: suggestedActions + [convertAction])
     }
 }
