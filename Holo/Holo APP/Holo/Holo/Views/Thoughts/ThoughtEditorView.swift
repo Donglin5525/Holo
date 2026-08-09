@@ -66,8 +66,6 @@ struct ThoughtEditorView: View {
     @State private var isSaving: Bool = false
     /// 转任务相关：AI 批量提取任务面板
     @State private var showTaskExtraction: Bool = false
-    /// 单条「转为任务」成功提示
-    @State private var showConvertToTaskSuccess: Bool = false
     @State private var pendingEditorAction: MarkdownEditorAction? = nil
     @State private var pendingVoiceTranscriptToInsert: String? = nil
     @State private var editorHeight: CGFloat = 360
@@ -75,6 +73,10 @@ struct ThoughtEditorView: View {
     /// 当前光标在编辑器视图局部坐标系内的 rect（由 MarkdownTextView 上报，候选浮层据此吸附）
     @State private var caretRect: CGRect = .zero
     @AppStorage("com.holo.thought.voice.smartSummary.enabled") private var smartSummaryEnabled: Bool = true
+
+    // MARK: - 转为任务
+    /// 选中文字转化时预填的文本（nil = 整篇转化）。转任务入口弹出前赋值，Sheet 关闭后清空。
+    @State private var taskExtractionSelectedText: String? = nil
 
     // MARK: - 自动保存
     /// 新建模式下首次落库后拿到的草稿 ID（之后转为 update）。
@@ -141,25 +143,15 @@ struct ThoughtEditorView: View {
                 }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     HStack(spacing: 4) {
-                        // 转任务菜单：仅编辑模式（已落库的想法）可用，避免草稿态转任务的混乱
-                        if isEditing {
-                            Menu {
-                                Button {
-                                    convertToTask()
-                                } label: {
-                                    Label("转为任务", systemImage: "checkmark.square")
-                                }
-                                Button {
-                                    showTaskExtraction = true
-                                } label: {
-                                    Label("AI 提取多个任务", systemImage: "sparkles")
-                                }
-                            } label: {
-                                Image(systemName: "ellipsis.circle")
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundColor(.holoTextPrimary)
-                            }
+                        // 转为任务：弹确认面板（AI 提炼 / 手动勾选），不直接建任务
+                        Button {
+                            startTaskExtraction()
+                        } label: {
+                            Image(systemName: "checkmark.square")
+                                .font(.system(size: 16, weight: .medium))
+                                .foregroundColor(hasContent ? .holoTextPrimary : .holoTextSecondary)
                         }
+                        .disabled(!hasContent)
                         Button("保存") {
                             saveThought()
                         }
@@ -179,22 +171,22 @@ struct ThoughtEditorView: View {
             )
         }
         .sheet(isPresented: $showTaskExtraction) {
-            if let thought = currentEditingThought {
+            if let thought = resolvedThoughtForExtraction {
                 ThoughtTaskExtractionSheet(
-                    plainContent: thought.plainContent,
+                    content: taskExtractionSelectedText ?? thought.content,
                     sourceThought: thought,
-                    onDismiss: { showTaskExtraction = false },
+                    isFromSelection: taskExtractionSelectedText != nil,
+                    onDismiss: {
+                        showTaskExtraction = false
+                        taskExtractionSelectedText = nil
+                    },
                     onCreated: {
                         showTaskExtraction = false
+                        taskExtractionSelectedText = nil
                         NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
                     }
                 )
             }
-        }
-        .alert("已转为任务", isPresented: $showConvertToTaskSuccess) {
-            Button("好的", role: .cancel) {}
-        } message: {
-            Text("已从这条想法创建待办任务，可在任务模块查看。")
         }
         // 右滑退出：自动保存由 onDisappear 兜底，不再弹窗确认。
         .swipeBackToDismiss(isEnabled: true) {
@@ -433,25 +425,21 @@ struct ThoughtEditorView: View {
         persistContent(shouldDismiss: true, notifyDataChange: true)
     }
 
-    /// 单条「转为任务」：先把当前编辑内容落库（防丢失），再用首行做标题、全文做描述建一条待办
-    private func convertToTask() {
-        guard let thought = currentEditingThought else { return }
-        // 先落库当前编辑内容，避免转任务时丢掉未保存的修改
+    /// 触发「转为任务」：先把当前编辑内容落库（含草稿首次创建），再弹确认面板。
+    /// 整篇转化（selectedText=nil）和选中文字转化（selectedText 非空）共用此入口。
+    private func startTaskExtraction(selectedText: String? = nil) {
+        guard hasContent else { return }
+        // 落库当前内容，确保草稿已创建 / 编辑已保存
         persistContent(shouldDismiss: false, notifyDataChange: false)
-        // currentEditingThought 是每次重新 fetch 的，落库后再取一次拿最新内容
-        guard let latest = try? ThoughtRepository().fetchById(thought.id) else { return }
-        let title = latest.firstLine ?? String(latest.content.prefix(40))
-        do {
-            _ = try TodoRepository.shared.createTask(
-                title: title,
-                description: latest.plainContent,
-                sourceThought: latest
-            )
-            HapticManager.success()
-            showConvertToTaskSuccess = true
-        } catch {
-            ThoughtLog.error("想法转任务失败", error.localizedDescription)
-        }
+        taskExtractionSelectedText = selectedText
+        showTaskExtraction = true
+    }
+
+    /// 转任务面板所需的来源 Thought。
+    /// persistContent 后 currentThoughtId 必定有值（草稿已创建），按 id fetch 即可。
+    private var resolvedThoughtForExtraction: Thought? {
+        guard let thoughtId = currentThoughtId else { return nil }
+        return try? thoughtRepository.fetchById(thoughtId)
     }
 
     // MARK: - Sections
@@ -479,7 +467,8 @@ struct ThoughtEditorView: View {
                             editorNodes = newNodes
                             editorNodesLoaded = true
                         },
-                        onAddImage: { showAttachmentSourceChoice = true }
+                        onAddImage: { showAttachmentSourceChoice = true },
+                        onConvertSelection: startTaskExtraction(selectedText:)
                     )
                         .frame(height: max(editorHeight, contentEditorMinimumHeight))
                         // 光标吸附候选浮层：挂在 MarkdownTextView 自身上，

@@ -66,6 +66,8 @@ struct MarkdownTextView: UIViewRepresentable {
     var onNodesChange: (([HoloContentNode]) -> Void)? = nil
     /// 点击工具栏「添加图片」按钮的回调（桥接到 inputAccessoryView 内的 UIKit 工具栏）
     var onAddImage: (() -> Void)? = nil
+    /// 选区菜单「转为任务」回调：用户选中文字后点「转为任务」时触发，参数为选中的纯文本
+    var onConvertSelection: ((String) -> Void)? = nil
 
     func makeUIView(context: Context) -> UITextView {
         let textView = SelfSizingTextView()
@@ -100,6 +102,7 @@ struct MarkdownTextView: UIViewRepresentable {
         context.coordinator.lastKnownMarkdown = RichContentSerializer.plainText(from: initialNodes)
         context.coordinator.nodes = initialNodes
         context.coordinator.onNodesChange = onNodesChange
+        context.coordinator.onConvertSelection = onConvertSelection
         context.coordinator.onHeightChange = { height in
             DispatchQueue.main.async {
                 self.dynamicHeight = height
@@ -136,6 +139,9 @@ struct MarkdownTextView: UIViewRepresentable {
     }
 
     func updateUIView(_ textView: UITextView, context: Context) {
+        // 同步可能变化的闭包引用（父视图重建时保持最新）
+        context.coordinator.onConvertSelection = onConvertSelection
+
         if let action = pendingAction {
             pendingAction = nil
             context.coordinator.perform(action: action, on: textView, markdown: $text)
@@ -181,6 +187,8 @@ struct MarkdownTextView: UIViewRepresentable {
         var onNodesChange: (([HoloContentNode]) -> Void)?
         /// 光标 rect 变化回调（编辑器局部坐标系），父视图据此吸附候选浮层
         var onCaretRectChange: ((CGRect) -> Void)?
+        /// 选区菜单「转为任务」回调
+        var onConvertSelection: ((String) -> Void)?
         /// inputAccessoryView 工具栏引用（格式状态变化时同步加粗按钮高亮）
         weak var accessoryToolbar: RichTextToolbarAccessoryView?
 
@@ -1231,8 +1239,9 @@ private final class SelfSizingTextView: UITextView {
 @available(iOS 16.0, *)
 extension MarkdownTextView.Coordinator: UIEditMenuInteractionDelegate {
 
-    /// 选区恰好覆盖完整 Token 时返回空菜单：系统编辑菜单（含 AutoFill 等不走
-    /// canPerformAction 过滤的注入项）不再弹出，与自定义 Token 菜单互斥
+    /// 选区编辑菜单：
+    /// - 完整 Token 选区 → 返回空菜单（与自定义 Token 菜单互斥）
+    /// - 普通文字选区 → 系统菜单（复制/剪切等）+ 追加「转为任务」
     func editMenuInteraction(
         _ interaction: UIEditMenuInteraction,
         menuFor configuration: UIEditMenuConfiguration,
@@ -1245,6 +1254,19 @@ extension MarkdownTextView.Coordinator: UIEditMenuInteractionDelegate {
         let isTokenSelection = MarkdownTextView.tokenRanges(in: textView.attributedText).contains {
             $0.location == selection.location && $0.length == selection.length
         }
-        return isTokenSelection ? UIMenu(children: []) : nil
+        if isTokenSelection { return UIMenu(children: []) }
+
+        // 普通选区：在系统建议菜单后追加「转为任务」
+        let convertAction = UIAction(title: "转为任务", image: UIImage(systemName: "checkmark.square")) { [weak self] _ in
+            guard let self = self else { return }
+            let sel = textView.selectedRange
+            guard sel.length > 0,
+                  let attrSubstring = textView.attributedText?.attributedSubstring(from: sel) else { return }
+            // 取选中片段的纯文本（attributedString.string 会剥离富文本属性，保留可见字符）
+            let trimmed = attrSubstring.string.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return }
+            self.onConvertSelection?(trimmed)
+        }
+        return UIMenu(children: suggestedActions + [convertAction])
     }
 }

@@ -27,8 +27,11 @@ struct ThoughtTaskExtractionSheet: View {
     /// 来源想法（每条任务都关联它）
     private let sourceThought: Thought
 
-    /// 想法纯文本（供 AI 提取用）
-    private let plainContent: String
+    /// 想法原始内容（保留 markdown 标记，既供 AI 提取，也用于按行拆分预勾选）。
+    /// 注意：必须传原始 content，不能传 plainContent ——
+    /// plainContent 已被 MarkdownParser.stripFormatting 去掉行首列表标记（- / 1. ），
+    /// 会导致 isListLine 永远 false、预勾选失效。
+    private let rawContent: String
 
     /// 关闭回调
     private let onDismiss: () -> Void
@@ -49,17 +52,22 @@ struct ThoughtTaskExtractionSheet: View {
     @State private var createdCount = 0
     @State private var showSuccess = false
 
+    /// 是否来自"选中文字转化"（影响顶部说明文案）
+    private let isFromSelection: Bool
+
     init(
-        plainContent: String,
+        content: String,
         sourceThought: Thought,
+        isFromSelection: Bool = false,
         onDismiss: @escaping () -> Void,
         onCreated: @escaping () -> Void
     ) {
         self.sourceThought = sourceThought
-        self.plainContent = plainContent
+        self.rawContent = content
+        self.isFromSelection = isFromSelection
         self.onDismiss = onDismiss
         self.onCreated = onCreated
-        _candidates = State(initialValue: Self.buildCandidates(from: plainContent))
+        _candidates = State(initialValue: Self.buildCandidates(from: content))
     }
 
     var body: some View {
@@ -137,7 +145,7 @@ struct ThoughtTaskExtractionSheet: View {
     private var candidateList: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-                Text("已自动识别列表内容并勾选，可逐行调整。")
+                Text(hintText)
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)
                     .padding(.horizontal, HoloSpacing.md)
@@ -190,6 +198,14 @@ struct ThoughtTaskExtractionSheet: View {
         candidates.filter { $0.isSelected && !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count
     }
 
+    /// 顶部说明文案：根据来源（选中文字 / 整篇想法）动态显示
+    private var hintText: String {
+        if isFromSelection {
+            return "选中了 \(candidates.count) 段文字，可编辑后确认转为任务。"
+        }
+        return "已自动识别列表内容并勾选，可逐行调整。"
+    }
+
     /// 批量创建任务
     private func createTasks() {
         let picked = candidates
@@ -200,6 +216,7 @@ struct ThoughtTaskExtractionSheet: View {
         guard !picked.isEmpty else { return }
         isCreating = true
 
+        var succeeded = 0
         for title in picked {
             do {
                 _ = try TodoRepository.shared.createTask(
@@ -207,14 +224,15 @@ struct ThoughtTaskExtractionSheet: View {
                     description: nil,
                     sourceThought: sourceThought
                 )
+                succeeded += 1
             } catch {
                 continue
             }
         }
 
         isCreating = false
-        createdCount = picked.count
-        showSuccess = true
+        createdCount = succeeded
+        showSuccess = succeeded > 0
         HapticManager.success()
     }
 
@@ -228,7 +246,7 @@ struct ThoughtTaskExtractionSheet: View {
 
         do {
             let extractor = ThoughtTaskExtractor()
-            let result = try await extractor.extract(from: plainContent)
+            let result = try await extractor.extract(from: rawContent)
 
             guard !result.titles.isEmpty else {
                 extractError = true

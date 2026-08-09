@@ -13,12 +13,13 @@ import Foundation
 enum HoloAppStoreScreenshotSeeder {
     static let modeKey = "HOLO_APP_STORE_SCREENSHOT_MODE"
     static let routeKey = "HOLO_APP_STORE_SCREENSHOT_ROUTE"
-    private static let seededKey = "holo_app_store_screenshot_seed_v2"
+    private static let seededKey = "holo_app_store_screenshot_seed_v6"
 
     enum Route: String {
         case home
         case aiActions = "ai-actions"
         case aiAnalysis = "ai-analysis"
+        case aiFollowUp = "ai-follow-up"
         case memoryCalendar = "memory-calendar"
         case financeStats = "finance-stats"
         case memoryInsight = "memory-insight"
@@ -92,7 +93,7 @@ enum HoloAppStoreScreenshotSeeder {
         switch route {
         case .home:
             break
-        case .aiActions, .aiAnalysis:
+        case .aiActions, .aiAnalysis, .aiFollowUp:
             DeepLinkState.shared.navigate(to: .ai(voiceInput: false))
         case .memoryCalendar, .memoryInsight:
             DeepLinkState.shared.navigate(to: .memoryGallery)
@@ -139,6 +140,8 @@ enum HoloAppStoreScreenshotSeeder {
     ) async throws -> Bool {
         FinanceRepository.shared.setup()
         guard let account = Account.getDefaultAccount(in: context) else { return false }
+        // 用一个有开户余额、也有工资入账的账户还原真实用户场景，避免统计页只剩负数。
+        account.initialBalance = NSDecimalNumber(string: "4800") ?? NSDecimalNumber.zero
 
         let calendar = Calendar.current
         let startOfToday = calendar.startOfDay(for: now)
@@ -233,32 +236,46 @@ enum HoloAppStoreScreenshotSeeder {
     ) async throws -> SeededTransactions {
         let categories = try context.fetch(Category.fetchRequest())
         let byName = Dictionary(grouping: categories.filter(\.isSubCategory), by: \.name)
+        // 统计页默认展示“本月至今”，所以所有支出都落在本月已经发生的前 7 天内。
         let samples: [(day: Int, hour: Int, minute: Int, amount: Decimal, category: String, note: String)] = [
-            (0, 8, 15, 18, "早餐", "早餐和豆浆"),
-            (0, 19, 10, 42, "晚餐", "下班后的简餐"),
-            (1, 7, 55, 22, "咖啡", "晨间咖啡"),
-            (1, 12, 20, 36, "午餐", "午餐"),
-            (1, 18, 40, 4, "地铁", "回家地铁"),
-            (2, 9, 10, 58, "书籍", "产品设计书"),
-            (2, 12, 35, 32, "午餐", "工作日午餐"),
-            (2, 20, 15, 28, "水果", "水果补给"),
-            (3, 8, 5, 16, "早餐", "早餐"),
-            (3, 12, 18, 39, "午餐", "午餐"),
-            (3, 19, 30, 49, "电影", "晚间电影"),
-            (4, 8, 20, 20, "咖啡", "晨间咖啡"),
-            (4, 12, 25, 35, "午餐", "午餐"),
-            (4, 18, 55, 86, "超市", "周末食材"),
-            (5, 10, 30, 45, "鲜花", "周末买花"),
-            (5, 19, 15, 68, "火锅", "朋友小聚"),
-            (6, 9, 20, 26, "早餐", "慢慢吃早餐"),
-            (6, 16, 40, 24, "茶饮", "下午茶")
+            (1, 8, 15, 26, "早餐", "早餐和豆浆"),
+            (1, 12, 20, 45, "午餐", "工作日午餐"),
+            (1, 18, 40, 22, "早餐", "下班路上的简餐"),
+            (2, 9, 10, 68, "晚餐", "下班后的简餐"),
+            (2, 12, 35, 79, "书籍", "产品设计书"),
+            (2, 20, 15, 36, "水果", "水果补给"),
+            (3, 8, 5, 6, "地铁", "回家地铁"),
+            (3, 12, 18, 48, "午餐", "工作日午餐"),
+            (3, 19, 30, 52, "午餐", "午餐"),
+            (4, 8, 20, 36, "早餐", "早餐"),
+            (4, 19, 30, 68, "电影", "晚间电影"),
+            (5, 8, 20, 28, "咖啡", "晨间咖啡"),
+            (5, 12, 25, 79, "日用", "家庭用品"),
+            (5, 18, 55, 168, "买菜", "本周食材"),
+            (6, 19, 15, 188, "火锅", "朋友小聚"),
+            (6, 9, 20, 32, "早餐", "慢慢吃早餐"),
+            (6, 16, 40, 46, "午餐", "下午茶")
         ]
+
+        let calendar = Calendar.current
+        let monthStart = calendar.dateInterval(of: .month, for: startOfWeek)?.start ?? startOfWeek
+        guard let salaryCategory = byName["工资"]?.first else {
+            throw ScreenshotSeedError.missingCategory("工资")
+        }
+        _ = try await FinanceRepository.shared.addTransaction(
+            amount: 8_500,
+            type: .income,
+            category: salaryCategory,
+            account: account,
+            date: date(from: monthStart, dayOffset: 2, hour: 9, minute: 0),
+            note: "本月工资入账"
+        )
 
         var actionTransaction: Transaction?
         for sample in samples {
             guard let category = byName[sample.category]?.first else { continue }
             let date = date(
-                from: startOfWeek,
+                from: monthStart,
                 dayOffset: sample.day,
                 hour: sample.hour,
                 minute: sample.minute
@@ -271,7 +288,7 @@ enum HoloAppStoreScreenshotSeeder {
                 date: date,
                 note: sample.note
             )
-            if sample.category == "午餐" && sample.amount == 36 {
+            if sample.category == "午餐" && sample.amount == 45 {
                 actionTransaction = transaction
             }
         }
@@ -487,23 +504,23 @@ enum HoloAppStoreScreenshotSeeder {
             timestamp: queryTime
         )
         let finance = FinanceAnalysisContext(
-            totalExpense: 1_286.60,
+            totalExpense: 1_027,
             totalIncome: 8_500,
             transactionCount: 18,
-            averageDailyExpense: 42.89,
+            averageDailyExpense: 33.13,
             topExpenseCategories: [
-                FinanceCategoryItem(categoryName: "餐饮", amount: 438, percentage: 34.0),
-                FinanceCategoryItem(categoryName: "购物", amount: 296, percentage: 23.0),
-                FinanceCategoryItem(categoryName: "交通", amount: 154, percentage: 12.0)
+                FinanceCategoryItem(categoryName: "餐饮", amount: 627, percentage: 61.0),
+                FinanceCategoryItem(categoryName: "购物", amount: 326, percentage: 31.7),
+                FinanceCategoryItem(categoryName: "娱乐", amount: 68, percentage: 6.6)
             ],
             monthlyBreakdown: [],
-            previousPeriodExpense: 1_498.50,
+            previousPeriodExpense: 1_224,
             anomalyDescriptions: [],
             budgetPerformance: FinanceBudgetItem(
                 budgetAmount: 2_000,
-                spentAmount: 1_286.60,
-                remainingAmount: 713.40,
-                utilizationRate: 0.6433,
+                spentAmount: 1_027,
+                remainingAmount: 973,
+                utilizationRate: 0.5135,
                 periodType: "monthly"
             ),
             subCategoryDetails: nil,
@@ -535,6 +552,45 @@ enum HoloAppStoreScreenshotSeeder {
         analysisAssistant.parentMessageId = queryID
         analysisAssistant.messageType = ChatMessageType.normal.rawValue
         analysisAssistant.analysisContextJSON = try encode(analysis)
+
+        let followUpTime = queryTime.addingTimeInterval(20)
+        let followUpID = insertMessage(
+            in: context,
+            role: "user",
+            content: "那我下周最该保持什么？",
+            timestamp: followUpTime
+        )
+        let followUpAnalysis = AnalysisContext(
+            domain: .crossModule,
+            periodLabel: "下周建议",
+            startDate: "2026-08-10",
+            endDate: "2026-08-16",
+            comparisonLabel: "基于刚才的本月记录",
+            finance: nil,
+            habit: nil,
+            task: nil,
+            thought: nil,
+            health: nil,
+            goal: nil,
+            crossModule: CrossModuleAnalysisContext(
+                highlights: [
+                    "晨间阅读已连续 5 天，是最稳定的起点",
+                    "工作日消费更集中，节奏更容易延续"
+                ],
+                warnings: ["周末晚餐支出明显高于工作日"]
+            )
+        )
+        let followUpAssistant = ChatMessage(context: context)
+        followUpAssistant.id = UUID()
+        followUpAssistant.role = "assistant"
+        followUpAssistant.content = "沿用刚才看到的消费和习惯记录，下周先保持晨间阅读，再把周末晚餐提前安排好。"
+        followUpAssistant.timestamp = followUpTime.addingTimeInterval(5)
+        // 追问后的回复保留为普通可读消息，让截图直接呈现“承接上一轮上下文后的建议”。
+        followUpAssistant.intent = nil
+        followUpAssistant.isStreaming = false
+        followUpAssistant.parentMessageId = followUpID
+        followUpAssistant.messageType = ChatMessageType.normal.rawValue
+        followUpAssistant.analysisContextJSON = try encode(followUpAnalysis)
     }
 
     private static func seedInsight(

@@ -37,8 +37,8 @@ private let frames: [MarketingFrame] = [
     MarketingFrame(
         input: "03-ai-analysis.png",
         output: "03-ask-your-data.png",
-        title: ["问自己的数据", "得到真正有用的回答"],
-        subtitle: "从记录里看见趋势，而不只是得到一段泛泛回复"
+        title: ["问一句，再继续追问"],
+        subtitle: "记得上一轮上下文，回答会随着你的问题继续深入"
     ),
     MarketingFrame(
         input: "04-memory-calendar.png",

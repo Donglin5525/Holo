@@ -23,7 +23,18 @@ nonisolated enum CloudKitRuntimeAvailability {
     }
 
     static var isAvailable: Bool {
+        // 模拟器不承担 iCloud 私有数据库同步。Debug/Release 的模拟器包经常没有
+        // 真正的签名 entitlement，强行创建 NSPersistentCloudKitContainer 会在
+        // Core Data 的 CloudKit 初始化线程触发系统 trap，直接导致 App 闪退。
+        #if targetEnvironment(simulator)
+        return false
+        #else
         #if DEBUG
+        // App Store 截图使用未签名的 Debug 包，不能让 Core Data 误走 CloudKit 容器。
+        // 正式包不读取这个环境变量，仍按正式构建配置启用 iCloud。
+        if ProcessInfo.processInfo.environment["HOLO_APP_STORE_SCREENSHOT_MODE"] == "1" {
+            return false
+        }
         return isAvailable(
             embeddedProvisionProfile: embeddedProvisionProfileText(),
             buildConfiguration: .debug
@@ -33,6 +44,7 @@ nonisolated enum CloudKitRuntimeAvailability {
             embeddedProvisionProfile: nil,
             buildConfiguration: .release
         )
+        #endif
         #endif
     }
 
@@ -45,7 +57,9 @@ nonisolated enum CloudKitRuntimeAvailability {
             return true
         case .debug:
             guard let profile, !profile.isEmpty else {
-                return true
+                // 没有签名文件只能证明“当前包不可确认具备 CloudKit entitlement”。
+                // 默认走本地 Core Data，不能把未知状态当成可用。
+                return false
             }
             return profile.contains("<string>CloudKit</string>") &&
                 profile.contains("<string>\(containerIdentifier)</string>")
