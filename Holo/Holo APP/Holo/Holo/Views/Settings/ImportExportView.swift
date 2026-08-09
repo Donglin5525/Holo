@@ -18,10 +18,8 @@ struct ImportExportView: View {
     @State private var showExportSheet = false
     /// 是否显示文件选择器（导入）
     @State private var showFilePicker = false
-    /// 是否显示导入预览 Sheet
-    @State private var showImportPreview = false
-    /// 导入解析后的预览数据
-    @State private var importPreviewData: ImportPreviewData? = nil
+    /// 导入用的 CSV 文件 URL（直接传给 ImportPreviewSheet 做流式扫描）
+    @State private var importFileURL: URL? = nil
     /// 操作进行中提示
     @State private var isExporting = false
     /// 分享文件 URL
@@ -104,10 +102,14 @@ struct ImportExportView: View {
             handleFileImport(result)
         }
         // 导入预览 Sheet
-        .sheet(isPresented: $showImportPreview) {
-            if let data = importPreviewData {
-                ImportPreviewSheet(previewData: data) { batchResult in
+        .sheet(isPresented: Binding(
+            get: { importFileURL != nil },
+            set: { if !$0 { importFileURL = nil } }
+        )) {
+            if let url = importFileURL {
+                ImportPreviewSheet(fileURL: url) { batchResult in
                     importResult = batchResult
+                    importFileURL = nil      // 关闭预览 sheet
                     showImportResult = true
                 }
             }
@@ -127,14 +129,15 @@ struct ImportExportView: View {
         } message: {
             Text(errorMessage ?? "未知错误")
         }
-        // 导入结果提示
-        .alert("导入完成", isPresented: $showImportResult) {
-            Button("确定") {
-                NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
-            }
-        } message: {
+        // 导入结果 Sheet（含撤回入口）
+        .sheet(isPresented: $showImportResult, onDismiss: {
+            // 结果弹窗关闭后：刷新财务数据
+            NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+        }) {
             if let result = importResult {
-                Text("成功导入 \(result.successCount) 条交易\(result.failedItems.isEmpty ? "" : "，\(result.failedItems.count) 条失败")\(result.newCategoriesCount > 0 ? "\n新建 \(result.newCategoriesCount) 个分类" : "")\(result.newAccountsCount > 0 ? "\n新建 \(result.newAccountsCount) 个账户" : "")")
+                ImportResultSheet(result: result) {
+                    performUndo(batchId: result.batchId)
+                }
             }
         }
     }
@@ -197,41 +200,56 @@ struct ImportExportView: View {
     private func loadFromSandbox() {
         guard let docURL = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
         let csvURL = docURL.appendingPathComponent("holo_import.csv")
-        do {
-            let previewData = try DataImportService.shared.parseCSV(url: csvURL)
-            importPreviewData = previewData
-            showImportPreview = true
-        } catch {
-            errorMessage = "文件解析失败：\(error.localizedDescription)"
-            showError = true
-        }
+        // 直接传 URL 给 ImportPreviewSheet，由它做流式扫描
+        importFileURL = csvURL
     }
-    
+
     /// 处理文件选择结果
     private func handleFileImport(_ result: Result<[URL], Error>) {
         switch result {
         case .success(let urls):
             guard let url = urls.first else { return }
-            // 开始安全访问
+            // 开始安全访问（沙箱文件需要）
             guard url.startAccessingSecurityScopedResource() else {
                 errorMessage = "无法访问所选文件"
                 showError = true
                 return
             }
             defer { url.stopAccessingSecurityScopedResource() }
-            
+
+            // 把文件复制到临时目录，避免安全域引用在 sheet 生命周期内失效
+            let tempURL = FileManager.default.temporaryDirectory
+                .appendingPathComponent("holo_import_\(UUID().uuidString).csv")
             do {
-                let previewData = try DataImportService.shared.parseCSV(url: url)
-                importPreviewData = previewData
-                showImportPreview = true
+                if FileManager.default.fileExists(atPath: tempURL.path) {
+                    try FileManager.default.removeItem(at: tempURL)
+                }
+                try FileManager.default.copyItem(at: url, to: tempURL)
+                importFileURL = tempURL
             } catch {
-                errorMessage = "文件解析失败：\(error.localizedDescription)"
+                errorMessage = "无法读取文件：\(error.localizedDescription)"
                 showError = true
             }
-            
+
         case .failure(let error):
             errorMessage = "选择文件失败：\(error.localizedDescription)"
             showError = true
+        }
+    }
+
+    /// 撤回最近一次导入
+    private func performUndo(batchId: UUID?) {
+        guard let batchId else { return }
+        Task {
+            do {
+                _ = try await FinanceRepository.shared.undoImportBatch(batchId: batchId)
+            } catch let error as UndoBatchError {
+                errorMessage = error.localizedDescription
+                showError = true
+            } catch {
+                errorMessage = "撤回失败：\(error.localizedDescription)"
+                showError = true
+            }
         }
     }
 }

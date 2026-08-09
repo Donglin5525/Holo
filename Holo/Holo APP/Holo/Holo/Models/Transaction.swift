@@ -41,6 +41,13 @@ public class Transaction: NSManagedObject {
     /// 只有已实际发生的周期流水标为 confirmed；一次性购买不生成流水。
     @NSManaged public var projectPostingState: String?
 
+    // 导入追踪：标记由哪次导入产生，用于按批次撤回
+    @NSManaged public var importBatchId: UUID?
+    /// 导入去重指纹（日期+金额+类型+分类+账户），用于检测重复导入
+    @NSManaged public var importFingerprint: String?
+    /// 导入时的 updatedAt 快照，撤回时判断用户是否编辑过
+    @NSManaged public var importOriginalUpdatedAt: Date?
+
     // MARK: - Computed Properties
 
     /// 是否为分期交易

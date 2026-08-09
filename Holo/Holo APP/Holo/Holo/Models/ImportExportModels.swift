@@ -308,11 +308,112 @@ struct BatchImportResult {
     let newCategoriesCount: Int
     /// 新建的账户数量
     let newAccountsCount: Int
-    
+    /// 跳过的重复条数（默认去重策略下）
+    let skippedDuplicateCount: Int
+    /// 本次导入的批次 ID（用于撤回），未导入成功时为 nil
+    let batchId: UUID?
+    /// 最终存盘是否成功（失败时部分数据可能未落库，需提示用户重试）
+    let saveSucceeded: Bool
+
+    init(
+        successCount: Int,
+        failedItems: [(index: Int, error: String)],
+        newCategoriesCount: Int,
+        newAccountsCount: Int,
+        skippedDuplicateCount: Int = 0,
+        batchId: UUID? = nil,
+        saveSucceeded: Bool = true
+    ) {
+        self.successCount = successCount
+        self.failedItems = failedItems
+        self.newCategoriesCount = newCategoriesCount
+        self.newAccountsCount = newAccountsCount
+        self.skippedDuplicateCount = skippedDuplicateCount
+        self.batchId = batchId
+        self.saveSucceeded = saveSucceeded
+    }
+
     /// 总条数
-    var totalCount: Int { successCount + failedItems.count }
-    /// 是否全部成功
-    var isAllSuccess: Bool { failedItems.isEmpty }
+    var totalCount: Int { successCount + failedItems.count + skippedDuplicateCount }
+    /// 是否全部成功（无失败、无跳过、存盘成功）
+    var isAllSuccess: Bool { failedItems.isEmpty && skippedDuplicateCount == 0 && saveSucceeded }
+}
+
+// MARK: - 重复导入策略
+
+/// 导入时的重复交易处理策略
+enum ImportDuplicatePolicy {
+    /// 默认：跳过疑似重复交易（日期+金额+类型+分类+账户 匹配）
+    case skipDuplicates
+    /// 用户确认后强制全部导入（不去重）
+    case importAll
+}
+
+// MARK: - 导入批次记录（用于撤回）
+
+/// 一次导入的批次记录，持久化在 UserDefaults，支持 24 小时内撤回
+struct ImportBatchRecord: Codable, Identifiable {
+    let id: UUID            // = Transaction.importBatchId
+    let fileName: String
+    let importedAt: Date
+    let successCount: Int
+    let failedCount: Int
+    let skippedDuplicateCount: Int
+    let newCategoriesCount: Int
+    let newAccountsCount: Int
+
+    /// 是否仍在 24 小时撤回窗口内
+    var isWithinUndoWindow: Bool {
+        importedAt.addingTimeInterval(24 * 3600) > Date()
+    }
+}
+
+/// 撤回操作的结果
+struct UndoResult {
+    let deletedTransactions: Int
+    let deletedCategories: Int
+    let deletedAccounts: Int
+}
+
+/// 撤回失败原因
+enum UndoBatchError: LocalizedError {
+    case batchNotFound
+    case editedTransactionsExist(count: Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .batchNotFound:
+            return "找不到该导入批次"
+        case .editedTransactionsExist(let count):
+            return "有 \(count) 条交易在导入后被编辑过，无法整批撤回。如需撤回，请先手动处理这些交易。"
+        }
+    }
+}
+
+// MARK: - 导入扫描摘要（流式扫描产物）
+
+/// 流式扫描 CSV 后的摘要——只持有统计和样本，不持有全部数据，内存恒定
+struct ImportScanSummary {
+    let fileName: String
+    let headers: [String]
+    let detectedTemplate: ImportTemplate
+    var fieldMapping: FieldMapping
+    /// 数据总行数（不含表头）
+    let totalRows: Int
+    /// 可成功解析的条数
+    let parseableCount: Int
+    /// 解析失败的条数
+    let failedCount: Int
+    /// 采样警告（前 N 条，含 blocking 与 advisory）
+    let warnings: [ParseWarning]
+    /// 前 5 行原始数据（供预览展示）
+    let sampleRows: [[String]]
+    /// 扫描期收集的所有分类描述符（去重），供 ViewModel 结合已有分类算精确复用计划
+    let incomingDescriptors: [ImportCategoryDescriptor]
+    /// 扫描期累加的分类计划（哪些一级/二级会被新建）
+    let categoryPlan: ImportCategoryPlan
+    /// 前 N 条解析失败的明细（行号 + 原因）
+    let topFailures: [(index: Int, error: String)]
 }
 
 /// 解析警告

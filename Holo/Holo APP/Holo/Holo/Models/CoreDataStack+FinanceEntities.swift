@@ -148,8 +148,28 @@ extension CoreDataStack {
         projectPostingState.isOptional = true
         attributes.append(projectPostingState)
 
+        // 导入追踪字段（用于去重 + 按批次撤回）
+        let importBatchId = NSAttributeDescription()
+        importBatchId.name = "importBatchId"
+        importBatchId.attributeType = .UUIDAttributeType
+        importBatchId.isOptional = true
+        attributes.append(importBatchId)
+
+        let importFingerprint = NSAttributeDescription()
+        importFingerprint.name = "importFingerprint"
+        importFingerprint.attributeType = .stringAttributeType
+        importFingerprint.isOptional = true
+        attributes.append(importFingerprint)
+
+        // 导入时的 updatedAt 快照，撤回时用于判断用户是否编辑过此交易
+        let importOriginalUpdatedAt = NSAttributeDescription()
+        importOriginalUpdatedAt.name = "importOriginalUpdatedAt"
+        importOriginalUpdatedAt.attributeType = .dateAttributeType
+        importOriginalUpdatedAt.isOptional = true
+        attributes.append(importOriginalUpdatedAt)
+
         transactionEntity.properties = attributes + [categoryRelation, accountRelation]
-        CoreDataStack.applyIndexes(to: transactionEntity, on: ["id": transactionId, "type": type, "date": date, "installmentGroupId": installmentGroupId, "spendingProjectId": spendingProjectId, "projectPostingState": projectPostingState])
+        CoreDataStack.applyIndexes(to: transactionEntity, on: ["id": transactionId, "type": type, "date": date, "installmentGroupId": installmentGroupId, "spendingProjectId": spendingProjectId, "projectPostingState": projectPostingState, "importBatchId": importBatchId, "importFingerprint": importFingerprint])
         
         // MARK: - Category Entity
         let categoryEntity = NSEntityDescription()
@@ -223,6 +243,13 @@ extension CoreDataStack {
         isSystem.defaultValue = false
         categoryAttributes.append(isSystem)
 
+        // 导入批次 ID：标记由某次导入自动创建的分类，撤回时据此判断可否删除
+        let categoryImportBatchId = NSAttributeDescription()
+        categoryImportBatchId.name = "importBatchId"
+        categoryImportBatchId.attributeType = .UUIDAttributeType
+        categoryImportBatchId.isOptional = true
+        categoryAttributes.append(categoryImportBatchId)
+
         // Category → Transaction 反向关系（to-many）
         let categoryTransactionsRelation = NSRelationshipDescription()
         categoryTransactionsRelation.name = "transactions"
@@ -233,7 +260,7 @@ extension CoreDataStack {
         categoryTransactionsRelation.deleteRule = .nullifyDeleteRule
 
         categoryEntity.properties = categoryAttributes + [categoryTransactionsRelation]
-        CoreDataStack.applyIndexes(to: categoryEntity, on: ["id": categoryIdAttr, "type": categoryType, "isDefault": isDefault, "sortOrder": sortOrder, "parentId": parentId])
+        CoreDataStack.applyIndexes(to: categoryEntity, on: ["id": categoryIdAttr, "type": categoryType, "isDefault": isDefault, "sortOrder": sortOrder, "parentId": parentId, "importBatchId": categoryImportBatchId])
 
         // MARK: - Account Entity
         let accountEntity = NSEntityDescription()
@@ -317,6 +344,13 @@ extension CoreDataStack {
         accountNotes.isOptional = true
         accountAttributes.append(accountNotes)
 
+        // 导入批次 ID：标记由某次导入自动创建的账户，撤回时据此判断可否删除
+        let accountImportBatchId = NSAttributeDescription()
+        accountImportBatchId.name = "importBatchId"
+        accountImportBatchId.attributeType = .UUIDAttributeType
+        accountImportBatchId.isOptional = true
+        accountAttributes.append(accountImportBatchId)
+
         // 创建时间
         let accountCreatedAt = NSAttributeDescription()
         accountCreatedAt.name = "createdAt"
@@ -343,7 +377,7 @@ extension CoreDataStack {
         accountTransactionsRelation.deleteRule = .nullifyDeleteRule
 
         accountEntity.properties = accountAttributes + [accountTransactionsRelation]
-        CoreDataStack.applyIndexes(to: accountEntity, on: ["id": accountIdAttr, "type": accountType, "isDefault": accountIsDefault, "sortOrder": accountSortOrder])
+        CoreDataStack.applyIndexes(to: accountEntity, on: ["id": accountIdAttr, "type": accountType, "isDefault": accountIsDefault, "sortOrder": accountSortOrder, "importBatchId": accountImportBatchId])
 
         // 绑定 Transaction 关系的目标实体（需在 Category/Account 创建后设置）
         categoryRelation.destinationEntity = categoryEntity

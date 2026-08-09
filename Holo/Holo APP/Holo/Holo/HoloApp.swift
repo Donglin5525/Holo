@@ -220,62 +220,59 @@ struct CSVQuickImportView: View {
     let fileURL: URL
     let onDismiss: () -> Void
 
-    @State private var importPreviewData: ImportPreviewData?
-    @State private var errorMessage: String?
-    @State private var showError = false
     @State private var importResult: BatchImportResult?
     @State private var showImportResult = false
 
+    /// 复制到临时目录的安全副本（避免安全域引用失效）
+    @State private var safeFileURL: URL?
+
     var body: some View {
         Group {
-            if let data = importPreviewData {
-                ImportPreviewSheet(previewData: data) { result in
+            if let url = safeFileURL {
+                ImportPreviewSheet(fileURL: url) { result in
                     importResult = result
+                    safeFileURL = nil        // 关闭 ImportPreviewSheet
                     showImportResult = true
                 }
-            } else {
-                ProgressView("正在解析文件...")
+            } else if !showImportResult {
+                ProgressView("正在准备文件...")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
                     .background(Color.holoBackground)
             }
         }
         .onAppear {
-            parseFile()
+            prepareFile()
         }
-        .alert("导入失败", isPresented: $showError) {
-            Button("确定") { onDismiss() }
-        } message: {
-            Text(errorMessage ?? "未知错误")
-        }
-        .alert("导入完成", isPresented: $showImportResult) {
-            Button("确定") {
-                NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
-                onDismiss()
-            }
-        } message: {
+        .sheet(isPresented: $showImportResult, onDismiss: {
+            // 结果弹窗关闭后：刷新财务数据 + 关闭整个快速导入界面
+            NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+            onDismiss()
+        }) {
             if let result = importResult {
-                Text("成功导入 \(result.successCount) 条交易\(result.failedItems.isEmpty ? "" : "，\(result.failedItems.count) 条失败")")
+                // 快速导入路径下界面即将关闭，不在这里提供撤回（撤回留给设置页）
+                ImportResultSheet(result: result, onUndo: nil)
             }
         }
     }
 
-    private func parseFile() {
-        guard fileURL.startAccessingSecurityScopedResource() else {
-            // 非安全域文件，直接解析
-            doParse(fileURL)
-            return
-        }
-        defer { fileURL.stopAccessingSecurityScopedResource() }
-        doParse(fileURL)
-    }
-
-    private func doParse(_ url: URL) {
-        do {
-            let data = try DataImportService.shared.parseCSV(url: url)
-            importPreviewData = data
-        } catch {
-            errorMessage = "文件解析失败：\(error.localizedDescription)"
-            showError = true
+    private func prepareFile() {
+        // 把外部文件复制到临时目录，避免安全域引用在 sheet 生命周期内失效
+        let tempURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent("holo_quick_import_\(UUID().uuidString).csv")
+        if fileURL.startAccessingSecurityScopedResource() {
+            defer { fileURL.stopAccessingSecurityScopedResource() }
+            do {
+                if FileManager.default.fileExists(atPath: tempURL.path) {
+                    try FileManager.default.removeItem(at: tempURL)
+                }
+                try FileManager.default.copyItem(at: fileURL, to: tempURL)
+                safeFileURL = tempURL
+            } catch {
+                // 复制失败，直接用原 URL 尝试
+                safeFileURL = fileURL
+            }
+        } else {
+            safeFileURL = fileURL
         }
     }
 }

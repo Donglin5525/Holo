@@ -16,9 +16,9 @@ struct ImportPreviewSheet: View {
     @Environment(\.dismiss) var dismiss
     @StateObject private var viewModel: ImportPreviewViewModel
 
-    init(previewData: ImportPreviewData, onComplete: @escaping (BatchImportResult) -> Void) {
+    init(fileURL: URL, onComplete: @escaping (BatchImportResult) -> Void) {
         _viewModel = StateObject(wrappedValue: ImportPreviewViewModel(
-            previewData: previewData,
+            fileURL: fileURL,
             onComplete: onComplete,
             dismiss: { @MainActor in /* placeholder, replaced by environment */ }
         ))
@@ -36,38 +36,46 @@ struct ImportPreviewSheet: View {
                     VStack(spacing: HoloSpacing.md) {
                         ProgressView()
                             .scaleEffect(1.2)
-                        Text("正在解析 \(viewModel.previewData.rows.count) 条记录...")
+                        Text("正在扫描文件...")
                             .font(.system(size: 14))
                             .foregroundColor(.holoTextSecondary)
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
+                } else if let summary = viewModel.scanSummary {
                 ScrollView(showsIndicators: false) {
                     VStack(spacing: HoloSpacing.lg) {
                         // 检测结果卡片
-                        detectionCard
+                        detectionCard(summary)
 
                         // 字段映射（可点击编辑）
-                        mappingSection
+                        mappingSection(summary)
 
                         // 解析警告（blocking + advisory）
                         if !viewModel.parseWarnings.isEmpty {
                             parseWarningSection
                         }
 
-                        // 分类匹配预览（可点击编辑）
+                        // 分类导入计划
                         categoryMatchSection
 
                         // 数据预览（前 5 行）
-                        previewSection
+                        previewSection(summary)
 
                         // 解析错误
-                        if !viewModel.parseFailures.isEmpty {
+                        if !viewModel.topFailures.isEmpty {
                             warningSection
                         }
                     }
                     .padding(HoloSpacing.lg)
                 }
+                } else {
+                    VStack(spacing: HoloSpacing.md) {
+                        ProgressView()
+                        Text("准备中...")
+                            .font(.system(size: 14))
+                            .foregroundColor(.holoTextSecondary)
+                    }
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
 
                 // 底部按钮
@@ -79,41 +87,23 @@ struct ImportPreviewSheet: View {
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .onAppear {
-            // 绑定 dismiss 到 ViewModel
-            viewModel.performPreParse()
+            viewModel.performScan()
         }
         .swipeBackToDismiss { dismiss() }
-        .sheet(item: $viewModel.editingMatchKey) { wrapper in
-            if let matchResult = viewModel.matchResult(forKey: wrapper.id) {
-                CategoryMatchEditor(
-                    matchResult: matchResult,
-                    allCategories: viewModel.categoriesForMatch(matchResult),
-                    onSelectCategory: { category in
-                        viewModel.updateMatch(uniqueKey: wrapper.id, newCategory: category)
-                        viewModel.editingMatchKey = nil
+        .sheet(isPresented: $viewModel.showFieldMappingEditor) {
+            if let summary = viewModel.scanSummary {
+                FieldMappingEditor(
+                    headers: summary.headers,
+                    currentMapping: viewModel.fieldMapping,
+                    onSave: { mapping in
+                        viewModel.updateFieldMapping(mapping)
+                        viewModel.showFieldMappingEditor = false
                     },
-                    onConfirmCreateNew: {
-                        viewModel.confirmCreateNew(uniqueKey: wrapper.id)
-                        viewModel.editingMatchKey = nil
-                    },
-                    onDismiss: {
-                        viewModel.editingMatchKey = nil
+                    onCancel: {
+                        viewModel.showFieldMappingEditor = false
                     }
                 )
             }
-        }
-        .sheet(isPresented: $viewModel.showFieldMappingEditor) {
-            FieldMappingEditor(
-                headers: viewModel.previewData.headers,
-                currentMapping: viewModel.fieldMapping,
-                onSave: { mapping in
-                    viewModel.updateFieldMapping(mapping)
-                    viewModel.showFieldMappingEditor = false
-                },
-                onCancel: {
-                    viewModel.showFieldMappingEditor = false
-                }
-            )
         }
     }
 
@@ -146,7 +136,7 @@ struct ImportPreviewSheet: View {
 
     // MARK: - 检测结果
 
-    private var detectionCard: some View {
+    private func detectionCard(_ summary: ImportScanSummary) -> some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             HStack(spacing: HoloSpacing.sm) {
                 Image(systemName: "doc.text.magnifyingglass")
@@ -158,17 +148,17 @@ struct ImportPreviewSheet: View {
             }
 
             VStack(spacing: 8) {
-                infoRow(label: "文件名", value: viewModel.previewData.fileName)
-                infoRow(label: "识别格式", value: viewModel.previewData.detectedTemplate.rawValue)
-                infoRow(label: "总行数", value: "\(viewModel.previewData.rows.count) 条记录")
-                infoRow(label: "可导入", value: "\(viewModel.parsedItemCount) 条")
+                infoRow(label: "文件名", value: summary.fileName)
+                infoRow(label: "识别格式", value: summary.detectedTemplate.rawValue)
+                infoRow(label: "总行数", value: "\(summary.totalRows) 条记录")
+                infoRow(label: "可导入", value: "\(summary.parseableCount) 条")
                 let newCategoryCount = viewModel.categoryImportPlan.primaryCategoriesToCreate.count
                     + viewModel.categoryImportPlan.subCategoriesToCreate.count
                 if newCategoryCount > 0 {
                     infoRow(label: "将新建科目", value: "\(newCategoryCount) 个")
                 }
-                if !viewModel.parseFailures.isEmpty {
-                    infoRow(label: "跳过", value: "\(viewModel.parseFailures.count) 条（格式异常）")
+                if summary.failedCount > 0 {
+                    infoRow(label: "跳过", value: "\(summary.failedCount) 条（格式异常）")
                 }
                 let blockedCount = viewModel.blockingWarnings.filter { $0.isBlocking }.count
                 if blockedCount > 0 {
@@ -197,7 +187,7 @@ struct ImportPreviewSheet: View {
 
     // MARK: - 字段映射
 
-    private var mappingSection: some View {
+    private func mappingSection(_ summary: ImportScanSummary) -> some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             HStack(spacing: HoloSpacing.sm) {
                 Image(systemName: "arrow.left.arrow.right")
@@ -219,13 +209,13 @@ struct ImportPreviewSheet: View {
             }
 
             VStack(spacing: 6) {
-                mappingRow("日期", index: viewModel.fieldMapping.dateIndex)
-                mappingRow("类型", index: viewModel.fieldMapping.typeIndex)
-                mappingRow("金额", index: viewModel.fieldMapping.amountIndex)
-                mappingRow("一级分类", index: viewModel.fieldMapping.primaryCategoryIndex)
-                mappingRow("二级分类", index: viewModel.fieldMapping.subCategoryIndex)
-                mappingRow("账户", index: viewModel.fieldMapping.accountIndex)
-                mappingRow("备注", index: viewModel.fieldMapping.noteIndex)
+                mappingRow("日期", index: viewModel.fieldMapping.dateIndex, headers: summary.headers)
+                mappingRow("类型", index: viewModel.fieldMapping.typeIndex, headers: summary.headers)
+                mappingRow("金额", index: viewModel.fieldMapping.amountIndex, headers: summary.headers)
+                mappingRow("一级分类", index: viewModel.fieldMapping.primaryCategoryIndex, headers: summary.headers)
+                mappingRow("二级分类", index: viewModel.fieldMapping.subCategoryIndex, headers: summary.headers)
+                mappingRow("账户", index: viewModel.fieldMapping.accountIndex, headers: summary.headers)
+                mappingRow("备注", index: viewModel.fieldMapping.noteIndex, headers: summary.headers)
             }
         }
         .padding(HoloSpacing.md)
@@ -235,7 +225,7 @@ struct ImportPreviewSheet: View {
     }
 
     /// 映射行：HOLO 字段 → CSV 列名
-    private func mappingRow(_ holoField: String, index: Int?) -> some View {
+    private func mappingRow(_ holoField: String, index: Int?, headers: [String]) -> some View {
         HStack {
             Text(holoField)
                 .font(.system(size: 13))
@@ -246,8 +236,8 @@ struct ImportPreviewSheet: View {
                 .font(.system(size: 10))
                 .foregroundColor(.holoTextSecondary.opacity(0.5))
 
-            if let idx = index, idx < viewModel.previewData.headers.count {
-                Text(viewModel.previewData.headers[idx])
+            if let idx = index, idx < headers.count {
+                Text(headers[idx])
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(.holoPrimary)
                     .padding(.horizontal, 8)
@@ -280,12 +270,12 @@ struct ImportPreviewSheet: View {
                             .font(.system(size: 12))
                             .foregroundColor(.holoTextPrimary)
 
-                        if warning.isBlocking {
+                        if warning.isBlocking && !warning.isConfirmed {
                             Button {
                                 warning.isConfirmed = true
-                                viewModel.confirmFallbackDate(rowIndex: warning.rowIndex)
+                                viewModel.confirmAllDateFallbacks()
                             } label: {
-                                Text("确认使用今天日期")
+                                Text("确认全部使用今天日期")
                                     .font(.system(size: 11, weight: .medium))
                                     .foregroundColor(.holoPrimary)
                             }
@@ -322,21 +312,45 @@ struct ImportPreviewSheet: View {
                 matchStatBadge(label: "新二级", count: viewModel.categoryImportPlan.subCategoriesToCreate.count, color: .orange)
             }
 
-            // 去重后的匹配列表（最多显示 10 条，可点击编辑）
-            if !viewModel.uniqueMatchResults.isEmpty {
-                VStack(spacing: 6) {
-                    ForEach(viewModel.sortedUniqueMatchResults.prefix(10)) { result in
-                        categoryMatchRow(result)
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                viewModel.editingMatchKey = MatchKeyWrapper(result.uniqueKey)
-                            }
+            // 将新建的一级分类（最多展示 10 个）
+            let primaries = viewModel.categoryImportPlan.primaryCategoriesToCreate.prefix(10)
+            if !primaries.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("将新建的一级分类")
+                        .font(.system(size: 11))
+                        .foregroundColor(.holoTextSecondary)
+                    ForEach(Array(primaries.enumerated()), id: \.offset) { _, desc in
+                        HStack(spacing: 4) {
+                            Image(systemName: "questionmark.folder.fill")
+                                .font(.system(size: 12))
+                                .foregroundColor(.blue)
+                            Text(desc.normalizedPrimaryName)
+                                .font(.system(size: 13))
+                                .foregroundColor(.holoTextPrimary)
+                            Text("（\(typeLabel(desc.typeRaw))）")
+                                .font(.system(size: 11))
+                                .foregroundColor(.holoTextSecondary)
+                        }
                     }
+                }
+            }
 
-                    if viewModel.sortedUniqueMatchResults.count > 10 {
-                        Text("...还有 \(viewModel.sortedUniqueMatchResults.count - 10) 个分类")
-                            .font(.system(size: 11))
-                            .foregroundColor(.holoTextSecondary)
+            // 将新建的二级分类（最多展示 10 个）
+            let subs = viewModel.categoryImportPlan.subCategoriesToCreate.prefix(10)
+            if !subs.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("将新建的二级分类")
+                        .font(.system(size: 11))
+                        .foregroundColor(.holoTextSecondary)
+                    ForEach(Array(subs.enumerated()), id: \.offset) { _, desc in
+                        HStack(spacing: 4) {
+                            Image(systemName: "questionmark.circle.fill")
+                                .font(.system(size: 12))
+                                .foregroundColor(.orange)
+                            Text("\(desc.normalizedPrimaryName) / \(desc.normalizedSubName ?? "")")
+                                .font(.system(size: 13))
+                                .foregroundColor(.holoTextPrimary)
+                        }
                     }
                 }
             }
@@ -359,98 +373,20 @@ struct ImportPreviewSheet: View {
         }
     }
 
-    /// 分类匹配行（可点击）
-    private func categoryMatchRow(_ result: CategoryMatchResult) -> some View {
-        HStack(spacing: 8) {
-            // 原始分类名
-            Text(result.originalSub)
-                .font(.system(size: 13))
-                .foregroundColor(.holoTextPrimary)
-                .frame(width: 80, alignment: .leading)
-                .lineLimit(1)
-
-            // 箭头
-            Image(systemName: "arrow.right")
-                .font(.system(size: 10))
-                .foregroundColor(.holoTextSecondary.opacity(0.5))
-
-            // 匹配结果
-            if let matched = result.matchedCategory {
-                HStack(spacing: 4) {
-                    categoryIconGlyph(
-                        categoryIconName(for: matched),
-                        size: 14,
-                        color: matchTypeColor(result.matchType)
-                    )
-                    Text(matched.name)
-                        .font(.system(size: 13, weight: .medium))
-                        .foregroundColor(matchTypeColor(result.matchType))
-                }
-            } else {
-                HStack(spacing: 4) {
-                    Image(systemName: "questionmark.circle")
-                        .font(.system(size: 14))
-                        .foregroundColor(.red)
-                    Text("新建科目")
-                        .font(.system(size: 13))
-                        .foregroundColor(.red)
-                }
-            }
-
-            Spacer()
-
-            // 可手动调整
-            if result.willCreateOriginalCategory {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .medium))
-                    .foregroundColor(.holoTextSecondary.opacity(0.5))
-            }
-
-            // 匹配类型标签
-            Text(matchTypeLabel(result.matchType))
-                .font(.system(size: 10))
-                .foregroundColor(.white)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(matchTypeColor(result.matchType))
-                .clipShape(Capsule())
-        }
-    }
-
-    /// 获取分类图标名称
-    private func categoryIconName(for category: Category) -> String {
-        category.icon
-    }
-
-    /// 匹配类型标签
-    private func matchTypeLabel(_ type: CategoryMatchType) -> String {
-        switch type {
-        case .exact: return "精确"
-        case .synonym: return "同义词"
-        case .fuzzy: return "相似"
-        case .unmatched: return "新建"
-        }
-    }
-
-    /// 匹配类型颜色
-    private func matchTypeColor(_ type: CategoryMatchType) -> Color {
-        switch type {
-        case .exact: return .green
-        case .synonym: return .blue
-        case .fuzzy: return .orange
-        case .unmatched: return .red
-        }
+    /// 交易类型中文标签
+    private func typeLabel(_ raw: String) -> String {
+        TransactionType(rawValue: raw) == .income ? "收入" : "支出"
     }
 
     // MARK: - 数据预览
 
-    private var previewSection: some View {
+    private func previewSection(_ summary: ImportScanSummary) -> some View {
         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
             HStack(spacing: HoloSpacing.sm) {
                 Image(systemName: "eye")
                     .font(.system(size: 16, weight: .medium))
                     .foregroundColor(.holoPrimary)
-                Text("数据预览（前 5 条）")
+                Text("数据预览（前 \(summary.sampleRows.count) 条）")
                     .font(.system(size: 15, weight: .semibold))
                     .foregroundColor(.holoTextPrimary)
             }
@@ -460,8 +396,8 @@ struct ImportPreviewSheet: View {
                 VStack(spacing: 0) {
                     // 表头行
                     HStack(spacing: 0) {
-                        ForEach(viewModel.previewData.headers.indices, id: \.self) { i in
-                            Text(viewModel.previewData.headers[i])
+                        ForEach(summary.headers.indices, id: \.self) { i in
+                            Text(summary.headers[i])
                                 .font(.system(size: 11, weight: .semibold))
                                 .foregroundColor(.holoTextSecondary)
                                 .frame(width: 80, alignment: .leading)
@@ -474,7 +410,7 @@ struct ImportPreviewSheet: View {
                     Divider()
 
                     // 数据行（最多 5 行）
-                    ForEach(Array(viewModel.previewData.rows.prefix(5).enumerated()), id: \.offset) { _, row in
+                    ForEach(Array(summary.sampleRows.enumerated()), id: \.offset) { _, row in
                         HStack(spacing: 0) {
                             ForEach(row.indices, id: \.self) { j in
                                 Text(row[j])
@@ -505,20 +441,20 @@ struct ImportPreviewSheet: View {
                 Image(systemName: "exclamationmark.triangle")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(.orange)
-                Text("\(viewModel.parseFailures.count) 条记录将被跳过")
+                Text("\(viewModel.failedCount) 条记录将被跳过")
                     .font(.system(size: 13, weight: .medium))
                     .foregroundColor(.orange)
             }
 
             // 最多展示前 5 条错误
-            ForEach(Array(viewModel.parseFailures.prefix(5).enumerated()), id: \.offset) { _, failure in
+            ForEach(Array(viewModel.topFailures.prefix(5).enumerated()), id: \.offset) { _, failure in
                 Text("第 \(failure.index) 行：\(failure.error)")
                     .font(.system(size: 11))
                     .foregroundColor(.holoTextSecondary)
             }
 
-            if viewModel.parseFailures.count > 5 {
-                Text("...还有 \(viewModel.parseFailures.count - 5) 条")
+            if viewModel.topFailures.count > 5 {
+                Text("...还有 \(viewModel.topFailures.count - 5) 条")
                     .font(.system(size: 11))
                     .foregroundColor(.holoTextSecondary)
             }

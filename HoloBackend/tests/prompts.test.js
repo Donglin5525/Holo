@@ -132,8 +132,8 @@ test("intent_recognition 默认 Prompt 已瘦身并固定个人状态路由（v2
   assert.equal(prompt.version, 24);
 
   // 长度验证：Router 允许补充必要规则，但仍防止重新膨胀为长 prompt
-  // 红线 4350：update_task 补全了改任务（改时间/标题/优先级）的字段映射，属于功能必需内容
-  assert.ok(prompt.content.length < 4350, `prompt 长度 ${prompt.content.length} 超过 4350`);
+  // 红线 4700：update_task 补全了改任务字段映射 + goal 写意图（update_goal_field/link_task_to_goal/toggle_goal_visibility），属于功能必需内容
+  assert.ok(prompt.content.length < 4700, `prompt 长度 ${prompt.content.length} 超过 4700`);
 
   // 保留的核心字段
   assert.match(prompt.content, /note/);

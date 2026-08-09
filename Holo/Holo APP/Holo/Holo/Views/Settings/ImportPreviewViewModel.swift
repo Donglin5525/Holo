@@ -2,7 +2,10 @@
 //  ImportPreviewViewModel.swift
 //  Holo
 //
-//  导入预览 ViewModel — 管理解析、匹配、编辑确认与导入
+//  导入预览 ViewModel — 管理流式扫描、分类匹配预览、字段映射编辑、流式导入
+//
+//  v3 改造：从"全量持有 items"改为"持有扫描摘要"，支持几万条不爆内存。
+//  扫描阶段用 scanCSV 流式遍历产出 ImportScanSummary；导入阶段用 streamImport 再次流式遍历写库。
 //
 
 import SwiftUI
@@ -20,47 +23,49 @@ final class ImportPreviewViewModel: ObservableObject {
 
     // MARK: - 输入
 
-    let previewData: ImportPreviewData
+    /// CSV 文件 URL（扫描和导入都从这里流式读取）
+    let fileURL: URL
     let onComplete: (BatchImportResult) -> Void
     private let dismiss: () -> Void
 
-    // MARK: - 解析状态
+    // MARK: - 扫描状态
 
+    /// 当前扫描摘要（流式产物，只含统计和样本）
+    @Published var scanSummary: ImportScanSummary?
+    /// 当前字段映射（可被用户编辑）
     @Published var fieldMapping: FieldMapping
-    @Published var items: [ImportTransactionItem] = []
-    @Published var parseFailures: [(index: Int, error: String)] = []
+
+    // MARK: - 解析警告（来自扫描）
+
     @Published var parseWarnings: [ParseWarning] = []
-    @Published var confirmedFallbackDateRowIndexes: Set<Int> = []
-    /// 日期解析失败被阻断的行索引（0-based，对应 data.rows）
-    @Published var blockedRowIndexes: Set<Int> = []
+    @Published var topFailures: [(index: Int, error: String)] = []
 
-    // MARK: - 匹配状态
+    // MARK: - 匹配状态（基于已有分类的精确复用判断）
 
-    @Published var categoryMatchResults: [CategoryMatchResult] = []
-    @Published var uniqueMatchResults: [CategoryMatchResult] = []
     @Published var categoryImportPlan: ImportCategoryPlan = .empty
     @Published var matchStats: (exact: Int, synonym: Int, fuzzy: Int, unmatched: Int) = (0, 0, 0, 0)
+    @Published var allCategories: [Category] = []
+
+    // MARK: - 重复导入策略
+
+    @Published var duplicatePolicy: ImportDuplicatePolicy = .skipDuplicates
 
     // MARK: - UI 状态
 
     @Published var progress: ImportProgress = .idle
-    @Published var editingMatchKey: MatchKeyWrapper? = nil
     @Published var showFieldMappingEditor: Bool = false
     @Published var isParsing: Bool = false
 
-    /// 所有分类（用于 CategoryMatchEditor）
-    @Published var allCategories: [Category] = []
-
     // MARK: - 计算属性
 
-    var parsedItemCount: Int { items.count }
+    /// 可导入条数（扫描阶段算出的 parseableCount）
+    var parsedItemCount: Int { scanSummary?.parseableCount ?? 0 }
 
-    /// 将新建的排前面，已存在的排后面
-    var sortedUniqueMatchResults: [CategoryMatchResult] {
-        uniqueMatchResults.sorted { lhs, rhs in
-            lhs.willCreateOriginalCategory && !rhs.willCreateOriginalCategory
-        }
-    }
+    /// 总行数
+    var totalRows: Int { scanSummary?.totalRows ?? 0 }
+
+    /// 失败条数
+    var failedCount: Int { scanSummary?.failedCount ?? 0 }
 
     var blockingWarnings: [ParseWarning] {
         parseWarnings.filter { $0.severity == .blocking }
@@ -68,10 +73,6 @@ final class ImportPreviewViewModel: ObservableObject {
 
     var hasUnconfirmedBlockingWarnings: Bool {
         parseWarnings.contains { $0.isBlocking }
-    }
-
-    var hasUnconfirmedMappings: Bool {
-        uniqueMatchResults.contains { $0.needsConfirmation }
     }
 
     var canImport: Bool {
@@ -95,97 +96,70 @@ final class ImportPreviewViewModel: ObservableObject {
     // MARK: - 初始化
 
     init(
-        previewData: ImportPreviewData,
+        fileURL: URL,
         onComplete: @escaping (BatchImportResult) -> Void,
         dismiss: @escaping () -> Void
     ) {
-        self.previewData = previewData
+        self.fileURL = fileURL
         self.onComplete = onComplete
         self.dismiss = dismiss
-        self.fieldMapping = previewData.fieldMapping
+        // fieldMapping 在扫描完成后填充；先用空的占位
+        self.fieldMapping = FieldMapping()
     }
 
-    // MARK: - 解析
+    // MARK: - 扫描（阶段一）
 
-    func performPreParse() {
+    /// 流式扫描 CSV，产出摘要
+    func performScan() {
         isParsing = true
-        let data = previewData
-        let mapping = fieldMapping
-        let confirmed = confirmedFallbackDateRowIndexes
+        let url = fileURL
+        let overrideMapping: FieldMapping? = scanSummary != nil ? fieldMapping : nil
 
         DispatchQueue.global(qos: .userInitiated).async {
-            let (items, failures, warnings) = DataImportService.shared.convertToImportItems(
-                data: data,
-                mapping: mapping,
-                confirmedFallbackDateRows: confirmed
-            )
-            let blockedIndexes = Set(
-                warnings.filter { $0.isBlocking }.map { $0.rowIndex - 2 }
-            )
+            do {
+                let summary = try DataImportService.shared.scanCSV(url: url, fieldMapping: overrideMapping)
 
-            Task { @MainActor [weak self] in
-                guard let self else { return }
-                self.items = items
-                self.parseFailures = failures
-                self.parseWarnings = warnings
-                self.blockedRowIndexes = blockedIndexes
-                self.isParsing = false
-                await self.performCategoryMatching()
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    self.scanSummary = summary
+                    self.fieldMapping = summary.fieldMapping
+                    self.parseWarnings = summary.warnings
+                    self.topFailures = summary.topFailures
+                    self.isParsing = false
+                    await self.performCategoryMatching(with: summary)
+                }
+            } catch {
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    self.isParsing = false
+                    self.progress = .failed(error.localizedDescription)
+                }
             }
         }
     }
 
-    /// 用户确认对某行使用今天作为兜底日期
-    func confirmFallbackDate(rowIndex: Int) {
-        let dataIndex = rowIndex - 2
-        confirmedFallbackDateRowIndexes.insert(dataIndex)
-        performPreParse()
-    }
+    // MARK: - 分类匹配（基于已有分类做精确复用判断）
 
-    /// 更新字段映射（全量重新解析）
-    func updateFieldMapping(_ mapping: FieldMapping) {
-        fieldMapping = mapping
-        // 全量清空，重新解析
-        items = []
-        parseFailures = []
-        parseWarnings = []
-        blockedRowIndexes = []
-        categoryMatchResults = []
-        uniqueMatchResults = []
-        categoryImportPlan = .empty
-        matchStats = (0, 0, 0, 0)
-        performPreParse()
-    }
-
-    // MARK: - 分类匹配
-
-    @MainActor
-    private func performCategoryMatching() async {
+    /// 用扫描摘要收集的 incoming 描述符 + 已有分类，算出真实的"复用 vs 新建"
+    private func performCategoryMatching(with summary: ImportScanSummary) async {
         guard let categories = try? await FinanceRepository.shared.getAllCategories() else {
+            // 拿不到分类列表，直接用扫描的原始计划（全部算新建）
+            self.categoryImportPlan = summary.categoryPlan
+            self.matchStats = (0, 0, 0, summary.categoryPlan.primaryCategoriesToCreate.count + summary.categoryPlan.subCategoriesToCreate.count)
             return
         }
         self.allCategories = categories
 
-        categoryMatchResults = CategoryMatcherService.shared.batchMatchCategories(
-            items: items,
-            categories: categories
-        )
+        let existingDescriptors = existingCategoryDescriptors(from: categories)
+        // 直接用扫描期收集的 incoming 描述符，结合已有分类算精确复用
         categoryImportPlan = ImportCategoryPlanner.makePlan(
-            incoming: importCategoryDescriptors(from: items),
-            existing: existingCategoryDescriptors(from: categories)
+            incoming: summary.incomingDescriptors,
+            existing: existingDescriptors
         )
-        matchStats = CategoryMatcherService.shared.generateMatchStatistics(results: categoryMatchResults)
-        uniqueMatchResults = CategoryMatcherService.shared.deduplicateResults(categoryMatchResults)
-    }
 
-    private func importCategoryDescriptors(from items: [ImportTransactionItem]) -> [ImportCategoryDescriptor] {
-        items.map {
-            ImportCategoryDescriptor(
-                typeRaw: $0.type.rawValue,
-                primaryName: $0.primaryCategory,
-                subName: $0.subCategory
-            )
-        }
+        let newCount = categoryImportPlan.primaryCategoriesToCreate.count + categoryImportPlan.subCategoriesToCreate.count
+        let reusedCount = summary.incomingDescriptors.count - newCount
+        matchStats = (max(0, reusedCount), 0, 0, newCount)
     }
 
     private func existingCategoryDescriptors(from categories: [Category]) -> [ImportCategoryDescriptor] {
@@ -197,12 +171,10 @@ final class ImportPreviewViewModel: ObservableObject {
                     subName: nil
                 )
             }
-
             guard let parentId = category.parentId,
                   let parent = categories.first(where: { $0.id == parentId }) else {
                 return nil
             }
-
             return ImportCategoryDescriptor(
                 typeRaw: category.type,
                 primaryName: parent.name,
@@ -211,106 +183,71 @@ final class ImportPreviewViewModel: ObservableObject {
         }
     }
 
-    /// 更新某个分类匹配结果（用户手动选择了已有分类）
-    func updateMatch(uniqueKey: String, newCategory: Category) {
-        // 更新 uniqueMatchResults
-        if let idx = uniqueMatchResults.firstIndex(where: { $0.uniqueKey == uniqueKey }) {
-            uniqueMatchResults[idx].matchedCategory = newCategory
-            uniqueMatchResults[idx].matchType = .exact
-            uniqueMatchResults[idx].confidence = 1.0
-            uniqueMatchResults[idx].isManuallyModified = true
-            uniqueMatchResults[idx].confirmedCreateNew = false
+    /// 用户确认所有日期解析失败的行使用今天日期
+    func confirmAllDateFallbacks() {
+        for i in parseWarnings.indices where parseWarnings[i].isBlocking {
+            parseWarnings[i].isConfirmed = true
         }
-
-        // 更新所有 categoryMatchResults 中匹配的条目
-        for i in categoryMatchResults.indices where categoryMatchResults[i].uniqueKey == uniqueKey {
-            categoryMatchResults[i].matchedCategory = newCategory
-            categoryMatchResults[i].matchType = .exact
-            categoryMatchResults[i].confidence = 1.0
-            categoryMatchResults[i].isManuallyModified = true
-            categoryMatchResults[i].confirmedCreateNew = false
-        }
-
-        // 记录学习映射
-        let result = uniqueMatchResults.first { $0.uniqueKey == uniqueKey }
-        if let result {
-            let parentName: String
-            if let parentId = newCategory.parentId,
-               let parent = allCategories.first(where: { $0.id == parentId }) {
-                parentName = parent.name
-            } else {
-                parentName = newCategory.name
-            }
-
-            CategoryLearnedMapping.record(
-                candidate: result.originalSub,
-                type: result.type,
-                primaryCategory: result.originalPrimary,
-                targetPrimary: parentName,
-                targetSub: newCategory.name
-            )
-        }
-
-        // 刷新统计
-        matchStats = CategoryMatcherService.shared.generateMatchStatistics(results: categoryMatchResults)
-        objectWillChange.send()
     }
 
-    /// 确认创建新分类（unmatched 时使用）
-    func confirmCreateNew(uniqueKey: String) {
-        if let idx = uniqueMatchResults.firstIndex(where: { $0.uniqueKey == uniqueKey }) {
-            uniqueMatchResults[idx].confirmedCreateNew = true
-        }
-        for i in categoryMatchResults.indices where categoryMatchResults[i].uniqueKey == uniqueKey {
-            categoryMatchResults[i].confirmedCreateNew = true
-        }
-        matchStats = CategoryMatcherService.shared.generateMatchStatistics(results: categoryMatchResults)
-        objectWillChange.send()
+    // MARK: - 字段映射编辑
+
+    /// 用户编辑字段映射后，重新流式扫描
+    func updateFieldMapping(_ mapping: FieldMapping) {
+        fieldMapping = mapping
+        // 清空状态，重新扫描
+        scanSummary = nil
+        parseWarnings = []
+        topFailures = []
+        categoryImportPlan = .empty
+        matchStats = (0, 0, 0, 0)
+        performScan()
     }
 
-    /// 批量确认所有模糊匹配
-    func confirmAllFuzzyMatches() {
-        for i in uniqueMatchResults.indices where uniqueMatchResults[i].matchType == .fuzzy && uniqueMatchResults[i].needsConfirmation {
-            uniqueMatchResults[i].isConfirmed = true
-        }
-        for i in categoryMatchResults.indices where categoryMatchResults[i].matchType == .fuzzy && categoryMatchResults[i].needsConfirmation {
-            categoryMatchResults[i].isConfirmed = true
-        }
-        matchStats = CategoryMatcherService.shared.generateMatchStatistics(results: categoryMatchResults)
-        objectWillChange.send()
-    }
-
-    // MARK: - 导入
+    // MARK: - 导入（阶段二，流式写库）
 
     func performImport() {
-        guard !items.isEmpty else { return }
+        guard let summary = scanSummary, !isImporting else { return }
 
-        progress = .importing(current: 0, total: items.count)
+        progress = .importing(current: 0, total: summary.totalRows)
+
+        let url = fileURL
+        let mapping = fieldMapping
+        let template = summary.detectedTemplate
+        let headers = summary.headers
+        let policy = duplicatePolicy
 
         Task {
-            let result = await FinanceRepository.shared.batchImportTransactionsWithMatchResults(
-                items,
-                matchResults: categoryMatchResults
+            let result = await FinanceRepository.shared.streamImportTransactions(
+                url: url,
+                fieldMapping: mapping,
+                detectedTemplate: template,
+                headers: headers,
+                expectedTotalRows: summary.totalRows,
+                duplicatePolicy: policy
             ) { current, total in
                 Task { @MainActor in
                     self.progress = .importing(current: current, total: total)
                 }
             }
 
+            // 记录批次（供撤回）
+            if let batchId = result.batchId, result.successCount > 0 {
+                ImportBatchRecordService.record(ImportBatchRecord(
+                    id: batchId,
+                    fileName: summary.fileName,
+                    importedAt: Date(),
+                    successCount: result.successCount,
+                    failedCount: result.failedItems.count,
+                    skippedDuplicateCount: result.skippedDuplicateCount,
+                    newCategoriesCount: result.newCategoriesCount,
+                    newAccountsCount: result.newAccountsCount
+                ))
+            }
+
             progress = .completed(result)
             dismiss()
             onComplete(result)
         }
-    }
-
-    // MARK: - 获取匹配结果
-
-    func matchResult(forKey key: String) -> CategoryMatchResult? {
-        uniqueMatchResults.first { $0.uniqueKey == key }
-    }
-
-    /// 获取同类型的所有分类（用于 CategoryMatchEditor）
-    func categoriesForMatch(_ matchResult: CategoryMatchResult) -> [Category] {
-        allCategories.filter { $0.type == matchResult.type.rawValue }
     }
 }

@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import CoreData
 
 // MARK: - DataImportService
 
@@ -71,7 +72,189 @@ class DataImportService {
             fileName: fileName
         )
     }
-    
+
+    // MARK: - 流式扫描（阶段一）
+
+    /**
+     流式扫描 CSV 文件，只产出摘要，不全量持有数据
+
+     与 parseCSV 的区别：
+     - parseCSV 用 String(contentsOf:) 把整个文件读进内存，几万条会内存爆炸
+     - scanCSV 用 StreamingCSVReader 逐块读取，内存恒定（仅累积统计 + 前 5 行样本）
+
+     扫描产物 ImportScanSummary 供预览页展示：字段映射、分类计划、解析警告、样本行。
+     用户确认后，导入阶段（streamImport）会再次流式遍历文件写库。
+
+     - Parameters:
+       - url: CSV 文件 URL
+       - fieldMapping: 可选的自定义字段映射（用户编辑后重新扫描时传入）；nil 时自动检测
+     - Returns: 扫描摘要
+     */
+    func scanCSV(url: URL, fieldMapping overrideMapping: FieldMapping? = nil) throws -> ImportScanSummary {
+        // 用于样本和警告采样的上限
+        let maxSamples = 5
+        let maxWarnings = 20
+        let maxFailures = 20
+
+        var headers: [String] = []
+        var detectedTemplate: ImportTemplate = .generic
+        var mapping: FieldMapping = FieldMapping()
+        var sampleRows: [[String]] = []
+        var warnings: [ParseWarning] = []
+        var topFailures: [(index: Int, error: String)] = []
+
+        // 扫描期分类计划累加：用集合去重统计将创建的 primary/sub
+        var incomingPrimaries = Set<String>()
+        var incomingSubs = Set<String>()  // "type|primary|sub"
+        // 去重的分类描述符集合，供 ViewModel 结合已有分类算精确复用
+        var descriptorSet = Set<ImportCategoryDescriptor>()
+        var totalRows = 0
+        var parseableCount = 0
+        var failedCount = 0
+
+        var rowIndex = 0  // 数据行索引（0-based，不含表头）
+        var isFirstLine = true
+
+        try StreamingCSVReader.enumerateLines(in: url) { line in
+            if isFirstLine {
+                isFirstLine = false
+                headers = parseCSVLine(line)
+                guard headers.count >= 3 else {
+                    throw ImportError.invalidFormat("表头列数不足，至少需要日期、类型、金额三列")
+                }
+                detectedTemplate = detectTemplate(headers: headers)
+                mapping = overrideMapping ?? generateFieldMapping(headers: headers, template: detectedTemplate)
+                return
+            }
+
+            rowIndex += 1
+            totalRows += 1
+
+            let fields = parseCSVLine(line)
+            // 列数对齐
+            var aligned = fields
+            while aligned.count < headers.count { aligned.append("") }
+            if aligned.count > headers.count { aligned = Array(aligned.prefix(headers.count)) }
+
+            // 前 5 行采样原始数据
+            if sampleRows.count < maxSamples {
+                sampleRows.append(aligned)
+            }
+
+            // 尝试解析这一行（allowDateFallback: true，与导入阶段一致，保证条数对齐）
+            // 日期无法解析时静默用今天，但单独检测并生成 blocking 警告供用户确认
+            do {
+                let item = try parseRow(
+                    aligned,
+                    mapping: mapping,
+                    template: detectedTemplate,
+                    allowDateFallback: true
+                )
+                parseableCount += 1
+
+                // 累加分类计划
+                incomingPrimaries.insert("\(item.type.rawValue)|\(item.primaryCategory)")
+                incomingSubs.insert("\(item.type.rawValue)|\(item.primaryCategory)|\(item.subCategory)")
+                // 收集描述符（供 ViewModel 结合已有分类算精确复用）
+                descriptorSet.insert(ImportCategoryDescriptor(
+                    typeRaw: item.type.rawValue,
+                    primaryName: item.primaryCategory,
+                    subName: item.subCategory
+                ))
+
+                // 单独检测日期是否解析失败（parseRow 内部静默用了今天）
+                // 通过比较解析出的日期是否是今天 + 原始日期值非空且非今天日期来判断
+                if let dateIdx = mapping.dateIndex {
+                    let rawDate = (aligned[safe: dateIdx] ?? "").trimmingCharacters(in: .whitespaces)
+                    if !rawDate.isEmpty {
+                        // 尝试解析原始日期，失败则说明走了今天兜底
+                        if parseDate(dateStr: rawDate, timeStr: mapping.timeIndex.flatMap { aligned[safe: $0] } ?? "") == nil {
+                            if warnings.count < maxWarnings {
+                                warnings.append(ParseWarning(
+                                    rowIndex: rowIndex + 1,
+                                    field: "日期",
+                                    message: "日期无法解析（原始值：\(rawDate)），确认后将使用今天日期",
+                                    severity: .blocking
+                                ))
+                            }
+                        }
+                    }
+                }
+
+                // 类型由金额推断时记 advisory（采样前 maxWarnings 条）
+                if let typeIdx = mapping.typeIndex {
+                    let typeStr = aligned[safe: typeIdx]?.trimmingCharacters(in: .whitespaces) ?? ""
+                    if typeStr.isEmpty && warnings.count < maxWarnings {
+                        warnings.append(ParseWarning(
+                            rowIndex: rowIndex + 1,
+                            field: "类型",
+                            message: "未指定交易类型，根据金额正负自动推断",
+                            severity: .advisory
+                        ))
+                    }
+                }
+
+                // 分类/账户列未映射但走了默认值时记 advisory（采样）
+                if mapping.primaryCategoryIndex == nil, warnings.count < maxWarnings {
+                    warnings.append(ParseWarning(
+                        rowIndex: rowIndex + 1,
+                        field: "分类",
+                        message: "未映射分类列，将统一归入「其他」",
+                        severity: .advisory
+                    ))
+                }
+                if mapping.accountIndex == nil, warnings.count < maxWarnings {
+                    warnings.append(ParseWarning(
+                        rowIndex: rowIndex + 1,
+                        field: "账户",
+                        message: "未映射账户列，将统一归入「现金」",
+                        severity: .advisory
+                    ))
+                }
+            } catch let error as ImportError {
+                failedCount += 1
+                if topFailures.count < maxFailures {
+                    topFailures.append((index: rowIndex + 1, error: error.localizedDescription))
+                }
+            } catch {
+                failedCount += 1
+                if topFailures.count < maxFailures {
+                    topFailures.append((index: rowIndex + 1, error: error.localizedDescription))
+                }
+            }
+        }
+
+        guard !isFirstLine else {
+            throw ImportError.emptyFile
+        }
+        guard totalRows > 0 else {
+            throw ImportError.emptyFile
+        }
+
+        // 构建分类计划（扫描阶段不需要已存在的分类列表，只统计将新建的）
+        // 这里用空 existing 列表，让 planner 把所有 incoming 都算作"新建"
+        // 真实的已有分类匹配在 ViewModel 里做（小数据量）
+        let categoryPlan = ImportCategoryPlanner.makePlanFromDescriptors(
+            incomingPrimaries: Array(incomingPrimaries),
+            incomingSubs: Array(incomingSubs)
+        )
+
+        return ImportScanSummary(
+            fileName: url.lastPathComponent,
+            headers: headers,
+            detectedTemplate: detectedTemplate,
+            fieldMapping: mapping,
+            totalRows: totalRows,
+            parseableCount: parseableCount,
+            failedCount: failedCount,
+            warnings: warnings,
+            sampleRows: sampleRows,
+            incomingDescriptors: Array(descriptorSet),
+            categoryPlan: categoryPlan,
+            topFailures: topFailures
+        )
+    }
+
     // MARK: - 数据转换
     
     /**
@@ -270,56 +453,75 @@ class DataImportService {
     
     /**
      清洗金额字符串，移除常见干扰字符
-     
+
      处理规则（按顺序执行）：
      1. 去除首尾空白
-     2. 去除货币符号（¥ ￥ $ € £ 元 圆）
-     3. 去除千分位逗号（仅当同时存在小数点时，如 "1,234.56"）
-     4. 处理欧式小数（仅含一个逗号且无小数点时，"35,50" → "35.50"）
-     5. 去除尾部中文单位（元 圆 块）
-     
-     - Parameter raw: 原始金额字符串
-     - Returns: 清洗后的 Double 值（取绝对值），nil 表示无法解析
+     2. 识别会计括号负数：(128.50) / （128.50）→ 视为负数
+     3. 去除货币符号（¥ ￥ $ € £ 元 圆）
+     4. 去除千分位逗号（仅当同时存在小数点时，如 "1,234.56"）
+     5. 处理欧式小数（仅含一个逗号且无小数点时，"35,50" → "35.50"）
+     6. 去除尾部中文单位（元 圆 块）
+
+     - Parameters:
+       - raw: 原始金额字符串
+     - Returns: (绝对值, 是否为负数)，nil 表示无法解析
      */
-    private func cleanAmount(_ raw: String) -> Double? {
+    private func cleanAmount(_ raw: String) -> (value: Double, isNegative: Bool)? {
         var s = raw.trimmingCharacters(in: .whitespaces)
         guard !s.isEmpty else { return nil }
-        
+
+        // 会计括号负数：(128.50) 或 （128.50）表示负数
+        var isNegative = false
+        let trimmedForBracket = s.trimmingCharacters(in: .whitespaces)
+        if (trimmedForBracket.hasPrefix("(") && trimmedForBracket.hasSuffix(")")) ||
+           (trimmedForBracket.hasPrefix("（") && trimmedForBracket.hasSuffix("）")) {
+            isNegative = true
+            // 去掉首尾括号（半角和全角）
+            s = String(trimmedForBracket.dropFirst().dropLast())
+        }
+
+        // 也识别前缀负号 / 后缀 CR（贷方）/ 后缀 - 等
+        // 前缀负号
+        if s.hasPrefix("-") {
+            isNegative = true
+            s.removeFirst()
+        } else if s.hasSuffix("-") {
+            // 部分欧洲格式把负号放后面 "128.50-"
+            isNegative = true
+            s.removeLast()
+        }
+
         // 去除货币符号
         let currencySymbols: [Character] = ["¥", "￥", "$", "€", "£"]
         while let first = s.first, currencySymbols.contains(first) {
             s.removeFirst()
         }
-        
+
         // 去除尾部中文单位
         let trailingUnits: [Character] = ["元", "圆", "块"]
         while let last = s.last, trailingUnits.contains(last) {
             s.removeLast()
         }
-        
+
         s = s.trimmingCharacters(in: .whitespaces)
-        
+
         // 判断千分位逗号 vs 欧式小数逗号
         let hasDot = s.contains(".")
         let commaCount = s.filter { $0 == "," }.count
-        
+
         if hasDot && commaCount > 0 {
-            // 同时有点和逗号 → 逗号是千分位，直接去除
             s = s.replacingOccurrences(of: ",", with: "")
         } else if !hasDot && commaCount == 1 {
-            // 只有一个逗号无小数点 → 可能是欧式小数（"35,50"）
-            // 检查逗号后是否恰好 1-2 位数字
             let parts = s.split(separator: ",")
             if parts.count == 2 && parts[1].count <= 2 && parts[1].allSatisfy({ $0.isNumber }) {
                 s = s.replacingOccurrences(of: ",", with: ".")
             } else {
-                // 逗号后超过 2 位，当作千分位去除
                 s = s.replacingOccurrences(of: ",", with: "")
             }
         }
-        
+
         guard let value = Double(s) else { return nil }
-        return abs(value)
+        return (abs(value), isNegative)
     }
     
     // MARK: - 类型智能识别
@@ -400,20 +602,18 @@ class DataImportService {
             throw ImportError.missingField("金额")
         }
         let rawAmountStr = row[safe: amountIdx] ?? ""
-        
+
         // 先尝试清洗后解析
-        guard let cleanedAmount = cleanAmount(rawAmountStr) else {
+        guard let cleaned = cleanAmount(rawAmountStr) else {
             throw ImportError.invalidValue("金额无法解析: \(rawAmountStr)")
         }
-        guard cleanedAmount > 0 else {
+        guard cleaned.value > 0 else {
             throw ImportError.invalidValue("金额为零")
         }
-        let amount = Decimal(cleanedAmount)
-        
-        // 保留原始金额的正负号（用于类型推断）
-        let originalDouble = Double(rawAmountStr.trimmingCharacters(in: .whitespaces)
-            .replacingOccurrences(of: ",", with: "")
-            .filter { $0.isNumber || $0 == "." || $0 == "-" || $0 == "+" }) ?? 0
+        let amount = Decimal(cleaned.value)
+
+        // 用于类型推断的带符号金额：括号负数 / 后缀负号 / 前缀负号 都视为负
+        let originalDouble = cleaned.isNegative ? -cleaned.value : cleaned.value
         
         // --- 日期解析 ---
         var date = Date()
@@ -475,9 +675,87 @@ class DataImportService {
             tags: tags
         )
     }
-    
+
+    // MARK: - 去重指纹
+
+    /// 生成导入交易的稳定指纹，用于检测重复导入
+    ///
+    /// 指纹组成：日期(YYYYMMDD) + 金额(两位小数) + 类型 + 分类全名 + 账户名
+    /// 注意：note 不进指纹——同一笔金额同分类但备注不同的合法交易不应被误判为重复。
+    /// 日期按整天比对：CSV 里两笔"3/14 12:30"和"3/14"（无时间）存进库的 Date 不完全相等，
+    /// 按整天比对能正确识别为同一天的同笔交易。
+    static func makeFingerprint(
+        date: Date,
+        amount: Decimal,
+        type: TransactionType,
+        primaryCategory: String,
+        subCategory: String,
+        accountName: String
+    ) -> String {
+        // 用固定时区算日期，避免用户跨时区时同一笔账算出不同指纹导致去重失效
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Asia/Shanghai") ?? .current
+        let comps = cal.dateComponents([.year, .month, .day], from: date)
+        let datePart = String(format: "%04d%02d%02d", comps.year ?? 0, comps.month ?? 0, comps.day ?? 0)
+        // 金额统一两位小数
+        let amountPart = String(format: "%.2f", NSDecimalNumber(decimal: amount).doubleValue)
+        let normalizedCategory = "\(primaryCategory.trimmingCharacters(in: .whitespaces))/\(subCategory.trimmingCharacters(in: .whitespaces))"
+        let normalizedAccount = accountName.trimmingCharacters(in: .whitespaces).lowercased()
+        return "\(datePart)|\(amountPart)|\(type.rawValue)|\(normalizedCategory)|\(normalizedAccount)"
+    }
+
+    /// 从已入库的 Transaction 生成指纹（撤回/历史查重用）
+    static func makeFingerprint(from transaction: Transaction) -> String? {
+        guard let category = transaction.category,
+              let account = transaction.account else { return nil }
+        // 获取一级/二级分类名
+        let context = transaction.managedObjectContext
+        var primaryName = category.name
+        var subName = category.name
+        if let parentId = category.parentId, let ctx = context {
+            let req = Category.fetchRequest()
+            req.predicate = NSPredicate(format: "id == %@", parentId as CVarArg)
+            req.fetchLimit = 1
+            if let parent = try? ctx.fetch(req).first {
+                primaryName = parent.name
+                subName = category.name
+            } else {
+                primaryName = category.name
+                subName = category.name
+            }
+        }
+        return makeFingerprint(
+            date: transaction.date,
+            amount: transaction.amountAsDecimal,
+            type: transaction.transactionType,
+            primaryCategory: primaryName,
+            subCategory: subName,
+            accountName: account.name
+        )
+    }
+
+    // MARK: - 流式导入专用入口
+
+    /// 流式导入阶段解析单行（日期失败时静默用今天，不像扫描阶段那样阻断）
+    ///
+    /// 与 parseRow 的区别：allowDateFallback 固定为 true。
+    /// 扫描阶段用 parseRow(allowDateFallback: false) 检测日期问题并生成 blocking 警告；
+    /// 导入阶段不再要求用户逐行确认，日期无法解析时直接用今天（已被扫描阶段的警告覆盖）。
+    func parseRowForStream(
+        _ row: [String],
+        mapping: FieldMapping,
+        template: ImportTemplate
+    ) throws -> ImportTransactionItem {
+        return try parseRow(row, mapping: mapping, template: template, allowDateFallback: true)
+    }
+
+    /// 流式读取阶段的单行 CSV 解析（公开入口，供 FinanceRepository 流式导入复用）
+    func parseCSVLineForStream(_ line: String) -> [String] {
+        return parseCSVLine(line)
+    }
+
     // MARK: - 日期解析
-    
+
     /**
      支持多种日期格式的智能解析
      

@@ -25,6 +25,8 @@ public class Account: NSManagedObject {
     @NSManaged public var sortOrder: Int16
     @NSManaged public var isArchived: Bool
     @NSManaged public var notes: String?
+    /// 导入批次 ID：标记由某次导入自动创建的账户，撤回时据此判断可否删除
+    @NSManaged public var importBatchId: UUID?
     @NSManaged public var createdAt: Date
     @NSManaged public var updatedAt: Date
 
