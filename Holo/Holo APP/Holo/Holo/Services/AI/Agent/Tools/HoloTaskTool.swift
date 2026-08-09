@@ -142,7 +142,8 @@ extension HoloTaskTool {
         }
         return HoloDataToolResult(
             toolRequestID: request.id, tool: request.tool, status: .success,
-            coverage: nil, metrics: metrics, events: events, warnings: [], error: nil
+            coverage: nil, metrics: metrics, events: events, warnings: [], error: nil,
+            recordCount: max(snapshot.overdueTasks.count, s.overdue)
         )
     }
 
@@ -181,7 +182,8 @@ extension HoloTaskTool {
         }
         return HoloDataToolResult(
             toolRequestID: request.id, tool: request.tool, status: .success,
-            coverage: nil, metrics: metrics, events: events, warnings: [], error: nil
+            coverage: nil, metrics: metrics, events: events, warnings: [], error: nil,
+            recordCount: snapshot.overdueTasks.count + snapshot.unplannedTasks.count
         )
     }
 
@@ -206,7 +208,8 @@ extension HoloTaskTool {
         }
         return HoloDataToolResult(
             toolRequestID: request.id, tool: request.tool, status: .success,
-            coverage: nil, metrics: metrics, events: events, warnings: [], error: nil
+            coverage: nil, metrics: metrics, events: events, warnings: [], error: nil,
+            recordCount: snapshot.completionTrend.count
         )
     }
 

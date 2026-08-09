@@ -402,17 +402,19 @@ private extension HoloHealthTool {
         }
 
         let summaryMetrics = metrics(for: metric, records: filtered)
+        let dailyCoverage = coverage(filtered.map(\.date), timeRange: request.timeRange)
         return HoloDataToolResult(
             toolRequestID: request.id,
             tool: request.tool,
             status: .success,
-            coverage: coverage(filtered.map(\.date), timeRange: request.timeRange),
+            coverage: dailyCoverage,
             metrics: summaryMetrics,
             events: summaryEvidenceEvents(summaryMetrics, metric: metric, records: filtered)
                 + filtered.map { event(for: metric, record: $0) },
             warnings: [],
             error: nil,
-            sensitivity: .sensitive
+            sensitivity: .sensitive,
+            recordCount: dailyCoverage.coveredDays
         )
     }
 
@@ -484,12 +486,14 @@ private extension HoloHealthTool {
             id: "summary-health.sleep.capability", occurredAt: records.last?.date,
             metricKey: "health.sleep.capability", metricValue: Double(stageNights), excerpt: modeText
         )
+        let sleepCoverage = coverage(records.map(\.date), timeRange: request.timeRange)
         return HoloDataToolResult(
             toolRequestID: request.id, tool: request.tool, status: stageNights == records.count ? .success : .partial,
-            coverage: coverage(records.map(\.date), timeRange: request.timeRange), metrics: metrics,
+            coverage: sleepCoverage, metrics: metrics,
             events: summaryEvents + [capabilityEvent] + records.map(Self.sleepEvent),
             warnings: stageNights == 0 ? [HoloToolWarning(code: "SLEEP_DURATION_ONLY", message: modeText)] : [],
-            error: nil, sensitivity: .sensitive
+            error: nil, sensitivity: .sensitive,
+            recordCount: sleepCoverage.coveredDays
         )
     }
 
@@ -527,16 +531,18 @@ private extension HoloHealthTool {
             metric("health.workout.session_count", Double(sessionCount), unit: "次"),
             metric("health.workout.active_days", Double(records.count), unit: "天")
         ]
+        let workoutCoverage = coverage(records.map(\.date), timeRange: request.timeRange)
         return HoloDataToolResult(
             toolRequestID: request.id,
             tool: request.tool,
             status: .success,
-            coverage: coverage(records.map(\.date), timeRange: request.timeRange),
+            coverage: workoutCoverage,
             metrics: summaryMetrics,
             events: summaryEvidenceEvents(summaryMetrics, label: "运动汇总") + records.map(workoutEvent),
             warnings: [],
             error: nil,
-            sensitivity: .sensitive
+            sensitivity: .sensitive,
+            recordCount: workoutCoverage.coveredDays
         )
     }
 
@@ -568,16 +574,18 @@ private extension HoloHealthTool {
         }
 
         let events = available.flatMap(\.events)
+        let overviewCoverage = coverage(events.compactMap(\.occurredAt), timeRange: request.timeRange)
         return HoloDataToolResult(
             toolRequestID: request.id,
             tool: request.tool,
             status: available.count == results.count ? .success : .partial,
-            coverage: coverage(events.compactMap(\.occurredAt), timeRange: request.timeRange),
+            coverage: overviewCoverage,
             metrics: available.flatMap(\.metrics),
             events: events,
             warnings: results.flatMap(\.warnings),
             error: nil,
-            sensitivity: .sensitive
+            sensitivity: .sensitive,
+            recordCount: overviewCoverage.coveredDays
         )
     }
 

@@ -121,7 +121,8 @@ struct HoloMemoryTool: HoloDataTool {
             )],
             events: events,
             warnings: [],
-            error: nil
+            error: nil,
+            recordCount: records.count
         )
     }
 
@@ -144,7 +145,8 @@ struct HoloMemoryTool: HoloDataTool {
             )],
             events: [],
             warnings: [],
-            error: nil
+            error: nil,
+            recordCount: count
         )
     }
 

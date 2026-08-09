@@ -405,7 +405,7 @@ struct HoloFinanceTool: HoloDataTool {
             )
         }
 
-        return Self.successResult(request, metrics: metrics, events: events)
+        return Self.successResult(request, metrics: metrics, events: events, recordCount: record.transactionCount)
     }
 
     private func mealTimeResult(request: HoloToolRequest, record: HoloFinanceToolRecord) -> HoloDataToolResult {
@@ -426,7 +426,7 @@ struct HoloFinanceTool: HoloDataTool {
             timeRange: record.currentRange ?? request.timeRange,
             baselineTimeRange: record.baselineRange ?? request.baseline
         )]
-        return Self.successResult(request, metrics: metrics, events: events)
+        return Self.successResult(request, metrics: metrics, events: events, recordCount: record.transactionCount)
     }
 
     private func concentrationResult(request: HoloToolRequest, record: HoloFinanceToolRecord) -> HoloDataToolResult {
@@ -450,7 +450,7 @@ struct HoloFinanceTool: HoloDataTool {
             timeRange: record.currentRange ?? request.timeRange,
             baselineTimeRange: nil
         )]
-        return Self.successResult(request, metrics: metrics, events: events)
+        return Self.successResult(request, metrics: metrics, events: events, recordCount: record.transactionCount)
     }
 
     private func spendingResult(request: HoloToolRequest, record: HoloFinanceToolRecord) -> HoloDataToolResult {
@@ -471,7 +471,7 @@ struct HoloFinanceTool: HoloDataTool {
             timeRange: record.currentRange ?? request.timeRange,
             baselineTimeRange: record.baselineRange ?? request.baseline
         )]
-        return Self.successResult(request, metrics: metrics, events: events)
+        return Self.successResult(request, metrics: metrics, events: events, recordCount: record.transactionCount)
     }
 
     private func keywordTrendResult(request: HoloToolRequest, record: HoloFinanceToolRecord) -> HoloDataToolResult {
@@ -513,7 +513,7 @@ struct HoloFinanceTool: HoloDataTool {
             timeRange: record.currentRange ?? request.timeRange,
             baselineTimeRange: record.baselineRange ?? request.baseline
         )]
-        return Self.successResult(request, metrics: metrics, events: events)
+        return Self.successResult(request, metrics: metrics, events: events, recordCount: record.transactionCount)
     }
 
     private func budgetStatusResult(request: HoloToolRequest, record: HoloFinanceToolRecord) -> HoloDataToolResult {
@@ -572,7 +572,7 @@ struct HoloFinanceTool: HoloDataTool {
                 )
             ))
         }
-        return Self.successResult(request, metrics: metrics, events: events)
+        return Self.successResult(request, metrics: metrics, events: events, recordCount: record.transactionCount)
     }
 
     private func accountSummaryResult(request: HoloToolRequest, record: HoloFinanceToolRecord) -> HoloDataToolResult {
@@ -591,7 +591,7 @@ struct HoloFinanceTool: HoloDataTool {
             metricValue: account.netWorth,
             excerpt: "活跃账户 \(account.activeAccountCount) 个，资产 \(Self.moneyText(account.assets)) 元，负债 \(Self.moneyText(account.liabilities)) 元，净资产 \(Self.moneyText(account.netWorth)) 元\(defaultText)"
         )]
-        return Self.successResult(request, metrics: metrics, events: events)
+        return Self.successResult(request, metrics: metrics, events: events, recordCount: record.transactionCount)
     }
 
     private func balanceDiagnosisResult(
@@ -696,9 +696,11 @@ struct HoloFinanceTool: HoloDataTool {
     }
 
     private static func successResult(_ request: HoloToolRequest,
-                                      metrics: [HoloMetric], events: [HoloEvidenceEvent]) -> HoloDataToolResult {
+                                      metrics: [HoloMetric], events: [HoloEvidenceEvent],
+                                      recordCount: Int? = nil) -> HoloDataToolResult {
         HoloDataToolResult(toolRequestID: request.id, tool: request.tool, status: .success,
-                           coverage: nil, metrics: metrics, events: events, warnings: [], error: nil)
+                           coverage: nil, metrics: metrics, events: events, warnings: [],
+                           error: nil, recordCount: recordCount)
     }
 
     private static func emptyResult(_ request: HoloToolRequest) -> HoloDataToolResult {

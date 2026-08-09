@@ -125,7 +125,7 @@ extension HoloThoughtTool {
         return HoloDataToolResult(
             toolRequestID: request.id, tool: request.tool, status: .success,
             coverage: nil, metrics: metrics, events: events, warnings: [], error: nil,
-            sensitivity: .sensitive
+            sensitivity: .sensitive, recordCount: snapshot.totalCount
         )
     }
 
@@ -160,7 +160,7 @@ extension HoloThoughtTool {
         return HoloDataToolResult(
             toolRequestID: request.id, tool: request.tool, status: .success,
             coverage: nil, metrics: metrics, events: events, warnings: [], error: nil,
-            sensitivity: .sensitive
+            sensitivity: .sensitive, recordCount: snapshot.totalCount
         )
     }
 
@@ -203,7 +203,8 @@ extension HoloThoughtTool {
             events: events,
             warnings: [],
             error: nil,
-            sensitivity: .sensitive
+            sensitivity: .sensitive,
+            recordCount: snapshot.topics.map(\.thoughtCount).reduce(0, +)
         )
     }
 
@@ -231,7 +232,7 @@ extension HoloThoughtTool {
         return HoloDataToolResult(
             toolRequestID: request.id, tool: request.tool, status: .success,
             coverage: nil, metrics: metrics, events: events, warnings: [], error: nil,
-            sensitivity: .sensitive
+            sensitivity: .sensitive, recordCount: snapshot.totalCount
         )
     }
 

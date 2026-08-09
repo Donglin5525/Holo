@@ -205,6 +205,28 @@ enum HoloAgentChatStatusPresenter {
         }
         return detailText(for: step)
     }
+
+    /// 带「记录条数」版本的 detail 文案合成。已查工具的 recordCount 会拼进文案
+    /// （如 "正在翻阅账单（12 条）、回顾记忆（3 条）。"）；
+    /// 在途工具无数量则只显示动作。recordCount 为 0/nil 的不带括号。
+    static func detailText(
+        forStep step: HoloAgentStep?,
+        completedToolCounts: [(tool: String, recordCount: Int?)],
+        pendingToolNames: [String] = []
+    ) -> String {
+        let dataActiveSteps: Set<HoloAgentStep?> = [.executeTools, .continueOrConclude, .minePatterns]
+        guard dataActiveSteps.contains(step) else {
+            return detailText(for: step)
+        }
+        // 在途工具（无数量）+ 已查工具（带数量）合并；在途优先反映「正要查」
+        let pendingCounts = pendingToolNames.map { (tool: $0, recordCount: Int?.none) }
+        if let phrase = HoloAgentToolDisplayName.readingPhrase(
+            toolCounts: pendingCounts + completedToolCounts
+        ) {
+            return phrase + "。"
+        }
+        return detailText(for: step)
+    }
 }
 
 @MainActor

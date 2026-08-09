@@ -216,7 +216,9 @@ private extension HoloProfileTool {
         warnings: [HoloToolWarning] = [],
         error: HoloToolError? = nil
     ) -> HoloDataToolResult {
-        HoloDataToolResult(
+        // recordCount 取实际展示的档案项数（events 条数）；empty/error 时 events 为空 → nil
+        let recordCount: Int? = status == .success && !events.isEmpty ? events.count : nil
+        return HoloDataToolResult(
             toolRequestID: request.id,
             tool: request.tool,
             status: status,
@@ -225,7 +227,8 @@ private extension HoloProfileTool {
             events: events,
             warnings: warnings,
             error: error,
-            sensitivity: .sensitive
+            sensitivity: .sensitive,
+            recordCount: recordCount
         )
     }
 

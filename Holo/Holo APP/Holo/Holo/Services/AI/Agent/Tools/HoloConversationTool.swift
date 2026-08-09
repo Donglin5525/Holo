@@ -107,7 +107,8 @@ private extension HoloConversationTool {
                 metric("conversation.user.count", Double(records.filter { $0.role == "user" }.count), unit: "条"),
                 metric("conversation.assistant.count", Double(records.filter { $0.role == "assistant" }.count), unit: "条")
             ],
-            events: events
+            events: events,
+            recordCount: records.count
         )
     }
 
@@ -138,7 +139,8 @@ private extension HoloConversationTool {
                     metricValue: Double(currentSession.count),
                     excerpt: "当前会话共 \(currentSession.count) 条完成消息"
                 )
-            ]
+            ],
+            recordCount: records.count
         )
     }
 
@@ -148,7 +150,8 @@ private extension HoloConversationTool {
         metrics: [HoloMetric],
         events: [HoloEvidenceEvent],
         warnings: [HoloToolWarning] = [],
-        error: HoloToolError? = nil
+        error: HoloToolError? = nil,
+        recordCount: Int? = nil
     ) -> HoloDataToolResult {
         HoloDataToolResult(
             toolRequestID: request.id,
@@ -159,7 +162,8 @@ private extension HoloConversationTool {
             events: events,
             warnings: warnings,
             error: error,
-            sensitivity: .sensitive
+            sensitivity: .sensitive,
+            recordCount: recordCount
         )
     }
 

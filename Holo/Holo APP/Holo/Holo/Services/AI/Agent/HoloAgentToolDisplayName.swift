@@ -57,4 +57,26 @@ nonisolated enum HoloAgentToolDisplayName {
         guard !phrases.isEmpty else { return nil }
         return "正在" + phrases.joined(separator: "、")
     }
+
+    /// 把一组「工具名 + 记录条数」聚合成带数量的中文，
+    /// 如 [(finance,12),(memory,3)] → "正在翻阅账单（12 条）、回顾记忆（3 条）"。
+    /// 同工具多次调用的 recordCount 求和（对比查询通常不重叠）；未知工具过滤；
+    /// recordCount 为 nil 或 0 的工具不带括号数量。
+    static func readingPhrase(toolCounts: [(tool: String, recordCount: Int?)]) -> String? {
+        // 按工具名聚合 recordCount（求和），保持首次出现顺序
+        var order: [String] = []
+        var sums: [String: Int] = [:]
+        for entry in toolCounts {
+            guard phrase(forTool: entry.tool) != nil else { continue }
+            if sums[entry.tool] == nil { order.append(entry.tool) }
+            sums[entry.tool, default: 0] += entry.recordCount ?? 0
+        }
+        guard !order.isEmpty else { return nil }
+        let parts = order.map { tool -> String in
+            let base = phrase(forTool: tool) ?? tool
+            let count = sums[tool] ?? 0
+            return count > 0 ? "\(base)（\(count) 条）" : base
+        }
+        return "正在" + parts.joined(separator: "、")
+    }
 }

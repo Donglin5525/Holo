@@ -115,7 +115,8 @@ private extension HoloInsightTool {
             },
             warnings: warnings,
             error: nil,
-            sensitivity: .sensitive
+            sensitivity: .sensitive,
+            recordCount: records.count
         )
     }
 

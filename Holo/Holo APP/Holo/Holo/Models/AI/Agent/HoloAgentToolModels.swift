@@ -494,6 +494,10 @@ nonisolated struct HoloDataToolResult: Codable, Equatable, Sendable {
     var error: HoloToolError?
     /// 可选以兼容旧持久化 JSON；nil 按 normal 处理。
     var sensitivity: HoloEvidenceSensitivity? = nil
+    /// 本次工具实际读取的原始记录条数（如「12 笔账单」「3 条想法」）。
+    /// 与 coverage（时间覆盖度）正交：coverage 管「覆盖多少天」，recordCount 管「读了多少条」。
+    /// 健康数据按天数语义填（coveredDays）。可选以兼容旧 JSON，nil 表示未提供。
+    var recordCount: Int? = nil
 }
 
 /// Agent Runtime 对工具执行层的最小依赖，放在共享模型层便于独立验证运行时。

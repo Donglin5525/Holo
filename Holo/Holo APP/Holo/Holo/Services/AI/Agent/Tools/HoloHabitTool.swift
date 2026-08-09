@@ -109,7 +109,8 @@ struct HoloHabitTool: HoloDataTool {
         }
         return HoloDataToolResult(
             toolRequestID: request.id, tool: request.tool, status: .success,
-            coverage: nil, metrics: metrics, events: events, warnings: [], error: nil
+            coverage: nil, metrics: metrics, events: events, warnings: [], error: nil,
+            recordCount: habits.count
         )
     }
 
@@ -128,7 +129,8 @@ struct HoloHabitTool: HoloDataTool {
         }
         return HoloDataToolResult(
             toolRequestID: request.id, tool: request.tool, status: .success,
-            coverage: nil, metrics: metrics, events: events, warnings: [], error: nil
+            coverage: nil, metrics: metrics, events: events, warnings: [], error: nil,
+            recordCount: habits.count
         )
     }
 
@@ -150,7 +152,8 @@ struct HoloHabitTool: HoloDataTool {
         }
         return HoloDataToolResult(
             toolRequestID: request.id, tool: request.tool, status: .success,
-            coverage: nil, metrics: metrics, events: events, warnings: [], error: nil
+            coverage: nil, metrics: metrics, events: events, warnings: [], error: nil,
+            recordCount: habits.count
         )
     }
 

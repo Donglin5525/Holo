@@ -113,7 +113,8 @@ extension HoloGoalTool {
         }
         return HoloDataToolResult(
             toolRequestID: request.id, tool: request.tool, status: .success,
-            coverage: nil, metrics: metrics, events: events, warnings: [], error: nil
+            coverage: nil, metrics: metrics, events: events, warnings: [], error: nil,
+            recordCount: goals.count
         )
     }
 
@@ -150,7 +151,8 @@ extension HoloGoalTool {
         }
         return HoloDataToolResult(
             toolRequestID: request.id, tool: request.tool, status: .success,
-            coverage: nil, metrics: metrics, events: events, warnings: [], error: nil
+            coverage: nil, metrics: metrics, events: events, warnings: [], error: nil,
+            recordCount: goals.count
         )
     }
 
@@ -175,7 +177,8 @@ extension HoloGoalTool {
                 metrics: [HoloMetric(metricKey: "goal.deadline.upcoming_days", value: nil, unit: "天", baselineValue: nil, comparison: nil)],
                 events: [],
                 warnings: [HoloToolWarning(code: "NO_DEADLINE", message: "活跃目标均未设置截止日期")],
-                error: nil
+                error: nil,
+                recordCount: goals.count
             )
         }
 
@@ -195,7 +198,8 @@ extension HoloGoalTool {
         }
         return HoloDataToolResult(
             toolRequestID: request.id, tool: request.tool, status: .success,
-            coverage: nil, metrics: metrics, events: events, warnings: [], error: nil
+            coverage: nil, metrics: metrics, events: events, warnings: [], error: nil,
+            recordCount: withDeadline.count
         )
     }
 

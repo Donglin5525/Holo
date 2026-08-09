@@ -609,16 +609,16 @@ final class ChatViewModel: ObservableObject {
     /// 在非 MainActor 上触发（reporter 闭包），内部切回主线程更新 UI。
     /// snapshot 自带 jobID，无需 runAnalysis 额外暴露 jobID。
     private func handleAgentProgress(_ snapshot: HoloAgentProgressSnapshot, aiMessageId: UUID) async {
-        // 读 checkpoint 拿 step + 工具明细
+        // 读 checkpoint 拿 step + 工具明细（含每工具读取的记录条数）
         guard let checkpoint = try? await HoloLocalAgentRuntime.shared.latestCheckpointForJob(jobID: snapshot.jobID) else {
             return
         }
-        let completedTools = checkpoint.completedToolResults.map(\.tool)
+        let completedToolCounts = checkpoint.completedToolResults.map { (tool: $0.tool, recordCount: $0.recordCount) }
         let pendingTools = checkpoint.pendingToolRequests.map(\.tool)
-        // 合成 detail 文案（具体域优先，无具体域回退阶段文案）
+        // 合成带数量的 detail 文案（如「正在翻阅账单（12 条）、回顾记忆（3 条）。」）
         let detail = HoloAgentChatStatusPresenter.detailText(
             forStep: checkpoint.step,
-            completedToolNames: completedTools,
+            completedToolCounts: completedToolCounts,
             pendingToolNames: pendingTools
         )
         let status = HoloAgentChatStatus(
