@@ -11,6 +11,9 @@ struct AIReadableResponseView: View {
     let text: String
     let isStreaming: Bool
     var isError: Bool = false
+    /// 流式等待期（text 还为空）显示的进行态文案，如「正在回顾你的记忆」。
+    /// 有值时替代跳动的圆点，让用户知道 AI 此刻在做什么；nil 则回退到跳动圆点。
+    var thinkingHint: String? = nil
     var onRetry: (() -> Void)? = nil
 
     @State private var isShowingDetails = false
@@ -23,7 +26,11 @@ struct AIReadableResponseView: View {
     var body: some View {
         Group {
             if isStreaming && text.isEmpty {
-                typingIndicator
+                if let hint = thinkingHint, !hint.isEmpty {
+                    thinkingIndicator(hint: hint)
+                } else {
+                    typingIndicator
+                }
             } else if isStreaming {
                 streamingText
             } else if isError {
@@ -82,6 +89,25 @@ struct AIReadableResponseView: View {
         }
         .padding(.vertical, 8)
         .accessibilityLabel("Holo 正在回复")
+    }
+
+    /// 带文案的进行态指示器：跳动小点 + 进行态文案，让用户知道 AI 此刻在做什么。
+    private func thinkingIndicator(hint: String) -> some View {
+        HStack(spacing: 7) {
+            HStack(spacing: 4) {
+                ForEach(0..<3, id: \.self) { index in
+                    Circle()
+                        .fill(Color.holoPrimary.opacity(0.55))
+                        .frame(width: 5, height: 5)
+                        .modifier(AIReadingDotAnimation(delay: Double(index) * 0.18))
+                }
+            }
+            Text(hint)
+                .font(.system(size: 13.5, weight: .medium))
+                .foregroundColor(.holoTextSecondary)
+        }
+        .padding(.vertical, 8)
+        .accessibilityLabel(hint)
     }
 
     private var streamingText: some View {

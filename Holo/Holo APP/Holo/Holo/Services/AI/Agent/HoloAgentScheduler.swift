@@ -97,7 +97,12 @@ actor HoloAgentScheduler {
     // MARK: - §6.1 对外接口
 
     /// 创建一个新对话深度分析 job 并经 runOrAttach 跑完 runLoop（Chat/Observer 入口统一走此）。
-    func createAndRun(_ request: HoloAgentStartRequest) async throws -> HoloAgentJob {
+    /// - Parameter progressReporter: 可选的进度上报闭包；前台用户新发起的分析会透传它，
+    ///   用于驱动 App 内「正在翻阅账单」等思考过程可见化 UI。后台恢复链不传（非实时场景）。
+    func createAndRun(
+        _ request: HoloAgentStartRequest,
+        progressReporter: (@Sendable (HoloAgentProgressSnapshot) async -> Void)? = nil
+    ) async throws -> HoloAgentJob {
         // 用户可能在 Router/上下文准备期间已经点了停止。取消后的调用不得再落一条新 job，
         // 否则 UI 已结束、持久化任务却会继续执行或在下次恢复时复活。
         try Task.checkCancellation()
@@ -118,17 +123,21 @@ actor HoloAgentScheduler {
             reason: request.trigger == .userQuestion ? .userInitiated : .automaticInitiated,
             systemTemplate: request.systemTemplate,
             toolDescriptions: request.toolDescriptions,
-            now: request.now
+            now: request.now,
+            externalProgressReporter: progressReporter
         )
     }
 
     /// 同一 jobID 唯一执行：已有活跃 Task → attach 等待其结果（不创建第二份）；
     /// 无 → 并发门控 → acquire generation → 启动新 runLoop Task 并登记。
     /// 登记与最后一次复查之间无 await，保证并发调用只产生一个执行 Task（actor 可重入安全）。
+    /// - Parameter externalProgressReporter: 外部进度上报（前台 App 内 UI）；与 continued lease
+    ///   的系统进度上报（灵动岛）互不排斥，两者都需触发时在执行 Task 内合并。
     @discardableResult
     func runOrAttach(jobID: String, reason: HoloAgentResumeReason,
                      systemTemplate: String = "", toolDescriptions: String = "",
-                     now: Date = Date()) async throws -> HoloAgentJob {
+                     now: Date = Date(),
+                     externalProgressReporter: (@Sendable (HoloAgentProgressSnapshot) async -> Void)? = nil) async throws -> HoloAgentJob {
         if let existing = activeTasks[jobID] {
             logger.log("[Agent] attach 已有执行 jobID=\(jobID, privacy: .public) reason=\(reason.rawValue, privacy: .public)")
             var event = HoloAgentTelemetryEvent(
@@ -177,6 +186,7 @@ actor HoloAgentScheduler {
 
         let token = UUID()
         let jobStore = self.jobStore
+        let externalReporter = externalProgressReporter
         let task = Task { [runtime, jobStore, weak self] in
             // 新执行先在 JobStore 原子递增 executionGeneration，拿到代次才进入 runLoop（§6.1）
             let generation = try await jobStore.acquireExecutionGeneration(jobID: jobID, now: now)
@@ -200,18 +210,21 @@ actor HoloAgentScheduler {
             }
             // §9：在唯一执行 Task 内尝试接管 continued（避免并发入口重复提交；同 job 仍只有一个执行，
             // continued 只是租约层）。不接纳→保持 foreground，切后台回落 legacy（§9.3 .fail）
-            var reporter: (@Sendable (HoloAgentProgressSnapshot) async -> Void)?
-            if let (lease, leaseReporter) = await self?.acquireContinuedLeaseIfEligible(
+            var leaseReporter: (@Sendable (HoloAgentProgressSnapshot) async -> Void)?
+            if let (lease, resolved) = await self?.acquireContinuedLeaseIfEligible(
                 job: job,
                 executionToken: token
             ) {
                 await self?.adoptContinuedLease(jobID: jobID, lease: lease)
-                reporter = leaseReporter
+                leaseReporter = resolved
             }
+            // 合并进度上报：前台 App 内 UI（externalReporter）与系统进度 UI（leaseReporter）
+            // 各司其职，两者都需触发；缺失的为 nil 时自动跳过。
+            let mergedReporter = Self.combineReporters(externalReporter, leaseReporter)
             return try await runtime.runLoop(
                 jobID: jobID, generation: generation,
                 systemTemplate: systemTemplate, toolDescriptions: toolDescriptions,
-                progressReporter: reporter, now: now
+                progressReporter: mergedReporter, now: now
             )
         }
         activeTasks[jobID] = task
@@ -708,6 +721,27 @@ actor HoloAgentScheduler {
         case .memoryGalleryRefresh: return 1
         case .observerTier2: return 2
         default: return 3
+        }
+    }
+
+    /// 合并两个可选进度上报闭包：两者都存在时依次触发（先 App 内 UI，再系统进度 UI），
+    /// 这样前台思考过程可见化与灵动岛进度互不剥夺。全 nil → nil（runLoop 内自动跳过上报）。
+    private static func combineReporters(
+        _ a: (@Sendable (HoloAgentProgressSnapshot) async -> Void)?,
+        _ b: (@Sendable (HoloAgentProgressSnapshot) async -> Void)?
+    ) -> (@Sendable (HoloAgentProgressSnapshot) async -> Void)? {
+        switch (a, b) {
+        case let (a?, b?):
+            return { snapshot in
+                await a(snapshot)
+                await b(snapshot)
+            }
+        case let (a?, nil):
+            return a
+        case let (nil, b?):
+            return b
+        case (nil, nil):
+            return nil
         }
     }
 }

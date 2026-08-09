@@ -10,6 +10,9 @@ import SwiftUI
 struct AnalysisCompactChatCard: View {
 
     let message: ChatMessageViewData
+    /// 流式等待期的进行态文案（如「正在查阅数据、回顾你的记忆」），替代硬编码「AI 正在分析中…」。
+    /// nil 时回退到默认文案。
+    var thinkingHint: String? = nil
     var onTap: (() -> Void)? = nil
 
     var body: some View {
@@ -67,7 +70,7 @@ struct AnalysisCompactChatCard: View {
             HStack(spacing: 8) {
                 ProgressView()
                     .scaleEffect(0.8)
-                Text("AI 正在分析中...")
+                Text(thinkingHint ?? "AI 正在分析中...")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.holoTextSecondary)
             }

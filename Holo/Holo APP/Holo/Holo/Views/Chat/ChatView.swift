@@ -424,6 +424,8 @@ struct ChatView: View {
                             guard message.agentResult != nil else { return }
                             activeSheet = .agentDeepAnalysis(message)
                         },
+                        agentThoughtLog: viewModel.agentThoughtLogs[message.id],
+                        thinkingHint: viewModel.thinkingHints[message.id],
                         onPeriodReplayExpansionChanged: { _, isExpanded in
                             guard !isExpanded else { return }
                             scrollController.requestOffsetClamp()

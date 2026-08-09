@@ -176,6 +176,35 @@ enum HoloAgentChatStatusPresenter {
             return "正在处理你的本地数据。"
         }
     }
+
+    /// 基于「当前 step + 已查阅/在途工具」合成更具体的 detail 文案。
+    /// 工具名经 HoloAgentToolDisplayName 翻译；能翻出具体域时优先用具体文案
+    /// （如 executeTools + [finance,memory] → "正在翻阅账单、回顾记忆。"），
+    /// 翻不出（空或全是辅助工具）时回退到 detailText(for:) 的泛化文案。
+    /// - Parameters:
+    ///   - step: checkpoint 当前步骤。
+    ///   - completedToolNames: checkpoint.completedToolResults 里的 tool 集合（去重保序）。
+    ///   - pendingToolNames: checkpoint.pendingToolRequests 里的 tool 集合（去重保序）。
+    static func detailText(forStep step: HoloAgentStep?,
+                           completedToolNames: [String] = [],
+                           pendingToolNames: [String] = []) -> String {
+        // 合并已查 + 在途，去重保序，优先反映「正在翻阅」的全貌
+        var seen = Set<String>()
+        var orderedTools: [String] = []
+        for name in pendingToolNames + completedToolNames {
+            guard !seen.contains(name) else { continue }
+            seen.insert(name)
+            orderedTools.append(name)
+        }
+        // 只有 executeTools / continueOrConclude / minePatterns 这些「正在动数据」的步骤才用工具文案；
+        // plan / render 等步骤即便有历史工具也保持阶段文案，避免「正在翻阅账单」挂在生成阶段。
+        let dataActiveSteps: Set<HoloAgentStep?> = [.executeTools, .continueOrConclude, .minePatterns]
+        if dataActiveSteps.contains(step),
+           let phrase = HoloAgentToolDisplayName.readingPhrase(forTools: orderedTools) {
+            return phrase + "。"
+        }
+        return detailText(for: step)
+    }
 }
 
 @MainActor
@@ -197,8 +226,12 @@ final class HoloAgentAnalysisService {
 
     /// 运行一次深度分析，返回渲染后的结果短文；失败或未完成返回 nil。
     /// 全程异步执行，ChatViewModel 负责展示状态与最终文本。
+    /// - Parameter onProgress: 每次 checkpoint 落盘后的进度回调（jobID + 预算单位），
+    ///   ChatViewModel 据此读 checkpoint 合成「正在翻阅账单」等可见化文案。前台路径专用，
+    ///   后台恢复链不传。回调在非 MainActor 上触发，UI 更新需自行切回主线程。
     func runAnalysis(question: String, trigger: HoloAgentTrigger = .userQuestion,
-                     sourceMessageID: UUID? = nil) async -> HoloRenderedAgentResult {
+                     sourceMessageID: UUID? = nil,
+                     onProgress: (@Sendable (HoloAgentProgressSnapshot) async -> Void)? = nil) async -> HoloRenderedAgentResult {
         // 只记录长度，不把用户问题原文写入系统日志（Phase 7 隐私契约）。
         logger.info("[Agent] 开始 questionLength=\(question.count, privacy: .public)")
         // 真出错（网络/超时/内部异常）统一走 analysisFailed；额度耗尽走专属 quotaExhausted。
@@ -221,13 +254,16 @@ final class HoloAgentAnalysisService {
         let finalJob: HoloAgentJob
         do {
             // §6.1：入口统一走 Scheduler 唯一执行权（createAndRun）
-            finalJob = try await scheduler.createAndRun(HoloAgentStartRequest(
-                question: question,
-                trigger: trigger,
-                systemTemplate: systemTemplate,
-                toolDescriptions: toolDescriptions,
-                sourceMessageID: sourceMessageID
-            ))
+            finalJob = try await scheduler.createAndRun(
+                HoloAgentStartRequest(
+                    question: question,
+                    trigger: trigger,
+                    systemTemplate: systemTemplate,
+                    toolDescriptions: toolDescriptions,
+                    sourceMessageID: sourceMessageID
+                ),
+                progressReporter: onProgress
+            )
             logger.info("[Agent] runLoop 完成 state=\(finalJob.state.rawValue) rounds=\(finalJob.budget.consumedLLMRounds)")
         } catch let error as HoloQuotaError {
             // 额度耗尽：档位限制而非系统错误，透传额度文案，上层渲染额度卡片 + 升级入口。
@@ -280,7 +316,7 @@ final class HoloAgentAnalysisService {
                 requestedDeliverables: result.requestedDeliverables ?? [],
                 narrativeSummary: result.narrativeSummary,
                 contextSources: result.contextSources ?? [],
-                dataSamplePreview: Self.makeSamplePreview(from: result.dataSampleExcerpts)
+                dataSamplePreview: Self.makeSamplePreview(from: nil)
             )
         } catch {
             return fail("[证据读取失败] \(String(describing: error))")
@@ -335,7 +371,7 @@ final class HoloAgentAnalysisService {
                             requestedDeliverables: result.requestedDeliverables ?? [],
                             narrativeSummary: result.narrativeSummary,
                             contextSources: result.contextSources ?? [],
-                            dataSamplePreview: Self.makeSamplePreview(from: result.dataSampleExcerpts)
+                            dataSamplePreview: Self.makeSamplePreview(from: nil)
                         )
                         repository.finalizeAgentMessage(sourceMessageID, rendered: rendered, intent: "query_analysis")
                     } else {

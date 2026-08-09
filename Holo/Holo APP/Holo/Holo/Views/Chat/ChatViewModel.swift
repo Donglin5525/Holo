@@ -28,6 +28,12 @@ final class ChatViewModel: ObservableObject {
     @Published var streamingText: String = ""
     @Published var errorMessage: String?
     @Published var memoryNotice: String?
+    /// 当前 streaming AI 消息的思考过程日志（按发生顺序），供思考状态卡片展开态渲染。
+    /// key = 占位消息 ID；分析开始时建立、结束时清空。nil 表示该消息无可见思考过程。
+    @Published private(set) var agentThoughtLogs: [UUID: [HoloThoughtEvent]] = [:]
+    /// 普通聊天/分析流式等待期的进行态文案，key = 占位消息 ID。
+    /// AI 收到第一个字后即清空对应条目（回退为正常流式文字）。
+    @Published private(set) var thinkingHints: [UUID: String] = [:]
     @Published var isConfigured: Bool = false
     @Published var isLoadingConfig: Bool = false
     @Published private(set) var hasFinishedSetup: Bool = false
@@ -291,6 +297,10 @@ final class ChatViewModel: ObservableObject {
 
                 // ENERGY: 锁定检查预留位
 
+                // 思考过程可见化：意图识别阶段（coordinator.process 内含一次 LLM 调用），
+                // 用文案替代跳动的圆点，让用户知道 AI 正在理解问题而非卡住。
+                self.thinkingHints[aiMessageId] = "正在理解你的问题"
+
                 // 通过 Coordinator 处理（支持多动作）
                 let processResult = try await self.coordinator.process(
                     text: text,
@@ -320,7 +330,10 @@ final class ChatViewModel: ObservableObject {
                     self.streamingText = initialStatus.messageContent
                     let rendered = await self.analysisService.runAnalysis(
                         question: text,
-                        sourceMessageID: aiMessageId
+                        sourceMessageID: aiMessageId,
+                        onProgress: { [weak self] snapshot in
+                            await self?.handleAgentProgress(snapshot, aiMessageId: aiMessageId)
+                        }
                     )
                     try Task.checkCancellation()
                     // 额度耗尽走专属卡片（与普通聊天路径一致）：档位限制不是系统错误，
@@ -373,6 +386,12 @@ final class ChatViewModel: ObservableObject {
                             requireQueryMatch: true,
                             consumer: .analysis
                         )
+                        // 思考过程可见化：记忆查询完成、流式开始前，告知用户在查阅数据。
+                        // 普通分析既读数据上下文（AnalysisContextBuilder）又读记忆，如实呈现两者。
+                        let memCount = memorySummary.sourceIDs.count
+                        self.thinkingHints[aiMessageId] = memCount > 0
+                            ? "正在查阅数据、回顾你的记忆（\(memCount) 条）"
+                            : "正在查阅你的数据"
                         let memoryEnvelope = HoloMemoryContextEnvelope.render(memorySummary)
                         let analysisSystemContext = [contextJSON, memoryEnvelope.isEmpty ? nil : memoryEnvelope]
                             .compactMap { $0 }
@@ -428,6 +447,12 @@ final class ChatViewModel: ObservableObject {
                             requireQueryMatch: true,
                             consumer: .chat
                         )
+                        // 思考过程可见化：普通聊天只查阅记忆（不读账单等其他数据），如实呈现。
+                        // 没查到相关记忆时不谎称「回顾记忆」，回退到中性的「正在思考回复」。
+                        let memCount = memorySummary.sourceIDs.count
+                        self.thinkingHints[aiMessageId] = memCount > 0
+                            ? "正在回顾你的记忆（\(memCount) 条）"
+                            : "正在思考回复"
                         var contextualUserContext = userContext
                         contextualUserContext.memorySummary = memorySummary
                         let stream = self.provider.chatStreaming(
@@ -545,6 +570,10 @@ final class ChatViewModel: ObservableObject {
                 self.streamingWatchdogTask = nil
                 self.currentTask = nil
                 self.activeStreamingMessageID = nil
+                // 分析结束（完成/取消/失败）后清理思考日志：loading 卡片已切走，不再渲染
+                self.agentThoughtLogs.removeValue(forKey: aiMessageId)
+                // 清理进行态提示
+                self.thinkingHints.removeValue(forKey: aiMessageId)
             }
         }
     }
@@ -571,6 +600,45 @@ final class ChatViewModel: ObservableObject {
         // HoloAIFeatureFlags 守卫：未启用 Agent runtime 时不触发（避免无谓的 actor 调用）。
         if HoloAIFeatureFlags.agentRuntimeEnabled {
             Task { await HoloAgentScheduler.shared.cancelActiveUserQuestions() }
+        }
+    }
+
+    // MARK: - Agent Thought Process
+
+    /// Agent 进度回调：读 checkpoint 把「正在翻阅账单/记忆」翻译成用户可见文案，刷新卡片。
+    /// 在非 MainActor 上触发（reporter 闭包），内部切回主线程更新 UI。
+    /// snapshot 自带 jobID，无需 runAnalysis 额外暴露 jobID。
+    private func handleAgentProgress(_ snapshot: HoloAgentProgressSnapshot, aiMessageId: UUID) async {
+        // 读 checkpoint 拿 step + 工具明细
+        guard let checkpoint = try? await HoloLocalAgentRuntime.shared.latestCheckpointForJob(jobID: snapshot.jobID) else {
+            return
+        }
+        let completedTools = checkpoint.completedToolResults.map(\.tool)
+        let pendingTools = checkpoint.pendingToolRequests.map(\.tool)
+        // 合成 detail 文案（具体域优先，无具体域回退阶段文案）
+        let detail = HoloAgentChatStatusPresenter.detailText(
+            forStep: checkpoint.step,
+            completedToolNames: completedTools,
+            pendingToolNames: pendingTools
+        )
+        let status = HoloAgentChatStatus(
+            title: "Holo 正在深度分析中…",
+            detail: detail,
+            keepsMessageStreaming: true,
+            showsActivityIndicator: true
+        )
+        // 记录思考事件（展开态日志），追加而非覆盖，便于完整呈现调用过程
+        let event = HoloThoughtEvent(timestamp: Date(), title: detail)
+        // 刷新卡片折叠态 + 思考日志
+        await MainActor.run { [weak self] in
+            guard let self else { return }
+            self.chatRepo?.updateAgentMessageProgress(aiMessageId, status: status)
+            var log = self.agentThoughtLogs[aiMessageId] ?? []
+            // 同文案去重，避免 executeTools 期间重复 push 同一句话刷屏
+            if log.last?.title != event.title {
+                log.append(event)
+            }
+            self.agentThoughtLogs[aiMessageId] = log
         }
     }
 

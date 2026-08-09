@@ -24,6 +24,11 @@ struct MessageBubbleView: View {
     var onViewLog: ((ChatMessageViewData) -> Void)? = nil
     var onCompactAnalysisTap: (() -> Void)? = nil
     var onAgentDeepAnalysisTap: (() -> Void)? = nil
+    /// Agent 深度分析思考过程日志（仅当前 streaming 的深度分析消息有值），供 loading 卡片展开态渲染
+    var agentThoughtLog: [HoloThoughtEvent]? = nil
+    /// 普通聊天/分析流式等待期（text 为空）的进行态文案，如「正在回顾你的记忆」。
+    /// 仅当前 streaming 的消息有值；nil 回退到跳动圆点。
+    var thinkingHint: String? = nil
     var onPeriodReplayExpansionChanged: ((ChatMessageViewData, Bool) -> Void)? = nil
     var onGoalDraftCardTap: (() -> Void)? = nil
     var onSavedGoalCardTap: ((UUID) -> Void)? = nil
@@ -151,11 +156,11 @@ struct MessageBubbleView: View {
                 }
             } else if message.isQueryAnalysis {
                 if message.agentResult != nil || (message.isStreaming && message.analysisContext == nil) {
-                    AgentDeepAnalysisCard(message: message) {
+                    AgentDeepAnalysisCard(message: message, thoughtLog: agentThoughtLog) {
                         onAgentDeepAnalysisTap?()
                     }
                 } else if message.analysisContext != nil {
-                    AnalysisCompactChatCard(message: message) {
+                    AnalysisCompactChatCard(message: message, thinkingHint: thinkingHint) {
                         onCompactAnalysisTap?()
                     }
                 } else {
@@ -283,6 +288,7 @@ struct MessageBubbleView: View {
                 text: displayText,
                 isStreaming: message.isStreaming && streamingText != nil,
                 isError: message.isError,
+                thinkingHint: streamingText == nil ? thinkingHint : nil,
                 onRetry: onRetry
             )
         }

@@ -11,7 +11,11 @@ import SwiftUI
 struct AgentDeepAnalysisCard: View {
 
     let message: ChatMessageViewData
+    var thoughtLog: [HoloThoughtEvent]? = nil
     var onTap: (() -> Void)? = nil
+
+    /// loading 卡片是否展开思考日志（点击卡片切换；无日志时不响应）
+    @State private var isThoughtExpanded = false
 
     var body: some View {
         if message.isStreaming {
@@ -156,6 +160,7 @@ struct AgentDeepAnalysisCard: View {
 
     private var loadingCard: some View {
         let status = HoloAgentChatStatusPresenter.display(from: message.content)
+        let hasLog = !(thoughtLog ?? []).isEmpty
         return ChatCardView {
             VStack(alignment: .leading, spacing: 6) {
                 HStack(spacing: 8) {
@@ -170,15 +175,62 @@ struct AgentDeepAnalysisCard: View {
                     Text(status.title)
                         .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(.holoTextSecondary)
+                    Spacer()
+                    // 有思考日志时显示展开/收起箭头，提示可点查看完整调用过程
+                    if hasLog {
+                        Image(systemName: isThoughtExpanded ? "chevron.up" : "chevron.down")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.holoTextSecondary.opacity(0.6))
+                    }
                 }
 
                 Text(status.detail)
                     .font(.system(size: 12))
                     .foregroundColor(.holoTextSecondary.opacity(0.78))
                     .fixedSize(horizontal: false, vertical: true)
+
+                // 展开态：完整思考过程时间线
+                if hasLog && isThoughtExpanded {
+                    thoughtTimeline
+                }
             }
         }
-        .allowsHitTesting(false)
+        // 有思考日志时放开点击用于展开/收起；无日志时维持原禁点行为（避免误触气泡）
+        .allowsHitTesting(hasLog)
+        .onTapGesture {
+            guard hasLog else { return }
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isThoughtExpanded.toggle()
+            }
+        }
+    }
+
+    /// 思考过程时间线：每条 = 时间 + 动作文案
+    private var thoughtTimeline: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ForEach(Array((thoughtLog ?? []).enumerated()), id: \.element.id) { index, event in
+                HStack(alignment: .top, spacing: 8) {
+                    // 时间线竖线 + 圆点
+                    VStack(spacing: 0) {
+                        Circle()
+                            .fill(index == (thoughtLog?.count ?? 0) - 1 ? Color.holoPrimary : Color.holoTextSecondary.opacity(0.4))
+                            .frame(width: 6, height: 6)
+                            .padding(.top, 4)
+                        if index < (thoughtLog?.count ?? 0) - 1 {
+                            Rectangle()
+                                .fill(Color.holoTextSecondary.opacity(0.18))
+                                .frame(width: 1)
+                                .frame(maxHeight: .infinity)
+                        }
+                    }
+                    Text(event.title)
+                        .font(.system(size: 12, weight: index == (thoughtLog?.count ?? 0) - 1 ? .medium : .regular))
+                        .foregroundColor(index == (thoughtLog?.count ?? 0) - 1 ? .holoTextPrimary.opacity(0.85) : .holoTextSecondary.opacity(0.7))
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+        .padding(.top, 4)
     }
 
     // MARK: - Placeholder
