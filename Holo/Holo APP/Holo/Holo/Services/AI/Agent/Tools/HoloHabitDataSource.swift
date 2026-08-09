@@ -50,7 +50,8 @@ struct HoloDefaultHabitDataSource: HoloHabitDataSource {
                     isMeasureType: habit.isMeasureType
                 ),
                 unit: habit.isNumericType ? habit.unitText : nil,
-                isMeasureType: habit.isMeasureType
+                isMeasureType: habit.isMeasureType,
+                recordCount: records.count
             )
         }
     }

@@ -35,6 +35,9 @@ struct HoloHabitToolRecord: Codable, Equatable, Sendable {
     /// 打卡/计数型：value=0 表示「今天没做」，是真实语义，必须保留。
     /// 默认 false 以兼容旧持久化数据。
     var isMeasureType: Bool = false
+    /// 该习惯读取的原始打卡记录条数（聚合进 dailyCounts 前的总数）。
+    /// 默认 0 兼容旧持久化数据与未提供该值的 mock。
+    var recordCount: Int = 0
 }
 
 /// 习惯数据源协议：生产实现适配真实 habit repository（后续集成），测试用 mock。
@@ -110,7 +113,7 @@ struct HoloHabitTool: HoloDataTool {
         return HoloDataToolResult(
             toolRequestID: request.id, tool: request.tool, status: .success,
             coverage: nil, metrics: metrics, events: events, warnings: [], error: nil,
-            recordCount: habits.count
+            recordCount: negatives.map(\.recordCount).reduce(0, +)
         )
     }
 
@@ -130,7 +133,7 @@ struct HoloHabitTool: HoloDataTool {
         return HoloDataToolResult(
             toolRequestID: request.id, tool: request.tool, status: .success,
             coverage: nil, metrics: metrics, events: events, warnings: [], error: nil,
-            recordCount: habits.count
+            recordCount: negatives.map(\.recordCount).reduce(0, +)
         )
     }
 
@@ -153,7 +156,7 @@ struct HoloHabitTool: HoloDataTool {
         return HoloDataToolResult(
             toolRequestID: request.id, tool: request.tool, status: .success,
             coverage: nil, metrics: metrics, events: events, warnings: [], error: nil,
-            recordCount: habits.count
+            recordCount: positives.map(\.recordCount).reduce(0, +)
         )
     }
 
