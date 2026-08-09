@@ -23,7 +23,7 @@ enum MarkdownEditorAction: Equatable {
     case insertTagToken(id: UUID, displayPath: String)
     /// 候选面板选中想法：触发区间整体替换为引用 Token
     case insertReferenceToken(id: UUID, displayText: String, snapshot: String)
-    /// 选中文字转任务后，在选区末尾插入 ✅ 任务标记 Token
+    /// 选中文字转任务后，在选区末尾插入轻量「任务」关系 Token
     case insertTaskMark(taskId: UUID, displayText: String)
     /// 把当前选中的 Token 转为普通文本（移除标签 / 取消引用）
     case removeSelectedToken
@@ -73,8 +73,13 @@ struct MarkdownTextView: UIViewRepresentable {
     /// 选区菜单「转为任务」回调：用户选中文字后点「转为任务」时触发，参数为选中的纯文本
     var onConvertSelection: ((String) -> Void)? = nil
 
+    /// 编辑态和阅读态共用同一种 UITextView 构造方式。
+    static func makeTaskAwareTextView() -> UITextView {
+        UITextView(frame: .zero)
+    }
+
     func makeUIView(context: Context) -> UITextView {
-        let textView = SelfSizingTextView()
+        let textView = SelfSizingTextView(frame: .zero)
         textView.delegate = context.coordinator
         textView.font = Self.baseFont
         textView.textColor = Self.baseTextColor
@@ -134,8 +139,8 @@ struct MarkdownTextView: UIViewRepresentable {
         toolbar.onReference = { [self] in pendingAction = .insertTriggerCharacter("@") }
         toolbar.onBold = { [self] in pendingAction = .toggleBold }
         toolbar.onImage = { onAddImage?() }
-        toolbar.onConvertToTask = { [self] in
-            // 点工具栏 ✅ 时先检查有没有选中文字：有就只转选中的，没有就转整篇。
+        toolbar.onConvertToTask = {
+            // 点工具栏「转任务」时先检查有没有选中文字：有就只转选中的，没有就转整篇。
             // 闭包里通过 coordinator 读最新引用（首次渲染快照不会随 SwiftUI 重建更新）。
             let sel = context.coordinator.hostTextView?.selectedRange ?? NSRange(location: 0, length: 0)
             if sel.length > 0,
@@ -522,7 +527,7 @@ struct MarkdownTextView: UIViewRepresentable {
             let selection = textView.selectedRange
 
             if selection.length == 0 {
-                // 含起点（>=）：兼容单字符 Token（如 ✅ taskMark），开区间会让单字符 Token 永远吸附不到
+                // 含起点（>=）：兼容短 Token，避免开区间让短 Token 永远吸附不到
                 guard let token = tokenRanges.first(where: {
                     selection.location >= $0.location && selection.location < $0.location + $0.length
                 }) else { return false }
@@ -655,7 +660,7 @@ struct MarkdownTextView: UIViewRepresentable {
             syncMarkdown(from: textView)
         }
 
-        /// 选中文字转任务：保留选区文字，在其末尾追加 ✅ Token（一次 undo 单元）
+        /// 选中文字转任务：保留选区文字，在其末尾追加关系 Token（一次 undo 单元）
         /// 与 insertToken 不同：不依赖触发区间，直接定位到选区末尾插入
         private func insertTaskMark(taskId: UUID, displayText: String, on textView: UITextView) {
             let selection = textView.selectedRange
@@ -679,6 +684,54 @@ struct MarkdownTextView: UIViewRepresentable {
 
             refreshTypingAttributes(for: textView)
             syncMarkdown(from: textView)
+
+            // 先让用户看到“这段原文被转化”的短暂反馈，再收敛为安静的关系标记。
+            if selection.length > 0 {
+                animateTaskConversion(
+                    sourceRange: selection,
+                    taskRange: NSRange(location: insertLocation, length: tokenText.length),
+                    in: textView
+                )
+            }
+        }
+
+        /// 任务创建后的轻量过渡：原文短暂高亮，关系标记轻微呼吸一次。
+        /// 创建结果由现有确认反馈承担，不把状态文案覆盖在正文上。
+        private func animateTaskConversion(sourceRange: NSRange, taskRange: NSRange, in textView: UITextView) {
+            textView.layoutIfNeeded()
+            textView.layoutManager.ensureLayout(for: textView.textContainer)
+
+            let textOrigin = CGPoint(
+                x: textView.textContainerInset.left - textView.contentOffset.x,
+                y: textView.textContainerInset.top - textView.contentOffset.y
+            )
+            let sourceGlyphRange = textView.layoutManager.glyphRange(
+                forCharacterRange: sourceRange,
+                actualCharacterRange: nil
+            )
+            let taskGlyphRange = textView.layoutManager.glyphRange(
+                forCharacterRange: taskRange,
+                actualCharacterRange: nil
+            )
+            guard sourceGlyphRange.length > 0, taskGlyphRange.length > 0 else { return }
+
+            var sourceRects: [CGRect] = []
+            textView.layoutManager.enumerateLineFragments(forGlyphRange: sourceGlyphRange) { _, usedRect, _, lineGlyphRange, _ in
+                guard NSIntersectionRange(sourceGlyphRange, lineGlyphRange).length > 0 else { return }
+                sourceRects.append(usedRect.offsetBy(dx: textOrigin.x, dy: textOrigin.y))
+            }
+            let taskRect = textView.layoutManager
+                .boundingRect(forGlyphRange: taskGlyphRange, in: textView.textContainer)
+                .offsetBy(dx: textOrigin.x, dy: textOrigin.y)
+
+            guard !sourceRects.isEmpty else { return }
+            let animationView = TaskConversionAnimationView(sourceRects: sourceRects, taskRect: taskRect)
+            animationView.frame = textView.bounds
+            animationView.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+            textView.addSubview(animationView)
+            animationView.play {
+                animationView.removeFromSuperview()
+            }
         }
 
         /// 把选中的 Token 转为普通文本（保留文字、去除 #/@ 前缀与 Token 关系）
@@ -695,7 +748,7 @@ struct MarkdownTextView: UIViewRepresentable {
             case .reference(_, let displayText, _):
                 plainText = displayText
             case .taskMark:
-                // ✅ 是纯标记，取消时直接删除，不保留任何文字
+                // 任务状态 Token 是纯标记，取消时直接删除，不保留任何文字
                 plainText = nil
             case .text:
                 return
@@ -1050,17 +1103,17 @@ extension MarkdownTextView {
         return NSAttributedString(string: "\(prefix)\(visibleText)", attributes: attributes)
     }
 
-    /// 任务标记 Token：渲染为 ✅ emoji，携带 taskMark 身份属性。
-    /// 用 emoji 而非 NSTextAttachment —— 复用现有属性体系，序列化/原子化/点击全部兼容，
-    /// 避免 attachment 的单字符选区、U+FFFC 渗入纯文本等问题。
+    /// 任务关系 Token：一个不可拆分的「清单图标 + 任务」附件。
+    /// 它比正文更小、更轻，明确属于系统元数据；也不会像长胶囊一样挤压或覆盖用户文字。
     static func makeTaskMarkAttributedText(id: UUID, taskId: UUID, displayText: String) -> NSAttributedString {
         var attributes = baseAttributes
-        attributes[.foregroundColor] = UIColor(Color.holoPrimary)
         attributes[.holoTokenType] = HoloTokenType.taskMark.rawValue
         attributes[.holoEntityId] = id.uuidString
         attributes[.holoTaskId] = taskId.uuidString
         attributes[.holoDisplayText] = displayText
-        return NSAttributedString(string: " ✅ ", attributes: attributes)
+        let result = NSMutableAttributedString(attachment: TaskLinkAttachment())
+        result.addAttributes(attributes, range: NSRange(location: 0, length: result.length))
+        return result
     }
 
     /// 从富文本属性还原 Token 节点；属性不完整时返回 nil（降级为普通文本）
@@ -1274,6 +1327,125 @@ private extension String {
     }
 }
 
+// MARK: - Task token presentation
+
+/// 单字符附件保证任务标记不会被换行拆开；无底色、无边框，维持 iOS 编辑器的内容优先层级。
+private final class TaskLinkAttachment: NSTextAttachment {
+
+    override init(data contentData: Data?, ofType uti: String?) {
+        super.init(data: contentData, ofType: uti)
+        bounds = CGRect(x: 0, y: -3, width: 47, height: 18)
+        accessibilityLabel = "已转为任务"
+    }
+
+    convenience init() {
+        self.init(data: nil, ofType: nil)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override func image(
+        forBounds imageBounds: CGRect,
+        textContainer: NSTextContainer?,
+        characterIndex charIndex: Int
+    ) -> UIImage? {
+        // NSTextAttachment.image 是静态位图；在这里按绘制时的 trait 重新生成，
+        // 才能保证 App 运行中切换深浅色后文字仍保持正确对比度。
+        Self.makeImage()
+    }
+
+    private static func makeImage() -> UIImage {
+        let size = CGSize(width: 47, height: 18)
+        let renderer = UIGraphicsImageRenderer(size: size)
+        return renderer.image { _ in
+            let symbolConfig = UIImage.SymbolConfiguration(pointSize: 12, weight: .medium)
+            let symbol = UIImage(systemName: "checklist", withConfiguration: symbolConfig)?
+                .withTintColor(UIColor(Color.holoPrimary), renderingMode: .alwaysOriginal)
+            symbol?.draw(in: CGRect(x: 5, y: 3, width: 13, height: 12))
+
+            let text = "任务" as NSString
+            text.draw(
+                at: CGPoint(x: 21, y: 1),
+                withAttributes: [
+                    .font: UIFont.systemFont(ofSize: 12, weight: .medium),
+                    .foregroundColor: UIColor.secondaryLabel
+                ]
+            )
+        }
+    }
+}
+
+/// 任务创建瞬间的短过渡：标出来源文字，并让关系标记轻微呼吸一次。
+private final class TaskConversionAnimationView: UIView {
+
+    private let sourceHighlights: [UIView]
+    private let markerHalo: UIView
+
+    init(sourceRects: [CGRect], taskRect: CGRect) {
+        sourceHighlights = sourceRects.map { rect in
+            let highlight = UIView(frame: rect.insetBy(dx: -3, dy: -2))
+            highlight.backgroundColor = UIColor(Color.holoPrimary.opacity(0.10))
+            highlight.layer.cornerRadius = 5
+            return highlight
+        }
+
+        markerHalo = UIView(frame: taskRect.insetBy(dx: -3, dy: -2))
+        markerHalo.backgroundColor = UIColor(Color.holoPrimary.opacity(0.10))
+        markerHalo.layer.cornerRadius = 6
+
+        super.init(frame: .zero)
+        isUserInteractionEnabled = false
+        sourceHighlights.forEach(addSubview)
+        addSubview(markerHalo)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    func play(completion: @escaping () -> Void) {
+        sourceHighlights.forEach {
+            $0.alpha = 0
+            $0.transform = CGAffineTransform(scaleX: 0.98, y: 0.98)
+        }
+        markerHalo.alpha = 0
+        markerHalo.transform = CGAffineTransform(scaleX: 0.82, y: 0.82)
+
+        UIView.animate(
+            withDuration: 0.18,
+            delay: 0,
+            options: [.curveEaseOut, .beginFromCurrentState]
+        ) {
+            self.sourceHighlights.forEach {
+                $0.alpha = 1
+                $0.transform = .identity
+            }
+            self.markerHalo.alpha = 1
+            self.markerHalo.transform = .identity
+        }
+
+        UIView.animate(
+            withDuration: 0.22,
+            delay: 0.56,
+            options: [.curveEaseInOut, .beginFromCurrentState]
+        ) {
+            self.sourceHighlights.forEach { $0.alpha = 0 }
+            self.markerHalo.transform = CGAffineTransform(scaleX: 1.04, y: 1.04)
+        }
+
+        UIView.animate(
+            withDuration: 0.16,
+            delay: 0.78,
+            options: [.curveEaseIn, .beginFromCurrentState]
+        ) {
+            self.markerHalo.alpha = 0
+            self.markerHalo.transform = .identity
+        } completion: { _ in
+            completion()
+        }
+    }
+}
+
 // MARK: - SelfSizingTextView
 
 /// 自动计算内容高度的 UITextView
@@ -1347,7 +1519,7 @@ extension MarkdownTextView.Coordinator: UIEditMenuInteractionDelegate {
         let capturedText = attrSubstring.string.trimmingCharacters(in: .whitespacesAndNewlines)
 
         // 普通选区：在系统建议菜单后追加「转为任务」
-        let convertAction = UIAction(title: "转为任务", image: UIImage(systemName: "checkmark.square")) { [weak self] _ in
+        let convertAction = UIAction(title: "转为任务", image: UIImage(systemName: "text.badge.checkmark")) { [weak self] _ in
             self?.onConvertSelection?(capturedText)
         }
         return UIMenu(children: suggestedActions + [convertAction])

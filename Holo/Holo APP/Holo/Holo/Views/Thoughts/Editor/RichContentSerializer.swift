@@ -162,7 +162,7 @@ nonisolated enum RichContentSerializer {
         case .reference(_, let displayText, _):
             return "@\(displayText)"
         case .taskMark:
-            // ✅ 是视觉标记，不参与派生文本（避免污染搜索 / AI 分类）
+            // 任务关系标记不参与派生文本（避免污染搜索 / AI 分类）
             return ""
         }
     }

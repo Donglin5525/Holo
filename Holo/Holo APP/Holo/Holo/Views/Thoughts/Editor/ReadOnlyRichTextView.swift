@@ -21,7 +21,7 @@ struct ReadOnlyRichTextView: UIViewRepresentable {
     var onTokenTap: (HoloContentNode) -> Void
 
     func makeUIView(context: Context) -> UITextView {
-        let textView = UITextView()
+        let textView = MarkdownTextView.makeTaskAwareTextView()
         textView.isEditable = false
         textView.isSelectable = true
         textView.isScrollEnabled = false

@@ -182,7 +182,7 @@ struct ThoughtEditorView: View {
                 },
                 onCreated: { createdTaskIds in
                     taskExtractionRequest = nil
-                    // 选中转化：在选中文字末尾插入 ✅ 标记
+                    // 选中转化：正文只保留轻量关系标记，完成反馈由 Toast 承担。
                     if request.isFromSelection,
                        let firstTaskId = createdTaskIds.first {
                         pendingEditorAction = .insertTaskMark(taskId: firstTaskId, displayText: request.content)
