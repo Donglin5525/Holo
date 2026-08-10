@@ -167,6 +167,12 @@ struct HomeView: View {
             swipeDismissalActive = true
         }
         .onChange(of: activeScreen) { _, newValue in
+            // 回到首页：复位底部导航选中态。
+            // 走常驻栈的模块（如记忆长廊）退回时 activeScreen 变 nil，
+            // 在此统一清理高亮，避免选中态残留。
+            if newValue == nil {
+                selectedTab = .ai
+            }
             // 进入任一模块时复位右滑标记，保证下次退出用默认的下滑转场
             if newValue != nil {
                 swipeDismissalActive = false
