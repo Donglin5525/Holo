@@ -109,7 +109,7 @@ nonisolated final class APIClient {
         onResponse: (@Sendable (HTTPURLResponse) -> Void)? = nil
     ) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
-            Task {
+            let task = Task {
                 var lastError: Error?
 
                 for attempt in 0...maxRetries {
@@ -170,6 +170,12 @@ nonisolated final class APIClient {
                         continuation.finish(throwing: CancellationError())
                         return
                     } catch let urlError as URLError {
+                        // 取消（内部 Task 被 onTermination cancel）不应当作可重试的网络错误，
+                        // 否则用户点停止后请求还会被重发若干轮，造成“表面取消”。
+                        if urlError.code == .cancelled {
+                            continuation.finish(throwing: CancellationError())
+                            return
+                        }
                         let apiError: APIError = urlError.code == .timedOut ? .timeout : .networkUnavailable
                         lastError = apiError
                         if !didYieldContent, attempt < maxRetries {
@@ -187,6 +193,12 @@ nonisolated final class APIClient {
                 }
 
                 continuation.finish(throwing: lastError ?? APIError.serverError("未知错误"))
+            }
+            // 消费端取消迭代（用户点停止 → 上游 Task.cancel）时，把取消信号传导给
+            // 真正持有网络连接的内部 Task，让 urlSession.bytes 真正中断；否则请求会在
+            // 后台继续挂起并自动重试，是“表面取消”的根因。
+            continuation.onTermination = { @Sendable _ in
+                task.cancel()
             }
         }
     }

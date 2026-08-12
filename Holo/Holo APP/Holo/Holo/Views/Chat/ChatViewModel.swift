@@ -579,7 +579,13 @@ final class ChatViewModel: ObservableObject {
         streamingText = ""
         activeStreamingMessageID = nil
         if let cancelledMessageID {
-            chatRepo?.finishStreaming(cancelledMessageID, finalContent: "已停止生成")
+            // 打 .userCancelled 持久标记：重新进入页面做 Agent 状态同步时，
+            // 看到此标记不再把消息重新点亮成「还在分析中」，切断取消与同步的竞态。
+            chatRepo?.finishStreaming(
+                cancelledMessageID,
+                finalContent: "已停止生成",
+                messageType: .userCancelled
+            )
         }
         // 关键修复：Agent 深度分析跑在 Scheduler 独立 Task 上（activeTasks[jobID]），
         // 与 chat 的 currentTask 是不同对象。此前只取消 currentTask 对 Agent 无效，

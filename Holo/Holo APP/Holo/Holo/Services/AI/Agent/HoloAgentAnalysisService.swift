@@ -310,6 +310,12 @@ final class HoloAgentAnalysisService {
 
         for job in latestJobsByMessage {
             guard let sourceMessageID = job.sourceMessageID else { continue }
+            // 用户已主动停止的消息（.userCancelled 持久标记）：即使后台 job 仍处于
+            // waiting/retrying 等非终态（取消落盘是异步的，可能与本同步产生竞态），
+            // 也绝不把它重新点亮成 streaming——这正是「退出再进来还在请求中」的根治点。
+            if repository.messageType(for: sourceMessageID) == .userCancelled {
+                continue
+            }
             let status = HoloAgentChatStatusPresenter.status(for: job)
             if status.keepsMessageStreaming {
                 repository.updateAgentMessageProgress(sourceMessageID, status: status)

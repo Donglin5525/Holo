@@ -151,7 +151,7 @@ final class HoloBackendAIProvider: AIProvider {
     /// 避免非流式长生成期间连接无数据，被移动网络 NAT 在 ~30s RST（导致 nginx 499 / iOS -1005）。
     func generateMemoryInsightStreaming(type: InsightType, contextJSON: String) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
-            Task {
+            let task = Task {
                 do {
                     try ensureDataProcessingConsent()
                     let messages: [ChatMessageDTO] = [.user(contextJSON)]
@@ -167,6 +167,10 @@ final class HoloBackendAIProvider: AIProvider {
                 } catch {
                     continuation.finish(throwing: error)
                 }
+            }
+            // 消费端取消时传导给内部 Task，中断下层网络连接（同 chatStreaming）。
+            continuation.onTermination = { @Sendable _ in
+                task.cancel()
             }
         }
     }
@@ -263,7 +267,7 @@ final class HoloBackendAIProvider: AIProvider {
         promptType: PromptManager.PromptType
     ) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
-            Task {
+            let task = Task {
                 do {
                     try ensureDataProcessingConsent()
                 } catch {
@@ -320,6 +324,11 @@ final class HoloBackendAIProvider: AIProvider {
                 } catch {
                     continuation.finish(throwing: error)
                 }
+            }
+            // 消费端取消迭代（用户点停止 → 上游 Task.cancel）时，把取消信号传导给
+            // 内部 Task，让下层 sendStreaming 的网络连接真正中断（“表面取消”根治）。
+            continuation.onTermination = { @Sendable _ in
+                task.cancel()
             }
         }
     }

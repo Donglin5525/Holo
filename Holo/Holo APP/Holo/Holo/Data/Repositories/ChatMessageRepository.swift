@@ -500,14 +500,25 @@ final class ChatMessageRepository: ObservableObject {
     }
 
     /// 结束流式状态
-    func finishStreaming(_ messageId: UUID, finalContent: String) {
+    /// messageType 非 nil 时一并写入（如 .userCancelled），作为持久标记供 Agent 状态同步识别。
+    func finishStreaming(
+        _ messageId: UUID,
+        finalContent: String,
+        messageType: ChatMessageType? = nil
+    ) {
         guard let message = messageForUpdate(messageId) else { return }
         message.content = finalContent
         message.isStreaming = false
+        if let messageType {
+            message.messageType = messageType.rawValue
+        }
         save()
         updateSnapshot(messageId) { snapshot in
             snapshot.content = finalContent
             snapshot.isStreaming = false
+            if let messageType {
+                snapshot.messageType = messageType
+            }
         }
     }
 

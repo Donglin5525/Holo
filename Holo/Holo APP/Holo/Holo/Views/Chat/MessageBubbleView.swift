@@ -102,8 +102,12 @@ struct MessageBubbleView: View {
         let flexibleQueryCard = message.flexibleQueryCard
 
         VStack(alignment: isUser ? .trailing : .leading, spacing: 8) {
-            // 渲染优先级：额度耗尽提示 > 已保存目标卡片 > 目标计划卡片 > 周期回放 > 分析卡片 > 批处理卡片 > 单卡片 > 通用文字。
-            if message.isQuotaExhausted {
+            // 渲染优先级：用户已停止 > 额度耗尽提示 > 已保存目标卡片 > 目标计划卡片 > 周期回放 > 分析卡片 > 批处理卡片 > 单卡片 > 通用文字。
+            // 用户已停止的消息统一走纯文本气泡（显示「已停止生成」），
+            // 不再残留 Agent 分析卡 / loading 态。
+            if message.messageType == .userCancelled {
+                bubbleContent
+            } else if message.isQuotaExhausted {
                 QuotaExhaustedChatCard(message: message.content, onLearnPlus: onLearnPlus)
             } else if let savedGoalCard = message.savedGoalCard {
                 GoalSavedChatCard(data: savedGoalCard) {

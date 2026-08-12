@@ -31,6 +31,10 @@ enum ChatMessageType: String, Codable, Sendable {
     case goalPlanning
     case periodReplay   // 周期回放（原记忆长廊 AI 回放，迁移到聊天）
     case quotaExhausted // 免费/Plus 额度耗尽提示（非系统错误，是档位限制）
+    // 用户主动停止生成。作为持久标记：重新进入页面做 Agent 状态同步时，
+    // 看到此标记的消息不再因为后台 job 仍非终态而把它重新点亮成「还在分析中」，
+    // 从根上切断「取消落盘」与「重新进页面同步」之间的竞态。
+    case userCancelled
 }
 
 nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hashable {
