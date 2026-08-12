@@ -52,32 +52,6 @@ struct MessageBubbleView: View {
         message.role == "user"
     }
 
-    /// 保存完成的目标消息（需要渲染成可跳转卡片）
-    private var savedGoalCardData: GoalSavedChatCardData? {
-        guard !isUser,
-              message.messageType == .goalPlanning,
-              !message.isStreaming else {
-            return nil
-        }
-        return GoalSavedChatCardData(dictionary: message.extractedDataDictionary)
-    }
-
-    /// 是否可渲染为卡片（旧路径，单卡片兼容）
-    private var cardData: ChatCardData? {
-        guard !isUser,
-              let intentStr = message.intent,
-              let intent = AIIntent(rawValue: intentStr),
-              !message.isStreaming else {
-            return nil
-        }
-        return ChatCardData.from(intent: intent, data: message.extractedDataDictionary)
-    }
-
-    /// 从 executionBatch 构建多卡片数据
-    private var executionCards: [ChatCardData] {
-        ChatCardData.multiple(from: message.executionBatch)
-    }
-
     var body: some View {
         Group {
             if isUser {
@@ -122,18 +96,18 @@ struct MessageBubbleView: View {
     private var messageContent: some View {
         let analysisCardsData = message.analysisCards
         let hasAnalysisCards = !analysisCardsData.isEmpty
-        let cards = executionCards
+        let cards = message.executionCards
         let hasCards = !cards.isEmpty
-        let singleCard = cardData
+        let singleCard = message.singleCard
         let flexibleQueryCard = message.flexibleQueryCard
 
         VStack(alignment: isUser ? .trailing : .leading, spacing: 8) {
             // 渲染优先级：额度耗尽提示 > 已保存目标卡片 > 目标计划卡片 > 周期回放 > 分析卡片 > 批处理卡片 > 单卡片 > 通用文字。
             if message.isQuotaExhausted {
                 QuotaExhaustedChatCard(message: message.content, onLearnPlus: onLearnPlus)
-            } else if let savedGoalCardData {
-                GoalSavedChatCard(data: savedGoalCardData) {
-                    onSavedGoalCardTap?(savedGoalCardData.goalId)
+            } else if let savedGoalCard = message.savedGoalCard {
+                GoalSavedChatCard(data: savedGoalCard) {
+                    onSavedGoalCardTap?(savedGoalCard.goalId)
                 }
             } else if isGoalDraftReady {
                 if let draft = goalDraftForReview {
@@ -209,7 +183,7 @@ struct MessageBubbleView: View {
 
     /// 获取第一个可删除的卡片信息（用于上下文菜单）
     private var firstDeletableCard: (category: EntityCategory, description: String)? {
-        let allCards = executionCards.isEmpty ? (cardData.map { [$0] } ?? []) : executionCards
+        let allCards = message.executionCards.isEmpty ? (message.singleCard.map { [$0] } ?? []) : message.executionCards
 
         for card in allCards {
             switch card {

@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct GoalSavedChatCardData: Equatable {
+struct GoalSavedChatCardData: Equatable, Sendable {
     let goalId: UUID
     let title: String
     let taskCount: Int

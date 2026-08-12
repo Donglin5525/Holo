@@ -116,7 +116,7 @@ nonisolated enum ChatCardData: Equatable {
                 unit: data["unit"] ?? "kg"
             ))
 
-        case .completeTask, .updateTask, .deleteTask, .createNote, .queryTasks, .queryHabits, .query, .queryAnalysis, .flexibleDataQuery, .generateMemoryInsight, .unknown:
+        case .completeTask, .updateTask, .deleteTask, .createNote, .queryTasks, .queryHabits, .query, .queryAnalysis, .flexibleDataQuery, .generateMemoryInsight, .unknown, .updateGoalField, .linkTaskToGoal, .toggleGoalVisibility:
             return nil
         }
     }
@@ -971,3 +971,25 @@ extension ChatCardData {
         return cards
     }
 }
+
+// MARK: - Sendable
+
+// 卡片数据是不可变值类型（全 let + 值类型成员），天然线程安全。
+// 标注 Sendable 使其可作为 ChatMessageViewData 的渲染派生缓存跨线程存储，
+// 把"解码 JSON / 重建卡片"的成本从滑动渲染期移到数据创建期。
+
+extension ChatCardData: Sendable {}
+extension TransactionCardData: Sendable {}
+extension FlexibleQueryChatCardData: Sendable {}
+extension FlexibleQueryTransactionRow: Sendable {}
+extension TaskCardData: Sendable {}
+extension HabitCheckInCardData: Sendable {}
+extension MoodCardData: Sendable {}
+extension WeightCardData: Sendable {}
+extension AnalysisSummaryCardData: Sendable {}
+extension AnalysisTrendCardData: Sendable {}
+extension AnalysisBreakdownCardData: Sendable {}
+extension AnalysisComparisonCardData: Sendable {}
+extension AnalysisHighlightsCardData: Sendable {}
+extension AnalysisBreakdownRow: Sendable {}
+extension AnalysisTrendPoint: Sendable {}

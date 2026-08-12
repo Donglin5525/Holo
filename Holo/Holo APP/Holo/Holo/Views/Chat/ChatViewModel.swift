@@ -209,7 +209,7 @@ final class ChatViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .sink { [weak self] messages in
                 guard let self else { return }
-                self.messages = messages
+                self.messages = Self.annotateTimestampSeparators(messages)
                 self.isStreaming = messages.contains { $0.isStreaming }
             }
 
@@ -226,6 +226,22 @@ final class ChatViewModel: ObservableObject {
 
     private func syncHasEarlierSessions() {
         hasEarlierSessions = chatRepo?.hasEarlierSessions ?? false
+    }
+
+    /// 预计算每条消息是否需要在其上方显示时间分隔条。
+    /// 首条消息或距上一条 ≥ 5 分钟时显示。在数据进入列表前一次性算好，
+    /// 让 ForEach 不再依赖 enumerated() 复制整个数组、也不在渲染期逐条判断时间差。
+    private static func annotateTimestampSeparators(_ messages: [ChatMessageViewData]) -> [ChatMessageViewData] {
+        guard !messages.isEmpty else { return messages }
+        var result = messages
+        for index in result.indices {
+            let previous = index > 0 ? result[index - 1].timestamp : nil
+            result[index].showsTimestampSeparator = ChatTimeStampSeparator.shouldShow(
+                current: result[index].timestamp,
+                previous: previous
+            )
+        }
+        return result
     }
 
     // MARK: - Configuration

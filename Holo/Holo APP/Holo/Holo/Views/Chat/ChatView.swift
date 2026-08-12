@@ -389,12 +389,8 @@ struct ChatView: View {
                     historyLoadingHeader
                 }
 
-                ForEach(Array(viewModel.messages.enumerated()), id: \.element.id) { index, message in
-                    // 首条消息或距上一条 ≥ 5 分钟时显示时间，避免时间标签制造视觉噪声。
-                    if ChatTimeStampSeparator.shouldShow(
-                        current: message.timestamp,
-                        previous: index > 0 ? viewModel.messages[index - 1].timestamp : nil
-                    ) {
+                ForEach(viewModel.messages, id: \.id) { message in
+                    if message.showsTimestampSeparator {
                         ChatTimeStampSeparator(date: message.timestamp)
                     }
 
@@ -481,9 +477,13 @@ struct ChatView: View {
                 }
             }
             .padding(.horizontal, 16)
-            .padding(.vertical, 12)
+            .padding(.top, 12)
+            // 返回最下方按钮出现时，底部留出避让空间，最后一张卡片不被按钮胶囊盖住。
+            .padding(.bottom, scrollController.viewport.showsJumpToLatest ? 64 : 12)
             .background(alignment: .topLeading) {
                 ChatScrollViewBridge(controller: scrollController)
+                    .frame(width: 1, height: 1)
+                ChatScrollIndicator()
                     .frame(width: 1, height: 1)
             }
         }
@@ -604,6 +604,7 @@ struct ChatView: View {
                 .stroke(Color.holoTextSecondary.opacity(0.18), lineWidth: 0.5)
         }
         .shadow(color: .black.opacity(0.12), radius: 8, y: 3)
+        .contentShape(Capsule())
         .accessibilityLabel(
             pendingLatestActivityCount > 0
                 ? "回到最新消息，\(pendingLatestActivityCount) 条新消息"

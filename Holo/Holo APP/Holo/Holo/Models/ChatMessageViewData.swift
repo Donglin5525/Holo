@@ -37,6 +37,33 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
     func hash(into hasher: inout Hasher) {
         hasher.combine(id)
     }
+
+    /// 只比较源数据字段 + 外部预填状态。
+    /// 派生缓存（cachedExtractedDataDictionary / cachedLinkedEntityIds /
+    /// cachedAnalysisCards / cachedFlexibleQueryResult / cachedFlexibleQueryCard /
+    /// cachedExecutionCards / cachedSingleCard / cachedSavedGoalCard）是源数据的
+    /// 确定性函数，不参与相等判断——既正确（源相等则缓存相等）又更快
+    /// （避免在 MessageBubbleView.equatable() 里比较大体积的卡片数组）。
+    static func == (lhs: ChatMessageViewData, rhs: ChatMessageViewData) -> Bool {
+        lhs.id == rhs.id
+            && lhs.role == rhs.role
+            && lhs.content == rhs.content
+            && lhs.timestamp == rhs.timestamp
+            && lhs.intent == rhs.intent
+            && lhs.extractedDataJSON == rhs.extractedDataJSON
+            && lhs.isStreaming == rhs.isStreaming
+            && lhs.parentMessageId == rhs.parentMessageId
+            && lhs.messageType == rhs.messageType
+            && lhs.parsedBatch == rhs.parsedBatch
+            && lhs.executionBatch == rhs.executionBatch
+            && lhs.analysisContext == rhs.analysisContext
+            && lhs.rawLog == rhs.rawLog
+            && lhs.agentResult == rhs.agentResult
+            && lhs.insightResult == rhs.insightResult
+            && lhs.metadataState == rhs.metadataState
+            && lhs.cachedDeletionState == rhs.cachedDeletionState
+            && lhs.showsTimestampSeparator == rhs.showsTimestampSeparator
+    }
     let id: UUID
     var role: String
     var content: String
@@ -56,6 +83,17 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
     private var cachedLinkedEntityIds: [EntityCategory: UUID]
     /// 关联实体的删除态缓存（预计算，避免渲染时逐条查 Core Data）
     private var cachedDeletionState: [EntityCategory: Bool] = [:]
+    // MARK: - 渲染派生数据缓存
+    // 把"解码 JSON / 重建卡片 / 格式化金额"等成本从滑动渲染期移到数据创建期。
+    // 滑动时每条消息只读取这些缓存，不再现算，避免数据量增大后逐条掉帧。
+    private var cachedAnalysisCards: [ChatCardData] = []
+    private var cachedFlexibleQueryResult: FlexibleQueryResult?
+    private var cachedFlexibleQueryCard: ChatCardData?
+    private var cachedExecutionCards: [ChatCardData] = []
+    private var cachedSingleCard: ChatCardData?
+    private var cachedSavedGoalCard: GoalSavedChatCardData?
+    /// 是否在该消息上方显示时间分隔条（由 ChatViewModel 按相邻消息间隔预计算）。
+    var showsTimestampSeparator: Bool = false
     var metadataState: ChatMessageMetadataState
 
     init(
@@ -96,6 +134,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
             extractedDataDictionary: cachedExtractedDataDictionary,
             executionBatch: executionBatch
         )
+        recomputeDerivedCardCache()
     }
 
     @MainActor init(message: ChatMessage) {
@@ -204,6 +243,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
             extractedDataDictionary: cachedExtractedDataDictionary,
             executionBatch: executionBatch
         )
+        recomputeDerivedCardCache()
     }
 
     /// 批量元数据加载后填充重字段
@@ -223,6 +263,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         self.insightResult = insightResult
         self.metadataState = .loaded
         recomputeLinkedEntityIds()
+        recomputeDerivedCardCache()
     }
 
     // MARK: - Extracted Data
@@ -235,27 +276,38 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         extractedDataJSON = json
         cachedExtractedDataDictionary = Self.decodeExtractedData(json)
         recomputeLinkedEntityIds()
+        recomputeDerivedCardCache()
     }
 
     // MARK: - Analysis Cards
 
-    /// 从 analysisContext 生成的卡片数据
+    /// 从 analysisContext 生成的卡片数据（读预算缓存）
     var analysisCards: [ChatCardData] {
-        guard let context = analysisContext else { return [] }
-        return ChatCardData.fromAnalysisContext(context)
+        cachedAnalysisCards
     }
 
-    /// 从 flexible query 结构化结果生成的查询卡片
+    /// 从 flexible query 结构化结果生成的查询卡片（读预算缓存）
     var flexibleQueryCard: ChatCardData? {
-        ChatCardData.fromFlexibleQueryResult(flexibleQueryResult)
+        cachedFlexibleQueryCard
     }
 
     var flexibleQueryResult: FlexibleQueryResult? {
-        guard let json = extractedDataDictionary?["flexibleQueryResultJSON"],
-              let data = json.data(using: .utf8) else {
-            return nil
-        }
-        return try? JSONDecoder().decode(FlexibleQueryResult.self, from: data)
+        cachedFlexibleQueryResult
+    }
+
+    /// 从 executionBatch 构建的多卡片数据（读预算缓存）
+    var executionCards: [ChatCardData] {
+        cachedExecutionCards
+    }
+
+    /// 旧路径单卡片数据（读预算缓存）
+    var singleCard: ChatCardData? {
+        cachedSingleCard
+    }
+
+    /// 保存完成的目标卡片数据（读预算缓存）
+    var savedGoalCard: GoalSavedChatCardData? {
+        cachedSavedGoalCard
     }
 
     /// 是否为分析查询消息
@@ -304,6 +356,47 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         for category in EntityCategory.allCases where cachedLinkedEntityIds[category] != oldIds[category] {
             cachedDeletionState.removeValue(forKey: category)
         }
+    }
+
+    // MARK: - Render Cache
+
+    /// 重新预算渲染派生数据缓存。
+    /// 在所有会改变源数据（analysisContext / executionBatch / extractedData /
+    /// intent / role / messageType / isStreaming）的入口调用，确保渲染期读到的卡片数据始终最新。
+    private mutating func recomputeDerivedCardCache() {
+        cachedAnalysisCards = analysisContext.map { ChatCardData.fromAnalysisContext($0) } ?? []
+        cachedFlexibleQueryResult = decodeFlexibleQueryResult()
+        cachedFlexibleQueryCard = ChatCardData.fromFlexibleQueryResult(cachedFlexibleQueryResult)
+        cachedExecutionCards = ChatCardData.multiple(from: executionBatch)
+        cachedSingleCard = derivedSingleCard()
+        cachedSavedGoalCard = derivedSavedGoalCard()
+    }
+
+    private func decodeFlexibleQueryResult() -> FlexibleQueryResult? {
+        guard let json = cachedExtractedDataDictionary?["flexibleQueryResultJSON"],
+              let data = json.data(using: .utf8) else {
+            return nil
+        }
+        return try? JSONDecoder().decode(FlexibleQueryResult.self, from: data)
+    }
+
+    private func derivedSingleCard() -> ChatCardData? {
+        guard role != "user",
+              let intentStr = intent,
+              let intentValue = AIIntent(rawValue: intentStr),
+              !isStreaming else {
+            return nil
+        }
+        return ChatCardData.from(intent: intentValue, data: cachedExtractedDataDictionary)
+    }
+
+    private func derivedSavedGoalCard() -> GoalSavedChatCardData? {
+        guard role != "user",
+              messageType == .goalPlanning,
+              !isStreaming else {
+            return nil
+        }
+        return GoalSavedChatCardData(dictionary: cachedExtractedDataDictionary)
     }
 
     // MARK: - Unified Entity Resolution
