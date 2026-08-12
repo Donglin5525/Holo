@@ -54,6 +54,7 @@ export function publicMessage(code) {
 
     // 频率限制
     RATE_LIMITED: "今天的 AI 使用次数已达上限，稍后再试",
+    REPORT_RATE_LIMITED: "举报提交过于频繁，请稍后再试",
     QUOTA_EXCEEDED: "当前会员额度已用完",
     ASR_DURATION_EXCEEDED: "本次录音超过当前会员可识别时长",
 

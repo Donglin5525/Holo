@@ -7,6 +7,7 @@ import {
 } from "./adminAuth.js";
 import { renderAdminLoginPage, renderAdminLogsPage } from "./adminLogsPage.js";
 import { renderAdminPromptEditorPage, renderAdminPromptsPage, renderAdminPromptHistoryPage } from "./adminPromptsPage.js";
+import { renderAdminReportsPage } from "./adminReportsPage.js";
 import { getPrompt, getPromptHistory, getPromptVersionEntry, listPrompts, resetPrompt, rollbackPrompt, updatePrompt } from "../prompts/promptRegistry.js";
 
 // 每次调用返回新对象，避免 @hono/node-server 写入 Content-Length 时污染共享引用
@@ -19,7 +20,7 @@ function htmlHeaders() {
   };
 }
 
-export function registerAdminRoutes(app, { config, logStore, runTestChat, getReleaseStatus }) {
+export function registerAdminRoutes(app, { config, logStore, runTestChat, getReleaseStatus, reportStore }) {
   app.get("/admin/login", (context) => {
     if (!isPasswordLoginEnabled(config)) {
       return adminJson(
@@ -287,6 +288,14 @@ export function registerAdminRoutes(app, { config, logStore, runTestChat, getRel
     return adminJson(context, getReleaseStatus());
   });
 
+  app.get("/v1/admin/reports", (context) => {
+    const auth = assertAdminAuthorized(context, config);
+    if (!auth.ok) {
+      return adminJson(context, auth.body, auth.status);
+    }
+    return adminJson(context, { reports: reportStore ? reportStore.list() : [] });
+  });
+
   app.get("/v1/admin/logs/:id", (context) => {
     const auth = assertAdminAuthorized(context, config);
     if (!auth.ok) {
@@ -317,6 +326,22 @@ export function registerAdminRoutes(app, { config, logStore, runTestChat, getRel
         notice: context.req.query("notice") ?? null,
         error: context.req.query("error") ?? null,
         token: context.req.query("token") ?? "",
+      }),
+      { headers: htmlHeaders() },
+    );
+  });
+
+  app.get("/admin/reports", (context) => {
+    const auth = assertAdminAuthorized(context, config);
+    if (!auth.ok) {
+      return redirect("/admin/login");
+    }
+
+    return new Response(
+      renderAdminReportsPage({
+        reports: reportStore ? reportStore.list() : [],
+        notice: context.req.query("notice") ?? null,
+        error: context.req.query("error") ?? null,
       }),
       { headers: htmlHeaders() },
     );

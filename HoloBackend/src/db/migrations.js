@@ -198,6 +198,28 @@ const MIGRATIONS = [
         ON quota_action_ledger(status, updated_at_ms);
     `,
   },
+  {
+    id: 11,
+    description: '创建 AI 内容举报表（App Store Guideline 1.2）',
+    up: `
+      CREATE TABLE IF NOT EXISTS content_reports (
+        id TEXT PRIMARY KEY,
+        device_id TEXT NOT NULL,
+        message_id TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        detail TEXT,
+        content_snapshot TEXT,
+        status TEXT NOT NULL DEFAULT 'pending',
+        created_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+      CREATE INDEX IF NOT EXISTS idx_content_reports_created
+        ON content_reports(created_at);
+      CREATE INDEX IF NOT EXISTS idx_content_reports_status
+        ON content_reports(status);
+      CREATE INDEX IF NOT EXISTS idx_content_reports_device
+        ON content_reports(device_id);
+    `,
+  },
 ];
 
 function computeChecksum(sql) {

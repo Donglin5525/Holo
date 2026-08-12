@@ -20,6 +20,7 @@ import { registerAdminRoutes } from "./admin/adminRoutes.js";
 import { createRequestLogger } from "./middleware/requestLogger.js";
 import { createDatabase } from "./db/database.js";
 import { createAppleIdentityVerifier } from "./auth/appleIdentityVerifier.js";
+import { createAppleRevokeService } from "./auth/appleRevokeService.js";
 import { createHoloSessionService } from "./auth/holoSession.js";
 import { requireInternalDiagnostics } from "./auth/internalDiagnosticsAuth.js";
 import { injectServerPrompt } from "./prompts/serverPromptPolicy.js";
@@ -31,6 +32,8 @@ import { createAppleReceiptVerifier } from "./subscription/appleReceiptVerifier.
 import { HOLO_PLUS_PRODUCT_IDS } from "./subscription/productIds.js";
 import { createQuotaActionLedgerStore } from "./usage/quotaActionLedgerStore.js";
 import { getQuotaRule, QUOTA_TYPES } from "./usage/quotaPolicy.js";
+import { createContentReportStore } from "./reports/contentReportStore.js";
+import { createContentModerationService } from "./moderation/contentModerationService.js";
 
 const CLIENT_ROUTING_FIELDS = ["baseURL", "baseUrl", "apiKey", "provider", "model"];
 
@@ -131,13 +134,22 @@ export function createApp(overrides = {}) {
       db: database.db,
       contentCaptureEnabled: config.contentCaptureEnabled,
     });
+  const contentReportStore = config.contentReportStore ?? createContentReportStore(database.db);
   const providers = createProviders(config);
   const asrProvider = createAsrProvider(config);
   const captureAiCallLogs = config.aiCallLogs.enabled;
   const appleIdentityVerifier = config.appleIdentityVerifier ?? createAppleIdentityVerifier({
     clientIds: config.auth.appleClientIds,
   });
+  const appleRevokeService = config.appleRevokeService ?? createAppleRevokeService({
+    teamId: config.auth.appleRevoke?.teamId,
+    keyId: config.auth.appleRevoke?.keyId,
+    clientId: config.auth.appleRevoke?.clientId,
+    privateKeyPem: config.auth.appleRevoke?.privateKeyPem,
+  });
   const holoSessionService = config.holoSessionService ?? createConfiguredSessionService(config.auth);
+  const contentModeration =
+    config.contentModeration ?? createContentModerationService(config.moderation);
 
   // 请求耗时日志中间件
   const requestLogger = createRequestLogger(database.db);
@@ -159,6 +171,7 @@ export function createApp(overrides = {}) {
       config,
       app.agentStepIdempotencyEncryption,
     ),
+    reportStore: contentReportStore,
     db: database.db,
   });
 
@@ -189,6 +202,28 @@ export function createApp(overrides = {}) {
         expiresAt: session.expiresAt,
         internalDiagnostics: session.internalDiagnostics,
       });
+    } catch (error) {
+      return createErrorResponse(context, error);
+    }
+  });
+
+  // App Store Guideline 5.1.1v：账号删除时撤销 Sign in with Apple 凭证。
+  // 客户端在删除账号前把用户的 identity token 发到这里，后端用 .p8 私钥签 client_secret
+  // 后调 Apple /auth/revoke 撤销。先验证 identity token，防止用任意字符串滥用撤销端点。
+  app.post("/v1/auth/apple/revoke", async (context) => {
+    try {
+      const request = await readJson(context);
+      try {
+        await appleIdentityVerifier.verify(request.identityToken);
+      } catch {
+        throw new GatewayError("INVALID_APPLE_IDENTITY", "Apple identity token is invalid", 401);
+      }
+      if (!appleRevokeService.isConfigured()) {
+        throw new GatewayError("APPLE_REVOKE_NOT_CONFIGURED", "Apple credential revocation is not configured", 503);
+      }
+      await appleRevokeService.revoke(request.identityToken);
+      context.header("Cache-Control", "no-store");
+      return context.json({ ok: true });
     } catch (error) {
       return createErrorResponse(context, error);
     }
@@ -431,6 +466,28 @@ export function createApp(overrides = {}) {
         context.header("X-Holo-Request-Id", logId);
       }
 
+      // AI 内容安全审核（App Store Guideline 1.2）：调用上游模型前审核用户输入。
+      // 命中违规则释放配额、记录日志并返回拦截响应，不把违规内容送到模型。
+      const moderationResult = await contentModeration.moderate(
+        extractLastUserText(upstreamRequest.messages),
+      );
+      if (!moderationResult.passed) {
+        releaseQuota(quotaActionLedgerStore, quotaReservation);
+        if (logId) {
+          adminLogStore.finishAiCall(logId, {
+            status: "moderation_blocked",
+            response: {
+              labels: moderationResult.labels,
+              riskLevel: moderationResult.riskLevel,
+            },
+          });
+        }
+        if (upstreamRequest.stream) {
+          return streamModerationBlocked({ requestId: logId, quotaType });
+        }
+        return context.json(moderationRefusalCompletion(), 200);
+      }
+
       if (upstreamRequest.stream) {
         return streamChat(context, provider, upstreamRequest, {
           logStore: logId ? adminLogStore : null,
@@ -532,6 +589,19 @@ export function createApp(overrides = {}) {
               });
             }
             result.choices[0].message.content = agentValidation.content;
+          }
+        }
+        // 非流式输出审核：模型生成内容命中违规时替换为拒绝文案（App Store Guideline 1.2）。
+        // 流式输出不做审核，靠输入审核 + 上游模型自身安全兜底。
+        const outputMessage = result?.choices?.[0]?.message;
+        if (outputMessage) {
+          const outputModeration = await contentModeration.moderate(
+            extractMessageText(outputMessage.content),
+          );
+          if (!outputModeration.passed) {
+            outputMessage.content = MODERATION_REFUSAL_MESSAGE;
+            result.choices[0].finish_reason = "content_filter";
+            result.moderation_blocked = true;
           }
         }
         if (acquiredStep) {
@@ -664,6 +734,54 @@ export function createApp(overrides = {}) {
       }
     } catch (error) {
       releaseQuota(quotaActionLedgerStore, quotaReservation);
+      return createErrorResponse(context, error);
+    }
+  });
+
+  // AI 内容举报（App Store Guideline 1.2）
+  // 鉴权：与聊天/语音一致，使用设备标识（X-Holo-Device-Id）。
+  // 不复用 holoSession：该 session 仅用于内部诊断，且客户端在正式版不会携带。
+  app.post("/v1/reports", async (context) => {
+    try {
+      const deviceId = getDeviceId(context, config);
+      const request = await readJson(context);
+
+      if (typeof request.messageId !== "string" || request.messageId.trim().length === 0) {
+        throw new GatewayError("INVALID_REQUEST", "messageId is required", 400);
+      }
+      if (typeof request.reason !== "string" || request.reason.trim().length === 0) {
+        throw new GatewayError("INVALID_REQUEST", "reason is required", 400);
+      }
+      if (request.reason.length > 200) {
+        throw new GatewayError("INVALID_REQUEST", "reason is too long", 400);
+      }
+
+      const detail = typeof request.detail === "string" ? request.detail.slice(0, 1000) : null;
+      const contentSnapshot = typeof request.contentSnapshot === "string"
+        ? request.contentSnapshot.slice(0, 4000)
+        : null;
+
+      // 复用现有限流桶（rate_limits 表），purpose=report 独立计数
+      const usage = usageStore.consume({
+        deviceId,
+        purpose: "report",
+        minuteLimit: config.limits.reportRequestsPerMinute,
+        dailyLimit: config.limits.reportRequestsPerDay,
+      });
+      if (!usage.allowed) {
+        throw new GatewayError("REPORT_RATE_LIMITED", "Report rate limit exceeded", 429);
+      }
+
+      contentReportStore.create({
+        deviceId,
+        messageId: request.messageId.trim(),
+        reason: request.reason.trim(),
+        detail,
+        contentSnapshot,
+      });
+
+      return context.json({ ok: true });
+    } catch (error) {
       return createErrorResponse(context, error);
     }
   });
@@ -872,6 +990,70 @@ function getDeviceId(context, config) {
   }
 
   return "debug-device";
+}
+
+// 内容安全审核命中后的拦截文案（友好、不生硬）。
+const MODERATION_REFUSAL_MESSAGE = "抱歉，你的问题我暂时无法回应。换个话题吧。";
+
+// message.content 可能是字符串，也可能是 OpenAI 多模态数组（[{type:"text",text}]）。
+function extractMessageText(content) {
+  if (typeof content === "string") return content;
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => (typeof part === "string" ? part : part?.text ?? ""))
+      .join("");
+  }
+  return "";
+}
+
+function extractLastUserText(messages) {
+  const message = messages.findLast((item) => item.role === "user");
+  return extractMessageText(message?.content);
+}
+
+// 非流式拦截响应：标准 chat completion 结构，finish_reason 标记为 content_filter。
+function moderationRefusalCompletion() {
+  return {
+    choices: [
+      {
+        index: 0,
+        message: { role: "assistant", content: MODERATION_REFUSAL_MESSAGE },
+        finish_reason: "content_filter",
+      },
+    ],
+    moderation_blocked: true,
+  };
+}
+
+// 流式拦截响应：单 chunk（拒绝文案）+ [DONE]，响应头与 streamChat 保持一致。
+function streamModerationBlocked(options = {}) {
+  const encoder = new TextEncoder();
+  const chunk = {
+    choices: [
+      {
+        index: 0,
+        delta: { role: "assistant", content: MODERATION_REFUSAL_MESSAGE },
+        finish_reason: "content_filter",
+      },
+    ],
+    moderation_blocked: true,
+  };
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode(`data: ${JSON.stringify(chunk)}\n\n`));
+      controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+      controller.close();
+    },
+  });
+  return new Response(stream, {
+    headers: {
+      "cache-control": "no-cache",
+      "connection": "keep-alive",
+      "content-type": "text/event-stream; charset=UTF-8",
+      ...(options.requestId ? { "x-holo-request-id": options.requestId } : {}),
+      ...(options.quotaType ? { "x-holo-quota-type": options.quotaType } : {}),
+    },
+  });
 }
 
 function streamChat(context, provider, request, options = {}) {

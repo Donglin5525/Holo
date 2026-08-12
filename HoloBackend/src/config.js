@@ -9,6 +9,14 @@ const DEFAULT_CONFIG = {
     sessionTtlSeconds: Number(process.env.HOLO_SESSION_TTL_SECONDS ?? 3600),
     sessionIssuer: process.env.HOLO_SESSION_ISSUER ?? "holo-ai-gateway",
     sessionAudience: process.env.HOLO_SESSION_AUDIENCE ?? "holo-ios",
+    // Sign in with Apple 凭证撤销（App Store Guideline 5.1.1v）：账号删除时
+    // 用 .p8 私钥签 client_secret，调 Apple /auth/revoke 撤销用户 identity token。
+    appleRevoke: {
+      teamId: process.env.APPLE_TEAM_ID ?? "6WZ5TXGPQY",
+      keyId: process.env.APPLE_KEY_ID ?? "",
+      clientId: process.env.APPLE_REVOKE_CLIENT_ID ?? "com.tangyuxuan.holo-app",
+      privateKeyPem: process.env.APPLE_PRIVATE_KEY_PEM ?? "",
+    },
   },
   limits: {
     chatRequestsPerMinute: Number(process.env.HOLO_CHAT_REQUESTS_PER_MINUTE ?? 20),
@@ -16,6 +24,9 @@ const DEFAULT_CONFIG = {
     asrRequestsPerMinute: Number(process.env.HOLO_ASR_REQUESTS_PER_MINUTE ?? 10),
     asrRequestsPerDay: Number(process.env.HOLO_ASR_REQUESTS_PER_DAY ?? 20),
     asrMaxBytes: Number(process.env.HOLO_ASR_MAX_BYTES ?? 10 * 1024 * 1024),
+    // AI 内容举报（App Store Guideline 1.2）：按设备限流，防止刷举报。
+    reportRequestsPerMinute: Number(process.env.HOLO_REPORT_REQUESTS_PER_MINUTE ?? 5),
+    reportRequestsPerDay: Number(process.env.HOLO_REPORT_REQUESTS_PER_DAY ?? 20),
   },
   routes: {
     chat: {
@@ -235,6 +246,15 @@ const DEFAULT_CONFIG = {
   subscription: {
     appleVerificationMode: process.env.HOLO_APPLE_VERIFICATION_MODE ?? "disabled",
   },
+  // AI 内容安全审核（App Store Guideline 1.2）：阿里云文本审核增强版。
+  // 未配置 AccessKey 时降级放行，配置后自动生效。
+  moderation: {
+    enabled: process.env.HOLO_MODERATION_ENABLED !== "false",
+    accessKeyId: process.env.ALIBABA_CLOUD_ACCESS_KEY_ID ?? "",
+    accessKeySecret: process.env.ALIBABA_CLOUD_ACCESS_KEY_SECRET ?? "",
+    endpoint: process.env.HOLO_MODERATION_ENDPOINT ?? "green-cip.cn-shanghai.aliyuncs.com",
+    service: process.env.HOLO_MODERATION_SERVICE ?? "chat_detection_pro",
+  },
 };
 
 function csv(value) {
@@ -275,6 +295,10 @@ export function loadConfig(overrides = {}) {
       ...DEFAULT_CONFIG.subscription,
       ...overrides.subscription,
     },
+    moderation: {
+      ...DEFAULT_CONFIG.moderation,
+      ...overrides.moderation,
+    },
     asrProvider: overrides.asrProvider,
     appleIdentityVerifier: overrides.appleIdentityVerifier,
     holoSessionService: overrides.holoSessionService,
@@ -285,6 +309,8 @@ export function loadConfig(overrides = {}) {
     acceptanceStore: overrides.acceptanceStore,
     appleReceiptVerifier: overrides.appleReceiptVerifier,
     providerOverrides: overrides.providerOverrides,
+    contentReportStore: overrides.contentReportStore,
+    contentModeration: overrides.contentModeration,
     agentStepIdempotencyStore: overrides.agentStepIdempotencyStore,
     agentStepIdempotencyEncryptionKey:
       overrides.agentStepIdempotencyEncryptionKey
