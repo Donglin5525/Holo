@@ -63,7 +63,6 @@ struct ThoughtEditorView: View {
 
     // MARK: - UI State
     @State private var showVoiceInput: Bool = false
-    @State private var isSaving: Bool = false
     @State private var pendingEditorAction: MarkdownEditorAction? = nil
     @State private var pendingVoiceTranscriptToInsert: String? = nil
     @State private var editorHeight: CGFloat = 360
@@ -114,11 +113,6 @@ struct ThoughtEditorView: View {
         !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    /// 是否可手动保存（有内容且未在保存中）
-    private var canSave: Bool {
-        hasContent && !isSaving
-    }
-
     // MARK: - Body
     var body: some View {
         NavigationView {
@@ -152,18 +146,10 @@ struct ThoughtEditorView: View {
             // safeAreaInset 在 fullScreenCover 下不跟随键盘，inputAccessoryView 由 UIKit 系统保证位置。
             .toolbar {
                 ToolbarItem(placement: .navigationBarLeading) {
-                    Button("取消") {
+                    Button("完成") {
                         dismiss()
                     }
                     .foregroundColor(.holoTextSecondary)
-                }
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("保存") {
-                        saveThought()
-                    }
-                    .foregroundColor(canSave ? .holoPrimary : .holoTextSecondary)
-                    .fontWeight(.semibold)
-                    .disabled(!canSave)
                 }
             }
         }
@@ -417,15 +403,6 @@ struct ThoughtEditorView: View {
         }
     }
 
-    /// 手动点「保存」按钮：最终保存 + 退出
-    private func saveThought() {
-        guard canSave else {
-            dismiss()
-            return
-        }
-        persistContent(shouldDismiss: true, notifyDataChange: true)
-    }
-
     // MARK: - 转为任务
 
     /// 触发「转为任务」：先落库（含草稿首次创建），再弹确认面板。
@@ -489,6 +466,16 @@ struct ThoughtEditorView: View {
                         // 这样 overlay 坐标系与 caretRect（UITextView 局部坐标）完全对齐
                         .overlay(alignment: .topLeading) {
                             suggestionOverlay
+                        }
+                        .overlay(alignment: .topLeading) {
+                            if content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                Text("写点什么吧…")
+                                    .font(.system(size: 16, weight: .medium))
+                                    .foregroundColor(.holoTextPlaceholder)
+                                    .padding(.top, 22)
+                                    .padding(.leading, 16)
+                                    .allowsHitTesting(false)
+                            }
                         }
 
                     voiceInputButton
@@ -571,7 +558,7 @@ struct ThoughtEditorView: View {
     }
 
     private var voiceInputButton: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 16) {
             Button {
                 HapticManager.selection()
                 showVoiceInput = true
@@ -619,7 +606,7 @@ struct ThoughtEditorView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
                     ForEach(aiAssignments, id: \.id) { assignment in
-                        aiTagChip(assignment.tag?.name ?? "")
+                        aiTagChip(assignment)
                     }
                 }
             }
@@ -629,20 +616,57 @@ struct ThoughtEditorView: View {
         .cornerRadius(HoloRadius.md)
     }
 
-    /// 只读 AI 标签 chip（灰色调 + AI 角标，视觉与卡片/详情页一致）
-    private func aiTagChip(_ tagName: String) -> some View {
-        HStack(spacing: 3) {
+    /// AI 标签 chip：未确认时提供保留/拒绝操作（与详情页一致）
+    private func aiTagChip(_ assignment: ThoughtTagAssignment) -> some View {
+        let tagName = assignment.tag?.name ?? ""
+        let isConfirmed = assignment.source == ThoughtTagAssignment.Source.confirmedAI.rawValue
+
+        return HStack(spacing: 4) {
             Text("#\(tagName)")
                 .font(.holoLabel)
-                .foregroundColor(.holoTextSecondary)
+                .foregroundColor(isConfirmed ? .holoPrimary : .holoTextSecondary)
+
             Text("AI")
                 .font(.system(size: 8, weight: .semibold))
-                .foregroundColor(.holoTextSecondary.opacity(0.6))
+                .foregroundColor(isConfirmed ? .holoPrimary.opacity(0.6) : .holoTextSecondary.opacity(0.5))
+
+            if !isConfirmed {
+                Button {
+                    let service = ThoughtOrganizationService()
+                    service.confirmAssignment(assignmentId: assignment.id)
+                    refreshAIAssignments()
+                } label: {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.holoSuccess)
+                }
+
+                Button {
+                    guard let tagName = assignment.tag?.name else { return }
+                    let service = ThoughtOrganizationService()
+                    service.rejectAndRecord(assignmentId: assignment.id, tagName: tagName)
+                    refreshAIAssignments()
+                } label: {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.holoError.opacity(0.7))
+                }
+            }
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(Color.holoTextSecondary.opacity(0.08))
+        .background(
+            isConfirmed
+                ? Color.holoPrimary.opacity(0.08)
+                : Color.holoTextSecondary.opacity(0.06)
+        )
         .cornerRadius(HoloRadius.sm)
+    }
+
+    /// 刷新 AI 归类标签（确认/拒绝后调用）
+    private func refreshAIAssignments() {
+        guard let thoughtId = currentThoughtId else { return }
+        aiAssignments = (try? thoughtRepository.fetchVisibleAIAssignments(thoughtId: thoughtId)) ?? []
     }
 
     /// 引用区域已收敛：引用统一通过正文行内 @ 添加，见 v2 方案 §10.4

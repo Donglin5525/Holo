@@ -14,6 +14,10 @@ import UIKit
 /// 编辑器格式化动作
 enum MarkdownEditorAction: Equatable {
     case toggleBold
+    case toggleItalic
+    case toggleUnderline
+    /// 设置文字颜色（nil = 清除颜色）；有选区给选区上色，无选区设置后续输入颜色
+    case setColor(hex: String?)
     case insertUnorderedList
     case insertOrderedList
     case insertText(String)
@@ -36,6 +40,15 @@ enum MarkdownEditorAction: Equatable {
 /// 当前光标处的格式状态，用于工具栏按钮高亮反馈
 struct TypingFormatState: Equatable {
     var isBold: Bool = false
+    var isItalic: Bool = false
+    var isUnderline: Bool = false
+    /// 当前光标处文字颜色（nil = 无颜色）
+    var colorHex: String? = nil
+
+    /// 是否有任一格式处于激活态（工具栏「格式」入口据此高亮）
+    var anyFormatActive: Bool {
+        isBold || isItalic || isUnderline || colorHex != nil
+    }
 }
 
 // MARK: - MarkdownTextView
@@ -138,6 +151,9 @@ struct MarkdownTextView: UIViewRepresentable {
         toolbar.onTag = { [self] in pendingAction = .insertTriggerCharacter("#") }
         toolbar.onReference = { [self] in pendingAction = .insertTriggerCharacter("@") }
         toolbar.onBold = { [self] in pendingAction = .toggleBold }
+        toolbar.onItalic = { [self] in pendingAction = .toggleItalic }
+        toolbar.onUnderline = { [self] in pendingAction = .toggleUnderline }
+        toolbar.onColor = { [self] hex in pendingAction = .setColor(hex: hex) }
         toolbar.onImage = { onAddImage?() }
         toolbar.onConvertToTask = {
             // 点工具栏「转任务」时先检查有没有选中文字：有就只转选中的，没有就转整篇。
@@ -231,10 +247,13 @@ struct MarkdownTextView: UIViewRepresentable {
         /// 被用户手动关闭的触发起点（同一触发片段内不再自动弹出面板）
         private var suppressedTriggerLocation: Int?
 
-        // 用户显式切换的加粗状态（Word-like sticky toggle）
-        // nil = 无显式状态，走 contextual 推断
-        // true = 强制开启，false = 强制关闭（覆盖 contextual）
+        // 用户显式切换的格式状态（Word-like sticky toggle）
+        // nil = 无显式状态，走 contextual 推断；非 nil = 强制覆盖 contextual
         var explicitBold: Bool? = nil
+        var explicitItalic: Bool? = nil
+        var explicitUnderline: Bool? = nil
+        /// 用户显式设置的文字颜色（sticky；nil = 无显式颜色）
+        var explicitColorHex: String? = nil
 
         init(text: Binding<String>, triggerContext: Binding<EditorTriggerContext?>, selectedToken: Binding<HoloContentNode?>) {
             self._text = text
@@ -411,6 +430,12 @@ struct MarkdownTextView: UIViewRepresentable {
             switch action {
             case .toggleBold:
                 toggleInlineStyle(on: textView, attribute: .holoBold, value: true)
+            case .toggleItalic:
+                toggleInlineStyle(on: textView, attribute: .holoItalic, value: true)
+            case .toggleUnderline:
+                toggleInlineStyle(on: textView, attribute: .holoUnderline, value: true)
+            case .setColor(let hex):
+                setInlineColor(hex: hex, on: textView)
             case .insertUnorderedList:
                 insertAtLineStart("\u{2022} ", on: textView)
             case .insertOrderedList:
@@ -448,13 +473,31 @@ struct MarkdownTextView: UIViewRepresentable {
                 typingAttributes.merge(MarkdownTextView.inlineAttributes(at: location - 1, in: textView.attributedText)) { _, new in new }
             }
 
-            // 叠加用户显式切换的加粗状态（sticky toggle，Word-like 行为）
+            // 叠加用户显式切换的格式状态（sticky toggle，Word-like 行为）
             if let bold = explicitBold {
                 if bold {
                     typingAttributes[.holoBold] = true
                 } else {
                     typingAttributes.removeValue(forKey: .holoBold)
                 }
+            }
+            if let italic = explicitItalic {
+                if italic {
+                    typingAttributes[.holoItalic] = true
+                } else {
+                    typingAttributes.removeValue(forKey: .holoItalic)
+                }
+            }
+            if let underline = explicitUnderline {
+                if underline {
+                    typingAttributes[.holoUnderline] = true
+                } else {
+                    typingAttributes.removeValue(forKey: .holoUnderline)
+                }
+            }
+            if let colorHex = explicitColorHex {
+                typingAttributes[.holoColorHex] = colorHex
+                typingAttributes[.foregroundColor] = UIColor(Color(hex: colorHex))
             }
 
             typingAttributes[.font] = MarkdownTextView.font(from: typingAttributes)
@@ -797,6 +840,8 @@ struct MarkdownTextView: UIViewRepresentable {
 
                 // 更新 sticky toggle 状态
                 if attribute == .holoBold { explicitBold = !isActive }
+                if attribute == .holoItalic { explicitItalic = !isActive }
+                if attribute == .holoUnderline { explicitUnderline = !isActive }
                 notifyFormatState(typingAttributes)
                 return
             }
@@ -811,6 +856,39 @@ struct MarkdownTextView: UIViewRepresentable {
                     updated[attribute] = value
                 } else {
                     updated.removeValue(forKey: attribute)
+                }
+                MarkdownTextView.applyResolvedAttributes(updated, to: mutable, range: range)
+            }
+            mutable.endEditing()
+
+            isProgrammaticChange = true
+            textView.attributedText = mutable
+            textView.selectedRange = safeRange
+            isProgrammaticChange = false
+            refreshTypingAttributes(for: textView)
+        }
+
+        /// 设置文字颜色（sticky）：有选区给选区上色，无选区设置后续输入颜色并锁定
+        private func setInlineColor(hex: String?, on textView: UITextView) {
+            explicitColorHex = hex
+
+            let safeRange = MarkdownTextView.clampedRange(textView.selectedRange, for: textView.attributedText.length)
+
+            if safeRange.length == 0 {
+                // 无选区：refreshTypingAttributes 会用 explicitColorHex 叠加 typingAttributes
+                refreshTypingAttributes(for: textView)
+                return
+            }
+
+            // 有选区：给选区每个字符上色
+            let mutable = NSMutableAttributedString(attributedString: textView.attributedText)
+            mutable.beginEditing()
+            mutable.enumerateAttributes(in: safeRange, options: []) { attrs, range, _ in
+                var updated = attrs
+                if let hex {
+                    updated[.holoColorHex] = hex
+                } else {
+                    updated.removeValue(forKey: .holoColorHex)
                 }
                 MarkdownTextView.applyResolvedAttributes(updated, to: mutable, range: range)
             }
@@ -896,7 +974,10 @@ struct MarkdownTextView: UIViewRepresentable {
         /// 通知外部当前格式状态
         private func notifyFormatState(_ typingAttributes: [NSAttributedString.Key: Any]) {
             onFormatStateChange?(TypingFormatState(
-                isBold: (typingAttributes[.holoBold] as? Bool) == true
+                isBold: (typingAttributes[.holoBold] as? Bool) == true,
+                isItalic: (typingAttributes[.holoItalic] as? Bool) == true,
+                isUnderline: (typingAttributes[.holoUnderline] as? Bool) == true,
+                colorHex: typingAttributes[.holoColorHex] as? String
             ))
         }
     }

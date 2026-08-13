@@ -2,117 +2,13 @@
 //  RichTextToolbarView.swift
 //  Holo
 //
-//  观点模块 - 富文本格式工具栏
-//  提供加粗、图片、无序列表、有序列表按钮
+//  观点模块 - 富文本格式工具栏（UIKit inputAccessoryView）
+//  精炼布局：[#] [@] [📷] | [B] [Aa▾] | [≡▾] | [✓]
+//  加粗一键直达；斜体/下划线/颜色收进「文字格式」菜单；列表收进「列表」菜单
 //
 
 import SwiftUI
-
-// MARK: - RichTextToolbarView
-
-/// 富文本编辑格式工具栏
-struct RichTextToolbarView: View {
-
-    @Binding var pendingAction: MarkdownEditorAction?
-    @Binding var formatState: TypingFormatState
-    var onAddImage: (() -> Void)? = nil
-
-    var body: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: HoloSpacing.sm) {
-                tagTriggerButton
-                referenceTriggerButton
-                divider
-                boldButton
-                imageButton
-                divider
-                unorderedListButton
-                orderedListButton
-            }
-            .padding(.horizontal, HoloSpacing.xs)
-        }
-        .padding(.vertical, HoloSpacing.xs)
-    }
-
-    // MARK: - 触发按钮
-
-    /// # 标签触发按钮
-    private var tagTriggerButton: some View {
-        ToolbarButton(icon: "number", label: "标签") {
-            pendingAction = .insertTriggerCharacter("#")
-        }
-    }
-
-    /// @ 引用触发按钮
-    private var referenceTriggerButton: some View {
-        ToolbarButton(icon: "at", label: "引用") {
-            pendingAction = .insertTriggerCharacter("@")
-        }
-    }
-
-    // MARK: - 格式按钮
-
-    /// 加粗按钮
-    private var boldButton: some View {
-        ToolbarButton(icon: "bold", label: "加粗", isActive: formatState.isBold) {
-            pendingAction = .toggleBold
-        }
-    }
-
-    /// 图片按钮
-    private var imageButton: some View {
-        ToolbarButton(icon: "photo", label: "添加图片") {
-            onAddImage?()
-        }
-    }
-
-    /// 无序列表按钮
-    private var unorderedListButton: some View {
-        ToolbarButton(icon: "list.bullet", label: "无序列表") {
-            pendingAction = .insertUnorderedList
-        }
-    }
-
-    /// 有序列表按钮
-    private var orderedListButton: some View {
-        ToolbarButton(icon: "list.number", label: "有序列表") {
-            pendingAction = .insertOrderedList
-        }
-    }
-
-    /// 分隔线
-    private var divider: some View {
-        Rectangle()
-            .fill(Color.holoBorder)
-            .frame(width: 1, height: 24)
-            .padding(.horizontal, 2)
-    }
-}
-
-// MARK: - ToolbarButton
-
-/// 工具栏按钮组件
-private struct ToolbarButton: View {
-    let icon: String
-    let label: String
-    var isActive: Bool = false
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: {
-            HapticManager.light()
-            action()
-        }) {
-            VStack(spacing: 2) {
-                Image(systemName: icon)
-                    .font(.system(size: 16, weight: isActive ? .bold : .medium))
-                    .foregroundColor(isActive ? .holoPrimary : .holoTextPrimary)
-                    .frame(width: 36, height: 28)
-            }
-        }
-        .accessibilityLabel(label)
-    }
-}
+import UIKit
 
 // MARK: - RichTextToolbarAccessoryView
 
@@ -124,24 +20,42 @@ private struct ToolbarButton: View {
 /// 纯 UIKit 下每个元素坐标由 AutoLayout 约束精确写死，是 inputAccessoryView 最标准的用法。
 final class RichTextToolbarAccessoryView: UIView {
 
-    /// 按钮点击回调
+    // MARK: - 按钮点击回调
     var onTag: (() -> Void)?
     var onReference: (() -> Void)?
     var onBold: (() -> Void)?
+    var onItalic: (() -> Void)?
+    var onUnderline: (() -> Void)?
+    /// 颜色：由「文字格式 → 文字颜色」触发浮层，浮层选色后回调实际 hex（nil = 清除）
+    var onColor: ((String?) -> Void)?
     var onImage: (() -> Void)?
     var onUnorderedList: (() -> Void)?
     var onOrderedList: (() -> Void)?
     /// 转为任务（整篇转化入口，弹出确认面板）
     var onConvertToTask: (() -> Void)?
 
-    private var formatButton: UIButton?
+    // MARK: - 视图引用
+    private var boldButton: UIButton?
+    private var formatMenuButton: UIButton?
+    /// 格式入口右下角的颜色指示圆点（当前有颜色时显示）
+    private lazy var colorIndicator: UIView = {
+        let view = UIView()
+        view.layer.cornerRadius = 4.5
+        view.layer.borderWidth = 1.5
+        view.layer.borderColor = UIColor(Color.holoCardBackground).cgColor
+        view.translatesAutoresizingMaskIntoConstraints = false
+        view.isHidden = true
+        return view
+    }()
 
-    /// 与系统键盘附件栏一致的紧凑高度：1pt 发丝线 + 48pt 操作区。
-    private static let toolbarHeight: CGFloat = 49
+    /// 颜色浮层背景（含浮层本体；关闭即移除）
+    private var colorPaletteBackdrop: UIView?
 
-    /// 当前格式状态变化时刷新加粗按钮高亮
+    private static let toolbarHeight: CGFloat = 50
+
+    /// 当前格式状态变化时刷新加粗/格式入口高亮与颜色指示
     var formatState: TypingFormatState = TypingFormatState() {
-        didSet { updateBoldHighlight() }
+        didSet { updateFormatHighlights() }
     }
 
     override var intrinsicContentSize: CGSize {
@@ -160,44 +74,61 @@ final class RichTextToolbarAccessoryView: UIView {
     @available(*, unavailable)
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
+    // MARK: - 布局
+
     private func setup() {
-        backgroundColor = .secondarySystemBackground
+        backgroundColor = UIColor(Color.holoGlassBackground)
         translatesAutoresizingMaskIntoConstraints = false
 
-        // 只保留一条系统发丝线，避免旧版多条竖线造成的“表格工具栏”。
-        let divider = UIView()
-        divider.backgroundColor = .separator
-        divider.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(divider)
+        // 顶部发丝线
+        let topDivider = UIView()
+        topDivider.backgroundColor = UIColor(Color.holoDivider)
+        topDivider.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(topDivider)
 
-        // 高频动作直接展示；格式与列表的子动作收进系统菜单。
+        // 按钮组（居中聚集，带分组分隔线）
         let stack = UIStackView()
         stack.axis = .horizontal
         stack.alignment = .center
-        stack.distribution = .equalSpacing
-        stack.spacing = 8
+        stack.spacing = 6
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
 
-        // 分隔线钉在顶部
         NSLayoutConstraint.activate([
-            divider.topAnchor.constraint(equalTo: topAnchor),
-            divider.leadingAnchor.constraint(equalTo: leadingAnchor),
-            divider.trailingAnchor.constraint(equalTo: trailingAnchor),
-            divider.heightAnchor.constraint(equalToConstant: 1),
+            topDivider.topAnchor.constraint(equalTo: topAnchor),
+            topDivider.leadingAnchor.constraint(equalTo: leadingAnchor),
+            topDivider.trailingAnchor.constraint(equalTo: trailingAnchor),
+            topDivider.heightAnchor.constraint(equalToConstant: 0.5),
 
-            stack.topAnchor.constraint(equalTo: divider.bottomAnchor, constant: 2),
-            stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -2),
-            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
-            stack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12)
+            stack.topAnchor.constraint(equalTo: topDivider.bottomAnchor),
+            stack.bottomAnchor.constraint(equalTo: bottomAnchor),
+            stack.centerXAnchor.constraint(equalTo: centerXAnchor)
         ])
 
-        stack.addArrangedSubview(makeButton(icon: "number", label: "标签", action: { self.onTag?() }))
-        stack.addArrangedSubview(makeButton(icon: "at", label: "引用想法", action: { self.onReference?() }))
-        stack.addArrangedSubview(makeButton(icon: "photo", label: "添加图片", action: { self.onImage?() }))
-        stack.addArrangedSubview(makeFormatButton())
-        stack.addArrangedSubview(makeListButton())
+        // 组1：内容插入
+        stack.addArrangedSubview(makeButton(icon: "number", label: "标签") { [weak self] in self?.onTag?() })
+        stack.addArrangedSubview(makeButton(icon: "at", label: "引用想法") { [weak self] in self?.onReference?() })
+        stack.addArrangedSubview(makeButton(icon: "photo", label: "添加图片") { [weak self] in self?.onImage?() })
+        stack.addArrangedSubview(makeDivider())
+
+        // 组2：文字格式
+        let bold = makeButton(icon: "bold", label: "加粗") { [weak self] in self?.onBold?() }
+        boldButton = bold
+        stack.addArrangedSubview(bold)
+
+        let formatMenu = makeFormatMenuButton()
+        formatMenuButton = formatMenu
+        stack.addArrangedSubview(formatMenu)
+        stack.addArrangedSubview(makeDivider())
+
+        // 组3：列表
+        stack.addArrangedSubview(makeListMenuButton())
+        stack.addArrangedSubview(makeDivider())
+
+        // 组4：核心动作
         stack.addArrangedSubview(makeTaskButton())
+
+        updateFormatHighlights()
 
         // inputAccessoryView 必需：跟随键盘宽度自适应
         autoresizingMask = .flexibleWidth
@@ -205,12 +136,21 @@ final class RichTextToolbarAccessoryView: UIView {
 
     // MARK: - 子元素构造
 
-    /// 普通工具：保持 44pt 左右的可点击区域，但通过统一底色和字号降低“图标墙”感。
+    private func makeDivider() -> UIView {
+        let divider = UIView()
+        divider.backgroundColor = UIColor(Color.holoBorder.opacity(0.6))
+        divider.translatesAutoresizingMaskIntoConstraints = false
+        divider.widthAnchor.constraint(equalToConstant: 1).isActive = true
+        divider.heightAnchor.constraint(equalToConstant: 22).isActive = true
+        return divider
+    }
+
+    /// 普通按钮：44pt 点击区，18pt 图标，普通态用次要文字色
     private func makeButton(
         icon: String,
         label: String,
-        action: @escaping () -> Void,
-        tintColor: UIColor = .label
+        tintColor: UIColor = UIColor(Color.holoTextSecondary),
+        action: @escaping () -> Void
     ) -> UIButton {
         let button = UIButton(type: .system)
         button.translatesAutoresizingMaskIntoConstraints = false
@@ -221,7 +161,7 @@ final class RichTextToolbarAccessoryView: UIView {
         )
         configuration.baseForegroundColor = tintColor
         configuration.cornerStyle = .medium
-        configuration.contentInsets = NSDirectionalEdgeInsets(top: 4, leading: 8, bottom: 4, trailing: 8)
+        configuration.contentInsets = NSDirectionalEdgeInsets(top: 4, leading: 6, bottom: 4, trailing: 6)
         button.configuration = configuration
         button.accessibilityLabel = label
         button.widthAnchor.constraint(equalToConstant: 44).isActive = true
@@ -230,68 +170,247 @@ final class RichTextToolbarAccessoryView: UIView {
             HapticManager.light()
             action()
         }, for: .touchUpInside)
-
         return button
     }
 
-    /// 格式入口复用系统菜单；加粗状态通过入口高亮反馈，不长期占一个独立按钮。
-    private func makeFormatButton() -> UIButton {
+    /// 文字格式入口（菜单）：斜体 / 下划线 / 文字颜色
+    /// 任一格式激活时入口高亮；颜色生效时右下角显示当前色圆点
+    private func makeFormatMenuButton() -> UIButton {
         let button = makeButton(icon: "textformat", label: "文字格式", action: {})
         button.menu = UIMenu(children: [
-            UIAction(title: "加粗", image: UIImage(systemName: "bold")) { _ in
+            UIAction(title: "斜体", image: UIImage(systemName: "italic")) { [weak self] _ in
                 HapticManager.light()
-                self.onBold?()
+                self?.onItalic?()
+            },
+            UIAction(title: "下划线", image: UIImage(systemName: "underline")) { [weak self] _ in
+                HapticManager.light()
+                self?.onUnderline?()
+            },
+            UIAction(title: "文字颜色", image: UIImage(systemName: "paintpalette")) { [weak self] _ in
+                HapticManager.light()
+                self?.toggleColorPalette()
             }
         ])
         button.showsMenuAsPrimaryAction = true
-        formatButton = button
-        updateBoldHighlight()
+
+        // 颜色指示圆点叠在格式入口右下角
+        button.addSubview(colorIndicator)
+        NSLayoutConstraint.activate([
+            colorIndicator.widthAnchor.constraint(equalToConstant: 9),
+            colorIndicator.heightAnchor.constraint(equalToConstant: 9),
+            colorIndicator.trailingAnchor.constraint(equalTo: button.trailingAnchor, constant: -5),
+            colorIndicator.bottomAnchor.constraint(equalTo: button.bottomAnchor, constant: -5)
+        ])
         return button
     }
 
-    /// 列表类型属于同一类低频选择，放进一个系统菜单，减少横向工具数量。
-    private func makeListButton() -> UIButton {
+    /// 列表入口（菜单）：无序 / 有序
+    private func makeListMenuButton() -> UIButton {
         let button = makeButton(icon: "list.bullet", label: "列表", action: {})
         button.menu = UIMenu(children: [
-            UIAction(title: "无序列表", image: UIImage(systemName: "list.bullet")) { _ in
+            UIAction(title: "无序列表", image: UIImage(systemName: "list.bullet")) { [weak self] _ in
                 HapticManager.light()
-                self.onUnorderedList?()
+                self?.onUnorderedList?()
             },
-            UIAction(title: "有序列表", image: UIImage(systemName: "list.number")) { _ in
+            UIAction(title: "有序列表", image: UIImage(systemName: "list.number")) { [weak self] _ in
                 HapticManager.light()
-                self.onOrderedList?()
+                self?.onOrderedList?()
             }
         ])
         button.showsMenuAsPrimaryAction = true
         return button
     }
 
-    /// 任务是 Holo 的核心动作，但仍使用标准 44pt 图标按钮，避免大色块抢走编辑焦点。
+    /// 转为任务：核心动作，常驻品牌色
     private func makeTaskButton() -> UIButton {
         let button = makeButton(
             icon: "checklist",
             label: "转为任务",
-            action: { self.onConvertToTask?() },
             tintColor: UIColor(Color.holoPrimary)
-        )
-        button.accessibilityLabel = "转为任务"
+        ) { [weak self] in
+            self?.onConvertToTask?()
+        }
         button.accessibilityHint = "将选中的文字转为任务；未选中文字时提取整篇想法"
         return button
     }
 
-    /// 加粗时仅高亮“格式”入口，菜单展开后仍以文字明确具体动作。
-    private func updateBoldHighlight() {
-        guard let formatButton else { return }
-        var configuration = formatButton.configuration
-        configuration?.baseForegroundColor = formatState.isBold
+    // MARK: - 高亮刷新
+
+    private func updateFormatHighlights() {
+        if let boldButton {
+            applyHighlight(to: boldButton, active: formatState.isBold)
+        }
+        if let formatMenuButton {
+            applyHighlight(to: formatMenuButton, active: formatState.anyFormatActive)
+        }
+        if let hex = formatState.colorHex {
+            colorIndicator.backgroundColor = UIColor(Color(hex: hex))
+            colorIndicator.isHidden = false
+        } else {
+            colorIndicator.isHidden = true
+        }
+    }
+
+    /// 高亮单个按钮（品牌色图标 + 浅底）；非激活恢复次要色
+    private func applyHighlight(to button: UIButton, active: Bool) {
+        guard var configuration = button.configuration else { return }
+        configuration.baseForegroundColor = active
             ? UIColor(Color.holoPrimary)
-            : .label
+            : UIColor(Color.holoTextSecondary)
         var background = UIBackgroundConfiguration.clear()
-        background.backgroundColor = formatState.isBold
+        background.backgroundColor = active
             ? UIColor(Color.holoPrimary.opacity(0.12))
             : .clear
         background.cornerRadius = 9
-        configuration?.background = background
-        formatButton.configuration = configuration
+        configuration.background = background
+        button.configuration = configuration
+    }
+
+    // MARK: - 颜色浮层
+
+    private func toggleColorPalette() {
+        if colorPaletteBackdrop != nil {
+            hideColorPalette()
+        } else {
+            showColorPalette()
+        }
+    }
+
+    private func showColorPalette() {
+        guard let window = self.window, colorPaletteBackdrop == nil else { return }
+
+        // 全屏透明背景：拦截外部点击以关闭
+        let backdrop = UIView()
+        backdrop.translatesAutoresizingMaskIntoConstraints = false
+        let tap = UITapGestureRecognizer(target: self, action: #selector(hideColorPalette))
+        backdrop.addGestureRecognizer(tap)
+        backdrop.backgroundColor = .clear
+        window.addSubview(backdrop)
+        NSLayoutConstraint.activate([
+            backdrop.topAnchor.constraint(equalTo: window.topAnchor),
+            backdrop.bottomAnchor.constraint(equalTo: window.bottomAnchor),
+            backdrop.leadingAnchor.constraint(equalTo: window.leadingAnchor),
+            backdrop.trailingAnchor.constraint(equalTo: window.trailingAnchor)
+        ])
+
+        let palette = ColorPalettePopover()
+        palette.onPick = { [weak self] hex in
+            self?.onColor?(hex)
+            self?.hideColorPalette()
+        }
+        backdrop.addSubview(palette)
+
+        let size = CGSize(width: ColorPalettePopover.preferredWidth, height: ColorPalettePopover.preferredHeight)
+        let selfFrame = self.superview?.convert(self.frame, to: window) ?? .zero
+        let anchorMidX = (formatMenuButton?.convert((formatMenuButton?.bounds ?? .zero), to: window).midX) ?? selfFrame.midX
+        let paletteX = max(12, min(anchorMidX - size.width / 2, window.bounds.width - size.width - 12))
+        let paletteY = selfFrame.minY - 8 - size.height
+        palette.frame = CGRect(x: paletteX, y: paletteY, width: size.width, height: size.height)
+
+        colorPaletteBackdrop = backdrop
+    }
+
+    @objc private func hideColorPalette() {
+        colorPaletteBackdrop?.removeFromSuperview()
+        colorPaletteBackdrop = nil
+    }
+}
+
+// MARK: - ColorPalettePopover
+
+/// 颜色轻量浮层：8 个预设色圆（2×4）+ 重置按钮
+/// 锚定在键盘工具栏「文字格式」按钮上方，选色后即关
+final class ColorPalettePopover: UIView {
+
+    var onPick: ((String?) -> Void)?
+
+    static let preferredWidth: CGFloat = 196
+    static let preferredHeight: CGFloat = 120
+
+    /// 预设色（与设计系统一致）
+    private static let presetHexes: [String] = [
+        "#F46D38", "#60A5FA", "#22C55E", "#EF4444",
+        "#C084FC", "#EC4899", "#10B981", "#8B5CF6"
+    ]
+
+    override init(frame: CGRect) {
+        super.init(frame: frame)
+        setup()
+    }
+
+    convenience init() {
+        self.init(frame: CGRect(x: 0, y: 0, width: Self.preferredWidth, height: Self.preferredHeight))
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    private func setup() {
+        backgroundColor = UIColor(Color.holoCardBackground)
+        layer.cornerRadius = 14
+        layer.borderWidth = 0.5
+        layer.borderColor = UIColor(Color.holoBorder.opacity(0.6)).cgColor
+        layer.shadowColor = UIColor.black.cgColor
+        layer.shadowOpacity = 0.12
+        layer.shadowRadius = 16
+        layer.shadowOffset = CGSize(width: 0, height: 6)
+
+        // 8 色圆 2×4
+        let grid = UIStackView()
+        grid.axis = .vertical
+        grid.spacing = 10
+        grid.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(grid)
+
+        let columns = 4
+        for rowStart in stride(from: 0, to: Self.presetHexes.count, by: columns) {
+            let row = UIStackView()
+            row.axis = .horizontal
+            row.spacing = 12
+            let upper = min(rowStart + columns, Self.presetHexes.count)
+            for hex in Self.presetHexes[rowStart..<upper] {
+                row.addArrangedSubview(makeSwatch(hex))
+            }
+            grid.addArrangedSubview(row)
+        }
+
+        // 重置按钮
+        let resetButton = UIButton(type: .system)
+        resetButton.setTitle("重置颜色", for: .normal)
+        resetButton.titleLabel?.font = UIFont.systemFont(ofSize: 13, weight: .medium)
+        resetButton.setTitleColor(UIColor(Color.holoTextSecondary), for: .normal)
+        resetButton.addAction(UIAction { [weak self] _ in
+            HapticManager.light()
+            self?.onPick?(nil)
+        }, for: .touchUpInside)
+        resetButton.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(resetButton)
+
+        NSLayoutConstraint.activate([
+            grid.topAnchor.constraint(equalTo: topAnchor, constant: 14),
+            grid.centerXAnchor.constraint(equalTo: centerXAnchor),
+
+            resetButton.topAnchor.constraint(equalTo: grid.bottomAnchor, constant: 10),
+            resetButton.centerXAnchor.constraint(equalTo: centerXAnchor),
+            resetButton.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -12)
+        ])
+    }
+
+    private func makeSwatch(_ hex: String) -> UIButton {
+        let button = UIButton(type: .system)
+        let color = UIColor(Color(hex: hex))
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.widthAnchor.constraint(equalToConstant: 32).isActive = true
+        button.heightAnchor.constraint(equalToConstant: 32).isActive = true
+        button.layer.cornerRadius = 16
+        button.backgroundColor = color
+        button.layer.borderWidth = 1
+        button.layer.borderColor = UIColor(Color.holoBorder.opacity(0.5)).cgColor
+        button.addAction(UIAction { [weak self] _ in
+            HapticManager.light()
+            self?.onPick?(hex)
+        }, for: .touchUpInside)
+        button.accessibilityLabel = "颜色 \(hex)"
+        return button
     }
 }
