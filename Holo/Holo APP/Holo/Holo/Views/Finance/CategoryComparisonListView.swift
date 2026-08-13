@@ -139,7 +139,7 @@ struct CategoryComparisonListView: View {
             HStack(spacing: 4) {
                 Text("本期 \(currency(currentTotal))")
                     .foregroundColor(.holoTextPrimary)
-                Text("vs")
+                Text("·")
                     .foregroundColor(.holoTextSecondary)
                 Text("对比期 \(currency(baselineTotal))")
                     .foregroundColor(.holoTextSecondary)

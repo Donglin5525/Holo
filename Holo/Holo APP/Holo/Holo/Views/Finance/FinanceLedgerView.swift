@@ -100,10 +100,10 @@ struct FinanceLedgerView: View {
         effectiveCalendarHeight / maxCalendarHeight
     }
 
-    /// 周视图固定高度
-    private let weekViewHeight: CGFloat = 90
+    /// 周视图固定高度：贴合周视图实际内容，避免日期下方留下额外空白
+    private let weekViewHeight: CGFloat = 80
 
-    /// 日历区域总高度（唯一驱动外层布局的值）：90 → 280 线性过渡
+    /// 日历区域总高度（唯一驱动外层布局的值）：80 → 280 线性过渡
     private var calendarAreaHeight: CGFloat {
         weekViewHeight + (maxCalendarHeight - weekViewHeight) * revealProgress
     }
@@ -137,7 +137,7 @@ struct FinanceLedgerView: View {
             
             // 收支概览
             summaryCards
-                .padding(.top, HoloSpacing.sm)
+                .padding(.top, HoloSpacing.xs)
 
             // 预算总览卡片
             if let summary = globalBudgetSummary {
@@ -379,8 +379,7 @@ struct FinanceLedgerView: View {
             .rotationEffect(.degrees(isCalendarExpanded ? 180 : 0))
             .contentTransition(.symbolEffect(.replace))
             .frame(maxWidth: .infinity, minHeight: 28)
-            .padding(.top, 6)
-            .padding(.bottom, 10)
+            .padding(.vertical, 2)
             .contentShape(Rectangle())
             .onTapGesture { toggleCalendarExpand() }
             .gesture(

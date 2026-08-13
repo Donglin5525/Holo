@@ -43,6 +43,35 @@ class FinanceRepository {
         seedDefaultData()
         migrateLegacyInstallmentNotes()
         migrateFixedExpenseSemantics()
+        migrateCardToCreditCard()
+    }
+
+    // MARK: - 信用卡类型迁移
+
+    /// 把旧库里 type=="card" 且名字是"信用卡"的种子账户迁移为 creditCard 类型。
+    /// 用户自建的 card 账户不动（建的时候大概率当储蓄卡用）。
+    private static let creditCardMigrationFlag = "hasMigratedCardToCreditCard_v1"
+
+    private func migrateCardToCreditCard() {
+        guard !UserDefaults.standard.bool(forKey: FinanceRepository.creditCardMigrationFlag) else { return }
+
+        let request = Account.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "type == %@ AND name == %@",
+            AccountType.card.rawValue, "信用卡"
+        )
+
+        guard let accounts = try? context.fetch(request), !accounts.isEmpty else {
+            UserDefaults.standard.set(true, forKey: FinanceRepository.creditCardMigrationFlag)
+            return
+        }
+
+        for account in accounts {
+            account.type = AccountType.creditCard.rawValue
+            account.updatedAt = Date()
+        }
+        try? context.save()
+        UserDefaults.standard.set(true, forKey: FinanceRepository.creditCardMigrationFlag)
     }
     
     // MARK: - Seed Data
@@ -160,13 +189,7 @@ class FinanceRepository {
               let monthEnd = calendar.date(byAdding: .month, value: 1, to: monthStart) else {
             return []
         }
-        let request = Transaction.fetchRequest()
-        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
-            NSPredicate(format: "date >= %@ AND date < %@", monthStart as NSDate, monthEnd as NSDate),
-            FinanceTransactionOccurrencePolicy.occurredPredicate()
-        ])
-        request.sortDescriptors = [NSSortDescriptor(key: "date", ascending: false)]
-        return try context.fetch(request)
+        return try await getTransactions(from: monthStart, to: monthEnd)
     }
     
     // MARK: - 分期交易操作

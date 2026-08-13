@@ -61,7 +61,10 @@ extension FinanceRepository {
         icon: String = "",
         color: String? = nil,
         initialBalance: Decimal = 0,
-        notes: String? = nil
+        notes: String? = nil,
+        billingDay: Int? = nil,
+        dueDay: Int? = nil,
+        creditLimit: Decimal? = nil
     ) -> Account {
         let accountColor = color ?? type.defaultColor
         let sortOrder = Int16(getAccounts(includeArchived: true).count)
@@ -76,6 +79,12 @@ extension FinanceRepository {
             sortOrder: sortOrder,
             notes: notes
         )
+        // 信用卡账单信息
+        if type.isCreditCard {
+            if let billingDay = billingDay { account.billingDay = NSNumber(value: billingDay) }
+            if let dueDay = dueDay { account.dueDay = NSNumber(value: dueDay) }
+            if let creditLimit = creditLimit { account.creditLimit = NSDecimalNumber(decimal: creditLimit) }
+        }
         try? context.save()
         return account
     }
@@ -86,12 +95,19 @@ extension FinanceRepository {
         name: String? = nil,
         icon: String? = nil,
         color: String? = nil,
-        notes: String? = nil
+        notes: String? = nil,
+        billingDay: Int? = nil,
+        dueDay: Int? = nil,
+        creditLimit: Decimal?? = nil
     ) {
         if let name = name { account.name = name }
         if let icon = icon { account.customIcon = icon }
         if let color = color { account.color = color }
         if let notes = notes { account.notes = notes }
+        // 信用卡账单信息（传值则更新）
+        if let billingDay = billingDay { account.billingDay = NSNumber(value: billingDay) }
+        if let dueDay = dueDay { account.dueDay = NSNumber(value: dueDay) }
+        if case .some(let limit) = creditLimit { account.creditLimit = limit.map { NSDecimalNumber(decimal: $0) } }
         account.updatedAt = Date()
         try? context.save()
     }
@@ -297,18 +313,14 @@ extension FinanceRepository {
 
     // MARK: 账户详情查询
 
-    /// 获取账户月度收支统计
-    func getAccountMonthlySummary(accountId: UUID, month: Date) -> (income: Decimal, expense: Decimal, net: Decimal) {
-        let cal = Calendar.current
-        let monthStart = cal.date(from: cal.dateComponents([.year, .month], from: month))!
-        let monthEnd = cal.date(byAdding: .month, value: 1, to: monthStart)!
-
+    /// 获取账户在某时间范围内的收支统计（用于账单周期统计）
+    func getAccountSummary(accountId: UUID, from start: Date, to end: Date) -> (income: Decimal, expense: Decimal, net: Decimal) {
         let request = Transaction.fetchRequest()
         request.predicate = NSPredicate(
             format: "account.id == %@ AND date >= %@ AND date < %@",
             accountId as CVarArg,
-            monthStart as NSDate,
-            monthEnd as NSDate
+            start as NSDate,
+            end as NSDate
         )
 
         guard let transactions = try? context.fetch(request) else {
@@ -326,6 +338,12 @@ extension FinanceRepository {
         }
 
         return (income, expense, income - expense)
+    }
+
+    /// 获取账户月度收支统计（兼容旧调用，内部按全局账单周期计算）
+    func getAccountMonthlySummary(accountId: UUID, month: Date) -> (income: Decimal, expense: Decimal, net: Decimal) {
+        let range = FinancePeriodSettings.shared.currentCycleRange(reference: month)
+        return getAccountSummary(accountId: accountId, from: range.start, to: range.end)
     }
 
     /// 获取账户的交易列表

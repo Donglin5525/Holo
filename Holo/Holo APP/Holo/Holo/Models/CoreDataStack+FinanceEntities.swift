@@ -344,6 +344,27 @@ extension CoreDataStack {
         accountNotes.isOptional = true
         accountAttributes.append(accountNotes)
 
+        // 信用卡账单日（每月几号出账单，1-31），仅信用卡类型使用
+        let accountBillingDay = NSAttributeDescription()
+        accountBillingDay.name = "billingDay"
+        accountBillingDay.attributeType = .integer16AttributeType
+        accountBillingDay.isOptional = true
+        accountAttributes.append(accountBillingDay)
+
+        // 信用卡还款日（每月几号前还清，1-31），仅信用卡类型使用
+        let accountDueDay = NSAttributeDescription()
+        accountDueDay.name = "dueDay"
+        accountDueDay.attributeType = .integer16AttributeType
+        accountDueDay.isOptional = true
+        accountAttributes.append(accountDueDay)
+
+        // 信用卡额度（可选），仅信用卡类型使用
+        let accountCreditLimit = NSAttributeDescription()
+        accountCreditLimit.name = "creditLimit"
+        accountCreditLimit.attributeType = .decimalAttributeType
+        accountCreditLimit.isOptional = true
+        accountAttributes.append(accountCreditLimit)
+
         // 导入批次 ID：标记由某次导入自动创建的账户，撤回时据此判断可否删除
         let accountImportBatchId = NSAttributeDescription()
         accountImportBatchId.name = "importBatchId"

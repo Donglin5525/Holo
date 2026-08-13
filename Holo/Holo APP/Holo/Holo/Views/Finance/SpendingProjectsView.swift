@@ -416,7 +416,7 @@ struct AddSpendingProjectSheet: View {
             Form {
                 Section("类型") {
                     Picker("项目类型", selection: $kind) { Text("周期性支出").tag(SpendingProjectKind.recurring); Text("一次性购买").tag(SpendingProjectKind.oneOff) }.pickerStyle(.segmented)
-                    TextField("名称，例如 ChatGPT / MacBook Pro", text: $name)
+                    TextField("名称，例如 年度旅行 / 新电脑", text: $name)
                     TextField(kind == .recurring ? "每期金额" : "购买金额", text: $amount).keyboardType(.decimalPad)
                     SpendingProjectCategoryMenu(categories: categories, selectedCategory: $selectedCategory)
                 }

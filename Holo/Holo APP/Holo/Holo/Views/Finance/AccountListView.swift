@@ -110,9 +110,19 @@ struct AccountListView: View {
     // MARK: - Account List
 
     private var accountListSection: some View {
+        Group {
+            if accounts.isEmpty {
+                emptyStateView
+            } else {
+                accountGroupList
+            }
+        }
+    }
+
+    private var accountGroupList: some View {
         VStack(spacing: HoloSpacing.md) {
             // 按类型分组
-            ForEach(groupedAccounts.keys.sorted(by: { $0.rawValue < $1.rawValue }), id: \.self) { accountType in
+            ForEach(groupedAccounts.keys.sorted(by: { $0.sortOrder < $1.sortOrder }), id: \.self) { accountType in
                 if let typeAccounts = groupedAccounts[accountType], !typeAccounts.isEmpty {
                     VStack(alignment: .leading, spacing: HoloSpacing.sm) {
                         Text(accountType.displayName)
@@ -134,6 +144,25 @@ struct AccountListView: View {
                 }
             }
         }
+    }
+
+    // MARK: - 空状态
+
+    private var emptyStateView: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "wallet.pass")
+                .font(.system(size: 60, weight: .light))
+                .foregroundColor(.holoTextSecondary.opacity(0.5))
+
+            Text("还没有账户")
+                .font(.holoBody)
+                .foregroundColor(.holoTextSecondary)
+
+            Text("点击右上角 + 添加第一个账户")
+                .font(.holoCaption)
+                .foregroundColor(.holoTextSecondary.opacity(0.7))
+        }
+        .padding(.top, 80)
     }
 
     private func accountRow(_ account: Account) -> some View {

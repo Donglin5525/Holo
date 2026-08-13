@@ -54,7 +54,7 @@ extension Account {
         ("微信", .digital, "wallet.pass", "#07C160"),
         ("支付宝", .digital, "wallet.pass", "#1677FF"),
         ("储蓄卡", .bank, "building.columns", "#6366F1"),
-        ("信用卡", .card, "creditcard", "#F59E0B")
+        ("信用卡", .creditCard, "creditcard.fill", "#F59E0B")
     ]
 
     /// 初始化默认账户数据

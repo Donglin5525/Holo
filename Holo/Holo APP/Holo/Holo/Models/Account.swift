@@ -25,6 +25,12 @@ public class Account: NSManagedObject {
     @NSManaged public var sortOrder: Int16
     @NSManaged public var isArchived: Bool
     @NSManaged public var notes: String?
+    /// 信用卡账单日（1-31），仅信用卡
+    @NSManaged public var billingDay: NSNumber?
+    /// 信用卡还款日（1-31），仅信用卡
+    @NSManaged public var dueDay: NSNumber?
+    /// 信用卡额度，仅信用卡（可选）
+    @NSManaged public var creditLimit: NSDecimalNumber?
     /// 导入批次 ID：标记由某次导入自动创建的账户，撤回时据此判断可否删除
     @NSManaged public var importBatchId: UUID?
     @NSManaged public var createdAt: Date
@@ -38,6 +44,28 @@ public class Account: NSManagedObject {
     /// 账户类型枚举
     var accountType: AccountType {
         AccountType(rawValue: type) ?? .cash
+    }
+
+    /// 账单日（Int?，1-31），非信用卡或未设置时为 nil
+    var billingDayInt: Int? {
+        guard let value = billingDay?.intValue else { return nil }
+        return (1...31).contains(value) ? value : nil
+    }
+
+    /// 还款日（Int?，1-31），非信用卡或未设置时为 nil
+    var dueDayInt: Int? {
+        guard let value = dueDay?.intValue else { return nil }
+        return (1...31).contains(value) ? value : nil
+    }
+
+    /// 信用卡额度（Decimal），未设置时为 nil
+    var creditLimitDecimal: Decimal? {
+        creditLimit?.decimalValue
+    }
+
+    /// 是否已配置账单周期信息
+    var hasBillingCycle: Bool {
+        billingDayInt != nil
     }
 
     /// 账户图标（优先使用自定义图标，空则回退到 AccountType 默认）

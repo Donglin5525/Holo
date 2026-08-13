@@ -10,6 +10,7 @@ import SwiftUI
 struct FinanceSettingsView: View {
     let onBack: () -> Void
     @ObservedObject private var displaySettings = FinanceDisplaySettings.shared
+    @ObservedObject private var periodSettings = FinancePeriodSettings.shared
 
     var body: some View {
         NavigationStack {
@@ -44,6 +45,9 @@ struct FinanceSettingsView: View {
 
             ScrollView(showsIndicators: false) {
                 VStack(spacing: HoloSpacing.xl) {
+                    // 记账周期模块
+                    billingCycleSection
+
                     // 显示设置模块
                     VStack(spacing: 0) {
                         HStack {
@@ -173,5 +177,66 @@ struct FinanceDisplayToggleRow: View {
                 .tint(.holoPrimary)
         }
         .padding(.vertical, HoloSpacing.sm)
+    }
+}
+
+// MARK: - 记账周期设置
+
+private extension FinanceSettingsView {
+
+    var billingCycleSection: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("记账周期")
+                    .font(.holoLabel)
+                    .foregroundColor(.holoTextSecondary)
+                Spacer()
+            }
+            .padding(.horizontal, HoloSpacing.lg)
+            .padding(.bottom, HoloSpacing.sm)
+
+            VStack(spacing: HoloSpacing.sm) {
+                HStack {
+                    Image(systemName: "calendar.badge.clock")
+                        .font(.system(size: 16))
+                        .foregroundColor(.holoPrimary)
+                        .frame(width: 36, height: 36)
+                        .background(Color.holoPrimary.opacity(0.1))
+                        .clipShape(Circle())
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("每月起始日")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+                        Text(cycleDescription)
+                            .font(.system(size: 11))
+                            .foregroundColor(.holoTextPlaceholder)
+                    }
+
+                    Spacer()
+
+                    Stepper(
+                        "\(periodSettings.billingCycleStartDay) 号",
+                        value: $periodSettings.billingCycleStartDay,
+                        in: 1...31
+                    )
+                    .labelsHidden()
+                }
+                .padding(HoloSpacing.md)
+            }
+            .background(Color.holoCardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+            .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
+            .padding(.horizontal, HoloSpacing.lg)
+        }
+    }
+
+    /// 起始日的文字说明
+    private var cycleDescription: String {
+        if periodSettings.isNaturalMonth {
+            return "当前按自然月（1 号到月底）统计"
+        }
+        let day = periodSettings.billingCycleStartDay
+        return "统计按 \(day) 号 → 次月 \(day - 1) 号计算，与信用卡账单对齐"
     }
 }

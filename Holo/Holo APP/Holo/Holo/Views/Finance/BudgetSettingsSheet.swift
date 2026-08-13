@@ -228,12 +228,9 @@ struct BudgetSettingsSheet: View {
                         selectedCategory = BudgetRepository.shared.findCategory(by: budget.categoryId)
                     }
                 } else {
-                    // 新建模式：默认起始日期为本月1号，使本月已发生的消费纳入预算统计
-                    let cal = Calendar.current
-                    let now = Date()
-                    var components = cal.dateComponents([.year, .month], from: now)
-                    components.day = 1
-                    startDate = cal.date(from: components) ?? now
+                    // 新建模式：默认起始日期为当前账单周期的 start
+                    // 使本周期已发生的消费纳入预算统计
+                    startDate = FinancePeriodSettings.shared.currentCycleStart
                 }
             }
         }

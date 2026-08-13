@@ -15,7 +15,7 @@ enum FinanceDateRangeNavigationDirection {
 }
 
 /// 统一计算统计页左右切换后的日期窗口。
-/// 自定义窗口如果恰好是自然月，仍按自然月切换；其他窗口按原自然日跨度平移。
+/// 自定义窗口如果恰好是自然月/账单周期，仍按对应周期切换；其他窗口按原自然日跨度平移。
 struct FinanceDateRangeNavigator {
     static func shiftedRange(
         start: Date,
@@ -31,6 +31,16 @@ struct FinanceDateRangeNavigator {
             : timeRange
 
         if let resolvedRange, resolvedRange != .custom {
+            // 月维度走账单周期平移逻辑
+            if resolvedRange == .month {
+                let startDay = FinancePeriodSettings.shared.billingCycleStartDay
+                let newStart = BillingCycleCalculator.shiftedCycleStart(
+                    start, startDay: startDay, offset: direction.multiplier, calendar: calendar
+                )
+                let newEnd = BillingCycleCalculator.cycleEnd(from: newStart, startDay: startDay, calendar: calendar)
+                return (newStart, newEnd)
+            }
+
             guard let newStart = shiftedStart(
                 start,
                 timeRange: resolvedRange,
@@ -71,6 +81,14 @@ struct FinanceDateRangeNavigator {
            calendar.date(byAdding: .month, value: 3, to: start) == end {
             return .quarter
         }
+        // 判断是否为账单周期（含自然月）：如果 start 日 == 全局起始日 且 end == 下一个周期起始日
+        let startDay = FinancePeriodSettings.shared.billingCycleStartDay
+        let startDayComponent = calendar.component(.day, from: start)
+        let expectedEnd = BillingCycleCalculator.cycleEnd(from: start, startDay: startDay, calendar: calendar)
+        if startDayComponent == startDay && calendar.isDate(expectedEnd, inSameDayAs: end) {
+            return .month
+        }
+        // 兼容自然月（旧自定义范围）
         if calendar.component(.day, from: start) == 1,
            calendar.date(byAdding: .month, value: 1, to: start) == end {
             return .month

@@ -45,6 +45,11 @@ struct AccountDetailView: View {
                 // 账户信息头部
                 accountHeader
 
+                // 信用卡本期账单（仅信用卡）
+                if account.accountType.isCreditCard {
+                    creditCardStatementCard
+                }
+
                 // 月度预算卡片
                 budgetCard
 
@@ -570,11 +575,133 @@ struct AccountDetailView: View {
         }
     }
 
+    // MARK: - Credit Card Statement
+
+    /// 信用卡本期账单卡片
+    private var creditCardStatementCard: some View {
+        let cycleRange = creditCardCycleRange
+        let statement = FinanceRepository.shared.getAccountSummary(
+            accountId: account.id,
+            from: cycleRange.start,
+            to: cycleRange.end
+        )
+        let daysUntilDue = daysUntilRepayment(cycleRange: cycleRange)
+
+        return VStack(alignment: .leading, spacing: HoloSpacing.md) {
+            HStack {
+                Text("账单信息")
+                    .font(.holoLabel)
+                    .foregroundColor(.holoTextSecondary)
+                Spacer()
+                Text(cycleRangeText(cycleRange))
+                    .font(.system(size: 11))
+                    .foregroundColor(.holoTextPlaceholder)
+            }
+
+            // 账单日和还款日是账户的长期属性，放在详情页常驻展示。
+            HStack(spacing: 0) {
+                billingDateSummary(label: "账单日", day: account.billingDayInt)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                Divider()
+                    .frame(height: 30)
+
+                billingDateSummary(label: "还款日", day: account.dueDayInt)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            // 本期账单总额
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text("¥")
+                    .font(.system(size: 16, weight: .bold))
+                    .foregroundColor(.holoError)
+                Text(formatAmount(statement.expense))
+                    .font(.system(size: 28, weight: .bold, design: .rounded))
+                    .foregroundColor(.holoTextPrimary)
+                Spacer()
+            }
+
+            HStack(spacing: HoloSpacing.xl) {
+                // 还款日倒计时
+                if let days = daysUntilDue {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("距还款日")
+                            .font(.system(size: 11))
+                            .foregroundColor(.holoTextSecondary)
+                        Text(days > 0 ? "\(days) 天" : days == 0 ? "今天" : "已逾期 \(-days) 天")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(days < 0 ? .holoError : (days <= 3 ? .holoError : .holoTextPrimary))
+                    }
+                }
+
+                // 可用额度
+                if let limit = account.creditLimitDecimal {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("可用额度")
+                            .font(.system(size: 11))
+                            .foregroundColor(.holoTextSecondary)
+                        Text(formatAmount(max(limit - statement.expense, 0)))
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.holoTextPrimary)
+                    }
+                }
+
+                Spacer()
+            }
+        }
+        .padding(HoloSpacing.md)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+        .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
+    }
+
+    /// 展示信用卡的固定账单日期。
+    private func billingDateSummary(label: String, day: Int?) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(label)
+                .font(.system(size: 11))
+                .foregroundColor(.holoTextSecondary)
+            Text(day.map { "每月 \($0) 号" } ?? "未设置")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundColor(day == nil ? .holoTextPlaceholder : .holoTextPrimary)
+                .monospacedDigit()
+        }
+    }
+
+    /// 信用卡当前账单周期范围（按该账户自己的 billingDay）
+    private var creditCardCycleRange: (start: Date, end: Date) {
+        let billingDay = account.billingDayInt ?? 1
+        return BillingCycleCalculator.currentCycleRange(startDay: billingDay, reference: Date())
+    }
+
+    /// 账单周期文字描述
+    private func cycleRangeText(_ range: (start: Date, end: Date)) -> String {
+        let fmt = DateFormatter()
+        fmt.dateFormat = "M/d"
+        // end 是半开区间（次周期起始日），显示前一天作为周期末尾
+        let lastDay = Calendar.current.date(byAdding: .second, value: -1, to: range.end) ?? range.end
+        return "\(fmt.string(from: range.start)) - \(fmt.string(from: lastDay))"
+    }
+
+    /// 距还款日天数（负数=已逾期）
+    private func daysUntilRepayment(cycleRange: (start: Date, end: Date)) -> Int? {
+        guard let billingDay = account.billingDayInt, let dueDay = account.dueDayInt else { return nil }
+        let dueDate = BillingCycleCalculator.dueDate(
+            billingDay: billingDay,
+            dueDay: dueDay,
+            cycleStart: cycleRange.start
+        )
+        let cal = Calendar.current
+        let today = cal.startOfDay(for: Date())
+        let dueDayStart = cal.startOfDay(for: dueDate)
+        return cal.dateComponents([.day], from: today, to: dueDayStart).day ?? 0
+    }
+
     // MARK: - Monthly Stats
 
     private var monthlyStatsCard: some View {
         VStack(spacing: HoloSpacing.md) {
-            Text("本月统计")
+            Text("本期统计")
                 .font(.holoLabel)
                 .foregroundColor(.holoTextSecondary)
                 .frame(maxWidth: .infinity, alignment: .leading)

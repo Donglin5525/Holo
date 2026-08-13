@@ -55,11 +55,9 @@ enum TimeRange: String, CaseIterable, Identifiable {
             return (start, end)
 
         case .month:
-            let start = now.startOfMonth
-            guard let end = calendar.date(byAdding: .month, value: 1, to: start) else {
-                return (start, now)
-            }
-            return (start, end)
+            // 按全局记账周期起始日计算（startDay=1 时等价于自然月）
+            let range = FinancePeriodSettings.shared.currentCycleRange(reference: now)
+            return range
 
         case .quarter:
             let month = calendar.component(.month, from: now)
