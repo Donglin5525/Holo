@@ -47,4 +47,15 @@ enum CalendarRangeBuilder {
         }
         return monthInterval
     }
+
+    /// 取以某日为中心的 3 日区间 `[center-1天, center+2天)`
+    /// 网格视图用：今天/选中日永远落在中间列（昨天 / 今天 / 明天）
+    static func threeDayRange(around center: Date) -> DateInterval {
+        let startOfDay = calendar.startOfDay(for: center)
+        guard let start = calendar.date(byAdding: .day, value: -1, to: startOfDay),
+              let end = calendar.date(byAdding: .day, value: 2, to: start) else {
+            return dayRange(center)
+        }
+        return DateInterval(start: start, end: end)
+    }
 }

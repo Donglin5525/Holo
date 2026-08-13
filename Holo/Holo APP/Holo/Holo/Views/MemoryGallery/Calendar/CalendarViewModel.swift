@@ -10,6 +10,7 @@
 import Foundation
 import SwiftUI
 import Combine
+import CoreData
 import os.log
 
 /// 周历单日聚合（按天分组的事件）
@@ -67,6 +68,19 @@ final class CalendarViewModel: ObservableObject {
 
     /// P2 月历色块形式（热力 / 徽章）
     @Published var monthCellStyle: MonthCellStyle = .heatmap
+
+    /// 3 日网格视图：当前中心日（今天/选中日落在中间列）
+    @Published var gridCenterDay: Date = Date()
+
+    /// 3 日网格视图：预载到内存的原始事件（未筛选）
+    /// 滑动时直接取，不边滑边查库；切换 moduleFilter 即时过滤，不用重查
+    @Published private(set) var gridRawEvents: [CalendarEvent] = []
+
+    /// 3 日网格视图：已加载的数据范围（接近边缘自动续载）
+    private var gridLoadedRange: DateInterval?
+
+    /// 3 日网格视图：是否正在初次加载
+    @Published private(set) var gridIsInitialLoading: Bool = false
 
     private let provider: CalendarEventProvider
 
@@ -181,6 +195,79 @@ final class CalendarViewModel: ObservableObject {
         selectedDay = day
     }
 
+    // MARK: - 3 日网格视图导航与数据
+
+    /// 网格标题：显示中心日（如「8月10日 周一」）
+    var gridTitle: String {
+        Self.gridTitleFormatter.string(from: gridCenterDay)
+    }
+
+    /// 网格视图：当前筛选下的按天事件字典（key = startOfDay）
+    var gridEventsByDay: [Date: [CalendarEvent]] {
+        let cal = Calendar.current
+        let filtered = gridFilteredEvents
+        return Dictionary(grouping: filtered) { cal.startOfDay(for: $0.date) }
+    }
+
+    /// 网格箭头：按天步进（+1 往后一天，-1 往前一天）
+    func gridStep(by delta: Int) {
+        let next = Calendar.current.date(byAdding: .day, value: delta, to: gridCenterDay) ?? gridCenterDay
+        gridCenterDay = next
+        gridEnsureData(around: next)
+    }
+
+    /// 回到今天
+    func gridGoToToday() {
+        gridCenterDay = Date()
+        gridEnsureData(around: Date())
+    }
+
+    /// 进网格视图时调用：预载中心日 ±60 天到内存
+    func gridLoadInitial() async {
+        if gridLoadedRange != nil { return }       // 已预载过，不重复
+        gridIsInitialLoading = true
+        await gridFetch(center: Date(), halfSpanDays: 60)
+        gridIsInitialLoading = false
+    }
+
+    /// 滑动接近边缘时续载（剩余 < 14 天触发）
+    func gridEnsureData(around center: Date) {
+        guard let loaded = gridLoadedRange else { return }
+        let cal = Calendar.current
+        let dayBeforeEdge = cal.date(byAdding: .day, value: 14, to: loaded.start) ?? loaded.start
+        let dayAfterEdge = cal.date(byAdding: .day, value: -14, to: loaded.end) ?? loaded.end
+        if center < dayBeforeEdge || center >= dayAfterEdge {
+            Task { await gridFetch(center: center, halfSpanDays: 60) }
+        }
+    }
+
+    /// 取数：以 center 为中心取 ±halfSpanDays 天，与已加载数据合并（按 originID 去重）。
+    /// 续载 = 扩展窗口（取并集），不是覆盖替换 —— 避免滑动中途把屏幕上看得到的事件刷没。
+    /// originID 是原始 Core Data 实体 ID，同一条记录稳定不变，可可靠判重。
+    private func gridFetch(center: Date, halfSpanDays: Int) async {
+        let cal = Calendar.current
+        guard let fetchStart = cal.date(byAdding: .day, value: -halfSpanDays, to: cal.startOfDay(for: center)),
+              let fetchEnd = cal.date(byAdding: .day, value: halfSpanDays, to: cal.startOfDay(for: center)) else { return }
+        let fetchRange = DateInterval(start: fetchStart, end: fetchEnd)
+        let fetched = await provider.fetchEvents(in: fetchRange, todoDimension: todoDimension)
+
+        let newStart = gridLoadedRange.map { min($0.start, fetchRange.start) } ?? fetchRange.start
+        let newEnd = gridLoadedRange.map { max($0.end, fetchRange.end) } ?? fetchRange.end
+        gridLoadedRange = DateInterval(start: newStart, end: newEnd)
+
+        var seen = Set(gridRawEvents.map { $0.originID })
+        var merged = gridRawEvents
+        for ev in fetched.events where seen.insert(ev.originID).inserted {
+            merged.append(ev)
+        }
+        gridRawEvents = merged
+    }
+
+    private var gridFilteredEvents: [CalendarEvent] {
+        guard let filter = moduleFilter else { return gridRawEvents }
+        return gridRawEvents.filter { $0.module == filter }
+    }
+
     private func step(by delta: Int) -> Date {
         let component: Calendar.Component = (mode == .weekly) ? .weekOfYear : .month
         return Calendar.current.date(byAdding: component, value: delta, to: anchor) ?? anchor
@@ -198,6 +285,12 @@ final class CalendarViewModel: ObservableObject {
         let f = DateFormatter()
         f.locale = Locale(identifier: "zh_CN")
         f.dateFormat = "yyyy年M月"
+        return f
+    }()
+    private static let gridTitleFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "zh_CN")
+        f.dateFormat = "M月d日 EEE"
         return f
     }()
 }

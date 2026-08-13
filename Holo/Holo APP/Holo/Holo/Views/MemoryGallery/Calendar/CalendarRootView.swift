@@ -30,6 +30,7 @@ struct CalendarRootView: View {
             if viewModel.eventsByDay.isEmpty && viewModel.monthEventsByDay.isEmpty {
                 await viewModel.load()
             }
+            await viewModel.gridLoadInitial()
         }
         .refreshable {
             await viewModel.load()
@@ -63,10 +64,11 @@ struct CalendarRootView: View {
             )
         case .grid:
             WeeklyGridView(
-                weekStart: viewModel.currentRange.start,
-                eventsByDay: viewModel.monthEventsByDay,
+                eventsByDay: viewModel.gridEventsByDay,
+                centerDay: $viewModel.gridCenterDay,
                 onSelect: { selectedEvent = $0 },
-                onSelectGroup: { selectedEventGroup = CalendarEventGroup(events: $0) }
+                onSelectGroup: { selectedEventGroup = CalendarEventGroup(events: $0) },
+                onEnsureData: { viewModel.gridEnsureData(around: $0) }
             )
         }
     }
@@ -175,17 +177,22 @@ struct CalendarRootView: View {
     // MARK: - 导航
 
     private var navBar: some View {
-        HStack(spacing: HoloSpacing.sm) {
-            chevronButton(systemName: "chevron.left", action: viewModel.goToPrev)
-            Text(viewModel.title)
+        let isGrid = viewModel.weekViewMode == .grid
+        return HStack(spacing: HoloSpacing.sm) {
+            chevronButton(systemName: "chevron.left") {
+                if isGrid { viewModel.gridStep(by: -1) } else { viewModel.goToPrev() }
+            }
+            Text(isGrid ? viewModel.gridTitle : viewModel.title)
                 .font(.holoBody)
                 .foregroundColor(.holoTextPrimary)
                 .frame(maxWidth: .infinity)
-            chevronButton(systemName: "chevron.right", action: viewModel.goToNext)
+            chevronButton(systemName: "chevron.right") {
+                if isGrid { viewModel.gridStep(by: 1) } else { viewModel.goToNext() }
+            }
             Button {
-                viewModel.goToToday()
+                if isGrid { viewModel.gridGoToToday() } else { viewModel.goToToday() }
             } label: {
-                Text(viewModel.mode == .weekly ? "本周" : "今天")
+                Text(isGrid ? "今天" : (viewModel.mode == .weekly ? "本周" : "今天"))
                     .font(.holoLabel)
                     .foregroundColor(.holoPrimaryDark)
                     .padding(.horizontal, HoloSpacing.sm)
