@@ -266,8 +266,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         self.agentResult = agentResult
         self.insightResult = insightResult
         self.metadataState = .loaded
-        recomputeLinkedEntityIds()
-        recomputeDerivedCardCache()
+        refreshDerivedState()
     }
 
     // MARK: - Extracted Data
@@ -278,9 +277,7 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
 
     mutating func setExtractedDataJSON(_ json: String?) {
         extractedDataJSON = json
-        cachedExtractedDataDictionary = Self.decodeExtractedData(json)
-        recomputeLinkedEntityIds()
-        recomputeDerivedCardCache()
+        refreshDerivedState()
     }
 
     // MARK: - Analysis Cards
@@ -348,7 +345,16 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
 
     // MARK: - Cache Invalidation
 
-    /// 重新计算缓存的关联实体 ID（updateSnapshot 后调用）
+    /// 刷新所有由消息源数据派生的缓存。
+    ///
+    /// 卡片和关联实体 ID 必须一起更新。只更新其中一项会让卡片显示与点击目标
+    /// 处于不同状态，尤其容易在确认创建或懒加载元数据后出现状态漂移。
+    mutating func refreshDerivedState() {
+        recomputeLinkedEntityIds()
+        recomputeDerivedCardCache()
+    }
+
+    /// 重新计算缓存的关联实体 ID（由 refreshDerivedState 统一调用）
     mutating func recomputeLinkedEntityIds() {
         let oldIds = cachedLinkedEntityIds
         cachedExtractedDataDictionary = Self.decodeExtractedData(extractedDataJSON)

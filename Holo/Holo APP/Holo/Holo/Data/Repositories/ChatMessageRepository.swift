@@ -1036,22 +1036,39 @@ final class ChatMessageRepository: ObservableObject {
         let existingFinanceIDs = Self.fetchExistingTransactionIDs(financeIDs)
         let existingTaskIDs = Self.fetchExistingNonDeletedTaskIDs(taskIDs)
 
-        for index in messages.indices {
-            if let filter = idFilter, !filter.contains(messages[index].id) { continue }
-            if let financeId = messages[index].resolveLinkedEntityId(for: .finance), financeIDs.contains(financeId) {
-                messages[index].setDeletionState(!existingFinanceIDs.contains(financeId), for: .finance)
+        var updatedMessages = messages
+        var didChange = false
+        for index in updatedMessages.indices {
+            if let filter = idFilter, !filter.contains(updatedMessages[index].id) { continue }
+            if let financeId = updatedMessages[index].resolveLinkedEntityId(for: .finance), financeIDs.contains(financeId) {
+                let isDeleted = !existingFinanceIDs.contains(financeId)
+                if updatedMessages[index].isEntityDeleted(for: .finance) != isDeleted {
+                    updatedMessages[index].setDeletionState(isDeleted, for: .finance)
+                    didChange = true
+                }
             }
-            if let taskId = messages[index].resolveLinkedEntityId(for: .task), taskIDs.contains(taskId) {
-                messages[index].setDeletionState(!existingTaskIDs.contains(taskId), for: .task)
+            if let taskId = updatedMessages[index].resolveLinkedEntityId(for: .task), taskIDs.contains(taskId) {
+                let isDeleted = !existingTaskIDs.contains(taskId)
+                if updatedMessages[index].isEntityDeleted(for: .task) != isDeleted {
+                    updatedMessages[index].setDeletionState(isDeleted, for: .task)
+                    didChange = true
+                }
             }
+        }
+        // 删除态也属于消息快照的一部分，必须通过整体赋值触发 @Published，
+        // 否则 Core Data 已经删除，HoloAI 卡片却不会立即重绘。
+        if didChange {
+            publishMessages(updatedMessages)
         }
     }
 
     /// 刷新单条消息的删除态缓存（Core Data 变更命中关联实体后调用）。
     func refreshDeletionState(for messageId: UUID, affectedCategories: [EntityCategory]) {
         guard let index = messages.firstIndex(where: { $0.id == messageId }) else { return }
+        var snapshot = messages[index]
+        var didChange = false
         for category in affectedCategories {
-            guard let entityId = messages[index].resolveLinkedEntityId(for: category) else { continue }
+            guard let entityId = snapshot.resolveLinkedEntityId(for: category) else { continue }
             let exists: Bool
             switch category {
             case .finance:
@@ -1061,7 +1078,18 @@ final class ChatMessageRepository: ObservableObject {
             default:
                 exists = true
             }
-            messages[index].setDeletionState(!exists, for: category)
+            let isDeleted = !exists
+            if snapshot.isEntityDeleted(for: category) != isDeleted {
+                snapshot.setDeletionState(isDeleted, for: category)
+                didChange = true
+            }
+        }
+        // 不能只修改 messages[index] 内部字段：Repository 的发布契约是替换快照，
+        // 这样 ChatViewModel 才能收到变更并让 SwiftUI 立即更新卡片。
+        if didChange {
+            var updatedMessages = messages
+            updatedMessages[index] = snapshot
+            publishMessages(updatedMessages)
         }
     }
 
@@ -1095,8 +1123,20 @@ final class ChatMessageRepository: ObservableObject {
         guard let index = messages.firstIndex(where: { $0.id == messageId }) else { return }
         var snapshot = messages[index]
         mutate(&snapshot)
-        snapshot.recomputeLinkedEntityIds()
-        messages[index] = snapshot
+        // 任何消息源数据变化都必须同步刷新卡片缓存，否则首屏和返回页面后的
+        // ChatMessageViewData 会对同一条消息渲染出不同状态。
+        snapshot.refreshDerivedState()
+        var updatedMessages = messages
+        updatedMessages[index] = snapshot
+        publishMessages(updatedMessages)
+    }
+
+    /// 统一发布消息快照。
+    ///
+    /// ChatMessageViewData 是值类型，不能通过修改数组中的一个元素来可靠地
+    /// 驱动 @Published。所有卡片状态、关联 ID 和派生数据的更新都必须走整体赋值。
+    private func publishMessages(_ updatedMessages: [ChatMessageViewData]) {
+        messages = updatedMessages
     }
 
     private func save() {

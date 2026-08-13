@@ -326,17 +326,14 @@ struct MessageBubbleView: View {
                 onTaskConfirm?(message)
             }
         case .habitCheckIn(let habitData):
-            HabitCheckInChatCard(data: habitData) {
-                onCardTap?(message, data)
-            }
+            // 当前习惯打卡卡片没有详情跳转入口，保持展示态，避免出现可点击但无动作的假交互。
+            HabitCheckInChatCard(data: habitData)
         case .mood(let moodData):
-            MoodChatCard(data: moodData) {
-                onCardTap?(message, data)
-            }
+            // 心情卡片当前只展示记录结果，暂未提供想法详情跳转。
+            MoodChatCard(data: moodData)
         case .weight(let weightData):
-            WeightChatCard(data: weightData) {
-                onCardTap?(message, data)
-            }
+            // 体重记录当前只展示结果，暂未提供习惯详情跳转。
+            WeightChatCard(data: weightData)
         case .analysisSummary(let summaryData):
             AnalysisSummaryChatCard(data: summaryData)
         case .analysisTrend(let trendData):

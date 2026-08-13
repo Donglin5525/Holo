@@ -6,6 +6,7 @@
 //
 
 import XCTest
+import Combine
 @testable import Holo
 
 @MainActor
@@ -54,6 +55,107 @@ final class ChatMessageRepositoryCacheRecoveryTests: XCTestCase {
             reloadedMessage.executionBatch?.items.first?.renderData?["confirmationStatus"],
             "confirmed"
         )
+    }
+
+    func testFinalizeMessageRefreshesTaskCardCacheImmediately() throws {
+        let repo = ChatMessageRepository.shared
+        let messageId = repo.addStreamingMessage(role: "assistant")
+        let pendingBatch = makeTaskBatch(confirmationStatus: "pending", status: .skipped)
+
+        repo.finalizeMessage(
+            messageId,
+            finalContent: pendingBatch.finalText,
+            intent: AIIntent.createTask.rawValue,
+            extractedDataJSON: encode([
+                "title": "去山姆购物",
+                "confirmationStatus": "pending"
+            ]),
+            parsedBatchJSON: nil,
+            executionBatchJSON: encode(pendingBatch)
+        )
+
+        let pendingMessage = try XCTUnwrap(repo.messages.first(where: { $0.id == messageId }))
+        XCTAssertEqual(pendingMessage.executionCards.count, 1)
+        guard case .task(let pendingCard) = pendingMessage.executionCards[0] else {
+            return XCTFail("应立即生成任务卡片")
+        }
+        XCTAssertTrue(pendingCard.requiresConfirmation)
+
+        let confirmedBatch = makeTaskBatch(confirmationStatus: "confirmed", status: .success)
+        repo.updateMessage(messageId, content: confirmedBatch.finalText)
+        repo.updateMessageMetadata(
+            messageId,
+            intent: AIIntent.createTask.rawValue,
+            extractedDataJSON: encode([
+                "title": "去山姆购物",
+                "confirmationStatus": "confirmed"
+            ]),
+            executionBatchJSON: encode(confirmedBatch)
+        )
+
+        let confirmedMessage = try XCTUnwrap(repo.messages.first(where: { $0.id == messageId }))
+        XCTAssertEqual(confirmedMessage.executionCards.count, 1)
+        guard case .task(let confirmedCard) = confirmedMessage.executionCards[0] else {
+            return XCTFail("确认后仍应保留任务卡片")
+        }
+        XCTAssertFalse(confirmedCard.requiresConfirmation)
+    }
+
+    func testRefreshingTaskDeletionStatePublishesCardUpdate() throws {
+        let repo = ChatMessageRepository.shared
+        let messageId = repo.addMessage(role: "assistant", content: "已创建任务")
+        let taskId = UUID()
+        let batch = makeTaskBatch(
+            confirmationStatus: "confirmed",
+            status: .success,
+            linkedEntityId: taskId
+        )
+        repo.updateMessageMetadata(
+            messageId,
+            intent: AIIntent.createTask.rawValue,
+            extractedDataJSON: nil,
+            executionBatchJSON: encode(batch)
+        )
+
+        var publishedCount = 0
+        let cancellable = repo.$messages
+            .sink { _ in publishedCount += 1 }
+        let initialPublishedCount = publishedCount
+
+        repo.refreshDeletionState(for: messageId, affectedCategories: [.task])
+
+        let message = try XCTUnwrap(repo.messages.first(where: { $0.id == messageId }))
+        XCTAssertTrue(message.isEntityDeleted(for: .task))
+        XCTAssertGreaterThan(publishedCount, initialPublishedCount)
+        withExtendedLifetime(cancellable) {}
+    }
+
+    func testPrefillTaskDeletionStatePublishesCardUpdate() throws {
+        let repo = ChatMessageRepository.shared
+        let messageId = repo.addMessage(role: "assistant", content: "历史任务")
+        let batch = makeTaskBatch(
+            confirmationStatus: "confirmed",
+            status: .success,
+            linkedEntityId: UUID()
+        )
+        repo.updateMessageMetadata(
+            messageId,
+            intent: AIIntent.createTask.rawValue,
+            extractedDataJSON: nil,
+            executionBatchJSON: encode(batch)
+        )
+
+        var publishedCount = 0
+        let cancellable = repo.$messages
+            .sink { _ in publishedCount += 1 }
+        let initialPublishedCount = publishedCount
+
+        repo.prefillDeletionStates()
+
+        let message = try XCTUnwrap(repo.messages.first(where: { $0.id == messageId }))
+        XCTAssertTrue(message.isEntityDeleted(for: .task))
+        XCTAssertGreaterThan(publishedCount, initialPublishedCount)
+        withExtendedLifetime(cancellable) {}
     }
 
     func testFinalizeAgentMessagePublishesLoadedMetadataImmediately() throws {
@@ -116,8 +218,40 @@ final class ChatMessageRepositoryCacheRecoveryTests: XCTestCase {
         )
     }
 
+    private func makeTaskBatch(
+        confirmationStatus: String,
+        status: AIExecutionStatus,
+        linkedEntityId: UUID? = nil
+    ) -> AIExecutionBatch {
+        AIExecutionBatch(
+            mode: .singleAction,
+            items: [
+                AIExecutionItem(
+                    id: "task-item-1",
+                    parseItemId: "task-parse-1",
+                    intent: .createTask,
+                    status: status,
+                    summaryText: status == .success ? "已创建任务" : "请确认后创建任务",
+                    renderData: [
+                        "title": "去山姆购物",
+                        "confirmationStatus": confirmationStatus
+                    ],
+                    linkedEntityType: linkedEntityId == nil ? nil : "task",
+                    linkedEntityId: linkedEntityId?.uuidString,
+                    errorText: nil
+                )
+            ],
+            finalText: status == .success ? "已创建任务" : "请确认后创建任务"
+        )
+    }
+
     private func encode(_ batch: AIExecutionBatch) -> String {
         let data = try! JSONEncoder().encode(batch)
+        return String(data: data, encoding: .utf8)!
+    }
+
+    private func encode(_ dictionary: [String: String]) -> String {
+        let data = try! JSONEncoder().encode(dictionary)
         return String(data: data, encoding: .utf8)!
     }
 }
