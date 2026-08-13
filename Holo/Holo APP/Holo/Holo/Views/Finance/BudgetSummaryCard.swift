@@ -74,7 +74,8 @@ struct BudgetSummaryCard: View {
         }
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, 10)
-        .holoCard()
+        // 预算卡与月度收支卡同属账本页内层信息块，不能和外层底色相同
+        .holoNestedCard(cornerRadius: HoloRadius.lg)
     }
 
     // MARK: - Helpers

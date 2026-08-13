@@ -24,6 +24,8 @@ extension Color {
     static let holoBackground = Color("Background")
     /// 卡片背景色
     static let holoCardBackground = Color("CardBackground")
+    /// 嵌套卡片背景色：用于已经位于卡片容器内的次级信息块，避免深色模式下与父卡片融为一体
+    static let holoNestedCardBackground = Color("NestedCardBackground")
     
     // MARK: - 文字颜色 (支持 Dark Mode)
     /// 主文字颜色 - 深灰色 / 浅色模式
@@ -323,9 +325,37 @@ struct HoloCardStyle: ViewModifier {
     }
 }
 
+/// Holo 嵌套卡片样式
+///
+/// 用于卡片容器内的次级卡片。嵌套层级必须使用独立表面色，
+/// 否则深色模式下即使有轻微描边，也很难判断信息块的边界。
+struct HoloNestedCardStyle: ViewModifier {
+    let cornerRadius: CGFloat
+
+    init(cornerRadius: CGFloat = HoloRadius.lg) {
+        self.cornerRadius = cornerRadius
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .background(Color.holoNestedCardBackground)
+            .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+            .overlay {
+                RoundedRectangle(cornerRadius: cornerRadius)
+                    .stroke(Color.holoBorder.opacity(0.6), lineWidth: 0.75)
+            }
+            .shadow(color: HoloShadow.card.opacity(0.55), radius: 5, y: 2)
+    }
+}
+
 extension View {
     /// 应用 Holo 标准卡片外观
     func holoCard() -> some View {
         modifier(HoloCardStyle())
+    }
+
+    /// 应用卡片容器内的次级卡片外观
+    func holoNestedCard(cornerRadius: CGFloat = HoloRadius.lg) -> some View {
+        modifier(HoloNestedCardStyle(cornerRadius: cornerRadius))
     }
 }

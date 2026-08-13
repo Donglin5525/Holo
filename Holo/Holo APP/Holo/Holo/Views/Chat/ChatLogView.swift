@@ -149,8 +149,7 @@ struct ChatLogView: View {
                     .textSelection(.enabled)
                     .padding(10)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.holoCardBackground)
-                    .cornerRadius(8)
+                    .holoNestedCard(cornerRadius: 8)
             }
         }
         .padding(14)

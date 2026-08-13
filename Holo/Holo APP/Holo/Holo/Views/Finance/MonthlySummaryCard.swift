@@ -69,7 +69,8 @@ struct MonthlySummaryCard: View {
             }
         }
         .padding(20)
-        .holoCard()
+        // 月度卡片位于账本页的大卡片容器内，使用独立表面保持层级清晰
+        .holoNestedCard()
     }
 
     // MARK: - Helper
