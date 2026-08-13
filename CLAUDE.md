@@ -28,6 +28,7 @@
 | `docs/standards/开发守则与事故预防措施.md` | **每次做需求前必读**：事故复盘、复现→观察→假设→验证→根治方法论、交付前自检清单、踩坑速查表 |
 | `docs/_common/HoloPRD.md` | 产品需求文档 |
 | `docs/standards/开发规范.md` | 开发规范与踩坑总结（编码约定、布局、Core Data 等） |
+| `docs/standards/设计规范.md` | **改 UI / 做页面改造前必读**：颜色、字体、间距、圆角、组件的唯一真源 |
 | `docs/standards/PROMPT_GUIDELINES.md` | **Holo 人格层与表达规范的唯一真源**（改任何 prompt 前先读） |
 | `docs/_common/notes/` | 历史问题解决方案（含 Core Data 调试） |
 | `docs/*/plans/` | 各模块实施计划（含已完成和待开发） |
