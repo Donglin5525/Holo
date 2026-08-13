@@ -65,6 +65,10 @@ struct HabitStatsExpandableCardView: View {
 
             Spacer()
 
+            Text("\(Int(item.completionRate.rounded()))%")
+                .font(.system(size: 15, weight: .bold))
+                .foregroundColor(accent)
+
             Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundColor(.holoTextSecondary)
@@ -110,14 +114,20 @@ struct HabitStatsExpandableCardView: View {
 
     private var collapsedContent: some View {
         VStack(spacing: HoloSpacing.sm) {
-            HabitWeekStripView(week: item.collapsedWeek, accentColor: accent)
+            HabitHeatmapStrip(days: currentMonthDays)
 
-            if item.collapsedWeek.days.allSatisfy({ !$0.hasRecord }) {
-                Text("本周暂无记录")
+            if currentMonthDays.allSatisfy({ !$0.hasRecord && !$0.isOverLimit }) {
+                Text("本月暂无记录")
                     .font(.holoTinyLabel)
                     .foregroundColor(.holoTextSecondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
+    }
+
+    /// 月历矩阵摊平后过滤出本月真实日期，供整月色块条使用
+    private var currentMonthDays: [HabitStatsDayCell] {
+        item.month.rows.flatMap { $0 }.filter { $0.isInCurrentMonth }
     }
 
     // MARK: - Expanded Content
@@ -217,7 +227,8 @@ struct HabitStatsExpandableCardView: View {
             dailyData: (0..<7).map { i in
                 DailyHabitData(date: calendar.date(byAdding: .day, value: i, to: today)!, value: Double(i % 3 + 1))
             },
-            unitText: "次"
+            unitText: "次",
+            completionRate: 65
         ),
         isExpanded: false,
         onTap: {}
@@ -260,7 +271,8 @@ struct HabitStatsExpandableCardView: View {
             dailyData: (0..<30).map { i in
                 DailyHabitData(date: calendar.date(byAdding: .day, value: i, to: monthStart)!, value: 57.5 + Double(i % 5) * 0.3)
             },
-            unitText: "kg"
+            unitText: "kg",
+            completionRate: 80
         ),
         isExpanded: true,
         onTap: {}

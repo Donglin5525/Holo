@@ -236,6 +236,8 @@ struct HabitStatsDisplayItem: Identifiable {
     let dailyData: [DailyHabitData]
     /// 数值型习惯的单位文本（计数型兜底"次"）；打卡型为空串。
     let unitText: String
+    /// 单习惯在该月的完成率（0~100），驾驶舱色块条右侧与洞察卡排序使用
+    let completionRate: Double
     var id: UUID { habitId }
 }
 
@@ -252,6 +254,10 @@ class HabitStatsState: ObservableObject {
     @Published var summaryStats: HabitOverviewStats = .empty()
     @Published var displayItems: [HabitStatsDisplayItem] = []
     @Published var hasAnyHabits: Bool = false
+    /// 近 6 个月的平均完成率趋势（索引 0=5 个月前，末位=当月），驱动驾驶舱趋势柱图
+    @Published var monthlyTrend: [Double] = []
+    /// 上个月的平均完成率（环比），驱动驾驶舱涨跌徽章
+    @Published var previousRate: Double = 0
 
     // MARK: - 私有属性
 
@@ -326,6 +332,17 @@ class HabitStatsState: ObservableObject {
             visibleHabitIds: displaySettings.visibleHabitIds,
             orderedHabitIds: displaySettings.orderedHabitIds
         )
+
+        // 近 6 个月完成率趋势（含当月），用轻量方法避免重复算连续天数
+        let calendar = Calendar.current
+        let visibleIds = displaySettings.visibleHabitIds
+        monthlyTrend = (0..<6).reversed().map { offset in
+            guard let month = calendar.date(byAdding: .month, value: -offset, to: selectedMonth) else {
+                return 0.0
+            }
+            return repository.getMonthlyCompletionRate(forMonth: month, visibleHabitIds: visibleIds)
+        }
+        previousRate = monthlyTrend.count >= 2 ? monthlyTrend[monthlyTrend.count - 2] : 0
     }
 
     /// 刷新数据（数据变更后调用）

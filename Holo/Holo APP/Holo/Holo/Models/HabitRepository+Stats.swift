@@ -459,6 +459,37 @@ extension HabitRepository {
         )
     }
 
+    /// 轻量计算某月的平均完成率（只算完成率，不算今日完成/最佳连续）。
+    /// 供驾驶舱近 6 月趋势、环比使用，避免重复算连续天数拖慢性能。
+    func getMonthlyCompletionRate(forMonth month: Date, visibleHabitIds: [UUID]?) -> Double {
+        let calendar = Calendar.current
+        let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: month))!
+        guard let nextMonth = calendar.date(byAdding: .month, value: 1, to: monthStart),
+              let monthEnd = calendar.date(byAdding: .day, value: -1, to: nextMonth) else {
+            return 0
+        }
+        let monthRange = monthStart...calendar.date(byAdding: .day, value: 1, to: monthEnd)!
+
+        let habits: [Habit]
+        if let visibleIds = visibleHabitIds, !visibleIds.isEmpty {
+            let visibleSet = Set(visibleIds)
+            habits = activeHabits.filter { visibleSet.contains($0.id) }
+        } else {
+            habits = activeHabits
+        }
+        guard !habits.isEmpty else { return 0 }
+
+        var total: Double = 0
+        for habit in habits {
+            if habit.isCheckInType {
+                total += calculateCheckInCompletionRate(for: habit, in: monthRange)
+            } else if habit.isNumericType {
+                total += calculateNumericCompletionRate(for: habit, in: monthRange)
+            }
+        }
+        return total / Double(habits.count)
+    }
+
     /// 获取习惯统计展示项（月度）
     func getHabitStatsDisplayItems(
         month: Date,
@@ -490,6 +521,17 @@ extension HabitRepository {
             let nextDay = calendar.date(byAdding: .day, value: 1, to: monthEnd)!
             let dailyData = getDailyAggregatedData(for: habit, dateRange: monthStart...nextDay)
 
+            // 单习惯月度完成率（驾驶舱色块条 / 洞察卡排序用）
+            let monthRange = monthStart...nextDay
+            let completionRate: Double
+            if habit.isCheckInType {
+                completionRate = calculateCheckInCompletionRate(for: habit, in: monthRange)
+            } else if habit.isNumericType {
+                completionRate = calculateNumericCompletionRate(for: habit, in: monthRange)
+            } else {
+                completionRate = 0
+            }
+
             return HabitStatsDisplayItem(
                 habitId: habit.id,
                 name: habit.name,
@@ -506,7 +548,8 @@ extension HabitRepository {
                     rows: rows
                 ),
                 dailyData: dailyData,
-                unitText: habit.unitText
+                unitText: habit.unitText,
+                completionRate: completionRate
             )
         }
     }

@@ -29,12 +29,24 @@ struct HabitStatsView: View {
                     )
 
                     if state.hasAnyHabits {
-                        HabitStatsSummaryCard(
-                            totalHabits: state.summaryStats.totalHabits,
+                        HabitStatsCockpitCard(
+                            selectedMonth: state.selectedMonth,
                             completionRate: state.summaryStats.averageCompletionRate,
+                            previousRate: state.previousRate,
+                            monthlyTrend: state.monthlyTrend,
+                            todayCompleted: state.summaryStats.todayCompleted,
+                            totalHabits: state.summaryStats.totalHabits,
                             bestStreak: state.summaryStats.bestStreak,
-                            statusText: summaryStatusText
+                            isCurrentMonth: isCurrentMonth
                         )
+
+                        if !state.displayItems.isEmpty {
+                            HabitStatsInsightCard(
+                                items: state.displayItems,
+                                completionRate: state.summaryStats.averageCompletionRate,
+                                previousRate: state.previousRate
+                            )
+                        }
                     }
 
                     if state.displayItems.isEmpty {
@@ -119,19 +131,13 @@ struct HabitStatsView: View {
         }
     }
 
-    // MARK: - 总览文案
+    // MARK: - 当前月判断
 
-    private var summaryStatusText: String {
-        let rate = Int(state.summaryStats.averageCompletionRate.rounded())
-        if rate >= 80 {
-            return "\(rate)% 优秀"
-        } else if rate >= 50 {
-            return "\(rate)% 保持节奏"
-        } else if rate > 0 {
-            return "\(rate)% 继续加油"
-        } else {
-            return "暂无数据"
-        }
+    /// 选中的月份是否为当前自然月（决定驾驶舱是否显示"今日"模块）
+    private var isCurrentMonth: Bool {
+        let calendar = Calendar.current
+        return calendar.dateComponents([.year, .month], from: state.selectedMonth)
+            == calendar.dateComponents([.year, .month], from: Date())
     }
 
     // MARK: - 月份选择器
