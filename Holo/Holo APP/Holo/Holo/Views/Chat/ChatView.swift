@@ -18,6 +18,8 @@ struct ChatView: View {
     private var close: () -> Void { holoDismiss ?? { dismiss() } }
     @StateObject private var viewModel = ChatViewModel()
     @StateObject private var scrollController = ChatScrollController()
+    /// AI 数据处理授权状态：未授权时首屏给出准确引导，授权后实时切回对话页
+    @ObservedObject private var consent = HoloAIDataProcessingConsent.shared
     @State private var activeSheet: ChatSheet?
     #if DEBUG || INTERNAL_DIAGNOSTICS
     @State private var viewingLog: LLMLog?
@@ -36,6 +38,8 @@ struct ChatView: View {
     @State private var pendingEditPrefill: PendingTransactionPrefill?
     @State private var financeSearchRoute: FlexibleQueryFinanceSearchRoute?
     @State private var memoryInboxNotice: String?
+    /// 待举报的 AI 消息（驱动 ContentReportSheet）
+    @State private var reportingMessage: ChatMessageViewData?
     /// 额度耗尽卡片「了解 Holo Plus」触发，sheet 呈现会员中心
     @State private var showMembershipCenter = false
     /// 键盘遮挡内容区的高度（已扣除底部 Home Indicator 安全区）。
@@ -76,7 +80,10 @@ struct ChatView: View {
                 // 顶部导航栏
                 chatNavBar
 
-                if viewModel.isConfigured || !viewModel.hasFinishedSetup || viewModel.didTimeoutLoadingConfig {
+                if !consent.isGranted {
+                    // 未开启 AI 数据处理授权：首屏给出准确引导，避免误导性的「服务不可用」
+                    unconfiguredView
+                } else if viewModel.isConfigured || !viewModel.hasFinishedSetup || viewModel.didTimeoutLoadingConfig {
                     // 已连接、正在检查中、或检查超时：都允许先进入对话页面，避免首屏卡死
                     chatContent
                 } else if !viewModel.isConfigured {
@@ -149,6 +156,10 @@ struct ChatView: View {
             NavigationStack {
                 HoloMembershipCenterView()
             }
+        }
+        .sheet(item: $reportingMessage) { message in
+            ContentReportSheet(message: message)
+                .presentationDetents([.medium])
         }
         .task {
             await viewModel.setup()
@@ -307,7 +318,7 @@ struct ChatView: View {
 
     private var unconfiguredView: some View {
         VStack(spacing: 24) {
-            Image(systemName: "bubble.left.and.bubble.right.fill")
+            Image(systemName: consent.isGranted ? "bubble.left.and.bubble.right.fill" : "lock.shield.fill")
                 .font(.system(size: 60, weight: .light))
                 .foregroundColor(.holoPrimary)
 
@@ -315,10 +326,30 @@ struct ChatView: View {
                 .font(.holoTitle)
                 .foregroundColor(.holoTextPrimary)
 
-            Text("AI 服务暂时不可用\n请稍后重试或检查网络连接")
-                .font(.holoBody)
-                .foregroundColor(.holoTextSecondary)
-                .multilineTextAlignment(.center)
+            if consent.isGranted {
+                // 已授权但服务不可用：保留网络提示
+                Text("AI 服务暂时不可用\n请稍后重试或检查网络连接")
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextSecondary)
+                    .multilineTextAlignment(.center)
+            } else {
+                // 未授权：说明真实原因并提供开启入口
+                Text("你还未开启 AI 数据处理授权\n开启后即可使用")
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextSecondary)
+                    .multilineTextAlignment(.center)
+
+                Button {
+                    activeSheet = .aiConsent
+                } label: {
+                    Text("开启授权")
+                        .font(.holoBody.weight(.semibold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 28)
+                        .padding(.vertical, 12)
+                        .background(Color.holoPrimary, in: Capsule())
+                }
+            }
         }
         .padding()
     }
@@ -467,6 +498,9 @@ struct ChatView: View {
                                 category: nil,
                                 date: TransactionDateResolver.resolve(from: renderData)
                             )
+                        },
+                        onReport: { msg in
+                            reportingMessage = msg
                         }
                     )
                     .equatable()

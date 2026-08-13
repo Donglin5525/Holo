@@ -35,6 +35,8 @@ struct MessageBubbleView: View {
     var onTransactionConfirm: ((ChatMessageViewData) -> Void)? = nil
     var onTransactionCancel: ((ChatMessageViewData) -> Void)? = nil
     var onTransactionModifyCategory: ((ChatMessageViewData) -> Void)? = nil
+    /// 举报 AI 生成内容（App Store Guideline 1.2），仅对 AI 消息生效。
+    var onReport: ((ChatMessageViewData) -> Void)? = nil
 
     private var displayText: String {
         streamingText ?? message.content
@@ -75,6 +77,14 @@ struct MessageBubbleView: View {
                     onCardDelete?(message, info.category, info.description)
                 } label: {
                     Label("删除记录", systemImage: "trash")
+                }
+            }
+            // 举报 AI 生成内容（App Store Guideline 1.2）：对所有 AI 消息开放。
+            if !isUser {
+                Button {
+                    onReport?(message)
+                } label: {
+                    Label("举报", systemImage: "exclamationmark.bubble")
                 }
             }
             #if DEBUG || INTERNAL_DIAGNOSTICS
@@ -226,10 +236,18 @@ struct MessageBubbleView: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundColor(.holoTextPrimary)
 
+            Text("AI")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(.holoPrimary)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color.holoPrimary.opacity(0.12))
+                .clipShape(Capsule())
+
             Spacer(minLength: 0)
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Holo")
+        .accessibilityLabel("Holo，AI 生成")
     }
 
     private var userAvatar: some View {
