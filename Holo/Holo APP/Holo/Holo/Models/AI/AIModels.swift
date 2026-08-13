@@ -22,6 +22,10 @@ nonisolated enum AIIntent: String, Codable, CaseIterable {
     case deleteTask = "delete_task"
     // 习惯类
     case checkIn = "check_in"
+    // 目标类
+    case updateGoalField = "update_goal_field"
+    case linkTaskToGoal = "link_task_to_goal"
+    case toggleGoalVisibility = "toggle_goal_visibility"
     // 笔记类
     case createNote = "create_note"
     // 健康类
@@ -60,6 +64,9 @@ extension AIIntent {
         case .recordMood: return "已记录心情"
         case .recordWeight: return "已记录体重"
         case .checkIn: return "已打卡"
+        case .updateGoalField: return "已更新目标"
+        case .linkTaskToGoal: return "已关联目标"
+        case .toggleGoalVisibility: return "已更新目标可见性"
         case .createNote: return "已记录笔记"
         case .queryTasks: return "任务查询"
         case .queryHabits: return "习惯查询"

@@ -123,6 +123,11 @@ struct TaskCardView: View {
                                     .foregroundColor(.holoTextSecondary)
                                     .lineLimit(1)
                             }
+
+                            // 目标归属
+                            if let goal = task.goal {
+                                GoalBadge(goal: goal)
+                            }
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)

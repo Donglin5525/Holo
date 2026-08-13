@@ -121,7 +121,12 @@ struct KanbanHabitSection: View {
                     .foregroundColor(rowTextColor(habit))
                     .strikethrough(habit.isCheckInType && completedHabits.contains(habit.id))
 
-                streakText(habit: habit)
+                HStack(spacing: 6) {
+                    if let goal = habit.goal {
+                        GoalBadge(goal: goal, compact: true)
+                    }
+                    streakText(habit: habit)
+                }
             }
 
             Spacer()

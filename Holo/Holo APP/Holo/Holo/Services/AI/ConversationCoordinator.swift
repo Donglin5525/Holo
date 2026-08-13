@@ -45,7 +45,8 @@ final class ConversationCoordinator {
         guard HoloAIFeatureFlags.agentRuntimeEnabled else { return false }
         let executionIntents: Set<String> = [
             "record_expense", "record_income", "create_task", "complete_task",
-            "update_task", "delete_task", "check_in"
+            "update_task", "delete_task", "check_in",
+            "update_goal_field", "link_task_to_goal", "toggle_goal_visibility"
         ]
         guard !executionIntents.contains(intent) else { return false }
         if intent == "query_analysis" { return true }

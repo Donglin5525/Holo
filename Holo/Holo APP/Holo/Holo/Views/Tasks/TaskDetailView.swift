@@ -221,6 +221,15 @@ struct TaskDetailView: View {
                 value: task.taskStatus.displayTitle,
                 valueColor: task.taskStatus.color
             )
+            if let goal = task.goal {
+                Divider().background(Color.holoDivider).padding(.horizontal, 12)
+                infoRow(
+                    icon: goal.goalDomain.icon,
+                    label: "目标",
+                    value: goal.title,
+                    valueColor: goal.goalDomain.badgeColor
+                )
+            }
         }
         .background(Color.holoCardBackground)
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))

@@ -93,6 +93,68 @@ final class GoalRepository: ObservableObject {
         loadGoals()
     }
 
+    func updateProactiveNudge(_ goal: Goal, enabled: Bool) throws {
+        goal.proactiveNudge = enabled
+        goal.updatedAt = Date()
+        try context.save()
+        loadGoals()
+    }
+
+    /// 批量更新目标字段。nil 参数表示不修改该字段。
+    func updateFields(
+        _ goal: Goal,
+        title: String? = nil,
+        summary: String? = nil,
+        domain: GoalDomain? = nil,
+        desiredOutcome: String? = nil,
+        motivation: String? = nil,
+        deadline: Date?? = nil,
+        proactiveNudge: Bool? = nil
+    ) throws {
+        if let title { goal.title = title }
+        if let summary { goal.summary = summary }
+        if let domain { goal.goalDomain = domain }
+        if let desiredOutcome { goal.desiredOutcome = desiredOutcome }
+        if let motivation { goal.motivation = motivation }
+        if let deadline { goal.deadline = deadline }
+        if let proactiveNudge { goal.proactiveNudge = proactiveNudge }
+        goal.updatedAt = Date()
+        try context.save()
+        loadGoals()
+    }
+
+    func linkTask(_ task: TodoTask, to goal: Goal) throws {
+        task.goal = goal
+        goal.updatedAt = Date()
+        try context.save()
+        TodoRepository.shared.loadActiveTasks()
+        loadGoals()
+    }
+
+    func unlinkTask(_ task: TodoTask, from goal: Goal) throws {
+        if task.goal == goal { task.goal = nil }
+        goal.updatedAt = Date()
+        try context.save()
+        TodoRepository.shared.loadActiveTasks()
+        loadGoals()
+    }
+
+    func linkHabit(_ habit: Habit, to goal: Goal) throws {
+        habit.goal = goal
+        goal.updatedAt = Date()
+        try context.save()
+        HabitRepository.shared.loadActiveHabits()
+        loadGoals()
+    }
+
+    func unlinkHabit(_ habit: Habit, from goal: Goal) throws {
+        if habit.goal == goal { habit.goal = nil }
+        goal.updatedAt = Date()
+        try context.save()
+        HabitRepository.shared.loadActiveHabits()
+        loadGoals()
+    }
+
     func deleteGoal(_ goal: Goal) throws {
         context.delete(goal)
         try context.save()

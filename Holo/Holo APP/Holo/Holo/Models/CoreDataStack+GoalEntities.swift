@@ -87,6 +87,12 @@ extension CoreDataStack {
         allowAIContext.isOptional = false
         allowAIContext.defaultValue = false
 
+        let proactiveNudge = NSAttributeDescription()
+        proactiveNudge.name = "proactiveNudge"
+        proactiveNudge.attributeType = .booleanAttributeType
+        proactiveNudge.isOptional = false
+        proactiveNudge.defaultValue = true
+
         let lastInsightSummary = NSAttributeDescription()
         lastInsightSummary.name = "lastInsightSummary"
         lastInsightSummary.attributeType = .stringAttributeType
@@ -95,7 +101,7 @@ extension CoreDataStack {
         goalEntity.properties = [
             id, title, summary, domain, desiredOutcome, motivation, status,
             deadline, createdAt, updatedAt, completedAt, source, allowAIContext,
-            lastInsightSummary
+            proactiveNudge, lastInsightSummary
         ]
         return goalEntity
     }

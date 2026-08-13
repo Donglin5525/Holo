@@ -22,6 +22,7 @@ extension Goal {
     @NSManaged var completedAt: Date?
     @NSManaged var source: String
     @NSManaged var allowAIContext: Bool
+    @NSManaged var proactiveNudge: Bool
     @NSManaged var lastInsightSummary: String?
     @NSManaged var tasks: NSSet?
     @NSManaged var habits: NSSet?
@@ -68,7 +69,8 @@ extension Goal {
         desiredOutcome: String?,
         motivation: String?,
         deadline: Date?,
-        allowAIContext: Bool
+        allowAIContext: Bool,
+        proactiveNudge: Bool = true
     ) -> Goal {
         let goal = Goal(context: context)
         goal.id = UUID()
@@ -84,6 +86,7 @@ extension Goal {
         goal.completedAt = nil
         goal.source = "holoAI"
         goal.allowAIContext = allowAIContext
+        goal.proactiveNudge = proactiveNudge
         goal.lastInsightSummary = nil
         return goal
     }

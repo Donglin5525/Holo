@@ -180,6 +180,9 @@ struct KanbanTaskSection: View {
                                 .background(Color.holoPrimaryLight)
                                 .clipShape(RoundedRectangle(cornerRadius: 4))
                         }
+                        if let goal = task.goal {
+                            GoalBadge(goal: goal, compact: true)
+                        }
                         if let dueDate = task.dueDate {
                             if task.isDueToday {
                                 Text(formatTime(dueDate))
@@ -308,6 +311,9 @@ struct KanbanTaskSection: View {
                                 .padding(.vertical, 1)
                                 .background(Color.holoPrimaryLight)
                                 .clipShape(RoundedRectangle(cornerRadius: 4))
+                        }
+                        if let goal = task.goal {
+                            GoalBadge(goal: goal, compact: true)
                         }
                         if let dueDate = task.dueDate {
                             Text(formatDate(dueDate))

@@ -100,6 +100,9 @@ struct KanbanProgressHero: View {
             Text(progressMessage)
                 .font(.system(size: 15, weight: .semibold))
                 .foregroundColor(.white)
+            Text(goalContributionMessage)
+                .font(.holoTinyLabel)
+                .foregroundColor(.white.opacity(0.7))
         }
     }
 
@@ -155,6 +158,23 @@ struct KanbanProgressHero: View {
         if pct >= 50 { return "已过半，继续保持" }
         if pct > 0 { return "迈出了第一步" }
         return "开始美好的一天"
+    }
+
+    /// 目标贡献文案：今天做的事有多少关联着目标
+    private var goalContributionMessage: String {
+        let hasGoals = !GoalRepository.shared.activeGoalsForAI(limit: 1).isEmpty
+        if !hasGoals {
+            return "设个目标，让每天的忙碌有方向 →"
+        }
+        let c = TodoRepository.shared.getTodayGoalContribution()
+        let total = c.taskCount + c.habitCount
+        if total == 0 {
+            let anyProgress = taskProgress.completed + habitProgress.completed
+            return anyProgress == 0
+                ? "开始今天的第一件事，或为你的目标迈一步"
+                : "今天还没有行动落在目标上"
+        }
+        return "\(total)件事在为目标添砖加瓦"
     }
 
     private var habitProgressText: String {

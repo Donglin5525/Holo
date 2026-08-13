@@ -110,6 +110,12 @@ final class IntentRouter {
             return try handleRecordWeight(result)
         case .checkIn:
             return try handleCheckIn(result)
+        case .updateGoalField:
+            return try handleUpdateGoalField(result)
+        case .linkTaskToGoal:
+            return try handleLinkTaskToGoal(result)
+        case .toggleGoalVisibility:
+            return try handleToggleGoalVisibility(result)
         case .createNote:
             return try handleCreateNote(result)
         case .queryTasks:
@@ -483,6 +489,158 @@ final class IntentRouter {
         // 多个习惯时列出选项
         let names = habits.map { $0.name }.joined(separator: "、")
         return RouteResult(text: "要给哪个习惯打卡？当前活跃习惯：\(names)")
+    }
+
+    // MARK: - Goal 写操作
+
+    /// 匹配目标：goalId 精确 > goalTitle 模糊 > 唯一活跃目标。多候选返回 nil（由上层转 pending 卡片）。
+    private func matchGoal(from data: [String: String]?) -> GoalMatchResult {
+        let repo = GoalRepository.shared
+        let activeGoals = repo.goals.filter { $0.goalStatus == .active }
+
+        // 1. goalId 精确
+        if let idStr = data?["goalId"], let uuid = UUID(uuidString: idStr),
+           let goal = repo.findGoal(by: uuid) {
+            return .single(goal)
+        }
+
+        // 2. goalTitle 模糊
+        if let title = data?["goalTitle"], !title.isEmpty {
+            let exact = activeGoals.filter { $0.title == title }
+            if exact.count == 1 { return .single(exact[0]) }
+            let contains = activeGoals.filter { $0.title.contains(title) || title.contains($0.title) }
+            if contains.count == 1 { return .single(contains[0]) }
+            if contains.count > 1 { return .ambiguous(contains) }
+        }
+
+        // 3. 只有一个活跃目标，直接用
+        if activeGoals.count == 1 { return .single(activeGoals[0]) }
+
+        if activeGoals.isEmpty { return .none }
+        return .ambiguous(activeGoals)
+    }
+
+    private func handleUpdateGoalField(_ result: ParsedResult) throws -> RouteResult {
+        let data = result.extractedData
+        switch matchGoal(from: data) {
+        case .none:
+            return RouteResult(text: "你还没有正在进行的活跃目标。要创建一个吗？")
+        case .ambiguous(let goals):
+            return goalDisambiguationResult(goals, action: "修改")
+        case .single(let goal):
+            // 按 field 字段决定改什么
+            let field = data?["field"] ?? ""
+            let value = data?["value"]
+            try applyGoalFieldUpdate(goal, field: field, value: value)
+            return RouteResult(
+                text: "已更新「\(goal.title)」",
+                linkedEntity: LinkedEntity(type: .goal, id: goal.id)
+            )
+        }
+    }
+
+    private func applyGoalFieldUpdate(_ goal: Goal, field: String, value: String?) throws {
+        let repo = GoalRepository.shared
+        let val = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+        switch field.lowercased() {
+        case "title", "标题":
+            try repo.updateFields(goal, title: val ?? goal.title)
+        case "summary", "说明":
+            try repo.updateFields(goal, summary: val)
+        case "deadline", "截止日期", "截止":
+            if let val, !val.isEmpty {
+                let date = parseDate(from: val) ?? parseFlexibleDate(val)
+                try repo.updateFields(goal, deadline: .some(date))
+            } else {
+                try repo.updateFields(goal, deadline: .some(nil))
+            }
+        case "desiredoutcome", "期望结果":
+            try repo.updateFields(goal, desiredOutcome: val)
+        case "motivation", "动机":
+            try repo.updateFields(goal, motivation: val)
+        default:
+            // field 不明确时，把 value 当标题更新（兜底）
+            if let val, !val.isEmpty {
+                try repo.updateFields(goal, title: val)
+            }
+        }
+    }
+
+    private func handleLinkTaskToGoal(_ result: ParsedResult) throws -> RouteResult {
+        let data = result.extractedData
+        let taskRepo = TodoRepository.shared
+        let activeTasks = taskRepo.activeTasks.filter { !$0.deletedFlag && !$0.archived }
+
+        // 匹配任务
+        var matchedTask: TodoTask?
+        if let taskTitle = data?["taskTitle"], !taskTitle.isEmpty {
+            matchedTask = activeTasks.first { $0.title == taskTitle }
+                ?? activeTasks.first { $0.title.contains(taskTitle) || taskTitle.contains($0.title) }
+        }
+        guard let task = matchedTask else {
+            return RouteResult(text: "没找到对应的任务，请告诉我具体是哪个任务。")
+        }
+
+        switch matchGoal(from: data) {
+        case .none:
+            return RouteResult(text: "你还没有正在进行的活跃目标。")
+        case .ambiguous(let goals):
+            return goalDisambiguationResult(goals, action: "关联任务")
+        case .single(let goal):
+            try GoalRepository.shared.linkTask(task, to: goal)
+            return RouteResult(
+                text: "已把「\(task.title)」关联到目标「\(goal.title)」",
+                taskId: task.id,
+                linkedEntity: LinkedEntity(type: .goal, id: goal.id)
+            )
+        }
+    }
+
+    private func handleToggleGoalVisibility(_ result: ParsedResult) throws -> RouteResult {
+        let data = result.extractedData
+        switch matchGoal(from: data) {
+        case .none:
+            return RouteResult(text: "你还没有正在进行的活跃目标。")
+        case .ambiguous(let goals):
+            return goalDisambiguationResult(goals, action: "调整可见性")
+        case .single(let goal):
+            let enable = data?["enable"]?.lowercased() == "true"
+            try GoalRepository.shared.updateAIContext(goal, allow: enable)
+            return RouteResult(
+                text: enable ? "已允许 HoloAI 参考「\(goal.title)」" : "已关闭 HoloAI 对「\(goal.title)」的参考",
+                linkedEntity: LinkedEntity(type: .goal, id: goal.id)
+            )
+        }
+    }
+
+    /// 多目标歧义：返回候选列表（纯文本反问兜底；完整 pending 卡片由 ConversationCoordinator 处理）
+    private func goalDisambiguationResult(_ goals: [Goal], action: String) -> RouteResult {
+        let list = goals.prefix(5).enumerated().map { (i, g) in
+            "\(i + 1)）\(g.title)"
+        }.joined(separator: "\n")
+        return RouteResult(text: "要\(action)哪个目标？\n\(list)\n请告诉我具体的目标名称。")
+    }
+
+    /// 灵活日期解析（"年底"、"下个月"、"12月31日" 等），返回 nil 表示无法解析
+    private func parseFlexibleDate(_ text: String) -> Date? {
+        let calendar = Calendar.current
+        let now = Date()
+        let lower = text.lowercased()
+        switch lower {
+        case "年底":
+            return calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: 12, day: 31))
+        case "年底前":
+            return calendar.date(from: DateComponents(year: calendar.component(.year, from: now), month: 12, day: 31))
+        case "下个月底":
+            let nextMonth = calendar.date(byAdding: .month, value: 1, to: now)!
+            let range = calendar.range(of: .day, in: .month, for: nextMonth)!
+            let comps = calendar.dateComponents([.year, .month], from: nextMonth)
+            return calendar.date(from: DateComponents(year: comps.year, month: comps.month, day: range.count))
+        case "下个月", "下月底":
+            return calendar.date(byAdding: .month, value: 1, to: now)
+        default:
+            return parseDate(from: text)
+        }
     }
 
     private func handleNumericHabitRecord(_ habit: Habit, result: ParsedResult) throws -> RouteResult {
@@ -1138,4 +1296,12 @@ final class IntentRouter {
             matchedSubCategory: matchedNames.sub
         )
     }
+}
+
+// MARK: - Goal 匹配结果
+
+enum GoalMatchResult {
+    case single(Goal)
+    case ambiguous([Goal])
+    case none
 }

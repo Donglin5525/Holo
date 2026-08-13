@@ -19,6 +19,10 @@ struct HabitDetailSnapshot {
     var frequencyTargetText: String = ""
     var habitTypeName: String = ""
     var unit: String? = nil
+
+    // 目标归属
+    var goalTitle: String? = nil
+    var goalDomain: GoalDomain? = nil
     
     // 统计数据
     var streak: HabitStreak = .zero()
@@ -216,6 +220,9 @@ struct HabitDetailView: View {
             s.frequencyTargetText = habit.frequencyTargetText
             s.habitTypeName = habit.habitType.displayName
             s.unit = habit.unit
+
+            s.goalTitle = habit.goal?.title
+            s.goalDomain = habit.goal?.goalDomain
             
             if habit.isCheckInType {
                 s.streak = repo.calculateStreakInfo(for: habit)
@@ -263,6 +270,21 @@ struct HabitDetailView: View {
                 Text(snapshot.frequencyTargetText)
                     .font(.holoCaption)
                     .foregroundColor(.holoTextSecondary)
+
+                if let goalTitle = snapshot.goalTitle, let domain = snapshot.goalDomain {
+                    HStack(spacing: 3) {
+                        Image(systemName: domain.icon)
+                            .font(.system(size: 10, weight: .medium))
+                        Text(goalTitle)
+                            .font(.holoCaption)
+                            .lineLimit(1)
+                    }
+                    .foregroundColor(domain.badgeColor)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(domain.badgeColor.opacity(0.12))
+                    .cornerRadius(HoloRadius.sm)
+                }
             }
         }
         .padding(.vertical, HoloSpacing.md)

@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import CoreData
 
 struct GoalListView: View {
     @ObservedObject private var repository = GoalRepository.shared
@@ -14,6 +15,9 @@ struct GoalListView: View {
     @Binding var pendingGoalDetailId: UUID?
     @State private var selectedGoalRoute: GoalDetailRoute?
     @State private var operationError: String?
+
+    /// 手动创建目标
+    @State private var showManualCreate = false
 
     /// 是否已完成首次加载（避免冷启动时空态先闪现、再被真实列表替换）
     @State private var hasLoadedOnce = false
@@ -55,13 +59,32 @@ struct GoalListView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button {
-                    onPlanGoal()
+                Menu {
+                    Button {
+                        onPlanGoal()
+                    } label: {
+                        Label("让 HoloAI 规划", systemImage: "sparkles")
+                    }
+                    Button {
+                        showManualCreate = true
+                    } label: {
+                        Label("手动创建", systemImage: "square.and.pencil")
+                    }
                 } label: {
-                    Label("规划目标", systemImage: "plus")
+                    Label("新建", systemImage: "plus")
                 }
-                .accessibilityLabel("规划新目标")
+                .accessibilityLabel("新建目标")
             }
+        }
+        .sheet(isPresented: $showManualCreate) {
+            GoalManualCreateSheet(
+                onSaved: { result in
+                    showManualCreate = false
+                    // 创建后直接跳进详情
+                    pendingGoalDetailId = result.goal.id
+                },
+                onCancel: { showManualCreate = false }
+            )
         }
         .navigationDestination(item: $selectedGoalRoute) { route in
             if let goal = repository.findGoal(by: route.id) {
@@ -129,6 +152,14 @@ struct GoalListView: View {
                     .background(Color.holoPrimary)
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
             }
+            Button {
+                showManualCreate = true
+            } label: {
+                Text("或手动创建")
+                    .font(.holoLabel)
+                    .foregroundColor(.holoTextSecondary)
+                    .underline()
+            }
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 80)
@@ -183,4 +214,161 @@ struct GoalListView: View {
 
 private struct GoalDetailRoute: Identifiable, Hashable {
     let id: UUID
+}
+
+// MARK: - 手动创建目标 Sheet
+
+struct GoalManualCreateSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var draft: GoalDraft = GoalEditForm.emptyDraft()
+    @State private var allowAIContext = true
+    @State private var isSaving = false
+    @State private var saveError: String?
+
+    let onSaved: (GoalDraftSaveResult) -> Void
+    let onCancel: () -> Void
+
+    private var canSave: Bool {
+        !isSaving && !draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: HoloSpacing.lg) {
+                    GoalEditForm(draft: $draft)
+                    aiContextCard
+                }
+                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.top, HoloSpacing.md)
+                .padding(.bottom, 100)
+            }
+            .background(Color.holoBackground)
+            .navigationTitle("创建目标")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") {
+                        onCancel()
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(isSaving ? "保存中" : "保存") { save() }
+                        .disabled(!canSave)
+                        .fontWeight(.semibold)
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                bottomActions
+            }
+            .alert("保存失败", isPresented: Binding(
+                get: { saveError != nil },
+                set: { if !$0 { saveError = nil } }
+            )) {
+                Button("知道了", role: .cancel) {}
+            } message: {
+                Text(saveError ?? "")
+            }
+        }
+    }
+
+    private var aiContextCard: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            HStack(spacing: 8) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 16))
+                    .foregroundColor(.holoPrimary)
+                    .frame(width: 24, height: 24)
+                Text("AI 上下文")
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextPrimary)
+                Spacer()
+            }
+
+            CardDivider()
+
+            Toggle(isOn: $allowAIContext) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("允许 HoloAI 参考此目标")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextPrimary)
+                    Text("HoloAI 会基于此目标给出更精准的建议")
+                        .font(.holoLabel)
+                        .foregroundColor(.holoTextSecondary)
+                }
+            }
+            .tint(.holoPrimary)
+        }
+        .padding(HoloSpacing.md)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.md)
+                .stroke(Color.holoBorder, lineWidth: 1)
+        )
+        .shadow(color: HoloShadow.card, radius: 4, x: 0, y: 2)
+    }
+
+    private var bottomActions: some View {
+        HStack(spacing: HoloSpacing.md) {
+            Button {
+                onCancel()
+                dismiss()
+            } label: {
+                Text("取消")
+                    .font(.holoBody)
+                    .foregroundColor(.holoTextSecondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color.holoCardBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: HoloRadius.md)
+                            .stroke(Color.holoBorder, lineWidth: 1)
+                    )
+            }
+
+            Button {
+                save()
+            } label: {
+                HStack(spacing: 6) {
+                    if isSaving {
+                        ProgressView()
+                            .scaleEffect(0.8)
+                            .tint(.white)
+                    }
+                    Text(isSaving ? "保存中" : "创建目标")
+                        .font(.holoBody)
+                        .foregroundColor(.white)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 14)
+                .background(canSave ? Color.holoPrimary : Color.gray.opacity(0.3))
+                .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+            }
+            .disabled(!canSave)
+        }
+        .padding(.horizontal, HoloSpacing.lg)
+        .padding(.vertical, HoloSpacing.md)
+        .background(Color.holoCardBackground)
+        .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: -2)
+    }
+
+    private func save() {
+        isSaving = true
+        DispatchQueue.main.async {
+            do {
+                let result = try GoalRepository.shared.saveDraft(draft, allowAIContext: allowAIContext)
+                // 手动创建的 source 标记为 manual
+                result.goal.source = "manual"
+                try? CoreDataStack.shared.viewContext.save()
+                onSaved(result)
+                dismiss()
+            } catch {
+                isSaving = false
+                saveError = error.localizedDescription
+            }
+        }
+    }
 }

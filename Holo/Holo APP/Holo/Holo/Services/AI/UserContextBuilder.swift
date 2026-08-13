@@ -38,7 +38,7 @@ final class UserContextBuilder {
 
         let recentTrend = await buildRecentTrend()
 
-        let goalContext = buildGoalContext(limit: 1)
+        let goalContext = buildGoalContext(limit: 3)
 
         // 记忆摘要只能经统一 Query Service 读取，开关关闭时返回空。
         let memorySummary: HoloMemoryPromptSummary? =
@@ -478,12 +478,18 @@ final class UserContextBuilder {
 
         let lines = goals.map { goal -> String in
             let progress = GoalProgressEvaluator.evaluate(goal: goal)
+            let deadlineSuffix: String = {
+                guard let deadline = goal.deadline else { return "" }
+                let days = Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: Date()), to: Calendar.current.startOfDay(for: deadline)).day ?? 0
+                return days >= 0 ? "（还剩 \(days) 天）" : "（已逾期 \(-days) 天）"
+            }()
             return """
             - \(goal.title)
-              - 状态：\(progress.state.displayName)
+              - 状态：\(progress.state.displayName)\(deadlineSuffix)
               - \(progress.taskSummary)
               - \(progress.habitSummary)
-              - 说明：\(goal.summary ?? goal.desiredOutcome ?? "无")
+              - 期望结果：\(goal.desiredOutcome ?? "未设定")
+              - 动机：\(goal.motivation ?? "未设定")
             """
         }
 

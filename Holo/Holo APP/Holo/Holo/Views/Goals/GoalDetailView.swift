@@ -14,6 +14,7 @@ struct GoalDetailView: View {
     let onDeleteRequested: (UUID) -> Void
     @State private var showDeleteConfirm = false
     @State private var operationError: String?
+    @State private var showEditForm = false
 
     init(
         goal: Goal,
@@ -32,6 +33,7 @@ struct GoalDetailView: View {
             VStack(alignment: .leading, spacing: HoloSpacing.lg) {
                 header(progress)
                 aiContextToggle
+                proactiveNudgeToggle
                 taskSection
                 habitSection
                 actionSection
@@ -57,6 +59,11 @@ struct GoalDetailView: View {
         } message: {
             Text(operationError ?? "")
         }
+        .sheet(isPresented: $showEditForm) {
+            GoalEditSheet(goal: goal) {
+                showEditForm = false
+            }
+        }
     }
 
     private func header(_ progress: GoalProgressSummary) -> some View {
@@ -72,6 +79,36 @@ struct GoalDetailView: View {
             Text("\(progress.state.displayName) · \(progress.taskSummary) · \(progress.habitSummary)")
                 .font(.system(size: 13))
                 .foregroundColor(.holoPrimary)
+            if let desiredOutcome = goal.desiredOutcome, !desiredOutcome.isEmpty {
+                infoLine(icon: "checkmark.seal", label: "期望结果", value: desiredOutcome)
+            }
+            if let motivation = goal.motivation, !motivation.isEmpty {
+                infoLine(icon: "heart", label: "动机", value: motivation)
+            }
+            if let deadline = goal.deadline {
+                let days = Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: Date()), to: Calendar.current.startOfDay(for: deadline)).day ?? 0
+                infoLine(
+                    icon: "calendar",
+                    label: "截止日期",
+                    value: days >= 0 ? "\(GoalEditForm.formatDeadline(deadline))（还剩 \(days) 天）" : "\(GoalEditForm.formatDeadline(deadline))（已逾期 \(-days) 天）"
+                )
+            }
+        }
+    }
+
+    private func infoLine(icon: String, label: String, value: String) -> some View {
+        HStack(alignment: .top, spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 12))
+                .foregroundColor(.holoTextSecondary)
+                .frame(width: 16)
+            Text("\(label)：")
+                .font(.system(size: 13))
+                .foregroundColor(.holoTextSecondary)
+            Text(value)
+                .font(.system(size: 13))
+                .foregroundColor(.holoTextPrimary)
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 
@@ -85,6 +122,30 @@ struct GoalDetailView: View {
             }
         ))
         .font(.holoBody)
+        .padding(HoloSpacing.md)
+        .holoCard()
+    }
+
+    private var proactiveNudgeToggle: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Toggle("允许 HoloAI 主动围绕此目标提醒", isOn: Binding(
+                get: { goal.allowAIContext && goal.proactiveNudge },
+                set: { newValue in
+                    perform {
+                        try repository.updateProactiveNudge(goal, enabled: newValue)
+                    }
+                }
+            ))
+            .font(.holoBody)
+            .disabled(!goal.allowAIContext)
+
+            if !goal.allowAIContext {
+                Text("需先开启「允许 HoloAI 参考此目标」")
+                    .font(.holoLabel)
+                    .foregroundColor(.holoTextSecondary)
+                    .padding(.leading, 4)
+            }
+        }
         .padding(HoloSpacing.md)
         .holoCard()
     }
@@ -125,6 +186,9 @@ struct GoalDetailView: View {
 
     private var actionSection: some View {
         VStack(spacing: HoloSpacing.sm) {
+            Button("编辑目标") {
+                showEditForm = true
+            }
             if goal.goalStatus == .active {
                 Button("暂停目标") {
                     perform { try repository.updateStatus(goal, status: .paused) }
@@ -173,6 +237,107 @@ struct GoalDetailView: View {
             try action()
         } catch {
             operationError = error.localizedDescription
+        }
+    }
+}
+
+// MARK: - 编辑目标 Sheet
+
+struct GoalEditSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let goal: Goal
+    @State private var draft: GoalDraft
+    @State private var isSaving = false
+    @State private var saveError: String?
+    let onSaved: () -> Void
+
+    init(goal: Goal, onSaved: @escaping () -> Void) {
+        self.goal = goal
+        self.onSaved = onSaved
+        self._draft = State(initialValue: GoalEditForm.draft(from: goal))
+    }
+
+    private var canSave: Bool {
+        !isSaving && !draft.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var body: some View {
+        NavigationStack {
+            ScrollView(showsIndicators: false) {
+                VStack(spacing: HoloSpacing.lg) {
+                    GoalEditForm(draft: $draft)
+                }
+                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.top, HoloSpacing.md)
+                .padding(.bottom, 100)
+            }
+            .background(Color.holoBackground)
+            .navigationTitle("编辑目标")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(isSaving ? "保存中" : "保存") { save() }
+                        .disabled(!canSave)
+                        .fontWeight(.semibold)
+                }
+            }
+            .safeAreaInset(edge: .bottom) {
+                Button {
+                    save()
+                } label: {
+                    Text(isSaving ? "保存中" : "保存修改")
+                        .font(.holoBody)
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(canSave ? Color.holoPrimary : Color.gray.opacity(0.3))
+                        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                }
+                .disabled(!canSave)
+                .padding(.horizontal, HoloSpacing.lg)
+                .padding(.vertical, HoloSpacing.md)
+                .background(Color.holoCardBackground)
+                .shadow(color: .black.opacity(0.06), radius: 8, x: 0, y: -2)
+            }
+            .alert("保存失败", isPresented: Binding(
+                get: { saveError != nil },
+                set: { if !$0 { saveError = nil } }
+            )) {
+                Button("知道了", role: .cancel) {}
+            } message: {
+                Text(saveError ?? "")
+            }
+        }
+    }
+
+    private func save() {
+        isSaving = true
+        DispatchQueue.main.async {
+            do {
+                // deadline 从 draft.deadlineText 解析；nil 表示清空
+                let parsedDeadline: Date?? = {
+                    guard let text = draft.deadlineText, !text.isEmpty else { return .some(nil) }
+                    return .some(GoalEditForm.parseDeadlineText(text))
+                }()
+                try GoalRepository.shared.updateFields(
+                    goal,
+                    title: draft.title,
+                    summary: draft.summary,
+                    domain: draft.domain,
+                    desiredOutcome: draft.desiredOutcome,
+                    motivation: draft.motivation,
+                    deadline: parsedDeadline
+                )
+                isSaving = false
+                onSaved()
+                dismiss()
+            } catch {
+                isSaving = false
+                saveError = error.localizedDescription
+            }
         }
     }
 }

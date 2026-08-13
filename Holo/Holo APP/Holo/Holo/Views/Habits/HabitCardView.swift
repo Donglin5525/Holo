@@ -163,7 +163,12 @@ struct HabitCardView: View {
                     .foregroundColor(.holoTextSecondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.85)
-                
+
+                // 目标归属
+                if let goal = habit.goal {
+                    GoalBadge(goal: goal, compact: true)
+                }
+
                 // 打卡型显示连续坚持信息（使用预加载的 @State 值）
                 if habit.isCheckInType && streakInfo.value > 0 {
                     HStack(spacing: 2) {

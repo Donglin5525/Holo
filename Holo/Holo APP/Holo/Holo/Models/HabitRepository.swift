@@ -750,6 +750,20 @@ class HabitRepository: ObservableObject {
         return (checkInCompleted + numericCompleted, total)
     }
 
+    /// 今日目标贡献：今天有打卡/记录、且关联了目标的习惯数。
+    /// 复用与 getTodayCheckInProgress 相同的今日完成判定逻辑，保持口径一致。
+    func getTodayGoalHabitContribution() -> (habitCount: Int, goalCount: Int) {
+        let goalHabits = activeHabits.filter { !$0.isArchived && $0.goal != nil }
+        guard !goalHabits.isEmpty else { return (0, 0) }
+
+        let checkInCompleted = goalHabits.filter { $0.isCheckInType && isTodayCompleted(for: $0) }
+        let numericCompleted = goalHabits.filter { $0.isNumericType && hasTodayNumericRecord($0) }
+        let completedHabits = checkInCompleted + numericCompleted
+
+        let goalIds = Set(completedHabits.compactMap { $0.goal?.id })
+        return (completedHabits.count, goalIds.count)
+    }
+
     /// 数值型习惯今日是否有记录
     private func hasTodayNumericRecord(_ habit: Habit) -> Bool {
         getTodayValue(for: habit) != nil

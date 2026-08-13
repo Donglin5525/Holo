@@ -135,6 +135,10 @@ actor HoloLocalAgentRuntime {
                 now: now
             ))
         }
+        // 活跃目标摘要注入（与记忆/策略偏好同属"用户长期背景"类 system 注入）
+        if let goalMsg = await Self.activeGoalSummaryMessage(now: now) {
+            conversation.append(goalMsg)
+        }
         // P1-B 集成：构建统一 AgentPolicyContext 并注入为系统消息。
         // 让 Agent 稳定记住用户纠正和偏好（来源：InsightPreferenceProfile + 近期反馈纠正主题），
         // 冲突顺序：当前输入 > 任务规则 > 明确纠正 > 稳定偏好 > 弱偏好 > 全局默认。
@@ -1402,6 +1406,43 @@ actor HoloLocalAgentRuntime {
         let content = """
         用户偏好与纠正（请遵守，除非用户当前问题明确覆盖）：
         \(lines)
+        """
+
+        return HoloAgentMessage(
+            role: .system,
+            content: content,
+            toolRequestID: nil,
+            toolName: nil,
+            timestamp: now,
+            tokenEstimate: nil
+        )
+    }
+
+    /// 活跃目标摘要注入（摘要级，给 Agent 全局方向感）。
+    /// 与 HoloGoalTool（详情级）分工：这里回答"用户在追什么"，工具回答"追得怎么样"。
+    /// 只在有活跃目标时返回消息（避免空消息浪费 token）。
+    private static func activeGoalSummaryMessage(now: Date) async -> HoloAgentMessage? {
+        let lines = await MainActor.run { () -> [String]? in
+            let goals = GoalRepository.shared.activeGoalsForAI(limit: 3)
+            guard !goals.isEmpty else { return nil }
+
+            return goals.map { goal -> String in
+                let progress = GoalProgressEvaluator.evaluate(goal: goal)
+                let deadlineSuffix: String = {
+                    guard let deadline = goal.deadline else { return "" }
+                    let days = Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: Date()), to: Calendar.current.startOfDay(for: deadline)).day ?? 0
+                    return days >= 0 ? "（还剩 \(days) 天）" : "（已逾期 \(-days) 天）"
+                }()
+                let desired = goal.desiredOutcome ?? "未设定"
+                return "- \(goal.title)（\(progress.state.displayName)\(deadlineSuffix)；\(progress.taskSummary)；\(progress.habitSummary)；期望：\(desired)）"
+            }
+        }
+        guard let lines else { return nil }
+
+        let content = """
+        活跃目标摘要（用户当前正在追求的方向，分析时请结合考虑）：
+        \(lines.joined(separator: "\n"))
+        如需某目标的详细进度/风险数据，可调用 goal 工具查询。
         """
 
         return HoloAgentMessage(

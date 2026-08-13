@@ -145,6 +145,32 @@ extension TodoRepository {
         return (completed, tasks.count)
     }
 
+    /// 今日目标贡献：今天完成的、且关联了目标的任务数。
+    /// 用于 Hero 卡"目标贡献"文案。
+    func getTodayGoalContribution() -> (taskCount: Int, habitCount: Int, goalCount: Int) {
+        let context = CoreDataStack.shared.viewContext
+        let calendar = Calendar.current
+        let startOfDay = calendar.startOfDay(for: Date())
+        let tomorrow = calendar.date(byAdding: .day, value: 1, to: startOfDay)!
+
+        // 今天完成（completedAt 落在今天）且关联了目标的任务
+        let taskRequest: NSFetchRequest<TodoTask> = TodoTask.fetchRequest()
+        taskRequest.predicate = NSPredicate(
+            format: "completed == true AND completedAt >= %@ AND completedAt < %@ AND goal != nil",
+            startOfDay as NSDate,
+            tomorrow as NSDate
+        )
+        let goalTasks = (try? context.fetch(taskRequest))?
+            .filter { !$0.deletedFlag && !$0.archived } ?? []
+        let taskGoalIds = Set(goalTasks.compactMap { $0.goal?.id })
+
+        // 习惯部分（复用 HabitRepository 的今日完成判定）
+        let habitGoalCount = HabitRepository.shared.getTodayGoalHabitContribution()
+
+        let goalCount = taskGoalIds.count + habitGoalCount.goalCount
+        return (goalTasks.count, habitGoalCount.habitCount, goalCount)
+    }
+
     /// 创建每日仪式任务
     @discardableResult
     func createDailyRitual(
