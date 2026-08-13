@@ -23,6 +23,24 @@ enum HoloContentNode: Equatable {
     case taskMark(id: UUID, taskId: UUID, displayText: String)
 }
 
+// MARK: - Identifiable（供 .sheet(item:) 驱动 Token 操作菜单）
+
+extension HoloContentNode: Identifiable {
+    /// 用「类型前缀 + 实体 ID」拼稳定标识。text 节点不参与菜单，用内容哈希兜底。
+    var id: String {
+        switch self {
+        case .text(let value):
+            return "text-\(value.hashValue)"
+        case .tag(let id, _):
+            return "tag-\(id.uuidString)"
+        case .reference(let noteId, _, _):
+            return "ref-\(noteId.uuidString)"
+        case .taskMark(_, let taskId, _):
+            return "task-\(taskId.uuidString)"
+        }
+    }
+}
+
 // MARK: - Codable（自定义 type 判别，保证 JSON 格式稳定可读）
 
 extension HoloContentNode: Codable {

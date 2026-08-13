@@ -391,7 +391,10 @@ struct MarkdownTextView: UIViewRepresentable {
         func textViewDidEndEditing(_ textView: UITextView) {
             activeTrigger = nil
             publishTrigger(nil)
-            publishSelectedToken(nil)
+            // 注意：不在此处清 selectedToken。
+            // 原因：token 操作菜单已改为 .sheet(item: $selectedToken)，sheet 呈现时 UITextView 会失焦，
+            // 若此处同步清 selectedToken，会把刚设上的选中态立刻抹掉，菜单弹不出来（旧 confirmationDialog 的竞态根因）。
+            // selectedToken 的清空改由 sheet dismiss（用户操作或下滑关闭）负责，链路自洽。
         }
 
         func perform(

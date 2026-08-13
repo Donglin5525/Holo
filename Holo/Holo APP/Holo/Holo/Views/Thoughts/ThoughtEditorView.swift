@@ -236,12 +236,14 @@ struct ThoughtEditorView: View {
         .onChange(of: triggerContext) { _, newValue in
             suggestionViewModel.search(context: newValue, excludingThoughtId: currentThoughtId)
         }
-        .confirmationDialog(
-            tokenMenuTitle,
-            isPresented: tokenMenuPresented,
-            titleVisibility: .visible
-        ) {
-            tokenMenuButtons
+        // Token 操作菜单：用 .sheet(item:) 而非 .confirmationDialog。
+        // 原因：confirmationDialog（iPhone 上即 actionSheet）呈现时会让 UITextView 失焦，
+        // 触发 textViewDidEndEditing 同步清空 selectedToken，菜单还没弹出就被撤回（点 token 无反应）。
+        // sheet 是 modal presentation，压在键盘之上，不受失焦竞态影响。
+        .sheet(item: $selectedToken) { token in
+            tokenActionSheet(token)
+                .presentationDetents([.height(220)])
+                .presentationDragIndicator(.visible)
         }
         // MARK: - Attachment Modifiers
         .photosPicker(
@@ -547,9 +549,13 @@ struct ThoughtEditorView: View {
                 }
             },
             onSelectReference: { thoughtId, title, snapshot in
+                // displayText 的契约是「不含 @ 前缀」的纯展示文字（makeTokenAttributedText 会补 @）。
+                // 当目标想法正文以 @引用 开头时，它的 firstLine 会忠实带 @，这里必须剥掉，
+                // 否则 makeTokenAttributedText 再补一个 @ 会变成 @@。
+                let cleanTitle = title.hasPrefix("@") ? String(title.dropFirst()) : title
                 pendingEditorAction = .insertReferenceToken(
                     id: thoughtId,
-                    displayText: RichContentSerializer.truncatedReferenceDisplay(title),
+                    displayText: RichContentSerializer.truncatedReferenceDisplay(cleanTitle),
                     snapshot: snapshot
                 )
             }
@@ -640,53 +646,86 @@ struct ThoughtEditorView: View {
     }
 
     /// 引用区域已收敛：引用统一通过正文行内 @ 添加，见 v2 方案 §10.4
-    /// Token 操作菜单
-    private var tokenMenuTitle: String {
-        switch selectedToken {
+    /// Token 操作菜单（sheet 形态，自绘按钮）
+    @ViewBuilder
+    private func tokenActionSheet(_ token: HoloContentNode) -> some View {
+        VStack(spacing: HoloSpacing.sm) {
+            // 标题行
+            Text(tokenMenuTitle(token))
+                .font(.holoHeading)
+                .foregroundColor(.holoTextPrimary)
+                .frame(maxWidth: .infinity)
+                .padding(.top, HoloSpacing.sm)
+
+            Divider()
+                .padding(.vertical, 2)
+
+            // 操作按钮（每个动作先关 sheet 再执行，避免 sheet 与跳转/dismiss 叠加）
+            VStack(spacing: 0) {
+                switch token {
+                case .tag(_, let displayPath):
+                    tokenMenuButton("查看标签", icon: "tag") {
+                        selectedToken = nil
+                        viewTagThoughts(displayPath)
+                    }
+                    tokenMenuButton("移除标签", icon: "trash", isDestructive: true) {
+                        selectedToken = nil
+                        pendingEditorAction = .removeSelectedToken
+                    }
+                case .reference(let noteId, _, _):
+                    tokenMenuButton("查看记录", icon: "doc.text") {
+                        selectedToken = nil
+                        navigateToThoughtId = noteId
+                    }
+                    tokenMenuButton("取消引用", icon: "link.badge.minus", isDestructive: true) {
+                        selectedToken = nil
+                        pendingEditorAction = .removeSelectedToken
+                    }
+                case .taskMark(_, let taskId, _):
+                    tokenMenuButton("查看任务", icon: "checklist") {
+                        selectedToken = nil
+                        viewTask(taskId)
+                    }
+                    tokenMenuButton("取消标记", icon: "xmark.circle", isDestructive: true) {
+                        selectedToken = nil
+                        pendingEditorAction = .removeSelectedToken
+                    }
+                case .text:
+                    EmptyView()
+                }
+            }
+        }
+        .padding(.horizontal, HoloSpacing.md)
+        .padding(.bottom, HoloSpacing.md)
+        .background(Color.holoCardBackground)
+    }
+
+    private func tokenMenuTitle(_ token: HoloContentNode) -> String {
+        switch token {
         case .tag(_, let displayPath):
             return "#\(displayPath)"
         case .reference(_, let displayText, _):
             return "@\(displayText)"
         case .taskMark(_, _, let displayText):
             return "已转任务：\(displayText)"
-        case .text, .none:
+        case .text:
             return "操作"
         }
     }
 
-    private var tokenMenuPresented: Binding<Bool> {
-        Binding(
-            get: { selectedToken != nil },
-            set: { if !$0 { selectedToken = nil } }
-        )
-    }
-
-    @ViewBuilder
-    private var tokenMenuButtons: some View {
-        switch selectedToken {
-        case .tag(_, let displayPath):
-            Button("查看标签") {
-                viewTagThoughts(displayPath)
+    private func tokenMenuButton(_ title: String, icon: String, isDestructive: Bool = false, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: HoloSpacing.sm) {
+                Image(systemName: icon)
+                    .font(.system(size: 16))
+                    .frame(width: 24)
+                Text(title)
+                    .font(.holoBody)
+                Spacer()
             }
-            Button("移除标签", role: .destructive) {
-                pendingEditorAction = .removeSelectedToken
-            }
-        case .reference(let noteId, _, _):
-            Button("查看记录") {
-                navigateToThoughtId = noteId
-            }
-            Button("取消引用", role: .destructive) {
-                pendingEditorAction = .removeSelectedToken
-            }
-        case .taskMark(_, let taskId, _):
-            Button("查看任务") {
-                viewTask(taskId)
-            }
-            Button("取消标记", role: .destructive) {
-                pendingEditorAction = .removeSelectedToken
-            }
-        case .text, .none:
-            EmptyView()
+            .foregroundColor(isDestructive ? .holoError : .holoTextPrimary)
+            .padding(.vertical, HoloSpacing.sm)
+            .contentShape(Rectangle())
         }
     }
 
