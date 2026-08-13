@@ -12,11 +12,11 @@
   },
   "dependencies": {
     "@alicloud/green20220302": "^3.2.4",
-    "@hono/node-server": "^1.19.6",
+    "@hono/node-server": "^2.1.0",
     "better-sqlite3": "^12.10.0",
     "diff": "^9.0.0",
     "dotenv": "^17.4.2",
-    "hono": "^4.12.30",
+    "hono": "^4.13.1",
     "jose": "^6.2.3",
     "ws": "^8.21.0"
   }
