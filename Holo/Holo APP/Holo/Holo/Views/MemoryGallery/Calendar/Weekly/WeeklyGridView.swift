@@ -7,10 +7,10 @@
 //
 //  布局分三层（纵向滚 / 横向翻 / 日期格冻结 互不干扰）：
 //  1. 日期格行 —— 钉在顶部（在所有 ScrollView 之外），直接读 centerDay 显示 3 天。
-//     翻页时 centerDay 变 → 它自动更新；上下滚时它纹丝不动。不参与任何滚动。
-//  2. 事件区 —— 外层纵向 ScrollView（上下滚看不同时段），内层横向翻页（左右翻天）。
-//     横向只有这一处 ScrollView，日期格靠读 centerDay 同步，不存在双 ScrollView 错位。
-//  3. 时间轴 —— 固定左侧不滑动，高度基于「以今天为中心的固定 7 天」算，稳定不跳变。
+//     翻页时 centerDay 变 → 它自动更新；上下滚时它纹丝不动。
+//  2. 时间轴和事件区 —— 共用一个纵向 ScrollView；事件区内部再横向翻页。
+//     这样时间刻度与事件永远一起滚动，横向也只有事件区会翻页。
+//  3. 所有顶部日期、凌晨摘要和事件列共用 36pt 时间轴基线，避免列坐标漂移。
 //
 
 import SwiftUI
@@ -39,6 +39,7 @@ struct WeeklyGridView: View {
     private let collapsedMorningHours = 0..<7
     private let timeAxisWidth: CGFloat = 36
     private let dayHeaderHeight: CGFloat = 48
+    private let morningSummaryHeight: CGFloat = 40
 
     private var visibleStartHour: Int {
         collapseMorning ? 7 : startHour
@@ -78,61 +79,22 @@ struct WeeklyGridView: View {
 
     var body: some View {
         let profile = computeProfile(eventsByDay)
-        VStack(spacing: HoloSpacing.xs) {
-            morningCollapseControl
+        VStack(spacing: 0) {
+            // 日期格行：钉在顶部；时间轴和事件内容只在下面的纵向视口内滚动。
+            calendarHeader
 
-            // 日期格行：钉在顶部（在 ScrollView 外），直接读 centerDay 显示当前 3 天。
-            // 不参与任何滚动 —— 翻页时 centerDay 变，它自动更新；上下滚时它纹丝不动。
-            GeometryReader { geo in
-                let columnWidth = (geo.size.width - timeAxisWidth) / CGFloat(dayCount)
-                HStack(spacing: 0) {
-                    Color.clear.frame(width: timeAxisWidth)
-                    HStack(spacing: 0) {
-                        ForEach(frozenHeaderDays, id: \.self) { day in
-                            dayHeader(day)
-                                .frame(width: columnWidth)
-                        }
-                    }
-                }
+            // 折叠时仅保留一行与日期列严格对齐的凌晨摘要；展开后这一行自然消失。
+            if collapseMorning {
+                morningSummaryRow
+                    .padding(.top, HoloSpacing.xs)
             }
-            .frame(height: dayHeaderHeight)
 
-            // 主体：时间轴固定左侧；事件区纵向可滚、横向翻页。
-            HStack(alignment: .top, spacing: 0) {
-                timeAxis(profile: profile)
-                GeometryReader { rowGeo in
-                    let columnWidth = rowGeo.size.width / CGFloat(dayCount)
-                    ScrollView(.vertical, showsIndicators: false) {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            LazyHStack(alignment: .top, spacing: 0) {
-                                ForEach(visibleDays, id: \.self) { day in
-                                    eventColumn(
-                                        day,
-                                        columnWidth: columnWidth,
-                                        profile: profile,
-                                        events: eventsByDay[day] ?? []
-                                    )
-                                }
-                            }
-                            .scrollTargetLayout()
-                        }
-                        .scrollTargetBehavior(.viewAligned)
-                        .scrollPosition(
-                            id: Binding<Date?>(
-                                get: { Calendar.current.startOfDay(for: centerDay) },
-                                set: { newValue in
-                                    guard let day = newValue else { return }
-                                    centerDay = day
-                                    onEnsureData(day)
-                                }
-                            ),
-                            anchor: .center
-                        )
-                    }
-                }
-                .frame(height: profile.totalHeight)
-            }
+            // 时间轴和事件网格共用同一个纵向 ScrollView，滚动后仍保持刻度对齐。
+            gridScroll(profile: profile)
+                .padding(.top, HoloSpacing.xs)
+
             legend
+                .padding(.top, HoloSpacing.xs)
         }
         .padding(.horizontal, HoloSpacing.md)
         .padding(.bottom, HoloSpacing.lg)
@@ -143,6 +105,56 @@ struct WeeklyGridView: View {
         let cal = Calendar.current
         let center = cal.startOfDay(for: centerDay)
         return [-1, 0, 1].compactMap { cal.date(byAdding: .day, value: $0, to: center) }
+    }
+
+    // MARK: - 固定日期栏
+
+    private var calendarHeader: some View {
+        GeometryReader { geo in
+            let columnWidth = max(0, (geo.size.width - timeAxisWidth) / CGFloat(dayCount))
+            HStack(spacing: 0) {
+                morningToggleCell
+                    .frame(width: timeAxisWidth, height: dayHeaderHeight)
+
+                ForEach(frozenHeaderDays, id: \.self) { day in
+                    dayHeader(day)
+                        .frame(width: columnWidth, height: dayHeaderHeight)
+                }
+            }
+        }
+        .frame(height: dayHeaderHeight)
+        .overlay(alignment: .bottom) {
+            Rectangle()
+                .fill(Color.holoDivider.opacity(0.72))
+                .frame(height: 0.5)
+        }
+    }
+
+    private var morningToggleCell: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.22)) {
+                collapseMorning.toggle()
+            }
+        } label: {
+            VStack(spacing: 2) {
+                Image(systemName: collapseMorning ? "chevron.right" : "chevron.down")
+                    .font(.system(size: 8, weight: .bold))
+                Text("0–7")
+                    .font(.system(size: 8, weight: .semibold, design: .rounded))
+            }
+            .foregroundColor(collapseMorning ? .holoPrimary : .holoTextSecondary)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(collapseMorning ? Color.holoPrimary.opacity(0.10) : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.horizontal, 2)
+        .padding(.vertical, 4)
+        .accessibilityLabel(collapseMorning ? "展开凌晨零点到七点" : "收起凌晨零点到七点")
+        .accessibilityHint("显示或隐藏凌晨零点到七点的时间轴")
     }
 
     // MARK: - 事件区（单日竖条的事件部分）
@@ -187,6 +199,46 @@ struct WeeklyGridView: View {
                 }
         }
         .frame(height: dayHeaderHeight)
+        .overlay(alignment: .trailing) {
+            Rectangle()
+                .fill(Color.holoDivider.opacity(0.45))
+                .frame(width: 0.5)
+        }
+    }
+
+    // MARK: - 凌晨摘要
+
+    private var morningSummaryRow: some View {
+        GeometryReader { geo in
+            let columnWidth = max(0, (geo.size.width - timeAxisWidth) / CGFloat(dayCount))
+            HStack(spacing: 0) {
+                VStack(spacing: 1) {
+                    Image(systemName: "moon.zzz.fill")
+                        .font(.system(size: 9, weight: .medium))
+                    Text("凌晨")
+                        .font(.system(size: 8, weight: .semibold))
+                }
+                .foregroundColor(.holoTextSecondary)
+                .frame(width: timeAxisWidth, height: morningSummaryHeight)
+                .overlay(alignment: .trailing) {
+                    Rectangle()
+                        .fill(Color.holoDivider.opacity(0.45))
+                        .frame(width: 0.5)
+                }
+
+                ForEach(frozenHeaderDays, id: \.self) { day in
+                    collapsedMorningCell(for: day)
+                        .frame(width: columnWidth, height: morningSummaryHeight)
+                }
+            }
+        }
+        .frame(height: morningSummaryHeight)
+        .background(Color.holoNestedCardBackground.opacity(0.82))
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.sm))
+        .overlay {
+            RoundedRectangle(cornerRadius: HoloRadius.sm)
+                .stroke(Color.holoBorder.opacity(0.52), lineWidth: 0.5)
+        }
     }
 
     private func timeAxis(profile: WeeklyGridAxisProfile) -> some View {
@@ -218,44 +270,6 @@ struct WeeklyGridView: View {
         }
     }
 
-    // MARK: - 凌晨折叠条（跟随中心日显示 3 格）
-
-    private var morningCollapseControl: some View {
-        let cal = Calendar.current
-        let center = cal.startOfDay(for: centerDay)
-        let days = [-1, 0, 1].compactMap { cal.date(byAdding: .day, value: $0, to: center) }
-        return HStack(spacing: 0) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    collapseMorning.toggle()
-                }
-            } label: {
-                VStack(spacing: 1) {
-                    Image(systemName: collapseMorning ? "chevron.right" : "chevron.down")
-                        .font(.system(size: 8, weight: .bold))
-                    Text("0–7")
-                        .font(.system(size: 7, weight: .semibold, design: .rounded))
-                }
-                .foregroundColor(.holoTextSecondary)
-                .frame(width: timeAxisWidth, height: 32)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(collapseMorning ? "展开凌晨零点到七点" : "收起凌晨零点到七点")
-
-            ForEach(days, id: \.self) { day in
-                collapsedMorningCell(for: day)
-            }
-        }
-        .frame(height: 32)
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: 8))
-        .overlay {
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.holoBorder.opacity(0.55), lineWidth: 0.5)
-        }
-    }
-
     @ViewBuilder
     private func collapsedMorningCell(for day: Date) -> some View {
         let earlyEvents = morningEvents(for: day)
@@ -267,20 +281,25 @@ struct WeeklyGridView: View {
                 onSelectGroup(earlyEvents)
             }
         } label: {
-            HStack(spacing: 3) {
-                if let module = earlyEvents.first?.module {
-                    Circle()
-                        .fill(module.color)
-                        .frame(width: 5, height: 5)
+            HStack(spacing: 4) {
+                if earlyEvents.isEmpty {
+                    Text("—")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundColor(.holoTextPlaceholder)
+                } else {
+                    let moduleColor = earlyEvents[0].module.color
+                    Text("\(earlyEvents.count)")
+                        .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .foregroundColor(.holoTextPrimary)
+                        .frame(minWidth: 20, minHeight: 20)
+                        .background(Capsule().fill(moduleColor.opacity(0.18)))
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 7, weight: .bold))
+                        .foregroundColor(.holoTextSecondary)
                 }
-                Text(earlyEvents.isEmpty ? "–" : "\(earlyEvents.count)条")
-                    .font(.system(size: 9, weight: earlyEvents.isEmpty ? .medium : .semibold, design: .rounded))
-                    .foregroundColor(.holoTextSecondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.75)
             }
             .frame(maxWidth: .infinity)
-            .frame(height: 32)
+            .frame(height: morningSummaryHeight)
             .contentShape(Rectangle())
             .overlay(alignment: .trailing) {
                 Rectangle()
@@ -304,6 +323,63 @@ struct WeeklyGridView: View {
                 collapsedMorningHours.contains(calendar.component(.hour, from: event.date))
             }
             .sorted { $0.date < $1.date }
+    }
+
+    // MARK: - 可滚动时间网格
+
+    private func gridScroll(profile: WeeklyGridAxisProfile) -> some View {
+        GeometryReader { geo in
+            let gridWidth = max(0, geo.size.width - timeAxisWidth)
+            let columnWidth = gridWidth / CGFloat(dayCount)
+
+            ScrollView(.vertical, showsIndicators: false) {
+                HStack(alignment: .top, spacing: 0) {
+                    timeAxis(profile: profile)
+                        .frame(width: timeAxisWidth, height: profile.totalHeight)
+
+                    horizontalEventPager(
+                        profile: profile,
+                        columnWidth: columnWidth,
+                        viewportWidth: gridWidth
+                    )
+                    .frame(width: gridWidth, height: profile.totalHeight)
+                }
+                .frame(width: geo.size.width, height: profile.totalHeight, alignment: .topLeading)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
+    }
+
+    private func horizontalEventPager(profile: WeeklyGridAxisProfile,
+                                      columnWidth: CGFloat,
+                                      viewportWidth: CGFloat) -> some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            LazyHStack(alignment: .top, spacing: 0) {
+                ForEach(visibleDays, id: \.self) { day in
+                    eventColumn(
+                        day,
+                        columnWidth: columnWidth,
+                        profile: profile,
+                        events: eventsByDay[day] ?? []
+                    )
+                }
+            }
+            .scrollTargetLayout()
+        }
+        .frame(width: viewportWidth, height: profile.totalHeight)
+        .scrollTargetBehavior(.viewAligned)
+        .scrollPosition(
+            id: Binding<Date?>(
+                get: { Calendar.current.startOfDay(for: centerDay) },
+                set: { newValue in
+                    guard let day = newValue else { return }
+                    centerDay = day
+                    onEnsureData(day)
+                }
+            ),
+            anchor: .center
+        )
     }
 
     // MARK: - 事件块
@@ -343,7 +419,7 @@ struct WeeklyGridView: View {
     }
 
     private func shouldShowHourLabel(_ hour: Int) -> Bool {
-        hour == visibleStartHour || hour % 2 == 0
+        hour >= visibleStartHour && (hour - visibleStartHour) % 2 == 0
     }
 
     // MARK: - 当前时间线（只在「今天」竖条内部显示）
