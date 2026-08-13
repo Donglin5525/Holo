@@ -13,7 +13,7 @@ struct GoalSavedChatCardData: Equatable, Sendable {
     let taskCount: Int
     let habitCount: Int
 
-    init?(dictionary: [String: String]?) {
+    nonisolated init?(dictionary: [String: String]?) {
         guard let dictionary,
               let idText = dictionary["goalId"],
               let goalId = UUID(uuidString: idText),

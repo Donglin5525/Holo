@@ -186,7 +186,7 @@ struct AnniversaryDetailView: View {
     // MARK: - 计算
 
     private var themeColor: Color {
-        Color(hex: anniversary.color) ?? .holoPrimary
+        Color(hex: anniversary.color)
     }
 
     private var unitLabel: String {

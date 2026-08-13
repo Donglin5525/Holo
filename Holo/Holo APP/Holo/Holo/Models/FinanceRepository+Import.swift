@@ -435,7 +435,6 @@ extension FinanceRepository {
 
             // 进度节流状态
             var lastProgressTime = Date()
-            var lastProgressCount = 0
             // 直接用扫描阶段传入的总行数，避免导入时再多遍历一次文件
             let totalRows = expectedTotalRows
 
@@ -611,11 +610,11 @@ extension FinanceRepository {
                     }
                 }
 
-                // 进度节流：每 50 条或 200ms 更新一次
+                // 进度节流：前 20 条每条都反馈（让用户立即看到在动），之后每 50 条或 200ms 更新一次
+                // 前几条因 Core Data 首次初始化较慢，若不及时反馈用户会误判为卡死
                 let progressNow = Date()
-                if processedCount % 50 == 0 || progressNow.timeIntervalSince(lastProgressTime) > 0.2 {
+                if processedCount <= 20 || processedCount % 50 == 0 || progressNow.timeIntervalSince(lastProgressTime) > 0.2 {
                     lastProgressTime = progressNow
-                    lastProgressCount = processedCount
                     let current = processedCount
                     let total = totalRows
                     DispatchQueue.main.async {
@@ -768,7 +767,9 @@ extension FinanceRepository {
         parentCategoryCache: inout [String: Category],
         accountCache: inout [String: Account]
     ) {
-        if let allCategories = try? context.fetch(Category.fetchRequest()) {
+        // 直接构造 NSFetchRequest，绕开被推断为 main-actor 的 fetchRequest() 类方法（本函数跑在后台 context 队列）
+        let categoryRequest = NSFetchRequest<Category>(entityName: "Category")
+        if let allCategories = try? context.fetch(categoryRequest) {
             for cat in allCategories {
                 if cat.isTopLevel {
                     parentCategoryCache["\(cat.type):\(cat.name)"] = cat
@@ -779,7 +780,8 @@ extension FinanceRepository {
                 }
             }
         }
-        if let allAccounts = try? context.fetch(Account.fetchRequest()) {
+        let accountRequest = NSFetchRequest<Account>(entityName: "Account")
+        if let allAccounts = try? context.fetch(accountRequest) {
             for acc in allAccounts {
                 accountCache[acc.name] = acc
             }
@@ -832,7 +834,11 @@ extension FinanceRepository {
         if n.contains("微信") || n.contains("支付宝") || n.contains("wechat") || n.contains("alipay") {
             return .digital
         }
-        if n.contains("信用卡") || n.contains("银行") || n.contains("储蓄") || n.contains("card") || n.contains("bank") {
+        // 信用卡优先判断（在银行/储蓄之前），避免"XX银行信用卡"被归到 card
+        if n.contains("信用卡") || n.contains("credit") {
+            return .creditCard
+        }
+        if n.contains("银行") || n.contains("储蓄") || n.contains("card") || n.contains("bank") {
             return .card
         }
         if n.contains("现金") || n.contains("钱包") || n.contains("cash") {
