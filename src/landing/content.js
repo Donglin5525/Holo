@@ -77,21 +77,21 @@ export const legalLinks = [
   {
     title: '隐私政策',
     description: '说明 Holo 收集的数据类型、用途、AI 处理方式、保留期限和删除方式。',
-    href: '#privacy-policy',
+    href: '/privacy',
   },
   {
     title: '用户支持',
     description: '提供问题反馈、联系邮箱、常见问题和 App Store Support URL 承接入口。',
-    href: '#support',
+    href: '/support',
   },
   {
     title: '数据删除',
     description: '说明账号删除、个人数据删除、数据导出和撤回授权的路径。',
-    href: '#data-deletion',
+    href: '/support#data-deletion',
   },
   {
     title: '健康数据说明',
     description: '说明 HealthKit 读取范围、使用目的、授权撤回方式，并明确不用于广告或出售。',
-    href: '#health-data',
+    href: '/support#health-data',
   },
 ]

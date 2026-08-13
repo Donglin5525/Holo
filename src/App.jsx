@@ -267,6 +267,64 @@ function PrivacySection() {
   )
 }
 
+function SupportPage() {
+  return (
+    <main className="landing-page support-page">
+      <section className="page-section privacy-section" id="support">
+        <div className="section-heading">
+          <p className="eyebrow">Holo Support</p>
+          <h2>需要帮助，或想管理你的数据？</h2>
+          <p>
+            Holo 是个人记录、复盘和 AI 陪伴工具。遇到登录、同步、订阅、HealthKit 或 AI 功能问题，
+            请通过邮箱联系我们；我们会根据问题提供处理建议。
+          </p>
+        </div>
+
+        <div className="legal-grid">
+          <a className="legal-card" href="mailto:support@holoapp.cn">
+            <MessageCircle size={20} />
+            <h3>联系支持</h3>
+            <p>support@holoapp.cn</p>
+          </a>
+          <a className="legal-card" href="/privacy">
+            <LockKeyhole size={20} />
+            <h3>隐私政策</h3>
+            <p>查看数据收集、AI 处理、保留和删除说明。</p>
+          </a>
+          <a className="legal-card" href="/terms">
+            <LockKeyhole size={20} />
+            <h3>用户协议</h3>
+            <p>查看服务范围、订阅和免责声明。</p>
+          </a>
+        </div>
+
+        <div className="story-panel" id="data-deletion">
+          <div className="story-copy">
+            <p className="eyebrow">数据删除</p>
+            <h2>在 App 内删除账号与 Holo 数据</h2>
+            <p>
+              打开 Holo → 设置 → 账号与数据 → 删除账号与 Holo 数据，按提示确认即可。
+              该操作会清理本地数据、附件、AI 记忆、缓存、登录状态和应用设置；删除操作不可恢复。
+            </p>
+          </div>
+        </div>
+
+        <div className="story-panel" id="health-data">
+          <div className="story-copy">
+            <p className="eyebrow">HealthKit</p>
+            <h2>健康数据只读，并由你决定是否授权 AI 使用</h2>
+            <p>
+              Holo 只读获取你授权的步数、睡眠、站立和活动数据，不会写入或修改 Apple Health。
+              使用需要健康上下文的 AI 功能时，必要的健康摘要会在你同意 AI 数据处理后发送至 Holo 后端和第三方 AI 服务；
+              健康数据不用于广告或跨 App 追踪。
+            </p>
+          </div>
+        </div>
+      </section>
+    </main>
+  )
+}
+
 function DownloadBand() {
   return (
     <section className="download-band" id="download">
@@ -301,7 +359,30 @@ function Footer() {
   )
 }
 
+function LegalFrame({ src, title }) {
+  return (
+    <iframe
+      src={src}
+      title={title}
+      style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', border: 'none' }}
+    />
+  )
+}
+
 export default function App() {
+  // App Store 上架要求：/privacy 和 /terms 必须直接展示法律正文（非营销页）。
+  // 官网是单页应用，服务器对所有路径 fallback 到 index.html，所以在这里按路径分流，
+  // 用 iframe 加载 public/ 下的静态法律页面（privacy.html / terms.html）。
+  const path = window.location.pathname.replace(/\/+$/, '')
+  if (path === '/privacy') {
+    return <LegalFrame src="/privacy.html" title="Holo 隐私政策" />
+  }
+  if (path === '/terms') {
+    return <LegalFrame src="/terms.html" title="Holo 用户协议" />
+  }
+  if (path === '/support') {
+    return <SupportPage />
+  }
   return (
     <main className="landing-page">
       <Nav />
