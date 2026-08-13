@@ -32,9 +32,6 @@ struct NotificationSettingsView: View {
                         // 每日提醒
                         dailyReminderSection
 
-                        // 智能提醒（预留）
-                        smartReminderSection
-
                         // 测试通知
                         testNotificationSection
                     }
@@ -188,48 +185,6 @@ struct NotificationSettingsView: View {
             .cornerRadius(HoloRadius.md)
         }
         .opacity(notificationService.isAuthorized ? 1 : 0.5)
-    }
-
-    // MARK: - Smart Reminder Section (预留)
-
-    private var smartReminderSection: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
-            HStack {
-                Text("智能提醒")
-                    .font(.holoLabel)
-                    .foregroundColor(.holoTextSecondary)
-
-                Text("即将推出")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoPrimary)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .background(Color.holoPrimary.opacity(0.1))
-                    .clipShape(Capsule())
-            }
-
-            HStack {
-                Image(systemName: "brain")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(.holoTextSecondary.opacity(0.5))
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("AI 智能提醒")
-                        .font(.holoBody)
-                        .foregroundColor(.holoTextSecondary)
-
-                    Text("根据任务优先级和习惯智能推荐提醒时间")
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary.opacity(0.7))
-                }
-
-                Spacer()
-            }
-            .padding(.horizontal, 12)
-            .padding(.vertical, 12)
-            .background(Color.holoCardBackground.opacity(0.5))
-            .cornerRadius(HoloRadius.md)
-        }
     }
 
     // MARK: - Test Notification Section

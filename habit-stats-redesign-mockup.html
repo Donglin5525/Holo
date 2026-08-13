@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holo · 习惯统计看板 · 融合方案</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; -webkit-font-smoothing:antialiased; }
+
+  /* ===== Holo 设计 Token（取自 DesignSystem.swift） ===== */
+  :root {
+    /* 背景与表面 */
+    --bg: #FDFCF8;            /* Background light 暖米白 */
+    --card: #FFFFFF;          /* CardBackground light */
+    --card-2: #F7F6F1;        /* 卡内凹槽 */
+    --text1: #333333;         /* TextPrimary */
+    --text2: #939393;         /* TextSecondary */
+    --text3: #C7C7CC;
+    --border: #F0F0F0;
+    --divider: #F1F5F9;
+
+    /* 品牌 & 语义 */
+    --primary: #F46D38;       /* holoPrimary 品牌橙 */
+    --primary-dark: #EA580C;
+    --primary-soft: #FED7AA;
+    --success: #22C55E;
+    --error: #EF4444;
+    --info: #60A5FA;
+    --purple: #8B5CF6;
+
+    /* 暖橙热力图色阶 0~5 */
+    --h0: #EFEEE8;
+    --h1: #FCDFCE;
+    --h2: #F9C3A4;
+    --h3: #F6A070;
+    --h4: #F47D45;
+    --h5: #F46D38;
+
+    --shadow: 0 1px 3px rgba(0,0,0,0.035), 0 8px 8px rgba(0,0,0,0.02);
+  }
+  body.dark {
+    --bg: #1C1C1E;
+    --card: #2C2C2E;
+    --card-2: #3A3A3C;
+    --text1: #F5F5F5;
+    --text2: #939393;
+    --text3: #6B7280;
+    --border: #3A3A3C;
+    --divider: #38383A;
+    --primary: #FF8A50;
+    --primary-dark: #F46D38;
+    --primary-soft: #5A3A28;
+    /* 深色热力图色阶 */
+    --h0: #38383A;
+    --h1: #4A2E22;
+    --h2: #6E4128;
+    --h3: #99562F;
+    --h4: #CC6A38;
+    --h5: #FF8A50;
+    --shadow: 0 1px 3px rgba(0,0,0,0.3);
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+    background: linear-gradient(165deg, #efe7da 0%, #e9eef5 50%, #f1ecf6 100%);
+    min-height: 100vh;
+    padding: 44px 16px 90px;
+    display:flex; flex-direction:column; align-items:center;
+    color: var(--text1);
+    transition: background .4s;
+  }
+  body.dark { background: linear-gradient(165deg,#2a2620 0%,#232833 50%,#26222e 100%); }
+
+  .header { text-align:center; margin-bottom: 6px; }
+  .header h1 { font-size: 22px; font-weight: 750; letter-spacing:-.3px; }
+  .header .sub { font-size: 12.5px; color:#7a7a7a; margin-top:3px; }
+
+  /* 顶栏控件 */
+  .controls { display:flex; gap:10px; align-items:center; margin: 22px 0 26px; }
+  .theme-toggle {
+    width:42px; height:42px; border-radius:50%; border:1.5px solid rgba(255,255,255,.5);
+    background:#fff; font-size:18px; cursor:pointer; display:flex; align-items:center; justify-content:center;
+    box-shadow:0 2px 8px rgba(0,0,0,.08); transition:.2s;
+  }
+  body.dark .theme-toggle { background:#3A3A3C; border-color:rgba(255,255,255,.12); }
+  .brand-chip {
+    font-size:11px; font-weight:650; color:var(--primary-dark); background:var(--primary-soft);
+    padding:7px 13px; border-radius:20px; letter-spacing:.2px;
+  }
+  body.dark .brand-chip { color:#FF8A50; background:#5A3A28; }
+
+  /* ===== 手机外框 ===== */
+  .phone {
+    width: 393px; height: 800px;
+    background: var(--bg);
+    border-radius: 54px;
+    border: 12px solid #0e0e10;
+    box-shadow: 0 40px 90px rgba(0,0,0,.25), 0 10px 24px rgba(0,0,0,.1);
+    overflow:hidden; position:relative; display:flex; flex-direction:column;
+    transition: background .35s;
+  }
+  .notch { position:absolute; top:0; left:50%; transform:translateX(-50%); width:122px; height:32px; background:#0e0e10; border-radius:0 0 19px 19px; z-index:50; }
+  .home-ind { position:absolute; bottom:8px; left:50%; transform:translateX(-50%); width:134px; height:5px; background:var(--text2); opacity:.35; border-radius:3px; z-index:50; }
+
+  .statusbar { height:46px; flex-shrink:0; display:flex; align-items:center; justify-content:space-between; padding:10px 30px 0 34px; font-size:15px; font-weight:600; }
+  .statusbar .r { display:flex; gap:6px; align-items:center; font-size:12px; }
+  .navbar { height:44px; flex-shrink:0; display:flex; align-items:center; justify-content:center; position:relative; }
+  .navbar .back { position:absolute; left:6px; color:var(--primary); display:flex; align-items:center; font-size:17px; }
+  .navbar .back .t { font-size:16px; margin-left:1px; }
+  .navbar .title { font-size:17px; font-weight:600; letter-spacing:.3px; }
+
+  .scroll { flex:1; overflow-y:auto; padding:4px 16px 40px; }
+  .scroll::-webkit-scrollbar { width:0; }
+
+  /* 月份切换器 */
+  .month-bar { display:flex; align-items:center; justify-content:space-between; padding:6px 2px 14px; }
+  .month-bar .ar { width:34px; height:34px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:17px; color:var(--primary); cursor:pointer; }
+  .month-bar .ar.dis { color:var(--text3); }
+  .month-bar .m { font-size:16px; font-weight:650; }
+
+  /* ===== 卡片基类（= .holoCard()） ===== */
+  .card {
+    background: var(--card);
+    border-radius: 16px;
+    padding: 16px;
+    margin-bottom: 12px;
+    border: 0.5px solid var(--border);
+    box-shadow: var(--shadow);
+    transition: background .35s, border-color .35s;
+  }
+  .card-h { display:flex; align-items:center; justify-content:space-between; margin-bottom: 14px; }
+  .card-h .t { font-size:14px; font-weight:650; display:flex; align-items:center; gap:6px; }
+  .card-h .t .dot { width:5px; height:14px; border-radius:3px; background:var(--primary); }
+  .card-h .more { font-size:12px; color:var(--primary); font-weight:550; }
+
+  /* ===== 驾驶舱 ===== */
+  .cock-top { display:flex; align-items:flex-start; justify-content:space-between; }
+  .cock-rate .lbl { font-size:11.5px; color:var(--text2); margin-bottom:2px; }
+  .cock-rate .big { font-size:40px; font-weight:780; letter-spacing:-1.5px; line-height:1; }
+  .cock-rate .big .pct { font-size:18px; font-weight:650; color:var(--text2); margin-left:1px; }
+  .delta { display:inline-flex; align-items:center; gap:2px; font-size:11.5px; font-weight:650; color:var(--success); background:rgba(34,197,94,.13); padding:3px 8px; border-radius:7px; margin-left:8px; vertical-align:middle; }
+  body.dark .delta { background:rgba(34,197,94,.2); }
+
+  .today-box { text-align:right; }
+  .today-box .lbl { font-size:10.5px; color:var(--text2); }
+  .today-box .v { font-size:17px; font-weight:700; margin-top:1px; }
+  .today-box .v small { font-size:12px; color:var(--text2); font-weight:500; }
+  .today-ring { margin-top:6px; width:46px; height:46px; margin-left:auto; position:relative; }
+
+  .trend-chart { display:flex; align-items:flex-end; gap:7px; height:42px; margin:18px 0 4px; }
+  .trend-chart .bar { flex:1; background:var(--primary); opacity:.22; border-radius:4px 4px 2px 2px; min-height:5px; position:relative; }
+  .trend-chart .bar.now { opacity:1; }
+  .trend-chart .bar.now::after { content:''; position:absolute; top:-6px; left:50%; transform:translateX(-50%); width:5px; height:5px; border-radius:50%; background:var(--primary); }
+  .trend-x { display:flex; gap:7px; font-size:9px; color:var(--text2); }
+  .trend-x span { flex:1; text-align:center; }
+  .trend-x span.now { color:var(--primary); font-weight:650; }
+
+  .cock-foot { display:flex; gap:10px; margin-top:14px; padding-top:14px; border-top:0.5px solid var(--divider); }
+  .cock-foot .cell { flex:1; display:flex; align-items:center; gap:9px; }
+  .cock-foot .ico { width:30px; height:30px; border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:15px; }
+  .cock-foot .k { font-size:10.5px; color:var(--text2); }
+  .cock-foot .v { font-size:16px; font-weight:700; }
+
+  /* ===== 洞察卡 ===== */
+  .insight { display:flex; align-items:flex-start; gap:11px; padding:10px 0; border-bottom:0.5px solid var(--divider); }
+  .insight:last-child { border-bottom:none; padding-bottom:2px; }
+  .insight:first-child { padding-top:2px; }
+  .ins-ico { width:32px; height:32px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:15px; flex-shrink:0; }
+  .ins-txt { font-size:13px; line-height:1.5; }
+  .ins-txt b { font-weight:650; }
+  .ins-txt .s { font-size:11px; color:var(--text2); margin-top:1px; display:block; }
+
+  /* ===== 习惯全貌 ===== */
+  .habit { padding:13px 0; border-bottom:0.5px solid var(--divider); }
+  .habit:last-child { border-bottom:none; padding-bottom:0; }
+  .habit-top { display:flex; align-items:center; justify-content:space-between; }
+  .habit-l { display:flex; align-items:center; gap:10px; }
+  .habit-ico { width:34px; height:34px; border-radius:10px; display:flex; align-items:center; justify-content:center; font-size:17px; }
+  .habit-name { font-size:15px; font-weight:600; }
+  .habit-sub { font-size:10.5px; color:var(--text2); margin-top:1px; }
+  .habit-r { text-align:right; }
+  .habit-days { font-size:16px; font-weight:720; }
+  .habit-days small { font-size:12px; color:var(--text2); font-weight:500; }
+  .habit-streak { font-size:10.5px; color:var(--text2); margin-top:1px; }
+
+  .heat { display:flex; gap:2.2px; margin-top:9px; }
+  .heat .c { flex:1; height:15px; border-radius:3px; min-width:0; }
+  .heat-legend { display:flex; align-items:center; gap:5px; justify-content:flex-end; margin-top:8px; font-size:9.5px; color:var(--text2); }
+  .heat-legend .sc { display:flex; gap:2px; }
+  .heat-legend .sc i { width:9px; height:9px; border-radius:2px; display:inline-block; }
+
+  /* 说明区 */
+  .notes { width:393px; margin-top:24px; }
+  .note { background:rgba(255,255,255,.72); border-radius:14px; padding:15px 17px; margin-bottom:10px; backdrop-filter:blur(8px); }
+  body.dark .note { background:rgba(44,44,46,.7); }
+  .note h3 { font-size:13.5px; font-weight:700; margin-bottom:7px; display:flex; align-items:center; gap:7px; }
+  .note h3 .pill { font-size:9.5px; font-weight:650; padding:2px 7px; border-radius:5px; background:var(--primary-soft); color:var(--primary-dark); }
+  body.dark .note h3 .pill { background:#5A3A28; color:#FF8A50; }
+  .note p { font-size:12.5px; line-height:1.65; color:#555; }
+  body.dark .note p { color:#b8b8b8; }
+  .note p b { color:var(--primary-dark); font-weight:650; }
+  body.dark .note p b { color:#FF8A50; }
+
+  .footer-tip { width:393px; text-align:center; font-size:11px; color:#888; margin-top:16px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>习惯统计看板 · 融合方案</h1>
+  <div class="sub">基于 Holo 品牌色（暖橙 #F46D38）· 点击右上图标切换深色</div>
+</div>
+
+<div class="controls">
+  <div class="brand-chip">● 品牌橙 · 暖米白 · 16pt 卡片</div>
+  <div class="theme-toggle" id="themeBtn" title="切换深浅色">☀️</div>
+</div>
+
+<div class="phone">
+  <div class="notch"></div>
+  <div class="home-ind"></div>
+  <div class="statusbar"><span>9:41</span><span class="r">●●●● &nbsp; ﹡ &nbsp; 🔋</span></div>
+  <div class="navbar"><div class="back">‹<span class="t">习惯</span></div><div class="title">统计</div></div>
+  <div class="scroll" id="app"></div>
+</div>
+
+<div class="notes">
+  <div class="note">
+    <h3>顶部驾驶舱 <span class="pill">全局一眼</span></h3>
+    <p>一张卡解决"整体怎么样、有没有进步"。左侧本月完成率 + 比上月涨跌；右侧今日完成 + 进度环；中间近 6 个月完成率趋势柱图，当月高亮。不滚动就掌握全局。</p>
+  </div>
+  <div class="note">
+    <h3>中间洞察卡 <span class="pill">系统替你总结</span></h3>
+    <p>主动算出最佳坚持、最需关注、整体趋势，省得用户自己逐条对比。用语义色：成功绿、警告橙、信息蓝，克制不花。</p>
+  </div>
+  <div class="note">
+    <h3>底部习惯全貌 <span class="pill">并排对比</span></h3>
+    <p>每个习惯默认铺开整月色块，所有习惯一眼并排——这是解决"看不了全貌"的核心一刀。关键决策：色块<b>统一用品牌暖橙色阶</b>（深浅=完成度），而非每个习惯各自颜色，避免并排时 5 种颜色打架、压不住。每个习惯的标识色只留在图标区。</p>
+  </div>
+</div>
+<div class="footer-tip">数据为示例 · 浅/深双模式均贴合 Holo 设计系统 · 后续可直接落地为 SwiftUI</div>
+
+<script>
+/* ===== 数据 ===== */
+const habits = [
+  { ico:'🏃', name:'晨跑', sub:'每日打卡 · 5公里', accent:'#13A4EB',
+    days:[1,1,1,0,0,1,1,1,1,0,1,1,1,1,1,0,0,1,1,1,1,0,1,1,1,1,0,1,1,0,1] },
+  { ico:'📖', name:'阅读', sub:'每日打卡 · 30分钟', accent:'#10B981', streak:21,
+    days:[1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,0,0,1,1,1,1,1,1,0,0] },
+  { ico:'💧', name:'喝水', sub:'每日计数 · 8杯目标', accent:'#F59E0B',
+    days:[0.6,1,0.9,1,0.5,1,1,1,0.8,1,1,0.4,1,1,1,0.7,1,1,1,0.9,1,1,1,1,0.3,1,1,1,1,0.5,1] },
+  { ico:'🧘', name:'冥想', sub:'每日打卡 · 10分钟', accent:'#8B5CF6',
+    days:[1,0,0,1,0,0,0,1,0,0,1,0,0,0,0,1,0,0,1,0,0,0,0,0,0,1,0,0,0,0,0] },
+  { ico:'😴', name:'睡眠', sub:'每日测量 · 7小时', accent:'#06B6D4',
+    days:[0.8,0.9,1,1,0.7,1,0,0.9,1,1,1,0.8,1,1,1,0.9,1,1,0.6,0,1,0.9,1,1,1,1,0.8,1,1,1,0.5] },
+];
+
+function doneCount(d){ return d.filter(v=>v>=1).length; }
+
+/* value → 暖橙色阶等级 0~5 */
+function levelOf(v){
+  if(v<=0) return 0;
+  if(v<0.25) return 1;
+  if(v<0.5) return 2;
+  if(v<0.75) return 3;
+  if(v<1) return 4;
+  return 5;
+}
+function heatCell(v){ return `background:var(--h${levelOf(v)});`; }
+
+function hexA(hex,a){ const n=parseInt(hex.slice(1),16); return `rgba(${n>>16&255},${n>>8&255},${n&255},${a})`; }
+
+function habitHTML(h){
+  const done = doneCount(h.days);
+  const pct = Math.round(done/31*100);
+  const streak = h.streak || (pct>60? Math.round(done*0.7):0);
+  return `<div class="habit">
+    <div class="habit-top">
+      <div class="habit-l">
+        <div class="habit-ico" style="background:${hexA(h.accent,0.14)}">${h.ico}</div>
+        <div>
+          <div class="habit-name">${h.name}</div>
+          <div class="habit-sub">${h.sub}</div>
+        </div>
+      </div>
+      <div class="habit-r">
+        <div class="habit-days" style="color:${h.accent}">${done}<small>/31</small></div>
+        <div class="habit-streak">${streak?`🔥 ${streak}天 · ${pct}%`:pct+'%'}</div>
+      </div>
+    </div>
+    <div class="heat">${h.days.map(v=>`<div class="c" style="${heatCell(v)}"></div>`).join('')}</div>
+  </div>`;
+}
+
+const app = document.getElementById('app');
+app.innerHTML = `
+  <div class="month-bar">
+    <div class="ar">‹</div>
+    <div class="m">2026年8月</div>
+    <div class="ar dis">›</div>
+  </div>
+
+  <!-- 驾驶舱 -->
+  <div class="card">
+    <div class="cock-top">
+      <div class="cock-rate">
+        <div class="lbl">本月完成率</div>
+        <div class="big">68<span class="pct">%</span><span class="delta">↑ 12%</span></div>
+      </div>
+      <div class="today-box">
+        <div class="lbl">今日</div>
+        <div class="v">3<small>/5</small></div>
+      </div>
+    </div>
+
+    <div class="trend-chart">
+      <div class="bar" style="height:55%"></div>
+      <div class="bar" style="height:62%"></div>
+      <div class="bar" style="height:68%"></div>
+      <div class="bar" style="height:71%"></div>
+      <div class="bar" style="height:64%"></div>
+      <div class="bar now" style="height:78%"></div>
+    </div>
+    <div class="trend-x"><span>3月</span><span>4月</span><span>5月</span><span>6月</span><span>7月</span><span class="now">8月</span></div>
+
+    <div class="cock-foot">
+      <div class="cell"><div class="ico" style="background:rgba(244,109,56,.13)">🔥</div><div><div class="k">最佳连续</div><div class="v">21天</div></div></div>
+      <div class="cell"><div class="ico" style="background:rgba(34,197,94,.13)">✓</div><div><div class="k">坚持习惯</div><div class="v">5个</div></div></div>
+    </div>
+  </div>
+
+  <!-- 洞察卡 -->
+  <div class="card">
+    <div class="card-h"><div class="t"><span class="dot"></span>本月洞察</div></div>
+    <div class="insight">
+      <div class="ins-ico" style="background:rgba(34,197,94,.14)">🔥</div>
+      <div class="ins-txt"><b>阅读</b>是本月最佳，连续打卡 <b>21 天</b>。<span class="s">坚持得很稳，状态在线</span></div>
+    </div>
+    <div class="insight">
+      <div class="ins-ico" style="background:rgba(244,109,56,.14)">⚠️</div>
+      <div class="ins-txt"><b>冥想</b>需要关注，本周仅完成 1 次。<span class="s">完成率最低，拉低了整体表现</span></div>
+    </div>
+    <div class="insight">
+      <div class="ins-ico" style="background:rgba(96,165,250,.14)">📈</div>
+      <div class="ins-txt">整体完成率 <b>68%</b>，比上月 <b style="color:var(--success)">提升 12%</b>。<span class="s">创近 6 个月新高，继续保持</span></div>
+    </div>
+  </div>
+
+  <!-- 习惯全貌 -->
+  <div class="card">
+    <div class="card-h">
+      <div class="t"><span class="dot"></span>习惯全貌</div>
+      <div class="more">点击查看趋势 ›</div>
+    </div>
+    ${habits.map(habitHTML).join('')}
+    <div class="heat-legend">
+      少
+      <span class="sc"><i style="background:var(--h0)"></i><i style="background:var(--h1)"></i><i style="background:var(--h2)"></i><i style="background:var(--h3)"></i><i style="background:var(--h4)"></i><i style="background:var(--h5)"></i></span>
+      多
+    </div>
+  </div>
+`;
+
+/* 深浅切换 */
+const btn = document.getElementById('themeBtn');
+btn.addEventListener('click', ()=>{
+  document.body.classList.toggle('dark');
+  btn.textContent = document.body.classList.contains('dark') ? '🌙' : '☀️';
+});
+</script>
+</body>
+</html>

@@ -152,7 +152,7 @@ struct MemoryGalleryView: View {
         } else if let errorMessage = viewModel.errorMessage {
             errorView(message: errorMessage)
         } else {
-            ScrollView(showsIndicators: false) {
+            ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: HoloSpacing.lg) {
                     // 用户只看到可理解的记忆结论与控制，不暴露内部评分参数。
                     DomainMemorySection()
@@ -168,6 +168,7 @@ struct MemoryGalleryView: View {
                 }
                 .padding(.horizontal, HoloSpacing.md)
                 .padding(.vertical, HoloSpacing.md)
+                .containerRelativeFrame(.horizontal, alignment: .leading)
             }
         }
     }
@@ -441,7 +442,7 @@ struct MemoryGalleryView: View {
         } else if viewModel.timelineSections.isEmpty {
             emptyView
         } else {
-            ScrollView(showsIndicators: false) {
+            ScrollView(.vertical, showsIndicators: false) {
                 VStack(spacing: HoloSpacing.md) {
                     MemoryHeatmapView(
                         data: viewModel.heatmapData,
@@ -464,6 +465,7 @@ struct MemoryGalleryView: View {
                 }
                 .padding(.horizontal, HoloSpacing.md)
                 .padding(.vertical, HoloSpacing.md)
+                .containerRelativeFrame(.horizontal, alignment: .leading)
             }
         }
     }
@@ -525,7 +527,7 @@ struct MemoryGalleryView: View {
     // MARK: - Skeleton View
 
     private var skeletonView: some View {
-        ScrollView {
+        ScrollView(.vertical, showsIndicators: false) {
             VStack(spacing: HoloSpacing.lg) {
                 ForEach(0..<4, id: \.self) { _ in
                     skeletonCard
@@ -534,6 +536,7 @@ struct MemoryGalleryView: View {
             }
             .padding(.horizontal, HoloSpacing.md)
             .padding(.vertical, HoloSpacing.lg)
+            .containerRelativeFrame(.horizontal, alignment: .leading)
         }
     }
 

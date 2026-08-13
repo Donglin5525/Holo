@@ -3,7 +3,7 @@
 //  Holo
 //
 //  从底部弹出的月历抽屉 — 由日历 icon 触发
-//  布局：月份导航 + 月历网格 + AI 建议占位区
+//  布局：月份导航 + 月历网格
 //
 
 import SwiftUI
@@ -44,25 +44,13 @@ struct PopupCalendarSheet: View {
             
             // 月历网格
             calendarGrid
-            
-            // 上滑提示（仅在半屏时可见，引导用户展开查看 AI 区域）
-            swipeUpHint
-            
-            // 分割线
-            Divider()
-                .padding(.horizontal, HoloSpacing.lg)
-                .padding(.top, HoloSpacing.sm)
-            
-            // AI 建议占位区
-            aiPlaceholder
-            
+
             Spacer(minLength: 16)
         }
         .padding(.top, 8)
         .background(Color.holoBackground)
         // 自定义高度：确保月历完整显示（~480pt 足够放下 6 行网格 + 导航 + 星期行）
-        // large 可查看 AI 占位区
-        .presentationDetents([.height(480), .large])
+        .presentationDetents([.height(480)])
         .presentationDragIndicator(.hidden)
         // 年月快速选择器弹窗
         .sheet(isPresented: $showMonthYearPicker) {
@@ -84,21 +72,8 @@ struct PopupCalendarSheet: View {
         .swipeBackToDismiss { dismiss() }
     }
     
-    /// 上滑提示：告知用户可以继续向上滑动
-    private var swipeUpHint: some View {
-        HStack(spacing: 4) {
-            Image(systemName: "chevron.up")
-                .font(.system(size: 10, weight: .medium))
-            Text("上滑查看 AI 洞察")
-                .font(.system(size: 11, weight: .medium))
-        }
-        .foregroundColor(.holoTextSecondary.opacity(0.5))
-        .frame(maxWidth: .infinity)
-        .padding(.top, 10)
-    }
-    
     // MARK: - 子视图
-    
+
     /// 顶部小横条（拖拽指示器）
     private var dragIndicator: some View {
         Capsule()
@@ -237,45 +212,6 @@ struct PopupCalendarSheet: View {
                     horizontalGestureLock.reset()
                 }
         )
-    }
-    
-    /// AI 建议占位区
-    private var aiPlaceholder: some View {
-        VStack(spacing: 12) {
-            HStack {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 14, weight: .semibold))
-                    .foregroundColor(.holoPrimary)
-                
-                Text("AI 洞察")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(.holoTextPrimary)
-                
-                Spacer()
-            }
-            
-            VStack(spacing: 8) {
-                Image(systemName: "wand.and.stars")
-                    .font(.system(size: 28, weight: .light))
-                    .foregroundColor(.holoPrimary.opacity(0.4))
-                
-                Text("AI 消费洞察即将上线")
-                    .font(.system(size: 13))
-                    .foregroundColor(.holoTextSecondary)
-            }
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 24)
-            .background(
-                RoundedRectangle(cornerRadius: 12)
-                    .fill(Color.holoPrimary.opacity(0.04))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .strokeBorder(Color.holoPrimary.opacity(0.08), style: StrokeStyle(lineWidth: 1, dash: [6, 4]))
-                    )
-            )
-        }
-        .padding(.horizontal, HoloSpacing.lg)
-        .padding(.top, HoloSpacing.md)
     }
     
     /// 月切换动画

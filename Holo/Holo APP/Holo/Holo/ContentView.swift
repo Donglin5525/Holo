@@ -3,7 +3,7 @@
 //  Holo
 //
 //  主导航视图 - TabView 容器
-//  管理 Today、HOLO、Finance、Health、Profile 五个主要页面
+//  管理 Today、HOLO、Profile 三个主要页面
 //
 
 import SwiftUI
@@ -24,8 +24,6 @@ struct ContentView: View {
     enum Tab: String, CaseIterable {
         case today = "今天"
         case holo = "对话"
-        case finance = "财务"
-        case health = "健康"
         case profile = "我的"
     }
     
@@ -46,10 +44,6 @@ struct ContentView: View {
                     ChatView(goalPlanningRequest: $pendingGoalPlanningRequest)
                         .navigationBarHidden(true)
                 }
-            case .finance:
-                PlaceholderView(title: "财务管理", icon: "wallet.pass.fill")
-            case .health:
-                PlaceholderView(title: "健康记录", icon: "heart.fill")
             case .profile:
                 PersonalView(onPlanGoal: {
                     pendingGoalPlanningRequest = GoalPlanningRequest(seedText: nil)
@@ -74,30 +68,6 @@ struct ContentView: View {
             deepLinkState.pendingTarget = nil
         default:
             break
-        }
-    }
-}
-
-// MARK: - 占位视图
-
-/// 占位视图 - 用于未完成的页面
-struct PlaceholderView: View {
-    let title: String
-    let icon: String
-    
-    var body: some View {
-        VStack(spacing: 20) {
-            Image(systemName: icon)
-                .font(.system(size: 60, weight: .light))
-                .foregroundColor(.holoPrimary)
-            
-            Text(title)
-                .font(.holoTitle)
-                .foregroundColor(.holoTextPrimary)
-            
-            Text("功能开发中...")
-                .font(.holoBody)
-                .foregroundColor(.holoTextSecondary)
         }
     }
 }

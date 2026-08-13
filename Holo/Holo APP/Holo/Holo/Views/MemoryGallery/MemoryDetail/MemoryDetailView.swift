@@ -21,7 +21,7 @@ struct MemoryDetailView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
+            ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: HoloSpacing.lg) {
                     // 顶部类型标签
                     typeHeader
@@ -38,6 +38,7 @@ struct MemoryDetailView: View {
                     }
                 }
                 .padding(HoloSpacing.lg)
+                .containerRelativeFrame(.horizontal, alignment: .leading)
             }
             .background(Color.holoBackground)
             .navigationTitle("详情")

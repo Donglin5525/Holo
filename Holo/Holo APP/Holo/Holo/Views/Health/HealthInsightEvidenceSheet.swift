@@ -48,6 +48,11 @@ struct HealthInsightEvidenceSheet: View {
                             .foregroundColor(.holoTextSecondary)
                     }
 
+                    Text("本内容由 AI 基于健康数据分析生成，仅供参考，不构成医疗诊断或专业建议。如有健康问题，请咨询专业医生。")
+                        .font(.system(size: 11))
+                        .foregroundColor(.holoTextSecondary.opacity(0.7))
+                        .fixedSize(horizontal: false, vertical: true)
+
                     if !referencedEvidence.isEmpty {
                         VStack(alignment: .leading, spacing: HoloSpacing.sm) {
                             Text("为什么这么说")

@@ -7,6 +7,7 @@
 //  仅在 DEBUG 下编译。
 //
 
+#if DEBUG
 import CoreData
 
 enum PersistencePreviewSupport {
@@ -32,7 +33,6 @@ enum PersistencePreviewSupport {
         return context
     }
 
-    #if DEBUG
     nonisolated(unsafe) private static var _storedContext: NSManagedObjectContext?
-    #endif
 }
+#endif

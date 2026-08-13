@@ -63,4 +63,14 @@ final class CloudKitRuntimeAvailabilityTests: XCTestCase {
             )
         )
     }
+
+    func test_simulatorAlwaysDisablesCloudKitEvenForReleaseBuild() {
+        XCTAssertFalse(
+            CloudKitRuntimeAvailability.isAvailable(
+                embeddedProvisionProfile: nil,
+                buildConfiguration: .release,
+                targetEnvironmentIsSimulator: true
+            )
+        )
+    }
 }

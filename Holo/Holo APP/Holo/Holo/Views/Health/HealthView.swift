@@ -108,6 +108,11 @@ struct HealthView: View {
                     coreInsightCard
                     lifestyleInsightCard
                     weeklyTrendCard
+                    Text("健康数据由 AI 分析，仅供参考")
+                        .font(.system(size: 11))
+                        .foregroundColor(.holoTextSecondary.opacity(0.7))
+                        .frame(maxWidth: .infinity, alignment: .center)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 .padding(HoloSpacing.md)
             }

@@ -33,7 +33,7 @@ struct HoloMemoryRecordDetailView: View {
     }
 
     var body: some View {
-        ScrollView(showsIndicators: false) {
+        ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: HoloSpacing.lg) {
                 summaryCard
                 sourceSection
@@ -46,6 +46,7 @@ struct HoloMemoryRecordDetailView: View {
                 }
             }
             .padding(HoloSpacing.lg)
+            .containerRelativeFrame(.horizontal, alignment: .leading)
         }
         .background(Color.holoBackground.ignoresSafeArea())
         .navigationTitle("这条记忆")

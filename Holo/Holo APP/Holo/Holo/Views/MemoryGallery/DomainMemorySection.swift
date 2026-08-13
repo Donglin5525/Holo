@@ -250,17 +250,18 @@ struct DomainMemorySection: View {
                     }
                 }
 
-                HStack(spacing: HoloSpacing.xs) {
-                    Label(
+                HStack(alignment: .top, spacing: HoloSpacing.xs) {
+                    Image(systemName: HoloMemoryUserPresentation.durationIcon(for: record))
+                        .frame(width: 14, alignment: .leading)
+
+                    Text([
                         HoloMemoryUserPresentation.durationTitle(for: record),
-                        systemImage: HoloMemoryUserPresentation.durationIcon(for: record)
-                    )
-                    Text("·")
-                    Text(HoloMemoryUserPresentation.timeRange(for: record))
-                    Text("·")
-                    Text(HoloMemoryUserPresentation.sourceSummary(for: record))
-                        .lineLimit(1)
-                    Spacer(minLength: 0)
+                        HoloMemoryUserPresentation.timeRange(for: record),
+                        HoloMemoryUserPresentation.sourceSummary(for: record)
+                    ].joined(separator: " · "))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
                     Image(systemName: "chevron.right")
                         .font(.system(size: 10, weight: .semibold))
                 }

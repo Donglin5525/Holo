@@ -23,23 +23,36 @@ nonisolated enum CloudKitRuntimeAvailability {
     }
 
     static var isAvailable: Bool {
+        #if targetEnvironment(simulator)
+        let runningOnSimulator = true
+        #else
+        let runningOnSimulator = false
+        #endif
+
         #if DEBUG
         return isAvailable(
             embeddedProvisionProfile: embeddedProvisionProfileText(),
-            buildConfiguration: .debug
+            buildConfiguration: .debug,
+            targetEnvironmentIsSimulator: runningOnSimulator
         )
         #else
         return isAvailable(
             embeddedProvisionProfile: nil,
-            buildConfiguration: .release
+            buildConfiguration: .release,
+            targetEnvironmentIsSimulator: runningOnSimulator
         )
         #endif
     }
 
     static func isAvailable(
         embeddedProvisionProfile profile: String?,
-        buildConfiguration: BuildConfiguration
+        buildConfiguration: BuildConfiguration,
+        targetEnvironmentIsSimulator: Bool = false
     ) -> Bool {
+        guard !targetEnvironmentIsSimulator else {
+            return false
+        }
+
         switch buildConfiguration {
         case .release:
             return true

@@ -42,7 +42,7 @@ struct VoiceAssistantButton: View {
             .frame(width: 192, height: 192)
             
             // 底部提示文字
-            Text("Tap to speak")
+            Text("轻点说话")
                 .font(.holoCaption)
                 .foregroundColor(.holoTextSecondary)
                 .allowsHitTesting(false)
