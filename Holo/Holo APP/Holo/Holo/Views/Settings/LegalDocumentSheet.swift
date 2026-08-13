@@ -127,7 +127,7 @@ enum LegalHTMLTemplates {
     <body>
 
     <h1>Holo 隐私政策</h1>
-    <p class="meta">最后更新日期：2026 年 6 月 7 日<br>生效日期：2026 年 6 月 7 日</p>
+    <p class="meta">最后更新日期：2026 年 8 月 13 日<br>生效日期：2026 年 8 月 13 日</p>
 
     <p>欢迎使用 Holo（以下简称"本应用"）。我们深知个人数据的重要性，并致力于保护您的隐私。本隐私政策旨在向您说明我们如何收集、使用、存储和保护您的信息。</p>
 
@@ -142,6 +142,7 @@ enum LegalHTMLTemplates {
         <li><strong>账户信息</strong>：当您使用"通过 Apple 登录"时，我们会收到您的 Apple ID 关联邮箱地址和唯一用户标识符。您可以选择隐藏邮箱地址。</li>
         <li><strong>财务记录</strong>：您手动输入的记账数据，包括金额、分类、账户、日期和备注。这些数据存储在您的设备本地和您的 iCloud 中。</li>
         <li><strong>健康数据</strong>：在您授权后，本应用会从 Apple HealthKit 读取步数、睡眠、站立、运动时长等健康数据。本应用<strong>不会写入或修改</strong>您的健康数据。</li>
+        <li><strong>健康相关 AI 处理</strong>：当您使用需要健康上下文的 AI 功能时，必要的健康摘要会在您同意 AI 数据处理后通过 Holo 后端发送给第三方 AI 服务；健康领域的 AI 派生记忆只保存在本机。</li>
         <li><strong>习惯与待办</strong>：您创建的习惯追踪记录和待办事项。</li>
         <li><strong>观点记录</strong>：您创建的观点、标签和引用，存储在您的设备本地和您的 iCloud 中。</li>
         <li><strong>AI 派生记忆</strong>：在您开启“自动形成记忆”后，Holo 会从各模块的结构化信号和汇总数据中整理领域记忆及综合观察。普通记忆可存储在您的设备本地和个人 iCloud 中；健康领域记忆及包含健康来源的综合记忆只保存在本机。</li>
@@ -167,7 +168,7 @@ enum LegalHTMLTemplates {
         <tbody>
             <tr><td>Apple ID 信息</td><td>用户身份认证与登录</td></tr>
             <tr><td>财务记录</td><td>记账功能、数据统计与展示</td></tr>
-            <tr><td>健康数据（只读）</td><td>健康数据展示与趋势分析</td></tr>
+            <tr><td>健康数据（只读）</td><td>健康数据展示、趋势分析与经授权的 AI 洞察</td></tr>
             <tr><td>习惯与待办数据</td><td>习惯追踪与任务管理功能</td></tr>
             <tr><td>观点数据</td><td>观点记录、标签与引用管理</td></tr>
             <tr><td>语音音频</td><td>语音转文字，用于记账或 AI 对话输入</td></tr>
@@ -202,7 +203,7 @@ enum LegalHTMLTemplates {
     <h2>四、信息共享</h2>
     <p>我们<strong>不会</strong>出售、出租或交易您的个人信息。</p>
     <ul>
-        <li><strong>AI 服务提供商</strong>：在您使用 AI 功能并同意 AI 数据处理授权后，您的提问和必要上下文会发送至第三方 AI 服务（如阿里云百炼、DeepSeek 等）。</li>
+        <li><strong>AI 服务提供商</strong>：在您使用 AI 功能并同意 AI 数据处理授权后，您的提问和必要上下文会发送至第三方 AI 服务（如阿里云百炼（通义千问）、DeepSeek、Moonshot（Kimi）、智谱（GLM））。</li>
         <li><strong>Apple 服务</strong>：Sign in with Apple 和 iCloud 同步由 Apple 提供并受 Apple 隐私政策约束。</li>
         <li><strong>法律要求</strong>：在适用法律法规要求时，我们可能需要披露您的信息。</li>
     </ul>
@@ -253,7 +254,7 @@ enum LegalHTMLTemplates {
     <body>
 
     <h1>Holo 用户协议</h1>
-    <p class="meta">最后更新日期：2026 年 6 月 7 日<br>生效日期：2026 年 6 月 7 日</p>
+    <p class="meta">最后更新日期：2026 年 8 月 13 日<br>生效日期：2026 年 8 月 13 日</p>
 
     <p>欢迎使用 Holo 应用（以下简称"本应用"）。在使用本应用之前，请仔细阅读以下条款。下载、安装或使用本应用即表示您同意受本协议的约束。</p>
 

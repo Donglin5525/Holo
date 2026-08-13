@@ -82,7 +82,7 @@ struct HoloApp: App {
                         pendingImportURL = nil
                     }
                 }
-                .sheet(isPresented: $plusActionCoordinator.isPaywallPresented) {
+                .fullScreenCover(isPresented: $plusActionCoordinator.isPaywallPresented) {
                     HoloPlusPaywallView(context: plusActionCoordinator.context)
                 }
                 .task {

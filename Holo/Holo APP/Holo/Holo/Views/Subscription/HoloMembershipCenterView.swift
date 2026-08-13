@@ -12,6 +12,13 @@ struct HoloMembershipCenterView: View {
     @ObservedObject private var entitlementState = HoloEntitlementState.shared
     @Environment(\.openURL) private var openURL
 
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "yyyy年MM月dd日"
+        return formatter
+    }()
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: HoloSpacing.lg) {
@@ -77,6 +84,12 @@ struct HoloMembershipCenterView: View {
                         )
                         .font(.system(size: 14, weight: .medium))
                         .foregroundColor(HoloPlusTheme.subtleText)
+
+                        if entitlementState.isPlusActive, let expiresAt = entitlementState.expiresAt {
+                            Text("到期/续费日期：\(Self.dateFormatter.string(from: expiresAt))")
+                                .font(.system(size: 12, weight: .medium))
+                                .foregroundColor(HoloPlusTheme.subtleText)
+                        }
                     }
 
                     Spacer(minLength: 0)

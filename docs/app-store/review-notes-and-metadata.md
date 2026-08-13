@@ -89,7 +89,7 @@ Holo 是一款生活记录和个人管理工具，把记账、待办、习惯、
 - Holo 不使用第三方广告追踪。
 - Holo 不会主动保存你发送给 AI 的原始请求正文、语音音频或完整上下文作为用户资料。
 - 为保障服务安全、限流和故障排查，Holo 后端会保存最小化技术日志或摘要信息，并按后台配置定期清理。
-- Holo 不会将从 Apple HealthKit 读取的原始健康数据写入或同步到 Holo 的 iCloud 数据库。
+- Holo 不会将从 Apple HealthKit 读取的原始健康数据写入或同步到 Holo 的 iCloud 数据库；使用需要健康上下文的 AI 功能时，必要的健康摘要会在用户同意 AI 数据处理后发送至 Holo 后端和第三方 AI 服务。
 
 ### 关键词
 
@@ -168,7 +168,7 @@ ASO 建议：主分类选 Productivity，副分类选 Lifestyle。Holo 的核心
 
 ### 1. Screen Recording on a Physical Device
 
-无需额外录屏。审核员可以按以下路径直接访问全部公开功能；如审核团队需要辅助材料，可在 Resolution Center 中补充真机录屏。
+请在审核备注中提供一条真机录屏链接（非模拟器、无设备外框），覆盖以下路径；如果 App Store Connect 当前版本不要求录屏，也应保留这条演示材料，便于审核员快速复现核心功能。
 
 建议录屏内容：
 
@@ -216,7 +216,7 @@ Holo does not use third-party advertising or cross-app tracking.
 
 ### 5. Regional Differences
 
-The app provides the same core features in all selected regions. Mainland China is not included in this initial release.
+The app provides the same core features in all 175 selected regions, including Mainland China. There are no region-specific feature differences in this release.
 
 ### 6. Regulated Industry / Health Notes
 

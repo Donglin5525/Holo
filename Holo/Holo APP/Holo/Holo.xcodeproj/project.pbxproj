@@ -1366,7 +1366,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Holo/Holo.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 18;
 				DEVELOPMENT_TEAM = 6WZ5TXGPQY;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1374,6 +1374,7 @@
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "需要访问相机以为任务拍摄附件照片";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Holo 需要读取您的健康数据来展示步数、睡眠、站立、运动时长等";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Holo 需要访问 HealthKit 以展示和分析步数、睡眠、站立和运动数据；本应用不会将数据写回 HealthKit。";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Holo 需要使用麦克风来记录你的语音输入。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
@@ -1415,7 +1416,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = Holo/HoloRelease.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 18;
 				DEVELOPMENT_TEAM = 6WZ5TXGPQY;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -1423,6 +1424,7 @@
 				INFOPLIST_KEY_LSSupportsOpeningDocumentsInPlace = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "需要访问相机以为任务拍摄附件照片";
 				INFOPLIST_KEY_NSHealthShareUsageDescription = "Holo 需要读取您的健康数据来展示步数、睡眠、站立、运动时长等";
+				INFOPLIST_KEY_NSHealthUpdateUsageDescription = "Holo 需要访问 HealthKit 以展示和分析步数、睡眠、站立和运动数据；本应用不会将数据写回 HealthKit。";
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Holo 需要使用麦克风来记录你的语音输入。";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
@@ -1463,7 +1465,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = HoloWidgets/HoloWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 18;
 				DEVELOPMENT_TEAM = 6WZ5TXGPQY;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = HoloWidgets/Info.plist;
@@ -1495,7 +1497,7 @@
 				APPLICATION_EXTENSION_API_ONLY = YES;
 				CODE_SIGN_ENTITLEMENTS = HoloWidgets/HoloWidgets.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
+				CURRENT_PROJECT_VERSION = 18;
 				DEVELOPMENT_TEAM = 6WZ5TXGPQY;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = HoloWidgets/Info.plist;

@@ -51,6 +51,8 @@ final class AppleSignInAuthService: ObservableObject {
 
     private let sessionStore: HoloAuthSessionStoring
     private let credentialProvider: ASAuthorizationAppleIDProvider
+    private let apiClient: APIClient
+    private let baseURL: String
     #if DEBUG || INTERNAL_DIAGNOSTICS
     private let internalAccessService: HoloInternalAccessService
     #endif
@@ -59,21 +61,29 @@ final class AppleSignInAuthService: ObservableObject {
     init(
         sessionStore: HoloAuthSessionStoring? = nil,
         credentialProvider: ASAuthorizationAppleIDProvider = ASAuthorizationAppleIDProvider(),
-        internalAccessService: HoloInternalAccessService? = nil
+        internalAccessService: HoloInternalAccessService? = nil,
+        apiClient: APIClient = .shared,
+        baseURL: String = HoloBackendEnvironment.baseURL
     ) {
         self.sessionStore = sessionStore ?? KeychainHoloAuthSessionStore()
         self.credentialProvider = credentialProvider
         self.internalAccessService = internalAccessService ?? .shared
+        self.apiClient = apiClient
+        self.baseURL = baseURL
         loadStoredSession()
         observeCredentialRevocation()
     }
     #else
     init(
         sessionStore: HoloAuthSessionStoring? = nil,
-        credentialProvider: ASAuthorizationAppleIDProvider = ASAuthorizationAppleIDProvider()
+        credentialProvider: ASAuthorizationAppleIDProvider = ASAuthorizationAppleIDProvider(),
+        apiClient: APIClient = .shared,
+        baseURL: String = HoloBackendEnvironment.baseURL
     ) {
         self.sessionStore = sessionStore ?? KeychainHoloAuthSessionStore()
         self.credentialProvider = credentialProvider
+        self.apiClient = apiClient
+        self.baseURL = baseURL
         loadStoredSession()
         observeCredentialRevocation()
     }
@@ -132,7 +142,8 @@ final class AppleSignInAuthService: ObservableObject {
                 userIdentifier: credential.user,
                 fullName: Self.fullNameString(from: credential.fullName),
                 email: credential.email,
-                signedInAt: Date()
+                signedInAt: Date(),
+                identityToken: Self.identityTokenString(from: credential.identityToken)
             )
 
             do {
@@ -209,10 +220,12 @@ final class AppleSignInAuthService: ObservableObject {
         errorMessage = nil
     }
 
-    /// 标记账号删除完成，将状态设为已注销
-    /// Sign in with Apple 凭证撤销需通过服务端 REST API（Apple /auth/revoke 端点），
-    /// 客户端负责清除所有本地数据并退出登录态
-    func markAccountDeleted() {
+    /// 标记账号删除完成，将状态设为已注销。
+    /// 删除前先尽力撤销 Sign in with Apple 凭证（App Store Guideline 5.1.1v）；
+    /// 撤销失败不阻断本地数据删除——但必须发起调用。
+    func markAccountDeleted() async {
+        await revokeAppleCredential()
+
         if let error = tryDeleteSession() {
             authLogger.warning("删除登录态失败（不阻断删除）：\(error.localizedDescription)")
         }
@@ -223,6 +236,32 @@ final class AppleSignInAuthService: ObservableObject {
         #endif
         status = .signedOut
         errorMessage = nil
+    }
+
+    /// 调后端 /v1/auth/apple/revoke 撤销当前 identity token 对应的 Apple 凭证。
+    /// best-effort：网络/后端失败只记录警告，不抛错，由调用方继续清理本地数据。
+    private func revokeAppleCredential() async {
+        guard let identityToken = session?.identityToken, !identityToken.isEmpty else {
+            authLogger.warning("撤销 Apple 凭证跳过：本地无 identity token（旧版本登录的用户，重新登录后可正常撤销）")
+            return
+        }
+        do {
+            let request = APIRequest(
+                baseURL: baseURL,
+                path: "/v1/auth/apple/revoke",
+                method: .post,
+                headers: [:],
+                body: RevokeRequest(identityToken: identityToken)
+            )
+            let response: RevokeResponse = try await apiClient.send(request)
+            if response.ok {
+                authLogger.info("Apple 凭证撤销成功")
+            } else {
+                authLogger.warning("Apple 凭证撤销返回未确认 ok")
+            }
+        } catch {
+            authLogger.warning("Apple 凭证撤销失败（不阻断删除）：\(error.localizedDescription)")
+        }
     }
 
     private func tryDeleteSession() -> Error? {
@@ -265,4 +304,21 @@ final class AppleSignInAuthService: ObservableObject {
         let name = formatter.string(from: components).trimmingCharacters(in: .whitespacesAndNewlines)
         return name.isEmpty ? nil : name
     }
+
+    /// Apple identity token 是 JWT 字符串（UTF-8），从登录返回的 Data 解出供后续撤销使用。
+    private static func identityTokenString(from data: Data?) -> String? {
+        guard let data, let token = String(data: data, encoding: .utf8),
+              !token.isEmpty else { return nil }
+        return token
+    }
+}
+
+// MARK: - 撤销 Apple 凭证 DTO
+
+private struct RevokeRequest: Encodable {
+    let identityToken: String
+}
+
+private struct RevokeResponse: Decodable {
+    let ok: Bool
 }

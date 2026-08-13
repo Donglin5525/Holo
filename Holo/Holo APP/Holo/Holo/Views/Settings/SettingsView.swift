@@ -958,8 +958,8 @@ struct SettingsView: View {
         do {
             // 1. 清除本地数据（Core Data → iCloud 同步删除、文件、Keychain、UserDefaults）
             let result = try await AccountDataDeletionService.shared.deleteAccountAndLocalData()
-            // 2. 清除内存中的登录态
-            authService.markAccountDeleted()
+            // 2. 撤销 Apple 凭证并清除内存中的登录态
+            await authService.markAccountDeleted()
             accountDataDeletionMessage = "已删除 \(result.deletedObjectCount) 条本机记录；iCloud 删除同步由系统继续处理。"
             await storageService.calculateCacheSize()
         } catch {

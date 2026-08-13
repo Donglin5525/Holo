@@ -92,7 +92,11 @@ class DeepLinkState: ObservableObject {
         Task { @MainActor in
             await HoloSubscriptionService.shared.refreshStatus()
             guard HoloEntitlementState.shared.isPlusActive else {
-                HoloPlusActionCoordinator.shared.requirePlus(context: .desktopWidget)
+                // 免费用户被付费墙拦截时，把原跳转目标作为 resume 闭包传入：
+                // 购买成功后由 resumeAfterSuccessfulPurchase 触发续跳，避免购买成功却停在原页。
+                HoloPlusActionCoordinator.shared.requirePlus(context: .desktopWidget) {
+                    self.navigate(to: DeepLinkTarget(widgetTarget))
+                }
                 return
             }
             navigate(to: DeepLinkTarget(widgetTarget))

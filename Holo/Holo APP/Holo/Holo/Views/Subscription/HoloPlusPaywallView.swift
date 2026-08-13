@@ -26,6 +26,7 @@ struct HoloPlusPaywallView: View {
                     benefits
                     comparisonEntry
                     productSection
+                    subscriptionDisclosure
                     restoreButton
                     legalLinks
                 }
@@ -180,11 +181,18 @@ struct HoloPlusPaywallView: View {
         } label: {
             HStack(spacing: HoloSpacing.md) {
                 VStack(alignment: .leading, spacing: 4) {
+                    Text(product.displayName)
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.holoTextSecondary)
+
                     HStack(spacing: HoloSpacing.xs) {
-                        Text(product.displayName)
-                            .font(.holoBody)
-                            .fontWeight(.semibold)
+                        Text(product.displayPrice)
+                            .font(.system(size: 22, weight: .bold))
                             .foregroundColor(.holoTextPrimary)
+
+                        Text(billingPeriodLabel(for: product))
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextSecondary)
 
                         if product.id == HoloSubscriptionProduct.plusYearly.rawValue {
                             Text("推荐")
@@ -196,10 +204,6 @@ struct HoloPlusPaywallView: View {
                                 .clipShape(Capsule())
                         }
                     }
-
-                    Text(product.displayPrice)
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextSecondary)
                 }
 
                 Spacer()
@@ -216,6 +220,24 @@ struct HoloPlusPaywallView: View {
         .disabled(subscriptionService.isPurchasing)
     }
 
+    /// 订阅周期标签（App Store 3.1.2：账单金额旁需清晰标注周期）
+    private func billingPeriodLabel(for product: Product) -> String {
+        switch product.id {
+        case HoloSubscriptionProduct.plusYearly.rawValue: return "/年"
+        case HoloSubscriptionProduct.plusMonthly.rawValue: return "/月"
+        default: return ""
+        }
+    }
+
+    /// 订阅自动续费说明（App Store 3.1.2 订阅页必备披露）
+    private var subscriptionDisclosure: some View {
+        Text("订阅会自动续费，除非在当前订阅期结束前至少 24 小时关闭自动续订。续订将在到期前 24 小时内按对应方案扣款。可在「系统设置 › Apple ID › 订阅」中管理或取消。")
+            .font(.system(size: 11))
+            .foregroundColor(.holoTextSecondary.opacity(0.8))
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
     private var restoreButton: some View {
         Button("恢复购买") {
             Task { await subscriptionService.restorePurchases() }
@@ -227,8 +249,8 @@ struct HoloPlusPaywallView: View {
 
     private var legalLinks: some View {
         HStack(spacing: HoloSpacing.sm) {
-            Button("管理订阅") {
-                guard let url = URL(string: "https://apps.apple.com/account/subscriptions") else {
+            Button("隐私政策") {
+                guard let url = URL(string: "https://www.holoapp.cn/privacy") else {
                     return
                 }
                 openURL(url)
@@ -240,6 +262,15 @@ struct HoloPlusPaywallView: View {
                 guard let url = URL(
                     string: "https://www.apple.com/legal/internet-services/itunes/dev/stdeula/"
                 ) else {
+                    return
+                }
+                openURL(url)
+            }
+
+            Text("·")
+
+            Button("管理订阅") {
+                guard let url = URL(string: "https://apps.apple.com/account/subscriptions") else {
                     return
                 }
                 openURL(url)
