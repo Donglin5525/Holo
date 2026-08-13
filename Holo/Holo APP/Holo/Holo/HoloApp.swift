@@ -222,6 +222,8 @@ struct CSVQuickImportView: View {
 
     @State private var importResult: BatchImportResult?
     @State private var showImportResult = false
+    @State private var undoErrorMessage: String?
+    @State private var showUndoError = false
 
     /// 复制到临时目录的安全副本（避免安全域引用失效）
     @State private var safeFileURL: URL?
@@ -249,9 +251,25 @@ struct CSVQuickImportView: View {
             onDismiss()
         }) {
             if let result = importResult {
-                // 快速导入路径下界面即将关闭，不在这里提供撤回（撤回留给设置页）
-                ImportResultSheet(result: result, onUndo: nil)
+                ImportResultSheet(result: result, onUndo: {
+                    guard let batchId = result.batchId else { return }
+                    Task {
+                        do {
+                            _ = try await FinanceRepository.shared.undoImportBatch(batchId: batchId)
+                            // 撤回完成后再刷一次（sheet onDismiss 的刷新发生在撤回开始时，数据可能尚未删完）
+                            NotificationCenter.default.post(name: .financeDataDidChange, object: nil)
+                        } catch {
+                            undoErrorMessage = error.localizedDescription
+                            showUndoError = true
+                        }
+                    }
+                })
             }
+        }
+        .alert("撤回失败", isPresented: $showUndoError) {
+            Button("知道了", role: .cancel) {}
+        } message: {
+            Text(undoErrorMessage ?? "请稍后在 设置 → 数据导入导出 中重试")
         }
     }
 

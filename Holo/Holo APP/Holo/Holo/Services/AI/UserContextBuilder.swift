@@ -483,7 +483,7 @@ final class UserContextBuilder {
                 let days = Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: Date()), to: Calendar.current.startOfDay(for: deadline)).day ?? 0
                 return days >= 0 ? "（还剩 \(days) 天）" : "（已逾期 \(-days) 天）"
             }()
-            return """
+            var line = """
             - \(goal.title)
               - 状态：\(progress.state.displayName)\(deadlineSuffix)
               - \(progress.taskSummary)
@@ -491,8 +491,18 @@ final class UserContextBuilder {
               - 期望结果：\(goal.desiredOutcome ?? "未设定")
               - 动机：\(goal.motivation ?? "未设定")
             """
+            if !goal.proactiveNudge {
+                line += "\n  - 主动提醒：已关闭——不要主动提起此目标，仅在被问到时参考"
+            }
+            return line
         }
 
-        return "## 当前目标\n\n" + lines.joined(separator: "\n")
+        return """
+        ## 当前目标
+
+        （主动建议规则：对话自然相关时可围绕目标顺势给一句建议；每条回复最多涉及一个目标，语气平实，用户不感兴趣就不再提。标注「主动提醒已关闭」的目标绝不主动提起。）
+
+        \(lines.joined(separator: "\n"))
+        """
     }
 }

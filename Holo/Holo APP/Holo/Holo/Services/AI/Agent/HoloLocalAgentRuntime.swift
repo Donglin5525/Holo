@@ -1434,7 +1434,8 @@ actor HoloLocalAgentRuntime {
                     return days >= 0 ? "（还剩 \(days) 天）" : "（已逾期 \(-days) 天）"
                 }()
                 let desired = goal.desiredOutcome ?? "未设定"
-                return "- \(goal.title)（\(progress.state.displayName)\(deadlineSuffix)；\(progress.taskSummary)；\(progress.habitSummary)；期望：\(desired)）"
+                let nudgeSuffix = goal.proactiveNudge ? "" : "；仅背景参考，勿在结论中主动围绕它展开"
+                return "- \(goal.title)（\(progress.state.displayName)\(deadlineSuffix)；\(progress.taskSummary)；\(progress.habitSummary)；期望：\(desired)\(nudgeSuffix)）"
             }
         }
         guard let lines else { return nil }
@@ -1443,6 +1444,7 @@ actor HoloLocalAgentRuntime {
         活跃目标摘要（用户当前正在追求的方向，分析时请结合考虑）：
         \(lines.joined(separator: "\n"))
         如需某目标的详细进度/风险数据，可调用 goal 工具查询。
+        围绕目标给建议时保持克制：仅在分析自然相关时展开、语气平实；标注「仅背景参考」的目标不要主动拎出来讲。
         """
 
         return HoloAgentMessage(
