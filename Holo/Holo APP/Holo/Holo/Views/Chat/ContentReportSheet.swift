@@ -23,10 +23,10 @@ struct ContentReportSheet: View {
     @MainActor
     init(
         message: ChatMessageViewData,
-        service: HoloContentReportService = .shared
+        service: HoloContentReportService? = nil
     ) {
         self.message = message
-        self.service = service
+        self.service = service ?? .shared
     }
 
     var body: some View {
@@ -36,7 +36,9 @@ struct ContentReportSheet: View {
             if didSucceed {
                 successView
             } else {
-                formView
+                ScrollView {
+                    formView
+                }
             }
         }
         .background(Color.holoBackground)
@@ -69,6 +71,8 @@ struct ContentReportSheet: View {
 
     private var formView: some View {
         VStack(alignment: .leading, spacing: 16) {
+            reportedContentView
+
             Text("你举报的内容将由我们审核。除非必要，我们不会以该内容再次训练模型。")
                 .font(.system(size: 13))
                 .foregroundColor(.holoTextSecondary)
@@ -126,6 +130,23 @@ struct ContentReportSheet: View {
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 24)
+    }
+
+    private var reportedContentView: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("举报内容")
+                .font(.system(size: 13, weight: .medium))
+                .foregroundColor(.holoTextSecondary)
+
+            Text(message.content.isEmpty ? "（内容为空）" : message.content)
+                .font(.system(size: 15))
+                .foregroundColor(.holoTextPrimary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(12)
+                .background(Color.holoDivider.opacity(0.3))
+                .cornerRadius(10)
+        }
     }
 
     private func reasonRow(_ reason: ContentReportReason) -> some View {

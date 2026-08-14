@@ -28,10 +28,12 @@ HoloBackend
 
 本期先实现 AI 调用详情日志，用于验证 Prompt 后端托管和模型调用链路是否按预期工作。
 
-提供两个入口：
+提供以下入口：
 
 - `GET /admin/logs`：简单网页，方便在浏览器查看最近 AI 调用。
 - `GET /v1/admin/logs`：JSON 接口，方便调试或后续接正式管理前端。
+- `GET /admin/reports`：内容举报网页，查看用户举报的 AI 原文快照、举报原因和补充说明。管理网页不经公网 Nginx 暴露，需要先建立 SSH 隧道，再打开 `http://localhost:8787/admin/reports`。
+- `GET /v1/admin/reports`：内容举报 JSON 接口，公网入口受管理员凭证保护，方便脚本或后续管理前端读取。
 - `GET /admin/prompts`：Prompt 管理列表。
 - `GET/POST /admin/prompts/:type`：查看、编辑、保存或恢复默认 Prompt。
 
@@ -42,6 +44,7 @@ AI 调用详情日志会包含敏感信息，包括 system prompt、用户输入
 - 必须配置 `HOLO_ADMIN_TOKEN` 后管理入口才可用。
 - 管理网页通过 `/admin/login` 账号密码登录，登录成功后使用 HttpOnly Cookie 维持会话。
 - 管理 JSON 接口仍支持 `X-Holo-Admin-Token`，用于脚本调试和自动化检查。
+- 管理网页查看命令：`ssh -L 8787:127.0.0.1:8787 root@<ECS公网IP>`，然后访问 `http://localhost:8787/admin/reports`。
 - 日志默认只保存在内存里，不落盘，不持久化。
 - 日志数量和单条详情长度必须有上限，避免长期保存敏感内容。
 - ASR 音频二进制内容不进入管理日志。

@@ -159,7 +159,8 @@ struct ChatView: View {
         }
         .sheet(item: $reportingMessage) { message in
             ContentReportSheet(message: message)
-                .presentationDetents([.medium])
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
         }
         .task {
             await viewModel.setup()
