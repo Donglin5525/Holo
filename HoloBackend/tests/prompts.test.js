@@ -132,8 +132,9 @@ test("intent_recognition 默认 Prompt 已瘦身并固定个人状态路由（v2
   assert.equal(prompt.version, 24);
 
   // 长度验证：Router 允许补充必要规则，但仍防止重新膨胀为长 prompt
-  // 红线 4700：update_task 补全了改任务字段映射 + goal 写意图（update_goal_field/link_task_to_goal/toggle_goal_visibility），属于功能必需内容
-  assert.ok(prompt.content.length < 4700, `prompt 长度 ${prompt.content.length} 超过 4700`);
+  // 红线 5100：update_task 补全了改任务字段映射 + goal 写意图（update_goal_field/link_task_to_goal/toggle_goal_visibility）；
+  // modify_task_items 新增对话内任务条目增删意图（定义 + 2 条 few-shot），属于功能必需内容，当前 5005
+  assert.ok(prompt.content.length < 5100, `prompt 长度 ${prompt.content.length} 超过 5100`);
 
   // 保留的核心字段
   assert.match(prompt.content, /note/);
