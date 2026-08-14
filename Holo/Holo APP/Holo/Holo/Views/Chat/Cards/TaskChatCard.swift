@@ -13,13 +13,17 @@ struct TaskChatCard: View {
     var isDeleted: Bool = false
     var onTap: (() -> Void)?
     var onConfirm: (() -> Void)?
+    /// 「补充条目」：锚定该任务进入追加对话（仅已确认且持有 taskId 的卡片显示）
+    var onFollowUp: (() -> Void)?
 
     var body: some View {
         ChatCardView(isDeleted: isDeleted, onTap: data.requiresConfirmation ? nil : onTap) {
             CardHeaderView(
-                icon: data.requiresConfirmation ? "checklist.unchecked" : "checkmark.circle",
-                title: data.requiresConfirmation ? "任务待确认" : data.title,
-                badge: data.requiresConfirmation ? CardBadge(text: "待确认", color: .holoPrimary) : nil,
+                icon: headerIcon,
+                title: headerTitle,
+                badge: data.requiresConfirmation
+                    ? CardBadge(text: isModifyMode ? "待修改" : "待确认", color: .holoPrimary)
+                    : nil,
                 subtitle: data.requiresConfirmation ? data.title : footerText
             )
 
@@ -31,7 +35,39 @@ struct TaskChatCard: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            if !data.subtasks.isEmpty {
+            if isModifyMode && (!data.addItems.isEmpty || !data.removeItems.isEmpty) {
+                VStack(alignment: .leading, spacing: 8) {
+                    ForEach(Array(data.addItems.prefix(6).enumerated()), id: \.offset) { _, item in
+                        HStack(alignment: .top, spacing: 9) {
+                            Image(systemName: "plus.circle.fill")
+                                .font(.system(size: 11))
+                                .foregroundColor(.holoSuccess)
+                                .padding(.top, 3)
+                            Text(item)
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.holoTextPrimary)
+                                .lineLimit(2)
+                        }
+                    }
+                    ForEach(Array(data.removeItems.prefix(6).enumerated()), id: \.offset) { _, item in
+                        HStack(alignment: .top, spacing: 9) {
+                            Image(systemName: "minus.circle.fill")
+                                .font(.system(size: 11))
+                                .foregroundColor(.holoError)
+                                .padding(.top, 3)
+                            Text(item)
+                                .font(.system(size: 14, weight: .medium))
+                                .foregroundColor(.holoTextSecondary)
+                                .strikethrough()
+                                .lineLimit(2)
+                        }
+                    }
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.holoTextSecondary.opacity(0.06))
+                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+            } else if !data.subtasks.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     ForEach(Array(data.subtasks.prefix(4).enumerated()), id: \.offset) { _, item in
                         HStack(alignment: .top, spacing: 9) {
@@ -78,7 +114,7 @@ struct TaskChatCard: View {
                     Button {
                         onConfirm?()
                     } label: {
-                        Text("确认创建")
+                        Text(isModifyMode ? "确认修改" : "确认创建")
                             .font(.system(size: 13, weight: .semibold))
                             .foregroundColor(.white)
                             .padding(.horizontal, 14)
@@ -89,7 +125,28 @@ struct TaskChatCard: View {
                     .buttonStyle(.plain)
                 }
             } else {
-                CardFooterView(timeText: footerText)
+                HStack {
+                    CardFooterView(timeText: footerText)
+                    Spacer()
+                    if canFollowUp {
+                        Button {
+                            onFollowUp?()
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "plus.bubble")
+                                    .font(.system(size: 10, weight: .semibold))
+                                Text("补充条目")
+                                    .font(.system(size: 12, weight: .semibold))
+                            }
+                            .foregroundColor(.holoPrimary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Color.holoPrimary.opacity(0.1))
+                            .clipShape(Capsule())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
             }
         }
         .accessibilityLabel("任务卡片：\(data.title)")
@@ -105,5 +162,28 @@ struct TaskChatCard: View {
             return "日期：\(dueDate)"
         }
         return data.requiresConfirmation ? "待确认" : "今天"
+    }
+
+    // MARK: - Modify Mode Helpers
+
+    private var isModifyMode: Bool { data.cardMode == .modify }
+
+    /// 已确认（非待确认态）、有真实任务 ID、未删除的卡片才能锚定补充
+    private var canFollowUp: Bool {
+        !data.requiresConfirmation && data.taskId != nil && !isDeleted
+    }
+
+    private var headerIcon: String {
+        if data.requiresConfirmation {
+            return isModifyMode ? "square.and.pencil" : "checklist.unchecked"
+        }
+        return "checkmark.circle"
+    }
+
+    private var headerTitle: String {
+        if data.requiresConfirmation {
+            return isModifyMode ? "修改待办" : "任务待确认"
+        }
+        return data.title
     }
 }

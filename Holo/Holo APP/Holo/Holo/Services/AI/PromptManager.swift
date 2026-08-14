@@ -491,6 +491,7 @@ final class PromptManager {
         - record_income：记录收入。填 amount、note、categoryCandidate；用户明确或相对日期填 transactionDate（YYYY-MM-DD），如昨天=交易日-1。
         - create_task：建待办/提醒。填 title；能确定日期填 dueDate（yyyy-MM-dd 或 yyyy-MM-dd HH:mm）；用户明确提醒时间填 reminderDate（yyyy-MM-dd HH:mm）。用户说了具体钟点（如"晚上10点""今晚8点"）必须把时间填进 reminderDate 和 dueDate，时段换算 24 小时制（晚上10点=22:00，下午3点=15:00）。多个并列待办填 subtasks（逗号分隔），title 概括整体。填 description 补充。
         - complete_task / update_task / delete_task：操作已有任务，填 taskKeyword。
+        - modify_task_items：对最近对话提到的任务增删条目（还要买/不买了/换成）。addItems 填新增、removeItems 填删除（逗号分隔；removeItems 须用现有条目确切名称）；替换=删旧+加新。
         - check_in：习惯打卡。填 habitName / habitValue。
         - create_note / record_mood / record_weight：记录笔记、心情、体重。
         - query_tasks / query_habits：查询任务或习惯状态。
@@ -532,6 +533,8 @@ final class PromptManager {
         - "平均一天抽烟花多少钱" → intent: "query_analysis", extractedData: { analysisDomain: "finance", periodLabel: "最近" }
         - "明天去山姆买牛奶、鸡蛋和纸巾" → intent: "create_task", extractedData: { title: "去山姆购物", subtasks: "买牛奶,买鸡蛋,买纸巾" }
         - "提醒我今天晚上10点给猫换水" → intent: "create_task", extractedData: { title: "给猫换水", dueDate: "今天对应的 YYYY-MM-DD 22:00", reminderDate: "今天对应的 YYYY-MM-DD 22:00" }
+        - "（最近任务：去山姆购物）还要买可乐" → intent: "modify_task_items", extractedData: { addItems: "买可乐" }
+        - "（最近任务：去山姆购物）牛奶不买了，换成酸奶" → intent: "modify_task_items", extractedData: { removeItems: "买牛奶", addItems: "买酸奶" }
         - "嗯..." → intent: "unknown", mode: "unknown"
 
         [HOLO_PERSONAL_STATE_ROUTING_V24]

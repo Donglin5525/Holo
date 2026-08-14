@@ -480,6 +480,9 @@ struct ChatView: View {
                         onTaskConfirm: { msg in
                             viewModel.confirmPendingTask(from: msg)
                         },
+                        onTaskFollowUp: { msg, taskData in
+                            viewModel.startTaskFollowUp(taskData)
+                        },
                         onTransactionConfirm: { msg in
                             viewModel.confirmPendingTransaction(from: msg)
                         },

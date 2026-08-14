@@ -102,6 +102,8 @@ final class IntentRouter {
             return try handleCompleteTask(result)
         case .updateTask:
             return try handleUpdateTask(result, originalInput: originalInput)
+        case .modifyTaskItems:
+            return try handleModifyTaskItems(result)
         case .deleteTask:
             return try handleDeleteTask(result)
         case .recordMood:
@@ -397,6 +399,77 @@ final class IntentRouter {
 
         return RouteResult(
             text: AIResponseTextBuilder.taskCreated(title: title, dueDate: dueDate, hasTime: hasTime, subtaskCount: checkItemTitles.count),
+            taskId: task.id,
+            linkedEntity: LinkedEntity(type: .task, id: task.id)
+        )
+    }
+
+    // MARK: - Modify Task Items
+
+    /// 对「最近对话关联的任务」增删条目（addItems 新增 / removeItems 删除）。
+    /// taskId 由 ConversationCoordinator 从最近关联任务确定性补全，不走关键词搜索；
+    /// removeItems 引用现有条目标题，精确匹配优先、contains 兜底，避免误删。
+    private func handleModifyTaskItems(_ result: ParsedResult) throws -> RouteResult {
+        guard let data = result.extractedData,
+              let taskIdStr = data["taskId"],
+              let taskId = UUID(uuidString: taskIdStr) else {
+            return RouteResult(text: "未找到要修改的任务，请说明要改哪个任务的条目")
+        }
+
+        let todoRepo = TodoRepository.shared
+        guard let task = todoRepo.findTask(by: taskId), !task.deletedFlag else {
+            return RouteResult(text: "该任务已不存在，请说明要改哪个任务")
+        }
+
+        let addItems = SubtaskParser.parse(data["addItems"], allowsSingle: true)
+        let removeItems = SubtaskParser.parse(data["removeItems"], allowsSingle: true)
+
+        guard !addItems.isEmpty || !removeItems.isEmpty else {
+            return RouteResult(text: "请说明要新增或删除哪些条目")
+        }
+
+        // 删除：精确名优先；模糊兜底仅当唯一命中才执行——
+        // 多个命中无法确定删哪个，宁可记为未匹配（可提示用户），不冒误删风险
+        var unmatchedRemoves: [String] = []
+        for removeTitle in removeItems {
+            let current = (task.checkItems as? Set<CheckItem>) ?? []
+            if let exact = current.first(where: { $0.title == removeTitle }) {
+                try todoRepo.deleteCheckItem(exact)
+                continue
+            }
+            let fuzzyMatches = current.filter {
+                $0.title.contains(removeTitle) || removeTitle.contains($0.title)
+            }
+            if fuzzyMatches.count == 1, let target = fuzzyMatches.first {
+                try todoRepo.deleteCheckItem(target)
+            } else {
+                unmatchedRemoves.append(removeTitle)
+            }
+        }
+
+        // 新增：order 接续当前最大值
+        for title in addItems {
+            let current = (task.checkItems as? Set<CheckItem>) ?? []
+            let maxOrder = current.map(\.order).max() ?? Int16(-1)
+            try todoRepo.addCheckItem(title: title, to: task, order: maxOrder + 1)
+        }
+
+        var parts: [String] = []
+        if !addItems.isEmpty {
+            parts.append("新增 \(addItems.count) 项：\(addItems.joined(separator: "、"))")
+        }
+        let removedNames = removeItems.filter { !unmatchedRemoves.contains($0) }
+        if !removedNames.isEmpty {
+            parts.append("删除 \(removedNames.count) 项：\(removedNames.joined(separator: "、"))")
+        }
+        var text = "已更新「\(task.title)」：" + parts.joined(separator: "，")
+        if !unmatchedRemoves.isEmpty {
+            text += "；未找到：\(unmatchedRemoves.joined(separator: "、"))"
+        }
+
+        logger.info("任务条目已修改：\(task.title) 新增\(addItems.count) 删除\(removedNames.count) 未匹配\(unmatchedRemoves.count)")
+        return RouteResult(
+            text: text,
             taskId: task.id,
             linkedEntity: LinkedEntity(type: .task, id: task.id)
         )

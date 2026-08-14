@@ -90,7 +90,23 @@ nonisolated enum ChatCardData: Equatable {
                 repeatWeekdays: data["repeatWeekdays"]?
                     .split(separator: ",").compactMap { Int($0) } ?? [],
                 repeatMonthDay: data["repeatMonthDay"].flatMap { Int($0) },
-                repeatSummary: data["repeatSummary"]
+                repeatSummary: data["repeatSummary"],
+                taskId: data["taskId"].flatMap(UUID.init(uuidString:))
+            ))
+
+        case .modifyTaskItems:
+            // 目标任务标题由 Coordinator 从「最近关联任务」补全到 targetTaskTitle
+            let targetTitle = data["targetTaskTitle"] ?? data["title"] ?? ""
+            guard !targetTitle.isEmpty else { return nil }
+            return .task(TaskCardData(
+                title: targetTitle,
+                dueDate: nil,
+                priority: nil,
+                requiresConfirmation: data["confirmationStatus"] == "pending",
+                cardMode: .modify,
+                taskId: data["taskId"].flatMap(UUID.init(uuidString:)),
+                addItems: SubtaskParser.parse(data["addItems"], allowsSingle: true),
+                removeItems: SubtaskParser.parse(data["removeItems"], allowsSingle: true)
             ))
 
         case .checkIn:
@@ -385,6 +401,14 @@ nonisolated struct FlexibleQueryTransactionRow: Equatable, Identifiable {
     }
 }
 
+// MARK: - 任务卡片模式
+
+/// 区分创建态与修改态：modify 用于对已有任务增删条目的确认卡片
+nonisolated enum TaskCardMode: Equatable {
+    case create
+    case modify
+}
+
 // MARK: - 任务卡片数据
 
 nonisolated struct TaskCardData: Equatable {
@@ -401,6 +425,14 @@ nonisolated struct TaskCardData: Equatable {
     let repeatWeekdays: [Int]
     let repeatMonthDay: Int?
     let repeatSummary: String?
+    /// 卡片模式（create 新建 / modify 修改已有任务条目）
+    let cardMode: TaskCardMode
+    /// 关联任务 ID（确认创建后写入；供「补充条目」锚定目标任务）
+    let taskId: UUID?
+    /// modify 模式下要新增的条目
+    let addItems: [String]
+    /// modify 模式下要移除的条目
+    let removeItems: [String]
 
     init(
         title: String,
@@ -415,7 +447,11 @@ nonisolated struct TaskCardData: Equatable {
         repeatInterval: Int? = nil,
         repeatWeekdays: [Int] = [],
         repeatMonthDay: Int? = nil,
-        repeatSummary: String? = nil
+        repeatSummary: String? = nil,
+        cardMode: TaskCardMode = .create,
+        taskId: UUID? = nil,
+        addItems: [String] = [],
+        removeItems: [String] = []
     ) {
         self.title = title
         self.dueDate = dueDate
@@ -430,6 +466,10 @@ nonisolated struct TaskCardData: Equatable {
         self.repeatWeekdays = repeatWeekdays
         self.repeatMonthDay = repeatMonthDay
         self.repeatSummary = repeatSummary
+        self.cardMode = cardMode
+        self.taskId = taskId
+        self.addItems = addItems
+        self.removeItems = removeItems
     }
 
     var isRecurring: Bool { repeatEnabled }

@@ -45,7 +45,7 @@ final class ConversationCoordinator {
         guard HoloAIFeatureFlags.agentRuntimeEnabled else { return false }
         let executionIntents: Set<String> = [
             "record_expense", "record_income", "create_task", "complete_task",
-            "update_task", "delete_task", "check_in",
+            "update_task", "modify_task_items", "delete_task", "check_in",
             "update_goal_field", "link_task_to_goal", "toggle_goal_visibility"
         ]
         guard !executionIntents.contains(intent) else { return false }
@@ -270,6 +270,48 @@ final class ConversationCoordinator {
                         summaryText: renderData["repeatEnabled"] == "true"
                             ? "我识别到一个重复提醒，请确认后创建"
                             : "我识别到一个待办，请确认后创建",
+                        renderData: renderData.isEmpty ? nil : renderData,
+                        linkedEntityType: nil,
+                        linkedEntityId: nil,
+                        errorText: nil
+                    )
+                )
+                continue
+            }
+
+            if item.intent == .modifyTaskItems {
+                var renderData = item.extractedData ?? [:]
+
+                // taskId + 目标标题由客户端从「最近关联任务」确定性补全（AI 不出 id）。
+                // 备忘单为空却输出 modify_task_items（LLM 失控）时降级提示，不进待确认流程。
+                guard let recent = userContext.recentLinkedTask else {
+                    executionItems.append(
+                        AIExecutionItem(
+                            id: UUID().uuidString,
+                            parseItemId: item.id,
+                            intent: item.intent,
+                            status: .failed,
+                            summaryText: "未找到最近的任务，请说明要修改哪个任务的条目",
+                            renderData: renderData.isEmpty ? nil : renderData,
+                            linkedEntityType: nil,
+                            linkedEntityId: nil,
+                            errorText: "recentLinkedTask 为空，无法补 taskId"
+                        )
+                    )
+                    continue
+                }
+
+                renderData["taskId"] = recent.taskId.uuidString
+                renderData["targetTaskTitle"] = recent.title
+                renderData["confirmationStatus"] = "pending"
+                renderData["pendingKind"] = "task_modify"
+                executionItems.append(
+                    AIExecutionItem(
+                        id: UUID().uuidString,
+                        parseItemId: item.id,
+                        intent: item.intent,
+                        status: .skipped,
+                        summaryText: "我识别到要修改「\(recent.title)」的条目，请确认",
                         renderData: renderData.isEmpty ? nil : renderData,
                         linkedEntityType: nil,
                         linkedEntityId: nil,

@@ -302,8 +302,9 @@ final class ChatViewModel: ObservableObject {
             guard let self = self else { return }
 
             do {
-                // 构建上下文
-                let userContext = await UserContextBuilder.shared.buildContext()
+                // 构建上下文，并注入「最近对话关联的任务」（modify_task_items 意图识别 + taskId 补全）
+                var userContext = await UserContextBuilder.shared.buildContext()
+                userContext.recentLinkedTask = self.resolveRecentLinkedTask()
 
                 // ENERGY: 锁定检查预留位
 
@@ -714,12 +715,55 @@ final class ChatViewModel: ObservableObject {
         }
     }
 
+    // MARK: - Recent Linked Task
+
+    /// 卡片「补充条目」锚定的任务：优先于历史消息推导，一次性消费（下一条消息用后即清）。
+    /// 解决多任务/间隔较久时「接着说」的指代歧义——点哪张卡就是哪个任务。
+    private var anchoredTask: RecentLinkedTaskSummary?
+
+    /// 任务卡片「补充条目」入口：锚定目标任务并预填输入框，用户补完发送即走 modify 流程
+    func startTaskFollowUp(_ taskData: TaskCardData) {
+        guard let taskId = taskData.taskId,
+              let task = TodoRepository.shared.findTask(by: taskId),
+              !task.deletedFlag else {
+            errorMessage = "该任务已不存在，无法补充条目"
+            return
+        }
+        let itemTitles = ((task.checkItems as? Set<CheckItem>) ?? [])
+            .sorted { $0.order < $1.order }
+            .map(\.title)
+        anchoredTask = RecentLinkedTaskSummary(taskId: taskId, title: task.title, itemTitles: itemTitles)
+        inputText = "给「\(task.title)」补充："
+    }
+
+    /// 查「最近对话关联的任务」：锚定任务优先（卡片显式指定，零歧义）；
+    /// 否则倒序遍历最近约20条消息，找第一个关联了 task 的，拉取标题 + 现有条目标题。
+    /// 任务已软删或无关联任务时返回 nil。
+    /// 用途：注入意图识别的「备忘单」+ modifyTaskItems 执行时补 taskId。
+    private func resolveRecentLinkedTask() -> RecentLinkedTaskSummary? {
+        if let anchored = anchoredTask {
+            anchoredTask = nil
+            return anchored
+        }
+        for message in messages.suffix(20).reversed() {
+            guard let taskId = message.resolveLinkedEntityId(for: .task) else { continue }
+            guard let task = TodoRepository.shared.findTask(by: taskId),
+                  !task.deletedFlag else { return nil }
+            let itemTitles = ((task.checkItems as? Set<CheckItem>) ?? [])
+                .sorted { $0.order < $1.order }
+                .map(\.title)
+            return RecentLinkedTaskSummary(taskId: taskId, title: task.title, itemTitles: itemTitles)
+        }
+        return nil
+    }
+
     // MARK: - Pending Task Confirmation
 
     func confirmPendingTask(from message: ChatMessageViewData) {
         guard let batch = message.executionBatch,
               let pendingIndex = batch.items.firstIndex(where: {
-                  $0.intent == .createTask && $0.status == .skipped && $0.renderData?["confirmationStatus"] == "pending"
+                  ($0.intent == .createTask || $0.intent == .modifyTaskItems)
+                  && $0.status == .skipped && $0.renderData?["confirmationStatus"] == "pending"
               }),
               let renderData = batch.items[pendingIndex].renderData else {
             return
@@ -745,7 +789,7 @@ final class ChatViewModel: ObservableObject {
                 }
 
                 let result = ParsedResult(
-                    intent: .createTask,
+                    intent: currentItems.intent,
                     confidence: 1,
                     extractedData: renderData,
                     needsClarification: false,
@@ -805,7 +849,7 @@ final class ChatViewModel: ObservableObject {
                     parseItemId: pending.parseItemId,
                     intent: pending.intent,
                     status: .failed,
-                    summaryText: "创建任务失败",
+                    summaryText: pending.intent == .modifyTaskItems ? "修改条目失败" : "创建任务失败",
                     renderData: failedRenderData,
                     linkedEntityType: nil,
                     linkedEntityId: nil,
@@ -826,7 +870,7 @@ final class ChatViewModel: ObservableObject {
                     parsedBatchJSON: Self.encodeParseBatch(message.parsedBatch),
                     executionBatchJSON: Self.encodeExecutionBatch(failedBatch)
                 )
-                self.errorMessage = "创建任务失败：\(error.localizedDescription)"
+                self.errorMessage = (pending.intent == .modifyTaskItems ? "修改条目失败" : "创建任务失败") + "：\(error.localizedDescription)"
             }
 
             self.confirmingItemIds.remove(itemId)

@@ -133,6 +133,21 @@ enum AIUserContextMessageBuilder {
             message += "\n处理意图时请注意数据完整性，缺失字段需向用户确认。"
         }
 
+        // 最近对话关联的任务（「备忘单」）：仅当确实存在时注入，
+        // 供 modify_task_items 意图识别——用户对上文任务增删条目时据此判断。
+        if let recent = context.recentLinkedTask {
+            message += "\n\n--- 最近对话关联的任务 ---"
+            message += "\n- 任务：\(recent.title)"
+            if !recent.itemTitles.isEmpty {
+                let shown = recent.itemTitles.prefix(15).joined(separator: "、")
+                let suffix = recent.itemTitles.count > 15 ? "等共 \(recent.itemTitles.count) 项" : ""
+                message += "\n- 现有条目：\(shown)\(suffix)"
+            } else {
+                message += "\n- 现有条目：（暂无）"
+            }
+            message += "\n规则：仅当用户明确针对上面这个最近的任务补充/删除/替换条目时，用 modify_task_items（填 addItems 新增、removeItems 删除，removeItems 必须引用现有条目的确切名称）；用户不是针对这个任务时不要使用。"
+        }
+
         return message
     }
 

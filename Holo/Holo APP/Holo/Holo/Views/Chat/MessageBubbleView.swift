@@ -32,6 +32,8 @@ struct MessageBubbleView: View {
     var onLearnPlus: (() -> Void)? = nil
     var onCardDelete: ((ChatMessageViewData, EntityCategory, String) -> Void)? = nil
     var onTaskConfirm: ((ChatMessageViewData) -> Void)? = nil
+    /// 任务卡片「补充条目」：锚定该任务继续对话修改条目
+    var onTaskFollowUp: ((ChatMessageViewData, TaskCardData) -> Void)? = nil
     var onTransactionConfirm: ((ChatMessageViewData) -> Void)? = nil
     var onTransactionCancel: ((ChatMessageViewData) -> Void)? = nil
     var onTransactionModifyCategory: ((ChatMessageViewData) -> Void)? = nil
@@ -324,6 +326,8 @@ struct MessageBubbleView: View {
                 onCardTap?(message, data)
             } onConfirm: {
                 onTaskConfirm?(message)
+            } onFollowUp: {
+                onTaskFollowUp?(message, taskData)
             }
         case .habitCheckIn(let habitData):
             // 当前习惯打卡卡片没有详情跳转入口，保持展示态，避免出现可点击但无动作的假交互。

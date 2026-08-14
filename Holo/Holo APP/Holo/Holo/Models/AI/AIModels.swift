@@ -20,6 +20,8 @@ nonisolated enum AIIntent: String, Codable, CaseIterable {
     case completeTask = "complete_task"
     case updateTask = "update_task"
     case deleteTask = "delete_task"
+    /// 对「最近对话关联的任务」增删条目（加/删/改=删旧+加新）
+    case modifyTaskItems = "modify_task_items"
     // 习惯类
     case checkIn = "check_in"
     // 目标类
@@ -47,7 +49,7 @@ nonisolated enum AIIntent: String, Codable, CaseIterable {
 
 extension AIIntent {
     nonisolated static let queryIntents: Set<AIIntent> = [.query, .queryTasks, .queryHabits, .queryAnalysis, .flexibleDataQuery]
-    nonisolated static let taskIntents: Set<AIIntent> = [.createTask, .completeTask, .updateTask]
+    nonisolated static let taskIntents: Set<AIIntent> = [.createTask, .completeTask, .updateTask, .modifyTaskItems]
     nonisolated static let financeIntents: Set<AIIntent> = [.recordExpense, .recordIncome]
 
     nonisolated var isQuery: Bool { Self.queryIntents.contains(self) }
@@ -60,6 +62,7 @@ extension AIIntent {
         case .createTask: return "已创建任务"
         case .completeTask: return "已完成任务"
         case .updateTask: return "已更新任务"
+        case .modifyTaskItems: return "已修改条目"
         case .deleteTask: return "已删除任务"
         case .recordMood: return "已记录心情"
         case .recordWeight: return "已记录体重"
@@ -434,6 +437,8 @@ struct UserContext {
     let goalContext: String?
     var dataCoverage: HoloMemoryDataCoverage?
     var memorySummary: HoloMemoryPromptSummary?
+    /// 最近对话关联的任务（供意图识别注入「备忘单」+ modifyTaskItems 补 taskId）
+    var recentLinkedTask: RecentLinkedTaskSummary? = nil
 
     /// 空上下文（分析查询不需要即时上下文）
     static let empty = UserContext(
@@ -448,8 +453,19 @@ struct UserContext {
         recentTrend: nil,
         goalContext: nil,
         dataCoverage: nil,
-        memorySummary: nil
+        memorySummary: nil,
+        recentLinkedTask: nil
     )
+}
+
+/// 最近对话关联的任务摘要
+/// - 用途1：意图识别阶段注入「备忘单」，让 AI 知道用户在说哪个任务、现有条目确切名称
+/// - 用途2：modifyTaskItems 执行时补 taskId（确定性，不让 AI 出 id）
+struct RecentLinkedTaskSummary {
+    let taskId: UUID
+    let title: String
+    /// 现有条目标题（按 order 排序），供 remove 时精确引用
+    let itemTitles: [String]
 }
 
 /// 交易摘要

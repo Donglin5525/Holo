@@ -6,7 +6,10 @@ nonisolated enum SubtaskParser {
     static let maxSubtasks = 10
     static let maxTitleLength = 50
 
-    static func parse(_ raw: String?) -> [String] {
+    /// - Parameter allowsSingle: 允许解析出单项。
+    ///   create_task 沿用默认 false（约定"单项不算清单"）；
+    ///   modify_task_items 的 addItems/removeItems 单项完全合法，必须传 true。
+    static func parse(_ raw: String?, allowsSingle: Bool = false) -> [String] {
         guard let raw = raw, !raw.isEmpty else { return [] }
 
         let separators = CharacterSet(charactersIn: ",，、;；")
@@ -24,6 +27,7 @@ nonisolated enum SubtaskParser {
 
         let limited = Array(truncated.prefix(maxSubtasks))
 
+        if allowsSingle { return limited }
         return limited.count >= 2 ? limited : []
     }
 }
