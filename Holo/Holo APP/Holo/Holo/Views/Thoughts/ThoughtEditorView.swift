@@ -453,6 +453,7 @@ struct ThoughtEditorView: View {
                         caretRect: $caretRect,
                         textContainerInset: UIEdgeInsets(top: 22, left: 16, bottom: 88, right: 16),
                         initialRichJSON: initialRichJSON,
+                        placeholder: "写点什么吧…",
                         onNodesChange: { newNodes in
                             editorNodes = newNodes
                             editorNodesLoaded = true
@@ -466,16 +467,6 @@ struct ThoughtEditorView: View {
                         // 这样 overlay 坐标系与 caretRect（UITextView 局部坐标）完全对齐
                         .overlay(alignment: .topLeading) {
                             suggestionOverlay
-                        }
-                        .overlay(alignment: .topLeading) {
-                            if content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                                Text("写点什么吧…")
-                                    .font(.system(size: 16, weight: .medium))
-                                    .foregroundColor(.holoTextPlaceholder)
-                                    .padding(.top, 22)
-                                    .padding(.leading, 16)
-                                    .allowsHitTesting(false)
-                            }
                         }
 
                     voiceInputButton

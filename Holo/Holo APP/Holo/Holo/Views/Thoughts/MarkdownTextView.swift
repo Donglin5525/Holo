@@ -77,6 +77,8 @@ struct MarkdownTextView: UIViewRepresentable {
     var textContainerInset: UIEdgeInsets = UIEdgeInsets(top: 8, left: 4, bottom: 8, right: 4)
     /// 编辑已有想法时的结构化内容（恢复 Token；nil=纯文本）
     var initialRichJSON: String? = nil
+    /// 空内容占位提示（在 UITextView 内渲染，避免中文输入法组字阶段与 content 绑定不同步导致重叠）
+    var placeholder: String? = nil
     /// 节点模型变化回调（保存时取 richContentJSON 用）
     var onNodesChange: (([HoloContentNode]) -> Void)? = nil
     /// 点击工具栏「添加图片」按钮的回调（桥接到 inputAccessoryView 内的 UIKit 工具栏）
@@ -177,6 +179,25 @@ struct MarkdownTextView: UIViewRepresentable {
         context.coordinator.hostTextView = textView
         textView.inputAccessoryView = toolbar
 
+        // 占位提示：在 UITextView 内渲染，依据 attributedText 实时显隐（含 IME 组字阶段）
+        if let placeholder {
+            let label = UILabel()
+            label.text = placeholder
+            label.font = Self.baseFont
+            label.textColor = UIColor(Color.holoTextPlaceholder)
+            label.numberOfLines = 0
+            label.translatesAutoresizingMaskIntoConstraints = false
+            label.isUserInteractionEnabled = false
+            textView.addSubview(label)
+            // 对齐文字起始：textContainerInset + textContainer 默认 lineFragmentPadding
+            NSLayoutConstraint.activate([
+                label.topAnchor.constraint(equalTo: textView.topAnchor, constant: textContainerInset.top),
+                label.leadingAnchor.constraint(equalTo: textView.leadingAnchor, constant: textContainerInset.left + textView.textContainer.lineFragmentPadding)
+            ])
+            context.coordinator.placeholderLabel = label
+        }
+        context.coordinator.updatePlaceholderVisibility(in: textView)
+
         return textView
     }
 
@@ -206,7 +227,7 @@ struct MarkdownTextView: UIViewRepresentable {
             context.coordinator.nodes = newNodes
             context.coordinator.refreshTypingAttributes(for: textView)
         }
-
+        context.coordinator.updatePlaceholderVisibility(in: textView)
     }
 
     func makeCoordinator() -> Coordinator {
@@ -238,6 +259,14 @@ struct MarkdownTextView: UIViewRepresentable {
         /// 宿主 UITextView 弱引用（工具栏回调需要读取当前选区）
         weak var hostTextView: UITextView?
 
+        /// 占位提示标签（makeUIView 创建，依据编辑器内容实时显隐）
+        weak var placeholderLabel: UILabel?
+
+        /// 刷新占位提示显隐：编辑器有任何文字（含 IME 组字阶段）即隐藏
+        func updatePlaceholderVisibility(in textView: UITextView) {
+            placeholderLabel?.isHidden = textView.attributedText.length > 0
+        }
+
         /// 当前活跃的 #/@ 触发（候选面板打开期间非空）
         private var activeTrigger: EditorTriggerContext?
         /// 上次选区位置（区分点按 vs 键盘移动光标）
@@ -262,6 +291,10 @@ struct MarkdownTextView: UIViewRepresentable {
         }
 
         func textViewDidChange(_ textView: UITextView) {
+            // 占位提示依据 attributedText 实时刷新，必须在 markedText guard 之前：
+            // 中文输入法组字阶段 markedTextRange != nil，content 绑定尚未更新，
+            // 但 attributedText 已含组字内容，据此立即隐藏占位。
+            updatePlaceholderVisibility(in: textView)
             guard !isProgrammaticChange else { return }
             guard textView.markedTextRange == nil else { return }
             syncMarkdown(from: textView)
@@ -460,6 +493,7 @@ struct MarkdownTextView: UIViewRepresentable {
                 syncMarkdown(from: textView)
             }
             markdown.wrappedValue = lastKnownMarkdown
+            updatePlaceholderVisibility(in: textView)
         }
 
         func refreshTypingAttributes(for textView: UITextView) {
