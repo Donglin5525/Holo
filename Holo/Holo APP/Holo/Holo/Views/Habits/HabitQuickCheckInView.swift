@@ -3,8 +3,7 @@
 //  Holo
 //
 //  快捷习惯打卡视图
-//  从 Holo One 快捷入口打开，展示所有活跃习惯供用户快速打卡
-//  支持三种习惯类型：打卡型、计数类数值型、测量类数值型
+//  从 Holo One 快捷入口打开，磁贴墙 + 今日进度条（与习惯 Tab 磁贴墙同一套组件）
 //
 
 import SwiftUI
@@ -21,15 +20,21 @@ struct HabitQuickCheckInView: View {
     @StateObject private var repository = HabitRepository.shared
     @State private var habits: [Habit] = []
     @State private var todayProgress: (completed: Int, total: Int) = (0, 0)
-    @State private var completedHabits: Set<UUID> = []
-    @State private var todayValues: [UUID: Double] = [:]
+    /// 本周点阵预缓存（habitId -> 逐日完成情况）
+    @State private var weekPatterns: [UUID: [Bool]] = [:]
+    /// 庆祝波浪令牌：今日进度首次达到全部完成时 +1
+    @State private var waveToken: Int = 0
+    /// 长按菜单「查看详情」的目标
+    private struct HabitSelection: Identifiable, Equatable {
+        let id: UUID
+    }
+    @State private var selectedHabit: HabitSelection? = nil
 
-    // 测量类数值输入
-    @State private var showValueInput: Bool = false
-    @State private var inputValue: String = ""
-    @State private var editingHabit: Habit? = nil
-    /// 数值输入聚焦态：数字键盘没有「完成」按钮，用 keyboard toolbar 提供
-    @FocusState private var isValueInputFocused: Bool
+    /// 磁贴墙两列
+    private let tileColumns = [
+        GridItem(.flexible(), spacing: HoloSpacing.md),
+        GridItem(.flexible(), spacing: HoloSpacing.md)
+    ]
 
     // MARK: - Body
 
@@ -37,14 +42,19 @@ struct HabitQuickCheckInView: View {
         NavigationStack {
             ScrollView(showsIndicators: false) {
                 VStack(spacing: HoloSpacing.lg) {
-                    // 进度概览
-                    progressCard
+                    // 进度概览（与习惯 Tab 同款橙色进度条）；无习惯时不显示
+                    if todayProgress.total > 0 {
+                        HabitProgressHeader(
+                            completed: todayProgress.completed,
+                            total: todayProgress.total
+                        )
+                    }
 
-                    // 习惯列表
+                    // 习惯磁贴墙
                     if habits.isEmpty {
                         emptyStateView
                     } else {
-                        habitListSection
+                        tileWall
                     }
                 }
                 .padding(.horizontal, HoloSpacing.lg)
@@ -84,54 +94,31 @@ struct HabitQuickCheckInView: View {
             .onReceive(NotificationCenter.default.publisher(for: .habitDataDidChange)) { _ in
                 loadHabits()
             }
-            .sheet(isPresented: $showValueInput) {
-                if let habit = editingHabit {
-                    valueInputSheet(habit)
+            .sheet(item: $selectedHabit) { selection in
+                if let habit = habits.first(where: { $0.id == selection.id }) {
+                    HabitDetailView(habit: habit)
+                } else {
+                    ProgressView("加载中...")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
             }
         }
     }
 
-    // MARK: - 进度概览
+    // MARK: - 磁贴墙
 
-    private var progressCard: some View {
-        HStack(spacing: HoloSpacing.md) {
-            // 进度环
-            ZStack {
-                Circle()
-                    .stroke(Color.holoBorder, lineWidth: 4)
-                    .frame(width: 44, height: 44)
-
-                Circle()
-                    .trim(from: 0, to: todayProgress.total > 0
-                          ? CGFloat(todayProgress.completed) / CGFloat(todayProgress.total)
-                          : 0)
-                    .stroke(Color.holoPrimary, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                    .frame(width: 44, height: 44)
-                    .rotationEffect(.degrees(-90))
-
-                Text("\(todayProgress.completed)/\(todayProgress.total)")
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundColor(.holoTextPrimary)
+    private var tileWall: some View {
+        LazyVGrid(columns: tileColumns, spacing: HoloSpacing.md) {
+            ForEach(Array(habits.enumerated()), id: \.element.id) { index, habit in
+                HabitTileView(
+                    habit: habit,
+                    index: index,
+                    weekPattern: weekPatterns[habit.id] ?? [],
+                    waveToken: waveToken,
+                    onOpenDetail: { selectedHabit = HabitSelection(id: habit.id) }
+                )
             }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("今日进度")
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
-
-                Text(todayProgress.completed >= todayProgress.total && todayProgress.total > 0
-                     ? "全部完成!"
-                     : "还有 \(todayProgress.total - todayProgress.completed) 项待完成")
-                    .font(.holoCaption)
-                    .foregroundColor(.holoTextSecondary)
-            }
-
-            Spacer()
         }
-        .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
     }
 
     // MARK: - 空状态
@@ -153,315 +140,26 @@ struct HabitQuickCheckInView: View {
         .padding(.vertical, 60)
     }
 
-    // MARK: - 习惯列表
-
-    private var habitListSection: some View {
-        VStack(alignment: .leading, spacing: HoloSpacing.md) {
-            HStack(spacing: HoloSpacing.sm) {
-                Image(systemName: "flame.fill")
-                    .font(.system(size: 16))
-                    .foregroundColor(.holoPrimary)
-
-                Text("习惯列表")
-                    .font(.holoBody)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.holoTextPrimary)
-            }
-
-            LazyVStack(spacing: HoloSpacing.sm) {
-                ForEach(habits, id: \.id) { habit in
-                    habitRow(habit)
-                }
-            }
-        }
-    }
-
-    /// 单个习惯行
-    private func habitRow(_ habit: Habit) -> some View {
-        HStack(spacing: HoloSpacing.md) {
-            // 图标
-            ZStack {
-                Circle()
-                    .fill(habit.habitColor.opacity(0.1))
-                    .frame(width: 40, height: 40)
-
-                habit.iconImage(size: 18)
-                    .foregroundColor(habit.habitColor)
-            }
-
-            // 名称 + 副标题
-            VStack(alignment: .leading, spacing: 2) {
-                Text(habit.name)
-                    .font(.holoBody)
-                    .foregroundColor(.holoTextPrimary)
-
-                Text(habitSubtitle(habit))
-                    .font(.system(size: 12))
-                    .foregroundColor(.holoTextSecondary)
-            }
-
-            Spacer()
-
-            // 操作按钮（根据类型）
-            actionButton(habit)
-        }
-        .padding(HoloSpacing.md)
-        .background(Color.holoCardBackground)
-        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-    }
-
-    // MARK: - 操作按钮
-
-    /// 根据习惯类型渲染不同操作按钮
-    @ViewBuilder
-    private func actionButton(_ habit: Habit) -> some View {
-        if habit.isCheckInType {
-            checkInButton(habit)
-        } else if habit.isCountType {
-            countButton(habit)
-        } else {
-            measureButton(habit)
-        }
-    }
-
-    /// 打卡型 - 勾选按钮
-    private func checkInButton(_ habit: Habit) -> some View {
-        Button {
-            performCheckIn(habit)
-        } label: {
-            let isCompleted = completedHabits.contains(habit.id)
-            ZStack {
-                Circle()
-                    .fill(isCompleted ? habit.habitColor : Color.clear)
-                    .frame(width: 36, height: 36)
-
-                Circle()
-                    .stroke(isCompleted ? habit.habitColor : Color.holoBorder, lineWidth: 2)
-                    .frame(width: 36, height: 36)
-
-                Image(systemName: isCompleted ? "checkmark" : "plus")
-                    .font(.system(size: 14, weight: .bold))
-                    .foregroundColor(isCompleted ? .white : .holoTextSecondary)
-            }
-        }
-    }
-
-    /// 计数类 - +1 按钮 + 今日总数
-    private func countButton(_ habit: Habit) -> some View {
-        HStack(spacing: 8) {
-            // 今日总数
-            if let value = todayValues[habit.id] {
-                Text(habit.formatValue(value))
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundColor(.holoTextPrimary)
-            }
-
-            // +1 按钮
-            Button {
-                performIncrement(habit)
-            } label: {
-                Text("+1")
-                    .font(.system(size: 13, weight: .semibold))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background(habit.habitColor)
-                    .clipShape(Capsule())
-            }
-        }
-    }
-
-    /// 测量类 - 数值显示 + 记录按钮
-    private func measureButton(_ habit: Habit) -> some View {
-        Button {
-            editingHabit = habit
-            inputValue = ""
-            showValueInput = true
-        } label: {
-            HStack(spacing: 4) {
-                if let value = todayValues[habit.id] {
-                    Text(habit.formatValue(value))
-                        .font(.system(size: 16, weight: .semibold))
-                        .foregroundColor(.holoTextPrimary)
-
-                    Text(habit.unitText)
-                        .font(.system(size: 12))
-                        .foregroundColor(.holoTextSecondary)
-                } else {
-                    Text("记录")
-                        .font(.system(size: 13))
-                        .foregroundColor(.holoTextSecondary)
-                }
-
-                Image(systemName: "plus.circle.fill")
-                    .font(.system(size: 18))
-                    .foregroundColor(habit.habitColor)
-            }
-        }
-    }
-
-    // MARK: - 测量类数值输入弹窗
-
-    private func valueInputSheet(_ habit: Habit) -> some View {
-        NavigationStack {
-            VStack(spacing: HoloSpacing.lg) {
-                // 习惯信息
-                HStack(spacing: HoloSpacing.md) {
-                    ZStack {
-                        Circle()
-                            .fill(habit.habitColor.opacity(0.1))
-                            .frame(width: 40, height: 40)
-
-                        habit.iconImage(size: 18)
-                            .foregroundColor(habit.habitColor)
-                    }
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(habit.name)
-                            .font(.holoBody)
-                            .foregroundColor(.holoTextPrimary)
-
-                        Text(habit.unitText.isEmpty ? "输入数值" : "单位：\(habit.unitText)")
-                            .font(.system(size: 12))
-                            .foregroundColor(.holoTextSecondary)
-                    }
-
-                    Spacer()
-                }
-
-                // 数值输入
-                TextField("输入数值", text: $inputValue)
-                    .font(.system(size: 32, weight: .bold, design: .rounded))
-                    .multilineTextAlignment(.center)
-                    .keyboardType(.decimalPad)
-                    .focused($isValueInputFocused)
-                    .padding()
-                    .background(Color.holoCardBackground)
-                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
-
-                Spacer()
-            }
-            .padding(HoloSpacing.lg)
-            .background(Color.holoBackground)
-            .navigationTitle("记录数值")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("取消") {
-                        showValueInput = false
-                        editingHabit = nil
-                    }
-                    .foregroundColor(.holoTextSecondary)
-                }
-
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("保存") {
-                        saveNumericValue(habit)
-                    }
-                    .font(.holoBody)
-                    .foregroundColor(.holoPrimary)
-                    .disabled(inputValue.isEmpty)
-                }
-
-                // 数字键盘没有「完成」按钮，这里在键盘正上方提供一个
-                ToolbarItemGroup(placement: .keyboard) {
-                    Spacer()
-                    Button("完成") { isValueInputFocused = false }
-                }
-            }
-        }
-    }
-
-    // MARK: - 辅助
-
-    /// 习惯行副标题
-    private func habitSubtitle(_ habit: Habit) -> String {
-        if habit.isCheckInType {
-            return habit.frequencyTargetText
-        } else if habit.isCountType {
-            if let target = habit.targetCountValue {
-                return "\(habit.unitText) · 目标 \(target)\(habit.unitText)"
-            }
-            return habit.unitText
-        } else {
-            if let target = habit.targetValueDouble {
-                return "\(habit.unitText) · 目标 \(habit.formatValue(target))\(habit.unitText)"
-            }
-            return habit.unitText
-        }
-    }
-
     // MARK: - 数据加载
 
     private func loadHabits() {
         guard repository.isReady else {
             habits = []
             todayProgress = (0, 0)
+            weekPatterns = [:]
             return
         }
         habits = repository.activeHabits
-        todayProgress = repository.getTodayCheckInProgress()
-
-        // 加载各类型习惯状态
-        var completed: Set<UUID> = []
-        var values: [UUID: Double] = [:]
-
-        for habit in habits {
-            if habit.isCheckInType {
-                if repository.isTodayCompleted(for: habit) {
-                    completed.insert(habit.id)
-                }
-            } else if habit.isNumericType {
-                if let value = repository.getTodayValue(for: habit) {
-                    values[habit.id] = value
-                }
-            }
+        let newProgress = repository.getTodayCheckInProgress()
+        // 「从未全部完成 → 全部完成」的跳变触发庆祝波浪（仅一次）
+        if newProgress.total > 0,
+           todayProgress.total == newProgress.total,
+           todayProgress.completed < newProgress.total,
+           newProgress.completed == newProgress.total {
+            waveToken += 1
         }
-        completedHabits = completed
-        todayValues = values
-    }
-
-    // MARK: - 操作
-
-    /// 打卡型 - 切换完成状态
-    private func performCheckIn(_ habit: Habit) {
-        do {
-            let isNowCompleted = try repository.toggleCheckIn(for: habit)
-            if isNowCompleted {
-                completedHabits.insert(habit.id)
-            } else {
-                completedHabits.remove(habit.id)
-            }
-            todayProgress = repository.getTodayCheckInProgress()
-            HapticManager.light()
-        } catch {
-            HoloToastCenter.shared.show("打卡失败，请重试", type: .error)
-        }
-    }
-
-    /// 计数类 - +1
-    private func performIncrement(_ habit: Habit) {
-        do {
-            _ = try repository.incrementCount(for: habit)
-            todayValues[habit.id] = repository.getTodayValue(for: habit)
-            HapticManager.light()
-        } catch {
-            HoloToastCenter.shared.show("计数失败，请重试", type: .error)
-        }
-    }
-
-    /// 测量类 - 保存数值
-    private func saveNumericValue(_ habit: Habit) {
-        guard let value = Double(inputValue) else { return }
-        do {
-            _ = try repository.addNumericRecord(for: habit, value: value)
-            todayValues[habit.id] = repository.getTodayValue(for: habit)
-            showValueInput = false
-            editingHabit = nil
-            HapticManager.light()
-        } catch {
-            HoloToastCenter.shared.show("保存失败，请重试", type: .error)
-        }
+        todayProgress = newProgress
+        weekPatterns = repository.getWeekCompletionPatterns()
     }
 }
 

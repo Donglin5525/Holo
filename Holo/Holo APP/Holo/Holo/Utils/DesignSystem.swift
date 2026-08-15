@@ -359,3 +359,17 @@ extension View {
         modifier(HoloNestedCardStyle(cornerRadius: cornerRadius))
     }
 }
+
+// MARK: - 习惯磁贴配色
+
+extension Color {
+    /// 习惯磁贴未完成态的淡底浓度（习惯色叠在卡底上：浅色 8% / 深色 16%）
+    static func habitTileTintOpacity(_ scheme: ColorScheme) -> Double {
+        scheme == .dark ? 0.16 : 0.08
+    }
+
+    /// 习惯磁贴未完成态的描边浓度
+    static func habitTileBorderOpacity(_ scheme: ColorScheme) -> Double {
+        scheme == .dark ? 0.30 : 0.16
+    }
+}

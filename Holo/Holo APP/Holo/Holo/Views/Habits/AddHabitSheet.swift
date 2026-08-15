@@ -9,20 +9,32 @@
 import SwiftUI
 import os.log
 
+/// 新建习惯的预填草稿（空状态示例磁贴入口）
+/// id 仅用于驱动 sheet(item:) 的展示；空草稿（默认值）= 普通新建
+struct HabitPrefillDraft: Identifiable {
+    let id = UUID()
+    var name: String = ""
+    var icon: String = "checkmark.circle"
+    var color: String = "#13A4EC"
+}
+
 /// 新增习惯表单
 struct AddHabitSheet: View {
 
     private let logger = Logger(subsystem: "com.holo.app", category: "AddHabitSheet")
 
     // MARK: - Properties
-    
+
     @Environment(\.dismiss) var dismiss
-    
+
     /// 保存完成回调
     var onSave: (() -> Void)?
-    
+
     /// 编辑模式（传入已有习惯）
     var editingHabit: Habit? = nil
+
+    /// 新建预填草稿（与编辑模式互斥：编辑优先）
+    var prefill: HabitPrefillDraft? = nil
     
     // 表单状态
     @State private var name: String = ""
@@ -147,27 +159,31 @@ struct AddHabitSheet: View {
         !name.trimmingCharacters(in: .whitespaces).isEmpty
     }
     
-    // MARK: - 加载编辑数据
-    
-    private func loadEditingData() {
-        guard let habit = editingHabit else { return }
+    // MARK: - 初始数据加载
 
-        name = habit.name
-        selectedType = habit.habitType
-        selectedIcon = habit.icon
-        selectedColor = habit.color
-        selectedFrequency = habit.habitFrequency
-        selectedAggregationType = habit.habitAggregationType
-        isBadHabit = habit.isBadHabit ? true : nil
-        
-        if let tc = habit.targetCountValue {
-            targetCount = String(tc)
-        }
-        if let tv = habit.targetValueDouble {
-            targetValue = habit.formatValue(tv)
-        }
-        if let u = habit.unit {
-            unit = u
+    private func loadEditingData() {
+        if let habit = editingHabit {
+            name = habit.name
+            selectedType = habit.habitType
+            selectedIcon = habit.icon
+            selectedColor = habit.color
+            selectedFrequency = habit.habitFrequency
+            selectedAggregationType = habit.habitAggregationType
+            isBadHabit = habit.isBadHabit ? true : nil
+
+            if let tc = habit.targetCountValue {
+                targetCount = String(tc)
+            }
+            if let tv = habit.targetValueDouble {
+                targetValue = habit.formatValue(tv)
+            }
+            if let u = habit.unit {
+                unit = u
+            }
+        } else if let draft = prefill {
+            name = draft.name
+            selectedIcon = draft.icon
+            selectedColor = draft.color
         }
     }
     

@@ -750,6 +750,33 @@ class HabitRepository: ObservableObject {
         return (checkInCompleted + numericCompleted, total)
     }
 
+    /// 本周（含今日）各习惯逐日完成情况，供磁贴点阵一次取用
+    /// 返回 habitId -> [当天是否有记录]，下标 0 = 本周第一天（跟随系统 firstWeekday），末位 = 今天
+    func getWeekCompletionPatterns() -> [UUID: [Bool]] {
+        guard isReady, !activeHabits.isEmpty else { return [:] }
+
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        guard let week = calendar.dateInterval(of: .weekOfYear, for: today) else { return [:] }
+
+        let request = HabitRecord.fetchRequest()
+        request.predicate = NSPredicate(format: "date >= %@ AND date < %@", week.start as NSDate, week.end as NSDate)
+        let records = (try? context.fetch(request)) ?? []
+        guard !records.isEmpty else { return [:] }
+
+        let dayCount = calendar.dateComponents([.day], from: week.start, to: today).day ?? 0
+        let totalDays = dayCount + 1
+        var hitDaysByHabit: [UUID: Set<Int>] = [:]
+        for record in records {
+            let day = calendar.dateComponents([.day], from: week.start, to: record.date).day ?? 0
+            guard day >= 0, day < totalDays else { continue }
+            hitDaysByHabit[record.habitId, default: []].insert(day)
+        }
+        return hitDaysByHabit.mapValues { hitDays in
+            (0..<totalDays).map { hitDays.contains($0) }
+        }
+    }
+
     /// 今日目标贡献：今天有打卡/记录、且关联了目标的习惯数。
     /// 复用与 getTodayCheckInProgress 相同的今日完成判定逻辑，保持口径一致。
     func getTodayGoalHabitContribution() -> (habitCount: Int, goalCount: Int) {

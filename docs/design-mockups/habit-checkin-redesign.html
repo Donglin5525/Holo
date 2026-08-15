@@ -1,0 +1,800 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>习惯打卡页改造 · 交互原型</title>
+<style>
+/* ============ 展示台 ============ */
+*{margin:0;padding:0;box-sizing:border-box;-webkit-font-smoothing:antialiased}
+body{
+  background:radial-gradient(1200px 600px at 50% -100px,#23252c 0%,#141518 55%);
+  font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Helvetica Neue",sans-serif;
+  color:#e8e9ec;min-height:100vh;padding:48px 24px 80px;
+}
+.stage-head{text-align:center;margin-bottom:40px}
+.stage-head h1{font-size:26px;font-weight:700;letter-spacing:.5px}
+.stage-head p{font-size:14px;color:#9a9ca6;margin-top:10px;line-height:1.8}
+.stage-head b{color:#f4a377;font-weight:600}
+.stage{display:flex;flex-wrap:wrap;gap:44px;justify-content:center;align-items:flex-start}
+
+/* ============ iPhone 外框 ============ */
+.phone-box{width:338px}
+.phone{
+  width:375px;height:812px;transform:scale(.85);transform-origin:0 0;
+  background:#1b1c20;border-radius:56px;padding:11px;
+  box-shadow:0 24px 60px rgba(0,0,0,.55),inset 0 0 3px rgba(255,255,255,.18);
+}
+.screen{
+  position:relative;width:100%;height:100%;border-radius:46px;overflow:hidden;
+  background:#FDFCFC;display:flex;flex-direction:column;
+}
+.island{position:absolute;top:12px;left:50%;transform:translateX(-50%);width:118px;height:32px;background:#111;border-radius:20px;z-index:60}
+.statusbar{
+  height:56px;flex:0 0 auto;display:flex;align-items:flex-end;justify-content:space-between;
+  padding:0 32px 6px;font-size:15px;font-weight:600;color:#333;z-index:50;
+}
+.sig{display:flex;gap:3px;align-items:flex-end;margin-right:8px}
+.sig i{width:3px;background:#333;border-radius:1px;display:block}
+.sig i:nth-child(1){height:4px}.sig i:nth-child(2){height:6px}.sig i:nth-child(3){height:8px}.sig i:nth-child(4){height:10px}
+.batt{width:25px;height:12px;border:1.5px solid #333;border-radius:4px;position:relative;display:inline-block}
+.batt::after{content:"";position:absolute;inset:1.5px;right:6px;background:#333;border-radius:1.5px}
+.sright{display:flex;align-items:center}
+
+/* ============ App 通用 ============ */
+.app{flex:1;display:flex;flex-direction:column;min-height:0}
+.appscroll{flex:1;overflow-y:auto;padding:4px 20px 130px;scrollbar-width:none}
+.appscroll::-webkit-scrollbar{display:none}
+.nav{
+  flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;
+  padding:6px 16px 10px;
+}
+.nav .back{font-size:22px;color:#333;width:36px}
+.nav .title{font-size:20px;font-weight:600;color:#333}
+.nav .add{
+  width:30px;height:30px;border-radius:50%;background:#F46D38;color:#fff;
+  font-size:18px;font-weight:600;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 4px 10px rgba(244,109,56,.35);
+}
+.tabbar{
+  position:absolute;left:0;right:0;bottom:0;height:86px;background:#fff;z-index:40;
+  display:flex;box-shadow:0 -6px 20px rgba(0,0,0,.06);border-radius:0 0 46px 46px;
+}
+.tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;font-size:10px;color:#939393;padding-bottom:14px}
+.tab .dot{width:4px;height:4px;border-radius:50%}
+.tab.on{color:#F46D38}
+.tab.on .dot{background:#F46D38}
+.tab .ti{font-size:21px;line-height:1}
+
+/* ============ Hero 进度卡（路线一/二） ============ */
+.card{background:#fff;border:1px solid #F0F0F0;border-radius:16px;box-shadow:0 4px 10px rgba(0,0,0,.05)}
+.hero{display:flex;align-items:center;gap:18px;padding:18px 20px;margin-bottom:18px}
+.ringwrap{position:relative;width:92px;height:92px;flex:0 0 auto}
+.ringwrap svg{transform:rotate(-90deg)}
+.ringbg{stroke:#F0F0F0}
+.ringfg{stroke:url(#gradRing);transition:stroke-dashoffset .6s cubic-bezier(.4,0,.2,1)}
+.ringnum{
+  position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+}
+.ringnum b{font-size:19px;font-weight:700;color:#333}
+.ringnum span{font-size:9px;color:#939393;margin-top:1px}
+.hero-info{flex:1;min-width:0}
+.hero-copy{font-size:16px;font-weight:700;color:#333;line-height:1.35;transition:.3s}
+.hero-sub{font-size:12px;color:#939393;margin-top:6px}
+.hero.full .hero-copy{color:#F46D38}
+.spark{display:inline-block;animation:pop .45s cubic-bezier(.3,1.6,.5,1)}
+
+/* ============ 习惯卡片（路线一/二 + 现状） ============ */
+.hcard{
+  position:relative;display:flex;align-items:center;gap:14px;
+  background:#fff;border:1px solid #F0F0F0;border-radius:16px;
+  padding:14px 16px;margin-bottom:12px;max-height:130px;overflow:hidden;
+  box-shadow:0 4px 10px rgba(0,0,0,.05);
+  transition:background .45s,border-color .45s,box-shadow .45s,max-height .3s,opacity .3s,margin .3s,padding .3s;
+}
+.hcard.leaving{max-height:0;opacity:0;margin-bottom:0;padding-top:0;padding-bottom:0;border-width:0}
+.hcard.entering{opacity:0;transform:translateY(-8px);transition:none}
+.hcard.entering.in{opacity:1;transform:none;transition:opacity .35s,transform .35s}
+.hicon{
+  width:48px;height:48px;border-radius:50%;flex:0 0 auto;
+  display:flex;align-items:center;justify-content:center;font-size:23px;
+  transition:background .45s;
+}
+.hmain{flex:1;min-width:0}
+.hname{font-size:16px;font-weight:500;color:#333;display:flex;align-items:center;gap:7px;white-space:nowrap;overflow:hidden;transition:color .45s}
+.hmeta{font-size:12px;color:#939393;margin-top:4px;display:flex;align-items:center;gap:6px;transition:color .45s}
+.streak{
+  font-size:10.5px;font-weight:600;color:#EA580C;background:rgba(244,109,56,.1);
+  border-radius:99px;padding:2px 7px;display:inline-flex;align-items:center;gap:2px;flex:0 0 auto;
+}
+.goalbadge{font-size:10px;color:#3B82F6;background:rgba(59,130,246,.09);border-radius:99px;padding:2px 6px;flex:0 0 auto}
+.hact{flex:0 0 auto;display:flex;align-items:center;gap:10px}
+
+/* 完成态（lit）：JS 直接染 --c 淡色 */
+.hcard.lit{box-shadow:0 2px 6px rgba(0,0,0,.03)}
+.hcard.lit .hname{color:#6f6f6f}
+.hcard.lit .hname .txt{text-decoration:line-through;text-decoration-color:rgba(120,120,120,.45)}
+.hcard.lit .hmeta{color:#adadb3}
+.hcard.mini{padding:10px 16px}
+.hcard.mini .hicon{width:34px;height:34px;font-size:17px}
+.hcard.mini .hname{font-size:14px}
+.hcard.mini .hmeta{display:none}
+.hcard.mini .hiconwrap{display:flex;align-items:center;gap:12px;flex:1;min-width:0}
+
+/* 打卡圈 */
+.ck{
+  position:relative;width:40px;height:40px;border-radius:50%;flex:0 0 auto;
+  border:2px solid rgba(147,147,147,.32);background:transparent;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+  transition:background .35s,border-color .35s;
+}
+.ck svg{width:17px;height:17px;stroke:#fff;stroke-width:3.4;fill:none;stroke-linecap:round;stroke-linejoin:round;opacity:0}
+.hcard.lit .ck{border-color:transparent}
+.ck .ckpop{animation:pop .45s cubic-bezier(.3,1.8,.5,1) forwards}
+.ck.mini{width:30px;height:30px}
+.ck.mini svg{width:13px;height:13px}
+.ripple{
+  position:absolute;inset:-2px;border-radius:50%;pointer-events:none;
+  border:2px solid var(--c);animation:rip .55s ease-out forwards;
+}
+@keyframes rip{from{transform:scale(1);opacity:.75}to{transform:scale(2.6);opacity:0}}
+@keyframes pop{0%{transform:scale(0);opacity:0}55%{transform:scale(1.28);opacity:1}100%{transform:scale(1);opacity:1}}
+
+/* 计数类 / 测量类操作 */
+.pill{
+  border:none;cursor:pointer;font-size:13px;font-weight:600;border-radius:99px;padding:6px 13px;
+  color:#fff;transition:transform .15s;
+}
+.pill:active{transform:scale(.92)}
+.pill.plus{background:var(--c)}
+.pill.ghost{background:#fff;color:#939393;border:1px solid #F0F0F0;padding:5px 11px}
+.val{font-size:17px;font-weight:600;color:#333}
+.val small{font-size:11px;color:#939393;font-weight:400;margin-left:2px}
+.val.warn{color:#EF4444}
+.val.warn small{color:#EF4444}
+.linkbtn{border:none;background:none;color:#939393;font-size:11px;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+
+/* 分组标题（路线二） */
+.group-title{
+  display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#939393;
+  margin:16px 2px 10px;
+}
+.group-title:first-child{margin-top:2px}
+.group-title .cnt{background:#F0F0F0;color:#939393;border-radius:99px;padding:1px 8px;font-size:10.5px}
+.group-title.done{color:#8fa98f}
+.group-title.done .cnt{background:rgba(34,197,94,.12);color:#16A34A}
+.group-title .arrow{margin-left:auto;font-size:10px;color:#c5c5c5}
+
+/* ============ 磁贴（路线三） ============ */
+.mprog{display:flex;align-items:center;gap:10px;margin:2px 2px 14px}
+.mprog .bar{flex:1;height:6px;border-radius:99px;background:#F0F0F0;overflow:hidden}
+.mprog .bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#F46D38,#EA580C);transition:width .5s cubic-bezier(.4,0,.2,1)}
+.mprog span{font-size:12px;color:#939393;flex:0 0 auto}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.tile{
+  position:relative;border-radius:16px;background:#fff;border:1px solid #F0F0F0;
+  box-shadow:0 4px 10px rgba(0,0,0,.05);padding:14px 14px 12px;min-height:118px;cursor:pointer;
+  display:flex;flex-direction:column;overflow:hidden;
+  transition:background .4s,border-color .4s,box-shadow .4s;
+}
+.tile.soft{
+  background:color-mix(in srgb,var(--c) 8%,#fff);
+  border-color:color-mix(in srgb,var(--c) 16%,#fff);
+}
+.tile.soft .dots i{background:color-mix(in srgb,var(--c) 16%,transparent)}
+.tile.soft .dots i.hit{background:var(--c)}
+.tile.soft .dots i.today{box-shadow:0 0 0 2px color-mix(in srgb,var(--c) 22%,transparent)}
+.tile.soft .dots i.today.hit{box-shadow:0 0 0 2px color-mix(in srgb,var(--c) 22%,transparent)}
+.tile.soft .tmini{background:color-mix(in srgb,var(--c) 14%,transparent)}
+.tile .ticon{font-size:28px;line-height:1.2;transition:transform .3s}
+.tile .tig{width:27px;height:27px;display:block;color:var(--c);transition:color .4s}
+.tile.lit .tig{color:#fff}
+.tile .tname{font-size:14px;font-weight:600;color:#333;margin-top:6px;transition:color .4s}
+.tile .tsub{font-size:10px;color:#939393;margin-top:2px;transition:color .4s}
+.dots{display:flex;gap:4px;margin-top:auto;padding-top:8px}
+.dots i{width:6px;height:6px;border-radius:50%;background:#EBEBEB;flex:1;max-width:8px}
+.dots i.hit{background:var(--c)}
+.dots i.today{box-shadow:0 0 0 2px rgba(147,147,147,.25);background:#d9d9d9}
+.dots i.today.hit{box-shadow:0 0 0 2px rgba(147,147,147,.2)}
+.tile.lit{background:var(--c);border-color:transparent;box-shadow:0 8px 18px rgba(0,0,0,.16)}
+.tile.lit .tname{color:#fff}
+.tile.lit .tsub{color:rgba(255,255,255,.75)}
+.tile.lit .dots i{background:rgba(255,255,255,.3)}
+.tile.lit .dots i.hit{background:#fff}
+.tile.lit .dots i.today{box-shadow:0 0 0 2px rgba(255,255,255,.35);background:rgba(255,255,255,.45)}
+.tbadge{
+  position:absolute;top:10px;right:10px;width:22px;height:22px;border-radius:50%;background:rgba(255,255,255,.25);
+  display:none;align-items:center;justify-content:center;
+}
+.tbadge svg{width:11px;height:11px;stroke:#fff;stroke-width:3.5;fill:none;stroke-linecap:round;stroke-linejoin:round}
+.tile.lit .tbadge{display:flex}
+.tile.lit .tbadge.ckpop{animation:pop .45s cubic-bezier(.3,1.8,.5,1)}
+.trow{display:flex;align-items:center;gap:6px;margin-top:auto;padding-top:8px}
+.tnum{font-size:13px;font-weight:700;color:var(--c)}
+.tile.lit .tnum{color:#fff}
+.tbtn{
+  width:26px;height:26px;border-radius:50%;border:none;cursor:pointer;flex:0 0 auto;
+  background:var(--c);color:#fff;font-size:15px;font-weight:700;line-height:1;
+  display:flex;align-items:center;justify-content:center;transition:transform .15s;
+}
+.tile.lit .tbtn{background:rgba(255,255,255,.28)}
+.tbtn:active{transform:scale(.88)}
+.tminus{
+  background:transparent;border:1.4px solid var(--c);color:var(--c);
+  font-size:13px;font-weight:700;
+}
+.tile.lit .tminus{border-color:rgba(255,255,255,.55);color:#fff}
+.tundo{border:none;background:none;cursor:pointer;font-size:10px;color:#939393;flex:0 0 auto}
+.tile.lit .tundo{color:rgba(255,255,255,.78)}
+.tmini{flex:1;height:5px;border-radius:99px;background:rgba(147,147,147,.15);overflow:hidden;margin-right:2px}
+.tmini i{display:block;height:100%;background:var(--c);border-radius:99px;transition:width .4s}
+.tile.lit .tmini{background:rgba(255,255,255,.25)}
+.tile.lit .tmini i{background:#fff}
+
+/* ============ 路线三 · 打磨版 ============ */
+.phead{display:flex;align-items:baseline;gap:8px;margin:2px 2px 8px}
+.ptitle{font-size:15px;font-weight:700;color:#333}
+.ptitle b{color:#F46D38;font-size:18px}
+.ptitle .full{display:inline-block;animation:pop .5s cubic-bezier(.3,1.6,.5,1)}
+.psub{font-size:11px;color:#939393}
+.band{display:flex;gap:3px;margin:0 2px 16px}
+.band i{flex:1;height:7px;border-radius:99px;transition:background .5s,filter .5s}
+.band.party i{animation:bpulse 1.3s ease-in-out infinite}
+@keyframes bpulse{0%,100%{filter:brightness(1)}50%{filter:brightness(1.55) saturate(1.25)}}
+.reveal{
+  position:absolute;border-radius:50%;pointer-events:none;z-index:1;
+  transform:translate(-50%,-50%) scale(0);
+  transition:transform .5s cubic-bezier(.22,.8,.3,1);
+}
+.reveal.on{transform:translate(-50%,-50%) scale(1)}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes tbounce{0%{transform:translateY(0)}35%{transform:translateY(-8px)}100%{transform:translateY(0)}}
+
+/* ============ 说明标签 ============ */
+.caption{text-align:center;margin-top:26px;padding:0 6px}
+.caption h2{font-size:15px;font-weight:700}
+.caption h2 .tag{
+  font-size:10px;font-weight:600;border-radius:99px;padding:2px 8px;margin-left:7px;vertical-align:2px;
+}
+.caption .tag.cur{background:#3a3c44;color:#aeb0b8}
+.caption .tag.rec{background:rgba(244,109,56,.16);color:#f4a377}
+.caption p{font-size:12px;color:#8b8d97;margin-top:8px;line-height:1.75}
+.caption .hint{color:#6f727c;font-size:11px;margin-top:5px}
+</style>
+</head>
+<body>
+
+<header class="stage-head">
+  <h1>习惯打卡页改造 · 可交互原型</h1>
+  <p>从左到右：<b>现状</b> → <b>路线一</b>（今日主视觉 + 完成点亮）→ <b>路线二</b>（路线一 + 成果下沉分组，推荐）→ <b>路线三</b>（彩色磁贴网格）<br>
+  四台都能真的点：点打卡圈 / +1 / 磁贴，感受打卡瞬间的反馈差异。</p>
+</header>
+
+<main class="stage" id="stage"></main>
+
+<!-- 模拟 SF Symbols 风格的单色图标（真机渲染机制：未完成=习惯色，点亮后=白色） -->
+<svg xmlns="http://www.w3.org/2000/svg" style="display:none">
+  <symbol id="ic-moon" viewBox="0 0 24 24"><path fill="currentColor" d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></symbol>
+  <symbol id="ic-drop" viewBox="0 0 24 24"><path fill="currentColor" d="M12 2.9C9.2 6.9 6.8 9.9 6.8 13a5.2 5.2 0 0 0 10.4 0c0-3.1-2.4-6.1-5.2-10.1z"/></symbol>
+  <symbol id="ic-book" viewBox="0 0 24 24"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M2 4h6a4 4 0 0 1 4 4v13a3 3 0 0 0-3-3H2zM22 4h-6a4 4 0 0 0-4 4v13a3 3 0 0 1 3-3h7z"/></symbol>
+  <symbol id="ic-run" viewBox="0 0 24 24"><circle cx="17" cy="4.6" r="2.1" fill="currentColor"/><path fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" d="M14.1 8.4L11 13.2M14.1 8.4l4 2.1M14.1 8.4l-3.9 1M11 13.2l4.2 3.1-.4 4.1M11 13.2l-3.6 2.3 2.4 4.2"/></symbol>
+  <symbol id="ic-meditate" viewBox="0 0 24 24"><circle cx="12" cy="4.8" r="2.2" fill="currentColor"/><path fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" d="M12 8.6c-1.6 1.7-2.6 3.4-3.6 5.6M12 8.6c1.6 1.7 2.6 3.4 3.6 5.6M8.4 14.2l-2.4 2.2M15.6 14.2l2.4 2.2M5.4 15.6c1.9 2.6 11.3 2.6 13.2 0"/></symbol>
+  <symbol id="ic-nosmoking" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.4" fill="none" stroke="currentColor" stroke-width="2"/><path stroke="currentColor" stroke-width="2" stroke-linecap="round" d="M6.2 6.2l11.6 11.6"/><path fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" d="M8.6 12.4h3.2M13 12.4h1.8"/></symbol>
+  <symbol id="ic-scale" viewBox="0 0 24 24"><rect x="4.2" y="5" width="15.6" height="14" rx="3.2" fill="none" stroke="currentColor" stroke-width="2"/><path fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" d="M8.6 10.4a3.4 3.4 0 0 1 6.8 0"/></symbol>
+  <symbol id="ic-pill" viewBox="0 0 24 24"><g transform="rotate(-45 12 12)" fill="none" stroke="currentColor" stroke-width="2"><rect x="4.8" y="9.3" width="14.4" height="5.4" rx="2.7"/><path d="M12 9.3v5.4"/></g></symbol>
+  <symbol id="ic-stretch" viewBox="0 0 24 24"><circle cx="12" cy="4.4" r="2.1" fill="currentColor"/><path fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" d="M12 7.2v7.6M12 7.2L8.6 3.9M12 7.2l3.4-3.3M12 14.8l-3.4 5M12 14.8l3.4 5"/></symbol>
+</svg>
+
+<script>
+/* ============ 数据 ============ */
+const HABITS = [
+  {id:'sleep',    name:'早睡',   icon:'ic-moon',      color:'#8B5CF6', type:'check',   streak:21, freq:'每日', goal:'精力管理', done:true,  week:[1,1,1,1]},
+  {id:'water',    name:'喝水',   icon:'ic-drop',      color:'#06B6D4', type:'count',   freq:'每日', target:8, unit:'杯', value:5, week:[1,1,0,1]},
+  {id:'read',     name:'阅读',   icon:'ic-book',      color:'#F97316', type:'check',   streak:14, freq:'每日', done:true, week:[1,1,1,1]},
+  {id:'run',      name:'跑步',   icon:'ic-run',       color:'#22C55E', type:'check',   freq:'每周 · 二四六', week:[0,1,0,1]},
+  {id:'meditate', name:'冥想',   icon:'ic-meditate',  color:'#6366F1', type:'check',   streak:7,  freq:'每日', done:true, week:[1,1,1,1]},
+  {id:'smoke',    name:'戒烟',   icon:'ic-nosmoking', color:'#EF4444', type:'count',   bad:true, freq:'每日 · 上限', target:5, unit:'支', value:3, week:[1,0,1,0]},
+  {id:'weight',   name:'体重',   icon:'ic-scale',     color:'#EC4899', type:'measure', freq:'每日', unit:'kg', value:72.5, week:[1,1,1,0]},
+  {id:'vitamin',  name:'维生素', icon:'ic-pill',      color:'#EAB308', type:'check',   streak:30, freq:'每日', done:true, week:[1,1,1,1]},
+  {id:'stretch',  name:'拉伸',   icon:'ic-stretch',   color:'#14B8A6', type:'check',   freq:'工作日', week:[0,0,1,0]},
+];
+const WEEKDAYS = ['一','二','三','四','五','六','日'];
+
+const rgba = (hex,a)=>{const n=parseInt(hex.slice(1),16);return `rgba(${n>>16&255},${(n>>8)&255},${n&255},${a})`;};
+/* 单色图标：颜色跟随习惯色（对应真机的 template 渲染 + foregroundColor） */
+const iconSVG=(h,size)=>`<svg style="width:${size}px;height:${size}px;color:${h.color};display:block"><use href="#${h.icon}"/></svg>`;
+const CHECK_SVG = '<svg viewBox="0 0 24 24"><path d="M5 12.5l4.6 4.6L19 6.5"/></svg>';
+
+/* 每个习惯的完成判定（演示语义：计数类达标即完成） */
+function isDone(h){
+  if(h.type==='check') return !!h.done;
+  if(h.type==='count') return h.bad ? h.value>0 : h.value>=h.target;
+  return !!h.done;
+}
+function heroCopy(c,t){
+  if(t===0) return '今天从第一件小事开始';
+  if(c===t) return '今天全部点亮 <span class="spark">✨</span>';
+  const left=t-c;
+  return left===1 ? '就剩 1 项，点一下就清空' : `还剩 ${left} 项，冲一把就清空`;
+}
+
+/* ============ 手机组装 ============ */
+function buildPhone(variant,label,tag,tagClass,desc,hint){
+  const box=document.createElement('div');
+  box.className='phone-box';
+  box.innerHTML=`
+    <div class="phone"><div class="screen">
+      <div class="island"></div>
+      <div class="statusbar">
+        <span>9:41</span>
+        <span class="sright"><span class="sig"><i></i><i></i><i></i><i></i></span><span class="batt"></span></span>
+      </div>
+      <div class="app">
+        <div class="nav">
+          <span class="back">‹</span><span class="title">习惯</span><span class="add">＋</span>
+        </div>
+        <div class="appscroll"></div>
+      </div>
+      <div class="tabbar">
+        <div class="tab"><span class="dot"></span><span class="ti">📊</span>统计</div>
+        <div class="tab on"><span class="dot"></span><span class="ti">✅</span>习惯</div>
+        <div class="tab"><span class="dot"></span><span class="ti">⚙️</span>设置</div>
+      </div>
+    </div></div>
+    <div class="caption">
+      <h2>${label}<span class="tag ${tagClass}">${tag}</span></h2>
+      <p>${desc}</p>
+      ${hint?`<p class="hint">👆 ${hint}</p>`:''}
+    </div>`;
+  document.getElementById('stage').appendChild(box);
+  return box.querySelector('.appscroll');
+}
+
+/* ============ 通用小组件 ============ */
+function ringSVG(size,stroke,pct,id){
+  const r=(size-stroke)/2, c=2*Math.PI*r;
+  return `<div class="ringwrap" style="width:${size}px;height:${size}px">
+    <svg width="${size}" height="${size}">
+      <defs><linearGradient id="g${id}" x1="0" y1="0" x2="1" y2="1">
+        <stop offset="0" stop-color="#F46D38"/><stop offset="1" stop-color="#EA580C"/></linearGradient></defs>
+      <circle class="ringbg" cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke-width="${stroke}"/>
+      <circle class="ringfg" cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke-width="${stroke}"
+        stroke-linecap="round" stroke="url(#g${id})" data-c="${c}"
+        style="stroke-dasharray:${c};stroke-dashoffset:${c*(1-pct)}"/>
+    </svg>
+    <div class="ringnum"><b>${Math.round(pct*100)}%</b><span>今日完成</span></div>
+  </div>`;
+}
+
+function streakBadge(h){
+  return h.streak ? `<span class="streak">🔥 ${h.streak}天</span>` : '';
+}
+function goalBadge(h){
+  return h.goal ? `<span class="goalbadge">🎯 ${h.goal}</span>` : '';
+}
+function metaRow(h, extra=''){
+  return `<div class="hmeta">${h.freq}${h.type==='count'&&h.target&&!h.bad?` · 目标 ${h.target}${h.unit}`:''}${h.bad?` ${h.target}${h.unit}`:''}${extra}</div>`;
+}
+
+/* 打卡圈（点击热区） */
+function ckBtn(h,done,small){
+  return `<button class="ck ${small?'mini':''}" data-act="check" data-id="${h.id}" style="--c:${h.color}">${CHECK_SVG}</button>`;
+}
+
+function ripple(el,color){
+  const r=document.createElement('span');
+  r.className='ripple';r.style.setProperty('--c',color);
+  el.appendChild(r);setTimeout(()=>r.remove(),600);
+}
+
+/* ============ 现状版 ============ */
+function mountCurrent(){
+  const root=buildPhone('current','现状','对照','cur',
+    '白卡片一列到底：完成与否只有右侧小圈的变化，页面没有主角，也看不出「今天做得怎么样」。',
+    '点右侧圆圈打卡，感受一下现有反馈');
+  const st=HABITS.map(h=>({...h}));
+  const cardHTML=h=>{
+    const done=isDone(h);
+    let act='';
+    if(h.type==='check') act=ckBtn(h,done);
+    else if(h.type==='count') act=`
+      <span class="val ${h.bad&&h.value>=h.target?'warn':''}">${h.value}<small>${h.bad?'/'+h.target:'/'+h.target+h.unit}</small></span>
+      <button class="pill ghost" data-act="minus" data-id="${h.id}">−1</button>
+      <button class="pill plus" data-act="plus" data-id="${h.id}" style="--c:${h.color}">＋1</button>`;
+    else act=`
+      <button data-act="measure" data-id="${h.id}" style="border:none;background:none;cursor:pointer;display:flex;align-items:center;gap:4px">
+        <span class="val">${h.value}<small>${h.unit}</small></span>
+        <span style="width:20px;height:20px;border-radius:50%;border:1.6px solid ${h.color};color:${h.color};font-size:13px;font-weight:700;display:inline-flex;align-items:center;justify-content:center">＋</span>
+      </button>`;
+    return `<div class="hcard" data-card="${h.id}" style="--c:${h.color}">
+      <div class="hicon" style="background:${rgba(h.color,.1)}">${iconSVG(h,22)}</div>
+      <div class="hmain">
+        <div class="hname"><span class="txt">${h.name}</span>${streakBadge(h)}${goalBadge(h)}</div>
+        ${metaRow(h)}
+      </div>
+      <div class="hact">${act}</div>
+    </div>`;
+  };
+  root.innerHTML=`<div style="height:4px"></div>`+st.map(cardHTML).join('');
+  applyCurrentDone(root,st);
+  root.addEventListener('click',e=>{
+    const b=e.target.closest('[data-act]');if(!b)return;
+    const h=st.find(x=>x.id===b.dataset.id);const card=root.querySelector(`[data-card="${h.id}"]`);
+    if(b.dataset.act==='check'){h.done=!h.done;}
+    if(b.dataset.act==='plus'){h.value=Math.min(h.value+1,h.target+3);}
+    if(b.dataset.act==='minus'){h.value=Math.max(h.value-1,0);}
+    if(b.dataset.act==='measure'){h.done=!h.done;}
+    card.outerHTML=cardHTML(h);
+    applyCurrentDone(root,st);
+    const nc=root.querySelector(`[data-card="${h.id}"]`);
+    const ck=nc.querySelector('.ck');
+    if(isDone(h)&&ck){const svg=ck.querySelector('svg');svg.classList.add('ckpop');ripple(ck,h.color);}
+  });
+}
+/* 现状版：完成只有右侧小圈的变化，卡片本身保持白底 —— 忠实还原弱反馈 */
+function applyCurrentDone(root,st){
+  st.forEach(h=>{
+    const card=root.querySelector(`[data-card="${h.id}"]`);if(!card)return;
+    const ck=card.querySelector('.ck');if(!ck)return;
+    if(isDone(h)){
+      ck.style.background=rgba(h.color,.1);ck.style.borderColor=h.color;
+      const svg=ck.querySelector('svg');svg.style.opacity=1;svg.style.stroke=h.color;
+    }
+  });
+}
+
+/* ============ 路线一 / 二：Hero + 分层卡片 ============ */
+function mountList(variant){
+  const isR2=variant==='r2';
+  const root=buildPhone(variant, isR2?'路线二':'路线一',
+    isR2?'推荐':'升级', isR2?'rec':'cur',
+    isR2?'路线一基础上，已完成的沉到底部：上面清空的过程就是成就感，晚上打开页面，下面一排战果。'
+        :'顶部今日进度环成为页面主角；完成的卡片整张点亮染色，未完成的保持亮白，一眼看清战况。',
+    isR2?'点打卡圈，看卡片点亮后沉到「已完成」':'点打卡圈，看卡片点亮 + 进度环增长');
+
+  const st=HABITS.map(h=>({...h}));
+
+  /* Hero */
+  const hero=document.createElement('div');
+  hero.className='card hero';
+  root.appendChild(hero);
+  let listWrap=document.createElement('div');
+  root.appendChild(listWrap);
+
+  function renderHero(){
+    const c=st.filter(isDone).length, t=st.length, pct=t?c/t:0;
+    hero.classList.toggle('full',c===t&&t>0);
+    hero.innerHTML=`${ringSVG(92,9,pct,variant)}
+      <div class="hero-info">
+        <div class="hero-copy">${heroCopy(c,t)}</div>
+        <div class="hero-sub">8月14日 周五 · 已完成 ${c} / ${t}</div>
+      </div>`;
+  }
+
+  function cardHTML(h,mini){
+    const done=isDone(h);
+    let act='';
+    if(h.type==='check') act=ckBtn(h,done,mini);
+    else if(h.type==='count') act= mini
+      ? `<span class="val" style="font-size:14px">${h.value}<small>/${h.target}${h.unit}</small></span>`
+      : `<span class="val ${h.bad&&h.value>=h.target?'warn':''}">${h.value}<small>/${h.target}${h.unit}</small></span>
+         <button class="pill ghost" data-act="minus" data-id="${h.id}">−1</button>
+         <button class="pill plus" data-act="plus" data-id="${h.id}" style="--c:${h.color}">＋1</button>`;
+    else act= mini
+      ? `<span class="val" style="font-size:14px">${h.value}<small>${h.unit}</small></span>`
+      : `<button data-act="measure" data-id="${h.id}" style="border:none;background:none;cursor:pointer;display:flex;align-items:center;gap:5px">
+          <span class="val">${h.value}<small>${h.unit}</small></span>
+          <span class="pill plus" style="--c:${h.color};padding:5px 12px">记录</span>
+        </button>`;
+    return `<div class="hcard ${mini?'mini':''}" data-card="${h.id}" style="--c:${h.color}">
+      <div class="hicon" style="background:${rgba(h.color,.1)}">${iconSVG(h,mini?18:22)}</div>
+      <div class="${mini?'hiconwrap':'hmain'}">
+        <div class="hname"><span class="txt">${h.name}</span>${mini?'':streakBadge(h)+goalBadge(h)}${mini?streakBadge(h):''}</div>
+        ${mini?'':metaRow(h)}
+      </div>
+      <div class="hact">${act}</div>
+    </div>`;
+  }
+
+  function applyLit(card,h,animate){
+    const ck=card.querySelector('.ck');
+    card.classList.toggle('lit',isDone(h));
+    if(isDone(h)){
+      card.style.background=rgba(h.color,.07);
+      card.style.borderColor=rgba(h.color,.25);
+      card.querySelector('.hicon').style.background=rgba(h.color,.16);
+      if(ck){ck.style.background=h.color;ck.style.borderColor='transparent';
+        const svg=ck.querySelector('svg');svg.style.opacity=1;
+        if(animate){svg.classList.add('ckpop');ripple(ck,h.color);}}
+    }else{
+      card.style.background='#fff';card.style.borderColor='#F0F0F0';
+      card.querySelector('.hicon').style.background=rgba(h.color,.1);
+      if(ck){ck.style.background='transparent';ck.style.borderColor='rgba(147,147,147,.32)';
+        const svg=ck.querySelector('svg');svg.style.opacity=0;svg.style.stroke='#fff';svg.classList.remove('ckpop');}
+    }
+  }
+
+  function renderList(){
+    if(!isR2){
+      listWrap.innerHTML=st.map(h=>cardHTML(h,false)).join('');
+      st.forEach(h=>applyLit(listWrap.querySelector(`[data-card="${h.id}"]`),h,false));
+      return;
+    }
+    const todo=st.filter(h=>!isDone(h)), done=st.filter(isDone);
+    listWrap.innerHTML=`
+      <div class="group-title">待打卡 <span class="cnt" data-cnt="todo">${todo.length}</span></div>
+      <div data-group="todo">${todo.map(h=>cardHTML(h,false)).join('')}</div>
+      <div class="group-title done">已完成 <span class="cnt" data-cnt="done">${done.length}</span><span class="arrow">▾</span></div>
+      <div data-group="done">${done.map(h=>cardHTML(h,true)).join('')}</div>`;
+    st.forEach(h=>applyLit(listWrap.querySelector(`[data-card="${h.id}"]`),h,false));
+  }
+
+  function refreshCounts(){
+    if(!isR2)return;
+    listWrap.querySelector('[data-cnt="todo"]').textContent=st.filter(h=>!isDone(h)).length;
+    listWrap.querySelector('[data-cnt="done"]').textContent=st.filter(isDone).length;
+  }
+
+  /* 路线二：卡片带动画地搬家 */
+  function migrate(card,h,toDone){
+    const from=listWrap.querySelector(`[data-group="${toDone?'todo':'done'}"]`);
+    const to=listWrap.querySelector(`[data-group="${toDone?'done':'todo'}"]`);
+    if(!from||!to)return;
+    card.classList.add('leaving');
+    setTimeout(()=>{
+      const fresh=document.createElement('div');
+      fresh.innerHTML=cardHTML(h,toDone);
+      const nc=fresh.firstElementChild;
+      applyLit(nc,h,false);
+      nc.dataset.done=isDone(h)?'1':'0';
+      to.prepend(nc);
+      nc.classList.add('entering');
+      requestAnimationFrame(()=>requestAnimationFrame(()=>nc.classList.add('in')));
+      card.remove();refreshCounts();
+    },300);
+  }
+
+  root.addEventListener('click',e=>{
+    const b=e.target.closest('[data-act]');if(!b)return;
+    const h=st.find(x=>x.id===b.dataset.id);if(!h)return;
+    const act=b.dataset.act;
+    const card=root.querySelector(`[data-card="${h.id}"]`);
+
+    if(act==='check'){h.done=!h.done;}
+    else if(act==='plus'){h.value=Math.min(h.value+1,h.target+3);}
+    else if(act==='minus'){h.value=Math.max(h.value-1,0);}
+    else if(act==='measure'){h.done=!h.done;}
+
+    if(isR2){
+      const wasDone=card.dataset.done==='1';
+      if(isDone(h)!==wasDone){
+        card.dataset.done=isDone(h)?'1':'0';
+        migrate(card,h,isDone(h));
+        renderHero();
+        return;
+      }
+      /* 数值变化不换组，就地重画 */
+      const fresh=document.createElement('div');fresh.innerHTML=cardHTML(h,card.classList.contains('mini'));
+      const nc=fresh.firstElementChild;applyLit(nc,h,false);
+      nc.dataset.done=wasDone?'1':'0';
+      card.replaceWith(nc);
+    }else if(act==='check'){
+      applyLit(card,h,true);
+    }else{
+      /* 数值型就地重画，保证数字刷新 */
+      const fresh=document.createElement('div');fresh.innerHTML=cardHTML(h,false);
+      const nc=fresh.firstElementChild;applyLit(nc,h,false);
+      card.replaceWith(nc);
+      if(isDone(h)){ripple(nc,h.color);}
+    }
+    renderHero();
+  });
+
+  renderHero();renderList();
+  st.forEach(h=>{const c=listWrap.querySelector(`[data-card="${h.id}"]`);if(c)c.dataset.done=isDone(h)?'1':'0';});
+}
+
+/* 本周点阵（周一~今天 + 未来两天） */
+const dotHTML=h=>{
+  const cells=[];
+  for(let i=0;i<5;i++){
+    const hit=h.week[i]||(isDone(h)&&i===4);
+    cells.push(`<i class="${i===4?'today':''} ${hit?'hit':''}"></i>`);
+  }
+  cells.push('<i></i><i></i>');
+  return `<div class="dots">${cells.join('')}</div>`;
+};
+
+/* ============ 路线三：磁贴网格 ============ */
+function mountTiles(){
+  const root=buildPhone('r3','路线三','大改','cur',
+    '彩色磁贴 + 本周点阵，视觉冲击最强；但计数/测量类操作空间局促，习惯多时翻找效率不如列表。',
+    '点磁贴打卡，看整块点亮');
+  const st=HABITS.map(h=>({...h}));
+
+  function tileHTML(h){
+    const done=isDone(h);
+    let bottom='';
+    if(h.type==='count') bottom=`<div class="trow">
+        <div class="tmini"><i style="width:${Math.min(h.value/h.target*100,100)}%"></i></div>
+        <span class="tnum" style="font-size:11px">${h.value}/${h.target}</span>
+        ${h.value>0?'<button class="tbtn tminus" data-act="minus" data-id="'+h.id+'">−</button>':''}
+        <button class="tbtn" data-act="plus" data-id="${h.id}">＋</button>
+      </div>`;
+    else if(h.type==='measure') bottom=`<div class="trow">
+        <span class="tnum">${h.value}<small style="font-size:9px">${h.unit}</small></span>
+        ${done?'<button class="tundo" data-act="undo" data-id="'+h.id+'">撤销</button>':''}
+        <button class="tbtn" data-act="measure" data-id="${h.id}" style="width:auto;padding:0 9px;font-size:10px;border-radius:99px">记录</button>
+      </div>`;
+    else bottom=dotHTML(h);
+    return `<div class="tile ${done?'lit':''}" data-card="${h.id}" style="--c:${h.color}">
+      <div class="tbadge">${CHECK_SVG}</div>
+      <div class="ticon"><svg class="tig"><use href="#${h.icon}"/></svg></div>
+      <div class="tname">${h.name}${h.streak?` <small style="font-weight:600;font-size:9px;opacity:.85">🔥${h.streak}</small>`:''}</div>
+      <div class="tsub">${h.freq}${h.goal?' · 🎯':''}</div>
+      ${bottom}
+    </div>`;
+  }
+
+  function render(){
+    const c=st.filter(isDone).length,t=st.length;
+    root.innerHTML=`
+      <div class="mprog"><div class="bar"><i style="width:${c/t*100}%"></i></div><span>今日 ${c}/${t}</span></div>
+      <div class="tiles">${st.map(tileHTML).join('')}</div>`;
+  }
+
+  root.addEventListener('click',e=>{
+    const b=e.target.closest('[data-act]');
+    const tile=e.target.closest('.tile');
+    if(!tile)return;
+    const h=st.find(x=>x.id===tile.dataset.card);if(!h)return;
+    if(b){
+      if(b.dataset.act==='plus'){h.value=Math.min(h.value+1,h.target+3);}
+      if(b.dataset.act==='minus'){h.value=Math.max(h.value-1,0);}
+      if(b.dataset.act==='measure'){h.done=!h.done;}
+      if(b.dataset.act==='undo'){h.done=false;}
+    }else if(h.type==='check'){h.done=!h.done;}
+    else return;
+    const wasDone=tile.classList.contains('lit');
+    render();
+    const nt=root.querySelector(`[data-card="${h.id}"]`);
+    if(isDone(h)&&!wasDone){
+      const bd=nt.querySelector('.tbadge');bd.classList.add('ckpop');
+      ripple(nt,h.color);
+    }
+  });
+
+  render();
+}
+
+/* ============ 路线三 · 打磨版 ============ */
+function mountTilesPro(){
+  const root=buildPhone('r3p','路线三 · 打磨版','进阶','rec',
+    '全彩淡底磁贴（未完成也有色感）+ 分段彩色「今日色带」+ 从指尖圆形扩散点亮 + 全部完成的庆祝波浪。',
+    '把待办的 4 块全部点亮看庆祝；点亮后再点一次可取消');
+  const st=HABITS.map(h=>({...h}));
+
+  function headHTML(){
+    const c=st.filter(isDone).length,t=st.length;
+    const all=c===t;
+    return `<div class="phead">
+      <div class="ptitle">${all?'今天全部点亮 <span class="full">✨</span>':`今日进度 <b>${c}</b> / ${t}`}</div>
+      <div class="psub">${all?'完美的一天':'还有 '+(t-c)+' 项待点亮'}</div>
+    </div>`;
+  }
+
+  function tileHTML(h,idx){
+    const done=isDone(h);
+    let bottom='';
+    if(h.type==='count') bottom=`<div class="trow">
+        <div class="tmini"><i style="width:${Math.min(h.value/h.target*100,100)}%"></i></div>
+        <span class="tnum" style="font-size:11px">${h.value}/${h.target}</span>
+        ${h.value>0?'<button class="tbtn tminus" data-act="minus" data-id="'+h.id+'">−</button>':''}
+        <button class="tbtn" data-act="plus" data-id="${h.id}">＋</button>
+      </div>`;
+    else if(h.type==='measure') bottom=`<div class="trow">
+        <span class="tnum">${h.value}<small style="font-size:9px">${h.unit}</small></span>
+        ${done?'<button class="tundo" data-act="undo" data-id="'+h.id+'">撤销</button>':''}
+        <button class="tbtn" data-act="measure" data-id="${h.id}" style="width:auto;padding:0 9px;font-size:10px;border-radius:99px">记录</button>
+      </div>`;
+    else bottom=dotHTML(h);
+    return `<div class="tile soft ${done?'lit':''}" data-card="${h.id}" style="--c:${h.color};animation:rise .55s both;animation-delay:${idx*40}ms">
+      <div class="tbadge">${CHECK_SVG}</div>
+      <div class="ticon"><svg class="tig"><use href="#${h.icon}"/></svg></div>
+      <div class="tname">${h.name}${h.streak?` <small style="font-weight:600;font-size:9px;opacity:.85">🔥${h.streak}</small>`:''}</div>
+      <div class="tsub">${h.freq}</div>
+      ${bottom}
+    </div>`;
+  }
+
+  root.innerHTML=`<div data-head></div>
+    <div class="band">${st.map(h=>`<i data-band="${h.id}"></i>`).join('')}</div>
+    <div class="tiles">${st.map((h,i)=>tileHTML(h,i)).join('')}</div>`;
+
+  function updateHead(){
+    const c=st.filter(isDone).length,t=st.length;
+    root.querySelector('[data-head]').innerHTML=headHTML();
+    const band=root.querySelector('.band');
+    band.classList.toggle('party',c===t);
+    st.forEach((h,i)=>{
+      const seg=band.querySelector(`[data-band="${h.id}"]`);
+      seg.style.background=isDone(h)?h.color:rgba(h.color,.18);
+      seg.style.animationDelay=(i*70)+'ms';
+    });
+    const tiles=root.querySelector('.tiles');
+    if(c===t){
+      st.forEach((h,i)=>{
+        const tl=tiles.querySelector(`[data-card="${h.id}"]`);
+        tl.style.animation=`tbounce .6s ${i*45}ms cubic-bezier(.3,1.5,.5,1)`;
+      });
+      setTimeout(()=>{
+        if(st.filter(isDone).length!==st.length)return;
+        st.forEach(h=>{const tl=tiles.querySelector(`[data-card="${h.id}"]`);if(tl)tl.style.animation='';});
+      },1500);
+    }
+  }
+
+  /* 点亮：颜色从点击点圆形扩散铺满磁贴 */
+  function lightUp(tile,h,x,y){
+    const diag=Math.hypot(tile.offsetWidth,tile.offsetHeight)*2.2;
+    const rv=document.createElement('span');
+    rv.className='reveal';
+    rv.style.cssText=`left:${x}px;top:${y}px;width:${diag}px;height:${diag}px;background:${h.color}`;
+    tile.appendChild(rv);
+    requestAnimationFrame(()=>requestAnimationFrame(()=>rv.classList.add('on')));
+    setTimeout(()=>{
+      tile.classList.add('lit');
+      const bd=tile.querySelector('.tbadge');if(bd)bd.classList.add('ckpop');
+      rv.remove();
+    },520);
+  }
+
+  /* 数值/测量磁贴的底部行就地重画（−/撤销按钮随记录状态显隐） */
+  function refreshBottomRow(tile,h){
+    const row=tile.querySelector('.trow');if(!row)return;
+    if(h.type==='count'){
+      row.innerHTML=`<div class="tmini"><i style="width:${Math.min(h.value/h.target*100,100)}%"></i></div>
+        <span class="tnum" style="font-size:11px">${h.value}/${h.target}</span>
+        ${h.value>0?'<button class="tbtn tminus" data-act="minus" data-id="'+h.id+'">−</button>':''}
+        <button class="tbtn" data-act="plus" data-id="${h.id}">＋</button>`;
+    }else{
+      row.innerHTML=`<span class="tnum">${h.value}<small style="font-size:9px">${h.unit}</small></span>
+        ${isDone(h)?'<button class="tundo" data-act="undo" data-id="'+h.id+'">撤销</button>':''}
+        <button class="tbtn" data-act="measure" data-id="${h.id}" style="width:auto;padding:0 9px;font-size:10px;border-radius:99px">记录</button>`;
+    }
+  }
+
+  root.addEventListener('click',e=>{
+    const b=e.target.closest('[data-act]');
+    const tile=e.target.closest('.tile');
+    if(!tile)return;
+    const h=st.find(x=>x.id===tile.dataset.card);if(!h)return;
+    const rect=tile.getBoundingClientRect();
+    const x=e.clientX-rect.left,y=e.clientY-rect.top;
+    const before=isDone(h);
+    if(b){
+      if(b.dataset.act==='plus'){h.value=Math.min(h.value+1,h.target+3);}
+      if(b.dataset.act==='minus'){h.value=Math.max(h.value-1,0);}
+      if(b.dataset.act==='measure'){h.done=true;}
+      if(b.dataset.act==='undo'){h.done=false;}
+    }else if(h.type==='check'){h.done=!h.done;}
+    else return;
+    const after=isDone(h);
+    if(!before&&after){lightUp(tile,h,x,y);}
+    else if(before&&!after){tile.classList.remove('lit');}
+    if(h.type!=='check'){refreshBottomRow(tile,h);}
+    updateHead();
+  });
+
+  updateHead();
+}
+
+/* ============ 启动 ============ */
+mountCurrent();
+mountList('r1');
+mountList('r2');
+mountTiles();
+mountTilesPro();
+</script>
+</body>
+</html>
