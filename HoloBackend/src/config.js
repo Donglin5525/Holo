@@ -161,9 +161,11 @@ const DEFAULT_CONFIG = {
       provider: process.env.HOLO_THOUGHT_ORG_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
       model: process.env.HOLO_THOUGHT_ORG_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_THOUGHT_ORG_TEMPERATURE ?? 0.2),
-      // 原为 512：DeepSeek 推理模型思考（reasoning）也计入 maxTokens，
-      // 首次冷请求时思考极易吃满 512，导致正式答案一个字未输出（finish_reason=length、content=""）→ App 解析失败。
-      // 调到 2048 给思考留足余量，保证正式 JSON 必定输出。
+      // §reasoning-off: 单条想法分类输出三字段短 JSON，无多步推理需求；输出短、分类质量由端侧低置信待确认池兜底。
+      // 关闭思考（reasoning_effort=none，与 thought_voice_summary 同机制）后 reasoning_tokens 归零，
+      // maxTokens 全部留给正式输出，根治"思考吃满额度导致 content 为空"（线上 ai_call_logs 实测 27% 空响应，8-05 maxTokens 调 2048 后仍复发）。
+      // 若后续观察到低置信比例异常上升，再降级为 "low"。
+      reasoningEffort: process.env.HOLO_THOUGHT_ORG_REASONING_EFFORT ?? "none",
       maxTokens: Number(process.env.HOLO_THOUGHT_ORG_MAX_TOKENS ?? 2048),
     },
     thought_task_extraction: {
