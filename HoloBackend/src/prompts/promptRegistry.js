@@ -1,12 +1,13 @@
 import defaultPrompts from "./defaultPrompts.json" with { type: "json" };
-import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import intentsRegistry from "./intents.json" with { type: "json" };
+import { existsSync, readFileSync, renameSync, unlinkSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import * as Diff from "diff";
 
 const PROMPT_VERSIONS = {
   system_prompt: 4,                 // v4: 删除重复表达边界块与档案规则块，由 Persona Preamble 接管
-  intent_recognition: 24,
+  intent_recognition: 26,           // v26: P3 瘦身——删与分流规则重复的 few-shot 3 条，flexible 摘要与 V23 聚合契约对齐
   memory_insight_generation: 10,    // v10: 按日/周/月/季扩大内容深度，强化证据与情绪推断边界
   replay_digest_consolidation: 1,   // v1: 周期回放历史归纳器，每次回放后把本期并入累计摘要
   analysis_prompt: 5,               // v5: 温档（洞察方法论+few-shot），删重复边界块与输出格式段由 Preamble/契约接管
@@ -58,9 +59,32 @@ const MANAGED_PROMPTS_PATH = join(dirname(fileURLToPath(import.meta.url)), "mana
 let managedPrompts = loadManagedPrompts();
 let _db = null;
 
+/** intents.json（单一事实源）渲染出的意图字段段与例段；defaultPrompts 骨架用 marker 引用 */
+export function buildIntentSection() {
+  const lines = intentsRegistry.intents.map((entry) => `- ${entry.ids.join(" / ")}：${entry.summary}`);
+  return `意图字段：\n${lines.join("\n")}`;
+}
+
+export function buildIntentExamples() {
+  const lines = intentsRegistry.intents.flatMap((entry) => entry.examples.map((example) => `- ${example}`));
+  return `例：\n${lines.join("\n")}`;
+}
+
+export function getIntentsRegistry() {
+  return intentsRegistry;
+}
+
+/** 把骨架中的 {{HOLO_INTENT_SECTION}} / {{HOLO_INTENT_EXAMPLES}} 替换为注册表渲染产物（无 marker 时原样返回） */
+function renderIntentSectionMarkers(content) {
+  if (!content) return content;
+  return content
+    .replaceAll("{{HOLO_INTENT_SECTION}}", buildIntentSection())
+    .replaceAll("{{HOLO_INTENT_EXAMPLES}}", buildIntentExamples());
+}
+
 function applyPromptContract(type, content) {
   if (!content) return content;
-  let normalizedContent = content;
+  let normalizedContent = renderIntentSectionMarkers(content);
   if (type === "agent_loop") {
     normalizedContent = normalizedContent.replace(
       '{"status":"need_tools | need_more_analysis | final_claims","reasoning":"string","toolRequests":[{"id":"string","tool":"string","query":"string","parameters":{}}],',
@@ -246,13 +270,11 @@ export function updatePrompt(type, content, changeNote = null) {
 
   // 存入 SQLite
   if (_db) {
-    try {
-      _db.prepare(
-        'INSERT INTO prompt_versions (prompt_type, version, content, diff_from_prev, source, change_note) VALUES (?, ?, ?, ?, ?, ?)'
-      ).run(type, version, content, diffText, 'managed', changeNote ?? null);
-    } catch (err) {
-      console.error('[PromptRegistry] SQLite 版本写入失败:', err.message);
-    }
+    // 写入失败必须抛出（admin 分支负责兜底 redirect）——吞错会让 SQLite 停留在旧版本，
+    // getPrompt 优先读 SQLite 导致返回 stale 内容且 source 错标，是「恢复默认 500≠302」flaky 的根因之一
+    _db.prepare(
+      'INSERT INTO prompt_versions (prompt_type, version, content, diff_from_prev, source, change_note) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run(type, version, content, diffText, 'managed', changeNote ?? null);
   }
 
   // 同步更新 JSON（兼容降级）
@@ -279,15 +301,11 @@ export function resetPrompt(type) {
 
   const diffText = buildDiff(previous?.content ?? '', defaultContent);
 
-  // 存入 SQLite 作为 reset 版本
+  // 存入 SQLite 作为 reset 版本（失败抛出，理由同 updatePrompt）
   if (_db) {
-    try {
-      _db.prepare(
-        'INSERT INTO prompt_versions (prompt_type, version, content, diff_from_prev, source, change_note) VALUES (?, ?, ?, ?, ?, ?)'
-      ).run(type, version, defaultContent, diffText, 'reset', null);
-    } catch (err) {
-      console.error('[PromptRegistry] SQLite reset 写入失败:', err.message);
-    }
+    _db.prepare(
+      'INSERT INTO prompt_versions (prompt_type, version, content, diff_from_prev, source, change_note) VALUES (?, ?, ?, ?, ?, ?)'
+    ).run(type, version, defaultContent, diffText, 'reset', null);
   }
 
   // 同步清理 JSON managed
@@ -394,11 +412,21 @@ function loadManagedPrompts() {
 
 function saveManagedPrompts() {
   if (Object.keys(managedPrompts).length === 0) {
-    if (existsSync(MANAGED_PROMPTS_PATH)) {
-      unlinkSync(MANAGED_PROMPTS_PATH);
+    try {
+      if (existsSync(MANAGED_PROMPTS_PATH)) {
+        unlinkSync(MANAGED_PROMPTS_PATH);
+      }
+    } catch (err) {
+      // 并行测试/多进程下的 ENOENT 竞态不值得炸掉调用方；写侧真正的失败由原子 rename 兜底
+      console.error('[PromptRegistry] unlink managedPrompts.json 失败:', err.message);
     }
     return;
   }
 
-  writeFileSync(MANAGED_PROMPTS_PATH, `${JSON.stringify(managedPrompts, null, 2)}\n`);
+  // 原子写（带 PID 的临时文件 + rename）：node --test 并行跑多个测试文件时共享此文件，
+  // 非原子写在竞争下会留下半写 JSON，被 loadManagedPrompts 静默吞成 {}（内容丢失）；
+  // 临时文件带 PID 避免两个进程 rename 同一个 tmp 时互相 ENOENT
+  const tmpPath = `${MANAGED_PROMPTS_PATH}.${process.pid}.tmp`;
+  writeFileSync(tmpPath, `${JSON.stringify(managedPrompts, null, 2)}\n`);
+  renameSync(tmpPath, MANAGED_PROMPTS_PATH);
 }

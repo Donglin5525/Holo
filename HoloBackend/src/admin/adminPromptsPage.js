@@ -252,6 +252,9 @@ export function renderAdminShell({ title, active, body }) {
     <nav>
       <a class="${active === "logs" ? "active" : ""}" href="/admin/logs">Logs</a>
       <a class="${active === "prompts" ? "active" : ""}" href="/admin/prompts">Prompts</a>
+      <a href="/admin/reports">举报</a>
+      <a href="/admin/ai-metrics">AI 指标</a>
+      <a href="/admin/feature-flags">功能开关</a>
       <a href="/admin/logout">退出</a>
     </nav>
     <h1>${escapeHtml(title)}</h1>

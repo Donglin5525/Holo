@@ -1,0 +1,181 @@
+{
+  "version": 2,
+  "updatedAt": "2026-08-15",
+  "note": "意图注册表（单一事实源）：promptRegistry.js 据此渲染 intent_recognition 的意图字段段与例段；iOS IntentDescriptor 与本文件同构，由 tests/intent-registry-consistency.test.js 对拍。改 summary/examples 属措辞变更（admin 可热更）；增删意图 id 属结构变更，必须两端同步并过护栏测试。 v2（P3 瘦身）：删与分流规则重复的 few-shot 3 条，flexible_data_query 摘要与 V23 聚合契约对齐。",
+  "intents": [
+    {
+      "ids": [
+        "record_expense"
+      ],
+      "summary": "记支出。填 amount、note、categoryCandidate；明确或相对日期填 transactionDate（YYYY-MM-DD），可选 normalizedCategoryCandidate/semanticCategoryHint。工资+金额走 record_income。",
+      "requiredFields": [
+        "amount"
+      ],
+      "examples": [
+        "\"昨天麦当劳35\" → intent: \"record_expense\", extractedData: { amount: \"35\", note: \"麦当劳\", categoryCandidate: \"麦当劳\", transactionDate: \"2026-06-02\", normalizedCategoryCandidate: \"快餐\", semanticCategoryHint: \"餐饮\" }",
+        "\"给爷爷买了两百块的彩票\" → intent: \"record_expense\", extractedData: { amount: \"200\", note: \"给爷爷买彩票\", categoryCandidate: \"给爷爷买彩票\", semanticCategoryHint: \"人情\" }"
+      ]
+    },
+    {
+      "ids": [
+        "record_income"
+      ],
+      "summary": "记收入。填 amount、note、categoryCandidate；明确或相对日期填 transactionDate（YYYY-MM-DD）。",
+      "requiredFields": [
+        "amount"
+      ],
+      "examples": []
+    },
+    {
+      "ids": [
+        "create_task"
+      ],
+      "summary": "建待办/提醒。填 title；确定日期填 dueDate（YYYY-MM-DD 或 YYYY-MM-DD HH:mm）；用户说了具体钟点（如晚上10点）必须填 reminderDate 和 dueDate 的 HH:mm，时段换 24 小时制。并列待办填 subtasks，title 概括，description 补充。",
+      "requiredFields": [
+        "title"
+      ],
+      "examples": [
+        "\"明天去山姆买牛奶、鸡蛋和纸巾\" → intent: \"create_task\", extractedData: { title: \"去山姆购物\", subtasks: \"买牛奶,买鸡蛋,买纸巾\" }",
+        "\"提醒我今天晚上10点给猫换水\" → intent: \"create_task\", extractedData: { title: \"给猫换水\", dueDate: \"今天 22:00\", reminderDate: \"今天 22:00\" }"
+      ]
+    },
+    {
+      "ids": [
+        "complete_task",
+        "delete_task"
+      ],
+      "summary": "操作已有任务，只填 taskKeyword。",
+      "requiredFields": [
+        "taskKeyword"
+      ],
+      "examples": []
+    },
+    {
+      "ids": [
+        "update_task"
+      ],
+      "summary": "改已有任务，必填 taskKeyword；改什么填什么——改时间填 dueDate（同 create_task），改标题填 title，改优先级填 priority；未提及字段不填。",
+      "requiredFields": [
+        "taskKeyword"
+      ],
+      "examples": []
+    },
+    {
+      "ids": [
+        "modify_task_items"
+      ],
+      "summary": "对最近对话提到的任务增删条目（还要买/不买了/换成）。addItems 填新增、removeItems 填删除（逗号分隔；removeItems 须用现有条目确切名称）；替换=删旧+加新。",
+      "examples": [
+        "\"（最近任务：去山姆购物）还要买可乐\" → intent: \"modify_task_items\", extractedData: { addItems: \"买可乐\" }",
+        "\"（最近任务：去山姆购物）牛奶不买了，换成酸奶\" → intent: \"modify_task_items\", extractedData: { removeItems: \"买牛奶\", addItems: \"买酸奶\" }"
+      ]
+    },
+    {
+      "ids": [
+        "check_in"
+      ],
+      "summary": "习惯打卡，填 habitName / habitValue。",
+      "requiredFields": [
+        "habitName"
+      ],
+      "examples": []
+    },
+    {
+      "ids": [
+        "update_goal_field"
+      ],
+      "summary": "改目标字段（标题/截止日期/说明等）。填 goalTitle、field（title/deadline/summary/desiredOutcome/motivation）、value。",
+      "requiredFields": [
+        "goalTitle",
+        "field",
+        "value"
+      ],
+      "examples": [
+        "\"把英语目标截止日期改成年底\" → intent: \"update_goal_field\", extractedData: { goalTitle: \"英语\", field: \"deadline\", value: \"年底\" }"
+      ]
+    },
+    {
+      "ids": [
+        "link_task_to_goal"
+      ],
+      "summary": "任务关联到目标。填 taskTitle、goalTitle。",
+      "requiredFields": [
+        "taskTitle",
+        "goalTitle"
+      ],
+      "examples": []
+    },
+    {
+      "ids": [
+        "toggle_goal_visibility"
+      ],
+      "summary": "切换目标AI可见性。填 goalTitle、enable（true/false）。",
+      "requiredFields": [
+        "goalTitle",
+        "enable"
+      ],
+      "examples": []
+    },
+    {
+      "ids": [
+        "create_note",
+        "record_mood",
+        "record_weight"
+      ],
+      "summary": "记录笔记、心情、体重。",
+      "requiredFields": [
+        "noteContent",
+        "weight"
+      ],
+      "examples": []
+    },
+    {
+      "ids": [
+        "query_tasks",
+        "query_habits"
+      ],
+      "summary": "查询任务或习惯状态。",
+      "examples": []
+    },
+    {
+      "ids": [
+        "flexible_data_query"
+      ],
+      "summary": "查一个确定的单值——总金额、次数、最近一笔、距今多久、最大/最小一笔、超过N元、关键词花了多少，以及同一批记录的平均每笔/每次/每顿。需要跨时间折算或统计规律的（频率趋势、日均、单位时间花销）不属于本意图。",
+      "examples": []
+    },
+    {
+      "ids": [
+        "query_analysis"
+      ],
+      "summary": "分析、复盘、趋势、结构、占比、总结，以及需要折算/统计规律的——频率、平均每天/每周花多少、日均、单位时间花销。",
+      "examples": [
+        "\"帮我分析最近花销\" → intent: \"query_analysis\", extractedData: { analysisDomain: \"finance\", periodLabel: \"最近\" }",
+        "\"最近状态不好，看看睡眠咋样\" → intent: \"query_analysis\", extractedData: { analysisDomain: \"health\", subDomain: \"sleep\", periodLabel: \"最近\" }"
+      ]
+    },
+    {
+      "ids": [
+        "query"
+      ],
+      "summary": "普通问答或闲聊。",
+      "examples": []
+    },
+    {
+      "ids": [
+        "generate_memory_insight"
+      ],
+      "summary": "记忆回放。",
+      "examples": []
+    },
+    {
+      "ids": [
+        "unknown"
+      ],
+      "summary": "无法判断。",
+      "examples": [
+        "\"嗯...\" → intent: \"unknown\", mode: \"unknown\""
+      ]
+    }
+  ]
+}

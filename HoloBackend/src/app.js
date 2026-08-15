@@ -27,6 +27,7 @@ import { injectServerPrompt } from "./prompts/serverPromptPolicy.js";
 import { buildDeterministicIntentCompletion } from "./intentResponseStabilizer.js";
 import { createEntitlementStore } from "./subscription/entitlementStore.js";
 import { createAcceptanceStore } from "./subscription/acceptanceStore.js";
+import { createFeatureFlagStore } from "./subscription/featureFlagStore.js";
 import { createEntitlementResolver } from "./subscription/entitlementResolver.js";
 import { createAppleReceiptVerifier } from "./subscription/appleReceiptVerifier.js";
 import { HOLO_PLUS_PRODUCT_IDS } from "./subscription/productIds.js";
@@ -113,6 +114,7 @@ export function createApp(overrides = {}) {
   const entitlementStore = config.entitlementStore ?? createEntitlementStore(database.db);
   const acceptanceStore = config.acceptanceStore ?? createAcceptanceStore(database.db);
   const entitlementResolver = createEntitlementResolver({ entitlementStore, acceptanceStore });
+  const featureFlagStore = config.featureFlagStore ?? createFeatureFlagStore(database.db);
   const quotaActionLedgerStore =
     config.quotaActionLedgerStore ?? createQuotaActionLedgerStore(database.db);
   const appleReceiptVerifier =
@@ -166,6 +168,7 @@ export function createApp(overrides = {}) {
   registerAdminRoutes(app, {
     config,
     logStore: adminLogStore,
+    featureFlagStore,
     runTestChat: runAdminTestChat,
     getReleaseStatus: () => buildAdminReleaseStatus(
       config,
@@ -308,7 +311,10 @@ export function createApp(overrides = {}) {
 
   const subscriptionStatusFor = (deviceId) => {
     const entitlement = entitlementResolver.resolve(deviceId);
-    return buildSubscriptionStatus(entitlement, quotaActionLedgerStore);
+    const status = buildSubscriptionStatus(entitlement, quotaActionLedgerStore);
+    // 服务端可控行为开关（admin 改完即生效，客户端下次刷新订阅状态时应用）
+    status.featureFlags = featureFlagStore.getAll();
+    return status;
   };
 
   app.get("/v1/subscription/status", (context) => {

@@ -3,6 +3,7 @@ import { test } from "node:test";
 
 import { createApp } from "../src/app.js";
 import { createDatabase } from "../src/db/database.js";
+import { getIntentsRegistry } from "../src/prompts/promptRegistry.js";
 
 // 每个测试使用独立的内存数据库
 function createTestDatabase() {
@@ -121,7 +122,7 @@ test("启动时自动把默认 Prompt 登记到版本历史", async () => {
   assert.match(historyHtml, /自动登记默认 Prompt 基线/);
 });
 
-test("intent_recognition 默认 Prompt 已瘦身并固定个人状态路由（v24）", async () => {
+test("intent_recognition 默认 Prompt 已瘦身并固定个人状态路由（v26）", async () => {
   const app = createTestApp();
 
   const response = await app.request("/v1/prompts/intent_recognition");
@@ -129,12 +130,32 @@ test("intent_recognition 默认 Prompt 已瘦身并固定个人状态路由（v2
   const prompt = await response.json();
 
   // 版本号
-  assert.equal(prompt.version, 24);
+  assert.equal(prompt.version, 26);
 
   // 长度验证：Router 允许补充必要规则，但仍防止重新膨胀为长 prompt
-  // 红线 5100：update_task 补全了改任务字段映射 + goal 写意图（update_goal_field/link_task_to_goal/toggle_goal_visibility）；
-  // modify_task_items 新增对话内任务条目增删意图（定义 + 2 条 few-shot），属于功能必需内容，当前 5005
-  assert.ok(prompt.content.length < 5100, `prompt 长度 ${prompt.content.length} 超过 5100`);
+  // 红线 4900：v26 P3 瘦身（删与分流规则重复的 few-shot 3 条 + flexible 摘要对齐 V23），当前 ~4745
+  assert.ok(prompt.content.length < 4900, `prompt 长度 ${prompt.content.length} 超过 4900`);
+
+  // 注册表一致性（v25 起「防漏新」）：渲染产物必须包含 intents.json 全部意图与摘要，
+  // 且不含任何未注册意图名——新增意图忘了登记 intents.json 会在这里红
+  const registry = getIntentsRegistry();
+  for (const entry of registry.intents) {
+    for (const id of entry.ids) {
+      assert.ok(prompt.content.includes(id), `渲染产物缺少注册意图 ${id}`);
+    }
+    assert.ok(prompt.content.includes(entry.summary), `渲染产物缺少意图 ${entry.ids[0]} 的摘要`);
+    for (const example of entry.examples) {
+      assert.ok(prompt.content.includes(example), `渲染产物缺少意图 ${entry.ids[0]} 的例句`);
+    }
+  }
+  const flatIds = registry.intents.flatMap((entry) => entry.ids);
+  const knownUnregistered = ["installment_enabled", "create_reminder", "update_habit", "delete_goal", "query_goals", "record_health"];
+  for (const name of knownUnregistered) {
+    assert.ok(!flatIds.includes(name));
+    assert.ok(!prompt.content.includes(`"${name}"`), `渲染产物出现未注册意图 ${name}`);
+  }
+  // 骨架 marker 必须被渲染（serve 出去的内容不允许残留 {{...}} 占位符）
+  assert.ok(!prompt.content.includes("{{HOLO_INTENT"), "骨架 marker 未被渲染");
 
   // 保留的核心字段
   assert.match(prompt.content, /note/);

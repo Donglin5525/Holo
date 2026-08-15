@@ -220,6 +220,17 @@ const MIGRATIONS = [
         ON content_reports(device_id);
     `,
   },
+  {
+    id: 12,
+    description: '创建服务端可控功能开关表（P2 路由急停，经 subscription/status 下发）',
+    up: `
+      CREATE TABLE IF NOT EXISTS feature_flags (
+        flag TEXT NOT NULL UNIQUE,
+        enabled INTEGER NOT NULL CHECK (enabled IN (0, 1)),
+        updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+      );
+    `,
+  },
 ];
 
 function computeChecksum(sql) {
