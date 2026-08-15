@@ -27,13 +27,13 @@ enum AnniversaryType: String, CaseIterable, Codable {
         }
     }
 
-    /// 默认图标（全部使用 iOS 15+ 确认存在的 SF Symbol）
-    nonisolated var defaultIcon: String {
+    /// 新建默认图标（emoji）：存量数据的 SF Symbol 图标不迁移，渲染层兼容两者
+    nonisolated var defaultEmoji: String {
         switch self {
-        case .birthday: return "gift"
-        case .anniversary: return "heart"
-        case .countdown: return "alarm"
-        case .milestone: return "flag"
+        case .birthday: return "🎂"
+        case .anniversary: return "❤️"
+        case .countdown: return "⏳"
+        case .milestone: return "🚩"
         }
     }
 
@@ -99,7 +99,7 @@ extension Anniversary {
         item.title = title
         item.date = date
         item.type = type.rawValue
-        item.icon = icon ?? type.defaultIcon
+        item.icon = icon ?? type.defaultEmoji
         item.color = color ?? type.defaultColor
         item.note = note
         item.isPinned = isPinned
@@ -262,7 +262,7 @@ extension Anniversary {
         item.title = title
         item.date = date
         item.type = type.rawValue
-        item.icon = type.defaultIcon
+        item.icon = type.defaultEmoji
         item.color = type.defaultColor
         item.note = nil
         item.isPinned = false

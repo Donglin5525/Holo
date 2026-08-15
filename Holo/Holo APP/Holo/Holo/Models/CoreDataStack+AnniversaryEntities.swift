@@ -51,7 +51,7 @@ extension CoreDataStack {
         icon.name = "icon"
         icon.attributeType = .stringAttributeType
         icon.isOptional = false
-        icon.defaultValue = AnniversaryType.countdown.defaultIcon
+        icon.defaultValue = AnniversaryType.countdown.defaultEmoji
         attributes.append(icon)
 
         let color = NSAttributeDescription()

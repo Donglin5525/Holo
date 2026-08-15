@@ -10,7 +10,9 @@ import CoreData
 
 struct AnniversaryDetailView: View {
 
-    let anniversary: Anniversary
+    // @ObservedObject：NSManagedObject 属性变化自动驱动刷新，
+    // 编辑 sheet 保存后详情页能立即反映新数据
+    @ObservedObject var anniversary: Anniversary
     var onBack: () -> Void
 
     private var repository: AnniversaryRepository { AnniversaryRepository.shared }
@@ -34,7 +36,7 @@ struct AnniversaryDetailView: View {
         }
         .preferredColorScheme(.dark)
         .navigationBarHidden(true)
-        .swipeBackToDismiss {
+        .swipeBackToDismiss(ignoreNavigationStack: true) {
             onBack()
         }
         .onAppear {
@@ -42,6 +44,12 @@ struct AnniversaryDetailView: View {
             withAnimation(.easeInOut(duration: 3.0).repeatForever(autoreverses: true)) { orbDrift = 1.0 }
             withAnimation(.linear(duration: 60).repeatForever(autoreverses: false)) { arcRotation = 360 }
             withAnimation(.easeOut(duration: 0.9).delay(0.2)) { numberRevealed = true }
+        }
+        // 纪念日被删除（如在编辑表单里删除）时自动关闭详情页，避免展示已删数据
+        .onReceive(NotificationCenter.default.publisher(for: .anniversaryDataDidChange)) { _ in
+            if anniversary.isSoftDeleted || anniversary.isArchived {
+                onBack()
+            }
         }
         .sheet(isPresented: $showEdit) {
             AddAnniversarySheet(editingAnniversary: anniversary)
@@ -98,10 +106,17 @@ struct AnniversaryDetailView: View {
 
     private var centerContent: some View {
         VStack(spacing: 0) {
-            // 类型图标
-            Image(systemName: anniversary.icon)
-                .font(.system(size: 34, weight: .light))
-                .foregroundColor(.white.opacity(0.85))
+            // 类型图标（存量 SF Symbol / 新默认 emoji 兼容）
+            Group {
+                if EmojiCatalog.isEmojiIcon(anniversary.icon) {
+                    Text(anniversary.icon)
+                        .font(.system(size: 42))
+                } else {
+                    Image(systemName: anniversary.icon)
+                        .font(.system(size: 34, weight: .light))
+                        .foregroundColor(.white.opacity(0.85))
+                }
+            }
 
             // 名称
             Text(anniversary.title)

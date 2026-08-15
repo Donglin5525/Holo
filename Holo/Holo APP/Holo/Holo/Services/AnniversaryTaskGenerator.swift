@@ -28,16 +28,18 @@ final class AnniversaryTaskGenerator {
     /// 扫描并生成所有「该生成但未生成」的纪念日任务。
     /// 幂等：同一纪念日同一周期只生成一条。
     /// 使用主线程 viewContext（与 TodoRepository 一致），整体由调用方 await。
-    /// - Parameter reference: 参考日期（默认今天），用于判断"是否到达生成时机"
+    /// - Parameters:
+    ///   - reference: 参考日期（默认今天），用于判断"是否到达生成时机"
+    ///   - scope: 限定只扫描这些纪念日（默认全部）。单点刷新用，避免全量扫描
     /// - Returns: 本次新生成的任务数量
     @discardableResult
-    func generateDueTasks(asOf reference: Date = Date()) async -> Int {
+    func generateDueTasks(asOf reference: Date = Date(), scope: [Anniversary]? = nil) async -> Int {
         let todoRepo = TodoRepository.shared
         let anniversaryRepo = AnniversaryRepository.shared
         let context = todoRepo.context
         var generated = 0
 
-        let anniversaries = anniversaryRepo.allAnniversaries()
+        let anniversaries = (scope ?? anniversaryRepo.allAnniversaries())
             .filter { $0.reminderEnabled && $0.generateTask }
 
         for anniversary in anniversaries {
@@ -163,6 +165,68 @@ final class AnniversaryTaskGenerator {
         return desc
     }
 
+    // MARK: - 源数据变更同步
+
+    /// 纪念日数据变更后，同步其关联的未完成任务。
+    /// 原则：纪念日是源数据，任务是投影——未完成任务是「计划」，跟着源走；
+    /// 已完成任务是「历史」，永不重排。
+    /// - 不再生成任务（提醒关闭/同步生成关闭）→ 软删全部未完成任务
+    /// - 时机字段变更（日期/类型/每年重复）→ 软删未完成任务并立即按新配置重判生成
+    /// - 生成开关刚打开 → 立即重判生成（不用等下次进入列表触发）
+    /// - 仅文案变更（名称/图标/备注）→ 未完成任务就地刷新标题与描述，任务本身不动
+    func syncTasks(
+        for anniversary: Anniversary,
+        copyChanged: Bool,
+        timingChanged: Bool,
+        generationTurnedOn: Bool
+    ) async {
+        let context = TodoRepository.shared.context
+        let openTasks = openTasks(for: anniversary.id, in: context)
+        let willGenerate = anniversary.reminderEnabled && anniversary.generateTask
+
+        if !willGenerate {
+            await softDelete(openTasks, in: context)
+            return
+        }
+
+        if timingChanged {
+            await softDelete(openTasks, in: context)
+            await generateDueTasks(scope: [anniversary])
+            return
+        }
+
+        if generationTurnedOn {
+            await generateDueTasks(scope: [anniversary])
+            return
+        }
+
+        if copyChanged && !openTasks.isEmpty {
+            let title = taskTitle(for: anniversary)
+            let desc = taskDescription(for: anniversary)
+            for task in openTasks {
+                task.title = title
+                task.desc = desc
+            }
+            try? context.save()
+            DispatchQueue.main.async {
+                NotificationCenter.default.post(name: .todoDataDidChange, object: nil)
+            }
+        }
+    }
+
+    /// 某纪念日所有未完成、未删除的关联任务
+    private func openTasks(
+        for anniversaryId: UUID,
+        in context: NSManagedObjectContext
+    ) -> [TodoTask] {
+        let request = TodoTask.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "sourceAnniversaryId == %@ AND deletedFlag == NO AND completed == NO",
+            anniversaryId as CVarArg
+        )
+        return (try? context.fetch(request)) ?? []
+    }
+
     // MARK: - 清理
 
     /// 删除某个纪念日的所有关联任务（删除纪念日时可选调用）。
@@ -174,15 +238,19 @@ final class AnniversaryTaskGenerator {
             anniversaryId as CVarArg
         )
         guard let tasks = try? context.fetch(request) as [TodoTask] else { return }
+        await softDelete(tasks, in: context)
+    }
+
+    /// 软删除一批任务（移入回收站）并广播待办数据变更
+    private func softDelete(_ tasks: [TodoTask], in context: NSManagedObjectContext) async {
+        guard !tasks.isEmpty else { return }
         for task in tasks {
             task.deletedFlag = true
             task.deletedAt = Date()
         }
         try? context.save()
-        if !tasks.isEmpty {
-            DispatchQueue.main.async {
-                NotificationCenter.default.post(name: .todoDataDidChange, object: nil)
-            }
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: .todoDataDidChange, object: nil)
         }
     }
 }

@@ -21,6 +21,8 @@ struct AddAnniversarySheet: View {
     @State private var date: Date = Date().addingTimeInterval(60 * 60 * 24 * 30)
     @State private var selectedType: AnniversaryType = .countdown
     @State private var customColor: String? = nil
+    @State private var customIcon: String? = nil
+    @State private var showIconPicker = false
     @State private var note: String = ""
     @State private var repeatYearly: Bool = false
     @State private var reminderEnabled: Bool = false
@@ -31,6 +33,8 @@ struct AddAnniversarySheet: View {
     @State private var hasLoadedInitial = false
     @State private var hasUserTouchedRepeat = false
     @State private var isSaving = false
+    @State private var showDismissAlert = false
+    @State private var showDeleteAlert = false
 
     private var isEditMode: Bool { editingAnniversary != nil }
 
@@ -55,7 +59,7 @@ struct AddAnniversarySheet: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    Button("取消") { dismiss() }
+                    Button("取消") { requestDismiss() }
                         .foregroundColor(.holoTextSecondary)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
@@ -75,6 +79,28 @@ struct AddAnniversarySheet: View {
             }
         }
         .onAppear { populateIfEditing() }
+        // 右滑返回与其他表单 sheet（AddTaskSheet/AddHabitSheet）保持一致；
+        // ignoreNavigationStack：本 sheet 无 push 层级，避免被窗口内其他 push 的
+        // NavigationStack 让位导致手势失效（同 AddTaskSheet）
+        .swipeBackToDismiss(ignoreNavigationStack: true) {
+            requestDismiss()
+        }
+        .unsavedChangesAlert(isPresented: $showDismissAlert) {
+            dismiss()
+        }
+        .alert("删除纪念日", isPresented: $showDeleteAlert) {
+            Button("删除纪念日及关联任务", role: .destructive) {
+                performDelete(deleteTasks: true)
+            }
+            Button("仅删除纪念日", role: .destructive) {
+                performDelete(deleteTasks: false)
+            }
+            Button("取消", role: .cancel) {}
+        } message: {
+            Text("这个纪念日可能已生成关联任务，你想如何处理？")
+        }
+        // 始终拦截系统 Sheet 下拉关闭手势，统一交给页面内逻辑判断是否需要确认。
+        .interactiveDismissDisabled()
     }
 
     // MARK: - 块1：名称
@@ -117,8 +143,88 @@ struct AddAnniversarySheet: View {
                 ForEach(themeColorOptions, id: \.hex) { option in
                     colorDot(option)
                 }
+
+                if customColor != nil {
+                    Button {
+                        customColor = nil
+                    } label: {
+                        Text("恢复默认")
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoPrimary)
+                    }
+                }
             }
             .padding(.top, HoloSpacing.xs)
+
+            // 图标选择行（未手选时跟随类型默认）
+            iconRow
+        }
+    }
+
+    private var effectiveIcon: String {
+        customIcon ?? selectedType.defaultEmoji
+    }
+
+    private var iconRow: some View {
+        HStack(spacing: HoloSpacing.md) {
+            Button {
+                showIconPicker = true
+            } label: {
+                HStack(spacing: HoloSpacing.md) {
+                    Group {
+                        if EmojiCatalog.isEmojiIcon(effectiveIcon) {
+                            Text(effectiveIcon)
+                                .font(.system(size: 22))
+                        } else {
+                            Image(systemName: effectiveIcon)
+                                .font(.system(size: 18, weight: .medium))
+                                .foregroundColor(Color(hex: effectiveColor))
+                        }
+                    }
+                    .frame(width: 40, height: 40)
+                    .background(
+                        Circle().fill(Color(hex: effectiveColor).opacity(0.12))
+                    )
+
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("图标")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextPrimary)
+                        Text(customIcon == nil ? "默认（按类型）" : "已自定义")
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoTextSecondary)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12))
+                        .foregroundColor(.holoTextSecondary)
+                }
+            }
+            .buttonStyle(.plain)
+
+            if customIcon != nil {
+                Button {
+                    customIcon = nil
+                } label: {
+                    Text("恢复默认")
+                        .font(.system(size: 12))
+                        .foregroundColor(.holoPrimary)
+                }
+            }
+        }
+        .padding(HoloSpacing.md)
+        .background(Color.holoCardBackground)
+        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.md)
+                .stroke(Color.holoBorder, lineWidth: 1)
+        )
+        .sheet(isPresented: $showIconPicker) {
+            EmojiIconPickerSheet(currentIcon: effectiveIcon) { emoji in
+                customIcon = emoji
+            }
         }
     }
 
@@ -133,13 +239,16 @@ struct AddAnniversarySheet: View {
         } label: {
             VStack(spacing: 6) {
                 ZStack {
+                    // emoji 自带颜色，选中态用浅底+描边替代实色底，避免彩色压彩色
                     Circle()
-                        .fill(isSelected ? Color(hex: effectiveColor) : Color.holoCardBackground)
+                        .fill(isSelected ? Color(hex: effectiveColor).opacity(0.15) : Color.holoCardBackground)
                         .frame(width: 44, height: 44)
+                        .overlay(
+                            Circle().stroke(isSelected ? Color(hex: effectiveColor) : .clear, lineWidth: 1.5)
+                        )
 
-                    Image(systemName: type.defaultIcon)
-                        .font(.system(size: 18, weight: .medium))
-                        .foregroundColor(isSelected ? .white : .holoTextPrimary)
+                    Text(type.defaultEmoji)
+                        .font(.system(size: 20))
                 }
                 Text(type.displayName)
                     .font(.system(size: 11, weight: .medium))
@@ -247,18 +356,11 @@ struct AddAnniversarySheet: View {
             .background(Color.holoCardBackground)
             .clipShape(RoundedRectangle(cornerRadius: HoloRadius.lg))
 
-            // 编辑模式下的删除按钮
+            // 编辑模式下的删除按钮（与列表删除一致：确认 + 关联任务处理）
             if isEditMode {
                 Button(role: .destructive) {
                     guard !isSaving else { return }
-                    if let item = editingAnniversary {
-                        isSaving = true
-                        Task {
-                            try? await repository.softDeleteAnniversary(item)
-                            isSaving = false
-                            dismiss()
-                        }
-                    }
+                    showDeleteAlert = true
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: "trash")
@@ -326,6 +428,56 @@ struct AddAnniversarySheet: View {
         !title.trimmingCharacters(in: .whitespaces).isEmpty
     }
 
+    /// 统一退出入口：取消 / 右滑共用，有未保存修改时先确认
+    private func requestDismiss() {
+        if hasUnsavedChanges {
+            showDismissAlert = true
+        } else {
+            dismiss()
+        }
+    }
+
+    /// 是否有未保存的修改（对齐 AddHabitSheet 惯例）
+    private var hasUnsavedChanges: Bool {
+        if let item = editingAnniversary {
+            // 编辑模式：与原始数据逐项对比（icon 回填规则见 populateIfEditing）
+            let baseIcon = ["gift", "heart", "alarm", "flag"].contains(item.icon) ? nil : item.icon
+            let baseColor = item.color != item.anniversaryType.defaultColor ? item.color : nil
+            return title != item.title
+                || !Calendar.current.isDate(date, inSameDayAs: item.date)
+                || selectedType != item.anniversaryType
+                || customColor != baseColor
+                || customIcon != baseIcon
+                || note != (item.note ?? "")
+                || repeatYearly != item.repeatYearly
+                || reminderEnabled != item.reminderEnabled
+                || reminderDaysBefore != item.reminderDaysBefore
+                || generateTask != item.generateTask
+        }
+        // 新增模式：输入过任何内容即视为有修改
+        return !title.trimmingCharacters(in: .whitespaces).isEmpty
+            || !note.isEmpty
+            || customColor != nil
+            || customIcon != nil
+            || selectedType != .countdown
+            || repeatYearly
+            || reminderEnabled
+    }
+
+    /// 删除（软删进入回收站），可选同时软删已生成的关联任务 —— 与列表页删除行为一致
+    private func performDelete(deleteTasks: Bool) {
+        guard let item = editingAnniversary, !isSaving else { return }
+        isSaving = true
+        Task {
+            if deleteTasks {
+                await AnniversaryTaskGenerator.shared.deleteTasks(for: item.id)
+            }
+            try? await repository.softDeleteAnniversary(item)
+            isSaving = false
+            dismiss()
+        }
+    }
+
     private var effectiveColor: String {
         customColor ?? selectedType.defaultColor
     }
@@ -343,8 +495,11 @@ struct AddAnniversarySheet: View {
                         title: title.trimmingCharacters(in: .whitespaces),
                         date: date,
                         type: selectedType,
-                        color: customColor,
-                        note: note.isEmpty ? nil : note,
+                        icon: customIcon ?? selectedType.defaultEmoji,
+                        // nil 在仓库层语义是「不修改」，编辑路径必须物化出最终值，
+                        // 否则「恢复默认」（颜色/清空备注）永远存不进去
+                        color: customColor ?? selectedType.defaultColor,
+                        note: note,
                         isPinned: isPinned,
                         repeatYearly: repeatYearly,
                         reminderEnabled: reminderEnabled,
@@ -356,6 +511,7 @@ struct AddAnniversarySheet: View {
                         title: title.trimmingCharacters(in: .whitespaces),
                         date: date,
                         type: selectedType,
+                        icon: customIcon,
                         color: customColor,
                         note: note.isEmpty ? nil : note,
                         isPinned: isPinned,
@@ -385,6 +541,9 @@ struct AddAnniversarySheet: View {
         date = item.date
         selectedType = item.anniversaryType
         customColor = item.color != item.anniversaryType.defaultColor ? item.color : nil
+        // 老默认 SF Symbol（gift/heart/alarm/flag）视为「默认」，编辑保存后自然升级为类型默认 emoji；
+        // 用户手选的 emoji 与其他自定义图标名原样保留
+        customIcon = ["gift", "heart", "alarm", "flag"].contains(item.icon) ? nil : item.icon
         note = item.note ?? ""
         repeatYearly = item.repeatYearly
         hasUserTouchedRepeat = true

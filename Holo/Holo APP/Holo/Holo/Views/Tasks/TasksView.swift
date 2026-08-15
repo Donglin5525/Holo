@@ -114,9 +114,11 @@ struct TasksView: View {
     private func todoTabButton(_ tab: TodoTab) -> some View {
         Button {
             if tab.isAddButton {
-                // 纪念日 Tab 下底部 + 不弹 sheet：纪念日页面自带右上角 + 按钮，
-                // 避免 TasksView 与子视图各挂一个 sheet 导致不可见层拦截触摸
-                if selectedTab != .anniversary {
+                if selectedTab == .anniversary {
+                    // 纪念日 Tab：转发给纪念日页自带的新增 sheet（TasksView 若也挂 sheet
+                    // 会与子视图的 sheet 叠层，导致不可见层拦截触摸）
+                    NotificationCenter.default.post(name: .anniversaryRequestAdd, object: nil)
+                } else {
                     showAddTask = true
                 }
             } else {

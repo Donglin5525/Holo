@@ -16,6 +16,8 @@ import os.log
 extension Notification.Name {
     /// 纪念日数据变更通知（新增/编辑/删除时发送）
     static let anniversaryDataDidChange = Notification.Name("anniversaryDataDidChange")
+    /// 请求打开新增纪念日表单（TasksView 底部 Tab「+」在纪念日页转发，避免双层 sheet 冲突）
+    static let anniversaryRequestAdd = Notification.Name("anniversaryRequestAdd")
 }
 
 // MARK: - AnniversaryRepository
@@ -175,12 +177,17 @@ class AnniversaryRepository {
         reminderDaysBefore: Int16? = nil,
         generateTask: Bool? = nil
     ) async throws {
+        // 变更检测基线（赋值前记录），供保存后同步关联任务
+        let oldTitle = item.title, oldIcon = item.icon, oldNote = item.note ?? ""
+        let oldDate = item.date, oldType = item.type, oldRepeatYearly = item.repeatYearly
+        let oldWillGenerate = item.reminderEnabled && item.generateTask
+
         if let title = title { item.title = title }
         if let date = date { item.date = date }
         if let type = type { item.type = type.rawValue }
         if let icon = icon { item.icon = icon }
         if let color = color { item.color = color }
-        if let note = note { item.note = note }
+        if let note = note { item.note = note.isEmpty ? nil : note }
         if let isPinned = isPinned { item.isPinned = isPinned }
         if let repeatYearly = repeatYearly { item.repeatYearly = repeatYearly }
         if let reminderEnabled = reminderEnabled { item.reminderEnabled = reminderEnabled }
@@ -196,6 +203,21 @@ class AnniversaryRepository {
             let payload = TodoNotificationService.AnniversaryReminderPayload(item)
             Task { await TodoNotificationService.shared.scheduleAnniversaryReminder(for: payload) }
         }
+        // 同步已生成的关联任务（已完成的历史不动，未完成的「计划」跟着新数据走）。
+        // syncTasks 自身幂等：无变更时各分支都不会产生写操作。
+        let copyChanged = (title.map { $0 != oldTitle } ?? false)
+            || (icon.map { $0 != oldIcon } ?? false)
+            || (note.map { $0 != oldNote } ?? false)
+        let timingChanged = (date.map { !Calendar.current.isDate($0, inSameDayAs: oldDate) } ?? false)
+            || (type.map { $0.rawValue != oldType } ?? false)
+            || (repeatYearly.map { $0 != oldRepeatYearly } ?? false)
+        let generationTurnedOn = item.reminderEnabled && item.generateTask && !oldWillGenerate
+        await AnniversaryTaskGenerator.shared.syncTasks(
+            for: item,
+            copyChanged: copyChanged,
+            timingChanged: timingChanged,
+            generationTurnedOn: generationTurnedOn
+        )
     }
 
     /// 软删除纪念日（移入回收站）

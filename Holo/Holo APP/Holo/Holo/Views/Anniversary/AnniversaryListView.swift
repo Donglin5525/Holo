@@ -66,6 +66,10 @@ struct AnniversaryListView: View {
         .onReceive(NotificationCenter.default.publisher(for: .anniversaryDataDidChange)) { _ in
             refreshList()
         }
+        // TasksView 底部 Tab「+」转发的新增请求
+        .onReceive(NotificationCenter.default.publisher(for: .anniversaryRequestAdd)) { _ in
+            sheetTarget = .add
+        }
         .sheet(item: $sheetTarget) { target in
             switch target {
             case .add:
@@ -103,11 +107,12 @@ struct AnniversaryListView: View {
 
     private var headerView: some View {
         HStack {
+            // 44×44 触控区域，与 TaskListView/TaskStatsView 一致
             Button(action: onBack) {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(.holoTextPrimary)
-                    .frame(width: 32, height: 32)
+                    .frame(width: 44, height: 44)
             }
 
             Text("纪念日")
@@ -120,7 +125,7 @@ struct AnniversaryListView: View {
                 Image(systemName: "plus")
                     .font(.system(size: 18, weight: .semibold))
                     .foregroundColor(.holoPrimary)
-                    .frame(width: 32, height: 32)
+                    .frame(width: 44, height: 44)
             }
         }
         .padding(.horizontal, HoloSpacing.md)
