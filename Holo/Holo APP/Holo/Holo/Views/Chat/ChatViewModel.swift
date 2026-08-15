@@ -898,6 +898,15 @@ final class ChatViewModel: ObservableObject {
 
         let itemId = batch.items[pendingIndex].id
         guard !confirmingItemIds.contains(itemId) else { return }
+
+        // 分期入账为 Plus 权益：非 Plus 先弹付费墙，购买成功后自动续上本次确认
+        if batch.items[pendingIndex].renderData?["installmentEnabled"] == "true",
+           !HoloEntitlementState.shared.isPlusActive {
+            HoloPlusActionCoordinator.shared.requirePlus(context: .financeInstallment) { [weak self] in
+                self?.confirmPendingTransaction(from: message)
+            }
+            return
+        }
         confirmingItemIds.insert(itemId)
 
         Task { @MainActor [weak self] in

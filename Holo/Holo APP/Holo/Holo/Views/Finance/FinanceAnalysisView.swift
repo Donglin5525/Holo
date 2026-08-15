@@ -115,11 +115,23 @@ struct FinanceAnalysisView: View {
 
     private func tabButton(_ tab: AnalysisTab) -> some View {
         Button {
+            // 跨月类别对比为 Plus 权益（统计增强）：非 Plus 弹付费墙，不切换
+            guard tab != .category || HoloEntitlementState.shared.isPlusActive else {
+                HoloPlusActionCoordinator.shared.requirePlus(context: .advancedStatistics)
+                return
+            }
             withAnimation(.easeInOut(duration: 0.2)) {
                 selectedTab = tab
             }
         } label: {
-            Text(tab.rawValue)
+            HStack(spacing: 3) {
+                Text(tab.rawValue)
+                if tab == .category && !HoloEntitlementState.shared.isPlusActive {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 8))
+                        .foregroundColor(.holoTextSecondary.opacity(0.6))
+                }
+            }
                 .font(.holoCaption)
                 .fontWeight(selectedTab == tab ? .semibold : .medium)
                 .foregroundColor(selectedTab == tab ? .holoPrimary : .holoTextSecondary)

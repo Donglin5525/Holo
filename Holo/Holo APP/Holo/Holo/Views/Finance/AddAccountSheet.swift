@@ -328,9 +328,22 @@ struct AddAccountSheet: View {
     /// 统一账单日/还款日的操作区宽度，避免日期文字长度变化造成按钮错位。
     private func dayStepperControl(value: Binding<Int>) -> some View {
         HStack(spacing: HoloSpacing.sm) {
-            Stepper("每月 \(value.wrappedValue) 号", value: value, in: 1...31)
-                .labelsHidden()
+            // 周期账单为 Plus 权益：非 Plus 只读展示存量值，点击升级
+            if HoloEntitlementState.shared.isPlusActive {
+                Stepper("每月 \(value.wrappedValue) 号", value: value, in: 1...31)
+                    .labelsHidden()
+                    .frame(width: 92, height: 36)
+            } else {
+                Button {
+                    HoloPlusActionCoordinator.shared.requirePlus(context: .billingCycle)
+                } label: {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 12))
+                        .foregroundColor(.holoTextSecondary.opacity(0.6))
+                }
+                .buttonStyle(.plain)
                 .frame(width: 92, height: 36)
+            }
 
             Text("每月 \(value.wrappedValue) 号")
                 .font(.system(size: 14, weight: .medium))

@@ -86,7 +86,7 @@ struct AccountDetailView: View {
                     }
 
                     Button {
-                        showBudgetSettings = true
+                        gateBudget { showBudgetSettings = true }
                     } label: {
                         Label("预算设置", systemImage: "chart.line.uptrend.xyaxis")
                     }
@@ -398,7 +398,7 @@ struct AccountDetailView: View {
 
     private var budgetEmptyCard: some View {
         Button {
-            showBudgetSettings = true
+            gateBudget { showBudgetSettings = true }
         } label: {
             HStack(spacing: HoloSpacing.md) {
                 Image(systemName: "chart.line.uptrend.xyaxis")
@@ -447,8 +447,10 @@ struct AccountDetailView: View {
                     .foregroundColor(.holoTextSecondary)
                 Spacer()
                 Button {
-                    editingCategoryBudget = nil
-                    showCategoryBudgetSheet = true
+                    gateBudget {
+                        editingCategoryBudget = nil
+                        showCategoryBudgetSheet = true
+                    }
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "plus")
@@ -484,11 +486,22 @@ struct AccountDetailView: View {
         .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
     }
 
+    /// 预算为 Plus 权益：非 Plus 弹付费墙，购买成功后回开原入口；存量预算展示不受影响
+    private func gateBudget(_ open: @escaping () -> Void) {
+        guard HoloEntitlementState.shared.isPlusActive else {
+            HoloPlusActionCoordinator.shared.requirePlus(context: .budget, resume: open)
+            return
+        }
+        open()
+    }
+
     /// 单个分类预算行
     private func categoryBudgetRow(budget: Budget, status: BudgetStatus) -> some View {
         Button {
-            editingCategoryBudget = budget
-            showCategoryBudgetSheet = true
+            gateBudget {
+                editingCategoryBudget = budget
+                showCategoryBudgetSheet = true
+            }
         } label: {
             HStack(spacing: HoloSpacing.md) {
                 // 分类图标

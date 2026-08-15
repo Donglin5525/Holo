@@ -116,6 +116,13 @@ extension AddTransactionSheet {
     /// 分期设置行（点击弹窗）
     private var installmentRow: some View {
         Button {
+            // 分期为 Plus 权益：非 Plus 弹付费墙，购买成功后回开分期设置
+            guard HoloEntitlementState.shared.isPlusActive else {
+                HoloPlusActionCoordinator.shared.requirePlus(context: .financeInstallment) {
+                    showInstallmentSheet = true
+                }
+                return
+            }
             withAnimation(.easeOut(duration: 0.2)) {
                 showInstallmentSheet = true
             }

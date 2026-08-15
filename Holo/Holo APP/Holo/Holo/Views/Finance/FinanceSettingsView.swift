@@ -215,12 +215,28 @@ private extension FinanceSettingsView {
 
                     Spacer()
 
-                    Stepper(
-                        "\(periodSettings.billingCycleStartDay) 号",
-                        value: $periodSettings.billingCycleStartDay,
-                        in: 1...31
-                    )
-                    .labelsHidden()
+                    // 周期账单为 Plus 权益：非 Plus 只读展示当前生效值，点击升级
+                    if HoloEntitlementState.shared.isPlusActive {
+                        Stepper(
+                            "\(periodSettings.billingCycleStartDay) 号",
+                            value: $periodSettings.billingCycleStartDay,
+                            in: 1...31
+                        )
+                        .labelsHidden()
+                    } else {
+                        Button {
+                            HoloPlusActionCoordinator.shared.requirePlus(context: .billingCycle)
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text("\(periodSettings.billingCycleStartDay) 号")
+                                    .font(.system(size: 15))
+                                Image(systemName: "lock.fill")
+                                    .font(.system(size: 11))
+                            }
+                            .foregroundColor(.holoTextSecondary.opacity(0.6))
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
                 .padding(HoloSpacing.md)
             }
