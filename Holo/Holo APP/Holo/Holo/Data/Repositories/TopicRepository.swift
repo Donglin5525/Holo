@@ -345,6 +345,7 @@ final class TopicRepository {
     }
 
     /// 把观点移入主题（手动标签 manual/inline 不动，spec 决策）
+    /// 用户手动归档视为完全确认，置信度置 1（不进待确认池），AI 理由清空
     func assign(thoughtId: UUID, toTopic topicId: UUID) throws {
         guard let thought = try fetchThoughtById(thoughtId) else { throw AssignError.thoughtNotFound }
         guard let topic = try fetchTopicById(topicId) else { throw AssignError.topicNotFound }
@@ -357,24 +358,46 @@ final class TopicRepository {
         }
         topic.addThoughts(thought)
         topic.updatedAt = Date()
+        if topic.isClassificationTopic {
+            thought.topicConfidence = 1.0
+            thought.topicAssignmentReason = nil
+        }
         try context.save()
     }
 
-    /// 把观点移出主题
+    /// 把观点移出主题（移出后回到未归类，置信度归零）
     func remove(thoughtId: UUID, fromTopic topicId: UUID) throws {
         guard let thought = try fetchThoughtById(thoughtId) else { throw AssignError.thoughtNotFound }
         guard let topic = try fetchTopicById(topicId) else { throw AssignError.topicNotFound }
         topic.removeThoughts(thought)
         topic.updatedAt = Date()
+        thought.topicConfidence = 0
+        thought.topicAssignmentReason = nil
         try context.save()
+    }
+
+    /// 保存主题对象的就地修改（图标等轻量字段）
+    func saveTopicChanges(_ topic: Topic) throws {
+        topic.updatedAt = Date()
+        try context.save()
+    }
+
+    /// 想法当前所属的分类主题 id（classification 单选语义，nil = 未归类）
+    func fetchThoughtClassificationTopicId(_ thoughtId: UUID) throws -> UUID? {
+        guard let thought = try fetchThoughtById(thoughtId),
+              let topics = thought.topics as? Set<Topic> else { return nil }
+        return topics.first { $0.isClassificationTopic }?.id
     }
 
     /// 写入一次 AI 分类结果。
     /// 只替换旧 classification Topic，历史/手动 Topic 关系保持不动；nil 表示进入虚拟“未归类”。
+    /// confidence 为 AI 返回的主题归属置信度（未归类时置 0）；reason 为一句话分类依据（两种结果都可能带理由）。
     func applyClassification(
         thoughtId: UUID,
         topicTitle: String?,
-        tagPaths: [String]
+        tagPaths: [String],
+        confidence: Double = 1.0,
+        reason: String? = nil
     ) throws {
         guard let thought = try fetchThoughtById(thoughtId) else { throw AssignError.thoughtNotFound }
 
@@ -387,11 +410,15 @@ final class TopicRepository {
               let topic = try fetchClassificationTopics().first(where: {
                   Self.normalizedKey(title: $0.title) == Self.normalizedKey(title: topicTitle)
               }) else {
+            thought.topicConfidence = 0
+            thought.topicAssignmentReason = reason
             try context.save()
             return
         }
 
         topic.addThoughts(thought)
+        thought.topicConfidence = min(max(confidence, 0), 1)
+        thought.topicAssignmentReason = reason
         for path in tagPaths where ThoughtThemeConstraint.isTag(path, underTopic: topic.title) {
             topic.addAssociatedTags(try getOrCreateTag(name: path))
         }
@@ -428,6 +455,7 @@ final class TopicRepository {
             try addSourceTerms(topic: topic, tagNames: sourceTerms)
         }
         // 观点关联 Topic（Thought.topics）；assignment source 保持 .ai 不变（spec 决策 4）
+        // 用户确认归并 = 完全确认，置信度置 1
         for thoughtId in thoughtIds {
             try? assign(thoughtId: thoughtId, toTopic: topic.id)
         }
@@ -441,7 +469,7 @@ final class TopicRepository {
         return try context.fetch(request).first
     }
 
-    private func fetchTopicById(_ id: UUID) throws -> Topic? {
+    func fetchTopicById(_ id: UUID) throws -> Topic? {
         let request = Topic.fetchRequest()
         request.predicate = NSPredicate(format: "id == %@", id as CVarArg)
         request.fetchLimit = 1

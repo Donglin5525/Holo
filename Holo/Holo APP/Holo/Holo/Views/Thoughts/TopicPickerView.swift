@@ -14,10 +14,14 @@ struct TopicPickerView: View {
     let topicRepository: TopicRepository
     /// 移入完成回调（调用方刷新列表/抽屉）
     let onAssigned: () -> Void
+    /// 允许「移出到未归类」（想法已有分类主题时显示 destructive 行）
+    var allowsRemove: Bool = false
 
     @State private var topics: [Topic] = []
     @State private var newTopicTitle: String = ""
     @State private var showNewTopicInput: Bool = false
+    /// 该想法当前的分类主题（决定是否显示「移出」）
+    @State private var currentTopicId: UUID? = nil
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -69,15 +73,29 @@ struct TopicPickerView: View {
                                 assign(to: topic.id)
                             } label: {
                                 HStack {
-                                    Image(systemName: "folder")
-                                        .foregroundColor(.holoPrimary)
+                                    Text(TopicIconProvider.icon(for: topic))
+                                        .font(.system(size: 17))
+                                        .frame(width: 26)
                                     Text(topic.title)
                                         .foregroundColor(.holoTextPrimary)
                                     Spacer()
+                                    if topic.id == currentTopicId {
+                                        Image(systemName: "checkmark")
+                                            .font(.system(size: 13, weight: .semibold))
+                                            .foregroundColor(.holoPrimary)
+                                    }
                                     Text("\(topicRepository.thoughtCount(of: topic))")
                                         .font(.holoLabel)
                                         .foregroundColor(.holoTextSecondary)
                                 }
+                            }
+                        }
+
+                        if allowsRemove, currentTopicId != nil {
+                            Button(role: .destructive) {
+                                removeFromCurrentTopic()
+                            } label: {
+                                Label("移出到未归类", systemImage: "square.dashed")
                             }
                         }
                     }
@@ -103,11 +121,24 @@ struct TopicPickerView: View {
 
     private func loadTopics() async {
         topics = (try? topicRepository.fetchClassificationTopics()) ?? []
+        currentTopicId = (try? topicRepository.fetchThoughtClassificationTopicId(thoughtId)) ?? nil
     }
 
     private func assign(to topicId: UUID) {
         do {
             try topicRepository.assign(thoughtId: thoughtId, toTopic: topicId)
+            onAssigned()
+            dismiss()
+        } catch {
+            // 容错：保持当前界面
+        }
+    }
+
+    /// 移出到未归类：摘除分类主题关系，置信度归零
+    private func removeFromCurrentTopic() {
+        guard let topicId = currentTopicId else { return }
+        do {
+            try topicRepository.remove(thoughtId: thoughtId, fromTopic: topicId)
             onAssigned()
             dismiss()
         } catch {

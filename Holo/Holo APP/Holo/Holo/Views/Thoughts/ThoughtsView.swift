@@ -4,6 +4,7 @@
 //
 //  观点模块 - 根视图容器
 //  从首页 fullScreenCover 进入，顶部有返回按钮
+//  知识树 v1：浏览切换收进 ThoughtListView（时间流|知识树），旧侧边抽屉已移除
 //
 
 import SwiftUI
@@ -25,9 +26,7 @@ struct ThoughtsView: View {
     private var close: () -> Void { holoDismiss ?? { dismiss() } }
     @State private var showAddThought: Bool = false
 
-    /// 知识树抽屉开关
-    @State private var isDrawerOpen: Bool = false
-    /// 抽屉当前选中节点（右侧列表筛选意图）
+    /// 列表筛选意图（知识树视图「未归类/已归档」等入口驱动列表重载）
     @State private var drawerSelection: DrawerNode? = nil
 
     /// P2.3: 跨观点归并任务（「AI 整理」触发）
@@ -52,31 +51,24 @@ struct ThoughtsView: View {
 
             ThoughtListView(
                 onBack: { close() },
-                onMenuTap: { openDrawer() },
                 onAIOrganize: { startTopicConvergence() },
                 showAddThought: $showAddThought,
                 drawerSelection: $drawerSelection,
                 thoughtRepository: thoughtRepository,
                 topicRepository: topicRepository,
-                initialThoughtId: initialThoughtId,
-                swipeActionsEnabled: !isDrawerOpen
+                initialThoughtId: initialThoughtId
             )
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .allowsHitTesting(!isDrawerOpen)  // 抽屉打开时禁用下层观点列表交互，防误触发卡片右滑删除
 
             // 右下角浮动新增按钮（替代原来的假 Tab）
-            if !isDrawerOpen {
-                addButton
-                    .zIndex(30)
-            }
-
-            drawerLayer
+            addButton
+                .zIndex(30)
         }
         .task {
             // P1.5.7: 进入观点页时合并 CloudKit 同步产生的重复 Topic（幂等）
             _ = try? topicRepository.mergeDuplicateTopics()
         }
-        .swipeBackToDismiss(isEnabled: !isDrawerOpen, isResidentScreenRoot: true) { close() }
+        .swipeBackToDismiss(isEnabled: true, isResidentScreenRoot: true) { close() }
         // fullScreenCover：编辑器作为完整页面承载，避免 sheet 下滑误触丢内容
         .fullScreenCover(isPresented: $showAddThought) {
             ThoughtEditorView {
@@ -94,53 +86,12 @@ struct ThoughtsView: View {
         .onReceive(NotificationCenter.default.publisher(for: .thoughtRequestTagFilter)) { notification in
             // 编辑器/详情页「查看标签」：列表按该标签路径筛选
             guard let path = notification.object as? String else { return }
+            UserDefaults.standard.set("timeline", forKey: ThoughtListView.browseModeStorageKey)
             drawerSelection = .aiTag(path)
         }
     }
 
-    // MARK: - 抽屉控制
-
-    /// 打开知识树抽屉
-    private func openDrawer() {
-        withAnimation(.easeInOut(duration: 0.25)) { isDrawerOpen = true }
-    }
-
-    /// 关闭知识树抽屉
-    private func closeDrawer() {
-        withAnimation(.easeInOut(duration: 0.25)) { isDrawerOpen = false }
-    }
-
-    /// 知识树抽屉层：打开后固定吸附左侧，不跟随内容区手势漂移。
-    @ViewBuilder
-    private var drawerLayer: some View {
-        if isDrawerOpen {
-            ZStack(alignment: .leading) {
-                Color.black.opacity(0.3)
-                    .ignoresSafeArea()
-                    .onTapGesture { closeDrawer() }
-
-                ThoughtKnowledgeDrawerView(
-                    selection: $drawerSelection,
-                    thoughtRepository: thoughtRepository,
-                    topicRepository: topicRepository,
-                    onSelect: { node in
-                        drawerSelection = node
-                        closeDrawer()  // 点筛选节点立即收起抽屉，让用户看右侧列表
-                    },
-                    onAIOrganize: {
-                        closeDrawer()
-                        startTopicConvergence()
-                    }
-                )
-
-                RightEdgeCloseOverlay(isEnabled: true, onClose: closeDrawer)
-                    .ignoresSafeArea()
-            }
-            .transition(.move(edge: .leading).combined(with: .opacity))
-        }
-    }
-
-    /// 统一的主题归纳入口：外层「自动整理」和知识树「归纳主题」都走这里
+    /// 统一的主题归纳入口：知识树「发现新主题」走这里
     private func startTopicConvergence() {
         showConvergence = true
         // 自动观察已有建议时直接展示，避免重复调用覆盖 ready 状态。

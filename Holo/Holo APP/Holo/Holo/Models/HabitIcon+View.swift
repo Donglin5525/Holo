@@ -3,7 +3,7 @@
 //  Holo
 //
 //  习惯图标统一渲染协议
-//  集中处理 SF Symbol 和自定义 Asset Catalog 图标的渲染分支
+//  集中处理 emoji、SF Symbol 和自定义 Asset Catalog 图标的渲染分支
 //
 
 import SwiftUI
@@ -20,7 +20,11 @@ protocol HabitIconRenderable {
 extension HabitIconRenderable {
     @ViewBuilder
     func iconImage(size: CGFloat) -> some View {
-        if isCustomIcon {
+        if EmojiCatalog.isEmojiIcon(icon) {
+            // 用户手选的 emoji 图标：彩色文本渲染，不跟随习惯色
+            Text(icon)
+                .font(.system(size: size))
+        } else if isCustomIcon {
             Image(icon)
                 .renderingMode(.template)
                 .resizable()

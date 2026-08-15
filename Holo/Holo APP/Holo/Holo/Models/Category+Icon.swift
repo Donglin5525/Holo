@@ -30,7 +30,11 @@ func transactionCategoryIcon(_ category: Category, size: CGFloat) -> some View {
 
 @ViewBuilder
 func categoryIconGlyph(_ iconName: String, size: CGFloat, color: Color) -> some View {
-    if iconName.hasPrefix("finance_") || iconName.hasPrefix("income_") || iconName.hasPrefix("cat_") {
+    if EmojiCatalog.isEmojiIcon(iconName) {
+        // 用户手选的 emoji 图标：彩色文本渲染，不跟随科目色
+        Text(iconName)
+            .font(.system(size: size))
+    } else if iconName.hasPrefix("finance_") || iconName.hasPrefix("income_") || iconName.hasPrefix("cat_") {
         Image(iconName)
             .renderingMode(.template)
             .resizable()

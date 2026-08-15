@@ -17,6 +17,8 @@ struct GoalEditForm: View {
     /// 截止日期用 Date 驱动 DatePicker，与 draft.deadlineText("yyyy-MM-dd") 双向同步
     @State private var deadlineDate: Date
 
+    @State private var showIconPicker = false
+
     init(draft: Binding<GoalDraft>) {
         self._draft = draft
         let parsed = GoalEditForm.parseDeadlineText(draft.wrappedValue.deadlineText)
@@ -57,6 +59,54 @@ struct GoalEditForm: View {
                     }
                 }
                 .pickerStyle(.menu)
+            }
+
+            // 图标
+            HStack(spacing: HoloSpacing.md) {
+                Button {
+                    showIconPicker = true
+                } label: {
+                    HStack(spacing: HoloSpacing.md) {
+                        Text(draft.iconEmoji ?? draft.domain.defaultEmoji)
+                            .font(.system(size: 22))
+                            .frame(width: 40, height: 40)
+                            .background(
+                                RoundedRectangle(cornerRadius: HoloRadius.md)
+                                    .fill(Color.holoBackground)
+                            )
+
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("图标")
+                                .font(.holoBody)
+                                .foregroundColor(.holoTextPrimary)
+                            Text(draft.iconEmoji == nil ? "默认（按领域）" : "已自定义")
+                                .font(.holoCaption)
+                                .foregroundColor(.holoTextSecondary)
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 12))
+                            .foregroundColor(.holoTextSecondary)
+                    }
+                }
+                .buttonStyle(.plain)
+
+                if draft.iconEmoji != nil {
+                    Button {
+                        draft.iconEmoji = nil
+                    } label: {
+                        Text("恢复默认")
+                            .font(.holoCaption)
+                            .foregroundColor(.holoPrimary)
+                    }
+                }
+            }
+            .sheet(isPresented: $showIconPicker) {
+                EmojiIconPickerSheet(currentIcon: draft.iconEmoji ?? draft.domain.defaultEmoji) { emoji in
+                    draft.iconEmoji = emoji
+                }
             }
 
             // 说明
@@ -186,6 +236,7 @@ struct GoalEditForm: View {
             title: goal.title,
             summary: goal.summary,
             domain: goal.goalDomain,
+            iconEmoji: goal.iconEmoji,
             desiredOutcome: goal.desiredOutcome,
             motivation: goal.motivation,
             deadlineText: deadlineText,
@@ -202,6 +253,7 @@ struct GoalEditForm: View {
             title: "",
             summary: nil,
             domain: .other,
+            iconEmoji: nil,
             desiredOutcome: nil,
             motivation: nil,
             deadlineText: nil,

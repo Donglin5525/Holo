@@ -327,6 +327,7 @@ struct GoalEditSheet: View {
                     title: draft.title,
                     summary: draft.summary,
                     domain: draft.domain,
+                    iconEmoji: draft.iconEmoji,
                     desiredOutcome: draft.desiredOutcome,
                     motivation: draft.motivation,
                     deadline: parsedDeadline

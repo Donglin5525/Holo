@@ -10,6 +10,18 @@ import SwiftUI
 import CoreData
 import OSLog
 
+// MARK: - DrawerNode 筛选节点
+
+/// 列表筛选意图载体（知识树视图/快捷入口通过它驱动列表重载）
+enum DrawerNode: Hashable {
+    case allNotes          // 全部笔记
+    case unclassified      // 未归类（未进入任何 Topic）
+    case aiTag(String)     // 标签池某标签（tagName，手动/正文/AI 同名统一）
+    case topic(UUID)       // 某主题（topicId）
+    case aiOrganize        // 归纳主题入口（非筛选，触发跨观点收敛）
+    case archived          // 已归档（可找回、可恢复）
+}
+
 // MARK: - ThoughtListView
 
 /// 想法列表视图
@@ -20,20 +32,31 @@ struct ThoughtListView: View {
     // MARK: - Properties
 
     let onBack: () -> Void
-    let onMenuTap: () -> Void
     let onAIOrganize: () -> Void
     @Binding var showAddThought: Bool
     @Binding var drawerSelection: DrawerNode?
     let thoughtRepository: ThoughtRepository
     let topicRepository: TopicRepository
     let initialThoughtId: UUID?
-    let swipeActionsEnabled: Bool
 
     /// 筛选状态
     @State private var selectedTagName: String? = nil
     @State private var searchText: String = ""
     @State private var showFilterSheet: Bool = false
     @State private var currentFilters: ThoughtFilters? = nil
+
+    /// 浏览模式：timeline 时间流 / knowledge 知识树（记忆用户偏好）
+    static let browseModeStorageKey = "thoughtsBrowseMode"
+    @AppStorage(browseModeStorageKey) private var browseMode: String = "timeline"
+
+    /// 知识树模式下的主题管理 sheet
+    @State private var showTopicManagement: Bool = false
+
+    /// 待确认池（时间流 banner 入口）
+    @State private var showConfirmationQueue: Bool = false
+
+    /// 待确认数量（banner 徽章用）
+    @State private var pendingConfirmationCount: Int = 0
 
     /// 选中的想法（用于进入详情）
     @State private var selectedThoughtId: UUID? = nil
@@ -76,6 +99,8 @@ struct ThoughtListView: View {
     @State private var refreshTask: Task<Void, Never>?
 
     // MARK: - Computed Properties
+
+    private var isKnowledgeMode: Bool { browseMode == "knowledge" }
 
     /// 筛选后的想法列表
     var filteredThoughts: [Thought] {
@@ -128,20 +153,35 @@ struct ThoughtListView: View {
             // 顶部导航栏
             headerView
 
-            // 搜索栏
-            searchBarView
+            // 时间流 / 知识树 切换
+            browseModeSegment
 
-            // AI 归纳状态条
-            aiOrganizationBanner
-
-            // 筛选栏
-            filterBarView
-
-            // 想法列表
-            if filteredThoughts.isEmpty && hasLoadedOnce {
-                emptyStateView
+            if isKnowledgeMode {
+                ThoughtKnowledgeTreeView(
+                    thoughtRepository: thoughtRepository,
+                    topicRepository: topicRepository,
+                    onNavigateToList: { node in
+                        browseMode = "timeline"
+                        drawerSelection = node
+                    },
+                    onAIOrganize: { onAIOrganize() }
+                )
             } else {
-                thoughtListView
+                // 搜索栏
+                searchBarView
+
+                // AI 归纳状态条
+                aiOrganizationBanner
+
+                // 筛选栏
+                filterBarView
+
+                // 想法列表
+                if filteredThoughts.isEmpty && hasLoadedOnce {
+                    emptyStateView
+                } else {
+                    thoughtListView
+                }
             }
         }
         // 主列表先进入详情，阅读、引用关系与编辑入口保持同一条产品路径。
@@ -186,6 +226,22 @@ struct ThoughtListView: View {
                     NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
                 }
             }
+        }
+        .sheet(isPresented: $showTopicManagement, onDismiss: {
+            NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+        }) {
+            NavigationStack {
+                TopicManagementView(topicRepository: topicRepository, thoughtRepository: thoughtRepository)
+            }
+        }
+        .fullScreenCover(isPresented: $showConfirmationQueue, onDismiss: {
+            loadPendingConfirmationCount()
+        }) {
+            TopicConfirmationQueueView(
+                thoughtRepository: thoughtRepository,
+                topicRepository: topicRepository,
+                onQueueDrained: { loadPendingConfirmationCount() }
+            )
         }
         .overlay(alignment: .top) {
             noticeToast
@@ -284,6 +340,32 @@ struct ThoughtListView: View {
                 .padding(.vertical, 6)
                 .background(Color.holoPrimary.opacity(0.06))
                 .transition(.opacity.combined(with: .move(edge: .top)))
+            } else if pendingConfirmationCount > 0 {
+                // 待确认池入口（AI 低置信主题归属）
+                Button {
+                    showConfirmationQueue = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 11))
+                            .foregroundColor(.holoAI)
+
+                        Text("AI 有 \(pendingConfirmationCount) 条主题归属想跟你确认")
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextSecondary)
+
+                        Spacer()
+
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.holoTextSecondary)
+                    }
+                    .padding(.horizontal, HoloSpacing.md)
+                    .padding(.vertical, 6)
+                    .background(Color.holoAI.opacity(0.06))
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
+                .buttonStyle(.plain)
             } else if hasProcessingThoughts {
                 // 单条增量整理（保存想法时）
                 HStack(spacing: 6) {
@@ -305,6 +387,7 @@ struct ThoughtListView: View {
         }
         .animation(.easeInOut(duration: 0.3), value: orgQueue.isBatchOrganizing)
         .animation(.easeInOut(duration: 0.3), value: orgQueue.dailyLimitHit)
+        .animation(.easeInOut(duration: 0.3), value: pendingConfirmationCount)
         .animation(.easeInOut(duration: 0.3), value: hasProcessingThoughts)
     }
 
@@ -401,6 +484,12 @@ struct ThoughtListView: View {
             logger.error("加载未整理计数失败：\(error)")
             unprocessedCount = 0
         }
+        loadPendingConfirmationCount()
+    }
+
+    /// 加载待确认数量（时间流 banner 徽章）
+    private func loadPendingConfirmationCount() {
+        pendingConfirmationCount = (try? thoughtRepository.fetchThoughtsPendingTopicConfirmation().count) ?? 0
     }
 
     /// 点击「自动整理」chip
@@ -533,16 +622,6 @@ struct ThoughtListView: View {
                     .frame(width: 44, height: 44)
             }
 
-            // 知识树抽屉入口
-            Button {
-                onMenuTap()
-            } label: {
-                Image(systemName: "sidebar.left")
-                    .font(.system(size: 18, weight: .medium))
-                    .foregroundColor(.holoTextPrimary)
-                    .frame(width: 44, height: 44)
-            }
-
             Spacer()
 
             // 标题
@@ -552,12 +631,67 @@ struct ThoughtListView: View {
 
             Spacer()
 
-            // 占位，与左侧两个按钮对称，保持标题居中
-            Color.clear.frame(width: 44, height: 44)
+            // 知识树模式下提供主题管理入口（管理动作长在它管理的内容旁）
+            if isKnowledgeMode {
+                Button {
+                    showTopicManagement = true
+                } label: {
+                    Text("管理")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                        .frame(width: 44, height: 44)
+                }
+            } else {
+                // 占位，与左侧返回按钮对称，保持标题居中
+                Color.clear.frame(width: 44, height: 44)
+            }
         }
         .padding(.horizontal, HoloSpacing.md)
         .padding(.vertical, HoloSpacing.sm)
         .background(Color.holoBackground)
+    }
+
+    // MARK: - 浏览模式切换（时间流 / 知识树）
+
+    private var browseModeSegment: some View {
+        HStack(spacing: 3) {
+            segmentItem(title: "时间流", icon: "clock.arrow.circlepath", key: "timeline")
+            segmentItem(title: "知识树", icon: "folder.fill", key: "knowledge")
+        }
+        .padding(3)
+        .background(Color.holoCardBackground)
+        .cornerRadius(HoloRadius.md)
+        .overlay(
+            RoundedRectangle(cornerRadius: HoloRadius.md)
+                .stroke(Color.holoBorder, lineWidth: 1)
+        )
+        .padding(.horizontal, HoloSpacing.lg)
+        .padding(.bottom, HoloSpacing.sm)
+    }
+
+    private func segmentItem(title: String, icon: String, key: String) -> some View {
+        let isSelected = browseMode == key
+        return Button {
+            withAnimation(.easeInOut(duration: 0.2)) {
+                browseMode = key
+            }
+            HapticManager.light()
+        } label: {
+            HStack(spacing: 5) {
+                Image(systemName: icon)
+                    .font(.system(size: 12, weight: .medium))
+                Text(title)
+                    .font(.holoCaption)
+            }
+            .foregroundColor(isSelected ? .white : .holoTextSecondary)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 7)
+            .background(
+                RoundedRectangle(cornerRadius: HoloRadius.sm + 2)
+                    .fill(isSelected ? Color.holoPrimary : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - 搜索栏
@@ -676,7 +810,7 @@ struct ThoughtListView: View {
                             get: { revealedThoughtId == thought.id },
                             set: { if $0 { revealedThoughtId = thought.id } else { revealedThoughtId = nil } }
                         ),
-                        isEnabled: swipeActionsEnabled,
+                        isEnabled: true,
                         content: {
                             ThoughtCardView(
                                 thought: thought,

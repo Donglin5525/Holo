@@ -835,6 +835,77 @@ class ThoughtRepository {
         return try context.fetch(request)
     }
 
+    // MARK: - 待确认池（知识树 v1：低置信主题归属集中确认）
+
+    /// 待确认阈值：AI 置信度低于该值的主题归属进待确认池
+    static let topicConfirmationThreshold: Double = 0.75
+
+    /// 待确认观点：AI 已挂分类主题但把握不足（0 < topicConfidence < 阈值）且已完成整理。
+    /// 手动移入/用户确认过的想法置信度为 1，不会出现在这里；
+    /// 存量数据（字段默认 0）同样被 >0 条件排除，只影响新整理的想法。
+    func fetchThoughtsPendingTopicConfirmation() throws -> [Thought] {
+        let request = Thought.fetchRequest()
+        let deletePredicate = NSPredicate(format: "isSoftDeleted == NO AND isArchived == NO")
+        let organizedPredicate = NSPredicate(format: "organizedStatus == %@", "organized")
+        let classificationPredicate = NSPredicate(
+            format: "SUBQUERY(topics, $topic, $topic.status == %@).@count > 0",
+            Topic.TopicStatus.classification.rawValue
+        )
+        let confidencePredicate = NSPredicate(
+            format: "topicConfidence > 0 AND topicConfidence < %f",
+            Self.topicConfirmationThreshold
+        )
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            deletePredicate, organizedPredicate, classificationPredicate, confidencePredicate
+        ])
+        request.sortDescriptors = [NSSortDescriptor(key: "createdAt", ascending: false)]
+        return try context.fetch(request)
+    }
+
+    /// 用户确认当前主题归属正确（待确认池「放这里」）
+    func confirmTopicAssignment(thoughtId: UUID) throws {
+        guard let thought = try fetchByIdInternal(thoughtId) else { throw ThoughtError.notFound }
+        thought.topicConfidence = 1.0
+        try context.save()
+    }
+
+    // MARK: - recentAITags（thought_organization v4 复用约束的原料）
+
+    /// 近 90 天 AI 标签叶段名（按命中想法数降序，去重）。
+    /// 后端 v4 prompt 将「复用 existingTags/recentAITags」定为硬约束；
+    /// 客户端不传该字段时，AI 只能对用户认可标签复用，历史 AI 标签池不参与，标签易发散。
+    func fetchRecentAITagLeafNames(maxCount: Int = 30) throws -> [String] {
+        let cutoff = Date().addingTimeInterval(-90 * 24 * 3600)
+        let request = ThoughtTagAssignment.fetchRequest()
+        let sourcePredicate = NSPredicate(format: "source IN %@", Self.visibleTagSourceValues)
+        let notRejectedPredicate = NSPredicate(format: "rejectedAt == nil")
+        let recentPredicate = NSPredicate(format: "assignedAt >= %@", cutoff as NSDate)
+        request.predicate = NSCompoundPredicate(andPredicateWithSubpredicates: [
+            sourcePredicate, notRejectedPredicate, recentPredicate
+        ])
+
+        let assignments = try context.fetch(request)
+        var stats: [String: (display: String, thoughtIds: Set<UUID>)] = [:]
+        for assignment in assignments {
+            guard let tagName = assignment.tag?.name,
+                  let thoughtId = assignment.thought?.id else { continue }
+            let leaf = ThoughtTagNormalizer.lastSegment(tagName)
+            guard !leaf.isEmpty else { continue }
+            let key = ThoughtTagNormalizer.key(leaf)
+            var entry = stats[key] ?? (display: leaf, thoughtIds: [])
+            entry.thoughtIds.insert(thoughtId)
+            stats[key] = entry
+        }
+        return stats
+            .sorted { lhs, rhs in
+                lhs.value.thoughtIds.count != rhs.value.thoughtIds.count
+                    ? lhs.value.thoughtIds.count > rhs.value.thoughtIds.count
+                    : lhs.key < rhs.key
+            }
+            .prefix(maxCount)
+            .map { $0.value.display }
+    }
+
     // MARK: - 跨观点收敛候选（P2.2，thought_tag_convergence 输入收集）
 
     /// 收敛候选观点（带可见标签，供 thought_tag_convergence 调用）

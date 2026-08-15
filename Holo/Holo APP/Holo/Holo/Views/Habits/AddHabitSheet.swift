@@ -203,9 +203,12 @@ struct AddHabitSheet: View {
                     Circle()
                         .fill(Color(hex: selectedColor).opacity(0.1))
                         .frame(width: 64, height: 64)
-                    
+
                     // 判断是否为自定义图标
-                    if let item = HabitIconPresets.allItems.first(where: { $0.name == selectedIcon }), item.isCustom {
+                    if EmojiCatalog.isEmojiIcon(selectedIcon) {
+                        Text(selectedIcon)
+                            .font(.system(size: 30))
+                    } else if let item = HabitIconPresets.allItems.first(where: { $0.name == selectedIcon }), item.isCustom {
                         Image(selectedIcon)
                             .renderingMode(.template)
                             .resizable()
@@ -503,24 +506,56 @@ struct AddHabitSheet: View {
 
 // MARK: - IconPickerSheet
 
-/// 图标选择器（按分类展示）
+/// 图标选择器（经典 SF Symbol 分组 + Emoji 库双页签）
 struct IconPickerSheet: View {
-    
+
     @Environment(\.dismiss) var dismiss
     @Binding var selectedIcon: String
-    
+
+    enum PickerTab: String, CaseIterable, Identifiable {
+        case classic = "经典"
+        case emoji = "Emoji"
+        var id: String { rawValue }
+    }
+
+    @State private var pickerTab: PickerTab
+
+    init(selectedIcon: Binding<String>) {
+        self._selectedIcon = selectedIcon
+        // 当前已是 emoji 时直接落在 Emoji 页
+        self._pickerTab = State(initialValue: EmojiCatalog.isEmojiIcon(selectedIcon.wrappedValue) ? .emoji : .classic)
+    }
+
     /// 网格列定义（5列）
     private let columns = Array(repeating: GridItem(.flexible(), spacing: 12), count: 5)
-    
+
     var body: some View {
         NavigationView {
-            ScrollView {
-                LazyVStack(spacing: 24, pinnedViews: []) {
-                    ForEach(HabitIconPresets.categories) { category in
-                        categorySection(category)
+            VStack(spacing: 0) {
+                Picker("图标类型", selection: $pickerTab) {
+                    ForEach(PickerTab.allCases) { tab in
+                        Text(tab.rawValue).tag(tab)
                     }
                 }
-                .padding()
+                .pickerStyle(.segmented)
+                .padding(HoloSpacing.md)
+
+                if pickerTab == .emoji {
+                    EmojiCatalogGrid(currentIcon: selectedIcon) { emoji in
+                        selectedIcon = emoji
+                        dismiss()
+                    }
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 24, pinnedViews: []) {
+                            ForEach(HabitIconPresets.categories) { category in
+                                categorySection(category)
+                            }
+                        }
+                        .padding()
+                    }
+                    .background(Color.holoBackground)
+                }
             }
             .background(Color.holoBackground)
             .navigationTitle("选择图标")

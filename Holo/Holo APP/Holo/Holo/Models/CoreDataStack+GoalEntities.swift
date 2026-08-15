@@ -37,6 +37,11 @@ extension CoreDataStack {
         domain.isOptional = false
         domain.defaultValue = GoalDomain.other.rawValue
 
+        let iconEmoji = NSAttributeDescription()
+        iconEmoji.name = "iconEmoji"
+        iconEmoji.attributeType = .stringAttributeType
+        iconEmoji.isOptional = true
+
         let desiredOutcome = NSAttributeDescription()
         desiredOutcome.name = "desiredOutcome"
         desiredOutcome.attributeType = .stringAttributeType
@@ -99,7 +104,7 @@ extension CoreDataStack {
         lastInsightSummary.isOptional = true
 
         goalEntity.properties = [
-            id, title, summary, domain, desiredOutcome, motivation, status,
+            id, title, summary, domain, iconEmoji, desiredOutcome, motivation, status,
             deadline, createdAt, updatedAt, completedAt, source, allowAIContext,
             proactiveNudge, lastInsightSummary
         ]

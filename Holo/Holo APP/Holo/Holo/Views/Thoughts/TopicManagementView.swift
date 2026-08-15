@@ -119,8 +119,10 @@ struct TopicManagementView: View {
 
     private func topicRow(_ topic: Topic) -> some View {
         HStack(spacing: HoloSpacing.sm) {
-            Image(systemName: topic.isClassificationTopic ? "folder.fill" : "folder")
-                .foregroundColor(topic.isClassificationTopic ? .holoPrimary : .holoTextSecondary)
+            Text(TopicIconProvider.icon(for: topic))
+                .font(.system(size: 17))
+                .frame(width: 28, height: 28)
+                .opacity(topic.isClassificationTopic ? 1 : 0.45)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(topic.title)

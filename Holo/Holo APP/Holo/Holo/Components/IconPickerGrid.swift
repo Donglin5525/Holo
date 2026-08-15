@@ -12,12 +12,27 @@ import SwiftUI
 // MARK: - Icon Picker Grid
 
 /// 图标网格选择器 — 按 section 分组展示
+/// 「经典」页为原单色图标目录，「Emoji」页为全 App 通用 emoji 库
 struct IconPickerGrid: View {
 
     // MARK: - Properties
 
     /// 当前选中的图标名称
     @Binding var selectedIcon: String
+
+    enum IconTab: String, CaseIterable, Identifiable {
+        case classic = "经典"
+        case emoji = "Emoji"
+        var id: String { rawValue }
+    }
+
+    @State private var tab: IconTab
+
+    init(selectedIcon: Binding<String>) {
+        self._selectedIcon = selectedIcon
+        // 当前已是 emoji 时直接落在 Emoji 页
+        self._tab = State(initialValue: EmojiCatalog.isEmojiIcon(selectedIcon.wrappedValue) ? .emoji : .classic)
+    }
 
     /// 4 列网格布局
     private let columns = Array(
@@ -27,12 +42,35 @@ struct IconPickerGrid: View {
 
     /// 当前选中图标是否不在目录中（需要 fallback section）
     private var needsFallback: Bool {
-        !selectedIcon.isEmpty && !CategoryIconCatalog.contains(selectedIcon)
+        !selectedIcon.isEmpty
+            && !EmojiCatalog.isEmojiIcon(selectedIcon)
+            && !CategoryIconCatalog.contains(selectedIcon)
     }
 
     // MARK: - Body
 
     var body: some View {
+        VStack(spacing: 12) {
+            Picker("图标类型", selection: $tab) {
+                ForEach(IconTab.allCases) { tab in
+                    Text(tab.rawValue).tag(tab)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            if tab == .emoji {
+                EmojiCatalogGrid(currentIcon: selectedIcon) { emoji in
+                    selectedIcon = emoji
+                }
+                .frame(maxHeight: 420)
+            } else {
+                classicGrid
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var classicGrid: some View {
         ScrollView(showsIndicators: false) {
             LazyVStack(alignment: .leading, spacing: 20) {
                 // Fallback: 当前图标不在目录中时，顶部展示

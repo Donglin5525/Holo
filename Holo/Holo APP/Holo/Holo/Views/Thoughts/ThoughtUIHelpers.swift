@@ -132,6 +132,12 @@ extension Thought {
         }
     }
 
+    /// 当前所属的分类主题（classification 单选语义，nil = 未归类）
+    var classificationTopic: Topic? {
+        guard let topics = topics as? Set<Topic> else { return nil }
+        return topics.first { $0.isClassificationTopic }
+    }
+
     /// AI 自动整理的可展示标签名（source == ai 或 confirmedAI，排除 rejectedAI）
     /// 用于卡片在没有手动标签时的灰色标签展示
     var visibleAITagNames: [String] {

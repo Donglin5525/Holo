@@ -168,9 +168,8 @@ struct GoalListView: View {
     private func goalRow(_ goal: Goal) -> some View {
         let progress = GoalProgressEvaluator.evaluate(goal: goal)
         return HStack(spacing: HoloSpacing.md) {
-            Image(systemName: goal.goalDomain.icon)
-                .font(.system(size: 18, weight: .medium))
-                .foregroundColor(.holoPrimary)
+            Text(goal.displayIcon)
+                .font(.system(size: 20))
                 .frame(width: 40, height: 40)
                 .background(Color.holoPrimary.opacity(0.1))
                 .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))

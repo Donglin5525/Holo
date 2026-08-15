@@ -22,6 +22,8 @@ struct ThoughtDetailView: View {
     @Environment(\.dismiss) var dismiss
     let thoughtId: UUID
     let thoughtRepository: ThoughtRepository
+    /// 所属主题的查询与修改（本页就近使用，与主仓储同上下文）
+    private let topicRepository = TopicRepository()
     /// 从主列表以全屏详情打开时显示关闭按钮；从编辑器的导航栈进入时保留系统返回按钮。
     var showsDismissButton: Bool = false
 
@@ -50,6 +52,9 @@ struct ThoughtDetailView: View {
     /// AI 标签分配
     @State private var aiAssignments: [ThoughtTagAssignment] = []
 
+    /// 所属主题修改入口（TopicPickerView）
+    @State private var showTopicPicker: Bool = false
+
     /// 阅读态渲染节点（richContentJSON 非空时使用）
     @State private var renderNodes: [HoloContentNode] = []
 
@@ -74,6 +79,11 @@ struct ThoughtDetailView: View {
                 VStack(alignment: .leading, spacing: HoloSpacing.lg) {
                     // 内容区域
                     contentSection
+
+                    // 所属主题（知识树 v1：补齐归属展示与修改）
+                    if thought != nil {
+                        topicSection
+                    }
 
                     // 标签区域
                     if let thought = thought, !thought.tagArray.isEmpty {
@@ -187,6 +197,18 @@ struct ThoughtDetailView: View {
                         startIndex: galleryStartIndex
                     )
                 }
+            }
+            .sheet(isPresented: $showTopicPicker, onDismiss: {
+                loadData()
+            }) {
+                TopicPickerView(
+                    thoughtId: thoughtId,
+                    topicRepository: topicRepository,
+                    onAssigned: {
+                        NotificationCenter.default.post(name: .thoughtDataDidChange, object: nil)
+                    },
+                    allowsRemove: true
+                )
             }
             .onAppear {
                 loadData()
@@ -371,6 +393,106 @@ struct ThoughtDetailView: View {
         }
     }
 
+    // MARK: - 所属主题（知识树 v1）
+
+    private var topicSection: some View {
+        VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+            Text("所属主题")
+                .font(.holoCaption)
+                .foregroundColor(.holoTextSecondary)
+
+            if let topic = thought?.classificationTopic {
+                let color = Color.topicPalette(for: topic.title)
+                VStack(alignment: .leading, spacing: HoloSpacing.sm) {
+                    Button {
+                        showTopicPicker = true
+                    } label: {
+                        HStack(spacing: HoloSpacing.sm) {
+                            Text(TopicIconProvider.icon(for: topic))
+                                .font(.system(size: 17))
+
+                            Text(topic.title)
+                                .font(.holoBody)
+                                .foregroundColor(.holoTextPrimary)
+
+                            // AI 低置信归属给出轻提示（点击区块可确认/更换）
+                            if let confidence = thought?.topicConfidence,
+                               confidence > 0, confidence < ThoughtRepository.topicConfirmationThreshold {
+                                Text("AI \(Int(confidence * 100))%")
+                                    .font(.holoTinyLabel)
+                                    .foregroundColor(.holoAI)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.holoAI.opacity(0.12))
+                                    .clipShape(Capsule())
+                            }
+
+                            Spacer()
+
+                            Text("更换")
+                                .font(.holoCaption)
+                                .foregroundColor(.holoPrimary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+
+                    // AI 分类依据（后端随结果返回；手动归档无理由）
+                    if let reason = thought?.topicAssignmentReason, !reason.isEmpty {
+                        HStack(alignment: .top, spacing: 6) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 10))
+                                .foregroundColor(.holoAI)
+                                .padding(.top, 2)
+                            Text(reason)
+                                .font(.holoCaption)
+                                .foregroundColor(.holoTextSecondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                .padding(HoloSpacing.md)
+                .background(
+                    RoundedRectangle(cornerRadius: HoloRadius.lg)
+                        .fill(color.opacity(0.08))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: HoloRadius.lg)
+                        .stroke(color.opacity(0.35), lineWidth: 1)
+                )
+            } else {
+                Button {
+                    showTopicPicker = true
+                } label: {
+                    HStack(spacing: HoloSpacing.sm) {
+                        Image(systemName: "square.dashed")
+                            .font(.system(size: 15))
+                            .foregroundColor(.holoTextSecondary)
+
+                        Text("未归类")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextSecondary)
+
+                        Spacer()
+
+                        Text("选择主题")
+                            .font(.holoCaption)
+                            .foregroundColor(.holoPrimary)
+                    }
+                    .padding(HoloSpacing.md)
+                    .background(
+                        RoundedRectangle(cornerRadius: HoloRadius.lg)
+                            .fill(Color.holoCardBackground)
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: HoloRadius.lg)
+                            .stroke(Color.holoBorder, lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
     // MARK: - 标签区域
 
     private var tagsSection: some View {
@@ -382,7 +504,8 @@ struct ThoughtDetailView: View {
             FlowLayout(spacing: HoloSpacing.sm) {
                 ForEach(thought?.tagArray ?? []) { tag in
                     TagChip(
-                        text: "#\(tag.name)",
+                        // 展示叶段名（路径是存储结构，不进 UI 文案）
+                        text: "#\(ThoughtTagNormalizer.lastSegment(tag.name))",
                         isSelected: true,
                         color: tag.tagColor
                     ) {
@@ -440,7 +563,7 @@ struct ThoughtDetailView: View {
         let isConfirmed = assignment.source == ThoughtTagAssignment.Source.confirmedAI.rawValue
 
         return HStack(spacing: 4) {
-            Text("#\(tagName)")
+            Text("#\(ThoughtTagNormalizer.lastSegment(tagName))")
                 .font(.holoLabel)
                 .foregroundColor(isConfirmed ? .holoPrimary : .holoTextSecondary)
 
@@ -589,7 +712,7 @@ struct ReferenceCardView: View {
             if !thought.tagArray.isEmpty {
                 FlowLayout(spacing: 4) {
                     ForEach(thought.tagArray.prefix(3)) { tag in
-                        Text("#\(tag.name)")
+                        Text("#\(ThoughtTagNormalizer.lastSegment(tag.name))")
                             .font(.system(size: 10, weight: .medium))
                             .foregroundColor(tag.tagColor)
                             .padding(.horizontal, 6)

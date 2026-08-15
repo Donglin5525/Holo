@@ -34,6 +34,8 @@ class Thought: NSManagedObject {
     // 结构化内容（#/@ Token）
     @NSManaged var richContentJSON: String?        // 编辑器结构化事实源，nil=纯文本想法
     @NSManaged var firstLine: String?              // 首行摘要（@ 候选标题，保存时派生）
+    @NSManaged var topicConfidence: Double         // 主题归属置信度：AI 写入，手动移入/确认置 1；<0.75 待确认
+    @NSManaged var topicAssignmentReason: String?  // 主题归属理由（后端 v4 prompt 随结果返回的一句话依据）
 
     // MARK: - Relationships
 

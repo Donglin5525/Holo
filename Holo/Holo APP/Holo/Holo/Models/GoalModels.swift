@@ -57,6 +57,20 @@ enum GoalDomain: String, Codable, CaseIterable, Identifiable {
         case .other: return "target"
         }
     }
+
+    /// 大图标位（列表行等个性化场景）的默认 emoji；
+    /// 小徽章与领域选择器仍用 SF Symbol icon 保持语义标识
+    var defaultEmoji: String {
+        switch self {
+        case .learning: return "📚"
+        case .health: return "💪"
+        case .career: return "💼"
+        case .finance: return "💰"
+        case .life: return "✨"
+        case .project: return "🚀"
+        case .other: return "🎯"
+        }
+    }
 }
 
 enum GoalPlanningMode: String, Codable, CaseIterable, Identifiable {
@@ -106,6 +120,8 @@ struct GoalDraft: Codable, Equatable, Identifiable {
     var title: String
     var summary: String?
     var domain: GoalDomain
+    /// 用户手选的 emoji 图标；nil 表示跟随领域默认 emoji
+    var iconEmoji: String?
     var desiredOutcome: String?
     var motivation: String?
     var deadlineText: String?

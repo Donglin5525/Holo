@@ -75,6 +75,7 @@ final class GoalRepository: ObservableObject {
             deadline: parseDate(draft.deadlineText),
             allowAIContext: allowAIContext
         )
+        goal.iconEmoji = draft.iconEmoji
         try context.save()
         loadGoals()
         return goal
@@ -106,6 +107,7 @@ final class GoalRepository: ObservableObject {
         title: String? = nil,
         summary: String? = nil,
         domain: GoalDomain? = nil,
+        iconEmoji: String?? = nil,
         desiredOutcome: String? = nil,
         motivation: String? = nil,
         deadline: Date?? = nil,
@@ -114,6 +116,7 @@ final class GoalRepository: ObservableObject {
         if let title { goal.title = title }
         if let summary { goal.summary = summary }
         if let domain { goal.goalDomain = domain }
+        if let iconEmoji { goal.iconEmoji = iconEmoji }
         if let desiredOutcome { goal.desiredOutcome = desiredOutcome }
         if let motivation { goal.motivation = motivation }
         if let deadline { goal.deadline = deadline }

@@ -118,6 +118,21 @@ extension CoreDataStack {
         thoughtFirstLine.isOptional = true
         thoughtAttributes.append(thoughtFirstLine)
 
+        // 主题归属置信度：AI 整理写入（0-1），手动移入/用户确认置 1；<0.75 进待确认池
+        let thoughtTopicConfidence = NSAttributeDescription()
+        thoughtTopicConfidence.name = "topicConfidence"
+        thoughtTopicConfidence.attributeType = .doubleAttributeType
+        thoughtTopicConfidence.isOptional = false
+        thoughtTopicConfidence.defaultValue = 0.0
+        thoughtAttributes.append(thoughtTopicConfidence)
+
+        // 主题归属理由（后端 thought_organization v4 已随结果返回，客户端落库供待确认池/详情页展示）
+        let thoughtTopicReason = NSAttributeDescription()
+        thoughtTopicReason.name = "topicAssignmentReason"
+        thoughtTopicReason.attributeType = .stringAttributeType
+        thoughtTopicReason.isOptional = true
+        thoughtAttributes.append(thoughtTopicReason)
+
         // MARK: - ThoughtTag Entity
         // 观点模块 - 标签实体
         let thoughtTagEntity = NSEntityDescription()
@@ -259,6 +274,13 @@ extension CoreDataStack {
         topicTitle.isOptional = false
         topicTitle.defaultValue = ""
         topicAttributes.append(topicTitle)
+
+        // 主题图标 emoji（知识树卡片/详情页展示；nil 时按标题智能给默认）
+        let topicIconEmoji = NSAttributeDescription()
+        topicIconEmoji.name = "iconEmoji"
+        topicIconEmoji.attributeType = .stringAttributeType
+        topicIconEmoji.isOptional = true
+        topicAttributes.append(topicIconEmoji)
 
         let topicSummary = NSAttributeDescription()
         topicSummary.name = "summary"

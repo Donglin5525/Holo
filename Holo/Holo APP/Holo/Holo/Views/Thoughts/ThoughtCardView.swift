@@ -265,7 +265,8 @@ struct ThoughtCardView: View {
         Button {
             onTagTap?(tag.name)
         } label: {
-            Text("#\(tag.name)")
+            // 展示叶段名（路径是存储结构，不进 UI 文案）；筛选仍用完整路径
+            Text("#\(ThoughtTagNormalizer.lastSegment(tag.name))")
                 .font(.holoLabel)
                 .foregroundColor(tag.tagColor)
                 .padding(.horizontal, 8)

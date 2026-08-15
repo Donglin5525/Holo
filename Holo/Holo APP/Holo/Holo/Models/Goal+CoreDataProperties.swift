@@ -13,6 +13,7 @@ extension Goal {
     @NSManaged var title: String
     @NSManaged var summary: String?
     @NSManaged var domain: String
+    @NSManaged var iconEmoji: String?
     @NSManaged var desiredOutcome: String?
     @NSManaged var motivation: String?
     @NSManaged var status: String
@@ -26,6 +27,12 @@ extension Goal {
     @NSManaged var lastInsightSummary: String?
     @NSManaged var tasks: NSSet?
     @NSManaged var habits: NSSet?
+
+    /// 大图标位展示值：用户手选 emoji > 领域默认 emoji
+    var displayIcon: String {
+        if let chosen = iconEmoji, !chosen.isEmpty { return chosen }
+        return goalDomain.defaultEmoji
+    }
 
     var goalStatus: GoalStatus {
         get { GoalStatus(rawValue: status) ?? .active }
