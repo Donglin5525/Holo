@@ -130,6 +130,19 @@ extension CoreDataStack {
         isAICreated.defaultValue = false
         attributes.append(isAICreated)
 
+        // AI 确认流程来源标记（对账用，详见 Transaction.aiSourceMessageId 注释）
+        let aiSourceMessageId = NSAttributeDescription()
+        aiSourceMessageId.name = "aiSourceMessageId"
+        aiSourceMessageId.attributeType = .stringAttributeType
+        aiSourceMessageId.isOptional = true
+        attributes.append(aiSourceMessageId)
+
+        let aiSourceItemId = NSAttributeDescription()
+        aiSourceItemId.name = "aiSourceItemId"
+        aiSourceItemId.attributeType = .stringAttributeType
+        aiSourceItemId.isOptional = true
+        attributes.append(aiSourceItemId)
+
         let aiCandidate = NSAttributeDescription()
         aiCandidate.name = "aiCandidate"
         aiCandidate.attributeType = .stringAttributeType

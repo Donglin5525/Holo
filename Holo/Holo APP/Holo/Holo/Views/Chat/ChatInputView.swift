@@ -33,6 +33,8 @@ struct ChatInputView: View {
                 .background(Color.holoCardBackground)
                 .cornerRadius(20)
                 .onSubmit {
+                    // 流式中发送按钮已切换为停止键；回车不允许并发发送第二条消息
+                    guard !viewModel.isStreaming else { return }
                     Task { await viewModel.sendMessage() }
                 }
 
@@ -72,10 +74,12 @@ struct ChatInputView: View {
     }
 
     private var sendButtonColor: Color {
-        return viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? .gray : .holoPrimary
+        return viewModel.inputText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? .holoTextSecondary.opacity(0.3)
+            : .holoPrimary
     }
 
     private var voiceButtonColor: Color {
-        viewModel.isStreaming ? .gray : .holoTextSecondary
+        viewModel.isStreaming ? .holoTextSecondary.opacity(0.3) : .holoTextSecondary
     }
 }

@@ -4,6 +4,7 @@
 //
 
 import Foundation
+@testable import Holo
 
 struct MockFeedbackDataSource: HoloFeedbackDataSource {
     let records: [HoloFeedbackRecord]
@@ -12,7 +13,6 @@ struct MockFeedbackDataSource: HoloFeedbackDataSource {
     }
 }
 
-@main
 struct HoloFeedbackToolTests {
 
     static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -128,3 +128,12 @@ struct HoloFeedbackToolTests {
         expect(result.warnings.contains { $0.code == "NO_FEEDBACK_DATA" }, "应返回 NO_FEEDBACK_DATA")
     }
 }
+
+#if !HOLO_XCTEST_BRIDGE
+@main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        await try HoloFeedbackToolTests.main()
+    }
+}
+#endif

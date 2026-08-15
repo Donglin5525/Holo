@@ -759,9 +759,9 @@ final class ChatMessageRepository: ObservableObject {
     /// 刷新交易卡片显示数据（用户编辑交易后调用）
     /// 同步 Core Data 中的 executionBatchJSON + extractedDataJSON，并刷新内存快照
     func refreshTransactionCard(transactionId: UUID) {
-        // 1. 找到关联此交易的消息
+        // 1. 找到关联此交易的消息（多卡消息按全量 ID 匹配，消息级缓存只有最后一个）
         guard let messageIndex = messages.firstIndex(where: { msg in
-            msg.resolveLinkedEntityId(for: .finance) == transactionId
+            msg.allLinkedEntityIds(for: .finance).contains(transactionId)
         }) else { return }
 
         let messageId = messages[messageIndex].id
@@ -772,12 +772,14 @@ final class ChatMessageRepository: ObservableObject {
 
         let (primaryCategory, subCategory) = FinanceRepository.shared.resolveCategoryNames(from: category)
 
-        // 同步金额、类型、日期
+        // 同步金额、类型、日期。
+        // 日期必须写 NLDateParser 可回解的标准格式（yyyy-MM-dd HH:mm）：
+        // "M月d日" 无年份回解失败，卡片会整行丢日期显示
         let updatedAmount = transaction.amount.stringValue
         let updatedType = transaction.type // "expense" / "income"
         let dateFormatter = DateFormatter()
         dateFormatter.locale = Locale(identifier: "zh_CN")
-        dateFormatter.dateFormat = "M月d日"
+        dateFormatter.dateFormat = "yyyy-MM-dd HH:mm"
         let updatedDate = dateFormatter.string(from: transaction.date)
 
         // 3. 从 Core Data 读取 ChatMessage
@@ -841,6 +843,152 @@ final class ChatMessageRepository: ObservableObject {
         updateSnapshot(messageId) { snapshot in
             if let batch = updatedBatch { snapshot.executionBatch = batch }
             if let json = updatedExtractedJSON { snapshot.extractedDataJSON = json }
+        }
+    }
+
+    /// 刷新任务卡片显示数据（任务在任务页被改名/改期后调用），与 refreshTransactionCard 对称
+    func refreshTaskCard(taskId: UUID) {
+        guard let messageIndex = messages.firstIndex(where: { msg in
+            msg.allLinkedEntityIds(for: .task).contains(taskId)
+        }) else { return }
+
+        let messageId = messages[messageIndex].id
+        guard let task = TodoRepository.shared.findTask(by: taskId) else { return }
+
+        let titleText = task.title
+        let dueDateText = Self.taskCardDateText(task.dueDate, isAllDay: task.isAllDay)
+
+        let request = ChatMessage.fetchRequest()
+        request.predicate = NSPredicate(format: "id == %@", messageId as CVarArg)
+        request.fetchLimit = 1
+        guard let message = try? context.fetch(request).first else { return }
+
+        var updatedBatch: AIExecutionBatch?
+        var updatedExtractedJSON: String?
+
+        if let batchJSON = message.executionBatchJSON,
+           let batchData = batchJSON.data(using: .utf8),
+           let batch = try? JSONDecoder().decode(AIExecutionBatch.self, from: batchData) {
+            let taskIdStr = taskId.uuidString
+            let newItems = batch.items.map { item in
+                guard item.linkedEntityId == taskIdStr else { return item }
+                var rd = item.renderData ?? [:]
+                rd["title"] = titleText
+                if let dueDateText { rd["dueDate"] = dueDateText } else { rd.removeValue(forKey: "dueDate") }
+                return AIExecutionItem(
+                    id: item.id, parseItemId: item.parseItemId, intent: item.intent,
+                    status: item.status, summaryText: item.summaryText, renderData: rd,
+                    linkedEntityType: item.linkedEntityType, linkedEntityId: item.linkedEntityId,
+                    errorText: item.errorText
+                )
+            }
+            let newBatch = AIExecutionBatch(mode: batch.mode, items: newItems, finalText: batch.finalText)
+            updatedBatch = newBatch
+            if let data = try? JSONEncoder().encode(newBatch),
+               let str = String(data: data, encoding: .utf8) {
+                message.executionBatchJSON = str
+            }
+        }
+
+        if let json = message.extractedDataJSON,
+           let data = json.data(using: .utf8),
+           var dict = try? JSONDecoder().decode([String: String].self, from: data),
+           dict["taskId"] == taskId.uuidString || dict["entityId"] == taskId.uuidString {
+            dict["title"] = titleText
+            if let dueDateText { dict["dueDate"] = dueDateText } else { dict.removeValue(forKey: "dueDate") }
+            if let data = try? JSONEncoder().encode(dict),
+               let str = String(data: data, encoding: .utf8) {
+                message.extractedDataJSON = str
+                updatedExtractedJSON = str
+            }
+        }
+
+        save()
+
+        updateSnapshot(messageId) { snapshot in
+            if let batch = updatedBatch { snapshot.executionBatch = batch }
+            if let json = updatedExtractedJSON { snapshot.extractedDataJSON = json }
+        }
+    }
+
+    /// 任务卡日期文本：全天任务「M月d日」，含时间任务「M月d日 HH:mm」；无日期返回 nil
+    private static func taskCardDateText(_ date: Date?, isAllDay: Bool) -> String? {
+        guard let date else { return nil }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = isAllDay ? "M月d日" : "M月d日 HH:mm"
+        return formatter.string(from: date)
+    }
+
+    /// 启动对账：确认路由执行期间 App 被杀，消息会停留在 confirming 中间态。
+    /// 依据实体上的 AI 来源标记判断上次是否已落库：
+    /// 已建实体 → 补 confirmed + 实体 ID（不重复入账）；未建 → 回 pending 供用户重新确认。
+    func reconcileInterruptedConfirmations() {
+        for message in messages {
+            guard let batch = message.executionBatch else { continue }
+            guard batch.items.contains(where: { $0.renderData?["confirmationStatus"] == "confirming" }) else { continue }
+
+            let messageId = message.id
+            let request = ChatMessage.fetchRequest()
+            request.predicate = NSPredicate(format: "id == %@", messageId as CVarArg)
+            request.fetchLimit = 1
+            guard let stored = try? context.fetch(request).first else { continue }
+
+            var changed = false
+            let newItems = batch.items.map { item -> AIExecutionItem in
+                guard var rd = item.renderData,
+                      rd["confirmationStatus"] == "confirming" else { return item }
+
+                if let tx = FinanceRepository.shared.findTransactionByAISource(
+                    messageId: messageId.uuidString, itemId: item.id) {
+                    rd["confirmationStatus"] = "confirmed"
+                    rd["entityType"] = "finance"
+                    rd["entityId"] = tx.id.uuidString
+                    rd["transactionId"] = tx.id.uuidString
+                    changed = true
+                    return AIExecutionItem(
+                        id: item.id, parseItemId: item.parseItemId, intent: item.intent,
+                        status: .success, summaryText: "已记录", renderData: rd,
+                        linkedEntityType: "finance", linkedEntityId: tx.id.uuidString,
+                        errorText: nil
+                    )
+                }
+
+                if let task = TodoRepository.shared.findTaskByAISource(
+                    messageId: messageId.uuidString, itemId: item.id) {
+                    rd["confirmationStatus"] = "confirmed"
+                    rd["taskId"] = task.id.uuidString
+                    changed = true
+                    return AIExecutionItem(
+                        id: item.id, parseItemId: item.parseItemId, intent: item.intent,
+                        status: .success, summaryText: "已创建任务", renderData: rd,
+                        linkedEntityType: "task", linkedEntityId: task.id.uuidString,
+                        errorText: nil
+                    )
+                }
+
+                // 实体未建：上次路由没跑完，回待确认让用户重新点
+                rd["confirmationStatus"] = "pending"
+                changed = true
+                return AIExecutionItem(
+                    id: item.id, parseItemId: item.parseItemId, intent: item.intent,
+                    status: item.status, summaryText: item.summaryText, renderData: rd,
+                    linkedEntityType: item.linkedEntityType, linkedEntityId: item.linkedEntityId,
+                    errorText: item.errorText
+                )
+            }
+
+            guard changed else { continue }
+            let newBatch = AIExecutionBatch(mode: batch.mode, items: newItems, finalText: batch.finalText)
+            if let data = try? JSONEncoder().encode(newBatch),
+               let str = String(data: data, encoding: .utf8) {
+                stored.executionBatchJSON = str
+            }
+            save()
+            updateSnapshot(messageId) { snapshot in
+                snapshot.executionBatch = newBatch
+            }
+            logger.info("对账完成：消息 \(messageId.uuidString, privacy: .public) 的中断确认已恢复")
         }
     }
 

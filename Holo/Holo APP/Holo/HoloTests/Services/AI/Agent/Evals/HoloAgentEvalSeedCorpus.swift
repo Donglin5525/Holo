@@ -1,3 +1,4 @@
+@testable import Holo
 //
 //  HoloAgentEvalSeedCorpus.swift
 //  HoloTests

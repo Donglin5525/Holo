@@ -52,6 +52,7 @@ final class ThoughtOrganizationService {
         // 2. 读取想法内容（只传 ID，不跨线程持有 NSManagedObject）
         let thoughtContent: String
         let existingTagExamples: [String]
+        let recentAITagLeaves: [String]
         let rejectedTags: [String]
         let activeTopicTitles: [String]
 
@@ -63,6 +64,7 @@ final class ThoughtOrganizationService {
             }
             thoughtContent = thought.content
             existingTagExamples = repository.fetchUserRecognizedTagNames()
+            recentAITagLeaves = (try? repository.fetchRecentAITagLeafNames()) ?? []
             rejectedTags = loadRejectedTagNames()
             activeTopicTitles = try TopicRepository().fetchClassificationTopics().map(\.title)
         } catch {
@@ -77,6 +79,7 @@ final class ThoughtOrganizationService {
                 thoughtContent: thoughtContent,
                 activeTopics: activeTopicTitles,
                 existingTags: existingTagExamples,
+                recentAITags: recentAITagLeaves,
                 rejectedTags: rejectedTags
             ))]
 
@@ -87,14 +90,21 @@ final class ThoughtOrganizationService {
             throw error
         }
 
-        // 4. 解析 JSON
+        // 4. 空响应判定为可重试错误（线上实测：推理模型思考吃满额度时 content 为空，
+        //    约占 27% 调用；此前按 parseFailed 标 failed 不重试，是整理失败率高的主因）
+        guard !rawResponse.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            logger.error("AI 返回空内容（推理思考吃满额度），想法：\(thoughtId)，转入重试")
+            throw APIError.serverError("AI 整理返回空内容")
+        }
+
+        // 5. 解析 JSON
         guard let result = parseOrganizationResponse(rawResponse) else {
             logger.error("JSON 解析失败，原始响应：\(rawResponse.prefix(200))")
             try? repository.updateOrganizedStatus(thoughtId: thoughtId, status: "failed")
             return  // 解析失败标 failed，不重试（避免浪费配额）
         }
 
-        // 5. 端侧强校验：主题只能来自约束池，未知前缀统一降级为虚拟“未分类”。
+        // 6. 端侧强校验：主题只能来自约束池，未知前缀统一降级为虚拟“未分类”。
         let validated = ThoughtThemeConstraint.validate(
             selectedTopic: result.selectedTopic,
             suggestedTags: result.suggestedTags,
@@ -115,14 +125,16 @@ final class ThoughtOrganizationService {
             try TopicRepository().applyClassification(
                 thoughtId: thoughtId,
                 topicTitle: validated.topicTitle,
-                tagPaths: validated.tagPaths
+                tagPaths: validated.tagPaths,
+                confidence: result.confidence,
+                reason: result.reason
             )
         } catch {
             logger.error("写入主题分类结果失败：\(error.localizedDescription)")
             throw error
         }
 
-        // 6. 更新状态为 organized
+        // 7. 更新状态为 organized
         do {
             try repository.updateOrganizedStatus(thoughtId: thoughtId, status: "organized")
         } catch {
@@ -221,6 +233,8 @@ final class ThoughtOrganizationService {
         let selectedTopic: String?
         let suggestedTags: [String]
         let confidence: Double
+        /// 一句话分类依据（后端 v4 prompt 100% 返回，线上 35/35 样本验证）
+        let reason: String?
     }
 
     /// 解析 AI 返回的 JSON
@@ -250,23 +264,31 @@ final class ThoughtOrganizationService {
             ?? (json["topic"] as? String)
             ?? (json["topicTitle"] as? String)
 
+        let reasonTrimmed = (json["reason"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let reason = reasonTrimmed.isEmpty ? nil : String(reasonTrimmed.prefix(120))
+
         return OrganizationResponse(
             selectedTopic: selectedTopic,
             suggestedTags: filteredTags,
-            confidence: confidence
+            confidence: confidence,
+            reason: reason
         )
     }
 
     /// 把用户数据编码成 JSON，避免正文中的自然语言被误当成 Prompt 指令。
+    /// recentAITags：近 90 天 AI 标签叶段池，后端 v4 复用硬约束的原料（不传则历史 AI 标签不参与复用，标签易发散）
     private func buildOrganizationPayload(
         thoughtContent: String,
         activeTopics: [String],
         existingTags: [String],
+        recentAITags: [String],
         rejectedTags: [String]
     ) -> String {
         let payload: [String: Any] = [
             "activeTopics": activeTopics,
             "existingTags": existingTags,
+            "recentAITags": recentAITags,
             "rejectedTags": rejectedTags,
             "thoughtContent": thoughtContent
         ]

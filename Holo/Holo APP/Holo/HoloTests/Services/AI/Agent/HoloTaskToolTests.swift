@@ -50,7 +50,7 @@ struct HoloTaskToolTests {
     }
 
     private static func makeRecord(id: String, title: String, priority: Int = 2, completed: Bool = false, dueDate: Date? = nil) -> HoloTaskToolRecord {
-        HoloTaskToolRecord(id: id, title: title, descExcerpt: nil, priority: priority, dueDate: dueDate, plannedDate: nil, completed: completed)
+        HoloTaskToolRecord(id: id, title: title, descExcerpt: nil, priority: priority, dueDate: dueDate, completed: completed)
     }
 
     private static func makeSnapshot(

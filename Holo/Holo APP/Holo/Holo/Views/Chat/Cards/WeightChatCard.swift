@@ -10,10 +10,9 @@ import SwiftUI
 struct WeightChatCard: View {
 
     let data: WeightCardData
-    var onTap: (() -> Void)?
 
     var body: some View {
-        ChatCardView(onTap: onTap) {
+        ChatCardView {
             CardHeaderView(
                 icon: "scalemass.fill",
                 title: "体重记录",
@@ -26,7 +25,7 @@ struct WeightChatCard: View {
                 tint: .holoTextPrimary
             )
 
-            CardFooterView(timeText: "刚刚")
+            CardFooterView(timeText: "刚刚", showsChevron: false)
         }
         .accessibilityLabel("体重卡片：\(data.weight) \(data.unit)")
     }

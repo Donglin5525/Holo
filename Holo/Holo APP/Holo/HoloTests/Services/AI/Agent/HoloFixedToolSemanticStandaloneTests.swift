@@ -206,7 +206,7 @@ struct HoloFixedToolSemanticStandaloneTests {
                 HoloDailyTaskCount(date: Date(timeIntervalSince1970: 172_800), completedCount: 4)
             ],
             overdueTasks: [HoloTaskToolRecord(id: "t1", title: "还书", descExcerpt: nil, priority: 2,
-                                              dueDate: Date(timeIntervalSince1970: 86_400), plannedDate: nil, completed: false)],
+                                              dueDate: Date(timeIntervalSince1970: 86_400), completed: false)],
             recentTasks: [],
             unplannedTasks: []
         )

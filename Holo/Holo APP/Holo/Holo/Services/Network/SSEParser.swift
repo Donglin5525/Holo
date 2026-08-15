@@ -7,8 +7,11 @@
 //
 
 import Foundation
+import os
 
 nonisolated struct SSEParser {
+
+    private static let logger = Logger(subsystem: "com.holo.app", category: "SSEParser")
 
     /// 解析单行 SSE 数据
     /// - Parameter line: 一行 SSE 文本
@@ -20,27 +23,33 @@ nonisolated struct SSEParser {
         // 跳过注释行（以冒号开头）
         guard !line.hasPrefix(":") else { return nil }
 
-        // 处理 data: 前缀
+        // 处理 data: 前缀（SSE 规范允许 "data:" 与 "data: " 两种写法）
+        let jsonString: Substring
         if line.hasPrefix("data: ") {
-            let jsonString = String(line.dropFirst(6))
+            jsonString = line.dropFirst(6)
+        } else if line.hasPrefix("data:") {
+            jsonString = line.dropFirst(5)
+        } else {
+            return nil
+        }
 
-            // 检查结束标记
-            if jsonString.trimmingCharacters(in: .whitespaces) == "[DONE]" {
-                return nil
+        // 检查结束标记
+        if jsonString.trimmingCharacters(in: .whitespaces) == "[DONE]" {
+            return nil
+        }
+
+        // 解码 SSEChunk 提取 content
+        guard let jsonData = String(jsonString).data(using: .utf8) else { return nil }
+
+        do {
+            let chunk = try JSONDecoder().decode(SSEChunk.self, from: jsonData)
+            if let content = chunk.choices?.first?.delta?.content {
+                return content
             }
-
-            // 解码 SSEChunk 提取 content
-            guard let jsonData = jsonString.data(using: .utf8) else { return nil }
-
-            do {
-                let chunk = try JSONDecoder().decode(SSEChunk.self, from: jsonData)
-                if let content = chunk.choices?.first?.delta?.content {
-                    return content
-                }
-            } catch {
-                // JSON 解码失败，忽略该行
-                return nil
-            }
+        } catch {
+            // 坏行不再静默丢弃：上游格式变化时会无声丢内容，这里留日志便于诊断
+            Self.logger.warning("SSE 行 JSON 解码失败：\(String(jsonString.prefix(200)), privacy: .public)")
+            return nil
         }
 
         return nil

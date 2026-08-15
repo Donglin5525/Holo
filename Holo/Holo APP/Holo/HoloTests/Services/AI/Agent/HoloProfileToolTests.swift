@@ -45,7 +45,8 @@ struct HoloProfileToolTests {
         currentFocus: ["Holo 上架"],
         lifeContext: ["独立开发者"],
         healthHabitContext: ["提高睡眠稳定性"],
-        sensitiveBoundaries: ["无关场景不要提健康信息"]
+        sensitiveBoundaries: ["无关场景不要提健康信息"],
+        rawMarkdown: ""
     )
 
     private static func request(_ query: String) -> HoloToolRequest {

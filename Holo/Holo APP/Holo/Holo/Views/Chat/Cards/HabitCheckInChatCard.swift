@@ -10,10 +10,9 @@ import SwiftUI
 struct HabitCheckInChatCard: View {
 
     let data: HabitCheckInCardData
-    var onTap: (() -> Void)?
 
     var body: some View {
-        ChatCardView(onTap: onTap) {
+        ChatCardView {
             CardHeaderView(
                 icon: "flame.fill",
                 title: data.habitName,
@@ -34,7 +33,7 @@ struct HabitCheckInChatCard: View {
                 HoloAIFactItem(kicker: "今日状态", bodyText: "已完成今天的打卡。", tint: .holoSuccess)
             }
 
-            CardFooterView(timeText: "今天")
+            CardFooterView(timeText: "今天", showsChevron: false)
         }
         .accessibilityLabel("打卡卡片：\(data.habitName)\(data.completed ? "，已完成" : "")")
     }

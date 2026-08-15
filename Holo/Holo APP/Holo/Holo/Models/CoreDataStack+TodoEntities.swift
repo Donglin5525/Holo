@@ -201,6 +201,19 @@ extension CoreDataStack {
         taskDeletedFlag.defaultValue = false
         todoTaskAttributes.append(taskDeletedFlag)
 
+        // AI 确认流程来源标记（对账用，与 Transaction.aiSourceMessageId 同构）
+        let taskAISourceMessageId = NSAttributeDescription()
+        taskAISourceMessageId.name = "aiSourceMessageId"
+        taskAISourceMessageId.attributeType = .stringAttributeType
+        taskAISourceMessageId.isOptional = true
+        todoTaskAttributes.append(taskAISourceMessageId)
+
+        let taskAISourceItemId = NSAttributeDescription()
+        taskAISourceItemId.name = "aiSourceItemId"
+        taskAISourceItemId.attributeType = .stringAttributeType
+        taskAISourceItemId.isOptional = true
+        todoTaskAttributes.append(taskAISourceItemId)
+
         let taskDeletedAt = NSAttributeDescription()
         taskDeletedAt.name = "deletedAt"
         taskDeletedAt.attributeType = .dateAttributeType

@@ -7,8 +7,8 @@
 //
 
 import Foundation
+@testable import Holo
 
-@main
 struct HoloAgentModelCodableTests {
 
     static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -202,3 +202,12 @@ struct HoloAgentModelCodableTests {
         expect(!budget.isExhausted, "全新 budget 不应耗尽")
     }
 }
+
+#if !HOLO_XCTEST_BRIDGE
+@main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        HoloAgentModelCodableTests.main()
+    }
+}
+#endif

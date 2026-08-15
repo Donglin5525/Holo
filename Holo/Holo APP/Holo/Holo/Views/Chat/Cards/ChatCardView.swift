@@ -60,15 +60,6 @@ struct ChatCardView<Content: View>: View {
         .shadow(color: HoloShadow.card.opacity(0.55), radius: 14, x: 0, y: 7)
         .opacity(isDeleted ? 0.5 : 1.0)
         .saturation(isDeleted ? 0 : 1)
-        .overlay(alignment: .bottomTrailing) {
-            if isDeleted {
-                Text("已删除")
-                    .font(.holoTinyLabel)
-                    .foregroundColor(.holoError)
-                    .padding(.horizontal, HoloSpacing.xs)
-                    .padding(.vertical, 2)
-            }
-        }
     }
 }
 
@@ -94,12 +85,14 @@ struct CardHeaderView: View {
     let title: String
     var badge: CardBadge?
     var subtitle: String?
+    var isDeleted: Bool = false
 
-    init(icon: String, title: String, badge: CardBadge? = nil, subtitle: String? = nil) {
+    init(icon: String, title: String, badge: CardBadge? = nil, subtitle: String? = nil, isDeleted: Bool = false) {
         self.icon = icon
         self.title = title
         self.badge = badge
         self.subtitle = subtitle
+        self.isDeleted = isDeleted
     }
 
     var body: some View {
@@ -115,12 +108,14 @@ struct CardHeaderView: View {
                     .foregroundColor(.holoTextPrimary)
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
+                    .strikethrough(isDeleted)
 
                 if let subtitle, !subtitle.isEmpty {
                     Text(subtitle)
                         .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.holoTextSecondary)
                         .lineLimit(2)
+                        .strikethrough(isDeleted)
                 }
 
                 if let badge {
@@ -167,18 +162,24 @@ struct CardDivider: View {
 struct CardFooterView: View {
 
     let timeText: String
+    var isDeleted: Bool = false
+    /// 是否渲染右侧箭头：箭头暗示「点击有去向」，纯展示卡片（无跳转入口）必须传 false
+    var showsChevron: Bool = true
 
     var body: some View {
         HStack {
             Text(timeText)
                 .font(.system(size: 12, weight: .medium))
                 .foregroundColor(.holoTextSecondary)
+                .strikethrough(isDeleted)
 
             Spacer()
 
-            Image(systemName: "chevron.right")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundColor(.holoPrimary.opacity(0.78))
+            if showsChevron && !isDeleted {
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(.holoPrimary.opacity(0.78))
+            }
         }
     }
 }

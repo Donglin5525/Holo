@@ -125,7 +125,7 @@ struct VoiceInputSheet: View {
             recordingControls
         case .transcribing:
             Button("取消") {
-                VoiceInputHaptics.light()
+                HapticManager.light()
                 viewModel.cancel()
                 dismiss()
             }
@@ -142,14 +142,14 @@ struct VoiceInputSheet: View {
     private var recordingControls: some View {
         HStack(spacing: 14) {
             Button("取消") {
-                VoiceInputHaptics.light()
+                HapticManager.light()
                 viewModel.cancel()
                 dismiss()
             }
             .buttonStyle(VoiceSecondaryButtonStyle())
 
             Button(viewModel.state == .recording ? "暂停" : "继续") {
-                VoiceInputHaptics.selection()
+                HapticManager.selection()
                 if viewModel.state == .recording {
                     viewModel.pauseRecording()
                 } else {
@@ -159,7 +159,7 @@ struct VoiceInputSheet: View {
             .buttonStyle(VoiceSecondaryButtonStyle())
 
             Button("完成") {
-                VoiceInputHaptics.medium()
+                HapticManager.medium()
                 Task { await viewModel.finishRecording() }
             }
             .buttonStyle(VoicePrimaryButtonStyle())
@@ -182,7 +182,7 @@ struct VoiceInputSheet: View {
 
             HStack(spacing: 14) {
                 Button("重录") {
-                    VoiceInputHaptics.selection()
+                    HapticManager.selection()
                     viewModel.reRecord()
                 }
                 .buttonStyle(VoiceSecondaryButtonStyle())
@@ -190,14 +190,14 @@ struct VoiceInputSheet: View {
                 if resultConfig?.showsOriginalToggle == true && viewModel.originalTranscript != nil {
                     if viewModel.transcriptDisplayMode == .summary {
                         Button("查看原文") {
-                            VoiceInputHaptics.selection()
+                            HapticManager.selection()
                             viewModel.showOriginalTranscript()
                         }
                         .buttonStyle(VoiceSecondaryButtonStyle())
                     } else {
                         if viewModel.summaryTranscript != nil {
                             Button("还原总结") {
-                                VoiceInputHaptics.selection()
+                                HapticManager.selection()
                                 viewModel.restoreSummaryTranscript()
                             }
                             .buttonStyle(VoiceSecondaryButtonStyle())
@@ -206,7 +206,7 @@ struct VoiceInputSheet: View {
                 }
 
                 Button(submitButtonTitle) {
-                    VoiceInputHaptics.success()
+                    HapticManager.success()
                     onSendTranscript(viewModel.editableTranscript)
                 }
                 .buttonStyle(VoicePrimaryButtonStyle())
@@ -217,7 +217,7 @@ struct VoiceInputSheet: View {
             // 分寸：只在转写结果出来后才出现，不遮挡内容、不打断用户确认。
             if showsPlusUpgradeHint {
                 Button {
-                    VoiceInputHaptics.selection()
+                    HapticManager.selection()
                     HoloPlusActionCoordinator.shared.requirePlus(context: .asrDuration)
                 } label: {
                     HStack(spacing: 4) {
@@ -244,7 +244,7 @@ struct VoiceInputSheet: View {
                 .scaleEffect(1.2)
 
             Button("重录") {
-                VoiceInputHaptics.selection()
+                HapticManager.selection()
                 viewModel.cancelSummary()
                 viewModel.reRecord()
             }
@@ -270,21 +270,21 @@ struct VoiceInputSheet: View {
     private func failedButtonRow(_ error: VoiceInputError) -> some View {
         HStack(spacing: 12) {
             Button("取消") {
-                VoiceInputHaptics.light()
+                HapticManager.light()
                 viewModel.cancel()
                 dismiss()
             }
             .buttonStyle(VoiceSecondaryButtonStyle())
 
             Button("重录") {
-                VoiceInputHaptics.selection()
+                HapticManager.selection()
                 viewModel.reRecord()
             }
             .buttonStyle(VoiceSecondaryButtonStyle())
 
             if error.allowsRetryTranscription {
                 Button("重试识别") {
-                    VoiceInputHaptics.medium()
+                    HapticManager.medium()
                     viewModel.retryTranscription()
                 }
                 .buttonStyle(VoicePrimaryButtonStyle())
@@ -295,21 +295,21 @@ struct VoiceInputSheet: View {
     private func failedButtonStack(_ error: VoiceInputError) -> some View {
         VStack(spacing: 10) {
             Button("取消") {
-                VoiceInputHaptics.light()
+                HapticManager.light()
                 viewModel.cancel()
                 dismiss()
             }
             .buttonStyle(VoiceSecondaryButtonStyle())
 
             Button("重录") {
-                VoiceInputHaptics.selection()
+                HapticManager.selection()
                 viewModel.reRecord()
             }
             .buttonStyle(VoiceSecondaryButtonStyle())
 
             if error.allowsRetryTranscription {
                 Button("重试识别") {
-                    VoiceInputHaptics.medium()
+                    HapticManager.medium()
                     viewModel.retryTranscription()
                 }
                 .buttonStyle(VoicePrimaryButtonStyle())
@@ -418,19 +418,19 @@ struct VoiceInputSheet: View {
     private func handleStateFeedback(_ state: VoiceInputState) {
         switch state {
         case .recording:
-            VoiceInputHaptics.light()
+            HapticManager.light()
         case .interrupted:
-            VoiceInputHaptics.warning()
+            HapticManager.warning()
         case .transcribing:
             if viewModel.didAutoFinishBecauseOfLimit {
-                VoiceInputHaptics.medium()
+                HapticManager.medium()
             }
         case .summarizing:
-            VoiceInputHaptics.medium()
+            HapticManager.medium()
         case .transcriptReady:
-            VoiceInputHaptics.success()
+            HapticManager.success()
         case .failed:
-            VoiceInputHaptics.error()
+            HapticManager.error()
         default:
             break
         }
@@ -464,31 +464,5 @@ private struct VoiceSecondaryButtonStyle: ButtonStyle {
             .padding(.horizontal, 8)
             .background(Color.holoCardBackground.opacity(configuration.isPressed ? 0.72 : 1))
             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-    }
-}
-
-private enum VoiceInputHaptics {
-    static func light() {
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-    }
-
-    static func medium() {
-        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-    }
-
-    static func selection() {
-        UISelectionFeedbackGenerator().selectionChanged()
-    }
-
-    static func success() {
-        UINotificationFeedbackGenerator().notificationOccurred(.success)
-    }
-
-    static func warning() {
-        UINotificationFeedbackGenerator().notificationOccurred(.warning)
-    }
-
-    static func error() {
-        UINotificationFeedbackGenerator().notificationOccurred(.error)
     }
 }

@@ -613,15 +613,32 @@ nonisolated final class HoloBackendDeviceIdentity {
 
     private let key = "holo.backend.deviceId"
     private let userDefaults: UserDefaults
+    /// iCloud 键值存储：卸载重装后 UserDefaults 清空，但 iCloud KVS 保留，
+    /// AI 额度/订阅的设备归属不因重装而重置（后端 entitlement 按 deviceId 判定）
+    private let iCloudStore = NSUbiquitousKeyValueStore.default
 
     var deviceId: String {
+        // 1) 本地缓存命中（含历史用户）
         if let existing = userDefaults.string(forKey: key), !existing.isEmpty {
+            syncToICloudIfNeeded(existing)
             return existing
         }
-
+        // 2) iCloud 有（重装后恢复）
+        if let restored = iCloudStore.string(forKey: key), !restored.isEmpty {
+            userDefaults.set(restored, forKey: key)
+            return restored
+        }
+        // 3) 全新设备：生成并双写
         let created = UUID().uuidString
         userDefaults.set(created, forKey: key)
+        iCloudStore.set(created, forKey: key)
         return created
+    }
+
+    /// 历史 deviceId 尚未进 iCloud（未登录 iCloud 的用户 KVS 不可用，跳过静默）
+    private func syncToICloudIfNeeded(_ deviceId: String) {
+        guard iCloudStore.string(forKey: key) != deviceId else { return }
+        iCloudStore.set(deviceId, forKey: key)
     }
 
     private init(userDefaults: UserDefaults = .standard) {

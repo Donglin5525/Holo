@@ -416,6 +416,24 @@ nonisolated struct ChatMessageViewData: Identifiable, Equatable, Sendable, Hasha
         cachedLinkedEntityIds[category]
     }
 
+    /// 该消息在某分类下关联的全部实体 ID（多卡消息每张卡各一个）。
+    /// 消息级缓存 `resolveLinkedEntityId` 只保留最后一个，删除态/内容刷新须按全量匹配。
+    nonisolated func allLinkedEntityIds(for category: EntityCategory) -> Set<UUID> {
+        var result = Set<UUID>()
+        if let batch = executionBatch {
+            for item in batch.items {
+                guard let idStr = item.linkedEntityId,
+                      let id = UUID(uuidString: idStr),
+                      Self.category(for: item.intent) == category else { continue }
+                result.insert(id)
+            }
+        }
+        if result.isEmpty, let id = resolveLinkedEntityId(for: category) {
+            result.insert(id)
+        }
+        return result
+    }
+
     /// 检查是否存在关联实体
     nonisolated func hasLinkedEntity(for category: EntityCategory) -> Bool {
         resolveLinkedEntityId(for: category) != nil

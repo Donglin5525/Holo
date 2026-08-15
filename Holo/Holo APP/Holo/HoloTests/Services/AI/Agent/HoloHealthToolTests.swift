@@ -13,6 +13,7 @@
 //
 
 import Foundation
+@testable import Holo
 
 struct MockHealthDataSource: HoloHealthDataSource {
     let daily: [HoloHealthMetricKind: [HoloHealthDailyRecord]]
@@ -85,7 +86,6 @@ struct LockedHealthDataSource: HoloHealthDataSource {
     }
 }
 
-@main
 struct HoloHealthToolTests {
 
     static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -362,3 +362,12 @@ struct HoloHealthToolTests {
         expect(result.metrics.isEmpty, "权限拒绝不得产出指标")
     }
 }
+
+#if !HOLO_XCTEST_BRIDGE
+@main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        await try HoloHealthToolTests.main()
+    }
+}
+#endif

@@ -52,7 +52,10 @@ final class HabitStatsStateTests: XCTestCase {
             summary: .measure(recordedDays: 4, averageValueText: "58.2kg"),
             collapsedWeek: secondWeek,
             allWeeks: [firstWeek, secondWeek],
-            month: HabitStatsMonthSection(monthStart: month, weekdaySymbols: [], rows: [])
+            month: HabitStatsMonthSection(monthStart: month, weekdaySymbols: [], rows: []),
+            dailyData: [],
+            unitText: "kg",
+            completionRate: 0
         )
 
         XCTAssertEqual(item.collapsedWeek.weekStart, secondWeek.weekStart)

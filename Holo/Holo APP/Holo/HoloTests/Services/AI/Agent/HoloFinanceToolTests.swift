@@ -10,6 +10,7 @@
 //
 
 import Foundation
+@testable import Holo
 
 /// FinanceTool 测试专用数据源（独立命名，避免联合编译重复）。
 struct MockFinanceDataSource: HoloFinanceDataSource {
@@ -25,7 +26,6 @@ struct MockFinanceDataSource: HoloFinanceDataSource {
     func queryRows(timeRange: HoloAgentTimeRange?, parameters: [String: String]) async -> [HoloQueryRow] { rows }
 }
 
-@main
 struct HoloFinanceToolTests {
 
     static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -423,3 +423,12 @@ struct HoloFinanceToolTests {
         expect(result.metrics.isEmpty, "empty 不应带 metrics")
     }
 }
+
+#if !HOLO_XCTEST_BRIDGE
+@main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        await try HoloFinanceToolTests.main()
+    }
+}
+#endif

@@ -4,6 +4,7 @@
 //
 
 import Foundation
+@testable import Holo
 
 struct MockInsightDataSource: HoloInsightDataSource {
     let records: [HoloInsightToolRecord]
@@ -12,7 +13,6 @@ struct MockInsightDataSource: HoloInsightDataSource {
     }
 }
 
-@main
 struct HoloInsightToolTests {
 
     static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -79,3 +79,12 @@ struct HoloInsightToolTests {
         expect(result.warnings.contains { $0.code == "NO_INSIGHT_DATA" }, "应返回明确 warning")
     }
 }
+
+#if !HOLO_XCTEST_BRIDGE
+@main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        await try HoloInsightToolTests.main()
+    }
+}
+#endif

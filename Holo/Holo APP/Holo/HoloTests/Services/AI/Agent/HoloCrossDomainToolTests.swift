@@ -1,4 +1,5 @@
 import Foundation
+@testable import Holo
 
 struct MockCrossDomainDataSource: HoloCrossDomainDataSource {
     var values: [String: [HoloQueryRow]]
@@ -18,7 +19,6 @@ struct MockDecoratedTool: HoloDataTool {
     }
 }
 
-@main
 struct HoloCrossDomainToolTests {
     static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
         if !condition() { fatalError(message) }
@@ -127,3 +127,12 @@ struct HoloCrossDomainToolTests {
         expect(result.warnings.first?.code == "INSUFFICIENT_ALIGNED_DAYS", "应返回明确原因")
     }
 }
+
+#if !HOLO_XCTEST_BRIDGE
+@main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        await try HoloCrossDomainToolTests.main()
+    }
+}
+#endif

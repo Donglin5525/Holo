@@ -17,12 +17,14 @@ struct TransactionChatCard: View {
     var onModifyCategory: (() -> Void)?
 
     var body: some View {
-        ChatCardView(isDeleted: isDeleted, onTap: data.requiresConfirmation ? nil : onTap) {
+        // 已取消的记账没有关联实体，可点但无动作等于假交互：与待确认态一并禁点
+        ChatCardView(isDeleted: isDeleted, onTap: data.requiresConfirmation || data.isCancelled ? nil : onTap) {
             CardHeaderView(
                 icon: data.requiresConfirmation ? "yensign.circle" : data.categoryIcon,
                 title: headerTitle,
                 badge: badge,
-                subtitle: headerSubtitle
+                subtitle: headerSubtitle,
+                isDeleted: isDeleted
             )
 
             // 金额
@@ -38,6 +40,7 @@ struct TransactionChatCard: View {
                 Text(note)
                     .font(.system(size: 14, weight: .medium))
                     .foregroundColor(.holoTextSecondary)
+                    .strikethrough(isDeleted)
             }
 
             // 分类 + 记录日期
@@ -49,7 +52,7 @@ struct TransactionChatCard: View {
             }
 
             if data.requiresConfirmation {
-                if !data.isInstallment {
+                if !data.isInstallment && !data.isConfirming {
                     modifyCategoryLink
                 }
                 pendingActions
@@ -58,7 +61,7 @@ struct TransactionChatCard: View {
             } else if data.isFailed {
                 failedInfo
             } else {
-                CardFooterView(timeText: "查看明细")
+                CardFooterView(timeText: "查看明细", isDeleted: isDeleted)
             }
         }
         .accessibilityLabel("记账卡片：\(data.displayTitle)，\(data.isExpense ? "支出" : "收入")\(data.amount)元")
@@ -156,19 +159,21 @@ struct TransactionChatCard: View {
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
             .buttonStyle(.plain)
+            .disabled(data.isConfirming)
 
             Button {
                 onConfirm?()
             } label: {
-                Text("确认")
+                Text(data.isConfirming ? "正在记录…" : "确认")
                     .font(.system(size: 14, weight: .semibold))
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 10)
-                    .background(Color.holoPrimary)
+                    .background(data.isConfirming ? Color.holoPrimary.opacity(0.5) : Color.holoPrimary)
                     .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
             }
             .buttonStyle(.plain)
+            .disabled(data.isConfirming)
         }
     }
 
@@ -233,6 +238,7 @@ struct TransactionChatCard: View {
                             .font(.system(size: 11))
                         Text(path)
                             .font(.system(size: 13, weight: .medium))
+                            .strikethrough(isDeleted)
                     }
                 }
 
@@ -244,6 +250,7 @@ struct TransactionChatCard: View {
                             .font(.system(size: 11))
                         Text(dateText)
                             .font(.system(size: 13, weight: .medium))
+                            .strikethrough(isDeleted)
                     }
                 }
             }

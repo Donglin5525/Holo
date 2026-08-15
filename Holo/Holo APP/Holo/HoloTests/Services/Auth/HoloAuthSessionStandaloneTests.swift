@@ -30,7 +30,8 @@ enum HoloAuthSessionStandaloneTestRunner {
             userIdentifier: "apple-user-1",
             fullName: "  林夕  ",
             email: "lin@example.com",
-            signedInAt: Date(timeIntervalSince1970: 1_700_000_000)
+            signedInAt: Date(timeIntervalSince1970: 1_700_000_000),
+            identityToken: nil
         )
         assertEqual(namedSession.displayName, "林夕", "displayName should trim Apple full name")
 
@@ -38,7 +39,8 @@ enum HoloAuthSessionStandaloneTestRunner {
             userIdentifier: "apple-user-2",
             fullName: "   ",
             email: nil,
-            signedInAt: Date(timeIntervalSince1970: 1_700_000_000)
+            signedInAt: Date(timeIntervalSince1970: 1_700_000_000),
+            identityToken: nil
         )
         assertEqual(fallbackSession.displayName, "Apple 用户", "displayName should fall back when name is blank")
     }

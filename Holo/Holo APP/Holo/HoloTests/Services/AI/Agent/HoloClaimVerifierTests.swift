@@ -9,8 +9,8 @@
 //
 
 import Foundation
+@testable import Holo
 
-@main
 struct HoloClaimVerifierTests {
 
     static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -163,3 +163,12 @@ struct HoloClaimVerifierTests {
         expect(result.acceptedClaims.count == 1, "重复 evidence id 不应导致校验器崩溃")
     }
 }
+
+#if !HOLO_XCTEST_BRIDGE
+@main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        HoloClaimVerifierTests.main()
+    }
+}
+#endif

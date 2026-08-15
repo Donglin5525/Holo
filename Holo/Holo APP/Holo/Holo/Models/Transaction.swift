@@ -35,6 +35,10 @@ public class Transaction: NSManagedObject {
     // AI 来源标记
     @NSManaged public var isAICreated: Bool
     @NSManaged public var aiCandidate: String?
+    /// AI 确认流程的来源消息 ID：确认中途被杀后启动对账用（实体已建但消息仍停在 confirming）
+    @NSManaged public var aiSourceMessageId: String?
+    /// AI 确认流程的来源 execution item ID（与 aiSourceMessageId 配对定位）
+    @NSManaged public var aiSourceItemId: String?
 
     /// 由长期成本项目自动生成时，记录来源项目 ID
     @NSManaged public var spendingProjectId: UUID?

@@ -27,6 +27,10 @@ class TodoTask: NSManagedObject {
     @NSManaged var completedAt: Date?
     @NSManaged var archived: Bool
     @NSManaged var deletedFlag: Bool
+    /// AI 确认流程的来源消息 ID（对账用，与 Transaction.aiSourceMessageId 同构）
+    @NSManaged var aiSourceMessageId: String?
+    /// AI 确认流程的来源 execution item ID
+    @NSManaged var aiSourceItemId: String?
     @NSManaged var deletedAt: Date?
     @NSManaged var createdAt: Date
     @NSManaged var updatedAt: Date

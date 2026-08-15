@@ -435,15 +435,33 @@ class FinanceRepository {
         return (try? context.fetch(request))?.first?.name
     }
 
-    /// 标记交易为 AI 创建，并记录原始分类候选词
-    func markTransactionAsAICreated(_ transactionId: UUID, candidate: String?) {
+    /// 标记交易为 AI 创建，并记录原始分类候选词与确认流程来源（对账用）
+    func markTransactionAsAICreated(
+        _ transactionId: UUID,
+        candidate: String?,
+        sourceMessageId: String? = nil,
+        sourceItemId: String? = nil
+    ) {
         let request = Transaction.fetchRequest()
         request.predicate = NSPredicate(format: "id == %@", transactionId as CVarArg)
         request.fetchLimit = 1
         guard let transaction = try? context.fetch(request).first else { return }
         transaction.isAICreated = true
         transaction.aiCandidate = candidate
+        transaction.aiSourceMessageId = sourceMessageId
+        transaction.aiSourceItemId = sourceItemId
         try? context.save()
+    }
+
+    /// 按 AI 确认流程来源查找交易（对账：确认中途被杀时实体已建但消息仍停在 confirming）
+    func findTransactionByAISource(messageId: String, itemId: String) -> Transaction? {
+        let request = Transaction.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "aiSourceMessageId == %@ AND aiSourceItemId == %@",
+            messageId, itemId
+        )
+        request.fetchLimit = 1
+        return try? context.fetch(request).first
     }
 
     /// 查询同一分期组的所有交易

@@ -10,8 +10,8 @@
 //
 
 import Foundation
+@testable import Holo
 
-@main
 struct HoloAgentJSONStoreTests {
 
     static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -179,3 +179,12 @@ struct HoloAgentJSONStoreTests {
         return attrs[.protectionKey] as? String
     }
 }
+
+#if !HOLO_XCTEST_BRIDGE
+@main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        await HoloAgentJSONStoreTests.main()
+    }
+}
+#endif

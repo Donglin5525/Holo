@@ -47,7 +47,13 @@ enum NLDateParser {
             formatter.dateFormat = format
             if let date = formatter.date(from: text) { return date }
         }
-        return nil
+
+        // ISO 8601（LLM 按提示词可能返回，如 2026-08-16T21:00:00+08:00）
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = isoFormatter.date(from: text) { return date }
+        let plainISO = ISO8601DateFormatter()
+        return plainISO.date(from: text)
     }
 
     // MARK: - Chinese Natural Language
@@ -147,8 +153,13 @@ enum NLDateParser {
 
     // MARK: - Time Extraction
 
-    /// 从文本中提取时间（时/分），考虑中文时段
+    /// 从文本中提取时间（时/分），考虑中文时段；支持「X点[Y分/半]」与「HH:mm」两种写法
     private static func extractHourMinute(_ text: String) -> (hour: Int, minute: Int)? {
+        // 先试 HH:mm 数字冒号写法（LLM 常回 "明天 09:00" 这类格式）
+        if let colonTime = extractColonTime(text) {
+            return colonTime
+        }
+
         // 匹配: X点[Y分] 或 X点半
         let pattern = "(\\d{1,2})\\s*点(?:\\s*(\\d{1,2})\\s*分|半)?"
         guard let regex = try? NSRegularExpression(pattern: pattern),
@@ -175,6 +186,22 @@ enum NLDateParser {
         let adjustedHour = applyPeriodAdjustment(text, hour: rawHour)
 
         guard adjustedHour >= 0 && adjustedHour <= 23, minute >= 0, minute <= 59 else { return nil }
+        return (adjustedHour, minute)
+    }
+
+    /// 提取 "HH:mm" / "H:m" 数字冒号时间（含下午/晚上等时段词调整）
+    private static func extractColonTime(_ text: String) -> (hour: Int, minute: Int)? {
+        let pattern = "(\\d{1,2}):(\\d{2})"
+        guard let regex = try? NSRegularExpression(pattern: pattern),
+              let match = regex.firstMatch(in: text, range: NSRange(text.startIndex..., in: text)),
+              let hourRange = Range(match.range(at: 1), in: text),
+              let minuteRange = Range(match.range(at: 2), in: text),
+              let rawHour = Int(String(text[hourRange])),
+              let minute = Int(String(text[minuteRange])) else {
+            return nil
+        }
+        let adjustedHour = applyPeriodAdjustment(text, hour: rawHour)
+        guard adjustedHour >= 0 && adjustedHour <= 23, minute >= 0 && minute <= 59 else { return nil }
         return (adjustedHour, minute)
     }
 

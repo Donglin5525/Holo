@@ -732,6 +732,25 @@ class TodoRepository: ObservableObject {
         return (try? context.fetch(request).first) ?? nil
     }
 
+    /// 标记任务的 AI 确认流程来源（对账用，与 Transaction.aiSourceMessageId 同构）
+    func markTaskAISource(taskId: UUID, messageId: String?, itemId: String?) {
+        guard let task = findTask(by: taskId) else { return }
+        task.aiSourceMessageId = messageId
+        task.aiSourceItemId = itemId
+        try? context.save()
+    }
+
+    /// 按 AI 确认流程来源查找任务（对账：确认中途被杀时实体已建但消息仍停在 confirming）
+    func findTaskByAISource(messageId: String, itemId: String) -> TodoTask? {
+        let request = TodoTask.fetchRequest()
+        request.predicate = NSPredicate(
+            format: "aiSourceMessageId == %@ AND aiSourceItemId == %@",
+            messageId, itemId
+        )
+        request.fetchLimit = 1
+        return (try? context.fetch(request).first) ?? nil
+    }
+
     /// 通过 ID 查找清单
     func findList(by id: UUID) -> TodoList? {
         let request = TodoList.fetchRequest()

@@ -266,6 +266,29 @@ struct HoloShadow {
     static let float = Color.holoPrimary.opacity(0.3)
 }
 
+// MARK: - 动画系统
+
+/// Holo 应用动画 token。
+///
+/// 全 App 动画时长 / 弹簧参数的唯一来源。新增动画从这里取值，
+/// 禁止在业务代码里裸写 `.easeInOut(duration: 0.15)`、`.spring(response: 0.3, ...)` 这类魔法数字。
+/// 现有页面可渐进迁移到本 token；值与原习惯值一致，迁移不改变现有手感。
+enum HoloAnimation {
+    // MARK: 时长动画（easeInOut）
+    /// 微交互——开关切换、高亮、按压反馈
+    static let quick: Animation = .easeInOut(duration: 0.15)
+    /// 常规切换——展开/收起、淡入淡出、状态变化（默认首选）
+    static let standard: Animation = .easeInOut(duration: 0.2)
+    /// 较慢切换——导航高亮、板块过渡
+    static let smooth: Animation = .easeInOut(duration: 0.25)
+
+    // MARK: 弹簧动画（spring）
+    /// 弹性交互（最常用）——拖拽、卡片弹入、选中态回弹
+    static let snappy: Animation = .spring(response: 0.3, dampingFraction: 0.7)
+    /// 沉稳弹性——滑动返回、大块视图位移
+    static let grounded: Animation = .spring(response: 0.45, dampingFraction: 0.82)
+}
+
 // MARK: - Holo Plus 主题
 
 /// Holo Plus 模块的统一主题 token。

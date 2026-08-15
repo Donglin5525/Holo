@@ -29,8 +29,10 @@ nonisolated enum ChatCardData: Equatable {
     /// - Parameters:
     ///   - intent: AI 识别的意图
     ///   - data: 提取的结构化数据
+    ///   - itemID: 所属 execution item ID；多卡消息里用于把点击/确认动作定位回「这张卡」，
+    ///     单意图旧格式消息无此信息，传 nil（单卡场景无歧义）
     /// - Returns: 对应的卡片数据，无法构造时返回 nil
-    nonisolated static func from(intent: AIIntent, data: [String: String]?) -> ChatCardData? {
+    nonisolated static func from(intent: AIIntent, data: [String: String]?, itemID: String? = nil) -> ChatCardData? {
         guard let data = data else { return nil }
 
         switch intent {
@@ -51,7 +53,9 @@ nonisolated enum ChatCardData: Equatable {
                 installmentFeePerPeriod: data["installmentFeePerPeriod"],
                 installmentSummary: data["installmentSummary"],
                 installmentPeriodAmounts: data["installmentPeriodAmounts"]?
-                    .split(separator: ",").map(String.init) ?? []
+                    .split(separator: ",").map(String.init) ?? [],
+                entityID: linkedEntityId(from: data),
+                itemID: itemID
             ))
 
         case .recordIncome:
@@ -71,7 +75,9 @@ nonisolated enum ChatCardData: Equatable {
                 installmentFeePerPeriod: data["installmentFeePerPeriod"],
                 installmentSummary: data["installmentSummary"],
                 installmentPeriodAmounts: data["installmentPeriodAmounts"]?
-                    .split(separator: ",").map(String.init) ?? []
+                    .split(separator: ",").map(String.init) ?? [],
+                entityID: linkedEntityId(from: data),
+                itemID: itemID
             ))
 
         case .createTask:
@@ -83,7 +89,8 @@ nonisolated enum ChatCardData: Equatable {
                 description: data["description"],
                 subtasks: SubtaskParser.parse(data["subtasks"]),
                 reminderDate: data["reminderDate"],
-                requiresConfirmation: data["confirmationStatus"] == "pending",
+                requiresConfirmation: ["pending", "confirming", "failed"]
+                    .contains(data["confirmationStatus"] ?? ""),
                 repeatEnabled: data["repeatEnabled"] == "true",
                 repeatType: data["repeatType"],
                 repeatInterval: data["repeatInterval"].flatMap { Int($0) },
@@ -91,7 +98,12 @@ nonisolated enum ChatCardData: Equatable {
                     .split(separator: ",").compactMap { Int($0) } ?? [],
                 repeatMonthDay: data["repeatMonthDay"].flatMap { Int($0) },
                 repeatSummary: data["repeatSummary"],
-                taskId: data["taskId"].flatMap(UUID.init(uuidString:))
+                taskId: data["taskId"].flatMap(UUID.init(uuidString:)),
+                itemID: itemID,
+                isConfirming: data["confirmationStatus"] == "confirming",
+                isFailed: data["confirmationStatus"] == "failed",
+                isCancelled: data["confirmationStatus"] == "cancelled",
+                confirmationError: data["errorText"] ?? data["confirmationError"]
             ))
 
         case .modifyTaskItems:
@@ -102,11 +114,36 @@ nonisolated enum ChatCardData: Equatable {
                 title: targetTitle,
                 dueDate: nil,
                 priority: nil,
-                requiresConfirmation: data["confirmationStatus"] == "pending",
+                requiresConfirmation: ["pending", "confirming", "failed"]
+                    .contains(data["confirmationStatus"] ?? ""),
                 cardMode: .modify,
                 taskId: data["taskId"].flatMap(UUID.init(uuidString:)),
                 addItems: SubtaskParser.parse(data["addItems"], allowsSingle: true),
-                removeItems: SubtaskParser.parse(data["removeItems"], allowsSingle: true)
+                removeItems: SubtaskParser.parse(data["removeItems"], allowsSingle: true),
+                itemID: itemID,
+                isConfirming: data["confirmationStatus"] == "confirming",
+                isFailed: data["confirmationStatus"] == "failed",
+                isCancelled: data["confirmationStatus"] == "cancelled",
+                confirmationError: data["errorText"] ?? data["confirmationError"]
+            ))
+
+        case .deleteTask:
+            // 删除任务确认卡：taskId + 目标标题由 Coordinator 在匹配唯一任务后补全
+            let targetTitle = data["taskTitle"] ?? data["taskKeyword"] ?? ""
+            guard !targetTitle.isEmpty else { return nil }
+            return .task(TaskCardData(
+                title: targetTitle,
+                dueDate: nil,
+                priority: nil,
+                requiresConfirmation: ["pending", "confirming", "failed"]
+                    .contains(data["confirmationStatus"] ?? ""),
+                cardMode: .delete,
+                taskId: data["taskId"].flatMap(UUID.init(uuidString:)),
+                itemID: itemID,
+                isConfirming: data["confirmationStatus"] == "confirming",
+                isFailed: data["confirmationStatus"] == "failed",
+                isCancelled: data["confirmationStatus"] == "cancelled",
+                confirmationError: data["errorText"] ?? data["confirmationError"]
             ))
 
         case .checkIn:
@@ -132,7 +169,7 @@ nonisolated enum ChatCardData: Equatable {
                 unit: data["unit"] ?? "kg"
             ))
 
-        case .completeTask, .updateTask, .deleteTask, .createNote, .queryTasks, .queryHabits, .query, .queryAnalysis, .flexibleDataQuery, .generateMemoryInsight, .unknown, .updateGoalField, .linkTaskToGoal, .toggleGoalVisibility:
+        case .completeTask, .updateTask, .createNote, .queryTasks, .queryHabits, .query, .queryAnalysis, .flexibleDataQuery, .generateMemoryInsight, .unknown, .updateGoalField, .linkTaskToGoal, .toggleGoalVisibility:
             return nil
         }
     }
@@ -162,7 +199,7 @@ nonisolated enum ChatCardData: Equatable {
 
     /// 从 AIExecutionItem 构建卡片数据
     nonisolated static func from(executionItem: AIExecutionItem) -> ChatCardData? {
-        return from(intent: executionItem.intent, data: executionItem.renderData)
+        return from(intent: executionItem.intent, data: executionItem.renderData, itemID: executionItem.id)
     }
 
     /// 从 AIExecutionBatch 构建多个卡片数据
@@ -277,18 +314,26 @@ nonisolated struct TransactionCardData: Equatable {
     let installmentFeePerPeriod: String?
     let installmentSummary: String?
     let installmentPeriodAmounts: [String]
+    /// 关联交易实体 ID（确认后从 renderData 写入）：多卡消息里整卡点击按它定位详情，
+    /// 避免消息级 linkedEntityId（只保留最后一个）导致点哪张卡都打开最后一张
+    var entityID: String? = nil
+    /// 所属 execution item ID：确认/取消/改分类按它定位被操作的卡片
+    var itemID: String? = nil
 
     /// 是否为支出
     var isExpense: Bool { type == "expense" }
 
-    /// 是否待确认
-    var requiresConfirmation: Bool { confirmationStatus == "pending" }
+    /// 是否待确认（含 confirming 中间态：路由执行中按钮须禁用）
+    var requiresConfirmation: Bool { confirmationStatus == "pending" || confirmationStatus == "confirming" }
 
     /// 是否已取消
     var isCancelled: Bool { confirmationStatus == "cancelled" }
 
     /// 是否确认失败（可重试）
     var isFailed: Bool { confirmationStatus == "failed" }
+
+    /// 确认路由执行中（App 被杀后启动对账的中间态标记）
+    var isConfirming: Bool { confirmationStatus == "confirming" }
 
     /// 是否分期记账
     var isInstallment: Bool { installmentEnabled }
@@ -403,10 +448,11 @@ nonisolated struct FlexibleQueryTransactionRow: Equatable, Identifiable {
 
 // MARK: - 任务卡片模式
 
-/// 区分创建态与修改态：modify 用于对已有任务增删条目的确认卡片
+/// 区分创建态与修改态：modify 用于对已有任务增删条目的确认卡片，delete 用于删除任务的确认卡片
 nonisolated enum TaskCardMode: Equatable {
     case create
     case modify
+    case delete
 }
 
 // MARK: - 任务卡片数据
@@ -433,6 +479,16 @@ nonisolated struct TaskCardData: Equatable {
     let addItems: [String]
     /// modify 模式下要移除的条目
     let removeItems: [String]
+    /// 所属 execution item ID：确认/取消按它定位被操作的卡片（单意图旧格式为 nil）
+    let itemID: String?
+    /// 确认路由执行中（按钮禁用；启动对账的中间态标记）
+    var isConfirming: Bool = false
+    /// 确认失败（可重试）
+    var isFailed: Bool = false
+    /// 已取消（不执行动作）
+    var isCancelled: Bool = false
+    /// 失败原因文案
+    var confirmationError: String? = nil
 
     init(
         title: String,
@@ -451,7 +507,12 @@ nonisolated struct TaskCardData: Equatable {
         cardMode: TaskCardMode = .create,
         taskId: UUID? = nil,
         addItems: [String] = [],
-        removeItems: [String] = []
+        removeItems: [String] = [],
+        itemID: String? = nil,
+        isConfirming: Bool = false,
+        isFailed: Bool = false,
+        isCancelled: Bool = false,
+        confirmationError: String? = nil
     ) {
         self.title = title
         self.dueDate = dueDate
@@ -470,6 +531,11 @@ nonisolated struct TaskCardData: Equatable {
         self.taskId = taskId
         self.addItems = addItems
         self.removeItems = removeItems
+        self.itemID = itemID
+        self.isConfirming = isConfirming
+        self.isFailed = isFailed
+        self.isCancelled = isCancelled
+        self.confirmationError = confirmationError
     }
 
     var isRecurring: Bool { repeatEnabled }

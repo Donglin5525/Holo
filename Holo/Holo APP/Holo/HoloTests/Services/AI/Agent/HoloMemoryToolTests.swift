@@ -10,6 +10,7 @@
 //
 
 import Foundation
+@testable import Holo
 
 /// MemoryTool 测试专用数据源（独立命名，避免联合编译重复）。
 struct MockMemoryDataSource: HoloMemoryDataSource {
@@ -22,7 +23,6 @@ struct MockMemoryDataSource: HoloMemoryDataSource {
     func suppressionCount() async -> Int { suppressionTotal }
 }
 
-@main
 struct HoloMemoryToolTests {
 
     static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -105,3 +105,12 @@ struct HoloMemoryToolTests {
         expect(result.events.isEmpty, "empty 不应带 events")
     }
 }
+
+#if !HOLO_XCTEST_BRIDGE
+@main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        await try HoloMemoryToolTests.main()
+    }
+}
+#endif

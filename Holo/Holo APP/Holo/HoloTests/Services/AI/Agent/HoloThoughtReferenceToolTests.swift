@@ -4,13 +4,13 @@
 //
 
 import Foundation
+@testable import Holo
 
 struct MockThoughtReferenceDataSource: HoloThoughtReferenceDataSource {
     let snapshot: HoloThoughtReferenceSnapshot
     func snapshot() async -> HoloThoughtReferenceSnapshot { snapshot }
 }
 
-@main
 struct HoloThoughtReferenceToolTests {
 
     static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -101,3 +101,12 @@ struct HoloThoughtReferenceToolTests {
         expect(result.warnings.contains { $0.code == "NO_REFERENCE_DATA" }, "应返回 NO_REFERENCE_DATA")
     }
 }
+
+#if !HOLO_XCTEST_BRIDGE
+@main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        await try HoloThoughtReferenceToolTests.main()
+    }
+}
+#endif

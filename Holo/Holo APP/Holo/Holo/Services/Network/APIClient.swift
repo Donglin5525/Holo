@@ -20,7 +20,9 @@ nonisolated final class APIClient {
     private init() {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 60
-        config.timeoutIntervalForResource = 120
+        // 活跃流的总时长上限：需高于 ChatViewModel 的流式 watchdog（300s），
+        // 否则长分析回复会先被 URLSession 掐断；对普通请求无影响（它们由 60s 请求超时约束）
+        config.timeoutIntervalForResource = 360
         self.urlSession = URLSession(configuration: config)
     }
 

@@ -35,6 +35,8 @@ struct ChatView: View {
     @State private var pendingDelete: PendingCardDelete?
     @State private var showDeleteConfirmation = false
     @State private var pendingCategoryEditMessage: ChatMessageViewData?
+    /// 正在改分类的待确认项 ID：多卡消息里 dismiss 时按它定位，避免误关第一张 pending 卡
+    @State private var pendingCategoryEditItemID: String?
     @State private var pendingEditPrefill: PendingTransactionPrefill?
     @State private var financeSearchRoute: FlexibleQueryFinanceSearchRoute?
     @State private var memoryInboxNotice: String?
@@ -206,7 +208,7 @@ struct ChatView: View {
         }
         .sheet(isPresented: Binding(
             get: { pendingCategoryEditMessage != nil },
-            set: { if !$0 { pendingCategoryEditMessage = nil } }
+            set: { if !$0 { pendingCategoryEditMessage = nil; pendingCategoryEditItemID = nil } }
         )) {
             if let prefill = pendingEditPrefill {
                 AddTransactionSheet(
@@ -214,9 +216,14 @@ struct ChatView: View {
                     pendingPrefill: prefill
                 ) { savedTransaction in
                     if let msg = pendingCategoryEditMessage {
-                        viewModel.dismissPendingCardAfterEdit(from: msg, createdTransaction: savedTransaction)
+                        viewModel.dismissPendingCardAfterEdit(
+                            from: msg,
+                            itemID: pendingCategoryEditItemID,
+                            createdTransaction: savedTransaction
+                        )
                     }
                     pendingCategoryEditMessage = nil
+                    pendingCategoryEditItemID = nil
                     pendingEditPrefill = nil
                 }
             }
@@ -384,6 +391,21 @@ struct ChatView: View {
             // 输入框上方常驻能力行：对话全程可见
             QuickActionBar(viewModel: viewModel)
 
+            // 流式超时未完成的工作中提示（watchdog 第一段触发）：让用户知道 AI 没有卡死
+            if let hint = viewModel.streamingStatusHint, viewModel.isStreaming {
+                Label(hint, systemImage: "sparkles")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundColor(.holoTextPrimary)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .frame(maxWidth: .infinity)
+                    .background(.ultraThinMaterial, in: Capsule())
+                    .overlay(Capsule().stroke(Color.holoPrimary.opacity(0.2)))
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 4)
+                    .transition(.opacity)
+            }
+
             // 输入栏
             ChatInputView(
                 viewModel: viewModel,
@@ -393,6 +415,7 @@ struct ChatView: View {
             )
         }
         .animation(.easeInOut(duration: 0.2), value: viewModel.isTrulyEmptyConversation)
+        .animation(.easeInOut(duration: 0.2), value: viewModel.streamingStatusHint)
     }
 
     private func statusBanner(_ text: String) -> some View {
@@ -468,8 +491,7 @@ struct ChatView: View {
                         onLearnPlus: {
                             showMembershipCenter = true
                         },
-                        onCardDelete: { msg, category, description in
-                            guard let entityId = msg.resolveLinkedEntityId(for: category) else { return }
+                        onCardDelete: { msg, entityId, category, description in
                             pendingDelete = PendingCardDelete(
                                 category: category,
                                 entityId: entityId,
@@ -477,24 +499,28 @@ struct ChatView: View {
                             )
                             showDeleteConfirmation = true
                         },
-                        onTaskConfirm: { msg in
-                            viewModel.confirmPendingTask(from: msg)
+                        onTaskConfirm: { msg, taskData in
+                            viewModel.confirmPendingTask(from: msg, itemID: taskData.itemID)
+                        },
+                        onTaskCancel: { msg, taskData in
+                            viewModel.cancelPendingTask(from: msg, itemID: taskData.itemID)
                         },
                         onTaskFollowUp: { msg, taskData in
                             viewModel.startTaskFollowUp(taskData)
                         },
-                        onTransactionConfirm: { msg in
-                            viewModel.confirmPendingTransaction(from: msg)
+                        onTransactionConfirm: { msg, txData in
+                            viewModel.confirmPendingTransaction(from: msg, itemID: txData.itemID)
                         },
-                        onTransactionCancel: { msg in
-                            viewModel.cancelPendingTransaction(from: msg)
+                        onTransactionCancel: { msg, txData in
+                            viewModel.cancelPendingTransaction(from: msg, itemID: txData.itemID)
                         },
-                        onTransactionModifyCategory: { msg in
-                            guard let batch = msg.executionBatch,
-                                  let item = batch.items.first(where: { $0.intent.isFinance && $0.renderData?["confirmationStatus"] == "pending" }),
-                                  let renderData = item.renderData else { return }
-                            let type: TransactionType = item.intent == .recordIncome ? .income : .expense
+                        onTransactionModifyCategory: { msg, txData in
+                            // 按 itemID 定位被点击卡片的待确认项；确认进行中的项不允许再改分类
+                            guard let pending = viewModel.pendingFinanceItem(in: msg, itemID: txData.itemID),
+                                  let renderData = pending.renderData else { return }
+                            let type: TransactionType = pending.intent == .recordIncome ? .income : .expense
                             pendingCategoryEditMessage = msg
+                            pendingCategoryEditItemID = pending.id
                             pendingEditPrefill = PendingTransactionPrefill(
                                 amount: renderData["amount"] ?? "0",
                                 note: renderData["note"] ?? renderData["categoryCandidate"],
@@ -884,13 +910,19 @@ struct ChatView: View {
 
     private func handleCardTap(message: ChatMessageViewData, cardData: ChatCardData) {
         switch cardData {
-        case .transaction:
-            if let transactionId = message.resolveLinkedEntityId(for: .finance) {
+        case .transaction(let txData):
+            // 优先用被点击卡片自己的实体 ID；旧格式消息卡片无 ID 时退回消息级（单卡场景无歧义）
+            let transactionId = txData.entityID
+                .flatMap(UUID.init(uuidString:))
+                ?? message.resolveLinkedEntityId(for: .finance)
+            if let transactionId {
                 let transaction = FinanceRepository.shared.findTransaction(by: transactionId)
                 activeSheet = transaction.map { .editTransaction($0) }
             }
-        case .task:
-            if let taskId = message.resolveLinkedEntityId(for: .task) {
+        case .task(let taskData):
+            // 任务卡确认后 taskId 直接写在卡片数据里，优先于消息级缓存
+            let taskId = taskData.taskId ?? message.resolveLinkedEntityId(for: .task)
+            if let taskId {
                 // HomeView 监听 deepLinkState 变化后自动切换 activeScreen。
                 DeepLinkState.shared.navigate(to: .taskDetail(taskId: taskId))
             }

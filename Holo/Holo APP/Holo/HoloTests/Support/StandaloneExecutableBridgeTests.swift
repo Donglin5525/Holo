@@ -413,11 +413,6 @@ func test_082_HoloInternalLogStoreStandaloneTests() async throws {
     try HoloInternalLogStoreStandaloneTests.main()
 }
 
-func test_083_HoloStartupCoordinatorStandaloneTests() async throws {
-    // 来源：Services/Startup/HoloStartupCoordinatorStandaloneTests.swift
-    await HoloStartupCoordinatorStandaloneTests.main()
-}
-
 func test_084_EffectiveRecordDayStandaloneTests() async throws {
     // 来源：Services/WeeklyObservation/EffectiveRecordDayStandaloneTests.swift
     EffectiveRecordDayStandaloneTests.main()

@@ -1,3 +1,4 @@
+@testable import Holo
 //
 //  HoloAgentEvalModels.swift
 //  Holo

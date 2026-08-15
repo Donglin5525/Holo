@@ -1,0 +1,1014 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Holo 知识树方案 · 交互原型 v1</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-font-smoothing: antialiased; }
+
+  :root {
+    --bg: #1C1C1E;
+    --card: #2C2C2E;
+    --card2: #38383A;
+    --text: #F5F5F5;
+    --text2: rgba(245,245,245,0.55);
+    --text3: rgba(245,245,245,0.35);
+    --orange: #F46D38;
+    --orange-light: #FED7AA;
+    --ai: #7C5CFC;
+    --ai-dim: rgba(124,92,252,0.16);
+    --ai-border: rgba(124,92,252,0.45);
+    --border: rgba(255,255,255,0.08);
+    --green: #22C55E;
+    --blue: #60A5FA;
+  }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Helvetica Neue", sans-serif;
+    background: radial-gradient(1200px 800px at 70% 20%, #1a1410 0%, #0e0e10 55%, #0a0a0b 100%);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 48px;
+    padding: 40px 24px;
+  }
+
+  /* ============ 左侧说明面板 ============ */
+  .panel {
+    width: 320px;
+    flex-shrink: 0;
+    padding-top: 16px;
+    position: sticky;
+    top: 40px;
+  }
+  .panel h1 {
+    font-size: 20px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+  .panel .sub {
+    font-size: 12px;
+    color: var(--text3);
+    margin-top: 6px;
+    line-height: 1.6;
+  }
+  .legend { display: flex; gap: 16px; margin-top: 14px; }
+  .legend span { font-size: 11px; color: var(--text2); display: flex; align-items: center; gap: 5px; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .dot.o { background: var(--orange); }
+  .dot.a { background: var(--ai); }
+
+  .nav-list { margin-top: 24px; display: flex; flex-direction: column; gap: 8px; }
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px 12px;
+    cursor: pointer;
+    transition: all .2s;
+  }
+  .nav-item:hover { background: rgba(255,255,255,0.08); }
+  .nav-item.active { border-color: rgba(244,109,56,0.6); background: rgba(244,109,56,0.1); }
+  .nav-item .num {
+    width: 22px; height: 22px; border-radius: 7px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700;
+    background: var(--card2); color: var(--text2);
+  }
+  .nav-item.active .num { background: var(--orange); color: #fff; }
+  .nav-item .t { font-size: 13px; font-weight: 600; }
+  .nav-item .d { font-size: 11px; color: var(--text3); margin-top: 2px; }
+
+  .notes { margin-top: 24px; }
+  .notes h3 { font-size: 12px; color: var(--text3); font-weight: 600; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 10px; }
+  .note-card {
+    background: rgba(255,255,255,0.03);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    font-size: 12px;
+    color: var(--text2);
+    line-height: 1.7;
+    margin-bottom: 8px;
+  }
+  .note-card b { color: var(--text); font-weight: 600; }
+
+  /* ============ 手机框 ============ */
+  .phone {
+    width: 393px;
+    height: 830px;
+    background: #000;
+    border-radius: 55px;
+    padding: 10px;
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.08), 0 30px 80px rgba(0,0,0,0.7);
+    flex-shrink: 0;
+    position: relative;
+  }
+  .screen-wrap {
+    width: 100%; height: 100%;
+    background: var(--bg);
+    border-radius: 46px;
+    overflow: hidden;
+    position: relative;
+  }
+  /* 灵动岛 */
+  .island {
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    width: 118px; height: 33px; background: #000; border-radius: 20px;
+    z-index: 60;
+  }
+  .statusbar {
+    height: 55px;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 32px 0;
+    font-size: 15px; font-weight: 600;
+    position: relative; z-index: 50;
+    flex-shrink: 0;
+  }
+  .sb-icons { display: flex; gap: 6px; align-items: center; }
+  .sb-icons svg { display: block; }
+
+  /* 屏幕容器 */
+  .screens { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
+  .screen {
+    position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+    display: flex; flex-direction: column;
+    background: var(--bg);
+    opacity: 0; pointer-events: none;
+    transform: translateX(40px);
+    transition: opacity .28s ease, transform .28s ease;
+  }
+  .screen.active { opacity: 1; pointer-events: auto; transform: translateX(0); z-index: 10; }
+  .screen.active.no-anim { transition: none; }
+
+  .scroll {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 20px 110px;
+    scrollbar-width: none;
+  }
+  .scroll::-webkit-scrollbar { display: none; }
+
+  /* 通用导航栏 */
+  .navbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 4px 16px 12px;
+    flex-shrink: 0;
+  }
+  .nav-back {
+    display: flex; align-items: center; gap: 4px;
+    font-size: 16px; color: var(--orange);
+    cursor: pointer; user-select: none;
+  }
+  .nav-title { font-size: 17px; font-weight: 700; }
+  .nav-more { color: var(--text2); font-size: 20px; letter-spacing: 2px; cursor: pointer; padding: 0 4px; }
+
+  /* ============ 屏1：知识树主视图 ============ */
+  .page-header {
+    display: flex; align-items: flex-end; justify-content: space-between;
+    padding: 6px 4px 16px;
+  }
+  .page-header h2 { font-size: 30px; font-weight: 800; letter-spacing: 0.3px; }
+  .manage-btn {
+    font-size: 13px; font-weight: 600; color: var(--text2);
+    background: var(--card); border: 1px solid var(--border);
+    padding: 7px 14px; border-radius: 20px; cursor: pointer;
+  }
+  .manage-btn:hover { color: var(--text); }
+
+  .segment {
+    display: flex; background: var(--card); border-radius: 12px; padding: 3px;
+    margin-bottom: 14px; position: relative;
+  }
+  .seg-item {
+    flex: 1; text-align: center; font-size: 13px; font-weight: 600;
+    padding: 8px 0; border-radius: 9px; cursor: pointer;
+    color: var(--text2); transition: all .2s; user-select: none;
+  }
+  .seg-item.on { background: var(--orange); color: #fff; box-shadow: 0 3px 10px rgba(244,109,56,0.35); }
+
+  /* AI 状态条 */
+  .ai-banner {
+    display: flex; align-items: center; gap: 10px;
+    background: linear-gradient(135deg, rgba(124,92,252,0.18), rgba(124,92,252,0.06));
+    border: 1px solid var(--ai-border);
+    border-radius: 14px;
+    padding: 12px 14px;
+    margin-bottom: 18px;
+    cursor: pointer;
+    transition: transform .15s;
+  }
+  .ai-banner:active { transform: scale(0.98); }
+  .ai-banner .spark { font-size: 18px; }
+  .ai-banner .txt { flex: 1; font-size: 13px; line-height: 1.5; }
+  .ai-banner .txt b { color: #B8A5FF; }
+  .ai-badge-count {
+    background: var(--orange); color: #fff;
+    font-size: 11px; font-weight: 700;
+    padding: 3px 9px; border-radius: 12px; flex-shrink: 0;
+  }
+  .ai-banner .chev { color: var(--text3); font-size: 14px; }
+
+  .sec-label {
+    font-size: 12px; font-weight: 700; color: var(--text3);
+    letter-spacing: 1px;
+    margin: 4px 4px 10px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+
+  /* 主题卡片墙 */
+  .topic-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .topic-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 14px;
+    cursor: pointer;
+    transition: transform .15s, border-color .2s;
+    position: relative;
+  }
+  .topic-card:hover { border-color: rgba(255,255,255,0.18); }
+  .topic-card:active { transform: scale(0.97); }
+  .topic-icon {
+    width: 38px; height: 38px; border-radius: 12px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 19px; margin-bottom: 10px;
+  }
+  .topic-card h4 { font-size: 15px; font-weight: 700; display: flex; align-items: baseline; gap: 6px; }
+  .topic-card h4 .cnt { font-size: 11px; font-weight: 600; color: var(--text3); }
+  .topic-card .tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .leaf-tag {
+    font-size: 10.5px; font-weight: 500; color: var(--text2);
+    background: rgba(255,255,255,0.06);
+    padding: 3px 8px; border-radius: 8px;
+  }
+  .topic-card .recent { font-size: 10.5px; color: var(--text3); margin-top: 9px; }
+
+  .t1 { background: rgba(99,102,241,0.22); }
+  .t2 { background: rgba(34,197,94,0.2); }
+  .t3 { background: rgba(20,184,166,0.2); }
+  .t4 { background: rgba(236,72,153,0.2); }
+  .t5 { background: rgba(245,158,11,0.2); }
+
+  /* 未归类卡 */
+  .unclassified {
+    margin-top: 12px;
+    border: 1.5px dashed rgba(255,255,255,0.18);
+    border-radius: 18px;
+    padding: 15px 16px;
+    display: flex; align-items: center; gap: 12px;
+    cursor: pointer; transition: border-color .2s;
+  }
+  .unclassified:hover { border-color: rgba(244,109,56,0.5); }
+  .unclassified .ic {
+    width: 38px; height: 38px; border-radius: 12px; flex-shrink: 0;
+    background: rgba(255,255,255,0.06);
+    display: flex; align-items: center; justify-content: center; font-size: 18px;
+  }
+  .unclassified .info { flex: 1; }
+  .unclassified .info h4 { font-size: 14px; font-weight: 700; }
+  .unclassified .info p { font-size: 11.5px; color: var(--text3); margin-top: 3px; }
+  .unclassified .go {
+    font-size: 12px; font-weight: 700; color: var(--orange);
+  }
+
+  /* 新主题发现入口 */
+  .discover {
+    margin-top: 12px;
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 15px 16px;
+    display: flex; align-items: center; gap: 12px;
+    cursor: pointer;
+  }
+  .discover .ic {
+    width: 38px; height: 38px; border-radius: 12px; flex-shrink: 0;
+    background: var(--ai-dim);
+    display: flex; align-items: center; justify-content: center; font-size: 18px;
+  }
+  .discover .info { flex: 1; }
+  .discover .info h4 { font-size: 14px; font-weight: 700; }
+  .discover .info h4 .hint {
+    font-size: 10px; color: #B8A5FF; background: var(--ai-dim);
+    padding: 2px 7px; border-radius: 8px; margin-left: 6px; font-weight: 700;
+  }
+  .discover .info p { font-size: 11.5px; color: var(--text3); margin-top: 3px; }
+  .discover .chev { color: var(--text3); }
+
+  /* 时间流视图 */
+  .timeline { display: none; }
+  .timeline.show { display: block; }
+  .treeview.hide { display: none; }
+  .day-label { font-size: 12px; font-weight: 700; color: var(--text2); margin: 18px 4px 10px; }
+  .thought-row {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 13px 15px; margin-bottom: 10px;
+  }
+  .thought-row p { font-size: 13.5px; line-height: 1.55; }
+  .thought-row .meta { display: flex; gap: 6px; margin-top: 9px; align-items: center; }
+  .mini-topic {
+    font-size: 10.5px; font-weight: 700; color: var(--orange-light);
+    background: rgba(244,109,56,0.14);
+    padding: 3px 8px; border-radius: 8px;
+  }
+  .time { font-size: 10.5px; color: var(--text3); margin-left: auto; }
+
+  /* ============ 屏2：主题详情 ============ */
+  .topic-hero {
+    display: flex; align-items: center; gap: 14px;
+    padding: 6px 4px 16px;
+  }
+  .topic-hero .big-icon {
+    width: 52px; height: 52px; border-radius: 16px;
+    display: flex; align-items: center; justify-content: center; font-size: 26px;
+  }
+  .topic-hero h2 { font-size: 24px; font-weight: 800; }
+  .topic-hero .meta { font-size: 12px; color: var(--text3); margin-top: 3px; }
+  .topic-hero .edit-link {
+    margin-left: auto; font-size: 13px; color: var(--orange); font-weight: 600; cursor: pointer;
+  }
+
+  /* AI 综述卡 */
+  .ai-summary {
+    background: linear-gradient(160deg, rgba(124,92,252,0.16), rgba(124,92,252,0.05));
+    border: 1px solid var(--ai-border);
+    border-radius: 18px;
+    padding: 16px;
+    margin-bottom: 18px;
+  }
+  .ai-summary .head {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+  }
+  .ai-tagchip {
+    font-size: 10px; font-weight: 800; letter-spacing: 1px;
+    background: var(--ai); color: #fff;
+    padding: 3px 8px; border-radius: 7px;
+  }
+  .ai-summary .head span { font-size: 13px; font-weight: 700; color: #C9BAFF; }
+  .ai-summary .body { font-size: 13.5px; line-height: 1.75; color: var(--text); }
+  .ai-summary .body b { color: var(--orange-light); font-weight: 700; }
+  .ai-summary .foot {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-top: 12px; padding-top: 10px;
+    border-top: 1px solid rgba(124,92,252,0.2);
+  }
+  .ai-summary .foot .time { font-size: 11px; color: var(--text3); }
+  .ai-summary .foot .regen {
+    font-size: 12px; font-weight: 600; color: #B8A5FF; cursor: pointer;
+  }
+
+  /* 关键词筛选 */
+  .kw-row { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 6px; scrollbar-width: none; margin-bottom: 6px; }
+  .kw-row::-webkit-scrollbar { display: none; }
+  .kw {
+    font-size: 12px; font-weight: 600; white-space: nowrap;
+    background: var(--card); border: 1px solid var(--border);
+    color: var(--text2);
+    padding: 7px 13px; border-radius: 18px; cursor: pointer;
+    display: flex; align-items: center; gap: 5px;
+  }
+  .kw.on { background: rgba(244,109,56,0.16); border-color: rgba(244,109,56,0.5); color: var(--orange); }
+  .kw .n { font-size: 10px; color: var(--text3); font-weight: 700; }
+  .kw.on .n { color: var(--orange); }
+
+  /* 想法卡片 */
+  .thought-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 16px; padding: 14px 15px; margin-bottom: 10px;
+  }
+  .thought-card .content { font-size: 13.5px; line-height: 1.6; cursor: pointer; }
+  .thought-card .row { display: flex; align-items: center; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .thought-card .date { font-size: 10.5px; color: var(--text3); margin-left: auto; }
+
+  .why-btn {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 11px; font-weight: 600; color: #B8A5FF;
+    background: var(--ai-dim);
+    padding: 4px 9px; border-radius: 9px;
+    cursor: pointer; user-select: none;
+  }
+  .why-panel {
+    display: none;
+    margin-top: 10px;
+    background: rgba(0,0,0,0.25);
+    border-left: 2px solid var(--ai);
+    border-radius: 0 10px 10px 0;
+    padding: 10px 12px;
+    font-size: 12px; line-height: 1.65; color: var(--text2);
+  }
+  .why-panel.show { display: block; }
+  .why-panel b { color: #C9BAFF; }
+  .conf-track {
+    display: inline-flex; align-items: center; gap: 6px; margin-top: 8px;
+  }
+  .conf-bar { width: 70px; height: 4px; background: rgba(255,255,255,0.1); border-radius: 2px; overflow: hidden; }
+  .conf-fill { height: 100%; background: var(--ai); border-radius: 2px; }
+  .conf-num { font-size: 10.5px; color: var(--text3); font-weight: 600; }
+
+  .cta-bar {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    padding: 14px 20px 30px;
+    background: linear-gradient(to top, var(--bg) 60%, transparent);
+    display: flex; gap: 10px;
+  }
+  .btn {
+    flex: 1; text-align: center; font-size: 14px; font-weight: 700;
+    padding: 13px 0; border-radius: 15px; cursor: pointer;
+    transition: transform .15s;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn.primary { background: var(--orange); color: #fff; box-shadow: 0 6px 18px rgba(244,109,56,0.3); }
+  .btn.ghost { background: var(--card); border: 1px solid var(--border); color: var(--text2); }
+
+  /* ============ 屏3：待确认 ============ */
+  .confirm-intro {
+    font-size: 13px; color: var(--text2); line-height: 1.6;
+    padding: 2px 4px 16px;
+  }
+  .confirm-card {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 18px; padding: 16px;
+    margin-bottom: 14px;
+    transition: opacity .35s, transform .35s;
+  }
+  .confirm-card.done { opacity: 0; transform: translateX(30px) scale(0.95); pointer-events: none; }
+  .confirm-card .q { font-size: 14px; font-weight: 600; line-height: 1.6; }
+  .suggest-box {
+    margin-top: 12px;
+    background: rgba(0,0,0,0.22);
+    border-radius: 12px; padding: 12px 13px;
+  }
+  .suggest-box .sug-theme {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .suggest-box .folder { font-size: 15px; }
+  .suggest-box .sug-name { font-size: 14px; font-weight: 700; }
+  .suggest-box .sug-reason { font-size: 12px; color: var(--text2); line-height: 1.6; margin-top: 7px; }
+  .confirm-actions { display: flex; gap: 10px; margin-top: 13px; }
+  .cbtn {
+    flex: 1; text-align: center; font-size: 13.5px; font-weight: 700;
+    padding: 11px 0; border-radius: 13px; cursor: pointer;
+    transition: transform .15s;
+  }
+  .cbtn:active { transform: scale(0.97); }
+  .cbtn.ok { background: rgba(34,197,94,0.16); color: #6EE7A0; border: 1px solid rgba(34,197,94,0.4); }
+  .cbtn.change { background: var(--card2); color: var(--text2); }
+  .confirm-empty {
+    display: none;
+    text-align: center; padding: 70px 30px; color: var(--text3);
+  }
+  .confirm-empty .big { font-size: 40px; margin-bottom: 14px; }
+  .confirm-empty h4 { font-size: 16px; color: var(--text2); font-weight: 700; margin-bottom: 8px; }
+  .confirm-empty p { font-size: 12.5px; line-height: 1.7; }
+  .skip-all {
+    text-align: center; font-size: 13px; color: var(--text3);
+    padding: 8px 0 4px; cursor: pointer;
+  }
+
+  /* ============ 屏4：想法详情 ============ */
+  .detail-content {
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 18px; padding: 18px;
+    font-size: 15px; line-height: 1.8; margin-bottom: 16px;
+  }
+  .detail-meta {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11.5px; color: var(--text3); margin-top: 12px;
+  }
+  .section-block { margin-bottom: 16px; }
+  .section-block .lbl {
+    font-size: 12px; font-weight: 700; color: var(--text3);
+    letter-spacing: 1px; margin-bottom: 9px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .lbl .edit-mini { font-size: 12px; color: var(--orange); font-weight: 600; cursor: pointer; }
+
+  .topic-breadcrumb {
+    display: flex; align-items: center; gap: 8px;
+    background: rgba(99,102,241,0.12);
+    border: 1px solid rgba(99,102,241,0.35);
+    border-radius: 13px; padding: 12px 14px;
+    cursor: pointer;
+  }
+  .topic-breadcrumb .folder { font-size: 17px; }
+  .topic-breadcrumb .path { font-size: 14px; font-weight: 700; }
+  .topic-breadcrumb .path .sep { color: var(--text3); font-weight: 400; margin: 0 4px; }
+  .topic-breadcrumb .path .kw-part { color: #A5B4FC; }
+  .topic-breadcrumb .swap { margin-left: auto; font-size: 12px; color: var(--text3); }
+
+  .tag-list { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tag-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 12.5px; font-weight: 600;
+    background: var(--card); border: 1px solid var(--border);
+    padding: 7px 12px; border-radius: 12px;
+  }
+  .tag-chip .src {
+    font-size: 9.5px; font-weight: 800; border-radius: 5px; padding: 2px 5px;
+  }
+  .src.ai { background: var(--ai-dim); color: #B8A5FF; }
+  .src.ok { background: rgba(34,197,94,0.15); color: #6EE7A0; }
+
+  .link-row {
+    display: flex; align-items: center; gap: 10px;
+    background: var(--card); border: 1px solid var(--border);
+    border-radius: 13px; padding: 11px 14px; margin-bottom: 8px;
+    font-size: 12.5px; color: var(--text2); cursor: pointer;
+  }
+  .link-row .ar { color: var(--ai); font-weight: 800; }
+
+  /* toast */
+  .toast {
+    position: absolute; bottom: 110px; left: 50%; transform: translateX(-50%) translateY(10px);
+    background: rgba(245,245,245,0.95); color: #1c1c1e;
+    font-size: 13px; font-weight: 700;
+    padding: 10px 18px; border-radius: 22px;
+    opacity: 0; pointer-events: none;
+    transition: all .3s; z-index: 100;
+    white-space: nowrap;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  @media (max-width: 860px) {
+    body { flex-direction: column; align-items: center; }
+    .panel { width: 393px; max-width: 100%; position: static; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ 左侧说明 ============ -->
+<aside class="panel">
+  <h1>知识树 · 方案原型 v1</h1>
+  <div class="sub">对应讨论方案中的 P0（主视图化 / 入口统一 / 视觉区分）+ P1（AI 综述 / 分类理由 / 待确认池）。手机屏幕内可直接点按操作。</div>
+  <div class="legend">
+    <span><i class="dot o"></i>橙色 = 你的操作与导航</span>
+    <span><i class="dot a"></i>紫色 = AI 的产出</span>
+  </div>
+
+  <div class="nav-list">
+    <div class="nav-item active" onclick="goTo('tree', true)">
+      <div class="num">1</div>
+      <div><div class="t">知识树主视图</div><div class="d">主题卡片墙，替代隐藏抽屉</div></div>
+    </div>
+    <div class="nav-item" onclick="goTo('topic', true)">
+      <div class="num">2</div>
+      <div><div class="t">主题详情页</div><div class="d">AI 综述 + 关键词 + 想法列表</div></div>
+    </div>
+    <div class="nav-item" onclick="goTo('confirm', true)">
+      <div class="num">3</div>
+      <div><div class="t">待确认池</div><div class="d">低置信度想法，人工轻确认</div></div>
+    </div>
+    <div class="nav-item" onclick="goTo('detail', true)">
+      <div class="num">4</div>
+      <div><div class="t">想法详情页</div><div class="d">补上分类归属展示与修改</div></div>
+    </div>
+  </div>
+
+  <div class="notes">
+    <h3>核心变化</h3>
+    <div class="note-card"><b>① 一句话心智模型：</b>主题是书架（一条想法只进一个），关键词是便利贴（可贴多个）。界面上不再出现「工作/Holo」这种斜杠路径，书架内只显示「Holo」。</div>
+    <div class="note-card"><b>② 知识树升为主视图：</b>「时间流 / 知识树」顶部平级切换；管理入口（右上「管理」）长在知识树里，撤掉设置页里的隐藏入口。</div>
+    <div class="note-card"><b>③ AI 从黑盒变透明：</b>每条分类可查理由和置信度；高置信自动归档，低置信（如 &lt;75%）进待确认池，只处理 AI 没把握的一小撮。</div>
+    <div class="note-card"><b>④ 分类的收益端：</b>主题详情页首屏是 AI 综述——把碎片想法梳理成一段有结论的话，这是用户感知「知识树有价值」的关键。</div>
+  </div>
+</aside>
+
+<!-- ============ 手机 ============ -->
+<div class="phone">
+  <div class="screen-wrap">
+    <div class="island"></div>
+    <div class="screens">
+
+      <!-- ========== 屏1 知识树主视图 ========== -->
+      <div class="screen active" id="scr-tree">
+        <div class="statusbar">
+          <span>9:41</span>
+          <div class="sb-icons">
+            <svg width="18" height="12" viewBox="0 0 18 12"><g fill="#F5F5F5"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="6" width="3" height="6" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></g></svg>
+            <span style="font-size:11px;font-weight:700;">5G</span>
+            <svg width="25" height="12" viewBox="0 0 25 12"><rect x="0.5" y="0.5" width="20" height="11" rx="3.5" fill="none" stroke="#F5F5F5" opacity="0.5"/><rect x="2" y="2" width="14" height="8" rx="2" fill="#F5F5F5"/><rect x="22" y="4" width="2.5" height="4" rx="1" fill="#F5F5F5" opacity="0.5"/></svg>
+          </div>
+        </div>
+
+        <div class="scroll">
+          <div class="page-header">
+            <h2>观点</h2>
+            <div class="manage-btn" onclick="toast('管理：新建 / 合并 / 重命名 / 启停，全部收在这里')">管理</div>
+          </div>
+
+          <div class="segment">
+            <div class="seg-item" id="seg-time" onclick="switchView('time')">时间流</div>
+            <div class="seg-item on" id="seg-tree" onclick="switchView('tree')">知识树</div>
+          </div>
+
+          <!-- 知识树视图 -->
+          <div class="treeview" id="treeview">
+            <div class="ai-banner" onclick="goTo('confirm')">
+              <span class="spark">✨</span>
+              <span class="txt">AI 已整理 <b>128 条</b>想法 · <b>3 条</b>不太确定</span>
+              <span class="ai-badge-count">3 待确认</span>
+              <span class="chev">›</span>
+            </div>
+
+            <div class="sec-label">我的主题</div>
+            <div class="topic-grid">
+              <div class="topic-card" onclick="goTo('topic')">
+                <div class="topic-icon t1">💼</div>
+                <h4>工作与事业 <span class="cnt">42</span></h4>
+                <div class="tags"><span class="leaf-tag">Holo</span><span class="leaf-tag">上架准备</span><span class="leaf-tag">定价</span></div>
+                <div class="recent">最近想法 · 昨天</div>
+              </div>
+              <div class="topic-card" onclick="toast('进入「个人成长」主题')">
+                <div class="topic-icon t2">🌱</div>
+                <h4>个人成长 <span class="cnt">31</span></h4>
+                <div class="tags"><span class="leaf-tag">阅读</span><span class="leaf-tag">复盘</span></div>
+                <div class="recent">最近想法 · 3 天前</div>
+              </div>
+              <div class="topic-card" onclick="toast('进入「生活与健康」主题')">
+                <div class="topic-icon t3">🏃</div>
+                <h4>生活与健康 <span class="cnt">18</span></h4>
+                <div class="tags"><span class="leaf-tag">跑步</span><span class="leaf-tag">睡眠</span></div>
+                <div class="recent">最近想法 · 5 天前</div>
+              </div>
+              <div class="topic-card" onclick="toast('进入「灵感创意」主题')">
+                <div class="topic-icon t4">💡</div>
+                <h4>灵感创意 <span class="cnt">12</span></h4>
+                <div class="tags"><span class="leaf-tag">App 点子</span></div>
+                <div class="recent">最近想法 · 1 周前</div>
+              </div>
+            </div>
+            <div class="topic-card" style="margin-top:12px; display:flex; align-items:center; gap:12px;" onclick="toast('进入「财务与消费」主题')">
+              <div class="topic-icon t5" style="margin:0;">💰</div>
+              <div style="flex:1;">
+                <h4>财务与消费 <span class="cnt">9</span></h4>
+                <div class="tags" style="margin-top:6px;"><span class="leaf-tag">订阅</span><span class="leaf-tag">账单</span></div>
+              </div>
+              <span class="chev" style="color:var(--text3);">›</span>
+            </div>
+
+            <div class="unclassified" onclick="toast('查看 5 条未归类想法')">
+              <div class="ic">📥</div>
+              <div class="info">
+                <h4>未归类 <span style="font-size:11px;color:var(--text3);font-weight:600;">5 条</span></h4>
+                <p>还不知道该进哪个书架</p>
+              </div>
+              <span class="go">去看看 ›</span>
+            </div>
+
+            <div class="discover" onclick="toast('AI 发现的潜在新主题，需你确认后才会创建')">
+              <div class="ic">🔍</div>
+              <div class="info">
+                <h4>发现新主题<span class="hint">AI</span></h4>
+                <p>有 8 条想法可能属于新主题「家庭记录」</p>
+              </div>
+              <span class="chev">›</span>
+            </div>
+          </div>
+
+          <!-- 时间流视图 -->
+          <div class="timeline" id="timeview">
+            <div class="day-label">今天</div>
+            <div class="thought-row">
+              <p>想法编辑器的工具栏在 iPhone SE 上还是会挡住最后一行，要不要改成跟随光标滚动……</p>
+              <div class="meta"><span class="mini-topic">工作与事业</span><span class="leaf-tag">Holo</span><span class="time">14:32</span></div>
+            </div>
+            <div class="thought-row">
+              <p>晚上跑了 5 公里，配速 6'02"，比上周轻松一点。坚持第 3 周了。</p>
+              <div class="meta"><span class="mini-topic">生活与健康</span><span class="leaf-tag">跑步</span><span class="time">09:15</span></div>
+            </div>
+            <div class="day-label">昨天</div>
+            <div class="thought-row">
+              <p>买断版定价还是等 v1.1 再上。早鸟 ¥38 会不会把锚定做低了？先订阅跑量验证，再出买断收口。</p>
+              <div class="meta"><span class="mini-topic">工作与事业</span><span class="leaf-tag">定价</span><span class="time">22:47</span></div>
+            </div>
+            <div class="day-label">8 月 13 日</div>
+            <div class="thought-row">
+              <p>《纳瓦尔宝典》里关于杠杆那段：代码和媒体是无需许可的杠杆。对独立开发者太适用了。</p>
+              <div class="meta"><span class="mini-topic">个人成长</span><span class="leaf-tag">阅读</span><span class="time">21:03</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 底部输入入口 -->
+        <div class="cta-bar" style="padding-bottom:26px;">
+          <div class="btn primary" onclick="toast('新建想法（与现有一致）')">＋ 记一条想法</div>
+        </div>
+      </div>
+
+      <!-- ========== 屏2 主题详情 ========== -->
+      <div class="screen" id="scr-topic">
+        <div class="statusbar">
+          <span>9:41</span>
+          <div class="sb-icons">
+            <svg width="18" height="12" viewBox="0 0 18 12"><g fill="#F5F5F5"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="6" width="3" height="6" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></g></svg>
+            <span style="font-size:11px;font-weight:700;">5G</span>
+            <svg width="25" height="12" viewBox="0 0 25 12"><rect x="0.5" y="0.5" width="20" height="11" rx="3.5" fill="none" stroke="#F5F5F5" opacity="0.5"/><rect x="2" y="2" width="14" height="8" rx="2" fill="#F5F5F5"/><rect x="22" y="4" width="2.5" height="4" rx="1" fill="#F5F5F5" opacity="0.5"/></svg>
+          </div>
+        </div>
+
+        <div class="navbar">
+          <div class="nav-back" onclick="goTo('tree')">‹ 返回</div>
+          <div class="nav-more">···</div>
+        </div>
+
+        <div class="scroll" style="padding-top:0;">
+          <div class="topic-hero">
+            <div class="big-icon t1">💼</div>
+            <div>
+              <h2>工作与事业</h2>
+              <div class="meta">42 条想法 · 6 个关键词 · 本周 +5</div>
+            </div>
+            <div class="edit-link" onclick="toast('重命名 / 换图标 / 合并到其他主题')">编辑</div>
+          </div>
+
+          <div class="ai-summary">
+            <div class="head">
+              <span class="ai-tagchip">AI</span>
+              <span>主题综述</span>
+            </div>
+            <div class="body">
+              8 月你围绕 <b>Holo</b> 的想法集中在两件事：<b>上架准备</b>（审核材料、TestFlight 引流）和<b>定价策略</b>（订阅与买断的取舍）。相比 7 月，对「买断版定价」的思考明显增多，且已形成初步结论：v1.0 只上订阅，买断推到 v1.1。另有 3 条关于多设备同步的顾虑尚未展开，可以作为下周的切入点。
+            </div>
+            <div class="foot">
+              <span class="time">基于 42 条想法生成 · 更新于昨天</span>
+              <span class="regen" onclick="toast('正在重新生成综述…（想法变动超过 5 条时也会自动更新）')">重新生成</span>
+            </div>
+          </div>
+
+          <div class="sec-label" style="margin-bottom:8px;">按关键词看</div>
+          <div class="kw-row">
+            <div class="kw on">全部 <span class="n">42</span></div>
+            <div class="kw">Holo <span class="n">15</span></div>
+            <div class="kw">上架准备 <span class="n">8</span></div>
+            <div class="kw">定价 <span class="n">6</span></div>
+            <div class="kw">用户反馈 <span class="n">5</span></div>
+            <div class="kw">同步 <span class="n">3</span></div>
+          </div>
+
+          <div class="thought-card">
+            <div class="content" onclick="goTo('detail')">买断版定价还是等 v1.1 再上。早鸟 ¥38 会不会把锚定效应做低了？参考 Things 3 的策略：先订阅跑量验证需求，再出买断收口，避免一开始就用低价锁定心智……</div>
+            <div class="row">
+              <span class="leaf-tag">定价</span>
+              <span class="leaf-tag">订阅策略</span>
+              <span class="why-btn" onclick="toggleWhy(this)">为什么在这？</span>
+              <span class="date">昨天</span>
+            </div>
+            <div class="why-panel">
+              <b>AI 分类依据</b>：讨论的是 App 商业化定价决策，与该主题下已有的 6 条「定价」想法高度相关。<br>
+              关键词「定价」「订阅策略」由 AI 自动提取。
+              <div class="conf-track"><div class="conf-bar"><div class="conf-fill" style="width:92%"></div></div><span class="conf-num">置信度 92%</span></div>
+            </div>
+          </div>
+
+          <div class="thought-card">
+            <div class="content">审核 4.3 被拒的问题，还是要把 TestFlight 链接放显眼位置，截图和描述也要重做一版，避免再撞 spam 审核……</div>
+            <div class="row">
+              <span class="leaf-tag">上架准备</span>
+              <span class="why-btn" onclick="toggleWhy(this)">为什么在这？</span>
+              <span class="date">8/13</span>
+            </div>
+            <div class="why-panel">
+              <b>AI 分类依据</b>：内容为 App Store 上架审核事宜，与主题下 8 条「上架准备」想法同类。这条是你手动从「未归类」移入的，AI 仅补充了关键词。
+              <div class="conf-track"><div class="conf-bar"><div class="conf-fill" style="width:100%;background:var(--green);"></div></div><span class="conf-num">你手动归档</span></div>
+            </div>
+          </div>
+
+          <div class="thought-card">
+            <div class="content">CSV 导入最后还是做成了流式处理，账单周期那批数据 2 万行也不卡了。这个思路以后处理大数据量列表都能用……</div>
+            <div class="row">
+              <span class="leaf-tag">Holo</span>
+              <span class="leaf-tag">开发实践</span>
+              <span class="why-btn" onclick="toggleWhy(this)">为什么在这？</span>
+              <span class="date">8/11</span>
+            </div>
+            <div class="why-panel">
+              <b>AI 分类依据</b>：记录的是 Holo 项目的技术决策，结合你的用户档案（独立开发者，正在开发 Holo）判断。
+              <div class="conf-track"><div class="conf-bar"><div class="conf-fill" style="width:88%"></div></div><span class="conf-num">置信度 88%</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="cta-bar">
+          <div class="btn ghost" onclick="toast('从其他主题 / 未归类移入想法')">移入想法</div>
+          <div class="btn primary" onclick="toast('基于本主题 42 条想法向 AI 提问（后续可做）')">问 AI 这个主题</div>
+        </div>
+      </div>
+
+      <!-- ========== 屏3 待确认 ========== -->
+      <div class="screen" id="scr-confirm">
+        <div class="statusbar">
+          <span>9:41</span>
+          <div class="sb-icons">
+            <svg width="18" height="12" viewBox="0 0 18 12"><g fill="#F5F5F5"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="6" width="3" height="6" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></g></svg>
+            <span style="font-size:11px;font-weight:700;">5G</span>
+            <svg width="25" height="12" viewBox="0 0 25 12"><rect x="0.5" y="0.5" width="20" height="11" rx="3.5" fill="none" stroke="#F5F5F5" opacity="0.5"/><rect x="2" y="2" width="14" height="8" rx="2" fill="#F5F5F5"/><rect x="22" y="4" width="2.5" height="4" rx="1" fill="#F5F5F5" opacity="0.5"/></svg>
+          </div>
+        </div>
+
+        <div class="navbar">
+          <div class="nav-back" onclick="goTo('tree')">‹ 返回</div>
+          <div class="nav-title" style="font-size:15px;">待确认 <span style="color:var(--text3);font-weight:600;" id="confirm-count">3</span></div>
+          <div style="width:30px;"></div>
+        </div>
+
+        <div class="scroll" style="padding-top:0;">
+          <div class="confirm-intro">
+            AI 对下面这几条想法<b style="color:var(--text);">不太有把握</b>，帮你选一下它们该去的书架。确认后 AI 会记住你的偏好，下次类似内容就直接归档。
+          </div>
+
+          <div id="confirm-list">
+            <div class="confirm-card">
+              <div class="q">这个配色总感觉差点意思，暖色是不是比现在的蓝更适合记录类产品？</div>
+              <div class="suggest-box">
+                <div class="sug-topic"><span class="folder">💡</span><span class="sug-name">灵感创意</span></div>
+                <div class="sug-reason">提到视觉与设计感受，但没提具体产品。结合你的档案也可能属于「工作与事业」下的 Holo 打磨。</div>
+                <div class="conf-track"><div class="conf-bar"><div class="conf-fill" style="width:64%"></div></div><span class="conf-num">置信度 64%</span></div>
+              </div>
+              <div class="confirm-actions">
+                <div class="cbtn change" onclick="toast('弹出主题选择器：换一个书架 / 留在未归类')">换一个</div>
+                <div class="cbtn ok" onclick="confirmCard(this)">放这里</div>
+              </div>
+            </div>
+
+            <div class="confirm-card">
+              <div class="q">妈说的那个体检套餐要不要先约上，拖了快两个月了。</div>
+              <div class="suggest-box">
+                <div class="sug-topic"><span class="folder">🏃</span><span class="sug-name">生活与健康</span></div>
+                <div class="sug-reason">内容涉及就医安排，属于生活事务；但也可以视为家庭待办，放入「关系与家庭」。</div>
+                <div class="conf-track"><div class="conf-bar"><div class="conf-fill" style="width:71%"></div></div><span class="conf-num">置信度 71%</span></div>
+              </div>
+              <div class="confirm-actions">
+                <div class="cbtn change" onclick="toast('弹出主题选择器：换一个书架 / 留在未归类')">换一个</div>
+                <div class="cbtn ok" onclick="confirmCard(this)">放这里</div>
+              </div>
+            </div>
+
+            <div class="confirm-card">
+              <div class="q">《纳瓦尔宝典》这段关于杠杆的论述值得再读一遍：代码和媒体是新时代无需许可的杠杆。</div>
+              <div class="suggest-box">
+                <div class="sug-topic"><span class="folder">🌱</span><span class="sug-name">个人成长</span></div>
+                <div class="sug-reason">读书摘录与思考，该主题下已有 12 条「阅读」想法；关键词「杠杆」也可关联到独立开发。</div>
+                <div class="conf-track"><div class="conf-bar"><div class="conf-fill" style="width:68%"></div></div><span class="conf-num">置信度 68%</span></div>
+              </div>
+              <div class="confirm-actions">
+                <div class="cbtn change" onclick="toast('弹出主题选择器：换一个书架 / 留在未归类')">换一个</div>
+                <div class="cbtn ok" onclick="confirmCard(this)">放这里</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="confirm-empty" id="confirm-empty">
+            <div class="big">🌿</div>
+            <h4>都确认完了</h4>
+            <p>剩下的 125 条 AI 都很有把握，已自动归档。<br>你的确认会持续让分类越来越准。</p>
+          </div>
+
+          <div class="skip-all" id="skip-all" onclick="skipAll()">全部跳过，以后再说</div>
+        </div>
+      </div>
+
+      <!-- ========== 屏4 想法详情 ========== -->
+      <div class="screen" id="scr-detail">
+        <div class="statusbar">
+          <span>9:41</span>
+          <div class="sb-icons">
+            <svg width="18" height="12" viewBox="0 0 18 12"><g fill="#F5F5F5"><rect x="0" y="8" width="3" height="4" rx="1"/><rect x="5" y="6" width="3" height="6" rx="1"/><rect x="10" y="3" width="3" height="9" rx="1"/><rect x="15" y="0" width="3" height="12" rx="1"/></g></svg>
+            <span style="font-size:11px;font-weight:700;">5G</span>
+            <svg width="25" height="12" viewBox="0 0 25 12"><rect x="0.5" y="0.5" width="20" height="11" rx="3.5" fill="none" stroke="#F5F5F5" opacity="0.5"/><rect x="2" y="2" width="14" height="8" rx="2" fill="#F5F5F5"/><rect x="22" y="4" width="2.5" height="4" rx="1" fill="#F5F5F5" opacity="0.5"/></svg>
+          </div>
+        </div>
+
+        <div class="navbar">
+          <div class="nav-back" onclick="goTo('topic')">‹ 返回</div>
+          <div class="nav-title" style="font-size:15px;">想法</div>
+          <div class="nav-more">···</div>
+        </div>
+
+        <div class="scroll" style="padding-top:0;">
+          <div class="detail-content">
+            买断版定价还是等 v1.1 再上。早鸟 ¥38 会不会把锚定效应做低了？参考 Things 3 的策略：先订阅跑量验证需求，再出买断收口，避免一开始就用低价锁定心智。AI 额度这块要守住：服务器成本摆在那，永远不进买断包。
+            <div class="detail-meta">
+              <span>昨天 22:47</span><span>·</span><span>来自想法编辑器</span>
+            </div>
+          </div>
+
+          <div class="section-block">
+            <div class="lbl">所属主题<span class="edit-mini" onclick="toast('弹出主题选择器，可换书架或新建主题')">更换</span></div>
+            <div class="topic-breadcrumb" onclick="toast('弹出主题选择器，可换书架或新建主题')">
+              <span class="folder">💼</span>
+              <span class="path">工作与事业<span class="sep">›</span><span class="kw-part">Holo</span></span>
+              <span class="swap">更换 ›</span>
+            </div>
+          </div>
+
+          <div class="section-block">
+            <div class="lbl">关键词<span class="edit-mini" onclick="toast('关键词支持手动增删（长按删除 / 点加号添加）')">编辑</span></div>
+            <div class="tag-list">
+              <span class="tag-chip">定价<span class="src ai">AI</span></span>
+              <span class="tag-chip">订阅策略<span class="src ok">已确认</span></span>
+              <span class="tag-chip">买断<span class="src ai">AI</span></span>
+            </div>
+          </div>
+
+          <div class="section-block">
+            <div class="lbl">为什么这样分类</div>
+            <div class="why-panel show" style="margin-top:0;">
+              <b>AI 分类依据</b>：讨论 App 商业化定价决策，与「工作与事业」下已有的 6 条定价想法高度相关；结合你的用户档案（独立开发者，正在开发 Holo）判断。
+              <div class="conf-track"><div class="conf-bar"><div class="conf-fill" style="width:92%"></div></div><span class="conf-num">置信度 92% · 已自动归档</span></div>
+            </div>
+          </div>
+
+          <div class="section-block">
+            <div class="lbl">关联想法</div>
+            <div class="link-row"><span class="ar">↗</span>订阅定价的三个档位怎么定？权益差异要拉开</div>
+            <div class="link-row"><span class="ar">↗</span>App Store 定价心理学：锚定与尾数定价</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="toast" id="toast"></div>
+  </div>
+</div>
+
+<script>
+  // 屏幕导航
+  const screens = { tree: 'scr-tree', topic: 'scr-topic', confirm: 'scr-confirm', detail: 'scr-detail' };
+  const navItems = document.querySelectorAll('.nav-item');
+  const order = ['tree', 'topic', 'confirm', 'detail'];
+
+  function goTo(name, fromPanel) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    document.getElementById(screens[name]).classList.add('active');
+    navItems.forEach((el, i) => el.classList.toggle('active', order[i] === name));
+  }
+
+  // 时间流 / 知识树 切换
+  function switchView(v) {
+    const isTree = v === 'tree';
+    document.getElementById('seg-tree').classList.toggle('on', isTree);
+    document.getElementById('seg-time').classList.toggle('on', !isTree);
+    document.getElementById('treeview').classList.toggle('hide', !isTree);
+    document.getElementById('timeview').classList.toggle('show', !isTree);
+  }
+
+  // 分类理由展开
+  function toggleWhy(btn) {
+    btn.parentElement.nextElementSibling.classList.toggle('show');
+  }
+
+  // toast
+  let toastTimer = null;
+  function toast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('show'), 2200);
+  }
+
+  // 待确认交互
+  let remain = 3;
+  function refreshCount() {
+    document.getElementById('confirm-count').textContent = remain;
+    const banner = document.querySelector('.ai-banner .ai-badge-count');
+    if (banner) banner.textContent = remain + ' 待确认';
+    if (remain <= 0) {
+      document.getElementById('confirm-list').style.display = 'none';
+      document.getElementById('skip-all').style.display = 'none';
+      document.getElementById('confirm-empty').style.display = 'block';
+      if (banner) banner.textContent = '已全部归档';
+      if (banner) banner.style.background = 'rgba(34,197,94,0.9)';
+    }
+  }
+  function confirmCard(el) {
+    const card = el.closest('.confirm-card');
+    card.classList.add('done');
+    setTimeout(() => card.style.display = 'none', 380);
+    remain--;
+    refreshCount();
+    toast('已放入该书架，AI 已学习你的偏好 ✓');
+  }
+  function skipAll() {
+    remain = 0;
+    document.querySelectorAll('.confirm-card').forEach(c => c.style.display = 'none');
+    refreshCount();
+  }
+
+  // 关键词筛选（演示态）
+  document.querySelectorAll('.kw').forEach(k => {
+    k.addEventListener('click', () => {
+      document.querySelectorAll('.kw').forEach(x => x.classList.remove('on'));
+      k.classList.add('on');
+    });
+  });
+</script>
+</body>
+</html>

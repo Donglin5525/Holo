@@ -4,6 +4,7 @@
 //
 
 import Foundation
+@testable import Holo
 
 struct MockConversationDataSource: HoloConversationDataSource {
     let records: [HoloConversationRecord]
@@ -12,7 +13,6 @@ struct MockConversationDataSource: HoloConversationDataSource {
     }
 }
 
-@main
 struct HoloConversationToolTests {
 
     static func expect(_ condition: @autoclosure () -> Bool, _ message: String) {
@@ -90,3 +90,12 @@ struct HoloConversationToolTests {
         expect(result.warnings.contains { $0.code == "NO_CONVERSATION_DATA" }, "应返回明确 warning")
     }
 }
+
+#if !HOLO_XCTEST_BRIDGE
+@main
+private struct HoloStandaloneLauncher {
+    static func main() async throws {
+        await try HoloConversationToolTests.main()
+    }
+}
+#endif
