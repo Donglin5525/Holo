@@ -20,13 +20,6 @@ struct FinanceAnalysisContextBuilder {
         return f
     }()
 
-    private static let monthFmt: DateFormatter = {
-        let f = DateFormatter()
-        f.locale = Locale(identifier: "zh_CN")
-        f.dateFormat = "yyyy-MM"
-        return f
-    }()
-
     @MainActor
     func build(request: ResolvedAnalysisRequest) async -> FinanceAnalysisContext? {
         let repo = FinanceRepository.shared
@@ -77,11 +70,13 @@ struct FinanceAnalysisContextBuilder {
                 topCategoryAggregations: categoryAggregations
             )
 
-            // 月度分解（最多 12 个月）
+            // 月度分解（最多 12 个记账周期；与统计页同一「记账周期」口径，避免 AI 与界面数字对不上）
+            let cycleStartDay = FinancePeriodSettings.shared.billingCycleStartDay
             let monthlyBreakdown = buildMonthlyBreakdown(
                 transactions: transactions,
                 start: startInclusive,
-                end: endExclusive
+                end: endExclusive,
+                cycleStartDay: cycleStartDay
             )
 
             // 上周期对比 + 分类趋势
@@ -281,24 +276,32 @@ struct FinanceAnalysisContextBuilder {
     private func buildMonthlyBreakdown(
         transactions: [Transaction],
         start: Date,
-        end: Date
+        end: Date,
+        cycleStartDay: Int
     ) -> [FinanceMonthlyItem] {
-        var monthlyMap: [String: (expense: Decimal, income: Decimal)] = [:]
+        let calendar = Calendar.current
+        var cycleMap: [Date: (expense: Decimal, income: Decimal)] = [:]
 
         for tx in transactions {
-            let monthKey = Self.monthFmt.string(from: tx.date)
-            var entry = monthlyMap[monthKey] ?? (0, 0)
+            let cycleStart = BillingCycleCalculator.currentCycleRange(startDay: cycleStartDay, reference: tx.date).start
+            var entry = cycleMap[cycleStart] ?? (0, 0)
             if tx.transactionType == .expense {
                 entry.expense += tx.amount.decimalValue
             } else {
                 entry.income += tx.amount.decimalValue
             }
-            monthlyMap[monthKey] = entry
+            cycleMap[cycleStart] = entry
         }
 
-        return monthlyMap.sorted { $0.key < $1.key }
+        return cycleMap.sorted { $0.key < $1.key }
             .prefix(12)
-            .map { FinanceMonthlyItem(month: $0.key, expense: $0.value.expense, income: $0.value.income) }
+            .map { FinanceMonthlyItem(month: Self.cycleLabel($0.key, calendar: calendar), expense: $0.value.expense, income: $0.value.income) }
+    }
+
+    /// 记账周期标签（如「8月6日起」）：起始日自描述，LLM 与用户都能对上界面的「本期」
+    private static func cycleLabel(_ cycleStart: Date, calendar: Calendar) -> String {
+        let comps = calendar.dateComponents([.month, .day], from: cycleStart)
+        return "\(comps.month ?? 1)月\(comps.day ?? 1)日起"
     }
 
     // MARK: - Anomaly Detection
@@ -364,11 +367,10 @@ struct FinanceAnalysisContextBuilder {
             }
         }
 
-        // 检查是否是当前自然月
-        let currentMonthRange = calendar.dateInterval(of: .month, for: today)
-        if let monthRange = currentMonthRange,
-           start == monthRange.start,
-           endExclusive == monthRange.end {
+        // 检查是否是当前记账周期（月预算跟随全局记账周期口径，与预算页/统计页一致）
+        let currentCycleRange = FinancePeriodSettings.shared.currentCycleRange()
+        if start == currentCycleRange.start,
+           endExclusive == currentCycleRange.end {
             if let budget = budgetRepo.getTotalBudget(forAccount: UUID(), period: .month) {
                 let spent = totalExpense
                 let remaining = budget.amount.decimalValue - spent

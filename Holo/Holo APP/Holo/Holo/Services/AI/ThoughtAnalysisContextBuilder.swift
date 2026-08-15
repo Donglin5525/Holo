@@ -76,22 +76,13 @@ struct ThoughtAnalysisContextBuilder {
         end: Date,
         calendar: Calendar
     ) -> [DailyCountPoint] {
-        // ThoughtRepository 没有按日聚合的方法，需要从 count 推算
-        // 这里用一个简单的近似：总 count / 天数 做均匀分布
-        // 后续可优化为精确的按日统计
-        let total = repo.getThoughtCount(from: start, to: end)
-        guard total > 0 else { return [] }
-
-        let dayCount = calendar.dateComponents([.day], from: start, to: end).day ?? 1
-        let avgPerDay = max(total / max(dayCount, 1), 1)
+        let countsByDay = repo.getThoughtCountByDay(from: start, to: end)
 
         var result: [DailyCountPoint] = []
         var current = start
-        var remaining = total
-        while current <= end && remaining > 0 {
-            let count = min(avgPerDay, remaining)
-            result.append(DailyCountPoint(date: Self.dateFmt.string(from: current), count: count))
-            remaining -= count
+        while current < end {
+            let key = Self.dateFmt.string(from: current)
+            result.append(DailyCountPoint(date: key, count: countsByDay[key] ?? 0))
             guard let next = calendar.date(byAdding: .day, value: 1, to: current) else { break }
             current = next
         }

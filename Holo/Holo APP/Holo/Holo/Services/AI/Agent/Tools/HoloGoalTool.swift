@@ -29,6 +29,8 @@ struct HoloGoalToolRecord: Codable, Equatable, Sendable {
     var domain: String
     var deadline: Date?
     var desiredOutcome: String?
+    var summary: String?
+    var motivation: String?
     var updatedAt: Date?
     var linkedTasks: [HoloGoalLinkedTaskSnapshot]
     var linkedHabits: [HoloGoalLinkedHabitSnapshot]
@@ -217,6 +219,12 @@ extension HoloGoalTool {
         }
         if let outcome = goal.desiredOutcome, !outcome.isEmpty {
             parts.append("期望：\(String(outcome.prefix(40)))")
+        }
+        if let summary = goal.summary, !summary.isEmpty {
+            parts.append("摘要：\(String(summary.prefix(40)))")
+        }
+        if let motivation = goal.motivation, !motivation.isEmpty {
+            parts.append("动机：\(String(motivation.prefix(40)))")
         }
         return parts.joined(separator: "，")
     }

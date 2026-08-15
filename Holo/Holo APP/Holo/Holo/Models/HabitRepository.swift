@@ -241,23 +241,28 @@ class HabitRepository: ObservableObject {
     // MARK: - Record Operations
     
     /// 打卡（打卡型习惯）- 切换今日完成状态
-    /// - Parameter habit: 习惯
+    /// - Parameters:
+    ///   - habit: 习惯
+    ///   - note: 本次打卡备注（取消打卡时忽略；AI/手动补备注传入）
     /// - Returns: 当前完成状态
     @discardableResult
-    func toggleCheckIn(for habit: Habit) throws -> Bool {
+    func toggleCheckIn(for habit: Habit, note: String? = nil) throws -> Bool {
         if !isReady { setup() }
         guard habit.isCheckInType else { return false }
-        
+
         // 查找今日记录
         if let existingRecord = findTodayCheckInRecord(for: habit) {
-            // 切换完成状态
+            // 切换完成状态（取消打卡保留原备注）
             existingRecord.isCompleted.toggle()
+            if existingRecord.isCompleted, let note, !note.isEmpty {
+                existingRecord.note = note
+            }
             try context.save()
             notifyDataChange(habitId: habit.id)
             return existingRecord.isCompleted
         } else {
             // 创建新记录（默认已完成）
-            _ = HabitRecord.createCheckIn(in: context, habit: habit, isCompleted: true)
+            _ = HabitRecord.createCheckIn(in: context, habit: habit, isCompleted: true, note: note)
             try context.save()
             notifyDataChange(habitId: habit.id)
             return true

@@ -38,6 +38,15 @@ struct HoloFinanceAccountSnapshot: Codable, Equatable, Sendable {
     var liabilities: Double
     var netWorth: Double
     var defaultAccountName: String?
+    /// 配置了账单周期的信用卡（账单日/还款日/额度），供「还款日几号/额度多少」类问题作答
+    var creditCards: [HoloFinanceCreditCard] = []
+}
+
+struct HoloFinanceCreditCard: Codable, Equatable, Sendable {
+    var name: String
+    var billingDay: Int
+    var dueDay: Int?
+    var creditLimit: Double?
 }
 
 enum HoloFinanceBalanceExpenseSource: String, Codable, Equatable, Sendable {
@@ -590,7 +599,18 @@ struct HoloFinanceTool: HoloDataTool {
             metricKey: "finance.account.net_worth",
             metricValue: account.netWorth,
             excerpt: "活跃账户 \(account.activeAccountCount) 个，资产 \(Self.moneyText(account.assets)) 元，负债 \(Self.moneyText(account.liabilities)) 元，净资产 \(Self.moneyText(account.netWorth)) 元\(defaultText)"
-        )]
+        )] + account.creditCards.map { card in
+            var parts = ["信用卡「\(card.name)」", "账单日每月\(card.billingDay)号"]
+            if let dueDay = card.dueDay { parts.append("还款日每月\(dueDay)号") }
+            if let limit = card.creditLimit { parts.append("额度\(Self.moneyText(limit))元") }
+            return HoloEvidenceEvent(
+                id: "\(request.id)-card-\(card.name)",
+                occurredAt: nil,
+                metricKey: "finance.account.credit_card",
+                metricValue: card.creditLimit,
+                excerpt: parts.joined(separator: "，")
+            )
+        }
         return Self.successResult(request, metrics: metrics, events: events)
     }
 

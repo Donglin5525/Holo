@@ -1072,6 +1072,14 @@ struct MemoryInsightContextBuilder {
             into: &events
         )
 
+        // 纪念日事件
+        await Self.collectAnniversaryEvents(
+            start: start,
+            end: end,
+            dateFormatter: dateFormatter,
+            into: &events
+        )
+
         return Self.prioritizeEvents(events)
     }
 
@@ -2035,13 +2043,58 @@ struct MemoryInsightContextBuilder {
             "taskOverdue": 6,  // 逾期最高优先
             "habitMissed": 5,
             "habitCompleted": 2,
-            "thoughtCreated": 1
+            "thoughtCreated": 1,
+            "anniversary": 7   // 纪念日是低频高信号事件，优先保留
         ]
 
         return events
             .sorted { (typePriority[$0.type] ?? 0) > (typePriority[$1.type] ?? 0) }
             .prefix(30)
             .map { $0 }
+    }
+
+    /// 纪念日事件：周期内到达的纪念日（repeatYearly 按年换算，跨年周期检查起止两年）
+    @MainActor
+    private static func collectAnniversaryEvents(
+        start: Date,
+        end: Date,
+        dateFormatter: DateFormatter,
+        into events: inout [LifeEvent]
+    ) {
+        let repo = AnniversaryRepository.shared
+        repo.setup()
+        let calendar = Calendar.current
+        let startDay = calendar.startOfDay(for: start)
+        let endDay = calendar.startOfDay(for: end)
+
+        for anniversary in repo.activeAnniversaries {
+            let candidates: [Date]
+            if anniversary.repeatYearly {
+                let years = Set([
+                    calendar.component(.year, from: startDay),
+                    calendar.component(.year, from: endDay)
+                ])
+                candidates = years.compactMap { year in
+                    var comps = calendar.dateComponents([.month, .day], from: anniversary.date)
+                    comps.year = year
+                    return calendar.date(from: comps).map { calendar.startOfDay(for: $0) }
+                }
+            } else {
+                candidates = [calendar.startOfDay(for: anniversary.date)]
+            }
+            for date in candidates where date >= startDay && date <= endDay {
+                events.append(LifeEvent(
+                    id: UUID().uuidString,
+                    date: dateFormatter.string(from: date),
+                    module: "anniversary",
+                    type: "anniversary",
+                    title: anniversary.title,
+                    valueText: nil,
+                    tags: [],
+                    sourceId: anniversary.id.uuidString
+                ))
+            }
+        }
     }
 
     // MARK: - Personal Baseline Helpers

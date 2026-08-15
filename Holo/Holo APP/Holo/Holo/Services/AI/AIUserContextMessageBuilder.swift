@@ -86,6 +86,11 @@ enum AIUserContextMessageBuilder {
             message += "\n\n" + goalContext
         }
 
+        if !context.anniversaryLines.isEmpty {
+            let lines = context.anniversaryLines.map { "- \($0)" }.joined(separator: "\n")
+            message += "\n\n## 纪念日\n\n\(lines)"
+        }
+
         // 聊天场景：注入记忆摘要和数据覆盖度
         if purpose == .chat {
             if let coverage = context.dataCoverage, coverage.level != .rich {
@@ -125,6 +130,15 @@ enum AIUserContextMessageBuilder {
         - 意图识别只输出用户这一次输入真正表达的动作，不要因为历史状态、长期目标或档案主动添加动作。
         - 不得编造金额、日期、任务、习惯、想法或分类。
         """
+
+        // 纪念日事实清单：让意图识别知道「X的生日/纪念日」是已有数据的事实问答，
+        // 输出 query 走对话回复（回复上下文含同一份清单），而不是因不认识而 clarification。
+        if !context.anniversaryLines.isEmpty {
+            let lines = context.anniversaryLines.map { "- \($0)" }.joined(separator: "\n")
+            message += "\n\n--- 纪念日 ---"
+            message += "\n\(lines)"
+            message += "\n规则：用户询问某个纪念日的日期或倒计时（如「妈妈生日是哪天/还有多久」）属于事实问答，输出 mode=query、intent=query，不要 clarification，也不要 flexible_data_query（纪念日不是交易数据）。"
+        }
 
         // 意图识别阶段只保留数据覆盖度风险提示，避免任务/想法/目标等无关上下文干扰 Router。
         if let coverage = context.dataCoverage, coverage.level != .rich {

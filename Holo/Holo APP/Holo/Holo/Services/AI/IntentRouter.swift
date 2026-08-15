@@ -109,9 +109,9 @@ final class IntentRouter {
         case .recordMood:
             return try handleRecordMood(result)
         case .recordWeight:
-            return try handleRecordWeight(result)
+            return try handleRecordWeight(result, originalInput: originalInput)
         case .checkIn:
-            return try handleCheckIn(result)
+            return try handleCheckIn(result, originalInput: originalInput)
         case .updateGoalField:
             return try handleUpdateGoalField(result)
         case .linkTaskToGoal:
@@ -498,7 +498,7 @@ final class IntentRouter {
 
     // MARK: - Record Weight
 
-    private func handleRecordWeight(_ result: ParsedResult) throws -> RouteResult {
+    private func handleRecordWeight(_ result: ParsedResult, originalInput: String? = nil) throws -> RouteResult {
         // 体重记录复用习惯模块的数值记录功能
         guard let data = result.extractedData,
               let weightStr = data["weight"],
@@ -512,7 +512,12 @@ final class IntentRouter {
         let weightHabit = habits.first { $0.unit == "kg" && $0.name.contains("体重") }
 
         if let habit = weightHabit {
-            try habitRepo.addNumericRecord(for: habit, value: weight)
+            let note = Self.habitRecordNote(
+                originalInput: originalInput,
+                habitNames: [habit.name, "体重"],
+                removableTokens: [weightStr, "\(weight)kg", "\(weight) kg", "kg", "公斤"]
+            )
+            try habitRepo.addNumericRecord(for: habit, value: weight, note: note)
             logger.info("体重已记录：\(weight) kg")
             return RouteResult(
                 text: "已记录体重：\(weight) kg",
@@ -526,7 +531,7 @@ final class IntentRouter {
 
     // MARK: - Check In
 
-    private func handleCheckIn(_ result: ParsedResult) throws -> RouteResult {
+    private func handleCheckIn(_ result: ParsedResult, originalInput: String? = nil) throws -> RouteResult {
         let habitName = result.extractedData?["habitName"]
         let habitRepo = HabitRepository.shared
         let habits = habitRepo.activeHabits.filter { !$0.isArchived }
@@ -534,9 +539,10 @@ final class IntentRouter {
         if let name = habitName {
             if let habit = habits.first(where: { $0.name.contains(name) || name.contains($0.name) }) {
                 if habit.isNumericType {
-                    return try handleNumericHabitRecord(habit, result: result)
+                    return try handleNumericHabitRecord(habit, result: result, originalInput: originalInput)
                 }
-                let completed = try habitRepo.toggleCheckIn(for: habit)
+                let note = Self.habitRecordNote(originalInput: originalInput, habitNames: [habit.name], removableTokens: [])
+                let completed = try habitRepo.toggleCheckIn(for: habit, note: note)
                 return RouteResult(
                     text: completed ? "\(habit.name) 打卡成功" : "\(habit.name) 已取消打卡",
                     habitId: habit.id,
@@ -549,9 +555,10 @@ final class IntentRouter {
         if habits.count == 1 {
             let habit = habits[0]
             if habit.isNumericType {
-                return try handleNumericHabitRecord(habit, result: result)
+                return try handleNumericHabitRecord(habit, result: result, originalInput: originalInput)
             }
-            let completed = try habitRepo.toggleCheckIn(for: habit)
+            let note = Self.habitRecordNote(originalInput: originalInput, habitNames: [habit.name], removableTokens: [])
+            let completed = try habitRepo.toggleCheckIn(for: habit, note: note)
             return RouteResult(
                 text: completed ? "\(habit.name) 打卡成功" : "\(habit.name) 已取消打卡",
                 habitId: habit.id,
@@ -562,6 +569,30 @@ final class IntentRouter {
         // 多个习惯时列出选项
         let names = habits.map { $0.name }.joined(separator: "、")
         return RouteResult(text: "要给哪个习惯打卡？当前活跃习惯：\(names)")
+    }
+
+    /// 从用户原话提取记录备注：去掉习惯名、数值和纯指令词后，剩余的上下文才有记录价值
+    /// （「打卡跑步」清洗后为空不存；「跑步5公里状态不错」存「状态不错」）
+    private static func habitRecordNote(
+        originalInput: String?,
+        habitNames: [String],
+        removableTokens: [String]
+    ) -> String? {
+        guard var text = originalInput?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else {
+            return nil
+        }
+        for token in (habitNames + removableTokens) where !token.isEmpty {
+            text = text.replacingOccurrences(of: token, with: " ")
+        }
+        for filler in ["帮我记一下", "帮我记录", "帮我", "记一下", "记录一下", "打卡了", "打卡", "记录"] {
+            text = text.replacingOccurrences(of: filler, with: " ")
+        }
+        let remaining = text
+            .split(whereSeparator: { $0.isWhitespace })
+            .joined(separator: " ")
+            .trimmingCharacters(in: CharacterSet(charactersIn: " ，。,.、！!？?"))
+        guard remaining.count > 2 else { return nil }
+        return String(remaining.prefix(60))
     }
 
     // MARK: - Goal 写操作
@@ -716,13 +747,18 @@ final class IntentRouter {
         }
     }
 
-    private func handleNumericHabitRecord(_ habit: Habit, result: ParsedResult) throws -> RouteResult {
+    private func handleNumericHabitRecord(_ habit: Habit, result: ParsedResult, originalInput: String? = nil) throws -> RouteResult {
         guard let value = parseHabitValue(from: result.extractedData) else {
             let unitText = habit.unitText.isEmpty ? "" : "（\(habit.unitText)）"
             return RouteResult(text: "请告诉我要记录的数值\(unitText)，比如「\(habit.name) 5\(habit.unitText)」")
         }
 
-        let record = try HabitRepository.shared.addNumericRecord(for: habit, value: value)
+        let note = Self.habitRecordNote(
+            originalInput: originalInput,
+            habitNames: [habit.name],
+            removableTokens: [String(value), "\(value)\(habit.unitText)", habit.unitText].filter { !$0.isEmpty }
+        )
+        let record = try HabitRepository.shared.addNumericRecord(for: habit, value: value, note: note)
         let formattedValue = habit.formatValue(value)
         let unit = habit.unitText
         let verb = habit.isBadHabit ? "已记录" : "已更新"
@@ -845,25 +881,23 @@ final class IntentRouter {
             return RouteResult(text: "请告诉我要删除哪个任务")
         }
 
+        // 唯一匹配已被 Coordinator 拦截成「删除确认卡」；走到这里的只剩无匹配/多匹配场景
         let matches = searchTasks(keyword: keyword)
 
         if matches.isEmpty {
             return RouteResult(text: "未找到匹配「\(keyword)」的任务，请说得更具体一些")
         }
-        if matches.count > 1 {
-            let list = matches.prefix(5).enumerated().map { (i, task) in
-                "\(i + 1)）\(task.title)"
-            }.joined(separator: "\n")
-            return RouteResult(text: "找到多个匹配的任务：\n\(list)\n请确认是哪个")
-        }
+        let list = matches.prefix(5).enumerated().map { (i, task) in
+            "\(i + 1)）\(task.title)"
+        }.joined(separator: "\n")
+        return RouteResult(text: "找到多个匹配的任务：\n\(list)\n请说得更具体一些")
+    }
 
-        let task = matches[0]
-        let todoRepo = TodoRepository.shared
-        let taskTitle = task.title
-        try todoRepo.deleteTask(task)
-
-        logger.info("任务已删除：\(taskTitle)")
-        return RouteResult(text: "已删除任务：\(taskTitle)")
+    /// 删除预检：关键词唯一命中未完成任务时返回它（Coordinator 据此生成删除确认卡）
+    func matchUniqueTaskForDeletion(keyword: String) -> TodoTask? {
+        let matches = searchTasks(keyword: keyword)
+        guard matches.count == 1 else { return nil }
+        return matches.first
     }
 
     // MARK: - Create Note

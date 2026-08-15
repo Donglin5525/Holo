@@ -21,7 +21,7 @@ final class FinancePeriodSettings: ObservableObject {
 
     // MARK: - Keys
 
-    private let cycleStartDayKey = "financePeriodBillingCycleStartDay"
+    private static let cycleStartDayKey = "financePeriodBillingCycleStartDay"
 
     // MARK: - Properties
 
@@ -32,7 +32,7 @@ final class FinancePeriodSettings: ObservableObject {
             if clamped != billingCycleStartDay {
                 billingCycleStartDay = clamped
             }
-            UserDefaults.standard.set(billingCycleStartDay, forKey: cycleStartDayKey)
+            UserDefaults.standard.set(billingCycleStartDay, forKey: Self.cycleStartDayKey)
         }
     }
 
@@ -40,8 +40,14 @@ final class FinancePeriodSettings: ObservableObject {
 
     private init() {
         // object(forKey:) 区分"未设置"和"显式设为 1"
-        let stored = UserDefaults.standard.object(forKey: cycleStartDayKey) as? Int
+        let stored = UserDefaults.standard.object(forKey: Self.cycleStartDayKey) as? Int
         billingCycleStartDay = stored.map { min(max($0, 1), 31) } ?? 1
+    }
+
+    /// 非隔离读取记账周期起始日（AI 分析链路等非主线程上下文用；与 UI 同一存储）
+    nonisolated static var storedBillingCycleStartDay: Int {
+        let stored = UserDefaults.standard.object(forKey: cycleStartDayKey) as? Int
+        return stored.map { min(max($0, 1), 31) } ?? 1
     }
 
     // MARK: - 计算辅助

@@ -439,6 +439,8 @@ struct UserContext {
     var memorySummary: HoloMemoryPromptSummary?
     /// 最近对话关联的任务（供意图识别注入「备忘单」+ modifyTaskItems 补 taskId）
     var recentLinkedTask: RecentLinkedTaskSummary? = nil
+    /// 全量纪念日事实（每条一行：标题+日期+下一次/倒计时），供意图识别与对话回复共用；无则空
+    var anniversaryLines: [String] = []
 
     /// 空上下文（分析查询不需要即时上下文）
     static let empty = UserContext(

@@ -375,8 +375,6 @@ enum MemorySignalDataAdapter {
             return GoalDomainMemoryInput(
                 id: goal.id.uuidString,
                 title: goal.title,
-                // 只有已进入用户目标库的实体才进入记忆；未确认的系统建议不在此查询结果中。
-                isUserCreated: goal.source != "suggestion",
                 isCompleted: goal.completedAt != nil || goal.status == "completed",
                 progress: progress,
                 expectedProgress: expectedProgress,

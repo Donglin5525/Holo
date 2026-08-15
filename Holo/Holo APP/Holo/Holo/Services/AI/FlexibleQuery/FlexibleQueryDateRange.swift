@@ -32,21 +32,19 @@ nonisolated enum FlexibleQueryDateRangeResolver {
             }
             start = recentStart
         } else if text.contains("上个月") {
-            guard let currentMonthStart = calendar.dateInterval(of: .month, for: end)?.start,
-                  let previousMonthEnd = calendar.date(byAdding: .day, value: -1, to: currentMonthStart),
-                  let previousMonthStart = calendar.dateInterval(of: .month, for: previousMonthEnd)?.start else {
-                return nil
-            }
-            start = previousMonthStart
+            // 财务查询的「上个月」= 上个记账周期（与统计页同一口径）
+            let startDay = FinancePeriodSettings.storedBillingCycleStartDay
+            let range = BillingCycleCalculator.previousCycleRange(startDay: startDay, reference: end, calendar: calendar)
+            let previousMonthEnd = calendar.date(byAdding: .day, value: -1, to: range.end) ?? end
             return FlexibleQueryDateRange(
-                startDate: FlexibleQueryDateCodec.format(start, calendar: calendar),
+                startDate: FlexibleQueryDateCodec.format(range.start, calendar: calendar),
                 endDate: FlexibleQueryDateCodec.format(previousMonthEnd, calendar: calendar)
             )
         } else if text.contains("本月") {
-            guard let monthStart = calendar.dateInterval(of: .month, for: end)?.start else {
-                return nil
-            }
-            start = monthStart
+            // 财务查询的「本月」= 当前记账周期（与统计页同一口径），至今天
+            let startDay = FinancePeriodSettings.storedBillingCycleStartDay
+            let range = BillingCycleCalculator.currentCycleRange(startDay: startDay, reference: end, calendar: calendar)
+            start = range.start
         } else {
             return nil
         }

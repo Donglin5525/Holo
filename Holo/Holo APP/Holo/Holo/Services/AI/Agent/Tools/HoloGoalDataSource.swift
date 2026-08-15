@@ -23,6 +23,8 @@ struct HoloDefaultGoalDataSource: HoloGoalDataSource {
                     domain: goal.domain,
                     deadline: goal.deadline,
                     desiredOutcome: goal.desiredOutcome,
+                    summary: goal.summary,
+                    motivation: goal.motivation,
                     updatedAt: goal.updatedAt,
                     linkedTasks: goal.sortedTasks.map { task in
                         HoloGoalLinkedTaskSnapshot(

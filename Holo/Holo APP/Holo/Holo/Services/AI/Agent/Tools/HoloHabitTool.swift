@@ -15,6 +15,12 @@ struct HoloHabitDailyCount: Codable, Equatable, Sendable {
     var count: Double
 }
 
+/// 每日记录备注：dayOffset=0 为最新天。用户手填或 AI 从原话抽取的当日上下文（如「膝盖疼只跑2公里」）。
+struct HoloHabitDailyNote: Codable, Equatable, Sendable {
+    var dayOffset: Int
+    var note: String
+}
+
 enum HoloHabitPolarity: String, Codable, Sendable {
     case positive
     case negative
@@ -35,6 +41,8 @@ struct HoloHabitToolRecord: Codable, Equatable, Sendable {
     /// 打卡/计数型：value=0 表示「今天没做」，是真实语义，必须保留。
     /// 默认 false 以兼容旧持久化数据。
     var isMeasureType: Bool = false
+    /// 近期记录备注（最多 5 条，近→早）：行为波动的用户自述原因，归因分析的关键文本。
+    var recentNotes: [HoloHabitDailyNote] = []
 }
 
 /// 习惯数据源协议：生产实现适配真实 habit repository（后续集成），测试用 mock。
@@ -106,6 +114,7 @@ struct HoloHabitTool: HoloDataTool {
             let counts = Self.sortedCounts(habit)
             metrics.append(contentsOf: Self.negativeMetrics(habit: habit, counts: counts))
             events.append(contentsOf: Self.negativeEvents(habit: habit, counts: counts))
+            events.append(contentsOf: Self.noteEvents(habit: habit))
         }
         return HoloDataToolResult(
             toolRequestID: request.id, tool: request.tool, status: .success,
@@ -125,6 +134,7 @@ struct HoloHabitTool: HoloDataTool {
             metrics.append(HoloMetric(metricKey: "habit.negative.goal_conflict_days",
                                       value: Double(overLimit), unit: "天", baselineValue: nil, comparison: nil))
             events.append(contentsOf: Self.negativeEvents(habit: habit, counts: counts))
+            events.append(contentsOf: Self.noteEvents(habit: habit))
         }
         return HoloDataToolResult(
             toolRequestID: request.id, tool: request.tool, status: .success,
@@ -147,6 +157,7 @@ struct HoloHabitTool: HoloDataTool {
                                       value: Double(Self.streakBreakDays(counts: counts, goal: habit.dailyGoal)),
                                       unit: "天", baselineValue: nil, comparison: nil))
             events.append(contentsOf: Self.positiveEvents(habit: habit, counts: counts))
+            events.append(contentsOf: Self.noteEvents(habit: habit))
         }
         return HoloDataToolResult(
             toolRequestID: request.id, tool: request.tool, status: .success,
@@ -219,6 +230,16 @@ struct HoloHabitTool: HoloDataTool {
                                   metricKey: "habit.negative.frequency_change",
                                   metricValue: $0.count, excerpt: "\(habit.name) 发生 \(Int($0.count)) 次")
             }
+    }
+
+    /// 记录备注证据：用户自述的行为上下文（如「膝盖疼只跑2公里」），是解释数据波动的关键归因文本
+    private static func noteEvents(habit: HoloHabitToolRecord) -> [HoloEvidenceEvent] {
+        habit.recentNotes.map { note in
+            HoloEvidenceEvent(id: "\(habit.id)-note-d\(note.dayOffset)", occurredAt: nil,
+                              metricKey: "habit.record.note",
+                              metricValue: nil,
+                              excerpt: "\(habit.name)\(note.dayOffset == 0 ? "今天" : "\(note.dayOffset)天前")备注：\(note.note)")
+        }
     }
 
     private static func positiveEvents(habit: HoloHabitToolRecord, counts: [HoloHabitDailyCount]) -> [HoloEvidenceEvent] {

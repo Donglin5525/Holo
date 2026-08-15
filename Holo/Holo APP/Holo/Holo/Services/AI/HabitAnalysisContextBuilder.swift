@@ -48,11 +48,12 @@ struct HabitAnalysisContextBuilder {
         let expectedTotal = activeHabits.count * dayCount
         let averageCompletionRate: Double? = expectedTotal > 0 ? Double(successDayCount) / Double(expectedTotal) : nil
 
-        var habitRates: [(habit: Habit, snapshot: HabitPerformanceSnapshot, streak: HabitStreak)] = []
+        var habitRates: [(habit: Habit, snapshot: HabitPerformanceSnapshot, streak: HabitStreak, recentNotes: [String])] = []
         for habit in activeHabits {
             let snapshot = repo.evaluatePerformance(for: habit, in: range)
             let streak = repo.calculateStreakInfo(for: habit)
-            habitRates.append((habit, snapshot, streak))
+            let notes = Self.recentNotes(for: habit, repo: repo, range: range)
+            habitRates.append((habit, snapshot, streak, notes))
         }
 
         let topPerforming = habitRates
@@ -60,7 +61,7 @@ struct HabitAnalysisContextBuilder {
             .sorted { $0.snapshot.completionRate > $1.snapshot.completionRate }
             .prefix(5)
             .map { item in
-                makePerformanceItem(snapshot: item.snapshot, streak: item.streak.value)
+                makePerformanceItem(snapshot: item.snapshot, streak: item.streak.value, recentNotes: item.recentNotes)
             }
 
         let struggling = habitRates
@@ -68,11 +69,11 @@ struct HabitAnalysisContextBuilder {
             .sorted { $0.snapshot.completionRate < $1.snapshot.completionRate }
             .prefix(3)
             .map { item in
-                makePerformanceItem(snapshot: item.snapshot, streak: item.streak.value)
+                makePerformanceItem(snapshot: item.snapshot, streak: item.streak.value, recentNotes: item.recentNotes)
             }
 
         let performanceSummaries = habitRates.map { item in
-            makePerformanceItem(snapshot: item.snapshot, streak: item.streak.value)
+            makePerformanceItem(snapshot: item.snapshot, streak: item.streak.value, recentNotes: item.recentNotes)
         }
 
         // Streaks
@@ -162,7 +163,7 @@ struct HabitAnalysisContextBuilder {
             }
     }
 
-    private func makePerformanceItem(snapshot: HabitPerformanceSnapshot, streak: Int) -> HabitPerformanceItem {
+    private func makePerformanceItem(snapshot: HabitPerformanceSnapshot, streak: Int, recentNotes: [String] = []) -> HabitPerformanceItem {
         HabitPerformanceItem(
             habitName: snapshot.habitName,
             completionRate: snapshot.completionRate,
@@ -175,7 +176,25 @@ struct HabitAnalysisContextBuilder {
             controlledDays: snapshot.controlledDays,
             overLimitDays: snapshot.overLimitDays,
             completedDays: snapshot.completedDays,
-            totalDays: snapshot.totalDays
+            totalDays: snapshot.totalDays,
+            recentNotes: recentNotes
         )
+    }
+
+    /// 周期内该习惯的记录备注（新→旧，最多 3 条，同日取最新一条）
+    private static func recentNotes(for habit: Habit, repo: HabitRepository, range: ClosedRange<Date>) -> [String] {
+        let records = repo.getRecords(for: habit, in: range)
+        var seen = Set<Date>()
+        return records
+            .compactMap { record -> (Date, String)? in
+                guard let note = record.note?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty else { return nil }
+                let day = Calendar.current.startOfDay(for: record.date)
+                if seen.contains(day) { return nil }
+                seen.insert(day)
+                return (record.date, note)
+            }
+            .sorted { $0.0 > $1.0 }
+            .prefix(3)
+            .map(\.1)
     }
 }

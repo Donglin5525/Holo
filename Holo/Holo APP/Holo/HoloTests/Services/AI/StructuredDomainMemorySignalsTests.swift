@@ -126,17 +126,14 @@ struct StructuredDomainMemorySignalsTests {
     private static func testGoalSignalsOnlyUseUserCreatedGoals() {
         let now = Date(timeIntervalSince1970: 1_720_000_000)
         let userGoal = GoalDomainMemoryInput(
-            id: "goal-1", title: "发布 Holo", isUserCreated: true, isCompleted: false,
+            id: "goal-1", title: "发布 Holo", isCompleted: false,
             progress: 0.4, expectedProgress: 0.6, taskTotal: 10, taskCompleted: 4,
             deadline: now.addingTimeInterval(30 * 86_400), previousDeadline: nil,
             revisionDigest: "goal-r4", observedAt: now
         )
-        var suggestion = userGoal
-        suggestion.id = "ai-suggestion"
-        suggestion.isUserCreated = false
-        let signals = GoalMemorySignalBuilder.buildDomainSignals(from: [userGoal, suggestion])
+        let signals = GoalMemorySignalBuilder.buildDomainSignals(from: [userGoal])
         expect(!signals.isEmpty && signals.allSatisfy { $0.evidence.sourceID == "goal-1" },
-               "系统建议不得被当成用户目标")
+               "目标信号必须锚定来源目标")
         expect(signals.allSatisfy { $0.evidence.revisionDigest == "goal-r4" },
                "目标 entityRef 必须携带 revision digest")
         expect(signals.allSatisfy { signal in

@@ -40,6 +40,8 @@ final class UserContextBuilder {
 
         let goalContext = buildGoalContext(limit: 3)
 
+        let anniversaryLines = buildAnniversaryLines()
+
         // 记忆摘要只能经统一 Query Service 读取，开关关闭时返回空。
         let memorySummary: HoloMemoryPromptSummary? =
             HoloAIFeatureFlags.memorySummaryInjectionEnabled
@@ -62,7 +64,8 @@ final class UserContextBuilder {
                 recentTrend: recentTrend,
                 goalContext: goalContext,
                 dataCoverage: nil,
-                memorySummary: memorySummary
+                memorySummary: memorySummary,
+                anniversaryLines: anniversaryLines
             )
         )
 
@@ -78,7 +81,8 @@ final class UserContextBuilder {
             recentTrend: recentTrend,
             goalContext: goalContext,
             dataCoverage: coverage,
-            memorySummary: memorySummary
+            memorySummary: memorySummary,
+            anniversaryLines: anniversaryLines
         )
     }
 
@@ -504,5 +508,49 @@ final class UserContextBuilder {
 
         \(lines.joined(separator: "\n"))
         """
+    }
+
+    /// 全量纪念日事实行（倒计时升序；repeatYearly 按年换算下一次，非重复的未来显示倒计时、过去的标已过）。
+    /// 全量而非仅临近：纪念日是低频高价值事实，「X 的生日是哪天/还有多久」这类问答需要任意日期可见。
+    private func buildAnniversaryLines() -> [String] {
+        let repo = AnniversaryRepository.shared
+        repo.setup()
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "M月d日"
+
+        let fullFormatter = DateFormatter()
+        fullFormatter.locale = Locale(identifier: "zh_CN")
+        fullFormatter.dateFormat = "yyyy年M月d日"
+
+        let candidates = repo.activeAnniversaries.compactMap { anniversary -> (days: Int, line: String)? in
+            if anniversary.repeatYearly {
+                let dateText = "每年\(formatter.string(from: anniversary.date))"
+                var comps = calendar.dateComponents([.month, .day], from: anniversary.date)
+                comps.year = calendar.component(.year, from: today)
+                guard var next = calendar.date(from: comps).map({ calendar.startOfDay(for: $0) }) else { return nil }
+                if next < today,
+                   let nextYear = calendar.date(byAdding: .year, value: 1, to: next) {
+                    next = nextYear
+                }
+                let days = calendar.dateComponents([.day], from: today, to: next).day ?? 0
+                let countdown = days == 0 ? "就是今天" : "还有\(days)天"
+                return (days, "\(anniversary.title)：\(dateText)（下一次\(fullFormatter.string(from: next))，\(countdown)）")
+            }
+            let date = calendar.startOfDay(for: anniversary.date)
+            let dateText = fullFormatter.string(from: date)
+            if date >= today {
+                let days = calendar.dateComponents([.day], from: today, to: date).day ?? 0
+                let countdown = days == 0 ? "就是今天" : "还有\(days)天"
+                return (days, "\(anniversary.title)：\(dateText)（\(countdown)）")
+            }
+            return (Int.max, "\(anniversary.title)：\(dateText)（已过）")
+        }
+        return candidates
+            .sorted { $0.days < $1.days }
+            .map(\.line)
     }
 }

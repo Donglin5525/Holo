@@ -74,13 +74,13 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
         let defaultCurrentEnd = calendar.date(byAdding: .day, value: 1, to: todayStart) ?? Date()
         let resolvedCurrent = HoloAgentHistoricalTimePolicy.resolve(timeRange, calendar: calendar)
         guard !resolvedCurrent.isEntirelyFuture else { return nil }
-        let effectiveCurrent = resolvedCurrent.effectiveRange
+        let effectiveCurrent = Self.financeCycleAligned(resolvedCurrent.effectiveRange, calendar: calendar)
         let currentEnd = effectiveCurrent?.end ?? defaultCurrentEnd
         let currentStart = effectiveCurrent?.start
             ?? (calendar.date(byAdding: .day, value: -13, to: todayStart) ?? todayStart)
         let resolvedBaseline = HoloAgentHistoricalTimePolicy.resolve(baseline, calendar: calendar)
         guard !resolvedBaseline.isEntirelyFuture else { return nil }
-        let effectiveBaseline = resolvedBaseline.effectiveRange
+        let effectiveBaseline = Self.financeCycleAligned(resolvedBaseline.effectiveRange, calendar: calendar)
         let baselineEnd = effectiveBaseline?.end ?? currentStart
         let baselineStart = effectiveBaseline?.start
             ?? (calendar.date(byAdding: .day, value: -14, to: baselineEnd) ?? baselineEnd)
@@ -141,7 +141,16 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
                     assets: Self.double(netWorth.assets),
                     liabilities: Self.double(netWorth.liabilities),
                     netWorth: Self.double(netWorth.netWorth),
-                    defaultAccountName: defaultAccount?.name
+                    defaultAccountName: defaultAccount?.name,
+                    creditCards: accounts.compactMap { account in
+                        guard account.hasBillingCycle, let billingDay = account.billingDayInt else { return nil }
+                        return HoloFinanceCreditCard(
+                            name: account.name,
+                            billingDay: billingDay,
+                            dueDay: account.dueDayInt,
+                            creditLimit: account.creditLimitDecimal.map { Self.double($0) }
+                        )
+                    }
                 )
             )
         }
@@ -262,5 +271,26 @@ struct HoloDefaultFinanceDataSource: HoloFinanceDataSource {
 
     private static func double(_ value: Decimal) -> Double {
         NSDecimalNumber(decimal: value).doubleValue
+    }
+
+    /// 财务域「月」语义对齐记账周期（与统计页同一口径）。
+    /// 仅白名单命中「本月/这个月/月至今/上月/上个月」时换算（「近一个月」等滚动窗口语义不动），
+    /// 其他域的时间语义不受影响（此函数只在财务数据源内调用）。
+    private static func financeCycleAligned(_ range: HoloAgentTimeRange?, calendar: Calendar) -> HoloAgentTimeRange? {
+        guard let range else { return nil }
+        let label = range.label
+        let isPrevious = label.contains("上个月") || label.contains("上月")
+        let isCurrentMonth = label.contains("本月") || label.contains("这个月") || label.contains("月至今")
+        guard isPrevious || isCurrentMonth else { return range }
+
+        let startDay = FinancePeriodSettings.storedBillingCycleStartDay
+        let today = calendar.startOfDay(for: Date())
+        if isPrevious {
+            let prev = BillingCycleCalculator.previousCycleRange(startDay: startDay, reference: today, calendar: calendar)
+            let prevEnd = calendar.date(byAdding: .day, value: -1, to: prev.end) ?? today
+            return HoloAgentTimeRange(label: "\(label)·记账周期", start: prev.start, end: prevEnd)
+        }
+        let current = BillingCycleCalculator.currentCycleRange(startDay: startDay, reference: today, calendar: calendar)
+        return HoloAgentTimeRange(label: "\(label)·记账周期", start: current.start, end: today)
     }
 }

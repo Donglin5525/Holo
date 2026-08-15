@@ -41,6 +41,10 @@ struct HabitTileView: View {
     @State private var streakInfo: HabitStreak = .zero()
     @State private var showValueInput: Bool = false
     @State private var inputValue: String = ""
+    @State private var inputNote: String = ""
+    /// 打卡型「当日备注」编辑弹层
+    @State private var showCheckInNote: Bool = false
+    @State private var checkInNoteText: String = ""
     /// 测量类「撤销」确认弹窗（与原卡片的确认行为一致）
     @State private var showUndoConfirm: Bool = false
     /// 坏习惯超标提示文案是否可见（3 秒自动消失，复刻原卡片）
@@ -74,6 +78,7 @@ struct HabitTileView: View {
             .contextMenu { menuItems }
             .onTapGesture { handlePrimaryAction() }
             .sheet(isPresented: $showValueInput) { valueInputSheet }
+            .sheet(isPresented: $showCheckInNote) { checkInNoteSheet }
             .onAppear {
                 cachedHabitId = habit.id
                 loadStatus()
@@ -99,8 +104,7 @@ struct HabitTileView: View {
     private var tileContent: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .top) {
-                habit.iconImage(size: 26)
-                    .foregroundColor(isCompleted ? .white : habit.habitColor)
+                tileIcon
 
                 Spacer()
 
@@ -130,6 +134,26 @@ struct HabitTileView: View {
                     .lineLimit(1)
                     .transition(.opacity)
             }
+        }
+    }
+
+    /// 磁贴图标：单色图标完成时变白；emoji 自带颜色无法变白，完成态用白色圆片托底，
+    /// 避免彩色 emoji 直接压在实色习惯色背景上显脏
+    @ViewBuilder
+    private var tileIcon: some View {
+        if EmojiCatalog.isEmojiIcon(habit.icon) {
+            if isCompleted {
+                Text(habit.icon)
+                    .font(.system(size: 19))
+                    .frame(width: 27, height: 27)
+                    .background(Circle().fill(Color.white.opacity(0.28)))
+            } else {
+                Text(habit.icon)
+                    .font(.system(size: 26))
+            }
+        } else {
+            habit.iconImage(size: 26)
+                .foregroundColor(isCompleted ? .white : habit.habitColor)
         }
     }
 
@@ -200,6 +224,7 @@ struct HabitTileView: View {
     }
 
     /// 打卡型：本周点阵（过去完成实色 / 未完成淡色 / 今天描边 / 未来最淡）
+    /// 今日已打卡时行尾提供备注入口（低频操作，不占打卡主路径）
     private var weekDots: some View {
         HStack(spacing: 5) {
             ForEach(0..<7, id: \.self) { day in
@@ -216,7 +241,61 @@ struct HabitTileView: View {
                             .opacity(isToday ? 1 : 0)
                     )
             }
+
+            if isCompleted {
+                Spacer(minLength: 0)
+                Button {
+                    checkInNoteText = HabitRepository.shared.findTodayCheckInRecord(for: habit)?.note ?? ""
+                    showCheckInNote = true
+                } label: {
+                    Image(systemName: "square.and.pencil")
+                        .font(.system(size: 10))
+                        .foregroundColor(isCompleted ? .white.opacity(0.7) : habit.habitColor.opacity(0.6))
+                }
+                .buttonStyle(.plain)
+            }
         }
+    }
+
+    /// 打卡型：当日记录补/改备注
+    private var checkInNoteSheet: some View {
+        NavigationView {
+            VStack(alignment: .leading, spacing: HoloSpacing.md) {
+                TextField("备注（可选，如：状态不错）", text: $checkInNoteText)
+                    .font(.holoBody)
+                    .padding(10)
+                    .background(Color.holoCardBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                    .onChange(of: checkInNoteText) { _, newValue in
+                        if newValue.count > 100 { checkInNoteText = String(newValue.prefix(100)) }
+                    }
+                Spacer()
+            }
+            .padding(HoloSpacing.lg)
+            .background(Color.holoBackground)
+            .navigationTitle("打卡备注")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button("取消") { showCheckInNote = false }
+                        .foregroundColor(.holoTextSecondary)
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("保存") { saveCheckInNote() }
+                        .font(.holoBody)
+                        .foregroundColor(.holoPrimary)
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    private func saveCheckInNote() {
+        if let record = HabitRepository.shared.findTodayCheckInRecord(for: habit) {
+            let trimmed = checkInNoteText.trimmingCharacters(in: .whitespacesAndNewlines)
+            try? HabitRepository.shared.updateRecord(record, value: nil, note: trimmed.isEmpty ? nil : trimmed)
+        }
+        showCheckInNote = false
     }
 
     private func dotFill(hit: Bool, future: Bool) -> Color {
@@ -361,6 +440,7 @@ struct HabitTileView: View {
 
             Button {
                 inputValue = ""
+                inputNote = ""
                 showValueInput = true
             } label: {
                 Text("记录")
@@ -570,6 +650,16 @@ struct HabitTileView: View {
                     .background(Color.holoCardBackground)
                     .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
 
+                TextField("备注（可选，如：膝盖疼只跑2公里）", text: $inputNote)
+                    .font(.holoBody)
+                    .onSubmit { isValueInputFocused = true }
+                    .padding(10)
+                    .background(Color.holoCardBackground)
+                    .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                    .onChange(of: inputNote) { _, newValue in
+                        if newValue.count > 100 { inputNote = String(newValue.prefix(100)) }
+                    }
+
                 Spacer()
             }
             .padding(HoloSpacing.lg)
@@ -608,8 +698,9 @@ struct HabitTileView: View {
             return
         }
 
+        let note = inputNote.trimmingCharacters(in: .whitespacesAndNewlines)
         do {
-            _ = try HabitRepository.shared.addNumericRecord(for: habit, value: value)
+            _ = try HabitRepository.shared.addNumericRecord(for: habit, value: value, note: note.isEmpty ? nil : note)
             let firstOfToday = todayValue == nil
             todayValue = HabitRepository.shared.getTodayValue(for: habit)
             showValueInput = false

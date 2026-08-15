@@ -10,7 +10,6 @@ import Foundation
 nonisolated struct GoalDomainMemoryInput: Equatable, Sendable {
     var id: String
     var title: String
-    var isUserCreated: Bool
     var isCompleted: Bool
     var progress: Double
     var expectedProgress: Double
@@ -66,7 +65,7 @@ struct GoalMemorySignalBuilder {
         from inputs: [GoalDomainMemoryInput]
     ) -> [HoloDomainMemorySignal] {
         inputs.flatMap { input -> [HoloDomainMemorySignal] in
-            guard input.isUserCreated, !input.id.isEmpty, !input.revisionDigest.isEmpty,
+            guard !input.id.isEmpty, !input.revisionDigest.isEmpty,
                   (0...1).contains(input.progress),
                   let anchor = try? HoloMemoryAnchorRef(
                     type: .goal,

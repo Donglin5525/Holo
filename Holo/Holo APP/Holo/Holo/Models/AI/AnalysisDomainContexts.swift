@@ -136,6 +136,8 @@ nonisolated struct HabitPerformanceItem: Codable, Equatable, Sendable {
     let overLimitDays: Int?
     let completedDays: Int?
     let totalDays: Int?
+    /// 周期内该习惯的记录备注（新→旧，最多 3 条）：用户自述的行为上下文，归因分析用
+    let recentNotes: [String]
 
     init(
         habitName: String,
@@ -149,7 +151,8 @@ nonisolated struct HabitPerformanceItem: Codable, Equatable, Sendable {
         controlledDays: Int? = nil,
         overLimitDays: Int? = nil,
         completedDays: Int? = nil,
-        totalDays: Int? = nil
+        totalDays: Int? = nil,
+        recentNotes: [String] = []
     ) {
         self.habitName = habitName
         self.completionRate = completionRate
@@ -163,6 +166,7 @@ nonisolated struct HabitPerformanceItem: Codable, Equatable, Sendable {
         self.overLimitDays = overLimitDays
         self.completedDays = completedDays
         self.totalDays = totalDays
+        self.recentNotes = recentNotes
     }
 }
 

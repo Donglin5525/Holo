@@ -50,7 +50,8 @@ struct HoloDefaultHabitDataSource: HoloHabitDataSource {
                     isMeasureType: habit.isMeasureType
                 ),
                 unit: habit.isNumericType ? habit.unitText : nil,
-                isMeasureType: habit.isMeasureType
+                isMeasureType: habit.isMeasureType,
+                recentNotes: collectNotes(records: records, today: referenceDay, dayCount: dayCount)
             )
         }
     }
@@ -90,5 +91,25 @@ struct HoloDefaultHabitDataSource: HoloHabitDataSource {
             }
         }
         return bucket.enumerated().map { HoloHabitDailyCount(dayOffset: $0.offset, count: $0.element) }
+    }
+
+    /// 收集近期备注（近→早，最多 5 条）：同一天多条时取最新一条
+    private static func collectNotes(records: [HabitRecord], today: Date, dayCount: Int) -> [HoloHabitDailyNote] {
+        let calendar = Calendar.current
+        var latestByOffset: [Int: (date: Date, note: String)] = [:]
+        for record in records {
+            guard let note = record.note?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty else { continue }
+            let dayOffset = calendar.dateComponents([.day], from: calendar.startOfDay(for: record.date), to: today).day ?? -1
+            guard dayOffset >= 0, dayOffset < dayCount else { continue }
+            if let existing = latestByOffset[dayOffset], existing.date >= record.date {
+                continue
+            }
+            latestByOffset[dayOffset] = (record.date, note)
+        }
+        return latestByOffset
+            .map { HoloHabitDailyNote(dayOffset: $0.key, note: $0.value.note) }
+            .sorted { $0.dayOffset < $1.dayOffset }
+            .prefix(5)
+            .map { $0 }
     }
 }

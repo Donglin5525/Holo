@@ -31,6 +31,13 @@ struct HealthInsightHabitRecord: Codable, Equatable, Sendable {
     var completionRate: Double
 }
 
+/// 习惯记录备注：用户自述的当日行为上下文（如「膝盖疼只跑2公里」）。
+struct HealthInsightHabitNote: Codable, Equatable, Sendable {
+    var date: Date
+    var habitName: String
+    var note: String
+}
+
 /// 每日待办完成数。
 struct HealthInsightTaskRecord: Codable, Equatable, Sendable {
     var date: Date
@@ -60,6 +67,12 @@ protocol HealthInsightDataSource: Sendable {
     func taskDailyCompletion(from start: Date, to end: Date) async -> [HealthInsightTaskRecord]
     /// 每日观点条数。
     func thoughtDailyCount(from start: Date, to end: Date) async -> [HealthInsightThoughtRecord]
+    /// 周期内习惯记录备注（默认空，生产实现覆盖）。
+    func habitRecentNotes(from start: Date, to end: Date) async -> [HealthInsightHabitNote]
+}
+
+extension HealthInsightDataSource {
+    func habitRecentNotes(from start: Date, to end: Date) async -> [HealthInsightHabitNote] { [] }
 }
 
 /// 生产实现：包裹各模块 Repository。
@@ -93,6 +106,10 @@ struct HoloHealthInsightDataSource: HealthInsightDataSource {
 
     func habitDailyCompletion(from start: Date, to end: Date) async -> [HealthInsightHabitRecord] {
         await Self.extractHabitCompletion(from: start, to: end)
+    }
+
+    func habitRecentNotes(from start: Date, to end: Date) async -> [HealthInsightHabitNote] {
+        await Self.extractHabitNotes(from: start, to: end)
     }
 
     func taskDailyCompletion(from start: Date, to end: Date) async -> [HealthInsightTaskRecord] {
@@ -149,6 +166,21 @@ struct HoloHealthInsightDataSource: HealthInsightDataSource {
         return dayHitCount.map { (day, hit) in
             HealthInsightHabitRecord(date: day, completionRate: Double(hit) / total)
         }
+    }
+
+    /// 周期内习惯记录备注（新→旧，全量非空备注；总量小，无截断）
+    @MainActor
+    private static func extractHabitNotes(from start: Date, to end: Date) async -> [HealthInsightHabitNote] {
+        let repo = HabitRepository.shared
+        let range = start...end
+        var notes: [HealthInsightHabitNote] = []
+        for habit in repo.activeHabits {
+            for record in repo.getRecords(for: habit, in: range) {
+                guard let note = record.note?.trimmingCharacters(in: .whitespacesAndNewlines), !note.isEmpty else { continue }
+                notes.append(HealthInsightHabitNote(date: record.date, habitName: habit.name, note: note))
+            }
+        }
+        return notes.sorted { $0.date > $1.date }
     }
 
     @MainActor
@@ -286,6 +318,7 @@ struct HealthInsightContextBuilder {
         let workoutData = await dataSource.dailyWorkouts(from: window.start, to: window.end)
         let financeData = await dataSource.financeRecords(from: window.start, to: window.end)
         let habitData = await dataSource.habitDailyCompletion(from: window.start, to: window.end)
+        let habitNoteData = await dataSource.habitRecentNotes(from: window.start, to: window.end)
         let taskData = await dataSource.taskDailyCompletion(from: window.start, to: window.end)
         let thoughtData = await dataSource.thoughtDailyCount(from: window.start, to: window.end)
 
@@ -333,6 +366,7 @@ struct HealthInsightContextBuilder {
         evidence.append(contentsOf: sleepEvidence(for: lowSleepDays, sleepByDay: sleepByDay))
         evidence.append(contentsOf: taskEvidence(for: candidateTargetDays, taskByDay: taskByDay))
         evidence.append(contentsOf: habitEvidence(for: candidateTargetDays, habitByDay: habitByDay))
+        evidence.append(contentsOf: habitNoteEvidence(notes: habitNoteData))
         evidence.append(contentsOf: thoughtEvidence(for: candidateTargetDays, thoughtByDay: thoughtByDay))
         evidence.append(contentsOf: financeEvidence(for: candidates, financeByDay: financeByDay))
         evidence.append(contentsOf: workoutEvidence(for: workoutSufficientDays, workoutByDay: workoutByDay))
@@ -522,6 +556,22 @@ struct HealthInsightContextBuilder {
                 metricKey: "habit.completion.rate",
                 metricValue: record.completionRate,
                 unit: "比例"
+            )
+        }
+    }
+
+    /// 备注证据（最多 10 条）：用户自述的行为上下文，解释健康/习惯波动的关键文本
+    private func habitNoteEvidence(notes: [HealthInsightHabitNote]) -> [HealthInsightEvidence] {
+        notes.prefix(10).map { note in
+            HealthInsightEvidence(
+                id: "habit-note-\(Self.dateString(from: note.date))-\(note.habitName)",
+                domain: .habit,
+                occurredAt: note.date,
+                title: "\(Self.displayDate(from: note.date)) \(note.habitName) 备注",
+                detail: String(note.note.prefix(80)),
+                metricKey: "habit.record.note",
+                metricValue: nil,
+                unit: nil
             )
         }
     }

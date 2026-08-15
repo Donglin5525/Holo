@@ -243,27 +243,41 @@ struct TaskDetailView: View {
     @ViewBuilder
     private var sourceThoughtSection: some View {
         if let thought = task.sourceThought {
-            HStack(spacing: 12) {
-                Image(systemName: "lightbulb")
-                    .font(.system(size: 16))
-                    .foregroundColor(.holoPrimary)
-                    .frame(width: 24)
+            VStack(spacing: 8) {
+                HStack(spacing: 12) {
+                    Image(systemName: "lightbulb")
+                        .font(.system(size: 16))
+                        .foregroundColor(.holoPrimary)
+                        .frame(width: 24)
 
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("来自想法")
-                        .font(.holoBody)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("来自想法")
+                            .font(.holoBody)
+                            .foregroundColor(.holoTextSecondary)
+                        Text(thought.firstLine ?? String(thought.content.prefix(30)))
+                            .font(.holoCaption)
+                            .foregroundColor(.holoTextPrimary)
+                            .lineLimit(1)
+                    }
+
+                    Spacer()
+
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .medium))
                         .foregroundColor(.holoTextSecondary)
-                    Text(thought.firstLine ?? String(thought.content.prefix(30)))
-                        .font(.holoCaption)
-                        .foregroundColor(.holoTextPrimary)
-                        .lineLimit(1)
                 }
 
-                Spacer()
-
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundColor(.holoTextSecondary)
+                // 选中文字转任务时保留的原文选区（任务标题后来改过时仍可追溯来源句）
+                if let snippet = task.sourceTextSnippet, !snippet.isEmpty {
+                    Text("原文：\(snippet)")
+                        .font(.holoCaption)
+                        .foregroundColor(.holoTextSecondary)
+                        .lineLimit(2)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(8)
+                        .background(Color.holoBackground)
+                        .clipShape(RoundedRectangle(cornerRadius: HoloRadius.md))
+                }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 14)

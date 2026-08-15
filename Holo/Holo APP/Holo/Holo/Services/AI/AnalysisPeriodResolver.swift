@@ -48,7 +48,8 @@ struct AnalysisPeriodResolver {
         let (start, end, label) = resolveDateRange(
             extractedData: extractedData,
             originalText: originalText,
-            referenceDate: referenceDate
+            referenceDate: referenceDate,
+            domain: domain
         )
         let (compStart, compEnd, compLabel) = resolveComparison(
             extractedData: extractedData,
@@ -85,7 +86,8 @@ struct AnalysisPeriodResolver {
     private static func resolveDateRange(
         extractedData: [String: String]?,
         originalText: String,
-        referenceDate: Date
+        referenceDate: Date,
+        domain: AnalysisDomain
     ) -> (start: Date, end: Date, label: String) {
         let calendar = Calendar.current
         let today = calendar.startOfDay(for: referenceDate)
@@ -139,8 +141,15 @@ struct AnalysisPeriodResolver {
             return (yStart, yEnd, "\(year)年")
         }
 
-        // 上个月
+        // 上个月（财务域=上个记账周期，与统计页口径一致；其余域=自然月）
         if lower.contains("上个月") || lower.contains("上个月") {
+            if domain == .finance {
+                let startDay = FinancePeriodSettings.storedBillingCycleStartDay
+                let range = BillingCycleCalculator.previousCycleRange(startDay: startDay, reference: today)
+                if let prevEnd = calendar.date(byAdding: .day, value: -1, to: range.end) {
+                    return (range.start, prevEnd, "上个记账周期")
+                }
+            }
             guard let prevMonth = calendar.date(byAdding: .month, value: -1, to: today),
                   let range = calendar.dateInterval(of: .month, for: prevMonth),
                   let prevEnd = calendar.date(byAdding: .day, value: -1, to: range.end) else {
@@ -149,8 +158,14 @@ struct AnalysisPeriodResolver {
             return (range.start, prevEnd, formatLabel(start: range.start, end: prevEnd))
         }
 
-        // 本月 / 这个月
+        // 本月 / 这个月（财务域=当前记账周期，与统计页口径一致；其余域=自然月）
         if lower.contains("本月") || lower.contains("这个月") || lower.contains("这个月") {
+            if domain == .finance {
+                let startDay = FinancePeriodSettings.storedBillingCycleStartDay
+                let range = BillingCycleCalculator.currentCycleRange(startDay: startDay, reference: today)
+                let end = calendar.date(byAdding: .day, value: -1, to: range.end) ?? today
+                return (range.start, end, "本记账周期")
+            }
             let range = calendar.dateInterval(of: .month, for: today)!
             let end = calendar.date(byAdding: .day, value: -1, to: range.end)!
             return (range.start, end, "本月")
