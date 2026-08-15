@@ -64,6 +64,18 @@ const DEFAULT_CONFIG = {
       model: process.env.HOLO_INSIGHT_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
       temperature: Number(process.env.HOLO_INSIGHT_TEMPERATURE ?? 0.3),
       maxTokens: Number(process.env.HOLO_INSIGHT_MAX_TOKENS ?? 4096),
+      // §latency: 周期回放默认吃上游满血推理档（未传 effort 时），长输出叠加长思维链导致
+      // 生成动辄 60s+；low 档可稳定输出洞察 JSON，耗时约减半。
+      reasoningEffort: process.env.HOLO_INSIGHT_REASONING_EFFORT ?? "low",
+    },
+    weekly_plan_generation: {
+      provider: process.env.HOLO_WEEKLY_PLAN_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
+      model: process.env.HOLO_WEEKLY_PLAN_MODEL ?? process.env.HOLO_CHAT_MODEL ?? "holo-mock",
+      temperature: Number(process.env.HOLO_WEEKLY_PLAN_TEMPERATURE ?? 0.2),
+      maxTokens: Number(process.env.HOLO_WEEKLY_PLAN_MAX_TOKENS ?? 4096),
+      // §latency: 周计划组装输出是简单结构化 JSON（非 agent 协议），none 档实测
+      // 6-8s（low 档 15-25s）且 3/3 输出有效；复杂协议（agent_loop 工具轮）不适用 none。
+      reasoningEffort: process.env.HOLO_WEEKLY_PLAN_REASONING_EFFORT ?? "none",
     },
     replayDigest: {
       provider: process.env.HOLO_REPLAY_DIGEST_PROVIDER ?? process.env.HOLO_INSIGHT_PROVIDER ?? process.env.HOLO_CHAT_PROVIDER ?? "mock",
